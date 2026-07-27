@@ -279,8 +279,7 @@ export function GmailConnect() {
                 <li>Läsa e-post (gmail.readonly) — inte skriva eller skicka</li>
               </ul>
               <p className="text-body-sm text-text-secondary">
-                Din data skickas till Anthropics API för att identifiera
-                jobbrelaterade mejl. Läs{" "}
+                Läs{" "}
                 <Link href="/integritetspolicy" className="text-brand-600 underline">
                   integritetspolicyn
                 </Link>{" "}
@@ -302,4 +301,9 @@ export function GmailConnect() {
 ```
 
 Note: this consent dialog is required by GDPR Art. 7 — do not simplify
-or remove it without consulting `security-auditor`.
+or remove it without consulting `security-auditor`. The body text must state
+only recipients that actually exist: it previously named "Anthropics API" as
+the recipient of the user's mail, which was never true after ADR 0071 (no
+AI/LLM, no third-country transfer) and would have been an Art. 13 inaccuracy
+if pasted into a real dialog. Gmail sync itself is deferred, not removed
+(BUILD.md §9.2, #321).

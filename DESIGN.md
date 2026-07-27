@@ -162,7 +162,10 @@ Full spec, variant-states och JSX-kompositionsexempel → **jobbpilot-design-com
 - Inga utropstecken i info/success. OK i error om det förstärker brådska — sparsamt.
 - Inga emojis, inga engelska fraser i svensk copy
 - Svenska locale-format: "14 apr 2026", "14:32", "33 456 kr"
-- AI-samtycken alltid explicita om vad som skickas vart (GDPR Art. 7)
+- Matchning presenteras som kategori, aldrig som procenttal, mätare eller ring
+  (ADR 0076 Decision 4, ADR 0053 Amendment 2026-06-19); ett CV-omdöme citerar
+  alltid stället i CV:t. Produkten innehåller ingen AI/LLM (ADR 0071), så det
+  finns ingen AI-samtyckescopy att skriva.
 
 Microcopy-library, felkoder (40+ med svenska translations) och locale-formatting-funktioner → **jobbpilot-design-copy**.
 

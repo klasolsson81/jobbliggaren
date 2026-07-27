@@ -124,7 +124,10 @@ Aldrig byt ut mot: Material UI, Chakra, Mantine, Headless UI.
 - `.jp-attentionqueue` — prioriterad lyft-lista (Ansökningar). Återanvänder ledger-raden `.jp-app`; lede max 68ch, hairlines, ingen låda
 - `.jp-pipeline` — kanban som ledger-rader, kolumner åtskilda av `border-strong`, INGA floating cards
 - `.jp-statusDot` (förstaval i tabeller — prick + text, ingen bg) vs `.jp-pill` (accent vid entitet — färgad 50-bg + prick + text)
-- `.jp-match` — progress-bar 6px: brand ≥75, info 50–74, warning <50
+- `.jp-match` — **utgången.** Matchning visas aldrig som mätare eller procenttal
+  (§8, ADR 0076 Decision 4); den levande formen är `.jp-matchchip` (namngiven
+  grad). Klassen har noll konsumenter utanför `match-bar.tsx`; komponent + CSS
+  tas bort atomiskt i följd-PR (guard:css binder de två — inte den här raden).
 - `.jp-filterBar` — flat rad mellan två hairlines, fält i naturlig bredd, ingen chrome-box
 - `.jp-banner` — info-banner med 3px brand-vänsterkant, används sparsamt
 - **Knapphöjd — TVÅ system, båda live (truth-sync 2026-07-26, Klas-direktiv "det vi använder live idag ska gälla"):** `.jp-btn` = **44px** (`.jp-btn--sm` 36px), och den bär de allra flesta knapparna (46 filer). shadcn-primitiven `Button` = **40px** (`sm` 36px, `lg` 44px). Raden här sa tidigare bara 40px, vilket var sant om shadcn och falskt om `.jp-btn` — mätt. Radius 4px, transition 80ms, max EN `--primary` per skärm (ADR 0038)

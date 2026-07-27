@@ -11,10 +11,10 @@
     "canDoHeading": "Here is what you can do as a guest:",
     "canDoBrowse": "Browse the overview of applications and CVs",
     "canDoPipeline": "See how the pipeline view works",
-    "canDoResumes": "Review CV variants and layout",
+    "canDoResumes": "Review example CV variants",
     "needsAccountHeading": "Here is what requires an account:",
     "needsAccountSearch": "Search and save job ads from Platsbanken",
-    "needsAccountEdit": "Upload and review your CV, and manage your own applications",
+    "needsAccountEdit": "Upload your CV for review and follow up on your own applications",
     "needsAccountNotices": "Get notices and follow-ups",
     "startExploring": "Start exploring"
   },

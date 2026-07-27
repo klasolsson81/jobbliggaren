@@ -34,7 +34,7 @@
     },
     "matching": {
       "key": "Matchning",
-      "body": "Annonser som matchar din profil får en av fyra grader, från Grundmatch till Toppmatch. Du ser vilka krav du uppfyller och vilka som saknas."
+      "body": "Annonser som matchar din profil får en av fyra grader, från Grundmatch till Toppmatch. Har du laddat upp ett CV ser du vilka krav du uppfyller."
     },
     "applications": {
       "key": "Ansökningar",
@@ -46,11 +46,11 @@
     },
     "companyWatch": {
       "key": "Företagsbevakning",
-      "body": "Följ arbetsgivare du vill till och få besked om nya annonser i den takt du valt. En smart bevakning söker fram företag i en bransch och kommun att följa."
+      "body": "Följ arbetsgivare du vill till och se nya annonser från dem på översikten. En smart bevakning söker fram företag efter bransch och kommun att följa."
     },
     "reminders": {
       "key": "Påminnelser",
-      "body": "Sista ansökningsdag för dina sparade annonser bevakas åt dig. Intervjuer, erbjudanden och uteblivna svar samlas som notiser på översikten."
+      "body": "Du får en notis när sparade annonser närmar sig sista ansökningsdag. Intervjuer, erbjudanden och uteblivna svar samlas också på översikten."
     }
   },
   "auth": {

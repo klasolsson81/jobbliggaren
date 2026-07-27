@@ -455,10 +455,18 @@ jobs:
       # den här PR:en finns för att ta bort.
       #
       # Det är ett EGET steg med ett vanligt `if:`, inte ett `${{ }}`-uttryck
-      # inbakat i `BODY` ovan. Skälet är riktningen på felet: ett trasigt uttryck
-      # i en workflow-fil kan hindra HELA filen från att köra, och då armeras och
-      # avväpnas ingenting — fail-open. Ett extra steg med samma `if:`-idiom som
-      # de fyra andra i jobbet kan i värsta fall utebli.
+      # inbakat i `BODY` ovan. Skälet är INTE filvaliditet — ett `if:` ÄR ett
+      # workflow-uttryck, och ett trasigt sådant invaliderar filen precis lika
+      # mycket som ett trasigt uttryck i `BODY`. Samma motor, samma parse.
+      # Skälet är vad en felaktig UTVÄRDERING producerar: ett `${{ }}` i `BODY`
+      # postar kommentaren ändå, nu med ett falskt påstående om huruvida
+      # auto-merge är av — alltså en overifierad utfästelse i tråden, exakt det
+      # här steget finns för att ta bort. Ett eget steg kan i värsta fall utebli
+      # (huvudkommentaren är fortfarande sann om labeln, och grinden är fortfarande
+      # korrekt avväpnad) eller postas i onödan (brus, säker riktning).
+      # Att `if:`-idiomet redan är bevisat i jobbets fyra andra steg är en
+      # riskreduktion ovanpå det — men det är en egenskap hos idiomet, inte hos
+      # stegformen, och stegformen är inte strukturellt immun mot något.
       #
       # Varför tråden och inte bara loggen: CLAUDE.md §6.5 konstaterar att
       # `label-automerge` inte är en required check, så ingenting ytar ett rött
@@ -470,10 +478,10 @@ jobs:
           PR_URL: ${{ github.event.pull_request.html_url }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           BODY: |
-            **The first half of that heading is unverified.** The step that
-            disables auto-merge did not succeed, so auto-merge may still be
-            enabled and this PR may merge on green `ci` even though
-            `agents-done` is gone.
+            **The disarm comment's heading, if it posted, is unverified in its
+            first half.** The step that disables auto-merge did not succeed, so
+            auto-merge may still be enabled and this PR may merge on green `ci`
+            even though `agents-done` is gone.
 
             Read the `auto-merge (disarm — grinden bröts)` job log and disable
             auto-merge by hand before doing anything else (#836).

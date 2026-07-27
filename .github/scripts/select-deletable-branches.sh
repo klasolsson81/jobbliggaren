@@ -69,13 +69,27 @@
 # "head of a merged PR" by name. GitHub's "Restore branch" would then restore
 # the MERGED commit, not the work that was on the branch. `head-of-open-pr`
 # catches reuse WITH a PR open; nothing but the SHA check catches reuse before
-# the PR exists. Measured 2026-07-27: 36 of 36 candidates had tip == merge tip,
-# so the guard is a no-op on today's population -- which prices it at zero, and
-# says nothing about whether it is needed (Saltzer & Schroeder 1975 §3, the same
+# the PR exists. Measured 2026-07-27: EVERY candidate had tip == merge tip, so
+# the guard is a no-op on today's population -- which prices it at zero, and says
+# nothing about whether it is needed (Saltzer & Schroeder 1975 §3, the same
 # citation `label-automerge.yml` leans on: fail-safe defaults are not weighed
-# against probability).
+# against probability). The claim is deliberately the RATIO and not an integer:
+# three readings the same afternoon gave 36, 37 and 38 candidates as PRs merged
+# underneath, and an integer here would have been stale within the hour -- the
+# same discipline the workflow header states for its own commit count.
 #
-# THE SEVEN SKIPS, AND WHY EACH ONE IS LOAD-BEARING
+# THE SEVEN GUARDS THAT WITHHOLD A DELETION, AND WHY EACH ONE IS LOAD-BEARING.
+# (There are EIGHT skip reasons; `no-merged-pr` is the eighth and is not a guard
+# but the absence of any authorisation in the first place. The full set is in the
+# REASONS table at the bottom of this header.)
+#
+# LISTED BY ROLE, NOT BY EVALUATION ORDER -- the order lives in the code and is
+# deliberate, because the FIRST guard that matches owns the reason column. So
+# `unsupported-name` runs first (nothing may be decided about a name we cannot
+# carry), and `tip-moved-since-merge` runs last, partly because the more
+# informative reason should win when several apply, and partly because its reason
+# embeds the merged PR number and therefore cannot be formed before the merged
+# lookup has happened.
 #
 #   default-branch     never delete the trunk, whatever the API says about it.
 #                      Read from the API rather than hardcoded, so it is
@@ -229,6 +243,9 @@ open_heads=$(jq -r '
 # the reason column silently swallows a newline -- which drops the branch out of
 # BOTH the delete and skip lists downstream. First match wins, and the input is
 # newest-first, so the newest merged PR is the one the SHA is compared against.
+# That ordering is `gh`'s documented default (createdAt descending) and is NOT
+# verified here; if it is ever wrong, the SHA comparison simply fails against an
+# older PR's oid and the branch SKIPS, so the failure direction is safe.
 lookup() { # lookup <table> <key> -> prints first matching row's remaining fields
   awk -F'\t' -v key="$2" '$1 == key { print $2 "\t" $3; exit }' <<<"$1"
 }
@@ -251,6 +268,13 @@ while IFS=$'\t' read -r branch protected tip_sha _rest || [ -n "${branch:-}" ]; 
   # `^`, `:`, `?`, `*`, `[`, `\` and control characters, so this allow-list
   # mainly has to exclude what git permits and REST paths mangle -- `#` and `%`.
   # A leading `-` is refused too, so the name can never be read as an option.
+  # It excludes considerably MORE than those two -- `+ @ , ( ) = & ! ; { '` and
+  # every non-ASCII character are all git-legal and REST-harmless, and are
+  # refused anyway. That is deliberate: an allow-list is cheaper to reason about
+  # than an exhaustive deny-list, and every one of the 44 branch names live in
+  # this repository today passes it. If a legitimate name is ever refused, the
+  # verdict is a SKIP, which costs a branch that lingers -- never a wrong
+  # deletion.
   #
   # `*..*` IS NOT REDUNDANT, and the reason is worth stating because it is the
   # one leg that would otherwise rest on somebody else's validator. A character

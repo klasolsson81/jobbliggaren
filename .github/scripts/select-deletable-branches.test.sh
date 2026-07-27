@@ -127,9 +127,27 @@ run reused_tip "[$(mine 11 'feat/reused' "$SHA1")]" '[]' \
 expect "branch reused after its PR merged survives" \
   $'skip\tfeat/reused\ttip-moved-since-merge-#11' 0
 
-# 3b. An unknown tip is not permission either.
+# 3b. An unknown tip is not permission either. NOTE: this case is carried by the
+#     `!=` comparison, not by the emptiness checks -- the merged oid is present,
+#     so the two sides already differ. The clause that actually needs pinning is
+#     the one below.
 run unknown_tip "[$(mine 12 'fix/done' "$SHA1")]" '[]' $'fix/done\tfalse\t\n'
 expect "unknown tip is not permission" $'skip\tfix/done\ttip-moved-since-merge-#12' 0
+
+# 3c. BOTH SIDES UNKNOWN -- the only shape the emptiness checks carry alone, and
+#     a producible one. `.commit.sha` renders as an EMPTY third column when the
+#     API returns null (measured: `[.name,(.protected|tostring),.commit.sha]|@tsv`
+#     -> `fix/x<TAB>false<TAB>`), and the script's own `(.headRefOid // "")`
+#     produces the empty string on the other side. Without the emptiness checks
+#     `"" != ""` is FALSE and the branch is DELETED on two unknowns.
+#     Found by mutation testing: removing both clauses left the entire suite
+#     green and flipped this verdict from skip to delete.
+#     (Either clause alone is sufficient, so removing just one is an equivalent
+#     mutant -- the redundancy is for readability, and only the pair is pinned.)
+run both_unknown '[{"number":13,"headRefName":"fix/done","headRefOid":null,"headRepositoryOwner":{"login":"acme"},"headRepository":{"name":"widget"}}]' \
+  '[]' $'fix/done\tfalse\t\n'
+expect "two unknown commit ids are not a match" \
+  $'skip\tfix/done\ttip-moved-since-merge-#13' 0
 
 # ---------------------------------------------------------------------------
 # 4. The default branch, guarded by name-from-API even though it is also

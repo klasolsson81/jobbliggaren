@@ -82,8 +82,10 @@
 # there is a statement about a span `before..after` whose inputs are GONE once
 # the run is cancelled -- it is not recomputable, so a cancelled run is a span
 # nobody ever reviewed. This job's inputs are always derivable from current
-# state. A cancelled run performs no deletion at all, and the next run decides
-# again from scratch; a deferred deletion is never a lost guarantee. It is
+# state. A cancelled run deletes only what the predicate had ALREADY authorised
+# -- `timeout-minutes` or a manual cancel can land mid-loop -- and it never
+# decides anything new; the next run re-derives the whole set from current state.
+# A deferred, or half-finished, deletion is therefore never a lost guarantee. It is
 # RECOMPUTABILITY that makes the group safe here, not any ordering property of
 # the deletions -- a later run may well decline what an earlier one would have
 # deleted, because a new stacked PR can appear overnight. Do not carry the group
@@ -182,13 +184,8 @@ jobs:
               --json number,headRefName,baseRefName >"open$1.json"
             gh api "repos/$REPO/branches?per_page=100" --paginate \
               --jq '.[] | [.name, (.protected|tostring), .commit.sha] | @tsv' >"branches$1.tsv"
-            for f in "merged$1.json" "open$1.json"; do
-              n=$(jq length "$f")
-              if [ "$n" -ge "$PR_PAGE_LIMIT" ]; then
-                echo "::error::$f returned $n entries against a ceiling of $PR_PAGE_LIMIT -- the list may be truncated, and a truncated open-PR list is fail-OPEN. Refusing to decide. Raise PR_PAGE_LIMIT."
-                exit 1
-              fi
-            done
+            bash .github/scripts/assert-not-truncated.sh "merged$1.json" "$PR_PAGE_LIMIT"
+            bash .github/scripts/assert-not-truncated.sh "open$1.json" "$PR_PAGE_LIMIT"
           }
           fetch_round 1
           echo "round 1: merged=$(jq length merged1.json) open=$(jq length open1.json) branches=$(wc -l <branches1.tsv)"
@@ -199,6 +196,7 @@ jobs:
       - name: Decide which branches are deletable (round 1)
         run: |
           set -euo pipefail
+          export LC_ALL=C   # byte collation, so `sort`/`comm` agree provably rather than observably
           bash .github/scripts/select-deletable-branches.sh \
             merged1.json open1.json branches1.tsv "$DEFAULT_BRANCH" "$OWNER" "$REPO_NAME" >verdicts1.tsv
           {
@@ -231,6 +229,7 @@ jobs:
       - name: Re-read and intersect (narrows the TOCTOU window)
         run: |
           set -euo pipefail
+          export LC_ALL=C   # byte collation, so `sort`/`comm` agree provably rather than observably
           fetch_round() {
             gh pr list --repo "$REPO" --state merged --limit "$PR_PAGE_LIMIT" \
               --json number,headRefName,headRefOid,headRepositoryOwner,headRepository >"merged$1.json"
@@ -238,13 +237,8 @@ jobs:
               --json number,headRefName,baseRefName >"open$1.json"
             gh api "repos/$REPO/branches?per_page=100" --paginate \
               --jq '.[] | [.name, (.protected|tostring), .commit.sha] | @tsv' >"branches$1.tsv"
-            for f in "merged$1.json" "open$1.json"; do
-              n=$(jq length "$f")
-              if [ "$n" -ge "$PR_PAGE_LIMIT" ]; then
-                echo "::error::$f returned $n entries against a ceiling of $PR_PAGE_LIMIT -- refusing to decide."
-                exit 1
-              fi
-            done
+            bash .github/scripts/assert-not-truncated.sh "merged$1.json" "$PR_PAGE_LIMIT"
+            bash .github/scripts/assert-not-truncated.sh "open$1.json" "$PR_PAGE_LIMIT"
           }
           fetch_round 2
           bash .github/scripts/select-deletable-branches.sh \
@@ -279,6 +273,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Delete (skipped on a dry run)
+        id: delete
         if: steps.mode.outputs.dry == 'false' && steps.select.outputs.count != '0'
         run: |
           set -uo pipefail
@@ -293,6 +288,15 @@ jobs:
           # 404 (already gone) and 429 (rate limited) are three different stories
           # and swallowing them makes the log useless. `gh` never writes the
           # token to stderr, so there is nothing to hide.
+          # PACED. GitHub's SECONDARY rate limit is about burst rate, not the
+          # hourly quota, and its documented mitigation is to wait ~1 s between
+          # mutating requests. The first live run is also the largest -- it
+          # clears the whole accumulated backlog in one pass, dozens of branches
+          # -- and that same run is the acceptance test for this workflow. A
+          # throttled sweep would fail loudly (the branch survives, verify goes
+          # red) rather than silently, but it would fail on the one run whose
+          # result everybody reads. A second per branch is free here; the job
+          # has a 10-minute budget and nothing waits on it.
           while IFS= read -r branch || [ -n "${branch:-}" ]; do
             [ -n "${branch:-}" ] || continue
             if err=$(gh api -X DELETE "repos/$REPO/git/refs/heads/$branch" 2>&1 >/dev/null); then
@@ -300,6 +304,7 @@ jobs:
             else
               echo "delete call failed for $branch (verified against state below): ${err//$'\n'/ }"
             fi
+            sleep 1
           done <to-delete.txt
         env:
           REPO: ${{ github.repository }}
@@ -320,7 +325,7 @@ jobs:
       # `always()` so the state is reported even if the delete step died: a
       # deletion nobody verified is exactly what this step exists to prevent.
       - name: Verify the refs are actually gone
-        if: always() && steps.mode.outputs.dry == 'false' && steps.select.outputs.count != '' && steps.select.outputs.count != '0'
+        if: always() && steps.delete.outcome != 'skipped'
         run: |
           set -euo pipefail
           gh api "repos/$REPO/branches?per_page=100" --paginate --jq '.[].name' >after.txt

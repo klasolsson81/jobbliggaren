@@ -43,7 +43,7 @@ layouts. Light/dark follow the `--jp-*` tokens automatically.
 | `.jp-pipeline` | Kanban as ledger rows. Columns separated by `--jp-border-strong` (stronger than row hairlines), **NO floating cards** (`.jp-appCard` is `display:none`). Rows are `.jp-appRow`. | Application pipeline. |
 | `.jp-statusDot` | Dot + text, **no background**. `--brand`/`--info`/`--success`/`--warning`/`--danger`/`--neutral`. | **First choice in tables** for status. |
 | `.jp-pill` | Pill: colored `*-50` bg + 6px dot + `*-700` text, `rounded-pill`. | Status **at an entity** (accent moment), not in dense table columns. |
-| `.jp-match` | 6px progress bar: brand fill ≥75, `--mid` (info) 50–74, `--low` (warning) <50. | Match-score. |
+| `.jp-matchchip` | Namngiven matchningsgrad (Toppmatch/Stark/Bra/Grundmatch, plus neutral `--related`). | Matchning. **Detta är den enda tillåtna matchningsformen** — aldrig procenttal, mätare eller ring (DESIGN.md §8, ADR 0076 Decision 4, ADR 0053 Amendment 2026-06-19). |
 | `.jp-filterBar` | Flat grid between two hairlines, fields at natural width, **no chrome box**. | Filter rows. |
 | `.jp-banner` | Brand-50 bg + 3px `brand-600` left border. Use sparingly. | Non-blocking info notice. |
 

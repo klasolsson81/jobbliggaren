@@ -353,15 +353,12 @@ font 11.5px/500; 6px dot
 Use when status is an entity's headline at one point — not for dense table
 columns (use `.jp-statusDot` there).
 
-### `.jp-match` (score bar)
+### `.jp-match` (score bar) — BORTTAGEN
 
-```
-inline-flex; gap 8px; mono 13px; color text-secondary
-bar:  72px × 6px; bg surface-tertiary; border-radius 2px
-fill: brand-600   (default, score ≥ 75)
-fill--mid:  info-600    (50–74)
-fill--low:  warning-600 (< 50)
-```
+Klassen och dess komponent `match-bar.tsx` är borta. En 0–100-fyllnadsgrad är
+ett opakt aggregat och därmed förbjuden (ADR 0076 Decision 4, ADR 0053
+Amendment 2026-06-19, CLAUDE.md §5). Matchning visas som **namngiven grad** via
+`.jp-matchchip` plus matchar/saknas per dimension — se DESIGN.md §8.
 
 ### `.jp-filterBar` (flat, no chrome box)
 

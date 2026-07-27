@@ -4547,32 +4547,6 @@ a.jp-adminnav__link[aria-current="page"]::after {
 .jp-statusDot--danger   .jp-statusDot__d { background: var(--jp-danger-600); }
 .jp-statusDot--neutral  .jp-statusDot__d { background: var(--jp-text-tertiary); }
 
-/* jp-match — match-bar.tsx (refaktoreras F3 till v3 jp-matchchip) */
-.jp-match {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  font-family: var(--jp-font-mono);
-  font-size: var(--text-mono);
-  font-weight: var(--jp-fw-medium);
-  color: var(--jp-text-secondary);
-}
-.jp-match__bar {
-  width: 72px;
-  height: 6px;
-  background: var(--jp-surface-tertiary);
-  border-radius: 2px;
-  overflow: hidden;
-  flex: 0 0 auto;
-}
-.jp-match__fill {
-  height: 100%;
-  background: var(--jp-brand-600);
-  border-radius: 2px;
-}
-.jp-match__fill--low { background: var(--jp-warning-600); }
-.jp-match__fill--mid { background: var(--jp-info-600); }
-
 /* jp-table — admin-granskning ledger (utanför v3-scope, behålls v2) */
 .jp-table { width: 100%; border-collapse: collapse; font-size: var(--text-body); }
 .jp-table thead th {

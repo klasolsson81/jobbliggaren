@@ -72,6 +72,13 @@ n=$(jq length "$FILE") || fail "cannot count entries in $FILE"
 
 # Decide on the VALUE, never on `[`'s exit code: a non-numeric operand makes `[`
 # return 2, and `if` cannot tell 2 from "false".
+#
+# This and the single-document check above are DELIBERATELY REDUNDANT, and the
+# fixtures record it: removing either one alone leaves the suite green (each
+# catches the stream case on its own), so a single removal is an equivalent
+# mutant. Removing BOTH is caught. Two independent reasons to refuse the same
+# input is the intent -- one is about the shape of the file, the other about the
+# shape of the answer -- and neither is load-bearing alone.
 case "$n" in
   '' | *[!0-9]*) fail "cannot read a count from $FILE (got: $n)" ;;
 esac

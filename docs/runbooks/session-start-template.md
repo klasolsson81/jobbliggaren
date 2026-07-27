@@ -69,7 +69,10 @@ PR that merges but leaves its issue open is not done (CLAUDE.md §6.5).
 ```
 ## Expected end state
 - {Deliverable verified}
-- PR open against `main`, `ci` green, automerge label set, agent reports inline
+- PR open against `main`, `ci` green, agent reports inline, and **both** labels set —
+  `automerge` at creation (intent), `agents-done` only after the mandatory agents
+  reported with nothing Blocker/Major unresolved (permission). One without the other
+  is armed-but-gated by design, not stuck (#836, CLAUDE.md §6)
 - Docs-sync committed in the same PR
 - Close-out: PR watched to MERGE (`BEHIND` → `gh pr update-branch`; automerge does
   NOT rebase); issue closed + `wip` dropped (squash drops `Closes #N`) — playbook §8.1.

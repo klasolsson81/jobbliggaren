@@ -6,6 +6,7 @@
 **Beslutsfattare:** Klas Olsson
 **Amendment 2026-06-07:** Automerge-default för CC:s egna PR:er — se [§Amendment 2026-06-07](#amendment-2026-06-07--automerge-default-för-ccs-egna-prer).
 **Amendment 2026-07-25:** CI triggras base-oberoende (#861) — se [§Amendment 2026-07-25](#amendment-2026-07-25--ci-triggras-base-oberoende-mekanism-drift-861).
+**Amendment 2026-07-27:** Tvålabelsgrind (`automerge` = avsikt, `agents-done` = tillstånd) + undantaget för en ren bas-merge (#836) — se [§Amendment 2026-07-27](#amendment-2026-07-27--tvålabelsgrind-och-undantaget-för-en-ren-bas-merge-836).
 **Superseder:** ADR 0019 (Solo direct-push till main, 2026-05-07)
 **Amends:** ADR 0007 (Branch protection för main i Fas 0, 2026-04-18) — Fas 0-protectionprofilen utökas till PR-gate-profil när CI-aggregatet `ci` finns på plats; ADR 0007 force-push- och deletion-skydd består.
 **Relaterad:** ADR 0019 §"Trigger för återgång till PR-flöde", `.github/workflows/build.yml` (`ci`-aggregat-job)
@@ -27,7 +28,7 @@ ADR 0019 §"Trigger för återgång till PR-flöde" namngav tre triggers:
 
 Sedan ADR 0019 har två premisser ändrats:
 
-**1. CI-aggregat-jobbet `ci` finns på plats.** `.github/workflows/build.yml` rad 419–433 definierar en aggregat-status-check `ci` med `needs: [backend, frontend, coverage]` (orkestrerad via `if: always()` + explicit verify-steg). Workflowens egen kommentar (rad 412–418): *"Gör branch-protection-rules enkla att konfigurera (bara `ci` som required check istället för en check per matrix-cell)."* CI-gating är därmed inte längre en framtida fas — det är en aktuell möjlighet.
+**1. CI-aggregat-jobbet `ci` finns på plats.** *(Ögonblicksbild vid ADR:ns författande 2026-05-25 — rad- och jobbuppräkningen nedan beskriver trädet då, inte nu; den gällande `ci.needs` har ETT hem, `build.yml`.)* `.github/workflows/build.yml` rad 419–433 definierar en aggregat-status-check `ci` med `needs: [backend, frontend, coverage]` (orkestrerad via `if: always()` + explicit verify-steg). Workflowens egen kommentar (rad 412–418): *"Gör branch-protection-rules enkla att konfigurera (bara `ci` som required check istället för en check per matrix-cell)."* CI-gating är därmed inte längre en framtida fas — det är en aktuell möjlighet.
 
 **2. JobbPilot närmar sig launch.** Sluten beta-utrullning, väntelista-flöde, första riktiga användare. Kvalitets-spärrar som "STOPP + manuell diff" har räckt under solo-fas men kommer behöva CI-evidence och PR-tråden som granskningstrail när:
 
@@ -164,6 +165,25 @@ Grindmekanismen i Beslut §"Operativt flöde" steg 6 (**"Klas reviewar diff + ag
 **Räckvidd — signal, inte enforcement:** branch protection ligger bara på `main` (required checks = exakt `["ci"]`, `strict: true`, `enforce_admins: true`; noll repo-rulesets). En stackad PR har alltså fortfarande inga *required* checks. Det ändras inte här; enforcement-halvan är #836 (PR-babysittaren får inte merga före agent-grinden svarat).
 
 **Oförändrat:** allt annat i ADR 0065 och i amendmentet ovan. Required `ci`, linear history, `enforce_admins`, automerge-flödet och undantagen gäller precis som förut — bara *vilka* PR:er som får en `ci` att vara grön har vidgats.
+
+## Amendment 2026-07-27 — tvålabelsgrind, och undantaget för en ren bas-merge (#836)
+
+**Kontext:** #836. Amendment 2026-06-07 ovan beskriver mekanismen i två meningar: *"CC sätter `automerge`-labeln på alla egna PR:er direkt efter `gh pr create`. `label-automerge.yml` aktiverar då auto-merge (squash) som verkställs så snart required `ci` är grön."* **Den ANDRA meningen är från och med nu falsk** och ersätts här. Den första består oförändrad: `automerge` sätts fortfarande vid `gh pr create` — det är dess BETYDELSE som smalnat, från "merga den här" till enbart avsikt. Beslutet i amendmentet står; bara dess mekanik har bytts.
+
+**Vad som ändrades.** `automerge` bar två betydelser: AVSIKT (sann vid `gh pr create`) och TILLSTÅND (sann först när granskningen är klar). Varje aktör som legitimt uttryckte avsikt beviljade därför ofrivilligt tillstånd — mätt två gånger, PR #832 och PR #1083, båda med oåtgärdade Blocker/Major i `main`. Symbolerna är nu delade:
+
+- **`automerge` = AVSIKT.** Sätts vid `gh pr create`, av CC eller PR-babysittern.
+- **`agents-done` = TILLSTÅND.** Sätts ENBART av den ägande sessionen, efter att §9.2:s obligatoriska agenter svarat utan oåtgärdat Blocker/Major.
+
+`label-automerge.yml` armerar först när **båda** sitter. En push som bär eget innehåll tar bort `agents-done` och stänger av auto-merge; en återkallad label gör detsamma.
+
+**Undantaget:** en **ren bas-merge** avväpnar inte. `main` har `strict: true`, så up-to-base är obligatoriskt och konstant; en grind som avväpnade på var och en av dem hade aldrig konvergerat. `.github/scripts/is-pure-base-merge.sh` (fixturtestad, `ci`-grindad) jämför det pushade trädet med det träd en automatisk merge hade gett — vilket är exakt vad `gh pr update-branch` ger — och är fail-closed: varje fel och varje form den inte kan intyga avväpnar.
+
+**Undantag 1 i amendment 2026-06-07 ("ej-åtgärdat agent-Blocker/Major → ingen label") får därmed sitt första maskinuttryck.** Regeln är inte ny; den var overkställbar. **Men dess HANDLING ändras, och undantagets ordalydelse ("sätts ingen label") ska läsas om:** `automerge` sätts som vanligt vid `gh pr create` — det är `agents-done` som hålls inne tills Blockern/Majoren är åtgärdad eller Klas tagit ställning. En session som följer den gamla ordalydelsen bokstavligt håller inne fel label. Undantag 2 (spec-edits) är sedan 2026-06-25 ersatt av det autonoma flödet och lyfts inte här.
+
+**Oförändrat:** required `ci`-aggregatet, linear history, `enforce_admins: true`, required conversation resolution. Automerge verkställs fortfarande *genom* grindarna.
+
+**Berörda dokument (uppdaterade i samma PR):** CLAUDE.md §6/§6.5, `docs/runbooks/parallel-sessions.md` §3.3/§8/§8.1/§9.5, `docs/runbooks/session-start-template.md`, ADR 0045 och ADR 0044 (`ci.needs`-uppräkningen).
 
 ## Relation till andra beslut
 

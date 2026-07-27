@@ -201,15 +201,19 @@ jq -e 'type == "array"' "$OPEN_JSON" >/dev/null 2>&1 || fail "not a JSON array: 
 # TYPE IS NOT ENOUGH -- THE FIELDS MUST BE THERE TOO, and the asymmetry is the
 # same one the truncation note describes, one level up. A well-formed array of
 # objects MISSING the keys (a changed `--json` list, a partial fetch) passes the
-# type check, and then `select(.baseRefName != null …)` quietly filters every
+# type check, and then `select(.baseRefName != null ï¿½)` quietly filters every
 # element away: `open_bases` comes out empty and a stacked base becomes
 # deletable. That is fail-OPEN. The merged side degrades safely under the same
 # drift (missing keys read as null -> `no-merged-pr` or `tip-moved`), but it is
 # checked too, because a guard that only covers the dangerous direction invites
 # the reader to assume the other one was considered and found safe -- which it
 # was, and saying so is cheaper than leaving it to be re-derived.
-jq -e 'all(.[]; has("baseRefName") and has("headRefName"))' "$OPEN_JSON" >/dev/null 2>&1   || fail "$OPEN_JSON lacks baseRefName/headRefName -- the open-PR guards cannot be built"
-jq -e 'all(.[]; has("headRefName") and has("headRefOid") and has("headRepository") and has("headRepositoryOwner"))'   "$MERGED_JSON" >/dev/null 2>&1   || fail "$MERGED_JSON is missing fields the predicate needs"
+jq -e 'all(.[]; has("baseRefName") and has("headRefName"))' "$OPEN_JSON" >/dev/null 2>&1 \
+  || fail "$OPEN_JSON lacks baseRefName/headRefName -- the open-PR guards cannot be built"
+
+jq -e 'all(.[]; has("headRefName") and has("headRefOid") and has("headRepository") and has("headRepositoryOwner"))' \
+  "$MERGED_JSON" >/dev/null 2>&1 \
+  || fail "$MERGED_JSON is missing fields the predicate needs"
 
 # `<branch>\t<pr-number>\t<head-oid>` for merged PRs whose head repo is THIS
 # repository. `headRepositoryOwner` is null on a PR whose head repository has

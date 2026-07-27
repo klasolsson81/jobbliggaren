@@ -276,7 +276,11 @@ public class ResumeContentMapperTests
             sections:
             [
                 new ResumeSection("Kurser", [new SectionEntry("HLR", ["Grundkurs", "Repetition"])]),
-            ]);
+            ],
+            // #1060 — without this the pin is blind to the field it was written to cover:
+            // both sides would carry null and a mapping that dropped Preamble in BOTH
+            // directions would round-trip cleanly. Measured: it did.
+            preamble: "Erfaren backend-utvecklare med tio år i betalbranschen.");
 
         var dto = ResumeContentMapper.ToDto(content);
         var roundTripped = ResumeContentMapper.ToDto(ResumeContentMapper.ToDomain(dto));
@@ -293,6 +297,7 @@ public class ResumeContentMapperTests
         dto.SkillGroups!.ShouldHaveSingleItem().Members.ShouldBe(["C#", "PostgreSQL"]);
         dto.Sections!.ShouldHaveSingleItem().Entries!.ShouldHaveSingleItem()
             .Lines.ShouldBe(["Grundkurs", "Repetition"]);
+        dto.Preamble.ShouldBe("Erfaren backend-utvecklare med tio år i betalbranschen.");
     }
 
     [Fact]
@@ -318,7 +323,12 @@ public class ResumeContentMapperTests
             summary: "Erfaren backend-utvecklare.",
             languages: [new SpokenLanguage("Svenska", LanguageProficiency.Native)],
             skillGroups: [new SkillGroup("Backend", ["C#"])],
-            sections: [new ResumeSection("Kurser", [new SectionEntry("HLR", ["Grundkurs"])])]);
+            sections: [new ResumeSection("Kurser", [new SectionEntry("HLR", ["Grundkurs"])])],
+            // #1060 — this pin exists precisely so a field dropped by ToDto fails HERE, and it
+            // could not see Preamble while both sides carried null. The stake is named in the
+            // comment above: ApplyCvImprovementsCommandHandler feeds the personnummer guard
+            // with ToDto's output, so a dropped field is a field DQ6 stops scanning.
+            preamble: "Erfaren backend-utvecklare med tio år i betalbranschen.");
 
         var expected = new ResumeContentDto(
             new PersonalInfoDto("Anna Andersson", "anna@example.com", "0701234567", "Stockholm"),
@@ -335,7 +345,8 @@ public class ResumeContentMapperTests
             Summary: "Erfaren backend-utvecklare.",
             Languages: [new SpokenLanguageDto("Svenska", "Native")],
             SkillGroups: [new SkillGroupDto("Backend", ["C#"])],
-            Sections: [new ResumeSectionDto("Kurser", [new SectionEntryDto("HLR", ["Grundkurs"])])]);
+            Sections: [new ResumeSectionDto("Kurser", [new SectionEntryDto("HLR", ["Grundkurs"])])],
+            Preamble: "Erfaren backend-utvecklare med tio år i betalbranschen.");
 
         var dto = ResumeContentMapper.ToDto(content);
 

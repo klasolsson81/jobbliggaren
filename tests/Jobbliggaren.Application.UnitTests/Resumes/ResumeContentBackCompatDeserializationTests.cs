@@ -201,4 +201,49 @@ public class ResumeContentBackCompatDeserializationTests
         edu.StartDate.ShouldBeNull();
         edu.RawPeriod.ShouldBe("2015–2019");
     }
+
+    // -------------------------------------------------------------------------
+    // #1060 — the imported preamble. Same additive expand as the three superset
+    // collections, with one difference worth pinning: it is the only superset
+    // member that is not a list, so the absent-key value is `null` rather than
+    // an empty collection — and for this field null is the SEMANTICALLY CORRECT
+    // value, not merely a tolerated one. A CV written before the field existed
+    // was either app-built (no region above its first heading, by construction)
+    // or imported under the gate that refused every preamble-carrying parse.
+    // Either way "this CV has no preamble" is true, so read-tolerance and
+    // correctness agree here instead of merely coexisting.
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public void Deserialize_LegacyContentWithoutPreambleKey_YieldsNullPreamble_NoThrow()
+    {
+        var content = JsonSerializer.Deserialize<ResumeContent>(
+            LegacyJson, EncryptedFieldRegistry.ContentJsonOptions);
+
+        content.ShouldNotBeNull();
+        content.Preamble.ShouldBeNull();
+        // Positive control: the blob really did deserialise, so the null above is the
+        // absent KEY and not an absent read.
+        content.Summary.ShouldBe("Erfaren backend-utvecklare.");
+    }
+
+    [Fact]
+    public void Deserialize_PreambleRoundTripsVerbatimThroughTheProductionSpot()
+    {
+        // Verbatim means verbatim: the file's own line breaks and åäö must survive the
+        // JSON → ciphertext → JSON trip, because the affordance quotes the text back to
+        // its author under a "this is what your file said" label (CLAUDE.md §10 — UTF-8
+        // everywhere; ADR 0109 — the engine describes, never rewrites).
+        const string preamble = "Anna Andersson\nErfaren backend-utvecklare — Göteborg, Västra Götaland.";
+        var original = new ResumeContent(
+            new PersonalInfo("Anna Andersson", null, null, null),
+            preamble: preamble);
+
+        var json = JsonSerializer.Serialize(original, EncryptedFieldRegistry.ContentJsonOptions);
+        var roundTripped = JsonSerializer.Deserialize<ResumeContent>(
+            json, EncryptedFieldRegistry.ContentJsonOptions);
+
+        roundTripped.ShouldNotBeNull();
+        roundTripped.Preamble.ShouldBe(preamble);
+    }
 }

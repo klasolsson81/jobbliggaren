@@ -97,6 +97,17 @@ public class ResumeContentPersonnummerGuardTests
             Clean() with { Sections = [new ResumeSectionDto("Projekt", [CleanSectionEntry() with { Title = $"Titel {Pnr}" }])] }];
         yield return ["SectionEntry.Lines",
             Clean() with { Sections = [new ResumeSectionDto("Projekt", [CleanSectionEntry() with { Lines = [$"Rad {Pnr}"] }])] }];
+
+        // #1060 — the imported preamble, and this is the highest-value row in the table. It is
+        // the un-headed top-of-document block where a Swedish CV puts its contact details, so
+        // it is the most personnummer-dense region of a file, and NOTHING upstream subtracts a
+        // personnummer from it: PreambleResidue removes only what a recogniser claimed, and no
+        // recogniser knows that shape. CollectFreeText is hand-written and fail-open and the
+        // architecture tripwire keys on handlers CALLING the guard rather than on fields being
+        // COLLECTED, so dropping that one AppendLine leaves the field silently unscanned and
+        // this row is the only thing that would notice.
+        yield return ["Preamble",
+            Clean() with { Preamble = $"Anna Andersson, {Pnr}, Stockholm" }];
     }
 
     [Theory]
@@ -161,6 +172,7 @@ public class ResumeContentPersonnummerGuardTests
             Languages = [CleanLanguage()],
             SkillGroups = [CleanSkillGroup()],
             Sections = [CleanSection()],
+            Preamble = "Erfaren backend-utvecklare med tio år i betalbranschen.",
         };
 
         var result = ResumeContentPersonnummerGuard.Check(content);

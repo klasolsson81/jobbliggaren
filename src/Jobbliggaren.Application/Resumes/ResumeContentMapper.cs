@@ -56,9 +56,16 @@ internal static class ResumeContentMapper
                     .ToList()))
             .ToList();
 
+        // #1060: carried verbatim, like every other free-text field, and whether the value
+        // MATTERS depends on the caller — so do not describe it as though it never does.
+        // On the UpdateMasterContent path it is indeed overwritten by the aggregate's stored
+        // value (write-once). On the PROMOTE path it is decisive: the handler has already
+        // substituted the parse's preamble into the DTO, UpdateMasterContent never runs, and
+        // this line is what carries it into the Resume. Dropping it here would silently
+        // re-open the manual arm's drop.
         return new ResumeContent(
             personalInfo, experiences, educations, skills, dto.Summary,
-            languages, skillGroups, sections);
+            languages, skillGroups, sections, dto.Preamble);
     }
 
     /// <summary>
@@ -102,7 +109,8 @@ internal static class ResumeContentMapper
                 .Select(s => new ResumeSectionDto(
                     s.Heading,
                     s.Entries.Select(e => new SectionEntryDto(e.Title, e.Lines)).ToList()))
-                .ToList());
+                .ToList(),
+            content.Preamble);
     }
 
     private static LanguageProficiency ToProficiency(string? token) =>

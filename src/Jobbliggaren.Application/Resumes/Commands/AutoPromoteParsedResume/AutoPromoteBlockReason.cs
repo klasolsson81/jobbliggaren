@@ -7,6 +7,16 @@ namespace Jobbliggaren.Application.Resumes.Commands.AutoPromoteParsedResume;
 /// TYPE, CLAUDE.md §5: no per-endpoint code matching). Not an error taxonomy: every member
 /// is an expected, honest "this needs the user" state, which is why it rides a
 /// <c>Result.Success</c>. Carries no PII.
+///
+/// <para><b>Retired 2026-07-27 (#1060, CTO-bind D1.2): <c>UnclassifiedPreamble</c>.</b> That gate
+/// blocked promote whenever the file carried text above its first heading — the most common
+/// Swedish CV layout — and it enforced nothing ADR 0109 forbids. ADR 0109 §1 forbids MINTING
+/// section identity, not promoting; the gate existed only because <c>ParsedResume.Promote</c>
+/// soft-deletes the artifact, so promote WAS the drop. ADR 0109 §2's carrier is now read past
+/// that soft-delete on the promoted CV's review surface, so nothing is dropped and nothing is
+/// minted, and the gate has no subject left. Its bound exit was removed under it in any case:
+/// ADR 0109's Amendment 2026-07-18 FAS-DEFERRED the classify step and ADR 0112 made the review
+/// read-only, turning a gate-with-an-exit into a gate with none.</para>
 /// </summary>
 public enum AutoPromoteBlockReason
 {
@@ -16,13 +26,23 @@ public enum AutoPromoteBlockReason
     /// the personnummer removed (5b security-bind B3 — original-file-only depth).</summary>
     PersonnummerPresent,
 
-    /// <summary>The file carried unclassified text above its first heading (#844). Only the
-    /// user may classify it (ADR 0109) — a silent promote would drop or adopt it unasked.</summary>
-    UnclassifiedPreamble,
-
-    /// <summary>The parser's own verdict says this parse needs manual review
-    /// (<c>ParseConfidence.RequiresManualReview</c> — anything below Confident). The parser
-    /// owns the definition of "clean"; auto-promote does not second-guess it.</summary>
+    /// <summary>Extraction produced nothing usable — <c>ParseConfidence.Overall</c> is
+    /// <c>Failed</c>. Promoting that would build a <c>Resume</c> out of the account display name
+    /// and nothing else: a canonical CV that says LESS than the file did, which is the same
+    /// dishonesty class as dropping (ADR 0109 §3).
+    ///
+    /// <para><b>The token means <c>Failed</c> only — this NARROWED on 2026-07-25 (#1060 CTO-bind
+    /// D1.3) and the narrowing reverses the 5a bind's R3.</b> R3 had tightened the gate from
+    /// "not <c>Failed</c>" to <c>RequiresManualReview</c> (<c>Overall != Confident</c>) on two
+    /// grounds, and both fail. (1) It called "not Failed" a second normaliser of the same concept;
+    /// it is not — <c>RequiresManualReview</c> answers the REVIEW question ("does a human need to
+    /// look at this parse?"), and whether anything is worth saving is the PROMOTE question. Using
+    /// one predicate for two questions is itself the DRY violation. (2) It feared auto-promoting
+    /// low-confidence PII; PII is not confidence's job — <c>Personnummer.Found</c> and
+    /// <c>ResumeContentPersonnummerGuard</c> are the PII controls and are unconditional.
+    /// <c>Degraded</c> means the parser found SOMETHING and is honest that the document was messy;
+    /// under ADR 0112 the reviewer IS the product, so that is precisely the CV the reviewer has
+    /// most to say about. Do not re-tighten this from the 5a bind alone.</para></summary>
     ParseNotConfident,
 
     /// <summary>The parse maps to content the canonical <c>Resume</c> rejects

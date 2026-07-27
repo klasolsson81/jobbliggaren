@@ -31,6 +31,60 @@ public class GetResumeByIdQueryHandlerTests
         return resume;
     }
 
+    /// <summary>
+    /// The happy path this class did not have. Every existing test here asserts
+    /// <c>ShouldBeNull()</c> on an IDOR or not-found path, so nothing pinned that the handler
+    /// projects any CONTENT at all — which is how the read side came to hold the only
+    /// unmutated production lines in #1060's carrier change.
+    ///
+    /// <para>The preamble assertion is the load-bearing one. <c>ResumeMappingExtensions.ToDto</c>
+    /// is the single line that puts the text on <c>ResumeDetailDto.Versions[].Content</c>, and
+    /// that DTO is what <c>/cv/[id]/granska</c> renders <c>&lt;CvPreamble&gt;</c> from. Delete
+    /// that one line and the whole user-visible affordance disappears from every saved CV while
+    /// every other backend test stays green — measured, before this test existed.</para>
+    /// </summary>
+    [Fact]
+    public async Task Handle_WhenOwned_ProjectsTheMasterContent_IncludingTheImportedPreamble()
+    {
+        const string preamble = "Erfaren backend-utvecklare med tio år i betalbranschen.";
+
+        // Import-origin, because that is the only shape that carries a preamble at all.
+        var content = new ResumeContent(
+            new PersonalInfo("Klas Olsson", "klas@example.com", null, "Stockholm"),
+            experiences: [new Experience("Acme AB", "Backend-utvecklare", null, null, null, "2021 - 2024")],
+            skills: [new Skill("C#", 8)],
+            summary: "Sammanfattning.",
+            preamble: preamble);
+
+        // ResumeVersion.Content is EF-Ignore'd — production rehydrates it from the content_enc
+        // shadow through the decryption interceptor, and the handler reads it AsNoTracking, so
+        // without the fake interceptor the projection dereferences null. Same reason and same
+        // helper as ReviewResumeQueryHandlerTests. This is also why the class had no
+        // content-bearing test before: the seam, not the intent, was missing.
+        var db = TestAppDbContextFactory.Create(
+            new FakeContentHydrationInterceptor(resumeContent: content));
+        var seeker = JobSeeker.Register(_userId, "Test User", FakeDateTimeProvider.Default).Value;
+        db.JobSeekers.Add(seeker);
+
+        var resume = Resume.CreateFromParsed(
+            seeker.Id, "Importerat CV", content,
+            new Domain.Resumes.Parsing.ParsedResumeId(Guid.NewGuid()), FakeDateTimeProvider.Default).Value;
+        db.Resumes.Add(resume);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+
+        var result = await new GetResumeByIdQueryHandler(db, _currentUser, Substitute.For<IFailedAccessLogger>())
+            .Handle(new GetResumeByIdQuery(resume.Id.Value), TestContext.Current.CancellationToken);
+
+        result.ShouldNotBeNull();
+        var master = result.Versions.ShouldHaveSingleItem();
+        master.Kind.ShouldBe("Master");
+        master.Content.Preamble.ShouldBe(preamble);
+        // Positive controls: the projection really ran, so the assertion above is about the
+        // preamble rather than about an empty DTO.
+        master.Content.Summary.ShouldBe("Sammanfattning.");
+        master.Content.Experiences.ShouldHaveSingleItem().Company.ShouldBe("Acme AB");
+    }
+
     [Fact]
     public async Task Handle_WhenUserIdIsNull_ReturnsNull()
     {

@@ -7,6 +7,7 @@ using Jobbliggaren.Application.Common.Security;
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.JobSeekers;
 using Jobbliggaren.Domain.Resumes;
+using Jobbliggaren.Domain.Resumes.Parsing;
 using Jobbliggaren.Infrastructure;
 using Jobbliggaren.Infrastructure.Persistence;
 using Jobbliggaren.Infrastructure.Persistence.Migrations;
@@ -180,6 +181,15 @@ public class ResumeContentEncryptionTests(WorkerTestFixture fixture)
                     new SectionEntry("Betalplattform", ["Ledde ett team om 8.", "Ökade konvertering."]),
                 ]),
             ],
+            // #1060 — the imported preamble is DELIBERATELY absent from this fixture, and the
+            // reason is worth stating because putting it here is the obvious move and it fails.
+            // SeedEncryptedMasterAsync builds a template-origin Resume with Resume.Create and
+            // then calls UpdateMasterContent, which is WRITE-ONCE for the preamble: it carries
+            // the stored value (null) forward and ignores the transport's. So the field cannot
+            // reach content_enc through this path, by design rather than by accident — CI
+            // measured exactly that when an earlier revision of this PR tried it.
+            // The preamble's own round-trip therefore seeds through CreateFromParsed instead:
+            // RoundTrip_ImportedPreamble_SurvivesTheDekEnvelope_Verbatim below.
         };
 
     /// <summary>
@@ -331,6 +341,100 @@ public class ResumeContentEncryptionTests(WorkerTestFixture fixture)
             "Content måste materialiseras via #1c-read-interceptorn (decrypt → FromJson)");
         ShouldDeepEqual(loaded, original);
     }
+
+    // ── 1a-bis. The imported preamble through the real DEK envelope (#1060) ─────────────
+
+    /// <summary>
+    /// The preamble is CV-PII inside the same Form B blob as everything else, so it has to
+    /// survive encrypt → <c>content_enc</c> → decrypt like every other field — and VERBATIM,
+    /// because the affordance quotes the text back to its author under a label that claims
+    /// nothing about it. Line break and åäö are in the fixture on purpose (CLAUDE.md §10).
+    ///
+    /// <para>Seeded through <c>CreateFromParsed</c> rather than the shared
+    /// <c>SeedEncryptedMasterAsync</c> helper, because that helper updates a template-origin
+    /// Master and <c>UpdateMasterContent</c> is write-once for this field. That is not a
+    /// limitation to work around — it is the invariant, and this test is the only place in the
+    /// suite where the field can legitimately reach the database at all.</para>
+    /// </summary>
+    [Fact]
+    public async Task RoundTrip_ImportedPreamble_SurvivesTheDekEnvelope_Verbatim()
+    {
+        const string preamble =
+            $"Anna Andersson\nErfaren backend-utvecklare — Göteborg, Västra Götaland. {PreambleAtRestMarker}";
+        var ct = TestContext.Current.CancellationToken;
+        var seeker = await SeedJobSeekerAsync(ct);
+        var clock = new FixedClock(DateTimeOffset.UtcNow);
+
+        var original = RichContent("Anna Andersson RT-preamble") with { Preamble = preamble };
+
+        ResumeId resumeId;
+        using (var writeScope = _fixture.Services.CreateScope())
+        {
+            await PrefetchOwnerDekAsync(writeScope, seeker.Id, ct);
+            var db = writeScope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var resume = Resume.CreateFromParsed(
+                seeker.Id, "Importerat CV", original,
+                new ParsedResumeId(Guid.NewGuid()), clock).Value;
+            resumeId = resume.Id;
+            db.Resumes.Add(resume);
+            await db.SaveChangesAsync(ct);
+        }
+
+        using var readScope = _fixture.Services.CreateScope();
+        await PrefetchOwnerDekAsync(readScope, seeker.Id, ct);
+        var readDb = readScope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        var loadedResume = await readDb.Resumes
+            .AsNoTracking()
+            .Include(r => r.Versions)
+            .SingleAsync(r => r.Id == resumeId, ct);
+
+        var loaded = loadedResume.MasterVersion.Content;
+        loaded.ShouldNotBeNull();
+        loaded.Preamble.ShouldBe(preamble);
+        // Positive control: the whole blob round-tripped, so the line above is about the
+        // preamble rather than about a lucky default.
+        ShouldDeepEqual(loaded, original);
+
+        // AT-REST CONFINEMENT, which is a DIFFERENT property from the round-trip above and is
+        // the one this repo has actually been burned by: the CV name field once wrote both an
+        // unencrypted label AND the DEK-encrypted person name, and no round-trip test could see
+        // it, because a value can be correct on the way back and still have left a copy in a
+        // plaintext column on the way in. So assert the marker's ABSENCE from the raw columns,
+        // not only its presence after decrypt.
+        // Whole-ROW casts, not a hand-written column list. An enumeration here would be
+        // fail-open in exactly the way ResumeContentPersonnummerGuard.CollectFreeText's own
+        // comment warns about — "a field it does not list is silently unscanned" — so a future
+        // denormalized column would be uncovered with this test still green. `::text` sweeps
+        // present and future columns for one line (security-auditor, 2026-07-27).
+        var versionId = loadedResume.MasterVersion.Id;
+        var versionRow = await RawScalarAsync(
+            readDb, $"SELECT resume_versions::text FROM resume_versions WHERE id = '{versionId.Value}'", ct);
+        versionRow.ShouldNotBeNull();
+        versionRow.ShouldNotContain(PreambleAtRestMarker, Case.Sensitive);
+
+        // The sentinel is the control that content_enc really is ciphertext rather than an
+        // empty column the sweep would pass over.
+        var contentEnc = await RawScalarAsync(
+            readDb, $"SELECT content_enc FROM resume_versions WHERE id = '{versionId.Value}'", ct);
+        contentEnc.ShouldNotBeNull();
+        contentEnc.ShouldStartWith("v1:");
+
+        var legacyContent = await RawScalarAsync(
+            readDb, $"SELECT content FROM resume_versions WHERE id = '{versionId.Value}'", ct);
+        legacyContent.ShouldBeNull();
+
+        // And nowhere on the aggregate root either — resumes carries only plain non-PII columns
+        // (ADR 0059/0096), and the preamble must never be derived into one of them.
+        var rootRow = await RawScalarAsync(
+            readDb, $"SELECT resumes::text FROM resumes WHERE id = '{resumeId.Value}'", ct);
+        rootRow.ShouldNotBeNull();
+        rootRow.ShouldNotContain(PreambleAtRestMarker, Case.Sensitive);
+    }
+
+    /// <summary>A marker inside the preamble that appears nowhere else in the fixture, so its
+    /// presence in any raw column is unambiguous evidence of a plaintext copy.</summary>
+    private const string PreambleAtRestMarker = "PREAMBEL-KLARTEXT-4471";
 
     // ── 1b. Round-trip deep equality — Fas 4b AppCopy superset (#651, ADR 0095) ──────────
     // The superset fields (languages incl. Native + NotStated, a skill group, a dynamic section)

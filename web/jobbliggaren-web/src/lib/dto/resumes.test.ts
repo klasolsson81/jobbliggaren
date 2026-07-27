@@ -140,6 +140,60 @@ describe("resumeContentDtoSchema", () => {
     expect(resumeContentDtoSchema.safeParse(superset).success).toBe(true);
   });
 
+  // #1060 — preambeln på den KANONISKA armen. Paritet med parsedContentDtoSchema:s
+  // motsvarande block, som fanns för stagingarmen men saknades här: det är den här armen
+  // PR:en levererar.
+  //
+  // De asserterar `.data`, inte `.success`, och det är skillnaden som gör dem meningsfulla.
+  // Schemat är icke-strict, så en BORTTAGEN `preamble`-nyckel gör inte `.parse()` arg — den
+  // STRYPER värdet under tystnad, `success` förblir true och granskningssidan renderar
+  // ingenting. Ett test som bara läser `success` är grönt genom exakt det felet.
+  describe("preamble (#1060, kanonisk arm)", () => {
+    it("ytar preambeln verbatim när nyckeln finns", () => {
+      const result = resumeContentDtoSchema.safeParse({
+        ...validContent,
+        preamble: "Erfaren backend-utvecklare med tio år i betalbranschen.",
+      });
+
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.preamble).toBe(
+          "Erfaren backend-utvecklare med tio år i betalbranschen.",
+        );
+      }
+    });
+
+    it("accepterar preamble: null (mall-skapat CV) → null", () => {
+      const result = resumeContentDtoSchema.safeParse({
+        ...validContent,
+        preamble: null,
+      });
+
+      expect(result.success).toBe(true);
+      if (result.success) expect(result.data.preamble).toBeNull();
+    });
+
+    it("accepterar helt UTELÄMNAD nyckel (äldre innehåll / deploy-skew) → undefined, inte fel", () => {
+      expect("preamble" in validContent).toBe(false);
+
+      const result = resumeContentDtoSchema.safeParse(validContent);
+
+      expect(result.success).toBe(true);
+      if (result.success) expect(result.data.preamble).toBeUndefined();
+    });
+
+    it("behåller radbrytningar och åäö ordagrant — texten citeras tillbaka till sin författare", () => {
+      const verbatim = "Anna Andersson\nErfaren utvecklare — Göteborg";
+      const result = resumeContentDtoSchema.safeParse({
+        ...validContent,
+        preamble: verbatim,
+      });
+
+      expect(result.success).toBe(true);
+      if (result.success) expect(result.data.preamble).toBe(verbatim);
+    });
+  });
+
   // #815: domänen tillåter en sektionspost UTAN titel ("Referenser / Lämnas på begäran."),
   // så API:t kan emittera `"title": null`. Läs-schemat MÅSTE ta emot det. Gjorde det inte
   // det skulle ett enda sådant sparat CV få HELA detaljsidan att falla till felläge —

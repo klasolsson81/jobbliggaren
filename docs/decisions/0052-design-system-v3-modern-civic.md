@@ -200,7 +200,7 @@ Strukturella `.jp-*` portas verbatim; shadcn överlever via bryggan.
 
 ---
 
-## Amendment 2026-07-27 (#1095) — `.jp-*` control heights minuted; input radius row corrected
+## Amendment 2026-07-27 (#1095) — `.jp-*` control heights minuted; input radius NOT changed (see #1103)
 
 **Datum:** 2026-07-27
 **Källa:** senior-cto-advisor binding decision (`docs/reviews/2026-07-27-control-heights-cto.md`, Option 3 bound). Klas delegated the decision to the CTO (CLAUDE.md §9.2: unambiguous CTO verdicts execute without extra Klas GO).

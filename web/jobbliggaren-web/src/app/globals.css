@@ -220,9 +220,10 @@
   /* Kontroll-storlek (SSOT — ändra HÄR, aldrig inline per komponent).
      /jobb-filterraden (hero-pills + sort-select) läser dessa två så alla
      kontroller delar EN höjd och EN textstorlek (Klas 2026-06-30: symmetri +
-     ingen hårdkodning + läsbarhet). Höjd 40px = shadcn `Button`s höjd (ADR 0038);
-     NOT "standard-knapphöjd" — `.jp-btn` är 44px, och DESIGN.md §6 förbjuder numera
-     en systemlös höjdutsaga (ADR 0052 Amendment 2026-07-27, #1095);
+     ingen hårdkodning + läsbarhet). Höjd 40px styrs av `--jp-control-h`, vars SSOT
+     är DESIGN.md §Komponenter (Klas 2026-06-30) — alla dess konsumenter är `.jp-*`.
+     Det är INTE "standard-knapphöjd": `.jp-btn` är 44px, och en systemlös höjdutsaga
+     är numera förbjuden (ADR 0052 Amendment 2026-07-27, #1095);
      textstorlek 14px = body-sm-golvet (DESIGN.md §4 — aldrig informationsbärande
      kontrolltext < 14px). Mobil bumpar hit-targets till 44px nedan (WCAG 2.5.5). */
   --jp-control-h:  40px;

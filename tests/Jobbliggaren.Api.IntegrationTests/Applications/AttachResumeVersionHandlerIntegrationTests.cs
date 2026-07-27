@@ -67,6 +67,49 @@ public class AttachResumeVersionHandlerIntegrationTests(ApiFactory factory)
         return resume.MasterVersion.Id;
     }
 
+    private static readonly ResumeContent TailoredContent = new(
+        new PersonalInfo("Klas Olsson", "klas@example.com", null, "Stockholm"),
+        experiences:
+        [
+            new Experience("Mastercard", "Backend Developer", new DateOnly(2022, 1, 1), null, null),
+        ],
+        skills: [new Skill("C#", 8)],
+        summary: "Skräddarsytt CV för en specifik annons.");
+
+    /// <summary>
+    /// Seedar ett CV vars TAILORED-version är soft-raderad genom produktionsvägen:
+    /// <see cref="Resume.CreateTailored"/> skapar den, <see cref="Resume.DeleteVersion"/>
+    /// raderar den. Ingen SQL, ingen kolumn-seed — aktören som skriver
+    /// <c>deleted_at</c> är domänmetoden själv, och testet asserterar att dess eget
+    /// predikat släpper igenom tillståndet (CLAUDE.md §5 <c>Tests:</c>, Tier 1).
+    ///
+    /// Versionen är avsiktligt Tailored och inte Master: <c>DeleteVersion</c> vägrar
+    /// Master (<c>Resume.MasterCannotBeDeleted</c>), så en soft-raderad Master är ett
+    /// invariant-förbjudet tillstånd. Query-filtret som testas är detsamma för båda —
+    /// det sitter på <c>ResumeVersion.DeletedAt</c> och känner inte till <c>Kind</c> —
+    /// så den relationella egenskapen bevisas lika starkt av det nåbara fallet.
+    /// </summary>
+    private static async Task<ResumeVersionId> SeedResumeWithSoftDeletedTailoredAsync(
+        IServiceScope scope, AppDbContext db, IDateTimeProvider clock,
+        JobSeekerId seekerId, CancellationToken ct)
+    {
+        await EncryptionKeyTestSeed.WarmAsync(scope, seekerId, ct);
+        var resume = Resume.Create(seekerId, "Mitt CV", "Klas Olsson", clock).Value;
+
+        var tailored = resume.CreateTailored(TailoredContent, clock);
+        tailored.IsSuccess.ShouldBeTrue();
+
+        var deleted = resume.DeleteVersion(
+            tailored.Value, isReferencedByOpenApplication: false, clock);
+        deleted.IsSuccess.ShouldBeTrue(
+            "Resume.DeleteVersion måste släppa igenom en Tailored-version som ingen " +
+            "öppen ansökan refererar — annars är premissen för det här testet inte nåbar.");
+
+        db.Resumes.Add(resume);
+        await db.SaveChangesAsync(ct);
+        return tailored.Value;
+    }
+
     private static AttachResumeVersionCommandHandler CreateHandler(
         AppDbContext db, IDateTimeProvider clock,
         ICurrentUser currentUser, IFailedAccessLogger failedAccessLogger) =>
@@ -137,21 +180,13 @@ public class AttachResumeVersionHandlerIntegrationTests(ApiFactory factory)
 
         var userIdA = Guid.NewGuid();
         var seekerA = await SeedSeekerAsync(db, clock, userIdA, ct);
-        var versionV = await SeedResumeForAsync(scope, db, clock, seekerA, ct);
+        // Soft-raderad genom produktionsvägen (CreateTailored → DeleteVersion),
+        // inte genom en UPDATE mot resume_versions. Se hjälparens doc-kommentar.
+        var versionV = await SeedResumeWithSoftDeletedTailoredAsync(scope, db, clock, seekerA, ct);
         var appA = DomainApplication.Create(seekerA, null, null, null, clock).Value;
         db.Applications.Add(appA);
         await db.SaveChangesAsync(ct);
 
-        // Soft-radera Master-versionen V på DB-nivå. Detta är ETT MEDVETET test-
-        // seam: domänen vägrar radera en Master (Resume.DeleteVersion →
-        // "Resume.MasterCannotBeDeleted") och ingen Resume.CreateTailored-factory
-        // finns ännu (deferred promotion-STEG), så DB-nivå-setup är enda sättet
-        // att exercera soft-deleted-version-vägen relationellt idag. Använd
-        // scope:ts IDateTimeProvider för tidsstämpeln (aldrig DateTime.Now).
-        var deletedAt = clock.UtcNow;
-        await db.Database.ExecuteSqlRawAsync(
-            "UPDATE resume_versions SET deleted_at = {0} WHERE id = {1}",
-            [deletedAt, versionV.Value], ct);
         db.ChangeTracker.Clear();
 
         var currentUser = Substitute.For<ICurrentUser>();

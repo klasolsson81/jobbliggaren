@@ -9,12 +9,20 @@ import enLanding from "../../../messages/en/landing.json";
  * som tsc INTE korslänkar, så en saknad EN-nyckel slinker igenom typkollen och
  * ger en tom sträng/fallback i runtime.
  *
- * `landing` och `guest` var de två sista namespaces utan paritetstest — luckan
- * fanns kvar när landningssidans copy-sanningsfix redigerade sju strängar för
- * hand över två locales med noll grind emellan. Feature-nyckeltestet nedan
- * pinnar dessutom att FEATURE_KEYS-listan i `landing-features.tsx` har en
- * key+body i BÅDA katalogerna: komponenten itererar över konstanten och
- * `t()` på en saknad nyckel ger ett runtime-fel, inte ett byggfel.
+ * `landing` och `guest` var de två sista namespaces utan paritetstest.
+ *
+ * VAD DETTA VAKTAR: nyckel-STRUKTUR, plus FEATURE_KEYS-kontraktet nedan —
+ * att listan i `landing-features.tsx` har en key+body i BÅDA katalogerna.
+ * Det andra testet är inte redundant mot det första: döps `features.companyWatch`
+ * om i BÅDA katalogerna förblir strukturtestet grönt medan komponenten kastar i
+ * runtime, eftersom FEATURE_KEYS är en hårdkodad konstant som `t()` slår upp
+ * vid render.
+ *
+ * VAD DETTA INTE VAKTAR: att sv och en säger samma SAK. Ändras ett värde i den
+ * ena katalogen och inte i den andra är båda testerna gröna — nyckeln finns
+ * kvar, bara innehållet driver isär. Värdedrift lämnas medvetet ovaktad;
+ * översättningar ska legitimt skilja sig, så den axeln går inte att pinna
+ * generellt.
  */
 
 // Rekursiva, sorterade dot-paths för alla LÖV-nycklar i ett message-objekt.

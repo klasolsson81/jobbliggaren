@@ -9,10 +9,15 @@ import enGuest from "../../../messages/en/guest.json";
  * som tsc INTE korslänkar, så en saknad EN-nyckel slinker igenom typkollen och
  * ger en tom sträng/fallback i runtime.
  *
- * `guest` och `landing` var de två sista namespaces utan paritetstest. Testet
- * pinnar dessutom att BÅDA sidorna av demolägets kan-/kräver-konto-lista finns
- * i båda katalogerna: listan är hela poängen med välkomstmodalen, och en
- * ensidig katalog gör gränsen otydlig i stället för att fela synligt.
+ * `guest` och `landing` var de två sista namespaces utan paritetstest.
+ *
+ * VAD DETTA VAKTAR: nyckel-STRUKTUR, plus att BÅDA sidorna av demolägets
+ * kan-/kräver-konto-lista finns i båda katalogerna — listan är hela poängen
+ * med välkomstmodalen, och en ensidig katalog gör gränsen otydlig i stället
+ * för att fela synligt.
+ *
+ * VAD DETTA INTE VAKTAR: att sv och en säger samma SAK. Värdedrift mellan
+ * locales lämnas medvetet ovaktad (se `landing-parity.test.ts`).
  */
 
 // Rekursiva, sorterade dot-paths för alla LÖV-nycklar i ett message-objekt.

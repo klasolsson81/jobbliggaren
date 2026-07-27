@@ -37,10 +37,13 @@ namespace Jobbliggaren.Api.IntegrationTests.JobAds;
 /// §5 issues no exceptions, only branches, and this is the retired-actor branch: the actor is
 /// "ads imported before #842 Tier A". The branch requires the complement to be pinned — that the
 /// CURRENT writer cannot produce this shape — and that pin lives in
-/// <see cref="Jobbliggaren.Domain.UnitTests.JobAds.JobAdContactRedactionTests"/>
-/// (<c>Import_scrubs_body_and_payload_and_promotes_the_detected_contact</c>), so it is named here
-/// rather than left for a reader to find. The clean ad and the surrounding assertions still go
-/// through the real aggregate and the real extractor.
+/// <c>JobAdContactRedactionTests.Import_scrubs_body_and_payload_and_promotes_the_detected_contact</c>,
+/// so it is named here rather than left for a reader to find. Plain text, not a
+/// <c>see cref</c>: this project does not reference <c>Jobbliggaren.Domain.UnitTests</c>, so a cref
+/// would not resolve — and with no documentation file generated for test projects, CS1574 never
+/// fires to say so. A citation that looks machine-checked and is not is precisely the accepted
+/// limitation this clause carries. The clean ad and the surrounding assertions still go through
+/// the real aggregate and the real extractor.
 /// </remarks>
 public sealed class BackfillRecruiterContactScrubJobTests : IAsyncLifetime
 {

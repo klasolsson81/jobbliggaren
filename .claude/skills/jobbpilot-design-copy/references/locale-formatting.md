@@ -180,16 +180,15 @@ export function formatInt(n: number): string {
 // Never: "12,345", "12.345"
 ```
 
-### Percentage — "89 %"
+### Procent — används inte för matchning
 
-```ts
-export function formatPercent(n: number): string {
-  return `${Math.round(n)} %`
-}
-
-// formatPercent(89.4) → "89 %"
-// Space before % is Swedish convention
-```
+Svensk konvention är mellanslag före `%` (`89 %`, aldrig `89%`). Men **ingen
+matchnings- eller CV-yta får visa ett procenttal** — se `SKILL.md` §5 (ADR 0076
+Decision 4, ADR 0053 Amendment 2026-06-19, CLAUDE.md §5). Det fanns en
+`formatPercent`-hjälpare dokumenterad här med exakt `"89 %"` som exempel; den har
+**noll anropsställen** och finns inte i koden, och `messages/sv/` innehåller noll
+strängar med `" %"`. Behöver en framtida icke-matchningsyta procent, skriv
+formateraren då och bind den till den ytan.
 
 ---
 

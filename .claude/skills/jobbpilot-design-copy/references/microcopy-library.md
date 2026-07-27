@@ -12,8 +12,7 @@ Max 2 meningar. Ingen peppning.
 
 | Element | Tooltip-text |
 |---|---|
-| AI-matchningspoäng | "Beräknad matchning mot din profil och detta jobbs kravprofil." |
-| BYOK-toggle | "Använd din egen Anthropic API-nyckel. Du faktureras direkt av Anthropic." |
+| Matchningsgrad | "Vilka delar av annonsens krav din profil möter. Ingen poäng, ingen mätare." |
 | Ghosted-status | "Markerar ansökan som obesvarad sedan mer än 30 dagar." |
 | Ansökan stänger (datum) | "Sista dag att ansöka enligt jobbannonsen." |
 | CV-fingerprint | "Hashade identifieraren för att verifiera att rätt CV används. Inte läsbar." |
@@ -75,14 +74,6 @@ Du är redo. Spara intressanta jobb och följ upp ansökningar härifrån.
 | Deadlines | "Varning när en ansökan stänger om 2 dagar eller mindre." |
 | Ghostade ansökningar | "Notis om ingen respons inkommit efter 30 dagar." |
 | Veckosummering | "E-post varje måndag med en sammanfattning av dina aktiva ansökningar." |
-
-### AI-inställningar
-
-| Inställning | Beskrivning |
-|---|---|
-| AI-assistans | "Aktiverar AI-genererade förslag för personliga brev och matchningsanalys." |
-| Egen API-nyckel (BYOK) | "Använd din Anthropic-nyckel istället för JobbPilots. Du faktureras direkt." |
-| Dataanvändning | "Ditt CV och jobbannonsdata skickas till AI för analys. Data stannar inom EU." |
 
 ### Integrationer
 

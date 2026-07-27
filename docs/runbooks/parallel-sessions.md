@@ -175,10 +175,19 @@ remove 61 by hand):
 The reaper is **observe-only by default** — it logs `WOULD reap …` to
 `docs/sessions/worktree-reaper-<date>.log` and does nothing. It only performs
 the local, recoverable ops (`worktree remove` → `rm -rf` leftover → `branch -D`)
-when `JBL_WORKTREE_REAP=live` is set (the Klas ratchet). The **shared remote is
-never auto-touched**: merged branches are listed as `git push origin --delete`
-candidates for the babysitter/manual sweep, never deleted by the hook. See ADR
+when `JBL_WORKTREE_REAP=live` is set (the Klas ratchet). **The reaper still never
+touches the shared remote** — that invariant is ADR 0094's and is unchanged: it
+only ever lists merged branches as `git push origin --delete` candidates. See ADR
 0094 for the full safe-to-reap predicate and the must-not invariants.
+
+Since #725 the remote side has its own actor, and it is deliberately NOT the
+reaper: `.github/workflows/delete-merged-branches.yml` sweeps daily (and on
+`workflow_dispatch`) and deletes remote branches whose PR has MERGED. The two
+have different predicates on purpose — the reaper reasons about *worktrees*,
+where liveness is unknowable and doubt must resolve to skip; the sweep reasons
+about *pull requests*, where "merged" is a fact the API states. A branch with no
+merged PR is never touched by either, which is what keeps a CLOSED-not-merged
+head restorable from its PR page.
 
 **Manual (always available; the fallback for anything the reaper skips — crashed
 sessions, pre-marker worktrees, remote branches):**
@@ -187,8 +196,13 @@ sessions, pre-marker worktrees, remote branches):**
 git worktree remove C:/tmp/jbl-<context>   # after merge
 git worktree prune                          # drop stale registrations
 git branch -d feat/<context>-<slug>
-git push origin --delete feat/<context>-<slug>   # remote (never automated)
+git push origin --delete feat/<context>-<slug>   # remote; the sweep also gets it
 ```
+
+(The last line is only needed if you want it gone *now*. Once the PR has merged,
+`delete-merged-branches.yml` deletes the remote branch on its next run — or
+immediately, if you dispatch it: `gh workflow run delete-merged-branches.yml -f
+dry_run=false`. The local branch is still yours to remove.)
 
 ---
 

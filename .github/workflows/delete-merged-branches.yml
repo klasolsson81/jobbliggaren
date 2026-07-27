@@ -1,0 +1,457 @@
+# Delete remote branches whose pull request has already merged (#725).
+#
+# THE BUG. `delete_branch_on_merge` is **true** on this repository and has been
+# throughout. It still does not fire, because the automatic deletion follows the
+# identity that performed the merge -- and since ADR 0065's automerge flow,
+# almost every merge here is performed by the `github-actions` app via
+# GITHUB_TOKEN (`label-automerge.yml`).
+#
+# Measured 2026-07-27 over the 60 most recently updated MERGED PRs, correlating
+# `HeadRefDeletedEvent` (actor + timestamp) against `mergedBy`:
+#
+#   * 37 of 37 deletion events have actor `klasolsson81`. NONE has
+#     `github-actions`.
+#   * The 5 PRs merged by `klasolsson81` (#1070, #1064, #1057, #1049, #1045)
+#     were deleted 1-2 s after the merge. 5 of 5. That is the setting working.
+#   * The 55 PRs merged by `github-actions` were never deleted by the merge.
+#     Minimum lag to any deletion: 57 s. 23 of them were still undeleted when
+#     this was written, and the rest cluster into hand sweeps -- five PRs share
+#     the second 2026-07-21T15:54:16Z, three share 16:42:56Z.
+#
+# WHY THIS IS A SCHEDULED SWEEP AND NOT A `pull_request: closed` HANDLER. That
+# is the obvious repair and it CANNOT WORK: events triggered by GITHUB_TOKEN do
+# not start new workflow runs (only `workflow_dispatch` and `repository_dispatch`
+# are exempt). The population that has the bug is exactly the population whose
+# events are suppressed, so an event-driven fix would be green, silent and
+# inert -- the worst failure shape available, since it reads as working.
+#
+# That was measured directly rather than inferred, on 2026-07-27, with a
+# counterfactual -- because an absent workflow run and a misconfigured workflow
+# look identical, and only the counterfactual separates them:
+#
+#   * Two identical throwaway PRs against the same scrap base, both carrying the
+#     same `pull_request: [closed]` workflow, merged 18 s apart.
+#   * #1107, merged by `github-actions` at 18:40:30Z -> NO run. Head branch
+#     survived. (A live reproduction of this issue, incidentally.)
+#   * #1108, merged by `klasolsson81` at 18:40:48Z -> run started 18:40:53Z, and
+#     the head branch was auto-deleted at 18:40:50Z, +2 s, by the setting.
+#
+# TWO DISTINCT MECHANISMS SHARE ONE CAUSE -- do not collapse them. The suppressed
+# WORKFLOW RUN is why a `closed` handler cannot work, and why CodeQL stopped
+# running on main. The un-fired BRANCH DELETION is a repository SETTING that
+# follows the merging identity; it does not travel through the workflow engine at
+# all. Same cause (the app is the actor), different machinery. The workflow-run
+# half is independently visible in this repository's own history: `build.yml`
+# runs on `push: branches: [main]`, and its five most recent push-event runs
+# carry head SHAs that are, one for one, the merge commits of the five PRs Klas
+# merged himself -- 9f4df643/#1070, 1f023aae/#1064, 492fb825/#1057,
+# fb30b0ff/#1049, 6129c80b/#1045, each run starting 2-3 s after its merge. That
+# is SHA equality, not a timestamp coincidence. Between 9f4df643 and main at
+# 2461276f there are 25 further commits, every one merged by the app, and they
+# produced ZERO push-event runs. (The count is pinned to that tip because it
+# grows; the ratio is the claim, not the integer.)
+#
+# THE SYMMETRY THAT JUSTIFIES THE SHAPE: the event fires exactly where the
+# setting already works, and is suppressed exactly where the setting fails. A
+# `closed` handler would therefore have been dead weight across its entire
+# firing population. This is not a second-best -- it is the only mechanism whose
+# trigger survives the condition it exists to repair.
+#
+# `workflow_dispatch` is one of the two events exempt from the suppression, so
+# the manual path is guaranteed available -- that is what makes the window
+# ("eventually consistent") as narrow as any session wants it: babysit your PR
+# to merge (CLAUDE.md §6.5), then dispatch. Both events require this file to be
+# on the DEFAULT branch, which is why nothing here can be proven end-to-end
+# before it merges; see the PR body, which says so rather than letting a green
+# check read as proof.
+#
+# THE DELETION IS NOT DECIDED HERE. `.github/scripts/select-deletable-branches.sh`
+# decides, is fixture-tested, and is gated by the blocking `scripts` job in `ci`
+# -- the precedent `is-pure-base-merge.sh` set in the same directory (#836). That
+# gating is only true of code on the default branch, which is why the checkout
+# below is PINNED to it: a `workflow_dispatch` against an arbitrary branch would
+# otherwise run that branch's selector with `contents: write`, and the sentence
+# above would be false for exactly the path a human is most likely to use.
+#
+# This file fetches, hands over, deletes what it is told, and then VERIFIES THE
+# STATE rather than trusting an exit code. That split is what makes the
+# interesting logic testable without a network.
+#
+# A NOTE ON THE CONCURRENCY GROUP, because the neighbouring file argues the
+# opposite. `label-automerge.yml`'s `disarm` deliberately has NO group: each run
+# there is a statement about a span `before..after` whose inputs are GONE once
+# the run is cancelled -- it is not recomputable, so a cancelled run is a span
+# nobody ever reviewed. This job's inputs are always derivable from current
+# state. A cancelled run deletes only what the predicate had ALREADY authorised
+# -- `timeout-minutes` or a manual cancel can land mid-loop -- and it never
+# decides anything new; the next run re-derives the whole set from current state.
+# A deferred, or half-finished, deletion is therefore never a lost guarantee. It is
+# RECOMPUTABILITY that makes the group safe here, not any ordering property of
+# the deletions -- a later run may well decline what an earlier one would have
+# deleted, because a new stacked PR can appear overnight. Do not carry the group
+# back to `disarm`.
+name: delete-merged-branches
+
+on:
+  schedule:
+    # 04:40 UTC daily. The offset is cosmetic, not load-bearing: GitHub-hosted
+    # runners do not contend with anything else here, and the only other Actions
+    # cron in this repository is `codeql.yml` at `23 4 * * 1`. (An earlier draft
+    # justified the slot against the Hangfire crons in the Worker process --
+    # they share no resource with a GitHub runner, so that reasoning was
+    # evidence for a claim it could not support.)
+    - cron: '40 4 * * *'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'List what would be deleted without deleting it'
+        type: choice
+        options: ['true', 'false']
+        default: 'true'
+
+# `contents: write` deletes refs; `pull-requests: read` enumerates the PRs the
+# predicate is built from. Nothing else. GitHub has no per-step permissions, so
+# this is the narrowest expressible grant.
+permissions:
+  contents: write
+  pull-requests: read
+
+concurrency:
+  group: delete-merged-branches
+  cancel-in-progress: false
+
+env:
+  # The page ceiling asked for below. A list that comes back exactly this long
+  # may have been truncated, and truncation is undetectable from content.
+  #
+  # SIZED WITH HEADROOM, AND THE HEADROOM IS ARITHMETIC RATHER THAN A FEELING.
+  # This is the only number in this workflow that is a promise about the FUTURE
+  # rather than a dated measurement, so it is the one that can expire -- and when
+  # it does, `assert-not-truncated` refuses every run and the sweep goes
+  # permanently red on a schedule nobody is watching. Fail-closed and loud, so
+  # never dangerous; just useless, quietly.
+  #
+  # Measured 2026-07-27: 692 merged PRs, at the 13-27 merges/day this repository
+  # sustains. Headroom divided by that rate:
+  #
+  #     ceiling  1000 ->  11-24 days      (1.6-3.4 weeks)
+  #     ceiling  5000 -> 160-331 days     (5-11 months)
+  #     ceiling 20000 -> 715-1485 days    (2.0-4.1 years)
+  #
+  # 20000 it is. Two earlier drafts of this comment said "buys years" of 5000 and
+  # "well past a decade" of 20000; both were false against this same arithmetic,
+  # in the paragraph whose entire subject is a number going stale. The table is
+  # here so the next reader divides rather than believes.
+  #
+  # It costs no extra API calls: `gh` paginates against the real population, not
+  # against the ceiling -- 692 PRs is 7 requests whatever this says.
+  PR_PAGE_LIMIT: 20000
+
+jobs:
+  sweep:
+    name: sweep merged head branches
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      # PINNED to the default branch, and with the token left out of `.git`.
+      # Pinning is what makes the header's "gated by the blocking `scripts` job"
+      # true on the dispatch path too -- but only for `.github/scripts/`. A
+      # `workflow_dispatch` still runs the DISPATCHED ref's copy of this workflow
+      # file, so the `run:` blocks below come from the dispatcher's branch. That
+      # is not an escalation (dispatch already requires `contents: write`, and
+      # anyone holding it can delete refs directly) but it is not covered by the
+      # pin, and the sentence above should not be read as if it were.
+      # That "not an escalation" holds BECAUSE branch protection and rulesets
+      # apply to `GITHUB_TOKEN` as well -- a borrowed guarantee, named here rather
+      # than leaned on silently. If a ruleset ever granted the `github-actions`
+      # app a bypass, this sentence goes quietly false while still reading as
+      # verified, which is exactly what the selector's `*..*` clause refuses to do
+      # with git's own validator.
+      # `persist-credentials: false` keeps a `contents: write` token out of the
+      # runner's git config in a job that never uses git.
+      - name: Checkout the selector (default branch only)
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+
+      # A scheduled run sends NO inputs, so `inputs.dry_run` is the EMPTY string
+      # there -- not `false`. A naive `inputs.dry_run != 'false'` would make the
+      # scheduled run a permanent no-op that reports green, which is the exact
+      # failure shape this whole file exists to avoid. The event name is
+      # therefore part of the condition, not an afterthought.
+      - name: Resolve mode (dry run only ever on manual dispatch)
+        id: mode
+        run: |
+          set -euo pipefail
+          if [ "$EVENT" = "workflow_dispatch" ] && [ "$INPUT" = "true" ]; then
+            echo "dry=true" >>"$GITHUB_OUTPUT"
+            echo "::notice::DRY RUN -- listing candidates, deleting nothing."
+          else
+            echo "dry=false" >>"$GITHUB_OUTPUT"
+          fi
+        env:
+          EVENT: ${{ github.event_name }}
+          INPUT: ${{ inputs.dry_run }}
+
+      # Fail-loud on every fetch. A partial or failed fetch must never reach the
+      # selector as if it were an answer: an empty open-PR list would authorise
+      # deleting the base of every stacked PR in the repository.
+      #
+      # THE CEILING ASSERTION IS NOT DECORATION. `gh` exits 0 on a truncated
+      # list, and the two directions are not symmetric: a short merged list
+      # degrades to `no-merged-pr` (safe), while a short OPEN list dissolves both
+      # open-PR guards for the PRs that fell off the end (fail-open). The
+      # selector cannot detect either -- a short list is well-formed -- so the
+      # assertion belongs here, at the only place that knows a ceiling was asked
+      # for. The measurement and the ceiling arithmetic live in ONE place, the
+      # `env:` block above -- repeating them here is how one of the two copies
+      # ends up stale, which is the defect this file keeps finding in itself.
+      - name: Fetch merged PRs, open PRs and existing branches
+        id: fetch
+        run: |
+          set -euo pipefail
+          fetch_round() { # fetch_round <suffix>
+            gh pr list --repo "$REPO" --state merged --limit "$PR_PAGE_LIMIT" \
+              --json number,headRefName,headRefOid,headRepositoryOwner,headRepository >"merged$1.json"
+            gh pr list --repo "$REPO" --state open --limit "$PR_PAGE_LIMIT" \
+              --json number,headRefName,baseRefName >"open$1.json"
+            gh api "repos/$REPO/branches?per_page=100" --paginate \
+              --jq '.[] | [.name, (.protected|tostring), .commit.sha] | @tsv' >"branches$1.tsv"
+            bash .github/scripts/assert-not-truncated.sh "merged$1.json" "$PR_PAGE_LIMIT"
+            bash .github/scripts/assert-not-truncated.sh "open$1.json" "$PR_PAGE_LIMIT"
+          }
+          fetch_round 1
+          echo "round 1: merged=$(jq length merged1.json) open=$(jq length open1.json) branches=$(wc -l <branches1.tsv)"
+        env:
+          REPO: ${{ github.repository }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Decide which branches are deletable (round 1)
+        run: |
+          set -euo pipefail
+          export LC_ALL=C   # byte collation, so `sort`/`comm` agree provably rather than observably
+          bash .github/scripts/select-deletable-branches.sh \
+            merged1.json open1.json branches1.tsv "$DEFAULT_BRANCH" "$OWNER" "$REPO_NAME" >verdicts1.tsv
+          {
+            echo "## Branch sweep"
+            echo
+            echo "| verdict | branch | reason |"
+            echo "|---|---|---|"
+            awk -F'\t' '{ gsub(/[`|]/, "", $2); printf "| %s | `%s` | %s |\n", $1, $2, $3 }' verdicts1.tsv
+          } >>"$GITHUB_STEP_SUMMARY"
+          awk -F'\t' '$1 == "delete" { print $2 }' verdicts1.tsv | sort -u >round1.txt
+          echo "::notice::round 1: $(wc -l <round1.txt) selected for deletion, $(awk -F'\t' '$1 == "skip"' verdicts1.tsv | wc -l) skipped."
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          OWNER: ${{ github.repository_owner }}
+          REPO_NAME: ${{ github.event.repository.name }}
+
+      # SECOND READING, AND ONLY THE INTERSECTION IS DELETED. Between the first
+      # reading and the DELETE there is a window of tens of seconds in which
+      # somebody can open a PR -- and a PR opened in that window loses its base
+      # to silent retargeting (#836's defect class) or its head outright.
+      #
+      # This runs the SAME fixture-tested selector a second time rather than
+      # re-implementing the open-PR predicate in YAML: re-implementing it here
+      # would break this file's own rule that the deletion is not decided here,
+      # and would cover only the open-PR guards, not `protected`, the fork check
+      # or the tip check.
+      #
+      # It NARROWS the window to [round 2 -> DELETE]; it does not close it. Said
+      # plainly rather than left for a green check to imply.
+      - name: Re-read and intersect (narrows the TOCTOU window)
+        run: |
+          set -euo pipefail
+          export LC_ALL=C   # byte collation, so `sort`/`comm` agree provably rather than observably
+          fetch_round() {
+            gh pr list --repo "$REPO" --state merged --limit "$PR_PAGE_LIMIT" \
+              --json number,headRefName,headRefOid,headRepositoryOwner,headRepository >"merged$1.json"
+            gh pr list --repo "$REPO" --state open --limit "$PR_PAGE_LIMIT" \
+              --json number,headRefName,baseRefName >"open$1.json"
+            gh api "repos/$REPO/branches?per_page=100" --paginate \
+              --jq '.[] | [.name, (.protected|tostring), .commit.sha] | @tsv' >"branches$1.tsv"
+            bash .github/scripts/assert-not-truncated.sh "merged$1.json" "$PR_PAGE_LIMIT"
+            bash .github/scripts/assert-not-truncated.sh "open$1.json" "$PR_PAGE_LIMIT"
+          }
+          fetch_round 2
+          bash .github/scripts/select-deletable-branches.sh \
+            merged2.json open2.json branches2.tsv "$DEFAULT_BRANCH" "$OWNER" "$REPO_NAME" >verdicts2.tsv
+          awk -F'\t' '$1 == "delete" { print $2 }' verdicts2.tsv | sort -u >round2.txt
+          comm -12 round1.txt round2.txt >to-delete.txt
+
+          # The intersection can only SHRINK the set -- so assert exactly that.
+          # A mis-written `comm`, or a `cat round1.txt round2.txt | sort -u`,
+          # silently yields the UNION, which is the one mistake here that is
+          # dangerous rather than merely wrong.
+          for round in round1.txt round2.txt; do
+            extra=$(comm -23 to-delete.txt "$round")
+            if [ -n "$extra" ]; then
+              echo "::error::final list is not a subset of $round -- refusing to delete. Offending: $extra"
+              exit 1
+            fi
+          done
+
+          dropped=$(comm -23 round1.txt round2.txt)
+          if [ -n "$dropped" ]; then
+            echo "::notice::dropped between readings (state changed): $dropped"
+            { echo; echo "Dropped between readings:"; echo '```'; echo "$dropped"; echo '```'; } >>"$GITHUB_STEP_SUMMARY"
+          fi
+          echo "count=$(wc -l <to-delete.txt)" >>"$GITHUB_OUTPUT"
+        id: select
+        env:
+          REPO: ${{ github.repository }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          OWNER: ${{ github.repository_owner }}
+          REPO_NAME: ${{ github.event.repository.name }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Delete (skipped on a dry run)
+        id: delete
+        if: steps.mode.outputs.dry == 'false' && steps.select.outputs.count != '0'
+        run: |
+          set -uo pipefail
+          # NO `set -e` around the loop, deliberately: one branch that refuses to
+          # go must not hide every branch after it. Failures are collected and
+          # the verdict is reached below, from STATE -- the same discipline
+          # `label-automerge.yml` applies to `--disable-auto`, and the reason
+          # `reference_exit_code_after_a_pipe_measures_the_pipe_not_the_tool`
+          # exists.
+          #
+          # The failure OUTPUT is kept: 403 (a ruleset refusing the deletion),
+          # 404 (already gone) and 429 (rate limited) are three different stories
+          # and swallowing them makes the log useless. `gh` never writes the
+          # token to stderr, so there is nothing to hide.
+          # PACED. GitHub's SECONDARY rate limit is about burst rate, not the
+          # hourly quota, and its documented mitigation is to wait ~1 s between
+          # mutating requests. The first live run is also the largest -- it
+          # clears the whole accumulated backlog in one pass, dozens of branches
+          # -- and that same run is the acceptance test for this workflow. A
+          # throttled sweep would fail loudly (the branch survives, verify goes
+          # red) rather than silently, but it would fail on the one run whose
+          # result everybody reads. A second per branch is free here; the job
+          # has a 10-minute budget and nothing waits on it. Arithmetic, so the
+          # claim is measured rather than felt: ~1.3 s per branch including the
+          # API round trip, minus the two fetch rounds, puts the wall at roughly
+          # 400 branches against a measured backlog of 36-44 and 44 branches in
+          # total.
+          #
+          # NOTE THE HIDDEN TERM -- and note that it is deliberately NOT
+          # extrapolated. The fetch rounds cost ~1 min at today's 692 merged PRs,
+          # and that cost scales with the MERGED-PR population rather than with
+          # the branch count: 692 PRs is 7 merged-list pages per round, so the
+          # page-proportional part multiplies by ~29 at the 20000 the ceiling now
+          # permits. What that does to the wall is NOT computed here, because the
+          # ~1 min has never been decomposed into fixed and per-page cost, and a
+          # number derived from an undecomposed measurement is the exact defect
+          # this file has now caught in itself three times. An earlier draft said
+          # "100-200 s and the wall would fall to roughly 300"; that followed from
+          # neither reading of its own premise -- if the cost scales, ~29x is not
+          # 2-3x; if it does not scale, the premise is false -- so it is struck
+          # rather than adjusted.
+          #
+          # WHAT IS DERIVABLE, stated as the inequality rather than as a
+          # conclusion it does not support. With t(pages) = F + p*pages and the
+          # measured t(7) ~ 60 s, the 10-minute job budget is exhausted at 200
+          # pages IFF p > 2.8 s/page -- that is, iff more than about a third of
+          # today's minute is page-proportional. Which constraint binds at the
+          # ceiling, `timeout-minutes` or the ceiling itself, therefore turns on
+          # exactly the number this comment does not have. An earlier draft
+          # asserted "the fetch saturates the job budget well below 20000"; read
+          # as saturating at half the ceiling (10000 PRs = 100 pages) that
+          # requires p > 5.8 s/page, or ~68% of the minute, and is no more derived
+          # than the figure struck above -- so it is struck too. The `dry_run`
+          # dispatch below is how to get p. Guessing wrong costs either a loud
+          # `assert-not-truncated` (if the ceiling binds) or a timed-out job
+          # during fetch (if the budget does) -- never a wrong deletion. Both
+          # halves are named because the paragraph spends ten lines saying the two
+          # branches cannot be told apart, and it would be odd to close by pricing
+          # only one of them.
+          #
+          # To replace the hedge with a figure: one `workflow_dispatch` with
+          # `dry_run=true`, read the step timings, and the minute decomposes into
+          # fixed and per-page cost -- which names the population where the budget
+          # saturates.
+          #
+          # If a backlog ever exceeded the wall above, the run would silently do
+          # only a prefix -- safe and recomputable, since the next run re-derives
+          # everything from current state, but worth knowing before reading a
+          # short log as if it were a complete one.
+          while IFS= read -r branch || [ -n "${branch:-}" ]; do
+            [ -n "${branch:-}" ] || continue
+            if err=$(gh api -X DELETE "repos/$REPO/git/refs/heads/$branch" 2>&1 >/dev/null); then
+              echo "deleted: $branch"
+            else
+              echo "delete call failed for $branch (verified against state below): ${err//$'\n'/ }"
+            fi
+            sleep 1
+          done <to-delete.txt
+        env:
+          REPO: ${{ github.repository }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # The verdict is the STATE AFTERWARDS, never the exit code above. A DELETE
+      # that returns 204 is not proof the ref is gone, and a DELETE that fails is
+      # not proof it survived -- somebody else may have deleted it a second
+      # earlier, which is success no matter who did it.
+      #
+      # Absence is established by RE-READING THE WHOLE BRANCH LIST, not by
+      # probing each ref. A per-ref 404 is byte-identical to a network error or
+      # an exhausted rate limit, so it would confirm absence using the very
+      # channel that just failed. One listing call either succeeds -- and then
+      # says authoritatively which branches exist -- or fails and takes the step
+      # red with it.
+      #
+      # `!cancelled()` rather than `always()`: the state must be reported when the
+      # delete step FAILED -- a deletion nobody verified is what this step exists
+      # to prevent -- but not when the job was CANCELLED, where a half-attempted
+      # list would make `always()` report every unattempted branch as "selected
+      # for deletion and still exists": a red alarm naming the wrong cause.
+      #
+      # Whether a job-level `timeout-minutes` sets `cancelled()` is UNDOCUMENTED
+      # and NOT measured here. GitHub documents that `timeout-minutes` CANCELS the
+      # job -- that part is not in doubt; what is undocumented is whether that
+      # cancellation sets the `cancelled()` context the condition reads.
+      # `!cancelled()` is therefore chosen as the stricter default rather than
+      # because that path is proven; on the
+      # manual-cancel path it is proven, and if the timeout path turns out not to
+      # set it, this is a no-op rather than a regression. Said plainly instead of
+      # letting a plausible mechanism read as a measured one. Keyed on the delete step's own
+      # outcome rather than on a re-derivation of its condition, so the two cannot
+      # drift apart.
+      - name: Verify the refs are actually gone
+        # Wrapped in `${{ }}`: a BARE leading `!` is a YAML tag indicator and
+        # invalidates the whole file, which is a worse failure than the one this
+        # condition fixes -- an unparseable workflow simply never runs.
+        if: ${{ !cancelled() && steps.delete.outcome != 'skipped' }}
+        run: |
+          set -euo pipefail
+          gh api "repos/$REPO/branches?per_page=100" --paginate --jq '.[].name' >after.txt
+          # `grep` returns 0 (match), 1 (no match) and 2 (ERROR). A bare
+          # `|| true` swallows 2 and reports an I/O failure as "no survivors" --
+          # the backstop failing open through the same shape it was built to
+          # catch. Decide on the code explicitly.
+          set +e
+          survivors=$(grep -Fxf to-delete.txt after.txt)
+          rc=$?
+          set -e
+          if [ "$rc" -gt 1 ]; then
+            echo "::error::grep failed (exit $rc) while checking survivors -- state unverified."
+            exit 1
+          fi
+          if [ -n "$survivors" ]; then
+            echo "::error::These branches were selected for deletion and still exist:"
+            echo "$survivors"
+            {
+              echo
+              echo "### Still present after deletion"
+              echo '```'
+              echo "$survivors"
+              echo '```'
+            } >>"$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+          echo "::notice::Verified: every selected branch is gone."
+        env:
+          REPO: ${{ github.repository }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

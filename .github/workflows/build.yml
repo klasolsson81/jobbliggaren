@@ -257,15 +257,26 @@ jobs:
         run: pnpm test
 
   # Fixture-tester för de bash-skript i `.github/scripts/` som CI och
-  # merge-kontrollerna själva kör. Idag ett: `is-pure-base-merge.sh`, predikatet
-  # som avgör om en push får låta en PR:s granskningsgrind stå kvar armerad
-  # (#836). Jobbet är BLOCKERANDE (ligger i ci.needs) och det är hela poängen —
-  # otestad logik inuti en merge-kontroll är ett påstående som inte kan falla,
-  # vilket är precis den defektklass kontrollen finns för att stänga.
+  # merge-/hygien-kontrollerna själva kör. Idag tre: `is-pure-base-merge.sh`,
+  # predikatet som avgör om en push får låta en PR:s granskningsgrind stå kvar
+  # armerad (#836); `select-deletable-branches.sh`, predikatet som avgör vilka
+  # fjärr-grenar `delete-merged-branches.yml` får RADERA (#725); och
+  # `assert-not-truncated.sh`, grinden som vägrar besluta på en API-lista som kan
+  # ha kapats vid sitt sidtak (#725 — en kapad ÖPPEN-PR-lista är fail-OPEN och
+  # löser upp båda stackade-PR-grindarna). Jobbet är
+  # BLOCKERANDE (ligger i ci.needs) och det är hela poängen — otestad logik
+  # inuti en merge-kontroll är ett påstående som inte kan falla, vilket är precis
+  # den defektklass kontrollen finns för att stänga. Samma sak gäller ett
+  # destruktivt svep: skillnaden är bara att dess felutfall är oåterkalleligt.
   #
-  # Inget toolchain-steg: bara bash + git, som redan finns på runnern. Mätt
-  # 2026-07-27 på ubuntu-runner: hela jobbet 9 s, mot `coverage` som är kritisk
-  # väg på ~913 s. ci:s väggklocka är alltså oförändrad.
+  # Inget toolchain-steg: bara bash, git och `jq` (den senare krävs hårt av
+  # BÅDA de nya skripten — `select-deletable-branches.sh` och
+  # `assert-not-truncated.sh`) — alla tre finns förinstallerade på
+  # ubuntu-runnern. Mätt 2026-07-27 på ubuntu-runner: **9 s när jobbet körde
+  # ENBART `is-pure-base-merge`-fixturerna**; siffran är alltså ett golv, inte
+  # jobbets nuvarande varaktighet. Storleksordningen är det som bär: mot
+  # `coverage` på ~913 s (kritisk väg) är ci:s väggklocka oförändrad oavsett
+  # vilken av de två siffrorna som gäller.
   scripts:
     name: scripts (bash fixtures)
     runs-on: ubuntu-latest
@@ -285,6 +296,12 @@ jobs:
 
       - name: is-pure-base-merge (fixturer)
         run: bash .github/scripts/is-pure-base-merge.test.sh
+
+      - name: select-deletable-branches (fixturer)
+        run: bash .github/scripts/select-deletable-branches.test.sh
+
+      - name: assert-not-truncated (fixturer)
+        run: bash .github/scripts/assert-not-truncated.test.sh
 
   # ---------------------------------------------------------------------------
   # PERF-/SUPPLY-CHAIN-GOVERNANCE (ADR 0045 — observe-only Fas 1).

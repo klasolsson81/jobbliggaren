@@ -293,7 +293,7 @@ if command -v gh >/dev/null 2>&1; then
     case "$_m" in ''|*[!0-9]*) continue ;; esac
     _dead_local="${_dead_local}      - $_b (PR #$_m)"$'\n'
   done < <(git branch --format='%(refname:short)' 2>/dev/null)
-  [ -n "$_dead_local" ] && HYGIENE="${HYGIENE}    dead local branches (PR merged — 'git branch -D', and 'git push origin --delete'):"$'\n'"${_dead_local}"
+  [ -n "$_dead_local" ] && HYGIENE="${HYGIENE}    dead local branches (PR merged — 'git branch -D'; the remote side is swept by delete-merged-branches.yml, #725):"$'\n'"${_dead_local}"
 
   # (b) your own open PRs that are not merely waiting on green CI. BEHIND is the silent
   #     one: automerge will never rebase it, and nothing tells you.
@@ -332,7 +332,14 @@ if [ "$REAPED_N" -gt 0 ] || [ "$REMOTE_N" -gt 0 ] || [ "$RESCUED_N" -gt 0 ] || [
   [ "$RESCUED_N" -gt 0 ] && printf '%s' "$RESCUED_LIST"
   [ "$REAPED_N" -gt 0 ] && printf '%s' "$REAPED_LIST"
   if [ "$REMOTE_N" -gt 0 ]; then
-    echo "  remote-grenar att städa manuellt (git push origin --delete, aldrig automatiskt):"
+    # Since #725 these are deleted by `delete-merged-branches.yml` (daily sweep
+    # plus `workflow_dispatch`). THE REAPER still never touches them -- ADR 0094's
+    # invariant is unchanged; a DIFFERENT actor does it. So this line may no
+    # longer say "aldrig automatiskt", and equally may not imply that the hook has
+    # started reaching for the remote.
+    # (English per CLAUDE.md §1: new comments are English even in a file whose
+    # user-facing output is Swedish.)
+    echo "  remote-grenar (raderas av svepet; 'gh workflow run delete-merged-branches.yml -f dry_run=false' om du vill ha det gjort nu):"
     printf '%s' "$REMOTE_LIST"
   fi
   # A skip carrying UNLANDED EDIT is not noise — it means a worktree holds session state

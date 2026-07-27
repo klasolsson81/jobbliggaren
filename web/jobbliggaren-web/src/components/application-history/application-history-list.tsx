@@ -51,7 +51,7 @@ export function ApplicationHistoryList({ items }: ApplicationHistoryListProps) {
       {items.length === 0 ? (
         <div className="jp-empty">
           <div className="jp-empty__title">{t("emptyTitle")}</div>
-          {t("emptyBody")}
+          <p className="jp-empty__body">{t("emptyBody")}</p>
         </div>
       ) : (
         <ul className="jp-jobs" aria-label={t("listLabel")}>

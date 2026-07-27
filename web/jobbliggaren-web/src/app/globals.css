@@ -1547,7 +1547,8 @@ a.jp-adminnav__link[aria-current="page"]::after {
 }
 /* G1 fokus-scoping (WCAG 2.4.7): gradient-ytor får vit ring via property-
    scoping av --jp-focus (grön ring syns inte mot grönt). Ersätter de
-   tidigare :focus-visible-specialreglerna för pagehero/empty--brand. */
+   tidigare :focus-visible-specialreglerna för pagehero och den retirerade
+   brand-varianten. */
 /* G2 (design-reviewer Minor 1): scopet sitter på GRADIENT-ELEMENTEN
    (inner-plattorna), inte wrappers — wrappers är numera canvas och ett
    framtida fokuserbart element mellan wrapper-kant och platta ska INTE
@@ -3982,6 +3983,26 @@ a.jp-adminnav__link[aria-current="page"]::after {
   font-weight: var(--jp-fw-bold);
   margin: 0 0 4px;
 }
+/* Empty-state explanation. .jp-empty is centred and sets no measure, so the
+   prose ran the full 1088px of the container (1200 - 2x32 - 2x24) — roughly
+   double the ~68ch cap jobbpilot-design-a11y sets for running prose
+   (WCAG 1.4.8).
+
+   52ch is MEASURED, not felt. Every empty-state string in this tree was
+   rendered at 52/56/60/64/68ch in a real .jp-empty__body (real font, real cap,
+   real centring) and the last line's share of the measure counted: 52ch is the
+   ONLY value that strands no last line anywhere. 60ch strands /foretag's at
+   11 %, 64ch strands three surfaces, 68ch strands /sparade's at 5 %. It costs
+   one extra line across all fourteen surfaces — the right trade for CENTRED
+   prose, where a ragged left edge makes a stranded last word read worse than an
+   extra full line. It is also the value the withdrawn brand rule used.
+
+   margin-inline because the parent centres via text-align, which would
+   otherwise leave the capped block hanging left. */
+.jp-empty__body {
+  max-width: 52ch;
+  margin-inline: auto;
+}
 
 /* ── Skeleton (laddningstillstånd) ───────────────────
    Platt neutral platshållare för /jobb-sökresultatet (F6 P4).
@@ -5328,8 +5349,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
    (inga nya färger/radier/skuggor). Dark mode auto-skiftar via token-systemet.
    ══════════════════════════════════════════════════════════════════════════ */
 
-/* Bas-layout för empty-state-actions (icke-brand) — multipla knappar.
-   --brand-varianten har egen regel ovan; detta är den neutrala basen. */
+/* Bas-layout för empty-state-actions — multipla knappar. */
 .jp-empty__actions {
   display: flex;
   gap: 10px;

@@ -53,7 +53,11 @@
          PdfPigCvLayoutAnalyzerTests (the margin-math is only honestly testable against genuine
          PDF bytes, never a faked buffer). QuestPDF is already the repo's PDF renderer, centrally
          pinned in Directory.Packages.props (same version as Infrastructure); License = Community
-         is set once in the test fixture's static constructor. -->
+         is set once in the test fixture's static constructor.
+         #1060 PR E — ALSO used by PdfPigOpenXmlCvTextExtractorTests, whose PDF happy path this
+         reference had made possible since PR-6b while a stale comment in that file claimed a
+         valid in-memory PDF was impractical. Both classes sit in the "QuestPdfRendering" xUnit
+         collection (QuestPDF's font manager is not thread-safe). -->
     <PackageReference Include="QuestPDF" />
     <PackageReference Include="Shouldly" />
     <PackageReference Include="xunit.v3.mtp-v2" />

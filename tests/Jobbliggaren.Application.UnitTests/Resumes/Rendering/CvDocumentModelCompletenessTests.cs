@@ -64,7 +64,18 @@ public class CvDocumentModelCompletenessTests
                     [new SectionEntry("Betalplattform", ["Ledde mikrotjanst-migrationen.", "Inforde CICD."])]),
                 new ResumeSection("Certifikat",
                     [new SectionEntry("AWS Certified", ["Utfardat 2022."])]),
-            ]);
+            ],
+            // #1060 — the one field on ResumeContent that must NOT reach the document, and it
+            // belongs in the "maximal" fixture precisely because of that. Omitting it left this
+            // file's own contract false (it claims to exercise every superset surface) and left
+            // the next reader of the title with a mandate to project the preamble into a CV the
+            // user sends to employers. Asserted NEGATIVELY below, beside the positive tokens.
+            preamble: PreambleNeverRendered);
+
+    /// <summary>The verbatim unclassified region an imported CV carried above its first heading
+    /// (ADR 0109). Deliberately distinctive so a substring match cannot pass by accident, and
+    /// deliberately NOT in <c>ExpectedTokens</c>.</summary>
+    private const string PreambleNeverRendered = "Zebrafisk-kvartalsrapport 1998 Storgatan 1";
 
     private static CvDocumentModel From(ResumeContent content) =>
         CvDocumentModel.From(
@@ -188,6 +199,22 @@ public class CvDocumentModelCompletenessTests
                 Case.Insensitive,
                 $"'{token}' saknas i den renderade PDF-texten ({profile}) — innehåll får aldrig tappas (P2/P5).");
         }
+
+        // #1060 — the inverse, and the reason it lives HERE rather than beside the linearizer
+        // pin: /render never touches ResumeContentLinearizer. CvRenderer goes through
+        // CvDocumentModel.From, a SECOND independent enumeration of ResumeContent, so the
+        // Domain-level pin gives this path zero coverage. The loop above is the positive
+        // control that makes this line mean something — it proves the render ran and the
+        // extraction read it, so an absent preamble is an absence rather than an empty page.
+        //
+        // ADR 0109's accepted junk cost is DISPLAY, never RENDER: an OCR header, a page number
+        // or an address block riding an unclassified region must not become part of the
+        // document the user sends to employers.
+        extracted.RawText.ShouldNotContain(
+            PreambleNeverRendered,
+            Case.Insensitive,
+            $"den oklassificerade preamblen renderades in i PDF:en ({profile}) — ADR 0109: " +
+            "den visas tillbaka, den blir aldrig en del av CV:t.");
     }
 
     [Fact]

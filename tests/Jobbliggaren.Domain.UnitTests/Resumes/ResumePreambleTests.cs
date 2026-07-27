@@ -12,11 +12,15 @@ namespace Jobbliggaren.Domain.UnitTests.Resumes;
 /// above its first heading (#844, ADR 0109), projected onto the canonical CV at promote.
 ///
 /// <para>The field's whole safety rests on three properties, and all three are aggregate
-/// behaviour rather than convention, so all three are pinned here: it is WRITE-ONCE (only
-/// <c>CreateFromParsed</c> may set it), it is BOUNDED like every other free-text field, and it
-/// is NEVER LINEARIZED — the linearized text is what <c>/render</c>, the ATS view and the
-/// citation substrate are built from, and an unclassified page number or address block must
-/// never reach a document the user sends to employers.</para>
+/// behaviour rather than convention, so all three are pinned here: it is WRITE-ONCE (set only
+/// by <c>CreateFromParsed</c>, whose two callers both DERIVE it from the parse), it is BOUNDED
+/// like every other free-text field, and it is NEVER LINEARIZED.</para>
+///
+/// <para>"Never linearized" is only half the render story and this class only pins that half:
+/// the linearized text is what the ATS view and the citation substrate are built from, but
+/// <c>/render</c> goes through <c>CvDocumentModel.From</c>, a SECOND independent enumeration of
+/// <c>ResumeContent</c>. That half is pinned in <c>CvDocumentModelCompletenessTests</c>, against
+/// the rendered PDF's own extracted text. Both are needed; neither implies the other.</para>
 /// </summary>
 public class ResumePreambleTests
 {
@@ -142,13 +146,18 @@ public class ResumePreambleTests
     /// The cap is the Domain's, and the argument that trips it is hand-built — so §5's `Tests:`
     /// rule applies and the actor is named rather than left implicit.
     ///
-    /// <para><b>No path in `src/` produces a preamble longer than 2 000 today.</b> The only
-    /// writer is <c>PreambleResidue.Extract</c>, which truncates at its own
-    /// <c>MaxPreambleChars = 2000</c> before the value ever reaches
-    /// <c>AutoPromoteContentMapper</c>, and that truncation is pinned where the writer lives —
-    /// <c>PreambleResidueTests.Segment_HeadinglessCv_CarriesAtMostTheCap</c> and
-    /// <c>…_TruncatesOnALineBoundary_NeverMidSentence</c>. The field has no other ingress:
+    /// <para><b>No path in `src/` produces a preamble longer than 2 000 — but only because of a
+    /// derivation this PR had to add.</b> The sole writer is <c>PreambleResidue.Extract</c>,
+    /// which truncates at its own <c>MaxPreambleChars = 2000</c>, pinned where the writer lives
+    /// (<c>PreambleResidueTests.Segment_HeadinglessCv_CarriesAtMostTheCap</c> and
+    /// <c>…_TruncatesOnALineBoundary_NeverMidSentence</c>). Nothing else can reach the field:
+    /// BOTH <c>CreateFromParsed</c> callers substitute the parse's value before their guard,
     /// <c>UpdateMasterContent</c> is write-once and <c>CreateTailored</c> clears it.</para>
+    ///
+    /// <para>Stated that way because it was NOT true when this test was first written. The
+    /// manual promote endpoint accepted a client-supplied preamble that no request validator
+    /// capped, so the cap had a live rejection path and the named actor was wrong — measured in
+    /// review. Remove the derivation and this test's premise becomes producible again.</para>
     ///
     /// <para>That makes this the AUTHORITY half of a mirrored pair, not a live rejection path —
     /// the same relationship <c>Resume.cs</c> already documents for the 100/200-char caps the
@@ -172,10 +181,11 @@ public class ResumePreambleTests
     [Fact]
     public void CreateFromParsed_WithPreambleExactlyAtTheCap_Succeeds()
     {
-        // 2 000 IS producible — it is exactly what PreambleResidue emits for a headingless CV,
-        // whose preamble is the whole document. So this row is the boundary the two caps share,
-        // and it must not be off by one in either direction: a Domain cap one char tighter than
-        // the writer's would block the most common shape the writer produces.
+        // 2 000 is the boundary the two caps SHARE, and it must not be off by one in either
+        // direction: a Domain cap one char tighter than the writer's would block the shape the
+        // writer is allowed to produce. Note the writer emits <= 2 000, not exactly 2 000 —
+        // PreambleResidue.Truncate cuts on a LINE boundary, so the emitted length lands at or
+        // below the cap rather than on it. The boundary is still the right place to pin.
         var result = Resume.CreateFromParsed(
             Owner, "Importerat CV", Content(preamble: new string('a', 2_000)),
             new ParsedResumeId(Guid.NewGuid()), Clock);

@@ -252,7 +252,7 @@ public class A8PreambleHonestyTests
     /// emit the hard Fail "Profiltext saknas helt." about the summary the user wrote and the
     /// product is now storing. That is #844's headline defect, resurrected by its own fix.</para>
     /// </summary>
-    private static ResumeContent ImportedContentWithPreamble(string? preamble) => new(
+    private static ResumeContent ContentWithPreamble(string? preamble) => new(
         new PersonalInfo("Anna Andersson", "anna.andersson@example.com", "070-123 45 67", "Stockholm"),
         experiences:
         [
@@ -272,7 +272,7 @@ public class A8PreambleHonestyTests
 
     private static async Task<CvCriterionVerdict> CanonicalA8Async(string? preamble)
     {
-        var content = ImportedContentWithPreamble(preamble);
+        var content = ContentWithPreamble(preamble);
         var result = await Engine().ReviewAsync(
             CvReviewContext.FromCanonical(
                 content, ResumeContentLinearizer.Linearize(content), ResumeLanguage.Sv),
@@ -309,7 +309,9 @@ public class A8PreambleHonestyTests
 
     /// <summary>
     /// The counterfactual that makes the pin above mean something. Identical content, preamble
-    /// absent — which is every TEMPLATE-origin CV — and the earned Fail must survive. Without
+    /// absent, and the earned Fail must survive. (`ResumeContent` carries no origin, so what the
+    /// argument actually says is "no preamble" — which is true of every template-origin CV, but
+    /// the assertion is about the field, not about a provenance the fixture cannot express.) Without
     /// this row the NotAssessed test would also pass if A8 had simply stopped failing, and it
     /// would be pinning nothing. Withdrawing this arm too would delete a working signal, which
     /// is a regression dressed as honesty.
@@ -333,11 +335,32 @@ public class A8PreambleHonestyTests
     [Fact]
     public async Task CanonicalPreamble_IsNeverGradedAsProse()
     {
-        var content = ImportedContentWithPreamble($"{RealCliche} som söker nya utmaningar.");
+        const string sentence = $"{RealCliche} som söker nya utmaningar.";
 
+        // POSITIVE CONTROL FIRST, and it is not optional here — the staging twin above carries
+        // one for a reason it states in as many words: without it, this test would also pass if
+        // A7 were simply broken on the canonical arm, and it would be pinning nothing. The
+        // identical sentence in SUMMARY is the user's own prose, so A7 must see it and cite it.
+        var headed = ContentWithPreamble(preamble: null) with { Summary = sentence };
+        var headedResult = await Engine().ReviewAsync(
+            CvReviewContext.FromCanonical(
+                headed, ResumeContentLinearizer.Linearize(headed), ResumeLanguage.Sv),
+            RenderProfile.Ats,
+            TestContext.Current.CancellationToken);
+
+        string.Join(" ", headedResult.Verdicts.Single(v => v.CriterionId == "A7")
+            .Evidence.Select(e => e.ToString()))
+            .ShouldContain(RealCliche);
+
+        // THE GUARD: the same sentence as an UNCLASSIFIED preamble. The engine was never told it
+        // is prose the user wrote about herself, so it must not enter ReviewText.AllProse and
+        // must not be graded — not by A7, not by A9, not by anything. Grading an address block
+        // or OCR noise as her writing is the auto-classification the carrier exists to refuse,
+        // arriving through the back door on the arm that renders CVs.
+        var unheaded = ContentWithPreamble(sentence);
         var result = await Engine().ReviewAsync(
             CvReviewContext.FromCanonical(
-                content, ResumeContentLinearizer.Linearize(content), ResumeLanguage.Sv),
+                unheaded, ResumeContentLinearizer.Linearize(unheaded), ResumeLanguage.Sv),
             RenderProfile.Ats,
             TestContext.Current.CancellationToken);
 

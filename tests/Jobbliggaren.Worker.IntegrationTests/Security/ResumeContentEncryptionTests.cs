@@ -180,6 +180,12 @@ public class ResumeContentEncryptionTests(WorkerTestFixture fixture)
                     new SectionEntry("Betalplattform", ["Ledde ett team om 8.", "Ökade konvertering."]),
                 ]),
             ],
+            // #1060 — the imported preamble is CV-PII inside the same Form B blob as everything
+            // above, so it must survive the same real-Postgres DEK round-trip. One line here
+            // buys the whole guarantee: the superset round-trip test compares the deep-equal
+            // aggregate, so a field the serializer drops fails there rather than in production.
+            // Åäö and a line break on purpose — the affordance quotes this text back verbatim.
+            Preamble = "Anna Andersson\nErfaren backend-utvecklare — Göteborg, Västra Götaland.",
         };
 
     /// <summary>

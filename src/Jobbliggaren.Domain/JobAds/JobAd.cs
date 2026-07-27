@@ -29,8 +29,9 @@ public sealed class JobAd : AggregateRoot<JobAdId>
     public ExternalReference? External { get; private set; }
 
     // ADR 0032 §4 — raw JobTech-payload för debug/replay (jsonb i DB).
-    // RETENTION: PurgeStaleRawPayloadsJob nulls this 30 days after published_at
-    // (GDPR Art. 5(1)(c)/(e), ADR 0032 §8). It is the ONLY column on this aggregate
+    // RETENTION: PurgeStaleRawPayloadsJob nulls this, but the sync rewrites it — the rule is
+    // NOT "30 days after published_at" and lives in one place: ADR 0032 Amendment 2026-07-26 §C2
+    // (GDPR Art. 5(1)(c)/(e)). It is the ONLY column on this aggregate
     // with a TTL — which is why nothing durable may be derived from it in the
     // database. See SetSourcePayload.
     public string? RawPayload { get; private set; }
@@ -40,7 +41,7 @@ public sealed class JobAd : AggregateRoot<JobAdId>
     //
     // Until 2026-07-13 these were Postgres STORED generated columns derived from
     // raw_payload. Postgres recomputes a stored generated column on every UPDATE of
-    // its base, so the 30-day raw_payload purge silently nulled all seven — and the
+    // its base, so the raw_payload purge silently nulled all seven — and the
     // 02:00 sync rewrote the payload and resurrected them. Net effect, proven against
     // real Postgres: filtered search, the per-user matching engine and the
     // company-watch scan dropped still-ACTIVE ads ~21.5 h out of every 24, every day.

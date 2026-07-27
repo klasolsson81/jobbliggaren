@@ -23,7 +23,8 @@ namespace Jobbliggaren.Application.Applications.Commands.CreateApplicationFromJo
 /// ad content survives the source JobAd being archived. The municipality is
 /// captured as the raw <c>MunicipalityConceptId</c> column (#841: an ordinary, C#-written
 /// ingest column since 2026-07-13 — it used to be a STORED generated column derived from
-/// raw_payload, so applying to an ad past the 30-day horizon froze a permanent NULL into the
+/// raw_payload, so applying to an ad whose payload had already been purged (rule: ADR 0032
+/// Amendment 2026-07-26 §C2) froze a permanent NULL into the
 /// snapshot that exists precisely to OUTLIVE the ad. That is fixed at the root) (read
 /// via the typed <c>j.MunicipalityConceptId</c> property since #873) and resolved to a
 /// name on the READ path (ADR 0086 D4, final

@@ -434,7 +434,7 @@ public class GetEmployerApplicationCountBatchQueryHandlerIntegrationTests(ApiFac
         //
         // Its predecessor was `Handle_DoesNotCountPriorApplication_WhenItsAdWasPurged_EvenThoughStillActive`,
         // a characterization test (Feathers) from the #824 lane. It pinned the real, shipped behaviour: an
-        // ad past the 30-day payload horizon but STILL ACTIVE silently lost its employer, because
+        // ad past the payload-retention threshold but STILL ACTIVE silently lost its employer, because
         // organization_number was a STORED generated column derived from raw_payload and the purge made
         // Postgres recompute it to NULL. The badge then undercounted — the user HAD applied to this
         // employer and was told nothing. Its own closing comment said, in as many words: *"the root cause
@@ -454,7 +454,7 @@ public class GetEmployerApplicationCountBatchQueryHandlerIntegrationTests(ApiFac
         var seeker = await SeedSeekerAsync(db, clock, userId, ct);
 
         var orgX = "5560360795";
-        // The prior ad is published PAST the 30-day retention horizon but is still ACTIVE (deadline 30
+        // The prior ad is published PAST the payload-retention threshold but is still ACTIVE (deadline 30
         // days out). Nothing archives it; nothing deletes it.
         var priorStale = await SeedJobAdAsync(db, clock, orgX, "Stale AB", ct, publishedDaysAgo: 40);
         await SeedApplicationAsync(db, clock, seeker.Id, priorStale.Id, ApplicationStatus.Submitted, ct);

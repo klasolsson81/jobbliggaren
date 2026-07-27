@@ -351,7 +351,7 @@ internal sealed partial class PlatsbankenJobSource(
     }
 
     // #841 — ACL translation of the seven source facets. Until 2026-07-13 these were derived by POSTGRES,
-    // as STORED generated columns reading raw_payload — which meant the 30-day raw_payload purge recomputed
+    // as STORED generated columns reading raw_payload — which meant the raw_payload purge recomputed
     // every one of them to NULL and filtered search, the matching engine and the company-watch scan silently
     // lost still-ACTIVE ads ~21.5 h/day. The values now come from here, are written in C# at the single
     // ingest funnel, and outlive the payload (ADR 0032 §8: "indefinitively för sanitized fields").

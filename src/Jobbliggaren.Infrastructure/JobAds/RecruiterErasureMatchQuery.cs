@@ -147,10 +147,11 @@ internal sealed class RecruiterErasureMatchQuery(AppDbContext db) : IRecruiterEr
         //
         // The organization_number arm is exact-match on the NORMALISED org.nr. `{orgNr}` is NULL
         // for a non-org.nr identifier, and `column = NULL` is never true — the arm switches itself
-        // off. It exists because raw_payload is NULLed at 30 days (PurgeStaleRawPayloadsJob), after
+        // off. It exists because raw_payload is eventually NULLed (PurgeStaleRawPayloadsJob; rule in
+        // ADR 0032 Amendment 2026-07-26 §C2), after
         // which the materialised organization_number column (#841) is the ONLY place a sole
-        // trader's org.nr survives in the row — the same 30-day logic that forced the company_name
-        // channel (see the port).
+        // trader's org.nr survives in the row — the same payload-retention logic that forced the
+        // company_name channel (see the port; rule in ADR 0032 Amendment 2026-07-26 §C2).
         var ids = await db.Database
             .SqlQuery<Guid>($"""
                 SELECT id AS "Value"

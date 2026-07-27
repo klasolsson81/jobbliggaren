@@ -29,8 +29,8 @@ namespace Jobbliggaren.Application.JobAds.Jobs.PurgeRawPayloads;
 /// <see cref="RunAsync"/> below). It claimed to erase precisely the PII it cannot reach —
 /// and ADR 0032 §8 recorded that claim as one of two GDPR mitigations for inbound recruiter
 /// PII. The control that will actually remove it is <c>RecruiterContactRedactor</c> at ingest
-/// (ADR 0106 Tier A, PR2 — <b>NOT shipped as of this PR</b>; the address is still sitting in
-/// <c>description</c> today). This job's honest scope is raw_payload retention, which is all
+/// (ADR 0106 Tier A — <b>shipped 2026-07-17</b>, commit <c>daa4b51d</c>, with Tier B in
+/// <c>269a4603</c>). This job's honest scope is raw_payload retention, which is all
 /// it ever did.
 /// </para>
 ///
@@ -51,8 +51,9 @@ namespace Jobbliggaren.Application.JobAds.Jobs.PurgeRawPayloads;
 /// <para>
 /// <b>Today this job nulls <c>raw_payload</c> and nothing else.</b> The seven are ordinary columns,
 /// written in C# by <c>JobAd.SetSourcePayload</c> at the ingest funnel, atomically with the payload they
-/// were parsed from — so they outlive it, which is exactly what ADR 0032 §8 always specified
-/// ("30 dagar för raw_payload, indefinitively för sanitized fields"). That is not a convention anyone has
+/// were parsed from — so they outlive it — which is the half of ADR 0032 §8's
+/// original sentence that was true, "indefinitively för sanitized fields". Its duration half is
+/// false; the rule is in ADR 0032 Amendment 2026-07-26 §C2. That is not a convention anyone has
 /// to remember: <c>JobAdRawPayloadDerivationGuardTests</c> fails the build if any column is derived from
 /// <c>raw_payload</c> in the database again, and <c>JobAdFacetsSurvivePurgeTests</c> runs this job against
 /// real Postgres and asserts all seven survive it.
@@ -68,14 +69,20 @@ namespace Jobbliggaren.Application.JobAds.Jobs.PurgeRawPayloads;
 /// </para>
 ///
 /// <para>
-/// <b>⚠ The retention rule this job implements is NOT the documented one (#845).</b> The daily
-/// full-backfill sync (<c>SyncPlatsbankenSnapshotJob</c>, cron <c>0 2 * * *</c>) rewrites
-/// <c>raw_payload</c> unconditionally for every ad still in the feed, so for a still-listed ad this
-/// purge is undone ~21.5h later, every day. The de-facto rule is "30 days after the ad LEAVES the
-/// feed", not "30 days after publication". <b>And the mitigation is largely illusory (#842):</b> the
-/// recruiter free-text this job exists to scrub also lives in the ordinary <c>job_ads.description</c>
-/// column, which is never purged — so the identical text survives, and remains FTS-searchable via
-/// <c>search_vector</c>.
+/// <b>This job's threshold is not the deletion rule.</b> The daily full-backfill sync
+/// (<c>SyncPlatsbankenSnapshotJob</c>) rewrites <c>raw_payload</c> for every ad still in the feed,
+/// so for a still-listed ad this purge is undone ~21.5h later, every day. The one exception is
+/// <c>Erased</c>: <c>JobAd.UpdateFromSource</c> refuses, which is what makes Art. 17 erasure durable.
+/// <b>The rule lives in ONE place — ADR 0032 Amendment 2026-07-26 §C2</b> (#845). Do not restate a
+/// duration here: "30 days after publication" was false, and so is "30 days after the ad leaves the
+/// feed" (an ad delisted well inside the window is still purged at the window's end, not at
+/// delisting — and the threshold is configurable, so no day count belongs here either).
+/// <b>On the mitigation:</b> the recruiter free-text this job cannot reach lives in the ordinary
+/// <c>job_ads.description</c> column, which this job never touches. That is no longer un-mitigated —
+/// #842 shipped Tier A (ingest-time redaction of email/phone spans on every write) and Tier B
+/// (whole-record erasure); the ship dates and commits are recorded once, in §C6 of the same
+/// amendment. Per-control reach is tabulated in §C4 there; this job was never a PII control, it is
+/// payload retention.
 /// </para>
 ///
 /// <para>

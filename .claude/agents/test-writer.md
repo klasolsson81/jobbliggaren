@@ -74,6 +74,14 @@ in full — that produces confirmation tests, not specification tests.
 - Empty test stubs referencing tests that belong in other projects — either
   create them in the correct location or note the absence in the report,
   never leave stubs behind
+- An assertion that rests on a state no path in `src/` produces, without naming
+  the actor that produced it — follow CLAUDE.md §5 `Tests:`. Where that actor is
+  callable in the test, assert its predicate or transform admits the state;
+  where it is retired, pin that the current writer does not produce the shape —
+  the pin belongs in the writer's own test class, cited by name. **"No domain
+  method exists" is a reject, not a disclosure** — if no actor can be named,
+  reach the state honestly, **declare it unreachable per §5** (and then assert
+  only that the read side degrades safely), or do not write the test
 
 ---
 

@@ -1537,6 +1537,7 @@ Triggas av handlers för:
 
 - `TestDataBuilder`-klasser per aggregate (fluent builder-pattern)
 - Inga `.sql` seed-filer i tests — bygg data via builders för tydlighet
+- Test-premisser styrs av CLAUDE.md §5 `Tests:` — en regel, ett hem
 
 ### 17.3 Motor-tester (deterministiska — ADR 0071)
 

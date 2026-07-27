@@ -135,7 +135,8 @@ public sealed class BackfillJobAdExtractedTermsJobTests : IAsyncLifetime
                 new DateTimeOffset(2026, 4, 1, 0, 0, 0, TimeSpan.Zero),
                 new DateTimeOffset(2026, 12, 1, 0, 0, 0, TimeSpan.Zero), clock, extractTerms: TestKeywordExtraction.None).Value;
             // #874 — Import now folds extraction in, so each ad persists with Empty terms; the
-            // never-extracted NULL state this backfill targets is legacy-only and unreachable through
+            // never-extracted NULL state this backfill targets is legacy-only: produced by ingest
+            // before #874, and unreachable through
             // the aggregate. Nulled below (post-save) to reproduce the pre-F4-4 legacy rows.
             db.JobAds.Add(jobAd);
             seededIds.Add(jobAd.Id.Value);
@@ -145,6 +146,8 @@ public sealed class BackfillJobAdExtractedTermsJobTests : IAsyncLifetime
         // row in the same (per-test) container, and that row must keep its non-null terms so the
         // backfill predicate (extracted_lexemes IS NULL) skips it. The STORED extracted_lexemes shadow
         // follows extracted_terms to NULL, reproducing the pre-F4-4 legacy state.
+        // The complement — that the current writer never produces this shape — is pinned in
+        // JobAdExtractionCouplingTests.
         await db.Database.ExecuteSqlAsync(
             $"UPDATE job_ads SET extracted_terms = NULL WHERE id = ANY({seededIds})", ct);
         return count;

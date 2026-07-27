@@ -357,7 +357,8 @@ jobs:
           # today's minute is page-proportional. Which constraint binds at the
           # ceiling, `timeout-minutes` or the ceiling itself, therefore turns on
           # exactly the number this comment does not have. An earlier draft
-          # asserted "the fetch saturates the job budget well below 20000"; that
+          # asserted "the fetch saturates the job budget well below 20000"; read
+          # as saturating at half the ceiling (10000 PRs = 100 pages) that
           # requires p > 5.8 s/page, or ~68% of the minute, and is no more derived
           # than the figure struck above -- so it is struck too. The `dry_run`
           # dispatch below is how to get p. Guessing wrong costs either a loud

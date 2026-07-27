@@ -19,15 +19,24 @@ function leafPaths(obj: unknown, prefix = ""): string[] {
   return out.sort();
 }
 
-/** Every string leaf under `catalogue` that matches `term`. Shared by the status-marker tripwires. */
-function stringLeaves(catalogue: unknown, term: RegExp): string[] {
+/**
+ * `[path, leaf]` for every string leaf matching `term`. The path half exists so a tripwire can pin
+ * sv/en parity by LOCATION, not merely by count: `en.length === sv.length` passes when one locale
+ * moves its disclosure to a different section while the other keeps it (3 === 3), and losing the
+ * disclosure from one locale's consent section is the single most likely real error (#880 class).
+ */
+function matchingLeaves(catalogue: unknown, term: RegExp): [string, string][] {
   return leafPaths(catalogue)
-    .map((path) =>
-      path
-        .split(".")
-        .reduce<unknown>((node, key) => (node as Record<string, unknown>)?.[key], catalogue)
+    .map(
+      (path) =>
+        [
+          path,
+          path
+            .split(".")
+            .reduce<unknown>((node, key) => (node as Record<string, unknown>)?.[key], catalogue),
+        ] as const
     )
-    .filter((leaf): leaf is string => typeof leaf === "string" && term.test(leaf));
+    .filter((entry): entry is [string, string] => typeof entry[1] === "string" && term.test(entry[1]));
 }
 
 describe("content-legal i18n-paritet (sv ↔ en)", () => {
@@ -56,17 +65,25 @@ describe("content-legal i18n-paritet (sv ↔ en)", () => {
    * ändring som flippar copyn, och stäng #852.
    */
   it("ansökningshistoriken bär status-markören 'planerat' i policyn tills #852 flippar den", () => {
-    const sv = stringLeaves(svLegal.privacy, /ansökningshistorik/i);
-    const en = stringLeaves(enLegal.privacy, /application history/i);
+    // Scoped to `privacy` DELIBERATELY, unlike the Resend tripwire below: widening to the whole
+    // catalogue pulls in `recruiterNotice.sections.2.paragraphs.1`, which describes the same feature
+    // to a different audience and carries no status marker. Measured, not assumed.
+    const sv = matchingLeaves(svLegal.privacy, /ansökningshistorik/i);
+    const en = matchingLeaves(enLegal.privacy, /application history/i);
 
     // Guard against a vacuous pass: if the paragraphs are ever renamed away, the filter would match
-    // nothing and every assertion below would trivially hold. Three known sites today (Art. 13
-    // data-categories list, retention list, "Inga automatiserade beslut").
-    expect(sv.length).toBeGreaterThanOrEqual(3);
-    expect(en.length).toBe(sv.length);
+    // nothing and every assertion below would trivially hold. FOUR known sites today (Art. 13
+    // data-categories list, TWO retention rows — #880 split that bullet in two — and "Inga
+    // automatiserade beslut"). The floor said three until 2026-07-26; the extra row had been
+    // uncounted since #880.
+    expect(sv.length).toBeGreaterThanOrEqual(4);
 
-    for (const paragraph of sv) expect(paragraph).toMatch(/planerat/i);
-    for (const paragraph of en) expect(paragraph).toMatch(/planned/i);
+    // Parity by LOCATION, not count — 4 === 4 passes while sv loses its row in one section and en
+    // loses a different one. Measured identical today.
+    expect(en.map(([path]) => path)).toEqual(sv.map(([path]) => path));
+
+    for (const [path, paragraph] of sv) expect(paragraph, path).toMatch(/planerat/i);
+    for (const [path, paragraph] of en) expect(paragraph, path).toMatch(/planned/i);
   });
 
   /**
@@ -83,25 +100,46 @@ describe("content-legal i18n-paritet (sv ↔ en)", () => {
    * 2. **Varje omnämnande bär status-markören** tills `Email:Provider` flippas. Resend är i dag
    *    dark i non-dev (`AddEmailSender` → `NullEmailSender`), så ett presens-påstående vore den
    *    motsatta osanningen — exakt den ansökningshistoriken-fällan som testet ovan finns för.
-   *    Flippen är grindad av `release-checklist.md` §2.5 (signerat DPA + Kap. V-grund +
-   *    security-auditor-sign-off), aldrig av en copy-ändring.
+   *    Flippen är grindad av `release-checklist.md` §2.5 punkt 1 (FEM led — uppräkningen bor
+   *    där, aldrig här), aldrig av en copy-ändring.
+   *
+   * **Markören måste bindas till STATUS-MENINGEN, inte till stycket** (code-reviewer Major 2,
+   * mätt: den första formen passerade VACUÖST i två av tre leaves i BÅDA språken). Orsaken är att
+   * disclosure-meningens egna participform mättar en bred assertion — "Notiserna **planeras** att
+   * skickas", "All e-post **planeras** att levereras" / "are **planned** to be sent". Med
+   * `/planerat|planerad|planeras/` respektive `/planned/` kunde markörmeningen strykas ur rad 63
+   * och 73 med testet grönt, medan §2.6:s smala grep tyst föll 9+9 → 7+7. Mönstren nedan är därför
+   * de RATIFIERADE markörformerna och inget bredare — och de binder hela MENINGEN
+   * (`planerat och ännu inte i drift`), **avsiktligt smalare** än ansökningshistorik-tripwirens
+   * `planerat`. Systern kan INTE följa med: rad 99/100 bär `(planerat)` utan markörmeningen, så
+   * meningsformen hade fällt dem. Bredda aldrig tillbaka. Och "not yet in operation" är den engelska
+   * markörens bärande led (`/planned/` är otillräcklig oavsett bredd).
    *
    * Testet ska FALLA vid prod-flippen. Ta då bort markör-halvan i samma ändring som flippar
-   * copyn — men BEHÅLL golvet: leverantören måste vara namngiven efter flippen också, och då
-   * hårdare än nu.
+   * copyn — men BEHÅLL golvet OCH path-pariteten: leverantören måste vara namngiven efter flippen
+   * också, och då hårdare än nu.
    */
   it("e-postleverantören Resend är namngiven i policyn och varje omnämnande bär status-markören (#186)", () => {
-    const sv = stringLeaves(svLegal.privacy, /Resend/);
-    const en = stringLeaves(enLegal.privacy, /Resend/);
+    // WHOLE catalogue, not just `privacy`: measured 0 Resend mentions outside `privacy` today, so the
+    // widening is free and strictly increases coverage. A future mention in `terms`/`cookies`/
+    // `recruiterNotice` would otherwise escape both the floor and the marker requirement.
+    const sv = matchingLeaves(svLegal, /Resend/);
+    const en = matchingLeaves(enLegal, /Resend/);
 
-    // Vacuity guard, and simultaneously invariant 1: three known sites today (consent section,
-    // "Mottagare av uppgifter", "Överföring till tredje land"). A rename or deletion that drops
-    // the disclosure fails here instead of shipping silently.
-    expect(sv.length).toBeGreaterThanOrEqual(3);
-    expect(en.length).toBe(sv.length);
+    // Vacuity guard, and simultaneously invariant 1: FOUR known sites today (consent section, and
+    // three in "Mottagare av uppgifter" + "Överföring till tredje land"). A rename or deletion that
+    // drops the disclosure fails here instead of shipping silently.
+    expect(sv.length).toBeGreaterThanOrEqual(4);
 
-    for (const paragraph of sv) expect(paragraph).toMatch(/planerat|planerad|planeras/i);
-    for (const paragraph of en) expect(paragraph).toMatch(/planned/i);
+    // Parity by LOCATION, not count — see `matchingLeaves`.
+    expect(en.map(([path]) => path)).toEqual(sv.map(([path]) => path));
+
+    // The RATIFIED SENTENCE, not a token. `/planerat/i` alone accepts a truncated marker ("Detta är
+    // planerat.") that drops "ännu inte i drift" — the very clause that says NOT IN OPERATION — while
+    // the en pattern accepts no such truncation. That asymmetry let a Swedish-only thinning pass CI.
+    // Both sides now bind the sentence, which also closes the "planerat for an unrelated reason" hole.
+    for (const [path, paragraph] of sv) expect(paragraph, path).toMatch(/planerat och ännu inte i drift/i);
+    for (const [path, paragraph] of en) expect(paragraph, path).toMatch(/not yet in operation/i);
   });
 
   it("integritetspolicyn har minst tio sektioner med rubrik i båda katalogerna", () => {

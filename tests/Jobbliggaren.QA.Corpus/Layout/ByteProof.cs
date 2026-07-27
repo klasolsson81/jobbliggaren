@@ -120,7 +120,9 @@ public sealed partial class ByteProofContext(string caseId, ReadOnlyMemory<byte>
     }
 
     /// <summary>Proves a given word sits in the top <paramref name="topFraction"/> of the page's
-    /// text area. Paired with the RECORDED output order, this is what turns "emission order is not
+    /// text area. The failure message deliberately avoids a percent FORMAT: this string is
+    /// rendered verbatim into the artifact, and the emitter guard that forbids a percent sign
+    /// there runs over hand-built data and could not see it. Paired with the RECORDED output order, this is what turns "emission order is not
     /// geometric order" into a measurement rather than a restatement of the renderer.</summary>
     public void RequireWordNearPageTop(string word, double topFraction)
     {
@@ -134,7 +136,7 @@ public sealed partial class ByteProofContext(string caseId, ReadOnlyMemory<byte>
         var threshold = minY + ((maxY - minY) * (1 - topFraction));
 
         Require(hit.Y >= threshold, Invariant(
-            $"expected '{word}' in the top {topFraction:P0} of the text area (y >= {threshold:F0}), found it at y = {hit.Y:F0}"));
+            $"expected '{word}' in the top {topFraction:F2} of the text area (y >= {threshold:F0}), found it at y = {hit.Y:F0}"));
     }
 
     private double WidestGutter()

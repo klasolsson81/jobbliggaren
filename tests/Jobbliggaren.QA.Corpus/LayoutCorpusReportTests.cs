@@ -28,17 +28,20 @@ namespace Jobbliggaren.QA.Corpus;
 ///
 /// <para>That rule is what stops this suite from blocking its own remedy: asserting
 /// <c>BlankLineCount == 0</c> would turn every PDF case red the day PR E lands, on a suite whose
-/// whole purpose is to measure PR E's effect. The one deliberate exception is stated at its
-/// assert.</para>
+/// whole purpose is to measure PR E's effect. THREE asserts do touch production, each argued at
+/// the assert block below — crash-safety, kind resolution, and marker visibility. No parsing
+/// OUTCOME is asserted anywhere.</para>
 ///
 /// <para>The artifact is written BEFORE any assert runs, so even a breach leaves a complete,
 /// readable report on disk.</para>
 /// </summary>
 public sealed class LayoutCorpusReportTests
 {
-    /// <summary>The commit this baseline was produced at. Bump it deliberately when regenerating
-    /// the committed baseline, never as a side effect.</summary>
-    private const string BaseCommit = "dad1b7a7";
+    /// <summary>The commit this baseline was produced at. It has two homes — here and the
+    /// committed baseline's own header — and nothing checks them against each other, so bump it
+    /// DELIBERATELY when regenerating, never as a side effect. A stale value would make the
+    /// provenance string F3 exists for untrustworthy.</summary>
+    private const string BaseCommit = "0eb6f7f2";
 
     [Fact]
     public async Task LayoutCorpus_FromBytes_EmitsReport()
@@ -58,6 +61,21 @@ public sealed class LayoutCorpusReportTests
         // ── Instrument asserts only, from here down. Failure means the FIXTURE or the EMITTER is
         // broken; none of these can be reddened by a change to the product's parsing behaviour.
 
+        // Three of the asserts below ARE reachable by production behaviour, and each has its own
+        // argument. Stated plainly rather than claimed away, because an earlier revision of this
+        // comment said "none of these can be reddened by a change to the product" and that was
+        // simply false.
+        //
+        //   (a) crash-safety — the probe catches everything the real extractor, segmenter and both
+        //       handlers throw, so a throw anywhere in the chain reddens this suite. That is
+        //       correct: a corpus that swallows a product crash is not measuring anything.
+        //   (b) kind resolution — the subject is production Domain (CvFileSignature). Correct for
+        //       the same reason: a case never fed to the handler as the kind it claims measures
+        //       nothing.
+        //   (c) marker visibility — argued at its own assert below.
+        //
+        // Every OTHER production output (blank lines, entry counts, confidence, gate verdicts,
+        // promote booleans, the content-loss delta) is recorded, never asserted.
         var crashed = observations.Where(o => o.CrashedWithExceptionType is not null).ToList();
         crashed.ShouldBeEmpty(
             "INSTRUMENT: a case threw. Types: "

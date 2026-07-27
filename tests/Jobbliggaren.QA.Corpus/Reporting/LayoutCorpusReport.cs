@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text;
 using Jobbliggaren.QA.Corpus.Harness;
+using Jobbliggaren.QA.Corpus.Layout;
 
 namespace Jobbliggaren.QA.Corpus.Reporting;
 
@@ -131,14 +132,15 @@ public static class LayoutCorpusReport
         L("Provenance is per SECTION, not per case. The 2026-07-26 spike measured extraction and");
         L("segmentation only — it produced no gate verdict, no promote boolean and no delta on a");
         L("promoted CV. So the \"promote measured?\" column reads `no` for every row until this");
-        L("suite runs, and sections 2, 3, 5 and 8 carry zero spike provenance.");
+        L("suite runs. There is deliberately no per-row promote-provenance column: it would be the");
+        L("literal \"no\" on every row forever, which is a decoration rather than a measurement.");
         L();
-        L("| # | Case id | CTO class | Container | One-variable step from | Extract+segment spike-measured? | Promote spike-measured? | Byte proof |");
-        L("|---|---|---|---|---|---|---|---|");
+        L("| # | Case id | CTO class | Container | One-variable step from | Extract+segment spike-measured? | Byte proof |");
+        L("|---|---|---|---|---|---|---|");
         for (var i = 0; i < d.Cases.Count; i++)
         {
             var c = d.Cases[i].Case;
-            LI($"| {i + 1} | `{c.Id}` | {c.CtoClass} | {c.Container} | {c.OneVariableStepFrom ?? "—"} | {(c.SpikeMeasuredExtractSegment ? "yes" : "no")} | no | {c.ByteProofDescription} |");
+            LI($"| {i + 1} | `{c.Id}` | {c.CtoClass} | {c.Container} | {c.OneVariableStepFrom ?? "—"} | {(c.SpikeMeasuredExtractSegment ? "yes" : "no")} | {c.ByteProofDescription} |");
         }
 
         L();
@@ -192,33 +194,76 @@ public static class LayoutCorpusReport
         }
 
         L();
+        L("### 4b. Product-side observables");
+        L();
+        L("Each row above pairs a byte proof (what the AUTHORED document is) with what the product");
+        L("actually emitted. A byte proof alone restates the generator; an observable alone does not");
+        L("say which shape produced it. The digest is a per-case value — two rows sharing one is a");
+        L("reader's inference, never an emitted ratio.");
+        L();
+        L("| # | Case | Text digest | Fused period+role line | A line carries both columns | First extracted line |");
+        L("|---|---|---|---|---|---|");
+        for (var i = 0; i < d.Cases.Count; i++)
+        {
+            var c = d.Cases[i];
+            LI($"| {i + 1} | `{c.Case.Id}` | `{c.ExtractedTextDigest}` | {Y(c.ContainsFusedPeriodRole)} | {Y(c.AnyLineCarriesBothColumns)} | {Quote(c.FirstExtractedLine)} |");
+        }
+
+        L();
+        L("**Twin comparisons** — the only honest sentence this corpus can emit about tables. The");
+        L("DOCX extractor handles `w:t` and `w:p` only, with no `w:tbl`/`w:tr`/`w:tc` handling, so a");
+        L("table and a flat paragraph sequence in the same order should produce identical text. An");
+        L("ordering assertion would restate our own writer; equal digests are a fact about the");
+        L("extractor.");
+        L();
+        foreach (var c in d.Cases.Where(x => x.Case.OneVariableStepFrom is not null))
+        {
+            var twin = d.Cases.FirstOrDefault(x => x.Case.Id == c.Case.OneVariableStepFrom);
+            if (twin is null)
+                continue;
+
+            var same = string.Equals(
+                c.ExtractedTextDigest, twin.ExtractedTextDigest, StringComparison.Ordinal);
+            LI($"- `{c.Case.Id}` vs `{c.Case.OneVariableStepFrom}` — digests {(same ? "**EQUAL**" : "differ")} (`{c.ExtractedTextDigest}` / `{twin.ExtractedTextDigest}`)");
+        }
+
+        L();
 
         // ── Section 5 — the gate ladder.
         L("## 5. Gate ladder");
         L();
-        L("Call sites only — no predicate expression is re-typed anywhere in this corpus. The");
-        L("handler collapses three distinct predicates onto one `PersonnummerPresent` token; G1 and");
-        L("G3b are resolved by observation (the aggregate's own flag, and the two PUBLIC calls the");
-        L("handler runs at `:134`), so only G4a can be ambiguous. `not exercisable` marks a rung no");
-        L("fixture in this corpus can make fire — reduced precision, marked as such (CLAUDE.md §5).");
+        L("No predicate expression is re-typed anywhere in this corpus; the states are derived from");
+        L("what the real handler returned. The handler collapses three distinct predicates onto one");
+        L("`PersonnummerPresent` token, and all three are resolved by ELIMINATION rather than guessed:");
+        L("the aggregate's own flag settles the parse rung, the two PUBLIC calls the handler makes");
+        L("settle the label rung, and whatever remains is the DQ6 guard — there is no fourth site.");
+        L("`no verdict` means the handler returned a genuine FAULT, so no gate decided anything;");
+        L("that is deliberately distinct from `not evaluated`, where an earlier GATE stopped control.");
         L();
-        L("| # | Case | G1 :101 | G2 :104 | G3 :107 | G3b :134 | G4a :145 | G4b :152 | FIRST BLOCK | Promoted |");
+        var header = d.Cases.Count > 0
+            ? string.Join(" | ", d.Cases[0].Gates.Select(g => $"{g.GateId} ({g.CallSite})"))
+            : "G1 | G2 | G3 | G3b | G4a | G4b";
+        L($"| # | Case | {header} | FIRST BLOCK | Promote fault | Promoted |");
         L("|---|---|---|---|---|---|---|---|---|---|");
         for (var i = 0; i < d.Cases.Count; i++)
         {
             var c = d.Cases[i];
             var cells = string.Join(" | ", c.Gates.Select(g => Short(g.State)));
-            LI($"| {i + 1} | `{c.Case.Id}` | {cells} | {c.BlockReason?.ToString() ?? "—"} | {Y(c.Promoted)} |");
+            LI($"| {i + 1} | `{c.Case.Id}` | {cells} | {c.BlockReason?.ToString() ?? "—"} | {c.PromoteFailureCode ?? "—"} | {Y(c.Promoted)} |");
         }
 
         L();
-        L("**Observed Domain state** (this is aggregate state, NOT a gate verdict):");
+        L("**Observed Domain state** (this is aggregate state, NOT a gate verdict). The personnummer");
+        L("column prints the AUTHORED declaration and the OBSERVED aggregate flag side by side: if");
+        L("extraction ever loses an authored personnummer, that divergence is itself the finding, and");
+        L("a column printing only the declaration would hide it behind the very content loss this");
+        L("corpus measures. The value itself is never printed.");
         L();
-        L("| Case | Confidence overall | Preamble present | pnr on parse |");
-        L("|---|---|---|---|");
+        L("| Case | Confidence overall | Preamble present | pnr authored (body / account) | pnr OBSERVED on parse |");
+        L("|---|---|---|---|---|");
         foreach (var c in d.Cases)
         {
-            LI($"| `{c.Case.Id}` | {c.ConfidenceOverall ?? "—"} | {Y(c.PreambleChars is not null)} | {(c.Case.CarriesPersonnummer ? "present (synthetic, not printed)" : "absent")} |");
+            LI($"| `{c.Case.Id}` | {c.ConfidenceOverall ?? "—"} | {Y(c.PreambleChars is not null)} | {AuthoredPnr(c)} | {YN(c.PersonnummerFoundOnParse)} |");
         }
 
         L();
@@ -243,9 +288,15 @@ public static class LayoutCorpusReport
         L("## 7. Cross-section contamination");
         L();
         L("An authored string turning up in a section that is not its declared home. Measured as");
-        L("declared-marker membership, never by re-typing what counts as a language. This SURVIVES");
-        L("the blank-line fix — it is present in the correct-count control arm — so a reader must");
-        L("not read a zero content-loss delta as \"clean\".");
+        L("membership of the corpus's own declarations, never by re-typing what counts as a language,");
+        L("and only against the project heading the case ACTUALLY rendered. This SURVIVES the");
+        L("blank-line fix — it is present in the correct-count control arm — so a reader must not");
+        L("read a zero content-loss delta as \"clean\".");
+        L();
+        L("Precision limit, stated: an entry that is a proper fragment of an authored project line is");
+        L("reported AS a fragment (the list parser atomises prose on commas). An entry that is neither");
+        L("an authored line nor a fragment of one is invisible here — this sweep can under-report, and");
+        L("it never over-reports.");
         L();
         var contaminated = d.Cases.Where(c => c.CrossSectionContamination.Count > 0).ToList();
         if (contaminated.Count == 0)
@@ -275,12 +326,19 @@ public static class LayoutCorpusReport
         L("2026-07-26, the same heading after UTBILDNING is swallowed by Education and after SPRÅK");
         L("by the Languages list.");
         L();
-        L("| Case | Summary contains unknown heading | Is its own parsed section | Promoted summary chars |");
-        L("|---|---|---|---|");
+        L("Each row is measured against the heading THAT case renders, not against a fixed constant:");
+        L("the control renders the known synonym, so measuring it against the unknown one made both");
+        L("its cells read \"no\" unconditionally — a control that cannot fall is not a control.");
+        L();
+        L("| Case | Heading rendered | In promoted Summary | Is its own parsed section | Parsed free sections | Summary chars |");
+        L("|---|---|---|---|---|---|");
         foreach (var c in d.Cases.Where(c =>
             c.Case.Id.Contains("heading-after-profile", StringComparison.Ordinal)))
         {
-            LI($"| `{c.Case.Id}` | {YN(c.SummaryContainsUnknownHeading)} | {YN(c.UnknownHeadingIsOwnSection)} | {N(c.PromotedSummaryChars)} |");
+            var sections = c.ParsedFreeSectionHeadings.Count == 0
+                ? "none"
+                : string.Join(", ", c.ParsedFreeSectionHeadings.Select(h => $"`{h}`"));
+            LI($"| `{c.Case.Id}` | `{c.Case.ProjectHeadingRendered}` | {YN(c.SummaryContainsRenderedProjectHeading)} | {YN(c.RenderedProjectHeadingIsOwnSection)} | {sections} | {N(c.PromotedSummaryChars)} |");
         }
 
         L();
@@ -340,6 +398,24 @@ public static class LayoutCorpusReport
 
     private static string N(int? v) => v?.ToString(CultureInfo.InvariantCulture) ?? "—";
 
+    private static string Quote(string? s) =>
+        string.IsNullOrEmpty(s) ? "—" : $"`{(s.Length <= 44 ? s : s[..44] + "…")}`";
+
+    /// <summary>Which surface the case AUTHORED a personnummer on. Never the value.</summary>
+    private static string AuthoredPnr(LayoutCaseObservation c)
+    {
+        var body = c.Case.Model.SyntheticPersonnummer is not null;
+        var account = !string.Equals(
+            c.Case.AccountDisplayName, LayoutCaseCatalog.DefaultAccountName, StringComparison.Ordinal);
+
+        return (body, account) switch
+        {
+            (true, _) => "body (synthetic, not printed)",
+            (false, true) => "account name (synthetic, not printed)",
+            _ => "none",
+        };
+    }
+
     private static string Y(bool v) => v ? "yes" : "no";
 
     private static string YN(bool? v) => v is null ? "—" : Y(v.Value);
@@ -349,7 +425,6 @@ public static class LayoutCorpusReport
         GateState.Passed => "passed",
         GateState.Blocked => "**BLOCKED**",
         GateState.NotEvaluated => "not evaluated",
-        GateState.NotExercisable => "not exercisable",
-        _ => "ambiguous",
+        _ => "no verdict",
     };
 }

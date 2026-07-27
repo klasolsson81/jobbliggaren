@@ -33,7 +33,19 @@ public sealed record LayoutCase(
     string ByteProofDescription,
     bool SpikeMeasuredExtractSegment,
     string? OneVariableStepFrom = null,
-    bool CarriesPersonnummer = false);
+
+    /// <summary>The project heading this case ACTUALLY renders, or null if it renders none.
+    /// Pin P7 and the contamination sweep both measure against this rather than against a heading
+    /// constant: an earlier revision measured every case against the UNKNOWN heading, so the
+    /// paired control — which renders the KNOWN one — read "no" unconditionally and could not
+    /// fall, and the contamination sweep reported a finding for a heading the document never
+    /// contained.</summary>
+    string? ProjectHeadingRendered = null,
+
+    /// <summary>The account holder's display name this case registers. It is a case input because
+    /// the auto-promote handler feeds it into the composed DTO, making it the only text the DQ6
+    /// guard sees that the import scan did not already cover.</summary>
+    string AccountDisplayName = LayoutCaseCatalog.DefaultAccountName);
 
 /// <summary>The 16 authored cases. Ordered PDF then DOCX, controls adjacent to what they
 /// control.</summary>
@@ -43,13 +55,25 @@ public static class LayoutCaseCatalog
     private const string Docx =
         "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 
-    /// <summary>A synthetic Luhn-valid personnummer, parity with the value the auto-promote
-    /// handler tests already use. It is authored so the personnummer gates are exercised
-    /// POSITIVELY; it is never written to the report, a log, or the committed baseline.</summary>
-    private const string SyntheticPersonnummer = "811218-9876";
+    /// <summary>The account name every case registers unless it is specifically probing the DQ6
+    /// guard. Deliberately not a person's real-looking name and never a personnummer.</summary>
+    internal const string DefaultAccountName = "Konto Kontosson";
+
+    /// <summary>The synthetic Luhn-valid personnummer, taken from the corpus's OWN lexicon rather
+    /// than re-declared here. That list is what every existing PII-leak sweep in this project
+    /// enumerates (<c>GeneratorDeterminismTests</c>, <c>CvReviewCorpusStressTests</c>,
+    /// <c>CvImprovementCorpusStressTests</c>); a private copy would sit outside every sweep written
+    /// against it, now and in future. One home per value.</summary>
+    private static readonly string SyntheticPersonnummer =
+        Jobbliggaren.QA.Corpus.Generation.SwedishCorpusLexicon.FakePersonnummer[0];
 
     // The sidebar is 150 pt wide inside a 40 pt margin, so the column boundary sits near x = 200.
     private const double ColumnSplitX = 200;
+
+    private static readonly string UnknownProjectHeading =
+        CvModel.Swedish.Headings.UnknownProjects;
+
+    private static readonly string KnownProjectHeading = CvModel.Swedish.Headings.KnownProjects;
 
     private static readonly CvModel PnrModel =
         CvModel.Swedish with { SyntheticPersonnummer = SyntheticPersonnummer };
@@ -62,7 +86,8 @@ public static class LayoutCaseCatalog
             "pdf", "cv.pdf", Pdf, QuestPdfCvRenderer.SidebarEmittedFirst, CvModel.Swedish,
             p => p.RequireVerticalGutter(15),
             "a vertical gutter of at least 15 pt exists, which a single-column render cannot produce",
-            SpikeMeasuredExtractSegment: true),
+            SpikeMeasuredExtractSegment: true,
+            ProjectHeadingRendered: UnknownProjectHeading),
 
         new("pdf-interleaved-baseline-fusion",
             "row-interleaved two-column generator: sidebar and main cells share every baseline",
@@ -86,7 +111,8 @@ public static class LayoutCaseCatalog
             "pdf", "cv.pdf", Pdf, QuestPdfCvRenderer.SingleColumn, CvModel.Swedish,
             p => p.RequireNoVerticalGutter(15),
             "no vertical gutter of 15 pt or more exists, so the page is not multi-column",
-            SpikeMeasuredExtractSegment: true),
+            SpikeMeasuredExtractSegment: true,
+            ProjectHeadingRendered: UnknownProjectHeading),
 
         new("pdf-single-column-en",
             "single-column chronological, English heading vocabulary (same renderer, same order)",
@@ -94,7 +120,8 @@ public static class LayoutCaseCatalog
             "pdf", "cv.pdf", Pdf, QuestPdfCvRenderer.SingleColumn, CvModel.English,
             p => p.RequireNoVerticalGutter(15),
             "no vertical gutter of 15 pt or more exists",
-            SpikeMeasuredExtractSegment: true),
+            SpikeMeasuredExtractSegment: true,
+            ProjectHeadingRendered: CvModel.English.Headings.UnknownProjects),
 
         new("pdf-nonsequential-decorative",
             "decorative layered page: watermark text in the stream, identity block emitted LAST "
@@ -103,7 +130,8 @@ public static class LayoutCaseCatalog
             "pdf", "cv.pdf", Pdf, QuestPdfCvRenderer.NonSequentialDecorative, CvModel.Swedish,
             p => p.RequireWordNearPageTop("Andersson", 0.25),
             "the identity block sits in the top quarter of the text area although it is emitted last",
-            SpikeMeasuredExtractSegment: true),
+            SpikeMeasuredExtractSegment: true,
+            ProjectHeadingRendered: UnknownProjectHeading),
 
         new("pdf-headingless",
             "no headings at all — the HONEST-FAILURE control",
@@ -119,7 +147,8 @@ public static class LayoutCaseCatalog
             "pdf", "cv.pdf", Pdf, QuestPdfCvRenderer.UnknownHeadingAfterProfile, CvModel.Swedish,
             p => p.RequireNoVerticalGutter(15),
             "no vertical gutter of 15 pt or more exists",
-            SpikeMeasuredExtractSegment: true),
+            SpikeMeasuredExtractSegment: true,
+            ProjectHeadingRendered: UnknownProjectHeading),
 
         new("pdf-known-heading-after-profile",
             "the same slot with the KNOWN synonym — the paired control for P7",
@@ -128,7 +157,8 @@ public static class LayoutCaseCatalog
             p => p.RequireNoVerticalGutter(15),
             "no vertical gutter of 15 pt or more exists",
             SpikeMeasuredExtractSegment: true,
-            OneVariableStepFrom: "pdf-unknown-heading-after-profile"),
+            OneVariableStepFrom: "pdf-unknown-heading-after-profile",
+            ProjectHeadingRendered: KnownProjectHeading),
 
         new("pdf-decorated-heading-glue",
             "a known heading defeated by decorative glue (a leading bullet)",
@@ -148,12 +178,27 @@ public static class LayoutCaseCatalog
 
         new("pdf-pnr-bearing",
             "single column carrying a synthetic personnummer in the contact block",
-            "gate axis — without it the personnummer gates are exercised only NEGATIVELY",
+            "gate axis — a personnummer in the CV BODY, which blocks at the parse-level rung",
             "pdf", "cv.pdf", Pdf, QuestPdfCvRenderer.PersonnummerBearing, PnrModel,
             p => p.RequireNoVerticalGutter(15),
             "no vertical gutter of 15 pt or more exists",
+            SpikeMeasuredExtractSegment: false),
+
+        // The DQ6 rung's ONLY route. A body-borne personnummer is pre-empted by the parse-level
+        // gate, so the case above can never reach it; without this one, deleting the DQ6 guard
+        // call would leave the entire report byte-identical -- which is precisely the regression
+        // the personnummer cases exist to catch. The account display name is the one text the
+        // composed DTO adds over the import-scanned superset, and the handler says so itself.
+        new("pdf-clean-body-pnr-in-account-name",
+            "a CLEAN CV body whose ACCOUNT display name carries a synthetic personnummer",
+            "gate axis — the only route to the DQ6 rung on the composed DTO",
+            "pdf", "cv.pdf", Pdf, QuestPdfCvRenderer.SingleColumn, CvModel.Swedish,
+            p => p.RequireNoVerticalGutter(15),
+            "no vertical gutter of 15 pt or more exists",
             SpikeMeasuredExtractSegment: false,
-            CarriesPersonnummer: true),
+            OneVariableStepFrom: "pdf-single-column-sv",
+            ProjectHeadingRendered: UnknownProjectHeading,
+            AccountDisplayName: "Konto Kontosson " + SyntheticPersonnummer),
 
         new("docx-table-label-first-no-blanks",
             "Word table, period cell before role cell, no blank paragraphs",
@@ -168,7 +213,8 @@ public static class LayoutCaseCatalog
                     "expected no self-closing w:p (this arm authors no blank paragraphs)");
             },
             "the package contains a w:tbl and no self-closing w:p",
-            SpikeMeasuredExtractSegment: true),
+            SpikeMeasuredExtractSegment: true,
+            ProjectHeadingRendered: UnknownProjectHeading),
 
         new("docx-flat-label-first-no-blanks",
             "identical content and order with NO table — the table-invisibility probe",
@@ -178,7 +224,8 @@ public static class LayoutCaseCatalog
                 "expected NO w:tbl element"),
             "the package contains no w:tbl",
             SpikeMeasuredExtractSegment: false,
-            OneVariableStepFrom: "docx-table-label-first-no-blanks"),
+            OneVariableStepFrom: "docx-table-label-first-no-blanks",
+            ProjectHeadingRendered: UnknownProjectHeading),
 
         new("docx-table-label-first-with-blanks",
             "the same table body with Word's own blank-paragraph form added — isolates BLANK LINES",
@@ -197,7 +244,8 @@ public static class LayoutCaseCatalog
             },
             "blank paragraphs use Word's <w:p><w:pPr /></w:p> form, never the self-closing <w:p />",
             SpikeMeasuredExtractSegment: false,
-            OneVariableStepFrom: "docx-table-label-first-no-blanks"),
+            OneVariableStepFrom: "docx-table-label-first-no-blanks",
+            ProjectHeadingRendered: UnknownProjectHeading),
 
         new("docx-role-first-with-blanks",
             "blank paragraphs AND role-first header lines — the PROMOTE-level control",
@@ -215,13 +263,18 @@ public static class LayoutCaseCatalog
             },
             "blank paragraphs use Word's <w:p><w:pPr /></w:p> form",
             SpikeMeasuredExtractSegment: true,
-            OneVariableStepFrom: "docx-table-label-first-with-blanks"),
+            OneVariableStepFrom: "docx-table-label-first-with-blanks",
+            ProjectHeadingRendered: UnknownProjectHeading),
     ];
 
-    /// <summary>Pin P5 rests on the English model being structurally identical to the Swedish one:
-    /// same section set, same section ORDER, same cardinalities. If that drifts, P5 stops being a
-    /// non-difference claim and becomes permanent noise, so the divergence is caught here as an
-    /// instrument failure rather than read as a product finding.</summary>
+    /// <summary>
+    /// Pin P5 rests on the English model being structurally comparable to the Swedish one. This
+    /// checks CARDINALITIES only — section set and section ORDER are guaranteed structurally
+    /// instead, because both cases run the SAME renderer method
+    /// (<c>QuestPdfCvRenderer.SingleColumn</c>) and a renderer emits its sections in one order.
+    /// Stated precisely because a guard whose comment promises more than its code checks is a
+    /// defect class this repo has already paid for.
+    /// </summary>
     public static IReadOnlyList<string> ValidateModelSymmetry()
     {
         var sv = CvModel.Swedish;

@@ -15,9 +15,10 @@ namespace Jobbliggaren.QA.Corpus.Harness;
 /// members, which require a real <c>IAsyncQueryProvider</c>; a <c>DbSet</c> substituted over a
 /// plain <c>IQueryable</c> throws. InMemory is forced by the port's own shape, not preferred.</para>
 ///
-/// <para><b>What this does and does not exercise.</b> Real change tracking and real global query
-/// filters — including <c>parsed_resumes</c>' <c>DeletedAt == null</c> filter, which is what makes
-/// a promoted artifact read back as NotFound. NOT exercised: the DEK envelope round-trip, SQL
+/// <para><b>What this does and does not exercise.</b> Real change tracking and the provider's
+/// support for global query filters. Note that the corpus never actually reaches the
+/// <c>parsed_resumes</c> soft-delete filter: it performs no read after promote, so the filter is
+/// available rather than demonstrated. NOT exercised at all: the DEK envelope round-trip, SQL
 /// translation, SmartEnum translation. Those stay proven by
 /// <c>AutoPromoteParsedResumeEncryptionTests</c> and the integration suites, and the report says
 /// so in its divergence disclosure.</para>
@@ -51,10 +52,11 @@ internal static class CorpusAppDbContextFactory
         {
             base.Customize(modelBuilder, context);
 
-            var jobAd = modelBuilder.Model.FindEntityType(typeof(JobAd));
-            var searchVector = jobAd?.FindProperty("SearchVector");
-            if (searchVector is not null)
-                ((IMutableEntityType)jobAd!).RemoveProperty("SearchVector");
+            if (modelBuilder.Model.FindEntityType(typeof(JobAd)) is IMutableEntityType jobAd
+                && jobAd.FindProperty("SearchVector") is not null)
+            {
+                jobAd.RemoveProperty("SearchVector");
+            }
         }
     }
 }

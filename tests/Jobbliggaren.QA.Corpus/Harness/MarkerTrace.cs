@@ -3,6 +3,14 @@ using Jobbliggaren.Domain.Resumes.Parsing;
 
 namespace Jobbliggaren.QA.Corpus.Harness;
 
+/// <summary>Which authored list a marker came from. An enum rather than a magic string
+/// (CLAUDE.md §5) — it selects the linearized section to scope the level-3 witness to.</summary>
+public enum MarkerKind
+{
+    Employment,
+    Education,
+}
+
 /// <summary>What became of one authored marker on its way through the chain.</summary>
 public enum MarkerVerdict
 {
@@ -28,14 +36,29 @@ public enum MarkerVerdict
     /// <summary>The CV promoted and the marker IS in the promoted CV, but in the wrong section —
     /// swallowed into a summary or a list. Present, but not as what it is. Not survival.</summary>
     AbsorbedIntoOtherSection,
+
+    /// <summary>The auto-promote handler returned a genuine FAILURE (unknown or foreign artifact,
+    /// infrastructure) rather than a gate verdict. Nothing may be concluded about this marker.
+    /// Deliberately distinct from RetainedNotPromoted, which asserts an HONEST BLOCK — reporting a
+    /// fault as an honest block would be the mis-report this corpus exists to catch.</summary>
+    PromoteFaulted,
 }
 
 /// <summary>One marker's three-level trace, plus the verdict that reads them together.</summary>
+/// <summary>
+/// One marker's trace. <see cref="IsPromotedStructuralField"/> and <see cref="InPromotedSectionSpan"/>
+/// are carried SEPARATELY rather than pre-combined: the verdict needs both, but a reader needs to
+/// see which half failed. Today they always agree, because <c>AutoPromoteContentMapper</c> maps
+/// <c>Description: null</c> so a collapsed employer is genuinely absent from the promoted CV. If
+/// that policy ever changes they diverge, and a pre-combined boolean would leave the report saying
+/// "this employment is gone" without a single cell moving.
+/// </summary>
 public sealed record MarkerTrace(
     string Marker,
-    string Kind,
+    MarkerKind Kind,
     bool InExtractedBytes,
     bool InParsedArtifact,
+    bool IsPromotedStructuralField,
     bool InPromotedSectionSpan,
     string? FoundInOtherSection,
     MarkerVerdict Verdict);
@@ -62,48 +85,52 @@ internal static class MarkerTracer
 {
     internal static IReadOnlyList<MarkerTrace> Trace(
         IReadOnlyList<string> markers,
-        string kind,
+        MarkerKind kind,
         string rawText,
         ParsedResume? parsed,
-        Resume? promoted)
+        Resume? promoted,
+        bool promoteFaulted)
     {
         var linear = promoted?.MasterVersion.Content is { } content
             ? ResumeContentLinearizer.Linearize(content)
             : null;
 
-        return [.. markers.Select(marker => TraceOne(marker, kind, rawText, parsed, promoted, linear))];
+        return
+        [
+            .. markers.Select(marker =>
+                TraceOne(marker, kind, rawText, parsed, promoted, linear, promoteFaulted)),
+        ];
     }
 
     private static MarkerTrace TraceOne(
-        string marker, string kind, string rawText, ParsedResume? parsed, Resume? promoted,
-        LinearizedResume? linear)
+        string marker, MarkerKind kind, string rawText, ParsedResume? parsed, Resume? promoted,
+        LinearizedResume? linear, bool promoteFaulted)
     {
         var inBytes = rawText.Contains(marker, StringComparison.Ordinal);
         var inParsed = parsed is not null && InParsedArtifact(parsed, marker);
 
-        var wantedKind = kind == "employment"
+        var wantedKind = kind == MarkerKind.Employment
             ? LinearSectionKind.Experience
             : LinearSectionKind.Education;
 
-        var inOwnSection = false;
+        var isStructural = false;
+        var inSpan = false;
         string? foundElsewhere = null;
 
         if (promoted?.MasterVersion.Content is { } content && linear is not null)
         {
             // Structural half: the marker must BE a promoted company/institution, not merely
             // appear somewhere in that section's prose.
-            var isStructural = kind == "employment"
+            isStructural = kind == MarkerKind.Employment
                 ? content.Experiences.Any(e => string.Equals(e.Company, marker, StringComparison.Ordinal))
                 : content.Educations.Any(e => string.Equals(e.Institution, marker, StringComparison.Ordinal));
 
-            var inSpan = linear.Sections
+            inSpan = linear.Sections
                 .Where(s => s.Kind == wantedKind)
                 .Any(s => linear.Text.AsSpan(s.Start, s.Length)
                     .Contains(marker, StringComparison.Ordinal));
 
-            inOwnSection = isStructural && inSpan;
-
-            if (!inOwnSection)
+            if (!(isStructural && inSpan))
             {
                 foundElsewhere = linear.Sections
                     .Where(s => s.Kind != wantedKind
@@ -114,13 +141,21 @@ internal static class MarkerTracer
             }
         }
 
-        var verdict = Decide(inBytes, inParsed, inOwnSection, foundElsewhere, promoted is not null);
-        return new MarkerTrace(marker, kind, inBytes, inParsed, inOwnSection, foundElsewhere, verdict);
+        var verdict = Decide(
+            inBytes, inParsed, isStructural && inSpan, foundElsewhere, promoted is not null,
+            promoteFaulted);
+
+        return new MarkerTrace(
+            marker, kind, inBytes, inParsed, isStructural, inSpan, foundElsewhere, verdict);
     }
 
     private static MarkerVerdict Decide(
-        bool inBytes, bool inParsed, bool inOwnSection, string? foundElsewhere, bool promoted)
+        bool inBytes, bool inParsed, bool inOwnSection, string? foundElsewhere, bool promoted,
+        bool promoteFaulted)
     {
+        if (promoteFaulted)
+            return MarkerVerdict.PromoteFaulted;
+
         if (!inBytes)
             return MarkerVerdict.LostBeforeParse;
 

@@ -15,37 +15,40 @@ public enum GateState
     /// "passed" would be a mis-report (CLAUDE.md §5).</summary>
     NotEvaluated,
 
-    /// <summary>No fixture in the corpus can make this gate fire. A verdict for a control nothing
-    /// exercises is reduced precision and must be marked as such, never printed as a pass.</summary>
-    NotExercisable,
-
-    /// <summary>Reached, but its outcome is not observable from outside the Application assembly.
-    /// Named rather than guessed.</summary>
-    AmbiguousToken,
+    /// <summary>The handler returned a genuine Failure (owner missing / IDOR), so no gate verdict
+    /// exists at all. Distinct from NotEvaluated, which means an earlier GATE stopped control.</summary>
+    NoVerdict,
 }
 
-/// <summary>One rung. <see cref="CallSite"/> is a STRING, never a re-typed predicate.</summary>
-public sealed record GateCell(string GateId, string CallSite, string Predicate, GateState State);
+/// <summary>One rung. <see cref="CallSite"/> is a display string, never a re-typed predicate.</summary>
+public sealed record GateCell(string GateId, string CallSite, GateState State);
 
 /// <summary>
 /// Renders the six auto-promote rungs for one case.
 ///
 /// <para><b>No predicate expression is written anywhere in this corpus.</b> The states below are
 /// derived from what the REAL handler returned, using only the handler's own control flow as
-/// stated fact: the three policy gates at <c>:101</c>, <c>:104</c> and <c>:107</c> each return
-/// unconditionally, so a block at <c>:104</c> proves <c>:101</c> passed and proves nothing at all
-/// about <c>:107</c>. Re-encoding the predicates here would fork the gate ORDER — and the order is
-/// exactly what pin P6 pins, so a corpus holding its own copy of it would stay green through a
-/// reordering of the product.</para>
+/// stated fact: the three policy gates each return unconditionally, so a block at the second
+/// proves the first passed and proves nothing at all about the third. Re-encoding the predicates
+/// here would fork the gate ORDER — and the order is exactly what pin P6 pins, so a corpus holding
+/// its own copy of it would stay green through a reordering of the product.</para>
 ///
-/// <para><b>The one genuine ambiguity, named rather than papered over.</b> Three distinct
-/// predicates collapse onto the single <c>PersonnummerPresent</c> token: the parse-level check at
-/// <c>:101</c>, the resolved-label scan at <c>:134</c>, and the composed-DTO DQ6 guard at
-/// <c>:145</c>. The first two are resolvable from outside — <c>parsed.Personnummer.Found</c> is
-/// readable on the aggregate, and <c>ResumeLabelResolver</c> plus <c>PersonnummerScanner</c> are
-/// both public, so the corpus runs the same two public calls the handler runs. Only the DQ6 guard
-/// is <c>internal</c> to Application, so only it can be <see cref="GateState.AmbiguousToken"/> —
-/// and only when the label scan passed.</para>
+/// <para><b>The collapsed token, and how it is resolved by ELIMINATION rather than guessed.</b>
+/// Three distinct predicates return the single <c>PersonnummerPresent</c> reason: the parse-level
+/// check, the resolved-label scan, and the composed-DTO DQ6 guard. All three are resolvable from
+/// outside the Application assembly without re-typing any of them: <c>parsed.Personnummer.Found</c>
+/// is readable on the aggregate, and <c>ResumeLabelResolver</c> plus <c>PersonnummerScanner</c> are
+/// both public, so the corpus runs the same two public calls the handler runs. Whatever remains
+/// after eliminating those two IS the DQ6 guard — there is no fourth site. So no rung is ever
+/// reported as an unresolved token.</para>
+///
+/// <para><b>Why there is no per-case "not exercisable" state.</b> An earlier revision keyed such a
+/// state on whether a case authored a personnummer, and it was wrong in both directions: it printed
+/// "no fixture can make this fire" on 15 cases while case 12 was firing that very gate, and it
+/// masked the label and DQ6 rungs on every promoted row where control had provably passed them.
+/// Exercisability is a property of the CORPUS, not of a case, and the corpus does exercise all six
+/// rungs — the DQ6 rung via the account-display-name case, which is the only route to it that a
+/// parse-level personnummer does not pre-empt.</para>
 /// </summary>
 internal static class GateLadder
 {
@@ -56,102 +59,70 @@ internal static class GateLadder
     internal const string G4a = "G4a pnr(DQ6)";
     internal const string G4b = "G4b buildability";
 
+    /// <summary>Call sites in <c>AutoPromoteParsedResumeCommandHandler</c>. Display strings: they
+    /// orient a reader and are deliberately NOT load-bearing, because a line number cannot be
+    /// pinned from here and a stale one must never read as a claim about behaviour.</summary>
+    private static readonly (string Id, string CallSite)[] Rungs =
+    [
+        (G1, "pnr on parse"), (G2, "preamble"), (G3, "confidence"),
+        (G3b, "pnr in label"), (G4a, "pnr DQ6"), (G4b, "buildability"),
+    ];
+
     internal static IReadOnlyList<GateCell> From(
         AutoPromoteBlockReason? block,
         bool promoted,
+        bool promoteFaulted,
         bool pnrFoundOnParse,
-        bool pnrInResolvedLabel,
-        bool fixtureCanCarryPersonnummer)
+        bool pnrInResolvedLabel)
     {
-        var states = Resolve(block, promoted, pnrFoundOnParse, pnrInResolvedLabel,
-            fixtureCanCarryPersonnummer);
-
-        return
-        [
-            new(G1, ":101", "parsed.Personnummer.Found", states[0]),
-            new(G2, ":104", "!IsNullOrWhiteSpace(parsed.Content.Preamble)", states[1]),
-            new(G3, ":107", "parsed.Confidence.RequiresManualReview", states[2]),
-            new(G3b, ":134", "PersonnummerScanner.Scan(label).Count > 0", states[3]),
-            new(G4a, ":145", "ResumeContentPersonnummerGuard.Check(dto).IsFailure", states[4]),
-            new(G4b, ":152", "Resume.CreateFromParsed(...).IsFailure", states[5]),
-        ];
+        var states = Resolve(block, promoted, promoteFaulted, pnrFoundOnParse, pnrInResolvedLabel);
+        return [.. Rungs.Select((r, i) => new GateCell(r.Id, r.CallSite, states[i]))];
     }
 
     private static GateState[] Resolve(
-        AutoPromoteBlockReason? block, bool promoted, bool pnrFoundOnParse, bool pnrInResolvedLabel,
-        bool fixtureCanCarryPersonnummer)
+        AutoPromoteBlockReason? block, bool promoted, bool promoteFaulted,
+        bool pnrFoundOnParse, bool pnrInResolvedLabel)
     {
+        // A genuine handler fault produced no gate verdict at all. Saying "not evaluated" would
+        // imply a gate stopped control; nothing did.
+        if (promoteFaulted)
+            return [.. Enumerable.Repeat(GateState.NoVerdict, 6)];
+
         // A promote proves every rung was reached and passed.
         if (promoted)
-        {
-            return
-            [
-                GateState.Passed, GateState.Passed, GateState.Passed,
-                PnrRung(fixtureCanCarryPersonnummer, GateState.Passed),
-                PnrRung(fixtureCanCarryPersonnummer, GateState.Passed),
-                GateState.Passed,
-            ];
-        }
+            return [.. Enumerable.Repeat(GateState.Passed, 6)];
 
-        var notExercisable = PnrRung(fixtureCanCarryPersonnummer, GateState.NotEvaluated);
+        const GateState p = GateState.Passed;
+        const GateState b = GateState.Blocked;
+        const GateState n = GateState.NotEvaluated;
 
         return block switch
         {
-            AutoPromoteBlockReason.UnclassifiedPreamble =>
-            [
-                GateState.Passed, GateState.Blocked, GateState.NotEvaluated,
-                GateState.NotEvaluated, GateState.NotEvaluated, GateState.NotEvaluated,
-            ],
-            AutoPromoteBlockReason.ParseNotConfident =>
-            [
-                GateState.Passed, GateState.Passed, GateState.Blocked,
-                GateState.NotEvaluated, GateState.NotEvaluated, GateState.NotEvaluated,
-            ],
-            AutoPromoteBlockReason.IncompleteContent =>
-            [
-                GateState.Passed, GateState.Passed, GateState.Passed,
-                PnrRung(fixtureCanCarryPersonnummer, GateState.Passed),
-                PnrRung(fixtureCanCarryPersonnummer, GateState.Passed),
-                GateState.Blocked,
-            ],
+            AutoPromoteBlockReason.UnclassifiedPreamble => [p, b, n, n, n, n],
+            AutoPromoteBlockReason.ParseNotConfident => [p, p, b, n, n, n],
+            AutoPromoteBlockReason.IncompleteContent => [p, p, p, p, p, b],
 
-            // The collapsed token. :104-108 return unconditionally, so a block reached from
-            // anywhere below :101 proves G1, G2 and G3 all passed.
-            AutoPromoteBlockReason.PersonnummerPresent when pnrFoundOnParse =>
-            [
-                GateState.Blocked, GateState.NotEvaluated, GateState.NotEvaluated,
-                GateState.NotEvaluated, GateState.NotEvaluated, GateState.NotEvaluated,
-            ],
-            AutoPromoteBlockReason.PersonnummerPresent when pnrInResolvedLabel =>
-            [
-                GateState.Passed, GateState.Passed, GateState.Passed,
-                GateState.Blocked, GateState.NotEvaluated, GateState.NotEvaluated,
-            ],
-            AutoPromoteBlockReason.PersonnummerPresent =>
-            [
-                GateState.Passed, GateState.Passed, GateState.Passed,
-                GateState.Passed, GateState.Blocked, GateState.NotEvaluated,
-            ],
+            // The collapsed token, resolved by elimination. The three policy gates return
+            // unconditionally, so a block reached from below the first proves all three passed.
+            AutoPromoteBlockReason.PersonnummerPresent when pnrFoundOnParse => [b, n, n, n, n, n],
+            AutoPromoteBlockReason.PersonnummerPresent when pnrInResolvedLabel => [p, p, p, b, n, n],
+            AutoPromoteBlockReason.PersonnummerPresent => [p, p, p, p, b, n],
 
-            // No block and no promote means the handler returned a Failure — an owner/IDOR fault,
-            // not a gate verdict. Nothing may be claimed about any rung.
-            _ => [notExercisable, notExercisable, notExercisable, notExercisable, notExercisable, notExercisable],
+            _ => [.. Enumerable.Repeat(GateState.NoVerdict, 6)],
         };
     }
 
-    private static GateState PnrRung(bool fixtureCanCarryPersonnummer, GateState ifExercisable) =>
-        fixtureCanCarryPersonnummer ? ifExercisable : GateState.NotExercisable;
-
-    /// <summary>The one instrument assert on the ladder: control cannot pass a rung it never
-    /// reached, so <c>Passed</c> may never follow <c>NotEvaluated</c>.</summary>
+    /// <summary>An edit guard, not a measurement: every literal <see cref="Resolve"/> returns is
+    /// well-formed by construction, so this cannot fail against today's code. It exists so that a
+    /// future hand-edited ladder cannot claim control passed a rung it never reached.</summary>
     internal static bool IsWellFormed(IReadOnlyList<GateCell> ladder)
     {
-        var seenNotEvaluated = false;
+        var stopped = false;
         foreach (var cell in ladder)
         {
-            if (cell.State == GateState.NotEvaluated)
-                seenNotEvaluated = true;
-            else if (seenNotEvaluated && cell.State == GateState.Passed)
+            if (cell.State is GateState.NotEvaluated or GateState.NoVerdict)
+                stopped = true;
+            else if (stopped && cell.State == GateState.Passed)
                 return false;
         }
 

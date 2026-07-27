@@ -37,6 +37,7 @@ internal sealed record CvChainObservation(
     AutoPromoteBlockReason? BlockReason,
     bool Promoted,
     Resume? PromotedResume,
+    string? PromoteFailureCode,
     string? CrashedWithExceptionType);
 
 /// <summary>
@@ -86,11 +87,12 @@ internal static class CvChainProbe
     ];
 
     internal static async Task<CvChainObservation> RunAsync(
-        string fileName, string contentType, byte[] bytes, CancellationToken ct)
+        string fileName, string contentType, byte[] bytes, string accountDisplayName,
+        CancellationToken ct)
     {
         try
         {
-            return await RunCoreAsync(fileName, contentType, bytes, ct);
+            return await RunCoreAsync(fileName, contentType, bytes, accountDisplayName, ct);
         }
         catch (Exception ex)
         {
@@ -98,19 +100,26 @@ internal static class CvChainProbe
             // artifact for every other case. The exception TYPE only — never the message,
             // which could carry CV text (parity Harness/CrashSweep.cs, CLAUDE.md §5).
             return new CvChainObservation(
-                false, null, string.Empty, 0, 0, false, null, null, null, false, null,
+                false, null, string.Empty, 0, 0, false, null, null, null, false, null, null,
                 ex.GetType().Name);
         }
     }
 
     private static async Task<CvChainObservation> RunCoreAsync(
-        string fileName, string contentType, byte[] bytes, CancellationToken ct)
+        string fileName, string contentType, byte[] bytes, string accountDisplayName,
+        CancellationToken ct)
     {
         var userId = Guid.NewGuid();
         var clock = FixedClock.Default;
         await using var db = CorpusAppDbContextFactory.Create();
 
-        var seeker = JobSeeker.Register(userId, "Konto Kontosson", clock).Value;
+        // The account display name is a CASE input, not a fixed constant. The auto-promote
+        // handler feeds it into the composed DTO, so it is the ONLY text the DQ6 guard sees that
+        // the import scan did not already cover. One case therefore authors a personnummer HERE
+        // rather than in the CV body: that is the only route to the DQ6 rung which a parse-level
+        // personnummer does not pre-empt, and without it, deleting the guard call would leave the
+        // whole report byte-identical.
+        var seeker = JobSeeker.Register(userId, accountDisplayName, clock).Value;
         db.JobSeekers.Add(seeker);
         await db.SaveChangesAsync(ct);
 
@@ -126,7 +135,7 @@ internal static class CvChainProbe
         {
             return new CvChainObservation(
                 kindResolved, null, string.Empty, 0, 0, false, null, import.Error.Code,
-                null, false, null, null);
+                null, false, null, null, null);
         }
 
         await db.SaveChangesAsync(ct);
@@ -137,30 +146,34 @@ internal static class CvChainProbe
         var parsed = await db.ParsedResumes
             .FirstOrDefaultAsync(p => p.Id == new ParsedResumeId(import.Value.ParsedResumeId), ct);
 
-        // The extraction is re-run over the same bytes purely to RECORD the raw-text shape
-        // (blank lines, line count) that the handler consumed but does not return. It is the
-        // same call the handler makes, on the same bytes, and it is deterministic.
-        var extraction = CvFileSignature.TryResolve(contentType, bytes.AsSpan(), out var kind)
-            ? RealExtractor.Extract(bytes, kind, ct)
-            : null;
-        var rawText = extraction?.RawText ?? string.Empty;
+        // RawText is a MAPPED property on the aggregate, so the text the handler actually
+        // consumed is readable off the tracked instance. The marker trace and the one
+        // production-touching assert therefore measure exactly the text that was parsed, not a
+        // second extraction that merely ought to match it. Only the STATUS is unavailable from the
+        // aggregate (the handler consumes and discards it), so that one value costs a second call
+        // over the same bytes.
+        var rawText = parsed?.RawText ?? string.Empty;
+        var status = CvFileSignature.TryResolve(contentType, bytes.AsSpan(), out var kind)
+            ? RealExtractor.Extract(bytes, kind, ct).Status
+            : (CvExtractionStatus?)null;
         var lines = rawText.Split('\n');
 
         var promote = await RunAutoPromoteAsync(db, currentUser, clock, import.Value.ParsedResumeId, ct);
 
         return new CvChainObservation(
             KindResolved: kindResolved,
-            ExtractionStatus: extraction?.Status,
+            ExtractionStatus: status,
             RawText: rawText,
             BlankLineCount: lines.Count(l => l.Trim().Length == 0),
             LineCount: lines.Length,
-            SegmentRan: extraction?.Status == CvExtractionStatus.Extracted
+            SegmentRan: status == CvExtractionStatus.Extracted
                         && !string.IsNullOrWhiteSpace(rawText),
             Parsed: parsed,
             ImportFailureCode: null,
             BlockReason: promote.Block,
             Promoted: promote.Promoted,
             PromotedResume: promote.Resume,
+            PromoteFailureCode: promote.FailureCode,
             CrashedWithExceptionType: null);
     }
 
@@ -197,8 +210,8 @@ internal static class CvChainProbe
         return await handler.Handle(new ImportResumeCommand(fileName, contentType, bytes), ct);
     }
 
-    private static async Task<(AutoPromoteBlockReason? Block, bool Promoted, Resume? Resume)>
-        RunAutoPromoteAsync(
+    private static async Task<(AutoPromoteBlockReason? Block, bool Promoted, Resume? Resume,
+        string? FailureCode)> RunAutoPromoteAsync(
             AppDbContext db, ICurrentUser currentUser, IDateTimeProvider clock,
             Guid parsedResumeId, CancellationToken ct)
     {
@@ -209,16 +222,25 @@ internal static class CvChainProbe
 
         var result = await handler.Handle(new AutoPromoteParsedResumeCommand(parsedResumeId), ct);
 
+        // A Failure on THIS command is never a gate verdict: the handler reserves it for a
+        // genuine fault (unknown or foreign artifact, infrastructure). Carried as its own field so
+        // a fault can never be rendered as an honest block.
         if (result.IsFailure)
-            return (null, false, null);
+            return (null, false, null, result.Error.Code);
 
         return result.Value switch
         {
-            AutoPromoteOutcome.LeftPending pending => (pending.Reason, false, null),
-            // Read the promoted aggregate off the change tracker, NEVER via a re-query: the
-            // content shadow only exists on the instance the handler built.
-            AutoPromoteOutcome.Promoted => (null, true, db.Resumes.Local.SingleOrDefault()),
-            _ => (null, false, null),
+            AutoPromoteOutcome.LeftPending pending => (pending.Reason, false, null, null),
+
+            // Read the promoted aggregate off the change tracker, NEVER via a re-query. Two
+            // independent reasons, and the STRONGER one is the second: (1) ResumeVersion.Content is
+            // EF-Ignored and only the production materialization interceptor fills it, so a fresh
+            // context yields null content and every case would report a false IncompleteContent;
+            // (2) no SaveChanges runs after promote, so the aggregate is still Added and a re-query
+            // would not find it AT ALL. Anyone who later adds a save must still not switch to a
+            // re-query, because reason (1) survives it.
+            AutoPromoteOutcome.Promoted => (null, true, db.Resumes.Local.SingleOrDefault(), null),
+            _ => (null, false, null, null),
         };
     }
 }

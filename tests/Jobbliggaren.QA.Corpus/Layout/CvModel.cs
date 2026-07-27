@@ -111,10 +111,12 @@ public sealed record CvModel(
 
     /// <summary>
     /// The English model. Same person, same cardinalities, same section set and — load-bearing for
-    /// pin P5 — the same section ORDER, so the only intended difference is the heading vocabulary
-    /// and the prose language. <c>LayoutCaseCatalog</c> asserts that structural equality at
-    /// catalog-build time; if this record drifts, P5 stops being a non-difference claim and starts
-    /// being noise.
+    /// pin P5 — the same section ORDER. Section set and order hold STRUCTURALLY, because both the
+    /// Swedish and English cases run the same renderer method and a renderer emits its sections in
+    /// one order; only the cardinalities need a runtime check, and
+    /// <c>LayoutCaseCatalog.ValidateModelSymmetry</c> is exactly that and nothing more. Stated
+    /// precisely rather than generously: if this record drifts, P5 stops being a non-difference
+    /// claim and becomes permanent noise.
     /// </summary>
     public static CvModel English { get; } = Swedish with
     {

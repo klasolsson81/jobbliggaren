@@ -242,12 +242,18 @@ jobs:
     # innehållspushen) ⇒ innehållet mergar ogranskat. Det är #836:s incident
     # återuppstådd GENOM kontrollen.
     #
-    # FÖNSTRET ÄR SMALT, och det ska stå här hellre än att antydas bort: en hel
-    # `disarm`-run tar 11–13 s (mätt på sondkörningarna 30275993980 och
-    # 30276098911, full checkout inräknad), medan de tätaste `label-automerge`-
-    # eventen på den här grenen låg 62 s isär (30270870302 13:33:57Z →
-    # 30270951216 13:34:59Z). Tre events inuti ett tolvsekundersfönster är alltså
-    # ovanligt, inte vardag. Det ändrar ingenting: en förlorad avväpning mergar
+    # FÖNSTRET ÄR SMALT, och det ska stå här hellre än att antydas bort. Låset
+    # hålls under runnens HELA livslängd, kötid inräknad: mätt över fyra
+    # sondkörningar (30275993980, 30276098911, 30278350982, 30278458244) tar en
+    # `disarm`-run 11, 13, 24 respektive 16 s, full checkout inräknad — medan de
+    # tätaste `label-automerge`-eventen på den här grenen låg 62 s isär
+    # (30270870302 13:33:57Z → 30270951216 13:34:59Z).
+    #
+    # Läs det som ett GOLV, inte ett tak: fyra körningar på en obelastad
+    # runner-pool, och spridningen 11→24 s inom de fyra säger att kötiden rör sig.
+    # Under last blir fönstret bredare, aldrig smalare. Tre events inuti det är
+    # alltså ovanligt — men "ovanligt" är inte ett argument, och siffran får inte
+    # citeras som skäl att sätta tillbaka gruppen. En förlorad avväpning mergar
     # ogranskad kod, konsekvensen är obegränsad, och att ta bort gruppen kostar
     # noll. Fail-safe defaults vägs inte mot sannolikhet (Saltzer & Schroeder
     # 1975 §3) — särskilt inte när priset för att stänga hålet är en raderad rad.

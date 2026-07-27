@@ -360,8 +360,12 @@ jobs:
           # asserted "the fetch saturates the job budget well below 20000"; that
           # requires p > 5.8 s/page, or ~68% of the minute, and is no more derived
           # than the figure struck above -- so it is struck too. The `dry_run`
-          # dispatch below is how to get p, and the wrong guess costs a loud
-          # `assert-not-truncated`, never a wrong deletion.
+          # dispatch below is how to get p. Guessing wrong costs either a loud
+          # `assert-not-truncated` (if the ceiling binds) or a timed-out job
+          # during fetch (if the budget does) -- never a wrong deletion. Both
+          # halves are named because the paragraph spends ten lines saying the two
+          # branches cannot be told apart, and it would be odd to close by pricing
+          # only one of them.
           #
           # To replace the hedge with a figure: one `workflow_dispatch` with
           # `dry_run=true`, read the step timings, and the minute decomposes into

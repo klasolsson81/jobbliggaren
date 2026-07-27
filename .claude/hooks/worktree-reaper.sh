@@ -293,7 +293,7 @@ if command -v gh >/dev/null 2>&1; then
     case "$_m" in ''|*[!0-9]*) continue ;; esac
     _dead_local="${_dead_local}      - $_b (PR #$_m)"$'\n'
   done < <(git branch --format='%(refname:short)' 2>/dev/null)
-  [ -n "$_dead_local" ] && HYGIENE="${HYGIENE}    dead local branches (PR merged — 'git branch -D', and 'git push origin --delete'):"$'\n'"${_dead_local}"
+  [ -n "$_dead_local" ] && HYGIENE="${HYGIENE}    dead local branches (PR merged — 'git branch -D'; the remote side is swept by delete-merged-branches.yml, #725):"$'\n'"${_dead_local}"
 
   # (b) your own open PRs that are not merely waiting on green CI. BEHIND is the silent
   #     one: automerge will never rebase it, and nothing tells you.
@@ -332,7 +332,12 @@ if [ "$REAPED_N" -gt 0 ] || [ "$REMOTE_N" -gt 0 ] || [ "$RESCUED_N" -gt 0 ] || [
   [ "$RESCUED_N" -gt 0 ] && printf '%s' "$RESCUED_LIST"
   [ "$REAPED_N" -gt 0 ] && printf '%s' "$REAPED_LIST"
   if [ "$REMOTE_N" -gt 0 ]; then
-    echo "  remote-grenar att städa manuellt (git push origin --delete, aldrig automatiskt):"
+    # Sedan #725 raderas de här av `delete-merged-branches.yml` (dagligt svep +
+    # `workflow_dispatch`). REAPERN rör dem fortfarande aldrig — ADR 0094:s
+    # invariant är oförändrad; det är en ANNAN aktör som gör det. Raden får
+    # därför inte längre säga "aldrig automatiskt", men den får heller inte
+    # antyda att hooken börjat röra remoten.
+    echo "  remote-grenar (raderas av svepet; 'gh workflow run delete-merged-branches.yml -f dry_run=false' om du vill ha det gjort nu):"
     printf '%s' "$REMOTE_LIST"
   fi
   # A skip carrying UNLANDED EDIT is not noise — it means a worktree holds session state

@@ -115,7 +115,7 @@ public class FullMatchScorerBatchIntegrationTests(ApiFactory factory)
         if (terms is null)
         {
             // #874 - Import folds extraction in, so a persisted imported ad always carries terms
-            // (Empty at worst); the never-extracted NULL state is legacy-only and unreachable through
+            // (Empty at worst); the never-extracted NULL state is legacy-only: produced by ingest before #874, and unreachable through
             // the aggregate. Null the column directly to reproduce it (the STORED extracted_lexemes
             // shadow follows extracted_terms to NULL).
             // The complement — that the current writer never produces this shape — is pinned in JobAdExtractionCouplingTests.

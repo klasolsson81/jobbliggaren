@@ -24,6 +24,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using NSubstitute;
 using Refit;
 using Shouldly;
 using Testcontainers.PostgreSql;
@@ -2135,13 +2136,6 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
         public DateTimeOffset UtcNow { get; } = new(2026, 7, 13, 12, 0, 0, TimeSpan.Zero);
     }
 
-    /// <summary>Collaborator, not a premise — nothing here is asserted against.</summary>
-    private sealed class NoOpSystemEventAuditor : ISystemEventAuditor
-    {
-        public Task RecordAsync(SystemAuditEvent evt, CancellationToken cancellationToken) =>
-            Task.CompletedTask;
-    }
-
     /// <summary>
     /// Purges the corpus's raw payloads by RUNNING <see cref="PurgeStaleRawPayloadsJob"/>, which is
     /// the actor, instead of emulating it with <c>UPDATE job_ads SET raw_payload = NULL</c>.
@@ -2174,7 +2168,11 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
             db,
             new FixedClock(),
             Options.Create(new JobSourceRetentionOptions { RawPayloadRetentionDays = 1 }),
-            new NoOpSystemEventAuditor(),
+            // Collaborator, not a premise: no assertion here rests on the audit row, so the rule
+            // raises no obligation. `PurgeStaleRawPayloadsJobTests` substitutes the same port for
+            // the same job. If an Art. 30 assertion is ever added, this stub becomes a premise and
+            // must be REPLACED, not extended.
+            Substitute.For<ISystemEventAuditor>(),
             NullLogger<PurgeStaleRawPayloadsJob>.Instance);
 
         await job.RunAsync(ct);

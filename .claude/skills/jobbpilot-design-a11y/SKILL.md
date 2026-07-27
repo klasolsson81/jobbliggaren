@@ -304,11 +304,18 @@ Tabular/ledger content is exempt — it is scanned, not read line-by-line.
 
 Civic-utility density means controls are compact. The thresholds:
 
-- **In-app minimum: 32×32 CSS px.** The default button/input height is 32px
-  (`.jp-btn`, `.jp-input`). This is the floor for normal app controls.
-- **28px allowed only in keyboard-primary toolbars** — dense action bars where
-  the primary interaction model is keyboard, not pointer (`.jp-btn--sm`,
-  `.jp-iconbtn`). Do not use 28px for primary content actions.
+- **In-app minimum: 32×32 CSS px.** This is a FLOOR, not a size — and every
+  shipped control clears it with room to spare. Measured 2026-07-27: `.jp-btn`
+  **44px**, `.jp-input` **48px**, `.jp-btn--sm` **36px**, `.jp-iconbtn` **36px**.
+  (These lines previously stated 32px and 28px as the actual heights; those were
+  the pre-ADR-0038 values, migrated away from on 2026-05-16. The floor is
+  unchanged; the factual claim was stale.) Exact heights are governed per
+  system — see DESIGN.md §Komponenter and ADR 0052 Amendment 2026-07-27 (#1095);
+  **do not read a floor here as the value to build to.**
+- **28px is not in use for any control today.** It survives as a documented
+  allowance for keyboard-primary toolbars only; the classes formerly cited here
+  (`.jp-btn--sm`, `.jp-iconbtn`) are both 36px. Do not use 28px for primary
+  content actions.
 - **Touch: 44×44 CSS px on screens ≤768px** (WCAG 2.5.5). On touch/mobile the
   hit area must bump to 44px even though the visual size stays civic-compact.
 
@@ -374,7 +381,7 @@ Design-reviewer uses this checklist as her audit source. All must pass.
 - [ ] Dialogs trap focus + return focus on close
 - [ ] `prefers-reduced-motion` respected (no animations at 0.01ms)
 - [ ] Page usable at 200% zoom without horizontal scroll
-- [ ] Hit targets ≥ 32×32px in-app (28px only in keyboard toolbars), ≥ 44px on touch ≤768px
+- [ ] Hit targets ≥ 32×32px in-app (a FLOOR — shipped controls are 36–48px; do not "fix" one down to it), ≥ 44px on touch ≤768px
 - [ ] Running prose capped at ~68ch max-width
 - [ ] Information-bearing dividers use `border-strong` (≥ 3:1), not `border`
 - [ ] Status conveyed by dot/icon + text, never color alone

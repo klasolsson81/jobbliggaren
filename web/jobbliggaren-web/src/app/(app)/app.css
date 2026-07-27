@@ -301,7 +301,10 @@
    JobbFilterPopover positionerar sig absolut ur triggerns viewport-rect och
    slåss med Radix Dialogens fokus-trap/Esc inuti modalen. Disclosuren har
    ingen positionsmatematik och är trivialt tangentbordsstyrd. CTA:n speglar
-   sekundär-knappens yta (border + surface, 40px, 4px radie — ingen ny hex). */
+   sekundär-knappens yta (border + surface — ingen ny hex). Höjd/radie anges
+   medvetet INTE här: `.jp-btn--secondary` är 44px och shadcn secondary 40px, båda
+   med 6px radie (`--jp-r-md`); en systemlös siffra är falsk genom utelämnande
+   (DESIGN.md §6, ADR 0052 Amendment 2026-07-27). */
 .jp-occpicker {
   margin-top: 4px;
 }

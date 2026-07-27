@@ -197,3 +197,71 @@ Strukturella `.jp-*` portas verbatim; shadcn överlever via bryggan.
   class (bundled with the E2f-override colour change) — **Klas GO
   2026-07-03, PR #562 merged manually** (never automerge); design-reviewer
   rendered-verify passed the auth-h1 20→32 jump (gate c, round 1).
+
+---
+
+## Amendment 2026-07-27 (#1095) — `.jp-*` control heights minuted; input radius NOT changed (see #1103)
+
+**Datum:** 2026-07-27
+**Källa:** senior-cto-advisor binding decision (`docs/reviews/2026-07-27-control-heights-cto.md`, Option 3 bound). Klas delegated the decision to the CTO (CLAUDE.md §9.2: unambiguous CTO verdicts execute without extra Klas GO).
+**Trigger:** Issue #1095. A corpus audit flagged `.jp-btn` (44px) and `.jp-input` (48px) as apparent drift against ADR 0038's 44px/40px. Verified false: both values are minuted in `docs/handoff-oversikt/HANDOVER-v3.md` §5.1 (Buttons) and §5.2 (Inputs) — the authoritative v3 design spec this ADR's own Livscykel-not (top of file) says its Beslut substance was transcribed from, whose header (line 3) reads verbatim: *"Beslutat av produktägaren (Klas). Designspec har veto över befintliga ADRs och CC-default-preferenser."* Beslut 4 (radius) and Beslut 5 (typography) transcribed HANDOVER's corresponding rows; **the height rows in §5.1/§5.2 were dropped from that same transcription.** That is an incomplete transcription, not an unminuted decision. (The input RADIUS is a different case — see the section below; it was transcribed correctly and the source contradicts itself.)
+**Beslutsfattare:** senior-cto-advisor (decision-maker, CLAUDE.md §9.2); Klas Olsson (delegated the choice to the CTO)
+**Status:** Accepted. Additive — Beslut 4 and Beslut 5's tables are not rewritten (ADR immutability, Nygard 2011); this amendment supplies the rows `HANDOVER-v3.md` §5.1/§5.2 minuted that the original transcription omitted. It corrects **nothing** in Beslut 4 — an earlier draft claimed the input-radius row was mis-transcribed; that claim is retracted below and the question is filed as #1103.
+
+### Control heights (completes Beslut 5's scope)
+
+`HANDOVER-v3.md` §5.1 (line 208–220) and §5.2 (line 222–229) minute:
+
+| Class | Height | Source |
+|---|---|---|
+| `.jp-btn` — `--primary`/`--secondary`/`--ghost`/`--danger` | **44px** | §5.1 table, all four variant rows |
+| `.jp-btn--sm` | 36px | §5.1, "Varianter: `--lg` 52 px, `--sm` 36 px" |
+| `.jp-btn--lg` | 52px — ratified, unimplemented (zero consumers) | §5.1, same row |
+| `.jp-input` / `.jp-select` / `.jp-textarea` | **48px** | §5.2, "Höjd 48 px (sm 40 px)" |
+| `.jp-input` sm | 40px — ratified, unimplemented (zero consumers) | §5.2, same line |
+
+These rows extend Beslut 5's scope; the existing Beslut 4/5 tables are left as written.
+
+**Reason** (`HANDOVER-v3.md` §1, line 60): *"v3-justering: behåll civic-tonen men **bumpa kontraster, borders och input-fält**."* This ADR's own Kontext (above) records the same v2 user-test finding — the §1.1 target user (55-year-old jobseekers) could not reliably tell where a card began or ended. The height bump is part of the same contrast/border/field correction that produced Beslut 4 (radius) and Beslut 6 (color), not an isolated, undocumented change.
+
+**ADR 0038's 44px/40px remains live and correct — for the system it governs.** This is a scoping resolution between two ratified decisions, neither deviant:
+
+- ADR 0038 (Accepted 2026-05-16) governs the **shadcn primitives**: `Input` (44px), `Button` (40px; sm 36, lg 44), `SelectTrigger` (44px, sm 36).
+- This ADR / `HANDOVER-v3.md` §5.1–§5.2 govern the **`.jp-*` system**: `.jp-btn` (44px), `.jp-input` (48px).
+- The two regimes do not share a visual plane: `.jp-input` is used only in `foretag-sok-searchbar.tsx`, its child `bransch-typeahead.tsx`, `cv-upload-form.tsx`, and `activity-report-view.tsx`. The shadcn `Input`s that appear on the same `/foretag/sok` route (`criterion-picker.tsx:88`, `criterion-dialog.tsx:211`) render only inside `CriterionDialog`, which wraps in a Radix `<Dialog><DialogContent>` — a modal overlay, never on the same rendered plane as the page's own `.jp-input` search bar.
+
+**Operative rule, binding on every future corpus line about control height:** name the system a height statement governs. A bare "input height = 44px" (or 48px) is false-by-omission regardless of which number it carries — write "shadcn `Input` = 44px (ADR 0038)" or "`.jp-input` = 48px (ADR 0052, Amendment 2026-07-27)".
+
+`.jp-btn--lg` and `.jp-input` sm are minuted here, unbuilt, so a future implementer does not invent a third number for either rung. Building them now would be premature — zero consumers (YAGNI).
+
+### Input radius — NOT corrected here; the source contradicts itself (open, #1103)
+
+An earlier draft of this amendment called Beslut 4's inputs row a transcription defect of the same
+kind as the heights. **That is wrong, and it is recorded here rather than quietly dropped.** Beslut
+4's `| --jp-r-sm | 4px | inputs, badges |` is a *verbatim* transcription of `HANDOVER-v3.md` §4
+(line 195): *"sm 4 px — inputs, badges"*. It was transcribed correctly.
+
+`HANDOVER-v3.md` disagrees with itself about the input radius:
+
+| source | says |
+|---|---|
+| §4 line 195 (radius scale) | `sm 4 px — inputs, badges` |
+| §1 line 65 (v2→v3 table) | `6 px på rader/kort, **4 px på inputs**` |
+| §5.2 line 226 (input spec) | `Radius 6 px` |
+
+Two lines say 4px, one says 6px, and the shipped code (`.jp-input` → `var(--jp-r-md)` = 6px) follows
+the minority line. So this is **not** the heights' defect class: there the source was unambiguous and
+the transcription lost a row; here the transcription is faithful and the source is inconsistent.
+
+Resolving it requires deciding which HANDOVER line governs — a decision, not a correction — so
+Beslut 4 stands unamended and the question is filed. `--jp-r-sm` remains in active use (42
+occurrences across `globals.css` and `(app)/app.css`) and is untouched either way.
+
+No CSS change either way: the code ships 6px today and stays there until #1103 rules.
+
+### Cross-reference
+
+- ADR 0038 — dated forward-pointer added 2026-07-27 (#1095) in its "Relation till andra ADR:er" section, pointing here.
+- `docs/reviews/2026-07-27-control-heights-cto.md` — full CTO reasoning, rejected alternatives, trade-offs accepted.
+- `docs/handoff-oversikt/HANDOVER-v3.md` §5.1 (line 208–220), §5.2 (line 222–229), §1 (line 60).
+- `docs/decisions/README.md` — index summary lines for ADR 0038 and ADR 0052 updated in the same PR (an instruction left in an ADR is an instruction nobody runs).

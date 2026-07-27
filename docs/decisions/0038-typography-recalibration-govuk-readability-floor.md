@@ -91,6 +91,7 @@ Typografin och fältstorlekarna i designsystem v2 omkalibreras till ett GOV.UK-f
   läsbarhetsgolv den här ADR:n satte. Originalmeningen skrivs inte om; den är en
   daterad observation, det här är noteringen att den inte längre beskriver HEAD.
 - **ADR 0016** — civic-restriktionen gäller fortsatt; civic-ledger-FORMEN ändras inte.
+- **Dated forward-pointer 2026-07-27 (#1095):** this ADR's Fält-ergonomi clause (line 40) set control heights to 44px (input, sm 40) / 40px (button, sm 36). Those values remain correct — but only for the **shadcn primitives** this ADR governs (`Input`, `Button`, `SelectTrigger`); verified unchanged. A second, separately-ratified system exists alongside it: the `.jp-*` classes (`.jp-btn` 44px, `.jp-input` 48px) carry `HANDOVER-v3.md` §5.1/§5.2's values, ratified by ADR 0052 (transcription completed by ADR 0052's Amendment 2026-07-27, #1095). The original sentence above is not rewritten — it was true on 2026-05-16 and remains true for the primitives it governs; this is the dated note that it no longer describes every control on HEAD. Full resolution: ADR 0052, Amendment 2026-07-27 (#1095).
 
 ## Referenser
 

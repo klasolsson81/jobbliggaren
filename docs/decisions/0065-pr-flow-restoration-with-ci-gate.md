@@ -163,6 +163,25 @@ Grindmekanismen i Beslut §"Operativt flöde" steg 6 (**"Klas reviewar diff + ag
 
 **Räckvidd — signal, inte enforcement:** branch protection ligger bara på `main` (required checks = exakt `["ci"]`, `strict: true`, `enforce_admins: true`; noll repo-rulesets). En stackad PR har alltså fortfarande inga *required* checks. Det ändras inte här; enforcement-halvan är #836 (PR-babysittaren får inte merga före agent-grinden svarat).
 
+## Amendment 2026-07-27 — tvålabelsgrind, och undantaget för en ren bas-merge (#836)
+
+**Kontext:** #836. Amendment 2026-06-07 ovan beskriver mekanismen som *"CC sätter `automerge`-labeln på alla egna PR:er direkt efter `gh pr create`. `label-automerge.yml` aktiverar då auto-merge (squash) som verkställs så snart required `ci` är grön."* **Den meningen är från och med nu falsk**, och den ersätts här — beslutet i amendmentet står oförändrat, bara dess mekanik har bytts.
+
+**Vad som ändrades.** `automerge` bar två betydelser: AVSIKT (sann vid `gh pr create`) och TILLSTÅND (sann först när granskningen är klar). Varje aktör som legitimt uttryckte avsikt beviljade därför ofrivilligt tillstånd — mätt två gånger, PR #832 och PR #1083, båda med oåtgärdade Blocker/Major i `main`. Symbolerna är nu delade:
+
+- **`automerge` = AVSIKT.** Sätts vid `gh pr create`, av CC eller PR-babysittern.
+- **`agents-done` = TILLSTÅND.** Sätts ENBART av den ägande sessionen, efter att §9.2:s obligatoriska agenter svarat utan oåtgärdat Blocker/Major.
+
+`label-automerge.yml` armerar först när **båda** sitter. En push som bär eget innehåll tar bort `agents-done` och stänger av auto-merge; en återkallad label gör detsamma.
+
+**Undantaget:** en **ren bas-merge** avväpnar inte. `main` har `strict: true`, så up-to-base är obligatoriskt och konstant; en grind som avväpnade på var och en av dem hade aldrig konvergerat. `.github/scripts/is-pure-base-merge.sh` (fixturtestad, `ci`-grindad) jämför det pushade trädet med det träd en automatisk merge hade gett — vilket är exakt vad `gh pr update-branch` ger — och är fail-closed: varje fel och varje form den inte kan intyga avväpnar.
+
+**Undantag 1 i amendment 2026-06-07 ("ej-åtgärdat agent-Blocker/Major → ingen label") får därmed sitt första maskinuttryck.** Regeln är inte ny; den var overkställbar. Undantag 2 (spec-edits) är sedan 2026-06-25 ersatt av det autonoma flödet och lyfts inte här.
+
+**Oförändrat:** required `ci`-aggregatet, linear history, `enforce_admins: true`, required conversation resolution. Automerge verkställs fortfarande *genom* grindarna.
+
+**Berörda dokument (uppdaterade i samma PR):** CLAUDE.md §6/§6.5, `docs/runbooks/parallel-sessions.md` §3.3/§8/§8.1/§9.5, `docs/runbooks/session-start-template.md`, ADR 0045 (`ci.needs`-uppräkningen).
+
 **Oförändrat:** allt annat i ADR 0065 och i amendmentet ovan. Required `ci`, linear history, `enforce_admins`, automerge-flödet och undantagen gäller precis som förut — bara *vilka* PR:er som får en `ci` att vara grön har vidgats.
 
 ## Relation till andra beslut

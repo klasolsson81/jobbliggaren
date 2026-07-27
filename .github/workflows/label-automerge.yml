@@ -113,6 +113,9 @@ jobs:
     # väntande är `disarm`. `cancel-in-progress: false` skyddar den KÖRANDE, inte den
     # väntande. Korsordning är ofarlig numera: `arm` läser om labelmängden från
     # API:t innan den mergar, så en återkallelse som hinner före syns där.
+    # `disarm` har numera INGEN grupp alls, av samma skäl ett steg längre draget —
+    # se motiveringen där. Här är gruppen ofarlig: en bortavbruten `arm` armerar
+    # inte, och att inte armera är den säkra riktningen.
     concurrency:
       group: automerge-arm-${{ github.event.pull_request.number }}
       cancel-in-progress: false
@@ -221,12 +224,31 @@ jobs:
     name: auto-merge (disarm — grinden bröts)
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    # Två snabba `synchronize` (mätt: en PR fick två base-merges inom 7 minuter)
-    # ger annars två parallella disarm-jobb och två identiska PR-kommentarer.
-    # EGEN grupp, skild från `arm`s — se motiveringen där.
-    concurrency:
-      group: automerge-disarm-${{ github.event.pull_request.number }}
-      cancel-in-progress: false
+    # INGEN concurrency-grupp, och det är en RÄTTELSE, inte en förenkling.
+    #
+    # Jobbet hade `group: automerge-disarm-<pr>`, motiverat med att två snabba
+    # `synchronize` annars ger två identiska PR-kommentarer. Den motiveringen var
+    # giltig när avväpningen var OVILLKORLIG: två runs var då utbytbara, så en
+    # bortavbruten run gjorde ingen skada — den överlevande gjorde dess jobb.
+    #
+    # Predikatet tog bort utbytbarheten. Varje run är nu en utsaga om ENBART sitt
+    # eget spann `before..after`, och GitHub avbryter den VÄNTANDE runnen i en grupp
+    # så snart en tredje köas (`cancel-in-progress: false` skyddar den KÖRANDE — se
+    # `arm`s kommentar ovan, som beskriver exakt den mekaniken). Ett avbrutet spann
+    # är ett spann ingen granskade, och nästa rena bas-merge säger `pure-base-merge`
+    # och låter det passera. Mätt körning: bas-merge (kör) → innehållspush (väntar)
+    # → bas-merge (köar, avbryter innehållspushen) ⇒ innehållet mergar ogranskat.
+    # Det är #836:s incident återuppstådd GENOM kontrollen. Grenen här har två
+    # `synchronize` 62 s isär, så tre events inom ett jobbs livslängd är inte
+    # konstruerat.
+    #
+    # Priset för att ta bort gruppen är parallella runs, och det priset är betalt i
+    # stegen: `--disable-auto` avgör tillståndet i stället för att lita på sin egen
+    # exit-kod, och `--remove-label` är redan mätt exit 0 på en PR som saknar
+    # labeln. Två kommentarer kan nu uppstå — men bara när två pushar i rad BÅDA
+    # bar innehåll, och då är två verdikt korrekt. En kosmetisk dubblett väger inte
+    # mot en förlorad avväpning.
+    #
     # TVÅ vägar, båda måste finnas för att `agents-done` ska vara en fail-safe
     # symbol: den som GER tillstånd måste också kunna ÅTERKALLA det.
     #   synchronize — ny commit ⇒ granskarna svarade mot en annan diff. Filtreras
@@ -297,23 +319,41 @@ jobs:
 
       - name: Stäng av auto-merge
         # `steps.predicate.outputs.pure != 'true'` är fail-closed i alla tre
-        # riktningar, och det är inte en slump: på `unlabeled`-vägen kördes steget
-        # aldrig, vid ett fel skrev det aldrig sin output, och vid en ren bas-merge
-        # skrev det `true`. Bara det sista fallet lämnar grinden stående — allt
-        # annat, inklusive varje sätt predikatet kan gå sönder på, avväpnar.
+        # riktningar: på `unlabeled`-vägen kördes predikatsteget aldrig, så
+        # outputen är tom; failade skriptet skrev steget `false`, och dog steget
+        # innan det hann skriva blir outputen tom igen; bara en verifierad ren
+        # bas-merge ger `true`. Endast det sista fallet lämnar grinden stående.
         if: always() && steps.predicate.outputs.pure != 'true'
         # INGET `|| true`. `--disable-auto` felar när auto-merge aldrig var
         # aktiverat, men ett svalt fel här är fail-OPEN: varje annan orsak
         # (token, rate limit, nätverk) lämnar auto-merge på och PR:en mergar
-        # ogranskad. Avgör tillståndet i stället för att svälja felet
+        # ogranskad. Avgör TILLSTÅNDET i stället för att svälja felet
         # (`build.yml`: fail loud över fail silent).
+        #
+        # Läsningen och anropet är inte atomära, och sedan concurrency-gruppen togs
+        # bort kan två disarm-runs överlappa: båda ser auto-merge aktiverat, den
+        # ena hinner först, den andras `--disable-auto` felar på en PR som redan är
+        # avväpnad. Därför avgörs utfallet på TILLSTÅNDET EFTERÅT, inte på
+        # exit-koden: är auto-merge borta gjorde någon jobbet, och det är
+        # framgång oavsett vem. Sitter det kvar är felet äkta och jobbet ska falla.
         run: |
           set -euo pipefail
-          if [ -n "$(gh pr view "$PR_URL" --json autoMergeRequest --jq '.autoMergeRequest // ""')" ]; then
-            gh pr merge --disable-auto "$PR_URL"
-          else
+          auto_merge_state() {
+            gh pr view "$PR_URL" --json autoMergeRequest --jq '.autoMergeRequest // ""'
+          }
+          if [ -z "$(auto_merge_state)" ]; then
             echo "::notice::auto-merge var inte aktiverat — inget att stänga av."
+            exit 0
           fi
+          if gh pr merge --disable-auto "$PR_URL"; then
+            exit 0
+          fi
+          if [ -z "$(auto_merge_state)" ]; then
+            echo "::notice::\`--disable-auto\` felade, men auto-merge är avstängt — en parallell disarm-run hann först. Grinden är stängd."
+            exit 0
+          fi
+          echo "::error::\`--disable-auto\` felade OCH auto-merge är fortfarande aktiverat. PR:en kan merga ogranskad — åtgärda för hand."
+          exit 1
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

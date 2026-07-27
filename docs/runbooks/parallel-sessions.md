@@ -325,8 +325,10 @@ self-contradictory: it filtered to PRs *with* the label and then said *"ensure a
 says. That property is deliberate: the routine is billed and user-triggered,
 CC can neither read nor version nor test it, so a fix resting on its behaviour is a fix CC cannot
 ship — and because **the cloud routine authenticates as the user, a prompt breach leaves no trace in
-the audit log at all.** The measurement behind that, and the rest of the reasoning, is in the CTO
-ruling `docs/reviews/2026-07-27-836-babysitter-gate-cto.md` (F3) — not restated here.
+the audit log at all.** Measured on the incident PR (#832): `labeled automerge klasolsson81`
+17:08:40, `merged github-actions[bot]` 17:12:41 — a babysitter label and a Klas label are the same
+event, so post-hoc detection of a prompt violation is impossible in principle. That is why the
+control is machinery and not prose.
 
 **There is no ordering rule between `update-branch` and `agents-done`, and the absence is
 deliberate. Anyone may `update-branch` any PR at any time.** `main` has `strict: true`, so going
@@ -371,10 +373,11 @@ gh pr list --state open --json number,headRefName,mergeStateStatus \
   ```
   (A local `git rebase origin/main` + `gh api PATCH .../git/refs` does NOT work — the
   rebased objects aren't on the remote yet, so the ref-update 422s. Use `update-branch`.)
-  **A PR carrying `agents-done` may be updated freely** — the merge it produces is a
-  pure base merge and does not disarm the gate (#836, §8). What *does* disarm is
-  resolving a conflict on the branch: that tree is no longer the automatic merge's
-  tree, so the `DIRTY` case below always costs a review round.
+  **A PR carrying `agents-done` may be updated freely — in the merge form above**,
+  which is what the command produces: a pure base merge, which does not disarm the
+  gate (#836, §8). `gh pr update-branch --rebase` rewrites history and **does**
+  disarm; so does resolving a conflict on the branch, because that tree is no longer
+  the automatic merge's tree — the `DIRTY` case below always costs a review round.
 - **`BLOCKED`** → up-to-base, waiting on required `ci` / review — leave it; automerge takes
   it on green.
 - **`DIRTY` / conflict** → the update-branch merge hit a conflict; resolve on a branch + push.

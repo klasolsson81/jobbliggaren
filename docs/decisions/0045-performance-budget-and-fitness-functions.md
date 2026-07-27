@@ -71,7 +71,9 @@ Soft cap **512 MiB working-set** per Worker-jobbinstans (`SyncPlatsbankenStream`
 
 ### Beslut 5 — Gate-blockerande-policy (KRITISK)
 
-CTO-princip: **"flaky perf-gate sämre än ingen perf-gate"**. ADR 0044-precedens är bindande. ALLA perf-/audit-mekanismer Fas 1 = **observe-only, eget job, UTANFÖR `ci.needs`**, additiva. Coverage-gaten (`ci.needs: [backend, frontend, coverage]`) lämnas **orörd**.
+CTO-princip: **"flaky perf-gate sämre än ingen perf-gate"**. ADR 0044-precedens är bindande. ALLA perf-/audit-mekanismer Fas 1 = **observe-only, eget job, UTANFÖR `ci.needs`**, additiva. Coverage-gaten lämnas **orörd** — den här ADR:n lägger inget till `ci.needs`.
+
+> **Amendment 2026-07-27 (#836):** raden ovan räknade tidigare upp `ci.needs` som `[backend, frontend, coverage]`. Den uppräkningen är inte längre sann om trädet: `ci.needs` är `[backend, frontend, coverage, scripts]`, där `scripts` kör fixturerna för `.github/scripts/is-pure-base-merge.sh` (merge-grindens predikat). **Beslut 5 och Beslut 6 är OFÖRÄNDRADE** — `scripts` är varken en perf- eller audit-mekanism, var aldrig observe-only, och har ingen distributionsstabilitet att invänta; det är en deterministisk fixtursvit och blockerande från början. Ingen observe-only-mekanism har flippats, så Beslut 6:s ratchet är orörd, och coverage-gaten är oförsvagad. Uppräkningen är ersatt av regeln för att en lista över trädet går stale medan en regel inte gör det.
 
 | Mekanism | Fas 1-status |
 |---|---|

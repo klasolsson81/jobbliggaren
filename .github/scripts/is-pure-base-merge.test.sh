@@ -35,6 +35,12 @@ trap 'rm -rf "$TMPROOT"' EXIT
 export GIT_CONFIG_GLOBAL=/dev/null
 export GIT_CONFIG_SYSTEM=/dev/null
 
+# Nor the environment. `git -C <dir>` does NOT override `GIT_DIR`, so running
+# this suite from a git hook or any `git` subprocess context would point every
+# fixture commit at the HOST repository -- the fixtures would still pass, while
+# having tested nothing they claim to.
+unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_OBJECT_DIRECTORY GIT_ALTERNATE_OBJECT_DIRECTORIES
+
 failures=0
 cases=0
 
@@ -138,6 +144,35 @@ expect 'clean base merge keeps the gate' pure-base-merge 0
 clean_repo=$repo
 clean_before=$before
 clean_after=$after
+
+# ---------------------------------------------------------------------------
+# 1b. The same verdict, on the shape the ruling's own measurement turned on.
+#     Case 1 edits DISJOINT files, so merge-ort never performs a line-level
+#     automerge. The two real commits that made tree equality win over patch
+#     comparison were both OVERLAPPING edits to one file (CLAUDE.md and
+#     globals.css) -- and two sessions editing different lines of CLAUDE.md is
+#     the most common base merge in this repo. If `git merge-tree` and GitHub's
+#     server-side merge ever disagreed on that shape, the predicate would disarm
+#     on every base merge and the gate would stop converging, which V16 makes
+#     part of the definition of done. Untested, that is a hope.
+# ---------------------------------------------------------------------------
+repo=$(new_repo overlapping-base-merge)
+git -C "$repo" checkout -qb feature
+commit_in "$repo" base.txt 'base line 1
+base line 2
+base line 3 edited by the feature
+' 'F: feature edits the last line'
+before=$(git -C "$repo" rev-parse HEAD)
+git -C "$repo" checkout -q main
+commit_in "$repo" base.txt 'base line 1 edited by main
+base line 2
+base line 3
+' 'B: base edits the first line of the same file'
+git -C "$repo" checkout -q feature
+git -C "$repo" merge -q --no-ff -m "Merge branch 'main' into feature" main
+after=$(git -C "$repo" rev-parse HEAD)
+run_predicate "$repo" "$before" "$after" main
+expect 'line-level automerge of one file keeps the gate' pure-base-merge 0
 
 # ---------------------------------------------------------------------------
 # 2. The measured counterexample to the commit-SHAPE predicate (#836 M4, real
@@ -293,11 +328,13 @@ run_predicate "$repo" "$head" "$head" origin/does-not-exist
 expect 'unresolvable base disarms' base-unreachable 1
 
 # A failed `actions/checkout` leaves the runner without a repository. The
-# predicate must decide, not crash into a green step.
+# predicate must decide, not crash into a green step -- and it must call that
+# `predicate-error`, not `before-unreachable`: "there is no repo here" is the
+# script failing, not an answer about the rev.
 notrepo="$TMPROOT/not-a-repo"
 mkdir -p "$notrepo"
 run_predicate "$notrepo" "$head" "$head" main
-expect 'outside a git repository disarms' before-unreachable 1
+expect 'outside a git repository disarms' predicate-error 1
 
 # ---------------------------------------------------------------------------
 # 9. git itself misbehaving. These four are the reason the design can accept git
@@ -310,6 +347,20 @@ expect 'outside a git repository disarms' before-unreachable 1
 shim=$(new_git_shim old-git --version 'echo "git version 2.30.2"; exit 0')
 run_predicate_with_shim "$shim" "$clean_repo" "$clean_before" "$clean_after" main
 expect 'git older than 2.38 disarms' git-too-old 1
+
+# A version string the parser cannot read must disarm too, and this is not
+# pedantry: `[ banana -lt 2 ]` returns status 2, which inside an `if` condition
+# is exempt from `set -e`, so the comparison would silently evaluate false and
+# the script would sail PAST the version assertion. That is the "assertion that
+# skips instead of failing" the ruling forbids by name. Both arms of the parse
+# are covered, because a guard on `major` proves nothing about `minor`.
+shim=$(new_git_shim unparseable-version --version 'echo "git version banana"; exit 0')
+run_predicate_with_shim "$shim" "$clean_repo" "$clean_before" "$clean_after" main
+expect 'an unparseable git version disarms' predicate-error 1
+
+shim=$(new_git_shim unparseable-minor --version 'echo "git version 2.x.1"; exit 0')
+run_predicate_with_shim "$shim" "$clean_repo" "$clean_before" "$clean_after" main
+expect 'an unparseable git minor version disarms' predicate-error 1
 
 # THE FAIL-CLOSED BACKSTOP ITSELF. Every other case is decided by a condition
 # the script wrote on purpose; this one is not. A `rev-list` that succeeds while
@@ -333,6 +384,20 @@ expect 'a git error in merge-base is not a clean negative' predicate-error 1
 shim=$(new_git_shim broken-mergetree merge-tree 'exit 128')
 run_predicate_with_shim "$shim" "$clean_repo" "$clean_before" "$clean_after" main
 expect 'a git error in merge-tree is not a conflict' predicate-error 1
+
+# A `merge-tree` that succeeds while printing something that is not a tree OID.
+# Without the hex guard this reports `base-merge-with-content` -- which disarms,
+# so it is safe, but it lands in the token the ruling's monitoring reads as "the
+# predicate is too tight". Two error signals collapsed into one is a signal lost.
+shim=$(new_git_shim garbage-mergetree merge-tree 'echo "not-a-tree-oid"; exit 0')
+run_predicate_with_shim "$shim" "$clean_repo" "$clean_before" "$clean_after" main
+expect 'merge-tree output that is not a tree OID disarms' predicate-error 1
+
+# And a `rev-parse` that fails for a reason other than "no such object". The
+# script keeps that separate on purpose; nothing observed it until now.
+shim=$(new_git_shim broken-revparse rev-parse 'exit 3')
+run_predicate_with_shim "$shim" "$clean_repo" "$clean_before" "$clean_after" main
+expect 'a git error in rev-parse is not an unreachable rev' predicate-error 1
 
 # ---------------------------------------------------------------------------
 printf '\n%d cases, %d failures\n' "$cases" "$failures"

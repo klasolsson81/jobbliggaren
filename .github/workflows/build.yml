@@ -264,8 +264,8 @@ jobs:
   # vilket är precis den defektklass kontrollen finns för att stänga.
   #
   # Inget toolchain-steg: bara bash + git, som redan finns på runnern. Mätt
-  # lokalt: 18 fixturer på ~4 s, mot `coverage` som är kritisk väg på ~913 s.
-  # ci:s väggklocka är alltså oförändrad.
+  # 2026-07-27 på ubuntu-runner: hela jobbet 9 s, mot `coverage` som är kritisk
+  # väg på ~913 s. ci:s väggklocka är alltså oförändrad.
   scripts:
     name: scripts (bash fixtures)
     runs-on: ubuntu-latest
@@ -274,10 +274,13 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
-      # Fail-loud på för gammal git: skriptet kräver `merge-tree --write-tree`
-      # (git >= 2.38) och avväpnar utan den. Skulle runner-imagen backa dit vill
-      # vi veta det HÄR, inte via en tyst avväpning på varje bas-merge.
-      - name: git-version (predikatets golv är 2.38)
+      # Diagnostik, INGEN grind — `git --version` avslutar alltid 0. Predikatets
+      # golv (git >= 2.38, för `merge-tree --write-tree`) grindas av fixtur 1:
+      # på en äldre git returnerar den `git-too-old` i stället för
+      # `pure-base-merge` och fäller jobbet. Versionen skrivs ut här så att en
+      # runner-regression går att läsa direkt ur loggen i stället för att härledas
+      # ur ett fixturfel.
+      - name: git-version (diagnostik — golvet grindas av fixtur 1)
         run: git --version
 
       - name: is-pure-base-merge (fixturer)

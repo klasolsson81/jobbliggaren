@@ -3,7 +3,9 @@
 # is-pure-base-merge.sh -- did this `synchronize` push contribute content of its
 # own, or was it nothing but the branch being brought up to base?
 #
-# Usage:  is-pure-base-merge.sh <before-rev> <after-rev> <base-rev>
+# Usage:  bash is-pure-base-merge.sh <before-rev> <after-rev> <base-rev>
+#         (invoked through `bash` at both call sites -- the file is mode 100644,
+#          so the shebang is documentation, not an entry point)
 #
 #   <before-rev>  the PR head before the push  (github.event.before)
 #   <after-rev>   the PR head after the push   (github.event.after)
@@ -31,11 +33,14 @@
 #
 # WHY TREE EQUALITY AND NOT COMMIT SHAPE. The obvious predicate -- "two parents,
 # parent 1 is the old head, parent 2 is already in the base" -- is fail-OPEN, and
-# this repo holds the counterexample: `6ae078eb` (2026-07-25) satisfies all three
-# conditions and its automatic merge CONFLICTS, so the committed tree carries a
-# hand-written resolution no agent has ever seen. Resolving such a conflict on
+# this repo produced the counterexample on 2026-07-25: a base merge satisfying all
+# three conditions whose automatic merge CONFLICTS, so the committed tree carries
+# a hand-written resolution no agent has ever seen. Resolving such a conflict on
 # the branch is documented house procedure (parallel-sessions.md §8.1), so that
-# is a normal path, not an accident. Conditions 1-3 below survive only because
+# is a normal path, not an accident. The shape is preserved as case 2 of the
+# fixtures rather than as a SHA: the original lives only on a feature branch, and
+# deleting that branch makes it unreachable -- the same rot the fixture file's own
+# header refuses. Conditions 1-3 below survive only because
 # they make condition 4 meaningful; condition 4 carries the safety, because it
 # asks the only question that matters: is this commit's tree exactly what an
 # automatic merge would have produced -- which is exactly what `gh pr
@@ -67,9 +72,11 @@
 #   git-too-old                git < 2.38 has no `merge-tree --write-tree`
 #   predicate-error            anything else -- the script could not decide
 #
-# The last four are the error class. If `git-too-old` or `predicate-error` ever
-# fires, this script is wrong and the fail-closed default is silently paying for
-# it -- that is the monitoring signal named in the ruling, so keep the tokens.
+# The last five are the error class, and every one of them means the gate is not
+# working as designed: `*-unreachable` can only come from a shallow clone or a
+# force-push, `git-too-old` from a runner regression, `predicate-error` from a
+# bug. All five firing at ~0 is the monitoring signal named in the ruling, so
+# keep them distinct -- collapsing any two of them costs the signal.
 
 set -euo pipefail
 
@@ -119,14 +126,44 @@ fi
 
 # --- resolve the three revs -------------------------------------------------
 # `--verify --quiet` exits 1 and prints nothing when the object is missing, so
-# an unreachable rev is a decision here rather than noise on stderr. A shallow
-# clone lands here too: fetch-depth must be 0 for this script to decide anything
-# but "unreachable".
-resolve_commit() { git rev-parse --verify --quiet "$1^{commit}"; }
+# an unreachable rev is a decision rather than noise on stderr. A shallow clone
+# lands there too: fetch-depth must be 0 for this script to decide anything but
+# "unreachable". Every OTHER status (128 = not a repository, a broken object
+# store) is this script failing rather than an answer about the rev, and it is
+# kept separate for the same reason condition 3 keeps them separate: both
+# disarm, but only one of them means the gate is broken, and the monitoring
+# signal depends on telling them apart.
+#
+# The result comes back in globals, NOT through a command substitution. `disarm`
+# ends the script, and inside `$( )` it would end only the subshell -- leaving
+# the caller with a reason token as a rev and the script sailing on.
+resolve_commit() { # resolve_commit <rev>; sets `resolved` and `resolve_status`
+  set +e
+  resolved=$(git rev-parse --verify --quiet "$1^{commit}")
+  resolve_status=$?
+  set -e
+}
 
-before=$(resolve_commit "$before_arg") || disarm before-unreachable
-after=$(resolve_commit "$after_arg") || disarm after-unreachable
-base=$(resolve_commit "$base_arg") || disarm base-unreachable
+resolve_commit "$before_arg"
+case "$resolve_status" in
+  0) before=$resolved ;;
+  1) disarm before-unreachable ;;
+  *) disarm predicate-error ;;
+esac
+
+resolve_commit "$after_arg"
+case "$resolve_status" in
+  0) after=$resolved ;;
+  1) disarm after-unreachable ;;
+  *) disarm predicate-error ;;
+esac
+
+resolve_commit "$base_arg"
+case "$resolve_status" in
+  0) base=$resolved ;;
+  1) disarm base-unreachable ;;
+  *) disarm predicate-error ;;
+esac
 
 # --- condition 1: exactly two parents ---------------------------------------
 parent_line=$(git rev-list --parents -n 1 "$after") || disarm predicate-error

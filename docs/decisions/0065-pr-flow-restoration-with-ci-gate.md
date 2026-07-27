@@ -28,7 +28,7 @@ ADR 0019 §"Trigger för återgång till PR-flöde" namngav tre triggers:
 
 Sedan ADR 0019 har två premisser ändrats:
 
-**1. CI-aggregat-jobbet `ci` finns på plats.** `.github/workflows/build.yml` rad 419–433 definierar en aggregat-status-check `ci` med `needs: [backend, frontend, coverage]` (orkestrerad via `if: always()` + explicit verify-steg). Workflowens egen kommentar (rad 412–418): *"Gör branch-protection-rules enkla att konfigurera (bara `ci` som required check istället för en check per matrix-cell)."* CI-gating är därmed inte längre en framtida fas — det är en aktuell möjlighet.
+**1. CI-aggregat-jobbet `ci` finns på plats.** *(Ögonblicksbild vid ADR:ns författande 2026-05-25 — rad- och jobbuppräkningen nedan beskriver trädet då, inte nu; den gällande `ci.needs` har ETT hem, `build.yml`.)* `.github/workflows/build.yml` rad 419–433 definierar en aggregat-status-check `ci` med `needs: [backend, frontend, coverage]` (orkestrerad via `if: always()` + explicit verify-steg). Workflowens egen kommentar (rad 412–418): *"Gör branch-protection-rules enkla att konfigurera (bara `ci` som required check istället för en check per matrix-cell)."* CI-gating är därmed inte längre en framtida fas — det är en aktuell möjlighet.
 
 **2. JobbPilot närmar sig launch.** Sluten beta-utrullning, väntelista-flöde, första riktiga användare. Kvalitets-spärrar som "STOPP + manuell diff" har räckt under solo-fas men kommer behöva CI-evidence och PR-tråden som granskningstrail när:
 

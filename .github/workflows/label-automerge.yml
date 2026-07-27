@@ -241,9 +241,16 @@ jobs:
     # bas-merge (kör) → innehållspush (väntar) → bas-merge (köar, avbryter
     # innehållspushen) ⇒ innehållet mergar ogranskat. Det är #836:s incident
     # återuppstådd GENOM kontrollen.
-    # Att tre events ryms i ett jobbs livslängd är däremot MÄTT: den här grenen
-    # fyrade två `label-automerge`-runs 62 s isär (30270870302 13:33:57Z →
-    # 30270951216 13:34:59Z), och `disarm` gör en full checkout.
+    #
+    # FÖNSTRET ÄR SMALT, och det ska stå här hellre än att antydas bort: en hel
+    # `disarm`-run tar 11–13 s (mätt på sondkörningarna 30275993980 och
+    # 30276098911, full checkout inräknad), medan de tätaste `label-automerge`-
+    # eventen på den här grenen låg 62 s isär (30270870302 13:33:57Z →
+    # 30270951216 13:34:59Z). Tre events inuti ett tolvsekundersfönster är alltså
+    # ovanligt, inte vardag. Det ändrar ingenting: en förlorad avväpning mergar
+    # ogranskad kod, konsekvensen är obegränsad, och att ta bort gruppen kostar
+    # noll. Fail-safe defaults vägs inte mot sannolikhet (Saltzer & Schroeder
+    # 1975 §3) — särskilt inte när priset för att stänga hålet är en raderad rad.
     #
     # Priset för att ta bort gruppen är parallella runs, och det priset är betalt i
     # stegen: `--disable-auto` avgör tillståndet i stället för att lita på sin egen
@@ -254,7 +261,8 @@ jobs:
     #
     # Det som gör parallella runs ofarliga i VARJE ordning är att `disarm` är
     # MONOTONT: inget steg kan armera. `--disable-auto` stänger, `--remove-label`
-    # tar bort, kommentaren lägger till — och en `pure`-run tar inga steg alls.
+    # tar bort, kommentaren lägger till — och en `pure`-run tar inga MUTERANDE
+    # steg alls (den gör checkout och kör predikatet, sedan inget).
     # Två överlappande runs kan därför bara konvergera mot avväpnat.
     #
     # TVÅ vägar, båda måste finnas för att `agents-done` ska vara en fail-safe
@@ -326,6 +334,7 @@ jobs:
           BASE_REF: ${{ github.event.pull_request.base.ref }}
 
       - name: Stäng av auto-merge
+        id: disable
         # `steps.predicate.outputs.pure != 'true'` är fail-closed i alla tre
         # riktningar: på `unlabeled`-vägen kördes predikatsteget aldrig, så
         # outputen är tom; failade skriptet skrev steget `false`, och dog steget
@@ -355,13 +364,14 @@ jobs:
           # `set -euo pipefail` fångar det inte: ingen pipe, och ett `if`-villkor
           # är undantaget från errexit. Fristående fäller `set -e` steget i stället.
           #
-          # Det är inte en teoretisk felmod. Rate limit delas av alla verktyg och
-          # agenter (5 000/h) och träffades under den här PR:ens egna mätningar —
-          # och eftersom `disarm` inte längre serialiseras av en concurrency-grupp
-          # är det just de här anropen som multiplicerats. Ett API som är nere
-          # failar dessutom BÅDA anropen, så omläsningen nedan är korrelerad med
-          # felet den ska verifiera: den får aldrig vara det enda som skiljer
-          # "någon annan hann först" från "det gick åt skogen".
+          # Det är inte en teoretisk felmod. `GITHUB_TOKEN` har ett EGET tak på
+          # 1 000 requests/h och repo (docs.github.com/en/actions/reference/limits,
+          # hämtad 2026-07-27) — en annan bucket än användar-PAT:ens 5 000/h, och
+          # lägre. Eftersom `disarm` inte längre serialiseras av en
+          # concurrency-grupp är det just de här anropen som multiplicerats i den.
+          # Ett API som är nere failar dessutom BÅDA anropen, så omläsningen nedan
+          # är korrelerad med felet den ska verifiera: den får aldrig vara det enda
+          # som skiljer "någon annan hann först" från "det gick åt skogen".
           #
           # Ett rött jobb här är inte merge-blockerande (`label-automerge` är ingen
           # required check) — men rött och läsbart är vad resten av filen
@@ -430,3 +440,34 @@ jobs:
             produce, and leaves the gate alone when they are identical — which is
             exactly what `gh pr update-branch` produces. A verdict other than
             `pure-base-merge` means this push was not that.
+
+      # Kommentaren ovan påstår i sin rubrik att auto-merge ÄR avstängt. Den får
+      # bara påstå det när steget som stängde av det lyckades — men den bär
+      # `always()` och postas alltså även när `disable` dog på ett oläsbart API
+      # eller på ett `--disable-auto` som failade med auto-merge kvar på. Då står
+      # en overifierad utfästelse i tråden, vilket är precis den defektklass hela
+      # den här PR:en finns för att ta bort.
+      #
+      # Det är ett EGET steg med ett vanligt `if:`, inte ett `${{ }}`-uttryck
+      # inbakat i `BODY` ovan. Skälet är riktningen på felet: ett trasigt uttryck
+      # i en workflow-fil kan hindra HELA filen från att köra, och då armeras och
+      # avväpnas ingenting — fail-open. Ett extra steg med samma `if:`-idiom som
+      # de fyra andra i jobbet kan i värsta fall utebli.
+      #
+      # Varför tråden och inte bara loggen: CLAUDE.md §6.5 konstaterar att
+      # `label-automerge` inte är en required check, så ingenting ytar ett rött
+      # jobb. PR-tråden är det enda en människa läser.
+      - name: Varna i tråden när avstängningen inte kunde bekräftas
+        if: always() && github.event.action == 'synchronize' && steps.predicate.outputs.pure != 'true' && steps.disable.outcome != 'success'
+        run: gh pr comment "$PR_URL" --body "$BODY"
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BODY: |
+            **The first half of that heading is unverified.** The step that
+            disables auto-merge did not succeed, so auto-merge may still be
+            enabled and this PR may merge on green `ci` even though
+            `agents-done` is gone.
+
+            Read the `auto-merge (disarm — grinden bröts)` job log and disable
+            auto-merge by hand before doing anything else (#836).

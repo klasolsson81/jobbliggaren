@@ -181,14 +181,36 @@ anti-pattern, arkitekturtestad).
 | Situation | ✅ Ja | ❌ Nej |
 |---|---|---|
 | Matchningsgrad | "Stark match" | "89 % matchning mot din profil." |
-| Varför graden | "Du uppfyller alla skallkrav." | "Vår analys ger dig 4 av 5 stjärnor." |
+| Varför graden | "Du uppfyller alla ska-krav i annonsen." | "Vår analys ger dig 4 av 5 stjärnor." |
+| Annons utan ska-krav | "Annonsen anger inga särskilda ska-krav." | "Du uppfyller alla ska-krav" (falskt: inget krävdes) |
 | Saknad dimension | "Ej bedömt" | En gissad grad, eller en dold nolla |
-| CV-omdöme | "Delvis: rubriken saknar datum" (citerar stället) | "Ditt CV känns lite tunt." |
+| CV-omdöme, citerbart | "Delvis" + citat ur CV:t + åtgärd: *"Driven och engagerad person som gillar utmaningar."* / "Profiltexten är vag. Lägg till vad du faktiskt gör och vad du har åstadkommit." | "Ditt CV känns lite tunt." |
+| CV-omdöme, frånvaro | "Underkänt" + observation: "Ingen e-postadress hittades i CV:t." | Ett omdöme som påstår ett citat men citerar inget |
 
-**Skeppad** vokabulär: graderna **Toppmatch · Stark match · Bra match · Grundmatch**;
-per dimension **Uppfyllt · Delvis · Saknas · Ej bedömt**. Raden "Du uppfyller alla
-skallkrav" är **ratificerad men ännu inte skeppad** — den är specificerad i ADR 0076
-Amendment 2026-06-20 §6 som modal-copy. Citera den som form, inte som befintlig sträng.
+**Allt nedan är skeppat — återanvänd, skriv inte nytt.**
+
+- **Matchningsgrad** (`jobads.matchDetail.grade`): **Toppmatch · Stark match · Bra
+  match · Grundmatch**, plus **Relaterat yrke** (en märkning, inte en av de fyra
+  gröna graderna).
+- **Per dimension** (`jobads.matchDetail.verdict`): **Matchar · Delvis · Saknas ·
+  Ej bedömt · Inga angivna**. Femmedlemsmängden är arkitekturpinnad
+  (`MatchDimensionVerdict_is_the_locked_five_member_set`) — utelämna ingen.
+  "Uppfyllt"/"Ej uppfyllt" är **något annat**: `requirements`-radens etiketter per
+  enskilt krav, inte dimensionens omdöme.
+- **Ska-krav-raden** (`jobads.matchDetail.mustHaveSummary`): fyra grenar, en per
+  utfall, inklusive den vakuösa. ADR 0076 Amendment 2026-06-20 §2(b) förbjuder
+  uttryckligen den affirmativa raden när annonsen inte angav några krav.
+- **CV-granskning** (`resumes.enums`): omdöme **Godkänt · Delvis · Underkänt · Ej
+  bedömt**; nivå per kategori **Ej redo · Behöver omarbetning · Konkurrenskraftigt ·
+  Toppskikt**.
+
+Ett CV-fynd har **två skeppade former** (`content-cv-granskning.json`): med `quote`
+ur CV:t plus `note` med åtgärden, eller — när något saknas helt — `quote: null` plus
+`observation`. Slå inte ihop dem till en sträng, och påstå aldrig ett citat du inte har.
+
+**Stavning: `ska-krav`.** Skeppad copy säger så på sex ställen; "skallkrav" finns i
+noll skeppade strängar. ADR 0076:s prosa skriver "skallkrav" — följ inte den
+stavningen i UI.
 
 Två ytor säger regeln till användaren med produktens egna ord, och copy får inte
 motsäga dem: *"Du får ingen svart låda som säger att du är en ”92-procentig
@@ -210,6 +232,9 @@ Specifik knapp-text. Konkret konsekvens.
 | Radera CV-knapp | "Radera CV" | "Bekräfta" eller "OK" |
 | Dialog-text | "Radera Klas-CV-v3? Detta kan inte ångras efter 30 dagar." | "Är du säker?" |
 | Frånkoppla Gmail | "Koppla bort Gmail? JobbPilot kommer inte längre läsa inkorgen." | "Vill du verkligen?" |
+
+(Gmail-raden är ett **mönsterexempel, inte skeppad copy** — Gmail-synk är uppskjuten,
+inte borttagen: BUILD.md §9.2 specificerar fem endpoints och kallar den "ännu obyggd".)
 | Avsluta konto | "Avsluta konto? All data raderas permanent inom 30 dagar." | "Är du säker på att du vill fortsätta?" |
 
 ### 7. Påminnelser

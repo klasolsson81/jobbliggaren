@@ -62,18 +62,6 @@ the Unknown Error pattern at the bottom of this file.
 
 ---
 
-## AI (AI_*)
-
-| Code | Meddelande | Kommentar |
-|---|---|---|
-| `AI_GENERATION_FAILED` | "Det gick inte att generera utkastet. Försök igen." | — |
-| `AI_QUOTA_EXCEEDED` | "Du har nått din AI-kvot för den här månaden. Kvoten återställs {date}." | Interpolera datum |
-| `AI_BYOK_INVALID` | "API-nyckeln är inte giltig. Kontrollera nyckeln i inställningarna." | — |
-| `AI_BYOK_QUOTA_EXCEEDED` | "Din Anthropic-kvot är slut. Kontrollera din fakturering på console.anthropic.com." | — |
-| `AI_CONTENT_FILTERED` | "Texten innehåller innehåll som inte kan behandlas. Redigera och försök igen." | — |
-| `AI_TIMEOUT` | "AI-genereringen tog för lång tid. Försök igen." | — |
-
----
 
 ## Integrationer (INTEGRATION_*)
 

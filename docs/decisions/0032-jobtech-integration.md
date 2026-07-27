@@ -1199,12 +1199,16 @@ converting an intermittent defect into a permanent one.
 
 ### A3 — both PII mitigations §8 relies on are largely ineffective against the PII they target.
 
-> **SUPERSEDED IN PART, 2026-07-26 (#845).** Two things below have moved. **(1)** *"this 30-day
-> purge"* names the control by a duration that is not the rule; the rule lives in §C2 and the purge is
-> not a PII control at all. **(2)** A3's finding was correct when written and is **no longer the
-> whole picture**: the two controls it judges are still as weak as it says, but they are no longer
-> the only ones — Tier A (`daa4b51d`) and Tier B (`269a4603`) shipped, and per-control reach is
-> tabulated in §C4. Do not quote A3 as the current state of our PII defences in either direction.
+> **SUPERSEDED IN PART, 2026-07-26 (#845).** **This banner covers every retention-duration, shipping
+> and GATE claim in this section and in the rest of this 2026-07-12 amendment** - a scope, not a list,
+> because the first draft of this banner enumerated *"two things"* when three had moved. What to know:
+> the rule lives in **§C2** and is not a duration, so *"this 30-day purge"* names the control by
+> something that is not the rule, and the purge is not a PII control at all; A3's finding was correct
+> when written and is **no longer the whole picture** - the two controls it judges are still as weak
+> as it says, but they are no longer the only ones, since Tier A (`daa4b51d`) and Tier B (`269a4603`)
+> shipped and per-control reach is tabulated in **§C4**; and **the prod gate's status is owned solely
+> by ADR 0106**, so no gate sentence in this amendment states it - see **§C6**. Do not quote A3 as the
+> current state of our PII defences in either direction.
 
 §8's risk register presents two controls against recruiter PII: the ingest **allowlist sanitizer** and
 this **30-day purge**. Neither works against the form the PII actually takes.
@@ -1262,6 +1266,11 @@ still contradict them, and it re-imposes the gate that one of those passages rel
 > §C6). Note that ADR 0106 states the gate as more than this one leg, which is why the status is not
 > derivable from this section. Whether the gate is therefore lifted is **ADR 0106's call, not this
 > ADR's**; see ADR 0032 Amendment 2026-07-26 §C6.
+>
+> **This banner covers every GATE claim in B1's body, not only its shipping claims** - the
+> *"THE GATE (this replaces `:540`)"* paragraph included. A gate sentence anywhere in this ADR is the
+> record of what the gate **was**; its status is stated **only in ADR 0106**. (Scope, not a list - the
+> same discipline §C6 states for ship dates and §C3 for the retention arithmetic.)
 
 > *"v0.2-prod-tag är inte längre gated på TD-73. **PurgeStaleRawPayloadsJob + audit-wire +
 > Email-only-erasure tillsammans täcker GDPR Art. 5/17/30 för rekryterar-PII i raw_payload.**"* — `:540`
@@ -1663,8 +1672,9 @@ A hash is a stable identifier and cannot go stale; the date is precisely what di
 **No count and no file list appears here, deliberately.** Four consecutive drafts of this amendment
 asserted that some enumerated set of sites had been cleaned, and the tree falsified every one of them
 - the fourth while the same commit was adding fresh dated mentions elsewhere in its own diff. C3
-states this discipline for the retention arithmetic and gives the reason: **the grep is the record,
-never an enumeration.** It applies here unchanged. C1 holds the arithmetic's single home.
+states this discipline for the retention arithmetic and gives the reason in its own words - **"The grep
+is the authority, never a file list."** It is quoted rather than reworded on purpose: two phrasings of
+one rule is the defect this amendment exists to remove. C1 holds the arithmetic's single home.
 
 This entry records only what shipped. It does **not** declare the prod gate lifted and does **not**
 re-assert it: **ADR 0106 is the gate's sole owner** and its status is described only there. The reason

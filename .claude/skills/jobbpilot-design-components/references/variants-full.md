@@ -9,18 +9,23 @@ Token names reference `jobbpilot-design-tokens`. Hex values in `tokens-full.md`.
 
 ## Button
 
-Civic spec (matches `.jp-btn`): `border-radius: 4px` (`var(--jp-r-md)`),
-`transition: background/border/color 80ms linear`, `letter-spacing: -0.005em`,
-font weight 500 sans.
+Civic spec — **two ratified systems, name which** (ADR 0052 Amendment 2026-07-27, #1095).
+
+`.jp-btn` (HANDOVER-v3 §5.1 via ADR 0052): `border-radius: 6px` (`var(--jp-r-md)`),
+`transition: background/border/color 90ms linear`, `letter-spacing: -0.005em`,
+font **15px** (`--text-ui`) / **600** (`--jp-fw-semibold`).
+
+shadcn `Button` (ADR 0038): `transition: duration-75`, font 16px/500.
 
 ### Sizes
 
-| Size | Height | Padding | Font |
-|---|---|---|---|
-| `sm` | 36px | `px-2.5` | 14px |
-| `md` | **40px** (default) | `px-3` | 16px — **default** |
+| Size | `.jp-btn` | shadcn `Button` |
+|---|---|---|
+| `sm` | 36px | 36px (`h-9`) |
+| default | **44px** | **40px** (`h-10`) |
+| `lg` | 52px — ratified but UNIMPLEMENTED, no such class | 44px (`h-11`) |
 
-(Recalibrated per ADR 0038. Toolbar-knappar kvarstår som dokumenterat
+(shadcn heights per ADR 0038; `.jp-btn` per HANDOVER §5.1. Toolbar-knappar kvarstår som dokumenterat
 undantag, 28px — touch bumps i toolbars hanteras via hit-area padding, se
 a11y-skillen.)
 
@@ -70,7 +75,7 @@ a11y-skillen.)
 
 Civic spec — **two ratified systems, name which** (ADR 0052 Amendment 2026-07-27, #1095):
 shadcn `Input` height **44px** (no size prop; `SelectTrigger` sm 36) per ADR 0038;
-`.jp-input` height **48px**, sm 40, per HANDOVER-v3 §5.2 via ADR 0052.
+`.jp-input` height **48px** per HANDOVER-v3 §5.2 via ADR 0052 (its `sm` 40 is ratified but UNIMPLEMENTED — no such class).
 `border-radius: 6px` (`var(--jp-r-md)`),
 `bg-surface-primary` (white in light), font 16px. Beskrivande
 placeholder-exempel i sök-/filterfält tas bort — label ovanför och hint

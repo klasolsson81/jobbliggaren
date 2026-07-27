@@ -204,7 +204,7 @@ Strukturella `.jp-*` portas verbatim; shadcn överlever via bryggan.
 
 **Datum:** 2026-07-27
 **Källa:** senior-cto-advisor binding decision (`docs/reviews/2026-07-27-control-heights-cto.md`, Option 3 bound). Klas delegated the decision to the CTO (CLAUDE.md §9.2: unambiguous CTO verdicts execute without extra Klas GO).
-**Trigger:** Issue #1095. A corpus audit flagged `.jp-btn` (44px) and `.jp-input` (48px) as apparent drift against ADR 0038's 44px/40px. Verified false: both values are minuted in `docs/handoff-oversikt/HANDOVER-v3.md` §5.1 (Buttons) and §5.2 (Inputs) — the authoritative v3 design spec this ADR's own Livscykel-not (top of file) says its Beslut substance was transcribed from, whose header (line 3) reads verbatim: *"Beslutat av produktägaren (Klas). Designspec har veto över befintliga ADRs och CC-default-preferenser."* Beslut 4 (radius) and Beslut 5 (typography) transcribed HANDOVER's corresponding rows; the height rows in §5.1/§5.2 and the input-radius value in §5.2 were dropped from that same transcription. This is an incomplete transcription, not an unminuted decision.
+**Trigger:** Issue #1095. A corpus audit flagged `.jp-btn` (44px) and `.jp-input` (48px) as apparent drift against ADR 0038's 44px/40px. Verified false: both values are minuted in `docs/handoff-oversikt/HANDOVER-v3.md` §5.1 (Buttons) and §5.2 (Inputs) — the authoritative v3 design spec this ADR's own Livscykel-not (top of file) says its Beslut substance was transcribed from, whose header (line 3) reads verbatim: *"Beslutat av produktägaren (Klas). Designspec har veto över befintliga ADRs och CC-default-preferenser."* Beslut 4 (radius) and Beslut 5 (typography) transcribed HANDOVER's corresponding rows; **the height rows in §5.1/§5.2 were dropped from that same transcription.** That is an incomplete transcription, not an unminuted decision. (The input RADIUS is a different case — see the section below; it was transcribed correctly and the source contradicts itself.)
 **Beslutsfattare:** senior-cto-advisor (decision-maker, CLAUDE.md §9.2); Klas Olsson (delegated the choice to the CTO)
 **Status:** Accepted. Additive — Beslut 4 and Beslut 5's tables are not rewritten (ADR immutability, Nygard 2011); this amendment supplies the rows `HANDOVER-v3.md` §5.1/§5.2 minuted that the original transcription omitted, and corrects one mis-transcribed row in Beslut 4.
 
@@ -234,15 +234,34 @@ These rows extend Beslut 5's scope; the existing Beslut 4/5 tables are left as w
 
 `.jp-btn--lg` and `.jp-input` sm are minuted here, unbuilt, so a future implementer does not invent a third number for either rung. Building them now would be premature — zero consumers (YAGNI).
 
-### Input radius correction (Beslut 4)
+### Input radius — NOT corrected here; the source contradicts itself (open, #1103)
 
-Beslut 4's table assigns `--jp-r-sm` (4px) to "inputs, badges". `HANDOVER-v3.md` §5.2 states *"Radius 6 px"* for inputs, and the shipped code (`globals.css` `.jp-input`) runs `border-radius: var(--jp-r-md)` — 6px, matching HANDOVER. Beslut 4's inputs row is corrected: **inputs use `--jp-r-md` (6px)**; `--jp-r-sm` (4px) applies to **badges only**.
+An earlier draft of this amendment called Beslut 4's inputs row a transcription defect of the same
+kind as the heights. **That is wrong, and it is recorded here rather than quietly dropped.** Beslut
+4's `| --jp-r-sm | 4px | inputs, badges |` is a *verbatim* transcription of `HANDOVER-v3.md` §4
+(line 195): *"sm 4 px — inputs, badges"*. It was transcribed correctly.
 
-No CSS change — the code already matched `HANDOVER-v3.md`; only the Beslut 4 table row was mis-transcribed. `--jp-r-sm` is untouched and remains in active use (41 consumers measured across `globals.css` and `app.css`) for badges and other 4px surfaces — it is simply not the input radius.
+`HANDOVER-v3.md` disagrees with itself about the input radius:
+
+| source | says |
+|---|---|
+| §4 line 195 (radius scale) | `sm 4 px — inputs, badges` |
+| §1 line 65 (v2→v3 table) | `6 px på rader/kort, **4 px på inputs**` |
+| §5.2 line 226 (input spec) | `Radius 6 px` |
+
+Two lines say 4px, one says 6px, and the shipped code (`.jp-input` → `var(--jp-r-md)` = 6px) follows
+the minority line. So this is **not** the heights' defect class: there the source was unambiguous and
+the transcription lost a row; here the transcription is faithful and the source is inconsistent.
+
+Resolving it requires deciding which HANDOVER line governs — a decision, not a correction — so
+Beslut 4 stands unamended and the question is filed. `--jp-r-sm` remains in active use (42
+occurrences across `globals.css` and `(app)/app.css`) and is untouched either way.
+
+No CSS change — the code already matched `HANDOVER-v3.md`; only the Beslut 4 table row was mis-transcribed. `--jp-r-sm` is untouched and remains in active use (42 occurrences measured across `globals.css` and `(app)/app.css`) for badges and other 4px surfaces — it is simply not the input radius.
 
 ### Cross-reference
 
 - ADR 0038 — dated forward-pointer added 2026-07-27 (#1095) in its "Relation till andra ADR:er" section, pointing here.
 - `docs/reviews/2026-07-27-control-heights-cto.md` — full CTO reasoning, rejected alternatives, trade-offs accepted.
 - `docs/handoff-oversikt/HANDOVER-v3.md` §5.1 (line 208–220), §5.2 (line 222–229), §1 (line 60).
-- `docs/decisions/README.md` — index summary lines for ADR 0038 and ADR 0052: docs-keeper to add a reference to this amendment.
+- `docs/decisions/README.md` — index summary lines for ADR 0038 and ADR 0052 updated in the same PR (an instruction left in an ADR is an instruction nobody runs).

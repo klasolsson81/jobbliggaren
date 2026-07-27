@@ -154,8 +154,11 @@ först-rankade referens), hit-target-GOLV 44px. (Exakta höjder skiljer per syst
 `.jp-btn` 44 / shadcn `Button` 40 / `.jp-input` 48 — se ADR 0052 Amendment
 2026-07-27. Golvet är ett minimum, inte ett värde.) Bloomberg-
 tätheten gäller tabell-**tonen**, aldrig som ett brödtext-fontgolv. Toolbar-
-knappar kvarstår som dokumenterat undantag (28px) — men inputs/knappar i
-innehållsytor är 44/40. Cross-ref ADR 0038.
+knappar kvarstår som dokumenterat undantag (28px). Innehållsytor har TVÅ
+ratificerade system och du måste namnge vilket: shadcn `Input` 44 / `Button` 40
+(ADR 0038) och `.jp-input` 48 / `.jp-btn` 44 (HANDOVER-v3 §5.1/§5.2 via ADR 0052
+Amendment 2026-07-27, #1095). "44/40" utan system är falskt genom utelämnande —
+`.jp-input`s fyra konsumenter är alla innehållsytor.
 
 ---
 

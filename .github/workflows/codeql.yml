@@ -8,7 +8,8 @@
 # OBSERVE-ONLY Fas 1 (samma ratchet-disciplin som ADR 0045 fitness-functions).
 #
 # Denna workflow är en EGEN check — den ligger MEDVETET UTANFÖR det required
-# `ci`-aggregatet i build.yml (`ci.needs: [backend, frontend, coverage]`).
+# `ci`-aggregatet i build.yml (se `ci.needs` där; uppräkningen står på ETT
+# ställe, för en lista över trädet går stale medan en regel inte gör det).
 # Branch protection (ADR 0065) kräver enbart `ci`, så CodeQL kan aldrig
 # blockera merge Fas 1. `continue-on-error: true` på jobbet speglar
 # lighthouse/loadtest/audit-jobben i build.yml — fynd/build-fel ger neutral

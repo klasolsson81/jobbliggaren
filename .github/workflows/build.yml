@@ -256,12 +256,42 @@ jobs:
       - name: Test (Vitest)
         run: pnpm test
 
+  # Fixture-tester för de bash-skript i `.github/scripts/` som CI och
+  # merge-kontrollerna själva kör. Idag ett: `is-pure-base-merge.sh`, predikatet
+  # som avgör om en push får låta en PR:s granskningsgrind stå kvar armerad
+  # (#836). Jobbet är BLOCKERANDE (ligger i ci.needs) och det är hela poängen —
+  # otestad logik inuti en merge-kontroll är ett påstående som inte kan falla,
+  # vilket är precis den defektklass kontrollen finns för att stänga.
+  #
+  # Inget toolchain-steg: bara bash + git, som redan finns på runnern. Mätt
+  # 2026-07-27 på ubuntu-runner: hela jobbet 9 s, mot `coverage` som är kritisk
+  # väg på ~913 s. ci:s väggklocka är alltså oförändrad.
+  scripts:
+    name: scripts (bash fixtures)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      # Diagnostik, INGEN grind — `git --version` avslutar alltid 0. Predikatets
+      # golv (git >= 2.38, för `merge-tree --write-tree`) grindas av fixtur 1:
+      # på en äldre git returnerar den `git-too-old` i stället för
+      # `pure-base-merge` och fäller jobbet. Versionen skrivs ut här så att en
+      # runner-regression går att läsa direkt ur loggen i stället för att härledas
+      # ur ett fixturfel.
+      - name: git-version (diagnostik — golvet grindas av fixtur 1)
+        run: git --version
+
+      - name: is-pure-base-merge (fixturer)
+        run: bash .github/scripts/is-pure-base-merge.test.sh
+
   # ---------------------------------------------------------------------------
   # PERF-/SUPPLY-CHAIN-GOVERNANCE (ADR 0045 — observe-only Fas 1).
   #
-  # ALLA tre jobben nedan är OBSERVE-ONLY: de ligger MEDVETET UTANFÖR ci.needs
-  # (ci-aggregatet oförändrat: [backend, frontend, coverage]). Coverage-gaten
-  # (ADR 0044) är orörd — dessa är rent additiva. continue-on-error + explicit
+  # ALLA tre jobben nedan är OBSERVE-ONLY: de ligger MEDVETET UTANFÖR ci.needs.
+  # Coverage-gaten (ADR 0044) är orörd — dessa är rent additiva.
+  # continue-on-error + explicit
   # exit 0 → de kan aldrig blockera merge Fas 1. Budget-överskridande/CVE-fynd
   # emitteras som ::warning:: + job-summary, inte som fail.
   #
@@ -509,13 +539,18 @@ jobs:
   # protection-rules enkla att konfigurera (bara "ci" som required check
   # istället för en check per matrix-cell).
   #
-  # ci.needs OFÖRÄNDRAT: [backend, frontend, coverage]. Perf-/audit-jobben
-  # (lighthouse/loadtest/audit) är MEDVETET EJ med — observe-only Fas 1
-  # (ADR 0045 Beslut 5). Lägg INTE till dem här utan Klas-GO (ratchet,
-  # ADR 0045 Beslut 6).
+  # Perf-/audit-jobben (lighthouse/loadtest/audit) är MEDVETET EJ med —
+  # observe-only Fas 1 (ADR 0045 Beslut 5). Lägg INTE till dem här utan Klas-GO
+  # (ratchet, ADR 0045 Beslut 6).
+  #
+  # `scripts` tillkom 2026-07-27 (#836). Det är INTE den ratcheten: inget
+  # observe-only-jobb flippades till blockerande, utan ett nytt jobb som är
+  # blockerande från början, för logik som styr när en PR får mergas. Ett
+  # observe-only test av en merge-kontroll hade varit samma tomma signal som
+  # #861 tog bort. Kostar ~4 s och ligger inte på kritisk väg.
   ci:
     name: ci
-    needs: [backend, frontend, coverage]
+    needs: [backend, frontend, coverage, scripts]
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -523,7 +558,8 @@ jobs:
         run: |
           if [[ "${{ needs.backend.result }}" != "success" ]] || \
              [[ "${{ needs.frontend.result }}" != "success" ]] || \
-             [[ "${{ needs.coverage.result }}" != "success" ]]; then
+             [[ "${{ needs.coverage.result }}" != "success" ]] || \
+             [[ "${{ needs.scripts.result }}" != "success" ]]; then
             echo "One or more jobs failed"
             exit 1
           fi

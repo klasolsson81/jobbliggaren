@@ -1,39 +1,490 @@
 # Label-baserad auto-merge för egna PRs (opt-in per PR) — Klas-GO 2026-06-07.
 #
-# Sätt label:n "automerge" på en PR → den auto-mergas FÖRST när required
-# `ci`-aggregatet är grönt (branch protection, ADR 0065). PRs UTAN labeln
-# granskas/mergas manuellt som default — ADR 0065 #4 (manuell diff-granskning)
-# bevaras för allt du inte uttryckligen opt-in:ar.
+# TVÅ labels krävs, och de betyder OLIKA saker (#836, CTO-bind 2026-07-27):
 #
-# Säkerhet: endast collaborators (Klas) kan sätta labels på repot → labeln =
-# medveten Klas-opt-in. `pull_request` (ej `pull_request_target`) → fork-PRs får
-# read-only token och kan inte missbruka steget. CI (build+test+coverage) gatar
-# fortfarande mergen via branch protection.
+#   automerge    = AVSIKT. "Den här PR:en ska mergas när den är klar."
+#                  Sann redan vid `gh pr create`. Sätts av CC eller av
+#                  PR-babysittern.
+#   agents-done  = TILLSTÅND. "De obligatoriska granskarna (CLAUDE.md §9.2) har
+#                  svarat och inget Blocker/Major är oåtgärdat."
+#                  Sätts ENBART av sessionen som äger PR:en, efter att den
+#                  faktiskt väntat in dem — ibland sex granskningsrundor senare.
+#
+# Auto-merge armeras först när BÅDA sitter. Workflow:t lyssnar på båda labelarna,
+# så ordningen spelar ingen roll: den som sätts sist ser den andra och armerar.
+#
+# VARFÖR delningen finns: `automerge` bar tidigare båda betydelserna, så varje
+# aktör som legitimt uttryckte AVSIKT ofrivilligt beviljade TILLSTÅND. Det hände
+# på riktigt i #813 (PR #832, 2026-07-12): PR:en skapades medvetet UTAN label
+# medan code-reviewer kördes, labeln sattes på PR-eventet (att det var
+# babysittern är #835:s förstahandsutsaga — timeline-raden visar en
+# människoidentitet, eftersom cloud-routinen autentiserar som användaren och
+# loggen därför omöjligt kan visa det), PR:en auto-mergade på grön `ci`, och
+# granskningen kom tillbaka med 1 Blocker + 2 Major — alla tre landade i main.
+# Det hände igen i #1083 (2026-07-26).
+#
+# INGA TIDSSIFFROR HÄR, avsiktligt. Ett tidigare utkast skrev "labeln väntar på
+# CI (~13 min) och inte på agenterna (12–18)". Mätt: `build.yml` på
+# `pull_request` ligger på 14–16 min, median 15 (n=20) — så CI är ibland
+# LÅNGSAMMARE än granskarna, och siffran bar alltså argumentet åt fel håll.
+# Slutsatsen står på #832 och #1083, inte på en varaktighet. En tidsangivelse i
+# en normativ fil blir stale vid nästa CI-ändring; regeln blir det aldrig.
+# Mätningar som behöver ett hem hör i CTO-rapporten (daterad och tracked).
+#
+# Den avgörande egenskapen: **babysittern behöver inte ändras för att bli
+# säker.** Den får fortsätta labela allt som är grönt och kan ändå inte merga
+# ogranskad kod, eftersom den aldrig rör `agents-done`. Det spelar roll därför
+# att den cloud-routinen är billed och user-triggered — CC kan varken läsa,
+# versionera eller testa den, så en fix som vilar på dess beteende är en fix CC
+# inte kan skeppa.
+#
+# NY PUSH AVVÄPNAR — OM DEN BÄR EGET INNEHÅLL. Ett `synchronize`-event tar bort
+# `agents-done` och stänger av auto-merge: granskarna svarade mot en diff som inte
+# längre är den som mergas. `automerge` lämnas kvar — avsikten har inte ändrats.
+#
+# UNDANTAGET, och det enda: en REN BAS-MERGE. `main` har `strict: true`, så en PR
+# MÅSTE vara up-to-base för att kunna mergas, och varje syskon som landar gör den
+# BEHIND igen — med 2–4 samtidiga sessioner är det den vanligaste commit-formen på
+# en feature-gren. (Frekvensen är mätt och daterad i skriptets huvud, inte här —
+# se noten om siffror ovan.) Att avväpna på var och en av dem är inte en strängare
+# grind utan en grind som aldrig konvergerar, och en grind som aldrig mergar blir
+# inte lydd — den blir kringgången.
+# `.github/scripts/is-pure-base-merge.sh` skiljer de två fallen på den enda fråga
+# som avgör saken: är commitens träd exakt det en AUTOMATISK merge hade producerat?
+# Det är precis vad `gh pr update-branch` producerar (server-side auto-merge som
+# vägrar vid konflikt). Är det inte det — en handupplöst konflikt, en extra
+# redigering i merge-commiten, en omskriven historik — avväpnar den.
+#
+# Predikatet är FAIL-CLOSED: varje fel, varje ohanterat fall och varje osäkerhet
+# avväpnar. En bugg i skriptet degraderar därför till "avväpna alltid", vilket är
+# exakt beteendet före skriptet fanns. Det är hela skälet till att git-plumbing
+# får finnas i en merge-kontroll: plumbingen kan inte öppna grinden, bara låta bli
+# att smalna av den.
+#
+# ÅTERKALLAD LABEL AVVÄPNAR OCKSÅ. Tas `agents-done` (eller `automerge`) bort
+# stängs auto-merge av — den symbol som GER tillstånd måste också kunna ÅTERKALLA
+# det. Det är vägen en session ska använda när en sen granskarrapport kommer in
+# med ett Blocker: ta bort `agents-done`, inte pusha en tom commit.
+#
+# Säkerhet: `pull_request` (ej `pull_request_target`) → fork-PRs får read-only
+# token. Required `ci` gatar fortfarande mergen via branch protection (ADR 0065).
+# GitHub har INGEN per-label-behörighet, så `agents-done` är en konvention med en
+# ägare, inte en spärr — designens svagaste led, namngivet i stället för gömt.
+# Layer 2 (required status check `agent-review`) är Klas-ägd och stänger både det
+# och den manuella "Enable auto-merge"-knappen, som detta workflow inte når.
+#
+# TVÅ SKILDA VÄGRANSBETEENDEN, blanda inte ihop dem. (1) GitHub visar/tillåter inte
+# auto-merge på en PR som kan mergas DIREKT — det är vad `arm`s mergebarhets-case
+# hanterar. (2) CTO F7 mätte ett ANNAT rapporterat beteende (community #190610:
+# vägran att aktivera INNAN kraven är uppfyllda) och dömde det icke-bindande här,
+# scopat till rulesets/merge-queue. Att F7 avfärdades betyder alltså INTE att
+# case-blocket är onödigt.
 #
 # OBS: detta workflow har INGEN egen vuln-gate (till skillnad från
 # dependabot-automerge.yml) — dina egna PRs är medvetet kod du själv skrivit och
 # labelat; required `ci` är grinden. Ändrar du dependencies i en egen PR, väg
-# audit-utfallet manuellt innan du sätter labeln.
+# audit-utfallet manuellt innan du sätter labelarna.
 name: label-automerge
 
 on:
   pull_request:
-    types: [labeled]
+    types: [labeled, unlabeled, synchronize]
 
-# write krävs för att GITHUB_TOKEN ska kunna aktivera auto-merge på PR:n.
+# write krävs för att GITHUB_TOKEN ska kunna aktivera/stänga av auto-merge och ta
+# bort `agents-done`.
 permissions:
   contents: write
   pull-requests: write
 
 jobs:
-  automerge:
-    name: auto-merge (label)
+  arm:
+    name: auto-merge (arm — kräver automerge + agents-done)
     runs-on: ubuntu-latest
-    # Kör ENBART när just "automerge"-labeln sätts.
-    if: ${{ github.event.label.name == 'automerge' }}
+    # Kör bara när en av DE TVÅ labelarna precis sattes, och båda nu sitter.
+    # `github.event.pull_request.labels` är PR:ens fulla label-mängd vid eventet,
+    # så den som sätts sist ser den andra. Ordningen kan därför inte stranda
+    # PR:en i ett halvarmerat läge.
+    if: >-
+      github.event.action == 'labeled' &&
+      (github.event.label.name == 'automerge' || github.event.label.name == 'agents-done')
+    timeout-minutes: 5
+    # EGEN grupp. En DELAD grupp med `disarm` hade varit fail-open: GitHub håller högst
+    # EN väntande run per grupp och avbryter den när en tredje köas — och den
+    # väntande är `disarm`. `cancel-in-progress: false` skyddar den KÖRANDE, inte den
+    # väntande. Korsordning är ofarlig numera: `arm` läser om labelmängden från
+    # API:t innan den mergar, så en återkallelse som hinner före syns där.
+    # `disarm` har numera INGEN grupp alls, av samma skäl ett steg längre draget —
+    # se motiveringen där. Här är gruppen ofarlig: en bortavbruten `arm` armerar
+    # inte, och att inte armera är den säkra riktningen.
+    concurrency:
+      group: automerge-arm-${{ github.event.pull_request.number }}
+      cancel-in-progress: false
     steps:
-      - name: Aktivera auto-merge
-        run: gh pr merge --auto --squash "$PR_URL"
+      # Saknad label är en NO-OP med en synlig notis, aldrig ett skippat jobb.
+      # Ett skippat jobb säger inte VILKEN label som saknas, och tystnad som läses
+      # som "ingenting hände" är den grammatik #861 dömde i just det här
+      # subsystemet.
+      - name: Rapportera om grinden inte är komplett
+        if: >-
+          !(contains(github.event.pull_request.labels.*.name, 'automerge') &&
+            contains(github.event.pull_request.labels.*.name, 'agents-done'))
+        run: |
+          if [ "$HAS_AGENTS_DONE" != "true" ]; then
+            echo "::notice::Armerar INTE — 'agents-done' saknas. De obligatoriska granskarna (CLAUDE.md §9.2) ska svara först; den ägande sessionen sätter labeln. (#836)"
+          else
+            echo "::notice::Armerar INTE — 'automerge' saknas. Sätt den när PR:en är avsedd att mergas. (#836)"
+          fi
+        env:
+          HAS_AGENTS_DONE: ${{ contains(github.event.pull_request.labels.*.name, 'agents-done') }}
+
+      - name: Aktivera auto-merge (eller merga direkt om PR:en redan är mergebar)
+        if: >-
+          contains(github.event.pull_request.labels.*.name, 'automerge') &&
+          contains(github.event.pull_request.labels.*.name, 'agents-done')
+        # GitHub tillåter INTE att auto-merge aktiveras på en PR som kan mergas
+        # direkt ("The option to enable auto-merge is shown only on pull requests
+        # that cannot be merged immediately"). Delningen flyttar armeringen till
+        # EFTER att granskarna svarat, och då är `ci` ofta redan grön — CLEAN är
+        # alltså inte längre undantaget (ingen varaktighet här, se huvudet).
+        # Repots hela historik av det
+        # här workflow:t armerade medan `ci` var pending eller grenen BEHIND, så
+        # den vägen är obeprövad här. Grenen nedan är korrekt oavsett vilket
+        # beteende GitHub har: vi mergar direkt bara när PR:en ÄR mergebar, och
+        # branch protection (required `ci`, `enforce_admins`,
+        # `required_conversation_resolution`) gatar den mergen precis som den
+        # gatar auto-mergen.
+        run: |
+          set -euo pipefail
+          # Predikatet är "kan den mergas NU", vilket är en MÄNGD, inte ett värde.
+          # `UNSTABLE` = mergebar, men någon icke-required check är röd eller kör.
+          # Det är husets NORMALTILLSTÅND vid den här tidpunkten: CLAUDE.md §6 säger
+          # att observe-only-jobb inte blockerar, och de (CodeQL, e2e, audit,
+          # fitness) är långsammare än `ci`. Ett test mot enbart CLEAN hade därför
+          # missat det vanligaste fallet och fallit till `--auto` igen.
+          # `UNKNOWN` betyder att GitHub inte räknat klart mergebarheten — den
+          # beräknas lazily och är typiskt UNKNOWN strax efter en push. Vi väntar
+          # in den och failar högljutt hellre än att gissa.
+          # LÄS OM LABELARNA FRÅN API:t, lita inte på event-payloaden (CTO V5(a)).
+          # Payloaden är en ögonblicksbild från när eventet skapades, och runnern
+          # startar 10–40 s senare. Under den luckan hinner en sen granskarrapport
+          # komma in med ett Blocker och sessionen göra precis det huvudet säger:
+          # ta bort `agents-done`. Läser vi payloaden ser vi fortfarande båda
+          # labelarna och mergar — och `--match-head-commit` räddar ingenting, för
+          # en återkallad label flyttar inte SHA:n. Det är #836:s incident
+          # återuppstådd GENOM kontrollen, och det är gratis att stänga: samma
+          # `gh pr view`-anrop hämtar labelmängden.
+          for i in 1 2 3 4 5; do
+            data=$(gh pr view "$PR_URL" --json mergeStateStatus,labels,headRefOid)
+            state=$(echo "$data" | jq -r .mergeStateStatus)
+            [ "$state" != "UNKNOWN" ] && break
+            [ "$i" -lt 5 ] && sleep 3
+          done
+          # HEADEN FLYTTADE ⇒ no-op med notis, inte rött jobb. Grinden gjorde då
+          # exakt rätt, och ett korrekt avvisande får inte rendera som ett trasigt
+          # workflow (V5(a): "a no-op, not a failure"). Vi jämför SHA:er i stället
+          # för att greppa GitHubs felsträng — en prosa-matchning är precis det V1
+          # avvisade, och den skulle dessutom låsas mot en gissad formulering.
+          current=$(echo "$data" | jq -r .headRefOid)
+          if [ "$current" != "$HEAD_SHA" ]; then
+            echo "::notice::Headen flyttade sedan labeln sattes ($HEAD_SHA → $current). Armerar INTE — granskningen gällde en annan diff. Sätt 'agents-done' igen mot den nya headen."
+            exit 0
+          fi
+          labels=$(echo "$data" | jq -r '.labels[].name')
+          if ! grep -qx 'automerge' <<<"$labels" || ! grep -qx 'agents-done' <<<"$labels"; then
+            echo "::notice::Grinden ändrades efter att eventet skapades — en label är borta. Armerar INTE. (#836)"
+            exit 0
+          fi
+          # `--match-head-commit` binder DIREKT-mergen nedan till den SHA eventet
+          # bar. På `--auto`-grenen är den däremot en precondition vid AKTIVERINGEN,
+          # inte ett stående villkor: `AutoMergeRequest` lagrar ingen
+          # `expectedHeadOid`, och auto-merge överlever pushar från någon MED
+          # write-access. Efter aktiveringen är `disarm` hela skyddet — ta inte bort
+          # det i tron att SHA-bindningen räcker. Båda anropen behöver den ändå:
+          # den stänger TOCTOU-fönstret mellan tillståndsläsningen och anropet.
+          # De två axlarna är olika: PUSH täcks här, LABEL av omläsningen ovan.
+          case "$state" in
+            CLEAN|UNSTABLE|HAS_HOOKS)
+              echo "::notice::mergeStateStatus=$state — PR:en är mergebar nu, så auto-merge kan inte aktiveras. Mergar direkt; branch protection är fortfarande grinden."
+              gh pr merge --squash --match-head-commit "$HEAD_SHA" "$PR_URL" ;;
+            DRAFT)
+              echo "::notice::PR:en är en DRAFT — GitHub tillåter inte auto-merge på drafts. Armerar INTE; markera den ready och sätt 'agents-done' igen."
+              exit 0 ;;
+            UNKNOWN)
+              echo "::error::mergeStateStatus är UNKNOWN efter 5 försök. Är headen oförändrad: kör om jobbet. Har den flyttat — vanligast, UNKNOWN kommer typiskt EFTER en push — återanvänder en omkörning samma inaktuella SHA och failar igen; ta i stället bort och sätt tillbaka 'agents-done' så fyras eventet om med aktuell SHA."
+              exit 1 ;;
+            *)
+              gh pr merge --auto --squash --match-head-commit "$HEAD_SHA" "$PR_URL" ;;
+          esac
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  disarm:
+    name: auto-merge (disarm — grinden bröts)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # INGEN concurrency-grupp, och det är en RÄTTELSE, inte en förenkling.
+    #
+    # Jobbet hade `group: automerge-disarm-<pr>`, motiverat med att två snabba
+    # `synchronize` annars ger två identiska PR-kommentarer. Den motiveringen var
+    # giltig när avväpningen var OVILLKORLIG: två runs var då utbytbara, så en
+    # bortavbruten run gjorde ingen skada — den överlevande gjorde dess jobb.
+    #
+    # Predikatet tog bort utbytbarheten. Varje run är nu en utsaga om ENBART sitt
+    # eget spann `before..after`, och GitHub avbryter den VÄNTANDE runnen i en grupp
+    # så snart en tredje köas (`cancel-in-progress: false` skyddar den KÖRANDE — se
+    # `arm`s kommentar ovan, som beskriver exakt den mekaniken). Ett avbrutet spann
+    # är ett spann ingen granskade, och nästa rena bas-merge säger `pure-base-merge`
+    # och låter det passera. HÄRLETT ur mekaniken ovan (sekvensen är inte körd —
+    # den kräver att GitHub avbryter en väntande run, vilket inte går att beställa):
+    # bas-merge (kör) → innehållspush (väntar) → bas-merge (köar, avbryter
+    # innehållspushen) ⇒ innehållet mergar ogranskat. Det är #836:s incident
+    # återuppstådd GENOM kontrollen.
+    #
+    # FÖNSTRET ÄR SMALT, och det ska stå här hellre än att antydas bort. Låset
+    # hålls under runnens HELA livslängd, kötid inräknad: mätt över fyra
+    # sondkörningar (30275993980, 30276098911, 30278350982, 30278458244) tar en
+    # `disarm`-run 11, 13, 24 respektive 16 s, full checkout inräknad — medan de
+    # tätaste `label-automerge`-eventen på den här grenen låg 62 s isär
+    # (30270870302 13:33:57Z → 30270951216 13:34:59Z).
+    #
+    # Läs det som ett GOLV, inte ett tak: fyra körningar på en obelastad
+    # runner-pool, och spridningen 11→24 s inom de fyra säger att kötiden rör sig.
+    # Under last blir fönstret bredare, aldrig smalare. Tre events inuti det är
+    # alltså ovanligt — men "ovanligt" är inte ett argument, och siffran får inte
+    # citeras som skäl att sätta tillbaka gruppen. En förlorad avväpning mergar
+    # ogranskad kod, konsekvensen är obegränsad, och att ta bort gruppen kostar
+    # noll. Fail-safe defaults vägs inte mot sannolikhet (Saltzer & Schroeder
+    # 1975 §3) — särskilt inte när priset för att stänga hålet är en raderad rad.
+    #
+    # Priset för att ta bort gruppen är parallella runs, och det priset är betalt i
+    # stegen: `--disable-auto` avgör tillståndet i stället för att lita på sin egen
+    # exit-kod, och `--remove-label` är redan mätt exit 0 på en PR som saknar
+    # labeln. Två kommentarer kan nu uppstå — men bara när två disarm-runs
+    # överlappar, och då är två verdikt korrekt. En kosmetisk dubblett väger inte
+    # mot en förlorad avväpning.
+    #
+    # Det som gör parallella runs ofarliga i VARJE ordning är att `disarm` är
+    # MONOTONT: inget steg kan armera. `--disable-auto` stänger, `--remove-label`
+    # tar bort, kommentaren lägger till — och en `pure`-run tar inga MUTERANDE
+    # steg alls (den gör checkout och kör predikatet, sedan inget).
+    # Två överlappande runs kan därför bara konvergera mot avväpnat.
+    #
+    # TVÅ vägar, båda måste finnas för att `agents-done` ska vara en fail-safe
+    # symbol: den som GER tillstånd måste också kunna ÅTERKALLA det.
+    #   synchronize — ny commit ⇒ granskarna svarade mot en annan diff. Filtreras
+    #                 av predikatet nedan: en ren bas-merge ändrar ingen rad av
+    #                 författarens innehåll och avväpnar därför inte.
+    #   unlabeled   — någon tog tillbaka en label ⇒ tillståndet är återkallat.
+    #                 Predikatet rör INTE den här vägen; den är ovillkorlig.
+    # Utan `unlabeled` gör en borttagen `agents-done` ingenting: auto-merge är
+    # redan aktiverat på PR-objektet och mergar på grön `ci` oavsett labelmängd.
+    # Det scenariot är inte hypotetiskt — en granskare återkommer med en Blocker
+    # efter att labeln satts, sessionen tar bort den för att stoppa mergen, och
+    # PR:en mergar ändå. Det är #836:s incident återuppstådd GENOM kontrollen.
+    if: >-
+      (github.event.action == 'synchronize' &&
+       contains(github.event.pull_request.labels.*.name, 'agents-done')) ||
+      (github.event.action == 'unlabeled' &&
+       (github.event.label.name == 'agents-done' || github.event.label.name == 'automerge'))
+    steps:
+      # Full historik: predikatet behöver merge-base och blobbarna för att kunna
+      # räkna ut vad en automatisk merge HADE gett. Mätt 2026-07-27: hela repot är
+      # 59,5 MiB / 1132 commits — sekunder, en gång per `synchronize`.
+      # `ref` pinnas till pushens nya head; default hade varit merge-refen, som är
+      # ett annat objekt än det predikatet ska bedöma.
+      - name: Checkout (full historik — endast för push-predikatet)
+        if: github.event.action == 'synchronize'
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.after }}
+
+      # `always()` gör att ett misslyckat checkout INTE hoppar över det här steget.
+      # Utan det hade en trasig checkout avbrutit jobbet före avväpningen — dvs.
+      # fail-OPEN via en infrastrukturmiss. Nu blir samma miss `predicate-error`,
+      # och `predicate-error` avväpnar.
+      - name: Bidrog pushen något eget, eller var den bara en bas-merge?
+        id: predicate
+        if: always() && github.event.action == 'synchronize'
+        run: |
+          # INGET `set -e` runt anropet, avsiktligt: ett rött steg hoppar över
+          # RESTEN av jobbet, och resten av jobbet ÄR avväpningen. Skriptet
+          # rapporterar via exit-kod + reason i stället, och allt utom exit 0
+          # betyder avväpna. Steget självt måste därför alltid sluta grönt.
+          set -uo pipefail
+          if reason=$(bash .github/scripts/is-pure-base-merge.sh "$BEFORE" "$AFTER" "origin/$BASE_REF"); then
+            pure=true
+          else
+            pure=false
+          fi
+          # Tom reason = skriptet hann aldrig säga något (saknad fil efter ett
+          # misslyckat checkout, dödad process). Namnge det hellre än att lämna
+          # en tom sträng i loggen.
+          [ -n "$reason" ] || reason=predicate-error
+          {
+            echo "pure=$pure"
+            echo "reason=$reason"
+          } >>"$GITHUB_OUTPUT"
+          if [ "$pure" = true ]; then
+            echo "::notice::Ren bas-merge ($reason) — ingen rad av författarens innehåll ändrades, så grinden står kvar armerad. Required \`ci\` körs om mot den nya headen. (#836)"
+            echo "Ren bas-merge (\`$reason\`) — grinden står kvar. \`agents-done\` orört." >>"$GITHUB_STEP_SUMMARY"
+          else
+            echo "::notice::Avväpnar — \`$reason\`. (#836)"
+            echo "Avväpnade — \`$reason\`." >>"$GITHUB_STEP_SUMMARY"
+          fi
+        env:
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.event.after }}
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+
+      - name: Stäng av auto-merge
+        id: disable
+        # `steps.predicate.outputs.pure != 'true'` är fail-closed i alla tre
+        # riktningar: på `unlabeled`-vägen kördes predikatsteget aldrig, så
+        # outputen är tom; failade skriptet skrev steget `false`, och dog steget
+        # innan det hann skriva blir outputen tom igen; bara en verifierad ren
+        # bas-merge ger `true`. Endast det sista fallet lämnar grinden stående.
+        if: always() && steps.predicate.outputs.pure != 'true'
+        # INGET `|| true`. `--disable-auto` felar när auto-merge aldrig var
+        # aktiverat, men ett svalt fel här är fail-OPEN: varje annan orsak
+        # (token, rate limit, nätverk) lämnar auto-merge på och PR:en mergar
+        # ogranskad. Avgör TILLSTÅNDET i stället för att svälja felet
+        # (`build.yml`: fail loud över fail silent).
+        #
+        # Läsningen och anropet är inte atomära, och sedan concurrency-gruppen togs
+        # bort kan två disarm-runs överlappa: båda ser auto-merge aktiverat, den
+        # ena hinner först, den andras `--disable-auto` felar på en PR som redan är
+        # avväpnad. Därför avgörs utfallet på TILLSTÅNDET EFTERÅT, inte på
+        # exit-koden: är auto-merge borta gjorde någon jobbet, och det är
+        # framgång oavsett vem. Sitter det kvar är felet äkta och jobbet ska falla.
+        run: |
+          set -euo pipefail
+          # VARJE tillståndsläsning är en EGEN sats, aldrig inbakad i
+          # `[ -z "$(gh …)" ]`. En kommandosubstitution inuti ett test kastar bort
+          # exit-koden — `[` dömer på strängen — och `gh pr view` skriver fel till
+          # stderr och INGENTING till stdout när det failar. Ett misslyckat anrop
+          # blir alltså byte-identiskt med "auto-merge var aldrig på", och steget
+          # rapporterar grönt att det stängde en grind det aldrig lyckades läsa.
+          # `set -euo pipefail` fångar det inte: ingen pipe, och ett `if`-villkor
+          # är undantaget från errexit. Fristående fäller `set -e` steget i stället.
+          #
+          # Det är inte en teoretisk felmod. `GITHUB_TOKEN` har ett EGET tak på
+          # 1 000 requests/h och repo (docs.github.com/en/actions/reference/limits,
+          # hämtad 2026-07-27) — en annan bucket än användar-PAT:ens 5 000/h, och
+          # lägre. Eftersom `disarm` inte längre serialiseras av en
+          # concurrency-grupp är det just de här anropen som multiplicerats i den.
+          # Ett API som är nere failar dessutom BÅDA anropen, så omläsningen nedan
+          # är korrelerad med felet den ska verifiera: den får aldrig vara det enda
+          # som skiljer "någon annan hann först" från "det gick åt skogen".
+          #
+          # Ett rött jobb här är inte merge-blockerande (`label-automerge` är ingen
+          # required check) — men rött och läsbart är vad resten av filen
+          # argumenterar för, och Layer 2 (`agent-review`, Klas-ägd) stänger sista
+          # biten.
+          before_state=$(gh pr view "$PR_URL" --json autoMergeRequest --jq '.autoMergeRequest // ""')
+          if [ -z "$before_state" ]; then
+            echo "::notice::auto-merge var inte aktiverat — inget att stänga av."
+            exit 0
+          fi
+          if gh pr merge --disable-auto "$PR_URL"; then
+            exit 0
+          fi
+          after_state=$(gh pr view "$PR_URL" --json autoMergeRequest --jq '.autoMergeRequest // ""')
+          if [ -z "$after_state" ]; then
+            echo "::notice::\`--disable-auto\` felade, men auto-merge är avstängt — en parallell disarm-run hann först. Grinden är stängd."
+            exit 0
+          fi
+          echo "::error::\`--disable-auto\` felade OCH auto-merge är fortfarande aktiverat. PR:en kan merga ogranskad — åtgärda för hand."
+          exit 1
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Mätt 2026-07-27: `gh pr edit --remove-label agents-done` på en PR som inte
+      # bär labeln ger EXIT 0 (labeln finns i repot; det är bara medlemskapet som
+      # saknas). Ingen guard behövs alltså för två samtidiga disarm-runs. En label
+      # som inte finns i REPOT ger exit 1 — vilket är rätt, det vore en äkta
+      # felkonfiguration.
+      - name: Säg till när en återkallad label avväpnade
+        if: github.event.action == 'unlabeled'
+        run: |
+          gh pr comment "$PR_URL" --body "**Auto-merge disabled** — \`${LABEL}\` was removed, which revokes the gate (#836). Set both labels again when the review gate is satisfied."
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          LABEL: ${{ github.event.label.name }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Ta bort agents-done (endast när en push bröt grinden)
+        if: always() && github.event.action == 'synchronize' && steps.predicate.outputs.pure != 'true'
+        run: gh pr edit "$PR_URL" --remove-label agents-done
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # `always()` så att en PR aldrig avväpnas tyst: failar label-borttagningen
+      # ovan är det ÄNNU viktigare att tråden säger varför auto-merge stängdes av.
+      - name: Förklara i PR:en varför den avväpnades
+        if: always() && github.event.action == 'synchronize' && steps.predicate.outputs.pure != 'true'
+        run: gh pr comment "$PR_URL" --body "$BODY"
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BODY: |
+            **Auto-merge disabled and `agents-done` removed** — this push carries
+            content of its own, so the reviewers' answers apply to a diff that is
+            no longer the one merging (#836). Predicate verdict:
+            `${{ steps.predicate.outputs.reason }}`.
+
+            Wait the mandatory agents in against the new head, then set
+            `agents-done` again. `automerge` stays — the intent has not changed.
+
+            Bringing the branch up to base does **not** cost you a round:
+            `.github/scripts/is-pure-base-merge.sh` compares the pushed tree
+            against the tree an automatic merge of the same two commits would
+            produce, and leaves the gate alone when they are identical — which is
+            exactly what `gh pr update-branch` produces. A verdict other than
+            `pure-base-merge` means this push was not that.
+
+      # Kommentaren ovan påstår i sin rubrik att auto-merge ÄR avstängt. Den får
+      # bara påstå det när steget som stängde av det lyckades — men den bär
+      # `always()` och postas alltså även när `disable` dog på ett oläsbart API
+      # eller på ett `--disable-auto` som failade med auto-merge kvar på. Då står
+      # en overifierad utfästelse i tråden, vilket är precis den defektklass hela
+      # den här PR:en finns för att ta bort.
+      #
+      # Det är ett EGET steg med ett vanligt `if:`, inte ett `${{ }}`-uttryck
+      # inbakat i `BODY` ovan. Skälet är INTE filvaliditet — ett `if:` ÄR ett
+      # workflow-uttryck, och ett trasigt sådant invaliderar filen precis lika
+      # mycket som ett trasigt uttryck i `BODY`. Samma motor, samma parse.
+      # Skälet är vad en felaktig UTVÄRDERING producerar: ett `${{ }}` i `BODY`
+      # postar kommentaren ändå, nu med ett falskt påstående om huruvida
+      # auto-merge är av — alltså en overifierad utfästelse i tråden, exakt det
+      # här steget finns för att ta bort. Ett eget steg som uteblir ändrar inte
+      # maskintillståndet — vilket det än är — det kostar bara tråden sin varning;
+      # `${{ }}`-formens felutvärdering injicerar i stället ett falskt påstående.
+      # (Skriv inte "grinden är ändå avväpnad" här: grenen som beskrivs är per
+      # konstruktion den där `disable` INTE lyckades, så auto-merge kan mycket väl
+      # vara kvar på — och en borttagen label gör ingenting då, se huvudet.)
+      # Att `if:`-idiomet redan är bevisat i jobbets fyra andra steg är en
+      # riskreduktion ovanpå det — men det är en egenskap hos idiomet, inte hos
+      # stegformen, och stegformen är inte strukturellt immun mot något.
+      #
+      # Varför tråden och inte bara loggen: CLAUDE.md §6.5 konstaterar att
+      # `label-automerge` inte är en required check, så ingenting ytar ett rött
+      # jobb. PR-tråden är det enda en människa läser.
+      - name: Varna i tråden när avstängningen inte kunde bekräftas
+        if: always() && github.event.action == 'synchronize' && steps.predicate.outputs.pure != 'true' && steps.disable.outcome != 'success'
+        run: gh pr comment "$PR_URL" --body "$BODY"
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BODY: |
+            **The disarm comment's heading, if it posted, is unverified in its
+            first half.** The step that disables auto-merge did not succeed, so
+            auto-merge may still be enabled and this PR may merge on green `ci`
+            even though `agents-done` is gone.
+
+            Read the `auto-merge (disarm — grinden bröts)` job log and disable
+            auto-merge by hand before doing anything else (#836).

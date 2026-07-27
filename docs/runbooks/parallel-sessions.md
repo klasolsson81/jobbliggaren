@@ -20,7 +20,8 @@ shared dev DB. **EF migrations** are owned by one session at a time (the most
 dangerous hotspot). Work is partitioned by **bounded context** (§4) so two
 sessions rarely touch the same files; shared **hotspot files** (§5) are owned
 by one session at a time, coordinated via issue assignment. Each merged PR
-gets `automerge`; a cloud `/schedule` **PR-babysitter** reviews + merges.
+gets `automerge`; a cloud `/schedule` **PR-babysitter** keeps them up-to-base and
+reports. `agents-done` — the review gate — is the owning session's alone (§8, #836).
 
 ---
 
@@ -140,8 +141,15 @@ git commit -- <explicit paths>  # pathspec-scoped — shared index across worktr
 git show --stat HEAD            # verify exactly the intended files landed
 git push -u origin feat/<context>-<slug>
 gh pr create --fill
-gh pr edit <nr> --add-label automerge
+gh pr edit <nr> --add-label automerge      # INTENT — set it now
+# ... run the mandatory agents (§9.2), wait in ALL of them, fix Blocker/Major ...
+gh pr edit <nr> --add-label agents-done    # PERMISSION — only after they report
 ```
+
+**Two labels, two meanings — the rule and the reasoning live in [`CLAUDE.md` §6](../../CLAUDE.md) and
+`label-automerge.yml`'s header (#836); they are not restated here.** The one thing to carry into this
+step: `agents-done` goes on **last**, and **a push that carries content of its own takes it off
+again** — bringing the branch up to base does not (§8).
 
 Pathspec-scoped commits (`git commit -- <paths>`) are required because parallel
 worktrees can share the index state — never `git commit -a` (memory
@@ -292,17 +300,50 @@ test:  Postgres 5433 · Redis 6380                (DB "jobbliggaren_test", profi
 
 ## 8. PR-babysitter (cloud `/schedule`)
 
-A cloud-scheduled agent watches PR events and runs review + automerge so the
+A cloud-scheduled agent watches PR events and keeps them up-to-base so the
 local sessions stay heads-down. Set up once:
 
 ```
 /schedule  → recurring cloud routine, e.g. every 15 min:
-  "List open PRs with the automerge label on klasolsson81/jobbliggaren.
-   For each with green required `ci` and no unresolved agent Blocker/Major,
-   run /code-review; if clean, ensure automerge is set. Report a one-line
-   status per PR. Do not merge a PR whose ci is red or that is BEHIND —
-   leave a comment to rebase."
+  "List open PRs on klasolsson81/jobbliggaren.
+   For each: if required `ci` is green and the PR is BEHIND, bring it
+   up-to-base with `gh pr update-branch`. If it carries no `automerge`
+   label and its author intends automerge, add `automerge`.
+   NEVER add or remove `agents-done` — that label is the owning session's
+   review gate and is not yours to set (#836).
+   Report a one-line status per PR. Do not attempt to merge a PR whose ci
+   is red."
 ```
+
+**The prompt no longer asserts *"no unresolved agent Blocker/Major"*.** It used to, and that was an
+assertion with no machine-readable signal anywhere in the repo — a condition that cannot fail, inside
+the organ meant to enforce a gate (#836, CTO ruling 2026-07-27). The old prompt was also
+self-contradictory: it filtered to PRs *with* the label and then said *"ensure automerge is set"*.
+
+**The prompt is not the control.** `label-automerge.yml` will not arm without `agents-done`
+(CLAUDE.md §6), so the babysitter cannot merge unreviewed code no matter what its deployed prompt
+says. That property is deliberate: the routine is billed and user-triggered,
+CC can neither read nor version nor test it, so a fix resting on its behaviour is a fix CC cannot
+ship — and because **the cloud routine authenticates as the user, a prompt breach leaves no trace in
+the audit log at all.** Measured on the incident PR (#832): `labeled automerge klasolsson81`
+17:08:40, `merged github-actions[bot]` 17:12:41 — a babysitter label and a Klas label are the same
+event, so post-hoc detection of a prompt violation is impossible in principle. That is why the
+control is machinery and not prose.
+
+**There is no ordering rule between `update-branch` and `agents-done`, and the absence is
+deliberate. Anyone may `update-branch` any PR at any time.** `main` has `strict: true`, so going
+up-to-base is mandatory and, with 2–4 concurrent sessions, constant. A gate that disarmed on every
+base merge would never converge — and *"remember not to `update-branch` a PR carrying
+`agents-done`"* is the fail-open, someone-must-remember shape ruled out everywhere else in this
+design. It could not bind the babysitter in any case: only Klas can redeploy that prompt.
+
+The control is in the repo instead. `.github/scripts/is-pure-base-merge.sh` (fixture-tested,
+`ci`-gated) asks whether the pushed tree is exactly what an automatic merge of the same two commits
+would produce — which is exactly what `update-branch` produces, that being a server-side automatic
+merge that refuses on conflict. If it is, the gate stands and nothing is posted. If it is not — a
+hand-resolved conflict, an extra edit inside the merge commit, rewritten history — it disarms and
+names which. Every error and every case it cannot vouch for disarms, so its worst behaviour is the
+behaviour that preceded it.
 
 Notes: the babysitter is **billed** and **user-triggered** (you cannot launch
 `/code-review ultra` yourself). Mythos is blocked in Claude Code → use **Fable 5
@@ -332,6 +373,11 @@ gh pr list --state open --json number,headRefName,mergeStateStatus \
   ```
   (A local `git rebase origin/main` + `gh api PATCH .../git/refs` does NOT work — the
   rebased objects aren't on the remote yet, so the ref-update 422s. Use `update-branch`.)
+  **A PR carrying `agents-done` may be updated freely — in the merge form above**,
+  which is what the command produces: a pure base merge, which does not disarm the
+  gate (#836, §8). `gh pr update-branch --rebase` rewrites history and **does**
+  disarm; so does resolving a conflict on the branch, because that tree is no longer
+  the automatic merge's tree — the `DIRTY` case below always costs a review round.
 - **`BLOCKED`** → up-to-base, waiting on required `ci` / review — leave it; automerge takes
   it on green.
 - **`DIRTY` / conflict** → the update-branch merge hit a conflict; resolve on a branch + push.
@@ -389,8 +435,10 @@ NOT a hand-ranked per-CC sequence (that drifts every merge):
 4. **`blocked`** = blocked by another open issue/decision (e.g. #291 ⟵ #298) —
    skip until unblocked.
 5. **Side-track PRs FIRST.** At session start, before new scope, shepherd your own
-   open/red PRs to green (CI rerun on a known Docker-Hub flake; rebase a `BEHIND`
-   PR via `git merge origin/main`). New work waits behind a stuck PR you own.
+   open/red PRs to green (CI rerun on a known Docker-Hub flake; for `BEHIND`, use
+   the single command form in §8.1 — **not** a local `git merge origin/main`, so
+   there is one form to reason about). It does not disarm `agents-done`; only a push
+   carrying content of its own does (§8). New work waits behind a stuck PR you own.
 6. **`steg-tracker.md` §2.1 holds the strategic sequence** — ONE place, not three
    per-CC lists. It is updated by one session (stack-owner / a designated
    docs-owner) when Klas sets the order.

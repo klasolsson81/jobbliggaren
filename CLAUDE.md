@@ -203,20 +203,28 @@ glassmorphism — **sole exception:** the hero plate's dark-green gradient
 · `localStorage` for sensitive data · hardcoded UI strings (use `next-intl` +
 `messages/sv.json`) · direct DOM manipulation.
 
-**Tests:** a **production fact read off a premise production cannot hold** — a
-hand-seeded row, a hand-built argument to a production entry point, or a stubbed
-port return whose value the real adapter cannot emit. Any seam that does not go
-through the production route **names the actor that produces the state**
+**Tests:** a **production fact asserted off a premise production cannot produce**
+— a hand-seeded row, a hand-built argument to a production entry point, or a
+stubbed port return whose value the real adapter never emits. The obligation
+attaches to the **assertion, not to the seam**: a stub, a `db.X.Add`, or a direct
+`UPDATE` carries none when the state it creates is one `src/` does produce —
+convenience is not the offence — and going *through* a production entry point is
+no exemption when the argument is not (a hand-built `rawPayload` carrying the key
+the ingest sanitizer strips is the measured case). Where the state an assertion
+rests on is produced by **no path in `src/`** — in the specific configuration
+relied on, not merely in shape — the test **names the actor that produced it**
 (`ResumeVersion.SoftDelete()`, `PurgeStaleRawPayloadsJob`, "the clock", "rows
 written before migration X"); where that actor is callable in the test, the test
-**asserts its own predicate admits the state** (`PurgeThisAdsPayloadAsync` is the
-worked form); where the actor is retired, the test **pins that the current writer
-does not produce the shape** (`Write_EmitsNewKeys_AndNeverSsyk`). A genuinely
-unreachable state is permitted **only when declared unreachable**, and then may
-assert only that the read side degrades safely if the invariant breaks — never
-what production does. **"No domain method exists" is a reject, not a
-disclosure**, and seam parity with another test is not provenance: #843's fiction
-was authorised by explicit parity with a legitimate seam whose SQL was identical.
+**asserts the actor's own predicate or transform admits the state**
+(`PurgeThisAdsPayloadAsync` is the worked form); where the actor is retired, the
+test **pins that the current writer does not produce the shape**
+(`Write_EmitsNewKeys_AndNeverSsyk`) — that pin belongs in the class that owns the
+writer, and the seam **cites it by name**. A genuinely unreachable state is
+permitted **only when declared unreachable**, and then may assert only that the
+read side degrades safely if the invariant breaks — never what production does.
+**"No domain method exists" is a reject, not a disclosure**, and seam parity with
+another test is not provenance: #843's fiction was authorised by explicit parity
+with a legitimate seam whose SQL was identical.
 
 **CV & matching engines (deterministic, no AI/LLM — ADR 0071):** any
 LLM/AI inference call in the product (no `IAiProvider`, no Anthropic/BYOK/credit
@@ -390,8 +398,7 @@ Every new domain class: at least one invariant test. Every new handler: happy
 path + validation failure. Every new endpoint: integration test. Lowered
 Domain coverage: justified in the PR or rejected. Snapshot tests only for
 stable components; E2E updated when critical flows change. Test premises follow
-§5 `Tests:` — a seam that bypasses the production route names the actor that
-produces the state.
+§5 `Tests:`.
 
 ```bash
 dotnet test                                  # backend

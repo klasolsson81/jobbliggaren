@@ -16,10 +16,20 @@
 # VARFÖR delningen finns: `automerge` bar tidigare båda betydelserna, så varje
 # aktör som legitimt uttryckte AVSIKT ofrivilligt beviljade TILLSTÅND. Det hände
 # på riktigt i #813 (PR #832, 2026-07-12): PR:en skapades medvetet UTAN label
-# medan code-reviewer kördes, babysittern satte labeln på PR-eventet, PR:en
-# auto-mergade på grön `ci`, och granskningen kom tillbaka med 1 Blocker +
-# 2 Major — båda landade i main. Igen i #1083 (2026-07-26): 1 Blocker + 13 Major,
-# eftersom labeln väntar på CI (~13 min) och inte på agenterna (12–18 min).
+# medan code-reviewer kördes, labeln sattes på PR-eventet (att det var
+# babysittern är #835:s förstahandsutsaga — timeline-raden visar en
+# människoidentitet, eftersom cloud-routinen autentiserar som användaren och
+# loggen därför omöjligt kan visa det), PR:en auto-mergade på grön `ci`, och
+# granskningen kom tillbaka med 1 Blocker + 2 Major — alla tre landade i main.
+# Det hände igen i #1083 (2026-07-26).
+#
+# INGA TIDSSIFFROR HÄR, avsiktligt. Ett tidigare utkast skrev "labeln väntar på
+# CI (~13 min) och inte på agenterna (12–18)". Mätt: `build.yml` på
+# `pull_request` ligger på 14–16 min, median 15 (n=20) — så CI är ibland
+# LÅNGSAMMARE än granskarna, och siffran bar alltså argumentet åt fel håll.
+# Slutsatsen står på #832 och #1083, inte på en varaktighet. En tidsangivelse i
+# en normativ fil blir stale vid nästa CI-ändring; regeln blir det aldrig.
+# Mätningar som behöver ett hem hör i CTO-rapporten (daterad och tracked).
 #
 # Den avgörande egenskapen: **babysittern behöver inte ändras för att bli
 # säker.** Den får fortsätta labela allt som är grönt och kan ändå inte merga
@@ -95,8 +105,9 @@ jobs:
         # GitHub tillåter INTE att auto-merge aktiveras på en PR som kan mergas
         # direkt ("The option to enable auto-merge is shown only on pull requests
         # that cannot be merged immediately"). Delningen flyttar armeringen till
-        # EFTER att granskarna svarat, och de tar 12–18 min mot `ci`:s ~13 — så
-        # CLEAN är nu normalfallet, inte undantaget. Repots hela historik av det
+        # EFTER att granskarna svarat, och då är `ci` ofta redan grön — CLEAN är
+        # alltså inte längre undantaget (ingen varaktighet här, se huvudet).
+        # Repots hela historik av det
         # här workflow:t armerade medan `ci` var pending eller grenen BEHIND, så
         # den vägen är obeprövad här. Grenen nedan är korrekt oavsett vilket
         # beteende GitHub har: vi mergar direkt bara när PR:en ÄR mergebar, och
@@ -120,6 +131,11 @@ jobs:
     name: auto-merge (disarm — grinden bröts)
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    # Två snabba `synchronize` (mätt: en PR fick två base-merges inom 7 minuter)
+    # ger annars två parallella disarm-jobb och två identiska PR-kommentarer.
+    concurrency:
+      group: automerge-${{ github.event.pull_request.number }}
+      cancel-in-progress: false
     # TVÅ vägar, båda måste finnas för att `agents-done` ska vara en fail-safe
     # symbol: den som GER tillstånd måste också kunna ÅTERKALLA det.
     #   synchronize — ny commit ⇒ granskarna svarade mot en annan diff.
@@ -159,24 +175,25 @@ jobs:
           PR_URL: ${{ github.event.pull_request.html_url }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      # `always()` så att en PR aldrig avväpnas tyst: failar label-borttagningen
+      # ovan är det ÄNNU viktigare att tråden säger varför auto-merge stängdes av.
       - name: Förklara i PR:en varför den avväpnades
-        if: github.event.action == 'synchronize'
+        if: always() && github.event.action == 'synchronize'
         run: gh pr comment "$PR_URL" --body "$BODY"
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           BODY: |
-            **Auto-merge avstängd och `agents-done` borttagen** — en ny commit
-            pushades efter att granskningsgrinden godkänts, så granskarnas svar
-            gäller en diff som inte längre är den som skulle mergas (#836).
+            **Auto-merge disabled and `agents-done` removed** — a new commit was
+            pushed after the review gate had cleared, so the reviewers' answers
+            apply to a diff that is no longer the one merging (#836).
 
-            Vänta in de obligatoriska granskarna mot den nya headen och sätt
-            `agents-done` igen. `automerge` sitter kvar — avsikten har inte
-            ändrats.
+            Wait the mandatory agents in against the new head, then set
+            `agents-done` again. `automerge` stays — the intent has not changed.
 
-            **Var det `gh pr update-branch` som orsakade den här pushen?** Då
-            ändrades ingen rad av författarens kod, bara basen. Grinden nollställs
-            ändå, avsiktligt: granskarna svarade mot ett annat träd. Det är också
-            därför babysittern inte ska `update-branch`:a en PR som bär
-            `agents-done` — den uppdateringen tillhör den ägande sessionen
+            **Was this push from `gh pr update-branch`?** Then no line of the
+            author's code changed, only the base. The gate still resets, by
+            design: the reviewers answered against a different tree. It is also
+            why the babysitter must not `update-branch` a PR carrying
+            `agents-done` — that update belongs to the owning session
             (playbook §8).

@@ -323,9 +323,15 @@ self-contradictory: it filtered to PRs *with* the label and then said *"ensure a
 `automerge` and `agents-done` are present, so the babysitter cannot merge unreviewed code no matter
 what its deployed prompt says. That property is deliberate: the routine is billed and user-triggered,
 CC can neither read nor version nor test it, so a fix resting on its behaviour is a fix CC cannot
-ship. Measured on PR #832 — `labeled automerge klasolsson81` 17:08:40, `merged github-actions[bot]`
-17:12:41: **the cloud routine authenticates as the user, so a prompt breach leaves no trace in the
-audit log and post-hoc detection is impossible in principle.**
+ship — and because **the cloud routine authenticates as the user, a prompt breach leaves no trace in
+the audit log at all.** The measurement behind that, and the rest of the reasoning, is in the CTO
+ruling `docs/reviews/2026-07-27-836-babysitter-gate-cto.md` (F3) — not restated here.
+
+**A consequence this playbook must own:** `gh pr update-branch` emits `synchronize`, so **updating a
+PR that carries `agents-done` disarms it** and costs a full round of every mandatory agent, against a
+diff whose source content did not change. `main` has `strict: true`, so going up-to-base is
+mandatory — which means the two rules interact constantly. **Do not `update-branch` a PR carrying
+`agents-done`**; leave that to the owning session, which can re-label immediately afterwards.
 
 Notes: the babysitter is **billed** and **user-triggered** (you cannot launch
 `/code-review ultra` yourself). Mythos is blocked in Claude Code → use **Fable 5
@@ -355,6 +361,9 @@ gh pr list --state open --json number,headRefName,mergeStateStatus \
   ```
   (A local `git rebase origin/main` + `gh api PATCH .../git/refs` does NOT work — the
   rebased objects aren't on the remote yet, so the ref-update 422s. Use `update-branch`.)
+  **If the PR carries `agents-done`, this costs a full review round** — `update-branch`
+  emits `synchronize`, which disarms the gate (#836). Do it *before* you set
+  `agents-done`, or accept re-running the agents against the new head.
 - **`BLOCKED`** → up-to-base, waiting on required `ci` / review — leave it; automerge takes
   it on green.
 - **`DIRTY` / conflict** → the update-branch merge hit a conflict; resolve on a branch + push.

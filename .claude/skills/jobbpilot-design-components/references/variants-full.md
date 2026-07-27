@@ -377,7 +377,7 @@ modifier -> label (NOT positional — read it, do not infer it):
 --related  neutral status treatment (surface-2 / ink-2 / border-strong)
 ```
 
-All four grades are solid fills on the SAME locked leaf ramp — hierarchy comes
+All four green grades are solid fills on the SAME locked leaf ramp — hierarchy comes
 from fill weight on one hue, never from a second colour (#290, CTO bind).
 `--related` **is a grade** that takes the neutral status treatment. What it is
 not is a fifth *green* step: a fill between leaf-50 and leaf-100 would have

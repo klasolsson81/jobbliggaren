@@ -21,7 +21,7 @@
     "step1": "Hitta jobbet.",
     "step2": "Sök jobbet.",
     "step3": "Följ upp ansökan.",
-    "ledgerLede": "Sök bland alla aktiva annonser från Platsbanken, skapa ditt CV och håll koll på varje ansökan, från utkast till svar. Allt på ett ställe.",
+    "ledgerLede": "Sök bland alla aktiva annonser från Platsbanken, få ditt CV granskat och håll koll på varje ansökan, från utkast till svar. Allt på ett ställe.",
     "source": "Byggd på öppen data från Arbetsförmedlingen",
     "guest": "Utforska som gäst, utan konto"
   },
@@ -34,7 +34,7 @@
     },
     "matching": {
       "key": "Matchning",
-      "body": "Varje annons matchas mot din profil med en tydlig procent, så att du lägger tiden på rätt ansökningar."
+      "body": "Annonser som matchar din profil får en av fyra grader, från Grundmatch till Toppmatch. Du ser vilka krav du uppfyller och vilka som saknas."
     },
     "applications": {
       "key": "Ansökningar",
@@ -46,11 +46,11 @@
     },
     "companyWatch": {
       "key": "Företagsbevakning",
-      "body": "Följ arbetsgivare du vill till och få besked så fort de publicerar en ny annons."
+      "body": "Följ arbetsgivare du vill till och få besked om nya annonser i den takt du valt. En smart bevakning söker fram företag i en bransch och kommun att följa."
     },
     "reminders": {
       "key": "Påminnelser",
-      "body": "Intervjuer och sista ansökningsdag fångas automatiskt från dina ansökningar, så att du inte missar någon deadline."
+      "body": "Sista ansökningsdag för dina sparade annonser bevakas åt dig. Intervjuer, erbjudanden och uteblivna svar samlas som notiser på översikten."
     }
   },
   "auth": {
@@ -122,6 +122,6 @@
     "termsTitle": "Användarvillkor",
     "termsDescription": "Jobbliggarens användarvillkor. Fullständig text håller på att tas fram.",
     "homeTitle": "Hitta, sök och följ upp jobb",
-    "homeDescription": "Sök bland alla aktiva annonser från Platsbanken, skapa ditt CV och följ upp varje ansökan, från utkast till svar."
+    "homeDescription": "Sök bland alla aktiva annonser från Platsbanken, få ditt CV granskat och följ upp varje ansökan, från utkast till svar."
   }
 }

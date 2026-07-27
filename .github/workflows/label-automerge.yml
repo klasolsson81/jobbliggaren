@@ -54,6 +54,13 @@
 # Layer 2 (required status check `agent-review`) är Klas-ägd och stänger både det
 # och den manuella "Enable auto-merge"-knappen, som detta workflow inte når.
 #
+# TVÅ SKILDA VÄGRANSBETEENDEN, blanda inte ihop dem. (1) GitHub visar/tillåter inte
+# auto-merge på en PR som kan mergas DIREKT — det är vad `arm`s mergebarhets-case
+# hanterar. (2) CTO F7 mätte ett ANNAT rapporterat beteende (community #190610:
+# vägran att aktivera INNAN kraven är uppfyllda) och dömde det icke-bindande här,
+# scopat till rulesets/merge-queue. Att F7 avfärdades betyder alltså INTE att
+# case-blocket är onödigt.
+#
 # OBS: detta workflow har INGEN egen vuln-gate (till skillnad från
 # dependabot-automerge.yml) — dina egna PRs är medvetet kod du själv skrivit och
 # labelat; required `ci` är grinden. Ändrar du dependencies i en egen PR, väg
@@ -82,8 +89,13 @@ jobs:
       github.event.action == 'labeled' &&
       (github.event.label.name == 'automerge' || github.event.label.name == 'agents-done')
     timeout-minutes: 5
+    # EGEN grupp. En DELAD grupp med `disarm` hade varit fail-open: GitHub håller högst
+    # EN väntande run per grupp och avbryter den när en tredje köas — och den
+    # väntande är `disarm`. `cancel-in-progress: false` skyddar den KÖRANDE, inte den
+    # väntande. Korsordning är ofarlig numera: `arm` läser om labelmängden från
+    # API:t innan den mergar, så en återkallelse som hinner före syns där.
     concurrency:
-      group: automerge-${{ github.event.pull_request.number }}
+      group: automerge-arm-${{ github.event.pull_request.number }}
       cancel-in-progress: false
     steps:
       # Saknad label är en NO-OP med en synlig notis, aldrig ett skippat jobb.
@@ -130,19 +142,31 @@ jobs:
           # `UNKNOWN` betyder att GitHub inte räknat klart mergebarheten — den
           # beräknas lazily och är typiskt UNKNOWN strax efter en push. Vi väntar
           # in den och failar högljutt hellre än att gissa.
+          # LÄS OM LABELARNA FRÅN API:t, lita inte på event-payloaden (CTO V5(a)).
+          # Payloaden är en ögonblicksbild från när eventet skapades, och runnern
+          # startar 10–40 s senare. Under den luckan hinner en sen granskarrapport
+          # komma in med ett Blocker och sessionen göra precis det huvudet säger:
+          # ta bort `agents-done`. Läser vi payloaden ser vi fortfarande båda
+          # labelarna och mergar — och `--match-head-commit` räddar ingenting, för
+          # en återkallad label flyttar inte SHA:n. Det är #836:s incident
+          # återuppstådd GENOM kontrollen, och det är gratis att stänga: samma
+          # `gh pr view`-anrop hämtar labelmängden.
           for _ in 1 2 3 4 5; do
-            state=$(gh pr view "$PR_URL" --json mergeStateStatus --jq .mergeStateStatus)
+            data=$(gh pr view "$PR_URL" --json mergeStateStatus,labels)
+            state=$(echo "$data" | jq -r .mergeStateStatus)
             [ "$state" != "UNKNOWN" ] && break
             sleep 3
           done
-          # `--match-head-commit` binder mergen till DEN SHA eventet bar. Utan den
-          # kan `arm` och `disarm` (separata workflow-runs, ingen delad ordning)
-          # korsa varandra: sätt `agents-done`, pusha en fixup några sekunder
-          # senare, och hinner disarm:s avstängning före arm:s aktivering blir
-          # nettot ARMERAT med `agents-done` borttagen — ser grindat ut, är det
-          # inte, och inget framtida event avväpnar det. Med SHA-bindningen failar
-          # anropet högljutt i stället. Den stänger också TOCTOU-fönstret mellan
-          # tillståndsläsningen ovan och mergen nedan.
+          labels=$(echo "$data" | jq -r '.labels[].name')
+          if ! grep -qx 'automerge' <<<"$labels" || ! grep -qx 'agents-done' <<<"$labels"; then
+            echo "::notice::Grinden ändrades efter att eventet skapades — en label är borta. Armerar INTE. (#836)"
+            exit 0
+          fi
+          # `--match-head-commit` binder mergen till DEN SHA eventet bar, och
+          # täcker PUSH-axeln: hinner en fixup in mellan tillståndsläsningen och
+          # mergen failar anropet högljutt i stället för att merga en diff ingen
+          # granskat. Label-axeln täcks av omläsningen ovan — de två axlarna är
+          # olika och behöver var sin mekanism.
           case "$state" in
             CLEAN|UNSTABLE|HAS_HOOKS)
               echo "::notice::mergeStateStatus=$state — PR:en är mergebar nu, så auto-merge kan inte aktiveras. Mergar direkt; branch protection är fortfarande grinden."
@@ -164,8 +188,9 @@ jobs:
     timeout-minutes: 5
     # Två snabba `synchronize` (mätt: en PR fick två base-merges inom 7 minuter)
     # ger annars två parallella disarm-jobb och två identiska PR-kommentarer.
+    # EGEN grupp, skild från `arm`s — se motiveringen där.
     concurrency:
-      group: automerge-${{ github.event.pull_request.number }}
+      group: automerge-disarm-${{ github.event.pull_request.number }}
       cancel-in-progress: false
     # TVÅ vägar, båda måste finnas för att `agents-done` ska vara en fail-safe
     # symbol: den som GER tillstånd måste också kunna ÅTERKALLA det.
@@ -204,6 +229,15 @@ jobs:
       # saknas). Ingen guard behövs alltså för två samtidiga disarm-runs. En label
       # som inte finns i REPOT ger exit 1 — vilket är rätt, det vore en äkta
       # felkonfiguration.
+      - name: Säg till när en återkallad label avväpnade
+        if: github.event.action == 'unlabeled'
+        run: |
+          gh pr comment "$PR_URL" --body "**Auto-merge disabled** — \`${LABEL}\` was removed, which revokes the gate (#836). Set both labels again when the review gate is satisfied."
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          LABEL: ${{ github.event.label.name }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Ta bort agents-done (endast när en push bröt grinden)
         if: github.event.action == 'synchronize'
         run: gh pr edit "$PR_URL" --remove-label agents-done

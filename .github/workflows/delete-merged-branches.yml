@@ -124,17 +124,28 @@ env:
   # The page ceiling asked for below. A list that comes back exactly this long
   # may have been truncated, and truncation is undetectable from content.
   #
-  # SIZED WITH HEADROOM, DELIBERATELY. This is the only number in this workflow
-  # that is a promise about the FUTURE rather than a dated measurement, so it is
-  # the one that can expire. At the 692 merged PRs measured 2026-07-27 and the
-  # 13-27 merges/day this repository sustains, a ceiling of 1000 would have been
-  # reached in roughly two to four weeks -- after which `assert-not-truncated`
-  # refuses every run and the sweep is permanently red until somebody raises it.
-  # Fail-closed and loud, so never dangerous; just useless, and useless on a
-  # schedule nobody is watching. 5000 buys years at the same rate. It costs no
-  # extra API calls: `gh` paginates against the real population, not against the
-  # ceiling.
-  PR_PAGE_LIMIT: 5000
+  # SIZED WITH HEADROOM, AND THE HEADROOM IS ARITHMETIC RATHER THAN A FEELING.
+  # This is the only number in this workflow that is a promise about the FUTURE
+  # rather than a dated measurement, so it is the one that can expire -- and when
+  # it does, `assert-not-truncated` refuses every run and the sweep goes
+  # permanently red on a schedule nobody is watching. Fail-closed and loud, so
+  # never dangerous; just useless, quietly.
+  #
+  # Measured 2026-07-27: 692 merged PRs, at the 13-27 merges/day this repository
+  # sustains. Headroom divided by that rate:
+  #
+  #     ceiling  1000 ->  11-24 days      (1.6-3.4 weeks)
+  #     ceiling  5000 -> 160-331 days     (5-11 months)
+  #     ceiling 20000 -> 715-1485 days    (2.0-4.1 years)
+  #
+  # 20000 it is. Two earlier drafts of this comment said "buys years" of 5000 and
+  # "well past a decade" of 20000; both were false against this same arithmetic,
+  # in the paragraph whose entire subject is a number going stale. The table is
+  # here so the next reader divides rather than believes.
+  #
+  # It costs no extra API calls: `gh` paginates against the real population, not
+  # against the ceiling -- 692 PRs is 7 requests whatever this says.
+  PR_PAGE_LIMIT: 20000
 
 jobs:
   sweep:
@@ -187,8 +198,9 @@ jobs:
       # open-PR guards for the PRs that fell off the end (fail-open). The
       # selector cannot detect either -- a short list is well-formed -- so the
       # assertion belongs here, at the only place that knows a ceiling was asked
-      # for. Measured 2026-07-27: 690 merged PRs against a ceiling of 1000, on a
-      # repository merging 13-27 PRs a day.
+      # for. The measurement and the ceiling arithmetic live in ONE place, the
+      # `env:` block above -- repeating them here is how one of the two copies
+      # ends up stale, which is the defect this file keeps finding in itself.
       - name: Fetch merged PRs, open PRs and existing branches
         id: fetch
         run: |
@@ -346,11 +358,17 @@ jobs:
       #
       # `!cancelled()` rather than `always()`: the state must be reported when the
       # delete step FAILED -- a deletion nobody verified is what this step exists
-      # to prevent -- but not when the job was CANCELLED. A timeout landing inside
-      # the loop leaves most of the list unattempted, and `always()` would then
-      # report every unattempted branch as "selected for deletion and still
-      # exists": a red alarm naming the wrong cause, and one that contradicts this
-      # file's own account of a half-finished run. Keyed on the delete step's own
+      # to prevent -- but not when the job was CANCELLED, where a half-attempted
+      # list would make `always()` report every unattempted branch as "selected
+      # for deletion and still exists": a red alarm naming the wrong cause.
+      #
+      # Whether a job-level `timeout-minutes` sets `cancelled()` is UNDOCUMENTED
+      # and NOT measured here -- GitHub documents `cancelled()` for the workflow,
+      # and says nothing about job timeouts. `!cancelled()` is therefore chosen as
+      # the stricter default rather than because that path is proven; on the
+      # manual-cancel path it is proven, and if the timeout path turns out not to
+      # set it, this is a no-op rather than a regression. Said plainly instead of
+      # letting a plausible mechanism read as a measured one. Keyed on the delete step's own
       # outcome rather than on a re-derivation of its condition, so the two cannot
       # drift apart.
       - name: Verify the refs are actually gone

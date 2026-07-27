@@ -21,8 +21,11 @@
 # inputs here are hand-built JSON/TSV, which is legitimate ONLY because each one
 # is a shape the real producer does emit -- `gh pr list --json ...` and
 # `jq '[.name,(.protected|tostring),.commit.sha]|@tsv'`. Where a fixture uses a
-# shape production CANNOT emit, it says so and names the actor; see
-# `unknownprot_unreachable`.
+# shape production CANNOT emit, it says so and names the measurement that proves
+# it unreachable, and asserts only that the read side degrades safely. Three
+# fixtures are in that class: `unknownprot_unreachable`, `both_unknown` and
+# `dotsegments`/`dotsingle`/`dotlead`. This list is part of the file's contract
+# -- a fixture that changes class must change it here too.
 #
 # Each case names the SHAPE it builds. The shapes are the argument: they are the
 # ways a branch can look on a repository that merges through an app, stacks pull
@@ -374,6 +377,14 @@ expect "a field-incomplete open-PR list decides nothing" '' 1
 run fields_missing_merged '[{"number":45}]' '[]' \
   "$(printf 'fix/parent\tfalse\t%s\n' "$SHA1")"
 expect "a field-incomplete merged-PR list decides nothing" '' 1
+
+# `number` specifically: it is the only field whose absence used to survive INTO
+# a delete verdict. The branch chosen was still correct, but the reason column
+# and the step summary read `merged-pr-#null`, so the log could not say which PR
+# authorised the deletion. Measured before the fix.
+run fields_missing_number '[{"headRefName":"fix/x","headRefOid":"'"$SHA1"'","headRepositoryOwner":{"login":"acme"},"headRepository":{"name":"widget"}}]'   '[]' "$(printf 'fix/x	false	%s
+' "$SHA1")"
+expect "a merged PR without a number decides nothing" '' 1
 
 # TRUNCATION IS UNDETECTABLE FROM CONTENT and the two directions are NOT
 # symmetric. A short merged.json degrades to `no-merged-pr` (safe); a short

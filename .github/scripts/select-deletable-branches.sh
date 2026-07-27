@@ -129,6 +129,13 @@
 #                      there, so the guard sits in the fixture-tested layer.
 #
 # WHAT IT DELIBERATELY DOES NOT DO (stated, not hidden):
+#   * It does not check that its input is a SINGLE JSON document. `jq -e` takes
+#     its exit code from the last document, so a stream would pass the type and
+#     field checks here and then be read in full. That case is refused UPSTREAM
+#     by `assert-not-truncated.sh`, which the workflow runs on both files before
+#     this script sees them. The strictness is therefore a property of the call
+#     ORDER, not of this file -- anyone invoking it without that assertion
+#     inherits the stream case.
 #   * It does not delete anything. It decides; the workflow deletes and then
 #     verifies the state afterwards. Keeping the decision pure is what makes it
 #     fixture-testable without a network or a repository.
@@ -208,12 +215,12 @@ jq -e 'type == "array"' "$OPEN_JSON" >/dev/null 2>&1 || fail "not a JSON array: 
 # checked too, because a guard that only covers the dangerous direction invites
 # the reader to assume the other one was considered and found safe -- which it
 # was, and saying so is cheaper than leaving it to be re-derived.
-jq -e 'all(.[]; has("baseRefName") and has("headRefName"))' "$OPEN_JSON" >/dev/null 2>&1 \
-  || fail "$OPEN_JSON lacks baseRefName/headRefName -- the open-PR guards cannot be built"
+jq -e 'all(.[]; has("number") and has("baseRefName") and has("headRefName"))' "$OPEN_JSON" >/dev/null 2>&1 \
+  || fail "$OPEN_JSON lacks number/baseRefName/headRefName -- the open-PR guards cannot be built"
 
-jq -e 'all(.[]; has("headRefName") and has("headRefOid") and has("headRepository") and has("headRepositoryOwner"))' \
+jq -e 'all(.[]; has("number") and has("headRefName") and has("headRefOid") and has("headRepository") and has("headRepositoryOwner"))' \
   "$MERGED_JSON" >/dev/null 2>&1 \
-  || fail "$MERGED_JSON is missing fields the predicate needs"
+  || fail "$MERGED_JSON is missing fields the predicate and the reason column need"
 
 # `<branch>\t<pr-number>\t<head-oid>` for merged PRs whose head repo is THIS
 # repository. `headRepositoryOwner` is null on a PR whose head repository has

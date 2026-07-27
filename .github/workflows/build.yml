@@ -257,11 +257,14 @@ jobs:
         run: pnpm test
 
   # Fixture-tester för de bash-skript i `.github/scripts/` som CI och
-  # merge-kontrollerna själva kör. Idag ett: `is-pure-base-merge.sh`, predikatet
-  # som avgör om en push får låta en PR:s granskningsgrind stå kvar armerad
-  # (#836). Jobbet är BLOCKERANDE (ligger i ci.needs) och det är hela poängen —
-  # otestad logik inuti en merge-kontroll är ett påstående som inte kan falla,
-  # vilket är precis den defektklass kontrollen finns för att stänga.
+  # merge-/hygien-kontrollerna själva kör. Idag två: `is-pure-base-merge.sh`,
+  # predikatet som avgör om en push får låta en PR:s granskningsgrind stå kvar
+  # armerad (#836), och `select-deletable-branches.sh`, predikatet som avgör
+  # vilka fjärr-grenar `delete-merged-branches.yml` får RADERA (#725). Jobbet är
+  # BLOCKERANDE (ligger i ci.needs) och det är hela poängen — otestad logik
+  # inuti en merge-kontroll är ett påstående som inte kan falla, vilket är precis
+  # den defektklass kontrollen finns för att stänga. Samma sak gäller ett
+  # destruktivt svep: skillnaden är bara att dess felutfall är oåterkalleligt.
   #
   # Inget toolchain-steg: bara bash + git, som redan finns på runnern. Mätt
   # 2026-07-27 på ubuntu-runner: hela jobbet 9 s, mot `coverage` som är kritisk
@@ -285,6 +288,9 @@ jobs:
 
       - name: is-pure-base-merge (fixturer)
         run: bash .github/scripts/is-pure-base-merge.test.sh
+
+      - name: select-deletable-branches (fixturer)
+        run: bash .github/scripts/select-deletable-branches.test.sh
 
   # ---------------------------------------------------------------------------
   # PERF-/SUPPLY-CHAIN-GOVERNANCE (ADR 0045 — observe-only Fas 1).

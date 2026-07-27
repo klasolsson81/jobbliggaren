@@ -1,0 +1,229 @@
+# Delete remote branches whose pull request has already merged (#725).
+#
+# THE BUG. `delete_branch_on_merge` is **true** on this repository and has been
+# throughout. It still does not fire, because the automatic deletion follows the
+# identity that performed the merge -- and since ADR 0065's automerge flow,
+# almost every merge here is performed by the `github-actions` app via
+# GITHUB_TOKEN (`label-automerge.yml`).
+#
+# Measured 2026-07-27 over the 60 most recently updated MERGED PRs, correlating
+# `HeadRefDeletedEvent` (actor + timestamp) against `mergedBy`:
+#
+#   * 37 of 37 deletion events have actor `klasolsson81`. NONE has
+#     `github-actions`.
+#   * The 5 PRs merged by `klasolsson81` (#1070, #1064, #1057, #1049, #1045)
+#     were deleted 1-2 s after the merge. 5 of 5. That is the setting working.
+#   * The 55 PRs merged by `github-actions` were never deleted by the merge.
+#     Minimum lag to any deletion: 57 s. 23 of them were still undeleted when
+#     this was written, and the rest cluster into hand sweeps -- five PRs share
+#     the second 2026-07-21T15:54:16Z, three share 16:42:56Z.
+#
+# WHY THIS IS A SCHEDULED SWEEP AND NOT A `pull_request: closed` HANDLER. That
+# is the obvious repair and it CANNOT WORK: events triggered by GITHUB_TOKEN do
+# not start new workflow runs (only `workflow_dispatch` and `repository_dispatch`
+# are exempt). The population that has the bug is exactly the population whose
+# events are suppressed, so an event-driven fix would be green, silent and
+# inert -- the worst failure shape available, since it reads as working.
+#
+# That was measured directly rather than inferred, on 2026-07-27, with a
+# counterfactual -- because an absent workflow run and a misconfigured workflow
+# look identical, and only the counterfactual separates them:
+#
+#   * Two identical throwaway PRs against the same scrap base, both carrying the
+#     same `pull_request: [closed]` workflow, merged 18 s apart.
+#   * #1107, merged by `github-actions` at 18:40:30Z -> NO run. Head branch
+#     survived. (A live reproduction of this issue, incidentally.)
+#   * #1108, merged by `klasolsson81` at 18:40:48Z -> run started 18:40:53Z, and
+#     the head branch was auto-deleted at 18:40:50Z, +2 s, by the setting.
+#
+# The same suppression is visible in this repository's own history without any
+# probe: `build.yml` runs on `push: branches: [main]`, and its five most recent
+# push-event runs carry head SHAs that are, one for one, the merge commits of
+# the five PRs Klas merged himself -- 9f4df643/#1070, 1f023aae/#1064,
+# 492fb825/#1057, fb30b0ff/#1049, 6129c80b/#1045, each run starting 2-3 s after
+# its merge. That is SHA equality, not a timestamp coincidence. Between
+# 9f4df643 and main at 2461276f there are 25 further commits, every one of them
+# merged by the app, and they produced ZERO push-event runs. (The count is
+# pinned to that tip because it grows; the ratio is the claim, not the integer.)
+# Same root cause, already recorded in memory as the reason CodeQL stopped
+# running on main.
+#
+# THE SYMMETRY THAT JUSTIFIES THE SHAPE: the event fires exactly where the
+# setting already works, and is suppressed exactly where the setting fails. A
+# `closed` handler would therefore have been dead weight across its entire
+# firing population. This is not a second-best -- it is the only mechanism whose
+# trigger survives the condition it exists to repair.
+#
+# `workflow_dispatch` is one of the two events exempt from the suppression, so
+# the manual path is guaranteed available -- that is what makes the window
+# ("eventually consistent") as narrow as any session wants it: babysit your PR
+# to merge (CLAUDE.md §6.5), then dispatch. Both events require this file to be
+# on the DEFAULT branch, which is why nothing here can be proven end-to-end
+# before it merges; see the PR body, which says so rather than letting a green
+# check read as proof.
+#
+# THE DELETION IS NOT DECIDED HERE. `.github/scripts/select-deletable-branches.sh`
+# decides, is fixture-tested (20 cases), and is gated by the blocking `scripts`
+# job in `ci` -- the precedent `is-pure-base-merge.sh` set in the same directory
+# (#836). This file fetches, hands over, deletes what it is told, and then
+# VERIFIES THE STATE rather than trusting an exit code. That split is what makes
+# the interesting logic testable without a network.
+#
+# A NOTE ON THE CONCURRENCY GROUP, because the neighbouring file argues the
+# opposite. `label-automerge.yml`'s `disarm` deliberately has NO group: each run
+# there is a statement about its own `before..after` span, so a cancelled run is
+# a span nobody reviewed, and the loss is unrecoverable. This job has no such
+# property. It recomputes the entire candidate set from current state on every
+# run, deletes nothing that a later run would not also delete, and is therefore
+# idempotent and monotone -- a cancelled run costs a day, not a guarantee. The
+# group is safe HERE for a reason that does not generalise; do not carry it back.
+name: delete-merged-branches
+
+on:
+  schedule:
+    # Daily, deliberately off the hour and clear of the existing crons
+    # (`25 3` ad scan, `20 3` background matching, 06:00 digests).
+    - cron: '40 4 * * *'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'List what would be deleted without deleting it'
+        type: choice
+        options: ['true', 'false']
+        default: 'true'
+
+# `contents: write` deletes refs; `pull-requests: read` enumerates the PRs the
+# predicate is built from. Nothing else.
+permissions:
+  contents: write
+  pull-requests: read
+
+concurrency:
+  group: delete-merged-branches
+  cancel-in-progress: false
+
+jobs:
+  sweep:
+    name: sweep merged head branches
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout (the selector script)
+        uses: actions/checkout@v7
+
+      # A scheduled run sends NO inputs, so `inputs.dry_run` is the EMPTY string
+      # there -- not `false`. A naive `inputs.dry_run != 'false'` would make the
+      # scheduled run a permanent no-op that reports green, which is the exact
+      # failure shape this whole file exists to avoid. The event name is
+      # therefore part of the condition, not an afterthought.
+      - name: Resolve mode (dry run only ever on manual dispatch)
+        id: mode
+        run: |
+          set -euo pipefail
+          if [ "$EVENT" = "workflow_dispatch" ] && [ "$INPUT" = "true" ]; then
+            echo "dry=true" >>"$GITHUB_OUTPUT"
+            echo "::notice::DRY RUN -- listing candidates, deleting nothing."
+          else
+            echo "dry=false" >>"$GITHUB_OUTPUT"
+          fi
+        env:
+          EVENT: ${{ github.event_name }}
+          INPUT: ${{ inputs.dry_run }}
+
+      # Fail-loud on every fetch. A partial or failed fetch must never reach the
+      # selector as if it were an answer: an empty open-PR list would authorise
+      # deleting the base of every stacked PR in the repository. `set -e` plus
+      # `gh`'s non-zero exit on API failure is the whole guard, and the selector
+      # re-checks that each file is a JSON array as a second, independent net.
+      - name: Fetch merged PRs, open PRs and existing branches
+        run: |
+          set -euo pipefail
+          gh pr list --repo "$REPO" --state merged --limit 1000 \
+            --json number,headRefName,headRepositoryOwner >merged.json
+          gh pr list --repo "$REPO" --state open --limit 1000 \
+            --json number,headRefName,baseRefName >open.json
+          gh api "repos/$REPO/branches" --paginate \
+            --jq '.[] | [.name, (.protected|tostring)] | @tsv' >branches.tsv
+          echo "merged=$(jq length merged.json) open=$(jq length open.json) branches=$(wc -l <branches.tsv)"
+        env:
+          REPO: ${{ github.repository }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Decide which branches are deletable
+        id: select
+        run: |
+          set -euo pipefail
+          bash .github/scripts/select-deletable-branches.sh \
+            merged.json open.json branches.tsv "$DEFAULT_BRANCH" "$OWNER" >verdicts.tsv
+          {
+            echo "## Branch sweep"
+            echo
+            echo "| verdict | branch | reason |"
+            echo "|---|---|---|"
+            awk -F'\t' '{ printf "| %s | `%s` | %s |\n", $1, $2, $3 }' verdicts.tsv
+          } >>"$GITHUB_STEP_SUMMARY"
+          awk -F'\t' '$1 == "delete" { print $2 }' verdicts.tsv >to-delete.txt
+          awk -F'\t' '$1 == "skip"   { print $2 }' verdicts.tsv >to-skip.txt
+          n_delete=$(wc -l <to-delete.txt)
+          n_skip=$(wc -l <to-skip.txt)
+          echo "count=$n_delete" >>"$GITHUB_OUTPUT"
+          echo "::notice::$n_delete branch(es) selected for deletion, $n_skip skipped."
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          OWNER: ${{ github.repository_owner }}
+
+      - name: Delete (skipped on a dry run)
+        if: steps.mode.outputs.dry == 'false'
+        run: |
+          set -uo pipefail
+          # NO `set -e` around the loop, deliberately: one branch that refuses to
+          # go must not hide every branch after it. Failures are collected and
+          # the verdict is reached below, from STATE -- the same discipline
+          # `label-automerge.yml` applies to `--disable-auto`, and the reason
+          # `reference_exit_code_after_a_pipe_measures_the_pipe_not_the_tool`
+          # exists.
+          while IFS= read -r branch || [ -n "${branch:-}" ]; do
+            [ -n "${branch:-}" ] || continue
+            if gh api -X DELETE "repos/$REPO/git/refs/heads/$branch" >/dev/null 2>&1; then
+              echo "deleted: $branch"
+            else
+              echo "delete call failed (verified against state below): $branch"
+            fi
+          done <to-delete.txt
+        env:
+          REPO: ${{ github.repository }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # The verdict is the STATE AFTERWARDS, never the exit code above. A DELETE
+      # that returns 204 is not proof the ref is gone, and a DELETE that fails is
+      # not proof it survived -- somebody else may have deleted it a second
+      # earlier, which is success no matter who did it.
+      #
+      # Absence is established by RE-READING THE WHOLE BRANCH LIST, not by
+      # probing each ref. A per-ref 404 is byte-identical to a network error or
+      # an exhausted rate limit, so it would confirm absence using the very
+      # channel that just failed. One listing call either succeeds -- and then
+      # says authoritatively which branches exist -- or fails and takes the step
+      # red with it.
+      - name: Verify the refs are actually gone
+        if: steps.mode.outputs.dry == 'false'
+        run: |
+          set -euo pipefail
+          gh api "repos/$REPO/branches" --paginate --jq '.[].name' >after.txt
+          survivors=$(grep -Fxf to-delete.txt after.txt || true)
+          if [ -n "$survivors" ]; then
+            echo "::error::These branches were selected for deletion and still exist:"
+            echo "$survivors"
+            {
+              echo
+              echo "### Still present after deletion"
+              echo '```'
+              echo "$survivors"
+              echo '```'
+            } >>"$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+          echo "::notice::Verified: every selected branch is gone."
+        env:
+          REPO: ${{ github.repository }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

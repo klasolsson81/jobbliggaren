@@ -22,7 +22,7 @@ public class JobTechHitDeserializationTests
         // #841 — the ONE link in the wire→POCO→facet→column chain that had no test, and it is the link
         // that carries PII. The other six wire keys (occupation, occupation_group, workplace_address×2,
         // employment_type, working_hours_type) are pinned below; `employer.organization_number` never was,
-        // because until 2026-07-13 no C# code read it — Postgres derived organization_number straight out
+        // because before #841 no C# code read it — Postgres derived organization_number straight out
         // of the raw_payload JSON, so the wire key was only ever encoded in SQL.
         //
         // It is pinned now, and the stake is higher than for the other six: this column went from

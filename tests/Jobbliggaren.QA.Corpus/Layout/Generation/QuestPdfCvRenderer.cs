@@ -31,6 +31,20 @@ internal static class QuestPdfCvRenderer
     private const float SidebarWidthPoints = 150f;
     private const float PageMarginPoints = 40f;
 
+    /// <summary>
+    /// Word's documented default paragraph spacing (8 pt after a Normal paragraph). Used by the
+    /// two SPACED cases and by nothing else.
+    ///
+    /// <para><b>Why this number and not another (#1060 PR E).</b> Every other case in this file
+    /// authors NO vertical spacing whatsoever — measured 2026-07-27, all thirteen PDF cases emit
+    /// exactly one inter-baseline gap value (12.0 pt) across every page. That was invisible until
+    /// PR E needed it, and it made the corpus unable to distinguish "the extractor discards the
+    /// paragraph boundary" from "the document never had one". This value is taken from the word
+    /// processor most Swedish CVs are written in, NOT chosen by trying values until a downstream
+    /// rule fires; the rule that reads it must never appear in this file.</para>
+    /// </summary>
+    private const float WordDefaultParagraphSpacingPoints = 8f;
+
     /// <summary>The plainest possible chronological CV: one column, headings, blocks in document
     /// order. The point of this mechanic is its ORDINARINESS — if the entry collapse reproduces
     /// here, the defect is a property of the container, not of exotic layout.</summary>
@@ -44,6 +58,53 @@ internal static class QuestPdfCvRenderer
             Section(col, m.Headings.Skills, m.Skills);
             Section(col, m.Headings.Languages, m.Languages);
             Section(col, m.Headings.UnknownProjects, m.ProjectLines);
+        }));
+
+    /// <summary>
+    /// The same chronological CV as <see cref="SingleColumn"/>, authored the way a word processor
+    /// actually lays one out: as BLOCKS with paragraph spacing between them, not as a flat run of
+    /// equally-spaced lines. One-variable step from <c>pdf-single-column-sv</c> — same content,
+    /// same order, same single column; the only difference is that the vertical boundary between
+    /// two employments exists in the geometry.
+    ///
+    /// <para>The corpus needed this case and did not have it. Its thirteen sibling PDF cases carry
+    /// a single gap value end to end, so "zero blank lines" had two candidate causes — the
+    /// extractor call suppressing them and the generator never authoring any — and the fixture set
+    /// could only ever observe the pair. This case controls the second, which is what makes the
+    /// first measurable.</para>
+    /// </summary>
+    internal static byte[] SingleColumnSpaced(CvModel m) =>
+        Render(page => page.Content().Column(col =>
+        {
+            col.Spacing(WordDefaultParagraphSpacingPoints);
+            SpacedBody(col, m);
+        }));
+
+    /// <summary>
+    /// <see cref="SidebarEmittedFirst"/> with the same paragraph spacing as
+    /// <see cref="SingleColumnSpaced"/> — a one-variable step from <c>pdf-sidebar-emitted-first</c>.
+    ///
+    /// <para>This case exists to record a LIMIT, not a fix. The two-column shape is the one PR K
+    /// anchored to the real CV that filed #1060, and a reader who sees the spaced single-column
+    /// case improve will reasonably assume the spaced sidebar does too. It does not: the sidebar's
+    /// two columns share baselines with each other, so a geometry-derived boundary cannot be
+    /// correlated to the extractor's column-sequential line order at all. Carrying that as a
+    /// measured row rather than a sentence in a PR body is the whole point — prose is not
+    /// regenerated when the code changes.</para>
+    /// </summary>
+    internal static byte[] SidebarSpaced(CvModel m) =>
+        Render(page => page.Content().Row(row =>
+        {
+            row.ConstantItem(SidebarWidthPoints).Column(col =>
+            {
+                col.Spacing(WordDefaultParagraphSpacingPoints);
+                Block(col, SidebarBlocks(m));
+            });
+            row.RelativeItem().PaddingLeft(20).Column(col =>
+            {
+                col.Spacing(WordDefaultParagraphSpacingPoints);
+                SpacedBody(col, m, includeIdentity: false);
+            });
         }));
 
     /// <summary>Geometrically two-column, emitted column-sequentially: QuestPDF's
@@ -265,6 +326,71 @@ internal static class QuestPdfCvRenderer
             page.DefaultTextStyle(t => t.FontSize(10));
             build(page);
         })).GeneratePdf();
+
+    // ---- SPACED authoring (#1060 PR E) --------------------------------------------------
+    // The spaced cases differ from their unspaced twins in exactly one thing: lines are grouped
+    // into BLOCKS and the parent column spaces the blocks apart. Within a block the lines keep
+    // ordinary leading, so the gap that appears between two employments is the only new signal.
+    // These helpers are used ONLY by the spaced cases — every pre-existing case still renders
+    // through the unspaced helpers below and its bytes are unchanged.
+
+    /// <summary>One block: its lines at ordinary leading, spaced from its neighbours by the
+    /// parent column. An empty block renders nothing (no stray gap).</summary>
+    private static void Block(ColumnDescriptor col, IReadOnlyList<string> lines)
+    {
+        if (lines.Count == 0)
+            return;
+
+        col.Item().Column(block =>
+        {
+            foreach (var line in lines)
+                block.Item().Text(line);
+        });
+    }
+
+    private static void Block(ColumnDescriptor col, IReadOnlyList<IReadOnlyList<string>> blocks)
+    {
+        foreach (var block in blocks)
+            Block(col, block);
+    }
+
+    /// <summary>The spaced document body, in the same order <see cref="SingleColumn"/> emits it.
+    /// Each employment and each education is its OWN block — that is the boundary the case is
+    /// about. Headings are their own blocks, as a word processor's heading style produces.</summary>
+    private static void SpacedBody(ColumnDescriptor col, CvModel m, bool includeIdentity = true)
+    {
+        if (includeIdentity)
+            Block(col, [m.PersonName, m.Email, m.Phone, m.City]);
+
+        Block(col, [m.Headings.Profile]);
+        Block(col, m.ProfileLines);
+
+        Block(col, [m.Headings.Experience]);
+        foreach (var e in m.Employments)
+            Block(col, [$"{e.Role} - {e.Marker}", e.Period, e.Bullet]);
+
+        Block(col, [m.Headings.Education]);
+        foreach (var e in m.Educations)
+            Block(col, [$"{e.Degree} - {e.Marker}", e.Period]);
+
+        Block(col, [m.Headings.Skills]);
+        Block(col, m.Skills);
+        Block(col, [m.Headings.Languages]);
+        Block(col, m.Languages);
+        Block(col, [m.Headings.UnknownProjects]);
+        Block(col, m.ProjectLines);
+    }
+
+    /// <summary>The sidebar's blocks, mirroring <see cref="SidebarLines"/>'s content exactly so the
+    /// spaced and unspaced sidebar cases differ only in spacing.</summary>
+    private static List<IReadOnlyList<string>> SidebarBlocks(CvModel m) =>
+    [
+        [m.PersonName, m.Email, m.Phone, m.City],
+        [m.Headings.Skills],
+        m.Skills,
+        [m.Headings.Languages],
+        m.Languages,
+    ];
 
     private static void Identity(ColumnDescriptor col, CvModel m)
     {

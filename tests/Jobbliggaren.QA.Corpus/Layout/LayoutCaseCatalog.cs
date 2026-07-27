@@ -114,6 +114,44 @@ public static class LayoutCaseCatalog
             SpikeMeasuredExtractSegment: true,
             ProjectHeadingRendered: UnknownProjectHeading),
 
+        // #1060 PR E — the two SPACED cases. Every case above authors uniform leading, which made
+        // the corpus unable to separate "the extractor discards the paragraph boundary" from "the
+        // document never carried one". These two supply the missing control. They are declared
+        // here, and their PromotedLossy rows entered the baseline, BEFORE the rule that reads them
+        // existed — the ordering is the point (CTO-bind 2026-07-27 §A1.1).
+        new("pdf-single-column-spaced",
+            "single-column chronological, authored as blocks with paragraph spacing between them "
+            + "(the way a word processor lays a CV out)",
+            "(b) single-column chronological — the SPACED arm, which the class was missing",
+            "pdf", "cv.pdf", Pdf, QuestPdfCvRenderer.SingleColumnSpaced, CvModel.Swedish,
+            p =>
+            {
+                p.RequireNoVerticalGutter(15);
+                p.RequireAuthoredParagraphSpacing(minCount: 8, minExtraPoints: 6);
+            },
+            "no vertical gutter of 15 pt or more exists (still one column), AND at least eight "
+            + "inter-baseline gaps exceed the tightest by 6 pt or more (the authored block spacing)",
+            SpikeMeasuredExtractSegment: false,
+            OneVariableStepFrom: "pdf-single-column-sv",
+            ProjectHeadingRendered: UnknownProjectHeading),
+
+        new("pdf-sidebar-spaced",
+            "two geometric columns emitted column-sequentially, WITH paragraph spacing between "
+            + "blocks — the shape the real CV in #1060 was measured to have",
+            "(a) two-column/sidebar — the SPACED arm; carries a LIMIT, not a fix",
+            "pdf", "cv.pdf", Pdf, QuestPdfCvRenderer.SidebarSpaced, CvModel.Swedish,
+            p =>
+            {
+                p.RequireVerticalGutter(15);
+                p.RequireAuthoredParagraphSpacing(minCount: 8, minExtraPoints: 6);
+            },
+            "a vertical gutter of at least 15 pt exists (still two columns), AND at least eight "
+            + "inter-baseline gaps exceed the tightest by 6 pt or more — so any failure to recover "
+            + "entries here is NOT the document withholding the boundary",
+            SpikeMeasuredExtractSegment: false,
+            OneVariableStepFrom: "pdf-sidebar-emitted-first",
+            ProjectHeadingRendered: UnknownProjectHeading),
+
         new("pdf-single-column-en",
             "single-column chronological, English heading vocabulary (same renderer, same order)",
             "(e) English headings — answered as a RECOGNITION class, not a layout class",

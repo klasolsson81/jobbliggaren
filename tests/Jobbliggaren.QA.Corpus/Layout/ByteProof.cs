@@ -139,6 +139,73 @@ public sealed partial class ByteProofContext(string caseId, ReadOnlyMemory<byte>
             $"expected '{word}' in the top {topFraction:F2} of the text area (y >= {threshold:F0}), found it at y = {hit.Y:F0}"));
     }
 
+    /// <summary>
+    /// Proves the page carries AUTHORED paragraph spacing: at least <paramref name="minCount"/>
+    /// inter-baseline gaps exceed the page's tightest gap by at least
+    /// <paramref name="minExtraPoints"/> points. The tightest gap is ordinary leading, so the
+    /// excess is the space the author put between blocks.
+    ///
+    /// <para>This is the negation of what every pre-#1060 PDF case proves by omission, and it is
+    /// why it exists. Measured 2026-07-27: all thirteen of them emit exactly ONE gap value across
+    /// every page, so "zero blank lines in the extracted text" was consistent with two different
+    /// worlds — the extractor discarding a boundary, or the document never having one — and the
+    /// fixture set could not tell them apart. A spaced case that silently lost its spacing (a
+    /// renderer refactor, a QuestPDF upgrade changing how <c>Spacing</c> composes) would look
+    /// exactly like a working one: it would simply stop improving, and read as the mechanism
+    /// failing rather than the fixture rotting. This proof fails loudly instead.</para>
+    ///
+    /// <para>Deliberately NOT the production rule. The extractor's boundary cut is a median plus
+    /// half a median line height; this reads the tightest gap and a flat point excess. Two
+    /// independent statements about the same bytes — if this restated the cut, it would pass
+    /// whenever the cut passed and prove nothing about the document.</para>
+    /// </summary>
+    public void RequireAuthoredParagraphSpacing(int minCount, double minExtraPoints)
+    {
+        var gaps = InterBaselineGaps();
+        if (gaps.Count == 0)
+        {
+            Require(false, "expected authored paragraph spacing; the page carries fewer than two baselines");
+            return;
+        }
+
+        var tightest = gaps.Min();
+        var spaced = gaps.Count(g => g >= tightest + minExtraPoints);
+
+        Require(spaced >= minCount, Invariant(
+            $"expected at least {minCount} gaps exceeding the tightest ({tightest:F1} pt) by {minExtraPoints} pt or more, found {spaced}"));
+    }
+
+    /// <summary>Proves the page carries NO authored paragraph spacing — the exact negation of
+    /// <see cref="RequireAuthoredParagraphSpacing"/>, so a case cannot claim both.</summary>
+    public void RequireUniformLineSpacing(double tolerancePoints)
+    {
+        var gaps = InterBaselineGaps();
+        if (gaps.Count == 0)
+            return;
+
+        var spread = gaps.Max() - gaps.Min();
+        Require(spread <= tolerancePoints, Invariant(
+            $"expected uniform leading (spread at most {tolerancePoints} pt), found a spread of {spread:F1} pt"));
+    }
+
+    /// <summary>Gaps between consecutive text baselines on page 1, top to bottom. Baselines are
+    /// rounded to a tenth of a point so glyph-level jitter does not split one visual line in two.
+    /// </summary>
+    private List<double> InterBaselineGaps()
+    {
+        var baselines = PdfBlockAnchors()
+            .Select(a => Math.Round(a.Y, 1))
+            .Distinct()
+            .OrderByDescending(y => y)
+            .ToList();
+
+        var gaps = new List<double>();
+        for (var i = 1; i < baselines.Count; i++)
+            gaps.Add(baselines[i - 1] - baselines[i]);
+
+        return gaps;
+    }
+
     private double WidestGutter()
     {
         var anchors = PdfBlockAnchors();

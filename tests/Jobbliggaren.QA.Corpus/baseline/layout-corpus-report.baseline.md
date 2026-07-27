@@ -1,19 +1,25 @@
-<!--
-  COMMITTED BASELINE for the layout corpus (#1060 PR K).
+<!--
+  COMMITTED BASELINE for the layout corpus (#1060 PR K; rows 5 and 6 and the appendix
+  sections B and C added by PR E).
+
+  Why this file is tracked while the live artifact is not: PR K exists to establish the BASE that
+  PR E's delta is measured against (CTO R4 — "measure the base, then the delta"). A baseline that
+  lives only in a gitignored artifact and a PR body is not a baseline, because nobody can diff it.
+  This copy is tracked so `git diff` answers the question directly.
+
+  ENCODING: UTF-8, no BOM, CRLF. The PR K revision of this file was MIXED - the emitted core
+  was UTF-8 and the hand-written appendix was cp1252, leaving four bytes (0x97, 0xC5) that no
+  UTF-8 reader can decode and that render as mojibake on GitHub. PR E rewrote the whole file
+  as UTF-8 (CLAUDE.md 10 - UTF-8 everywhere). Append to it with a UTF-8 writer only.
 
-  Why this file is tracked while the live artifact is not: PR K exists to establish the BASE that
-  PR E's delta is measured against (CTO R4 — "measure the base, then the delta"). A baseline that
-  lives only in a gitignored artifact and a PR body is not a baseline, because nobody can diff it.
-  This copy is tracked so `git diff` answers the question directly.
-
-  It was NOT placed under docs/reviews/: that directory is gitignored (.gitignore:123) under the
-  ADR 0072 docs-privacy rule, so a file there could not be committed at all. The content here is
-  synthetic throughout — invented person, employers and schools — and carries no personnummer.
-
-  REGENERATE, then diff this file against the fresh artifact:
-    dotnet build tests/Jobbliggaren.QA.Corpus/Jobbliggaren.QA.Corpus.csproj
-    cd tests/Jobbliggaren.QA.Corpus/bin/Debug/net10.0
-    ./Jobbliggaren.QA.Corpus.exe -class "Jobbliggaren.QA.Corpus.LayoutCorpusReportTests"
+  It was NOT placed under docs/reviews/: that directory is gitignored (.gitignore:123) under the
+  ADR 0072 docs-privacy rule, so a file there could not be committed at all. The content here is
+  synthetic throughout — invented person, employers and schools — and carries no personnummer.
+
+  REGENERATE, then diff this file against the fresh artifact:
+    dotnet build tests/Jobbliggaren.QA.Corpus/Jobbliggaren.QA.Corpus.csproj
+    cd tests/Jobbliggaren.QA.Corpus/bin/Debug/net10.0
+    ./Jobbliggaren.QA.Corpus.exe -class "Jobbliggaren.QA.Corpus.LayoutCorpusReportTests"
     diff tests/Jobbliggaren.QA.Corpus/{baseline/layout-corpus-report.baseline.md,artifacts/layout-corpus-report.md}
 # Jobbliggaren — CV layout corpus, from bytes (#1060 PR K)
 
@@ -59,7 +65,7 @@ What this run is NOT, stated up front rather than left for a reader to discover:
 
 ## 0. Instrument integrity
 
-- **byte proofs held:** `pdf-sidebar-emitted-first`, `pdf-interleaved-baseline-fusion`, `pdf-zero-xgap-concat`, `pdf-single-column-sv`, `pdf-single-column-en`, `pdf-nonsequential-decorative`, `pdf-headingless`, `pdf-unknown-heading-after-profile`, `pdf-known-heading-after-profile`, `pdf-decorated-heading-glue`, `pdf-two-page-seam`, `pdf-pnr-bearing`, `pdf-clean-body-pnr-in-account-name`, `docx-table-label-first-no-blanks`, `docx-flat-label-first-no-blanks`, `docx-table-label-first-with-blanks`, `docx-role-first-with-blanks`
+- **byte proofs held:** `pdf-sidebar-emitted-first`, `pdf-interleaved-baseline-fusion`, `pdf-zero-xgap-concat`, `pdf-single-column-sv`, `pdf-single-column-spaced`, `pdf-sidebar-spaced`, `pdf-single-column-en`, `pdf-nonsequential-decorative`, `pdf-headingless`, `pdf-unknown-heading-after-profile`, `pdf-known-heading-after-profile`, `pdf-decorated-heading-glue`, `pdf-two-page-seam`, `pdf-pnr-bearing`, `pdf-clean-body-pnr-in-account-name`, `docx-table-label-first-no-blanks`, `docx-flat-label-first-no-blanks`, `docx-table-label-first-with-blanks`, `docx-role-first-with-blanks`
 - **byte proofs FAILED:** none
 - **crashed:** none
 - **fixture invalid:** none
@@ -79,19 +85,21 @@ literal "no" on every row forever, which is a decoration rather than a measureme
 | 2 | `pdf-interleaved-baseline-fusion` | (a) two-column/sidebar — the only shape whose two-column-ness the extractor makes visible | pdf | — | yes | at least 8 baselines carry words from both columns |
 | 3 | `pdf-zero-xgap-concat` | (a) two-column/sidebar — the negative-x-gap defect the CTO named as known-remaining | pdf | — | yes | a word fuses two cells (a digit immediately followed by a letter) |
 | 4 | `pdf-single-column-sv` | (b) single-column chronological — answered | pdf | — | yes | no vertical gutter of 15 pt or more exists, so the page is not multi-column |
-| 5 | `pdf-single-column-en` | (e) English headings — answered as a RECOGNITION class, not a layout class | pdf | — | yes | no vertical gutter of 15 pt or more exists |
-| 6 | `pdf-nonsequential-decorative` | (d) Canva-style — answered PARTIALLY, as a mechanic; no vendor export was measured | pdf | — | yes | the identity block sits in the top quarter of the text area although it is emitted last |
-| 7 | `pdf-headingless` | (f) headingless — answered | pdf | — | yes | no vertical gutter of 15 pt or more exists |
-| 8 | `pdf-unknown-heading-after-profile` | pin P7 — position is load-bearing | pdf | — | yes | no vertical gutter of 15 pt or more exists |
-| 9 | `pdf-known-heading-after-profile` | pin P7 control | pdf | pdf-unknown-heading-after-profile | yes | no vertical gutter of 15 pt or more exists |
-| 10 | `pdf-decorated-heading-glue` | recognition axis — its falsifier is a SOURCE edit where P7's is a DATA edit | pdf | — | no | no vertical gutter of 15 pt or more exists |
-| 11 | `pdf-two-page-seam` | extraction axis — covers PdfPigOpenXmlCvTextExtractor.cs:118, half the cited defect | pdf | — | no | the document has exactly 2 physical pages |
-| 12 | `pdf-pnr-bearing` | gate axis — a personnummer in the CV BODY, which blocks at the parse-level rung | pdf | — | no | no vertical gutter of 15 pt or more exists |
-| 13 | `pdf-clean-body-pnr-in-account-name` | gate axis — the only route to the DQ6 rung on the composed DTO | pdf | pdf-single-column-sv | no | no vertical gutter of 15 pt or more exists |
-| 14 | `docx-table-label-first-no-blanks` | (c) table-based Word template — answered as a CONTAINER fact; table-ness is invisible | docx | — | yes | the package contains a w:tbl and no self-closing w:p |
-| 15 | `docx-flat-label-first-no-blanks` | (c) table-based Word template — the twin that proves table-ness is invisible | docx | docx-table-label-first-no-blanks | no | the package contains no w:tbl |
-| 16 | `docx-table-label-first-with-blanks` | (c) table-based Word template — one-variable step | docx | docx-table-label-first-no-blanks | no | blank paragraphs use Word's <w:p><w:pPr /></w:p> form, never the self-closing <w:p /> |
-| 17 | `docx-role-first-with-blanks` | (c) table-based Word template — the arm that exonerates the segmenter | docx | docx-table-label-first-with-blanks | yes | blank paragraphs use Word's <w:p><w:pPr /></w:p> form |
+| 5 | `pdf-single-column-spaced` | (b) single-column chronological — the SPACED arm, which the class was missing | pdf | pdf-single-column-sv | no | no vertical gutter of 15 pt or more exists (still one column), AND at least eight inter-baseline gaps exceed the tightest by 6 pt or more (the authored block spacing) |
+| 6 | `pdf-sidebar-spaced` | (a) two-column/sidebar — the SPACED arm; carries a LIMIT, not a fix | pdf | pdf-sidebar-emitted-first | no | a vertical gutter of at least 15 pt exists (still two columns), AND at least eight inter-baseline gaps exceed the tightest by 6 pt or more — so any failure to recover entries here is NOT the document withholding the boundary |
+| 7 | `pdf-single-column-en` | (e) English headings — answered as a RECOGNITION class, not a layout class | pdf | — | yes | no vertical gutter of 15 pt or more exists |
+| 8 | `pdf-nonsequential-decorative` | (d) Canva-style — answered PARTIALLY, as a mechanic; no vendor export was measured | pdf | — | yes | the identity block sits in the top quarter of the text area although it is emitted last |
+| 9 | `pdf-headingless` | (f) headingless — answered | pdf | — | yes | no vertical gutter of 15 pt or more exists |
+| 10 | `pdf-unknown-heading-after-profile` | pin P7 — position is load-bearing | pdf | — | yes | no vertical gutter of 15 pt or more exists |
+| 11 | `pdf-known-heading-after-profile` | pin P7 control | pdf | pdf-unknown-heading-after-profile | yes | no vertical gutter of 15 pt or more exists |
+| 12 | `pdf-decorated-heading-glue` | recognition axis — its falsifier is a SOURCE edit where P7's is a DATA edit | pdf | — | no | no vertical gutter of 15 pt or more exists |
+| 13 | `pdf-two-page-seam` | extraction axis — covers PdfPigOpenXmlCvTextExtractor.cs:118, half the cited defect | pdf | — | no | the document has exactly 2 physical pages |
+| 14 | `pdf-pnr-bearing` | gate axis — a personnummer in the CV BODY, which blocks at the parse-level rung | pdf | — | no | no vertical gutter of 15 pt or more exists |
+| 15 | `pdf-clean-body-pnr-in-account-name` | gate axis — the only route to the DQ6 rung on the composed DTO | pdf | pdf-single-column-sv | no | no vertical gutter of 15 pt or more exists |
+| 16 | `docx-table-label-first-no-blanks` | (c) table-based Word template — answered as a CONTAINER fact; table-ness is invisible | docx | — | yes | the package contains a w:tbl and no self-closing w:p |
+| 17 | `docx-flat-label-first-no-blanks` | (c) table-based Word template — the twin that proves table-ness is invisible | docx | docx-table-label-first-no-blanks | no | the package contains no w:tbl |
+| 18 | `docx-table-label-first-with-blanks` | (c) table-based Word template — one-variable step | docx | docx-table-label-first-no-blanks | no | blank paragraphs use Word's <w:p><w:pPr /></w:p> form, never the self-closing <w:p /> |
+| 19 | `docx-role-first-with-blanks` | (c) table-based Word template — the arm that exonerates the segmenter | docx | docx-table-label-first-with-blanks | yes | blank paragraphs use Word's <w:p><w:pPr /></w:p> form |
 
 **Mechanics**
 
@@ -99,6 +107,8 @@ literal "no" on every row forever, which is a decoration rather than a measureme
 - `pdf-interleaved-baseline-fusion` — row-interleaved two-column generator: sidebar and main cells share every baseline
 - `pdf-zero-xgap-concat` — right-aligned period cell abutting a left-aligned company cell, zero padding
 - `pdf-single-column-sv` — single-column chronological, blocks in document order
+- `pdf-single-column-spaced` — single-column chronological, authored as blocks with paragraph spacing between them (the way a word processor lays a CV out)
+- `pdf-sidebar-spaced` — two geometric columns emitted column-sequentially, WITH paragraph spacing between blocks — the shape the real CV in #1060 was measured to have
 - `pdf-single-column-en` — single-column chronological, English heading vocabulary (same renderer, same order)
 - `pdf-nonsequential-decorative` — decorative layered page: watermark text in the stream, identity block emitted LAST while positioned at the page top
 - `pdf-headingless` — no headings at all — the HONEST-FAILURE control
@@ -121,19 +131,21 @@ literal "no" on every row forever, which is a decoration rather than a measureme
 | 2 | `pdf-interleaved-baseline-fusion` | **Blocked** | 5 | 0 | — | — | 3 | 1 | — | UnclassifiedPreamble |
 | 3 | `pdf-zero-xgap-concat` | **PromotedLossy** | 5 | 1 | 1 | 1 | 3 | 1 | 1 | — |
 | 4 | `pdf-single-column-sv` | **PromotedLossy** | 5 | 1 | 1 | 1 | 3 | 1 | 1 | — |
-| 5 | `pdf-single-column-en` | **PromotedLossy** | 5 | 1 | 1 | 1 | 3 | 1 | 1 | — |
-| 6 | `pdf-nonsequential-decorative` | **Blocked** | 5 | 1 | — | — | 3 | 1 | — | UnclassifiedPreamble |
-| 7 | `pdf-headingless` | **Blocked** | 5 | 0 | — | — | 3 | 0 | — | UnclassifiedPreamble |
-| 8 | `pdf-unknown-heading-after-profile` | **PromotedLossy** | 5 | 1 | 1 | 1 | 3 | 1 | 1 | — |
-| 9 | `pdf-known-heading-after-profile` | **PromotedLossy** | 5 | 1 | 1 | 1 | 3 | 1 | 1 | — |
-| 10 | `pdf-decorated-heading-glue` | **PromotedLossy** | 5 | 0 | 0 | 0 | 3 | 1 | 1 | — |
-| 11 | `pdf-two-page-seam` | **PromotedLossy** | 5 | 1 | 1 | 1 | 3 | 1 | 1 | — |
-| 12 | `pdf-pnr-bearing` | **Blocked** | 5 | 1 | — | — | 3 | 1 | — | PersonnummerPresent |
-| 13 | `pdf-clean-body-pnr-in-account-name` | **Blocked** | 5 | 1 | — | — | 3 | 1 | — | PersonnummerPresent |
-| 14 | `docx-table-label-first-no-blanks` | **Blocked** | 5 | 1 | — | — | 3 | 1 | — | IncompleteContent |
-| 15 | `docx-flat-label-first-no-blanks` | **Blocked** | 5 | 1 | — | — | 3 | 1 | — | IncompleteContent |
-| 16 | `docx-table-label-first-with-blanks` | **Blocked** | 5 | 5 | — | — | 3 | 3 | — | IncompleteContent |
-| 17 | `docx-role-first-with-blanks` | **PromotedFaithful** | 5 | 5 | 5 | 5 | 3 | 3 | 3 | — |
+| 5 | `pdf-single-column-spaced` | **PromotedLossy** | 5 | 1 | 1 | 1 | 3 | 1 | 1 | — |
+| 6 | `pdf-sidebar-spaced` | **PromotedLossy** | 5 | 1 | 1 | 1 | 3 | 1 | 1 | — |
+| 7 | `pdf-single-column-en` | **PromotedLossy** | 5 | 1 | 1 | 1 | 3 | 1 | 1 | — |
+| 8 | `pdf-nonsequential-decorative` | **Blocked** | 5 | 1 | — | — | 3 | 1 | — | UnclassifiedPreamble |
+| 9 | `pdf-headingless` | **Blocked** | 5 | 0 | — | — | 3 | 0 | — | UnclassifiedPreamble |
+| 10 | `pdf-unknown-heading-after-profile` | **PromotedLossy** | 5 | 1 | 1 | 1 | 3 | 1 | 1 | — |
+| 11 | `pdf-known-heading-after-profile` | **PromotedLossy** | 5 | 1 | 1 | 1 | 3 | 1 | 1 | — |
+| 12 | `pdf-decorated-heading-glue` | **PromotedLossy** | 5 | 0 | 0 | 0 | 3 | 1 | 1 | — |
+| 13 | `pdf-two-page-seam` | **PromotedLossy** | 5 | 1 | 1 | 1 | 3 | 1 | 1 | — |
+| 14 | `pdf-pnr-bearing` | **Blocked** | 5 | 1 | — | — | 3 | 1 | — | PersonnummerPresent |
+| 15 | `pdf-clean-body-pnr-in-account-name` | **Blocked** | 5 | 1 | — | — | 3 | 1 | — | PersonnummerPresent |
+| 16 | `docx-table-label-first-no-blanks` | **Blocked** | 5 | 1 | — | — | 3 | 1 | — | IncompleteContent |
+| 17 | `docx-flat-label-first-no-blanks` | **Blocked** | 5 | 1 | — | — | 3 | 1 | — | IncompleteContent |
+| 18 | `docx-table-label-first-with-blanks` | **Blocked** | 5 | 5 | — | — | 3 | 3 | — | IncompleteContent |
+| 19 | `docx-role-first-with-blanks` | **PromotedFaithful** | 5 | 5 | 5 | 5 | 3 | 3 | 3 | — |
 
 ## 3. Marker trace
 
@@ -175,6 +187,22 @@ row is the finding: the product said the CV was saved and this employment is gon
 | `pdf-single-column-sv` | Education | Chalmers tekniska högskola | yes | yes | yes | — | **Survived** |
 | `pdf-single-column-sv` | Education | Göteborgs universitet | yes | yes | no | — | **RetainedButOrphaned** |
 | `pdf-single-column-sv` | Education | Hvitfeldtska gymnasiet | yes | yes | no | — | **RetainedButOrphaned** |
+| `pdf-single-column-spaced` | Employment | Klarna AB | yes | yes | yes | — | **Survived** |
+| `pdf-single-column-spaced` | Employment | Volvo Cars | yes | yes | no | — | **RetainedButOrphaned** |
+| `pdf-single-column-spaced` | Employment | Västra Götalandsregionen | yes | yes | no | — | **RetainedButOrphaned** |
+| `pdf-single-column-spaced` | Employment | Consid AB | yes | yes | no | — | **RetainedButOrphaned** |
+| `pdf-single-column-spaced` | Employment | Sigma IT | yes | yes | no | — | **RetainedButOrphaned** |
+| `pdf-single-column-spaced` | Education | Chalmers tekniska högskola | yes | yes | yes | — | **Survived** |
+| `pdf-single-column-spaced` | Education | Göteborgs universitet | yes | yes | no | — | **RetainedButOrphaned** |
+| `pdf-single-column-spaced` | Education | Hvitfeldtska gymnasiet | yes | yes | no | — | **RetainedButOrphaned** |
+| `pdf-sidebar-spaced` | Employment | Klarna AB | yes | yes | yes | — | **Survived** |
+| `pdf-sidebar-spaced` | Employment | Volvo Cars | yes | yes | no | — | **RetainedButOrphaned** |
+| `pdf-sidebar-spaced` | Employment | Västra Götalandsregionen | yes | yes | no | — | **RetainedButOrphaned** |
+| `pdf-sidebar-spaced` | Employment | Consid AB | yes | yes | no | — | **RetainedButOrphaned** |
+| `pdf-sidebar-spaced` | Employment | Sigma IT | yes | yes | no | — | **RetainedButOrphaned** |
+| `pdf-sidebar-spaced` | Education | Chalmers tekniska högskola | yes | yes | yes | — | **Survived** |
+| `pdf-sidebar-spaced` | Education | Göteborgs universitet | yes | yes | no | — | **RetainedButOrphaned** |
+| `pdf-sidebar-spaced` | Education | Hvitfeldtska gymnasiet | yes | yes | no | — | **RetainedButOrphaned** |
 | `pdf-single-column-en` | Employment | Klarna AB | yes | yes | yes | — | **Survived** |
 | `pdf-single-column-en` | Employment | Volvo Cars | yes | yes | no | — | **RetainedButOrphaned** |
 | `pdf-single-column-en` | Employment | Region Vastra Gotaland | yes | yes | no | — | **RetainedButOrphaned** |
@@ -288,19 +316,21 @@ row is the finding: the product said the CV was saved and this employment is gon
 | 2 | `pdf-interleaved-baseline-fusion` | yes | Extracted | 1269 | 28 | **0** | yes | Sv | 1 | 1055 chars |
 | 3 | `pdf-zero-xgap-concat` | yes | Extracted | 844 | 22 | **0** | yes | Sv | 2 | null |
 | 4 | `pdf-single-column-sv` | yes | Extracted | 1529 | 48 | **0** | yes | Sv | 5 | null |
-| 5 | `pdf-single-column-en` | yes | Extracted | 1557 | 48 | **0** | yes | En | 5 | null |
-| 6 | `pdf-nonsequential-decorative` | yes | Extracted | 1537 | 49 | **0** | yes | Sv | 5 | 7 chars |
-| 7 | `pdf-headingless` | yes | Extracted | 1112 | 26 | **0** | yes | Sv | 0 | 1047 chars |
-| 8 | `pdf-unknown-heading-after-profile` | yes | Extracted | 1529 | 48 | **0** | yes | Sv | 5 | null |
-| 9 | `pdf-known-heading-after-profile` | yes | Extracted | 1521 | 48 | **0** | yes | Sv | 6 | null |
-| 10 | `pdf-decorated-heading-glue` | yes | Extracted | 1225 | 40 | **0** | yes | Sv | 3 | null |
-| 11 | `pdf-two-page-seam` | yes | Extracted | 1223 | 40 | **0** | yes | Sv | 4 | null |
-| 12 | `pdf-pnr-bearing` | yes | Extracted | 1235 | 41 | **0** | yes | Sv | 4 | 11 chars |
-| 13 | `pdf-clean-body-pnr-in-account-name` | yes | Extracted | 1529 | 48 | **0** | yes | Sv | 5 | null |
-| 14 | `docx-table-label-first-no-blanks` | yes | Extracted | 1529 | 48 | **0** | yes | Sv | 5 | null |
-| 15 | `docx-flat-label-first-no-blanks` | yes | Extracted | 1529 | 48 | **0** | yes | Sv | 5 | null |
-| 16 | `docx-table-label-first-with-blanks` | yes | Extracted | 1543 | 62 | **14** | yes | Sv | 5 | null |
-| 17 | `docx-role-first-with-blanks` | yes | Extracted | 1543 | 62 | **14** | yes | Sv | 5 | null |
+| 5 | `pdf-single-column-spaced` | yes | Extracted | 1529 | 48 | **0** | yes | Sv | 5 | null |
+| 6 | `pdf-sidebar-spaced` | yes | Extracted | 1653 | 59 | **0** | yes | Sv | 5 | null |
+| 7 | `pdf-single-column-en` | yes | Extracted | 1557 | 48 | **0** | yes | En | 5 | null |
+| 8 | `pdf-nonsequential-decorative` | yes | Extracted | 1537 | 49 | **0** | yes | Sv | 5 | 7 chars |
+| 9 | `pdf-headingless` | yes | Extracted | 1112 | 26 | **0** | yes | Sv | 0 | 1047 chars |
+| 10 | `pdf-unknown-heading-after-profile` | yes | Extracted | 1529 | 48 | **0** | yes | Sv | 5 | null |
+| 11 | `pdf-known-heading-after-profile` | yes | Extracted | 1521 | 48 | **0** | yes | Sv | 6 | null |
+| 12 | `pdf-decorated-heading-glue` | yes | Extracted | 1225 | 40 | **0** | yes | Sv | 3 | null |
+| 13 | `pdf-two-page-seam` | yes | Extracted | 1223 | 40 | **0** | yes | Sv | 4 | null |
+| 14 | `pdf-pnr-bearing` | yes | Extracted | 1235 | 41 | **0** | yes | Sv | 4 | 11 chars |
+| 15 | `pdf-clean-body-pnr-in-account-name` | yes | Extracted | 1529 | 48 | **0** | yes | Sv | 5 | null |
+| 16 | `docx-table-label-first-no-blanks` | yes | Extracted | 1529 | 48 | **0** | yes | Sv | 5 | null |
+| 17 | `docx-flat-label-first-no-blanks` | yes | Extracted | 1529 | 48 | **0** | yes | Sv | 5 | null |
+| 18 | `docx-table-label-first-with-blanks` | yes | Extracted | 1543 | 62 | **14** | yes | Sv | 5 | null |
+| 19 | `docx-role-first-with-blanks` | yes | Extracted | 1543 | 62 | **14** | yes | Sv | 5 | null |
 
 ### 4b. Product-side observables
 
@@ -315,19 +345,21 @@ reader's inference, never an emitted ratio.
 | 2 | `pdf-interleaved-baseline-fusion` | `5921426B6D89` | no | yes | `Anna Andersson PROFIL` |
 | 3 | `pdf-zero-xgap-concat` | `4729D90AC94E` | yes | no | `Anna Andersson` |
 | 4 | `pdf-single-column-sv` | `05CD8018BF8A` | no | no | `Anna Andersson` |
-| 5 | `pdf-single-column-en` | `1EF60B042871` | no | no | `Anna Andersson` |
-| 6 | `pdf-nonsequential-decorative` | `B25148E1CC6B` | no | no | `CV 2026` |
-| 7 | `pdf-headingless` | `6AA911571D21` | no | no | `Anna Andersson` |
-| 8 | `pdf-unknown-heading-after-profile` | `4BA9EB7A1A94` | no | no | `Anna Andersson` |
-| 9 | `pdf-known-heading-after-profile` | `151E7C68EC39` | no | no | `Anna Andersson` |
-| 10 | `pdf-decorated-heading-glue` | `E8752B1B7FE7` | no | no | `Anna Andersson` |
-| 11 | `pdf-two-page-seam` | `58436A6451A4` | no | no | `Anna Andersson` |
-| 12 | `pdf-pnr-bearing` | `EBB3668C7BA1` | no | no | `Anna Andersson` |
-| 13 | `pdf-clean-body-pnr-in-account-name` | `05CD8018BF8A` | no | no | `Anna Andersson` |
-| 14 | `docx-table-label-first-no-blanks` | `1F86611223AB` | no | no | `Anna Andersson` |
-| 15 | `docx-flat-label-first-no-blanks` | `1F86611223AB` | no | no | `Anna Andersson` |
-| 16 | `docx-table-label-first-with-blanks` | `DCF6058705F8` | no | no | `Anna Andersson` |
-| 17 | `docx-role-first-with-blanks` | `9858965A707E` | no | no | `Anna Andersson` |
+| 5 | `pdf-single-column-spaced` | `05CD8018BF8A` | no | no | `Anna Andersson` |
+| 6 | `pdf-sidebar-spaced` | `F4AE38C36604` | no | no | `Anna Andersson` |
+| 7 | `pdf-single-column-en` | `1EF60B042871` | no | no | `Anna Andersson` |
+| 8 | `pdf-nonsequential-decorative` | `B25148E1CC6B` | no | no | `CV 2026` |
+| 9 | `pdf-headingless` | `6AA911571D21` | no | no | `Anna Andersson` |
+| 10 | `pdf-unknown-heading-after-profile` | `4BA9EB7A1A94` | no | no | `Anna Andersson` |
+| 11 | `pdf-known-heading-after-profile` | `151E7C68EC39` | no | no | `Anna Andersson` |
+| 12 | `pdf-decorated-heading-glue` | `E8752B1B7FE7` | no | no | `Anna Andersson` |
+| 13 | `pdf-two-page-seam` | `58436A6451A4` | no | no | `Anna Andersson` |
+| 14 | `pdf-pnr-bearing` | `EBB3668C7BA1` | no | no | `Anna Andersson` |
+| 15 | `pdf-clean-body-pnr-in-account-name` | `05CD8018BF8A` | no | no | `Anna Andersson` |
+| 16 | `docx-table-label-first-no-blanks` | `1F86611223AB` | no | no | `Anna Andersson` |
+| 17 | `docx-flat-label-first-no-blanks` | `1F86611223AB` | no | no | `Anna Andersson` |
+| 18 | `docx-table-label-first-with-blanks` | `DCF6058705F8` | no | no | `Anna Andersson` |
+| 19 | `docx-role-first-with-blanks` | `9858965A707E` | no | no | `Anna Andersson` |
 
 **Twin comparisons** — the only honest sentence this corpus can emit about tables. The
 DOCX extractor handles `w:t` and `w:p` only, with no `w:tbl`/`w:tr`/`w:tc` handling, so a
@@ -335,6 +367,8 @@ table and a flat paragraph sequence in the same order should produce identical t
 ordering assertion would restate our own writer; equal digests are a fact about the
 extractor.
 
+- `pdf-single-column-spaced` vs `pdf-single-column-sv` — digests **EQUAL** (`05CD8018BF8A` / `05CD8018BF8A`)
+- `pdf-sidebar-spaced` vs `pdf-sidebar-emitted-first` — digests differ (`F4AE38C36604` / `F8D2FF82DFDE`)
 - `pdf-known-heading-after-profile` vs `pdf-unknown-heading-after-profile` — digests differ (`151E7C68EC39` / `4BA9EB7A1A94`)
 - `pdf-clean-body-pnr-in-account-name` vs `pdf-single-column-sv` — digests **EQUAL** (`05CD8018BF8A` / `05CD8018BF8A`)
 - `docx-flat-label-first-no-blanks` vs `docx-table-label-first-no-blanks` — digests **EQUAL** (`1F86611223AB` / `1F86611223AB`)
@@ -357,19 +391,21 @@ that is deliberately distinct from `not evaluated`, where an earlier GATE stoppe
 | 2 | `pdf-interleaved-baseline-fusion` | passed | **BLOCKED** | not evaluated | not evaluated | not evaluated | not evaluated | UnclassifiedPreamble | — | no |
 | 3 | `pdf-zero-xgap-concat` | passed | passed | passed | passed | passed | passed | — | — | yes |
 | 4 | `pdf-single-column-sv` | passed | passed | passed | passed | passed | passed | — | — | yes |
-| 5 | `pdf-single-column-en` | passed | passed | passed | passed | passed | passed | — | — | yes |
-| 6 | `pdf-nonsequential-decorative` | passed | **BLOCKED** | not evaluated | not evaluated | not evaluated | not evaluated | UnclassifiedPreamble | — | no |
-| 7 | `pdf-headingless` | passed | **BLOCKED** | not evaluated | not evaluated | not evaluated | not evaluated | UnclassifiedPreamble | — | no |
-| 8 | `pdf-unknown-heading-after-profile` | passed | passed | passed | passed | passed | passed | — | — | yes |
-| 9 | `pdf-known-heading-after-profile` | passed | passed | passed | passed | passed | passed | — | — | yes |
-| 10 | `pdf-decorated-heading-glue` | passed | passed | passed | passed | passed | passed | — | — | yes |
-| 11 | `pdf-two-page-seam` | passed | passed | passed | passed | passed | passed | — | — | yes |
-| 12 | `pdf-pnr-bearing` | **BLOCKED** | not evaluated | not evaluated | not evaluated | not evaluated | not evaluated | PersonnummerPresent | — | no |
-| 13 | `pdf-clean-body-pnr-in-account-name` | passed | passed | passed | passed | **BLOCKED** | not evaluated | PersonnummerPresent | — | no |
-| 14 | `docx-table-label-first-no-blanks` | passed | passed | passed | passed | passed | **BLOCKED** | IncompleteContent | — | no |
-| 15 | `docx-flat-label-first-no-blanks` | passed | passed | passed | passed | passed | **BLOCKED** | IncompleteContent | — | no |
-| 16 | `docx-table-label-first-with-blanks` | passed | passed | passed | passed | passed | **BLOCKED** | IncompleteContent | — | no |
-| 17 | `docx-role-first-with-blanks` | passed | passed | passed | passed | passed | passed | — | — | yes |
+| 5 | `pdf-single-column-spaced` | passed | passed | passed | passed | passed | passed | — | — | yes |
+| 6 | `pdf-sidebar-spaced` | passed | passed | passed | passed | passed | passed | — | — | yes |
+| 7 | `pdf-single-column-en` | passed | passed | passed | passed | passed | passed | — | — | yes |
+| 8 | `pdf-nonsequential-decorative` | passed | **BLOCKED** | not evaluated | not evaluated | not evaluated | not evaluated | UnclassifiedPreamble | — | no |
+| 9 | `pdf-headingless` | passed | **BLOCKED** | not evaluated | not evaluated | not evaluated | not evaluated | UnclassifiedPreamble | — | no |
+| 10 | `pdf-unknown-heading-after-profile` | passed | passed | passed | passed | passed | passed | — | — | yes |
+| 11 | `pdf-known-heading-after-profile` | passed | passed | passed | passed | passed | passed | — | — | yes |
+| 12 | `pdf-decorated-heading-glue` | passed | passed | passed | passed | passed | passed | — | — | yes |
+| 13 | `pdf-two-page-seam` | passed | passed | passed | passed | passed | passed | — | — | yes |
+| 14 | `pdf-pnr-bearing` | **BLOCKED** | not evaluated | not evaluated | not evaluated | not evaluated | not evaluated | PersonnummerPresent | — | no |
+| 15 | `pdf-clean-body-pnr-in-account-name` | passed | passed | passed | passed | **BLOCKED** | not evaluated | PersonnummerPresent | — | no |
+| 16 | `docx-table-label-first-no-blanks` | passed | passed | passed | passed | passed | **BLOCKED** | IncompleteContent | — | no |
+| 17 | `docx-flat-label-first-no-blanks` | passed | passed | passed | passed | passed | **BLOCKED** | IncompleteContent | — | no |
+| 18 | `docx-table-label-first-with-blanks` | passed | passed | passed | passed | passed | **BLOCKED** | IncompleteContent | — | no |
+| 19 | `docx-role-first-with-blanks` | passed | passed | passed | passed | passed | passed | — | — | yes |
 
 **Observed Domain state** (this is aggregate state, NOT a gate verdict). The personnummer
 column prints the AUTHORED declaration and the OBSERVED aggregate flag side by side: if
@@ -383,6 +419,8 @@ corpus measures. The value itself is never printed.
 | `pdf-interleaved-baseline-fusion` | Confident | yes | none | no |
 | `pdf-zero-xgap-concat` | Confident | no | none | no |
 | `pdf-single-column-sv` | Confident | no | none | no |
+| `pdf-single-column-spaced` | Confident | no | none | no |
+| `pdf-sidebar-spaced` | Confident | no | none | no |
 | `pdf-single-column-en` | Confident | no | none | no |
 | `pdf-nonsequential-decorative` | Degraded | yes | none | no |
 | `pdf-headingless` | Degraded | yes | none | no |
@@ -438,6 +476,24 @@ authored ground truth beside them. `Confident — heading matched, 1 entries` ne
 - `Education: Confident — heading 'utbildning' matched; 1 entries`
 - `Skills: Confident — heading 'tekniska kompetenser' matched; 7 entries`
 - `Languages: Confident — heading 'språk' matched; 8 entries`
+
+**`pdf-single-column-spaced`** — ground truth: 5 employments, 3 educations
+
+- `Contact: Confident — name extracted; email extracted; phone extracted`
+- `Profile: Confident — heading 'profil' matched; summary text present`
+- `Experience: Confident — heading 'arbetslivserfarenhet' matched; 1 entries`
+- `Education: Confident — heading 'utbildning' matched; 1 entries`
+- `Skills: Confident — heading 'tekniska kompetenser' matched; 7 entries`
+- `Languages: Confident — heading 'språk' matched; 8 entries`
+
+**`pdf-sidebar-spaced`** — ground truth: 5 employments, 3 educations
+
+- `Contact: Confident — name extracted; email extracted; phone extracted`
+- `Profile: Confident — heading 'profil' matched; summary text present`
+- `Experience: Confident — heading 'arbetslivserfarenhet' matched; 1 entries`
+- `Education: Confident — heading 'utbildning' matched; 1 entries`
+- `Skills: Confident — heading 'tekniska kompetenser' matched; 14 entries`
+- `Languages: Confident — heading 'språk' matched; 10 entries`
 
 **`pdf-single-column-en`** — ground truth: 5 employments, 3 educations
 
@@ -579,6 +635,21 @@ it never over-reports.
 | `pdf-single-column-sv` | Languages ← 'Turlistan - reseplanerare för kollektivtrafi…' (declared home: projects) |
 | `pdf-single-column-sv` | Languages ← 'Bokhyllan - katalogtjänst för folkbiblioteke…' (declared home: projects) |
 | `pdf-single-column-sv` | Skills ← '.NET' — a FRAGMENT of the authored project line 'Jobbliggaren - deterministisk CV-granskare i…' (the list parser atomised it) |
+| `pdf-single-column-spaced` | Languages ← 'PROJEKT (URVAL)' (declared home: projects) |
+| `pdf-single-column-spaced` | Languages ← 'Jobbliggaren - deterministisk CV-granskare i…' (declared home: projects) |
+| `pdf-single-column-spaced` | Languages ← 'Kartkollen - öppen data om kommunala beslut' — a FRAGMENT of the authored project line 'Kartkollen - öppen data om kommunala beslut,…' (the list parser atomised it) |
+| `pdf-single-column-spaced` | Languages ← 'byggd på PostGIS.' — a FRAGMENT of the authored project line 'Kartkollen - öppen data om kommunala beslut,…' (the list parser atomised it) |
+| `pdf-single-column-spaced` | Languages ← 'Turlistan - reseplanerare för kollektivtrafi…' (declared home: projects) |
+| `pdf-single-column-spaced` | Languages ← 'Bokhyllan - katalogtjänst för folkbiblioteke…' (declared home: projects) |
+| `pdf-single-column-spaced` | Skills ← '.NET' — a FRAGMENT of the authored project line 'Jobbliggaren - deterministisk CV-granskare i…' (the list parser atomised it) |
+| `pdf-sidebar-spaced` | Languages ← 'PROJEKT (URVAL)' (declared home: projects) |
+| `pdf-sidebar-spaced` | Languages ← 'Jobbliggaren - deterministisk CV-granskare i…' (declared home: projects) |
+| `pdf-sidebar-spaced` | Languages ← 'Kartkollen - öppen data om kommunala beslut' — a FRAGMENT of the authored project line 'Kartkollen - öppen data om kommunala beslut,…' (the list parser atomised it) |
+| `pdf-sidebar-spaced` | Languages ← 'byggd på PostGIS.' — a FRAGMENT of the authored project line 'Kartkollen - öppen data om kommunala beslut,…' (the list parser atomised it) |
+| `pdf-sidebar-spaced` | Languages ← 'Turlistan - reseplanerare för kollektivtrafi…' (declared home: projects) |
+| `pdf-sidebar-spaced` | Languages ← 'Bokhyllan - katalogtjänst för folkbiblioteke…' (declared home: projects) |
+| `pdf-sidebar-spaced` | Skills ← '.NET' — a FRAGMENT of the authored project line 'Jobbliggaren - deterministisk CV-granskare i…' (the list parser atomised it) |
+| `pdf-sidebar-spaced` | Skills ← '.NET' — a FRAGMENT of the authored project line 'Jobbliggaren - deterministisk CV-granskare i…' (the list parser atomised it) |
 | `pdf-single-column-en` | Languages ← 'SELECTED PROJECTS (SHORTLIST)' (declared home: projects) |
 | `pdf-single-column-en` | Languages ← 'Jobbliggaren - a deterministic CV reviewer i…' (declared home: projects) |
 | `pdf-single-column-en` | Languages ← 'Kartkollen - open data on municipal decision…' — a FRAGMENT of the authored project line 'Kartkollen - open data on municipal decision…' (the list parser atomised it) |
@@ -688,17 +759,14 @@ permitted to differ is the detected language.
   different artifact and a green build. This file helps only a reader who diffs it
   against the committed baseline. That is what observe-only means.
 
+## Appendix — measurements this suite deliberately does NOT reproduce
 
----
+Measured by throwaway session spikes over the same real extractor and segmenter, and recorded here
+because the numbers bear on PR E while reproducing them inside this suite would mean hand-copying
+the extractor's whole page-assembly loop — exactly the re-typed-production defect this corpus
+exists to avoid.
 
-## Appendix � measurements this suite deliberately does NOT reproduce
-
-Measured 2026-07-26 by a throwaway session spike over the same real extractor and segmenter, and
-recorded here because the numbers bear on PR E while reproducing them inside this suite would mean
-hand-copying the extractor's whole page-assembly loop � exactly the re-typed-production defect this
-corpus exists to avoid.
-
-**`ContentOrderTextExtractor.GetText(page, addDoubleNewline: true)` is not a fix.**
+### A. `addDoubleNewline: true` is not the fix (measured 2026-07-26, PR K)
 
 | Form | blank lines | parsed experience (ground truth 5) | parsed education | confidence |
 |---|---|---|---|---|
@@ -712,11 +780,68 @@ entries (header / bare period / bullet); one produced entry was literally
 `title=<null> org=<null> period="2021 - 2026"`. It replaces under-splitting (5 to 1) with
 over-splitting (5 to 15), and the confidence surface reports Confident in BOTH directions.
 
-This refutes the asymmetry argument PR E's bind rests on � that over-splitting yields a malformed
-entry which fails `ExperienceCompanyRequired` and therefore an honest `IncompleteContent` block.
-It did not. Any PR E must add a paragraph/entry-boundary heuristic ABOVE the extractor rather than
-flip this flag. Routed to the CTO as a re-bind input, not decided here.
+**CORRECTION (2026-07-27, PR E).** PR K's session read these numbers as refuting the asymmetry
+argument PR E's bind rested on — that over-splitting yields a malformed entry which fails
+`ExperienceCompanyRequired` and therefore an honest `IncompleteContent` block — and wrote here that
+"it did not" happen. **That reading was wrong, and this corpus contains its own counter-example.**
+`AutoPromoteContentMapper` never filters entries (its docblock says so), so a `title=<null>
+org=<null>` fragment projects as `Company: ""`; `Resume.ValidateContent` iterates experiences and
+returns on the FIRST blank Company. One malformed fragment out of fifteen fails the aggregate.
+Row 18 `docx-table-label-first-with-blanks` is the measured proof: correct counts (5 and 3) and
+still `Blocked` on `IncompleteContent`. The block does occur.
 
-**Position dependence of the unknown-heading pin.** `PROJEKT (URVAL)` lands in `Summary` only when
-it directly follows the profile block. After `UTBILDNING` it is swallowed into the last education
-entry's raw text; after `SPR�K` it lands in the Languages list. The fixture encodes the position.
+**What actually disqualifies the flag** is that it makes the block UNIVERSAL. Every PDF employment
+whose period sits on its own line yields such a fragment, so all eight rows that promote today
+would stop promoting — an honest block is the better outcome for ONE document, not a policy for a
+whole container format. The flag is also a LINE signal where `SplitEntries` needs a PARAGRAPH one.
+Both grounds are recorded in the PR E CTO bind; the numbers above are unchanged and still stand.
+
+### B. The corpus authored no paragraph spacing at all (measured 2026-07-27, PR E)
+
+Every PDF case that existed before PR E emits **exactly one inter-baseline gap value — 12.0 pt —
+on every page**, measured over the rendered bytes of all thirteen:
+
+```
+pdf-sidebar-emitted-first p1: gaps: 12    pdf-single-column-sv  p1: gaps: 12
+pdf-interleaved-baseline-fusion p1: 12    pdf-single-column-en  p1: gaps: 12
+pdf-zero-xgap-concat      p1: gaps: 12    pdf-headingless       p1: gaps: 12
+pdf-unknown-heading-after-profile: 12     pdf-known-heading-after-profile: 12
+pdf-decorated-heading-glue p1: gaps: 12   pdf-two-page-seam  p1/p2: gaps: 12
+pdf-pnr-bearing           p1: gaps: 12    pdf-clean-body-pnr-in-account-name: 12
+pdf-nonsequential-decorative p1: gaps: 12, 25, 53   (layered/offset, not paragraph spacing)
+```
+
+The cause is in the generator, not the extractor: `QuestPdfCvRenderer`'s `Identity`, `Section`,
+`Experience`/`EmploymentLines` and `Education` emitted every line as a bare `col.Item().Text(...)`
+with no padding and no column spacing anywhere.
+
+**Why this mattered.** "Zero blank lines in the extracted text" had two independent candidate
+causes — the extractor call suppressing a boundary, and the document never carrying one — and a
+fixture set with no spacing variation could only ever observe the pair. PR K controlled the first
+(the counterfactual in section A) and never the second. This is the same defect class PR K's own
+design named F6 and fixed on the DOCX arm with the blank/no-blank twins (rows 16 and 18); the PDF
+arm never received its twin. Rows 5 and 6 (`pdf-single-column-spaced`, `pdf-sidebar-spaced`) are
+that twin, added by PR E and entered into this baseline BEFORE the rule that reads them existed.
+
+### C. The boundary cut: two candidates, measured (2026-07-27, PR E)
+
+Over documents that DO carry authored spacing. Body pitch is the median inter-baseline gap; line
+height is the median line bounding-box height.
+
+| Document | median gap | median height | `gap + 0.5 x height` | `gap x 1.5` | authored boundaries |
+|---|---|---|---|---|---|
+| single-column, QuestPDF paddings 18/6/14 pt | 13.5 | 7.48 | **17.24** | 20.25 | body 13.4, entry 27.4, section 31.4 |
+| word-like, 1.35 line height, uniform 6 pt gaps | 14.9 | 8.10 | **18.95** | 22.35 | body 14.8, paragraph 20.8 |
+| uniform leading, nothing authored | 13.4 | 7.48 | 17.14 | 20.10 | body 13.4 only |
+
+The half-line rule catches every authored boundary in both spaced documents. **The 1.5x ratio rule
+catches none of the word-like ones** (20.8 < 22.35) — it is not merely less elegant, it is wrong on
+the most realistic document built. Uniform leading yields zero boundaries under both. This is why
+the shipped rule is `median gap + 0.5 x median line height` and not a bare multiple; a future reader
+tempted to "simplify" it to a ratio should read this row first.
+
+### D. Position dependence of the unknown-heading pin (measured 2026-07-26, PR K)
+
+`PROJEKT (URVAL)` lands in `Summary` only when it directly follows the profile block. After
+`UTBILDNING` it is swallowed into the last education entry's raw text; after `SPRÅK` it lands in
+the Languages list. The fixture encodes the position.

@@ -247,10 +247,15 @@ for authorization (use policies via `[Authorize(Policy = ...)]`).
     after actually waiting them in. Never the babysitter.
 
   `label-automerge.yml` arms auto-merge only when **both** are present; merge on
-  green `ci`; Klas reviews the diff **post-merge**. **A new push removes
-  `agents-done` and disables auto-merge** — the reviewers answered against a diff
-  that is no longer the one merging; wait them in against the new head and set it
-  again. Spec-edits to BUILD/CLAUDE/DESIGN no longer require pre-approval (§9.2) —
+  green `ci`; Klas reviews the diff **post-merge**. **A push that carries content
+  of its own removes `agents-done` and disables auto-merge** — the reviewers
+  answered against a diff that is no longer the one merging; wait them in against
+  the new head and set it again. **Bringing the branch up to base does not** —
+  `.github/scripts/is-pure-base-merge.sh` compares the pushed tree against the
+  tree an automatic merge would produce and leaves the gate alone when they are
+  identical, which is what `gh pr update-branch` produces. It is fail-closed:
+  every error and every shape it cannot vouch for disarms.
+  Spec-edits to BUILD/CLAUDE/DESIGN no longer require pre-approval (§9.2) —
   they ride the same flow. Exception (STOPP instead): an unresolved agent
   Blocker/Major, **or any §12 merge-blocking condition** (a §5 anti-pattern,
   Clean-Architecture boundary violation, non-BUILD.md library, design-token change
@@ -320,9 +325,9 @@ worktrees. The rules below keep parallel work collision-free; full playbook in
   `wip` so no other CC duplicates it (lighter coordination model, playbook §9 —
   soft lane affinity + claim signal, not hard per-CC ownership). A PR-babysitter
   runs via cloud `/schedule` on PR events (rebase + `automerge`); it **must never
-  set `agents-done`**, and **must not `update-branch` a PR that carries it** — that
-  push disarms the gate, and the update is the owning session's to make (§6). It
-  should also
+  set `agents-done`** — that label is the owning session's review gate. It needs no
+  rule about *when* to `update-branch`, and deliberately has none: a pure base merge
+  does not disarm the gate (§6). It should also
   `gh issue close` referenced issues (the automerge squash can drop the
   `Closes #N` keyword → the issue stays open; see playbook §8.1/§9). Side-track
   PRs you own are shepherded to green before new scope.
@@ -336,9 +341,9 @@ worktrees. The rules below keep parallel work collision-free; full playbook in
   deny-listed and 422s). **Since #836 the symptom has a SECOND cause:** a PR with
   `automerge` but no `agents-done` is armed-but-gated **by design** and is not
   stuck — it is waiting for the mandatory agents, and the fix is to wait them in,
-  not to rebase. Check which cause before acting, because **`update-branch` itself
-  disarms the gate** (a `synchronize` event removes `agents-done`), so reaching for
-  it on the wrong diagnosis costs a full review round. **And a THIRD cause since
+  not to rebase. Check which cause before acting; `update-branch` on the wrong
+  diagnosis no longer costs a review round, but it does not unstick a PR that was
+  never BEHIND. **And a THIRD cause since
   #836: the `arm` job itself failed** (head moved, `UNKNOWN` exhausted, or a real
   API error) — the PR carries both labels and was never armed. `label-automerge`
   is not a required check, so nothing surfaces it; read the job log before

@@ -38,9 +38,28 @@
 # versionera eller testa den, så en fix som vilar på dess beteende är en fix CC
 # inte kan skeppa.
 #
-# NY PUSH AVVÄPNAR. Ett `synchronize`-event tar bort `agents-done` och stänger av
-# auto-merge: granskarna svarade mot en diff som inte längre är den som mergas.
-# `automerge` lämnas kvar — avsikten har inte ändrats.
+# NY PUSH AVVÄPNAR — OM DEN BÄR EGET INNEHÅLL. Ett `synchronize`-event tar bort
+# `agents-done` och stänger av auto-merge: granskarna svarade mot en diff som inte
+# längre är den som mergas. `automerge` lämnas kvar — avsikten har inte ändrats.
+#
+# UNDANTAGET, och det enda: en REN BAS-MERGE. `main` har `strict: true`, så en PR
+# MÅSTE vara up-to-base för att kunna mergas, och varje syskon som landar gör den
+# BEHIND igen — med 2–4 samtidiga sessioner är det den vanligaste commit-formen på
+# en feature-gren. (Frekvensen är mätt och daterad i skriptets huvud, inte här —
+# se noten om siffror ovan.) Att avväpna på var och en av dem är inte en strängare
+# grind utan en grind som aldrig konvergerar, och en grind som aldrig mergar blir
+# inte lydd — den blir kringgången.
+# `.github/scripts/is-pure-base-merge.sh` skiljer de två fallen på den enda fråga
+# som avgör saken: är commitens träd exakt det en AUTOMATISK merge hade producerat?
+# Det är precis vad `gh pr update-branch` producerar (server-side auto-merge som
+# vägrar vid konflikt). Är det inte det — en handupplöst konflikt, en extra
+# redigering i merge-commiten, en omskriven historik — avväpnar den.
+#
+# Predikatet är FAIL-CLOSED: varje fel, varje ohanterat fall och varje osäkerhet
+# avväpnar. En bugg i skriptet degraderar därför till "avväpna alltid", vilket är
+# exakt beteendet före skriptet fanns. Det är hela skälet till att git-plumbing
+# får finnas i en merge-kontroll: plumbingen kan inte öppna grinden, bara låta bli
+# att smalna av den.
 #
 # ÅTERKALLAD LABEL AVVÄPNAR OCKSÅ. Tas `agents-done` (eller `automerge`) bort
 # stängs auto-merge av — den symbol som GER tillstånd måste också kunna ÅTERKALLA
@@ -210,8 +229,11 @@ jobs:
       cancel-in-progress: false
     # TVÅ vägar, båda måste finnas för att `agents-done` ska vara en fail-safe
     # symbol: den som GER tillstånd måste också kunna ÅTERKALLA det.
-    #   synchronize — ny commit ⇒ granskarna svarade mot en annan diff.
+    #   synchronize — ny commit ⇒ granskarna svarade mot en annan diff. Filtreras
+    #                 av predikatet nedan: en ren bas-merge ändrar ingen rad av
+    #                 författarens innehåll och avväpnar därför inte.
     #   unlabeled   — någon tog tillbaka en label ⇒ tillståndet är återkallat.
+    #                 Predikatet rör INTE den här vägen; den är ovillkorlig.
     # Utan `unlabeled` gör en borttagen `agents-done` ingenting: auto-merge är
     # redan aktiverat på PR-objektet och mergar på grön `ci` oavsett labelmängd.
     # Det scenariot är inte hypotetiskt — en granskare återkommer med en Blocker
@@ -223,7 +245,63 @@ jobs:
       (github.event.action == 'unlabeled' &&
        (github.event.label.name == 'agents-done' || github.event.label.name == 'automerge'))
     steps:
+      # Full historik: predikatet behöver merge-base och blobbarna för att kunna
+      # räkna ut vad en automatisk merge HADE gett. Mätt 2026-07-27: hela repot är
+      # 59,5 MiB / 1132 commits — sekunder, en gång per `synchronize`.
+      # `ref` pinnas till pushens nya head; default hade varit merge-refen, som är
+      # ett annat objekt än det predikatet ska bedöma.
+      - name: Checkout (full historik — endast för push-predikatet)
+        if: github.event.action == 'synchronize'
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.after }}
+
+      # `always()` gör att ett misslyckat checkout INTE hoppar över det här steget.
+      # Utan det hade en trasig checkout avbrutit jobbet före avväpningen — dvs.
+      # fail-OPEN via en infrastrukturmiss. Nu blir samma miss `predicate-error`,
+      # och `predicate-error` avväpnar.
+      - name: Bidrog pushen något eget, eller var den bara en bas-merge?
+        id: predicate
+        if: always() && github.event.action == 'synchronize'
+        run: |
+          # INGET `set -e` runt anropet, avsiktligt: ett rött steg hoppar över
+          # RESTEN av jobbet, och resten av jobbet ÄR avväpningen. Skriptet
+          # rapporterar via exit-kod + reason i stället, och allt utom exit 0
+          # betyder avväpna. Steget självt måste därför alltid sluta grönt.
+          set -uo pipefail
+          if reason=$(bash .github/scripts/is-pure-base-merge.sh "$BEFORE" "$AFTER" "origin/$BASE_REF"); then
+            pure=true
+          else
+            pure=false
+          fi
+          # Tom reason = skriptet hann aldrig säga något (saknad fil efter ett
+          # misslyckat checkout, dödad process). Namnge det hellre än att lämna
+          # en tom sträng i loggen.
+          [ -n "$reason" ] || reason=predicate-error
+          {
+            echo "pure=$pure"
+            echo "reason=$reason"
+          } >>"$GITHUB_OUTPUT"
+          if [ "$pure" = true ]; then
+            echo "::notice::Ren bas-merge ($reason) — ingen rad av författarens innehåll ändrades, så grinden står kvar armerad. Required \`ci\` körs om mot den nya headen. (#836)"
+            echo "Ren bas-merge (\`$reason\`) — grinden står kvar. \`agents-done\` orört." >>"$GITHUB_STEP_SUMMARY"
+          else
+            echo "::notice::Avväpnar — \`$reason\`. (#836)"
+            echo "Avväpnade — \`$reason\`." >>"$GITHUB_STEP_SUMMARY"
+          fi
+        env:
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.event.after }}
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+
       - name: Stäng av auto-merge
+        # `steps.predicate.outputs.pure != 'true'` är fail-closed i alla tre
+        # riktningar, och det är inte en slump: på `unlabeled`-vägen kördes steget
+        # aldrig, vid ett fel skrev det aldrig sin output, och vid en ren bas-merge
+        # skrev det `true`. Bara det sista fallet lämnar grinden stående — allt
+        # annat, inklusive varje sätt predikatet kan gå sönder på, avväpnar.
+        if: always() && steps.predicate.outputs.pure != 'true'
         # INGET `|| true`. `--disable-auto` felar när auto-merge aldrig var
         # aktiverat, men ett svalt fel här är fail-OPEN: varje annan orsak
         # (token, rate limit, nätverk) lämnar auto-merge på och PR:en mergar
@@ -255,7 +333,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Ta bort agents-done (endast när en push bröt grinden)
-        if: github.event.action == 'synchronize'
+        if: always() && github.event.action == 'synchronize' && steps.predicate.outputs.pure != 'true'
         run: gh pr edit "$PR_URL" --remove-label agents-done
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}
@@ -264,22 +342,23 @@ jobs:
       # `always()` så att en PR aldrig avväpnas tyst: failar label-borttagningen
       # ovan är det ÄNNU viktigare att tråden säger varför auto-merge stängdes av.
       - name: Förklara i PR:en varför den avväpnades
-        if: always() && github.event.action == 'synchronize'
+        if: always() && github.event.action == 'synchronize' && steps.predicate.outputs.pure != 'true'
         run: gh pr comment "$PR_URL" --body "$BODY"
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           BODY: |
-            **Auto-merge disabled and `agents-done` removed** — a new commit was
-            pushed after the review gate had cleared, so the reviewers' answers
-            apply to a diff that is no longer the one merging (#836).
+            **Auto-merge disabled and `agents-done` removed** — this push carries
+            content of its own, so the reviewers' answers apply to a diff that is
+            no longer the one merging (#836). Predicate verdict:
+            `${{ steps.predicate.outputs.reason }}`.
 
             Wait the mandatory agents in against the new head, then set
             `agents-done` again. `automerge` stays — the intent has not changed.
 
-            **Was this push from `gh pr update-branch`?** Then no line of the
-            author's code changed, only the base. The gate still resets, by
-            design: the reviewers answered against a different tree. It is also
-            why the babysitter must not `update-branch` a PR carrying
-            `agents-done` — that update belongs to the owning session
-            (playbook §8).
+            Bringing the branch up to base does **not** cost you a round:
+            `.github/scripts/is-pure-base-merge.sh` compares the pushed tree
+            against the tree an automatic merge of the same two commits would
+            produce, and leaves the gate alone when they are identical — which is
+            exactly what `gh pr update-branch` produces. A verdict other than
+            `pure-base-merge` means this push was not that.

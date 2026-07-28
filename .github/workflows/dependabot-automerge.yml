@@ -115,33 +115,57 @@ jobs:
       # Blockerande npm-gate. pnpm audit --audit-level=high returnerar exit != 0
       # vid High/Critical → jobbet failar → auto-merge aktiveras ej.
       #
-      # BASLINJE-SCOPAD SEDAN 2026-07-28, för att grinden annars inte kunde
-      # KONVERGERA. Den granskade hela trädet, inte diffen, och fällde därför PR:er
-      # som TAR BORT sårbarheter på grund av sårbarheter de inte infört. Mätt:
-      # PR #1042 (`next` 16.2.9 → 16.2.11) stod öppen i tre dygn med grön `ci` och
-      # detta jobb rött; den bumpen ensam stänger 18 av repots 28 Dependabot-alerts.
-      # Den fälldes av sex ANDRA paket — `tmp`, `brace-expansion`, `js-yaml`,
-      # `fast-uri`, `postcss`, `sharp` — som alla är TRANSITIVA och därför aldrig
-      # får egna Dependabot-PR:er. Deadlocken var total: ingenting kunde passera.
+      # BASELINE-SCOPED SINCE 2026-07-28, because the gate could not otherwise
+      # CONVERGE. It audited the whole tree rather than the diff, and so failed
+      # PRs that REMOVE vulnerabilities over vulnerabilities they did not
+      # introduce. Measured: PR #1042 (`next` 16.2.9 -> 16.2.11) sat open for
+      # three days with green `ci` and this job red; that bump alone closes 18 of
+      # the repo's 28 Dependabot alerts. It was failed by six OTHER packages —
+      # `tmp`, `brace-expansion`, `js-yaml`, `fast-uri`, `postcss`, `sharp` —
+      # every one of them TRANSITIVE and therefore never given its own Dependabot
+      # PR. The deadlock was total: nothing could pass.
       #
-      # Baslinjen ligger i `web/jobbliggaren-web/package.json` under
-      # `pnpm.auditConfig.ignoreGhsas`, en GHSA-lista. Formen är vald för att en
-      # accepterad risk ska vara SYNLIG och ATTRIBUERBAR: raden är en diff en
-      # människa godkänner, och `git blame` på den ÄR datumet och motiveringen.
-      # Kontrast: en sänkt tröskel (`--audit-level=critical`) hade dolt exakt samma
-      # acceptans utan att någonsin nämna vad som accepterades.
+      # The baseline lives in `web/jobbliggaren-web/package.json` under
+      # `pnpm.auditConfig.ignoreGhsas`, a GHSA list. The form is chosen so that an
+      # accepted risk is VISIBLE and ATTRIBUTABLE: the line is a diff a human
+      # approves, and `git blame` on it IS the date and the rationale. Contrast a
+      # lowered threshold (`--audit-level=critical`), which would have hidden the
+      # very same acceptance without ever naming what was accepted.
       #
-      # `next`s egna rådgivningar står MEDVETET INTE i listan — grinden ska
-      # fortfarande kunna fälla en next-regression. Mätt vid införandet: 11
-      # high/critical i trädet, 7 i baslinjen, 4 kvar (alla `next`), och med next
-      # bumpad går grinden till exit 0. Den kan alltså nå grönt igen, vilket var
-      # hela poängen.
+      # `next`'s own advisories are DELIBERATELY ABSENT from the list — the gate
+      # must still be able to fail a next regression.
       #
-      # REGISTRET ÄR INTE DEN HÄR FILEN. `auditConfig` filtrerar `pnpm audit`
-      # (och därmed även `audit (observe-only)` i `build.yml`), men GitHubs
-      # Dependabot-alerts är opåverkade — det är där de 28 räknas, och det är den
-      # siffran som ska gå mot noll. Den här listan ska krympa, inte växa; varje
-      # post som blir onödig ska bort.
+      # WHICH GHSA IS WHICH. JSON admits no comments, so the seven entries are
+      # bare strings there and this is the only place the mapping is written. It
+      # is load-bearing for the "this list must shrink" instruction below: without
+      # it, nobody can tell which line to delete when a package is finally fixed.
+      # Measured from `pnpm audit --json` on 2026-07-28, all seven transitive:
+      #   GHSA-3jxr-9vmj-r5cp  brace-expansion
+      #   GHSA-mh99-v99m-4gvg  brace-expansion
+      #   GHSA-52cp-r559-cp3m  js-yaml
+      #   GHSA-f88m-g3jw-g9cj  sharp
+      #   GHSA-ph9p-34f9-6g65  tmp
+      #   GHSA-r28c-9q8g-f849  postcss
+      #   GHSA-v2hh-gcrm-f6hx  fast-uri
+      #
+      # MEASURED ON pnpm 9.15.9 — what `pnpm/action-setup@v6` with `version: 9`
+      # resolves to — and NOT only on a local pnpm 10, because the entire risk was
+      # that `auditConfig` might be version-dependent and this change therefore a
+      # silent no-op on the runner. 9.15.9 and 10.28.2 gave byte-identical
+      # advisory sets:
+      #   - tree WITHOUT the baseline: 11 high/critical advisories
+      #   - tree WITH the baseline:     4, all of them `next`'s (gate still red)
+      #   - #1042's ACTUAL tree + baseline (next 16.2.11 resolved in node_modules):
+      #     0 high/critical, `pnpm audit --audit-level=high` exit 0
+      # `pnpm install --frozen-lockfile` stays exit 0 as well — `auditConfig` is
+      # not part of the lockfile, so the gate's own install step is unaffected.
+      # The gate can therefore reach green again, which was the whole point.
+      #
+      # THE REGISTER IS NOT THIS FILE. `auditConfig` filters `pnpm audit` (and
+      # thereby `audit (observe-only)` in `build.yml` too), but GitHub's Dependabot
+      # alerts are unaffected — that is where the 28 are counted, and that is the
+      # number that must go to zero. This list must shrink, not grow; every entry
+      # that becomes unnecessary is to be removed.
       - name: Install (pnpm, för audit)
         if: ${{ steps.gate.outputs.eligible == 'true' }}
         working-directory: web/jobbliggaren-web

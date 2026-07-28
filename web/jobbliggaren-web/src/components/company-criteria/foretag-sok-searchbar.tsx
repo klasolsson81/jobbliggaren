@@ -25,8 +25,13 @@ import {
   JobbFilterPopover,
   type PopoverGroup,
 } from "@/components/job-ads/jobb-filter-popover";
-import { BranschTypeahead, type BranschOption } from "./bransch-typeahead";
+import { BranschPopover } from "./bransch-popover";
 import { CompanyBrowseList } from "./company-browse-list";
+import {
+  buildSniNodes,
+  decomposeSelection,
+} from "@/lib/company-criteria/criterion-options";
+import { toggleGroup } from "@/lib/company-criteria/criterion-selection";
 import type { CriterionReference } from "@/lib/dto/company-criteria";
 
 /**
@@ -49,7 +54,7 @@ import type { CriterionReference } from "@/lib/dto/company-criteria";
  *
  * The invariant: a pnr-shaped 10-digit value can NEVER reach `?namn=` and NEVER POST — only a NON-10-digit
  * value takes the name branch. No-JS degrades to a native GET name search (`namn` + hidden `sni`/`kommun`
- * from the applied URL); the org.nr branch and the JS controls (typeahead, popover) require JS.
+ * from the applied URL); the org.nr branch and both filter popovers require JS.
  *
  * HYDRATION SPLIT (2026-07-26, the `/jobb` mirror — `jobb-hero-search.tsx:545-568`, `:641-643`).
  * Once hydrated the visible input is NAMELESS and a hidden input carries the APPLIED name (the
@@ -98,11 +103,12 @@ type OrgNrState =
   | { kind: "found"; result: NonNullable<OrgNrSearchResult> }
   | { kind: "notFound" };
 
-/** The single selected bransch draft: the display label + the SNI leaf codes the URL `sni` axis carries. */
-interface SelectedBranch {
-  readonly label: string;
-  readonly leafCodes: ReadonlyArray<string>;
-}
+/**
+ * Above this many bransch chips the row collapses to ONE summary chip, with the axis-wide removal as a
+ * labelled button beside it rather than as a × of its own. A broad pick — a whole SNI section is up to
+ * 24 divisions — otherwise produces a chip wall that eats the surface it is supposed to describe.
+ */
+const MAX_BRANSCH_CHIPS = 8;
 
 interface ForetagSokSearchbarProps {
   /** The SCB reference tree — the source of the bransch options + the ort cascade. Empty when degraded. */
@@ -116,65 +122,12 @@ interface ForetagSokSearchbarProps {
   readonly kommun: ReadonlyArray<string>;
 }
 
-/** Section + division + leaf names as searchable options, each carrying the leaf codes it expands to. */
-function buildBranschOptions(reference: CriterionReference): BranschOption[] {
-  const out: BranschOption[] = [];
-  for (const section of reference.sni) {
-    const sectionLeaves = section.divisions.flatMap((d) =>
-      d.leaves.map((l) => l.code),
-    );
-    if (sectionLeaves.length > 0) {
-      out.push({
-        key: `sec:${section.code}`,
-        label: section.name,
-        leafCodes: sectionLeaves,
-      });
-    }
-    for (const division of section.divisions) {
-      const divisionLeaves = division.leaves.map((l) => l.code);
-      if (divisionLeaves.length > 0) {
-        out.push({
-          key: `div:${division.code}`,
-          label: division.name,
-          leafCodes: divisionLeaves,
-        });
-      }
-      for (const leaf of division.leaves) {
-        out.push({
-          key: `leaf:${leaf.code}`,
-          label: leaf.name,
-          leafCodes: [leaf.code],
-        });
-      }
-    }
-  }
-  return out;
-}
-
 /** True when `list` and `set` hold exactly the same codes (order-independent). */
 function sameCodeSet(
   list: ReadonlyArray<string>,
   set: ReadonlySet<string>,
 ): boolean {
   return list.length === set.size && list.every((code) => set.has(code));
-}
-
-/**
- * Seed the bransch chip from the URL `sni` prop (CTO GO-point): find the option whose leaf-code set
- * equals the `sni` set; a clean match seeds that chip. If `sni` is non-empty but matches no single
- * option (an arbitrary/legacy link), a generic chip keeps the active filter visible + clearable rather
- * than silently swallowing it. Same-wave links are clean matches, so this is the rare fallback.
- */
-function seedBranch(
-  options: ReadonlyArray<BranschOption>,
-  sni: ReadonlyArray<string>,
-  genericLabel: string,
-): SelectedBranch | null {
-  if (sni.length === 0) return null;
-  const target = new Set(sni);
-  const match = options.find((o) => sameCodeSet(o.leafCodes, target));
-  if (match) return { label: match.label, leafCodes: match.leafCodes };
-  return { label: genericLabel, leafCodes: [...sni] };
 }
 
 export function ForetagSokSearchbar({
@@ -185,6 +138,9 @@ export function ForetagSokSearchbar({
   kommun,
 }: ForetagSokSearchbarProps) {
   const t = useTranslations("pages.foretag.sok");
+  // The bransch axis's own strings live one scope up, shared with the popover and the criterion
+  // dialog that render the same picker (#999).
+  const tc = useTranslations("pages.foretag.criteria");
   const router = useRouter();
   const hydrated = useSyncExternalStore(
     emptySubscribe,
@@ -194,8 +150,6 @@ export function ForetagSokSearchbar({
 
   const searchInputId = useId();
   const searchHintId = useId();
-  const branschInputId = useId();
-  const branschHintId = useId();
   const branschNoticeId = useId();
   const filterGroupId = useId();
   const orgNrLabelId = useId();
@@ -203,9 +157,10 @@ export function ForetagSokSearchbar({
   const abortRef = useRef<AbortController | null>(null);
   const resultRef = useRef<HTMLDivElement>(null);
   const ortBtnRef = useRef<HTMLButtonElement>(null);
+  const branschBtnRef = useRef<HTMLButtonElement>(null);
 
-  // Bransch options + lookups, derived client-side from the already-loaded reference (no fetch).
-  const branschOptions = useMemo(() => buildBranschOptions(reference), [reference]);
+  // Bransch tree + ort groups, derived client-side from the already-loaded reference (no fetch).
+  const sniNodes = useMemo(() => buildSniNodes(reference), [reference]);
   const lanGroups = useMemo<PopoverGroup[]>(
     () =>
       reference.lan.map((lan) => ({
@@ -222,13 +177,18 @@ export function ForetagSokSearchbar({
     return map;
   }, [reference]);
 
-  // The whole draft: the field value, the single bransch, and the orter — one island, seeded from the URL.
+  // The whole draft: the field value, the bransch leaf codes, and the orter — one island, seeded from
+  // the URL. `sniSelected` seeds by construction rather than by lookup: the URL axis IS the leaf set,
+  // which is why the old `seedBranch` (find the ONE option whose expansion equals `sni`, else a generic
+  // "Vald bransch" chip) has no successor. Multi-select removed the need for the guess, not just the
+  // fallback — the chips are derived from the set instead (`branschChips`).
   const [value, setValue] = useState(namn);
-  const [branch, setBranch] = useState<SelectedBranch | null>(() =>
-    seedBranch(branschOptions, sni, t("branschGeneric")),
+  const [sniSelected, setSniSelected] = useState<ReadonlySet<string>>(
+    () => new Set(sni),
   );
   const [orter, setOrter] = useState<string[]>(() => [...kommun]);
   const [ortOpen, setOrtOpen] = useState(false);
+  const [branschOpen, setBranschOpen] = useState(false);
   const [state, setState] = useState<OrgNrState>({ kind: "idle" });
   const [isNavPending, startNavTransition] = useTransition();
 
@@ -246,11 +206,12 @@ export function ForetagSokSearchbar({
    * the applied signature actually changing, so it can never clobber what the user is typing: a
    * filter commit that does not change `namn` leaves `value` alone.
    *
-   * Two limits worth knowing rather than discovering. (1) Characters typed DURING an in-flight
-   * navigation are overwritten when it commits — the window is the navigation itself (~0.9s
-   * measured), and the alternative (not re-seeding) is the bug this fixes. (2) `reference` is not in
-   * the signature: if it arrives after mount, a chip seeded from `sni` stays generic until the next
-   * applied change. Both are narrower than what they replace.
+   * One limit worth knowing rather than discovering: characters typed DURING an in-flight navigation
+   * are overwritten when it commits — the window is the navigation itself (~0.9s measured), and the
+   * alternative (not re-seeding) is the bug this fixes. (The second limit this comment used to carry —
+   * a chip stuck on the generic label when `reference` arrives after mount — went away with
+   * `seedBranch`: the chips are now derived from the reference during render, so a late reference
+   * simply renders correct labels on the next paint.)
    *
    * The signature mirrors `page.tsx`'s `suspenseKey` by hand. If a fourth shareable axis is ever
    * added, BOTH have to learn it — they are the same knowledge in two places, and that is the known
@@ -261,7 +222,7 @@ export function ForetagSokSearchbar({
   if (seededFrom !== appliedSignature) {
     setSeededFrom(appliedSignature);
     setValue(namn);
-    setBranch(seedBranch(branschOptions, sni, t("branschGeneric")));
+    setSniSelected(new Set(sni));
     setOrter([...kommun]);
     // The org.nr answer is client-only state and is NOT in the signature, so it would otherwise
     // survive a re-seed: search, search, look up an org.nr, press Back, and a stale company row sits
@@ -286,10 +247,48 @@ export function ForetagSokSearchbar({
   const draftDiffersFromApplied =
     !isOrgNrValue &&
     (value.trim() !== namn ||
-      !sameCodeSet(branch?.leafCodes ?? [], appliedSni) ||
+      !sameCodeSet([...sniSelected], appliedSni) ||
       !sameCodeSet(orter, appliedKommun));
 
-  const hasFilter = branch !== null || orter.length > 0;
+  // The FEWEST nodes that describe the selected leaf set: a whole section reads as one chip named after
+  // the section, not as its 24 divisions. Derived, never stored — the Set is the only truth.
+  const branschChips = useMemo(
+    () => decomposeSelection(sniNodes, sniSelected),
+    [sniNodes, sniSelected],
+  );
+
+  /**
+   * When the bransch axis cannot be shown as individual chips. Two causes, one shape:
+   *
+   * 1. Too many to read. A section pick decomposes to one chip, but a hand-assembled selection can
+   *    decompose to dozens, and a chip wall eats the surface it exists to describe.
+   * 2. **No decomposition exists at all.** With `referenceOk === false` the page passes
+   *    `EMPTY_REFERENCE`, so `sniNodes` is empty and nothing can be named — while `page.tsx` also
+   *    passes NO allowlist to `normalizeCodes`, so the whole applied `sni` axis survives into the
+   *    island. The filter is applied to the streamed results below. Before this branch existed the
+   *    row rendered an empty `<ul>`: an active, invisible, unremovable filter, which is the exact
+   *    defect this component's own docblock says it closed ("the results below kept answering a
+   *    search the controls no longer showed"). `seedBranch`'s generic chip used to cover it, and
+   *    deleting `seedBranch` deleted the cover with it.
+   *
+   * The two cases count different things and say so: case 1 knows what was picked (nodes), case 2
+   * only knows how many codes are applied.
+   */
+  const branschSummary =
+    sniSelected.size > 0 &&
+    (branschChips.length === 0 || branschChips.length > MAX_BRANSCH_CHIPS);
+  const branschSummaryLabel = branschSummary
+    ? branschChips.length === 0
+      ? // The degraded case cannot name anything, so it counts the one thing it knows: codes. Its own
+        // key because the unit differs — reusing the shared one would say "branches" about codes.
+        t("branschSummaryCodes", { count: sniSelected.size })
+      : // The SAME key the popover header uses. It is the same sentence about the same axis, and
+        // writing it twice is how the panel and the chips drifted into two numbers to begin with.
+        tc("sniSelectedCount", { count: branschChips.length })
+    : null;
+  const branschChipCount = branschSummary ? 1 : branschChips.length;
+
+  const hasFilter = sniSelected.size > 0 || orter.length > 0;
   const hasOrgNrResult = state.kind !== "idle";
   // The clear control's gate is the WHOLE search, not just the filter axes: gated on `hasFilter` alone
   // (as it was), a pure name search — the most common one — had no clear path at all (finding 6).
@@ -363,7 +362,7 @@ export function ForetagSokSearchbar({
       router.push(
         buildForetagSokHref({
           namn: value.trim(),
-          sni: branch ? [...branch.leafCodes] : [],
+          sni: [...sniSelected],
           kommun: [...orter],
         }),
       );
@@ -379,7 +378,7 @@ export function ForetagSokSearchbar({
   function onClearSearch() {
     abortRef.current?.abort();
     setValue("");
-    setBranch(null);
+    setSniSelected(new Set());
     setOrter([]);
     setState({ kind: "idle" });
     startNavTransition(() => {
@@ -453,7 +452,7 @@ export function ForetagSokSearchbar({
         ))}
       </form>
 
-      {/* Row 2 — bransch (single-select typeahead) + ort (multi-select cascade popover), side by side,
+      {/* Row 2 — bransch (SNI tree popover) + ort (cascade popover), both multi-select, side by side,
           behind a hairline and a caption. The two interaction models on this surface differ — the name
           is SUBMITTED, these narrow an ongoing browse — and after the live review the fix was to DRAW
           that difference (a group with its own caption) rather than explain it in more hint prose,
@@ -478,26 +477,25 @@ export function ForetagSokSearchbar({
         </span>
         <div className="mt-3 grid gap-4 md:grid-cols-2">
           <div className="jp-field">
-            <label htmlFor={branschInputId} className="jp-label">
-              {t("branschLabel")}
-            </label>
-            <BranschTypeahead
-              id={branschInputId}
-              options={branschOptions}
-              onSelect={(option) =>
-                setBranch({ label: option.label, leafCodes: option.leafCodes })
-              }
+            {/* Same label-in-name treatment as the ort trigger below, and for the same reason: a
+                <label htmlFor> pointed at a BUTTON becomes that button's accessible name and
+                overrides its visible text (WCAG 2.5.3). The heading is a plain span; the button names
+                itself. The former `branschHint` ("Skriv och välj en bransch.") is GONE — it described
+                a typeahead that no longer exists, and "Välj bransch" says the rest (finding 9). */}
+            <span className="jp-label">{t("branschLabel")}</span>
+            <button
+              ref={branschBtnRef}
+              type="button"
+              className="jp-input flex cursor-pointer items-center justify-between gap-2 text-left"
+              aria-haspopup="dialog"
+              aria-expanded={branschOpen}
+              aria-describedby={referenceOk ? undefined : branschNoticeId}
               disabled={!referenceOk}
-              ariaDescribedBy={
-                referenceOk ? branschHintId : `${branschHintId} ${branschNoticeId}`
-              }
-            />
-            {/* Kept for now — unlike `ortHint`, this one is still load-bearing: the control is a
-                typeahead whose affordance is not self-evident. It goes when PR 5 replaces the
-                typeahead with a self-naming "Välj bransch"-trigger (#999). */}
-            <span id={branschHintId} className="jp-hint">
-              {t("branschHint")}
-            </span>
+              onClick={() => setBranschOpen((o) => !o)}
+            >
+              {t("branschTrigger")}
+              <ChevronDown size={16} aria-hidden="true" />
+            </button>
             {!referenceOk && (
               <p
                 id={branschNoticeId}
@@ -531,6 +529,20 @@ export function ForetagSokSearchbar({
         </div>
       </div>
 
+      {/* The bransch picker (#999). Same `toggleGroup` semantics as the criterion dialog: a node's
+          leaf codes go in as a group, so picking a section selects its whole expansion and the state
+          stays a flat leaf Set at every level. No `key`-remount: unlike the ort cascade there is no
+          active-column to reset, and remounting would throw away the filter text mid-use. */}
+      <BranschPopover
+        open={branschOpen}
+        onClose={() => setBranschOpen(false)}
+        triggerRef={branschBtnRef}
+        nodes={sniNodes}
+        selected={sniSelected}
+        onToggle={(codes) => setSniSelected((prev) => toggleGroup(prev, codes))}
+        onClear={() => setSniSelected(new Set())}
+      />
+
       {/* The ort cascade. Degenerate single-axis case (our URL contract has only a `kommun` axis, no
           `lan`): groupAxis is OMITTED, so "Hela {län}" materialises the län's kommun codes into
           `selected`. `counts={null}` — no facet counts (Klas locked FOCUSED). key-remount on open resets
@@ -558,24 +570,59 @@ export function ForetagSokSearchbar({
           there being chips — see `showClear`. */}
       {showClear && (
         <div className="flex flex-wrap items-center gap-3">
-          {hasFilter && (
-            <ul className="jp-chiplist">
-              {branch && (
+          {/* Never an empty list: a `<ul>` with no `<li>` is announced as "list, 0 items". */}
+          {branschChipCount + orter.length > 0 && (
+            // `items-center`: `.jp-chiplist` declares no `align-items`, so a 44px button inside one
+            // `<li>` would stretch the row and leave the ort chips hanging at the top edge.
+            <ul className="jp-chiplist items-center">
+              {branschSummary ? (
                 <li>
-                  <span className="jp-chip jp-chip--removable">
-                    <span className="jp-chip__label" title={branch.label}>
-                      {branch.label}
+                  {/* The summary REPORTS; it does not delete. A `jp-chip__remove` × here would be
+                      pixel-identical to the ones the user just learned remove ONE thing, while
+                      dropping the whole draft — possibly 800 codes, with no undo. The removal is a
+                      sibling with VISIBLE text, and it is a full `.jp-btn` (44px) rather than a
+                      `.jp-clearlink`: that class is 13px caption text, smaller than the chips' own ×
+                      at either of its two sizes (24px, and 32px at and below 768px). It stays inside this
+                      `<li>` so it sits beside the chip it belongs to, not after the ort chips. */}
+                  <span className="flex items-center gap-2">
+                    <span className="jp-chip">
+                      <span className="jp-chip__label">{branschSummaryLabel}</span>
                     </span>
                     <button
                       type="button"
-                      className="jp-chip__remove"
-                      aria-label={t("branschRemove")}
-                      onClick={() => setBranch(null)}
+                      className="jp-btn jp-btn--ghost"
+                      onClick={() => setSniSelected(new Set())}
                     >
-                      <X size={14} aria-hidden="true" />
+                      {t("branschRemoveAll")}
                     </button>
                   </span>
                 </li>
+              ) : (
+                branschChips.map((chip) => (
+                  <li key={chip.key}>
+                    <span className="jp-chip jp-chip--removable">
+                      <span className="jp-chip__label" title={chip.name}>
+                        {chip.name}
+                      </span>
+                      <button
+                        type="button"
+                        className="jp-chip__remove"
+                        // Names the branch, not the axis: "Ta bort bransch" × 5 is unusable in a
+                        // screen reader, and `ortRemove` beside it already carries the name.
+                        aria-label={t("branschRemove", { namn: chip.name })}
+                        onClick={() =>
+                          setSniSelected((prev) => {
+                            const next = new Set(prev);
+                            for (const code of chip.leafCodes) next.delete(code);
+                            return next;
+                          })
+                        }
+                      >
+                        <X size={14} aria-hidden="true" />
+                      </button>
+                    </span>
+                  </li>
+                ))
               )}
               {orter.map((code) => {
                 const name = kommunNameByCode.get(code) ?? code;

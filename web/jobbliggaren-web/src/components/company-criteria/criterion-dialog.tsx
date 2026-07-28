@@ -16,7 +16,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { CriterionPicker } from "./criterion-picker";
-import type { CriterionTreeNode } from "./criterion-tree";
+import {
+  buildKommunNodes,
+  buildSniNodes,
+  decomposeSelection,
+  flattenCriterionOptions,
+} from "@/lib/company-criteria/criterion-options";
 import { toggleGroup } from "@/lib/company-criteria/criterion-selection";
 import { formatMagnitude } from "@/lib/company-criteria/format-magnitude";
 import { useCriterionPreviewCount } from "@/lib/hooks/use-criterion-preview-count";
@@ -54,57 +59,22 @@ export function CriterionDialog({
   reference,
 }: CriterionDialogProps) {
   const t = useTranslations("pages.foretag.criteria.dialog");
+  // The picker's axis strings moved one scope up in #999 — `/foretag/sok`'s bransch popover renders the
+  // same picker and was otherwise duplicating them byte-for-byte under its own page namespace.
+  const tc = useTranslations("pages.foretag.criteria");
   const format = useFormatter();
   const labelId = useId();
   const labelHintId = useId();
 
   const isEdit = criterion !== undefined;
 
-  // ── Build the picker trees + flat leaf lists from the reference (per open) ──
-  const sniNodes = useMemo<CriterionTreeNode[]>(
-    () =>
-      reference.sni.map((section) => ({
-        code: section.code,
-        name: section.name,
-        leafCodes: section.divisions.flatMap((d) => d.leaves.map((l) => l.code)),
-        children: section.divisions.map((division) => ({
-          code: division.code,
-          name: division.name,
-          leafCodes: division.leaves.map((l) => l.code),
-          children: division.leaves.map((leaf) => ({
-            code: leaf.code,
-            name: leaf.name,
-            leafCodes: [leaf.code],
-          })),
-        })),
-      })),
-    [reference],
-  );
-  const sniLeaves = useMemo(
-    () =>
-      reference.sni.flatMap((s) =>
-        s.divisions.flatMap((d) => d.leaves.map((l) => ({ code: l.code, name: l.name }))),
-      ),
-    [reference],
-  );
-  const kommunNodes = useMemo<CriterionTreeNode[]>(
-    () =>
-      reference.lan.map((lan) => ({
-        code: lan.code,
-        name: lan.name,
-        leafCodes: lan.kommuner.map((k) => k.code),
-        children: lan.kommuner.map((kommun) => ({
-          code: kommun.code,
-          name: kommun.name,
-          leafCodes: [kommun.code],
-        })),
-      })),
-    [reference],
-  );
-  const kommunLeaves = useMemo(
-    () => reference.lan.flatMap((l) => l.kommuner.map((k) => ({ code: k.code, name: k.name }))),
-    [reference],
-  );
+  // ── Build the picker trees + flat option lists from the reference (per open) ──
+  // Shared with the /foretag/sok bransch popover (#999) so the two surfaces cannot answer "which
+  // branches exist in the register?" with two different catalogues (ADR 0117 Beslut 3).
+  const sniNodes = useMemo(() => buildSniNodes(reference), [reference]);
+  const sniOptions = useMemo(() => flattenCriterionOptions(sniNodes), [sniNodes]);
+  const kommunNodes = useMemo(() => buildKommunNodes(reference), [reference]);
+  const kommunOptions = useMemo(() => flattenCriterionOptions(kommunNodes), [kommunNodes]);
 
   // ── Draft state (seeded from the edited criterion, or empty for create) ─────
   const [sniSelected, setSniSelected] = useState<ReadonlySet<string>>(
@@ -119,6 +89,16 @@ export function CriterionDialog({
 
   const sniCodes = useMemo(() => [...sniSelected], [sniSelected]);
   const kommunCodes = useMemo(() => [...kommunSelected], [kommunSelected]);
+  // Memoised for the same reason the popover memoises it: the decomposition walks 944 nodes, and the
+  // dialog runs it on both axes on every render.
+  const sniPicked = useMemo(
+    () => decomposeSelection(sniNodes, sniSelected).length,
+    [sniNodes, sniSelected],
+  );
+  const kommunPicked = useMemo(
+    () => decomposeSelection(kommunNodes, kommunSelected).length,
+    [kommunNodes, kommunSelected],
+  );
   const bothChosen = sniSelected.size > 0 && kommunSelected.size > 0;
 
   // Live preview — only polls while the dialog is open AND both axes are chosen (the endpoint 400s a
@@ -178,31 +158,35 @@ export function CriterionDialog({
         <div className="jp-matchdialog__body flex flex-col gap-6">
           <CriterionPicker
             nodes={sniNodes}
-            leaves={sniLeaves}
+            options={sniOptions}
             selected={sniSelected}
             onToggle={(codes) => setSniSelected((prev) => toggleGroup(prev, codes))}
             onClear={() => setSniSelected(new Set())}
-            heading={t("sniHeading")}
-            help={t("sniHelp")}
-            filterLabel={t("sniFilterLabel")}
-            filterHint={t("sniFilterHint")}
-            groupAria={t("sniGroupAria")}
-            selectedCountLabel={t("sniSelectedCount", { count: sniSelected.size })}
+            heading={tc("sniHeading")}
+            help={tc("sniHelp")}
+            filterLabel={tc("sniFilterLabel")}
+            filterHint={tc("sniFilterHint")}
+            groupAria={tc("sniGroupAria")}
+            // Counts what the user PICKED, not what it expanded to. One click on a section used to
+            // report "52 valda branscher" while the label beside it named one division — the same
+            // number the /foretag/sok chips contradicted (#999 design finding 4). One key, one
+            // semantic: both surfaces now count decomposed nodes.
+            selectedCountLabel={tc("sniSelectedCount", { count: sniPicked })}
             optionsUnavailable={t("optionsUnavailable")}
           />
 
           <CriterionPicker
             nodes={kommunNodes}
-            leaves={kommunLeaves}
+            options={kommunOptions}
             selected={kommunSelected}
             onToggle={(codes) => setKommunSelected((prev) => toggleGroup(prev, codes))}
             onClear={() => setKommunSelected(new Set())}
-            heading={t("kommunHeading")}
-            help={t("kommunHelp")}
-            filterLabel={t("kommunFilterLabel")}
-            filterHint={t("kommunFilterHint")}
-            groupAria={t("kommunGroupAria")}
-            selectedCountLabel={t("kommunSelectedCount", { count: kommunSelected.size })}
+            heading={tc("kommunHeading")}
+            help={tc("kommunHelp")}
+            filterLabel={tc("kommunFilterLabel")}
+            filterHint={tc("kommunFilterHint")}
+            groupAria={tc("kommunGroupAria")}
+            selectedCountLabel={tc("kommunSelectedCount", { count: kommunPicked })}
             optionsUnavailable={t("optionsUnavailable")}
           />
 

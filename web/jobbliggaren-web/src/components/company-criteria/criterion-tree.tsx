@@ -9,18 +9,7 @@
 import { useId, useState } from "react";
 import { ChevronRight, Check, Minus } from "lucide-react";
 import { groupTriState, type TriState } from "@/lib/company-criteria/criterion-selection";
-
-/**
- * One node in the picker tree. `leafCodes` are the WIRE leaf codes this node covers (a leaf node
- * carries its own code as the single element); toggling a node toggles that whole group. `children`
- * is absent/empty for a leaf.
- */
-export interface CriterionTreeNode {
-  readonly code: string;
-  readonly name: string;
-  readonly leafCodes: ReadonlyArray<string>;
-  readonly children?: ReadonlyArray<CriterionTreeNode>;
-}
+import type { CriterionTreeNode } from "@/lib/company-criteria/criterion-options";
 
 interface CriterionTreeProps {
   readonly nodes: ReadonlyArray<CriterionTreeNode>;
@@ -39,6 +28,14 @@ interface CriterionTreeProps {
  * unchecked). Following the ort-cascade a11y stance, the containers are `role="group"` and rows are
  * `role="checkbox"` (tabbable) — not a full ARIA tree widget (which would owe roving tabindex).
  */
+/** A node that expands to nothing is an unselectable row — the same drop `flattenCriterionOptions`
+ *  makes, so the two views describe one catalogue rather than two. */
+function selectable(
+  nodes: ReadonlyArray<CriterionTreeNode>,
+): ReadonlyArray<CriterionTreeNode> {
+  return nodes.filter((node) => node.leafCodes.length > 0);
+}
+
 export function CriterionTree({
   nodes,
   selected,
@@ -49,7 +46,7 @@ export function CriterionTree({
 }: CriterionTreeProps) {
   return (
     <div role="group" aria-label={groupAriaLabel} className="flex flex-col">
-      {nodes.map((node) => (
+      {selectable(nodes).map((node) => (
         <TreeRow
           key={node.code}
           node={node}
@@ -93,7 +90,7 @@ function TreeRow({
         {hasChildren ? (
           <button
             type="button"
-            className="inline-flex size-8 shrink-0 items-center justify-center rounded-md text-text-secondary hover:bg-surface-secondary hover:text-text-primary"
+            className="jp-criterionrow__toggle inline-flex size-8 shrink-0 items-center justify-center rounded-md text-text-secondary hover:bg-surface-secondary hover:text-text-primary"
             aria-expanded={open}
             aria-controls={panelId}
             aria-label={open ? collapseAria(node.name) : expandAria(node.name)}
@@ -106,7 +103,10 @@ function TreeRow({
             />
           </button>
         ) : (
-          <span className="size-8 shrink-0" aria-hidden="true" />
+          <span
+            className="jp-criterionrow__spacer size-8 shrink-0"
+            aria-hidden="true"
+          />
         )}
 
         <div
@@ -120,7 +120,7 @@ function TreeRow({
               onToggle(node.leafCodes);
             }
           }}
-          className="flex flex-1 cursor-pointer items-center gap-2.5 py-2 pe-2 text-body-sm text-text-primary"
+          className="jp-criterionrow flex flex-1 cursor-pointer items-center gap-2.5 py-2 pe-2 text-body-sm text-text-primary"
         >
           <CheckBox state={state} />
           <span>{node.name}</span>
@@ -129,7 +129,7 @@ function TreeRow({
 
       {hasChildren && open && (
         <div id={panelId} role="group" aria-label={node.name}>
-          {node.children!.map((child) => (
+          {selectable(node.children!).map((child) => (
             <TreeRow
               key={child.code}
               node={child}

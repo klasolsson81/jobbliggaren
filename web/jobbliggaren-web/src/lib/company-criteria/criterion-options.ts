@@ -39,11 +39,45 @@ export interface CriterionOption {
   readonly leafCodes: ReadonlyArray<string>;
 }
 
+/**
+ * Acronyms that must survive sentence-casing. Kept as an explicit list rather than a heuristic: the
+ * input domain is 22 strings, so an enumerated exception set is verifiable and a heuristic is not.
+ * "O.D." needs no entry — lowercasing already yields the correct "o.d.".
+ */
+const PRESERVED_ACRONYMS = /(?<!\p{L})tv(?!\p{L})/gu;
+
+/**
+ * Sentence-case a name that the source asset shipped in ALL CAPS.
+ *
+ * SCB writes SNI's 22 **section** names in caps ("VATTENFÖRSÖRJNING; AVLOPPSRENING, AVFALLSHANTERING
+ * OCH SANERING") while its 87 divisions and 835 leaves are already sentence-case. DESIGN.md §4 bans
+ * all-caps sans, and the rule governs the rendered result rather than its cause — 22 shouting rows are
+ * the default view of this control, and they also flatten the hierarchy the panel's own caps label
+ * (`.jp-popover__title`) depends on to read as a system signal.
+ *
+ * PRESENTATION ONLY. `code` and `leafCodes` are untouched, so nothing on the wire changes, and the
+ * picker's filter lowercases both sides before comparing — matching behaviour is provably unchanged.
+ *
+ * The guard is what makes this safe to apply to every node: a string that is not entirely uppercase is
+ * returned as-is, so divisions and leaves pass through and the function is idempotent.
+ *
+ * The semicolon case is not a judgement call — the asset is its own oracle. Section P is "OFFENTLIG
+ * FÖRVALTNING OCH FÖRSVAR; OBLIGATORISK SOCIALFÖRSÄKRING" and division 84 is the same string already
+ * sentence-cased, so SCB itself publishes the intended result. Same for 49, 71 and 94.
+ */
+export function toSentenceCase(name: string): string {
+  if (name !== name.toLocaleUpperCase("sv-SE")) return name;
+  const lowered = name
+    .toLocaleLowerCase("sv-SE")
+    .replace(PRESERVED_ACRONYMS, "TV");
+  return lowered.charAt(0).toLocaleUpperCase("sv-SE") + lowered.slice(1);
+}
+
 /** SNI: section → division → leaf. Every level selectable; a parent expands to its leaves. */
 export function buildSniNodes(reference: CriterionReference): CriterionTreeNode[] {
   return reference.sni.map((section) => ({
     code: section.code,
-    name: section.name,
+    name: toSentenceCase(section.name),
     leafCodes: section.divisions.flatMap((d) => d.leaves.map((l) => l.code)),
     children: section.divisions.map((division) => ({
       code: division.code,

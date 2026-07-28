@@ -140,7 +140,7 @@ describe("ForetagSokSearchbar — one shared draft, one submit", () => {
     ).toBeInTheDocument();
 
     // Add a bransch through the popover (client-side filter, no network).
-    await pickBransch(user, "system", "Systemutveckling och programvarutveckling");
+    await pickBransch(user, "system", "62020 Systemutveckling och programvarutveckling");
 
     // Edit the name field too.
     await user.type(screen.getByLabelText("Företagsnamn eller organisationsnummer"), "Volvo");
@@ -167,7 +167,7 @@ describe("ForetagSokSearchbar — one shared draft, one submit", () => {
       screen.queryByText("Ändringarna tillämpas när du söker."),
     ).not.toBeInTheDocument();
 
-    await pickBransch(user, "datapro", "Dataprogrammering, datakonsultverksamhet");
+    await pickBransch(user, "datapro", "62 Dataprogrammering, datakonsultverksamhet");
 
     expect(
       screen.getByText("Ändringarna tillämpas när du söker."),
@@ -189,9 +189,9 @@ describe("ForetagSokSearchbar — bransch popover (#999)", () => {
     await user.type(within(dialog).getByLabelText("Sök bransch"), "verksamhet");
 
     for (const name of [
-      "Informations- och kommunikationsverksamhet", // section
-      "Dataprogrammering, datakonsultverksamhet", // division
-      "Datakonsultverksamhet", // leaf
+      "J Informations- och kommunikationsverksamhet", // section
+      "62 Dataprogrammering, datakonsultverksamhet", // division
+      "62010 Datakonsultverksamhet", // leaf
     ]) {
       expect(within(dialog).getByRole("checkbox", { name })).toBeInTheDocument();
     }
@@ -203,7 +203,7 @@ describe("ForetagSokSearchbar — bransch popover (#999)", () => {
     renderBar();
     const user = userEvent.setup();
 
-    await pickBransch(user, "datapro", "Dataprogrammering, datakonsultverksamhet");
+    await pickBransch(user, "datapro", "62 Dataprogrammering, datakonsultverksamhet");
     await user.click(screen.getByRole("button", { name: "Sök företag" }));
 
     // Both of division 62's leaves ride the URL — a parent is stored as its leaves, never as itself.
@@ -222,7 +222,7 @@ describe("ForetagSokSearchbar — bransch popover (#999)", () => {
 
     expect(
       within(dialog).getByRole("checkbox", {
-        name: "Dataprogrammering, datakonsultverksamhet",
+        name: "62 Dataprogrammering, datakonsultverksamhet",
       }),
     ).toHaveAttribute("aria-checked", "mixed");
   });
@@ -231,8 +231,8 @@ describe("ForetagSokSearchbar — bransch popover (#999)", () => {
     renderBar();
     const user = userEvent.setup();
 
-    await pickBransch(user, "system", "Systemutveckling och programvarutveckling");
-    await pickBransch(user, "webb", "Webbportaler");
+    await pickBransch(user, "system", "62020 Systemutveckling och programvarutveckling");
+    await pickBransch(user, "webb", "63120 Webbportaler");
 
     expect(
       screen.getByRole("button", {
@@ -615,6 +615,49 @@ describe("ForetagSokSearchbar — degraded reference", () => {
       buildForetagSokHref({ namn: "Acme", sni: [], kommun: [] }),
     );
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("still shows an APPLIED bransch filter it cannot name, and lets you remove it", async () => {
+    // Producible by a path in src/: the reference endpoint is down (page.tsx falls back to
+    // EMPTY_REFERENCE) while the visitor arrives on a shared link carrying ?sni=. page.tsx passes NO
+    // allowlist to normalizeCodes in that branch, so the axis survives and IS applied to the results
+    // below — but an empty tree means no chip can be named for it. Before this branch the row rendered
+    // nothing: an active, invisible, unremovable filter.
+    render(
+      <ForetagSokSearchbar
+        reference={{ sniVersion: "", kommunVersion: "", sni: [], lan: [] }}
+        referenceOk={false}
+        namn=""
+        sni={["62010", "62020"]}
+        kommun={[]}
+      />,
+    );
+    const user = userEvent.setup();
+
+    // Counted in the unit it can honestly report: codes, not named branches.
+    expect(screen.getByText("2 branschkoder")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Ta bort alla branscher" }));
+    await user.click(screen.getByRole("button", { name: "Sök företag" }));
+
+    expect(push).toHaveBeenCalledWith(
+      buildForetagSokHref({ namn: "", sni: [], kommun: [] }),
+    );
+  });
+
+  it("never renders an empty chip list", () => {
+    render(
+      <ForetagSokSearchbar
+        reference={REFERENCE}
+        referenceOk
+        namn="Volvo"
+        sni={[]}
+        kommun={[]}
+      />,
+    );
+    // A pure name search shows the clear control but no chips. A <ul> with no <li> is announced as
+    // "list, 0 items" — a container for nothing.
+    expect(screen.getByRole("button", { name: "Rensa sökningen" })).toBeInTheDocument();
+    expect(screen.queryByRole("list")).not.toBeInTheDocument();
   });
 });
 

@@ -1692,19 +1692,28 @@ a.jp-adminnav__link[aria-current="page"]::after {
   cursor: pointer;
   font-size: var(--text-ui);
 }
-/* Kriterie-trädets rader — bransch-popovern (#999) och kriterie-dialogen. Raden är en
-   `role="checkbox"`-div med Tailwind-padding, och hit-target-golvet KAN inte bo i en utility:
-   `.jp-*` är olagrat och slår `@layer utilities`, vilket är exakt fällan `.jp-btn--field`
-   dokumenterar. MÄTT före fixen, renderat i prod-bygget: 38px vid både 375 och 768 (chevron
-   32px). Golvet är 32px in-app och 44px på touch (ADR 0038 / WCAG 2.5.5) — samma mönster och
-   samma brytpunkt som `.jp-hero-pill` ovan. Ingen ändring över 768px: densiteten i ett träd med
-   944 noder är själv ett läsbarhetsvärde. */
+/* Criterion tree rows — the #999 bransch popover and the criterion dialog. The row is a
+   `role="checkbox"` div with Tailwind padding, and the hit-target floor CANNOT live in a utility:
+   `.jp-*` is unlayered and beats `@layer utilities`, which is exactly the trap `.jp-btn--field`
+   documents. MEASURED before the fix, rendered in the production build: 38px at both 375 and 768
+   (chevron 32px). The floor is 32px in-app and 44px on touch at ≤768px — `jobbpilot-design-a11y` §9
+   and WCAG 2.5.5, the same pattern and the same breakpoint as `.jp-hero-pill` above. (Not ADR 0038:
+   that ADR RAISED control heights to 44px; the 32px in-app minimum is the a11y skill's, not its.)
+   Nothing changes above 768px: density in a 944-node tree is itself a legibility value.
+   The focus ring is inset because the rows sit edge-to-edge inside an `overflow-y: auto` box, so the
+   default `outline-offset: 2px` is clipped on both sides — same fix, same reason, as
+   `.jp-panel .jp-checkitem:focus-visible`. The spacer standing in for a missing chevron takes the
+   same width bump, or leaf rows would start 12px left of their siblings on touch. */
 @media (max-width: 768px) {
   .jp-criterionrow { min-height: 44px; }
-  .jp-criterionrow__toggle {
+  .jp-criterionrow__toggle,
+  .jp-criterionrow__spacer {
     min-height: 44px;
     min-width: 44px;
   }
+}
+.jp-criterionrow:focus-visible {
+  outline-offset: -2px;
 }
 .jp-checkitem:hover { background: var(--jp-surface-3); }
 .jp-checkitem__box {

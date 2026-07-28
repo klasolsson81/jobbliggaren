@@ -28,6 +28,14 @@ interface CriterionTreeProps {
  * unchecked). Following the ort-cascade a11y stance, the containers are `role="group"` and rows are
  * `role="checkbox"` (tabbable) — not a full ARIA tree widget (which would owe roving tabindex).
  */
+/** A node that expands to nothing is an unselectable row — the same drop `flattenCriterionOptions`
+ *  makes, so the two views describe one catalogue rather than two. */
+function selectable(
+  nodes: ReadonlyArray<CriterionTreeNode>,
+): ReadonlyArray<CriterionTreeNode> {
+  return nodes.filter((node) => node.leafCodes.length > 0);
+}
+
 export function CriterionTree({
   nodes,
   selected,
@@ -38,7 +46,7 @@ export function CriterionTree({
 }: CriterionTreeProps) {
   return (
     <div role="group" aria-label={groupAriaLabel} className="flex flex-col">
-      {nodes.map((node) => (
+      {selectable(nodes).map((node) => (
         <TreeRow
           key={node.code}
           node={node}
@@ -95,7 +103,10 @@ function TreeRow({
             />
           </button>
         ) : (
-          <span className="size-8 shrink-0" aria-hidden="true" />
+          <span
+            className="jp-criterionrow__spacer size-8 shrink-0"
+            aria-hidden="true"
+          />
         )}
 
         <div
@@ -118,7 +129,7 @@ function TreeRow({
 
       {hasChildren && open && (
         <div id={panelId} role="group" aria-label={node.name}>
-          {node.children!.map((child) => (
+          {selectable(node.children!).map((child) => (
             <TreeRow
               key={child.code}
               node={child}

@@ -19,6 +19,7 @@ import { CriterionPicker } from "./criterion-picker";
 import {
   buildKommunNodes,
   buildSniNodes,
+  decomposeSelection,
   flattenCriterionOptions,
 } from "@/lib/company-criteria/criterion-options";
 import { toggleGroup } from "@/lib/company-criteria/criterion-selection";
@@ -58,6 +59,9 @@ export function CriterionDialog({
   reference,
 }: CriterionDialogProps) {
   const t = useTranslations("pages.foretag.criteria.dialog");
+  // The picker's axis strings moved one scope up in #999 — `/foretag/sok`'s bransch popover renders the
+  // same picker and was otherwise duplicating them byte-for-byte under its own page namespace.
+  const tc = useTranslations("pages.foretag.criteria");
   const format = useFormatter();
   const labelId = useId();
   const labelHintId = useId();
@@ -148,12 +152,18 @@ export function CriterionDialog({
             selected={sniSelected}
             onToggle={(codes) => setSniSelected((prev) => toggleGroup(prev, codes))}
             onClear={() => setSniSelected(new Set())}
-            heading={t("sniHeading")}
-            help={t("sniHelp")}
-            filterLabel={t("sniFilterLabel")}
-            filterHint={t("sniFilterHint")}
-            groupAria={t("sniGroupAria")}
-            selectedCountLabel={t("sniSelectedCount", { count: sniSelected.size })}
+            heading={tc("sniHeading")}
+            help={tc("sniHelp")}
+            filterLabel={tc("sniFilterLabel")}
+            filterHint={tc("sniFilterHint")}
+            groupAria={tc("sniGroupAria")}
+            // Counts what the user PICKED, not what it expanded to. One click on a section used to
+            // report "52 valda branscher" while the label beside it named one division — the same
+            // number the /foretag/sok chips contradicted (#999 design finding 4). One key, one
+            // semantic: both surfaces now count decomposed nodes.
+            selectedCountLabel={tc("sniSelectedCount", {
+              count: decomposeSelection(sniNodes, sniSelected).length,
+            })}
             optionsUnavailable={t("optionsUnavailable")}
           />
 
@@ -163,12 +173,14 @@ export function CriterionDialog({
             selected={kommunSelected}
             onToggle={(codes) => setKommunSelected((prev) => toggleGroup(prev, codes))}
             onClear={() => setKommunSelected(new Set())}
-            heading={t("kommunHeading")}
-            help={t("kommunHelp")}
-            filterLabel={t("kommunFilterLabel")}
-            filterHint={t("kommunFilterHint")}
-            groupAria={t("kommunGroupAria")}
-            selectedCountLabel={t("kommunSelectedCount", { count: kommunSelected.size })}
+            heading={tc("kommunHeading")}
+            help={tc("kommunHelp")}
+            filterLabel={tc("kommunFilterLabel")}
+            filterHint={tc("kommunFilterHint")}
+            groupAria={tc("kommunGroupAria")}
+            selectedCountLabel={tc("kommunSelectedCount", {
+              count: decomposeSelection(kommunNodes, kommunSelected).length,
+            })}
             optionsUnavailable={t("optionsUnavailable")}
           />
 

@@ -4,6 +4,7 @@ import {
   buildSniNodes,
   decomposeSelection,
   flattenCriterionOptions,
+  toSentenceCase,
 } from "./criterion-options";
 import type { CriterionReference } from "@/lib/dto/company-criteria";
 
@@ -49,6 +50,97 @@ const REFERENCE: CriterionReference = {
 };
 
 const SNI = buildSniNodes(REFERENCE);
+
+/**
+ * SNI 2025's 22 section names, verbatim from
+ * `src/Jobbliggaren.Infrastructure/CompanyRegister/Reference/sni-2025.v1.json` (`sniVersion` 2025.v1),
+ * paired with the sentence-case form that must render.
+ *
+ * The input domain of this transform is finite and small — 22 strings, and only the sections are
+ * ALL CAPS in the asset — so the assertion is EXHAUSTIVE rather than a sample. Anything less would be
+ * choosing not to prove something that can be proved. If SCB ships a new SNI version, this list is
+ * meant to go red: a normaliser silently meeting new input is how an acronym gets lower-cased.
+ */
+const SECTION_CASES: ReadonlyArray<readonly [string, string]> = [
+  ["JORDBRUK, SKOGSBRUK OCH FISKE", "Jordbruk, skogsbruk och fiske"],
+  ["UTVINNING AV MINERAL", "Utvinning av mineral"],
+  ["TILLVERKNING", "Tillverkning"],
+  ["FÖRSÖRJNING AV EL, GAS, VÄRME OCH KYLA", "Försörjning av el, gas, värme och kyla"],
+  [
+    "VATTENFÖRSÖRJNING; AVLOPPSRENING, AVFALLSHANTERING OCH SANERING",
+    "Vattenförsörjning; avloppsrening, avfallshantering och sanering",
+  ],
+  ["BYGGVERKSAMHET", "Byggverksamhet"],
+  ["HANDEL", "Handel"],
+  ["TRANSPORT OCH MAGASINERING", "Transport och magasinering"],
+  ["HOTELL- OCH RESTAURANGVERKSAMHET", "Hotell- och restaurangverksamhet"],
+  [
+    "FÖRLAGSVERKSAMHET, RADIO- OCH TV-SÄNDNING SAMT PRODUKTION OCH DISTRIBUTION AV MEDIEINNEHÅLL",
+    "Förlagsverksamhet, radio- och TV-sändning samt produktion och distribution av medieinnehåll",
+  ],
+  [
+    "TELEKOMMUNIKATION, DATAPROGRAMMERING, DATAKONSULTVERKSAMHET, DATAINFRASTRUKTUR OCH ANNAN INFORMATIONSVERKSAMHET",
+    "Telekommunikation, dataprogrammering, datakonsultverksamhet, datainfrastruktur och annan informationsverksamhet",
+  ],
+  ["FINANSIELL VERKSAMHET OCH FÖRSÄKRINGSVERKSAMHET", "Finansiell verksamhet och försäkringsverksamhet"],
+  ["FASTIGHETSVERKSAMHET", "Fastighetsverksamhet"],
+  [
+    "VERKSAMHET INOM JURIDIK, EKONOMI, VETENSKAP OCH TEKNIK",
+    "Verksamhet inom juridik, ekonomi, vetenskap och teknik",
+  ],
+  [
+    "UTHYRNING, FASTIGHETSSERVICE, RESETJÄNSTER OCH ANNAN STÖDVERKSAMHET",
+    "Uthyrning, fastighetsservice, resetjänster och annan stödverksamhet",
+  ],
+  [
+    "OFFENTLIG FÖRVALTNING OCH FÖRSVAR; OBLIGATORISK SOCIALFÖRSÄKRING",
+    "Offentlig förvaltning och försvar; obligatorisk socialförsäkring",
+  ],
+  ["UTBILDNING", "Utbildning"],
+  ["VÅRD OCH OMSORG; SOCIAL VERKSAMHET", "Vård och omsorg; social verksamhet"],
+  ["KULTUR, IDROTT OCH FRITID", "Kultur, idrott och fritid"],
+  ["ANNAN SERVICEVERKSAMHET", "Annan serviceverksamhet"],
+  [
+    "FÖRVÄRVSARBETE I HUSHÅLL OCH HUSHÅLLENS PRODUKTION AV DIVERSE VAROR OCH TJÄNSTER FÖR EGET BRUK",
+    "Förvärvsarbete i hushåll och hushållens produktion av diverse varor och tjänster för eget bruk",
+  ],
+  [
+    "VERKSAMHET VID INTERNATIONELLA ORGANISATIONER, UTLÄNDSKA AMBASSADER O.D.",
+    "Verksamhet vid internationella organisationer, utländska ambassader o.d.",
+  ],
+];
+
+describe("toSentenceCase — DESIGN.md §4 forbids all-caps sans, and SCB ships the sections in caps", () => {
+  it.each(SECTION_CASES)("%s", (input, expected) => {
+    expect(toSentenceCase(input)).toBe(expected);
+  });
+
+  it("covers every section in the asset", () => {
+    expect(SECTION_CASES).toHaveLength(22);
+  });
+
+  it("keeps TV an acronym and o.d. an abbreviation", () => {
+    // The two cases a naive `.toLowerCase()` gets wrong and right respectively — called out by name so
+    // a future edit to the exception set has a test that says what it is for.
+    expect(toSentenceCase("RADIO- OCH TV-SÄNDNING")).toContain("TV-sändning");
+    expect(toSentenceCase("AMBASSADER O.D.")).toBe("Ambassader o.d.");
+  });
+
+  it("leaves anything not entirely uppercase alone, and is idempotent", () => {
+    // The guard is what makes it safe to apply to every node: divisions and leaves are already
+    // sentence-case in the asset and must not be re-cased.
+    expect(toSentenceCase("Dataprogrammering")).toBe("Dataprogrammering");
+    expect(toSentenceCase("Handel med egna fastigheter")).toBe("Handel med egna fastigheter");
+    const once = toSentenceCase("TILLVERKNING");
+    expect(toSentenceCase(once)).toBe(once);
+  });
+
+  it("does not touch the wire codes", () => {
+    const [section] = buildSniNodes(REFERENCE);
+    expect(section!.code).toBe("J");
+    expect(section!.leafCodes).toEqual(["62010", "62020", "63110", "63120"]);
+  });
+});
 
 describe("buildSniNodes", () => {
   it("carries all three levels, each expanding to the leaves below it", () => {

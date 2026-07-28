@@ -254,6 +254,33 @@ export function ForetagSokSearchbar({
     [sniNodes, sniSelected],
   );
 
+  /**
+   * When the bransch axis cannot be shown as individual chips. Two causes, one shape:
+   *
+   * 1. Too many to read. A section pick decomposes to one chip, but a hand-assembled selection can
+   *    decompose to dozens, and a chip wall eats the surface it exists to describe.
+   * 2. **No decomposition exists at all.** With `referenceOk === false` the page passes
+   *    `EMPTY_REFERENCE`, so `sniNodes` is empty and nothing can be named — while `page.tsx` also
+   *    passes NO allowlist to `normalizeCodes`, so the whole applied `sni` axis survives into the
+   *    island. The filter is applied to the streamed results below. Before this branch existed the
+   *    row rendered an empty `<ul>`: an active, invisible, unremovable filter, which is the exact
+   *    defect this component's own docblock says it closed ("the results below kept answering a
+   *    search the controls no longer showed"). `seedBranch`'s generic chip used to cover it, and
+   *    deleting `seedBranch` deleted the cover with it.
+   *
+   * The two cases count different things and say so: case 1 knows what was picked (nodes), case 2
+   * only knows how many codes are applied.
+   */
+  const branschSummary =
+    sniSelected.size > 0 &&
+    (branschChips.length === 0 || branschChips.length > MAX_BRANSCH_CHIPS);
+  const branschSummaryLabel = branschSummary
+    ? branschChips.length === 0
+      ? t("branschSummaryCodes", { count: sniSelected.size })
+      : t("branschSummaryPicked", { count: branschChips.length })
+    : null;
+  const branschChipCount = branschSummary ? 1 : branschChips.length;
+
   const hasFilter = sniSelected.size > 0 || orter.length > 0;
   const hasOrgNrResult = state.kind !== "idle";
   // The clear control's gate is the WHOLE search, not just the filter axes: gated on `hasFilter` alone
@@ -536,26 +563,19 @@ export function ForetagSokSearchbar({
           there being chips — see `showClear`. */}
       {showClear && (
         <div className="flex flex-wrap items-center gap-3">
-          {hasFilter && (
+          {/* Never an empty list: a `<ul>` with no `<li>` is announced as "list, 0 items". */}
+          {branschChipCount + orter.length > 0 && (
             <ul className="jp-chiplist">
-              {/* Above the cap the decomposition itself becomes the noise it exists to prevent: a
-                  section pick can decompose into dozens of chips and push the results off-screen. One
-                  summary chip then stands for the whole axis, and its × clears the axis — the same
-                  action the individual ×s would have added up to. */}
-              {branschChips.length > MAX_BRANSCH_CHIPS ? (
+              {branschSummary ? (
                 <li>
-                  <span className="jp-chip jp-chip--removable">
-                    <span className="jp-chip__label">
-                      {t("branschSelectedCount", { count: sniSelected.size })}
-                    </span>
-                    <button
-                      type="button"
-                      className="jp-chip__remove"
-                      aria-label={t("branschRemoveAll")}
-                      onClick={() => setSniSelected(new Set())}
-                    >
-                      <X size={14} aria-hidden="true" />
-                    </button>
+                  {/* The summary REPORTS; it does not delete. A `jp-chip__remove` × here would be
+                      pixel-identical to the ones the user just learned remove ONE thing, while
+                      dropping the whole draft — possibly 800 codes, with no undo. The removal is a
+                      sibling with VISIBLE text instead, and it is a full `.jp-btn` rather than a
+                      `.jp-clearlink`: the chips' own × is bumped to 44px on touch (globals.css:3346)
+                      and a 17px text link beside them would be the smallest target on the row. */}
+                  <span className="jp-chip">
+                    <span className="jp-chip__label">{branschSummaryLabel}</span>
                   </span>
                 </li>
               ) : (
@@ -608,6 +628,20 @@ export function ForetagSokSearchbar({
                 );
               })}
             </ul>
+          )}
+          {/* The axis-specific removal that goes with the summary chip. It exists because the popover's
+              own "Rensa" is unreachable in the case that needs it most: a degraded reference disables
+              the trigger, so without this the only escape from an applied bransch filter would be
+              clearing the name search too. Same class as its neighbour, so the row keeps one control
+              size and one hit target. */}
+          {branschSummary && (
+            <button
+              type="button"
+              className="jp-btn jp-btn--ghost"
+              onClick={() => setSniSelected(new Set())}
+            >
+              {t("branschRemoveAll")}
+            </button>
           )}
           <button
             type="button"

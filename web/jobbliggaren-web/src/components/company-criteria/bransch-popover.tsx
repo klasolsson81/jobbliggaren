@@ -4,14 +4,15 @@
 // string. The trigger lives in the parent (it owns the ref and the open state), exactly as the ort
 // cascade beside it does.
 
+import { useMemo } from "react";
 import { useTranslations } from "next-intl";
 import { JobbToolbarPopover } from "@/components/job-ads/jobb-toolbar-popover";
 import { CriterionPicker } from "./criterion-picker";
 import {
+  decomposeSelection,
   flattenCriterionOptions,
   type CriterionTreeNode,
 } from "@/lib/company-criteria/criterion-options";
-import { useMemo } from "react";
 
 /**
  * #999 — the bransch (SNI) control on `/foretag/sok`, as a popover you can both browse and filter.
@@ -33,9 +34,11 @@ import { useMemo } from "react";
  * `CriterionPicker` already answers both, is already reviewed, and already ships on the sibling browse
  * surface (Smarta bevakningar). ADR 0117 Beslut 3 makes that a requirement rather than a convenience:
  * two sibling surfaces answering "which branches exist in the register?" must not answer it with two
- * different controls. CTO bind: `docs/reviews/2026-07-27-foretag-sok-pr5-bransch-form-cto.md`.
+ * different controls. CTO bind: `docs/reviews/2026-07-28-foretag-sok-pr5-bransch-form-cto.md`.
  *
- * `heading`/`help` are omitted: the panel header already says "Bransch", so both would repeat it.
+ * The selection count and the clear control live in the PANEL HEADER rather than inline in the picker:
+ * the header always renders, so their height is reserved and the first selection cannot push the tree
+ * down under the pointer (measured at 55px before the move — more than one 44px row).
  */
 interface BranschPopoverProps {
   readonly open: boolean;
@@ -60,7 +63,17 @@ export function BranschPopover({
   onClear,
 }: BranschPopoverProps) {
   const t = useTranslations("pages.foretag.sok");
+  // The picker's axis strings live one scope up, shared with the criterion dialog that renders the
+  // same component — they were byte-identical duplicates under this page's namespace before #999.
+  const tc = useTranslations("pages.foretag.criteria");
   const options = useMemo(() => flattenCriterionOptions(nodes), [nodes]);
+  // Counts what was PICKED, not what it expanded to. `selected.size` reports "52 valda branscher" for
+  // one click on a section while the chip row outside shows ONE chip — same axis, same screen, two
+  // numbers. The decomposition is the number that describes the action the user took.
+  const pickedCount = useMemo(
+    () => decomposeSelection(nodes, selected).length,
+    [nodes, selected],
+  );
 
   return (
     <JobbToolbarPopover
@@ -73,6 +86,18 @@ export function BranschPopover({
       // Wide enough for three indent levels of Swedish SNI names, and never wider than the viewport
       // (WCAG 1.4.10 — verified rendered at 320px, not assumed).
       width="min(560px, calc(100vw - 32px))"
+      headerRight={
+        pickedCount > 0 ? (
+          <span className="flex items-center gap-3">
+            <span className="text-caption tabular-nums text-text-secondary">
+              {tc("sniSelectedCount", { count: pickedCount })}
+            </span>
+            <button type="button" className="jp-clearlink" onClick={onClear}>
+              {tc("dialog.clear")}
+            </button>
+          </span>
+        ) : null
+      }
     >
       {/* `.jp-panel__body` carries the scroll cap but no inset; the picker's own rows are edge-to-edge
           inside their bordered box, so the padding belongs here. */}
@@ -82,11 +107,14 @@ export function BranschPopover({
           options={options}
           selected={selected}
           onToggle={onToggle}
-          onClear={onClear}
-          filterLabel={t("branschFilterLabel")}
-          filterHint={t("branschFilterHint")}
-          groupAria={t("branschTrigger")}
-          selectedCountLabel={t("branschSelectedCount", { count: selected.size })}
+          // `help` STAYS. The panel header says "Välj bransch", which names the control but not its
+          // mechanics: that a checkbox on a parent selects its whole subtree, and that more than one
+          // branch can be picked. One click here can select 52 codes, and after #999 this is the only
+          // sentence on /foretag/sok that says so. `filterHint` is the one dropped instead — it sat
+          // under a field already labelled "Sök bransch" and paid no rent (finding 9).
+          help={tc("sniHelp")}
+          filterLabel={tc("sniFilterLabel")}
+          groupAria={tc("sniGroupAria")}
           optionsUnavailable={t("branschUnavailable")}
         />
       </div>

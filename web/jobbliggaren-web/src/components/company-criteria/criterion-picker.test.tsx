@@ -65,6 +65,8 @@ function renderPicker(
 describe("CriterionPicker — the browse view", () => {
   it("renders the tree when the filter is empty, top level only until expanded", () => {
     renderPicker();
+    // No code prefix here, deliberately: the tree conveys level by nesting and by each subtree's own
+    // `role="group"`, so it needs no textual level cue. Only the FLAT filter view does.
     expect(
       screen.getByRole("checkbox", {
         name: "Informations- och kommunikationsverksamhet",
@@ -72,7 +74,7 @@ describe("CriterionPicker — the browse view", () => {
     ).toBeInTheDocument();
     // Children stay collapsed — the whole point of a tree over a 944-row dump.
     expect(
-      screen.queryByRole("checkbox", { name: "Datakonsultverksamhet" }),
+      screen.queryByRole("checkbox", { name: "62010 Datakonsultverksamhet" }),
     ).not.toBeInTheDocument();
   });
 
@@ -89,9 +91,9 @@ describe("CriterionPicker — the filter view (#999: all three levels)", () => {
     await user.type(screen.getByLabelText("Sök bransch"), "verksamhet");
 
     for (const name of [
-      "Informations- och kommunikationsverksamhet",
-      "Dataprogrammering, datakonsultverksamhet",
-      "Datakonsultverksamhet",
+      "J Informations- och kommunikationsverksamhet",
+      "62 Dataprogrammering, datakonsultverksamhet",
+      "62010 Datakonsultverksamhet",
     ]) {
       expect(screen.getByRole("checkbox", { name })).toBeInTheDocument();
     }
@@ -103,7 +105,7 @@ describe("CriterionPicker — the filter view (#999: all three levels)", () => {
     await user.type(screen.getByLabelText("Sök bransch"), "datapro");
     await user.click(
       screen.getByRole("checkbox", {
-        name: "Dataprogrammering, datakonsultverksamhet",
+        name: "62 Dataprogrammering, datakonsultverksamhet",
       }),
     );
     expect(onToggle).toHaveBeenCalledWith(["62010", "62020"]);
@@ -116,7 +118,7 @@ describe("CriterionPicker — the filter view (#999: all three levels)", () => {
 
     expect(
       screen.getByRole("checkbox", {
-        name: "Dataprogrammering, datakonsultverksamhet",
+        name: "62 Dataprogrammering, datakonsultverksamhet",
       }),
     ).toHaveAttribute("aria-checked", "mixed");
   });
@@ -125,7 +127,7 @@ describe("CriterionPicker — the filter view (#999: all three levels)", () => {
     const { onToggle } = renderPicker();
     const user = userEvent.setup();
     await user.type(screen.getByLabelText("Sök bransch"), "system");
-    screen.getByRole("checkbox", { name: "Systemutveckling" }).focus();
+    screen.getByRole("checkbox", { name: "62020 Systemutveckling" }).focus();
     await user.keyboard(" ");
     expect(onToggle).toHaveBeenCalledWith(["62020"]);
   });
@@ -144,15 +146,70 @@ describe("CriterionPicker — the filter view (#999: all three levels)", () => {
     const user = userEvent.setup();
     await user.type(screen.getByLabelText("Sök bransch"), "system");
     expect(
-      screen.getByRole("checkbox", { name: "Systemutveckling" }),
+      screen.getByRole("checkbox", { name: "62020 Systemutveckling" }),
     ).toHaveClass("jp-criterionrow");
   });
 
-  it("says so when nothing matches", async () => {
+  it("says so when nothing matches, and says how to get back to the whole list", async () => {
     renderPicker();
     const user = userEvent.setup();
     await user.type(screen.getByLabelText("Sök bransch"), "zzz");
-    expect(screen.getByText("Inga träffar.")).toBeInTheDocument();
+    // The empty state is this control's most common failure mode — SNI's vocabulary is not the
+    // user's — so a full stop is not an answer. It has to point back at the tree.
+    expect(
+      screen.getByText("Inga träffar. Rensa sökfältet för att bläddra i hela listan."),
+    ).toBeInTheDocument();
+  });
+
+  it("announces the number of matches for every query", async () => {
+    renderPicker();
+    const user = userEvent.setup();
+    await user.type(screen.getByLabelText("Sök bransch"), "verksamhet");
+    // Without this a sighted user cannot see how much is below the fold, and a screen-reader user
+    // gets no signal at all that the list changed while typing.
+    expect(screen.getByRole("status")).toHaveTextContent("3 träffar");
+  });
+
+  it("falls back to the tree above the cardinality ceiling, and says why", async () => {
+    // The ceiling is on RESULT SIZE, not query length: the control this replaced gated on two
+    // characters, which blocks `c` (507 matches) while admitting `er` (665). Below the ceiling the
+    // TREE renders, so the fallback is never a dead end.
+    const wide: CriterionReference = {
+      sniVersion: "2025",
+      kommunVersion: "2026",
+      sni: [
+        {
+          code: "A",
+          name: "Bred avdelning",
+          divisions: [
+            {
+              code: "01",
+              name: "Bred huvudgrupp",
+              leaves: Array.from({ length: 400 }, (_, i) => ({
+                code: `0${1000 + i}`,
+                name: `Bred detaljgrupp ${i}`,
+              })),
+            },
+          ],
+        },
+      ],
+      lan: [],
+    };
+    const nodes = buildSniNodes(wide);
+    renderPicker({ nodes, options: flattenCriterionOptions(nodes) });
+    const user = userEvent.setup();
+    await user.type(screen.getByLabelText("Sök bransch"), "bred");
+
+    expect(screen.getByRole("status")).toHaveTextContent("402 träffar");
+    expect(screen.getByRole("status")).toHaveTextContent("Skriv mer");
+    // The tree, not the 402-row list: the top-level node is present (tree rows carry no code prefix)
+    // and its children are collapsed.
+    expect(
+      screen.getByRole("checkbox", { name: "Bred avdelning" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("checkbox", { name: "Bred huvudgrupp" }),
+    ).not.toBeInTheDocument();
   });
 });
 

@@ -9,13 +9,13 @@
     "brandHome": "Jobbliggaren, start page"
   },
   "header": {
-    "statsAriaLabel": "Live count from Platsbanken",
+    "statsAriaLabel": "Active job ads in Jobbliggaren",
     "activeCount": "{count, plural, one {active job ad} other {active job ads}}",
     "newToday": "new today",
     "deltaAriaLabel": "{count} new since the last check",
     "openMenu": "Open menu",
     "valueDash": "–",
-    "activeCountUnmeasured": "active ads"
+    "activeCountUnmeasured": "active job ads"
   },
   "notifications": {
     "buttonAriaLabel": "Notifications",

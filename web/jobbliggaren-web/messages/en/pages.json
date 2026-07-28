@@ -296,7 +296,12 @@
       "loadErrorTitle": "The search could not be loaded",
       "loadErrorBody": "Try again in a moment.",
       "rateLimited": "Too many requests right now. Wait a moment and reload the page.",
-      "loadingResults": "Searching companies…"
+      "loadingResults": "Searching companies…",
+      "announceFilterAdded": "The {namn} filter is added.",
+      "announceFilterRemoved": "The {namn} filter is removed.",
+      "announceBranschCleared": "All industry filters are removed.",
+      "announceOrterCleared": "All location filters are removed.",
+      "announceFiltersCleared": "The search is cleared."
     },
     "watchesHeading": "Followed companies",
     "watchesLede": "Companies you follow. New ads from them appear here and on the overview.",

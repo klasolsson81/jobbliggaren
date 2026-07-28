@@ -4,6 +4,11 @@ import { getTranslations, getFormatter } from "next-intl/server";
 import { ArrowLeft } from "lucide-react";
 import { getServerSession } from "@/lib/auth/session";
 import { getActivityReport } from "@/lib/api/applications";
+import {
+  previousSwedishMonth,
+  swedishMonthOf,
+  type SwedishMonth,
+} from "@/lib/dates/swedish-month";
 import { assertNever } from "@/lib/dto/_helpers";
 import {
   ActivityReportView,
@@ -145,27 +150,40 @@ function ErrorShell({ title, body }: { title: string; body: string }) {
 type Formatter = Awaited<ReturnType<typeof getFormatter>>;
 
 function formatMonthLabel(format: Formatter, year: number, month: number): string {
-  return format.dateTime(new Date(Date.UTC(year, month - 1, 1)), {
+  // Noon rather than midnight, and Europe/Stockholm rather than the runtime's
+  // zone. The label is built from two ints, so the Date is only a carrier — but a
+  // midnight UTC carrier formatted in a zone BEHIND UTC names the previous month
+  // (Date.UTC(2026, 0, 1) is 19:00 on 31 December in New York). Neither the
+  // container nor a Swedish reader hits that today; naming the zone means it
+  // cannot start being true.
+  return format.dateTime(new Date(Date.UTC(year, month - 1, 1, 12)), {
+    timeZone: "Europe/Stockholm",
     month: "long",
     year: "numeric",
   });
 }
 
 /**
- * The last 12 months (newest first), guaranteed to include the resolved month
- * so the picker value always matches an option even when the user navigates to
- * an older month by URL.
+ * The last 12 SWEDISH civil months (newest first), guaranteed to include the
+ * resolved month so the picker value always matches an option even when the user
+ * navigates to an older month by URL.
+ *
+ * The anchor is the Swedish month, not the UTC one: since the backend resolves
+ * its default the same way (ADR 0064 Amendment), a UTC anchor would leave the
+ * selected month out of the list for the first one to two hours of every Swedish
+ * month. The fallback below would then push it in as a THIRTEENTH entry — no
+ * crash, but a "last 12 months" picker showing 13.
  */
 function buildMonthOptions(
   format: Formatter,
   selectedYear: number,
   selectedMonth: number,
 ): MonthOption[] {
-  const now = new Date();
-  const months: { year: number; month: number }[] = [];
+  const months: SwedishMonth[] = [];
+  let cursor = swedishMonthOf(new Date());
   for (let i = 0; i < 12; i++) {
-    const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - i, 1));
-    months.push({ year: d.getUTCFullYear(), month: d.getUTCMonth() + 1 });
+    months.push(cursor);
+    cursor = previousSwedishMonth(cursor);
   }
   if (!months.some((m) => m.year === selectedYear && m.month === selectedMonth)) {
     months.push({ year: selectedYear, month: selectedMonth });

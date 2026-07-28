@@ -385,7 +385,7 @@ internal static partial class LayoutChainRunner
     /// the second crash exit runs AFTER the byte proof has been evaluated: a case whose authored
     /// bytes were already wrong and which then crashed was published under "byte proofs held" with
     /// its failure message discarded. §0 named it among the healthy.</para></summary>
-    private static LayoutCaseObservation Crashed(
+    internal static LayoutCaseObservation Crashed(
         LayoutCase c, IReadOnlyList<string> fixtureProblems, string exceptionType,
         string? byteProofFailure = null) =>
         // Named, not positional. The record has 39 parameters and positions 21-28 are eight

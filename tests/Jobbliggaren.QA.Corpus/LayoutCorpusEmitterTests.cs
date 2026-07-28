@@ -608,6 +608,54 @@ public sealed class LayoutCorpusEmitterTests
         return Cell(header, row, GateLadder.RungHeaders[0]);
     }
 
+    /// <summary>The ORDER half of <see cref="GateLadder.IsWellFormed"/> — a rung reported as passed
+    /// after one that was never evaluated, which no run of the gate can produce.
+    ///
+    /// <para>It was pinned by NOTHING, and the way that surfaced is worth recording: a mutation of
+    /// that arm did not compile (removing its only reader leaves <c>stopped</c> assigned and never
+    /// used, and this repo treats that warning as an error), so the harness reported UNMEASURED
+    /// rather than a verdict. An unmeasurable arm reads exactly like a covered one in a table that
+    /// only lists KILLED and SURVIVED.</para></summary>
+    [Fact]
+    public void IsWellFormed_RejectsAPassedRungAfterAnUnevaluatedOne()
+    {
+        GateLadder.IsWellFormed(
+        [
+            new GateCell(GateLadder.G1, "pnr on parse", GateState.Passed),
+            new GateCell(GateLadder.G2, "confidence", GateState.NotEvaluated),
+            new GateCell(GateLadder.G2b, "pnr in label", GateState.Passed),
+        ]).ShouldBeFalse();
+
+        // The control: the same shape WITHOUT the impossible resumption is well-formed, so the
+        // assertion above cannot be satisfied by a guard that simply rejects everything.
+        GateLadder.IsWellFormed(
+        [
+            new GateCell(GateLadder.G1, "pnr on parse", GateState.Passed),
+            new GateCell(GateLadder.G2, "confidence", GateState.NotEvaluated),
+            new GateCell(GateLadder.G2b, "pnr in label", GateState.NotEvaluated),
+        ]).ShouldBeTrue();
+    }
+
+    /// <summary>A crashed case must carry the byte-proof failure it was given, not a hardcoded null.
+    ///
+    /// <para>The second crash exit runs AFTER the byte proof, so a case whose authored bytes were
+    /// already wrong and which then crashed was published under "byte proofs held" with its message
+    /// discarded. Pinned HERE rather than through the emitter, because the emitter's own fixture can
+    /// set both fields directly and would stay green with the parameter removed — measured: that
+    /// mutation survived a full sweep. The subject is the corpus's own factory, category (b).</para>
+    /// </summary>
+    [Fact]
+    public void Crashed_CarriesTheByteProofFailureItWasGiven()
+    {
+        var observation = LayoutChainRunner.Crashed(
+            Observation("case-crashed").Case, [], "InvalidOperationException",
+            byteProofFailure: "expected two columns");
+
+        observation.ByteProofFailure.ShouldBe("expected two columns");
+        observation.CrashedWithExceptionType.ShouldBe("InvalidOperationException");
+        observation.Gates.ShouldBeEmpty();
+    }
+
     public static TheoryData<AutoPromoteBlockReason, bool, bool, int> ReachableGateStates() =>
         new()
         {

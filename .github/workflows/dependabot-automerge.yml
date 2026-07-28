@@ -115,57 +115,86 @@ jobs:
       # Blockerande npm-gate. pnpm audit --audit-level=high returnerar exit != 0
       # vid High/Critical → jobbet failar → auto-merge aktiveras ej.
       #
-      # BASELINE-SCOPED SINCE 2026-07-28, because the gate could not otherwise
-      # CONVERGE. It audited the whole tree rather than the diff, and so failed
-      # PRs that REMOVE vulnerabilities over vulnerabilities they did not
-      # introduce. Measured: PR #1042 (`next` 16.2.9 -> 16.2.11) sat open for
-      # three days with green `ci` and this job red; that bump alone closes 18 of
-      # the repo's 28 Dependabot alerts. It was failed by six OTHER packages —
-      # `tmp`, `brace-expansion`, `js-yaml`, `fast-uri`, `postcss`, `sharp` —
-      # every one of them TRANSITIVE and therefore never given its own Dependabot
-      # PR. The deadlock was total: nothing could pass.
+      # REPAIRED, NOT SUPPRESSED (2026-07-28), because the gate could not
+      # CONVERGE. It audits the whole tree rather than the diff, and so failed PRs
+      # that REMOVE vulnerabilities over vulnerabilities they did not introduce.
+      # Measured: PR #1042 (`next` 16.2.9 -> 16.2.11) sat open for three days with
+      # green `ci` and this job red; that bump alone closes 18 of the repo's 28
+      # Dependabot alerts. It was failed by six OTHER packages — `tmp`,
+      # `brace-expansion`, `js-yaml`, `fast-uri`, `postcss`, `sharp`.
       #
-      # The baseline lives in `web/jobbliggaren-web/package.json` under
-      # `pnpm.auditConfig.ignoreGhsas`, a GHSA list. The form is chosen so that an
-      # accepted risk is VISIBLE and ATTRIBUTABLE: the line is a diff a human
-      # approves, and `git blame` on it IS the date and the rationale. Contrast a
-      # lowered threshold (`--audit-level=critical`), which would have hidden the
-      # very same acceptance without ever naming what was accepted.
+      # All six are TRANSITIVE, so Dependabot opens no PR for any of them. The
+      # first draft of this change concluded from that fact that they could not be
+      # cleared, and suppressed all seven advisories. **That conclusion did not
+      # follow.** No Dependabot PR means only that Dependabot will not fix them FOR
+      # us — not that they are unfixable. They are fixed here, by hand, through
+      # `pnpm.overrides` in `web/jobbliggaren-web/package.json`: the mechanism that
+      # same object already used twice, four lines above where the suppression was
+      # about to go. Both reviewers found this independently.
       #
-      # `next`'s own advisories are DELIBERATELY ABSENT from the list — the gate
-      # must still be able to fail a next regression.
+      # MEASURED ON pnpm 9.15.9 — what `pnpm/action-setup@v6` `version: 9` resolved
+      # to on 2026-07-28. That is a SNAPSHOT, not a pin: `version: 9` floats and
+      # there is no `packageManager` field (see `build.yml`'s Setup pnpm comment).
+      # It was measured on 9 and not only on a local pnpm 10 because a
+      # version-dependent mechanism would have made this change a silent no-op on
+      # the runner. 9.15.9 and 10.28.2 gave identical advisory sets:
+      #   - before:                    11 high/critical
+      #   - with the overrides:         5  (4 `next` + the one accepted below)
+      #   - with #1042's `next` bump:   0  -> `--audit-level=high` exit 0
+      # `pnpm build` exit 0 and the full vitest suite green against the new
+      # lockfile; `install --frozen-lockfile` exit 0, so the gate's own install
+      # step is unaffected.
       #
-      # WHICH GHSA IS WHICH. JSON admits no comments, so the seven entries are
-      # bare strings there and this is the only place the mapping is written. It
-      # is load-bearing for the "this list must shrink" instruction below: without
-      # it, nobody can tell which line to delete when a package is finally fixed.
-      # Measured from `pnpm audit --json` on 2026-07-28, all seven transitive:
-      #   GHSA-3jxr-9vmj-r5cp  brace-expansion
-      #   GHSA-mh99-v99m-4gvg  brace-expansion
-      #   GHSA-52cp-r559-cp3m  js-yaml
-      #   GHSA-f88m-g3jw-g9cj  sharp
-      #   GHSA-ph9p-34f9-6g65  tmp
-      #   GHSA-r28c-9q8g-f849  postcss
-      #   GHSA-v2hh-gcrm-f6hx  fast-uri
+      # WHAT IS STILL ACCEPTED — exactly one entry, in
+      # `pnpm.auditConfig.ignoreGhsas`:
       #
-      # MEASURED ON pnpm 9.15.9 — what `pnpm/action-setup@v6` with `version: 9`
-      # resolves to — and NOT only on a local pnpm 10, because the entire risk was
-      # that `auditConfig` might be version-dependent and this change therefore a
-      # silent no-op on the runner. 9.15.9 and 10.28.2 gave byte-identical
-      # advisory sets:
-      #   - tree WITHOUT the baseline: 11 high/critical advisories
-      #   - tree WITH the baseline:     4, all of them `next`'s (gate still red)
-      #   - #1042's ACTUAL tree + baseline (next 16.2.11 resolved in node_modules):
-      #     0 high/critical, `pnpm audit --audit-level=high` exit 0
-      # `pnpm install --frozen-lockfile` stays exit 0 as well — `auditConfig` is
-      # not part of the lockfile, so the gate's own install step is unaffected.
-      # The gate can therefore reach green again, which was the whole point.
+      #   GHSA-mh99-v99m-4gvg   brace-expansion   vulnerable <=5.0.7
       #
-      # THE REGISTER IS NOT THIS FILE. `auditConfig` filters `pnpm audit` (and
-      # thereby `audit (observe-only)` in `build.yml` too), but GitHub's Dependabot
-      # alerts are unaffected — that is where the 28 are counted, and that is the
-      # number that must go to zero. This list must shrink, not grow; every entry
-      # that becomes unnecessary is to be removed.
+      # WHY IT CANNOT BE REPAIRED: the patched range is `>=5.0.8`, and the paths
+      # that survive resolve brace-expansion **1.1.16** — which is `<=5.0.7` in
+      # semver order, hence in range — underneath `minimatch` 3.x, which pins
+      # `^1.1.7`. Forcing 5.0.8 there breaks the dependency outright.
+      # WHAT WOULD REMOVE IT: minimatch 3.x leaving the tree (it arrives via
+      # `@lhci/cli` and `eslint`), or the 1.x line publishing an equivalent fix.
+      # WHY IT IS ACCEPTABLE MEANWHILE: measured 2026-07-28, 71 paths, every one
+      # rooted in `@lhci/cli`, `eslint` or `eslint-config-next` — all three
+      # devDependencies. The one production path that existed
+      # (`shadcn > ts-morph > @ts-morph/common > minimatch@10`) is closed by the
+      # `brace-expansion@>=2.0.0 <=5.0.7` override. It is a DoS-class advisory in
+      # lint/Lighthouse tooling, reachable by nothing we ship.
+      #
+      # THE `sharp` RESIDUAL, NAMED RATHER THAN LEFT IMPLICIT. The override takes
+      # sharp 0.34.5 -> 0.35.3 and `pnpm build` is green. That is evidence the
+      # override does not BREAK the build; it is NOT evidence that sharp still
+      # SERVES, because the build never exercises it — `next/image` is imported by
+      # no file in `src/`, and `next.config.ts` has no `images` key. sharp's
+      # runtime surface is `/_next/image`, an endpoint Next serves and this app
+      # never invokes. Do not cite the green build as a runtime guarantee.
+      #
+      # WHY A GHSA LIST RATHER THAN A LOWER THRESHOLD, for the one that remains:
+      # `--audit-level=critical` reaches exit 0 today (there are no criticals), so
+      # it would have hidden all four `next` advisories — two SSRF and a proxy
+      # bypass — without naming anything. A GHSA line is a diff a human approves;
+      # `git blame` gives its date and its PR, and the reasoning lives in this
+      # comment, which is why the comment is long. `--prod` was measured and
+      # rejected: it does not converge (`sharp`, `postcss`, `fast-uri`,
+      # `brace-expansion` all survive it), and pnpm reports `devDependencies: 0`
+      # for this tree, so its dev/prod split is not the one `package.json`
+      # declares.
+      #
+      # READING THE LOG: pnpm's summary line prints PRE-filter counts. A GREEN run
+      # can still print a line like `14 high (7 ignored)`. Judge the gate by its
+      # exit code, and risk by the Dependabot alert count — not by that line.
+      #
+      # THE REGISTER IS NOT THIS FILE. `auditConfig` filters `pnpm audit` (and so
+      # `audit (observe-only)` in `build.yml` too), but GitHub's Dependabot alerts
+      # are unaffected — that is where the 28 are counted and that is the number
+      # that must go to zero. This list must shrink, not grow. Note it has no
+      # mechanism enforcing that: a stale entry produces no warning and no exit
+      # difference, and a bare GHSA would silently cover a NEW path if
+      # brace-expansion ever re-entered the production tree. A guard pinning which
+      # paths this entry resolves to belongs in observe-only `audit`, never inside
+      # this merge control.
       - name: Install (pnpm, för audit)
         if: ${{ steps.gate.outputs.eligible == 'true' }}
         working-directory: web/jobbliggaren-web

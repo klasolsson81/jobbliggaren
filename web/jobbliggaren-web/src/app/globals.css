@@ -4671,9 +4671,12 @@ a.jp-adminnav__link[aria-current="page"]::after {
 
    THE TWO MINIMUM WIDTHS ARE ONE DECISION, not two literals: declared columns + a 220px floor for
    the name column, which would otherwise collapse toward zero as the table narrows. The `calc()`
-   below IS that decision — it is written as its own arithmetic so a future re-measurement of any
-   column cannot silently sink the name column below its floor. Four of the five widths already
-   changed once between two heads of this PR, so the drift is demonstrated, not hypothetical.
+   below EXPRESSES that decision; it does not enforce it — its operands are hand-typed copies of the
+   four `__col--*` widths, and nothing in CSS links the two. What enforces it is
+   `company-browse-list.test.tsx`, which parses these rules and asserts each `calc()` equals the
+   widths actually declared. Re-measure a column and the two agree or the test goes red. Four of the
+   five widths already changed once between two heads of this PR, so the drift is demonstrated, not
+   hypothetical.
    **220px is a chosen readability minimum, not a max-content measurement** — the one number here
    that rests on no measurement at all, and deliberately the same in both shapes because "narrowest
    readable company-name column" does not change when a follow button is absent (CTO bind

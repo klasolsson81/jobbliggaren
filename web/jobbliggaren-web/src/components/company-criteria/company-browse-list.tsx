@@ -70,7 +70,9 @@ export function CompanyBrowseList({
         // So `jp-x--${flag}` does not fail the gate — it silences it. Composition is fine: the guard
         // reads every string literal inside `className={...}` whatever helper joins them, so
         // `cn("jp-table jp-companyBrowse", showFollow && "jp-companyBrowse--withFollow")` would be
-        // just as visible. Interpolation is the only form that costs coverage.
+        // just as visible. What costs coverage is any name not written as a LITERAL inside
+        // `className=` — an interpolation, or a `const C = "jp-…"` referenced by identifier, both of
+        // which leave the guard with nothing to read on that element.
         className={
           showFollow
             ? "jp-table jp-companyBrowse jp-companyBrowse--withFollow w-full"
@@ -143,9 +145,11 @@ export function CompanyBrowseList({
                   `whitespace-nowrap` is GONE, and the mechanism is not the one it looks like: under
                   fixed layout cell content can never widen a column (CSS 2.1 §17.5.2.1 — the width
                   comes from the <col>), so nowrap would not have grown this column to fit "Ej svensk
-                  hemortskommun". It would have OVERFLOWED it — 203px of unbroken text painted across
-                  Branscher, on 23 837 rows. The choice the width makes is the real one: declaring
-                  203px would tax every page 58px of mostly empty column for 2.2% of the register, so
+                  hemortskommun". It would have OVERFLOWED it — that value needs a 203px CELL (the
+                  same unit as every floor in this geometry: text plus the 24px padding), so 58px of
+                  it would paint across Branscher, on 23 837 rows. The choice the width makes is the
+                  real one: declaring 203px taxes every page 58px of mostly empty column for 2.2% of
+                  the register, so
                   the column is sized for the longest real kommun name instead ("Skinnskatteberg",
                   132px) and that one outlier wraps to two lines. `wrap-break-word` covers the case a
                   single kommun token still cannot fit. */}

@@ -133,12 +133,17 @@ export function CriterionPicker({
 
       {/* ONE persistent live region carries every filtering outcome, including zero matches.
           Deliberately not a region inserted per outcome: a live region that mounts with its content
-          already in place is announced unreliably (the repo has measured this before —
-          `jobb-hero-search.tsx` carries the same note), whereas mutating the text inside a region that
-          was already in the DOM is the reliable form. It is height-reserved so appearing and
-          disappearing does not move the list, and it is the load-bearing half of the ceiling: without
-          it a sighted user cannot see that a hundred rows sit below the fold, and a screen-reader user
-          gets no signal that the list changed at all while typing.
+          already in place is announced unreliably. That is a house RULING, not a measurement of ours
+          — design-reviewer, a11y §6, and `jobb-hero-search.tsx` carries the same note. Mutating the
+          text inside a region already in the DOM is the reliable form.
+
+          It is the load-bearing half of the ceiling: without it a sighted user cannot see that a
+          hundred rows sit below the fold, and a screen-reader user gets no signal that the list
+          changed at all while typing.
+
+          `min-h-5` reserves the slot so the COUNT text appearing and disappearing does not move the
+          list. It does not cover the zero case — there the box below is removed entirely and the
+          panel collapses by its list height, which is deliberate rather than a shift to absorb.
 
           Gated on there being a catalogue: with a degraded reference the box below says "Registret
           kunde inte laddas", and announcing "0 träffar" over it would claim a search ran against a
@@ -157,13 +162,19 @@ export function CriterionPicker({
           : ""}
       </p>
 
-      {selectedCountLabel !== undefined && hasSelection && (
+      {selectedCountLabel !== undefined && (
         // Polite: the number changes without focus moving — one click on a section takes it from
         // nothing to a whole subtree, and the row's own `aria-checked` does not carry the total.
-        // (Pinned in `criterion-picker.test.tsx`; the popover's header counter carries the same
-        // attribute and its own pin. Both were unpinned once, and a mutation walked through.)
-        <p className="text-body-sm font-medium text-text-primary" aria-live="polite">
-          {selectedCountLabel}
+        //
+        // Rendered UNCONDITIONALLY and emptied rather than unmounted, for the same reason as the
+        // region above: gating on `hasSelection` made the 0→1 transition — the FIRST pick, the one
+        // that matters most — a region that mounts with its content already in place. `min-h-5`
+        // keeps the empty state from moving the list.
+        <p
+          className="min-h-5 text-body-sm font-medium text-text-primary"
+          aria-live="polite"
+        >
+          {hasSelection ? selectedCountLabel : ""}
         </p>
       )}
 
@@ -176,69 +187,69 @@ export function CriterionPicker({
           and an empty bordered rectangle under it would be a container for nothing. This is also why
           the zero case is not a second `role="status"` — one region, one message. */}
       {(!isFiltering || nodes.length === 0 || filteredOptions.length > 0) && (
-      <div className="max-h-[min(18rem,32vh)] overflow-y-auto rounded-md border border-border">
-        {nodes.length === 0 ? (
-          <p className="px-4 py-3 text-body-sm text-text-primary">{optionsUnavailable}</p>
-        ) : showFilterList ? (
-          // No nested `role="group"` here: the <section> above already carries `groupAria`, and two
-          // nested groups with the same label make AT announce the axis name three times over.
-          filteredOptions.map((option) => {
-            // Tri-state, not a boolean: a matched division is "mixed" when only some of its leaves
-            // are selected, and rendering that as unchecked would let a click silently deselect the
-            // part already chosen. `groupTriState` is the same derivation the tree rows use.
-            const state = groupTriState(selected, option.leafCodes);
-            return (
-              <div
-                key={option.key}
-                role="checkbox"
-                aria-checked={state === "indeterminate" ? "mixed" : state === "checked"}
-                // Name from author, so the row announces the same string in every environment. Letting
-                // the name be computed from the two child spans depends on whose separator rule you
-                // get: MEASURED in Chromium's own AX tree, the space is inserted by the browser
-                // whether or not the JSX contains one, while jsdom concatenates without it and reports
-                // "68Fastighetsverksamhet". An explicit `{" "}` would therefore be a text node that
-                // exists only to satisfy the test environment — and a whitespace-only node directly in
-                // a flex container is not rendered anyway (CSS Flexbox L1 §4). The visible text is
-                // exactly this string, so WCAG 2.5.3 holds — and that is now a coupling to keep in
-                // mind: the name no longer tracks the JSX, so anything visible added to this row has
-                // to be added here too, or the label stops containing the visible text.
-                aria-label={`${option.code} ${option.name}`}
-                tabIndex={0}
-                onClick={() => onToggle(option.leafCodes)}
-                onKeyDown={(e) => {
-                  if (e.key === " " || e.key === "Enter") {
-                    e.preventDefault();
-                    onToggle(option.leafCodes);
-                  }
-                }}
-                // Indentation is a SECONDARY cue only. In a filtered list the ancestors are not
-                // rendered, so equal indent on two rows can suggest a sibling relationship that does
-                // not exist — and padding reaches no screen reader at all (WCAG 1.3.1). The CODE
-                // carries the level in text: its length says which level it is (`A` / `62` / `62010`),
-                // it lands in the row's accessible name, and two codes side by side settle whether the
-                // rows are related. SNI 2025 has "Dataprogrammering" at two levels; its codes differ.
-                style={{ paddingInlineStart: 12 + option.depth * 20 }}
-                className="jp-criterionrow flex cursor-pointer items-center gap-2.5 border-b border-border py-2 pe-3 text-body-sm text-text-primary last:border-b-0"
-              >
-                <CheckBox state={state} />
-                <span className="jp-mono shrink-0 text-caption tabular-nums text-text-secondary">
-                  {option.code}
-                </span>
-                <span>{option.name}</span>
-              </div>
-            );
-          })
-        ) : (
-          <CriterionTree
-            nodes={nodes}
-            selected={selected}
-            onToggle={onToggle}
-            groupAriaLabel={groupAria}
-            expandAria={(name) => t("dialog.expandAria", { name })}
-            collapseAria={(name) => t("dialog.collapseAria", { name })}
-          />
-        )}
-      </div>
+        <div className="max-h-[min(18rem,32vh)] overflow-y-auto rounded-md border border-border">
+          {nodes.length === 0 ? (
+            <p className="px-4 py-3 text-body-sm text-text-primary">{optionsUnavailable}</p>
+          ) : showFilterList ? (
+            // No nested `role="group"` here: the <section> above already carries `groupAria`, and two
+            // nested groups with the same label make AT announce the axis name three times over.
+            filteredOptions.map((option) => {
+              // Tri-state, not a boolean: a matched division is "mixed" when only some of its leaves
+              // are selected, and rendering that as unchecked would let a click silently deselect the
+              // part already chosen. `groupTriState` is the same derivation the tree rows use.
+              const state = groupTriState(selected, option.leafCodes);
+              return (
+                <div
+                  key={option.key}
+                  role="checkbox"
+                  aria-checked={state === "indeterminate" ? "mixed" : state === "checked"}
+                  // Name from author, so the row announces the same string in every environment. Letting
+                  // the name be computed from the two child spans depends on whose separator rule you
+                  // get: MEASURED in Chromium's own AX tree, the space is inserted by the browser
+                  // whether or not the JSX contains one, while jsdom concatenates without it and reports
+                  // "68Fastighetsverksamhet". An explicit `{" "}` would therefore be a text node that
+                  // exists only to satisfy the test environment — and a whitespace-only node directly in
+                  // a flex container is not rendered anyway (CSS Flexbox L1 §4). The visible text is
+                  // exactly this string, so WCAG 2.5.3 holds — and that is now a coupling to keep in
+                  // mind: the name no longer tracks the JSX, so anything visible added to this row has
+                  // to be added here too, or the label stops containing the visible text.
+                  aria-label={`${option.code} ${option.name}`}
+                  tabIndex={0}
+                  onClick={() => onToggle(option.leafCodes)}
+                  onKeyDown={(e) => {
+                    if (e.key === " " || e.key === "Enter") {
+                      e.preventDefault();
+                      onToggle(option.leafCodes);
+                    }
+                  }}
+                  // Indentation is a SECONDARY cue only. In a filtered list the ancestors are not
+                  // rendered, so equal indent on two rows can suggest a sibling relationship that does
+                  // not exist — and padding reaches no screen reader at all (WCAG 1.3.1). The CODE
+                  // carries the level in text: its length says which level it is (`A` / `62` / `62010`),
+                  // it lands in the row's accessible name, and two codes side by side settle whether the
+                  // rows are related. SNI 2025 has "Dataprogrammering" at two levels; its codes differ.
+                  style={{ paddingInlineStart: 12 + option.depth * 20 }}
+                  className="jp-criterionrow flex cursor-pointer items-center gap-2.5 border-b border-border py-2 pe-3 text-body-sm text-text-primary last:border-b-0"
+                >
+                  <CheckBox state={state} />
+                  <span className="jp-mono shrink-0 text-caption tabular-nums text-text-secondary">
+                    {option.code}
+                  </span>
+                  <span>{option.name}</span>
+                </div>
+              );
+            })
+          ) : (
+            <CriterionTree
+              nodes={nodes}
+              selected={selected}
+              onToggle={onToggle}
+              groupAriaLabel={groupAria}
+              expandAria={(name) => t("dialog.expandAria", { name })}
+              collapseAria={(name) => t("dialog.collapseAria", { name })}
+            />
+          )}
+        </div>
       )}
     </section>
   );

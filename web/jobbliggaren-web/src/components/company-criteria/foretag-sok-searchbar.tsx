@@ -582,7 +582,7 @@ export function ForetagSokSearchbar({
                       dropping the whole draft — possibly 800 codes, with no undo. The removal is a
                       sibling with VISIBLE text, and it is a full `.jp-btn` (44px) rather than a
                       `.jp-clearlink`: that class is 13px caption text, smaller than the chips' own ×
-                      at either of its two sizes (24px, and 32px below 768px). It stays inside this
+                      at either of its two sizes (24px, and 32px at and below 768px). It stays inside this
                       `<li>` so it sits beside the chip it belongs to, not after the ort chips. */}
                   <span className="flex items-center gap-2">
                     <span className="jp-chip">

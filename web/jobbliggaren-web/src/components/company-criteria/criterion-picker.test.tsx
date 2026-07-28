@@ -102,9 +102,10 @@ describe("CriterionPicker — the filter view (#999: all three levels)", () => {
   it("renders the code VISIBLY, not only in the authored name", async () => {
     // The row's name comes from `aria-label`, which is what makes it identical in every environment —
     // but it also decouples the name from the JSX. Delete the visible code span and every name
-    // assertion above still passes, while the row loses the level cue that is the whole remedy, and
-    // the label stops containing the visible text (WCAG 2.5.3, level A). This is the assertion that
-    // notices.
+    // assertion above still passes while the row loses the level cue that is the whole remedy for the
+    // filtered view. This is the assertion that notices. (Not a WCAG 2.5.3 break: removing visible
+    // text leaves the name a superset of it. The direction that DOES break label-in-name is adding
+    // visible text without updating the label, which the component comment states.)
     renderPicker();
     const user = userEvent.setup();
     await user.type(screen.getByLabelText("Sök bransch"), "datapro");
@@ -192,11 +193,32 @@ describe("CriterionPicker — the filter view (#999: all three levels)", () => {
     expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
   });
 
-  it("announces the selection count from a region that was already there", () => {
-    // Its own pin: the popover header's counter carries the same attribute and its own assertion in
-    // `foretag-sok-searchbar.test.tsx`. This one covers the picker's inline counter, which the
-    // criterion dialog uses — and which a mutation walked straight through once.
-    renderPicker({ selected: new Set(["62010"]), selectedCountLabel: "1 vald bransch" });
+  it("keeps the selection counter's region mounted and empty before the first pick", () => {
+    // Two things, and the second is why the first matters. The counter is polite, AND its region is
+    // rendered before there is anything to announce: gating it on `hasSelection` made the 0→1
+    // transition — the first pick — a region that mounts with its content already in place, which is
+    // the form the house has ruled unreliable. Mutation (xv) walked through the POPOVER's counter,
+    // which is pinned in `foretag-sok-searchbar.test.tsx`; this covers the picker's own, which the
+    // criterion dialog renders.
+    const { container, rerender } = renderPicker({ selectedCountLabel: "1 vald bransch" });
+    // NOT just `p[aria-live]` — the filter-count region above is also a polite <p>, and querying
+    // for the first match would assert on it instead, passing whether or not this counter exists.
+    const region = container.querySelector("p[aria-live='polite']:not([role])");
+    expect(region).not.toBeNull();
+    expect(region).toHaveTextContent("");
+
+    rerender(
+      <CriterionPicker
+        nodes={NODES}
+        options={OPTIONS}
+        selected={new Set(["62010"])}
+        onToggle={vi.fn()}
+        filterLabel="Sök bransch"
+        groupAria="Branscher"
+        selectedCountLabel="1 vald bransch"
+        optionsUnavailable="Registret kunde inte laddas."
+      />,
+    );
     expect(screen.getByText("1 vald bransch")).toHaveAttribute("aria-live", "polite");
   });
 

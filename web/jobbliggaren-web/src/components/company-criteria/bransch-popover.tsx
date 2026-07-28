@@ -87,22 +87,25 @@ export function BranschPopover({
       // (WCAG 1.4.10 — verified rendered at 320px, not assumed).
       width="min(560px, calc(100vw - 32px))"
       headerRight={
-        pickedCount > 0 ? (
-          <span className="flex items-center gap-3">
-            {/* Polite: the count changes without focus moving — one click on a section takes it from
-                nothing to a whole subtree, and the row's own `aria-checked` does not carry the total.
-                The picker's inline counter, which this replaces on this surface, was already live. */}
-            <span
-              className="text-caption tabular-nums text-text-secondary"
-              aria-live="polite"
-            >
-              {tc("sniSelectedCount", { count: pickedCount })}
-            </span>
+        <span className="flex items-center gap-3">
+          {/* Polite, and rendered UNCONDITIONALLY — emptied rather than unmounted. The count changes
+              without focus moving (one click on a section takes it from nothing to a whole subtree,
+              and the row's own `aria-checked` does not carry the total), and a live region that
+              MOUNTS with its content already in place is the unreliable form. Gating this on
+              `pickedCount > 0` made the 0→1 transition — the first pick — exactly that case. Only
+              the clear control is conditional; there is nothing to clear at zero. */}
+          <span
+            className="text-caption tabular-nums text-text-secondary"
+            aria-live="polite"
+          >
+            {pickedCount > 0 ? tc("sniSelectedCount", { count: pickedCount }) : ""}
+          </span>
+          {pickedCount > 0 && (
             <button type="button" className="jp-clearlink" onClick={onClear}>
               {tc("dialog.clear")}
             </button>
-          </span>
-        ) : null
+          )}
+        </span>
       }
     >
       {/* `.jp-panel__body` carries the scroll cap but no inset; the picker's own rows are edge-to-edge

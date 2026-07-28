@@ -1035,7 +1035,7 @@ public static class DependencyInjection
 
     /// <summary>
     /// Persistence-modul: <see cref="AppDbContext"/>, <see cref="IAppDbContext"/>,
-    /// <see cref="IDateTimeProvider"/>. Ingen HTTP-bagage, ingen Identity, ingen Redis.
+    /// <see cref="IDateTimeProvider"/>, <see cref="ISwedishCalendar"/>. Ingen HTTP-bagage, ingen Identity, ingen Redis.
     /// Worker registrerar denna modul + egna audit-port-stubs.
     /// </summary>
     public static IServiceCollection AddPersistence(
@@ -1067,13 +1067,22 @@ public static class DependencyInjection
         services.AddSingleton<IDateTimeProvider, DateTimeProvider>();
 
         // Klas-direktiv 2026-07-28: a day boundary a user reads is the SWEDISH
-        // one, not UTC. Registered beside the clock and in this module because
-        // both hosts need it — Worker for RefreshLandingStatsJob's "nya idag",
-        // Api for the month-windowed application-statistics surfaces. Stateless
-        // singleton; the zone id is resolved once in a static field, and the
-        // gate against a runtime that cannot resolve it is SwedishCalendarTests,
-        // not this line (type registration is lazy, so a throw here would
-        // surface on first use rather than at boot).
+        // one, not UTC.
+        //
+        // It lives HERE because this module already owns the clock, and the
+        // calendar is the clock's sibling — NOT because both hosts need it.
+        // That criterion is one this very file rejects: AddTextAnalysis is a
+        // standalone module precisely because "called by BOTH hosts" does not
+        // imply persistence coupling. Splitting the two time adapters across two
+        // modules would cost more cohesion than it buys.
+        //
+        // Stateless singleton; the zone id resolves once in a static field, and
+        // the gate against a runtime that cannot resolve it is
+        // SwedishCalendarTests, not this line — type registration is lazy, so a
+        // throw here would surface on first use rather than at boot.
+        //
+        // Its consumer today is RefreshLandingStatsJob (Worker). The Api-side
+        // month-windowed statistics surfaces WILL consume it; they do not yet.
         services.AddSingleton<ISwedishCalendar, Time.SwedishCalendar>();
 
         // Provider-specifik DbUpdateException-analys (ADR 0032 §5). Singleton —

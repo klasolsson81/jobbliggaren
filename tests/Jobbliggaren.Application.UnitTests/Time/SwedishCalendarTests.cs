@@ -21,6 +21,15 @@ namespace Jobbliggaren.Application.UnitTests.Time;
 /// types are unit-tested here (precedent: <c>Auditing/IpAnonymizerTests</c>);
 /// there is no Infrastructure unit-test project.
 /// </para>
+///
+/// <para>
+/// <b>One hole is deliberate and cannot usefully be closed:</b> the zone
+/// IDENTITY is unpinned. <c>Europe/Berlin</c> or <c>Europe/Oslo</c> would pass
+/// every case below, because they share Sweden's CET/CEST rules in all years
+/// tested. Asserting <c>ZoneId.ShouldBe("Europe/Stockholm")</c> would be
+/// tautological. Recorded so the next reader knows it was considered rather
+/// than overlooked.
+/// </para>
 /// </summary>
 public class SwedishCalendarTests
 {
@@ -35,6 +44,73 @@ public class SwedishCalendarTests
 
         zone.ShouldNotBeNull();
         zone.SupportsDaylightSavingTime.ShouldBeTrue();
+    }
+
+    [Theory]
+    [InlineData(2026, 1, 15)]   // winter, zone offset +01:00
+    [InlineData(2026, 7, 15)]   // summer, zone offset +02:00
+    public void StartOfDay_ReturnsAZeroOffsetInstant(int year, int month, int day)
+    {
+        // THE assertion the rest of this class could not make. Npgsql writes a
+        // DateTimeOffset to `timestamptz` ONLY when Offset == 0; a non-zero one
+        // throws, and these values are used as query parameters. The repo has
+        // been bitten before — PlatsbankenJobSource normalises at the ACL
+        // boundary for the same reason, and records that the bug was invisible
+        // on a UTC host and fired locally in Sweden at +02:00.
+        //
+        // Every other assertion here is blind to this: DateTimeOffset.Equals
+        // compares the INSTANT only, so `.ToUniversalTime()` before ShouldBe is
+        // decorative. Two independent reviewers found the defect that entered
+        // through exactly this gap.
+        var start = new SwedishCalendar()
+            .StartOfDay(new DateTimeOffset(year, month, day, 14, 0, 0, TimeSpan.Zero));
+
+        start.Offset.ShouldBe(TimeSpan.Zero);
+    }
+
+    [Fact]
+    public void StartOfMonth_ReturnsAZeroOffsetInstant()
+    {
+        // Same contract on the sibling member, so the follow-up that consumes
+        // it cannot inherit the defect.
+        new SwedishCalendar().StartOfMonth(2026, 7).Offset.ShouldBe(TimeSpan.Zero);
+    }
+
+    [Theory]
+    [InlineData(2026, 3, 29)]   // spring forward
+    [InlineData(2026, 10, 25)]  // fall back
+    public void Midnight_IsNeitherInvalidNorAmbiguous_OnTransitionDates(int year, int month, int day)
+    {
+        // The port PROMISES callers need no invalid/ambiguous-time handling, and
+        // `ToInstant` rests entirely on that. The failure mode is silent:
+        // GetUtcOffset(Unspecified) returns the STANDARD offset for both an
+        // invalid and an ambiguous local time. If a future tzdata release moved
+        // an EU transition to midnight, the calendar would be an hour wrong with
+        // every other test still green. This is the only place the promise is
+        // checked rather than asserted in prose.
+        var zone = TimeZoneInfo.FindSystemTimeZoneById(SwedishCalendar.ZoneId);
+        var midnight = new DateTime(year, month, day, 0, 0, 0, DateTimeKind.Unspecified);
+
+        zone.IsInvalidTime(midnight).ShouldBeFalse();
+        zone.IsAmbiguousTime(midnight).ShouldBeFalse();
+    }
+
+    [Fact]
+    public void StartOfDay_IgnoresTheInputOffset_ReadingOnlyTheInstant()
+    {
+        // The port takes any DateTimeOffset. Its only caller passes
+        // clock.UtcNow, but the contract does not say so — and that this works
+        // today is a property of ConvertTime, not luck. Same instant, three
+        // spellings.
+        var calendar = new SwedishCalendar();
+        var expected = new DateTimeOffset(2026, 5, 22, 22, 0, 0, TimeSpan.Zero);
+
+        calendar.StartOfDay(new DateTimeOffset(2026, 5, 22, 22, 30, 0, TimeSpan.Zero))
+            .ShouldBe(expected);
+        calendar.StartOfDay(new DateTimeOffset(2026, 5, 23, 0, 30, 0, TimeSpan.FromHours(2)))
+            .ShouldBe(expected);
+        calendar.StartOfDay(new DateTimeOffset(2026, 5, 22, 18, 30, 0, TimeSpan.FromHours(-4)))
+            .ShouldBe(expected);
     }
 
     [Fact]
@@ -115,6 +191,19 @@ public class SwedishCalendarTests
         var start = calendar.StartOfDay(new DateTimeOffset(2026, 7, 15, 14, 0, 0, TimeSpan.Zero));
 
         calendar.StartOfDay(start).ShouldBe(start);
+    }
+
+    [Fact]
+    public void StartOfMonth_IsNotReproducibleByAddMonths_AcrossADstBoundary()
+    {
+        // The named follow-up consumer builds a 12-month series. The cheap way
+        // is one anchor plus AddMonths — and AddMonths PRESERVES the offset, so
+        // a July anchor stepped back six months lands an hour off. Pinned here
+        // so the follow-up cannot adopt that form by accident.
+        var calendar = new SwedishCalendar();
+
+        calendar.StartOfMonth(2026, 7).AddMonths(-6)          // 2025-12-31T22:00Z
+            .ShouldNotBe(calendar.StartOfMonth(2026, 1));     // 2025-12-31T23:00Z
     }
 
     [Theory]

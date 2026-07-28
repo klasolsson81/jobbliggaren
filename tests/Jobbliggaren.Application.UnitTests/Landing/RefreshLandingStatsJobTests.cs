@@ -11,11 +11,15 @@ namespace Jobbliggaren.Application.UnitTests.Landing;
 
 public class RefreshLandingStatsJobTests
 {
-    // The real calendar, not a stub. It is pure and deterministic, and stubbing
-    // the boundary would let these tests assert "nya idag" off a value no
-    // production adapter emits — the premise rule in CLAUDE.md §5 `Tests:`. It
-    // also means the Swedish boundary is exercised here rather than asserted
-    // twice in two places.
+    // The real calendar, not a stub: it is pure and deterministic, so the
+    // boundary is exercised once here rather than asserted twice in two places,
+    // and the job test stays discriminating under a mutation of the calendar.
+    //
+    // NOT because §5 `Tests:` forbids a stub — it does not, and an earlier
+    // version of this comment claimed it did. §5 attaches the obligation to the
+    // ASSERTION, not the seam, and a stub returning 22:00Z would return a value
+    // the real adapter does emit. `dotnet-architect` caught the over-citation.
+    // This is the tighter option, not the mandated one.
     private static readonly SwedishCalendar Calendar = new();
 
     private static JobAd CreateJobAd(FakeDateTimeProvider clock, string title, DateTimeOffset publishedAt) =>
@@ -95,6 +99,70 @@ public class RefreshLandingStatsJobTests
             "en annons publicerad 00:30 svensk tid hör till den svenska dagen; " +
             "den som publicerades 23:30 kvällen innan gör det inte. Den retirerade " +
             "UTC-gränsen hade gett 0 här.");
+    }
+
+    // The WINTER sibling of the test above, and it exists because without it the
+    // whole class was satisfied by a hardcoded offset. Every other case here sits
+    // in May, so `todayStart = now.UtcDateTime.Date.AddHours(-2)` — the port
+    // deleted entirely — passes all of them. Alone, neither test proves anything
+    // about the other; together they leave no fixed offset standing: this row is
+    // the one a hardcoded UTC+2 wrongly excludes, and May's is the one a
+    // hardcoded UTC+1 wrongly includes. Found by test-writer, not by my own
+    // mutation round, which only tried reverting to UTC.
+    [Fact]
+    public async Task RunAsync_InWinter_UsesTheOneHourOffset_NotTheSummerOne()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var clock = new FakeDateTimeProvider(new DateTimeOffset(2026, 1, 15, 1, 0, 0, TimeSpan.Zero));
+        var db = TestAppDbContextFactory.Create();
+
+        // 00:30 Swedish time on 15 Jan (winter, UTC+1) — inside.
+        db.JobAds.Add(CreateJobAd(clock, "just-after-swedish-midnight-winter",
+            new DateTimeOffset(2026, 1, 14, 23, 30, 0, TimeSpan.Zero)));
+        // 23:30 Swedish time on 14 Jan — outside.
+        db.JobAds.Add(CreateJobAd(clock, "just-before-swedish-midnight-winter",
+            new DateTimeOffset(2026, 1, 14, 22, 30, 0, TimeSpan.Zero)));
+        await db.SaveChangesAsync(ct);
+
+        var cache = Substitute.For<ILandingStatsCache>();
+        LandingStatsDto? captured = null;
+        await cache.SetAsync(Arg.Do<LandingStatsDto>(s => captured = s), Arg.Any<CancellationToken>());
+
+        var job = new RefreshLandingStatsJob(db, clock, Calendar, cache, NullLogger<RefreshLandingStatsJob>.Instance);
+        await job.RunAsync(ct);
+
+        captured.ShouldNotBeNull();
+        captured!.ActiveCount.ShouldBe(2);
+        captured.NewToday.ShouldBe(1,
+            "svensk vintertid är UTC+1 — dygnet börjar 23:00Z, inte 22:00Z");
+    }
+
+    // The window is half-open [start, ...): the boundary instant belongs to the
+    // day it opens. `StartOfDay_IsIdempotent_OnItsOwnResult` pins that semantics
+    // in the calendar; this job predicate is the ONLY place it can diverge from
+    // it, and that divergence was untested — `>=` to `>` survived the whole
+    // class. No seed sat on the boundary.
+    [Fact]
+    public async Task RunAsync_AdPublishedExactlyAtSwedishMidnight_CountsAsToday()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var clock = new FakeDateTimeProvider(new DateTimeOffset(2026, 5, 23, 1, 0, 0, TimeSpan.Zero));
+        var db = TestAppDbContextFactory.Create();
+
+        // Exactly 00:00:00 Swedish time on 23 May = 22:00:00Z on the 22nd.
+        db.JobAds.Add(CreateJobAd(clock, "exactly-at-swedish-midnight",
+            new DateTimeOffset(2026, 5, 22, 22, 0, 0, TimeSpan.Zero)));
+        await db.SaveChangesAsync(ct);
+
+        var cache = Substitute.For<ILandingStatsCache>();
+        LandingStatsDto? captured = null;
+        await cache.SetAsync(Arg.Do<LandingStatsDto>(s => captured = s), Arg.Any<CancellationToken>());
+
+        var job = new RefreshLandingStatsJob(db, clock, Calendar, cache, NullLogger<RefreshLandingStatsJob>.Instance);
+        await job.RunAsync(ct);
+
+        captured.ShouldNotBeNull();
+        captured!.NewToday.ShouldBe(1, "'>' i stället för '>=' tappar gränsinstansen");
     }
 
     [Fact]

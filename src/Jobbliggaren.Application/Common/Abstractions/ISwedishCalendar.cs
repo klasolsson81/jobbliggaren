@@ -50,7 +50,19 @@ public interface ISwedishCalendar
 
     /// <summary>
     /// The instant at which the Swedish civil month <paramref name="year"/>/<paramref name="month"/>
-    /// began. Used by the month-windowed application-statistics surfaces.
+    /// began. It has NO production consumer yet — the month-windowed
+    /// application-statistics surfaces will use it, and do not today.
+    ///
+    /// <para>
+    /// A month can never begin on a DST transition, so this needs no more care
+    /// than <see cref="StartOfDay"/>: EU transitions fall on the last Sunday of
+    /// March and October, which in a 31-day month is always the 25th or later.
+    /// </para>
+    /// <para>
+    /// <b>Do not reproduce a series of these with <c>AddMonths</c>.</b>
+    /// <c>AddMonths</c> preserves the offset, so one summer anchor stepped back
+    /// six months yields a January instant an hour wrong. Ask for each month.
+    /// </para>
     /// </summary>
     DateTimeOffset StartOfMonth(int year, int month);
 }

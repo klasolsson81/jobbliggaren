@@ -62,7 +62,7 @@ describe("LandingHeader (LP-4, #257)", () => {
     // supports naming, so the stats-group label is reliably announced. Bites on
     // revert: without the role the div is role=generic and getByRole("group") throws.
     expect(
-      screen.getByRole("group", { name: "Liveräkning från Platsbanken" }),
+      screen.getByRole("group", { name: "Aktiva annonser i Jobbliggaren" }),
     ).toBeInTheDocument();
   });
 });

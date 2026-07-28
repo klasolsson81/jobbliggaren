@@ -1,9 +1,9 @@
-using Jobbliggaren.Application.Resumes.Commands.AutoPromoteParsedResume;
+using Jobbliggaren.Application.Resumes.Common;
 using Jobbliggaren.Domain.Resumes;
 using Jobbliggaren.Domain.Resumes.Parsing;
 using Shouldly;
 
-namespace Jobbliggaren.Application.UnitTests.Resumes.Commands.AutoPromoteParsedResume;
+namespace Jobbliggaren.Application.UnitTests.Resumes.Common;
 
 // CV-pivot PR 5a — the bound verbatim projection (CTO-bind 2026-07-17 §1), pinned row by
 // row so a single mapping regression fails a single named test. The mapper is a PURE

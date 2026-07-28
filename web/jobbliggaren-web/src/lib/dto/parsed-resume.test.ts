@@ -6,6 +6,8 @@ import {
   changeProvenanceDtoSchema,
   parsedContentDtoSchema,
   parsedGapSummarySchema,
+  parsedResumeDetailDtoSchema,
+  autoPromoteBlockReasonSchema,
   pendingParsedResumeSummarySchema,
   type ParsedGapSummary,
   type ProposedChangeDto,
@@ -408,3 +410,102 @@ describe("parsedContentDtoSchema (preamble-fältet, #844/ADR 0109)", () => {
     if (result.success) expect(result.data.preamble).toBeNull();
   });
 });
+
+describe("parsedResumeDetailDtoSchema.blockReason (#1060)", () => {
+  // Varför filen inte är sparad som CV. Backend HÄRLEDER värdet per request; FE:t ska bära
+  // det utan att kunna rendera fel copy. Två olika drift-riktningar, två olika svar — och det
+  // är hela poängen med fältet: en saknad nyckel är en ÄLDRE backend (tolerera, kortet
+  // degraderar civilt), ett okänt värde är en NYARE grind vi saknar copy för (fail-loud).
+  const base = {
+    id: "9f1c2f7e-0000-4000-8000-000000000001",
+    status: "PendingReview",
+    detectedLanguage: "Sv",
+    sourceFileName: "cv.pdf",
+    confidence: {
+      overall: "Degraded",
+      requiresManualReview: true,
+      fallback: "None",
+      sections: [],
+    },
+    personnummer: { found: false, count: 0, kinds: [] },
+    content: {
+      contact: { fullName: null, email: null, phone: null, location: null },
+      profile: null,
+      experiences: [],
+      educations: [],
+      skills: [],
+      languages: [],
+      sections: [],
+      preamble: null,
+    },
+    occupationProposals: [],
+    createdAt: "2026-07-28T09:00:00Z",
+    updatedAt: "2026-07-28T09:00:00Z",
+  };
+
+  it("bär var och en av grindarna verbatim", () => {
+    for (const reason of autoPromoteBlockReasonSchema.options) {
+      const result = parsedResumeDetailDtoSchema.safeParse({ ...base, blockReason: reason });
+
+      expect(result.success).toBe(true);
+      if (result.success) expect(result.data.blockReason).toBe(reason);
+    }
+  });
+
+  it("accepterar blockReason: null (inget hindrar filen)", () => {
+    const result = parsedResumeDetailDtoSchema.safeParse({ ...base, blockReason: null });
+
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.blockReason).toBeNull();
+  });
+
+  it("accepterar helt UTELÄMNAD nyckel → success + null (deploy-skew, paritet preamble/gaps)", () => {
+    // Ett hårt parse-fel här hade fällt HELA granska-sidan för ett fält som bara bär
+    // förklarande copy. En äldre backend serialiserar inte nyckeln alls.
+    const result = parsedResumeDetailDtoSchema.safeParse(base);
+
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.blockReason).toBeNull();
+  });
+
+  it("FAIL-LOUD:ar på ett okänt skäl i stället för att rendera ett block utan text", () => {
+    const result = parsedResumeDetailDtoSchema.safeParse({
+      ...base,
+      blockReason: "SomeNewGateWeHaveNoCopyFor",
+    });
+
+    expect(result.success).toBe(false);
+  });
+
+  it("avvisar UnclassifiedPreamble — grinden pensionerades i PR B och kan inte längre skickas", () => {
+    // Medlemmen låg kvar i FE-mängden efter att backend tagit bort den: drift åt det håll ett
+    // fail-loud-schema per konstruktion inte upptäcker, ett värde som accepteras men aldrig
+    // kommer. Den blev bärande här, för mängden har nu exakt en copy-sträng per medlem.
+    expect(autoPromoteBlockReasonSchema.options).not.toContain("UnclassifiedPreamble");
+    expect(
+      parsedResumeDetailDtoSchema.safeParse({ ...base, blockReason: "UnclassifiedPreamble" })
+        .success,
+    ).toBe(false);
+  });
+
+  it("är EN mängd, delad med importsvaret — inte två uppräkningar som kan glida isär", () => {
+    expect(autoPromoteBlockReasonSchema.options).toEqual([
+      "PersonnummerPresent",
+      "PersonnummerInAccountName",
+      "ParseNotConfident",
+      "IncompleteContent",
+    ]);
+  });
+
+  it("skiljer personnummer i FILEN från personnummer i KONTOTS visningsnamn", () => {
+    // CTO-bind D2. De två kräver olika åtgärd (redigera filen respektive Inställningar), så
+    // de är två tokens och inte en token plus en FE-gissning på `personnummer.found` — den
+    // gissningen vore sann om filskanningen och falsk om sitt ämne.
+    for (const reason of ["PersonnummerPresent", "PersonnummerInAccountName"] as const) {
+      const result = parsedResumeDetailDtoSchema.safeParse({ ...base, blockReason: reason });
+      expect(result.success).toBe(true);
+      if (result.success) expect(result.data.blockReason).toBe(reason);
+    }
+  });
+});
+

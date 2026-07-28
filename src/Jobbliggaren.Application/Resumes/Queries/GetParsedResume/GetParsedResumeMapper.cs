@@ -1,4 +1,5 @@
 using Jobbliggaren.Application.Resumes.Commands.ImportResume;
+using Jobbliggaren.Application.Resumes.Common;
 using Jobbliggaren.Domain.Privacy;
 using Jobbliggaren.Domain.Resumes.Parsing;
 
@@ -11,7 +12,12 @@ namespace Jobbliggaren.Application.Resumes.Queries.GetParsedResume;
 /// </summary>
 internal static class GetParsedResumeMapper
 {
-    public static ParsedResumeDetailDto ToDetailDto(this ParsedResume resume) =>
+    /// <param name="blockReason">The auto-promote verdict the handler derived, or <c>null</c>
+    /// when nothing blocks. Crosses the wire as the enum's NAME, parity with every other enum
+    /// on this DTO: no <c>JsonStringEnumConverter</c> is configured, so an enum member would
+    /// serialise as its integer and the FE contract is on the .NET names.</param>
+    public static ParsedResumeDetailDto ToDetailDto(
+        this ParsedResume resume, AutoPromoteBlockReason? blockReason) =>
         new(
             Id: resume.Id.Value,
             Status: resume.Status.ToString(),
@@ -27,7 +33,8 @@ internal static class GetParsedResumeMapper
                 .Select(p => new OccupationProposalDto(p.ConceptId, p.Label, p.MatchedOn, p.ApproximateYears))
                 .ToList(),
             CreatedAt: resume.CreatedAt,
-            UpdatedAt: resume.UpdatedAt);
+            UpdatedAt: resume.UpdatedAt,
+            BlockReason: blockReason?.ToString());
 
     private static ParseConfidenceDto ToConfidenceDto(ParseConfidence confidence) =>
         new(

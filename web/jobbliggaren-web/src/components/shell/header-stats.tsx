@@ -11,15 +11,38 @@ import { formatNumber } from "@/lib/i18n/format";
  * <ul>
  *   <li>Initial-värdet hämtas server-side i `(app)/layout.tsx` och passeras
  *       som prop — ingen flash-of-empty-state.</li>
- *   <li>Klienten pollar `/api/landing-stats` var 10:e minut (Klas-direktiv
- *       2026-05-24). Worker-cronnen refreshar Redis var 5:e min, så
- *       worst-case latens från ny annons → synlig är ~15 min.</li>
+ *   <li>The client polls `/api/landing-stats` every 10 min (Klas-direktiv
+ *       2026-05-24). On the HEALTHY PATH an ad published at Platsbanken
+ *       becomes visible here in ~25 min: ingest every 10 min
+ *       (`RecurringJobIds.SyncPlatsbankenStream`), recount every 5 min
+ *       (`RecurringJobIds.RefreshLandingStats`, ADR 0064), then this poll.
+ *       That is a healthy-path ceiling and NOT a worst case: a dropped
+ *       stream run is tolerated by design and caught only by the 02:00 UTC
+ *       snapshot (ADR 0032 §3), and a dead Worker lets Redis serve a value
+ *       up to its 1 h TTL while `IsStale` still reads false.</li>
+ *   <li>Removal is SYMMETRIC on the healthy path: the same 10-min stream
+ *       carries removal events (`ArchiveExternalJobAdCommand`), so a
+ *       withdrawn ad leaves the count as fast as it entered. Only the
+ *       residue is slow, and the two backstops are NOT interchangeable.
+ *       An ad that passes `ExpiresAt` with no removal event waits for the
+ *       nightly sweep (`RecurringJobIds.ExpireJobAds`, ~24 h); a snapshot
+ *       gap needs `JobSourceRetentionOptions.SnapshotMissThreshold`
+ *       consecutive DAILY misses (`RecurringJobIds.RetainPlatsbankenJobAds`),
+ *       so it lags by that multiple of a day — `[Range(1, 30)]`, default 3,
+ *       hence ~3 days as configured and equal to the sweep only at 1.</li>
  *   <li>När polling-svaret ger högre `newToday` än senaste sedda värdet
  *       visas en grön <code>+N</code>-pill via fade-in (200ms), syns i 8
  *       sekunder, sen fade-out (Klas-feedback 2026-05-24 svans-PR5 —
  *       tidigare "stay forever" upplevdes som "livräknaren har +1 hela tiden"
  *       istället för "nu kom det in nya jobb"-affordance).</li>
  * </ul>
+ *
+ * Every job, cron and option named above is cited by SYMBOL, never by
+ * `file:line`: a line number across the dotnet/pnpm toolchain boundary has no
+ * gate on either side and rots silently. One of this block's two original cron
+ * citations was wrong the moment it was written — the line held the job id,
+ * not the cron — and the PR body's citations OF this file went stale within
+ * the hour, from that same PR's next commit.
  *
  * Rate-limit-budget: 10-min polling = 0.1 req/min per tab; backend
  * `LandingPublicReadPolicy` är 60/min/IP → rooom för 600 öppna tabbar.

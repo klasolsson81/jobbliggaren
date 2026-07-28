@@ -231,6 +231,14 @@
   --jp-control-fs: var(--text-body-sm);  /* #549 WS2: = body-sm-golvet, nu via skalan */
   --jp-control-px: 14px;
 
+  /* `.jp-btn`'s inline padding, named so `.jp-btn--flush` can cancel exactly it. Value unchanged;
+     rationale at `.jp-btn--flush` rather than repeated here. NOT the shared-SSOT pattern of
+     `--jp-control-px` above — that one is read by two different components on the /jobb filter row;
+     this one is read by the button family (`.jp-btn`, and `.jp-btn--sm`'s scoped re-pin) plus its
+     own canceller. Same CLAIM as DESIGN.md's knapp-punkt (Swedish there, per §1 — so the wording
+     cannot match; the substance must). Keep them in sync. */
+  --jp-btn-px: 18px;
+
   /* Skuggor (v3-kanon — undantag: popover/modal får skugga) */
   --jp-shadow-card:  0 1px 2px rgba(15, 27, 45, 0.05), 0 1px 0 rgba(15, 27, 45, 0.04);
   --jp-shadow-pop:   0 10px 30px rgba(8, 23, 48, 0.16), 0 2px 6px rgba(8, 23, 48, 0.08);
@@ -1692,6 +1700,29 @@ a.jp-adminnav__link[aria-current="page"]::after {
   cursor: pointer;
   font-size: var(--text-ui);
 }
+/* Criterion tree rows — the #999 bransch popover and the criterion dialog. The row is a
+   `role="checkbox"` div with Tailwind padding, and the hit-target floor CANNOT live in a utility:
+   `.jp-*` is unlayered and beats `@layer utilities`, which is exactly the trap `.jp-btn--field`
+   documents. MEASURED before the fix, rendered in the production build: 38px at both 375 and 768
+   (chevron 32px). The floor is 32px in-app and 44px on touch at ≤768px — `jobbpilot-design-a11y` §9
+   and WCAG 2.5.5, the same pattern and the same breakpoint as `.jp-hero-pill` above. (Not ADR 0038:
+   that ADR RAISED control heights to 44px; the 32px in-app minimum is the a11y skill's, not its.)
+   Nothing changes above 768px: density in a 944-node tree is itself a legibility value.
+   The focus ring is inset because the rows sit edge-to-edge inside an `overflow-y: auto` box, so the
+   default `outline-offset: 2px` is clipped on both sides — same fix, same reason, as
+   `.jp-panel .jp-checkitem:focus-visible`. The spacer standing in for a missing chevron takes the
+   same width bump, or leaf rows would start 12px left of their siblings on touch. */
+@media (max-width: 768px) {
+  .jp-criterionrow { min-height: 44px; }
+  .jp-criterionrow__toggle,
+  .jp-criterionrow__spacer {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}
+.jp-criterionrow:focus-visible {
+  outline-offset: -2px;
+}
 .jp-checkitem:hover { background: var(--jp-surface-3); }
 .jp-checkitem__box {
   width: 20px;
@@ -1829,7 +1860,11 @@ a.jp-adminnav__link[aria-current="page"]::after {
   justify-content: center;
   gap: 8px;
   height: 44px;
-  padding: 0 18px;
+  /* The inline padding is NAMED, not because it changes, but because `--flush` has to cancel exactly
+     it. Writing `-18px` there would be a magic number coupled to this rule by nothing but hope
+     (#1090 says so in as many words). Rationale and the scope of the name: see the declaration
+     above and `.jp-btn--flush` below. The value is unchanged. */
+  padding: 0 var(--jp-btn-px);
   border-radius: var(--jp-r-md);
   font-size: var(--text-ui);
   font-weight: var(--jp-fw-semibold);
@@ -1895,7 +1930,33 @@ a.jp-adminnav__link[aria-current="page"]::after {
   background: var(--jp-surface-3);
   color: var(--jp-ink-1);
 }
-.jp-btn--sm { height: 36px; padding: 0 14px; font-size: var(--text-body-sm); }
+.jp-btn--sm {
+  /* Sets the token rather than a literal, so `--flush`'s `calc(-1 * var(--jp-btn-px))` resolves to
+     -14px on a small button instead of over-pulling by 4px. Nothing combines the two today; the
+     point is that the modifier's promise ("no second number") is true rather than untested. */
+  --jp-btn-px: 14px;
+  height: 36px;
+  padding: 0 var(--jp-btn-px);
+  font-size: var(--text-body-sm);
+}
+/* A ghost button whose TEXT has to sit on the rail, not 18px inside it (#1090). Measured on
+   /foretag/sok before the fix: the field labels start at x=72 and "Rensa sökningen" reads at x=90,
+   which is invisible while the button ends a chip row and obvious once it stands alone.
+   The padding is NOT removed — a negative start margin cancels it. `padding-inline: 0` would have
+   made `.jp-btn--ghost:hover`'s `--jp-surface-3` fill hug the glyphs with no breathing room, which
+   #1090 names as the cost that makes the naive version not free. The offset reads
+   `-1 × --jp-btn-px`, so it cannot drift from the padding it cancels; there is no second number.
+   Deliberately NOT scoped to `--ghost` — the condition is "the TEXT has to sit on the rail", not
+   "the button is a ghost". Note what that excludes: on a FILLED button the fill is the visible left
+   edge, so cancelling the padding would push the fill 18px past the rail to put the glyphs on it.
+   This is for buttons whose background is invisible at rest.
+   Scoped to `:first-child` on purpose. "Flush" only means something at the START of its row — the
+   same button sits AFTER the chip list when there are chips, and there the negative margin would eat
+   18px of a 12px gap and overlap the last chip. The selector states that condition instead of asking
+   the caller to remember it, so the class is inert exactly where it would do harm. */
+.jp-btn--flush:first-child {
+  margin-inline-start: calc(-1 * var(--jp-btn-px));
+}
 /* Höjd-parad med .jp-input (48px) för en sökrad där fält + knapp ska läsas som EN kontroll.
    Finns för att en Tailwind-utility INTE kan göra det: .jp-* är olagrat och vinner över
    @layer utilities, så `className="jp-btn h-12"` ger 44px utan fel eller varning (mätt
@@ -3923,6 +3984,22 @@ a.jp-adminnav__link[aria-current="page"]::after {
   border: 1px solid var(--jp-border);
   border-left: 3px solid var(--jp-warning);
   border-radius: var(--jp-r-md);
+}
+/* #1060: the same card, positive verdict. The base accent is locked to --jp-warning, so
+   the cleared state inherited an orange marker under a green pill — the container
+   contradicting its own verdict, in both themes. No new token; --jp-success is defined
+   for light and dark alongside --jp-warning. */
+.jp-cvaction--ok {
+  border-left-color: var(--jp-success);
+}
+/* #1060: the base 20px bottom margin is load-bearing on the hub, whose container has no
+   gap. The review page IS a gap column, so the margin doubles into a 44px seam under this
+   one block. A `mb-0` utility cannot fix it: `.jp-cvaction` is UNLAYERED and Tailwind
+   utilities live in @layer utilities, so the unlayered rule wins at equal specificity and
+   the utility is silently inert (DESIGN.md §141 — change the rule or add a modifier, never
+   a utility for a property the .jp-* rule sets itself). Hence a modifier. */
+.jp-cvaction--flush {
+  margin-bottom: 0;
 }
 .jp-cvaction__source {
   margin: 0;

@@ -72,10 +72,25 @@ export type PersonnummerScanDto = z.infer<typeof personnummerScanDtoSchema>;
 /** Varför auto-promote lämnade CV:t väntande (`AutoPromoteBlockReason`, CV-pivot 5a/5c). En
  * LÅST mängd → `z.enum` fail-loud:ar vid drift (ett nytt backend-skäl ⇒ DtoParseError, aldrig
  * tyst fel copy). FE:t rutar på `outcome` (Promoted/LeftPending), ALDRIG på detta värde
- * (CLAUDE.md §5) — men läser `PersonnummerPresent` för att avgöra om samtyckesdialogen ska resas. */
+ * (CLAUDE.md §5) — men läser `PersonnummerPresent` för att avgöra om samtyckesdialogen ska resas.
+ *
+ * `UnclassifiedPreamble` BORTTAGEN här (#1060 PR C). Backend pensionerade medlemmen i PR B
+ * (`AutoPromoteBlockReason.cs`, 2026-07-27) och kan inte längre emitta den; den låg kvar i den
+ * här mängden som drift åt det håll ett fail-loud-schema per konstruktion inte upptäcker —
+ * ett värde som accepteras men aldrig kommer. Den blev bärande i PR C: mängden har nu exakt en
+ * copy-sträng per medlem (`pages.cv.review.blockReason.*`), så en medlem som backend
+ * aldrig skickar hade renderat ett block med ett saknat översättningsnyckel-fel om den ändå kom.
+ * Mätt före borttagningen: noll läsare i `src/` och noll copy-nycklar i `messages/`.
+ *
+ * `PersonnummerInAccountName` TILLKOM i PR C (CTO-bind D2): DQ6 kan falla på kontots
+ * visningsnamn medan FILEN är ren, och `PersonnummerPresent` drev då copy som bad
+ * användaren ta bort ett nummer ur en fil som inte har något. Två skäl, två åtgärder
+ * (filen respektive Inställningar), alltså två tokens. FE:t grenar ALDRIG på
+ * `personnummer.found` för att gissa var numret satt — det vore ett påstående sant om
+ * filskanningen och falskt om sitt ämne. */
 export const autoPromoteBlockReasonSchema = z.enum([
   "PersonnummerPresent",
-  "UnclassifiedPreamble",
+  "PersonnummerInAccountName",
   "ParseNotConfident",
   "IncompleteContent",
 ]);
@@ -178,6 +193,19 @@ export const parsedResumeDetailDtoSchema = z.object({
   personnummer: personnummerScanDtoSchema,
   content: parsedContentDtoSchema,
   occupationProposals: z.array(occupationProposalDtoSchema),
+  /** Blockeringsorsaken, härledd per request av backendens `AutoPromoteGate` (aldrig
+   * lagrad), #1060. `null` = inget hindrar filen — ett eget besked, inte ett tomt
+   * tillstånd: ett utkast kan ligga kvar pending medan grinden som stoppade det har
+   * pensionerats (PR B pensionerade en och smalnade en till). SAMMA schema som
+   * `importOutcomeResponseSchema.blockReason` läser: en mängd, ett hem.
+   * **Deploy-skew-tolerant som `sections`/`gaps`:** `nullish`, inte bara `nullable` — en
+   * äldre backend UTELÄMNAR nyckeln, och ett hårt parse-fel skulle fälla HELA granska-sidan
+   * för ett fält som bara bär förklarande copy. VÄRDE-mängden är däremot strikt: saknad
+   * nyckel = äldre backend (tolereras), okänt värde = NYARE backend med en grind vi inte
+   * har copy för (fail-loud). */
+  blockReason: autoPromoteBlockReasonSchema
+    .nullish()
+    .transform((v) => v ?? null),
   createdAt: z.string(),
   updatedAt: z.string(),
 });

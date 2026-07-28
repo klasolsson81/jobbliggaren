@@ -2,7 +2,7 @@ using Jobbliggaren.Application.Resumes.Queries;
 using Jobbliggaren.Domain.Resumes;
 using Jobbliggaren.Domain.Resumes.Parsing;
 
-namespace Jobbliggaren.Application.Resumes.Commands.AutoPromoteParsedResume;
+namespace Jobbliggaren.Application.Resumes.Common;
 
 /// <summary>
 /// The bound verbatim projection <c>ParsedResumeContent → ResumeContentDto</c> (CV-pivot

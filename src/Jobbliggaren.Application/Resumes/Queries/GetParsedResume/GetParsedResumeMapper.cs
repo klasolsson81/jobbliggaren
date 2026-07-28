@@ -1,5 +1,5 @@
-using Jobbliggaren.Application.Resumes.Commands.AutoPromoteParsedResume;
 using Jobbliggaren.Application.Resumes.Commands.ImportResume;
+using Jobbliggaren.Application.Resumes.Common;
 using Jobbliggaren.Domain.Privacy;
 using Jobbliggaren.Domain.Resumes.Parsing;
 

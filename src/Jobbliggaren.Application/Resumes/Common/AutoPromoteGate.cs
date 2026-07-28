@@ -1,11 +1,10 @@
-using Jobbliggaren.Application.Resumes.Common;
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.JobSeekers;
 using Jobbliggaren.Domain.Privacy;
 using Jobbliggaren.Domain.Resumes;
 using Jobbliggaren.Domain.Resumes.Parsing;
 
-namespace Jobbliggaren.Application.Resumes.Commands.AutoPromoteParsedResume;
+namespace Jobbliggaren.Application.Resumes.Common;
 
 /// <summary>
 /// The ONE auto-promote policy evaluator (#1060 CTO-bind D4-REBIND): "may this parse become a
@@ -34,12 +33,17 @@ namespace Jobbliggaren.Application.Resumes.Commands.AutoPromoteParsedResume;
 /// Tier-2 verdict IS <c>Resume.CreateFromParsed</c> — the one buildability authority (its
 /// failure is the honest "content insufficient, user reviews", never re-encoded). Handing the
 /// aggregate back makes this the ONLY <c>CreateFromParsed</c> call site on the auto-promote
-/// path, so gate and handler cannot drift apart into two predicates that disagree; the
+/// path, so gate and handler cannot drift apart into two implementations of one predicate; the
 /// alternative (gate probes, handler rebuilds) is two evaluations of one question, which is
 /// the defect D4-REBIND rejected alternative (4) for. The read side ignores the
 /// <see cref="AutoPromoteGateVerdict.Promotable"/> arm's aggregate: it is never added to a
-/// DbContext, so its domain events are never dispatched (dispatch runs off tracked entries at
-/// SaveChanges), and it is garbage in the same request.</para>
+/// DbContext and is unreachable once <c>Evaluate</c> returns, so nothing can observe the three
+/// domain events <c>CreateFromParsed</c> raises on it. Two facts carry that, and the earlier
+/// wording named neither: (1) <b>no domain-event dispatcher exists in <c>src/</c></b> —
+/// <c>DomainEvents</c> is raise-only and every EF configuration <c>Ignore</c>s it; (2)
+/// <c>UnitOfWorkBehavior</c> is constrained to <c>ICommand&lt;TResponse&gt;</c>, so
+/// <c>SaveChangesAsync</c> never runs on a query request at all. Fact (2) keeps holding for any
+/// future dispatcher, however it is built.</para>
 ///
 /// <para><b>Order is load-bearing and unchanged from the handler it came from:</b> cheapest and
 /// highest-PII-priority first (parse-flag → extraction failure → label channel → composed
@@ -48,6 +52,16 @@ namespace Jobbliggaren.Application.Resumes.Commands.AutoPromoteParsedResume;
 /// <see cref="AutoPromoteBlockReason.IncompleteContent"/>, because
 /// <c>Resume.ValidateName</c>/<c>ValidateContent</c> would refuse it as a buildability failure
 /// and that would mis-report the verdict (CLAUDE.md §5).</para>
+///
+/// <para><b>The two call sites run one predicate over one artifact — and they differ on exactly
+/// one input, deliberately (#1060 PR C, CTO-bind D1).</b> <paramref name="label"/> is not a
+/// property of the artifact; it is a property of a future SUBMISSION, and only the write path
+/// has it. The read path therefore passes the generated default, which means a personnummer the
+/// user typed into the CV-name field is <b>not assessed</b> there — never cleared. That
+/// asymmetry is accepted, documented and pinned by a test
+/// (<c>GetParsedResumeEndpointTests</c>'s label-asymmetry case); do not "fix" it by persisting
+/// the typed label, which would store user text known to carry a personnummer. What closes the
+/// loop instead is the upload form, which refuses that name at the field.</para>
 /// </summary>
 internal static class AutoPromoteGate
 {
@@ -112,7 +126,17 @@ internal static class AutoPromoteGate
         // honest "pending, review" (it is a personnummer presence, whichever field carries it).
         var guard = ResumeContentPersonnummerGuard.Check(dto);
         if (guard.IsFailure)
-            return new AutoPromoteGateVerdict.Blocked(AutoPromoteBlockReason.PersonnummerPresent);
+        {
+            // A DISTINCT token (#1060 PR C, CTO-bind D2). Every other text in `dto` is a
+            // projection of the parse, and the import scan already covered that raw superset —
+            // so if this guard fires and the parse's own scan did not, the number is in the
+            // account display name, which is the one text this composition adds. Reporting it
+            // as PersonnummerPresent sent the user to search a clean file: a mis-reported
+            // verdict (CLAUDE.md §5) and a loop with no exit, because the fix is under
+            // Inställningar and nothing said so.
+            return new AutoPromoteGateVerdict.Blocked(
+                AutoPromoteBlockReason.PersonnummerInAccountName);
+        }
 
         var content = ResumeContentMapper.ToDomain(dto);
         var created = Resume.CreateFromParsed(jobSeekerId, label, content, parsed.Id, clock);

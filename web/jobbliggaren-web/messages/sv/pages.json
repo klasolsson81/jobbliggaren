@@ -78,7 +78,7 @@
       "kicker": "Kräver åtgärd",
       "imported": "Importerad {when}",
       "heading": "Ditt CV är inläst",
-      "body": "Filen är inläst men inte sparad som CV. Öppna granskningen så ser du vad som saknas.",
+      "body": "Filen är inläst men inte sparad som CV. Öppna granskningen så ser du varför.",
       "cta": "Öppna granskningen",
       "discard": "Ta bort utkastet",
       "discardTitle": "Ta bort utkastet?",
@@ -117,12 +117,14 @@
       "loading": "Läser in granskningen…",
       "blockReason": {
         "title": "Därför är filen inte sparad som CV",
+        "ParseNotConfident": "Filen behöver innehålla text som går att markera. Är den en bild, ett skannat eller lösenordsskyddat dokument sparar du om den som PDF eller Word och laddar upp igen. Du kan också fylla i uppgifterna för hand.",
+        "IncompleteContent": "En eller flera poster i filen är ofullständiga. Kontrollera att varje anställning har arbetsgivare och titel, och varje utbildning har lärosäte och examen. Komplettera dem och ladda upp filen igen.",
         "PersonnummerPresent": "Filen innehåller ett personnummer. Ta bort det ur filen och ladda upp den igen.",
-        "ParseNotConfident": "Vi kunde inte läsa ut någon text ur filen. Det brukar betyda att den är en bild eller ett skannat dokument. Ladda upp den som PDF med markerbar text, eller som Word-fil.",
-        "IncompleteContent": "En eller flera poster saknar arbetsgivare eller titel. Komplettera dem i filen och ladda upp den igen.",
-        "clearedKicker": "Klar att sparas",
-        "clearedTitle": "Inget hindrar filen längre",
-        "clearedBody": "Filen uppfyller kraven för att sparas som CV. Ladda upp den igen så sparas den direkt."
+        "PersonnummerInAccountName": "Ditt visningsnamn innehåller ett personnummer. Filen är däremot ren. Ändra namnet under Inställningar och ladda upp filen igen.",
+        "settingsCta": "Gå till Inställningar",
+        "clearedKicker": "Inget hittat i filen",
+        "clearedTitle": "Inget i filen hindrar den längre",
+        "clearedBody": "Vi hittar inget i filen som stoppar den. Ladda upp den igen så prövas den på nytt. Ett namn du skriver själv kontrolleras först vid uppladdningen."
       }
     },
     "improve": {

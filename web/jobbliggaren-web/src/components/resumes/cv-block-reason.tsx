@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { StatusPill } from "@/components/ui/status-pill";
 import type { AutoPromoteBlockReason } from "@/lib/dto/parsed-resume";
@@ -9,17 +10,23 @@ import type { AutoPromoteBlockReason } from "@/lib/dto/parsed-resume";
  * Före den här komponenten kunde hon inte få veta orsaken alls utan att ladda upp
  * filen på nytt (#1060 delkrav 3) — kortet sa bara att något behövde åtgärdas.
  *
- * Återanvänder `.jp-cvaction` med flit: det ÄR samma kort hon just klickade på, nu
- * med svaret i sig. Ingen ny CSS, inget nytt mönster, och kontinuiteten är avsiktlig.
+ * Återanvänder `.jp-cvaction`: det ÄR samma kort hon just klickade på, nu med svaret
+ * i sig. Klarat-läget lägger till `--ok`, för basklassens vänsteraccent är låst till
+ * `--jp-warning`, och en grön pill i ett orange kort är kortet som motsäger sitt eget
+ * besked (design-reviewer). Inga nya tokens; båda finns i båda teman.
  *
- * `reason === null` är inte ett tomt tillstånd utan ett eget besked. Ett utkast kan
- * ligga kvar pending medan grinden som stoppade det har pensionerats under tiden
- * (PR B pensionerade en grind och smalnade en till), och då är det ärliga svaret att
- * inget hindrar filen längre — inte tystnad.
+ * **`reason === null` betyder "inget i FILEN hindrar den", aldrig "det här kommer att
+ * sparas"** (CTO-bind D1). Grindens etikett-kanal läser CV-namnet från uppladdnings-
+ * formuläret, som läsvägen inte har, så ett personnummer i det fältet är *ej bedömt*
+ * här. Copyn är scopead till filen och skriver ut den obedömda kanalen i en mening;
+ * den får inte intyga en sparning som inte har hänt (CLAUDE.md §5).
  *
- * Copyn är en sluten mängd, en sträng per grind. `AutoPromoteBlockReason` är låst i
- * zod-schemat, så en ny backend-grind fail-loud:ar i DTO-parsningen i stället för att
- * rendera ett block utan text.
+ * Att rendera ingenting vore fel: ett utkast kan ligga kvar pending medan grinden som
+ * stoppade det har pensionerats (PR B pensionerade en och smalnade en till), och för
+ * de användarna är tystnad exakt den defekt #1060 filades för.
+ *
+ * `AutoPromoteBlockReason` är låst i zod-schemat, så en ny backend-grind fail-loud:ar i
+ * DTO-parsningen i stället för att rendera ett block utan text.
  */
 export function CvBlockReason({
   reason,
@@ -32,7 +39,10 @@ export function CvBlockReason({
   const headingId = "cv-blockreason-title";
 
   return (
-    <section aria-labelledby={headingId} className="jp-cvaction">
+    <section
+      aria-labelledby={headingId}
+      className={cleared ? "jp-cvaction jp-cvaction--ok" : "jp-cvaction"}
+    >
       <StatusPill tone={cleared ? "success" : "warning"}>
         {cleared ? t("review.blockReason.clearedKicker") : t("pending.kicker")}
       </StatusPill>
@@ -48,6 +58,25 @@ export function CvBlockReason({
             : t(`review.blockReason.${reason}`)}
         </p>
       </div>
+
+      {/* Varje tillstånd som ger en instruktion får kontrollen bredvid instruktionen
+          (ADR 0047). Personnumret i visningsnamnet ändras under Inställningar, tre
+          skärmar bort och namngivet ingen annanstans; det klarade läget pekar på
+          uppladdningen, som annars bara finns längst ned på sidan. */}
+      {reason === "PersonnummerInAccountName" && (
+        <div className="jp-cvaction__actions">
+          <Link href="/installningar" className="jp-btn jp-btn--secondary">
+            {t("review.blockReason.settingsCta")}
+          </Link>
+        </div>
+      )}
+      {cleared && (
+        <div className="jp-cvaction__actions">
+          <Link href="/cv/importera" className="jp-btn jp-btn--secondary">
+            {t("review.nextStepCta")}
+          </Link>
+        </div>
+      )}
     </section>
   );
 }

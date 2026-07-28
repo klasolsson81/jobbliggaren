@@ -3924,6 +3924,13 @@ a.jp-adminnav__link[aria-current="page"]::after {
   border-left: 3px solid var(--jp-warning);
   border-radius: var(--jp-r-md);
 }
+/* #1060: the same card, positive verdict. The base accent is locked to --jp-warning, so
+   the cleared state inherited an orange marker under a green pill — the container
+   contradicting its own verdict, in both themes. No new token; --jp-success is defined
+   for light and dark alongside --jp-warning. */
+.jp-cvaction--ok {
+  border-left-color: var(--jp-success);
+}
 .jp-cvaction__source {
   margin: 0;
   font-family: var(--jp-font-mono);

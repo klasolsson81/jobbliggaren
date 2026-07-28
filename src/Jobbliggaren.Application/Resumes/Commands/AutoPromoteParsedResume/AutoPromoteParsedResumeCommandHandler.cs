@@ -170,18 +170,23 @@ public sealed partial class AutoPromoteParsedResumeCommandHandler(
             new AutoPromoteOutcome.Promoted(resume.Id.Value));
     }
 
-    // #1060 D4-REBIND(6): the measurement instrument for D3. Which gate actually stops real
-    // uploads is a question the product has never been able to answer from production — #1060
-    // itself was diagnosed by reading a dev-DB row by hand — and D3's per-entry decomposition
-    // is explicitly waiting on a population measurement. One structured line per LeftPending
-    // makes the distribution readable in Seq without a query over CV-PII.
+    // #1060 D4-REBIND(6). NON-PII by construction: the reason is a closed enum token (never free
+    // text, never a field VALUE — see AutoPromoteBlockReason's docblock) and the id is the
+    // staging artifact's surrogate key. No file name, no display name, no parsed content; this
+    // handler never logs decrypted content (ADR 0074 Invariant 3, CLAUDE.md §5).
     //
-    // NON-PII by construction, and both properties are deliberate: the reason is a closed enum
-    // token (never free text, never a field VALUE — the whole point of the enum, see
-    // AutoPromoteBlockReason's docblock) and the id is the staging artifact's surrogate key,
-    // the same identifier IFailedAccessLogger already logs on this aggregate. No file name, no
-    // display name, no parsed content — this handler never logs decrypted content
-    // (ADR 0074 Invariant 3, CLAUDE.md §5).
+    // Two PURPOSES, and Art. 5(1)(c) wants purposes rather than precedent — the earlier version
+    // of this comment justified the id by noting IFailedAccessLogger already logs it, which is
+    // true and is not a reason (CTO-bind D3.4, overruling security-auditor's minimisation
+    // finding on exactly this ground).
+    //   (1) SUPPORT, per artifact: answering "why is this user's CV stuck" needs the id. The
+    //       alternative — re-running the gate against the row — requires DEK access to CV-PII,
+    //       so logging a surrogate key is the LESS invasive route to the same answer. #1060
+    //       itself was diagnosed by reading a dev-DB row by hand, which is the cost of not
+    //       having this line.
+    //   (2) DISTRIBUTION, across artifacts: which gate actually stops real uploads is a question
+    //       production has never been able to answer, and D3's per-entry decomposition is
+    //       explicitly waiting on that measurement.
     private Result<AutoPromoteOutcome> LeftPending(
         AutoPromoteBlockReason reason, ParsedResumeId parsedResumeId)
     {

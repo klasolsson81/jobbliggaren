@@ -1,3 +1,4 @@
+using Jobbliggaren.Application.Resumes.Common;
 using Jobbliggaren.Domain.Resumes;
 using Jobbliggaren.Domain.Resumes.Parsing;
 using Jobbliggaren.Infrastructure.Resumes.Parsing;

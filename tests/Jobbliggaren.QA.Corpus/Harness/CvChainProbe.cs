@@ -6,6 +6,7 @@ using Jobbliggaren.Application.Matching.Abstractions;
 using Jobbliggaren.Application.Resumes.Abstractions;
 using Jobbliggaren.Application.Resumes.Commands.AutoPromoteParsedResume;
 using Jobbliggaren.Application.Resumes.Commands.ImportResume;
+using Jobbliggaren.Application.Resumes.Common;
 using Jobbliggaren.Application.Resumes.Review.Abstractions;
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.JobSeekers;

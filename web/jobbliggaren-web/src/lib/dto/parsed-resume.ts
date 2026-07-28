@@ -78,11 +78,19 @@ export type PersonnummerScanDto = z.infer<typeof personnummerScanDtoSchema>;
  * (`AutoPromoteBlockReason.cs`, 2026-07-27) och kan inte längre emitta den; den låg kvar i den
  * här mängden som drift åt det håll ett fail-loud-schema per konstruktion inte upptäcker —
  * ett värde som accepteras men aldrig kommer. Den blev bärande i PR C: mängden har nu exakt en
- * copy-sträng per medlem (`pages.cv.review.blockReason.*`), så en fjärde medlem som backend
+ * copy-sträng per medlem (`pages.cv.review.blockReason.*`), så en medlem som backend
  * aldrig skickar hade renderat ett block med ett saknat översättningsnyckel-fel om den ändå kom.
- * Mätt före borttagningen: noll läsare i `src/` och noll copy-nycklar i `messages/`. */
+ * Mätt före borttagningen: noll läsare i `src/` och noll copy-nycklar i `messages/`.
+ *
+ * `PersonnummerInAccountName` TILLKOM i PR C (CTO-bind D2): DQ6 kan falla på kontots
+ * visningsnamn medan FILEN är ren, och `PersonnummerPresent` drev då copy som bad
+ * användaren ta bort ett nummer ur en fil som inte har något. Två skäl, två åtgärder
+ * (filen respektive Inställningar), alltså två tokens. FE:t grenar ALDRIG på
+ * `personnummer.found` för att gissa var numret satt — det vore ett påstående sant om
+ * filskanningen och falskt om sitt ämne. */
 export const autoPromoteBlockReasonSchema = z.enum([
   "PersonnummerPresent",
+  "PersonnummerInAccountName",
   "ParseNotConfident",
   "IncompleteContent",
 ]);

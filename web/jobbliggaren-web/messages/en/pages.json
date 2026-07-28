@@ -78,7 +78,7 @@
       "kicker": "Needs action",
       "imported": "Imported {when}",
       "heading": "Your CV has been read",
-      "body": "The file has been read but not saved as a CV. Open the review to see what is missing.",
+      "body": "The file has been read but not saved as a CV. Open the review to see why.",
       "cta": "Open the review",
       "discard": "Remove draft",
       "discardTitle": "Remove draft?",
@@ -117,12 +117,14 @@
       "loading": "Loading the review…",
       "blockReason": {
         "title": "Why the file is not saved as a CV",
+        "ParseNotConfident": "The file needs to contain text that can be selected. If it is an image, a scan or a password-protected document, save it again as PDF or Word and upload it. You can also fill in the details by hand.",
+        "IncompleteContent": "One or more entries in the file are incomplete. Check that every job has an employer and a job title, and every education has an institution and a degree. Complete them and upload the file again.",
         "PersonnummerPresent": "The file contains a personal identity number. Remove it from the file and upload it again.",
-        "ParseNotConfident": "We could not read any text from the file. That usually means it is an image or a scanned document. Upload it as a PDF with selectable text, or as a Word file.",
-        "IncompleteContent": "One or more entries are missing an employer or a job title. Complete them in the file and upload it again.",
-        "clearedKicker": "Ready to save",
-        "clearedTitle": "Nothing is blocking the file any more",
-        "clearedBody": "The file meets the requirements to be saved as a CV. Upload it again and it will be saved directly."
+        "PersonnummerInAccountName": "Your display name contains a personal identity number. The file itself is clean. Change the name under Settings and upload the file again.",
+        "settingsCta": "Go to Settings",
+        "clearedKicker": "Nothing found in the file",
+        "clearedTitle": "Nothing in the file blocks it any more",
+        "clearedBody": "We find nothing in the file that stops it. Upload it again and it will be checked afresh. A name you type yourself is only checked at upload."
       }
     },
     "improve": {

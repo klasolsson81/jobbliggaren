@@ -491,9 +491,21 @@ describe("parsedResumeDetailDtoSchema.blockReason (#1060)", () => {
   it("är EN mängd, delad med importsvaret — inte två uppräkningar som kan glida isär", () => {
     expect(autoPromoteBlockReasonSchema.options).toEqual([
       "PersonnummerPresent",
+      "PersonnummerInAccountName",
       "ParseNotConfident",
       "IncompleteContent",
     ]);
+  });
+
+  it("skiljer personnummer i FILEN från personnummer i KONTOTS visningsnamn", () => {
+    // CTO-bind D2. De två kräver olika åtgärd (redigera filen respektive Inställningar), så
+    // de är två tokens och inte en token plus en FE-gissning på `personnummer.found` — den
+    // gissningen vore sann om filskanningen och falsk om sitt ämne.
+    for (const reason of ["PersonnummerPresent", "PersonnummerInAccountName"] as const) {
+      const result = parsedResumeDetailDtoSchema.safeParse({ ...base, blockReason: reason });
+      expect(result.success).toBe(true);
+      if (result.success) expect(result.data.blockReason).toBe(reason);
+    }
   });
 });
 

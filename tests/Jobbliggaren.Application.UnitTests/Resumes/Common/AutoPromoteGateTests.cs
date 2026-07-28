@@ -1,4 +1,3 @@
-using Jobbliggaren.Application.Resumes.Commands.AutoPromoteParsedResume;
 using Jobbliggaren.Application.Resumes.Common;
 using Jobbliggaren.Application.UnitTests.Common;
 using Jobbliggaren.Domain.JobSeekers;
@@ -7,7 +6,7 @@ using Jobbliggaren.Domain.Resumes;
 using Jobbliggaren.Domain.Resumes.Parsing;
 using Shouldly;
 
-namespace Jobbliggaren.Application.UnitTests.Resumes.Commands.AutoPromoteParsedResume;
+namespace Jobbliggaren.Application.UnitTests.Resumes.Common;
 
 /// <summary>
 /// #1060 PR C — the extracted auto-promote policy evaluator. These are the reason-matrix tests:
@@ -153,14 +152,17 @@ public class AutoPromoteGateTests
     }
 
     [Fact]
-    public void Evaluate_PersonnummerInTheAccountDisplayName_BlocksOnPersonnummerPresent()
+    public void Evaluate_PersonnummerInTheAccountDisplayName_BlocksOnItsOwnToken_NotOnPersonnummerPresent()
     {
         // DQ6 on the COMPOSED content: the display name is the one text this composition adds
         // over the raw superset the import scan already covered, so this is the only control
-        // that can catch it.
+        // that can catch it — and the FILE is clean, which is exactly why it needs a token of
+        // its own (CTO-bind D2). PersonnummerPresent drives copy that says "take it out of the
+        // file and upload again", advice that cannot work when the file has nothing in it.
         var verdict = Evaluate(BuildParsed(), personName: $"Anna {ValidPersonnummer}");
 
-        verdict.BlockReason.ShouldBe(AutoPromoteBlockReason.PersonnummerPresent);
+        verdict.BlockReason.ShouldBe(AutoPromoteBlockReason.PersonnummerInAccountName);
+        verdict.BlockReason.ShouldNotBe(AutoPromoteBlockReason.PersonnummerPresent);
     }
 
     [Fact]
@@ -191,6 +193,9 @@ public class AutoPromoteGateTests
             pnr: Flagged());
 
         Evaluate(parsed).BlockReason.ShouldBe(AutoPromoteBlockReason.PersonnummerPresent);
+        // …and it is the FILE token, not the account-name one: the parse's own scan fired, so
+        // the DQ6 arm was never reached.
+        Evaluate(parsed).BlockReason.ShouldNotBe(AutoPromoteBlockReason.PersonnummerInAccountName);
     }
 
     [Fact]
@@ -209,14 +214,16 @@ public class AutoPromoteGateTests
     // ===============================================================
 
     [Fact]
-    public void AutoPromoteBlockReason_IsTheLockedThreeMemberSet()
+    public void AutoPromoteBlockReason_IsTheLockedFourMemberSet()
     {
         // The FE writes one copy string per member and the review view switches on the token,
-        // so a fourth member added without copy would render a block with nothing to read.
-        // #844's UnclassifiedPreamble was retired in PR B; this pins the set PR C's copy covers.
+        // so a member added without copy would render a block with nothing to read. #844's
+        // UnclassifiedPreamble was retired in PR B and PersonnummerInAccountName was split out
+        // of PersonnummerPresent in PR C; this pins the set the copy covers.
         Enum.GetNames<AutoPromoteBlockReason>().ShouldBe(
             [
                 nameof(AutoPromoteBlockReason.PersonnummerPresent),
+                nameof(AutoPromoteBlockReason.PersonnummerInAccountName),
                 nameof(AutoPromoteBlockReason.ParseNotConfident),
                 nameof(AutoPromoteBlockReason.IncompleteContent),
             ],

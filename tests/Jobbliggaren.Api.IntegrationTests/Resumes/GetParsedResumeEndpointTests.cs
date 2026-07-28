@@ -7,7 +7,7 @@ using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Wordprocessing;
 using Jobbliggaren.Api.IntegrationTests.Helpers;
 using Jobbliggaren.Api.IntegrationTests.Infrastructure;
-using Jobbliggaren.Application.Resumes.Commands.AutoPromoteParsedResume;
+using Jobbliggaren.Application.Resumes.Common;
 using Shouldly;
 
 namespace Jobbliggaren.Api.IntegrationTests.Resumes;
@@ -252,7 +252,7 @@ public class GetParsedResumeEndpointTests(ApiFactory factory)
     }
 
     [Fact]
-    public async Task GET_parsed_reports_PersonnummerPresent_when_the_ACCOUNT_NAME_carries_one_and_the_FILE_does_not()
+    public async Task GET_parsed_reports_PersonnummerInAccountName_when_the_ACCOUNT_NAME_carries_one_and_the_FILE_does_not()
     {
         // The one case where the read path's answer depends on the account display name, and
         // therefore the only test that can prove the DisplayName column added to this handler's
@@ -286,7 +286,9 @@ public class GetParsedResumeEndpointTests(ApiFactory factory)
 
         var importJson = await import.Content.ReadFromJsonAsync<JsonElement>(ct);
         importJson.GetProperty("outcome").GetString().ShouldBe("LeftPending");
-        importJson.GetProperty("blockReason").GetString().ShouldBe("PersonnummerPresent");
+        // Its OWN token since PR C (CTO-bind D2): PersonnummerPresent would drive copy telling
+        // the user to remove a number from a file that has none.
+        importJson.GetProperty("blockReason").GetString().ShouldBe("PersonnummerInAccountName");
         // The FILE is clean. Only the composed content is not.
         importJson.GetProperty("personnummer").GetProperty("found").GetBoolean().ShouldBeFalse();
         var id = importJson.GetProperty("parsedResumeId").GetString()!;
@@ -295,11 +297,62 @@ public class GetParsedResumeEndpointTests(ApiFactory factory)
 
         get.StatusCode.ShouldBe(HttpStatusCode.OK);
         var getJson = await get.Content.ReadFromJsonAsync<JsonElement>(ct);
-        getJson.GetProperty("blockReason").GetString().ShouldBe("PersonnummerPresent");
+        getJson.GetProperty("blockReason").GetString().ShouldBe("PersonnummerInAccountName");
         // Reading the reason off the parse's own scan would have said "nothing found" here, so
         // this also pins that the read path evaluates the GATE and not the stored flag.
         getJson.GetProperty("personnummer").GetProperty("found").GetBoolean().ShouldBeFalse();
         // And the account name is not echoed back on the way out.
         (await get.Content.ReadAsStringAsync(ct)).ShouldNotContain(ValidPersonnummer);
+    }
+
+    [Fact]
+    public async Task GET_parsed_is_SILENT_about_the_label_channel_and_never_clears_it()
+    {
+        // CTO-bind D1.2(3): the one accepted asymmetry between the two call sites, pinned so
+        // that the next reader does not "fix" it by persisting the typed label.
+        //
+        // The gate's label input is the CV name from the UPLOAD FORM. It is a property of a
+        // SUBMISSION, not of the artifact, and this read has no submission — so it evaluates
+        // the generated default and the label channel is NOT ASSESSED here. The write path
+        // blocks; the read path returns null. That is a silence, not a clearance, and the copy
+        // rendered off this field is scoped to the file for exactly that reason.
+        //
+        // Why the obvious structural fix is refused: carrying the typed label forward would
+        // persist user text known to carry a personnummer (§5/§12), and passing null instead
+        // makes CreateFromParsed fail ValidateName with Resume.NameRequired, which this gate
+        // reports as IncompleteContent — a silent gap turned into a loud lie.
+        //
+        // What actually closes the loop is the upload form, which now refuses the name at the
+        // field and does not navigate (cv-upload-form.tsx). Both states below are produced by
+        // production entry points; nothing is seeded.
+        var ct = TestContext.Current.CancellationToken;
+        await AuthenticateAsync(ct);
+
+        var docx = BuildDocx(
+            "Anna Andersson", "anna@example.com",
+            "Erfarenhet", "Backend-utvecklare", "Beta AB", "2021-2024",
+            "Utbildning", "KTH", "2015-2020",
+            "Kompetenser", "C#, PostgreSQL");
+
+        using var form = FileForm(docx, "cv.docx", DocxContentType);
+        form.Add(new StringContent($"Mitt CV {ValidPersonnummer}"), "name");
+        var import = await _client.PostAsync("/api/v1/resumes/import", form, ct);
+
+        import.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var importJson = await import.Content.ReadFromJsonAsync<JsonElement>(ct);
+        importJson.GetProperty("outcome").GetString().ShouldBe("LeftPending");
+        // The WRITE path saw the typed label and refused it.
+        importJson.GetProperty("blockReason").GetString().ShouldBe("PersonnummerPresent");
+        // The FILE is clean — which is what makes this the label channel and not the parse.
+        importJson.GetProperty("personnummer").GetProperty("found").GetBoolean().ShouldBeFalse();
+        var id = importJson.GetProperty("parsedResumeId").GetString()!;
+
+        var get = await _client.GetAsync($"/api/v1/resumes/parsed/{id}", ct);
+
+        get.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var getJson = await get.Content.ReadFromJsonAsync<JsonElement>(ct);
+        // The READ path has no such label, so it says nothing about the channel. DOCUMENTED
+        // AND ACCEPTED: null here means "nothing in the file", never "this will save".
+        getJson.GetProperty("blockReason").ValueKind.ShouldBe(JsonValueKind.Null);
     }
 }

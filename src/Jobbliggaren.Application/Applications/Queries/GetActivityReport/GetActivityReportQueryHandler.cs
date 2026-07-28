@@ -40,12 +40,18 @@ public sealed class GetActivityReportQueryHandler(
         var month = ResolveMonth(query);
 
         // Half-open [Start, End) on the Swedish civil calendar. BOTH ends come
-        // from the port: the exclusive end is asked for, never derived. Deriving
-        // it with Start.AddMonths(1) is short by a day into six months and by
-        // 2 d 23 h into April — and silently exact in the other seven, which is
-        // why it survived here for a month. This is a WHERE against the database,
-        // so the failure mode is quietly too few rows in a document filed with
-        // Arbetsförmedlingen.
+        // from the port: the exclusive end is asked for, never derived.
+        //
+        // The retired line wrote `start.AddMonths(1)`, and against the UTC start
+        // it replaced that was CORRECT — the anchor was the 1st at 00:00:00Z,
+        // every month has a 1st, so nothing ever clamped. The form is lethal only
+        // against a SWEDISH boundary, whose anchor is the previous month's LAST
+        // day: short by 2 d 23 h for March, by a day for May, July and December,
+        // by 1 d 1 h for October, and silently exact in the other seven months.
+        // Carrying the line across unchanged is what the port's remarks forbid,
+        // and it is why the end is a value here rather than an operation. This is
+        // a WHERE against the database, so the failure mode is quietly too few
+        // rows in a document filed with Arbetsförmedlingen.
         var window = calendar.MonthWindow(month);
 
         if (!currentUser.UserId.HasValue)

@@ -34,6 +34,14 @@
   Regenerating and copying the artifact over this file DELETES BOTH. Splice instead: keep
   this header, take the artifact whole, re-append the appendix.
 
+  AND NOTHING CHECKS THIS FILE AGAINST THE EMITTER. A hand-edit to the emitter-owned MIDDLE
+  survives review and is then silently reverted by the next regeneration - measured
+  2026-07-28, when a glossary fix lived here and not in LayoutCorpusReport.cs, leaving a
+  tracked file its own producer could not produce. Edit the EMITTER and regenerate; never
+  edit the middle. No automated guard exists deliberately: the middle is prose PLUS 21 rows
+  of measurements, so a byte-for-byte check would assert every count and gate verdict in
+  them - exactly what OBSERVE-ONLY forbids and what §2.5 reserves for an explicit ratchet.
+
   THE CLOSING "-->" BELOW WAS MISSING FROM PR K UNTIL 2026-07-28, and the consequence was
   total: under CommonMark an unterminated HTML block runs to end of document, so every line
   of this file was inside the comment. Measured through GitHub's own renderer (POST /markdown)

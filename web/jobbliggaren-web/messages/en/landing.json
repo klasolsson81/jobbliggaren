@@ -12,7 +12,7 @@
     "spinnerLabel": "Loading"
   },
   "topbar": {
-    "statsAriaLabel": "Live count from Platsbanken",
+    "statsAriaLabel": "Active job ads in Jobbliggaren",
     "activeAdsLabel": "active job ads",
     "newTodayLabel": "new today"
   },

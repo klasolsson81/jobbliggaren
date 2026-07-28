@@ -6,7 +6,7 @@
 // returnerade, PII-fria utfallet (ids + count/kinds-fyndet, aldrig personnummer-värdet).
 "use client";
 
-import { useId, useState, useTransition } from "react";
+import { useEffect, useId, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { FileText, Upload } from "lucide-react";
@@ -165,6 +165,11 @@ export function CvUploadForm({
   // orört fält betyder "ingen människa döpte det här", och servern genererar då etiketten.
   const [nameTouched, setNameTouched] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // #1060 PR C (CTO-bind D1.4): a personnummer in the CV LABEL is refused server-side, and
+  // the refusal belongs on the FIELD that caused it. Without this the user was navigated to
+  // the review, which evaluates the label channel against the GENERATED default and so has
+  // nothing to say about her name — a loop with no exit.
+  const [nameError, setNameError] = useState<string | null>(null);
 
   // Samtyckesvalet (personnummer i filen): den fil + parse + antal som väntar på
   // användarens beslut om att LAGRA originalfilen (ADR 0114). `null` = ingen väntande fråga.
@@ -175,9 +180,20 @@ export function CvUploadForm({
   } | null>(null);
   const [consentSaving, setConsentSaving] = useState(false);
 
+  // The name input, so a label refusal can put focus where the fix is: this is the only error
+  // in the form whose remedy is editing one specific text field.
+  //
+  // Keyed on the REMOUNT as well as on the error, and that is not defensive — the first
+  // version keyed only on `nameError` and did nothing, which the test below caught. The form
+  // lives in the `else` branch of `showSpinner`, so on the render where the error is set the
+  // input is still unmounted and the ref is null; the effect fired against nothing and never
+  // ran again, because `nameError` did not change when the field came back.
+  const nameInputRef = useRef<HTMLInputElement>(null);
+
   const inputId = useId();
   const nameId = useId();
   const nameHintId = useId();
+  const nameErrorId = useId();
   const helpId = useId();
   const errorId = useId();
 
@@ -271,6 +287,20 @@ export function CvUploadForm({
     const outcome = readOutcome(result.body);
     if (!outcome) {
       setError(t("errorGeneric"));
+      return;
+    }
+
+    // Personnummer i CV-ETIKETTEN (#1060 PR C). Sedan token-splitten kan `PersonnummerPresent`
+    // med en REN kroppsscan bara komma från etiketten: kontots visningsnamn har numera sitt
+    // eget skäl, och parse-flaggan sätter alltid count > 0. Felet hör hemma på fältet, och vi
+    // navigerar INTE — granska-vyn utvärderar etikett-kanalen mot den genererade default:en
+    // och kan därför inte säga något om namnet användaren skrev.
+    if (
+      outcome.kind === "pending" &&
+      outcome.blockReason === "PersonnummerPresent" &&
+      outcome.personnummerCount === 0
+    ) {
+      setNameError(t("namePersonnummer"));
       return;
     }
 
@@ -384,6 +414,17 @@ export function CvUploadForm({
   // ett beslut (då bär dialogen statusen och formuläret ska stå kvar bakom scrimen).
   const showSpinner = isPending && consent === null;
 
+  useEffect(() => {
+    // The consent dialog owns focus while it is open, and it can be raised on a LATER attempt
+    // while `nameError` is still set (it only clears on edit): name refused, user picks a
+    // different file that does carry a personnummer, submits without touching the name. That
+    // commit flips showSpinner true→false with `consent` non-null, and without this guard the
+    // effect would pull focus out of a modal whose consent is legally load-bearing (ADR 0114).
+    if (nameError !== null && !showSpinner && consent === null) {
+      nameInputRef.current?.focus();
+    }
+  }, [nameError, showSpinner, consent]);
+
   return (
     <>
       <form onSubmit={handleSubmit} className="jp-cvupload" noValidate>
@@ -407,6 +448,7 @@ export function CvUploadForm({
                 </label>
                 <input
                   id={nameId}
+                  ref={nameInputRef}
                   // INTE name="name": attributet är dött här (FormData byggs
                   // programmatiskt, aldrig ur formuläret) men är en primär signal till
                   // webbläsarens autofyll-klassificering, som kan köra över
@@ -418,8 +460,12 @@ export function CvUploadForm({
                   onChange={(event) => {
                     setName(event.target.value);
                     setNameTouched(true);
+                    setNameError(null);
                   }}
-                  aria-describedby={nameHintId}
+                  aria-invalid={nameError !== null}
+                  aria-describedby={
+                    nameError !== null ? `${nameHintId} ${nameErrorId}` : nameHintId
+                  }
                   // INTE autoComplete="name" (#1060): fältet är CV:ts ETIKETT, inte ett
                   // personnamn. Med "name" erbjuder webbläsarens autofyll kontoinnehavarens
                   // namn — och skriver därmed in personuppgiften i den okrypterade kolumn
@@ -432,6 +478,11 @@ export function CvUploadForm({
                 <p id={nameHintId} className="jp-cvupload__help">
                   {t("nameHint")}
                 </p>
+                {nameError !== null && (
+                  <p id={nameErrorId} role="alert" className="text-body-sm text-danger-700">
+                    {nameError}
+                  </p>
+                )}
               </div>
             )}
 

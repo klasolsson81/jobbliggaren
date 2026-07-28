@@ -1,3 +1,5 @@
+using Jobbliggaren.Application.Resumes.Common;
+
 namespace Jobbliggaren.Application.Resumes.Commands.AutoPromoteParsedResume;
 
 /// <summary>

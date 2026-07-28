@@ -1,4 +1,5 @@
 using Jobbliggaren.Application.Resumes.Commands.AutoPromoteParsedResume;
+using Jobbliggaren.Application.Resumes.Common;
 
 namespace Jobbliggaren.QA.Corpus.Harness;
 

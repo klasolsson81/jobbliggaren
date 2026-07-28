@@ -445,8 +445,9 @@ guard, there is no fourth site". That reasoning was sound only while the site li
 known complete, and PR C is the measured proof that such knowledge expires. Nothing is
 inferred from a remainder now; what falls past both guards is reported as `unresolved`.
 
-Four cell values mean four different things, and conflating two of them is what this
-section was corrected for (2026-07-28):
+A gate cell renders one of six words. `passed` and `**BLOCKED**` say what they say; the
+FOUR below are the confusable ones, and conflating two of them is what this section was
+corrected for (2026-07-28):
 
 - `not evaluated` — an earlier GATE stopped control, so this rung was never asked.
 - `no verdict` — the handler returned a genuine FAULT, so no gate decided anything.

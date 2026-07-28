@@ -458,7 +458,12 @@ public sealed class LayoutCorpusEmitterTests
     /// section — invisible to the document-wide delimiter guard, which only ever saw a fixture whose
     /// single case had a full ladder. And §0's `crashed` and `fixture invalid` lines could be
     /// inverted green for the same reason: nothing ever handed the emitter a case that was
-    /// either.</para></summary>
+    /// either.</para>
+    ///
+    /// <para>The hand-set <c>Gates: []</c> is the shape <c>LayoutChainRunner.Crashed</c> genuinely
+    /// produces, and that producer is pinned elsewhere by
+    /// <see cref="Crashed_CarriesTheByteProofFailureItWasGiven"/> — named here because §5's worked
+    /// form is that the seam names the pin when it lives in another file.</para></summary>
     [Fact]
     public void Report_WithACrashedFirstCase_StillRendersTheGateLadderAndNamesItInSection0()
     {
@@ -489,6 +494,11 @@ public sealed class LayoutCorpusEmitterTests
             header.ShouldContain(rung);
 
         // ...and the crashed row occupies every gate column without claiming a verdict in any.
+        // The WIDTH is asserted too, not only one cell: the em-dash branch derives its count from
+        // the same variable as the header, but "derived" is not a guard — emitting one dash fewer
+        // survives a single-cell read, and the document-wide row check never sees this branch
+        // because its fixture takes the other one.
+        Cells(row).ShouldBe(Cells(header));
         Cell(header, row, GateLadder.RungHeaders[3]).ShouldBe("—");
         row.ShouldNotContain("no verdict");
 
@@ -615,7 +625,12 @@ public sealed class LayoutCorpusEmitterTests
     /// that arm did not compile (removing its only reader leaves <c>stopped</c> assigned and never
     /// used, and this repo treats that warning as an error), so the harness reported UNMEASURED
     /// rather than a verdict. An unmeasurable arm reads exactly like a covered one in a table that
-    /// only lists KILLED and SURVIVED.</para></summary>
+    /// only lists KILLED and SURVIVED.</para>
+    ///
+    /// <para>The ladders are hand-built, and that is the FAITHFUL input class here rather than a
+    /// convenient one: this arm's declared purpose is to catch a future hand-edited ladder, so
+    /// shapes <c>Resolve</c> cannot emit are exactly what it exists for. A test driven from
+    /// <c>Resolve</c>'s output would be vacuous by the same docblock's next sentence.</para></summary>
     [Fact]
     public void IsWellFormed_RejectsAPassedRungAfterAnUnevaluatedOne()
     {

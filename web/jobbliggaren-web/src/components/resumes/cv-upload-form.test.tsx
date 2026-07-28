@@ -253,8 +253,10 @@ describe("CvUploadForm — utfalls-baserad ruttning (CV-pivot 5c)", () => {
     // `.focus()` vid anropstillfället hade träffat en avmonterad nod, och en effekt nyckelad
     // ENBART på felet hade fyrat mot samma avmonterade nod och aldrig kört om. Det är
     // `showSpinner` i beroendelistan som får effekten att köra igen när fältet kommer
-    // tillbaka. Opinnad skulle den depen "förenklas" bort — eslint är mätt tyst om den, så
-    // den här assertionen är det enda som gör en sådan förenkling röd.
+    // tillbaka. Opinnad skulle den depen "förenklas" bort. `react-hooks/exhaustive-deps`
+    // namnger den visserligen (missing dependency) sedan den läses i effektkroppen, men
+    // regeln är `warn` och varken pre-commit eller CI kör med `--max-warnings` — inget
+    // lint-utfall blir rött. Den här assertionen är det enda som gör en sådan förenkling röd.
     expect(screen.getByLabelText(/namn/i)).toHaveFocus();
   });
 

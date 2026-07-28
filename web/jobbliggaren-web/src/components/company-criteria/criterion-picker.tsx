@@ -141,7 +141,7 @@ export function CriterionPicker({
           hundred rows sit below the fold, and a screen-reader user gets no signal that the list
           changed at all while typing.
 
-          `min-h-5` reserves the slot so the COUNT text appearing and disappearing does not move the
+          `min-h-6` (24px) reserves the slot so the COUNT text appearing and disappearing does not move the
           list. It does not cover the zero case — there the box below is removed entirely and the
           panel collapses by its list height, which is deliberate rather than a shift to absorb.
 
@@ -149,7 +149,7 @@ export function CriterionPicker({
           kunde inte laddas", and announcing "0 träffar" over it would claim a search ran against a
           catalogue that is not there. */}
       <p
-        className="min-h-5 text-body-sm tabular-nums text-text-primary"
+        className="min-h-6 text-body-sm tabular-nums text-text-primary"
         role="status"
         aria-live="polite"
       >
@@ -168,10 +168,11 @@ export function CriterionPicker({
         //
         // Rendered UNCONDITIONALLY and emptied rather than unmounted, for the same reason as the
         // region above: gating on `hasSelection` made the 0→1 transition — the FIRST pick, the one
-        // that matters most — a region that mounts with its content already in place. `min-h-5`
-        // keeps the empty state from moving the list.
+        // that matters most — a region that mounts with its content already in place. `min-h-6`
+        // (24px) covers the 21.7px line box body-sm inherits at line-height 1.55, so the empty state
+        // reserves the full row rather than most of it.
         <p
-          className="min-h-5 text-body-sm font-medium text-text-primary"
+          className="min-h-6 text-body-sm font-medium text-text-primary"
           aria-live="polite"
         >
           {hasSelection ? selectedCountLabel : ""}

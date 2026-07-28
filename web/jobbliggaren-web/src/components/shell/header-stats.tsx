@@ -39,8 +39,10 @@ import { formatNumber } from "@/lib/i18n/format";
  *
  * Every job, cron and option named above is cited by SYMBOL, never by
  * `file:line`: a line number across the dotnet/pnpm toolchain boundary has no
- * gate on either side and rots silently. This block's citations went stale
- * twice before that rule was adopted — once on the hour they were written.
+ * gate on either side and rots silently. One of this block's two original cron
+ * citations was wrong the moment it was written — the line held the job id,
+ * not the cron — and the PR body's citations OF this file went stale within
+ * the hour, from that same PR's next commit.
  *
  * Rate-limit-budget: 10-min polling = 0.1 req/min per tab; backend
  * `LandingPublicReadPolicy` är 60/min/IP → rooom för 600 öppna tabbar.

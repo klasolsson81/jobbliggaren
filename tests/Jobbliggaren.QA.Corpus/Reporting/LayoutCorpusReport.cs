@@ -98,8 +98,14 @@ public static class LayoutCorpusReport
         L("- No DEK envelope round-trip, no SQL translation, no SmartEnum translation. Those stay");
         L("  proven by `AutoPromoteParsedResumeEncryptionTests` and the integration suites.");
         L("- No Mediator pipeline: no logging, validation, authorization or UnitOfWork behavior.");
-        L("- The `IncompleteContent` SUB-reason is unavailable: the handler discards");
-        L("  `created.Error.Code` at `:152`. PR C's structured log closes that gap.");
+        // The trailing sentence "PR C's structured log closes that gap" was removed 2026-07-28: it
+        // was false when written and was being printed into the deliverable. `LogLeftPending` emits
+        // the collapsed gate token and the artifact id, never a ValidateContent code — and this
+        // harness passes NullLogger anyway, so it could not have read one. The remaining sentence is
+        // true at HEAD; the PR that makes it false owns rewriting it.
+        L("- The `IncompleteContent` SUB-reason is unavailable: `AutoPromoteGate.Evaluate` discards");
+        L("  `created.Error` and returns the collapsed token, so no consumer can see which of");
+        L("  `Resume.ValidateContent`'s arms refused the CV.");
         L("- Substituted ports (none of them feeds an auto-promote gate):");
         foreach (var p in d.SubstitutedPorts)
             L($"  - {p}");

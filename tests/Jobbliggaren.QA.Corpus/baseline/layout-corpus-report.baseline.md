@@ -19,7 +19,11 @@
   ADR 0072 docs-privacy rule, so a file there could not be committed at all. The content here is
   synthetic throughout — invented person, employers and schools — and carries no personnummer.
 
-  REGENERATE, then diff this file against the fresh artifact:
+  REGENERATE, then diff this file against the fresh artifact. STEP 0 IS MANUAL AND HAS
+  ALREADY BEEN MISSED ONCE - PR B regenerated at a72c77e7 and left the constant reading
+  7a5496fe, publishing post-B numbers under a pre-B provenance string:
+
+    0. bump LayoutCorpusReportTests.BaseCommit to the commit you are regenerating at
     dotnet build tests/Jobbliggaren.QA.Corpus/Jobbliggaren.QA.Corpus.csproj
     cd tests/Jobbliggaren.QA.Corpus/bin/Debug/net10.0
     ./Jobbliggaren.QA.Corpus.exe -class "Jobbliggaren.QA.Corpus.LayoutCorpusReportTests"
@@ -70,8 +74,9 @@ What this run is NOT, stated up front rather than left for a reader to discover:
 - No DEK envelope round-trip, no SQL translation, no SmartEnum translation. Those stay
   proven by `AutoPromoteParsedResumeEncryptionTests` and the integration suites.
 - No Mediator pipeline: no logging, validation, authorization or UnitOfWork behavior.
-- The `IncompleteContent` SUB-reason is unavailable: the handler discards
-  `created.Error.Code` at `:152`. PR C's structured log closes that gap.
+- The `IncompleteContent` SUB-reason is unavailable: `AutoPromoteGate.Evaluate` discards
+  `created.Error` and returns the collapsed token, so no consumer can see which of
+  `Resume.ValidateContent`'s arms refused the CV.
 - Substituted ports (none of them feeds an auto-promote gate):
   - IOccupationCodeDeriver (empty candidates)
   - IOccupationExperienceDeriver (empty years)

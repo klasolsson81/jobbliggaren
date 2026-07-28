@@ -213,16 +213,12 @@ describe("CompanyBrowseList — the declared column geometry", () => {
   });
 
   /**
-   * Fixed layout removes the escape valve auto layout provided: a column can no longer grow to fit
-   * its content, so whether a cell WRAPS is now load-bearing. All three of these were `whitespace`
-   * decisions the geometry forced, and two of them are reverts waiting to happen — `whitespace-nowrap`
-   * stood on the seat and follow cells before this change, so re-adding it reads as a cleanup.
-   */
-  /**
    * The minimum width this geometry declares — 820px without the follow column, 980px with it — is
-   * wider than a 768px viewport's content box, and that is NEW: measured on origin/main at 768 in a
-   * 704px container, both five-column tables fit exactly under auto layout. So this wrapper is now
-   * the only thing between a declared minimum and a horizontally scrolling PAGE, which is the
+   * wider than a 768px viewport's content box, and for two of the three surfaces that is NEW.
+   * Measured on origin/main at 768 in a 704px container: the org.nr answer fit exactly at 704px and
+   * the criterion browse fit exactly at 704px, while the streamed results table already scrolled at
+   * 827px — which is the very disagreement this PR exists to end. So for those two this wrapper is
+   * now the only thing between a declared minimum and a horizontally scrolling PAGE, which is the
    * containment the change was accepted on. `guard:css` sweeps `jp-*` names and cannot see a
    * Tailwind utility leave.
    */
@@ -234,6 +230,12 @@ describe("CompanyBrowseList — the declared column geometry", () => {
     expect(table.parentElement).toHaveClass("overflow-x-auto");
   });
 
+  /**
+   * Fixed layout removes the escape valve auto layout provided: a column can no longer grow to fit
+   * its content, so whether a cell WRAPS is now load-bearing. Every `whitespace` decision below was
+   * forced by the geometry, and two of them are reverts waiting to happen — `whitespace-nowrap`
+   * stood on the seat and follow cells before this change, so re-adding it reads as a cleanup.
+   */
   it("wraps every cell that fixed layout can no longer widen", () => {
     const map = new Map<string, string | null>([[LEGAL_ORGNR, null]]);
     const { container } = render(
@@ -253,6 +255,11 @@ describe("CompanyBrowseList — the declared column geometry", () => {
       return td as HTMLElement;
     };
 
+    // Content first: cell(0) and cell(2) carry BYTE-IDENTICAL class attributes
+    // ("wrap-break-word text-text-primary"), so they are the one pair no class assertion can tell
+    // apart — swapping the two <td>s alone left every other assertion in this file green (measured).
+    // In production that puts a 42-character company name in the 145px column.
+    expect(cell(0)).toHaveTextContent("Acme Bygg AB");
     // A 42-character company name overflows into Org.nr at the table's minimum width without this.
     expect(cell(0)).toHaveClass("wrap-break-word");
     // The org.nr NUMBER may not break; the cell may, so the "Skyddad identitet" badge can wrap
@@ -260,6 +267,7 @@ describe("CompanyBrowseList — the declared column geometry", () => {
     expect(cell(1)).not.toHaveClass("whitespace-nowrap");
     expect(cell(1).querySelector(".whitespace-nowrap")).toHaveTextContent("559280-4784");
     // "Ej svensk hemortskommun" (23 837 rows) wraps rather than painting across Branscher.
+    expect(cell(2)).toHaveTextContent("Stockholm");
     expect(cell(2)).not.toHaveClass("whitespace-nowrap");
     expect(cell(2)).toHaveClass("wrap-break-word");
     // Anchor by content before negating anything about it, same as cell(1) and cell(4).
@@ -270,6 +278,19 @@ describe("CompanyBrowseList — the declared column geometry", () => {
     expect(cell(4)).toContainElement(screen.getByRole("button", { name: "Bevaka Acme Bygg AB" }));
     // The follow cell also holds the failed-follow error, which must wrap — see CompanyFollowButton.
     expect(cell(4)).not.toHaveClass("whitespace-nowrap");
+
+    // `white-space` INHERITS — the production comment on the follow cell says so — so "this cell does
+    // not carry nowrap" is only half the claim. A class on the row, the tbody or the table reaches
+    // every cell below it and is invisible to every negation above; the badge test closes the
+    // DESCENDANT direction and left this one open. jsdom loads no Tailwind (computed white-space
+    // reads ""), so the ancestor chain is asserted as SHAPE, not as computed style.
+    const ancestors: HTMLElement[] = [];
+    for (let el = cell(0).parentElement; el && el !== container; el = el.parentElement) {
+      ancestors.push(el);
+    }
+    // Fail closed: an empty chain would satisfy every negation below.
+    expect(ancestors.map((el) => el.tagName)).toEqual(["TR", "TBODY", "TABLE", "DIV"]);
+    for (const el of ancestors) expect(el).not.toHaveClass("whitespace-nowrap");
   });
 
   /**
@@ -350,19 +371,33 @@ describe("CompanyBrowseList — the stylesheet still declares the geometry", () 
   function minWidthOperands(rule: RegExp): number[] {
     const m = rule.exec(css);
     if (!m) throw new Error(`no \`min-width: calc(...)\` matched ${rule}`);
-    const ops = (m[1] ?? "").split("+").map((t) => Number(t.trim().replace(/px$/, "")));
-    if (ops.length === 0 || ops.some((n) => !Number.isFinite(n))) {
+    // Every token must BE a px literal. The looser `Number(...)` form did not throw on an empty
+    // operand — `"".split("+")` is `[""]`, and `Number("")` is a finite 0 — so `calc()` returned
+    // `[0]` where the docblock promised a throw. No assertion passed vacuously on it (both compare
+    // against 4 and 5 elements), but the guard did not do what it said.
+    const tokens = (m[1] ?? "").split("+").map((t) => t.trim());
+    if (!tokens.every((t) => /^\d+px$/.test(t))) {
       throw new Error(`min-width: calc(${m[1]}) is not a sum of px literals`);
     }
-    return ops;
+    return tokens.map((t) => Number(t.replace(/px$/, "")));
   }
 
   it("declares fixed layout for the class the table carries, and for no other", () => {
     expect(css).toMatch(/\.jp-companyBrowse\s*\{[^}]*table-layout:\s*fixed/);
-    // The scoping is half the decision: seven other `.jp-table` consumers keep auto layout, sized
-    // by their own rows on purpose. Moving `table-layout` up to the base rule changes all of them
-    // and leaves the assertion above green.
-    expect(css).not.toMatch(/\.jp-table\s*\{[^}]*table-layout:/);
+    // The scoping is half the decision: seven other `.jp-table` consumers keep auto layout, sized by
+    // their own rows on purpose. Every `table-layout` declaration is read by SELECTOR rather than
+    // matching one hand-picked rule shape — a `.jp-table { table-layout: … }` negation pins exactly
+    // one hoist form and leaves three open, all measured green: a GROUPED selector
+    // (`.jp-table, .jp-companyBrowse { … }`), a space before the colon, and an uppercase property.
+    // A count would be wrong instead: `.jp-apptable` declares fixed layout and always has.
+    const layoutSelectors = [...css.matchAll(/([^{}]*)\{[^}]*table-layout\s*:/gi)].map((m) =>
+      (m[1] ?? "").trim(),
+    );
+    // Fail closed: zero declarations would satisfy the loop below vacuously.
+    expect(layoutSelectors.length).toBeGreaterThan(0);
+    for (const selector of layoutSelectors) {
+      expect(selector.split(",").map((s) => s.trim())).not.toContain(".jp-table");
+    }
   });
 
   it("gives every column a declared width except the one that absorbs the remainder", () => {

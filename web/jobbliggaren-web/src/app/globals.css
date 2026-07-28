@@ -4663,7 +4663,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
    Only the company name is width-less, so it absorbs the remainder and the sum is exact at every
    table width.
 
-   Every floor is a CELL width — max-content of the widest body cell INCLUDING `.jp-table td`'s
+   Every floor is a CELL width — max-content of the widest body cell INCLUDING `.jp-table tbody td`'s
    24px horizontal padding — measured in Chromium in BOTH locales. The header cells were measured
    too and none of them is the binding constraint (they are `--text-overline` 11px mono-caps; the
    widest, "REGISTERED SEAT" in en, clears its column). Measuring only the label the user starts on

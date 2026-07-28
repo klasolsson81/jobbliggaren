@@ -114,7 +114,7 @@ export function CompanyBrowseList({
               {/* `wrap-break-word` breaks a token only when it cannot fit the column at all. The
                   register's longest unbreakable token is 42 characters (max token length over all
                   1 066 938 `company_name` values, split on space/slash/hyphen) — roughly 325px,
-                  extrapolated from the measured 232px/29-char SNI token with `.jp-table td`'s 24px
+                  extrapolated from the measured 232px/29-char SNI token with `.jp-table tbody td`'s 24px
                   padding held constant rather than scaled, not measured directly. That fits this
                   column on the 1136px rail but not at the table's minimum width, and under fixed
                   layout an over-long token overflows into Org.nr rather than widening anything. */}

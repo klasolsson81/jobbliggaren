@@ -727,9 +727,32 @@ describe("ForetagSokSearchbar — degraded reference", () => {
     expect(answer).not.toBeNull();
     expect(capped!.contains(answer!)).toBe(false);
 
-    expect(screen.getByRole("button", { name: "Rensa sökningen" })).toHaveClass(
-      "jp-btn--flush",
+    expect(capped!.contains(container.querySelector("form"))).toBe(true);
+
+    // The class alone guarantees nothing: `.jp-btn--flush` is CSS-scoped to `:first-child`, so a
+    // wrapper, an inserted sibling, or an unconditionally rendered chip list would silently kill the
+    // offset with every gate green (guard:css reads the stylesheet, jsdom has no cascade, eslint sees
+    // a valid string). The POSITION is structural, which is exactly what jsdom can see — so it is
+    // asserted rather than excused.
+    const clear = screen.getByRole("button", { name: "Rensa sökningen" });
+    expect(clear).toHaveClass("jp-btn--flush");
+    expect(clear.parentElement!.firstElementChild).toBe(clear);
+  });
+
+  it("leaves the flush offset inert when chips precede the clear control", () => {
+    // The other arm, and the reason the modifier is CSS-scoped rather than always-on: here the
+    // negative start margin would eat 18px of a 12px gap and lap the last chip.
+    render(
+      <ForetagSokSearchbar
+        reference={REFERENCE}
+        referenceOk
+        namn=""
+        sni={["62010"]}
+        kommun={[]}
+      />,
     );
+    const clear = screen.getByRole("button", { name: "Rensa sökningen" });
+    expect(clear.parentElement!.firstElementChild).not.toBe(clear);
   });
 
   it("never renders an empty chip list", () => {

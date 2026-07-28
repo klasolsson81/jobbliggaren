@@ -231,9 +231,10 @@
   --jp-control-fs: var(--text-body-sm);  /* #549 WS2: = body-sm-golvet, nu via skalan */
   --jp-control-px: 14px;
 
-  /* `.jp-btn`s inline-padding. NAMNGIVEN, inte ändrad — värdet är oförändrat 18px. Den finns för att
-     `.jp-btn--flush` (#1090) ska kunna nollställa exakt den, i stället för ett `-18px` som är
-     kopplat till knappregeln av ingenting. Samma SSOT-mönster som `--jp-control-px` ovan. */
+  /* `.jp-btn`'s inline padding, named so `.jp-btn--flush` can cancel exactly it. Value unchanged;
+     rationale at `.jp-btn--flush` rather than repeated here. NOT the shared-SSOT pattern of
+     `--jp-control-px` above — that one is read by several components on the /jobb filter row; this
+     one has a single consumer plus its own canceller. */
   --jp-btn-px: 18px;
 
   /* Skuggor (v3-kanon — undantag: popover/modal får skugga) */
@@ -1927,7 +1928,15 @@ a.jp-adminnav__link[aria-current="page"]::after {
   background: var(--jp-surface-3);
   color: var(--jp-ink-1);
 }
-.jp-btn--sm { height: 36px; padding: 0 14px; font-size: var(--text-body-sm); }
+.jp-btn--sm {
+  /* Sets the token rather than a literal, so `--flush`'s `calc(-1 * var(--jp-btn-px))` resolves to
+     -14px on a small button instead of over-pulling by 4px. Nothing combines the two today; the
+     point is that the modifier's promise ("no second number") is true rather than untested. */
+  --jp-btn-px: 14px;
+  height: 36px;
+  padding: 0 var(--jp-btn-px);
+  font-size: var(--text-body-sm);
+}
 /* A ghost button whose TEXT has to sit on the rail, not 18px inside it (#1090). Measured on
    /foretag/sok before the fix: the field labels start at x=72 and "Rensa sökningen" reads at x=90,
    which is invisible while the button ends a chip row and obvious once it stands alone.
@@ -1935,8 +1944,10 @@ a.jp-adminnav__link[aria-current="page"]::after {
    made `.jp-btn--ghost:hover`'s `--jp-surface-3` fill hug the glyphs with no breathing room, which
    #1090 names as the cost that makes the naive version not free. The offset reads
    `-1 × --jp-btn-px`, so it cannot drift from the padding it cancels; there is no second number.
-   Deliberately NOT scoped to `--ghost`: any button that has to align its text to a rail wants this,
-   and a filled button on a rail would want it too.
+   Deliberately NOT scoped to `--ghost` — the condition is "the TEXT has to sit on the rail", not
+   "the button is a ghost". Note what that excludes: on a FILLED button the fill is the visible left
+   edge, so cancelling the padding would push the fill 18px past the rail to put the glyphs on it.
+   This is for buttons whose background is invisible at rest.
    Scoped to `:first-child` on purpose. "Flush" only means something at the START of its row — the
    same button sits AFTER the chip list when there are chips, and there the negative margin would eat
    18px of a 12px gap and overlap the last chip. The selector states that condition instead of asking

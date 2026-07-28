@@ -537,13 +537,13 @@ export function ForetagSokSearchbar({
               </button>
             </div>
           </div>
-      </div>
+        </div>
 
-      {/* The bransch picker (#999). Same `toggleGroup` semantics as the criterion dialog: a node's
+        {/* The bransch picker (#999). Same `toggleGroup` semantics as the criterion dialog: a node's
           leaf codes go in as a group, so picking a section selects its whole expansion and the state
           stays a flat leaf Set at every level. No `key`-remount: unlike the ort cascade there is no
           active-column to reset, and remounting would throw away the filter text mid-use. */}
-      <BranschPopover
+        <BranschPopover
         open={branschOpen}
         onClose={() => setBranschOpen(false)}
         triggerRef={branschBtnRef}
@@ -551,13 +551,13 @@ export function ForetagSokSearchbar({
         selected={sniSelected}
         onToggle={(codes) => setSniSelected((prev) => toggleGroup(prev, codes))}
         onClear={() => setSniSelected(new Set())}
-      />
+        />
 
-      {/* The ort cascade. Degenerate single-axis case (our URL contract has only a `kommun` axis, no
+        {/* The ort cascade. Degenerate single-axis case (our URL contract has only a `kommun` axis, no
           `lan`): groupAxis is OMITTED, so "Hela {län}" materialises the län's kommun codes into
           `selected`. `counts={null}` — no facet counts (Klas locked FOCUSED). key-remount on open resets
           the popover's active-left column. */}
-      <JobbFilterPopover
+        <JobbFilterPopover
         key={ortOpen ? "ort-open" : "ort-closed"}
         open={ortOpen}
         groups={lanGroups}
@@ -573,12 +573,12 @@ export function ForetagSokSearchbar({
         emptyText={t("ortEmpty")}
         rightEmptyText={t("ortRightEmpty")}
         counts={null}
-      />
+        />
 
-      {/* Row 3 — the DRAFT chips (bransch + orter) + the ONE clear control. Editing a chip edits the
+        {/* Row 3 — the DRAFT chips (bransch + orter) + the ONE clear control. Editing a chip edits the
           draft only; the filter is applied on the next "Sök företag". The clear control is NOT gated on
           there being chips — see `showClear`. */}
-      {showClear && (
+        {showClear && (
         <div className="flex flex-wrap items-center gap-3">
           {/* Never an empty list: a `<ul>` with no `<li>` is announced as "list, 0 items". */}
           {branschChipCount + orter.length > 0 && (
@@ -670,15 +670,15 @@ export function ForetagSokSearchbar({
             {t("clearButton")}
           </button>
         </div>
-      )}
+        )}
 
-      {/* Draft-vs-applied honesty (design-reviewer gate): a discreet polite line, active only while the
+        {/* Draft-vs-applied honesty (design-reviewer gate): a discreet polite line, active only while the
           draft diverges from the applied URL filter. It never competes with the submit's own label. */}
-      {draftDiffersFromApplied && (
+        {draftDiffersFromApplied && (
         <p aria-live="polite" className="text-body-sm text-text-secondary">
           {t("unappliedChanges")}
         </p>
-      )}
+        )}
       </div>
 
       {/* The org.nr answer (transient client state): programmatic focus after a submit + a polite live
@@ -699,7 +699,10 @@ export function ForetagSokSearchbar({
         {hasOrgNrResult && (
           <h2
             id={orgNrLabelId}
-            className="mb-3 text-body-sm font-semibold text-text-primary"
+            // Peer of the streamed results' own <h2> now that both span the rail — it used to head a
+            // 672px block, where a 14px caption was proportionate. At 1136px it was heading a
+            // full-rail section in smaller type than the body text of the section below it.
+            className="mb-3 text-h3 font-semibold text-text-primary"
           >
             {t("orgNrResultLabel")}
           </h2>

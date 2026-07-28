@@ -77,12 +77,16 @@ public interface ISwedishCalendar
     /// <b>Never derive one of these from another with <c>AddMonths</c></b> — not
     /// as a series, and <b>not for a window's exclusive end</b>, which is the
     /// form both prospective call sites actually write (<c>start.AddMonths(1)</c>).
-    /// The returned instant is the previous month's last day in UTC, so
-    /// <c>StartOfMonth(2026, 7).AddMonths(1)</c> is 30 July, a full day short of
-    /// the real August boundary — and across the March transition it is three
-    /// days short. Stepping whole months also carries the anchor's own DST
-    /// offset into a month with a different one, adding an hour on top.
-    /// Ask for the next month instead.
+    /// The returned instant is the previous month's last day in UTC, and
+    /// <c>AddMonths</c> preserves the day-of-month — so the error is the
+    /// DIFFERENCE IN MONTH LENGTHS, not anything to do with DST.
+    /// <c>StartOfMonth(2026, 7).AddMonths(1)</c> gives 30 July against a real
+    /// August boundary of 31 July: one day, because June has 30 days.
+    /// <c>StartOfMonth(2026, 3).AddMonths(1)</c> gives 28 March against 31
+    /// March: three days, because February has 28. A DST change between the two
+    /// months then shifts the boundary hour as well — which is why the March
+    /// gap measures 2 d 23 h rather than a flat three days. Ask for the next
+    /// month instead.
     /// </para>
     /// </summary>
     DateTimeOffset StartOfMonth(int year, int month);

@@ -213,7 +213,11 @@ public class SwedishCalendarTests
         cal.StartOfMonth(2026, 8).ShouldBe(
             new DateTimeOffset(2026, 7, 31, 22, 0, 0, TimeSpan.Zero));   // which is this — a day later
 
-        // Across the March transition it is worse: three days, not one.
+        // Worse into March, and the cause is MONTH LENGTH, not the DST
+        // transition: the anchor is 28 February, and AddMonths preserves the
+        // day-of-month, so it lands on 28 March against a real boundary of the
+        // 31st. The transition only moves the boundary hour, which is why the
+        // gap measures 2 d 23 h rather than a flat three days.
         cal.StartOfMonth(2026, 3).AddMonths(1).ShouldBe(
             new DateTimeOffset(2026, 3, 28, 23, 0, 0, TimeSpan.Zero));
         cal.StartOfMonth(2026, 4).ShouldBe(

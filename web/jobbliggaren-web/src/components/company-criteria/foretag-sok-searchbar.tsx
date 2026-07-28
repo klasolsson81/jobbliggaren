@@ -104,9 +104,9 @@ type OrgNrState =
   | { kind: "notFound" };
 
 /**
- * Above this many bransch chips the row collapses to ONE summary chip whose × clears the whole axis.
- * A broad pick — a whole SNI section is up to 24 divisions — otherwise produces a chip wall that eats
- * the surface it is supposed to describe.
+ * Above this many bransch chips the row collapses to ONE summary chip, with the axis-wide removal as a
+ * labelled button beside it rather than as a × of its own. A broad pick — a whole SNI section is up to
+ * 24 divisions — otherwise produces a chip wall that eats the surface it is supposed to describe.
  */
 const MAX_BRANSCH_CHIPS = 8;
 
@@ -572,16 +572,18 @@ export function ForetagSokSearchbar({
         <div className="flex flex-wrap items-center gap-3">
           {/* Never an empty list: a `<ul>` with no `<li>` is announced as "list, 0 items". */}
           {branschChipCount + orter.length > 0 && (
-            <ul className="jp-chiplist">
+            // `items-center`: `.jp-chiplist` declares no `align-items`, so a 44px button inside one
+            // `<li>` would stretch the row and leave the ort chips hanging at the top edge.
+            <ul className="jp-chiplist items-center">
               {branschSummary ? (
                 <li>
                   {/* The summary REPORTS; it does not delete. A `jp-chip__remove` × here would be
                       pixel-identical to the ones the user just learned remove ONE thing, while
                       dropping the whole draft — possibly 800 codes, with no undo. The removal is a
                       sibling with VISIBLE text, and it is a full `.jp-btn` (44px) rather than a
-                      `.jp-clearlink`: that class is 13px caption text, which would be the smallest
-                      target on a row whose chips carry a 32px ×. It stays inside this `<li>` so it
-                      sits beside the chip it belongs to rather than after the ort chips. */}
+                      `.jp-clearlink`: that class is 13px caption text, smaller than the chips' own ×
+                      at either of its two sizes (24px, and 32px below 768px). It stays inside this
+                      `<li>` so it sits beside the chip it belongs to, not after the ort chips. */}
                   <span className="flex items-center gap-2">
                     <span className="jp-chip">
                       <span className="jp-chip__label">{branschSummaryLabel}</span>

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { CriterionPicker } from "./criterion-picker";
 import {
@@ -99,6 +99,21 @@ describe("CriterionPicker — the filter view (#999: all three levels)", () => {
     }
   });
 
+  it("renders the code VISIBLY, not only in the authored name", async () => {
+    // The row's name comes from `aria-label`, which is what makes it identical in every environment —
+    // but it also decouples the name from the JSX. Delete the visible code span and every name
+    // assertion above still passes, while the row loses the level cue that is the whole remedy, and
+    // the label stops containing the visible text (WCAG 2.5.3, level A). This is the assertion that
+    // notices.
+    renderPicker();
+    const user = userEvent.setup();
+    await user.type(screen.getByLabelText("Sök bransch"), "datapro");
+    const row = screen.getByRole("checkbox", {
+      name: "62 Dataprogrammering, datakonsultverksamhet",
+    });
+    expect(within(row).getByText("62")).toHaveClass("jp-mono");
+  });
+
   it("toggles a matched parent as its whole expansion, not as itself", async () => {
     const { onToggle } = renderPicker();
     const user = userEvent.setup();
@@ -150,24 +165,39 @@ describe("CriterionPicker — the filter view (#999: all three levels)", () => {
     ).toHaveClass("jp-criterionrow");
   });
 
-  it("says so when nothing matches, and says how to get back to the whole list", async () => {
+  it("carries EVERY filtering outcome in the one persistent live region", async () => {
     renderPicker();
     const user = userEvent.setup();
-    await user.type(screen.getByLabelText("Sök bransch"), "zzz");
+    const field = screen.getByLabelText("Sök bransch");
+
+    // The region exists before anything is typed — a live region that mounts with its content
+    // already in place is announced unreliably, so the text must change INSIDE a region that was
+    // already there. Exactly one such region, in every state.
+    expect(screen.getByRole("status")).toHaveTextContent("");
+
+    await user.type(field, "verksamhet");
+    expect(screen.getAllByRole("status")).toHaveLength(1);
+    expect(screen.getByRole("status")).toHaveTextContent("3 träffar");
+
+    await user.clear(field);
+    await user.type(field, "zzz");
     // The empty state is this control's most common failure mode — SNI's vocabulary is not the
-    // user's — so a full stop is not an answer. It has to point back at the tree.
-    expect(
-      screen.getByText("Inga träffar. Rensa sökfältet för att bläddra i hela listan."),
-    ).toBeInTheDocument();
+    // user's — so a full stop is not an answer; it says how to get back. And it lives in the SAME
+    // region rather than a second one inserted beneath.
+    expect(screen.getAllByRole("status")).toHaveLength(1);
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Inga träffar. Rensa sökfältet för att bläddra i hela listan.",
+    );
+    // No empty bordered box under a message that already says there is nothing.
+    expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
   });
 
-  it("announces the number of matches for every query", async () => {
-    renderPicker();
-    const user = userEvent.setup();
-    await user.type(screen.getByLabelText("Sök bransch"), "verksamhet");
-    // Without this a sighted user cannot see how much is below the fold, and a screen-reader user
-    // gets no signal at all that the list changed while typing.
-    expect(screen.getByRole("status")).toHaveTextContent("3 träffar");
+  it("announces the selection count from a region that was already there", () => {
+    // Its own pin: the popover header's counter carries the same attribute and its own assertion in
+    // `foretag-sok-searchbar.test.tsx`. This one covers the picker's inline counter, which the
+    // criterion dialog uses — and which a mutation walked straight through once.
+    renderPicker({ selected: new Set(["62010"]), selectedCountLabel: "1 vald bransch" });
+    expect(screen.getByText("1 vald bransch")).toHaveAttribute("aria-live", "polite");
   });
 
   it("falls back to the tree above the cardinality ceiling, and says why", async () => {
@@ -229,7 +259,7 @@ describe("CriterionPicker — optional heading and help (#999)", () => {
     ).toBeInTheDocument();
   });
 
-  it("renders the POPOVER configuration — all four omitted — without dangling wiring", async () => {
+  it("renders the POPOVER configuration — all four omitted — without dangling wiring", () => {
     // `renderPicker` passes the dialog's configuration, so the popover's (every optional prop absent)
     // was only ever exercised indirectly through the searchbar tests. The one thing that can go wrong
     // silently is `aria-describedby` pointing at a hint id that is no longer rendered.
@@ -247,6 +277,23 @@ describe("CriterionPicker — optional heading and help (#999)", () => {
     const field = screen.getByLabelText("Sök bransch");
     expect(field).not.toHaveAttribute("aria-describedby");
     expect(screen.queryByRole("heading")).not.toBeInTheDocument();
+  });
+
+  it("omits Rensa when no onClear is given, even with a selection to clear", () => {
+    // With an EMPTY selection the inline header never renders at all, so asserting the absence of
+    // "Rensa" there would pass whether or not `onClear` was supplied — a test that cannot fail of
+    // what it names. A non-empty selection is what makes the absence mean something.
+    render(
+      <CriterionPicker
+        nodes={NODES}
+        options={OPTIONS}
+        selected={new Set(["62010"])}
+        onToggle={vi.fn()}
+        filterLabel="Sök bransch"
+        groupAria="Branscher"
+        optionsUnavailable="Registret kunde inte laddas."
+      />,
+    );
     expect(screen.queryByRole("button", { name: "Rensa" })).not.toBeInTheDocument();
   });
 

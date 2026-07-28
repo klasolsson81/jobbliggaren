@@ -131,29 +131,37 @@ export function CriterionPicker({
         )}
       </div>
 
-      {/* The result count is the load-bearing half of the ceiling: without it a sighted user cannot see
-          that a hundred rows sit below the fold, and a screen-reader user gets no signal that the list
-          changed at all while typing. Rendered for EVERY non-empty query, zero matches included, in a
-          height-reserved slot so appearing and disappearing does not move the list. */}
+      {/* ONE persistent live region carries every filtering outcome, including zero matches.
+          Deliberately not a region inserted per outcome: a live region that mounts with its content
+          already in place is announced unreliably (the repo has measured this before —
+          `jobb-hero-search.tsx` carries the same note), whereas mutating the text inside a region that
+          was already in the DOM is the reliable form. It is height-reserved so appearing and
+          disappearing does not move the list, and it is the load-bearing half of the ceiling: without
+          it a sighted user cannot see that a hundred rows sit below the fold, and a screen-reader user
+          gets no signal that the list changed at all while typing.
+
+          Gated on there being a catalogue: with a degraded reference the box below says "Registret
+          kunde inte laddas", and announcing "0 träffar" over it would claim a search ran against a
+          catalogue that is not there. */}
       <p
         className="min-h-5 text-body-sm tabular-nums text-text-primary"
         role="status"
         aria-live="polite"
       >
-        {/* Gated on there being a catalogue at all: with a degraded reference the box below says
-            "Registret kunde inte laddas", and announcing "0 träffar" over it would claim a search ran
-            against a catalogue that is not there. Zero matches WITH a real tree is a different thing,
-            and is announced by the empty state instead — which also says how to get back. */}
-        {isFiltering && nodes.length > 0 && filteredOptions.length > 0
-          ? tooMany
-            ? t("filterTooMany", { count: filteredOptions.length })
-            : t("filterMatches", { count: filteredOptions.length })
+        {isFiltering && nodes.length > 0
+          ? filteredOptions.length === 0
+            ? t("dialog.noMatch")
+            : tooMany
+              ? t("filterTooMany", { count: filteredOptions.length })
+              : t("filterMatches", { count: filteredOptions.length })
           : ""}
       </p>
 
       {selectedCountLabel !== undefined && hasSelection && (
         // Polite: the number changes without focus moving — one click on a section takes it from
         // nothing to a whole subtree, and the row's own `aria-checked` does not carry the total.
+        // (Pinned in `criterion-picker.test.tsx`; the popover's header counter carries the same
+        // attribute and its own pin. Both were unpinned once, and a mutation walked through.)
         <p className="text-body-sm font-medium text-text-primary" aria-live="polite">
           {selectedCountLabel}
         </p>
@@ -164,16 +172,13 @@ export function CriterionPicker({
           engaged and scrolling the list chained into scrolling the panel. At 900px height only one
           ever did, which is why the first round missed it. 32vh keeps the whole panel inside 60vh on a
           short screen and resolves to the same 18rem on a tall one. */}
+      {/* No box at all when the filter matched nothing: the message above says so and says what to do,
+          and an empty bordered rectangle under it would be a container for nothing. This is also why
+          the zero case is not a second `role="status"` — one region, one message. */}
+      {(!isFiltering || nodes.length === 0 || filteredOptions.length > 0) && (
       <div className="max-h-[min(18rem,32vh)] overflow-y-auto rounded-md border border-border">
         {nodes.length === 0 ? (
           <p className="px-4 py-3 text-body-sm text-text-primary">{optionsUnavailable}</p>
-        ) : isFiltering && filteredOptions.length === 0 ? (
-          // The empty state carries the announcement itself, so a zero-result query produces ONE
-          // message rather than "0 träffar" above a sentence saying the same thing — and the half
-          // that tells you how to get back to the whole list reaches AT too, not just the eye.
-          <p role="status" className="px-4 py-3 text-body-sm text-text-primary">
-            {t("dialog.noMatch")}
-          </p>
         ) : showFilterList ? (
           // No nested `role="group"` here: the <section> above already carries `groupAria`, and two
           // nested groups with the same label make AT announce the axis name three times over.
@@ -194,7 +199,9 @@ export function CriterionPicker({
                 // "68Fastighetsverksamhet". An explicit `{" "}` would therefore be a text node that
                 // exists only to satisfy the test environment — and a whitespace-only node directly in
                 // a flex container is not rendered anyway (CSS Flexbox L1 §4). The visible text is
-                // exactly this string, so WCAG 2.5.3 holds.
+                // exactly this string, so WCAG 2.5.3 holds — and that is now a coupling to keep in
+                // mind: the name no longer tracks the JSX, so anything visible added to this row has
+                // to be added here too, or the label stops containing the visible text.
                 aria-label={`${option.code} ${option.name}`}
                 tabIndex={0}
                 onClick={() => onToggle(option.leafCodes)}
@@ -232,6 +239,7 @@ export function CriterionPicker({
           />
         )}
       </div>
+      )}
     </section>
   );
 }

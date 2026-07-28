@@ -40,7 +40,7 @@ describe("HeaderStats (ADR 0064 – inloggad live-stats + delta)", () => {
     // prohibited). `role="group"` makes the statsAriaLabel reliably announced.
     // Bites on revert: without the role the div is role=generic and getByRole throws.
     expect(
-      screen.getByRole("group", { name: "Antal annonser i Jobbliggaren" }),
+      screen.getByRole("group", { name: "Aktiva annonser i Jobbliggaren" }),
     ).toBeInTheDocument();
   });
 

@@ -12,7 +12,7 @@
     "spinnerLabel": "Laddar"
   },
   "topbar": {
-    "statsAriaLabel": "Antal annonser i Jobbliggaren",
+    "statsAriaLabel": "Aktiva annonser i Jobbliggaren",
     "activeAdsLabel": "aktiva annonser",
     "newTodayLabel": "nya idag"
   },

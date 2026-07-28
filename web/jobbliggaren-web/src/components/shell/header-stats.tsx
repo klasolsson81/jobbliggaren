@@ -11,14 +11,20 @@ import { formatNumber } from "@/lib/i18n/format";
  * <ul>
  *   <li>Initial-värdet hämtas server-side i `(app)/layout.tsx` och passeras
  *       som prop — ingen flash-of-empty-state.</li>
- *   <li>Klienten pollar `/api/landing-stats` var 10:e minut (Klas-direktiv
- *       2026-05-24). Worst-case latens från ny annons hos Platsbanken till
- *       synlig här är ~25 min, i TRE ben: ingest var 10:e min
- *       (`SyncPlatsbankenStream`, `RecurringJobRegistrar.cs:56`) + omräkning
- *       var 5:e min (`RefreshLandingStatsJob`, samma fil rad 147) + den här
- *       pollningen var 10:e min. Raden sa tidigare ~15 min: det talet mätte
- *       de två sista benen och utelämnade ingesten, alltså sant om sitt
- *       underlag och falskt om sitt uttalade ämne ("från ny annons").</li>
+ *   <li>The client polls `/api/landing-stats` every 10 min (Klas-direktiv
+ *       2026-05-24). On the HEALTHY PATH an ad published at Platsbanken
+ *       becomes visible here in ~25 min: ingest every 10 min
+ *       (`RecurringJobIds.SyncPlatsbankenStream`), recount every 5 min
+ *       (`RecurringJobIds.RefreshLandingStats`, ADR 0064), then this poll.
+ *       That is a healthy-path ceiling and NOT a worst case: a dropped
+ *       stream run is tolerated by design and caught only by the 02:00 UTC
+ *       snapshot (ADR 0032 §3), and a dead Worker lets Redis serve a value
+ *       up to its 1 h TTL while `IsStale` still reads false. Removal is
+ *       slower still: an expired ad leaves the count only via the nightly
+ *       archival job, so the number can overstate for up to ~24 h. The line
+ *       previously said ~15 min, counting the last two steps and omitting
+ *       ingest. Cited by SYMBOL, never by `file:line` — a line number across
+ *       the dotnet/pnpm toolchain boundary has no gate and rots silently.</li>
  *   <li>När polling-svaret ger högre `newToday` än senaste sedda värdet
  *       visas en grön <code>+N</code>-pill via fade-in (200ms), syns i 8
  *       sekunder, sen fade-out (Klas-feedback 2026-05-24 svans-PR5 —

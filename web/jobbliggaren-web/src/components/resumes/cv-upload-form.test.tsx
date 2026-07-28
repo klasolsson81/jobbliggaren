@@ -248,6 +248,11 @@ describe("CvUploadForm — utfalls-baserad ruttning (CV-pivot 5c)", () => {
     ).not.toBeInTheDocument();
     // Fältet är markerat ogiltigt för skärmläsare, inte bara visuellt.
     expect(screen.getByLabelText(/namn/i)).toHaveAttribute("aria-invalid", "true");
+    // …och fokus står i fältet vars värde måste ändras. Mekanismen är avsiktligt
+    // icke-uppenbar — `showSpinner` avmonterar formuläret under uppladdningen, så en
+    // `.focus()` vid anropstillfället hade träffat en avmonterad nod och en effekt nyckelad
+    // på felet är det enda som överlever remounten. Opinnad skulle den "förenklas" bort.
+    expect(screen.getByLabelText(/namn/i)).toHaveFocus();
   });
 
   it("onUploaded får det sammansatta utfallet + filnamnet i stället för navigation", async () => {

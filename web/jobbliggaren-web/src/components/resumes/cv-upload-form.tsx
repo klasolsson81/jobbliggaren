@@ -180,14 +180,15 @@ export function CvUploadForm({
   } | null>(null);
   const [consentSaving, setConsentSaving] = useState(false);
 
-  // The name input, so a label refusal can put focus where the fix is. `showSpinner` unmounts
-  // the form while the upload runs, so the error arrives on a freshly mounted field with focus
-  // on <body>; an effect keyed on the error is what survives that remount.
+  // The name input, so a label refusal can put focus where the fix is: this is the only error
+  // in the form whose remedy is editing one specific text field.
+  //
+  // Keyed on the REMOUNT as well as on the error, and that is not defensive — the first
+  // version keyed only on `nameError` and did nothing, which the test below caught. The form
+  // lives in the `else` branch of `showSpinner`, so on the render where the error is set the
+  // input is still unmounted and the ref is null; the effect fired against nothing and never
+  // ran again, because `nameError` did not change when the field came back.
   const nameInputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    if (nameError !== null) nameInputRef.current?.focus();
-  }, [nameError]);
 
   const inputId = useId();
   const nameId = useId();
@@ -412,6 +413,10 @@ export function CvUploadForm({
   // Spinnern tar huvudytan under laddning MEN inte medan samtyckesdialogen väntar på
   // ett beslut (då bär dialogen statusen och formuläret ska stå kvar bakom scrimen).
   const showSpinner = isPending && consent === null;
+
+  useEffect(() => {
+    if (nameError !== null) nameInputRef.current?.focus();
+  }, [nameError, showSpinner]);
 
   return (
     <>

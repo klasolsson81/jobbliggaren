@@ -35,8 +35,12 @@ export function CvBlockReason({
 }: {
   reason: AutoPromoteBlockReason | null;
   /** Layout escape hatch for the host page. `.jp-cvaction` carries a 20px bottom margin that
-   * is load-bearing on the hub, whose container has no gap; the review page is a gap-6 column,
-   * so it passes `mb-0` rather than the base margin moving. */
+   * is load-bearing on the hub, whose container has no gap; the review page is a gap-6 column
+   * and passes `jp-cvaction--flush` rather than the base margin moving.
+   *
+   * It must be a MODIFIER, not a Tailwind utility: `.jp-cvaction` is unlayered and utilities
+   * live in `@layer utilities`, so `mb-0` would be silently inert (DESIGN.md §141). My first
+   * version of this line said it passed `mb-0` — a claim about an outcome that never happened. */
   className?: string;
 }) {
   const t = useTranslations("pages.cv");

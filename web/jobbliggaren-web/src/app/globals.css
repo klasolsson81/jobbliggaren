@@ -1860,8 +1860,8 @@ a.jp-adminnav__link[aria-current="page"]::after {
   height: 44px;
   /* The inline padding is NAMED, not because it changes, but because `--flush` has to cancel exactly
      it. Writing `-18px` there would be a magic number coupled to this rule by nothing but hope
-     (#1090 says so in as many words). Same pattern as `--jp-control-px` above. The value is
-     unchanged. */
+     (#1090 says so in as many words). Rationale and the scope of the name: see the declaration and
+     `.jp-btn--flush` below. The value is unchanged. */
   padding: 0 var(--jp-btn-px);
   border-radius: var(--jp-r-md);
   font-size: var(--text-ui);

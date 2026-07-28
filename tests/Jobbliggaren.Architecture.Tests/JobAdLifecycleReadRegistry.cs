@@ -159,7 +159,7 @@ public static class JobAdLifecycleReadRegistry
             ["Jobbliggaren.Application.Landing.Jobs.RefreshLandingStats.RefreshLandingStatsJob.RunAsync"] =
             [
                 Active("activeCount: .Where(j.Status == Active).CountAsync — the public landing 'active ads' stat (#913 B6)."),
-                Active("newToday: .Where(j.Status == Active && PublishedAt >= todayUtcStart).CountAsync — the public 'new today' stat (#913 B6)."),
+                Active("newToday: .Where(j.Status == Active && PublishedAt >= todayStart).CountAsync — the public 'new today' stat (#913 B6). The boundary is Swedish midnight via ISwedishCalendar, not UTC (ADR 0064 Amendment 2026-07-28)."),
             ],
             ["Jobbliggaren.Infrastructure.JobAds.JobAdSearchQuery.SearchAsync"] =
                 One(Active("db.JobAds → JobAdSearchComposition.ApplyFilter, whose SPOT predicate is j.Status == Active (#913 B1 — the anonymous /jobb search).")),

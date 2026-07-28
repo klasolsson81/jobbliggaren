@@ -27,7 +27,12 @@ namespace Jobbliggaren.Application.Landing.Jobs.RefreshLandingStats;
 /// <list type="bullet">
 ///   <item>ActiveCount: COUNT(*) WHERE Status='Active'. Status ÄR hela avgränsningen — JobAd har
 ///   ingen soft-delete-axel och inget query-filter (#821).</item>
-///   <item>NewToday:    COUNT(*) WHERE PublishedAt &gt;= today UTC AND Status='Active'.</item>
+///   <item>NewToday:    COUNT(*) WHERE PublishedAt &gt;= start of the SWEDISH day AND
+///   Status='Active'. Not UTC (Klas-direktiv 2026-07-28, ADR 0064 Amendment
+///   2026-07-28): the counter resets at Swedish midnight, because that is the
+///   midnight the reader lives in. The boundary comes from
+///   <see cref="ISwedishCalendar"/>, so DST is handled where the time zone lives
+///   rather than here.</item>
 /// </list>
 /// Båda räknorna är indexerade (existerande <c>ix_job_ads_status</c> + partial
 /// trigram-index för Active-rader); typisk latens på ~46k aktiva rader är sub-50ms.
@@ -36,13 +41,17 @@ namespace Jobbliggaren.Application.Landing.Jobs.RefreshLandingStats;
 public sealed partial class RefreshLandingStatsJob(
     IAppDbContext db,
     IDateTimeProvider clock,
+    ISwedishCalendar calendar,
     ILandingStatsCache cache,
     ILogger<RefreshLandingStatsJob> logger)
 {
     public async Task RunAsync(CancellationToken cancellationToken)
     {
         var now = clock.UtcNow;
-        var todayUtcStart = new DateTimeOffset(now.Year, now.Month, now.Day, 0, 0, 0, TimeSpan.Zero);
+        // The instant Sweden's current day began — 23:00Z the previous day in
+        // winter, 22:00Z in summer. Compared directly against the timestamptz
+        // column, so no conversion happens inside the LINQ expression.
+        var todayStart = calendar.StartOfDay(now);
         LogStarted(logger);
 
         var activeCount = await db.JobAds
@@ -52,7 +61,7 @@ public sealed partial class RefreshLandingStatsJob(
 
         var newToday = await db.JobAds
             .AsNoTracking()
-            .Where(j => j.Status == JobAdStatus.Active && j.PublishedAt >= todayUtcStart)
+            .Where(j => j.Status == JobAdStatus.Active && j.PublishedAt >= todayStart)
             .CountAsync(cancellationToken).ConfigureAwait(false);
 
         var stats = new LandingStatsDto(activeCount, newToday, IsStale: false, RefreshedAt: now);

@@ -5,6 +5,7 @@ using Jobbliggaren.Domain.Applications;
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.JobSeekers;
 using Jobbliggaren.Infrastructure.Persistence;
+using Jobbliggaren.Infrastructure.Time;
 using NSubstitute;
 using Shouldly;
 
@@ -31,8 +32,21 @@ public class GetApplicationStatsQueryHandlerTests
         _currentUser.UserId.Returns(_userId);
     }
 
+
+    // The real calendar, not a stub: it is pure and deterministic, so the Swedish
+    // boundary is exercised once here rather than asserted twice in two places,
+    // and these tests stay discriminating under a mutation of the calendar
+    // (idiom: RefreshLandingStatsJobTests).
+    //
+    // NOT because CLAUDE.md §5 `Tests:` forbids a stub — it does not. §5 attaches
+    // the obligation to the ASSERTION, not the seam, and a stub returning 22:00Z
+    // would return a value the real adapter does emit. `dotnet-architect` caught
+    // that over-citation once already. This is the tighter option, not the
+    // mandated one.
+    private static readonly SwedishCalendar Calendar = new();
+
     private GetApplicationStatsQueryHandler CreateHandler(AppDbContext db, ICurrentUser? user = null) =>
-        new(db, user ?? _currentUser, _clock);
+        new(db, user ?? _currentUser, _clock, Calendar);
 
     private async Task<JobSeeker> SeedSeekerAsync(AppDbContext db, Guid userId, CancellationToken ct)
     {

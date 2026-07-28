@@ -18,36 +18,38 @@ namespace Jobbliggaren.Application.Applications.Queries.GetActivityReport;
 /// 2026-06-28 D3). Draft applications have a null <c>AppliedAt</c> and are
 /// excluded; soft-deleted applications are excluded by the global query filter.
 ///
-/// Month boundaries are UTC-derived (half-open). When the caller passes no
-/// month the handler defaults to the current month from
-/// <see cref="IDateTimeProvider"/> (CLAUDE.md §5 — never <c>DateTime.UtcNow</c>).
+/// Month boundaries are the SWEDISH civil month, half-open (Klas-direktiv
+/// 2026-07-28, ADR 0064 Amendment — the same ruling that moved "nya idag" off
+/// UTC midnight). They come from <see cref="ISwedishCalendar"/>, so the window
+/// and the "Datum sökt" column the FE already renders in Europe/Stockholm now
+/// agree; they did not before, by up to two hours at each boundary. When the
+/// caller passes no month the handler defaults to the current SWEDISH month
+/// (CLAUDE.md §5 — never <c>DateTime.UtcNow</c>).
 /// </summary>
 public sealed class GetActivityReportQueryHandler(
     IAppDbContext db,
     ICurrentUser currentUser,
     ITaxonomyReadModel taxonomy,
-    IDateTimeProvider clock)
+    IDateTimeProvider clock,
+    ISwedishCalendar calendar)
     : IQueryHandler<GetActivityReportQuery, ActivityReportDto>
 {
     public async ValueTask<ActivityReportDto> Handle(
         GetActivityReportQuery query, CancellationToken cancellationToken)
     {
-        var (year, month) = ResolveMonth(query);
+        var month = ResolveMonth(query);
 
-        // Conscious v1 decision (review 2026-06-28, code-reviewer + dotnet-
-        // architect): the month window is UTC-derived [start, end). The FE
-        // renders/copies "Datum sökt" in Europe/Stockholm, so a submit within
-        // the UTC offset of a month boundary (e.g. 2026-04-30 22:30Z = May 1
-        // 00:30 in Swedish summer time) buckets into the UTC month but shows the
-        // Stockholm date — a ~2 h/month edge. Accepted for v1: pre-prod, the
-        // backend has no timezone infrastructure today, and the user can always
-        // pick the correct month. A future refinement may bucket on Europe/
-        // Stockholm boundaries (TimeZoneInfo) so window and display coincide.
-        var start = new DateTimeOffset(year, month, 1, 0, 0, 0, TimeSpan.Zero);
-        var end = start.AddMonths(1);
+        // Half-open [Start, End) on the Swedish civil calendar. BOTH ends come
+        // from the port: the exclusive end is asked for, never derived. Deriving
+        // it with Start.AddMonths(1) is short by a day into six months and by
+        // 2 d 23 h into April — and silently exact in the other seven, which is
+        // why it survived here for a month. This is a WHERE against the database,
+        // so the failure mode is quietly too few rows in a document filed with
+        // Arbetsförmedlingen.
+        var window = calendar.MonthWindow(month);
 
         if (!currentUser.UserId.HasValue)
-            return new ActivityReportDto(year, month, []);
+            return new ActivityReportDto(month.Year, month.Month, []);
 
         var jobSeekerId = await db.JobSeekers
             .AsNoTracking()
@@ -56,7 +58,13 @@ public sealed class GetActivityReportQueryHandler(
             .FirstOrDefaultAsync(cancellationToken);
 
         if (jobSeekerId == default)
-            return new ActivityReportDto(year, month, []);
+            return new ActivityReportDto(month.Year, month.Month, []);
+
+        // Hoisted out of the predicate: EF translates a local far more reliably
+        // than member access on a struct, and the InMemory provider used by the
+        // unit tests would not tell us if it did not.
+        var start = window.Start;
+        var end = window.End;
 
         // ADR 0048: EN LEFT JOIN job_ads via GroupJoin/DefaultIfEmpty FÖRE
         // materialisering. IgnoreQueryFilters / hand-rullade soft-delete-predikat
@@ -150,20 +158,24 @@ public sealed class GetActivityReportQueryHandler(
                 r.AdStatus))
             .ToList();
 
-        return new ActivityReportDto(year, month, items);
+        return new ActivityReportDto(month.Year, month.Month, items);
     }
 
-    private (int Year, int Month) ResolveMonth(GetActivityReportQuery query)
+    private CivilMonth ResolveMonth(GetActivityReportQuery query)
     {
         if (query.Year.HasValue && query.Month.HasValue)
-            return (query.Year.Value, query.Month.Value);
+            return CivilMonth.Of(query.Year.Value, query.Month.Value);
 
-        // Default = current month (Klas 2026-06-28: the current month is always
-        // the sensible default; the picker still lets you pick an earlier month
-        // to report). Validator guarantees both-or-neither, so we only reach here
-        // when both are null.
-        var now = clock.UtcNow;
-        return (now.Year, now.Month);
+        // Default = the current SWEDISH month (Klas 2026-06-28: the current month
+        // is always the sensible default; the picker still lets you pick an
+        // earlier month to report). Validator guarantees both-or-neither, so we
+        // only reach here when both are null.
+        //
+        // Reading clock.UtcNow.Year/.Month put the first one to two hours of
+        // every Swedish month in the PREVIOUS one — and on 1 January in the
+        // previous YEAR. Deriving it from a boundary instant would be worse: that
+        // value is the previous month by construction, every day of the month.
+        return calendar.MonthOf(clock.UtcNow);
     }
 
     /// <summary>

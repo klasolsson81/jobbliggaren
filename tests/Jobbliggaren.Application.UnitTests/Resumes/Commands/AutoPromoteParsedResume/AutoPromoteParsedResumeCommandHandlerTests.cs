@@ -2,6 +2,7 @@ using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Common.Auditing;
 using Jobbliggaren.Application.Common.Exceptions;
 using Jobbliggaren.Application.Resumes.Commands.AutoPromoteParsedResume;
+using Jobbliggaren.Application.Resumes.Common;
 using Jobbliggaren.Application.Resumes.Review.Abstractions;
 using Jobbliggaren.Application.UnitTests.Common;
 using Jobbliggaren.Domain.Common;
@@ -10,6 +11,7 @@ using Jobbliggaren.Domain.Privacy;
 using Jobbliggaren.Domain.Resumes;
 using Jobbliggaren.Domain.Resumes.Parsing;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Shouldly;
 
@@ -64,7 +66,8 @@ public class AutoPromoteParsedResumeCommandHandlerTests
     private AutoPromoteParsedResumeCommandHandler CreateSut(
         Infrastructure.Persistence.AppDbContext db) =>
         new(db, _currentUser, FakeDateTimeProvider.Default, _failedAccess, _reconciler,
-            _correlationId, _requestContext);
+            _correlationId, _requestContext,
+            NullLogger<AutoPromoteParsedResumeCommandHandler>.Instance);
 
     // ── Fixtures ─────────────────────────────────────────────────────────
 
@@ -523,10 +526,15 @@ public class AutoPromoteParsedResumeCommandHandlerTests
     /// <summary>
     /// Defense-in-depth beyond the Tier-1 artifact flag: the import scan covered the FILE's
     /// text, but the composition adds the account display name — the shared guard on the
-    /// composed DTO is what catches a personnummer riding THERE. Same honest disposition.
+    /// composed DTO is what catches a personnummer riding THERE.
+    ///
+    /// <para>Its OWN token since #1060 PR C (CTO-bind D2). The file is clean on this path, so
+    /// reporting it as <c>PersonnummerPresent</c> drove copy telling the user to remove a number
+    /// from a file that has none — a mis-reported verdict on the product's highest-priority PII
+    /// rule, and a loop with no exit (the fix is under Inställningar).</para>
     /// </summary>
     [Fact]
-    public async Task Handle_PnrInAccountDisplayName_LeftPendingPersonnummerPresent()
+    public async Task Handle_PnrInAccountDisplayName_LeftPendingPersonnummerInAccountName()
     {
         var db = TestAppDbContextFactory.Create();
         var (parsed, _) = await SeedOwnedAsync(
@@ -535,7 +543,8 @@ public class AutoPromoteParsedResumeCommandHandlerTests
         var result = await CreateSut(db).Handle(
             Command(parsed.Id.Value), TestContext.Current.CancellationToken);
 
-        await AssertLeftPendingAsync(db, result, parsed, AutoPromoteBlockReason.PersonnummerPresent);
+        await AssertLeftPendingAsync(
+            db, result, parsed, AutoPromoteBlockReason.PersonnummerInAccountName);
     }
 
     // ===============================================================
@@ -550,7 +559,8 @@ public class AutoPromoteParsedResumeCommandHandlerTests
         anon.UserId.Returns((Guid?)null);
         var sut = new AutoPromoteParsedResumeCommandHandler(
             db, anon, FakeDateTimeProvider.Default, _failedAccess, _reconciler,
-            _correlationId, _requestContext);
+            _correlationId, _requestContext,
+            NullLogger<AutoPromoteParsedResumeCommandHandler>.Instance);
 
         await Should.ThrowAsync<UnauthorizedException>(
             () => sut.Handle(Command(Guid.NewGuid()), TestContext.Current.CancellationToken).AsTask());

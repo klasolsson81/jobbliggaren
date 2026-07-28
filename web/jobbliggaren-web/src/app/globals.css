@@ -3947,6 +3947,22 @@ a.jp-adminnav__link[aria-current="page"]::after {
   border-left: 3px solid var(--jp-warning);
   border-radius: var(--jp-r-md);
 }
+/* #1060: the same card, positive verdict. The base accent is locked to --jp-warning, so
+   the cleared state inherited an orange marker under a green pill — the container
+   contradicting its own verdict, in both themes. No new token; --jp-success is defined
+   for light and dark alongside --jp-warning. */
+.jp-cvaction--ok {
+  border-left-color: var(--jp-success);
+}
+/* #1060: the base 20px bottom margin is load-bearing on the hub, whose container has no
+   gap. The review page IS a gap column, so the margin doubles into a 44px seam under this
+   one block. A `mb-0` utility cannot fix it: `.jp-cvaction` is UNLAYERED and Tailwind
+   utilities live in @layer utilities, so the unlayered rule wins at equal specificity and
+   the utility is silently inert (DESIGN.md §141 — change the rule or add a modifier, never
+   a utility for a property the .jp-* rule sets itself). Hence a modifier. */
+.jp-cvaction--flush {
+  margin-bottom: 0;
+}
 .jp-cvaction__source {
   margin: 0;
   font-family: var(--jp-font-mono);

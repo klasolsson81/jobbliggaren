@@ -62,12 +62,15 @@ export function CompanyBrowseList({
   return (
     <div className="overflow-x-auto">
       <table
-        // Both class strings are written out in full because the CSS guard's class sweep cannot read
-        // an INTERPOLATED name: it skips any fragment followed by `${` as a template prefix, so a
-        // `jp-x--${flag}` makes a live rule look dead (#1065). Composition itself is fine — the guard
-        // reads every string literal inside `className={...}` whatever helper joins them, so a
+        // Both class strings are written out in full because an INTERPOLATED name is UNDECIDABLE to
+        // the CSS guard in both directions — not, as an earlier version of this comment had it,
+        // because it looks dead. Forward, `guard-css.mjs` skips any fragment followed by `${` and
+        // counts it as a dynamic prefix; inverse, that same prefix SHIELDS every class behind it
+        // from the dead-CSS sweep, deliberately, because that direction fails dangerously (#1065).
+        // So `jp-x--${flag}` does not fail the gate — it silences it. Composition is fine: the guard
+        // reads every string literal inside `className={...}` whatever helper joins them, so
         // `cn("jp-table jp-companyBrowse", showFollow && "jp-companyBrowse--withFollow")` would be
-        // equally visible. Interpolation is the only fatal form.
+        // just as visible. Interpolation is the only form that costs coverage.
         className={
           showFollow
             ? "jp-table jp-companyBrowse jp-companyBrowse--withFollow w-full"
@@ -107,8 +110,10 @@ export function CompanyBrowseList({
           {items.map((company, index) => (
             <tr key={company.organizationNumber ?? `${company.name}-${index}`} className="text-text-primary">
               {/* `wrap-break-word` breaks a token only when it cannot fit the column at all. The
-                  register's longest unbreakable token is 42 characters — roughly 336px, extrapolated
-                  from the measured 232px/29-char SNI token, not measured directly. That fits this
+                  register's longest unbreakable token is 42 characters (max token length over all
+                  1 066 938 `company_name` values, split on space/slash/hyphen) — roughly 325px,
+                  extrapolated from the measured 232px/29-char SNI token with `.jp-table td`'s 24px
+                  padding held constant rather than scaled, not measured directly. That fits this
                   column on the 1136px rail but not at the table's minimum width, and under fixed
                   layout an over-long token overflows into Org.nr rather than widening anything. */}
               <td className="wrap-break-word text-text-primary">{company.name}</td>
@@ -140,7 +145,7 @@ export function CompanyBrowseList({
                   comes from the <col>), so nowrap would not have grown this column to fit "Ej svensk
                   hemortskommun". It would have OVERFLOWED it — 203px of unbroken text painted across
                   Branscher, on 23 837 rows. The choice the width makes is the real one: declaring
-                  203px would tax every page 63px of mostly empty column for 2.2% of the register, so
+                  203px would tax every page 58px of mostly empty column for 2.2% of the register, so
                   the column is sized for the longest real kommun name instead ("Skinnskatteberg",
                   132px) and that one outlier wraps to two lines. `wrap-break-word` covers the case a
                   single kommun token still cannot fit. */}
@@ -158,9 +163,10 @@ export function CompanyBrowseList({
                 // more than the button: on a failed follow `CompanyFollowButton` renders an error
                 // sibling ("Kunde inte bevaka företaget. Försök igen.", ~230px). Under auto layout the
                 // column grew to fit it; under fixed layout it cannot, so an inherited nowrap would
-                // paint that sentence across the table edge AND stretch the button to its width — the
-                // two are stretch-aligned siblings in one flex column. The button carries its own
-                // nowrap instead, which is the only thing here that must not break.
+                // paint that sentence across the table edge. The button carries its own nowrap
+                // instead, which is the only thing here that must not break. (The second half of
+                // that failure — the error dragging the button's width with it — is fixed in
+                // `CompanyFollowButton` itself, which no longer stretch-aligns the two.)
                 <td>
                   {company.organizationNumber && !company.isProtectedIdentity ? (
                     <CompanyFollowButton

@@ -4663,24 +4663,33 @@ a.jp-adminnav__link[aria-current="page"]::after {
    Only the company name is width-less, so it absorbs the remainder and the sum is exact at every
    table width.
 
-   Every floor was measured in Chromium, in the real cell, in BOTH locales — the follow column had
-   already been sized 9px too narrow for English by measuring only the label the user starts on.
+   Every floor is a CELL width — max-content of the widest body cell INCLUDING `.jp-table td`'s
+   24px horizontal padding — measured in Chromium in BOTH locales. The header cells were measured
+   too and none of them is the binding constraint (they are `--text-overline` 11px mono-caps; the
+   widest, "REGISTERED SEAT" in en, clears its column). Measuring only the label the user starts on
+   is how the follow column shipped 7px too narrow for English in the first head.
 
    THE TWO MINIMUM WIDTHS ARE ONE DECISION, not two literals: declared columns + a 220px floor for
-   the name column, which would otherwise collapse toward zero as the table narrows. 600 + 220 and
-   760 + 220. **220px is a chosen readability minimum, not a max-content measurement** — it is the
-   only number in this block that is judgment rather than evidence, and it is deliberately the same
-   in both shapes because "narrowest readable company-name column" does not change when a follow
-   button is absent (CTO bind 2026-07-28).
+   the name column, which would otherwise collapse toward zero as the table narrows. The `calc()`
+   below IS that decision — it is written as its own arithmetic so a future re-measurement of any
+   column cannot silently sink the name column below its floor. Four of the five widths already
+   changed once between two heads of this PR, so the drift is demonstrated, not hypothetical.
+   **220px is a chosen readability minimum, not a max-content measurement** — the one number here
+   that rests on no measurement at all, and deliberately the same in both shapes because "narrowest
+   readable company-name column" does not change when a follow button is absent (CTO bind
+   2026-07-28). Branscher's 280px is also a choice, but a choice BETWEEN measurements; see below.
 
-   Consequence, stated because this PR causes it: the four-column consumer
-   (/foretag/smarta-bevakningar/[id]) now scrolls horizontally at 768px, where it happened to fit
-   before. The fit was a property of the rows one criterion loaded under auto layout, never a
-   guarantee — a criterion with longer company names already scrolled there. The scroll is contained
-   in the table's own wrapper (the page never scrolls), and it is the same behaviour `.jp-apptable`
-   already ships at 768 with min-width: 940px. */
-.jp-companyBrowse { table-layout: fixed; min-width: 820px; }
-.jp-companyBrowse--withFollow { min-width: 980px; }
+   Consequence, stated because this PR causes it, and stated per SHAPE rather than per route
+   because that is what it follows: **both five-column tables on /foretag/sok and the four-column
+   browse now scroll horizontally at 768px.** Measured on origin/main at 768 in a 704px container:
+   the org.nr answer was 704px (fit exactly), the criterion browse 704px (fit exactly), and only
+   the streamed results table already scrolled at 827px. Those fits were a property of the rows
+   that happened to load under auto layout, never a guarantee — a criterion with longer company
+   names already scrolled. The scroll is contained in each table's own wrapper (the page itself
+   never scrolls at 320/375/768, measured), and it is the behaviour `.jp-apptable` already ships
+   at 768 with min-width: 940px. */
+.jp-companyBrowse { table-layout: fixed; min-width: calc(175px + 145px + 280px + 220px); }
+.jp-companyBrowse--withFollow { min-width: calc(175px + 145px + 280px + 160px + 220px); }
 /* Floor 161px = "Protected identity" (en; sv "Skyddad identitet" is 160px), which is wider than a
    formatted org.nr (129px). +14px. The dev register holds zero personnummer-shaped rows, so the
    badge was measured on its own markup rather than on a row. nowrap is scoped to the NUMBER, not

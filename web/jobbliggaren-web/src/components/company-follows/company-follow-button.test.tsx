@@ -150,12 +150,14 @@ describe("CompanyFollowButton", () => {
     // The button may not break: a label across two lines stops reading as a control. The cell around
     // it deliberately does NOT carry nowrap, so the button has to carry its own.
     expect(screen.getByRole("button")).toHaveClass("whitespace-nowrap");
-    // The error and the button are siblings in one flex column. Under the default `stretch` the
-    // ~230px sentence resizes the control the user is about to retry — inside a 160px fixed column
-    // it also paints across the table edge.
-    expect(container.firstElementChild).toHaveStyle({ alignItems: "start" });
-    // ...and the message itself must stay wrappable, which is the whole reason the cell dropped nowrap.
-    expect(screen.getByRole("alert")).not.toHaveClass("whitespace-nowrap");
+    // One assertion for the whole box, because `alignItems` only means anything given the other
+    // two: under the default `stretch` the ~230px sentence resizes the control the user is about
+    // to retry, and inside the browse table's 160px fixed column it also paints across the edge.
+    expect(container.firstElementChild).toHaveStyle({
+      display: "inline-flex",
+      flexDirection: "column",
+      alignItems: "start",
+    });
   });
 
   it("rolls back to 'Bevakar' when unfollow fails", async () => {

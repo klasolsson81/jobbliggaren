@@ -1,3 +1,6 @@
+import { readFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { CompanyBrowseList } from "./company-browse-list";
@@ -155,9 +158,12 @@ describe("CompanyBrowseList — the declared column geometry", () => {
       "jp-companyBrowse__col--sni",
       "jp-companyBrowse__col--follow",
     ]);
-    // Scoped to the first header ROW: a second <tr> in <thead> would double a bare `thead th` count
-    // while the geometry is untouched.
-    expect(container.querySelectorAll("thead tr:first-child > th")).toHaveLength(5);
+    // The header row IN ORDER too, and scoped to the first <tr>. Pinning the colgroup's order while
+    // counting the headers is the same arity gap one row lower: swapping two <th>s labels a 145px
+    // column "Branscher" and a 280px column "Säteskommun" with every count in this file still 5.
+    expect(
+      [...container.querySelectorAll("thead tr:first-child > th")].map((th) => th.textContent),
+    ).toEqual(["Företag", "Org.nr", "Säteskommun", "Branscher", "Bevaka"]);
     expect(container.querySelectorAll("tbody tr:first-child > td")).toHaveLength(5);
   });
 
@@ -170,7 +176,9 @@ describe("CompanyBrowseList — the declared column geometry", () => {
       "jp-companyBrowse__col--seat",
       "jp-companyBrowse__col--sni",
     ]);
-    expect(container.querySelectorAll("thead tr:first-child > th")).toHaveLength(4);
+    expect(
+      [...container.querySelectorAll("thead tr:first-child > th")].map((th) => th.textContent),
+    ).toEqual(["Företag", "Org.nr", "Säteskommun", "Branscher"]);
     expect(container.querySelectorAll("tbody tr:first-child > td")).toHaveLength(4);
   });
 
@@ -186,13 +194,15 @@ describe("CompanyBrowseList — the declared column geometry", () => {
     const withFollow = render(
       <CompanyBrowseList items={[LEGAL]} reference={REFERENCE} followStateByOrgNr={map} />,
     ).container.querySelector("table");
-    expect(withFollow).toHaveClass("jp-companyBrowse");
-    expect(withFollow).toHaveClass("jp-companyBrowse--withFollow");
+    // `jp-table` too: this PR rewrote the className expression, and dropping the ledger styling
+    // leaves guard:css green (the element still resolves via jp-companyBrowse) and every other
+    // assertion here green.
+    expect(withFollow).toHaveClass("jp-table", "jp-companyBrowse", "jp-companyBrowse--withFollow");
 
     const withoutFollow = render(
       <CompanyBrowseList items={[LEGAL]} reference={REFERENCE} />,
     ).container.querySelector("table");
-    expect(withoutFollow).toHaveClass("jp-companyBrowse");
+    expect(withoutFollow).toHaveClass("jp-table", "jp-companyBrowse");
     expect(withoutFollow).not.toHaveClass("jp-companyBrowse--withFollow");
   });
 
@@ -224,7 +234,67 @@ describe("CompanyBrowseList — the declared column geometry", () => {
     // "Ej svensk hemortskommun" (23 837 rows) wraps rather than painting across Branscher.
     expect(cell(2)).not.toHaveClass("whitespace-nowrap");
     expect(cell(2)).toHaveClass("wrap-break-word");
+    // Branscher wraps on its own commas today; pinned so "every cell" is a measurement, not a title.
+    expect(cell(3)).not.toHaveClass("whitespace-nowrap");
+    // Index is a POSITION, not an identity: swapping the last two <td>s alone leaves this negation
+    // passing on the Branscher cell. Anchor it by content before negating anything about it.
+    expect(cell(4)).toContainElement(screen.getByRole("button", { name: "Bevaka Acme Bygg AB" }));
     // The follow cell also holds the failed-follow error, which must wrap — see CompanyFollowButton.
     expect(cell(4)).not.toHaveClass("whitespace-nowrap");
+  });
+
+  /**
+   * The badge is the REASON nowrap left the org.nr cell, so it is the half that has to be pinned.
+   * "Skyddad identitet" sets `font-sans` inside a `font-mono` cell and clears 175px by 14px — a font
+   * fallback eats that, and under fixed layout the cell then overflows into Säteskommun instead of
+   * growing. Asserting only that the NUMBER carries nowrap leaves the badge free to take the class
+   * back, which every other assertion in this file survives (measured, not argued).
+   */
+  it("leaves the protected-identity badge wrappable — the reason nowrap left the cell", () => {
+    const { container } = render(
+      <CompanyBrowseList items={[PROTECTED]} reference={REFERENCE} followStateByOrgNr={new Map()} />,
+    );
+    const orgNrCell = container.querySelectorAll("tbody tr:first-child > td")[1];
+    if (!orgNrCell) throw new Error("no org.nr cell — the row rendered fewer than two <td>s");
+
+    // Anchor the cell by its content BEFORE negating anything about that content.
+    expect(orgNrCell).toContainElement(screen.getByText("Skyddad identitet"));
+    expect(orgNrCell).not.toHaveClass("whitespace-nowrap");
+    // The load-bearing one: nothing BETWEEN the cell and the badge may forbid the break either.
+    expect(orgNrCell.querySelectorAll(".whitespace-nowrap")).toHaveLength(0);
+  });
+});
+
+/**
+ * `table-layout: fixed` is the whole mechanism, and no gate in this repo covers its removal. jsdom
+ * applies no CSS, so a layout assertion is impossible; `guard:css` reports an element only when NO
+ * `jp-*` name on it resolves, and this table also carries `jp-table`, which always will. Deleting
+ * the rule therefore leaves vitest, guard:css, tsc and eslint all green while the two tables on
+ * /foretag/sok go back to disagreeing about every column start. So it is pinned as TEXT, which is
+ * the only thing that can see it. Precedent for reading a repo file from a test:
+ * `src/i18n/client-namespace-payload.test.ts`.
+ */
+describe("CompanyBrowseList — the stylesheet still declares the geometry", () => {
+  // Same resolution form as `src/i18n/client-namespace-payload.test.ts`: a `new URL(rel, base)`
+  // against `import.meta.url` is not a file: URL under this vitest config and throws.
+  const css = readFileSync(
+    resolve(dirname(fileURLToPath(import.meta.url)), "../../app/globals.css"),
+    "utf8",
+  );
+
+  it("declares fixed layout for the class the table carries", () => {
+    expect(css).toMatch(/\.jp-companyBrowse\s*\{[^}]*table-layout:\s*fixed/);
+  });
+
+  it("keeps both minimum widths written as their own arithmetic", () => {
+    // The sums are the invariant (declared columns + the 220px name floor), so they are declared as
+    // `calc()` rather than as hand-totalled literals — four of the five widths already moved once
+    // during review, and a literal would have drifted silently.
+    expect(css).toMatch(
+      /\.jp-companyBrowse\s*\{[^}]*min-width:\s*calc\(175px \+ 145px \+ 280px \+ 220px\)/,
+    );
+    expect(css).toMatch(
+      /\.jp-companyBrowse--withFollow\s*\{[^}]*min-width:\s*calc\(175px \+ 145px \+ 280px \+ 160px \+ 220px\)/,
+    );
   });
 });

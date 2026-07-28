@@ -390,6 +390,19 @@ public sealed class LayoutCorpusEmitterTests
             Cells(lines[i]).ShouldBe(Cells(lines[i - 1]),
                 $"line {i + 1}: the delimiter does not match its header, so GFM renders this block "
                 + $"as raw pipes.\n  header: {lines[i - 1]}\n  delim:  {lines[i]}");
+
+            // The THIRD invariant, and the one the other two cannot see. A row shorter than its
+            // header is still a table — GFM pads it, at the END — so every value after the missing
+            // cell shifts one column LEFT and lands under a heading that is not its own. Dropping
+            // one gate cell would move each row's verdict under the previous rung's name on every
+            // row of the real 21-case baseline, with header and delimiter both agreeing.
+            if (i + 1 < lines.Length && lines[i + 1].StartsWith('|'))
+            {
+                Cells(lines[i + 1]).ShouldBe(Cells(lines[i - 1]),
+                    $"line {i + 2}: the first data row has a different cell count from its header, "
+                    + $"so its values render under the wrong headings.\n  header: {lines[i - 1]}"
+                    + $"\n  row:    {lines[i + 1]}");
+            }
         }
 
         // Non-vacuity: an emitter that stopped printing tables would otherwise pass in silence.

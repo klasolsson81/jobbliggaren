@@ -152,7 +152,7 @@ internal static partial class LayoutChainRunner
         var o = await CvChainProbe.RunAsync(
             c.FileName, c.ContentType, bytes, c.AccountDisplayName, ct);
         if (o.CrashedWithExceptionType is not null)
-            return Crashed(c, fixtureProblems, o.CrashedWithExceptionType);
+            return Crashed(c, fixtureProblems, o.CrashedWithExceptionType, byteProofFailure);
 
         var parsed = o.Parsed;
         var content = parsed?.Content;
@@ -379,8 +379,15 @@ internal static partial class LayoutChainRunner
 
     private static string Trim(string s) => s.Length <= 44 ? s : s[..44] + "…";
 
+    /// <summary>An observation for a case whose chain never completed.
+    ///
+    /// <para><paramref name="byteProofFailure"/> is a PARAMETER and not a hardcoded null, because
+    /// the second crash exit runs AFTER the byte proof has been evaluated: a case whose authored
+    /// bytes were already wrong and which then crashed was published under "byte proofs held" with
+    /// its failure message discarded. §0 named it among the healthy.</para></summary>
     private static LayoutCaseObservation Crashed(
-        LayoutCase c, IReadOnlyList<string> fixtureProblems, string exceptionType) =>
+        LayoutCase c, IReadOnlyList<string> fixtureProblems, string exceptionType,
+        string? byteProofFailure = null) =>
         // Named, not positional. The record has 39 parameters and positions 21-28 are eight
         // consecutive int/int? — ParsedExperience, ParsedEducation, the two ground truths, the
         // two promoted counts, PromotedExperienceWithRawPeriod, PromotedPreambleChars — with an
@@ -390,7 +397,7 @@ internal static partial class LayoutChainRunner
         // content loss this instrument exists to measure.
         new(
             Case: c,
-            ByteProofFailure: null,
+            ByteProofFailure: byteProofFailure,
             FixtureProblems: fixtureProblems,
             KindResolved: false,
             ExtractionStatus: null,

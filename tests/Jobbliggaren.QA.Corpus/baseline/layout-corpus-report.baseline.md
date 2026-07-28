@@ -445,7 +445,7 @@ guard, there is no fourth site". That reasoning was sound only while the site li
 known complete, and PR C is the measured proof that such knowledge expires. Nothing is
 inferred from a remainder now; what falls past both guards is reported as `unresolved`.
 
-Three cell values mean three different things, and conflating two of them is what this
+Four cell values mean four different things, and conflating two of them is what this
 section was corrected for (2026-07-28):
 
 - `not evaluated` — an earlier GATE stopped control, so this rung was never asked.
@@ -454,6 +454,9 @@ section was corrected for (2026-07-28):
   integrity failure, listed in §0 and red in the suite, never a statement about the
   product. Before it existed, this case rendered as `no verdict` — publishing an honest
   block as a handler fault, on the one case that exercises the DQ6 rung.
+- `—` — no ladder exists at all: the case CRASHED before any gate was reached, so there is
+  nothing for the rungs to report. §0 names it. Distinct from `no verdict`, which is a
+  statement about the handler; here the handler was never asked.
 
 | # | Case | G1 pnr(parse) (pnr on parse) | G2 confidence (confidence) | G2b pnr(label) (pnr in label) | G3a pnr(DQ6) (pnr DQ6) | G3b buildability (buildability) | FIRST BLOCK | Promote fault | Promoted |
 |---|---|---|---|---|---|---|---|---|---|

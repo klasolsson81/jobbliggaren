@@ -262,7 +262,7 @@ public static class LayoutCorpusReport
         // guard is not available either — "every word the renderer emits is glossed here" is false
         // today by design, since `passed` and `**BLOCKED**` need no gloss. Same treatment
         // Report_NeverRendersAPercentage already gives the token blacklist it rejected.
-        L("Three cell values mean three different things, and conflating two of them is what this");
+        L("Four cell values mean four different things, and conflating two of them is what this");
         L("section was corrected for (2026-07-28):");
         L();
         L("- `not evaluated` — an earlier GATE stopped control, so this rung was never asked.");
@@ -271,6 +271,9 @@ public static class LayoutCorpusReport
         L("  integrity failure, listed in §0 and red in the suite, never a statement about the");
         L("  product. Before it existed, this case rendered as `no verdict` — publishing an honest");
         L("  block as a handler fault, on the one case that exercises the DQ6 rung.");
+        L("- `—` — no ladder exists at all: the case CRASHED before any gate was reached, so there is");
+        L("  nothing for the rungs to report. §0 names it. Distinct from `no verdict`, which is a");
+        L("  statement about the handler; here the handler was never asked.");
         L();
         // From the LADDER, not from Cases[0]. A crashed first case carries an empty ladder by
         // construction, and reading the headings off it produced a six-cell header over a five-cell

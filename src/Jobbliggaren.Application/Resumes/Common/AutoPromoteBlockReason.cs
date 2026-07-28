@@ -1,4 +1,4 @@
-namespace Jobbliggaren.Application.Resumes.Commands.AutoPromoteParsedResume;
+namespace Jobbliggaren.Application.Resumes.Common;
 
 /// <summary>
 /// Why an auto-promote left the parsed CV pending instead of promoting it (CV-pivot PR 5a,
@@ -20,11 +20,34 @@ namespace Jobbliggaren.Application.Resumes.Commands.AutoPromoteParsedResume;
 /// </summary>
 public enum AutoPromoteBlockReason
 {
-    /// <summary>The parse (or the composed content — e.g. the account display name) carries a
-    /// personnummer. Fail-closed — and consent does NOT change that: the 5b consent path
-    /// (DPIA #659 Beslut 2(c)) stores the original FILE only; content promotion still requires
-    /// the personnummer removed (5b security-bind B3 — original-file-only depth).</summary>
+    /// <summary>The FILE carries a personnummer — the parse's own scan flagged it, or the CV
+    /// LABEL the user typed does. Fail-closed, and consent does NOT change that: the 5b consent
+    /// path (DPIA #659 Beslut 2(c)) stores the original FILE only; content promotion still
+    /// requires the personnummer removed (5b security-bind B3 — original-file-only depth).
+    ///
+    /// <para><b>This member NARROWED on 2026-07-28 (#1060 PR C, CTO-bind D2).</b> It used to
+    /// cover the account-display-name case too, which made it a token that could not say where
+    /// the number was — and the copy it drove told the user to fix her file when the file was
+    /// clean. See <see cref="PersonnummerInAccountName"/>. The split is bound rather than
+    /// branched in the FE, because branching on <c>Personnummer.Found</c> to infer WHERE the
+    /// number sat would rest on an unwritten ordering invariant nothing pins (D4-REBIND
+    /// alternative (6), the same reasoning that refused a DEK-free prefix evaluator).</para></summary>
     PersonnummerPresent,
+
+    /// <summary>The composed content carries a personnummer that the file does not: the account
+    /// holder's <c>JobSeeker.DisplayName</c> does (#1060 PR C, CTO-bind D2). DQ6 on the composed
+    /// content is the only control that can catch this — the display name is the one text the
+    /// promote composition adds over the raw superset the import scan already covered — so the
+    /// parse's own scan reports clean and no file-side surface shows anything.
+    ///
+    /// <para>It is a SEPARATE member because the two need different user actions and different
+    /// copy: this one is fixed under Inställningar, not by editing and re-uploading the CV.
+    /// Reporting it as <see cref="PersonnummerPresent"/> sent the user to look in a clean file,
+    /// which is a mis-reported verdict (CLAUDE.md §5) and a loop she cannot exit.</para>
+    ///
+    /// <para><b>Not a new PII surface:</b> like every other member this is a gate identity, not
+    /// evidence. It says which control fired, never what it saw.</para></summary>
+    PersonnummerInAccountName,
 
     /// <summary>Extraction produced nothing usable — <c>ParseConfidence.Overall</c> is
     /// <c>Failed</c>. Promoting that would build a <c>Resume</c> out of the account display name

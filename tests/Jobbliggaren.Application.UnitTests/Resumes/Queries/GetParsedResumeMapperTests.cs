@@ -54,7 +54,7 @@ public class GetParsedResumeMapperTests
     {
         var artifact = BuildRichArtifact();
 
-        var dto = artifact.ToDetailDto();
+        var dto = artifact.ToDetailDto(blockReason: null);
 
         dto.Id.ShouldBe(artifact.Id.Value);
         dto.Status.ShouldBe("PendingReview");
@@ -77,7 +77,7 @@ public class GetParsedResumeMapperTests
     {
         var artifact = BuildRichArtifact();
 
-        var content = artifact.ToDetailDto().Content;
+        var content = artifact.ToDetailDto(blockReason: null).Content;
 
         content.Contact.FullName.ShouldBe("Anna Andersson");
         content.Contact.Email.ShouldBe("anna@example.com");
@@ -117,7 +117,7 @@ public class GetParsedResumeMapperTests
             content, "Obekant rad ur CV:t", confidence, PersonnummerScanOutcome.None, [],
             FakeDateTimeProvider.Default).Value;
 
-        var dto = artifact.ToDetailDto();
+        var dto = artifact.ToDetailDto(blockReason: null);
 
         dto.Content.Profile.ShouldBeNull();
         dto.Content.Contact.FullName.ShouldBeNull();
@@ -169,7 +169,7 @@ public class GetParsedResumeMapperTests
             PersonnummerScanner.Scan($"Pnr {Personnummer} i CV."));
         var preamble = $"Anna Andersson {Personnummer}\nErfaren sjuksköterska.";
 
-        var dto = BuildArtifactWithPreamble(preamble, flagged).ToDetailDto();
+        var dto = BuildArtifactWithPreamble(preamble, flagged).ToDetailDto(blockReason: null);
 
         dto.Content.Preamble.ShouldBeNull();
     }
@@ -181,7 +181,7 @@ public class GetParsedResumeMapperTests
         // user wrote it (newlines intact), so the neutral affordance can show it back unaltered.
         const string preamble = "Erfaren undersköterska med tio år i yrket.\nSöker nya utmaningar.";
 
-        var dto = BuildArtifactWithPreamble(preamble).ToDetailDto();
+        var dto = BuildArtifactWithPreamble(preamble).ToDetailDto(blockReason: null);
 
         dto.Content.Preamble.ShouldBe(preamble);
     }
@@ -194,7 +194,7 @@ public class GetParsedResumeMapperTests
         // pnr-redacted — the raw value never crosses the wire (CLAUDE.md §5, highest-priority guard).
         var preamble = $"Anna Andersson\nPersonnummer {Personnummer}\nErfaren sjuksköterska.";
 
-        var mapped = BuildArtifactWithPreamble(preamble).ToDetailDto().Content.Preamble;
+        var mapped = BuildArtifactWithPreamble(preamble).ToDetailDto(blockReason: null).Content.Preamble;
 
         mapped.ShouldNotBeNull();
         mapped.ShouldNotContain(Personnummer);
@@ -209,7 +209,7 @@ public class GetParsedResumeMapperTests
     {
         // null = the preamble was fully accounted for (the common case). The mapper must preserve
         // null and NOT collapse it to "" via the redactor — the affordance keys its absence on null.
-        var dto = BuildArtifactWithPreamble(null).ToDetailDto();
+        var dto = BuildArtifactWithPreamble(null).ToDetailDto(blockReason: null);
 
         dto.Content.Preamble.ShouldBeNull();
     }

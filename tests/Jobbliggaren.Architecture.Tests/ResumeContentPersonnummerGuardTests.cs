@@ -1,5 +1,6 @@
 using System.Reflection;
 using Jobbliggaren.Application.Resumes.Commands.ApplyCvImprovements;
+using Jobbliggaren.Application.Resumes.Commands.AutoPromoteParsedResume;
 using Jobbliggaren.Application.Resumes.Commands.CreateResume;
 using Jobbliggaren.Application.Resumes.Commands.PromoteParsedResume;
 using Jobbliggaren.Application.Resumes.Commands.RenameResume;
@@ -33,8 +34,13 @@ namespace Jobbliggaren.Architecture.Tests;
 /// guard-call probe) run over a bounded transitive reachable set — seed methods plus every
 /// call target DECLARED IN THE Application module, async state machines included — so a handler
 /// that delegates the sink or the guard call to an Application helper is still classified
-/// correctly. The two present subjects are <c>UpdateMasterContentCommandHandler</c> (#499) and
-/// <c>PromoteParsedResumeCommandHandler</c> (DQ6), pinned by staleness anchors below.
+/// correctly. Four subjects are pinned by the staleness anchors below:
+/// <c>UpdateMasterContentCommandHandler</c> (#499), <c>PromoteParsedResumeCommandHandler</c>
+/// (DQ6), <c>ApplyCvImprovementsCommandHandler</c> (#649) and
+/// <c>AutoPromoteParsedResumeCommandHandler</c> (5a; anchored in #1060 PR C, when its sink and
+/// guard calls moved behind an Application helper). The sentence this replaces still said "two"
+/// after the third anchor had been added — a count true of the text it was written against and
+/// false of the code beneath it.
 /// </para>
 ///
 /// <para>
@@ -56,9 +62,12 @@ namespace Jobbliggaren.Architecture.Tests;
 /// target, so a handler that mutates via an injected Application interface (the callsite names
 /// the interface, the sink lives only in the implementation) would escape both probes. Contrived
 /// today; revisit when the first id-based apply handler lands (epic #649 PR-7/#656).
-/// When that first id-based apply handler exists, a positive walker test pinning a
-/// helper-DELEGATED sink (handler → Application helper → Resume sink) should be added alongside
-/// the staleness anchors below.
+/// The helper-DELEGATED walker pin this note used to ask for EXISTS as of #1060 PR C — it lives
+/// in <c>SinkProbeAlone_DiscoversTheKnownResumeContentSinkCallingHandlers</c>, which is already
+/// this file's home for probe-(b) isolation, rather than in a test of its own. It arrived from a
+/// different direction than predicted (an extracted policy evaluator, not an id-based apply
+/// handler), which is why the note is amended rather than deleted: residual (3) itself, the
+/// non-devirtualized interface dispatch, is UNCHANGED and still open.
 /// </para>
 ///
 /// <para>
@@ -134,6 +143,13 @@ public class ResumeContentPersonnummerGuardTests
         subjects.ShouldContain(nameof(UpdateMasterContentCommandHandler));
         subjects.ShouldContain(nameof(PromoteParsedResumeCommandHandler));
         subjects.ShouldContain(nameof(ApplyCvImprovementsCommandHandler));
+        // #1060 PR C: the auto-promote handler has been a subject since 5a but was never
+        // anchored, and PR C moved BOTH its sink call and its guard call behind an Application
+        // helper (AutoPromoteGate). That is exactly the delegation this test's residual note
+        // asked for a pin on — and without the pin, a transitive-walk regression would drop the
+        // handler out of `subjects` entirely and this tripwire would stay GREEN while the
+        // highest-priority PII control went unenforced on the import path.
+        subjects.ShouldContain(nameof(AutoPromoteParsedResumeCommandHandler));
 
         offenders.ShouldBeEmpty(
             "Every command handler that is a resume-content write surface, keyed on EITHER " +
@@ -147,10 +163,10 @@ public class ResumeContentPersonnummerGuardTests
     }
 
     [Fact]
-    public void SinkProbeAlone_DiscoversBothKnownResumeContentSinkCallingHandlers()
+    public void SinkProbeAlone_DiscoversTheKnownResumeContentSinkCallingHandlers()
     {
         // Staleness anchor for probe (b) ALONE, independent of the DTO probe: if the sink probe
-        // ever stops seeing the two known Resume sink calls (Resume.CreateFromParsed in promote,
+        // ever stops seeing the known Resume sink calls (Resume.CreateFromParsed in promote,
         // resume.UpdateMasterContent in the master edit), the widened key has silently rotted
         // and a future TargetId-based apply handler would escape discovery.
         using var module = ModuleDefinition.ReadModule(typeof(ResumeContentDto).Assembly.Location);
@@ -163,6 +179,31 @@ public class ResumeContentPersonnummerGuardTests
             .ShouldBeTrue(
                 "UpdateMasterContentCommandHandler calls resume.UpdateMasterContent(ResumeContent, ...); " +
                 "the sink probe must discover it");
+
+        // #1060 PR C — the DELEGATED case, which is what residual (3)'s note asked for in
+        // advance. AutoPromoteParsedResumeCommandHandler names neither Resume.CreateFromParsed
+        // nor the guard in its own IL any more: both live one call deeper, in AutoPromoteGate.
+        // Only the transitive walk can still see them, and this is the assertion that says so
+        // about the PROBE rather than about the handler.
+        //
+        // It belongs here rather than in a test of its own (CTO-bind D3.2): the subject anchor
+        // in the main tripwire already makes a lost sink loud, so a separate test would be
+        // asserting the same regression twice. (Neither the name nor this comment carries a
+        // count: the body gained a third assertion in #1060 PR C while both still said "two",
+        // which is the very defect this file's docblock names at :41.)
+        //
+        // What is NOT redundant is isolating probe (b), and the reason is CONDITIONAL, so it
+        // is worth writing: today `carriesDto` is constant-false for this command, so the
+        // subject anchor alone would already catch a sink regression. Give the command a
+        // ResumeContentDto and it would not — and this assertion is what survives that. —
+        // and this is the file's existing home for that.
+        AnyResumeContentSinkCall(
+            ReachableMethodsOf(module, typeof(AutoPromoteParsedResumeCommandHandler)))
+            .ShouldBeTrue(
+                "AutoPromoteParsedResumeCommandHandler reaches Resume.CreateFromParsed THROUGH " +
+                "AutoPromoteGate.Evaluate; the sink probe must follow the Application-module " +
+                "call to discover it. (AutoPromoteGate is internal and Architecture.Tests has " +
+                "no InternalsVisibleTo, so it is named in prose only, never by symbol.)");
     }
 
     [Fact]

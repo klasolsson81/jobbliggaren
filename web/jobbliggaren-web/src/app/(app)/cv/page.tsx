@@ -159,7 +159,13 @@ export default async function CvListPage() {
             profile, and a SEQUENTIAL skill-label round-trip that ran after the parallel
             fetch purely to seed the wizard. */}
 
-        {sorted.length === 0 ? (
+        {/* #1060: tomt-tillståndet undertrycks när ett pending-artefakt finns. De två
+            villkoren var oberoende, så en användare med ett inläst men osparat CV fick
+            "Kräver åtgärd" direkt ovanför "Inga CV ännu" — två motsägande besked om
+            samma fil. Åtgärdskortet vinner: det är sant, och det bär redan båda
+            vägarna vidare (öppna granskningen, eller ta bort utkastet). Utan pending
+            är listan verkligen tom och tomt-tillståndet är rätt. */}
+        {sorted.length === 0 && pendingCv === null ? (
           <div className="jp-empty">
             <div className="jp-empty__title">{t("cv.emptyTitle")}</div>
             <p className="jp-empty__body">{t("cv.emptyBody")}</p>
@@ -172,7 +178,7 @@ export default async function CvListPage() {
               </Link>
             </div>
           </div>
-        ) : (
+        ) : sorted.length === 0 ? null : (
           <div className="jp-cvgrid">
             {sorted.map((resume) => (
               <ResumeCard key={resume.id} resume={resume} />

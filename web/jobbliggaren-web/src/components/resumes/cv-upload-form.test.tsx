@@ -215,7 +215,15 @@ describe("CvUploadForm — utfalls-baserad ruttning (CV-pivot 5c)", () => {
   // personnummer i FILEN". Samma orsaks-token kan komma från ett fynd i ETIKETTEN, och då
   // är serverns kroppsscan ren (count = 0) — att resa dialogen då vore ett felrapporterat
   // verdikt och ett samtycke inhämtat på fel premiss.
-  it("etikett-fynd (count 0) reser INTE samtyckesdialogen utan rutar till granskningen", async () => {
+  it("etikett-fynd (count 0) reser INTE samtyckesdialogen — och rutar inte längre bort från felet", async () => {
+    // ÄNDRAT i #1060 PR C (CTO-bind D1.4). Tidigare rutade det här fallet till granskningen.
+    // Det var precis loopen: granska-vyn utvärderar etikett-kanalen mot den GENERERADE
+    // default:en, så den kan inte säga något om namnet användaren skrev — hon fick beskedet
+    // att inget hindrar filen, laddade upp igen med samma namn och blockerades igen.
+    //
+    // Sedan token-splitten kan `PersonnummerPresent` med ren kroppsscan bara komma från
+    // etiketten (kontots visningsnamn har eget skäl, parse-flaggan ger alltid count > 0), så
+    // grinden är entydig. Felet hör hemma på fältet som orsakade det.
     const user = userEvent.setup();
     global.fetch = vi
       .fn()
@@ -226,11 +234,30 @@ describe("CvUploadForm — utfalls-baserad ruttning (CV-pivot 5c)", () => {
     await submit(user);
 
     await waitFor(() =>
-      expect(pushMock).toHaveBeenCalledWith(`/cv/granska/${PARSED_ID}`)
+      expect(screen.getByRole("alert")).toHaveTextContent(
+        "Ta bort personnummer ur CV-namnet."
+      )
     );
+    // Ingen navigation: sidan hon skulle skickats till kan inte besvara det här.
+    expect(pushMock).not.toHaveBeenCalled();
+    // Och fortfarande ingen samtyckesdialog — kroppsscanen är ren, så en dialog som säger
+    // "Vi hittade 0 personnummer i filen" vore ett felrapporterat verdikt (§5) och ett
+    // samtycke inhämtat på fel premiss (GDPR art. 7(2)).
     expect(
       screen.queryByText("Filen innehåller ett personnummer")
     ).not.toBeInTheDocument();
+    // Fältet är markerat ogiltigt för skärmläsare, inte bara visuellt.
+    expect(screen.getByLabelText(/namn/i)).toHaveAttribute("aria-invalid", "true");
+    // …och fokus står i fältet vars värde måste ändras. Mekanismen är avsiktligt
+    // icke-uppenbar — `showSpinner` avmonterar formuläret under uppladdningen, så en
+    // `.focus()` vid anropstillfället hade träffat en avmonterad nod, och en effekt nyckelad
+    // ENBART på felet hade fyrat mot samma avmonterade nod och aldrig kört om. Det är
+    // `showSpinner` i beroendelistan som får effekten att köra igen när fältet kommer
+    // tillbaka. Opinnad skulle den depen "förenklas" bort. `react-hooks/exhaustive-deps`
+    // namnger den visserligen (missing dependency) sedan den läses i effektkroppen, men
+    // regeln är `warn` och varken pre-commit eller CI kör med `--max-warnings` — inget
+    // lint-utfall blir rött. Den här assertionen är det enda som gör en sådan förenkling röd.
+    expect(screen.getByLabelText(/namn/i)).toHaveFocus();
   });
 
   it("onUploaded får det sammansatta utfallet + filnamnet i stället för navigation", async () => {

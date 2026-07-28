@@ -262,8 +262,9 @@ public static class LayoutCorpusReport
         // guard is not available either — "every word the renderer emits is glossed here" is false
         // today by design, since `passed` and `**BLOCKED**` need no gloss. Same treatment
         // Report_NeverRendersAPercentage already gives the token blacklist it rejected.
-        L("Four cell values mean four different things, and conflating two of them is what this");
-        L("section was corrected for (2026-07-28):");
+        L("A gate cell renders one of six words. `passed` and `**BLOCKED**` say what they say; the");
+        L("FOUR below are the confusable ones, and conflating two of them is what this section was");
+        L("corrected for (2026-07-28):");
         L();
         L("- `not evaluated` — an earlier GATE stopped control, so this rung was never asked.");
         L("- `no verdict` — the handler returned a genuine FAULT, so no gate decided anything.");

@@ -127,7 +127,9 @@ internal static partial class LayoutChainRunner
         }
         catch (Exception ex)
         {
-            return Crashed(c, fixtureProblems, ex.GetType().Name);
+            // The variable, not `null`: it is provably null here (the proof below has not run),
+            // and passing it keeps both call sites uniform and documents WHY it is null.
+            return Crashed(c, fixtureProblems, ex.GetType().Name, byteProofFailure);
         }
 
         try
@@ -154,12 +156,20 @@ internal static partial class LayoutChainRunner
         // The fourth argument is what stops a case whose bytes were already wrong, and which then
         // crashed, from being published under "byte proofs held" with its message discarded.
         //
-        // DECLARED UNPINNED, and measured as such rather than assumed: `Crashed`'s own contract is
-        // pinned by `Crashed_CarriesTheByteProofFailureItWasGiven` (mutating the record field
-        // reddens it), but THIS argument is not — dropping it survives the whole suite. Reaching it
-        // needs a case whose authored bytes fail their proof AND whose chain then throws, and no
-        // fixture can be authored to do both without faking the chain, which is the one thing this
-        // harness exists not to do. Named here rather than left for a mutation report to find.
+        // It has NO DEFAULT, deliberately. With one, dropping this argument compiled and silently
+        // restored the defect — measured: that mutation survived the whole suite. Without one it is
+        // a build error, which moves the defect from detectable to UNREPRESENTABLE. Same move as
+        // the shape-based whitelist in `GateLadder.IsWellFormed`: close the class by construction
+        // rather than guard the instance.
+        //
+        // No test drives THIS line, and the reason is not that such a fixture is impossible — one
+        // could author bytes that fail their own proof and then crash the real extractor, faking
+        // nothing. It is that the test's premise would be "the extractor THROWS on these bytes"
+        // rather than degrading, and §9 records that this corpus deliberately authors no
+        // pathological bytes. Harden the extractor to degrade and that test goes red for a reason
+        // unrelated to the seam it guards — a suite blocking its own remedy, which is precisely
+        // what the assert rule exists to prevent. `Crashed`'s own contract is pinned by
+        // `Crashed_CarriesTheByteProofFailureItWasGiven`.
         if (o.CrashedWithExceptionType is not null)
             return Crashed(c, fixtureProblems, o.CrashedWithExceptionType, byteProofFailure);
 
@@ -396,7 +406,7 @@ internal static partial class LayoutChainRunner
     /// its failure message discarded. §0 named it among the healthy.</para></summary>
     internal static LayoutCaseObservation Crashed(
         LayoutCase c, IReadOnlyList<string> fixtureProblems, string exceptionType,
-        string? byteProofFailure = null) =>
+        string? byteProofFailure) =>
         // Named, not positional. The record has 39 parameters and positions 21-28 are eight
         // consecutive int/int? — ParsedExperience, ParsedEducation, the two ground truths, the
         // two promoted counts, PromotedExperienceWithRawPeriod, PromotedPreambleChars — with an

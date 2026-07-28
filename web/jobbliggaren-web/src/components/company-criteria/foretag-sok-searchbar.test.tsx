@@ -297,6 +297,20 @@ describe("ForetagSokSearchbar — bransch popover (#999)", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("has the panel's counter region mounted and empty before the first pick", async () => {
+    // The 0→1 transition is the one that matters most, and it is exactly the case a region gated on
+    // "something is selected" gets wrong: it MOUNTS carrying the new text, which is the form the
+    // house has ruled unreliable. So the region has to be there, empty, from the moment the panel is.
+    renderBar();
+    const user = userEvent.setup();
+    const dialog = await openBransch(user);
+    const region = dialog.querySelector("span[aria-live='polite']");
+    expect(region).not.toBeNull();
+    expect(region).toHaveTextContent("");
+    // Nothing to clear at zero, so the clear control IS conditional — only the region is not.
+    expect(within(dialog).queryByRole("button", { name: "Rensa" })).not.toBeInTheDocument();
+  });
+
   it("the panel and the chip row report the SAME number for the same axis", async () => {
     // One click on the section picks four leaves and decomposes to ONE chip. Counting `selected.size`
     // would put "4 valda branscher" in the panel beside a single chip outside it.

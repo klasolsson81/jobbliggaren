@@ -41,8 +41,16 @@ public sealed class LayoutCorpusReportTests
     /// <summary>The commit this baseline was produced at. It has two homes — here and the
     /// committed baseline's own header — and nothing checks them against each other, so bump it
     /// DELIBERATELY when regenerating, never as a side effect. A stale value would make the
-    /// provenance string F3 exists for untrustworthy.</summary>
-    private const string BaseCommit = "7a5496fe";
+    /// provenance string F3 exists for untrustworthy.
+    ///
+    /// <para><b>It was stale, and the warning above is why that is worth writing down rather than
+    /// quietly overwriting.</b> The value read <c>7a5496fe</c> (PR E's merge) while
+    /// <c>git log -- baseline/layout-corpus-report.baseline.md</c> shows the file was last
+    /// regenerated in <c>a72c77e7</c> (PR B). So the published numbers were post-B behaviour
+    /// carrying a pre-B provenance string — a claim true of the run that first produced the file
+    /// and false of the one that last wrote it. Corrected 2026-07-28 to this branch's base.</para>
+    /// </summary>
+    private const string BaseCommit = "3aa46b47";
 
     [Fact]
     public async Task LayoutCorpus_FromBytes_EmitsReport()

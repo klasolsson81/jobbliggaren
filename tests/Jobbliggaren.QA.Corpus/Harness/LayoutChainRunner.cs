@@ -74,7 +74,18 @@ public sealed record LayoutCaseObservation(
     int GroundTruthEducation,
     int? PromotedExperience,
     int? PromotedEducation,
-    int? WellFormedPromotedExperience,
+
+    // RENAMED 2026-07-28, and the rename IS the fix. It was `WellFormedPromotedExperience` and
+    // counted `Role && Company && RawPeriod` non-blank — a hand copy of a predicate this corpus's
+    // own doctrine forbids copying, and wrong about its subject twice over. `Resume.ValidateContent`
+    // REQUIRES Company (:746) and Role (:755) and only LENGTH-CAPS RawPeriod (:783), so on a
+    // PROMOTED row the first two conjuncts are true by invariant — every promoted entry already
+    // passed that validation. The count reduced to raw-period presence while wearing a validity
+    // name, and the baseline shows it: it equalled `Promoted exp` on every row it ever printed.
+    // It never discriminated. Naming what it measures removes the copied predicate instead of
+    // renaming around it. FALSIFIER, deliberately cheap: if the two conjuncts really are invariant,
+    // this PR's diff for the column is header-only — any VALUE change refutes the argument above.
+    int? PromotedExperienceWithRawPeriod,
 
     // #1060 — what the PROMOTED CV holds, not what the parse held. Without this the corpus
     // cannot distinguish "promoted carrying the preamble" from "promoted having dropped it":
@@ -168,10 +179,11 @@ internal static partial class LayoutChainRunner
 
         var lines = o.RawText.Split('\n');
 
-        var wellFormed = promotedContent?.Experiences.Count(e =>
-            !string.IsNullOrWhiteSpace(e.Role)
-            && !string.IsNullOrWhiteSpace(e.Company)
-            && !string.IsNullOrWhiteSpace(e.RawPeriod));
+        // Raw-period presence, and ONLY that. The Role/Company conjuncts this once carried were
+        // true by invariant on any promoted entry (ValidateContent requires both) and made a
+        // period count read as a validity count — see the field's docblock.
+        var withRawPeriod = promotedContent?.Experiences
+            .Count(e => !string.IsNullOrWhiteSpace(e.RawPeriod));
 
         return new LayoutCaseObservation(
             Case: c,
@@ -209,7 +221,7 @@ internal static partial class LayoutChainRunner
             GroundTruthEducation: c.Model.GroundTruthEducations,
             PromotedExperience: promotedContent?.Experiences.Count,
             PromotedEducation: promotedContent?.Educations.Count,
-            WellFormedPromotedExperience: wellFormed,
+            PromotedExperienceWithRawPeriod: withRawPeriod,
             PromotedPreambleChars: promotedContent?.Preamble?.Length,
             BlockReason: o.BlockReason,
             Promoted: o.Promoted,
@@ -360,7 +372,7 @@ internal static partial class LayoutChainRunner
         LayoutCase c, IReadOnlyList<string> fixtureProblems, string exceptionType) =>
         // Named, not positional. The record has 39 parameters and positions 21-28 are eight
         // consecutive int/int? — ParsedExperience, ParsedEducation, the two ground truths, the
-        // two promoted counts, WellFormedPromotedExperience, PromotedPreambleChars — with an
+        // two promoted counts, PromotedExperienceWithRawPeriod, PromotedPreambleChars — with an
         // implicit int -> int? conversion between them. Inserting one more in that run shifts
         // every following nullable-int SILENTLY and the compiler accepts it. A corpus that
         // reports promoted-education under "promoted experience" is the exact class of quiet
@@ -392,7 +404,7 @@ internal static partial class LayoutChainRunner
             GroundTruthEducation: c.Model.GroundTruthEducations,
             PromotedExperience: null,
             PromotedEducation: null,
-            WellFormedPromotedExperience: null,
+            PromotedExperienceWithRawPeriod: null,
             PromotedPreambleChars: null,
             BlockReason: null,
             Promoted: false,

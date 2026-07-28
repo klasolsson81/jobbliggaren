@@ -153,12 +153,12 @@ public static class LayoutCorpusReport
         // ── Section 2 — the headline.
         L("## 2. Fidelity verdict");
         L();
-        L("| # | Case | Verdict | GT emp | Parsed exp | Promoted exp | Well-formed | GT edu | Parsed edu | Promoted edu | First blocking gate |");
+        L("| # | Case | Verdict | GT emp | Parsed exp | Promoted exp | With period | GT edu | Parsed edu | Promoted edu | First blocking gate |");
         L("|---|---|---|---|---|---|---|---|---|---|---|");
         for (var i = 0; i < d.Cases.Count; i++)
         {
             var c = d.Cases[i];
-            LI($"| {i + 1} | `{c.Case.Id}` | **{c.Verdict}** | {c.GroundTruthExperience} | {N(c.ParsedExperience)} | {N(c.PromotedExperience)} | {N(c.WellFormedPromotedExperience)} | {c.GroundTruthEducation} | {N(c.ParsedEducation)} | {N(c.PromotedEducation)} | {c.BlockReason?.ToString() ?? "—"} |");
+            LI($"| {i + 1} | `{c.Case.Id}` | **{c.Verdict}** | {c.GroundTruthExperience} | {N(c.ParsedExperience)} | {N(c.PromotedExperience)} | {N(c.PromotedExperienceWithRawPeriod)} | {c.GroundTruthEducation} | {N(c.ParsedEducation)} | {N(c.PromotedEducation)} | {c.BlockReason?.ToString() ?? "—"} |");
         }
 
         L();
@@ -233,12 +233,21 @@ public static class LayoutCorpusReport
         L("## 5. Gate ladder");
         L();
         L("No predicate expression is re-typed anywhere in this corpus; the states are derived from");
-        L("what the real handler returned. The handler collapses three distinct predicates onto one");
-        L("`PersonnummerPresent` token, and all three are resolved by ELIMINATION rather than guessed:");
-        L("the aggregate's own flag settles the parse rung, the two PUBLIC calls the handler makes");
-        L("settle the label rung, and whatever remains is the DQ6 guard — there is no fourth site.");
-        L("`no verdict` means the handler returned a genuine FAULT, so no gate decided anything;");
-        L("that is deliberately distinct from `not evaluated`, where an earlier GATE stopped control.");
+        L("what the real handler returned. **TWO** predicates still collapse onto one");
+        L("`PersonnummerPresent` token, and both are resolved by ELIMINATION rather than guessed: the");
+        L("aggregate's own flag settles the parse rung, and the two PUBLIC calls the handler makes");
+        L("settle the label rung. The DQ6 guard is no longer among them — #1060 PR C gave it its own");
+        L("`PersonnummerInAccountName` token, so that rung is now reached by name, not by remainder.");
+        L();
+        L("Three cell values mean three different things, and conflating two of them is what this");
+        L("section was corrected for (2026-07-28):");
+        L();
+        L("- `not evaluated` — an earlier GATE stopped control, so this rung was never asked.");
+        L("- `no verdict` — the handler returned a genuine FAULT, so no gate decided anything.");
+        L("- `unresolved` — THE INSTRUMENT has no arm for the token the handler returned. It is an");
+        L("  integrity failure, listed in §0 and red in the suite, never a statement about the");
+        L("  product. Before it existed, this case rendered as `no verdict` — publishing an honest");
+        L("  block as a handler fault, on the one case that exercises the DQ6 rung.");
         L();
         var gateHeaders = d.Cases.Count > 0
             ? d.Cases[0].Gates.Select(g => $"{g.GateId} ({g.CallSite})").ToList()
@@ -430,6 +439,12 @@ public static class LayoutCorpusReport
         GateState.Passed => "passed",
         GateState.Blocked => "**BLOCKED**",
         GateState.NotEvaluated => "not evaluated",
-        _ => "no verdict",
+        GateState.NoVerdict => "no verdict",
+
+        // Unresolved AND any future member fall here deliberately. The fail-safe direction is "the
+        // ladder does not know": an unmapped state must never inherit a sentence that asserts
+        // something about the HANDLER, which is how `no verdict` came to be printed over an honest
+        // block for a whole PR.
+        _ => "unresolved",
     };
 }

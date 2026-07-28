@@ -1,3 +1,4 @@
+using Jobbliggaren.Application.Resumes.Common;
 using Jobbliggaren.QA.Corpus.Generation;
 using Jobbliggaren.QA.Corpus.Harness;
 using Jobbliggaren.QA.Corpus.Layout;
@@ -158,6 +159,111 @@ public sealed class LayoutCorpusEmitterTests
         markdown.ShouldContain("**crashed:** none");
     }
 
+    /// <summary>Every reachable handler state must produce a ladder that names exactly ONE blocked
+    /// rung and is well-formed. Subject is <see cref="GateLadder"/> — the corpus's own derivation
+    /// (assert-rule category (b)), never a product outcome.
+    ///
+    /// <para>This is the pin the defect proved was missing. #1060 PR C added
+    /// <c>PersonnummerInAccountName</c> and this file had nothing that noticed; the token fell to a
+    /// catch-all that printed five `no verdict` cells, and the suite stayed green because
+    /// <c>IsWellFormed</c> accepted them.</para></summary>
+    [Theory]
+    [MemberData(nameof(ReachableGateStates))]
+    public void Ladder_ForEveryReachableBlock_NamesOneRungAndIsWellFormed(
+        AutoPromoteBlockReason reason, bool pnrOnParse, bool pnrInLabel, int expectedBlockedRung)
+    {
+        var ladder = GateLadder.From(reason, promoted: false, promoteFaulted: false,
+            pnrFoundOnParse: pnrOnParse, pnrInResolvedLabel: pnrInLabel);
+
+        GateLadder.IsWellFormed(ladder).ShouldBeTrue(
+            $"the ladder for {reason} is malformed — most likely GateLadder has no arm for it, "
+            + "which would publish an instrument gap as a statement about the handler.");
+
+        ladder.Select(c => c.State).ShouldContain(GateState.Blocked);
+        ladder.Count(c => c.State == GateState.Blocked).ShouldBe(1);
+        ladder[expectedBlockedRung].State.ShouldBe(GateState.Blocked);
+        ladder.ShouldNotContain(c => c.State == GateState.NoVerdict);
+    }
+
+    /// <summary>The exhaustiveness half, and it is what makes the theory above a MECHANISM rather
+    /// than four instances: every declared enum member must appear in the case list. A fifth member
+    /// fails HERE, at the enum, before anyone has to notice a wrong cell in a 962-line artifact.
+    /// No count is written down — the same reason
+    /// <c>AutoPromoteBlockReason_IsTheLockedFourMemberSet</c> writes none.</summary>
+    [Fact]
+    public void ReachableGateStates_CoversEveryDeclaredBlockReason()
+    {
+        var covered = ReachableGateStates()
+            .Select(row => row.Data.Item1)
+            .ToHashSet();
+
+        covered.ShouldBe(Enum.GetValues<AutoPromoteBlockReason>().ToHashSet(), ignoreOrder: true);
+    }
+
+    /// <summary>`unresolved` and `no verdict` must not render as the same word. They are different
+    /// claims — one is about THIS FILE, the other about the handler — and printing the second for
+    /// the first is the whole defect. Asserted on the case's own ROW, never on the document: §5's
+    /// prose now explains both words, so a document-level ShouldContain would pass on the
+    /// explanation while the cell said something else.</summary>
+    [Fact]
+    public void Report_RendersUnresolvedDistinctlyFromNoVerdict()
+    {
+        RowWords(GateState.Unresolved).ShouldContain("unresolved");
+        RowWords(GateState.Unresolved).ShouldNotContain("no verdict");
+        RowWords(GateState.NoVerdict).ShouldContain("no verdict");
+        RowWords(GateState.NoVerdict).ShouldNotContain("unresolved");
+
+        static string RowWords(GateState state)
+        {
+            var markdown = LayoutCorpusReport.Build(Data() with
+            {
+                Cases =
+                [
+                    Observation("case-ladder") with
+                    {
+                        Gates = [new GateCell("G1 pnr(parse)", "pnr on parse", state)],
+                    },
+                ],
+            });
+
+            // Only the case's own table rows carry its id; the prose paragraphs do not.
+            return string.Join("\n", markdown.Split('\n').Where(l => l.Contains("`case-ladder`")));
+        }
+    }
+
+    /// <summary>An unresolved rung is an INTEGRITY failure, not a quieter third colour — so it
+    /// reaches §0's list and <c>LayoutCorpusReportTests</c>'s existing instrument assert. Without
+    /// this, an all-unresolved ladder passes exactly as the all-`NoVerdict` one did: nothing is
+    /// "passed after a stop".</summary>
+    [Fact]
+    public void IsWellFormed_RejectsAnUnresolvedRung()
+    {
+        GateLadder.IsWellFormed([new GateCell("G1", "pnr on parse", GateState.Unresolved)])
+            .ShouldBeFalse();
+
+        LayoutCorpusReport.Build(Data() with
+        {
+            Cases =
+            [
+                Observation("case-ladder") with
+                {
+                    Gates = [new GateCell("G1", "pnr on parse", GateState.Unresolved)],
+                },
+            ],
+        }).ShouldContain("**gate ladder malformed:** `case-ladder`");
+    }
+
+    public static TheoryData<AutoPromoteBlockReason, bool, bool, int> ReachableGateStates() =>
+        new()
+        {
+            // reason, pnr on parse, pnr in resolved label, index of the rung that must be BLOCKED.
+            { AutoPromoteBlockReason.PersonnummerPresent, true, false, 0 },   // G1  parse flag
+            { AutoPromoteBlockReason.ParseNotConfident, false, false, 1 },    // G2  confidence
+            { AutoPromoteBlockReason.PersonnummerPresent, false, true, 2 },   // G2b label scan
+            { AutoPromoteBlockReason.PersonnummerInAccountName, false, false, 3 }, // G3a DQ6
+            { AutoPromoteBlockReason.IncompleteContent, false, false, 4 },    // G3b buildability
+        };
+
     private static LayoutCorpusReportData Data() =>
         new("abc1234", [Observation("case-alpha")], ["ISkillResolver (empty proposals)"], []);
 
@@ -180,7 +286,7 @@ public sealed class LayoutCorpusEmitterTests
             ParsedFreeSectionHeadings: [],
             ParsedExperience: 1, ParsedEducation: 1,
             GroundTruthExperience: 5, GroundTruthEducation: 3,
-            PromotedExperience: 1, PromotedEducation: 1, WellFormedPromotedExperience: 1,
+            PromotedExperience: 1, PromotedEducation: 1, PromotedExperienceWithRawPeriod: 1,
             PromotedPreambleChars: null,
             BlockReason: null, Promoted: true,
             Gates: GateLadder.From(null, true, false, false, false),

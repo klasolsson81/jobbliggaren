@@ -732,9 +732,10 @@ describe("ForetagSokSearchbar — degraded reference", () => {
     // The class alone guarantees nothing: `.jp-btn--flush` is CSS-scoped to `:first-child`, so a
     // preceding sibling, or an unconditionally rendered chip list, would silently kill the offset
     // with every gate green (guard:css reads the stylesheet, jsdom has no cascade, eslint sees a
-    // valid string). A WRAPPER would NOT — the button stays its parent's first child — so it is left
-    // off the list rather than named as a threat it is not. The POSITION is structural, which is
-    // exactly what jsdom can see, so it is asserted rather than excused.
+    // valid string). A WRAPPER would not kill the OFFSET — the button stays its parent's first child
+    // — but it would un-scope the modifier from the ROW, which is the harm `:first-child` exists to
+    // prevent; that half is caught by the inert-arm test below, not by this assertion. The POSITION
+    // is structural, which is exactly what jsdom can see, so it is asserted rather than excused.
     const clear = screen.getByRole("button", { name: "Rensa sökningen" });
     expect(clear).toHaveClass("jp-btn--flush");
     expect(clear.parentElement!.firstElementChild).toBe(clear);

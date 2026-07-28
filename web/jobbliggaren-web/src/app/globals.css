@@ -233,8 +233,9 @@
 
   /* `.jp-btn`'s inline padding, named so `.jp-btn--flush` can cancel exactly it. Value unchanged;
      rationale at `.jp-btn--flush` rather than repeated here. NOT the shared-SSOT pattern of
-     `--jp-control-px` above — that one is read by several components on the /jobb filter row; this
-     one has a single consumer plus its own canceller. */
+     `--jp-control-px` above — that one is read by two different components on the /jobb filter row;
+     this one is read by the button family (`.jp-btn`, and `.jp-btn--sm`'s scoped re-pin) plus its
+     own canceller. Same wording as DESIGN.md's knapp-punkt, deliberately. */
   --jp-btn-px: 18px;
 
   /* Skuggor (v3-kanon — undantag: popover/modal får skugga) */
@@ -1860,8 +1861,8 @@ a.jp-adminnav__link[aria-current="page"]::after {
   height: 44px;
   /* The inline padding is NAMED, not because it changes, but because `--flush` has to cancel exactly
      it. Writing `-18px` there would be a magic number coupled to this rule by nothing but hope
-     (#1090 says so in as many words). Rationale and the scope of the name: see the declaration and
-     `.jp-btn--flush` below. The value is unchanged. */
+     (#1090 says so in as many words). Rationale and the scope of the name: see the declaration
+     above and `.jp-btn--flush` below. The value is unchanged. */
   padding: 0 var(--jp-btn-px);
   border-radius: var(--jp-r-md);
   font-size: var(--text-ui);

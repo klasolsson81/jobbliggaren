@@ -399,144 +399,144 @@ export function ForetagSokSearchbar({
           separate them. */}
       <div className="flex max-w-2xl flex-col gap-5">
         {/* Row 1 — the unified name/org.nr field + the ONE submit. No-JS fallback: a native GET to
-              /foretag/sok as a NAME search (?namn=…), with the APPLIED sni/kommun preserved via hidden
-              inputs. With JS, onSubmit intercepts and reads the whole draft from state. */}
+            /foretag/sok as a NAME search (?namn=…), with the APPLIED sni/kommun preserved via hidden
+            inputs. With JS, onSubmit intercepts and reads the whole draft from state. */}
         <form action="/foretag/sok" method="get" onSubmit={onSubmit}>
-            <div className="jp-field">
-              <label htmlFor={searchInputId} className="jp-label">
-                {t("searchLabel")}
-              </label>
-              {/* The hint lives BELOW the row, not inside the field column: `.jp-field` is a column of
-                  label → input → hint, so an `items-end` row bottom-aligned the button against the HINT's
-                  baseline rather than the input's; and `.jp-btn--field` pairs the button to the field's
-                  48px so the row reads as one control. `aria-describedby` is position-independent and
-                  follows the move.
-                  A Tailwind `h-12` was tried first and is a SILENT no-op — `.jp-*` is deliberately
-                  unlayered (globals.css:615-624) and unlayered CSS beats `@layer utilities`, so
-                  `.jp-btn { height: 44px }` wins with no error and no warning. Measured live:
-                  `{"input":48,"button":44}` with `h-12` on the element. Hence a modifier, not a utility;
-                  DESIGN.md now carries that rule so the next attempt does not repeat it. */}
-              <div className="flex gap-2">
-                <input
-                  id={searchInputId}
-                  // NAMELESS once hydrated: a native GET must never carry whatever is currently typed —
-                  // the hidden input below carries the already-applied name instead. Before hydration it
-                  // keeps the name so a no-JS submit still works. Do NOT hardcode `name="namn"` here:
-                  // that is the exact leak #1078 closed, and `foretag-sok-searchbar.test.tsx`'s
-                  // call-site pin goes red on it.
-                  name={hydrated ? undefined : "namn"}
-                  className="jp-input grow"
-                  type="text"
-                  autoComplete="off"
-                  aria-describedby={searchHintId}
-                  value={value}
-                  onChange={(e) => setValue(e.target.value)}
-                />
-                <button
-                  type="submit"
-                  className="jp-btn jp-btn--primary jp-btn--field shrink-0"
-                  aria-busy={state.kind === "pending" || isNavPending || undefined}
-                >
-                  {t("searchSubmit")}
-                </button>
-              </div>
-              <span id={searchHintId} className="jp-hint">
-                {t("searchHint")}
-              </span>
+          <div className="jp-field">
+            <label htmlFor={searchInputId} className="jp-label">
+              {t("searchLabel")}
+            </label>
+            {/* The hint lives BELOW the row, not inside the field column: `.jp-field` is a column of
+                label → input → hint, so an `items-end` row bottom-aligned the button against the HINT's
+                baseline rather than the input's; and `.jp-btn--field` pairs the button to the field's
+                48px so the row reads as one control. `aria-describedby` is position-independent and
+                follows the move.
+                A Tailwind `h-12` was tried first and is a SILENT no-op — `.jp-*` is deliberately
+                unlayered (globals.css:615-624) and unlayered CSS beats `@layer utilities`, so
+                `.jp-btn { height: 44px }` wins with no error and no warning. Measured live:
+                `{"input":48,"button":44}` with `h-12` on the element. Hence a modifier, not a utility;
+                DESIGN.md now carries that rule so the next attempt does not repeat it. */}
+            <div className="flex gap-2">
+              <input
+                id={searchInputId}
+                // NAMELESS once hydrated: a native GET must never carry whatever is currently typed —
+                // the hidden input below carries the already-applied name instead. Before hydration it
+                // keeps the name so a no-JS submit still works. Do NOT hardcode `name="namn"` here:
+                // that is the exact leak #1078 closed, and `foretag-sok-searchbar.test.tsx`'s
+                // call-site pin goes red on it.
+                name={hydrated ? undefined : "namn"}
+                className="jp-input grow"
+                type="text"
+                autoComplete="off"
+                aria-describedby={searchHintId}
+                value={value}
+                onChange={(e) => setValue(e.target.value)}
+              />
+              <button
+                type="submit"
+                className="jp-btn jp-btn--primary jp-btn--field shrink-0"
+                aria-busy={state.kind === "pending" || isNavPending || undefined}
+              >
+                {t("searchSubmit")}
+              </button>
             </div>
+            <span id={searchHintId} className="jp-hint">
+              {t("searchHint")}
+            </span>
+          </div>
 
-            {/* Post-hydration: the APPLIED name rides a hidden input, so a native GET (an onSubmit that
-                failed to run) re-submits what the server already accepted — never the current draft.
-                The prop cannot be org.nr-shaped: `parseNamn` refuses that class before this renders. */}
-            {hydrated && namn.length > 0 && (
-              <input type="hidden" name="namn" value={namn} />
-            )}
+          {/* Post-hydration: the APPLIED name rides a hidden input, so a native GET (an onSubmit that
+              failed to run) re-submits what the server already accepted — never the current draft.
+              The prop cannot be org.nr-shaped: `parseNamn` refuses that class before this renders. */}
+          {hydrated && namn.length > 0 && (
+            <input type="hidden" name="namn" value={namn} />
+          )}
 
-            {/* No-JS: preserve the APPLIED code axes so a native name submit does not erase the filter
-                (ignored when JS handles onSubmit — then the draft is the source of truth). */}
-            {sni.map((code) => (
-              <input key={`sni-${code}`} type="hidden" name="sni" value={code} />
-            ))}
-            {kommun.map((code) => (
-              <input key={`kommun-${code}`} type="hidden" name="kommun" value={code} />
-            ))}
+          {/* No-JS: preserve the APPLIED code axes so a native name submit does not erase the filter
+              (ignored when JS handles onSubmit — then the draft is the source of truth). */}
+          {sni.map((code) => (
+            <input key={`sni-${code}`} type="hidden" name="sni" value={code} />
+          ))}
+          {kommun.map((code) => (
+            <input key={`kommun-${code}`} type="hidden" name="kommun" value={code} />
+          ))}
         </form>
 
         {/* Row 2 — bransch (SNI tree popover) + ort (cascade popover), both multi-select, side by side,
-              behind a hairline and a caption. The two interaction models on this surface differ — the name
-              is SUBMITTED, these narrow an ongoing browse — and after the live review the fix was to DRAW
-              that difference (a group with its own caption) rather than explain it in more hint prose,
-              which was the opposite finding (9). `role="group"` + `aria-labelledby` against the visible
-              caption; deliberately NOT a third <h2>, which would be heading noise for two controls.
-              Deliberately OUTSIDE the <form>: these are JS-only draft controls with no submitted name, and
-              keeping them out of the form means a keystroke in them can never trigger a native GET. */}
+            behind a hairline and a caption. The two interaction models on this surface differ — the name
+            is SUBMITTED, these narrow an ongoing browse — and after the live review the fix was to DRAW
+            that difference (a group with its own caption) rather than explain it in more hint prose,
+            which was the opposite finding (9). `role="group"` + `aria-labelledby` against the visible
+            caption; deliberately NOT a third <h2>, which would be heading noise for two controls.
+            Deliberately OUTSIDE the <form>: these are JS-only draft controls with no submitted name, and
+            keeping them out of the form means a keystroke in them can never trigger a native GET. */}
         <div
-            role="group"
-            aria-labelledby={filterGroupId}
-            className="border-t border-border pt-5"
+          role="group"
+          aria-labelledby={filterGroupId}
+          className="border-t border-border pt-5"
+        >
+          {/* Deliberately NOT `.jp-label`: the two field labels below use it, so a third identical
+              label stacked above them draws no grouping at all — it just reads as a label with no
+              control (design-review M4). This is the section-caption treatment the system already
+              uses for `.jp-popover__title`, composed from the same tokens rather than adding CSS. */}
+          <span
+            id={filterGroupId}
+            className="text-caption font-semibold tracking-[0.06em] text-text-secondary uppercase"
           >
-            {/* Deliberately NOT `.jp-label`: the two field labels below use it, so a third identical
-                label stacked above them draws no grouping at all — it just reads as a label with no
-                control (design-review M4). This is the section-caption treatment the system already
-                uses for `.jp-popover__title`, composed from the same tokens rather than adding CSS. */}
-            <span
-              id={filterGroupId}
-              className="text-caption font-semibold tracking-[0.06em] text-text-secondary uppercase"
-            >
-              {t("filterGroupLabel")}
-            </span>
-            <div className="mt-3 grid gap-4 md:grid-cols-2">
-              <div className="jp-field">
-                {/* Same label-in-name treatment as the ort trigger below, and for the same reason: a
-                    <label htmlFor> pointed at a BUTTON becomes that button's accessible name and
-                    overrides its visible text (WCAG 2.5.3). The heading is a plain span; the button names
-                    itself. The former `branschHint` ("Skriv och välj en bransch.") is GONE — it described
-                    a typeahead that no longer exists, and "Välj bransch" says the rest (finding 9). */}
-                <span className="jp-label">{t("branschLabel")}</span>
-                <button
-                  ref={branschBtnRef}
-                  type="button"
-                  className="jp-input flex cursor-pointer items-center justify-between gap-2 text-left"
-                  aria-haspopup="dialog"
-                  aria-expanded={branschOpen}
-                  aria-describedby={referenceOk ? undefined : branschNoticeId}
-                  disabled={!referenceOk}
-                  onClick={() => setBranschOpen((o) => !o)}
+            {t("filterGroupLabel")}
+          </span>
+          <div className="mt-3 grid gap-4 md:grid-cols-2">
+            <div className="jp-field">
+              {/* Same label-in-name treatment as the ort trigger below, and for the same reason: a
+                  <label htmlFor> pointed at a BUTTON becomes that button's accessible name and
+                  overrides its visible text (WCAG 2.5.3). The heading is a plain span; the button names
+                  itself. The former `branschHint` ("Skriv och välj en bransch.") is GONE — it described
+                  a typeahead that no longer exists, and "Välj bransch" says the rest (finding 9). */}
+              <span className="jp-label">{t("branschLabel")}</span>
+              <button
+                ref={branschBtnRef}
+                type="button"
+                className="jp-input flex cursor-pointer items-center justify-between gap-2 text-left"
+                aria-haspopup="dialog"
+                aria-expanded={branschOpen}
+                aria-describedby={referenceOk ? undefined : branschNoticeId}
+                disabled={!referenceOk}
+                onClick={() => setBranschOpen((o) => !o)}
+              >
+                {t("branschTrigger")}
+                <ChevronDown size={16} aria-hidden="true" />
+              </button>
+              {!referenceOk && (
+                <p
+                  id={branschNoticeId}
+                  role="status"
+                  className="text-body-sm text-text-primary"
                 >
-                  {t("branschTrigger")}
-                  <ChevronDown size={16} aria-hidden="true" />
-                </button>
-                {!referenceOk && (
-                  <p
-                    id={branschNoticeId}
-                    role="status"
-                    className="text-body-sm text-text-primary"
-                  >
-                    {t("branschUnavailable")}
-                  </p>
-                )}
-              </div>
-
-              <div className="jp-field">
-                {/* The trigger is a <button>; buttons are labelable, so a <label htmlFor> would make the
-                    label text the button's ACCESSIBLE NAME and override its visible text ("Välj ort eller län")
-                    — a WCAG 2.5.3 label-in-name break. The field heading is therefore a plain span; the button
-                    is self-named by its own text. The former `ortHint` ("Välj ett eller flera län eller
-                    kommuner") is GONE: the trigger already says it, so it was prose paying no rent (9). */}
-                <span className="jp-label">{t("ortLabel")}</span>
-                <button
-                  ref={ortBtnRef}
-                  type="button"
-                  className="jp-input flex cursor-pointer items-center justify-between gap-2 text-left"
-                  aria-haspopup="dialog"
-                  aria-expanded={ortOpen}
-                  onClick={() => setOrtOpen((o) => !o)}
-                >
-                  {t("ortTrigger")}
-                  <ChevronDown size={16} aria-hidden="true" />
-                </button>
-              </div>
+                  {t("branschUnavailable")}
+                </p>
+              )}
             </div>
+
+            <div className="jp-field">
+              {/* The trigger is a <button>; buttons are labelable, so a <label htmlFor> would make the
+                  label text the button's ACCESSIBLE NAME and override its visible text ("Välj ort eller län")
+                  — a WCAG 2.5.3 label-in-name break. The field heading is therefore a plain span; the button
+                  is self-named by its own text. The former `ortHint` ("Välj ett eller flera län eller
+                  kommuner") is GONE: the trigger already says it, so it was prose paying no rent (9). */}
+              <span className="jp-label">{t("ortLabel")}</span>
+              <button
+                ref={ortBtnRef}
+                type="button"
+                className="jp-input flex cursor-pointer items-center justify-between gap-2 text-left"
+                aria-haspopup="dialog"
+                aria-expanded={ortOpen}
+                onClick={() => setOrtOpen((o) => !o)}
+              >
+                {t("ortTrigger")}
+                <ChevronDown size={16} aria-hidden="true" />
+              </button>
+            </div>
+          </div>
         </div>
 
         {/* The bransch picker (#999). Same `toggleGroup` semantics as the criterion dialog: a node's
@@ -669,7 +669,7 @@ export function ForetagSokSearchbar({
             >
               {t("clearButton")}
             </button>
-        </div>
+          </div>
         )}
 
         {/* Draft-vs-applied honesty (design-reviewer gate): a discreet polite line, active only while the
@@ -701,8 +701,8 @@ export function ForetagSokSearchbar({
             id={orgNrLabelId}
             // One step BELOW the streamed results' own <h2> (20px), deliberately: this heads the
             // answer to a single lookup, that heads the browse. What it can no longer be is 14px —
-            // it used to head a 672px block, where a caption was proportionate, and at 1136px it was
-            // heading a full-rail section in smaller type than the body text of the section below.
+            // it used to head a 672px block, where body-sm was proportionate, and at 1136px it was
+            // heading a full-rail section in smaller type than the 16px body text below it.
             className="mb-3 text-h3 font-semibold text-text-primary"
           >
             {t("orgNrResultLabel")}

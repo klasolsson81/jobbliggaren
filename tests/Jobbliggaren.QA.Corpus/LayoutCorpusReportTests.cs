@@ -6,11 +6,17 @@ using Shouldly;
 namespace Jobbliggaren.QA.Corpus;
 
 /// <summary>
-/// PR K (#1060) — the layout fitness corpus. It authors sixteen CV documents as real PDF and DOCX
+/// PR K (#1060) — the layout fitness corpus. It authors 21 CV documents as real PDF and DOCX
 /// BYTES and drives each of them through the product's own chain: <c>CvFileSignature</c> →
 /// <c>ImportResumeCommandHandler</c> (extract, personnummer scan, segment, <c>ParsedResume.Create</c>)
-/// → <c>AutoPromoteParsedResumeCommandHandler</c> (six gates, the internal content mapper, the DQ6
-/// guard, <c>Resume.CreateFromParsed</c>). No database server, no container, no network.
+/// → <c>AutoPromoteParsedResumeCommandHandler</c> (five gates, DQ6 among them, the internal content
+/// mapper, <c>Resume.CreateFromParsed</c>). No database server, no container, no network.
+///
+/// <para>Both numerals above were stale and were corrected 2026-07-28: "sixteen" predated five
+/// cases added by PRs E and K, and "six gates" predated PR B retiring the preamble gate. They are
+/// the fifth and sixth instances of this class caught in one PR — a prose numeral that a later
+/// commit made false — which is why the count is now written as a digit beside a catalog anyone
+/// can count rather than as a word.</para>
 ///
 /// <para><b>The material difference from the existing corpus.</b> <c>CorpusGenerator</c> starts
 /// DOWNSTREAM of the segmenter — it calls <c>ParsedResume.Create</c> with pre-built content and

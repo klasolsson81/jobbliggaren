@@ -138,6 +138,9 @@ export function ForetagSokSearchbar({
   kommun,
 }: ForetagSokSearchbarProps) {
   const t = useTranslations("pages.foretag.sok");
+  // The bransch axis's own strings live one scope up, shared with the popover and the criterion
+  // dialog that render the same picker (#999).
+  const tc = useTranslations("pages.foretag.criteria");
   const router = useRouter();
   const hydrated = useSyncExternalStore(
     emptySubscribe,
@@ -276,8 +279,12 @@ export function ForetagSokSearchbar({
     (branschChips.length === 0 || branschChips.length > MAX_BRANSCH_CHIPS);
   const branschSummaryLabel = branschSummary
     ? branschChips.length === 0
-      ? t("branschSummaryCodes", { count: sniSelected.size })
-      : t("branschSummaryPicked", { count: branschChips.length })
+      ? // The degraded case cannot name anything, so it counts the one thing it knows: codes. Its own
+        // key because the unit differs — reusing the shared one would say "branches" about codes.
+        t("branschSummaryCodes", { count: sniSelected.size })
+      : // The SAME key the popover header uses. It is the same sentence about the same axis, and
+        // writing it twice is how the panel and the chips drifted into two numbers to begin with.
+        tc("sniSelectedCount", { count: branschChips.length })
     : null;
   const branschChipCount = branschSummary ? 1 : branschChips.length;
 

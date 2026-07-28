@@ -241,7 +241,6 @@
       "filterGroupLabel": "Narrow down",
       "branschLabel": "Industry",
       "branschTrigger": "Choose industry",
-      "branschSummaryPicked": "{count, plural, one {# industry selected} other {# industries selected}}",
       "branschSummaryCodes": "{count, plural, one {# industry code} other {# industry codes}}",
       "branschRemove": "Remove {namn}",
       "branschRemoveAll": "Remove all industries",

@@ -241,7 +241,6 @@
       "filterGroupLabel": "Avgränsa",
       "branschLabel": "Bransch",
       "branschTrigger": "Välj bransch",
-      "branschSummaryPicked": "{count, plural, one {# vald bransch} other {# valda branscher}}",
       "branschSummaryCodes": "{count, plural, one {# branschkod} other {# branschkoder}}",
       "branschRemove": "Ta bort {namn}",
       "branschRemoveAll": "Ta bort alla branscher",

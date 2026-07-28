@@ -151,7 +151,12 @@ export function CriterionPicker({
         <p className="text-body-sm font-medium text-text-primary">{selectedCountLabel}</p>
       )}
 
-      <div className="max-h-72 overflow-y-auto rounded-md border border-border">
+      {/* The list cap is viewport-relative so the panel it sits in stays a SINGLE scroller. Measured at
+          1280×720: a flat `max-h-72` made the panel taller than `.jp-panel__body`'s 60vh cap, so both
+          engaged and scrolling the list chained into scrolling the panel. At 900px height only one
+          ever did, which is why the first round missed it. 32vh keeps the whole panel inside 60vh on a
+          short screen and resolves to the same 18rem on a tall one. */}
+      <div className="max-h-[min(18rem,32vh)] overflow-y-auto rounded-md border border-border">
         {nodes.length === 0 ? (
           <p className="px-4 py-3 text-body-sm text-text-primary">{optionsUnavailable}</p>
         ) : isFiltering && filteredOptions.length === 0 ? (

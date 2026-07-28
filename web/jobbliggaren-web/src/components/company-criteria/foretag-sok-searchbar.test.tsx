@@ -279,6 +279,45 @@ describe("ForetagSokSearchbar — bransch popover (#999)", () => {
     );
   });
 
+  it("carries the one sentence that explains what a click here does", async () => {
+    renderBar();
+    const user = userEvent.setup();
+    const dialog = await openBransch(user);
+    // "Välj bransch" names the control; it does not say that a checkbox on a parent selects its whole
+    // subtree, or that several branches can be picked. One click can select 52 codes, and after #999
+    // this is the only place on the surface that says so.
+    expect(
+      within(dialog).getByText(
+        "Välj en eller flera branscher. Du kan välja en hel avdelning, en huvudgrupp eller enskilda koder.",
+      ),
+    ).toBeInTheDocument();
+    // And the sentence that paid no rent is gone: a hint under a field already labelled "Sök bransch".
+    expect(
+      within(dialog).queryByText("Skriv för att smalna av listan över branscher."),
+    ).not.toBeInTheDocument();
+  });
+
+  it("the panel and the chip row report the SAME number for the same axis", async () => {
+    // One click on the section picks four leaves and decomposes to ONE chip. Counting `selected.size`
+    // would put "4 valda branscher" in the panel beside a single chip outside it.
+    renderBar();
+    const user = userEvent.setup();
+    const dialog = await openBransch(user);
+    await user.click(
+      within(dialog).getByRole("checkbox", {
+        name: "Informations- och kommunikationsverksamhet",
+      }),
+    );
+
+    expect(within(dialog).getByText("1 vald bransch")).toBeInTheDocument();
+    await user.keyboard("{Escape}");
+    expect(
+      screen.getByRole("button", {
+        name: "Ta bort Informations- och kommunikationsverksamhet",
+      }),
+    ).toBeInTheDocument();
+  });
+
   it("above the cap the chips collapse to one summary chip that clears the axis", async () => {
     // Ten divisions, one leaf picked in each — a decomposition of ten chips, which is what the cap
     // exists to prevent. Reachable by ticking ten leaves; nothing here is a shape the UI cannot make.
@@ -313,6 +352,12 @@ describe("ForetagSokSearchbar — bransch popover (#999)", () => {
     expect(screen.getByText("10 valda branscher")).toBeInTheDocument();
     expect(screen.queryByText("Detalj 10100")).not.toBeInTheDocument();
 
+    // The summary REPORTS. It must not carry the same × as the per-branch chips: identical pixels,
+    // and one of them drops the entire draft with no undo.
+    const summary = screen.getByText("10 valda branscher").closest(".jp-chip")!;
+    expect(within(summary as HTMLElement).queryByRole("button")).not.toBeInTheDocument();
+
+    // The bulk removal is a sibling with visible text, at the same size as the row's other control.
     await user.click(screen.getByRole("button", { name: "Ta bort alla branscher" }));
     expect(screen.queryByText("10 valda branscher")).not.toBeInTheDocument();
   });

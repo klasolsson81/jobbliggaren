@@ -19,12 +19,18 @@ import { formatNumber } from "@/lib/i18n/format";
  *       That is a healthy-path ceiling and NOT a worst case: a dropped
  *       stream run is tolerated by design and caught only by the 02:00 UTC
  *       snapshot (ADR 0032 §3), and a dead Worker lets Redis serve a value
- *       up to its 1 h TTL while `IsStale` still reads false. Removal is
- *       slower still: an expired ad leaves the count only via the nightly
- *       archival job, so the number can overstate for up to ~24 h. The line
- *       previously said ~15 min, counting the last two steps and omitting
- *       ingest. Cited by SYMBOL, never by `file:line` — a line number across
- *       the dotnet/pnpm toolchain boundary has no gate and rots silently.</li>
+ *       up to its 1 h TTL while `IsStale` still reads false.</li>
+ *   <li>Removal is SYMMETRIC on the healthy path: the same 10-min stream
+ *       carries removal events (`ArchiveExternalJobAdCommand`), so a
+ *       withdrawn ad leaves the count as fast as it entered. Only the
+ *       residue is slow, and the two backstops differ by a factor of three.
+ *       An ad that passes `ExpiresAt` with no removal event waits for the
+ *       nightly sweep (`RecurringJobIds.ExpireJobAds`, ~24 h); a snapshot
+ *       gap needs `JobSourceRetentionOptions.SnapshotMissThreshold`
+ *       consecutive DAILY misses (`RecurringJobIds.RetainPlatsbankenJobAds`,
+ *       default 3, so ~3 days). Cite these by SYMBOL, never by `file:line`
+ *       — a line number across the dotnet/pnpm toolchain boundary has no
+ *       gate and rots silently.</li>
  *   <li>När polling-svaret ger högre `newToday` än senaste sedda värdet
  *       visas en grön <code>+N</code>-pill via fade-in (200ms), syns i 8
  *       sekunder, sen fade-out (Klas-feedback 2026-05-24 svans-PR5 —

@@ -4657,25 +4657,48 @@ a.jp-adminnav__link[aria-current="page"]::after {
    began 51px apart on the two tables. Fixed layout makes the geometry a decision instead of a
    consequence of whichever rows happened to load.
 
-   The widths are max-content measurements of the worst case each column must survive, not
-   guesses — see the PR body. Only the company name absorbs the remainder, so the sum is exact
-   at every table width. */
-.jp-companyBrowse { table-layout: fixed; min-width: 860px; }
-.jp-companyBrowse--withFollow { min-width: 1000px; }
-/* 160px = the "Skyddad identitet" badge, which is wider than a formatted org.nr (129px) and is
-   the reason this column may not shrink: it stays nowrap because a broken identifier is
-   unreadable. The dev register holds zero personnummer-shaped rows, so the badge was measured on
-   its own markup. */
-.jp-companyBrowse__col--orgnr { width: 170px; }
-/* 132px = "Skinnskatteberg", the longest single WORD any kommun name contains. The longest VALUE
-   is "Ej svensk hemortskommun" (203px unbroken, 23 837 rows), which now wraps to two lines
-   instead of charging every page 63px of empty column for 2.2% of the register — the cell
-   dropped whitespace-nowrap for exactly this. */
-.jp-companyBrowse__col--seat { width: 140px; }
-/* 232px = "Plastförpackningstillverkning", the longest unbreakable token in SNI 2025. */
-.jp-companyBrowse__col--sni { width: 330px; }
-/* 131px = the rendered follow-button cell. */
-.jp-companyBrowse__col--follow { width: 140px; }
+   HOW THE WIDTHS WERE CHOSEN, precisely — because "measured" and "chosen" are not the same claim
+   and an earlier version of this comment collapsed them. Each of the four declared columns sits at
+   or ABOVE a measured max-content floor; the floor and the headroom are stated per column below.
+   Only the company name is width-less, so it absorbs the remainder and the sum is exact at every
+   table width.
+
+   Every floor was measured in Chromium, in the real cell, in BOTH locales — the follow column had
+   already been sized 9px too narrow for English by measuring only the label the user starts on.
+
+   THE TWO MINIMUM WIDTHS ARE ONE DECISION, not two literals: declared columns + a 220px floor for
+   the name column, which would otherwise collapse toward zero as the table narrows. 600 + 220 and
+   760 + 220. **220px is a chosen readability minimum, not a max-content measurement** — it is the
+   only number in this block that is judgment rather than evidence, and it is deliberately the same
+   in both shapes because "narrowest readable company-name column" does not change when a follow
+   button is absent (CTO bind 2026-07-28).
+
+   Consequence, stated because this PR causes it: the four-column consumer
+   (/foretag/smarta-bevakningar/[id]) now scrolls horizontally at 768px, where it happened to fit
+   before. The fit was a property of the rows one criterion loaded under auto layout, never a
+   guarantee — a criterion with longer company names already scrolled there. The scroll is contained
+   in the table's own wrapper (the page never scrolls), and it is the same behaviour `.jp-apptable`
+   already ships at 768 with min-width: 940px. */
+.jp-companyBrowse { table-layout: fixed; min-width: 820px; }
+.jp-companyBrowse--withFollow { min-width: 980px; }
+/* Floor 161px = "Protected identity" (en; sv "Skyddad identitet" is 160px), which is wider than a
+   formatted org.nr (129px). +14px. The dev register holds zero personnummer-shaped rows, so the
+   badge was measured on its own markup rather than on a row. nowrap is scoped to the NUMBER, not
+   the cell, so a font fallback wraps the badge instead of overflowing into Säteskommun. */
+.jp-companyBrowse__col--orgnr { width: 175px; }
+/* Floor 132px = "Skinnskatteberg", the longest single WORD any kommun name contains. +13px. */
+.jp-companyBrowse__col--seat { width: 145px; }
+/* Floor 232px = "Plastförpackningstillverkning", the longest unbreakable token in SNI 2025 — but
+   this is the one width the floor does not decide, because the column holds up to three wrapped
+   names, not one token. Measured instead against total table height over 21 real rows at 1136px:
+   232px→1722px, 255→1647, 280→1548, 330→1573, 380→1523, 431→1672. The curve is flat-bottomed
+   between 280 and 380 (widening this column narrows the name column, so both wrap) and both ends
+   are worse. 280px is the low end of that band, chosen there so the company name — the row's
+   identity — stays wider than its context, per design-review. */
+.jp-companyBrowse__col--sni { width: 280px; }
+/* Floor 147px = "Following" (en; sv "Bevakar" is 136px, "Bevaka" 131px). +13px. The button carries
+   its own nowrap; the cell must NOT, because it also holds the failed-follow error. */
+.jp-companyBrowse__col--follow { width: 160px; }
 
 /* ============================================================
    F6 P5 Punkt 4 — Översikt (civic dossier)

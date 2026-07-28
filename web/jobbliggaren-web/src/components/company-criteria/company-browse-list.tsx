@@ -62,8 +62,12 @@ export function CompanyBrowseList({
   return (
     <div className="overflow-x-auto">
       <table
-        // Both class strings are written out in full rather than composed: the CSS guard's class
-        // sweep reads literals, and a `jp-x--${flag}` template makes a live rule look dead (#1065).
+        // Both class strings are written out in full because the CSS guard's class sweep cannot read
+        // an INTERPOLATED name: it skips any fragment followed by `${` as a template prefix, so a
+        // `jp-x--${flag}` makes a live rule look dead (#1065). Composition itself is fine — the guard
+        // reads every string literal inside `className={...}` whatever helper joins them, so a
+        // `cn("jp-table jp-companyBrowse", showFollow && "jp-companyBrowse--withFollow")` would be
+        // equally visible. Interpolation is the only fatal form.
         className={
           showFollow
             ? "jp-table jp-companyBrowse jp-companyBrowse--withFollow w-full"
@@ -102,19 +106,25 @@ export function CompanyBrowseList({
         <tbody>
           {items.map((company, index) => (
             <tr key={company.organizationNumber ?? `${company.name}-${index}`} className="text-text-primary">
-              {/* `break-words` only bites when a single token cannot fit the column at all. The
-                  longest unbreakable token in the register is 42 characters (~336px), which fits
-                  the 356px this column gets on the 1136px rail but not the 220px it gets at the
-                  table's minimum width — under fixed layout that would paint over Org.nr. */}
+              {/* `wrap-break-word` breaks a token only when it cannot fit the column at all. The
+                  register's longest unbreakable token is 42 characters — roughly 336px, extrapolated
+                  from the measured 232px/29-char SNI token, not measured directly. That fits this
+                  column on the 1136px rail but not at the table's minimum width, and under fixed
+                  layout an over-long token overflows into Org.nr rather than widening anything. */}
               <td className="wrap-break-word text-text-primary">{company.name}</td>
-              <td className="whitespace-nowrap font-mono text-text-secondary">
+              {/* `whitespace-nowrap` is scoped to the NUMBER, not to the cell. A formatted org.nr must
+                  never break across lines; the "Skyddad identitet" badge is prose and may. Measured at
+                  160px (sv) and 161px (en) against a 175px column — narrow enough headroom that a font
+                  fallback could exceed it, and under fixed layout the cell would then overflow into
+                  Säteskommun rather than grow. Letting the badge wrap removes that failure mode. */}
+              <td className="font-mono text-text-secondary">
                 {company.isProtectedIdentity ? (
                   <span className="inline-flex items-center gap-1 rounded-pill bg-warning-50 px-2 py-0.5 font-sans text-body-sm text-warning-700">
                     <ShieldAlert size={13} aria-hidden="true" />
                     {t("protectedIdentity")}
                   </span>
                 ) : company.organizationNumber ? (
-                  formatOrgNr(company.organizationNumber)
+                  <span className="whitespace-nowrap">{formatOrgNr(company.organizationNumber)}</span>
                 ) : (
                   <span className="text-text-tertiary" aria-hidden="true">
                     –
@@ -125,12 +135,16 @@ export function CompanyBrowseList({
                   disambiguates nothing, and mono type is reserved for signal (DESIGN.md rule 4). The
                   code is the FALLBACK only — a row never renders blank when the name is missing.
 
-                  No `whitespace-nowrap`: under fixed layout that would have made the column as wide
-                  as its longest VALUE, "Ej svensk hemortskommun" (203px). Every real kommun name
-                  still fits on one line at 140px — the longest is "Skinnskatteberg" at 132px — and
-                  the outlier wraps to two lines instead of taxing every page 63px for 2.2% of the
-                  register. */}
-              <td className="text-text-primary">
+                  `whitespace-nowrap` is GONE, and the mechanism is not the one it looks like: under
+                  fixed layout cell content can never widen a column (CSS 2.1 §17.5.2.1 — the width
+                  comes from the <col>), so nowrap would not have grown this column to fit "Ej svensk
+                  hemortskommun". It would have OVERFLOWED it — 203px of unbroken text painted across
+                  Branscher, on 23 837 rows. The choice the width makes is the real one: declaring
+                  203px would tax every page 63px of mostly empty column for 2.2% of the register, so
+                  the column is sized for the longest real kommun name instead ("Skinnskatteberg",
+                  132px) and that one outlier wraps to two lines. `wrap-break-word` covers the case a
+                  single kommun token still cannot fit. */}
+              <td className="wrap-break-word text-text-primary">
                 {company.seatMunicipalityName ?? company.seatMunicipalityCode}
               </td>
               <td className="text-text-primary">
@@ -140,7 +154,14 @@ export function CompanyBrowseList({
                 })()}
               </td>
               {showFollow && (
-                <td className="whitespace-nowrap">
+                // No `whitespace-nowrap` on the CELL. `white-space` inherits, and this cell can hold
+                // more than the button: on a failed follow `CompanyFollowButton` renders an error
+                // sibling ("Kunde inte bevaka företaget. Försök igen.", ~230px). Under auto layout the
+                // column grew to fit it; under fixed layout it cannot, so an inherited nowrap would
+                // paint that sentence across the table edge AND stretch the button to its width — the
+                // two are stretch-aligned siblings in one flex column. The button carries its own
+                // nowrap instead, which is the only thing here that must not break.
+                <td>
                   {company.organizationNumber && !company.isProtectedIdentity ? (
                     <CompanyFollowButton
                       orgNr={company.organizationNumber}

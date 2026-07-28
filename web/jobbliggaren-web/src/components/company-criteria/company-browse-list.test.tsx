@@ -134,26 +134,97 @@ describe("CompanyBrowseList — the table's accessible name", () => {
  * What jsdom CAN pin is the structural contract, and that is the half a future column addition
  * breaks: the follow column is conditional, so the two must agree in BOTH shapes.
  */
-describe("CompanyBrowseList — the colgroup matches the header row", () => {
-  it("declares one <col> per column when the follow column is rendered", () => {
+/** The `<col>` classes in document order — the geometry contract, not merely its arity. */
+function colClasses(container: HTMLElement): string[] {
+  return [...container.querySelectorAll("colgroup > col")].map((c) => c.className);
+}
+
+describe("CompanyBrowseList — the declared column geometry", () => {
+  it("declares the five columns in order, matching the header row", () => {
     const map = new Map<string, string | null>([[LEGAL_ORGNR, null]]);
     const { container } = render(
       <CompanyBrowseList items={[LEGAL]} reference={REFERENCE} followStateByOrgNr={map} />,
     );
 
-    expect(container.querySelectorAll("colgroup > col")).toHaveLength(5);
-    expect(container.querySelectorAll("thead th")).toHaveLength(5);
-    // Every body row must line up with them too — a `colSpan` or a dropped cell breaks the same way.
+    // ORDER, not just count. Swapping two <col>s keeps every count identical and silently swaps two
+    // column widths, so counting alone would call that geometry correct.
+    expect(colClasses(container)).toEqual([
+      "jp-companyBrowse__col--name",
+      "jp-companyBrowse__col--orgnr",
+      "jp-companyBrowse__col--seat",
+      "jp-companyBrowse__col--sni",
+      "jp-companyBrowse__col--follow",
+    ]);
+    // Scoped to the first header ROW: a second <tr> in <thead> would double a bare `thead th` count
+    // while the geometry is untouched.
+    expect(container.querySelectorAll("thead tr:first-child > th")).toHaveLength(5);
     expect(container.querySelectorAll("tbody tr:first-child > td")).toHaveLength(5);
   });
 
-  it("drops the follow <col> with the follow column (bevakningar/[id] parity)", () => {
+  it("drops the follow column and its <col> together (bevakningar/[id] parity)", () => {
     const { container } = render(<CompanyBrowseList items={[LEGAL]} reference={REFERENCE} />);
 
-    expect(container.querySelectorAll("colgroup > col")).toHaveLength(4);
-    expect(container.querySelectorAll("thead th")).toHaveLength(4);
+    expect(colClasses(container)).toEqual([
+      "jp-companyBrowse__col--name",
+      "jp-companyBrowse__col--orgnr",
+      "jp-companyBrowse__col--seat",
+      "jp-companyBrowse__col--sni",
+    ]);
+    expect(container.querySelectorAll("thead tr:first-child > th")).toHaveLength(4);
     expect(container.querySelectorAll("tbody tr:first-child > td")).toHaveLength(4);
-    // The wider floor belongs to the five-column shape only; this surface must not inherit it.
-    expect(container.querySelector("table")).not.toHaveClass("jp-companyBrowse--withFollow");
+  });
+
+  /**
+   * The colgroup is inert without the class that turns fixed layout on, and the CSS guard cannot
+   * catch its removal: once production stops naming `jp-companyBrowse--withFollow`, the only
+   * remaining reference is this test file, and the guard downgrades a test-only reference to
+   * advisory rather than failing (`guard-css.mjs` — it cannot tell a positive assertion from a
+   * negative one). So the classes are pinned here, in BOTH polarities, or they are pinned nowhere.
+   */
+  it("carries the fixed-layout class in both shapes, and the wider floor only with the follow column", () => {
+    const map = new Map<string, string | null>([[LEGAL_ORGNR, null]]);
+    const withFollow = render(
+      <CompanyBrowseList items={[LEGAL]} reference={REFERENCE} followStateByOrgNr={map} />,
+    ).container.querySelector("table");
+    expect(withFollow).toHaveClass("jp-companyBrowse");
+    expect(withFollow).toHaveClass("jp-companyBrowse--withFollow");
+
+    const withoutFollow = render(
+      <CompanyBrowseList items={[LEGAL]} reference={REFERENCE} />,
+    ).container.querySelector("table");
+    expect(withoutFollow).toHaveClass("jp-companyBrowse");
+    expect(withoutFollow).not.toHaveClass("jp-companyBrowse--withFollow");
+  });
+
+  /**
+   * Fixed layout removes the escape valve auto layout provided: a column can no longer grow to fit
+   * its content, so whether a cell WRAPS is now load-bearing. All three of these were `whitespace`
+   * decisions the geometry forced, and two of them are reverts waiting to happen — `whitespace-nowrap`
+   * stood on the seat and follow cells before this change, so re-adding it reads as a cleanup.
+   */
+  it("wraps every cell that fixed layout can no longer widen", () => {
+    const map = new Map<string, string | null>([[LEGAL_ORGNR, null]]);
+    const { container } = render(
+      <CompanyBrowseList items={[LEGAL]} reference={REFERENCE} followStateByOrgNr={map} />,
+    );
+    const all = [...container.querySelectorAll("tbody tr:first-child > td")];
+    // Fail closed on a missing cell rather than letting `undefined` satisfy a negated assertion.
+    const cell = (i: number): HTMLElement => {
+      const td = all[i];
+      if (!td) throw new Error(`no <td> at index ${i} — the row has ${all.length}`);
+      return td as HTMLElement;
+    };
+
+    // A 42-character company name overflows into Org.nr at the table's minimum width without this.
+    expect(cell(0)).toHaveClass("wrap-break-word");
+    // The org.nr NUMBER may not break; the cell may, so the "Skyddad identitet" badge can wrap
+    // instead of overflowing into Säteskommun.
+    expect(cell(1)).not.toHaveClass("whitespace-nowrap");
+    expect(cell(1).querySelector(".whitespace-nowrap")).toHaveTextContent("559280-4784");
+    // "Ej svensk hemortskommun" (23 837 rows) wraps rather than painting across Branscher.
+    expect(cell(2)).not.toHaveClass("whitespace-nowrap");
+    expect(cell(2)).toHaveClass("wrap-break-word");
+    // The follow cell also holds the failed-follow error, which must wrap — see CompanyFollowButton.
+    expect(cell(4)).not.toHaveClass("whitespace-nowrap");
   });
 });

@@ -92,10 +92,15 @@ export function CompanyFollowButton({
   const opacity = isPending ? 0.7 : 1;
 
   return (
-    <div style={{ display: "inline-flex", flexDirection: "column", gap: 4 }}>
+    // `alignItems: "start"`: the default `stretch` makes the button as wide as the error sibling, so
+    // a failed follow silently resized the control the user is about to retry. Inside the
+    // fixed-layout browse table (#1122) that error is also the only thing in the cell allowed to
+    // wrap — the button carries its own `whitespace-nowrap`, since a label broken across two lines
+    // is not a button any more.
+    <div style={{ display: "inline-flex", flexDirection: "column", alignItems: "start", gap: 4 }}>
       <button
         type="button"
-        className="jp-btn jp-btn--secondary"
+        className="jp-btn jp-btn--secondary whitespace-nowrap"
         aria-label={ariaLabel}
         aria-pressed={following}
         onClick={handleClick}

@@ -151,6 +151,15 @@ internal static partial class LayoutChainRunner
 
         var o = await CvChainProbe.RunAsync(
             c.FileName, c.ContentType, bytes, c.AccountDisplayName, ct);
+        // The fourth argument is what stops a case whose bytes were already wrong, and which then
+        // crashed, from being published under "byte proofs held" with its message discarded.
+        //
+        // DECLARED UNPINNED, and measured as such rather than assumed: `Crashed`'s own contract is
+        // pinned by `Crashed_CarriesTheByteProofFailureItWasGiven` (mutating the record field
+        // reddens it), but THIS argument is not — dropping it survives the whole suite. Reaching it
+        // needs a case whose authored bytes fail their proof AND whose chain then throws, and no
+        // fixture can be authored to do both without faking the chain, which is the one thing this
+        // harness exists not to do. Named here rather than left for a mutation report to find.
         if (o.CrashedWithExceptionType is not null)
             return Crashed(c, fixtureProblems, o.CrashedWithExceptionType, byteProofFailure);
 

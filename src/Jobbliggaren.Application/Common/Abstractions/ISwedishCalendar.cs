@@ -38,10 +38,13 @@ namespace Jobbliggaren.Application.Common.Abstractions;
 /// </para>
 /// <para>
 /// A consequence worth stating, because a consumer will otherwise be caught by
-/// it: the returned value is <b>not</b> the 1st of the month, nor the same
-/// calendar day the caller asked about. <c>StartOfMonth(2026, 7)</c> is
-/// <c>2026-06-30T22:00Z</c>. Derive display labels from the ARGUMENTS, never
-/// from the return value.
+/// it: the returned value is <b>not</b> the 1st of the month, not the same
+/// calendar day the caller asked about, and <b>not necessarily the same year</b>.
+/// <c>StartOfMonth(2026, 7)</c> is <c>2026-06-30T22:00Z</c>, and
+/// <c>StartOfMonth(2026, 1)</c> is <c>2025-12-31T23:00Z</c> — so reading
+/// <c>.Year</c>/<c>.Month</c> off it to label a January bucket yields
+/// <i>December 2025</i>. Derive display labels from the ARGUMENTS, never from
+/// the return value.
 /// </para>
 ///
 /// <para>
@@ -71,11 +74,15 @@ public interface ISwedishCalendar
     /// March and October, which in a 31-day month is always the 25th or later.
     /// </para>
     /// <para>
-    /// <b>Do not reproduce a series of these with <c>AddMonths</c>.</b> The
-    /// returned instant is the previous month's last day in UTC, so stepping a
-    /// July anchor back six months lands on 30 December rather than 31 — and
-    /// <c>AddMonths</c> preserves the offset, so it is an hour out on top of
-    /// that. Ask for each month.
+    /// <b>Never derive one of these from another with <c>AddMonths</c></b> — not
+    /// as a series, and <b>not for a window's exclusive end</b>, which is the
+    /// form both prospective call sites actually write (<c>start.AddMonths(1)</c>).
+    /// The returned instant is the previous month's last day in UTC, so
+    /// <c>StartOfMonth(2026, 7).AddMonths(1)</c> is 30 July, a full day short of
+    /// the real August boundary — and across the March transition it is three
+    /// days short. Stepping whole months also carries the anchor's own DST
+    /// offset into a month with a different one, adding an hour on top.
+    /// Ask for the next month instead.
     /// </para>
     /// </summary>
     DateTimeOffset StartOfMonth(int year, int month);

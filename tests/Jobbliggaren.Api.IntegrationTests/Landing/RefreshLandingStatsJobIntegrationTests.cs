@@ -64,6 +64,11 @@ public class RefreshLandingStatsJobIntegrationTests(ApiFactory factory)
         // Seeded through the real factory; an ad published moments ago is a
         // value production emits, so this carries no premise obligation under
         // CLAUDE.md §5 `Tests:`.
+        // Known, accepted: the seed reads the clock and the job reads it again,
+        // so a run landing in the sub-second window at Swedish midnight could
+        // put the seed on the far side of the new boundary. ~200 ms per day, and
+        // the shared database almost certainly holds other fresh rows — but the
+        // guarantee is not absolute. Recorded rather than engineered around.
         var now = clock.UtcNow;
         var ad = JobAd.Create(
             $"swedish-boundary-probe-{Guid.NewGuid():N}",

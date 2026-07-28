@@ -194,8 +194,31 @@ public class SwedishCalendarTests
     }
 
     [Fact]
-    public void StartOfMonth_IsNotReproducibleByAddMonths_AcrossADstBoundary()
+    public void StartOfMonth_IsNotReproducibleByAddMonths_ForSeriesOrWindowEnds()
     {
+        // THE FORM BOTH REAL CALL SITES USE is the exclusive window END, not a
+        // series: `GetActivityReportQueryHandler:47` and
+        // `ApplicationStatsCalculator:142` both write `start.AddMonths(1)`. The
+        // port's wording used to forbid only a "series", which reads as
+        // permitting a single AddMonths(1) — so this is pinned first.
+        //
+        // It is a WHERE against the database, not a label: the activity report
+        // would silently lose rows. And the activity report is the document a
+        // job seeker hands to Arbetsförmedlingen, so "quietly too few" is the
+        // wrong kind of wrong. Found by test-writer.
+        var cal = new SwedishCalendar();
+
+        cal.StartOfMonth(2026, 7).AddMonths(1).ShouldBe(
+            new DateTimeOffset(2026, 7, 30, 22, 0, 0, TimeSpan.Zero));   // NOT the August boundary
+        cal.StartOfMonth(2026, 8).ShouldBe(
+            new DateTimeOffset(2026, 7, 31, 22, 0, 0, TimeSpan.Zero));   // which is this — a day later
+
+        // Across the March transition it is worse: three days, not one.
+        cal.StartOfMonth(2026, 3).AddMonths(1).ShouldBe(
+            new DateTimeOffset(2026, 3, 28, 23, 0, 0, TimeSpan.Zero));
+        cal.StartOfMonth(2026, 4).ShouldBe(
+            new DateTimeOffset(2026, 3, 31, 22, 0, 0, TimeSpan.Zero));
+
         // The named follow-up consumer builds a 12-month series, and the cheap
         // way is one anchor plus AddMonths. It is wrong TWICE — and an earlier
         // version of this comment named only the second reason, because it was
@@ -219,19 +242,27 @@ public class SwedishCalendarTests
             new DateTimeOffset(2025, 12, 31, 23, 0, 0, TimeSpan.Zero));
     }
 
-    [Fact]
-    public void StartOfMonth_ReturnValueIsNotTheFirstOfTheMonth()
+    [Theory]
+    [InlineData(2026, 7, 2026, 6, 30)]   // a July bucket would be labelled JUNE
+    [InlineData(2026, 1, 2025, 12, 31)]  // a January bucket: wrong month AND wrong YEAR
+    public void StartOfMonth_ReturnValueIsNotTheFirstOfTheMonth(
+        int year, int month, int expectedYear, int expectedMonth, int expectedDay)
     {
         // A trap the UTC normalisation CREATED, and the named follow-up consumer
-        // already reads exactly this: ApplicationStatsCalculator labels each
-        // bucket with monthStart.Month. StartOfMonth(2026, 7) is 2026-06-30T22:00Z,
-        // so a July bucket would be labelled JUNE — a visibly mislabelled graph.
+        // already reads exactly this: `ApplicationStatsCalculator` builds
+        // `new MonthlyApplicationCountDto(monthStart.Year, monthStart.Month, …)`
+        // — the label comes out of the RETURN VALUE.
+        //
+        // The January row is the one that matters most, and `dotnet-architect`
+        // found it: the boundary crosses the YEAR too, so a January-2026 bucket
+        // would render as December 2025 — and the DTO carries both fields.
         //
         // Labels come from the ARGUMENTS, never from the return value.
-        var start = new SwedishCalendar().StartOfMonth(2026, 7);
+        var start = new SwedishCalendar().StartOfMonth(year, month);
 
-        start.Month.ShouldBe(6);
-        start.Day.ShouldBe(30);
+        start.Year.ShouldBe(expectedYear);
+        start.Month.ShouldBe(expectedMonth);
+        start.Day.ShouldBe(expectedDay);
     }
 
     [Theory]

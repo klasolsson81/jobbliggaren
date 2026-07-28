@@ -250,4 +250,56 @@ public class GetParsedResumeEndpointTests(ApiFactory factory)
         getJson.GetProperty("confidence").GetProperty("overall").GetString().ShouldBe("Confident");
         getJson.GetProperty("personnummer").GetProperty("found").GetBoolean().ShouldBeFalse();
     }
+
+    [Fact]
+    public async Task GET_parsed_reports_PersonnummerPresent_when_the_ACCOUNT_NAME_carries_one_and_the_FILE_does_not()
+    {
+        // The one case where the read path's answer depends on the account display name, and
+        // therefore the only test that can prove the DisplayName column added to this handler's
+        // owner projection is actually wired through. It was found by mutation: replacing
+        // `owner.DisplayName` with string.Empty survived every other test in this file, because
+        // no other fixture's verdict changes when the person name changes.
+        //
+        // Every part of the premise is produced by src/: JobSeeker.Register validates only
+        // non-empty and length, so a display name carrying a personnummer goes in through the
+        // real /auth/register endpoint, and the DOCX below is a clean CV the parser reads fine.
+        // The parse itself is therefore NOT flagged — the composed content is, at DQ6, which is
+        // exactly the population the import scan cannot cover (the display name is the one text
+        // the composition adds over the raw superset the import already scanned).
+        var ct = TestContext.Current.CancellationToken;
+        var client = _factory.CreateClient();
+        var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(
+            client,
+            email: $"parsed-{Guid.NewGuid():N}@jobbliggaren.test",
+            displayName: $"Anna {ValidPersonnummer}",
+            ct: ct);
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", sessionId);
+
+        var docx = BuildDocx(
+            "Anna Andersson", "anna@example.com",
+            "Erfarenhet", "Backend-utvecklare", "Beta AB", "2021-2024",
+            "Utbildning", "KTH", "2015-2020",
+            "Kompetenser", "C#, PostgreSQL");
+        using var form = FileForm(docx, "cv.docx", DocxContentType);
+        var import = await client.PostAsync("/api/v1/resumes/import", form, ct);
+        import.StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        var importJson = await import.Content.ReadFromJsonAsync<JsonElement>(ct);
+        importJson.GetProperty("outcome").GetString().ShouldBe("LeftPending");
+        importJson.GetProperty("blockReason").GetString().ShouldBe("PersonnummerPresent");
+        // The FILE is clean. Only the composed content is not.
+        importJson.GetProperty("personnummer").GetProperty("found").GetBoolean().ShouldBeFalse();
+        var id = importJson.GetProperty("parsedResumeId").GetString()!;
+
+        var get = await client.GetAsync($"/api/v1/resumes/parsed/{id}", ct);
+
+        get.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var getJson = await get.Content.ReadFromJsonAsync<JsonElement>(ct);
+        getJson.GetProperty("blockReason").GetString().ShouldBe("PersonnummerPresent");
+        // Reading the reason off the parse's own scan would have said "nothing found" here, so
+        // this also pins that the read path evaluates the GATE and not the stored flag.
+        getJson.GetProperty("personnummer").GetProperty("found").GetBoolean().ShouldBeFalse();
+        // And the account name is not echoed back on the way out.
+        (await get.Content.ReadAsStringAsync(ct)).ShouldNotContain(ValidPersonnummer);
+    }
 }

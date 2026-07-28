@@ -14,6 +14,7 @@ using Jobbliggaren.Infrastructure.Persistence;
 using Jobbliggaren.Worker.IntegrationTests.Common;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Shouldly;
 
@@ -139,7 +140,8 @@ public class AutoPromoteParsedResumeEncryptionTests(WorkerTestFixture fixture)
             scope.ServiceProvider.GetRequiredService<IFailedAccessLogger>(),
             reconciler,
             correlation,
-            requestContext);
+            requestContext,
+            NullLogger<AutoPromoteParsedResumeCommandHandler>.Instance);
     }
 
     // Raw column read past EF (bypasses the decrypt interceptor) — proves on-disk state.

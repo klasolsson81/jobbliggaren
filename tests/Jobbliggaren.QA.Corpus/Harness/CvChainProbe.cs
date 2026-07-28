@@ -15,6 +15,7 @@ using Jobbliggaren.Infrastructure.Persistence;
 using Jobbliggaren.Infrastructure.Resumes.Parsing;
 using Jobbliggaren.QA.Corpus.Generation;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 
 // CA2012: stubbing the ValueTask-returning deriver ports is the known NSubstitute analyzer
@@ -218,7 +219,8 @@ internal static class CvChainProbe
         var reconciler = Substitute.For<IResumeReviewReconciler>();
         var handler = new AutoPromoteParsedResumeCommandHandler(
             db, currentUser, clock, Substitute.For<IFailedAccessLogger>(), reconciler,
-            Substitute.For<ICorrelationIdProvider>(), Substitute.For<IRequestContextProvider>());
+            Substitute.For<ICorrelationIdProvider>(), Substitute.For<IRequestContextProvider>(),
+            NullLogger<AutoPromoteParsedResumeCommandHandler>.Instance);
 
         var result = await handler.Handle(new AutoPromoteParsedResumeCommand(parsedResumeId), ct);
 

@@ -2,8 +2,12 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { createTranslator } from "next-intl";
 import svPages from "../../../../messages/sv/pages.json";
-import type { PendingParsedResumeResult, ResumeListResult } from "@/lib/api/resumes";
+import type { PendingParsedResumeResult } from "@/lib/api/resumes";
+import type { ApiResult } from "@/lib/dto/_helpers";
+import type { GetResumesResult } from "@/lib/dto/resumes";
 import CvListPage from "./page";
+
+type ResumeListResult = ApiResult<GetResumesResult>;
 
 /**
  * /cv — hubben (#1060 PR C).
@@ -72,8 +76,14 @@ beforeEach(() => {
   getServerSession.mockResolvedValue({ email: "a@b.se", roles: [] });
 });
 
+// Shaped, not cast: a cast would have hidden that GetResumesResult carries paging fields, and
+// a fixture that does not typecheck against the real contract is a fixture that can drift from
+// it silently.
 function emptyList(): ResumeListResult {
-  return { kind: "ok", data: { items: [] } } as ResumeListResult;
+  return {
+    kind: "ok",
+    data: { items: [], totalCount: 0, page: 1, pageSize: 20 },
+  };
 }
 
 describe("/cv — the pending card and the empty state are mutually exclusive", () => {
@@ -113,7 +123,7 @@ describe("/cv — the pending card and the empty state are mutually exclusive", 
     // "no card". The empty state must come back with it, or a transient backend blip would
     // render a hub with no content and no explanation at all.
     getResumes.mockResolvedValue(emptyList());
-    getLatestPendingParsedResume.mockResolvedValue({ kind: "error" } as PendingParsedResumeResult);
+    getLatestPendingParsedResume.mockResolvedValue({ kind: "error" });
 
     render(await CvListPage());
 

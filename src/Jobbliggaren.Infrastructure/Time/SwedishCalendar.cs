@@ -63,7 +63,39 @@ public sealed class SwedishCalendar : ISwedishCalendar
         return ToInstant(local.Year, local.Month, local.Day);
     }
 
-    public DateTimeOffset StartOfMonth(int year, int month) => ToInstant(year, month, 1);
+    /// <summary>
+    /// The Swedish civil month the instant falls in.
+    ///
+    /// <para>
+    /// <b>This reads its year and month off the CONVERTED LOCAL time, not off a
+    /// boundary instant, and the difference is the whole point.</b> The two lines
+    /// look alike and a reader will pattern-match this to the trap the port
+    /// warns about: <c>StartOfDay(instant).Month</c> is the PREVIOUS month on the
+    /// first of every month, because a boundary instant is 22:00Z or 23:00Z on the
+    /// preceding UTC day. <c>ConvertTime</c> returns the wall-clock time a person
+    /// in Sweden is reading, which is what a civil month means.
+    /// </para>
+    /// </summary>
+    public CivilMonth MonthOf(DateTimeOffset instant)
+    {
+        var local = TimeZoneInfo.ConvertTime(instant, Zone);
+        return CivilMonth.Of(local.Year, local.Month);
+    }
+
+    /// <summary>
+    /// The half-open <c>[Start, End)</c> of a Swedish civil month. The end is the
+    /// NEXT month's own boundary — asked for, never derived — which is what makes
+    /// the <c>AddMonths</c> error unrepresentable rather than merely forbidden
+    /// (see <see cref="ISwedishCalendar.MonthWindow"/> for the measured table).
+    /// </summary>
+    public CivilMonthWindow MonthWindow(CivilMonth month)
+    {
+        var next = month.Next();
+        return new CivilMonthWindow(
+            month,
+            ToInstant(month.Year, month.Month, 1),
+            ToInstant(next.Year, next.Month, 1));
+    }
 
     /// <summary>
     /// Midnight on the given Swedish calendar date, as the UTC instant it falls

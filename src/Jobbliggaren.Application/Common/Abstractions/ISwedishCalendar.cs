@@ -11,7 +11,9 @@ namespace Jobbliggaren.Application.Common.Abstractions;
 /// published between Swedish 00:00 and 02:00 were excluded from "nya idag" for
 /// the remaining ~22 hours of that Swedish day. The defect is symmetric, and
 /// the ruling is that Jobbliggaren is a Swedish product first: a day boundary a
-/// user reads is the Swedish one.
+/// user reads is the Swedish one. The same ruling reaches the two month-windowed
+/// surfaces, which moved together in the follow-up ADR 0064's amendment named
+/// (<c>GetActivityReportQueryHandler</c> and <c>ApplicationStatsCalculator</c>).
 /// </para>
 ///
 /// <para>
@@ -25,26 +27,27 @@ namespace Jobbliggaren.Application.Common.Abstractions;
 /// </para>
 ///
 /// <para>
-/// <b>Instants in, instants out — and the returned <c>Offset</c> is ALWAYS
-/// <see cref="TimeSpan.Zero"/>.</b> Both members return a
-/// <see cref="DateTimeOffset"/> at the UTC instant the Swedish boundary falls
-/// on, so a caller compares it directly against a <c>timestamptz</c> column
-/// without converting inside the LINQ expression. The zero offset is part of
-/// this contract, not an implementation detail: Npgsql writes a
-/// <see cref="DateTimeOffset"/> to <c>timestamp with time zone</c> only when
-/// the offset is zero, so any implementation must normalise. What varies with
-/// DST is the INSTANT, not the offset — Swedish midnight is 23:00Z the
-/// previous day in winter and 22:00Z in summer.
+/// <b>Instants out, and every instant this port returns carries
+/// <c>Offset == <see cref="TimeSpan.Zero"/></c>.</b> The values are the UTC
+/// instants the Swedish boundaries fall on, so a caller compares them directly
+/// against a <c>timestamptz</c> column without converting inside the LINQ
+/// expression. The zero offset is part of this contract, not an implementation
+/// detail: Npgsql writes a <see cref="DateTimeOffset"/> to
+/// <c>timestamp with time zone</c> only when the offset is zero, so any
+/// implementation must normalise. What varies with DST is the INSTANT, not the
+/// offset — Swedish midnight is 23:00Z the previous day in winter and 22:00Z in
+/// summer.
 /// </para>
 /// <para>
-/// A consequence worth stating, because a consumer will otherwise be caught by
-/// it: the returned value is <b>not</b> the 1st of the month, not the same
-/// calendar day the caller asked about, and <b>not necessarily the same year</b>.
-/// <c>StartOfMonth(2026, 7)</c> is <c>2026-06-30T22:00Z</c>, and
-/// <c>StartOfMonth(2026, 1)</c> is <c>2025-12-31T23:00Z</c> — so reading
-/// <c>.Year</c>/<c>.Month</c> off it to label a January bucket yields
-/// <i>December 2025</i>. Derive display labels from the ARGUMENTS, never from
-/// the return value.
+/// <b>A boundary instant is not a label, and this port keeps the two apart in the
+/// type system rather than in prose</b> (CTO-bind 2026-07-28-B).
+/// <see cref="CivilMonthWindow.Start"/> for July 2026 is <c>2026-06-30T22:00Z</c>,
+/// and for January 2026 it is <c>2025-12-31T23:00Z</c> — the wrong month, and the
+/// wrong YEAR. An earlier revision of this port returned that instant bare from a
+/// <c>StartOfMonth(int, int)</c> member and forbade the misuse in a doc comment;
+/// both prospective consumers wrote the forbidden form anyway. Labels now come
+/// from <see cref="CivilMonth"/>, which cannot be an instant, and windows come
+/// from <see cref="CivilMonthWindow"/>, which carries its own label.
 /// </para>
 ///
 /// <para>
@@ -64,30 +67,56 @@ public interface ISwedishCalendar
     DateTimeOffset StartOfDay(DateTimeOffset instant);
 
     /// <summary>
-    /// The instant at which the Swedish civil month <paramref name="year"/>/<paramref name="month"/>
-    /// began. It has NO production consumer yet — the month-windowed
-    /// application-statistics surfaces will use it, and do not today.
+    /// The Swedish civil month <paramref name="instant"/> falls in — the member a
+    /// "current month" default needs, and the one thing the other two cannot be
+    /// assembled into.
     ///
+    /// <para>
+    /// <b>Neither shortcut works, and both fail rarely enough to survive a spot
+    /// check.</b> Reading <c>.Year</c>/<c>.Month</c> off the UTC instant is wrong
+    /// for the first one to two hours of every Swedish month — 00:30 on 1 August
+    /// in Sweden is 31 July in UTC. Reading them off <see cref="StartOfDay"/>'s
+    /// return is wrong on the FIRST of every month, all day: that value is the
+    /// previous day's 22:00Z or 23:00Z, so on 1 June it reports May, and on
+    /// 1 January it reports December 2025. Twelve days a year, and for the
+    /// activity report they are precisely the days a report gets filed.
+    /// </para>
+    /// </summary>
+    CivilMonth MonthOf(DateTimeOffset instant);
+
+    /// <summary>
+    /// The half-open instant range <c>[Start, End)</c> of the Swedish civil month
+    /// <paramref name="month"/>, with the label carried alongside.
+    ///
+    /// <para>
+    /// <b>This replaces the earlier <c>StartOfMonth(int, int)</c>, which handed
+    /// back a bare boundary instant and had no production consumer.</b> Both
+    /// prospective consumers wrote <c>start.AddMonths(1)</c> for the exclusive
+    /// end. That is wrong by the difference in month lengths — never by anything
+    /// to do with DST, which only moves the boundary HOUR — and, because
+    /// <c>AddMonths</c> clamps the day-of-month, it is <b>silently correct in
+    /// seven months of twelve</b>. Measured over 2026:
+    /// </para>
+    /// <para>
+    /// correct for Jan, Feb, Apr, Jun, Aug, Sep and Nov · short by <b>2 d 23 h</b>
+    /// for March (28 February is the anchor, against a real 31 March; the
+    /// spring-forward accounts only for the missing hour) · short by <b>1 d</b>
+    /// for May, July and December · short by <b>1 d 1 h</b> for October. February
+    /// is exact in every year, leap or not.
+    /// </para>
+    /// <para>
+    /// So a hand check in April, June, August, September or November returns
+    /// green, and the defect is invisible 58 % of the year. What it does when it
+    /// fires is drop rows from the document a job seeker files with
+    /// Arbetsförmedlingen. Handing both ends over is the only shape in which the
+    /// derivation cannot be written; forbidding it in prose was tried, and this
+    /// member is what supersedes that attempt.
+    /// </para>
     /// <para>
     /// A month can never begin on a DST transition, so this needs no more care
     /// than <see cref="StartOfDay"/>: EU transitions fall on the last Sunday of
     /// March and October, which in a 31-day month is always the 25th or later.
     /// </para>
-    /// <para>
-    /// <b>Never derive one of these from another with <c>AddMonths</c></b> — not
-    /// as a series, and <b>not for a window's exclusive end</b>, which is the
-    /// form both prospective call sites actually write (<c>start.AddMonths(1)</c>).
-    /// The returned instant is the previous month's last day in UTC, and
-    /// <c>AddMonths</c> preserves the day-of-month — so the error is the
-    /// DIFFERENCE IN MONTH LENGTHS, not anything to do with DST.
-    /// <c>StartOfMonth(2026, 7).AddMonths(1)</c> gives 30 July against a real
-    /// August boundary of 31 July: one day, because June has 30 days.
-    /// <c>StartOfMonth(2026, 3).AddMonths(1)</c> gives 28 March against 31
-    /// March: three days, because February has 28. A DST change between the two
-    /// months then shifts the boundary hour as well — which is why the March
-    /// gap measures 2 d 23 h rather than a flat three days. Ask for the next
-    /// month instead.
-    /// </para>
     /// </summary>
-    DateTimeOffset StartOfMonth(int year, int month);
+    CivilMonthWindow MonthWindow(CivilMonth month);
 }

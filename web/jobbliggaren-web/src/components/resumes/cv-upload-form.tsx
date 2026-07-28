@@ -415,8 +415,15 @@ export function CvUploadForm({
   const showSpinner = isPending && consent === null;
 
   useEffect(() => {
-    if (nameError !== null) nameInputRef.current?.focus();
-  }, [nameError, showSpinner]);
+    // The consent dialog owns focus while it is open, and it can be raised on a LATER attempt
+    // while `nameError` is still set (it only clears on edit): name refused, user picks a
+    // different file that does carry a personnummer, submits without touching the name. That
+    // commit flips showSpinner true→false with `consent` non-null, and without this guard the
+    // effect would pull focus out of a modal whose consent is legally load-bearing (ADR 0114).
+    if (nameError !== null && !showSpinner && consent === null) {
+      nameInputRef.current?.focus();
+    }
+  }, [nameError, showSpinner, consent]);
 
   return (
     <>

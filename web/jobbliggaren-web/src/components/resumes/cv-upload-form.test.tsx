@@ -250,8 +250,11 @@ describe("CvUploadForm — utfalls-baserad ruttning (CV-pivot 5c)", () => {
     expect(screen.getByLabelText(/namn/i)).toHaveAttribute("aria-invalid", "true");
     // …och fokus står i fältet vars värde måste ändras. Mekanismen är avsiktligt
     // icke-uppenbar — `showSpinner` avmonterar formuläret under uppladdningen, så en
-    // `.focus()` vid anropstillfället hade träffat en avmonterad nod och en effekt nyckelad
-    // på felet är det enda som överlever remounten. Opinnad skulle den "förenklas" bort.
+    // `.focus()` vid anropstillfället hade träffat en avmonterad nod, och en effekt nyckelad
+    // ENBART på felet hade fyrat mot samma avmonterade nod och aldrig kört om. Det är
+    // `showSpinner` i beroendelistan som får effekten att köra igen när fältet kommer
+    // tillbaka. Opinnad skulle den depen "förenklas" bort — eslint är mätt tyst om den, så
+    // den här assertionen är det enda som gör en sådan förenkling röd.
     expect(screen.getByLabelText(/namn/i)).toHaveFocus();
   });
 

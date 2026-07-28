@@ -9,7 +9,7 @@
     "brandHome": "Jobbliggaren, startsida"
   },
   "header": {
-    "statsAriaLabel": "Liveräkning från Platsbanken",
+    "statsAriaLabel": "Antal annonser i Jobbliggaren",
     "activeCount": "{count, plural, one {aktiv annons} other {aktiva annonser}}",
     "newToday": "nya idag",
     "deltaAriaLabel": "{count, plural, one {# ny} other {# nya}} sedan senaste kontroll",

@@ -38,7 +38,7 @@ Krafter som spelar in:
 
 > **⚠ AMENDAD 2026-07-13 (CTO-bind, verdict A′) — se [Amendment 2026-07-13 — Golvet var fel från dag ett: cache-miss svarar okänt, aldrig ett påhittat tal](#amendment-2026-07-13--golvet-var-fel-från-dag-ett-cache-miss-svarar-okänt-aldrig-ett-påhittat-tal) nedan. Originaltexten nedan bevaras oförändrad; amendment-lagret gäller punkt 2:s Floor-fallback-semantik (`LandingStatsFloor`/`Floor`-konstanten, `ActiveCount: 40_000, NewToday: 0`) — RADERAD. Cache-miss returnerar numera `LandingStatsDto.Unknown` (`null`-tal, `IsStale: true`). Variant B:s arkitektur i punkt 1 och 3 (Worker-precompute, stampede-frihet) är OBERÖRD.**
 
-> **⚠ AMENDAD 2026-07-28 (Klas-direktiv) — se [Amendment 2026-07-28 — Svensk dygnsgräns, inte UTC: `created_at` var aldrig implementerat, `published_at` var alltid rätt kolumn](#amendment-2026-07-28--svensk-dygnsgräns-inte-utc-created_at-var-aldrig-implementerat-published_at-var-alltid-rätt-kolumn) nedan. Originaltexten nedan bevaras oförändrad; amendment-lagret gäller punkt 1:s `newToday`-klausul: (a) dygnsgränsen är `Europe/Stockholm`, inte UTC, och (b) kolumnen var och är `published_at` — `created_at` i originaltexten var en transkriptionsmiss i ADR:n, aldrig implementerad kod. Variant B:s arkitektur i punkt 1:s Worker-precompute-mekanik och punkt 3 (stampede-frihet) är OBERÖRD.**
+> **⚠ AMENDAD 2026-07-28 (Klas-direktiv) — se [Amendment 2026-07-28 - The Swedish day boundary, not UTC; and `created_at` was never implemented](#amendment-2026-07-28---the-swedish-day-boundary-not-utc-and-created_at-was-never-implemented) nedan. Originaltexten nedan bevaras oförändrad; amendment-lagret gäller punkt 1:s `newToday`-klausul: (a) dygnsgränsen är `Europe/Stockholm`, inte UTC, och (b) kolumnen var och är `published_at` — `created_at` i originaltexten var en transkriptionsmiss i ADR:n, aldrig implementerad kod. Variant B:s arkitektur i punkt 1:s Worker-precompute-mekanik och punkt 3 (stampede-frihet) är OBERÖRD.**
 
 Publik anonym aggregat-read levereras via följande tre-deladhet:
 
@@ -154,7 +154,7 @@ In-handler-join (ADR 0048 Beslut b) gäller fortsatt för **enkla samma-DbContex
 - **Ny rate-limit-policy att underhålla.** Mitigering: triviall partition-key-byte (UserId→IP) jämfört med existerande policies; pattern repeteras för framtida publika ytor.
 - **POST-på-läs är HTTP-mässigt mindre cacheable** — irrelevant här, endpointen är GET. `Cache-Control: public, max-age=30` levererar CDN-absorption.
 
-> **⚠ AMENDAD 2026-07-28 — se [Amendment 2026-07-28](#amendment-2026-07-28--svensk-dygnsgräns-inte-utc-created_at-var-aldrig-implementerat-published_at-var-alltid-rätt-kolumn) nedan.** Ovanstående punkts 5 min-cron-fördröjning på `newToday` gäller oförändrad i mekanism, men syns nu vid ett nytt och mer märkbart ögonblick: mellan svensk midnatt och Workerns nästa körning visar landningssidan i upp till 5 minuter gårdagens "nya idag"-tal. Ingen ny fördröjning introduceras — samma fördröjning som redan accepterades ovan blir bara synlig vid en annan tidpunkt.
+> **⚠ AMENDAD 2026-07-28 — se [Amendment 2026-07-28](#amendment-2026-07-28---the-swedish-day-boundary-not-utc-and-created_at-was-never-implemented) nedan.** Ovanstående punkts 5 min-cron-fördröjning på `newToday` gäller oförändrad i mekanism, men syns nu vid ett nytt och mer märkbart ögonblick: mellan svensk midnatt och Workerns nästa körning visar landningssidan i upp till 5 minuter gårdagens "nya idag"-tal. Ingen ny fördröjning introduceras — samma fördröjning som redan accepterades ovan blir bara synlig vid en annan tidpunkt.
 
 ### Mitigering
 
@@ -207,7 +207,7 @@ Implementerad och committed i HEAD `e6b08fa` (F6 P5 Punkt 3 PR1, 2026-05-23):
 
 ## Amendment 2026-07-28 - The Swedish day boundary, not UTC; and `created_at` was never implemented
 
-> **Amendment 2026-07-28 (Klas-direktiv):** *"Nya idag - eftersom vi bor i Sverige, det ar en svensk app i forsta hand, sa ska det inte baseras pa UTC, utan pa svensk tid. Dvs Efter midnatt svensk tid, sa nollstalls raknaren."* Beslut (a) point 1 originally specified `newToday = ... AND created_at >= date_trunc('day', now() AT TIME ZONE 'UTC')`. Two separate defects sat in that one clause, and they are of different kinds: a time-zone rule that was genuinely wrong, and an ADR transcription that never matched the code.
+> **Amendment 2026-07-28 (Klas-direktiv):** *"Nya idag - eftersom vi bor i Sverige, det är en svensk app i första hand, så ska det inte baseras på UTC, utan på svensk tid. Dvs Efter midnatt svensk tid, så nollställs räknaren."* Beslut (a) point 1 originally specified `newToday = ... AND created_at >= date_trunc('day', now() AT TIME ZONE 'UTC')`. Two separate defects sat in that one clause, and they are of different kinds: a time-zone rule that was genuinely wrong, and an ADR transcription that never matched the code.
 >
 > *(Section language: English per CLAUDE.md §1, which requires new ADR prose in English; the original Swedish body and its banners are left untranslated. Precedent: ADR 0053 Amendment 2026-06-19, written 2026-07-27, is English inside a Swedish file.)*
 >
@@ -221,7 +221,7 @@ Implementerad och committed i HEAD `e6b08fa` (F6 P5 Punkt 3 PR1, 2026-05-23):
 >
 > **Ratified by the same directive, NOT changed - recorded as confirmation of existing behaviour:**
 >
-> - **Source-unfiltered population.** *"Det behover inte enbart vara fran platsbanken, utan alla jobb / nya jobb som finns i vara db 'Jobbliggaren'"* (Klas, same directive). This was already the implementation: `RefreshLandingStatsJob` filters on `Status == Active` only - `JobAd` has no soft-delete axis (#821) and neither query carries a `JobSource` predicate. No code changes for this point.
+> - **Source-unfiltered population.** *"Det behöver inte enbart vara från platsbanken, utan alla jobb / nya jobb som finns i våra db 'Jobbliggaren'"* (Klas, same directive). This was already the implementation: `RefreshLandingStatsJob` filters on `Status == Active` only - `JobAd` has no soft-delete axis (#821) and neither query carries a `JobSource` predicate. No code changes for this point.
 > - **Public/authenticated parity by construction.** The landing header and the authenticated `HeaderStats` both resolve their value from `GET /api/v1/landing/stats`, hence the same Redis key `landing:stats:v1` - one number, one source, two rendering surfaces, with no separate computation available to diverge. They reach it through different server-side call sites (the landing page via the `getLandingStats` helper, the app shell via `fetchLandingStats` directly), which is a call-graph detail, not a second source.
 >
 > **What does NOT change:** Variant B's architecture (Worker precompute, cache rendezvous via `ILandingStatsCache`, stampede-freedom) is untouched, as are Beslut (b), (c) and (d). No supersession - only the `newToday` clause's time zone and column designation are corrected, plus the two ratifications above.

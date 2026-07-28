@@ -51,12 +51,24 @@ public class GetActivityReportTests(ApiFactory factory)
         return id;
     }
 
-    // Aktuell-månad-fönstret som server-klockan stämplar AppliedAt i.
-    private static (int Year, int Month) CurrentMonth()
-    {
-        var now = DateTimeOffset.UtcNow;
-        return (now.Year, now.Month);
-    }
+    // The month-less URL. Deliberately not a CurrentMonth() helper any more.
+    //
+    // The retired helper read DateTimeOffset.UtcNow's year and month and asked for
+    // that month's report, for a row the server clock had just stamped. Once the
+    // window became the SWEDISH civil month the two frames diverged for a fixed
+    // band every month - 2 h from the end of March to the end of September, 1 h
+    // the rest of the year - and inside it the row bucketed into the NEXT month
+    // while the test asked for the previous one. Two hours a month of red,
+    // unreproducible an hour later. Worse, the isolation test would have gone
+    // FALSELY GREEN in the same band: the window excluded everything, so "A's id
+    // is not in B's report" passed vacuously.
+    //
+    // Recomputing the Swedish month in the test was the other option and is
+    // strictly worse: it re-implements ResolveMonth's rule, so it agrees with the
+    // handler whatever the handler does. Asking for no month at all contains no
+    // month arithmetic to be wrong, asserts the product promise directly, and is
+    // the only integration coverage the default path has.
+    private const string ActivityReportUrl = "/api/v1/applications/activity-report";
 
     // ---------------------------------------------------------------
     // Auth-gate
@@ -120,23 +132,21 @@ public class GetActivityReportTests(ApiFactory factory)
     // ---------------------------------------------------------------
 
     [Fact]
-    public async Task GET_activity_report_returns_own_submitted_application_for_current_month()
+    public async Task GET_activity_report_without_year_and_month_returns_an_application_submitted_moments_ago()
     {
         var ct = TestContext.Current.CancellationToken;
         await AuthenticateAsync(ct);
 
         var id = await CreateSubmittedApplicationAsync(_client, ct);
-        var (year, month) = CurrentMonth();
 
-        var response = await _client.GetAsync(
-            $"/api/v1/applications/activity-report?year={year}&month={month}", ct);
+        var response = await _client.GetAsync(ActivityReportUrl, ct);
 
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
         var json = await response.Content.ReadFromJsonAsync<JsonElement>(ct);
         var applications = json.GetProperty("applications");
         applications.EnumerateArray()
             .Any(a => a.GetProperty("applicationId").GetString() == id)
-            .ShouldBeTrue("egen submittad ansökan ska finnas i innevarande månads rapport");
+            .ShouldBeTrue("egen submittad ansökan ska finnas i rapporten för den månad servern själv löser ut");
     }
 
     [Fact]
@@ -148,10 +158,8 @@ public class GetActivityReportTests(ApiFactory factory)
         // Skapa men submitta ALDRIG → Draft → AppliedAt null → exkluderad.
         var postResponse = await _client.PostAsJsonAsync("/api/v1/applications", CreateBody, ct);
         var draftId = (await postResponse.Content.ReadFromJsonAsync<JsonElement>(ct)).GetProperty("id").GetString()!;
-        var (year, month) = CurrentMonth();
 
-        var response = await _client.GetAsync(
-            $"/api/v1/applications/activity-report?year={year}&month={month}", ct);
+        var response = await _client.GetAsync(ActivityReportUrl, ct);
 
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
         var json = await response.Content.ReadFromJsonAsync<JsonElement>(ct);
@@ -172,10 +180,8 @@ public class GetActivityReportTests(ApiFactory factory)
         var clientB = await RegisterUserAsync("activity-b", ct);
 
         var aId = await CreateSubmittedApplicationAsync(clientA, ct);
-        var (year, month) = CurrentMonth();
 
-        var response = await clientB.GetAsync(
-            $"/api/v1/applications/activity-report?year={year}&month={month}", ct);
+        var response = await clientB.GetAsync(ActivityReportUrl, ct);
 
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
         var json = await response.Content.ReadFromJsonAsync<JsonElement>(ct);

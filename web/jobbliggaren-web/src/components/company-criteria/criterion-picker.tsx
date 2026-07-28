@@ -152,7 +152,7 @@ export function CriterionPicker({
                     // distinguishable — SNI 2025 has "Dataprogrammering" at both levels, and two
                     // identical-looking rows that select different amounts is a trap.
                     style={{ paddingInlineStart: 12 + option.depth * 20 }}
-                    className="flex cursor-pointer items-center gap-2.5 border-b border-border py-2 pe-3 text-body-sm text-text-primary last:border-b-0"
+                    className="jp-criterionrow flex cursor-pointer items-center gap-2.5 border-b border-border py-2 pe-3 text-body-sm text-text-primary last:border-b-0"
                   >
                     <CheckBox state={state} />
                     <span>{option.name}</span>

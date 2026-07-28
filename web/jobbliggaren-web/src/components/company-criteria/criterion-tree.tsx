@@ -82,7 +82,7 @@ function TreeRow({
         {hasChildren ? (
           <button
             type="button"
-            className="inline-flex size-8 shrink-0 items-center justify-center rounded-md text-text-secondary hover:bg-surface-secondary hover:text-text-primary"
+            className="jp-criterionrow__toggle inline-flex size-8 shrink-0 items-center justify-center rounded-md text-text-secondary hover:bg-surface-secondary hover:text-text-primary"
             aria-expanded={open}
             aria-controls={panelId}
             aria-label={open ? collapseAria(node.name) : expandAria(node.name)}
@@ -109,7 +109,7 @@ function TreeRow({
               onToggle(node.leafCodes);
             }
           }}
-          className="flex flex-1 cursor-pointer items-center gap-2.5 py-2 pe-2 text-body-sm text-text-primary"
+          className="jp-criterionrow flex flex-1 cursor-pointer items-center gap-2.5 py-2 pe-2 text-body-sm text-text-primary"
         >
           <CheckBox state={state} />
           <span>{node.name}</span>

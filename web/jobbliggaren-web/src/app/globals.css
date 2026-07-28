@@ -1692,6 +1692,20 @@ a.jp-adminnav__link[aria-current="page"]::after {
   cursor: pointer;
   font-size: var(--text-ui);
 }
+/* Kriterie-trädets rader — bransch-popovern (#999) och kriterie-dialogen. Raden är en
+   `role="checkbox"`-div med Tailwind-padding, och hit-target-golvet KAN inte bo i en utility:
+   `.jp-*` är olagrat och slår `@layer utilities`, vilket är exakt fällan `.jp-btn--field`
+   dokumenterar. MÄTT före fixen, renderat i prod-bygget: 38px vid både 375 och 768 (chevron
+   32px). Golvet är 32px in-app och 44px på touch (ADR 0038 / WCAG 2.5.5) — samma mönster och
+   samma brytpunkt som `.jp-hero-pill` ovan. Ingen ändring över 768px: densiteten i ett träd med
+   944 noder är själv ett läsbarhetsvärde. */
+@media (max-width: 768px) {
+  .jp-criterionrow { min-height: 44px; }
+  .jp-criterionrow__toggle {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}
 .jp-checkitem:hover { background: var(--jp-surface-3); }
 .jp-checkitem__box {
   width: 20px;

@@ -130,6 +130,24 @@ describe("CriterionPicker — the filter view (#999: all three levels)", () => {
     expect(onToggle).toHaveBeenCalledWith(["62020"]);
   });
 
+  it("carries the touch-target hook on every row, browse view and filter view alike", async () => {
+    // jsdom has no cascade, so this cannot assert 44px — the height is pinned by the rendered
+    // measurement in the PR body (38px before, 44px after, at 375 and 768). What it CAN pin is the
+    // hook the media query attaches to, which is the part a refactor silently drops.
+    renderPicker();
+    expect(
+      screen.getByRole("checkbox", {
+        name: "Informations- och kommunikationsverksamhet",
+      }),
+    ).toHaveClass("jp-criterionrow");
+
+    const user = userEvent.setup();
+    await user.type(screen.getByLabelText("Sök bransch"), "system");
+    expect(
+      screen.getByRole("checkbox", { name: "Systemutveckling" }),
+    ).toHaveClass("jp-criterionrow");
+  });
+
   it("says so when nothing matches", async () => {
     renderPicker();
     const user = userEvent.setup();

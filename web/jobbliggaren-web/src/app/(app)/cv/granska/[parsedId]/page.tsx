@@ -11,6 +11,7 @@ import {
   type ParsedResumeDetailDto,
   type RenderProfile,
 } from "@/lib/dto/parsed-resume";
+import { CvBlockReason } from "@/components/resumes/cv-block-reason";
 import { PersonnummerWarning } from "@/components/resumes/personnummer-warning";
 import { ParseSummary } from "@/components/resumes/parse-summary";
 import { OccupationProposals } from "@/components/resumes/occupation-proposals";
@@ -112,10 +113,18 @@ export default async function CvReviewPage({ params, searchParams }: Props) {
         <p className="jp-lede">{t("cv.review.lede")}</p>
       </header>
 
+      {/* #1060: varför filen inte är sparad som CV. Först på sidan, för det är frågan
+          användaren kom hit med — hubbens åtgärdskort kunde bara säga ATT något
+          behövde åtgärdas, aldrig VAD. Orsaken härleds server-side av samma grind som
+          auto-promote kör; den lagras aldrig. */}
+      <CvBlockReason reason={parsed.blockReason} />
+
       <div className="jp-cv-preview-actions">
         <CvPreview previewUrl={`/api/cv/parsed/${parsedId}/preview`} initialProfile={profile} />
       </div>
 
+      {/* Kompletterar blocket ovan, upprepar det inte: det säger VILKEN grind som föll,
+          den här säger hur många förekomster scannern hittade. */}
       <PersonnummerWarning personnummer={parsed.personnummer} />
 
       <ParseSummary confidence={parsed.confidence} />

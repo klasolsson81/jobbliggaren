@@ -207,4 +207,47 @@ public class GetParsedResumeEndpointTests(ApiFactory factory)
 
         getB.StatusCode.ShouldBe(HttpStatusCode.NotFound);
     }
+
+    [Fact]
+    public async Task Import_incomplete_entry_then_GET_parsed_reports_IncompleteContent_from_the_DEK_warm_tier()
+    {
+        // The third reason, and the only one that makes the read path pay for itself. The two
+        // other gates read plaintext columns and answer before any content is touched; this one
+        // runs the whole Tier-2 chain on the READ side — compose the transport DTO from the
+        // decrypted parse, scan it, and ask Resume.CreateFromParsed. Measured on this fixture:
+        // confidence comes back Confident, so Tier 1 passed and Tier 2 is genuinely what
+        // produced the answer. That is also what makes the DisplayName column added to this
+        // handler's owner projection load-bearing rather than decorative.
+        //
+        // Producible by production, not seeded: an experience heading followed by a role line
+        // with no employer line is what the segmenter yields for a CV that lists a title without
+        // a company, and the canonical Resume rejects the entry (the mapper never drops it to
+        // make it fit). This is the population D3(beta) is measuring; if the per-entry
+        // decomposition lands, this fixture is where its behaviour change first shows.
+        var ct = TestContext.Current.CancellationToken;
+        await AuthenticateAsync(ct);
+
+        var docx = BuildDocx(
+            "Anna Andersson", "anna@example.com",
+            "Erfarenhet", "Backend-utvecklare",
+            "Utbildning", "KTH", "2015-2020",
+            "Kompetenser", "C#, PostgreSQL");
+        using var form = FileForm(docx, "cv.docx", DocxContentType);
+        var import = await _client.PostAsync("/api/v1/resumes/import", form, ct);
+        import.StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        var importJson = await import.Content.ReadFromJsonAsync<JsonElement>(ct);
+        importJson.GetProperty("outcome").GetString().ShouldBe("LeftPending");
+        importJson.GetProperty("blockReason").GetString().ShouldBe("IncompleteContent");
+        var id = importJson.GetProperty("parsedResumeId").GetString()!;
+
+        var get = await _client.GetAsync($"/api/v1/resumes/parsed/{id}", ct);
+
+        get.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var getJson = await get.Content.ReadFromJsonAsync<JsonElement>(ct);
+        getJson.GetProperty("blockReason").GetString().ShouldBe("IncompleteContent");
+        // Tier 1 demonstrably did NOT answer this one.
+        getJson.GetProperty("confidence").GetProperty("overall").GetString().ShouldBe("Confident");
+        getJson.GetProperty("personnummer").GetProperty("found").GetBoolean().ShouldBeFalse();
+    }
 }

@@ -78,7 +78,7 @@
       "kicker": "Needs action",
       "imported": "Imported {when}",
       "heading": "Your CV has been read",
-      "body": "The file has been read but not saved as a CV yet. Open the review to see what needs to be fixed in the file before you upload it again.",
+      "body": "The file has been read but not saved as a CV. Open the review to see what is missing.",
       "cta": "Open the review",
       "discard": "Remove draft",
       "discardTitle": "Remove draft?",
@@ -114,7 +114,16 @@
       "nextStepTitle": "Next step",
       "nextStepBody": "The review is read-only and changes nothing in your file. To improve your CV, update the file based on the findings and upload it again.",
       "nextStepCta": "Upload again",
-      "loading": "Loading the review…"
+      "loading": "Loading the review…",
+      "blockReason": {
+        "title": "Why the file is not saved as a CV",
+        "PersonnummerPresent": "The file contains a personal identity number. Remove it from the file and upload it again.",
+        "ParseNotConfident": "We could not read any text from the file. That usually means it is an image or a scanned document. Upload it as a PDF with selectable text, or as a Word file.",
+        "IncompleteContent": "One or more entries are missing an employer or a job title. Complete them in the file and upload it again.",
+        "clearedKicker": "Ready to save",
+        "clearedTitle": "Nothing is blocking the file any more",
+        "clearedBody": "The file meets the requirements to be saved as a CV. Upload it again and it will be saved directly."
+      }
     },
     "improve": {
       "title": "Improve imported CV",

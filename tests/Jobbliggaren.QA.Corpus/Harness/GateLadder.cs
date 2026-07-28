@@ -108,6 +108,17 @@ internal static class GateLadder
         (G2b, "pnr in label"), (G3a, "pnr DQ6"), (G3b, "buildability"),
     ];
 
+    /// <summary>§5's column headings, in gate order. They are a property of the LADDER, never of
+    /// whichever case happens to sort first.
+    ///
+    /// <para>Deriving them from <c>Cases[0]</c> was a live defect: a crashed first case carries
+    /// <c>Gates: []</c> by construction, which produced a six-cell header against a five-cell
+    /// delimiter — and under GFM that is not a table at all, so the ENTIRE section vanished. On the
+    /// report whose delimiter guard exists for precisely that failure, and invisible to that guard,
+    /// because a fixture whose only case has a full ladder can never exhibit it.</para></summary>
+    internal static IReadOnlyList<string> RungHeaders =>
+        [.. Rungs.Select(r => $"{r.Id} ({r.CallSite})")];
+
     internal static IReadOnlyList<GateCell> From(
         AutoPromoteBlockReason? block,
         bool promoted,

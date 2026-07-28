@@ -299,10 +299,17 @@ public sealed class LayoutCorpusEmitterTests
     /// <c>Promoted</c> and <c>LeftPending</c>, "nothing outside this file can add a case"), so that
     /// arm cannot be entered today, for the same reason the ladder's own <c>_</c> cannot.</para>
     ///
-    /// <para>Pinning it anyway is the point: it fixes what the catch-all ANSWERS before someone
-    /// opens the union, and PR C is this corpus's measured proof that such closure expires. The
-    /// mutation is the evidence — flipping the arm to <see cref="GateState.NoVerdict"/> was green
-    /// until this test existed.</para></summary>
+    /// <para><b>There is a SECOND ingress, and it is not the union opening.</b>
+    /// <c>PersonnummerPresent</c> with both discriminators false also lands here — the handler said
+    /// the gate fired and neither observable the corpus recomputes agrees. That is a DIVERGENCE
+    /// between product and instrument, and it is exactly the case where a confident "DQ6 blocked"
+    /// used to be printed. Naming one ingress and implying it is the only one would be this PR's
+    /// own defect class.</para>
+    ///
+    /// <para>Pinning it anyway is the point: it fixes what the catch-all ANSWERS before either
+    /// ingress opens, and PR C is this corpus's measured proof that closure expires. The mutation is
+    /// the evidence — flipping the arm to <see cref="GateState.NoVerdict"/> was green until this
+    /// test existed.</para></summary>
     [Fact]
     public void Ladder_ForAnUnmappedOutcome_IsUnresolvedAndNeverAFault()
     {
@@ -310,8 +317,11 @@ public sealed class LayoutCorpusEmitterTests
             block: null, promoted: false, promoteFaulted: false,
             pnrFoundOnParse: false, pnrInResolvedLabel: false);
 
-        ladder.ShouldAllBe(c => c.State == GateState.Unresolved);
-        ladder.ShouldNotContain(c => c.State == GateState.NoVerdict);
+        // Exact sequence, not ShouldAllBe: that predicate is vacuously true on an empty list, so it
+        // would pass a From that returned nothing — the same vacuity the fault-branch test was
+        // corrected for. Killed by polarity is not killed by design.
+        ladder.Select(c => c.State)
+            .ShouldBe(Enumerable.Repeat(GateState.Unresolved, GateLadder.RungHeaders.Count));
         GateLadder.IsWellFormed(ladder).ShouldBeFalse();
     }
 
@@ -425,6 +435,88 @@ public sealed class LayoutCorpusEmitterTests
         Cell(header, row, "Promoted edu").ShouldBe("7");
     }
 
+    /// <summary>A CRASHED case — the one shape whose ladder is empty by construction
+    /// (<c>LayoutChainRunner</c> builds <c>Gates: []</c> for it) — must not take §5's table down
+    /// with it, and must appear in §0's three instrument-health lists.
+    ///
+    /// <para>It is one fixture closing four separate holes, because all four need the same case that
+    /// no previous fixture carried: §5's headings used to be read off <c>Cases[0]</c>, so a crashed
+    /// FIRST case gave a six-cell header over a five-cell delimiter and GFM dropped the entire
+    /// section — invisible to the document-wide delimiter guard, which only ever saw a fixture whose
+    /// single case had a full ladder. And §0's `crashed` and `fixture invalid` lines could be
+    /// inverted green for the same reason: nothing ever handed the emitter a case that was
+    /// either.</para></summary>
+    [Fact]
+    public void Report_WithACrashedFirstCase_StillRendersTheGateLadderAndNamesItInSection0()
+    {
+        var markdown = LayoutCorpusReport.Build(Data() with
+        {
+            Cases =
+            [
+                Observation("case-crashed") with
+                {
+                    CrashedWithExceptionType = "InvalidOperationException",
+                    Gates = [],
+                    FixtureProblems = ["the model cannot carry the marker oracle"],
+                },
+                Observation("case-alpha"),
+            ],
+        });
+
+        var lines = markdown.Split('\n');
+
+        // §5 is still a table: the delimiter matches the header (the actual GFM constraint —
+        // asserted as the invariant rather than against a hand-computed column count, which is how
+        // the previous delimiter guard came to be one cell short of its own header), and the header
+        // carries EVERY canonical rung rather than whatever the first case happened to hold.
+        var (header, row) = TableRow(markdown, "| # | Case | G1 ");
+        Cells(lines[Array.IndexOf(lines, header) + 1]).ShouldBe(Cells(header));
+
+        foreach (var rung in GateLadder.RungHeaders)
+            header.ShouldContain(rung);
+
+        // ...and the crashed row occupies every gate column without claiming a verdict in any.
+        Cell(header, row, GateLadder.RungHeaders[3]).ShouldBe("—");
+        row.ShouldNotContain("no verdict");
+
+        markdown.ShouldContain("**crashed:** `case-crashed`");
+        markdown.ShouldContain("**fixture invalid:** `case-crashed`");
+        markdown.ShouldContain("**byte proofs held:** `case-crashed`, `case-alpha`");
+    }
+
+    /// <summary>The `(false, true)` arm of the authored-personnummer column: a CLEAN body whose
+    /// ACCOUNT name carries one. Unexercised until now, and the row it would have mislabelled is
+    /// `pdf-clean-body-pnr-in-account-name` — the only case that reaches the DQ6 rung. "pnr
+    /// authored: none" beside a blocked DQ6 cell is this PR's own incident #2, on its own case.
+    /// The value itself is never printed; the arm says only that one was authored and where.</summary>
+    [Fact]
+    public void Report_ForACleanBodyWithAPersonnummerInTheAccountName_SaysWhereItWasAuthored()
+    {
+        var clean = Observation("case-account-pnr");
+        var markdown = LayoutCorpusReport.Build(Data() with
+        {
+            Cases =
+            [
+                clean with
+                {
+                    Case = clean.Case with
+                    {
+                        Model = CvModel.Swedish with { SyntheticPersonnummer = null },
+                        AccountDisplayName = "Konto Kontosson "
+                            + SwedishCorpusLexicon.FakePersonnummer[1],
+                    },
+                },
+            ],
+        });
+
+        var (header, row) = TableRow(markdown, "| Case | Confidence overall | ");
+        Cell(header, row, "pnr authored (body / account)")
+            .ShouldBe("account name (synthetic, not printed)");
+
+        foreach (var pnr in SwedishCorpusLexicon.FakePersonnummer)
+            markdown.ShouldNotContain(pnr);
+    }
+
     private static int Cells(string row) => row.Split('|').Length;
 
     /// <summary>A table's header and its first data row, located by the header's opening text. The
@@ -499,11 +591,8 @@ public sealed class LayoutCorpusEmitterTests
         // Anchored on §5's HEADER, not on the row prefix: four sections render a row starting
         // `| 1 | \`case-ladder\``, so a prefix match reads whichever one comes first and would
         // silently measure §1's CTO-class cell instead of a gate cell.
-        var lines = markdown.Split('\n');
-        var header = Array.FindIndex(lines, l => l.StartsWith("| # | Case | G1 ", StringComparison.Ordinal));
-        header.ShouldBeGreaterThan(-1, "§5's header row was not found — the emitter moved.");
-
-        return lines[header + 2].Split('|')[3].Trim();
+        var (header, row) = TableRow(markdown, "| # | Case | G1 ");
+        return Cell(header, row, GateLadder.RungHeaders[0]);
     }
 
     public static TheoryData<AutoPromoteBlockReason, bool, bool, int> ReachableGateStates() =>

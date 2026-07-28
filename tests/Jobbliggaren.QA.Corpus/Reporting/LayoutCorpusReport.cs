@@ -256,6 +256,12 @@ public static class LayoutCorpusReport
         L("known complete, and PR C is the measured proof that such knowledge expires. Nothing is");
         L("inferred from a remainder now; what falls past both guards is reported as `unresolved`.");
         L();
+        // DELIBERATELY UNPINNED, unlike the three disclaimers. Those are protections a well-meaning
+        // edit can SOFTEN, so they are asserted verbatim. This is a DEFINITION: delete it and no
+        // false claim appears, only an undefined word a reader notices immediately. A shape-based
+        // guard is not available either — "every word the renderer emits is glossed here" is false
+        // today by design, since `passed` and `**BLOCKED**` need no gloss. Same treatment
+        // Report_NeverRendersAPercentage already gives the token blacklist it rejected.
         L("Three cell values mean three different things, and conflating two of them is what this");
         L("section was corrected for (2026-07-28):");
         L();
@@ -266,9 +272,10 @@ public static class LayoutCorpusReport
         L("  product. Before it existed, this case rendered as `no verdict` — publishing an honest");
         L("  block as a handler fault, on the one case that exercises the DQ6 rung.");
         L();
-        var gateHeaders = d.Cases.Count > 0
-            ? d.Cases[0].Gates.Select(g => $"{g.GateId} ({g.CallSite})").ToList()
-            : [];
+        // From the LADDER, not from Cases[0]. A crashed first case carries an empty ladder by
+        // construction, and reading the headings off it produced a six-cell header over a five-cell
+        // delimiter — under GFM, no table at all. The section disappeared entirely.
+        var gateHeaders = GateLadder.RungHeaders;
         L($"| # | Case | {string.Join(" | ", gateHeaders)} | FIRST BLOCK | Promote fault | Promoted |");
         // DERIVED, never a literal. The rung count changed with #1060's gate retirement, and the
         // hardcoded delimiter this replaces was already one cell short of its own header — under
@@ -279,7 +286,12 @@ public static class LayoutCorpusReport
         for (var i = 0; i < d.Cases.Count; i++)
         {
             var c = d.Cases[i];
-            var cells = string.Join(" | ", c.Gates.Select(g => Short(g.State)));
+            // A case with no ladder (a crash — nothing evaluated any gate) still occupies every
+            // column, as em-dashes. Letting the row run short would leave GFM to pad it with blanks,
+            // and a blank cell under "G3a pnr(DQ6)" reads as a verdict rather than as its absence.
+            var cells = c.Gates.Count > 0
+                ? string.Join(" | ", c.Gates.Select(g => Short(g.State)))
+                : string.Join(" | ", Enumerable.Repeat("—", gateHeaders.Count));
             LI($"| {i + 1} | `{c.Case.Id}` | {cells} | {c.BlockReason?.ToString() ?? "—"} | {c.PromoteFailureCode ?? "—"} | {Y(c.Promoted)} |");
         }
 

@@ -28,6 +28,13 @@ interface JobbToolbarPopoverProps {
   triggerRef: React.RefObject<HTMLButtonElement | null>;
   onClose: () => void;
   children: React.ReactNode;
+  /**
+   * Panel width. Defaults to the 320px the two /jobb consumers ship. A wider body (the #999 bransch
+   * picker) passes a reflow-safe expression rather than a bare number — `min(<target>, calc(100vw -
+   * 32px))` — because a fixed width plus a left-anchored position is the WCAG 1.4.10 failure mode at
+   * 320px. Kept as a prop rather than baked in: the width belongs to the body, not to the shell.
+   */
+  width?: React.CSSProperties["width"];
 }
 
 export function JobbToolbarPopover({
@@ -36,6 +43,7 @@ export function JobbToolbarPopover({
   triggerRef,
   onClose,
   children,
+  width = 320,
 }: JobbToolbarPopoverProps) {
   const ref = useDismissable<HTMLDivElement>(open, onClose, triggerRef);
   const pos = usePanelPosition(open, triggerRef);
@@ -43,8 +51,8 @@ export function JobbToolbarPopover({
   if (!open) return null;
 
   const style: React.CSSProperties = pos
-    ? { top: pos.top, left: pos.left, width: 320 }
-    : { top: -9999, left: -9999, width: 320 };
+    ? { top: pos.top, left: pos.left, width }
+    : { top: -9999, left: -9999, width };
 
   return (
     <div

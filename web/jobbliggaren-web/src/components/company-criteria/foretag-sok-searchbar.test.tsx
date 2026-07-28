@@ -105,6 +105,27 @@ function renderBar(
   );
 }
 
+/**
+ * Open the bransch popover and return its dialog. The trigger owns the open state, exactly as the ort
+ * trigger beside it does; the panel's accessible name matches the trigger's visible text.
+ */
+async function openBransch(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(screen.getByRole("button", { name: "Välj bransch" }));
+  return screen.getByRole("dialog", { name: "Välj bransch" });
+}
+
+/** Filter inside the open popover and tick the row with `name` (any level). */
+async function pickBransch(
+  user: ReturnType<typeof userEvent.setup>,
+  query: string,
+  name: string,
+) {
+  const dialog = await openBransch(user);
+  await user.type(within(dialog).getByLabelText("Sök bransch"), query);
+  await user.click(within(dialog).getByRole("checkbox", { name }));
+  await user.keyboard("{Escape}");
+}
+
 describe("ForetagSokSearchbar — one shared draft, one submit", () => {
   it("commits name + bransch + ort TOGETHER on one submit (no silent draft drop)", async () => {
     const fetchMock = vi.fn();
@@ -118,13 +139,8 @@ describe("ForetagSokSearchbar — one shared draft, one submit", () => {
       screen.getByRole("button", { name: "Ta bort Stockholm" }),
     ).toBeInTheDocument();
 
-    // Add a bransch via the client typeahead.
-    await user.type(screen.getByLabelText("Bransch"), "system");
-    await user.click(
-      screen.getByRole("option", {
-        name: "Systemutveckling och programvarutveckling",
-      }),
-    );
+    // Add a bransch through the popover (client-side filter, no network).
+    await pickBransch(user, "system", "Systemutveckling och programvarutveckling");
 
     // Edit the name field too.
     await user.type(screen.getByLabelText("Företagsnamn eller organisationsnummer"), "Volvo");
@@ -151,12 +167,7 @@ describe("ForetagSokSearchbar — one shared draft, one submit", () => {
       screen.queryByText("Ändringarna tillämpas när du söker."),
     ).not.toBeInTheDocument();
 
-    await user.type(screen.getByLabelText("Bransch"), "datapro");
-    await user.click(
-      screen.getByRole("option", {
-        name: "Dataprogrammering, datakonsultverksamhet",
-      }),
-    );
+    await pickBransch(user, "datapro", "Dataprogrammering, datakonsultverksamhet");
 
     expect(
       screen.getByText("Ändringarna tillämpas när du söker."),
@@ -164,74 +175,146 @@ describe("ForetagSokSearchbar — one shared draft, one submit", () => {
   });
 });
 
-describe("ForetagSokSearchbar — bransch typeahead", () => {
-  it("filters the reference CLIENT-SIDE (no fetch) and turns a pick into a chip", async () => {
+describe("ForetagSokSearchbar — bransch popover (#999)", () => {
+  it("filters at ALL THREE SNI levels, not leaves only", async () => {
     const fetchMock = vi.fn();
     global.fetch = fetchMock;
     renderBar();
     const user = userEvent.setup();
 
-    await user.type(screen.getByLabelText("Bransch"), "datapro");
-    // Division-level name is a searchable option (CTO granularity), matched client-side.
-    await user.click(
-      screen.getByRole("option", {
-        name: "Dataprogrammering, datakonsultverksamhet",
-      }),
-    );
+    const dialog = await openBransch(user);
+    // "verksamhet" occurs in the SECTION name, a DIVISION name and a LEAF name in the fixture. The
+    // control this replaced searched all three; the picker used to match leaves only, which is the
+    // half of "hard to find" (#999) that no popover shape fixes on its own.
+    await user.type(within(dialog).getByLabelText("Sök bransch"), "verksamhet");
 
-    // The pick becomes a removable chip; no network was hit for suggestions.
-    expect(
-      screen.getByRole("button", { name: "Ta bort bransch" }),
-    ).toBeInTheDocument();
+    for (const name of [
+      "Informations- och kommunikationsverksamhet", // section
+      "Dataprogrammering, datakonsultverksamhet", // division
+      "Datakonsultverksamhet", // leaf
+    ]) {
+      expect(within(dialog).getByRole("checkbox", { name })).toBeInTheDocument();
+    }
+    // Still no network: the filter runs over the reference the page already loaded.
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("supports keyboard selection (ArrowDown + Enter)", async () => {
+  it("ticking a matched DIVISION selects its whole expansion", async () => {
     renderBar();
     const user = userEvent.setup();
 
-    const input = screen.getByLabelText("Bransch");
-    await user.type(input, "system");
-    await user.keyboard("{ArrowDown}{Enter}");
+    await pickBransch(user, "datapro", "Dataprogrammering, datakonsultverksamhet");
+    await user.click(screen.getByRole("button", { name: "Sök företag" }));
 
-    // The single "system…" match was picked → its chip is present.
-    expect(
-      screen.getByRole("button", { name: "Ta bort bransch" }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText("Systemutveckling och programvarutveckling"),
-    ).toBeInTheDocument();
-  });
-
-  it("a new pick REPLACES the single existing bransch chip", async () => {
-    renderBar();
-    const user = userEvent.setup();
-
-    await user.type(screen.getByLabelText("Bransch"), "system");
-    await user.click(
-      screen.getByRole("option", {
-        name: "Systemutveckling och programvarutveckling",
-      }),
+    // Both of division 62's leaves ride the URL — a parent is stored as its leaves, never as itself.
+    expect(push).toHaveBeenCalledWith(
+      buildForetagSokHref({ namn: "", sni: ["62010", "62020"], kommun: [] }),
     );
-    await user.type(screen.getByLabelText("Bransch"), "webb");
-    await user.click(screen.getByRole("option", { name: "Webbportaler" }));
-
-    expect(screen.getByText("Webbportaler")).toBeInTheDocument();
-    expect(
-      screen.queryByText("Systemutveckling och programvarutveckling"),
-    ).not.toBeInTheDocument();
   });
 
-  it("seeds a clean bransch chip from the URL sni (division-level match)", () => {
+  it("a partially selected division reads as mixed, so a click cannot silently deselect", async () => {
+    // One leaf of division 62 applied — what picking a single leaf and searching produces.
+    renderBar({ sni: ["62010"] });
+    const user = userEvent.setup();
+
+    const dialog = await openBransch(user);
+    await user.type(within(dialog).getByLabelText("Sök bransch"), "datapro");
+
+    expect(
+      within(dialog).getByRole("checkbox", {
+        name: "Dataprogrammering, datakonsultverksamhet",
+      }),
+    ).toHaveAttribute("aria-checked", "mixed");
+  });
+
+  it("is MULTI-select: two branches coexist instead of replacing each other", async () => {
+    renderBar();
+    const user = userEvent.setup();
+
+    await pickBransch(user, "system", "Systemutveckling och programvarutveckling");
+    await pickBransch(user, "webb", "Webbportaler");
+
+    expect(
+      screen.getByRole("button", {
+        name: "Ta bort Systemutveckling och programvarutveckling",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Ta bort Webbportaler" }),
+    ).toBeInTheDocument();
+  });
+
+  it("chips decompose upward: a fully selected division reads as ONE division chip", () => {
     renderBar({ sni: ["62010", "62020"] });
     expect(
       screen.getByText("Dataprogrammering, datakonsultverksamhet"),
     ).toBeInTheDocument();
+    // Not also its two leaves — the decomposition emits the fewest nodes that describe the set.
+    expect(screen.queryByText("Datakonsultverksamhet")).not.toBeInTheDocument();
   });
 
-  it("seeds a generic 'Vald bransch' chip when sni matches no single option", () => {
-    renderBar({ sni: ["99999"] });
-    expect(screen.getByText("Vald bransch")).toBeInTheDocument();
+  it("chips decompose to the SECTION when every leaf under it is selected", () => {
+    renderBar({ sni: ["62010", "62020", "63110", "63120"] });
+    expect(
+      screen.getByText("Informations- och kommunikationsverksamhet"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("Dataprogrammering, datakonsultverksamhet"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("removing a chip removes exactly that node's leaves, leaving the rest", async () => {
+    renderBar({ sni: ["62010", "62020", "63110"] });
+    const user = userEvent.setup();
+
+    await user.click(
+      screen.getByRole("button", {
+        name: "Ta bort Dataprogrammering, datakonsultverksamhet",
+      }),
+    );
+    await user.click(screen.getByRole("button", { name: "Sök företag" }));
+
+    expect(push).toHaveBeenCalledWith(
+      buildForetagSokHref({ namn: "", sni: ["63110"], kommun: [] }),
+    );
+  });
+
+  it("above the cap the chips collapse to one summary chip that clears the axis", async () => {
+    // Ten divisions, one leaf picked in each — a decomposition of ten chips, which is what the cap
+    // exists to prevent. Reachable by ticking ten leaves; nothing here is a shape the UI cannot make.
+    const wide: CriterionReference = {
+      ...REFERENCE,
+      sni: [
+        {
+          code: "C",
+          name: "Tillverkning",
+          divisions: Array.from({ length: 10 }, (_, i) => ({
+            code: `${10 + i}`,
+            name: `Huvudgrupp ${10 + i}`,
+            leaves: [
+              { code: `${10 + i}100`, name: `Detalj ${10 + i}100` },
+              { code: `${10 + i}200`, name: `Detalj ${10 + i}200` },
+            ],
+          })),
+        },
+      ],
+    };
+    render(
+      <ForetagSokSearchbar
+        reference={wide}
+        referenceOk
+        namn=""
+        sni={Array.from({ length: 10 }, (_, i) => `${10 + i}100`)}
+        kommun={[]}
+      />,
+    );
+    const user = userEvent.setup();
+
+    expect(screen.getByText("10 valda branscher")).toBeInTheDocument();
+    expect(screen.queryByText("Detalj 10100")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Ta bort alla branscher" }));
+    expect(screen.queryByText("10 valda branscher")).not.toBeInTheDocument();
   });
 });
 
@@ -520,7 +603,7 @@ describe("ForetagSokSearchbar — degraded reference", () => {
     );
     const user = userEvent.setup();
 
-    expect(screen.getByLabelText("Bransch")).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Välj bransch" })).toBeDisabled();
     expect(
       screen.getByText(/Branschlistan kunde inte laddas just nu/i),
     ).toBeInTheDocument();
@@ -621,13 +704,25 @@ describe("ForetagSokSearchbar — the live-review fixes", () => {
     expect(screen.getByRole("group", { name: "Avgränsa" })).toBeInTheDocument();
   });
 
-  it("drops the ort hint, whose trigger already says the same thing (finding 9)", () => {
+  it("drops both filter hints, whose triggers already say the same thing (finding 9)", () => {
     renderBar();
     expect(
       screen.queryByText("Välj ett eller flera län eller kommuner."),
     ).not.toBeInTheDocument();
-    // The bransch hint STAYS while the control is still a typeahead — it goes with PR 5.
-    expect(screen.getByText("Skriv och välj en bransch.")).toBeInTheDocument();
+    // The bransch hint described a typeahead that no longer exists; "Välj bransch" names itself.
+    expect(
+      screen.queryByText("Skriv och välj en bransch."),
+    ).not.toBeInTheDocument();
+  });
+
+  it("names the bransch trigger without a <label htmlFor> (WCAG 2.5.3 label-in-name)", () => {
+    renderBar();
+    // A label pointed at a button becomes its accessible name and overrides the visible text. The
+    // trigger must therefore be findable by what it SAYS, and not by the field heading beside it.
+    expect(
+      screen.getByRole("button", { name: "Välj bransch" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByLabelText("Bransch")).not.toBeInTheDocument();
   });
 });
 

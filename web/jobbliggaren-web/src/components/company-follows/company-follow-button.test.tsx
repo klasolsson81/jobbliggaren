@@ -128,6 +128,36 @@ describe("CompanyFollowButton", () => {
     expect(screen.getByText("Bevaka")).toBeInTheDocument();
   });
 
+  /**
+   * Geometry the browse table depends on (#1122). This button lives in a `table-layout: fixed` cell
+   * that can no longer grow to fit its content, so two layout decisions here are load-bearing OVER
+   * THERE and invisible to any assertion made in `company-browse-list.test.tsx` — both survived
+   * mutation until this test existed.
+   */
+  it("lets the failure message wrap without dragging the button's width with it", async () => {
+    followActionMock.mockResolvedValue({
+      success: false,
+      error: "Kunde inte bevaka företaget. Försök igen.",
+    });
+    const { container } = render(
+      <CompanyFollowButton orgNr={ORG_NR} companyName={COMPANY} initialCompanyWatchId={null} />
+    );
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: `Bevaka ${COMPANY}` }));
+    await screen.findByText(/Kunde inte bevaka företaget/i);
+
+    // The button may not break: a label across two lines stops reading as a control. The cell around
+    // it deliberately does NOT carry nowrap, so the button has to carry its own.
+    expect(screen.getByRole("button")).toHaveClass("whitespace-nowrap");
+    // The error and the button are siblings in one flex column. Under the default `stretch` the
+    // ~230px sentence resizes the control the user is about to retry — inside a 160px fixed column
+    // it also paints across the table edge.
+    expect(container.firstElementChild).toHaveStyle({ alignItems: "start" });
+    // ...and the message itself must stay wrappable, which is the whole reason the cell dropped nowrap.
+    expect(screen.getByRole("alert")).not.toHaveClass("whitespace-nowrap");
+  });
+
   it("rolls back to 'Bevakar' when unfollow fails", async () => {
     unfollowActionMock.mockResolvedValue({
       success: false,

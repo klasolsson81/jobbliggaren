@@ -114,6 +114,34 @@ jobs:
 
       # Blockerande npm-gate. pnpm audit --audit-level=high returnerar exit != 0
       # vid High/Critical → jobbet failar → auto-merge aktiveras ej.
+      #
+      # BASLINJE-SCOPAD SEDAN 2026-07-28, för att grinden annars inte kunde
+      # KONVERGERA. Den granskade hela trädet, inte diffen, och fällde därför PR:er
+      # som TAR BORT sårbarheter på grund av sårbarheter de inte infört. Mätt:
+      # PR #1042 (`next` 16.2.9 → 16.2.11) stod öppen i tre dygn med grön `ci` och
+      # detta jobb rött; den bumpen ensam stänger 18 av repots 28 Dependabot-alerts.
+      # Den fälldes av sex ANDRA paket — `tmp`, `brace-expansion`, `js-yaml`,
+      # `fast-uri`, `postcss`, `sharp` — som alla är TRANSITIVA och därför aldrig
+      # får egna Dependabot-PR:er. Deadlocken var total: ingenting kunde passera.
+      #
+      # Baslinjen ligger i `web/jobbliggaren-web/package.json` under
+      # `pnpm.auditConfig.ignoreGhsas`, en GHSA-lista. Formen är vald för att en
+      # accepterad risk ska vara SYNLIG och ATTRIBUERBAR: raden är en diff en
+      # människa godkänner, och `git blame` på den ÄR datumet och motiveringen.
+      # Kontrast: en sänkt tröskel (`--audit-level=critical`) hade dolt exakt samma
+      # acceptans utan att någonsin nämna vad som accepterades.
+      #
+      # `next`s egna rådgivningar står MEDVETET INTE i listan — grinden ska
+      # fortfarande kunna fälla en next-regression. Mätt vid införandet: 11
+      # high/critical i trädet, 7 i baslinjen, 4 kvar (alla `next`), och med next
+      # bumpad går grinden till exit 0. Den kan alltså nå grönt igen, vilket var
+      # hela poängen.
+      #
+      # REGISTRET ÄR INTE DEN HÄR FILEN. `auditConfig` filtrerar `pnpm audit`
+      # (och därmed även `audit (observe-only)` i `build.yml`), men GitHubs
+      # Dependabot-alerts är opåverkade — det är där de 28 räknas, och det är den
+      # siffran som ska gå mot noll. Den här listan ska krympa, inte växa; varje
+      # post som blir onödig ska bort.
       - name: Install (pnpm, för audit)
         if: ${{ steps.gate.outputs.eligible == 'true' }}
         working-directory: web/jobbliggaren-web

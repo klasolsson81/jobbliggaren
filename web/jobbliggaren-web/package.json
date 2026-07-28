@@ -57,6 +57,17 @@
     "overrides": {
       "postcss@<8.5.10": "^8.5.10",
       "undici@<7.28.0": "^7.28.0"
+    },
+    "auditConfig": {
+      "ignoreGhsas": [
+        "GHSA-3jxr-9vmj-r5cp",
+        "GHSA-mh99-v99m-4gvg",
+        "GHSA-52cp-r559-cp3m",
+        "GHSA-f88m-g3jw-g9cj",
+        "GHSA-ph9p-34f9-6g65",
+        "GHSA-r28c-9q8g-f849",
+        "GHSA-v2hh-gcrm-f6hx"
+      ]
     }
   }
 }

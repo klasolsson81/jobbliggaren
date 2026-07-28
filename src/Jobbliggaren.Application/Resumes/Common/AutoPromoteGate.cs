@@ -124,6 +124,12 @@ internal static class AutoPromoteGate
         // the parse structured, so the one genuinely new text here is the account display
         // name — a personnummer riding in it is caught HERE, and the disposition is the same
         // honest "pending, review" (it is a personnummer presence, whichever field carries it).
+        //
+        // WHY this arm can fire at all: JobSeeker.Register/UpdateDisplayName validate only
+        // non-empty and length, so a personnummer goes into that plaintext column unrefused —
+        // the invariant Resume.ValidateName carries one aggregate over, for a stated reason
+        // that applies verbatim there. Tracked as #1117 (P1). Until it lands, this guard is
+        // the only control standing on that channel.
         var guard = ResumeContentPersonnummerGuard.Check(dto);
         if (guard.IsFailure)
         {

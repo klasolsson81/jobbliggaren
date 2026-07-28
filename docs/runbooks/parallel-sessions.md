@@ -366,12 +366,16 @@ does not retrigger CodeQL on the main-push — run `gh workflow run codeql.yml
 --ref main` after a batch if needed (memory
 `project_automerge_suppresses_main_push_workflows`).
 
-### 8.1 Self-babysitting (mandatory when no cloud babysitter is running)
+### 8.1 Watching your own PRs to merge (always) and closing out (always)
 
-If the cloud `/schedule` babysitter is NOT active, **every session babysits its OWN
-pushed PRs** until they merge — do not push-and-forget. With 2–4 sessions, `origin/main`
-advances constantly, so a freshly-pushed PR goes **BEHIND** within minutes and automerge
-will NOT merge a BEHIND PR. Before ending a turn, re-check your open PRs:
+**Every session watches its OWN pushed PRs until they merge** — unconditionally, per
+CLAUDE.md §6.5 (*"Watch your own PRs to MERGE, then close out"*). A running cloud
+babysitter can perform the up-to-base **action** for you; it never relieves you of
+checking, and it does nothing at all about issues. Do not push-and-forget.
+
+With 2–4 sessions, `origin/main` advances constantly, so a freshly-pushed PR goes
+**BEHIND** within minutes and automerge will NOT merge a BEHIND PR. Before ending a
+turn, re-check your open PRs:
 
 ```bash
 gh pr list --state open --json number,headRefName,mergeStateStatus \
@@ -396,17 +400,16 @@ gh pr list --state open --json number,headRefName,mergeStateStatus \
   it on green.
 - **`DIRTY` / conflict** → the update-branch merge hit a conflict; resolve on a branch + push.
 
-**Verify the issue actually closed on merge — this part is UNCONDITIONAL**, unlike the
-rest of §8.1. Automerge SQUASHES, and the squash commit title often drops the PR body's
-`Closes #NNN` keyword → the issue stays OPEN after the PR merges. After a PR merges,
-confirm its issue closed (`gh issue view <nr> --json state`); close it manually with a
-comment referencing the merged PR if not, and drop `wip` + unassign.
+**Verify the issue actually closed on merge.** Automerge SQUASHES, and the squash commit
+title often drops the PR body's `Closes #NNN` keyword → the issue stays OPEN after the PR
+merges. After a PR merges, confirm its issue closed (`gh issue view <nr> --json state`);
+close it manually with a comment referencing the merged PR if not, and drop `wip` +
+unassign.
 
-The section heading scopes self-babysitting to *"when no cloud babysitter is running"*,
-and for the up-to-base half that is right. It is **not** right for issue-closing: the
-babysitter does bring PRs up-to-base (observed on #1119, `fb7a2617`) but has never closed
-an issue — its prompt in §8 does not instruct it, and Klas confirmed 2026-07-28 he runs no
-such loop. So an active babysitter does not relieve you of this; nothing else does it.
+**No actor does this for you.** The babysitter's prompt (§8) does not instruct it and
+Klas confirmed 2026-07-28 that he runs no such loop. `.claude/hooks/worktree-reaper.sh`
+does *surface* your stale `wip` claims at session start — that is a report, not a
+close-out.
 
 ---
 
@@ -471,17 +474,15 @@ NOT a hand-ranked per-CC sequence (that drifts every merge):
 > (2026-06-28 sweep closed 10 such stragglers: #204/#258/#261/#265/#266/#272/#273/
 > #317/#318/#319.)
 >
-> **This used to name the PR-babysitter — or "a periodic sweep" — as the closer,
-> and both were false.** The duty therefore had no holder at all: every session
-> could read the sentence and correctly conclude someone else was handling it.
-> Two independent proofs. (1) The repo contradicted itself: the babysitter prompt
-> §8 documents instructs `update-branch`, `automerge`, and a status line, and says
-> nothing about `gh issue close`. (2) Klas confirmed 2026-07-28 that no such loop
-> exists — *"Jag kör ingen sådan loop — det ska CC göra."* The babysitter is real
-> and does bring PRs up-to-base (observed on #1119, `fb7a2617`); it simply never
-> closed an issue. Note the shape of the defect, because it is the reason this
-> correction is not cosmetic: a duty assigned to a named actor reads as *covered*,
-> so nobody audits it — which is strictly worse than a duty left unassigned.
+> **This used to name the PR-babysitter — or "a periodic sweep" — as the closer.
+> Neither does it**, so the sentence contradicted the three places that assign the
+> duty correctly: CLAUDE.md §6.5's own next bullet, §8.1 below, and
+> `session-start-template.md`'s expected-end-state. Klas confirmed 2026-07-28 that
+> he runs no such loop, and the babysitter prompt §8 documents never instructed it.
+> The duty was never unheld — `.claude/hooks/worktree-reaper.sh` has surfaced stale
+> `wip` claims at every session start since #900. But an audit that reports is not
+> a holder that acts, and a spec that names two different actors for one duty lets
+> a reader pick the wrong one.
 
 ---
 

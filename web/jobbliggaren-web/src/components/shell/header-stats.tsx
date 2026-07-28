@@ -23,20 +23,24 @@ import { formatNumber } from "@/lib/i18n/format";
  *   <li>Removal is SYMMETRIC on the healthy path: the same 10-min stream
  *       carries removal events (`ArchiveExternalJobAdCommand`), so a
  *       withdrawn ad leaves the count as fast as it entered. Only the
- *       residue is slow, and the two backstops differ by a factor of three.
+ *       residue is slow, and the two backstops are NOT interchangeable.
  *       An ad that passes `ExpiresAt` with no removal event waits for the
  *       nightly sweep (`RecurringJobIds.ExpireJobAds`, ~24 h); a snapshot
  *       gap needs `JobSourceRetentionOptions.SnapshotMissThreshold`
- *       consecutive DAILY misses (`RecurringJobIds.RetainPlatsbankenJobAds`,
- *       default 3, so ~3 days). Cite these by SYMBOL, never by `file:line`
- *       — a line number across the dotnet/pnpm toolchain boundary has no
- *       gate and rots silently.</li>
+ *       consecutive DAILY misses (`RecurringJobIds.RetainPlatsbankenJobAds`),
+ *       so it lags by that multiple of a day — `[Range(1, 30)]`, default 3,
+ *       hence ~3 days as configured and equal to the sweep only at 1.</li>
  *   <li>När polling-svaret ger högre `newToday` än senaste sedda värdet
  *       visas en grön <code>+N</code>-pill via fade-in (200ms), syns i 8
  *       sekunder, sen fade-out (Klas-feedback 2026-05-24 svans-PR5 —
  *       tidigare "stay forever" upplevdes som "livräknaren har +1 hela tiden"
  *       istället för "nu kom det in nya jobb"-affordance).</li>
  * </ul>
+ *
+ * Every job, cron and option named above is cited by SYMBOL, never by
+ * `file:line`: a line number across the dotnet/pnpm toolchain boundary has no
+ * gate on either side and rots silently. This block's citations went stale
+ * twice before that rule was adopted — once on the hour they were written.
  *
  * Rate-limit-budget: 10-min polling = 0.1 req/min per tab; backend
  * `LandingPublicReadPolicy` är 60/min/IP → rooom för 600 öppna tabbar.

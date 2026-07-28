@@ -355,10 +355,14 @@ worktrees. The rules below keep parallel work collision-free; full playbook in
   runs via cloud `/schedule` on PR events (rebase + `automerge`); it **must never
   set `agents-done`** — that label is the owning session's review gate. It needs no
   rule about *when* to `update-branch`, and deliberately has none: a pure base merge
-  does not disarm the gate (§6). It should also
-  `gh issue close` referenced issues (the automerge squash can drop the
-  `Closes #N` keyword → the issue stays open; see playbook §8.1/§9). Side-track
-  PRs you own are shepherded to green before new scope.
+  does not disarm the gate (§6). It does **not** close issues, and this file used to
+  say it should — **the duty is the owning session's** (playbook §8.1), unconditionally
+  and whether or not the babysitter is running. The squash drops `Closes #N`, so
+  somebody must close by hand; naming an actor that never did it is what left the duty
+  with no holder, because a duty that reads as *covered* is one nobody audits. Klas
+  confirmed 2026-07-28 that he runs no such loop, and the babysitter prompt the playbook
+  §8 documents never instructed it either. Side-track PRs you own are shepherded to
+  green before new scope.
 - **A pushed PR is not a merged PR, and a merged PR is not a closed issue.**
   Automerge does **not** rebase: when a sibling lands, yours goes `BEHIND` and
   then sits there forever with green `ci` and automerge on, and nobody is told.

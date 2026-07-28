@@ -29,9 +29,15 @@ namespace Jobbliggaren.QA.Corpus;
 /// <para>That rule is what stops this suite from blocking its own remedy: asserting
 /// <c>BlankLineCount == 0</c> would turn every PDF case red the day a boundary fix lands, on a
 /// suite whose whole purpose is to measure that fix's effect. (PR E built one and withdrew it;
-/// the rule matters exactly as much for the attempt that follows.) THREE asserts do touch production, each argued at
-/// the assert block below — crash-safety, kind resolution, and marker visibility. No parsing
-/// OUTCOME is asserted anywhere.</para>
+/// the rule matters exactly as much for the attempt that follows.)</para>
+///
+/// <para><b>The escape hatch, stated once so it can be cited.</b> An assert whose subject falls
+/// outside (a)/(b)/(c) is permitted when it is ARGUED where it lives. FOUR do so in this file —
+/// crash-safety, kind resolution, marker visibility, and (since 2026-07-28) ladder
+/// well-formedness — and one more in <c>LayoutCorpusEmitterTests</c>, whose subject is
+/// <c>AutoPromoteBlockReason</c>'s declared member set. The rule's exclusion is
+/// <i>everything the production chain PRODUCES</i>; a declared type surface is not that, and no
+/// parsing change can move it. No parsing OUTCOME is asserted anywhere.</para>
 ///
 /// <para>The artifact is written BEFORE any assert runs, so even a breach leaves a complete,
 /// readable report on disk.</para>

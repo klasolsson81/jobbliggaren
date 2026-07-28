@@ -9,9 +9,18 @@ using Shouldly;
 namespace Jobbliggaren.QA.Corpus;
 
 /// <summary>
-/// Guards on the EMITTER, not on the product. These are legitimate hard asserts under the corpus's
-/// assert rule: their subject is the corpus's own report builder, which nothing in
-/// <c>src/</c> can move.
+/// Guards on the corpus's OWN machinery, not on the product: the report emitter, and — since
+/// 2026-07-28 — the harness derivations behind it (<see cref="Harness.GateLadder"/>,
+/// <see cref="Harness.LayoutChainRunner"/>'s period count). Legitimate hard asserts under the
+/// corpus's assert rule, category (b)/(c): nothing in <c>src/</c> can move any of them.
+///
+/// <para><b>ONE assert in this file deliberately falls outside those categories</b> —
+/// <see cref="ReachableGateStates_CoversEveryDeclaredBlockReason"/>, whose subject is the
+/// production enum <c>AutoPromoteBlockReason</c>. It is argued at its own docblock rather than
+/// waved through here, which is the convention <c>LayoutCorpusReportTests</c> already uses for
+/// its four production-touching asserts. Stated at the class level because the earlier version
+/// of this paragraph claimed nothing here could be moved by <c>src/</c>, and that stopped being
+/// true the moment the assert landed.</para>
 /// </summary>
 public sealed class LayoutCorpusEmitterTests
 {
@@ -283,9 +292,17 @@ public sealed class LayoutCorpusEmitterTests
     /// <see cref="GateState.NoVerdict"/> stayed green. That is the repo's own recorded lesson —
     /// pin the CALL SITE, not only the rule — reproduced inside the PR that cites it.</para>
     ///
-    /// <para>The path is genuinely reachable, not hypothetical: <c>CvChainProbe</c>'s outcome switch
-    /// returns <c>(block: null, promoted: false, faulted: false)</c> for an outcome that is neither
-    /// <c>LeftPending</c> nor <c>Promoted</c>.</para></summary>
+    /// <para><b>The path is a DEFENSIVE arm behind a closed union, and calling it "reachable" would
+    /// be true of its evidence and false of its subject.</b> <c>CvChainProbe</c>'s outcome switch
+    /// does carry <c>_ =&gt; (block: null, promoted: false, faulted: false)</c> — but
+    /// <c>AutoPromoteOutcome</c> is a CLOSED discriminated union (private constructor, exactly
+    /// <c>Promoted</c> and <c>LeftPending</c>, "nothing outside this file can add a case"), so that
+    /// arm cannot be entered today, for the same reason the ladder's own <c>_</c> cannot.</para>
+    ///
+    /// <para>Pinning it anyway is the point: it fixes what the catch-all ANSWERS before someone
+    /// opens the union, and PR C is this corpus's measured proof that such closure expires. The
+    /// mutation is the evidence — flipping the arm to <see cref="GateState.NoVerdict"/> was green
+    /// until this test existed.</para></summary>
     [Fact]
     public void Ladder_ForAnUnmappedOutcome_IsUnresolvedAndNeverAFault()
     {

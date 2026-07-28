@@ -49,8 +49,12 @@
   tracked file from PR C's merge (0aecfbca) until this PR - the baseline was last
   regenerated at a72c77e7, PR C then changed what the product returns, and nothing
   regenerated it. That value lives on an interpolated row a prose-only sweep skips by
-  construction, so the guard would have stood green straight through the defect that opened
-  this PR.
+  construction, so the guard would have stood green straight through row 17's divergence -
+  the tracked signature of the very product change this PR was opened to handle. Note the
+  precision: NEITHER variant would have caught the ladder gap itself, which is an EMITTER
+  defect - after a regeneration both sides carry the same wrong cells. A drift guard bounds
+  DRIFT, never emitter correctness, and reading it as "this PR would not have been needed"
+  is the wrong ground to revisit the build-or-not decision on.
 
   And "likelier" needs no count to stand: measurements go stale whenever the product moves
   and nobody regenerates - every product PR that touches the chain - while a prose divergence

@@ -707,6 +707,56 @@ describe("ForetagSokSearchbar — degraded reference", () => {
     );
   });
 
+  it("keeps the org.nr answer OUT of the form's width cap, and the clear control on the rail", () => {
+    // #1090, both halves, pinned at the only level jsdom can see: structure and classes. The widths
+    // themselves (672 vs 1136) and the text's x-position are rendered measurements in the PR body —
+    // jsdom has no layout. What it CAN pin is that the org.nr <section> is not inside the capped
+    // wrapper, and that the clear control carries the modifier that cancels the button's padding.
+    const { container } = render(
+      <ForetagSokSearchbar
+        reference={REFERENCE}
+        referenceOk
+        namn="Volvo"
+        sni={[]}
+        kommun={[]}
+      />,
+    );
+    const capped = container.querySelector(".max-w-2xl");
+    expect(capped).not.toBeNull();
+    const answer = container.querySelector("section[aria-live='polite']");
+    expect(answer).not.toBeNull();
+    expect(capped!.contains(answer!)).toBe(false);
+
+    expect(capped!.contains(container.querySelector("form"))).toBe(true);
+
+    // The class alone guarantees nothing: `.jp-btn--flush` is CSS-scoped to `:first-child`, so a
+    // preceding sibling, or an unconditionally rendered chip list, would silently kill the offset
+    // with every gate green (guard:css reads the stylesheet, jsdom has no cascade, eslint sees a
+    // valid string). A WRAPPER would not kill the OFFSET — the button stays its parent's first child
+    // — but it would un-scope the modifier from the ROW, which is the harm `:first-child` exists to
+    // prevent; that half is caught by the inert-arm test below, not by this assertion. The POSITION
+    // is structural, which is exactly what jsdom can see, so it is asserted rather than excused.
+    const clear = screen.getByRole("button", { name: "Rensa sökningen" });
+    expect(clear).toHaveClass("jp-btn--flush");
+    expect(clear.parentElement!.firstElementChild).toBe(clear);
+  });
+
+  it("leaves the flush offset inert when chips precede the clear control", () => {
+    // The other arm, and the reason the modifier is CSS-scoped rather than always-on: here the
+    // negative start margin would eat 18px of a 12px gap and lap the last chip.
+    render(
+      <ForetagSokSearchbar
+        reference={REFERENCE}
+        referenceOk
+        namn=""
+        sni={["62010"]}
+        kommun={[]}
+      />,
+    );
+    const clear = screen.getByRole("button", { name: "Rensa sökningen" });
+    expect(clear.parentElement!.firstElementChild).not.toBe(clear);
+  });
+
   it("never renders an empty chip list", () => {
     render(
       <ForetagSokSearchbar

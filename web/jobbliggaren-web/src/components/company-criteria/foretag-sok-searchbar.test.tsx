@@ -707,6 +707,31 @@ describe("ForetagSokSearchbar — degraded reference", () => {
     );
   });
 
+  it("keeps the org.nr answer OUT of the form's width cap, and the clear control on the rail", () => {
+    // #1090, both halves, pinned at the only level jsdom can see: structure and classes. The widths
+    // themselves (672 vs 1136) and the text's x-position are rendered measurements in the PR body —
+    // jsdom has no layout. What it CAN pin is that the org.nr <section> is not inside the capped
+    // wrapper, and that the clear control carries the modifier that cancels the button's padding.
+    const { container } = render(
+      <ForetagSokSearchbar
+        reference={REFERENCE}
+        referenceOk
+        namn="Volvo"
+        sni={[]}
+        kommun={[]}
+      />,
+    );
+    const capped = container.querySelector(".max-w-2xl");
+    expect(capped).not.toBeNull();
+    const answer = container.querySelector("section[aria-live='polite']");
+    expect(answer).not.toBeNull();
+    expect(capped!.contains(answer!)).toBe(false);
+
+    expect(screen.getByRole("button", { name: "Rensa sökningen" })).toHaveClass(
+      "jp-btn--flush",
+    );
+  });
+
   it("never renders an empty chip list", () => {
     render(
       <ForetagSokSearchbar

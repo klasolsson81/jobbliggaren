@@ -120,10 +120,10 @@
         "ParseNotConfident": "Filen behöver innehålla text som går att markera. Är den en bild, ett skannat eller lösenordsskyddat dokument sparar du om den som PDF eller Word och laddar upp igen. Du kan också fylla i uppgifterna för hand.",
         "IncompleteContent": "En eller flera poster i filen är ofullständiga. Kontrollera att varje anställning har arbetsgivare och titel, och varje utbildning har lärosäte och examen. Komplettera dem och ladda upp filen igen.",
         "PersonnummerPresent": "Filen innehåller ett personnummer. Ta bort det ur filen och ladda upp den igen.",
-        "PersonnummerInAccountName": "Ditt visningsnamn innehåller ett personnummer. Filen är däremot ren. Ändra namnet under Inställningar och ladda upp filen igen.",
+        "PersonnummerInAccountName": "Namnet på ditt konto innehåller ett personnummer. Filen är däremot ren. Ändra det under Inställningar och ladda upp filen igen.",
         "settingsCta": "Gå till Inställningar",
-        "clearedKicker": "Inget hittat i filen",
-        "clearedTitle": "Inget i filen hindrar den längre",
+        "clearedKicker": "Inga hinder i filen",
+        "clearedTitle": "Inget i filen hindrar den",
         "clearedBody": "Vi hittar inget i filen som stoppar den. Ladda upp den igen så prövas den på nytt. Ett namn du skriver själv kontrolleras först vid uppladdningen."
       }
     },

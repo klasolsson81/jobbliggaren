@@ -117,7 +117,7 @@ export default async function CvReviewPage({ params, searchParams }: Props) {
           användaren kom hit med — hubbens åtgärdskort kunde bara säga ATT något
           behövde åtgärdas, aldrig VAD. Orsaken härleds server-side av samma grind som
           auto-promote kör; den lagras aldrig. */}
-      <CvBlockReason reason={parsed.blockReason} />
+      <CvBlockReason reason={parsed.blockReason} className="mb-0" />
 
       <div className="jp-cv-preview-actions">
         <CvPreview previewUrl={`/api/cv/parsed/${parsedId}/preview`} initialProfile={profile} />

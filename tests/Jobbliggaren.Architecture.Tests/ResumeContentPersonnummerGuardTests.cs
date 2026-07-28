@@ -63,7 +63,7 @@ namespace Jobbliggaren.Architecture.Tests;
 /// the interface, the sink lives only in the implementation) would escape both probes. Contrived
 /// today; revisit when the first id-based apply handler lands (epic #649 PR-7/#656).
 /// The helper-DELEGATED walker pin this note used to ask for EXISTS as of #1060 PR C — it lives
-/// in <c>SinkProbeAlone_DiscoversBothKnownResumeContentSinkCallingHandlers</c>, which is already
+/// in <c>SinkProbeAlone_DiscoversTheKnownResumeContentSinkCallingHandlers</c>, which is already
 /// this file's home for probe-(b) isolation, rather than in a test of its own. It arrived from a
 /// different direction than predicted (an extracted policy evaluator, not an id-based apply
 /// handler), which is why the note is amended rather than deleted: residual (3) itself, the
@@ -163,10 +163,10 @@ public class ResumeContentPersonnummerGuardTests
     }
 
     [Fact]
-    public void SinkProbeAlone_DiscoversBothKnownResumeContentSinkCallingHandlers()
+    public void SinkProbeAlone_DiscoversTheKnownResumeContentSinkCallingHandlers()
     {
         // Staleness anchor for probe (b) ALONE, independent of the DTO probe: if the sink probe
-        // ever stops seeing the two known Resume sink calls (Resume.CreateFromParsed in promote,
+        // ever stops seeing the known Resume sink calls (Resume.CreateFromParsed in promote,
         // resume.UpdateMasterContent in the master edit), the widened key has silently rotted
         // and a future TargetId-based apply handler would escape discovery.
         using var module = ModuleDefinition.ReadModule(typeof(ResumeContentDto).Assembly.Location);
@@ -188,7 +188,14 @@ public class ResumeContentPersonnummerGuardTests
         //
         // It belongs here rather than in a test of its own (CTO-bind D3.2): the subject anchor
         // in the main tripwire already makes a lost sink loud, so a separate test would be
-        // asserting the same regression twice. What is NOT redundant is isolating probe (b) —
+        // asserting the same regression twice. (Neither the name nor this comment carries a
+        // count: the body gained a third assertion in #1060 PR C while both still said "two",
+        // which is the very defect this file's docblock names at :41.)
+        //
+        // What is NOT redundant is isolating probe (b), and the reason is CONDITIONAL, so it
+        // is worth writing: today `carriesDto` is constant-false for this command, so the
+        // subject anchor alone would already catch a sink regression. Give the command a
+        // ResumeContentDto and it would not — and this assertion is what survives that. —
         // and this is the file's existing home for that.
         AnyResumeContentSinkCall(
             ReachableMethodsOf(module, typeof(AutoPromoteParsedResumeCommandHandler)))

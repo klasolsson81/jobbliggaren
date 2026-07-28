@@ -6,7 +6,7 @@
 // returnerade, PII-fria utfallet (ids + count/kinds-fyndet, aldrig personnummer-värdet).
 "use client";
 
-import { useId, useState, useTransition } from "react";
+import { useEffect, useId, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { FileText, Upload } from "lucide-react";
@@ -179,6 +179,15 @@ export function CvUploadForm({
     count: number;
   } | null>(null);
   const [consentSaving, setConsentSaving] = useState(false);
+
+  // The name input, so a label refusal can put focus where the fix is. `showSpinner` unmounts
+  // the form while the upload runs, so the error arrives on a freshly mounted field with focus
+  // on <body>; an effect keyed on the error is what survives that remount.
+  const nameInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (nameError !== null) nameInputRef.current?.focus();
+  }, [nameError]);
 
   const inputId = useId();
   const nameId = useId();
@@ -427,6 +436,7 @@ export function CvUploadForm({
                 </label>
                 <input
                   id={nameId}
+                  ref={nameInputRef}
                   // INTE name="name": attributet är dött här (FormData byggs
                   // programmatiskt, aldrig ur formuläret) men är en primär signal till
                   // webbläsarens autofyll-klassificering, som kan köra över

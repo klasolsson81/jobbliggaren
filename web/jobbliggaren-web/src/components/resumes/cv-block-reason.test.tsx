@@ -29,7 +29,7 @@ describe("CvBlockReason", () => {
     // to be next to the instruction (ADR 0047), not three screens away.
     render(<CvBlockReason reason="PersonnummerInAccountName" />);
 
-    expect(screen.getByText(/visningsnamn innehåller ett personnummer/i)).toBeInTheDocument();
+    expect(screen.getByText(/Namnet på ditt konto innehåller ett personnummer/i)).toBeInTheDocument();
     expect(screen.getByText(/Filen är däremot ren/i)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Inställningar/ })).toHaveAttribute(
       "href",
@@ -84,7 +84,7 @@ describe("CvBlockReason", () => {
     render(<CvBlockReason reason={null} />);
 
     expect(
-      screen.getByRole("heading", { name: "Inget i filen hindrar den längre" }),
+      screen.getByRole("heading", { name: "Inget i filen hindrar den" }),
     ).toBeInTheDocument();
     expect(screen.getByText(/Vi hittar inget i filen som stoppar den/i)).toBeInTheDocument();
     // The unassessed channel is disclosed, not silently omitted.
@@ -93,6 +93,11 @@ describe("CvBlockReason", () => {
     ).toBeInTheDocument();
     // And the retired certifications must not come back.
     expect(screen.queryByText(/Klar att sparas/)).not.toBeInTheDocument();
+    // "Inget hittat i filen" was my first kicker and it was also wrong: it is
+    // parse.overallFailed's own failure phrasing ("Vi kunde inte läsa någon användbar text
+    // ur filen"), rendered on the same page, inside a GREEN pill (design-reviewer round 2).
+    expect(screen.queryByText(/Inget hittat i filen/)).not.toBeInTheDocument();
+    expect(screen.getByText("Inga hinder i filen")).toBeInTheDocument();
     expect(screen.queryByText(/uppfyller kraven/)).not.toBeInTheDocument();
     expect(screen.queryByText(/så sparas den direkt/)).not.toBeInTheDocument();
   });
@@ -129,7 +134,7 @@ describe("CvBlockReason", () => {
 
     render(<CvBlockReason reason={null} />);
     expect(
-      screen.getByRole("region", { name: "Inget i filen hindrar den längre" }),
+      screen.getByRole("region", { name: "Inget i filen hindrar den" }),
     ).toBeInTheDocument();
   });
 

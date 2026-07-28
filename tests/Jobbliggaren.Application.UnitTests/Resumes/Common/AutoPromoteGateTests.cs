@@ -166,6 +166,36 @@ public class AutoPromoteGateTests
     }
 
     [Fact]
+    public void Evaluate_PersonnummerInASCANNEDParseField_ReportsPersonnummerPresent_NotTheAccountNameToken()
+    {
+        // The counterfactual that makes PersonnummerInAccountName's claim legible
+        // (security-auditor round 2, Minor 2). That token asserts WHERE the number is, but
+        // ResumeContentPersonnummerGuard returns only pass/fail — the location is reached by
+        // ELIMINATION: every other text in the composed DTO is a projection of the parse, and
+        // the import scan already covered that raw superset, so a DQ6 failure the parse scan
+        // did not see must be the display name.
+        //
+        // The elimination holds only while the parse scan and the composed scan agree about
+        // parse-derived text. If they ever diverged, the FE would tell a user "Filen är däremot
+        // ren" about a file that is not, and send her to Inställningar — the loop this PR
+        // exists to close, inverted. This pins the direction that matters: a personnummer
+        // sitting in a SCANNED parse field is the FILE's, and the Tier-1 flag claims it first.
+        var parsed = BuildParsed(
+            content: CleanContent(
+                experience:
+                [
+                    new ParsedExperience(
+                        "Backend-utvecklare", $"Beta AB {ValidPersonnummer}", "2019–2022", "raw"),
+                ]),
+            pnr: Flagged());
+
+        var verdict = Evaluate(parsed);
+
+        verdict.BlockReason.ShouldBe(AutoPromoteBlockReason.PersonnummerPresent);
+        verdict.BlockReason.ShouldNotBe(AutoPromoteBlockReason.PersonnummerInAccountName);
+    }
+
+    [Fact]
     public void Evaluate_ExperienceEntryWithoutOrganization_BlocksOnIncompleteContent()
     {
         // The canonical Resume rejects an entry without an organization; the mapper never drops
@@ -210,7 +240,9 @@ public class AutoPromoteGateTests
     }
 
     // ===============================================================
-    // The surviving reason set is exactly three (#1060 PR B)
+    // The surviving reason set (#1060: PR B retired one, PR C split one out).
+    // No number here on purpose — the assertion below reads the set dynamically, so a count
+    // written beside it can only ever rot. Three of round 2's four Minors were exactly that.
     // ===============================================================
 
     [Fact]

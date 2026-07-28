@@ -185,7 +185,8 @@ public class GetParsedResumeEndpointTests(ApiFactory factory)
         var reason = JsonDocument.Parse(raw).RootElement.GetProperty("blockReason").GetString();
         reason.ShouldNotBeNull();
         reason.ShouldBe("PersonnummerPresent");
-        // A closed token: exactly one of the three members, nothing composed around it.
+        // A closed token: one of the enum's members, nothing composed around it. The
+        // assertion reads the set dynamically, so it needs no count and cannot go stale.
         Enum.GetNames<AutoPromoteBlockReason>().ShouldContain(reason);
         reason.ShouldNotContain(ValidPersonnummer);
         // And the digits themselves never reach this response at all — the two-layer guard on
@@ -261,8 +262,9 @@ public class GetParsedResumeEndpointTests(ApiFactory factory)
         // no other fixture's verdict changes when the person name changes.
         //
         // Every part of the premise is produced by src/: JobSeeker.Register validates only
-        // non-empty and length, so a display name carrying a personnummer goes in through the
-        // real /auth/register endpoint, and the DOCX below is a clean CV the parser reads fine.
+        // non-empty and length — which is itself the defect tracked as #1117 (P1), and this
+        // fixture is the evidence for it — so a display name carrying a personnummer goes in
+        // through the real /auth/register endpoint, and the DOCX below is a clean CV the parser reads fine.
         // The parse itself is therefore NOT flagged — the composed content is, at DQ6, which is
         // exactly the population the import scan cannot cover (the display name is the one text
         // the composition adds over the raw superset the import already scanned).

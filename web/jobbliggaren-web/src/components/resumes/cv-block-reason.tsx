@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { StatusPill } from "@/components/ui/status-pill";
+import { cn } from "@/lib/utils";
 import type { AutoPromoteBlockReason } from "@/lib/dto/parsed-resume";
 
 /**
@@ -30,8 +31,13 @@ import type { AutoPromoteBlockReason } from "@/lib/dto/parsed-resume";
  */
 export function CvBlockReason({
   reason,
+  className,
 }: {
   reason: AutoPromoteBlockReason | null;
+  /** Layout escape hatch for the host page. `.jp-cvaction` carries a 20px bottom margin that
+   * is load-bearing on the hub, whose container has no gap; the review page is a gap-6 column,
+   * so it passes `mb-0` rather than the base margin moving. */
+  className?: string;
 }) {
   const t = useTranslations("pages.cv");
 
@@ -41,7 +47,11 @@ export function CvBlockReason({
   return (
     <section
       aria-labelledby={headingId}
-      className={cleared ? "jp-cvaction jp-cvaction--ok" : "jp-cvaction"}
+      className={cn(
+        "jp-cvaction",
+        cleared && "jp-cvaction--ok",
+        className,
+      )}
     >
       <StatusPill tone={cleared ? "success" : "warning"}>
         {cleared ? t("review.blockReason.clearedKicker") : t("pending.kicker")}

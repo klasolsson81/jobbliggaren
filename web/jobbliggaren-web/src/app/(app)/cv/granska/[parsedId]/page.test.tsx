@@ -127,7 +127,7 @@ describe("/cv/granska/[parsedId] — the block reason reaches the page", () => {
 
     render(await invoke());
 
-    expect(screen.getByText(/visningsnamn innehåller ett personnummer/i)).toBeInTheDocument();
+    expect(screen.getByText(/Namnet på ditt konto innehåller ett personnummer/i)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Inställningar/ })).toBeInTheDocument();
   });
 
@@ -137,7 +137,7 @@ describe("/cv/granska/[parsedId] — the block reason reaches the page", () => {
     render(await invoke());
 
     expect(
-      screen.getByRole("heading", { name: "Inget i filen hindrar den längre" }),
+      screen.getByRole("heading", { name: "Inget i filen hindrar den" }),
     ).toBeInTheDocument();
     expect(screen.queryByText(/uppfyller kraven/)).not.toBeInTheDocument();
   });

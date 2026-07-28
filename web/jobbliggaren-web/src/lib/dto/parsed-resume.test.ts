@@ -443,7 +443,7 @@ describe("parsedResumeDetailDtoSchema.blockReason (#1060)", () => {
     updatedAt: "2026-07-28T09:00:00Z",
   };
 
-  it("bär var och en av de tre grindarna verbatim", () => {
+  it("bär var och en av grindarna verbatim", () => {
     for (const reason of autoPromoteBlockReasonSchema.options) {
       const result = parsedResumeDetailDtoSchema.safeParse({ ...base, blockReason: reason });
 

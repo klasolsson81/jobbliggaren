@@ -316,16 +316,25 @@ public sealed class LayoutCorpusEmitterTests
     }
 
     /// <summary>The two branches <see cref="Ladder_ForEveryReachableBlock_NamesOneRungAndIsWellFormed"/>
-    /// cannot cover, because neither names a blocked rung. Both were unpinned.</summary>
+    /// cannot cover, because neither names a blocked rung. Both were unpinned.
+    ///
+    /// <para>Asserted as an exact SEQUENCE, not with <c>ShouldAllBe</c>: that predicate is vacuously
+    /// true on an empty list and <c>IsWellFormed([])</c> returns true, so a <c>From</c> that returned
+    /// nothing would pass both halves while the artifact rendered five silent empty cells. The shape
+    /// is not hypothetical — <c>LayoutChainRunner</c> already constructs <c>Gates: []</c> for a
+    /// crashed case.</para></summary>
     [Fact]
     public void Ladder_ForAFaultAndForAPromote_AreWellFormedAndDistinct()
     {
+        var rungs = GateLadder.From(null, true, false, false, false).Count;
+        rungs.ShouldBe(5);
+
         var faulted = GateLadder.From(null, promoted: false, promoteFaulted: true, false, false);
-        faulted.ShouldAllBe(c => c.State == GateState.NoVerdict);
+        faulted.Select(c => c.State).ShouldBe(Enumerable.Repeat(GateState.NoVerdict, rungs));
         GateLadder.IsWellFormed(faulted).ShouldBeTrue();
 
         var promoted = GateLadder.From(null, promoted: true, promoteFaulted: false, false, false);
-        promoted.ShouldAllBe(c => c.State == GateState.Passed);
+        promoted.Select(c => c.State).ShouldBe(Enumerable.Repeat(GateState.Passed, rungs));
         GateLadder.IsWellFormed(promoted).ShouldBeTrue();
     }
 
@@ -348,20 +357,96 @@ public sealed class LayoutCorpusEmitterTests
             "two GateStates render as the same word, so the artifact cannot say which one it means.");
     }
 
-    /// <summary>§5's delimiter is DERIVED from the rung count, and the comment at its site records
-    /// that a hardcoded one was already once a cell short — under GFM that stops the block being a
-    /// table at all, so §5 rendered as raw pipes. Derivation alone is not a guard; this is.</summary>
+    /// <summary>Under GFM a delimiter row whose cell count differs from its header's means the block
+    /// is not a table at all — the whole section renders as raw pipes. This emitter has shipped that
+    /// once already (§5's hardcoded delimiter, one cell short).
+    ///
+    /// <para>Written over the DOCUMENT, not over one section, and that is the point: §5's delimiter
+    /// is DERIVED and therefore the least likely of the ten to drift, while the other nine pair two
+    /// hand-written literals — the exact shape that shipped the bug. An earlier revision of this test
+    /// guarded only §5, which left §2, "the headline", open to the same failure.</para></summary>
     [Fact]
-    public void Report_GateLadderDelimiterMatchesItsHeaderCellCount()
+    public void Report_EveryTableDelimiterMatchesItsHeaderCellCount()
     {
         var lines = LayoutCorpusReport.Build(Data()).Split('\n');
-        var header = Array.FindIndex(lines, l => l.StartsWith("| # | Case | G1 ", StringComparison.Ordinal));
-        header.ShouldBeGreaterThan(-1, "§5's header row was not found — the emitter moved.");
+        var tablesChecked = 0;
 
-        Cells(lines[header + 1]).ShouldBe(Cells(lines[header]),
-            "GFM needs the delimiter row to have exactly as many cells as the header.");
+        for (var i = 1; i < lines.Length; i++)
+        {
+            if (!lines[i].StartsWith("|---", StringComparison.Ordinal))
+                continue;
 
-        static int Cells(string row) => row.Split('|').Length;
+            tablesChecked++;
+            Cells(lines[i]).ShouldBe(Cells(lines[i - 1]),
+                $"line {i + 1}: the delimiter does not match its header, so GFM renders this block "
+                + $"as raw pipes.\n  header: {lines[i - 1]}\n  delim:  {lines[i]}");
+        }
+
+        // Non-vacuity: an emitter that stopped printing tables would otherwise pass in silence.
+        // Eight, not ten — §7's table is inside a conditional and §8's P5 table needs both the
+        // Swedish and English single-column cases, neither of which this fixture carries. The
+        // floor makes that shortfall explicit instead of letting it read as full coverage.
+        tablesChecked.ShouldBeGreaterThanOrEqualTo(8);
+    }
+
+    /// <summary>§2 is the headline table and its cells are POSITIONAL. Every number below is one the
+    /// fixture supplied, so nothing about the product is asserted — the subject is whether the
+    /// emitter puts each value under its own heading.
+    ///
+    /// <para>All seven counts differ deliberately. The default observation carries repeated 1s, so a
+    /// transposition of two adjacent columns is invisible to any test built on it — and a column
+    /// wearing another column's name is precisely the defect this PR renamed
+    /// <c>WellFormedPromotedExperience</c> to remove. The rename closed it by naming; this closes it
+    /// by position.</para></summary>
+    [Fact]
+    public void Report_FidelityVerdictRow_PutsEachCountUnderItsOwnHeading()
+    {
+        var markdown = LayoutCorpusReport.Build(Data() with
+        {
+            Cases =
+            [
+                Observation("case-alpha") with
+                {
+                    GroundTruthExperience = 5, ParsedExperience = 4, PromotedExperience = 3,
+                    PromotedExperienceWithRawPeriod = 2,
+                    GroundTruthEducation = 9, ParsedEducation = 8, PromotedEducation = 7,
+                },
+            ],
+        });
+
+        var (header, row) = TableRow(markdown, "| # | Case | Verdict | ");
+
+        Cell(header, row, "GT emp").ShouldBe("5");
+        Cell(header, row, "Parsed exp").ShouldBe("4");
+        Cell(header, row, "Promoted exp").ShouldBe("3");
+        Cell(header, row, "With period").ShouldBe("2");
+        Cell(header, row, "GT edu").ShouldBe("9");
+        Cell(header, row, "Parsed edu").ShouldBe("8");
+        Cell(header, row, "Promoted edu").ShouldBe("7");
+    }
+
+    private static int Cells(string row) => row.Split('|').Length;
+
+    /// <summary>A table's header and its first data row, located by the header's opening text. The
+    /// row is <c>header + 2</c> because the delimiter sits between them.</summary>
+    private static (string Header, string Row) TableRow(string markdown, string headerPrefix)
+    {
+        var lines = markdown.Split('\n');
+        var i = Array.FindIndex(lines, l => l.StartsWith(headerPrefix, StringComparison.Ordinal));
+        i.ShouldBeGreaterThan(-1, $"no table header starting '{headerPrefix}' — the emitter moved.");
+
+        return (lines[i], lines[i + 2]);
+    }
+
+    /// <summary>Reads a cell BY ITS HEADING rather than by index, which is what makes the assertion
+    /// mean "under its own heading" instead of "at position six".</summary>
+    private static string Cell(string header, string row, string heading)
+    {
+        var columns = header.Split('|').Select(c => c.Trim()).ToList();
+        var index = columns.IndexOf(heading);
+        index.ShouldBeGreaterThan(-1, $"no column headed '{heading}'. Headers: {header}");
+
+        return row.Split('|')[index].Trim();
     }
 
     /// <summary>The rung ORDER is the gate order, and §5's cells are positional — a swap would
@@ -377,16 +462,25 @@ public sealed class LayoutCorpusEmitterTests
     /// <summary>The corpus's own period-presence predicate (assert-rule category (b)). Inline in
     /// <c>RunAsync</c> it was unreachable by any test, because the suite asserts no promoted count
     /// and the artifact is the only surface it reaches — so a mutation of it survived everything.
-    /// Asymmetric fixture on purpose: an entry WITH a period and one WITHOUT, so a predicate that
-    /// counts everything and one that counts nothing both fail.</summary>
+    /// Asymmetric on BOTH axes, and the second one is why the first fixture was not enough: it
+    /// varied only <c>RawPeriod</c>, the axis that was never wrong, while holding Company and Role
+    /// non-blank on every entry — so re-adding the over-conjunction that actually shipped still
+    /// produced the expected count and survived. Over-conjunction is the regression; the blank
+    /// entry is what catches it.</summary>
     [Fact]
     public void CountWithRawPeriod_CountsOnlyEntriesCarryingAPeriod()
     {
         LayoutChainRunner.CountWithRawPeriod(
         [
+            // Blank Company and Role ON PURPOSE. `ValidateContent` refuses this entry, so it is not
+            // a promotable one — and it does not need to be. The subject is the corpus's own
+            // counting predicate (assert-rule category (b)), never a promoted CV, and nothing here
+            // asserts anything about promotion. Without this entry, re-adding the
+            // `!IsNullOrWhiteSpace(Role) && !IsNullOrWhiteSpace(Company)` conjuncts is invisible.
+            new Experience("", "", null, null, null, "2019 - 2021"),
             new Experience("Acme", "Utvecklare", null, null, null, "2021 - 2026"),
             new Experience("Klarna", "Utvecklare", null, null, null, null),
-        ]).ShouldBe(1);
+        ]).ShouldBe(2);
     }
 
     private static string RenderedCell(GateState state)

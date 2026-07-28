@@ -309,7 +309,11 @@ describe("ForetagSokSearchbar — bransch popover (#999)", () => {
       }),
     );
 
-    expect(within(dialog).getByText("1 vald bransch")).toBeInTheDocument();
+    const counter = within(dialog).getByText("1 vald bransch");
+    expect(counter).toBeInTheDocument();
+    // Announced, because the number changes without focus moving: one click on a section takes it
+    // from nothing to a whole subtree, and the row's own aria-checked does not carry the total.
+    expect(counter).toHaveAttribute("aria-live", "polite");
     await user.keyboard("{Escape}");
     expect(
       screen.getByRole("button", {

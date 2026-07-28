@@ -1066,6 +1066,16 @@ public static class DependencyInjection
         services.AddScoped<IAppDbContext>(sp => sp.GetRequiredService<AppDbContext>());
         services.AddSingleton<IDateTimeProvider, DateTimeProvider>();
 
+        // Klas-direktiv 2026-07-28: a day boundary a user reads is the SWEDISH
+        // one, not UTC. Registered beside the clock and in this module because
+        // both hosts need it — Worker for RefreshLandingStatsJob's "nya idag",
+        // Api for the month-windowed application-statistics surfaces. Stateless
+        // singleton; the zone id is resolved once in a static field, and the
+        // gate against a runtime that cannot resolve it is SwedishCalendarTests,
+        // not this line (type registration is lazy, so a throw here would
+        // surface on first use rather than at boot).
+        services.AddSingleton<ISwedishCalendar, Time.SwedishCalendar>();
+
         // Provider-specifik DbUpdateException-analys (ADR 0032 §5). Singleton —
         // stateless. Konsumeras av UpsertExternalJobAdCommandHandler för
         // Postgres 23505-detection utan att Application får Npgsql-beroende.

@@ -89,7 +89,13 @@ export function BranschPopover({
       headerRight={
         pickedCount > 0 ? (
           <span className="flex items-center gap-3">
-            <span className="text-caption tabular-nums text-text-secondary">
+            {/* Polite: the count changes without focus moving — one click on a section takes it from
+                nothing to a whole subtree, and the row's own `aria-checked` does not carry the total.
+                The picker's inline counter, which this replaces on this surface, was already live. */}
+            <span
+              className="text-caption tabular-nums text-text-secondary"
+              aria-live="polite"
+            >
               {tc("sniSelectedCount", { count: pickedCount })}
             </span>
             <button type="button" className="jp-clearlink" onClick={onClear}>

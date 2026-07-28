@@ -140,7 +140,11 @@ export function CriterionPicker({
         role="status"
         aria-live="polite"
       >
-        {isFiltering
+        {/* Gated on there being a catalogue at all: with a degraded reference the box below says
+            "Registret kunde inte laddas", and announcing "0 träffar" over it would claim a search ran
+            against a catalogue that is not there. Zero matches WITH a real tree is a different thing,
+            and is announced by the empty state instead — which also says how to get back. */}
+        {isFiltering && nodes.length > 0 && filteredOptions.length > 0
           ? tooMany
             ? t("filterTooMany", { count: filteredOptions.length })
             : t("filterMatches", { count: filteredOptions.length })
@@ -148,7 +152,11 @@ export function CriterionPicker({
       </p>
 
       {selectedCountLabel !== undefined && hasSelection && (
-        <p className="text-body-sm font-medium text-text-primary">{selectedCountLabel}</p>
+        // Polite: the number changes without focus moving — one click on a section takes it from
+        // nothing to a whole subtree, and the row's own `aria-checked` does not carry the total.
+        <p className="text-body-sm font-medium text-text-primary" aria-live="polite">
+          {selectedCountLabel}
+        </p>
       )}
 
       {/* The list cap is viewport-relative so the panel it sits in stays a SINGLE scroller. Measured at
@@ -160,7 +168,12 @@ export function CriterionPicker({
         {nodes.length === 0 ? (
           <p className="px-4 py-3 text-body-sm text-text-primary">{optionsUnavailable}</p>
         ) : isFiltering && filteredOptions.length === 0 ? (
-          <p className="px-4 py-3 text-body-sm text-text-primary">{t("dialog.noMatch")}</p>
+          // The empty state carries the announcement itself, so a zero-result query produces ONE
+          // message rather than "0 träffar" above a sentence saying the same thing — and the half
+          // that tells you how to get back to the whole list reaches AT too, not just the eye.
+          <p role="status" className="px-4 py-3 text-body-sm text-text-primary">
+            {t("dialog.noMatch")}
+          </p>
         ) : showFilterList ? (
           // No nested `role="group"` here: the <section> above already carries `groupAria`, and two
           // nested groups with the same label make AT announce the axis name three times over.
@@ -174,6 +187,15 @@ export function CriterionPicker({
                 key={option.key}
                 role="checkbox"
                 aria-checked={state === "indeterminate" ? "mixed" : state === "checked"}
+                // Name from author, so the row announces the same string in every environment. Letting
+                // the name be computed from the two child spans depends on whose separator rule you
+                // get: MEASURED in Chromium's own AX tree, the space is inserted by the browser
+                // whether or not the JSX contains one, while jsdom concatenates without it and reports
+                // "68Fastighetsverksamhet". An explicit `{" "}` would therefore be a text node that
+                // exists only to satisfy the test environment — and a whitespace-only node directly in
+                // a flex container is not rendered anyway (CSS Flexbox L1 §4). The visible text is
+                // exactly this string, so WCAG 2.5.3 holds.
+                aria-label={`${option.code} ${option.name}`}
                 tabIndex={0}
                 onClick={() => onToggle(option.leafCodes)}
                 onKeyDown={(e) => {
@@ -195,10 +217,6 @@ export function CriterionPicker({
                 <span className="jp-mono shrink-0 text-caption tabular-nums text-text-secondary">
                   {option.code}
                 </span>
-                {/* An explicit space, not the flex `gap`: accessible-name computation concatenates
-                    adjacent text nodes without one, so the row would announce as "62Dataprogrammering"
-                    — the code fused onto the name it is there to distinguish. */}
-                {" "}
                 <span>{option.name}</span>
               </div>
             );

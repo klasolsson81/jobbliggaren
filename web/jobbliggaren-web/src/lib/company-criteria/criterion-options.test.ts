@@ -115,8 +115,39 @@ describe("toSentenceCase — DESIGN.md §4 forbids all-caps sans, and SCB ships 
     expect(toSentenceCase(input)).toBe(expected);
   });
 
-  it("covers every section in the asset", () => {
+  it("enumerates as many cases as the asset has sections", () => {
+    // Says what it measures: the LITERAL above, not the asset. Nothing in the web suite reads
+    // `sni-2025.v1.json`. The pin on the asset's own shape lives in the backend —
+    // `tests/Jobbliggaren.Application.UnitTests/CompanyWatches/CriterionReferenceLoaderTests.cs`
+    // asserts `Sections.Count == 22` — and this seam names it rather than implying its own coverage.
     expect(SECTION_CASES).toHaveLength(22);
+  });
+
+  it("is actually CALLED by buildSniNodes, not merely defined", () => {
+    // The 22 cases above prove the RULE. Without this, deleting the `toSentenceCase(...)` wrapper at
+    // the call site leaves the entire suite green — no other fixture in the repo carries an ALL-CAPS
+    // section name, so nothing would notice that the rendered rows went back to shouting.
+    const shouting: CriterionReference = {
+      ...REFERENCE,
+      sni: [
+        {
+          code: "C",
+          name: "TILLVERKNING",
+          divisions: [
+            {
+              code: "10",
+              name: "Livsmedelsframställning",
+              leaves: [{ code: "10110", name: "Beredning av kött" }],
+            },
+          ],
+        },
+      ],
+    };
+    const [section] = buildSniNodes(shouting);
+    expect(section!.name).toBe("Tillverkning");
+    // The levels below were never shouting and must not be re-cased.
+    expect(section!.children![0]!.name).toBe("Livsmedelsframställning");
+    expect(section!.children![0]!.children![0]!.name).toBe("Beredning av kött");
   });
 
   it("keeps TV an acronym and o.d. an abbreviation", () => {

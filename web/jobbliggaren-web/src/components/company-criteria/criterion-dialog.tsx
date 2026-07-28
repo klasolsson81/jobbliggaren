@@ -89,6 +89,16 @@ export function CriterionDialog({
 
   const sniCodes = useMemo(() => [...sniSelected], [sniSelected]);
   const kommunCodes = useMemo(() => [...kommunSelected], [kommunSelected]);
+  // Memoised for the same reason the popover memoises it: the decomposition walks 944 nodes, and the
+  // dialog runs it on both axes on every render.
+  const sniPicked = useMemo(
+    () => decomposeSelection(sniNodes, sniSelected).length,
+    [sniNodes, sniSelected],
+  );
+  const kommunPicked = useMemo(
+    () => decomposeSelection(kommunNodes, kommunSelected).length,
+    [kommunNodes, kommunSelected],
+  );
   const bothChosen = sniSelected.size > 0 && kommunSelected.size > 0;
 
   // Live preview — only polls while the dialog is open AND both axes are chosen (the endpoint 400s a
@@ -161,9 +171,7 @@ export function CriterionDialog({
             // report "52 valda branscher" while the label beside it named one division — the same
             // number the /foretag/sok chips contradicted (#999 design finding 4). One key, one
             // semantic: both surfaces now count decomposed nodes.
-            selectedCountLabel={tc("sniSelectedCount", {
-              count: decomposeSelection(sniNodes, sniSelected).length,
-            })}
+            selectedCountLabel={tc("sniSelectedCount", { count: sniPicked })}
             optionsUnavailable={t("optionsUnavailable")}
           />
 
@@ -178,9 +186,7 @@ export function CriterionDialog({
             filterLabel={tc("kommunFilterLabel")}
             filterHint={tc("kommunFilterHint")}
             groupAria={tc("kommunGroupAria")}
-            selectedCountLabel={tc("kommunSelectedCount", {
-              count: decomposeSelection(kommunNodes, kommunSelected).length,
-            })}
+            selectedCountLabel={tc("kommunSelectedCount", { count: kommunPicked })}
             optionsUnavailable={t("optionsUnavailable")}
           />
 

@@ -578,11 +578,21 @@ export function ForetagSokSearchbar({
                   {/* The summary REPORTS; it does not delete. A `jp-chip__remove` × here would be
                       pixel-identical to the ones the user just learned remove ONE thing, while
                       dropping the whole draft — possibly 800 codes, with no undo. The removal is a
-                      sibling with VISIBLE text instead, and it is a full `.jp-btn` rather than a
-                      `.jp-clearlink`: the chips' own × is bumped to 44px on touch (globals.css:3346)
-                      and a 17px text link beside them would be the smallest target on the row. */}
-                  <span className="jp-chip">
-                    <span className="jp-chip__label">{branschSummaryLabel}</span>
+                      sibling with VISIBLE text, and it is a full `.jp-btn` (44px) rather than a
+                      `.jp-clearlink`: that class is 13px caption text, which would be the smallest
+                      target on a row whose chips carry a 32px ×. It stays inside this `<li>` so it
+                      sits beside the chip it belongs to rather than after the ort chips. */}
+                  <span className="flex items-center gap-2">
+                    <span className="jp-chip">
+                      <span className="jp-chip__label">{branschSummaryLabel}</span>
+                    </span>
+                    <button
+                      type="button"
+                      className="jp-btn jp-btn--ghost"
+                      onClick={() => setSniSelected(new Set())}
+                    >
+                      {t("branschRemoveAll")}
+                    </button>
                   </span>
                 </li>
               ) : (
@@ -635,20 +645,6 @@ export function ForetagSokSearchbar({
                 );
               })}
             </ul>
-          )}
-          {/* The axis-specific removal that goes with the summary chip. It exists because the popover's
-              own "Rensa" is unreachable in the case that needs it most: a degraded reference disables
-              the trigger, so without this the only escape from an applied bransch filter would be
-              clearing the name search too. Same class as its neighbour, so the row keeps one control
-              size and one hit target. */}
-          {branschSummary && (
-            <button
-              type="button"
-              className="jp-btn jp-btn--ghost"
-              onClick={() => setSniSelected(new Set())}
-            >
-              {t("branschRemoveAll")}
-            </button>
           )}
           <button
             type="button"

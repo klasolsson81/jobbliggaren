@@ -229,6 +229,39 @@ describe("CriterionPicker — optional heading and help (#999)", () => {
     ).toBeInTheDocument();
   });
 
+  it("renders the POPOVER configuration — all four omitted — without dangling wiring", async () => {
+    // `renderPicker` passes the dialog's configuration, so the popover's (every optional prop absent)
+    // was only ever exercised indirectly through the searchbar tests. The one thing that can go wrong
+    // silently is `aria-describedby` pointing at a hint id that is no longer rendered.
+    render(
+      <CriterionPicker
+        nodes={NODES}
+        options={OPTIONS}
+        selected={new Set()}
+        onToggle={vi.fn()}
+        filterLabel="Sök bransch"
+        groupAria="Branscher"
+        optionsUnavailable="Registret kunde inte laddas."
+      />,
+    );
+    const field = screen.getByLabelText("Sök bransch");
+    expect(field).not.toHaveAttribute("aria-describedby");
+    expect(screen.queryByRole("heading")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Rensa" })).not.toBeInTheDocument();
+  });
+
+  it("says nothing about matches when there is no catalogue to match against", async () => {
+    // A degraded reference shows "Registret kunde inte laddas" in the box. Announcing "0 träffar"
+    // over it would claim a search ran against a catalogue that is not there.
+    renderPicker({ nodes: [], options: [] });
+    const user = userEvent.setup();
+    await user.type(screen.getByLabelText("Sök bransch"), "data");
+    // The count line is the live region and it stays silent; the degraded notice is what shows.
+    expect(screen.getByRole("status")).toHaveTextContent("");
+    expect(screen.queryByText(/träffar/)).not.toBeInTheDocument();
+    expect(screen.getByText("Registret kunde inte laddas.")).toBeInTheDocument();
+  });
+
   it("still offers Rensa without a heading, once something is selected", async () => {
     const { onClear } = renderPicker({ selected: new Set(["62010"]) });
     const user = userEvent.setup();

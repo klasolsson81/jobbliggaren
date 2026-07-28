@@ -44,10 +44,19 @@
   NO AUTOMATED GUARD EXISTS DELIBERATELY, and both variants are ruled out rather than one.
   A byte-for-byte check would assert every count and gate verdict in the 21 measurement rows
   - exactly what OBSERVE-ONLY forbids and what §2.5 reserves for an explicit ratchet. A
-  prose-only check avoids that but passes while the measurements are stale, which is the
-  likelier failure: this file has gone stale twice (PR B regenerated without bumping
-  BaseCommit; the 2026-07-28 divergence) against one hand-edit. Green on the common case is
-  the fail-open shape the mutation harness refused three times in a single session.
+  prose-only check avoids that but passes while the MEASUREMENTS are stale, which is the
+  likelier failure and the one this PR exists for: row 17's block reason sat wrong in this
+  tracked file from PR C's merge (0aecfbca) until this PR - the baseline was last
+  regenerated at a72c77e7, PR C then changed what the product returns, and nothing
+  regenerated it. That value lives on an interpolated row a prose-only sweep skips by
+  construction, so the guard would have stood green straight through the defect that opened
+  this PR.
+
+  And "likelier" needs no count to stand: measurements go stale whenever the product moves
+  and nobody regenerates - every product PR that touches the chain - while a prose divergence
+  needs someone to hand-edit the middle. Green on the common case is the fail-open shape the
+  mutation harness refused twice in a single session (its third refusal, on an uncommitted
+  tree, guards destroyed evidence rather than a false green).
 
   THE CLOSING "-->" BELOW WAS MISSING FROM PR K UNTIL 2026-07-28, and the consequence was
   total: under CommonMark an unterminated HTML block runs to end of document, so every line

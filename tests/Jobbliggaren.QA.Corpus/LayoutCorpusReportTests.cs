@@ -12,11 +12,18 @@ namespace Jobbliggaren.QA.Corpus;
 /// → <c>AutoPromoteParsedResumeCommandHandler</c> (five gates, DQ6 among them, the internal content
 /// mapper, <c>Resume.CreateFromParsed</c>). No database server, no container, no network.
 ///
-/// <para>Both numerals above were stale and were corrected 2026-07-28: "sixteen" predated five
-/// cases added by PRs E and K, and "six gates" predated PR B retiring the preamble gate. They are
-/// the fifth and sixth instances of this class caught in one PR — a prose numeral that a later
-/// commit made false — which is why the count is now written as a digit beside a catalog anyone
-/// can count rather than as a word.</para>
+/// <para>Both numerals above were wrong and were corrected 2026-07-28. What follows is the
+/// MEASUREMENT rather than a characterisation of it, because two reviewers and I each produced a
+/// different characterisation from the same history and all three were wrong somewhere:</para>
+/// <code>
+/// 980a00d4  16 cases  "sixteen"   &lt;- true when written
+/// ccda80d0  17 cases  "sixteen"   &lt;- went false inside PR K's OWN review round
+/// d9e0af7f  17 cases  "sixteen"   &lt;- shipped false
+/// 7a5496fe  21 cases  "sixteen"   &lt;- PR E drifted it further
+/// </code>
+/// <para>"six gates" is the simpler kind: true until PR B retired the preamble gate. A numeral
+/// beside a catalog anyone can count needs no such archaeology, which is why the count is now a
+/// digit — and why this paragraph states four measurements instead of one adjective.</para>
 ///
 /// <para><b>The material difference from the existing corpus.</b> <c>CorpusGenerator</c> starts
 /// DOWNSTREAM of the segmenter — it calls <c>ParsedResume.Create</c> with pre-built content and

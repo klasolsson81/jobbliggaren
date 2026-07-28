@@ -38,11 +38,26 @@
 #
 # TWO DISTINCT MECHANISMS SHARE ONE CAUSE -- do not collapse them. The suppressed
 # WORKFLOW RUN is why a `closed` handler cannot work, and why CodeQL stopped
-# running on main PUSHES -- not "on main", which an earlier draft of this line
-# said and which overstates the gap: `codeql.yml` also has `schedule: 23 4 * * 1`
-# and that path still runs against main (last success 2026-07-27T07:58Z). What
-# was actually lost is PER-COMMIT scanning, not scanning. The distinction is
-# load-bearing, because it is the size of this gap that a PAT would buy back.
+# running on main PUSHES. Not "on main", which the merged #1110 text said and
+# which overstates the gap: `codeql.yml` also carries `schedule: 23 4 * * 1`, and
+# that path still analyses main -- eight consecutive weekly runs on
+# `headBranch: main`, unbroken since 2026-06-08. Evidence is the code-scanning
+# API, not the run's status: `analyze` is `continue-on-error: true`, so a green
+# run proves nothing (the very fail-open shape this file warns about). The
+# 2026-07-27 run uploaded SARIF against `refs/heads/main` at commit d9e0af7f,
+# both languages. (The cron says 04:23Z; GitHub queues schedules late, so run
+# times drift by hours -- do not read the clock as a fault.)
+#
+# WHAT WAS LOST IS PER-COMMIT SCANNING **OF MAIN**, not per-commit scanning:
+# every PR's head is still analysed on `pull_request` (#861 removed the base
+# filter, and the concurrency group cancels superseded in-flight runs), but that
+# SARIF lands on `refs/pull/N/merge`. Since 9f4df643 -- the last merge Klas
+# performed himself -- no analysis has been stamped against `refs/heads/main` per
+# merge. The schedule survives the suppression because that rule attaches to
+# events CAUSED by the app's action, and a cron has no such cause.
+#
+# The distinction is load-bearing: the size of THIS gap is what a PAT would buy
+# back, so overstating it argues for that change on evidence it does not have.
 # The un-fired BRANCH DELETION is a repository SETTING that
 # follows the merging identity; it does not travel through the workflow engine at
 # all. Same cause (the app is the actor), different machinery. The workflow-run

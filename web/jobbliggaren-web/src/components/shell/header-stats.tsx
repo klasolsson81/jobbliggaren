@@ -12,8 +12,13 @@ import { formatNumber } from "@/lib/i18n/format";
  *   <li>Initial-värdet hämtas server-side i `(app)/layout.tsx` och passeras
  *       som prop — ingen flash-of-empty-state.</li>
  *   <li>Klienten pollar `/api/landing-stats` var 10:e minut (Klas-direktiv
- *       2026-05-24). Worker-cronnen refreshar Redis var 5:e min, så
- *       worst-case latens från ny annons → synlig är ~15 min.</li>
+ *       2026-05-24). Worst-case latens från ny annons hos Platsbanken till
+ *       synlig här är ~25 min, i TRE ben: ingest var 10:e min
+ *       (`SyncPlatsbankenStream`, `RecurringJobRegistrar.cs:56`) + omräkning
+ *       var 5:e min (`RefreshLandingStatsJob`, samma fil rad 147) + den här
+ *       pollningen var 10:e min. Raden sa tidigare ~15 min: det talet mätte
+ *       de två sista benen och utelämnade ingesten, alltså sant om sitt
+ *       underlag och falskt om sitt uttalade ämne ("från ny annons").</li>
  *   <li>När polling-svaret ger högre `newToday` än senaste sedda värdet
  *       visas en grön <code>+N</code>-pill via fade-in (200ms), syns i 8
  *       sekunder, sen fade-out (Klas-feedback 2026-05-24 svans-PR5 —

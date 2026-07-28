@@ -7,28 +7,35 @@ import { useId, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { CriterionTree, CheckBox, type CriterionTreeNode } from "./criterion-tree";
-
-/** A flat leaf option for the filter view (name + wire code). */
-export interface CriterionLeafOption {
-  readonly code: string;
-  readonly name: string;
-}
+import { CriterionTree, CheckBox } from "./criterion-tree";
+import { groupTriState } from "@/lib/company-criteria/criterion-selection";
+import type {
+  CriterionOption,
+  CriterionTreeNode,
+} from "@/lib/company-criteria/criterion-options";
 
 interface CriterionPickerProps {
   readonly nodes: ReadonlyArray<CriterionTreeNode>;
-  /** Every leaf across the tree, for the label-filter view. */
-  readonly leaves: ReadonlyArray<CriterionLeafOption>;
+  /**
+   * Every node at EVERY level, flattened, for the filter view — build it with
+   * `flattenCriterionOptions(nodes)` so the two views can never describe different catalogues.
+   */
+  readonly options: ReadonlyArray<CriterionOption>;
   readonly selected: ReadonlySet<string>;
-  /** Toggle a group's leaf codes (a tree node, or a single filtered leaf as `[code]`). */
+  /** Toggle a group's leaf codes (a tree node, or one filtered option's `leafCodes`). */
   readonly onToggle: (leafCodes: ReadonlyArray<string>) => void;
   readonly onClear: () => void;
-  readonly heading: string;
-  readonly help: string;
+  /**
+   * Optional (#999): inside a popover whose dialog label already names the axis, a heading and a help
+   * paragraph repeat what the panel header just said — filler the civic-utility rules reject. The
+   * criterion dialog stacks two pickers in one scroll column and still needs both.
+   */
+  readonly heading?: string;
+  readonly help?: string;
   readonly filterLabel: string;
   readonly filterHint: string;
   readonly groupAria: string;
-  /** Axis-specific "3 branscher valda" / "2 kommuner valda", resolved by the dialog with the count. */
+  /** Axis-specific "3 branscher valda" / "2 kommuner valda", resolved by the caller with the count. */
   readonly selectedCountLabel: string;
   /** Axis-specific message when the reference tree is empty (degraded load). */
   readonly optionsUnavailable: string;
@@ -36,7 +43,7 @@ interface CriterionPickerProps {
 
 export function CriterionPicker({
   nodes,
-  leaves,
+  options,
   selected,
   onToggle,
   onClear,
@@ -56,10 +63,13 @@ export function CriterionPicker({
   const trimmed = filter.trim().toLowerCase();
   const isFiltering = trimmed.length > 0;
 
-  const filteredLeaves = useMemo(() => {
+  // Matches at EVERY level (#999): a section, a division and a leaf can all carry the searched word,
+  // and the control this replaced searched all three. Leaf-only matching is why "hard to find" survived
+  // the last two rounds — you had to already know the detail code's exact wording.
+  const filteredOptions = useMemo(() => {
     if (!isFiltering) return [];
-    return leaves.filter((leaf) => leaf.name.toLowerCase().includes(trimmed));
-  }, [leaves, trimmed, isFiltering]);
+    return options.filter((option) => option.name.toLowerCase().includes(trimmed));
+  }, [options, trimmed, isFiltering]);
 
   const hasSelection = selected.size > 0;
 
@@ -69,19 +79,25 @@ export function CriterionPicker({
       role="group"
       aria-label={groupAria}
     >
-      <div className="flex items-center justify-between gap-3">
-        <h3 className="text-label font-medium text-text-primary">{heading}</h3>
-        {hasSelection && (
-          <button
-            type="button"
-            className="text-body-sm font-medium text-brand-700 hover:underline"
-            onClick={onClear}
-          >
-            {t("clear")}
-          </button>
-        )}
-      </div>
-      <p className="text-body-sm text-text-primary">{help}</p>
+      {(heading !== undefined || hasSelection) && (
+        <div className="flex items-center justify-between gap-3">
+          {heading !== undefined ? (
+            <h3 className="text-label font-medium text-text-primary">{heading}</h3>
+          ) : (
+            <span />
+          )}
+          {hasSelection && (
+            <button
+              type="button"
+              className="text-body-sm font-medium text-brand-700 hover:underline"
+              onClick={onClear}
+            >
+              {t("clear")}
+            </button>
+          )}
+        </div>
+      )}
+      {help !== undefined && <p className="text-body-sm text-text-primary">{help}</p>}
 
       <div className="flex flex-col gap-1.5">
         <Label htmlFor={filterId}>{filterLabel}</Label>
@@ -110,29 +126,36 @@ export function CriterionPicker({
             {optionsUnavailable}
           </p>
         ) : isFiltering ? (
-          filteredLeaves.length === 0 ? (
+          filteredOptions.length === 0 ? (
             <p className="px-4 py-3 text-body-sm text-text-primary">{t("noMatch")}</p>
           ) : (
             <div role="group" aria-label={groupAria}>
-              {filteredLeaves.map((leaf) => {
-                const checked = selected.has(leaf.code);
+              {filteredOptions.map((option) => {
+                // Tri-state, not a boolean: a matched division is "mixed" when only some of its leaves
+                // are selected, and rendering that as unchecked would let a click silently deselect the
+                // part already chosen. `groupTriState` is the same derivation the tree rows use.
+                const state = groupTriState(selected, option.leafCodes);
                 return (
                   <div
-                    key={leaf.code}
+                    key={option.key}
                     role="checkbox"
-                    aria-checked={checked}
+                    aria-checked={state === "indeterminate" ? "mixed" : state === "checked"}
                     tabIndex={0}
-                    onClick={() => onToggle([leaf.code])}
+                    onClick={() => onToggle(option.leafCodes)}
                     onKeyDown={(e) => {
                       if (e.key === " " || e.key === "Enter") {
                         e.preventDefault();
-                        onToggle([leaf.code]);
+                        onToggle(option.leafCodes);
                       }
                     }}
-                    className="flex cursor-pointer items-center gap-2.5 border-b border-border px-3 py-2 text-body-sm text-text-primary last:border-b-0"
+                    // Indented by level so a division and the leaf of nearly the same name are
+                    // distinguishable — SNI 2025 has "Dataprogrammering" at both levels, and two
+                    // identical-looking rows that select different amounts is a trap.
+                    style={{ paddingInlineStart: 12 + option.depth * 20 }}
+                    className="flex cursor-pointer items-center gap-2.5 border-b border-border py-2 pe-3 text-body-sm text-text-primary last:border-b-0"
                   >
-                    <CheckBox state={checked ? "checked" : "unchecked"} />
-                    <span>{leaf.name}</span>
+                    <CheckBox state={state} />
+                    <span>{option.name}</span>
                   </div>
                 );
               })}

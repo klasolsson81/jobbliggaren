@@ -9,18 +9,7 @@
 import { useId, useState } from "react";
 import { ChevronRight, Check, Minus } from "lucide-react";
 import { groupTriState, type TriState } from "@/lib/company-criteria/criterion-selection";
-
-/**
- * One node in the picker tree. `leafCodes` are the WIRE leaf codes this node covers (a leaf node
- * carries its own code as the single element); toggling a node toggles that whole group. `children`
- * is absent/empty for a leaf.
- */
-export interface CriterionTreeNode {
-  readonly code: string;
-  readonly name: string;
-  readonly leafCodes: ReadonlyArray<string>;
-  readonly children?: ReadonlyArray<CriterionTreeNode>;
-}
+import type { CriterionTreeNode } from "@/lib/company-criteria/criterion-options";
 
 interface CriterionTreeProps {
   readonly nodes: ReadonlyArray<CriterionTreeNode>;

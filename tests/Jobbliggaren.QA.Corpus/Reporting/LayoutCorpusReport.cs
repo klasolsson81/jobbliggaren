@@ -98,8 +98,14 @@ public static class LayoutCorpusReport
         L("- No DEK envelope round-trip, no SQL translation, no SmartEnum translation. Those stay");
         L("  proven by `AutoPromoteParsedResumeEncryptionTests` and the integration suites.");
         L("- No Mediator pipeline: no logging, validation, authorization or UnitOfWork behavior.");
-        L("- The `IncompleteContent` SUB-reason is unavailable: the handler discards");
-        L("  `created.Error.Code` at `:152`. PR C's structured log closes that gap.");
+        // The trailing sentence "PR C's structured log closes that gap" was removed 2026-07-28: it
+        // was false when written and was being printed into the deliverable. `LogLeftPending` emits
+        // the collapsed gate token and the artifact id, never a ValidateContent code — and this
+        // harness passes NullLogger anyway, so it could not have read one. The remaining sentence is
+        // true at HEAD; the PR that makes it false owns rewriting it.
+        L("- The `IncompleteContent` SUB-reason is unavailable: `AutoPromoteGate.Evaluate` discards");
+        L("  `created.Error` and returns the collapsed token, so no consumer can see which of");
+        L("  `Resume.ValidateContent`'s arms refused the CV.");
         L("- Substituted ports (none of them feeds an auto-promote gate):");
         foreach (var p in d.SubstitutedPorts)
             L($"  - {p}");
@@ -153,12 +159,18 @@ public static class LayoutCorpusReport
         // ── Section 2 — the headline.
         L("## 2. Fidelity verdict");
         L();
-        L("| # | Case | Verdict | GT emp | Parsed exp | Promoted exp | Well-formed | GT edu | Parsed edu | Promoted edu | First blocking gate |");
+        L("`With period` counts PROMOTED experiences carrying a non-blank `RawPeriod`, and nothing");
+        L("else. It was once called `Well-formed` and also tested Role and Company — both REQUIRED by");
+        L("`Resume.ValidateContent`, so on a promoted row they are true by invariant and the count was");
+        L("period-presence wearing a validity name. It has equalled `Promoted exp` in every baseline");
+        L("published so far: no fixture yet distinguishes them, which is a fact about the fixtures.");
+        L();
+        L("| # | Case | Verdict | GT emp | Parsed exp | Promoted exp | With period | GT edu | Parsed edu | Promoted edu | First blocking gate |");
         L("|---|---|---|---|---|---|---|---|---|---|---|");
         for (var i = 0; i < d.Cases.Count; i++)
         {
             var c = d.Cases[i];
-            LI($"| {i + 1} | `{c.Case.Id}` | **{c.Verdict}** | {c.GroundTruthExperience} | {N(c.ParsedExperience)} | {N(c.PromotedExperience)} | {N(c.WellFormedPromotedExperience)} | {c.GroundTruthEducation} | {N(c.ParsedEducation)} | {N(c.PromotedEducation)} | {c.BlockReason?.ToString() ?? "—"} |");
+            LI($"| {i + 1} | `{c.Case.Id}` | **{c.Verdict}** | {c.GroundTruthExperience} | {N(c.ParsedExperience)} | {N(c.PromotedExperience)} | {N(c.PromotedExperienceWithRawPeriod)} | {c.GroundTruthEducation} | {N(c.ParsedEducation)} | {N(c.PromotedEducation)} | {c.BlockReason?.ToString() ?? "—"} |");
         }
 
         L();
@@ -233,16 +245,41 @@ public static class LayoutCorpusReport
         L("## 5. Gate ladder");
         L();
         L("No predicate expression is re-typed anywhere in this corpus; the states are derived from");
-        L("what the real handler returned. The handler collapses three distinct predicates onto one");
-        L("`PersonnummerPresent` token, and all three are resolved by ELIMINATION rather than guessed:");
-        L("the aggregate's own flag settles the parse rung, the two PUBLIC calls the handler makes");
-        L("settle the label rung, and whatever remains is the DQ6 guard — there is no fourth site.");
-        L("`no verdict` means the handler returned a genuine FAULT, so no gate decided anything;");
-        L("that is deliberately distinct from `not evaluated`, where an earlier GATE stopped control.");
+        L("what the real handler returned. **TWO** predicates still collapse onto one");
+        L("`PersonnummerPresent` token, and each is settled by its own POSITIVE discriminator — the");
+        L("aggregate's own flag for the parse rung, the two PUBLIC calls the handler makes for the");
+        L("label rung. The DQ6 guard is no longer among them: #1060 PR C gave it its own");
+        L("`PersonnummerInAccountName` token, so that rung is reached by name.");
         L();
-        var gateHeaders = d.Cases.Count > 0
-            ? d.Cases[0].Gates.Select(g => $"{g.GateId} ({g.CallSite})").ToList()
-            : [];
+        L("Earlier revisions said these were resolved \"by ELIMINATION — whatever remains IS the DQ6");
+        L("guard, there is no fourth site\". That reasoning was sound only while the site list was");
+        L("known complete, and PR C is the measured proof that such knowledge expires. Nothing is");
+        L("inferred from a remainder now; what falls past both guards is reported as `unresolved`.");
+        L();
+        // DELIBERATELY UNPINNED, unlike the three disclaimers. Those are protections a well-meaning
+        // edit can SOFTEN, so they are asserted verbatim. This is a DEFINITION: delete it and no
+        // false claim appears, only an undefined word a reader notices immediately. A shape-based
+        // guard is not available either — "every word the renderer emits is glossed here" is false
+        // today by design, since `passed` and `**BLOCKED**` need no gloss. Same treatment
+        // Report_NeverRendersAPercentage already gives the token blacklist it rejected.
+        L("A gate cell renders one of six words. `passed` and `**BLOCKED**` say what they say; the");
+        L("FOUR below are the confusable ones, and conflating two of them is what this section was");
+        L("corrected for (2026-07-28):");
+        L();
+        L("- `not evaluated` — an earlier GATE stopped control, so this rung was never asked.");
+        L("- `no verdict` — the handler returned a genuine FAULT, so no gate decided anything.");
+        L("- `unresolved` — THE INSTRUMENT has no arm for the token the handler returned. It is an");
+        L("  integrity failure, listed in §0 and red in the suite, never a statement about the");
+        L("  product. Before it existed, this case rendered as `no verdict` — publishing an honest");
+        L("  block as a handler fault, on the one case that exercises the DQ6 rung.");
+        L("- `—` — no ladder exists at all: the case CRASHED before any gate was reached, so there is");
+        L("  nothing for the rungs to report. §0 names it. Distinct from `no verdict`, which is a");
+        L("  statement about the handler; here the handler was never asked.");
+        L();
+        // From the LADDER, not from Cases[0]. A crashed first case carries an empty ladder by
+        // construction, and reading the headings off it produced a six-cell header over a five-cell
+        // delimiter — under GFM, no table at all. The section disappeared entirely.
+        var gateHeaders = GateLadder.RungHeaders;
         L($"| # | Case | {string.Join(" | ", gateHeaders)} | FIRST BLOCK | Promote fault | Promoted |");
         // DERIVED, never a literal. The rung count changed with #1060's gate retirement, and the
         // hardcoded delimiter this replaces was already one cell short of its own header — under
@@ -253,7 +290,12 @@ public static class LayoutCorpusReport
         for (var i = 0; i < d.Cases.Count; i++)
         {
             var c = d.Cases[i];
-            var cells = string.Join(" | ", c.Gates.Select(g => Short(g.State)));
+            // A case with no ladder (a crash — nothing evaluated any gate) still occupies every
+            // column, as em-dashes. Letting the row run short would leave GFM to pad it with blanks,
+            // and a blank cell under "G3a pnr(DQ6)" reads as a verdict rather than as its absence.
+            var cells = c.Gates.Count > 0
+                ? string.Join(" | ", c.Gates.Select(g => Short(g.State)))
+                : string.Join(" | ", Enumerable.Repeat("—", gateHeaders.Count));
             LI($"| {i + 1} | `{c.Case.Id}` | {cells} | {c.BlockReason?.ToString() ?? "—"} | {c.PromoteFailureCode ?? "—"} | {Y(c.Promoted)} |");
         }
 
@@ -430,6 +472,12 @@ public static class LayoutCorpusReport
         GateState.Passed => "passed",
         GateState.Blocked => "**BLOCKED**",
         GateState.NotEvaluated => "not evaluated",
-        _ => "no verdict",
+        GateState.NoVerdict => "no verdict",
+
+        // Unresolved AND any future member fall here deliberately. The fail-safe direction is "the
+        // ladder does not know": an unmapped state must never inherit a sentence that asserts
+        // something about the HANDLER, which is how `no verdict` came to be printed over an honest
+        // block for a whole PR.
+        _ => "unresolved",
     };
 }

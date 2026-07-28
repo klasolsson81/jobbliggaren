@@ -70,10 +70,10 @@ public sealed class LayoutCorpusReportTests
         // ── Instrument asserts only, from here down. Failure means the FIXTURE or the EMITTER is
         // broken; none of these can be reddened by a change to the product's parsing behaviour.
 
-        // Three of the asserts below ARE reachable by production behaviour, and each has its own
+        // FOUR of the asserts below ARE reachable by production behaviour, and each has its own
         // argument. Stated plainly rather than claimed away, because an earlier revision of this
         // comment said "none of these can be reddened by a change to the product" and that was
-        // simply false.
+        // simply false — and a later one said "three" after a fourth had been added.
         //
         //   (a) crash-safety — the probe catches everything the real extractor, segmenter and both
         //       handlers throw, so a throw anywhere in the chain reddens this suite. That is
@@ -82,9 +82,13 @@ public sealed class LayoutCorpusReportTests
         //       the same reason: a case never fed to the handler as the kind it claims measures
         //       nothing.
         //   (c) marker visibility — argued at its own assert below.
+        //   (d) ladder well-formedness — argued at its own assert below. NEW 2026-07-28: it used
+        //       to be unreachable by construction and is not any more.
         //
-        // Every OTHER production output (blank lines, entry counts, confidence, gate verdicts,
-        // promote booleans, the content-loss delta) is recorded, never asserted.
+        // Every OTHER production output (blank lines, entry counts, confidence, WHICH gate blocked,
+        // promote booleans, the content-loss delta) is recorded, never asserted. Note the narrowing
+        // in that list: the ladder's SHAPE is now asserted while the VERDICT it renders still is
+        // not — "gate verdicts" unqualified stopped being true when (d) landed.
         var crashed = observations.Where(o => o.CrashedWithExceptionType is not null).ToList();
         crashed.ShouldBeEmpty(
             "INSTRUMENT: a case threw. Types: "
@@ -104,9 +108,17 @@ public sealed class LayoutCorpusReportTests
             "INSTRUMENT: the English model is no longer structurally identical to the Swedish one, "
             + "so pin P5's non-difference claim is noise rather than a measurement.");
 
+        // Production-touching assert (d), argued here. TWO causes, and the FIRST is the one a
+        // reader will actually hit: the ladder has no arm for the reason the handler returned, so
+        // it cannot place the block. That is reachable by a product change — a new
+        // AutoPromoteBlockReason reddens this — and red is the right answer, because the
+        // alternative is what shipped before: the artifact narrating an unmapped token as a
+        // handler fault while §0 reported the instrument healthy. It does not block its own
+        // remedy: the remedy is one arm in GateLadder, in this same suite.
         observations.Where(o => !GateLadder.IsWellFormed(o.Gates)).ShouldBeEmpty(
-            "INSTRUMENT: a gate ladder reports a rung as passed after one that was never "
-            + "evaluated, which is impossible — the ladder derivation is wrong.");
+            "INSTRUMENT: a gate ladder is not well-formed. Either (1) it has no arm for the reason "
+            + "the handler returned — most likely a new AutoPromoteBlockReason — or (2) it reports "
+            + "a rung as passed after one that was never evaluated, which is impossible.");
 
         observations.Where(o => !o.KindResolved).ShouldBeEmpty(
             "INSTRUMENT: a case's bytes failed CvFileSignature.TryResolve, so it was never fed to "

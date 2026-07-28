@@ -159,6 +159,12 @@ public static class LayoutCorpusReport
         // ── Section 2 — the headline.
         L("## 2. Fidelity verdict");
         L();
+        L("`With period` counts PROMOTED experiences carrying a non-blank `RawPeriod`, and nothing");
+        L("else. It was once called `Well-formed` and also tested Role and Company — both REQUIRED by");
+        L("`Resume.ValidateContent`, so on a promoted row they are true by invariant and the count was");
+        L("period-presence wearing a validity name. It has equalled `Promoted exp` in every baseline");
+        L("published so far: no fixture yet distinguishes them, which is a fact about the fixtures.");
+        L();
         L("| # | Case | Verdict | GT emp | Parsed exp | Promoted exp | With period | GT edu | Parsed edu | Promoted edu | First blocking gate |");
         L("|---|---|---|---|---|---|---|---|---|---|---|");
         for (var i = 0; i < d.Cases.Count; i++)
@@ -240,10 +246,15 @@ public static class LayoutCorpusReport
         L();
         L("No predicate expression is re-typed anywhere in this corpus; the states are derived from");
         L("what the real handler returned. **TWO** predicates still collapse onto one");
-        L("`PersonnummerPresent` token, and both are resolved by ELIMINATION rather than guessed: the");
-        L("aggregate's own flag settles the parse rung, and the two PUBLIC calls the handler makes");
-        L("settle the label rung. The DQ6 guard is no longer among them — #1060 PR C gave it its own");
-        L("`PersonnummerInAccountName` token, so that rung is now reached by name, not by remainder.");
+        L("`PersonnummerPresent` token, and each is settled by its own POSITIVE discriminator — the");
+        L("aggregate's own flag for the parse rung, the two PUBLIC calls the handler makes for the");
+        L("label rung. The DQ6 guard is no longer among them: #1060 PR C gave it its own");
+        L("`PersonnummerInAccountName` token, so that rung is reached by name.");
+        L();
+        L("Earlier revisions said these were resolved \"by ELIMINATION — whatever remains IS the DQ6");
+        L("guard, there is no fourth site\". That reasoning was sound only while the site list was");
+        L("known complete, and PR C is the measured proof that such knowledge expires. Nothing is");
+        L("inferred from a remainder now; what falls past both guards is reported as `unresolved`.");
         L();
         L("Three cell values mean three different things, and conflating two of them is what this");
         L("section was corrected for (2026-07-28):");

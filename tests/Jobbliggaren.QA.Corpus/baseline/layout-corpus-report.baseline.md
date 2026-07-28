@@ -151,6 +151,12 @@ literal "no" on every row forever, which is a decoration rather than a measureme
 
 ## 2. Fidelity verdict
 
+`With period` counts PROMOTED experiences carrying a non-blank `RawPeriod`, and nothing
+else. It was once called `Well-formed` and also tested Role and Company — both REQUIRED by
+`Resume.ValidateContent`, so on a promoted row they are true by invariant and the count was
+period-presence wearing a validity name. It has equalled `Promoted exp` in every baseline
+published so far: no fixture yet distinguishes them, which is a fact about the fixtures.
+
 | # | Case | Verdict | GT emp | Parsed exp | Promoted exp | With period | GT edu | Parsed edu | Promoted edu | First blocking gate |
 |---|---|---|---|---|---|---|---|---|---|---|
 | 1 | `pdf-sidebar-emitted-first` | **PromotedLossy** | 5 | 1 | 1 | 1 | 3 | 1 | 1 | — |
@@ -429,10 +435,15 @@ extractor.
 
 No predicate expression is re-typed anywhere in this corpus; the states are derived from
 what the real handler returned. **TWO** predicates still collapse onto one
-`PersonnummerPresent` token, and both are resolved by ELIMINATION rather than guessed: the
-aggregate's own flag settles the parse rung, and the two PUBLIC calls the handler makes
-settle the label rung. The DQ6 guard is no longer among them — #1060 PR C gave it its own
-`PersonnummerInAccountName` token, so that rung is now reached by name, not by remainder.
+`PersonnummerPresent` token, and each is settled by its own POSITIVE discriminator — the
+aggregate's own flag for the parse rung, the two PUBLIC calls the handler makes for the
+label rung. The DQ6 guard is no longer among them: #1060 PR C gave it its own
+`PersonnummerInAccountName` token, so that rung is reached by name.
+
+Earlier revisions said these were resolved "by ELIMINATION — whatever remains IS the DQ6
+guard, there is no fourth site". That reasoning was sound only while the site list was
+known complete, and PR C is the measured proof that such knowledge expires. Nothing is
+inferred from a remainder now; what falls past both guards is reported as `unresolved`.
 
 Three cell values mean three different things, and conflating two of them is what this
 section was corrected for (2026-07-28):
@@ -853,7 +864,6 @@ permitted to differ is the detected language.
 - **No case is asserted.** Every falsifier named in the PR body produces a silently
   different artifact and a green build. This file helps only a reader who diffs it
   against the committed baseline. That is what observe-only means.
-
 
 ## Appendix — measurements this suite deliberately does NOT reproduce
 

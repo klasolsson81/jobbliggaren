@@ -2,6 +2,7 @@ using Jobbliggaren.Application.Resumes.Abstractions;
 using Jobbliggaren.Application.Resumes.Commands.AutoPromoteParsedResume;
 using Jobbliggaren.Application.Resumes.Common;
 using Jobbliggaren.Domain.Privacy;
+using Jobbliggaren.Domain.Resumes;
 using Jobbliggaren.Domain.Resumes.Parsing;
 using Jobbliggaren.QA.Corpus.Generation;
 using Jobbliggaren.QA.Corpus.Layout;
@@ -179,11 +180,9 @@ internal static partial class LayoutChainRunner
 
         var lines = o.RawText.Split('\n');
 
-        // Raw-period presence, and ONLY that. The Role/Company conjuncts this once carried were
-        // true by invariant on any promoted entry (ValidateContent requires both) and made a
-        // period count read as a validity count — see the field's docblock.
-        var withRawPeriod = promotedContent?.Experiences
-            .Count(e => !string.IsNullOrWhiteSpace(e.RawPeriod));
+        var withRawPeriod = promotedContent is null
+            ? null
+            : (int?)CountWithRawPeriod(promotedContent.Experiences);
 
         return new LayoutCaseObservation(
             Case: c,
@@ -365,6 +364,18 @@ internal static partial class LayoutChainRunner
 
     [System.Text.RegularExpressions.GeneratedRegex(@"^\d{4}\s*-\s*\d{4}\p{L}")]
     private static partial System.Text.RegularExpressions.Regex FusedPeriodRole();
+
+    /// <summary>Raw-period presence, and ONLY that. Lifted out of <c>RunAsync</c> so it is callable
+    /// — inline, it was a corpus-authored predicate that no mutation could reach, because the suite
+    /// asserts no promoted count and the artifact is the only place it shows. It is
+    /// the corpus's OWN declaration (assert-rule category (b)), so pinning it is legitimate and
+    /// costs the observe-only rule nothing.
+    ///
+    /// <para>The Role/Company conjuncts this once also tested are gone: <c>ValidateContent</c>
+    /// REQUIRES both, so on a promoted entry they are true by invariant and the count was
+    /// period-presence wearing a validity name.</para></summary>
+    internal static int CountWithRawPeriod(IEnumerable<Experience> experiences) =>
+        experiences.Count(e => !string.IsNullOrWhiteSpace(e.RawPeriod));
 
     private static string Trim(string s) => s.Length <= 44 ? s : s[..44] + "…";
 

@@ -1,4 +1,5 @@
 using Jobbliggaren.Application.Resumes.Common;
+using Jobbliggaren.Domain.Resumes;
 using Jobbliggaren.QA.Corpus.Generation;
 using Jobbliggaren.QA.Corpus.Harness;
 using Jobbliggaren.QA.Corpus.Layout;
@@ -159,9 +160,17 @@ public sealed class LayoutCorpusEmitterTests
         markdown.ShouldContain("**crashed:** none");
     }
 
-    /// <summary>Every reachable handler state must produce a ladder that names exactly ONE blocked
-    /// rung and is well-formed. Subject is <see cref="GateLadder"/> — the corpus's own derivation
-    /// (assert-rule category (b)), never a product outcome.
+    /// <summary>Every BLOCK this corpus can observe must produce a ladder that names exactly one
+    /// blocked rung and is well-formed. Subject is <see cref="GateLadder"/> — the corpus's own
+    /// derivation (assert-rule category (b)), never a product outcome.
+    ///
+    /// <para>Scope, stated because the earlier wording said "handler state" and overreached:
+    /// <c>Resolve</c> has three branches and this covers the third. The fault branch (all
+    /// <see cref="GateState.NoVerdict"/>) and the promoted branch (all
+    /// <see cref="GateState.Passed"/>) name no blocked rung by construction and are pinned
+    /// separately below. And one row here — the label-scan arm — is reachable in PRODUCTION (a
+    /// user-typed <c>NameOverride</c>) but not in this corpus, which always resolves the label
+    /// from a generated default that carries no personnummer.</para>
     ///
     /// <para>This is the pin the defect proved was missing. #1060 PR C added
     /// <c>PersonnummerInAccountName</c> and this file had nothing that noticed; the token fell to a
@@ -187,9 +196,16 @@ public sealed class LayoutCorpusEmitterTests
 
     /// <summary>The exhaustiveness half, and it is what makes the theory above a MECHANISM rather
     /// than four instances: every declared enum member must appear in the case list. A fifth member
-    /// fails HERE, at the enum, before anyone has to notice a wrong cell in a 962-line artifact.
-    /// No count is written down — the same reason
-    /// <c>AutoPromoteBlockReason_IsTheLockedFourMemberSet</c> writes none.</summary>
+    /// fails HERE, at the enum, before anyone has to notice one wrong cell in an ~800-line
+    /// artifact. No count is written down — the same reason
+    /// <c>AutoPromoteBlockReason_IsTheLockedFourMemberSet</c> writes none.
+    ///
+    /// <para>Its subject is <c>AutoPromoteBlockReason</c>, a PRODUCTION type, so it sits outside the
+    /// assert rule's three categories and is argued rather than assumed — the convention
+    /// <c>LayoutCorpusReportTests</c> already uses for its four production-touching asserts. The
+    /// subject is the type's DECLARED surface, not anything the chain produced from a document; it
+    /// cannot be moved by a parsing change, only by someone adding a gate. Red then is the correct
+    /// answer, and the remedy is one arm in <c>GateLadder</c>.</para></summary>
     [Fact]
     public void ReachableGateStates_CoversEveryDeclaredBlockReason()
     {
@@ -226,8 +242,12 @@ public sealed class LayoutCorpusEmitterTests
                 ],
             });
 
-            // Only the case's own table rows carry its id; the prose paragraphs do not.
-            return string.Join("\n", markdown.Split('\n').Where(l => l.Contains("`case-ladder`")));
+            // TABLE ROWS only. Filtering on the case id alone was sound but for the wrong reason:
+            // five prose lines DO carry a case id (§0's id lists, §1's free-text mechanics, §4b,
+            // §6), so the comment "only table rows carry its id" was false. The leading pipe makes
+            // the filter true by construction instead of by luck.
+            return string.Join("\n", markdown.Split('\n')
+                .Where(l => l.StartsWith('|') && l.Contains("`case-ladder`")));
         }
     }
 
@@ -238,8 +258,9 @@ public sealed class LayoutCorpusEmitterTests
     [Fact]
     public void IsWellFormed_RejectsAnUnresolvedRung()
     {
-        GateLadder.IsWellFormed([new GateCell("G1", "pnr on parse", GateState.Unresolved)])
-            .ShouldBeFalse();
+        // Built through From(...), not hand-assembled: the rule and the production of the state it
+        // rejects are then pinned by the same test, and neither can drift away from the other.
+        GateLadder.IsWellFormed(GateLadder.From(null, false, false, false, false)).ShouldBeFalse();
 
         LayoutCorpusReport.Build(Data() with
         {
@@ -251,6 +272,127 @@ public sealed class LayoutCorpusEmitterTests
                 },
             ],
         }).ShouldContain("**gate ladder malformed:** `case-ladder`");
+    }
+
+    /// <summary>The UNMAPPED-token path — the one line this PR's whole claim rests on, and the one
+    /// nothing was running.
+    ///
+    /// <para>The earlier mutation round looked like it covered this and did not: deleting the DQ6
+    /// arm kills a test by ROUTING THROUGH the catch-all, which proves a fall-through exists and
+    /// says nothing about what the catch-all returns. Flipping <c>_ =&gt;</c> back to
+    /// <see cref="GateState.NoVerdict"/> stayed green. That is the repo's own recorded lesson —
+    /// pin the CALL SITE, not only the rule — reproduced inside the PR that cites it.</para>
+    ///
+    /// <para>The path is genuinely reachable, not hypothetical: <c>CvChainProbe</c>'s outcome switch
+    /// returns <c>(block: null, promoted: false, faulted: false)</c> for an outcome that is neither
+    /// <c>LeftPending</c> nor <c>Promoted</c>.</para></summary>
+    [Fact]
+    public void Ladder_ForAnUnmappedOutcome_IsUnresolvedAndNeverAFault()
+    {
+        var ladder = GateLadder.From(
+            block: null, promoted: false, promoteFaulted: false,
+            pnrFoundOnParse: false, pnrInResolvedLabel: false);
+
+        ladder.ShouldAllBe(c => c.State == GateState.Unresolved);
+        ladder.ShouldNotContain(c => c.State == GateState.NoVerdict);
+        GateLadder.IsWellFormed(ladder).ShouldBeFalse();
+    }
+
+    /// <summary>The two branches <see cref="Ladder_ForEveryReachableBlock_NamesOneRungAndIsWellFormed"/>
+    /// cannot cover, because neither names a blocked rung. Both were unpinned.</summary>
+    [Fact]
+    public void Ladder_ForAFaultAndForAPromote_AreWellFormedAndDistinct()
+    {
+        var faulted = GateLadder.From(null, promoted: false, promoteFaulted: true, false, false);
+        faulted.ShouldAllBe(c => c.State == GateState.NoVerdict);
+        GateLadder.IsWellFormed(faulted).ShouldBeTrue();
+
+        var promoted = GateLadder.From(null, promoted: true, promoteFaulted: false, false, false);
+        promoted.ShouldAllBe(c => c.State == GateState.Passed);
+        GateLadder.IsWellFormed(promoted).ShouldBeTrue();
+    }
+
+    /// <summary>Every <see cref="GateState"/> must render as its OWN word. The renderer is where
+    /// this instrument speaks to a reader, and every surviving mutation this lane has found across
+    /// three PRs was on a read or render surface — so the mapping is pinned wholesale rather than
+    /// one arm at a time.</summary>
+    [Fact]
+    public void Report_RendersEveryGateStateAsADistinctWord()
+    {
+        var words = Enum.GetValues<GateState>().ToDictionary(s => s, RenderedCell);
+
+        words[GateState.Passed].ShouldBe("passed");
+        words[GateState.Blocked].ShouldBe("**BLOCKED**");
+        words[GateState.NotEvaluated].ShouldBe("not evaluated");
+        words[GateState.NoVerdict].ShouldBe("no verdict");
+        words[GateState.Unresolved].ShouldBe("unresolved");
+
+        words.Values.Distinct().Count().ShouldBe(words.Count,
+            "two GateStates render as the same word, so the artifact cannot say which one it means.");
+    }
+
+    /// <summary>§5's delimiter is DERIVED from the rung count, and the comment at its site records
+    /// that a hardcoded one was already once a cell short — under GFM that stops the block being a
+    /// table at all, so §5 rendered as raw pipes. Derivation alone is not a guard; this is.</summary>
+    [Fact]
+    public void Report_GateLadderDelimiterMatchesItsHeaderCellCount()
+    {
+        var lines = LayoutCorpusReport.Build(Data()).Split('\n');
+        var header = Array.FindIndex(lines, l => l.StartsWith("| # | Case | G1 ", StringComparison.Ordinal));
+        header.ShouldBeGreaterThan(-1, "§5's header row was not found — the emitter moved.");
+
+        Cells(lines[header + 1]).ShouldBe(Cells(lines[header]),
+            "GFM needs the delimiter row to have exactly as many cells as the header.");
+
+        static int Cells(string row) => row.Split('|').Length;
+    }
+
+    /// <summary>The rung ORDER is the gate order, and §5's cells are positional — a swap would
+    /// publish one gate's verdict under another's heading while every index-based assertion in this
+    /// file stayed green.</summary>
+    [Fact]
+    public void Ladder_RungsAreInGateOrder()
+    {
+        GateLadder.From(null, true, false, false, false).Select(c => c.GateId).ShouldBe(
+            ["G1 pnr(parse)", "G2 confidence", "G2b pnr(label)", "G3a pnr(DQ6)", "G3b buildability"]);
+    }
+
+    /// <summary>The corpus's own period-presence predicate (assert-rule category (b)). Inline in
+    /// <c>RunAsync</c> it was unreachable by any test, because the suite asserts no promoted count
+    /// and the artifact is the only surface it reaches — so a mutation of it survived everything.
+    /// Asymmetric fixture on purpose: an entry WITH a period and one WITHOUT, so a predicate that
+    /// counts everything and one that counts nothing both fail.</summary>
+    [Fact]
+    public void CountWithRawPeriod_CountsOnlyEntriesCarryingAPeriod()
+    {
+        LayoutChainRunner.CountWithRawPeriod(
+        [
+            new Experience("Acme", "Utvecklare", null, null, null, "2021 - 2026"),
+            new Experience("Klarna", "Utvecklare", null, null, null, null),
+        ]).ShouldBe(1);
+    }
+
+    private static string RenderedCell(GateState state)
+    {
+        var markdown = LayoutCorpusReport.Build(Data() with
+        {
+            Cases =
+            [
+                Observation("case-ladder") with
+                {
+                    Gates = [new GateCell("G1 pnr(parse)", "pnr on parse", state)],
+                },
+            ],
+        });
+
+        // Anchored on §5's HEADER, not on the row prefix: four sections render a row starting
+        // `| 1 | \`case-ladder\``, so a prefix match reads whichever one comes first and would
+        // silently measure §1's CTO-class cell instead of a gate cell.
+        var lines = markdown.Split('\n');
+        var header = Array.FindIndex(lines, l => l.StartsWith("| # | Case | G1 ", StringComparison.Ordinal));
+        header.ShouldBeGreaterThan(-1, "§5's header row was not found — the emitter moved.");
+
+        return lines[header + 2].Split('|')[3].Trim();
     }
 
     public static TheoryData<AutoPromoteBlockReason, bool, bool, int> ReachableGateStates() =>

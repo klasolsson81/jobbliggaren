@@ -64,21 +64,24 @@ public sealed record GateCell(string GateId, string CallSite, GateState State);
 /// here would fork the gate ORDER — and the order is exactly what pin P6 pins, so a corpus holding
 /// its own copy of it would stay green through a reordering of the product.</para>
 ///
-/// <para><b>The collapsed token, and how it is resolved by ELIMINATION rather than guessed —
-/// rewritten 2026-07-28, because the previous wording became false and was still being printed.</b>
-/// It said "three distinct predicates return the single <c>PersonnummerPresent</c> reason … whatever
-/// remains after eliminating those two IS the DQ6 guard — there is no fourth site." #1060 PR C split
-/// the token: the composed-DTO DQ6 guard now returns its own <c>PersonnummerInAccountName</c>
-/// (<c>AutoPromoteGate.cs:143-144</c>). <b>TWO</b> predicates collapse onto <c>PersonnummerPresent</c>
-/// today — the parse-level check and the resolved-label scan — and both are resolvable from outside
-/// the Application assembly without re-typing either: <c>parsed.Personnummer.Found</c> is readable on
-/// the aggregate, and <c>ResumeLabelResolver</c> plus <c>PersonnummerScanner</c> are both public, so
-/// the corpus runs the same two public calls the handler runs. The DQ6 rung is no longer reached by
-/// elimination at all; it is reached by its own token.</para>
+/// <para><b>The collapsed token, and how it is resolved — by TWO POSITIVE DISCRIMINATORS, no longer
+/// by elimination. Rewritten 2026-07-28, because the previous wording had become false and was still
+/// being printed into the artifact.</b> It said "three distinct predicates return the single
+/// <c>PersonnummerPresent</c> reason … whatever remains after eliminating those two IS the DQ6 guard
+/// — there is no fourth site." #1060 PR C split the token: the composed-DTO DQ6 guard now returns
+/// its own <c>PersonnummerInAccountName</c>. <b>TWO</b> predicates collapse onto
+/// <c>PersonnummerPresent</c> today — the parse-level check and the resolved-label scan — and both
+/// are resolvable from outside the Application assembly without re-typing either:
+/// <c>parsed.Personnummer.Found</c> is readable on the aggregate, and <c>ResumeLabelResolver</c>
+/// plus <c>PersonnummerScanner</c> are both public, so the corpus runs the same two public calls the
+/// handler runs.</para>
 ///
-/// <para>Because those two guards are now exhaustive over <c>PersonnummerPresent</c>, a fall-through
-/// on that token is an INSTRUMENT gap, not a product state — see <see cref="GateState.Unresolved"/>,
-/// which is what the elimination claim above is worth without a state that can say "I do not know".</para>
+/// <para><b>"Elimination" is the wrong word for what happens now, and using it would repeat the
+/// defect this paragraph was rewritten for.</b> Both remaining arms carry a POSITIVE guard
+/// (<c>when pnrFoundOnParse</c>, <c>when pnrInResolvedLabel</c>); nothing is inferred from a
+/// remainder, and what falls past them is not attributed to a third site — it becomes
+/// <see cref="GateState.Unresolved"/>. Elimination was only ever sound while the corpus knew the
+/// site list was complete, and PR C is the measured proof that such knowledge expires.</para>
 ///
 /// <para><b>Why there is no per-case "not exercisable" state.</b> An earlier revision keyed such a
 /// state on whether a case authored a personnummer, and it was wrong in both directions: it printed
@@ -163,13 +166,20 @@ internal static class GateLadder
     /// evaluated. Every literal <see cref="Resolve"/> returns is well-formed this way by
     /// construction, so this half only catches a future hand-edited ladder.</para>
     ///
-    /// <para>(2) <b>An UNRESOLVED token</b> — <see cref="GateState.Unresolved"/> anywhere. This half
-    /// is the one that had to exist: before it, an all-<see cref="GateState.NoVerdict"/> row passed
-    /// (nothing is "passed after a stop"), which is precisely why PR C's new gate token went
-    /// unnoticed here for a whole PR while the artifact published its case as a handler fault.
-    /// Rejecting it wires the gap into §0's "gate ladder malformed" list and into
-    /// <c>LayoutCorpusReportTests</c>'s existing instrument assert, so the NEXT token added without
-    /// an arm is red rather than narrated.</para>
+    /// <para>(2) <b>A state outside the four the ladder can honestly report</b> — today that means
+    /// <see cref="GateState.Unresolved"/>, and the check is written as a SHAPE so it keeps meaning
+    /// that after a sixth member lands. This half is the one that had to exist: before it, an
+    /// all-<see cref="GateState.NoVerdict"/> row passed (nothing is "passed after a stop"), which is
+    /// precisely why PR C's new gate token went unnoticed here for a whole PR while the artifact
+    /// published its case as a handler fault. Rejecting it wires the gap into §0's "gate ladder
+    /// malformed" list and into <c>LayoutCorpusReportTests</c>'s instrument assert, so the NEXT
+    /// token added without an arm is red rather than narrated.</para>
+    ///
+    /// <para><b>This makes the assert at that call site production-reachable, and that is a
+    /// deliberate contract change, not a side effect.</b> The previous docblock said this method
+    /// "cannot fail against today's code"; it can now — a new <c>AutoPromoteBlockReason</c> that
+    /// reaches a corpus case reddens the suite until the ladder learns it. That is argued at the
+    /// assert block in <c>LayoutCorpusReportTests</c> rather than left for a reader to discover.</para>
     ///
     /// <para>Both halves take the corpus's own derivation as their subject, never a product
     /// outcome — the assert rule at <c>LayoutCorpusReportTests</c> category (b).</para></summary>
@@ -178,7 +188,13 @@ internal static class GateLadder
         var stopped = false;
         foreach (var cell in ladder)
         {
-            if (cell.State == GateState.Unresolved)
+            // SHAPE, not name. Naming only Unresolved would leave the identical hole one member
+            // away: `Short` falls back to "unresolved" for ANY unmapped state, so a sixth
+            // GateState would print that word in every cell while §0 said "malformed: none" and
+            // the build stayed green — two incompatible claims about one row, which is exactly the
+            // defect this PR exists to remove. The guard and the renderer now share a shape.
+            if (cell.State is not (GateState.Passed or GateState.Blocked
+                or GateState.NotEvaluated or GateState.NoVerdict))
                 return false;
 
             if (cell.State is GateState.NotEvaluated or GateState.NoVerdict)

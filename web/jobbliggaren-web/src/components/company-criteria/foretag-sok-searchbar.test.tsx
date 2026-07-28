@@ -229,6 +229,50 @@ describe("ForetagSokSearchbar — a filter commit never carries the typed value 
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  /**
+   * The gate that protects the half-typed name, pinned against a commit that actually LANDS.
+   *
+   * Everywhere else in this file `router.push` is a synchronous mock, so props never change and the
+   * re-seed can never fire — which means it can never be caught misfiring either. Here the landing is
+   * simulated explicitly: the filter axis arrives changed while `namn` stays put, exactly what a
+   * filter commit produces. Gate on the applied SIGNATURE instead of on `namn` and this wipes "Saab"
+   * back to "Volvo" mid-typing; gate on `namn` and it cannot fire at all.
+   */
+  it("survives the commit LANDING: a new filter axis must not re-seed the field", async () => {
+    const { rerender } = renderBar({ namn: "Volvo" });
+    const user = userEvent.setup();
+    const field = screen.getByLabelText("Företagsnamn eller organisationsnummer");
+
+    await user.clear(field);
+    await user.type(field, "Saab");
+
+    // The navigation lands: the filter axis is now applied, the name is untouched.
+    rerender(
+      <ForetagSokSearchbar
+        reference={REFERENCE}
+        referenceOk
+        namn="Volvo"
+        sni={["63120"]}
+        kommun={[]}
+      />,
+    );
+
+    expect(field).toHaveValue("Saab");
+
+    // ...and the gate still works for the case it exists for: an external navigation that DOES
+    // change the applied name re-seeds the field, so Back does not leave a stale value behind.
+    rerender(
+      <ForetagSokSearchbar
+        reference={REFERENCE}
+        referenceOk
+        namn="Scania"
+        sni={["63120"]}
+        kommun={[]}
+      />,
+    );
+    expect(field).toHaveValue("Scania");
+  });
+
   it("leaves the dirty field dirty — the commit does not clear or apply it", async () => {
     renderBar({ namn: "Volvo" });
     const user = userEvent.setup();

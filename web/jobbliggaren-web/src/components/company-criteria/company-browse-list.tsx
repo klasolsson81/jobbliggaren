@@ -61,8 +61,35 @@ export function CompanyBrowseList({
 
   return (
     <div className="overflow-x-auto">
-      <table className="jp-table w-full" aria-label={tableAria}>
+      <table
+        // Both class strings are written out in full rather than composed: the CSS guard's class
+        // sweep reads literals, and a `jp-x--${flag}` template makes a live rule look dead (#1065).
+        className={
+          showFollow
+            ? "jp-table jp-companyBrowse jp-companyBrowse--withFollow w-full"
+            : "jp-table jp-companyBrowse w-full"
+        }
+        aria-label={tableAria}
+      >
         <caption className="sr-only">{tableCaption}</caption>
+        {/* The column geometry is DECLARED here, not left to whatever rows loaded. /foretag/sok
+            renders this table twice — the org.nr answer above the browse — and under auto layout a
+            one-row answer and a fifty-row browse each sized their own columns, so the two disagreed
+            about where Org.nr, Säteskommun and Branscher begin (51px apart, measured at 1280/1920/
+            3440). Widths live in globals.css with the measurement behind each one.
+
+            This colgroup must stay in lockstep with the <th> row below it: a column added to one
+            and not the other silently shifts every column after it. `company-browse-list.test.tsx`
+            pins the two counts against each other. */}
+        <colgroup>
+          {/* guard-allow: intentionally width-less — the company name absorbs the remainder, so the
+              widths always sum exactly. The class is kept so the colgroup reads in column order. */}
+          <col className="jp-companyBrowse__col--name" />
+          <col className="jp-companyBrowse__col--orgnr" />
+          <col className="jp-companyBrowse__col--seat" />
+          <col className="jp-companyBrowse__col--sni" />
+          {showFollow && <col className="jp-companyBrowse__col--follow" />}
+        </colgroup>
         <thead>
           <tr>
             <th scope="col">{t("colName")}</th>
@@ -75,7 +102,11 @@ export function CompanyBrowseList({
         <tbody>
           {items.map((company, index) => (
             <tr key={company.organizationNumber ?? `${company.name}-${index}`} className="text-text-primary">
-              <td className="text-text-primary">{company.name}</td>
+              {/* `break-words` only bites when a single token cannot fit the column at all. The
+                  longest unbreakable token in the register is 42 characters (~336px), which fits
+                  the 356px this column gets on the 1136px rail but not the 220px it gets at the
+                  table's minimum width — under fixed layout that would paint over Org.nr. */}
+              <td className="wrap-break-word text-text-primary">{company.name}</td>
               <td className="whitespace-nowrap font-mono text-text-secondary">
                 {company.isProtectedIdentity ? (
                   <span className="inline-flex items-center gap-1 rounded-pill bg-warning-50 px-2 py-0.5 font-sans text-body-sm text-warning-700">
@@ -92,8 +123,14 @@ export function CompanyBrowseList({
               </td>
               {/* The SCB kommun CODE is not rendered: Swedish kommun names are unique, so it
                   disambiguates nothing, and mono type is reserved for signal (DESIGN.md rule 4). The
-                  code is the FALLBACK only — a row never renders blank when the name is missing. */}
-              <td className="whitespace-nowrap text-text-primary">
+                  code is the FALLBACK only — a row never renders blank when the name is missing.
+
+                  No `whitespace-nowrap`: under fixed layout that would have made the column as wide
+                  as its longest VALUE, "Ej svensk hemortskommun" (203px). Every real kommun name
+                  still fits on one line at 140px — the longest is "Skinnskatteberg" at 132px — and
+                  the outlier wraps to two lines instead of taxing every page 63px for 2.2% of the
+                  register. */}
+              <td className="text-text-primary">
                 {company.seatMunicipalityName ?? company.seatMunicipalityCode}
               </td>
               <td className="text-text-primary">

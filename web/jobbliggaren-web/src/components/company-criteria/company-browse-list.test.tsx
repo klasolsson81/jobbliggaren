@@ -123,3 +123,37 @@ describe("CompanyBrowseList — the table's accessible name", () => {
     ).not.toBeInTheDocument();
   });
 });
+
+/**
+ * Under `table-layout: fixed` the `<colgroup>` IS the column geometry, so it has to stay in lockstep
+ * with the header row: one `<col>` too few and every column after the gap silently takes the wrong
+ * width — on /foretag/sok that means the org.nr answer and the browse below it stop lining up, which
+ * is the defect this geometry exists to fix.
+ *
+ * jsdom computes no layout, so the widths themselves are verified rendered (Chromium, see the PR).
+ * What jsdom CAN pin is the structural contract, and that is the half a future column addition
+ * breaks: the follow column is conditional, so the two must agree in BOTH shapes.
+ */
+describe("CompanyBrowseList — the colgroup matches the header row", () => {
+  it("declares one <col> per column when the follow column is rendered", () => {
+    const map = new Map<string, string | null>([[LEGAL_ORGNR, null]]);
+    const { container } = render(
+      <CompanyBrowseList items={[LEGAL]} reference={REFERENCE} followStateByOrgNr={map} />,
+    );
+
+    expect(container.querySelectorAll("colgroup > col")).toHaveLength(5);
+    expect(container.querySelectorAll("thead th")).toHaveLength(5);
+    // Every body row must line up with them too — a `colSpan` or a dropped cell breaks the same way.
+    expect(container.querySelectorAll("tbody tr:first-child > td")).toHaveLength(5);
+  });
+
+  it("drops the follow <col> with the follow column (bevakningar/[id] parity)", () => {
+    const { container } = render(<CompanyBrowseList items={[LEGAL]} reference={REFERENCE} />);
+
+    expect(container.querySelectorAll("colgroup > col")).toHaveLength(4);
+    expect(container.querySelectorAll("thead th")).toHaveLength(4);
+    expect(container.querySelectorAll("tbody tr:first-child > td")).toHaveLength(4);
+    // The wider floor belongs to the five-column shape only; this surface must not inherit it.
+    expect(container.querySelector("table")).not.toHaveClass("jp-companyBrowse--withFollow");
+  });
+});

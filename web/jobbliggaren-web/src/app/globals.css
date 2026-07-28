@@ -4647,6 +4647,36 @@ a.jp-adminnav__link[aria-current="page"]::after {
 .jp-table tbody tr:hover td { background: var(--jp-surface-tertiary); }
 .jp-table tbody tr:last-child td { border-bottom: 2px solid var(--jp-border-strong); }
 
+/* CompanyBrowseList column geometry (#1090 follow-up). Scoped to that component, never to
+   .jp-table at large: the admin-granskning ledger keeps auto layout.
+
+   WHY FIXED. /foretag/sok renders the SAME table twice — the org.nr answer above the streamed
+   browse. #1118 made them equally WIDE (1136px both); auto layout then still sized each one to
+   its OWN rows, so a one-row answer and a fifty-row browse disagreed about where every column
+   starts. Measured at 1280/1920/3440 before this change: Org.nr, Säteskommun and Branscher all
+   began 51px apart on the two tables. Fixed layout makes the geometry a decision instead of a
+   consequence of whichever rows happened to load.
+
+   The widths are max-content measurements of the worst case each column must survive, not
+   guesses — see the PR body. Only the company name absorbs the remainder, so the sum is exact
+   at every table width. */
+.jp-companyBrowse { table-layout: fixed; min-width: 860px; }
+.jp-companyBrowse--withFollow { min-width: 1000px; }
+/* 160px = the "Skyddad identitet" badge, which is wider than a formatted org.nr (129px) and is
+   the reason this column may not shrink: it stays nowrap because a broken identifier is
+   unreadable. The dev register holds zero personnummer-shaped rows, so the badge was measured on
+   its own markup. */
+.jp-companyBrowse__col--orgnr { width: 170px; }
+/* 132px = "Skinnskatteberg", the longest single WORD any kommun name contains. The longest VALUE
+   is "Ej svensk hemortskommun" (203px unbroken, 23 837 rows), which now wraps to two lines
+   instead of charging every page 63px of empty column for 2.2% of the register — the cell
+   dropped whitespace-nowrap for exactly this. */
+.jp-companyBrowse__col--seat { width: 140px; }
+/* 232px = "Plastförpackningstillverkning", the longest unbreakable token in SNI 2025. */
+.jp-companyBrowse__col--sni { width: 330px; }
+/* 131px = the rendered follow-button cell. */
+.jp-companyBrowse__col--follow { width: 140px; }
+
 /* ============================================================
    F6 P5 Punkt 4 — Översikt (civic dossier)
    Källa: docs/jobbliggaren-v3-bundle/Jobbliggaren/handoff-oversikt/

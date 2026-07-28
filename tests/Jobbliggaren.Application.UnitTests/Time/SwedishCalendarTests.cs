@@ -196,14 +196,42 @@ public class SwedishCalendarTests
     [Fact]
     public void StartOfMonth_IsNotReproducibleByAddMonths_AcrossADstBoundary()
     {
-        // The named follow-up consumer builds a 12-month series. The cheap way
-        // is one anchor plus AddMonths — and AddMonths PRESERVES the offset, so
-        // a July anchor stepped back six months lands an hour off. Pinned here
-        // so the follow-up cannot adopt that form by accident.
+        // The named follow-up consumer builds a 12-month series, and the cheap
+        // way is one anchor plus AddMonths. It is wrong TWICE — and an earlier
+        // version of this comment named only the second reason, because it was
+        // written against the pre-normalisation implementation:
+        //
+        //   1. The normalised return is NOT the 1st of the month.
+        //      StartOfMonth(2026, 7) is 2026-06-30T22:00Z, so stepping back six
+        //      months lands on 30 December, not 31.
+        //   2. AddMonths preserves the offset, so it is an hour out as well.
+        //
+        // Pinned by VALUE, not by inequality: ShouldNotBe held for any
+        // difference at all, which is exactly why it never noticed that its
+        // stated reason had stopped being true.
         var calendar = new SwedishCalendar();
 
-        calendar.StartOfMonth(2026, 7).AddMonths(-6)          // 2025-12-31T22:00Z
-            .ShouldNotBe(calendar.StartOfMonth(2026, 1));     // 2025-12-31T23:00Z
+        calendar.StartOfMonth(2026, 7).ShouldBe(
+            new DateTimeOffset(2026, 6, 30, 22, 0, 0, TimeSpan.Zero));
+        calendar.StartOfMonth(2026, 7).AddMonths(-6).ShouldBe(
+            new DateTimeOffset(2025, 12, 30, 22, 0, 0, TimeSpan.Zero));
+        calendar.StartOfMonth(2026, 1).ShouldBe(
+            new DateTimeOffset(2025, 12, 31, 23, 0, 0, TimeSpan.Zero));
+    }
+
+    [Fact]
+    public void StartOfMonth_ReturnValueIsNotTheFirstOfTheMonth()
+    {
+        // A trap the UTC normalisation CREATED, and the named follow-up consumer
+        // already reads exactly this: ApplicationStatsCalculator labels each
+        // bucket with monthStart.Month. StartOfMonth(2026, 7) is 2026-06-30T22:00Z,
+        // so a July bucket would be labelled JUNE — a visibly mislabelled graph.
+        //
+        // Labels come from the ARGUMENTS, never from the return value.
+        var start = new SwedishCalendar().StartOfMonth(2026, 7);
+
+        start.Month.ShouldBe(6);
+        start.Day.ShouldBe(30);
     }
 
     [Theory]

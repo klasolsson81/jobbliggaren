@@ -55,18 +55,24 @@ public class RefreshLandingStatsJobIntegrationTests(ApiFactory factory)
         var calendar = scope.ServiceProvider.GetRequiredService<ISwedishCalendar>();
         var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
 
-        // 00:30 Swedish time on 23 May 2026 — inside the Swedish day, outside the
-        // retired UTC one. Seeded through the real factory; a published-at inside
-        // that window is a value production emits (ads are published around the
-        // clock), so this carries no premise obligation under CLAUDE.md §5.
+        // Published just now, so the row is inside the current Swedish day
+        // whenever the suite runs. An earlier version seeded a fixed May 2026
+        // date while resolving the REAL clock — which made the seed decorative
+        // (a two-month-old ad can never be "new today") and its comment true of
+        // a clock this test does not use. test-writer caught it.
+        //
+        // Seeded through the real factory; an ad published moments ago is a
+        // value production emits, so this carries no premise obligation under
+        // CLAUDE.md §5 `Tests:`.
+        var now = clock.UtcNow;
         var ad = JobAd.Create(
             $"swedish-boundary-probe-{Guid.NewGuid():N}",
             Company.Create("Acme").Value,
             "Description",
             $"https://example.com/{Guid.NewGuid():N}",
             JobSource.Manual,
-            new DateTimeOffset(2026, 5, 22, 22, 30, 0, TimeSpan.Zero),
-            new DateTimeOffset(2026, 6, 21, 22, 30, 0, TimeSpan.Zero),
+            now,
+            now.AddDays(30),
             clock).Value;
         db.JobAds.Add(ad);
         await db.SaveChangesAsync(ct);
@@ -85,8 +91,15 @@ public class RefreshLandingStatsJobIntegrationTests(ApiFactory factory)
 
         captured.ShouldNotBeNull();
         captured!.ActiveCount.ShouldNotBeNull();
-        captured.NewToday.ShouldNotBeNull();
         captured.IsStale.ShouldBeFalse();
+
+        // Weak on the count because the integration database is shared; strong
+        // on the fact that a row seeded moments ago fell inside the boundary. A
+        // boundary computed a day too far forward returns 0 here, so this is a
+        // real kill and not just "the query ran".
+        captured.NewToday.ShouldNotBeNull();
+        captured.NewToday!.Value.ShouldBeGreaterThanOrEqualTo(1,
+            "raden publicerades nyss och måste ligga innanför den svenska dygnsgränsen");
     }
 
     [Fact]

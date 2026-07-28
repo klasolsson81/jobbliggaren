@@ -105,9 +105,10 @@ public class RefreshLandingStatsJobTests
     // whole class was satisfied by a hardcoded offset. Every other case here sits
     // in May, so `todayStart = now.UtcDateTime.Date.AddHours(-2)` — the port
     // deleted entirely — passes all of them. Alone, neither test proves anything
-    // about the other; together they leave no fixed offset standing: this row is
-    // the one a hardcoded UTC+2 wrongly excludes, and May's is the one a
-    // hardcoded UTC+1 wrongly includes. Found by test-writer, not by my own
+    // about the other; together they leave no fixed offset standing: a hardcoded
+    // UTC+2 wrongly INCLUDES this test's 22:30Z row (boundary 22:00Z instead of
+    // 23:00Z), and a hardcoded UTC+1 wrongly EXCLUDES May's 22:30Z row (23:00Z
+    // instead of 22:00Z). Found by test-writer, not by my own
     // mutation round, which only tried reverting to UTC.
     [Fact]
     public async Task RunAsync_InWinter_UsesTheOneHourOffset_NotTheSummerOne()

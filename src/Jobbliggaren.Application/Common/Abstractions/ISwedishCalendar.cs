@@ -25,11 +25,23 @@ namespace Jobbliggaren.Application.Common.Abstractions;
 /// </para>
 ///
 /// <para>
-/// <b>Instants in, instants out.</b> Both members return a
+/// <b>Instants in, instants out — and the returned <c>Offset</c> is ALWAYS
+/// <see cref="TimeSpan.Zero"/>.</b> Both members return a
 /// <see cref="DateTimeOffset"/> at the UTC instant the Swedish boundary falls
 /// on, so a caller compares it directly against a <c>timestamptz</c> column
-/// without converting inside the LINQ expression. The offset varies with DST:
-/// Swedish midnight is 23:00Z the previous day in winter and 22:00Z in summer.
+/// without converting inside the LINQ expression. The zero offset is part of
+/// this contract, not an implementation detail: Npgsql writes a
+/// <see cref="DateTimeOffset"/> to <c>timestamp with time zone</c> only when
+/// the offset is zero, so any implementation must normalise. What varies with
+/// DST is the INSTANT, not the offset — Swedish midnight is 23:00Z the
+/// previous day in winter and 22:00Z in summer.
+/// </para>
+/// <para>
+/// A consequence worth stating, because a consumer will otherwise be caught by
+/// it: the returned value is <b>not</b> the 1st of the month, nor the same
+/// calendar day the caller asked about. <c>StartOfMonth(2026, 7)</c> is
+/// <c>2026-06-30T22:00Z</c>. Derive display labels from the ARGUMENTS, never
+/// from the return value.
 /// </para>
 ///
 /// <para>
@@ -59,9 +71,11 @@ public interface ISwedishCalendar
     /// March and October, which in a 31-day month is always the 25th or later.
     /// </para>
     /// <para>
-    /// <b>Do not reproduce a series of these with <c>AddMonths</c>.</b>
-    /// <c>AddMonths</c> preserves the offset, so one summer anchor stepped back
-    /// six months yields a January instant an hour wrong. Ask for each month.
+    /// <b>Do not reproduce a series of these with <c>AddMonths</c>.</b> The
+    /// returned instant is the previous month's last day in UTC, so stepping a
+    /// July anchor back six months lands on 30 December rather than 31 — and
+    /// <c>AddMonths</c> preserves the offset, so it is an hour out on top of
+    /// that. Ask for each month.
     /// </para>
     /// </summary>
     DateTimeOffset StartOfMonth(int year, int month);

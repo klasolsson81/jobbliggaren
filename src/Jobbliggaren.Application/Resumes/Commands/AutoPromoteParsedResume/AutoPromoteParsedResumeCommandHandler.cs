@@ -10,20 +10,25 @@ using Jobbliggaren.Domain.Resumes;
 using Jobbliggaren.Domain.Resumes.Parsing;
 using Mediator;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace Jobbliggaren.Application.Resumes.Commands.AutoPromoteParsedResume;
 
 /// <summary>
 /// The "spara direkt" mechanism (CV-pivot PR 5a, CTO-bind 2026-07-17). Flow: resolve owner
 /// (id + display name in one projection) → owner-scoped tracked load (IDOR fail-closed,
-/// parity <c>PromoteParsedResumeCommandHandler</c>) → the TWO policy gates, cheapest and
-/// highest-PII-priority first (personnummer → extraction failure) → project the
-/// parse verbatim to the transport shape → the shared personnummer guard (DQ6; the one text
-/// this composition adds over the import-scanned raw superset is the account display name)
-/// → <c>ResumeContentMapper.ToDomain</c> → <c>Resume.CreateFromParsed</c> (the ONE
-/// buildability authority — its failure is the honest "content insufficient, user reviews",
-/// never re-encoded here) → <c>ParsedResume.Promote</c> (aggregate owns the gate) → add →
+/// parity <c>PromoteParsedResumeCommandHandler</c>) → resolve the two names →
+/// <see cref="AutoPromoteGate"/> (every gate, in order, ending in the ONE buildability
+/// authority) → <c>ParsedResume.Promote</c> (aggregate owns the gate) → add →
 /// reconciler-seed → audit → <c>Promoted</c>.
+///
+/// <para><b>The gates left this handler in PR C (#1060 D4-REBIND) and nothing about them
+/// changed.</b> They moved because the read path needs the same verdict and must not re-encode
+/// it: <c>GetParsedResumeQueryHandler</c> now calls the same
+/// <see cref="AutoPromoteGate.Evaluate"/> so the CV hub can say WHY a file stayed pending
+/// without a second upload. The gate hands back the built <c>Resume</c> on the promotable arm,
+/// so this handler has no <c>CreateFromParsed</c> call of its own and the two paths cannot
+/// drift into two predicates.</para>
 ///
 /// <para><b>Every non-promote exit precedes every mutation.</b> A <c>LeftPending</c> returns
 /// before <c>Promote</c>/<c>Add</c> touch anything, so the unconditional
@@ -41,14 +46,15 @@ namespace Jobbliggaren.Application.Resumes.Commands.AutoPromoteParsedResume;
 /// reads or logs decrypted content; the warmed owner DEK decrypts the parse shadow on load
 /// and encrypts the new Master on write (ADR 0074 Invariant 3).</para>
 /// </summary>
-public sealed class AutoPromoteParsedResumeCommandHandler(
+public sealed partial class AutoPromoteParsedResumeCommandHandler(
     IAppDbContext db,
     ICurrentUser currentUser,
     IDateTimeProvider clock,
     IFailedAccessLogger failedAccessLogger,
     IResumeReviewReconciler reconciler,
     ICorrelationIdProvider correlationIdProvider,
-    IRequestContextProvider requestContextProvider)
+    IRequestContextProvider requestContextProvider,
+    ILogger<AutoPromoteParsedResumeCommandHandler> logger)
     : ICommandHandler<AutoPromoteParsedResumeCommand, Result<AutoPromoteOutcome>>
 {
     public async ValueTask<Result<AutoPromoteOutcome>> Handle(
@@ -95,27 +101,6 @@ public sealed class AutoPromoteParsedResumeCommandHandler(
                 DomainError.NotFound("ParsedResume", parsedResumeId.Value));
         }
 
-        // ── Tier 1: the two POLICY gates (CTO-bind §2; narrowed from three by #1060's D1
-        // bind) — both read-only, both before any mutation. Order: highest PII priority
-        // first, then extraction failure.
-        if (parsed.Personnummer.Found)
-            return LeftPending(AutoPromoteBlockReason.PersonnummerPresent);
-
-        // #1060 D1.3: `Failed` ONLY, not `RequiresManualReview`. A `Degraded` parse found
-        // something and is honest that the document was messy — under ADR 0112 that is the CV
-        // the reviewer has most to say about, so blocking it gives the least product to the
-        // user who needs it most. `Failed` still blocks: extraction produced nothing usable, so
-        // the promote would build a CV that says less than the file did. The enum member's
-        // docblock records the reversal of the 5a bind's R3 — read it before re-tightening.
-        //
-        // #1060 D1.2: the preamble gate that stood between these two is RETIRED. Text above the
-        // first heading no longer blocks; it rides the source parse and is shown back on the
-        // promoted CV's review surface (ADR 0109 amendment 2026-07-27). Nothing is minted here —
-        // AutoPromoteContentMapper still never maps Preamble into Summary or a Section, which is
-        // the prohibition the gate was standing in for, enforced where it belongs.
-        if (parsed.Confidence.Overall == OverallConfidenceLevel.Failed)
-            return LeftPending(AutoPromoteBlockReason.ParseNotConfident);
-
         // ── The two names are DIFFERENT concepts and are resolved separately (#1060).
         //
         // Until now one string fed both, so a user who named the CV "Backend-CV 2026" got
@@ -137,28 +122,14 @@ public sealed class AutoPromoteParsedResumeCommandHandler(
         // the canonical Resume (PersonnummerScanOutcome), which B4's Warn-not-Fail rests on.
         var label = ResumeLabelResolver.Resolve(command.NameOverride, clock);
 
-        // A personnummer in the LABEL is a personnummer presence, not "incomplete content" —
-        // `Resume.ValidateName` would refuse it too, but as a buildability failure, which
-        // would mis-report the reason (§5: never mis-report a verdict).
-        if (PersonnummerScanner.Scan(PersonnummerTextNormalizer.Normalize(label)).Count > 0)
-            return LeftPending(AutoPromoteBlockReason.PersonnummerPresent);
+        // ── Every gate, in one place, shared verbatim with the read path (#1060 D4-REBIND).
+        // The promotable arm carries the built Resume: this handler deliberately has no
+        // CreateFromParsed of its own, so "would it build?" and "build it" are one evaluation.
+        var verdict = AutoPromoteGate.Evaluate(parsed, personName, label, owner.Id, clock);
+        if (verdict is AutoPromoteGateVerdict.Blocked blocked)
+            return LeftPending(blocked.Reason, parsed.Id);
 
-        // ── Tier 2: buildability, through the ONE existing promote pipeline.
-        var dto = AutoPromoteContentMapper.ToContentDto(parsed.Content, personName);
-
-        // DQ6 on the COMPOSED content (arch-tripwire-required for every CreateFromParsed
-        // caller). The import scan covered the raw-text superset of everything the parse
-        // structured, so the one genuinely new text here is the account display name — a
-        // personnummer riding in it is caught HERE, and the disposition is the same honest
-        // "pending, review" (it is a personnummer presence, whichever field carries it).
-        var guard = ResumeContentPersonnummerGuard.Check(dto);
-        if (guard.IsFailure)
-            return LeftPending(AutoPromoteBlockReason.PersonnummerPresent);
-
-        var content = ResumeContentMapper.ToDomain(dto);
-        var created = Resume.CreateFromParsed(owner.Id, label, content, parsed.Id, clock);
-        if (created.IsFailure)
-            return LeftPending(AutoPromoteBlockReason.IncompleteContent);
+        var resume = ((AutoPromoteGateVerdict.Promotable)verdict).Resume;
 
         // ── Mutations begin. The aggregate owns the promote gate (PendingReview + no
         // flagged personnummer); the personnummer half was re-verified by the policy gate
@@ -170,7 +141,6 @@ public sealed class AutoPromoteParsedResumeCommandHandler(
         if (promotion.IsFailure)
             return Result.Failure<AutoPromoteOutcome>(promotion.Error);
 
-        var resume = created.Value;
         db.Resumes.Add(resume);
 
         // Seed the DEK-free finding-status ledger in the SAME transaction (ADR 0093
@@ -200,6 +170,30 @@ public sealed class AutoPromoteParsedResumeCommandHandler(
             new AutoPromoteOutcome.Promoted(resume.Id.Value));
     }
 
-    private static Result<AutoPromoteOutcome> LeftPending(AutoPromoteBlockReason reason) =>
-        Result.Success<AutoPromoteOutcome>(new AutoPromoteOutcome.LeftPending(reason));
+    // #1060 D4-REBIND(6): the measurement instrument for D3. Which gate actually stops real
+    // uploads is a question the product has never been able to answer from production — #1060
+    // itself was diagnosed by reading a dev-DB row by hand — and D3's per-entry decomposition
+    // is explicitly waiting on a population measurement. One structured line per LeftPending
+    // makes the distribution readable in Seq without a query over CV-PII.
+    //
+    // NON-PII by construction, and both properties are deliberate: the reason is a closed enum
+    // token (never free text, never a field VALUE — the whole point of the enum, see
+    // AutoPromoteBlockReason's docblock) and the id is the staging artifact's surrogate key,
+    // the same identifier IFailedAccessLogger already logs on this aggregate. No file name, no
+    // display name, no parsed content — this handler never logs decrypted content
+    // (ADR 0074 Invariant 3, CLAUDE.md §5).
+    private Result<AutoPromoteOutcome> LeftPending(
+        AutoPromoteBlockReason reason, ParsedResumeId parsedResumeId)
+    {
+        LogLeftPending(logger, reason, parsedResumeId.Value);
+        return Result.Success<AutoPromoteOutcome>(new AutoPromoteOutcome.LeftPending(reason));
+    }
+
+    // Information, not Warning: a LeftPending is an expected product state the user resolves,
+    // not a fault (the same reason it rides Result.Success). MEL property names come from the
+    // placeholder TOKENS, so these read as `BlockReason` / `ParsedResumeId` in Seq.
+    [LoggerMessage(Level = LogLevel.Information,
+        Message = "Auto-promote left the parsed CV pending: {BlockReason} (parsed resume {ParsedResumeId})")]
+    private static partial void LogLeftPending(
+        ILogger logger, AutoPromoteBlockReason blockReason, Guid parsedResumeId);
 }

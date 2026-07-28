@@ -35,7 +35,7 @@ public class GetParsedResumeQueryHandlerTests
     }
 
     private GetParsedResumeQueryHandler CreateSut(Infrastructure.Persistence.AppDbContext db) =>
-        new(db, _currentUser, _failedAccess);
+        new(db, _currentUser, _failedAccess, FakeDateTimeProvider.Default);
 
     private static ParsedResume BuildParsedResume(JobSeekerId owner)
     {
@@ -79,7 +79,7 @@ public class GetParsedResumeQueryHandlerTests
         var parsed = await SeedOwnedAsync(db, _userId);
         var anon = Substitute.For<ICurrentUser>();
         anon.UserId.Returns((Guid?)null);
-        var sut = new GetParsedResumeQueryHandler(db, anon, _failedAccess);
+        var sut = new GetParsedResumeQueryHandler(db, anon, _failedAccess, FakeDateTimeProvider.Default);
 
         var result = await sut.Handle(
             new GetParsedResumeQuery(parsed.Id.Value), TestContext.Current.CancellationToken);

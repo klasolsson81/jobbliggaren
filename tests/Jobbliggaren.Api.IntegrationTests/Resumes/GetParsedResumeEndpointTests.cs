@@ -2,8 +2,12 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
+using DocumentFormat.OpenXml;
+using DocumentFormat.OpenXml.Packaging;
+using DocumentFormat.OpenXml.Wordprocessing;
 using Jobbliggaren.Api.IntegrationTests.Helpers;
 using Jobbliggaren.Api.IntegrationTests.Infrastructure;
+using Jobbliggaren.Application.Resumes.Commands.AutoPromoteParsedResume;
 using Shouldly;
 
 namespace Jobbliggaren.Api.IntegrationTests.Resumes;
@@ -19,6 +23,13 @@ public class GetParsedResumeEndpointTests(ApiFactory factory)
     private readonly HttpClient _client = factory.CreateClient();
 
     private static readonly byte[] PdfBytes = [0x25, 0x50, 0x44, 0x46, 0x2D, 0x31, 0x2E, 0x37];
+
+    private const string DocxContentType =
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+
+    // A scanner-valid personnummer (parity ImportResumeEndpointTests) placed in real DOCX body
+    // text so the authoritative server-side scan finds it.
+    private const string ValidPersonnummer = "811218-9876";
 
     private static async Task<HttpClient> NewAuthedClientAsync(ApiFactory f, CancellationToken ct)
     {
@@ -36,11 +47,15 @@ public class GetParsedResumeEndpointTests(ApiFactory factory)
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", sessionId);
     }
 
-    private static MultipartFormDataContent PdfForm()
+    private static MultipartFormDataContent PdfForm() =>
+        FileForm(PdfBytes, "cv.pdf", "application/pdf");
+
+    private static MultipartFormDataContent FileForm(
+        byte[] bytes, string fileName, string contentType)
     {
-        var part = new ByteArrayContent(PdfBytes);
-        part.Headers.ContentType = new MediaTypeHeaderValue("application/pdf");
-        return new MultipartFormDataContent { { part, "file", "cv.pdf" } };
+        var part = new ByteArrayContent(bytes);
+        part.Headers.ContentType = new MediaTypeHeaderValue(contentType);
+        return new MultipartFormDataContent { { part, "file", fileName } };
     }
 
     private static async Task<string> ImportAsync(HttpClient client, CancellationToken ct)
@@ -50,6 +65,27 @@ public class GetParsedResumeEndpointTests(ApiFactory factory)
         import.IsSuccessStatusCode.ShouldBeTrue();
         return (await import.Content.ReadFromJsonAsync<JsonElement>(ct))
             .GetProperty("parsedResumeId").GetString()!;
+    }
+
+    // A minimal, valid in-memory DOCX (OpenXml) — identical construction to
+    // ImportResumeEndpointTests.BuildDocx, so the REAL extractor yields these paragraphs as raw
+    // text and the authoritative server-side personnummer scan runs over them. A stub file has
+    // no text layer, which is why the pnr path cannot be exercised with PdfBytes.
+    private static byte[] BuildDocx(params string[] paragraphs)
+    {
+        using var stream = new MemoryStream();
+        using (var document = WordprocessingDocument.Create(
+            stream, WordprocessingDocumentType.Document))
+        {
+            var mainPart = document.AddMainDocumentPart();
+            var body = new Body();
+            foreach (var text in paragraphs)
+                body.AppendChild(new Paragraph(new Run(new Text(text))));
+            mainPart.Document = new Document(body);
+            mainPart.Document.Save();
+        }
+
+        return stream.ToArray();
     }
 
     [Fact]
@@ -90,6 +126,72 @@ public class GetParsedResumeEndpointTests(ApiFactory factory)
         content.GetProperty("contact").ValueKind.ShouldBe(JsonValueKind.Object);
         content.GetProperty("experiences").ValueKind.ShouldBe(JsonValueKind.Array);
         content.GetProperty("skills").ValueKind.ShouldBe(JsonValueKind.Array);
+
+        // #1060 PR C: the artifact says WHY it is still an artifact. The 8-byte stub has no
+        // text layer, so the real extractor fails and auto-promote left this row pending on
+        // ParseNotConfident — production's own path, no seeding.
+        json.GetProperty("blockReason").GetString().ShouldBe("ParseNotConfident");
+    }
+
+    [Fact]
+    public async Task Import_then_GET_parsed_reports_the_SAME_reason_the_import_did_without_a_re_upload()
+    {
+        // This is #1060's third sub-requirement stated as an assertion. The issue's complaint is
+        // that the reason "krävs en ny uppladdning för att ens få veta" — so the test is not
+        // "the field is populated", it is "the field the GET returns EQUALS the one the upload
+        // returned", proven on two independent responses to two different endpoints, with only
+        // a read in between. If the read side ever grew a second predicate, this goes red.
+        var ct = TestContext.Current.CancellationToken;
+        await AuthenticateAsync(ct);
+
+        var docx = BuildDocx("Anna Andersson", $"Personnummer: {ValidPersonnummer}");
+        using var form = FileForm(docx, "cv.docx", DocxContentType);
+        var import = await _client.PostAsync("/api/v1/resumes/import", form, ct);
+        import.StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        var importJson = await import.Content.ReadFromJsonAsync<JsonElement>(ct);
+        importJson.GetProperty("outcome").GetString().ShouldBe("LeftPending");
+        var reasonAtUpload = importJson.GetProperty("blockReason").GetString();
+        reasonAtUpload.ShouldBe("PersonnummerPresent");
+        var id = importJson.GetProperty("parsedResumeId").GetString()!;
+
+        var get = await _client.GetAsync($"/api/v1/resumes/parsed/{id}", ct);
+
+        get.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var getJson = await get.Content.ReadFromJsonAsync<JsonElement>(ct);
+        getJson.GetProperty("blockReason").GetString().ShouldBe(reasonAtUpload);
+    }
+
+    [Fact]
+    public async Task GET_parsed_blockReason_carries_a_gate_token_and_never_the_text_that_tripped_it()
+    {
+        // The DTO's personnummer-egress contract in one assertion: the reason names WHICH gate
+        // fired, never what it saw. The document below contains a real personnummer that the
+        // server scanned and flagged, so if the field ever carried evidence instead of a token
+        // — a matched value, a snippet, a count-bearing message — this row is where it would
+        // surface, on the highest-priority PII rule in the product (CLAUDE.md §5).
+        var ct = TestContext.Current.CancellationToken;
+        await AuthenticateAsync(ct);
+
+        var docx = BuildDocx("Anna Andersson", $"Personnummer: {ValidPersonnummer}");
+        using var form = FileForm(docx, "cv.docx", DocxContentType);
+        var import = await _client.PostAsync("/api/v1/resumes/import", form, ct);
+        var id = (await import.Content.ReadFromJsonAsync<JsonElement>(ct))
+            .GetProperty("parsedResumeId").GetString()!;
+
+        var get = await _client.GetAsync($"/api/v1/resumes/parsed/{id}", ct);
+        var raw = await get.Content.ReadAsStringAsync(ct);
+
+        var reason = JsonDocument.Parse(raw).RootElement.GetProperty("blockReason").GetString();
+        reason.ShouldNotBeNull();
+        reason.ShouldBe("PersonnummerPresent");
+        // A closed token: exactly one of the three members, nothing composed around it.
+        Enum.GetNames<AutoPromoteBlockReason>().ShouldContain(reason);
+        reason.ShouldNotContain(ValidPersonnummer);
+        // And the digits themselves never reach this response at all — the two-layer guard on
+        // Preamble/content is what keeps that true, and the reason token must not undo it.
+        raw.ShouldNotContain(ValidPersonnummer);
+        raw.ShouldNotContain(ValidPersonnummer.Replace("-", "", StringComparison.Ordinal));
     }
 
     [Fact]

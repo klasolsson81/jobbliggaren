@@ -10,6 +10,7 @@ using Jobbliggaren.Domain.Privacy;
 using Jobbliggaren.Domain.Resumes;
 using Jobbliggaren.Domain.Resumes.Parsing;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Shouldly;
 
@@ -64,7 +65,8 @@ public class AutoPromoteParsedResumeCommandHandlerTests
     private AutoPromoteParsedResumeCommandHandler CreateSut(
         Infrastructure.Persistence.AppDbContext db) =>
         new(db, _currentUser, FakeDateTimeProvider.Default, _failedAccess, _reconciler,
-            _correlationId, _requestContext);
+            _correlationId, _requestContext,
+            NullLogger<AutoPromoteParsedResumeCommandHandler>.Instance);
 
     // ── Fixtures ─────────────────────────────────────────────────────────
 
@@ -550,7 +552,8 @@ public class AutoPromoteParsedResumeCommandHandlerTests
         anon.UserId.Returns((Guid?)null);
         var sut = new AutoPromoteParsedResumeCommandHandler(
             db, anon, FakeDateTimeProvider.Default, _failedAccess, _reconciler,
-            _correlationId, _requestContext);
+            _correlationId, _requestContext,
+            NullLogger<AutoPromoteParsedResumeCommandHandler>.Instance);
 
         await Should.ThrowAsync<UnauthorizedException>(
             () => sut.Handle(Command(Guid.NewGuid()), TestContext.Current.CancellationToken).AsTask());

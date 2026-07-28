@@ -13,6 +13,25 @@ namespace Jobbliggaren.Application.Resumes.Queries.GetParsedResume;
 /// (Invariant 3). Reuses the parse-summary read-models (<see cref="ParseConfidenceDto"/>,
 /// <see cref="PersonnummerScanDto"/>) already defined for the import response.
 /// </summary>
+/// <param name="BlockReason">
+/// Why this file is still a staging artifact rather than a saved CV, or <c>null</c> when
+/// nothing blocks it (#1060, CTO-bind D4-REBIND). DERIVED per request by
+/// <c>AutoPromoteGate</c> — the same evaluator the write path runs — never stored: no column,
+/// no migration, and therefore nothing that can go stale the next time a gate changes.
+/// <para><b>It rides this DTO's existing personnummer-egress contract and widens it by
+/// nothing.</b> The value is a CLOSED enum token (<c>AutoPromoteBlockReason</c>: exactly
+/// <c>PersonnummerPresent</c> / <c>ParseNotConfident</c> / <c>IncompleteContent</c>), serialised
+/// as the member NAME. It is not free text, it is not a field value, and it cannot echo a
+/// personnummer, a file name or any parsed content — the token says WHICH gate fired, never
+/// what it saw. That is the classification the 5a CTO-bind ("FE review-view copy and
+/// telemetry") and the 5c security-auditor ("an enum token only … no PII") already recorded for
+/// it on the import response. The egress it travels is the existing DEK-warm, owner-scoped
+/// one; it opens no new surface. A future member that carried a VALUE rather than a gate
+/// identity would break this paragraph and must not be added.</para>
+/// <para>Consumers: the review view renders reason-specific copy so the user learns what her
+/// file needs without uploading it again. Never routed on (CLAUDE.md §5 — the endpoint routes
+/// on the outcome TYPE, not on a reason string).</para>
+/// </param>
 public sealed record ParsedResumeDetailDto(
     Guid Id,
     string Status,
@@ -23,7 +42,8 @@ public sealed record ParsedResumeDetailDto(
     ParsedContentDto Content,
     IReadOnlyList<OccupationProposalDto> OccupationProposals,
     DateTimeOffset CreatedAt,
-    DateTimeOffset UpdatedAt);
+    DateTimeOffset UpdatedAt,
+    string? BlockReason);
 
 /// <summary>The loosely parsed CV content — best-effort, often partial; never synthesised.
 /// <para>Personnummer-egress contract: only <see cref="Preamble"/> is rendered inline on the

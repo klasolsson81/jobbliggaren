@@ -38,7 +38,12 @@
 #
 # TWO DISTINCT MECHANISMS SHARE ONE CAUSE -- do not collapse them. The suppressed
 # WORKFLOW RUN is why a `closed` handler cannot work, and why CodeQL stopped
-# running on main. The un-fired BRANCH DELETION is a repository SETTING that
+# running on main PUSHES -- not "on main", which an earlier draft of this line
+# said and which overstates the gap: `codeql.yml` also has `schedule: 23 4 * * 1`
+# and that path still runs against main (last success 2026-07-27T07:58Z). What
+# was actually lost is PER-COMMIT scanning, not scanning. The distinction is
+# load-bearing, because it is the size of this gap that a PAT would buy back.
+# The un-fired BRANCH DELETION is a repository SETTING that
 # follows the merging identity; it does not travel through the workflow engine at
 # all. Same cause (the app is the actor), different machinery. The workflow-run
 # half is independently visible in this repository's own history: `build.yml`

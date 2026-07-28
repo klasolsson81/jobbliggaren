@@ -235,7 +235,8 @@
      rationale at `.jp-btn--flush` rather than repeated here. NOT the shared-SSOT pattern of
      `--jp-control-px` above — that one is read by two different components on the /jobb filter row;
      this one is read by the button family (`.jp-btn`, and `.jp-btn--sm`'s scoped re-pin) plus its
-     own canceller. Same wording as DESIGN.md's knapp-punkt, deliberately. */
+     own canceller. Same CLAIM as DESIGN.md's knapp-punkt (Swedish there, per §1 — so the wording
+     cannot match; the substance must). Keep them in sync. */
   --jp-btn-px: 18px;
 
   /* Skuggor (v3-kanon — undantag: popover/modal får skugga) */

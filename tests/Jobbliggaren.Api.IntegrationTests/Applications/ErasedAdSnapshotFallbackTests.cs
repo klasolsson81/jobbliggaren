@@ -13,13 +13,13 @@ using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.JobAds;
 using Jobbliggaren.Domain.JobSeekers;
 using Jobbliggaren.Infrastructure.Persistence;
+using Jobbliggaren.Infrastructure.Time;
 using Jobbliggaren.TestSupport;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using NSubstitute;
 using Shouldly;
-
 using DomainApplication = Jobbliggaren.Domain.Applications.Application;
 
 namespace Jobbliggaren.Api.IntegrationTests.Applications;
@@ -276,7 +276,8 @@ public sealed class ErasedAdSnapshotFallbackTests(ApiFactory factory)
         var seed = await SeedAsync(db, ct);
 
         var handler = new GetActivityReportQueryHandler(
-            db, UserWith(seed.UserId), Substitute.For<ITaxonomyReadModel>(), ClockAt(T0));
+            db, UserWith(seed.UserId), Substitute.For<ITaxonomyReadModel>(), ClockAt(T0),
+            new SwedishCalendar());
         var report = await handler.Handle(new GetActivityReportQuery(T0.Year, T0.Month), ct);
 
         report.Applications.Count.ShouldBe(4);

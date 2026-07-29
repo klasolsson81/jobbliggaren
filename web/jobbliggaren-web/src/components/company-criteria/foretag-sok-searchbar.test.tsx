@@ -493,6 +493,89 @@ describe("ForetagSokSearchbar — every announcement branch", () => {
  * and the next Tab restarts at the top of the document. Live commit makes the chip × the primary
  * filter gesture on this surface, so removing three chips would traverse the whole page three times.
  */
+/**
+ * Three guarantees that a mutation sweep found unpinned after round 2 — each one survived being
+ * removed with the whole suite green, which is the only reason they are here rather than trusted.
+ */
+describe("ForetagSokSearchbar — round-2 guarantees, pinned", () => {
+  it("puts role=status on the live region, not only aria-live", () => {
+    const { container } = renderBar();
+    const region = container.querySelector("p.sr-only");
+    // `role="status"` carries `aria-atomic="true"`, so a partial update is read as one sentence
+    // rather than in fragments. The precedent this mirrors (`jobb-hero-search.tsx`) has both.
+    expect(region).toHaveAttribute("role", "status");
+    expect(region).toHaveAttribute("aria-live", "polite");
+  });
+
+  it("describes the field with the unapplied line, and only while it diverges", async () => {
+    renderBar();
+    const user = userEvent.setup();
+    const field = screen.getByLabelText("Företagsnamn eller organisationsnummer");
+    const hintOnly = field.getAttribute("aria-describedby");
+    expect(hintOnly).toBeTruthy();
+
+    await user.type(field, "Volvo");
+
+    const described = field.getAttribute("aria-describedby") ?? "";
+    // Two ids now, and the second one is the line's — so a screen reader hears WHY the field is not
+    // applied as part of the field itself, rather than having to find a sentence elsewhere.
+    expect(described.split(" ")).toHaveLength(2);
+    const unappliedId = described.split(" ")[1] ?? "";
+    expect(document.getElementById(unappliedId)).toHaveTextContent(
+      "Ändringen i namnfältet tillämpas när du väljer Sök företag.",
+    );
+
+    await user.clear(field);
+    expect(field.getAttribute("aria-describedby")).toBe(hintOnly);
+  });
+
+  /**
+   * The two decisions that meet at the org.nr lookup's `focus()` call: the answer SURVIVES a filter
+   * commit (so the fetch is neither cancelled nor discarded), and a filter commit PLACES focus. Both
+   * are right; the late `focus()` is only right if it checks that nothing else has claimed focus
+   * since the submit. Otherwise a lookup resolving 300-900 ms after a chip click yanks focus off the
+   * chip row onto a section the user did not ask for (WCAG 3.2.1).
+   *
+   * The fetch is held open deliberately so the chip click lands INSIDE the request window — that
+   * window is the whole subject, and a resolved-immediately mock would measure a different one.
+   */
+  it("does not steal focus when an org.nr lookup resolves after a chip commit", async () => {
+    let release: (r: Response) => void = () => {};
+    const held = new Promise<Response>((resolve) => {
+      release = resolve;
+    });
+    global.fetch = vi.fn().mockReturnValue(held);
+
+    const { container } = renderBar({ kommun: ["0180"] });
+    const user = userEvent.setup();
+
+    await user.type(
+      screen.getByLabelText("Företagsnamn eller organisationsnummer"),
+      VALID_ORGNR,
+    );
+    await user.click(screen.getByRole("button", { name: "Sök företag" }));
+
+    // The lookup is in flight. Remove the chip — the commit places focus on the ort trigger, since
+    // this was the only chip.
+    await user.click(screen.getByRole("button", { name: "Ta bort Stockholm" }));
+    const afterCommit = document.activeElement;
+    expect(afterCommit).toBe(
+      screen.getByRole("button", { name: "Välj ort eller län" }),
+    );
+
+    // Now the answer arrives.
+    release(orgNrResponse({ company: FOUND_COMPANY, companyWatchId: null }));
+    expect(await screen.findByText("Volvo AB")).toBeInTheDocument();
+
+    // The answer RENDERS — it is not discarded — but focus stays where the user's last gesture put
+    // it. Withholding the move is the whole fix; withholding the answer would be a different bug.
+    expect(document.activeElement).toBe(afterCommit);
+    expect(document.activeElement).not.toBe(
+      container.querySelector('section[tabindex="-1"]'),
+    );
+  });
+});
+
 describe("ForetagSokSearchbar — focus survives a live commit", () => {
   it("moves to the chip that took the removed one's place", async () => {
     renderBar({ kommun: ["0180", "0181"] });

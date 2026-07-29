@@ -10,7 +10,7 @@ import {
   parseNamn,
   buildOrgNrRefusedHref,
   normalizeCodes,
-  toStringList,
+  parseCodeAxis,
   FORETAG_SOK_ROUTE,
   MAX_SNI_CODES,
   MAX_MUNICIPALITY_CODES,
@@ -111,13 +111,13 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
     const params = request.nextUrl.searchParams;
     if (parseNamn(params.getAll("namn")).kind === "orgNrShaped") {
       const washed = buildOrgNrRefusedHref({
-        // `toStringList`, not raw `getAll`, so this marshals byte-identically to the page gate —
+        // `parseCodeAxis`, not raw `getAll`, so this marshals byte-identically to the page gate —
         // otherwise `?sni=&sni=62010` would yield two different wash targets from the one rule.
         // Reference-free (dedupe + cap only): the proxy has no SCB reference, and the
         // reference-based drop-unknown applies on the render that follows the redirect.
-        sni: normalizeCodes(toStringList(params.getAll("sni")), MAX_SNI_CODES),
+        sni: normalizeCodes(parseCodeAxis(params.getAll("sni")), MAX_SNI_CODES),
         kommun: normalizeCodes(
-          toStringList(params.getAll("kommun")),
+          parseCodeAxis(params.getAll("kommun")),
           MAX_MUNICIPALITY_CODES,
         ),
       });

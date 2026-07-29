@@ -303,8 +303,10 @@ describe("proxy — the org.nr wash on /foretag/sok (D8(c))", () => {
       ),
     );
     const location = res.headers.get("location") ?? "";
-    expect(location).toContain("sni=62010");
-    expect(location).toContain("sni=62020");
+    // The wash re-serialises through the SAME builder as every other href, so it emits the joined
+    // form — while still accepting the repeated form on the way in (this request sends
+    // "sni=62020&sni=62010", which is what a link shared before 2026-07-29 carries).
+    expect(location).toContain("sni=62010-62020");
     expect(location).toContain("kommun=0180");
     expect(location).toContain("avvisat=orgnr");
     expect(location).not.toContain("sida");
@@ -400,8 +402,9 @@ describe("proxy — the wash ordering, no-store and axis marshalling", () => {
     );
     const location = res.headers.get("location") ?? "";
     expect(location).toContain("sni=62010");
-    // An empty repeated value must not survive as `sni=` — that is what `toStringList` drops, and
-    // the page gate has always dropped it.
+    // An empty repeated value must not survive as `sni=` — that is what `parseCodeAxis` drops, and
+    // the page gate has always dropped it. (`/jobb` still has its own `toStringList`; naming it
+    // here would point at the wrong function.)
     expect(location).not.toMatch(/sni=(&|$)/);
   });
 });

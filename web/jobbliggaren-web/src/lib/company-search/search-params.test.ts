@@ -4,7 +4,8 @@ import {
   buildPageHref,
   buildOrgNrRefusedHref,
   parseOrgNrRefused,
-  toStringList,
+  parseCodeAxis,
+  serializeCodeAxis,
   parseNamn,
   parseSida,
   normalizeCodes,
@@ -30,13 +31,65 @@ describe("buildForetagSokHref (filter/name changes)", () => {
     expect(buildForetagSokHref({ ...empty, namn: "   " })).toBe("/foretag/sok");
   });
 
-  it("appends sni and kommun as repeated params", () => {
+  it("writes ONE param per axis, codes joined", () => {
     expect(buildForetagSokHref({ ...empty, sni: ["62010", "10710"] })).toBe(
-      "/foretag/sok?sni=10710&sni=62010",
+      "/foretag/sok?sni=10710-62010",
     );
     expect(buildForetagSokHref({ ...empty, kommun: ["0180", "1480"] })).toBe(
-      "/foretag/sok?kommun=0180&kommun=1480",
+      "/foretag/sok?kommun=0180-1480",
     );
+  });
+
+  /**
+   * The reason the form changed, asserted as a property rather than trusted to the comment.
+   *
+   * Next's client router cache collapses REPEATED query keys to the last value, so under the old
+   * form `?kommun=A&kommun=B` and `?kommun=B` shared one cache entry and the second navigation
+   * fetched nothing. Under one-param-per-axis, two different applied states cannot collide.
+   *
+   * The oracle is exercised in BOTH directions on purpose. A first version asserted only that the
+   * two current hrefs do not collapse together — and that assertion cannot fail for the reason it
+   * names: any roughly-injective transform satisfies a `not.toBe` between two already-different
+   * strings, so replacing `collapse` with the identity function left it green. code-reviewer
+   * measured exactly that. The counterfactual below is what makes the oracle load-bearing: it
+   * pins that `collapse` DOES fuse the old form, which is the property the whole PR rests on.
+   */
+  it("no two distinct filter states can collapse to the same router cache key", () => {
+    const collapse = (href: string) => {
+      const qs = href.slice(href.indexOf("?") + 1);
+      const out = new Map<string, string>();
+      for (const [k, v] of new URLSearchParams(qs)) out.set(k, v);
+      return [...out].map(([k, v]) => `${k}=${v}`).join("&");
+    };
+
+    // The oracle must FUSE the old repeated form — otherwise it measures nothing below.
+    expect(collapse("/foretag/sok?kommun=0180&kommun=1480")).toBe(
+      collapse("/foretag/sok?kommun=1480"),
+    );
+
+    const both = buildForetagSokHref({ ...empty, kommun: ["0180", "1480"] });
+    const second = buildForetagSokHref({ ...empty, kommun: ["1480"] });
+    expect(both).not.toBe(second);
+    // ...and it must NOT fuse what the builders write today.
+    expect(collapse(both)).not.toBe(collapse(second));
+  });
+
+  /**
+   * The same oracle, applied to the one producer that cannot call a builder: the search island's
+   * no-JS form serialises its own hidden fields. It went unnoticed in the first round of this PR
+   * because the existing native-GET assertion used a SINGLE code, where `?kommun=0180` is
+   * byte-identical under both shapes. `serializeCodeAxis` is the shared point that keeps them
+   * honest; this pins its output rather than the form's, so the pin survives a refactor of either.
+   */
+  it("serializeCodeAxis produces the same shape the builders write", () => {
+    const href = buildForetagSokHref({ ...empty, kommun: ["1480", "0180"] });
+    expect(href).toContain(`kommun=${serializeCodeAxis(["1480", "0180"])}`);
+    // Sorted here too, so the two producers cannot drift on ordering.
+    expect(serializeCodeAxis(["1480", "0180"])).toBe("0180-1480");
+    expect(parseCodeAxis(serializeCodeAxis(["1480", "0180"]))).toEqual([
+      "0180",
+      "1480",
+    ]);
   });
 
   it("sorts each axis so shared links get a stable form", () => {
@@ -44,7 +97,7 @@ describe("buildForetagSokHref (filter/name changes)", () => {
     const a = buildForetagSokHref({ ...empty, sni: ["62010", "10710", "01131"] });
     const b = buildForetagSokHref({ ...empty, sni: ["01131", "62010", "10710"] });
     expect(a).toBe(b);
-    expect(a).toBe("/foretag/sok?sni=01131&sni=10710&sni=62010");
+    expect(a).toBe("/foretag/sok?sni=01131-10710-62010");
   });
 
   it("orders axes sni -> kommun -> namn (stable URL form)", () => {
@@ -59,10 +112,18 @@ describe("buildForetagSokHref (filter/name changes)", () => {
     );
   });
 
-  it("round-trips repeated params through URLSearchParams.getAll", () => {
+  it("round-trips through the parser, in BOTH the joined and the legacy repeated form", () => {
     const href = buildForetagSokHref({ ...empty, kommun: ["0180", "1480"] });
     const qs = href.slice(href.indexOf("?") + 1);
-    expect(new URLSearchParams(qs).getAll("kommun")).toEqual(["0180", "1480"]);
+    // What the builder writes today: one value.
+    expect(new URLSearchParams(qs).getAll("kommun")).toEqual(["0180-1480"]);
+    // What the PARSER makes of it — and of the form every link shared before 2026-07-29
+    // still carries. Both must yield the same codes, or old bookmarks break silently.
+    expect(parseCodeAxis(new URLSearchParams(qs).getAll("kommun"))).toEqual([
+      "0180",
+      "1480",
+    ]);
+    expect(parseCodeAxis(["0180", "1480"])).toEqual(["0180", "1480"]);
   });
 
   it("never emits an org.nr param (D8(c) — org.nr lives only in the island POST body)", () => {
@@ -108,12 +169,39 @@ describe("buildPageHref (pagination)", () => {
   });
 });
 
-describe("toStringList", () => {
+describe("parseCodeAxis", () => {
   it("normalizes undefined / single / repeated params and drops empties", () => {
-    expect(toStringList(undefined)).toEqual([]);
-    expect(toStringList("62010")).toEqual(["62010"]);
-    expect(toStringList(["62010", "10710"])).toEqual(["62010", "10710"]);
-    expect(toStringList(["62010", "", "10710"])).toEqual(["62010", "10710"]);
+    expect(parseCodeAxis(undefined)).toEqual([]);
+    expect(parseCodeAxis("62010")).toEqual(["62010"]);
+    expect(parseCodeAxis(["62010", "10710"])).toEqual(["62010", "10710"]);
+    expect(parseCodeAxis(["62010", "", "10710"])).toEqual(["62010", "10710"]);
+  });
+
+  it("reads the JOINED form the builders now write", () => {
+    expect(parseCodeAxis("62010-10710")).toEqual(["62010", "10710"]);
+  });
+
+  /**
+   * The back-compat obligation, stated as an assertion rather than as a promise in a docblock.
+   * Every link shared or bookmarked before 2026-07-29 carries the REPEATED form; if the parser
+   * stopped accepting it those links would silently lose their filter and answer the whole
+   * register instead — the same silent-wash failure the org.nr refusal notice exists to avoid.
+   */
+  it("parses the legacy repeated form and the joined form to the SAME codes", () => {
+    const legacy = parseCodeAxis(["0180", "1480", "1280"]);
+    const joined = parseCodeAxis("0180-1480-1280");
+    expect(joined).toEqual(legacy);
+    // And a mixture, which a hand-edited or half-migrated link can produce.
+    expect(parseCodeAxis(["0180-1480", "1280"])).toEqual(legacy);
+  });
+
+  it("trims each value — new behaviour the old parser did not have", () => {
+    expect(parseCodeAxis(" 0180 ")).toEqual(["0180"]);
+    expect(parseCodeAxis(" 0180 - 1480 ")).toEqual(["0180", "1480"]);
+  });
+
+  it("drops empty segments left by a stray separator", () => {
+    expect(parseCodeAxis("-0180--1480-")).toEqual(["0180", "1480"]);
   });
 });
 
@@ -190,8 +278,7 @@ describe("buildOrgNrRefusedHref", () => {
     });
     expect(href).toContain("avvisat=orgnr");
     expect(href).not.toContain("namn=");
-    expect(href).toContain("sni=62010");
-    expect(href).toContain("sni=62020");
+    expect(href).toContain("sni=62010-62020");
     expect(href).toContain("kommun=0180");
     expect(href).not.toContain("sida=");
   });

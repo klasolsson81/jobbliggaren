@@ -20,7 +20,10 @@ import {
   orgNrSearchResultSchema,
   type OrgNrSearchResult,
 } from "@/lib/dto/company-search";
-import { buildForetagSokHref } from "@/lib/company-search/search-params";
+import {
+  buildForetagSokHref,
+  serializeCodeAxis,
+} from "@/lib/company-search/search-params";
 import {
   JobbFilterPopover,
   type PopoverGroup,
@@ -454,12 +457,18 @@ export function ForetagSokSearchbar({
 
           {/* No-JS: preserve the APPLIED code axes so a native name submit does not erase the filter
               (ignored when JS handles onSubmit — then the draft is the source of truth). */}
-          {sni.map((code) => (
-            <input key={`sni-${code}`} type="hidden" name="sni" value={code} />
-          ))}
-          {kommun.map((code) => (
-            <input key={`kommun-${code}`} type="hidden" name="kommun" value={code} />
-          ))}
+          {/* ONE input per axis, joined through the SAME serializer the href builders use. A form
+              serialises its own fields, so this is the one producer of these params that cannot go
+              through a URL builder — and emitting one input per code would keep writing the
+              REPEATED shape, putting the router-cache collision back on every native GET
+              (`search-params.ts` documents the mechanism). It also drops a broad bransch pick from
+              hundreds of hidden inputs to one. */}
+          {sni.length > 0 && (
+            <input type="hidden" name="sni" value={serializeCodeAxis(sni)} />
+          )}
+          {kommun.length > 0 && (
+            <input type="hidden" name="kommun" value={serializeCodeAxis(kommun)} />
+          )}
         </form>
 
         {/* Row 2 — bransch (SNI tree popover) + ort (cascade popover), both multi-select, side by side,

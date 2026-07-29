@@ -265,7 +265,7 @@
       "ortEmpty": "Ortlistan kunde inte laddas just nu.",
       "ortRightEmpty": "Välj ett län för att se kommuner.",
       "ortRemove": "Ta bort {namn}",
-      "unappliedChanges": "Ändringarna tillämpas när du söker.",
+      "unappliedChanges": "Ändringen i namnfältet tillämpas när du väljer Sök företag.",
       "orgNrResultLabel": "Sökning på organisationsnummer",
       "clearButton": "Rensa sökningen",
       "tableAria": "Företag som matchar sökningen",

@@ -36,8 +36,10 @@ interface PageProps {
  * #560 PR-B / #997 (S2) — the general company-register search (`/foretag/sok`), the /jobb architecture:
  * searchParams → typed state → a POST-as-read fetch → Suspense-streamed results. A surface of the
  * `/foretag` sub-nav (S1). The shareable axes (name prefix + SNI + kommun + page) live in the URL. The
- * name prefix, the org.nr lookup, and the bransch/ort filters share ONE draft island
- * (`ForetagSokSearchbar`, #997) with ONE submit: a field value that normalises to 10 digits is an org.nr
+ * name prefix, the org.nr lookup, and the bransch/ort filters share ONE island
+ * (`ForetagSokSearchbar`, #997). The bransch/ort filters COMMIT LIVE (#1125) — a chip applies the
+ * filter immediately — while the NAME field keeps an explicit submit, because it is the axis whose
+ * value must pass the org.nr gate before it may reach a URL. A field value that normalises to 10 digits is an org.nr
  * (client POST, refuse pnr locally, NEVER the URL — D8(c)); anything else is a name prefix + bransch + ort
  * committed to the URL together. Empty filters browse the whole register (Klas bind: browse-all default).
  *
@@ -126,11 +128,11 @@ export default async function ForetagSokPage({ searchParams }: PageProps) {
 
       <div className="jp-container jp-page">
         <ForetagSubnav active="sok" />
-        {/* #997 (S2) — ONE shared-draft search island: a company name OR an org.nr in the unified field
+        {/* #997 (S2) + #1125 — ONE search island: a company name OR an org.nr in the unified field
             (org.nr → client POST, refuse pnr locally, never the URL — D8(c); its result carries a Bevaka),
-            plus the single-select bransch typeahead + the multi-select ort cascade. One submit commits
-            name + bransch + ort together (no silent draft drop — the former two-island split could drop
-            an edit). Replaces the former ForetagSokSearch + ForetagSokFilters. */}
+            plus the multi-select bransch popover (#999) + the multi-select ort cascade, both of which
+            COMMIT LIVE. The name submit carries the live filter state with it (no silent drop — the
+            former two-island split could drop an edit). Replaces ForetagSokSearch + ForetagSokFilters. */}
         <ForetagSokSearchbar
           reference={reference}
           referenceOk={referenceOk}

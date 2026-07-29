@@ -366,12 +366,16 @@ does not retrigger CodeQL on the main-push — run `gh workflow run codeql.yml
 --ref main` after a batch if needed (memory
 `project_automerge_suppresses_main_push_workflows`).
 
-### 8.1 Self-babysitting (mandatory when no cloud babysitter is running)
+### 8.1 Watching your own PRs to merge (always) and closing out (always)
 
-If the cloud `/schedule` babysitter is NOT active, **every session babysits its OWN
-pushed PRs** until they merge — do not push-and-forget. With 2–4 sessions, `origin/main`
-advances constantly, so a freshly-pushed PR goes **BEHIND** within minutes and automerge
-will NOT merge a BEHIND PR. Before ending a turn, re-check your open PRs:
+**Every session watches its OWN pushed PRs until they merge** — unconditionally, per
+CLAUDE.md §6.5 (*"Watch your own PRs to MERGE, then close out"*). A running cloud
+babysitter can perform the up-to-base **action** for you; it never relieves you of
+checking. Do not push-and-forget.
+
+With 2–4 sessions, `origin/main` advances constantly, so a freshly-pushed PR goes
+**BEHIND** within minutes and automerge will NOT merge a BEHIND PR. Before ending a
+turn, re-check your open PRs:
 
 ```bash
 gh pr list --state open --json number,headRefName,mergeStateStatus \
@@ -399,7 +403,13 @@ gh pr list --state open --json number,headRefName,mergeStateStatus \
 **Verify the issue actually closed on merge.** Automerge SQUASHES, and the squash commit
 title often drops the PR body's `Closes #NNN` keyword → the issue stays OPEN after the PR
 merges. After a PR merges, confirm its issue closed (`gh issue view <nr> --json state`);
-close it manually with a comment referencing the merged PR if not.
+close it manually with a comment referencing the merged PR if not, and drop `wip` +
+unassign.
+
+**No actor does this for you.** The prompt §8 documents does not instruct it, and Klas
+confirmed 2026-07-28 that he runs no such loop. `.claude/hooks/worktree-reaper.sh`
+does *surface* your stale `wip` claims at session start — that is a report, not a
+close-out.
 
 ---
 
@@ -460,9 +470,36 @@ NOT a hand-ranked per-CC sequence (that drifts every merge):
 > Why issues sometimes look "merged but not done": see §8.1 — automerge squashes
 > and the squash commit subject often drops the PR body's `Closes #N` keyword, so
 > the issue stays OPEN (a Swedish close-keyword never closes it either). Remedy:
-> the PR-babysitter `gh issue close`s the referenced issues on merge, or a periodic
-> sweep does; PR bodies use English `Closes #N`. (2026-06-28 sweep closed 10 such
-> stragglers: #204/#258/#261/#265/#266/#272/#273/#317/#318/#319.)
+> **the owning session closes them** (§8.1); PR bodies use English `Closes #N`.
+> (2026-06-28: ten such stragglers were closed in one pass — #204/#258/#261/#265/
+> #266/#272/#273/#317/#318/#319.)
+>
+> **Playbook §9 used to name the PR-babysitter or "a periodic sweep" as the closer,
+> and CLAUDE.md §6.5 the babysitter. Neither has ever closed one.** The clause landed
+> 2026-06-28 (`9e5582a5`, #324) — in a commit whose own message records *"10
+> stragglers closed"* under "applied this session", so the one straggler-closing pass
+> any commit message attributes to an actor was run by a session, not by the
+> babysitter. Klas confirmed 2026-07-28 that he runs no such loop, and the prompt §8
+> documents has never mentioned issues in any of its versions.
+>
+> **It went wrong in two different ways, seventeen days apart, and the second is the
+> instructive one.** §8.1 assigned close-out to the owning session on 2026-06-25
+> (`022f77ed`, #223) — but under a heading gated on *no* babysitter running. So until
+> 2026-07-15 the two texts did not contradict each other; they **partitioned** the
+> space, and left a hole: with a babysitter running, §8.1 excused itself and §6.5
+> pointed at an actor that was not acting.
+>
+> Then `e4a83649` (#900, 2026-07-15) added §6.5's *next* bullet — ungated, and correct
+> — alongside `session-start-template.md`'s expected-end-state and a session-start
+> audit that *reports* stale `wip` claims. From that day it was no longer a hole but a
+> **plain contradiction between two adjacent bullets in the authority file**, and it
+> survived thirteen more days. So the lesson is not that gaps hide better than
+> contradictions: a contradiction between adjacent bullets in the file read at every
+> invocation went unnoticed just as long. What both forms share is that neither is detectable by
+> reading a single passage — a gap needs the cases enumerated, a contradiction needs
+> two passages read against each other, and nothing here does either automatically.
+> An audit that reports stale claims is not a holder that acts, and it does not read
+> the spec at all.
 
 ---
 

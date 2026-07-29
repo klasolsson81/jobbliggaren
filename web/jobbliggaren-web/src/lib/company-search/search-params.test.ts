@@ -4,7 +4,7 @@ import {
   buildPageHref,
   buildOrgNrRefusedHref,
   parseOrgNrRefused,
-  toStringList,
+  parseCodeAxis,
   parseNamn,
   parseSida,
   normalizeCodes,
@@ -30,13 +30,35 @@ describe("buildForetagSokHref (filter/name changes)", () => {
     expect(buildForetagSokHref({ ...empty, namn: "   " })).toBe("/foretag/sok");
   });
 
-  it("appends sni and kommun as repeated params", () => {
+  it("writes ONE param per axis, codes joined", () => {
     expect(buildForetagSokHref({ ...empty, sni: ["62010", "10710"] })).toBe(
-      "/foretag/sok?sni=10710&sni=62010",
+      "/foretag/sok?sni=10710-62010",
     );
     expect(buildForetagSokHref({ ...empty, kommun: ["0180", "1480"] })).toBe(
-      "/foretag/sok?kommun=0180&kommun=1480",
+      "/foretag/sok?kommun=0180-1480",
     );
+  });
+
+  /**
+   * The reason the form changed, asserted as a property rather than trusted to the comment.
+   *
+   * Next's client router cache collapses REPEATED query keys to the last value, so under the old
+   * form `?kommun=A&kommun=B` and `?kommun=B` shared one cache entry and the second navigation
+   * fetched nothing. Under one-param-per-axis, two different applied states cannot collide: the
+   * collapse is the identity here, because no key repeats.
+   */
+  it("no two distinct filter states can collapse to the same router cache key", () => {
+    const collapse = (href: string) => {
+      const qs = href.slice(href.indexOf("?") + 1);
+      const out = new Map<string, string>();
+      for (const [k, v] of new URLSearchParams(qs)) out.set(k, v);
+      return [...out].map(([k, v]) => `${k}=${v}`).join("&");
+    };
+    const both = buildForetagSokHref({ ...empty, kommun: ["0180", "1480"] });
+    const second = buildForetagSokHref({ ...empty, kommun: ["1480"] });
+    expect(both).not.toBe(second);
+    // The old repeated form made these two EQUAL — that was the defect.
+    expect(collapse(both)).not.toBe(collapse(second));
   });
 
   it("sorts each axis so shared links get a stable form", () => {
@@ -44,7 +66,7 @@ describe("buildForetagSokHref (filter/name changes)", () => {
     const a = buildForetagSokHref({ ...empty, sni: ["62010", "10710", "01131"] });
     const b = buildForetagSokHref({ ...empty, sni: ["01131", "62010", "10710"] });
     expect(a).toBe(b);
-    expect(a).toBe("/foretag/sok?sni=01131&sni=10710&sni=62010");
+    expect(a).toBe("/foretag/sok?sni=01131-10710-62010");
   });
 
   it("orders axes sni -> kommun -> namn (stable URL form)", () => {
@@ -59,10 +81,18 @@ describe("buildForetagSokHref (filter/name changes)", () => {
     );
   });
 
-  it("round-trips repeated params through URLSearchParams.getAll", () => {
+  it("round-trips through the parser, in BOTH the joined and the legacy repeated form", () => {
     const href = buildForetagSokHref({ ...empty, kommun: ["0180", "1480"] });
     const qs = href.slice(href.indexOf("?") + 1);
-    expect(new URLSearchParams(qs).getAll("kommun")).toEqual(["0180", "1480"]);
+    // What the builder writes today: one value.
+    expect(new URLSearchParams(qs).getAll("kommun")).toEqual(["0180-1480"]);
+    // What the PARSER makes of it — and of the form every link shared before 2026-07-29
+    // still carries. Both must yield the same codes, or old bookmarks break silently.
+    expect(parseCodeAxis(new URLSearchParams(qs).getAll("kommun"))).toEqual([
+      "0180",
+      "1480",
+    ]);
+    expect(parseCodeAxis(["0180", "1480"])).toEqual(["0180", "1480"]);
   });
 
   it("never emits an org.nr param (D8(c) — org.nr lives only in the island POST body)", () => {
@@ -108,12 +138,34 @@ describe("buildPageHref (pagination)", () => {
   });
 });
 
-describe("toStringList", () => {
+describe("parseCodeAxis", () => {
   it("normalizes undefined / single / repeated params and drops empties", () => {
-    expect(toStringList(undefined)).toEqual([]);
-    expect(toStringList("62010")).toEqual(["62010"]);
-    expect(toStringList(["62010", "10710"])).toEqual(["62010", "10710"]);
-    expect(toStringList(["62010", "", "10710"])).toEqual(["62010", "10710"]);
+    expect(parseCodeAxis(undefined)).toEqual([]);
+    expect(parseCodeAxis("62010")).toEqual(["62010"]);
+    expect(parseCodeAxis(["62010", "10710"])).toEqual(["62010", "10710"]);
+    expect(parseCodeAxis(["62010", "", "10710"])).toEqual(["62010", "10710"]);
+  });
+
+  it("reads the JOINED form the builders now write", () => {
+    expect(parseCodeAxis("62010-10710")).toEqual(["62010", "10710"]);
+  });
+
+  /**
+   * The back-compat obligation, stated as an assertion rather than as a promise in a docblock.
+   * Every link shared or bookmarked before 2026-07-29 carries the REPEATED form; if the parser
+   * stopped accepting it those links would silently lose their filter and answer the whole
+   * register instead — the same silent-wash failure the org.nr refusal notice exists to avoid.
+   */
+  it("parses the legacy repeated form and the joined form to the SAME codes", () => {
+    const legacy = parseCodeAxis(["0180", "1480", "1280"]);
+    const joined = parseCodeAxis("0180-1480-1280");
+    expect(joined).toEqual(legacy);
+    // And a mixture, which a hand-edited or half-migrated link can produce.
+    expect(parseCodeAxis(["0180-1480", "1280"])).toEqual(legacy);
+  });
+
+  it("drops empty segments left by a stray separator", () => {
+    expect(parseCodeAxis("-0180--1480-")).toEqual(["0180", "1480"]);
   });
 });
 
@@ -190,8 +242,7 @@ describe("buildOrgNrRefusedHref", () => {
     });
     expect(href).toContain("avvisat=orgnr");
     expect(href).not.toContain("namn=");
-    expect(href).toContain("sni=62010");
-    expect(href).toContain("sni=62020");
+    expect(href).toContain("sni=62010-62020");
     expect(href).toContain("kommun=0180");
     expect(href).not.toContain("sida=");
   });

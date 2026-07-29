@@ -6,9 +6,12 @@
  * `buildPageHref`).
  *
  * Contract:
- * - `sni` / `kommun` = repeated query params (raw SCB leaf codes; the picker expands a section/
- *   division/whole-län selection to its leaves — ADR 0042 Beslut B). Sorted so shared links get a
- *   stable form.
+ * - `sni` / `kommun` = ONE query param per axis, carrying the raw SCB leaf codes joined by
+ *   {@link AXIS_SEPARATOR} (the picker expands a section/division/whole-län selection to its
+ *   leaves — ADR 0042 Beslut B). Sorted so shared links get a stable form. They were REPEATED
+ *   params until 2026-07-29; {@link parseCodeAxis} still accepts that form, so every previously
+ *   shared link keeps working. The change is not cosmetic — see `appendFilterAxes` for the router
+ *   cache collision it removes.
  * - `namn` = the name PREFIX (case-insensitive, backend-anchored). Written only when non-empty.
  * - `sida` (page) = omitted always by the filter builder (a filter/name change resets to page 1);
  *   only `buildPageHref` writes it, and only when > 1.
@@ -73,10 +76,41 @@ export interface ForetagSokUrlState {
   kommun: ReadonlyArray<string>;
 }
 
-/** Serialize the filter axes onto `params` (shared by both href builders — the SPOT). */
+/**
+ * The separator that joins the codes of ONE axis into ONE query value.
+ *
+ * `-` is chosen for two measured reasons. `URLSearchParams.toString()` leaves it unencoded, where
+ * `,` becomes `%2C` and would disfigure every shared link on a surface whose whole value is being
+ * shareable. And no code on either axis can contain it: SNI leaves are five digits, kommun codes are
+ * four, and `normalizeCodes` drops anything outside the SCB reference anyway — so a value carrying
+ * the separator cannot survive into the applied state even if one ever appeared.
+ */
+const AXIS_SEPARATOR = "-";
+
+/**
+ * Serialize the filter axes onto `params` — ONE occurrence per key, never a repeated one.
+ *
+ * **Why one occurrence, and why this is not cosmetic.** Next's client router cache keys a route by
+ * its URL, and it collapses REPEATED query keys to the last value only. So `?kommun=A&kommun=B` and
+ * `?kommun=B` hash to the same entry: navigating from the first to the second — which is what
+ * removing the first of two chips does — targets a URL the cache believes it already holds. No RSC
+ * request is made, the page never re-renders, and the surface ends up with the URL saying one filter
+ * while the controls and the results below still show the other. Upstream: vercel/next.js#92152 and
+ * its fix PR #93368 (both open on 2026-07-29; we run 16.2.9).
+ *
+ * Joining the codes removes the collision at its source rather than repairing it afterwards: two
+ * different applied states can no longer produce the same cache key, at any latency, on any machine.
+ * A timing-based workaround was built and measured first (`router.refresh()` beside the push) and it
+ * FAILED — correct for one removal, but two or more in quick succession were undone entirely once
+ * server latency passed ~600 ms, which is inside the range this surface already measures.
+ *
+ * Shared by all three href builders in this module, so they cannot drift.
+ */
 function appendFilterAxes(params: URLSearchParams, state: ForetagSokUrlState): void {
-  for (const code of [...state.sni].sort()) params.append("sni", code);
-  for (const code of [...state.kommun].sort()) params.append("kommun", code);
+  const sni = [...state.sni].sort();
+  if (sni.length > 0) params.set("sni", sni.join(AXIS_SEPARATOR));
+  const kommun = [...state.kommun].sort();
+  if (kommun.length > 0) params.set("kommun", kommun.join(AXIS_SEPARATOR));
   const namn = state.namn.trim();
   if (namn.length > 0) params.set("namn", namn);
 }
@@ -105,10 +139,26 @@ export function buildPageHref(state: ForetagSokUrlState, targetPage: number): st
   return qs.length > 0 ? `${ROUTE}?${qs}` : ROUTE;
 }
 
-/** Normalize a repeated query param to a string[] (drops empty values). */
-export function toStringList(raw: string | string[] | undefined): string[] {
+/**
+ * Parse a CODE AXIS (`sni` / `kommun`) out of a query param into its codes.
+ *
+ * Accepts BOTH forms, and that is the whole back-compat story: the joined form this module now
+ * writes (`?sni=a-b`) and the repeated form it wrote until #1125's follow-up (`?sni=a&sni=b`), which
+ * every previously shared or bookmarked link still carries. Both parse to the same codes, so no
+ * redirect and no migration are needed — a reader cannot tell which form produced the state.
+ *
+ * Named for the axis rather than the shape. It used to be `toStringList`, which described the
+ * array/scalar normalisation and nothing else; now that it also splits, that name would be true of
+ * half of what it does. `/jobb` keeps its own separate local parser (`jobb/page.tsx`) — it has not
+ * moved to the joined form, and its taxonomy IDs contain `_`, so it needs its own separator
+ * decision rather than inheriting this one.
+ */
+export function parseCodeAxis(raw: string | string[] | undefined): string[] {
   if (raw === undefined) return [];
-  return (Array.isArray(raw) ? raw : [raw]).filter((value) => value.length > 0);
+  return (Array.isArray(raw) ? raw : [raw])
+    .flatMap((value) => value.split(AXIS_SEPARATOR))
+    .map((value) => value.trim())
+    .filter((value) => value.length > 0);
 }
 
 /**

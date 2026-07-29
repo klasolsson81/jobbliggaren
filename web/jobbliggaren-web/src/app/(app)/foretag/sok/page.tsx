@@ -9,7 +9,7 @@ import { ForetagSokResults } from "@/components/company-criteria/foretag-sok-res
 import { ForetagSokResultsSkeleton } from "@/components/company-criteria/foretag-sok-results-skeleton";
 import { ForetagSubnav } from "@/components/foretag/foretag-subnav";
 import {
-  toStringList,
+  parseCodeAxis,
   parseNamn,
   parseSida,
   normalizeCodes,
@@ -86,8 +86,8 @@ export default async function ForetagSokPage({ searchParams }: PageProps) {
         // Reference-free normalisation (dedupe + cap): the SCB reference is deliberately NOT fetched
         // on a request that is about to redirect, and the reference-based drop-unknown applies on
         // the next render anyway.
-        sni: normalizeCodes(toStringList(params.sni), MAX_SNI_CODES),
-        kommun: normalizeCodes(toStringList(params.kommun), MAX_MUNICIPALITY_CODES),
+        sni: normalizeCodes(parseCodeAxis(params.sni), MAX_SNI_CODES),
+        kommun: normalizeCodes(parseCodeAxis(params.kommun), MAX_MUNICIPALITY_CODES),
       }),
     );
   }
@@ -102,9 +102,9 @@ export default async function ForetagSokPage({ searchParams }: PageProps) {
 
   const namn = parsedNamn.value;
   const orgNrRefused = parseOrgNrRefused(params[ORG_NR_REFUSED_PARAM]);
-  const sni = normalizeCodes(toStringList(params.sni), MAX_SNI_CODES, sniAllowed);
+  const sni = normalizeCodes(parseCodeAxis(params.sni), MAX_SNI_CODES, sniAllowed);
   const kommun = normalizeCodes(
-    toStringList(params.kommun),
+    parseCodeAxis(params.kommun),
     MAX_MUNICIPALITY_CODES,
     kommunAllowed,
   );

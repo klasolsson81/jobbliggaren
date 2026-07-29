@@ -16,7 +16,7 @@ namespace Jobbliggaren.Application.Applications.Queries.GetApplicationStats;
 /// for an empty set — a single code path, never a throw.
 /// </summary>
 public sealed class GetApplicationStatsQueryHandler(
-    IAppDbContext db, ICurrentUser currentUser, IDateTimeProvider clock)
+    IAppDbContext db, ICurrentUser currentUser, IDateTimeProvider clock, ISwedishCalendar calendar)
     : IQueryHandler<GetApplicationStatsQuery, ApplicationStatsDto>
 {
     // Safety valve (TD-8 pattern): an individual job-seeker's application count is
@@ -31,7 +31,7 @@ public sealed class GetApplicationStatsQueryHandler(
         var now = clock.UtcNow;
 
         if (!currentUser.UserId.HasValue)
-            return ApplicationStatsCalculator.Calculate([], now);
+            return ApplicationStatsCalculator.Calculate([], calendar, now);
 
         var jobSeekerId = await db.JobSeekers
             .AsNoTracking()
@@ -40,7 +40,7 @@ public sealed class GetApplicationStatsQueryHandler(
             .FirstOrDefaultAsync(cancellationToken);
 
         if (jobSeekerId == default)
-            return ApplicationStatsCalculator.Calculate([], now);
+            return ApplicationStatsCalculator.Calculate([], calendar, now);
 
         // Minimal owner-scoped projection — current status + apply date only. No
         // JobAd join (stats need no ad metadata). Soft-delete is carried SOLELY by
@@ -62,6 +62,6 @@ public sealed class GetApplicationStatsQueryHandler(
             .Select(r => new ApplicationStatRow(r.Status.Name, r.AppliedAt))
             .ToList();
 
-        return ApplicationStatsCalculator.Calculate(rows, now);
+        return ApplicationStatsCalculator.Calculate(rows, calendar, now);
     }
 }

@@ -91,8 +91,10 @@ describe("/foretag/sok — the org.nr gate on the URL axis", () => {
     ).rejects.toThrow("NEXT_REDIRECT");
 
     const target = redirect.mock.calls[0]?.[0] as string;
-    expect(target).toContain("sni=62010");
-    expect(target).toContain("sni=62020");
+    // The wash re-serialises through the shared builder, so it emits the JOINED form — while
+    // still reading the repeated form this request sends, which is what a link shared before
+    // 2026-07-29 carries.
+    expect(target).toContain("sni=62010-62020");
     expect(target).toContain("kommun=0180");
     expect(target).toContain("avvisat=orgnr");
     // `sida` is dropped deliberately: removing the name changes the result set, so a page number

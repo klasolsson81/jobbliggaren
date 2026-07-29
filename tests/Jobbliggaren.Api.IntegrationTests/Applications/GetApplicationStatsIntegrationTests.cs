@@ -5,6 +5,7 @@ using Jobbliggaren.Domain.Applications;
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.JobSeekers;
 using Jobbliggaren.Infrastructure.Persistence;
+using Jobbliggaren.Infrastructure.Time;
 using Microsoft.Extensions.DependencyInjection;
 using NSubstitute;
 using Shouldly;
@@ -72,7 +73,7 @@ public class GetApplicationStatsIntegrationTests
             seeker.Id, clock, ApplicationStatus.Submitted, ApplicationStatus.Rejected));
         await db.SaveChangesAsync(CancellationToken.None);
 
-        var handler = new GetApplicationStatsQueryHandler(db, _currentUser, clock);
+        var handler = new GetApplicationStatsQueryHandler(db, _currentUser, clock, new SwedishCalendar());
         var result = await handler.Handle(new GetApplicationStatsQuery(), CancellationToken.None);
 
         result.TotalApplications.ShouldBe(4);
@@ -103,7 +104,7 @@ public class GetApplicationStatsIntegrationTests
         db.Applications.Add(deleted);
         await db.SaveChangesAsync(CancellationToken.None);
 
-        var handler = new GetApplicationStatsQueryHandler(db, _currentUser, clock);
+        var handler = new GetApplicationStatsQueryHandler(db, _currentUser, clock, new SwedishCalendar());
         var result = await handler.Handle(new GetApplicationStatsQuery(), CancellationToken.None);
 
         result.TotalApplications.ShouldBe(1);
@@ -125,7 +126,7 @@ public class GetApplicationStatsIntegrationTests
             db.Applications.Add(SentWithStatus(otherSeeker.Id, clock, ApplicationStatus.Submitted));
         await db.SaveChangesAsync(CancellationToken.None);
 
-        var handler = new GetApplicationStatsQueryHandler(db, _currentUser, clock);
+        var handler = new GetApplicationStatsQueryHandler(db, _currentUser, clock, new SwedishCalendar());
         var result = await handler.Handle(new GetApplicationStatsQuery(), CancellationToken.None);
 
         result.TotalApplications.ShouldBe(1);

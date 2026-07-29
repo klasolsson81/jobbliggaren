@@ -303,8 +303,10 @@ describe("proxy — the org.nr wash on /foretag/sok (D8(c))", () => {
       ),
     );
     const location = res.headers.get("location") ?? "";
-    expect(location).toContain("sni=62010");
-    expect(location).toContain("sni=62020");
+    // The wash re-serialises through the SAME builder as every other href, so it emits the
+    // joined form — while still accepting the repeated form on the way in (this request sends
+    // , which is what a pre-2026-07-29 link carries).
+    expect(location).toContain("sni=62010-62020");
     expect(location).toContain("kommun=0180");
     expect(location).toContain("avvisat=orgnr");
     expect(location).not.toContain("sida");

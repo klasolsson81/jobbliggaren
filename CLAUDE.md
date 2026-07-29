@@ -462,7 +462,7 @@ discipline miss; reports go to `docs/reviews/<date>-<phase>-<agent>.md`):
 | Agent | When |
 |---|---|
 | `senior-cto-advisor` | Multi-approach choices, finding triage (in-block vs TD), TD validation. Decision-maker — CC gives no own recommendation. Unambiguous CTO verdicts execute without extra Klas GO. |
-| `security-auditor` | PII, auth, secrets, external integrations |
+| `security-auditor` | PII, auth, secrets, external integrations; **growing `pnpm.auditConfig.ignoreGhsas`** (accepting a vulnerability rather than repairing it — ADR 0065 Amendment 2026-07-28 Beslut 4). Shrinking it is not a trigger. |
 | `code-reviewer` + `dotnet-architect` | Larger changes (>5 files or architectural choices) |
 | `dotnet-architect` (mandatory) | All Terraform/IaC scope (ADR 0036 precedent) |
 | `db-migration-writer` | New migrations |

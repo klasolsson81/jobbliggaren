@@ -37,9 +37,20 @@ test.beforeAll(async () => {
   await ensureConfirmedTestUser(BACKEND_URL, RUN_ID);
 });
 
-/** The applied kommun codes, in URL order. */
-const kommunParams = (page: Page) =>
-  new URL(page.url()).searchParams.getAll("kommun");
+/**
+ * The applied kommun CODES — parsed, not read off the params.
+ *
+ * Since #1134 the axis is ONE param whose codes are joined, so `getAll("kommun")` returns a single
+ * element and counting params counts one. Reading params instead of codes is what made the first
+ * version of this spec unrunnable after the rebase: its docblock was rewritten to the joined
+ * contract and its body was left on the repeated one. Both forms are accepted here for the same
+ * reason `parseCodeAxis` accepts both — a legacy link is still a valid way to arrive.
+ */
+const kommunCodes = (page: Page) =>
+  new URL(page.url())
+    .searchParams.getAll("kommun")
+    .flatMap((v) => v.split("-"))
+    .filter((v) => v.length > 0);
 
 const chipLabels = (page: Page) =>
   page
@@ -49,9 +60,13 @@ const chipLabels = (page: Page) =>
 
 /**
  * Next's cache key, as PR #93368 describes it: repeated keys collapse to the last value, key order
- * preserved. Asserted rather than assumed, so that if the href builder ever stops producing the
- * colliding shape this test says so out loud instead of quietly measuring a transition that was
- * never at risk.
+ * preserved.
+ *
+ * Its role here INVERTED at #1134. It used to assert that the transition under test still collides,
+ * because back then it did and the spec existed to prove the workaround repaired it. Under
+ * one-param-per-axis there is no collision left to confirm, so asserting one would fail — and
+ * deleting the oracle would leave the spec unable to say WHY the removal is expected to work. It now
+ * asserts the property the URL contract delivers: the two states have DIFFERENT cache keys.
  */
 function collapse(search: string): string {
   const out = new Map<string, string>();
@@ -87,9 +102,7 @@ async function pickKommuner(page: Page, count: number): Promise<string[]> {
     // when the navigation commits. Waiting on the chip alone would read a stale URL, which is
     // how the first version of this helper reported zero applied kommuner.
     await expect(page.locator("ul.jp-chiplist .jp-chip__label")).toHaveCount(i + 1);
-    await expect
-      .poll(() => new URL(page.url()).searchParams.getAll("kommun").length)
-      .toBe(i + 1);
+    await expect.poll(() => kommunCodes(page).length).toBe(i + 1);
   }
   await page.keyboard.press("Escape");
   return picked;
@@ -105,23 +118,26 @@ test.describe("/foretag/sok — a filter commit applies", () => {
     const picked = await pickKommuner(page, 2);
     expect(picked).toHaveLength(2);
 
-    const before = kommunParams(page);
+    const before = kommunCodes(page);
     expect(before).toHaveLength(2);
 
-    // The transition under test must be the COLLIDING one, or this proves nothing.
+    // The URL contract's property, asserted where it matters rather than assumed from the unit
+    // suite: the state we are LEAVING and the state we are going TO must have different cache
+    // keys. Under the old repeated form these two were equal, the navigation was served from the
+    // cache and the page never re-rendered — that is the defect this whole spec exists for.
     const currentSearch = new URL(page.url()).search;
     const targetSearch = `?kommun=${before[1]}`;
     expect(
       collapse(targetSearch),
-      "this spec exists for the cache-key collision; if the href builder no longer produces it, re-derive the case rather than deleting the test",
-    ).toBe(collapse(currentSearch));
+      "the two states must not share a router cache key — if they do, the axis serialisation has regressed to the repeated form",
+    ).not.toBe(collapse(currentSearch));
 
     // Remove the FIRST chip.
     await page.locator("ul.jp-chiplist .jp-chip__remove").first().click();
 
     // The URL moves — polled, because it commits with the navigation while the chip row is
     // repainted instantly from the overlay.
-    await expect.poll(() => kommunParams(page)).toEqual([before[1]]);
+    await expect.poll(() => kommunCodes(page)).toEqual([before[1]]);
     // ...and so does the PAGE. With the defect the chips snap back to two and STAY there, so
     // this is the assertion that separates "the URL changed" from "the filter applied".
     await expect(page.locator("ul.jp-chiplist .jp-chip__label")).toHaveCount(1);

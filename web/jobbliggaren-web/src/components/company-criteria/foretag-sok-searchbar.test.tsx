@@ -412,6 +412,38 @@ describe("ForetagSokSearchbar — every announcement branch", () => {
     expect(region(container)).toHaveTextContent("Alla branschfilter är borttagna.");
   });
 
+  /**
+   * The BULK branch of `ortChangeLabel`, which nothing reached until code-reviewer measured it: both
+   * harnesses filtered "Hela …" out of their row selectors, so `changed.length > 1` and both
+   * `t("ortLabel")` fallbacks were unasserted inside a block whose docblock claims to cover every
+   * announcement this surface can emit. Swapping `return lan` for `return t("ortLabel")` left the
+   * suite green — a survivor in the one function that exists because an axis-named announcement
+   * silences every change after the first.
+   *
+   * Naming the län rather than its 26 kommuner is the point: a screen reader cannot use a list, and
+   * naming the axis would be the original defect again.
+   */
+  it("names the LÄN when one action changes several orter at once", async () => {
+    const { container } = renderBar();
+    const user = userEvent.setup();
+
+    await user.click(screen.getByRole("button", { name: "Välj ort eller län" }));
+    await user.click(screen.getByRole("button", { name: "Stockholms län" }));
+    await user.click(
+      screen.getByRole("checkbox", { name: "Hela Stockholms län" }),
+    );
+
+    expect(region(container)).toHaveTextContent(
+      "Filtret Stockholms län är tillagt.",
+    );
+    // And it really was a multi-code change — otherwise this would be measuring the single-code
+    // branch under a bulk-looking label.
+    expect(push).toHaveBeenCalledWith(
+      buildForetagSokHref({ namn: "", sni: [], kommun: ["0180", "0181"] }),
+      { scroll: false },
+    );
+  });
+
   it("uses its own sentence when the ORT axis is cleared wholesale", async () => {
     const { container } = renderBar({ kommun: ["0180", "0181"] });
     const user = userEvent.setup();
@@ -693,7 +725,7 @@ describe("ForetagSokSearchbar — bransch popover (#999)", () => {
     expect(screen.queryByText("Detalj 10100")).not.toBeInTheDocument();
 
     // The summary REPORTS. It must not carry the same × as the per-branch chips: identical pixels,
-    // and one of them drops the entire draft with no undo.
+    // and one of them drops the entire bransch axis with no undo.
     const summary = screen.getByText("10 valda branscher").closest(".jp-chip")!;
     expect(within(summary as HTMLElement).queryByRole("button")).not.toBeInTheDocument();
 
@@ -708,7 +740,7 @@ describe("ForetagSokSearchbar — bransch popover (#999)", () => {
 });
 
 describe("ForetagSokSearchbar — ort", () => {
-  it("seeds ort chips from the URL kommun and removes one from the draft", async () => {
+  it("seeds ort chips from the URL kommun, and removing one APPLIES immediately", async () => {
     renderBar({ kommun: ["0180", "0181"] });
     const user = userEvent.setup();
 
@@ -798,7 +830,7 @@ describe("ForetagSokSearchbar — unified name/org.nr field", () => {
     expect(push).not.toHaveBeenCalled();
   });
 
-  it("ignores the bransch/ort draft on an org.nr lookup (org.nr never enters the URL)", async () => {
+  it("ignores the applied bransch/ort axes on an org.nr lookup (org.nr never enters the URL)", async () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValue(orgNrResponse({ company: FOUND_COMPANY, companyWatchId: null }));
@@ -810,7 +842,7 @@ describe("ForetagSokSearchbar — unified name/org.nr field", () => {
     await user.click(screen.getByRole("button", { name: "Sök företag" }));
 
     await screen.findByText("Volvo AB");
-    // Even with an active bransch/ort draft, the org.nr path POSTs only the org.nr and never navigates.
+    // Even with the bransch/ort axes applied, the org.nr path POSTs only the org.nr and never navigates.
     expect(JSON.parse((fetchMock.mock.calls[0]![1] as RequestInit).body as string)).toEqual({
       organizationNumber: VALID_ORGNR,
     });
@@ -1229,12 +1261,20 @@ describe("ForetagSokSearchbar — the live-review fixes", () => {
 });
 
 /**
- * The island is rendered without a `key`, so it never remounts, and all three draft pieces are
- * `useState` initialisers that run once. Without a re-seed, Back after a search leaves the field and
- * chips showing what you just left while the URL and results show something else. "Rensa sökningen"
- * makes that reachable in one click.
+ * The island is rendered without a `key`, so it never remounts. TWO different mechanisms keep it
+ * in step with the URL, and they are worth not confusing:
+ *
+ *  - the FILTER axes derive from props through `useOptimistic`, so they follow the URL by
+ *    construction and need no re-seeding at all;
+ *  - the NAME FIELD is the one `useState` initialiser left, and it runs once — so without an
+ *    explicit re-seed, Back after a search leaves the field showing what you just left while the
+ *    URL and results show something else. "Rensa sökningen" makes that reachable in one click.
+ *
+ * This block said "all three draft pieces are `useState` initialisers" until 2026-07-29. That was
+ * true of the draft model #1125 removed, and the component now states the opposite in as many
+ * words ("`value` is the last `useState` initialiser left").
  */
-describe("ForetagSokSearchbar — the draft re-seeds when the applied URL changes", () => {
+describe("ForetagSokSearchbar — the field re-seeds when the applied URL changes", () => {
   it("re-seeds the field and chips when the applied props change (Back)", () => {
     const { rerender } = render(
       <ForetagSokSearchbar
@@ -1270,8 +1310,11 @@ describe("ForetagSokSearchbar — the draft re-seeds when the applied URL change
   });
 
   it("re-seeds the BRANSCH chip too, not only the name and orter", () => {
-    // Without this, deleting `setBranch(seedBranch(...))` from the re-seed leaves the suite green:
-    // the test above only asserts the ort chip.
+    // The test above asserts only the ort chip, so this one carries the bransch axis. It pins the
+    // DECOMPOSITION path — props → `useOptimistic` → `decomposeSelection` → chip — which is how the
+    // bransch chip follows the URL now. (It used to name `setBranch(seedBranch(...))` as the
+    // mutant it kills. Those symbols no longer exist: #1125 deleted the seed helper along with the
+    // draft state, so the named counterfactual was unwritable.)
     const { rerender } = render(
       <ForetagSokSearchbar
         reference={REFERENCE}
@@ -1301,9 +1344,15 @@ describe("ForetagSokSearchbar — the draft re-seeds when the applied URL change
     ).not.toBeInTheDocument();
   });
 
-  it("re-seeds when ONLY an axis changes — the signature is not just the name", () => {
-    // Truncating the signature to `${namn}` leaves every other re-seed test green, because none of
-    // them holds the name constant while an axis moves. This one does.
+  it("follows an axis-only URL change, with the name held constant", () => {
+    // What this pins after #1125 is the OVERLAY: with `namn` unchanged, the chips must still follow
+    // the props, because they derive from them rather than from a re-seed.
+    //
+    // Its previous title claimed "the signature is not just the name", and the comment named
+    // "truncating the signature to `${namn}`" as the mutant it kills. Both were false on this head:
+    // the gate IS `namn` alone, so the named mutant is the shipped code, and this test passes for a
+    // different reason than it claimed. Recorded rather than quietly retitled — a test that states
+    // the wrong counterfactual teaches the wrong thing about what is guarded.
     const { rerender } = render(
       <ForetagSokSearchbar
         reference={REFERENCE}

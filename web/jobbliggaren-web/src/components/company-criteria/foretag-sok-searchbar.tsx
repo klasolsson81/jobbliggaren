@@ -166,6 +166,7 @@ export function ForetagSokSearchbar({
 
   const searchInputId = useId();
   const searchHintId = useId();
+  const unappliedId = useId();
   const branschNoticeId = useId();
   const filterGroupId = useId();
   const orgNrLabelId = useId();
@@ -202,10 +203,23 @@ export function ForetagSokSearchbar({
     | null
   >(null);
 
+  /**
+   * Counts focus placements this component has made. `onOrgNrSubmit` captures it before its fetch
+   * and only takes focus afterwards if it is unchanged — see the comment there.
+   */
+  const focusGenerationRef = useRef(0);
+
+  // No dependency array: the effect runs after every render and returns immediately unless an
+  // intent is pending. It relies on the FIRST render after the click already carrying the optimistic
+  // chip — otherwise it would focus the pre-removal neighbour and consume the intent. That holds
+  // because a discrete click runs in React's SyncLane and `useOptimistic` commits in the same pass;
+  // it is measured rather than assumed by the "moves to the chip that took the removed one's place"
+  // test, which would focus the wrong chip if the ordering were the other way.
   useEffect(() => {
     const pending = pendingFocusRef.current;
     if (pending === null) return;
     pendingFocusRef.current = null;
+    focusGenerationRef.current += 1;
     if (pending.kind === "field") {
       searchInputRef.current?.focus();
       return;
@@ -259,6 +273,18 @@ export function ForetagSokSearchbar({
   const [branschOpen, setBranschOpen] = useState(false);
   const [state, setState] = useState<OrgNrState>({ kind: "idle" });
   const [isNavPending, startNavTransition] = useTransition();
+  /**
+   * The live region's text. Ordinary `useState`, not the optimistic overlay — it must survive the
+   * transition that carries the navigation, or the sentence would vanish before it is read.
+   *
+   * KNOWN LIMITATION, declared rather than papered over (design-reviewer round 2, m8): it is never
+   * reset, so pressing Back and then repeating the *same* removal produces an identical string, and
+   * an identical string is no DOM mutation and therefore no announcement. The obvious repair —
+   * blanking it when the applied props change — is WRONG here and was rejected on that ground: a
+   * filter commit changes those props itself, roughly 900 ms after the announcement was set, so the
+   * blank would land on the very sentence it was meant to preserve. Closing it properly needs a
+   * token that distinguishes two identical sentences without being read aloud; not in this PR.
+   */
   const [announcement, setAnnouncement] = useState("");
 
   /**
@@ -375,10 +401,14 @@ export function ForetagSokSearchbar({
    * ticking Upplands Väsby then Vallentuna produced `"Filtret Ort eller län är tillagt."` twice.
    * `jobb-hero-search.tsx` documents the same trap in prose and passes a per-item label for it.
    *
-   * The bulk case is named by its län rather than by 26 kommun names: the popover's only bulk
-   * control is "Hela {län}", so a multi-code change is exactly one län. A change spanning several
-   * län is not reachable through this UI; the axis label is kept as the fallback so an unreachable
-   * state degrades to the old, merely-vague behaviour rather than to an empty announcement.
+   * The bulk case is named by its län rather than by its kommuner. The property that makes that
+   * sound is NOT "there is only one bulk control" — there are two ("Hela {län}" and the right
+   * column's "Rensa", `jobb-filter-popover.tsx`) — but that this surface omits `groupAxis`, so
+   * EVERY `onChange` the popover emits is scoped to the one active group, i.e. one län. A change
+   * spanning several län is therefore unreachable here; the axis label is kept as its fallback so
+   * an unreachable state degrades to the old, merely-vague behaviour rather than to an empty
+   * announcement. The `first === undefined` branch is unreachable for the same reason — no producer
+   * emits an unchanged list — and degrades the same way.
    */
   function ortChangeLabel(next: ReadonlyArray<string>): string {
     const added = next.filter((c) => !orter.includes(c));
@@ -482,6 +512,17 @@ export function ForetagSokSearchbar({
     abortRef.current = controller;
     setState({ kind: "pending" });
 
+    /**
+     * Where focus stood when this lookup started. The answer deliberately SURVIVES a filter commit
+     * (see the re-seed gate), so a chip click during the fetch neither cancels this request nor
+     * discards its result — but it DOES move focus, and this request must not take it back 300-900 ms
+     * later on a gesture the user has moved on from. WCAG 3.2.1: focus changes follow user action.
+     *
+     * The two decisions meet exactly here: "the lookup survives a filter commit" and "a commit places
+     * focus" are both right, and neither is right if this line runs unconditionally.
+     */
+    const focusGenerationAtSubmit = focusGenerationRef.current;
+
     try {
       const res = await fetch("/api/foretag/sok", {
         method: "POST",
@@ -508,7 +549,11 @@ export function ForetagSokSearchbar({
       if (controller.signal.aborted) return; // superseded by a newer submit
       setState({ kind: "error" });
     }
-    resultRef.current?.focus();
+    // The ANSWER still renders — only the focus move is withheld, and only when something else has
+    // placed focus since. A screen reader still hears it: the section is a polite live region.
+    if (focusGenerationRef.current === focusGenerationAtSubmit) {
+      resultRef.current?.focus();
+    }
   }
 
   function onSubmit(e: React.FormEvent) {
@@ -606,13 +651,25 @@ export function ForetagSokSearchbar({
                 className="jp-input grow"
                 type="text"
                 autoComplete="off"
-                aria-describedby={searchHintId}
+                // Both descriptions when the draft diverges, so a screen reader hears WHY the
+                // field is not applied yet as part of the field itself.
+                aria-describedby={
+                  draftDiffersFromApplied
+                    ? `${searchHintId} ${unappliedId}`
+                    : searchHintId
+                }
                 value={value}
                 onChange={(e) => setValue(e.target.value)}
               />
               <button
                 type="submit"
                 className="jp-btn jp-btn--primary jp-btn--field shrink-0"
+                // Deliberately BROADER than the submit's own work: `isNavPending` is true during a
+                // chip commit too, so this reports busy for a navigation the button did not start.
+                // Kept that way because the button is the surface's one submit affordance and the
+                // whole island is genuinely mid-navigation — a user who presses it during a chip
+                // commit would otherwise get a second navigation queued behind the first. Narrow it
+                // to `state.kind === "pending"` only together with a guard on that.
                 aria-busy={state.kind === "pending" || isNavPending || undefined}
               >
                 {t("searchSubmit")}
@@ -621,6 +678,24 @@ export function ForetagSokSearchbar({
             <span id={searchHintId} className="jp-hint">
               {t("searchHint")}
             </span>
+            {/* Draft-vs-applied honesty, INSIDE the field it is about (design-reviewer round 2).
+                It used to render four `gap-5` blocks further down — after the filter group, the
+                chips and the clear control — while naming the name field, so the sentence and its
+                subject were nowhere near each other.
+
+                It carries NO `aria-live`, deliberately, and design-reviewer withdrew the round-1
+                finding that asked for one. It was a live region mounted together with its content —
+                the exact trap the persistent region below exists to avoid, so it never announced
+                reliably anyway. And the sentence is not an EVENT: it is a standing state, true for
+                as long as the field diverges, so firing it on the keystroke that makes it true
+                would announce on the first character of every search. `aria-describedby` is the
+                right mechanism for a standing description, and it puts the sentence in the field's
+                own accessible description instead of leaving it to be found by sighted scanning. */}
+            {draftDiffersFromApplied && (
+              <span id={unappliedId} className="jp-hint">
+                {t("unappliedChanges")}
+              </span>
+            )}
           </div>
 
           {/* Post-hydration: the APPLIED name rides a hidden input, so a native GET (an onSubmit that
@@ -917,26 +992,13 @@ export function ForetagSokSearchbar({
             ONE persistent region, always in the DOM and always empty at first paint. A live region
             mounted with its content already in place is not reliably announced (the same trap is
             documented in `jobb-hero-search.tsx`), which is why this is not rendered conditionally. */}
-        <p aria-live="polite" className="sr-only">
+        {/* `role="status"` alongside `aria-live` matches the precedent this mirrors
+            (`jobb-hero-search.tsx:634`) and brings `aria-atomic="true"` with it, so a partial update
+            is read as one sentence rather than in fragments. */}
+        <p role="status" aria-live="polite" className="sr-only">
           {announcement}
         </p>
 
-        {/* Draft-vs-applied honesty (design-reviewer gate): a discreet line, shown only while the
-            NAME diverges from the applied one. It never competes with the submit's own label.
-
-            It carries NO `aria-live`, deliberately. It used to, and it was mounted together with its
-            content — the exact trap the persistent region three lines above exists to avoid, so it
-            never announced reliably in the first place. Two ways out were available: make this a
-            second persistent region, or route its sentence through the one that already exists.
-            Neither is right. A second always-present `<p>` in this `gap-5` column adds a gap at
-            every width even while empty, and the sentence is not an EVENT — it is a standing state
-            that is true for as long as the field diverges, so announcing it on the keystroke that
-            makes it true would fire on the first character of every search. The state is reachable
-            without a live region: the field holds the text the user just typed, and the submit
-            button it points at is the next control in the tab order. */}
-        {draftDiffersFromApplied && (
-          <p className="text-body-sm text-text-secondary">{t("unappliedChanges")}</p>
-        )}
       </div>
 
       {/* The org.nr answer (transient client state): programmatic focus after a submit + a polite live

@@ -5,6 +5,7 @@ import {
   buildOrgNrRefusedHref,
   parseOrgNrRefused,
   parseCodeAxis,
+  serializeCodeAxis,
   parseNamn,
   parseSida,
   normalizeCodes,
@@ -44,8 +45,14 @@ describe("buildForetagSokHref (filter/name changes)", () => {
    *
    * Next's client router cache collapses REPEATED query keys to the last value, so under the old
    * form `?kommun=A&kommun=B` and `?kommun=B` shared one cache entry and the second navigation
-   * fetched nothing. Under one-param-per-axis, two different applied states cannot collide: the
-   * collapse is the identity here, because no key repeats.
+   * fetched nothing. Under one-param-per-axis, two different applied states cannot collide.
+   *
+   * The oracle is exercised in BOTH directions on purpose. A first version asserted only that the
+   * two current hrefs do not collapse together — and that assertion cannot fail for the reason it
+   * names: any roughly-injective transform satisfies a `not.toBe` between two already-different
+   * strings, so replacing `collapse` with the identity function left it green. code-reviewer
+   * measured exactly that. The counterfactual below is what makes the oracle load-bearing: it
+   * pins that `collapse` DOES fuse the old form, which is the property the whole PR rests on.
    */
   it("no two distinct filter states can collapse to the same router cache key", () => {
     const collapse = (href: string) => {
@@ -54,11 +61,35 @@ describe("buildForetagSokHref (filter/name changes)", () => {
       for (const [k, v] of new URLSearchParams(qs)) out.set(k, v);
       return [...out].map(([k, v]) => `${k}=${v}`).join("&");
     };
+
+    // The oracle must FUSE the old repeated form — otherwise it measures nothing below.
+    expect(collapse("/foretag/sok?kommun=0180&kommun=1480")).toBe(
+      collapse("/foretag/sok?kommun=1480"),
+    );
+
     const both = buildForetagSokHref({ ...empty, kommun: ["0180", "1480"] });
     const second = buildForetagSokHref({ ...empty, kommun: ["1480"] });
     expect(both).not.toBe(second);
-    // The old repeated form made these two EQUAL — that was the defect.
+    // ...and it must NOT fuse what the builders write today.
     expect(collapse(both)).not.toBe(collapse(second));
+  });
+
+  /**
+   * The same oracle, applied to the one producer that cannot call a builder: the search island's
+   * no-JS form serialises its own hidden fields. It went unnoticed in the first round of this PR
+   * because the existing native-GET assertion used a SINGLE code, where `?kommun=0180` is
+   * byte-identical under both shapes. `serializeCodeAxis` is the shared point that keeps them
+   * honest; this pins its output rather than the form's, so the pin survives a refactor of either.
+   */
+  it("serializeCodeAxis produces the same shape the builders write", () => {
+    const href = buildForetagSokHref({ ...empty, kommun: ["1480", "0180"] });
+    expect(href).toContain(`kommun=${serializeCodeAxis(["1480", "0180"])}`);
+    // Sorted here too, so the two producers cannot drift on ordering.
+    expect(serializeCodeAxis(["1480", "0180"])).toBe("0180-1480");
+    expect(parseCodeAxis(serializeCodeAxis(["1480", "0180"]))).toEqual([
+      "0180",
+      "1480",
+    ]);
   });
 
   it("sorts each axis so shared links get a stable form", () => {
@@ -162,6 +193,11 @@ describe("parseCodeAxis", () => {
     expect(joined).toEqual(legacy);
     // And a mixture, which a hand-edited or half-migrated link can produce.
     expect(parseCodeAxis(["0180-1480", "1280"])).toEqual(legacy);
+  });
+
+  it("trims each value — new behaviour the old parser did not have", () => {
+    expect(parseCodeAxis(" 0180 ")).toEqual(["0180"]);
+    expect(parseCodeAxis(" 0180 - 1480 ")).toEqual(["0180", "1480"]);
   });
 
   it("drops empty segments left by a stray separator", () => {

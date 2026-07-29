@@ -938,6 +938,24 @@ describe("ForetagSokSearchbar — what a NATIVE GET would carry (D8(c) call-site
     expect(href).toContain("kommun=0180");
   });
 
+  /**
+   * The form is the one producer of the code axes that cannot call a URL builder, because a form
+   * serialises its own fields. It must therefore emit the same shape the builders do — ONE param
+   * per axis — or a native GET writes the REPEATED shape and puts the router-cache collision back
+   * (`search-params.ts` documents the mechanism).
+   *
+   * Two codes, deliberately. The assertion above uses one, where `?kommun=0180` is byte-identical
+   * under both shapes — which is exactly why switching the inputs over left the whole suite green
+   * and the gap reached review instead of a test (code-reviewer, #1134).
+   */
+  it("emits ONE param per axis, not one per code", () => {
+    renderBar({ sni: ["62010", "62020"], kommun: ["0180", "0181"] });
+    const input = screen.getByLabelText("Företagsnamn eller organisationsnummer");
+
+    const qs = new URLSearchParams(nativeGetHref(input).split("?")[1] ?? "");
+    expect(qs.getAll("sni")).toEqual(["62010-62020"]);
+    expect(qs.getAll("kommun")).toEqual(["0180-0181"]);
+  });
 
   it("strips the name attribute from the visible input once hydrated", () => {
     renderBar({ namn: "Volvo" });

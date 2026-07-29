@@ -355,31 +355,6 @@ export function ForetagSokSearchbar({
         }),
         { scroll: false },
       );
-      // `refresh()` is a WORKAROUND for a Next router-cache defect, not part of the model.
-      //
-      // The client router cache collapses REPEATED query keys to the last value only, so
-      // `?kommun=0180&kommun=1480` and `?kommun=1480` hash to the SAME cache entry. Removing the
-      // first of two chips therefore navigates to a URL the cache believes it already has: the URL
-      // bar changes, no RSC request is made, and the results below keep answering the old filter
-      // while the chips snap back to the old props. Upstream: vercel/next.js#92152 (same shape,
-      // including the Suspense fallback never appearing) and its fix PR #93368, which names the
-      // key-collapsing as the mechanism. Both were OPEN on 2026-07-29 and there is no fixed
-      // release; we are on 16.2.9.
-      //
-      // Measured on this surface, prod build against the running stack, seven start/target
-      // combinations: collision ⇔ silent, 7/7, and the silent case reproduced 5/5 in five fresh
-      // browser contexts. `{ scroll: false }` was tested as a suspect and DISPROVEN (removed,
-      // rebuilt, re-measured, unchanged) — the collision is the cause.
-      //
-      // Why unconditional rather than only on a predicted collision: computing the collision means
-      // re-implementing Next's private cache-key algorithm in our code, which would rot silently
-      // the day they change it. This costs one extra server round trip per chip on the
-      // non-colliding transitions.
-      //
-      // EXIT CONDITION: delete this call, and its pin in `tests/e2e/foretag-sok-live-commit.spec.ts`,
-      // once #93368 (or its successor) ships in a release we run. The pin fails loudly if the
-      // defect returns; nothing else can, because jsdom has no router cache.
-      router.refresh();
     });
   }
 

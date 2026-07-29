@@ -7,19 +7,24 @@ const RUN_ID = Date.now();
 /**
  * `/foretag/sok` live commit (#1125) — the two guarantees a real browser is the ONLY place to check.
  *
- * 1. A filter commit actually APPLIES. Next's client router cache collapses repeated query keys to
- *    the last value, so `?kommun=A&kommun=B` and `?kommun=B` share one cache entry: removing the
- *    FIRST of two chips navigates to a URL the cache believes it already holds, no RSC request is
- *    made, and the page never re-renders — the URL says one filter while the chips and the results
- *    below still show the other. Upstream vercel/next.js#92152 and its fix PR #93368 (both open on
- *    2026-07-29; we run 16.2.9). `commit()` works around it with `router.refresh()`.
+ * 1. A filter commit actually APPLIES. Next's client router cache keys a route by its URL and
+ *    collapses REPEATED query keys to the last value, so under the old URL contract
+ *    `?kommun=A&kommun=B` and `?kommun=B` shared one cache entry: removing the FIRST of two chips
+ *    navigated to a URL the cache believed it already held, no RSC request was made, and the page
+ *    never re-rendered. Upstream vercel/next.js#92152 and its fix PR #93368 (both open on
+ *    2026-07-29; we run 16.2.9). The collision is removed STRUCTURALLY — each axis is now ONE param
+ *    with its codes joined (`lib/company-search/search-params.ts`), so two applied states cannot
+ *    share a cache key. A `router.refresh()` workaround was tried first and measured WRONG: correct
+ *    for one removal, but two or more in quick succession were undone entirely once server latency
+ *    passed ~600 ms, which is inside the range this surface already measures.
  * 2. A second filter change in a row is ANNOUNCED. An axis-named announcement produces a
  *    byte-identical string, React bails out on `Object.is`, the DOM never mutates and `aria-live`
  *    never fires — every change after the first is silent to a screen reader (WCAG 4.1.3).
  *
  * jsdom can pin neither: it has no router cache, and `router.push` is a synchronous mock there, so
- * the `useOptimistic` overlay never outlives its transition. `foretag-sok-searchbar.test.tsx` pins
- * the CALL SITES (`refresh` is called; the announcement names the object) — this pins the EFFECTS.
+ * the `useOptimistic` overlay never outlives its transition. `search-params.test.ts` pins that two
+ * applied states cannot collapse to one cache key, and `foretag-sok-searchbar.test.tsx` pins that
+ * the announcement names the object — this file pins the EFFECTS of both, in a real browser.
  *
  * Lane note, stated rather than implied: `e2e.yml` is observe-only (`continue-on-error: true` and
  * outside the required `ci` aggregate), so a regression here is REPORTED, not blocked, until that

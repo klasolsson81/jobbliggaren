@@ -9,11 +9,7 @@ import { buildForetagSokHref } from "@/lib/company-search/search-params";
 import type { CriterionReference } from "@/lib/dto/company-criteria";
 
 const push = vi.fn();
-// `refresh` is mocked because the component CALLS it — a workaround for the Next router-cache
-// defect documented at `commit()`. jsdom has no router cache, so this mock can only pin the CALL
-// SITE; that the call actually repairs the navigation is pinned in `tests/e2e/foretag-sok-live-commit.spec.ts`.
-const refresh = vi.fn();
-vi.mock("next/navigation", () => ({ useRouter: () => ({ push, refresh }) }));
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
 
 const followActionMock = vi.fn();
 const unfollowActionMock = vi.fn();
@@ -86,7 +82,6 @@ const originalFetch = global.fetch;
 
 beforeEach(() => {
   push.mockReset();
-  refresh.mockReset();
   followActionMock.mockReset();
   unfollowActionMock.mockReset();
 });
@@ -499,35 +494,6 @@ describe("ForetagSokSearchbar — focus survives a live commit", () => {
     expect(document.activeElement).toBe(
       screen.getByLabelText("Företagsnamn eller organisationsnummer"),
     );
-  });
-});
-
-/**
- * The Next router-cache workaround, pinned at its CALL SITE only.
- *
- * jsdom has no router cache, so nothing here can show that `refresh()` repairs the navigation —
- * that is `tests/e2e/foretag-sok-live-commit.spec.ts`'s job, and this comment exists so the reader is not
- * misled about which of the two proves what. What this DOES pin is that a filter commit still makes
- * the call: delete it from `commit()` and the browser defect returns silently, because the URL
- * still changes and every other assertion in this file still passes.
- */
-describe("ForetagSokSearchbar — the router-cache workaround is called", () => {
-  it("refreshes on a filter commit, and not on the name submit", async () => {
-    renderBar({ kommun: ["0180"] });
-    const user = userEvent.setup();
-
-    await user.click(screen.getByRole("button", { name: "Ta bort Stockholm" }));
-    expect(refresh).toHaveBeenCalledTimes(1);
-
-    // The name submit is not in the colliding class: it pushes a URL whose key set differs from
-    // the current one, so it carries no workaround.
-    refresh.mockClear();
-    await user.type(
-      screen.getByLabelText("Företagsnamn eller organisationsnummer"),
-      "Volvo",
-    );
-    await user.click(screen.getByRole("button", { name: "Sök företag" }));
-    expect(refresh).not.toHaveBeenCalled();
   });
 });
 
@@ -971,6 +937,7 @@ describe("ForetagSokSearchbar — what a NATIVE GET would carry (D8(c) call-site
     expect(href).toContain("namn=Volvo");
     expect(href).toContain("kommun=0180");
   });
+
 
   it("strips the name attribute from the visible input once hydrated", () => {
     renderBar({ namn: "Volvo" });

@@ -366,12 +366,16 @@ does not retrigger CodeQL on the main-push — run `gh workflow run codeql.yml
 --ref main` after a batch if needed (memory
 `project_automerge_suppresses_main_push_workflows`).
 
-### 8.1 Self-babysitting (mandatory when no cloud babysitter is running)
+### 8.1 Watching your own PRs to merge (always) and closing out (always)
 
-If the cloud `/schedule` babysitter is NOT active, **every session babysits its OWN
-pushed PRs** until they merge — do not push-and-forget. With 2–4 sessions, `origin/main`
-advances constantly, so a freshly-pushed PR goes **BEHIND** within minutes and automerge
-will NOT merge a BEHIND PR. Before ending a turn, re-check your open PRs:
+**Every session watches its OWN pushed PRs until they merge** — unconditionally, per
+CLAUDE.md §6.5 (*"Watch your own PRs to MERGE, then close out"*). A running cloud
+babysitter can perform the up-to-base **action** for you; it never relieves you of
+checking, and §8's prompt says nothing about issues at all. Do not push-and-forget.
+
+With 2–4 sessions, `origin/main` advances constantly, so a freshly-pushed PR goes
+**BEHIND** within minutes and automerge will NOT merge a BEHIND PR. Before ending a
+turn, re-check your open PRs:
 
 ```bash
 gh pr list --state open --json number,headRefName,mergeStateStatus \
@@ -399,7 +403,13 @@ gh pr list --state open --json number,headRefName,mergeStateStatus \
 **Verify the issue actually closed on merge.** Automerge SQUASHES, and the squash commit
 title often drops the PR body's `Closes #NNN` keyword → the issue stays OPEN after the PR
 merges. After a PR merges, confirm its issue closed (`gh issue view <nr> --json state`);
-close it manually with a comment referencing the merged PR if not.
+close it manually with a comment referencing the merged PR if not, and drop `wip` +
+unassign.
+
+**No actor does this for you.** The babysitter's prompt (§8) does not instruct it and
+Klas confirmed 2026-07-28 that he runs no such loop. `.claude/hooks/worktree-reaper.sh`
+does *surface* your stale `wip` claims at session start — that is a report, not a
+close-out.
 
 ---
 
@@ -460,9 +470,21 @@ NOT a hand-ranked per-CC sequence (that drifts every merge):
 > Why issues sometimes look "merged but not done": see §8.1 — automerge squashes
 > and the squash commit subject often drops the PR body's `Closes #N` keyword, so
 > the issue stays OPEN (a Swedish close-keyword never closes it either). Remedy:
-> the PR-babysitter `gh issue close`s the referenced issues on merge, or a periodic
-> sweep does; PR bodies use English `Closes #N`. (2026-06-28 sweep closed 10 such
-> stragglers: #204/#258/#261/#265/#266/#272/#273/#317/#318/#319.)
+> **the owning session closes them** (§8.1); PR bodies use English `Closes #N`.
+> (2026-06-28: ten such stragglers were closed in one pass — #204/#258/#261/#265/
+> #266/#272/#273/#317/#318/#319.)
+>
+> **This used to name the PR-babysitter — or "a periodic sweep" — as the closer.
+> Neither does it.** §8.1 above has assigned the duty to the owning session since
+> 2026-06-25 (`022f77ed`, #223) — three days *before* that sentence was written
+> (`9e5582a5`, #324) — so it contradicted an existing holder from the day it landed.
+> CLAUDE.md §6.5's next bullet and `session-start-template.md`'s expected-end-state
+> joined on 2026-07-15 (`e4a83649`, #900). Klas confirmed 2026-07-28 that he runs no
+> such loop, and the babysitter prompt §8 documents never instructed it. Since #900
+> a session-start audit also *reports* stale `wip` claims
+> (`.claude/hooks/worktree-reaper.sh`) — but an audit that reports is not a holder
+> that acts, and a spec naming two actors for one duty lets a reader pick the wrong
+> one.
 
 ---
 

@@ -2,6 +2,7 @@ using Jobbliggaren.Application.Resumes.Abstractions;
 using Jobbliggaren.Application.Resumes.Commands.AutoPromoteParsedResume;
 using Jobbliggaren.Application.Resumes.Common;
 using Jobbliggaren.Domain.Privacy;
+using Jobbliggaren.Domain.Resumes;
 using Jobbliggaren.Domain.Resumes.Parsing;
 using Jobbliggaren.QA.Corpus.Generation;
 using Jobbliggaren.QA.Corpus.Layout;
@@ -74,7 +75,18 @@ public sealed record LayoutCaseObservation(
     int GroundTruthEducation,
     int? PromotedExperience,
     int? PromotedEducation,
-    int? WellFormedPromotedExperience,
+
+    // RENAMED 2026-07-28, and the rename IS the fix. It was `WellFormedPromotedExperience` and
+    // counted `Role && Company && RawPeriod` non-blank — a hand copy of a predicate this corpus's
+    // own doctrine forbids copying, and wrong about its subject twice over. `Resume.ValidateContent`
+    // REQUIRES Company (:746) and Role (:755) and only LENGTH-CAPS RawPeriod (:783), so on a
+    // PROMOTED row the first two conjuncts are true by invariant — every promoted entry already
+    // passed that validation. The count reduced to raw-period presence while wearing a validity
+    // name, and the baseline shows it: it equalled `Promoted exp` on every row it ever printed.
+    // It never discriminated. Naming what it measures removes the copied predicate instead of
+    // renaming around it. FALSIFIER, deliberately cheap: if the two conjuncts really are invariant,
+    // this PR's diff for the column is header-only — any VALUE change refutes the argument above.
+    int? PromotedExperienceWithRawPeriod,
 
     // #1060 — what the PROMOTED CV holds, not what the parse held. Without this the corpus
     // cannot distinguish "promoted carrying the preamble" from "promoted having dropped it":
@@ -115,7 +127,9 @@ internal static partial class LayoutChainRunner
         }
         catch (Exception ex)
         {
-            return Crashed(c, fixtureProblems, ex.GetType().Name);
+            // The variable, not `null`: it is provably null here (the proof below has not run),
+            // and passing it keeps both call sites uniform and documents WHY it is null.
+            return Crashed(c, fixtureProblems, ex.GetType().Name, byteProofFailure);
         }
 
         try
@@ -139,8 +153,25 @@ internal static partial class LayoutChainRunner
 
         var o = await CvChainProbe.RunAsync(
             c.FileName, c.ContentType, bytes, c.AccountDisplayName, ct);
+        // The fourth argument is what stops a case whose bytes were already wrong, and which then
+        // crashed, from being published under "byte proofs held" with its message discarded.
+        //
+        // It has NO DEFAULT, deliberately. With one, dropping this argument compiled and silently
+        // restored the defect — measured: that mutation survived the whole suite. Without one it is
+        // a build error, which moves the defect from detectable to UNREPRESENTABLE. Same move as
+        // the shape-based whitelist in `GateLadder.IsWellFormed`: close the class by construction
+        // rather than guard the instance.
+        //
+        // No test drives THIS line, and the reason is not that such a fixture is impossible — one
+        // could author bytes that fail their own proof and then crash the real extractor, faking
+        // nothing. It is that the test's premise would be "the extractor THROWS on these bytes"
+        // rather than degrading, and §9 records that this corpus deliberately authors no
+        // pathological bytes. Harden the extractor to degrade and that test goes red for a reason
+        // unrelated to the seam it guards — a suite blocking its own remedy, which is precisely
+        // what the assert rule exists to prevent. `Crashed`'s own contract is pinned by
+        // `Crashed_CarriesTheByteProofFailureItWasGiven`.
         if (o.CrashedWithExceptionType is not null)
-            return Crashed(c, fixtureProblems, o.CrashedWithExceptionType);
+            return Crashed(c, fixtureProblems, o.CrashedWithExceptionType, byteProofFailure);
 
         var parsed = o.Parsed;
         var content = parsed?.Content;
@@ -168,10 +199,9 @@ internal static partial class LayoutChainRunner
 
         var lines = o.RawText.Split('\n');
 
-        var wellFormed = promotedContent?.Experiences.Count(e =>
-            !string.IsNullOrWhiteSpace(e.Role)
-            && !string.IsNullOrWhiteSpace(e.Company)
-            && !string.IsNullOrWhiteSpace(e.RawPeriod));
+        var withRawPeriod = promotedContent is null
+            ? null
+            : (int?)CountWithRawPeriod(promotedContent.Experiences);
 
         return new LayoutCaseObservation(
             Case: c,
@@ -209,7 +239,7 @@ internal static partial class LayoutChainRunner
             GroundTruthEducation: c.Model.GroundTruthEducations,
             PromotedExperience: promotedContent?.Experiences.Count,
             PromotedEducation: promotedContent?.Educations.Count,
-            WellFormedPromotedExperience: wellFormed,
+            PromotedExperienceWithRawPeriod: withRawPeriod,
             PromotedPreambleChars: promotedContent?.Preamble?.Length,
             BlockReason: o.BlockReason,
             Promoted: o.Promoted,
@@ -354,20 +384,39 @@ internal static partial class LayoutChainRunner
     [System.Text.RegularExpressions.GeneratedRegex(@"^\d{4}\s*-\s*\d{4}\p{L}")]
     private static partial System.Text.RegularExpressions.Regex FusedPeriodRole();
 
+    /// <summary>Raw-period presence, and ONLY that. Lifted out of <c>RunAsync</c> so it is callable
+    /// — inline, it was a corpus-authored predicate that no mutation could reach, because the suite
+    /// asserts no promoted count and the artifact is the only place it shows. It is
+    /// the corpus's OWN declaration (assert-rule category (b)), so pinning it is legitimate and
+    /// costs the observe-only rule nothing.
+    ///
+    /// <para>The Role/Company conjuncts this once also tested are gone: <c>ValidateContent</c>
+    /// REQUIRES both, so on a promoted entry they are true by invariant and the count was
+    /// period-presence wearing a validity name.</para></summary>
+    internal static int CountWithRawPeriod(IEnumerable<Experience> experiences) =>
+        experiences.Count(e => !string.IsNullOrWhiteSpace(e.RawPeriod));
+
     private static string Trim(string s) => s.Length <= 44 ? s : s[..44] + "…";
 
-    private static LayoutCaseObservation Crashed(
-        LayoutCase c, IReadOnlyList<string> fixtureProblems, string exceptionType) =>
+    /// <summary>An observation for a case whose chain never completed.
+    ///
+    /// <para><paramref name="byteProofFailure"/> is a PARAMETER and not a hardcoded null, because
+    /// the second crash exit runs AFTER the byte proof has been evaluated: a case whose authored
+    /// bytes were already wrong and which then crashed was published under "byte proofs held" with
+    /// its failure message discarded. §0 named it among the healthy.</para></summary>
+    internal static LayoutCaseObservation Crashed(
+        LayoutCase c, IReadOnlyList<string> fixtureProblems, string exceptionType,
+        string? byteProofFailure) =>
         // Named, not positional. The record has 39 parameters and positions 21-28 are eight
         // consecutive int/int? — ParsedExperience, ParsedEducation, the two ground truths, the
-        // two promoted counts, WellFormedPromotedExperience, PromotedPreambleChars — with an
+        // two promoted counts, PromotedExperienceWithRawPeriod, PromotedPreambleChars — with an
         // implicit int -> int? conversion between them. Inserting one more in that run shifts
         // every following nullable-int SILENTLY and the compiler accepts it. A corpus that
         // reports promoted-education under "promoted experience" is the exact class of quiet
         // content loss this instrument exists to measure.
         new(
             Case: c,
-            ByteProofFailure: null,
+            ByteProofFailure: byteProofFailure,
             FixtureProblems: fixtureProblems,
             KindResolved: false,
             ExtractionStatus: null,
@@ -392,7 +441,7 @@ internal static partial class LayoutChainRunner
             GroundTruthEducation: c.Model.GroundTruthEducations,
             PromotedExperience: null,
             PromotedEducation: null,
-            WellFormedPromotedExperience: null,
+            PromotedExperienceWithRawPeriod: null,
             PromotedPreambleChars: null,
             BlockReason: null,
             Promoted: false,

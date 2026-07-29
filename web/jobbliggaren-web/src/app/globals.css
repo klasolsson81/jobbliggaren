@@ -4647,6 +4647,71 @@ a.jp-adminnav__link[aria-current="page"]::after {
 .jp-table tbody tr:hover td { background: var(--jp-surface-tertiary); }
 .jp-table tbody tr:last-child td { border-bottom: 2px solid var(--jp-border-strong); }
 
+/* CompanyBrowseList column geometry (#1090 follow-up). Scoped to that component, never to
+   .jp-table at large: the admin-granskning ledger keeps auto layout.
+
+   WHY FIXED. /foretag/sok renders the SAME table twice — the org.nr answer above the streamed
+   browse. #1118 made them equally WIDE (1136px both); auto layout then still sized each one to
+   its OWN rows, so a one-row answer and a fifty-row browse disagreed about where every column
+   starts. Measured at 1280/1920/3440 before this change: Org.nr, Säteskommun and Branscher all
+   began 51px apart on the two tables. Fixed layout makes the geometry a decision instead of a
+   consequence of whichever rows happened to load.
+
+   HOW THE WIDTHS WERE CHOSEN, precisely — because "measured" and "chosen" are not the same claim
+   and an earlier version of this comment collapsed them. Each of the four declared columns sits at
+   or ABOVE a measured max-content floor; the floor and the headroom are stated per column below.
+   Only the company name is width-less, so it absorbs the remainder and the sum is exact at every
+   table width.
+
+   Every floor is a CELL width — max-content of the widest body cell INCLUDING `.jp-table tbody td`'s
+   24px horizontal padding — measured in Chromium in BOTH locales. The header cells were measured
+   too and none of them is the binding constraint (they are `--text-overline` 11px mono-caps; the
+   widest, "REGISTERED SEAT" in en, clears its column). Measuring only the label the user starts on
+   is how the follow column shipped 7px too narrow for English in the first head.
+
+   THE TWO MINIMUM WIDTHS ARE ONE DECISION, not two literals: declared columns + a 220px floor for
+   the name column, which would otherwise collapse toward zero as the table narrows. The `calc()`
+   below EXPRESSES that decision; it does not enforce it — its operands are hand-typed copies of the
+   four `__col--*` widths, and nothing in CSS links the two. What enforces it is
+   `company-browse-list.test.tsx`, which parses these rules and asserts each `calc()` equals the
+   widths actually declared. Re-measure a column and the two agree or the test goes red. Four of the
+   five widths already changed once between two heads of this PR, so the drift is demonstrated, not
+   hypothetical.
+   **220px is a chosen readability minimum, not a max-content measurement** — the one number here
+   that rests on no measurement at all, and deliberately the same in both shapes because "narrowest
+   readable company-name column" does not change when a follow button is absent (CTO bind
+   2026-07-28). Branscher's 280px is also a choice, but a choice BETWEEN measurements; see below.
+
+   Consequence, stated because this PR causes it, and stated per SHAPE rather than per route
+   because that is what it follows: **both five-column tables on /foretag/sok and the four-column
+   browse now scroll horizontally at 768px.** Measured on origin/main at 768 in a 704px container:
+   the org.nr answer was 704px (fit exactly), the criterion browse 704px (fit exactly), and only
+   the streamed results table already scrolled at 827px. Those fits were a property of the rows
+   that happened to load under auto layout, never a guarantee — a criterion with longer company
+   names already scrolled. The scroll is contained in each table's own wrapper (the page itself
+   never scrolls at 320/375/768, measured), and it is the behaviour `.jp-apptable` already ships
+   at 768 with min-width: 940px. */
+.jp-companyBrowse { table-layout: fixed; min-width: calc(175px + 145px + 280px + 220px); }
+.jp-companyBrowse--withFollow { min-width: calc(175px + 145px + 280px + 160px + 220px); }
+/* Floor 161px = "Protected identity" (en; sv "Skyddad identitet" is 160px), which is wider than a
+   formatted org.nr (129px). +14px. The dev register holds zero personnummer-shaped rows, so the
+   badge was measured on its own markup rather than on a row. nowrap is scoped to the NUMBER, not
+   the cell, so a font fallback wraps the badge instead of overflowing into Säteskommun. */
+.jp-companyBrowse__col--orgnr { width: 175px; }
+/* Floor 132px = "Skinnskatteberg", the longest single WORD any kommun name contains. +13px. */
+.jp-companyBrowse__col--seat { width: 145px; }
+/* Floor 232px = "Plastförpackningstillverkning", the longest unbreakable token in SNI 2025 — but
+   this is the one width the floor does not decide, because the column holds up to three wrapped
+   names, not one token. Measured instead against total table height over 21 real rows at 1136px:
+   232px→1722px, 255→1647, 280→1548, 330→1573, 380→1523, 431→1672. The curve is flat-bottomed
+   between 280 and 380 (widening this column narrows the name column, so both wrap) and both ends
+   are worse. 280px is the low end of that band, chosen there so the company name — the row's
+   identity — stays wider than its context, per design-review. */
+.jp-companyBrowse__col--sni { width: 280px; }
+/* Floor 147px = "Following" (en; sv "Bevakar" is 136px, "Bevaka" 131px). +13px. The button carries
+   its own nowrap; the cell must NOT, because it also holds the failed-follow error. */
+.jp-companyBrowse__col--follow { width: 160px; }
+
 /* ============================================================
    F6 P5 Punkt 4 — Översikt (civic dossier)
    Källa: docs/jobbliggaren-v3-bundle/Jobbliggaren/handoff-oversikt/

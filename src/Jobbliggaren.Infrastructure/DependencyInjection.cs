@@ -1081,8 +1081,11 @@ public static class DependencyInjection
         // SwedishCalendarTests, not this line — type registration is lazy, so a
         // throw here would surface on first use rather than at boot.
         //
-        // Its consumer today is RefreshLandingStatsJob (Worker). The Api-side
-        // month-windowed statistics surfaces WILL consume it; they do not yet.
+        // Three consumers, across both hosts: RefreshLandingStatsJob (Worker) for
+        // the "nya idag" day boundary, and — since the ADR 0064 amendment's
+        // follow-up landed — GetActivityReportQueryHandler and
+        // GetApplicationStatsQueryHandler (Api) for the month windows. The Api
+        // side resolves it through AddInfrastructure → AddPersistence.
         services.AddSingleton<ISwedishCalendar, Time.SwedishCalendar>();
 
         // Provider-specifik DbUpdateException-analys (ADR 0032 §5). Singleton —

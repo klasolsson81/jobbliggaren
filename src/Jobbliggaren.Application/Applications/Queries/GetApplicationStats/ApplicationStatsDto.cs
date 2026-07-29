@@ -71,9 +71,18 @@ public sealed record FunnelStageDto(string Stage, int Count, int PercentOfSent);
 
 /// <summary>
 /// One month bucket of the rolling 12-month applications-over-time series,
-/// bucketed on <c>AppliedAt</c> (UTC). Buckets are zero-filled and ordered
-/// oldest → newest; applications applied before the window are excluded from the
-/// series only (still counted in the totals/status/funnel).
+/// bucketed on <c>AppliedAt</c> against the SWEDISH civil month (Klas-direktiv
+/// 2026-07-28, ADR 0064 Amendment — it was UTC until then). Buckets are
+/// zero-filled and ordered oldest → newest; applications applied before the
+/// window are excluded from the series only (still counted in the
+/// totals/status/funnel).
+///
+/// <para>
+/// <paramref name="Year"/>/<paramref name="Month"/> are the bucket's LABEL and
+/// are the FE's only source for the axis text. They come from the civil month the
+/// calculator asked for, never from the boundary instant — that instant is the
+/// previous month, and in January the previous year.
+/// </para>
 /// </summary>
 public sealed record MonthlyApplicationCountDto(int Year, int Month, int Count);
 

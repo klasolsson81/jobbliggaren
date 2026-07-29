@@ -118,6 +118,14 @@ public class RefreshLandingStatsJobIntegrationTests(ApiFactory factory)
 
         calendar.StartOfDay(new DateTimeOffset(2026, 7, 15, 14, 0, 0, TimeSpan.Zero))
             .Offset.ShouldBe(TimeSpan.Zero);
-        calendar.StartOfMonth(2026, 1).Offset.ShouldBe(TimeSpan.Zero);
+
+        // BOTH ends of the month window. `End` is the half that is new: it became
+        // a `timestamptz` WHERE parameter in GetActivityReportQueryHandler when
+        // the activity report moved to the Swedish month, and Npgsql throws on a
+        // non-zero offset. The predecessor member handed back only a start, so
+        // this test could not have covered it.
+        var window = calendar.MonthWindow(CivilMonth.Of(2026, 1));
+        window.Start.Offset.ShouldBe(TimeSpan.Zero);
+        window.End.Offset.ShouldBe(TimeSpan.Zero);
     }
 }

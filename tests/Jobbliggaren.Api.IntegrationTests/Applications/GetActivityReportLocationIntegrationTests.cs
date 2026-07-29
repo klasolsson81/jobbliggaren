@@ -8,6 +8,7 @@ using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.JobAds;
 using Jobbliggaren.Domain.JobSeekers;
 using Jobbliggaren.Infrastructure.Persistence;
+using Jobbliggaren.Infrastructure.Time;
 using Jobbliggaren.TestSupport;
 using Microsoft.Extensions.DependencyInjection;
 using NSubstitute;
@@ -100,7 +101,7 @@ public class GetActivityReportLocationIntegrationTests
 
     private GetActivityReportQueryHandler CreateHandler(
         AppDbContext db, ITaxonomyReadModel taxonomy, IDateTimeProvider clock) =>
-        new(db, _currentUser, taxonomy, clock);
+        new(db, _currentUser, taxonomy, clock, new SwedishCalendar());
 
     // ---------------------------------------------------------------
     // Resolvering — känt kommun-concept-id → svensk label

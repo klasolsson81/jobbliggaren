@@ -107,6 +107,17 @@ const AXIS_SEPARATOR = "-";
 export function serializeCodeAxis(codes: ReadonlyArray<string>): string {
   return [...codes].sort().join(AXIS_SEPARATOR);
 }
+/*
+ * Preconditions, stated here rather than left to be read off the current callers — the export
+ * widens the audience past the two that exist today.
+ *
+ * It assumes codes already normalised by {@link normalizeCodes}: it does NOT dedupe
+ * (`["0180","0180"]` → `"0180-0180"`), and it does NOT validate that a code is separator-free
+ * (`["01-80","1480"]` → `"01-80-1480"`, which parses back as three codes). Both omissions are
+ * deliberate — dedupe belongs to `normalizeCodes`, and the separator's safety rests on the
+ * digits-only argument at {@link AXIS_SEPARATOR} — but a caller has to know they are omissions
+ * rather than guarantees.
+ */
 
 /**
  * Serialize the filter axes onto `params` — ONE occurrence per key, never a repeated one.
@@ -120,12 +131,31 @@ export function serializeCodeAxis(codes: ReadonlyArray<string>): string {
  * its fix PR #93368 (both open on 2026-07-29; we run 16.2.9).
  *
  * Joining the codes removes the collision at its source rather than repairing it afterwards: two
- * different applied states can no longer produce the same cache key, at any latency, on any machine.
- * A timing-based workaround was built and measured first (`router.refresh()` beside the push) and it
- * FAILED — correct for one removal, but two or more in quick succession were undone entirely once
- * server latency passed ~600 ms, which is inside the range this surface already measures.
+ * different applied states **that this module writes** can no longer produce the same cache key, at
+ * any latency, on any machine. A timing-based workaround was built and measured first
+ * (`router.refresh()` beside the push) and it FAILED — correct for one removal, but two or more in
+ * quick succession were undone entirely once server latency passed ~600 ms, which is inside the
+ * range this surface already measures.
  *
- * Shared by all three href builders in this module, so they cannot drift.
+ * **The residual, accepted deliberately (code-reviewer bind, #1134).** This cannot retro-fix a URL
+ * it did not write. Arriving on a link shared before 2026-07-29 — which carries the repeated form —
+ * the FIRST filter change still collides, because the URL in the address bar is the old shape and
+ * the cache collapses it. Measured: seven joined transitions all fetch, the legacy arrival does not.
+ * It is SELF-HEALING, and that is what makes accepting it right: every writer now emits the joined
+ * form, including the no-JS form, so the first commit of any kind replaces the old URL and every
+ * navigation after it is correct. Before the form was fixed the old shape was self-RENEWING
+ * instead, and accepting it then would have been wrong.
+ *
+ * A normalising redirect in `page.tsx` was considered and REJECTED on this repo's own measurement:
+ * a `redirect()` on this route cannot answer 3xx once the `(app)` layout has begun streaming (see
+ * `page.tsx`), so it would cost a served document, ~1s of dwell and the URL in six `Referer`
+ * headers on EVERY legacy arrival, to avoid one possibly-stale render. The proxy is the right layer
+ * if this is ever closed — as its own PR, strictly under the auth branch, preserving `sida` and
+ * `avvisat`, with a no-loop pin.
+ *
+ * Shared by all three href builders in this module, and — through the exported
+ * {@link serializeCodeAxis} — by the search island's no-JS form, which is the one producer that
+ * cannot call a builder. That is every writer of these two axes; none can drift from the others.
  */
 function appendFilterAxes(params: URLSearchParams, state: ForetagSokUrlState): void {
   if (state.sni.length > 0) params.set("sni", serializeCodeAxis(state.sni));

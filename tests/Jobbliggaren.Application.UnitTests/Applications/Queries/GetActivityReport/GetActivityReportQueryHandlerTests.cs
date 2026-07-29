@@ -131,7 +131,7 @@ public class GetActivityReportQueryHandlerTests
     // ---------------------------------------------------------------
 
     [Fact]
-    public async Task Handle_AppliedAtOnFirstOfMonthMidnight_IsIncluded()
+    public async Task Handle_AppliedAtOnSwedishFirstOfMonthMidnight_IsIncluded()
     {
         var ct = TestContext.Current.CancellationToken;
         var db = TestAppDbContextFactory.Create();
@@ -149,7 +149,7 @@ public class GetActivityReportQueryHandlerTests
     }
 
     [Fact]
-    public async Task Handle_AppliedAtOnFirstOfNextMonthMidnight_IsExcluded()
+    public async Task Handle_AppliedAtOnSwedishFirstOfNextMonthMidnight_IsExcluded()
     {
         var ct = TestContext.Current.CancellationToken;
         var db = TestAppDbContextFactory.Create();
@@ -167,7 +167,7 @@ public class GetActivityReportQueryHandlerTests
     }
 
     [Fact]
-    public async Task Handle_AppliedAtInPreviousMonth_IsExcluded()
+    public async Task Handle_AppliedAtInPreviousSwedishMonth_IsExcluded()
     {
         var ct = TestContext.Current.CancellationToken;
         var db = TestAppDbContextFactory.Create();
@@ -388,9 +388,14 @@ public class GetActivityReportQueryHandlerTests
     {
         // Clock exactly ON the boundary instant. The month a boundary opens is the
         // month it belongs to — the same claim StartOfDay_IsIdempotent_OnItsOwnResult
-        // makes for the day. Without this case a resolution written with `>`
-        // instead of `>=` survives every other default-month test, because they all
-        // sit 30 minutes past the boundary.
+        // makes for the day.
+        //
+        // An earlier version of this comment justified the case by a `>` vs `>=`
+        // mutation. There is no such comparison: ResolveMonth calls
+        // calendar.MonthOf, and MonthOf converts and reads the wall clock. What
+        // this case actually adds over its 00:30 siblings is the exact instant —
+        // any implementation that treats the boundary as belonging to the OLD
+        // month fails here and nowhere else in this class.
         var ct = TestContext.Current.CancellationToken;
         var db = TestAppDbContextFactory.Create();
         await SeedSeekerAsync(db, _userId, ct);
@@ -467,7 +472,7 @@ public class GetActivityReportQueryHandlerTests
     }
 
     [Fact]
-    public async Task Handle_NoAuthenticatedUserAndNoExplicitMonth_EchoesDefaultPreviousMonth()
+    public async Task Handle_NoAuthenticatedUserAndNoExplicitMonth_EchoesDefaultCurrentMonth()
     {
         var ct = TestContext.Current.CancellationToken;
         var db = TestAppDbContextFactory.Create();

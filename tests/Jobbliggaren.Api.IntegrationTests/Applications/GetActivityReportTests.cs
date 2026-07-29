@@ -56,8 +56,8 @@ public class GetActivityReportTests(ApiFactory factory)
     // The retired helper read DateTimeOffset.UtcNow's year and month and asked for
     // that month's report, for a row the server clock had just stamped. Once the
     // window became the SWEDISH civil month the two frames diverged for a fixed
-    // band every month - 2 h from the end of March to the end of September, 1 h
-    // the rest of the year - and inside it the row bucketed into the NEXT month
+    // band every month - 2 h from the last Sunday in March to the last Sunday in
+    // October, 1 h the rest of the year - and inside it the row bucketed NEXT
     // while the test asked for the previous one. Two hours a month of red,
     // unreproducible an hour later. Worse, the isolation test would have gone
     // FALSELY GREEN in the same band: the window excluded everything, so "A's id

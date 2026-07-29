@@ -340,7 +340,7 @@ public class ApplicationStatsCalculatorTests
     }
 
     [Fact]
-    public void Calculate_MonthlySeries_DraftsNeverAppear()
+    public void Calculate_MonthlySeries_RowsWithoutAnAppliedAt_NeverAppear()
     {
         ApplicationStatRow[] rows = [Draft(), Draft()];
 

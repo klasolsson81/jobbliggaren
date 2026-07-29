@@ -143,9 +143,13 @@ public static class ApplicationStatsCalculator
     // with GetActivityReportQueryHandler's AppliedAt windowing, and with the
     // ruling that a boundary a user reads is the Swedish one (Klas-direktiv
     // 2026-07-28, ADR 0064 Amendment). Zero-filled and ordered oldest → newest.
-    // Drafts (null AppliedAt) are absent from sentRows, so they never appear in
-    // the series (a draft was sent in no month). Applications applied before the
-    // window fall in no bucket.
+    // Rows with a null AppliedAt are absent from sentRows, so they never appear
+    // in the series. That is NOT the same as "drafts never appear":
+    // Submitted -> Draft is a permitted transition (ADR 0092 D3) and AppliedAt is
+    // never cleared, so a row that is Draft TODAY but was once submitted carries
+    // an AppliedAt and does bucket. Whether it should also count toward TotalSent
+    // is a separate honesty question, open with Klas. Applications applied before
+    // the window fall in no bucket.
     private static List<MonthlyApplicationCountDto> BuildMonthlySeries(
         IReadOnlyList<ApplicationStatRow> sentRows, ISwedishCalendar calendar, DateTimeOffset now)
     {

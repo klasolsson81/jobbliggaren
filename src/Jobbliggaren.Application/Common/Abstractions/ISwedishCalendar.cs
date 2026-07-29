@@ -44,8 +44,10 @@ namespace Jobbliggaren.Application.Common.Abstractions;
 /// <see cref="CivilMonthWindow.Start"/> for July 2026 is <c>2026-06-30T22:00Z</c>,
 /// and for January 2026 it is <c>2025-12-31T23:00Z</c> — the wrong month, and the
 /// wrong YEAR. An earlier revision of this port returned that instant bare from a
-/// <c>StartOfMonth(int, int)</c> member and forbade the misuse in a doc comment;
-/// both prospective consumers wrote the forbidden form anyway. Labels now come
+/// <c>StartOfMonth(int, int)</c> member and forbade the misuse in a doc comment.
+/// Both prospective consumers already CARRIED the forbidden forms — written
+/// against UTC anchors, where they were correct — so the prohibitions were aimed
+/// at code that existed and read as right. Labels now come
 /// from <see cref="CivilMonth"/>, which cannot be an instant, and windows come
 /// from <see cref="CivilMonthWindow"/>, which carries its own label.
 /// </para>
@@ -105,12 +107,24 @@ public interface ISwedishCalendar
     /// is exact in every year, leap or not.
     /// </para>
     /// <para>
-    /// So a hand check in April, June, August, September or November returns
-    /// green, and the defect is invisible 58 % of the year. What it does when it
-    /// fires is drop rows from the document a job seeker files with
-    /// Arbetsförmedlingen. Handing both ends over is the only shape in which the
-    /// derivation cannot be written; forbidding it in prose was tried, and this
-    /// member is what supersedes that attempt.
+    /// So a hand check returns green unless it lands in one of the FIVE bad
+    /// months (March, May, July, October, December) — the defect is invisible
+    /// 58 % of the year. What it does when it fires is drop rows from the
+    /// document a job seeker files with Arbetsförmedlingen.
+    /// </para>
+    /// <para>
+    /// <b>Handing both ends over makes the derivation UNNECESSARY, not
+    /// impossible</b> — and the difference is worth stating, because an earlier
+    /// revision of this paragraph claimed the stronger thing.
+    /// <c>window.Start.AddMonths(1)</c> still compiles; every
+    /// <see cref="DateTimeOffset"/> carries <c>.AddMonths</c> and
+    /// <c>.Year</c>/<c>.Month</c>, and <see cref="StartOfDay"/> still hands back
+    /// a bare boundary instant whose label trap is unguarded. What changed is
+    /// that the correct value now sits in the same value as the dangerous one, on
+    /// a shorter path, so no consumer needs the derivation. Making it genuinely
+    /// unrepresentable would mean wrapping <c>Start</c>/<c>End</c> in a type
+    /// without <c>.Month</c>, which breaks EF translation — a real cost, weighed
+    /// and not paid.
     /// </para>
     /// <para>
     /// A month can never begin on a DST transition, so this needs no more care

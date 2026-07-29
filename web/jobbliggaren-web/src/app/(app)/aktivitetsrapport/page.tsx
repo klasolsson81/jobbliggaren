@@ -5,10 +5,10 @@ import { ArrowLeft } from "lucide-react";
 import { getServerSession } from "@/lib/auth/session";
 import { getActivityReport } from "@/lib/api/applications";
 import {
-  previousSwedishMonth,
-  swedishMonthOf,
-  type SwedishMonth,
-} from "@/lib/dates/swedish-month";
+  SWEDISH_TIME_ZONE,
+  lastTwelveSwedishMonths,
+  withSelectedMonth,
+} from "@/lib/time/swedish-calendar";
 import { assertNever } from "@/lib/dto/_helpers";
 import {
   ActivityReportView,
@@ -75,8 +75,11 @@ export default async function AktivitetsrapportPage({
 
   const report = result.data;
 
-  // The backend echoes the resolved month (it defaults to the previous month
-  // when none is given) — this is the source of truth for the picker value.
+  // The backend echoes the resolved month (it defaults to the CURRENT month, on
+  // the Swedish civil calendar) — this is the source of truth for the picker
+  // value. Klas ruled 2026-07-29 that the code is right and the several places
+  // still documenting a "previous month" default are the defect; they are
+  // corrected in their own follow-up PR.
   const selectedMonth = `${report.year}-${pad2(report.month)}`;
   const monthLabel = formatMonthLabel(format, report.year, report.month);
   const monthOptions = buildMonthOptions(format, report.year, report.month);
@@ -85,7 +88,7 @@ export default async function AktivitetsrapportPage({
   // Europe/Stockholm — the form-ready value for Arbetsförmedlingen, and the
   // calendar date the person actually applied (regardless of UI language).
   const stockholmDate = new Intl.DateTimeFormat("sv-SE", {
-    timeZone: "Europe/Stockholm",
+    timeZone: SWEDISH_TIME_ZONE,
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
@@ -150,45 +153,43 @@ function ErrorShell({ title, body }: { title: string; body: string }) {
 type Formatter = Awaited<ReturnType<typeof getFormatter>>;
 
 function formatMonthLabel(format: Formatter, year: number, month: number): string {
-  // Noon rather than midnight, and Europe/Stockholm rather than the runtime's
-  // zone. The label is built from two ints, so the Date is only a carrier — but a
-  // midnight UTC carrier formatted in a zone BEHIND UTC names the previous month
-  // (Date.UTC(2026, 0, 1) is 19:00 on 31 December in New York). Neither the
-  // container nor a Swedish reader hits that today; naming the zone means it
-  // cannot start being true.
+  // The zone argument is a deliberate restatement of a global invariant, not a
+  // fix: `src/i18n/request.ts` already pins Europe/Stockholm for every
+  // `format.dateTime`, so the failure this guards against — a midnight-UTC
+  // carrier formatted in a zone BEHIND UTC naming the previous month, the way
+  // Date.UTC(2026, 0, 1) is 19:00 on 31 December in New York — has never been
+  // reachable here. Named at the call site so it survives the global pin being
+  // removed, and the noon carrier makes it robust for zones ±12 h either way.
+  //
+  // Contrast lib/i18n/format.ts, which deliberately never names the zone because
+  // the configuration owns it, and the raw `Intl.DateTimeFormat` in
+  // lib/time/swedish-calendar.ts, which MUST name it — there is no configuration
+  // to inherit. (By symbol, not line: this repo has twice had a cross-file line
+  // citation go stale inside a single PR.)
   return format.dateTime(new Date(Date.UTC(year, month - 1, 1, 12)), {
-    timeZone: "Europe/Stockholm",
+    timeZone: SWEDISH_TIME_ZONE,
     month: "long",
     year: "numeric",
   });
 }
 
 /**
- * The last 12 SWEDISH civil months (newest first), guaranteed to include the
- * resolved month so the picker value always matches an option even when the user
- * navigates to an older month by URL.
+ * The picker's options, newest first: the last twelve Swedish civil months, plus
+ * the selected month when a deep link points outside that window.
  *
- * The anchor is the Swedish month, not the UTC one: since the backend resolves
- * its default the same way (ADR 0064 Amendment), a UTC anchor would leave the
- * selected month out of the list for the first one to two hours of every Swedish
- * month. The fallback below would then push it in as a THIRTEENTH entry — no
- * crash, but a "last 12 months" picker showing 13.
+ * Every decision here lives in `lib/time/swedish-calendar.ts` and is tested
+ * there. This function is the formatting shell, deliberately — when the anchor
+ * was inline, reverting it to `getUTCMonth()` survived the whole suite.
  */
 function buildMonthOptions(
   format: Formatter,
   selectedYear: number,
   selectedMonth: number,
 ): MonthOption[] {
-  const months: SwedishMonth[] = [];
-  let cursor = swedishMonthOf(new Date());
-  for (let i = 0; i < 12; i++) {
-    months.push(cursor);
-    cursor = previousSwedishMonth(cursor);
-  }
-  if (!months.some((m) => m.year === selectedYear && m.month === selectedMonth)) {
-    months.push({ year: selectedYear, month: selectedMonth });
-    months.sort((a, b) => b.year - a.year || b.month - a.month);
-  }
+  const months = withSelectedMonth(lastTwelveSwedishMonths(new Date()), {
+    year: selectedYear,
+    month: selectedMonth,
+  });
   return months.map((m) => ({
     value: `${m.year}-${pad2(m.month)}`,
     label: formatMonthLabel(format, m.year, m.month),

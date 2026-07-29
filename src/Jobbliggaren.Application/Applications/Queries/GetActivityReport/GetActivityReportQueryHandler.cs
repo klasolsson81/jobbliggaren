@@ -66,9 +66,17 @@ public sealed class GetActivityReportQueryHandler(
         if (jobSeekerId == default)
             return new ActivityReportDto(month.Year, month.Month, []);
 
-        // Hoisted out of the predicate: EF translates a local far more reliably
-        // than member access on a struct, and the InMemory provider used by the
-        // unit tests would not tell us if it did not.
+        // Hoisted for readability only. An earlier version of this comment claimed
+        // EF translates a local more reliably than member access on a struct;
+        // that is false, and `currentUser.UserId.Value` seven lines above is the
+        // counter-example — a struct member access inside an EF predicate, run
+        // against real Postgres by three integration classes. Both forms are
+        // subtrees rooted in the same closure and are parameterised identically.
+        //
+        // What IS true of these two values: both are `timestamptz` parameters,
+        // the port guarantees Offset == Zero, and Npgsql throws otherwise. The
+        // unit tests run EF InMemory and are blind to that;
+        // GetActivityReportSwedishMonthBoundaryIntegrationTests is the gate.
         var start = window.Start;
         var end = window.End;
 

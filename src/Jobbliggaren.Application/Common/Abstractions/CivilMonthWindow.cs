@@ -23,16 +23,17 @@ namespace Jobbliggaren.Application.Common.Abstractions;
 /// <b>Why <see cref="End"/> is handed over rather than derived.</b> Deriving it
 /// with <c>Start.AddMonths(1)</c> is wrong by the difference in month lengths —
 /// and silently RIGHT in seven months of twelve, because <c>AddMonths</c> clamps
-/// the day-of-month. Stated by the month whose END is being computed, which is
-/// the framing <c>SwedishCalendarTests</c> measures (an earlier draft of this
-/// paragraph named the TARGET boundaries instead and listed November in both
-/// columns): exact for January, February, April, June, August, September and
-/// November; short by <b>2 d 23 h</b> for March; by <b>1 d</b> for May, July and
+/// the day-of-month. Measured over 2026, and stated by the month whose END is
+/// being computed — the framing <c>SwedishCalendarTests</c> measures (an earlier
+/// draft of this paragraph named the TARGET boundaries instead and listed
+/// November in both columns): exact for January, February, April, June, August,
+/// September and November; short by <b>2 d 23 h</b> for March (1 d 23 h in a leap
+/// year, where the anchor is 29 February); by <b>1 d</b> for May, July and
 /// December; by <b>1 d 1 h</b> for October. February is exact in every year, leap
-/// or not. A defect invisible 58 % of the year survives any hand check that does
-/// not happen to fall in one of the five bad months. In the activity report that
-/// means quietly too few rows in the document a job seeker files with
-/// Arbetsförmedlingen.
+/// or not, and the seven/five split holds every year. A defect invisible 58 % of
+/// the year survives any hand check that does not happen to fall in one of the
+/// five bad months. In the activity report that means quietly too few rows in the
+/// document a job seeker files with Arbetsförmedlingen.
 /// </para>
 ///
 /// <para>

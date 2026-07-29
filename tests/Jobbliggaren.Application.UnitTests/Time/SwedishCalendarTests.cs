@@ -91,22 +91,63 @@ public class SwedishCalendarTests
     }
 
     [Theory]
-    [InlineData(2026, 3, 29)]   // spring forward
-    [InlineData(2026, 10, 25)]  // fall back
-    public void Midnight_IsNeitherInvalidNorAmbiguous_OnTransitionDates(int year, int month, int day)
+    [InlineData(2026)]
+    [InlineData(2027)]
+    public void Midnight_IsNeitherInvalidNorAmbiguous_OnTheZonesOwnTransitionDates(int year)
     {
         // The port PROMISES callers need no invalid/ambiguous-time handling, and
         // `ToInstant` rests entirely on that. The failure mode is silent:
         // GetUtcOffset(Unspecified) returns the STANDARD offset for both an
-        // invalid and an ambiguous local time. If a future tzdata release moved
-        // an EU transition to midnight, the calendar would be an hour wrong with
-        // every other test still green. This is the only place the promise is
-        // checked rather than asserted in prose.
+        // invalid and an ambiguous local time, so a transition moved onto midnight
+        // would make the calendar an hour wrong with every other test still green.
+        // This is the only place the promise is checked rather than asserted.
+        //
+        // THE DATES ARE DERIVED FROM THE ZONE, NOT HARDCODED, and that is the
+        // whole point (test-writer, PR C). An earlier version probed 2026-03-29
+        // and 2026-10-25 as literals — which pins a drift detector to the very
+        // tzdata snapshot it exists to detect drift in. The realistic EU change is
+        // a moved or abolished transition DATE, not a moved hour; against literals
+        // that lands green and vacuous while the calendar is wrong on the new
+        // date.
         var zone = TimeZoneInfo.FindSystemTimeZoneById(SwedishCalendar.ZoneId);
-        var midnight = new DateTime(year, month, day, 0, 0, 0, DateTimeKind.Unspecified);
 
-        zone.IsInvalidTime(midnight).ShouldBeFalse();
-        zone.IsAmbiguousTime(midnight).ShouldBeFalse();
+        var transitions = TransitionDatesIn(zone, year);
+
+        transitions.Count.ShouldBe(2, $"an EU zone transitions twice in {year}");
+        foreach (var date in transitions)
+        {
+            var midnight = new DateTime(date.Year, date.Month, date.Day, 0, 0, 0, DateTimeKind.Unspecified);
+            zone.IsInvalidTime(midnight).ShouldBeFalse($"midnight on {date:yyyy-MM-dd} must not be skipped");
+            zone.IsAmbiguousTime(midnight).ShouldBeFalse($"midnight on {date:yyyy-MM-dd} must not be repeated");
+        }
+    }
+
+    /// <summary>
+    /// The dates in <paramref name="year"/> on which the zone's UTC offset
+    /// changes, found by walking the year rather than by resolving the floating
+    /// adjustment rules by hand.
+    ///
+    /// <para>
+    /// Probed at noon UTC: EU transitions occur at 01:00 UTC, so noon on the
+    /// transition date is already past it while noon the day before is not — which
+    /// makes the day the offset changes exactly the transition date.
+    /// </para>
+    /// </summary>
+    private static List<DateOnly> TransitionDatesIn(TimeZoneInfo zone, int year)
+    {
+        var dates = new List<DateOnly>();
+        var previous = zone.GetUtcOffset(new DateTimeOffset(year, 1, 1, 12, 0, 0, TimeSpan.Zero));
+
+        for (var day = new DateOnly(year, 1, 2); day.Year == year; day = day.AddDays(1))
+        {
+            var offset = zone.GetUtcOffset(
+                new DateTimeOffset(day.Year, day.Month, day.Day, 12, 0, 0, TimeSpan.Zero));
+            if (offset != previous)
+                dates.Add(day);
+            previous = offset;
+        }
+
+        return dates;
     }
 
     [Fact]
@@ -239,7 +280,7 @@ public class SwedishCalendarTests
     }
 
     [Fact]
-    public void MonthWindow_EndIsNotReproducibleByAddMonths_AndIsSilentlyCorrectInSevenMonthsOfTwelve()
+    public void MonthWindow_EndIsWrongInFiveMonthsUnderAddMonths_AndSilentlyCorrectInSeven()
     {
         // THE FORM BOTH REAL CALL SITES USED is the exclusive window END, not a
         // series: `GetActivityReportQueryHandler` and `ApplicationStatsCalculator`

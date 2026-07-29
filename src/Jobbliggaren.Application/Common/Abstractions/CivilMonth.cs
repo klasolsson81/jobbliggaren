@@ -11,7 +11,8 @@ namespace Jobbliggaren.Application.Common.Abstractions;
 /// returned a bare <see cref="DateTimeOffset"/> whose entire contract was three
 /// prose prohibitions: do not read <c>.Year</c>/<c>.Month</c> off it, do not
 /// <c>AddMonths</c> it as a series, do not <c>AddMonths(1)</c> it for a window's
-/// exclusive end. Both prospective consumers wrote two of the three anyway. A
+/// exclusive end. Both prospective consumers already carried two of the three —
+/// correct against their UTC anchors, lethal the moment they consumed the port. A
 /// value whose correct use requires the caller to internalise three "never do X"
 /// rules is at the wrong level of abstraction; a doc comment is a warning label
 /// on an edge that should not exist. Splitting the LABEL from the INSTANT is
@@ -38,7 +39,10 @@ namespace Jobbliggaren.Application.Common.Abstractions;
 /// rule two homes. <c>default(CivilMonth)</c> bypasses the factory (structs
 /// always can) and is year 0, month 1 — which no calendar accepts. It fails
 /// closed at the first operation that touches it: <see cref="Next"/> routes back
-/// through <see cref="Of"/> and throws before the adapter is reached at all.
+/// through <see cref="Of"/> and throws before the adapter constructs any
+/// <see cref="DateTime"/>. (The adapter IS entered — <c>MonthWindow</c>'s first
+/// statement is <c>month.Next()</c> — so an earlier draft saying "before the
+/// adapter is reached at all" was one step too strong.)
 /// Pinned by <c>CivilMonthTests</c>, and recorded here so a reviewer reads it as
 /// considered rather than unguarded.
 /// </para>

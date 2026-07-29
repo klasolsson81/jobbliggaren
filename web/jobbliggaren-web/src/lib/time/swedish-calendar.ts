@@ -27,11 +27,18 @@ export type SwedishMonth = { year: number; month: number };
  * the home for NEW call sites: import it rather than repeating the literal.
  *
  * It is not yet the only occurrence, and the doc should not claim otherwise.
- * Three raw literals remain: `admin/granskning/audit-log-table.tsx` (a raw
- * `Intl.DateTimeFormat` — exactly the case this constant exists for, and swept in
- * the follow-up PR), `src/i18n/request.ts` (the primary declaration of the global
- * pin; making the i18n configuration depend on `lib/` is a layering decision of
- * its own), and `src/test/render-intl.tsx` (the harness mirroring it).
+ * Measured over `web/jobbliggaren-web/src/`: ten occurrences, of which this
+ * declaration is one. Of the other NINE, exactly **two are production code** —
+ * `admin/granskning/audit-log-table.tsx` (a raw `Intl.DateTimeFormat`, exactly
+ * the case this constant exists for, swept in the follow-up PR) and
+ * `src/i18n/request.ts` (the primary declaration of the global next-intl pin;
+ * making the i18n configuration depend on `lib/` is a layering decision of its
+ * own). The remaining seven are `.test.ts(x)` files plus the `test/render-intl`
+ * harness.
+ *
+ * The population is spelled out because "three raw literals remain" was the first
+ * phrasing here, and it was a count that was true of one population and read as a
+ * claim about another — the defect class this PR spent three review rounds on.
  */
 export const SWEDISH_TIME_ZONE = "Europe/Stockholm";
 

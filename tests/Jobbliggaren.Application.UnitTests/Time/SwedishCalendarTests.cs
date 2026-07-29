@@ -272,9 +272,12 @@ public class SwedishCalendarTests
     [InlineData(12)]
     public void MonthWindow_EndIsTheNextMonthsOwnStart_ForEveryMonthOfTheYear(int month)
     {
-        // The contract the type exists to make unrepresentable: the windows TILE
-        // the year, no gap and no overlap. Stated as an invariant rather than as
-        // twelve literals so it cannot drift with the implementation.
+        // The contract this test pins, and which the ADAPTER's construction makes
+        // true: the windows TILE the year, no gap and no overlap. Not something
+        // the type makes unrepresentable — `MonthWindow` computes the two ends
+        // independently, and `CivilMonthWindow` accepts any three values — which
+        // is exactly why it is stated here as an invariant rather than as twelve
+        // literals, so it cannot drift with the implementation.
         //
         // ALL TWELVE, deliberately (CTO-bind 2026-07-28-B, landing condition 4).
         // Only five months are broken by the AddMonths derivation; a theory over

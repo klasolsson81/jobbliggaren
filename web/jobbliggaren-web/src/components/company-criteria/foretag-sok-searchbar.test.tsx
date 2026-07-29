@@ -1495,10 +1495,6 @@ describe("ForetagSokSearchbar — the field re-seeds when the applied URL change
 });
 
 /**
- * The org.nr answer is client-only state and is deliberately NOT part of the applied signature, so
- * the re-seed has to drop it explicitly. Reachable: search, search, look up an org.nr, press Back.
- */
-/**
  * The org.nr answer's lifetime. Two halves, and the second is the one #1125 changed.
  *
  * It is dropped when the applied NAME moves on — that is supersession: a new name search replaces

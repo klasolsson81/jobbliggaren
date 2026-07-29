@@ -691,11 +691,26 @@ export function ForetagSokSearchbar({
                 would announce on the first character of every search. `aria-describedby` is the
                 right mechanism for a standing description, and it puts the sentence in the field's
                 own accessible description instead of leaving it to be found by sighted scanning. */}
-            {draftDiffersFromApplied && (
-              <span id={unappliedId} className="jp-hint">
-                {t("unappliedChanges")}
-              </span>
-            )}
+            {/* ALWAYS rendered, with its height reserved — conditional rendering here shifted the
+                chip row, the clear control and the whole streamed table down 26 px on the first
+                character typed, and back up when the field matched the applied name again.
+                Measured, not feared: 668→694 for the chip row at 1280 px. That is the same defect
+                class `showClear` is gated on applied state to avoid ("shove the whole result list
+                64 px down mid-typing — measured"), and this element sits ABOVE everything, so it
+                moved more than that one did.
+
+                Reserving the element alone is not enough: `.jp-field`'s 6 px gap accounts for only
+                6 of the 26, the other 20 being the caption line itself — hence `min-h-5`, one
+                caption line, rather than an empty span. The cost is honest and permanent: the field
+                block is 26 px taller at all times. That is the price of a surface that does not
+                move under the pointer while you type.
+
+                `aria-describedby` stays CONDITIONAL, so the field's description gains a sentence
+                only while one is true — an empty description would otherwise be announced as part
+                of the field forever. */}
+            <span id={unappliedId} className="jp-hint min-h-5">
+              {draftDiffersFromApplied ? t("unappliedChanges") : ""}
+            </span>
           </div>
 
           {/* Post-hydration: the APPLIED name rides a hidden input, so a native GET (an onSubmit that

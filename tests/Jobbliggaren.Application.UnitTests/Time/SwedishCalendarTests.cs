@@ -105,10 +105,19 @@ public class SwedishCalendarTests
         // THE DATES ARE DERIVED FROM THE ZONE, NOT HARDCODED, and that is the
         // whole point (test-writer, PR C). An earlier version probed 2026-03-29
         // and 2026-10-25 as literals — which pins a drift detector to the very
-        // tzdata snapshot it exists to detect drift in. The realistic EU change is
-        // a moved or abolished transition DATE, not a moved hour; against literals
-        // that lands green and vacuous while the calendar is wrong on the new
-        // date.
+        // tzdata snapshot it exists to detect drift in: the moment those dates
+        // stop being transition dates, the test goes green and vacuous. (An
+        // earlier draft of this comment added "while the calendar is wrong on the
+        // new date". That does not follow — if only the DATE moves and the hour
+        // stays at 01:00 UTC, `ToInstant` reads the live rules and is not wrong at
+        // all. The vacuity is the defect, on its own.)
+        //
+        // The Count == 2 assertion is DELIBERATE and is a second tripwire: it goes
+        // red if the EU abolishes summer time, which would not break the calendar.
+        // That is wanted. A calendar whose whole design rests on "midnight is
+        // never ambiguous because transitions are at 01:00 UTC" should force a
+        // human to re-read this file when the premise changes, rather than quietly
+        // keep passing.
         var zone = TimeZoneInfo.FindSystemTimeZoneById(SwedishCalendar.ZoneId);
 
         var transitions = TransitionDatesIn(zone, year);

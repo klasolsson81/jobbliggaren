@@ -23,9 +23,15 @@
 export type SwedishMonth = { year: number; month: number };
 
 /**
- * The product's home time zone, named once on this side of the wire — the
- * counterpart to `SwedishCalendar.ZoneId`. Import it rather than repeating the
- * literal.
+ * The product's home time zone — the counterpart to `SwedishCalendar.ZoneId`, and
+ * the home for NEW call sites: import it rather than repeating the literal.
+ *
+ * It is not yet the only occurrence, and the doc should not claim otherwise.
+ * Three raw literals remain: `admin/granskning/audit-log-table.tsx` (a raw
+ * `Intl.DateTimeFormat` — exactly the case this constant exists for, and swept in
+ * the follow-up PR), `src/i18n/request.ts` (the primary declaration of the global
+ * pin; making the i18n configuration depend on `lib/` is a layering decision of
+ * its own), and `src/test/render-intl.tsx` (the harness mirroring it).
  */
 export const SWEDISH_TIME_ZONE = "Europe/Stockholm";
 
@@ -53,8 +59,15 @@ export function swedishMonthOf(instant: Date): SwedishMonth {
  * arithmetic that is safe, so it lives in one place rather than inline in a loop.
  *
  * It never constructs a `Date` — integer arithmetic on the label cannot drift
- * with DST, and cannot hit `setMonth`'s day-clamping (31 January minus one month
- * is 3 March, not December).
+ * with DST, and cannot hit `setMonth`'s day OVERFLOW. Measured: 2026-03-31 minus
+ * one month is **2026-03-03**, because February has no 31st and JS rolls the
+ * excess FORWARD. Note the direction: .NET's `AddMonths` clamps BACK to the last
+ * valid day, which is why the same arithmetic loses days on the C# side and gains
+ * them here. An earlier draft of this comment said "day-clamping" and used
+ * 31 January as the example — 31 January minus one month is 2025-12-31, plainly
+ * December, so the sentence contradicted the very date it named. Borrowing the
+ * clamping vocabulary in the mirror module would re-introduce the confusion four
+ * review rounds went into removing.
  */
 export function previousSwedishMonth({ year, month }: SwedishMonth): SwedishMonth {
   return month === 1 ? { year: year - 1, month: 12 } : { year, month: month - 1 };

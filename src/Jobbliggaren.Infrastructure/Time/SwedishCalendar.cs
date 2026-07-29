@@ -85,8 +85,9 @@ public sealed class SwedishCalendar : ISwedishCalendar
     /// <summary>
     /// The half-open <c>[Start, End)</c> of a Swedish civil month. The end is the
     /// NEXT month's own boundary — asked for, never derived — which is what makes
-    /// the <c>AddMonths</c> error unrepresentable rather than merely forbidden
-    /// (see <see cref="ISwedishCalendar.MonthWindow"/> for the measured table).
+    /// the <c>AddMonths</c> derivation <b>unnecessary</b>. Not impossible: see
+    /// <see cref="ISwedishCalendar.MonthWindow"/> for why those are different, and
+    /// for the measured table.
     /// </summary>
     public CivilMonthWindow MonthWindow(CivilMonth month)
     {

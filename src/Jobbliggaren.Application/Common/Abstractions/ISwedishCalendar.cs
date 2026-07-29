@@ -121,10 +121,20 @@ public interface ISwedishCalendar
     /// <c>.Year</c>/<c>.Month</c>, and <see cref="StartOfDay"/> still hands back
     /// a bare boundary instant whose label trap is unguarded. What changed is
     /// that the correct value now sits in the same value as the dangerous one, on
-    /// a shorter path, so no consumer needs the derivation. Making it genuinely
-    /// unrepresentable would mean wrapping <c>Start</c>/<c>End</c> in a type
-    /// without <c>.Month</c>, which breaks EF translation — a real cost, weighed
-    /// and not paid.
+    /// a shorter path, so no consumer needs the derivation.
+    /// </para>
+    /// <para>
+    /// <b>A wrapper would not close it either</b> — an earlier draft said a type
+    /// without <c>.Month</c> would, "which breaks EF translation". Both halves
+    /// were wrong, and the second contradicted this PR's own hoisting comment. A
+    /// wrapper translates fine; the repo already compares wrapper structs inside
+    /// predicates. What it does is force an unwrap to a raw
+    /// <see cref="DateTimeOffset"/> before the value can reach an EF predicate at
+    /// all — which re-exposes <c>.Month</c> on the very line that uses it. The
+    /// trap moves one dereference; it does not go away. The shape that WOULD
+    /// remove it is an Application-owned query extension that never hands the
+    /// instants out, and §3.6 sets the bar for that at three call sites where
+    /// there are two.
     /// </para>
     /// <para>
     /// A month can never begin on a DST transition, so this needs no more care

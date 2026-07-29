@@ -70,8 +70,12 @@ public sealed class GetActivityReportQueryHandler(
         // EF translates a local more reliably than member access on a struct;
         // that is false, and `currentUser.UserId.Value` seven lines above is the
         // counter-example — a struct member access inside an EF predicate, run
-        // against real Postgres by three integration classes. Both forms are
-        // subtrees rooted in the same closure and are parameterised identically.
+        // against real Postgres by the Api integration suite. Both are evaluatable
+        // subtrees rooted in captured state rather than in the query root, and EF
+        // parameterises them identically. (They are NOT the same closure: one is a
+        // field reached through `this`, the other a local in a generated display
+        // class. An earlier draft said so; the conclusion survives, that mechanism
+        // claim did not.)
         //
         // What IS true of these two values: both are `timestamptz` parameters,
         // the port guarantees Offset == Zero, and Npgsql throws otherwise. The

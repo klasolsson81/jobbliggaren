@@ -31,9 +31,13 @@ public class ApplicationStatsCalculatorTests
     private static readonly DateTimeOffset Now =
         new(2026, 6, 15, 9, 0, 0, TimeSpan.Zero);
 
-    // A "sent" application has a non-null AppliedAt; a Draft has null. In the real
-    // lifecycle every non-Draft status implies AppliedAt is stamped, so the test
-    // data mirrors that.
+    // A "sent" row has a non-null AppliedAt. What that does NOT mean is "a Draft
+    // has null", which is what this comment used to say: Submitted -> Draft is a
+    // permitted transition (ADR 0092 D3) and AppliedAt is write-once and never
+    // cleared, so a row that is Draft today but was once submitted carries one.
+    // The rows below are shaped as the read handler emits them
+    // (`new ApplicationStatRow(r.Status.Name, r.AppliedAt)`), and every pair used
+    // here is one production does produce.
     private static ApplicationStatRow Row(ApplicationStatus status, DateTimeOffset? appliedAt) =>
         new(status.Name, appliedAt);
 

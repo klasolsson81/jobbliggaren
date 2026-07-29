@@ -303,6 +303,9 @@ jobs:
       - name: assert-not-truncated (fixturer)
         run: bash .github/scripts/assert-not-truncated.test.sh
 
+      - name: audit-suppression-guard (fixturer)
+        run: bash .github/scripts/audit-suppression-guard.test.sh
+
   # ---------------------------------------------------------------------------
   # PERF-/SUPPLY-CHAIN-GOVERNANCE (ADR 0045 — observe-only Fas 1).
   #
@@ -551,6 +554,40 @@ jobs:
           else
             echo "::warning::pnpm audit High/Critical (ADR 0045 Beslut 7, observe-only Fas 1). Dependabot öppnar fix-PR."
           fi
+
+      # Watches the vuln gate's two escape hatches — `pnpm.auditConfig.ignoreGhsas`
+      # (accepted risk) and `pnpm.overrides` (repaired risk). ADR 0065 Amendment
+      # 2026-07-28 ratified both and recorded, as a known gap, that neither was
+      # watched: a stale entry and a dead override key each produce no warning and
+      # no exit difference, and a bare GHSA would silently cover a NEW path if its
+      # package re-entered the production tree.
+      #
+      # It lives HERE and never in `dependabot-automerge.yml`. A path-pinning
+      # assertion inside a blocking merge control is how the next deadlock gets
+      # built — it would fail a PR for something that PR did not cause, which is
+      # the defect that amendment exists to repair. Predicate + fixtures are in
+      # `.github/scripts/`, gated by the blocking `scripts` job, per the
+      # `is-pure-base-merge.sh` precedent.
+      #
+      # The audit JSON is taken with the ignore list REMOVED. With it applied the
+      # suppressed advisory is invisible, and the guard could never tell a stale
+      # entry from a live one — the measurement has to see what the suppression
+      # hides.
+      - name: audit-suppression-guard (observe-only)
+        working-directory: web/jobbliggaren-web
+        shell: bash
+        run: |
+          set -uo pipefail
+          cp package.json .package.json.orig
+          trap 'mv .package.json.orig package.json' EXIT
+          jq 'del(.pnpm.auditConfig)' .package.json.orig > package.json
+          pnpm audit --json > /tmp/audit-unfiltered.json 2>/dev/null || true
+          mv .package.json.orig package.json
+          trap - EXIT
+          bash ../../.github/scripts/audit-suppression-guard.sh \
+            --package-json package.json \
+            --audit-json /tmp/audit-unfiltered.json \
+            --lockfile pnpm-lock.yaml
 
   # Aggregat-job som kraschar hela CI om något barn-job failed. Gör branch-
   # protection-rules enkla att konfigurera (bara "ci" som required check

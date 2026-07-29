@@ -185,6 +185,132 @@ Grindmekanismen i Beslut §"Operativt flöde" steg 6 (**"Klas reviewar diff + ag
 
 **Berörda dokument (uppdaterade i samma PR):** CLAUDE.md §6/§6.5, `docs/runbooks/parallel-sessions.md` §3.3/§8/§8.1/§9.5, `docs/runbooks/session-start-template.md`, ADR 0045 och ADR 0044 (`ci.needs`-uppräkningen).
 
+## Amendment 2026-07-28 — the blocking vuln gate may accept a risk only where repair is unavailable (#1119)
+
+*(Written in English per CLAUDE.md §1, which lists ADRs among the artefacts authored
+in English. The Swedish body above is not retranslated.)*
+
+**Context.** The blocking supply-chain gate in `.github/workflows/dependabot-automerge.yml`
+— ratified by Klas-GO "B" 2026-06-07 against this ADR's *Avvisat* alt. 5 and ADR 0045
+Beslut 7 — audits the **whole tree**, not the diff. It therefore fails a PR over
+vulnerabilities that PR did not introduce. Measured 2026-07-28: PR #1042 (`next`
+16.2.9 → 16.2.11), which alone closes 18 of the repo's 28 Dependabot alerts, sat open
+three days with green `ci` and this job red, failed by six packages it does not touch.
+All six were **transitive**, and transitive packages never get their own Dependabot PR.
+The gate was blocking precisely the PRs that reduce risk.
+
+**The mechanism gained an exception, so the exception needs a written rule.** pnpm's
+`auditConfig.ignoreGhsas` makes a suppression cheap, one line, and invisible in effect.
+The first draft of #1119 used it on **all seven** advisories, reasoning that "transitive
+⇒ no Dependabot PR ⇒ unfixable". That inference is invalid — it establishes only that
+Dependabot will not fix them *for* us. Six of the seven were repairable the day it was
+written, by `pnpm.overrides` in the same JSON object four lines above, a mechanism that
+object already used twice. Both `dotnet-architect` and `security-auditor` found this
+independently; the shipped PR repairs six and accepts one.
+
+**Beslut.**
+
+1. **Repair outranks acceptance.** An advisory may enter `ignoreGhsas` only when no
+   dependency-level fix exists. "Dependabot does not open a PR for it" is **not** such
+   a demonstration, and neither is "it is transitive" — `pnpm.overrides` is the repo's
+   ratified instrument for exactly that case.
+2. **Every accepted entry names, in the workflow comment, three things:** why it cannot
+   be repaired, what condition or actor would remove it, and why it is tolerable
+   meanwhile (reachability, not merely severity). An entry that cannot carry all three
+   does not qualify under (1).
+3. **A lowered `--audit-level` is not an alternative.** It hides the same acceptance
+   without naming what was accepted, and with zero criticals in the tree it deletes the
+   gate while keeping its name.
+4. **Accepting a vulnerability rather than repairing it is a `security-auditor` trigger.**
+   Reducing exposure is not — the rule deliberately does not tax the direction that
+   makes the tree safer, since taxing that is what produced the #1042 deadlock. The
+   trigger is on the *action*, not on one instrument: growing `pnpm.auditConfig.ignoreGhsas`
+   is the named case, but so are lowering `--audit-level` (which Beslut 3 forbids and
+   which no trigger would otherwise catch) and the .NET analogue — suppressing
+   `NuGetAudit` or `NoWarn`-ing NU1901–NU1904 in the backend half of this repo.
+5. **The gate's semantics are otherwise unchanged**: still blocking, still fail-closed
+   (an unreachable registry and a misspelled GHSA were both measured to exit non-zero),
+   still per-advisory rather than per-package, so a *new* advisory in an already-accepted
+   package is still caught.
+6. **An override key is gated only to PARTITION.** A version selector earns its place
+   only when it carries what the target cannot: *which line moves*, or *which line is
+   spared*. Where a package has one line and one target, the selector merely restates
+   the target's floor — one knowledge piece written as two numbers, and the two can
+   drift. Measured against the base lockfile: `postcss` (8.5.15, 8.5.16), `sharp`,
+   `tmp` (0.0.33, 0.1.0 — both to the same target), `fast-uri` and `undici` need no
+   partition and are written open; `js-yaml@>=4.0.0 <4.3.0` spares the 3.x line, and
+   the two `brace-expansion` keys carry two different targets, so those three stay
+   gated.
+   *Mechanism, because getting it backwards costs a deadlock:* the selector is matched
+   against each consumer's **declared range** by intersection — not against the resolved
+   version — and the **target** applies regardless of whether it falls outside the
+   selector (pnpm's own documented example, `"bar@^2.1.0": "3.0.0"`, has exactly that
+   shape). So the target is what moves resolution, and the target is what rots. The old
+   `postcss@<8.5.10` did not stop matching; it matched, forced consumers to `^8.5.10`,
+   and 8.5.15/8.5.16 satisfy `^8.5.10` while being vulnerable. **At the next advisory,
+   raise the TARGET.** Raising the selector alone does nothing. Open form makes that
+   error unrepresentable for the five open keys — there is no second number to raise.
+   *The obligation open form creates, priced rather than assumed:* a bare key has no
+   range, so it matches **every** consumer forever. Today that is a no-op — the resolved
+   graph is byte-identical to the gated form — but when a consumer legitimately crosses
+   a major, an open key pins it **back** into the pinned line, and that failure is
+   **silent**, where the gated form's failure was loud (a stale pair lets a vulnerable
+   version through and the gate goes red). The trade is deliberate: a measured, already
+   realised loud failure for a hypothetical silent one. It carries a duty — raise the
+   target across majors too, and re-measure "needs no partition" when a consumer crosses
+   one, because that judgement is a snapshot of today's tree, not a permanent property.
+   The instance already exists: `next@16.2.9` declares `sharp: ^0.34.5` while the tree
+   resolves 0.35.3. Note also which entry forces hardest: `tmp`, where neither consumer's
+   declared 0.x range admits 0.2.7 — it is listed above as needing no partition because
+   both lines share one target, not because the forcing is small. Its blast radius is
+   dev-only (`@lhci/cli`, `external-editor`).
+
+**Konsekvenser / Negativt.** `auditConfig` lives in `package.json`, so it also filters
+`audit (observe-only)` in `build.yml` — a control's exception reaching an instrument.
+Accepted knowingly: the register of record is GitHub's Dependabot alerts, which
+`auditConfig` cannot touch. Gate-local scoping via `pnpm audit --ignore` **is** available
+for the surviving entry — it carries `CVE-2026-14257` — and was rejected rather than
+found impossible. The reason is durability, not risk: `--ignore` accepted CVE ids before
+pnpm v11 and accepts only GHSA ids from v11 ([pnpm CLI docs](https://pnpm.io/cli/audit)),
+so a gate-local suppression would key on an identifier whose accepted format depends on
+the pnpm major, and would oblige us to maintain a CVE↔GHSA mapping the advisory database
+already owns. `auditConfig.ignoreGhsas` is GHSA-keyed, works on 9, 10 and 11, and keeps
+the acceptance in one place.
+*Not a reason, and deliberately not claimed:* that the format change would be silent. It
+would be fail-**closed** — on v11 a CVE id would match no advisory, brace-expansion would
+count, and the gate would go red. That is the same property Beslut 5 records as a virtue
+four paragraphs above, so it cannot be cited as a hazard here.
+
+**Known gap, deliberately not closed here — the rule.** *A suppression whose blast
+radius is not pinned, and an override key whose liveness is not checked, are declared as
+gaps rather than left silent.* Both are unpinned today: a stale `ignoreGhsas` entry
+produces no warning and no exit difference, a bare GHSA would silently cover a **new**
+path if the package re-entered the production tree, and an `overrides` key that matches
+no consumer is equally silent (measured: an invented key exits 0 with no output). The
+guard owes **both** directions: a key that matches *nothing* is dead, and a key that
+matches *more than intended* — the open-form obligation in Beslut 6 — silently pins a
+consumer back into an older major. Neither is visible today; neither is detectable
+without being asked for. The
+guard belongs in observe-only `audit` — never inside the merge control, which is the
+principle that kept a hand-rolled delta-differ out of the gate in the first place. Own PR
+(senior-cto-advisor 2026-07-28: follow-up, explicitly **not** a TD — the phase rule is
+not met). The current instance of the gap is recorded at the mechanism, in
+`dependabot-automerge.yml`.
+
+**Two override keys deliberately reach wider than today's tree.**
+`brace-expansion@>=2.0.0 <=5.0.7` spans the 2.x/3.x/4.x lines, which are empty here —
+the only consumer is `minimatch@10.2.5` declaring `^5.0.5`. The width is intentional:
+`GHSA-mh99-v99m-4gvg` has no patch below 5.0.8, so for a hypothetical 2.x consumer there
+would be no repair at all, only acceptance. And `js-yaml@>=4.0.0 <4.3.0` leaves
+`js-yaml@3.15.0` (via `@lhci/utils`) untouched — not merely for compatibility, but
+because the advisory's own affected range is `>=4.0.0 <4.3.0`, so 3.x is outside it.
+That distinction matters under Beslut 1: leaving a line alone for compatibility would be
+an undeclared acceptance, which this amendment forbids; leaving it alone because it is
+not affected is not.
+
+**Berörda dokument (samma PR):** `.github/workflows/dependabot-automerge.yml`,
+`web/jobbliggaren-web/package.json`, `web/jobbliggaren-web/pnpm-lock.yaml`.
+
 ## Relation till andra beslut
 
 - **ADR 0019 (Solo direct-push till main):** **Superseded av denna ADR.**

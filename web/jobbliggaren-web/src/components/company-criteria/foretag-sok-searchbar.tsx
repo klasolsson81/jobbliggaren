@@ -376,7 +376,7 @@ export function ForetagSokSearchbar({
       // the day they change it. This costs one extra server round trip per chip on the
       // non-colliding transitions.
       //
-      // EXIT CONDITION: delete this call, and its pin in `e2e/foretag-sok-live-commit.spec.ts`,
+      // EXIT CONDITION: delete this call, and its pin in `tests/e2e/foretag-sok-live-commit.spec.ts`,
       // once #93368 (or its successor) ships in a release we run. The pin fails loudly if the
       // defect returns; nothing else can, because jsdom has no router cache.
       router.refresh();

@@ -265,7 +265,7 @@
       "ortEmpty": "The location list could not be loaded right now.",
       "ortRightEmpty": "Choose a county to see municipalities.",
       "ortRemove": "Remove {namn}",
-      "unappliedChanges": "Changes apply when you search.",
+      "unappliedChanges": "The change in the name field applies when you choose Search companies.",
       "orgNrResultLabel": "Organisation number search",
       "clearButton": "Clear the search",
       "tableAria": "Companies matching the search",
@@ -296,7 +296,12 @@
       "loadErrorTitle": "The search could not be loaded",
       "loadErrorBody": "Try again in a moment.",
       "rateLimited": "Too many requests right now. Wait a moment and reload the page.",
-      "loadingResults": "Searching companies…"
+      "loadingResults": "Searching companies…",
+      "announceFilterAdded": "The filter {namn} is added.",
+      "announceFilterRemoved": "The filter {namn} is removed.",
+      "announceBranschCleared": "All industry filters are removed.",
+      "announceOrterCleared": "All location filters are removed.",
+      "announceFiltersCleared": "The search is cleared."
     },
     "watchesHeading": "Followed companies",
     "watchesLede": "Companies you follow. New ads from them appear here and on the overview.",

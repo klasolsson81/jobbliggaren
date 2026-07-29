@@ -4,6 +4,7 @@ import {
   useEffect,
   useId,
   useMemo,
+  useOptimistic,
   useRef,
   useState,
   useSyncExternalStore,
@@ -38,22 +39,33 @@ import { toggleGroup } from "@/lib/company-criteria/criterion-selection";
 import type { CriterionReference } from "@/lib/dto/company-criteria";
 
 /**
- * #997 (S2) — the ONE `/foretag/sok` search island. It holds the WHOLE draft in one client component —
- * the unified field value + the single selected bransch + the selected orter — and ONE submit commits
- * them together. This is the #1 hard requirement (design-reviewer Blocker): the former two-island layout
- * (name field + filter box) carried SEPARATE drafts with SEPARATE submits, so submitting one silently
- * dropped the other control's unapplied edit. Here a single draft cannot drop itself. It replaces both
- * `ForetagSokSearch` (org.nr logic folded in verbatim) and `ForetagSokFilters` (deleted).
+ * The ONE `/foretag/sok` search island (#997/S2), now on the LIVE-COMMIT model (#1125).
+ *
+ * TWO interaction models live here on purpose, and the surface draws the difference rather than
+ * explaining it. The bransch and ort filters COMMIT IMMEDIATELY: the URL is the single truth and
+ * `useOptimistic` is the overlay that makes a chip respond while the RSC navigation is in flight
+ * (see `commit`). The NAME field is the one axis that still requires an explicit submit, because it
+ * is the one axis whose value must pass the org.nr gate before it may reach a URL at all.
+ *
+ * The single remaining draft is therefore the FIELD VALUE. That is what `unappliedChanges` is about,
+ * and it is why `draftDiffersFromApplied` has only a name axis: the filters cannot diverge from the
+ * URL by construction. Anything below that still says "draft" about the filters is stale — the
+ * axes were draft state until #1125 and are not any more.
+ *
+ * #997's original requirement is unchanged and still met: the former two-island layout (name field +
+ * filter box) carried SEPARATE drafts with SEPARATE submits, so submitting one silently dropped the
+ * other control's unapplied edit. One island cannot drop itself. It replaces both `ForetagSokSearch`
+ * (org.nr logic folded in verbatim) and `ForetagSokFilters` (deleted).
  *
  * Submit dispatch (SECURITY-CRITICAL, preserved exactly — the pnr guard runs BEFORE either branch):
  * - a value that normalises to 10 digits → the ORG.NR branch. A personnummer-shaped value renders the
  *   refuse state LOCALLY and is never POSTed anywhere (data minimisation; the backend stays the enforcing
  *   authority). Otherwise it POSTs to `/api/foretag/sok` and renders the 0/1 register hit in client state
  *   — the org.nr term NEVER enters the URL (ADR 0087 D8(c): a sole-prop org.nr can equal a personnummer,
- *   and query strings reach access logs + history). The bransch/ort drafts are irrelevant to an org.nr
+ *   and query strings reach access logs + history). The applied filter axes are irrelevant to an org.nr
  *   lookup and are ignored.
  * - anything else → the NAME + FILTER branch: `router.push(buildForetagSokHref({ namn, sni, kommun }))`
- *   commits the shareable URL, carrying the draft bransch (as its leaf codes) and orter together.
+ *   commits the shareable URL, carrying the selected bransch (as its leaf codes) and orter together.
  *
  * The invariant: a pnr-shaped 10-digit value can NEVER reach `?namn=` and NEVER POST — only a NON-10-digit
  * value takes the name branch. No-JS degrades to a native GET name search (`namn` + hidden `sni`/`kommun`
@@ -120,17 +132,18 @@ interface ForetagSokSearchbarProps {
   readonly referenceOk: boolean;
   /** The active name prefix parsed from the URL — seeds the field so a shared/bookmarked search shows it. */
   readonly namn: string;
-  /** The active (applied) filter axes parsed from the URL — the draft seeds from these. */
+  /** The active (applied) filter axes parsed from the URL — the optimistic overlay's base. */
   readonly sni: ReadonlyArray<string>;
   readonly kommun: ReadonlyArray<string>;
 }
 
-/** True when `list` and `set` hold exactly the same codes (order-independent). */
-function sameCodeSet(
-  list: ReadonlyArray<string>,
-  set: ReadonlySet<string>,
-): boolean {
-  return list.length === set.size && list.every((code) => set.has(code));
+/**
+ * The two shareable filter axes, committed together. Both live in the URL; this type exists so a
+ * commit can only ever push the WHOLE state rather than a delta (see `commit`).
+ */
+interface FilterSelection {
+  readonly sni: ReadonlyArray<string>;
+  readonly kommun: ReadonlyArray<string>;
 }
 
 export function ForetagSokSearchbar({
@@ -153,6 +166,7 @@ export function ForetagSokSearchbar({
 
   const searchInputId = useId();
   const searchHintId = useId();
+  const unappliedId = useId();
   const branschNoticeId = useId();
   const filterGroupId = useId();
   const orgNrLabelId = useId();
@@ -161,6 +175,67 @@ export function ForetagSokSearchbar({
   const resultRef = useRef<HTMLDivElement>(null);
   const ortBtnRef = useRef<HTMLButtonElement>(null);
   const branschBtnRef = useRef<HTMLButtonElement>(null);
+  const chipListRef = useRef<HTMLUListElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  /**
+   * Where focus goes after a live commit UNMOUNTS the control that was clicked.
+   *
+   * A chip's × removes its own chip, so the focused button stops existing and the browser drops
+   * focus to `<body>`: the next Tab restarts from the top of the document, and removing three chips
+   * traverses the whole page three times. "Rensa sökningen" does the same to itself — `showClear`
+   * goes false the moment the overlay is emptied inside the transition, so the button tears itself
+   * out from under the pointer.
+   *
+   * The unmounting predates live commit. What changed is that the chip × is now the PRIMARY filter
+   * gesture on this surface rather than an edit to a draft you were going to submit anyway, and a
+   * known weakness in a secondary gesture is not the same thing in a primary one
+   * (`jobbpilot-design-a11y` §2; design-reviewer M3).
+   *
+   * The intent is recorded on the click and applied in the effect below, because at click time the
+   * element to move to has not rendered yet. Same shape the house already uses for roving focus in
+   * `jobb-klass2-panel.tsx:196-198`.
+   */
+  const pendingFocusRef = useRef<
+    | { kind: "chip"; index: number; axis: React.RefObject<HTMLButtonElement | null> }
+    | { kind: "field" }
+    | { kind: "trigger"; axis: React.RefObject<HTMLButtonElement | null> }
+    | null
+  >(null);
+
+  /**
+   * Counts focus placements this component has made. `onOrgNrSubmit` captures it before its fetch
+   * and only takes focus afterwards if it is unchanged — see the comment there.
+   */
+  const focusGenerationRef = useRef(0);
+
+  // No dependency array: the effect runs after every render and returns immediately unless an
+  // intent is pending. It relies on the FIRST render after the click already carrying the optimistic
+  // chip — otherwise it would focus the pre-removal neighbour and consume the intent. That holds
+  // because a discrete click runs in React's SyncLane and `useOptimistic` commits in the same pass;
+  // it is measured rather than assumed by the "moves to the chip that took the removed one's place"
+  // test, which would focus the wrong chip if the ordering were the other way.
+  useEffect(() => {
+    const pending = pendingFocusRef.current;
+    if (pending === null) return;
+    pendingFocusRef.current = null;
+    focusGenerationRef.current += 1;
+    if (pending.kind === "field") {
+      searchInputRef.current?.focus();
+      return;
+    }
+    if (pending.kind === "trigger") {
+      pending.axis.current?.focus();
+      return;
+    }
+    const buttons =
+      chipListRef.current?.querySelectorAll<HTMLElement>("button.jp-chip__remove");
+    // The chip that took this index is the one that moved up into the removed chip's place; with
+    // nothing after it, the new last chip; with the list gone, the axis's own trigger.
+    const target = buttons?.[pending.index] ?? buttons?.[buttons.length - 1];
+    if (target) target.focus();
+    else pending.axis.current?.focus();
+  });
 
   // Bransch tree + ort groups, derived client-side from the already-loaded reference (no fetch).
   const sniNodes = useMemo(() => buildSniNodes(reference), [reference]);
@@ -179,79 +254,196 @@ export function ForetagSokSearchbar({
       for (const k of lan.kommuner) map.set(k.code, k.name);
     return map;
   }, [reference]);
+  // Which län a kommun belongs to. Needed only to NAME a bulk change: the popover's one bulk
+  // control is "Hela {län}", so a change of more than one code is always exactly one län.
+  const lanNameByKommunCode = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const lan of reference.lan)
+      for (const k of lan.kommuner) map.set(k.code, lan.name);
+    return map;
+  }, [reference]);
 
-  // The whole draft: the field value, the bransch leaf codes, and the orter — one island, seeded from
+  // The field value — the ONE axis still submitted explicitly — one island, seeded from
   // the URL. `sniSelected` seeds by construction rather than by lookup: the URL axis IS the leaf set,
   // which is why the old `seedBranch` (find the ONE option whose expansion equals `sni`, else a generic
   // "Vald bransch" chip) has no successor. Multi-select removed the need for the guess, not just the
   // fallback — the chips are derived from the set instead (`branschChips`).
   const [value, setValue] = useState(namn);
-  const [sniSelected, setSniSelected] = useState<ReadonlySet<string>>(
-    () => new Set(sni),
-  );
-  const [orter, setOrter] = useState<string[]>(() => [...kommun]);
   const [ortOpen, setOrtOpen] = useState(false);
   const [branschOpen, setBranschOpen] = useState(false);
   const [state, setState] = useState<OrgNrState>({ kind: "idle" });
   const [isNavPending, startNavTransition] = useTransition();
+  /**
+   * The live region's text. Ordinary `useState`, not the optimistic overlay — it must survive the
+   * transition that carries the navigation, or the sentence would vanish before it is read.
+   *
+   * KNOWN LIMITATION, declared rather than papered over (design-reviewer round 2, m8): it is never
+   * reset, so pressing Back and then repeating the *same* removal produces an identical string, and
+   * an identical string is no DOM mutation and therefore no announcement. The obvious repair —
+   * blanking it when the applied props change — is WRONG here and was rejected on that ground: a
+   * filter commit changes those props itself, roughly 900 ms after the announcement was set, so the
+   * blank would land on the very sentence it was meant to preserve. Closing it properly needs a
+   * token that distinguishes two identical sentences without being read aloud; not in this PR.
+   */
+  const [announcement, setAnnouncement] = useState("");
 
   /**
-   * Re-seed the draft when the APPLIED URL changes underneath us.
+   * The filter axes are NOT draft state any more (#1122 follow-up, framing §2.3). The URL is the one
+   * truth and `useOptimistic` is the overlay that makes a chip respond instantly while the RSC
+   * navigation is in flight — the same shape `jobb-hero-filters.tsx` has carried since E2g.
    *
-   * All three pieces above are `useState` initialisers, which run once at mount — and the island is
-   * rendered without a `key`, so it never remounts. Press Back and the URL, the results and the
-   * draft controls disagree: the chips and the field keep showing the search you just left.
-   *
-   * Latent since S2, but "Rensa sökningen" makes it reachable in one click (clear → Back), which is
-   * why it is fixed here rather than left to the live-commit round. This is React's documented
-   * "adjust state when props change" pattern — during render, not in an effect, so it neither
-   * cascades nor trips the lint rule that rejects synchronous setState in effects. It is gated on
-   * the applied signature actually changing, so it can never clobber what the user is typing: a
-   * filter commit that does not change `namn` leaves `value` alone.
-   *
-   * One limit worth knowing rather than discovering: characters typed DURING an in-flight navigation
-   * are overwritten when it commits — the window is the navigation itself (~0.9s measured), and the
-   * alternative (not re-seeding) is the bug this fixes. (The second limit this comment used to carry —
-   * a chip stuck on the generic label when `reference` arrives after mount — went away with
-   * `seedBranch`: the chips are now derived from the reference during render, so a late reference
-   * simply renders correct labels on the next paint.)
-   *
-   * The signature mirrors `page.tsx`'s `suspenseKey` by hand. If a fourth shareable axis is ever
-   * added, BOTH have to learn it — they are the same knowledge in two places, and that is the known
-   * cost of keeping this component free of a page-level import.
+   * This deletes a whole class of bug rather than just the latency: the island is rendered without a
+   * `key` and so never remounts, so the old `useState` initialisers ran exactly once. Press Back and
+   * the chips kept showing the search you had just left. An overlay derived from props cannot.
    */
-  const appliedSignature = `${namn}|${[...sni].sort().join(",")}|${[...kommun].sort().join(",")}`;
-  const [seededFrom, setSeededFrom] = useState(appliedSignature);
-  if (seededFrom !== appliedSignature) {
-    setSeededFrom(appliedSignature);
+  const base = useMemo<FilterSelection>(
+    () => ({ sni: [...sni], kommun: [...kommun] }),
+    [sni, kommun],
+  );
+  const [selection, setOptimisticSelection] = useOptimistic(
+    base,
+    (_current, next: FilterSelection) => next,
+  );
+  const sniSelected = useMemo<ReadonlySet<string>>(
+    () => new Set(selection.sni),
+    [selection.sni],
+  );
+  const orter = selection.kommun;
+
+  /**
+   * Re-seed the NAME FIELD, and drop a standing org.nr answer, when the applied NAME changes
+   * underneath us — and only then. ONE gate, on one axis, doing both.
+   *
+   * `value` is the last `useState` initialiser left, so it is still the one piece that runs once at
+   * mount while the island never remounts: press Back and the field keeps the name you just left.
+   * The filter axes no longer need this at all — they derive from props through the overlay above.
+   *
+   * **The gate is `namn`, NOT the whole applied signature, and that is load-bearing twice over.**
+   * Under draft-commit a filter change and a name change always arrived together, so a
+   * signature-wide gate was harmless. Under live commit a chip click changes the signature on its
+   * own, and a signature-wide gate would (a) reset the field to the applied name on every chip,
+   * wiping a half-typed company name mid-keystroke, and (b) drop the org.nr answer on every chip.
+   * Gating on `namn` means a filter commit provably cannot touch either: `commit()` carries the
+   * `namn` PROP unchanged, so the gate cannot fire from one.
+   *
+   * **Why the org.nr answer SURVIVES a filter commit** (design-reviewer bind, 2026-07-29). Under
+   * draft-commit the coupling was honest: changing a filter meant pressing the same control that
+   * produced the answer, so clearing it was supersession. Live commit severs that — the lookup is
+   * independent of the filter axes by design (the org.nr branch ignores them), and the answer is
+   * rendered as its own headed, rule-separated section precisely so it never reads as part of the
+   * browse (framing §3.2). If it is not part of the browse, the browse cannot make it stale. Task B
+   * silently destroying the result of task A is the ADR 0047 failure this now avoids.
+   *
+   * React's documented "adjust state when props change" pattern — during render, not in an effect,
+   * so it neither cascades nor trips the lint rule against synchronous setState in effects.
+   *
+   * One limit worth knowing rather than discovering: characters typed DURING an in-flight NAME
+   * navigation are overwritten when it commits — the window is the navigation itself (~0.9s
+   * measured), and the alternative (not re-seeding) is the bug this fixes.
+   */
+  const [seededName, setSeededName] = useState(namn);
+  if (seededName !== namn) {
+    setSeededName(namn);
     setValue(namn);
-    setSniSelected(new Set(sni));
-    setOrter([...kommun]);
-    // The org.nr answer is client-only state and is NOT in the signature, so it would otherwise
-    // survive a re-seed: search, search, look up an org.nr, press Back, and a stale company row sits
-    // above a page that has moved on. `onClearSearch` already drops it for the same reason.
     setState({ kind: "idle" });
   }
 
+  /**
+   * ONE commit for every filter change: it sets the optimistic overlay AND navigates inside the SAME
+   * transition — `setOptimisticSelection` outside a transition is rejected by React outright.
+   *
+   * Two rules, both copied from `jobb-hero-filters.tsx` rather than re-derived:
+   *
+   * 1. **`next` is always built from `selection`** (the optimistic value), never from props. Build it
+   *    from props and removal #2 and #3 in a fast sequence each undo what the one before did, because
+   *    the props have not landed yet.
+   * 2. **The WHOLE state is pushed, never a delta.** Every commit is then idempotent, so a temporary
+   *    revert of the overlay between two transitions is self-healing.
+   *
+   * **V1 (ADR 0087 D8(c), Blocker class): a filter commit carries the `namn` PROP — what is already
+   * applied — and NEVER the field's `value`.** Click a bransch chip while ten digits sit unsubmitted
+   * in the field and a `value`-carrying commit would put a possible personnummer into `?namn=`, in
+   * history, in access logs and in any shared link. That is precisely what the org.nr branch exists
+   * to make impossible, and it must not be reachable through a chip. A dirty field stays dirty until
+   * the user presses Sök. `foretag-sok-searchbar.test.tsx` pins it.
+   *
+   * `scroll: false` because a chip narrows the list you are already reading; jumping to the top of
+   * the page on every toggle would be its own defect. The explicit name submit keeps default scroll.
+   */
+  function commit(next: FilterSelection, announced: string) {
+    // Outside the transition: the live region should update as soon as the intent is known, not when
+    // the navigation settles.
+    setAnnouncement(announced);
+    startNavTransition(() => {
+      setOptimisticSelection(next);
+      router.push(
+        buildForetagSokHref({
+          namn,
+          sni: [...next.sni],
+          kommun: [...next.kommun],
+        }),
+        { scroll: false },
+      );
+    });
+  }
+
+  const commitSni = (nextSni: ReadonlyArray<string>, announced: string) =>
+    commit({ ...selection, sni: [...nextSni] }, announced);
+  const commitKommun = (nextKommun: ReadonlyArray<string>, announced: string) =>
+    commit({ ...selection, kommun: [...nextKommun] }, announced);
+
+  /**
+   * An announcement must name the OBJECT that changed, never the AXIS it belongs to.
+   *
+   * Naming the axis makes the second change in a row produce a byte-identical string: React bails
+   * out on `Object.is`, the DOM never mutates, and `aria-live` never fires. The user hears the first
+   * pick and total silence for every one after it (WCAG 4.1.3). Measured in Chromium before the fix:
+   * ticking Upplands Väsby then Vallentuna produced `"Filtret Ort eller län är tillagt."` twice.
+   * `jobb-hero-search.tsx` documents the same trap in prose and passes a per-item label for it.
+   *
+   * The bulk case is named by its län rather than by its kommuner. The property that makes that
+   * sound is NOT "there is only one bulk control" — there are two ("Hela {län}" and the right
+   * column's "Rensa", `jobb-filter-popover.tsx`) — but that this surface omits `groupAxis`, so
+   * EVERY `onChange` the popover emits is scoped to the one active group, i.e. one län. A change
+   * spanning several län is therefore unreachable here; the axis label is kept as its fallback so
+   * an unreachable state degrades to the old, merely-vague behaviour rather than to an empty
+   * announcement. The `first === undefined` branch is unreachable for the same reason — no producer
+   * emits an unchanged list — and degrades the same way.
+   */
+  function ortChangeLabel(next: ReadonlyArray<string>): string {
+    const added = next.filter((c) => !orter.includes(c));
+    const changed = added.length > 0 ? added : orter.filter((c) => !next.includes(c));
+    const first = changed[0];
+    if (first === undefined) return t("ortLabel");
+    if (changed.length === 1) return kommunNameByCode.get(first) ?? first;
+    const lan = lanNameByKommunCode.get(first);
+    return lan !== undefined &&
+      changed.every((c) => lanNameByKommunCode.get(c) === lan)
+      ? lan
+      : t("ortLabel");
+  }
+
   // Aborting belongs in an effect, not in the re-seed above: refs may not be touched during render.
-  // Without it, a lookup already in flight when the URL changes would resolve afterwards and put the
-  // row back — hiding it is not the same as cancelling it.
+  // Keyed on `namn` for the same reason the re-seed gate is: a filter commit must not cancel a
+  // lookup the user started and whose answer now deliberately survives it. Without this, a lookup
+  // in flight when the applied NAME changes would resolve afterwards and put the row back — hiding
+  // it is not the same as cancelling it.
+  //
+  // A filter commit deliberately does NOT abort. That is not an oversight in the symmetry with
+  // `onSubmit`/`onClearSearch`: those two REPLACE the answer (a new lookup) or REMOVE it (a clear),
+  // and a filter commit does neither.
   useEffect(() => {
     abortRef.current?.abort();
-  }, [seededFrom]);
+  }, [namn]);
 
-  // Draft-vs-applied: the chips + field show the DRAFT; the streamed results below show the APPLIED URL
-  // filter. Compute the divergence so it can be surfaced honestly (never a second competing button). The
-  // dirty line is meaningless for an org.nr-shaped value (that path ignores the filter), so it is gated
+  // Draft-vs-applied now has exactly ONE axis left: the name. The filters commit live, so they cannot
+  // diverge from the URL by construction — the overlay IS the URL plus an in-flight transition. What
+  // remains is the honest case the live-commit model creates: type "Volvo", click a bransch, and the
+  // list narrows without ever having searched for Volvo. The line says which control applies it. It
+  // is meaningless for an org.nr-shaped value (that path ignores the filter axes), so it stays gated
   // on the name branch.
-  const appliedSni = useMemo(() => new Set(sni), [sni]);
-  const appliedKommun = useMemo(() => new Set(kommun), [kommun]);
   const isOrgNrValue = normalizeOrgNrInput(value) !== null;
-  const draftDiffersFromApplied =
-    !isOrgNrValue &&
-    (value.trim() !== namn ||
-      !sameCodeSet([...sniSelected], appliedSni) ||
-      !sameCodeSet(orter, appliedKommun));
+  const draftDiffersFromApplied = !isOrgNrValue && value.trim() !== namn;
 
   // The FEWEST nodes that describe the selected leaf set: a whole section reads as one chip named after
   // the section, not as its 24 divisions. Derived, never stored — the Set is the only truth.
@@ -290,6 +482,10 @@ export function ForetagSokSearchbar({
         tc("sniSelectedCount", { count: branschChips.length })
     : null;
   const branschChipCount = branschSummary ? 1 : branschChips.length;
+  // How many `.jp-chip__remove` buttons the bransch axis contributes — NOT the same as the chip
+  // count: the summary renders one chip and zero ×, its removal being a labelled sibling button.
+  // Focus restoration indexes into the button list, so it must use this and not `branschChipCount`.
+  const removableBranschChipCount = branschSummary ? 0 : branschChips.length;
 
   const hasFilter = sniSelected.size > 0 || orter.length > 0;
   const hasOrgNrResult = state.kind !== "idle";
@@ -315,6 +511,17 @@ export function ForetagSokSearchbar({
     const controller = new AbortController();
     abortRef.current = controller;
     setState({ kind: "pending" });
+
+    /**
+     * Where focus stood when this lookup started. The answer deliberately SURVIVES a filter commit
+     * (see the re-seed gate), so a chip click during the fetch neither cancels this request nor
+     * discards its result — but it DOES move focus, and this request must not take it back 300-900 ms
+     * later on a gesture the user has moved on from. WCAG 3.2.1: focus changes follow user action.
+     *
+     * The two decisions meet exactly here: "the lookup survives a filter commit" and "a commit places
+     * focus" are both right, and neither is right if this line runs unconditionally.
+     */
+    const focusGenerationAtSubmit = focusGenerationRef.current;
 
     try {
       const res = await fetch("/api/foretag/sok", {
@@ -342,7 +549,11 @@ export function ForetagSokSearchbar({
       if (controller.signal.aborted) return; // superseded by a newer submit
       setState({ kind: "error" });
     }
-    resultRef.current?.focus();
+    // The ANSWER still renders — only the focus move is withheld, and only when something else has
+    // placed focus since. A screen reader still hears it: the section is a polite live region.
+    if (focusGenerationRef.current === focusGenerationAtSubmit) {
+      resultRef.current?.focus();
+    }
   }
 
   function onSubmit(e: React.FormEvent) {
@@ -351,22 +562,24 @@ export function ForetagSokSearchbar({
 
     const orgNr = normalizeOrgNrInput(value);
     if (orgNr !== null) {
-      // org.nr branch (10 digits) — client POST (pnr refused inside), never the URL. The draft filter is
+      // org.nr branch (10 digits) — client POST (pnr refused inside), never the URL. The filter axes are
       // irrelevant to an org.nr lookup and deliberately ignored.
       void onOrgNrSubmit(orgNr);
       return;
     }
 
-    // name + filter branch — clear any org.nr result and commit the shareable URL, carrying the field
-    // value, the draft bransch (its leaf codes) and the draft orter TOGETHER (no silent drop).
+    // NAME branch — the only path that may put the field's value into the URL, and the only one that
+    // has passed the org.nr gate above to get here. The filter axes ride along from `selection`
+    // rather than from props, so a name submit while a chip navigation is still in flight commits
+    // the filters the user can SEE rather than the ones the server last confirmed.
     abortRef.current?.abort();
     setState({ kind: "idle" });
     startNavTransition(() => {
       router.push(
         buildForetagSokHref({
           namn: value.trim(),
-          sni: [...sniSelected],
-          kommun: [...orter],
+          sni: [...selection.sni],
+          kommun: [...selection.kommun],
         }),
       );
     });
@@ -381,10 +594,16 @@ export function ForetagSokSearchbar({
   function onClearSearch() {
     abortRef.current?.abort();
     setValue("");
-    setSniSelected(new Set());
-    setOrter([]);
     setState({ kind: "idle" });
+    setAnnouncement(t("announceFiltersCleared"));
+    // The control removes itself (`showClear` goes false the moment the overlay is emptied), so
+    // focus must be placed rather than left to the browser. The name field is where starting over
+    // begins, and landing there reads together with `announceFiltersCleared`.
+    pendingFocusRef.current = { kind: "field" };
     startNavTransition(() => {
+      // The overlay is cleared in the same transition as the navigation, exactly like `commit` — the
+      // filters are no longer local state that could be nulled separately from the URL.
+      setOptimisticSelection({ sni: [], kommun: [] });
       router.push(buildForetagSokHref({ namn: "", sni: [], kommun: [] }));
     });
   }
@@ -403,7 +622,7 @@ export function ForetagSokSearchbar({
       <div className="flex max-w-2xl flex-col gap-5">
         {/* Row 1 — the unified name/org.nr field + the ONE submit. No-JS fallback: a native GET to
             /foretag/sok as a NAME search (?namn=…), with the APPLIED sni/kommun preserved via hidden
-            inputs. With JS, onSubmit intercepts and reads the whole draft from state. */}
+            inputs. With JS, onSubmit intercepts and reads the field value plus the live filter overlay. */}
         <form action="/foretag/sok" method="get" onSubmit={onSubmit}>
           <div className="jp-field">
             <label htmlFor={searchInputId} className="jp-label">
@@ -421,6 +640,7 @@ export function ForetagSokSearchbar({
                 DESIGN.md now carries that rule so the next attempt does not repeat it. */}
             <div className="flex gap-2">
               <input
+                ref={searchInputRef}
                 id={searchInputId}
                 // NAMELESS once hydrated: a native GET must never carry whatever is currently typed —
                 // the hidden input below carries the already-applied name instead. Before hydration it
@@ -431,13 +651,25 @@ export function ForetagSokSearchbar({
                 className="jp-input grow"
                 type="text"
                 autoComplete="off"
-                aria-describedby={searchHintId}
+                // Both descriptions when the draft diverges, so a screen reader hears WHY the
+                // field is not applied yet as part of the field itself.
+                aria-describedby={
+                  draftDiffersFromApplied
+                    ? `${searchHintId} ${unappliedId}`
+                    : searchHintId
+                }
                 value={value}
                 onChange={(e) => setValue(e.target.value)}
               />
               <button
                 type="submit"
                 className="jp-btn jp-btn--primary jp-btn--field shrink-0"
+                // Deliberately BROADER than the submit's own work: `isNavPending` is true during a
+                // chip commit too, so this reports busy for a navigation the button did not start.
+                // Kept that way because the button is the surface's one submit affordance and the
+                // whole island is genuinely mid-navigation — a user who presses it during a chip
+                // commit would otherwise get a second navigation queued behind the first. Narrow it
+                // to `state.kind === "pending"` only together with a guard on that.
                 aria-busy={state.kind === "pending" || isNavPending || undefined}
               >
                 {t("searchSubmit")}
@@ -445,6 +677,39 @@ export function ForetagSokSearchbar({
             </div>
             <span id={searchHintId} className="jp-hint">
               {t("searchHint")}
+            </span>
+            {/* Draft-vs-applied honesty, INSIDE the field it is about (design-reviewer round 2).
+                It used to render four `gap-5` blocks further down — after the filter group, the
+                chips and the clear control — while naming the name field, so the sentence and its
+                subject were nowhere near each other.
+
+                It carries NO `aria-live`, deliberately, and design-reviewer withdrew the round-1
+                finding that asked for one. It was a live region mounted together with its content —
+                the exact trap the persistent region below exists to avoid, so it never announced
+                reliably anyway. And the sentence is not an EVENT: it is a standing state, true for
+                as long as the field diverges, so firing it on the keystroke that makes it true
+                would announce on the first character of every search. `aria-describedby` is the
+                right mechanism for a standing description, and it puts the sentence in the field's
+                own accessible description instead of leaving it to be found by sighted scanning. */}
+            {/* ALWAYS rendered, with its height reserved — conditional rendering here shifted the
+                chip row, the clear control and the whole streamed table down 26 px on the first
+                character typed, and back up when the field matched the applied name again.
+                Measured, not feared: 668→694 for the chip row at 1280 px. That is the same defect
+                class `showClear` is gated on applied state to avoid ("shove the whole result list
+                64 px down mid-typing — measured"), and this element sits ABOVE everything, so it
+                moved more than that one did.
+
+                Reserving the element alone is not enough: `.jp-field`'s 6 px gap accounts for only
+                6 of the 26, the other 20 being the caption line itself — hence `min-h-5`, one
+                caption line, rather than an empty span. The cost is honest and permanent: the field
+                block is 26 px taller at all times. That is the price of a surface that does not
+                move under the pointer while you type.
+
+                `aria-describedby` stays CONDITIONAL, so the field's description gains a sentence
+                only while one is true — an empty description would otherwise be announced as part
+                of the field forever. */}
+            <span id={unappliedId} className="jp-hint min-h-5">
+              {draftDiffersFromApplied ? t("unappliedChanges") : ""}
             </span>
           </div>
 
@@ -456,8 +721,9 @@ export function ForetagSokSearchbar({
           )}
 
           {/* No-JS: preserve the APPLIED code axes so a native name submit does not erase the filter
-              (ignored when JS handles onSubmit — then the draft is the source of truth). */}
-          {/* ONE input per axis, joined through the SAME serializer the href builders use. A form
+              (ignored when JS handles onSubmit — then the overlay over the URL is the source of truth).
+
+              ONE input per axis, joined through the SAME serializer the href builders use. A form
               serialises its own fields, so this is the one producer of these params that cannot go
               through a URL builder — and emitting one input per code would keep writing the
               REPEATED shape, putting the router-cache collision back on every native GET
@@ -477,7 +743,7 @@ export function ForetagSokSearchbar({
             that difference (a group with its own caption) rather than explain it in more hint prose,
             which was the opposite finding (9). `role="group"` + `aria-labelledby` against the visible
             caption; deliberately NOT a third <h2>, which would be heading noise for two controls.
-            Deliberately OUTSIDE the <form>: these are JS-only draft controls with no submitted name, and
+            Deliberately OUTSIDE the <form>: these are JS-only live-commit controls with no submitted name, and
             keeping them out of the form means a keystroke in them can never trigger a native GET. */}
         <div
           role="group"
@@ -558,8 +824,25 @@ export function ForetagSokSearchbar({
           triggerRef={branschBtnRef}
           nodes={sniNodes}
           selected={sniSelected}
-          onToggle={(codes) => setSniSelected((prev) => toggleGroup(prev, codes))}
-          onClear={() => setSniSelected(new Set())}
+          // `toggleGroup` runs against `sniSelected`, which is derived from the OVERLAY — never from
+          // props. Two quick picks in the popover are then cumulative; against props the second would
+          // undo the first, because the first has not landed yet.
+          onToggle={(codes) => {
+            const next = toggleGroup(sniSelected, codes);
+            const added = next.size > sniSelected.size;
+            // Name the NODE that was toggled, not the axis — see `ortChangeLabel` for why the axis
+            // label silences every change after the first. `decomposeSelection` is the same
+            // function the chips are derived from, so the announcement and the chip that appears
+            // cannot disagree; applied to one node's own leaf codes it returns that one node.
+            const [node] = decomposeSelection(sniNodes, new Set(codes));
+            commitSni(
+              [...next],
+              t(added ? "announceFilterAdded" : "announceFilterRemoved", {
+                namn: node?.name ?? t("branschLabel"),
+              }),
+            );
+          }}
+          onClear={() => commitSni([], t("announceBranschCleared"))}
         />
 
         {/* The ort cascade. Degenerate single-axis case (our URL contract has only a `kommun` axis, no
@@ -571,9 +854,16 @@ export function ForetagSokSearchbar({
           open={ortOpen}
           groups={lanGroups}
           selected={orter}
-          onChange={(next) => setOrter(next)}
+          onChange={(next) =>
+            commitKommun(
+              next,
+              t(next.length > orter.length ? "announceFilterAdded" : "announceFilterRemoved", {
+                namn: ortChangeLabel(next),
+              }),
+            )
+          }
           onClose={() => setOrtOpen(false)}
-          onClearAll={() => setOrter([])}
+          onClearAll={() => commitKommun([], t("announceOrterCleared"))}
           triggerRef={ortBtnRef}
           leftTitle={t("ortLeftTitle")}
           dialogLabel={t("ortDialogLabel")}
@@ -584,8 +874,8 @@ export function ForetagSokSearchbar({
           counts={null}
         />
 
-        {/* Row 3 — the DRAFT chips (bransch + orter) + the ONE clear control. Editing a chip edits the
-            draft only; the filter is applied on the next "Sök företag". The clear control is NOT gated on
+        {/* Row 3 — the APPLIED chips (bransch + orter) + the ONE clear control. A chip's × COMMITS the
+            filter immediately; there is no draft left on these axes. The clear control is NOT gated on
             there being chips — see `showClear`. */}
         {showClear && (
           <div className="flex flex-wrap items-center gap-3">
@@ -593,12 +883,12 @@ export function ForetagSokSearchbar({
             {branschChipCount + orter.length > 0 && (
               // `items-center`: `.jp-chiplist` declares no `align-items`, so a 44px button inside one
               // `<li>` would stretch the row and leave the ort chips hanging at the top edge.
-              <ul className="jp-chiplist items-center">
+              <ul ref={chipListRef} className="jp-chiplist items-center">
                 {branschSummary ? (
                   <li>
                     {/* The summary REPORTS; it does not delete. A `jp-chip__remove` × here would be
                         pixel-identical to the ones the user just learned remove ONE thing, while
-                        dropping the whole draft — possibly 800 codes, with no undo. The removal is a
+                        dropping the whole bransch axis — possibly 800 codes, with no undo. The removal is a
                         sibling with VISIBLE text, and it is a full `.jp-btn` (44px) rather than a
                         `.jp-clearlink`: that class is 13px caption text, smaller than the chips' own ×
                         at either of its two sizes (24px, and 32px at and below 768px). It stays inside this
@@ -610,14 +900,21 @@ export function ForetagSokSearchbar({
                       <button
                         type="button"
                         className="jp-btn jp-btn--ghost"
-                        onClick={() => setSniSelected(new Set())}
+                        onClick={() => {
+                          // Clears the whole axis, so there is no neighbouring chip to move to.
+                          pendingFocusRef.current = {
+                            kind: "trigger",
+                            axis: branschBtnRef,
+                          };
+                          commitSni([], t("announceBranschCleared"));
+                        }}
                       >
                         {t("branschRemoveAll")}
                       </button>
                     </span>
                   </li>
                 ) : (
-                  branschChips.map((chip) => (
+                  branschChips.map((chip, index) => (
                     <li key={chip.key}>
                       <span className="jp-chip jp-chip--removable">
                         <span className="jp-chip__label" title={chip.name}>
@@ -629,13 +926,22 @@ export function ForetagSokSearchbar({
                           // Names the branch, not the axis: "Ta bort bransch" × 5 is unusable in a
                           // screen reader, and `ortRemove` beside it already carries the name.
                           aria-label={t("branschRemove", { namn: chip.name })}
-                          onClick={() =>
-                            setSniSelected((prev) => {
-                              const next = new Set(prev);
-                              for (const code of chip.leafCodes) next.delete(code);
-                              return next;
-                            })
-                          }
+                          // Built from `sniSelected` — the OVERLAY — so three fast removals are
+                          // cumulative. Against props, removals two and three would each undo the
+                          // one before, because the props have not landed yet (framing §2.3).
+                          onClick={() => {
+                            pendingFocusRef.current = {
+                              kind: "chip",
+                              index,
+                              axis: branschBtnRef,
+                            };
+                            const next = new Set(sniSelected);
+                            for (const code of chip.leafCodes) next.delete(code);
+                            commitSni(
+                              [...next],
+                              t("announceFilterRemoved", { namn: chip.name }),
+                            );
+                          }}
                         >
                           <X size={14} aria-hidden="true" />
                         </button>
@@ -643,7 +949,7 @@ export function ForetagSokSearchbar({
                     </li>
                   ))
                 )}
-                {orter.map((code) => {
+                {orter.map((code, ortIndex) => {
                   const name = kommunNameByCode.get(code) ?? code;
                   return (
                     <li key={code}>
@@ -655,9 +961,21 @@ export function ForetagSokSearchbar({
                           type="button"
                           className="jp-chip__remove"
                           aria-label={t("ortRemove", { namn: name })}
-                          onClick={() =>
-                            setOrter((prev) => prev.filter((c) => c !== code))
-                          }
+                          // From the overlay, not from props — see the bransch chip above.
+                          onClick={() => {
+                            // The × buttons form ONE list across both axes, and the summary chip
+                            // contributes none — so the offset is the number of REMOVABLE bransch
+                            // chips, which is zero while the axis is summarised.
+                            pendingFocusRef.current = {
+                              kind: "chip",
+                              index: removableBranschChipCount + ortIndex,
+                              axis: ortBtnRef,
+                            };
+                            commitKommun(
+                              orter.filter((c) => c !== code),
+                              t("announceFilterRemoved", { namn: name }),
+                            );
+                          }}
                         >
                           <X size={14} aria-hidden="true" />
                         </button>
@@ -681,13 +999,21 @@ export function ForetagSokSearchbar({
           </div>
         )}
 
-        {/* Draft-vs-applied honesty (design-reviewer gate): a discreet polite line, active only while the
-            draft diverges from the applied URL filter. It never competes with the submit's own label. */}
-        {draftDiffersFromApplied && (
-          <p aria-live="polite" className="text-body-sm text-text-secondary">
-            {t("unappliedChanges")}
-          </p>
-        )}
+        {/* A filter now applies without moving focus and without any visible control changing state
+            beyond the chip itself, so the change has to be announced (WCAG 4.1.3). This mirrors
+            `/jobb`: announce the FILTER CHANGE, never the result count — the count arrives with the
+            streamed results, and a screen reader would hear a number for a list it has not reached.
+
+            ONE persistent region, always in the DOM and always empty at first paint. A live region
+            mounted with its content already in place is not reliably announced (the same trap is
+            documented in `jobb-hero-search.tsx`), which is why this is not rendered conditionally. */}
+        {/* `role="status"` alongside `aria-live` matches the precedent this mirrors
+            (`jobb-hero-search.tsx:634`) and brings `aria-atomic="true"` with it, so a partial update
+            is read as one sentence rather than in fragments. */}
+        <p role="status" aria-live="polite" className="sr-only">
+          {announcement}
+        </p>
+
       </div>
 
       {/* The org.nr answer (transient client state): programmatic focus after a submit + a polite live

@@ -126,52 +126,489 @@ async function pickBransch(
   await user.keyboard("{Escape}");
 }
 
-describe("ForetagSokSearchbar — one shared draft, one submit", () => {
-  it("commits name + bransch + ort TOGETHER on one submit (no silent draft drop)", async () => {
+describe("ForetagSokSearchbar — filters commit live, the name still submits", () => {
+  it("a bransch pick navigates on its own, carrying the applied ort with it", async () => {
     const fetchMock = vi.fn();
     global.fetch = fetchMock;
-    // Seed one applied ort so the ort draft is present without opening the popover.
+    // One applied ort, so the commit has a second axis to preserve.
     renderBar({ kommun: ["0180"] });
     const user = userEvent.setup();
 
-    // The seeded ort chip is visible from the URL.
     expect(
       screen.getByRole("button", { name: "Ta bort Stockholm" }),
     ).toBeInTheDocument();
 
-    // Add a bransch through the popover (client-side filter, no network).
     await pickBransch(user, "system", "62020 Systemutveckling och programvarutveckling");
 
-    // Edit the name field too.
-    await user.type(screen.getByLabelText("Företagsnamn eller organisationsnummer"), "Volvo");
-
-    // ONE submit carries all three axes together.
-    await user.click(screen.getByRole("button", { name: "Sök företag" }));
-
+    // No submit. The whole state goes, never a delta — and `scroll: false`, because a chip narrows
+    // the list you are already reading.
     expect(push).toHaveBeenCalledWith(
-      buildForetagSokHref({
-        namn: "Volvo",
-        sni: ["62020"],
-        kommun: ["0180"],
-      }),
+      buildForetagSokHref({ namn: "", sni: ["62020"], kommun: ["0180"] }),
+      { scroll: false },
     );
-    // A name+filter commit never touches the org.nr POST path.
+    // A filter commit never touches the org.nr POST path.
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("shows the unapplied-changes line when the draft diverges from the applied filter", async () => {
-    renderBar();
+  it("the name still requires its own submit, and carries the live filters with it", async () => {
+    renderBar({ sni: ["62020"], kommun: ["0180"] });
     const user = userEvent.setup();
 
-    expect(
-      screen.queryByText("Ändringarna tillämpas när du söker."),
-    ).not.toBeInTheDocument();
+    await user.type(
+      screen.getByLabelText("Företagsnamn eller organisationsnummer"),
+      "Volvo",
+    );
+    // Typing alone commits nothing: a name prefix runs against 1.07M rows.
+    expect(push).not.toHaveBeenCalled();
 
+    await user.click(screen.getByRole("button", { name: "Sök företag" }));
+
+    // Default scroll here, unlike a filter commit — a new search is a new answer.
+    expect(push).toHaveBeenCalledWith(
+      buildForetagSokHref({ namn: "Volvo", sni: ["62020"], kommun: ["0180"] }),
+    );
+  });
+
+  it("the unapplied line is about the NAME only — filters can no longer diverge", async () => {
+    renderBar();
+    const user = userEvent.setup();
+    const LINE = "Ändringen i namnfältet tillämpas när du väljer Sök företag.";
+
+    expect(screen.queryByText(LINE)).not.toBeInTheDocument();
+
+    // A typed name is the one thing that still waits for the button.
+    await user.type(
+      screen.getByLabelText("Företagsnamn eller organisationsnummer"),
+      "Volvo",
+    );
+    expect(screen.getByText(LINE)).toBeInTheDocument();
+
+    // A bransch pick applies immediately, so it must neither raise the line nor clear it: the line
+    // tracks the NAME axis and nothing else. Measured HERE, against a state where the line is
+    // already true — asserting its absence before anything was typed could not fail, because
+    // nothing had diverged yet, and that vacuous middle assertion is what this replaces.
     await pickBransch(user, "datapro", "62 Dataprogrammering, datakonsultverksamhet");
+    expect(screen.getByText(LINE)).toBeInTheDocument();
+  });
+});
+
+/**
+ * V1 (ADR 0087 D8(c)) — the invariant that makes live commit safe at all, and the one this whole
+ * model could have broken silently.
+ *
+ * A filter commit builds its href from the `namn` PROP, never from the field. Build it from the
+ * field and a chip click while ten unsubmitted digits sit in the input puts a possible personnummer
+ * into `?namn=` — in history, in access logs, in any shared link — which is exactly what the org.nr
+ * branch exists to make impossible. The org.nr branch guards the SUBMIT path; before live commit
+ * there was no other way for the field's value to reach the URL, and now there is.
+ */
+describe("ForetagSokSearchbar — a filter commit never carries the typed value (V1, D8(c))", () => {
+  it("commits the APPLIED name while ten unsubmitted digits sit in the field", async () => {
+    const fetchMock = vi.fn();
+    global.fetch = fetchMock;
+    renderBar({ namn: "Volvo" });
+    const user = userEvent.setup();
+
+    // Personnummer-shaped, unsubmitted. The user never pressed Sök, so this value has passed no gate.
+    await user.type(
+      screen.getByLabelText("Företagsnamn eller organisationsnummer"),
+      PNR_SHAPED,
+    );
+    await pickBransch(user, "system", "62020 Systemutveckling och programvarutveckling");
+
+    expect(push).toHaveBeenCalledTimes(1);
+    const [href] = push.mock.calls[0] as [string, unknown];
+    // The applied name rides along; the typed digits do not appear anywhere in the URL.
+    expect(href).toBe(
+      buildForetagSokHref({ namn: "Volvo", sni: ["62020"], kommun: [] }),
+    );
+    expect(href).not.toContain(PNR_SHAPED);
+    // And nothing was POSTed either — a filter commit is not an org.nr lookup.
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  /**
+   * The gate that protects the half-typed name, pinned against a commit that actually LANDS.
+   *
+   * Everywhere else in this file `router.push` is a synchronous mock, so props never change and the
+   * re-seed can never fire — which means it can never be caught misfiring either. Here the landing is
+   * simulated explicitly: the filter axis arrives changed while `namn` stays put, exactly what a
+   * filter commit produces. Gate on the applied SIGNATURE instead of on `namn` and this wipes "Saab"
+   * back to "Volvo" mid-typing; gate on `namn` and it cannot fire at all.
+   */
+  it("survives the commit LANDING: a new filter axis must not re-seed the field", async () => {
+    const { rerender } = renderBar({ namn: "Volvo" });
+    const user = userEvent.setup();
+    const field = screen.getByLabelText("Företagsnamn eller organisationsnummer");
+
+    await user.clear(field);
+    await user.type(field, "Saab");
+
+    // The navigation lands: the filter axis is now applied, the name is untouched.
+    rerender(
+      <ForetagSokSearchbar
+        reference={REFERENCE}
+        referenceOk
+        namn="Volvo"
+        sni={["63120"]}
+        kommun={[]}
+      />,
+    );
+
+    expect(field).toHaveValue("Saab");
+
+    // ...and the gate still works for the case it exists for: an external navigation that DOES
+    // change the applied name re-seeds the field, so Back does not leave a stale value behind.
+    rerender(
+      <ForetagSokSearchbar
+        reference={REFERENCE}
+        referenceOk
+        namn="Scania"
+        sni={["63120"]}
+        kommun={[]}
+      />,
+    );
+    expect(field).toHaveValue("Scania");
+  });
+
+  it("leaves the dirty field dirty — the commit does not clear or apply it", async () => {
+    renderBar({ namn: "Volvo" });
+    const user = userEvent.setup();
+    const field = screen.getByLabelText("Företagsnamn eller organisationsnummer");
+
+    await user.clear(field);
+    await user.type(field, "Saab");
+    await pickBransch(user, "webb", "63120 Webbportaler");
+
+    // The filter applied; the half-typed name is still the user's to submit or abandon. The
+    // re-seed is gated on `namn`, which a filter commit never changes, so it cannot fire here.
+    expect(field).toHaveValue("Saab");
+    expect(push).toHaveBeenCalledWith(
+      buildForetagSokHref({ namn: "Volvo", sni: ["63120"], kommun: [] }),
+      { scroll: false },
+    );
+  });
+});
+
+describe("ForetagSokSearchbar — the filter change is announced (WCAG 4.1.3)", () => {
+  it("mounts one polite region EMPTY, then names the OBJECT that changed", async () => {
+    const { container } = renderBar();
+    const user = userEvent.setup();
+
+    // Present before the first change and empty: a live region mounted with its content already in
+    // place is not reliably announced.
+    const region = container.querySelector('[aria-live="polite"].sr-only');
+    expect(region).toBeInTheDocument();
+    expect(region).toHaveTextContent("");
+
+    await pickBransch(user, "system", "62020 Systemutveckling och programvarutveckling");
+
+    // The FILTER change, never the result count — the count arrives with the streamed results.
+    // And it names the NODE, not the axis: this assertion read "Filtret Bransch är tillagt." until
+    // 2026-07-29, i.e. it PINNED the defect below.
+    expect(region).toHaveTextContent(
+      "Filtret Systemutveckling och programvarutveckling är tillagt.",
+    );
+  });
+
+  /**
+   * The reason the announcement may not name the axis, measured rather than argued.
+   *
+   * An axis-named announcement produces a byte-identical string on the second change in a row.
+   * React bails out on `Object.is`, the DOM never mutates, and `aria-live` never fires — so every
+   * change after the first is TOTAL SILENCE to a screen reader (WCAG 4.1.3). Chromium, before the
+   * fix: ticking Upplands Väsby then Vallentuna announced "Filtret Ort eller län är tillagt."
+   * twice. `jobb-hero-search.tsx:370-379` documents the same trap in prose.
+   *
+   * Two picks in a row is exactly the sequence `useOptimistic` cannot survive in jsdom, so this
+   * asserts on the STRINGS PUSHED TO THE REGION rather than on the resulting selection: each pick
+   * is taken against a re-rendered bar seeded with what the previous pick applied — the same shape
+   * `page.tsx` produces from the URL.
+   */
+  it("names a DIFFERENT object for a second pick, so the region actually changes", async () => {
+    const { container, rerender } = renderBar();
+    const user = userEvent.setup();
+    const region = container.querySelector('[aria-live="polite"].sr-only');
+
+    await pickBransch(user, "system", "62020 Systemutveckling och programvarutveckling");
+    const first = region?.textContent ?? "";
+
+    // The commit landed: the bar re-renders with the first pick applied, as the URL would deliver.
+    rerender(
+      <ForetagSokSearchbar
+        reference={REFERENCE}
+        referenceOk
+        namn=""
+        sni={["62020"]}
+        kommun={[]}
+      />,
+    );
+    await pickBransch(user, "webb", "63120 Webbportaler");
+    const second = region?.textContent ?? "";
+
+    expect(first).toBe(
+      "Filtret Systemutveckling och programvarutveckling är tillagt.",
+    );
+    expect(second).toBe("Filtret Webbportaler är tillagt.");
+    // The assertion that matters: had either named the axis, these two would be equal and the
+    // second announcement would never have reached a screen reader.
+    expect(second).not.toBe(first);
+  });
+
+  it("announces a removal by the name of the chip that went", async () => {
+    const { container } = renderBar({ kommun: ["0180"] });
+    const user = userEvent.setup();
+
+    await user.click(screen.getByRole("button", { name: "Ta bort Stockholm" }));
 
     expect(
-      screen.getByText("Ändringarna tillämpas när du söker."),
-    ).toBeInTheDocument();
+      container.querySelector('[aria-live="polite"].sr-only'),
+    ).toHaveTextContent("Filtret Stockholm är borttaget.");
+  });
+});
+
+/**
+ * Every announcement string this surface can emit, and the branch that chooses it.
+ *
+ * Three of the five keys reached no assertion at all when this was first written, and BOTH
+ * add/remove discriminations could be hardcoded to `true` with the suite green (test-writer M6-M10).
+ * A key nothing asserts is a key nothing stops from silently becoming the wrong sentence.
+ */
+describe("ForetagSokSearchbar — every announcement branch", () => {
+  const region = (c: HTMLElement) =>
+    c.querySelector('[aria-live="polite"].sr-only');
+
+  it("announces a REMOVAL, not an addition, when the ort popover unticks", async () => {
+    const { container } = renderBar({ kommun: ["0180"] });
+    const user = userEvent.setup();
+
+    await user.click(screen.getByRole("button", { name: "Välj ort eller län" }));
+    await user.click(screen.getByRole("button", { name: "Stockholms län" }));
+    await user.click(screen.getByRole("checkbox", { name: "Stockholm" }));
+
+    // `next.length > orter.length` chooses the verb. Hardcode it to `true` and this goes red.
+    expect(region(container)).toHaveTextContent("Filtret Stockholm är borttaget.");
+  });
+
+  it("announces a REMOVAL, not an addition, when the bransch popover unticks", async () => {
+    const { container } = renderBar({ sni: ["62020"] });
+    const user = userEvent.setup();
+
+    await pickBransch(user, "system", "62020 Systemutveckling och programvarutveckling");
+
+    // `next.size > sniSelected.size` chooses the verb here. Same class as the ort case above.
+    expect(region(container)).toHaveTextContent(
+      "Filtret Systemutveckling och programvarutveckling är borttaget.",
+    );
+  });
+
+  it("uses its own sentence when the BRANSCH axis is cleared wholesale", async () => {
+    const { container } = renderBar({ sni: ["62010", "62020"] });
+    const user = userEvent.setup();
+
+    const dialog = await openBransch(user);
+    await user.click(within(dialog).getByRole("button", { name: "Rensa" }));
+
+    expect(region(container)).toHaveTextContent("Alla branschfilter är borttagna.");
+  });
+
+  /**
+   * The BULK branch of `ortChangeLabel`, which nothing reached until code-reviewer measured it: both
+   * harnesses filtered "Hela …" out of their row selectors, so `changed.length > 1` and both
+   * `t("ortLabel")` fallbacks were unasserted inside a block whose docblock claims to cover every
+   * announcement this surface can emit. Swapping `return lan` for `return t("ortLabel")` left the
+   * suite green — a survivor in the one function that exists because an axis-named announcement
+   * silences every change after the first.
+   *
+   * Naming the län rather than its 26 kommuner is the point: a screen reader cannot use a list, and
+   * naming the axis would be the original defect again.
+   */
+  it("names the LÄN when one action changes several orter at once", async () => {
+    const { container } = renderBar();
+    const user = userEvent.setup();
+
+    await user.click(screen.getByRole("button", { name: "Välj ort eller län" }));
+    await user.click(screen.getByRole("button", { name: "Stockholms län" }));
+    await user.click(
+      screen.getByRole("checkbox", { name: "Hela Stockholms län" }),
+    );
+
+    expect(region(container)).toHaveTextContent(
+      "Filtret Stockholms län är tillagt.",
+    );
+    // And it really was a multi-code change — otherwise this would be measuring the single-code
+    // branch under a bulk-looking label.
+    expect(push).toHaveBeenCalledWith(
+      buildForetagSokHref({ namn: "", sni: [], kommun: ["0180", "0181"] }),
+      { scroll: false },
+    );
+  });
+
+  it("uses its own sentence when the ORT axis is cleared wholesale", async () => {
+    const { container } = renderBar({ kommun: ["0180", "0181"] });
+    const user = userEvent.setup();
+
+    await user.click(screen.getByRole("button", { name: "Välj ort eller län" }));
+    await user.click(
+      within(screen.getByRole("dialog")).getByRole("button", { name: "Rensa" }),
+    );
+
+    expect(region(container)).toHaveTextContent("Alla ortfilter är borttagna.");
+  });
+
+  it("uses its own sentence when the WHOLE search is cleared", async () => {
+    const { container } = renderBar({ namn: "Volvo", kommun: ["0180"] });
+    const user = userEvent.setup();
+
+    await user.click(screen.getByRole("button", { name: "Rensa sökningen" }));
+
+    expect(region(container)).toHaveTextContent("Sökningen är rensad.");
+  });
+
+  /**
+   * V1's sibling, in the one channel V1 itself does not cover. `{namn}` in the announcement keys is
+   * an ICU parameter with no type guard on it, unlike `commit`, whose `FilterSelection` has no name
+   * field at all. A future edit that passed the field's value here would leak a pnr-shaped string
+   * into a live region — announced aloud, and present in the DOM.
+   */
+  it("never interpolates the typed value into an announcement", async () => {
+    const { container } = renderBar({ kommun: ["0180"] });
+    const user = userEvent.setup();
+
+    await user.type(
+      screen.getByLabelText("Företagsnamn eller organisationsnummer"),
+      PNR_SHAPED,
+    );
+    await user.click(screen.getByRole("button", { name: "Ta bort Stockholm" }));
+
+    expect(region(container)).toHaveTextContent("Filtret Stockholm är borttaget.");
+    expect(region(container)?.textContent ?? "").not.toContain(PNR_SHAPED);
+  });
+});
+
+/**
+ * Focus after a live commit that UNMOUNTS the control which was clicked (design-reviewer M3).
+ *
+ * The chip × removes its own chip; without a deliberate move the browser drops focus to `<body>`
+ * and the next Tab restarts at the top of the document. Live commit makes the chip × the primary
+ * filter gesture on this surface, so removing three chips would traverse the whole page three times.
+ */
+/**
+ * Three guarantees that a mutation sweep found unpinned after round 2 — each one survived being
+ * removed with the whole suite green, which is the only reason they are here rather than trusted.
+ */
+describe("ForetagSokSearchbar — round-2 guarantees, pinned", () => {
+  it("puts role=status on the live region, not only aria-live", () => {
+    const { container } = renderBar();
+    const region = container.querySelector("p.sr-only");
+    // `role="status"` carries `aria-atomic="true"`, so a partial update is read as one sentence
+    // rather than in fragments. The precedent this mirrors (`jobb-hero-search.tsx`) has both.
+    expect(region).toHaveAttribute("role", "status");
+    expect(region).toHaveAttribute("aria-live", "polite");
+  });
+
+  it("describes the field with the unapplied line, and only while it diverges", async () => {
+    renderBar();
+    const user = userEvent.setup();
+    const field = screen.getByLabelText("Företagsnamn eller organisationsnummer");
+    const hintOnly = field.getAttribute("aria-describedby");
+    expect(hintOnly).toBeTruthy();
+
+    await user.type(field, "Volvo");
+
+    const described = field.getAttribute("aria-describedby") ?? "";
+    // Two ids now, and the second one is the line's — so a screen reader hears WHY the field is not
+    // applied as part of the field itself, rather than having to find a sentence elsewhere.
+    expect(described.split(" ")).toHaveLength(2);
+    const unappliedId = described.split(" ")[1] ?? "";
+    expect(document.getElementById(unappliedId)).toHaveTextContent(
+      "Ändringen i namnfältet tillämpas när du väljer Sök företag.",
+    );
+
+    await user.clear(field);
+    expect(field.getAttribute("aria-describedby")).toBe(hintOnly);
+  });
+
+  /**
+   * The two decisions that meet at the org.nr lookup's `focus()` call: the answer SURVIVES a filter
+   * commit (so the fetch is neither cancelled nor discarded), and a filter commit PLACES focus. Both
+   * are right; the late `focus()` is only right if it checks that nothing else has claimed focus
+   * since the submit. Otherwise a lookup resolving 300-900 ms after a chip click yanks focus off the
+   * chip row onto a section the user did not ask for (WCAG 3.2.1).
+   *
+   * The fetch is held open deliberately so the chip click lands INSIDE the request window — that
+   * window is the whole subject, and a resolved-immediately mock would measure a different one.
+   */
+  it("does not steal focus when an org.nr lookup resolves after a chip commit", async () => {
+    let release: (r: Response) => void = () => {};
+    const held = new Promise<Response>((resolve) => {
+      release = resolve;
+    });
+    global.fetch = vi.fn().mockReturnValue(held);
+
+    const { container } = renderBar({ kommun: ["0180"] });
+    const user = userEvent.setup();
+
+    await user.type(
+      screen.getByLabelText("Företagsnamn eller organisationsnummer"),
+      VALID_ORGNR,
+    );
+    await user.click(screen.getByRole("button", { name: "Sök företag" }));
+
+    // The lookup is in flight. Remove the chip — the commit places focus on the ort trigger, since
+    // this was the only chip.
+    await user.click(screen.getByRole("button", { name: "Ta bort Stockholm" }));
+    const afterCommit = document.activeElement;
+    expect(afterCommit).toBe(
+      screen.getByRole("button", { name: "Välj ort eller län" }),
+    );
+
+    // Now the answer arrives.
+    release(orgNrResponse({ company: FOUND_COMPANY, companyWatchId: null }));
+    expect(await screen.findByText("Volvo AB")).toBeInTheDocument();
+
+    // The answer RENDERS — it is not discarded — but focus stays where the user's last gesture put
+    // it. Withholding the move is the whole fix; withholding the answer would be a different bug.
+    expect(document.activeElement).toBe(afterCommit);
+    expect(document.activeElement).not.toBe(
+      container.querySelector('section[tabindex="-1"]'),
+    );
+  });
+});
+
+describe("ForetagSokSearchbar — focus survives a live commit", () => {
+  it("moves to the chip that took the removed one's place", async () => {
+    renderBar({ kommun: ["0180", "0181"] });
+    const user = userEvent.setup();
+
+    await user.click(screen.getByRole("button", { name: "Ta bort Stockholm" }));
+
+    expect(document.activeElement).toBe(
+      screen.getByRole("button", { name: "Ta bort Södertälje" }),
+    );
+  });
+
+  it("falls back to the axis trigger when the last chip goes", async () => {
+    renderBar({ kommun: ["0180"] });
+    const user = userEvent.setup();
+
+    await user.click(screen.getByRole("button", { name: "Ta bort Stockholm" }));
+
+    expect(document.activeElement).toBe(
+      screen.getByRole("button", { name: "Välj ort eller län" }),
+    );
+  });
+
+  it("moves to the name field when the whole search is cleared", async () => {
+    renderBar({ namn: "Volvo", kommun: ["0180"] });
+    const user = userEvent.setup();
+
+    // The clear control removes ITSELF — `showClear` goes false inside the same transition.
+    await user.click(screen.getByRole("button", { name: "Rensa sökningen" }));
+
+    expect(document.activeElement).toBe(
+      screen.getByLabelText("Företagsnamn eller organisationsnummer"),
+    );
   });
 });
 
@@ -204,11 +641,11 @@ describe("ForetagSokSearchbar — bransch popover (#999)", () => {
     const user = userEvent.setup();
 
     await pickBransch(user, "datapro", "62 Dataprogrammering, datakonsultverksamhet");
-    await user.click(screen.getByRole("button", { name: "Sök företag" }));
 
     // Both of division 62's leaves ride the URL — a parent is stored as its leaves, never as itself.
     expect(push).toHaveBeenCalledWith(
       buildForetagSokHref({ namn: "", sni: ["62010", "62020"], kommun: [] }),
+      { scroll: false },
     );
   });
 
@@ -227,21 +664,25 @@ describe("ForetagSokSearchbar — bransch popover (#999)", () => {
     ).toHaveAttribute("aria-checked", "mixed");
   });
 
-  it("is MULTI-select: two branches coexist instead of replacing each other", async () => {
-    renderBar();
+  /**
+   * Seeded as APPLIED rather than picked twice in a row, and the reason is a real limit of the
+   * harness rather than a shortcut. `useOptimistic` holds its overlay only while the transition that
+   * set it is in flight; `router.push` is a synchronous mock here, so the transition ends at once and
+   * the overlay reverts to props that never changed. Two sequential picks would therefore measure
+   * jsdom, not the component. What a SECOND pick adds to an ALREADY-APPLIED first is the same
+   * question without that dependency — and the cumulative-under-flight behaviour is verified
+   * rendered against the running stack instead (see the PR body).
+   */
+  it("is MULTI-select: a second branch is added to the applied one, not swapped for it", async () => {
+    renderBar({ sni: ["62020"] });
     const user = userEvent.setup();
 
-    await pickBransch(user, "system", "62020 Systemutveckling och programvarutveckling");
     await pickBransch(user, "webb", "63120 Webbportaler");
 
-    expect(
-      screen.getByRole("button", {
-        name: "Ta bort Systemutveckling och programvarutveckling",
-      }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: "Ta bort Webbportaler" }),
-    ).toBeInTheDocument();
+    expect(push).toHaveBeenCalledWith(
+      buildForetagSokHref({ namn: "", sni: ["62020", "63120"], kommun: [] }),
+      { scroll: false },
+    );
   });
 
   it("chips decompose upward: a fully selected division reads as ONE division chip", () => {
@@ -272,10 +713,10 @@ describe("ForetagSokSearchbar — bransch popover (#999)", () => {
         name: "Ta bort Dataprogrammering, datakonsultverksamhet",
       }),
     );
-    await user.click(screen.getByRole("button", { name: "Sök företag" }));
 
     expect(push).toHaveBeenCalledWith(
       buildForetagSokHref({ namn: "", sni: ["63110"], kommun: [] }),
+      { scroll: false },
     );
   });
 
@@ -312,16 +753,12 @@ describe("ForetagSokSearchbar — bransch popover (#999)", () => {
   });
 
   it("the panel and the chip row report the SAME number for the same axis", async () => {
-    // One click on the section picks four leaves and decomposes to ONE chip. Counting `selected.size`
-    // would put "4 valda branscher" in the panel beside a single chip outside it.
-    renderBar();
+    // A section is four leaves that decompose to ONE chip. Counting `selected.size` would put
+    // "4 valda branscher" in the panel beside a single chip outside it. Seeded as APPLIED rather
+    // than picked, because the pick now navigates and the overlay does not outlive a mocked push.
+    renderBar({ sni: ["62010", "62020", "63110", "63120"] });
     const user = userEvent.setup();
     const dialog = await openBransch(user);
-    await user.click(
-      within(dialog).getByRole("checkbox", {
-        name: "Informations- och kommunikationsverksamhet",
-      }),
-    );
 
     const counter = within(dialog).getByText("1 vald bransch");
     expect(counter).toBeInTheDocument();
@@ -371,18 +808,22 @@ describe("ForetagSokSearchbar — bransch popover (#999)", () => {
     expect(screen.queryByText("Detalj 10100")).not.toBeInTheDocument();
 
     // The summary REPORTS. It must not carry the same × as the per-branch chips: identical pixels,
-    // and one of them drops the entire draft with no undo.
+    // and one of them drops the entire bransch axis with no undo.
     const summary = screen.getByText("10 valda branscher").closest(".jp-chip")!;
     expect(within(summary as HTMLElement).queryByRole("button")).not.toBeInTheDocument();
 
-    // The bulk removal is a sibling with visible text, at the same size as the row's other control.
+    // The bulk removal is a sibling with visible text, at the same size as the row's other control —
+    // and it now APPLIES the emptied axis rather than editing a draft.
     await user.click(screen.getByRole("button", { name: "Ta bort alla branscher" }));
-    expect(screen.queryByText("10 valda branscher")).not.toBeInTheDocument();
+    expect(push).toHaveBeenCalledWith(
+      buildForetagSokHref({ namn: "", sni: [], kommun: [] }),
+      { scroll: false },
+    );
   });
 });
 
 describe("ForetagSokSearchbar — ort", () => {
-  it("seeds ort chips from the URL kommun and removes one from the draft", async () => {
+  it("seeds ort chips from the URL kommun, and removing one APPLIES immediately", async () => {
     renderBar({ kommun: ["0180", "0181"] });
     const user = userEvent.setup();
 
@@ -395,14 +836,14 @@ describe("ForetagSokSearchbar — ort", () => {
 
     await user.click(screen.getByRole("button", { name: "Ta bort Stockholm" }));
 
-    expect(
-      screen.queryByRole("button", { name: "Ta bort Stockholm" }),
-    ).not.toBeInTheDocument();
-    // Removing a chip edits the draft only — it does not navigate.
-    expect(push).not.toHaveBeenCalled();
+    // Removing a chip now APPLIES — the whole remaining state, never a delta.
+    expect(push).toHaveBeenCalledWith(
+      buildForetagSokHref({ namn: "", sni: [], kommun: ["0181"] }),
+      { scroll: false },
+    );
   });
 
-  it("opens the cascade popover and adds a kommun to the draft", async () => {
+  it("opens the cascade popover and applies a kommun on the pick", async () => {
     renderBar();
     const user = userEvent.setup();
 
@@ -412,9 +853,10 @@ describe("ForetagSokSearchbar — ort", () => {
     await user.click(screen.getByRole("button", { name: "Stockholms län" }));
     await user.click(screen.getByRole("checkbox", { name: "Stockholm" }));
 
-    expect(
-      screen.getByRole("button", { name: "Ta bort Stockholm" }),
-    ).toBeInTheDocument();
+    expect(push).toHaveBeenCalledWith(
+      buildForetagSokHref({ namn: "", sni: [], kommun: ["0180"] }),
+      { scroll: false },
+    );
   });
 });
 
@@ -471,7 +913,7 @@ describe("ForetagSokSearchbar — unified name/org.nr field", () => {
     expect(push).not.toHaveBeenCalled();
   });
 
-  it("ignores the bransch/ort draft on an org.nr lookup (org.nr never enters the URL)", async () => {
+  it("ignores the applied bransch/ort axes on an org.nr lookup (org.nr never enters the URL)", async () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValue(orgNrResponse({ company: FOUND_COMPANY, companyWatchId: null }));
@@ -483,7 +925,7 @@ describe("ForetagSokSearchbar — unified name/org.nr field", () => {
     await user.click(screen.getByRole("button", { name: "Sök företag" }));
 
     await screen.findByText("Volvo AB");
-    // Even with an active bransch/ort draft, the org.nr path POSTs only the org.nr and never navigates.
+    // Even with the bransch/ort axes applied, the org.nr path POSTs only the org.nr and never navigates.
     expect(JSON.parse((fetchMock.mock.calls[0]![1] as RequestInit).body as string)).toEqual({
       organizationNumber: VALID_ORGNR,
     });
@@ -719,10 +1161,10 @@ describe("ForetagSokSearchbar — degraded reference", () => {
     // Counted in the unit it can honestly report: codes, not named branches.
     expect(screen.getByText("2 branschkoder")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Ta bort alla branscher" }));
-    await user.click(screen.getByRole("button", { name: "Sök företag" }));
 
     expect(push).toHaveBeenCalledWith(
       buildForetagSokHref({ namn: "", sni: [], kommun: [] }),
+      { scroll: false },
     );
   });
 
@@ -902,12 +1344,20 @@ describe("ForetagSokSearchbar — the live-review fixes", () => {
 });
 
 /**
- * The island is rendered without a `key`, so it never remounts, and all three draft pieces are
- * `useState` initialisers that run once. Without a re-seed, Back after a search leaves the field and
- * chips showing what you just left while the URL and results show something else. "Rensa sökningen"
- * makes that reachable in one click.
+ * The island is rendered without a `key`, so it never remounts. TWO different mechanisms keep it
+ * in step with the URL, and they are worth not confusing:
+ *
+ *  - the FILTER axes derive from props through `useOptimistic`, so they follow the URL by
+ *    construction and need no re-seeding at all;
+ *  - the NAME FIELD is the one `useState` initialiser left, and it runs once — so without an
+ *    explicit re-seed, Back after a search leaves the field showing what you just left while the
+ *    URL and results show something else. "Rensa sökningen" makes that reachable in one click.
+ *
+ * This block said "all three draft pieces are `useState` initialisers" until 2026-07-29. That was
+ * true of the draft model #1125 removed, and the component now states the opposite in as many
+ * words ("`value` is the last `useState` initialiser left").
  */
-describe("ForetagSokSearchbar — the draft re-seeds when the applied URL changes", () => {
+describe("ForetagSokSearchbar — the field re-seeds when the applied URL changes", () => {
   it("re-seeds the field and chips when the applied props change (Back)", () => {
     const { rerender } = render(
       <ForetagSokSearchbar
@@ -943,8 +1393,11 @@ describe("ForetagSokSearchbar — the draft re-seeds when the applied URL change
   });
 
   it("re-seeds the BRANSCH chip too, not only the name and orter", () => {
-    // Without this, deleting `setBranch(seedBranch(...))` from the re-seed leaves the suite green:
-    // the test above only asserts the ort chip.
+    // The test above asserts only the ort chip, so this one carries the bransch axis. It pins the
+    // DECOMPOSITION path — props → `useOptimistic` → `decomposeSelection` → chip — which is how the
+    // bransch chip follows the URL now. (It used to name `setBranch(seedBranch(...))` as the
+    // mutant it kills. Those symbols no longer exist: #1125 deleted the seed helper along with the
+    // draft state, so the named counterfactual was unwritable.)
     const { rerender } = render(
       <ForetagSokSearchbar
         reference={REFERENCE}
@@ -974,9 +1427,15 @@ describe("ForetagSokSearchbar — the draft re-seeds when the applied URL change
     ).not.toBeInTheDocument();
   });
 
-  it("re-seeds when ONLY an axis changes — the signature is not just the name", () => {
-    // Truncating the signature to `${namn}` leaves every other re-seed test green, because none of
-    // them holds the name constant while an axis moves. This one does.
+  it("follows an axis-only URL change, with the name held constant", () => {
+    // What this pins after #1125 is the OVERLAY: with `namn` unchanged, the chips must still follow
+    // the props, because they derive from them rather than from a re-seed.
+    //
+    // Its previous title claimed "the signature is not just the name", and the comment named
+    // "truncating the signature to `${namn}`" as the mutant it kills. Both were false on this head:
+    // the gate IS `namn` alone, so the named mutant is the shipped code, and this test passes for a
+    // different reason than it claimed. Recorded rather than quietly retitled — a test that states
+    // the wrong counterfactual teaches the wrong thing about what is guarded.
     const { rerender } = render(
       <ForetagSokSearchbar
         reference={REFERENCE}
@@ -1036,10 +1495,17 @@ describe("ForetagSokSearchbar — the draft re-seeds when the applied URL change
 });
 
 /**
- * The org.nr answer is client-only state and is deliberately NOT part of the applied signature, so
- * the re-seed has to drop it explicitly. Reachable: search, search, look up an org.nr, press Back.
+ * The org.nr answer's lifetime. Two halves, and the second is the one #1125 changed.
+ *
+ * It is dropped when the applied NAME moves on — that is supersession: a new name search replaces
+ * the answer the field produced. It SURVIVES a filter commit, and that is a deliberate reversal of
+ * this PR's first shape (design-reviewer bind, 2026-07-29). Under draft-commit, changing a filter
+ * meant pressing the same control that produced the answer; live commit severs that. The lookup is
+ * independent of the filter axes by design, and the answer renders as its own headed, rule-separated
+ * section precisely so it never reads as part of the browse — so the browse cannot make it stale.
+ * Task B silently destroying the result of task A is the ADR 0047 failure this avoids.
  */
-describe("ForetagSokSearchbar — a standing org.nr answer does not survive a re-seed", () => {
+describe("ForetagSokSearchbar — the org.nr answer's lifetime", () => {
   it("clears the org.nr result when the applied URL changes", async () => {
     global.fetch = vi
       .fn()
@@ -1075,5 +1541,42 @@ describe("ForetagSokSearchbar — a standing org.nr answer does not survive a re
     );
 
     expect(screen.queryByText("Volvo AB")).not.toBeInTheDocument();
+  });
+
+  /**
+   * The INVERSE of the drop above, and it is the assertion that would have gone red on the shape
+   * this PR originally shipped: `appliedSignature` covered all three axes, so a chip click cleared
+   * the answer. The gate is now `namn` alone, which a filter commit provably never changes.
+   */
+  it("KEEPS the org.nr result across a filter commit", async () => {
+    global.fetch = vi
+      .fn()
+      .mockResolvedValue(orgNrResponse({ company: FOUND_COMPANY, companyWatchId: null }));
+    render(
+      <ForetagSokSearchbar
+        reference={REFERENCE}
+        referenceOk
+        namn=""
+        sni={[]}
+        kommun={["0180"]}
+      />,
+    );
+    const user = userEvent.setup();
+
+    await user.type(
+      screen.getByLabelText("Företagsnamn eller organisationsnummer"),
+      VALID_ORGNR,
+    );
+    await user.click(screen.getByRole("button", { name: "Sök företag" }));
+    expect(await screen.findByText("Volvo AB")).toBeInTheDocument();
+
+    // A live filter commit: remove the applied ort chip. The answer is not its subject.
+    await user.click(screen.getByRole("button", { name: "Ta bort Stockholm" }));
+    expect(push).toHaveBeenCalledWith(
+      buildForetagSokHref({ namn: "", sni: [], kommun: [] }),
+      { scroll: false },
+    );
+
+    expect(screen.getByText("Volvo AB")).toBeInTheDocument();
   });
 });

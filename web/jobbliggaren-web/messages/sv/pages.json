@@ -265,7 +265,7 @@
       "ortEmpty": "Ortlistan kunde inte laddas just nu.",
       "ortRightEmpty": "Välj ett län för att se kommuner.",
       "ortRemove": "Ta bort {namn}",
-      "unappliedChanges": "Ändringarna tillämpas när du söker.",
+      "unappliedChanges": "Ändringen i namnfältet tillämpas när du väljer Sök företag.",
       "orgNrResultLabel": "Sökning på organisationsnummer",
       "clearButton": "Rensa sökningen",
       "tableAria": "Företag som matchar sökningen",
@@ -296,7 +296,12 @@
       "loadErrorTitle": "Sökningen kunde inte läsas in",
       "loadErrorBody": "Försök igen om en stund.",
       "rateLimited": "För många förfrågningar just nu. Vänta en stund och ladda om sidan.",
-      "loadingResults": "Söker företag…"
+      "loadingResults": "Söker företag…",
+      "announceFilterAdded": "Filtret {namn} är tillagt.",
+      "announceFilterRemoved": "Filtret {namn} är borttaget.",
+      "announceBranschCleared": "Alla branschfilter är borttagna.",
+      "announceOrterCleared": "Alla ortfilter är borttagna.",
+      "announceFiltersCleared": "Sökningen är rensad."
     },
     "watchesHeading": "Bevakade företag",
     "watchesLede": "Företag du bevakar. Nya annonser från dem visas här och på Översikt.",

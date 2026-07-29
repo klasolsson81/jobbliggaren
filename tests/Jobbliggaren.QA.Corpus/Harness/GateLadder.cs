@@ -19,6 +19,22 @@ public enum GateState
     /// <summary>The handler returned a genuine Failure (owner missing / IDOR), so no gate verdict
     /// exists at all. Distinct from NotEvaluated, which means an earlier GATE stopped control.</summary>
     NoVerdict,
+
+    /// <summary>THE INSTRUMENT has no arm for the reason the handler returned — the ladder does not
+    /// know, and says so.
+    ///
+    /// <para>It exists because collapsing it into <see cref="NoVerdict"/> is what let a real
+    /// mis-report ship. #1060 PR C added <c>PersonnummerInAccountName</c>; this type's switch never
+    /// learned it, so the sole case exercising the DQ6 rung fell to the catch-all and rendered five
+    /// `no verdict` cells — which §5's own prose defines as "the handler returned a genuine FAULT".
+    /// An honest block was published as a product fault, and nothing was red, because
+    /// <see cref="IsWellFormed"/> passed an all-<see cref="NoVerdict"/> row.</para>
+    ///
+    /// <para>So this state is deliberately an INTEGRITY FAILURE (<see cref="IsWellFormed"/> rejects
+    /// it) rather than a quieter third colour: a gap in the instrument must redden the instrument,
+    /// not decorate a row. A gate token added without an arm here now lands in §0's "gate ladder
+    /// malformed" list instead of being narrated as something the product did.</para></summary>
+    Unresolved,
 }
 
 /// <summary>One rung. <see cref="CallSite"/> is a display string, never a re-typed predicate.</summary>
@@ -48,14 +64,24 @@ public sealed record GateCell(string GateId, string CallSite, GateState State);
 /// here would fork the gate ORDER — and the order is exactly what pin P6 pins, so a corpus holding
 /// its own copy of it would stay green through a reordering of the product.</para>
 ///
-/// <para><b>The collapsed token, and how it is resolved by ELIMINATION rather than guessed.</b>
-/// Three distinct predicates return the single <c>PersonnummerPresent</c> reason: the parse-level
-/// check, the resolved-label scan, and the composed-DTO DQ6 guard. All three are resolvable from
-/// outside the Application assembly without re-typing any of them: <c>parsed.Personnummer.Found</c>
-/// is readable on the aggregate, and <c>ResumeLabelResolver</c> plus <c>PersonnummerScanner</c> are
-/// both public, so the corpus runs the same two public calls the handler runs. Whatever remains
-/// after eliminating those two IS the DQ6 guard — there is no fourth site. So no rung is ever
-/// reported as an unresolved token.</para>
+/// <para><b>The collapsed token, and how it is resolved — by TWO POSITIVE DISCRIMINATORS, no longer
+/// by elimination. Rewritten 2026-07-28, because the previous wording had become false and was still
+/// being printed into the artifact.</b> It said "three distinct predicates return the single
+/// <c>PersonnummerPresent</c> reason … whatever remains after eliminating those two IS the DQ6 guard
+/// — there is no fourth site." #1060 PR C split the token: the composed-DTO DQ6 guard now returns
+/// its own <c>PersonnummerInAccountName</c>. <b>TWO</b> predicates collapse onto
+/// <c>PersonnummerPresent</c> today — the parse-level check and the resolved-label scan — and both
+/// are resolvable from outside the Application assembly without re-typing either:
+/// <c>parsed.Personnummer.Found</c> is readable on the aggregate, and <c>ResumeLabelResolver</c>
+/// plus <c>PersonnummerScanner</c> are both public, so the corpus runs the same two public calls the
+/// handler runs.</para>
+///
+/// <para><b>"Elimination" is the wrong word for what happens now, and using it would repeat the
+/// defect this paragraph was rewritten for.</b> Both remaining arms carry a POSITIVE guard
+/// (<c>when pnrFoundOnParse</c>, <c>when pnrInResolvedLabel</c>); nothing is inferred from a
+/// remainder, and what falls past them is not attributed to a third site — it becomes
+/// <see cref="GateState.Unresolved"/>. Elimination was only ever sound while the corpus knew the
+/// site list was complete, and PR C is the measured proof that such knowledge expires.</para>
 ///
 /// <para><b>Why there is no per-case "not exercisable" state.</b> An earlier revision keyed such a
 /// state on whether a case authored a personnummer, and it was wrong in both directions: it printed
@@ -81,6 +107,17 @@ internal static class GateLadder
         (G1, "pnr on parse"), (G2, "confidence"),
         (G2b, "pnr in label"), (G3a, "pnr DQ6"), (G3b, "buildability"),
     ];
+
+    /// <summary>§5's column headings, in gate order. They are a property of the LADDER, never of
+    /// whichever case happens to sort first.
+    ///
+    /// <para>Deriving them from <c>Cases[0]</c> was a live defect: a crashed first case carries
+    /// <c>Gates: []</c> by construction, which produced a six-cell header against a five-cell
+    /// delimiter — and under GFM that is not a table at all, so the ENTIRE section vanished. On the
+    /// report whose delimiter guard exists for precisely that failure, and invisible to that guard,
+    /// because a fixture whose only case has a full ladder can never exhibit it.</para></summary>
+    internal static IReadOnlyList<string> RungHeaders =>
+        [.. Rungs.Select(r => $"{r.Id} ({r.CallSite})")];
 
     internal static IReadOnlyList<GateCell> From(
         AutoPromoteBlockReason? block,
@@ -115,24 +152,62 @@ internal static class GateLadder
             AutoPromoteBlockReason.ParseNotConfident => [p, b, n, n, n],
             AutoPromoteBlockReason.IncompleteContent => [p, p, p, p, b],
 
-            // The collapsed token, resolved by elimination. The two policy gates return
-            // unconditionally, so a block reached from below the first proves both passed.
+            // The still-collapsed token, resolved by elimination over the TWO remaining sites that
+            // return it. The two policy gates return unconditionally, so a block reached from below
+            // the first proves both passed.
             AutoPromoteBlockReason.PersonnummerPresent when pnrFoundOnParse => [b, n, n, n, n],
             AutoPromoteBlockReason.PersonnummerPresent when pnrInResolvedLabel => [p, p, b, n, n],
-            AutoPromoteBlockReason.PersonnummerPresent => [p, p, p, b, n],
 
-            _ => [.. Enumerable.Repeat(GateState.NoVerdict, Rungs.Length)],
+            // DQ6 over the composed content (#1060 PR C). The SAME rung and the SAME literal as the
+            // arm this replaces — only the pattern moved, because the reason reaching this rung is
+            // now named rather than inferred. It is deliberately no longer a guard-less
+            // `PersonnummerPresent` arm: once a fourth token existed, that arm was a guess wearing
+            // elimination's clothes, and it would have answered "DQ6 blocked" for any future token.
+            AutoPromoteBlockReason.PersonnummerInAccountName => [p, p, p, b, n],
+
+            // The instrument has no arm for this token. NEVER NoVerdict: that narrates a gap in THIS
+            // FILE as a fault in the handler, which is the exact mis-report this rewrite removes.
+            _ => [.. Enumerable.Repeat(GateState.Unresolved, Rungs.Length)],
         };
     }
 
-    /// <summary>An edit guard, not a measurement: every literal <see cref="Resolve"/> returns is
-    /// well-formed by construction, so this cannot fail against today's code. It exists so that a
-    /// future hand-edited ladder cannot claim control passed a rung it never reached.</summary>
+    /// <summary>An instrument guard. It rejects two different breakages, and the second is new.
+    ///
+    /// <para>(1) <b>An impossible ORDER</b> — a rung reported as passed after one that was never
+    /// evaluated. Every literal <see cref="Resolve"/> returns is well-formed this way by
+    /// construction, so this half only catches a future hand-edited ladder.</para>
+    ///
+    /// <para>(2) <b>A state outside the four the ladder can honestly report</b> — today that means
+    /// <see cref="GateState.Unresolved"/>, and the check is written as a SHAPE so it keeps meaning
+    /// that after a sixth member lands. This half is the one that had to exist: before it, an
+    /// all-<see cref="GateState.NoVerdict"/> row passed (nothing is "passed after a stop"), which is
+    /// precisely why PR C's new gate token went unnoticed here for a whole PR while the artifact
+    /// published its case as a handler fault. Rejecting it wires the gap into §0's "gate ladder
+    /// malformed" list and into <c>LayoutCorpusReportTests</c>'s instrument assert, so the NEXT
+    /// token added without an arm is red rather than narrated.</para>
+    ///
+    /// <para><b>This makes the assert at that call site production-reachable, and that is a
+    /// deliberate contract change, not a side effect.</b> The previous docblock said this method
+    /// "cannot fail against today's code"; it can now — a new <c>AutoPromoteBlockReason</c> that
+    /// reaches a corpus case reddens the suite until the ladder learns it. That is argued at the
+    /// assert block in <c>LayoutCorpusReportTests</c> rather than left for a reader to discover.</para>
+    ///
+    /// <para>Both halves take the corpus's own derivation as their subject, never a product
+    /// outcome — the assert rule at <c>LayoutCorpusReportTests</c> category (b).</para></summary>
     internal static bool IsWellFormed(IReadOnlyList<GateCell> ladder)
     {
         var stopped = false;
         foreach (var cell in ladder)
         {
+            // SHAPE, not name. Naming only Unresolved would leave the identical hole one member
+            // away: `Short` falls back to "unresolved" for ANY unmapped state, so a sixth
+            // GateState would print that word in every cell while §0 said "malformed: none" and
+            // the build stayed green — two incompatible claims about one row, which is exactly the
+            // defect this PR exists to remove. The guard and the renderer now share a shape.
+            if (cell.State is not (GateState.Passed or GateState.Blocked
+                or GateState.NotEvaluated or GateState.NoVerdict))
+                return false;
+
             if (cell.State is GateState.NotEvaluated or GateState.NoVerdict)
                 stopped = true;
             else if (stopped && cell.State == GateState.Passed)

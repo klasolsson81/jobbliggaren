@@ -81,11 +81,32 @@ export interface ForetagSokUrlState {
  *
  * `-` is chosen for two measured reasons. `URLSearchParams.toString()` leaves it unencoded, where
  * `,` becomes `%2C` and would disfigure every shared link on a surface whose whole value is being
- * shareable. And no code on either axis can contain it: SNI leaves are five digits, kommun codes are
- * four, and `normalizeCodes` drops anything outside the SCB reference anyway — so a value carrying
- * the separator cannot survive into the applied state even if one ever appeared.
+ * shareable. And no code on either axis can contain it: SNI leaves are five digits and kommun codes
+ * are four.
+ *
+ * That digits-only argument carries the safety on its own, and it has to — an earlier version of
+ * this comment added "and `normalizeCodes` drops anything outside the SCB reference anyway", which
+ * is FALSE at three call sites where no allowlist is passed (`page.tsx`'s wash redirect,
+ * `proxy.ts`, and `page.tsx` again when the reference failed to load). There, codes are only
+ * deduped and capped. An untrue safety clause in a docblock is worse than none: it licenses the
+ * wrong reasoning at the next edit (code-reviewer, #1134).
  */
 const AXIS_SEPARATOR = "-";
+
+/**
+ * Serialize ONE code axis into ONE query value — the counterpart to {@link parseCodeAxis}, and the
+ * single place the joined form is produced.
+ *
+ * Exported because the route has a producer that cannot call a URL builder: the search island's
+ * no-JS `<form>` serialises its own hidden fields, so a native GET writes whatever shape those
+ * fields have. Before this existed that form emitted one input per code and therefore kept writing
+ * the REPEATED shape — a fourth producer, silently disagreeing with the three builders, and enough
+ * on its own to put the router-cache collision back (code-reviewer, #1134). Sorting lives here too,
+ * so the two producers cannot drift on ordering either.
+ */
+export function serializeCodeAxis(codes: ReadonlyArray<string>): string {
+  return [...codes].sort().join(AXIS_SEPARATOR);
+}
 
 /**
  * Serialize the filter axes onto `params` — ONE occurrence per key, never a repeated one.
@@ -107,10 +128,9 @@ const AXIS_SEPARATOR = "-";
  * Shared by all three href builders in this module, so they cannot drift.
  */
 function appendFilterAxes(params: URLSearchParams, state: ForetagSokUrlState): void {
-  const sni = [...state.sni].sort();
-  if (sni.length > 0) params.set("sni", sni.join(AXIS_SEPARATOR));
-  const kommun = [...state.kommun].sort();
-  if (kommun.length > 0) params.set("kommun", kommun.join(AXIS_SEPARATOR));
+  if (state.sni.length > 0) params.set("sni", serializeCodeAxis(state.sni));
+  if (state.kommun.length > 0)
+    params.set("kommun", serializeCodeAxis(state.kommun));
   const namn = state.namn.trim();
   if (namn.length > 0) params.set("namn", namn);
 }
@@ -142,16 +162,22 @@ export function buildPageHref(state: ForetagSokUrlState, targetPage: number): st
 /**
  * Parse a CODE AXIS (`sni` / `kommun`) out of a query param into its codes.
  *
- * Accepts BOTH forms, and that is the whole back-compat story: the joined form this module now
- * writes (`?sni=a-b`) and the repeated form it wrote until #1125's follow-up (`?sni=a&sni=b`), which
+ * Accepts BOTH forms, and that is the whole back-compat story: the joined form this module writes
+ * from 2026-07-29 (`?sni=a-b`) and the repeated form it wrote before that (`?sni=a&sni=b`), which
  * every previously shared or bookmarked link still carries. Both parse to the same codes, so no
  * redirect and no migration are needed — a reader cannot tell which form produced the state.
  *
+ * It also trims each value, which the old parser did not: `?kommun=%200180` is now accepted rather
+ * than silently dropped. Pinned below.
+ *
  * Named for the axis rather than the shape. It used to be `toStringList`, which described the
  * array/scalar normalisation and nothing else; now that it also splits, that name would be true of
- * half of what it does. `/jobb` keeps its own separate local parser (`jobb/page.tsx`) — it has not
- * moved to the joined form, and its taxonomy IDs contain `_`, so it needs its own separator
- * decision rather than inheriting this one.
+ * half of what it does. `/jobb` keeps its own separate local parser (`jobb/page.tsx`) and has NOT
+ * moved to the joined form. The reason is not that its taxonomy IDs contain `_` — an underscore is
+ * orthogonal to a `-` split, and a sweep of the repo's whole ID corpus found none containing `-`
+ * either (code-reviewer, #1134). It is that JobTech IDs are drawn from the base64url alphabet,
+ * where `-` is a legal character, so `/jobb` owes its own separator decision across its own six
+ * axes and their own caps rather than inheriting a choice justified by SCB's digits.
  */
 export function parseCodeAxis(raw: string | string[] | undefined): string[] {
   if (raw === undefined) return [];

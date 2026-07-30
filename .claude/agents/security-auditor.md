@@ -78,6 +78,44 @@ parameterizes; raw SQL is the red flag, Blocker) · XSS
 (Blocker) · open redirect (Major) · race conditions on concurrent state changes
 (Major) · tokens in `localStorage` (Major).
 
+**8. Supply-chain escape hatches.** The blocking vuln gate in
+`dependabot-automerge.yml` has two: `pnpm.auditConfig.ignoreGhsas` (risk
+*accepted*) and `pnpm.overrides` (risk *repaired*) — both ratified by ADR 0065
+Amendment 2026-07-28, which requires that every accepted entry name why it cannot
+be repaired, what would remove it, and why it is tolerable meanwhile
+(**reachability, not severity**).
+
+You are the named consumer of the measurement. Run it — the gate itself cannot,
+because it audits with the ignore list *applied* and is therefore structurally
+blind to an accepted advisory that has begun reaching production:
+
+```
+bash .github/scripts/audit-suppression-guard.sh \
+  --package-json web/jobbliggaren-web/package.json \
+  --audit-json <pnpm audit --json, ignore list REMOVED> \
+  --audit-prod-json <pnpm audit --json --prod, ignore list REMOVED> \
+  --lockfile web/jobbliggaren-web/pnpm-lock.yaml
+```
+
+**Grade against the REPO, not the diff.** All three checks measure tree state.
+Block only when the PR under review *caused* the finding — it touched
+`auditConfig`, `overrides` or the lockfile. Otherwise escalate to Klas and let the
+PR through: blocking a PR for state it did not cause is the very deadlock this
+design keeps out of CI, relocated into a human.
+
+*Major (default):* `OVER-BROAD SUPPRESSION` — an accepted advisory now in the
+production set, so the dev-only argument it was granted on no longer holds.
+**Blocker** only when that advisory's own impact falls in your Blocker classes
+(auth bypass, PII/secret exposure, RCE). *Minor:* `STALE SUPPRESSION` ·
+`DEAD OVERRIDE` — hygiene, and what makes "this list must shrink" auditable.
+`SKIPPED` is **not** a clean result; the checks did not run.
+
+Two limits to state rather than discover. `--prod` is a **declared-dependency**
+partition, not runtime reachability — a devDependency running at build time can
+still reach the shipped bundle, so read "absent from the --prod set" as exactly
+that. And Beslut 6's silent pin-back is **not** among the checks: it is not
+lockfile-detectable, and ADR 0065 records why.
+
 ## Severity and process
 
 | Severity | Definition | Merge? |
@@ -107,7 +145,17 @@ db-migration-writer schema). Re-review after Blockers/Majors are addressed.
 `/security-audit [PR]`, `/gdpr-check <feature>`, user asks "är detta säkert/
 GDPR-säkert". Auto: changes in `*Auth*`/`*Identity*`, persistence
 configurations, `External/*`, `appsettings*`/`.env`, `prompts/**`, new
-migrations or OAuth integrations. Other agents escalate security findings here.
+migrations or OAuth integrations. **Area 8 triggers on exposure DIRECTION, not on
+which file moved** — a file-based trigger would fire on every routine dependency
+repair and miss the removals: an addition to `ignoreGhsas`; a lowered
+`--audit-level` or a suppressed `NuGetAudit`/NU1901–1904; an `overrides` entry
+**removed** or its target **lowered**; a **new** override key, or a gated key
+becoming **open** (Beslut 6's priced obligation); a removal from
+`ignoredBuiltDependencies` (it is a cited leg of the live acceptance's rationale);
+and `pnpm/action-setup` raised **past 9** (ADR 0065: that is a migration, not a
+bump). Explicitly **not** triggers: raising an existing override target — the
+routine Dependabot repair — or removing an `ignoreGhsas` entry.
+Other agents escalate security findings here.
 
 ## Output format
 

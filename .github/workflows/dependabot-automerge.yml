@@ -195,10 +195,15 @@ jobs:
       # THE REGISTER IS NOT THIS FILE. `auditConfig` filters `pnpm audit` — and so
       # `audit (observe-only)` in `build.yml` too — but GitHub's Dependabot alerts
       # are unaffected. That is where the 28 are counted and that is the number that
-      # must reach zero. Known gap, owned by a follow-up PR: a stale entry produces
-      # no warning and no exit difference, and a bare GHSA would silently cover a
-      # NEW path if brace-expansion re-entered the production tree. The guard
-      # belongs in observe-only `audit`, never inside this merge control.
+      # must reach zero. THAT GAP IS WATCHED IN PART, and not from inside this file:
+      # `.github/scripts/audit-suppression-guard.sh` runs in observe-only `audit`
+      # and is consulted by `security-auditor` (her audit area 8, CLAUDE.md §9.2).
+      # It catches three things — a stale entry, a dead override key, and an accepted
+      # advisory that has entered the production set. Beslut 6's silent pin-back is
+      # NOT among them and stays open: it is not lockfile-detectable, and ADR 0065
+      # Amendment 2026-07-28 records why. The guard deliberately never fails a build
+      # — a path-pinning assertion inside THIS control is how the next deadlock gets
+      # built, since it would fail a PR over tree state the PR did not cause.
       - name: Install (pnpm, för audit)
         if: ${{ steps.gate.outputs.eligible == 'true' }}
         working-directory: web/jobbliggaren-web

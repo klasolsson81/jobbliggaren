@@ -22,8 +22,19 @@ field-encryption, 0050 host TBD, 0051 Anthropic Direct + 5 GDPR conditions,
 0066 local crypto). Compare against existing PII flows, audit log, and
 encryption config for consistency.
 
-**Tools:** `Read`, `Grep`, `Glob` only. No Write/Edit/Bash/WebSearch — you
-report, specialist agents repair. CVE research is Klas's separate task.
+**Tools: read-only IN EFFECT.** Read, search, and run commands that *produce a
+measurement* — this guard, `git diff`, a fixture suite. Never `Write`, `Edit`, or
+push: you report, specialist agents repair. CVE research is Klas's separate task.
+
+*This line used to read "`Read`, `Grep`, `Glob` only. No Write/Edit/Bash".* It was
+corrected 2026-07-30 because it was false about the harness, not because the
+doctrine changed — the auditor measured it by running a full fixture suite and the
+guard itself. A boundary stated in tool names that the harness does not enforce is
+worse than none: the next auditor reads "no Bash" three paragraphs above area 8's
+"run it", and either does nothing — making the area decoration, the exact empty
+signal this whole design exists to prevent — or runs it anyway and quietly erodes
+the limit that does matter (`Write`/`Edit`). The doctrine is about **effect on the
+repo**, and now says so.
 
 ## Audit areas (match to the diff, not all per review)
 
@@ -78,11 +89,65 @@ parameterizes; raw SQL is the red flag, Blocker) · XSS
 (Blocker) · open redirect (Major) · race conditions on concurrent state changes
 (Major) · tokens in `localStorage` (Major).
 
+**8. Supply-chain escape hatches.** The blocking vuln gate in
+`dependabot-automerge.yml` has two: `pnpm.auditConfig.ignoreGhsas` (risk
+*accepted*) and `pnpm.overrides` (risk *repaired*) — both ratified by ADR 0065
+Amendment 2026-07-28, which requires that every accepted entry name why it cannot
+be repaired, what would remove it, and why it is tolerable meanwhile
+(**reachability, not severity**).
+
+You are the named consumer of the measurement. Run it — the gate itself cannot,
+because it audits with the ignore list *applied* and is therefore structurally
+blind to an accepted advisory that has begun reaching production:
+
+```
+cd web/jobbliggaren-web
+probe="$(mktemp -d)"
+jq 'del(.pnpm.auditConfig)' package.json > "$probe/package.json"   # else the
+cp pnpm-lock.yaml "$probe/pnpm-lock.yaml"                          # suppressed
+( cd "$probe" && pnpm audit --json        > full.json || true )    # advisory is
+( cd "$probe" && pnpm audit --json --prod > prod.json || true )    # invisible
+bash ../../.github/scripts/audit-suppression-guard.sh \
+  --package-json package.json \
+  --audit-json "$probe/full.json" \
+  --audit-prod-json "$probe/prod.json" \
+  --lockfile pnpm-lock.yaml \
+  --pnpm-major "$(pnpm --version | cut -d. -f1)" \
+  $( [ -f pnpm-workspace.yaml ] && echo --workspace-yaml pnpm-workspace.yaml )
+```
+
+**The last two flags are not optional garnish — omit them and the tool lies to you
+on the one PR your own trigger sends you to.** Measured 2026-07-30, same tree, same
+three files: without them the guard prints *"no findings"*; with `--pnpm-major 11`
+it prints `SKIPPED — pnpm major 11 does not read the pnpm field in package.json`.
+pnpm 11 reads none of this configuration, so on a PR that raises
+`pnpm/action-setup` past 9 — a trigger listed below — every override and the single
+acceptance are dead while the unprobed command reports clean.
+
+**Grade against the REPO, not the diff.** All three checks measure tree state.
+Block only when the PR under review *caused* the finding — it touched
+`auditConfig`, `overrides` or the lockfile. Otherwise escalate to Klas and let the
+PR through: blocking a PR for state it did not cause is the very deadlock this
+design keeps out of CI, relocated into a human.
+
+*Major (default):* `OVER-BROAD SUPPRESSION` — an accepted advisory now in the
+production set, so the dev-only argument it was granted on no longer holds.
+**Blocker** only when that advisory's own impact falls in your Blocker classes
+(auth bypass, PII/secret exposure, RCE). *Minor:* `STALE SUPPRESSION` ·
+`DEAD OVERRIDE` — hygiene, and what makes "this list must shrink" auditable.
+`SKIPPED` is **not** a clean result; the checks did not run.
+
+Two limits to state rather than discover. `--prod` is a **declared-dependency**
+partition, not runtime reachability — a devDependency running at build time can
+still reach the shipped bundle, so read "absent from the --prod set" as exactly
+that. And Beslut 6's silent pin-back is **not** among the checks: it is not
+lockfile-detectable, and ADR 0065 records why.
+
 ## Severity and process
 
 | Severity | Definition | Merge? |
 |---|---|---|
-| **Blocker** | GDPR violation, secret leak, auth bypass, PII exposure | Block |
+| **Blocker** | GDPR violation, secret leak, auth bypass, PII exposure, RCE | Block |
 | **Major** | Security risk without compliance breach | Block |
 | **Minor** | Defense-in-depth hardening | Allow |
 | **Praise** | Reinforce security-conscious choices | — |
@@ -107,7 +172,17 @@ db-migration-writer schema). Re-review after Blockers/Majors are addressed.
 `/security-audit [PR]`, `/gdpr-check <feature>`, user asks "är detta säkert/
 GDPR-säkert". Auto: changes in `*Auth*`/`*Identity*`, persistence
 configurations, `External/*`, `appsettings*`/`.env`, `prompts/**`, new
-migrations or OAuth integrations. Other agents escalate security findings here.
+migrations or OAuth integrations. **Area 8 triggers on exposure DIRECTION, not on
+which file moved** — a file-based trigger would fire on every routine dependency
+repair and miss the removals: an addition to `ignoreGhsas`; a lowered
+`--audit-level` or a suppressed `NuGetAudit`/NU1901–1904; an `overrides` entry
+**removed** or its target **lowered**; a **new** override key, or a gated key
+becoming **open** (Beslut 6's priced obligation); a removal from
+`ignoredBuiltDependencies` (it is a cited leg of the live acceptance's rationale);
+and `pnpm/action-setup` raised **past 9** (ADR 0065: that is a migration, not a
+bump). Explicitly **not** triggers: raising an existing override target — the
+routine Dependabot repair — or removing an `ignoreGhsas` entry.
+Other agents escalate security findings here.
 
 ## Output format
 

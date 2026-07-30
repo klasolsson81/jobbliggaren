@@ -311,9 +311,18 @@ in the repo resolves its settings, it must be verified on 9 as well as 11, and i
 belong in the same diff as the repair. It is the migration's first step, and it is owed
 before the pin moves.
 
-**Known gap, deliberately not closed here — the rule.** *A suppression whose blast
+**Known gap — CLOSED 2026-07-30 by `.github/scripts/audit-suppression-guard.sh`.** The
+rule below stands as the rule; the "unpinned today" state it describes is the state
+*before* that guard. It watches all four directions named here, runs in observe-only
+`audit`, and has a **named consumer**: `security-auditor`, whose audit area 8 runs the
+measurement and grades it (CLAUDE.md §9.2). That consumer is load-bearing, not
+decoration — this repo's own `dependabot-automerge.yml` header records that *no human
+reads observe-only audit at auto-merge*, so a warning with no reader would have been the
+empty signal, not a fix. What the guard cannot see is written down with it.
+
+*The rule, unchanged:* **A suppression whose blast
 radius is not pinned, and an override key whose liveness is not checked, are declared as
-gaps rather than left silent.* Both are unpinned today: a stale `ignoreGhsas` entry
+gaps rather than left silent.* Both were unpinned before the guard: a stale `ignoreGhsas` entry
 produces no warning and no exit difference, a bare GHSA would silently cover a **new**
 path if the package re-entered the production tree, and an `overrides` key that matches
 no consumer is equally silent (measured: an invented key exits 0 with no output). The

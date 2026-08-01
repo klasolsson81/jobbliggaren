@@ -104,39 +104,63 @@ test.describe("/jobb — a filter removal applies", () => {
     page,
   }) => {
     await loginAs(page, RUN_ID);
-    const startCodes = [EMPLOYMENT_A, EMPLOYMENT_B, EMPLOYMENT_C].map((e) => e.id);
-    await page.goto(`/jobb?employmentType=${startCodes.join(SEPARATOR)}`);
+    await page.goto("/jobb");
     await openFilterPanel(page);
 
-    expect(employmentCodes(page)).toEqual(startCodes);
+    // Build the starting state THROUGH THE UI, one tick at a time, so the start
+    // URL is whatever the app's own builder writes.
+    //
+    // This is load-bearing and was got wrong first: an earlier version handed the
+    // start state to `page.goto` already in the joined form. That made the test
+    // pass even when the builder was mutated back to the repeated form, because
+    // the joined start and the repeated target never collapse alike — it pinned
+    // nothing. The collision needs BOTH sides produced by the builder, which is
+    // exactly what a real user's session produces. Verified by mutation: with
+    // `setAxis` reverted to `params.append`, this test now fails.
+    for (const option of [EMPLOYMENT_A, EMPLOYMENT_B, EMPLOYMENT_C]) {
+      await page
+        .getByRole("checkbox")
+        .filter({ hasText: option.label })
+        .first()
+        .click();
+      // The URL commits with the navigation while the panel repaints instantly
+      // from the optimistic overlay, so waiting on the tick alone would read a
+      // stale URL.
+      await expect
+        .poll(() => employmentCodes(page))
+        .toContain(option.id);
+    }
+
+    const before = employmentCodes(page);
+    expect(before).toHaveLength(3);
     expect(await tickedLabels(page)).toHaveLength(3);
     const beforeSearch = new URL(page.url()).search;
 
-    // The property the URL contract delivers, asserted where it matters rather
-    // than assumed from the unit suite: the state we LEAVE and the state we go TO
-    // must not share a cache key. Under the repeated form these were equal, the
-    // navigation was served from cache, and the page never re-rendered.
-    const targetSearch = `?employmentType=${[EMPLOYMENT_B.id, EMPLOYMENT_C.id].join(SEPARATOR)}`;
-    expect(
-      collapse(targetSearch),
-      "the two states must not share a router cache key — if they do, the axis serialisation has regressed to the repeated form"
-    ).not.toBe(collapse(beforeSearch));
-
     // Untick the value that is FIRST in the URL — precisely the transition that
     // collided, because removing it leaves the LAST value unchanged.
+    const firstInUrl = [EMPLOYMENT_A, EMPLOYMENT_B, EMPLOYMENT_C].find(
+      (o) => o.id === before[0]
+    )!;
     await page
       .getByRole("checkbox")
-      .filter({ hasText: EMPLOYMENT_A.label })
+      .filter({ hasText: firstInUrl.label })
       .first()
       .click();
 
-    // The URL moves — polled, because it commits with the navigation while the
-    // panel repaints instantly from the optimistic overlay.
-    await expect.poll(() => employmentCodes(page)).toEqual([
-      EMPLOYMENT_B.id,
-      EMPLOYMENT_C.id,
-    ]);
-    // ...and so does the PAGE. With the defect the panel stayed on three ticks
+    await expect.poll(() => employmentCodes(page).length).toBe(2);
+    const afterSearch = new URL(page.url()).search;
+
+    // The property the URL contract delivers, asserted on the two states the APP
+    // produced rather than on strings this test composed: the state we left and
+    // the state we went to must not share a router cache key. Under the repeated
+    // form these collapsed to the same key, the navigation was served from cache,
+    // and the page never re-rendered.
+    expect(
+      collapse(afterSearch),
+      "the two states share a router cache key — the axis serialisation has regressed to the repeated form"
+    ).not.toBe(collapse(beforeSearch));
+
+    // ...and the PAGE moved too. With the defect the panel stayed on three ticks
     // and STAYED there, so this is what separates "the URL changed" from "the
     // filter applied".
     await expect.poll(async () => (await tickedLabels(page)).length).toBe(2);

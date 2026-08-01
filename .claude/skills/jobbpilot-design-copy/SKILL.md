@@ -90,7 +90,8 @@ civic-utility-regeln "information är design" (se `jobbpilot-design-principles`)
 | Kategori | Korrekt | Fel |
 |---|---|---|
 | Datum kort | 14 apr 2026 | 14/4/26, 4/14/2026 |
-| Datum långt | 14 april 2026 | April 14, 2026 |
+| Datum lång månad | 18 maj | 18:e maj, May 18 |
+| Månadsetikett | maj 2026 | Maj 2026, 2026-05 |
 | Datum ISO | 2026-04-14 | 14-04-2026 |
 | Tid | 14:32 | 2:32 PM, 14.32 |
 | Valuta | 33 456 kr | 33,456 SEK, 33456 kr |
@@ -101,7 +102,9 @@ civic-utility-regeln "information är design" (se `jobbpilot-design-principles`)
 
 Implementation:
 - Datum/tid/tal: `@/lib/i18n/format` — next-intl är formaterings-auktoriteten och
-  löser zon och locale deterministiskt över SSR och klient.
+  löser zon och locale deterministiskt över SSR och klient. **Formateraren är
+  första argumentet** (`useFormatter()`, eller `await getFormatter()` i en async
+  Server Component).
 - Relativa tider: `@/lib/i18n/relative-time` — ordvalet resolvas via `messages/sv/`,
   inte i hjälparen.
 - Valuta: ingen hjälpare, för ingen produktyta formaterar valuta i dag.

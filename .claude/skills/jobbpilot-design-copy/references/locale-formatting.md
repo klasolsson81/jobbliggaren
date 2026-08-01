@@ -13,12 +13,20 @@ rendered date from drifting between server and browser. Do not reach past it to
 `toLocaleString` or a fresh `Intl.DateTimeFormat` / `Intl.NumberFormat`, and do not
 write the timezone yourself (see §Timezone).
 
-Two sanctioned exceptions exist, both because the value is **not** a localized
-presentation, and both name the zone explicitly for that reason:
-`aktivitetsrapport`'s locale-independent `YYYY-MM-DD` (the form-ready value for
-Arbetsförmedlingen, which must not change with UI language) and
-`swedish-calendar.ts`, which has no next-intl configuration to inherit. Do not
-extend the list — and note that no lint rule guards it, unlike the zone literal.
+**The exception is a criterion, not a list.** Reaching past next-intl is legitimate
+where the value is **not a localized presentation** — a form-ready or operator value
+that must read identically whatever the UI language is — and such code names the
+zone explicitly, precisely because it has no next-intl configuration to inherit.
+Code meeting that test today: `aktivitetsrapport`'s locale-independent `YYYY-MM-DD`
+(the form-ready value for Arbetsförmedlingen), `swedish-calendar.ts`, and
+`audit-log-table.tsx`'s local formatter, which needs a seconds column the shared
+`formatDateTime` does not produce.
+
+Those are examples, not the population — the criterion is what holds, and an
+enumeration is what goes stale. Code **failing** the test is drift, not an
+exception: `match-setup-rail-modal.tsx`'s `new Intl.NumberFormat("sv-SE")` formats
+an ordinary counter and should call `formatNumber`. Convert such sites when you are
+in the file anyway. **No lint rule guards any of this**, unlike the zone literal.
 
 ---
 
@@ -31,8 +39,17 @@ month and weekday arrays, outside next-intl — including
 `formatSwedishShortDateWithYear`, which produces the same shape as the Short row
 below, and returns an en-dash rather than `null` for bad input. `lib/time/swedish-calendar.ts`
 (calendar facts) and `lib/company-criteria/format-magnitude.ts` (counts, not currency)
-are further homes. **Consolidating those is not this file's business, but pretending
-they do not exist would repeat, inverted, the defect this file was rewritten for.**
+are further homes.
+
+**And one is a name collision, which is the shape the tombstone below calls the
+worst of all:** `admin/granskning/audit-log-table.tsx` declares a local
+`formatDateTime(iso: string)` that shadows the shared `formatDateTime(format, iso)`
+— different first argument, `toLocaleString` instead of next-intl, and seconds where
+the ledger row has none. It is legitimate (see the criterion above); it is also
+exactly the trap a reader hits when the two names mean different things.
+
+**Consolidating any of this is not this file's business, but pretending it does not
+exist would repeat, inverted, the defect this file was rewritten for.**
 
 Signatures are given below so a caller knows what to pass; bodies are not
 reproduced, because an example that points at a module ages visibly when the module
@@ -62,8 +79,9 @@ formatNumber(format, 1234);                       // "1 234" in sv (NBSP), "1,23
 **The two contracts differ, and the difference type-errors.** `formatDate` and
 `formatDateTime` take `string | null | undefined` and return `null` for missing or
 unparseable input, so a caller can omit the row rather than render "Invalid Date".
-`formatTime` takes a known-good `Date` and is non-nullable — every real call site
-wraps with `new Date(...)`.
+`formatTime` takes a known-good `Date` and is non-nullable. Call sites either hold a
+`Date` in state already or wrap an ISO string once; the helper does neither for you,
+and the null guard is yours.
 
 `formatDateTime` is deliberately **locale-stable**: `YYYY-MM-DD HH:mm` is a fixed
 operator convention for admin tables where rows must align column-wise, not a
@@ -94,9 +112,14 @@ These are CLAUDE.md §10, and they hold regardless of which module implements th
 
 ### Dates
 
+**Normative for new code, not an inventory of the tree.** Reach for the nearest row;
+do not read the absence of a shape as a ban on one that already ships.
+
 | Shape | Example | Where |
 |---|---|---|
 | Short | `18 maj 2026` | anything a job seeker reads |
+| Short, no year | `13 maj` | same-season contexts where the year adds nothing |
+| Weekday | `lördag` | "today" surfaces |
 | ISO date | `2026-05-11` | form-ready values, exports, copyable fields |
 | Ledger | `2026-05-11 10:32` | admin tables whose rows must align column-wise |
 | Month label | `maj 2026` | month pickers, period headings |
@@ -104,17 +127,26 @@ These are CLAUDE.md §10, and they hold regardless of which module implements th
 Never `05/18/2026`, never `May 18, 2026` in Swedish copy. The ISO date and the
 ledger shape are different rows on purpose: a form-ready value carries no time.
 
+Two shipped variants sit deliberately outside these rows, and neither is a licence
+to invent a third: `audit-log-table`'s ledger carries **seconds**, and
+`aggregations.ts`'s notices stamp renders `2026-05-11 · 10:32` in **UTC**, with a
+middle dot, which its own doc comment argues for.
+
 ### Time
 
 24-hour, colon-separated: `14:32`. Never `2:32 PM`, never `14.32`.
 
 **Bound to a date with `kl.`** — with the full stop, and a comma before it:
-`18 maj 2026, kl. 14:32`, `i dag, kl. 14:32`. Never `kl` bare, never `klockan`.
-This is the form `messages/sv/jobads.json` ships (`ui.card.published*`).
+`18 maj 2026, kl. 14:32`. That connector is `messages/sv/jobads.json`
+(`ui.card.published*`). Never `kl` bare, never `klockan`, which appears nowhere in
+`messages/sv/`.
 
-**`i dag` / `i går`, spaced.** That is the majority form in `messages/sv/` and it
-matches `relative-time.ts`. `jobads.json` still ships the closed `idag`/`igår` in
-its published-labels — a divergence worth its own PR, not a licence to pick either.
+**`i dag` / `i går`, spaced.** The majority form in `messages/sv/`, and it matches
+`relative-time.ts`. The closed `idag`/`igår` still ships in three files —
+`jobads.json`, `common.json` and `landing.json` — a divergence worth its own PR, and
+not a licence to pick either. Note the consequence for the row above: the connector
+example `i dag, kl. 14:32` is the form to write, not a string `jobads.json` currently
+sends, since its own label is closed.
 
 ### Currency
 
@@ -132,8 +164,8 @@ Grouping is a non-breaking space: `12 345`, never `12,345` and never `12.345`.
 
 The grouping space in every example on this page is written with an ordinary space,
 because a literal U+00A0 is invisible in a diff and in review. The character
-`formatNumber` actually emits is U+00A0 — its own suite asserts the output does
-**not** contain an ASCII space, and binds the real character to a named `NBSP`
+`formatNumber` actually emits is U+00A0 — its sv grouping test asserts the output
+does **not** contain an ASCII space, and binds the real character to a named `NBSP`
 constant rather than scattering it through the assertions. Do the same if you need
 it: name it once.
 
@@ -194,12 +226,13 @@ Never store local time in DB. Never assume client timezone == Stockholm.
 > what produced a §12 *non-BUILD.md library* change. That BUILD.md lists a package
 > nobody installed is a real drift this rewrite uncovered, and its own follow-up.
 >
-> The names below are the thirteen this section carried; `formatPercent` made
+> The names above are the thirteen this section carried; `formatPercent` made
 > **fourteen** in the same guide, and has its own note above.
 >
-> Of the thirteen, **eleven appear nowhere in `src/`** — and the other two,
-> `formatTime` and `formatDateTime`, are the worst shape of all: they collide with
-> real exports of `src/lib/i18n/format.ts` that take a **different first argument**.
+> Of the thirteen, **eleven appear nowhere in `web/jobbliggaren-web/src/`** — and the
+> other two, `formatTime` and `formatDateTime`, are the worst shape of all: they
+> collide with real exports of `web/jobbliggaren-web/src/lib/i18n/format.ts` that take
+> a **different first argument**.
 > A reader who trusted the old page wrote a call that type-errors; one who trusted
 > it harder installed a library the repo does not use.
 >

@@ -82,16 +82,29 @@ export function ActivityReportView({
   // mouse no longer navigates on the click, it navigates when focus leaves.
   const [pendingMonth, setPendingMonth] = useState(selectedMonth);
   const [syncedMonth, setSyncedMonth] = useState(selectedMonth);
+  const [announcement, setAnnouncement] = useState("");
 
   // Adjusting state when a prop changes, in React's documented render-phase form
   // rather than an effect. It is load-bearing, not tidiness: once the value is
   // local, a month arriving from the server (a committed navigation, the back
   // button, a bookmarked `?month=`) would otherwise leave the control showing one
   // month while the report below it lists another.
+  //
+  // It is also the honest anchor for the announcement: this branch fires when the
+  // new month ARRIVED, not when the navigation started, and it does not fire on
+  // first mount because `syncedMonth` initialises to `selectedMonth`. Back button
+  // and deep link come along for free.
   if (selectedMonth !== syncedMonth) {
     setSyncedMonth(selectedMonth);
     setPendingMonth(selectedMonth);
+    setAnnouncement(t("month.announced", { month: monthLabel }));
   }
+
+  // The draft the user is holding, and the reason the two lines below exist. Once
+  // the commit stopped being implicit, everything rests on saying so — and a
+  // static sentence describing what WILL happen can never say that you are
+  // standing in it right now.
+  const monthDraftPending = pendingMonth !== selectedMonth;
 
   function commitMonth(month: string) {
     // Guarded so leaving the field untouched is not a navigation. Without it,
@@ -102,9 +115,14 @@ export function ActivityReportView({
 
   function handleMonthKeyDown(event: React.KeyboardEvent<HTMLSelectElement>) {
     if (event.key !== "Enter") return;
-    // There is no form here, so Enter has no default to speak of; prevented
-    // anyway so wrapping this card in one later cannot turn it into a submit.
-    event.preventDefault();
+    // No preventDefault. An earlier version called it here as insurance against
+    // a <form> that does not exist, and code-reviewer measured the price of that
+    // insurance: Firefox dispatches keydown to a <select> while its native popup
+    // is open (Chrome does not), so suppressing Enter's default there can
+    // suppress the popup's own "commit the highlighted option" — on the very key
+    // this feature now hangs on. There is no form to submit today, so there is no
+    // default to prevent; the change that adds one is the change that carries its
+    // own guard.
     commitMonth(pendingMonth);
   }
 
@@ -122,7 +140,15 @@ export function ActivityReportView({
             id="aktivitetsrapport-month"
             className="jp-input"
             value={pendingMonth}
-            aria-describedby="aktivitetsrapport-month-hint"
+            // The hint is unconditional; the pending line joins the description
+            // only while it carries text, or an empty description would be
+            // announced as part of the field forever (the form
+            // `foretag-sok-searchbar` settled on in its own round 2).
+            aria-describedby={
+              monthDraftPending
+                ? "aktivitetsrapport-month-hint aktivitetsrapport-month-pending"
+                : "aktivitetsrapport-month-hint"
+            }
             onChange={(event) => setPendingMonth(event.target.value)}
             onKeyDown={handleMonthKeyDown}
             onBlur={() => commitMonth(pendingMonth)}
@@ -140,6 +166,28 @@ export function ActivityReportView({
             className="text-body-sm leading-5 text-text-primary"
           >
             {t("month.hint")}
+          </p>
+          {/* Draft-vs-applied honesty, inside the field it is about. The hint
+              above says what WILL happen and is equally true before and after the
+              act, so it can never say "you are standing in it now" — that is this
+              line's whole job, and without it the control can read "april 2026"
+              while the counter and the cards below say maj.
+
+              ALWAYS rendered with its height reserved (`min-h-5`), never
+              conditionally mounted: toggling the node would shift the counter, the
+              CTA and every card under it. `/foretag/sok` measured that same defect
+              at 26 px and paid the same permanent cost for the same reason.
+
+              NO `aria-live`, deliberately, and for the reason written out on that
+              surface: this is a standing STATE, not an event. A live region here
+              would announce on every arrow key — the same defect shape this PR
+              removes. `aria-describedby` is the mechanism for a standing
+              description. */}
+          <p
+            id="aktivitetsrapport-month-pending"
+            className="min-h-5 text-body-sm leading-5 text-text-primary"
+          >
+            {monthDraftPending ? t("month.pending", { month: monthLabel }) : ""}
           </p>
         </div>
 
@@ -206,6 +254,26 @@ export function ActivityReportView({
           )}
         </div>
       )}
+
+      {/* Says that the month CHANGED. Next's route announcer is keyed on
+          pathname, so a `?month=` swap never reaches it, and this PR widens the
+          gap on purpose: the commit now happens AFTER focus has left the picker,
+          so a screen-reader user is standing on the next control when everything
+          below it is replaced in silence. Copying one FIELD already announces
+          (`copy-button.tsx`); replacing the whole report did not.
+
+          Persistent and mounted empty at first paint — a live region that appears
+          together with its content is the trap that makes announcements
+          unreliable. It carries the MONTH and never the count: a screen reader
+          would otherwise hear a number for a list it has not reached yet. */}
+      <p
+        id="aktivitetsrapport-month-announcer"
+        role="status"
+        aria-live="polite"
+        className="sr-only"
+      >
+        {announcement}
+      </p>
     </div>
   );
 }

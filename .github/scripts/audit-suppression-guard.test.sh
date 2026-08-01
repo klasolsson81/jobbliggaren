@@ -828,8 +828,8 @@ z1_rc=$?
 [ "$z1_rc" -eq 2 ] && ok "Z1 a missing required argument fails loudly" \
                    || bad "Z1 a missing required argument fails loudly" "exit=$z1_rc"
 expect_has "Z1b and it is the usage error, not a readability error" "$z1_out" "--audit-prod-json F"
-# Z1c — an unknown flag is a usage error too, and nothing measured it.
-# Z1c — under `timeout`, like Z2: removing the `*)` arm makes the same `while`/`case`
+# Z1c — an unknown flag is a usage error too, and nothing measured it. Run it under
+#       `timeout`, like Z2: removing the `*)` arm makes the same `while`/`case`
 #       spin forever, so an unguarded call here would hang the suite rather than fail it.
 timeout 10 bash "$GUARD" --package-json "$TMP/r0.pkg.json" --audit-json "$TMP/r.audit.json" \
      --audit-prod-json "$TMP/r.audit.json" --lockfile "$TMP/lock.yaml" --nonsense x >/dev/null 2>&1
@@ -853,12 +853,19 @@ cat > "$TMP/z3.pkg.json" <<'J'
 J
 out="$(run "$TMP/z3.pkg.json" "$TMP/a.audit.json" "$TMP/lock.yaml")"
 expect_has "Z3 a GHSA prefix does not match the full advisory id" "$out" "STALE SUPPRESSION"
-# Z3b — the SAME comparison exists twice, and Z3 covers only the full-audit read. A
-#       prefix slide on the --prod read fabricates OVER-BROAD SUPPRESSION, on the
-#       check this guard's header calls the dangerous one. Reachable only past a
-#       healthy full read, so it needs its own inputs: the accepted id matches the
-#       full set EXACTLY, and the --prod set holds a longer id that merely starts
-#       with it.
+# Z3b — the OPPOSITE slide direction from Z3, on the full-audit read. Z3 pins that a
+#       shorter accepted id does not match a longer advisory; this pins that a LONGER
+#       one does not either. Both mutants die separately, measured.
+#
+#       AND THE --prod READ'S COMPARISON IS DECLARED UNPINNABLE. An earlier version of
+#       this comment claimed Z3b covered it; it does not — these inputs make the full
+#       read report STALE and `continue`, so line 360 never executes, and Z3b2 cannot
+#       fall on its account. Nor can any producible fixture reach it: getting there
+#       needs an exact match on the full read AND a non-exact prefix pair on the
+#       --prod side, and since `--prod` is a subset of full and every id pnpm emits is
+#       19 characters, that pair requires a fabricated advisory id — the §5 `Tests:`
+#       violation this fixture was rewritten to remove. Declared unreachable per §5
+#       rather than asserted covered, which is the same disposition F1 got.
 #       WHICH SIDE CAN ACTUALLY BE LONGER decides what this fixture may assert. The
 #       first version fed the --prod set `GHSA-aaaa-aaaa-aaaa-extra`, i.e. an ADVISORY
 #       id strictly extending the accepted one. pnpm cannot emit that: every id in
@@ -904,8 +911,12 @@ expect_lacks "Z5 a header-only lockfile is NOT caught by the shape contract" "$o
 # Z5b pins a FALSE warning rather than safe degradation, so name the producer: an
 # interrupted or partially-written `pnpm-lock.yaml`. And name why the residual is
 # tolerable rather than merely accepted — such a lockfile fails
-# `pnpm install --frozen-lockfile` in the REQUIRED `frontend` job, so CI is already
-# red before observe-only `audit` runs. The noise exists; it is not reachable green.
+# `pnpm install --frozen-lockfile` — in `audit`'s OWN install step, which precedes
+# this guard and aborts the job when it fails, and in the required `frontend` job,
+# which reddens `ci`. (Not "before `audit` runs": `audit` has no `needs:` and starts
+# in parallel. The guard script carries the same correction; an earlier version of
+# this line kept the retired wording while the script retired it, in one commit.)
+# The noise exists; it is not reachable green.
 expect_has   "Z5b and still produces a false DEAD OVERRIDE, as declared"     "$out" "DEAD OVERRIDE"
 
 echo

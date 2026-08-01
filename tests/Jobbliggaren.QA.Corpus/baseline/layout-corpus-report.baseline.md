@@ -245,14 +245,23 @@ promoted company or institution value; `In section span` asks whether it appears
 inside the promoted section. `RetainedButOrphaned` means only that the first is `no`, and
 it covers two different things:
 
-- both `no` — the marker is genuinely GONE. This is the silent loss the corpus exists to
-  expose: the product said the CV was saved and this employment is not in it.
+- both `no` **on a row that promoted** — the marker is genuinely GONE. This is the
+  silent loss the corpus exists to expose. On a row that did NOT promote, both are
+  `no` by construction and mean nothing: the verdict there is `RetainedNotPromoted`.
 - `structural no` + `span yes` — the marker is THERE but not as the field it names. Two
   measured causes: fused into another value (`pdf-zero-xgap-concat`, true in this file
   before β-1) and sitting in the other slot (`docx-company-first-header`, β-1).
 
 Rows carrying identical cells with opposite verdicts were how the missing column showed
 itself; this preamble used to state the first case as though it were the only one.
+
+**And the column did NOT end that pattern — say so rather than imply it.** `Decide` reads
+more inputs than this table renders: `promoted` and `promoteFaulted` are verdict inputs
+too. So the signature `yes | yes | no | no | —` still carries two verdicts —
+`RetainedButOrphaned` where the CV promoted, `RetainedNotPromoted` where it did not.
+That collision is not the same defect as the one this column closed, and the difference
+is the whole point: the structural half had NO published home, while promote/blocked is
+published one table up, per case, in §2's fidelity verdict. Resolve it there.
 
 | Case | Kind | Marker | In bytes | In parsed artifact | Structural field | In section span | Found in other section | Verdict |
 |---|---|---|---|---|---|---|---|---|
@@ -1003,6 +1012,12 @@ permitted to differ is the detected language.
   fact, not a header-order fact, which #1060 β-1's role-first control arm separated. Not
   fixed there: its blast radius is every row in this table, so it would have made that
   PR's diff unattributable. Named so a promoting row is not read as a recovered one.
+- **`RetainedButOrphaned` conflates three realities — gone, fused, and wrong-slot —
+  and that is deliberate.** A finer verdict would have to name WHICH field holds the
+  marker, and §3 publishes no promoted field values, so the label could not be cited
+  from anything this report prints (CLAUDE.md §5: no verdict without cited evidence).
+  The two rendered halves are the discriminator; revisit if an arm ever publishes
+  promoted field values.
 - **No arm authors a `"Company, City"` field line.** `TitleOrgSeparators` includes
   `", "`, so such a line splits into (Company, City) and the city lands in the employer
   slot. **State the population, because it is not uniform:** on a row whose field-bearing

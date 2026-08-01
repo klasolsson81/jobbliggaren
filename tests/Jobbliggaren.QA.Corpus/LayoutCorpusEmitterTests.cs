@@ -949,8 +949,12 @@ public sealed class LayoutCorpusEmitterTests
 /// <c>LayoutCorpusReportTests</c> in the previous PR: a by-name reader across a boundary, guarded
 /// on one side only, is not guarded.</para>
 ///
-/// <para>These are corpus-machinery asserts (category (b)): nothing in <c>src/</c> can move them,
-/// because both fixtures are built here from domain constructors, not from a parse.</para>
+/// <para>Category (b) — but on a NARROWER ground than "nothing in <c>src/</c> can move them",
+/// which is false: <c>ResumeContentLinearizer</c> writes <c>{ e.Role, e.Company }</c>, so dropping
+/// <c>e.Company</c> there reddens the survived case. The correct ground is that these fixtures are
+/// built from domain constructors rather than from a parse, so no PARSE outcome and no gate verdict
+/// is asserted — the chain is not run. A justification that claims more than it holds is the defect
+/// this PR has been repairing all round.</para>
 /// </summary>
 public class MarkerTracerDiscriminatorTests
 {
@@ -993,6 +997,26 @@ public class MarkerTracerDiscriminatorTests
         trace.Verdict.ShouldBe(MarkerVerdict.RetainedButOrphaned);
     }
 
+    [Fact]
+    public void Trace_WhenTheEmployerIsFusedIntoTheCompanyValue_IsNotStructural_ThoughStillInSpan()
+    {
+        // The FUSION form, and it is not decoration: it is the one the other three do NOT cover.
+        // pdf-zero-xgap-concat concatenates a right-aligned period cell into a left-aligned company
+        // cell, so the promoted Company CONTAINS the employer without BEING it. That row has been
+        // in the committed baseline since before #1060 β-1.
+        //
+        // It is the mutation the swapped-slot case cannot catch. Widen the structural test from
+        // string.Equals to e.Company.Contains(marker) and: the survived case stays green (it always
+        // contained it), the absent case stays green ("Volvo Cars" does not contain "Acme AB"), and
+        // the swapped case stays green too ("Operatör" does not contain it) — while THIS row flips
+        // to a false Survived. Only this fixture holds the exact-equality contract.
+        var trace = TraceEmployer(company: "2026Systemutvecklare - Acme AB", role: "2021");
+
+        trace.IsPromotedStructuralField.ShouldBeFalse();
+        trace.InPromotedSectionSpan.ShouldBeTrue();
+        trace.Verdict.ShouldBe(MarkerVerdict.RetainedButOrphaned);
+    }
+
     private static MarkerTrace TraceEmployer(string company, string role)
     {
         var content = new ResumeContent(
@@ -1018,5 +1042,48 @@ public class MarkerTracerDiscriminatorTests
     private sealed class FixedClock : Jobbliggaren.Domain.Common.IDateTimeProvider
     {
         public DateTimeOffset UtcNow { get; } = new(2026, 8, 1, 12, 0, 0, TimeSpan.Zero);
+    }
+}
+
+/// <summary>
+/// The committed baseline's hand-written header must terminate its HTML comment. Category (b):
+/// it asserts nothing the production chain produces — the emitter does not write that block at
+/// all — and no measured value is involved, so the observe-only rule and the §2.5 ratchet
+/// discipline are untouched. What it guards is document INTEGRITY, which the header's own
+/// "NO AUTOMATED GUARD EXISTS DELIBERATELY" paragraph was never about: that refusal is reasoned
+/// against asserting counts and gate verdicts.
+///
+/// <para>Measured 2026-07-28: unterminated, GitHub rendered the whole file as 0 bytes, no headings
+/// and no tables — "a blank page for its whole life". Measured again 2026-08-01: a splice that
+/// hard-coded a line count, in the same commit that grew the header by two lines, cut the
+/// terminator off a second time. It was caught by a reviewer reading the diff, which is exactly
+/// what the header two paragraphs up says not to rely on. A defect that has recurred twice with no
+/// automatic detector gets one.</para>
+/// </summary>
+public sealed class CommittedBaselineIntegrityTests
+{
+    [Fact]
+    public void CommittedBaseline_TerminatesItsHeaderComment()
+    {
+        var path = Path.Combine(
+            AppContext.BaseDirectory, "..", "..", "..",
+            "baseline", "layout-corpus-report.baseline.md");
+
+        File.Exists(path).ShouldBeTrue($"INSTRUMENT: cannot find the committed baseline at {path}");
+
+        var lines = File.ReadAllLines(path);
+        lines.Any(l => l.Trim() == "-->").ShouldBeTrue(
+            "the committed baseline's hand-written header opens an HTML comment on line 1 and must "
+            + "close it with a STANDALONE `-->` line. Without one, CommonMark runs the comment to "
+            + "end of document and GitHub renders the file blank — measured twice. The emitter does "
+            + "not write this block, so regenerating does NOT restore it: fix the splice.");
+
+        // The terminator must also come BEFORE the document heading, or the heading is inside the
+        // comment and the assert above would pass on a file that still renders wrong.
+        var terminator = Array.FindIndex(lines, l => l.Trim() == "-->");
+        var heading = Array.FindIndex(lines, l => l.StartsWith("# ", StringComparison.Ordinal));
+        heading.ShouldBeGreaterThan(terminator,
+            "the standalone `-->` must precede the document's H1; otherwise the heading is still "
+            + "inside the header comment.");
     }
 }

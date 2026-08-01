@@ -29,19 +29,22 @@ public enum MarkerVerdict
     /// <summary>The CV PROMOTED and the marker is in the promoted CV's own section. Survived.</summary>
     Survived,
 
-    /// <summary>The CV PROMOTED and the marker is NOT a promoted company/institution field. That
-    /// is all this member asserts, and it deliberately does NOT distinguish two cases the corpus
-    /// has now measured both of:
+    /// <summary>The CV PROMOTED, the marker is NOT a promoted company/institution field, AND it
+    /// was not found in some other section — that last conjunct matters, because a marker found
+    /// elsewhere gets <see cref="AbsorbedIntoOtherSection"/> instead. Within those bounds the
+    /// member deliberately does NOT distinguish two cases the corpus has measured both of:
     /// <list type="bullet">
     /// <item>the marker is genuinely gone — the silent loss this corpus exists to expose;</item>
     /// <item>the marker is PRESENT inside the promoted section but not as the field it names —
     /// fused into another value (`pdf-zero-xgap-concat`, in the baseline since before #1060 β-1)
     /// or sitting in the other slot (`docx-company-first-header`, β-1).</item>
     /// </list>
-    /// <para>The two rendered halves are what tell them apart: `In promoted section (span)` yes
-    /// with `Promoted structural field` no is the second case. An earlier revision of this summary
-    /// said "nowhere in the promoted CV … this employment is gone", which was false for every such
-    /// row — and was false in the tree before β-1, not because of it.</para></summary>
+    /// <para>The two rendered halves tell them apart: span yes with structural no is the second
+    /// case. <b>The canonical account is §3's own preamble</b> in <c>LayoutCorpusReport</c> — it is
+    /// generated, it is what a reader actually reads, and a full enumeration in three places is
+    /// three homes for one knowledge piece. An earlier revision here said "nowhere in the promoted
+    /// CV … this employment is gone", which was false for every such row, and was false in the tree
+    /// before β-1 rather than because of it.</para></summary>
     RetainedButOrphaned,
 
     /// <summary>The CV promoted and the marker IS in the promoted CV, but in the wrong section —

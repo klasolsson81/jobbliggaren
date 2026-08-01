@@ -103,27 +103,60 @@ const SERVER_ACTION_RESTRICTIONS = [
   { selector: `${USE_SERVER_MODULE} > ExportAllDeclaration`, message: E352_MSG },
 ];
 
-// ── Timezone SSOT (#1141 follow-up) ────────────────────────────────────────
+// ── Timezone SSOT (#1141 follow-up, #1148) ─────────────────────────────────
 // `SWEDISH_TIME_ZONE` is the one name for the product's home zone. Its doc used
-// to ENUMERATE where the raw literal still lived, which made removing a site
-// falsify the doc — and the enumeration carried an explicit standing order to
-// re-measure it by hand. This rule replaces the count with a gate: product code
-// cannot write the literal at all, so "the only production sites are the
-// declarations" asserts itself instead of being counted.
+// to ENUMERATE where the raw literal still lived, and carried a standing order to
+// re-measure that paragraph by hand — so removing a site falsified the doc. This
+// rule replaces the count with a gate: the literal written as a value under
+// `src/` fails lint, in pre-commit and in CI.
 //
-// The selector matches the literal used as a VALUE, and that is the entire
-// population definition — it needs no second normaliser. A comment, or a test
-// name reading "formats … in Europe/Stockholm", is not a Literal whose value
-// EQUALS the zone, so neither can match. The prose rule needed a separate clause
+// The selector matches any string `Literal` whose value IS the zone, in any
+// position, and that is the whole population definition — it needs no second
+// normaliser. A comment is not an AST node at all, and a test name reading
+// "formats … in Europe/Stockholm" is not a Literal whose value EQUALS the zone,
+// so neither can match. The prose version of this rule needed a separate clause
 // to exclude test names, which are themselves quoted string tokens, and a rule
 // that needs two normalisers is two rules.
+//
+// Value-equality also reads the PARSED value, which a text match could not:
+// "Europe/Stockholm" is caught. It is deliberately NOT case-insensitive and
+// not concatenation-aware. Both evade it — and `"europe/stockholm"` is working
+// code, because Intl canonicalises IANA ids case-insensitively — but closing
+// either one means adding the second normaliser back.
 const ZONE_MSG =
-  'The raw zone literal is forbidden in product code. Import SWEDISH_TIME_ZONE from "@/lib/time/swedish-calendar" — one name, one place to change it. Exempt, in eslint.config.mjs and nowhere else: src/i18n/request.ts (the primary declaration of the global next-intl pin) and swedish-calendar.ts (the constant itself), plus test code, which must keep writing the literal — a test that imports the constant cannot catch a mutation OF the constant.';
+  'The raw zone literal is forbidden in product code. Import SWEDISH_TIME_ZONE from "@/lib/time/swedish-calendar" — one name, one place to change it. The exemptions are the `files` list of the block that subtracts ZONE, below; this message does not restate them, because a second copy is a second thing to keep true. If you are writing a TEST, you are exempt already and should not silence this by importing the constant: a test that imports it cannot catch a mutation OF it.';
 
 const ZONE_RESTRICTIONS = [
   { selector: 'Literal[value="Europe/Stockholm"]', message: ZONE_MSG },
   { selector: 'TemplateElement[value.cooked="Europe/Stockholm"]', message: ZONE_MSG },
 ];
+
+// ── Composition: every block subtracts, none enumerates ────────────────────
+// Three blocks that each listed their INCLUSIONS would be an enumeration, and a
+// group added to only some of them narrows silently — the defect class this file
+// already names for path globs (SERVER_ACTION, above). With `allExcept`, a NEW
+// group reaches every block by construction, and adding it here is the only way
+// to add it anywhere.
+const ALL_GROUPS = {
+  COPY: COPY_RESTRICTIONS,
+  TYPOGRAPHY: TYPOGRAPHY_RESTRICTIONS,
+  MUTED: MUTED_RESTRICTIONS,
+  SERVER_ACTION: SERVER_ACTION_RESTRICTIONS,
+  ZONE: ZONE_RESTRICTIONS,
+};
+
+const allExcept = (...exempt) =>
+  Object.entries(ALL_GROUPS)
+    .filter(([name]) => !exempt.includes(name))
+    .flatMap(([, group]) => group);
+
+// Test-hood has ONE definition here, and it is the repo's own: `vitest.config.ts`
+// collects `src/**/*.{test,spec}.{ts,tsx}`. The blocks below ignored `.test` only,
+// so a `.spec` file — a first-class test name in this repo — was linted as product
+// code. For the zone rule that is not merely inconsistent: the message would tell
+// its author to import the constant, which is exactly the change that blinds a
+// test as an oracle.
+const TEST_FILES = ["**/*.{test,spec}.{ts,tsx,js,jsx}"];
 
 const eslintConfig = defineConfig([
   ...nextVitals,
@@ -138,58 +171,44 @@ const eslintConfig = defineConfig([
   ]),
   {
     files: ["src/**/*.{ts,tsx,js,jsx}"],
-    ignores: ["**/*.test.{ts,tsx,js,jsx}", "src/components/ui/**"],
+    ignores: [...TEST_FILES, "src/components/ui/**"],
     rules: {
-      "no-restricted-syntax": [
-        "error",
-        ...COPY_RESTRICTIONS,
-        ...TYPOGRAPHY_RESTRICTIONS,
-        ...MUTED_RESTRICTIONS,
-        ...SERVER_ACTION_RESTRICTIONS,
-        ...ZONE_RESTRICTIONS,
-      ],
+      "no-restricted-syntax": ["error", ...allExcept()],
     },
   },
   // shadcn primitives: same rules EXCEPT text-muted-foreground (the bridge
   // token owns the remap there — CTO D3, #549 WS1).
   {
     files: ["src/components/ui/**/*.{ts,tsx,js,jsx}"],
-    ignores: ["**/*.test.{ts,tsx,js,jsx}"],
+    ignores: TEST_FILES,
     rules: {
-      "no-restricted-syntax": [
-        "error",
-        ...COPY_RESTRICTIONS,
-        ...TYPOGRAPHY_RESTRICTIONS,
-        ...SERVER_ACTION_RESTRICTIONS,
-        ...ZONE_RESTRICTIONS,
-      ],
+      "no-restricted-syntax": ["error", ...allExcept("MUTED")],
     },
   },
-  // The zone's two declarations, and the test harness beside the `.test.*`
-  // files the blocks above already ignore.
+  // The zone's own declarations, plus the test harness — test code that is not
+  // named `*.{test,spec}.*` and so is not covered by the ignores above.
   //
-  // This block re-states the other restriction groups instead of naming only
-  // the zone rule, because ESLint resolves a rule's options LAST-WINS rather
-  // than by concatenation: a block carrying a shorter `no-restricted-syntax`
-  // array would silently switch the copy, typography and `"use server"` guards
-  // OFF for these three paths. The groups are spread, not copied, so a
-  // restriction added above still reaches here. Probe-proved in both
-  // directions — see the PR body.
+  // This block SUBTRACTS the zone rule rather than naming it, because ESLint
+  // resolves a rule's options LAST-WINS rather than by concatenation: a block
+  // carrying a shorter `no-restricted-syntax` array would silently switch the
+  // copy, typography and `"use server"` guards OFF for these paths.
+  //
+  // Do NOT add a path under `src/components/ui/**` here — `allExcept("ZONE")`
+  // includes MUTED, so it would re-enable the muted-foreground ban that the
+  // block above drops on purpose (CTO D3, #549 WS1).
+  //
+  // The guard is one-directional: it fails an ADDED site, and cannot see an
+  // exemption that is no longer needed. Removing the literal from a path listed
+  // here means removing its entry in the same commit. See #1148.
   {
     files: [
       "src/i18n/request.ts",
       "src/lib/time/swedish-calendar.ts",
       "src/test/**/*.{ts,tsx,js,jsx}",
     ],
-    ignores: ["**/*.test.{ts,tsx,js,jsx}"],
+    ignores: TEST_FILES,
     rules: {
-      "no-restricted-syntax": [
-        "error",
-        ...COPY_RESTRICTIONS,
-        ...TYPOGRAPHY_RESTRICTIONS,
-        ...MUTED_RESTRICTIONS,
-        ...SERVER_ACTION_RESTRICTIONS,
-      ],
+      "no-restricted-syntax": ["error", ...allExcept("ZONE")],
     },
   },
 ]);

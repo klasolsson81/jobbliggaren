@@ -327,8 +327,8 @@ public class AutoPromoteGateTests
         // both measured): this closes over TOKENS, not RUNGS. There are FIVE blocking call sites
         // and only FOUR tokens — "pnr on parse" and "pnr in label" both return
         // PersonnummerPresent — so `Distinct()` is unchanged if either of those two fixtures is
-        // removed, and a future FIFTH arm returning an existing token would not redden this
-        // either — a sixth arm returning an existing token is invisible here. What covers that
+        // removed, and a future SIXTH arm returning an existing token would not redden this
+        // either — five blocking call sites exist today, so the next one is the sixth. What covers that
         // is the per-arm expectation in the loop above. What does not exist is a check that the
         // arm COUNT is still five, and the obstacle is not assembly visibility (this project has
         // `InternalsVisibleTo`): call sites are not a runtime surface. A source-text scan could

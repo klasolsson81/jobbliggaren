@@ -18,11 +18,12 @@ namespace Jobbliggaren.QA.Corpus;
 /// <see cref="ReachableGateStates_CoversEveryDeclaredBlockReason"/>, whose subject is the
 /// production enum <c>AutoPromoteBlockReason</c>. It is argued at its own docblock rather than
 /// waved through here, which is the convention <c>LayoutCorpusReportTests</c> already uses for
-/// its own production-touching asserts. (Both places in THIS file said "its four" until
-/// 2026-08-01, when a fifth landed there. That count now has a measured history of being wrong:
-/// "three" after a fourth arrived, "four" as the fifth was added, and FOUR separate homes to keep
-/// in step — two here and two in that file. It is deleted from all four; the (a)-(e) list beside
-/// the asserts is the catalog, and it cannot drift from what it sits on top of.)
+/// its own production-touching asserts. (Both places in THIS file carried that count, and both
+/// were wrong. It has a measured history: it went stale every time an assert was added, it lived
+/// in more places than each sweep for it found — three sweeps returned three different totals —
+/// and the sentence recording the sweep went stale inside this same PR when a further home turned
+/// up. So it is deleted rather than corrected: the (a)-(e) list beside the asserts is the catalog,
+/// and it cannot drift from what it sits on top of.)
 /// Stated at the class level because the earlier version
 /// of this paragraph claimed nothing here could be moved by <c>src/</c>, and that stopped being
 /// true the moment the assert landed.</para>
@@ -917,7 +918,9 @@ public sealed class LayoutCorpusEmitterTests
             //
             // WellFormedLadder is the hardening, not decoration: parameters alone let the NEXT
             // fixture reintroduce the same malformed ladder silently. It makes an incoherent
-            // fixture unconstructible instead of merely currently-absent.
+            // fixture unconstructible THROUGH THIS FACTORY instead of merely currently-absent.
+            // Scoped deliberately: four tests set `Gates` directly with `with`, and one of those
+            // builds an `Unresolved` cell on purpose because its subject IS how that state renders.
             Gates: WellFormedLadder(
                 GateLadder.From(blockReason, promoted, false, pnrOnParse, pnrInLabel), id),
             Markers: [],

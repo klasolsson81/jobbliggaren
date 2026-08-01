@@ -509,8 +509,9 @@ public static class LayoutCorpusReport
     private static string DomainCode(LayoutCaseObservation c) =>
         c.BlockDetailUnreadable ? "**INSTRUMENT: unreadable**"
         // `is not null`, not a Length guard. The claim behind that is scoped to what can be
-        // checked: the codes reachable on this path are the thirty-six literals
-        // `Resume.CreateFromParsed` declares, none of them empty — NOT a repo-wide claim about
+        // checked: the codes reachable on this path are DRAWN FROM the thirty-six literals
+        // `Resume.CreateFromParsed` can return (fewer are actually reachable — the label rung
+        // pre-empts one of them), none of them empty — NOT a repo-wide claim about
         // every DomainError anywhere. Testing for emptiness would map a value that cannot occur
         // onto the same em-dash as a value that legitimately does, inventing a third silent
         // reading of the cell — the collapse BlockDetailUnreadable exists to prevent. No test

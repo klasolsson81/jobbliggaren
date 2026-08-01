@@ -49,8 +49,8 @@ namespace Jobbliggaren.QA.Corpus;
 /// enumerated (a)-(e) beside the asserts themselves, and deliberately NOT counted here or in
 /// <c>LayoutCorpusEmitterTests</c>, which carried the same count twice more. The list sits
 /// directly above the code it describes, so a count beside it is pure redundancy: it went wrong
-/// once already ("three" after a fourth landed) and was stale in four places the moment (e)
-/// landed. The file reached the ADJACENT conclusion for the case count above — "a numeral beside
+/// once already ("three" after a fourth landed), and every sweep for its remaining homes came
+/// back with a different total than the one before. The file reached the ADJACENT conclusion for the case count above — "a numeral beside
 /// a catalog anyone can count needs no such archaeology" — and settled there for a digit because
 /// that catalog lives in another file. This one does not: it lives beside the asserts themselves,
 /// in <c>LayoutCorpus_FromBytes_EmitsReport</c>. One more assert lives in

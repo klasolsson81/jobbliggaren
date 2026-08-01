@@ -293,6 +293,17 @@ printf '{ "dependencies": ' > "$TMP/tpkg.broken.json"
 out="$(run "$TMP/tpkg.broken.json" "$TMP/ok.audit.json" "$TMP/lock.yaml")"
 expect_has  "T-pkg an unparseable manifest is skipped" "$out" "SKIPPED"
 expect_lacks "T-pkg and never reports no findings"     "$out" "no findings"
+# T-pkg cannot fail for the TOP-LEVEL check: a truncated manifest also trips the
+# sub-block assertions further down, so removing the top-level one leaves the suite
+# green (measured). Well-formed JSON that is simply not an object separates them —
+# with the check gone, `null` produced "nothing accepted", "nothing repaired" and
+# "no findings" out of a manifest with no object to read.
+for _shape in 'null' '[]' '123'; do
+  printf '%s\n' "$_shape" > "$TMP/tpkg.shape.json"
+  out="$(run "$TMP/tpkg.shape.json" "$TMP/ok.audit.json" "$TMP/lock.yaml")"
+  expect_has   "T-shape a manifest that is $_shape is skipped"       "$out" "is not a JSON object"
+  expect_lacks "T-shape and $_shape never reports nothing accepted"  "$out" "nothing accepted"
+done
 
 # T8: `{}` is valid JSON but not audit JSON — the case the shape assertion exists
 #     for, since `-r` alone accepts it.
@@ -354,13 +365,17 @@ bash "$GUARD" --package-json "$TMP/nope.json" --audit-json "$TMP/g.audit.json" \
 [ $? -eq 2 ] && ok "I1 an unreadable input fails loudly" || bad "I1 an unreadable input fails loudly" "exit != 2"
 
 # ---------------------------------------------------------------------------
-# J–X: the paths a mutation matrix found unexercised on 2026-08-01. An assertion that
-# a malformed input is SKIPPED passes trivially against a guard that skips
-# everything, so those cases need a counterfactual. J, N, O, Q, R and S carry one
-# inside the block (J0, N2/N3, O3, Q4, R0, S0); K, L, P, U and V rest on controls
-# elsewhere in this file — A4, E3, T2b and the healthy runs above — which is
-# sufficient but is NOT the same as "every block carries its own", as an earlier
-# revision of this line claimed.
+# J–Z: the paths a mutation matrix found unexercised on 2026-08-01. An assertion that
+# a malformed input is SKIPPED passes trivially against a guard that skips everything,
+# so those cases need a counterfactual. Measured against this file as it stands: eight
+# of the fifteen blocks carry an explicitly labelled control of their own — J0, N2/N3,
+# O3, Q4, R0, S0, W0, Y0. The rest rest on controls elsewhere in the file (A4, E3, T2b
+# and the healthy runs above), which is sufficient but is not the same thing.
+#
+# Two earlier versions of this line were both wrong, in opposite directions: the first
+# claimed "every block carries its own", and the correction said "six of eleven" — a
+# count taken before the W and Y blocks it shipped alongside, in the same commit that
+# added them. Re-count against HEAD before editing this sentence.
 mk_lock "  postcss@8.5.24:" "  eslint@9.0.0:"
 
 # J: the advisories shape assertion is about the VALUE, not the key. `has()` is
@@ -418,6 +433,14 @@ printf '{ "advisories": {}, "metadata": { "dependencies": 0 } }\n' > "$TMP/m.pro
 out="$(run "$TMP/a.pkg.json" "$TMP/a.audit.json" "$TMP/lock.yaml" "$TMP/m.prod.json")"
 expect_has   "M1 one-sided metadata is SKIPPED, not a fall-through" "$out" "the partition cannot be verified"
 expect_lacks "M2 and an empty --prod tree never reads as clean"     "$out" "absent from the"
+# M1/M2 use a counter of 0, which also trips the SECOND gate — so removing this
+# skip's `exit 0` leaves them green (measured). A HEALTHY one-sided counter separates
+# the two: nothing else stops the run, and the mutant then prints the disclaimer and
+# the verdict it disclaims in one output.
+printf '{ "advisories": {}, "metadata": { "dependencies": 40 } }\n' > "$TMP/m2.prod.json"
+out="$(run "$TMP/a.pkg.json" "$TMP/a.audit.json" "$TMP/lock.yaml" "$TMP/m2.prod.json")"
+expect_has   "M1b a one-sided counter is SKIPPED even when it is healthy" "$out" "the partition cannot be verified"
+expect_lacks "M1c and nothing after the skip runs"                        "$out" "absent from the"
 
 # N: and with the counter on both sides the comparison must actually happen — in
 #    both polarities, or M1 could be satisfied by a guard that skips unconditionally.
@@ -631,8 +654,12 @@ expect_lacks "X8 and is counted"                                      "$out" "no
 # Y1/Y2 — a non-integer counter. jq's `numbers` admits floats; `[ ]` does not, so both
 #         comparisons errored to stderr and evaluated false, and the guard fell through
 #         to the positive claim.
+#         The full audit must carry the accepted GHSA ALIVE. An empty advisory set
+#         makes it stale, the loop `continue`s, and the positive clamp this case is
+#         about becomes unreachable — so Y1 would pass against a guard with the
+#         integer test removed, for a reason that has nothing to do with counters.
 printf '{ "advisories": {}, "metadata": { "dependencies": 0.5 } }\n'   > "$TMP/y.prod.json"
-printf '{ "advisories": {}, "metadata": { "dependencies": 100.5 } }\n' > "$TMP/y.full.json"
+printf '{ "advisories": { "1": { "github_advisory_id": "GHSA-mh99-v99m-4gvg", "severity": "high" } }, "metadata": { "dependencies": 100.5 } }\n' > "$TMP/y.full.json"
 out="$(run "$TMP/a.pkg.json" "$TMP/y.full.json" "$TMP/lock.yaml" "$TMP/y.prod.json")"
 expect_lacks "Y1 a fractional dependency counter never reaches the positive claim" "$out" "absent from the"
 expect_has   "Y2 it is reported as an unusable partition instead"                  "$out" "not a clean result"
@@ -665,6 +692,47 @@ for _arg in --audit-json --audit-prod-json --lockfile; do
   [ $? -eq 2 ] && ok "Y7 an unreadable $_arg fails loudly" \
                || bad "Y7 an unreadable $_arg fails loudly" "exit != 2"
 done
+
+# Z: the contracts the guard's own header claims but nothing measured.
+# Z1 — "the only non-zero exits are usage errors" was pinned for an unreadable file
+#      (I1, Y7) and not for a MISSING required argument.
+bash "$GUARD" --package-json "$TMP/r0.pkg.json" --audit-json "$TMP/r.audit.json" \
+     --lockfile "$TMP/lock.yaml" >/dev/null 2>&1
+[ $? -eq 2 ] && ok "Z1 a missing required argument fails loudly" \
+             || bad "Z1 a missing required argument fails loudly" "exit != 2"
+# Z2 — a lone trailing flag name used to HANG: `shift 2` with `$#` of 1 shifts nothing
+#      and the loop never ends (measured, rc=124 under timeout). A hang is the one
+#      state this guard cannot report on.
+for _flag in --pnpm-major --workspace-yaml; do
+  timeout 10 bash "$GUARD" --package-json "$TMP/r0.pkg.json" --audit-json "$TMP/r.audit.json" \
+       --audit-prod-json "$TMP/r.audit.json" --lockfile "$TMP/lock.yaml" "$_flag" >/dev/null 2>&1
+  [ $? -eq 2 ] && ok "Z2 a trailing $_flag without a value fails loudly, and does not hang" \
+               || bad "Z2 a trailing $_flag without a value fails loudly, and does not hang" "exit != 2"
+done
+# Z3 — the GHSA comparison must be EQUALITY. Slid to a substring match, a prefix entry
+#      that suppresses nothing would read as live: a false negative on check 1's own
+#      subject, in the direction that hides a stale entry rather than inventing one.
+cat > "$TMP/z3.pkg.json" <<'J'
+{ "dependencies": {}, "devDependencies": {},
+  "pnpm": { "auditConfig": { "ignoreGhsas": ["GHSA-mh99"] } } }
+J
+out="$(run "$TMP/z3.pkg.json" "$TMP/a.audit.json" "$TMP/lock.yaml")"
+expect_has "Z3 a GHSA prefix does not match the full advisory id" "$out" "STALE SUPPRESSION"
+# Z4 — an empty string in the list is skipped rather than matched against everything.
+cat > "$TMP/z4.pkg.json" <<'J'
+{ "dependencies": {}, "devDependencies": {},
+  "pnpm": { "auditConfig": { "ignoreGhsas": ["", "GHSA-mh99-v99m-4gvg"] } } }
+J
+out="$(run "$TMP/z4.pkg.json" "$TMP/a.audit.json" "$TMP/lock.yaml")"
+expect_lacks "Z4 an empty ignoreGhsas entry raises nothing of its own" "$out" "STALE SUPPRESSION: "
+# Z5 — the DECLARED non-catch: `lockfileVersion` is line 1, so truncation from the end
+#      keeps it and the file still yields DEAD OVERRIDE. Pinned so the declaration in
+#      the guard stays true, and so a later content assertion has a case to flip.
+printf "lockfileVersion: '9.0'\n" > "$TMP/z5.lock.yaml"
+out="$(bash "$GUARD" --package-json "$TMP/r0.pkg.json" --audit-json "$TMP/r.audit.json" \
+      --audit-prod-json "$TMP/r.audit.json" --lockfile "$TMP/z5.lock.yaml" --pnpm-major 9 2>&1)"
+expect_lacks "Z5 a header-only lockfile is NOT caught by the shape contract" "$out" "not a pnpm lockfile"
+expect_has   "Z5b and still produces a false DEAD OVERRIDE, as declared"     "$out" "DEAD OVERRIDE"
 
 echo
 echo "audit-suppression-guard fixtures: $PASS passed, $FAIL failed"

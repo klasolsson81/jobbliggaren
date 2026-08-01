@@ -71,6 +71,12 @@ PKG=""; AUDIT=""; AUDIT_PROD=""; LOCK=""; PNPM_MAJOR=""; WS_YAML=""
 # collapsed. See the location section below.
 PNPM_MAJOR_SET=""
 while [ $# -gt 0 ]; do
+  # Every flag below takes a value, so `shift 2` on a lone trailing flag name shifts
+  # NOTHING (bash refuses when `$#` is 1) and the loop spins forever. Measured: rc=124
+  # under `timeout`. Unreachable from build.yml, which always passes pairs, but area 8
+  # prescribes running this by hand — and a hang is the one state the guard cannot
+  # report on, which makes it worse than any wrong answer it could give.
+  [ $# -ge 2 ] || { echo "$USAGE" >&2; exit 2; }
   case "$1" in
     --package-json)    PKG="${2:-}"; shift 2 ;;
     --audit-json)      AUDIT="${2:-}"; shift 2 ;;
@@ -102,7 +108,7 @@ command -v jq >/dev/null 2>&1 || { echo "jq required" >&2; exit 2; }
 # truncated `package.json` produced "nothing accepted", "nothing repaired" and
 # "no findings". Two states, one output — the same laundering, third input.
 if ! jq -e 'type == "object"' "$PKG" >/dev/null 2>&1; then
-  echo "::warning::audit-suppression-guard SKIPPED — $PKG is not parseable JSON, so an empty pnpm block cannot be distinguished from an unreadable one. This is not a clean result."
+  echo "::warning::audit-suppression-guard SKIPPED — $PKG is not a JSON object, so an empty pnpm block cannot be distinguished from an unreadable one. This is not a clean result."
   exit 0
 fi
 # `has("advisories")` was the wrong assertion, and it was wrong in this guard's own
@@ -190,10 +196,18 @@ jq -e '.pnpm.overrides == null or (.pnpm.overrides | type == "object")' "$PKG" >
 jq -e '.pnpm.auditConfig.ignoreGhsas == null or (.pnpm.auditConfig.ignoreGhsas | type == "array")' "$PKG" >/dev/null 2>&1 \
   || skip "\`pnpm.auditConfig.ignoreGhsas\` in $PKG is present but is not an array, so the suppression checks cannot read it and an unreadable list would be indistinguishable from an empty one."
 # The lockfile is the one input with no shape contract at all, and its failure mode is
-# loud rather than silent: an empty or truncated file makes EVERY override key report
-# DEAD OVERRIDE (measured: 8 false alarms against this tree). Fail-closed, but this
-# file's own position is that a false alarm in an observe-only signal is worse than
-# silence, so assert the format's required top-level key before trusting absence.
+# loud rather than silent: an EMPTY file, or a file that is not a lockfile, makes every
+# override key report DEAD OVERRIDE (measured: 8 false alarms against this tree).
+# Fail-closed, but this file's own position is that a false alarm in an observe-only
+# signal is worse than silence, so assert the format's required top-level key.
+#
+# Be exact about what that does NOT cover, since an earlier version of this comment
+# said "empty or truncated" and the check catches only the first: `lockfileVersion` is
+# line 1 of every pnpm lockfile, so ANY truncation from the end keeps it, and a file
+# holding that line alone still produces 8 DEAD OVERRIDE. A content assertion could
+# close it, and is deliberately not added — the failure mode is noise, not a false
+# clean, and a "must contain at least one package entry" rule would itself misfire on
+# a legitimately empty dependency tree. Declared, not overlooked.
 grep -qE "^[[:space:]]*[\"']?lockfileVersion[\"']?[[:space:]]*:" "$LOCK" 2>/dev/null \
   || skip "$LOCK carries no \`lockfileVersion\` key, so it is not a pnpm lockfile this guard can read, and every override key would report as absent from it."
 

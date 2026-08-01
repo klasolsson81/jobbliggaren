@@ -18,13 +18,6 @@ src/Jobbliggaren.Infrastructure/TextAnalysis/english.stop -text
 # (issue #673) — pin them so checkout never converts to CRLF.
 .claude/hooks/*.sh text eol=lf
 
-# Same condition, same reason, second location: the CI scripts run under bash both in
-# Actions and on a developer's Windows machine, and the vuln-gate guard's whole CR
-# story is about a stray `\r` changing a comparison result. Measured 2026-08-01: all
-# eight `.github/scripts/*.sh` are LF in the worktree today, so this pins the state
-# rather than changing it.
-.github/scripts/*.sh text eol=lf
-
 # Same rule, and the same failure, for the scripts CI runs on ubuntu:
 # `is-pure-base-merge.sh` decides in `case` arms whether a push may keep a PR's
 # review gate armed, and a trailing `\r` would make every arm miss. It is

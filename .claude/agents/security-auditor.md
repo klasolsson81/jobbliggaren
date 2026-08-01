@@ -101,15 +101,33 @@ sets `tools:`), five assert a blanket repo-effect boundary:
 | `test-runner.md:42` | "Not allowed in Bash: any write or modify operation (`git commit`, `git push`, …)" |
 
 The first two carry, word for word, the sentence this file struck as false about the
-harness — and both of those agents ran Bash while reviewing the PR that struck it.
-`test-runner.md` asserts the Bash-mutation residual itself as a boundary. Six further
-charters carry scoped write prohibitions ("never edit `BUILD.md`", "a change is a new
-version file"), which are a different claim — about what to edit, not about whether
-the agent can — and are not in scope for this rule.
+harness. `test-runner.md` asserts the Bash-mutation residual itself as a boundary.
+**Three of those five rows were violated by their own holders while reviewing the PR
+that struck the sentence** — `code-reviewer`, `dotnet-architect` and this file's own
+author all ran Bash, and each disclosed it unprompted.
+
+The remaining **seven** charters carry scoped write prohibitions ("never edit
+`BUILD.md`", "a change is a new version file"), which are a different claim — about
+what to edit, not about whether the agent can — and are out of scope for this rule.
+That accounts for all thirteen: this file, five, and seven. (An earlier revision said
+"six", which left one file silently unaccounted for. `test-writer.md:265` is the
+awkward one: it bans `Bash` outright alongside a `src/**`-scoped Write/Edit ban, so
+its Bash clause IS a repo-effect claim — it is counted with the seven because the
+charter as a whole does not claim zero repo effect, and it writes `tests/**`.)
 
 So the rule has a scope of five files from the day it is written, not zero. Sweeping
 them is a separate change-reason from watching the vulnerability gate (§6) and is not
-done here; what could not be left standing is the claim that they needed nothing.
+done here.
+
+**And this obligation has no owner, stated as plainly as the ADR states its own.**
+That is deliberate rather than overlooked: the same PR struck "with a named owner"
+from ADR 0065 because the only name in it was the agent that ran the triage, and it
+would be the same defect to create a new ownerless duty here while writing it as
+though someone holds it. `dotnet-architect` reviewed this paragraph and recommended
+the measurement and the rule move to an ADR of their own, on the ground that a rule
+binding five charters is read by none of them — which is precisely the invocation-path
+argument CLAUDE.md §9.2 makes in this same PR. That relocation is the identified home;
+it is a follow-up, and until it happens the rule lives here unowned.
 
 ## Audit areas (match to the diff, not all per review)
 

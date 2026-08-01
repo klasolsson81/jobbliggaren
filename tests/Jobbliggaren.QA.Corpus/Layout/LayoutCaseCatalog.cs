@@ -372,6 +372,31 @@ public static class LayoutCaseCatalog
             SpikeMeasuredExtractSegment: true,
             OneVariableStepFrom: "docx-table-label-first-with-blanks",
             ProjectHeadingRendered: UnknownProjectHeading),
+
+        // The fourth cell of the useTable 2x2 (header order x blank separators). Every no-blanks
+        // arm the corpus shipped was ALSO label-first, so "1 of 5 entries" and "null Title" were
+        // confounded and no row could tell them apart. This arm holds the header order right and
+        // removes the blank paragraphs, which separates them.
+        new("docx-role-first-no-blanks",
+            "role-first header lines with NO blank paragraphs — separates entry-boundary loss from header order",
+            "(c) table-based Word template — the control that de-confounds the two no-blanks variables",
+            "docx", "cv.docx", Docx, OpenXmlCvRenderer.RoleFirstNoBlanks, CvModel.Swedish,
+            p =>
+            {
+                var xml = p.DocxDocumentXml();
+                p.Require(xml.Contains("<w:tbl>", StringComparison.Ordinal), "expected a w:tbl element");
+                p.Require(!xml.Contains("<w:pPr />", StringComparison.Ordinal)
+                          && !xml.Contains("<w:pPr/>", StringComparison.Ordinal),
+                    "found Word's blank-paragraph form — this arm authors NO blank separators, and "
+                    + "a blank line here would make it a duplicate of docx-role-first-with-blanks");
+                p.Require(!xml.Contains("<w:p />", StringComparison.Ordinal)
+                          && !xml.Contains("<w:p/>", StringComparison.Ordinal),
+                    "expected no self-closing w:p (this arm authors no blank paragraphs)");
+            },
+            "the package contains a w:tbl, no blank-paragraph <w:pPr /> and no self-closing <w:p />",
+            SpikeMeasuredExtractSegment: false,
+            OneVariableStepFrom: "docx-role-first-with-blanks",
+            ProjectHeadingRendered: UnknownProjectHeading),
     ];
 
     /// <summary>

@@ -77,7 +77,7 @@ public sealed class LayoutCorpusReportTests
     /// carrying a pre-B provenance string — a claim true of the run that first produced the file
     /// and false of the one that last wrote it. Corrected 2026-07-28 to this branch's base.</para>
     /// </summary>
-    private const string BaseCommit = "5456e784";
+    private const string BaseCommit = "d435a9c4";
 
     [Fact]
     public async Task LayoutCorpus_FromBytes_EmitsReport()

@@ -61,6 +61,21 @@ internal static class OpenXmlCvRenderer
     internal static byte[] RoleFirstWithBlanks(CvModel m) =>
         Build(m, useTable: true, blankSeparators: true, roleFirst: true);
 
+    /// <summary>The fourth cell of the <c>useTable: true</c> 2×2 over (header order × blank
+    /// separators), which the other three above already occupy. It exists to answer ONE question
+    /// the corpus could not answer before: is the entry-boundary loss on the no-blanks arms a
+    /// property of the DOCUMENT (no blank paragraph ⇒ <c>SplitEntries</c> cannot split) or a
+    /// property of the label-first HEADER ORDER? Every no-blanks arm the corpus shipped was also
+    /// label-first, so the two variables were confounded and the report could not separate them.
+    ///
+    /// <para>It is a one-variable step from <see cref="RoleFirstWithBlanks"/> (blank separators
+    /// removed) and, equally, from <see cref="TableLabelFirstNoBlanks"/> (header order inverted).
+    /// The record carries one <c>OneVariableStepFrom</c>, so the catalog declares the first; the
+    /// second pairing is stated here because it is what makes this arm a CONTROL rather than a
+    /// twenty-second measurement.</para></summary>
+    internal static byte[] RoleFirstNoBlanks(CvModel m) =>
+        Build(m, useTable: true, blankSeparators: false, roleFirst: true);
+
     private static byte[] Build(CvModel m, bool useTable, bool blankSeparators, bool roleFirst)
     {
         using var stream = new MemoryStream();

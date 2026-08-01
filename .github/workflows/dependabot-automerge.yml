@@ -211,8 +211,12 @@ jobs:
       # and is consulted by `security-auditor` (her audit area 8, CLAUDE.md §9.2).
       # It catches three things — a stale entry, a dead override key, and an accepted
       # advisory that has entered the production set. Beslut 6's silent pin-back is
-      # NOT among them and stays open: it is not lockfile-detectable, and ADR 0065
-      # Amendment 2026-07-28 records why. The guard deliberately never fails a build
+      # NOT among them and stays open: it is not detectable from the LOCKFILE, and
+      # ADR 0065 Amendment 2026-07-28 records why. Read that as scoped, not absolute
+      # — the gap is unclosable for a file-only guard, which is what this one is by
+      # construction; it is not a claim that no mechanism could ever see it. An
+      # installed tree does exist at this call site, since `audit` runs
+      # `pnpm install --frozen-lockfile` before the guard. The guard never fails a build
       # — a path-pinning assertion inside THIS control is how the next deadlock gets
       # built, since it would fail a PR over tree state the PR did not cause.
       - name: Install (pnpm, för audit)

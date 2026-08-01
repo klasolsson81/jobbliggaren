@@ -41,11 +41,14 @@
 #      repair that is working.
 #
 # WHAT IT DELIBERATELY DOES NOT CHECK. A fourth direction was built and removed
-# 2026-07-30 — ADR 0065 Beslut 6's silent pin-back. It is not lockfile-detectable:
-# the signature is the opposite of what a floor comparison sees, and a true
-# pin-back needs each consumer's declared range, which pnpm-lock v9 does not carry
-# for transitive edges. The reasoning is at the override check below. That gap is
-# recorded as OPEN in ADR 0065, not as watched.
+# 2026-07-30 — ADR 0065 Beslut 6's silent pin-back. It is not detectable from the
+# LOCKFILE: the signature is the opposite of what a floor comparison sees, and a
+# true pin-back needs each consumer's declared range, which pnpm-lock v9 does not
+# carry for transitive edges. Read that scope literally rather than as "unclosable":
+# it is unclosable for a FILE-ONLY guard, which is what this is by construction, and
+# an installed tree does exist at the call site — `audit` runs
+# `pnpm install --frozen-lockfile` before this. The reasoning is at the override
+# check below. That gap is recorded as OPEN in ADR 0065, not as watched.
 #
 # INPUTS are files, never the network, so the fixtures can drive every branch.
 #   --package-json <f>  the manifest carrying pnpm.auditConfig / pnpm.overrides
@@ -53,8 +56,10 @@
 #                         applied (otherwise the suppressed advisory is invisible
 #                         and check 1 can never fire — the measurement must see
 #                         what the suppression hides)
-#   --audit-prod-json <f> the same, plus `--prod`. Supplies check 2's reachability
-#                         partition. Also taken without the ignore list.
+#   --audit-prod-json <f> the same, plus `--prod`. Supplies check 2's partition —
+#                         DECLARED dependencies, which is not the same as runtime
+#                         reachability; see the note at the check. Also taken
+#                         without the ignore list.
 #   --lockfile <f>        pnpm-lock.yaml, for check 3
 set -uo pipefail
 
@@ -210,16 +215,16 @@ fi
 # when fed a file containing zero, because the Windows binary translates its own
 # stdout. `$( )` then eats only the LAST line's CR, so lines 1..n-1 keep theirs.
 #
-#   - the `overrides` read below: 8 keys, 7 of them carrying CR. It survives only
-#     as the package-NAME lookup now — the version comparison the CR actually
-#     corrupted is gone with check 4, so the false warnings it caused cannot
-#     recur. Kept because a CR would still break an exact name match. No fixture,
-#     and that is DECLARED: the cause is the jq binary's platform behaviour, which
-#     no fixture can vary.
-#   - the `ignoreGhsas` read below: also load-bearing, but only at two or more
-#     entries, since `$( )` eats a single entry's CR. That IS fixturable without
-#     touching any line endings — vary the CARDINALITY and let jq supply the CR.
-#     `T2` does exactly that.
+# BOTH reads are load-bearing, and both are fixtured. The mechanism is the same at
+# each: `$( )` eats only the LAST line's CR, so one entry hides the bug and two
+# expose it. Vary the CARDINALITY and let jq supply the CR — no input file needs a
+# single edited line ending.
+#   - the `ignoreGhsas` read below: `T2` does that with two accepted GHSAs.
+#   - the `overrides` read below: `T2b` does that with two override keys. This one
+#     was declared unfixturable for three rounds ("the cause is the jq binary's
+#     platform behaviour, which no fixture can vary"). That was wrong about the
+#     read, not about jq: the platform behaviour is indeed unvaryable, and it is
+#     also not what needed varying.
 #
 # A third call site read `dependencies` to classify production roots. It is gone:
 # the check it fed now asks `pnpm audit --prod` instead. Its stated reason was also
@@ -335,15 +340,35 @@ else
     #     lived in the version extraction and the `sort -V` comparison it fed.
     #
     # So the awk below answers one question: does the lockfile carry this package at
-    # all? Exact-name match only — a substring match made `postcss` swallow
-    # `@tailwindcss/postcss` (measured), and the lockfile quotes scoped keys.
+    # all? It applies two guards, each separately load-bearing, each with a case
+    # measured in a REAL pnpm lockfile. (Kept out here rather than inside the awk
+    # program: that program is single-quoted, so an apostrophe in a comment ends the
+    # shell string — done once already, and it silently broke every DEAD OVERRIDE
+    # fixture until the suite caught it.)
+    #
+    #   1. THE ANCHOR — the name must start the line, not merely occur in it. The
+    #      measured case is `postcss` swallowing `@tailwindcss/postcss`; the sharper
+    #      one is `url` against `base64url@1.0.0:`, where guard 2 does NOT help,
+    #      because it reads position 5 and finds the `6` of base64. Both are real npm
+    #      packages, and this repo carries 683 scoped keys of the swallowing shape.
+    #   2. THE VERSION TERMINATOR — what follows the name must be a version. The
+    #      earlier comment justified this with `foo@workspace:`, and that form could
+    #      not be reproduced: a workspace lockfile writes `specifier: workspace:*`
+    #      and `version: link:../lib` under `importers`, never a `pkg@workspace:`
+    #      key (measured 2026-08-01 against a generated workspace). The true case is
+    #      the lockfile OWN overrides block — measured, 3 live lines here
+    #      (`js-yaml@>=4.0.0 <4.3.0:` and two `brace-expansion` ranges). Those start
+    #      with the bare name and `@`, so guard 1 passes them, and only the digit
+    #      test separates a repair that is merely DECLARED from a package that is
+    #      installed. Without it a dead override reads as live: a false negative on
+    #      exactly the direction this check exists for.
     if ! awk -v n="$name" '
       {
         line = $0
         sub(/^[[:space:]]+/, "", line)
         sub(/^'"'"'/, "", line)                     # lockfile may quote scoped keys
-        if (index(line, n "@") != 1) next           # must start with the exact name
-        if (substr(line, length(n) + 2) !~ /^[0-9]/) next  # `foo@workspace:` is not a version
+        if (index(line, n "@") != 1) next           # 1. must start with the exact name
+        if (substr(line, length(n) + 2) !~ /^[0-9]/) next  # 2. and be followed by a version
         found = 1
       }
       END { exit !found }' "$LOCK" 2>/dev/null; then

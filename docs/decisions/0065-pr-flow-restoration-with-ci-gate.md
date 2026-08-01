@@ -344,10 +344,19 @@ That knowledge has one owner, and it is not this guard.
 
 **Reader-reachability, stated rather than assumed.** The guard runs on every PR, including
 Dependabot's. But Dependabot PRs are auto-merged by `dependabot-automerge.yml` **without
-invoking any agent**, and no `schedule:` consults the measurement — so on exactly the PRs
-that drive the tree drift these checks detect, there is no reader. A cadence is a
-follow-up PR with a named owner (senior-cto-advisor 2026-07-30, explicitly **not** a TD —
-the phase rule is not met).
+invoking any agent**, and no `schedule:` consults the measurement — so on the auto-merged
+patch/minor Dependabot PRs, which are the bulk of what drives the tree drift these checks
+detect, there is no reader. Be precise about the boundary rather than rounding it to
+"exactly": `dependabot-automerge.yml` marks major and unknown update types ineligible, and
+a PR that fails the vuln gate falls back to manual review — but nothing surfaces this
+guard on that remainder either. The readerless set is therefore **larger** than the
+auto-merged set, not identical to it.
+
+A cadence is a follow-up PR, triaged by senior-cto-advisor 2026-07-30 as a follow-up and
+explicitly **not** a TD (the phase rule is not met). **No owner is assigned.** An earlier
+revision of this paragraph said the gap was named "with a named owner"; the only name in
+it was the agent that performed the triage, which is not the same thing as someone who
+will close it.
 
 *The rule, unchanged:* **A suppression whose blast
 radius is not pinned, and an override key whose liveness is not checked, are declared as

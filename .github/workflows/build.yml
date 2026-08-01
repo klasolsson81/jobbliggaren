@@ -581,9 +581,12 @@ jobs:
       # TWO AUDIT FILES, both with the ignore list REMOVED, and neither taken in
       # the checkout. With the list applied the suppressed advisory is invisible and
       # the guard could not tell a stale entry from a live one — the measurement has
-      # to see what the suppression hides. `--prod` supplies the reachability half:
+      # to see what the suppression hides. `--prod` supplies the partition half:
       # membership in the production advisory set is what re-tests the dev-only
-      # argument an acceptance was granted on. (The first version parsed
+      # argument an acceptance was granted on. Call it a partition rather than
+      # reachability, because that is what it is — `--prod` splits DECLARED
+      # dependencies, and a devDependency can still generate shipped output (this
+      # repo builds its stylesheet from two of them). (The first version parsed
       # `findings[].paths` for that and could not fire at all — pnpm emits
       # `.>root>child`, no spaces, no versions.)
       #

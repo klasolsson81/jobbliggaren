@@ -42,7 +42,7 @@ J
 cat > "$TMP/a.audit.json" <<'J'
 { "advisories": { "1": { "github_advisory_id": "GHSA-mh99-v99m-4gvg",
     "module_name": "brace-expansion", "severity": "high",
-    "findings": [ { "paths": [ ". > eslint@9.0.0 > minimatch@3.1.5 > brace-expansion@1.1.16" ] } ] } } }
+    "findings": [ { "paths": [ ".>eslint@9.0.0>minimatch@3.1.5>brace-expansion@1.1.16" ] } ] } } }
 J
 mk_lock "  postcss@8.5.24:" "  eslint@9.0.0:"
 out="$(run "$TMP/a.pkg.json" "$TMP/a.audit.json" "$TMP/lock.yaml")"
@@ -140,6 +140,11 @@ expect_lacks "F2 a gated key with a live package is not dead"                  "
 # E2: a scoped package must not be swallowed by a bare-name key. `postcss` and
 #     `@tailwindcss/postcss` are different packages; a substring match reported
 #     the latter's 4.3.2 as the former's version and "proved" a pin-back.
+#     NOTE what this case does and does not separate. Both awk guards reject it —
+#     the anchor because `postcss@` does not start the line, the version terminator
+#     because position 9 of `@tailwindcss/postcss@4.3.2':` is `s`. So E2 pins them
+#     JOINTLY and cannot fail for one alone; V1 and V2 below separate them, each
+#     against a form measured in a real lockfile.
 cat > "$TMP/e2.pkg.json" <<'J'
 { "dependencies": {}, "devDependencies": {},
   "pnpm": { "overrides": { "postcss": "^8.5.18" } } }
@@ -162,20 +167,24 @@ mk_lock "  undici@7.28.0:"
 out="$(run "$TMP/e3.pkg.json" "$TMP/e3.audit.json" "$TMP/lock.yaml")"
 expect_lacks "E3 a plain version entry is not read as a dead override" "$out" "DEAD OVERRIDE"
 
-# NO CRLF FIXTURE, AND THAT IS A FINDING RATHER THAN AN OVERSIGHT.
+# THE CR HARDENING IS FIXTURED ON BOTH READS — T2 and T2b below.
 #
-# The guard strips CR from every jq read. A fixture for it was written, and
-# then deleted: it varied the INPUT files' line endings, which is not where the
-# CR comes from. Measured 2026-07-29 — jq emits one CR byte when fed a file
-# containing zero, because the Windows binary translates its own stdout. The
-# fixture therefore stayed green against a build with the hardening removed,
-# which is the definition of decoration.
+# It took four rounds to get here, and the first three were spent on the wrong
+# variable. A fixture was written and deleted because it varied the INPUT files'
+# line endings, which is not where the CR comes from: jq emits one CR byte when fed
+# a file containing zero, because the Windows binary translates its own stdout
+# (measured 2026-07-29). That fixture stayed green against a build with the
+# hardening removed, which is the definition of decoration.
 #
-# The cause is the jq binary's platform behaviour, which a fixture cannot vary,
-# so this path is DECLARED UNEXERCISED. On Linux CI the strip is a no-op; the
-# bug it prevents is visible only on a Windows machine.
+# The conclusion drawn from that failure was that no fixture could exist, and this
+# file carried "DECLARED UNEXERCISED" for three rounds. The conclusion was wrong.
+# The unvaryable thing is the jq binary's behaviour; the thing that needed varying
+# was CARDINALITY. `$( )` eats only the LAST line's CR, so one entry hides the bug
+# and two expose it, and jq supplies the CR itself. On Linux CI the strip is a
+# no-op; the bug it prevents is visible only on a Windows machine — which is where
+# someone would act on the false warning.
 #
-# One trap for whoever tries again: msys2's grep does text-mode translation and
+# One trap for whoever revisits this: msys2's grep does text-mode translation and
 # strips CR before matching, so grepping for a carriage return reports "no CR" on a file that
 # `od -c` shows carries two. Count the bytes instead.
 
@@ -186,8 +195,9 @@ expect_lacks "E3 a plain version entry is not read as a dead override" "$out" "D
 #     GHSA arrives with a trailing CR and therefore matches no advisory.
 #
 #     This is the fixture the earlier version claimed could not exist ("no fixture
-#     can vary it"). That claim was true of the `overrides` read and false here:
-#     the variable is CARDINALITY, and jq supplies the CR itself.
+#     can vary it"). The claim was false here, and — as T2b later showed — equally
+#     false of the `overrides` read it was actually written about. The variable is
+#     CARDINALITY, and jq supplies the CR itself.
 cat > "$TMP/t2.pkg.json" <<'J'
 { "dependencies": {}, "devDependencies": {},
   "pnpm": { "auditConfig": { "ignoreGhsas": ["GHSA-aaaa-aaaa-aaaa", "GHSA-bbbb-bbbb-bbbb"] } } }
@@ -380,11 +390,16 @@ expect_lacks "K4 and never claims absence from the --prod set"                  
 printf '{ "dependencies": {}, "devDependencies": {}, "pnpm": { "overrides": "garbage" } }\n' > "$TMP/l1.pkg.json"
 out="$(run "$TMP/l1.pkg.json" "$TMP/a.audit.json" "$TMP/lock.yaml")"
 expect_has   "L1 a non-object pnpm.overrides is SKIPPED"  "$out" "is not an object"
-expect_lacks "L2 and never reports nothing repaired"      "$out" "nothing repaired"
+# The needle here was "nothing repaired" until a mutation matrix showed L2 passing
+# against a guard with the assertion removed: without a location probe the mutant
+# takes the UNVERIFIED branch, whose wording is the actual laundering — it describes
+# an unreadable block as an ABSENT one. Assert against the text the mutant emits,
+# not against a phrase this fixture never reaches.
+expect_lacks "L2 and never describes the unreadable block as absent" "$out" "no overrides in this manifest"
 printf '{ "dependencies": {}, "devDependencies": {}, "pnpm": { "auditConfig": { "ignoreGhsas": "GHSA-mh99-v99m-4gvg" } } }\n' > "$TMP/l2.pkg.json"
 out="$(run "$TMP/l2.pkg.json" "$TMP/a.audit.json" "$TMP/lock.yaml")"
 expect_has   "L3 a non-array ignoreGhsas is SKIPPED"      "$out" "is not an array"
-expect_lacks "L4 and never reports nothing accepted"      "$out" "nothing accepted"
+expect_lacks "L4 and never describes the unreadable list as empty" "$out" "no ignoreGhsas entries in this manifest"
 
 # M: requiring BOTH files to carry the counter was itself a bypass, and it went the
 #    dangerous way: a --prod file reporting `dependencies: 0` — the exact state the
@@ -428,6 +443,101 @@ out="$(bash "$GUARD" --package-json "$TMP/g.pkg.json" --audit-json "$TMP/g.audit
        --audit-prod-json "$TMP/g.audit.json" --lockfile "$TMP/lock.yaml" --pnpm-major "" 2>&1)"
 expect_has   "P1 an empty --pnpm-major is SKIPPED, not defaulted to 0" "$out" "which is not a number"
 expect_lacks "P2 and never claims the location was probed"             "$out" "no sign the configuration moved"
+
+# Q: the fixtures above all invent their audit JSON. That makes every check-1 and
+#    check-2 premise an ASSUMPTION about a shape pnpm produces, with no independent
+#    evidence anywhere in the repo — so `samples/` holds two real captures, taken by
+#    area 8's own procedure (the ignore list deleted first, or the suppressed
+#    advisory is invisible and check 1 can never fire). Recorded 2026-08-01, pnpm
+#    10.28.2. They also corroborate the numbers this guard's comments cite: 3
+#    advisories in full, 1 in --prod (`@hono/node-server`), 1110 against 487
+#    dependencies.
+cat > "$TMP/q.pkg.json" <<'J'
+{ "dependencies": {}, "devDependencies": {},
+  "pnpm": { "auditConfig": { "ignoreGhsas": ["GHSA-mh99-v99m-4gvg"] } } }
+J
+mk_lock "  x@1.0.0:"
+q_out="$(bash "$GUARD" --package-json "$TMP/q.pkg.json" \
+        --audit-json "$HERE/samples/pnpm-audit-full.json" \
+        --audit-prod-json "$HERE/samples/pnpm-audit-prod.json" \
+        --lockfile "$TMP/lock.yaml" --pnpm-major 9 2>&1)"
+expect_lacks "Q1 the accepted GHSA is live in the real full capture, so not stale" "$q_out" "STALE SUPPRESSION"
+expect_has   "Q2 and absent from the real --prod capture"                          "$q_out" "absent from the"
+expect_lacks "Q3 the real counters (1110 vs 487) pass the partition sanity"        "$q_out" "did not partition a real tree"
+
+# R: the finding COUNTER. `warn` both prints and counts; drop the counting half and
+#    the body says DEAD OVERRIDE while the summary says "no findings" — two states,
+#    one run, which is the contradiction this guard exists to name in others.
+cat > "$TMP/r.pkg.json" <<'J'
+{ "dependencies": {}, "devDependencies": {},
+  "pnpm": { "overrides": { "ghost-pkg": "^9.0.0" } } }
+J
+echo '{ "advisories": {} }' > "$TMP/r.audit.json"
+mk_lock "  postcss@8.5.24:"
+out="$(bash "$GUARD" --package-json "$TMP/r.pkg.json" --audit-json "$TMP/r.audit.json" \
+      --audit-prod-json "$TMP/r.audit.json" --lockfile "$TMP/lock.yaml" --pnpm-major 9 2>&1)"
+expect_has   "R1 the finding is emitted"                            "$out" "DEAD OVERRIDE"
+expect_lacks "R2 and the summary does not also report no findings"  "$out" "no findings"
+cat > "$TMP/r0.pkg.json" <<'J'
+{ "dependencies": {}, "devDependencies": {}, "pnpm": { "overrides": { "postcss": "^8.5.18" } } }
+J
+out="$(bash "$GUARD" --package-json "$TMP/r0.pkg.json" --audit-json "$TMP/r.audit.json" \
+      --audit-prod-json "$TMP/r.audit.json" --lockfile "$TMP/lock.yaml" --pnpm-major 9 2>&1)"
+expect_has   "R0 control: a clean run does report no findings"      "$out" "no findings"
+
+# S: `skip` must EXIT. Without the exit it prints "the suppression checks did not
+#    run" and then runs them, so the same output carries the disclaimer and the
+#    verdict it disclaims.
+printf 'packages:\n  - "."\noverrides:\n  postcss: ^8.5.18\n' > "$TMP/s.ws.yaml"
+out="$(bash "$GUARD" --package-json "$TMP/r0.pkg.json" --audit-json "$TMP/r.audit.json" \
+      --audit-prod-json "$TMP/r.audit.json" --lockfile "$TMP/lock.yaml" \
+      --workspace-yaml "$TMP/s.ws.yaml" 2>&1)"
+expect_has   "S1 the skip is reported"                              "$out" "did not run"
+expect_lacks "S2 and nothing after it runs"                         "$out" "audit-suppression-guard: no findings"
+out="$(bash "$GUARD" --package-json "$TMP/r0.pkg.json" --audit-json "$TMP/r.audit.json" \
+      --audit-prod-json "$TMP/r.audit.json" --lockfile "$TMP/lock.yaml" --pnpm-major 9 2>&1)"
+expect_has   "S0 control: the same inputs without the skip do reach the summary" "$out" "audit-suppression-guard: no findings"
+
+# U: a STALE entry must `continue`. Without it the same GHSA is reported as matching
+#    no advisory AND as accepted-but-absent-from-production, in one run.
+cat > "$TMP/u.pkg.json" <<'J'
+{ "dependencies": {}, "devDependencies": {},
+  "pnpm": { "auditConfig": { "ignoreGhsas": ["GHSA-ghost-ghost-ghost"] } } }
+J
+echo '{ "advisories": { "1": { "github_advisory_id": "GHSA-other-other-other" } } }' > "$TMP/u.audit.json"
+echo '{ "advisories": {} }' > "$TMP/u.prod.json"
+out="$(bash "$GUARD" --package-json "$TMP/u.pkg.json" --audit-json "$TMP/u.audit.json" \
+      --audit-prod-json "$TMP/u.prod.json" --lockfile "$TMP/lock.yaml" --pnpm-major 9 2>&1)"
+expect_has   "U1 the stale entry is named"                          "$out" "STALE SUPPRESSION"
+expect_lacks "U2 and does not also get a --prod verdict"            "$out" "absent from the"
+
+# V: the two awk guards, separated. E2 pins them only jointly; these do not, and
+#    each uses a form measured in a real pnpm lockfile rather than a crafted one.
+#
+# V1 — the ANCHOR alone. `url` and `base64url` are both real npm packages. The
+#      version terminator does NOT reject this one: it reads position 5, which is
+#      the `6` of base64, so only the anchor stands between a dead `url` override
+#      and silence.
+cat > "$TMP/v1.pkg.json" <<'J'
+{ "dependencies": {}, "devDependencies": {}, "pnpm": { "overrides": { "url": "^0.11.4" } } }
+J
+mk_lock "  base64url@1.0.0:"
+out="$(bash "$GUARD" --package-json "$TMP/v1.pkg.json" --audit-json "$TMP/r.audit.json" \
+      --audit-prod-json "$TMP/r.audit.json" --lockfile "$TMP/lock.yaml" --pnpm-major 9 2>&1)"
+expect_has "V1 a name that merely ENDS the key does not count as present" "$out" "DEAD OVERRIDE"
+# V2 — the VERSION TERMINATOR alone, against the lockfile's own `overrides:` block.
+#      Measured in this repo's real lockfile: three such lines
+#      (`js-yaml@>=4.0.0 <4.3.0:`, `brace-expansion@<1.1.16:`,
+#      `brace-expansion@>=2.0.0 <=5.0.7:`). They start with the bare name and `@`,
+#      so the anchor passes them; only the digit test tells a DECLARED repair from
+#      an INSTALLED package.
+cat > "$TMP/v2.pkg.json" <<'J'
+{ "dependencies": {}, "devDependencies": {}, "pnpm": { "overrides": { "js-yaml": "^4.3.0" } } }
+J
+mk_lock "overrides:" "  js-yaml@>=4.0.0 <4.3.0: ^4.3.0" "  postcss@8.5.24:"
+out="$(bash "$GUARD" --package-json "$TMP/v2.pkg.json" --audit-json "$TMP/r.audit.json" \
+      --audit-prod-json "$TMP/r.audit.json" --lockfile "$TMP/lock.yaml" --pnpm-major 9 2>&1)"
+expect_has "V2 the lockfile's own overrides declaration is not an installed package" "$out" "DEAD OVERRIDE"
 
 echo
 echo "audit-suppression-guard fixtures: $PASS passed, $FAIL failed"

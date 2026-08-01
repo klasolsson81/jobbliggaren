@@ -45,9 +45,17 @@ namespace Jobbliggaren.QA.Corpus;
 /// the rule matters exactly as much for the attempt that follows.)</para>
 ///
 /// <para><b>The escape hatch, stated once so it can be cited.</b> An assert whose subject falls
-/// outside (a)/(b)/(c) is permitted when it is ARGUED where it lives. FOUR do so in this file —
-/// crash-safety, kind resolution, marker visibility, and (since 2026-07-28) ladder
-/// well-formedness — and one more in <c>LayoutCorpusEmitterTests</c>, whose subject is
+/// outside (a)/(b)/(c) is permitted when it is ARGUED where it lives. The ones that do are
+/// enumerated (a)-(e) beside the asserts themselves, and deliberately NOT counted here or in
+/// <c>LayoutCorpusEmitterTests</c>, which carried the same count twice more. The list sits
+/// directly above the code it describes, so a count beside it is pure redundancy: it went wrong
+/// once already ("three" after a fourth landed), and every sweep for its remaining homes came
+/// back with a different total than the one before. Deleting it is the only move that ends
+/// that. The file reached the ADJACENT conclusion for the case count above — "a numeral beside
+/// a catalog anyone can count needs no such archaeology" — and settled there for a digit because
+/// that catalog lives in another file. This one does not: it lives beside the asserts themselves,
+/// in <c>LayoutCorpus_FromBytes_EmitsReport</c>. One more assert lives in
+/// <c>LayoutCorpusEmitterTests</c>, whose subject is
 /// <c>AutoPromoteBlockReason</c>'s declared member set. The rule's exclusion is
 /// <i>everything the production chain PRODUCES</i>; a declared type surface is not that, and no
 /// parsing change can move it. No parsing OUTCOME is asserted anywhere.</para>
@@ -69,7 +77,7 @@ public sealed class LayoutCorpusReportTests
     /// carrying a pre-B provenance string — a claim true of the run that first produced the file
     /// and false of the one that last wrote it. Corrected 2026-07-28 to this branch's base.</para>
     /// </summary>
-    private const string BaseCommit = "3aa46b47";
+    private const string BaseCommit = "5456e784";
 
     [Fact]
     public async Task LayoutCorpus_FromBytes_EmitsReport()
@@ -89,10 +97,14 @@ public sealed class LayoutCorpusReportTests
         // ── Instrument asserts only, from here down. Failure means the FIXTURE or the EMITTER is
         // broken; none of these can be reddened by a change to the product's parsing behaviour.
 
-        // FOUR of the asserts below ARE reachable by production behaviour, and each has its own
-        // argument. Stated plainly rather than claimed away, because an earlier revision of this
-        // comment said "none of these can be reddened by a change to the product" and that was
-        // simply false — and a later one said "three" after a fourth had been added.
+        // The asserts below that ARE reachable by production behaviour are listed here, each
+        // with its own argument. Stated plainly rather than claimed away, because an earlier
+        // revision of this comment said "none of these can be reddened by a change to the
+        // product" and that was simply false. It carries NO COUNT any more: the count went wrong
+        // once ("three" after a fourth landed) and stale once ("four", correct when written and
+        // stale the moment (e) landed — it then SHIPPED stale in two homes across a commit
+        // boundary before a sweep found them), and a list sitting directly above the asserts it
+        // describes needs no numeral to be checkable.
         //
         //   (a) crash-safety — the probe catches everything the real extractor, segmenter and both
         //       handlers throw, so a throw anywhere in the chain reddens this suite. That is
@@ -103,6 +115,7 @@ public sealed class LayoutCorpusReportTests
         //   (c) marker visibility — argued at its own assert below.
         //   (d) ladder well-formedness — argued at its own assert below. NEW 2026-07-28: it used
         //       to be unreachable by construction and is not any more.
+        //   (e) block-detail readability — argued at its own assert below (#1060 D3(β) PR 2).
         //
         // Every OTHER production output (blank lines, entry counts, confidence, WHICH gate blocked,
         // promote booleans, the content-loss delta) is recorded, never asserted. Note the narrowing
@@ -143,7 +156,42 @@ public sealed class LayoutCorpusReportTests
             "INSTRUMENT: a case's bytes failed CvFileSignature.TryResolve, so it was never fed to "
             + "the handler as the kind it claims to be.");
 
-        // The ONE deliberate production-touching assert, argued rather than smuggled in.
+        // Production-touching assert (e), argued here. TWO causes, and only one of them is
+        // production-reachable: (1) the handler renames or drops the {BlockDetail} placeholder,
+        // (2) CvChainProbe's own reader breaks — its key constant, its exactly-one rule, or the
+        // record it reads. Cause (2) is the reason this assert has to exist HERE: it lives
+        // entirely inside this project and no test outside it can see it.
+        //
+        // It does not block its own remedy, which is the hatch's real test. No parsing, gate,
+        // promote or content change can redden it — only the log CONTRACT can, and the remedy is
+        // then one const in this suite or the placeholder restored, which is verbatim assert
+        // (d)'s accepted argument.
+        //
+        // Why recording it was not enough, measured rather than argued: with the reader's key
+        // misspelled, the suite stayed green while the artifact printed INSTRUMENT: unreadable on
+        // five rows and the real code zero times. That degradation is honest and it is also
+        // invisible to CI — the artifact is gitignored, only the baseline is tracked, and no test
+        // compares them. "A human will notice if a human happens to regenerate and then happens
+        // to read" is not a guard (CTO-bind 2026-08-01, Decision 1).
+        //
+        // THE OTHER DIRECTION, priced rather than left implicit: (e) goes VACUOUS the day the
+        // docx-label-first rows start promoting, which is exactly what PR B/E are for. Nothing
+        // here pins that some case still reaches LeftPending, and §0's "none" reads the same
+        // for "everything was readable" and "there was nothing to read". Accepted: inventing a
+        // floor on how many cases must block would be the §2.5 ratchet this suite may not make
+        // for itself. But a reader who lands here after that fix should treat a green (e) as
+        // UNMEASURED rather than as evidence.
+        observations.Where(o => o.BlockDetailUnreadable).ShouldBeEmpty(
+            "INSTRUMENT: a LeftPending was logged whose BlockDetail property this harness could "
+            + "not read. Either the {BlockDetail} placeholder was renamed or removed in "
+            + "AutoPromoteParsedResumeCommandHandler, or CvChainProbe's reader broke. The Domain-"
+            + "code column is blind until one of the two is restored — it prints an instrument "
+            + "marker rather than an em-dash, but nothing else in CI would have said so.");
+
+        // Production-touching assert (c), argued here. It read "The ONE deliberate
+        // production-touching assert" until 2026-08-01 — a FIFTH home of the count, eight lines
+        // under (e) and twenty-four under (d), and "deliberate" distinguished nothing: all three
+        // are equally deliberate and equally argued.
         //
         // A corpus that cannot see its own content must REFUSE TO REPORT rather than report loss:
         // without this, a renderer that silently dropped a job would print a zero delta as "no

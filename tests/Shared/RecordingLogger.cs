@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Logging;
 
-namespace Jobbliggaren.Application.UnitTests.Common;
+namespace Jobbliggaren.TestSupport;
 
 /// <summary>
 /// Minimal <c>ILogger&lt;T&gt;</c> test double that records every <c>Log</c> call
@@ -27,6 +27,20 @@ namespace Jobbliggaren.Application.UnitTests.Common;
 /// could see it, because a logger double that records only the formatted string cannot
 /// distinguish the two. It can now (dotnet-architect, #754).
 /// </para>
+///
+/// <para>
+/// <b>It lives in <c>tests/Shared/</c> and is LINKED, not copied</b> (the
+/// <c>Compile Include</c> items in the consuming csproj files, same as
+/// <see cref="TestFacets"/>). It moved here from
+/// <c>Jobbliggaren.Application.UnitTests/Common/</c> when <c>Jobbliggaren.QA.Corpus</c>
+/// became a second consumer: the layout corpus reads
+/// <c>AutoPromoteParsedResumeCommandHandler</c>'s <c>{BlockDetail}</c> property off this
+/// recorder, because <c>AutoPromoteGateVerdict</c> is <c>internal</c> to
+/// <c>Jobbliggaren.Application</c> and the corpus is not in its <c>InternalsVisibleTo</c>
+/// list — the production log line is the only seam it has. Two recording loggers would be
+/// two homes for one test utility, so the type moved rather than being duplicated
+/// (#1060 D3(β) PR 2, CTO constraint 2).
+/// </para>
 /// </summary>
 internal sealed class RecordingLogger<T> : ILogger<T>
 {
@@ -49,27 +63,4 @@ internal sealed class RecordingLogger<T> : ILogger<T>
 
         Records.Add((logLevel, eventId, formatter(state, exception), properties));
     }
-}
-
-/// <summary>
-/// An <c>ILogger&lt;T&gt;</c> whose sink is BROKEN — every <c>Log</c> call throws, the way MEL
-/// does when a provider faults (it aggregates provider exceptions and rethrows).
-///
-/// <para>
-/// This is the double that proves a telemetry guard is real rather than decorative. A guard of
-/// the shape <c>catch (Exception ex) { LogFailed(logger, ex); }</c> looks like it swallows
-/// everything — but if the SINK is what threw, the handler throws for the same reason and the
-/// exception escapes exactly as if there were no guard at all. That is not a hypothetical: it
-/// is the single most likely way to reach the handler (#754, CTO bind Q1 — "a telemetry
-/// component must never be able to fault the process it monitors").
-/// </para>
-/// </summary>
-internal sealed class ThrowingSinkLogger<T> : ILogger<T>
-{
-    public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
-    public bool IsEnabled(LogLevel logLevel) => true;
-
-    public void Log<TState>(LogLevel logLevel, EventId eventId, TState state,
-        Exception? exception, Func<TState, Exception?, string> formatter)
-        => throw new InvalidOperationException("Log sink is down (test double).");
 }

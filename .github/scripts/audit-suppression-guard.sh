@@ -210,9 +210,14 @@ jq -e '.pnpm.auditConfig.ignoreGhsas == null or (.pnpm.auditConfig.ignoreGhsas |
 # a legitimately empty dependency tree. Declared, not overlooked.
 #
 # And the noise is unreachable in CI anyway, which is the part that makes the
-# trade-off easy rather than merely defensible: a truncated `pnpm-lock.yaml` fails
-# `pnpm install --frozen-lockfile` in the REQUIRED `frontend` job, so the tree is
-# already red before observe-only `audit` runs at all.
+# trade-off easy rather than merely defensible. Name the right mechanism, though: an
+# earlier version said the required `frontend` job goes red "before observe-only
+# `audit` runs at all", and that ordering is false — `audit` has no `needs:` and
+# starts in parallel. Two things are true instead. The proximate one is that `audit`
+# runs its OWN `pnpm install --frozen-lockfile` before this guard, and a failed step
+# aborts the rest of the job regardless of job-level `continue-on-error`, so the
+# guard never executes and the noise is never emitted. The other is that `frontend`
+# is in `ci`'s `needs`, so the aggregate is red either way.
 grep -qE "^[[:space:]]*[\"']?lockfileVersion[\"']?[[:space:]]*:" "$LOCK" 2>/dev/null \
   || skip "$LOCK carries no \`lockfileVersion\` key, so it is not a pnpm lockfile this guard can read, and every override key would report as absent from it."
 
@@ -447,9 +452,20 @@ else
       }
       END { exit !found }' "$LOCK" 2>/dev/null; then
       # Worded to avoid the substring "absent from the", which check 2's note also
-      # contains: twelve fixtures needle on that phrase, and a needle matching two
-      # different sentences binds to neither. Same rule as the status markers — bind
-      # to the sentence, not to a fragment that drifts between them.
+      # contains, so that needle binds to one sentence rather than two. Same rule as
+      # the status markers: bind to the sentence, not to a fragment that drifts
+      # between them.
+      #
+      # Population and quantity, measured against this file at the time of writing:
+      # 16 `expect_has`/`expect_lacks` call sites use that needle, one of them inside
+      # a four-iteration loop, so 19 assertions actually run. (An earlier version of
+      # this comment said "twelve" — the count taken from the parent commit, in the
+      # same commit that added three more of them. That is the trap the fixture
+      # file's own J–Z header documents twice, committed a third time here.)
+      #
+      # And be honest about what this bought: with the old wording the suite is also
+      # green, measured. No needle was binding wrongly. This is hygiene against the
+      # next fixture, not the repair of a live ambiguity.
       warn "DEAD OVERRIDE: key '$key' names a package the lockfile does not carry. It repairs nothing; a repair that stopped applying reads exactly like one that works."
     fi
   done <<EOF

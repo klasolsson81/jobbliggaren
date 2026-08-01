@@ -431,6 +431,13 @@ mk_lock "  postcss@8.5.24:" "  eslint@9.0.0:"
 printf '{ "advisories": {} }\n' > "$TMP/j.prod.json"
 out="$(run "$TMP/a.pkg.json" "$TMP/a.audit.json" "$TMP/lock.yaml" "$TMP/j.prod.json")"
 expect_has "J0 control: a well-formed empty --prod set does produce the note" "$out" "absent from the"
+#    WHICH VALUE PINS THIS CHECK, since the four are no longer equivalent. When J was
+#    written all four reached the shape assertion. K's empty-read skip came later and
+#    now catches three of them FIRST: measured against `has("advisories")` restored,
+#    only `null` still produces "absent from the" — `"boom"`, `123` and `true` make jq
+#    error and land in K's guard instead. So `null` is the iteration that pins THIS
+#    check; the other three pin that the wrong shapes are refused at all, by whichever
+#    guard gets there. Both are worth keeping; only one of them is J's own subject.
 for _v in 'null' '"boom"' '123' 'true'; do
   printf '{ "advisories": %s }\n' "$_v" > "$TMP/j.prod.json"
   out="$(run "$TMP/a.pkg.json" "$TMP/a.audit.json" "$TMP/lock.yaml" "$TMP/j.prod.json")"
@@ -567,6 +574,20 @@ q_out="$(bash "$GUARD" --package-json "$TMP/q.pkg.json" \
 expect_lacks "Q1 the accepted GHSA is live in the real full capture, so not stale" "$q_out" "STALE SUPPRESSION"
 expect_has   "Q2 and absent from the real --prod capture"                          "$q_out" "absent from the"
 expect_lacks "Q3 the real counters (1110 vs 487) pass the partition sanity"        "$q_out" "did not partition a real tree"
+# Q5 — the --prod advisory ITERATION, which had no fixture at all. Its twin on the
+#      full read is covered (Q1 fails if that one stops at element 1, because the
+#      accepted GHSA sits at position 3 in the real capture) — but the --prod side
+#      could read only its first element with the whole suite green, and the failure
+#      direction is FALSE CLEAN on the check this guard calls the dangerous one.
+#      Built entirely from the committed capture: hand the full set in as the --prod
+#      set too, so the accepted id is present at position 3 and the counters are
+#      1110 against 1110, which the partition sanity accepts.
+q5="$(bash "$GUARD" --package-json "$TMP/q.pkg.json" \
+        --audit-json "$HERE/samples/pnpm-audit-full.json" \
+        --audit-prod-json "$HERE/samples/pnpm-audit-full.json" \
+        --lockfile "$TMP/lock.yaml" --pnpm-major 9 2>&1)"
+expect_has   "Q5 an accepted GHSA at position 3 of the --prod set is still found" "$q5" "OVER-BROAD SUPPRESSION"
+expect_lacks "Q6 and is never reported as absent from it"                        "$q5" "absent from the"
 # Q3 alone passes just as well against a guard that never read the counters, so it
 # needs its counterfactual: hand the guard the same two captures the wrong way round
 # and 1110 against 487 must FAIL the comparison.
@@ -649,6 +670,29 @@ mk_lock "overrides:" "  js-yaml@>=4.0.0 <4.3.0: ^4.3.0" "  postcss@8.5.24:"
 out="$(bash "$GUARD" --package-json "$TMP/v2.pkg.json" --audit-json "$TMP/r.audit.json" \
       --audit-prod-json "$TMP/r.audit.json" --lockfile "$TMP/lock.yaml" --pnpm-major 9 2>&1)"
 expect_has "V2 the lockfile's own overrides declaration is not an installed package" "$out" "DEAD OVERRIDE"
+# V3 — SCOPED AND GATED together. T3 covers scoped-without-gate and F2 gated-without-
+#      scope; the combination is where the name split (`${key%@*}`, shortest suffix)
+#      is load-bearing, because a scoped key's leading `@` is not the separator.
+#      `@babel/traverse@<7.23.2` is documented pnpm syntax; with the greedy `%%` the
+#      name comes out empty and the key reads as dead while the package is live.
+cat > "$TMP/v3.pkg.json" <<'J'
+{ "dependencies": {}, "devDependencies": {},
+  "pnpm": { "overrides": { "@babel/traverse@<7.23.2": "^7.23.2" } } }
+J
+mk_lock "  '@babel/traverse@7.23.5':" "  postcss@8.5.24:"
+out="$(run "$TMP/v3.pkg.json" "$TMP/r.audit.json" "$TMP/lock.yaml")"
+expect_lacks "V3 a scoped AND gated key whose package is live is not dead" "$out" "DEAD OVERRIDE"
+# V4 — the `@` that must follow the name in the lockfile line. Without it, an override
+#      naming a package that is absent reads as present whenever some OTHER package
+#      starts with the same characters and the next one is a digit. `react` against
+#      `react18-json-view` is the real-world pair, the same way `url`/`base64url` is
+#      for the anchor.
+cat > "$TMP/v4.pkg.json" <<'J'
+{ "dependencies": {}, "devDependencies": {}, "pnpm": { "overrides": { "react": "^19.0.0" } } }
+J
+mk_lock "  react18-json-view@1.0.0:"
+out="$(run "$TMP/v4.pkg.json" "$TMP/r.audit.json" "$TMP/lock.yaml")"
+expect_has "V4 a longer package name starting with the key is not the key" "$out" "DEAD OVERRIDE"
 
 # W: `--workspace-yaml` pointing at something unreadable. `-r` guards the `grep` call
 #    only; the POSITIVE claim keys off `[ -z "$WS_YAML" ]`, which tests non-emptiness.
@@ -747,10 +791,17 @@ expect_has   "Y5 a lockfile without lockfileVersion is SKIPPED"                 
 #       substring match would satisfy it too; a file that merely mentions the word in
 #       a comment separates them. Same FORM-over-NAME discipline O1/O2 give the
 #       workspace probe, applied here to the guard's own.
-printf '# lockfileVersion is 9, but this file is not a lockfile\n' > "$TMP/y5c.lock.yaml"
-y5c="$(bash "$GUARD" --package-json "$TMP/r0.pkg.json" --audit-json "$TMP/r.audit.json" \
-      --audit-prod-json "$TMP/r.audit.json" --lockfile "$TMP/y5c.lock.yaml" --pnpm-major 9 2>&1)"
-expect_has   "Y5c a mere mention of lockfileVersion is not the key"                "$y5c" "not a pnpm lockfile"
+#       The probe has TWO parts — a line anchor and a colon terminator — and one file
+#       that fails both pins neither, the way E2 pinned the awk pair only jointly.
+#       Two files, one part each, as V1/V2 do for the awk guards.
+_lk() { bash "$GUARD" --package-json "$TMP/r0.pkg.json" --audit-json "$TMP/r.audit.json" \
+        --audit-prod-json "$TMP/r.audit.json" --lockfile "$1" --pnpm-major 9 2>&1; }
+printf 'lockfileVersion is 9, with no colon\n' > "$TMP/y5c.lock.yaml"
+expect_has "Y5c the key needs its colon (line start alone is not enough)" \
+           "$(_lk "$TMP/y5c.lock.yaml")" "not a pnpm lockfile"
+printf '# see lockfileVersion: 9.0 in the pnpm docs\n' > "$TMP/y5d.lock.yaml"
+expect_has "Y5d and it needs the line start (a colon alone is not enough)" \
+           "$(_lk "$TMP/y5d.lock.yaml")" "not a pnpm lockfile"
 expect_lacks "Y6 and never manufactures a dead override from it"                   "$out" "DEAD OVERRIDE"
 printf 'lockfileVersion: "9.0"\n  postcss@8.5.24:\n' > "$TMP/ok.lock.yaml"
 out="$(bash "$GUARD" --package-json "$TMP/r0.pkg.json" --audit-json "$TMP/r.audit.json" \
@@ -778,9 +829,12 @@ z1_rc=$?
                    || bad "Z1 a missing required argument fails loudly" "exit=$z1_rc"
 expect_has "Z1b and it is the usage error, not a readability error" "$z1_out" "--audit-prod-json F"
 # Z1c — an unknown flag is a usage error too, and nothing measured it.
-bash "$GUARD" --package-json "$TMP/r0.pkg.json" --audit-json "$TMP/r.audit.json" \
+# Z1c — under `timeout`, like Z2: removing the `*)` arm makes the same `while`/`case`
+#       spin forever, so an unguarded call here would hang the suite rather than fail it.
+timeout 10 bash "$GUARD" --package-json "$TMP/r0.pkg.json" --audit-json "$TMP/r.audit.json" \
      --audit-prod-json "$TMP/r.audit.json" --lockfile "$TMP/lock.yaml" --nonsense x >/dev/null 2>&1
-[ $? -eq 2 ] && ok "Z1c an unknown flag fails loudly" || bad "Z1c an unknown flag fails loudly" "exit != 2"
+[ $? -eq 2 ] && ok "Z1c an unknown flag fails loudly, and does not hang" \
+             || bad "Z1c an unknown flag fails loudly, and does not hang" "exit != 2"
 # Z2 — a lone trailing flag name used to HANG: `shift 2` with `$#` of 1 shifts nothing
 #      and the loop never ends (measured, rc=124 under timeout). A hang is the one
 #      state this guard cannot report on.
@@ -805,14 +859,26 @@ expect_has "Z3 a GHSA prefix does not match the full advisory id" "$out" "STALE 
 #       healthy full read, so it needs its own inputs: the accepted id matches the
 #       full set EXACTLY, and the --prod set holds a longer id that merely starts
 #       with it.
+#       WHICH SIDE CAN ACTUALLY BE LONGER decides what this fixture may assert. The
+#       first version fed the --prod set `GHSA-aaaa-aaaa-aaaa-extra`, i.e. an ADVISORY
+#       id strictly extending the accepted one. pnpm cannot emit that: every id in
+#       this repo's own captures is 19 characters, `GHSA-` plus 4-4-4, so no emitted
+#       id extends another. That was a production fact asserted off a premise the real
+#       adapter never produces, undeclared — §5 `Tests:` straight out.
+#
+#       The producible direction is the mirror, and it is where the risk lives: the
+#       ACCEPTED entry is hand-typed into package.json, so it can carry a typo that
+#       extends a real id. Under a slide to `startswith` in that direction the guard
+#       both FABRICATES an OVER-BROAD and silences the STALE the typo really deserves
+#       — two defects in one, on the dangerous check.
 cat > "$TMP/z3b.pkg.json" <<'J'
 { "dependencies": {}, "devDependencies": {},
-  "pnpm": { "auditConfig": { "ignoreGhsas": ["GHSA-aaaa-aaaa-aaaa"] } } }
+  "pnpm": { "auditConfig": { "ignoreGhsas": ["GHSA-mh99-v99m-4gvg-typo"] } } }
 J
-echo '{ "advisories": { "1": { "github_advisory_id": "GHSA-aaaa-aaaa-aaaa", "severity": "high" } } }' > "$TMP/z3b.audit.json"
-echo '{ "advisories": { "1": { "github_advisory_id": "GHSA-aaaa-aaaa-aaaa-extra", "severity": "high" } } }' > "$TMP/z3b.prod.json"
-out="$(run "$TMP/z3b.pkg.json" "$TMP/z3b.audit.json" "$TMP/lock.yaml" "$TMP/z3b.prod.json")"
-expect_lacks "Z3b a prefix in the --prod set does not fabricate OVER-BROAD" "$out" "OVER-BROAD"
+echo '{ "advisories": { "1": { "github_advisory_id": "GHSA-mh99-v99m-4gvg", "severity": "high" } } }' > "$TMP/z3b.audit.json"
+out="$(run "$TMP/z3b.pkg.json" "$TMP/z3b.audit.json" "$TMP/lock.yaml" "$TMP/z3b.audit.json")"
+expect_has   "Z3b a mistyped acceptance extending a real id is STALE"        "$out" "STALE SUPPRESSION"
+expect_lacks "Z3b2 and never fabricates OVER-BROAD from it"                  "$out" "OVER-BROAD"
 # Z4 — an empty string in the list is skipped rather than matched against everything.
 cat > "$TMP/z4.pkg.json" <<'J'
 { "dependencies": {}, "devDependencies": {},

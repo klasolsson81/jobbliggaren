@@ -379,7 +379,7 @@ principle that kept a hand-rolled delta-differ out of the gate in the first plac
 (senior-cto-advisor 2026-07-28: follow-up, explicitly **not** a TD — the phase rule is
 not met). **That PR is this one — the plan is executed, and this parenthesis records
 the triage that authorised it, not outstanding work.** Do not read it against the
-cadence parenthesis in the paragraph immediately above, which carries a different date
+cadence follow-up in the paragraph immediately above, which carries a different date
 (2026-07-30), a different subject, and is still open. The current instance of the gap is recorded at
 the mechanism, in `dependabot-automerge.yml`.
 

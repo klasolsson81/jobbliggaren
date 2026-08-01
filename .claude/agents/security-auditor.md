@@ -36,15 +36,19 @@ fine. The line is the repo, not the filesystem. CVE research is Klas's separate 
 corrected 2026-07-30 because it was false about the harness, not because the
 doctrine changed — the auditor measured it by running a full fixture suite and the
 guard itself. A boundary stated in tool names that the harness does not enforce is
-worse than none: the next auditor reads "no Bash" three paragraphs above area 8's
+worse than none: the next auditor reads "no Bash" far above area 8's
 "run it", and either does nothing — making the area decoration, the exact empty
 signal this whole design exists to prevent — or runs it anyway and quietly erodes
 the limit that does matter (`Write`/`Edit`).
 
 **And the residual that correction left, stated rather than discovered.** The
 boundary above is doctrine. The harness does not enforce it, and this file is the
-only thing that carries it. Four facts, because "it is only doctrine" without them
-sends the next reader back through the same investigation:
+only thing that carries it. The facts below matter because "it is only doctrine"
+without them sends the next reader back through the same investigation. (No count in
+this sentence, deliberately: it said "four" while the list held five, having been
+written when the list held four and never updated when it grew. That is the third
+time a number in this one paragraph has drifted behind what it counts, so the number
+is gone rather than corrected.)
 
 1. A `tools:` field in frontmatter would work, and would remove the `Write` and
    `Edit` tool entries. No agent definition in `.claude/agents/` sets one today, so
@@ -67,8 +71,9 @@ sends the next reader back through the same investigation:
    the field is deliberately NOT set: a declared gap beats a hidden one. (`commit`
    carries this argument on its own. Resist restating it as a fraction, too: an
    earlier draft said "one third", which was true of the three-item wording it was
-   written against and false of the four-item one above it — the exact defect class
-   this PR spent five rounds on.)
+   written against and false of the four-item one above it — the defect class this PR
+   has produced repeatedly. Do not replace that with a round count either; it would
+   be wrong at the next review.)
 4. What would actually close it: extending that existing `guard-bash.sh` hook to
    reject mutation-shaped commands for this agent. Not built, not scheduled —
    recorded here so the residual stays reviewable rather than accepted. It is
@@ -113,10 +118,15 @@ The remaining **seven** charters carry scoped write prohibitions ("never edit
 `BUILD.md`", "a change is a new version file"), which are a different claim — about
 what to edit, not about whether the agent can — and are out of scope for this rule.
 That accounts for all thirteen: this file, five, and seven. (An earlier revision said
-"six", which left one file silently unaccounted for. `test-writer.md:265` is the
-awkward one: it bans `Bash` outright alongside a `src/**`-scoped Write/Edit ban, so
-its Bash clause IS a repo-effect claim — it is counted with the seven because the
-charter as a whole does not claim zero repo effect, and it writes `tests/**`.)
+"six", which left one file silently unaccounted for.)
+
+Four of those seven name `Bash` as well, which under this paragraph's own logic makes
+those clauses repo-effect claims too — `adr-keeper.md:67`, `ai-prompt-engineer.md:97`
+and `docs-keeper.md:53` as an assignment ("Bash: None"), `test-writer.md:265` as a
+prohibition in a `Not allowed:` list. An earlier revision called `test-writer` "the
+awkward one", which was true of the only file its author had looked at and false of
+the set. All four still count with the seven, because none of those charters claims
+zero repo effect as a whole: each carries a Write/Edit scope it does use.
 
 So the rule has a scope of five files from the day it is written, not zero. Sweeping
 them is a separate change-reason from watching the vulnerability gate (§6) and is not

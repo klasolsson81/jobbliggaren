@@ -90,8 +90,21 @@ internal static class AutoPromoteGate
 
         // ── Tier 1: the two POLICY gates (CTO-bind §2; narrowed from three by #1060's D1
         // bind) — both read-only. Order: highest PII priority first, then extraction failure.
+        //
+        // Every blocking arm passes DomainErrorCode explicitly, and the argument is NAMED at
+        // each of the five — the three arms in this tier (the two policy gates plus the label
+        // scan, which is not itself a policy gate under the D1 bind) plus the Tier-2 DQ6 arm
+        // (null) and the buildability arm (the code). The parameter has no default on purpose (#1060 D3(β) PR 2): with one,
+        // dropping it compiles and the arm silently starts claiming "no domain evaluation ran"
+        // — the same class of surviving mutation LayoutChainRunner.Crashed's fourth argument was
+        // measured to produce. Without one it is a build error.
         if (parsed.Personnummer.Found)
-            return new AutoPromoteGateVerdict.Blocked(AutoPromoteBlockReason.PersonnummerPresent);
+        {
+            // No Domain evaluation ran. This reads the aggregate's OWN scan outcome, a value
+            // ParsedResume already holds; nothing returned a Result, so there is no code to carry.
+            return new AutoPromoteGateVerdict.Blocked(
+                AutoPromoteBlockReason.PersonnummerPresent, DomainErrorCode: null);
+        }
 
         // #1060 D1.3: `Failed` ONLY, not `RequiresManualReview`. A `Degraded` parse found
         // something and is honest that the document was messy — under ADR 0112 that is the CV
@@ -106,13 +119,27 @@ internal static class AutoPromoteGate
         // still never maps Preamble into Summary or a Section, which is the prohibition the
         // gate was standing in for, enforced where it belongs.
         if (parsed.Confidence.Overall == OverallConfidenceLevel.Failed)
-            return new AutoPromoteGateVerdict.Blocked(AutoPromoteBlockReason.ParseNotConfident);
+        {
+            // No Domain evaluation ran either: this compares a confidence LEVEL the parse
+            // already carries. Same shape as the arm above, different subject.
+            return new AutoPromoteGateVerdict.Blocked(
+                AutoPromoteBlockReason.ParseNotConfident, DomainErrorCode: null);
+        }
 
         // A personnummer in the LABEL is a personnummer presence, not "incomplete content" —
         // `Resume.ValidateName` would refuse it too, but as a buildability failure, which
         // would mis-report the reason (§5: never mis-report a verdict).
         if (PersonnummerScanner.Scan(PersonnummerTextNormalizer.Normalize(label)).Count > 0)
-            return new AutoPromoteGateVerdict.Blocked(AutoPromoteBlockReason.PersonnummerPresent);
+        {
+            // Null for a STRONGER reason than the two above, and it is the same reason this rung
+            // exists at all: a Domain code IS obtainable here — `Resume.ValidateName` returns
+            // `Resume.NamePersonnummerMustBeRemoved` for this very label — but the gate refuses
+            // BEFORE asking it, precisely so the verdict is not reported as a buildability
+            // failure. Carrying that code would name a refusal that never happened, which is the
+            // mis-report this ordering was written to prevent.
+            return new AutoPromoteGateVerdict.Blocked(
+                AutoPromoteBlockReason.PersonnummerPresent, DomainErrorCode: null);
+        }
 
         // ── Tier 2: buildability, through the ONE existing promote pipeline.
         var dto = AutoPromoteContentMapper.ToContentDto(parsed.Content, personName);
@@ -140,15 +167,24 @@ internal static class AutoPromoteGate
             // as PersonnummerPresent sent the user to search a clean file: a mis-reported
             // verdict (CLAUDE.md §5) and a loop with no exit, because the fix is under
             // Inställningar and nothing said so.
+            // Null even though `guard.Error.Code` exists (`Resume.PersonnummerMustBeRemoved`) —
+            // and the reason is the asymmetry the whole field exists for. THIS token is already
+            // 1:1 with that code: reaching this rung IS that refusal, so carrying it would add a
+            // second name for one fact. `IncompleteContent`, below, collapses `CreateFromParsed`'s
+            // WHOLE error set onto one token, and that is the collapse a reader cannot undo.
             return new AutoPromoteGateVerdict.Blocked(
-                AutoPromoteBlockReason.PersonnummerInAccountName);
+                AutoPromoteBlockReason.PersonnummerInAccountName, DomainErrorCode: null);
         }
 
         var content = ResumeContentMapper.ToDomain(dto);
         var created = Resume.CreateFromParsed(jobSeekerId, label, content, parsed.Id, clock);
 
+        // The ONE arm that carries a code: `created.Error.Code`, verbatim and unexamined. This is
+        // not a second evaluation of "why did this fail" — it is the FIRST evaluation's output,
+        // stopped from being discarded. No predicate is re-encoded here, so nothing can drift.
         return created.IsFailure
-            ? new AutoPromoteGateVerdict.Blocked(AutoPromoteBlockReason.IncompleteContent)
+            ? new AutoPromoteGateVerdict.Blocked(
+                AutoPromoteBlockReason.IncompleteContent, DomainErrorCode: created.Error.Code)
             : new AutoPromoteGateVerdict.Promotable(created.Value);
     }
 }
@@ -165,8 +201,50 @@ internal abstract record AutoPromoteGateVerdict
 
     /// <summary>A gate fired. <paramref name="Reason"/> is the FIRST one in evaluation order —
     /// the honest single answer, not a set (a CV blocked on a personnummer is not additionally
-    /// "incomplete"; it has not been asked yet).</summary>
-    public sealed record Blocked(AutoPromoteBlockReason Reason) : AutoPromoteGateVerdict;
+    /// "incomplete"; it has not been asked yet).
+    ///
+    /// <para><b><paramref name="DomainErrorCode"/> is populated on the
+    /// <see cref="AutoPromoteBlockReason.IncompleteContent"/> arm ONLY</b>, and every other arm
+    /// passes <c>null</c> as a named argument with its own reason written beside it. That is a
+    /// contract, not a convention — <c>AutoPromoteGateTests</c> pins it, because
+    /// <c>Blocked(PersonnummerPresent, "something")</c> is otherwise representable and nothing
+    /// would say it is wrong. (A third DU case <c>Unbuildable(DomainError)</c> would make it
+    /// unrepresentable and was rejected: this type's own docblock says correctness hangs on the
+    /// two arms being the only two, and a third forces both call sites and every test to handle
+    /// it for no user-visible gain.)</para>
+    ///
+    /// <para><b>Why it exists.</b> <see cref="AutoPromoteBlockReason.IncompleteContent"/> is one
+    /// token over every code <c>Resume.CreateFromParsed</c> can return — thirty-two declared by
+    /// <c>ValidateContent</c> alone, plus <c>JobSeekerIdRequired</c> and <c>ValidateName</c>'s three.
+    /// The two mechanisms behind them
+    /// have different fixes in different homes — a per-entry failure
+    /// (<c>ExperienceCompanyRequired</c>) is routable, while a whole-document one
+    /// (<c>SummaryTooLong</c>) was bound to the lexicon asset instead. Until now no consumer could
+    /// tell them apart: <c>Resume.CreateFromParsed</c> returned the code and this gate discarded
+    /// it whole.</para>
+    ///
+    /// <para><b>The code, never the whole <c>DomainError</c>.</b> A <c>DomainError</c> also carries
+    /// the Swedish user-facing message; logging that would put a second home for UI copy into Seq.
+    /// The code is a closed constraint identity — no field value, no user text.</para>
+    ///
+    /// <para><b>It is named for what it carries, not for the arm a reader hopes produced it.</b>
+    /// <c>CreateFromParsed</c> can also refuse on <c>Resume.JobSeekerIdRequired</c> and on
+    /// <c>ValidateName</c>'s three codes, so calling this <c>ValidateContentCode</c> would be a
+    /// claim about the caller's own preconditions rather than about this value.</para>
+    ///
+    /// <para><b>The boundary is a COMPILER GUARANTEE, not a promise.</b>
+    /// <see cref="AutoPromoteGateVerdict"/> is <c>internal</c> and
+    /// <c>Jobbliggaren.Application.csproj</c> grants <c>InternalsVisibleTo</c> to
+    /// <c>Jobbliggaren.Application.UnitTests</c> and <c>Jobbliggaren.Api.IntegrationTests</c> only
+    /// — <b>not</b> to <c>Jobbliggaren.Api</c>. So the detail cannot reach
+    /// <c>ResumesEndpoints</c>, where <c>pending.Reason.ToString()</c> goes straight onto the
+    /// wire; leaking it there is a build error rather than a review miss. Putting the detail on
+    /// <see cref="AutoPromoteOutcome.LeftPending"/> instead was rejected for exactly that reason:
+    /// it IS the wire type, and a Domain constraint code arriving on it would reach a zod schema
+    /// and an FE with no copy for it — a mis-reported verdict shown to a user, plus a hardcoded
+    /// UI string (CLAUDE.md §5, both halves).</para></summary>
+    public sealed record Blocked(AutoPromoteBlockReason Reason, string? DomainErrorCode)
+        : AutoPromoteGateVerdict;
 
     /// <summary>No gate fired, and <paramref name="Resume"/> is the canonical CV the parse
     /// builds — already validated, not yet persisted and not yet linked to its parse's

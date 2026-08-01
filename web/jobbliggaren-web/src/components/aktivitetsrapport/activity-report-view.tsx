@@ -68,8 +68,44 @@ export function ActivityReportView({
         )
       : rows;
 
-  function handleMonthChange(event: React.ChangeEvent<HTMLSelectElement>) {
-    router.push(`/aktivitetsrapport?month=${event.target.value}`);
+  // WCAG 2.1 SC 3.2.2 On Input (level A), technique H84. The picker used to
+  // `router.push` straight out of `onChange`, and on Windows/Chrome a CLOSED
+  // `<select>` commits every arrow key. The list is the last twelve months, so
+  // arrowing from the newest option to the oldest is eleven steps — and it fired
+  // eleven navigations and eleven fetches, one per keystroke, each one a change
+  // of context the user never asked for. Type-ahead has the same shape, one
+  // navigation per letter.
+  //
+  // So the value the control shows is local state now, and navigation is its own
+  // act: Enter, or leaving the field. Klas chose this form over H84's canonical
+  // "Visa" button on 2026-08-01, with the consequence stated — picking with the
+  // mouse no longer navigates on the click, it navigates when focus leaves.
+  const [pendingMonth, setPendingMonth] = useState(selectedMonth);
+  const [syncedMonth, setSyncedMonth] = useState(selectedMonth);
+
+  // Adjusting state when a prop changes, in React's documented render-phase form
+  // rather than an effect. It is load-bearing, not tidiness: once the value is
+  // local, a month arriving from the server (a committed navigation, the back
+  // button, a bookmarked `?month=`) would otherwise leave the control showing one
+  // month while the report below it lists another.
+  if (selectedMonth !== syncedMonth) {
+    setSyncedMonth(selectedMonth);
+    setPendingMonth(selectedMonth);
+  }
+
+  function commitMonth(month: string) {
+    // Guarded so leaving the field untouched is not a navigation. Without it,
+    // every tab-through of the card would refetch the month already on screen.
+    if (month === selectedMonth) return;
+    router.push(`/aktivitetsrapport?month=${month}`);
+  }
+
+  function handleMonthKeyDown(event: React.KeyboardEvent<HTMLSelectElement>) {
+    if (event.key !== "Enter") return;
+    // There is no form here, so Enter has no default to speak of; prevented
+    // anyway so wrapping this card in one later cannot turn it into a submit.
+    event.preventDefault();
+    commitMonth(pendingMonth);
   }
 
   return (
@@ -85,8 +121,11 @@ export function ActivityReportView({
           <select
             id="aktivitetsrapport-month"
             className="jp-input"
-            value={selectedMonth}
-            onChange={handleMonthChange}
+            value={pendingMonth}
+            aria-describedby="aktivitetsrapport-month-hint"
+            onChange={(event) => setPendingMonth(event.target.value)}
+            onKeyDown={handleMonthKeyDown}
+            onBlur={() => commitMonth(pendingMonth)}
           >
             {monthOptions.map((option) => (
               <option key={option.value} value={option.value}>
@@ -94,6 +133,14 @@ export function ActivityReportView({
               </option>
             ))}
           </select>
+          {/* Navigation is no longer implied by the control's appearance, so it
+              is said in words and tied to the select with aria-describedby. */}
+          <p
+            id="aktivitetsrapport-month-hint"
+            className="text-body-sm leading-5 text-text-primary"
+          >
+            {t("month.hint")}
+          </p>
         </div>
 
         <div className="flex flex-col gap-1">

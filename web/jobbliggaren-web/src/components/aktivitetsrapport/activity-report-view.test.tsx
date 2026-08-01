@@ -100,12 +100,132 @@ describe("ActivityReportView", () => {
     expect(screen.getByText("3 ansökningar i maj 2026.")).toBeInTheDocument();
   });
 
-  it("navigates to the selected month on picker change", () => {
-    renderView([row()]);
-    fireEvent.change(screen.getByLabelText("Månad"), {
-      target: { value: "2026-04" },
+  // -----------------------------------------------------------------
+  // WCAG 2.1 SC 3.2.2 On Input (level A), technique H84. Changing the
+  // picker's VALUE must not navigate; navigating is its own act.
+  // -----------------------------------------------------------------
+  describe("month picker", () => {
+    // Three options, because the resync case below needs a month that is neither
+    // the one on screen nor the uncommitted draft.
+    const pickerOptions: MonthOption[] = [
+      { value: "2026-05", label: "maj 2026" },
+      { value: "2026-04", label: "april 2026" },
+      { value: "2026-03", label: "mars 2026" },
+    ];
+
+    function pickerView(selectedMonth: string) {
+      return (
+        <ActivityReportView
+          rows={[row()]}
+          selectedMonth={selectedMonth}
+          monthLabel="maj 2026"
+          monthOptions={pickerOptions}
+          afUrl="https://arbetsformedlingen.se/example"
+        />
+      );
+    }
+
+    function renderPicker(selectedMonth: string) {
+      return render(pickerView(selectedMonth));
+    }
+
+    it("does not navigate while the value is being changed", () => {
+      renderPicker("2026-05");
+      const picker = screen.getByLabelText("Månad");
+
+      // The measured defect, reproduced: a CLOSED <select> on Windows/Chrome
+      // commits on every arrow key. The picker lists the last twelve months, so
+      // arrowing from the newest option to the oldest is ELEVEN steps, and it
+      // fired eleven router.push calls and eleven fetches, one per keystroke.
+      // Eleven change events go in here for that reason — the number in this
+      // comment is the number the loop runs — and the count that matters is zero.
+      const stepped = Array.from({ length: 11 }, (_, i) =>
+        i % 2 === 0 ? "2026-04" : "2026-05",
+      );
+      for (const value of stepped) {
+        fireEvent.change(picker, { target: { value } });
+      }
+
+      expect(push).not.toHaveBeenCalled();
+      // The control still tracks what the user typed; only the navigation waits.
+      expect(picker).toHaveValue("2026-04");
     });
-    expect(push).toHaveBeenCalledWith("/aktivitetsrapport?month=2026-04");
+
+    it("navigates on Enter", () => {
+      renderPicker("2026-05");
+      const picker = screen.getByLabelText("Månad");
+
+      fireEvent.change(picker, { target: { value: "2026-04" } });
+      fireEvent.keyDown(picker, { key: "Enter" });
+
+      expect(push).toHaveBeenCalledTimes(1);
+      expect(push).toHaveBeenCalledWith("/aktivitetsrapport?month=2026-04");
+    });
+
+    it("navigates when focus leaves the field", () => {
+      renderPicker("2026-05");
+      const picker = screen.getByLabelText("Månad");
+
+      fireEvent.change(picker, { target: { value: "2026-04" } });
+      fireEvent.blur(picker);
+
+      expect(push).toHaveBeenCalledTimes(1);
+      expect(push).toHaveBeenCalledWith("/aktivitetsrapport?month=2026-04");
+    });
+
+    it("does not navigate when focus leaves a value that ended up unchanged", () => {
+      renderPicker("2026-05");
+      const picker = screen.getByLabelText("Månad");
+
+      // Tabbing through the card, and arrowing away and back again, are both
+      // ordinary. Without the equality guard each would refetch the month that
+      // is already on screen.
+      fireEvent.blur(picker);
+      fireEvent.change(picker, { target: { value: "2026-04" } });
+      fireEvent.change(picker, { target: { value: "2026-05" } });
+      fireEvent.blur(picker);
+      fireEvent.keyDown(picker, { key: "Enter" });
+
+      expect(push).not.toHaveBeenCalled();
+    });
+
+    it("follows the month the server resolved, so the control cannot disagree with the report below it", () => {
+      const { rerender } = renderPicker("2026-05");
+      const picker = screen.getByLabelText("Månad");
+
+      fireEvent.change(picker, { target: { value: "2026-04" } });
+      expect(picker).toHaveValue("2026-04");
+
+      // A DIFFERENT month arriving from the server must win over the uncommitted
+      // draft: the back button, or a bookmarked ?month=, both re-render this
+      // component in place with a new prop.
+      //
+      // The first version of this test re-rendered with the SAME month still on
+      // screen and expected the draft to be discarded. That transition is not
+      // producible: `page.tsx` echoes the month the backend resolved, and every
+      // value this picker can emit is one the backend returns unchanged, so a
+      // committed April never comes back as May. Asserting it would have been a
+      // production fact resting on a premise production cannot produce
+      // (CLAUDE.md §5, Tests).
+      rerender(pickerView("2026-03"));
+
+      expect(picker).toHaveValue("2026-03");
+    });
+
+    it("says in words when the report updates, and ties that to the select", () => {
+      renderPicker("2026-05");
+      const picker = screen.getByLabelText("Månad");
+
+      // Navigation is no longer implied by the control's own behaviour, so the
+      // affordance has to be stated. Asserted through the aria-describedby LINK
+      // rather than by accessible-description text: jsdom fuses adjacent element
+      // text in a way Chromium does not, so the link is the fact that transfers.
+      const describedBy = picker.getAttribute("aria-describedby") ?? "";
+      expect(describedBy).not.toBe("");
+      expect(document.getElementById(describedBy)).toHaveTextContent(
+        "Rapporten uppdateras när du trycker Enter eller lämnar fältet.",
+      );
+    });
   });
 
   it("opens the AF activity report in a new tab via the CTA", () => {

@@ -671,6 +671,131 @@ public sealed class LayoutCorpusEmitterTests
         observation.Gates.ShouldBeEmpty();
     }
 
+    // ===============================================================
+    // The Domain code column (#1060 D3(β) PR 2). Subject: the EMITTER — assert-rule
+    // category (c). Nothing here asserts what the product decided.
+    // ===============================================================
+
+    /// <summary>
+    /// The code reaches §5 and reaches §5 ONLY (CTO-bind D.3). The negative half is the load-
+    /// bearing one: §2 is the headline verdict table with eleven columns already, and a twelfth
+    /// diagnostic column would give the detail two homes in one document. A `Contains` over the
+    /// whole report would pass with the column in both places, so this splits the sections first.
+    /// </summary>
+    [Fact]
+    public void Report_ForABuildabilityBlock_PublishesTheDomainCodeInSectionFiveOnly()
+    {
+        var report = LayoutCorpusReport.Build(new LayoutCorpusReportData(
+            "abc1234",
+            [Observation("case-unbuildable",
+                blockReason: AutoPromoteBlockReason.IncompleteContent, promoted: false,
+                domainErrorCode: "Resume.ExperienceCompanyRequired")],
+            [], []));
+
+        Section(report, "## 5. Gate ladder").ShouldContain("Resume.ExperienceCompanyRequired");
+        Section(report, "## 2. Fidelity verdict").ShouldNotContain("Resume.ExperienceCompanyRequired");
+        Section(report, "## 5. Gate ladder").ShouldContain("| Domain code |");
+    }
+
+    /// <summary>
+    /// An em-dash means "no Domain refusal produced a code", and it is what a POLICY block and a
+    /// PROMOTE both print — neither asked the Domain the question. Pinned because the column
+    /// would otherwise be free to invent a value for a row where none exists.
+    /// </summary>
+    [Fact]
+    public void Report_ForAPolicyBlockAndAPromote_RendersTheDomainCodeAsAnEmDash()
+    {
+        var report = LayoutCorpusReport.Build(new LayoutCorpusReportData(
+            "abc1234",
+            [
+                Observation("case-pnr",
+                    blockReason: AutoPromoteBlockReason.PersonnummerPresent, promoted: false),
+                Observation("case-promoted"),
+            ],
+            [], []));
+
+        var ladder = Section(report, "## 5. Gate ladder");
+        foreach (var id in new[] { "case-pnr", "case-promoted" })
+        {
+            // The ROW, not the section. Two things forced this and both were measured by this
+            // test failing: §5's own glossary contains the string "INSTRUMENT: unreadable" by
+            // design (it is the paragraph that DEFINES it), and §5 holds TWO tables — the case
+            // id also appears in the Observed-Domain-state rows below the ladder.
+            var row = LadderRow(ladder, id);
+            row.ShouldNotContain("INSTRUMENT");
+
+            // Cell-level: the Domain-code column is the one immediately after FIRST BLOCK, and
+            // the row's trailing cells are `— | — | yes/no`. Counting the em-dashes in the row
+            // would also pass on a row that lost the column, so read the cell by position.
+            var cells = row.Split('|').Select(x => x.Trim()).ToList();
+            var promoteFaultIndex = cells.Count - 3;
+            cells[promoteFaultIndex - 1].ShouldBe("—");
+        }
+    }
+
+    /// <summary>
+    /// A reading failure is an INSTRUMENT fact and must never wear the em-dash that means "no
+    /// code". This is the same argument <c>GateState.Unresolved</c> was created on: before it,
+    /// a gap in this file was narrated as something the product did. §0 names the case, so the
+    /// artifact's own health block carries it rather than a reader having to spot the cell.
+    /// </summary>
+    [Fact]
+    public void Report_WhenTheBlockDetailCouldNotBeRead_SaysSoAndNamesTheCaseInSectionZero()
+    {
+        var report = LayoutCorpusReport.Build(new LayoutCorpusReportData(
+            "abc1234",
+            [Observation("case-unreadable",
+                blockReason: AutoPromoteBlockReason.IncompleteContent, promoted: false,
+                blockDetailUnreadable: true)],
+            [], []));
+
+        Section(report, "## 5. Gate ladder").ShouldContain("**INSTRUMENT: unreadable**");
+        Section(report, "## 0. Instrument integrity")
+            .ShouldContain("**block detail unreadable:** `case-unreadable`");
+    }
+
+    /// <summary>The healthy counterpart: with nothing unreadable, §0 says so in the same
+    /// `none` form the other four health lines use. Without this, the line above could be
+    /// satisfied by an emitter that prints the case id unconditionally.</summary>
+    [Fact]
+    public void Report_WithEveryBlockDetailReadable_ReportsNoneOnThatHealthLine()
+    {
+        var report = LayoutCorpusReport.Build(Data());
+
+        Section(report, "## 0. Instrument integrity")
+            .ShouldContain("**block detail unreadable:** none");
+    }
+
+    /// <summary>One case's row from §5's LADDER table specifically. The section carries a second
+    /// table (Observed Domain state) keyed by the same case id, so matching on the id alone
+    /// returns two lines; the ladder is the one whose first cell is the row number.</summary>
+    private static string LadderRow(string ladderSection, string caseId)
+    {
+        var rows = ladderSection.Split('\n')
+            .Where(l =>
+            {
+                var cells = l.Split('|');
+                return cells.Length > 3
+                    && int.TryParse(cells[1].Trim(), out _)
+                    && string.Equals(cells[2].Trim(), $"`{caseId}`", StringComparison.Ordinal);
+            })
+            .ToList();
+
+        rows.Count.ShouldBe(1, $"expected exactly one ladder row for '{caseId}'");
+        return rows[0];
+    }
+
+    /// <summary>The text between one `## ` heading and the next. Used by the tests above so a
+    /// claim about §5 cannot be satisfied by a string that only appears in §2.</summary>
+    private static string Section(string report, string heading)
+    {
+        var start = report.IndexOf(heading, StringComparison.Ordinal);
+        start.ShouldBeGreaterThanOrEqualTo(0, $"the report has no '{heading}' section");
+
+        var next = report.IndexOf("\n## ", start + heading.Length, StringComparison.Ordinal);
+        return next < 0 ? report[start..] : report[start..next];
+    }
+
     public static TheoryData<AutoPromoteBlockReason, bool, bool, int> ReachableGateStates() =>
         new()
         {
@@ -685,7 +810,13 @@ public sealed class LayoutCorpusEmitterTests
     private static LayoutCorpusReportData Data() =>
         new("abc1234", [Observation("case-alpha")], ["ISkillResolver (empty proposals)"], []);
 
-    private static LayoutCaseObservation Observation(string id, string? byteProofFailure = null) =>
+    private static LayoutCaseObservation Observation(
+        string id,
+        string? byteProofFailure = null,
+        AutoPromoteBlockReason? blockReason = null,
+        bool promoted = true,
+        string? domainErrorCode = null,
+        bool blockDetailUnreadable = false) =>
         new(
             Case: new LayoutCase(id, "a mechanic", "(b) single-column", "pdf", "cv.pdf",
                 "application/pdf", _ => [], CvModel.Swedish, _ => { }, "a byte proof", true),
@@ -706,8 +837,11 @@ public sealed class LayoutCorpusEmitterTests
             GroundTruthExperience: 5, GroundTruthEducation: 3,
             PromotedExperience: 1, PromotedEducation: 1, PromotedExperienceWithRawPeriod: 1,
             PromotedPreambleChars: null,
-            BlockReason: null, Promoted: true,
-            Gates: GateLadder.From(null, true, false, false, false),
+            BlockReason: blockReason,
+            DomainErrorCode: domainErrorCode,
+            BlockDetailUnreadable: blockDetailUnreadable,
+            Promoted: promoted,
+            Gates: GateLadder.From(blockReason, promoted, false, false, false),
             Markers: [],
             CrossSectionContamination: [],
             SummaryContainsRenderedProjectHeading: null,

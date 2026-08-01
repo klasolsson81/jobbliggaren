@@ -94,6 +94,12 @@ public sealed record LayoutCaseObservation(
     // on the way to the canonical CV leaves every row byte-identical. Measured — it did.
     int? PromotedPreambleChars,
     AutoPromoteBlockReason? BlockReason,
+
+    // #1060 D3(β) PR 2 — WHICH Domain constraint refused the CV, behind the one token that
+    // collapses thirty-two of them. Null on every arm but buildability, and on every promote;
+    // `BlockDetailUnreadable` is the separate instrument fact, never folded into this null.
+    string? DomainErrorCode,
+    bool BlockDetailUnreadable,
     bool Promoted,
     IReadOnlyList<GateCell> Gates,
     IReadOnlyList<MarkerTrace> Markers,
@@ -242,6 +248,8 @@ internal static partial class LayoutChainRunner
             PromotedExperienceWithRawPeriod: withRawPeriod,
             PromotedPreambleChars: promotedContent?.Preamble?.Length,
             BlockReason: o.BlockReason,
+            DomainErrorCode: o.DomainErrorCode,
+            BlockDetailUnreadable: o.BlockDetailUnreadable,
             Promoted: o.Promoted,
             Gates: gates,
             Markers: markers,
@@ -407,13 +415,20 @@ internal static partial class LayoutChainRunner
     internal static LayoutCaseObservation Crashed(
         LayoutCase c, IReadOnlyList<string> fixtureProblems, string exceptionType,
         string? byteProofFailure) =>
-        // Named, not positional. The record has 39 parameters and positions 21-28 are eight
-        // consecutive int/int? — ParsedExperience, ParsedEducation, the two ground truths, the
-        // two promoted counts, PromotedExperienceWithRawPeriod, PromotedPreambleChars — with an
-        // implicit int -> int? conversion between them. Inserting one more in that run shifts
-        // every following nullable-int SILENTLY and the compiler accepts it. A corpus that
-        // reports promoted-education under "promoted experience" is the exact class of quiet
-        // content loss this instrument exists to measure.
+        // Named, not positional. The record has 41 parameters (39 before #1060 D3(β) PR 2 added
+        // DomainErrorCode and BlockDetailUnreadable) and positions 21-28 are eight consecutive
+        // int/int? — ParsedExperience, ParsedEducation, the two ground truths, the two promoted
+        // counts, PromotedExperienceWithRawPeriod, PromotedPreambleChars — with an implicit
+        // int -> int? conversion between them. Inserting one more in that run shifts every
+        // following nullable-int SILENTLY and the compiler accepts it. A corpus that reports
+        // promoted-education under "promoted experience" is the exact class of quiet content
+        // loss this instrument exists to measure.
+        //
+        // The same hazard exists on the bool runs, and PR 2 created the second of them: 17-18
+        // (ContainsFusedPeriodRole, AnyLineCarriesBothColumns) and now 32-33
+        // (BlockDetailUnreadable, Promoted). Naming arguments is what closes all three runs at
+        // once, which is why the rule is "named at every construction site" rather than a note
+        // about the int block specifically.
         new(
             Case: c,
             ByteProofFailure: byteProofFailure,
@@ -444,6 +459,10 @@ internal static partial class LayoutChainRunner
             PromotedExperienceWithRawPeriod: null,
             PromotedPreambleChars: null,
             BlockReason: null,
+            // A crash reached no gate, so there is no block and nothing to read: no code, and
+            // the reading did not fail — it was never attempted.
+            DomainErrorCode: null,
+            BlockDetailUnreadable: false,
             Promoted: false,
             Gates: [],
             Markers: [],

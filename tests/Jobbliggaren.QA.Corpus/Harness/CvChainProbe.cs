@@ -15,8 +15,8 @@ using Jobbliggaren.Domain.Resumes.Parsing;
 using Jobbliggaren.Infrastructure.Persistence;
 using Jobbliggaren.Infrastructure.Resumes.Parsing;
 using Jobbliggaren.QA.Corpus.Generation;
+using Jobbliggaren.TestSupport;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 
 // CA2012: stubbing the ValueTask-returning deriver ports is the known NSubstitute analyzer
@@ -37,6 +37,15 @@ internal sealed record CvChainObservation(
     ParsedResume? Parsed,
     string? ImportFailureCode,
     AutoPromoteBlockReason? BlockReason,
+
+    // #1060 D3(β) PR 2 — the Domain constraint code behind an `IncompleteContent` block, read
+    // off the handler's OWN structured log line. Null on every other arm and on a promote.
+    string? DomainErrorCode,
+
+    // …and the case where the READING failed rather than the value being absent. Kept apart
+    // for the reason GateState.Unresolved exists: collapsing an instrument gap into a product
+    // statement is what published an honest block as a handler fault for a whole PR.
+    bool BlockDetailUnreadable,
     bool Promoted,
     Resume? PromotedResume,
     string? PromoteFailureCode,
@@ -102,8 +111,8 @@ internal static class CvChainProbe
             // artifact for every other case. The exception TYPE only — never the message,
             // which could carry CV text (parity Harness/CrashSweep.cs, CLAUDE.md §5).
             return new CvChainObservation(
-                false, null, string.Empty, 0, 0, false, null, null, null, false, null, null,
-                ex.GetType().Name);
+                false, null, string.Empty, 0, 0, false, null, null, null, null, false, false,
+                null, null, ex.GetType().Name);
         }
     }
 
@@ -137,7 +146,7 @@ internal static class CvChainProbe
         {
             return new CvChainObservation(
                 kindResolved, null, string.Empty, 0, 0, false, null, import.Error.Code,
-                null, false, null, null, null);
+                null, null, false, false, null, null, null);
         }
 
         await db.SaveChangesAsync(ct);
@@ -173,6 +182,8 @@ internal static class CvChainProbe
             Parsed: parsed,
             ImportFailureCode: null,
             BlockReason: promote.Block,
+            DomainErrorCode: promote.DomainErrorCode,
+            BlockDetailUnreadable: promote.BlockDetailUnreadable,
             Promoted: promote.Promoted,
             PromotedResume: promote.Resume,
             PromoteFailureCode: promote.FailureCode,
@@ -212,16 +223,36 @@ internal static class CvChainProbe
         return await handler.Handle(new ImportResumeCommand(fileName, contentType, bytes), ct);
     }
 
+    /// <summary>The MEL structured-property name the handler emits the domain code under. It is
+    /// the placeholder TOKEN, not the prose beside it, and it is looked up by exact string —
+    /// pinned on the writing side by
+    /// <c>AutoPromoteParsedResumeCommandHandlerTests.Handle_LeftPending_EmitsTheBlockDetailPropertyTheCorpusReadsByName</c>,
+    /// because a rename here does not break this build: the lookup would simply miss.</summary>
+    private const string BlockDetailProperty = "BlockDetail";
+
     private static async Task<(AutoPromoteBlockReason? Block, bool Promoted, Resume? Resume,
-        string? FailureCode)> RunAutoPromoteAsync(
+        string? FailureCode, string? DomainErrorCode, bool BlockDetailUnreadable)>
+        RunAutoPromoteAsync(
             AppDbContext db, ICurrentUser currentUser, IDateTimeProvider clock,
             Guid parsedResumeId, CancellationToken ct)
     {
         var reconciler = Substitute.For<IResumeReviewReconciler>();
+
+        // #1060 D3(β) PR 2 — the ONE seam through which the sub-reason is observable, and it is
+        // not a preference. `AutoPromoteGateVerdict` is `internal` to `Jobbliggaren.Application`
+        // and this assembly is not in its `InternalsVisibleTo` list, so the verdict object cannot
+        // be read here at all; the only alternative would be re-running `AutoPromoteGate.Evaluate`
+        // — a SECOND evaluation of one question, which is the defect D4-REBIND rejected.
+        //
+        // Substituting the recorder for `NullLogger` changes no production code path. It stops
+        // discarding an output the handler already produces, which is the same relationship this
+        // whole probe has to the chain: run it unmodified, read what it returned. The recorder is
+        // the SHARED one from tests/Shared, linked (CTO constraint 2) — never a second copy.
+        var logger = new RecordingLogger<AutoPromoteParsedResumeCommandHandler>();
         var handler = new AutoPromoteParsedResumeCommandHandler(
             db, currentUser, clock, Substitute.For<IFailedAccessLogger>(), reconciler,
             Substitute.For<ICorrelationIdProvider>(), Substitute.For<IRequestContextProvider>(),
-            NullLogger<AutoPromoteParsedResumeCommandHandler>.Instance);
+            logger);
 
         var result = await handler.Handle(new AutoPromoteParsedResumeCommand(parsedResumeId), ct);
 
@@ -229,11 +260,14 @@ internal static class CvChainProbe
         // genuine fault (unknown or foreign artifact, infrastructure). Carried as its own field so
         // a fault can never be rendered as an honest block.
         if (result.IsFailure)
-            return (null, false, null, result.Error.Code);
+            return (null, false, null, result.Error.Code, null, false);
+
+        var detail = ReadBlockDetail(logger);
 
         return result.Value switch
         {
-            AutoPromoteOutcome.LeftPending pending => (pending.Reason, false, null, null),
+            AutoPromoteOutcome.LeftPending pending =>
+                (pending.Reason, false, null, null, detail.Code, detail.Unreadable),
 
             // Read the promoted aggregate off the change tracker, NEVER via a re-query. Two
             // independent reasons, and the STRONGER one is the second: (1) ResumeVersion.Content is
@@ -242,8 +276,47 @@ internal static class CvChainProbe
             // (2) no SaveChanges runs after promote, so the aggregate is still Added and a re-query
             // would not find it AT ALL. Anyone who later adds a save must still not switch to a
             // re-query, because reason (1) survives it.
-            AutoPromoteOutcome.Promoted => (null, true, db.Resumes.Local.SingleOrDefault(), null),
-            _ => (null, false, null, null),
+            //
+            // A promote logs no LeftPending, so there is nothing to read and `Unreadable` is
+            // false — absence of a line is not a failure to read one.
+            AutoPromoteOutcome.Promoted =>
+                (null, true, db.Resumes.Local.SingleOrDefault(), null, null, false),
+            _ => (null, false, null, null, null, false),
         };
+    }
+
+    /// <summary>
+    /// The domain code off the handler's own LeftPending line, and — kept apart from it — whether
+    /// the READING failed.
+    ///
+    /// <para><b>Why the two are separate fields rather than one nullable string.</b> A null code
+    /// is a product fact (this block was not a Domain refusal, so no code exists); an unreadable
+    /// one is an INSTRUMENT fact (the line was not emitted, or does not carry the key this reader
+    /// spells). Collapsing them would print the same em-dash for both, and the artifact would
+    /// then say "no Domain code" about a run where the corpus simply could not see one — the same
+    /// shape as publishing an honest block as a handler fault, which <c>GateState.Unresolved</c>
+    /// exists to prevent.</para>
+    ///
+    /// <para><b>It is recorded, not asserted, and that is a narrower choice than PR 1's.</b> The
+    /// ladder gap had no other guard, so it had to redden this suite. This one does: the writing
+    /// side is pinned in <c>AutoPromoteParsedResumeCommandHandlerTests</c>, beside the emitter,
+    /// where it cannot go stale. A second red for one cause, in a suite whose doctrine is
+    /// observe-only, would be duplication rather than depth — so the reading is published in §0
+    /// and §5 and left for a reader to act on.</para>
+    /// </summary>
+    private static (string? Code, bool Unreadable) ReadBlockDetail(
+        RecordingLogger<AutoPromoteParsedResumeCommandHandler> logger)
+    {
+        // A LeftPending that logged nothing at all: the call is gone. Unreadable, not "no code".
+        if (logger.Records.Count == 0)
+            return (null, true);
+
+        var matches = logger.Records[^1].Properties
+            .Where(p => string.Equals(p.Key, BlockDetailProperty, StringComparison.Ordinal))
+            .ToList();
+
+        // Zero (renamed or removed placeholder) and more than one (an ambiguous template) are
+        // both readings this method cannot make; neither is a statement about the product.
+        return matches.Count == 1 ? (matches[0].Value as string, false) : (null, true);
     }
 }

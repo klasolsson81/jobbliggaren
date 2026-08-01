@@ -630,6 +630,12 @@ public class HeadingDrivenResumeSegmenterTests
         // degrade gracefully — no empty/garbage field — falling back to the second line as the
         // organization (the existing "Title / Company / Dates" fallback path). Proves the strip
         // does not produce a stray empty field when it over-consumes the whole line.
+        //
+        // STILL TRUE AFTER #1060 β-1, and it is the boundary that fix deliberately stops at. β-1
+        // lets the separator split read the SECOND line when the first is period-only — but only
+        // the split. Here the second line ("Acme AB") carries no separator, so no split happens
+        // and this fallback is still what runs. Moving the fallback too was measured and refused:
+        // it would have made "Körde maskiner." the organization.
         const string cv =
             """
             Anna Andersson
@@ -651,6 +657,123 @@ public class HeadingDrivenResumeSegmenterTests
         exp.Period.ShouldNotBeNull();
         exp.Period.ShouldContain("2005");
         exp.Period.ShouldContain("2010");
+    }
+
+    // ===============================================================
+    // #1060 β-1 — a period-only header line must not decide the split
+    // ===============================================================
+
+    [Fact]
+    public void Segment_PeriodOnlyHeaderLine_SplitsTheNextLineIntoRoleAndCompany()
+    {
+        // The two-column Word template: the PERIOD cell renders before the ROLE cell, so the
+        // entry's first line is a bare date range. StripTrailingPeriod consumes it whole, the
+        // separator loop cannot match on "" — and before β-1 the fallback handed the entire
+        // "Roll - Företag" line to Organization while Title stayed null, so the CV was refused
+        // on Resume.ExperienceRoleRequired with the role sitting in the file all along.
+        //
+        // ShouldBe on BOTH slots, not just Title: the defect was an INVERTED assignment, and a
+        // test that only pinned "Title is not null" would pass on a split that put the whole
+        // line in Title instead.
+        const string cv =
+            """
+            Anna Andersson
+            anna@example.com
+
+            Arbetslivserfarenhet
+            2005 – 2010
+            Operatör - Acme AB
+            Körde maskiner.
+            """;
+
+        var result = _sut.Segment(cv);
+
+        var exp = result.Content.Experience.ShouldHaveSingleItem();
+        exp.Title.ShouldBe("Operatör");
+        exp.Organization.ShouldBe("Acme AB");
+        exp.Period.ShouldNotBeNull();
+        exp.Period.ShouldContain("2005");
+        exp.Period.ShouldContain("2010");
+    }
+
+    [Fact]
+    public void Segment_PeriodOnlyHeaderLine_SplitsTheNextLineForEducationToo()
+    {
+        // EDUCATION symmetry, and it is not decoration: ParseEducations calls the SAME
+        // SplitTitleOrganization, so the label-first defect refused BOTH sections — measured on
+        // the corpus, where every education entry came back with a null Degree behind an
+        // experience failure that returned first. A fix that special-cased the experience path
+        // would leave Resume.EducationDegreeRequired firing the moment the experience arm passed.
+        // Mapping: title slot → Degree, org slot → Institution.
+        const string cv =
+            """
+            Anna Andersson
+            anna@example.com
+
+            Utbildning
+            2005 – 2010
+            Civilingenjör - Chalmers
+            Läste teknik.
+            """;
+
+        var result = _sut.Segment(cv);
+
+        var edu = result.Content.Education.ShouldHaveSingleItem();
+        edu.Degree.ShouldBe("Civilingenjör");
+        edu.Institution.ShouldBe("Chalmers");
+        edu.Period.ShouldNotBeNull();
+        edu.Period.ShouldContain("2005");
+        edu.Period.ShouldContain("2010");
+    }
+
+    [Fact]
+    public void Segment_PeriodOnlyHeaderLine_DoesNotLetTheSecondLinesDateBleedIntoTheFields()
+    {
+        // The relocated split runs StripTrailingPeriod on the second line too. Without that, a
+        // document that repeats the period on the role line would put "2005 – 2010" inside the
+        // company name — the same bleed the original strip exists to prevent, reintroduced one
+        // line down by the fix itself.
+        const string cv =
+            """
+            Anna Andersson
+            anna@example.com
+
+            Arbetslivserfarenhet
+            2005 – 2010
+            Operatör - Acme AB 2005 – 2010
+            Körde maskiner.
+            """;
+
+        var result = _sut.Segment(cv);
+
+        var exp = result.Content.Experience.ShouldHaveSingleItem();
+        exp.Title.ShouldBe("Operatör");
+        exp.Organization.ShouldBe("Acme AB");
+    }
+
+    [Fact]
+    public void Segment_RoleFirstHeaderLine_IsUnchangedByTheRelocatedSplit()
+    {
+        // The control. When the first line DOES carry fields, splitSource is that line and the
+        // method is byte-identical to its pre-β-1 self. This is the arm that would redden if the
+        // relocation were made unconditional — which is the mutation worth fearing, because it
+        // would silently start reading line two on every well-formed CV in the product.
+        const string cv =
+            """
+            Anna Andersson
+            anna@example.com
+
+            Arbetslivserfarenhet
+            Operatör - Acme AB
+            2005 – 2010
+            Körde maskiner.
+            """;
+
+        var result = _sut.Segment(cv);
+
+        var exp = result.Content.Experience.ShouldHaveSingleItem();
+        exp.Title.ShouldBe("Operatör");
+        exp.Organization.ShouldBe("Acme AB");
     }
 
     [Fact]

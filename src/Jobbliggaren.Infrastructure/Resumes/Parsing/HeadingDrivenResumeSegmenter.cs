@@ -498,8 +498,9 @@ internal sealed partial class HeadingDrivenResumeSegmenter(CvParsingLexiconData 
             yield return new Entry(current, string.Join('\n', current).Trim());
     }
 
-    // First line → (title, organization) best-effort; falls back to the second line as
-    // the organization for the common "Title / Company / Dates" layout.
+    // Header line → (title, organization) best-effort, the split reading the SECOND line when the
+    // first carries nothing but a period; falls back to the second line as the organization for
+    // the common "Title / Company / Dates" layout.
     private static (string? Title, string? Organization) SplitTitleOrganization(Entry entry)
     {
         if (entry.Lines.Count == 0)
@@ -511,14 +512,42 @@ internal sealed partial class HeadingDrivenResumeSegmenter(CvParsingLexiconData 
         // first separator (the reported layout-split bug). The period itself is still
         // recovered by ExtractPeriod from the full entry text. No-op for the common
         // "Role — Company\nYYYY-YYYY" layout (period on its own line) → no regression.
+        //
         var first = StripTrailingPeriod(entry.Lines[0]);
+
+        // #1060 β-1: the line the SPLIT reads must carry fields. A two-column Word template
+        // renders the period cell before the role cell, so Lines[0] is the bare period and
+        // StripTrailingPeriod reduces it to the empty string. The separator loop below cannot
+        // match on "", so the split never ran at all and the fallback handed the whole
+        // field-bearing line ("Systemutvecklare - Acme AB") to the ORGANIZATION slot with Title
+        // left null. Measured on three corpus arms and in BOTH typed sections, because
+        // ParseExperiences and ParseEducations call this one function. The Domain's refusal
+        // (Resume.ExperienceRoleRequired) was correct — the Role was genuinely absent, because
+        // the parse had destroyed it.
+        //
+        // Scope, stated narrowly on purpose. This moves ONLY the line the separator loop reads,
+        // and only when the first line carries nothing but a period. It does NOT move the
+        // fallback: when the next line carries no separator either, it is a single field and the
+        // pre-existing degradation (Title null, Organization = Lines[1]) is still the honest
+        // reading — widening the fallback too was tried and measured to hand a description bullet
+        // to the organization slot.
+        //
+        // And it changes WHICH LINE is read, never which SIDE of it is the role.
+        // StripTrailingPeriod's bind below (senior-cto-advisor 2026-06-23) reserves slot ORDER as
+        // deliberately un-guessed; that is untouched. A label-first document still yields
+        // (Title, Organization) in the order its line writes them, and the user corrects a
+        // swapped pair via the editable gap-fill (ADR 0040 propose-and-approve).
+        var splitSource = first;
+        if (first.Length == 0 && entry.Lines.Count >= 2)
+            splitSource = StripTrailingPeriod(entry.Lines[1]);
+
         foreach (var separator in TitleOrgSeparators)
         {
-            var index = first.IndexOf(separator, StringComparison.OrdinalIgnoreCase);
-            if (index > 0 && index + separator.Length < first.Length)
+            var index = splitSource.IndexOf(separator, StringComparison.OrdinalIgnoreCase);
+            if (index > 0 && index + separator.Length < splitSource.Length)
             {
-                var title = first[..index].Trim();
-                var organization = first[(index + separator.Length)..].Trim();
+                var title = splitSource[..index].Trim();
+                var organization = splitSource[(index + separator.Length)..].Trim();
                 return (NullIfEmpty(title), NullIfEmpty(organization));
             }
         }
@@ -553,11 +582,17 @@ internal sealed partial class HeadingDrivenResumeSegmenter(CvParsingLexiconData 
         [" — ", " – ", " - ", ", ", " | ", " @ ", " at ", " på ", " hos "];
 
     // #428: a full DATE RANGE is unambiguous anywhere in the entry, but a BARE YEAR is only a
-    // reliable period signal on the HEADER line (Lines[0]) — the same scope StripTrailingPeriod
-    // trusts. Scanning the full entry text for a bare year mis-attributes an incidental year in a
-    // description bullet ("Migrerade den gamla 1998-stordatorn") as the entry's period. A bare
-    // year on a non-header line is deliberately NOT treated as a period (honest-absent over
-    // confidently-wrong; the user fills the gap via ADR 0040 propose-and-approve) — ADR 0071.
+    // reliable period signal on the FIRST line (Lines[0]). Scanning the full entry text for a bare
+    // year mis-attributes an incidental year in a description bullet ("Migrerade den gamla
+    // 1998-stordatorn") as the entry's period. A bare year on a later line is deliberately NOT
+    // treated as a period (honest-absent over confidently-wrong; the user fills the gap via
+    // ADR 0040 propose-and-approve) — ADR 0071.
+    //
+    // This scope stays Lines[0] and is no longer the same one SplitTitleOrganization reads: since
+    // #1060 β-1 that method advances past field-less lines to find the line carrying the TITLE.
+    // The two scopes answer different questions and the earlier cross-reference asserted they were
+    // one. Lines[0] is if anything the stronger home for a period after that change — on the very
+    // layout that motivated it, Lines[0] IS the period.
     private static string? ExtractPeriod(Entry entry)
     {
         var range = DateRangeRegex().Match(entry.Text);

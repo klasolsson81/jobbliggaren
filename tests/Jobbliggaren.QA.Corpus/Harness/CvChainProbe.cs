@@ -285,7 +285,6 @@ internal static class CvChainProbe
 
         return result.Value switch
         {
-
             // Read the promoted aggregate off the change tracker, NEVER via a re-query. Two
             // independent reasons, and the STRONGER one is the second: (1) ResumeVersion.Content is
             // EF-Ignored and only the production materialization interceptor fills it, so a fresh

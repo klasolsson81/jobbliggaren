@@ -185,7 +185,10 @@ public sealed class LayoutCorpusReportTests
             + "code column is blind until one of the two is restored — it prints an instrument "
             + "marker rather than an em-dash, but nothing else in CI would have said so.");
 
-        // The ONE deliberate production-touching assert, argued rather than smuggled in.
+        // Production-touching assert (c), argued here. It read "The ONE deliberate
+        // production-touching assert" until 2026-08-01 — a FIFTH home of the count, eight lines
+        // under (e) and twenty-four under (d), and "deliberate" distinguished nothing: all three
+        // are equally deliberate and equally argued.
         //
         // A corpus that cannot see its own content must REFUSE TO REPORT rather than report loss:
         // without this, a renderer that silently dropped a job would print a zero delta as "no

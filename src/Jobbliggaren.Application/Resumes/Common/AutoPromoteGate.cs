@@ -184,7 +184,7 @@ internal static class AutoPromoteGate
         // stopped from being discarded. No predicate is re-encoded here, so nothing can drift.
         return created.IsFailure
             ? new AutoPromoteGateVerdict.Blocked(
-                AutoPromoteBlockReason.IncompleteContent, created.Error.Code)
+                AutoPromoteBlockReason.IncompleteContent, DomainErrorCode: created.Error.Code)
             : new AutoPromoteGateVerdict.Promotable(created.Value);
     }
 }

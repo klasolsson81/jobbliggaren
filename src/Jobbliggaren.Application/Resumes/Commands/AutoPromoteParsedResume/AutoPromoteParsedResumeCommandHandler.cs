@@ -191,7 +191,9 @@ public sealed partial class AutoPromoteParsedResumeCommandHandler(
     //     error set, so it is the one that could actually ride this parameter. What keeps it out
     //     is gate ORDER: AutoPromoteGate scans the resolved label with the SAME predicate and
     //     returns PersonnummerPresent before buildability is ever asked. That is the load-bearing
-    //     argument and it was the missing one.
+    //     argument and it was the missing one. It is PINNED, not merely asserted here:
+    //     AutoPromoteGateTests' "pnr in label" arm expects PersonnummerPresent with a null code,
+    //     so a reordering that let ValidateName answer first turns that test red.
     //   - `Resume.PersonnummerMustBeRemoved` is not a Resume.cs code at all —
     //     ResumeContentPersonnummerGuard (Application) owns it, its arm returns
     //     PersonnummerInAccountName, and that arm passes DomainErrorCode: null. It is not in the

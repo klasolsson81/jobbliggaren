@@ -430,9 +430,10 @@ internal static partial class LayoutChainRunner
         // pre-existing), and now 31-32 (BlockDetailUnreadable, Promoted). Both numbers in that
         // last pair were wrong when first written (32-33, "the second"), and TWO reviewers
         // measured it independently — the CTO bind then upheld both halves, which is a third
-        // reading but not a third measurement: position 33 is `Gates`. Naming arguments is what closes all
-        // four runs at once, which is why the rule is "named at every construction site" rather
-        // than a note about the int block specifically.
+        // reading but not a third measurement: position 33 is `Gates`. Naming arguments closes
+        // the runs named above AND every other same-typed adjacency in the record — 6-8 are three
+        // `int`s, 39-40 two `string?`s — which is why the rule is "named at every construction
+        // site" rather than a note about any one block.
         new(
             Case: c,
             ByteProofFailure: byteProofFailure,

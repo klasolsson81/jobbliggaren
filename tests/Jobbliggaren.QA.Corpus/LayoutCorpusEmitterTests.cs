@@ -682,9 +682,15 @@ public sealed class LayoutCorpusEmitterTests
     // ===============================================================
 
     /// <summary>
-    /// The code reaches §5's LADDER ROW, and reaches §5 only (CTO-bind D.3). §2 is the headline
+    /// The code reaches §5's LADDER ROW and does NOT reach §2 (CTO-bind D.3): §2 is the headline
     /// verdict table with eleven columns already, and a twelfth diagnostic column would give the
     /// detail two homes in one document.
+    ///
+    /// <para>The name says "and not section two" rather than "only" because that is what the
+    /// assertions measure. §2 is the one place the column would plausibly be duplicated and the
+    /// one the bind names; a claim of universal absence would need a sweep of all ten sections,
+    /// and calling a two-section check "only" is the sentence-vs-subject gap this file keeps
+    /// paying for.</para>
     ///
     /// <para><b>Two things this test got wrong on its first form, both real.</b> It asserted
     /// `Section(…"## 5.").ShouldContain(code)` with a fixture whose code was
@@ -696,7 +702,7 @@ public sealed class LayoutCorpusEmitterTests
     /// than searching the section.</para>
     /// </summary>
     [Fact]
-    public void Report_ForABuildabilityBlock_PublishesTheDomainCodeInSectionFiveOnly()
+    public void Report_ForABuildabilityBlock_PublishesTheDomainCodeInSectionFiveAndNotSectionTwo()
     {
         const string Code = "Resume.ExperienceRoleRequired";
         var report = LayoutCorpusReport.Build(new LayoutCorpusReportData(

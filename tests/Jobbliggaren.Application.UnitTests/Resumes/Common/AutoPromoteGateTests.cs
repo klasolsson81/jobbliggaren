@@ -270,8 +270,9 @@ public class AutoPromoteGateTests
     public void Evaluate_UnbuildableContent_CarriesTheDomainCodeVerbatim()
     {
         // The point of the field: `IncompleteContent` is ONE token over every code
-        // `CreateFromParsed` can return (thirty-two from `ValidateContent` alone), and which one
-        // fired decides whether a per-entry router would help at
+        // `CreateFromParsed` can return — thirty-two from `ValidateContent`, plus
+        // `JobSeekerIdRequired` and `ValidateName`'s three, so thirty-six — and which one fired
+        // decides whether a per-entry router would help at
         // all. The gate transports `created.Error.Code` unexamined — no predicate is re-encoded
         // here, so this asserts transport, not a second opinion about what the Domain decided.
         var parsed = BuildParsed(
@@ -327,8 +328,11 @@ public class AutoPromoteGateTests
         // and only FOUR tokens — "pnr on parse" and "pnr in label" both return
         // PersonnummerPresent — so `Distinct()` is unchanged if either of those two fixtures is
         // removed, and a future FIFTH arm returning an existing token would not redden this
-        // either. What covers that is the per-arm expectation in the loop above; what does not
-        // exist, and cannot from this assembly, is a check that the ARM COUNT is still five.
+        // either — a sixth arm returning an existing token is invisible here. What covers that
+        // is the per-arm expectation in the loop above. What does not exist is a check that the
+        // arm COUNT is still five, and the obstacle is not assembly visibility (this project has
+        // `InternalsVisibleTo`): call sites are not a runtime surface. A source-text scan could
+        // do it, and the repo runs those elsewhere; it is out of scope here.
         policyArms
             .Select(a => a.Expected.ToString())
             .Append(nameof(AutoPromoteBlockReason.IncompleteContent))

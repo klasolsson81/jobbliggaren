@@ -24,31 +24,34 @@ export type SwedishMonth = { year: number; month: number };
 
 /**
  * The product's home time zone — the counterpart to `SwedishCalendar.ZoneId`, and
- * the home for NEW call sites: import it rather than repeating the literal.
+ * the home for every call site that is not on the exemption list below: import it
+ * rather than repeating the literal.
  *
- * It is not yet the only occurrence, and the doc should not claim otherwise.
+ * That is not advice. `no-restricted-syntax` in `eslint.config.mjs` fails the
+ * literal written as a value under `src/`, in pre-commit and in CI. The version
+ * of this doc before #1148 enumerated the sites that remained and ordered a
+ * manual re-measure of the paragraph, so removing a site falsified the doc.
  *
- * The population, stated before the number so the number can be reproduced: over
- * `web/jobbliggaren-web/src/`, an occurrence is the literal used as a VALUE IN
- * CODE — this declaration, or a `timeZone` argument. That is one rule, not two:
- * a mention inside a comment or inside a test name is not a value, so it needs no
- * separate clause to exclude it.
+ * @see eslint.config.mjs — the block that subtracts ZONE **is** the exemption
+ * list, and it is not restated here: a second copy is a second thing to keep
+ * true. Its entries are whole files and one whole DIRECTORY, never single
+ * declarations, because ESLint cannot scope an exemption to a line — so a second
+ * literal anywhere in an exempt path passes.
  *
- * Measured on that definition: **nine** occurrences. This declaration is one. Of
- * the other eight, exactly **one is production code** — `src/i18n/request.ts`,
- * the primary declaration of the global next-intl pin, left deliberately, because
- * making the i18n configuration depend on `lib/` is a layering decision of its
- * own. The remaining **seven are test-side**: six in five `.test.ts(x)` files
- * (`lib/i18n/format.test.ts` carries two of them), plus one in the
- * `test/render-intl` harness. Seven occurrences, six files — the paragraph says
- * which, because an earlier draft said "seven files" and meant seven occurrences.
+ * Test code is exempt as a class, and the reason is prospective rather than a
+ * description of the tree: a test OF a module that imports this constant could
+ * not catch a mutation of it if it imported the constant too. Most zone literals
+ * in tests today are doing something else — pinning the zone so date assertions
+ * stay stable in CI. The exemption is blanket because a path glob cannot tell an
+ * oracle from a pin, and because the cheapest way to silence such a lint error,
+ * importing the constant, is exactly the change that would blind the oracle.
+ * Stronger still, where it is possible: assert a hard-coded expected output, as
+ * `audit-log-table.test.tsx` does — that carries nothing a later tidy-up can
+ * DRY away.
  *
- * `admin/granskning/audit-log-table.tsx` was the second production site until
- * #1141, which is what took the count from ten to nine. **Re-measure this
- * paragraph whenever a site is added or removed** — its first phrasing was "three
- * raw literals remain", a count true of one population and read as a claim about
- * another, which is the defect class the originating PR spent three review rounds
- * on.
+ * The guard is one-directional. It fails an ADDED site; it cannot see an
+ * exemption that is no longer needed. Removing the literal from an exempt path
+ * means removing that path's entry in the same commit.
  */
 export const SWEDISH_TIME_ZONE = "Europe/Stockholm";
 

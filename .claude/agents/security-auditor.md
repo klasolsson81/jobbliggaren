@@ -7,8 +7,9 @@ description: >
   PII/auth/secrets/external integrations, /security-audit commands, and
   explicit user requests. Also triggers on any change to the vulnerability gate's
   suppression surface — `pnpm.overrides`, `pnpm.auditConfig.ignoreGhsas`,
-  `ignoredBuiltDependencies`, or the pnpm major pin — in the exposure-increasing
-  direction; full enumeration in her audit area 8. Complementary to code-reviewer (broad quality) and
+  `--audit-level`, `ignoredBuiltDependencies`, or the pnpm major pin — in the
+  exposure-increasing direction; full enumeration in her Triggers section, keyed to
+  audit area 8. Complementary to code-reviewer (broad quality) and
   ai-prompt-engineer (designs GDPR-safe prompts; security-auditor verifies
   they remain so in production).
 model: opus
@@ -52,29 +53,63 @@ sends the next reader back through the same investigation:
 2. But any tool set that lets area 8 run must include `Bash` — the procedure needs
    `mktemp`, `jq`, `cp`, two `pnpm audit` runs and `bash <guard>` — and in this repo
    Bash carries repo mutation regardless. Measured 2026-08-01 in `.claude/settings.json`:
-   `Bash(git add:*)` and `Bash(git commit:*)` are allow-listed, only
-   `git push --force`/`-f` are denied, and `.claude/hooks/guard-bash.sh` filters
-   destructive shell patterns only — nothing touching `>`, `tee` or `sed -i`.
-3. So the field would remove the two tool entries while leaving commit and push
-   reachable through the Bash it has to keep — enforcing part of the sentence above
-   while reading as all of it, after which a reader would *rely* on "the auditor
-   cannot commit". That is the same defect one layer down, and it is why the field
-   is deliberately NOT set: a declared gap beats a hidden one. (Resist restating
-   this as a fraction. An earlier draft said "one third", which was true of the
-   three-item wording it was written against and false of the four-item one above it
-   — the exact defect class this PR spent five rounds on.)
-4. What would actually close it: a Bash `PreToolUse` gate rejecting mutation-shaped
-   commands for this agent. It is not built and not scheduled — recorded here so the
-   residual stays reviewable rather than accepted. It is unbuilt for a reason worth
-   knowing: a shape-based mutation detector over arbitrary shell has an unbounded
-   surface (`>`, `>>`, `tee`, `sed -i`, `cp`, `mv`, `git commit`, `python -c`, …),
-   and a name-based one would break this house's own rule that guards match form,
-   not spelling — so it would itself be an approximation of prose quality.
+   `Bash(git add:*)` and `Bash(git commit:*)` are **allow-listed**, i.e. ungated. The
+   deny list holds `git push --force`/`-f`, `git reset --hard origin/*` and
+   `git clean -fd*` — so plain `git push` is neither allowed nor denied and merely
+   prompts. And `.claude/hooks/guard-bash.sh` — which IS an installed Bash
+   `PreToolUse` hook, not a hypothetical one — filters destructive shell patterns
+   only (`rm -rf /`, `curl | sh`, `sudo`, `chmod 777`, `.git/hooks`, `dd if=`),
+   nothing touching `>`, `tee` or `sed -i`.
+3. So the field would remove the two tool entries while leaving `git commit`
+   reachable and ungated through the Bash it has to keep — enforcing part of the
+   sentence above while reading as all of it, after which a reader would *rely* on
+   "the auditor cannot commit". That is the same defect one layer down, and it is why
+   the field is deliberately NOT set: a declared gap beats a hidden one. (`commit`
+   carries this argument on its own. Resist restating it as a fraction, too: an
+   earlier draft said "one third", which was true of the three-item wording it was
+   written against and false of the four-item one above it — the exact defect class
+   this PR spent five rounds on.)
+4. What would actually close it: extending that existing `guard-bash.sh` hook to
+   reject mutation-shaped commands for this agent. Not built, not scheduled —
+   recorded here so the residual stays reviewable rather than accepted. It is
+   unbuilt for a reason worth knowing: a shape-based mutation detector over
+   arbitrary shell has an unbounded surface (`>`, `>>`, `tee`, `sed -i`, `cp`, `mv`,
+   `git commit`, `python -c`, …), and a name-based one would break this house's own
+   rule that guards match form, not spelling — so it would itself be an
+   approximation of prose quality.
+5. And the residual is not only Bash. `Artifact` and `NotebookEdit` are inherited
+   too; `Artifact` publishes content to a URL. "No effect on the REPO" stays true of
+   all of them, so nothing above is wrong — but read the list as the measured cases,
+   not as exhaustive.
 
-The forward rule, which costs no files today: **a charter that states a boundary on
-its own repo effect inherits the duty to name that boundary's residual.** The other
-twelve charters carry the same residual but assert nothing about it, so nothing in
-them is false and none of them needs an edit.
+The forward rule: **a charter that states a boundary on its own repo effect inherits
+the duty to name that boundary's residual.**
+
+An earlier revision of this paragraph added "which costs no files today", on the
+ground that "the other twelve charters carry the same residual but assert nothing
+about it". Both halves were false, and neither was measured before it was written —
+in the paragraph whose entire subject is not leaving unmeasured boundary claims
+behind. Measured 2026-08-01 across all 13 files in `.claude/agents/` (none of which
+sets `tools:`), five assert a blanket repo-effect boundary:
+
+| file | claim |
+|---|---|
+| `code-reviewer.md:24` | "`Read`, `Grep`, `Glob` only. No Write/Edit/Bash/WebSearch" |
+| `design-reviewer.md:28` | the same sentence, verbatim |
+| `dotnet-architect.md:15` | "You are read-only. Never call Edit, Write, Bash, or TodoWrite." |
+| `senior-cto-advisor.md:20` | "Du är read-only. Du skriver ingen kod, ändrar ingen fil." |
+| `test-runner.md:42` | "Not allowed in Bash: any write or modify operation (`git commit`, `git push`, …)" |
+
+The first two carry, word for word, the sentence this file struck as false about the
+harness — and both of those agents ran Bash while reviewing the PR that struck it.
+`test-runner.md` asserts the Bash-mutation residual itself as a boundary. Six further
+charters carry scoped write prohibitions ("never edit `BUILD.md`", "a change is a new
+version file"), which are a different claim — about what to edit, not about whether
+the agent can — and are not in scope for this rule.
+
+So the rule has a scope of five files from the day it is written, not zero. Sweeping
+them is a separate change-reason from watching the vulnerability gate (§6) and is not
+done here; what could not be left standing is the claim that they needed nothing.
 
 ## Audit areas (match to the diff, not all per review)
 
@@ -149,6 +184,12 @@ a reader has already acted.
   sentence and nothing wider.
 - Beslut 6's silent pin-back is **not** among the checks. It is not detectable from
   the lockfile, and ADR 0065 records the measurement and carries the gap as OPEN.
+- `DEAD OVERRIDE` measures **absence from the lockfile**, not a dead selector. A key
+  whose selector intersects no consumer's declared range names a package that IS
+  present, and is invisible for the same pnpm-lock v9 reason as the pin-back above.
+  Read zero `DEAD OVERRIDE` as "no override names a package the lockfile lacks",
+  never as "no override is dead". The ADR states this; you are the one who acts on
+  it, so it belongs here too.
 
 You are the named consumer of the measurement. Run it — the gate itself cannot,
 because it audits with the ignore list *applied* and is therefore structurally

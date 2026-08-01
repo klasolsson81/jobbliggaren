@@ -348,9 +348,13 @@ invoking any agent**, and no `schedule:` consults the measurement — so on the 
 patch/minor Dependabot PRs, which are the bulk of what drives the tree drift these checks
 detect, there is no reader. Be precise about the boundary rather than rounding it to
 "exactly": `dependabot-automerge.yml` marks major and unknown update types ineligible, and
-a PR that fails the vuln gate falls back to manual review — but nothing surfaces this
-guard on that remainder either. The readerless set is therefore **larger** than the
-auto-merged set, not identical to it.
+a PR that fails the vuln gate falls back to manual review. On that remainder the guard
+is surfaced but unowned — its `::warning::` reaches the Checks view, and `audit` is
+`continue-on-error` and outside `ci`'s `needs`, so nothing obliges anyone to read it
+and a finding moves no merge signal. (Say it that way rather than "nothing surfaces
+it": in this document's own vocabulary a warning IS the surface, and "unwatched" was
+defined as *no warning and no exit difference*.) The readerless set is therefore
+**larger** than the auto-merged set, not identical to it.
 
 A cadence is a follow-up PR, triaged by senior-cto-advisor 2026-07-30 as a follow-up and
 explicitly **not** a TD (the phase rule is not met). **No owner is assigned.** An earlier
@@ -373,8 +377,11 @@ first half ships.)* The
 guard belongs in observe-only `audit` — never inside the merge control, which is the
 principle that kept a hand-rolled delta-differ out of the gate in the first place. Own PR
 (senior-cto-advisor 2026-07-28: follow-up, explicitly **not** a TD — the phase rule is
-not met). The current instance of the gap is recorded at the mechanism, in
-`dependabot-automerge.yml`.
+not met). **That PR is this one — the plan is executed, and this parenthesis records
+the triage that authorised it, not outstanding work.** Do not read it against the
+cadence parenthesis three paragraphs up, which carries a different date (2026-07-30), a
+different subject, and is still open. The current instance of the gap is recorded at
+the mechanism, in `dependabot-automerge.yml`.
 
 **Two override keys deliberately reach wider than today's tree.**
 `brace-expansion@>=2.0.0 <=5.0.7` spans the 2.x/3.x/4.x lines, which are empty here —

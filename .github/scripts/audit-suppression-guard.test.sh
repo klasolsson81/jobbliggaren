@@ -30,7 +30,11 @@ expect_has()  { case "$2" in *"$3"*) ok "$1" ;; *) bad "$1" "$2" ;; esac; }
 expect_lacks(){ case "$2" in *"$3"*) bad "$1" "$2" ;; *) ok "$1" ;; esac; }
 
 # ---------------------------------------------------------------- fixtures ---
-mk_lock() { printf '%s\n' "$@" > "$TMP/lock.yaml"; }
+# Every real pnpm lockfile opens with `lockfileVersion`, and the guard now requires it
+# before it will read absence out of the file — an empty or truncated lockfile used to
+# manufacture a DEAD OVERRIDE for every key. Emit it here so the fixtures carry the
+# shape production carries; `Y5` drives the case where it is missing.
+mk_lock() { { printf "lockfileVersion: '9.0'\n"; printf '%s\n' "$@"; } > "$TMP/lock.yaml"; }
 
 # A: the shipped shape — one accepted GHSA, dev-only reachable, live override.
 cat > "$TMP/a.pkg.json" <<'J'
@@ -42,7 +46,7 @@ J
 cat > "$TMP/a.audit.json" <<'J'
 { "advisories": { "1": { "github_advisory_id": "GHSA-mh99-v99m-4gvg",
     "module_name": "brace-expansion", "severity": "high",
-    "findings": [ { "paths": [ ".>eslint@9.0.0>minimatch@3.1.5>brace-expansion@1.1.16" ] } ] } } }
+    "findings": [ { "version": "1.1.16", "paths": [] } ] } } }
 J
 mk_lock "  postcss@8.5.24:" "  eslint@9.0.0:"
 out="$(run "$TMP/a.pkg.json" "$TMP/a.audit.json" "$TMP/lock.yaml")"
@@ -141,8 +145,9 @@ expect_lacks "F2 a gated key with a live package is not dead"                  "
 #     `@tailwindcss/postcss` are different packages; a substring match reported
 #     the latter's 4.3.2 as the former's version and "proved" a pin-back.
 #     NOTE what this case does and does not separate. Both awk guards reject it —
-#     the anchor because `postcss@` does not start the line, the version terminator
-#     because position 9 of `@tailwindcss/postcss@4.3.2':` is `s`. So E2 pins them
+#     the anchor because `postcss@` starts at position 14, not 1, and the version
+#     terminator because position 9 of `@tailwindcss/postcss@4.3.2':` is `d` (in
+#     "tailwind"), not a digit. So E2 pins them
 #     JOINTLY and cannot fail for one alone; V1 and V2 below separate them, each
 #     against a form measured in a real lockfile.
 cat > "$TMP/e2.pkg.json" <<'J'
@@ -349,9 +354,13 @@ bash "$GUARD" --package-json "$TMP/nope.json" --audit-json "$TMP/g.audit.json" \
 [ $? -eq 2 ] && ok "I1 an unreadable input fails loudly" || bad "I1 an unreadable input fails loudly" "exit != 2"
 
 # ---------------------------------------------------------------------------
-# J–P: the paths a mutation matrix found unexercised on 2026-08-01. Every block
-# below carries its own CONTROL, because an assertion that a malformed input is
-# SKIPPED passes trivially against a guard that skips everything.
+# J–X: the paths a mutation matrix found unexercised on 2026-08-01. An assertion that
+# a malformed input is SKIPPED passes trivially against a guard that skips
+# everything, so those cases need a counterfactual. J, N, O, Q, R and S carry one
+# inside the block (J0, N2/N3, O3, Q4, R0, S0); K, L, P, U and V rest on controls
+# elsewhere in this file — A4, E3, T2b and the healthy runs above — which is
+# sufficient but is NOT the same as "every block carries its own", as an earlier
+# revision of this line claimed.
 mk_lock "  postcss@8.5.24:" "  eslint@9.0.0:"
 
 # J: the advisories shape assertion is about the VALUE, not the key. `has()` is
@@ -416,6 +425,12 @@ printf '{ "advisories": { "1": { "github_advisory_id": "GHSA-mh99-v99m-4gvg", "s
 printf '{ "advisories": {}, "metadata": { "dependencies": 0 } }\n' > "$TMP/n.prod0.json"
 out="$(run "$TMP/a.pkg.json" "$TMP/n.full.json" "$TMP/lock.yaml" "$TMP/n.prod0.json")"
 expect_has "N1 a --prod run that resolved an empty tree is SKIPPED" "$out" "did not partition a real tree"
+# N1 alone asserts only that the sentence was PRINTED, which is not its subject: the
+# subject is that the checks stopped. Measured with the `exit 0` removed, the same run
+# carried the disclaimer and the verdict it disclaims. Three of the guard's `exit 0`
+# are inline rather than via `skip()`, so S2 does not cover them.
+expect_lacks "N1b and nothing after the skip runs"                 "$out" "absent from the"
+expect_lacks "N1c nor does the summary claim a clean tree"         "$out" "no findings"
 printf '{ "advisories": {}, "metadata": { "dependencies": 40 } }\n' > "$TMP/n.prodok.json"
 out="$(run "$TMP/a.pkg.json" "$TMP/n.full.json" "$TMP/lock.yaml" "$TMP/n.prodok.json")"
 expect_lacks "N2 control: a healthy partition is not SKIPPED"       "$out" "did not partition a real tree"
@@ -448,10 +463,22 @@ expect_lacks "P2 and never claims the location was probed"             "$out" "n
 #    check-2 premise an ASSUMPTION about a shape pnpm produces, with no independent
 #    evidence anywhere in the repo — so `samples/` holds two real captures, taken by
 #    area 8's own procedure (the ignore list deleted first, or the suppressed
-#    advisory is invisible and check 1 can never fire). Recorded 2026-08-01, pnpm
-#    10.28.2. They also corroborate the numbers this guard's comments cite: 3
-#    advisories in full, 1 in --prod (`@hono/node-server`), 1110 against 487
-#    dependencies.
+#    advisory is invisible and check 1 can never fire).
+#
+#    RECORDED ON pnpm 9.15.9, which is the major the guard actually runs under —
+#    `pnpm/action-setup` pins `version: 9` at all five call sites. The first capture
+#    was taken on the local 10.28.2, and that was the wrong instrument for exactly
+#    the reason this PR exists: evidence true of its source and not of its subject.
+#    Re-measured on both majors against the same tree, the difference is real and
+#    lands on one field:
+#
+#      pnpm 10.28.2  findings[].paths: [".>@lhci/cli>uuid"]
+#      pnpm  9.15.9  findings[].paths: []
+#
+#    Everything these checks read — advisory keys, `github_advisory_id`, the
+#    metadata counters — is byte-identical across the two. The captures corroborate
+#    the numbers the comments cite: 3 advisories in full, 1 in --prod
+#    (`@hono/node-server`), 1110 against 487 dependencies.
 cat > "$TMP/q.pkg.json" <<'J'
 { "dependencies": {}, "devDependencies": {},
   "pnpm": { "auditConfig": { "ignoreGhsas": ["GHSA-mh99-v99m-4gvg"] } } }
@@ -464,6 +491,14 @@ q_out="$(bash "$GUARD" --package-json "$TMP/q.pkg.json" \
 expect_lacks "Q1 the accepted GHSA is live in the real full capture, so not stale" "$q_out" "STALE SUPPRESSION"
 expect_has   "Q2 and absent from the real --prod capture"                          "$q_out" "absent from the"
 expect_lacks "Q3 the real counters (1110 vs 487) pass the partition sanity"        "$q_out" "did not partition a real tree"
+# Q3 alone passes just as well against a guard that never read the counters, so it
+# needs its counterfactual: hand the guard the same two captures the wrong way round
+# and 1110 against 487 must FAIL the comparison.
+q_swapped="$(bash "$GUARD" --package-json "$TMP/q.pkg.json" \
+        --audit-json "$HERE/samples/pnpm-audit-prod.json" \
+        --audit-prod-json "$HERE/samples/pnpm-audit-full.json" \
+        --lockfile "$TMP/lock.yaml" --pnpm-major 9 2>&1)"
+expect_has "Q4 control: the same captures swapped do fail it"                      "$q_swapped" "did not partition a real tree"
 
 # R: the finding COUNTER. `warn` both prints and counts; drop the counting half and
 #    the body says DEAD OVERRIDE while the summary says "no findings" — two states,
@@ -538,6 +573,76 @@ mk_lock "overrides:" "  js-yaml@>=4.0.0 <4.3.0: ^4.3.0" "  postcss@8.5.24:"
 out="$(bash "$GUARD" --package-json "$TMP/v2.pkg.json" --audit-json "$TMP/r.audit.json" \
       --audit-prod-json "$TMP/r.audit.json" --lockfile "$TMP/lock.yaml" --pnpm-major 9 2>&1)"
 expect_has "V2 the lockfile's own overrides declaration is not an installed package" "$out" "DEAD OVERRIDE"
+
+# W: `--workspace-yaml` pointing at something unreadable. `-r` guards the `grep` call
+#    only; the POSITIVE claim keys off `[ -z "$WS_YAML" ]`, which tests non-emptiness.
+#    So a mistyped path SILENCED the UNVERIFIED warning and printed the healthy text
+#    instead — the fifth instance of this guard's own defect, and the half left behind
+#    when the `--pnpm-major ""` half was fixed one commit earlier.
+_wsr() { bash "$GUARD" --package-json "$TMP/g.pkg.json" --audit-json "$TMP/g.audit.json" \
+         --audit-prod-json "$TMP/g.audit.json" --lockfile "$TMP/lock.yaml" --workspace-yaml "$1" 2>&1; }
+out="$(_wsr "$TMP/does-not-exist.yaml")"
+expect_has   "W1 an unreadable --workspace-yaml is a caller error"   "$out" "cannot be read"
+expect_lacks "W2 and never claims the probe found nothing"           "$out" "no sign the configuration moved"
+out="$(_wsr "$TMP")"
+expect_has   "W3 a directory is the same caller error"               "$out" "cannot be read"
+out="$(_wsr "$TMP/o3.yaml")"
+expect_lacks "W0 control: a readable file without the keys is not a caller error" "$out" "cannot be read"
+
+# X: SEVERITY AND COUNTING at the call sites, not only in the helper. R pins that
+#    `warn` counts, using DEAD OVERRIDE — the hygiene finding. Measured 2026-08-01:
+#    turning `warn` into `note` at the three OTHER call sites survives the whole
+#    suite, including on OVER-BROAD, the one this guard's header calls the dangerous
+#    one. A mutant there emits the full advisory text as a ::notice:: and then
+#    "no findings." in the same run.
+out="$(run "$TMP/u.pkg.json" "$TMP/u.audit.json" "$TMP/lock.yaml" "$TMP/u.prod.json")"
+expect_has   "X1 STALE SUPPRESSION is a warning, not a notice"       "$out" "::warning::STALE SUPPRESSION"
+expect_lacks "X2 and is counted"                                     "$out" "no findings"
+out="$(run "$TMP/c.pkg.json" "$TMP/c.audit.json" "$TMP/lock.yaml" "$TMP/c.prod.json")"
+expect_has   "X3 OVER-BROAD SUPPRESSION is a warning, not a notice"  "$out" "::warning::OVER-BROAD SUPPRESSION"
+expect_lacks "X4 and is counted"                                     "$out" "no findings"
+out="$(run "$TMP/g.pkg.json" "$TMP/g.audit.json" "$TMP/lock.yaml")"
+expect_has   "X5 UNVERIFIED LOCATION is a warning, not a notice"     "$out" "::warning::EMPTY CONFIG, UNVERIFIED LOCATION"
+expect_lacks "X6 and is counted"                                     "$out" "no findings"
+
+# Y: the remaining input contracts, each of which had exactly one pinned argument.
+# Y1/Y2 — a non-integer counter. jq's `numbers` admits floats; `[ ]` does not, so both
+#         comparisons errored to stderr and evaluated false, and the guard fell through
+#         to the positive claim.
+printf '{ "advisories": {}, "metadata": { "dependencies": 0.5 } }\n'   > "$TMP/y.prod.json"
+printf '{ "advisories": {}, "metadata": { "dependencies": 100.5 } }\n' > "$TMP/y.full.json"
+out="$(run "$TMP/a.pkg.json" "$TMP/y.full.json" "$TMP/lock.yaml" "$TMP/y.prod.json")"
+expect_lacks "Y1 a fractional dependency counter never reaches the positive claim" "$out" "absent from the"
+expect_has   "Y2 it is reported as an unusable partition instead"                  "$out" "not a clean result"
+# Y3/Y4 — `false` is not an absent sub-block. `(x // {})` fires on null AND false, so
+#         `"overrides": false` defaulted to `{}` and reported nothing repaired.
+printf '{ "dependencies": {}, "devDependencies": {}, "pnpm": { "overrides": false } }\n' > "$TMP/y1.pkg.json"
+out="$(run "$TMP/y1.pkg.json" "$TMP/r.audit.json" "$TMP/lock.yaml")"
+expect_has   "Y3 a false pnpm.overrides is SKIPPED, not defaulted"                 "$out" "is not an object"
+printf '{ "dependencies": {}, "devDependencies": {}, "pnpm": { "auditConfig": { "ignoreGhsas": false } } }\n' > "$TMP/y2.pkg.json"
+out="$(run "$TMP/y2.pkg.json" "$TMP/r.audit.json" "$TMP/lock.yaml")"
+expect_has   "Y4 a false ignoreGhsas is SKIPPED, not defaulted"                    "$out" "is not an array"
+# Y5/Y6 — the lockfile was the one input with no shape contract at all. Empty or
+#         truncated, every override key reported DEAD OVERRIDE: 8 false alarms against
+#         the real manifest. Fail-closed, but this file's own position is that a false
+#         alarm in an observe-only signal is worse than silence.
+: > "$TMP/empty.lock.yaml"
+out="$(bash "$GUARD" --package-json "$TMP/r0.pkg.json" --audit-json "$TMP/r.audit.json" \
+      --audit-prod-json "$TMP/r.audit.json" --lockfile "$TMP/empty.lock.yaml" --pnpm-major 9 2>&1)"
+expect_has   "Y5 a lockfile without lockfileVersion is SKIPPED"                    "$out" "not a pnpm lockfile"
+expect_lacks "Y6 and never manufactures a dead override from it"                   "$out" "DEAD OVERRIDE"
+printf 'lockfileVersion: "9.0"\n  postcss@8.5.24:\n' > "$TMP/ok.lock.yaml"
+out="$(bash "$GUARD" --package-json "$TMP/r0.pkg.json" --audit-json "$TMP/r.audit.json" \
+      --audit-prod-json "$TMP/r.audit.json" --lockfile "$TMP/ok.lock.yaml" --pnpm-major 9 2>&1)"
+expect_lacks "Y0 control: a real lockfile is not SKIPPED"                          "$out" "not a pnpm lockfile"
+# Y7 — the readability contract was pinned for one of four required inputs (I1).
+for _arg in --audit-json --audit-prod-json --lockfile; do
+  bash "$GUARD" --package-json "$TMP/r0.pkg.json" --audit-json "$TMP/r.audit.json" \
+       --audit-prod-json "$TMP/r.audit.json" --lockfile "$TMP/lock.yaml" \
+       "$_arg" "$TMP/nope-$_arg" >/dev/null 2>&1
+  [ $? -eq 2 ] && ok "Y7 an unreadable $_arg fails loudly" \
+               || bad "Y7 an unreadable $_arg fails loudly" "exit != 2"
+done
 
 echo
 echo "audit-suppression-guard fixtures: $PASS passed, $FAIL failed"

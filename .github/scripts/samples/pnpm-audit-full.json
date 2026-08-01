@@ -49,9 +49,7 @@
       "findings": [
         {
           "version": "8.3.2",
-          "paths": [
-            ".>@lhci/cli>uuid"
-          ]
+          "paths": []
         }
       ],
       "found_by": null,
@@ -89,9 +87,7 @@
       "findings": [
         {
           "version": "1.19.14",
-          "paths": [
-            ".>shadcn>@modelcontextprotocol/sdk>@hono/node-server"
-          ]
+          "paths": []
         }
       ],
       "found_by": null,
@@ -126,9 +122,7 @@
       "findings": [
         {
           "version": "1.1.16",
-          "paths": [
-            ".>@lhci/cli>chrome-launcher>rimraf>glob>minimatch>brace-expansion"
-          ]
+          "paths": []
         }
       ],
       "found_by": null,

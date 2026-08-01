@@ -21,9 +21,7 @@
       "findings": [
         {
           "version": "1.19.14",
-          "paths": [
-            ".>shadcn>@modelcontextprotocol/sdk>@hono/node-server"
-          ]
+          "paths": []
         }
       ],
       "found_by": null,

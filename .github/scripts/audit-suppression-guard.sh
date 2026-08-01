@@ -137,19 +137,36 @@ done
 # fall-through, so the three states are separated: both present means compare,
 # exactly one present means the comparison is impossible, neither means a fixture
 # that legitimately has no counter.
-_pd_ok=""; _fd_ok=""
-jq -e '.metadata.dependencies | numbers' "$AUDIT_PROD" >/dev/null 2>&1 && _pd_ok=1
-jq -e '.metadata.dependencies | numbers' "$AUDIT"      >/dev/null 2>&1 && _fd_ok=1
-if [ -n "$_pd_ok" ] && [ -n "$_fd_ok" ]; then
+# INTEGER, not `numbers`. jq's `numbers` admits floats and `[ ]` does not, so a
+# fractional counter made both tests true, then made both `[ ]` comparisons error to
+# stderr and evaluate false — and the guard fell through to the whole positive
+# "absent from the --prod set" claim. Measured with 0.5 against 100.5. Not reachable
+# from pnpm output; reachable from anything else that writes this file.
+# PRESENCE and USABILITY are separate questions, and collapsing them re-created the
+# bug twice. Absent on both sides is the fixture case and proceeds. Present anywhere
+# means the counter is claimed, and then BOTH sides must carry a whole number or the
+# comparison is impossible — one-sided absence used to fall through (a --prod file
+# reporting 0 passed silently whenever the full file omitted the counter), and a
+# FRACTIONAL counter did the same by a different route: jq's `numbers` admits floats
+# while `[ ]` does not, so both comparisons errored to stderr and evaluated false.
+# Measured, 0.5 against 100.5. Neither is reachable from pnpm output; both are
+# reachable from anything else that writes these files.
+_pd_present=""; _fd_present=""; _pd_ok=""; _fd_ok=""
+jq -e '.metadata.dependencies != null' "$AUDIT_PROD" >/dev/null 2>&1 && _pd_present=1
+jq -e '.metadata.dependencies != null' "$AUDIT"      >/dev/null 2>&1 && _fd_present=1
+jq -e '.metadata.dependencies | type == "number" and . == floor' "$AUDIT_PROD" >/dev/null 2>&1 && _pd_ok=1
+jq -e '.metadata.dependencies | type == "number" and . == floor' "$AUDIT"      >/dev/null 2>&1 && _fd_ok=1
+if [ -n "$_pd_present" ] || [ -n "$_fd_present" ]; then
+  if [ -z "$_pd_ok" ] || [ -z "$_fd_ok" ]; then
+    echo "::warning::audit-suppression-guard SKIPPED — metadata.dependencies is claimed by at least one audit file but is missing or not a whole number on one side, so the partition cannot be verified. A --prod run that resolved an empty tree would read as clean here. This is not a clean result."
+    exit 0
+  fi
   _pd="$(jq -r '.metadata.dependencies' "$AUDIT_PROD")"
   _fd="$(jq -r '.metadata.dependencies' "$AUDIT")"
   if [ "$_pd" -le 0 ] || [ "$_pd" -gt "$_fd" ]; then
     echo "::warning::audit-suppression-guard SKIPPED — the --prod audit reports $_pd dependencies against $_fd in the full audit, so it did not partition a real tree. This is not a clean result."
     exit 0
   fi
-elif [ -n "$_pd_ok" ] || [ -n "$_fd_ok" ]; then
-  echo "::warning::audit-suppression-guard SKIPPED — one audit file carries metadata.dependencies and the other does not, so the partition cannot be verified. A --prod run that resolved an empty tree would read as clean here. This is not a clean result."
-  exit 0
 fi
 
 warn() { echo "::warning::$1"; FINDINGS=$((FINDINGS + 1)); }
@@ -164,10 +181,21 @@ FINDINGS=0
 # read and an empty result reads as "nothing configured". Same for `ignoreGhsas` as
 # a string. Two states, one output, one level down: the fourth input to carry this
 # guard's own defect class. Assert the sub-blocks the reads actually consume.
-jq -e '(.pnpm.overrides // {}) | type == "object"' "$PKG" >/dev/null 2>&1 \
+# Written as "absent, or the right type" rather than `(x // {}) | type == "object"`.
+# The `//` form is one value class short: it fires on `null` AND on `false`, so
+# `"overrides": false` defaulted to `{}` and reported "nothing repaired" — the same
+# laundering the assertion exists to stop, surviving inside it.
+jq -e '.pnpm.overrides == null or (.pnpm.overrides | type == "object")' "$PKG" >/dev/null 2>&1 \
   || skip "\`pnpm.overrides\` in $PKG is present but is not an object, so the override checks cannot read it and an unreadable block would be indistinguishable from an empty one."
-jq -e '(.pnpm.auditConfig.ignoreGhsas // []) | type == "array"' "$PKG" >/dev/null 2>&1 \
+jq -e '.pnpm.auditConfig.ignoreGhsas == null or (.pnpm.auditConfig.ignoreGhsas | type == "array")' "$PKG" >/dev/null 2>&1 \
   || skip "\`pnpm.auditConfig.ignoreGhsas\` in $PKG is present but is not an array, so the suppression checks cannot read it and an unreadable list would be indistinguishable from an empty one."
+# The lockfile is the one input with no shape contract at all, and its failure mode is
+# loud rather than silent: an empty or truncated file makes EVERY override key report
+# DEAD OVERRIDE (measured: 8 false alarms against this tree). Fail-closed, but this
+# file's own position is that a false alarm in an observe-only signal is worse than
+# silence, so assert the format's required top-level key before trusting absence.
+grep -qE "^[[:space:]]*[\"']?lockfileVersion[\"']?[[:space:]]*:" "$LOCK" 2>/dev/null \
+  || skip "$LOCK carries no \`lockfileVersion\` key, so it is not a pnpm lockfile this guard can read, and every override key would report as absent from it."
 
 # THE GUARD MUST NOT REPORT CLEAN FROM A MANIFEST IT CANNOT SHOW pnpm READS.
 #
@@ -202,7 +230,19 @@ fi
 # in the probed file: the quoted form produced "the location is verified". A probe
 # that reports VERIFIED on a form it cannot parse is worse than no probe, and this is
 # the house rule that guards match shape rather than spelling.
-if [ -n "$WS_YAML" ] && [ -r "$WS_YAML" ] \
+# Supplied-but-unreadable is a caller error, exactly as it is for --pnpm-major. The
+# `-r` test below guards the `grep` call only; the POSITIVE claim further down keys
+# off `[ -z "$WS_YAML" ]`, which tests non-emptiness, not readability. So a mistyped
+# path silenced the UNVERIFIED warning and printed "the location probes found no sign
+# the configuration moved" instead — measured 2026-08-01, byte-identical to a run
+# where the probe really did read the file. The comment above about `--pnpm-major ""`
+# names this exact pairing ("off one probe of two"); that round fixed one half of it.
+# `-f` as well as `-r`: a DIRECTORY passes `-r`, and `grep` then fails on it with the
+# same silence as a missing file. Measured — both forms produced the healthy text.
+if [ -n "$WS_YAML" ] && { [ ! -f "$WS_YAML" ] || [ ! -r "$WS_YAML" ]; }; then
+  skip "\`$WS_YAML\` was passed as --workspace-yaml but cannot be read as a file, so the location probe never ran. A probe that did not run must not read as a probe that found nothing."
+fi
+if [ -n "$WS_YAML" ] && [ -f "$WS_YAML" ] && [ -r "$WS_YAML" ] \
    && grep -qE "^[[:space:]]*[\"']?(overrides|auditConfig|ignoreGhsas)[\"']?[[:space:]]*:" "$WS_YAML" 2>/dev/null; then
   skip "\`$WS_YAML\` names overrides/auditConfig/ignoreGhsas, so the configuration may already live there; this guard reads the manifest."
 fi
@@ -249,7 +289,7 @@ else
   while IFS= read -r ghsa; do
     [ -n "$ghsa" ] || continue
     hit="$(jq -r --arg g "$ghsa" \
-      '[(.advisories // {})[] | select((.github_advisory_id // .id|tostring) == $g)] | length' \
+      '[(.advisories // {})[] | select((.github_advisory_id|tostring) == $g)] | length' \
       "$AUDIT" 2>/dev/null)"
     # An empty result is a FAILED READ, never a count of zero. The container type is
     # asserted above, but an advisory ELEMENT can still be unindexable (`{"1":"boom"}`
@@ -270,18 +310,30 @@ else
     # `-F ' > '` split yielded an empty root and every path was skipped. Worse, a
     # correct dev-only verdict and a total parse miss produced byte-identical
     # output, so the run that "verified" it could not tell them apart.
-    # (An earlier draft also claimed `paths` was empty in this tree. That was
-    # false — measured populated in four variants, `.>@lhci/cli>uuid` and the
-    # rest. The separator alone carries the argument; the extra claim was a false
-    # ornament beside a true reason, which is the defect class this repo keeps
-    # paying for.)
+    # (An earlier draft also claimed `paths` was empty in this tree, and a later
+    # revision called that claim false — "measured populated in four variants,
+    # `.>@lhci/cli>uuid` and the rest" — and filed it as a false ornament beside a
+    # true reason. THE CORRECTION WAS THE THING THAT WAS WRONG, and it was wrong for
+    # the reason this whole file keeps circling: it was measured on the wrong pnpm.
+    # Measured 2026-08-01 against the same tree and the same lockfile, both majors:
+    #
+    #   pnpm 10.28.2  findings: [{"version":"8.3.2","paths":[".>@lhci/cli>uuid"]}]
+    #   pnpm  9.15.9  findings: [{"version":"8.3.2","paths":[]}]
+    #
+    # Every advisory, both `--prod` and full. `pnpm/action-setup` pins major 9 at all
+    # five call sites, so at the place this guard actually runs, `paths` IS empty and
+    # the original draft was right. The path-parsing check therefore could not fire
+    # for TWO independent reasons on two different majors — the separator on 10, an
+    # empty array on 9 — and the removal stands either way. This is also the only
+    # field that differs between the two captures; everything the checks read
+    # (advisory keys, `github_advisory_id`, the metadata counters) is identical.)
     #
     # `pnpm audit --prod` does the partition properly. Measured on the same tree
     # with the ignore list removed: `--prod` → 1 advisory (`@hono/node-server`),
     # `--dev` → 2 (`uuid`, `brace-expansion`). So membership in the `--prod` set IS
     # the question, and it is format-independent.
     prod_hit="$(jq -r --arg g "$ghsa" \
-      '[(.advisories // {})[] | select((.github_advisory_id // .id|tostring) == $g)] | length' \
+      '[(.advisories // {})[] | select((.github_advisory_id|tostring) == $g)] | length' \
       "$AUDIT_PROD" 2>/dev/null)"
     [ -n "$prod_hit" ] || skip "the advisory scan of $AUDIT_PROD returned nothing for $ghsa, so a failed read cannot be told apart from an empty production set."
     if [ "$prod_hit" != "0" ]; then
@@ -350,7 +402,10 @@ else
     #      measured case is `postcss` swallowing `@tailwindcss/postcss`; the sharper
     #      one is `url` against `base64url@1.0.0:`, where guard 2 does NOT help,
     #      because it reads position 5 and finds the `6` of base64. Both are real npm
-    #      packages, and this repo carries 683 scoped keys of the swallowing shape.
+    #      packages, and the swallowing shape is common here: 685 lines in
+    #      `web/jobbliggaren-web/pnpm-lock.yaml` match `^  '?@scope/name@<digit>`,
+    #      carrying 330 distinct scoped names. (An earlier revision said "683" and
+    #      named neither the population nor the quantity; no predicate reproduces it.)
     #   2. THE VERSION TERMINATOR — what follows the name must be a version. The
     #      earlier comment justified this with `foo@workspace:`, and that form could
     #      not be reproduced: a workspace lockfile writes `specifier: workspace:*`

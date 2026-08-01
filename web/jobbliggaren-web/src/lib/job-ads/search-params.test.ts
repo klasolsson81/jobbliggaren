@@ -9,6 +9,8 @@ import {
   type JobbUrlState,
   type JobbRawSearchParams,
   parseQParam,
+  serializeJobbAxis,
+  JOBB_AXIS_SEPARATOR,
 } from "./search-params";
 
 const empty: JobbUrlState = {
@@ -44,10 +46,10 @@ describe("withCommitFlag (E2j commit-intent-signal)", () => {
 });
 
 describe("buildJobbHref Klass 2 (employmentType + worktimeExtent)", () => {
-  it("appendar employmentType som upprepade params", () => {
+  it("skriver employmentType som ETT param med värdena joinade", () => {
     expect(
       buildJobbHref({ ...empty, employmentType: ["et1", "et2"] }),
-    ).toBe("/jobb?employmentType=et1&employmentType=et2");
+    ).toBe("/jobb?employmentType=et1.et2");
   });
 
   it("appendar worktimeExtent (radio → 0–1 element)", () => {
@@ -77,10 +79,10 @@ describe("buildJobbHref Klass 2 (employmentType + worktimeExtent)", () => {
 });
 
 describe("buildJobbHref STEG 5 (matchGrades — grade-filter)", () => {
-  it("appendar matchGrades som upprepade params (enum-namn)", () => {
+  it("skriver matchGrades som ETT param med enum-namnen joinade", () => {
     expect(
       buildJobbHref({ ...empty, matchGrades: ["Strong", "Good"] }),
-    ).toBe("/jobb?matchGrades=Strong&matchGrades=Good");
+    ).toBe("/jobb?matchGrades=Strong.Good");
   });
 
   it("tom matchGrades-lista ger inget param (Av = noll grader)", () => {
@@ -99,19 +101,24 @@ describe("buildJobbHref STEG 5 (matchGrades — grade-filter)", () => {
         matchGrades: ["Basic", "Good", "Strong"],
       }),
     ).toBe(
-      "/jobb?occupationGroup=og1&region=r1&employmentType=et1&worktimeExtent=wt1&matchGrades=Basic&matchGrades=Good&matchGrades=Strong&q=volvo",
+      "/jobb?occupationGroup=og1&region=r1&employmentType=et1&worktimeExtent=wt1&matchGrades=Basic.Good.Strong&q=volvo",
     );
   });
 
-  it("round-trip: buildJobbHref → URLSearchParams.getAll bevarar grad-listan", () => {
-    // Wire-kontraktets round-trip: graderna överlever serialisering→parse i
-    // samma form som page.tsx läser dem (params.getAll-ekvivalent).
+  it("round-trip: buildJobbHref → parse bevarar grad-listan I ORDNING", () => {
+    // Wire-kontraktets round-trip: graderna överlever serialisering→parse.
+    // Läses nu via ETT param som splittas, inte via getAll — och ordningen
+    // ingår i assertionen, för `sameList`/`sameUrlState` jämför element för
+    // element, så en sorterande serialiserare hade gjort ett mängd-lika par
+    // olika (CTO-bind 2026-08-01: sortera INTE).
     const href = buildJobbHref({
       ...empty,
       matchGrades: ["Strong", "Basic"],
     });
     const qs = href.slice(href.indexOf("?") + 1);
-    expect(new URLSearchParams(qs).getAll("matchGrades")).toEqual([
+    const raw = new URLSearchParams(qs).getAll("matchGrades");
+    expect(raw).toEqual(["Strong.Basic"]);
+    expect(raw.flatMap((v) => v.split(JOBB_AXIS_SEPARATOR))).toEqual([
       "Strong",
       "Basic",
     ]);
@@ -177,7 +184,7 @@ describe("buildJobbHref #300 PR-5 (relaterade — Visa relaterade också)", () =
         includeRelated: true,
       }),
     ).toBe(
-      "/jobb?matchGrades=Related&matchGrades=Strong&matchning=off&relaterade=on&q=volvo",
+      "/jobb?matchGrades=Related.Strong&matchning=off&relaterade=on&q=volvo",
     );
   });
 });
@@ -389,12 +396,10 @@ describe("buildPageHref (#823 q-klampen, #846 hemvisten)", () => {
     expect(href).toContain("page=3");
     expect(href).toContain("occupationGroup=2512");
     expect(href).toContain("region=01");
-    expect(href).toContain("municipality=0180");
-    expect(href).toContain("municipality=0181");
+    expect(href).toContain("municipality=0180.0181");
     expect(href).toContain("employmentType=1");
     expect(href).toContain("worktimeExtent=2");
-    expect(href).toContain("matchGrades=Strong");
-    expect(href).toContain("matchGrades=Good");
+    expect(href).toContain("matchGrades=Strong.Good");
     expect(href).toContain("relaterade=on");
     expect(href).toContain("doljAnsokta=on");
     expect(href).toContain("baraMatchade=on");
@@ -406,8 +411,8 @@ describe("buildPageHref (#823 q-klampen, #846 hemvisten)", () => {
     // param-ordningen, som är kontrakt för delningsbara URL:er.
     expect(href).toBe(
       "/jobb?page=3&sortBy=Relevance&occupationGroup=2512&region=01" +
-        "&municipality=0180&municipality=0181&employmentType=1&worktimeExtent=2" +
-        "&matchGrades=Strong&matchGrades=Good&relaterade=on&doljAnsokta=on" +
+        "&municipality=0180.0181&employmentType=1&worktimeExtent=2" +
+        "&matchGrades=Strong.Good&relaterade=on&doljAnsokta=on" +
         "&baraMatchade=on&employer=5565021000&q=backend"
     );
   });
@@ -420,5 +425,139 @@ describe("buildPageHref (#823 q-klampen, #846 hemvisten)", () => {
   it("skriver bara ut pageSize när den avviker från sidans default", () => {
     expect(buildPageHref({ pageSize: "20" }, 2, 20)).not.toContain("pageSize");
     expect(buildPageHref({ pageSize: "50" }, 2, 20)).toContain("pageSize=50");
+  });
+});
+
+describe("URL axis serialisation (2026-08-01 — the router-cache collision)", () => {
+  /**
+   * The property the whole change exists for. Next's client router cache
+   * collapses REPEATED query keys to the last value, so under the old contract
+   * two DIFFERENT applied states hashed to ONE cache entry and the navigation
+   * between them was served from cache: no fetch, no re-render, controls
+   * disagreeing with the URL. Measured on the running surface before the fix.
+   */
+  function collapse(search: string): string {
+    const out = new Map<string, string>();
+    for (const [k, v] of new URLSearchParams(search)) out.set(k, v);
+    return [...out].map(([k, v]) => `${k}=${v}`).join("&");
+  }
+
+  it("two applied states that COLLIDED under the repeated form now have different cache keys", () => {
+    // The exact transition measured as broken: three employment types, remove
+    // the one that is not last. Under the repeated form both sides collapsed to
+    // `employmentType=<last>`; under the joined form they cannot.
+    const before = buildJobbHref({ ...empty, employmentType: ["a", "b", "c"] });
+    const after = buildJobbHref({ ...empty, employmentType: ["b", "c"] });
+    const q = (href: string) => href.slice(href.indexOf("?"));
+
+    expect(collapse(q(before))).not.toBe(collapse(q(after)));
+
+    // ...and the counterfactual, so this test cannot pass for the wrong reason:
+    // the SAME pair written the old way DOES collide. Without this the assertion
+    // above is satisfied by almost any encoding and would stay green if the
+    // collision came back by another route.
+    expect(collapse("?employmentType=a&employmentType=b&employmentType=c")).toBe(
+      collapse("?employmentType=b&employmentType=c"),
+    );
+  });
+
+  it("keeps order — it does NOT sort, because sameUrlState compares element-wise", () => {
+    expect(serializeJobbAxis(["c", "a", "b"])).toBe("c.a.b");
+  });
+
+  it("drops an EMPTY value so the joined form never carries a trailing separator", () => {
+    // A trailing `.` is the classic way a pasted link breaks: auto-linkers in
+    // Slack, Outlook and most clients read a terminal period as sentence
+    // punctuation and chop it, handing the recipient a silently truncated URL
+    // (design-reviewer, #1144). Not reachable today, but neither is the
+    // separator case the adjacent filter guards.
+    expect(serializeJobbAxis(["a", ""])).toBe("a");
+    expect(serializeJobbAxis(["", "b"])).toBe("b");
+    expect(serializeJobbAxis(["a", "", "b"])).toBe("a.b");
+    expect(buildJobbHref({ ...empty, region: ["r1", ""] })).toBe("/jobb?region=r1");
+  });
+
+  it("drops a value containing the separator rather than emitting an ambiguous one", () => {
+    // Defence in depth behind the corpus test: such a value would parse back as
+    // two, silently widening the filter with the chip still showing. Dropping
+    // follows the route's drop-unknown discipline; it must never throw, because
+    // this runs inside a Server Component render.
+    expect(serializeJobbAxis(["ok1", `bad${JOBB_AXIS_SEPARATOR}value`, "ok2"])).toBe(
+      "ok1.ok2",
+    );
+    expect(() => serializeJobbAxis([`x${JOBB_AXIS_SEPARATOR}y`])).not.toThrow();
+  });
+
+  it("omits an axis whose every value was dropped, instead of writing an empty param", () => {
+    expect(buildJobbHref({ ...empty, region: [`a${JOBB_AXIS_SEPARATOR}b`] })).toBe(
+      "/jobb",
+    );
+  });
+
+  describe("back-compat: a link shared before the change still works", () => {
+    it("buildPageHref reads the REPEATED form and re-emits it joined (self-healing)", () => {
+      const href = buildPageHref(
+        { municipality: ["0180", "0181"], sortBy: "PublishedAtDesc" },
+        2,
+        20,
+      );
+      expect(href).toContain("municipality=0180.0181");
+      expect(new URLSearchParams(href.slice(href.indexOf("?") + 1)).getAll("municipality"))
+        .toEqual(["0180.0181"]);
+    });
+
+    it("buildPageHref reads the JOINED form identically", () => {
+      const fromJoined = buildPageHref(
+        { municipality: ["0180.0181"], sortBy: "PublishedAtDesc" },
+        2,
+        20,
+      );
+      const fromRepeated = buildPageHref(
+        { municipality: ["0180", "0181"], sortBy: "PublishedAtDesc" },
+        2,
+        20,
+      );
+      // A reader cannot tell which form produced the state — that is what makes
+      // the migration free: no redirect, no rewrite of existing links.
+      expect(fromJoined).toBe(fromRepeated);
+    });
+
+    it("a mixed arrival (both forms at once) parses to the union", () => {
+      const href = buildPageHref(
+        { municipality: ["0180.0181", "0182"], sortBy: "PublishedAtDesc" },
+        2,
+        20,
+      );
+      expect(href).toContain("municipality=0180.0181.0182");
+    });
+  });
+});
+
+describe("the separator against the grammar the backend enforces", () => {
+  /**
+   * `SearchCriteria.ConceptIdPattern` (`src/Jobbliggaren.Domain/SavedSearches/
+   * SearchCriteria.cs`) is `^[A-Za-z0-9_-]{1,32}\z`, applied by every query
+   * validator. Joining an axis is only unambiguous while the separator lies
+   * OUTSIDE that charset.
+   *
+   * This is the half the frontend owns, and it cannot move to the .NET side: a
+   * backend corpus test cannot catch a bad separator CHOICE, because `-` is
+   * legal in the pattern — switching `JOBB_AXIS_SEPARATOR` to `-` would leave
+   * every backend guard green while breaking every shared /jobb link. The
+   * corpus-obeys-the-charset half lives in `TaxonomyConceptIdGrammarTests`
+   * (`Jobbliggaren.Application.UnitTests`), which asserts the shipped corpus
+   * through the query validator a /jobb search actually hits.
+   */
+  const CONCEPT_ID_CHARSET = /^[A-Za-z0-9_-]$/;
+
+  it("the separator is a character no legal conceptId can contain", () => {
+    expect(CONCEPT_ID_CHARSET.test(JOBB_AXIS_SEPARATOR)).toBe(false);
+  });
+
+  it("counterfactual: the sibling surface's separator WOULD be ambiguous here", () => {
+    // Not hypothetical. `/foretag/sok` joins on `-` safely because SCB codes are
+    // digits only; here `-` is inside the conceptId charset, so reusing it would
+    // split real ids. This is why the two surfaces differ.
+    expect(CONCEPT_ID_CHARSET.test("-")).toBe(true);
   });
 });

@@ -157,7 +157,13 @@ describe("OversiktPage — live match-count (ADR 0079 STEG 6)", () => {
       profileOverrides: {
         preferredOccupationGroups: ["grp_dev"],
         preferredRegions: ["region_AB"],
-        preferredMunicipalities: ["kommun_0180"],
+        // TVÅ kommuner, inte en. Notisens href byggs genom `buildJobbHref` och
+        // ÄRVER därför axel-serialiseringen (2026-08-01) utan en enda diff-rad
+        // här — men vid ett värde per axel är den joinade formen byte-identisk
+        // med den upprepade, så fixturen var blind för själva formskiftet
+        // (design-reviewer, #1144). Detta är den enda ytan PR:en ändrade utan
+        // att röra den.
+        preferredMunicipalities: ["kommun_0180", "kommun_0181"],
         preferredEmploymentTypes: ["et_fast"],
       },
     });
@@ -165,7 +171,7 @@ describe("OversiktPage — live match-count (ADR 0079 STEG 6)", () => {
     const cta = screen.getByRole("link", { name: /Visa annonser/ });
     expect(cta).toHaveAttribute(
       "href",
-      "/jobb?occupationGroup=grp_dev&region=region_AB&municipality=kommun_0180&employmentType=et_fast",
+      "/jobb?occupationGroup=grp_dev&region=region_AB&municipality=kommun_0180.kommun_0181&employmentType=et_fast",
     );
   });
 

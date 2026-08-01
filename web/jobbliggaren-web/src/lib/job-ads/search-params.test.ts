@@ -465,6 +465,18 @@ describe("URL axis serialisation (2026-08-01 — the router-cache collision)", (
     expect(serializeJobbAxis(["c", "a", "b"])).toBe("c.a.b");
   });
 
+  it("drops an EMPTY value so the joined form never carries a trailing separator", () => {
+    // A trailing `.` is the classic way a pasted link breaks: auto-linkers in
+    // Slack, Outlook and most clients read a terminal period as sentence
+    // punctuation and chop it, handing the recipient a silently truncated URL
+    // (design-reviewer, #1144). Not reachable today, but neither is the
+    // separator case the adjacent filter guards.
+    expect(serializeJobbAxis(["a", ""])).toBe("a");
+    expect(serializeJobbAxis(["", "b"])).toBe("b");
+    expect(serializeJobbAxis(["a", "", "b"])).toBe("a.b");
+    expect(buildJobbHref({ ...empty, region: ["r1", ""] })).toBe("/jobb?region=r1");
+  });
+
   it("drops a value containing the separator rather than emitting an ambiguous one", () => {
     // Defence in depth behind the corpus test: such a value would parse back as
     // two, silently widening the filter with the chip still showing. Dropping

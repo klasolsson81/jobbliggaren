@@ -49,19 +49,22 @@ public class GetActivityReportQueryValidatorTests
     }
 
     [Fact]
-    public void Validate_WithHalfSpecifiedPair_MessageNamesInnevarandeMonthAsTheDefault()
+    public void Validate_WithHalfSpecifiedPair_MessageNamesTheCurrentMonthAsTheDefault()
     {
         // This is the 400's only sentence that states what the default IS, and it
         // shipped saying "föregående månad" while the handler resolved the current
         // Swedish civil month (Klas 2026-06-28). The string occurs exactly once in
-        // the repo and no test touched it, so a wrong sentence sat in front of a
-        // correct implementation. That is the hole this pin closes.
+        // the repo, and until this test nothing asserted on it, so a wrong sentence
+        // sat in front of a correct implementation. That is the hole this pin closes.
         //
         // Who reads it: a direct API consumer, NOT a Jobbliggaren user. The web
-        // client cannot even produce this 400 — `lib/api/applications.ts` sends
-        // year and month only together — and discards the body of the ones it does
-        // get. An earlier version of this comment called the sentence "the only
-        // user-visible text", which is the very overclaim this PR exists to remove.
+        // client cannot reach this 400 at all — `page.tsx`'s `parseMonthParam`
+        // rejects anything outside month 1-12 and year 2000-2100, which are the
+        // validator's own bounds, before the single call site, and
+        // `lib/api/applications.ts` sends year and month only together, so neither
+        // failing rule is reachable from the browser. An earlier version of this
+        // comment called the sentence "the only user-visible text", which is the
+        // very overclaim this PR exists to remove.
         //
         // The two assertions have deliberately different strengths.
         // ShouldNotContain("föregående") pins the CLAIM: the wrong month may not

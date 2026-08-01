@@ -197,26 +197,32 @@ formateraren då och bind den till den ytan.
 All backend timestamps are stored and returned as UTC ISO 8601.
 Frontend converts to Europe/Stockholm for display.
 
-```ts
-import { toZonedTime, format as formatTz } from "date-fns-tz"
+**Do not write the zone yourself.** Which module you need depends on the question
+you are asking:
 
-const STOCKHOLM = "Europe/Stockholm"
+- **Presentation** — `src/lib/i18n/format.ts`. next-intl is the timezone
+  authority for anything a reader sees; it resolves the configured zone itself.
+- **The global pin** — `src/i18n/request.ts`. Declared once, for every
+  `useFormatter()` call, so SSR and client agree.
+- **Calendar facts** — `SWEDISH_TIME_ZONE` in `src/lib/time/swedish-calendar.ts`.
+  For questions like "which Swedish civil month is this instant in", which stay
+  Swedish even when the user's locale is `en`.
 
-export function toStockholm(utcDate: Date | string): Date {
-  const d = typeof utcDate === "string" ? new Date(utcDate) : utcDate
-  return toZonedTime(d, STOCKHOLM)
-}
+`no-restricted-syntax` fails the literal written as a value under `src/`, in
+pre-commit and in CI, so a new site does not merge (#1148). The two DECLARING
+modules are exempt — `src/i18n/request.ts` and `src/lib/time/swedish-calendar.ts`
+— as is test code. `format.ts` is not exempt and does not need to be: it never
+writes the zone, because next-intl resolves the pin for it. The authoritative
+list, including the test-code globs, lives in `eslint.config.mjs`.
 
-export function formatDateTimeStockholm(utcDate: Date | string): string {
-  const local = toStockholm(utcDate)
-  return formatDateTime(local)
-}
-```
-
-Install:
-```bash
-pnpm add date-fns-tz
-```
+> **Removed 2026-08-01:** this section used to document `toStockholm` /
+> `formatDateTimeStockholm` built on **`date-fns-tz`** — that package, not the
+> `date-fns` entry in BUILD.md §3.1 — with an `Install:` block. `date-fns-tz` is
+> not in `package.json`, has no usage in `src/`, and is not in BUILD.md §3.1, so
+> following the section produced a §12 change; its local `const STOCKHOLM` is the
+> duplication the guard above now fails. Recorded rather than deleted silently, so
+> it is not reintroduced. (Same treatment as the `formatPercent` note earlier in
+> this file.)
 
 Never store local time in DB. Never assume client timezone == Stockholm.
 

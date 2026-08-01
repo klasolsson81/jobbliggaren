@@ -54,6 +54,10 @@ function renderPicker(
       filterLabel="Sök bransch"
       filterHint="Skriv för att smalna av listan över branscher."
       groupAria="Branscher"
+      // AXIS copy, host-supplied since #1146 — the fixture speaks the SNI axis,
+      // matching `filterLabel`/`groupAria` above.
+      expandAria={(name) => `Visa branscher i ${name}`}
+      collapseAria={(name) => `Dölj branscher i ${name}`}
       selectedCountLabel="0 valda branscher"
       optionsUnavailable="Registret kunde inte laddas."
       {...props}
@@ -81,6 +85,35 @@ describe("CriterionPicker — the browse view", () => {
   it("shows the degraded notice instead of an empty box when the tree is empty", () => {
     renderPicker({ nodes: [], options: [] });
     expect(screen.getByText("Registret kunde inte laddas.")).toBeInTheDocument();
+  });
+
+  // #1146 — the expand toggle's accessible name comes from the HOST's axis copy, and
+  // nothing pinned that until now. The defect this replaced was a single
+  // component-owned string that said "underkategorier" over a län; it was caught by a
+  // human reading the two hosts, not by a gate. This is the gate.
+  //
+  // The name is load-bearing rather than decorative: the toggle's only child is an
+  // `aria-hidden` chevron, so without the label the button has NO accessible name at
+  // all (WCAG 4.1.2) — `aria-expanded` carries state, never a name.
+  it("names the expand toggle with the HOST's axis copy, not a shared string", async () => {
+    const user = userEvent.setup();
+    renderPicker({
+      expandAria: (name) => `Visa kommuner i ${name}`,
+      collapseAria: (name) => `Dölj kommuner i ${name}`,
+    });
+
+    const toggle = screen.getByRole("button", {
+      name: "Visa kommuner i Informations- och kommunikationsverksamhet",
+    });
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+
+    // The name follows the STATE, so both halves of the host's contract are exercised.
+    await user.click(toggle);
+    expect(
+      screen.getByRole("button", {
+        name: "Dölj kommuner i Informations- och kommunikationsverksamhet",
+      }),
+    ).toHaveAttribute("aria-expanded", "true");
   });
 });
 
@@ -215,6 +248,8 @@ describe("CriterionPicker — the filter view (#999: all three levels)", () => {
         onToggle={vi.fn()}
         filterLabel="Sök bransch"
         groupAria="Branscher"
+        expandAria={(name) => `Visa branscher i ${name}`}
+        collapseAria={(name) => `Dölj branscher i ${name}`}
         selectedCountLabel="1 vald bransch"
         optionsUnavailable="Registret kunde inte laddas."
       />,
@@ -293,6 +328,8 @@ describe("CriterionPicker — optional heading and help (#999)", () => {
         onToggle={vi.fn()}
         filterLabel="Sök bransch"
         groupAria="Branscher"
+        expandAria={(name) => `Visa branscher i ${name}`}
+        collapseAria={(name) => `Dölj branscher i ${name}`}
         optionsUnavailable="Registret kunde inte laddas."
       />,
     );
@@ -313,10 +350,12 @@ describe("CriterionPicker — optional heading and help (#999)", () => {
         onToggle={vi.fn()}
         filterLabel="Sök bransch"
         groupAria="Branscher"
+        expandAria={(name) => `Visa branscher i ${name}`}
+        collapseAria={(name) => `Dölj branscher i ${name}`}
         optionsUnavailable="Registret kunde inte laddas."
       />,
     );
-    expect(screen.queryByRole("button", { name: "Rensa" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Rensa val" })).not.toBeInTheDocument();
   });
 
   it("says nothing about matches when there is no catalogue to match against", async () => {
@@ -334,7 +373,7 @@ describe("CriterionPicker — optional heading and help (#999)", () => {
   it("still offers Rensa without a heading, once something is selected", async () => {
     const { onClear } = renderPicker({ selected: new Set(["62010"]) });
     const user = userEvent.setup();
-    await user.click(screen.getByRole("button", { name: "Rensa" }));
+    await user.click(screen.getByRole("button", { name: "Rensa val" }));
     expect(onClear).toHaveBeenCalled();
   });
 });

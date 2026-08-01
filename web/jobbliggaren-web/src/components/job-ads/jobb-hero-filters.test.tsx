@@ -333,7 +333,9 @@ describe("JobbHeroFilters — Yrke tvåkolumns", () => {
     await user.click(screen.getByText("Välj alla yrkesgrupper"));
 
     expect(pushMock).toHaveBeenCalledWith(
-      "/jobb?occupationGroup=MVqp_eS8_kDZ&occupationGroup=Q5DF_juj_8do",
+      // ONE param per axis with the ids joined (2026-08-01): the repeated form
+      // made two different applied states share one Next router-cache entry.
+      "/jobb?occupationGroup=MVqp_eS8_kDZ.Q5DF_juj_8do",
     );
   });
 

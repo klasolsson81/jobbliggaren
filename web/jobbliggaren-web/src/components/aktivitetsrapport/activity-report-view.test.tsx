@@ -1,3 +1,4 @@
+import { StrictMode } from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import {
@@ -100,12 +101,223 @@ describe("ActivityReportView", () => {
     expect(screen.getByText("3 ansökningar i maj 2026.")).toBeInTheDocument();
   });
 
-  it("navigates to the selected month on picker change", () => {
-    renderView([row()]);
-    fireEvent.change(screen.getByLabelText("Månad"), {
-      target: { value: "2026-04" },
+  // -----------------------------------------------------------------
+  // WCAG 2.1 SC 3.2.2 On Input (level A), technique H84. Changing the
+  // picker's VALUE must not navigate; navigating is its own act.
+  // -----------------------------------------------------------------
+  describe("month picker", () => {
+    // Three options, because the resync case below needs a month that is neither
+    // the one on screen nor the uncommitted draft.
+    const pickerOptions: MonthOption[] = [
+      { value: "2026-05", label: "maj 2026" },
+      { value: "2026-04", label: "april 2026" },
+      { value: "2026-03", label: "mars 2026" },
+    ];
+
+    // The label follows the month rather than being hardcoded. Both the pending
+    // line and the announcement interpolate `monthLabel`, so a fixed label would
+    // let them assert "maj 2026" for a March report and read as correct.
+    function labelFor(month: string): string {
+      const option = pickerOptions.find((o) => o.value === month);
+      if (!option) throw new Error(`no fixture label for ${month}`);
+      return option.label;
+    }
+
+    function pickerView(selectedMonth: string) {
+      return (
+        <ActivityReportView
+          rows={[row()]}
+          selectedMonth={selectedMonth}
+          monthLabel={labelFor(selectedMonth)}
+          monthOptions={pickerOptions}
+          afUrl="https://arbetsformedlingen.se/example"
+        />
+      );
+    }
+
+    function renderPicker(selectedMonth: string) {
+      return render(pickerView(selectedMonth));
+    }
+
+    it("does not navigate while the value is being changed", () => {
+      renderPicker("2026-05");
+      const picker = screen.getByLabelText("Månad");
+
+      // The measured defect, reproduced: a CLOSED <select> on Windows/Chrome
+      // commits on every arrow key. The picker lists the last twelve months, so
+      // arrowing from the newest option to the oldest is ELEVEN steps, and it
+      // fired eleven router.push calls and eleven fetches, one per keystroke.
+      // Eleven change events go in here for that reason — the number in this
+      // comment is the number the loop runs — and the count that matters is zero.
+      // Each step is keydown THEN change, which is what a real arrow key emits.
+      // Firing only `change` left the Enter guard unpinned: deleting
+      // `if (event.key !== "Enter") return;` survived all six of these tests,
+      // because none of them pressed a key that was not Enter — and that mutant
+      // reintroduces the defect almost exactly, one push per keystroke from the
+      // second arrow onward. Measured by code-reviewer, not predicted.
+      const stepped = Array.from({ length: 11 }, (_, i) =>
+        i % 2 === 0 ? "2026-04" : "2026-05",
+      );
+      for (const value of stepped) {
+        fireEvent.keyDown(picker, { key: "ArrowDown" });
+        fireEvent.change(picker, { target: { value } });
+      }
+
+      expect(push).not.toHaveBeenCalled();
+      // The control still tracks what the user typed; only the navigation waits.
+      expect(picker).toHaveValue("2026-04");
     });
-    expect(push).toHaveBeenCalledWith("/aktivitetsrapport?month=2026-04");
+
+    it("navigates on Enter", () => {
+      renderPicker("2026-05");
+      const picker = screen.getByLabelText("Månad");
+
+      fireEvent.change(picker, { target: { value: "2026-04" } });
+      fireEvent.keyDown(picker, { key: "Enter" });
+
+      expect(push).toHaveBeenCalledTimes(1);
+      expect(push).toHaveBeenCalledWith("/aktivitetsrapport?month=2026-04");
+    });
+
+    it("navigates when focus leaves the field", () => {
+      renderPicker("2026-05");
+      const picker = screen.getByLabelText("Månad");
+
+      fireEvent.change(picker, { target: { value: "2026-04" } });
+      fireEvent.blur(picker);
+
+      expect(push).toHaveBeenCalledTimes(1);
+      expect(push).toHaveBeenCalledWith("/aktivitetsrapport?month=2026-04");
+    });
+
+    it("does not navigate when focus leaves a value that ended up unchanged", () => {
+      renderPicker("2026-05");
+      const picker = screen.getByLabelText("Månad");
+
+      // Tabbing through the card, and arrowing away and back again, are both
+      // ordinary. Without the equality guard each would refetch the month that
+      // is already on screen.
+      fireEvent.blur(picker);
+      fireEvent.change(picker, { target: { value: "2026-04" } });
+      fireEvent.change(picker, { target: { value: "2026-05" } });
+      fireEvent.blur(picker);
+      fireEvent.keyDown(picker, { key: "Enter" });
+
+      expect(push).not.toHaveBeenCalled();
+    });
+
+    it("follows the month the server resolved, so the control cannot disagree with the report below it", () => {
+      // Under StrictMode, because the render-phase state adjustment is the part
+      // most able to misbehave under a double render and the app runs with it on
+      // (Next's default, not overridden in next.config.ts). The adjustment is
+      // idempotent — it assigns values rather than deriving from the previous
+      // state — so the second render computes the same thing and queues the same
+      // update.
+      const { rerender } = render(
+        <StrictMode>{pickerView("2026-05")}</StrictMode>,
+      );
+      const picker = screen.getByLabelText("Månad");
+
+      fireEvent.change(picker, { target: { value: "2026-04" } });
+      expect(picker).toHaveValue("2026-04");
+
+      // A DIFFERENT month arriving from the server must win over the uncommitted
+      // draft: the back button, or a bookmarked ?month=, both re-render this
+      // component in place with a new prop.
+      //
+      // The first version of this test re-rendered with the SAME month still on
+      // screen and expected the draft to be discarded. That transition is not
+      // producible: `page.tsx` echoes the month the backend resolved, and every
+      // value this picker can emit is one the backend returns unchanged, so a
+      // committed April never comes back as May. Asserting it would have been a
+      // production fact resting on a premise production cannot produce
+      // (CLAUDE.md §5, Tests).
+      rerender(<StrictMode>{pickerView("2026-03")}</StrictMode>);
+
+      expect(picker).toHaveValue("2026-03");
+    });
+
+    it("says in words when the report updates, and ties that to the select", () => {
+      renderPicker("2026-05");
+      const picker = screen.getByLabelText("Månad");
+
+      // Navigation is no longer implied by the control's own behaviour, so the
+      // affordance has to be stated. Asserted through the aria-describedby LINK
+      // rather than by accessible-description text: jsdom fuses adjacent element
+      // text in a way Chromium does not, so the link is the fact that transfers.
+      //
+      // The sentence names all three commit paths, and each word of it was
+      // argued for. "klickar utanför fältet" rather than "lämnar fältet"
+      // (design-reviewer): leaving a field is focus vocabulary and a mouse user
+      // has no model of being IN one. Tab is named because `onBlur` fires on it
+      // too (code-reviewer), and a promise that omits one of three commit paths
+      // under-describes the contract for exactly the population this whole change
+      // exists for. "går vidare med Tab", not "tabbar vidare": the sentence
+      // already names Enter as a KEY, so naming the second one as a verb splits
+      // the register inside one sentence — and "tabba sig" is ordinary Swedish
+      // for blundering, which is not a word to hand a stressed job seeker. It is
+      // also the literal parallel of the `en` string, "move on with Tab".
+      //
+      // Shift+Tab is deliberately not enumerated: three named paths already make
+      // the behaviour unsurprising, and the fourth costs more in civic tone than
+      // it returns (design-reviewer).
+      const describedBy = picker.getAttribute("aria-describedby") ?? "";
+      expect(describedBy).not.toBe("");
+      expect(document.getElementById(describedBy)).toHaveTextContent(
+        "Rapporten uppdateras när du trycker Enter, går vidare med Tab eller klickar utanför fältet.",
+      );
+    });
+
+    it("says, while a draft is uncommitted, which month the report below still shows", () => {
+      renderPicker("2026-05");
+      const picker = screen.getByLabelText("Månad");
+      const pending = document.getElementById(
+        "aktivitetsrapport-month-pending",
+      );
+
+      // Always mounted, so toggling it cannot shift the counter, the CTA or the
+      // cards under it. Empty until a draft exists — the height is reserved, the
+      // sentence is not.
+      expect(pending).toBeInTheDocument();
+      expect(pending).toHaveTextContent("");
+      expect(picker.getAttribute("aria-describedby")).not.toContain("pending");
+
+      fireEvent.change(picker, { target: { value: "2026-04" } });
+
+      expect(pending).toHaveTextContent(
+        "Rapporten nedan visar fortfarande maj 2026.",
+      );
+      // It joins the field's description only while it carries text; an empty
+      // description would otherwise be announced as part of the field forever.
+      expect(picker.getAttribute("aria-describedby")).toContain(
+        "aktivitetsrapport-month-pending",
+      );
+    });
+
+    it("announces the month only once the report has actually changed to it", () => {
+      const { rerender } = renderPicker("2026-05");
+      const picker = screen.getByLabelText("Månad");
+      // By id, not by role: every CopyButton already carries its own sr-only
+      // `role="status"`, six per card, so a role query finds seven regions and
+      // cannot say which one is the report's.
+      const status = document.getElementById(
+        "aktivitetsrapport-month-announcer",
+      );
+      expect(status).toBeInTheDocument();
+
+      // Mounted empty at first paint. A live region that appears together with
+      // its content is the trap that makes announcements unreliable, so the node
+      // is persistent and the text is what changes.
+      expect(status).toHaveTextContent("");
+
+      // A draft alone must not announce: nothing has changed below yet.
+      fireEvent.change(picker, { target: { value: "2026-04" } });
+      expect(status).toHaveTextContent("");
+
+      // The month ARRIVING is the honest anchor — not the navigation starting.
+      rerender(pickerView("2026-03"));
+      expect(status).toHaveTextContent("Rapporten visar mars 2026.");
+    });
   });
 
   it("opens the AF activity report in a new tab via the CTA", () => {

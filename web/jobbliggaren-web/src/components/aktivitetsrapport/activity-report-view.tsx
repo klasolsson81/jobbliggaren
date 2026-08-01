@@ -68,8 +68,62 @@ export function ActivityReportView({
         )
       : rows;
 
-  function handleMonthChange(event: React.ChangeEvent<HTMLSelectElement>) {
-    router.push(`/aktivitetsrapport?month=${event.target.value}`);
+  // WCAG 2.1 SC 3.2.2 On Input (level A), technique H84. The picker used to
+  // `router.push` straight out of `onChange`, and on Windows/Chrome a CLOSED
+  // `<select>` commits every arrow key. The list is the last twelve months, so
+  // arrowing from the newest option to the oldest is eleven steps — and it fired
+  // eleven navigations and eleven fetches, one per keystroke, each one a change
+  // of context the user never asked for. Type-ahead has the same shape, one
+  // navigation per letter.
+  //
+  // So the value the control shows is local state now, and navigation is its own
+  // act: Enter, or leaving the field. Klas chose this form over H84's canonical
+  // "Visa" button on 2026-08-01, with the consequence stated — picking with the
+  // mouse no longer navigates on the click, it navigates when focus leaves.
+  const [pendingMonth, setPendingMonth] = useState(selectedMonth);
+  const [syncedMonth, setSyncedMonth] = useState(selectedMonth);
+  const [announcement, setAnnouncement] = useState("");
+
+  // Adjusting state when a prop changes, in React's documented render-phase form
+  // rather than an effect. It is load-bearing, not tidiness: once the value is
+  // local, a month arriving from the server (a committed navigation, the back
+  // button, a bookmarked `?month=`) would otherwise leave the control showing one
+  // month while the report below it lists another.
+  //
+  // It is also the honest anchor for the announcement: this branch fires when the
+  // new month ARRIVED, not when the navigation started, and it does not fire on
+  // first mount because `syncedMonth` initialises to `selectedMonth`. Back button
+  // and deep link come along for free.
+  if (selectedMonth !== syncedMonth) {
+    setSyncedMonth(selectedMonth);
+    setPendingMonth(selectedMonth);
+    setAnnouncement(t("month.announced", { month: monthLabel }));
+  }
+
+  // The draft the user is holding, and the reason the two lines below exist. Once
+  // the commit stopped being implicit, everything rests on saying so — and a
+  // static sentence describing what WILL happen can never say that you are
+  // standing in it right now.
+  const monthDraftPending = pendingMonth !== selectedMonth;
+
+  function commitMonth(month: string) {
+    // Guarded so leaving the field untouched is not a navigation. Without it,
+    // every tab-through of the card would refetch the month already on screen.
+    if (month === selectedMonth) return;
+    router.push(`/aktivitetsrapport?month=${month}`);
+  }
+
+  function handleMonthKeyDown(event: React.KeyboardEvent<HTMLSelectElement>) {
+    if (event.key !== "Enter") return;
+    // No preventDefault. An earlier version called it here as insurance against
+    // a <form> that does not exist, and code-reviewer measured the price of that
+    // insurance: Firefox dispatches keydown to a <select> while its native popup
+    // is open (Chrome does not), so suppressing Enter's default there can
+    // suppress the popup's own "commit the highlighted option" — on the very key
+    // this feature now hangs on. There is no form to submit today, so there is no
+    // default to prevent; the change that adds one is the change that carries its
+    // own guard.
+    commitMonth(pendingMonth);
   }
 
   return (
@@ -85,8 +139,19 @@ export function ActivityReportView({
           <select
             id="aktivitetsrapport-month"
             className="jp-input"
-            value={selectedMonth}
-            onChange={handleMonthChange}
+            value={pendingMonth}
+            // The hint is unconditional; the pending line joins the description
+            // only while it carries text, or an empty description would be
+            // announced as part of the field forever (the form
+            // `foretag-sok-searchbar` settled on in its own round 2).
+            aria-describedby={
+              monthDraftPending
+                ? "aktivitetsrapport-month-hint aktivitetsrapport-month-pending"
+                : "aktivitetsrapport-month-hint"
+            }
+            onChange={(event) => setPendingMonth(event.target.value)}
+            onKeyDown={handleMonthKeyDown}
+            onBlur={() => commitMonth(pendingMonth)}
           >
             {monthOptions.map((option) => (
               <option key={option.value} value={option.value}>
@@ -94,6 +159,43 @@ export function ActivityReportView({
               </option>
             ))}
           </select>
+          {/* Navigation is no longer implied by the control's appearance, so it
+              is said in words and tied to the select with aria-describedby. */}
+          <p
+            id="aktivitetsrapport-month-hint"
+            className="text-body-sm leading-5 text-text-primary"
+          >
+            {t("month.hint")}
+          </p>
+          {/* Draft-vs-applied honesty, inside the field it is about. The hint
+              above says what WILL happen and is equally true before and after the
+              act, so it can never say "you are standing in it now" — that is this
+              line's whole job, and without it the control can read "april 2026"
+              while the counter and the cards below say maj.
+
+              ALWAYS rendered with its height reserved (`min-h-10 sm:min-h-5`,
+              measured below), never
+              conditionally mounted: toggling the node would shift the counter, the
+              CTA and every card under it. `/foretag/sok` measured that same defect
+              at 26 px and paid the same permanent cost for the same reason.
+
+              NO `aria-live`, deliberately, and for the reason written out on that
+              surface: this is a standing STATE, not an event. A live region here
+              would announce on every arrow key — the same defect shape this PR
+              removes. `aria-describedby` is the mechanism for a standing
+              description. */}
+          {/* Two lines reserved below `sm`, one at and above it. Measured in
+              Chromium against the production build, six viewports: at 375 and up
+              the sentence is one line and the card does not move at all, but at
+              320 it wraps and a single reserved line let it push the CTA and the
+              whole card list down 20 px — the exact reflow the reservation exists
+              to prevent, surviving in the one viewport nobody looks at. */}
+          <p
+            id="aktivitetsrapport-month-pending"
+            className="min-h-10 text-body-sm leading-5 text-text-primary sm:min-h-5"
+          >
+            {monthDraftPending ? t("month.pending", { month: monthLabel }) : ""}
+          </p>
         </div>
 
         <div className="flex flex-col gap-1">
@@ -159,6 +261,26 @@ export function ActivityReportView({
           )}
         </div>
       )}
+
+      {/* Says that the month CHANGED. Next's route announcer is keyed on
+          pathname, so a `?month=` swap never reaches it, and this PR widens the
+          gap on purpose: the commit now happens AFTER focus has left the picker,
+          so a screen-reader user is standing on the next control when everything
+          below it is replaced in silence. Copying one FIELD already announces
+          (`copy-button.tsx`); replacing the whole report did not.
+
+          Persistent and mounted empty at first paint — a live region that appears
+          together with its content is the trap that makes announcements
+          unreliable. It carries the MONTH and never the count: a screen reader
+          would otherwise hear a number for a list it has not reached yet. */}
+      <p
+        id="aktivitetsrapport-month-announcer"
+        role="status"
+        aria-live="polite"
+        className="sr-only"
+      >
+        {announcement}
+      </p>
     </div>
   );
 }

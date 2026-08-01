@@ -98,14 +98,16 @@ public static class LayoutCorpusReport
         L("- No DEK envelope round-trip, no SQL translation, no SmartEnum translation. Those stay");
         L("  proven by `AutoPromoteParsedResumeEncryptionTests` and the integration suites.");
         L("- No Mediator pipeline: no logging, validation, authorization or UnitOfWork behavior.");
-        // The trailing sentence "PR C's structured log closes that gap" was removed 2026-07-28: it
-        // was false when written and was being printed into the deliverable. `LogLeftPending` emits
-        // the collapsed gate token and the artifact id, never a ValidateContent code — and this
-        // harness passes NullLogger anyway, so it could not have read one. The remaining sentence is
-        // true at HEAD; the PR that makes it false owns rewriting it.
-        L("- The `IncompleteContent` SUB-reason is unavailable: `AutoPromoteGate.Evaluate` discards");
-        L("  `created.Error` and returns the collapsed token, so no consumer can see which of");
-        L("  `Resume.ValidateContent`'s arms refused the CV.");
+        // REWRITTEN 2026-08-01 by the PR that made the previous sentence false, exactly as that
+        // sentence's own note required. It read: "The `IncompleteContent` SUB-reason is
+        // unavailable: `AutoPromoteGate.Evaluate` discards `created.Error`…". The gate no longer
+        // discards it (#1060 D3(β) PR 2), and this harness no longer passes NullLogger.
+        L("- The `IncompleteContent` sub-reason IS readable, and §5's `Domain code` column is where");
+        L("  it is published. `AutoPromoteGate` carries `created.Error.Code` verbatim on that arm");
+        L("  and the handler emits it as the `BlockDetail` property; this harness reads that");
+        L("  property off the real log line, because `AutoPromoteGateVerdict` is `internal` to");
+        L("  `Jobbliggaren.Application` and this assembly is not in its `InternalsVisibleTo` list.");
+        L("  Nothing is re-typed: the code is the FIRST evaluation's output, not a second opinion.");
         L("- Substituted ports (none of them feeds an auto-promote gate):");
         foreach (var p in d.SubstitutedPorts)
             L($"  - {p}");
@@ -120,6 +122,12 @@ public static class LayoutCorpusReport
         L(IdLine("crashed", d.Cases.Where(c => c.CrashedWithExceptionType is not null)));
         L(IdLine("fixture invalid", d.Cases.Where(c => c.FixtureProblems.Count > 0)));
         L(IdLine("gate ladder malformed", d.Cases.Where(c => !GateLadder.IsWellFormed(c.Gates))));
+        // An INSTRUMENT line, beside the other four, and not a product statement: the handler
+        // emitted a LeftPending whose `BlockDetail` property this harness could not read (renamed,
+        // removed, or ambiguous). Listed separately from "no domain code" for the reason
+        // GateState.Unresolved exists — an em-dash that could mean either would let a reading
+        // failure publish as a fact about the CV.
+        L(IdLine("block detail unreadable", d.Cases.Where(c => c.BlockDetailUnreadable)));
         if (d.ModelSymmetryProblems.Count > 0)
         {
             L();
@@ -276,17 +284,39 @@ public static class LayoutCorpusReport
         L("  nothing for the rungs to report. §0 names it. Distinct from `no verdict`, which is a");
         L("  statement about the handler; here the handler was never asked.");
         L();
+        L("`Domain code` is the constraint `Resume.CreateFromParsed` refused on, carried verbatim");
+        L("out of the buildability rung and read off the handler's own `BlockDetail` log property");
+        L("(#1060 D3(β) PR 2). It is what makes `**BLOCKED**` on that rung legible: the token");
+        L("`IncompleteContent` covers every code `Resume.CreateFromParsed` can return: thirty-two");
+        L("declared by `Resume.ValidateContent`, plus `JobSeekerIdRequired` and `ValidateName`'s");
+        L("three, so thirty-six. They do not share a fix — a per-entry failure like");
+        L("`Resume.ExperienceCompanyRequired` is routable, while a whole-document one like");
+        L("`Resume.SummaryTooLong` is not, and a design that assumed the first would spend a");
+        L("Domain refactor against a failure it cannot touch.");
+        L();
+        L("Read `—` in that column as **\"no Domain refusal produced a code on this row\"**, never");
+        L("as \"no constraint failed\": a personnummer block and a promote both print it, and");
+        L("neither asked the Domain the question. A row whose code could not be READ prints");
+        L("`INSTRUMENT: unreadable` instead and is named in §0 — the two are never one em-dash.");
+        L();
         // From the LADDER, not from Cases[0]. A crashed first case carries an empty ladder by
         // construction, and reading the headings off it produced a six-cell header over a five-cell
         // delimiter — under GFM, no table at all. The section disappeared entirely.
         var gateHeaders = GateLadder.RungHeaders;
-        L($"| # | Case | {string.Join(" | ", gateHeaders)} | FIRST BLOCK | Promote fault | Promoted |");
+        // `Domain code` sits beside FIRST BLOCK, where the buildability rung lives, and in §5
+        // ONLY (CTO-bind D.3): §2 is the headline verdict table and already carries eleven
+        // columns, so a twelfth diagnostic one would make the headline unreadable AND give the
+        // detail two homes in one document.
+        L($"| # | Case | {string.Join(" | ", gateHeaders)} | FIRST BLOCK | Domain code | Promote fault | Promoted |");
         // DERIVED, never a literal. The rung count changed with #1060's gate retirement, and the
         // hardcoded delimiter this replaces was already one cell short of its own header — under
         // GFM a delimiter row that does not match the header cell count means the block is not
         // recognised as a table at all, so §5 rendered as raw pipes on GitHub. Deriving it makes
         // the next rung change unable to reintroduce that.
-        L($"|{string.Concat(Enumerable.Repeat("---|", gateHeaders.Count + 5))}");
+        // +6, not +5, since `Domain code` landed: #, Case, FIRST BLOCK, Domain code, Promote
+        // fault, Promoted. Derived from the count rather than written out, so the next column
+        // cannot reintroduce the mismatch that made §5 render as raw pipes on GitHub.
+        L($"|{string.Concat(Enumerable.Repeat("---|", gateHeaders.Count + 6))}");
         for (var i = 0; i < d.Cases.Count; i++)
         {
             var c = d.Cases[i];
@@ -296,7 +326,7 @@ public static class LayoutCorpusReport
             var cells = c.Gates.Count > 0
                 ? string.Join(" | ", c.Gates.Select(g => Short(g.State)))
                 : string.Join(" | ", Enumerable.Repeat("—", gateHeaders.Count));
-            LI($"| {i + 1} | `{c.Case.Id}` | {cells} | {c.BlockReason?.ToString() ?? "—"} | {c.PromoteFailureCode ?? "—"} | {Y(c.Promoted)} |");
+            LI($"| {i + 1} | `{c.Case.Id}` | {cells} | {c.BlockReason?.ToString() ?? "—"} | {DomainCode(c)} | {c.PromoteFailureCode ?? "—"} | {Y(c.Promoted)} |");
         }
 
         L();
@@ -462,6 +492,33 @@ public static class LayoutCorpusReport
             _ => "none",
         };
     }
+
+    /// <summary>The Domain constraint code behind this row's block, or why there is none.
+    ///
+    /// <para>THREE outcomes, and the third must not collapse into the second: a code, an em-dash
+    /// meaning "no Domain refusal produced one" (every promoted row, every policy block), and an
+    /// explicit instrument marker meaning the value could not be READ.</para>
+    ///
+    /// <para><b>What carries that is the separate observed FIELD, not this method's arm order.</b>
+    /// An unreadable reading also leaves the code null, so the two are indistinguishable from the
+    /// code alone: a renderer written as "null → em-dash, else the code" prints the em-dash over
+    /// an unreadable row, and the artifact then states as a fact about the CV something it merely
+    /// failed to observe. Swapping the two non-default arms below changes nothing — an unreadable
+    /// row cannot also carry a code — which is exactly why the guard has to be its own observed
+    /// value rather than a nullness test here.</para></summary>
+    private static string DomainCode(LayoutCaseObservation c) =>
+        c.BlockDetailUnreadable ? "**INSTRUMENT: unreadable**"
+        // `is not null`, not a Length guard. The claim behind that is scoped to what can be
+        // checked: the codes reachable on this path are DRAWN FROM the thirty-six literals
+        // `Resume.CreateFromParsed` can return (fewer are actually reachable — the label rung
+        // pre-empts one of them), none of them empty — NOT a repo-wide claim about
+        // every DomainError anywhere. Testing for emptiness would map a value that cannot occur
+        // onto the same em-dash as a value that legitimately does, inventing a third silent
+        // reading of the cell — the collapse BlockDetailUnreadable exists to prevent. No test
+        // pins either polarity, because no fixture can produce an empty code without inventing
+        // one; the narrowing is the guard here, not an assertion.
+        : c.DomainErrorCode is { } code ? $"`{code}`"
+        : "—";
 
     private static string Y(bool v) => v ? "yes" : "no";
 

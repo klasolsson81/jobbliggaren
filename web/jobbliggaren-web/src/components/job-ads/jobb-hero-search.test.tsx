@@ -555,9 +555,16 @@ describe("JobbHeroSearch — ×-clear (E2j, CTO VAL 4 = semantik ii)", () => {
 
 describe("JobbHeroSearch — no-JS-stöd", () => {
   it("GET-form med hidden inputs för committade params; synliga inputen namnlös", () => {
+    // TWO values on the axis, not one. At arity 1 the joined form and the
+    // repeated form are the same string, and `querySelector` reads the first of
+    // N inputs identically — so this test held whether or not the production
+    // change was present. Measured: with the JSX reverted to one input per
+    // value the file ran 35/35 green (code-reviewer, #1144). This form is the
+    // producer that could re-introduce the collision on its own, so its only
+    // unit coverage must not be fail-open.
     const { container } = setup({
       q: "volvo",
-      occupationGroup: ["MVqp_eS8_kDZ"],
+      occupationGroup: ["MVqp_eS8_kDZ", "Q5DF_juj_8do"],
     });
     const form = container.querySelector("form");
     expect(form).toHaveAttribute("action", "/jobb");
@@ -568,9 +575,13 @@ describe("JobbHeroSearch — no-JS-stöd", () => {
     expect(
       container.querySelector('input[type="hidden"][name="q"]'),
     ).toHaveValue("volvo");
-    expect(
-      container.querySelector('input[type="hidden"][name="occupationGroup"]'),
-    ).toHaveValue("MVqp_eS8_kDZ");
+    const occupationInputs = container.querySelectorAll(
+      'input[type="hidden"][name="occupationGroup"]',
+    );
+    // ONE input carrying both values joined — not two. Two would make a native
+    // GET write the repeated form again.
+    expect(occupationInputs).toHaveLength(1);
+    expect(occupationInputs[0]).toHaveValue("MVqp_eS8_kDZ.Q5DF_juj_8do");
     // E2j: no-JS-submit ÄR en commit → statiskt hidden commit=true så backend
     // auto-capturerar (JS-vägen interceptar submit och bär commit som suffix).
     expect(

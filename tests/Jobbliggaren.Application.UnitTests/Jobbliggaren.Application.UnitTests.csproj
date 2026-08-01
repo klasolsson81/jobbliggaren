@@ -76,5 +76,9 @@
     <Compile Include="..\Shared\TestFacets.cs" Link="Shared\TestFacets.cs" />
     <Compile Include="..\Shared\TestKeywordExtraction.cs" Link="Shared\TestKeywordExtraction.cs" />
     <Compile Include="..\Shared\TestIds.cs" Link="Shared\TestIds.cs" />
+    <!-- #1060 D3(beta) PR 2 - RecordingLogger moved here from this project's own Common/ folder
+         when Jobbliggaren.QA.Corpus became a second consumer. Linked rather than duplicated
+         (CTO constraint 2): two recording loggers would be two homes for one test utility. -->
+    <Compile Include="..\Shared\RecordingLogger.cs" Link="Shared\RecordingLogger.cs" />
   </ItemGroup>
 </Project>

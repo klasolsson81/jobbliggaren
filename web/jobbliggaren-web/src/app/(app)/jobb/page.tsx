@@ -14,6 +14,7 @@ import {
   RELATERADE_ON_VALUE,
   STATUS_ON_VALUE,
   parseEmployerParam,
+  toStringList,
 } from "@/lib/job-ads/search-params";
 // #419 pt1 — "Visa bara matchade"-sentinelparamen delar STATUS_ON_VALUE ("on") med
 // doljAnsokta/relaterade; den separata param-konstanten dokumenterar nyckeln.
@@ -26,10 +27,12 @@ import { RecentSearchesHeroChip } from "@/components/recent-searches/recent-sear
 import { SavedJobAdsHeroChip } from "@/components/saved-job-ads/saved-job-ads-hero-chip";
 
 // searchParams-värden kan vara string | string[] | undefined.
-// occupationGroup/region/municipality är upprepade query-params (ADR 0042
-// Beslut B) → string[] vid flera värden. occupationGroup = ssyk-level-4/
-// yrkesgrupp (E2a nivå-skifte); municipality = kommun (E2b — backend
-// unionerar region∪municipality, ADR 0067 impl-notat E2b).
+// occupationGroup/region/municipality skrivs som ETT param per axel med värdena
+// joinade sedan 2026-08-01 (ADR 0042 Beslut B). Typen förblir `string | string[]`
+// eftersom Next levererar en array när en gammal UPPREPAD länk anländer, vilket
+// `toStringList` fortfarande läser (back-compat).
+// occupationGroup = ssyk-level-4/yrkesgrupp (E2a nivå-skifte); municipality =
+// kommun (E2b — backend unionerar region∪municipality, ADR 0067 impl-notat E2b).
 type JobbSearchParams = {
   page?: string;
   pageSize?: string;
@@ -371,9 +374,3 @@ function parseSortBy(raw: string | undefined): JobAdSortBy {
   return parsed.success ? parsed.data : "PublishedAtDesc";
 }
 
-// Normaliserar string | string[] | undefined → string[] (tomma värden bort).
-function toStringList(raw: string | string[] | undefined): string[] {
-  if (raw === undefined) return [];
-  const arr = Array.isArray(raw) ? raw : [raw];
-  return arr.map((v) => v.trim()).filter((v) => v.length > 0);
-}

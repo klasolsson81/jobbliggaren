@@ -29,6 +29,16 @@ public abstract record AutoPromoteOutcome
 
     /// <summary>The parse stays <c>PendingReview</c>, untouched — nothing was mutated, no
     /// audit row was written (a pending created no Resume; recording a promote for it would
-    /// be misreporting, CLAUDE.md §5). The user finishes in the review flow.</summary>
+    /// be misreporting, CLAUDE.md §5). The user finishes in the review flow.
+    ///
+    /// <para><b>It carries the gate TOKEN and nothing else. A Domain constraint code must never
+    /// be added here</b> (#1060 D3(β) PR 2). This type crosses the assembly boundary:
+    /// <c>ResumesEndpoints</c> puts <c>pending.Reason.ToString()</c> straight onto the wire, so a
+    /// code added here reaches a zod schema and an FE with no copy for it — a mis-reported verdict
+    /// shown to a user plus a hardcoded UI string (CLAUDE.md §5, both halves). The diagnostic code
+    /// lives on the <c>internal</c> <c>AutoPromoteGateVerdict.Blocked</c> instead, where the
+    /// missing <c>InternalsVisibleTo</c> to <c>Jobbliggaren.Api</c> makes the leak a build error.
+    /// Nothing on THIS path is compiler-enforced, which is why the rule is written here rather
+    /// than only where it was decided.</para></summary>
     public sealed record LeftPending(AutoPromoteBlockReason Reason) : AutoPromoteOutcome;
 }

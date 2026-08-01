@@ -1,0 +1,8 @@
+{
+  "criterionPicker": {
+    "clear": "Rensa val",
+    "noMatch": "Inga träffar. Rensa sökfältet för att bläddra i hela listan.",
+    "filterMatches": "{count, plural, one {# träff} other {# träffar}}",
+    "filterTooMany": "{count} träffar. Skriv mer för att avgränsa, eller bläddra i hela listan nedan."
+  }
+}

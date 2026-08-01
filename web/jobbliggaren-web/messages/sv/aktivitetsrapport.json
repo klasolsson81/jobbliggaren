@@ -10,7 +10,10 @@
     "whatIsThisAria": "Vad är detta? Aktivitetsrapport-hjälpen"
   },
   "month": {
-    "label": "Månad"
+    "label": "Månad",
+    "hint": "Rapporten uppdateras när du trycker Enter, går vidare med Tab eller klickar utanför fältet.",
+    "pending": "Rapporten nedan visar fortfarande {month}.",
+    "announced": "Rapporten visar {month}."
   },
   "counter": {
     "text": "{count, plural, =0 {Inga ansökningar} =1 {# ansökan} other {# ansökningar}} i {month}.",

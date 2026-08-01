@@ -1,5 +1,5 @@
 using Jobbliggaren.Application.Common.Telemetry;
-using Jobbliggaren.Application.UnitTests.Common;
+using Jobbliggaren.TestSupport;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Shouldly;

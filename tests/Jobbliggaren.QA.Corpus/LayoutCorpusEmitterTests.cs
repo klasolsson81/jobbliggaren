@@ -18,7 +18,13 @@ namespace Jobbliggaren.QA.Corpus;
 /// <see cref="ReachableGateStates_CoversEveryDeclaredBlockReason"/>, whose subject is the
 /// production enum <c>AutoPromoteBlockReason</c>. It is argued at its own docblock rather than
 /// waved through here, which is the convention <c>LayoutCorpusReportTests</c> already uses for
-/// its four production-touching asserts. Stated at the class level because the earlier version
+/// its own production-touching asserts. (Both places in THIS file carried that count, and both
+/// were wrong. It has a measured history: it went stale every time an assert was added, and every
+/// sweep for its remaining homes came back with a different total than the one before — the
+/// sentence recording one such sweep went stale inside this same PR when a further home turned up.
+/// So it is deleted rather than corrected: the (a)-(e) list beside the asserts is the catalog, and
+/// it cannot drift from what it sits on top of.)
+/// Stated at the class level because the earlier version
 /// of this paragraph claimed nothing here could be moved by <c>src/</c>, and that stopped being
 /// true the moment the assert landed.</para>
 /// </summary>
@@ -211,7 +217,7 @@ public sealed class LayoutCorpusEmitterTests
     ///
     /// <para>Its subject is <c>AutoPromoteBlockReason</c>, a PRODUCTION type, so it sits outside the
     /// assert rule's three categories and is argued rather than assumed — the convention
-    /// <c>LayoutCorpusReportTests</c> already uses for its four production-touching asserts. The
+    /// <c>LayoutCorpusReportTests</c> already uses for its own production-touching asserts. The
     /// subject is the type's DECLARED surface, not anything the chain produced from a document; it
     /// cannot be moved by a parsing change, only by someone adding a gate. Red then is the correct
     /// answer, and the remedy is one arm in <c>GateLadder</c>.</para></summary>
@@ -671,6 +677,162 @@ public sealed class LayoutCorpusEmitterTests
         observation.Gates.ShouldBeEmpty();
     }
 
+    // ===============================================================
+    // The Domain code column (#1060 D3(β) PR 2). Subject: the EMITTER — assert-rule
+    // category (c). Nothing here asserts what the product decided.
+    // ===============================================================
+
+    /// <summary>
+    /// The code reaches §5's LADDER ROW and does NOT reach §2 (CTO-bind D.3): §2 is the headline
+    /// verdict table with eleven columns already, and a twelfth diagnostic column would give the
+    /// detail two homes in one document.
+    ///
+    /// <para>The name says "and not section two" rather than "only" because that is what the
+    /// assertions measure. §2 is the one place the column would plausibly be duplicated and the
+    /// one the bind names; a claim of universal absence would need a sweep of all ten sections,
+    /// and calling a two-section check "only" is the sentence-vs-subject gap this file keeps
+    /// paying for.</para>
+    ///
+    /// <para><b>Two things this test got wrong on its first form, both real.</b> It asserted
+    /// `Section(…"## 5.").ShouldContain(code)` with a fixture whose code was
+    /// `Resume.ExperienceCompanyRequired` — the exact string §5's own GLOSSARY names as its
+    /// example of a routable per-entry failure. The positive half therefore could not fall: it
+    /// stayed green with zero observations, with `DomainCode` hardcoded to an em-dash, and with
+    /// the column deleted from the row renderer. The fixture now uses a code the emitted prose
+    /// does not contain, AND the assertion reads the CELL by position off the ladder row rather
+    /// than searching the section.</para>
+    /// </summary>
+    [Fact]
+    public void Report_ForABuildabilityBlock_PublishesTheDomainCodeInSectionFiveAndNotSectionTwo()
+    {
+        const string Code = "Resume.ExperienceRoleRequired";
+        var report = LayoutCorpusReport.Build(new LayoutCorpusReportData(
+            "abc1234",
+            [Observation("case-unbuildable",
+                blockReason: AutoPromoteBlockReason.IncompleteContent, promoted: false,
+                domainErrorCode: Code)],
+            [], []));
+        var ladder = Section(report, "## 5. Gate ladder");
+
+        // Guard the guard: if the emitter's prose ever names this code, the cell assertion below
+        // is still sound but a future reader must not weaken it back to a section-wide Contains.
+        ladder.Replace(LadderRow(ladder, "case-unbuildable"), "", StringComparison.Ordinal)
+            .ShouldNotContain(Code,
+                customMessage:
+                "the fixture's code must not appear in §5's own prose, or the positive assertion "
+                + "below can pass with the column deleted");
+
+        var cells = LadderRow(ladder, "case-unbuildable").Split('|').Select(x => x.Trim()).ToList();
+        cells[cells.Count - 4].ShouldBe($"`{Code}`");
+
+        ladder.ShouldContain("| Domain code |");
+        Section(report, "## 2. Fidelity verdict").ShouldNotContain(Code);
+    }
+
+    /// <summary>
+    /// An em-dash means "no Domain refusal produced a code", and it is what a POLICY block and a
+    /// PROMOTE both print — neither asked the Domain the question. Pinned because the column
+    /// would otherwise be free to invent a value for a row where none exists.
+    /// </summary>
+    [Fact]
+    public void Report_ForAPolicyBlockAndAPromote_RendersTheDomainCodeAsAnEmDash()
+    {
+        var report = LayoutCorpusReport.Build(new LayoutCorpusReportData(
+            "abc1234",
+            [
+                Observation("case-pnr",
+                    blockReason: AutoPromoteBlockReason.PersonnummerPresent, promoted: false,
+                    pnrOnParse: true),
+                Observation("case-promoted"),
+            ],
+            [], []));
+
+        var ladder = Section(report, "## 5. Gate ladder");
+        foreach (var id in new[] { "case-pnr", "case-promoted" })
+        {
+            // The ROW, not the section. Two things forced this and both were measured by this
+            // test failing: §5's own glossary contains the string "INSTRUMENT: unreadable" by
+            // design (it is the paragraph that DEFINES it), and §5 holds TWO tables — the case
+            // id also appears in the Observed-Domain-state rows below the ladder.
+            var row = LadderRow(ladder, id);
+            row.ShouldNotContain("INSTRUMENT");
+
+            // Cell-level: the Domain-code column is the one immediately after FIRST BLOCK, and
+            // the row's trailing cells are `— | — | yes/no`. Counting the em-dashes in the row
+            // would also pass on a row that lost the column, so read the cell by position.
+            var cells = row.Split('|').Select(x => x.Trim()).ToList();
+            var promoteFaultIndex = cells.Count - 3;
+            cells[promoteFaultIndex - 1].ShouldBe("—");
+        }
+    }
+
+    /// <summary>
+    /// A reading failure is an INSTRUMENT fact and must never wear the em-dash that means "no
+    /// code". This is the same argument <c>GateState.Unresolved</c> was created on: before it,
+    /// a gap in this file was narrated as something the product did. §0 names the case, so the
+    /// artifact's own health block carries it rather than a reader having to spot the cell.
+    /// </summary>
+    [Fact]
+    public void Report_WhenTheBlockDetailCouldNotBeRead_SaysSoAndNamesTheCaseInSectionZero()
+    {
+        var report = LayoutCorpusReport.Build(new LayoutCorpusReportData(
+            "abc1234",
+            [Observation("case-unreadable",
+                blockReason: AutoPromoteBlockReason.IncompleteContent, promoted: false,
+                blockDetailUnreadable: true)],
+            [], []));
+
+        var ladder = Section(report, "## 5. Gate ladder");
+
+        // The ROW, not the section: §5's glossary contains this marker string by design, so a
+        // section-wide Contains passes on the definition alone.
+        LadderRow(ladder, "case-unreadable").ShouldContain("**INSTRUMENT: unreadable**");
+        Section(report, "## 0. Instrument integrity")
+            .ShouldContain("**block detail unreadable:** `case-unreadable`");
+    }
+
+    /// <summary>The healthy counterpart: with nothing unreadable, §0 says so in the same
+    /// `none` form the other four health lines use. Without this, the line above could be
+    /// satisfied by an emitter that prints the case id unconditionally.</summary>
+    [Fact]
+    public void Report_WithEveryBlockDetailReadable_ReportsNoneOnThatHealthLine()
+    {
+        var report = LayoutCorpusReport.Build(Data());
+
+        Section(report, "## 0. Instrument integrity")
+            .ShouldContain("**block detail unreadable:** none");
+    }
+
+    /// <summary>One case's row from §5's LADDER table specifically. The section carries a second
+    /// table (Observed Domain state) keyed by the same case id, so matching on the id alone
+    /// returns two lines; the ladder is the one whose first cell is the row number.</summary>
+    private static string LadderRow(string ladderSection, string caseId)
+    {
+        var rows = ladderSection.Split('\n')
+            .Where(l =>
+            {
+                var cells = l.Split('|');
+                return cells.Length > 3
+                    && int.TryParse(cells[1].Trim(), out _)
+                    && string.Equals(cells[2].Trim(), $"`{caseId}`", StringComparison.Ordinal);
+            })
+            .ToList();
+
+        rows.Count.ShouldBe(1, $"expected exactly one ladder row for '{caseId}'");
+        return rows[0];
+    }
+
+    /// <summary>The text between one `## ` heading and the next. Used by the tests above so a
+    /// claim about §5 cannot be satisfied by a string that only appears in §2.</summary>
+    private static string Section(string report, string heading)
+    {
+        var start = report.IndexOf(heading, StringComparison.Ordinal);
+        start.ShouldBeGreaterThanOrEqualTo(0, $"the report has no '{heading}' section");
+
+        var next = report.IndexOf("\n## ", start + heading.Length, StringComparison.Ordinal);
+        return next < 0 ? report[start..] : report[start..next];
+    }
+
     public static TheoryData<AutoPromoteBlockReason, bool, bool, int> ReachableGateStates() =>
         new()
         {
@@ -685,7 +847,31 @@ public sealed class LayoutCorpusEmitterTests
     private static LayoutCorpusReportData Data() =>
         new("abc1234", [Observation("case-alpha")], ["ISkillResolver (empty proposals)"], []);
 
-    private static LayoutCaseObservation Observation(string id, string? byteProofFailure = null) =>
+    /// <summary>Refuses to build a fixture whose ladder the instrument itself calls malformed.
+    /// The subject is the corpus's OWN derivation over its OWN declared inputs — assert-rule
+    /// category (b) — and it is a FIXTURE guard, so it can only ever fail while this file is
+    /// being edited. It exists because parameterising the discriminators fixed the fixture that
+    /// was wrong and left the next one free to be wrong the same way.</summary>
+    private static IReadOnlyList<GateCell> WellFormedLadder(
+        IReadOnlyList<GateCell> ladder, string caseId)
+    {
+        GateLadder.IsWellFormed(ladder).ShouldBeTrue(
+            $"FIXTURE: '{caseId}' builds a ladder the instrument rejects — "
+            + string.Join(", ", ladder.Select(c => $"{c.GateId}={c.State}"))
+            + ". A PersonnummerPresent fixture needs its discriminator (pnrOnParse or "
+            + "pnrInLabel), or GateLadder's catch-all renders every rung `unresolved`.");
+        return ladder;
+    }
+
+    private static LayoutCaseObservation Observation(
+        string id,
+        string? byteProofFailure = null,
+        AutoPromoteBlockReason? blockReason = null,
+        bool promoted = true,
+        string? domainErrorCode = null,
+        bool blockDetailUnreadable = false,
+        bool pnrOnParse = false,
+        bool pnrInLabel = false) =>
         new(
             Case: new LayoutCase(id, "a mechanic", "(b) single-column", "pdf", "cv.pdf",
                 "application/pdf", _ => [], CvModel.Swedish, _ => { }, "a byte proof", true),
@@ -696,7 +882,13 @@ public sealed class LayoutCorpusEmitterTests
             CharCount: 100, LineCount: 10, BlankLineCount: 0, SegmentRan: true,
             DetectedLanguage: "Sv", HeadingsDetected: 4, PreambleChars: null,
             ConfidenceOverall: "Confident", SectionEvidence: ["Experience: Confident — 1 entries"],
-            PersonnummerFoundOnParse: false,
+            // Tracks pnrOnParse rather than being hardcoded false. In production BOTH this
+            // field and the ladder's discriminator read `parsed?.Personnummer.Found`
+            // (LayoutChainRunner), so a fixture with one true and the other false is a
+            // state the harness cannot produce. No assertion rests on that incoherence
+            // today, so it was not a §5 `Tests:` breach — it was a fixture the helper had
+            // no business being able to build.
+            PersonnummerFoundOnParse: pnrOnParse,
             FirstExtractedLine: "Anna Andersson",
             ContainsFusedPeriodRole: false,
             AnyLineCarriesBothColumns: false,
@@ -704,10 +896,35 @@ public sealed class LayoutCorpusEmitterTests
             ParsedFreeSectionHeadings: [],
             ParsedExperience: 1, ParsedEducation: 1,
             GroundTruthExperience: 5, GroundTruthEducation: 3,
-            PromotedExperience: 1, PromotedEducation: 1, PromotedExperienceWithRawPeriod: 1,
+            // Tracked to `promoted`, not hardcoded. A blocked row has no promoted CV to count,
+            // so the earlier fixtures published "Promoted exp = 1" beside "**BLOCKED**" — a
+            // combination LayoutChainRunner cannot produce (it reads them off
+            // `promotedContent`, which is null when nothing promoted). Nothing asserted on it,
+            // so not a §5 `Tests:` breach; it was a fixture stating something the product does
+            // not.
+            PromotedExperience: promoted ? 1 : null,
+            PromotedEducation: promoted ? 1 : null,
+            PromotedExperienceWithRawPeriod: promoted ? 1 : null,
             PromotedPreambleChars: null,
-            BlockReason: null, Promoted: true,
-            Gates: GateLadder.From(null, true, false, false, false),
+            BlockReason: blockReason,
+            DomainErrorCode: domainErrorCode,
+            BlockDetailUnreadable: blockDetailUnreadable,
+            Promoted: promoted,
+            // The two discriminators are PARAMETERS, not constants. Hardcoding them false made
+            // a PersonnummerPresent fixture fall to GateLadder's catch-all and render five
+            // `unresolved` cells — the exact state IsWellFormed was hardened to reject and that
+            // assert (d) hard-fails on. The test above survived only because `unresolved` happens
+            // not to contain the substring it was searching for (test-writer, measured).
+            //
+            // WellFormedLadder is the hardening, not decoration: parameters alone let the NEXT
+            // fixture reintroduce the same malformed ladder silently. It makes an incoherent
+            // fixture unconstructible THROUGH THIS FACTORY instead of merely currently-absent.
+            // Scoped deliberately: four tests set `Gates` themselves rather than through here, and
+            // THREE of those build an `Unresolved` cell on purpose — two because their subject is
+            // how that state renders, one because its subject is the well-formedness predicate
+            // itself. Only the crashed-case test (`Gates = []`) builds no cell at all.
+            Gates: WellFormedLadder(
+                GateLadder.From(blockReason, promoted, false, pnrOnParse, pnrInLabel), id),
             Markers: [],
             CrossSectionContamination: [],
             SummaryContainsRenderedProjectHeading: null,

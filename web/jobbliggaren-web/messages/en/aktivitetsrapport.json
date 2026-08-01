@@ -10,7 +10,10 @@
     "whatIsThisAria": "What is this? The activity report helper"
   },
   "month": {
-    "label": "Month"
+    "label": "Month",
+    "hint": "The report updates when you press Enter, tab to the next field, or click outside the field.",
+    "pending": "The report below still shows {month}.",
+    "announced": "The report shows {month}."
   },
   "counter": {
     "text": "{count, plural, =0 {No applications} =1 {# application} other {# applications}} in {month}.",

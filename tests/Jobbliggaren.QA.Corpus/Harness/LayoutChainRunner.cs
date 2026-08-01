@@ -94,6 +94,12 @@ public sealed record LayoutCaseObservation(
     // on the way to the canonical CV leaves every row byte-identical. Measured — it did.
     int? PromotedPreambleChars,
     AutoPromoteBlockReason? BlockReason,
+
+    // #1060 D3(β) PR 2 — WHICH Domain constraint refused the CV, behind the one token that
+    // collapses `CreateFromParsed`'s whole error set. Null on every arm but buildability and on
+    // every promote; `BlockDetailUnreadable` is the separate instrument fact, never folded in.
+    string? DomainErrorCode,
+    bool BlockDetailUnreadable,
     bool Promoted,
     IReadOnlyList<GateCell> Gates,
     IReadOnlyList<MarkerTrace> Markers,
@@ -242,6 +248,8 @@ internal static partial class LayoutChainRunner
             PromotedExperienceWithRawPeriod: withRawPeriod,
             PromotedPreambleChars: promotedContent?.Preamble?.Length,
             BlockReason: o.BlockReason,
+            DomainErrorCode: o.DomainErrorCode,
+            BlockDetailUnreadable: o.BlockDetailUnreadable,
             Promoted: o.Promoted,
             Gates: gates,
             Markers: markers,
@@ -407,13 +415,27 @@ internal static partial class LayoutChainRunner
     internal static LayoutCaseObservation Crashed(
         LayoutCase c, IReadOnlyList<string> fixtureProblems, string exceptionType,
         string? byteProofFailure) =>
-        // Named, not positional. The record has 39 parameters and positions 21-28 are eight
-        // consecutive int/int? — ParsedExperience, ParsedEducation, the two ground truths, the
-        // two promoted counts, PromotedExperienceWithRawPeriod, PromotedPreambleChars — with an
-        // implicit int -> int? conversion between them. Inserting one more in that run shifts
-        // every following nullable-int SILENTLY and the compiler accepts it. A corpus that
-        // reports promoted-education under "promoted experience" is the exact class of quiet
-        // content loss this instrument exists to measure.
+        // Named, not positional. The record has 41 parameters (39 before #1060 D3(β) PR 2 added
+        // DomainErrorCode and BlockDetailUnreadable) and positions 21-28 are eight consecutive
+        // int/int? — ParsedExperience, ParsedEducation, the two ground truths, the two promoted
+        // counts, PromotedExperienceWithRawPeriod, PromotedPreambleChars — with an implicit
+        // int -> int? conversion between them. Inserting one more in that run shifts every
+        // following nullable-int SILENTLY and the compiler accepts it. A corpus that reports
+        // promoted-education under "promoted experience" is the exact class of quiet content
+        // loss this instrument exists to measure.
+        //
+        // The same hazard exists on the bool runs, and PR 2 created the THIRD of them, not the
+        // second: 17-18 (ContainsFusedPeriodRole, AnyLineCarriesBothColumns), 36-37
+        // (SummaryContainsRenderedProjectHeading, RenderedProjectHeadingIsOwnSection — both
+        // pre-existing), and now 31-32 (BlockDetailUnreadable, Promoted). Both numbers in that
+        // last pair were wrong when first written (32-33, "the second"), and TWO reviewers
+        // measured it independently — the CTO bind then upheld both halves, which is a third
+        // reading but not a third measurement: position 33 is `Gates`. Naming arguments closes
+        // the runs named above AND every other type-COMPATIBLE adjacency in the record (the
+        // hazard is the implicit int -> int? conversion, not strict type equality) — 6-8 are three
+        // `int`s, 11-12 an `int` beside an `int?`, 39-40 two `string?`s, and this list is an
+        // EXAMPLE rather than a census, which is the point: that is why the rule is "named at
+        // every construction site" rather than a note about any one block.
         new(
             Case: c,
             ByteProofFailure: byteProofFailure,
@@ -444,6 +466,10 @@ internal static partial class LayoutChainRunner
             PromotedExperienceWithRawPeriod: null,
             PromotedPreambleChars: null,
             BlockReason: null,
+            // A crash reached no gate, so there is no block and nothing to read: no code, and
+            // the reading did not fail — it was never attempted.
+            DomainErrorCode: null,
+            BlockDetailUnreadable: false,
             Promoted: false,
             Gates: [],
             Markers: [],

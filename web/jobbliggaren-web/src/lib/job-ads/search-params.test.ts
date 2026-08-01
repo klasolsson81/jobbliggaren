@@ -520,3 +520,31 @@ describe("URL axis serialisation (2026-08-01 — the router-cache collision)", (
     });
   });
 });
+
+describe("the separator against the grammar the backend enforces", () => {
+  /**
+   * `SearchCriteria.ConceptIdPattern` (`src/Jobbliggaren.Domain/SavedSearches/
+   * SearchCriteria.cs`) is `^[A-Za-z0-9_-]{1,32}\z`, applied by every query
+   * validator. Joining an axis is only unambiguous while the separator lies
+   * OUTSIDE that charset.
+   *
+   * This is the half the frontend owns, and it cannot move to the .NET side: a
+   * backend corpus test cannot catch a bad separator CHOICE, because `-` is
+   * legal in the pattern — switching `JOBB_AXIS_SEPARATOR` to `-` would leave
+   * every backend guard green while breaking every shared /jobb link. The
+   * corpus-obeys-the-charset half lives beside `TaxonomySnapshotSeeder`, where
+   * the grammar does (`TaxonomyConceptIdGrammarTests`).
+   */
+  const CONCEPT_ID_CHARSET = /^[A-Za-z0-9_-]$/;
+
+  it("the separator is a character no legal conceptId can contain", () => {
+    expect(CONCEPT_ID_CHARSET.test(JOBB_AXIS_SEPARATOR)).toBe(false);
+  });
+
+  it("counterfactual: the sibling surface's separator WOULD be ambiguous here", () => {
+    // Not hypothetical. `/foretag/sok` joins on `-` safely because SCB codes are
+    // digits only; here `-` is inside the conceptId charset, so reusing it would
+    // split real ids. This is why the two surfaces differ.
+    expect(CONCEPT_ID_CHARSET.test("-")).toBe(true);
+  });
+});

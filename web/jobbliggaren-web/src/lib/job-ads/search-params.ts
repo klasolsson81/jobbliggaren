@@ -6,11 +6,14 @@ import { Q_MIN_LENGTH, type JobAdSortBy } from "@/lib/dto/job-ads";
  * param-bevarande (samma lärdom som F3 B-FIX: två ytor som skriver samma
  * URL får inte radera varandras params).
  *
- * Kontrakt (ADR 0042 Beslut B, OFÖRÄNDRAT):
- * - `occupationGroup` / `region` / `municipality` = upprepade query-params
- *   (conceptId string[]). `occupationGroup` = ssyk-level-4/yrkesgrupp (ADR
- *   0067 Fas E2a nivå-skifte). `municipality` = kommun (Fas E2b — backend
- *   kombinerar region∪municipality som union, ADR 0067 impl-notat E2b).
+ * Kontrakt (ADR 0042 Beslut B; axel-SERIALISERINGEN ändrad 2026-08-01, se
+ * {@link JOBB_AXIS_SEPARATOR} — semantiken per axel är oförändrad):
+ * - `occupationGroup` / `region` / `municipality` = ETT query-param per axel med
+ *   conceptId:na joinade av {@link JOBB_AXIS_SEPARATOR} (UPPREPADE params fram
+ *   till 2026-08-01; {@link toStringList} läser fortfarande båda formerna).
+ *   `occupationGroup` = ssyk-level-4/yrkesgrupp (ADR 0067 Fas E2a nivå-skifte).
+ *   `municipality` = kommun (Fas E2b — backend kombinerar region∪municipality
+ *   som union, ADR 0067 impl-notat E2b).
  * - `q` = hero-sökordet (ägs av hero-GET-formuläret; bärs vidare här så
  *   en filter-/sort-ändring aldrig tappar användarens sökterm).
  * - `sortBy` utelämnas när = default (PublishedAtDesc).
@@ -26,9 +29,9 @@ export interface JobbUrlState {
   // Klass 2 (ADR 0067 Fas E, 2026-06-13) — Klass-2-filterpanelens dimensioner.
   // `employmentType` = anställningsform (JobTech `employment-type`, ~8,
   // checkbox-multi). `worktimeExtent` = omfattning (JobTech `worktime-extent`,
-  // Heltid/Deltid, radio-single → 0 eller 1 element). Upprepade query-params
-  // (samma kontrakt som occupationGroup/region/municipality, ADR 0042 Beslut
-  // B). Backend filtrerar på ?employmentType=/?worktimeExtent= (B2/#60).
+  // Heltid/Deltid, radio-single → 0 eller 1 element). Ett param per axel med
+  // värdena joinade (samma kontrakt som occupationGroup/region/municipality,
+  // ADR 0042 Beslut B + axel-serialiseringen 2026-08-01). Backend filtrerar på ?employmentType=/?worktimeExtent= (B2/#60).
   // Panel-valda (aldrig text-representabla i hero-fältet — som popover-
   // dimensionerna, CTO VAL 4a; lever bara i URL-state + filter-raden).
   employmentType: ReadonlyArray<string>;
@@ -38,7 +41,7 @@ export interface JobbUrlState {
   // Fast-bandet och kan inte beräkna Toppmatch; backend-validatorn avvisar
   // `Top`). Svenska labels (Grund | Bra | Stark) lever bara i UI, aldrig i
   // URL:en (samma regel som occupationGroup som bär concept-id, inte i18n).
-  // Upprepad query-param (?matchGrades=Strong&matchGrades=Good), samma
+  // Ett query-param med enum-namnen joinade (?matchGrades=Strong.Good), samma
   // kontrakt som employmentType/worktimeExtent (ADR 0042 Beslut B).
   // Produktmodell (Klas): matchGrades smalnar BARA av VILKA grader som visas
   // när matchningen är PÅ (tom = alla grader). "Av" är inte längre en tom
@@ -144,22 +147,33 @@ export const DEFAULT_SORT_BY: JobAdSortBy = "PublishedAtDesc";
  * non-last value does — targets a URL the cache believes it already holds: no RSC
  * request, no re-render, and the panel snaps back to the state the URL no longer
  * describes. Upstream vercel/next.js#92152 and its fix PR #93368, both open on
- * 2026-08-01; we run 16.2.9. Measured on this surface before the change: the two
+ * 2026-08-01; we run 16.2.11. Measured on this surface before the change: the two
  * colliding transitions produced ZERO RSC navigations and left all three
  * checkboxes ticked against a URL carrying two.
  *
  * **Why `.` here when `/foretag/sok` uses `-`.** That surface's axes are SCB
  * codes, which are digits only, so `-` cannot occur in a value. These axes carry
- * JobTech conceptIds, and JobTech publishes no grammar for them: no charset, no
- * length, no generation rule. Today's committed corpus is 12-character ids over a
- * 59-character alphabet with zero `-`, but that is a property of the data, not of
- * the id space — and the space is refreshed by an off-repo script whose output
- * arrives as a multi-megabyte diff nobody reads line by line. `-` would therefore
- * rest on a question nobody can answer; `.` is safe under every hypothesis about
- * the alphabet, because it is not in base64url at all. `*` was rejected with it:
- * RFC 3986 makes `*` a reserved sub-delim, while `.` is unreserved, so no parser
- * downstream may reassign it. Both survive `URLSearchParams.toString()`
- * unencoded, where `,` becomes `%2C` and would disfigure every shared link.
+ * JobTech conceptIds, whose grammar this system STATES and enforces:
+ * `SearchCriteria.ConceptIdPattern` = `^[A-Za-z0-9_-]{1,32}\z`, applied by
+ * `ListJobAdsQueryValidator`, `GetFacetCountsQueryValidator` and
+ * `GetRemoteAdCountQueryValidator` at every entry point.
+ *
+ * That pattern is what decides the separator, and it decides it against `-`:
+ * **`-` is INSIDE the charset, so joining on it would be ambiguous by contract,
+ * not merely by today's data.** `.` is outside it, so no legal conceptId can ever
+ * contain one. `*` was rejected alongside: RFC 3986 makes `*` a reserved
+ * sub-delim while `.` is unreserved, so no parser downstream may reassign it.
+ * Both survive `URLSearchParams.toString()` unencoded, where `,` becomes `%2C`
+ * and would disfigure every shared link.
+ *
+ * An earlier version of this comment claimed JobTech "publishes no grammar" and
+ * rested the choice on a sweep of today's corpus. That was false about this
+ * repo — the grammar above is enforced in the domain — and it argued a correct
+ * decision from a weaker premise than the one actually available
+ * (dotnet-architect, #1144). The guard therefore lives against the PATTERN, not
+ * against a snapshot: see the separator test in `search-params.test.ts` and
+ * `TaxonomyConceptIdGrammarTests`, which sits beside the seeder that owns the
+ * grammar and asserts the shipped corpus obeys it.
  *
  * The two surfaces are deliberately allowed to differ, and the knowledge is
  * deliberately NOT shared: what they have in common is join/split, which is
@@ -180,16 +194,34 @@ export const JOBB_AXIS_SEPARATOR = ".";
  * (code-reviewer, #1134). It is the same class of producer here.
  *
  * **The guard, and why it filters rather than throws.** A value containing the
- * separator would serialise to a string that parses back as two values — silently
- * widening the filter with the chip still showing, with no crash and no log. This
- * cannot happen for any id in today's corpus (pinned by
- * `taxonomy-conceptid-corpus.test.ts`, which is the load-bearing guard), so this
- * is defence in depth against a future taxonomy refresh, not a live hazard.
- * Dropping the offending value rather than throwing follows the route's
- * established drop-unknown discipline (parity `matchGrades`, `parseEmployerParam`):
- * this runs inside a Server Component render, a client transition and hidden-input
- * rendering, and a manipulated or newly-refreshed value must never turn the page
- * into an error boundary.
+ * separator would serialise to a string that parses back as two values. This
+ * cannot happen for a legal conceptId — `ConceptIdPattern` excludes `.` — so it
+ * is defence in depth against a value that never should have reached us, not a
+ * live hazard. Dropping rather than throwing follows the route's established
+ * drop-unknown discipline (parity `matchGrades`, `parseEmployerParam`): this runs
+ * inside a Server Component render, a client transition and hidden-input
+ * rendering, and a manipulated value must never turn the page into an error
+ * boundary.
+ *
+ * Two consequences of dropping, stated because both are easy to get wrong:
+ *
+ * - It does **not** always narrow. Dropping the LAST surviving value of an axis
+ *   makes `setAxis` omit the param entirely, which removes the filter and
+ *   therefore WIDENS the result set (`buildJobbHref({...empty, region: ["a.b"]})`
+ *   → `/jobb`, pinned below). Safe here — every axis is a display filter over the
+ *   same auth-gated corpus, and none gates access — but "dropping only narrows"
+ *   is the wrong sentence to reason from next time (security-auditor, #1144).
+ * - A drop breaks the `buildJobbHref(state)` → `state` round-trip, and
+ *   `sameUrlState` compares element-wise at three call sites in
+ *   `jobb-hero-search.tsx`, so a dropped value would leave committed and parsed
+ *   state permanently unequal. That path is dead only because no legal conceptId
+ *   can contain the separator — it is the PATTERN that keeps it dead, not this
+ *   filter (code-reviewer, #1144).
+ *
+ * Empty values are filtered for a different reason: a trailing separator (`"a."`)
+ * is the classic way a pasted link breaks, because auto-linkers in Slack, Outlook
+ * and most clients read a terminal period as sentence punctuation and chop it,
+ * handing the recipient a silently truncated URL (design-reviewer, #1144).
  *
  * **Deliberately NOT sorted**, unlike the sibling's `serializeCodeAxis`.
  * `sameList` (`tokenize.ts`) compares element-by-element in order, and
@@ -200,7 +232,7 @@ export const JOBB_AXIS_SEPARATOR = ".";
  */
 export function serializeJobbAxis(values: ReadonlyArray<string>): string {
   return values
-    .filter((v) => !v.includes(JOBB_AXIS_SEPARATOR))
+    .filter((v) => v.length > 0 && !v.includes(JOBB_AXIS_SEPARATOR))
     .join(JOBB_AXIS_SEPARATOR);
 }
 
@@ -395,21 +427,26 @@ export interface JobbRawSearchParams {
 // shared or bookmarked link still carries. Both parse to the same values, so no
 // redirect and no migration are needed and a reader cannot tell which form
 // produced the state. Splitting is safe on every axis that reaches here: all six
-// carry JobTech conceptIds or the matchGrades enum names, and the corpus test
-// pins that none contains the separator.
+// carry JobTech conceptIds or the matchGrades enum names, and no legal conceptId
+// can contain the separator (`SearchCriteria.ConceptIdPattern`, asserted against
+// the shipped corpus by `TaxonomyConceptIdGrammarTests`).
 //
-// #846 — flyttad hit med `buildPageHref`. Tre kopior finns, med TVÅ beteenden,
-// och bara en av dem är farlig:
-//   - `jobb/page.tsx` är BYTE-IDENTISK med denna → ren duplicering, tråkig men
-//     säker, och den hålls identisk här (båda fick samma split i samma PR — en
-//     parser som inte delar upp läser den nya formen som ETT värde). Kollapsen är
-//     ett eget steg i epik #1032, inte den här ändringen.
-//   - `lib/company-search/search-params.ts` `parseCodeAxis` är SAMMA ROLL, ANNAT
-//     BETEENDE: en annan separator (`-`), för ett annat id-rum. En framtida
-//     "dedupe by name"-refaktor som pekar /jobb dit byter TYST separator och
-//     bryter varje delad /jobb-länk. Rör den inte utan att mäta beteendet — och
-//     den ligger i en annan lane (CLAUDE.md §6.5).
-function toStringList(raw: string | string[] | undefined): string[] {
+// #846 — flyttad hit med `buildPageHref`. EXPORTERAD sedan 2026-08-01, och
+// `jobb/page.tsx` importerar den nu i stället för att hålla en byte-identisk
+// kopia. Kopian var tråkig men säker ända tills den här ändringen gav dem BÅDA
+// en split: code-reviewer mätte att om page-kopian tappade sin split så förblev
+// hela sviten grön (280 filer, 3146 tester) medan varje filter i den nya formen
+// tyst matchade noll annonser, eftersom inget unit-test importerar page-modulen.
+// En delad parser kan inte drifta och ärver unit-testerna här. Epik #1032
+// behåller tvär-yte-delen; det här paret är smalare än så.
+//
+// Kvar finns EN namne, med ANNAT beteende:
+// `lib/company-search/search-params.ts` `parseCodeAxis` har SAMMA ROLL men en
+// annan separator (`-`), för ett annat id-rum. En framtida "dedupe by name"-
+// refaktor som pekar /jobb dit byter TYST separator och bryter varje delad
+// /jobb-länk. Rör den inte utan att mäta beteendet — och den ligger i en annan
+// lane (CLAUDE.md §6.5).
+export function toStringList(raw: string | string[] | undefined): string[] {
   if (raw === undefined) return [];
   const arr = Array.isArray(raw) ? raw : [raw];
   return arr

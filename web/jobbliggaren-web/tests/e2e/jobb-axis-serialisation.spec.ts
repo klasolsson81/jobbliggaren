@@ -14,7 +14,7 @@ const RUN_ID = Date.now();
  * believed it already held: no RSC request, no re-render, and the filter panel
  * snapped back to a state the URL no longer described. Upstream
  * vercel/next.js#92152 and its fix PR #93368, both open on 2026-08-01 (we run
- * 16.2.9).
+ * 16.2.11).
  *
  * Measured on this surface before the fix, against the running stack: of four
  * transitions, the two whose collapsed keys matched produced ZERO RSC
@@ -31,8 +31,9 @@ const RUN_ID = Date.now();
  * jsdom cannot see any of this: it has no router cache, and `router.push` is a
  * synchronous mock there. `search-params.test.ts` pins that two applied states
  * cannot collapse to one key (with the counterfactual that the old form DID), and
- * `taxonomy-conceptid-corpus.test.ts` pins that no conceptId contains the
- * separator. This file pins the EFFECT, in a real browser.
+ * `TaxonomyConceptIdGrammarTests` (backend, beside the seeder that owns the
+ * grammar) pins that every shipped conceptId is accepted by the search gate,
+ * whose charset excludes the separator. This file pins the EFFECT, in a real browser.
  *
  * Lane note, stated rather than implied: `e2e.yml` is observe-only
  * (`continue-on-error: true`, outside the required `ci` aggregate), so a

@@ -4,6 +4,7 @@ import { ExternalLink } from "lucide-react";
 import type { MatchList as MatchListData } from "@/lib/dto/me-matches";
 import { formatSwedishShortDateWithYear } from "@/lib/oversikt/aggregations";
 import { MatchChip } from "@/components/job-ads/match-chip";
+import { buildJobbHref, DEFAULT_SORT_BY } from "@/lib/job-ads/search-params";
 
 interface MatchListProps {
   items: MatchListData;
@@ -21,7 +22,26 @@ const MATCH_LIST_CAP = 50;
 // Fast band cannot compute Toppmatch (#291), and the list validator 400s `Top`.
 // So the copy points to "fler matchande jobb" rather than claiming to surface
 // every match (a Top-graded overflow ad stays reachable only as a card badge).
-const MORE_MATCHES_HREF = "/jobb?matchGrades=Good&matchGrades=Strong";
+//
+// Built through `buildJobbHref` rather than handwritten, because a handwritten
+// `/jobb` link is a page-URL PRODUCER and must emit the same axis form as every
+// other one. It used to read `?matchGrades=Good&matchGrades=Strong`; Next's
+// router cache collapses repeated keys to the last value, so this link's cache
+// slot was keyed `matchGrades=Strong` while carrying a Good+Strong document.
+// `<Link>` prefetches, so merely rendering this list poisoned that slot — and
+// unticking "Bra" afterwards then targeted `/jobb?matchGrades=Strong`, hit the
+// poisoned entry, and never re-rendered. That is the exact defect the axis
+// serialisation removes, reached through a producer the first pass missed.
+const MORE_MATCHES_HREF = buildJobbHref({
+  q: "",
+  occupationGroup: [],
+  region: [],
+  municipality: [],
+  employmentType: [],
+  worktimeExtent: [],
+  matchGrades: ["Good", "Strong"],
+  sortBy: DEFAULT_SORT_BY,
+});
 
 /**
  * ADR 0080 Vag 4 PR-5 — listan på `/matchningar`: användarens persisterade

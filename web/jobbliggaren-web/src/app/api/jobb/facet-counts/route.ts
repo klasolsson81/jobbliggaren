@@ -17,6 +17,22 @@ import { facetDimensionSchema } from "@/lib/dto/job-ads";
  * tom korpus går inte att skilja från fel). Counts är en hint, aldrig en
  * förutsättning — popovern förblir fullt användbar utan dem.
  */
+/**
+ * URL-dialekt, utskriven for att den INTE ar sidans (2026-08-01).
+ *
+ * `/jobb`s SIDA-URL skriver sedan dess ETT param per axel med conceptId:na
+ * joinade (`?municipality=a.b`). Den har routen laser med `getAll` och splittar
+ * INTE - den talar den UPPREPADE formen, och det ar korrekt, for dess enda
+ * anropare ar `lib/hooks/use-facet-counts.ts`, som bygger farska
+ * `URLSearchParams` med `append` ur redan parsade arrayer. Loopen ar sluten och
+ * verifierad mekaniskt (code-reviewer + security-auditor, #1144).
+ *
+ * Den sjalvklara framtida refaktorn - vidarebefordra sidans `searchParams` hit -
+ * skulle darfor skicka `a.b` som EN facettkod. Den faller fail-closed men tyst:
+ * backendens `ConceptIdPattern` avvisar punkten, svaret blir 400, routen mappar
+ * till 502 och hooken nollar counts utan spar i UI:t. Splitta har FORST om den
+ * refaktorn nagonsin gors.
+ */
 export async function GET(request: NextRequest) {
   const params = request.nextUrl.searchParams;
 

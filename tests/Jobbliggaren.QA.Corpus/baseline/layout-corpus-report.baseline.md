@@ -23,7 +23,10 @@
   ALREADY BEEN MISSED ONCE - PR B regenerated at a72c77e7 and left the constant reading
   7a5496fe, publishing post-B numbers under a pre-B provenance string:
 
-    0. bump LayoutCorpusReportTests.BaseCommit to the commit you are regenerating at
+    0. bump LayoutCorpusReportTests.BaseCommit to the branch's MERGE-BASE (what these
+       numbers are measured AGAINST) - never to a branch SHA, which a squash-merge GCs.
+       See that field's own docblock: it is NOT "the commit that can reproduce this
+       file" - on any PR that changes the product, it cannot be.
     dotnet build tests/Jobbliggaren.QA.Corpus/Jobbliggaren.QA.Corpus.csproj
     cd tests/Jobbliggaren.QA.Corpus/bin/Debug/net10.0
     ./Jobbliggaren.QA.Corpus.exe -class "Jobbliggaren.QA.Corpus.LayoutCorpusReportTests"
@@ -42,7 +45,7 @@
   edit the middle.
 
   NO AUTOMATED GUARD EXISTS DELIBERATELY, and both variants are ruled out rather than one.
-  A byte-for-byte check would assert every count and gate verdict in the 21 measurement rows
+  A byte-for-byte check would assert every count and gate verdict in the measurement rows
   - exactly what OBSERVE-ONLY forbids and what §2.5 reserves for an explicit ratchet. A
   prose-only check avoids that but passes while the MEASUREMENTS are stale, which is the
   likelier failure and the one this PR exists for: row 17's block reason sat wrong in this
@@ -62,12 +65,32 @@
   mutation harness refused twice in a single session (its third refusal, on an uncommitted
   tree, guards destroyed evidence rather than a false green).
 
-  THE CLOSING "-->" BELOW WAS MISSING FROM PR K UNTIL 2026-07-28, and the consequence was
+  THE CLOSING MARKER BELOW WAS MISSING FROM PR K UNTIL 2026-07-28, and the consequence was
   total: under CommonMark an unterminated HTML block runs to end of document, so every line
   of this file was inside the comment. Measured through GitHub's own renderer (POST /markdown)
   rather than argued: as committed it produced 0 bytes, no headings and no tables; with the
-  "-->" added, 124367 bytes and 12 tables. A baseline exists so a reader can diff it and read
+  marker added, 124367 bytes and 12 tables. A baseline exists so a reader can diff it and read
   it on GitHub; this one rendered as a blank page for its whole life.
+  AND THE SPLICE MUST NOT COUNT LINES TO FIND THIS TERMINATOR. 2026-08-01: a splice ran
+  `head -72` while an edit in this same header had just grown it by two lines, so it cut
+  the marker off and the comment ran into the H1 below - reintroducing, in the very block
+  that documents it, the defect described above. It was found by a reviewer reading the
+  diff, which is exactly what the note further up says not to rely on. Locate the boundary
+  BY CONTENT:
+
+    END=$(grep -n '^--[>]$' baseline/layout-corpus-report.baseline.md | head -1 | cut -d: -f1)
+    APX=$(grep -n '^## Appendix' baseline/layout-corpus-report.baseline.md | head -1 | cut -d: -f1)
+    head -n $((END+1)) baseline/... > new && cat artifacts/... >> new && tail -n +$APX baseline/... >> new
+
+  and verify afterwards that this file still contains a standalone closing marker.
+
+  AND NOTE WHY NO PROSE LINE ABOVE SPELLS THAT MARKER OUT. CommonMark ends an HTML block on
+  the first line that CONTAINS the sequence, not the first line that IS it. Five lines in this
+  header used to quote it literally, so the comment really ended at the first of them and every
+  line after it leaked above the title as visible text - and the 2026-08-01 repair tripled that
+  leak while claiming to fix it. Measured by test-writer, not rendered. The sequence is spelled
+  around ("closing marker", and the grep uses a character class) so this block ends where it
+  says it ends. CommittedBaselineIntegrityTests asserts exactly that shape.
 -->
 
 # Jobbliggaren — CV layout corpus, from bytes (#1060 PR K)
@@ -81,7 +104,7 @@
 > ./Jobbliggaren.QA.Corpus.exe -class "Jobbliggaren.QA.Corpus.LayoutCorpusReportTests"
 > ```
 >
-> Base commit: `5456e784`.
+> Base commit: `d435a9c4`.
 > Deterministic; NO AI/LLM anywhere in the measured chain (ADR 0071).
 
 ## Claim discipline (ADR 0109 §4)
@@ -118,7 +141,7 @@ What this run is NOT, stated up front rather than left for a reader to discover:
 
 ## 0. Instrument integrity
 
-- **byte proofs held:** `pdf-sidebar-emitted-first`, `pdf-interleaved-baseline-fusion`, `pdf-zero-xgap-concat`, `pdf-single-column-sv`, `pdf-single-column-spaced`, `pdf-single-column-intra-block-spaced`, `pdf-single-column-intra-block-spaced-tight-list`, `pdf-sidebar-spaced`, `pdf-single-column-en`, `pdf-nonsequential-decorative`, `pdf-headingless`, `pdf-unknown-heading-after-profile`, `pdf-known-heading-after-profile`, `pdf-decorated-heading-glue`, `pdf-two-page-seam`, `pdf-pnr-bearing`, `pdf-clean-body-pnr-in-account-name`, `docx-table-label-first-no-blanks`, `docx-flat-label-first-no-blanks`, `docx-table-label-first-with-blanks`, `docx-role-first-with-blanks`
+- **byte proofs held:** `pdf-sidebar-emitted-first`, `pdf-interleaved-baseline-fusion`, `pdf-zero-xgap-concat`, `pdf-single-column-sv`, `pdf-single-column-spaced`, `pdf-single-column-intra-block-spaced`, `pdf-single-column-intra-block-spaced-tight-list`, `pdf-sidebar-spaced`, `pdf-single-column-en`, `pdf-nonsequential-decorative`, `pdf-headingless`, `pdf-unknown-heading-after-profile`, `pdf-known-heading-after-profile`, `pdf-decorated-heading-glue`, `pdf-two-page-seam`, `pdf-pnr-bearing`, `pdf-clean-body-pnr-in-account-name`, `docx-table-label-first-no-blanks`, `docx-flat-label-first-no-blanks`, `docx-table-label-first-with-blanks`, `docx-role-first-with-blanks`, `docx-role-first-no-blanks`, `docx-company-first-header`
 - **byte proofs FAILED:** none
 - **crashed:** none
 - **fixture invalid:** none
@@ -156,6 +179,8 @@ literal "no" on every row forever, which is a decoration rather than a measureme
 | 19 | `docx-flat-label-first-no-blanks` | (c) table-based Word template — the twin that proves table-ness is invisible | docx | docx-table-label-first-no-blanks | no | the package contains no w:tbl |
 | 20 | `docx-table-label-first-with-blanks` | (c) table-based Word template — one-variable step | docx | docx-table-label-first-no-blanks | no | blank paragraphs use Word's <w:p><w:pPr /></w:p> form, never the self-closing <w:p /> |
 | 21 | `docx-role-first-with-blanks` | (c) table-based Word template — the arm that exonerates the segmenter | docx | docx-table-label-first-with-blanks | yes | blank paragraphs use Word's <w:p><w:pPr /></w:p> form |
+| 22 | `docx-role-first-no-blanks` | (c) table-based Word template — the control that de-confounds the two no-blanks variables | docx | docx-role-first-with-blanks | no | the package contains a w:tbl, no blank-paragraph <w:pPr /> and no self-closing <w:p /> |
+| 23 | `docx-company-first-header` | (c) table-based Word template — the arm that publishes beta-1's cost | docx | docx-table-label-first-with-blanks | no | the employment and education lines are written company/institution-first, in a w:tbl, with the blank separators the one-variable step holds fixed |
 
 **Mechanics**
 
@@ -180,6 +205,8 @@ literal "no" on every row forever, which is a decoration rather than a measureme
 - `docx-flat-label-first-no-blanks` — identical content and order with NO table — the table-invisibility probe
 - `docx-table-label-first-with-blanks` — the same table body with Word's own blank-paragraph form added — isolates BLANK LINES
 - `docx-role-first-with-blanks` — blank paragraphs AND role-first header lines — the PROMOTE-level control
+- `docx-role-first-no-blanks` — role-first header lines with NO blank paragraphs — separates entry-boundary loss from header order
+- `docx-company-first-header` — the field-bearing line written COMPANY-first — the shape whose slots come out swapped
 
 ## 2. Fidelity verdict
 
@@ -208,187 +235,235 @@ published so far: no fixture yet distinguishes them, which is a fact about the f
 | 15 | `pdf-two-page-seam` | **PromotedLossy** | 5 | 1 | 1 | 1 | 3 | 1 | 1 | — |
 | 16 | `pdf-pnr-bearing` | **Blocked** | 5 | 1 | — | — | 3 | 1 | — | PersonnummerPresent |
 | 17 | `pdf-clean-body-pnr-in-account-name` | **Blocked** | 5 | 1 | — | — | 3 | 1 | — | PersonnummerInAccountName |
-| 18 | `docx-table-label-first-no-blanks` | **Blocked** | 5 | 1 | — | — | 3 | 1 | — | IncompleteContent |
-| 19 | `docx-flat-label-first-no-blanks` | **Blocked** | 5 | 1 | — | — | 3 | 1 | — | IncompleteContent |
-| 20 | `docx-table-label-first-with-blanks` | **Blocked** | 5 | 5 | — | — | 3 | 3 | — | IncompleteContent |
+| 18 | `docx-table-label-first-no-blanks` | **PromotedLossy** | 5 | 1 | 1 | 1 | 3 | 1 | 1 | — |
+| 19 | `docx-flat-label-first-no-blanks` | **PromotedLossy** | 5 | 1 | 1 | 1 | 3 | 1 | 1 | — |
+| 20 | `docx-table-label-first-with-blanks` | **PromotedFaithful** | 5 | 5 | 5 | 5 | 3 | 3 | 3 | — |
 | 21 | `docx-role-first-with-blanks` | **PromotedFaithful** | 5 | 5 | 5 | 5 | 3 | 3 | 3 | — |
+| 22 | `docx-role-first-no-blanks` | **PromotedLossy** | 5 | 1 | 1 | 1 | 3 | 1 | 1 | — |
+| 23 | `docx-company-first-header` | **PromotedFaithful** | 5 | 5 | 5 | 5 | 3 | 3 | 3 | — |
 
 ## 3. Marker trace
 
 One row per authored employment and education. A count says five became one; this says
-WHICH four vanished and where each was last seen. `RetainedButOrphaned` on a promoted
-row is the finding: the product said the CV was saved and this employment is gone.
+WHICH four vanished and where each was last seen.
 
-| Case | Kind | Marker | In bytes | In parsed artifact | In promoted section | Found in other section | Verdict |
-|---|---|---|---|---|---|---|---|
-| `pdf-sidebar-emitted-first` | Employment | Klarna AB | yes | yes | yes | — | **Survived** |
-| `pdf-sidebar-emitted-first` | Employment | Volvo Cars | yes | yes | no | — | **RetainedButOrphaned** |
-| `pdf-sidebar-emitted-first` | Employment | Västra Götalandsregionen | yes | yes | no | — | **RetainedButOrphaned** |
-| `pdf-sidebar-emitted-first` | Employment | Consid AB | yes | yes | no | — | **RetainedButOrphaned** |
-| `pdf-sidebar-emitted-first` | Employment | Sigma IT | yes | yes | no | — | **RetainedButOrphaned** |
-| `pdf-sidebar-emitted-first` | Education | Chalmers tekniska högskola | yes | yes | yes | — | **Survived** |
-| `pdf-sidebar-emitted-first` | Education | Göteborgs universitet | yes | yes | no | — | **RetainedButOrphaned** |
-| `pdf-sidebar-emitted-first` | Education | Hvitfeldtska gymnasiet | yes | yes | no | — | **RetainedButOrphaned** |
-| `pdf-interleaved-baseline-fusion` | Employment | Klarna AB | yes | yes | no | — | **RetainedButOrphaned** |
-| `pdf-interleaved-baseline-fusion` | Employment | Volvo Cars | yes | yes | no | — | **RetainedButOrphaned** |
-| `pdf-interleaved-baseline-fusion` | Employment | Västra Götalandsregionen | yes | yes | no | — | **RetainedButOrphaned** |
-| `pdf-interleaved-baseline-fusion` | Employment | Consid AB | yes | yes | no | — | **RetainedButOrphaned** |
-| `pdf-interleaved-baseline-fusion` | Employment | Sigma IT | yes | yes | no | — | **RetainedButOrphaned** |
-| `pdf-interleaved-baseline-fusion` | Education | Chalmers tekniska högskola | yes | yes | yes | — | **Survived** |
-| `pdf-interleaved-baseline-fusion` | Education | Göteborgs universitet | yes | yes | no | — | **RetainedButOrphaned** |
-| `pdf-interleaved-baseline-fusion` | Education | Hvitfeldtska gymnasiet | yes | yes | no | — | **RetainedButOrphaned** |
-| `pdf-zero-xgap-concat` | Employment | Klarna AB | yes | yes | yes | — | **RetainedButOrphaned** |
-| `pdf-zero-xgap-concat` | Employment | Volvo Cars | yes | yes | no | — | **RetainedButOrphaned** |
-| `pdf-zero-xgap-concat` | Employment | Västra Götalandsregionen | yes | yes | no | — | **RetainedButOrphaned** |
-| `pdf-zero-xgap-concat` | Employment | Consid AB | yes | yes | no | — | **RetainedButOrphaned** |
-| `pdf-zero-xgap-concat` | Employment | Sigma IT | yes | yes | no | — | **RetainedButOrphaned** |
-| `pdf-zero-xgap-concat` | Education | Chalmers tekniska högskola | yes | yes | yes | — | **Survived** |
-| `pdf-zero-xgap-concat` | Education | Göteborgs universitet | yes | yes | no | — | **RetainedButOrphaned** |
-| `pdf-zero-xgap-concat` | Education | Hvitfeldtska gymnasiet | yes | yes | no | — | **RetainedButOrphaned** |
-| `pdf-single-column-sv` | Employment | Klarna AB | yes | yes | yes | — | **Survived** |
-| `pdf-single-column-sv` | Employment | Volvo Cars | yes | yes | no | — | **RetainedButOrphaned** |
-| `pdf-single-column-sv` | Employment | Västra Götalandsregionen | yes | yes | no | — | **RetainedButOrphaned** |
-| `pdf-single-column-sv` | Employment | Consid AB | yes | yes | no | — | **RetainedButOrphaned** |
-| `pdf-single-column-sv` | Employment | Sigma IT | yes | yes | no | — | **RetainedButOrphaned** |
-| `pdf-single-column-sv` | Education | Chalmers tekniska högskola | yes | yes | yes | — | **Survived** |
-| `pdf-single-column-sv` | Education | Göteborgs universitet | yes | yes | no | — | **RetainedButOrphaned** |
-| `pdf-single-column-sv` | Education | Hvitfeldtska gymnasiet | yes | yes | no | — | **RetainedButOrphaned** |
-| `pdf-single-column-spaced` | Employment | Klarna AB | yes | yes | yes | — | **Survived** |
-| `pdf-single-column-spaced` | Employment | Volvo Cars | yes | yes | no | — | **RetainedButOrphaned** |
-| `pdf-single-column-spaced` | Employment | Västra Götalandsregionen | yes | yes | no | — | **RetainedButOrphaned** |
-| `pdf-single-column-spaced` | Employment | Consid AB | yes | yes | no | — | **RetainedButOrphaned** |
-| `pdf-single-column-spaced` | Employment | Sigma IT | yes | yes | no | — | **RetainedButOrphaned** |
-| `pdf-single-column-spaced` | Education | Chalmers tekniska högskola | yes | yes | yes | — | **Survived** |
-| `pdf-single-column-spaced` | Education | Göteborgs universitet | yes | yes | no | — | **RetainedButOrphaned** |
-| `pdf-single-column-spaced` | Education | Hvitfeldtska gymnasiet | yes | yes | no | — | **RetainedButOrphaned** |
-| `pdf-single-column-intra-block-spaced` | Employment | Klarna AB | yes | yes | yes | — | **Survived** |
-| `pdf-single-column-intra-block-spaced` | Employment | Volvo Cars | yes | yes | no | — | **RetainedButOrphaned** |
-| `pdf-single-column-intra-block-spaced` | Employment | Västra Götalandsregionen | yes | yes | no | — | **RetainedButOrphaned** |
-| `pdf-single-column-intra-block-spaced` | Employment | Consid AB | yes | yes | no | — | **RetainedButOrphaned** |
-| `pdf-single-column-intra-block-spaced` | Employment | Sigma IT | yes | yes | no | — | **RetainedButOrphaned** |
-| `pdf-single-column-intra-block-spaced` | Education | Chalmers tekniska högskola | yes | yes | yes | — | **Survived** |
-| `pdf-single-column-intra-block-spaced` | Education | Göteborgs universitet | yes | yes | no | — | **RetainedButOrphaned** |
-| `pdf-single-column-intra-block-spaced` | Education | Hvitfeldtska gymnasiet | yes | yes | no | — | **RetainedButOrphaned** |
-| `pdf-single-column-intra-block-spaced-tight-list` | Employment | Klarna AB | yes | yes | yes | — | **Survived** |
-| `pdf-single-column-intra-block-spaced-tight-list` | Employment | Volvo Cars | yes | yes | no | — | **RetainedButOrphaned** |
-| `pdf-single-column-intra-block-spaced-tight-list` | Employment | Västra Götalandsregionen | yes | yes | no | — | **RetainedButOrphaned** |
-| `pdf-single-column-intra-block-spaced-tight-list` | Employment | Consid AB | yes | yes | no | — | **RetainedButOrphaned** |
-| `pdf-single-column-intra-block-spaced-tight-list` | Employment | Sigma IT | yes | yes | no | — | **RetainedButOrphaned** |
-| `pdf-single-column-intra-block-spaced-tight-list` | Education | Chalmers tekniska högskola | yes | yes | yes | — | **Survived** |
-| `pdf-single-column-intra-block-spaced-tight-list` | Education | Göteborgs universitet | yes | yes | no | — | **RetainedButOrphaned** |
-| `pdf-single-column-intra-block-spaced-tight-list` | Education | Hvitfeldtska gymnasiet | yes | yes | no | — | **RetainedButOrphaned** |
-| `pdf-sidebar-spaced` | Employment | Klarna AB | yes | yes | yes | — | **Survived** |
-| `pdf-sidebar-spaced` | Employment | Volvo Cars | yes | yes | no | — | **RetainedButOrphaned** |
-| `pdf-sidebar-spaced` | Employment | Västra Götalandsregionen | yes | yes | no | — | **RetainedButOrphaned** |
-| `pdf-sidebar-spaced` | Employment | Consid AB | yes | yes | no | — | **RetainedButOrphaned** |
-| `pdf-sidebar-spaced` | Employment | Sigma IT | yes | yes | no | — | **RetainedButOrphaned** |
-| `pdf-sidebar-spaced` | Education | Chalmers tekniska högskola | yes | yes | yes | — | **Survived** |
-| `pdf-sidebar-spaced` | Education | Göteborgs universitet | yes | yes | no | — | **RetainedButOrphaned** |
-| `pdf-sidebar-spaced` | Education | Hvitfeldtska gymnasiet | yes | yes | no | — | **RetainedButOrphaned** |
-| `pdf-single-column-en` | Employment | Klarna AB | yes | yes | yes | — | **Survived** |
-| `pdf-single-column-en` | Employment | Volvo Cars | yes | yes | no | — | **RetainedButOrphaned** |
-| `pdf-single-column-en` | Employment | Region Vastra Gotaland | yes | yes | no | — | **RetainedButOrphaned** |
-| `pdf-single-column-en` | Employment | Consid AB | yes | yes | no | — | **RetainedButOrphaned** |
-| `pdf-single-column-en` | Employment | Sigma IT | yes | yes | no | — | **RetainedButOrphaned** |
-| `pdf-single-column-en` | Education | Chalmers University of Technology | yes | yes | yes | — | **Survived** |
-| `pdf-single-column-en` | Education | University of Gothenburg | yes | yes | no | — | **RetainedButOrphaned** |
-| `pdf-single-column-en` | Education | Hvitfeldtska Upper Secondary | yes | yes | no | — | **RetainedButOrphaned** |
-| `pdf-nonsequential-decorative` | Employment | Klarna AB | yes | yes | yes | — | **Survived** |
-| `pdf-nonsequential-decorative` | Employment | Volvo Cars | yes | yes | no | — | **RetainedButOrphaned** |
-| `pdf-nonsequential-decorative` | Employment | Västra Götalandsregionen | yes | yes | no | — | **RetainedButOrphaned** |
-| `pdf-nonsequential-decorative` | Employment | Consid AB | yes | yes | no | — | **RetainedButOrphaned** |
-| `pdf-nonsequential-decorative` | Employment | Sigma IT | yes | yes | no | — | **RetainedButOrphaned** |
-| `pdf-nonsequential-decorative` | Education | Chalmers tekniska högskola | yes | yes | yes | — | **Survived** |
-| `pdf-nonsequential-decorative` | Education | Göteborgs universitet | yes | yes | no | — | **RetainedButOrphaned** |
-| `pdf-nonsequential-decorative` | Education | Hvitfeldtska gymnasiet | yes | yes | no | — | **RetainedButOrphaned** |
-| `pdf-headingless` | Employment | Klarna AB | yes | yes | no | — | **RetainedButOrphaned** |
-| `pdf-headingless` | Employment | Volvo Cars | yes | yes | no | — | **RetainedButOrphaned** |
-| `pdf-headingless` | Employment | Västra Götalandsregionen | yes | yes | no | — | **RetainedButOrphaned** |
-| `pdf-headingless` | Employment | Consid AB | yes | yes | no | — | **RetainedButOrphaned** |
-| `pdf-headingless` | Employment | Sigma IT | yes | yes | no | — | **RetainedButOrphaned** |
-| `pdf-headingless` | Education | Chalmers tekniska högskola | yes | yes | no | — | **RetainedButOrphaned** |
-| `pdf-headingless` | Education | Göteborgs universitet | yes | yes | no | — | **RetainedButOrphaned** |
-| `pdf-headingless` | Education | Hvitfeldtska gymnasiet | yes | yes | no | — | **RetainedButOrphaned** |
-| `pdf-unknown-heading-after-profile` | Employment | Klarna AB | yes | yes | yes | — | **Survived** |
-| `pdf-unknown-heading-after-profile` | Employment | Volvo Cars | yes | yes | no | — | **RetainedButOrphaned** |
-| `pdf-unknown-heading-after-profile` | Employment | Västra Götalandsregionen | yes | yes | no | — | **RetainedButOrphaned** |
-| `pdf-unknown-heading-after-profile` | Employment | Consid AB | yes | yes | no | — | **RetainedButOrphaned** |
-| `pdf-unknown-heading-after-profile` | Employment | Sigma IT | yes | yes | no | — | **RetainedButOrphaned** |
-| `pdf-unknown-heading-after-profile` | Education | Chalmers tekniska högskola | yes | yes | yes | — | **Survived** |
-| `pdf-unknown-heading-after-profile` | Education | Göteborgs universitet | yes | yes | no | — | **RetainedButOrphaned** |
-| `pdf-unknown-heading-after-profile` | Education | Hvitfeldtska gymnasiet | yes | yes | no | — | **RetainedButOrphaned** |
-| `pdf-known-heading-after-profile` | Employment | Klarna AB | yes | yes | yes | — | **Survived** |
-| `pdf-known-heading-after-profile` | Employment | Volvo Cars | yes | yes | no | — | **RetainedButOrphaned** |
-| `pdf-known-heading-after-profile` | Employment | Västra Götalandsregionen | yes | yes | no | — | **RetainedButOrphaned** |
-| `pdf-known-heading-after-profile` | Employment | Consid AB | yes | yes | no | — | **RetainedButOrphaned** |
-| `pdf-known-heading-after-profile` | Employment | Sigma IT | yes | yes | no | — | **RetainedButOrphaned** |
-| `pdf-known-heading-after-profile` | Education | Chalmers tekniska högskola | yes | yes | yes | — | **Survived** |
-| `pdf-known-heading-after-profile` | Education | Göteborgs universitet | yes | yes | no | — | **RetainedButOrphaned** |
-| `pdf-known-heading-after-profile` | Education | Hvitfeldtska gymnasiet | yes | yes | no | — | **RetainedButOrphaned** |
-| `pdf-decorated-heading-glue` | Employment | Klarna AB | yes | yes | no | Summary | **AbsorbedIntoOtherSection** |
-| `pdf-decorated-heading-glue` | Employment | Volvo Cars | yes | yes | no | Summary | **AbsorbedIntoOtherSection** |
-| `pdf-decorated-heading-glue` | Employment | Västra Götalandsregionen | yes | yes | no | Summary | **AbsorbedIntoOtherSection** |
-| `pdf-decorated-heading-glue` | Employment | Consid AB | yes | yes | no | Summary | **AbsorbedIntoOtherSection** |
-| `pdf-decorated-heading-glue` | Employment | Sigma IT | yes | yes | no | Summary | **AbsorbedIntoOtherSection** |
-| `pdf-decorated-heading-glue` | Education | Chalmers tekniska högskola | yes | yes | yes | — | **Survived** |
-| `pdf-decorated-heading-glue` | Education | Göteborgs universitet | yes | yes | no | — | **RetainedButOrphaned** |
-| `pdf-decorated-heading-glue` | Education | Hvitfeldtska gymnasiet | yes | yes | no | — | **RetainedButOrphaned** |
-| `pdf-two-page-seam` | Employment | Klarna AB | yes | yes | yes | — | **Survived** |
-| `pdf-two-page-seam` | Employment | Volvo Cars | yes | yes | no | — | **RetainedButOrphaned** |
-| `pdf-two-page-seam` | Employment | Västra Götalandsregionen | yes | yes | no | — | **RetainedButOrphaned** |
-| `pdf-two-page-seam` | Employment | Consid AB | yes | yes | no | — | **RetainedButOrphaned** |
-| `pdf-two-page-seam` | Employment | Sigma IT | yes | yes | no | — | **RetainedButOrphaned** |
-| `pdf-two-page-seam` | Education | Chalmers tekniska högskola | yes | yes | yes | — | **Survived** |
-| `pdf-two-page-seam` | Education | Göteborgs universitet | yes | yes | no | — | **RetainedButOrphaned** |
-| `pdf-two-page-seam` | Education | Hvitfeldtska gymnasiet | yes | yes | no | — | **RetainedButOrphaned** |
-| `pdf-pnr-bearing` | Employment | Klarna AB | yes | yes | no | — | **RetainedNotPromoted** |
-| `pdf-pnr-bearing` | Employment | Volvo Cars | yes | yes | no | — | **RetainedNotPromoted** |
-| `pdf-pnr-bearing` | Employment | Västra Götalandsregionen | yes | yes | no | — | **RetainedNotPromoted** |
-| `pdf-pnr-bearing` | Employment | Consid AB | yes | yes | no | — | **RetainedNotPromoted** |
-| `pdf-pnr-bearing` | Employment | Sigma IT | yes | yes | no | — | **RetainedNotPromoted** |
-| `pdf-pnr-bearing` | Education | Chalmers tekniska högskola | yes | yes | no | — | **RetainedNotPromoted** |
-| `pdf-pnr-bearing` | Education | Göteborgs universitet | yes | yes | no | — | **RetainedNotPromoted** |
-| `pdf-pnr-bearing` | Education | Hvitfeldtska gymnasiet | yes | yes | no | — | **RetainedNotPromoted** |
-| `pdf-clean-body-pnr-in-account-name` | Employment | Klarna AB | yes | yes | no | — | **RetainedNotPromoted** |
-| `pdf-clean-body-pnr-in-account-name` | Employment | Volvo Cars | yes | yes | no | — | **RetainedNotPromoted** |
-| `pdf-clean-body-pnr-in-account-name` | Employment | Västra Götalandsregionen | yes | yes | no | — | **RetainedNotPromoted** |
-| `pdf-clean-body-pnr-in-account-name` | Employment | Consid AB | yes | yes | no | — | **RetainedNotPromoted** |
-| `pdf-clean-body-pnr-in-account-name` | Employment | Sigma IT | yes | yes | no | — | **RetainedNotPromoted** |
-| `pdf-clean-body-pnr-in-account-name` | Education | Chalmers tekniska högskola | yes | yes | no | — | **RetainedNotPromoted** |
-| `pdf-clean-body-pnr-in-account-name` | Education | Göteborgs universitet | yes | yes | no | — | **RetainedNotPromoted** |
-| `pdf-clean-body-pnr-in-account-name` | Education | Hvitfeldtska gymnasiet | yes | yes | no | — | **RetainedNotPromoted** |
-| `docx-table-label-first-no-blanks` | Employment | Klarna AB | yes | yes | no | — | **RetainedNotPromoted** |
-| `docx-table-label-first-no-blanks` | Employment | Volvo Cars | yes | yes | no | — | **RetainedNotPromoted** |
-| `docx-table-label-first-no-blanks` | Employment | Västra Götalandsregionen | yes | yes | no | — | **RetainedNotPromoted** |
-| `docx-table-label-first-no-blanks` | Employment | Consid AB | yes | yes | no | — | **RetainedNotPromoted** |
-| `docx-table-label-first-no-blanks` | Employment | Sigma IT | yes | yes | no | — | **RetainedNotPromoted** |
-| `docx-table-label-first-no-blanks` | Education | Chalmers tekniska högskola | yes | yes | no | — | **RetainedNotPromoted** |
-| `docx-table-label-first-no-blanks` | Education | Göteborgs universitet | yes | yes | no | — | **RetainedNotPromoted** |
-| `docx-table-label-first-no-blanks` | Education | Hvitfeldtska gymnasiet | yes | yes | no | — | **RetainedNotPromoted** |
-| `docx-flat-label-first-no-blanks` | Employment | Klarna AB | yes | yes | no | — | **RetainedNotPromoted** |
-| `docx-flat-label-first-no-blanks` | Employment | Volvo Cars | yes | yes | no | — | **RetainedNotPromoted** |
-| `docx-flat-label-first-no-blanks` | Employment | Västra Götalandsregionen | yes | yes | no | — | **RetainedNotPromoted** |
-| `docx-flat-label-first-no-blanks` | Employment | Consid AB | yes | yes | no | — | **RetainedNotPromoted** |
-| `docx-flat-label-first-no-blanks` | Employment | Sigma IT | yes | yes | no | — | **RetainedNotPromoted** |
-| `docx-flat-label-first-no-blanks` | Education | Chalmers tekniska högskola | yes | yes | no | — | **RetainedNotPromoted** |
-| `docx-flat-label-first-no-blanks` | Education | Göteborgs universitet | yes | yes | no | — | **RetainedNotPromoted** |
-| `docx-flat-label-first-no-blanks` | Education | Hvitfeldtska gymnasiet | yes | yes | no | — | **RetainedNotPromoted** |
-| `docx-table-label-first-with-blanks` | Employment | Klarna AB | yes | yes | no | — | **RetainedNotPromoted** |
-| `docx-table-label-first-with-blanks` | Employment | Volvo Cars | yes | yes | no | — | **RetainedNotPromoted** |
-| `docx-table-label-first-with-blanks` | Employment | Västra Götalandsregionen | yes | yes | no | — | **RetainedNotPromoted** |
-| `docx-table-label-first-with-blanks` | Employment | Consid AB | yes | yes | no | — | **RetainedNotPromoted** |
-| `docx-table-label-first-with-blanks` | Employment | Sigma IT | yes | yes | no | — | **RetainedNotPromoted** |
-| `docx-table-label-first-with-blanks` | Education | Chalmers tekniska högskola | yes | yes | no | — | **RetainedNotPromoted** |
-| `docx-table-label-first-with-blanks` | Education | Göteborgs universitet | yes | yes | no | — | **RetainedNotPromoted** |
-| `docx-table-label-first-with-blanks` | Education | Hvitfeldtska gymnasiet | yes | yes | no | — | **RetainedNotPromoted** |
-| `docx-role-first-with-blanks` | Employment | Klarna AB | yes | yes | yes | — | **Survived** |
-| `docx-role-first-with-blanks` | Employment | Volvo Cars | yes | yes | yes | — | **Survived** |
-| `docx-role-first-with-blanks` | Employment | Västra Götalandsregionen | yes | yes | yes | — | **Survived** |
-| `docx-role-first-with-blanks` | Employment | Consid AB | yes | yes | yes | — | **Survived** |
-| `docx-role-first-with-blanks` | Employment | Sigma IT | yes | yes | yes | — | **Survived** |
-| `docx-role-first-with-blanks` | Education | Chalmers tekniska högskola | yes | yes | yes | — | **Survived** |
-| `docx-role-first-with-blanks` | Education | Göteborgs universitet | yes | yes | yes | — | **Survived** |
-| `docx-role-first-with-blanks` | Education | Hvitfeldtska gymnasiet | yes | yes | yes | — | **Survived** |
+**Read the two promoted columns together — the verdict is computed from BOTH, and until
+#1060 β-1 only one of them was printed.** `Structural field` asks whether the marker IS a
+promoted company or institution value; `In section span` asks whether it appears anywhere
+inside the promoted section. **`structural = no` is necessary but NOT sufficient for
+`RetainedButOrphaned`** — count the `no` cells and you will find rows carrying two other
+verdicts: the row did not promote (`RetainedNotPromoted`), or the marker turned up in
+another section (`AbsorbedIntoOtherSection`, and the `Found in other section` cell names
+which). Within the rows that DO carry it, it covers two different things:
+
+- both `no` **on a row that promoted** — the marker is genuinely GONE. This is the
+  silent loss the corpus exists to expose. On a row that did NOT promote, both are
+  `no` by construction and mean nothing: the verdict there is `RetainedNotPromoted`, or
+  `CarriedInPreamble` when the `In parsed artifact` cell is also `no`.
+- `structural no` + `span yes` — the marker is THERE but not as the field it names. Two
+  measured causes: fused into another value (`pdf-zero-xgap-concat`, true in this file
+  before β-1) and sitting in the other slot (`docx-company-first-header`, β-1).
+
+Rows carrying identical cells with opposite verdicts were how the missing column showed
+itself; this preamble used to state the first case as though it were the only one.
+
+**And the column did NOT end that pattern — say so rather than imply it.** `Decide` reads
+more inputs than this table renders: `promoted` and `promoteFaulted` are verdict inputs
+too. So the signature `yes | yes | no | no | —` carries two verdicts IN THIS FILE —
+`RetainedButOrphaned` where the CV promoted, `RetainedNotPromoted` where it did not — and
+a THIRD the moment an arm faults (`PromoteFaulted`, which short-circuits before both).
+No arm faults today, which is why you see two; the sentence says which file it is true of
+rather than pretending the instrument cannot produce the third.
+That collision is not the same defect as the one this column closed, and the difference
+is the whole point: the structural half had NO published home, while promote/blocked is
+published one table up, per case, in §2's fidelity verdict. Resolve it there.
+
+| Case | Kind | Marker | In bytes | In parsed artifact | Structural field | In section span | Found in other section | Verdict |
+|---|---|---|---|---|---|---|---|---|
+| `pdf-sidebar-emitted-first` | Employment | Klarna AB | yes | yes | yes | yes | — | **Survived** |
+| `pdf-sidebar-emitted-first` | Employment | Volvo Cars | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `pdf-sidebar-emitted-first` | Employment | Västra Götalandsregionen | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `pdf-sidebar-emitted-first` | Employment | Consid AB | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `pdf-sidebar-emitted-first` | Employment | Sigma IT | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `pdf-sidebar-emitted-first` | Education | Chalmers tekniska högskola | yes | yes | yes | yes | — | **Survived** |
+| `pdf-sidebar-emitted-first` | Education | Göteborgs universitet | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `pdf-sidebar-emitted-first` | Education | Hvitfeldtska gymnasiet | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `pdf-interleaved-baseline-fusion` | Employment | Klarna AB | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `pdf-interleaved-baseline-fusion` | Employment | Volvo Cars | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `pdf-interleaved-baseline-fusion` | Employment | Västra Götalandsregionen | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `pdf-interleaved-baseline-fusion` | Employment | Consid AB | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `pdf-interleaved-baseline-fusion` | Employment | Sigma IT | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `pdf-interleaved-baseline-fusion` | Education | Chalmers tekniska högskola | yes | yes | yes | yes | — | **Survived** |
+| `pdf-interleaved-baseline-fusion` | Education | Göteborgs universitet | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `pdf-interleaved-baseline-fusion` | Education | Hvitfeldtska gymnasiet | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `pdf-zero-xgap-concat` | Employment | Klarna AB | yes | yes | no | yes | — | **RetainedButOrphaned** |
+| `pdf-zero-xgap-concat` | Employment | Volvo Cars | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `pdf-zero-xgap-concat` | Employment | Västra Götalandsregionen | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `pdf-zero-xgap-concat` | Employment | Consid AB | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `pdf-zero-xgap-concat` | Employment | Sigma IT | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `pdf-zero-xgap-concat` | Education | Chalmers tekniska högskola | yes | yes | yes | yes | — | **Survived** |
+| `pdf-zero-xgap-concat` | Education | Göteborgs universitet | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `pdf-zero-xgap-concat` | Education | Hvitfeldtska gymnasiet | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `pdf-single-column-sv` | Employment | Klarna AB | yes | yes | yes | yes | — | **Survived** |
+| `pdf-single-column-sv` | Employment | Volvo Cars | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `pdf-single-column-sv` | Employment | Västra Götalandsregionen | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `pdf-single-column-sv` | Employment | Consid AB | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `pdf-single-column-sv` | Employment | Sigma IT | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `pdf-single-column-sv` | Education | Chalmers tekniska högskola | yes | yes | yes | yes | — | **Survived** |
+| `pdf-single-column-sv` | Education | Göteborgs universitet | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `pdf-single-column-sv` | Education | Hvitfeldtska gymnasiet | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `pdf-single-column-spaced` | Employment | Klarna AB | yes | yes | yes | yes | — | **Survived** |
+| `pdf-single-column-spaced` | Employment | Volvo Cars | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `pdf-single-column-spaced` | Employment | Västra Götalandsregionen | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `pdf-single-column-spaced` | Employment | Consid AB | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `pdf-single-column-spaced` | Employment | Sigma IT | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `pdf-single-column-spaced` | Education | Chalmers tekniska högskola | yes | yes | yes | yes | — | **Survived** |
+| `pdf-single-column-spaced` | Education | Göteborgs universitet | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `pdf-single-column-spaced` | Education | Hvitfeldtska gymnasiet | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `pdf-single-column-intra-block-spaced` | Employment | Klarna AB | yes | yes | yes | yes | — | **Survived** |
+| `pdf-single-column-intra-block-spaced` | Employment | Volvo Cars | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `pdf-single-column-intra-block-spaced` | Employment | Västra Götalandsregionen | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `pdf-single-column-intra-block-spaced` | Employment | Consid AB | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `pdf-single-column-intra-block-spaced` | Employment | Sigma IT | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `pdf-single-column-intra-block-spaced` | Education | Chalmers tekniska högskola | yes | yes | yes | yes | — | **Survived** |
+| `pdf-single-column-intra-block-spaced` | Education | Göteborgs universitet | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `pdf-single-column-intra-block-spaced` | Education | Hvitfeldtska gymnasiet | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `pdf-single-column-intra-block-spaced-tight-list` | Employment | Klarna AB | yes | yes | yes | yes | — | **Survived** |
+| `pdf-single-column-intra-block-spaced-tight-list` | Employment | Volvo Cars | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `pdf-single-column-intra-block-spaced-tight-list` | Employment | Västra Götalandsregionen | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `pdf-single-column-intra-block-spaced-tight-list` | Employment | Consid AB | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `pdf-single-column-intra-block-spaced-tight-list` | Employment | Sigma IT | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `pdf-single-column-intra-block-spaced-tight-list` | Education | Chalmers tekniska högskola | yes | yes | yes | yes | — | **Survived** |
+| `pdf-single-column-intra-block-spaced-tight-list` | Education | Göteborgs universitet | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `pdf-single-column-intra-block-spaced-tight-list` | Education | Hvitfeldtska gymnasiet | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `pdf-sidebar-spaced` | Employment | Klarna AB | yes | yes | yes | yes | — | **Survived** |
+| `pdf-sidebar-spaced` | Employment | Volvo Cars | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `pdf-sidebar-spaced` | Employment | Västra Götalandsregionen | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `pdf-sidebar-spaced` | Employment | Consid AB | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `pdf-sidebar-spaced` | Employment | Sigma IT | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `pdf-sidebar-spaced` | Education | Chalmers tekniska högskola | yes | yes | yes | yes | — | **Survived** |
+| `pdf-sidebar-spaced` | Education | Göteborgs universitet | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `pdf-sidebar-spaced` | Education | Hvitfeldtska gymnasiet | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `pdf-single-column-en` | Employment | Klarna AB | yes | yes | yes | yes | — | **Survived** |
+| `pdf-single-column-en` | Employment | Volvo Cars | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `pdf-single-column-en` | Employment | Region Vastra Gotaland | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `pdf-single-column-en` | Employment | Consid AB | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `pdf-single-column-en` | Employment | Sigma IT | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `pdf-single-column-en` | Education | Chalmers University of Technology | yes | yes | yes | yes | — | **Survived** |
+| `pdf-single-column-en` | Education | University of Gothenburg | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `pdf-single-column-en` | Education | Hvitfeldtska Upper Secondary | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `pdf-nonsequential-decorative` | Employment | Klarna AB | yes | yes | yes | yes | — | **Survived** |
+| `pdf-nonsequential-decorative` | Employment | Volvo Cars | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `pdf-nonsequential-decorative` | Employment | Västra Götalandsregionen | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `pdf-nonsequential-decorative` | Employment | Consid AB | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `pdf-nonsequential-decorative` | Employment | Sigma IT | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `pdf-nonsequential-decorative` | Education | Chalmers tekniska högskola | yes | yes | yes | yes | — | **Survived** |
+| `pdf-nonsequential-decorative` | Education | Göteborgs universitet | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `pdf-nonsequential-decorative` | Education | Hvitfeldtska gymnasiet | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `pdf-headingless` | Employment | Klarna AB | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `pdf-headingless` | Employment | Volvo Cars | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `pdf-headingless` | Employment | Västra Götalandsregionen | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `pdf-headingless` | Employment | Consid AB | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `pdf-headingless` | Employment | Sigma IT | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `pdf-headingless` | Education | Chalmers tekniska högskola | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `pdf-headingless` | Education | Göteborgs universitet | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `pdf-headingless` | Education | Hvitfeldtska gymnasiet | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `pdf-unknown-heading-after-profile` | Employment | Klarna AB | yes | yes | yes | yes | — | **Survived** |
+| `pdf-unknown-heading-after-profile` | Employment | Volvo Cars | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `pdf-unknown-heading-after-profile` | Employment | Västra Götalandsregionen | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `pdf-unknown-heading-after-profile` | Employment | Consid AB | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `pdf-unknown-heading-after-profile` | Employment | Sigma IT | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `pdf-unknown-heading-after-profile` | Education | Chalmers tekniska högskola | yes | yes | yes | yes | — | **Survived** |
+| `pdf-unknown-heading-after-profile` | Education | Göteborgs universitet | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `pdf-unknown-heading-after-profile` | Education | Hvitfeldtska gymnasiet | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `pdf-known-heading-after-profile` | Employment | Klarna AB | yes | yes | yes | yes | — | **Survived** |
+| `pdf-known-heading-after-profile` | Employment | Volvo Cars | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `pdf-known-heading-after-profile` | Employment | Västra Götalandsregionen | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `pdf-known-heading-after-profile` | Employment | Consid AB | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `pdf-known-heading-after-profile` | Employment | Sigma IT | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `pdf-known-heading-after-profile` | Education | Chalmers tekniska högskola | yes | yes | yes | yes | — | **Survived** |
+| `pdf-known-heading-after-profile` | Education | Göteborgs universitet | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `pdf-known-heading-after-profile` | Education | Hvitfeldtska gymnasiet | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `pdf-decorated-heading-glue` | Employment | Klarna AB | yes | yes | no | no | Summary | **AbsorbedIntoOtherSection** |
+| `pdf-decorated-heading-glue` | Employment | Volvo Cars | yes | yes | no | no | Summary | **AbsorbedIntoOtherSection** |
+| `pdf-decorated-heading-glue` | Employment | Västra Götalandsregionen | yes | yes | no | no | Summary | **AbsorbedIntoOtherSection** |
+| `pdf-decorated-heading-glue` | Employment | Consid AB | yes | yes | no | no | Summary | **AbsorbedIntoOtherSection** |
+| `pdf-decorated-heading-glue` | Employment | Sigma IT | yes | yes | no | no | Summary | **AbsorbedIntoOtherSection** |
+| `pdf-decorated-heading-glue` | Education | Chalmers tekniska högskola | yes | yes | yes | yes | — | **Survived** |
+| `pdf-decorated-heading-glue` | Education | Göteborgs universitet | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `pdf-decorated-heading-glue` | Education | Hvitfeldtska gymnasiet | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `pdf-two-page-seam` | Employment | Klarna AB | yes | yes | yes | yes | — | **Survived** |
+| `pdf-two-page-seam` | Employment | Volvo Cars | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `pdf-two-page-seam` | Employment | Västra Götalandsregionen | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `pdf-two-page-seam` | Employment | Consid AB | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `pdf-two-page-seam` | Employment | Sigma IT | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `pdf-two-page-seam` | Education | Chalmers tekniska högskola | yes | yes | yes | yes | — | **Survived** |
+| `pdf-two-page-seam` | Education | Göteborgs universitet | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `pdf-two-page-seam` | Education | Hvitfeldtska gymnasiet | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `pdf-pnr-bearing` | Employment | Klarna AB | yes | yes | no | no | — | **RetainedNotPromoted** |
+| `pdf-pnr-bearing` | Employment | Volvo Cars | yes | yes | no | no | — | **RetainedNotPromoted** |
+| `pdf-pnr-bearing` | Employment | Västra Götalandsregionen | yes | yes | no | no | — | **RetainedNotPromoted** |
+| `pdf-pnr-bearing` | Employment | Consid AB | yes | yes | no | no | — | **RetainedNotPromoted** |
+| `pdf-pnr-bearing` | Employment | Sigma IT | yes | yes | no | no | — | **RetainedNotPromoted** |
+| `pdf-pnr-bearing` | Education | Chalmers tekniska högskola | yes | yes | no | no | — | **RetainedNotPromoted** |
+| `pdf-pnr-bearing` | Education | Göteborgs universitet | yes | yes | no | no | — | **RetainedNotPromoted** |
+| `pdf-pnr-bearing` | Education | Hvitfeldtska gymnasiet | yes | yes | no | no | — | **RetainedNotPromoted** |
+| `pdf-clean-body-pnr-in-account-name` | Employment | Klarna AB | yes | yes | no | no | — | **RetainedNotPromoted** |
+| `pdf-clean-body-pnr-in-account-name` | Employment | Volvo Cars | yes | yes | no | no | — | **RetainedNotPromoted** |
+| `pdf-clean-body-pnr-in-account-name` | Employment | Västra Götalandsregionen | yes | yes | no | no | — | **RetainedNotPromoted** |
+| `pdf-clean-body-pnr-in-account-name` | Employment | Consid AB | yes | yes | no | no | — | **RetainedNotPromoted** |
+| `pdf-clean-body-pnr-in-account-name` | Employment | Sigma IT | yes | yes | no | no | — | **RetainedNotPromoted** |
+| `pdf-clean-body-pnr-in-account-name` | Education | Chalmers tekniska högskola | yes | yes | no | no | — | **RetainedNotPromoted** |
+| `pdf-clean-body-pnr-in-account-name` | Education | Göteborgs universitet | yes | yes | no | no | — | **RetainedNotPromoted** |
+| `pdf-clean-body-pnr-in-account-name` | Education | Hvitfeldtska gymnasiet | yes | yes | no | no | — | **RetainedNotPromoted** |
+| `docx-table-label-first-no-blanks` | Employment | Klarna AB | yes | yes | yes | yes | — | **Survived** |
+| `docx-table-label-first-no-blanks` | Employment | Volvo Cars | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `docx-table-label-first-no-blanks` | Employment | Västra Götalandsregionen | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `docx-table-label-first-no-blanks` | Employment | Consid AB | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `docx-table-label-first-no-blanks` | Employment | Sigma IT | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `docx-table-label-first-no-blanks` | Education | Chalmers tekniska högskola | yes | yes | yes | yes | — | **Survived** |
+| `docx-table-label-first-no-blanks` | Education | Göteborgs universitet | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `docx-table-label-first-no-blanks` | Education | Hvitfeldtska gymnasiet | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `docx-flat-label-first-no-blanks` | Employment | Klarna AB | yes | yes | yes | yes | — | **Survived** |
+| `docx-flat-label-first-no-blanks` | Employment | Volvo Cars | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `docx-flat-label-first-no-blanks` | Employment | Västra Götalandsregionen | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `docx-flat-label-first-no-blanks` | Employment | Consid AB | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `docx-flat-label-first-no-blanks` | Employment | Sigma IT | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `docx-flat-label-first-no-blanks` | Education | Chalmers tekniska högskola | yes | yes | yes | yes | — | **Survived** |
+| `docx-flat-label-first-no-blanks` | Education | Göteborgs universitet | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `docx-flat-label-first-no-blanks` | Education | Hvitfeldtska gymnasiet | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `docx-table-label-first-with-blanks` | Employment | Klarna AB | yes | yes | yes | yes | — | **Survived** |
+| `docx-table-label-first-with-blanks` | Employment | Volvo Cars | yes | yes | yes | yes | — | **Survived** |
+| `docx-table-label-first-with-blanks` | Employment | Västra Götalandsregionen | yes | yes | yes | yes | — | **Survived** |
+| `docx-table-label-first-with-blanks` | Employment | Consid AB | yes | yes | yes | yes | — | **Survived** |
+| `docx-table-label-first-with-blanks` | Employment | Sigma IT | yes | yes | yes | yes | — | **Survived** |
+| `docx-table-label-first-with-blanks` | Education | Chalmers tekniska högskola | yes | yes | yes | yes | — | **Survived** |
+| `docx-table-label-first-with-blanks` | Education | Göteborgs universitet | yes | yes | yes | yes | — | **Survived** |
+| `docx-table-label-first-with-blanks` | Education | Hvitfeldtska gymnasiet | yes | yes | yes | yes | — | **Survived** |
+| `docx-role-first-with-blanks` | Employment | Klarna AB | yes | yes | yes | yes | — | **Survived** |
+| `docx-role-first-with-blanks` | Employment | Volvo Cars | yes | yes | yes | yes | — | **Survived** |
+| `docx-role-first-with-blanks` | Employment | Västra Götalandsregionen | yes | yes | yes | yes | — | **Survived** |
+| `docx-role-first-with-blanks` | Employment | Consid AB | yes | yes | yes | yes | — | **Survived** |
+| `docx-role-first-with-blanks` | Employment | Sigma IT | yes | yes | yes | yes | — | **Survived** |
+| `docx-role-first-with-blanks` | Education | Chalmers tekniska högskola | yes | yes | yes | yes | — | **Survived** |
+| `docx-role-first-with-blanks` | Education | Göteborgs universitet | yes | yes | yes | yes | — | **Survived** |
+| `docx-role-first-with-blanks` | Education | Hvitfeldtska gymnasiet | yes | yes | yes | yes | — | **Survived** |
+| `docx-role-first-no-blanks` | Employment | Klarna AB | yes | yes | yes | yes | — | **Survived** |
+| `docx-role-first-no-blanks` | Employment | Volvo Cars | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `docx-role-first-no-blanks` | Employment | Västra Götalandsregionen | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `docx-role-first-no-blanks` | Employment | Consid AB | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `docx-role-first-no-blanks` | Employment | Sigma IT | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `docx-role-first-no-blanks` | Education | Chalmers tekniska högskola | yes | yes | yes | yes | — | **Survived** |
+| `docx-role-first-no-blanks` | Education | Göteborgs universitet | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `docx-role-first-no-blanks` | Education | Hvitfeldtska gymnasiet | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `docx-company-first-header` | Employment | Klarna AB | yes | yes | no | yes | — | **RetainedButOrphaned** |
+| `docx-company-first-header` | Employment | Volvo Cars | yes | yes | no | yes | — | **RetainedButOrphaned** |
+| `docx-company-first-header` | Employment | Västra Götalandsregionen | yes | yes | no | yes | — | **RetainedButOrphaned** |
+| `docx-company-first-header` | Employment | Consid AB | yes | yes | no | yes | — | **RetainedButOrphaned** |
+| `docx-company-first-header` | Employment | Sigma IT | yes | yes | no | yes | — | **RetainedButOrphaned** |
+| `docx-company-first-header` | Education | Chalmers tekniska högskola | yes | yes | no | yes | — | **RetainedButOrphaned** |
+| `docx-company-first-header` | Education | Göteborgs universitet | yes | yes | no | yes | — | **RetainedButOrphaned** |
+| `docx-company-first-header` | Education | Hvitfeldtska gymnasiet | yes | yes | no | yes | — | **RetainedButOrphaned** |
 
 ## 4. Extraction and form
 
@@ -415,6 +490,8 @@ row is the finding: the product said the CV was saved and this employment is gon
 | 19 | `docx-flat-label-first-no-blanks` | yes | Extracted | 1529 | 48 | **0** | yes | Sv | 5 | null |
 | 20 | `docx-table-label-first-with-blanks` | yes | Extracted | 1543 | 62 | **14** | yes | Sv | 5 | null |
 | 21 | `docx-role-first-with-blanks` | yes | Extracted | 1543 | 62 | **14** | yes | Sv | 5 | null |
+| 22 | `docx-role-first-no-blanks` | yes | Extracted | 1529 | 48 | **0** | yes | Sv | 5 | null |
+| 23 | `docx-company-first-header` | yes | Extracted | 1543 | 62 | **14** | yes | Sv | 5 | null |
 
 ### 4b. Product-side observables
 
@@ -446,6 +523,8 @@ reader's inference, never an emitted ratio.
 | 19 | `docx-flat-label-first-no-blanks` | `1F86611223AB` | no | no | `Anna Andersson` |
 | 20 | `docx-table-label-first-with-blanks` | `DCF6058705F8` | no | no | `Anna Andersson` |
 | 21 | `docx-role-first-with-blanks` | `9858965A707E` | no | no | `Anna Andersson` |
+| 22 | `docx-role-first-no-blanks` | `05CD8018BF8A` | no | no | `Anna Andersson` |
+| 23 | `docx-company-first-header` | `6EDE5C6A4A3A` | no | no | `Anna Andersson` |
 
 **Twin comparisons** — the only honest sentence this corpus can emit about tables. The
 DOCX extractor handles `w:t` and `w:p` only, with no `w:tbl`/`w:tr`/`w:tc` handling, so a
@@ -462,6 +541,8 @@ extractor.
 - `docx-flat-label-first-no-blanks` vs `docx-table-label-first-no-blanks` — digests **EQUAL** (`1F86611223AB` / `1F86611223AB`)
 - `docx-table-label-first-with-blanks` vs `docx-table-label-first-no-blanks` — digests differ (`DCF6058705F8` / `1F86611223AB`)
 - `docx-role-first-with-blanks` vs `docx-table-label-first-with-blanks` — digests differ (`9858965A707E` / `DCF6058705F8`)
+- `docx-role-first-no-blanks` vs `docx-role-first-with-blanks` — digests differ (`05CD8018BF8A` / `9858965A707E`)
+- `docx-company-first-header` vs `docx-table-label-first-with-blanks` — digests differ (`6EDE5C6A4A3A` / `DCF6058705F8`)
 
 ## 5. Gate ladder
 
@@ -525,10 +606,12 @@ neither asked the Domain the question. A row whose code could not be READ prints
 | 15 | `pdf-two-page-seam` | passed | passed | passed | passed | passed | — | — | — | yes |
 | 16 | `pdf-pnr-bearing` | **BLOCKED** | not evaluated | not evaluated | not evaluated | not evaluated | PersonnummerPresent | — | — | no |
 | 17 | `pdf-clean-body-pnr-in-account-name` | passed | passed | passed | **BLOCKED** | not evaluated | PersonnummerInAccountName | — | — | no |
-| 18 | `docx-table-label-first-no-blanks` | passed | passed | passed | passed | **BLOCKED** | IncompleteContent | `Resume.ExperienceRoleRequired` | — | no |
-| 19 | `docx-flat-label-first-no-blanks` | passed | passed | passed | passed | **BLOCKED** | IncompleteContent | `Resume.ExperienceRoleRequired` | — | no |
-| 20 | `docx-table-label-first-with-blanks` | passed | passed | passed | passed | **BLOCKED** | IncompleteContent | `Resume.ExperienceRoleRequired` | — | no |
+| 18 | `docx-table-label-first-no-blanks` | passed | passed | passed | passed | passed | — | — | — | yes |
+| 19 | `docx-flat-label-first-no-blanks` | passed | passed | passed | passed | passed | — | — | — | yes |
+| 20 | `docx-table-label-first-with-blanks` | passed | passed | passed | passed | passed | — | — | — | yes |
 | 21 | `docx-role-first-with-blanks` | passed | passed | passed | passed | passed | — | — | — | yes |
+| 22 | `docx-role-first-no-blanks` | passed | passed | passed | passed | passed | — | — | — | yes |
+| 23 | `docx-company-first-header` | passed | passed | passed | passed | passed | — | — | — | yes |
 
 **Observed Domain state** (this is aggregate state, NOT a gate verdict). The personnummer
 column prints the AUTHORED declaration and the OBSERVED aggregate flag side by side: if
@@ -555,10 +638,12 @@ corpus measures. The value itself is never printed.
 | `pdf-two-page-seam` | Confident | no | no | none | no |
 | `pdf-pnr-bearing` | Confident | yes | — | body (synthetic, not printed) | yes |
 | `pdf-clean-body-pnr-in-account-name` | Confident | no | — | account name (synthetic, not printed) | no |
-| `docx-table-label-first-no-blanks` | Confident | no | — | none | no |
-| `docx-flat-label-first-no-blanks` | Confident | no | — | none | no |
-| `docx-table-label-first-with-blanks` | Confident | no | — | none | no |
+| `docx-table-label-first-no-blanks` | Confident | no | no | none | no |
+| `docx-flat-label-first-no-blanks` | Confident | no | no | none | no |
+| `docx-table-label-first-with-blanks` | Confident | no | no | none | no |
 | `docx-role-first-with-blanks` | Confident | no | no | none | no |
+| `docx-role-first-no-blanks` | Confident | no | no | none | no |
+| `docx-company-first-header` | Confident | no | no | none | no |
 
 ## 6. Section confidence, verbatim
 
@@ -755,6 +840,24 @@ authored ground truth beside them. `Confident — heading matched, 1 entries` ne
 - `Skills: Confident — heading 'tekniska kompetenser' matched; 7 entries`
 - `Languages: Confident — heading 'språk' matched; 8 entries`
 
+**`docx-role-first-no-blanks`** — ground truth: 5 employments, 3 educations
+
+- `Contact: Confident — name extracted; email extracted; phone extracted`
+- `Profile: Confident — heading 'profil' matched; summary text present`
+- `Experience: Confident — heading 'arbetslivserfarenhet' matched; 1 entries`
+- `Education: Confident — heading 'utbildning' matched; 1 entries`
+- `Skills: Confident — heading 'tekniska kompetenser' matched; 7 entries`
+- `Languages: Confident — heading 'språk' matched; 8 entries`
+
+**`docx-company-first-header`** — ground truth: 5 employments, 3 educations
+
+- `Contact: Confident — name extracted; email extracted; phone extracted`
+- `Profile: Confident — heading 'profil' matched; summary text present`
+- `Experience: Confident — heading 'arbetslivserfarenhet' matched; 5 entries`
+- `Education: Confident — heading 'utbildning' matched; 3 entries`
+- `Skills: Confident — heading 'tekniska kompetenser' matched; 7 entries`
+- `Languages: Confident — heading 'språk' matched; 8 entries`
+
 ## 7. Cross-section contamination
 
 An authored string turning up in a section that is not its declared home. Measured as
@@ -861,6 +964,20 @@ it never over-reports.
 | `docx-role-first-with-blanks` | Languages ← 'Turlistan - reseplanerare för kollektivtrafi…' (declared home: projects) |
 | `docx-role-first-with-blanks` | Languages ← 'Bokhyllan - katalogtjänst för folkbiblioteke…' (declared home: projects) |
 | `docx-role-first-with-blanks` | Skills ← '.NET' — a FRAGMENT of the authored project line 'Jobbliggaren - deterministisk CV-granskare i…' (the list parser atomised it) |
+| `docx-role-first-no-blanks` | Languages ← 'PROJEKT (URVAL)' (declared home: projects) |
+| `docx-role-first-no-blanks` | Languages ← 'Jobbliggaren - deterministisk CV-granskare i…' (declared home: projects) |
+| `docx-role-first-no-blanks` | Languages ← 'Kartkollen - öppen data om kommunala beslut' — a FRAGMENT of the authored project line 'Kartkollen - öppen data om kommunala beslut,…' (the list parser atomised it) |
+| `docx-role-first-no-blanks` | Languages ← 'byggd på PostGIS.' — a FRAGMENT of the authored project line 'Kartkollen - öppen data om kommunala beslut,…' (the list parser atomised it) |
+| `docx-role-first-no-blanks` | Languages ← 'Turlistan - reseplanerare för kollektivtrafi…' (declared home: projects) |
+| `docx-role-first-no-blanks` | Languages ← 'Bokhyllan - katalogtjänst för folkbiblioteke…' (declared home: projects) |
+| `docx-role-first-no-blanks` | Skills ← '.NET' — a FRAGMENT of the authored project line 'Jobbliggaren - deterministisk CV-granskare i…' (the list parser atomised it) |
+| `docx-company-first-header` | Languages ← 'PROJEKT (URVAL)' (declared home: projects) |
+| `docx-company-first-header` | Languages ← 'Jobbliggaren - deterministisk CV-granskare i…' (declared home: projects) |
+| `docx-company-first-header` | Languages ← 'Kartkollen - öppen data om kommunala beslut' — a FRAGMENT of the authored project line 'Kartkollen - öppen data om kommunala beslut,…' (the list parser atomised it) |
+| `docx-company-first-header` | Languages ← 'byggd på PostGIS.' — a FRAGMENT of the authored project line 'Kartkollen - öppen data om kommunala beslut,…' (the list parser atomised it) |
+| `docx-company-first-header` | Languages ← 'Turlistan - reseplanerare för kollektivtrafi…' (declared home: projects) |
+| `docx-company-first-header` | Languages ← 'Bokhyllan - katalogtjänst för folkbiblioteke…' (declared home: projects) |
+| `docx-company-first-header` | Skills ← '.NET' — a FRAGMENT of the authored project line 'Jobbliggaren - deterministisk CV-granskare i…' (the list parser atomised it) |
 
 ## 8. Pin P7 (unknown heading) and pin P5 (English non-difference)
 
@@ -904,6 +1021,30 @@ permitted to differ is the detected language.
   invisibility shipped as a measurement, not as a distinct extraction mechanic.
 - **Scanned / `NoTextLayer` documents are absent**, so the `ParseConfidence.Failed`
   branch of the import handler's segment conditional is unexercised.
+- **Entry boundaries still need a blank paragraph, and nothing here recovers them.**
+  `SplitEntries` splits on blank lines only, so a DOCX that authors none yields ONE entry
+  per block. That is why the `-no-blanks` rows report 1 of 5 employments — a document
+  fact, not a header-order fact, which #1060 β-1's role-first control arm separated. Not
+  fixed there: its blast radius is every row in this table, so it would have made that
+  PR's diff unattributable. Named so a promoting row is not read as a recovered one.
+- **`RetainedButOrphaned` conflates three realities — gone, fused, and wrong-slot —
+  and that is deliberate.** A finer verdict would have to name WHICH field holds the
+  marker, and §3 publishes no promoted field values, so the label could not be cited
+  from anything this report prints (CLAUDE.md §5: no verdict without cited evidence).
+  The two rendered halves are the discriminator; revisit if an arm ever publishes
+  promoted field values.
+- **No arm authors a `"Company, City"` field line.** `TitleOrgSeparators` includes
+  `", "`, so such a line splits into (Company, City) and the city lands in the employer
+  slot **when that line is the one the split reads**. THREE populations, not two, and the
+  third is the COMMON layout: where the role line is `Lines[0]` and the comma line merely
+  follows it, no split happens there at all — the whole string is the fallback's
+  organization value, unchanged by β-1 and not this hazard. Of the other two: where the
+  field-bearing line IS `Lines[0]`, this held before #1060 β-1 and holds after. On a PERIOD-FIRST
+  row it is NEW — before β-1 the line went whole to `Organization` and the row blocked on
+  the missing Role. That is the same transition the company-first arm publishes for the
+  dash form. The comma form is that class and is unmeasured. An earlier revision of this
+  bullet said "on ANY row, before and after", which is false for exactly the population
+  the bullet stands beside.
 - **Kerning-driven word splits, ligature artefacts, rotated text and foreign-producer
   ToUnicode tables are absent.** Every PDF here round-trips through a QuestPDF-embedded
   subset font and its own CMap — a real mechanism, but QuestPDF's.
@@ -924,6 +1065,16 @@ mean hand-copying the extractor's whole page-assembly loop — exactly the re-ty
 this corpus exists to avoid.
 
 ### A. `addDoubleNewline: true` is not the fix (measured 2026-07-26, PR K)
+
+> **STALE AS OF 2026-08-01 (#1060 β-1) — READ THE THIRD CORRECTION BELOW BEFORE ANY PARAGRAPH IN
+> THIS SUBSECTION.** Every paragraph ABOVE the corrections is written in the present tense and
+> was true at the commit it names; the dated corrections themselves, and this banner, are not
+> in that class. β-1 then fixed the parser defect that produced the blocks they
+> reason about, and **no row in this artifact blocks on `IncompleteContent` any more.** The prose
+> is kept verbatim as the record of what was measured when; the banner sits here so no reader
+> reaches a stale present-tense claim without meeting the correction. One banner, not a marker per
+> sentence — and it is dated, because the paragraphs it governs are dated entries and an undated
+> absolute would be the same defect one level up.
 
 | Form | blank lines | parsed experience (ground truth 5) | parsed education | confidence |
 |---|---|---|---|---|
@@ -964,6 +1115,45 @@ flat**, so their agreement says the arm does not depend on the container shape. 
 variable is the one-variable step between rows **18 and 20**
 (`docx-table-label-first-with-blanks`), and their agreement is what says the arm does not depend
 on the entry counts being right — row 20 parses 5/5 and 3/3, row 18 parses 1.
+
+**THIRD CORRECTION (2026-08-01, #1060 β-1) — the evidence cited above no longer exists in this
+artifact, because this PR removed its cause.** Rows 18, 19 and 20 do not block any more.
+`SplitTitleOrganization` ran its separator split against a line that was nothing but a period, so
+the role-and-company line went whole into `Organization` and `Role` came back null; the split now
+reads the next line when the first carries only a period, and row 20 promotes **faithfully**
+(5/5, 3/3, eight markers `Survived`) while rows 18 and 19 promote lossily on their unrelated
+blank-line defect.
+
+Every sentence above stays as written, because each was true of the artifact at the commit it
+names and this file is the record of what was measured when. What changes is what a reader may
+still take from them:
+
+- **The two invariances stand as history and are no longer reproducible here.** They were
+  measured in PR K's and the second correction's own commits, and were still REPRODUCIBLE at
+  `d435a9c4`; regenerate at that commit to see them.
+- **The `Domain code` column now speaks about nothing.** It was built one PR ago to name the
+  constraint behind an `IncompleteContent` block, and after this PR **no row in the corpus blocks
+  on `IncompleteContent` at all** — the column renders an em-dash on every row. Count them in §5
+  rather than trusting a numeral here. That is a real loss of coverage caused by fixing the defect,
+  and it is named here rather than left for a reader to notice. The instrument is not wrong; its
+  subject was a parser bug and the bug is gone. The two personnummer rows still block, so the
+  reader half of the contract is still exercised — it is the code-bearing half that went quiet.
+- **The `addDoubleNewline` spike's fifteen-fragment case stays unmeasured**, exactly as the second
+  correction left it, and it can no longer be read off any row in this file.
+
+Restoring that coverage needs a fixture whose entry is *irreducibly* non-buildable — a source that
+genuinely carries no employer at all, which no arm here authors. **The gap is real whether or not
+any particular follow-up ships**; it belongs to whatever work first authors such an entry, and
+per-entry routing (β-3) is the consumer that would. Written that way deliberately: a PR that is
+permitted not to exist cannot be the carrier of an obligation this file creates.
+
+**What β-1 did publish is its own cost.** Row 23 `docx-company-first-header` is the only arm whose
+field-bearing line is written company-first, and it is the shape β-1 moved from an honest block to
+a promote with the two slots swapped. It prints **`PromotedFaithful`** — because
+`LayoutChainRunner.Decide` reads entry COUNTS — while every one of its eight markers prints
+**`RetainedButOrphaned`**, because `MarkerTrace` reads structure. It is the first row in this file
+where the two verdicts disagree in the direction *"the numbers are right and the content is
+wrong"*, and it is the reason to distrust the word `PromotedFaithful` on its own anywhere else.
 
 **What actually disqualified the flag** is that it makes the block UNIVERSAL. Every PDF employment
 whose period sits on its own line yields such a fragment, so every row that promotes today would

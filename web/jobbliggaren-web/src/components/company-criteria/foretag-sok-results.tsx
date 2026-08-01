@@ -57,7 +57,12 @@ export async function ForetagSokResults({
   }
 
   const { companies, magnitude } = result.data;
-  const magnitudeText = formatMagnitude(format, magnitude);
+  // NULL unfiltered, by contract — the backend skips the count there (see
+  // CompaniesEndpoints). The unfiltered headline is a plain heading: the only honest
+  // number for the whole register is 743 654, and the product ceiling can render it
+  // only as "10 000+". Klas ruled 2026-08-01: the exact number if free, otherwise no
+  // number — never the saturated one.
+  const magnitudeText = magnitude !== null ? formatMagnitude(format, magnitude) : null;
   const hasFilter =
     namn.length > 0 || sni.length > 0 || kommun.length > 0;
   const filterState = { namn, sni, kommun };
@@ -90,9 +95,9 @@ export async function ForetagSokResults({
       ) : (
         <>
           <h2 className="text-h2 text-text-primary tabular-nums">
-            {hasFilter
+            {hasFilter && magnitudeText !== null
               ? t("magnitudeHeadlineFiltered", { count: magnitudeText })
-              : t("magnitudeHeadlineAll", { count: magnitudeText })}
+              : t("magnitudeHeadlineAll")}
           </h2>
 
           {/* Mandatory säteskommun explainer + inline help (the kommun is the registered seat, not

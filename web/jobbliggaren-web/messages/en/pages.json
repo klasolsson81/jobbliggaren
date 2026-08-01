@@ -283,7 +283,7 @@
       "orgNrRateLimitedBody": "Wait {seconds} seconds and try again.",
       "orgNrErrorTitle": "The search could not be completed",
       "orgNrErrorBody": "Try again in a moment.",
-      "magnitudeHeadlineAll": "{count} companies in the register",
+      "magnitudeHeadlineAll": "Companies in the register",
       "magnitudeHeadlineFiltered": "{count} companies match the search",
       "seatExplainer": "The municipality shown is the company's registered seat, not necessarily where it operates.",
       "seatHelpTitle": "About the registered seat",

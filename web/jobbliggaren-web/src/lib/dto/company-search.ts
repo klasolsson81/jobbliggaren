@@ -20,7 +20,15 @@ import {
  */
 export const companySearchResponseSchema = z.object({
   companies: pagedResult(companyBrowseSchema),
-  magnitude: criterionMagnitudeSchema,
+  /**
+   * NULL for an UNFILTERED browse, by contract rather than by degradation: that headline
+   * carries no number at all. Unfiltered, the only honest number is the whole active register
+   * (743 654, measured 2026-08-01), and the product ceiling can render it only as "10 000+" —
+   * two orders of magnitude low while technically true. Klas ruled: the exact number if it is
+   * free, otherwise NO number, never the saturated one. It is not free, so the backend skips
+   * the count entirely rather than computing one nobody renders.
+   */
+  magnitude: criterionMagnitudeSchema.nullable(),
 });
 export type CompanySearchResponse = z.infer<typeof companySearchResponseSchema>;
 

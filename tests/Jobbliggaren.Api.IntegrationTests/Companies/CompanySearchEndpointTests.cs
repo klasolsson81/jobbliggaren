@@ -44,8 +44,11 @@ public class CompanySearchEndpointTests(ApiFactory factory)
         response.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
     }
 
+    /// <summary>Hoisted for CA1861 — a constant array argument in a repeatedly called method.</summary>
+    private static readonly string[] FilteredSniCodes = ["62010"];
+
     [Fact]
-    public async Task POST_search_with_defaults_returns_200_with_the_companies_and_magnitude_envelope()
+    public async Task POST_search_UNFILTERED_returns_the_page_with_a_NULL_magnitude()
     {
         var ct = TestContext.Current.CancellationToken;
         await AuthenticateAsync(ct);
@@ -55,13 +58,44 @@ public class CompanySearchEndpointTests(ApiFactory factory)
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
         var json = await response.Content.ReadFromJsonAsync<JsonElement>(ct);
 
-        // The (capped) page beside the honest magnitude — camelCase, so the FE can never mistake
-        // the pagination count for the magnitude.
+        // The (capped) page — camelCase, so the FE can never mistake the pagination count for
+        // the magnitude.
         var companies = json.GetProperty("companies");
         companies.GetProperty("items").ValueKind.ShouldBe(JsonValueKind.Array);
         companies.GetProperty("totalCount").ValueKind.ShouldBe(JsonValueKind.Number);
 
+        // NULL by contract, not by degradation (Klas 2026-08-01). Unfiltered, the only honest
+        // number is the whole active register — 743 654 rows — and the product ceiling can render
+        // that only as "10 000+", which understates it by two orders of magnitude while being
+        // technically true. The rule was: the exact number if it is free, otherwise NO number,
+        // never the saturated one. It is not free (an exact count is 26 ms with the visibility
+        // map set and 438 ms without it, and autovacuum has never run on this table), so the
+        // endpoint does not compute one. The headline is a plain heading here.
+        //
+        // Asserting the PROPERTY EXISTS and is null, rather than that it is absent: the wire
+        // shape stays stable for the FE's schema, which declares it nullable rather than optional.
+        json.TryGetProperty("magnitude", out var magnitude).ShouldBeTrue();
+        magnitude.ValueKind.ShouldBe(JsonValueKind.Null);
+    }
+
+    [Fact]
+    public async Task POST_search_FILTERED_returns_the_honest_magnitude()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await AuthenticateAsync(ct);
+
+        // The other half of the contract, and the reason the null above is a decision rather
+        // than a regression: a filtered search still carries its number. Without this the
+        // unfiltered assertion would be satisfied by an endpoint that had simply stopped
+        // computing magnitudes at all.
+        var response = await _client.PostAsJsonAsync(
+            Endpoint, new { sniCodes = FilteredSniCodes }, ct);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var json = await response.Content.ReadFromJsonAsync<JsonElement>(ct);
+
         var magnitude = json.GetProperty("magnitude");
+        magnitude.ValueKind.ShouldBe(JsonValueKind.Object);
         magnitude.GetProperty("magnitude").ValueKind.ShouldBe(JsonValueKind.Number);
         magnitude.GetProperty("saturated").ValueKind
             .ShouldBeOneOf(JsonValueKind.True, JsonValueKind.False);

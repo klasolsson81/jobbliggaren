@@ -283,7 +283,7 @@
       "orgNrRateLimitedBody": "Vänta {seconds} sekunder och försök igen.",
       "orgNrErrorTitle": "Sökningen kunde inte genomföras",
       "orgNrErrorBody": "Försök igen om en stund.",
-      "magnitudeHeadlineAll": "{count} företag i registret",
+      "magnitudeHeadlineAll": "Företag i registret",
       "magnitudeHeadlineFiltered": "{count} företag matchar sökningen",
       "seatExplainer": "Kommunen som visas är företagets registrerade säteskommun, inte nödvändigtvis där verksamheten bedrivs.",
       "seatHelpTitle": "Om säteskommun",

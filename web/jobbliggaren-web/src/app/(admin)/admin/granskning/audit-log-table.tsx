@@ -82,11 +82,14 @@ export function AuditLogTable({ entries }: AuditLogTableProps) {
 }
 
 function formatDateTime(iso: string): string {
-  // Svensk locale: YYYY-MM-DD HH:mm:ss (CLAUDE.md §10.2). Zonen anges explicit så
-  // server-tidszonen inte påverkar utdata (Server Component renderar server-side).
-  // FE-M4 (design-reviewer 2026-05-11). Zonen kommer från SWEDISH_TIME_ZONE i
-  // stället för en egen literal: en rå sträng här och en annan i konstanten kan
-  // divergera utan att någon grind ser det.
+  // Svensk locale: YYYY-MM-DD HH:mm:ss (CLAUDE.md §10). Zonen anges explicit så
+  // server-tidszon inte påverkar utdata (Server Component renderar på server-side).
+  // FE-M4 (design-reviewer 2026-05-11).
+  //
+  // The zone is SWEDISH_TIME_ZONE rather than a literal of this component's own.
+  // The gap that closes is ONE-directional, and saying so precisely is the point:
+  // changing the literal here was already caught by this file's own spec, while
+  // changing the CONSTANT reached nothing here at all. Both directions measured.
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
   const formatted = d.toLocaleString("sv-SE", {

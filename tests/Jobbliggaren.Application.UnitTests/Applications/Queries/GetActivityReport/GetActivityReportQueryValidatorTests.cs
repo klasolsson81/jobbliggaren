@@ -51,16 +51,23 @@ public class GetActivityReportQueryValidatorTests
     [Fact]
     public void Validate_WithHalfSpecifiedPair_MessageNamesInnevarandeMonthAsTheDefault()
     {
-        // Det enda ANVÄNDARSYNLIGA på den här 400:an är meningen som talar om vad
-        // defaulten är — och den skeppade "föregående månad" medan handlern
-        // härledde innevarande svenska civilmånad (Klas 2026-06-28). Noll tester
-        // rörde strängen, så en felaktig mening kunde bo framför en korrekt
-        // implementation utan att någon grind såg det; det är hela anledningen
-        // till den här PR:en.
+        // This is the 400's only sentence that states what the default IS, and it
+        // shipped saying "föregående månad" while the handler resolved the current
+        // Swedish civil month (Klas 2026-06-28). The string occurs exactly once in
+        // the repo and no test touched it, so a wrong sentence sat in front of a
+        // correct implementation. That is the hole this pin closes.
         //
-        // Pinnat mot PÅSTÅENDET, inte prosan: `ShouldNotContain` är riktad mot
-        // exakt den mening som stod här, så en framtida omformulering får ändra
-        // orden men inte månaden de utpekar.
+        // Who reads it: a direct API consumer, NOT a Jobbliggaren user. The web
+        // client cannot even produce this 400 — `lib/api/applications.ts` sends
+        // year and month only together — and discards the body of the ones it does
+        // get. An earlier version of this comment called the sentence "the only
+        // user-visible text", which is the very overclaim this PR exists to remove.
+        //
+        // The two assertions have deliberately different strengths.
+        // ShouldNotContain("föregående") pins the CLAIM: the wrong month may not
+        // come back. ShouldContain("innevarande månad") pins the PHRASE, so a
+        // rewording to "aktuell månad" fails here and goes through review rather
+        // than landing silently.
         var result = _validator.Validate(new GetActivityReportQuery(2026, null));
 
         var message = result.Errors.ShouldHaveSingleItem().ErrorMessage;

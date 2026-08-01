@@ -90,21 +90,30 @@ civic-utility-regeln "information är design" (se `jobbpilot-design-principles`)
 | Kategori | Korrekt | Fel |
 |---|---|---|
 | Datum kort | 14 apr 2026 | 14/4/26, 4/14/2026 |
-| Datum långt | 14 april 2026 | April 14, 2026 |
+| Datum kort utan år | 13 apr | 13/4, Apr 13 |
+| Datum lång månad | 18 april | 18:e april, April 18 |
+| Månadsetikett | maj 2026 | Maj 2026, 2026-05 |
 | Datum ISO | 2026-04-14 | 14-04-2026 |
 | Tid | 14:32 | 2:32 PM, 14.32 |
 | Valuta | 33 456 kr | 33,456 SEK, 33456 kr |
 | Decimaler | 4,5 km | 4.5 km |
 | Tusental | 12 345 | 12,345 eller 12.345 |
-| Relativ tid | 3 dagar sen | for 3 days, 3 days ago |
+| Relativ tid | 3 dagar sedan | 3 dagar sen, for 3 days, 3 days ago |
 | Företagsnamn | Volvo Cars Sverige AB | Volvo AB (förkortat utan grund) |
 
 Implementation:
-- Datum/tid: `date-fns` med `import { sv } from 'date-fns/locale'`
-- Valuta: `new Intl.NumberFormat('sv-SE', { style: 'currency', currency: 'SEK' })`
-- Relativa tider: `formatDistanceToNow(date, { locale: sv, addSuffix: true })`
+- Datum/tid/tal: `@/lib/i18n/format` — next-intl är formaterings-auktoriteten och
+  löser zon och locale deterministiskt över SSR och klient. **Formateraren är
+  första argumentet** (`useFormatter()`, eller `await getFormatter()` i en async
+  Server Component).
+- Relativa tider: `@/lib/i18n/relative-time` — ordvalet resolvas via `messages/sv/`,
+  inte i hjälparen.
+- Valuta: ingen hjälpare, för ingen produktyta formaterar valuta i dag.
 
-Kod-exempel → `references/locale-formatting.md`
+`date-fns` är INTE installerat. Skriv inte zon-literalen — `no-restricted-syntax`
+fäller den (#1148).
+
+Konventioner och var formaterarna bor → `references/locale-formatting.md`
 
 ---
 
@@ -313,7 +322,7 @@ se `jobbpilot-design-components` → Input/Textarea/Select → "Rena input-fält
 
 - All backend error codes with Swedish translations → `references/error-messages.md`
 - Extended microcopy (tooltips, onboarding, settings) → `references/microcopy-library.md`
-- date-fns and Intl.NumberFormat code examples → `references/locale-formatting.md`
+- Locale conventions, and where the formatters live → `references/locale-formatting.md`
 - Accessibility copy (aria-labels, screen reader) → `jobbpilot-design-a11y`
 - Full design philosophy → `jobbpilot-design-principles`
 - Component label context → `jobbpilot-design-components`

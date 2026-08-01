@@ -1,194 +1,193 @@
-# JobbPilot — Locale Formatting: Code Examples
+# JobbPilot — Locale Formatting
 
-Deploy-ready utility functions for Swedish date, time, currency, and number
-formatting. All functions use `date-fns` with `sv` locale and `Intl` APIs
-configured for `sv-SE`. Import from `@/lib/format`.
+Swedish date, time, currency and number **conventions**, and where the code that
+implements them actually lives.
 
----
+This file used to be an implementation guide for a `@/lib/format` module built on
+`date-fns`. Neither exists — see the note at the bottom. The conventions below were
+correct then and are correct now; only the code was fiction.
 
-## Setup
+**next-intl is the formatting authority for NEW code.** It resolves the configured
+locale and timezone deterministically across SSR and client, which is what keeps a
+rendered date from drifting between server and browser. Do not reach past it to
+`toLocaleString` or a fresh `Intl.DateTimeFormat` / `Intl.NumberFormat`, and do not
+write the timezone yourself (see §Timezone).
 
-```ts
-// lib/format.ts
-import { format, formatDistanceToNow, isToday, isYesterday, isThisWeek } from "date-fns"
-import { sv } from "date-fns/locale"
-```
+**The exception is a criterion, not a list.** Reaching past next-intl is legitimate
+where the value is **not a localized presentation** — a form-ready or operator value
+that must read identically whatever the UI language is — and such code names the
+zone explicitly, whether because there is no next-intl configuration to inherit or
+because it is deliberately not routing through the one there is.
+Worked example: `audit-log-table.tsx` reaches past next-intl for a ledger that needs
+a seconds column the shared `formatDateTime` does not produce, names the zone, and
+carries its own spec. It passes the test, and it is not a licence — it is what
+passing looks like.
 
-Install:
-```bash
-pnpm add date-fns
-```
-
-No additional locale packages needed — `date-fns` ships `sv` locale.
-
----
-
-## Date formatting
-
-### Short date — "14 apr 2026"
-
-```ts
-export function formatDateShort(date: Date | string): string {
-  const d = typeof date === "string" ? new Date(date) : date
-  return format(d, "d MMM yyyy", { locale: sv })
-}
-
-// formatDateShort(new Date("2026-04-14")) → "14 apr 2026"
-```
-
-### Long date — "14 april 2026"
-
-```ts
-export function formatDateLong(date: Date | string): string {
-  const d = typeof date === "string" ? new Date(date) : date
-  return format(d, "d MMMM yyyy", { locale: sv })
-}
-
-// formatDateLong(new Date("2026-04-14")) → "14 april 2026"
-```
-
-### ISO date — "2026-04-14"
-
-```ts
-export function formatDateISO(date: Date | string): string {
-  const d = typeof date === "string" ? new Date(date) : date
-  return format(d, "yyyy-MM-dd")
-}
-```
+**Apply the test; do not look for a list.** Code failing it is drift rather than an
+exception — `match-setup-rail-modal.tsx`'s `new Intl.NumberFormat("sv-SE")` formats
+an ordinary counter and should call `formatNumber`, for example. Convert such sites
+when you are in the file anyway. **No lint rule guards any of this**, unlike the zone
+literal.
 
 ---
 
-## Time formatting
+## Where the code lives
 
-### Time — "14:32"
+The **shared** helpers live under `web/jobbliggaren-web/src/lib/i18n/`, and new code
+should use them.
+
+**A date shape can come from anywhere, though, so search rather than assume:** from a
+shared helper, from a module with its own month arrays, or from a call site that
+picked `dateTime` options inline. `lib/oversikt/aggregations.ts` is the one module of
+the second kind today — hand-rolled Swedish formatters outside next-intl, including
+`formatSwedishShortDateWithYear`, which produces the same shape as the Short row below
+and returns an en-dash rather than `null` for bad input. `use-urgency-label.ts` is one
+of the third kind: it decides a long-month form inline. `lib/time/swedish-calendar.ts`
+(calendar facts) and `lib/company-criteria/format-magnitude.ts` (counts, not currency)
+are further homes.
+
+**And one is a name collision, which is the shape the tombstone below calls the
+worst of all:** `admin/granskning/audit-log-table.tsx` declares a local
+`formatDateTime(iso: string)` that shadows the shared `formatDateTime(format, iso)`
+— different first argument, `toLocaleString` instead of next-intl, and seconds where
+the ledger row has none. It is legitimate (see the criterion above); it is also
+exactly the trap a reader hits when the two names mean different things.
+
+**Consolidating any of this is not this file's business, but pretending it does not
+exist would repeat, inverted, the defect this file was rewritten for.**
+
+Signatures are given below so a caller knows what to pass; bodies are not
+reproduced, because an example that points at a module ages visibly when the module
+moves, while one that copies it ages silently.
+
+### `format.ts` — locale presentation
+
+Every function takes the formatter as its first argument. `JpFormatter` is the
+`Pick<>` of next-intl's `useFormatter()` result these need — interface segregation,
+so the real formatter is assignable as-is:
 
 ```ts
-export function formatTime(date: Date | string): string {
-  const d = typeof date === "string" ? new Date(date) : date
-  return format(d, "HH:mm")
-}
+import { useFormatter } from "next-intl";          // client, and SYNC Server Components
+import { getFormatter } from "next-intl/server";   // ASYNC Server Components
+import { formatDate, formatDateTime, formatNumber, formatTime } from "@/lib/i18n/format";
 
-// Never: "2:32 PM", "14.32"
+const format = useFormatter();         // sync
+const format = await getFormatter();   // async — it returns a Promise; without the
+                                       // await, format.dateTime is undefined at runtime
+
+formatDate(format, application.appliedAt);        // "18 maj 2026" · ISO in, null on missing
+formatDateTime(format, entry.occurredAt);         // "2026-05-11 10:32" · ledger, 24h
+formatTime(format, new Date(event.at));           // "14:32" · takes a DATE, not an ISO string
+formatNumber(format, 1234);                       // "1 234" in sv (NBSP), "1,234" in en
 ```
 
-### Date + time — "14 apr 2026 kl 14:32"
+**The two contracts differ, and the difference type-errors.** `formatDate` and
+`formatDateTime` take `string | null | undefined` and return `null` for missing or
+unparseable input, so a caller can omit the row rather than render "Invalid Date".
+`formatTime` takes a known-good `Date` and is non-nullable. Call sites either hold a
+`Date` in state already or wrap an ISO string once; the helper does neither for you,
+and the null guard is yours.
+
+`formatDateTime` is deliberately **locale-stable**: `YYYY-MM-DD HH:mm` is a fixed
+operator convention for admin tables where rows must align column-wise, not a
+localized presentation, so it reads identically in sv and en.
+
+### `relative-time.ts` — "hur längesen"
 
 ```ts
-export function formatDateTime(date: Date | string): string {
-  const d = typeof date === "string" ? new Date(date) : date
-  return `${formatDateShort(d)} kl ${formatTime(d)}`
-}
+import { daysSince, formatDaysAgo } from "@/lib/i18n/relative-time";
+
+daysSince(isoString, now?): number;
+formatDaysAgo(t: RelativeTimeTranslator, isoString: string, now?: Date): string;
 ```
 
-### Time + date for confirmations — "14:32 den 18 apr"
+The translator comes **first**, so the wording lives in `messages/sv/` rather than
+in the helper. The clock is injectable — pass `now` rather than letting the helper
+read it, so callers stay testable.
 
-Used in success copy: "Ansökan skickad 14:32 den 18 apr."
-
-```ts
-export function formatSubmittedAt(date: Date | string): string {
-  const d = typeof date === "string" ? new Date(date) : date
-  return `${formatTime(d)} den ${format(d, "d MMM", { locale: sv })}`
-}
-```
+**Its missing-value contract is not `format.ts`'s.** `daysSince` returns `0` for
+unparseable input, so `formatDaysAgo` renders "i dag" for garbage rather than
+returning null. Do not generalise the null contract across the module boundary.
 
 ---
 
-## Relative time
+## The conventions themselves
 
-### Relative distance — "3 dagar sen"
+These are CLAUDE.md §10, and they hold regardless of which module implements them.
 
-```ts
-export function formatRelative(date: Date | string): string {
-  const d = typeof date === "string" ? new Date(date) : date
-  return formatDistanceToNow(d, { locale: sv, addSuffix: true })
-}
+### Dates
 
-// formatRelative(new Date("2026-04-15")) → "3 dagar sedan"
-// Never: "3 days ago", "for 3 days"
-```
+**Normative for new code, not an inventory of the tree.** Reach for the nearest row;
+do not read the absence of a shape as a ban on one that already ships.
 
-### Smart label for lists (today/yesterday/weekday/date)
+| Shape | Example | Where |
+|---|---|---|
+| Short | `18 maj 2026` | anything a job seeker reads |
+| Short, no year | `13 apr` | same-season contexts where the year adds nothing |
+| Long month, no year | `18 april` | urgency and deadline copy |
+| Weekday | `lördag` | "today" surfaces |
+| ISO date | `2026-05-11` | form-ready values, exports, copyable fields |
+| Ledger | `2026-05-11 10:32` | admin tables whose rows must align column-wise |
+| Month label | `maj 2026` | month pickers, period headings |
 
-```ts
-export function formatSmartDate(date: Date | string): string {
-  const d = typeof date === "string" ? new Date(date) : date
+Never `05/18/2026`, never `May 18, 2026` in Swedish copy. The ISO date and the
+ledger shape are different rows on purpose: a form-ready value carries no time.
 
-  if (isToday(d)) return `idag kl ${formatTime(d)}`
-  if (isYesterday(d)) return `igår kl ${formatTime(d)}`
-  if (isThisWeek(d, { locale: sv })) return format(d, "EEEE", { locale: sv }) // "måndag"
+Shipped variants sit outside these rows on purpose — `audit-log-table`'s ledger
+carries **seconds**, and `aggregations.ts`'s notices stamp renders `2026-05-11 ·
+10:32` in **UTC** with a middle dot, which its own doc comment argues for. A shape
+outside the rows is not automatically wrong; it does have to answer what the row
+could not express.
 
-  const now = new Date()
-  if (d.getFullYear() === now.getFullYear()) {
-    return format(d, "d MMM", { locale: sv }) // "3 apr"
-  }
-  return format(d, "d MMM yyyy", { locale: sv }) // "3 apr 2025"
-}
-```
+### Time
 
----
+24-hour, colon-separated: `14:32`. Never `2:32 PM`, never `14.32`.
 
-## Currency
+**Bound to a date with `kl.`** — with the full stop, and a comma before it:
+`18 maj 2026, kl. 14:32`. That connector is `messages/sv/jobads.json`
+(`ui.card.published*`). Never `kl` bare, never `klockan`, which appears nowhere in
+`messages/sv/`.
 
-### SEK — "33 456 kr"
+**`i dag` / `i går`, spaced.** The majority form in `messages/sv/`, and it matches
+`relative-time.ts`. The closed form still ships in a few message files, and it ships
+in **two different copy calls**: the published label `"idag, kl."`, and the adverbial
+`"nya idag"` in counter labels. A follow-up should not treat those as one edit. Grep
+`\bidag\b` rather than assuming the divergence is where you last saw it — it is worth
+its own PR, and not a licence to pick freely meanwhile. Note the consequence for the
+row above: the connector
+example `i dag, kl. 14:32` is the form to write, not a string `jobads.json` currently
+sends, since its own label is closed.
 
-```ts
-const krFormatter = new Intl.NumberFormat("sv-SE", {
-  style: "currency",
-  currency: "SEK",
-  minimumFractionDigits: 0,
-  maximumFractionDigits: 0,
-})
+### Currency
 
-export function formatSEK(amount: number): string {
-  return krFormatter.format(amount)
-}
+`1 234 kr` — grouped with a **non-breaking space** (U+00A0), amount before the
+unit, `kr` lowercase. Never `1,234 SEK`, never `1234 kr`, never `kr 1 234`.
 
-// formatSEK(33456) → "33 456 kr"
-// Never: "33,456 SEK", "33456 kr"
-```
+No product surface formats currency today, so there is no helper. If one is needed,
+write it against `formatNumber`'s grouping rather than a second `Intl` instance,
+and bind it to the surface that needs it.
 
----
+### Numbers
 
-## Numbers
+Decimal **comma** in UI, decimal point in code: `4,5` on screen, `4.5` in a literal.
+Grouping is a non-breaking space: `12 345`, never `12,345` and never `12.345`.
 
-### Decimal — "4,5"
+The grouping space in every example on this page is written with an ordinary space,
+because a literal U+00A0 is invisible in a diff and in review. The character
+`formatNumber` actually emits is U+00A0 — its sv grouping test asserts the output
+does **not** contain an ASCII space, and binds the real character to a named `NBSP`
+constant rather than scattering it through the assertions. Do the same if you need
+it: name it once.
 
-```ts
-const decimalFormatter = new Intl.NumberFormat("sv-SE", {
-  minimumFractionDigits: 1,
-  maximumFractionDigits: 1,
-})
+### Percent
 
-export function formatDecimal(n: number): string {
-  return decimalFormatter.format(n)
-}
-
-// formatDecimal(4.5) → "4,5"
-// Never: "4.5"
-```
-
-### Thousands — "12 345"
-
-```ts
-const intFormatter = new Intl.NumberFormat("sv-SE")
-
-export function formatInt(n: number): string {
-  return intFormatter.format(n)
-}
-
-// formatInt(12345) → "12 345"
-// Never: "12,345", "12.345"
-```
-
-### Procent — används inte för matchning
-
-Svensk konvention är mellanslag före `%` (`89 %`, aldrig `89%`). Men **ingen
-matchnings- eller CV-yta får visa ett procenttal** — se `SKILL.md` §5 (ADR 0076
-Decision 4, ADR 0053 Amendment 2026-06-19, CLAUDE.md §5). Det fanns en
-`formatPercent`-hjälpare dokumenterad här med exakt `"89 %"` som exempel; den har
-**noll anropsställen** och finns inte i koden, och `messages/sv/` innehåller noll
-strängar med `" %"`. Behöver en framtida icke-matchningsyta procent, skriv
-formateraren då och bind den till den ytan.
+Swedish convention is a space before `%` (`89 %`, never `89%`). But **no matching or
+CV surface may show a percentage** — `SKILL.md` §5 (ADR 0076 Decision 4, ADR 0053
+Amendment 2026-06-19, CLAUDE.md §5). A `formatPercent` helper was once documented
+here with exactly `"89 %"` as its example; measured, it has **zero call sites**, does
+not exist in the code, and `messages/sv/` contains **zero** strings with `" %"`. If a
+future non-matching surface needs percent, write the formatter then and bind it to
+that surface.
 
 ---
 
@@ -215,32 +214,46 @@ modules are exempt — `src/i18n/request.ts` and `src/lib/time/swedish-calendar.
 writes the zone, because next-intl resolves the pin for it. The authoritative
 list, including the test-code globs, lives in `eslint.config.mjs`.
 
-> **Removed 2026-08-01:** this section used to document `toStockholm` /
-> `formatDateTimeStockholm` built on **`date-fns-tz`** — that package, not the
-> `date-fns` entry in BUILD.md §3.1 — with an `Install:` block. `date-fns-tz` is
-> not in `package.json`, has no usage in `src/`, and is not in BUILD.md §3.1, so
-> following the section produced a §12 change; its local `const STOCKHOLM` is the
-> duplication the guard above now fails. Recorded rather than deleted silently, so
-> it is not reintroduced. (Same treatment as the `formatPercent` note earlier in
-> this file.)
-
 Never store local time in DB. Never assume client timezone == Stockholm.
 
 ---
 
-## Usage in components
+## What was removed, and why it is recorded
 
-```tsx
-import { formatDateShort, formatRelative, formatSEK, formatSmartDate } from "@/lib/format"
-
-// Table cell — last updated
-<TableCell className="text-text-secondary">
-  {formatSmartDate(app.updatedAt)}
-</TableCell>
-
-// Reminder text
-<p>Du har inte följt upp med Ericsson sedan {formatDateShort(app.lastContactAt)}.</p>
-
-// Success toast
-toast({ description: `Ansökan skickad ${formatSubmittedAt(new Date())}.` })
-```
+> **Removed 2026-08-01 (#1148 for §Timezone, #1150 for the rest).** This file documented a
+> `@/lib/format` module built on **`date-fns`** — that package, not any other — with
+> `pnpm add date-fns` and `pnpm add date-fns-tz` install blocks, and helpers
+> `formatDateShort`, `formatDateLong`, `formatDateISO`, `formatTime`,
+> `formatDateTime`, `formatSubmittedAt`, `formatRelative`, `formatSmartDate`,
+> `formatSEK`, `formatDecimal`, `formatInt`, `toStockholm` and
+> `formatDateTimeStockholm`.
+>
+> Measured against `web/jobbliggaren-web/`: the module path does not exist, and
+> **neither package is in `package.json`**. The two differ where it matters:
+> `date-fns` **is** in BUILD.md §3.1 (`| Datum | date-fns | 4.x |`), so installing it
+> would have been an undiscussed dependency add (§9.2) against a fictional module
+> path — while `date-fns-tz` is in neither, so the §Timezone half specifically is
+> what produced a §12 *non-BUILD.md library* change. That BUILD.md lists a package
+> nobody installed is a real drift this rewrite uncovered, and its own follow-up.
+>
+> The names above are the thirteen this section carried; `formatPercent` made
+> **fourteen** in the same guide, and has its own note above.
+>
+> Of the thirteen, **eleven appear nowhere in `web/jobbliggaren-web/src/`** — and the
+> other two, `formatTime` and `formatDateTime`, are the worst shape of all: they
+> collide with real exports of `web/jobbliggaren-web/src/lib/i18n/format.ts` that take
+> a **different first argument**.
+> A reader who trusted the old page wrote a call that type-errors; one who trusted
+> it harder installed a library the repo does not use.
+>
+> Following this file therefore produced, at best, an undiscussed dependency add
+> against a module that does not exist — and in the §Timezone half, a §12 change
+> outright. It is recorded rather than
+> deleted silently so it is not reintroduced — the same treatment the
+> `formatPercent` note above already had, which is where the pattern comes from.
+>
+> **Kept, because the conventions were not where the fiction lived** — though review
+> found three this rewrite had dropped (the `kl.` connector, the date-only ISO form,
+> the long-month shape) and two the old file had wrong (`kl` without the stop, and
+> `idag` closed up). What `14 apr 2026`, `14:32`, `1 234 kr` and `4,5` should look
+> like was broadly right; it was the code claiming to produce them that was invented.

@@ -197,8 +197,8 @@ formateraren då och bind den till den ytan.
 All backend timestamps are stored and returned as UTC ISO 8601.
 Frontend converts to Europe/Stockholm for display.
 
-**Do not write the zone anywhere.** Three modules own it, and which one you need
-depends on the question you are asking:
+**Do not write the zone yourself.** Which module you need depends on the question
+you are asking:
 
 - **Presentation** — `src/lib/i18n/format.ts`. next-intl is the timezone
   authority for anything a reader sees; it resolves the configured zone itself.
@@ -208,16 +208,19 @@ depends on the question you are asking:
   For questions like "which Swedish civil month is this instant in", which stay
   Swedish even when the user's locale is `en`.
 
-`no-restricted-syntax` fails the raw literal used as a value anywhere under
-`src/`, in pre-commit and in CI, so a new site does not merge (#1148).
+`no-restricted-syntax` fails the literal written as a value under `src/`, in
+pre-commit and in CI, so a new site does not merge (#1148). The modules named
+above are exempt, as is test code; the exemption list lives in
+`eslint.config.mjs` and is not repeated here.
 
 > **Removed 2026-08-01:** this section used to document `toStockholm` /
-> `formatDateTimeStockholm` built on `date-fns-tz`, with an `Install:` block.
-> That library is not in `package.json`, has no usage in `src/`, and is outside
-> BUILD.md §3.1 — so following the section produced a §12 change, and its local
-> `const STOCKHOLM` is the duplication the guard above now fails. Recorded rather
-> than deleted silently, so it is not reintroduced. (Same treatment as the
-> `formatPercent` note earlier in this file.)
+> `formatDateTimeStockholm` built on **`date-fns-tz`** — that package, not the
+> `date-fns` entry in BUILD.md §3.1 — with an `Install:` block. `date-fns-tz` is
+> not in `package.json`, has no usage in `src/`, and is not in BUILD.md §3.1, so
+> following the section produced a §12 change; its local `const STOCKHOLM` is the
+> duplication the guard above now fails. Recorded rather than deleted silently, so
+> it is not reintroduced. (Same treatment as the `formatPercent` note earlier in
+> this file.)
 
 Never store local time in DB. Never assume client timezone == Stockholm.
 

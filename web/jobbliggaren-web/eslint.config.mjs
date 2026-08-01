@@ -124,7 +124,7 @@ const SERVER_ACTION_RESTRICTIONS = [
 // code, because Intl canonicalises IANA ids case-insensitively — but closing
 // either one means adding the second normaliser back.
 const ZONE_MSG =
-  'The raw zone literal is forbidden in product code. Import SWEDISH_TIME_ZONE from "@/lib/time/swedish-calendar" — one name, one place to change it. The exemptions are the `files` list of the block that subtracts ZONE, below; this message does not restate them, because a second copy is a second thing to keep true. If you are writing a TEST, you are exempt already and should not silence this by importing the constant: a test that imports it cannot catch a mutation OF it.';
+  'The raw zone literal is forbidden in product code. Import SWEDISH_TIME_ZONE from "@/lib/time/swedish-calendar" — one name, one place to change it. The exemptions are the `files` list of the ZONE-subtracting block in eslint.config.mjs; this message does not restate them, because a second copy is a second thing to keep true. If you are writing a TEST, you are exempt already and should not silence this by importing the constant: a test that imports it cannot catch a mutation OF it.';
 
 const ZONE_RESTRICTIONS = [
   { selector: 'Literal[value="Europe/Stockholm"]', message: ZONE_MSG },
@@ -150,12 +150,17 @@ const allExcept = (...exempt) =>
     .filter(([name]) => !exempt.includes(name))
     .flatMap(([, group]) => group);
 
-// Test-hood has ONE definition here, and it is the repo's own: `vitest.config.ts`
-// collects `src/**/*.{test,spec}.{ts,tsx}`. The blocks below ignored `.test` only,
-// so a `.spec` file — a first-class test name in this repo — was linted as product
-// code. For the zone rule that is not merely inconsistent: the message would tell
-// its author to import the constant, which is exactly the change that blinds a
-// test as an oracle.
+// Test-hood has ONE definition here, and it FOLLOWS the repo's own:
+// `vitest.config.ts` collects `src/**/*.{test,spec}.{ts,tsx}`, and `.spec` means
+// test here with no second meaning (the package's other `.spec.ts` files are all
+// Playwright specs under `tests/e2e/`). The blocks below ignored `.test` only, so
+// a `.spec` file was linted as product code. For the zone rule that is not merely
+// inconsistent: the message would tell its author to import the constant, which is
+// exactly the change that blinds a test as an oracle.
+//
+// The glob is deliberately one notch WIDER than vitest's, not identical to it: it
+// adds `js,jsx` so it spans every extension the blocks' own `files` reach. Vitest's
+// second include, `scripts/**`, is outside those blocks entirely.
 const TEST_FILES = ["**/*.{test,spec}.{ts,tsx,js,jsx}"];
 
 const eslintConfig = defineConfig([

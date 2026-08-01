@@ -762,8 +762,10 @@ public class HeadingDrivenResumeSegmenterTests
     {
         // The control. When the first line DOES carry fields, splitSource is that line and the
         // method is byte-identical to its pre-β-1 self. This is the arm that would redden if the
-        // relocation were made unconditional — which is the mutation worth fearing, because it
-        // would silently start reading line two on every well-formed CV in the product.
+        // relocation were made unconditional — the mutation worth fearing, because it would
+        // silently start reading line two on every well-formed CV in the product. Not the only
+        // arm that would redden: eight do. It is named the control because it is the one whose
+        // SUBJECT is that the relocated path leaves the ordinary path alone.
         const string cv =
             """
             Anna Andersson
@@ -796,8 +798,10 @@ public class HeadingDrivenResumeSegmenterTests
         // cell. So the guard was load-bearing and unpinned at once.
         //
         // Producible by production: SplitEntries yields a one-line entry from any non-blank line
-        // with blanks on both sides, which is what a Word document with paragraph spacing around a
-        // date line extracts to. Both halves are asserted — that it does not throw, AND that it
+        // with blanks on both sides, which is what a Word document with an EMPTY PARAGRAPH either
+        // side of its date line extracts to. Named precisely: ExtractDocx reads w:t, text nodes
+        // and the </w:p> EndElement — never w:spacing — so the producer is the empty paragraph,
+        // not paragraph spacing. Both halves are asserted — that it does not throw, AND that it
         // degrades to honest absence rather than to some invented field.
         const string cv =
             """

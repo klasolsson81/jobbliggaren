@@ -200,7 +200,8 @@ public static class LayoutCorpusReport
         L();
         L("- both `no` **on a row that promoted** — the marker is genuinely GONE. This is the");
         L("  silent loss the corpus exists to expose. On a row that did NOT promote, both are");
-        L("  `no` by construction and mean nothing: the verdict there is `RetainedNotPromoted`.");
+        L("  `no` by construction and mean nothing: the verdict there is `RetainedNotPromoted`, or");
+        L("  `CarriedInPreamble` when the `In parsed artifact` cell is also `no`.");
         L("- `structural no` + `span yes` — the marker is THERE but not as the field it names. Two");
         L("  measured causes: fused into another value (`pdf-zero-xgap-concat`, true in this file");
         L("  before β-1) and sitting in the other slot (`docx-company-first-header`, β-1).");
@@ -210,8 +211,11 @@ public static class LayoutCorpusReport
         L();
         L("**And the column did NOT end that pattern — say so rather than imply it.** `Decide` reads");
         L("more inputs than this table renders: `promoted` and `promoteFaulted` are verdict inputs");
-        L("too. So the signature `yes | yes | no | no | —` still carries two verdicts —");
-        L("`RetainedButOrphaned` where the CV promoted, `RetainedNotPromoted` where it did not.");
+        L("too. So the signature `yes | yes | no | no | —` carries two verdicts IN THIS FILE —");
+        L("`RetainedButOrphaned` where the CV promoted, `RetainedNotPromoted` where it did not — and");
+        L("a THIRD the moment an arm faults (`PromoteFaulted`, which short-circuits before both).");
+        L("No arm faults today, which is why you see two; the sentence says which file it is true of");
+        L("rather than pretending the instrument cannot produce the third.");
         L("That collision is not the same defect as the one this column closed, and the difference");
         L("is the whole point: the structural half had NO published home, while promote/blocked is");
         L("published one table up, per case, in §2's fidelity verdict. Resolve it there.");

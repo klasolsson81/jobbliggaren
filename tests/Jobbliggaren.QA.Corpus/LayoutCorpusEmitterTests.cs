@@ -941,13 +941,17 @@ public sealed class LayoutCorpusEmitterTests
 /// whole corpus asserted NOTHING about it — measured: zero hits for
 /// <c>MarkerTrace|MarkerVerdict|RetainedButOrphaned</c> across both corpus test classes.
 ///
-/// <para><b>That was fail-open, and the failure is silent.</b> Widen the structural test from
-/// <c>string.Equals</c> to <c>Contains</c> and the company-first arm reports eight
-/// <c>Survived</c> — maximally reassuring about a document whose every slot is misplaced — while
-/// every other assert in the suite stays green, because the observe-only rows record the verdict
-/// rather than asserting it. This is verbatim the argument that put assert (e) into
-/// <c>LayoutCorpusReportTests</c> in the previous PR: a by-name reader across a boundary, guarded
-/// on one side only, is not guarded.</para>
+/// <para><b>That was fail-open, and the failure is silent</b> — every other assert in the suite
+/// stays green under a widening, because the observe-only rows RECORD the verdict rather than
+/// asserting it. Verbatim the argument that put assert (e) into <c>LayoutCorpusReportTests</c> in
+/// the previous PR: a by-name reader across a boundary, guarded on one side only, is not guarded.</para>
+///
+/// <para><b>Two widenings, two different killers, and saying "the mutation" would hide that.</b>
+/// Widening BOTH fields (<c>e.Company</c> or <c>e.Role</c> contains the marker) is caught by the
+/// swapped-slot case. Widening <c>e.Company</c> ALONE — the natural single-field form — slips past
+/// survived, absent AND swapped, because none of their company values contains the marker; only the
+/// FUSED case catches it. An earlier revision of this paragraph described the first and reported it
+/// as though it covered the second, which is why the fourth fixture exists.</para>
 ///
 /// <para>Category (b) — but on a NARROWER ground than "nothing in <c>src/</c> can move them",
 /// which is false: <c>ResumeContentLinearizer</c> writes <c>{ e.Role, e.Company }</c>, so dropping
@@ -956,9 +960,13 @@ public sealed class LayoutCorpusEmitterTests
 /// is asserted — the chain is not run. A justification that claims more than it holds is the defect
 /// this PR has been repairing all round.</para>
 /// </summary>
-public class MarkerTracerDiscriminatorTests
+public sealed class MarkerTracerDiscriminatorTests
 {
-    private static readonly FixedClock Clock = new();
+    // FixedClock.Default, not a new one. Generation.FixedClock is already imported in this file and
+    // used at four call sites; a nested type of the same name made `FixedClock` mean two different
+    // things depending on which class body the reader stood in — and it COMPILED precisely because
+    // it shadowed. Reported fixed once before it was; caught by measurement, not by the report.
+    private static readonly Jobbliggaren.Domain.Common.IDateTimeProvider Clock = FixedClock.Default;
 
     [Fact]
     public void Trace_WhenTheEmployerIsTheCompanyField_IsStructural_AndSurvives()
@@ -1038,11 +1046,6 @@ public class MarkerTracerDiscriminatorTests
             ["Acme AB"], MarkerKind.Employment, $"Acme AB {company} {role}", null, promoted, false)
             .Single();
     }
-
-    private sealed class FixedClock : Jobbliggaren.Domain.Common.IDateTimeProvider
-    {
-        public DateTimeOffset UtcNow { get; } = new(2026, 8, 1, 12, 0, 0, TimeSpan.Zero);
-    }
 }
 
 /// <summary>
@@ -1072,18 +1075,37 @@ public sealed class CommittedBaselineIntegrityTests
         File.Exists(path).ShouldBeTrue($"INSTRUMENT: cannot find the committed baseline at {path}");
 
         var lines = File.ReadAllLines(path);
-        lines.Any(l => l.Trim() == "-->").ShouldBeTrue(
-            "the committed baseline's hand-written header opens an HTML comment on line 1 and must "
-            + "close it with a STANDALONE `-->` line. Without one, CommonMark runs the comment to "
-            + "end of document and GitHub renders the file blank — measured twice. The emitter does "
-            + "not write this block, so regenerating does NOT restore it: fix the splice.");
 
-        // The terminator must also come BEFORE the document heading, or the heading is inside the
-        // comment and the assert above would pass on a file that still renders wrong.
-        var terminator = Array.FindIndex(lines, l => l.Trim() == "-->");
+        // SHAPE, not name. CommonMark ends an HTML block on the first line that CONTAINS the
+        // sequence, not the first line that IS it. An earlier revision of this guard located the
+        // terminator with `Trim() == ...` and was therefore blind to the defect that existed when
+        // it was written: five prose lines in the header quoted the sequence literally, so the
+        // comment really ended at the first of them and everything after leaked above the title.
+        // Measured by test-writer; the repair that "fixed" the terminator had tripled that leak.
+        var marker = "--" + ">";
+        var closers = lines
+            .Select((line, i) => (line, i))
+            .Where(x => x.line.Contains(marker, StringComparison.Ordinal))
+            .ToList();
+
+        closers.ShouldNotBeEmpty(
+            "the committed baseline's hand-written header opens an HTML comment on line 1 and must "
+            + "close it. Without a closer, CommonMark runs the comment to end of document and "
+            + "GitHub renders the file blank — measured 2026-07-28. The emitter does not write this "
+            + "block, so regenerating does NOT restore it: fix the splice.");
+
+        // The FIRST line carrying the sequence is where the block actually ends, so that line must
+        // be the real terminator and nothing else. A prose line quoting it closes the comment early
+        // and silently leaks maintenance text above the document heading.
+        closers[0].line.Trim().ShouldBe(marker,
+            $"line {closers[0].i + 1} of the committed baseline CONTAINS the comment-closing "
+            + "sequence without BEING it, so the header comment ends there and every line after it "
+            + "renders as visible body text. Spell the sequence around in prose (the header does "
+            + "this deliberately) rather than quoting it.");
+
         var heading = Array.FindIndex(lines, l => l.StartsWith("# ", StringComparison.Ordinal));
-        heading.ShouldBeGreaterThan(terminator,
-            "the standalone `-->` must precede the document's H1; otherwise the heading is still "
-            + "inside the header comment.");
+        heading.ShouldBeGreaterThan(closers[0].i,
+            "the terminator must precede the document's H1; otherwise the heading is still inside "
+            + "the header comment.");
     }
 }

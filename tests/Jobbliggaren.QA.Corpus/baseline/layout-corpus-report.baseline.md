@@ -65,24 +65,32 @@
   mutation harness refused twice in a single session (its third refusal, on an uncommitted
   tree, guards destroyed evidence rather than a false green).
 
-  THE CLOSING "-->" BELOW WAS MISSING FROM PR K UNTIL 2026-07-28, and the consequence was
+  THE CLOSING MARKER BELOW WAS MISSING FROM PR K UNTIL 2026-07-28, and the consequence was
   total: under CommonMark an unterminated HTML block runs to end of document, so every line
   of this file was inside the comment. Measured through GitHub's own renderer (POST /markdown)
   rather than argued: as committed it produced 0 bytes, no headings and no tables; with the
-  "-->" added, 124367 bytes and 12 tables. A baseline exists so a reader can diff it and read
+  marker added, 124367 bytes and 12 tables. A baseline exists so a reader can diff it and read
   it on GitHub; this one rendered as a blank page for its whole life.
   AND THE SPLICE MUST NOT COUNT LINES TO FIND THIS TERMINATOR. 2026-08-01: a splice ran
   `head -72` while an edit in this same header had just grown it by two lines, so it cut
-  the "-->" off and the comment ran into the H1 below - reintroducing, in the very block
+  the marker off and the comment ran into the H1 below - reintroducing, in the very block
   that documents it, the defect described above. It was found by a reviewer reading the
   diff, which is exactly what the note further up says not to rely on. Locate the boundary
   BY CONTENT:
 
-    END=$(grep -n '^-->$' baseline/layout-corpus-report.baseline.md | head -1 | cut -d: -f1)
-    APX=$(grep -n '^## Appendix' baseline/layout-corpus-report.baseline.md | cut -d: -f1)
+    END=$(grep -n '^--[>]$' baseline/layout-corpus-report.baseline.md | head -1 | cut -d: -f1)
+    APX=$(grep -n '^## Appendix' baseline/layout-corpus-report.baseline.md | head -1 | cut -d: -f1)
     head -n $((END+1)) baseline/... > new && cat artifacts/... >> new && tail -n +$APX baseline/... >> new
 
-  and verify afterwards that this file still contains a standalone "-->" line.
+  and verify afterwards that this file still contains a standalone closing marker.
+
+  AND NOTE WHY NO PROSE LINE ABOVE SPELLS THAT MARKER OUT. CommonMark ends an HTML block on
+  the first line that CONTAINS the sequence, not the first line that IS it. Five lines in this
+  header used to quote it literally, so the comment really ended at the first of them and every
+  line after it leaked above the title as visible text - and the 2026-08-01 repair tripled that
+  leak while claiming to fix it. Measured by test-writer, not rendered. The sequence is spelled
+  around ("closing marker", and the grep uses a character class) so this block ends where it
+  says it ends. CommittedBaselineIntegrityTests asserts exactly that shape.
 -->
 
 # Jobbliggaren — CV layout corpus, from bytes (#1060 PR K)
@@ -250,7 +258,8 @@ which). Within the rows that DO carry it, it covers two different things:
 
 - both `no` **on a row that promoted** — the marker is genuinely GONE. This is the
   silent loss the corpus exists to expose. On a row that did NOT promote, both are
-  `no` by construction and mean nothing: the verdict there is `RetainedNotPromoted`.
+  `no` by construction and mean nothing: the verdict there is `RetainedNotPromoted`, or
+  `CarriedInPreamble` when the `In parsed artifact` cell is also `no`.
 - `structural no` + `span yes` — the marker is THERE but not as the field it names. Two
   measured causes: fused into another value (`pdf-zero-xgap-concat`, true in this file
   before β-1) and sitting in the other slot (`docx-company-first-header`, β-1).
@@ -260,8 +269,11 @@ itself; this preamble used to state the first case as though it were the only on
 
 **And the column did NOT end that pattern — say so rather than imply it.** `Decide` reads
 more inputs than this table renders: `promoted` and `promoteFaulted` are verdict inputs
-too. So the signature `yes | yes | no | no | —` still carries two verdicts —
-`RetainedButOrphaned` where the CV promoted, `RetainedNotPromoted` where it did not.
+too. So the signature `yes | yes | no | no | —` carries two verdicts IN THIS FILE —
+`RetainedButOrphaned` where the CV promoted, `RetainedNotPromoted` where it did not — and
+a THIRD the moment an arm faults (`PromoteFaulted`, which short-circuits before both).
+No arm faults today, which is why you see two; the sentence says which file it is true of
+rather than pretending the instrument cannot produce the third.
 That collision is not the same defect as the one this column closed, and the difference
 is the whole point: the structural half had NO published home, while promote/blocked is
 published one table up, per case, in §2's fidelity verdict. Resolve it there.

@@ -118,7 +118,7 @@ What this run is NOT, stated up front rather than left for a reader to discover:
 
 ## 0. Instrument integrity
 
-- **byte proofs held:** `pdf-sidebar-emitted-first`, `pdf-interleaved-baseline-fusion`, `pdf-zero-xgap-concat`, `pdf-single-column-sv`, `pdf-single-column-spaced`, `pdf-single-column-intra-block-spaced`, `pdf-single-column-intra-block-spaced-tight-list`, `pdf-sidebar-spaced`, `pdf-single-column-en`, `pdf-nonsequential-decorative`, `pdf-headingless`, `pdf-unknown-heading-after-profile`, `pdf-known-heading-after-profile`, `pdf-decorated-heading-glue`, `pdf-two-page-seam`, `pdf-pnr-bearing`, `pdf-clean-body-pnr-in-account-name`, `docx-table-label-first-no-blanks`, `docx-flat-label-first-no-blanks`, `docx-table-label-first-with-blanks`, `docx-role-first-with-blanks`, `docx-role-first-no-blanks`
+- **byte proofs held:** `pdf-sidebar-emitted-first`, `pdf-interleaved-baseline-fusion`, `pdf-zero-xgap-concat`, `pdf-single-column-sv`, `pdf-single-column-spaced`, `pdf-single-column-intra-block-spaced`, `pdf-single-column-intra-block-spaced-tight-list`, `pdf-sidebar-spaced`, `pdf-single-column-en`, `pdf-nonsequential-decorative`, `pdf-headingless`, `pdf-unknown-heading-after-profile`, `pdf-known-heading-after-profile`, `pdf-decorated-heading-glue`, `pdf-two-page-seam`, `pdf-pnr-bearing`, `pdf-clean-body-pnr-in-account-name`, `docx-table-label-first-no-blanks`, `docx-flat-label-first-no-blanks`, `docx-table-label-first-with-blanks`, `docx-role-first-with-blanks`, `docx-role-first-no-blanks`, `docx-company-first-header`
 - **byte proofs FAILED:** none
 - **crashed:** none
 - **fixture invalid:** none
@@ -157,6 +157,7 @@ literal "no" on every row forever, which is a decoration rather than a measureme
 | 20 | `docx-table-label-first-with-blanks` | (c) table-based Word template — one-variable step | docx | docx-table-label-first-no-blanks | no | blank paragraphs use Word's <w:p><w:pPr /></w:p> form, never the self-closing <w:p /> |
 | 21 | `docx-role-first-with-blanks` | (c) table-based Word template — the arm that exonerates the segmenter | docx | docx-table-label-first-with-blanks | yes | blank paragraphs use Word's <w:p><w:pPr /></w:p> form |
 | 22 | `docx-role-first-no-blanks` | (c) table-based Word template — the control that de-confounds the two no-blanks variables | docx | docx-role-first-with-blanks | no | the package contains a w:tbl, no blank-paragraph <w:pPr /> and no self-closing <w:p /> |
+| 23 | `docx-company-first-header` | (c) table-based Word template — the arm that publishes beta-1's cost | docx | docx-table-label-first-with-blanks | no | the employment and education lines are written company/institution-first, in a w:tbl |
 
 **Mechanics**
 
@@ -182,6 +183,7 @@ literal "no" on every row forever, which is a decoration rather than a measureme
 - `docx-table-label-first-with-blanks` — the same table body with Word's own blank-paragraph form added — isolates BLANK LINES
 - `docx-role-first-with-blanks` — blank paragraphs AND role-first header lines — the PROMOTE-level control
 - `docx-role-first-no-blanks` — role-first header lines with NO blank paragraphs — separates entry-boundary loss from header order
+- `docx-company-first-header` — the field-bearing line written COMPANY-first — the shape whose slots come out swapped
 
 ## 2. Fidelity verdict
 
@@ -215,6 +217,7 @@ published so far: no fixture yet distinguishes them, which is a fact about the f
 | 20 | `docx-table-label-first-with-blanks` | **PromotedFaithful** | 5 | 5 | 5 | 5 | 3 | 3 | 3 | — |
 | 21 | `docx-role-first-with-blanks` | **PromotedFaithful** | 5 | 5 | 5 | 5 | 3 | 3 | 3 | — |
 | 22 | `docx-role-first-no-blanks` | **PromotedLossy** | 5 | 1 | 1 | 1 | 3 | 1 | 1 | — |
+| 23 | `docx-company-first-header` | **PromotedFaithful** | 5 | 5 | 5 | 5 | 3 | 3 | 3 | — |
 
 ## 3. Marker trace
 
@@ -400,6 +403,14 @@ row is the finding: the product said the CV was saved and this employment is gon
 | `docx-role-first-no-blanks` | Education | Chalmers tekniska högskola | yes | yes | yes | — | **Survived** |
 | `docx-role-first-no-blanks` | Education | Göteborgs universitet | yes | yes | no | — | **RetainedButOrphaned** |
 | `docx-role-first-no-blanks` | Education | Hvitfeldtska gymnasiet | yes | yes | no | — | **RetainedButOrphaned** |
+| `docx-company-first-header` | Employment | Klarna AB | yes | yes | yes | — | **RetainedButOrphaned** |
+| `docx-company-first-header` | Employment | Volvo Cars | yes | yes | yes | — | **RetainedButOrphaned** |
+| `docx-company-first-header` | Employment | Västra Götalandsregionen | yes | yes | yes | — | **RetainedButOrphaned** |
+| `docx-company-first-header` | Employment | Consid AB | yes | yes | yes | — | **RetainedButOrphaned** |
+| `docx-company-first-header` | Employment | Sigma IT | yes | yes | yes | — | **RetainedButOrphaned** |
+| `docx-company-first-header` | Education | Chalmers tekniska högskola | yes | yes | yes | — | **RetainedButOrphaned** |
+| `docx-company-first-header` | Education | Göteborgs universitet | yes | yes | yes | — | **RetainedButOrphaned** |
+| `docx-company-first-header` | Education | Hvitfeldtska gymnasiet | yes | yes | yes | — | **RetainedButOrphaned** |
 
 ## 4. Extraction and form
 
@@ -427,6 +438,7 @@ row is the finding: the product said the CV was saved and this employment is gon
 | 20 | `docx-table-label-first-with-blanks` | yes | Extracted | 1543 | 62 | **14** | yes | Sv | 5 | null |
 | 21 | `docx-role-first-with-blanks` | yes | Extracted | 1543 | 62 | **14** | yes | Sv | 5 | null |
 | 22 | `docx-role-first-no-blanks` | yes | Extracted | 1529 | 48 | **0** | yes | Sv | 5 | null |
+| 23 | `docx-company-first-header` | yes | Extracted | 1543 | 62 | **14** | yes | Sv | 5 | null |
 
 ### 4b. Product-side observables
 
@@ -459,6 +471,7 @@ reader's inference, never an emitted ratio.
 | 20 | `docx-table-label-first-with-blanks` | `DCF6058705F8` | no | no | `Anna Andersson` |
 | 21 | `docx-role-first-with-blanks` | `9858965A707E` | no | no | `Anna Andersson` |
 | 22 | `docx-role-first-no-blanks` | `05CD8018BF8A` | no | no | `Anna Andersson` |
+| 23 | `docx-company-first-header` | `6EDE5C6A4A3A` | no | no | `Anna Andersson` |
 
 **Twin comparisons** — the only honest sentence this corpus can emit about tables. The
 DOCX extractor handles `w:t` and `w:p` only, with no `w:tbl`/`w:tr`/`w:tc` handling, so a
@@ -476,6 +489,7 @@ extractor.
 - `docx-table-label-first-with-blanks` vs `docx-table-label-first-no-blanks` — digests differ (`DCF6058705F8` / `1F86611223AB`)
 - `docx-role-first-with-blanks` vs `docx-table-label-first-with-blanks` — digests differ (`9858965A707E` / `DCF6058705F8`)
 - `docx-role-first-no-blanks` vs `docx-role-first-with-blanks` — digests differ (`05CD8018BF8A` / `9858965A707E`)
+- `docx-company-first-header` vs `docx-table-label-first-with-blanks` — digests differ (`6EDE5C6A4A3A` / `DCF6058705F8`)
 
 ## 5. Gate ladder
 
@@ -544,6 +558,7 @@ neither asked the Domain the question. A row whose code could not be READ prints
 | 20 | `docx-table-label-first-with-blanks` | passed | passed | passed | passed | passed | — | — | — | yes |
 | 21 | `docx-role-first-with-blanks` | passed | passed | passed | passed | passed | — | — | — | yes |
 | 22 | `docx-role-first-no-blanks` | passed | passed | passed | passed | passed | — | — | — | yes |
+| 23 | `docx-company-first-header` | passed | passed | passed | passed | passed | — | — | — | yes |
 
 **Observed Domain state** (this is aggregate state, NOT a gate verdict). The personnummer
 column prints the AUTHORED declaration and the OBSERVED aggregate flag side by side: if
@@ -575,6 +590,7 @@ corpus measures. The value itself is never printed.
 | `docx-table-label-first-with-blanks` | Confident | no | no | none | no |
 | `docx-role-first-with-blanks` | Confident | no | no | none | no |
 | `docx-role-first-no-blanks` | Confident | no | no | none | no |
+| `docx-company-first-header` | Confident | no | no | none | no |
 
 ## 6. Section confidence, verbatim
 
@@ -780,6 +796,15 @@ authored ground truth beside them. `Confident — heading matched, 1 entries` ne
 - `Skills: Confident — heading 'tekniska kompetenser' matched; 7 entries`
 - `Languages: Confident — heading 'språk' matched; 8 entries`
 
+**`docx-company-first-header`** — ground truth: 5 employments, 3 educations
+
+- `Contact: Confident — name extracted; email extracted; phone extracted`
+- `Profile: Confident — heading 'profil' matched; summary text present`
+- `Experience: Confident — heading 'arbetslivserfarenhet' matched; 5 entries`
+- `Education: Confident — heading 'utbildning' matched; 3 entries`
+- `Skills: Confident — heading 'tekniska kompetenser' matched; 7 entries`
+- `Languages: Confident — heading 'språk' matched; 8 entries`
+
 ## 7. Cross-section contamination
 
 An authored string turning up in a section that is not its declared home. Measured as
@@ -893,6 +918,13 @@ it never over-reports.
 | `docx-role-first-no-blanks` | Languages ← 'Turlistan - reseplanerare för kollektivtrafi…' (declared home: projects) |
 | `docx-role-first-no-blanks` | Languages ← 'Bokhyllan - katalogtjänst för folkbiblioteke…' (declared home: projects) |
 | `docx-role-first-no-blanks` | Skills ← '.NET' — a FRAGMENT of the authored project line 'Jobbliggaren - deterministisk CV-granskare i…' (the list parser atomised it) |
+| `docx-company-first-header` | Languages ← 'PROJEKT (URVAL)' (declared home: projects) |
+| `docx-company-first-header` | Languages ← 'Jobbliggaren - deterministisk CV-granskare i…' (declared home: projects) |
+| `docx-company-first-header` | Languages ← 'Kartkollen - öppen data om kommunala beslut' — a FRAGMENT of the authored project line 'Kartkollen - öppen data om kommunala beslut,…' (the list parser atomised it) |
+| `docx-company-first-header` | Languages ← 'byggd på PostGIS.' — a FRAGMENT of the authored project line 'Kartkollen - öppen data om kommunala beslut,…' (the list parser atomised it) |
+| `docx-company-first-header` | Languages ← 'Turlistan - reseplanerare för kollektivtrafi…' (declared home: projects) |
+| `docx-company-first-header` | Languages ← 'Bokhyllan - katalogtjänst för folkbiblioteke…' (declared home: projects) |
+| `docx-company-first-header` | Skills ← '.NET' — a FRAGMENT of the authored project line 'Jobbliggaren - deterministisk CV-granskare i…' (the list parser atomised it) |
 
 ## 8. Pin P7 (unknown heading) and pin P5 (English non-difference)
 
@@ -936,6 +968,17 @@ permitted to differ is the detected language.
   invisibility shipped as a measurement, not as a distinct extraction mechanic.
 - **Scanned / `NoTextLayer` documents are absent**, so the `ParseConfidence.Failed`
   branch of the import handler's segment conditional is unexercised.
+- **Entry boundaries still need a blank paragraph, and nothing here recovers them.**
+  `SplitEntries` splits on blank lines only, so a DOCX that authors none yields ONE entry
+  per block. That is why the `-no-blanks` rows report 1 of 5 employments — a document
+  fact, not a header-order fact, which #1060 β-1's role-first control arm separated. Not
+  fixed there: its blast radius is every row in this table, so it would have made that
+  PR's diff unattributable. Named so a promoting row is not read as a recovered one.
+- **No arm authors a `"Company, City"` field line.** `TitleOrgSeparators` includes
+  `", "`, so such a line splits into (Company, City) and the city lands in the employer
+  slot — on ANY row, before and after β-1, since the separator's ambiguity is a property
+  of the separator and not of which line carries it. Row 23 publishes the swapped-slot
+  outcome for the dash form; the comma form is the same class and is unmeasured.
 - **Kerning-driven word splits, ligature artefacts, rotated text and foreign-producer
   ToUnicode tables are absent.** Every PDF here round-trips through a QuestPDF-embedded
   subset font and its own CMap — a real mechanism, but QuestPDF's.
@@ -957,12 +1000,14 @@ this corpus exists to avoid.
 
 ### A. `addDoubleNewline: true` is not the fix (measured 2026-07-26, PR K)
 
-> **READ THE THIRD CORRECTION AT THE END OF THIS SUBSECTION FIRST.** Everything below is written
-> in the present tense and was true when measured, but #1060 β-1 fixed the parser defect that
-> produced the blocks these paragraphs reason about. **No row in this artifact blocks on
-> `IncompleteContent` any more.** The prose is kept verbatim as the record of what was measured
-> when; the banner sits here so no reader reaches a stale present-tense claim without meeting the
-> correction. One banner, not a marker per sentence.
+> **STALE AS OF 2026-08-01 (#1060 β-1) — READ THE THIRD CORRECTION BELOW BEFORE ANY PARAGRAPH IN
+> THIS SUBSECTION.** Everything under this heading is written in the present tense and was true at
+> the commit each paragraph names. β-1 then fixed the parser defect that produced the blocks they
+> reason about, and **no row in this artifact blocks on `IncompleteContent` any more.** The prose
+> is kept verbatim as the record of what was measured when; the banner sits here so no reader
+> reaches a stale present-tense claim without meeting the correction. One banner, not a marker per
+> sentence — and it is dated, because the paragraphs it governs are dated entries and an undated
+> absolute would be the same defect one level up.
 
 | Form | blank lines | parsed experience (ground truth 5) | parsed education | confidence |
 |---|---|---|---|---|
@@ -1020,15 +1065,27 @@ still take from them:
   at `d435a9c4`; regenerate at that commit to see them.
 - **The `Domain code` column now speaks about nothing.** It was built one PR ago to name the
   constraint behind an `IncompleteContent` block, and after this PR **no row in the corpus blocks
-  on `IncompleteContent` at all** — the column renders `—` on all 22. That is a real loss of
-  coverage caused by fixing the defect, and it is named here rather than left for a reader to
-  notice. The instrument is not wrong; its subject was a parser bug and the bug is gone.
+  on `IncompleteContent` at all** — the column renders an em-dash on every row. Count them in §5
+  rather than trusting a numeral here. That is a real loss of coverage caused by fixing the defect,
+  and it is named here rather than left for a reader to notice. The instrument is not wrong; its
+  subject was a parser bug and the bug is gone. The two personnummer rows still block, so the
+  reader half of the contract is still exercised — it is the code-bearing half that went quiet.
 - **The `addDoubleNewline` spike's fifteen-fragment case stays unmeasured**, exactly as the second
   correction left it, and it can no longer be read off any row in this file.
 
-Restoring coverage needs a fixture whose entry is *irreducibly* non-buildable — a source that
-genuinely carries no employer, which no arm here authors. That fixture belongs to the routing work
-(β-3) that would consume it, not to this PR.
+Restoring that coverage needs a fixture whose entry is *irreducibly* non-buildable — a source that
+genuinely carries no employer at all, which no arm here authors. **The gap is real whether or not
+any particular follow-up ships**; it belongs to whatever work first authors such an entry, and
+per-entry routing (β-3) is the consumer that would. Written that way deliberately: a PR that is
+permitted not to exist cannot be the carrier of an obligation this file creates.
+
+**What β-1 did publish is its own cost.** Row 23 `docx-company-first-header` is the only arm whose
+field-bearing line is written company-first, and it is the shape β-1 moved from an honest block to
+a promote with the two slots swapped. It prints **`PromotedFaithful`** — because
+`LayoutChainRunner.Decide` reads entry COUNTS — while every one of its eight markers prints
+**`RetainedButOrphaned`**, because `MarkerTrace` reads structure. It is the first row in this file
+where the two verdicts disagree in the direction *"the numbers are right and the content is
+wrong"*, and it is the reason to distrust the word `PromotedFaithful` on its own anywhere else.
 
 **What actually disqualified the flag** is that it makes the block UNIVERSAL. Every PDF employment
 whose period sits on its own line yields such a fragment, so every row that promotes today would

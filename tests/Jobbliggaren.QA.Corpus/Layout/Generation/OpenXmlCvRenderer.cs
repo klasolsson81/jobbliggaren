@@ -33,8 +33,12 @@ namespace Jobbliggaren.QA.Corpus.Layout.Generation;
 internal static class OpenXmlCvRenderer
 {
     /// <summary>A Word table, one row per job, PERIOD cell before ROLE cell — the label-first
-    /// shape a two-column Word template produces. No blank paragraphs. The cell order inverts the
-    /// header line, which is what makes <c>SplitTitleOrganization</c> read Title as null.</summary>
+    /// shape a two-column Word template produces. No blank paragraphs.
+    /// <para>UNTIL #1060 β-1 the cell order made <c>SplitTitleOrganization</c> read Title as null,
+    /// because the split ran against a line carrying nothing but a period. It now reads the next
+    /// line instead, so this arm parses its one fused entry and PROMOTES (lossily — it still yields
+    /// one entry of five, for the unrelated reason that the document authors no blank paragraphs
+    /// and <c>SplitEntries</c> splits on those alone).</para></summary>
     internal static byte[] TableLabelFirstNoBlanks(CvModel m) =>
         Build(m, useTable: true, blankSeparators: false, roleFirst: false);
 
@@ -46,9 +50,11 @@ internal static class OpenXmlCvRenderer
     /// <summary>The one-variable twin of <see cref="TableLabelFirstNoBlanks"/>: same body, only
     /// <c>&lt;w:p&gt;&lt;w:pPr /&gt;&lt;/w:p&gt;</c> separators added. This is the arm that isolates
     /// BLANK-LINE loss at the segmenter level (entries 5 vs 1) while holding header-line order
-    /// fixed. Its promote outcome is expected to stay blocked, because the label-first header line
-    /// still yields a null Title — which is precisely why it must not be conflated with the
-    /// role-first arm.</summary>
+    /// fixed.
+    /// <para>Its promote outcome WAS expected to stay blocked, on the reasoning that a label-first
+    /// header line still yields a null Title. #1060 β-1 removed that cause, and this arm is now the
+    /// corpus's second <c>PromotedFaithful</c> row — 5/5, 3/3, eight markers Survived. It remains
+    /// the blank-line isolator it was authored to be; only its verdict moved.</para></summary>
     internal static byte[] TableLabelFirstWithBlanks(CvModel m) =>
         Build(m, useTable: true, blankSeparators: true, roleFirst: false);
 
@@ -76,7 +82,26 @@ internal static class OpenXmlCvRenderer
     internal static byte[] RoleFirstNoBlanks(CvModel m) =>
         Build(m, useTable: true, blankSeparators: false, roleFirst: true);
 
-    private static byte[] Build(CvModel m, bool useTable, bool blankSeparators, bool roleFirst)
+    /// <summary>The COST arm for #1060 β-1, and the only arm in the corpus that authors its
+    /// field-bearing line COMPANY-first (<c>"Klarna AB - Senior backend-utvecklare"</c>). A
+    /// one-variable step from <see cref="TableLabelFirstWithBlanks"/>: same container, same blank
+    /// separators, same period-first cell order — only the within-line order inverted.
+    ///
+    /// <para>It exists because β-1 moved a population from an honest block to a promote whose two
+    /// slots are SWAPPED, and that cost was published nowhere: every other arm writes
+    /// role-before-marker, so twenty-two rows could not see the shape. A cost accepted and
+    /// unpublished is a cost laundered.</para>
+    ///
+    /// <para>It is also where the INSTRUMENT gets measured rather than the parser.
+    /// <c>LayoutChainRunner.Decide</c> reads entry COUNTS, so this row prints
+    /// <c>PromotedFaithful</c>; <c>MarkerTrace</c> reads structure, so every marker prints
+    /// <c>RetainedButOrphaned</c>. It is the first row where the two verdicts disagree in the
+    /// direction "the numbers are right and the content is wrong".</para></summary>
+    internal static byte[] CompanyFirstHeaderWithBlanks(CvModel m) =>
+        Build(m, useTable: true, blankSeparators: true, roleFirst: false, companyFirst: true);
+
+    private static byte[] Build(
+        CvModel m, bool useTable, bool blankSeparators, bool roleFirst, bool companyFirst = false)
     {
         using var stream = new MemoryStream();
         using (var document = WordprocessingDocument.Create(
@@ -109,8 +134,9 @@ internal static class OpenXmlCvRenderer
             Blank();
             foreach (var e in m.Employments)
             {
-                var header = roleFirst ? $"{e.Role} - {e.Marker}" : e.Period;
-                var second = roleFirst ? e.Period : $"{e.Role} - {e.Marker}";
+                var pair = companyFirst ? $"{e.Marker} - {e.Role}" : $"{e.Role} - {e.Marker}";
+                var header = roleFirst ? pair : e.Period;
+                var second = roleFirst ? e.Period : pair;
 
                 if (useTable)
                 {
@@ -134,8 +160,9 @@ internal static class OpenXmlCvRenderer
             Blank();
             foreach (var e in m.Educations)
             {
-                Line(roleFirst ? $"{e.Degree} - {e.Marker}" : e.Period);
-                Line(roleFirst ? e.Period : $"{e.Degree} - {e.Marker}");
+                var eduPair = companyFirst ? $"{e.Marker} - {e.Degree}" : $"{e.Degree} - {e.Marker}";
+                Line(roleFirst ? eduPair : e.Period);
+                Line(roleFirst ? e.Period : eduPair);
                 Blank();
             }
 

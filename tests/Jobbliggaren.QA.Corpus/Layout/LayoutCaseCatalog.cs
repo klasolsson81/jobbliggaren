@@ -397,6 +397,36 @@ public static class LayoutCaseCatalog
             SpikeMeasuredExtractSegment: false,
             OneVariableStepFrom: "docx-role-first-with-blanks",
             ProjectHeadingRendered: UnknownProjectHeading),
+
+        // #1060 beta-1's COST arm. Every other arm writes its field-bearing line role-before-
+        // marker, so the shape where the two slots come out SWAPPED was invisible to all 22 rows.
+        // beta-1 moved that population from an honest block to a promote, and an accepted cost that
+        // is published nowhere is a laundered one. One variable from row 20: within-line order.
+        new("docx-company-first-header",
+            "the field-bearing line written COMPANY-first — the shape whose slots come out swapped",
+            "(c) table-based Word template — the arm that publishes beta-1's cost",
+            "docx", "cv.docx", Docx, OpenXmlCvRenderer.CompanyFirstHeaderWithBlanks, CvModel.Swedish,
+            p =>
+            {
+                var xml = p.DocxDocumentXml();
+                p.Require(xml.Contains("<w:tbl>", StringComparison.Ordinal), "expected a w:tbl element");
+                // The arm IS the inverted order, so the proof asserts the order itself rather than
+                // the container. Without this the renderer could silently emit role-first and the
+                // row would publish a reassuring verdict about a document it never rendered.
+                p.Require(
+                    xml.Contains("Klarna AB - Senior backend-utvecklare", StringComparison.Ordinal),
+                    "expected the employment line written COMPANY-first");
+                p.Require(
+                    !xml.Contains("Senior backend-utvecklare - Klarna AB", StringComparison.Ordinal),
+                    "found the role-first form — this arm would then duplicate docx-table-label-first-with-blanks");
+                p.Require(
+                    xml.Contains("Chalmers tekniska högskola - Civilingenjör", StringComparison.Ordinal),
+                    "expected the education line written INSTITUTION-first (both parsers share one split)");
+            },
+            "the employment and education lines are written company/institution-first, in a w:tbl",
+            SpikeMeasuredExtractSegment: false,
+            OneVariableStepFrom: "docx-table-label-first-with-blanks",
+            ProjectHeadingRendered: UnknownProjectHeading),
     ];
 
     /// <summary>

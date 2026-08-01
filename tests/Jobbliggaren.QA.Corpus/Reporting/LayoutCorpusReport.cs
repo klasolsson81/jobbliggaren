@@ -451,6 +451,17 @@ public static class LayoutCorpusReport
         L("  invisibility shipped as a measurement, not as a distinct extraction mechanic.");
         L("- **Scanned / `NoTextLayer` documents are absent**, so the `ParseConfidence.Failed`");
         L("  branch of the import handler's segment conditional is unexercised.");
+        L("- **Entry boundaries still need a blank paragraph, and nothing here recovers them.**");
+        L("  `SplitEntries` splits on blank lines only, so a DOCX that authors none yields ONE entry");
+        L("  per block. That is why the `-no-blanks` rows report 1 of 5 employments — a document");
+        L("  fact, not a header-order fact, which #1060 β-1's role-first control arm separated. Not");
+        L("  fixed there: its blast radius is every row in this table, so it would have made that");
+        L("  PR's diff unattributable. Named so a promoting row is not read as a recovered one.");
+        L("- **No arm authors a `\"Company, City\"` field line.** `TitleOrgSeparators` includes");
+        L("  `\", \"`, so such a line splits into (Company, City) and the city lands in the employer");
+        L("  slot — on ANY row, before and after β-1, since the separator's ambiguity is a property");
+        L("  of the separator and not of which line carries it. Row 23 publishes the swapped-slot");
+        L("  outcome for the dash form; the comma form is the same class and is unmeasured.");
         L("- **Kerning-driven word splits, ligature artefacts, rotated text and foreign-producer");
         L("  ToUnicode tables are absent.** Every PDF here round-trips through a QuestPDF-embedded");
         L("  subset font and its own CMap — a real mechanism, but QuestPDF's.");

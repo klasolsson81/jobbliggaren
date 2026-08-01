@@ -1,5 +1,6 @@
 import { useTranslations } from "next-intl";
 import type { AuditLogEntryDto } from "@/lib/types/admin";
+import { SWEDISH_TIME_ZONE } from "@/lib/time/swedish-calendar";
 
 interface AuditLogTableProps {
   entries: ReadonlyArray<AuditLogEntryDto>;
@@ -81,13 +82,18 @@ export function AuditLogTable({ entries }: AuditLogTableProps) {
 }
 
 function formatDateTime(iso: string): string {
-  // Svensk locale: YYYY-MM-DD HH:mm:ss (CLAUDE.md §10.2). Explicit Europe/Stockholm
-  // så server-tidszon inte påverkar utdata (Server Component renderar på server-side).
+  // Svensk locale: YYYY-MM-DD HH:mm:ss (CLAUDE.md §10). Zonen anges explicit så
+  // server-tidszon inte påverkar utdata (Server Component renderar på server-side).
   // FE-M4 (design-reviewer 2026-05-11).
+  //
+  // The zone is SWEDISH_TIME_ZONE rather than a literal of this component's own.
+  // The gap that closes is ONE-directional, and saying so precisely is the point:
+  // changing the literal here was already caught by this file's own spec, while
+  // changing the CONSTANT reached nothing here at all. Both directions measured.
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
   const formatted = d.toLocaleString("sv-SE", {
-    timeZone: "Europe/Stockholm",
+    timeZone: SWEDISH_TIME_ZONE,
     year: "numeric",
     month: "2-digit",
     day: "2-digit",

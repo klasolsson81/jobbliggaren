@@ -43,8 +43,9 @@ public static class ApplicationsEndpoints
           .RequireRateLimiting(RateLimitingExtensions.MeListReadPolicy);
 
         // #316 — AF activity-report helper. Owner-scoped read; year/month
-        // optional (absent → previous month, computed server-side). Validation
-        // pipeline returns 400 on a malformed pair.
+        // optional (absent → current month on the Swedish civil calendar,
+        // computed server-side). Validation pipeline returns 400 on a
+        // malformed pair.
         group.MapGet("/activity-report", async (
             IMediator mediator,
             int? year = null,

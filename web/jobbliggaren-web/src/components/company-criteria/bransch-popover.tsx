@@ -128,6 +128,8 @@ export function BranschPopover({
           help={tc("sniHelp")}
           filterLabel={tc("sniFilterLabel")}
           groupAria={tc("sniGroupAria")}
+          expandAria={(name) => tc("sniExpandAria", { name })}
+          collapseAria={(name) => tc("sniCollapseAria", { name })}
           optionsUnavailable={t("branschUnavailable")}
         />
       </div>

@@ -54,6 +54,10 @@ function renderPicker(
       filterLabel="Sök bransch"
       filterHint="Skriv för att smalna av listan över branscher."
       groupAria="Branscher"
+      // AXIS copy, host-supplied since #1146 — the fixture speaks the SNI axis,
+      // matching `filterLabel`/`groupAria` above.
+      expandAria={(name) => `Visa branscher i ${name}`}
+      collapseAria={(name) => `Dölj branscher i ${name}`}
       selectedCountLabel="0 valda branscher"
       optionsUnavailable="Registret kunde inte laddas."
       {...props}
@@ -215,6 +219,8 @@ describe("CriterionPicker — the filter view (#999: all three levels)", () => {
         onToggle={vi.fn()}
         filterLabel="Sök bransch"
         groupAria="Branscher"
+      expandAria={(name) => `Visa branscher i ${name}`}
+      collapseAria={(name) => `Dölj branscher i ${name}`}
         selectedCountLabel="1 vald bransch"
         optionsUnavailable="Registret kunde inte laddas."
       />,
@@ -293,6 +299,8 @@ describe("CriterionPicker — optional heading and help (#999)", () => {
         onToggle={vi.fn()}
         filterLabel="Sök bransch"
         groupAria="Branscher"
+      expandAria={(name) => `Visa branscher i ${name}`}
+      collapseAria={(name) => `Dölj branscher i ${name}`}
         optionsUnavailable="Registret kunde inte laddas."
       />,
     );
@@ -313,6 +321,8 @@ describe("CriterionPicker — optional heading and help (#999)", () => {
         onToggle={vi.fn()}
         filterLabel="Sök bransch"
         groupAria="Branscher"
+      expandAria={(name) => `Visa branscher i ${name}`}
+      collapseAria={(name) => `Dölj branscher i ${name}`}
         optionsUnavailable="Registret kunde inte laddas."
       />,
     );

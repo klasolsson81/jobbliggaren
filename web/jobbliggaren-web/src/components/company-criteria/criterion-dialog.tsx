@@ -167,6 +167,8 @@ export function CriterionDialog({
             filterLabel={tc("sniFilterLabel")}
             filterHint={tc("sniFilterHint")}
             groupAria={tc("sniGroupAria")}
+            expandAria={(name) => tc("sniExpandAria", { name })}
+            collapseAria={(name) => tc("sniCollapseAria", { name })}
             // Counts what the user PICKED, not what it expanded to. One click on a section used to
             // report "52 valda branscher" while the label beside it named one division — the same
             // number the /foretag/sok chips contradicted (#999 design finding 4). One key, one
@@ -186,6 +188,8 @@ export function CriterionDialog({
             filterLabel={tc("kommunFilterLabel")}
             filterHint={tc("kommunFilterHint")}
             groupAria={tc("kommunGroupAria")}
+            expandAria={(name) => tc("kommunExpandAria", { name })}
+            collapseAria={(name) => tc("kommunCollapseAria", { name })}
             selectedCountLabel={tc("kommunSelectedCount", { count: kommunPicked })}
             optionsUnavailable={t("optionsUnavailable")}
           />

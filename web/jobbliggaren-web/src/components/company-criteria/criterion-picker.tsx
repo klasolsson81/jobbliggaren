@@ -55,6 +55,18 @@ interface CriterionPickerProps {
   /** Omitted where the field's own label already says it (the popover). */
   readonly filterHint?: string;
   readonly groupAria: string;
+  /**
+   * AXIS copy, supplied by the host like `heading`/`help`/`groupAria` — not
+   * component-owned. The tree's chevron is an icon-only button, so it needs an
+   * accessible name (its sibling `aria-expanded` cannot supply one, unlike the
+   * house's text-wrapping accordion buttons). But WHAT the children are is the
+   * axis's knowledge: this picker's two hosts render SNI sections and lan ->
+   * kommun respectively, so a single component-owned string said "underkategorier"
+   * over a lan while the same picker's help text said "ett helt lan eller
+   * enskilda kommuner" (design-reviewer, #1146).
+   */
+  readonly expandAria: (name: string) => string;
+  readonly collapseAria: (name: string) => string;
   /** Axis-specific message when the reference tree is empty (degraded load). */
   readonly optionsUnavailable: string;
 }
@@ -71,6 +83,8 @@ export function CriterionPicker({
   filterLabel,
   filterHint,
   groupAria,
+  expandAria,
+  collapseAria,
   optionsUnavailable,
 }: CriterionPickerProps) {
   // The component's OWN strings, not the page's. Three surfaces render this
@@ -251,8 +265,8 @@ export function CriterionPicker({
               selected={selected}
               onToggle={onToggle}
               groupAriaLabel={groupAria}
-              expandAria={(name) => t("expandAria", { name })}
-              collapseAria={(name) => t("collapseAria", { name })}
+              expandAria={expandAria}
+              collapseAria={collapseAria}
             />
           )}
         </div>

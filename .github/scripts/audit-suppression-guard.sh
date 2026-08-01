@@ -232,8 +232,14 @@ $IGNORED
 EOF
 fi
 
-# ---- 3 + 4: the override block ---------------------------------------------
-KEYS="$(jq -r '(.pnpm.overrides // {}) | to_entries[] | "\(.key)\t\(.value)"' "$PKG" 2>/dev/null | tr -d '\r')"
+# ---- 3: the override block --------------------------------------------------
+# Keys only. The targets had exactly one reader — check 4's floor comparison — and
+# went with it, so emitting them now would be dead data. That also makes the CR
+# strip load-bearing where it previously was NOT: with `key<TAB>value` the CR landed
+# after the VALUE and could never reach the name (measured: `aaa<TAB>^1.0.0\r`), so
+# the justification written above it was false. Emitting keys alone puts the CR on
+# the key, where it would break the exact-name match this loop depends on.
+KEYS="$(jq -r '(.pnpm.overrides // {}) | keys[]' "$PKG" 2>/dev/null | tr -d '\r')"
 if [ -z "$KEYS" ]; then
   if [ -z "$PNPM_MAJOR" ] && [ -z "$WS_YAML" ]; then
     warn "EMPTY CONFIG, UNVERIFIED LOCATION: no overrides in this manifest, and the location is unverified — see the ignoreGhsas note above. An empty block and a moved block look identical from here."
@@ -241,7 +247,7 @@ if [ -z "$KEYS" ]; then
     note "no overrides — nothing repaired, and the location is verified."
   fi
 else
-  while IFS=$'\t' read -r key target; do
+  while IFS= read -r key; do
     [ -n "$key" ] || continue
     # `pkg` or `pkg@<range>`; the range may itself contain '@' only in scopes,
     # which always lead, so split on the LAST '@' that is not position 0.

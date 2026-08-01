@@ -104,17 +104,18 @@ mk_lock "  postcss@8.5.24:"
 out="$(run "$TMP/d.pkg.json" "$TMP/d.audit.json" "$TMP/lock.yaml")"
 expect_has "D1 an override matching no package is named" "$out" "DEAD OVERRIDE"
 
-# CHECK 4 IS GONE. E1 went with it; F1 went with it (it asserted the absence of
-# a string no code path can emit any more, so it could not fail). E2 and E3 stay
-# but now assert against DEAD OVERRIDE — their subjects, a scoped name swallowed
-# by a bare key and a plain version entry, are still live for the name lookup.
-# It compared resolved versions against an open key's target floor and called
-# that Beslut 6's pin-back. Measured 2026-07-30: the signature is the opposite
-# (an override forces resolution TO the floor), a true pin-back needs declared
-# ranges the lockfile does not carry, and the state it DID detect is already
-# caught blockingly by `pnpm install --frozen-lockfile` in the required
-# `frontend` job. Removing it also removed every false positive this guard has
-# ever produced — all three lived in the version extraction it fed.
+# CHECK 4 IS GONE. It compared resolved versions against an open key's target
+# floor and called that Beslut 6's pin-back. Measured 2026-07-30: the signature
+# is the opposite (an override forces resolution TO the floor), a true pin-back
+# needs declared ranges the lockfile does not carry, and the state it DID detect
+# is already caught blockingly by `pnpm install --frozen-lockfile` in the
+# required `frontend` job. Removing it also removed every false positive this
+# guard has ever produced — all three lived in the version extraction it fed.
+#
+# E1 went with it, and so did F1: F1 asserted the absence of a string no code
+# path can emit any more, so it could not fail. E2 and E3 stay, redirected at
+# DEAD OVERRIDE — their subjects, a scoped name swallowed by a bare key and a
+# plain version entry, are still live for the name lookup.
 
 # F: the same shape but GATED — a gated key legitimately spares consumers
 #    outside its range, so it must NOT fire.
@@ -143,13 +144,10 @@ mk_lock "  postcss@8.5.24:" "  '@tailwindcss/postcss@4.3.2':"
 out="$(run "$TMP/e2.pkg.json" "$TMP/e2.audit.json" "$TMP/lock.yaml")"
 expect_lacks "E2 a scoped package is not swallowed by a bare-name key" "$out" "DEAD OVERRIDE"
 
-# E3: pins the equality escape on the comparison, NOT what its first version
-#     claimed. That version said the lockfile's trailing `:` made the comparison
-#     fire on an exact match. Measured isolated: zero warnings — `sort -V` orders
-#     `7.28.0` before `7.28.0:`, so the condition never holds, and the colon in
-#     fact MASKED the CR bug. The claimed defect did not exist; only the CR one
-#     did. The version terminator is kept because it is correct, and is DECLARED
-#     UNEXERCISED: no fixture here kills its mutant.
+# E3: a plain, unquoted lockfile entry must not read as a dead override. Its
+#     first version claimed to pin a trailing-colon defect in a version
+#     comparison; that comparison is gone with check 4, and the defect was
+#     measured never to have existed.
 cat > "$TMP/e3.pkg.json" <<'J'
 { "dependencies": {}, "devDependencies": {},
   "pnpm": { "overrides": { "undici": "^7.28.0" } } }
@@ -197,6 +195,27 @@ J
 mk_lock "  x@1.0.0:"
 out="$(run "$TMP/t2.pkg.json" "$TMP/t2.audit.json" "$TMP/lock.yaml")"
 expect_lacks "T2 two live entries produce no stale warning (CR strip on ignoreGhsas)" "$out" "STALE SUPPRESSION"
+
+# T2b: the CR strip on the OVERRIDES read, exercised the same way T2 does the
+#      ignoreGhsas one — by cardinality, not by line endings. `$( )` eats only the
+#      last key's CR, so a single-key manifest hides the bug; two keys expose it.
+#      Both are live in the lockfile, so a hardened build must stay silent, while an
+#      unhardened one reports the FIRST key dead — its name arrives with a trailing
+#      CR and matches nothing.
+#
+#      This fixture exists because the strip's written justification was measured
+#      FALSE: with the read emitting `key<TAB>value`, the CR landed after the value
+#      and could never reach the name. Emitting keys alone moved it onto the key and
+#      made the strip real — so the fixture and the justification became true in the
+#      same edit.
+cat > "$TMP/t2b.pkg.json" <<'J'
+{ "dependencies": {}, "devDependencies": {},
+  "pnpm": { "overrides": { "alpha-pkg": "^1.0.0", "beta-pkg": "^2.0.0" } } }
+J
+echo '{ "advisories": {} }' > "$TMP/t2b.audit.json"
+mk_lock "  alpha-pkg@1.2.3:" "  beta-pkg@2.3.4:"
+out="$(run "$TMP/t2b.pkg.json" "$TMP/t2b.audit.json" "$TMP/lock.yaml")"
+expect_lacks "T2b two live override keys produce no dead-override warning (CR strip)" "$out" "DEAD OVERRIDE"
 
 # T3: a scoped override key must not be read as dead. The lockfile quotes scoped
 #     entries, so dropping the quote-strip makes every scoped key look absent —

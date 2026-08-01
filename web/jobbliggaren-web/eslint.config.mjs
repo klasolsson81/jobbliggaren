@@ -103,6 +103,28 @@ const SERVER_ACTION_RESTRICTIONS = [
   { selector: `${USE_SERVER_MODULE} > ExportAllDeclaration`, message: E352_MSG },
 ];
 
+// ── Timezone SSOT (#1141 follow-up) ────────────────────────────────────────
+// `SWEDISH_TIME_ZONE` is the one name for the product's home zone. Its doc used
+// to ENUMERATE where the raw literal still lived, which made removing a site
+// falsify the doc — and the enumeration carried an explicit standing order to
+// re-measure it by hand. This rule replaces the count with a gate: product code
+// cannot write the literal at all, so "the only production sites are the
+// declarations" asserts itself instead of being counted.
+//
+// The selector matches the literal used as a VALUE, and that is the entire
+// population definition — it needs no second normaliser. A comment, or a test
+// name reading "formats … in Europe/Stockholm", is not a Literal whose value
+// EQUALS the zone, so neither can match. The prose rule needed a separate clause
+// to exclude test names, which are themselves quoted string tokens, and a rule
+// that needs two normalisers is two rules.
+const ZONE_MSG =
+  'The raw zone literal is forbidden in product code. Import SWEDISH_TIME_ZONE from "@/lib/time/swedish-calendar" — one name, one place to change it. Exempt, in eslint.config.mjs and nowhere else: src/i18n/request.ts (the primary declaration of the global next-intl pin) and swedish-calendar.ts (the constant itself), plus test code, which must keep writing the literal — a test that imports the constant cannot catch a mutation OF the constant.';
+
+const ZONE_RESTRICTIONS = [
+  { selector: 'Literal[value="Europe/Stockholm"]', message: ZONE_MSG },
+  { selector: 'TemplateElement[value.cooked="Europe/Stockholm"]', message: ZONE_MSG },
+];
+
 const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
@@ -124,6 +146,7 @@ const eslintConfig = defineConfig([
         ...TYPOGRAPHY_RESTRICTIONS,
         ...MUTED_RESTRICTIONS,
         ...SERVER_ACTION_RESTRICTIONS,
+        ...ZONE_RESTRICTIONS,
       ],
     },
   },
@@ -137,6 +160,34 @@ const eslintConfig = defineConfig([
         "error",
         ...COPY_RESTRICTIONS,
         ...TYPOGRAPHY_RESTRICTIONS,
+        ...SERVER_ACTION_RESTRICTIONS,
+        ...ZONE_RESTRICTIONS,
+      ],
+    },
+  },
+  // The zone's two declarations, and the test harness beside the `.test.*`
+  // files the blocks above already ignore.
+  //
+  // This block re-states the other restriction groups instead of naming only
+  // the zone rule, because ESLint resolves a rule's options LAST-WINS rather
+  // than by concatenation: a block carrying a shorter `no-restricted-syntax`
+  // array would silently switch the copy, typography and `"use server"` guards
+  // OFF for these three paths. The groups are spread, not copied, so a
+  // restriction added above still reaches here. Probe-proved in both
+  // directions — see the PR body.
+  {
+    files: [
+      "src/i18n/request.ts",
+      "src/lib/time/swedish-calendar.ts",
+      "src/test/**/*.{ts,tsx,js,jsx}",
+    ],
+    ignores: ["**/*.test.{ts,tsx,js,jsx}"],
+    rules: {
+      "no-restricted-syntax": [
+        "error",
+        ...COPY_RESTRICTIONS,
+        ...TYPOGRAPHY_RESTRICTIONS,
+        ...MUTED_RESTRICTIONS,
         ...SERVER_ACTION_RESTRICTIONS,
       ],
     },

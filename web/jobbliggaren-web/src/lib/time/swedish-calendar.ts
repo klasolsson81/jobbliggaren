@@ -24,31 +24,21 @@ export type SwedishMonth = { year: number; month: number };
 
 /**
  * The product's home time zone — the counterpart to `SwedishCalendar.ZoneId`, and
- * the home for NEW call sites: import it rather than repeating the literal.
+ * the home for every call site: import it rather than repeating the literal.
  *
- * It is not yet the only occurrence, and the doc should not claim otherwise.
+ * That is not advice. `no-restricted-syntax` in `eslint.config.mjs` fails on the
+ * raw literal used as a value anywhere under `src/`, in pre-commit and in CI, so
+ * a new production site fails lint rather than being counted. The version of this
+ * doc before #1141's follow-up enumerated the remaining sites and carried a
+ * standing order to re-measure the paragraph by hand — which made removing a site
+ * falsify the doc, and made the doc a maintenance obligation rather than a fact.
  *
- * The population, stated before the number so the number can be reproduced: over
- * `web/jobbliggaren-web/src/`, an occurrence is the literal used as a VALUE IN
- * CODE — this declaration, or a `timeZone` argument. That is one rule, not two:
- * a mention inside a comment or inside a test name is not a value, so it needs no
- * separate clause to exclude it.
- *
- * Measured on that definition: **nine** occurrences. This declaration is one. Of
- * the other eight, exactly **one is production code** — `src/i18n/request.ts`,
- * the primary declaration of the global next-intl pin, left deliberately, because
- * making the i18n configuration depend on `lib/` is a layering decision of its
- * own. The remaining **seven are test-side**: six in five `.test.ts(x)` files
- * (`lib/i18n/format.test.ts` carries two of them), plus one in the
- * `test/render-intl` harness. Seven occurrences, six files — the paragraph says
- * which, because an earlier draft said "seven files" and meant seven occurrences.
- *
- * `admin/granskning/audit-log-table.tsx` was the second production site until
- * #1141, which is what took the count from ten to nine. **Re-measure this
- * paragraph whenever a site is added or removed** — its first phrasing was "three
- * raw literals remain", a count true of one population and read as a claim about
- * another, which is the defect class the originating PR spent three review rounds
- * on.
+ * The exemptions are in `eslint.config.mjs` and nowhere else: this declaration,
+ * `src/i18n/request.ts` (the primary declaration of the global next-intl pin,
+ * left deliberately — making the i18n configuration depend on `lib/` is a
+ * layering decision of its own), and test code. Test code keeps writing the
+ * literal on purpose: a test that imports this constant cannot catch a mutation
+ * OF this constant.
  */
 export const SWEDISH_TIME_ZONE = "Europe/Stockholm";
 

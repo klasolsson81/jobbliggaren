@@ -8,21 +8,21 @@
     <PackageVersion Include="Mediator.Abstractions" Version="3.0.2" />
     <!-- EF Core — Application uses DbSet<T> as abstraction per ADR 0009 (bridge pattern).
          Provider-specific packages (Npgsql, Relational) stay in Infrastructure. -->
-    <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="10.0.9" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="10.0.10" />
     <!-- Test stack -->
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.9">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageVersion>
-    <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.2" />
+    <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
     <PackageVersion Include="xunit.v3.mtp-v2" Version="3.2.2" />
     <!-- MTP code coverage-extension (Microsoft, ADR 0044). Auto-registreras via
          MTP.MSBuild, exponerar coverage-CLI-switcharna för xUnit v3-runnern.
          Test-only, dras in via tests/Directory.Build.props med
          PrivateAssets=all. Web-verifierad senaste stabila 2026-05-17 (nuget.org). -->
-    <PackageVersion Include="Microsoft.Testing.Extensions.CodeCoverage" Version="18.8.0" />
+    <PackageVersion Include="Microsoft.Testing.Extensions.CodeCoverage" Version="18.9.0" />
     <PackageVersion Include="Shouldly" Version="4.3.0" />
-    <PackageVersion Include="NSubstitute" Version="5.3.0" />
+    <PackageVersion Include="NSubstitute" Version="6.0.0" />
     <PackageVersion Include="NetArchTest.Rules" Version="1.3.2" />
     <!-- Load-test (ADR 0045 Beslut 4, BUILD.md §3.1, Klas-GO 2026-05-17).
          NBomber = .NET-native load-test, ren C#, xUnit/MTP-stack-koherent
@@ -41,36 +41,36 @@
     <PackageVersion Include="Mono.Cecil" Version="0.11.6" />
     <!-- Api -->
     <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.6" />
-    <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="10.0.9" />
+    <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="10.0.10" />
     <!-- Integration testing -->
     <PackageVersion Include="Microsoft.EntityFrameworkCore.InMemory" Version="10.0.9" />
-    <PackageVersion Include="Testcontainers.PostgreSql" Version="4.12.0" />
+    <PackageVersion Include="Testcontainers.PostgreSql" Version="4.13.0" />
     <!-- Worker host -->
     <PackageVersion Include="Microsoft.Extensions.Hosting" Version="10.0.9" />
     <!-- DI-abstraktion i Application (IServiceScopeFactory för snapshot child-scope,
          root-cause-fix 2026-05-16). Ren DI-abstraktion (ej EF/ASP.NET) → Clean Arch OK.
          Tidigare transitiv via FluentValidation.DependencyInjectionExtensions;
          explicit ref = versionshygien (senior-cto-advisor + dotnet-architect 2026-05-16). -->
-    <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.9" />
+    <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.10" />
     <!-- Auth + JWT -->
     <PackageVersion Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="10.0.9" />
-    <PackageVersion Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.9" />
+    <PackageVersion Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.10" />
     <!-- Health checks — TD-29 / F2-P6 strict readiness-probe.
          Microsoft.Extensions.Diagnostics.HealthChecks.* är Microsoft-paket (inte Xabaril).
          AddDbContextCheck<T> pingar DbContext via SELECT 1, returnerar Healthy/Unhealthy.
          Redis-check skrivs som custom IHealthCheck via IConnectionMultiplexer.IsConnected
          — undviker third-party Xabaril-dep, ~10 rader kod. -->
-    <PackageVersion Include="Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore" Version="10.0.9" />
+    <PackageVersion Include="Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore" Version="10.0.10" />
     <!-- Redis -->
-    <PackageVersion Include="StackExchange.Redis" Version="3.0.11" />
+    <PackageVersion Include="StackExchange.Redis" Version="3.1.0" />
     <PackageVersion Include="Microsoft.Extensions.Caching.StackExchangeRedis" Version="10.0.9" />
     <!-- Test — Redis container -->
-    <PackageVersion Include="Testcontainers.Redis" Version="4.12.0" />
+    <PackageVersion Include="Testcontainers.Redis" Version="4.13.0" />
     <!-- Smart enum — state machines i domänen -->
     <PackageVersion Include="Ardalis.SmartEnum" Version="8.2.0" />
     <!-- Hangfire — schedulerade jobb i Worker (BUILD.md §16, ADR 0023) -->
-    <PackageVersion Include="Hangfire.Core" Version="1.8.23" />
-    <PackageVersion Include="Hangfire.AspNetCore" Version="1.8.23" />
+    <PackageVersion Include="Hangfire.Core" Version="1.8.24" />
+    <PackageVersion Include="Hangfire.AspNetCore" Version="1.8.24" />
     <PackageVersion Include="Hangfire.PostgreSql" Version="1.21.1" />
     <!-- Jobbliggaren.Migrate — DDL-init console-app (STEG 14b). Behöver Npgsql direkt
          (Application använder bara DbSet<T>-abstraktionen via EF Core).
@@ -83,7 +83,7 @@
          (#802 — fält-krypteringen är Local-only, ADR 0049/0050). 0 Amazon-paket
          i lösningen; ett tripwire-arch-test håller det så (NoAmazonReferenceTests). -->
 
-    <PackageVersion Include="Microsoft.Extensions.Logging.Console" Version="10.0.9" />
+    <PackageVersion Include="Microsoft.Extensions.Logging.Console" Version="10.0.10" />
     <!-- TD-104 / Pre-4 STEG 6 — persistent strukturerad logg-sink (senior-cto-advisor
          Variant B: MEL → Seq, additivt på befintlig MEL-pipeline; Serilog avvisat YAGNI).
          9.0.0 = senaste stabila (net8/net9/netstandard2.0-asset). .NET 10-kompatibel:
@@ -110,7 +110,7 @@
          Web-verifierad 2026-06-06 (reactiveui/refit #2114, nuget.org). -->
     <PackageVersion Include="Refit" Version="11.2.0" />
     <PackageVersion Include="Refit.HttpClientFactory" Version="11.2.0" />
-    <PackageVersion Include="Microsoft.Extensions.Http.Resilience" Version="10.7.0" />
+    <PackageVersion Include="Microsoft.Extensions.Http.Resilience" Version="10.8.0" />
     <PackageVersion Include="WireMock.Net" Version="1.25.0" />
     <!-- Transitiv CVE-pinning: WireMock.Net 1.25.0 drar in OpenTelemetry.Api 1.14.0 +
          OpenTelemetry.Exporter.OpenTelemetryProtocol 1.14.0 vilka är sårbara mot
@@ -183,7 +183,7 @@
          Web-verified 2026-06-15 (nuget.org / questpdf.com/license): 2026.6.0 = latest stable,
          native net8.0 asset → net10.0 forward-compat. Klas-chosen version (deviates from the
          earlier 2026.2.x baseline; BUILD §3.1 updated in the same change). -->
-    <PackageVersion Include="QuestPDF" Version="2026.6.1" />
+    <PackageVersion Include="QuestPDF" Version="2026.7.2" />
     <!-- ADR 0080 Vag 4 PR-4 (BUILD §3.1, Klas-GO 2026-06-24) — transaktionell e-post
          via Resend (löser TD-101 dev-vägen). Officiella .NET-SDK:n; PackageReference lever
          ENDAST i Jobbliggaren.Infrastructure (Clean Arch — IResend/EmailMessage korsar aldrig
@@ -191,6 +191,6 @@
          ADR 0050). Wrappar IHttpClientFactory + absorberar auth-header/User-Agent (Resend
          403:ar utan)/Idempotency-Key. Web-verifierad 2026-06-24 (nuget.org /
          github.com/resend/resend-dotnet): 0.5.1 = senaste stabila. -->
-    <PackageVersion Include="Resend" Version="0.5.1" />
+    <PackageVersion Include="Resend" Version="0.8.0" />
   </ItemGroup>
 </Project>

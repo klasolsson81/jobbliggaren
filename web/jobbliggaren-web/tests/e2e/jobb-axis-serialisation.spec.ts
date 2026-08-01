@@ -31,9 +31,9 @@ const RUN_ID = Date.now();
  * jsdom cannot see any of this: it has no router cache, and `router.push` is a
  * synchronous mock there. `search-params.test.ts` pins that two applied states
  * cannot collapse to one key (with the counterfactual that the old form DID), and
- * `TaxonomyConceptIdGrammarTests` (backend, beside the seeder that owns the
- * grammar) pins that every shipped conceptId is accepted by the search gate,
- * whose charset excludes the separator. This file pins the EFFECT, in a real browser.
+ * `TaxonomyConceptIdGrammarTests` (in `Jobbliggaren.Application.UnitTests`) pins
+ * that every shipped conceptId is accepted by the query validator a /jobb search
+ * hits, whose charset excludes the separator. This file pins the EFFECT, in a real browser.
  *
  * Lane note, stated rather than implied: `e2e.yml` is observe-only
  * (`continue-on-error: true`, outside the required `ci` aggregate), so a

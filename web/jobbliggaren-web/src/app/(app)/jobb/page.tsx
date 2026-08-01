@@ -15,7 +15,6 @@ import {
   STATUS_ON_VALUE,
   parseEmployerParam,
   toStringList,
-  JOBB_AXIS_SEPARATOR,
 } from "@/lib/job-ads/search-params";
 // #419 pt1 — "Visa bara matchade"-sentinelparamen delar STATUS_ON_VALUE ("on") med
 // doljAnsokta/relaterade; den separata param-konstanten dokumenterar nyckeln.

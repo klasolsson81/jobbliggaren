@@ -16,22 +16,20 @@ import { facetDimensionSchema } from "@/lib/dto/job-ads";
  * påstår noll annonser när backend är nere; tom dict är tvetydig (legitim
  * tom korpus går inte att skilja från fel). Counts är en hint, aldrig en
  * förutsättning — popovern förblir fullt användbar utan dem.
- */
-/**
- * URL-dialekt, utskriven for att den INTE ar sidans (2026-08-01).
  *
- * `/jobb`s SIDA-URL skriver sedan dess ETT param per axel med conceptId:na
- * joinade (`?municipality=a.b`). Den har routen laser med `getAll` och splittar
- * INTE - den talar den UPPREPADE formen, och det ar korrekt, for dess enda
- * anropare ar `lib/hooks/use-facet-counts.ts`, som bygger farska
- * `URLSearchParams` med `append` ur redan parsade arrayer. Loopen ar sluten och
- * verifierad mekaniskt (code-reviewer + security-auditor, #1144).
+ * URL dialect, written down because it is NOT the page's (2026-08-01). `/jobb`'s
+ * PAGE url now writes ONE param per axis with the conceptIds joined
+ * (`?municipality=a.b`). This route reads with `getAll` and does NOT split — it
+ * speaks the REPEATED form, and that is correct, because its only caller is
+ * `lib/hooks/use-facet-counts.ts`, which builds fresh `URLSearchParams` with
+ * `append` from already-parsed arrays. The loop is closed, verified mechanically
+ * (code-reviewer + security-auditor, #1144).
  *
- * Den sjalvklara framtida refaktorn - vidarebefordra sidans `searchParams` hit -
- * skulle darfor skicka `a.b` som EN facettkod. Den faller fail-closed men tyst:
- * backendens `ConceptIdPattern` avvisar punkten, svaret blir 400, routen mappar
- * till 502 och hooken nollar counts utan spar i UI:t. Splitta har FORST om den
- * refaktorn nagonsin gors.
+ * The obvious future refactor — forward the page's `searchParams` here — would
+ * therefore send `a.b` as ONE facet code. It fails closed but SILENTLY: the
+ * backend's conceptId grammar rejects the dot, the response is 400, this route
+ * maps that to 502, and the hook nulls the counts with no trace in the UI. Split
+ * here FIRST if that refactor is ever done.
  */
 export async function GET(request: NextRequest) {
   const params = request.nextUrl.searchParams;

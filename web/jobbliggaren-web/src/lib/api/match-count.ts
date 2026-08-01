@@ -17,7 +17,7 @@ import { responseToResult, type ApiResult } from "@/lib/dto/_helpers";
  * (ADR 0030): unauthorized / rateLimited / error.
  *
  * Counten är grad-filtrerad (Bra + Stark) över hela den aktiva korpusen och är
- * per konstruktion samma som TotalCount på `/jobb?matchGrades=Good&matchGrades=Strong`.
+ * per konstruktion samma som TotalCount på `/jobb?matchGrades=Good.Strong`.
  * `count === 0` är ett ärligt svar (inget angivet yrke ELLER inga matchningar)
  * — Översikts notis renderar nollstate-copy, aldrig en mock-siffra.
  */

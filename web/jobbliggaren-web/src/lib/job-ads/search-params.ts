@@ -172,8 +172,9 @@ export const DEFAULT_SORT_BY: JobAdSortBy = "PublishedAtDesc";
  * decision from a weaker premise than the one actually available
  * (dotnet-architect, #1144). The guard therefore lives against the PATTERN, not
  * against a snapshot: see the separator test in `search-params.test.ts` and
- * `TaxonomyConceptIdGrammarTests`, which sits beside the seeder that owns the
- * grammar and asserts the shipped corpus obeys it.
+ * `TaxonomyConceptIdGrammarTests` (in `Jobbliggaren.Application.UnitTests`),
+ * which asserts the shipped corpus through the query validator a /jobb search
+ * actually hits.
  *
  * The two surfaces are deliberately allowed to differ, and the knowledge is
  * deliberately NOT shared: what they have in common is join/split, which is
@@ -216,7 +217,9 @@ export const JOBB_AXIS_SEPARATOR = ".";
  *   `jobb-hero-search.tsx`, so a dropped value would leave committed and parsed
  *   state permanently unequal. That path is dead only because no legal conceptId
  *   can contain the separator — it is the PATTERN that keeps it dead, not this
- *   filter (code-reviewer, #1144).
+ *   filter. The EMPTY-value drop below has the same consequence and a different
+ *   reason for being dead: `toStringList` filters empties on both entry paths,
+ *   so no parsed state can carry one into a build (code-reviewer, #1144).
  *
  * Empty values are filtered for a different reason: a trailing separator (`"a."`)
  * is the classic way a pasted link breaks, because auto-linkers in Slack, Outlook

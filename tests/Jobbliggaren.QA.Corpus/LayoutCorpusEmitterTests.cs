@@ -895,7 +895,15 @@ public sealed class LayoutCorpusEmitterTests
             ParsedFreeSectionHeadings: [],
             ParsedExperience: 1, ParsedEducation: 1,
             GroundTruthExperience: 5, GroundTruthEducation: 3,
-            PromotedExperience: 1, PromotedEducation: 1, PromotedExperienceWithRawPeriod: 1,
+            // Tracked to `promoted`, not hardcoded. A blocked row has no promoted CV to count,
+            // so the earlier fixtures published "Promoted exp = 1" beside "**BLOCKED**" — a
+            // combination LayoutChainRunner cannot produce (it reads them off
+            // `promotedContent`, which is null when nothing promoted). Nothing asserted on it,
+            // so not a §5 `Tests:` breach; it was a fixture stating something the product does
+            // not.
+            PromotedExperience: promoted ? 1 : null,
+            PromotedEducation: promoted ? 1 : null,
+            PromotedExperienceWithRawPeriod: promoted ? 1 : null,
             PromotedPreambleChars: null,
             BlockReason: blockReason,
             DomainErrorCode: domainErrorCode,

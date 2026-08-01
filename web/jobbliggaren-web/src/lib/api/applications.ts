@@ -66,8 +66,8 @@ export async function getApplications(
 }
 
 // #316 — AF activity-report helper. year/month optional: omit both to let the
-// backend default to the previous month (echoed back in the response so the
-// month picker can reflect it).
+// backend default to the current month on the Swedish civil calendar (echoed
+// back in the response so the month picker can reflect it).
 export async function getActivityReport(
   year?: number,
   month?: number

@@ -20,6 +20,7 @@ import type { TaxonomyTree } from "@/lib/dto/taxonomy";
 import {
   buildJobbHref,
   DEFAULT_SORT_BY,
+  serializeJobbAxis,
   withCommitFlag,
   type JobbUrlState,
 } from "@/lib/job-ads/search-params";
@@ -502,6 +503,25 @@ export function JobbHeroSearch({
 
   const committedQ = lastCommitted.q.trim();
 
+  // The no-JS fallback's axis fields, serialised through the SAME writer the two
+  // URL builders use so this producer cannot drift from them onto the repeated
+  // form. Empty axes are dropped, so a native GET keeps writing a clean URL.
+  const axisInputs: ReadonlyArray<readonly [string, string]> = (
+    [
+      ["occupationGroup", lastCommitted.occupationGroup],
+      ["region", lastCommitted.region],
+      ["municipality", lastCommitted.municipality],
+      // Klass 2 — no-JS-submit bär aktiva anställningsform/omfattning-filter så
+      // en sökord-sökning utan JS inte tappar panelvalen.
+      ["employmentType", lastCommitted.employmentType],
+      ["worktimeExtent", lastCommitted.worktimeExtent],
+      // STEG 5 — no-JS-submit bär aktivt grad-filter (paritet med Klass-2).
+      ["matchGrades", lastCommitted.matchGrades],
+    ] as const
+  )
+    .map(([name, values]) => [name, serializeJobbAxis(values)] as const)
+    .filter(([, joined]) => joined.length > 0);
+
   // #419 pt6 (CTO A1) — "sparbart sök?" speglar backendens capture-guard
   // (RecentJobSearchCaptureBehavior: q ELLER någon dimension icke-tom; matchGrades/
   // sortBy/runtime-flaggor räknas INTE). Samma knowledge piece, inte en egen definition.
@@ -641,52 +661,19 @@ export function JobbHeroSearch({
       {hydrated && committedQ.length > 0 && (
         <input type="hidden" name="q" value={committedQ} />
       )}
-      {lastCommitted.occupationGroup.map((v) => (
-        <input
-          key={`occupationGroup-${v}`}
-          type="hidden"
-          name="occupationGroup"
-          value={v}
-        />
-      ))}
-      {lastCommitted.region.map((v) => (
-        <input key={`region-${v}`} type="hidden" name="region" value={v} />
-      ))}
-      {lastCommitted.municipality.map((v) => (
-        <input
-          key={`municipality-${v}`}
-          type="hidden"
-          name="municipality"
-          value={v}
-        />
-      ))}
-      {/* Klass 2 — no-JS-submit bär aktiva anställningsform/omfattning-filter
-          så en sökord-sökning utan JS inte tappar panelvalen. */}
-      {lastCommitted.employmentType.map((v) => (
-        <input
-          key={`employmentType-${v}`}
-          type="hidden"
-          name="employmentType"
-          value={v}
-        />
-      ))}
-      {lastCommitted.worktimeExtent.map((v) => (
-        <input
-          key={`worktimeExtent-${v}`}
-          type="hidden"
-          name="worktimeExtent"
-          value={v}
-        />
-      ))}
-      {/* STEG 5 — no-JS-submit bär aktivt grad-filter så en sökord-sökning utan
-          JS inte tappar det (paritet med Klass-2-dimensionerna ovan). */}
-      {lastCommitted.matchGrades.map((v) => (
-        <input
-          key={`matchGrades-${v}`}
-          type="hidden"
-          name="matchGrades"
-          value={v}
-        />
+      {/* ONE hidden input per axis, carrying the values joined — NOT one input
+          per value.
+          This form is the route's THIRD producer of these axes, and the only one
+          that cannot call a URL builder: a native GET serialises whatever shape
+          these fields have. Emitting one input per value would make a no-JS
+          submit write the REPEATED form, which is exactly the router-cache
+          collision `serializeJobbAxis` exists to remove — and one producer still
+          writing it is enough to put the defect back for everyone who submits
+          this form (that is how it survived the first pass on `/foretag/sok`,
+          code-reviewer #1134). Serialising through the shared writer is what
+          keeps this producer from drifting from the two builders. */}
+      {axisInputs.map(([name, joined]) => (
+        <input key={name} type="hidden" name={name} value={joined} />
       ))}
       {/* #454 PR-0 — no-JS-submit bär aktivt arbetsgivar-filter så en sökord-
           sökning utan JS inte tappar det (paritet med dimensionerna ovan). */}

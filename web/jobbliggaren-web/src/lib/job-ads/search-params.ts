@@ -135,6 +135,86 @@ export const BARA_MATCHADE_PARAM = "baraMatchade";
 export const DEFAULT_SORT_BY: JobAdSortBy = "PublishedAtDesc";
 
 /**
+ * The separator that joins the values of ONE axis into ONE query value.
+ *
+ * **Why one occurrence per key at all.** Next's client router cache keys a route
+ * by its URL and collapses REPEATED query keys to the last value, so
+ * `?employmentType=A&employmentType=B` and `?employmentType=B` hash to the same
+ * entry. Navigating from the first to the second — which is what unticking a
+ * non-last value does — targets a URL the cache believes it already holds: no RSC
+ * request, no re-render, and the panel snaps back to the state the URL no longer
+ * describes. Upstream vercel/next.js#92152 and its fix PR #93368, both open on
+ * 2026-08-01; we run 16.2.9. Measured on this surface before the change: the two
+ * colliding transitions produced ZERO RSC navigations and left all three
+ * checkboxes ticked against a URL carrying two.
+ *
+ * **Why `.` here when `/foretag/sok` uses `-`.** That surface's axes are SCB
+ * codes, which are digits only, so `-` cannot occur in a value. These axes carry
+ * JobTech conceptIds, and JobTech publishes no grammar for them: no charset, no
+ * length, no generation rule. Today's committed corpus is 12-character ids over a
+ * 59-character alphabet with zero `-`, but that is a property of the data, not of
+ * the id space — and the space is refreshed by an off-repo script whose output
+ * arrives as a multi-megabyte diff nobody reads line by line. `-` would therefore
+ * rest on a question nobody can answer; `.` is safe under every hypothesis about
+ * the alphabet, because it is not in base64url at all. `*` was rejected with it:
+ * RFC 3986 makes `*` a reserved sub-delim, while `.` is unreserved, so no parser
+ * downstream may reassign it. Both survive `URLSearchParams.toString()`
+ * unencoded, where `,` becomes `%2C` and would disfigure every shared link.
+ *
+ * The two surfaces are deliberately allowed to differ, and the knowledge is
+ * deliberately NOT shared: what they have in common is join/split, which is
+ * mechanism; the separator itself is knowledge about two different id spaces.
+ * See also {@link toStringList}'s note on the sibling's same-named parser.
+ */
+export const JOBB_AXIS_SEPARATOR = ".";
+
+/**
+ * Serialize ONE axis into ONE query value — the counterpart to the split in
+ * {@link toStringList}, and the single place the joined form is produced.
+ *
+ * Exported because this route has a producer that cannot call a URL builder: the
+ * hero search island's no-JS `<form>` serialises its own hidden fields, so a
+ * native GET writes whatever shape those fields have. On `/foretag/sok` that form
+ * was a FOURTH producer still emitting the repeated shape after the three
+ * builders had moved, and on its own it was enough to put the collision back
+ * (code-reviewer, #1134). It is the same class of producer here.
+ *
+ * **The guard, and why it filters rather than throws.** A value containing the
+ * separator would serialise to a string that parses back as two values — silently
+ * widening the filter with the chip still showing, with no crash and no log. This
+ * cannot happen for any id in today's corpus (pinned by
+ * `taxonomy-conceptid-corpus.test.ts`, which is the load-bearing guard), so this
+ * is defence in depth against a future taxonomy refresh, not a live hazard.
+ * Dropping the offending value rather than throwing follows the route's
+ * established drop-unknown discipline (parity `matchGrades`, `parseEmployerParam`):
+ * this runs inside a Server Component render, a client transition and hidden-input
+ * rendering, and a manipulated or newly-refreshed value must never turn the page
+ * into an error boundary.
+ *
+ * **Deliberately NOT sorted**, unlike the sibling's `serializeCodeAxis`.
+ * `sameList` (`tokenize.ts`) compares element-by-element in order, and
+ * `sameUrlState` is load-bearing at three call sites including the hero mirror
+ * field's own-roundtrip detector; sorting here would make a set-equal pair compare
+ * unequal. Sorting only buys a canonical URL form and is not needed to remove the
+ * collision.
+ */
+export function serializeJobbAxis(values: ReadonlyArray<string>): string {
+  return values
+    .filter((v) => !v.includes(JOBB_AXIS_SEPARATOR))
+    .join(JOBB_AXIS_SEPARATOR);
+}
+
+/** Write one axis as a single param, omitting it entirely when empty (clean URL). */
+function setAxis(
+  params: URLSearchParams,
+  key: string,
+  values: ReadonlyArray<string>
+): void {
+  const joined = serializeJobbAxis(values);
+  if (joined.length > 0) params.set(key, joined);
+}
+
+/**
  * Fas E2j (ADR 0060 amendment 2026-06-12) — commit-intent-signalen.
  * `commit` är en TRANSIENT signal-param, INTE ett tillstånd: den ingår
  * ALDRIG i `JobbUrlState`, `sameUrlState`, `buildJobbHref` eller
@@ -219,22 +299,21 @@ export function parseQParam(
 
 export function buildJobbHref(state: JobbUrlState): string {
   const params = new URLSearchParams();
-  for (const v of state.occupationGroup)
-    params.append("occupationGroup", v);
-  for (const v of state.region) params.append("region", v);
-  for (const v of state.municipality) params.append("municipality", v);
-  // Klass 2 — upprepade params, samma som dimensionerna ovan (ADR 0042
-  // Beslut B). Ordnade efter ort/yrke så delningsbara URL:er får stabil form.
-  for (const v of state.employmentType) params.append("employmentType", v);
-  for (const v of state.worktimeExtent) params.append("worktimeExtent", v);
+  setAxis(params, "occupationGroup", state.occupationGroup);
+  setAxis(params, "region", state.region);
+  setAxis(params, "municipality", state.municipality);
+  // Klass 2 — one param per axis, same as the dimensions above. Ordered after
+  // ort/yrke so shared URLs keep a stable form.
+  setAxis(params, "employmentType", state.employmentType);
+  setAxis(params, "worktimeExtent", state.worktimeExtent);
   // #454 PR-0 — arbetsgivar-filtret (singel-org.nr). Skrivs BARA ut när satt
   // (frånvaro = ren URL). Placeras efter Klass-2-dimensionerna, före
   // matchGrades (stabil URL-form för delningsbara länkar).
   if (state.employer) params.set("employer", state.employer);
-  // STEG 5 — matchningsgrad (enum-namn). Upprepad param efter Klass-2-
-  // dimensionerna, före q (stabil URL-form för delningsbara länkar). Tom
-  // lista = inget param = alla grader visas (när matchningen är PÅ).
-  for (const v of state.matchGrades) params.append("matchGrades", v);
+  // STEG 5 — matchningsgrad (enum-namn). One param, placed after the Klass-2
+  // dimensions and before q (stable URL form for shared links). An empty list
+  // writes no param = every grade is shown (when matching is ON).
+  setAxis(params, "matchGrades", state.matchGrades);
   // issue #292 — matchnings-huvudbrytaren. Skriv BARA ut när off (PÅ = paramens
   // frånvaro, ren URL). Placeras efter matchGrades, före q (stabil URL-form).
   if (state.matchningOff) params.set(MATCHNING_PARAM, MATCHNING_OFF_VALUE);
@@ -309,19 +388,34 @@ export interface JobbRawSearchParams {
 }
 
 // Normaliserar string | string[] | undefined → string[] (tomma värden bort).
-// #846 — flyttad hit med `buildPageHref`, oförändrad. Tre kopior finns, med TVÅ
-// beteenden, och bara en av dem är farlig:
-//   - `jobb/page.tsx:371` är BYTE-IDENTISK med denna → ren duplicering, tråkig
-//     men säker. Kollapsen är ett eget steg i epik #1032, inte den här flytten.
-//   - `lib/company-search/search-params.ts:77` är SAMMA NAMN, ANNAT BETEENDE:
-//     den saknar `.map((v) => v.trim())`, och den är exporterad. En framtida
-//     "dedupe by name"-refaktor som pekar /jobb dit tar TYST bort trimningen och
-//     bryter `q=" ab "` → `q=ab`-pariteten som klamp-testet vaktar. Rör den inte
-//     utan att mäta beteendet — och den ligger i en annan lane (CLAUDE.md §6.5).
+//
+// Accepts BOTH shapes, and that is the whole back-compat story: the joined form
+// this module writes from 2026-08-01 (`?municipality=a.b`) and the repeated form
+// it wrote before (`?municipality=a&municipality=b`), which every previously
+// shared or bookmarked link still carries. Both parse to the same values, so no
+// redirect and no migration are needed and a reader cannot tell which form
+// produced the state. Splitting is safe on every axis that reaches here: all six
+// carry JobTech conceptIds or the matchGrades enum names, and the corpus test
+// pins that none contains the separator.
+//
+// #846 — flyttad hit med `buildPageHref`. Tre kopior finns, med TVÅ beteenden,
+// och bara en av dem är farlig:
+//   - `jobb/page.tsx` är BYTE-IDENTISK med denna → ren duplicering, tråkig men
+//     säker, och den hålls identisk här (båda fick samma split i samma PR — en
+//     parser som inte delar upp läser den nya formen som ETT värde). Kollapsen är
+//     ett eget steg i epik #1032, inte den här ändringen.
+//   - `lib/company-search/search-params.ts` `parseCodeAxis` är SAMMA ROLL, ANNAT
+//     BETEENDE: en annan separator (`-`), för ett annat id-rum. En framtida
+//     "dedupe by name"-refaktor som pekar /jobb dit byter TYST separator och
+//     bryter varje delad /jobb-länk. Rör den inte utan att mäta beteendet — och
+//     den ligger i en annan lane (CLAUDE.md §6.5).
 function toStringList(raw: string | string[] | undefined): string[] {
   if (raw === undefined) return [];
   const arr = Array.isArray(raw) ? raw : [raw];
-  return arr.map((v) => v.trim()).filter((v) => v.length > 0);
+  return arr
+    .flatMap((v) => v.split(JOBB_AXIS_SEPARATOR))
+    .map((v) => v.trim())
+    .filter((v) => v.length > 0);
 }
 
 /**
@@ -353,26 +447,25 @@ export function buildPageHref(
   if (params.sortBy && params.sortBy !== DEFAULT_SORT_BY) {
     url.set("sortBy", params.sortBy);
   }
-  for (const v of toStringList(params.occupationGroup))
-    url.append("occupationGroup", v);
-  for (const v of toStringList(params.region)) url.append("region", v);
+  // Every axis is re-serialised through the SAME writer `buildJobbHref` uses, so
+  // the two builders cannot drift on the URL contract. Parsing with
+  // `toStringList` first is also what makes a legacy repeated-form arrival heal:
+  // a page-2 link built from one comes out in the joined form.
+  setAxis(url, "occupationGroup", toStringList(params.occupationGroup));
+  setAxis(url, "region", toStringList(params.region));
   // E2b — utan denna rad tappar sida-2-klicket kommun-filtret (samma
   // felklass som F3 B-FIX; buildPageHref är en ANDRA URL-builder vid
   // sidan av buildJobbHref — architect-dom fråga 4.1).
-  for (const v of toStringList(params.municipality))
-    url.append("municipality", v);
+  setAxis(url, "municipality", toStringList(params.municipality));
   // Klass 2 — utan dessa tappar sida-2-klicket anställningsform/omfattning
   // (samma felklass som municipality ovan; buildPageHref är en andra URL-
   // builder vid sidan av buildJobbHref).
-  for (const v of toStringList(params.employmentType))
-    url.append("employmentType", v);
-  for (const v of toStringList(params.worktimeExtent))
-    url.append("worktimeExtent", v);
+  setAxis(url, "employmentType", toStringList(params.employmentType));
+  setAxis(url, "worktimeExtent", toStringList(params.worktimeExtent));
   // STEG 5 — utan denna rad tappar sida-2-klicket grad-filtret (samma felklass
   // som municipality/Klass-2 ovan; buildPageHref är en andra URL-builder vid
   // sidan av buildJobbHref). Page-validatorn droppar Top/okänt redan.
-  for (const v of toStringList(params.matchGrades))
-    url.append("matchGrades", v);
+  setAxis(url, "matchGrades", toStringList(params.matchGrades));
   // #300 PR-5 — utan denna rad tappar sida-2-klicket "Visa relaterade också"-
   // toggle:n (samma felklass som matchGrades ovan). Bevaras BARA när on (paritet
   // med buildJobbHref); page.tsx parsar bara on-värdet.

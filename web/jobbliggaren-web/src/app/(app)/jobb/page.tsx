@@ -14,6 +14,7 @@ import {
   RELATERADE_ON_VALUE,
   STATUS_ON_VALUE,
   parseEmployerParam,
+  JOBB_AXIS_SEPARATOR,
 } from "@/lib/job-ads/search-params";
 // #419 pt1 — "Visa bara matchade"-sentinelparamen delar STATUS_ON_VALUE ("on") med
 // doljAnsokta/relaterade; den separata param-konstanten dokumenterar nyckeln.
@@ -372,8 +373,22 @@ function parseSortBy(raw: string | undefined): JobAdSortBy {
 }
 
 // Normaliserar string | string[] | undefined → string[] (tomma värden bort).
+//
+// Accepts BOTH the joined form the builders write from 2026-08-01
+// (`?municipality=a.b`) and the repeated form they wrote before
+// (`?municipality=a&municipality=b`), so every previously shared or bookmarked
+// link keeps working without a redirect or a migration.
+//
+// Kept BYTE-IDENTICAL to the copy in `lib/job-ads/search-params.ts`, and the two
+// had to change in the same commit: this one is the PAGE ENTRY parser, so had it
+// been left un-split it would have read a joined `a.b` as ONE opaque value, and
+// every filter arriving in the new form would have silently matched nothing.
+// Collapsing the duplication is a separate step in epic #1032.
 function toStringList(raw: string | string[] | undefined): string[] {
   if (raw === undefined) return [];
   const arr = Array.isArray(raw) ? raw : [raw];
-  return arr.map((v) => v.trim()).filter((v) => v.length > 0);
+  return arr
+    .flatMap((v) => v.split(JOBB_AXIS_SEPARATOR))
+    .map((v) => v.trim())
+    .filter((v) => v.length > 0);
 }

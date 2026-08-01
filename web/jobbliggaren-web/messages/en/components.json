@@ -1,0 +1,8 @@
+{
+  "criterionPicker": {
+    "clear": "Clear selection",
+    "noMatch": "No matches. Clear the search field to browse the whole list.",
+    "filterMatches": "{count, plural, one {# match} other {# matches}}",
+    "filterTooMany": "{count} matches. Type more to narrow the list, or browse the whole list below."
+  }
+}

@@ -56,6 +56,7 @@ export default async function AppLayout({
     "aktivitetsrapport",
     "applications",
     "common",
+    "components",
     "jobads",
     "landing",
     "matchsetup",

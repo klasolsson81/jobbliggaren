@@ -78,8 +78,8 @@ export default async function AktivitetsrapportPage({
   // The backend echoes the resolved month (it defaults to the CURRENT month, on
   // the Swedish civil calendar) — this is the source of truth for the picker
   // value. Klas ruled 2026-07-29 that the code is right and the several places
-  // still documenting a "previous month" default are the defect; they are
-  // corrected in their own follow-up PR.
+  // still documenting a "previous month" default are the defect; they were
+  // corrected in #1141.
   const selectedMonth = `${report.year}-${pad2(report.month)}`;
   const monthLabel = formatMonthLabel(format, report.year, report.month);
   const monthOptions = buildMonthOptions(format, report.year, report.month);

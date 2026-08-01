@@ -4,6 +4,7 @@ import { renderToString } from "react-dom/server";
 import { NextIntlClientProvider } from "next-intl";
 import userEvent from "@testing-library/user-event";
 import svPages from "../../../messages/sv/pages.json";
+import svComponents from "../../../messages/sv/components.json";
 import { ForetagSokSearchbar } from "./foretag-sok-searchbar";
 import { buildForetagSokHref } from "@/lib/company-search/search-params";
 import type { CriterionReference } from "@/lib/dto/company-criteria";
@@ -1094,7 +1095,17 @@ describe("ForetagSokSearchbar — what a NATIVE GET would carry (D8(c) call-site
     // vacuous — the hidden input is gated on `namn.length > 0`, so it is absent whatever `hydrated`
     // says, and dropping the `hydrated &&` guard would leave the test green.
     const html = renderToString(
-      <NextIntlClientProvider locale="sv" messages={{ pages: svPages }}>
+      <NextIntlClientProvider
+        locale="sv"
+        // BranschPopover is MOUNTED unconditionally in this subtree (`open` controls
+        // visibility, not mounting), so it reaches `components.criterionPicker`.
+        // Seeding only `pages` was green by accident: the clear control is gated on
+        // `pickedCount > 0` and this fixture passes `sni={[]}`, so the key was never
+        // read. A future case with a non-empty `sni` would render the raw key instead
+        // of "Rensa" (code-reviewer, #1146). The payload fitness function cannot see
+        // this — it excludes `*.test.tsx` by design.
+        messages={{ pages: svPages, components: svComponents }}
+      >
         <ForetagSokSearchbar
           reference={REFERENCE}
           referenceOk

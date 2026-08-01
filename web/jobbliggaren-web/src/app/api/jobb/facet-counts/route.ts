@@ -16,6 +16,20 @@ import { facetDimensionSchema } from "@/lib/dto/job-ads";
  * påstår noll annonser när backend är nere; tom dict är tvetydig (legitim
  * tom korpus går inte att skilja från fel). Counts är en hint, aldrig en
  * förutsättning — popovern förblir fullt användbar utan dem.
+ *
+ * URL dialect, written down because it is NOT the page's (2026-08-01). `/jobb`'s
+ * PAGE url now writes ONE param per axis with the conceptIds joined
+ * (`?municipality=a.b`). This route reads with `getAll` and does NOT split — it
+ * speaks the REPEATED form, and that is correct, because its only caller is
+ * `lib/hooks/use-facet-counts.ts`, which builds fresh `URLSearchParams` with
+ * `append` from already-parsed arrays. The loop is closed, verified mechanically
+ * (code-reviewer + security-auditor, #1144).
+ *
+ * The obvious future refactor — forward the page's `searchParams` here — would
+ * therefore send `a.b` as ONE facet code. It fails closed but SILENTLY: the
+ * backend's conceptId grammar rejects the dot, the response is 400, this route
+ * maps that to 502, and the hook nulls the counts with no trace in the UI. Split
+ * here FIRST if that refactor is ever done.
  */
 export async function GET(request: NextRequest) {
   const params = request.nextUrl.searchParams;

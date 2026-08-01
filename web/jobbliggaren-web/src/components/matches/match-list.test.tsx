@@ -114,10 +114,21 @@ describe("MatchList (ADR 0080 Vag 4 PR-5)", () => {
     const moreLink = screen.getByRole("link", {
       name: "Hitta fler via matchningsfiltret i jobblistan",
     });
-    expect(moreLink).toHaveAttribute(
-      "href",
-      "/jobb?matchGrades=Good&matchGrades=Strong"
-    );
+    expect(moreLink).toHaveAttribute("href", "/jobb?matchGrades=Good.Strong");
+
+    // The INVARIANT behind that literal, asserted separately so a future drift
+    // back to a handwritten link fails here rather than in a user's session.
+    // This link is a page-URL PRODUCER; it used to be handwritten as
+    // `?matchGrades=Good&matchGrades=Strong`, and Next's router cache collapses
+    // repeated keys to the last value — so its slot was keyed
+    // `matchGrades=Strong` while carrying a Good+Strong document, and `<Link>`
+    // prefetch poisoned it merely by rendering this list.
+    const href = moreLink.getAttribute("href") ?? "";
+    const params = new URLSearchParams(href.slice(href.indexOf("?")));
+    expect(
+      params.getAll("matchGrades"),
+      "a repeated axis key here re-introduces the router-cache collision this link's own history is the example of"
+    ).toHaveLength(1);
   });
 
   it("under cap (49 rader) → ingen bounded-window-hint", () => {

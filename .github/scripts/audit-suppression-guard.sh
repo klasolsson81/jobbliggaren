@@ -208,6 +208,11 @@ jq -e '.pnpm.auditConfig.ignoreGhsas == null or (.pnpm.auditConfig.ignoreGhsas |
 # close it, and is deliberately not added — the failure mode is noise, not a false
 # clean, and a "must contain at least one package entry" rule would itself misfire on
 # a legitimately empty dependency tree. Declared, not overlooked.
+#
+# And the noise is unreachable in CI anyway, which is the part that makes the
+# trade-off easy rather than merely defensible: a truncated `pnpm-lock.yaml` fails
+# `pnpm install --frozen-lockfile` in the REQUIRED `frontend` job, so the tree is
+# already red before observe-only `audit` runs at all.
 grep -qE "^[[:space:]]*[\"']?lockfileVersion[\"']?[[:space:]]*:" "$LOCK" 2>/dev/null \
   || skip "$LOCK carries no \`lockfileVersion\` key, so it is not a pnpm lockfile this guard can read, and every override key would report as absent from it."
 
@@ -441,7 +446,11 @@ else
         found = 1
       }
       END { exit !found }' "$LOCK" 2>/dev/null; then
-      warn "DEAD OVERRIDE: key '$key' names a package absent from the lockfile. It repairs nothing; a repair that stopped applying reads exactly like one that works."
+      # Worded to avoid the substring "absent from the", which check 2's note also
+      # contains: twelve fixtures needle on that phrase, and a needle matching two
+      # different sentences binds to neither. Same rule as the status markers — bind
+      # to the sentence, not to a fragment that drifts between them.
+      warn "DEAD OVERRIDE: key '$key' names a package the lockfile does not carry. It repairs nothing; a repair that stopped applying reads exactly like one that works."
     fi
   done <<EOF
 $KEYS

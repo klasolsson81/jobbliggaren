@@ -102,9 +102,12 @@ sets `tools:`), five assert a blanket repo-effect boundary:
 
 The first two carry, word for word, the sentence this file struck as false about the
 harness. `test-runner.md` asserts the Bash-mutation residual itself as a boundary.
-**Three of those five rows were violated by their own holders while reviewing the PR
-that struck the sentence** — `code-reviewer`, `dotnet-architect` and this file's own
-author all ran Bash, and each disclosed it unprompted.
+**Two of those five rows were violated by their own holders while reviewing the PR
+that struck the sentence** — `code-reviewer` and `dotnet-architect` both ran Bash, as
+did this file's own author, who is not one of the five. Three agents, two rows; each
+disclosed it unprompted. (An earlier revision said "three of those five rows", which
+counted the violators and reported them as rows — the same true-of-its-evidence,
+false-of-its-subject failure this paragraph exists to record.)
 
 The remaining **seven** charters carry scoped write prohibitions ("never edit
 `BUILD.md`", "a change is a new version file"), which are a different claim — about

@@ -102,8 +102,9 @@ public sealed class LayoutCorpusReportTests
         // revision of this comment said "none of these can be reddened by a change to the
         // product" and that was simply false. It carries NO COUNT any more: the count went wrong
         // once ("three" after a fourth landed) and stale once ("four", correct when written and
-        // deleted in the same edit that added (e)), and a list sitting directly above the asserts
-        // it describes needs no numeral to be checkable.
+        // stale the moment (e) landed — it then SHIPPED stale in two homes across a commit
+        // boundary before a sweep found them), and a list sitting directly above the asserts it
+        // describes needs no numeral to be checkable.
         //
         //   (a) crash-safety — the probe catches everything the real extractor, segmenter and both
         //       handlers throw, so a throw anywhere in the chain reddens this suite. That is

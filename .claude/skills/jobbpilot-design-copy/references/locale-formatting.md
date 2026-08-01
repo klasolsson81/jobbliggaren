@@ -252,6 +252,8 @@ Never store local time in DB. Never assume client timezone == Stockholm.
 > deleted silently so it is not reintroduced — the same treatment the
 > `formatPercent` note above already had, which is where the pattern comes from.
 >
-> **Kept, because it was never the fiction:** every convention in this file. What
-> "14 apr 2026", `14:32`, `1 234 kr` and `4,5` should look like was right; only the
-> code that claimed to produce them was invented.
+> **Kept, because the conventions were not where the fiction lived** — though review
+> found three this rewrite had dropped (the `kl.` connector, the date-only ISO form,
+> the long-month shape) and two the old file had wrong (`kl` without the stop, and
+> `idag` closed up). What `14 apr 2026`, `14:32`, `1 234 kr` and `4,5` should look
+> like was broadly right; it was the code claiming to produce them that was invented.

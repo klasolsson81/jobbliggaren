@@ -30,18 +30,33 @@ namespace Jobbliggaren.Application.UnitTests.Taxonomy;
 /// catch a bad choice, since <c>-</c> passes every backend gate); this test owns
 /// the other half — that the corpus really does obey the charset.</para>
 ///
-/// <para><b>Which seam, precisely.</b> The pattern exists as eleven independent
-/// literals across Domain and Application, so no single call site is "the"
-/// production gate and this test does not claim one (dotnet-architect, #1144). It
+/// <para><b>Which seam, precisely.</b> The pattern exists as twelve independent
+/// literals across eleven files in Domain and Application (measured 2026-08-01;
+/// `SetMatchPreferencesCommandValidator` carries two, and a thirteenth is frozen
+/// inside migration `20260609214512_C2SearchParityReverseLookupAndRecentExpansion`),
+/// so no single call site is "the" production gate and this test does not claim
+/// one. It
 /// asserts through TWO, which matter for different reasons:
 /// <see cref="ListJobAdsQueryValidator"/> is what a <c>/jobb</c> search actually
 /// hits, where a rejection is the 400 named above; and
 /// <see cref="SearchCriteria"/> is the capture/persistence gate, where a
-/// rejection is instead a silent no-capture. The two are NOT equivalent:
-/// <c>SearchCriteria.Create</c> normalises (trims, drops whitespace-only) BEFORE
-/// validating, so it is strictly more permissive than the validator, which
-/// regexes the raw element. Asserting both keeps that gap visible rather than
-/// assumed.</para>
+/// rejection is instead a silent no-capture.</para>
+///
+/// <para>The two are NOT equivalent, and <b>neither subsumes the other</b>.
+/// <c>Create</c> normalises (trims, drops whitespace-only) BEFORE regexing, so it
+/// accepts elements with surrounding whitespace that the validator — which
+/// regexes the raw element — rejects. In the other direction <c>Create</c> is the
+/// stricter one: it enforces an empty-criteria invariant and a <c>QMinLength</c>
+/// that #831 deliberately removed from the read path, so it rejects queries the
+/// validator passes. They are incomparable, which is why passing one says nothing
+/// about the other.</para>
+///
+/// <para>Both are asserted because the two literals are independent copies of one
+/// grammar. Today they are byte-identical, so on THIS corpus the second assertion
+/// detects nothing the first does not — every id here is whitespace-free, which is
+/// exactly the case the trim gap cannot reach. What it buys is DRIFT: a one-sided
+/// tightening (Domain <c>{1,32}</c> to <c>{1,12}</c>) would go red here and nowhere
+/// else (dotnet-architect, #1144).</para>
 /// </summary>
 public sealed class TaxonomyConceptIdGrammarTests
 {
@@ -113,7 +128,9 @@ public sealed class TaxonomyConceptIdGrammarTests
 
         perFile.Values.Sum().ShouldBeGreaterThanOrEqualTo(
             23_968,
-            "the collector's total reach shrank — the grammar guard now covers less than it claims");
+            "either the collector's reach shrank or the snapshot legitimately did — " +
+            "verify the collector against the file BEFORE lowering this number, because " +
+            "lowering it is also the cheapest way to re-open the blindness it was written for");
     }
 
     [Theory]

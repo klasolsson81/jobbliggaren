@@ -544,8 +544,9 @@ describe("the separator against the grammar the backend enforces", () => {
    * backend corpus test cannot catch a bad separator CHOICE, because `-` is
    * legal in the pattern — switching `JOBB_AXIS_SEPARATOR` to `-` would leave
    * every backend guard green while breaking every shared /jobb link. The
-   * corpus-obeys-the-charset half lives beside `TaxonomySnapshotSeeder`, where
-   * the grammar does (`TaxonomyConceptIdGrammarTests`).
+   * corpus-obeys-the-charset half lives in `TaxonomyConceptIdGrammarTests`
+   * (`Jobbliggaren.Application.UnitTests`), which asserts the shipped corpus
+   * through the query validator a /jobb search actually hits.
    */
   const CONCEPT_ID_CHARSET = /^[A-Za-z0-9_-]$/;
 

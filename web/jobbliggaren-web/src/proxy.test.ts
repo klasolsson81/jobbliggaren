@@ -403,8 +403,9 @@ describe("proxy — the wash ordering, no-store and axis marshalling", () => {
     const location = res.headers.get("location") ?? "";
     expect(location).toContain("sni=62010");
     // An empty repeated value must not survive as `sni=` — that is what `parseCodeAxis` drops, and
-    // the page gate has always dropped it. (`/jobb` still has its own `toStringList`; naming it
-    // here would point at the wrong function.)
+    // the page gate has always dropped it. (`/jobb` shares ONE `toStringList` since 2026-08-01,
+    // but it splits on a different separator for a different id space — naming it here would
+    // still point at the wrong rule.)
     expect(location).not.toMatch(/sni=(&|$)/);
   });
 });

@@ -663,8 +663,9 @@ export function JobbHeroSearch({
       )}
       {/* ONE hidden input per axis, carrying the values joined — NOT one input
           per value.
-          This form is the route's THIRD producer of these axes, and the only one
-          that cannot call a URL builder: a native GET serialises whatever shape
+          This form is the route's THIRD producer of these axes — after
+          `buildJobbHref` and `buildPageHref`, the only two builders on this
+          route — and the only one that cannot call a URL builder: a native GET serialises whatever shape
           these fields have. Emitting one input per value would make a no-JS
           submit write the REPEATED form, which is exactly the router-cache
           collision `serializeJobbAxis` exists to remove — and one producer still

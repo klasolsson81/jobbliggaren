@@ -192,8 +192,11 @@ public static class LayoutCorpusReport
         L("**Read the two promoted columns together — the verdict is computed from BOTH, and until");
         L("#1060 β-1 only one of them was printed.** `Structural field` asks whether the marker IS a");
         L("promoted company or institution value; `In section span` asks whether it appears anywhere");
-        L("inside the promoted section. `RetainedButOrphaned` means only that the first is `no`, and");
-        L("it covers two different things:");
+        L("inside the promoted section. **`structural = no` is necessary but NOT sufficient for");
+        L("`RetainedButOrphaned`** — count the `no` cells and you will find rows carrying two other");
+        L("verdicts: the row did not promote (`RetainedNotPromoted`), or the marker turned up in");
+        L("another section (`AbsorbedIntoOtherSection`, and the `Found in other section` cell names");
+        L("which). Within the rows that DO carry it, it covers two different things:");
         L();
         L("- both `no` **on a row that promoted** — the marker is genuinely GONE. This is the");
         L("  silent loss the corpus exists to expose. On a row that did NOT promote, both are");
@@ -488,8 +491,11 @@ public static class LayoutCorpusReport
         L("  promoted field values.");
         L("- **No arm authors a `\"Company, City\"` field line.** `TitleOrgSeparators` includes");
         L("  `\", \"`, so such a line splits into (Company, City) and the city lands in the employer");
-        L("  slot. **State the population, because it is not uniform:** on a row whose field-bearing");
-        L("  line is `Lines[0]` that was true before #1060 β-1 and is true after. On a PERIOD-FIRST");
+        L("  slot **when that line is the one the split reads**. THREE populations, not two, and the");
+        L("  third is the COMMON layout: where the role line is `Lines[0]` and the comma line merely");
+        L("  follows it, no split happens there at all — the whole string is the fallback's");
+        L("  organization value, unchanged by β-1 and not this hazard. Of the other two: where the");
+        L("  field-bearing line IS `Lines[0]`, this held before #1060 β-1 and holds after. On a PERIOD-FIRST");
         L("  row it is NEW — before β-1 the line went whole to `Organization` and the row blocked on");
         L("  the missing Role. That is the same transition the company-first arm publishes for the");
         L("  dash form. The comma form is that class and is unmeasured. An earlier revision of this");

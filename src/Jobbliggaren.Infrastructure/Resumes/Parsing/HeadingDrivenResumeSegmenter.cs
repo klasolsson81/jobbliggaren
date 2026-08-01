@@ -610,8 +610,8 @@ internal sealed partial class HeadingDrivenResumeSegmenter(CvParsingLexiconData 
     // reliable period signal on the FIRST line (Lines[0]). Scanning the full entry text for a bare
     // year mis-attributes an incidental year in a description bullet ("Migrerade den gamla
     // 1998-stordatorn") as the entry's period. A bare year on a later line is deliberately NOT
-    // treated as a period (honest-absent over confidently-wrong; the user fills the gap via
-    // ADR 0040 propose-and-approve) — ADR 0071.
+    // treated as a period (honest-absent over confidently-wrong; the user fills the gap — but
+    // the remedy differs by path, see StripTrailingPeriod below) — ADR 0071.
     //
     // This scope stays Lines[0] and is no longer always the one SplitTitleOrganization reads: since
     // #1060 β-1 that method reads Lines[1] instead when Lines[0] carries nothing but a period. ONE
@@ -624,7 +624,8 @@ internal sealed partial class HeadingDrivenResumeSegmenter(CvParsingLexiconData 
     // Residual, priced rather than left implicit: StripTrailingPeriod now also runs on Lines[1], so
     // a trailing BARE YEAR there is cut from the split source while this bare-year branch only ever
     // reads Lines[0]. A full date range is still recovered from entry.Text above; a bare year on
-    // line two is not. Honest-absent, and the user fills the gap.
+    // line two is not. Honest-absent, and the user fills the gap — on the auto-promote path by
+    // editing an already-saved CV, there being no approve step there (see below).
     private static string? ExtractPeriod(Entry entry)
     {
         var range = DateRangeRegex().Match(entry.Text);

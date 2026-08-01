@@ -242,8 +242,11 @@ WHICH four vanished and where each was last seen.
 **Read the two promoted columns together — the verdict is computed from BOTH, and until
 #1060 β-1 only one of them was printed.** `Structural field` asks whether the marker IS a
 promoted company or institution value; `In section span` asks whether it appears anywhere
-inside the promoted section. `RetainedButOrphaned` means only that the first is `no`, and
-it covers two different things:
+inside the promoted section. **`structural = no` is necessary but NOT sufficient for
+`RetainedButOrphaned`** — count the `no` cells and you will find rows carrying two other
+verdicts: the row did not promote (`RetainedNotPromoted`), or the marker turned up in
+another section (`AbsorbedIntoOtherSection`, and the `Found in other section` cell names
+which). Within the rows that DO carry it, it covers two different things:
 
 - both `no` **on a row that promoted** — the marker is genuinely GONE. This is the
   silent loss the corpus exists to expose. On a row that did NOT promote, both are
@@ -1020,8 +1023,11 @@ permitted to differ is the detected language.
   promoted field values.
 - **No arm authors a `"Company, City"` field line.** `TitleOrgSeparators` includes
   `", "`, so such a line splits into (Company, City) and the city lands in the employer
-  slot. **State the population, because it is not uniform:** on a row whose field-bearing
-  line is `Lines[0]` that was true before #1060 β-1 and is true after. On a PERIOD-FIRST
+  slot **when that line is the one the split reads**. THREE populations, not two, and the
+  third is the COMMON layout: where the role line is `Lines[0]` and the comma line merely
+  follows it, no split happens there at all — the whole string is the fallback's
+  organization value, unchanged by β-1 and not this hazard. Of the other two: where the
+  field-bearing line IS `Lines[0]`, this held before #1060 β-1 and holds after. On a PERIOD-FIRST
   row it is NEW — before β-1 the line went whole to `Organization` and the row blocked on
   the missing Role. That is the same transition the company-first arm publishes for the
   dash form. The comma form is that class and is unmeasured. An earlier revision of this
@@ -1049,8 +1055,9 @@ this corpus exists to avoid.
 ### A. `addDoubleNewline: true` is not the fix (measured 2026-07-26, PR K)
 
 > **STALE AS OF 2026-08-01 (#1060 β-1) — READ THE THIRD CORRECTION BELOW BEFORE ANY PARAGRAPH IN
-> THIS SUBSECTION.** Everything under this heading is written in the present tense and was true at
-> the commit each paragraph names. β-1 then fixed the parser defect that produced the blocks they
+> THIS SUBSECTION.** Every paragraph ABOVE the corrections is written in the present tense and
+> was true at the commit it names; the dated corrections themselves, and this banner, are not
+> in that class. β-1 then fixed the parser defect that produced the blocks they
 > reason about, and **no row in this artifact blocks on `IncompleteContent` any more.** The prose
 > is kept verbatim as the record of what was measured when; the banner sits here so no reader
 > reaches a stale present-tense claim without meeting the correction. One banner, not a marker per
@@ -1109,8 +1116,9 @@ Every sentence above stays as written, because each was true of the artifact at 
 names and this file is the record of what was measured when. What changes is what a reader may
 still take from them:
 
-- **The two invariances stand as history and are no longer reproducible here.** They were measured
-  at `d435a9c4`; regenerate at that commit to see them.
+- **The two invariances stand as history and are no longer reproducible here.** They were
+  measured in PR K's and the second correction's own commits, and were still REPRODUCIBLE at
+  `d435a9c4`; regenerate at that commit to see them.
 - **The `Domain code` column now speaks about nothing.** It was built one PR ago to name the
   constraint behind an `IncompleteContent` block, and after this PR **no row in the corpus blocks
   on `IncompleteContent` at all** — the column renders an em-dash on every row. Count them in §5

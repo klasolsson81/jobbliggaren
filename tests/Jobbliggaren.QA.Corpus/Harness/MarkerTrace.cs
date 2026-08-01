@@ -29,8 +29,22 @@ public enum MarkerVerdict
     /// <summary>The CV PROMOTED and the marker is in the promoted CV's own section. Survived.</summary>
     Survived,
 
-    /// <summary>The CV PROMOTED and the marker is nowhere in the promoted CV. This is the silent
-    /// loss: the product said the CV was saved and this employment is gone.</summary>
+    /// <summary>The CV PROMOTED, the marker is NOT a promoted company/institution field, AND it
+    /// was not found in some other section — that last conjunct matters, because a marker found
+    /// elsewhere gets <see cref="AbsorbedIntoOtherSection"/> instead. Within those bounds the
+    /// member deliberately does NOT distinguish two cases the corpus has measured both of:
+    /// <list type="bullet">
+    /// <item>the marker is genuinely gone — the silent loss this corpus exists to expose;</item>
+    /// <item>the marker is PRESENT inside the promoted section but not as the field it names —
+    /// fused into another value (`pdf-zero-xgap-concat`, in the baseline since before #1060 β-1)
+    /// or sitting in the other slot (`docx-company-first-header`, β-1).</item>
+    /// </list>
+    /// <para>The two rendered halves tell them apart: span yes with structural no is the second
+    /// case. <b>The canonical account is §3's own preamble</b> in <c>LayoutCorpusReport</c> — it is
+    /// generated, it is what a reader actually reads, and a full enumeration in three places is
+    /// three homes for one knowledge piece. An earlier revision here said "nowhere in the promoted
+    /// CV … this employment is gone", which was false for every such row, and was false in the tree
+    /// before β-1 rather than because of it.</para></summary>
     RetainedButOrphaned,
 
     /// <summary>The CV promoted and the marker IS in the promoted CV, but in the wrong section —
@@ -48,10 +62,22 @@ public enum MarkerVerdict
 /// <summary>
 /// One marker's trace. <see cref="IsPromotedStructuralField"/> and <see cref="InPromotedSectionSpan"/>
 /// are carried SEPARATELY rather than pre-combined: the verdict needs both, but a reader needs to
-/// see which half failed. Today they always agree, because <c>AutoPromoteContentMapper</c> maps
-/// <c>Description: null</c> so a collapsed employer is genuinely absent from the promoted CV. If
-/// that policy ever changes they diverge, and a pre-combined boolean would leave the report saying
-/// "this employment is gone" without a single cell moving.
+/// see which half failed. That rationale is right, and it is no longer hypothetical — the two
+/// halves DO diverge, by two measured mechanisms:
+/// <list type="bullet">
+/// <item><b>Fusion.</b> <c>pdf-zero-xgap-concat</c> concatenates cells, so the marker sits inside
+/// the promoted section but is no company's exact value. Present in the committed baseline since
+/// before #1060 β-1 — an earlier revision of this paragraph said "today they always agree", and
+/// that was already false when it was written.</item>
+/// <item><b>Wrong slot.</b> <c>docx-company-first-header</c> (β-1) puts the employer in the role
+/// field and the role in the employer field. Every marker on that row diverges.</item>
+/// </list>
+/// <para>Neither arrived through <c>AutoPromoteContentMapper</c>'s <c>Description: null</c> policy,
+/// which the old paragraph named as the only thing holding the halves together. A pre-combined
+/// boolean would have left the report saying "this employment is gone" without a cell moving, and
+/// for one marker on <c>pdf-zero-xgap-concat</c> it effectively did — the span half was rendered
+/// and the structural half was not, so the table printed a verdict while hiding one of the two
+/// inputs that produced it. Both halves are rendered now.</para>
 /// </summary>
 public sealed record MarkerTrace(
     string Marker,

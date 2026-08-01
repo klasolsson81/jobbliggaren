@@ -187,16 +187,30 @@ public static class LayoutCorpusReport
         L("## 3. Marker trace");
         L();
         L("One row per authored employment and education. A count says five became one; this says");
-        L("WHICH four vanished and where each was last seen. `RetainedButOrphaned` on a promoted");
-        L("row is the finding: the product said the CV was saved and this employment is gone.");
+        L("WHICH four vanished and where each was last seen.");
         L();
-        L("| Case | Kind | Marker | In bytes | In parsed artifact | In promoted section | Found in other section | Verdict |");
-        L("|---|---|---|---|---|---|---|---|");
+        L("**Read the two promoted columns together — the verdict is computed from BOTH, and until");
+        L("#1060 β-1 only one of them was printed.** `Structural field` asks whether the marker IS a");
+        L("promoted company or institution value; `In section span` asks whether it appears anywhere");
+        L("inside the promoted section. `RetainedButOrphaned` means only that the first is `no`, and");
+        L("it covers two different things:");
+        L();
+        L("- both `no` — the marker is genuinely GONE. This is the silent loss the corpus exists to");
+        L("  expose: the product said the CV was saved and this employment is not in it.");
+        L("- `structural no` + `span yes` — the marker is THERE but not as the field it names. Two");
+        L("  measured causes: fused into another value (`pdf-zero-xgap-concat`, true in this file");
+        L("  before β-1) and sitting in the other slot (`docx-company-first-header`, β-1).");
+        L();
+        L("Rows carrying identical cells with opposite verdicts were how the missing column showed");
+        L("itself; this preamble used to state the first case as though it were the only one.");
+        L();
+        L("| Case | Kind | Marker | In bytes | In parsed artifact | Structural field | In section span | Found in other section | Verdict |");
+        L("|---|---|---|---|---|---|---|---|---|");
         foreach (var c in d.Cases)
         {
             foreach (var m in c.Markers)
             {
-                LI($"| `{c.Case.Id}` | {m.Kind} | {m.Marker} | {Y(m.InExtractedBytes)} | {Y(m.InParsedArtifact)} | {Y(m.InPromotedSectionSpan)} | {m.FoundInOtherSection ?? "—"} | **{m.Verdict}** |");
+                LI($"| `{c.Case.Id}` | {m.Kind} | {m.Marker} | {Y(m.InExtractedBytes)} | {Y(m.InParsedArtifact)} | {Y(m.IsPromotedStructuralField)} | {Y(m.InPromotedSectionSpan)} | {m.FoundInOtherSection ?? "—"} | **{m.Verdict}** |");
             }
         }
 
@@ -459,9 +473,13 @@ public static class LayoutCorpusReport
         L("  PR's diff unattributable. Named so a promoting row is not read as a recovered one.");
         L("- **No arm authors a `\"Company, City\"` field line.** `TitleOrgSeparators` includes");
         L("  `\", \"`, so such a line splits into (Company, City) and the city lands in the employer");
-        L("  slot — on ANY row, before and after β-1, since the separator's ambiguity is a property");
-        L("  of the separator and not of which line carries it. Row 23 publishes the swapped-slot");
-        L("  outcome for the dash form; the comma form is the same class and is unmeasured.");
+        L("  slot. **State the population, because it is not uniform:** on a row whose field-bearing");
+        L("  line is `Lines[0]` that was true before #1060 β-1 and is true after. On a PERIOD-FIRST");
+        L("  row it is NEW — before β-1 the line went whole to `Organization` and the row blocked on");
+        L("  the missing Role. That is the same transition the company-first arm publishes for the");
+        L("  dash form. The comma form is that class and is unmeasured. An earlier revision of this");
+        L("  bullet said \"on ANY row, before and after\", which is false for exactly the population");
+        L("  the bullet stands beside.");
         L("- **Kerning-driven word splits, ligature artefacts, rotated text and foreign-producer");
         L("  ToUnicode tables are absent.** Every PDF here round-trips through a QuestPDF-embedded");
         L("  subset font and its own CMap — a real mechanism, but QuestPDF's.");

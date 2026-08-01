@@ -40,23 +40,24 @@ internal static class OpenXmlCvRenderer
     /// one entry of five, for the unrelated reason that the document authors no blank paragraphs
     /// and <c>SplitEntries</c> splits on those alone).</para></summary>
     internal static byte[] TableLabelFirstNoBlanks(CvModel m) =>
-        Build(m, useTable: true, blankSeparators: false, roleFirst: false);
+        Build(m, useTable: true, blankSeparators: false, roleFirst: false, companyFirst: false);
 
     /// <summary>The invisibility probe: identical content and order, NO table at all. Paired with
     /// <see cref="TableLabelFirstNoBlanks"/>, whose extracted text this must equal.</summary>
     internal static byte[] FlatLabelFirstNoBlanks(CvModel m) =>
-        Build(m, useTable: false, blankSeparators: false, roleFirst: false);
+        Build(m, useTable: false, blankSeparators: false, roleFirst: false, companyFirst: false);
 
     /// <summary>The one-variable twin of <see cref="TableLabelFirstNoBlanks"/>: same body, only
     /// <c>&lt;w:p&gt;&lt;w:pPr /&gt;&lt;/w:p&gt;</c> separators added. This is the arm that isolates
     /// BLANK-LINE loss at the segmenter level (entries 5 vs 1) while holding header-line order
     /// fixed.
     /// <para>Its promote outcome WAS expected to stay blocked, on the reasoning that a label-first
-    /// header line still yields a null Title. #1060 β-1 removed that cause, and this arm is now the
-    /// corpus's second <c>PromotedFaithful</c> row — 5/5, 3/3, eight markers Survived. It remains
+    /// header line still yields a null Title. #1060 β-1 removed that cause, and this arm now promotes
+    /// FAITHFULLY — 5/5, 3/3, eight markers Survived. Count the verdicts in §2 rather than
+    /// trusting an ordinal here; one was written and went stale inside a single PR. It remains
     /// the blank-line isolator it was authored to be; only its verdict moved.</para></summary>
     internal static byte[] TableLabelFirstWithBlanks(CvModel m) =>
-        Build(m, useTable: true, blankSeparators: true, roleFirst: false);
+        Build(m, useTable: true, blankSeparators: true, roleFirst: false, companyFirst: false);
 
     /// <summary>The PROMOTE-level control: blank separators AND role-first header lines. Measured
     /// 2026-07-26 to return 5/5 experiences and 3/3 educations with title, organization and period
@@ -65,7 +66,7 @@ internal static class OpenXmlCvRenderer
     /// <see cref="TableLabelFirstWithBlanks"/> (header-line order), NOT from the first arm; a
     /// comparison against the first arm moves two variables and the report says so.</summary>
     internal static byte[] RoleFirstWithBlanks(CvModel m) =>
-        Build(m, useTable: true, blankSeparators: true, roleFirst: true);
+        Build(m, useTable: true, blankSeparators: true, roleFirst: true, companyFirst: false);
 
     /// <summary>The fourth cell of the <c>useTable: true</c> 2×2 over (header order × blank
     /// separators), which the other three above already occupy. It exists to answer ONE question
@@ -80,7 +81,7 @@ internal static class OpenXmlCvRenderer
     /// second pairing is stated here because it is what makes this arm a CONTROL rather than a
     /// twenty-second measurement.</para></summary>
     internal static byte[] RoleFirstNoBlanks(CvModel m) =>
-        Build(m, useTable: true, blankSeparators: false, roleFirst: true);
+        Build(m, useTable: true, blankSeparators: false, roleFirst: true, companyFirst: false);
 
     /// <summary>The COST arm for #1060 β-1, and the only arm in the corpus that authors its
     /// field-bearing line COMPANY-first (<c>"Klarna AB - Senior backend-utvecklare"</c>). A
@@ -89,7 +90,7 @@ internal static class OpenXmlCvRenderer
     ///
     /// <para>It exists because β-1 moved a population from an honest block to a promote whose two
     /// slots are SWAPPED, and that cost was published nowhere: every other arm writes
-    /// role-before-marker, so twenty-two rows could not see the shape. A cost accepted and
+    /// role-before-marker, so no existing row could see the shape. A cost accepted and
     /// unpublished is a cost laundered.</para>
     ///
     /// <para>It is also where the INSTRUMENT gets measured rather than the parser.
@@ -100,8 +101,14 @@ internal static class OpenXmlCvRenderer
     internal static byte[] CompanyFirstHeaderWithBlanks(CvModel m) =>
         Build(m, useTable: true, blankSeparators: true, roleFirst: false, companyFirst: true);
 
+    // NO DEFAULT on any axis, deliberately. This file is a factorial design and its whole
+    // epistemic value is the one-variable step, so every call site must state its full grid
+    // coordinate. The five sites that would have inherited `companyFirst: false` are exactly
+    // the CONTROLS for the company-first arm — a default would hide the coordinate precisely
+    // where it is load-bearing. Revisit an options/shape type at a FIFTH axis; four named
+    // booleans still read.
     private static byte[] Build(
-        CvModel m, bool useTable, bool blankSeparators, bool roleFirst, bool companyFirst = false)
+        CvModel m, bool useTable, bool blankSeparators, bool roleFirst, bool companyFirst)
     {
         using var stream = new MemoryStream();
         using (var document = WordprocessingDocument.Create(

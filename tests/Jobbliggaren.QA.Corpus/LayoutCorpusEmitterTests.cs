@@ -934,3 +934,89 @@ public sealed class LayoutCorpusEmitterTests
             CrashedWithExceptionType: null,
             Verdict: FidelityVerdict.PromotedLossy);
 }
+
+/// <summary>
+/// The marker discriminator, pinned. <c>MarkerTracer</c> is the oracle that separates "this
+/// employment is gone" from "this employment is here but not as itself", and until #1060 β-1 the
+/// whole corpus asserted NOTHING about it — measured: zero hits for
+/// <c>MarkerTrace|MarkerVerdict|RetainedButOrphaned</c> across both corpus test classes.
+///
+/// <para><b>That was fail-open, and the failure is silent.</b> Widen the structural test from
+/// <c>string.Equals</c> to <c>Contains</c> and the company-first arm reports eight
+/// <c>Survived</c> — maximally reassuring about a document whose every slot is misplaced — while
+/// every other assert in the suite stays green, because the observe-only rows record the verdict
+/// rather than asserting it. This is verbatim the argument that put assert (e) into
+/// <c>LayoutCorpusReportTests</c> in the previous PR: a by-name reader across a boundary, guarded
+/// on one side only, is not guarded.</para>
+///
+/// <para>These are corpus-machinery asserts (category (b)): nothing in <c>src/</c> can move them,
+/// because both fixtures are built here from domain constructors, not from a parse.</para>
+/// </summary>
+public class MarkerTracerDiscriminatorTests
+{
+    private static readonly FixedClock Clock = new();
+
+    [Fact]
+    public void Trace_WhenTheEmployerIsTheCompanyField_IsStructural_AndSurvives()
+    {
+        var trace = TraceEmployer(company: "Acme AB", role: "Operatör");
+
+        trace.IsPromotedStructuralField.ShouldBeTrue();
+        trace.InPromotedSectionSpan.ShouldBeTrue();
+        trace.Verdict.ShouldBe(MarkerVerdict.Survived);
+    }
+
+    [Fact]
+    public void Trace_WhenTheSlotsAreSwapped_IsNotStructural_ThoughStillInSpan()
+    {
+        // The company-first shape #1060 β-1 publishes as row `docx-company-first-header`: the
+        // employer sits in Role and the role sits in Company. The marker IS in the promoted
+        // Experience span — so a substring reading would call it Survived — but it is not the
+        // company field, which is the only thing RetainedButOrphaned asserts.
+        var trace = TraceEmployer(company: "Operatör", role: "Acme AB");
+
+        trace.IsPromotedStructuralField.ShouldBeFalse();
+        trace.InPromotedSectionSpan.ShouldBeTrue();
+        trace.Verdict.ShouldBe(MarkerVerdict.RetainedButOrphaned);
+    }
+
+    [Fact]
+    public void Trace_WhenTheEmployerIsAbsentEntirely_IsNeitherStructuralNorInSpan()
+    {
+        // The OTHER thing RetainedButOrphaned covers, and the reason the two halves are rendered
+        // separately: identical verdict, different cells. Without this pair the verdict word alone
+        // cannot be read, which is the defect the §3 column pair exists to remove.
+        var trace = TraceEmployer(company: "Volvo Cars", role: "Operatör");
+
+        trace.IsPromotedStructuralField.ShouldBeFalse();
+        trace.InPromotedSectionSpan.ShouldBeFalse();
+        trace.Verdict.ShouldBe(MarkerVerdict.RetainedButOrphaned);
+    }
+
+    private static MarkerTrace TraceEmployer(string company, string role)
+    {
+        var content = new ResumeContent(
+            new PersonalInfo("Anna Andersson", null, null, null),
+            experiences: [new Experience(company, role, null, null, null, "2005 - 2010")]);
+
+        var promoted = Resume.CreateFromParsed(
+            Jobbliggaren.Domain.JobSeekers.JobSeekerId.New(),
+            "CV",
+            content,
+            Jobbliggaren.Domain.Resumes.Parsing.ParsedResumeId.New(),
+            Clock).Value;
+
+        // The marker is in the BYTES in every case — that is what holds the earlier rungs fixed
+        // and makes the two PROMOTED columns the only variable. (An earlier draft built rawText
+        // from the fields, so the absent-employer case left the marker out of the bytes and
+        // measured a different rung entirely; the run caught it.)
+        return MarkerTracer.Trace(
+            ["Acme AB"], MarkerKind.Employment, $"Acme AB {company} {role}", null, promoted, false)
+            .Single();
+    }
+
+    private sealed class FixedClock : Jobbliggaren.Domain.Common.IDateTimeProvider
+    {
+        public DateTimeOffset UtcNow { get; } = new(2026, 8, 1, 12, 0, 0, TimeSpan.Zero);
+    }
+}

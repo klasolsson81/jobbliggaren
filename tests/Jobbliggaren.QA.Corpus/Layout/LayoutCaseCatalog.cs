@@ -399,7 +399,7 @@ public static class LayoutCaseCatalog
             ProjectHeadingRendered: UnknownProjectHeading),
 
         // #1060 beta-1's COST arm. Every other arm writes its field-bearing line role-before-
-        // marker, so the shape where the two slots come out SWAPPED was invisible to all 22 rows.
+        // marker, so the shape where the two slots come out SWAPPED was invisible to every row.
         // beta-1 moved that population from an honest block to a promote, and an accepted cost that
         // is published nowhere is a laundered one. One variable from row 20: within-line order.
         new("docx-company-first-header",
@@ -422,8 +422,16 @@ public static class LayoutCaseCatalog
                 p.Require(
                     xml.Contains("Chalmers tekniska högskola - Civilingenjör", StringComparison.Ordinal),
                     "expected the education line written INSTITUTION-first (both parsers share one split)");
+                // Pin the variable this arm HOLDS FIXED, not only the one it moves. It is a
+                // one-variable step from docx-table-label-first-with-blanks, and that claim is
+                // false the moment the blank separators go missing — the row would then differ on
+                // two axes and its verdict would be unattributable.
+                p.Require(xml.Contains("<w:pPr />", StringComparison.Ordinal)
+                          || xml.Contains("<w:pPr/>", StringComparison.Ordinal),
+                    "expected Word's blank-paragraph form — this arm HOLDS blank separators fixed");
             },
-            "the employment and education lines are written company/institution-first, in a w:tbl",
+            "the employment and education lines are written company/institution-first, in a w:tbl, "
+            + "with the blank separators the one-variable step holds fixed",
             SpikeMeasuredExtractSegment: false,
             OneVariableStepFrom: "docx-table-label-first-with-blanks",
             ProjectHeadingRendered: UnknownProjectHeading),

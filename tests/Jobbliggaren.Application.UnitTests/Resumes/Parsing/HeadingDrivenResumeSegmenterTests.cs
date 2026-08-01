@@ -843,6 +843,13 @@ public class HeadingDrivenResumeSegmenterTests
         // Before β-1 the period-first form did not merely give a different split: it handed the
         // whole line to Organization and blocked on the missing Role. So the block was standing in
         // front of a FUSED field, not a correct one, which is why restoring it was refused.
+        //
+        // HOW THIS PIN RETIRES, so it does not read as "never change this". Rows 2 and 3 encode an
+        // ACCEPTED defect, not a desired behaviour. The day the engine is given a lawful way to
+        // decide which side of a header line is the role — a ratified change to the 2026-06-23
+        // no-slot-guessing bind, not an inference added to this method — rows 2 and 3 SHOULD flip
+        // and this test should be edited, loudly, in that PR. Row 1 must never flip: it is the
+        // correctly-ordered control and its two positions must always agree.
         var periodFirst = _sut.Segment(
             $"""
             Anna Andersson

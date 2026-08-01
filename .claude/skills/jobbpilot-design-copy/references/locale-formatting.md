@@ -209,8 +209,10 @@ you are asking:
   Swedish even when the user's locale is `en`.
 
 `no-restricted-syntax` fails the literal written as a value under `src/`, in
-pre-commit and in CI, so a new site does not merge (#1148). The modules named
-above are exempt, as is test code; the exemption list lives in
+pre-commit and in CI, so a new site does not merge (#1148). The two DECLARING
+modules are exempt — `src/i18n/request.ts` and `src/lib/time/swedish-calendar.ts`
+— as is test code. `format.ts` is not exempt and does not need to be: it never
+writes the zone, because next-intl resolves the pin for it. The list lives in
 `eslint.config.mjs` and is not repeated here.
 
 > **Removed 2026-08-01:** this section used to document `toStockholm` /

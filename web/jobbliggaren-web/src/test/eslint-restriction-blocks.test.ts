@@ -8,24 +8,34 @@ import { beforeAll, describe, expect, it } from "vitest";
  * (`vitest.config.ts`): a wrong answer here fails an innocent commit and tells its
  * author to do the wrong thing.
  *
- * Three axes, because the gate can die on any of them and only the first is
+ * Four axes, because the gate can die on any of them and only the first is
  * visible in a diff:
  *
- * 1. RELATIONS — which block governs which path. Asserted through ESLint's own
- *    config resolution, so the GLOBS are what is pinned. That is where the defect
- *    was: the blocks ignored `*.test.*` while `vitest.config.ts` collects
- *    `{test,spec}`, so a `.spec` file was linted as product code — and the zone
- *    rule's message would have told its author to import the constant, which is
- *    exactly the change that blinds a test as an oracle.
- * 2. SEVERITY — a rule configured `off` leaves every relation below intact and
- *    every selector in place, and enforces nothing.
- * 3. EFFECT — a selector is pinned by what it CATCHES, not by its text. A stray
- *    space in `Literal[value="Europe/Stockholm "]` reads identically to a
- *    substring check and matches nothing.
+ * 1. REACH — which block governs which path, asserted through ESLint's own config
+ *    resolution so the GLOBS are what is pinned. That is where the defect was: the
+ *    blocks ignored `*.test.*` while `vitest.config.ts` collects `{test,spec}`.
+ *    Reach is also the cheapest thing to narrow: `src/**` shortened to
+ *    `src/lib/**` costs 491 files every group at once, so the probe set spans
+ *    `src/app/` and non-`ui` `src/components/` as well.
+ * 2. SEVERITY — a rule configured `off` leaves every relation intact and every
+ *    selector in place, and enforces nothing.
+ * 3. MEMBERSHIP — `allExcept()` composes by subtraction, so deleting a group from
+ *    `ALL_GROUPS` removes it from every block in ONE line, and the relations below
+ *    then hold trivially. Asserted per FACET, and the facets must PARTITION the
+ *    selector set: a group added without a facet fails, which is the direction a
+ *    hand-kept mirror list otherwise loses silently.
+ * 4. EFFECT — a selector is pinned by what it CATCHES, not by its text. A stray
+ *    space in `Literal[value="Europe/Stockholm "]` reads identically and matches
+ *    nothing; `text-muted-foreground` broken to `…-NOPE` keeps its facet satisfied
+ *    and kills a design-token ban. Every group is probed, not only ZONE — an
+ *    earlier version of this file claimed the axis and covered one group of five.
  *
- * Relations are compared as sets, never counts: two blocks here carry the same
- * NUMBER of selectors with different contents, so a count-based check passes on a
- * swap.
+ * Relations are compared as sets, never counts: two blocks carry the same NUMBER
+ * of selectors with different contents, so a count-based check passes on a swap.
+ *
+ * Effect counts the RULE's messages rather than matching their prose, so rewording
+ * a message cannot make a zero-assertion vacuously true. Each probe is written to
+ * trigger exactly one restriction.
  *
  * Everything is resolved ONCE, in `beforeAll`, and the assertions are then pure
  * comparisons. The hook carries its own ceiling because what it waits for is a
@@ -38,9 +48,15 @@ import { beforeAll, describe, expect, it } from "vitest";
 // vitest runs with cwd at the package root, where eslint.config.mjs lives.
 const ROOT = process.cwd();
 
-/** Paths are probes — ESLint resolves config by glob, so they need not exist. */
+/**
+ * Paths are probes — ESLint resolves config by glob, so they need not exist, and
+ * four of these deliberately do not: the gate is prospective, and requiring the
+ * files to exist would repeal it.
+ */
 const PATHS = {
   product: "src/lib/i18n/format.ts",
+  productApp: "src/app/(app)/aktivitetsrapport/page.tsx",
+  productComponent: "src/components/aktivitetsrapport/activity-report-view.tsx",
   shadcn: "src/components/ui/status-pill.tsx",
   declaration: "src/lib/time/swedish-calendar.ts",
   intlPin: "src/i18n/request.ts",
@@ -55,16 +71,10 @@ const PATHS = {
 type Probe = keyof typeof PATHS;
 
 /**
- * One predicate per FACET of the restriction set, keyed on something only that
- * facet's selectors say. Membership is asserted for every one, because the
- * relations below all hold trivially once a whole group is gone: `allExcept()`
- * composes by subtraction, so deleting a group from `ALL_GROUPS` removes it from
- * every block in ONE line — cheaper than it was before this PR, which is why the
- * membership assertions matter more after it than before.
- *
- * Facet, not group: `text-` alone would be satisfied by MUTED's own selectors, so
- * a TYPOGRAPHY predicate written that loosely passes with TYPOGRAPHY deleted. The
- * keys below are taken from the selector strings themselves and are disjoint.
+ * One predicate per FACET of the restriction set, keyed on a substring only that
+ * facet's selectors carry. Facet, not group: `text-` alone is satisfied by MUTED's
+ * own selectors, so a TYPOGRAPHY predicate written that loosely passes with
+ * TYPOGRAPHY deleted.
  */
 const FACETS = {
   "copy: em-dash": (s: string) => s.includes("—"),
@@ -73,7 +83,7 @@ const FACETS = {
   "typography: default scale": (s: string) => s.includes("text-(xs|sm|base"),
   "typography: raw gray palette": (s: string) =>
     s.includes("(slate|gray|zinc|neutral|stone)"),
-  "typography: inline style": (s: string) => s.includes('key.name="fontSize"'),
+  "typography: inline style": (s: string) => s.includes('JSXAttribute[name.name="style"]'),
   "muted-foreground": (s: string) => s.includes("text-muted-foreground"),
   "server action E352": (s: string) => s.includes('directive="use server"'),
   zone: (s: string) => s.includes("Europe/Stockholm"),
@@ -92,14 +102,20 @@ function isRestriction(value: unknown): value is Restriction {
   );
 }
 
-/** The configured `no-restricted-syntax` entry, unread and unnarrowed. */
-type RuleEntry = { severity: unknown; selectors: string[]; configured: boolean };
+type ResolvedRule = {
+  severity: unknown;
+  selectors: string[];
+  configured: boolean;
+  /** Counterfactual for the absence assertions: is the file linted AT ALL? */
+  totalRules: number;
+};
 
-const ZONE_MESSAGE = "The raw zone literal is forbidden";
+const RULE = "no-restricted-syntax";
 const RAW_LITERAL = 'const probe = "Europe/Stockholm";';
 
-let rules: Record<Probe, RuleEntry>;
+let rules: Record<Probe, ResolvedRule>;
 let effect: Record<string, number>;
+let zoneMessages: string[];
 
 beforeAll(async () => {
   const eslint = new ESLint({ cwd: ROOT });
@@ -111,52 +127,73 @@ beforeAll(async () => {
         typeof config === "object" && config !== null
           ? (config as { rules?: Record<string, unknown> }).rules
           : undefined;
-      const entry = configuredRules?.["no-restricted-syntax"];
+      const entry = configuredRules?.[RULE];
       const list = Array.isArray(entry) ? entry : [];
       return [
         key,
         {
-          // A rule that is present but `off` enforces nothing, so severity is
-          // read rather than sliced away.
+          // A rule that is present but `off` enforces nothing, so severity is read
+          // rather than sliced away.
           severity: list[0],
           selectors: list.slice(1).filter(isRestriction).map((r) => r.selector),
           configured: entry !== undefined,
+          totalRules: Object.keys(configuredRules ?? {}).length,
         },
       ] as const;
     }),
   );
 
-  rules = Object.fromEntries(resolved) as Record<Probe, RuleEntry>;
+  rules = Object.fromEntries(resolved) as Record<Probe, ResolvedRule>;
 
-  // EFFECT: lint the same source text against different paths and count the zone
-  // rule's own errors. This is what a selector-text check cannot do — a selector
-  // that matches nothing still reads correctly.
-  const countZoneErrors = async (code: string, file: string): Promise<number> => {
+  /** Messages this rule produced — not a text match on any particular one. */
+  const lint = async (code: string, file: string): Promise<string[]> => {
     const [result] = await eslint.lintText(code, { filePath: path.join(ROOT, file) });
     // Fail closed: no result would otherwise read as "no violations", which is the
-    // answer every one of these cases is looking for.
+    // answer half of these cases are looking for.
     if (!result) throw new Error(`ESLint returned no result for ${file}`);
-    return result.messages.filter(
-      (m) => m.ruleId === "no-restricted-syntax" && m.message.startsWith(ZONE_MESSAGE),
-    ).length;
+    return result.messages.filter((m) => m.ruleId === RULE).map((m) => m.message);
   };
 
+  const count = async (code: string, file: string): Promise<number> =>
+    (await lint(code, file)).length;
+
+  zoneMessages = await lint(RAW_LITERAL, PATHS.product);
+
   effect = {
-    productRaw: await countZoneErrors(RAW_LITERAL, PATHS.product),
-    productTemplate: await countZoneErrors(
-      "const probe = `Europe/Stockholm`;",
-      PATHS.product,
+    // ZONE, in three positions and two shapes.
+    zoneValue: await count(RAW_LITERAL, PATHS.product),
+    zoneTemplate: await count("const probe = `Europe/Stockholm`;", PATHS.product),
+    zoneJsxAttribute: await count(
+      'const probe = <T tz="Europe/Stockholm" />;',
+      PATHS.productComponent,
     ),
-    productSubstring: await countZoneErrors(
+    zoneShadcn: await count(RAW_LITERAL, PATHS.shadcn),
+    // ZONE must NOT fire on these — the single normaliser, stated as value equality.
+    zoneSubstring: await count(
       'const probe = "formats a date in Europe/Stockholm";',
       PATHS.product,
     ),
-    productComment: await countZoneErrors("// Europe/Stockholm", PATHS.product),
-    shadcnRaw: await countZoneErrors(RAW_LITERAL, PATHS.shadcn),
-    intlPinRaw: await countZoneErrors(RAW_LITERAL, PATHS.intlPin),
-    declarationRaw: await countZoneErrors(RAW_LITERAL, PATHS.declaration),
-    harnessRaw: await countZoneErrors(RAW_LITERAL, PATHS.harness),
-    specRaw: await countZoneErrors(RAW_LITERAL, PATHS.specFile),
+    zoneComment: await count("// Europe/Stockholm", PATHS.product),
+    // ZONE exemptions, each measured on the path it exempts.
+    zoneIntlPin: await count(RAW_LITERAL, PATHS.intlPin),
+    zoneDeclaration: await count(RAW_LITERAL, PATHS.declaration),
+    zoneHarness: await count(RAW_LITERAL, PATHS.harness),
+    zoneSpec: await count(RAW_LITERAL, PATHS.specFile),
+    // The other four groups, so "pinned by what it catches" is true of the whole
+    // rule and not only of the group this PR added.
+    copyEmDashInJsx: await count("const probe = <p>a — b</p>;", PATHS.productComponent),
+    copyEllipsis: await count('const probe = "vänta...";', PATHS.product),
+    typographyDefaultScale: await count('const probe = "text-sm";', PATHS.product),
+    typographyInlineStyle: await count(
+      'const probe = <div style={{ color: "red" }} />;',
+      PATHS.productComponent,
+    ),
+    mutedInProduct: await count('const probe = "text-muted-foreground";', PATHS.product),
+    mutedInShadcn: await count('const probe = "text-muted-foreground";', PATHS.shadcn),
+    serverActionSpecifier: await count(
+      '"use server";\nexport { helper } from "./helper";',
+      PATHS.product,
+    ),
   };
 }, 120_000);
 
@@ -180,9 +217,27 @@ describe("eslint.config.mjs — no-restricted-syntax blocks", () => {
         expect(rules.product.selectors.some(matches)).toBe(true);
       },
     );
+
+    it("leaves no selector unclaimed — a new group needs a facet", () => {
+      // The direction a hand-kept mirror list loses silently. `allExcept()` gives a
+      // new group every block by construction; without this, it would reach no
+      // assertion at all.
+      const unclaimed = rules.product.selectors.filter(
+        (s) => Object.values(FACETS).filter((matches) => matches(s)).length !== 1,
+      );
+      expect(unclaimed).toEqual([]);
+    });
   });
 
-  describe("relations", () => {
+  describe("reach", () => {
+    it.each<[string, Probe]>([
+      ["src/lib", "product"],
+      ["src/app", "productApp"],
+      ["src/components outside ui", "productComponent"],
+    ])("governs %s with the full restriction set", (_label, probe) => {
+      expect(new Set(rules[probe].selectors)).toEqual(new Set(rules.product.selectors));
+    });
+
     it("gives shadcn primitives the product set MINUS muted, zone kept", () => {
       expect(new Set(rules.shadcn.selectors)).toEqual(
         new Set(rules.product.selectors.filter((s) => !isMuted(s))),
@@ -209,35 +264,59 @@ describe("eslint.config.mjs — no-restricted-syntax blocks", () => {
     ])(
       "leaves the rule UNCONFIGURED for %s — test-hood follows {test,spec}, not just .test",
       (_label, probe) => {
-        // `toBeUndefined`, not `toEqual([])`: an empty selector list is also what
-        // an unreadable config shape would produce, and those are different facts.
+        // `configured`, not an empty selector list: an empty list is also what an
+        // unreadable config shape would produce, and those are different facts.
         expect(rules[probe].configured).toBe(false);
-        expect(rules[probe].selectors).toEqual([]);
+        // Counterfactual — absence proves an exemption only if the file is linted
+        // at all. Adding these paths to `globalIgnores` would otherwise pass here.
+        expect(rules[probe].totalRules).toBeGreaterThan(0);
       },
     );
   });
 
   describe("effect — what the selectors actually catch", () => {
-    it("catches the literal, and the template form, in product code", () => {
-      expect(effect.productRaw).toBe(1);
-      expect(effect.productTemplate).toBe(1);
-      expect(effect.shadcnRaw).toBe(1);
+    it("catches the zone in every shape and position it is claimed to catch", () => {
+      expect(effect.zoneValue).toBe(1);
+      expect(effect.zoneTemplate).toBe(1);
+      expect(effect.zoneJsxAttribute).toBe(1);
+      expect(effect.zoneShadcn).toBe(1);
+    });
+
+    it("tells the author what to import instead", () => {
+      // Identifier-coupled, not prose-coupled: the message may be reworded freely,
+      // but a message that no longer names the constant cannot do its one job.
+      expect(zoneMessages).toHaveLength(1);
+      expect(zoneMessages[0]).toContain("SWEDISH_TIME_ZONE");
     });
 
     it("is silent on a substring and on a comment — the single normaliser", () => {
-      // Value-equality is the whole population rule. A test NAME reading
-      // "formats … in Europe/Stockholm" is this case, and must not be caught.
-      expect(effect.productSubstring).toBe(0);
-      expect(effect.productComment).toBe(0);
+      expect(effect.zoneSubstring).toBe(0);
+      expect(effect.zoneComment).toBe(0);
     });
 
     it.each([
-      ["the global next-intl pin", "intlPinRaw"],
-      ["the declaration file", "declarationRaw"],
-      ["the test harness", "harnessRaw"],
-      ["a .spec file", "specRaw"],
+      ["the global next-intl pin", "zoneIntlPin"],
+      ["the declaration file", "zoneDeclaration"],
+      ["the test harness", "zoneHarness"],
+      ["a .spec file", "zoneSpec"],
     ])("is silent in %s — the exemption is load-bearing", (_label, key) => {
       expect(effect[key]).toBe(0);
+    });
+
+    it.each([
+      ["an em-dash in JSX text", "copyEmDashInJsx"],
+      ["a literal ellipsis", "copyEllipsis"],
+      ["a default Tailwind size class", "typographyDefaultScale"],
+      ["an inline style colour", "typographyInlineStyle"],
+      ["text-muted-foreground in product code", "mutedInProduct"],
+      ["a specifier export from a use-server module", "serverActionSpecifier"],
+    ])("catches %s — every group, not only the one this PR added", (_label, key) => {
+      expect(effect[key]).toBe(1);
+    });
+
+    it("lets shadcn primitives keep text-muted-foreground", () => {
+      // The MUTED subtraction, measured by effect rather than by set arithmetic.
+      expect(effect.mutedInShadcn).toBe(0);
     });
   });
 });

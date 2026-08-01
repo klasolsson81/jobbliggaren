@@ -24,7 +24,8 @@ export type SwedishMonth = { year: number; month: number };
 
 /**
  * The product's home time zone — the counterpart to `SwedishCalendar.ZoneId`, and
- * the home for every call site: import it rather than repeating the literal.
+ * the home for every call site that is not on the exemption list below: import it
+ * rather than repeating the literal.
  *
  * That is not advice. `no-restricted-syntax` in `eslint.config.mjs` fails the
  * literal written as a value under `src/`, in pre-commit and in CI. The version
@@ -33,9 +34,9 @@ export type SwedishMonth = { year: number; month: number };
  *
  * @see eslint.config.mjs — the block that subtracts ZONE **is** the exemption
  * list, and it is not restated here: a second copy is a second thing to keep
- * true. Some of its entries are whole FILES rather than single declarations,
- * because ESLint cannot scope an exemption to one line — a second literal
- * elsewhere in this file would pass.
+ * true. Its entries are whole files and one whole DIRECTORY, never single
+ * declarations, because ESLint cannot scope an exemption to a line — so a second
+ * literal anywhere in an exempt path passes.
  *
  * Test code is exempt as a class, and the reason is prospective rather than a
  * description of the tree: a test OF a module that imports this constant could

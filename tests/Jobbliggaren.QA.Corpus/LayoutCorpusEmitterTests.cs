@@ -677,24 +677,44 @@ public sealed class LayoutCorpusEmitterTests
     // ===============================================================
 
     /// <summary>
-    /// The code reaches §5 and reaches §5 ONLY (CTO-bind D.3). The negative half is the load-
-    /// bearing one: §2 is the headline verdict table with eleven columns already, and a twelfth
-    /// diagnostic column would give the detail two homes in one document. A `Contains` over the
-    /// whole report would pass with the column in both places, so this splits the sections first.
+    /// The code reaches §5's LADDER ROW, and reaches §5 only (CTO-bind D.3). §2 is the headline
+    /// verdict table with eleven columns already, and a twelfth diagnostic column would give the
+    /// detail two homes in one document.
+    ///
+    /// <para><b>Two things this test got wrong on its first form, both real.</b> It asserted
+    /// `Section(…"## 5.").ShouldContain(code)` with a fixture whose code was
+    /// `Resume.ExperienceCompanyRequired` — the exact string §5's own GLOSSARY names as its
+    /// example of a routable per-entry failure. The positive half therefore could not fall: it
+    /// stayed green with zero observations, with `DomainCode` hardcoded to an em-dash, and with
+    /// the column deleted from the row renderer. The fixture now uses a code the emitted prose
+    /// does not contain, AND the assertion reads the CELL by position off the ladder row rather
+    /// than searching the section.</para>
     /// </summary>
     [Fact]
     public void Report_ForABuildabilityBlock_PublishesTheDomainCodeInSectionFiveOnly()
     {
+        const string Code = "Resume.ExperienceRoleRequired";
         var report = LayoutCorpusReport.Build(new LayoutCorpusReportData(
             "abc1234",
             [Observation("case-unbuildable",
                 blockReason: AutoPromoteBlockReason.IncompleteContent, promoted: false,
-                domainErrorCode: "Resume.ExperienceCompanyRequired")],
+                domainErrorCode: Code)],
             [], []));
+        var ladder = Section(report, "## 5. Gate ladder");
 
-        Section(report, "## 5. Gate ladder").ShouldContain("Resume.ExperienceCompanyRequired");
-        Section(report, "## 2. Fidelity verdict").ShouldNotContain("Resume.ExperienceCompanyRequired");
-        Section(report, "## 5. Gate ladder").ShouldContain("| Domain code |");
+        // Guard the guard: if the emitter's prose ever names this code, the cell assertion below
+        // is still sound but a future reader must not weaken it back to a section-wide Contains.
+        ladder.Replace(LadderRow(ladder, "case-unbuildable"), "", StringComparison.Ordinal)
+            .ShouldNotContain(Code,
+                customMessage:
+                "the fixture's code must not appear in §5's own prose, or the positive assertion "
+                + "below can pass with the column deleted");
+
+        var cells = LadderRow(ladder, "case-unbuildable").Split('|').Select(x => x.Trim()).ToList();
+        cells[cells.Count - 4].ShouldBe($"`{Code}`");
+
+        ladder.ShouldContain("| Domain code |");
+        Section(report, "## 2. Fidelity verdict").ShouldNotContain(Code);
     }
 
     /// <summary>
@@ -709,7 +729,8 @@ public sealed class LayoutCorpusEmitterTests
             "abc1234",
             [
                 Observation("case-pnr",
-                    blockReason: AutoPromoteBlockReason.PersonnummerPresent, promoted: false),
+                    blockReason: AutoPromoteBlockReason.PersonnummerPresent, promoted: false,
+                    pnrOnParse: true),
                 Observation("case-promoted"),
             ],
             [], []));
@@ -749,7 +770,11 @@ public sealed class LayoutCorpusEmitterTests
                 blockDetailUnreadable: true)],
             [], []));
 
-        Section(report, "## 5. Gate ladder").ShouldContain("**INSTRUMENT: unreadable**");
+        var ladder = Section(report, "## 5. Gate ladder");
+
+        // The ROW, not the section: §5's glossary contains this marker string by design, so a
+        // section-wide Contains passes on the definition alone.
+        LadderRow(ladder, "case-unreadable").ShouldContain("**INSTRUMENT: unreadable**");
         Section(report, "## 0. Instrument integrity")
             .ShouldContain("**block detail unreadable:** `case-unreadable`");
     }
@@ -816,7 +841,9 @@ public sealed class LayoutCorpusEmitterTests
         AutoPromoteBlockReason? blockReason = null,
         bool promoted = true,
         string? domainErrorCode = null,
-        bool blockDetailUnreadable = false) =>
+        bool blockDetailUnreadable = false,
+        bool pnrOnParse = false,
+        bool pnrInLabel = false) =>
         new(
             Case: new LayoutCase(id, "a mechanic", "(b) single-column", "pdf", "cv.pdf",
                 "application/pdf", _ => [], CvModel.Swedish, _ => { }, "a byte proof", true),
@@ -841,7 +868,12 @@ public sealed class LayoutCorpusEmitterTests
             DomainErrorCode: domainErrorCode,
             BlockDetailUnreadable: blockDetailUnreadable,
             Promoted: promoted,
-            Gates: GateLadder.From(blockReason, promoted, false, false, false),
+            // The two discriminators are PARAMETERS, not constants. Hardcoding them false made
+            // a PersonnummerPresent fixture fall to GateLadder's catch-all and render five
+            // `unresolved` cells — the exact state IsWellFormed was hardened to reject and that
+            // assert (d) hard-fails on. The test above survived only because `unresolved` happens
+            // not to contain the substring it was searching for (test-writer, measured).
+            Gates: GateLadder.From(blockReason, promoted, false, pnrOnParse, pnrInLabel),
             Markers: [],
             CrossSectionContamination: [],
             SummaryContainsRenderedProjectHeading: null,

@@ -269,8 +269,9 @@ public class AutoPromoteGateTests
     [Fact]
     public void Evaluate_UnbuildableContent_CarriesTheDomainCodeVerbatim()
     {
-        // The point of the field: `IncompleteContent` is ONE token over the Domain's thirty-two
-        // constraint codes, and which one fired decides whether a per-entry router would help at
+        // The point of the field: `IncompleteContent` is ONE token over every code
+        // `CreateFromParsed` can return (thirty-two from `ValidateContent` alone), and which one
+        // fired decides whether a per-entry router would help at
         // all. The gate transports `created.Error.Code` unexamined — no predicate is re-encoded
         // here, so this asserts transport, not a second opinion about what the Domain decided.
         var parsed = BuildParsed(
@@ -291,29 +292,45 @@ public class AutoPromoteGateTests
         // nothing says it is wrong. A populated code on a policy arm would put a Domain
         // constraint identity beside a verdict no Domain evaluation produced — a mis-report of
         // the same shape §5 forbids, one level down from the token.
-        var policyArms = new (string Arm, AutoPromoteGateVerdict Verdict)[]
+        var policyArms = new (string Arm, AutoPromoteBlockReason Expected,
+            AutoPromoteGateVerdict Verdict)[]
         {
-            ("pnr on parse", Evaluate(BuildParsed(pnr: Flagged()))),
-            ("confidence", Evaluate(BuildParsed(
+            ("pnr on parse", AutoPromoteBlockReason.PersonnummerPresent,
+                Evaluate(BuildParsed(pnr: Flagged()))),
+            ("confidence", AutoPromoteBlockReason.ParseNotConfident, Evaluate(BuildParsed(
                 confidence: ParseConfidence.Failed(ParseFallbackReason.ExtractionFailed)))),
-            ("pnr in label", Evaluate(BuildParsed(), label: $"CV {ValidPersonnummer}")),
-            ("pnr DQ6", Evaluate(BuildParsed(), personName: $"Anna {ValidPersonnummer}")),
+            ("pnr in label", AutoPromoteBlockReason.PersonnummerPresent,
+                Evaluate(BuildParsed(), label: $"CV {ValidPersonnummer}")),
+            ("pnr DQ6", AutoPromoteBlockReason.PersonnummerInAccountName,
+                Evaluate(BuildParsed(), personName: $"Anna {ValidPersonnummer}")),
         };
 
-        foreach (var (arm, verdict) in policyArms)
+        foreach (var (arm, expected, verdict) in policyArms)
         {
-            verdict.ShouldBeOfType<AutoPromoteGateVerdict.Blocked>()
-                .DomainErrorCode.ShouldBeNull(
-                    $"the '{arm}' rung blocks on policy, so no Domain evaluation produced a code "
-                    + "— see AutoPromoteGateVerdict.Blocked's docblock");
+            var blocked = verdict.ShouldBeOfType<AutoPromoteGateVerdict.Blocked>();
+
+            // The expected reason is asserted PER ARM, not only through the closure below. That
+            // is what makes deleting a fixture a deleted assertion a reviewer can see, rather
+            // than a silent narrowing — see the limitation note under the closure.
+            blocked.Reason.ShouldBe(expected, $"the '{arm}' rung");
+            blocked.DomainErrorCode.ShouldBeNull(
+                $"the '{arm}' rung blocks on policy, so no Domain evaluation produced a code "
+                + "— see AutoPromoteGateVerdict.Blocked's docblock");
         }
 
-        // CLOSURE, not an enumeration: the four fixtures above plus the buildability arm must
-        // cover the declared reason set. A fifth AutoPromoteBlockReason reddens this rather than
-        // sliding past a hand-written list of four — the same reason
-        // AutoPromoteBlockReason_IsTheLockedFourMemberSet reads the set dynamically.
+        // CLOSURE over the declared reason set: the fixtures above plus the buildability arm must
+        // cover it, so a fifth AutoPromoteBlockReason reddens this instead of sliding past a
+        // hand-written list.
+        //
+        // ITS LIMIT, stated because it is not the limit it looks like (code-reviewer + test-writer,
+        // both measured): this closes over TOKENS, not RUNGS. There are FIVE blocking call sites
+        // and only FOUR tokens — "pnr on parse" and "pnr in label" both return
+        // PersonnummerPresent — so `Distinct()` is unchanged if either of those two fixtures is
+        // removed, and a future FIFTH arm returning an existing token would not redden this
+        // either. What covers that is the per-arm expectation in the loop above; what does not
+        // exist, and cannot from this assembly, is a check that the ARM COUNT is still five.
         policyArms
-            .Select(a => ((AutoPromoteGateVerdict.Blocked)a.Verdict).Reason.ToString())
+            .Select(a => a.Expected.ToString())
             .Append(nameof(AutoPromoteBlockReason.IncompleteContent))
             .Distinct()
             .ShouldBe(Enum.GetNames<AutoPromoteBlockReason>(), ignoreOrder: true);

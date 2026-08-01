@@ -494,10 +494,12 @@ corrected for (2026-07-28):
 `Domain code` is the constraint `Resume.CreateFromParsed` refused on, carried verbatim
 out of the buildability rung and read off the handler's own `BlockDetail` log property
 (#1060 D3(β) PR 2). It is what makes `**BLOCKED**` on that rung legible: the token
-`IncompleteContent` covers THIRTY-TWO distinct Domain codes, and they do not share a
-fix — a per-entry failure like `Resume.ExperienceCompanyRequired` is routable, while a
-whole-document one like `Resume.SummaryTooLong` is not, and a design that assumed the
-first would spend a Domain refactor against a failure it cannot touch.
+`IncompleteContent` covers every code `Resume.CreateFromParsed` can return: thirty-two
+declared by `Resume.ValidateContent`, plus `JobSeekerIdRequired` and `ValidateName`'s
+three, so thirty-six. They do not share a fix — a per-entry failure like
+`Resume.ExperienceCompanyRequired` is routable, while a whole-document one like
+`Resume.SummaryTooLong` is not, and a design that assumed the first would spend a
+Domain refactor against a failure it cannot touch.
 
 Read `—` in that column as **"no Domain refusal produced a code on this row"**, never
 as "no constraint failed": a personnummer block and a promote both print it, and
@@ -953,10 +955,15 @@ and wrong about its subject, and the new `Domain code` column is what measured i
 COMPANY mechanism the paragraph is arguing, because on that row the Company is present and the
 Role is what is missing. The `addDoubleNewline` spike's own fifteen-fragment case may still fail
 on Company; that is the spike, and it was never re-run through this instrument, so it stays
-unmeasured rather than being read off a row that turned out to fail somewhere else. Both DOCX
-label-first rows without blanks (`docx-table-label-first-no-blanks`,
-`docx-flat-label-first-no-blanks`) fall on the same code, so the arm is invariant across the
-blank-line variable that separates rows 18 and 20.
+unmeasured rather than being read off a row that turned out to fail somewhere else.
+
+All three rows fall on the same code, which supports TWO invariances — and the first version of
+this paragraph cited the wrong pair for one of them. Rows 18 and 19
+(`docx-table-label-first-no-blanks`, `docx-flat-label-first-no-blanks`) differ on **table versus
+flat**, so their agreement says the arm does not depend on the container shape. The **blank-line**
+variable is the one-variable step between rows **18 and 20**
+(`docx-table-label-first-with-blanks`), and their agreement is what says the arm does not depend
+on the entry counts being right — row 20 parses 5/5 and 3/3, row 18 parses 1.
 
 **What actually disqualified the flag** is that it makes the block UNIVERSAL. Every PDF employment
 whose period sits on its own line yields such a fragment, so every row that promotes today would

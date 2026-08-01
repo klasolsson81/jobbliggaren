@@ -287,10 +287,12 @@ public static class LayoutCorpusReport
         L("`Domain code` is the constraint `Resume.CreateFromParsed` refused on, carried verbatim");
         L("out of the buildability rung and read off the handler's own `BlockDetail` log property");
         L("(#1060 D3(β) PR 2). It is what makes `**BLOCKED**` on that rung legible: the token");
-        L("`IncompleteContent` covers THIRTY-TWO distinct Domain codes, and they do not share a");
-        L("fix — a per-entry failure like `Resume.ExperienceCompanyRequired` is routable, while a");
-        L("whole-document one like `Resume.SummaryTooLong` is not, and a design that assumed the");
-        L("first would spend a Domain refactor against a failure it cannot touch.");
+        L("`IncompleteContent` covers every code `Resume.CreateFromParsed` can return: thirty-two");
+        L("declared by `Resume.ValidateContent`, plus `JobSeekerIdRequired` and `ValidateName`'s");
+        L("three, so thirty-six. They do not share a fix — a per-entry failure like");
+        L("`Resume.ExperienceCompanyRequired` is routable, while a whole-document one like");
+        L("`Resume.SummaryTooLong` is not, and a design that assumed the first would spend a");
+        L("Domain refactor against a failure it cannot touch.");
         L();
         L("Read `—` in that column as **\"no Domain refusal produced a code on this row\"**, never");
         L("as \"no constraint failed\": a personnummer block and a promote both print it, and");
@@ -506,7 +508,10 @@ public static class LayoutCorpusReport
     /// value rather than a nullness test here.</para></summary>
     private static string DomainCode(LayoutCaseObservation c) =>
         c.BlockDetailUnreadable ? "**INSTRUMENT: unreadable**"
-        : c.DomainErrorCode is { Length: > 0 } code ? $"`{code}`"
+        // `is not null`, not a Length guard: a DomainError code is never empty, so testing for
+        // emptiness would invent a THIRD silent reading of the em-dash — the very collapse
+        // BlockDetailUnreadable exists to prevent.
+        : c.DomainErrorCode is { } code ? $"`{code}`"
         : "—";
 
     private static string Y(bool v) => v ? "yes" : "no";

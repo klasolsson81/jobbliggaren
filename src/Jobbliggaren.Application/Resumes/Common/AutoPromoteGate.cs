@@ -91,8 +91,9 @@ internal static class AutoPromoteGate
         // ── Tier 1: the two POLICY gates (CTO-bind §2; narrowed from three by #1060's D1
         // bind) — both read-only. Order: highest PII priority first, then extraction failure.
         //
-        // Every Tier-1 arm passes DomainErrorCode explicitly, and the argument is NAMED at each
-        // of the four. The parameter has no default on purpose (#1060 D3(β) PR 2): with one,
+        // Every blocking arm passes DomainErrorCode explicitly, and the argument is NAMED at
+        // each of the five — the three below plus the Tier-2 DQ6 arm (null) and the buildability
+        // arm (the code). The parameter has no default on purpose (#1060 D3(β) PR 2): with one,
         // dropping it compiles and the arm silently starts claiming "no domain evaluation ran"
         // — the same class of surviving mutation LayoutChainRunner.Crashed's fourth argument was
         // measured to produce. Without one it is a build error.
@@ -168,8 +169,8 @@ internal static class AutoPromoteGate
             // Null even though `guard.Error.Code` exists (`Resume.PersonnummerMustBeRemoved`) —
             // and the reason is the asymmetry the whole field exists for. THIS token is already
             // 1:1 with that code: reaching this rung IS that refusal, so carrying it would add a
-            // second name for one fact. `IncompleteContent`, below, collapses THIRTY-TWO distinct
-            // Domain codes onto one token, and that is the collapse a reader cannot undo.
+            // second name for one fact. `IncompleteContent`, below, collapses `CreateFromParsed`'s
+            // WHOLE error set onto one token, and that is the collapse a reader cannot undo.
             return new AutoPromoteGateVerdict.Blocked(
                 AutoPromoteBlockReason.PersonnummerInAccountName, DomainErrorCode: null);
         }
@@ -212,7 +213,9 @@ internal abstract record AutoPromoteGateVerdict
     /// it for no user-visible gain.)</para>
     ///
     /// <para><b>Why it exists.</b> <see cref="AutoPromoteBlockReason.IncompleteContent"/> is one
-    /// token over THIRTY-TWO distinct Domain constraint codes, and the two mechanisms behind them
+    /// token over every code <c>Resume.CreateFromParsed</c> can return — thirty-two declared by
+    /// <c>ValidateContent</c> alone, plus <c>JobSeekerIdRequired</c> and <c>ValidateName</c>'s three.
+    /// The two mechanisms behind them
     /// have different fixes in different homes — a per-entry failure
     /// (<c>ExperienceCompanyRequired</c>) is routable, while a whole-document one
     /// (<c>SummaryTooLong</c>) was bound to the lexicon asset instead. Until now no consumer could

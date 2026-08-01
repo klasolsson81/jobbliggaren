@@ -96,8 +96,8 @@ public sealed record LayoutCaseObservation(
     AutoPromoteBlockReason? BlockReason,
 
     // #1060 D3(β) PR 2 — WHICH Domain constraint refused the CV, behind the one token that
-    // collapses thirty-two of them. Null on every arm but buildability, and on every promote;
-    // `BlockDetailUnreadable` is the separate instrument fact, never folded into this null.
+    // collapses `CreateFromParsed`'s whole error set. Null on every arm but buildability and on
+    // every promote; `BlockDetailUnreadable` is the separate instrument fact, never folded in.
     string? DomainErrorCode,
     bool BlockDetailUnreadable,
     bool Promoted,
@@ -424,11 +424,14 @@ internal static partial class LayoutChainRunner
         // promoted-education under "promoted experience" is the exact class of quiet content
         // loss this instrument exists to measure.
         //
-        // The same hazard exists on the bool runs, and PR 2 created the second of them: 17-18
-        // (ContainsFusedPeriodRole, AnyLineCarriesBothColumns) and now 32-33
-        // (BlockDetailUnreadable, Promoted). Naming arguments is what closes all three runs at
-        // once, which is why the rule is "named at every construction site" rather than a note
-        // about the int block specifically.
+        // The same hazard exists on the bool runs, and PR 2 created the THIRD of them, not the
+        // second: 17-18 (ContainsFusedPeriodRole, AnyLineCarriesBothColumns), 36-37
+        // (SummaryContainsRenderedProjectHeading, RenderedProjectHeadingIsOwnSection — both
+        // pre-existing), and now 31-32 (BlockDetailUnreadable, Promoted). Both numbers in that
+        // last pair were wrong when first written (32-33, "the second"), and three reviewers
+        // measured it independently: position 33 is `Gates`. Naming arguments is what closes all
+        // four runs at once, which is why the rule is "named at every construction site" rather
+        // than a note about the int block specifically.
         new(
             Case: c,
             ByteProofFailure: byteProofFailure,

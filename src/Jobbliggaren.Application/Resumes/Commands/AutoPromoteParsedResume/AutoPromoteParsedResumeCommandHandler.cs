@@ -181,11 +181,24 @@ public sealed partial class AutoPromoteParsedResumeCommandHandler(
     // — and every value it can hold is a literal declared in Resume.ValidateContent /
     // ValidateName / CreateFromParsed, e.g. `Resume.ExperienceCompanyRequired`. A code names a
     // CONSTRAINT that was not met; it never carries the field's value, its length, or any
-    // fragment of CV text. The one code that touches the personnummer surface
-    // (`Resume.PersonnummerMustBeRemoved`) is unreachable through this parameter by
-    // construction: that arm passes null, and even if it did not, the `PersonnummerPresent`
-    // token beside it already discloses the same presence boolean. It is null on every arm but
-    // buildability (AutoPromoteGateVerdict.Blocked's docblock; test-pinned).
+    // fragment of CV text. It is null on every arm but buildability
+    // (AutoPromoteGateVerdict.Blocked's docblock; test-pinned).
+    //
+    // TWO codes touch the personnummer surface, and they are kept out by DIFFERENT things — an
+    // earlier revision of this paragraph named one code, named it wrongly, and gave it the other
+    // one's reason, which three reviewers measured independently:
+    //   - `Resume.NamePersonnummerMustBeRemoved` (Resume.ValidateName) IS in CreateFromParsed's
+    //     error set, so it is the one that could actually ride this parameter. What keeps it out
+    //     is gate ORDER: AutoPromoteGate scans the resolved label with the SAME predicate and
+    //     returns PersonnummerPresent before buildability is ever asked. That is the load-bearing
+    //     argument and it was the missing one.
+    //   - `Resume.PersonnummerMustBeRemoved` is not a Resume.cs code at all —
+    //     ResumeContentPersonnummerGuard (Application) owns it, its arm returns
+    //     PersonnummerInAccountName, and that arm passes DomainErrorCode: null. It is not in the
+    //     error set this parameter draws from, so it is excluded by construction rather than by
+    //     order.
+    // Either way the disclosure would be nil: the token printed beside the code on those arms
+    // already carries the same presence boolean.
     //
     // Two PURPOSES, and Art. 5(1)(c) wants purposes rather than precedent — the earlier version
     // of this comment justified the id by noting IFailedAccessLogger already logs it, which is

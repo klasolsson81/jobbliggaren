@@ -110,9 +110,16 @@ internal static class CvChainProbe
             // A crash must FAIL LOUDLY as a report row, never abort the run and lose the
             // artifact for every other case. The exception TYPE only — never the message,
             // which could carry CV text (parity Harness/CrashSweep.cs, CLAUDE.md §5).
+            // NAMED, for the reason LayoutChainRunner.Crashed's comment gives about its own
+            // record: PR 2 pushed this list to 15 parameters and created a `bool, bool` run at
+            // 11-12 (BlockDetailUnreadable, Promoted). Writing that rule in one file and leaving
+            // this call positional would be the discipline miss, not the hazard.
             return new CvChainObservation(
-                false, null, string.Empty, 0, 0, false, null, null, null, null, false, false,
-                null, null, ex.GetType().Name);
+                KindResolved: false, ExtractionStatus: null, RawText: string.Empty,
+                BlankLineCount: 0, LineCount: 0, SegmentRan: false, Parsed: null,
+                ImportFailureCode: null, BlockReason: null, DomainErrorCode: null,
+                BlockDetailUnreadable: false, Promoted: false, PromotedResume: null,
+                PromoteFailureCode: null, CrashedWithExceptionType: ex.GetType().Name);
         }
     }
 
@@ -145,8 +152,11 @@ internal static class CvChainProbe
         if (import.IsFailure)
         {
             return new CvChainObservation(
-                kindResolved, null, string.Empty, 0, 0, false, null, import.Error.Code,
-                null, null, false, false, null, null, null);
+                KindResolved: kindResolved, ExtractionStatus: null, RawText: string.Empty,
+                BlankLineCount: 0, LineCount: 0, SegmentRan: false, Parsed: null,
+                ImportFailureCode: import.Error.Code, BlockReason: null, DomainErrorCode: null,
+                BlockDetailUnreadable: false, Promoted: false, PromotedResume: null,
+                PromoteFailureCode: null, CrashedWithExceptionType: null);
         }
 
         await db.SaveChangesAsync(ct);
@@ -262,12 +272,19 @@ internal static class CvChainProbe
         if (result.IsFailure)
             return (null, false, null, result.Error.Code, null, false);
 
-        var detail = ReadBlockDetail(logger);
+        // ReadBlockDetail is called HERE and not above the switch, so `detail` never exists in a
+        // scope that must not use it. Hoisted, it is in scope on the Promoted arm too — where
+        // Records is empty and the method returns (null, true) — and a future "simplification"
+        // to `detail.Code, detail.Unreadable` would then be one line away from marking every
+        // promoted row INSTRUMENT: unreadable.
+        if (result.Value is AutoPromoteOutcome.LeftPending pending)
+        {
+            var detail = ReadBlockDetail(logger);
+            return (pending.Reason, false, null, null, detail.Code, detail.Unreadable);
+        }
 
         return result.Value switch
         {
-            AutoPromoteOutcome.LeftPending pending =>
-                (pending.Reason, false, null, null, detail.Code, detail.Unreadable),
 
             // Read the promoted aggregate off the change tracker, NEVER via a re-query. Two
             // independent reasons, and the STRONGER one is the second: (1) ResumeVersion.Content is
@@ -297,12 +314,21 @@ internal static class CvChainProbe
     /// shape as publishing an honest block as a handler fault, which <c>GateState.Unresolved</c>
     /// exists to prevent.</para>
     ///
-    /// <para><b>It is recorded, not asserted, and that is a narrower choice than PR 1's.</b> The
-    /// ladder gap had no other guard, so it had to redden this suite. This one does: the writing
-    /// side is pinned in <c>AutoPromoteParsedResumeCommandHandlerTests</c>, beside the emitter,
-    /// where it cannot go stale. A second red for one cause, in a suite whose doctrine is
-    /// observe-only, would be duplication rather than depth — so the reading is published in §0
-    /// and §5 and left for a reader to act on.</para>
+    /// <para><b>It is ASSERTED — assert (e) in <c>LayoutCorpusReportTests</c> — and an earlier
+    /// revision of this paragraph argued the opposite on a claim that did not cover its own
+    /// subject.</b> It said the reading needed no red because "this one has a guard": the writer
+    /// pin in <c>AutoPromoteParsedResumeCommandHandlerTests</c>. That guard covers ONE of two
+    /// causes. The other — this method's key constant, its exactly-one rule, the record it indexes
+    /// — lives entirely inside this project and no test outside it can see it. Two reviewers
+    /// measured that independently (CTO-bind 2026-08-01, Decision 1).</para>
+    ///
+    /// <para><b>The measurement that settles it, kept because it is still the right account of how
+    /// the artifact DEGRADES if the assert is ever bypassed.</b> With the key misspelled, the
+    /// suite stayed green while the artifact printed <c>INSTRUMENT: unreadable</c> on five rows,
+    /// §0 named all five, and the real code appeared zero times. Loud in the deliverable, silent
+    /// in CI — and the deliverable is gitignored, only the baseline is tracked, and no test
+    /// compares them. "A reader will notice" is not a guard; the em-dash separation is what makes
+    /// the degradation honest, and the assert is what makes it visible.</para>
     /// </summary>
     private static (string? Code, bool Unreadable) ReadBlockDetail(
         RecordingLogger<AutoPromoteParsedResumeCommandHandler> logger)

@@ -534,6 +534,10 @@ public class AutoPromoteParsedResumeCommandHandlerTests
         await CreateSut(db, recorder).Handle(
             Command(parsed.Id.Value), TestContext.Current.CancellationToken);
 
+        // `Latest` is `Records[^1]`, and the corpus reader indexes the same way. Both rest on
+        // this handler emitting exactly ONE line per LeftPending; nothing said so until here.
+        recorder.Records.Count.ShouldBe(1);
+
         var properties = recorder.Latest.Properties;
         properties.Select(p => p.Key).ShouldContain(
             "BlockDetail",
@@ -558,8 +562,14 @@ public class AutoPromoteParsedResumeCommandHandlerTests
         var (parsed, _) = await SeedOwnedAsync(db, _userId, pnr: flagged);
         var recorder = new RecordingLogger<AutoPromoteParsedResumeCommandHandler>();
 
-        await CreateSut(db, recorder).Handle(
+        var result = await CreateSut(db, recorder).Handle(
             Command(parsed.Id.Value), TestContext.Current.CancellationToken);
+
+        // Assert the arm was actually reached first. Without this the null below is satisfied by
+        // any outcome that logs nothing relevant — including a future refactor where this fixture
+        // stops blocking at all, which would make the test agree with itself about nothing.
+        result.Value.ShouldBeOfType<AutoPromoteOutcome.LeftPending>()
+            .Reason.ShouldBe(AutoPromoteBlockReason.PersonnummerPresent);
 
         recorder.Latest.Properties.Select(p => p.Key).ShouldContain("BlockDetail");
         recorder.Latest.Properties.Single(p => p.Key == "BlockDetail").Value.ShouldBeNull();

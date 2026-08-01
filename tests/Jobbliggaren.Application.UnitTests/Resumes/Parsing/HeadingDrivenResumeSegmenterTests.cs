@@ -729,10 +729,16 @@ public class HeadingDrivenResumeSegmenterTests
     [Fact]
     public void Segment_PeriodOnlyHeaderLine_DoesNotLetTheSecondLinesDateBleedIntoTheFields()
     {
-        // The relocated split runs StripTrailingPeriod on the second line too. Without that, a
-        // document that repeats the period on the role line would put "2005 – 2010" inside the
-        // company name — the same bleed the original strip exists to prevent, reintroduced one
-        // line down by the fix itself.
+        // The relocated split runs StripTrailingPeriod on the second line too. Without that, the
+        // same bleed the original strip exists to prevent is reintroduced one line down by the fix
+        // itself.
+        //
+        // WHERE it actually breaks, corrected after code-reviewer and test-writer both measured it:
+        // NOT "the date ends up in the company name". TitleOrgSeparators tries " – " (en dash)
+        // BEFORE " - " (hyphen), so the unstripped line splits at the date range itself, giving
+        // Title = "Operatör - Acme AB 2005" and Organization = "2010". The assert falls either way
+        // — but a comment that mispredicts its own failure is the thing that makes a green run
+        // unreadable later, so the prediction is fixed rather than the test.
         const string cv =
             """
             Anna Andersson
@@ -774,6 +780,98 @@ public class HeadingDrivenResumeSegmenterTests
         var exp = result.Content.Experience.ShouldHaveSingleItem();
         exp.Title.ShouldBe("Operatör");
         exp.Organization.ShouldBe("Acme AB");
+    }
+
+    [Fact]
+    public void Segment_EntryThatIsOnlyAPeriodLine_DegradesHonestly_AndDoesNotThrow()
+    {
+        // The crash guard, pinned. `entry.Lines.Count >= 2` reads redundant beside `first.Length
+        // == 0` and is not: an entry whose ONLY line is a bare period reaches the relocation with
+        // first == "", and without the count test `Lines[1]` throws. `Segment` is called unguarded
+        // from ImportResumeCommandHandler, so that is an HTTP 500 on CV import.
+        //
+        // Nothing in the test tree reached this before (test-writer swept tests/**/*.cs for a
+        // period-only line delimited by blanks on both sides: zero matches), and the corpus cannot
+        // author it — its renderer always puts the period adjacent to the role line inside one
+        // cell. So the guard was load-bearing and unpinned at once.
+        //
+        // Producible by production: SplitEntries yields a one-line entry from any non-blank line
+        // with blanks on both sides, which is what a Word document with paragraph spacing around a
+        // date line extracts to. Both halves are asserted — that it does not throw, AND that it
+        // degrades to honest absence rather than to some invented field.
+        const string cv =
+            """
+            Anna Andersson
+            anna@example.com
+
+            Arbetslivserfarenhet
+
+            2005 – 2010
+
+            Utbildning
+            Civilingenjör - Chalmers
+            """;
+
+        var result = _sut.Segment(cv);
+
+        var exp = result.Content.Experience.ShouldHaveSingleItem();
+        exp.Title.ShouldBeNull();
+        exp.Organization.ShouldBeNull();
+        exp.Period.ShouldNotBeNull();
+        exp.Period.ShouldContain("2005");
+    }
+
+    [Theory]
+    [InlineData("Operatör - Acme AB", "Operatör", "Acme AB")]
+    [InlineData("Klarna AB - Backend-utvecklare", "Klarna AB", "Backend-utvecklare")]
+    [InlineData("Verkstaden AB, Göteborg", "Verkstaden AB", "Göteborg")]
+    public void Segment_SameHeaderLine_SplitsIdentically_WhicheverLineCarriesIt(
+        string headerLine, string expectedTitle, string expectedOrganization)
+    {
+        // ACCEPTED-AND-KNOWN, not aspirational. Two of these three inputs produce a WRONG result:
+        // "Klarna AB - Backend-utvecklare" puts the employer in the role slot, and
+        // "Verkstaden AB, Göteborg" puts the city in the company slot. Both are pinned anyway,
+        // because the slot ORDER is deliberately un-guessed (senior-cto-advisor 2026-06-23) and
+        // guessing it is the one thing β-1 must not start doing.
+        //
+        // WHAT THIS PIN IS FOR is the second assertion, not the first. β-1's defence is that
+        // relocating the split adds no new class — the same line yields the same slots wherever it
+        // sits. That was an argument in a review report; here it is a fixture. Without it, a future
+        // session reads the period-first path as a regression and "fixes" it by teaching the engine
+        // which side is the role.
+        //
+        // Before β-1 the period-first form did not merely give a different split: it handed the
+        // whole line to Organization and blocked on the missing Role. So the block was standing in
+        // front of a FUSED field, not a correct one, which is why restoring it was refused.
+        var periodFirst = _sut.Segment(
+            $"""
+            Anna Andersson
+            anna@example.com
+
+            Arbetslivserfarenhet
+            2005 – 2010
+            {headerLine}
+            Körde maskiner.
+            """);
+
+        var headerFirst = _sut.Segment(
+            $"""
+            Anna Andersson
+            anna@example.com
+
+            Arbetslivserfarenhet
+            {headerLine}
+            2005 – 2010
+            Körde maskiner.
+            """);
+
+        var a = periodFirst.Content.Experience.ShouldHaveSingleItem();
+        var b = headerFirst.Content.Experience.ShouldHaveSingleItem();
+
+        a.Title.ShouldBe(expectedTitle);
+        a.Organization.ShouldBe(expectedOrganization);
+        b.Title.ShouldBe(expectedTitle);
+        b.Organization.ShouldBe(expectedOrganization);
     }
 
     [Fact]

@@ -246,15 +246,18 @@ describe("ActivityReportView", () => {
       // rather than by accessible-description text: jsdom fuses adjacent element
       // text in a way Chromium does not, so the link is the fact that transfers.
       //
-      // The verb is "klickar utanför fältet", not "lämnar fältet". design-reviewer
-      // measured why: "leave the field" is focus vocabulary, and a mouse user has
-      // no model of being IN a field — they click elsewhere. This one sentence
-      // carries both the WCAG advisement and the whole mouse affordance, so if it
-      // is not actionable the construction rests on nothing.
+      // The sentence names all three commit paths, and each word of it was
+      // argued for. "klickar utanför fältet" rather than "lämnar fältet"
+      // (design-reviewer): leaving a field is focus vocabulary and a mouse user
+      // has no model of being IN one. "tabbar vidare" because `onBlur` fires on
+      // Tab too (code-reviewer), and a promise that omits it under-describes the
+      // contract for exactly the population this whole change exists for. This
+      // one sentence carries both the WCAG advisement and the mouse affordance,
+      // so an incomplete version leaves the construction resting on nothing.
       const describedBy = picker.getAttribute("aria-describedby") ?? "";
       expect(describedBy).not.toBe("");
       expect(document.getElementById(describedBy)).toHaveTextContent(
-        "Rapporten uppdateras när du trycker Enter eller klickar utanför fältet.",
+        "Rapporten uppdateras när du trycker Enter, tabbar vidare eller klickar utanför fältet.",
       );
     });
 

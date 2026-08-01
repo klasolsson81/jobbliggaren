@@ -173,7 +173,8 @@ export function ActivityReportView({
               line's whole job, and without it the control can read "april 2026"
               while the counter and the cards below say maj.
 
-              ALWAYS rendered with its height reserved (`min-h-5`), never
+              ALWAYS rendered with its height reserved (`min-h-10 sm:min-h-5`,
+              measured below), never
               conditionally mounted: toggling the node would shift the counter, the
               CTA and every card under it. `/foretag/sok` measured that same defect
               at 26 px and paid the same permanent cost for the same reason.

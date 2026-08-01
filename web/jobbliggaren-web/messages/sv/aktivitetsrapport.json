@@ -11,7 +11,7 @@
   },
   "month": {
     "label": "Månad",
-    "hint": "Rapporten uppdateras när du trycker Enter eller klickar utanför fältet.",
+    "hint": "Rapporten uppdateras när du trycker Enter, tabbar vidare eller klickar utanför fältet.",
     "pending": "Rapporten nedan visar fortfarande {month}.",
     "announced": "Rapporten visar {month}."
   },

@@ -595,15 +595,37 @@ expect_lacks "W0 control: a readable file without the keys is not a caller error
 #    suite, including on OVER-BROAD, the one this guard's header calls the dangerous
 #    one. A mutant there emits the full advisory text as a ::notice:: and then
 #    "no findings." in the same run.
-out="$(run "$TMP/u.pkg.json" "$TMP/u.audit.json" "$TMP/lock.yaml" "$TMP/u.prod.json")"
+#    Each case must ISOLATE its call site. A first attempt reused the A/C/G fixtures
+#    and every counting assertion became a passenger: those runs emit a SECOND
+#    warning (the UNVERIFIED pair), so the summary never says "no findings" no matter
+#    what the call site under test does. `--pnpm-major 9` silences the location
+#    branch; the manifests below leave exactly one finding possible.
+_x() { bash "$GUARD" --package-json "$1" --audit-json "$2" --audit-prod-json "$3" \
+       --lockfile "$TMP/lock.yaml" --pnpm-major 9 2>&1; }
+out="$(_x "$TMP/u.pkg.json" "$TMP/u.audit.json" "$TMP/u.prod.json")"
 expect_has   "X1 STALE SUPPRESSION is a warning, not a notice"       "$out" "::warning::STALE SUPPRESSION"
 expect_lacks "X2 and is counted"                                     "$out" "no findings"
-out="$(run "$TMP/c.pkg.json" "$TMP/c.audit.json" "$TMP/lock.yaml" "$TMP/c.prod.json")"
+out="$(_x "$TMP/c.pkg.json" "$TMP/c.audit.json" "$TMP/c.prod.json")"
 expect_has   "X3 OVER-BROAD SUPPRESSION is a warning, not a notice"  "$out" "::warning::OVER-BROAD SUPPRESSION"
 expect_lacks "X4 and is counted"                                     "$out" "no findings"
-out="$(run "$TMP/g.pkg.json" "$TMP/g.audit.json" "$TMP/lock.yaml")"
-expect_has   "X5 UNVERIFIED LOCATION is a warning, not a notice"     "$out" "::warning::EMPTY CONFIG, UNVERIFIED LOCATION"
-expect_lacks "X6 and is counted"                                     "$out" "no findings"
+# The two UNVERIFIED call sites are separate, and a fixture with an empty `pnpm` block
+# fires BOTH — so demoting either one alone stays invisible. Give each its own
+# manifest: overrides present (and live) isolates the ignoreGhsas branch, and an
+# ignoreGhsas that is present and not stale isolates the overrides branch. No
+# `--pnpm-major` here, since the unverified location IS the subject.
+cat > "$TMP/x5.pkg.json" <<'J'
+{ "dependencies": {}, "devDependencies": {}, "pnpm": { "overrides": { "postcss": "^8.5.18" } } }
+J
+out="$(run "$TMP/x5.pkg.json" "$TMP/r.audit.json" "$TMP/lock.yaml")"
+expect_has   "X5 UNVERIFIED LOCATION (ignoreGhsas side) is a warning" "$out" "::warning::EMPTY CONFIG, UNVERIFIED LOCATION: no ignoreGhsas"
+expect_lacks "X6 and is counted"                                      "$out" "no findings"
+cat > "$TMP/x7.pkg.json" <<'J'
+{ "dependencies": {}, "devDependencies": {},
+  "pnpm": { "auditConfig": { "ignoreGhsas": ["GHSA-mh99-v99m-4gvg"] } } }
+J
+out="$(run "$TMP/x7.pkg.json" "$TMP/c.audit.json" "$TMP/lock.yaml")"
+expect_has   "X7 UNVERIFIED LOCATION (overrides side) is a warning"   "$out" "::warning::EMPTY CONFIG, UNVERIFIED LOCATION: no overrides"
+expect_lacks "X8 and is counted"                                      "$out" "no findings"
 
 # Y: the remaining input contracts, each of which had exactly one pinned argument.
 # Y1/Y2 — a non-integer counter. jq's `numbers` admits floats; `[ ]` does not, so both

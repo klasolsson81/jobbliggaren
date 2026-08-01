@@ -60,9 +60,9 @@ interface CriterionPickerProps {
    * component-owned. The tree's chevron is an icon-only button, so it needs an
    * accessible name (its sibling `aria-expanded` cannot supply one, unlike the
    * house's text-wrapping accordion buttons). But WHAT the children are is the
-   * axis's knowledge: this picker's two hosts render SNI sections and lan ->
+   * axis's knowledge: this picker's two AXES render SNI sections and län ->
    * kommun respectively, so a single component-owned string said "underkategorier"
-   * over a lan while the same picker's help text said "ett helt lan eller
+   * over a län while the same picker's help text said "ett helt län eller
    * enskilda kommuner" (design-reviewer, #1146).
    */
   readonly expandAria: (name: string) => string;

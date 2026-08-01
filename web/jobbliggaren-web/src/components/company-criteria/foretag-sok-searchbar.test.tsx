@@ -408,7 +408,7 @@ describe("ForetagSokSearchbar — every announcement branch", () => {
     const user = userEvent.setup();
 
     const dialog = await openBransch(user);
-    await user.click(within(dialog).getByRole("button", { name: "Rensa" }));
+    await user.click(within(dialog).getByRole("button", { name: "Rensa val" }));
 
     expect(region(container)).toHaveTextContent("Alla branschfilter är borttagna.");
   });
@@ -450,6 +450,10 @@ describe("ForetagSokSearchbar — every announcement branch", () => {
     const user = userEvent.setup();
 
     await user.click(screen.getByRole("button", { name: "Välj ort eller län" }));
+    // Still plain "Rensa": the ORT dialog is the region/municipality cascade, a
+    // different component reading a different namespace. Only the bransch popover
+    // and the criterion dialog render `CriterionPicker`, whose label #1146
+    // qualified to "Rensa val".
     await user.click(
       within(screen.getByRole("dialog")).getByRole("button", { name: "Rensa" }),
     );
@@ -750,7 +754,7 @@ describe("ForetagSokSearchbar — bransch popover (#999)", () => {
     expect(region).not.toBeNull();
     expect(region).toHaveTextContent("");
     // Nothing to clear at zero, so the clear control IS conditional — only the region is not.
-    expect(within(dialog).queryByRole("button", { name: "Rensa" })).not.toBeInTheDocument();
+    expect(within(dialog).queryByRole("button", { name: "Rensa val" })).not.toBeInTheDocument();
   });
 
   it("the panel and the chip row report the SAME number for the same axis", async () => {

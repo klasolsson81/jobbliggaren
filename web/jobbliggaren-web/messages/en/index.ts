@@ -5,6 +5,7 @@ import admin from "./admin.json";
 import aktivitetsrapport from "./aktivitetsrapport.json";
 import applications from "./applications.json";
 import common from "./common.json";
+import components from "./components.json";
 import contentCvGranskning from "./content-cv-granskning.json";
 import contentFaq from "./content-faq.json";
 import contentLegal from "./content-legal.json";
@@ -28,6 +29,7 @@ const messages = {
   aktivitetsrapport,
   applications,
   common,
+  components,
   "content-cv-granskning": contentCvGranskning,
   "content-faq": contentFaq,
   "content-legal": contentLegal,

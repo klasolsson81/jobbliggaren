@@ -66,6 +66,10 @@ export function BranschPopover({
   // The picker's axis strings live one scope up, shared with the criterion dialog that renders the
   // same component — they were byte-identical duplicates under this page's namespace before #999.
   const tc = useTranslations("pages.foretag.criteria");
+  // This popover hosts the picker's clear control in its own panel header rather
+  // than inline, so the LABEL is the picker's even though the button is not —
+  // it must stay byte-identical to the one `CriterionPicker` renders inline.
+  const tp = useTranslations("components.criterionPicker");
   const options = useMemo(() => flattenCriterionOptions(nodes), [nodes]);
   // Counts what was PICKED, not what it expanded to. `selected.size` reports "52 valda branscher" for
   // one click on a section while the chip row outside shows ONE chip — same axis, same screen, two
@@ -102,7 +106,7 @@ export function BranschPopover({
           </span>
           {pickedCount > 0 && (
             <button type="button" className="jp-clearlink" onClick={onClear}>
-              {tc("dialog.clear")}
+              {tp("clear")}
             </button>
           )}
         </span>

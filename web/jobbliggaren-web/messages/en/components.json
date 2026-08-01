@@ -1,0 +1,10 @@
+{
+  "criterionPicker": {
+    "clear": "Clear",
+    "noMatch": "No matches. Clear the search field to browse the whole list.",
+    "filterMatches": "{count, plural, one {# match} other {# matches}}",
+    "filterTooMany": "{count} matches. Type more to narrow the list, or browse the whole list below.",
+    "expandAria": "Show subcategories for {name}",
+    "collapseAria": "Hide subcategories for {name}"
+  }
+}

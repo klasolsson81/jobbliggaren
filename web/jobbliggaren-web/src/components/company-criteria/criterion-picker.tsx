@@ -73,7 +73,12 @@ export function CriterionPicker({
   groupAria,
   optionsUnavailable,
 }: CriterionPickerProps) {
-  const t = useTranslations("pages.foretag.criteria");
+  // The component's OWN strings, not the page's. Three surfaces render this
+  // picker (`/foretag/sok`'s bransch popover and both pickers in the criterion
+  // dialog), so reading them out of `pages.foretag.criteria` made a shared
+  // component depend on one page's namespace: a second page reusing it either
+  // inherits copy written for `/foretag`, or duplicates it.
+  const t = useTranslations("components.criterionPicker");
   const filterId = useId();
   const filterHelpId = useId();
   const [filter, setFilter] = useState("");
@@ -107,7 +112,7 @@ export function CriterionPicker({
           )}
           {onClear !== undefined && hasSelection && (
             <button type="button" className="jp-clearlink" onClick={onClear}>
-              {t("dialog.clear")}
+              {t("clear")}
             </button>
           )}
         </div>
@@ -155,7 +160,7 @@ export function CriterionPicker({
       >
         {isFiltering && nodes.length > 0
           ? filteredOptions.length === 0
-            ? t("dialog.noMatch")
+            ? t("noMatch")
             : tooMany
               ? t("filterTooMany", { count: filteredOptions.length })
               : t("filterMatches", { count: filteredOptions.length })
@@ -246,8 +251,8 @@ export function CriterionPicker({
               selected={selected}
               onToggle={onToggle}
               groupAriaLabel={groupAria}
-              expandAria={(name) => t("dialog.expandAria", { name })}
-              collapseAria={(name) => t("dialog.collapseAria", { name })}
+              expandAria={(name) => t("expandAria", { name })}
+              collapseAria={(name) => t("collapseAria", { name })}
             />
           )}
         </div>

@@ -90,7 +90,8 @@ civic-utility-regeln "information är design" (se `jobbpilot-design-principles`)
 | Kategori | Korrekt | Fel |
 |---|---|---|
 | Datum kort | 14 apr 2026 | 14/4/26, 4/14/2026 |
-| Datum lång månad | 18 maj | 18:e maj, May 18 |
+| Datum kort utan år | 13 apr | 13/4, Apr 13 |
+| Datum lång månad | 18 april | 18:e april, April 18 |
 | Månadsetikett | maj 2026 | Maj 2026, 2026-05 |
 | Datum ISO | 2026-04-14 | 14-04-2026 |
 | Tid | 14:32 | 2:32 PM, 14.32 |

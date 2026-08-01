@@ -17,27 +17,31 @@ write the timezone yourself (see §Timezone).
 where the value is **not a localized presentation** — a form-ready or operator value
 that must read identically whatever the UI language is — and such code names the
 zone explicitly, precisely because it has no next-intl configuration to inherit.
-Code meeting that test today: `aktivitetsrapport`'s locale-independent `YYYY-MM-DD`
-(the form-ready value for Arbetsförmedlingen), `swedish-calendar.ts`, and
-`audit-log-table.tsx`'s local formatter, which needs a seconds column the shared
-`formatDateTime` does not produce.
+Worked example: `audit-log-table.tsx` reaches past next-intl for a ledger that needs
+a seconds column the shared `formatDateTime` does not produce, names the zone, and
+carries its own spec. It passes the test, and it is not a licence — it is what
+passing looks like.
 
-Those are examples, not the population — the criterion is what holds, and an
-enumeration is what goes stale. Code **failing** the test is drift, not an
-exception: `match-setup-rail-modal.tsx`'s `new Intl.NumberFormat("sv-SE")` formats
-an ordinary counter and should call `formatNumber`. Convert such sites when you are
-in the file anyway. **No lint rule guards any of this**, unlike the zone literal.
+**Apply the test; do not look for a list.** Code failing it is drift rather than an
+exception — `match-setup-rail-modal.tsx`'s `new Intl.NumberFormat("sv-SE")` formats
+an ordinary counter and should call `formatNumber`, for example. Convert such sites
+when you are in the file anyway. **No lint rule guards any of this**, unlike the zone
+literal.
 
 ---
 
 ## Where the code lives
 
 The **shared** helpers live in two modules under `web/jobbliggaren-web/src/lib/i18n/`,
-and new code should use them. They are not the only date formatters in the tree:
-`lib/oversikt/aggregations.ts` carries four hand-rolled Swedish ones with their own
-month and weekday arrays, outside next-intl — including
-`formatSwedishShortDateWithYear`, which produces the same shape as the Short row
-below, and returns an en-dash rather than `null` for bad input. `lib/time/swedish-calendar.ts`
+and new code should use them.
+
+**A date shape can come from anywhere, though, so search rather than assume:** from a
+shared helper, from a module with its own month arrays, or from a call site that
+picked `dateTime` options inline. `lib/oversikt/aggregations.ts` is the largest of the
+second kind — hand-rolled Swedish formatters outside next-intl, including
+`formatSwedishShortDateWithYear`, which produces the same shape as the Short row below
+and returns an en-dash rather than `null` for bad input. `use-urgency-label.ts` is the
+third kind: it decides a long-month form inline. `lib/time/swedish-calendar.ts`
 (calendar facts) and `lib/company-criteria/format-magnitude.ts` (counts, not currency)
 are further homes.
 
@@ -118,7 +122,8 @@ do not read the absence of a shape as a ban on one that already ships.
 | Shape | Example | Where |
 |---|---|---|
 | Short | `18 maj 2026` | anything a job seeker reads |
-| Short, no year | `13 maj` | same-season contexts where the year adds nothing |
+| Short, no year | `13 apr` | same-season contexts where the year adds nothing |
+| Long month, no year | `18 april` | urgency and deadline copy |
 | Weekday | `lördag` | "today" surfaces |
 | ISO date | `2026-05-11` | form-ready values, exports, copyable fields |
 | Ledger | `2026-05-11 10:32` | admin tables whose rows must align column-wise |
@@ -127,10 +132,11 @@ do not read the absence of a shape as a ban on one that already ships.
 Never `05/18/2026`, never `May 18, 2026` in Swedish copy. The ISO date and the
 ledger shape are different rows on purpose: a form-ready value carries no time.
 
-Two shipped variants sit deliberately outside these rows, and neither is a licence
-to invent a third: `audit-log-table`'s ledger carries **seconds**, and
-`aggregations.ts`'s notices stamp renders `2026-05-11 · 10:32` in **UTC**, with a
-middle dot, which its own doc comment argues for.
+Shipped variants sit outside these rows on purpose — `audit-log-table`'s ledger
+carries **seconds**, and `aggregations.ts`'s notices stamp renders `2026-05-11 ·
+10:32` in **UTC** with a middle dot, which its own doc comment argues for. A shape
+outside the rows is not automatically wrong; it does have to answer what the row
+could not express.
 
 ### Time
 
@@ -142,9 +148,12 @@ middle dot, which its own doc comment argues for.
 `messages/sv/`.
 
 **`i dag` / `i går`, spaced.** The majority form in `messages/sv/`, and it matches
-`relative-time.ts`. The closed `idag`/`igår` still ships in three files —
-`jobads.json`, `common.json` and `landing.json` — a divergence worth its own PR, and
-not a licence to pick either. Note the consequence for the row above: the connector
+`relative-time.ts`. The closed form still ships: `idag` in `jobads.json`,
+`common.json` and `landing.json`; `igår` in `jobads.json` alone. Two of the three
+`idag`s are the adverbial `"nya idag"` in a counter label, which is a different copy
+call from the published-label `"idag, kl."` — a follow-up should not treat them as
+one edit. Either way it is a divergence worth its own PR, not a licence to pick
+freely. Note the consequence for the row above: the connector
 example `i dag, kl. 14:32` is the form to write, not a string `jobads.json` currently
 sends, since its own label is closed.
 

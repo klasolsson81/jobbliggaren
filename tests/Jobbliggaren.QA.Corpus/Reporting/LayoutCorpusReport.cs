@@ -493,12 +493,17 @@ public static class LayoutCorpusReport
 
     /// <summary>The Domain constraint code behind this row's block, or why there is none.
     ///
-    /// <para>THREE outcomes, and the third is the one that must not collapse into the second: a
-    /// code, an em-dash meaning "no Domain refusal produced one" (every promoted row, every
-    /// policy block), and an explicit instrument marker meaning the value could not be READ. The
-    /// unreadable case is checked FIRST — a reading failure also leaves the code null, so testing
-    /// the null first would print an em-dash over it and the artifact would state as a fact about
-    /// the CV something it had merely failed to observe.</para></summary>
+    /// <para>THREE outcomes, and the third must not collapse into the second: a code, an em-dash
+    /// meaning "no Domain refusal produced one" (every promoted row, every policy block), and an
+    /// explicit instrument marker meaning the value could not be READ.</para>
+    ///
+    /// <para><b>What carries that is the separate observed FIELD, not this method's arm order.</b>
+    /// An unreadable reading also leaves the code null, so the two are indistinguishable from the
+    /// code alone: a renderer written as "null → em-dash, else the code" prints the em-dash over
+    /// an unreadable row, and the artifact then states as a fact about the CV something it merely
+    /// failed to observe. Swapping the two non-default arms below changes nothing — an unreadable
+    /// row cannot also carry a code — which is exactly why the guard has to be its own observed
+    /// value rather than a nullness test here.</para></summary>
     private static string DomainCode(LayoutCaseObservation c) =>
         c.BlockDetailUnreadable ? "**INSTRUMENT: unreadable**"
         : c.DomainErrorCode is { Length: > 0 } code ? $"`{code}`"

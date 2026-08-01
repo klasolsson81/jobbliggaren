@@ -46,7 +46,12 @@ cat > "$TMP/a.audit.json" <<'J'
 J
 mk_lock "  postcss@8.5.24:" "  eslint@9.0.0:"
 out="$(run "$TMP/a.pkg.json" "$TMP/a.audit.json" "$TMP/lock.yaml")"
-expect_has  "A1 accepted+dev-only is reported as still dev-only" "$out" "still dev-only reachable"
+expect_has  "A1 accepted+dev-only is reported as absent from the --prod set" "$out" "absent from the"
+# The note used to end at "still dev-only reachable", which is a REACHABILITY verdict
+# drawn from a DECLARED-dependency partition. Measured in this repo: tailwindcss and
+# @tailwindcss/postcss are devDependencies that build the production stylesheet, so
+# the two differ in fact and not only in principle. Pin the limit, not just the claim.
+expect_has  "A1b and the note states that partition is not runtime reachability" "$out" "not runtime reachability"
 expect_lacks "A2 no stale warning when the GHSA matches"         "$out" "STALE SUPPRESSION"
 expect_lacks "A3 no over-broad warning on a dev root"            "$out" "OVER-BROAD"
 expect_lacks "A4 live override raises nothing"                   "$out" "DEAD OVERRIDE"
@@ -92,7 +97,7 @@ expect_has "C2 the warning routes to the security-auditor trigger" "$out" "Beslu
 #     absent from --prod → must stay silent and say so.
 out="$(run "$TMP/c.pkg.json" "$TMP/c.audit.json" "$TMP/lock.yaml")"
 expect_lacks "C3 the same advisory absent from --prod does not fire" "$out" "OVER-BROAD"
-expect_has   "C4 and is reported as still dev-only"                 "$out" "still dev-only reachable"
+expect_has   "C4 and is reported as absent from the --prod set"     "$out" "absent from the"
 
 # D: an override key naming a package the lockfile does not carry.
 cat > "$TMP/d.pkg.json" <<'J'
@@ -300,7 +305,7 @@ expect_has "G2 and names the state it cannot distinguish"                   "$ou
 # warn — otherwise the guard cries wolf on every repo that accepts nothing.
 out="$(bash "$GUARD" --package-json "$TMP/g.pkg.json" --audit-json "$TMP/g.audit.json"         --audit-prod-json "$TMP/g.audit.json" --lockfile "$TMP/lock.yaml"         --pnpm-major 9 2>&1)"
 expect_lacks "G3 a verified location makes an empty block silent" "$out" "::warning::"
-expect_has   "G4 and states it positively"                        "$out" "location is verified"
+expect_has   "G4 and states it positively"                        "$out" "no sign the configuration moved"
 
 # G5: pnpm 11 reads a different file, so the guard cannot speak about this tree.
 out="$(bash "$GUARD" --package-json "$TMP/a.pkg.json" --audit-json "$TMP/a.audit.json"         --audit-prod-json "$TMP/g.audit.json" --lockfile "$TMP/lock.yaml"         --pnpm-major 11 2>&1)"
@@ -313,7 +318,7 @@ overrides:
   postcss: ^8.5.18
 ' > "$TMP/ws.yaml"
 out="$(bash "$GUARD" --package-json "$TMP/g.pkg.json" --audit-json "$TMP/g.audit.json"         --audit-prod-json "$TMP/g.audit.json" --lockfile "$TMP/lock.yaml"         --workspace-yaml "$TMP/ws.yaml" 2>&1)"
-expect_has "G6 settings found in pnpm-workspace.yaml are reported as SKIPPED" "$out" "configuration has moved"
+expect_has "G6 settings found in pnpm-workspace.yaml are reported as SKIPPED" "$out" "may already live there"
 
 # H: observe-only — a tree full of findings still exits 0. If this ever fails,
 #    the guard has become a gate, which is the one thing it must never be.
@@ -332,6 +337,97 @@ expect_has "H0 the observe-only case really produces a finding" "$h_out" "::warn
 bash "$GUARD" --package-json "$TMP/nope.json" --audit-json "$TMP/g.audit.json" \
      --audit-prod-json "$TMP/g.audit.json" --lockfile "$TMP/lock.yaml" >/dev/null 2>&1
 [ $? -eq 2 ] && ok "I1 an unreadable input fails loudly" || bad "I1 an unreadable input fails loudly" "exit != 2"
+
+# ---------------------------------------------------------------------------
+# J–P: the paths a mutation matrix found unexercised on 2026-08-01. Every block
+# below carries its own CONTROL, because an assertion that a malformed input is
+# SKIPPED passes trivially against a guard that skips everything.
+mk_lock "  postcss@8.5.24:" "  eslint@9.0.0:"
+
+# J: the advisories shape assertion is about the VALUE, not the key. `has()` is
+#    satisfied by null/string/number/bool; the reads then iterate a non-iterable,
+#    jq exits 5 with stderr discarded, and `${prod_hit:-0}` turned the FAILED READ
+#    into the number zero. Measured: all four produced the positive "absent from
+#    the --prod set" note, byte-identical to a healthy run, on check 2.
+printf '{ "advisories": {} }\n' > "$TMP/j.prod.json"
+out="$(run "$TMP/a.pkg.json" "$TMP/a.audit.json" "$TMP/lock.yaml" "$TMP/j.prod.json")"
+expect_has "J0 control: a well-formed empty --prod set does produce the note" "$out" "absent from the"
+for _v in 'null' '"boom"' '123' 'true'; do
+  printf '{ "advisories": %s }\n' "$_v" > "$TMP/j.prod.json"
+  out="$(run "$TMP/a.pkg.json" "$TMP/a.audit.json" "$TMP/lock.yaml" "$TMP/j.prod.json")"
+  expect_has   "J1 --prod advisories:$_v is SKIPPED"                    "$out" "not a clean result"
+  expect_lacks "J2 --prod advisories:$_v never claims the --prod set"   "$out" "absent from the"
+done
+
+# K: the container can be well-formed while an ELEMENT is not. `{"1":"boom"}` passes
+#    the type assertion and errors on `.github_advisory_id`, so the read returns
+#    empty — which `${hit:-0}` turned into "matches no advisory in the tree. It
+#    suppresses nothing; remove it", an instruction to delete a live acceptance.
+printf '{ "advisories": { "1": "boom" } }\n' > "$TMP/k.audit.json"
+out="$(run "$TMP/a.pkg.json" "$TMP/k.audit.json" "$TMP/lock.yaml")"
+expect_has   "K1 an unindexable advisory element is SKIPPED, not counted as zero" "$out" "returned nothing for"
+expect_lacks "K2 and never emits the delete-it instruction"                       "$out" "It suppresses nothing"
+# The --prod read has its own copy of the same trap, reachable only past a healthy
+# full read, so it needs its own case rather than sharing K1's.
+printf '{ "advisories": { "1": "boom" } }\n' > "$TMP/k.prod.json"
+out="$(run "$TMP/a.pkg.json" "$TMP/a.audit.json" "$TMP/lock.yaml" "$TMP/k.prod.json")"
+expect_has   "K3 an unindexable element in the --prod set is SKIPPED"             "$out" "returned nothing for"
+expect_lacks "K4 and never claims absence from the --prod set"                    "$out" "absent from the"
+
+# L: the manifest type check asserts the TOP level only, one level above the blocks
+#    the reads consume. Measured: `pnpm.overrides` as a string produced "nothing
+#    repaired" plus "no findings", byte-identical to a healthy run.
+printf '{ "dependencies": {}, "devDependencies": {}, "pnpm": { "overrides": "garbage" } }\n' > "$TMP/l1.pkg.json"
+out="$(run "$TMP/l1.pkg.json" "$TMP/a.audit.json" "$TMP/lock.yaml")"
+expect_has   "L1 a non-object pnpm.overrides is SKIPPED"  "$out" "is not an object"
+expect_lacks "L2 and never reports nothing repaired"      "$out" "nothing repaired"
+printf '{ "dependencies": {}, "devDependencies": {}, "pnpm": { "auditConfig": { "ignoreGhsas": "GHSA-mh99-v99m-4gvg" } } }\n' > "$TMP/l2.pkg.json"
+out="$(run "$TMP/l2.pkg.json" "$TMP/a.audit.json" "$TMP/lock.yaml")"
+expect_has   "L3 a non-array ignoreGhsas is SKIPPED"      "$out" "is not an array"
+expect_lacks "L4 and never reports nothing accepted"      "$out" "nothing accepted"
+
+# M: requiring BOTH files to carry the counter was itself a bypass, and it went the
+#    dangerous way: a --prod file reporting `dependencies: 0` — the exact state the
+#    sanity check exists to catch — passed silently whenever the FULL file omitted
+#    the counter, which every fixture here does.
+printf '{ "advisories": {}, "metadata": { "dependencies": 0 } }\n' > "$TMP/m.prod.json"
+out="$(run "$TMP/a.pkg.json" "$TMP/a.audit.json" "$TMP/lock.yaml" "$TMP/m.prod.json")"
+expect_has   "M1 one-sided metadata is SKIPPED, not a fall-through" "$out" "the partition cannot be verified"
+expect_lacks "M2 and an empty --prod tree never reads as clean"     "$out" "absent from the"
+
+# N: and with the counter on both sides the comparison must actually happen — in
+#    both polarities, or M1 could be satisfied by a guard that skips unconditionally.
+printf '{ "advisories": { "1": { "github_advisory_id": "GHSA-mh99-v99m-4gvg", "severity": "high" } }, "metadata": { "dependencies": 100 } }\n' > "$TMP/n.full.json"
+printf '{ "advisories": {}, "metadata": { "dependencies": 0 } }\n' > "$TMP/n.prod0.json"
+out="$(run "$TMP/a.pkg.json" "$TMP/n.full.json" "$TMP/lock.yaml" "$TMP/n.prod0.json")"
+expect_has "N1 a --prod run that resolved an empty tree is SKIPPED" "$out" "did not partition a real tree"
+printf '{ "advisories": {}, "metadata": { "dependencies": 40 } }\n' > "$TMP/n.prodok.json"
+out="$(run "$TMP/a.pkg.json" "$TMP/n.full.json" "$TMP/lock.yaml" "$TMP/n.prodok.json")"
+expect_lacks "N2 control: a healthy partition is not SKIPPED"       "$out" "did not partition a real tree"
+expect_has   "N3 control: and the suppression checks do run"        "$out" "absent from the"
+
+# O: the location probe matches FORM, not spelling. The first version anchored at
+#    column 0 and assumed the key was unquoted, so `"overrides":` — valid YAML pnpm
+#    reads identically — produced "the location is verified" with a live acceptance
+#    sitting in the probed file.
+_ws() { bash "$GUARD" --package-json "$TMP/g.pkg.json" --audit-json "$TMP/g.audit.json" \
+        --audit-prod-json "$TMP/g.audit.json" --lockfile "$TMP/lock.yaml" --workspace-yaml "$1" 2>&1; }
+printf 'packages:\n  - "."\n"overrides":\n  postcss: ^8.5.18\n' > "$TMP/o1.yaml"
+expect_has "O1 a QUOTED workspace key is seen"   "$(_ws "$TMP/o1.yaml")" "may already live there"
+printf 'pnpm:\n  overrides:\n    postcss: ^8.5.18\n'            > "$TMP/o2.yaml"
+expect_has "O2 an INDENTED workspace key is seen" "$(_ws "$TMP/o2.yaml")" "may already live there"
+printf 'packages:\n  - "."\nonlyBuiltDependencies:\n  - esbuild\n' > "$TMP/o3.yaml"
+expect_lacks "O3 control: a workspace file carrying none of the keys does not skip" \
+             "$(_ws "$TMP/o3.yaml")" "may already live there"
+
+# P: `${PNPM_MAJOR:-0}` defaulted an EMPTY value to the numeric string "0", so
+#    `--pnpm-major ""` fell through the numeric check and then failed `[ -n ... ]`,
+#    leaving a probe that silently did not run while the output claimed a verified
+#    location. Supplied-but-empty is a caller error, not a default.
+out="$(bash "$GUARD" --package-json "$TMP/g.pkg.json" --audit-json "$TMP/g.audit.json" \
+       --audit-prod-json "$TMP/g.audit.json" --lockfile "$TMP/lock.yaml" --pnpm-major "" 2>&1)"
+expect_has   "P1 an empty --pnpm-major is SKIPPED, not defaulted to 0" "$out" "which is not a number"
+expect_lacks "P2 and never claims the location was probed"             "$out" "no sign the configuration moved"
 
 echo
 echo "audit-suppression-guard fixtures: $PASS passed, $FAIL failed"

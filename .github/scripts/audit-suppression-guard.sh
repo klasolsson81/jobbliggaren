@@ -61,13 +61,17 @@ set -uo pipefail
 USAGE="usage: $0 --package-json F --audit-json F --audit-prod-json F --lockfile F
                  [--pnpm-major N] [--workspace-yaml F]"
 PKG=""; AUDIT=""; AUDIT_PROD=""; LOCK=""; PNPM_MAJOR=""; WS_YAML=""
+# Tracked separately from the value, because "not supplied" and "supplied empty" are
+# different states that an empty string cannot tell apart — and they were being
+# collapsed. See the location section below.
+PNPM_MAJOR_SET=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --package-json)    PKG="${2:-}"; shift 2 ;;
     --audit-json)      AUDIT="${2:-}"; shift 2 ;;
     --audit-prod-json) AUDIT_PROD="${2:-}"; shift 2 ;;
     --lockfile)        LOCK="${2:-}"; shift 2 ;;
-    --pnpm-major)      PNPM_MAJOR="${2:-}"; shift 2 ;;
+    --pnpm-major)      PNPM_MAJOR="${2:-}"; PNPM_MAJOR_SET=1; shift 2 ;;
     --workspace-yaml)  WS_YAML="${2:-}"; shift 2 ;;
     *) echo "$USAGE" >&2; exit 2 ;;
   esac
@@ -96,37 +100,69 @@ if ! jq -e 'type == "object"' "$PKG" >/dev/null 2>&1; then
   echo "::warning::audit-suppression-guard SKIPPED — $PKG is not parseable JSON, so an empty pnpm block cannot be distinguished from an unreadable one. This is not a clean result."
   exit 0
 fi
-# And a --prod file can be well-formed yet meaningless. Measured 2026-07-30: one
-# that resolved an EMPTY tree (`metadata.dependencies: 0`) produced the POSITIVE
-# claim "absent from the --prod set — still dev-only reachable", byte-identical to
-# the healthy run, on the check this guard calls the dangerous one. Shape alone does
-# not carry it; the partition has to have partitioned something.
-if jq -e 'has("advisories")' "$AUDIT_PROD" >/dev/null 2>&1    && jq -e 'has("advisories")' "$AUDIT" >/dev/null 2>&1; then
-  # Only when BOTH files actually carry the counter. Absence is not evidence of an
-  # empty tree — the fixtures omit `metadata` entirely, and reading absence as zero
-  # made every one of them skip: the same absence-as-fact error this guard exists to
-  # prevent, committed inside the check against it. Caught by the fixtures, in the
-  # one edit where I would have sworn it could not happen.
-  jq -e '.metadata.dependencies | numbers' "$AUDIT_PROD" >/dev/null 2>&1 &&
-  jq -e '.metadata.dependencies | numbers' "$AUDIT"      >/dev/null 2>&1 || _skip_sanity=1
-  _pd="$(jq -r '.metadata.dependencies // 0' "$AUDIT_PROD" 2>/dev/null)"
-  _fd="$(jq -r '.metadata.dependencies // 0' "$AUDIT" 2>/dev/null)"
-  if [ -z "${_skip_sanity:-}" ] && { [ "${_pd:-0}" -le 0 ] || [ "${_pd:-0}" -gt "${_fd:-0}" ]; }; then
-    echo "::warning::audit-suppression-guard SKIPPED — the --prod audit reports $_pd dependencies against $_fd in the full audit, so it did not partition a real tree. This is not a clean result."
-    exit 0
-  fi
-fi
+# `has("advisories")` was the wrong assertion, and it was wrong in this guard's own
+# defect class. `has` tests for the KEY, so it is satisfied by `"advisories": null`,
+# `"boom"`, `123` and `true`. The reads below then iterate a non-iterable, jq exits
+# 5, stderr is discarded, and `${prod_hit:-0}` turns the FAILED READ into the number
+# zero. Measured 2026-08-01, 4 of 4 such values: the positive claim "absent from the
+# --prod set — still dev-only reachable", byte-identical to a healthy run, on the
+# check this guard itself calls the dangerous one. Absence read as fact, inside the
+# guard against it. So assert the VALUE, not the key.
 for f in "$AUDIT" "$AUDIT_PROD"; do
-  if ! jq -e 'has("advisories")' "$f" >/dev/null 2>&1; then
-    echo "::warning::audit-suppression-guard SKIPPED — $f is not usable pnpm audit JSON (no .advisories). This is not a clean result; the suppression checks did not run."
+  if ! jq -e '.advisories | type == "object" or type == "array"' "$f" >/dev/null 2>&1; then
+    echo "::warning::audit-suppression-guard SKIPPED — $f is not usable pnpm audit JSON: .advisories is absent or is not a container these checks can iterate. This is not a clean result; the suppression checks did not run."
     exit 0
   fi
 done
+# And a --prod file can be well-formed yet meaningless. Measured 2026-07-30: one
+# that resolved an EMPTY tree (`metadata.dependencies: 0`) produced the POSITIVE
+# claim "absent from the --prod set — still dev-only reachable", byte-identical to
+# the healthy run. Shape alone does not carry it; the partition has to have
+# partitioned something.
+#
+# The counter is consulted only when BOTH files carry it. Absence is not evidence of
+# an empty tree — the fixtures omit `metadata` entirely, and reading absence as zero
+# made every one of them skip: the same absence-as-fact error, caught by the fixtures
+# in the one edit where I would have sworn it could not happen.
+#
+# But requiring both was itself a bypass, and it went the dangerous way. Measured
+# 2026-08-01: a --prod file carrying `dependencies: 0` — exactly the state this check
+# exists to catch — passes silently to "still dev-only reachable" the moment the FULL
+# file omits the counter. One-sided absence is now its own SKIPPED rather than a
+# fall-through, so the three states are separated: both present means compare,
+# exactly one present means the comparison is impossible, neither means a fixture
+# that legitimately has no counter.
+_pd_ok=""; _fd_ok=""
+jq -e '.metadata.dependencies | numbers' "$AUDIT_PROD" >/dev/null 2>&1 && _pd_ok=1
+jq -e '.metadata.dependencies | numbers' "$AUDIT"      >/dev/null 2>&1 && _fd_ok=1
+if [ -n "$_pd_ok" ] && [ -n "$_fd_ok" ]; then
+  _pd="$(jq -r '.metadata.dependencies' "$AUDIT_PROD")"
+  _fd="$(jq -r '.metadata.dependencies' "$AUDIT")"
+  if [ "$_pd" -le 0 ] || [ "$_pd" -gt "$_fd" ]; then
+    echo "::warning::audit-suppression-guard SKIPPED — the --prod audit reports $_pd dependencies against $_fd in the full audit, so it did not partition a real tree. This is not a clean result."
+    exit 0
+  fi
+elif [ -n "$_pd_ok" ] || [ -n "$_fd_ok" ]; then
+  echo "::warning::audit-suppression-guard SKIPPED — one audit file carries metadata.dependencies and the other does not, so the partition cannot be verified. A --prod run that resolved an empty tree would read as clean here. This is not a clean result."
+  exit 0
+fi
 
 warn() { echo "::warning::$1"; FINDINGS=$((FINDINGS + 1)); }
 note() { echo "::notice::$1"; }
 skip() { echo "::warning::audit-suppression-guard SKIPPED — $1 This is not a clean result; the suppression checks did not run."; exit 0; }
 FINDINGS=0
+
+# The manifest type check above asserts the TOP level only, and that is one level too
+# shallow. Measured 2026-08-01: a manifest whose `pnpm.overrides` is the string
+# "garbage" produced "no overrides — nothing repaired, and the location is verified"
+# plus "no findings" — byte-identical to a healthy run, because jq errors on the
+# read and an empty result reads as "nothing configured". Same for `ignoreGhsas` as
+# a string. Two states, one output, one level down: the fourth input to carry this
+# guard's own defect class. Assert the sub-blocks the reads actually consume.
+jq -e '(.pnpm.overrides // {}) | type == "object"' "$PKG" >/dev/null 2>&1 \
+  || skip "\`pnpm.overrides\` in $PKG is present but is not an object, so the override checks cannot read it and an unreadable block would be indistinguishable from an empty one."
+jq -e '(.pnpm.auditConfig.ignoreGhsas // []) | type == "array"' "$PKG" >/dev/null 2>&1 \
+  || skip "\`pnpm.auditConfig.ignoreGhsas\` in $PKG is present but is not an array, so the suppression checks cannot read it and an unreadable list would be indistinguishable from an empty one."
 
 # THE GUARD MUST NOT REPORT CLEAN FROM A MANIFEST IT CANNOT SHOW pnpm READS.
 #
@@ -142,15 +178,28 @@ FINDINGS=0
 # So an empty `pnpm` block is only reportable as clean when nothing suggests the
 # configuration lives elsewhere. Both probes below are VALUES and FILES, never a
 # `pnpm --version` call — the guard takes no network and stays fixturable.
-case "${PNPM_MAJOR:-0}" in
-  ''|*[!0-9]*) skip "the pnpm major was passed as '"'"'$PNPM_MAJOR'"'"', which is not a number, so the location cannot be verified." ;;
-esac
+# `${PNPM_MAJOR:-0}` defaulted an EMPTY value to the string "0", which is numeric, so
+# `--pnpm-major ""` fell straight through this check and then failed `[ -n ... ]`
+# below — leaving the caller with a probe that silently did not run. Paired with a
+# bare `--workspace-yaml` that reported "the location is verified" off one probe of
+# two (measured 2026-08-01). Supplied-but-empty is a caller error, not a default.
+if [ -n "$PNPM_MAJOR_SET" ]; then
+  case "$PNPM_MAJOR" in
+    ''|*[!0-9]*) skip "the pnpm major was passed as '"'"'$PNPM_MAJOR'"'"', which is not a number, so the location cannot be verified." ;;
+  esac
+fi
 if [ -n "$PNPM_MAJOR" ] && [ "$PNPM_MAJOR" -ge 11 ]; then
   skip "pnpm major $PNPM_MAJOR does not read the \`pnpm\` field in package.json, which is the field this guard reads."
 fi
+# FORM, NOT NAME. The first version anchored at column 0 and assumed the key was
+# unquoted, so it saw `overrides:` and missed `"overrides":` — valid YAML pnpm reads
+# identically. Measured 2026-08-01 with a live acceptance and a live override sitting
+# in the probed file: the quoted form produced "the location is verified". A probe
+# that reports VERIFIED on a form it cannot parse is worse than no probe, and this is
+# the house rule that guards match shape rather than spelling.
 if [ -n "$WS_YAML" ] && [ -r "$WS_YAML" ] \
-   && grep -qE '^(overrides|auditConfig|ignoreGhsas):' "$WS_YAML" 2>/dev/null; then
-  skip "\`$WS_YAML\` carries overrides/auditConfig at the top level, so the configuration has moved; this guard reads the manifest."
+   && grep -qE "^[[:space:]]*[\"']?(overrides|auditConfig|ignoreGhsas)[\"']?[[:space:]]*:" "$WS_YAML" 2>/dev/null; then
+  skip "\`$WS_YAML\` names overrides/auditConfig/ignoreGhsas, so the configuration may already live there; this guard reads the manifest."
 fi
 
 # CR HANDLING, SCALED PER CALL SITE rather than claimed for all of them.
@@ -189,7 +238,7 @@ if [ -z "$IGNORED" ]; then
   if [ -z "$PNPM_MAJOR" ] && [ -z "$WS_YAML" ]; then
     warn "EMPTY CONFIG, UNVERIFIED LOCATION: no ignoreGhsas entries in this manifest — but neither --pnpm-major nor --workspace-yaml was supplied, so the guard cannot distinguish \"nothing is accepted\" from \"the configuration moved to pnpm-workspace.yaml and this manifest is no longer the place pnpm reads\". Those two states are indistinguishable from here."
   else
-    note "no ignoreGhsas entries — nothing accepted, and the location is verified."
+    note "no ignoreGhsas entries — nothing accepted, and the location probes found no sign the configuration moved."
   fi
 else
   while IFS= read -r ghsa; do
@@ -197,7 +246,14 @@ else
     hit="$(jq -r --arg g "$ghsa" \
       '[(.advisories // {})[] | select((.github_advisory_id // .id|tostring) == $g)] | length' \
       "$AUDIT" 2>/dev/null)"
-    if [ "${hit:-0}" = "0" ]; then
+    # An empty result is a FAILED READ, never a count of zero. The container type is
+    # asserted above, but an advisory ELEMENT can still be unindexable (`{"1":"boom"}`
+    # passes the container check and errors on `.github_advisory_id`), and jq's stderr
+    # is discarded here. `${hit:-0}` would have turned that into "matches no advisory
+    # in the tree. It suppresses nothing; remove it" — an instruction to delete a live
+    # acceptance, derived from a read that never happened.
+    [ -n "$hit" ] || skip "the advisory scan of $AUDIT returned nothing for $ghsa, so a failed read cannot be told apart from a clean one."
+    if [ "$hit" = "0" ]; then
       warn "STALE SUPPRESSION: $ghsa is in ignoreGhsas but matches no advisory in the tree. It suppresses nothing; remove it (ADR 0065 Amendment 2026-07-28: this list must shrink)."
       continue
     fi
@@ -222,10 +278,11 @@ else
     prod_hit="$(jq -r --arg g "$ghsa" \
       '[(.advisories // {})[] | select((.github_advisory_id // .id|tostring) == $g)] | length' \
       "$AUDIT_PROD" 2>/dev/null)"
-    if [ "${prod_hit:-0}" != "0" ]; then
+    [ -n "$prod_hit" ] || skip "the advisory scan of $AUDIT_PROD returned nothing for $ghsa, so a failed read cannot be told apart from an empty production set."
+    if [ "$prod_hit" != "0" ]; then
       warn "OVER-BROAD SUPPRESSION: $ghsa is accepted, but it now appears in the PRODUCTION dependency set (\`pnpm audit --prod\`). The acceptance was granted on a dev-only reachability argument; that argument no longer holds. Re-review it (security-auditor trigger, ADR 0065 Beslut 4)."
     else
-      note "$ghsa: accepted, and absent from the --prod set — still dev-only reachable."
+      note "$ghsa: accepted, and absent from the \`pnpm audit --prod\` set. Note what that is and is not: a DECLARED-dependency partition, not runtime reachability. A devDependency can still generate shipped output — measured in this tree, \`tailwindcss\` and \`@tailwindcss/postcss\` are devDependencies and build the production stylesheet — so absence here means the acceptance's premise holds on the axis pnpm can answer, not that the package cannot reach production."
     fi
   done <<EOF
 $IGNORED
@@ -244,7 +301,7 @@ if [ -z "$KEYS" ]; then
   if [ -z "$PNPM_MAJOR" ] && [ -z "$WS_YAML" ]; then
     warn "EMPTY CONFIG, UNVERIFIED LOCATION: no overrides in this manifest, and the location is unverified — see the ignoreGhsas note above. An empty block and a moved block look identical from here."
   else
-    note "no overrides — nothing repaired, and the location is verified."
+    note "no overrides — nothing repaired, and the location probes found no sign the configuration moved."
   fi
 else
   while IFS= read -r key; do

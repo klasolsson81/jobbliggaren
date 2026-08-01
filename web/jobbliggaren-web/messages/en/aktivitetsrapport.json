@@ -11,7 +11,7 @@
   },
   "month": {
     "label": "Month",
-    "hint": "The report updates when you press Enter, move on with Tab, or click outside the field.",
+    "hint": "The report updates when you press Enter, tab to the next field, or click outside the field.",
     "pending": "The report below still shows {month}.",
     "announced": "The report shows {month}."
   },

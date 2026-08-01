@@ -249,15 +249,22 @@ describe("ActivityReportView", () => {
       // The sentence names all three commit paths, and each word of it was
       // argued for. "klickar utanför fältet" rather than "lämnar fältet"
       // (design-reviewer): leaving a field is focus vocabulary and a mouse user
-      // has no model of being IN one. "tabbar vidare" because `onBlur` fires on
-      // Tab too (code-reviewer), and a promise that omits it under-describes the
-      // contract for exactly the population this whole change exists for. This
-      // one sentence carries both the WCAG advisement and the mouse affordance,
-      // so an incomplete version leaves the construction resting on nothing.
+      // has no model of being IN one. Tab is named because `onBlur` fires on it
+      // too (code-reviewer), and a promise that omits one of three commit paths
+      // under-describes the contract for exactly the population this whole change
+      // exists for. "går vidare med Tab", not "tabbar vidare": the sentence
+      // already names Enter as a KEY, so naming the second one as a verb splits
+      // the register inside one sentence — and "tabba sig" is ordinary Swedish
+      // for blundering, which is not a word to hand a stressed job seeker. It is
+      // also the literal parallel of the `en` string, "move on with Tab".
+      //
+      // Shift+Tab is deliberately not enumerated: three named paths already make
+      // the behaviour unsurprising, and the fourth costs more in civic tone than
+      // it returns (design-reviewer).
       const describedBy = picker.getAttribute("aria-describedby") ?? "";
       expect(describedBy).not.toBe("");
       expect(document.getElementById(describedBy)).toHaveTextContent(
-        "Rapporten uppdateras när du trycker Enter, tabbar vidare eller klickar utanför fältet.",
+        "Rapporten uppdateras när du trycker Enter, går vidare med Tab eller klickar utanför fältet.",
       );
     });
 

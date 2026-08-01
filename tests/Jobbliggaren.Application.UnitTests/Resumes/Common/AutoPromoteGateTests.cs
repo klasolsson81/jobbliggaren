@@ -262,6 +262,63 @@ public class AutoPromoteGateTests
             ignoreOrder: true);
     }
 
+    // ===============================================================
+    // The domain code (#1060 D3(β) PR 2, CTO constraint 1)
+    // ===============================================================
+
+    [Fact]
+    public void Evaluate_UnbuildableContent_CarriesTheDomainCodeVerbatim()
+    {
+        // The point of the field: `IncompleteContent` is ONE token over the Domain's thirty-two
+        // constraint codes, and which one fired decides whether a per-entry router would help at
+        // all. The gate transports `created.Error.Code` unexamined — no predicate is re-encoded
+        // here, so this asserts transport, not a second opinion about what the Domain decided.
+        var parsed = BuildParsed(
+            content: CleanContent(
+                experience: [new ParsedExperience("Backend-utvecklare", null, "2019–2022", "raw")]));
+
+        var blocked = Evaluate(parsed).ShouldBeOfType<AutoPromoteGateVerdict.Blocked>();
+
+        blocked.Reason.ShouldBe(AutoPromoteBlockReason.IncompleteContent);
+        blocked.DomainErrorCode.ShouldBe("Resume.ExperienceCompanyRequired");
+    }
+
+    [Fact]
+    public void Evaluate_EveryArmThatIsNotBuildability_CarriesNoDomainErrorCode()
+    {
+        // CTO constraint 1, and it is the price of NOT modelling this as a third DU case:
+        // `Blocked(PersonnummerPresent, "something")` is representable, so without this pin
+        // nothing says it is wrong. A populated code on a policy arm would put a Domain
+        // constraint identity beside a verdict no Domain evaluation produced — a mis-report of
+        // the same shape §5 forbids, one level down from the token.
+        var policyArms = new (string Arm, AutoPromoteGateVerdict Verdict)[]
+        {
+            ("pnr on parse", Evaluate(BuildParsed(pnr: Flagged()))),
+            ("confidence", Evaluate(BuildParsed(
+                confidence: ParseConfidence.Failed(ParseFallbackReason.ExtractionFailed)))),
+            ("pnr in label", Evaluate(BuildParsed(), label: $"CV {ValidPersonnummer}")),
+            ("pnr DQ6", Evaluate(BuildParsed(), personName: $"Anna {ValidPersonnummer}")),
+        };
+
+        foreach (var (arm, verdict) in policyArms)
+        {
+            verdict.ShouldBeOfType<AutoPromoteGateVerdict.Blocked>()
+                .DomainErrorCode.ShouldBeNull(
+                    $"the '{arm}' rung blocks on policy, so no Domain evaluation produced a code "
+                    + "— see AutoPromoteGateVerdict.Blocked's docblock");
+        }
+
+        // CLOSURE, not an enumeration: the four fixtures above plus the buildability arm must
+        // cover the declared reason set. A fifth AutoPromoteBlockReason reddens this rather than
+        // sliding past a hand-written list of four — the same reason
+        // AutoPromoteBlockReason_IsTheLockedFourMemberSet reads the set dynamically.
+        policyArms
+            .Select(a => ((AutoPromoteGateVerdict.Blocked)a.Verdict).Reason.ToString())
+            .Append(nameof(AutoPromoteBlockReason.IncompleteContent))
+            .Distinct()
+            .ShouldBe(Enum.GetNames<AutoPromoteBlockReason>(), ignoreOrder: true);
+    }
+
     [Fact]
     public void Evaluate_DoesNotMutateTheArtifact()
     {

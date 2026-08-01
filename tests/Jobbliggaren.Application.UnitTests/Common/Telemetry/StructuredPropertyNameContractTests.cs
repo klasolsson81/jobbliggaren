@@ -37,6 +37,18 @@ namespace Jobbliggaren.Application.UnitTests.Common.Telemetry;
 /// </para>
 ///
 /// <para>
+/// <b>A THIRD by-name consumer exists and its pin lives elsewhere</b> (#1060 D3(β) PR 2).
+/// <c>AutoPromoteParsedResumeCommandHandler</c>'s <c>{BlockDetail}</c> is read by
+/// <c>Jobbliggaren.QA.Corpus</c>'s <c>CvChainProbe</c>, which looks the key up by exactly that
+/// spelling because <c>AutoPromoteGateVerdict</c> is <c>internal</c> and the corpus is not in
+/// <c>InternalsVisibleTo</c> — same failure mode as the runbook queries, different reader. It is
+/// pinned by <c>Handle_LeftPending_EmitsTheBlockDetailPropertyTheCorpusReadsByName</c> in
+/// <c>AutoPromoteParsedResumeCommandHandlerTests</c>, where that handler's fixtures already live;
+/// it is named here so this class stays the one place a reader finds every by-name property
+/// contract.
+/// </para>
+///
+/// <para>
 /// Naming: <c>&lt;ClassUnderTest&gt;_&lt;Scenario&gt;_&lt;Expected&gt;</c>.
 /// </para>
 /// </summary>

@@ -10,7 +10,9 @@ using Jobbliggaren.Domain.JobSeekers;
 using Jobbliggaren.Domain.Privacy;
 using Jobbliggaren.Domain.Resumes;
 using Jobbliggaren.Domain.Resumes.Parsing;
+using Jobbliggaren.TestSupport;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Shouldly;
@@ -64,10 +66,11 @@ public class AutoPromoteParsedResumeCommandHandlerTests
     }
 
     private AutoPromoteParsedResumeCommandHandler CreateSut(
-        Infrastructure.Persistence.AppDbContext db) =>
+        Infrastructure.Persistence.AppDbContext db,
+        ILogger<AutoPromoteParsedResumeCommandHandler>? logger = null) =>
         new(db, _currentUser, FakeDateTimeProvider.Default, _failedAccess, _reconciler,
             _correlationId, _requestContext,
-            NullLogger<AutoPromoteParsedResumeCommandHandler>.Instance);
+            logger ?? NullLogger<AutoPromoteParsedResumeCommandHandler>.Instance);
 
     // ── Fixtures ─────────────────────────────────────────────────────────
 
@@ -503,6 +506,63 @@ public class AutoPromoteParsedResumeCommandHandlerTests
             Command(parsed.Id.Value), TestContext.Current.CancellationToken);
 
         await AssertLeftPendingAsync(db, result, parsed, AutoPromoteBlockReason.IncompleteContent);
+    }
+
+    /// <summary>
+    /// The STRUCTURED-PROPERTY pin for <c>{BlockDetail}</c> (#1060 D3(β) PR 2). It lives here
+    /// rather than in <c>StructuredPropertyNameContractTests</c> because this is where the
+    /// writer is testable with real fixtures; that class's docblock names it.
+    ///
+    /// <para><b>What breaks without it.</b> MEL takes a property's name from the placeholder
+    /// TOKEN, and the consumer — <c>Jobbliggaren.QA.Corpus</c>'s <c>CvChainProbe</c> — looks
+    /// <c>BlockDetail</c> up by that exact string, because <c>AutoPromoteGateVerdict</c> is
+    /// <c>internal</c> and the corpus is not in <c>InternalsVisibleTo</c>. A rename does not
+    /// break its build: the lookup misses, the column prints <c>—</c> on every row, and the
+    /// layout baseline reads as "no domain code exists" while the handler is emitting one. A
+    /// false clean produced by a silent lookup miss is the class PR 1 was opened for.</para>
+    /// </summary>
+    [Fact]
+    public async Task Handle_LeftPending_EmitsTheBlockDetailPropertyTheCorpusReadsByName()
+    {
+        var db = TestAppDbContextFactory.Create();
+        var (parsed, _) = await SeedOwnedAsync(
+            db, _userId,
+            content: CleanParsedContent(
+                experience: [new ParsedExperience("Backend-utvecklare", null, "2019–2022", "raw")]));
+        var recorder = new RecordingLogger<AutoPromoteParsedResumeCommandHandler>();
+
+        await CreateSut(db, recorder).Handle(
+            Command(parsed.Id.Value), TestContext.Current.CancellationToken);
+
+        var properties = recorder.Latest.Properties;
+        properties.Select(p => p.Key).ShouldContain(
+            "BlockDetail",
+            "Jobbliggaren.QA.Corpus/Harness/CvChainProbe.cs reads @Properties['BlockDetail'] by "
+            + "exactly this spelling and cannot see the verdict type. If the placeholder was "
+            + "renamed, the corpus's Domain-code column now prints an em-dash on every row "
+            + "instead of going red — fix the reader in the same commit, or restore the token. "
+            + "(MEL takes the property name from the {Placeholder} token, not the prose.)");
+        properties.Single(p => p.Key == "BlockDetail").Value
+            .ShouldBe("Resume.ExperienceCompanyRequired");
+    }
+
+    /// <summary>The same property on a POLICY block. It is present and null — not absent — so a
+    /// reader can tell "this block was not a Domain refusal" from "the instrument lost the
+    /// value", and so the corpus's em-dash means the first of those.</summary>
+    [Fact]
+    public async Task Handle_PolicyBlock_EmitsBlockDetailAsNullRatherThanOmittingIt()
+    {
+        var db = TestAppDbContextFactory.Create();
+        var flagged = PersonnummerScanOutcome.FromMatches(
+            PersonnummerScanner.Scan($"Pnr {ValidPersonnummer} i CV."));
+        var (parsed, _) = await SeedOwnedAsync(db, _userId, pnr: flagged);
+        var recorder = new RecordingLogger<AutoPromoteParsedResumeCommandHandler>();
+
+        await CreateSut(db, recorder).Handle(
+            Command(parsed.Id.Value), TestContext.Current.CancellationToken);
+
+        recorder.Latest.Properties.Select(p => p.Key).ShouldContain("BlockDetail");
+        recorder.Latest.Properties.Single(p => p.Key == "BlockDetail").Value.ShouldBeNull();
     }
 
     /// <summary>The projection never truncates: an over-cap period string must reach

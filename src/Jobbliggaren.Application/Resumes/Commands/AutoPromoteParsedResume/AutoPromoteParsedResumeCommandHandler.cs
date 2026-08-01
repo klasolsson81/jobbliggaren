@@ -127,7 +127,7 @@ public sealed partial class AutoPromoteParsedResumeCommandHandler(
         // CreateFromParsed of its own, so "would it build?" and "build it" are one evaluation.
         var verdict = AutoPromoteGate.Evaluate(parsed, personName, label, owner.Id, clock);
         if (verdict is AutoPromoteGateVerdict.Blocked blocked)
-            return LeftPending(blocked.Reason, parsed.Id);
+            return LeftPending(blocked.Reason, blocked.DomainErrorCode, parsed.Id);
 
         var resume = ((AutoPromoteGateVerdict.Promotable)verdict).Resume;
 
@@ -175,6 +175,18 @@ public sealed partial class AutoPromoteParsedResumeCommandHandler(
     // staging artifact's surrogate key. No file name, no display name, no parsed content; this
     // handler never logs decrypted content (ADR 0074 Invariant 3, CLAUDE.md §5).
     //
+    // THE SAME HOLDS OF `blockDetail`, and it is worth stating on its own terms rather than
+    // waved through under "the reason is a token" (#1060 D3(β) PR 2). It is
+    // DomainError.CODE — never DomainError.Message, which carries the Swedish user-facing text
+    // — and every value it can hold is a literal declared in Resume.ValidateContent /
+    // ValidateName / CreateFromParsed, e.g. `Resume.ExperienceCompanyRequired`. A code names a
+    // CONSTRAINT that was not met; it never carries the field's value, its length, or any
+    // fragment of CV text. The one code that touches the personnummer surface
+    // (`Resume.PersonnummerMustBeRemoved`) is unreachable through this parameter by
+    // construction: that arm passes null, and even if it did not, the `PersonnummerPresent`
+    // token beside it already discloses the same presence boolean. It is null on every arm but
+    // buildability (AutoPromoteGateVerdict.Blocked's docblock; test-pinned).
+    //
     // Two PURPOSES, and Art. 5(1)(c) wants purposes rather than precedent — the earlier version
     // of this comment justified the id by noting IFailedAccessLogger already logs it, which is
     // true and is not a reason (CTO-bind D3.4, overruling security-auditor's minimisation
@@ -183,22 +195,37 @@ public sealed partial class AutoPromoteParsedResumeCommandHandler(
     //       alternative — re-running the gate against the row — requires DEK access to CV-PII,
     //       so logging a surrogate key is the LESS invasive route to the same answer. #1060
     //       itself was diagnosed by reading a dev-DB row by hand, which is the cost of not
-    //       having this line.
+    //       having this line. `blockDetail` serves the same purpose one level down: a support
+    //       reader sees WHICH constraint refused the CV instead of a token that covers a missing
+    //       employer and an over-long summary equally.
     //   (2) DISTRIBUTION, across artifacts: which gate actually stops real uploads is a question
-    //       production has never been able to answer, and D3's per-entry decomposition is
-    //       explicitly waiting on that measurement.
+    //       production has never been able to answer.
+    //
+    // AND IT CARRIES NO CLAIM ABOUT D3. The previous revision of purpose (2) ended "…and D3's
+    // per-entry decomposition is explicitly waiting on that measurement", which was false twice
+    // over: D3(β)'s instrument is the layout corpus and never production (#1060 R2 withdrew
+    // production measurement; R3 names the corpus), and the log it pointed at did not carry the
+    // sub-reason at all — the very gap this line now closes. Corrected in the PR that makes the
+    // sentence above true, per CTO-bind B.4: a truth-change is owned by the PR that makes it true.
     private Result<AutoPromoteOutcome> LeftPending(
-        AutoPromoteBlockReason reason, ParsedResumeId parsedResumeId)
+        AutoPromoteBlockReason reason, string? domainErrorCode, ParsedResumeId parsedResumeId)
     {
-        LogLeftPending(logger, reason, parsedResumeId.Value);
+        LogLeftPending(logger, reason, parsedResumeId.Value, domainErrorCode);
         return Result.Success<AutoPromoteOutcome>(new AutoPromoteOutcome.LeftPending(reason));
     }
 
     // Information, not Warning: a LeftPending is an expected product state the user resolves,
     // not a fault (the same reason it rides Result.Success). MEL property names come from the
-    // placeholder TOKENS, so these read as `BlockReason` / `ParsedResumeId` in Seq.
+    // placeholder TOKENS, so these read as `BlockReason` / `ParsedResumeId` / `BlockDetail` in
+    // Seq — never as the prose beside them, which is why `StructuredPropertyNameContractTests`
+    // exists and why the corpus looks `BlockDetail` up by exactly that spelling.
+    //
+    // `BlockDetail` renders as `(null)` on the four arms that carry no code. That is the honest
+    // reading — "this block was not a Domain refusal" — and it keeps one line shape for one
+    // event, rather than two overloads that would make the Seq rows heterogeneous.
     [LoggerMessage(Level = LogLevel.Information,
-        Message = "Auto-promote left the parsed CV pending: {BlockReason} (parsed resume {ParsedResumeId})")]
+        Message = "Auto-promote left the parsed CV pending: {BlockReason} (parsed resume {ParsedResumeId}, domain code {BlockDetail})")]
     private static partial void LogLeftPending(
-        ILogger logger, AutoPromoteBlockReason blockReason, Guid parsedResumeId);
+        ILogger logger, AutoPromoteBlockReason blockReason, Guid parsedResumeId,
+        string? blockDetail);
 }

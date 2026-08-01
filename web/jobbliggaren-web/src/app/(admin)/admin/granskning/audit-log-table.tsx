@@ -1,5 +1,6 @@
 import { useTranslations } from "next-intl";
 import type { AuditLogEntryDto } from "@/lib/types/admin";
+import { SWEDISH_TIME_ZONE } from "@/lib/time/swedish-calendar";
 
 interface AuditLogTableProps {
   entries: ReadonlyArray<AuditLogEntryDto>;
@@ -81,13 +82,15 @@ export function AuditLogTable({ entries }: AuditLogTableProps) {
 }
 
 function formatDateTime(iso: string): string {
-  // Svensk locale: YYYY-MM-DD HH:mm:ss (CLAUDE.md §10.2). Explicit Europe/Stockholm
-  // så server-tidszon inte påverkar utdata (Server Component renderar på server-side).
-  // FE-M4 (design-reviewer 2026-05-11).
+  // Svensk locale: YYYY-MM-DD HH:mm:ss (CLAUDE.md §10.2). Zonen anges explicit så
+  // server-tidszonen inte påverkar utdata (Server Component renderar server-side).
+  // FE-M4 (design-reviewer 2026-05-11). Zonen kommer från SWEDISH_TIME_ZONE i
+  // stället för en egen literal: en rå sträng här och en annan i konstanten kan
+  // divergera utan att någon grind ser det.
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
   const formatted = d.toLocaleString("sv-SE", {
-    timeZone: "Europe/Stockholm",
+    timeZone: SWEDISH_TIME_ZONE,
     year: "numeric",
     month: "2-digit",
     day: "2-digit",

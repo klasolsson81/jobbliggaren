@@ -14,7 +14,7 @@ public sealed class GetActivityReportQueryValidator : AbstractValidator<GetActiv
     {
         RuleFor(q => q)
             .Must(q => q.Year.HasValue == q.Month.HasValue)
-            .WithMessage("Ange både år och månad, eller ingetdera (standard = föregående månad).");
+            .WithMessage("Ange både år och månad, eller ingetdera (standard = innevarande månad).");
 
         RuleFor(q => q.Month!.Value)
             .InclusiveBetween(1, 12)

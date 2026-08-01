@@ -18,7 +18,7 @@ public class GetActivityReportQueryValidatorTests
     [Fact]
     public void Validate_WithBothNull_IsValid()
     {
-        // Default-fallet — handlern härleder föregående månad.
+        // Default-fallet — handlern härleder innevarande svenska civilmånad.
         var result = _validator.Validate(new GetActivityReportQuery(null, null));
 
         result.IsValid.ShouldBeTrue();
@@ -46,6 +46,26 @@ public class GetActivityReportQueryValidatorTests
         var result = _validator.Validate(new GetActivityReportQuery(2026, 6));
 
         result.IsValid.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void Validate_WithHalfSpecifiedPair_MessageNamesInnevarandeMonthAsTheDefault()
+    {
+        // Det enda ANVÄNDARSYNLIGA på den här 400:an är meningen som talar om vad
+        // defaulten är — och den skeppade "föregående månad" medan handlern
+        // härledde innevarande svenska civilmånad (Klas 2026-06-28). Noll tester
+        // rörde strängen, så en felaktig mening kunde bo framför en korrekt
+        // implementation utan att någon grind såg det; det är hela anledningen
+        // till den här PR:en.
+        //
+        // Pinnat mot PÅSTÅENDET, inte prosan: `ShouldNotContain` är riktad mot
+        // exakt den mening som stod här, så en framtida omformulering får ändra
+        // orden men inte månaden de utpekar.
+        var result = _validator.Validate(new GetActivityReportQuery(2026, null));
+
+        var message = result.Errors.ShouldHaveSingleItem().ErrorMessage;
+        message.ShouldContain("innevarande månad");
+        message.ShouldNotContain("föregående");
     }
 
     // ---------------------------------------------------------------

@@ -19,11 +19,11 @@ namespace Jobbliggaren.QA.Corpus;
 /// production enum <c>AutoPromoteBlockReason</c>. It is argued at its own docblock rather than
 /// waved through here, which is the convention <c>LayoutCorpusReportTests</c> already uses for
 /// its own production-touching asserts. (Both places in THIS file carried that count, and both
-/// were wrong. It has a measured history: it went stale every time an assert was added, it lived
-/// in more places than each sweep for it found — three sweeps returned three different totals —
-/// and the sentence recording the sweep went stale inside this same PR when a further home turned
-/// up. So it is deleted rather than corrected: the (a)-(e) list beside the asserts is the catalog,
-/// and it cannot drift from what it sits on top of.)
+/// were wrong. It has a measured history: it went stale every time an assert was added, and every
+/// sweep for its remaining homes came back with a different total than the one before — the
+/// sentence recording one such sweep went stale inside this same PR when a further home turned up.
+/// So it is deleted rather than corrected: the (a)-(e) list beside the asserts is the catalog, and
+/// it cannot drift from what it sits on top of.)
 /// Stated at the class level because the earlier version
 /// of this paragraph claimed nothing here could be moved by <c>src/</c>, and that stopped being
 /// true the moment the assert landed.</para>
@@ -919,8 +919,10 @@ public sealed class LayoutCorpusEmitterTests
             // WellFormedLadder is the hardening, not decoration: parameters alone let the NEXT
             // fixture reintroduce the same malformed ladder silently. It makes an incoherent
             // fixture unconstructible THROUGH THIS FACTORY instead of merely currently-absent.
-            // Scoped deliberately: four tests set `Gates` directly with `with`, and one of those
-            // builds an `Unresolved` cell on purpose because its subject IS how that state renders.
+            // Scoped deliberately: four tests set `Gates` themselves rather than through here, and
+            // THREE of those build an `Unresolved` cell on purpose — two because their subject is
+            // how that state renders, one because its subject is the well-formedness predicate
+            // itself. Only the crashed-case test (`Gates = []`) builds no cell at all.
             Gates: WellFormedLadder(
                 GateLadder.From(blockReason, promoted, false, pnrOnParse, pnrInLabel), id),
             Markers: [],

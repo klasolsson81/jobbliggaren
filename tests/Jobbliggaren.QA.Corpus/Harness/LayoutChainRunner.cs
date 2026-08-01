@@ -431,7 +431,8 @@ internal static partial class LayoutChainRunner
         // last pair were wrong when first written (32-33, "the second"), and TWO reviewers
         // measured it independently — the CTO bind then upheld both halves, which is a third
         // reading but not a third measurement: position 33 is `Gates`. Naming arguments closes
-        // the runs named above AND every other same-typed adjacency in the record — 6-8 are three
+        // the runs named above AND every other type-COMPATIBLE adjacency in the record (the
+        // hazard is the implicit int -> int? conversion, not strict type equality) — 6-8 are three
         // `int`s, 11-12 an `int` beside an `int?`, 39-40 two `string?`s, and this list is an
         // EXAMPLE rather than a census, which is the point: that is why the rule is "named at
         // every construction site" rather than a note about any one block.

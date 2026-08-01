@@ -50,7 +50,8 @@ namespace Jobbliggaren.QA.Corpus;
 /// <c>LayoutCorpusEmitterTests</c>, which carried the same count twice more. The list sits
 /// directly above the code it describes, so a count beside it is pure redundancy: it went wrong
 /// once already ("three" after a fourth landed), and every sweep for its remaining homes came
-/// back with a different total than the one before. The file reached the ADJACENT conclusion for the case count above — "a numeral beside
+/// back with a different total than the one before. Deleting it is the only move that ends
+/// that. The file reached the ADJACENT conclusion for the case count above — "a numeral beside
 /// a catalog anyone can count needs no such archaeology" — and settled there for a digit because
 /// that catalog lives in another file. This one does not: it lives beside the asserts themselves,
 /// in <c>LayoutCorpus_FromBytes_EmitsReport</c>. One more assert lives in
@@ -99,9 +100,10 @@ public sealed class LayoutCorpusReportTests
         // The asserts below that ARE reachable by production behaviour are listed here, each
         // with its own argument. Stated plainly rather than claimed away, because an earlier
         // revision of this comment said "none of these can be reddened by a change to the
-        // product" and that was simply false. It carries NO COUNT any more: the count was wrong
-        // twice ("three" after a fourth landed; "four" as (e) was being added), and a list
-        // sitting directly above the asserts it describes needs no numeral to be checkable.
+        // product" and that was simply false. It carries NO COUNT any more: the count went wrong
+        // once ("three" after a fourth landed) and stale once ("four", correct when written and
+        // deleted in the same edit that added (e)), and a list sitting directly above the asserts
+        // it describes needs no numeral to be checkable.
         //
         //   (a) crash-safety — the probe catches everything the real extractor, segmenter and both
         //       handlers throw, so a throw anywhere in the chain reddens this suite. That is

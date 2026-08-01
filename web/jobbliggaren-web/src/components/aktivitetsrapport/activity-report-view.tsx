@@ -183,9 +183,15 @@ export function ActivityReportView({
               would announce on every arrow key — the same defect shape this PR
               removes. `aria-describedby` is the mechanism for a standing
               description. */}
+          {/* Two lines reserved below `sm`, one at and above it. Measured in
+              Chromium against the production build, six viewports: at 375 and up
+              the sentence is one line and the card does not move at all, but at
+              320 it wraps and a single reserved line let it push the CTA and the
+              whole card list down 20 px — the exact reflow the reservation exists
+              to prevent, surviving in the one viewport nobody looks at. */}
           <p
             id="aktivitetsrapport-month-pending"
-            className="min-h-5 text-body-sm leading-5 text-text-primary"
+            className="min-h-10 text-body-sm leading-5 text-text-primary sm:min-h-5"
           >
             {monthDraftPending ? t("month.pending", { month: monthLabel }) : ""}
           </p>

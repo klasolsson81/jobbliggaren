@@ -4,6 +4,7 @@ import { renderToString } from "react-dom/server";
 import { NextIntlClientProvider } from "next-intl";
 import userEvent from "@testing-library/user-event";
 import svPages from "../../../messages/sv/pages.json";
+import svComponents from "../../../messages/sv/components.json";
 import { ForetagSokSearchbar } from "./foretag-sok-searchbar";
 import { buildForetagSokHref } from "@/lib/company-search/search-params";
 import type { CriterionReference } from "@/lib/dto/company-criteria";
@@ -407,7 +408,7 @@ describe("ForetagSokSearchbar — every announcement branch", () => {
     const user = userEvent.setup();
 
     const dialog = await openBransch(user);
-    await user.click(within(dialog).getByRole("button", { name: "Rensa" }));
+    await user.click(within(dialog).getByRole("button", { name: "Rensa val" }));
 
     expect(region(container)).toHaveTextContent("Alla branschfilter är borttagna.");
   });
@@ -449,6 +450,10 @@ describe("ForetagSokSearchbar — every announcement branch", () => {
     const user = userEvent.setup();
 
     await user.click(screen.getByRole("button", { name: "Välj ort eller län" }));
+    // Still plain "Rensa": the ORT dialog is the region/municipality cascade, a
+    // different component reading a different namespace. Only the bransch popover
+    // and the criterion dialog render `CriterionPicker`, whose label #1146
+    // qualified to "Rensa val".
     await user.click(
       within(screen.getByRole("dialog")).getByRole("button", { name: "Rensa" }),
     );
@@ -749,7 +754,7 @@ describe("ForetagSokSearchbar — bransch popover (#999)", () => {
     expect(region).not.toBeNull();
     expect(region).toHaveTextContent("");
     // Nothing to clear at zero, so the clear control IS conditional — only the region is not.
-    expect(within(dialog).queryByRole("button", { name: "Rensa" })).not.toBeInTheDocument();
+    expect(within(dialog).queryByRole("button", { name: "Rensa val" })).not.toBeInTheDocument();
   });
 
   it("the panel and the chip row report the SAME number for the same axis", async () => {
@@ -1094,7 +1099,17 @@ describe("ForetagSokSearchbar — what a NATIVE GET would carry (D8(c) call-site
     // vacuous — the hidden input is gated on `namn.length > 0`, so it is absent whatever `hydrated`
     // says, and dropping the `hydrated &&` guard would leave the test green.
     const html = renderToString(
-      <NextIntlClientProvider locale="sv" messages={{ pages: svPages }}>
+      <NextIntlClientProvider
+        locale="sv"
+        // BranschPopover is MOUNTED unconditionally in this subtree (`open` controls
+        // visibility, not mounting), so it reaches `components.criterionPicker`.
+        // Seeding only `pages` was green by accident: the clear control is gated on
+        // `pickedCount > 0` and this fixture passes `sni={[]}`, so the key was never
+        // read. A future case with a non-empty `sni` would render the raw key instead
+        // of "Rensa" (code-reviewer, #1146). The payload fitness function cannot see
+        // this — it excludes `*.test.tsx` by design.
+        messages={{ pages: svPages, components: svComponents }}
+      >
         <ForetagSokSearchbar
           reference={REFERENCE}
           referenceOk

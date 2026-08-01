@@ -16,7 +16,8 @@ write the timezone yourself (see §Timezone).
 **The exception is a criterion, not a list.** Reaching past next-intl is legitimate
 where the value is **not a localized presentation** — a form-ready or operator value
 that must read identically whatever the UI language is — and such code names the
-zone explicitly, precisely because it has no next-intl configuration to inherit.
+zone explicitly, whether because there is no next-intl configuration to inherit or
+because it is deliberately not routing through the one there is.
 Worked example: `audit-log-table.tsx` reaches past next-intl for a ledger that needs
 a seconds column the shared `formatDateTime` does not produce, names the zone, and
 carries its own spec. It passes the test, and it is not a licence — it is what
@@ -32,16 +33,16 @@ literal.
 
 ## Where the code lives
 
-The **shared** helpers live in two modules under `web/jobbliggaren-web/src/lib/i18n/`,
-and new code should use them.
+The **shared** helpers live under `web/jobbliggaren-web/src/lib/i18n/`, and new code
+should use them.
 
 **A date shape can come from anywhere, though, so search rather than assume:** from a
 shared helper, from a module with its own month arrays, or from a call site that
-picked `dateTime` options inline. `lib/oversikt/aggregations.ts` is the largest of the
-second kind — hand-rolled Swedish formatters outside next-intl, including
+picked `dateTime` options inline. `lib/oversikt/aggregations.ts` is the one module of
+the second kind today — hand-rolled Swedish formatters outside next-intl, including
 `formatSwedishShortDateWithYear`, which produces the same shape as the Short row below
-and returns an en-dash rather than `null` for bad input. `use-urgency-label.ts` is the
-third kind: it decides a long-month form inline. `lib/time/swedish-calendar.ts`
+and returns an en-dash rather than `null` for bad input. `use-urgency-label.ts` is one
+of the third kind: it decides a long-month form inline. `lib/time/swedish-calendar.ts`
 (calendar facts) and `lib/company-criteria/format-magnitude.ts` (counts, not currency)
 are further homes.
 
@@ -148,12 +149,12 @@ could not express.
 `messages/sv/`.
 
 **`i dag` / `i går`, spaced.** The majority form in `messages/sv/`, and it matches
-`relative-time.ts`. The closed form still ships: `idag` in `jobads.json`,
-`common.json` and `landing.json`; `igår` in `jobads.json` alone. Two of the three
-`idag`s are the adverbial `"nya idag"` in a counter label, which is a different copy
-call from the published-label `"idag, kl."` — a follow-up should not treat them as
-one edit. Either way it is a divergence worth its own PR, not a licence to pick
-freely. Note the consequence for the row above: the connector
+`relative-time.ts`. The closed form still ships in a few message files, and it ships
+in **two different copy calls**: the published label `"idag, kl."`, and the adverbial
+`"nya idag"` in counter labels. A follow-up should not treat those as one edit. Grep
+`\bidag\b` rather than assuming the divergence is where you last saw it — it is worth
+its own PR, and not a licence to pick freely meanwhile. Note the consequence for the
+row above: the connector
 example `i dag, kl. 14:32` is the form to write, not a string `jobads.json` currently
 sends, since its own label is closed.
 

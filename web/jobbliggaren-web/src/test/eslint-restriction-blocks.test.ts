@@ -1,6 +1,6 @@
 import path from "node:path";
 import { ESLint } from "eslint";
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 
 /**
  * The `no-restricted-syntax` blocks in `eslint.config.mjs` are a BLOCKING gate,
@@ -17,11 +17,33 @@ import { describe, expect, it } from "vitest";
  *
  * Relations, not counts. Two blocks here carry the same NUMBER of selectors with
  * different contents, so a count-based check would pass on a swap.
+ *
+ * Every path below is resolved ONCE, in `beforeAll`, and the assertions are then
+ * pure comparisons. The hook carries its own ceiling because what it waits for is
+ * a one-time flat-config load (`eslint-config-next` plus typescript-eslint), not
+ * anything this file computes: measured at ~3s in isolation and 22s inside a fully
+ * loaded worker pool, which the default 5s per-test timeout turned into a flake
+ * the first run of the full suite caught.
  */
 
 // vitest runs with cwd at the package root, where eslint.config.mjs lives.
 const ROOT = process.cwd();
-const eslint = new ESLint({ cwd: ROOT });
+
+/** Paths are probes — ESLint resolves config by glob, so they need not exist. */
+const PATHS = {
+  product: "src/lib/i18n/format.ts",
+  shadcn: "src/components/ui/status-pill.tsx",
+  declaration: "src/lib/time/swedish-calendar.ts",
+  intlPin: "src/i18n/request.ts",
+  harness: "src/test/render-intl.tsx",
+  harnessNested: "src/test/deep/nested/helper.ts",
+  testFile: "src/lib/time/swedish-calendar.test.ts",
+  specFile: "src/lib/time/swedish-calendar.spec.ts",
+  shadcnSpec: "src/components/ui/status-pill.spec.tsx",
+  harnessTest: "src/test/render-intl.test.tsx",
+} as const;
+
+type Probe = keyof typeof PATHS;
 
 type Restriction = { selector: string };
 
@@ -33,56 +55,61 @@ function isRestriction(value: unknown): value is Restriction {
   );
 }
 
-/** The selectors `no-restricted-syntax` is configured with for `file`. */
-async function selectorsFor(file: string): Promise<string[]> {
-  const config = await eslint.calculateConfigForFile(path.join(ROOT, file));
-  const entry = config.rules?.["no-restricted-syntax"];
-  if (!Array.isArray(entry)) return [];
-  // entry[0] is the severity; the rest are the restriction objects.
-  return entry.slice(1).filter(isRestriction).map((r) => r.selector);
-}
+let selectors: Record<Probe, string[]>;
+
+beforeAll(async () => {
+  const eslint = new ESLint({ cwd: ROOT });
+
+  const resolved = await Promise.all(
+    (Object.entries(PATHS) as [Probe, string][]).map(async ([key, file]) => {
+      const config = await eslint.calculateConfigForFile(path.join(ROOT, file));
+      const entry = config.rules?.["no-restricted-syntax"];
+      // entry[0] is the severity; the rest are the restriction objects.
+      const list = Array.isArray(entry) ? entry.slice(1).filter(isRestriction) : [];
+      return [key, list.map((r) => r.selector)] as const;
+    }),
+  );
+
+  selectors = Object.fromEntries(resolved) as Record<Probe, string[]>;
+}, 120_000);
 
 const isZone = (s: string) => s.includes("Europe/Stockholm");
 const isMuted = (s: string) => s.includes("text-muted-foreground");
 
 describe("eslint.config.mjs — no-restricted-syntax block relations", () => {
-  it("gives a product file every group, zone and muted included", async () => {
-    const product = await selectorsFor("src/lib/i18n/format.ts");
-
-    expect(product.length).toBeGreaterThan(0);
-    expect(product.some(isZone)).toBe(true);
-    expect(product.some(isMuted)).toBe(true);
+  it("gives a product file every group, zone and muted included", () => {
+    expect(selectors.product.length).toBeGreaterThan(0);
+    expect(selectors.product.some(isZone)).toBe(true);
+    expect(selectors.product.some(isMuted)).toBe(true);
   });
 
-  it("gives shadcn primitives the product set MINUS muted, zone kept", async () => {
-    const product = await selectorsFor("src/lib/i18n/format.ts");
-    const ui = await selectorsFor("src/components/ui/status-pill.tsx");
-
-    expect(new Set(ui)).toEqual(new Set(product.filter((s) => !isMuted(s))));
-    expect(ui.some(isZone)).toBe(true);
+  it("gives shadcn primitives the product set MINUS muted, zone kept", () => {
+    expect(new Set(selectors.shadcn)).toEqual(
+      new Set(selectors.product.filter((s) => !isMuted(s))),
+    );
+    expect(selectors.shadcn.some(isZone)).toBe(true);
   });
 
-  it.each([
-    ["the zone declaration itself", "src/lib/time/swedish-calendar.ts"],
-    ["the global next-intl pin", "src/i18n/request.ts"],
-    ["the test harness directory", "src/test/render-intl.tsx"],
-    ["a nested file in the harness directory", "src/test/deep/nested/helper.ts"],
-  ])("gives %s the product set MINUS zone", async (_label, file) => {
-    const product = await selectorsFor("src/lib/i18n/format.ts");
-    const exempt = await selectorsFor(file);
-
-    expect(new Set(exempt)).toEqual(new Set(product.filter((s) => !isZone(s))));
+  it.each<[string, Probe]>([
+    ["the zone declaration itself", "declaration"],
+    ["the global next-intl pin", "intlPin"],
+    ["the test harness directory", "harness"],
+    ["a nested file in the harness directory", "harnessNested"],
+  ])("gives %s the product set MINUS zone", (_label, probe) => {
+    expect(new Set(selectors[probe])).toEqual(
+      new Set(selectors.product.filter((s) => !isZone(s))),
+    );
   });
 
-  it.each([
-    ["a .test file", "src/lib/time/swedish-calendar.test.ts"],
-    ["a .spec file", "src/lib/time/swedish-calendar.spec.ts"],
-    ["a .spec file among the shadcn primitives", "src/components/ui/status-pill.spec.tsx"],
-    ["a .test file inside the harness directory", "src/test/render-intl.test.tsx"],
+  it.each<[string, Probe]>([
+    ["a .test file", "testFile"],
+    ["a .spec file", "specFile"],
+    ["a .spec file among the shadcn primitives", "shadcnSpec"],
+    ["a .test file inside the harness directory", "harnessTest"],
   ])(
     "exempts %s entirely — test-hood follows vitest's {test,spec}, not just .test",
-    async (_label, file) => {
-      expect(await selectorsFor(file)).toEqual([]);
+    (_label, probe) => {
+      expect(selectors[probe]).toEqual([]);
     },
   );
 });

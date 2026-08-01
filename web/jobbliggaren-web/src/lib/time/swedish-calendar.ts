@@ -26,19 +26,31 @@ export type SwedishMonth = { year: number; month: number };
  * The product's home time zone — the counterpart to `SwedishCalendar.ZoneId`, and
  * the home for every call site: import it rather than repeating the literal.
  *
- * That is not advice. `no-restricted-syntax` in `eslint.config.mjs` fails on the
- * raw literal used as a value anywhere under `src/`, in pre-commit and in CI, so
- * a new production site fails lint rather than being counted. The version of this
- * doc before #1141's follow-up enumerated the remaining sites and carried a
- * standing order to re-measure the paragraph by hand — which made removing a site
- * falsify the doc, and made the doc a maintenance obligation rather than a fact.
+ * That is not advice. `no-restricted-syntax` in `eslint.config.mjs` fails the
+ * literal written as a value under `src/`, in pre-commit and in CI. The version
+ * of this doc before #1148 enumerated the sites that remained and ordered a
+ * manual re-measure of the paragraph, so removing a site falsified the doc.
  *
- * The exemptions are in `eslint.config.mjs` and nowhere else: this declaration,
- * `src/i18n/request.ts` (the primary declaration of the global next-intl pin,
- * left deliberately — making the i18n configuration depend on `lib/` is a
- * layering decision of its own), and test code. Test code keeps writing the
- * literal on purpose: a test that imports this constant cannot catch a mutation
- * OF this constant.
+ * @see eslint.config.mjs — the block that subtracts ZONE **is** the exemption
+ * list, and it is not restated here: a second copy is a second thing to keep
+ * true. Some of its entries are whole FILES rather than single declarations,
+ * because ESLint cannot scope an exemption to one line — a second literal
+ * elsewhere in this file would pass.
+ *
+ * Test code is exempt as a class, and the reason is prospective rather than a
+ * description of the tree: a test OF a module that imports this constant could
+ * not catch a mutation of it if it imported the constant too. Most zone literals
+ * in tests today are doing something else — pinning the zone so date assertions
+ * stay stable in CI. The exemption is blanket because a path glob cannot tell an
+ * oracle from a pin, and because the cheapest way to silence such a lint error,
+ * importing the constant, is exactly the change that would blind the oracle.
+ * Stronger still, where it is possible: assert a hard-coded expected output, as
+ * `audit-log-table.test.tsx` does — that carries nothing a later tidy-up can
+ * DRY away.
+ *
+ * The guard is one-directional. It fails an ADDED site; it cannot see an
+ * exemption that is no longer needed. Removing the literal from an exempt path
+ * means removing that path's entry in the same commit.
  */
 export const SWEDISH_TIME_ZONE = "Europe/Stockholm";
 

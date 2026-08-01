@@ -18,7 +18,12 @@ namespace Jobbliggaren.QA.Corpus;
 /// <see cref="ReachableGateStates_CoversEveryDeclaredBlockReason"/>, whose subject is the
 /// production enum <c>AutoPromoteBlockReason</c>. It is argued at its own docblock rather than
 /// waved through here, which is the convention <c>LayoutCorpusReportTests</c> already uses for
-/// its four production-touching asserts. Stated at the class level because the earlier version
+/// its own production-touching asserts. (Both places in THIS file said "its four" until
+/// 2026-08-01, when a fifth landed there. That count now has a measured history of being wrong:
+/// "three" after a fourth arrived, "four" as the fifth was added, and FOUR separate homes to keep
+/// in step — two here and two in that file. It is deleted from all four; the (a)-(e) list beside
+/// the asserts is the catalog, and it cannot drift from what it sits on top of.)
+/// Stated at the class level because the earlier version
 /// of this paragraph claimed nothing here could be moved by <c>src/</c>, and that stopped being
 /// true the moment the assert landed.</para>
 /// </summary>
@@ -211,7 +216,7 @@ public sealed class LayoutCorpusEmitterTests
     ///
     /// <para>Its subject is <c>AutoPromoteBlockReason</c>, a PRODUCTION type, so it sits outside the
     /// assert rule's three categories and is argued rather than assumed — the convention
-    /// <c>LayoutCorpusReportTests</c> already uses for its four production-touching asserts. The
+    /// <c>LayoutCorpusReportTests</c> already uses for its own production-touching asserts. The
     /// subject is the type's DECLARED surface, not anything the chain produced from a document; it
     /// cannot be moved by a parsing change, only by someone adding a gate. Red then is the correct
     /// answer, and the remedy is one arm in <c>GateLadder</c>.</para></summary>
@@ -835,6 +840,22 @@ public sealed class LayoutCorpusEmitterTests
     private static LayoutCorpusReportData Data() =>
         new("abc1234", [Observation("case-alpha")], ["ISkillResolver (empty proposals)"], []);
 
+    /// <summary>Refuses to build a fixture whose ladder the instrument itself calls malformed.
+    /// The subject is the corpus's OWN derivation over its OWN declared inputs — assert-rule
+    /// category (b) — and it is a FIXTURE guard, so it can only ever fail while this file is
+    /// being edited. It exists because parameterising the discriminators fixed the fixture that
+    /// was wrong and left the next one free to be wrong the same way.</summary>
+    private static IReadOnlyList<GateCell> WellFormedLadder(
+        IReadOnlyList<GateCell> ladder, string caseId)
+    {
+        GateLadder.IsWellFormed(ladder).ShouldBeTrue(
+            $"FIXTURE: '{caseId}' builds a ladder the instrument rejects — "
+            + string.Join(", ", ladder.Select(c => $"{c.GateId}={c.State}"))
+            + ". A PersonnummerPresent fixture needs its discriminator (pnrOnParse or "
+            + "pnrInLabel), or GateLadder's catch-all renders every rung `unresolved`.");
+        return ladder;
+    }
+
     private static LayoutCaseObservation Observation(
         string id,
         string? byteProofFailure = null,
@@ -854,7 +875,13 @@ public sealed class LayoutCorpusEmitterTests
             CharCount: 100, LineCount: 10, BlankLineCount: 0, SegmentRan: true,
             DetectedLanguage: "Sv", HeadingsDetected: 4, PreambleChars: null,
             ConfidenceOverall: "Confident", SectionEvidence: ["Experience: Confident — 1 entries"],
-            PersonnummerFoundOnParse: false,
+            // Tracks pnrOnParse rather than being hardcoded false. In production BOTH this
+            // field and the ladder's discriminator read `parsed?.Personnummer.Found`
+            // (LayoutChainRunner), so a fixture with one true and the other false is a
+            // state the harness cannot produce. No assertion rests on that incoherence
+            // today, so it was not a §5 `Tests:` breach — it was a fixture the helper had
+            // no business being able to build.
+            PersonnummerFoundOnParse: pnrOnParse,
             FirstExtractedLine: "Anna Andersson",
             ContainsFusedPeriodRole: false,
             AnyLineCarriesBothColumns: false,
@@ -873,7 +900,12 @@ public sealed class LayoutCorpusEmitterTests
             // `unresolved` cells — the exact state IsWellFormed was hardened to reject and that
             // assert (d) hard-fails on. The test above survived only because `unresolved` happens
             // not to contain the substring it was searching for (test-writer, measured).
-            Gates: GateLadder.From(blockReason, promoted, false, pnrOnParse, pnrInLabel),
+            //
+            // WellFormedLadder is the hardening, not decoration: parameters alone let the NEXT
+            // fixture reintroduce the same malformed ladder silently. It makes an incoherent
+            // fixture unconstructible instead of merely currently-absent.
+            Gates: WellFormedLadder(
+                GateLadder.From(blockReason, promoted, false, pnrOnParse, pnrInLabel), id),
             Markers: [],
             CrossSectionContamination: [],
             SummaryContainsRenderedProjectHeading: null,

@@ -92,8 +92,9 @@ internal static class AutoPromoteGate
         // bind) — both read-only. Order: highest PII priority first, then extraction failure.
         //
         // Every blocking arm passes DomainErrorCode explicitly, and the argument is NAMED at
-        // each of the five — the three below plus the Tier-2 DQ6 arm (null) and the buildability
-        // arm (the code). The parameter has no default on purpose (#1060 D3(β) PR 2): with one,
+        // each of the five — the three arms in this tier (the two policy gates plus the label
+        // scan, which is not itself a policy gate under the D1 bind) plus the Tier-2 DQ6 arm
+        // (null) and the buildability arm (the code). The parameter has no default on purpose (#1060 D3(β) PR 2): with one,
         // dropping it compiles and the arm silently starts claiming "no domain evaluation ran"
         // — the same class of surviving mutation LayoutChainRunner.Crashed's fourth argument was
         // measured to produce. Without one it is a build error.

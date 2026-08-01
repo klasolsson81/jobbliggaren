@@ -46,13 +46,14 @@ namespace Jobbliggaren.QA.Corpus;
 ///
 /// <para><b>The escape hatch, stated once so it can be cited.</b> An assert whose subject falls
 /// outside (a)/(b)/(c) is permitted when it is ARGUED where it lives. The ones that do are
-/// enumerated (a)-(e) beside the asserts themselves, and deliberately NOT counted here or there:
-/// the list sits directly above the code it describes, so a numeral is pure redundancy — and it
-/// was written wrong twice ("three" after a fourth landed, then "four" as a fifth was proposed).
-/// The file reached the ADJACENT conclusion for the case count above — "a numeral beside a
-/// catalog anyone can count needs no such archaeology" — and settled there for a digit because
-/// that catalog lives in another file. This one does not: it is the next twelve lines. One more
-/// lives in
+/// enumerated (a)-(e) beside the asserts themselves, and deliberately NOT counted here or in
+/// <c>LayoutCorpusEmitterTests</c>, which carried the same count twice more. The list sits
+/// directly above the code it describes, so a count beside it is pure redundancy: it went wrong
+/// once already ("three" after a fourth landed) and was stale in four places the moment (e)
+/// landed. The file reached the ADJACENT conclusion for the case count above — "a numeral beside
+/// a catalog anyone can count needs no such archaeology" — and settled there for a digit because
+/// that catalog lives in another file. This one does not: it lives beside the asserts themselves,
+/// in <c>LayoutCorpus_FromBytes_EmitsReport</c>. One more assert lives in
 /// <c>LayoutCorpusEmitterTests</c>, whose subject is
 /// <c>AutoPromoteBlockReason</c>'s declared member set. The rule's exclusion is
 /// <i>everything the production chain PRODUCES</i>; a declared type surface is not that, and no
@@ -169,6 +170,14 @@ public sealed class LayoutCorpusReportTests
         // invisible to CI — the artifact is gitignored, only the baseline is tracked, and no test
         // compares them. "A human will notice if a human happens to regenerate and then happens
         // to read" is not a guard (CTO-bind 2026-08-01, Decision 1).
+        //
+        // THE OTHER DIRECTION, priced rather than left implicit: (e) goes VACUOUS the day the
+        // docx-label-first rows start promoting, which is exactly what PR B/E are for. Nothing
+        // here pins that some case still reaches LeftPending, and §0's "none" reads the same
+        // for "everything was readable" and "there was nothing to read". Accepted: inventing a
+        // floor on how many cases must block would be the §2.5 ratchet this suite may not make
+        // for itself. But a reader who lands here after that fix should treat a green (e) as
+        // UNMEASURED rather than as evidence.
         observations.Where(o => o.BlockDetailUnreadable).ShouldBeEmpty(
             "INSTRUMENT: a LeftPending was logged whose BlockDetail property this harness could "
             + "not read. Either the {BlockDetail} placeholder was renamed or removed in "

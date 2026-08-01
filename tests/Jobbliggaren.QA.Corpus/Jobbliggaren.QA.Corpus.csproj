@@ -49,6 +49,16 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- #1060 D3(beta) PR 2 - the SHARED recording logger (tests/Shared), linked exactly as
+         TestFacets/TestIds are into the other suites. The corpus needs it because
+         AutoPromoteGateVerdict is internal to Jobbliggaren.Application and this assembly is NOT
+         in its InternalsVisibleTo list, so the handler's own structured log line is the only
+         seam through which the domain code behind IncompleteContent can be observed. Linked,
+         never copied (CTO constraint 2). -->
+    <Compile Include="..\Shared\RecordingLogger.cs" Link="Shared\RecordingLogger.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
     <!-- Infrastructure brings Domain + Application transitively. The deriver frontend (PR 2)
          constructs the REAL internal engine + read model + seeder (InternalsVisibleTo below) and
          runs them against a Testcontainers Postgres; the in-memory reviewer frontend (PR 3) uses

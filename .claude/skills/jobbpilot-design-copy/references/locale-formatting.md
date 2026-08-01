@@ -212,8 +212,8 @@ you are asking:
 pre-commit and in CI, so a new site does not merge (#1148). The two DECLARING
 modules are exempt — `src/i18n/request.ts` and `src/lib/time/swedish-calendar.ts`
 — as is test code. `format.ts` is not exempt and does not need to be: it never
-writes the zone, because next-intl resolves the pin for it. The list lives in
-`eslint.config.mjs` and is not repeated here.
+writes the zone, because next-intl resolves the pin for it. The authoritative
+list, including the test-code globs, lives in `eslint.config.mjs`.
 
 > **Removed 2026-08-01:** this section used to document `toStockholm` /
 > `formatDateTimeStockholm` built on **`date-fns-tz`** — that package, not the

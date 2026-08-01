@@ -34,8 +34,9 @@ import { beforeAll, describe, expect, it } from "vitest";
  * of selectors with different contents, so a count-based check passes on a swap.
  *
  * Effect counts the RULE's messages rather than matching their prose, so rewording
- * a message cannot make a zero-assertion vacuously true. Each probe is written to
- * trigger exactly one restriction.
+ * a message cannot make a zero-assertion vacuously true. Each probe that is
+ * expected to fire triggers exactly one restriction; the rest are written to
+ * trigger none, which is the assertion they exist for.
  *
  * Everything is resolved ONCE, in `beforeAll`, and the assertions are then pure
  * comparisons. The hook carries its own ceiling because what it waits for is a

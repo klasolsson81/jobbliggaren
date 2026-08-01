@@ -298,11 +298,17 @@ expect_lacks "T-pkg and never reports no findings"     "$out" "no findings"
 # green (measured). Well-formed JSON that is simply not an object separates them —
 # with the check gone, `null` produced "nothing accepted", "nothing repaired" and
 # "no findings" out of a manifest with no object to read.
+#     The second assertion below asserts that nothing AFTER the skip runs, and it has
+#     to: a needle aimed at "nothing accepted" cannot fall, because `run` passes no
+#     location probe and the mutant therefore takes the UNVERIFIED branch, whose
+#     wording differs. Nor do the sub-block assertions catch these shapes — jq indexes
+#     `null` to `null`, so `.pnpm.overrides == null` is satisfied. The skip's own
+#     `exit` is the only thing standing here.
 for _shape in 'null' '[]' '123'; do
   printf '%s\n' "$_shape" > "$TMP/tpkg.shape.json"
   out="$(run "$TMP/tpkg.shape.json" "$TMP/ok.audit.json" "$TMP/lock.yaml")"
-  expect_has   "T-shape a manifest that is $_shape is skipped"       "$out" "is not a JSON object"
-  expect_lacks "T-shape and $_shape never reports nothing accepted"  "$out" "nothing accepted"
+  expect_has   "T-shape a manifest that is $_shape is skipped"          "$out" "is not a JSON object"
+  expect_lacks "T-shape and after $_shape nothing further runs"         "$out" "EMPTY CONFIG"
 done
 
 # T8: `{}` is valid JSON but not audit JSON — the case the shape assertion exists

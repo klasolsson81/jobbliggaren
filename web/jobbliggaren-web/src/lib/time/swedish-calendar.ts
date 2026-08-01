@@ -27,18 +27,28 @@ export type SwedishMonth = { year: number; month: number };
  * the home for NEW call sites: import it rather than repeating the literal.
  *
  * It is not yet the only occurrence, and the doc should not claim otherwise.
- * Measured over `web/jobbliggaren-web/src/`: ten occurrences, of which this
- * declaration is one. Of the other NINE, exactly **two are production code** —
- * `admin/granskning/audit-log-table.tsx` (a raw `Intl.DateTimeFormat`, exactly
- * the case this constant exists for, swept in the follow-up PR) and
- * `src/i18n/request.ts` (the primary declaration of the global next-intl pin;
- * making the i18n configuration depend on `lib/` is a layering decision of its
- * own). The remaining seven are `.test.ts(x)` files plus the `test/render-intl`
- * harness.
  *
- * The population is spelled out because "three raw literals remain" was the first
- * phrasing here, and it was a count that was true of one population and read as a
- * claim about another — the defect class this PR spent three review rounds on.
+ * The population, stated before the number so the number can be reproduced: over
+ * `web/jobbliggaren-web/src/`, an occurrence is the literal used as a VALUE IN
+ * CODE — this declaration, or a `timeZone` argument. That is one rule, not two:
+ * a mention inside a comment or inside a test name is not a value, so it needs no
+ * separate clause to exclude it.
+ *
+ * Measured on that definition: **nine** occurrences. This declaration is one. Of
+ * the other eight, exactly **one is production code** — `src/i18n/request.ts`,
+ * the primary declaration of the global next-intl pin, left deliberately, because
+ * making the i18n configuration depend on `lib/` is a layering decision of its
+ * own. The remaining **seven are test-side**: six in five `.test.ts(x)` files
+ * (`lib/i18n/format.test.ts` carries two of them), plus one in the
+ * `test/render-intl` harness. Seven occurrences, six files — the paragraph says
+ * which, because an earlier draft said "seven files" and meant seven occurrences.
+ *
+ * `admin/granskning/audit-log-table.tsx` was the second production site until
+ * #1141, which is what took the count from ten to nine. **Re-measure this
+ * paragraph whenever a site is added or removed** — its first phrasing was "three
+ * raw literals remain", a count true of one population and read as a claim about
+ * another, which is the defect class the originating PR spent three review rounds
+ * on.
  */
 export const SWEDISH_TIME_ZONE = "Europe/Stockholm";
 

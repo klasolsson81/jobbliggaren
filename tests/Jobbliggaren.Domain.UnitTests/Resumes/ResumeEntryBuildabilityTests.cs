@@ -351,8 +351,16 @@ public class ResumeEntryBuildabilityTests
     /// The <see cref="ErrorKind"/> assertion below recovers the factory half — it pins
     /// <c>Kind</c> as a VALUE, so swapping THIS arm's factory reddens even though the comparison
     /// stays green. It is one arm of thirteen: a swap on any other still moves nothing. And it
-    /// pins the <c>Kind</c> the central mapper reads for 400, not the 400 itself — no test in the
-    /// repo pins <c>ErrorKind.Validation ⇒ 400</c>, so that step is still read from the source.
+    /// pins the <c>Kind</c> the central mapper reads for 400, not the 400 itself. That step IS
+    /// pinned, just not from here and not for this family:
+    /// <c>ResumesEndpointsTests.PUT_master_with_personnummer_in_summary_returns_400_and_does_not_persist</c>
+    /// drives a <c>Validation</c>-kind error through <c>ToProblemResult</c> and asserts the 400
+    /// together with the code-as-title, which is what excludes any other 400 source. Adjudicator,
+    /// so this is checkable: flip <c>ErrorKind.Validation ⇒ Status400BadRequest</c> in
+    /// <c>DomainErrorResults</c> and that test reddens. What is genuinely absent is narrower —
+    /// the mapper has no unit test, and no integration test touches any of these thirteen codes
+    /// (measured, zero files). An earlier revision said "no test in the repo pins" it, which was
+    /// a repo-wide negative with no adjudicator, and false.
     /// The MESSAGE stays deliberately unpinned: it is user-facing copy (CLAUDE.md §10) and a
     /// literal here would be the localization-fragile assertion §5 warns against — and it would
     /// not catch the rewording anyway, for the reason above.</para>

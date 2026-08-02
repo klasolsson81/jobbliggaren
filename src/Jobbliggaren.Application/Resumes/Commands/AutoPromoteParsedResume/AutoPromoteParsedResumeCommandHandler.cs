@@ -180,9 +180,21 @@ public sealed partial class AutoPromoteParsedResumeCommandHandler(
     // DomainError.CODE — never DomainError.Message, which carries the Swedish user-facing text
     // — and every value it can hold is a DomainError code literal. What makes THAT exhaustive —
     // the half the minimisation argument rests on — is that CreateFromParsed's whole error set is
-    // compile-time literals with no interpolation. Adjudicator, so this is checkable rather than
-    // asserted: grep `DomainError.Validation(` under Resume.cs and ResumeEntryBuildability.cs; an
-    // interpolated code is what would break it, not a miscount.
+    // compile-time literals with no interpolation.
+    //
+    // Adjudicator, so this is checkable rather than asserted — and it has to be THIS shape:
+    //   grep -A1 -nE 'DomainError\.(Validation|Conflict|NotFound|Gone)\(' \
+    //        src/Jobbliggaren.Domain/Resumes/Resume.cs \
+    //        src/Jobbliggaren.Domain/Resumes/ResumeEntryBuildability.cs
+    // then READ the code argument on every hit. Two under-reaches make the obvious form useless,
+    // both measured rather than feared. (1) The house wraps after the open paren, so matching
+    // `DomainError.Validation(` alone shows the code on 6 of 39 hits in Resume.cs and 0 of 13 in
+    // ResumeEntryBuildability — the file that declares every per-entry code is entirely blind to
+    // it, and a planted `$"Resume.Experience{nameof(...)}Required"` produced byte-identical
+    // output. (2) Matching `Validation(` alone misses DomainError.NotFound(entity, id), whose
+    // whole job is to INTERPOLATE its code, so an arm added through it would never appear at all.
+    // A bare `$"` sweep is not the fix either: Resume.cs has two, and both are DomainException
+    // MESSAGES carrying literal codes, outside the Result path this parameter draws from.
     //
     // SEPARATELY, and for the ROUTING question rather than the PII one, each code is of one of
     // exactly two kinds: a PER-ENTRY constraint on a work-experience or education entry (e.g.

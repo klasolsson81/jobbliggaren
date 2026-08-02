@@ -714,8 +714,9 @@ public class ResumeTests
     /// promote lossily and row 20 faithfully, and no corpus row carries a Domain code any more.
     /// Two revisions of this sentence have been wrong in opposite directions — one cited those
     /// rows as this shape's producer, and the repair then dropped the tense qualifier the version
-    /// before it had carried. The baseline holds both facts ten lines apart: its SECOND
-    /// CORRECTION is the one about the slot, its THIRD the one about the blocking.</para>
+    /// before it had carried. The baseline holds both facts under headings, which is the durable
+    /// locator and the reason no line distance is given here: its SECOND CORRECTION is the one
+    /// about the slot, its THIRD the one about the blocking.</para>
     /// </summary>
     [Fact]
     public void UpdateMasterContent_WithBothKindsUnbuildable_ReportsTheExperienceFirst()

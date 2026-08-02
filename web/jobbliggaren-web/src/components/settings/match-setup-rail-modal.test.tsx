@@ -232,7 +232,10 @@ describe("MatchSetupRailModal — räknarens tal följer aktiv locale", () => {
         messages={enMessages}
         timeZone="Europe/Stockholm"
       >
-        <MatchSetupRailModal {...modalProps} />
+        {/* Own `onOpenChange`, like `renderModal` — so `modalProps`' default
+            mock is never actually called and cannot accumulate calls across
+            tests (`beforeEach` resets the named mocks, not every mock). */}
+        <MatchSetupRailModal {...modalProps} onOpenChange={vi.fn()} />
       </NextIntlClientProvider>,
     );
   }

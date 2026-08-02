@@ -30,14 +30,20 @@ namespace Jobbliggaren.Application.UnitTests.Resumes.Review;
 /// <para>ONE consumer acts on a row this union releases: A1/A2/A6 via
 /// <c>ReviewText.ExperienceBullets</c>. <c>StructureRules</c>' B5 also reads
 /// <c>DescriptionLines</c> and its bullet-marker set does contain the en dash — but it does NOT act
-/// on EITHER form this union releases. <c>LeadMarker</c> nulls any marker whose remainder
-/// <c>PeriodParser</c> parses (<c>StructureRules.cs:372-376</c>, a guard written for exactly
-/// "- 2020 – nuvarande"), and the leading-separator direction is DEFINED as "PeriodParser fails only
-/// on the leading separator" — so the remainder always parses. B5 CAN act, but only on a row whose
-/// remainder <c>PeriodParser</c> REFUSES: "– jan 2020 – dec 2024". That is the live escape this
-/// class's last test pins, open today and independent of the union. A round of this review asserted
-/// B5 flipped on the leading-separator form, reading the marker set and not the guard nine lines
-/// below it. The class is the INVERSE of the one first
+/// on any form in play here, and <c>LeadMarker</c> has TWO guards that must be kept apart.
+/// <b>Guard one</b> (<c>StructureRules.cs:362</c>) needs a marker glyph followed by whitespace — the
+/// forms this union RELEASES all open with a digit or a letter, so B5 never reaches its second
+/// guard on them. <b>Guard two</b> (<c>:372-376</c>, written for exactly "- 2020 – nuvarande") nulls
+/// a marker whose remainder <c>PeriodParser</c> parses — that is what disarms the
+/// leading-separator form, which this union SUPPRESSES anyway.</para>
+///
+/// <para>So B5 can act only on a row that clears BOTH: a marker glyph, and a remainder
+/// <c>PeriodParser</c> refuses — "– jan 2020 – dec 2024". <b>No test in the tree pins that row</b>,
+/// and this is DERIVED from reading <c>LeadMarker</c>, not run. It belongs to the date-model
+/// widening, not here. An earlier round of this review asserted B5 flipped on the
+/// leading-separator form, having read the marker set and not the guard nine lines below it.</para>
+///
+/// <para>The class is the INVERSE of the one first
 /// cited: §5's "a CV verdict without cited textual evidence" — a verdict citing a span that is not
 /// prose. Sharpest on <c>YYYY/MM</c>, which <c>DateRange</c> models on neither endpoint, so
 /// <c>StripDates</c> leaves digits behind and A1 can read the employment dates as a quantified

@@ -10,11 +10,24 @@ namespace Jobbliggaren.Application.UnitTests.Resumes.Review;
 /// #1060 β-3 follow-up — <c>ReviewText.DescriptionLines</c>' period test is a UNION
 /// (<c>PeriodParser.TryParse(line, …) || DatePatterns.IsDateOnlyLine(line)</c>), and this class
 /// exists to make that union's two halves INDIVIDUALLY load-bearing. Neither predicate subsumes
-/// the other, so a substitution in either direction is a suppression regression — and a
-/// suppression regression here does not merely mis-score: <c>DescriptionLines</c> feeds the
-/// improve engine's <c>WeakVerbTransform</c>, which proposes a rewrite of every bullet, so a
-/// released date row becomes an offer to rewrite the user's dates as prose (CLAUDE.md §5,
-/// "synthesising prose the user did not write").
+/// the other, so a substitution in either direction is a suppression regression.
+///
+/// <para><b>What a released row actually reaches, corrected after measurement.</b> An earlier
+/// revision of this docblock said <c>DescriptionLines</c> feeds <c>WeakVerbTransform</c>, "which
+/// proposes a rewrite of every bullet", and cited CLAUDE.md §5 "synthesising prose the user did not
+/// write". Both halves are false. <c>WeakVerbTransform.Propose</c> emits a change only for a bullet
+/// OPENING with a drop-in-safe weak verb from the KnowledgeBank mapping, and a date row opens with a
+/// digit or a month abbreviation — it is offered the row and DECLINES it; the replacement is a
+/// verbatim KnowledgeBank value, so it could not synthesise even if it fired.
+///
+/// <para>The consumer that does act on a released row is the REVIEW side, via
+/// <c>ReviewText.ExperienceBullets</c> → A1/A2/A6, and the class is the INVERSE of the one first
+/// cited: §5's "a CV verdict without cited textual evidence" — a verdict citing a span that is not
+/// prose. Sharpest on <c>YYYY/MM</c>, which <c>DateRange</c> models on neither endpoint, so
+/// <c>StripDates</c> leaves digits behind and A1 can read the employment dates as a quantified
+/// result. <b>That A1/A2/A6 consequence is DERIVED from reading the rules, not run</b>
+/// (senior-cto-advisor re-bind 2026-08-02); the date-model widening owns measuring it. What IS run
+/// and pinned here is the escape itself.</para>
 ///
 /// <para><b>The pin's whole purpose is to redden under EITHER substitution</b>, which is why the
 /// two directions are separate test methods with disjoint inputs:

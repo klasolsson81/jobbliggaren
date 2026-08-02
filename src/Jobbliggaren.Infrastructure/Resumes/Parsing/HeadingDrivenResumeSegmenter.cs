@@ -636,7 +636,7 @@ internal sealed partial class HeadingDrivenResumeSegmenter(CvParsingLexiconData 
         // the review side suppressed only BECAUSE this fallback fabricates them into Organization
         // and ReviewText's organization-equality test then fires on them. Widening the date model
         // first would make Organization correctly null and stop that test firing, handing the line
-        // to the bullet scorer and to WeakVerbTransform, which proposes a rewrite of every bullet.
+        // to ReviewText.ExperienceBullets, where A1/A2/A6 score and CITE it as though it were prose.
         // The promotion had to land first so the widening extends a real suppression instead of
         // removing an accidental one (senior-cto-advisor bind 2026-08-02, §2).
         //

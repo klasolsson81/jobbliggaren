@@ -133,8 +133,11 @@ public class DatePatternsDateOnlyLineTests
         string line, string axis)
     {
         // This is the direction of the trap. Swapping ReviewText's PeriodParser test for a
-        // DatePatterns-only one would hand exactly these lines to the bullet scorer and to
-        // WeakVerbTransform, which proposes a rewrite of every bullet — a §5 CV-engine class.
+        // DatePatterns-only one would hand exactly these lines to the review side's bullet scorer
+        // (ReviewText.ExperienceBullets → A1/A2/A6), where a criterion can cite the user's
+        // employment dates as if they were prose — §5's "a CV verdict without cited textual
+        // evidence" in its inverted form. NOT WeakVerbTransform: it proposes only for a bullet
+        // opening with a drop-in-safe weak verb, so it is offered a date row and declines it.
         ShouldReduceTo(line, line);
         PeriodParser.TryParse(line, out _, out _, out _).ShouldBeTrue(
             $"PeriodParser reaches this form and DatePatterns does not — {axis}.");

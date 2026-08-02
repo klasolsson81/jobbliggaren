@@ -84,6 +84,20 @@ internal static partial class DatePatterns
     /// for the other narrows suppression in the opposite direction. This predicate is wider only
     /// for a line whose date is not a whole-string period — a LEADING separator
     /// ("– 2020 – 2024"), which `PeriodParser` is anchored against.</para>
+    ///
+    /// <para><b>The fourth axis is an alternation-ordering defect, and it is NOT review-only.</b>
+    /// The same ordering inside <see cref="DateRange"/> reaches every surface that reads the match
+    /// rather than the predicate: <c>HeadingDrivenResumeSegmenter.ExtractPeriod</c> returns the
+    /// match VALUE, so "2020-06 – 2024-03" is stored as <c>Period = "2020-06 – 2024"</c> — the end
+    /// month silently dropped from the value that rides into the promoted CV, on a path with no
+    /// approve step. <see cref="StripDates"/> likewise leaves "-03" unmasked. One ordering, three
+    /// surfaces. <b>The correction is the date-model widening's FIRST commit</b>
+    /// (senior-cto-advisor re-bind 2026-08-02, bind 9): longest-alternative-first must land, pinned,
+    /// BEFORE any alternation is added, or every new alternative reproduces the same defect —
+    /// a trailing-qualifier alternative placed after the bare <c>\d{4}</c> would make
+    /// "2020 – 2024 (heltid)" match "2024" first and leave the qualifier as a tail, exactly as this
+    /// axis does now. Not corrected here: <see cref="DateRange"/> is deliberately unchanged by the
+    /// promotion, whose segmenter half is a pure refactor.</para>
     /// </summary>
     public static bool IsDateOnlyLine(string line) => StripTrailingDate(line).Length == 0;
 

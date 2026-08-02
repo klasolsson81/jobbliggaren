@@ -96,8 +96,11 @@ internal static class ReviewText
             // separator ("– 2020 – 2024").
             //
             // Replacing rather than adding would therefore be a regression in the opposite
-            // direction — it would hand "2019 till 2021" to the bullet scorer and to
-            // WeakVerbTransform, which proposes a rewrite of every bullet.
+            // direction — it would hand "2019 till 2021" to ExperienceBullets below, where A1/A2/A6
+            // can cite the user's employment dates as though they were prose. NOT to
+            // WeakVerbTransform: that transform proposes only for a bullet OPENING with a
+            // drop-in-safe weak verb from the KnowledgeBank mapping, so it is offered a date row
+            // and declines it.
             if (PeriodParser.TryParse(line, out _, out _, out _) || DatePatterns.IsDateOnlyLine(line))
             {
                 continue;
@@ -133,9 +136,9 @@ internal static class ReviewText
             // there the date row is Lines[1] and therefore the organisation candidate, so the
             // segmenter fabricates it into Organization and the equality test above fires on it.
             // Widening the date model FIRST would make Organization correctly null, stop that test
-            // firing, and — without this union already in place — release the line into the bullet
-            // scorer and into WeakVerbTransform, which proposes a rewrite of every bullet. That
-            // trades a fabricated employer for a rewritten date row: two CLAUDE.md §5 CV-engine
+            // firing, and — without this union already in place — release the line into
+            // ExperienceBullets, where A1/A2/A6 score and CITE it. That trades a fabricated employer
+            // for a criterion citing the user's date row as prose: two CLAUDE.md §5 CV-engine
             // classes, not a fix. With the union here first, the widening extends a real
             // suppression instead of removing an accidental one.
             //

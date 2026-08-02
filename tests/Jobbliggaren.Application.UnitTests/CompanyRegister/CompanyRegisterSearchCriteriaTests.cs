@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Reflection;
 using Jobbliggaren.Application.CompanyRegister.Abstractions;
 using Shouldly;
 
@@ -293,6 +294,107 @@ public class CompanyRegisterSearchCriteriaTests
 
         result.IsSuccess.ShouldBeTrue();
         result.Value.OrganizationNumber.ShouldBeNull();
+    }
+
+    // ---- browse-all predicate -------------------------------------------------------------------
+
+    [Fact]
+    public void IsUnfiltered_NoAxes_IsTrue()
+    {
+        // The legal browse-all (CTO F1) — what /foretag/sok sends before the user types anything.
+        var result = CompanyRegisterSearchCriteria.Create(null, null, null, null, 1, 20);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.IsUnfiltered.ShouldBeTrue();
+    }
+
+    [Theory]
+    // One case per axis, because a predicate that forgets an axis is exactly the defect the
+    // endpoint's hand-rolled copy of this question could carry undetected: it would then call a
+    // filtered search a browse-all and drop its magnitude.
+    [InlineData("62010", null, null, null)]
+    [InlineData(null, "0180", null, null)]
+    [InlineData(null, null, "acme", null)]
+    [InlineData(null, null, null, "5560125790")]
+    public void IsUnfiltered_AnySingleAxisPresent_IsFalse(
+        string? sni, string? kommun, string? name, string? orgNr)
+    {
+        var result = CompanyRegisterSearchCriteria.Create(
+            sni is null ? null : [sni], kommun is null ? null : [kommun], name, orgNr, 1, 20);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.IsUnfiltered.ShouldBeFalse();
+    }
+
+    [Fact]
+    public void IsUnfiltered_ReadsTheNORMALIZEDAxes_NotTheRawInput()
+    {
+        // A blank name and an empty code array are what "no filter" looks like on the wire; Create
+        // folds both to an absent axis, and the predicate must agree with the WHERE clause that
+        // gets built rather than with what the caller happened to send. This is the whole reason
+        // the question lives here and not on raw request input.
+        var result = CompanyRegisterSearchCriteria.Create([], [], "   ", "  ", 1, 20);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.IsUnfiltered.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void IsUnfiltered_MustBeRevisitedWhenTheAxisSetChanges()
+    {
+        // The Theory above proves each axis it NAMES is covered. It cannot prove the set is
+        // complete, because a guard cannot see its own under-reach when everything it enumerates
+        // passes: add a fifth axis and ComposeFromWhere gets a clause, BindPredicate gets a
+        // binding, and IsUnfiltered gets nothing — silently, with this whole file green. The
+        // failure would be product-visible: a search filtered only on the new axis would be
+        // classified as a browse-all and lose its magnitude entirely.
+        //
+        // So pin the SET, which is the only form that can see an axis that does not exist yet.
+        var axes = typeof(CompanyRegisterSearchCriteria)
+            .GetProperties(BindingFlags.Public | BindingFlags.Instance)
+            .Select(p => p.Name)
+            .Except([
+                nameof(CompanyRegisterSearchCriteria.Page),
+                nameof(CompanyRegisterSearchCriteria.PageSize),
+                nameof(CompanyRegisterSearchCriteria.IsUnfiltered),
+            ])
+            .ToList();
+
+        axes.ShouldBe(
+            ["SniCodes", "MunicipalityCodes", "NamePrefix", "OrganizationNumber"],
+            ignoreOrder: true,
+            customMessage:
+                "The criteria carry an axis this test does not list. IsUnfiltered enumerates axes "
+                + "by hand and CANNOT see a new one: a search filtered only on it would be read as "
+                + "a browse-all and lose its magnitude. Add a conjunct to IsUnfiltered, an "
+                + "InlineData case to IsUnfiltered_AnySingleAxisPresent_IsFalse, and update this "
+                + "list.");
+
+        // And close the last way to silence this mechanically. Updating the list above without
+        // adding a case would turn the tripwire green again while IsUnfiltered still lacked its
+        // conjunct — a register pin that can be quieted by editing the register is not a pin.
+        // Binding the Theory's arity to the axis set means the new case has to exist, and a case
+        // for an axis IsUnfiltered ignores fails on its own.
+        var theoryCases = typeof(CompanyRegisterSearchCriteriaTests)
+            .GetMethod(nameof(IsUnfiltered_AnySingleAxisPresent_IsFalse))!
+            .GetCustomAttributes<InlineDataAttribute>()
+            .Count();
+
+        theoryCases.ShouldBe(
+            axes.Count,
+            customMessage:
+                "One InlineData case per axis. Updating the list above without adding a case makes "
+                + "this test green without IsUnfiltered ever gaining its conjunct.");
+    }
+
+    [Fact]
+    public void IsUnfiltered_IgnoresPaging()
+    {
+        // Page 7 of a browse-all is still a browse-all — paging is not an axis.
+        var result = CompanyRegisterSearchCriteria.Create(null, null, null, null, 7, 100);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.IsUnfiltered.ShouldBeTrue();
     }
 
     // ---- derived caps + redaction --------------------------------------------------------------

@@ -527,10 +527,14 @@ internal sealed partial class HeadingDrivenResumeSegmenter(CvParsingLexiconData 
         // Scope, stated narrowly on purpose. This moves ONLY the line the separator loop reads,
         // and only when the first line carries nothing but a period. ONE step, never more: a third
         // line that would have to be searched for is guessing, not relocating. It does NOT move the
-        // fallback either — when the next line carries no separator, it is a single field and the
-        // pre-existing degradation (Title null, Organization = Lines[1]) is still the honest
-        // reading; widening the fallback too was tried and measured to hand a description bullet to
-        // the organization slot.
+        // fallback either — when the next line carries no separator, it is a single field and
+        // taking it as the organization is the honest reading; widening the fallback too was tried
+        // and measured to hand a description bullet to the organization slot.
+        //
+        // #1060 β-3 qualified that sentence rather than moving the fallback: "a single field" was
+        // only true when the line HAS one. Where Lines[1] carries nothing but a period, taking it
+        // was not a degradation but a fabrication, so the fallback now refuses that one case —
+        // still without relocating, and still without guessing slot order.
         //
         // It changes WHICH LINE is read, never which SIDE of it is the role. StripTrailingPeriod's
         // bind below (senior-cto-advisor 2026-06-23) reserves slot ORDER as deliberately
@@ -569,7 +573,27 @@ internal sealed partial class HeadingDrivenResumeSegmenter(CvParsingLexiconData 
             }
         }
 
-        var org = entry.Lines.Count >= 2 ? NullIfEmpty(entry.Lines[1].Trim()) : null;
+        // #1060 β-3: a line that carries no fields must not BECOME a field — the mirror of β-1's
+        // rule that such a line must not DECIDE the split, and it uses the same predicate three
+        // lines up rather than a new one. Before this, an entry whose first line held no separator
+        // glyph took Lines[1] as its organization unconditionally, so an employment block naming a
+        // role and a period and NO employer promoted with the DATE RANGE as the employer name:
+        // "2026 - 2026". The engine did not drop a field, it asserted one the source never made,
+        // in a document the user sends to employers, while ParseConfidence reported Confident.
+        // Measured by the corpus arm `docx-irreducible-unattributed-experience`, which published
+        // PromotedInflated at the previous commit and blocks honestly after this one.
+        //
+        // This is a strict NARROWING and adds no positional assumption: StripTrailingPeriod
+        // reduces a line that is nothing but a date to the empty string, so the guard fires only
+        // where the candidate carries no field at all. The 2026-06-23 slot-order bind is untouched
+        // — nothing here decides WHICH side is the role. Relocating the fallback to Lines[2] would
+        // be a different decision and is deliberately NOT taken: β-1 measured that widening it
+        // hands a description bullet to the organization slot, and a third line that has to be
+        // searched for is guessing rather than relocating.
+        var orgCandidate = entry.Lines.Count >= 2 ? entry.Lines[1].Trim() : null;
+        var org = orgCandidate is not null && StripTrailingPeriod(orgCandidate).Length > 0
+            ? NullIfEmpty(orgCandidate)
+            : null;
         return (NullIfEmpty(first.Trim()), org);
     }
 

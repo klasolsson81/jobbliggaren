@@ -21,8 +21,16 @@ public enum FidelityVerdict
     /// content is missing — the finding this corpus exists to expose.</summary>
     PromotedLossy,
 
-    /// <summary>Promoted with MORE entries than authored: fragments invented by over-splitting.
-    /// Distinct from lossy, and equally dishonest.</summary>
+    /// <summary>Promoted with MORE entries than the document ATTRIBUTES. Distinct from lossy, and
+    /// equally dishonest.
+    /// <para><b>Over-splitting is one mechanism, not the definition.</b> This member went
+    /// unexercised until #1060 β-3, and the first row ever to publish it did so by a different
+    /// route: the entry COUNT was right — six blocks in, six entries out — and the CV was inflated
+    /// because one block naming no employer was promoted as an employment anyway, its organization
+    /// fabricated from the period line below it. So the two measured mechanisms are fragments
+    /// invented by over-splitting, and a field invented for a block the document never attributed.
+    /// Read the row, not the word: a verdict term covering two mechanisms cannot tell you which
+    /// one you have.</para></summary>
     PromotedInflated,
 
     /// <summary>A gate blocked. Nothing was claimed and nothing was lost silently.</summary>

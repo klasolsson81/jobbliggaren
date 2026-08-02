@@ -591,7 +591,7 @@ internal sealed partial class HeadingDrivenResumeSegmenter(CvParsingLexiconData 
         // can act on beats a CV asserting she worked at "2026 - 2026" — but it is a wider
         // population than the arm measures, and the arm must not be read as measuring it.
         // Pinned as accepted-and-known by
-        // Segment_HeaderLineCarryingNoSeparator_BlocksEvenWhenTheEmployerIsOnTheThirdLine.
+        // Segment_HeaderLineCarryingNoSeparator_YieldsNoOrganizationEvenWhenTheEmployerIsOnTheThirdLine.
         //
         // BOTH TYPED SECTIONS, because ParseExperiences and ParseEducations call this one
         // function. On the education side the tuple is swapped at the call site, so the org slot
@@ -605,18 +605,27 @@ internal sealed partial class HeadingDrivenResumeSegmenter(CvParsingLexiconData 
         // invariant here. Confidence cannot see a fabricated field and does not learn to; the
         // honesty comes entirely from the Domain gate, which is why the point is to REACH it.
         //
-        // Relocating the fallback to Lines[2] is a separate decision and is refused on this PR's
-        // own evidence, not merely on β-1's: on the arm's block Lines[2] is the bullet
-        // ("Uppdrag åt mindre uppdragsgivare..."), so relocating would hand a description bullet
-        // to the organization slot on the very fixture that motivated the change.
+        // This is a strict NARROWING and adds no positional assumption. StripTrailingPeriod
+        // reduces a line to empty only when a DatePatterns match runs to the END OF THE LINE, so
+        // the guard fires only where the candidate carries no field at all. THAT direction — the
+        // absence of false positives — is what the narrowing claim rests on, and it holds.
         //
-        // This is a strict NARROWING and adds no positional assumption: StripTrailingPeriod
-        // reduces a line that is nothing but a date to the empty string, so the guard fires only
-        // where the candidate carries no field at all. The 2026-06-23 slot-order bind is untouched
-        // — nothing here decides WHICH side is the role. Relocating the fallback to Lines[2] would
-        // be a different decision and is deliberately NOT taken: β-1 measured that widening it
-        // hands a description bullet to the organization slot, and a third line that has to be
-        // searched for is guessing rather than relocating.
+        // THE CONVERSE DOES NOT HOLD, and it is known rather than overlooked. A date line
+        // DatePatterns does not model, or one carrying anything after the match, is NOT reduced
+        // and still becomes the organization: "jan 2020 – dec 2024" (no month token in the
+        // end-alternation, so only the year matches and " – dec 2024" remains), "2020 – 2024
+        // (heltid)", "2005 –" with an open end and no keyword, "2020/01 – 2024/12". The month
+        // form is the most consequential — it fabricates AND leaves Period null. Unchanged by
+        // β-3 and not a regression: the guard is narrower than this paragraph would read if it
+        // said "any date-only line". The honest fix is the same DatePatterns promotion the
+        // ReviewText residual names, and it is deferred with it.
+        //
+        // Relocating the fallback to Lines[2] is a separate decision, refused on TWO measurements:
+        // β-1 measured that widening the fallback hands a description bullet to the organization
+        // slot, and on this PR's own arm Lines[2] IS the bullet ("Uppdrag åt mindre
+        // uppdragsgivare..."), so relocating would do exactly that on the fixture that motivated
+        // the change. A third line that has to be searched for is guessing, not relocating. The
+        // 2026-06-23 slot-order bind is untouched — nothing here decides WHICH side is the role.
         var orgCandidate = entry.Lines.Count >= 2 ? entry.Lines[1].Trim() : null;
         var org = orgCandidate is not null && StripTrailingPeriod(orgCandidate).Length > 0
             ? NullIfEmpty(orgCandidate)

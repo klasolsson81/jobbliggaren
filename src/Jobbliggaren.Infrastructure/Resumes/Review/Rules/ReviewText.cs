@@ -107,8 +107,13 @@ internal static class ReviewText
             // Not fixed here, deliberately: the honest fix is to promote "is this line nothing but
             // a period?" into DatePatterns so this reader and SplitTitleOrganization share one
             // predicate, which is the same DRY move that gave DatePatterns and PeriodParser their
-            // neutral home. That is its own change-reason and belongs with the routing work, not
-            // inside a segmenter narrowing.
+            // neutral home. That is its own change-reason and does NOT belong inside a segmenter
+            // narrowing, so it ships as a FOLLOW-UP PR off #1060 β-3 — the house rule is a
+            // follow-up PR, never another filed issue. Deliberately NOT deferred to "the routing
+            // work": routing is refused on this lane, so that destination has no owner, and a
+            // deferral whose home does not exist is not tracked at all. The same promotion also
+            // closes the segmenter guard’s own negative population, pinned by
+            // Segment_DateLineDatePatternsDoesNotModel_IsStillTakenAsTheOrganization.
 
             yield return line;
         }

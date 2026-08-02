@@ -930,8 +930,11 @@ public class HeadingDrivenResumeSegmenterTests
     /// Lines[0] is a bare date and β-1's relocation runs first. Here Lines[0] is a plain role and
     /// no relocation happens, so that test does not cover this arm. It is what reddens on the two
     /// plausible mis-implementations — a predicate applied to <c>first</c> instead of the org
-    /// candidate, or an inverted emptiness test. Without it, "narrowing the fallback" and
-    /// "removing the fallback" are indistinguishable to CI.</para>
+    /// candidate, or an inverted emptiness test. It does NOT distinguish narrowing from wholesale
+    /// removal: <c>Segment_ExperienceHeaderThatIsOnlyADate_FallsBackToSecondLineForOrganization</c>
+    /// already asserts <c>Organization.ShouldBe("Acme AB")</c> through this same fallback, so
+    /// deleting it outright reddens there. What this adds is the guard's OWN arm, on a path where
+    /// that test has <c>Title == null</c> and therefore says nothing about this one.</para>
     /// </summary>
     [Fact]
     public void Segment_HeaderLineCarryingNoSeparator_StillTakesAFieldBearingSecondLineAsTheOrganization()
@@ -965,9 +968,15 @@ public class HeadingDrivenResumeSegmenterTests
     /// measures it, and a reader who takes the arm as the whole population would be wrong. The
     /// remedy is not to relocate the fallback to Lines[2] — on the arm's own block that line is a
     /// description bullet, which β-1 measured and refused.</para>
+    ///
+    /// <para><b>The name says BLOCKS; this test stops one layer short of it.</b> It asserts the
+    /// segmenter's half — no organization comes back — and the Domain half is pinned elsewhere,
+    /// named here per CLAUDE.md §5: <c>ResumeEntryBuildabilityTests</c>'
+    /// <c>Validate_ExperienceWithBlankCompany_ReturnsCompanyRequired</c> and its education twin
+    /// <c>Validate_EducationWithBlankInstitution_ReturnsInstitutionRequired</c>.</para>
     /// </summary>
     [Fact]
-    public void Segment_HeaderLineCarryingNoSeparator_BlocksEvenWhenTheEmployerIsOnTheThirdLine()
+    public void Segment_HeaderLineCarryingNoSeparator_YieldsNoOrganizationEvenWhenTheEmployerIsOnTheThirdLine()
     {
         const string cv = """
             Anna Andersson
@@ -984,6 +993,56 @@ public class HeadingDrivenResumeSegmenterTests
         var exp = result.Content.Experience.ShouldHaveSingleItem();
         exp.Title.ShouldBe("Systemutvecklare");
         exp.Organization.ShouldBeNull();
+    }
+
+    /// <summary>
+    /// THE GUARD'S NEGATIVE POPULATION, pinned so the gap is measurable rather than merely
+    /// admitted in a comment. β-3's guard fires only where <c>StripTrailingPeriod</c> reduces the
+    /// candidate to empty, which requires a <c>DatePatterns</c> match running to the END of the
+    /// line. A date line the patterns do not model — or one carrying anything after the match —
+    /// is not reduced, so it still becomes the organization and the fabrication survives.
+    ///
+    /// <para>These are NOT regressions and not a β-3 defect: the behaviour is identical before
+    /// and after. They are pinned as ACCEPTED-AND-KNOWN, and because a comment claiming "the
+    /// guard catches date-only lines" would be false about exactly these. The month form is the
+    /// most consequential — plausibly the commonest Swedish CV shape after YYYY–YYYY — and it
+    /// fabricates AND leaves the period unrecovered.</para>
+    ///
+    /// <para>The honest fix is to promote "is this line nothing but a period?" into
+    /// <c>DatePatterns</c> so the segmenter and <c>ReviewText</c> share one predicate. <b>The day
+    /// that lands, this test reddens and points at its own removal</b> — which is the whole
+    /// reason to write it as an assertion rather than a paragraph.</para>
+    /// </summary>
+    [Theory]
+    [InlineData("jan 2020 – dec 2024", "no month token in the end-alternation")]
+    [InlineData("2020 – 2024 (heltid)", "a qualifier follows the match")]
+    [InlineData("2020/01 – 2024/12", "YYYY/MM is not a modelled point form")]
+    // The open-ended form WITHOUT a keyword, and it is the sharpest of the four: DateRange needs
+    // an end point so it does not match at all, Year matches "2020", and the tail " –" is
+    // non-empty — so an ongoing employment, rendered the commonest way, still fabricates. Every
+    // open-ended fixture in the tree writes a keyword instead ("2005 - nu", "2024 - nuvarande"),
+    // which is why this form was unmeasured rather than disproven.
+    [InlineData("2020 –", "DateRange needs an end point; Year leaves a non-empty tail")]
+    public void Segment_DateLineDatePatternsDoesNotModel_IsStillTakenAsTheOrganization(
+        string dateLine, string why)
+    {
+        var cv = $"""
+            Anna Andersson
+            anna@example.com
+
+            Arbetslivserfarenhet
+            Systemutvecklare
+            {dateLine}
+            Byggde saker.
+            """;
+
+        var result = _sut.Segment(cv);
+
+        var exp = result.Content.Experience.ShouldHaveSingleItem();
+        exp.Title.ShouldBe("Systemutvecklare");
+        // Accepted and known: the guard does not reach this form, so the date is still the
+        // organization. `why` names which half of DatePatterns declines to match.
+        exp.Organization.ShouldBe(dateLine, why);
     }
 
     [Theory]
@@ -1062,7 +1121,12 @@ public class HeadingDrivenResumeSegmenterTests
             exp.Organization.ShouldNotBeNull();
             exp.Organization.ShouldNotContain("2021");
             exp.Organization.ShouldNotContain("2024");
-            exp.Title?.ShouldNotContain("2021");
+            // Same fix, same reason: the null-Title population is reachable too — β-1's relocation
+            // enlarged it, and Segment_ExperienceHeaderThatIsOnlyADate_… asserts Title IS null on
+            // that path — so `Title?.` would no-op exactly where it matters. The first revision of
+            // this repair fixed Organization and left this line one below it.
+            exp.Title.ShouldNotBeNull();
+            exp.Title.ShouldNotContain("2021");
         }
 
         result.Content.Experience.Count.ShouldBeGreaterThanOrEqualTo(2);

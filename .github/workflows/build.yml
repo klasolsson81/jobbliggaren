@@ -34,14 +34,26 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # timeout-minutes is a hang guard, not a performance budget — ADR 0045 owns the
-  # latter. 15 stopped being a hang guard once the suite grew into it: ten main
-  # runs span 14m08s–14m42s, i.e. 94–98 % of the budget, and three PRs were failed
-  # by the ceiling alone (#1141 15m14s, #1143 15m16s, #1139 15m15s). A CANCELLED
-  # job is not `success`, `backend` is in ci.needs, so the ceiling fails `ci`
-  # without naming a cause — and a re-run is the only remedy. 25 gives parity with
-  # `coverage`, which runs the SAME suite *with* instrumentation and finishes
-  # inside it. Raising this weakens no gate: every test still has to pass. #1145.
+  # timeout-minutes is a hang guard, not a performance budget. 15 stopped being a
+  # hang guard once the suite grew into it: the SIX most recent `main` runs of this
+  # job span 14m08s–14m42s = 94–98 % of the budget; across ten they span
+  # 12m15s–14m42s. Measured 2026-08-02 over runs dated 2026-07-17..07-25 — no `main`
+  # run has been recorded since, though 53 commits landed (CLAUDE.md §6.5,
+  # GITHUB_TOKEN suppression), so that is the newest population that exists.
+  # Three PRs were failed by the ceiling alone — #1141 15m14s, #1143 15m16s,
+  # #1139 15m15s — each with `coverage` green on the same commit, and each was
+  # resolved by a NEW COMMIT, not by a re-run. A CANCELLED job is not `success`,
+  # `backend` is in ci.needs, so the ceiling fails `ci` without naming a cause and
+  # the remedy is another full run of the same work. 25 gives parity with
+  # `coverage`, which runs the same suite (same solution, same `-c Release`, no
+  # filters) *with* instrumentation and finishes inside it. Raising this weakens no
+  # test gate: every test still has to pass.
+  #
+  # What 25 DOES remove is the de-facto proximity alarm on suite growth. The written
+  # owner of that question is ADR 0065 `Trigger för omvärdering` #2 ("median PR-vänt
+  # > 15 min" → parallelisation or subset-gate) — NOT ADR 0045, which carries no
+  # CI-duration budget at all. Measured 2026-08-02: median `ci` wall-clock 14m44s,
+  # 4 of 10 runs over 15m. The trigger is not fired; it is 16 seconds away. #1145.
   backend:
     name: backend (.NET 10)
     runs-on: ubuntu-latest
@@ -96,11 +108,15 @@ jobs:
   # Coverage-mätning + blockerande regressions-gate (ADR 0044, Accepted
   # 2026-05-17). Per-lager icke-regression-ratchet — golv = floor(uppmätt
   # baseline − 2.0pp), pinnade av senior-cto-advisor mot baseline @ HEAD
-  # 98b6f17. Runs in parallel with `backend` and is likewise in ci.needs.
-  # (This clause used to call `backend` "det snabba jobbet" and read its 15-minute
-  # ceiling as headroom the fast job did not need. Both halves expired: `backend`
-  # measures 14m+ on main, and it is now on the same 25-minute guard as this job.
-  # Truth-synced with #1145.)
+  # 98b6f17. Runs in parallel with `backend` — deliberately a SEPARATE job, because
+  # folding coverage into it would serialise ~14m + ~15m into ~30m of wall-clock —
+  # and is likewise in ci.needs.
+  # (This clause used to justify the split as "det snabba backend-jobbet rörs inte
+  # (fast fail-feedback bevaras)". That premise expired: measured 2026-08-02,
+  # `backend` runs 14m08s–14m42s over the six most recent main runs against this
+  # job's 14m38s median, so the feedback delta is under two minutes, and both jobs
+  # now carry the same 25-minute guard. ADR 0044's Mekanism clause — the ORIGIN of
+  # that sentence, not this copy — is amended accordingly. #1145.)
   coverage:
     name: coverage (.NET 10)
     runs-on: ubuntu-latest

@@ -53,12 +53,15 @@ Details and formats: `docs/runbooks/session-protocol.md`.
 **The backlog is GitHub Issues, and nothing else** (Klas-direktiv 2026-08-02). The
 TD register — `docs/tech-debt.md`, its archive, and the `jobbpilot-td-lifecycle`
 skill — is **retired**; see §9.6. Its 44 live entries were disposed of in the same
-pass: 6 closed on measurement, 5 already filed, 1 promoted ([#1170](https://github.com/klasolsson81/jobbliggaren/issues/1170)),
-and 31 parked **inline** in [#1172](https://github.com/klasolsson81/jobbliggaren/issues/1172)
-— inline because both files were gitignored, so "archived" would have meant deleted.
-**A `TD-NNN` marker surviving in `BUILD.md` or a code comment is a historical
-provenance citation**, like a commit hash: it records why something exists and is not
-a pointer into a register you can still open.
+pass, and the breakdown lives in **one** place —
+[#1172](https://github.com/klasolsson81/jobbliggaren/issues/1172) — which also carries
+every parked entry **inline**, because both register files were gitignored and
+"archived" would have meant deleted.
+**A `TD-NNN` marker surviving in a tracked doc, ADR, runbook, workflow, or code
+comment is a historical provenance citation**, like a commit hash: it records why
+something exists and is not a pointer into a register you can still open. Where a
+marker named work that was never built, it was converted to the issue that owns that
+work instead — a forward pointer into a dead register is not provenance.
 
 Top-level `BUILD.md`/`CLAUDE.md`/`DESIGN.md` may be edited autonomously via the
 normal feature-branch → PR → automerge flow (§9.2/§6); Klas reviews the diff
@@ -495,7 +498,7 @@ discipline miss; reports go to `docs/reviews/<date>-<phase>-<agent>.md`):
 
 | Agent | When |
 |---|---|
-| `senior-cto-advisor` | Multi-approach choices, finding triage (in-block vs TD), TD validation. Decision-maker — CC gives no own recommendation. Unambiguous CTO verdicts execute without extra Klas GO. |
+| `senior-cto-advisor` | Multi-approach choices, finding triage (in-block vs follow-up PR vs issue), severity calls. Decision-maker — CC gives no own recommendation. Unambiguous CTO verdicts execute without extra Klas GO. |
 | `security-auditor` | PII, auth, secrets, external integrations; **accepting a vulnerability rather than repairing it** — growing `pnpm.auditConfig.ignoreGhsas`, lowering `--audit-level`, or suppressing `NuGetAudit`/NU1901-NU1904 (ADR 0065 Amendment 2026-07-28 Beslut 4). Reducing exposure is not a trigger. Also every exposure-*increasing* change to the suppression surface itself: an `overrides` entry removed or its target lowered, a new override key **in open form**, a gated key becoming open, a removal from `ignoredBuiltDependencies`, and `pnpm/action-setup` raised **past 9** — that last is a migration, not a bump, since pnpm 11 reads none of this configuration, so every repair and the single acceptance go dead while the gate still reports clean. Full enumeration in her Triggers section, keyed to audit area 8 — it is written there, but a trigger only reachable from inside the file it triggers has no invocation path, so the class belongs here. She is that area's **named consumer** of `.github/scripts/audit-suppression-guard.sh`: the blocking gate audits with the ignore list *applied* and so cannot see an accepted advisory that has begun reaching production. The guard also runs in observe-only `audit` on every PR — but Dependabot PRs auto-merge without invoking any agent, and no cadence consults the measurement, so on the auto-merged patch/minor Dependabot PRs — the bulk of what drives that drift — **there is no reader at all**. Nor is there an obligation to read it on the manually reviewed remainder: the guard's `::warning::` does surface, in the Checks view, but `audit` is `continue-on-error` and absent from `ci`'s `needs`, so a finding changes nothing in the merge signal. The readerless set is therefore *larger* than the auto-merged one, not equal to it. That gap is named in ADR 0065's amendment and triaged there as a follow-up PR rather than a TD; **no owner is assigned**, and it is not closed. |
 | `code-reviewer` + `dotnet-architect` | Larger changes (>5 files or architectural choices) |
 | `dotnet-architect` (mandatory) | All Terraform/IaC scope (ADR 0036 precedent) |
@@ -522,22 +525,31 @@ URL + date in the STOPP report.
 and senior-cto-advisor decides when it is genuinely ambiguous. What changed
 2026-08-02 is the alternative: **there is no TD register to raise anything into.**
 
-- **Critical or Major bug, or a fix that must be made** → in-block, or a **follow-up
-  PR** if it is a genuinely separate change-reason.
-- **Minor, or nice-to-have** → a **GitHub issue**. Not a follow-up PR, and not a line
-  in a PR body — a line in a PR body has no reader. The reason is **visibility between
-  parallel CCs**, not issue inflation, so an issue that no other CC would ever need to
-  see is not automatically worth filing.
+Severity is the repo's own **Blocker / Major / Minor** — the same words every agent
+report uses. Their definition lived in the deleted skill, so it lives here now:
+
+- **Blocker or Major** — security, data loss, a broken user path, or it blocks the
+  phase we are in → **in-block**, or a **follow-up PR** if it is a genuinely separate
+  change-reason.
+- **Minor / nice-to-have** — everything else → a **GitHub issue**, and a line in a PR
+  body is not disposal because it has no reader. The reason is **visibility between
+  parallel CCs**, not issue inflation, so an issue no other CC would need to see may be
+  skipped — but the skip is **named in the PR body**, one line, with what makes it
+  invisible to a peer lane. An unnamed skip is not an exception; it is an omission.
+- When it is genuinely ambiguous, **senior-cto-advisor decides**.
 - **Never** re-create `docs/tech-debt.md`, a `TD-NNN` identifier, or a
   Severity × Fas matrix. If the register looks like it is missing something, it is not
   — read [#1172](https://github.com/klasolsson81/jobbliggaren/issues/1172).
 
 **Filing discipline.** An issue asserting that live code does something **measures it
-first** and names what adjudicated it. Six of the retired register's entries turned out
-already fixed the moment anyone measured them, having sat there for months describing a
-tree that had moved. A parked or deferred item makes **no** truth claim and needs no
-measurement — but it must then be written as scheduling ("not MVP scope, not verified"),
-never as fact ("still applies", "no longer relevant").
+first**, and records **what adjudicated it and on what date** — a claim with no date
+cannot be told from a claim that has decayed. Six of the retired register's entries
+turned out already fixed the moment anyone measured them: they were true when written
+and rotted in place, because nothing in that register's lifecycle ever required
+re-measuring an entry, and an issue is re-read by no one on its own. A parked or
+deferred item makes **no** truth claim and needs no measurement — but it must then be
+written as scheduling ("not MVP scope, not verified"), never as fact ("still applies",
+"no longer relevant").
 
 ## 10. Swedish UI rules
 

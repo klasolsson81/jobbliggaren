@@ -31,7 +31,7 @@ Before writing anything, read:
   that lives there. Never invent a threshold; if a budget is missing, report
   it and consult senior-cto-advisor — do not guess one.
 - **CLAUDE.md §2.5** (perf as reviewable convention) + **§3.6** (static query
-  hygiene — the floor your measurements complement) + **§9.6** (in-scope vs TD)
+  hygiene — the floor your measurements complement) + **§9.6** (in-block vs följd-PR vs issue)
 - **`src/JobbPilot.Application/Common/Behaviors/LoggingBehavior.cs`** — the
   existing `Stopwatch.ElapsedMilliseconds` instrumentation; server-side
   handler latency is the measurement point ADR 0045 Beslut 1 mandates (not

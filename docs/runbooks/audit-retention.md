@@ -230,4 +230,5 @@ för att undvika race med audit-skrivningar.
 - ADR 0023 — Worker-pipeline + Hangfire-infrastruktur (orchestrator-mönstret)
 - [ADR 0024](../decisions/0024-audit-retention-and-art17-cascade.md) D1+D2 — partitioning-strategi
 - BUILD.md §7.1 — `audit_log`-schema + 90-dagars retention
-- [Tech-debt TD-16](../tech-debt.md#td-16-—-audit-log-retention--gdpr-art-17-anonymisering) — STEG 10a stänger del 1
+- TD-16 (audit-log retention + GDPR Art. 17-anonymisering) — STEG 10a stänger del 1.
+  Historisk markör: TD-registret retirerades 2026-08-02 (ADR 0121) och TD-16 var redan stängd.

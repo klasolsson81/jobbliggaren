@@ -36,8 +36,10 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
       p95-budget-överskridande eller High/Critical-CVE noteras och bedöms
       (åtgärda eller medvetet acceptera + motivera).
 - [ ] **Inga öppna Klas-STOPP-flaggor** i `docs/current-work.md`.
-- [ ] **Aktiva Major-TD mot release-scope** genomgångna (`docs/tech-debt.md`)
-      — launch-blocker-TD löst eller medvetet deferrad med motiv.
+- [ ] **Öppna issues märkta `P0`/`P1` mot release-scope** genomgångna (GitHub Issues)
+      — varje launch-blocker löst eller medvetet deferrad med motiv. Issues märkta
+      `mvp` är de som krävs för riktiga användare. (TD-registret retirerades
+      2026-08-02, ADR 0121; parkerade poster ligger i #1172.)
 - [ ] **Migrations** — om EF Core-migration ingår: verifiera schema-mode-
       dispatch (ADR 0033) och DB-roll-separation (ADR 0034); Identity-schema-
       ändring → manuell procedur (TD-72).
@@ -152,8 +154,9 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
       - **integritetspolicy-post som namnger Resend** — **KLAR** (#186 / PR #1083).
         Denna halva stod tidigare inte i punkten alls: transkriberingen ur ADR 0080
         punkt 1 tappade den och behöll bara ROPA-halvan;
-      - **security-auditor-sign-off på prod-e-post-konfigen** — **KVAR**. `tech-debt.md`
+      - **security-auditor-sign-off på prod-e-post-konfigen** — **KVAR**. Det gamla
         TD-116:s sign-off är PR-4:s, inte prod-konfigens; bocka aldrig punkten på den.
+        (TD-116 stängdes 2026-07-26; residualen ägs av #183.)
 
       **Kvarstående policy-residualer under denna punkt, inte under punkt 3.**
       **ORDNINGEN STÅR FÖRST, för att den styr posterna under sig:** upplös

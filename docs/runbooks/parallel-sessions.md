@@ -107,7 +107,7 @@ Branch name encodes the context: `feat/matching-…`, `fix/jobads-cv-…`,
 
 A fresh worktree has the **tracked** files only (incl. this playbook). The
 session-state docs — `current-work.md`, `steg-tracker.md` (§2.1 = the roadmap
-SSOT), `tech-debt.md`, `sessions/`, local `reviews/` and ADRs 0074+ — are
+SSOT), `sessions/`, local `reviews/` and ADRs 0074+ — are
 gitignored (ADR 0072) and absent.
 
 - **Path A (same machine): no sync needed.** All tabs share one disk, so read
@@ -125,7 +125,7 @@ gitignored (ADR 0072) and absent.
   so its worktree runs the real stack without copying secret files).
 
 **Do not fork these shared docs in a worktree.** `current-work.md` / `steg-tracker.md`
-/ `tech-debt.md` are owned centrally and updated in the **main checkout's copy**
+are owned centrally and updated in the **main checkout's copy**
 (the canonical gitignored baseline — editing a gitignored doc there is a single
 `cd`-and-edit, NOT "working in" the copy: no `checkout`/`commit`/stack, so it does
 not trip the Model-1 collision rule). One session (the stack-owner or a designated
@@ -430,7 +430,7 @@ coordination set `{wip, blocked, next-up}` (2026-06-28).
 - [ ] …
 
 ## Source
-<current-work.md / steg-tracker.md / tech-debt.md TD-NN / ADR 00NN>
+<current-work.md / steg-tracker.md / GitHub issue #NNNN / ADR 00NN>
 ```
 
 Pick an issue → claim its context → create the worktree → work → PR with

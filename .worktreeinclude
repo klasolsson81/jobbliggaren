@@ -12,6 +12,13 @@
 docs/current-work.md
 docs/current-work-archive.md
 docs/steg-tracker.md
+
+# READ-ONLY HISTORY — the TD register was retired 2026-08-02 (ADR 0121, PR #1173).
+# These are deliberately still synced, but they are NOT session state and are never
+# edited: tech-debt.md is now a tombstone pointing at #1172 (which carries every
+# parked entry inline), and the archive is a frozen appendix. Syncing them means a
+# fresh worktree learns the register is gone instead of finding nothing and guessing.
+# Do not add entries to either file. The backlog is GitHub Issues (CLAUDE.md §9.6).
 docs/tech-debt.md
 docs/tech-debt-archive.md
 

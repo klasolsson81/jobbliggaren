@@ -25,8 +25,8 @@
 | Background jobs | Hangfire | 1.8.x | Postgres-storage |
 | Smart enum | Ardalis.SmartEnum | 8.x | State machines i domänen |
 | Logging | Microsoft.Extensions.Logging | 10.x | `Microsoft.Extensions.Logging.Console` → stdout + persistent strukturerad sink via Seq (TD-104, STEG 6) |
-| Log sink | Seq.Extensions.Logging | 9.0.0 | MEL-provider → Seq (datalust); config-gated på `Seq:ServerUrl`; net9-asset .NET 10-kompatibel (MEL `>= 9` unifieras uppåt); dev lokal Seq, prod Seq self-hosted EU (TD-104, ADR 0050) |
-| Observability | OpenTelemetry | 1.15+ | Traces + metrics. **Beroende-kandidat, obyggd** (ingen dom fälld — till skillnad från Catalyst-raden) — ingen `PackageReference` i något `.csproj`, ingen användning i `src/`; exporter/backend definieras med observability-sinken (§14.2, TD-104). `Directory.Packages.props` innehåller `OpenTelemetry.Api` + `.Exporter.OpenTelemetryProtocol` som **transitiva CVE-pins för WireMock.Net** (posternas egen kommentar), inte som en observability-implementation |
+| Log sink | Seq.Extensions.Logging | 9.0.0 | MEL-provider → Seq (datalust); config-gated på `Seq:ServerUrl`; net9-asset .NET 10-kompatibel (MEL `>= 9` unifieras uppåt); dev lokal Seq, dev-sinken levererad under TD-104; prod Seq self-hosted EU är OBYGGD — [#196](https://github.com/klasolsson81/jobbliggaren/issues/196) |
+| Observability | OpenTelemetry | 1.15+ | Traces + metrics. **Beroende-kandidat, obyggd** (ingen dom fälld — till skillnad från Catalyst-raden) — ingen `PackageReference` i något `.csproj`, ingen användning i `src/`; exporter/backend definieras med observability-sinken (§14.2, [#196](https://github.com/klasolsson81/jobbliggaren/issues/196)). `Directory.Packages.props` innehåller `OpenTelemetry.Api` + `.Exporter.OpenTelemetryProtocol` som **transitiva CVE-pins för WireMock.Net** (posternas egen kommentar), inte som en observability-implementation |
 | PDF parsing | PdfPig | 0.1.14+ | Text extraction |
 | DOCX parsing | DocumentFormat.OpenXml | 3.x | Microsoft-underhåll |
 | PDF generation | QuestPDF | 2026.6.0 | Community (source-available, free under USD 1M revenue, non-copyleft — ADR 0050-safe; not OSI-MIT); `QuestPDF.Settings.License = LicenseType.Community` i startup |
@@ -129,7 +129,7 @@
 | Frontend | `pnpm dev` (localhost:3000) | Next.js `next start` co-tenant container på CAX31 (bakom Caddy) |
 | DNS / CDN / proxy | — | Cloudflare gratis-tier "Full (strict)" framför Caddy-origin på CAX31 |
 | Backup | — | Nattlig klient-side-krypterad `pg_dump` → Hetzner-EU Storage Box ([#197](https://github.com/klasolsson81/jobbliggaren/issues/197)) |
-| Logging / monitoring | console (MEL) + Seq (`Seq.Extensions.Logging`) | Persistent strukturerad sink via Seq self-hosted EU — TD-104 |
+| Logging / monitoring | console (MEL) + Seq (`Seq.Extensions.Logging`) | Persistent strukturerad sink via Seq self-hosted EU (obyggd) — [#196](https://github.com/klasolsson81/jobbliggaren/issues/196) |
 | Errors | — | Sentry (EU) planerat |
 | CI | GitHub Actions (build + test + coverage, inga moln-anrop) | oförändrat |
 | IaC | `infra/terraform/` bevarad som reversibilitets-mekanik (ADR 0066 Beslut 1) | retireras via egen ADR vid Hetzner-cutover |
@@ -1311,7 +1311,7 @@ permanent infra aktiveras; listan nedan speglar **beslutad** uppsättning, ADR 0
 ### 14.1 Logging
 
 - `Microsoft.Extensions.Logging` — strukturerad loggning; console (stdout) + Seq-sink
-- Sinks: console (stdout) + persistent strukturerad **Seq**-sink via `Seq.Extensions.Logging` (MEL-provider, config-gated på `Seq:ServerUrl`); dev lokal Seq (`localhost:5341`), prod Seq self-hosted EU (TD-104, ADR 0050)
+- Sinks: console (stdout) + persistent strukturerad **Seq**-sink via `Seq.Extensions.Logging` (MEL-provider, config-gated på `Seq:ServerUrl`); dev lokal Seq (`localhost:5341`), dev-sinken levererad under TD-104; prod Seq self-hosted EU är OBYGGD — [#196](https://github.com/klasolsson81/jobbliggaren/issues/196)
 - Log levels:
   - `Trace`/`Debug`: dev only
   - `Information`: normala request-flows (start/slut av handlers)
@@ -1323,7 +1323,7 @@ permanent infra aktiveras; listan nedan speglar **beslutad** uppsättning, ADR 0
 
 ### 14.2 Traces
 
-- OpenTelemetry (exporter/backend definieras med observability-sinken, TD-104)
+- OpenTelemetry (exporter/backend definieras med observability-sinken, [#196](https://github.com/klasolsson81/jobbliggaren/issues/196))
 - Trace från frontend genom backend till DB/external (JobTech, Gmail, SCB)
 - Sampling: 100% i dev, 10% i prod
 
@@ -1337,7 +1337,7 @@ permanent infra aktiveras; listan nedan speglar **beslutad** uppsättning, ADR 0
 
 ### 14.4 Alerting
 
-Alarms (plattform med observability-sinken, TD-104; extern uptime-monitor
+Alarms (plattform med observability-sinken, [#196](https://github.com/klasolsson81/jobbliggaren/issues/196); larmen själva parkerade i [#1172](https://github.com/klasolsson81/jobbliggaren/issues/1172); extern uptime-monitor
 UptimeRobot/BetterStack free ersätter ALB/CloudWatch-health per ADR 0050):
 - Backend 5xx rate > 1% över 5 min → email
 - JobTech sync misslyckas 3 gånger i rad → email
@@ -1381,6 +1381,24 @@ UptimeRobot/BetterStack free ersätter ALB/CloudWatch-health per ADR 0050):
 > avsiktliga negationer för att släppa igenom den. Dess borttagning har egen ägare
 > (#196, Hetzner-image). `infra/terraform/` är **orörd** — den retireras via
 > egen teardown-ADR/PR enligt stycket ovan, inte här.
+>
+> **Status (2026-08-02) — VÄRDVALET ÄR UPPHÄVT, TOPOLOGIN STÅR.** Klas-direktiv
+> upphäver ADR 0050:s **leverantörsval** (Hetzner CAX31): få servrar tillgängliga och
+> de som finns är för dyra. Driften ska till en **svensk VPS**, och ersättaren är
+> **obeslutad** — kandidater är hostup (~150 kr/mån, 16 GB RAM) och one.com
+> (~169 kr/mån). Valet och supersessions-ADR:n ägs av CC1-lanen
+> ([#196](https://github.com/klasolsson81/jobbliggaren/issues/196)), inte av en
+> spec-edit-PR. Samma direktiv tar tillbaka **AWS SES i `eu-north-1` enbart för
+> e-post** och tar bort Resend
+> ([#183](https://github.com/klasolsson81/jobbliggaren/issues/183),
+> [#1169](https://github.com/klasolsson81/jobbliggaren/issues/1169)).
+>
+> Allt nedan om **formen** — single-box Docker Compose, Caddy som reverse-proxy,
+> Cloudflare framför, co-tenant Postgres, backup off-box — är beslutat och står kvar.
+> Varje omnämnande av **CAX31, Hetzner-DC eller Hetzner Storage Box är däremot en
+> beskrivning av en upphävd leverantör** och ska läsas som platshållare tills CC1
+> skrivit supersessions-ADR:n. De är avsiktligt inte omskrivna här: att skriva in en
+> ersättare innan den är vald vore att fatta CC1:s beslut åt lanen.
 
 ### 15.1 Deploy-layout (ADR 0050, Accepted)
 

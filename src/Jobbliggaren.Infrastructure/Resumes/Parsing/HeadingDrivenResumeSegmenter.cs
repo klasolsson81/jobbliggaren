@@ -605,10 +605,11 @@ internal sealed partial class HeadingDrivenResumeSegmenter(CvParsingLexiconData 
         // invariant here. Confidence cannot see a fabricated field and does not learn to; the
         // honesty comes entirely from the Domain gate, which is why the point is to REACH it.
         //
-        // This is a strict NARROWING and adds no positional assumption. StripTrailingPeriod
-        // reduces a line to empty only when a DatePatterns match runs to the END OF THE LINE, so
-        // the guard fires only where the candidate carries no field at all. THAT direction — the
-        // absence of false positives — is what the narrowing claim rests on, and it holds.
+        // This is a strict NARROWING and adds no positional assumption. DatePatterns.IsDateOnlyLine
+        // is true only when a DatePatterns match runs to the END OF THE LINE with nothing but
+        // separators before it, so the guard fires only where the candidate carries no field at
+        // all. THAT direction — the absence of false positives — is what the narrowing claim rests
+        // on, and it holds.
         //
         // THE CONVERSE DOES NOT HOLD, and it is known rather than overlooked. A date line
         // DatePatterns does not model, or one carrying anything after the match, is NOT reduced
@@ -635,16 +636,21 @@ internal sealed partial class HeadingDrivenResumeSegmenter(CvParsingLexiconData 
         // date row is Lines[1] and therefore the organisation candidate — these four forms reach
         // the review side suppressed only BECAUSE this fallback fabricates them into Organization
         // and ReviewText's organization-equality test then fires on them. Widening the date model
-        // first would make Organization correctly null and stop that test firing, handing the line
-        // to ReviewText.ExperienceBullets, where A1/A2/A6 score and CITE it as though it were prose.
-        // The promotion had to land first so the widening extends a real suppression instead of
-        // removing an accidental one (senior-cto-advisor bind 2026-08-02, §2).
+        // first would make Organization correctly null and stop that test firing, releasing the line
+        // into ReviewText.ExperienceBullets. The promotion had to land first so the widening extends
+        // a real suppression instead of removing an accidental one (senior-cto-advisor bind
+        // 2026-08-02, §2).
         //
         // On the THREE-LINE "Title / Company / Dates" layout none of that applies: the employer is
         // real, nothing fabricates the date row, and neither half of ReviewText's union models
-        // these forms — so the row is scored as a bullet TODAY. Measured, not inferred, and pinned
-        // in ReviewTextPeriodLineUnionTests. It does not change the ordering; it means the widening
-        // closes a live hole rather than only preserving a suppression.
+        // these forms — so the row REACHES the bullet scorer TODAY. That escape is MEASURED and
+        // pinned in ReviewTextPeriodLineUnionTests. It does not change the ordering; it means the
+        // widening closes a live hole rather than only preserving a suppression.
+        //
+        // WHAT THE SCORER THEN DOES WITH IT — A1/A2/A6 scoring and CITING the row as though it were
+        // prose — is DERIVED from reading the rules, NOT RUN (senior-cto-advisor re-bind
+        // 2026-08-02). The widening owns measuring it (S1), and if the run disagrees the run
+        // adjudicates. Do not repeat it as a measurement.
         //
         // Relocating the fallback to Lines[2] is a separate decision, refused on TWO measurements:
         // β-1 measured that widening the fallback hands a description bullet to the organization
@@ -653,7 +659,12 @@ internal sealed partial class HeadingDrivenResumeSegmenter(CvParsingLexiconData 
         // the change. A third line that has to be searched for is guessing, not relocating. The
         // 2026-06-23 slot-order bind is untouched — nothing here decides WHICH side is the role.
         var orgCandidate = entry.Lines.Count >= 2 ? entry.Lines[1].Trim() : null;
-        var org = orgCandidate is not null && StripTrailingPeriod(orgCandidate).Length > 0
+        // Ask the shared PREDICATE, not the reduction: the reduced value is discarded here, so
+        // spelling this as `StripTrailingDate(x).Length > 0` would give the question a second
+        // spelling in production while the answer has one home. Behaviour-identical by definition
+        // (IsDateOnlyLine IS that comparison), and it is what makes a mutation of the predicate
+        // itself fall on this reader too.
+        var org = orgCandidate is not null && !DatePatterns.IsDateOnlyLine(orgCandidate)
             ? NullIfEmpty(orgCandidate)
             : null;
         return (NullIfEmpty(first.Trim()), org);

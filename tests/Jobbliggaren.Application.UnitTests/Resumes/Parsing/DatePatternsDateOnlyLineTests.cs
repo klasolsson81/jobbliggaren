@@ -121,14 +121,24 @@ public class DatePatternsDateOnlyLineTests
 
     [Theory]
     // THE AXES ON WHICH PeriodParser IS WIDER — the measurement that makes ReviewText's period
-    // test a UNION and not a substitution. Three are named in the CTO bind (word separators,
-    // \d{1,2} months, "."/"-" month separators); the FOURTH was found by measuring rather than
-    // by reading the table, see the ISO case below.
+    // test a UNION and not a substitution.
+    //
+    // THIS LIST IS THE ADJUDICATOR, AND IT IS NOT A COUNT. The CTO bind said "at least three
+    // axes"; a later revision hardened that to "four" and code-reviewer then measured a fifth.
+    // The hedge was the correct part and removing it was the defect: the number is emergent from
+    // two independently written grammars, so any total decays the moment either changes — and the
+    // date-model widening changes one of them. Add rows here; publish no total anywhere.
     [InlineData("2019 till 2021", "the word separator 'till'")]
+    [InlineData("2019 to 2021", "the word separator 'to'")]
     [InlineData("3/2020 – 6/2024", "single-digit months (\\d{1,2} against DatePatterns' \\d{2})")]
+    [InlineData("03.2020 – 06.2024",
+        "'.' as the month separator, where DatePatterns' \\d{2}/\\d{4} takes only '/'")]
     [InlineData("2020-06 – 2024-03",
         "an ISO YYYY-MM END point: DateRange's end-alternation takes the bare \\d{4} first and " +
         "leaves '-03' as a non-empty tail, so the whole line is never consumed")]
+    [InlineData("2020-06",
+        "a lone ISO YYYY-MM point: DateRange needs a separator and an end point, and Year leaves " +
+        "'-06' as a non-empty tail")]
     public void IsDateOnlyLine_ShouldBeFalse_WhereOnlyPeriodParserReachesTheForm(
         string line, string axis)
     {
@@ -141,6 +151,52 @@ public class DatePatternsDateOnlyLineTests
         ShouldReduceTo(line, line);
         PeriodParser.TryParse(line, out _, out _, out _).ShouldBeTrue(
             $"PeriodParser reaches this form and DatePatterns does not — {axis}.");
+    }
+
+    /// <summary>
+    /// The same PeriodParser-is-wider axis as above — a lone date POINT with no range separator —
+    /// but with a REDUCTION that is not a no-op, which is why it cannot share that theory.
+    ///
+    /// <para>Written after the first attempt asserted a no-op here and the run refused it. The
+    /// analysis behind that attempt was right about the PREDICATE (<c>"03/"</c> is non-empty, so
+    /// <c>IsDateOnlyLine</c> is false) and wrong about the REDUCTION: <c>Year</c> matches "2020" at
+    /// index 3 with an empty tail, so the line IS reduced — to <c>"03/"</c>, because "/" is not in
+    /// the trailing-separator set. Two forms of the same axis, two different reductions, and the
+    /// helper's ShouldBe caught the conflation.</para>
+    ///
+    /// <para>Half of this axis was already pinned in the tree — <c>PeriodParserYearSpanTests</c>
+    /// carries "single MM/YYYY point" — and nobody had read it against this predicate.</para>
+    /// </summary>
+    [Fact]
+    public void IsDateOnlyLine_ShouldBeFalse_ForALoneSlashPoint_EvenThoughTheLineIsReduced()
+    {
+        DatePatterns.StripTrailingDate("03/2020").ShouldBe("03/",
+            "Year matches the bare year with an empty tail, so the line reduces — but '/' is not a " +
+            "trailing separator, so the remainder is non-empty.");
+        DatePatterns.IsDateOnlyLine("03/2020").ShouldBeFalse(
+            "a non-empty remainder means the line carries more than a date, as far as this model " +
+            "is concerned.");
+        PeriodParser.TryParse("03/2020", out _, out _, out _).ShouldBeTrue(
+            "PeriodParser parses a lone MM/YYYY point, so only its disjunct suppresses this row.");
+    }
+
+    [Theory]
+    // THE OTHER DIRECTION, and it is why the union is a union rather than "PeriodParser plus one
+    // extra case". The head that said "four axes" also said this predicate is wider "only for a
+    // leading separator"; that was the same over-claim mirrored, and code-reviewer measured the
+    // second form below. Both rows here are suppressed ONLY by the DatePatterns disjunct.
+    [InlineData("– 2020 – 2024",
+        "a LEADING separator, which PeriodParser's ^…$ anchoring refuses")]
+    [InlineData("13/2020 – 2024",
+        "a structurally-matching range whose MONTH is out of range: DateRange does not validate " +
+        "the month, PeriodParser does and declines")]
+    public void IsDateOnlyLine_ShouldBeTrue_WhereOnlyDatePatternsReachesTheForm(
+        string line, string axis)
+    {
+        DatePatterns.IsDateOnlyLine(line).ShouldBeTrue(
+            $"DatePatterns reaches this form and PeriodParser does not — {axis}.");
+        PeriodParser.TryParse(line, out _, out _, out _).ShouldBeFalse(
+            $"PeriodParser declines this form — {axis}.");
     }
 
     [Theory]

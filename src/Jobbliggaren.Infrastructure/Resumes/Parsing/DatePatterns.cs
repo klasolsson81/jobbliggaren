@@ -59,8 +59,10 @@ internal static partial class DatePatterns
     }
 
     /// <summary>
-    /// True when a date match consumes the WHOLE of <paramref name="line"/>, modulo surrounding
-    /// separators — "the line carries a date and nothing else". This is
+    /// True when a date match runs to the END of <paramref name="line"/> and nothing but separators
+    /// precedes it — "the line carries a date and nothing else". <b>Whitespace after the match is
+    /// tolerated; any other trailing glyph is not</b> — the trim runs on the remainder to the LEFT
+    /// of the match, never on the tail, so <c>"2005 - 2010,"</c> is false. This is
     /// <see cref="StripTrailingDate"/> asked as a question, deliberately not a second
     /// implementation: one knowledge piece, one home (DRY, CLAUDE.md §9.1), which is the same move
     /// that gave <see cref="DatePatterns"/> and <see cref="PeriodParser"/> their neutral home.
@@ -73,19 +75,31 @@ internal static partial class DatePatterns
     /// organization-equality test, which fired only BECAUSE the segmenter had fabricated the line
     /// into the organization slot. β-3 stopped that fabrication and the accident with it.</para>
     ///
-    /// <para><b>It does not subsume <see cref="PeriodParser"/>, and must never replace it.</b>
-    /// `PeriodParser` is WIDER on FOUR measured axes — the word separators "till"/"to";
-    /// single-digit months (<c>\d{1,2}</c> against this type's <c>\d{2}</c>); "." / "-" as month
-    /// separators where this type takes only "/"; and ISO <c>YYYY-MM</c> END points, because
-    /// <see cref="DateRange"/>'s end-alternation is ordered so the bare <c>\d{4}</c> matches first
-    /// and the word boundary after it holds against the following "-", leaving a non-empty tail.
-    /// So "2019 till 2021", "3/2020 – 6/2024" and "2020-06 – 2024-03" are all periods this
-    /// predicate declines. Where both are available the callers take their UNION; substituting one
-    /// for the other narrows suppression in the opposite direction. This predicate is wider only
-    /// for a line whose date is not a whole-string period — a LEADING separator
-    /// ("– 2020 – 2024"), which `PeriodParser` is anchored against.</para>
+    /// <para><b>It does not subsume <see cref="PeriodParser"/>, and neither subsumes the other.</b>
+    /// <b>THE AXES BELOW ARE KNOWN INSTANCES, NOT AN EXHAUSTIVE COUNT, and this docblock publishes
+    /// no total on purpose.</b> The adjudicator is
+    /// <c>DatePatternsDateOnlyLineTests</c> — read the `InlineData` there, not a number here. An
+    /// earlier revision said "three axes", the next hardened it to "four", and both were wrong: the
+    /// count is an emergent property of two independently written grammars, so any total is a claim
+    /// that decays the moment either changes. Road 3 changes one of them.</para>
     ///
-    /// <para><b>The fourth axis is an alternation-ordering defect, and it is NOT review-only.</b>
+    /// <para><c>PeriodParser</c> is wider at least on: the word separators "till"/"to";
+    /// single-digit months (<c>\d{1,2}</c> against this type's <c>\d{2}</c>); "." / "-" as month
+    /// separators where this type takes only "/"; ISO <c>YYYY-MM</c> END points, because
+    /// <see cref="DateRange"/>'s end-alternation is ordered so the bare <c>\d{4}</c> matches first
+    /// and the word boundary after it holds against the following "-", leaving a non-empty tail;
+    /// and a lone date POINT with no range separator ("03/2020"), which <see cref="DateRange"/>
+    /// cannot match at all and <see cref="Year"/> reduces only to "03/", since "/" is not in the
+    /// trailing-separator set.</para>
+    ///
+    /// <para>This predicate is wider at least on: a LEADING separator ("– 2020 – 2024"), which
+    /// `PeriodParser`'s <c>^…$</c> anchoring refuses; and a range whose month is out of range
+    /// ("13/2020 – 2024"), which <see cref="DateRange"/> matches structurally while `PeriodParser`
+    /// validates the month and declines. So the callers take their UNION — substituting either for
+    /// the other narrows suppression in one direction or the other.</para>
+    ///
+    /// <para><b>The ISO end-point axis is an alternation-ordering defect, and it is NOT
+    /// review-only.</b>
     /// The same ordering inside <see cref="DateRange"/> reaches every surface that reads the match
     /// rather than the predicate: <c>HeadingDrivenResumeSegmenter.ExtractPeriod</c> returns the
     /// match VALUE, so "2020-06 – 2024-03" is stored as <c>Period = "2020-06 – 2024"</c> — the end

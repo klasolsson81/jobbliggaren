@@ -10,7 +10,9 @@ namespace Jobbliggaren.Application.UnitTests.Resumes.Review;
 /// #1060 β-3 follow-up — <c>ReviewText.DescriptionLines</c>' period test is a UNION
 /// (<c>PeriodParser.TryParse(line, …) || DatePatterns.IsDateOnlyLine(line)</c>), and this class
 /// exists to make that union's two halves INDIVIDUALLY load-bearing. Neither predicate subsumes
-/// the other, so a substitution in either direction is a suppression regression.
+/// the other, so a substitution in either direction is a suppression regression. The axes on which
+/// each is wider — and the <c>InlineData</c> adjudicating them — live in ONE home,
+/// <c>DatePatternsDateOnlyLineTests</c>; no total is published there or here.
 ///
 /// <para><b>What a released row actually reaches, corrected after measurement.</b> An earlier
 /// revision of this docblock said <c>DescriptionLines</c> feeds <c>WeakVerbTransform</c>, "which
@@ -18,7 +20,7 @@ namespace Jobbliggaren.Application.UnitTests.Resumes.Review;
 /// write". Both halves are false. <c>WeakVerbTransform.Propose</c> emits a change only for a bullet
 /// OPENING with a drop-in-safe weak verb from the KnowledgeBank mapping, and a date row opens with a
 /// digit or a month abbreviation — it is offered the row and DECLINES it; the replacement is a
-/// verbatim KnowledgeBank value, so it could not synthesise even if it fired.
+/// verbatim KnowledgeBank value, so it could not synthesise even if it fired.</para>
 ///
 /// <para>The consumer that does act on a released row is the REVIEW side, via
 /// <c>ReviewText.ExperienceBullets</c> → A1/A2/A6, and the class is the INVERSE of the one first

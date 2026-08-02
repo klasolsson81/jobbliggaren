@@ -86,21 +86,21 @@ internal static class ReviewText
             // A line that is purely the period ("2013–2021", "01/2022 – nuvarande") is not a bullet.
             //
             // A UNION of two predicates, and it is deliberately not one (#1060 β-3 follow-up).
-            // NEITHER SUBSUMES THE OTHER, measured: PeriodParser is wider on FOUR axes — the word
-            // separators "till"/"to"; single-digit months (\d{1,2} against DatePatterns' \d{2});
-            // "." / "-" as month separators where DatePatterns takes only "/"; and ISO YYYY-MM END
-            // points, where DateRange's end-alternation takes the bare \d{4} first and leaves a
-            // non-empty tail — so it alone suppresses "2019 till 2021", "3/2020 – 6/2024" and
-            // "2020-06 – 2024-03". DatePatterns.IsDateOnlyLine is wider for a date line that is not
-            // a whole-string period, which is what PeriodParser's ^…$ anchoring refuses: a LEADING
-            // separator ("– 2020 – 2024").
+            // NEITHER SUBSUMES THE OTHER — each reaches forms the other declines, in BOTH
+            // directions. The axes and their adjudicating InlineData live in ONE home,
+            // DatePatterns.IsDateOnlyLine's docblock; they are deliberately not restated here,
+            // because a prose copy of a list the date-model widening will change would rot in a
+            // file that widening does not otherwise touch. No total is published in either home:
+            // the count is emergent from two independently written grammars.
             //
-            // Replacing rather than adding would therefore be a regression in the opposite
-            // direction — it would hand "2019 till 2021" to ExperienceBullets below, where A1/A2/A6
-            // can cite the user's employment dates as though they were prose. NOT to
+            // Replacing rather than adding is therefore a suppression regression in one direction
+            // or the other, and it releases the line into ExperienceBullets below. NOT into
             // WeakVerbTransform: that transform proposes only for a bullet OPENING with a
             // drop-in-safe weak verb from the KnowledgeBank mapping, so it is offered a date row
-            // and declines it.
+            // and declines it. What ExperienceBullets' criteria (A1/A2/A6) then do with a released
+            // row — score it and CITE it as though it were prose — is DERIVED from reading the
+            // rules, NOT RUN (senior-cto-advisor re-bind 2026-08-02); the widening owns measuring
+            // it, and the run adjudicates if it disagrees.
             if (PeriodParser.TryParse(line, out _, out _, out _) || DatePatterns.IsDateOnlyLine(line))
             {
                 continue;
@@ -137,16 +137,15 @@ internal static class ReviewText
             // segmenter fabricates it into Organization and the equality test above fires on it.
             // Widening the date model FIRST would make Organization correctly null, stop that test
             // firing, and — without this union already in place — release the line into
-            // ExperienceBullets, where A1/A2/A6 score and CITE it. That trades a fabricated employer
-            // for a criterion citing the user's date row as prose: two CLAUDE.md §5 CV-engine
-            // classes, not a fix. With the union here first, the widening extends a real
-            // suppression instead of removing an accidental one.
+            // ExperienceBullets. That trades a fabricated employer for a criterion citing the
+            // user's date row as prose: two CLAUDE.md §5 CV-engine classes, not a fix. With the
+            // union here first, the widening extends a real suppression instead of removing an
+            // accidental one. (The criterion half is DERIVED, per the union comment above.)
             //
             // THE QUALIFIER IS LOAD-BEARING TOO, and it was measured rather than assumed. On the
             // THREE-LINE "Title / Company / Dates" layout the employer is real, nothing fabricates
             // the date row, and NEITHER half of this union models these four forms — so the row
-            // escapes into the bullet scorer and into WeakVerbTransform TODAY, before and after
-            // this commit. Pinned in
+            // REACHES the bullet scorer TODAY, before and after this commit. Pinned in
             // ReviewTextPeriodLineUnionTests.DescriptionLines_ShouldStillYieldTheDateRowAsABullet_…
             // Saying "those four forms are suppressed today" without the layout qualifier would be
             // a claim sized against one layout and read as a claim about the class. The ordering

@@ -10,6 +10,11 @@ this runbook holds the detailed formats and rationale.
 3. `git log --oneline -8` — verify HEAD matches current-work.md.
 4. If hooks should be active: verify `bash .claude/hooks/session-start.sh`
    produces output.
+5. **Confirm the task is in scope before starting.** `steg-tracker.md` holds the
+   strategic sequence; the **`mvp` label** holds the in-scope subset
+   (`gh issue list --label mvp` — CLAUDE.md §6.5). A task should clear both. If the
+   prompt names something outside `mvp`, say why it is worth the session — or flag the
+   divergence to Klas rather than following either source silently.
 
 ## During the session
 

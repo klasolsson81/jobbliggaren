@@ -112,8 +112,10 @@ Default = **fixa in-block**. Tre utfall, och du väljer ett:
    agent-Blocker/Major merge-blockerande, så att fila det vore att göra ett stopp
    till en backlog-rad. *Undantag deklareras av det rapporterande charteret, inte av
    dig — de två som finns är uppräknade i CLAUDE.md §9.6 och är `security-auditor`:s.*
-2. **Minor / nice-to-have** → **GitHub issue**. Skälet är synlighet mellan
-   parallella CC:er.
+2. **Minor / nice-to-have** → **GitHub issue**, **märkt när det filas**: `area:`, ett
+   `P0`–`P3`, en lane, och **`mvp`** om en riktig testanvändare möter det eller det
+   blockerar lansering (CLAUDE.md §6.5). Ett omärkt issue filas in i samma osynlighet
+   som registret retirerades för. Skälet är synlighet mellan parallella CC:er.
 3. **Ingen åtgärd** — fyndet håller inte, eller dess premiss är upphävd. Säg det rakt.
 
 Vid tveksamhet: in-block vinner. JobbPilots policy: kvalitet > tempo.
@@ -218,9 +220,11 @@ acceptabelt eftersom file count är inte design-värde i sig."]
 change-reason — annars hör fyndet hemma in-block.]
 
 ### Issues att fila
-[Minor / nice-to-have, med motivering per issue. Ett issue ingen annan CC skulle
-behöva se får hoppas över — men skrivs då ut här som ett namngivet hopp, aldrig
-tyst. Föreslå ALDRIG en TD; registret är retirerat (Regel 3).]
+[Minor / nice-to-have, med motivering per issue. **Ange etiketterna** — `area:`,
+`P0`–`P3`, lane, och `mvp` om det når en riktig testanvändare eller blockerar
+lansering (CLAUDE.md §6.5). Ett issue ingen annan CC skulle behöva se får hoppas
+över — men skrivs då ut här som ett namngivet hopp, aldrig tyst. Föreslå ALDRIG en
+TD; registret är retirerat (Regel 3).]
 
 ### Referenser
 [Lista av källor (böcker, Microsoft Learn-sidor, GitHub-templates) som citerats.]

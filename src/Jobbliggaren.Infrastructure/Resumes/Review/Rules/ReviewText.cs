@@ -96,7 +96,8 @@ internal static class ReviewText
             //
             // Replacing rather than adding is therefore a suppression regression in one direction
             // or the other, and it releases the line into this method's consumers —
-            // ExperienceBullets below, StructureRules' B5 bullet-marker rule, and into
+            // ExperienceBullets below; StructureRules' B5, which reads this method but nulls any
+            // marker whose remainder PeriodParser parses, so it acts on neither released form; and
             // WeakVerbTransform's bullet unit, which IS this method (measured in
             // ReviewTextPeriodLineUnionTests). What that transform then does is DECLINE to propose:
             // it proposes only for a bullet OPENING with a drop-in-safe weak verb from the
@@ -104,7 +105,8 @@ internal static class ReviewText
             // (naming an opening GLYPH instead would be wrong for the leading-separator direction).
             // That the transform DECLINES is read from its firing condition, not run — same
             // provenance as the A1/A2/A6 clause below. What IS read directly is that its bullet
-            // unit is this method: WeakVerbTransform.cs:34 iterates DescriptionLines. Offered, not
+            // unit is this method: WeakVerbTransform.cs:34 iterates DescriptionLines — read at
+            // that line, not measured by a test that calls Propose. Offered, not
             // acted on — stating it as "not released into WeakVerbTransform" would over-correct in
             // the other direction.
             //

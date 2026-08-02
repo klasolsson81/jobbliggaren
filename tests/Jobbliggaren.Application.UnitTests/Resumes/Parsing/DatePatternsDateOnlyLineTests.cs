@@ -26,9 +26,9 @@ namespace Jobbliggaren.Application.UnitTests.Resumes.Parsing;
 /// were introduced mid-review, on consecutive rounds, and the reviewers caught both.</para>
 ///
 /// <para><b>The segmenter pin's four unmodelled forms are on the NEGATIVE side, deliberately</b>
-/// — "four" names that pin's frozen fixture, not the size of the unmodelled class. This file pins
-/// one more form neither disjunct suppresses (a lone MM-hyphen point); no total is claimed for the
-/// class itself.
+/// — "four" names that pin's frozen fixture, not the size of the unmodelled class. This file also
+/// pins the MM-hyphen-point axis in lone and left position, which neither disjunct suppresses; no
+/// total is claimed for the class itself.
 /// "jan 2020 – dec 2024", "2020 – 2024 (heltid)", "2020/01 – 2024/12" and "2020 –" are the
 /// segmenter pin's frozen negative population
 /// (<c>Segment_DateLineDatePatternsDoesNotModel_IsStillTakenAsTheOrganization</c>). They are
@@ -169,7 +169,11 @@ public class DatePatternsDateOnlyLineTests
     {
         // This is the direction of the trap. B5 does NOT act on these rows — every line here
         // opens with a digit, so StructureRules' LeadMarker returns null — which is why only
-        // A1/A2/A6 are named below; the leading-separator direction is where B5 bites.
+        // A1/A2/A6 are named below. Nor does it act on the leading-separator direction: LeadMarker
+        // nulls any marker whose remainder PeriodParser parses, which that direction always
+        // satisfies by construction. B5 reads DescriptionLines and CAN act — but only where the
+        // remainder is a form PeriodParser refuses ("– jan 2020 – dec 2024"), which is the live
+        // escape, not either form this union releases.
         //
         // Swapping ReviewText's PeriodParser test for a
         // DatePatterns-only one would release exactly these lines into the review side's bullet
@@ -236,7 +240,7 @@ public class DatePatternsDateOnlyLineTests
     [Theory]
     [InlineData("03-2020", "03")]
     [InlineData("03-2020 – 06-2024", "03-2020 – 06-2024")]
-    public void IsDateOnlyLine_ShouldBeFalse_ForAnMmHyphenPointAtTheLineStart(
+    public void IsDateOnlyLine_ShouldBeFalse_ForAnMmHyphenPointBeforeAnyOtherSeparator(
         string line, string reduced)
     {
         ShouldReduceTo(line, reduced);

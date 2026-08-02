@@ -22,16 +22,22 @@ namespace Jobbliggaren.Application.UnitTests.Resumes.Review;
 /// one — it is offered the row and DECLINES it; the replacement is a verbatim KnowledgeBank value,
 /// so it could not synthesise even if it fired. (The transform IS offered the row: its bullet unit
 /// is <c>DescriptionLines</c> itself — read at <c>WeakVerbTransform.cs:34</c>, which iterates this
-/// method; no test calls <c>Propose</c>. What is MEASURED below is that the
+/// method; no test HERE calls <c>Propose</c> (<c>CvImprovementEngineTests</c> does, via
+/// <c>SuggestAsync</c> — an unqualified "no test calls it" would be false). What is MEASURED below is that the
 /// <c>ParsedExperience</c> overload suppresses the row. Saying the transform is not offered it
 /// would over-correct.)</para>
 ///
-/// <para>TWO consumers act on a released row, both on the review side. A1/A2/A6 via
-/// <c>ReviewText.ExperienceBullets</c>, and <b>B5</b> via <c>StructureRules</c> — whose bullet-marker
-/// set contains the en dash, so a leading-separator date row can add a marker and flip it
-/// <c>NotAssessed → Warn</c> with "Blandade punktsymboler" cited against the user's dates. That is
-/// sharpest in exactly the direction this class's first test pins. <b>Derived from reading B5, not
-/// run.</b> The class is the INVERSE of the one first
+/// <para>ONE consumer acts on a row this union releases: A1/A2/A6 via
+/// <c>ReviewText.ExperienceBullets</c>. <c>StructureRules</c>' B5 also reads
+/// <c>DescriptionLines</c> and its bullet-marker set does contain the en dash — but it does NOT act
+/// on EITHER form this union releases. <c>LeadMarker</c> nulls any marker whose remainder
+/// <c>PeriodParser</c> parses (<c>StructureRules.cs:372-376</c>, a guard written for exactly
+/// "- 2020 – nuvarande"), and the leading-separator direction is DEFINED as "PeriodParser fails only
+/// on the leading separator" — so the remainder always parses. B5 CAN act, but only on a row whose
+/// remainder <c>PeriodParser</c> REFUSES: "– jan 2020 – dec 2024". That is the live escape this
+/// class's last test pins, open today and independent of the union. A round of this review asserted
+/// B5 flipped on the leading-separator form, reading the marker set and not the guard nine lines
+/// below it. The class is the INVERSE of the one first
 /// cited: §5's "a CV verdict without cited textual evidence" — a verdict citing a span that is not
 /// prose. Sharpest on <c>YYYY/MM</c>, which <c>DateRange</c> models on neither endpoint, so
 /// <c>StripDates</c> leaves digits behind and A1 can read the employment dates as a quantified

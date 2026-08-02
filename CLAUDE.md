@@ -49,7 +49,21 @@ Details and formats: `docs/runbooks/session-protocol.md`.
 | `docs/runbooks/` | Operational procedures |
 | `docs/research/` (+`issues/`) | Findings, planning, open questions |
 | `docs/reviews/` | Agent review reports |
-| `docs/tech-debt.md` (+`-archive.md`) | Active TDs (Severity × Fas) / closed TDs — mechanics in the `jobbpilot-td-lifecycle` skill |
+
+**The backlog is GitHub Issues, and nothing else** (Klas-direktiv 2026-08-02). The
+TD register — `docs/tech-debt.md`, its archive, and the `jobbpilot-td-lifecycle`
+skill — is **retired**; see §9.6. Its 44 live entries were disposed of in the same
+pass, and the breakdown lives in **one** place —
+[#1172](https://github.com/klasolsson81/jobbliggaren/issues/1172) — which also carries
+every parked entry **inline**, because both register files were gitignored and
+"archived" would have meant deleted.
+**A `TD-NNN` marker surviving in a tracked doc, ADR, runbook, workflow, or code
+comment is a historical provenance citation**, like a commit hash: it records why
+something exists and is not a pointer into a register you can still open. Where a
+marker instead names work that was **never built**, it is not provenance but a
+forward pointer into nothing, and **it shall be converted** to the issue that owns
+that work the next time anyone touches that file. Some remain unconverted — this is a
+standing requirement, not a claim that the sweep was exhaustive.
 
 Top-level `BUILD.md`/`CLAUDE.md`/`DESIGN.md` may be edited autonomously via the
 normal feature-branch → PR → automerge flow (§9.2/§6); Klas reviews the diff
@@ -365,7 +379,7 @@ worktrees. The rules below keep parallel work collision-free; full playbook in
   architecture + **Testcontainers** (ephemeral DB, parallel-safe) — never
   against the shared dev DB.
 - **Local docs in worktrees.** Gitignored session state (`current-work.md`,
-  `steg-tracker.md`, `tech-debt.md`, `sessions/`, local `reviews/` and ADRs
+  `steg-tracker.md`, `sessions/`, local `reviews/` and ADRs
   0074+) is absent from a fresh worktree. `.worktreeinclude` lists them; run
   `scripts/sync-worktree-docs.ps1 <worktree-path>` after creating a worktree.
   Secrets (`appsettings.Local.json`, `.env.local`) are NEVER synced into a
@@ -432,7 +446,7 @@ worktrees. The rules below keep parallel work collision-free; full playbook in
   liveness proxies outright: doubt resolves to skip, never to "probably fine".
   "I created it" is knowledge; "its lock looks stale" is a guess that yanks a
   live tree.
-  And **land your `current-work.md` / `steg-tracker.md` / `tech-debt.md` edits in
+  And **land your `current-work.md` / `steg-tracker.md` edits in
   the main copy before you stop** — the rescue saves gitignored files the main
   copy does *not* have; it cannot save your edits to ones it already does.
 
@@ -486,7 +500,7 @@ discipline miss; reports go to `docs/reviews/<date>-<phase>-<agent>.md`):
 
 | Agent | When |
 |---|---|
-| `senior-cto-advisor` | Multi-approach choices, finding triage (in-block vs TD), TD validation. Decision-maker — CC gives no own recommendation. Unambiguous CTO verdicts execute without extra Klas GO. |
+| `senior-cto-advisor` | Multi-approach choices, finding triage (in-block vs follow-up PR vs issue). Routes a finding; never re-grades one — severity belongs to the agent that reported it (§9.6). Decision-maker — CC gives no own recommendation. Unambiguous CTO verdicts execute without extra Klas GO. |
 | `security-auditor` | PII, auth, secrets, external integrations; **accepting a vulnerability rather than repairing it** — growing `pnpm.auditConfig.ignoreGhsas`, lowering `--audit-level`, or suppressing `NuGetAudit`/NU1901-NU1904 (ADR 0065 Amendment 2026-07-28 Beslut 4). Reducing exposure is not a trigger. Also every exposure-*increasing* change to the suppression surface itself: an `overrides` entry removed or its target lowered, a new override key **in open form**, a gated key becoming open, a removal from `ignoredBuiltDependencies`, and `pnpm/action-setup` raised **past 9** — that last is a migration, not a bump, since pnpm 11 reads none of this configuration, so every repair and the single acceptance go dead while the gate still reports clean. Full enumeration in her Triggers section, keyed to audit area 8 — it is written there, but a trigger only reachable from inside the file it triggers has no invocation path, so the class belongs here. She is that area's **named consumer** of `.github/scripts/audit-suppression-guard.sh`: the blocking gate audits with the ignore list *applied* and so cannot see an accepted advisory that has begun reaching production. The guard also runs in observe-only `audit` on every PR — but Dependabot PRs auto-merge without invoking any agent, and no cadence consults the measurement, so on the auto-merged patch/minor Dependabot PRs — the bulk of what drives that drift — **there is no reader at all**. Nor is there an obligation to read it on the manually reviewed remainder: the guard's `::warning::` does surface, in the Checks view, but `audit` is `continue-on-error` and absent from `ci`'s `needs`, so a finding changes nothing in the merge signal. The readerless set is therefore *larger* than the auto-merged one, not equal to it. That gap is named in ADR 0065's amendment and triaged there as a follow-up PR rather than a TD; **no owner is assigned**, and it is not closed. |
 | `code-reviewer` + `dotnet-architect` | Larger changes (>5 files or architectural choices) |
 | `dotnet-architect` (mandatory) | All Terraform/IaC scope (ADR 0036 precedent) |
@@ -509,10 +523,58 @@ Claude features, NuGet/npm status) → search before answering, never guess
 from training data. Official docs > registries > blogs; verify dates; cite
 URL + date in the STOPP report.
 
-**9.6/9.7 TD discipline.** Default = fix in-block. A TD may be raised only
-for a different phase or a missing functional dependency — full mechanics,
-formats, and lifecycle in the **`jobbpilot-td-lifecycle` skill**. When in
-doubt, in-block wins (quality > tempo) and senior-cto-advisor decides.
+**9.6 Where a finding goes** (formerly §9.6/§9.7, which several ADRs still cite together)**.** Default is still **fix in-block** — quality > tempo,
+and senior-cto-advisor decides when it is genuinely ambiguous. What changed
+2026-08-02 is the alternative: **there is no TD register to raise anything into.**
+
+**Severity belongs to the agent that reported the finding, and §9.6 does not define it.**
+Each mandatory agent grades in its own charter's scale — `code-reviewer` and
+`design-reviewer` and `security-auditor` each define Blocker/Major/Minor for their own
+domain, and `dotnet-architect` reports Kritiskt/Viktigt/Nice-to-have. **Do not re-grade
+a finding against another agent's table**: a design-reviewer Blocker is a Blocker
+because design-reviewer said so, not because it also fits code-reviewer's definition.
+Three of the four already report in Blocker/Major/Minor verbatim; `dotnet-architect`
+alone reports Kritiskt/Viktigt/Nice-to-have, which maps to Blocker/Major/Minor in that
+order. (Praise is not a finding and routes nowhere.) Then:
+
+- **Blocker or Major** → **in-block**, or a **follow-up PR** if it is a genuinely
+  separate change-reason. Never an issue: §6 and §12 make an unresolved agent
+  Blocker/Major merge-blocking, so filing one would convert a stop into a backlog row.
+  **Two exceptions in this paragraph, and both are the reporting charter's to
+  declare, never the session's to claim.** (1) A **Major** its own charter marks non-blocking because it
+  grades **repo state the diff did not create** — `security-auditor` area 8, whose Major
+  row escalates to Klas and lets the PR through — has neither an in-block home nor a
+  change-reason of its own, so it is **filed as an issue with the escalation named in
+  it**. That is the **Major row only**: the same charter does not unambiguously say it
+  of an area-8 **Blocker**, whose classes are auth bypass, PII/secret exposure and RCE.
+  **Where a charter is ambiguous about its own outcome, §9.6 does not pick a side** —
+  escalate to Klas and let that charter's owner resolve it, because an exception is the
+  reporting charter's to declare. (2) A security Major **without GDPR implication** may become a documented
+  **accepted-risk ADR** — `security-auditor`'s own edge case, and **Klas owns that
+  decision**. A GDPR Blocker is never in either category. In both cases the concession
+  is granted by Klas and recorded in an ADR or a CLAUDE.md update, never by the session
+  in a PR body.
+- **The finding does not hold** — its premise is false or revoked → say so plainly, with
+  the measurement. Neither a fix nor an issue. This is a real outcome, not a way out.
+- **Minor / nice-to-have** → a **GitHub issue**, and a line in a PR
+  body is not disposal because it has no reader. The reason is **visibility between
+  parallel CCs**, not issue inflation, so an issue no other CC would need to see may be
+  skipped — but the skip is **named in the PR body**, one line, with what makes it
+  invisible to a peer lane. An unnamed skip is not an exception; it is an omission.
+- When it is genuinely ambiguous, **senior-cto-advisor decides**.
+- **Never** re-create `docs/tech-debt.md`, a `TD-NNN` identifier, or a
+  Severity × Fas matrix. If the register looks like it is missing something, it is not
+  — read [#1172](https://github.com/klasolsson81/jobbliggaren/issues/1172).
+
+**Filing discipline.** An issue asserting that live code does something **measures it
+first**, and records **what adjudicated it and on what date** — a claim with no date
+cannot be told from a claim that has decayed. Six of the retired register's entries
+turned out already fixed the moment anyone measured them: they were true when written
+and rotted in place, because nothing in that register's lifecycle ever required
+re-measuring an entry, and an issue is re-read by no one on its own. A parked or
+deferred item makes **no** truth claim and needs no measurement — but it must then be
+written as scheduling ("not MVP scope, not verified"), never as fact ("still applies",
+"no longer relevant").
 
 ## 10. Swedish UI rules
 
@@ -556,7 +618,8 @@ doubt, in-block wins (quality > tempo) and senior-cto-advisor decides.
   **preserved** `infra/terraform/`, which still carries
   the `Alb__HttpsEnabled` injection — so neither the flag nor the tree is
   residue. Retirement is a Hetzner-cutover ADR, never a cleanup sweep
-  (BUILD.md §15); TD-106 owns the rename to `ReverseProxyOptions`.
+  (BUILD.md §15); [#196](https://github.com/klasolsson81/jobbliggaren/issues/196)
+  owns the rename to `ReverseProxyOptions`.
 - **Dev-boot config contract.** A new fail-fast option (a `ValidateOnStart` secret,
   usually in the Infrastructure DI both hosts share) that a fresh dev-stack boot needs —
   a required key, secret, or pepper the API/Worker refuses to start without — MUST be added to

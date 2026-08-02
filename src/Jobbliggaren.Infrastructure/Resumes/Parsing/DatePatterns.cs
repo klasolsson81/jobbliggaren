@@ -74,13 +74,16 @@ internal static partial class DatePatterns
     /// into the organization slot. β-3 stopped that fabrication and the accident with it.</para>
     ///
     /// <para><b>It does not subsume <see cref="PeriodParser"/>, and must never replace it.</b>
-    /// `PeriodParser` is WIDER on three measured axes — it accepts the word separators
-    /// "till"/"to", single-digit months (<c>\d{1,2}</c> against this type's <c>\d{2}</c>), and
-    /// "." / "-" as month separators where this type takes only "/". So "2019 till 2021" and
-    /// "3/2020 – 6/2024" are periods this predicate declines. Where both are available the callers
-    /// take their UNION; substituting one for the other narrows suppression in the opposite
-    /// direction. This predicate is wider only for a line whose date is not a whole-string period —
-    /// a LEADING separator ("– 2020 – 2024"), which `PeriodParser` is anchored against.</para>
+    /// `PeriodParser` is WIDER on FOUR measured axes — the word separators "till"/"to";
+    /// single-digit months (<c>\d{1,2}</c> against this type's <c>\d{2}</c>); "." / "-" as month
+    /// separators where this type takes only "/"; and ISO <c>YYYY-MM</c> END points, because
+    /// <see cref="DateRange"/>'s end-alternation is ordered so the bare <c>\d{4}</c> matches first
+    /// and the word boundary after it holds against the following "-", leaving a non-empty tail.
+    /// So "2019 till 2021", "3/2020 – 6/2024" and "2020-06 – 2024-03" are all periods this
+    /// predicate declines. Where both are available the callers take their UNION; substituting one
+    /// for the other narrows suppression in the opposite direction. This predicate is wider only
+    /// for a line whose date is not a whole-string period — a LEADING separator
+    /// ("– 2020 – 2024"), which `PeriodParser` is anchored against.</para>
     /// </summary>
     public static bool IsDateOnlyLine(string line) => StripTrailingDate(line).Length == 0;
 

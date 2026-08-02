@@ -631,13 +631,20 @@ internal sealed partial class HeadingDrivenResumeSegmenter(CvParsingLexiconData 
         // Two deferrals, not one, and the promotion was the first.
         //
         // THE ORDER WAS LOAD-BEARING, which is the part this paragraph could not say before the
-        // measurement existed. These four forms are today suppressed on the review side only
-        // BECAUSE this fallback fabricates them into Organization and ReviewText's
-        // organization-equality test then fires on them. Widening the date model first would make
-        // Organization correctly null and stop that test firing — handing the line to the bullet
-        // scorer and to WeakVerbTransform, which proposes a rewrite of every bullet. The promotion
-        // had to land first so the widening extends a real suppression instead of removing an
-        // accidental one (senior-cto-advisor bind 2026-08-02, §2).
+        // measurement existed. On the TWO-LINE layout — the one this fallback is about, where the
+        // date row is Lines[1] and therefore the organisation candidate — these four forms reach
+        // the review side suppressed only BECAUSE this fallback fabricates them into Organization
+        // and ReviewText's organization-equality test then fires on them. Widening the date model
+        // first would make Organization correctly null and stop that test firing, handing the line
+        // to the bullet scorer and to WeakVerbTransform, which proposes a rewrite of every bullet.
+        // The promotion had to land first so the widening extends a real suppression instead of
+        // removing an accidental one (senior-cto-advisor bind 2026-08-02, §2).
+        //
+        // On the THREE-LINE "Title / Company / Dates" layout none of that applies: the employer is
+        // real, nothing fabricates the date row, and neither half of ReviewText's union models
+        // these forms — so the row is scored as a bullet TODAY. Measured, not inferred, and pinned
+        // in ReviewTextPeriodLineUnionTests. It does not change the ordering; it means the widening
+        // closes a live hole rather than only preserving a suppression.
         //
         // Relocating the fallback to Lines[2] is a separate decision, refused on TWO measurements:
         // β-1 measured that widening the fallback hands a description bullet to the organization

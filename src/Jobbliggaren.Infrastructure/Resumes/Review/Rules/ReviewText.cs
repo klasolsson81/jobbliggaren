@@ -86,12 +86,14 @@ internal static class ReviewText
             // A line that is purely the period ("2013–2021", "01/2022 – nuvarande") is not a bullet.
             //
             // A UNION of two predicates, and it is deliberately not one (#1060 β-3 follow-up).
-            // NEITHER SUBSUMES THE OTHER, measured: PeriodParser is wider on three axes — the word
-            // separators "till"/"to", single-digit months (\d{1,2} against DatePatterns' \d{2}) and
-            // "." / "-" as month separators where DatePatterns takes only "/" — so it alone
-            // suppresses "2019 till 2021" and "3/2020 – 6/2024". DatePatterns.IsDateOnlyLine is
-            // wider for a date line that is not a whole-string period, which is what PeriodParser's
-            // ^…$ anchoring refuses: a LEADING separator ("– 2020 – 2024").
+            // NEITHER SUBSUMES THE OTHER, measured: PeriodParser is wider on FOUR axes — the word
+            // separators "till"/"to"; single-digit months (\d{1,2} against DatePatterns' \d{2});
+            // "." / "-" as month separators where DatePatterns takes only "/"; and ISO YYYY-MM END
+            // points, where DateRange's end-alternation takes the bare \d{4} first and leaves a
+            // non-empty tail — so it alone suppresses "2019 till 2021", "3/2020 – 6/2024" and
+            // "2020-06 – 2024-03". DatePatterns.IsDateOnlyLine is wider for a date line that is not
+            // a whole-string period, which is what PeriodParser's ^…$ anchoring refuses: a LEADING
+            // separator ("– 2020 – 2024").
             //
             // Replacing rather than adding would therefore be a regression in the opposite
             // direction — it would hand "2019 till 2021" to the bullet scorer and to
@@ -127,15 +129,27 @@ internal static class ReviewText
             // DatePatterns also feeds StripDates and ExtractPeriod.
             //
             // TWO DEFERRALS, AND THE ORDER IS LOAD-BEARING — this promotion FIRST, the widening
-            // SECOND. Not a preference: today those four forms are suppressed here only because the
-            // segmenter fabricates them into Organization and the equality test above fires on
-            // them. Widening the date model FIRST makes Organization correctly null, the equality
-            // test stops firing, and — without this union already in place — the line would escape
-            // into the bullet scorer and into WeakVerbTransform, which proposes a rewrite of every
-            // bullet. That trades a fabricated employer for a rewritten date row: two CLAUDE.md §5
-            // CV-engine classes, not a fix. With the union here first, the widening extends this
-            // suppression automatically. A count is not a sequence, and the sequence is where the
-            // defect lives (senior-cto-advisor bind 2026-08-02, §2).
+            // SECOND. Not a preference, and the argument is about the TWO-LINE layout specifically:
+            // there the date row is Lines[1] and therefore the organisation candidate, so the
+            // segmenter fabricates it into Organization and the equality test above fires on it.
+            // Widening the date model FIRST would make Organization correctly null, stop that test
+            // firing, and — without this union already in place — release the line into the bullet
+            // scorer and into WeakVerbTransform, which proposes a rewrite of every bullet. That
+            // trades a fabricated employer for a rewritten date row: two CLAUDE.md §5 CV-engine
+            // classes, not a fix. With the union here first, the widening extends a real
+            // suppression instead of removing an accidental one.
+            //
+            // THE QUALIFIER IS LOAD-BEARING TOO, and it was measured rather than assumed. On the
+            // THREE-LINE "Title / Company / Dates" layout the employer is real, nothing fabricates
+            // the date row, and NEITHER half of this union models these four forms — so the row
+            // escapes into the bullet scorer and into WeakVerbTransform TODAY, before and after
+            // this commit. Pinned in
+            // ReviewTextPeriodLineUnionTests.DescriptionLines_ShouldStillYieldTheDateRowAsABullet_…
+            // Saying "those four forms are suppressed today" without the layout qualifier would be
+            // a claim sized against one layout and read as a claim about the class. The ordering
+            // stands; what the widening does is CLOSE A HOLE THAT IS OPEN NOW, not merely preserve
+            // a suppression this union took over (senior-cto-advisor bind 2026-08-02 §2,
+            // qualified by test-writer's measurement the same day).
 
             yield return line;
         }

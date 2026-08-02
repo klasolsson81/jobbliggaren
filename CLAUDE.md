@@ -186,9 +186,12 @@ signal available is a discipline miss.
 - **Short-lived client reads** — keystroke-driven suggest, popover counts,
   draft-preview counts, on-demand document/blob fetches — use a self-contained
   hook driven by the input + `AbortController`, in `useEffect`, and never a
-  mutation path (ADR 0042 Beslut C is the precedent; `lib/hooks/use-facet-counts.ts`
-  and `components/resumes/cv-preview.tsx` are delivered shapes). Debounce where
-  input drives it; a one-shot on-enable read needs none.
+  mutation path (ADR 0042 Beslut C is the precedent). The shape is a self-contained
+  hook *or* a component-local `useEffect` — `lib/hooks/use-facet-counts.ts` is the
+  former, `components/resumes/cv-preview.tsx` the latter. Debounce where input
+  drives it; a one-shot read on an `enabled` flip needs none, and neither does a
+  mount fetch of a component-local artefact that cannot be rendered server-side
+  (`resumes/template-builder.tsx`'s blob preview).
 - **Periodic refresh** is a visibility-aware `setInterval` + `fetch` in a
   dedicated client component (`shell/header-stats.tsx`, 10 min).
 - §5's `useEffect`-for-data-fetching ban is about **a page's initial data**, which

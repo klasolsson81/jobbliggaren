@@ -49,11 +49,11 @@
 | Språk (frontend) | TypeScript | 6.0 | Strict mode |
 | UI-komponenter | shadcn/ui | senaste (CLI v4) | Tung customisering, se DESIGN.md |
 | Styling | Tailwind CSS | 4.2 | v4 config i `tailwind.config.ts` |
-| Data fetching | Server Actions + RSC | – | **TanStack Query finns inte i `package.json` och har aldrig installerats** (ingen `QueryClientProvider`-infra). Klient-mutationer går via Server Actions, med `useTransition` för pending-tillstånd och `useOptimistic` där optimistisk rendering behövs; kortlivade läsningar via self-contained debounce-hook + `AbortController` — ADR 0042 Beslut C (impl-notat) avvisade TanStack Query för den ytan. Truth-sync #TRUTHSYNC |
-| Tabeller | Handrullad semantisk `<table>` | – | **TanStack Table finns inte i `package.json` och har aldrig installerats**; det finns ingen `src/components/ui/table.tsx`. Ingen formell avvisning — mönstret är oanvänt, inte omprövat. Truth-sync #TRUTHSYNC |
+| Data fetching | Server Actions + RSC | – | **TanStack Query finns inte i `package.json` och har aldrig installerats** (ingen `QueryClientProvider`-infra). Klient-mutationer går via Server Actions, med `useTransition` för pending-tillstånd och `useOptimistic` där optimistisk rendering behövs; kortlivade läsningar via self-contained debounce-hook + `AbortController` — ADR 0042 Beslut C (impl-notat) avvisade TanStack Query för den ytan. Truth-sync #1154 |
+| Tabeller | Handrullad semantisk `<table>` | – | **TanStack Table finns inte i `package.json` och har aldrig installerats**; det finns ingen `src/components/ui/table.tsx`. Ingen formell avvisning — mönstret är oanvänt, inte omprövat. Truth-sync #1154 |
 | Form | React Hook Form + Zod | RHF ^7.72, Zod 4.x | Schema-baserad validering |
 | Auth-klient | Egen cookie-baserad klient (ADR 0017) | – | NextAuth.js/Auth.js AVVISADES och finns inte i `package.json`; backend utfärdar ingen JWT — bäraren är ett opakt session-id (§11.2). Truth-sync #569/#827 |
-| Datum/tal | `@/lib/i18n/format` + `@/lib/i18n/relative-time` | – | **date-fns finns inte i `package.json` och har aldrig installerats.** Aktiv locale resolvas per request ur `NEXT_LOCALE`-cookien, vilket kräver next-intls formaterare — rena funktioner som tar `useFormatter()`/`await getFormatter()` som parameter (CTO 2026-06-25, Variant B). Truth-sync #TRUTHSYNC |
+| Datum/tal | `@/lib/i18n/format` + `@/lib/i18n/relative-time` | – | **date-fns finns inte i `package.json` och har aldrig installerats.** Aktiv locale resolvas per request ur `NEXT_LOCALE`-cookien, vilket kräver next-intls formaterare — rena funktioner som tar `useFormatter()`/`await getFormatter()` som parameter (CTO 2026-06-25, Variant B). Truth-sync #1154 |
 | Ikoner | Lucide React | ^1.8 | Minimalistiskt, civic-vänligt |
 | Typografi | Source Sans 3 | Google Fonts | Primär (next/font/google, byte från Hanken Grotesk — ADR 0091 / #549 WS4); systemfont-fallback. JetBrains Mono för kod |
 

@@ -283,7 +283,7 @@ annars på en regel som inte finns.
 **Detta är inte en supersession.** Att installera TanStack Query vore en reversering av
 Beslut C och kräver Klas-GO via en supersessions-ADR.
 
-Truth-sync #TRUTHSYNC.
+Truth-sync #1154.
 
 ---
 

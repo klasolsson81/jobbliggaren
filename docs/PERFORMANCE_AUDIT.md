@@ -979,7 +979,7 @@ Kept in the report but NOT proposed as issues (report-only):
   That issue's body is EF-in-Application, Seq, Resend, AWS-config and the language
   policy — no TanStack item — so "already tracked" read as "no action needed" and
   the measurement retired without ever being filed. Consumed by the truth-sync PR
-  #TRUTHSYNC, which replaced the BUILD.md §3.1 rows and the CLAUDE.md §4
+  #1154, which replaced the BUILD.md §3.1 rows and the CLAUDE.md §4
   instruction with the delivered mechanism.
 - `(app)/matchningar/page.tsx:16-18` comment claims the seen-mark is
   "fire-and-forget" while the code deliberately awaits it (`:33-38`) — fixed by

@@ -240,7 +240,7 @@ Never store local time in DB. Never assume client timezone == Stockholm.
 > records the delivered mechanism (`@/lib/i18n/format` + `@/lib/i18n/relative-time`)
 > with a self-asserting absence claim in place of the package name, so neither
 > package is a listed decision any more, and the §9.2-vs-§12 asymmetry above no
-> longer holds for anything written after it (truth-sync #TRUTHSYNC).
+> longer holds for anything written after it (truth-sync #1154).
 >
 > The names above are the thirteen this section carried; `formatPercent` made
 > **fourteen** in the same guide, and has its own note above.

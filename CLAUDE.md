@@ -177,8 +177,32 @@ signal available is a discipline miss.
 - Files: components `PascalCase.tsx` (one export); hooks `useCamelCase.ts`;
   types in `types.ts` per folder; tests co-located (`Button.test.tsx`).
 - Data: Server Components by default; `"use client"` only where interactivity
-  requires it; TanStack Query for client mutations/polling; React Hook Form +
-  Zod for forms — never loose `useState` for large forms.
+  requires it. **Client mutations go through Server Actions** — `useTransition`
+  for pending state, `useOptimistic` where optimistic rendering is wanted — with
+  one delivered exception: a **binary upload** goes through a BFF route
+  (`app/api/cv/import/route.ts`), because Server Actions cannot stream
+  `multipart/form-data` (`duplex: "half"`). That is the only **mutation** path
+  outside Server Actions — several other client `fetch`es are POST-shaped *reads*.
+- **Short-lived client reads** — keystroke-driven suggest, popover counts,
+  draft-preview counts, on-demand document/blob fetches — use `AbortController`
+  in a `useEffect`, and never a mutation path (ADR 0042 Beslut C is the
+  precedent). The shape is a self-contained
+  hook *or* a component-local `useEffect` — `lib/hooks/use-facet-counts.ts` is the
+  former, `components/resumes/cv-preview.tsx` the latter. Debounce where input
+  drives it; a one-shot read on an `enabled` flip needs none, and neither does a
+  mount fetch of a component-local artefact that cannot be rendered server-side
+  (`resumes/template-builder.tsx`'s blob preview).
+- **Periodic refresh** is a visibility-aware `setInterval` + `fetch` in a
+  dedicated client component (`shell/header-stats.tsx`, 10 min).
+- §5's `useEffect`-for-data-fetching ban is about **a page's initial data**, which
+  belongs in a Server Component. It does not reach a lazy, user-driven or periodic
+  fetch — those are the two bullets above.
+- Forms: React Hook Form + Zod — never loose `useState` for large forms.
+- **Do not reach for TanStack Query.** It is not in `package.json` and never was,
+  so adding it is an undiscussed dependency add (§9.2) — and on the read-suggest
+  surface specifically, a reversal of ADR 0042 Beslut C, which is a Klas-GO
+  supersession rather than a library choice. BUILD.md §3.1 records the delivered
+  mechanisms above.
 - Naming: routes = Swedish nouns (`/ansokningar`, `/jobb`); components =
   English PascalCase; UI copy Swedish, code English.
 
@@ -196,7 +220,8 @@ request pipeline · unpaginated list fetches · `SELECT *` via EF (project to
 DTOs).
 
 **Frontend:** `any` · global state where server state suffices · `useEffect`
-for data fetching · `console.log` in production · emoji in UI copy ·
+for data fetching (a page's **initial data** — see §4 for the delivered poll and
+short-lived-client-read shapes, which this does not reach) · `console.log` in production · emoji in UI copy ·
 exclamation marks (civic tone) · gradients/drop shadows > `shadow-sm`/glow/
 glassmorphism — **sole exception:** the hero plate's dark-green gradient
 (`--jp-hero-gradient`, scoped per ADR 0068) · radius > 6px except pills/badges

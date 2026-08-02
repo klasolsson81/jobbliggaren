@@ -28,7 +28,8 @@ namespace Jobbliggaren.Application.Resumes.Common;
 /// </list>
 ///
 /// <para>Entries are NEVER filtered or dropped: an entry missing its organization projects
-/// with an empty company (identical under <c>ValidateContent</c>'s <c>IsNullOrWhiteSpace</c>)
+/// with an empty company (identical under the buildability rule's <c>IsNullOrWhiteSpace</c>,
+/// which <c>ValidateContent</c> applies)
 /// and the buildability gate turns it into an honest <c>LeftPending(IncompleteContent)</c> —
 /// silently dropping the entry would promote a CV that says less than the file did.</para>
 /// </summary>

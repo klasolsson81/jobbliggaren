@@ -60,6 +60,16 @@ internal static class RedisFaults
     /// Passed through verbatim. Callers rely on the exact text: <c>SessionStoreUnavailableTests</c>
     /// pins that a fault message never reaches the log, and a paraphrase would void that assertion.
     /// </param>
+    /// <remarks>
+    /// <b>The name promises a classification the shape does not carry.</b> Measured: the obsolete
+    /// <c>(string)</c> constructor yields <c>Kind = Unknown</c> and <c>Flags = CommandRetryNever</c>,
+    /// not <c>Kind = Loading</c> — it cannot set the kind, which is the whole reason it was
+    /// deprecated. Harmless today because production classifies faults by TYPE only and never reads
+    /// <c>Kind</c>. But if anything ever does classify on <c>Kind</c> — "LOADING → retry, WRONGPASS →
+    /// alert" — this fixture would pass silently with the wrong one, and that would be a
+    /// security-relevant misclassification on the auth path. <b>Lift this factory before writing any
+    /// such rule.</b>
+    /// </remarks>
     internal static RedisServerException Loading(string message) =>
 #pragma warning disable CS0618 // Successor ctor is [Experimental]/SER007 — see the remarks above.
         new(message);

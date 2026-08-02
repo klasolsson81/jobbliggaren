@@ -164,7 +164,7 @@ export default async function JobbPage({ searchParams }: PageProps) {
   const commit = params.commit === "true";
 
   // ADR 0043 — picker-träd hämtas server-side för hero-filter-popovern
-  // (CLAUDE.md §4.3/§5.2 — ingen useEffect-fetch). Träd + senaste
+  // (CLAUDE.md §4/§5 — ingen useEffect-fetch för sidans initial-data). Träd + senaste
   // sökningar är HERO-beroenden: de måste vara klara innan hero renderas
   // och blockerar därför INTE resultat-streamingen. getJobAds() +
   // chip-label-resolvern flyttades till `JobbResults` (F6 P4 B1) så att

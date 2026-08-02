@@ -77,7 +77,7 @@ jobs:
 
       - name: Setup .NET
         if: ${{ steps.gate.outputs.eligible == 'true' }}
-        uses: actions/setup-dotnet@v5
+        uses: actions/setup-dotnet@v6
         with:
           global-json-file: global.json
 
@@ -90,7 +90,7 @@ jobs:
 
       - name: Setup Node
         if: ${{ steps.gate.outputs.eligible == 'true' }}
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: '22'
           cache: pnpm
@@ -178,10 +178,21 @@ jobs:
       # this tree it prints, verbatim: `Severity: 7 moderate | 5 high (1 ignored)`.
       # Judge the gate by its exit code, and risk by the Dependabot alert count —
       # never by that line.
-      # `--prod` was measured and rejected as the mechanism: it does not converge
-      # (`sharp`, `postcss`, `fast-uri` and `brace-expansion` all survive it), and
-      # pnpm reports `devDependencies: 0` for this tree, so the dev/prod split it
-      # applies is not the one `package.json` declares.
+      # `--prod` was measured and rejected AS THIS GATE'S MECHANISM, on convergence
+      # alone: against the PRE-REPAIR tree it left `sharp`, `postcss`, `fast-uri`
+      # and `brace-expansion` standing, so the gate would still not have gone green.
+      # That reason holds and is the whole of it.
+      #
+      # An earlier version of this comment added that pnpm reports
+      # `devDependencies: 0` for this tree, "so the dev/prod split it applies is not
+      # the one `package.json` declares". **That inference was false** and is struck
+      # here rather than only in the script that no longer contains the call site.
+      # `metadata.devDependencies` is a COUNTER beside `metadata.dependencies`; the
+      # `--prod`/`--dev` filter partitions correctly — measured 2026-07-30, `--prod`
+      # narrows the graph 1110 -> 487 and yields one advisory while `--dev` yields
+      # two. That matters beyond tidiness: `audit-suppression-guard.sh`'s
+      # OVER-BROAD SUPPRESSION check rests on `--prod` partitioning correctly, and
+      # this file is the one a reader reaches first.
       #
       # THE pnpm 9 PIN IS LOAD-BEARING FOR BOTH HALVES. pnpm 11 does not read the
       # `pnpm` field in `package.json` at all — measured on 11.17.0: "The `pnpm`
@@ -195,10 +206,19 @@ jobs:
       # THE REGISTER IS NOT THIS FILE. `auditConfig` filters `pnpm audit` — and so
       # `audit (observe-only)` in `build.yml` too — but GitHub's Dependabot alerts
       # are unaffected. That is where the 28 are counted and that is the number that
-      # must reach zero. Known gap, owned by a follow-up PR: a stale entry produces
-      # no warning and no exit difference, and a bare GHSA would silently cover a
-      # NEW path if brace-expansion re-entered the production tree. The guard
-      # belongs in observe-only `audit`, never inside this merge control.
+      # must reach zero. THAT GAP IS WATCHED IN PART, and not from inside this file:
+      # `.github/scripts/audit-suppression-guard.sh` runs in observe-only `audit`
+      # and is consulted by `security-auditor` (her audit area 8, CLAUDE.md §9.2).
+      # It catches three things — a stale entry, a dead override key, and an accepted
+      # advisory that has entered the production set. Beslut 6's silent pin-back is
+      # NOT among them and stays open: it is not detectable from the LOCKFILE, and
+      # ADR 0065 Amendment 2026-07-28 records why. Read that as scoped, not absolute
+      # — the gap is unclosable for a file-only guard, which is what this one is by
+      # construction; it is not a claim that no mechanism could ever see it. An
+      # installed tree does exist at this call site, since `audit` runs
+      # `pnpm install --frozen-lockfile` before the guard. The guard never fails a build
+      # — a path-pinning assertion inside THIS control is how the next deadlock gets
+      # built, since it would fail a PR over tree state the PR did not cause.
       - name: Install (pnpm, för audit)
         if: ${{ steps.gate.outputs.eligible == 'true' }}
         working-directory: web/jobbliggaren-web

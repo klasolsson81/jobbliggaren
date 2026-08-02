@@ -8,8 +8,18 @@
 # - nuget root (Central Package Management — Directory.Packages.props)
 # - github-actions (CI-workflows + lighthouse-ci-action supply-chain-yta)
 #
-# Strategi: månadsvisa version-updates, grupperade per ecosystem för att minska
-# PR-brus. Security updates körs separat och ignorerar schedule (GitHub-default).
+# Strategi: månadsvisa version-updates. Minor + patch grupperas per ecosystem för
+# att minska PR-brus; MAJORS grupperas aldrig, utan kommer en PR i taget — dels så
+# att var och en får sin egen granskning, dels för att en major i en grupp sätter
+# `eligible=false` i dependabot-automerge.yml och därmed hoppar över scannen för
+# ALLA paket i gruppen. Grupperingen är INGEN garanti mot en trasig grupp: mätt på
+# #1140 var två av tre bygg-brytare semver-minor. `ci` är den grinden.
+# Security updates körs separat och ignorerar schedule (GitHub-default).
+#
+# `open-pull-requests-limit` per entry är dimensionerat för att majors nu tar egna
+# slots. nuget står kvar på 5: #1140:s population ger 2 PR:er i den nya formen. En
+# framtida framework-våg (t.ex. .NET 11) skulle kunna spränga taket tyst — det är
+# inte mätt och därför inte förhandsjusterat, men det är den kända riskformen.
 #
 # CVE-täckning är CI-/Dependabot-formad, INTE agent-formad (security-auditor.md:292
 # delegerar CVE-scan till Dependabot/CI — roster-gap-CTO 2026-05-17 §1.4, ADR 0045
@@ -35,10 +45,11 @@ updates:
     labels:
       - "dependencies"
       - "npm"
+    # Group minor+patch only, so a MAJOR always arrives as its own PR. See the
+    # note on the nuget entry below for why.
     groups:
-      npm-all:
-        patterns:
-          - "*"
+      npm-minor-patch:
+        update-types: ["minor", "patch"]
 
   # Frontend — web/jobbliggaren-web (Next.js 16 + pnpm; pnpm-lock.yaml
   # autodetekteras av npm-ekosystemet). Detta är den faktiska app-
@@ -89,10 +100,35 @@ updates:
         update-types: ["version-update:semver-major"]
       - dependency-name: "Refit.HttpClientFactory"
         update-types: ["version-update:semver-major"]
+    # A MAJOR MUST NOT BE ABLE TO HIDE INSIDE A GROUP.
+    #
+    # This entry used to group `patterns: ["*"]`, i.e. everything including majors.
+    # Measured on PR #1140 (2026-08-01): eighteen packages in one PR, fifteen of
+    # which built clean. The three that broke the build were NSubstitute 6.0.0
+    # (104 compile errors across 45 test files once nullability annotations landed
+    # on its public API), StackExchange.Redis 3.1.0 (10 CS0618) and Resend 0.8.0
+    # (1 CS8604).
+    #
+    # WHAT THIS CHANGE FIXES, PRECISELY — and it is less than "no more broken
+    # groups". Of those three breakers exactly ONE is a major; 3.0.11 -> 3.1.0 and
+    # 0.5.1 -> 0.8.0 are both semver-MINOR and would still land inside this group.
+    # Re-run against #1140's population, the new shape yields a 17-package group
+    # (still red, because Redis and Resend are still in it) plus one major PR.
+    # `update-type` is a proxy for "breaking" and a leaky one: Redis's minor added
+    # [Obsolete] to public constructors and Resend's 0.x minor made a property
+    # nullable — both breaking only because this house treats warnings as errors.
+    # `ci` is what catches those, and on #1140 it did.
+    #
+    # What the change does buy is the part no gate covered: (1) a major gets its
+    # own PR and its own review instead of riding in behind seventeen siblings,
+    # and (2) the remaining bumps get a supply-chain scan at all —
+    # `dependabot-automerge.yml` sets `eligible=false` on any major and then skips
+    # the rest of the job, so #1140's eighteen packages were never scanned. One
+    # major both took the group hostage AND disabled the automation meant to land
+    # it. This is the shape the `web` entry above has always had.
     groups:
-      nuget-all:
-        patterns:
-          - "*"
+      nuget-minor-patch:
+        update-types: ["minor", "patch"]
 
   # GitHub Actions — build.yml/deploy/lighthouse-ci-action supply-chain-yta
   - package-ecosystem: "github-actions"
@@ -102,14 +138,50 @@ updates:
       day: "monday"
       time: "06:00"
       timezone: "Europe/Stockholm"
-    open-pull-requests-limit: 3
+    # Raised 3 -> 5 as part of the grouping change: majors now arrive as individual
+    # PRs, so the same month's work needs more slots. Measured on #1139's own
+    # population — 1 minor/patch group + 2 majors = 3 — which saturates the old
+    # limit EXACTLY, and an overflow is silent (Dependabot simply opens nothing).
+    open-pull-requests-limit: 5
     commit-message:
       prefix: "chore(ci)"
       include: "scope"
     labels:
       - "dependencies"
       - "github-actions"
+    # codeql-action stays on its moving major tag — see the comment at the
+    # `codeql-action/init` site in codeql.yml for why. This entry is the
+    # ENFORCEMENT half of that decision, and it is not optional: a narrowing from
+    # `@v4` to `@v4.37.3` keeps the major at 4, so Dependabot classifies it
+    # patch/minor -> `dependabot-automerge.yml` sets `eligible=true` -> the vuln
+    # scan (which a tag narrowing passes trivially) -> auto-merge on green `ci`,
+    # with NO agent invoked (CLAUDE.md §9.2 says this in as many words). PR #1139
+    # was caught only by accident: its group happened to carry two unrelated
+    # majors, which forced `eligible=false`. Once both actions sit on their
+    # current major that shield is gone, and a comment in codeql.yml has no reader
+    # on this path. A decision whose only violation route has no reader is not a
+    # decision.
+    #
+    # MAJOR IS DELIBERATELY LEFT ALLOWED — codeql-action@v5 is a real migration we
+    # want to be told about. Only sub-major narrowing is refused.
+    #
+    # Wildcard because it is unverified whether Dependabot emits the repo name or
+    # the `init`/`analyze` sub-paths. A wrong `dependency-name` here fails OPEN and
+    # silently — the same shape as the defect being fixed — and is observable at
+    # the next github-actions run (monthly, Monday 06:00): no codeql-action
+    # sub-major PR should appear.
+    ignore:
+      - dependency-name: "github/codeql-action*"
+        update-types:
+          ["version-update:semver-patch", "version-update:semver-minor"]
+    # Same grouping rule as nuget above. Measured on PR #1139 (2026-08-01): three
+    # actions in one group, two of them clean ESM-migration majors and the third the
+    # codeql narrowing the `ignore` above now refuses. Reviewing that third one
+    # required unpicking it from the other two by hand — and note that the group is
+    # what CAUGHT it, purely by accident: two unrelated majors forced
+    # `eligible=false`. That accident is exactly what the `ignore` replaces with a
+    # rule, because after this change a lone narrowing would be minor/patch and land
+    # here, auto-mergeable.
     groups:
-      actions-all:
-        patterns:
-          - "*"
+      actions-minor-patch:
+        update-types: ["minor", "patch"]

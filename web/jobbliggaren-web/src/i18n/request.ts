@@ -32,7 +32,12 @@ export default getRequestConfig(async ({ locale }) => {
     // A Swedish civic utility has one deterministic civic timezone. Pinning it
     // here makes useFormatter().dateTime() output stable across SSR and client
     // (no hydration drift) and silences next-intl's ENVIRONMENT_FALLBACK
-    // warning. The admin audit table already hardcodes the same zone.
+    // warning.
+    //
+    // This literal is ESLint-exempt (eslint.config.mjs); product
+    // code imports SWEDISH_TIME_ZONE instead. It stays raw here because making
+    // the i18n configuration depend on `lib/` is a layering decision of its own.
+    // If that decision is ever taken, drop the exemption in the same commit.
     timeZone: "Europe/Stockholm",
   };
 });

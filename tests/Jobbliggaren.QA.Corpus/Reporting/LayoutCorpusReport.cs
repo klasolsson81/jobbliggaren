@@ -187,16 +187,46 @@ public static class LayoutCorpusReport
         L("## 3. Marker trace");
         L();
         L("One row per authored employment and education. A count says five became one; this says");
-        L("WHICH four vanished and where each was last seen. `RetainedButOrphaned` on a promoted");
-        L("row is the finding: the product said the CV was saved and this employment is gone.");
+        L("WHICH four vanished and where each was last seen.");
         L();
-        L("| Case | Kind | Marker | In bytes | In parsed artifact | In promoted section | Found in other section | Verdict |");
-        L("|---|---|---|---|---|---|---|---|");
+        L("**Read the two promoted columns together — the verdict is computed from BOTH, and until");
+        L("#1060 β-1 only one of them was printed.** `Structural field` asks whether the marker IS a");
+        L("promoted company or institution value; `In section span` asks whether it appears anywhere");
+        L("inside the promoted section. **`structural = no` is necessary but NOT sufficient for");
+        L("`RetainedButOrphaned`** — count the `no` cells and you will find rows carrying two other");
+        L("verdicts: the row did not promote (`RetainedNotPromoted`), or the marker turned up in");
+        L("another section (`AbsorbedIntoOtherSection`, and the `Found in other section` cell names");
+        L("which). Within the rows that DO carry it, it covers two different things:");
+        L();
+        L("- both `no` **on a row that promoted** — the marker is genuinely GONE. This is the");
+        L("  silent loss the corpus exists to expose. On a row that did NOT promote, both are");
+        L("  `no` by construction and mean nothing: the verdict there is `RetainedNotPromoted`, or");
+        L("  `CarriedInPreamble` when the `In parsed artifact` cell is also `no`.");
+        L("- `structural no` + `span yes` — the marker is THERE but not as the field it names. Two");
+        L("  measured causes: fused into another value (`pdf-zero-xgap-concat`, true in this file");
+        L("  before β-1) and sitting in the other slot (`docx-company-first-header`, β-1).");
+        L();
+        L("Rows carrying identical cells with opposite verdicts were how the missing column showed");
+        L("itself; this preamble used to state the first case as though it were the only one.");
+        L();
+        L("**And the column did NOT end that pattern — say so rather than imply it.** `Decide` reads");
+        L("more inputs than this table renders: `promoted` and `promoteFaulted` are verdict inputs");
+        L("too. So the signature `yes | yes | no | no | —` carries two verdicts IN THIS FILE —");
+        L("`RetainedButOrphaned` where the CV promoted, `RetainedNotPromoted` where it did not — and");
+        L("a THIRD the moment an arm faults (`PromoteFaulted`, which short-circuits before both).");
+        L("No arm faults today, which is why you see two; the sentence says which file it is true of");
+        L("rather than pretending the instrument cannot produce the third.");
+        L("That collision is not the same defect as the one this column closed, and the difference");
+        L("is the whole point: the structural half had NO published home, while promote/blocked is");
+        L("published one table up, per case, in §2's fidelity verdict. Resolve it there.");
+        L();
+        L("| Case | Kind | Marker | In bytes | In parsed artifact | Structural field | In section span | Found in other section | Verdict |");
+        L("|---|---|---|---|---|---|---|---|---|");
         foreach (var c in d.Cases)
         {
             foreach (var m in c.Markers)
             {
-                LI($"| `{c.Case.Id}` | {m.Kind} | {m.Marker} | {Y(m.InExtractedBytes)} | {Y(m.InParsedArtifact)} | {Y(m.InPromotedSectionSpan)} | {m.FoundInOtherSection ?? "—"} | **{m.Verdict}** |");
+                LI($"| `{c.Case.Id}` | {m.Kind} | {m.Marker} | {Y(m.InExtractedBytes)} | {Y(m.InParsedArtifact)} | {Y(m.IsPromotedStructuralField)} | {Y(m.InPromotedSectionSpan)} | {m.FoundInOtherSection ?? "—"} | **{m.Verdict}** |");
             }
         }
 
@@ -451,6 +481,30 @@ public static class LayoutCorpusReport
         L("  invisibility shipped as a measurement, not as a distinct extraction mechanic.");
         L("- **Scanned / `NoTextLayer` documents are absent**, so the `ParseConfidence.Failed`");
         L("  branch of the import handler's segment conditional is unexercised.");
+        L("- **Entry boundaries still need a blank paragraph, and nothing here recovers them.**");
+        L("  `SplitEntries` splits on blank lines only, so a DOCX that authors none yields ONE entry");
+        L("  per block. That is why the `-no-blanks` rows report 1 of 5 employments — a document");
+        L("  fact, not a header-order fact, which #1060 β-1's role-first control arm separated. Not");
+        L("  fixed there: its blast radius is every row in this table, so it would have made that");
+        L("  PR's diff unattributable. Named so a promoting row is not read as a recovered one.");
+        L("- **`RetainedButOrphaned` conflates three realities — gone, fused, and wrong-slot —");
+        L("  and that is deliberate.** A finer verdict would have to name WHICH field holds the");
+        L("  marker, and §3 publishes no promoted field values, so the label could not be cited");
+        L("  from anything this report prints (CLAUDE.md §5: no verdict without cited evidence).");
+        L("  The two rendered halves are the discriminator; revisit if an arm ever publishes");
+        L("  promoted field values.");
+        L("- **No arm authors a `\"Company, City\"` field line.** `TitleOrgSeparators` includes");
+        L("  `\", \"`, so such a line splits into (Company, City) and the city lands in the employer");
+        L("  slot **when that line is the one the split reads**. THREE populations, not two, and the");
+        L("  third is the COMMON layout: where the role line is `Lines[0]` and the comma line merely");
+        L("  follows it, no split happens there at all — the whole string is the fallback's");
+        L("  organization value, unchanged by β-1 and not this hazard. Of the other two: where the");
+        L("  field-bearing line IS `Lines[0]`, this held before #1060 β-1 and holds after. On a PERIOD-FIRST");
+        L("  row it is NEW — before β-1 the line went whole to `Organization` and the row blocked on");
+        L("  the missing Role. That is the same transition the company-first arm publishes for the");
+        L("  dash form. The comma form is that class and is unmeasured. An earlier revision of this");
+        L("  bullet said \"on ANY row, before and after\", which is false for exactly the population");
+        L("  the bullet stands beside.");
         L("- **Kerning-driven word splits, ligature artefacts, rotated text and foreign-producer");
         L("  ToUnicode tables are absent.** Every PDF here round-trips through a QuestPDF-embedded");
         L("  subset font and its own CMap — a real mechanism, but QuestPDF's.");

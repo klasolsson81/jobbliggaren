@@ -372,6 +372,69 @@ public static class LayoutCaseCatalog
             SpikeMeasuredExtractSegment: true,
             OneVariableStepFrom: "docx-table-label-first-with-blanks",
             ProjectHeadingRendered: UnknownProjectHeading),
+
+        // The fourth cell of the useTable 2x2 (header order x blank separators). Every no-blanks
+        // arm the corpus shipped was ALSO label-first, so "1 of 5 entries" and "null Title" were
+        // confounded and no row could tell them apart. This arm holds the header order right and
+        // removes the blank paragraphs, which separates them.
+        new("docx-role-first-no-blanks",
+            "role-first header lines with NO blank paragraphs — separates entry-boundary loss from header order",
+            "(c) table-based Word template — the control that de-confounds the two no-blanks variables",
+            "docx", "cv.docx", Docx, OpenXmlCvRenderer.RoleFirstNoBlanks, CvModel.Swedish,
+            p =>
+            {
+                var xml = p.DocxDocumentXml();
+                p.Require(xml.Contains("<w:tbl>", StringComparison.Ordinal), "expected a w:tbl element");
+                p.Require(!xml.Contains("<w:pPr />", StringComparison.Ordinal)
+                          && !xml.Contains("<w:pPr/>", StringComparison.Ordinal),
+                    "found Word's blank-paragraph form — this arm authors NO blank separators, and "
+                    + "a blank line here would make it a duplicate of docx-role-first-with-blanks");
+                p.Require(!xml.Contains("<w:p />", StringComparison.Ordinal)
+                          && !xml.Contains("<w:p/>", StringComparison.Ordinal),
+                    "expected no self-closing w:p (this arm authors no blank paragraphs)");
+            },
+            "the package contains a w:tbl, no blank-paragraph <w:pPr /> and no self-closing <w:p />",
+            SpikeMeasuredExtractSegment: false,
+            OneVariableStepFrom: "docx-role-first-with-blanks",
+            ProjectHeadingRendered: UnknownProjectHeading),
+
+        // #1060 beta-1's COST arm. Every other arm writes its field-bearing line role-before-
+        // marker, so the shape where the two slots come out SWAPPED was invisible to every row.
+        // beta-1 moved that population from an honest block to a promote, and an accepted cost that
+        // is published nowhere is a laundered one. One variable from row 20: within-line order.
+        new("docx-company-first-header",
+            "the field-bearing line written COMPANY-first — the shape whose slots come out swapped",
+            "(c) table-based Word template — the arm that publishes beta-1's cost",
+            "docx", "cv.docx", Docx, OpenXmlCvRenderer.CompanyFirstHeaderWithBlanks, CvModel.Swedish,
+            p =>
+            {
+                var xml = p.DocxDocumentXml();
+                p.Require(xml.Contains("<w:tbl>", StringComparison.Ordinal), "expected a w:tbl element");
+                // The arm IS the inverted order, so the proof asserts the order itself rather than
+                // the container. Without this the renderer could silently emit role-first and the
+                // row would publish a reassuring verdict about a document it never rendered.
+                p.Require(
+                    xml.Contains("Klarna AB - Senior backend-utvecklare", StringComparison.Ordinal),
+                    "expected the employment line written COMPANY-first");
+                p.Require(
+                    !xml.Contains("Senior backend-utvecklare - Klarna AB", StringComparison.Ordinal),
+                    "found the role-first form — this arm would then duplicate docx-table-label-first-with-blanks");
+                p.Require(
+                    xml.Contains("Chalmers tekniska högskola - Civilingenjör", StringComparison.Ordinal),
+                    "expected the education line written INSTITUTION-first (both parsers share one split)");
+                // Pin the variable this arm HOLDS FIXED, not only the one it moves. It is a
+                // one-variable step from docx-table-label-first-with-blanks, and that claim is
+                // false the moment the blank separators go missing — the row would then differ on
+                // two axes and its verdict would be unattributable.
+                p.Require(xml.Contains("<w:pPr />", StringComparison.Ordinal)
+                          || xml.Contains("<w:pPr/>", StringComparison.Ordinal),
+                    "expected Word's blank-paragraph form — this arm HOLDS blank separators fixed");
+            },
+            "the employment and education lines are written company/institution-first, in a w:tbl, "
+            + "with the blank separators the one-variable step holds fixed",
+            SpikeMeasuredExtractSegment: false,
+            OneVariableStepFrom: "docx-table-label-first-with-blanks",
+            ProjectHeadingRendered: UnknownProjectHeading),
     ];
 
     /// <summary>

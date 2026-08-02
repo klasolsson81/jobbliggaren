@@ -45,7 +45,7 @@ jobs:
       # global.json låser till 10.0.200 (rollForward latestFeature). setup-dotnet
       # respekterar global.json om version inte angivs explicit.
       - name: Setup .NET
-        uses: actions/setup-dotnet@v5
+        uses: actions/setup-dotnet@v6
         with:
           global-json-file: global.json
 
@@ -99,7 +99,7 @@ jobs:
         uses: actions/checkout@v7
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v5
+        uses: actions/setup-dotnet@v6
         with:
           global-json-file: global.json
 
@@ -206,7 +206,7 @@ jobs:
       # Next.js 16 kräver Node >=20.18. Använd 22 LTS för långt support-fönster.
       # När .nvmrc införs i web/jobbliggaren-web: byt till `node-version-file`.
       - name: Setup Node
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: '22'
           cache: pnpm
@@ -303,6 +303,9 @@ jobs:
       - name: assert-not-truncated (fixturer)
         run: bash .github/scripts/assert-not-truncated.test.sh
 
+      - name: audit-suppression-guard (fixturer)
+        run: bash .github/scripts/audit-suppression-guard.test.sh
+
   # ---------------------------------------------------------------------------
   # PERF-/SUPPLY-CHAIN-GOVERNANCE (ADR 0045 — observe-only Fas 1).
   #
@@ -349,7 +352,7 @@ jobs:
           run_install: false
 
       - name: Setup Node
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: '22'
           cache: pnpm
@@ -438,7 +441,7 @@ jobs:
         uses: actions/checkout@v7
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v5
+        uses: actions/setup-dotnet@v6
         with:
           global-json-file: global.json
 
@@ -502,7 +505,7 @@ jobs:
         uses: actions/checkout@v7
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v5
+        uses: actions/setup-dotnet@v6
         with:
           global-json-file: global.json
 
@@ -513,7 +516,7 @@ jobs:
           run_install: false
 
       - name: Setup Node
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: '22'
           cache: pnpm
@@ -551,6 +554,77 @@ jobs:
           else
             echo "::warning::pnpm audit High/Critical (ADR 0045 Beslut 7, observe-only Fas 1). Dependabot öppnar fix-PR."
           fi
+
+      # Watches the vuln gate's two escape hatches — `pnpm.auditConfig.ignoreGhsas`
+      # (accepted risk) and `pnpm.overrides` (repaired risk). ADR 0065 Amendment
+      # 2026-07-28 ratified both and recorded, as a known gap, that neither was
+      # watched: a stale entry and a dead override key each produce no warning and
+      # no exit difference, and a bare GHSA would silently cover a NEW path if its
+      # package re-entered the production tree.
+      #
+      # It lives HERE and never in `dependabot-automerge.yml`. A path-pinning
+      # assertion inside a blocking merge control is how the next deadlock gets
+      # built — it would fail a PR for something that PR did not cause, which is
+      # the defect that amendment exists to repair. Predicate + fixtures are in
+      # `.github/scripts/`, gated by the blocking `scripts` job, per the
+      # `is-pure-base-merge.sh` precedent.
+      #
+      # THE CONSUMER IS `security-auditor`, and naming one was a merge condition.
+      # `dependabot-automerge.yml`'s own header — ratified by a security-auditor
+      # round and Klas-GO "B" 2026-06-07 — states that *no human reads observe-only
+      # audit at auto-merge*. Delivering findings into a channel this repo has
+      # already certified as unread would build the empty signal, so the guard is
+      # not the alarm: it is the always-current measurement `security-auditor`
+      # consults, per its own trigger list and CLAUDE.md §9.2
+      # (senior-cto-advisor 2026-07-30).
+      #
+      # TWO AUDIT FILES, both with the ignore list REMOVED, and neither taken in
+      # the checkout. With the list applied the suppressed advisory is invisible and
+      # the guard could not tell a stale entry from a live one — the measurement has
+      # to see what the suppression hides. `--prod` supplies the partition half:
+      # membership in the production advisory set is what re-tests the dev-only
+      # argument an acceptance was granted on. Call it a partition rather than
+      # reachability, because that is what it is — `--prod` splits DECLARED
+      # dependencies, and a devDependency can still generate shipped output (this
+      # repo builds its stylesheet from two of them). (The first version parsed
+      # `findings[].paths` for that and could not fire at all — pnpm emits
+      # `.>root>child`, no spaces, no versions.)
+      #
+      # `pnpm audit` needs only `package.json` + `pnpm-lock.yaml` in one directory,
+      # so both runs happen in RUNNER_TEMP against copies. The checkout is never
+      # mutated, which removes the earlier trap/restore and its cancel window.
+      - name: audit-suppression-guard (observe-only)
+        working-directory: web/jobbliggaren-web
+        shell: bash
+        run: |
+          set -uo pipefail
+          probe="$RUNNER_TEMP/audit-probe"
+          mkdir -p "$probe"
+          jq 'del(.pnpm.auditConfig)' package.json > "$probe/package.json"
+          cp pnpm-lock.yaml "$probe/pnpm-lock.yaml"
+          # `|| true` is required: pnpm audit exits non-zero whenever advisories
+          # exist, so the exit code cannot distinguish findings from failure. The
+          # guard asserts the JSON shape instead and reports SKIPPED, never clean.
+          ( cd "$probe" && pnpm audit --json        > full.json 2>audit-full.err || true )
+          ( cd "$probe" && pnpm audit --json --prod > prod.json 2>audit-prod.err || true )
+          for e in "$probe/audit-full.err" "$probe/audit-prod.err"; do
+            [ -s "$e" ] && echo "::notice::pnpm audit stderr ($e):" && cat "$e"
+          done
+          # The two location probes. The guard takes VALUES and FILES, never a
+          # version call of its own — that keeps it network-free and fixturable, so
+          # resolving the major is the workflow's job. Without these the guard
+          # cannot tell "nothing is accepted" from "pnpm 11 reads a different file
+          # and this manifest is no longer where the settings live", and it would
+          # report the second as clean (measured 2026-07-30 against `del(.pnpm)`).
+          major="$(pnpm --version | cut -d. -f1)"
+          ws=()
+          [ -f pnpm-workspace.yaml ] && ws=(--workspace-yaml pnpm-workspace.yaml)
+          bash ../../.github/scripts/audit-suppression-guard.sh \
+            --package-json package.json \
+            --audit-json "$probe/full.json" \
+            --audit-prod-json "$probe/prod.json" \
+            --lockfile pnpm-lock.yaml \
+            --pnpm-major "$major" "${ws[@]+"${ws[@]}"}"
 
   # Aggregat-job som kraschar hela CI om något barn-job failed. Gör branch-
   # protection-rules enkla att konfigurera (bara "ci" som required check

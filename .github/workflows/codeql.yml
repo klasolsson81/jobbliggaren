@@ -64,7 +64,7 @@ jobs:
       matrix:
         include:
           # C# / .NET 10: build-mode MANUAL. Återbrukar build.yml:s kända-gröna
-          # build-recept (setup-dotnet@v5 + global.json + restore + build) för
+          # build-recept (setup-dotnet@v6 + global.json + restore + build) för
           # determinism — INTE autobuild. Skäl (senior-cto-advisor 2026-06-07,
           # agentId af8997b2f5987e1ee): Mediator.SourceGenerator emitterar
           # CQRS-dispatch/DI/pipeline-kod (inkl auth-pipeline) endast vid
@@ -88,7 +88,7 @@ jobs:
       # build.yml så CodeQL bygger exakt samma produkt som grön CI.
       - name: Setup .NET
         if: matrix.language == 'csharp'
-        uses: actions/setup-dotnet@v5
+        uses: actions/setup-dotnet@v6
         with:
           global-json-file: global.json
 
@@ -102,6 +102,17 @@ jobs:
             nuget-${{ runner.os }}-
 
       # --- CodeQL init -------------------------------------------------------
+      # KEEP THE MOVING MAJOR TAG. Dependabot proposed narrowing both codeql-action
+      # sites to an exact patch (`@v4.37.3`, PR #1139) and that was rejected: this
+      # file's own schedule exists to catch "nya CodeQL-queries" (see the `schedule`
+      # comment at the top), and pinning the analysis engine to one patch defeats
+      # the purpose the file writes out for itself. It is also strictly worse than
+      # a SHA pin — a version tag is mutable, so the narrowing buys no tamper
+      # resistance while paying the full staleness cost. Repo-wide the convention
+      # is exceptionless rather than merely dominant: `grep -rhoE 'uses: [^ ]+@[^ ]+'
+      # .github/workflows/ | grep -vE '@v[0-9]+$'` returns NOTHING — not one action
+      # anywhere is pinned below its major. That grep is the adjudicator; do not
+      # maintain a count here. If a future Dependabot PR proposes `@v4.x.y`, close it.
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v4
         with:

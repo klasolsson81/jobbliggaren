@@ -65,10 +65,14 @@ namespace Jobbliggaren.QA.Corpus;
 /// </summary>
 public sealed class LayoutCorpusReportTests
 {
-    /// <summary>The commit this baseline was produced at. It has two homes — here and the
-    /// committed baseline's own header — and nothing checks them against each other, so bump it
-    /// DELIBERATELY when regenerating, never as a side effect. A stale value would make the
-    /// provenance string F3 exists for untrustworthy.
+    /// <summary>The commit this baseline's branch is BASED on — its merge-base, not a commit that
+    /// can reproduce the file. Stated that way because the looser reading is false and was read as
+    /// a defect: on any PR that changes the product, the baseline beside it carries rows the base
+    /// commit cannot produce, and this one does (rows 22 and 23 do not exist at <c>d435a9c4</c>).
+    /// What the string answers is "what was this measured AGAINST", which is the question a
+    /// baseline diff asks. It has two homes — here and the committed baseline's own header — and
+    /// nothing checks them against each other, so bump it DELIBERATELY when regenerating, never as
+    /// a side effect. A stale value would make the provenance string F3 exists for untrustworthy.
     ///
     /// <para><b>It was stale, and the warning above is why that is worth writing down rather than
     /// quietly overwriting.</b> The value read <c>7a5496fe</c> (PR E's merge) while
@@ -77,7 +81,7 @@ public sealed class LayoutCorpusReportTests
     /// carrying a pre-B provenance string — a claim true of the run that first produced the file
     /// and false of the one that last wrote it. Corrected 2026-07-28 to this branch's base.</para>
     /// </summary>
-    private const string BaseCommit = "5456e784";
+    private const string BaseCommit = "d435a9c4";
 
     [Fact]
     public async Task LayoutCorpus_FromBytes_EmitsReport()
@@ -174,13 +178,19 @@ public sealed class LayoutCorpusReportTests
         // compares them. "A human will notice if a human happens to regenerate and then happens
         // to read" is not a guard (CTO-bind 2026-08-01, Decision 1).
         //
-        // THE OTHER DIRECTION, priced rather than left implicit: (e) goes VACUOUS the day the
-        // docx-label-first rows start promoting, which is exactly what PR B/E are for. Nothing
-        // here pins that some case still reaches LeftPending, and §0's "none" reads the same
-        // for "everything was readable" and "there was nothing to read". Accepted: inventing a
-        // floor on how many cases must block would be the §2.5 ratchet this suite may not make
-        // for itself. But a reader who lands here after that fix should treat a green (e) as
-        // UNMEASURED rather than as evidence.
+        // THE OTHER DIRECTION, and it is no longer a forecast: #1060 β-1 was the day. The
+        // docx-label-first rows promote now, so no case in the corpus blocks on IncompleteContent
+        // and no row carries a Domain code.
+        //
+        // The prediction was ALMOST right and the difference is worth keeping. (e) did NOT go
+        // wholly vacuous: rows 16 and 17 still block on personnummer, so a LeftPending is still
+        // logged, ReadBlockDetail still runs, and the property-name contract this assert exists for
+        // is still exercised. What went unmeasured is the CODE-BEARING half — no row produces a
+        // DomainErrorCode any more, so a regression in that propagation would move nothing here.
+        // §0's "none" still reads the same for "everything was readable" and "there was nothing to
+        // read", and inventing a floor on how many cases must block would be the §2.5 ratchet this
+        // suite may not make for itself. Accepted, and the emitter half stays pinned separately by
+        // LayoutCorpusEmitterTests over synthetic observations.
         observations.Where(o => o.BlockDetailUnreadable).ShouldBeEmpty(
             "INSTRUMENT: a LeftPending was logged whose BlockDetail property this harness could "
             + "not read. Either the {BlockDetail} placeholder was renamed or removed in "

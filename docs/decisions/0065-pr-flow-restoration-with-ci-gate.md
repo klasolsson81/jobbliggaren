@@ -311,21 +311,77 @@ in the repo resolves its settings, it must be verified on 9 as well as 11, and i
 belong in the same diff as the repair. It is the migration's first step, and it is owed
 before the pin moves.
 
-**Known gap, deliberately not closed here — the rule.** *A suppression whose blast
+**Known gap — WATCHED IN PART since 2026-07-30 by
+`.github/scripts/audit-suppression-guard.sh`.** The rule below stands as the rule; the
+"unpinned today" state it describes is the state *before* that guard. It watches **three**
+of the four directions named here — a stale `ignoreGhsas` entry, an accepted advisory that
+has entered the production set, and an `overrides` key absent from the lockfile. That third
+one is the *measured instance* of its direction, not the whole of it: a selector that
+intersects no consumer's declared range names a package that IS present, and is invisible
+for the same pnpm-lock v9 reason as the fourth direction below. The guard runs in
+observe-only `audit`, and has a **named consumer**: `security-auditor`, audit area 8
+(CLAUDE.md §9.2). That consumer is load-bearing, not decoration — this repo's own
+`dependabot-automerge.yml` header records that *no human reads observe-only audit at
+auto-merge*, so a warning with no reader would have been the empty signal, not a fix.
+
+**The fourth direction — Beslut 6's silent pin-back — remains OPEN, and is not
+lockfile-detectable.** A guard for it was built and removed 2026-07-30, on measurement.
+The signature is the opposite of what a floor comparison sees: an override forces
+resolution *to* the floor, so the resolved version lands at or above it, never below
+(`sharp` floor 0.35.0 resolves 0.35.3 — this ADR's own named instance, and the check never
+fired on it). Detecting a real pin-back needs each consumer's **declared** range for the
+overridden package, and pnpm-lock v9 does not carry that for transitive edges:
+`next@16.2.11` records `sharp: 0.35.3(...)`, a resolved version. It would take reading
+every consumer's published manifest — an installed tree or the network — which the guard's
+file-only design excludes by construction.
+
+**What that removed guard did detect is already caught, blockingly and upstream:** a
+manifest declaring a repair the lockfile does not carry. Measured 2026-07-30 — raising one
+override target without regenerating the lockfile makes `pnpm install --frozen-lockfile`
+exit 1 with `ERR_PNPM_LOCKFILE_CONFIG_MISMATCH … the current "overrides" configuration
+doesn't match the value found in the lockfile`, inside the **required** `frontend` job.
+That knowledge has one owner, and it is not this guard.
+
+**Reader-reachability, stated rather than assumed.** The guard runs on every PR, including
+Dependabot's. But Dependabot PRs are auto-merged by `dependabot-automerge.yml` **without
+invoking any agent**, and no `schedule:` consults the measurement — so on the auto-merged
+patch/minor Dependabot PRs, which are the bulk of what drives the tree drift these checks
+detect, there is no reader. Be precise about the boundary rather than rounding it to
+"exactly": `dependabot-automerge.yml` marks major and unknown update types ineligible, and
+a PR that fails the vuln gate falls back to manual review. On that remainder the guard
+is surfaced but unowned — its `::warning::` reaches the Checks view, and `audit` is
+`continue-on-error` and outside `ci`'s `needs`, so nothing obliges anyone to read it
+and a finding moves no merge signal. (Say it that way rather than "nothing surfaces
+it": in this document's own vocabulary a warning IS the surface, and "unwatched" was
+defined as *no warning and no exit difference*.) The readerless set is therefore
+**larger** than the auto-merged set, not identical to it.
+
+A cadence is a follow-up PR, triaged by senior-cto-advisor 2026-07-30 as a follow-up and
+explicitly **not** a TD (the phase rule is not met). **No owner is assigned.** An earlier
+revision of this paragraph said the gap was named "with a named owner"; the only name in
+it was the agent that performed the triage, which is not the same thing as someone who
+will close it.
+
+*The rule, unchanged:* **A suppression whose blast
 radius is not pinned, and an override key whose liveness is not checked, are declared as
-gaps rather than left silent.* Both are unpinned today: a stale `ignoreGhsas` entry
+gaps rather than left silent.* Both were unpinned before the guard: a stale `ignoreGhsas` entry
 produces no warning and no exit difference, a bare GHSA would silently cover a **new**
 path if the package re-entered the production tree, and an `overrides` key that matches
 no consumer is equally silent (measured: an invented key exits 0 with no output). The
 guard owes **both** directions: a key that matches *nothing* is dead, and a key that
 matches *more than intended* — the open-form obligation in Beslut 6 — silently pins a
-consumer back into an older major. Neither is visible today; neither is detectable
-without being asked for. The
+consumer back into an older major. *(Written 2026-07-28. The second half was measured
+undeliverable two days later — see above: it is not lockfile-detectable at all, so it is
+not an outstanding obligation on this guard but an open gap with no file-only owner. The
+first half ships.)* The
 guard belongs in observe-only `audit` — never inside the merge control, which is the
 principle that kept a hand-rolled delta-differ out of the gate in the first place. Own PR
 (senior-cto-advisor 2026-07-28: follow-up, explicitly **not** a TD — the phase rule is
-not met). The current instance of the gap is recorded at the mechanism, in
-`dependabot-automerge.yml`.
+not met). **That PR is this one — the plan is executed, and this parenthesis records
+the triage that authorised it, not outstanding work.** Do not read it against the
+cadence follow-up in the paragraph immediately above, which carries a different date
+(2026-07-30), a different subject, and is still open. The current instance of the gap is recorded at
+the mechanism, in `dependabot-automerge.yml`.
 
 **Two override keys deliberately reach wider than today's tree.**
 `brace-expansion@>=2.0.0 <=5.0.7` spans the 2.x/3.x/4.x lines, which are empty here —

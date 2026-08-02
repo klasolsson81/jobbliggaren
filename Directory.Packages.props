@@ -62,7 +62,7 @@
          — undviker third-party Xabaril-dep, ~10 rader kod. -->
     <PackageVersion Include="Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore" Version="10.0.10" />
     <!-- Redis -->
-    <PackageVersion Include="StackExchange.Redis" Version="3.0.11" />
+    <PackageVersion Include="StackExchange.Redis" Version="3.1.0" />
     <PackageVersion Include="Microsoft.Extensions.Caching.StackExchangeRedis" Version="10.0.9" />
     <!-- Test — Redis container -->
     <PackageVersion Include="Testcontainers.Redis" Version="4.13.0" />

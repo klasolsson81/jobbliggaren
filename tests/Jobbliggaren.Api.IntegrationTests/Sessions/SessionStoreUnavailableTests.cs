@@ -129,7 +129,7 @@ public class SessionStoreUnavailableTests(ApiFactory factory)
                 // this test exercises #511's translation AND #512's logging end-to-end.
                 var innerTimingOut = Substitute.For<ISessionStore>();
                 innerTimingOut.GetAsync(Arg.Any<SessionId>(), Arg.Any<CancellationToken>())
-                    .Throws(new RedisTimeoutException("Timeout performing GET (5000ms)", CommandStatus.Sent));
+                    .Throws(new RedisTimeoutException(CommandFlags.None, "Timeout performing GET (5000ms)", CommandStatus.Sent));
                 services.AddScoped<ISessionStore>(_ => new SessionStoreResilienceDecorator(innerTimingOut));
 
                 services.AddSingleton<ILoggerProvider>(LogProvider);

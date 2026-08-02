@@ -183,15 +183,19 @@ public sealed partial class AutoPromoteParsedResumeCommandHandler(
     // compile-time literals with no interpolation.
     //
     // Adjudicator, so this is checkable rather than asserted — and it has to be THIS shape:
-    //   grep -rA1 -nE 'DomainError\.(Validation|Conflict|NotFound|Gone)\(' \
-    //        src/Jobbliggaren.Domain/Resumes/
-    // then READ the code argument on every hit. RECURSIVE over the directory, not a list of the
-    // two files on the path today — a path list is an enumeration, and it fails in exactly the
-    // way this comment's own second half describes: extract a third buildability file and the
-    // two-file form still returns nothing but literals while the interpolated code sits in the
-    // file it never looked at, which is silent and in the reassuring direction. β-2 IS that
-    // extraction, so the hazard is demonstrated rather than hypothetical. The cost is a handful
-    // of off-path hits (ResumeFile, ParsedResume) that the reader drops by path. Two under-reaches make the obvious form useless,
+    //   grep -rA1 -nE 'DomainError\.[A-Za-z]+\(' src/Jobbliggaren.Domain/Resumes/
+    // then READ the code argument on every hit. TWO deliberate non-enumerations, because an
+    // enumeration is what this whole paragraph exists to retire, and each was measured free
+    // before it was taken. RECURSIVE over the directory, not a list of the files on the path
+    // today: extract a further buildability file and a path list still returns nothing but
+    // literals while the interpolated code sits in the file it never looked at — silent, and in
+    // the reassuring direction. β-2 IS that extraction, so the hazard is demonstrated rather than
+    // hypothetical. And `[A-Za-z]+` rather than the four factory names, because DomainError.cs
+    // lives OUTSIDE this scope, so a fifth factory would arrive invisibly the same way; the open
+    // form is byte-identical to the alternation today, so widening costs nothing. The residual
+    // cost is a handful of off-path hits (ResumeFile, ParsedResume) the reader drops by path.
+    //
+    // Two under-reaches make the obvious form useless,
     // both measured rather than feared. (1) The house wraps after the open paren, so matching
     // `DomainError.Validation(` alone shows the code on 6 of 39 hits in Resume.cs and 0 of 13 in
     // ResumeEntryBuildability — the file that declares every per-entry code is entirely blind to

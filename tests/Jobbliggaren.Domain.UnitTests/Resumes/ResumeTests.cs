@@ -699,9 +699,20 @@ public class ResumeTests
     /// implementation detail.
     ///
     /// <para>Premise (CLAUDE.md §5): both entries are the AutoPromoteContentMapper projection —
-    /// <c>e.Organization ?? string.Empty</c> and <c>e.Institution ?? string.Empty</c>. One DOCX
-    /// whose header lines carry no fields produces both at once, in both typed loops, from the one
-    /// SplitTitleOrganization call — which is what corpus rows 18/19/20 measured before β-1.</para>
+    /// <c>e.Organization ?? string.Empty</c> and <c>e.Institution ?? string.Empty</c>. The
+    /// producing path is <c>SplitTitleOrganization</c>'s fallback: a single-line entry carrying no
+    /// separator glyph has no <c>Lines[1]</c> to take an organization from, so it returns
+    /// Organization null with Title intact, which the mapper projects to an EMPTY COMPANY and a
+    /// set Role. The education loop mirrors it exactly (degree from Title, institution from
+    /// Organization). ONE function feeds both typed loops from TWO call sites,
+    /// <c>ParseExperiences</c> and <c>ParseEducations</c>, so one document can present both kinds
+    /// unbuildable at once.</para>
+    ///
+    /// <para><b>NOT corpus rows 18/19/20.</b> They block on <c>ExperienceRoleRequired</c> — the
+    /// OPPOSITE slot: there the fused role-and-company line went whole into Organization and Role
+    /// came back null. An earlier revision of this comment cited them anyway, which the committed
+    /// baseline already carries a correction against under the heading "true of its evidence and
+    /// wrong about its subject".</para>
     /// </summary>
     [Fact]
     public void UpdateMasterContent_WithBothKindsUnbuildable_ReportsTheExperienceFirst()
@@ -722,6 +733,48 @@ public class ResumeTests
 
         result.IsFailure.ShouldBeTrue();
         result.Error.Code.ShouldBe("Resume.ExperienceCompanyRequired");
+    }
+
+    /// <summary>
+    /// The two bounds whose at-bound case existed only in <c>ResumeEntryBuildabilityTests</c>: the
+    /// 100-character RawPeriod and the equal date pair, both kinds in one content because both
+    /// readers carry both arms.
+    ///
+    /// <para>What this adds over the direct at-bound tests: those prove the READER admits the
+    /// value. This proves the AGGREGATE adds no second, stricter home of its own on top of the
+    /// call — an inline <c>RawPeriod is { Length: > 50 }</c> beside the loop would leave every
+    /// direct test green and redden only this one. The five label/prose caps already had that
+    /// guard via their <c>…AtMaxLength_ReturnsSuccess</c> tests; these two did not
+    /// (#1060 D3(β-2), review round 2).</para>
+    ///
+    /// <para>Premise (CLAUDE.md §5): the 100-character RawPeriod is
+    /// <c>AutoPromoteContentMapper</c>'s untruncated <c>RawPeriod: e.Period</c> — "an over-long
+    /// period is for the buildability gate to reject, not for this projection to silently
+    /// shorten". The equal date pair and the labels come from the write path, whose validators cap
+    /// only the name and summary fields and never reach <c>Content.Experiences</c>.</para>
+    /// </summary>
+    [Fact]
+    public void UpdateMasterContent_WithEntriesAtTheRawPeriodCapAndEqualDates_ReturnsSuccess()
+    {
+        var sameMonth = new DateOnly(2022, 3, 1);
+        var resume = CreateValidResume();
+        var content = new ResumeContent(
+            new PersonalInfo(ValidFullName, null, null, null),
+            experiences: new[]
+            {
+                new Experience(
+                    "Mastercard", "Backend Developer", sameMonth, sameMonth, null,
+                    new string('A', 100)),
+            },
+            educations: new[]
+            {
+                new Education("KTH", "MSc CS", sameMonth, sameMonth, new string('A', 100)),
+            });
+
+        var result = resume.UpdateMasterContent(content, Clock);
+
+        // Names the arm on failure rather than printing "expected True".
+        result.IsSuccess.ShouldBeTrue(result.Error.Code);
     }
 
     [Fact]

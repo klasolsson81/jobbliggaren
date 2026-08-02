@@ -751,9 +751,12 @@ public sealed class Resume : AggregateRoot<ResumeId>
         // refuses the same content it refused before, so CreateFromParsed's invariant is intact
         // (CLAUDE.md §2.2). The falsifier is the layout corpus, and its subject is MEASURED
         // VALUES rather than the file: no row, verdict, entry count, marker verdict or
-        // gate-ladder cell moves. β-2's own baseline diff was NOT empty — it also repaired four
-        // homes of a claim this move made false and bumped a stale BaseCommit — so the proof is
-        // strip-those-two-regions-by-content-and-compare, not an empty diff.
+        // gate-ladder cell moves. β-2's own baseline diff was NOT empty: it carries ONE of this
+        // PR's repaired homes of that claim (§5's glossary) plus a stale BaseCommit bump — so the
+        // proof is strip-those-two-regions-by-content-and-compare, not an empty diff. (No count
+        // of the homes here: the first revision of this sentence said "four", which was a fact
+        // about the PR rather than about the baseline diff, and went stale in the very commit
+        // that wrote it. LayoutCorpusReportTests carries the same lesson about the same numeral.)
         foreach (var exp in content.Experiences)
         {
             var experienceResult = ResumeEntryBuildability.Validate(exp);

@@ -178,13 +178,17 @@ public sealed partial class AutoPromoteParsedResumeCommandHandler(
     // THE SAME HOLDS OF `blockDetail`, and it is worth stating on its own terms rather than
     // waved through under "the reason is a token" (#1060 D3(β) PR 2). It is
     // DomainError.CODE — never DomainError.Message, which carries the Swedish user-facing text
-    // — and every value it can hold is a DomainError code literal: the per-entry constraints
-    // declared by ResumeEntryBuildability (e.g. `Resume.ExperienceCompanyRequired`), and the
-    // whole-document ones declared by Resume.ValidateContent / ValidateName / CreateFromParsed's
-    // own preconditions. That dichotomy is closed, so it stays exhaustive when an arm is added to
-    // either side — which a list of declaring files does not (#1060 D3(β-2) moved thirteen codes
-    // and made the previous enumeration's own worked example, ExperienceCompanyRequired, name a
-    // file that no longer declares it). A code names a
+    // — and every value it can hold is a DomainError code literal, of one of exactly two kinds:
+    // a PER-ENTRY constraint on a work-experience or education entry (e.g.
+    // `Resume.ExperienceCompanyRequired`), or a WHOLE-DOCUMENT one — every other code
+    // CreateFromParsed can return, which is whole-document by definition. What carries the
+    // exhaustiveness is that classification, not any list of files; the files are dated context
+    // (today the per-entry ones live in ResumeEntryBuildability and the rest in
+    // Resume.ValidateContent / ValidateName / CreateFromParsed's own preconditions). The previous
+    // revision enumerated declaring files and #1060 D3(β-2) falsified it by moving thirteen codes,
+    // making its own worked example name a file that no longer declares it — and an enumeration
+    // survives a new ARM inside an existing file but not a new file being EXTRACTED, which is
+    // precisely the move that broke it. A code names a
     // CONSTRAINT that was not met; it never carries the field's value, its length, or any
     // fragment of CV text. It is null on every arm but buildability
     // (AutoPromoteGateVerdict.Blocked's docblock; test-pinned).

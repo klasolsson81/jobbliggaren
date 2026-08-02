@@ -1,3 +1,4 @@
+using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.JobSeekers;
 using Jobbliggaren.Domain.Resumes;
 using Jobbliggaren.Domain.UnitTests.JobAds;
@@ -39,8 +40,11 @@ namespace Jobbliggaren.Domain.UnitTests.Resumes;
 ///
 /// <para><b>The write path, which produces the rest.</b> The master-content and promote endpoints
 /// bind <c>ResumeContentDto</c> off the wire with no per-field attributes;
-/// <c>UpdateMasterContentCommandValidator</c> caps only <c>FullName</c> and <c>Summary</c> and
-/// names <c>Content.Experiences</c> nowhere; <c>ResumeContentMapper.ToDomain</c> then builds the
+/// <c>UpdateMasterContentCommandValidator</c> caps only <c>FullName</c> and <c>Summary</c>, and
+/// <c>PromoteParsedResumeCommandValidator</c> only <c>Name</c>, <c>FullName</c> and
+/// <c>Summary</c> — neither names <c>Content.Experiences</c> anywhere, which is why the claim
+/// below spans both endpoints rather than the one it used to cite;
+/// <c>ResumeContentMapper.ToDomain</c> then builds the
 /// entry VERBATIM under its own docblock — "Pure projection — no validation (the aggregate's
 /// ValidateContent owns that)". So the whitespace-only label, the over-long prose, the inverted
 /// date pair and the over-long period all reach this reader exactly as written below. These arms
@@ -309,8 +313,13 @@ public class ResumeEntryBuildabilityTests
     /// from the parse, structured dates honestly absent, no description (the mapper always emits
     /// null) and the verbatim period on <c>RawPeriod</c>. Nothing else here asserts that
     /// combination — the bound tests set <c>RawPeriod</c> at exactly 100 and the date tests never
-    /// set it at all — so without this a projection change that made the promote path's own shape
-    /// unbuildable would move no test in this file.
+    /// set it at all — so without this, a new RULE here that rejected an entry with no structured
+    /// dates and no description would move no test in this file.
+    ///
+    /// <para>Deliberately not the other direction: this test hand-builds the shape rather than
+    /// calling <c>AutoPromoteContentMapper</c>, so a change to the PROJECTION cannot reach it. The
+    /// mapper→reader coupling is covered elsewhere, by the Application tests that drive
+    /// <c>ParsedExperience</c> through the projection into <c>CreateFromParsed</c>.</para>
     /// </summary>
     [Fact]
     public void Validate_TheShapeAutoPromoteProjects_ReturnsSuccess()
@@ -325,17 +334,27 @@ public class ResumeEntryBuildabilityTests
     }
 
     /// <summary>
-    /// The <c>(code, message, kind)</c> triple, pinned STRUCTURALLY rather than by repeating the
-    /// Swedish strings. Every other test here asserts <c>.Error.Code</c> only, so a reworded
-    /// message — or a factory swapped from <c>Validation</c> (400) to <c>Conflict</c> (409) —
-    /// moves nothing in the whole suite. <c>DomainError</c> is a sealed record, so comparing the
-    /// error the aggregate returns against the one this reader returns pins all three without a
-    /// single hardcoded literal.
+    /// What the aggregate does with the reader's answer: it returns the WHOLE
+    /// <see cref="DomainError"/> verbatim — code, Swedish message and <see cref="ErrorKind"/> —
+    /// rather than re-wrapping it in one of its own. <c>DomainError</c> is a sealed record, so one
+    /// structural comparison pins that propagation with no hardcoded Swedish. Every other
+    /// assertion in the repo reads <c>.Error.Code</c>, so a <c>ValidateContent</c> that preserved
+    /// the code and substituted the message — <c>DomainError.Validation(err.Code, "Ogiltigt
+    /// innehåll.")</c> — would move nothing else. This is that one guard.
     ///
-    /// <para><b>What this does NOT do.</b> It catches DRIFT, not duplication: it compares the two
-    /// surfaces and would stay green if <c>ValidateContent</c> carried its own identical copy of
-    /// the rule. Only the mutation falsifier distinguishes one home from two, and this test does
-    /// not replace it.</para>
+    /// <para><b>What it does NOT do, precisely.</b> It cannot detect a REWORDED message or a
+    /// factory swapped from <c>Validation</c> to <c>Conflict</c>: <c>ValidateContent</c> returns
+    /// this reader's own <c>Result</c>, so both sides of the comparison read the same literals and
+    /// such a change moves them together. That guarantee was claimed here once and is WITHDRAWN.
+    /// The <see cref="ErrorKind"/> assertion below is the part that pins a value — a typed enum
+    /// rather than a Swedish literal — and it is what makes the 400 in
+    /// <c>DomainError.ToProblemResult()</c> an assertion rather than an assumption. The MESSAGE
+    /// stays deliberately unpinned: it is user-facing copy (CLAUDE.md §10) and a literal here
+    /// would be the localization-fragile assertion §5 warns against.</para>
+    ///
+    /// <para>It also catches DRIFT, not duplication: an identical second copy inside
+    /// <c>ValidateContent</c> stays green here. Only the mutation falsifier distinguishes one home
+    /// from two, and this does not replace it.</para>
     /// </summary>
     [Fact]
     public void Validate_ReturnsTheSameErrorTheAggregateReturns_CodeMessageAndKind()
@@ -351,6 +370,11 @@ public class ResumeEntryBuildabilityTests
                 experiences: new[] { unbuildable }),
             FakeDateTimeProvider.Default);
 
+        // Without this line the test is GREEN when both sides succeed — which is exactly what the
+        // register's M1 cell (arm deleted) produces: `Result.Error` does not throw on success, it
+        // returns DomainError.None, and None equals None. Measured, not supposed.
+        viaAggregate.IsFailure.ShouldBeTrue();
         viaAggregate.Error.ShouldBe(ResumeEntryBuildability.Validate(unbuildable).Error);
+        viaAggregate.Error.Kind.ShouldBe(ErrorKind.Validation);
     }
 }

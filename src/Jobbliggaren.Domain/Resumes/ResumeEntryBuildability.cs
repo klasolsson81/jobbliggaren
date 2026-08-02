@@ -31,6 +31,16 @@ namespace Jobbliggaren.Domain.Resumes;
 /// hand copy of a Domain invariant outside the Domain (CLAUDE.md §2.2, §5), and the exact defect
 /// removed from <c>WellFormedPromotedExperience</c> one PR earlier.</para>
 ///
+/// <para><b>The discriminator for prose elsewhere, written down once and only here.</b> Text
+/// saying <c>ValidateContent</c> REQUIRES or REFUSES something is still true after this split —
+/// it calls this type, so it refuses exactly what it refused before, and the corpus report, the
+/// block-reason enum and the client schema all rest on that gate reading. Text saying
+/// <c>ValidateContent</c> DECLARES a per-entry code is false as of #1060 D3(β-2); those homes
+/// were repaired in that PR. If you are auditing an attribution somewhere else in the tree, that
+/// is the distinction to apply — and it lives here, beside the rule, rather than at the call site,
+/// because a reader arriving from the corpus emitter or the client schema is looking for the
+/// rule.</para>
+///
 /// <para><b>Whole-document rules are NOT here.</b> Name, contact, summary, preamble, skills,
 /// languages, skill-group references and section entries are validated by
 /// <c>ValidateContent</c> itself, because they are properties of the document rather than of an

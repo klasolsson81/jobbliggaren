@@ -260,15 +260,18 @@ Alla tre startas av CC som bakgrundsprocesser.
    Infrastructure-DI). En saknad nyckel kraschar starten och NAMNGER exakt vilken.
    `appsettings.Local.json` (gitignored, i `src/Jobbliggaren.Api/`) måste innehålla
    `FieldEncryption` + de tre pseudonymiserings-pepprarna `AuditPseudonymization` +
-   `CompanyWatchPseudonymization` + `CvReviewFingerprintPseudonymization` (+ `Email`).
+   `CompanyWatchPseudonymization` + `CvReviewFingerprintPseudonymization`. `Email` är VALFRI —
+   `Email:Provider` defaultar till `Console` i koden, så att utelämna sektionen är en stödd
+   konfiguration (mallen märker den så sedan #1165).
    **Kopiera `appsettings.Local.json.example` → `appsettings.Local.json` och generera
    nycklarna** (`openssl rand -base64 32` per sektion; `.example` är källan till sanning för
    listan). De tre pepprarna tillkom successivt — `AuditPseudonymization` 2026-07-14 (ADR 0090
    D5, #842), `CompanyWatchPseudonymization` 2026-07-18 (ADR 0090 D5, #544/#942),
    `CvReviewFingerprintPseudonymization` 2026-07-19 (ADR 0093 D2, #692) — så en dev-DB /
    Local.json som konfigurerades före var och en saknar den (fail-fast NAMNGER exakt vilken).
-   Utan `FieldEncryption:Provider=Local` defaultar en worktree-start dessutom till Kms och
-   500:ar mot AWS (#802).
+   `FieldEncryption:Provider` defaultar REDAN till `Local`, så raden i mallen är dokumentation
+   och inte en fix — och ett explicit icke-Local-värde fail-stoppar numera loud i DI, eftersom
+   KMS-providern och dess klient är raderade (#802). Den kan inte 500:a mot AWS.
 5. **Worker läser `DOTNET_ENVIRONMENT`, INTE `ASPNETCORE_ENVIRONMENT`.** Worker:n är en
    generic host (`Host.CreateApplicationBuilder`), inte en web-host. Sätter du bara
    `ASPNETCORE_ENVIRONMENT` kör Worker:n i **Production** och laddar fel appsettings.

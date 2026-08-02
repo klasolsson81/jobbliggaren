@@ -214,14 +214,15 @@ internal abstract record AutoPromoteGateVerdict
     /// it for no user-visible gain.)</para>
     ///
     /// <para><b>Why it exists.</b> <see cref="AutoPromoteBlockReason.IncompleteContent"/> is one
-    /// token over every code <c>Resume.CreateFromParsed</c> can return — thirty-two declared by
-    /// <c>ValidateContent</c> alone, plus <c>JobSeekerIdRequired</c> and <c>ValidateName</c>'s three.
-    /// The two mechanisms behind them
-    /// have different fixes in different homes — a per-entry failure
-    /// (<c>ExperienceCompanyRequired</c>) is routable, while a whole-document one
-    /// (<c>SummaryTooLong</c>) was bound to the lexicon asset instead. Until now no consumer could
-    /// tell them apart: <c>Resume.CreateFromParsed</c> returned the code and this gate discarded
-    /// it whole.</para>
+    /// token over every code <c>Resume.CreateFromParsed</c> can return, and the mechanisms behind
+    /// them have different fixes in different homes. Since #1060 D3(β-2) the DECLARING TYPE says
+    /// which: a per-entry failure on a work-experience or education entry is declared by
+    /// <see cref="Jobbliggaren.Domain.Resumes.ResumeEntryBuildability"/>
+    /// (<c>ExperienceCompanyRequired</c>) and a caller can act on that one entry, while a
+    /// whole-document one is declared by <c>Resume.ValidateContent</c> itself
+    /// (<c>SummaryTooLong</c>, bound to the lexicon asset instead) and has no entry to set aside.
+    /// Until now no consumer could tell them apart: <c>Resume.CreateFromParsed</c> returned the
+    /// code and this gate discarded it whole.</para>
     ///
     /// <para><b>The code, never the whole <c>DomainError</c>.</b> A <c>DomainError</c> also carries
     /// the Swedish user-facing message; logging that would put a second home for UI copy into Seq.

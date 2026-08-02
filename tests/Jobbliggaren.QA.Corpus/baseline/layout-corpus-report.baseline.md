@@ -104,7 +104,7 @@
 > ./Jobbliggaren.QA.Corpus.exe -class "Jobbliggaren.QA.Corpus.LayoutCorpusReportTests"
 > ```
 >
-> Base commit: `d435a9c4`.
+> Base commit: `a5ca961f`.
 > Deterministic; NO AI/LLM anywhere in the measured chain (ADR 0071).
 
 ## Claim discipline (ADR 0109 §4)
@@ -575,12 +575,14 @@ corrected for (2026-07-28):
 `Domain code` is the constraint `Resume.CreateFromParsed` refused on, carried verbatim
 out of the buildability rung and read off the handler's own `BlockDetail` log property
 (#1060 D3(β) PR 2). It is what makes `**BLOCKED**` on that rung legible: the token
-`IncompleteContent` covers every code `Resume.CreateFromParsed` can return: thirty-two
-declared by `Resume.ValidateContent`, plus `JobSeekerIdRequired` and `ValidateName`'s
-three, so thirty-six. They do not share a fix — a per-entry failure like
-`Resume.ExperienceCompanyRequired` is routable, while a whole-document one like
-`Resume.SummaryTooLong` is not, and a design that assumed the first would spend a
-Domain refactor against a failure it cannot touch.
+`IncompleteContent` covers every code `Resume.CreateFromParsed` can return, and they do
+not share a fix. Since #1060 D3(β-2) the file that DECLARES the code answers which fix:
+the per-entry constraints on a work-experience or education entry are declared by
+`ResumeEntryBuildability`, so a caller can ask about ONE entry and act on the answer — a
+router can set that entry aside (`Resume.ExperienceCompanyRequired`). The rest are
+declared by `Resume.ValidateContent` and by `CreateFromParsed`'s own preconditions, and a
+whole-document refusal (`Resume.SummaryTooLong`) has no entry to set aside — a design
+that assumed the first would spend a Domain refactor against a failure it cannot touch.
 
 Read `—` in that column as **"no Domain refusal produced a code on this row"**, never
 as "no constraint failed": a personnummer block and a promote both print it, and

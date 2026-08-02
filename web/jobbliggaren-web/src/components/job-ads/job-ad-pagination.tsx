@@ -6,6 +6,20 @@ interface JobAdPaginationProps {
   pageSize: number;
   totalCount: number;
   buildHref: (targetPage: number) => string;
+  /**
+   * Whether the summary line may state `totalCount` (ADR 0120 clause 4, #1149). Default TRUE —
+   * `/jobb` counts a bounded set, so "N träffar totalt" is a true sentence there. (It is the only
+   * caller that takes the default: `ApplicationsPager` reuses `buildPageItems` alone and renders
+   * no summary line.)
+   *
+   * Pass FALSE where `totalCount` SATURATES at a servable cap: the register surfaces cap it at
+   * `MaxServableRows` (2 000 at pageSize 20), so the word *totalt* turns a ceiling into a
+   * completeness claim — measured 2026-08-01 as "Sida 1 av 100 (2000 träffar totalt)" against
+   * 743 654 active companies. The page COUNT stays either way: `TotalPages ≤ MaxPage` holds by
+   * construction, so it is a navigation quantity (how far you can go), not a claim about how many
+   * rows exist. Those surfaces carry their honest number in their own magnitude line instead.
+   */
+  showTotalCount?: boolean;
 }
 
 /**
@@ -22,6 +36,7 @@ export function JobAdPagination({
   pageSize,
   totalCount,
   buildHref,
+  showTotalCount = true,
 }: JobAdPaginationProps) {
   // Synchronous next-intl translator — keeps JobAdPagination a non-async RSC.
   const t = useTranslations("jobads.ui");
@@ -91,7 +106,9 @@ export function JobAdPagination({
         )}
       </ol>
       <p className="text-body-sm text-text-secondary">
-        {t("pagination.summary", { page, totalPages, totalCount })}
+        {showTotalCount
+          ? t("pagination.summary", { page, totalPages, totalCount })
+          : t("pagination.summaryPagesOnly", { page, totalPages })}
       </p>
     </nav>
   );

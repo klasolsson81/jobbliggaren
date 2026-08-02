@@ -6,7 +6,7 @@ import { JobAdPagination } from "@/components/job-ads/job-ad-pagination";
 import { InfoDialog } from "@/components/common/info-dialog";
 import { searchCompanies } from "@/lib/api/company-search";
 import { getCompanyWatchStatusByOrgNr } from "@/lib/api/company-follows";
-import { buildPageHref, PAGE_SIZE } from "@/lib/company-search/search-params";
+import { buildPageHref, MAX_PAGE, PAGE_SIZE } from "@/lib/company-search/search-params";
 import type { CriterionReference } from "@/lib/dto/company-criteria";
 
 interface ForetagSokResultsProps {
@@ -18,12 +18,18 @@ interface ForetagSokResultsProps {
 }
 
 /**
- * #560 PR-B — the async results region of `/foretag/sok`, Suspense-streamed under the page. Mirrors the
- * criterion-browse body (`bevakningar/[id]`): the honest magnitude headline ("10 000+" when saturated,
- * NEVER the pagination `totalCount`), a mandatory säteskommun explainer, the register table, pagination
- * that preserves the active filter, and the mandatory source attribution (DPIA C-D2/M-C4). An empty
- * filter browses the whole register (Klas bind: browse-all default); a zero-match filter shows the
- * empty state.
+ * #560 PR-B — the async results region of `/foretag/sok`, Suspense-streamed under the page. Carries the
+ * same parts as the criterion-browse body (`bevakningar/[id]`) — a section heading, a mandatory
+ * säteskommun explainer, the register table, pagination that preserves the active filter, and the
+ * mandatory source attribution (DPIA C-D2/M-C4) — but no longer the same HEADING SHAPE: here the heading
+ * is invariant and the honest magnitude sits on its own line beneath ("10 000+" when saturated, and NEVER
+ * the pagination `totalCount`, which saturates at the servable cap), whereas the sibling still renders
+ * its count inside the `<h2>`. Do not read this file as a description of that one. An empty filter
+ * browses the whole register (Klas bind: browse-all default) and then carries NO number at all; a
+ * zero-match filter shows the empty state.
+ *
+ * #1149 — `magnitude === null` is the single thing that distinguishes browse-all from a search here: it
+ * decides the count line, the table's accessible name, and nothing else re-derives it.
  */
 export async function ForetagSokResults({
   namn,
@@ -57,9 +63,11 @@ export async function ForetagSokResults({
   }
 
   const { companies, magnitude } = result.data;
-  const magnitudeText = formatMagnitude(format, magnitude);
-  const hasFilter =
-    namn.length > 0 || sni.length > 0 || kommun.length > 0;
+  // NULL means an unfiltered browse-all, by contract — the ruling and the measurement behind it
+  // live in GetCompanySearchMagnitudeQueryHandler. It is the ONE thing this surface branches on:
+  // a second, local `hasFilter` derived from the URL axes would be a third answer to a question
+  // the backend already answered over the normalized criteria, and it could disagree with the
+  // number actually rendered.
   const filterState = { namn, sni, kommun };
 
   // #560 PR-C — follow-state overlay for the "Bevaka"-per-row affordance. A SEPARATE company_watches read
@@ -89,15 +97,68 @@ export async function ForetagSokResults({
         </div>
       ) : (
         <>
-          <h2 className="text-h2 text-text-primary tabular-nums">
-            {hasFilter
-              ? t("magnitudeHeadlineFiltered", { count: magnitudeText })
-              : t("magnitudeHeadlineAll", { count: magnitudeText })}
-          </h2>
+          {/* The heading is INVARIANT — it names the section, it does not report a number. It used
+              to be both, mutating between a label ("Företag i registret") and a statement ("1 234
+              företag matchar sökningen"), which is the stats-card-heading shape the copy rules
+              reject: a count belongs in its own line above the table, not inside the heading.
+              `jp-h2` and not `text-h2`: the latter mints only the SIZE, and there is no base rule
+              for `h2`, so the utility alone renders a heading at body weight. */}
+          <h2 className="jp-h2">{t("resultsHeading")}</h2>
+
+          {/* The count, and only when there IS one.
+              `role="status"` because the search commits with `router.push` — no document
+              navigation, no focus move — so without a live region the result of the user's own
+              action is announced to nobody. The skeleton this replaces is already one ("Söker
+              företag…"); the answer has to be too (WCAG 4.1.3).
+              `.jp-results-count` is the house count line (`/jobb` uses it): sans with tabular
+              figures and the number in `<b>`, never monospace, because DESIGN.md forbids mono for
+              information-bearing digits. The number and the noun are separate arguments because
+              the magnitude renders as a STRING when it saturates ("10 000+") while the plural has
+              to select on the NUMBER. */}
+          {magnitude !== null && (
+            <p className="jp-results-count mt-1" role="status" aria-live="polite">
+              <b>{formatMagnitude(format, magnitude)}</b>{" "}
+              {t("resultsCountUnit", { count: magnitude.magnitude })}
+            </p>
+          )}
+
+          {/* The browsable ceiling, stated once, wherever matches are actually LOST to it. Klas's
+              ruling governs WHICH number may be rendered; it does not license leaving the cap
+              unexplained, and both states can hit it — saturated shows "10 000+" above a pager
+              that stops at 2 000, and a browse-all shows no number at all against 743 654 rows.
+              The figure is derived from the caps, never restated: MaxPage × pageSize.
+
+              Gated on the MAGNITUDE, not on `totalCount`, and on `>` rather than `>=`. The
+              pagination count is itself capped, so `totalCount >= cap` is also true at exactly
+              2 000 matches — where every match IS reachable and "hitta fler" would be a claim that
+              more exist when none do. The magnitude is exact up to its own ceiling, so it is the
+              only quantity on the page that can tell those two apart, and it is the same source
+              the count line one node above already uses.
+
+              The null branch is UNCONDITIONAL, and that is a declared unreachable state rather than
+              an oversight: it would over-claim only for a register holding fewer companies than the
+              cap, and the register holds 743 654. There is deliberately no exact signal to gate on
+              there — a browse-all is precisely the case the backend refuses to count — so if the
+              register ever shrank below 2 000 this line would need the same treatment the `>` above
+              just got, and nothing here would notice.
+
+              A second declared limit, in the other direction: the comparison is exact only while
+              this surface's cap stays below the magnitude's own ceiling. `PAGE_SIZE` is a module
+              constant of 20, so the cap is 2 000 against a Ceiling of 10 000. A caller sending
+              pageSize 100 — which the backend's MaxPageSize permits — would make the cap 10 000
+              too, and a saturated magnitude would then compare 10 000 > 10 000 = false and hide
+              this line while matches past row 10 000 really are being lost. Unreachable from here;
+              it becomes reachable the moment PAGE_SIZE stops being a constant. */}
+          {(magnitude === null
+            || magnitude.magnitude > MAX_PAGE * companies.pageSize) && (
+            <p className="mt-1 text-body-sm text-text-primary">
+              {t("browseCeiling", { count: MAX_PAGE * companies.pageSize })}
+            </p>
+          )}
 
           {/* Mandatory säteskommun explainer + inline help (the kommun is the registered seat, not
               necessarily where the company operates). */}
-          <p className="mt-2 flex items-center gap-1 text-body-sm text-text-primary">
+          <p className="mt-4 flex items-center gap-1 text-body-sm text-text-primary">
             {t("seatExplainer")}
             <InfoDialog
               title={t("seatHelpTitle")}
@@ -112,9 +173,12 @@ export async function ForetagSokResults({
               reference={reference}
               followStateByOrgNr={followStateByOrgNr}
               // The shared table's DEFAULT accessible name says "matchar din bevakning" — false here.
-              // This surface answers a search; the labels name what the table actually is.
+              // This surface answers a search; the labels name what the table actually is. And on
+              // a browse-all there is no search either, so the name branches on the same null: a
+              // screen reader was otherwise told it was hearing search results on a view where
+              // nothing had been searched for.
               labels={{
-                tableAria: t("tableAria"),
+                tableAria: magnitude !== null ? t("tableAria") : t("tableAriaAll"),
                 tableCaption: t("tableCaption"),
               }}
             />
@@ -122,6 +186,11 @@ export async function ForetagSokResults({
               page={companies.page}
               pageSize={companies.pageSize}
               totalCount={companies.totalCount}
+              // UNCONDITIONALLY false: `totalCount` saturates at MaxServableRows here, so "träffar
+              // totalt" would state a ceiling as a total — measured 2000 against 743 654 active
+              // companies. Not branched on the filter, because even a filtered search under the cap
+              // must not put a second, differently-derived number beside the magnitude line.
+              showTotalCount={false}
               buildHref={(targetPage) => buildPageHref(filterState, targetPage)}
             />
           </div>

@@ -52,6 +52,16 @@ public static class CvGroundTruth
         otherText.AddRange(m.Educations.Select(e => e.Degree));
         otherText.AddRange(m.Educations.Select(e => e.Period));
 
+        // #1060 D3(β-3): an UnattributedBlock carries no marker of its own — it has no employer,
+        // which is the whole point of it — but its text is rendered under the experience heading
+        // and therefore lands in the same document every marker is traced through. It is folded
+        // in here rather than exempted, because the failure it would otherwise enable is the one
+        // this class exists to refuse: an employer that was genuinely dropped could be found
+        // inside a freelance role line or bullet and read as present.
+        otherText.AddRange(m.UnattributedExperience.Select(e => e.Role));
+        otherText.AddRange(m.UnattributedExperience.Select(e => e.Bullet));
+        otherText.AddRange(m.UnattributedExperience.Select(e => e.Period));
+
         foreach (var marker in markers)
         {
             foreach (var text in otherText)

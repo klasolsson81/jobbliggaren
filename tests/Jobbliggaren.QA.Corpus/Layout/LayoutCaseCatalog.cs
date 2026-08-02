@@ -435,6 +435,61 @@ public static class LayoutCaseCatalog
             SpikeMeasuredExtractSegment: false,
             OneVariableStepFrom: "docx-table-label-first-with-blanks",
             ProjectHeadingRendered: UnknownProjectHeading),
+
+        // #1060 D3(β-3). The corpus has never carried a block that is IRREDUCIBLY non-buildable:
+        // every arm authors complete entries, and the three that once blocked did so because a
+        // parser defect destroyed a field the document did carry (β-1 fixed it). This one is
+        // different in kind — no upstream fix can BUILD this block, because the employer is
+        // absent from the SOURCE.
+        //
+        // AND AT THIS COMMIT THE PARSE DOES NOT REFUSE IT. Measured, not predicted: the arm was
+        // authored expecting `Blocked` on Resume.ExperienceCompanyRequired, and it published
+        // PromotedInflated instead. SplitTitleOrganization's fallback takes Lines[1] as the
+        // organization whenever Lines[0] carries no separator glyph — and on a block with no
+        // employer, Lines[1] IS the period line. So the CV promotes with "2026 - 2026" as the
+        // employer name: the engine did not drop a field, it ASSERTED one the source never made.
+        // The fallback is original code, byte-identical since before β-1; it had no reader until
+        // now because every other arm authors an employer, so Lines[0] always carries a separator.
+        //
+        // The next commit narrows the fallback so a field-less line cannot BECOME a field, and
+        // this row then reaches the refusal it was authored to measure. Read the two baselines in
+        // the PR body rather than this comment for what each commit published.
+        //
+        // It steps from the FAITHFUL control, not a lossy arm: stepping from a lossy one would
+        // confound "the Domain refused this entry" with "the parser already lost that entry".
+        new("docx-irreducible-unattributed-experience",
+            "the clean promote control plus ONE experience block that names no employer",
+            "(c) table-based Word template — the only arm whose block no upstream fix can build",
+            "docx", "cv.docx", Docx,
+            OpenXmlCvRenderer.RoleFirstWithBlanksAndUnattributedBlock, CvModel.SwedishWithUnattributedExperience,
+            p =>
+            {
+                var xml = p.DocxDocumentXml();
+                // The moved variable: the block IS in the document, in the arm's own header shape.
+                p.Require(
+                    xml.Contains("Frilansande systemutvecklare", StringComparison.Ordinal),
+                    "expected the employer-less experience block to be rendered");
+                // And it names NO employer — the property the whole arm rests on. Asserted as the
+                // absence of every authored employer from the block, not merely as its presence.
+                p.Require(
+                    !xml.Contains("Frilansande systemutvecklare - ", StringComparison.Ordinal),
+                    "found a separator after the freelance role — this arm's block must carry no "
+                    + "employer at all, or it is a fused entry rather than an irreducible one");
+                // Variables HELD FIXED, so the one-variable claim is checkable rather than
+                // asserted: role-first header order, a w:tbl, and Word's blank-paragraph form.
+                p.Require(xml.Contains("<w:tbl>", StringComparison.Ordinal), "expected a w:tbl element");
+                p.Require(
+                    xml.Contains("Senior backend-utvecklare - Klarna AB", StringComparison.Ordinal),
+                    "expected the employment lines role-first, as the control renders them");
+                p.Require(xml.Contains("<w:pPr />", StringComparison.Ordinal)
+                          || xml.Contains("<w:pPr/>", StringComparison.Ordinal),
+                    "expected Word's blank-paragraph form — the step holds blank separators fixed");
+            },
+            "the employer-less block is present with no separator after its role, in a w:tbl, with "
+            + "role-first employment lines and the blank separators the one-variable step holds fixed",
+            SpikeMeasuredExtractSegment: false,
+            OneVariableStepFrom: "docx-role-first-with-blanks",
+            ProjectHeadingRendered: UnknownProjectHeading),
     ];
 
     /// <summary>

@@ -10,10 +10,11 @@
   "//8": "already holds data encrypted/pseudonymized under them (see runbook local-dev-setup.md §7).",
 
   "FieldEncryption": {
-    "//": "PII field encryption (ADR 0066, AES-256-GCM). Local for dev; Kms only in ops. Without",
-    "//1": "Provider=Local a worktree launch defaults to Kms and 500s trying to reach AWS (#802).",
-    "//2": "Do NOT regenerate LocalMasterKeyBase64 against a dev DB with existing encrypted PII —",
-    "//3": "data encrypted under the old key becomes unreadable.",
+    "//": "PII field encryption (ADR 0066, AES-256-GCM). Provider ALREADY defaults to Local, so the",
+    "//1": "line below is documentation, not a fix — and any non-Local value now fail-stops loudly in",
+    "//2": "DI, because the KMS provider and its client were deleted (#802). It cannot 500 against AWS.",
+    "//3": "Do NOT regenerate LocalMasterKeyBase64 against a dev DB with existing encrypted PII —",
+    "//4": "data encrypted under the old key becomes unreadable.",
     "Provider": "Local",
     "LocalMasterKeyBase64": "GENERATE ONCE: openssl rand -base64 32"
   },

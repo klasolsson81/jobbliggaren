@@ -261,7 +261,8 @@ inte borttagen: BUILD.md §6.2 listar fem endpoints, §9.2/§9.3:s gemensamma no
 "Ej byggt"-tabell listar **`SyncGmailJob`** som "Ej byggt (Fas 5, #321)".
 Radnummer står medvetet inte här, och skälet är mätt: de två som stod här hade drivit
 PÅ OLIKA SÄTT. `:1489` var sann när den skrevs (`8d08f631`) och hade redan drivit fyra
-rader vid #1173:s bas — av SYSKONTRAFIK i en fil den PR:en aldrig öppnade. `(:1006-1013)`
+rader vid #1173:s bas — av SYSKONTRAFIK i en fil **#1109 aldrig öppnade** (den rörde
+sex filer, ingen av dem BUILD.md; flyttaren var `64fa2e58`/#1154). `(:1006-1013)`
 spände inte ens över sitt eget citat, som låg på 1014. Sedan sköt #1173 båda ytterligare.
 Lärdomen är alltså inte "dina egna inskott fäller pekare" utan det bredare: ett radnummer
 ruttnar av allt som landar ovanför det. Citaten har en träff var.)

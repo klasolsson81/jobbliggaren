@@ -419,8 +419,9 @@ close-out.
 
 The strategic map is `steg-tracker.md`; the actionable queue is GitHub Issues.
 Labels: `area:{matching,applications,jobads-cv,auth,landing,frontend,infra,docs}`,
-`hotspot:{ef-migration,di,i18n}`, **`mvp`**, `P0`–`P3`, lane `{BE,FE,BE+FE}`, and the
-coordination set `{wip, blocked, next-up}` (2026-06-28).
+`hotspot:{ef-migration,di,i18n,css,layout}`, **`mvp`**, `P0`–`P3`, lane `{BE,FE,BE+FE}`, and the
+coordination set `{wip, blocked}` (2026-06-28; `next-up` is on zero open issues as of
+2026-08-02 — see item 2 below).
 
 **`mvp` is the label you pick work from** — the rule and its reasoning live in
 [`CLAUDE.md` §6.5](../../CLAUDE.md) and are not restated here. `gh issue list --label mvp`
@@ -466,7 +467,8 @@ NOT a hand-ranked per-CC sequence (that drifts every merge):
 2. **`mvp` first, then priority.** `gh issue list --label mvp` is the in-scope set
    while the goal is real test users (CLAUDE.md §6.5); rank *within* it by
    `P0`>`P1`>`P2`>`P3` (`P0` = drop-everything hotfix, out-of-band). Taking a
-   non-`mvp` issue is allowed but say why in the session's start prompt.
+   non-`mvp` issue is allowed but say why — in the start prompt if it was named there,
+   otherwise flag the divergence to Klas (CLAUDE.md §1.5).
    *(`next-up` was a thin "obvious next pick" marker; measured 2026-08-02 it is on
    **zero** open issues — `mvp` replaced it in practice.)*
 3. **Claim-on-pickup (the anti-collision signal — this was the gap behind the

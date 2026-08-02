@@ -42,7 +42,7 @@ Reference the specific ADRs/BUILD.md sections THIS task needs (not generic
 "read CLAUDE.md" — that loads automatically).
 
 **Pick the task from the `mvp` label, not from the `P`-number** (CLAUDE.md §6.5,
-Klas-direktiv 2026-08-02): `gh issue list --label mvp` is the takeable set while the
+Klas-direktiv 2026-08-02): `gh issue list --label mvp` is the in-scope set while the
 goal is real test users on `jobbliggaren.se`. An issue without `mvp` is skippable —
 if the start prompt names one anyway, say in the prompt why it is worth the session.
 

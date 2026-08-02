@@ -391,17 +391,21 @@ worktrees. The rules below keep parallel work collision-free; full playbook in
   (`ConnectionStrings__Postgres` from `.env`) so its worktree runs the real
   stack without committing or copying secrets.
 - **Backlog = GitHub Issues** (`area:`/`hotspot:`/**`mvp`**/`P0`–`P3`/lane `BE`·`FE`·
-  `BE+FE`/`wip`·`blocked`·`next-up` labels); `steg-tracker.md` is the strategic
+  `BE+FE`/`wip`·`blocked` labels; `next-up` is on zero open issues as of 2026-08-02 and
+  `mvp` replaced it in practice); `steg-tracker.md` is the strategic
   map.
 
   **`mvp` is the label you pick work from, and it is a second axis, not a fourth
   priority.** Klas-direktiv 2026-08-02: a couple of real test users on
   `jobbliggaren.se` **within a month of that date**. An issue earns `mvp` when **a real
-  test user meets it, or it blocks going live** — that is the criterion, and the second
-  clause carries most of the set (measured 2026-08-02: 11 of 21 are `area:infra` or
-  `area:auth` — the deploy stack, backup, key rotation, the log sink, password reset).
-  Ties resolve toward labelling: a mis-labelled issue costs one backlog row, a
-  mis-skipped user-facing defect ships.
+  test user meets it, or it blocks going live** — that is the criterion, and **the second
+  clause is doing real work**: measured 2026-08-02, 11 of 21 labelled issues sit in
+  `area:infra`/`area:auth` rather than on any product surface — the deploy stack (#196),
+  backup (#197), key rotation (#198), the log sink (#1175). *(Area is a **proxy** for
+  which clause applies, not an adjudicator: #1171 is `area:auth` and is a clause-1 case —
+  a user meets a missing password reset — while #853 and #1033 are `area:docs` and are
+  clause-2.)* Ties resolve toward labelling: a mis-labelled issue costs one backlog row,
+  a mis-skipped user-facing defect ships.
 
   On the product side, *"a real test user meets it"* resolves to the **core features**
   Klas named: `/jobb` · `/ansokningar` · `/foretag` · the **smart watches** (industry +
@@ -413,7 +417,8 @@ worktrees. The rules below keep parallel work collision-free; full playbook in
   reaching real users.** They are different questions and they cross — measured
   2026-08-02: three `mvp` issues are `P3` and eight non-`mvp` issues are `P2`. An
   ordinal scale cannot carry two orthogonal axes, and overloading `P0` to mean MVP
-  would destroy the severity information already on every open issue. *(Klas put it
+  would destroy the severity information on nearly every open issue (55 of 58 carry a
+  `P`, measured 2026-08-02). *(Klas put it
   both as "kärnfunktion slår prio-siffra" and "MVP-kritiskt = hög prio"; these agree in
   practice — no non-`mvp` issue carries `P0`/`P1` — but the two-axis split is how the
   spec resolves them, not a quote.)*
@@ -596,7 +601,7 @@ order. (Praise is not a finding and routes nowhere.) Then:
   skipped — but the skip is **named in the PR body**, one line, with what makes it
   invisible to a peer lane. An unnamed skip is not an exception; it is an omission.
   **Label it as you file it** — `area:`, a `P0`–`P3`, a lane, and **`mvp` if a real
-  test user meets it within the month or it blocks going live** (§6.5). An unlabelled
+  test user meets it or it blocks going live** (§6.5). An unlabelled
   issue is filed into the same invisibility the TD register was retired for.
 - When it is genuinely ambiguous, **senior-cto-advisor decides**.
 - **Never** re-create `docs/tech-debt.md`, a `TD-NNN` identifier, or a

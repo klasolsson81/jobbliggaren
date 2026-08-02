@@ -18,7 +18,7 @@
 // globals.css (.jp-wizard--rail ...), aldrig genom att ändra sektionerna.
 
 import { useRef, useState, useTransition, type ReactNode } from "react";
-import { useTranslations } from "next-intl";
+import { useFormatter, useTranslations } from "next-intl";
 import { Check, Info } from "lucide-react";
 import {
   Dialog,
@@ -46,6 +46,7 @@ import {
   type Option,
   type SkillChip,
 } from "./match-preferences-shared";
+import { formatNumber } from "@/lib/i18n/format";
 import { updateMatchPreferencesAction } from "@/lib/actions/match-preferences";
 import { useDraftMatchCount } from "@/lib/hooks/use-draft-match-count";
 import type {
@@ -76,9 +77,6 @@ const RAIL_STEPS: ReadonlyArray<number> = [
   STEP_FORMER,
   STEP_GRANSKA,
 ];
-
-/** Svenskt tal med tunt tusenavgränsande mellanslag (räknaren, tabular-nums). */
-const svNumber = new Intl.NumberFormat("sv-SE");
 
 /** Rail-radens visuella tillstånd — härleds ur position, inte innehåll. */
 type RailState = "done" | "active" | "upcoming";
@@ -159,6 +157,9 @@ export function MatchSetupRailModal({
   initialStep = STEP_START,
 }: MatchSetupRailModalProps) {
   const t = useTranslations("matchsetup");
+  // Räknaren är en vanlig presenterad siffra, inte ett operatörsvärde — den följer
+  // den aktiva locale:n via next-intl i stället för en hårdkodad `sv-SE`-instans.
+  const format = useFormatter();
 
   // Platta taxonomi-listor för chip-labels + granska-läget.
   const occupationOptions = flattenOccupationGroups(occupationFields);
@@ -591,7 +592,7 @@ export function MatchSetupRailModal({
               {count === null ? (
                 <span aria-hidden="true">{"–"}</span>
               ) : (
-                svNumber.format(count)
+                formatNumber(format, count)
               )}
             </p>
             <p className="jp-wizard__countcard-unit">{t("counter.unit")}</p>
@@ -948,7 +949,7 @@ export function MatchSetupRailModal({
                   {count === null ? (
                     <span aria-hidden="true">{"–"}</span>
                   ) : (
-                    svNumber.format(count)
+                    formatNumber(format, count)
                   )}
                 </span>
                 {step <= STEP_FORMER && (

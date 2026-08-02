@@ -1,6 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
+// `/pure` is the un-aliased real implementation — `vitest.config.ts` anchors the
+// alias with `$`, so this import bypasses the sv-only provider shim. Needed only
+// by the locale-discrimination block at the bottom of this file.
+import { render as rawRender } from "@testing-library/react/pure";
+import { NextIntlClientProvider } from "next-intl";
 import userEvent from "@testing-library/user-event";
+import enMessages from "../../../messages/en";
 import type {
   TaxonomyOccupationField,
   TaxonomyOption,
@@ -193,5 +199,62 @@ describe("MatchSetupRailModal — live räknare", () => {
     expect(screen.getByText("MATCHAR NU")).toBeInTheDocument();
     const statuses = screen.getAllByRole("status");
     expect(statuses.every((s) => !s.textContent?.includes("0"))).toBe(true);
+  });
+});
+
+// Räknaren gick från en modulnivå-`new Intl.NumberFormat("sv-SE")` till
+// `formatNumber(useFormatter(), …)`. De två är OSKILJAKTIGA i sv — båda ger
+// U+00A0 som gruppavgränsare — så ett sv-test ensamt hade varit grönt före och
+// efter och bevisat ingenting. Locale-axeln är det enda som diskriminerar, och
+// den kräver en egen provider: `vitest.config.ts` aliasar
+// `@testing-library/react` till en shim som hårdkodar `locale="sv"`, så det
+// engelska fallet renderas via `/pure` (som `$`-ankaret medvetet lämnar
+// oomskrivet).
+describe("MatchSetupRailModal — räknarens tal följer aktiv locale", () => {
+  function renderWithEnglishLocale() {
+    rawRender(
+      <NextIntlClientProvider
+        locale="en"
+        messages={enMessages}
+        timeZone="Europe/Stockholm"
+      >
+        <MatchSetupRailModal
+          open
+          onOpenChange={vi.fn()}
+          occupationFields={occupationFields}
+          regions={regions}
+          employmentTypes={employmentTypes}
+          persistedOccupationGroups={[]}
+          persistedRegions={[]}
+          persistedMunicipalities={[]}
+          persistedEmploymentTypes={[]}
+          persistedSkills={[]}
+          persistedOccupationExperience={[]}
+          importCvHref="/cv/importera"
+        />
+      </NextIntlClientProvider>,
+    );
+  }
+
+  it("grupperar tusental med hårt mellanslag i sv (CLAUDE.md §10)", () => {
+    countMock.mockReturnValue({ count: 1234, loading: false });
+    renderModal();
+    const statuses = screen.getAllByRole("status");
+    expect(
+      statuses.some((s) => s.textContent?.includes("1\u00A0234")),
+    ).toBe(true);
+  });
+
+  it("grupperar enligt en-konventionen när locale är en", () => {
+    countMock.mockReturnValue({ count: 1234, loading: false });
+    renderWithEnglishLocale();
+    const statuses = screen.getAllByRole("status");
+    // Positivt: en-gruppering syns.
+    expect(statuses.some((s) => s.textContent?.includes("1,234"))).toBe(true);
+    // Negativt, och det är detta som fäller en återgång: en hårdkodad
+    // `sv-SE`-instans hade renderat U+00A0 även här.
+    expect(
+      statuses.every((s) => !s.textContent?.includes("1\u00A0234")),
+    ).toBe(true);
   });
 });

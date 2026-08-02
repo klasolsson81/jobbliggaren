@@ -500,7 +500,7 @@ discipline miss; reports go to `docs/reviews/<date>-<phase>-<agent>.md`):
 
 | Agent | When |
 |---|---|
-| `senior-cto-advisor` | Multi-approach choices, finding triage (in-block vs follow-up PR vs issue), severity calls. Decision-maker — CC gives no own recommendation. Unambiguous CTO verdicts execute without extra Klas GO. |
+| `senior-cto-advisor` | Multi-approach choices, finding triage (in-block vs follow-up PR vs issue). Routes a finding; never re-grades one — severity belongs to the agent that reported it (§9.6). Decision-maker — CC gives no own recommendation. Unambiguous CTO verdicts execute without extra Klas GO. |
 | `security-auditor` | PII, auth, secrets, external integrations; **accepting a vulnerability rather than repairing it** — growing `pnpm.auditConfig.ignoreGhsas`, lowering `--audit-level`, or suppressing `NuGetAudit`/NU1901-NU1904 (ADR 0065 Amendment 2026-07-28 Beslut 4). Reducing exposure is not a trigger. Also every exposure-*increasing* change to the suppression surface itself: an `overrides` entry removed or its target lowered, a new override key **in open form**, a gated key becoming open, a removal from `ignoredBuiltDependencies`, and `pnpm/action-setup` raised **past 9** — that last is a migration, not a bump, since pnpm 11 reads none of this configuration, so every repair and the single acceptance go dead while the gate still reports clean. Full enumeration in her Triggers section, keyed to audit area 8 — it is written there, but a trigger only reachable from inside the file it triggers has no invocation path, so the class belongs here. She is that area's **named consumer** of `.github/scripts/audit-suppression-guard.sh`: the blocking gate audits with the ignore list *applied* and so cannot see an accepted advisory that has begun reaching production. The guard also runs in observe-only `audit` on every PR — but Dependabot PRs auto-merge without invoking any agent, and no cadence consults the measurement, so on the auto-merged patch/minor Dependabot PRs — the bulk of what drives that drift — **there is no reader at all**. Nor is there an obligation to read it on the manually reviewed remainder: the guard's `::warning::` does surface, in the Checks view, but `audit` is `continue-on-error` and absent from `ci`'s `needs`, so a finding changes nothing in the merge signal. The readerless set is therefore *larger* than the auto-merged one, not equal to it. That gap is named in ADR 0065's amendment and triaged there as a follow-up PR rather than a TD; **no owner is assigned**, and it is not closed. |
 | `code-reviewer` + `dotnet-architect` | Larger changes (>5 files or architectural choices) |
 | `dotnet-architect` (mandatory) | All Terraform/IaC scope (ADR 0036 precedent) |
@@ -523,7 +523,7 @@ Claude features, NuGet/npm status) → search before answering, never guess
 from training data. Official docs > registries > blogs; verify dates; cite
 URL + date in the STOPP report.
 
-**9.6 Where a finding goes.** Default is still **fix in-block** — quality > tempo,
+**9.6 Where a finding goes** (formerly §9.6/§9.7, which eight ADRs still cite together)**.** Default is still **fix in-block** — quality > tempo,
 and senior-cto-advisor decides when it is genuinely ambiguous. What changed
 2026-08-02 is the alternative: **there is no TD register to raise anything into.**
 
@@ -540,12 +540,16 @@ order. (Praise is not a finding and routes nowhere.) Then:
 - **Blocker or Major** → **in-block**, or a **follow-up PR** if it is a genuinely
   separate change-reason. Never an issue: §6 and §12 make an unresolved agent
   Blocker/Major merge-blocking, so filing one would convert a stop into a backlog row.
-  **Two exceptions, and both are the reporting charter's to declare, never the
-  session's to claim.** (1) A finding its own charter marks non-blocking because it
-  grades **repo state the diff did not create** — `security-auditor` area 8, which
-  escalates to Klas and lets the PR through — has neither an in-block home nor a
+  **Two exceptions in this paragraph, and both are the reporting charter's to
+  declare, never the session's to claim.** (1) A **Major** its own charter marks non-blocking because it
+  grades **repo state the diff did not create** — `security-auditor` area 8, whose Major
+  row escalates to Klas and lets the PR through — has neither an in-block home nor a
   change-reason of its own, so it is **filed as an issue with the escalation named in
-  it**. (2) A security Major **without GDPR implication** may become a documented
+  it**. That is the **Major row only**: the same charter does not unambiguously say it
+  of an area-8 **Blocker**, whose classes are auth bypass, PII/secret exposure and RCE.
+  **Where a charter is ambiguous about its own outcome, §9.6 does not pick a side** —
+  escalate to Klas and let that charter's owner resolve it, because an exception is the
+  reporting charter's to declare. (2) A security Major **without GDPR implication** may become a documented
   **accepted-risk ADR** — `security-auditor`'s own edge case, and **Klas owns that
   decision**. A GDPR Blocker is never in either category. In both cases the concession
   is granted by Klas and recorded in an ADR or a CLAUDE.md update, never by the session

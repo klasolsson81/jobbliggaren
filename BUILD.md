@@ -1394,8 +1394,11 @@ UptimeRobot/BetterStack free ersätter ALB/CloudWatch-health per ADR 0050):
 > premisser i detta kapitel är **upphävda** av Klas-direktiv 2026-08-02, inte bara under
 > omprövning: **värdvalet** (Hetzner ut; svensk VPS in — **ersättaren obeslutad**,
 > kandidater hostup och one.com) och **e-postleverantören** (Resend ut — **ersättaren
-> ÄR vald: AWS SES i `eu-north-1`**, enda kvarvarande AWS-tjänsten, valt för att den är
-> billigast för utgående e-post och saknar tredjelandsöverföring). Ersättningarna skrivs in av CC1-lanen med egen
+> är vald: AWS SES i `eu-north-1`**). Motiveringen och tredjelandsbedömningen står
+> medvetet INTE här: §15.1 avvisar Cloudflare R2 "pga CLOUD Act-tredjelandsöverföring",
+> så en US-ägd leverantör i EU-region är i detta repo en **öppen** fråga och inte en
+> avgjord, och att avgöra den är `security-auditor`:s och inte en spec-edit-PR:s.
+> Ersättningarna skrivs in av CC1-lanen med egen
 > supersessions-ADR — inklusive **§13.4:s subprocessor-lista**, som matar den publika
 > `/integritet`-sidan och därför har ett eget ärende
 > ([#1169](https://github.com/klasolsson81/jobbliggaren/issues/1169)). Denna PR bytte ut

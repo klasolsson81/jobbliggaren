@@ -46,10 +46,12 @@ en egen civic operatörsyta i stället (`/admin/jobb`, PR #246; ADR 0082), vilke
 medvetet val framför den inbyggda dashboarden. Leta där efter recurring job
 `audit-log-retention`:
 
-- **Lyckat:** raden visar senaste körning + status `Succeeded`. **Körtiden syns inte
+- **Lyckat:** raden visar senaste körning + status **Lyckades** (rått Hangfire-state
+  `Succeeded` i `GET /api/v1/admin/jobs/recurring`). **Körtiden syns inte
   på ytan** — läs den i den strukturerade loggen (§3.2); typiskt < 100 ms vid normal
   volym.
-- **Fail:** status `Failed`, och körningen listas i failed-tabellen med **undantagets
+- **Fail:** status **Misslyckades** (rått `Failed`), och körningen listas i
+  failed-tabellen med **undantagets
   TYPNAMN** som felkategori. Det finns **ingen stack-trace, inget meddelande och inga
   argument** — den frånvaron är en avsiktlig PII-kontroll (ADR 0082: undantagstexter
   kan bära personnummer, e-post eller DEK-dekrypterad CV-text), inte en lucka.
@@ -61,7 +63,8 @@ medvetet val framför den inbyggda dashboarden. Leta där efter recurring job
 
 ### 3.2 Strukturerad logg (Seq i dev; prod-sinken är obyggd — #1175)
 
-Filtrera på sourcecontext `JobbPilot.Application.Common.Auditing.Jobs.AuditLogRetention.AuditLogRetentionJob`.
+Filtrera på sourcecontext `Jobbliggaren.Application.Common.Auditing.Jobs.AuditLogRetention.AuditLogRetentionJob`
+(mätt mot `AuditLogRetentionJob.cs:4` — det gamla `JobbPilot.`-prefixet ger noll träffar sedan ADR 0069:s rename).
 
 Förväntade meddelanden vid lyckad körning:
 
@@ -111,7 +114,7 @@ Förväntat: 0. Om > 0, se §4.2.
 
 ### 4.1 Jobbet failer en enskild dag
 
-**Symptom:** Hangfire visar "Failed". Default-partitionen kan börja ta emot
+**Symptom:** jobbet står som **Misslyckades** på `/admin/jobb`. Default-partitionen kan börja ta emot
 rader om timing-fönstret missas.
 
 **Åtgärd:**
@@ -206,7 +209,8 @@ DROP TABLE IF EXISTS audit_log_YYYYMMDD;
 ### 5.1 Audit_log korrumperad / oavsiktligt droppad
 
 **Inte realistiskt scenario** i Fas 1 — vi har ingen audit-data av värde
-ännu. Vid prod-deploy: dagliga RDS-snapshots (default 7 dagar, GDPR-
+ännu. Vid prod-deploy: dagliga databas-snapshots (RDS är borta sedan ADR 0066;
+backup-modellen på VPS ägs av #197). Default 7 dagar, GDPR-
 inriktat 30 dagar för audit-data).
 
 ### 5.2 Migration `AddAuditLogPartitioning` rollback

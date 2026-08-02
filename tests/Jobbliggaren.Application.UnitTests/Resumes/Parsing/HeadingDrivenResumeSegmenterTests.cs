@@ -1006,7 +1006,9 @@ public class HeadingDrivenResumeSegmenterTests
     /// and after. They are pinned as ACCEPTED-AND-KNOWN, and because a comment claiming "the
     /// guard catches date-only lines" would be false about exactly these. The month form is the
     /// most consequential — plausibly the commonest Swedish CV shape after YYYY–YYYY — and it
-    /// fabricates AND leaves the period unrecovered.</para>
+    /// fabricates most often. It is NOT the only one that leaves the period unrecovered — three
+    /// of the four do; only "2020 – 2024 (heltid)" recovers one, because <c>ExtractPeriod</c>
+    /// runs unanchored where <c>StripTrailingPeriod</c> requires end-of-line.</para>
     ///
     /// <para><b>The trigger that reddens this test is a DatePatterns WIDENING</b> — modelling month
     /// names, trailing qualifiers, keyword-less open ends and <c>YYYY/MM</c> — not the predicate
@@ -1124,8 +1126,11 @@ public class HeadingDrivenResumeSegmenterTests
             exp.Organization.ShouldNotContain("2021");
             exp.Organization.ShouldNotContain("2024");
             // Same fix, same reason: the null-Title population is reachable on the period-first
-            // path, pinned by Segment_ExperienceHeaderThatIsOnlyADate_FallsBackToSecondLineFor
-            // Organization, so `Title?.` would no-op exactly where it matters. NOT enlarged by
+            // path, pinned by
+            // Segment_ExperienceHeaderThatIsOnlyADate_FallsBackToSecondLineForOrganization
+            // (kept on one line: a pin citation broken across a line break is not greppable,
+            // which defeats naming it). So `Title?.` would no-op exactly where it matters.
+            // NOT enlarged by
             // β-1 — that relocation only moves which line the split reads, and its early return
             // always yields a non-null Title, so it could only SHRINK this population. The
             // population predates it. The first revision of this repair fixed Organization and

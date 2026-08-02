@@ -616,9 +616,12 @@ internal sealed partial class HeadingDrivenResumeSegmenter(CvParsingLexiconData 
         // end-alternation, so only the year matches and " – dec 2024" remains), "2020 – 2024
         // (heltid)", "2005 –" with an open end and no keyword, "2020/01 – 2024/12". The month
         // form is the most consequential by FREQUENCY, not by effect: three of the four also leave
-        // Period null. Unchanged by β-3 and not a regression: the guard is narrower than it would read if it
-        // said "any date-only line". The honest fix is a DatePatterns WIDENING — modelling month
-        // names, trailing qualifiers, keyword-less open ends and YYYY/MM. The predicate PROMOTION
+        // the segmenter's Period null (measured against ExtractPeriod, which is a different
+        // adjudicator from the PeriodParser the test docblock counts against).
+        // Unchanged by β-3 and not a regression: the guard is narrower than this
+        // paragraph would read if it said "any date-only line". The honest fix is a DatePatterns
+        // WIDENING — modelling month names, trailing qualifiers, keyword-less open ends and
+        // YYYY/MM. The predicate PROMOTION
         // the ReviewText residual defers is necessary but NOT sufficient: it factors today's model
         // into a shared home and inherits its blind spot, so it would close that residual and leave
         // this population exactly here. Two deferrals, not one.

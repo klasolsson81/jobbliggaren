@@ -111,12 +111,15 @@ internal static class ReviewText
             // narrowing, so it ships as a FOLLOW-UP PR off #1060 β-3 — the house rule is a
             // follow-up PR, never another filed issue. Deliberately NOT deferred to "the routing
             // work": routing is refused on this lane, so that destination has no owner, and a
+            // deferral whose home does not exist is not tracked at all.
+            //
             // Scope of that follow-up, stated narrowly because it is easy to over-claim: the
             // promotion FACTORS the existing predicate into a shared home. It does NOT widen it,
             // so it closes THIS residual and leaves the segmenter guard's negative population
-            // exactly where it is - that population is by definition what the predicate does not
+            // exactly where it is — that population is by definition what the predicate does not
             // model, and sharing a predicate does not extend it. Closing that one needs the DATE
-            // MODEL widened (month names, YYYY/MM points, open-ended ranges), which is a separate
+            // MODEL widened (month names, trailing qualifiers, keyword-less open ends, YYYY/MM
+            // points) — the same four the segmenter names — which is a separate
             // change with a wider blast radius because DatePatterns also feeds StripDates and
             // ExtractPeriod. Two deferrals, not one.
 

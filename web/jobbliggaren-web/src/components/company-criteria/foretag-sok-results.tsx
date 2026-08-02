@@ -133,7 +133,14 @@ export async function ForetagSokResults({
               2 000 matches — where every match IS reachable and "hitta fler" would be a claim that
               more exist when none do. The magnitude is exact up to its own ceiling, so it is the
               only quantity on the page that can tell those two apart, and it is the same source
-              the count line one node above already uses. */}
+              the count line one node above already uses.
+
+              The null branch is UNCONDITIONAL, and that is a declared unreachable state rather than
+              an oversight: it would over-claim only for a register holding fewer companies than the
+              cap, and the register holds 743 654. There is deliberately no exact signal to gate on
+              there — a browse-all is precisely the case the backend refuses to count — so if the
+              register ever shrank below 2 000 this line would need the same treatment the `>` above
+              just got, and nothing here would notice. */}
           {(magnitude === null
             || magnitude.magnitude > MAX_PAGE * companies.pageSize) && (
             <p className="mt-1 text-body-sm text-text-primary">

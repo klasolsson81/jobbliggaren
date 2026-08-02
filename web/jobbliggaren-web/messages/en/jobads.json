@@ -271,8 +271,8 @@
       "previous": "Previous",
       "next": "Next",
       "pagePrefix": "Page ",
-      "summary": "Page {page} of {totalPages} ({totalCount, number} hits total)",
-      "summaryPagesOnly": "Page {page} of {totalPages}"
+      "summary": "Page {page, number} of {totalPages, number} ({totalCount, number} hits total)",
+      "summaryPagesOnly": "Page {page, number} of {totalPages, number}"
     },
     "modalShell": {
       "close": "Close"

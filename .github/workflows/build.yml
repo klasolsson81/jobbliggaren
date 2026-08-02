@@ -34,10 +34,43 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # timeout-minutes is a hang guard, not a performance budget. 15 stopped being a
+  # hang guard once the suite grew into it.
+  #
+  # THE MECHANISM, which is what this comment is for: `backend` and `coverage` run
+  # the SAME suite - same solution, same `-c Release`, same ASPNETCORE_ENVIRONMENT,
+  # no filters in either - and both sit in ci.needs. `coverage` runs it WITH
+  # instrumentation under 25 minutes; `backend` ran it without under 15. The tighter
+  # ceiling therefore decided whether anything merged, and it sat on the job doing
+  # strictly less work.
+  #
+  # The exhibit that needs no arithmetic: on run 30732576203 the `Test` step reported
+  # SUCCESS at 12m49s and the job was killed one second into `Post Cache NuGet`.
+  # Every test passed and `ci` went red anyway, naming no cause. That is a hang guard
+  # firing on work that had already finished.
+  #
+  # Durations are deliberately NOT restated here. Three review rounds established
+  # that every figure written into this comment slid between measurement and merge:
+  # the run population is a moving window, `main` is frozen by the GITHUB_TOKEN
+  # suppression while `pull_request` is live, and each restatement drifted from the
+  # others. ADR 0044's 2026-08-02 amendment holds the dated measurements and is their
+  # one home. Measure again rather than trust a numeral copied to a second place.
+  #
+  # WHAT 25 DOES NOT DO. It does not make the suite faster, and it removes the
+  # de-facto proximity alarm on suite growth. The written owner of that question is
+  # ADR 0065's re-evaluation trigger #2 (median PR wait > 15 min -> parallelisation
+  # or subset-gate) - NOT ADR 0045, which carries no CI-duration budget at all.
+  # Measured against `pull_request` runs - the population that trigger's own words
+  # name, and which no prior reading in this repo had used - THE TRIGGER IS FIRED.
+  # Escalated to Klas; ADR 0065's own text requires a superseding ADR.
+  #
+  # Parity with `coverage` is also thinner than it looks: over 114 live `build` runs
+  # `coverage` has itself reached 21m27s = 86 % of the same 25. This buys headroom
+  # for one job while the other is already approaching the wall. #1145.
   backend:
     name: backend (.NET 10)
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -88,8 +121,18 @@ jobs:
   # Coverage-mätning + blockerande regressions-gate (ADR 0044, Accepted
   # 2026-05-17). Per-lager icke-regression-ratchet — golv = floor(uppmätt
   # baseline − 2.0pp), pinnade av senior-cto-advisor mot baseline @ HEAD
-  # 98b6f17. Det snabba backend-jobbet rörs inte (fast fail-feedback
-  # bevaras); detta kör parallellt och ligger i ci.needs.
+  # 98b6f17. Runs in parallel with `backend` — deliberately a SEPARATE job, because
+  # folding coverage into it would serialise ~14m + ~15m into ~30m of wall-clock —
+  # and is likewise in ci.needs.
+  # (This clause used to justify the split as "det snabba backend-jobbet rörs inte
+  # (fast fail-feedback bevaras)". That premise expired. Measured 2026-08-02 by
+  # PAIRING the two jobs on the same ten main runs — not by setting one job's RANGE
+  # against the other's MEDIAN, which is how an earlier draft of this sentence got
+  # it wrong: those are two populations, and the universal claim it produced
+  # ("under two minutes") is false on one of the ten. Both jobs now carry the same
+  # 25-minute guard. ADR 0044's Mekanism clause — the ORIGIN of that sentence, not
+  # this copy — is amended accordingly and HOLDS the paired figures; do not restate
+  # them here. #1145.)
   coverage:
     name: coverage (.NET 10)
     runs-on: ubuntu-latest

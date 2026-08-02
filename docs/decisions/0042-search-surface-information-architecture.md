@@ -270,7 +270,7 @@ keystroke-driven read-suggest"*. Två mätningar vid head:
    för klient-side mutations och pollar" både när denna ADR skrevs (2026-05-16, `8e14d40a`)
    och när impl-notatet nedan daterades (2026-05-17), vilket är där rationalen faktiskt står.
    `028d53f1` — "docs(spec): CLAUDE.md-prune till engelska" (#57, 2026-06-12) — plattade §4 till
-   punkter och tog bort `### 4.3`, `### 5.2` och `### 5.3`. Rationalen citerade alltså rätt
+   punkter och tog bort **samtliga numrerade underrubriker** i filen, däribland `### 4.3`, `### 5.2` och `### 5.3`. Rationalen citerade alltså rätt
    sektion; sektionsnumret slutade existera under den. Samma commit föräldralöste **tre ytterligare**
    pekare i den här filen, utöver rationalens egen ovan: `§4.3` och `§5.3` i fil-fotens referensrad, och `§5.3`
    i header-radens `Relaterad:`. Alla tre renumrerade i denna PR (`§4.3`→`§4`, `§5.3`→`§5`).

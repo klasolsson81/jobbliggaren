@@ -1097,7 +1097,7 @@ public enum CriterionVerdict { Pass, Warn, Fail, NotAssessed }
 ### 10.2 Data fetching-mönster
 
 - Server components för initial rendering (paginerade listor, detaljvyer)
-- Server Actions för mutation-heavy UI (statusändringar, notes) — `useTransition` för pending-tillstånd, `useOptimistic` där optimistisk rendering behövs (§3.1: TanStack Query är inte installerad)
+- Server Actions för klient-mutationer (statusändringar, notes m.m.) — `useTransition` för pending-tillstånd, `useOptimistic` där optimistisk rendering behövs (§3.1: TanStack Query är inte installerad)
 - **Undantaget: binär uppladdning går via BFF-route** (`app/api/cv/import/route.ts`), eftersom en Server Action inte kan strömma `multipart/form-data` (`duplex: "half"`). Regeln ovan är alltså inte universell; detta är den enda **mutations**-vägen utanför Server Actions (flera andra klient-`fetch`ar är POST-formade *läsningar*)
 - **Kortlivad klient-read** — keystroke-driven suggest, popover-counts, utkasts-preview-counts, on-demand dokument-/blob-hämtning: `AbortController`, i `useEffect`, aldrig en mutations-väg (ADR 0042 Beslut C = prejudikatet). Formen är en self-contained hook **eller** en komponentlokal `useEffect` — `lib/hooks/use-facet-counts.ts` är den förra, `components/resumes/cv-preview.tsx` den senare. Debounce där inmatning driver den; en engångshämtning vid `enabled`-flip behöver ingen, och inte heller en mount-hämtning av en komponentlokal artefakt som inte kan renderas server-side (`resumes/template-builder.tsx`, blob-preview i iframe)
 - **Periodisk uppdatering** = visibility-aware `setInterval` + `fetch` i en dedikerad klient-komponent (`shell/header-stats.tsx`, 10 min)

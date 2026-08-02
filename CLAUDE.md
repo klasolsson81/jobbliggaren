@@ -196,8 +196,8 @@ signal available is a discipline miss.
   dedicated client component (`shell/header-stats.tsx`, 10 min).
 - §5's `useEffect`-for-data-fetching ban is about **a page's initial data**, which
   belongs in a Server Component. It does not reach a lazy, user-driven or periodic
-  fetch — those are the two bullets above. React Hook Form + Zod for forms —
-  never loose `useState` for large forms.
+  fetch — those are the two bullets above.
+- Forms: React Hook Form + Zod — never loose `useState` for large forms.
 - **Do not reach for TanStack Query.** It is not in `package.json` and never was,
   so adding it is an undiscussed dependency add (§9.2) — and on the read-suggest
   surface specifically, a reversal of ADR 0042 Beslut C, which is a Klas-GO

@@ -35,62 +35,38 @@ concurrency:
 
 jobs:
   # timeout-minutes is a hang guard, not a performance budget. 15 stopped being a
-  # hang guard once the suite grew into it: the SIX most recent `main` runs of this
-  # job span 14m08s–14m42s = 94–98 % of the budget; across ten they span
-  # 12m15s–14m42s. Measured 2026-08-02 over runs dated 2026-07-17..07-25 — no `main`
-  # run has been recorded since, though 53 commits landed (CLAUDE.md §6.5,
-  # GITHUB_TOKEN suppression), so that is the newest population that exists.
-  # As of 2026-08-02T05:10 — a FLOOR, since this population grows for as long as
-  # the ceiling stands — FIVE PR runs have been failed by it: #1141 15m14s, #1143
-  # 15m16s, #1139 15m15s, `docs/spec-library-truth-sync` 15m03s, and
-  # `chore/deps-hygiene-1140` 15m14s. The first three each had `coverage` green on
-  # the same commit and were resolved by a NEW COMMIT, not by a re-run.
+  # hang guard once the suite grew into it.
   #
-  # The fourth is the sharpest of them and needs no comparison job to make the
-  # point: on run 30732576203 the `Test` step reported **success at 12m49s** and the
-  # job was killed one second into `Post Cache NuGet`. Every test passed and `ci`
-  # went red anyway. A CANCELLED job is not `success`,
-  # `backend` is in ci.needs, so the ceiling fails `ci` without naming a cause and
-  # the remedy is another full run of the same work. 25 gives parity with
-  # `coverage`, which runs the same suite (same solution, same `-c Release`, no
-  # filters) *with* instrumentation and finishes inside it. Raising this weakens no
-  # test gate: every test still has to pass.
+  # THE MECHANISM, which is what this comment is for: `backend` and `coverage` run
+  # the SAME suite - same solution, same `-c Release`, same ASPNETCORE_ENVIRONMENT,
+  # no filters in either - and both sit in ci.needs. `coverage` runs it WITH
+  # instrumentation under 25 minutes; `backend` ran it without under 15. The tighter
+  # ceiling therefore decided whether anything merged, and it sat on the job doing
+  # strictly less work.
   #
-  # What 25 DOES remove is the de-facto proximity alarm on suite growth. The written
-  # owner of that question is ADR 0065 `Trigger för omvärdering` #2 ("median PR-vänt
-  # > 15 min" → parallellisering eller subset-gate) — NOT ADR 0045, which carries no
-  # CI-duration budget at all.
+  # The exhibit that needs no arithmetic: on run 30732576203 the `Test` step reported
+  # SUCCESS at 12m49s and the job was killed one second into `Post Cache NuGet`.
+  # Every test passed and `ci` went red anyway, naming no cause. That is a hang guard
+  # firing on work that had already finished.
   #
-  # THAT TRIGGER IS FIRED, and this is the first time it has been measured against
-  # its own terms. It says "median PR-vänt"; every prior reading — including the
-  # first draft of this comment — measured `main` runs instead, a population frozen
-  # at 2026-07-25 by the GITHUB_TOKEN suppression. `build.yml` triggers on
-  # `pull_request` with no base filter (#861), so PR data is fresh and plentiful; it
-  # had simply never been asked for. No prior reading EXISTS IN THIS REPO: grepping
-  # the tree for "PR-vänt" finds ADR 0065:134 and this comment, nothing else.
+  # Durations are deliberately NOT restated here. Three review rounds established
+  # that every figure written into this comment slid between measurement and merge:
+  # the run population is a moving window, `main` is frozen by the GITHUB_TOKEN
+  # suppression while `pull_request` is live, and each restatement drifted from the
+  # others. ADR 0044's 2026-08-02 amendment holds the dated measurements and is their
+  # one home. Measure again rather than trust a numeral copied to a second place.
   #
-  # Measured 2026-08-02 over 41 consecutive `pull_request` runs, split 22 clean / 19
-  # carrying a cancelled ci.needs job. The exclusion is conservative in BOTH
-  # directions and can only understate: `concurrency.cancel-in-progress` kills PR
-  # runs routinely, cancelled runs are right-censored (a slower run has longer
-  # exposure to being cancelled, so the surviving sample is biased fast), and the
-  # rule also drops #1139's own 15m15s ceiling-cancel — the longest observation
-  # there was.
+  # WHAT 25 DOES NOT DO. It does not make the suite faster, and it removes the
+  # de-facto proximity alarm on suite growth. The written owner of that question is
+  # ADR 0065's re-evaluation trigger #2 (median PR wait > 15 min -> parallelisation
+  # or subset-gate) - NOT ADR 0045, which carries no CI-duration budget at all.
+  # Measured against `pull_request` runs - the population that trigger's own words
+  # name, and which no prior reading in this repo had used - THE TRIGGER IS FIRED.
+  # Escalated to Klas; ADR 0065's own text requires a superseding ADR.
   #
-  #     max over ci.needs    median 15m10s · max 16m58s · 15 of 22 over 15 min
-  #     true `ci` wall-clock  median 15m38s · max 18m02s · 12 of 14 over 15 min
-  #
-  # Two metrics, two populations, and BOTH clear the threshold. The first is max
-  # job duration over ci.needs — a LOWER BOUND on what a PR waits. The second is
-  # run-created → `ci` concluded, which is the quantity ADR 0065's "PR-vänt"
-  # actually names; its n is smaller because it additionally requires `ci` itself to
-  # have concluded. The window SLIDES, so these exact figures will not reproduce
-  # later; re-measure rather than trusting the numerals. What is stable across every
-  # framing tried — dropping the fast-fail outlier (median rises), 10 % trimmed,
-  # both metrics, both populations — is that the median sits above 15 minutes.
-  #
-  # Escalated to Klas: ADR 0065's own text requires a superseding ADR when this
-  # fires. Raising the guard here does not answer it and does not pretend to. #1145.
+  # Parity with `coverage` is also thinner than it looks: over 114 live `build` runs
+  # `coverage` has itself reached 21m27s = 86 % of the same 25. This buys headroom
+  # for one job while the other is already approaching the wall. #1145.
   backend:
     name: backend (.NET 10)
     runs-on: ubuntu-latest

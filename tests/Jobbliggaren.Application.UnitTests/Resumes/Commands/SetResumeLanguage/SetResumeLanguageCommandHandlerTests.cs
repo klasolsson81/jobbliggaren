@@ -152,7 +152,7 @@ public class SetResumeLanguageCommandHandlerTests
 
         result.IsSuccess.ShouldBeTrue();
         await _reconciler.Received(1).ReconcileAsync(
-            Arg.Is<Resume>(r => r.Id == resume.Id),
+            Arg.Is<Resume>(r => r != null && r.Id == resume.Id),
             Arg.Is<IReadOnlyCollection<string>>(x => x == null),
             Arg.Any<CancellationToken>());
     }

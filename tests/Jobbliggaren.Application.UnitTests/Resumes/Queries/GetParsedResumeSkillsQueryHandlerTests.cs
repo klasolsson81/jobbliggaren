@@ -45,7 +45,7 @@ public class GetParsedResumeSkillsQueryHandlerTests
         // SkillSurfaceGroupingTests + SkillResolverIntegrationTests.
         _skillResolver
             .GroupConceptIds(Arg.Any<IEnumerable<string>>(), Arg.Any<CancellationToken>())
-            .Returns(ci => ((IEnumerable<string>)ci[0])
+            .Returns(ci => ci.ArgAt<IEnumerable<string>>(0)
                 .Select(id => new ResolvedSkillGroup(id, id, [id]))
                 .ToList());
     }
@@ -183,7 +183,7 @@ public class GetParsedResumeSkillsQueryHandlerTests
 
         // Two distinct singleton surfaces (the grouping fake's canonical id == label per group).
         _skillResolver
-            .GroupConceptIds(Arg.Is<IEnumerable<string>>(ids => ids.SequenceEqual(TwoSingletonIds)),
+            .GroupConceptIds(Arg.Is<IEnumerable<string>>(ids => ids != null && ids.SequenceEqual(TwoSingletonIds)),
                 Arg.Any<CancellationToken>())
             .Returns(
             [
@@ -219,7 +219,7 @@ public class GetParsedResumeSkillsQueryHandlerTests
         ]);
 
         _skillResolver
-            .GroupConceptIds(Arg.Is<IEnumerable<string>>(ids => ids.SequenceEqual(CSharpTwinIds)),
+            .GroupConceptIds(Arg.Is<IEnumerable<string>>(ids => ids != null && ids.SequenceEqual(CSharpTwinIds)),
                 Arg.Any<CancellationToken>())
             .Returns([new ResolvedSkillGroup("esco_csharp", "C#", ["esco_csharp", "af_csharp"])]);
 

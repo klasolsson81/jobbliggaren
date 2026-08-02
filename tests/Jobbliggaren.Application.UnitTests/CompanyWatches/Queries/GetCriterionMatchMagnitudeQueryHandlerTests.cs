@@ -55,7 +55,7 @@ public class GetCriterionMatchMagnitudeQueryHandlerTests
         result.Saturated.ShouldBeFalse();
 
         await port.Received(1).CountMatchingCompaniesAsync(
-            Arg.Is<CompanyWatchCriteriaSpec>(s => s.SniCodes.SequenceEqual(SniIt)),
+            Arg.Is<CompanyWatchCriteriaSpec>(s => s != null && s.SniCodes.SequenceEqual(SniIt)),
             CriterionMatchMagnitudeDto.Ceiling,
             Arg.Any<CancellationToken>());
     }

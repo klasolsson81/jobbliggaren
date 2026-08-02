@@ -65,7 +65,7 @@ public class LookupCompanyQueryHandlerTests
 
     private void StubFound(string orgNr, string name) =>
         _registry.LookupAsync(
-                Arg.Is<OrganizationNumber>(o => o.Value == orgNr), Arg.Any<CancellationToken>())
+                Arg.Is<OrganizationNumber>(o => o != null && o.Value == orgNr), Arg.Any<CancellationToken>())
             .Returns(CompanyRegistryLookup.Found(new CompanyRegistryEntry(orgNr, name)));
 
     [Fact]
@@ -172,7 +172,7 @@ public class LookupCompanyQueryHandlerTests
             .BuildFullForSortAsync(Arg.Any<CancellationToken>(), Arg.Any<bool>())
             .Returns(ProfileWithSsyk("ssyk-1"));
         _perUserSearch.CountPerUserByEmployerAsync(
-                Arg.Is<IReadOnlyList<string>>(l => l.Count == 1 && l[0] == LegalEntityOrgNr),
+                Arg.Is<IReadOnlyList<string>>(l => l != null && l.Count == 1 && l[0] == LegalEntityOrgNr),
                 Arg.Any<FullCandidateMatchProfile>(),
                 Arg.Any<IReadOnlyList<MatchGrade>>(),
                 Arg.Any<CancellationToken>())

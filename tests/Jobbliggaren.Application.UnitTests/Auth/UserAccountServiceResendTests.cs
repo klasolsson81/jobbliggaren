@@ -24,7 +24,7 @@ public class UserAccountServiceResendTests
     private readonly UserManager<ApplicationUser> _userManager =
         Substitute.For<UserManager<ApplicationUser>>(
             Substitute.For<IUserStore<ApplicationUser>>(),
-            null, null, null, null, null, null, null, null);
+            null!, null!, null!, null!, null!, null!, null!, null!);
 
     private const string Email = "klas@example.com";
 

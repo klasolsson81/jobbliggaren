@@ -32,7 +32,7 @@ public class UserAccountServiceTests
     private readonly UserManager<ApplicationUser> _userManager =
         Substitute.For<UserManager<ApplicationUser>>(
             Substitute.For<IUserStore<ApplicationUser>>(),
-            null, null, null, null, null, null, null, null);
+            null!, null!, null!, null!, null!, null!, null!, null!);
     private readonly ILoginTimingEqualizer _equalizer = Substitute.For<ILoginTimingEqualizer>();
     private readonly UserAccountService _sut;
 

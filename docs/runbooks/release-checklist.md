@@ -42,7 +42,7 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
       2026-08-02, ADR 0121; parkerade poster ligger i #1172.)
 - [ ] **Migrations** — om EF Core-migration ingår: verifiera schema-mode-
       dispatch (ADR 0033) och DB-roll-separation (ADR 0034); Identity-schema-
-      ändring → manuell procedur (TD-72).
+      ändring → manuell procedur (parkerad, #1172).
 - [ ] **Kollations-version — ENDAST vid Postgres-image-bump eller major-uppgradering**
       (#884, ADR 0109). Ett btree-index på text är byggt **med** en kollation. Ändras
       kollationens *definition* under det — en ny ICU-version i basimagen, en ny glibc,
@@ -474,11 +474,11 @@ sessionen. dev/rc-tags är CC-tillåtna efter grön CI.
 
 > Hetzner-modell (ADR 0050/0066): hela stacken (API + Worker + Postgres + Redis +
 > Caddy + Next.js) kör i Docker Compose på CAX31-boxen bakom Caddy. Konkreta
-> service-namn/kommandon finalize:ras med **#196 / TD-106** (Compose-stack + proxy
+> service-namn/kommandon finalize:ras med **#196** (Compose-stack + proxy
 > + härdning) — stegen nedan är på modell-altitud tills dess.
 
 - [ ] **Compose-tjänster startar** (api + worker) — `docker compose ps` på boxen
-      visar dem `healthy` (konkret service-namn/compose-fil: #196/TD-106).
+      visar dem `healthy` (konkret service-namn/compose-fil: #196).
 - [ ] **`/api/ready` → 200** mot målmiljöns domän (strict readiness: DB +
       Redis dependency-checks, TD-29).
 - [ ] **`/api/health` → 200** (liveness).
@@ -486,15 +486,15 @@ sessionen. dev/rc-tags är CC-tillåtna efter grön CI.
       (`*/10`-cron etc.) — verifiera i Hangfire-dashboard/loggar.
 - [ ] **Audit-wire** — om release rör audit-genererande flöden: bevisa
       INSERT i `audit_log` via den strukturerade logg-sinken (MEL → Seq; full
-      prod-sink = TD-104) + direkt `audit_log`-query (ADR 0035).
+      prod-sink = #196) + direkt `audit_log`-query (ADR 0035).
 - [ ] **Ops-signaler granskade** — health-checks + extern uptime-monitor
       (UptimeRobot/BetterStack, ADR 0050 — ersätter ALB/CloudWatch-health);
       jobtech-sync-/auditor-write-/log-pipeline-health läses via logg-sinken.
-      Konkret alerting-konfig: #196/TD-106 + TD-104.
+      Konkret alerting-konfig: #196.
 - [ ] **Frontend** (om i scope) — Lighthouse observe-signal mot
       ADR 0045-budgetar; manuell rök-test av kritiska flöden.
 - [ ] **Rollback känd** — återställ föregående byggda image-tag via Compose
-      (se §5); konkret procedur #196/TD-106.
+      (se §5); konkret procedur #196.
 
 ---
 
@@ -509,7 +509,7 @@ Vid fel efter prod-deploy (Hetzner-modell, ADR 0050 "Rollback" amenderat
 # publish körs i CI → enbart den byggda imagen skickas till boxen), så den lokala
 # Docker-Compose-stacken är dev/prod-paritets-baselinen vid en misslyckad cutover.
 IMAGE_TAG=<föregående-release> docker compose up -d
-# Konkret tag-mekanism + service-namn finalize:ras med #196/TD-106 (ADR 0050).
+# Konkret tag-mekanism + service-namn finalize:ras med #196 (ADR 0050).
 ```
 
 Notera incidenten i `docs/sessions/` + relevant runbook. Skapa ADR om
@@ -532,7 +532,7 @@ rollback avslöjar ett arkitekturellt problem (CLAUDE.md §8 punkt 9).
   ADR 0035 (audit-wire), ADR 0050 (Hetzner-deploy: CAX31 + Caddy + Compose +
   rollback-modell) / ADR 0066 (AWS-exit), ADR 0036 (ops-alarms — supersederad av
   ADR 0050:s health-check/uptime-monitor-modell), ADR 0044 (coverage-gate),
-  ADR 0045 (perf observe-only-signaler); TD-106 (konkret Compose-stack) / TD-104
+  ADR 0045 (perf observe-only-signaler); #196 (konkret Compose-stack + prod-sink)
   (logg-sink/observability)
 - CLAUDE.md §6.3 (granskningsspärrar), §8 (DoD), §9.2 (deploy kräver Klas-GO)
 - BUILD.md §15 (deployment/rollback)

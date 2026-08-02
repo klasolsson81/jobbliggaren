@@ -13,14 +13,21 @@ docs/current-work.md
 docs/current-work-archive.md
 docs/steg-tracker.md
 
-# READ-ONLY HISTORY — the TD register was retired 2026-08-02 (ADR 0121, PR #1173).
-# These are deliberately still synced, but they are NOT session state and are never
-# edited: tech-debt.md is now a tombstone pointing at #1172 (which carries every
-# parked entry inline), and the archive is a frozen appendix. Syncing them means a
-# fresh worktree learns the register is gone instead of finding nothing and guessing.
-# Do not add entries to either file. The backlog is GitHub Issues (CLAUDE.md §9.6).
-docs/tech-debt.md
-docs/tech-debt-archive.md
+# docs/tech-debt.md + docs/tech-debt-archive.md were REMOVED from this list
+# 2026-08-02 (ADR 0121, PR #1173) when the TD register was retired.
+#
+# Not merely because they are obsolete — because keeping them was measured harmful.
+# The reaper derives its rescue pathspec straight from this file and treats every
+# entry as landable session state: main copy has it + worktree copy differs ->
+# "UNLANDED EDIT: land it there, then reap". Measured on the day of the change:
+# 12 of 21 live worktrees carried the pre-retirement register (107 628 B) against a
+# 3 390 B tombstone, so all twelve would have become permanently unreapable — and
+# the remedy the hook prints ("land it there") is the one thing the retirement
+# forbids, since it would overwrite the tombstone with an old register copy.
+#
+# Nothing is lost by not syncing them: CLAUDE.md §1.6 is TRACKED and read on every
+# invocation, so a fresh worktree learns the register is retired from the file it
+# already reads. The backlog is GitHub Issues; parked entries are in #1172.
 
 # Per-session logs + local agent reviews + local ADRs for context.
 # (Globs match ADR 0070–0199; already-tracked 0070–0073 are already present in

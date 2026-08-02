@@ -24,7 +24,7 @@
 | Mapping | — (manuell) | — | Ingen mapping-bibliotek; explicit DTO-mappning per CLAUDE.md §5 (AutoMapper/Mapster avvisade över domängränsen) |
 | Background jobs | Hangfire | 1.8.x | Postgres-storage |
 | Smart enum | Ardalis.SmartEnum | 8.x | State machines i domänen |
-| Logging | Microsoft.Extensions.Logging | 10.x | `Microsoft.Extensions.Logging.Console` → stdout + persistent strukturerad sink via Seq (TD-104, STEG 6) |
+| Logging | Microsoft.Extensions.Logging | 10.x | `Microsoft.Extensions.Logging.Console` → stdout + persistent strukturerad sink via Seq (dev levererad under TD-104/STEG 6; prod-sinken är OBYGGD — [#196](https://github.com/klasolsson81/jobbliggaren/issues/196)) |
 | Log sink | Seq.Extensions.Logging | 9.0.0 | MEL-provider → Seq (datalust); config-gated på `Seq:ServerUrl`; net9-asset .NET 10-kompatibel (MEL `>= 9` unifieras uppåt); dev lokal Seq, dev-sinken levererad under TD-104; prod Seq self-hosted EU är OBYGGD — [#196](https://github.com/klasolsson81/jobbliggaren/issues/196) |
 | Observability | OpenTelemetry | 1.15+ | Traces + metrics. **Beroende-kandidat, obyggd** (ingen dom fälld — till skillnad från Catalyst-raden) — ingen `PackageReference` i något `.csproj`, ingen användning i `src/`; exporter/backend definieras med observability-sinken (§14.2, [#196](https://github.com/klasolsson81/jobbliggaren/issues/196)). `Directory.Packages.props` innehåller `OpenTelemetry.Api` + `.Exporter.OpenTelemetryProtocol` som **transitiva CVE-pins för WireMock.Net** (posternas egen kommentar), inte som en observability-implementation |
 | PDF parsing | PdfPig | 0.1.14+ | Text extraction |
@@ -1382,23 +1382,16 @@ UptimeRobot/BetterStack free ersätter ALB/CloudWatch-health per ADR 0050):
 > (#196, Hetzner-image). `infra/terraform/` är **orörd** — den retireras via
 > egen teardown-ADR/PR enligt stycket ovan, inte här.
 >
-> **Status (2026-08-02) — VÄRDVALET ÄR UPPHÄVT, TOPOLOGIN STÅR.** Klas-direktiv
-> upphäver ADR 0050:s **leverantörsval** (Hetzner CAX31): få servrar tillgängliga och
-> de som finns är för dyra. Driften ska till en **svensk VPS**, och ersättaren är
-> **obeslutad** — kandidater är hostup (~150 kr/mån, 16 GB RAM) och one.com
-> (~169 kr/mån). Valet och supersessions-ADR:n ägs av CC1-lanen
-> ([#196](https://github.com/klasolsson81/jobbliggaren/issues/196)), inte av en
-> spec-edit-PR. Samma direktiv tar tillbaka **AWS SES i `eu-north-1` enbart för
-> e-post** och tar bort Resend
-> ([#183](https://github.com/klasolsson81/jobbliggaren/issues/183),
-> [#1169](https://github.com/klasolsson81/jobbliggaren/issues/1169)).
->
-> Allt nedan om **formen** — single-box Docker Compose, Caddy som reverse-proxy,
-> Cloudflare framför, co-tenant Postgres, backup off-box — är beslutat och står kvar.
-> Varje omnämnande av **CAX31, Hetzner-DC eller Hetzner Storage Box är däremot en
-> beskrivning av en upphävd leverantör** och ska läsas som platshållare tills CC1
-> skrivit supersessions-ADR:n. De är avsiktligt inte omskrivna här: att skriva in en
-> ersättare innan den är vald vore att fatta CC1:s beslut åt lanen.
+> **Not om issue-länkarna (2026-08-02, PR #1173).** §15 bar tidigare `TD-NNN`-markörer
+> som pekade in i det retirerade TD-registret; de är utbytta mot de issues som äger
+> arbetet ([#196](https://github.com/klasolsson81/jobbliggaren/issues/196),
+> [#197](https://github.com/klasolsson81/jobbliggaren/issues/197),
+> [#198](https://github.com/klasolsson81/jobbliggaren/issues/198),
+> [#183](https://github.com/klasolsson81/jobbliggaren/issues/183)). **En länk säger var
+> arbetet ägs — inte att premissen omkring den är aktuell.** Både värdvalet och
+> e-postleverantören är under omprövning i CC1-lanen; den PR som avgör dem skriver om
+> §15 och §13.4 med egen ADR. Denna PR tar ingen ställning i sak och bytte bara ut döda
+> markörer mot levande hemvister.
 
 ### 15.1 Deploy-layout (ADR 0050, Accepted)
 

@@ -60,8 +60,10 @@ every parked entry **inline**, because both register files were gitignored and
 **A `TD-NNN` marker surviving in a tracked doc, ADR, runbook, workflow, or code
 comment is a historical provenance citation**, like a commit hash: it records why
 something exists and is not a pointer into a register you can still open. Where a
-marker named work that was never built, it was converted to the issue that owns that
-work instead — a forward pointer into a dead register is not provenance.
+marker instead names work that was **never built**, it is not provenance but a
+forward pointer into nothing, and **it shall be converted** to the issue that owns
+that work the next time anyone touches that file. Some remain unconverted — this is a
+standing requirement, not a claim that the sweep was exhaustive.
 
 Top-level `BUILD.md`/`CLAUDE.md`/`DESIGN.md` may be edited autonomously via the
 normal feature-branch → PR → automerge flow (§9.2/§6); Klas reviews the diff
@@ -525,13 +527,14 @@ URL + date in the STOPP report.
 and senior-cto-advisor decides when it is genuinely ambiguous. What changed
 2026-08-02 is the alternative: **there is no TD register to raise anything into.**
 
-Severity is the repo's own **Blocker / Major / Minor** — the same words every agent
-report uses. Their definition lived in the deleted skill, so it lives here now:
+Severity is the repo's own **Blocker / Major / Minor**, and this section does **not**
+define those words — `.claude/agents/code-reviewer.md` §Severity is their SSOT, and it
+already binds each one to Block or Allow. §9.6 only says where a finding *goes*:
 
-- **Blocker or Major** — security, data loss, a broken user path, or it blocks the
-  phase we are in → **in-block**, or a **follow-up PR** if it is a genuinely separate
-  change-reason.
-- **Minor / nice-to-have** — everything else → a **GitHub issue**, and a line in a PR
+- **Blocker or Major** → **in-block**, or a **follow-up PR** if it is a genuinely
+  separate change-reason. Never an issue: §6 and §12 make an unresolved agent
+  Blocker/Major merge-blocking, so filing one would convert a stop into a backlog row.
+- **Minor / nice-to-have** → a **GitHub issue**, and a line in a PR
   body is not disposal because it has no reader. The reason is **visibility between
   parallel CCs**, not issue inflation, so an issue no other CC would need to see may be
   skipped — but the skip is **named in the PR body**, one line, with what makes it

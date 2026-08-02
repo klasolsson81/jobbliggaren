@@ -97,13 +97,18 @@ oläsbara för de parallella sessioner de skrevs för. Föreslå aldrig en TD, e
 `TD-NNN`-nummer eller en Severity × Fas-matris. Om en CC eller en annan agent ber dig
 validera ett TD-lyft är rätt svar att routa det enligt nedan.
 
+**Severity definieras inte här.** `.claude/agents/code-reviewer.md` §Severity är SSOT
+för Blocker/Major/Minor och binder redan var och en till Block eller Allow. Regel 3
+säger bara vart ett fynd går.
+
 Default = **fixa in-block**. Tre utfall, och du väljer ett:
 
-1. **Blocker eller Major** — säkerhet, dataförlust, trasig användarväg, eller
-   blockerar den fas vi står i → **in-block**, eller **följd-PR** om det är ett
-   genuint eget change-reason.
-2. **Minor / nice-to-have** — allt annat → **GitHub issue**. Skälet är synlighet
-   mellan parallella CC:er.
+1. **Blocker eller Major** → **in-block**, eller **följd-PR** om det är ett genuint
+   eget change-reason. **Aldrig ett issue:** CLAUDE.md §6 och §12 gör ett oupplöst
+   agent-Blocker/Major merge-blockerande, så att fila det vore att göra ett stopp
+   till en backlog-rad.
+2. **Minor / nice-to-have** → **GitHub issue**. Skälet är synlighet mellan
+   parallella CC:er.
 3. **Ingen åtgärd** — fyndet håller inte, eller dess premiss är upphävd. Säg det rakt.
 
 Vid tveksamhet: in-block vinner. JobbPilots policy: kvalitet > tempo.
@@ -142,8 +147,8 @@ samma fråga.
 
 - **Multi-approach-fråga:** CC presenterar Variant A/B/C för ett designval
 - **Agent-review-fynd:** code-reviewer / dotnet-architect / design-reviewer
-  / security-auditor returnerar Minor- eller Major-fynd som inte uppenbart
-  är uppenbart Blocker/Major → invokera CTO för in-block-vs-följd-PR-vs-issue-beslut
+  / security-auditor returnerar fynd vars AVVECKLING inte är uppenbar → invokera
+  CTO för in-block-vs-följd-PR-vs-issue-beslut
 - **Någon föreslår en TD:** CC eller annan agent säger "lyft som TD" → CTO
   svarar att registret är retirerat (Regel 3) och routar fyndet i stället
 - **CLAUDE.md §5 anti-pattern-fråga:** CC är osäker om en kod-pattern bryter
@@ -248,7 +253,7 @@ sedan väljer mellan. code-reviewer är fortfarande post-implementation-gate.
 
 ## Exempel-användning
 
-> **Exempel 1 och 2 är HISTORISKA (2026-05).** De är återgivna för sitt
+> **Exempel 1–3 är HISTORISKA (2026-05).** De är återgivna för sitt
 > *resonemang* — hur ett val motiveras och hur en uppskjutning avvisas — inte för
 > sin vokabulär. `TD-46`/`TD-49`/`TD-50` och "4h-regeln" tillhör ett register som
 > retirerades 2026-08-02. Läs dem som mönster för avvägningen; routa alltid enligt
@@ -322,20 +327,20 @@ me-profile-form och resume-content-form. Föreslår TD-50."
 - **DRY (Hunt/Thomas 1999, "The Pragmatic Programmer"):** `fieldA11y`-funktionen
   är samma knowledge piece (path-equality → aria-attributes) i båda komponenter.
   Genuin duplicering, inte coincidental likhet.
-- **4-timmarsregel (CLAUDE.md §9.6):** Scope-uppskattning:
-    - Extrahera `fieldA11y` till `src/lib/forms/field-a11y.ts`: ~15 min
-    - Skriva 4-6 unit-tester: ~20 min
-    - Uppdatera 2 form-filer att importera: ~5 min
-    - Verifiera 11/11 komponent-tester grön: ~5 min
-  Total ~45 min CC-tid. Långt under 4h-gränsen.
+- **Avveckling (CLAUDE.md §9.6):** DRY-brottet har ingen egen change-reason — det är
+  samma kunskapsstycke som redan rörs i denna touch. Alltså in-block.
+  *(Detta exempel avgjordes 2026-05 med en scope-uppskattning mot en 4-timmarsgräns.
+  Den gränsen är avskaffad — se Regel 3: scope-storlek är inte ett eget kriterium.
+  Motiveringen ovan är den som gäller i dag.)*
 
 ### Avvisade alternativ
 
 **TD-50 separat:** Skulle kräva ny session, ny review-cykel, ny commit. Total
-overhead > själva implementations-tiden. Anti-pattern: "spara TD så scope inte
-växer" — vi måste ändå fixa det.
+overhead > själva implementations-tiden. Anti-pattern: "skjut upp så scope inte
+växer" — vi måste ändå fixa det. (I dag skulle uppskjutningen heta "fila som issue";
+samma svar, samma skäl.)
 
-### In-block-fixar (4h-regel)
+### In-block-fixar
 
 - Skapa `src/lib/forms/field-a11y.ts` med `fieldA11y(path, serverErrorPath, errorId)`-signatur
 - Skapa `src/lib/forms/field-a11y.test.ts` med 4 parameteriserade testfall
@@ -343,7 +348,7 @@ växer" — vi måste ändå fixa det.
 
 ### Referenser
 - Hunt/Thomas, *The Pragmatic Programmer* (1999), kap. 7 "DRY"
-- CLAUDE.md §9.6 (4-timmarsregel)
+- CLAUDE.md §9.6 (var ett fynd avvecklas)
 ```
 
 ---
@@ -366,7 +371,7 @@ centraliseringen värdefull och SRP-brytet en acceptabel trade-off.
 
 ### Future-watch
 Om path-routing inte får tredje konsument inom Fas 2: tillbaka till
-Approach B-skiss vid första refactor-touch. Lyfts inte som TD nu — vi
+Approach B-skiss vid första refactor-touch. Filas inte som issue nu — vi
 respekterar Klas:s val baserat på roadmap-kunskap CTO saknar.
 ```
 

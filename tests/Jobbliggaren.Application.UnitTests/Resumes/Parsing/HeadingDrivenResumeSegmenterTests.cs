@@ -1008,10 +1008,12 @@ public class HeadingDrivenResumeSegmenterTests
     /// most consequential — plausibly the commonest Swedish CV shape after YYYY–YYYY — and it
     /// fabricates AND leaves the period unrecovered.</para>
     ///
-    /// <para>The honest fix is to promote "is this line nothing but a period?" into
-    /// <c>DatePatterns</c> so the segmenter and <c>ReviewText</c> share one predicate. <b>The day
-    /// that lands, this test reddens and points at its own removal</b> — which is the whole
-    /// reason to write it as an assertion rather than a paragraph.</para>
+    /// <para><b>The trigger that reddens this test is a DatePatterns WIDENING</b> — modelling month
+    /// names, trailing qualifiers, keyword-less open ends and <c>YYYY/MM</c> — not the predicate
+    /// PROMOTION deferred beside <c>ReviewText</c>'s residual. That promotion factors today's model
+    /// into one home and inherits its blind spot: <c>PeriodParser</c> refuses all four of these too.
+    /// Naming the promotion as the trigger would leave this green while the deferral claimed the gap
+    /// was closed — which is the defect this test exists to make impossible.</para>
     /// </summary>
     [Theory]
     [InlineData("jan 2020 – dec 2024", "no month token in the end-alternation")]
@@ -1121,10 +1123,13 @@ public class HeadingDrivenResumeSegmenterTests
             exp.Organization.ShouldNotBeNull();
             exp.Organization.ShouldNotContain("2021");
             exp.Organization.ShouldNotContain("2024");
-            // Same fix, same reason: the null-Title population is reachable too — β-1's relocation
-            // enlarged it, and Segment_ExperienceHeaderThatIsOnlyADate_… asserts Title IS null on
-            // that path — so `Title?.` would no-op exactly where it matters. The first revision of
-            // this repair fixed Organization and left this line one below it.
+            // Same fix, same reason: the null-Title population is reachable on the period-first
+            // path, pinned by Segment_ExperienceHeaderThatIsOnlyADate_FallsBackToSecondLineFor
+            // Organization, so `Title?.` would no-op exactly where it matters. NOT enlarged by
+            // β-1 — that relocation only moves which line the split reads, and its early return
+            // always yields a non-null Title, so it could only SHRINK this population. The
+            // population predates it. The first revision of this repair fixed Organization and
+            // left this line one below it.
             exp.Title.ShouldNotBeNull();
             exp.Title.ShouldNotContain("2021");
         }

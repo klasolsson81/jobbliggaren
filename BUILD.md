@@ -142,9 +142,10 @@
 ### 3.3 Miljöer
 
 > **Status (2026-06-08):** dev/staging/production-AWS-miljöerna är avvecklade
-> (ADR 0066). `local` är enda aktiva miljön. Permanent deploy-mål är **beslutat**
-> (Hetzner CAX31 + Cloudflare, ADR 0050 Accepted 2026-06-08) — **men värdvalet är
-> upphävt 2026-08-02, se §3.2:s statusbanner** — men ännu
+> (ADR 0066). `local` är enda aktiva miljön. **Värdvalet är upphävt 2026-08-02**
+> (Klas-direktiv) — se §3.2:s statusbanner; raderna nedan beskriver den beslutade
+> FORMEN, inte en aktuell leverantör. Permanent deploy-mål var **beslutat**
+> (Hetzner CAX31 + Cloudflare, ADR 0050 Accepted 2026-06-08) men ännu
 > ej provisionerat (ADR 0050 Sekvensering: Hetzner sist, vid MVP före
 > beta-testare). Tag-baserad AWS-deploy (`v*-dev`/`v*-rc*`/`v*`) refererar
 > **avvecklad infra** — den AWS-baserade stacken är **riven** (ADR 0066,
@@ -156,7 +157,7 @@
 | Miljö | Syfte | Deployment | Status |
 |-------|-------|-----------|--------|
 | local | Utveckling | Docker Compose | **Aktiv** |
-| production (planerad) | Live | Hetzner CAX31 + Cloudflare (ADR 0050) | Beslutad, ej provisionerad |
+| production (planerad) | Live | Hetzner CAX31 + Cloudflare (ADR 0050) | Värdvalet upphävt 2026-08-02 (se §3.2); formen beslutad, ej provisionerad |
 | dev / staging (AWS) | f.d. integration / pre-prod | — | Avvecklad (ADR 0066) |
 
 PR-flöde mot `main` per ADR 0065 (CI-gate). Permanent deploy-strategi och

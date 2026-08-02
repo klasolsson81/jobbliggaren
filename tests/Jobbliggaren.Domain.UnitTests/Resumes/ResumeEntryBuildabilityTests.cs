@@ -1,4 +1,6 @@
+using Jobbliggaren.Domain.JobSeekers;
 using Jobbliggaren.Domain.Resumes;
+using Jobbliggaren.Domain.UnitTests.JobAds;
 using Shouldly;
 
 namespace Jobbliggaren.Domain.UnitTests.Resumes;
@@ -12,23 +14,43 @@ namespace Jobbliggaren.Domain.UnitTests.Resumes;
 /// consumer.
 ///
 /// <para><b>What these tests are NOT.</b> They are not the decomposition's falsifier. That is two
-/// other measurements, and both live elsewhere on purpose: an EMPTY layout-corpus baseline diff
-/// (nothing the instrument measures moved), and the requirement that mutating an arm HERE reddens
-/// a <c>ValidateContent</c> test THERE — which is what proves one home rather than two. Every one
-/// of the thirteen arms below is already exercised through <c>UpdateMasterContent</c> in
-/// <c>ResumeTests</c>, so that second falsifier is armed on all of them; if these were the only
+/// other measurements, and both live elsewhere on purpose: the layout corpus moving no MEASURED
+/// value (β-2's baseline diff was not empty — it repaired prose this refactor made false — so the
+/// proof is strip-those-regions-and-compare), and the requirement that mutating an arm HERE
+/// reddens a <c>ValidateContent</c> test THERE, which is what proves one home rather than two.
+/// Every arm below is already exercised through <c>UpdateMasterContent</c> in
+/// <c>ResumeTests</c> and <c>HonestDateAbsenceTests</c> — the two <c>RawPeriod</c> caps live in
+/// the latter, which is why naming only the former would send a reader to a file holding most of
+/// them and no more. So that second falsifier is armed on all of them; if these were the only
 /// tests of the extracted rule, a second copy of it inside <c>ValidateContent</c> would stay
 /// green and the decomposition would be undetectably wrong.</para>
 ///
 /// <para><b>Premise (CLAUDE.md §5 <c>Tests:</c>).</b> Every state constructed here is one
-/// <c>src/</c> produces. The blank label fields are what <c>AutoPromoteContentMapper</c> emits —
-/// it projects <c>e.Organization ?? string.Empty</c> and <c>e.Title ?? string.Empty</c>, so a
-/// parse that found no employer arrives with exactly this shape. The over-long
-/// <c>RawPeriod</c> is likewise produced rather than invented: that same mapper passes
-/// <c>e.Period</c> UNTRUNCATED by written policy — "an over-long period is for the buildability
-/// gate to reject, not for this projection to silently shorten". The over-long prose and the
-/// inverted date pair come from the structured editor, whose client caps mirror these bounds with
-/// the Domain as the authority.</para>
+/// <c>src/</c> produces, and there are exactly two producers.</para>
+///
+/// <para><b>The parse path.</b> <c>AutoPromoteContentMapper</c> projects
+/// <c>e.Organization ?? string.Empty</c> and <c>e.Title ?? string.Empty</c>, with
+/// <c>e.Institution ?? string.Empty</c> and <c>e.Degree ?? string.Empty</c> alongside for the
+/// education mirror — so a parse that found no employer arrives with an EMPTY label, the shape
+/// <c>AutoPromoteGateTests</c> and <c>AutoPromoteParsedResumeCommandHandlerTests</c> already drive
+/// end to end. That same mapper passes <c>e.Period</c> to <c>RawPeriod</c> UNTRUNCATED by written
+/// policy — "an over-long period is for the buildability gate to reject, not for this projection
+/// to silently shorten" — so the over-long <c>RawPeriod</c> is produced, not invented.</para>
+///
+/// <para><b>The write path, which produces the rest.</b> The master-content and promote endpoints
+/// bind <c>ResumeContentDto</c> off the wire with no per-field attributes;
+/// <c>UpdateMasterContentCommandValidator</c> caps only <c>FullName</c> and <c>Summary</c> and
+/// names <c>Content.Experiences</c> nowhere; <c>ResumeContentMapper.ToDomain</c> then builds the
+/// entry VERBATIM under its own docblock — "Pure projection — no validation (the aggregate's
+/// ValidateContent owns that)". So the whitespace-only label, the over-long prose, the inverted
+/// date pair and the over-long period all reach this reader exactly as written below. These arms
+/// are the ONLY .NET gate on them.</para>
+///
+/// <para><b>Deliberately NOT cited: the structured editor.</b> Its Zod schema caps description at
+/// 2 000 and <c>rawPeriod</c> at 100 and refuses <c>endDate &lt; startDate</c>, and it runs that
+/// schema twice — in the browser and again inside the <c>"use server"</c> action. The editor is
+/// the actor that PREVENTS these shapes, never one that produces them; an earlier revision named
+/// it as the producer, which is a citation the tree refutes.</para>
 /// </summary>
 public class ResumeEntryBuildabilityTests
 {
@@ -280,5 +302,55 @@ public class ResumeEntryBuildabilityTests
             ValidEducation(institution: string.Empty, degree: string.Empty));
 
         result.Error.Code.ShouldBe("Resume.EducationInstitutionRequired");
+    }
+
+    /// <summary>
+    /// The exact shape the auto-promote path hands this reader on every entry it builds: labels
+    /// from the parse, structured dates honestly absent, no description (the mapper always emits
+    /// null) and the verbatim period on <c>RawPeriod</c>. Nothing else here asserts that
+    /// combination — the bound tests set <c>RawPeriod</c> at exactly 100 and the date tests never
+    /// set it at all — so without this a projection change that made the promote path's own shape
+    /// unbuildable would move no test in this file.
+    /// </summary>
+    [Fact]
+    public void Validate_TheShapeAutoPromoteProjects_ReturnsSuccess()
+    {
+        ResumeEntryBuildability.Validate(new Experience(
+            "Klarna AB", Valid, StartDate: null, EndDate: null, Description: null,
+            RawPeriod: "2021 - 2026")).IsSuccess.ShouldBeTrue();
+
+        ResumeEntryBuildability.Validate(new Education(
+            "Chalmers tekniska högskola", "Civilingenjör", StartDate: null, EndDate: null,
+            RawPeriod: "2016 - 2021")).IsSuccess.ShouldBeTrue();
+    }
+
+    /// <summary>
+    /// The <c>(code, message, kind)</c> triple, pinned STRUCTURALLY rather than by repeating the
+    /// Swedish strings. Every other test here asserts <c>.Error.Code</c> only, so a reworded
+    /// message — or a factory swapped from <c>Validation</c> (400) to <c>Conflict</c> (409) —
+    /// moves nothing in the whole suite. <c>DomainError</c> is a sealed record, so comparing the
+    /// error the aggregate returns against the one this reader returns pins all three without a
+    /// single hardcoded literal.
+    ///
+    /// <para><b>What this does NOT do.</b> It catches DRIFT, not duplication: it compares the two
+    /// surfaces and would stay green if <c>ValidateContent</c> carried its own identical copy of
+    /// the rule. Only the mutation falsifier distinguishes one home from two, and this test does
+    /// not replace it.</para>
+    /// </summary>
+    [Fact]
+    public void Validate_ReturnsTheSameErrorTheAggregateReturns_CodeMessageAndKind()
+    {
+        var unbuildable = ValidExperience(company: string.Empty);
+        var resume = Resume.Create(
+            new JobSeekerId(Guid.NewGuid()), "Mitt CV", "Klas Olsson",
+            FakeDateTimeProvider.Default).Value;
+
+        var viaAggregate = resume.UpdateMasterContent(
+            new ResumeContent(
+                new PersonalInfo("Klas Olsson", null, null, null),
+                experiences: new[] { unbuildable }),
+            FakeDateTimeProvider.Default);
+
+        viaAggregate.Error.ShouldBe(ResumeEntryBuildability.Validate(unbuildable).Error);
     }
 }

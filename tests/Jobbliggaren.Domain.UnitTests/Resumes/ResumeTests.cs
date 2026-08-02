@@ -689,6 +689,41 @@ public class ResumeTests
         result.Error.Code.ShouldBe("Resume.EducationInstitutionRequired");
     }
 
+    /// <summary>
+    /// The call-site block ORDER, which #1060 D3(β-2) rewrote and whose new comment calls
+    /// "load-bearing: every experience before every education, first failure wins". Nothing pinned
+    /// it: every existing arm test fails in exactly ONE kind, so swapping the two foreach blocks in
+    /// ValidateContent reddened nothing — measured at a5925e9a, the one mutation that survived the
+    /// whole suite. β-3's router acts on the returned code, and PR 2 read the corpus's blocking
+    /// rows off which code came back, so which kind wins is an observable and not an
+    /// implementation detail.
+    ///
+    /// <para>Premise (CLAUDE.md §5): both entries are the AutoPromoteContentMapper projection —
+    /// <c>e.Organization ?? string.Empty</c> and <c>e.Institution ?? string.Empty</c>. One DOCX
+    /// whose header lines carry no fields produces both at once, in both typed loops, from the one
+    /// SplitTitleOrganization call — which is what corpus rows 18/19/20 measured before β-1.</para>
+    /// </summary>
+    [Fact]
+    public void UpdateMasterContent_WithBothKindsUnbuildable_ReportsTheExperienceFirst()
+    {
+        var resume = CreateValidResume();
+        var content = new ResumeContent(
+            new PersonalInfo(ValidFullName, null, null, null),
+            experiences: new[]
+            {
+                new Experience(string.Empty, "Backend Developer", null, null, null),
+            },
+            educations: new[]
+            {
+                new Education(string.Empty, "MSc CS", null, null),
+            });
+
+        var result = resume.UpdateMasterContent(content, Clock);
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe("Resume.ExperienceCompanyRequired");
+    }
+
     [Fact]
     public void UpdateMasterContent_WithEducationDegreeEmpty_ReturnsFailure()
     {

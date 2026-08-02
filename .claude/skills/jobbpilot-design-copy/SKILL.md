@@ -256,12 +256,15 @@ Specifik knapp-text. Konkret konsekvens.
 | Avsluta konto | "Avsluta konto? All data raderas permanent inom 30 dagar." | "Är du säker på att du vill fortsätta?" |
 
 (Gmail-raden är ett **mönsterexempel, inte skeppad copy** — Gmail-synk är uppskjuten,
-inte borttagen: BUILD.md §6.2 listar fem endpoints, §9.2:s not säger
+inte borttagen: BUILD.md §6.2 listar fem endpoints, §9.2/§9.3:s gemensamma not säger
 "skjuts upp … specarna ovan **bevaras som framtida referens**", och §16:s
 "Ej byggt"-tabell listar **`SyncGmailJob`** som "Ej byggt (Fas 5, #321)".
-Radnummer står medvetet inte här — de två som stod här var sanna vid #1173:s bas
-och falska vid dess head, eftersom den PR:en sköt in rader i BUILD.md ovanför båda.
-Citaten har en träff var.)
+Radnummer står medvetet inte här, och skälet är mätt: de två som stod här hade drivit
+PÅ OLIKA SÄTT. `:1489` var sann när den skrevs (`8d08f631`) och hade redan drivit fyra
+rader vid #1173:s bas — av SYSKONTRAFIK i en fil den PR:en aldrig öppnade. `(:1006-1013)`
+spände inte ens över sitt eget citat, som låg på 1014. Sedan sköt #1173 båda ytterligare.
+Lärdomen är alltså inte "dina egna inskott fäller pekare" utan det bredare: ett radnummer
+ruttnar av allt som landar ovanför det. Citaten har en träff var.)
 
 ### 7. Påminnelser
 

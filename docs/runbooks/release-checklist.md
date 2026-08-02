@@ -196,7 +196,8 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
 - [ ] **5. `BUILD.md` flippas i SAMMA ändring** — den här checklistan räknade tidigare bara upp
       `content-legal.json` och ROPA:n, och nämnde **aldrig** `BUILD.md` som flip-yta. Vid flippen
       blir följande falska utan att något kräver att de rörs: **§13.4**:s e-postpost
-      (*"planerad, ännu inte aktiverad … ingen e-post lämnar systemet"*), **§3.1:s Resend-rad**
+      (*"planerad, ännu inte"* … *"ingen e-post lämnar systemet"* — det första citatet
+      radbryts i BUILD.md, så grep på den KORTA formen), **§3.1:s Resend-rad**
       (*"prod-utskick grindat"*) och **§3.2:s Email-rad** (*"Resend, grindad"*).
       **`provider_message_id`-kommentaren i §7:s `email_log`-schema** är provider-neutral
       och blir INTE falsk — kontrollera den, ändra sannolikt inget.

@@ -169,8 +169,11 @@ for i in "${!WT_PATHS[@]}"; do
   #   (a) the main copy does NOT have the file  -> copy it out. (New session logs,
   #       reviews, ADRs.)
   #   (b) the main copy HAS it, and the worktree's copy DIFFERS -> that is an EDIT to a
-  #       file sync-worktree-docs.ps1 seeded (current-work.md, steg-tracker.md,
-  #       tech-debt.md — the three §1.5 REQUIRES every session to touch). Copying over
+  #       file sync-worktree-docs.ps1 seeded (current-work.md, steg-tracker.md — the
+  #       session state §1.5 requires every session to touch). tech-debt.md was removed
+  #       from .worktreeinclude 2026-08-02 (ADR 0121), so it is no longer seeded and can
+  #       no longer reach this branch — deliberately, since 11 worktrees carried a stale
+  #       register that would have blocked their reap forever. Copying over
   #       the main copy would clobber a peer lane's block; skipping it silently would
   #       destroy this session's. So: REFUSE TO REAP and say which file. Doubt resolves
   #       to skip, never to "probably fine" (ADR 0094, Saltzer & Schroeder 1975).
@@ -343,7 +346,7 @@ if [ "$REAPED_N" -gt 0 ] || [ "$REMOTE_N" -gt 0 ] || [ "$RESCUED_N" -gt 0 ] || [
     printf '%s' "$REMOTE_LIST"
   fi
   # A skip carrying UNLANDED EDIT is not noise — it means a worktree holds session state
-  # (current-work.md / steg-tracker.md / tech-debt.md) that exists nowhere else. Surface it.
+  # (current-work.md / steg-tracker.md) that exists nowhere else. Surface it.
   _unlanded="$(printf '%s' "$SKIPPED_LIST" | grep -F 'UNLANDED EDIT' || true)"
   if [ -n "$_unlanded" ]; then
     echo "  ⚠ EJ LANDAD SESSION-STATE (rivs inte förrän den landat i huvudkopian):"

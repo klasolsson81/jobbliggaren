@@ -36,11 +36,13 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
       p95-budget-överskridande eller High/Critical-CVE noteras och bedöms
       (åtgärda eller medvetet acceptera + motivera).
 - [ ] **Inga öppna Klas-STOPP-flaggor** i `docs/current-work.md`.
-- [ ] **Aktiva Major-TD mot release-scope** genomgångna (`docs/tech-debt.md`)
-      — launch-blocker-TD löst eller medvetet deferrad med motiv.
+- [ ] **Öppna issues märkta `P0`/`P1`/`mvp` mot release-scope** genomgångna (GitHub Issues)
+      — varje launch-blocker löst eller medvetet deferrad med motiv. Issues märkta
+      `mvp` är de som krävs för riktiga användare. (TD-registret retirerades
+      2026-08-02, ADR 0121; parkerade poster ligger i #1172.)
 - [ ] **Migrations** — om EF Core-migration ingår: verifiera schema-mode-
       dispatch (ADR 0033) och DB-roll-separation (ADR 0034); Identity-schema-
-      ändring → manuell procedur (TD-72).
+      ändring → manuell procedur (parkerad, #1172).
 - [ ] **Kollations-version — ENDAST vid Postgres-image-bump eller major-uppgradering**
       (#884, ADR 0109). Ett btree-index på text är byggt **med** en kollation. Ändras
       kollationens *definition* under det — en ny ICU-version i basimagen, en ny glibc,
@@ -152,8 +154,9 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
       - **integritetspolicy-post som namnger Resend** — **KLAR** (#186 / PR #1083).
         Denna halva stod tidigare inte i punkten alls: transkriberingen ur ADR 0080
         punkt 1 tappade den och behöll bara ROPA-halvan;
-      - **security-auditor-sign-off på prod-e-post-konfigen** — **KVAR**. `tech-debt.md`
+      - **security-auditor-sign-off på prod-e-post-konfigen** — **KVAR**. Det gamla
         TD-116:s sign-off är PR-4:s, inte prod-konfigens; bocka aldrig punkten på den.
+        (TD-116 stängdes 2026-07-26; residualen ägs av #183.)
 
       **Kvarstående policy-residualer under denna punkt, inte under punkt 3.**
       **ORDNINGEN STÅR FÖRST, för att den styr posterna under sig:** upplös
@@ -193,9 +196,15 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
 - [ ] **5. `BUILD.md` flippas i SAMMA ändring** — den här checklistan räknade tidigare bara upp
       `content-legal.json` och ROPA:n, och nämnde **aldrig** `BUILD.md` som flip-yta. Vid flippen
       blir följande falska utan att något kräver att de rörs: **§13.4**:s e-postpost
-      (*"planerad, ännu inte aktiverad … ingen e-post lämnar systemet"*), **§3.1 rad 39**
-      (*"prod-utskick grindat"*) och **rad 126** (*"Resend, grindad"*). Rad 761 är
-      provider-neutral och blir INTE falsk — kontrollera den, ändra sannolikt inget.
+      (*"planerad, ännu inte"* … *"ingen e-post lämnar systemet"* — det första citatet
+      radbryts i BUILD.md, så grep på den KORTA formen), **§3.1:s Resend-rad**
+      (*"prod-utskick grindat"*) och **§3.2:s Email-rad** (*"Resend, grindad"*).
+      **`provider_message_id`-kommentaren i §7:s `email_log`-schema** är provider-neutral
+      och blir INTE falsk — kontrollera den, ändra sannolikt inget.
+      *(Radnummer står medvetet inte här: punkten bar TRE, och två av dem föll när
+      #1173 sköt in rader i §3.2:s och §3.3:s statusbanners. Det tredje överlevde av
+      POSITION, inte design — hunken direkt ovanför blev netto noll. Citaten är sökbara,
+      radnumren var det inte.)*
       `BUILD.md` läses av varje CC-invokation (CLAUDE.md §9.1), så en oflippad rad där får varje
       efterföljande session att resonera från en falsk premiss om en **levande**
       tredjelandsöverföring. **Hör här på TRIGGERN, inte på sektionskaraktären** — §2.6 kallar
@@ -471,27 +480,28 @@ sessionen. dev/rc-tags är CC-tillåtna efter grön CI.
 
 > Hetzner-modell (ADR 0050/0066): hela stacken (API + Worker + Postgres + Redis +
 > Caddy + Next.js) kör i Docker Compose på CAX31-boxen bakom Caddy. Konkreta
-> service-namn/kommandon finalize:ras med **#196 / TD-106** (Compose-stack + proxy
+> service-namn/kommandon finalize:ras med **#196** (Compose-stack + proxy
 > + härdning) — stegen nedan är på modell-altitud tills dess.
 
 - [ ] **Compose-tjänster startar** (api + worker) — `docker compose ps` på boxen
-      visar dem `healthy` (konkret service-namn/compose-fil: #196/TD-106).
+      visar dem `healthy` (konkret service-namn/compose-fil: #196).
 - [ ] **`/api/ready` → 200** mot målmiljöns domän (strict readiness: DB +
       Redis dependency-checks, TD-29).
 - [ ] **`/api/health` → 200** (liveness).
 - [ ] **Hangfire-jobben** kör enligt schema om release rör Worker
-      (`*/10`-cron etc.) — verifiera i Hangfire-dashboard/loggar.
+      (`*/10`-cron etc.) — verifiera på `/admin/jobb` (read-side, ADR 0082) och i
+      den strukturerade loggen. Den inbyggda Hangfire-dashboarden exponeras inte.
 - [ ] **Audit-wire** — om release rör audit-genererande flöden: bevisa
       INSERT i `audit_log` via den strukturerade logg-sinken (MEL → Seq; full
-      prod-sink = TD-104) + direkt `audit_log`-query (ADR 0035).
+      prod-sink = #1175) + direkt `audit_log`-query (ADR 0035).
 - [ ] **Ops-signaler granskade** — health-checks + extern uptime-monitor
       (UptimeRobot/BetterStack, ADR 0050 — ersätter ALB/CloudWatch-health);
       jobtech-sync-/auditor-write-/log-pipeline-health läses via logg-sinken.
-      Konkret alerting-konfig: #196/TD-106 + TD-104.
+      Konkret alerting-konfig: #196 (box) + #1175 (sink).
 - [ ] **Frontend** (om i scope) — Lighthouse observe-signal mot
       ADR 0045-budgetar; manuell rök-test av kritiska flöden.
 - [ ] **Rollback känd** — återställ föregående byggda image-tag via Compose
-      (se §5); konkret procedur #196/TD-106.
+      (se §5); konkret procedur #196.
 
 ---
 
@@ -506,7 +516,7 @@ Vid fel efter prod-deploy (Hetzner-modell, ADR 0050 "Rollback" amenderat
 # publish körs i CI → enbart den byggda imagen skickas till boxen), så den lokala
 # Docker-Compose-stacken är dev/prod-paritets-baselinen vid en misslyckad cutover.
 IMAGE_TAG=<föregående-release> docker compose up -d
-# Konkret tag-mekanism + service-namn finalize:ras med #196/TD-106 (ADR 0050).
+# Konkret tag-mekanism + service-namn finalize:ras med #196 (ADR 0050).
 ```
 
 Notera incidenten i `docs/sessions/` + relevant runbook. Skapa ADR om
@@ -529,7 +539,7 @@ rollback avslöjar ett arkitekturellt problem (CLAUDE.md §8 punkt 9).
   ADR 0035 (audit-wire), ADR 0050 (Hetzner-deploy: CAX31 + Caddy + Compose +
   rollback-modell) / ADR 0066 (AWS-exit), ADR 0036 (ops-alarms — supersederad av
   ADR 0050:s health-check/uptime-monitor-modell), ADR 0044 (coverage-gate),
-  ADR 0045 (perf observe-only-signaler); TD-106 (konkret Compose-stack) / TD-104
+  ADR 0045 (perf observe-only-signaler); #196 (Compose-stack) / #1175 (prod-sink)
   (logg-sink/observability)
 - CLAUDE.md §6.3 (granskningsspärrar), §8 (DoD), §9.2 (deploy kräver Klas-GO)
 - BUILD.md §15 (deployment/rollback)

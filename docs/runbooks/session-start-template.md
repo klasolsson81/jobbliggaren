@@ -48,7 +48,7 @@ Per {ADR reference}:
 1. {Deliverable 1 — file pointer if known}
 2. {Deliverable 2}
 
-Task-specific reads: {only docs this task actually needs, e.g. ADR 00XX, TD-NN}
+Task-specific reads: {only docs this task actually needs, e.g. ADR 00XX, issue #NNNN}
 ```
 
 ### 3. Discovery / web-search targets (when external facts are involved)

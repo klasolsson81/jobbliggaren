@@ -207,7 +207,8 @@
              v3.0 deletes a contradictory Copyright Notice sentence and states the denial outright.
              It removed an inconsistency, not a right.
          (3) "Developer" did not gain test code; v2.0 already listed "tests". v3.0 moves it from the
-             person axis to the artefact axis and excludes non-coding QA. No consequence for us.
+             person axis to the artefact axis. (The non-coding-QA exclusion is NOT a v3.0 change -
+             v2.0 carries it verbatim.) No consequence for us either way.
          WE REMAIN COMMUNITY-ELIGIBLE ON THE REVENUE GROUND - categories (1) individual / (6) small
          business, USD 1M threshold, unchanged. NOT on category (5) open-source: that requires an
          OSI-approved licence and ours is PolyForm Noncommercial (ADR 0072), deliberately not OSI.
@@ -215,14 +216,23 @@
          Known conditional limit: public-sector entities are ineligible REGARDLESS of revenue.
          THE LICENCE AUTHORITY ALREADY EXISTS, and an earlier draft of this comment claimed it did
          not. ADR 0071 carries a Library/License/Purpose table, a formal "License correction"
-         (2026-06-14) with security-auditor sign-off, and ends: "BUILD.md 3.1 is the authoritative
-         license source going forward." So this row IS the home; no new ADR is needed. That draft
+         (2026-06-14) with security-auditor sign-off, and its 2026-06-14 License correction note
+         concludes: "BUILD.md 3.1 is the authoritative license source going forward." So BUILD.md 3.1 -
+         not this line - is the designated home; no new ADR is needed. Licence FACTS belong there; what
+         lives here is the working note behind them. That draft
          reached the opposite conclusion from `grep -cniE "licen[cs]" ADR-0050` returning 0 - true,
          but it does not carry the claim: nobody said ADR 0050 was a licence document. "non-copyleft
          vs ADR 0050" is this repo's idiom for "assessed against the server-side, non-distributed
-         model ADR 0050 locks", and four other rows in this file still use it.
-         MECHANISM WORTH KNOWING: v3.0 adds `## Applicable Version` (the Community License section's
-         only new section; the document gains three). The licence shipped WITH a release governs
+         model ADR 0050 locks" - which is ADR 0071:170's own wording, not merely local shorthand.
+         Measured: THREE other comment blocks here assess copyleft against ADR 0050, covering five
+         packages (libstemmer+Hunspell, PdfPig+OpenXml, Resend). Two use the shorthand; the Hunspell
+         block already writes it out. An earlier draft said "four other rows" - reachable only by
+         counting ADR 0050 MENTIONS, one of which is the AWSSDK removal and no licence claim at all.
+         MECHANISM WORTH KNOWING: v3.0 adds `## Applicable Version` (the Community License section's only new
+         section). Document-wide the count is four added - `Choosing Between Professional and
+         Enterprise`, `Renewal Pricing`, `Applicable Version`, `Application of This Version` - and one
+         removed, `Larger Businesses`, which is exactly where v2.0's &lt;=10/&gt;10 tier split lived. Naming
+         the removal is what carries point (1); a net "+3" does not. The licence shipped WITH a release governs
          that release, so a NuGet bump CHANGES WHICH LICENCE VERSION GOVERNS - and nothing in this
          repo reads the licence at a bump. -->
     <PackageVersion Include="QuestPDF" Version="2026.7.2" />

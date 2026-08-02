@@ -157,8 +157,10 @@ export function MatchSetupRailModal({
   initialStep = STEP_START,
 }: MatchSetupRailModalProps) {
   const t = useTranslations("matchsetup");
-  // Räknaren är en vanlig presenterad siffra, inte ett operatörsvärde — den följer
-  // den aktiva locale:n via next-intl i stället för en hårdkodad `sv-SE`-instans.
+  // The counter is an ordinary presented number, not an operator value, so it
+  // follows the active locale through next-intl rather than a hardcoded `sv-SE`
+  // instance. (`formatDateTime`'s locale-stability is the opposite case: a
+  // column-aligned operator convention for admin tables.)
   const format = useFormatter();
 
   // Platta taxonomi-listor för chip-labels + granska-läget.

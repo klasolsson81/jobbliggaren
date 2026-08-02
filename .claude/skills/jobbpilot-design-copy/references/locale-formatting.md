@@ -24,10 +24,13 @@ carries its own spec. It passes the test, and it is not a licence — it is what
 passing looks like.
 
 **Apply the test; do not look for a list.** Code failing it is drift rather than an
-exception — `match-setup-rail-modal.tsx`'s `new Intl.NumberFormat("sv-SE")` formats
-an ordinary counter and should call `formatNumber`, for example. Convert such sites
-when you are in the file anyway. **No lint rule guards any of this**, unlike the zone
-literal.
+exception: a counter, a result total, or any ordinary presented number built from a
+fresh `Intl` instance should call `formatNumber`. Convert such sites when you are in
+the file anyway — `match-setup-rail-modal.tsx`'s counter was one, and #1155 converted
+it, which is why it is named here as a worked case rather than as an outstanding one.
+**No lint rule guards any of this**, unlike the zone literal, so this section states a
+criterion and deliberately does not carry a count of the sites meeting it — such a
+count would be stale the next time someone follows the instruction above.
 
 ---
 

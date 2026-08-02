@@ -69,24 +69,32 @@ const employmentTypes: ReadonlyArray<TaxonomyOption> = [
   { conceptId: "et_fast", label: "Tillsvidareanställning" },
 ];
 
+// Shared required props. Every field is mandatory in the component's signature,
+// so a new prop is caught by `tsc --noEmit` in pre-commit rather than drifting
+// between the two render helpers.
+const modalProps = {
+  open: true,
+  onOpenChange: vi.fn(),
+  occupationFields,
+  regions,
+  employmentTypes,
+  persistedOccupationGroups: [],
+  persistedRegions: [],
+  persistedMunicipalities: [],
+  persistedEmploymentTypes: [],
+  persistedSkills: [],
+  persistedOccupationExperience: [],
+  importCvHref: "/cv/importera",
+} satisfies React.ComponentProps<typeof MatchSetupRailModal>;
+
 function renderModal(
   overrides?: Partial<React.ComponentProps<typeof MatchSetupRailModal>>,
 ) {
   const onOpenChange = vi.fn();
   render(
     <MatchSetupRailModal
-      open
+      {...modalProps}
       onOpenChange={onOpenChange}
-      occupationFields={occupationFields}
-      regions={regions}
-      employmentTypes={employmentTypes}
-      persistedOccupationGroups={[]}
-      persistedRegions={[]}
-      persistedMunicipalities={[]}
-      persistedEmploymentTypes={[]}
-      persistedSkills={[]}
-      persistedOccupationExperience={[]}
-      importCvHref="/cv/importera"
       {...overrides}
     />,
   );
@@ -202,14 +210,20 @@ describe("MatchSetupRailModal — live räknare", () => {
   });
 });
 
-// Räknaren gick från en modulnivå-`new Intl.NumberFormat("sv-SE")` till
-// `formatNumber(useFormatter(), …)`. De två är OSKILJAKTIGA i sv — båda ger
-// U+00A0 som gruppavgränsare — så ett sv-test ensamt hade varit grönt före och
-// efter och bevisat ingenting. Locale-axeln är det enda som diskriminerar, och
-// den kräver en egen provider: `vitest.config.ts` aliasar
-// `@testing-library/react` till en shim som hårdkodar `locale="sv"`, så det
-// engelska fallet renderas via `/pure` (som `$`-ankaret medvetet lämnar
-// oomskrivet).
+// The counter moved from a module-level `new Intl.NumberFormat("sv-SE")` to
+// `formatNumber(useFormatter(), …)`. The two are INDISTINGUISHABLE in sv — both
+// emit U+00A0 as the group separator — so a Swedish test alone would have been
+// green before and after and proven nothing. The locale axis is the only thing
+// that discriminates, and it needs its own provider: `vitest.config.ts` aliases
+// `@testing-library/react` to a shim hardcoding `locale="sv"`, so the English
+// case renders through `/pure`, which the alias's `$` anchor deliberately leaves
+// un-rewritten.
+//
+// The sv case is kept even though it cannot discriminate the two implementations,
+// because it guards a different axis: CLAUDE.md §10's NBSP requirement. If CLDR
+// ever moves Swedish grouping the way it moved fr-FR (U+00A0 → U+202F in CLDR 42),
+// Swedish grouping would break silently on an ICU bump, and this is the assertion
+// that would catch it.
 describe("MatchSetupRailModal — räknarens tal följer aktiv locale", () => {
   function renderWithEnglishLocale() {
     rawRender(
@@ -218,20 +232,7 @@ describe("MatchSetupRailModal — räknarens tal följer aktiv locale", () => {
         messages={enMessages}
         timeZone="Europe/Stockholm"
       >
-        <MatchSetupRailModal
-          open
-          onOpenChange={vi.fn()}
-          occupationFields={occupationFields}
-          regions={regions}
-          employmentTypes={employmentTypes}
-          persistedOccupationGroups={[]}
-          persistedRegions={[]}
-          persistedMunicipalities={[]}
-          persistedEmploymentTypes={[]}
-          persistedSkills={[]}
-          persistedOccupationExperience={[]}
-          importCvHref="/cv/importera"
-        />
+        <MatchSetupRailModal {...modalProps} />
       </NextIntlClientProvider>,
     );
   }
@@ -249,10 +250,10 @@ describe("MatchSetupRailModal — räknarens tal följer aktiv locale", () => {
     countMock.mockReturnValue({ count: 1234, loading: false });
     renderWithEnglishLocale();
     const statuses = screen.getAllByRole("status");
-    // Positivt: en-gruppering syns.
+    // Positive: the en grouping renders.
     expect(statuses.some((s) => s.textContent?.includes("1,234"))).toBe(true);
-    // Negativt, och det är detta som fäller en återgång: en hårdkodad
-    // `sv-SE`-instans hade renderat U+00A0 även här.
+    // Negative, and this is the half that fails a reversion: a hardcoded
+    // `sv-SE` instance would have rendered U+00A0 here too.
     expect(
       statuses.every((s) => !s.textContent?.includes("1\u00A0234")),
     ).toBe(true);

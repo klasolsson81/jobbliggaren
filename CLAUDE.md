@@ -386,9 +386,26 @@ worktrees. The rules below keep parallel work collision-free; full playbook in
   worktree — the stack-owner injects them at runtime via env override
   (`ConnectionStrings__Postgres` from `.env`) so its worktree runs the real
   stack without committing or copying secrets.
-- **Backlog = GitHub Issues** (`area:`/`hotspot:`/`P0`–`P3`/lane `BE`·`FE`·
+- **Backlog = GitHub Issues** (`area:`/`hotspot:`/**`mvp`**/`P0`–`P3`/lane `BE`·`FE`·
   `BE+FE`/`wip`·`blocked`·`next-up` labels); `steg-tracker.md` is the strategic
-  map. **Claim-on-pickup:** the moment you start an issue, assign yourself + add
+  map.
+
+  **`mvp` is the label that decides what you take, and it is a second axis, not a
+  fourth priority.** Klas-direktiv 2026-08-02: the goal is a couple of real test users
+  on `jobbliggaren.se` within a month, and **core feature beats priority number** —
+  the core features being job ads, Mina ansökningar, Företag, the smart branch
+  watches on the company page, and **CV review**. *(The CV **builder** is paused and is
+  not MVP.)* `P0`–`P3` grades severity and urgency; `mvp` answers a different
+  question — *is this on the path to real users?* An ordinal scale cannot carry two
+  orthogonal axes, and overloading `P0` to mean MVP would destroy the severity
+  information already on every open issue.
+
+  **Read it as: `mvp` = takeable now; no `mvp` = skippable.** An issue earns `mvp`
+  when a real test user meets it within the month, or it blocks going live. Ties
+  resolve toward labelling — a mis-labelled issue costs one row, a mis-skipped
+  user-facing defect ships. Anything else stays visible but out of the way.
+
+  **Claim-on-pickup:** the moment you start an issue, assign yourself + add
   `wip` so no other CC duplicates it (lighter coordination model, playbook §9 —
   soft lane affinity + claim signal, not hard per-CC ownership). A PR-babysitter
   runs via cloud `/schedule` on PR events (rebase + `automerge`); it **must never
@@ -561,6 +578,9 @@ order. (Praise is not a finding and routes nowhere.) Then:
   parallel CCs**, not issue inflation, so an issue no other CC would need to see may be
   skipped — but the skip is **named in the PR body**, one line, with what makes it
   invisible to a peer lane. An unnamed skip is not an exception; it is an omission.
+  **Label it as you file it** — `area:`, a `P0`–`P3`, a lane, and **`mvp` if a real
+  test user meets it within the month or it blocks going live** (§6.5). An unlabelled
+  issue is filed into the same invisibility the TD register was retired for.
 - When it is genuinely ambiguous, **senior-cto-advisor decides**.
 - **Never** re-create `docs/tech-debt.md`, a `TD-NNN` identifier, or a
   Severity × Fas matrix. If the register looks like it is missing something, it is not

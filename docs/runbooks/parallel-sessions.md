@@ -419,14 +419,25 @@ close-out.
 
 The strategic map is `steg-tracker.md`; the actionable queue is GitHub Issues.
 Labels: `area:{matching,applications,jobads-cv,auth,landing,frontend,infra,docs}`,
-`hotspot:{ef-migration,di,i18n}`, `P0`–`P3`, lane `{BE,FE,BE+FE}`, and the
+`hotspot:{ef-migration,di,i18n}`, **`mvp`**, `P0`–`P3`, lane `{BE,FE,BE+FE}`, and the
 coordination set `{wip, blocked, next-up}` (2026-06-28).
+
+**`mvp` is the label you pick work from** (2026-08-02, CLAUDE.md §6.5). It is a second
+axis, not a fourth priority: `P0`–`P3` grades severity, `mvp` answers *is this on the
+path to real test users on `jobbliggaren.se`?* — and Klas-direktiv 2026-08-02 says core
+feature beats priority number. `gh issue list --label mvp` is the takeable set; an issue
+without it is skippable. Label it **when you file it**, not later.
+
+**There is no TD register.** It was retired 2026-08-02 (ADR 0121, PR #1173) because both
+its files were gitignored and therefore unreadable to every parallel session they were
+written for. Never raise a TD, a `TD-NNN`, or a Severity × Fas matrix; parked entries
+from the old register live inline in #1172.
 
 ### Issue template
 
 ```markdown
 ## Context
-<why this exists; link the source doc / ADR / TD>
+<why this exists; link the source doc / ADR / issue>
 
 ## Acceptance criteria
 - [ ] …

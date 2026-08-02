@@ -184,9 +184,9 @@ signal available is a discipline miss.
   `multipart/form-data` (`duplex: "half"`). That is the only **mutation** path
   outside Server Actions — several other client `fetch`es are POST-shaped *reads*.
 - **Short-lived client reads** — keystroke-driven suggest, popover counts,
-  draft-preview counts, on-demand document/blob fetches — use a self-contained
-  hook driven by the input + `AbortController`, in `useEffect`, and never a
-  mutation path (ADR 0042 Beslut C is the precedent). The shape is a self-contained
+  draft-preview counts, on-demand document/blob fetches — use `AbortController`
+  in a `useEffect`, and never a mutation path (ADR 0042 Beslut C is the
+  precedent). The shape is a self-contained
   hook *or* a component-local `useEffect` — `lib/hooks/use-facet-counts.ts` is the
   former, `components/resumes/cv-preview.tsx` the latter. Debounce where input
   drives it; a one-shot read on an `enabled` flip needs none, and neither does a

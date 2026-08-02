@@ -286,8 +286,11 @@ ett resonemang är ett protokoll. Det som repareras är läsvägen: `job-ad-type
 `use-facet-counts.ts` dereferar denna ADR som auktoritet, och en läsare därifrån landade
 annars på en regel som inte finns.
 
-**Detta är inte en supersession.** Att installera TanStack Query vore en reversering av
-Beslut C och kräver Klas-GO via en supersessions-ADR.
+**Detta är inte en supersession.** Att installera TanStack Query **på typeahead-/
+read-suggest-ytan** vore en reversering av Beslut C och kräver Klas-GO via en
+supersessions-ADR. På andra ytor är det inget Beslut C reglerar — där är det enbart ett
+odiskuterat beroende-tillägg (§9.2). Läsare som kommer hit från `use-facet-counts.ts`
+står på popover-ytan, inte read-suggest-ytan.
 
 Truth-sync #1154.
 

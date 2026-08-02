@@ -87,20 +87,26 @@ internal static class ReviewText
             //
             // A UNION of two predicates, and it is deliberately not one (#1060 β-3 follow-up).
             // NEITHER SUBSUMES THE OTHER — each reaches forms the other declines, in BOTH
-            // directions. The axes and their adjudicating InlineData live in ONE home,
-            // DatePatterns.IsDateOnlyLine's docblock; they are deliberately not restated here,
-            // because a prose copy of a list the date-model widening will change would rot in a
-            // file that widening does not otherwise touch. No total is published in either home:
-            // the count is emergent from two independently written grammars.
+            // directions. The axes are not restated here: they live behind ONE pointer,
+            // DatePatterns.IsDateOnlyLine's docblock, which in turn names
+            // DatePatternsDateOnlyLineTests as the adjudicating InlineData. A prose copy of a list
+            // the date-model widening will change would rot in a file that widening does not
+            // otherwise touch. No total is published in either home: the count is emergent from two
+            // independently written grammars.
             //
             // Replacing rather than adding is therefore a suppression regression in one direction
-            // or the other, and it releases the line into ExperienceBullets below. NOT into
-            // WeakVerbTransform: that transform proposes only for a bullet OPENING with a
-            // drop-in-safe weak verb from the KnowledgeBank mapping, so it is offered a date row
-            // and declines it. What ExperienceBullets' criteria (A1/A2/A6) then do with a released
-            // row — score it and CITE it as though it were prose — is DERIVED from reading the
-            // rules, NOT RUN (senior-cto-advisor re-bind 2026-08-02); the widening owns measuring
-            // it, and the run adjudicates if it disagrees.
+            // or the other, and it releases the line into ExperienceBullets below — and into
+            // WeakVerbTransform's bullet unit, which IS this method (measured in
+            // ReviewTextPeriodLineUnionTests). What that transform then does is DECLINE to propose:
+            // it proposes only for a bullet OPENING with a drop-in-safe weak verb from the
+            // KnowledgeBank mapping, and a date row opens with a digit. Offered, not acted on —
+            // stating it as "not released into WeakVerbTransform" would over-correct in the other
+            // direction and contradict that measurement.
+            //
+            // What ExperienceBullets' criteria (A1/A2/A6) do with a released row — score it and
+            // CITE it as though it were prose — is DERIVED from reading the rules, NOT RUN
+            // (senior-cto-advisor re-bind 2026-08-02); the widening owns measuring it, and the run
+            // adjudicates if it disagrees.
             if (PeriodParser.TryParse(line, out _, out _, out _) || DatePatterns.IsDateOnlyLine(line))
             {
                 continue;

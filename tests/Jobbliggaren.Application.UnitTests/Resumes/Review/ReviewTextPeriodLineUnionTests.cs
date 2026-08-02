@@ -127,8 +127,9 @@ public class ReviewTextPeriodLineUnionTests
         // wider here and DatePatterns declines all three, so swapping the call site to a
         // DatePatterns-only predicate hands them to the bullet scorer and to WeakVerbTransform.
         //
-        // THIS METHOD IS THE KILL FOR "union → DatePatterns only". The third case is an axis the
-        // written three-axis table does not name — found by measuring, not by reading it:
+        // THIS METHOD IS THE KILL FOR "union → DatePatterns only". The third case is an axis that
+        // no written table named — found by measuring rather than by reading one. The axes now
+        // live as InlineData in DatePatternsDateOnlyLineTests and no total is published anywhere:
         // DateRange's end-alternation takes the bare \d{4} of "2024" first and leaves "-03" as a
         // non-empty tail, so the whole line is never consumed.
         PeriodParser.TryParse(dateLine, out _, out _, out _).ShouldBeTrue(

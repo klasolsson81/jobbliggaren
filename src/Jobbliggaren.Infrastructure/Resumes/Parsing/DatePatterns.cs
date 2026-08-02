@@ -62,12 +62,16 @@ internal static partial class DatePatterns
     /// True when a date match runs to the END of <paramref name="line"/> and nothing but separators
     /// precedes it — "the line carries a date and nothing else". <b>Whitespace after the match is
     /// tolerated; any other trailing glyph is not</b> — the trim runs on the remainder to the LEFT
-    /// of the match, never on the tail, so <c>"2005 - 2010,"</c> is false. This is
+    /// of the match, never on the tail, so <c>"2005 - 2010,"</c> is false. Also true VACUOUSLY for
+    /// the empty line, which carries no match at all — declared unreachable from every call site
+    /// and pinned as such, not a claim about what production does with one. This is
     /// <see cref="StripTrailingDate"/> asked as a question, deliberately not a second
     /// implementation: one knowledge piece, one home (DRY, CLAUDE.md §9.1), which is the same move
     /// that gave <see cref="DatePatterns"/> and <see cref="PeriodParser"/> their neutral home.
     ///
-    /// <para><b>Two readers, and they must agree.</b> The segmenter asks it to refuse a field —
+    /// <para><b>Two readers, and they must agree</b> — three call sites across them: the segmenter
+    /// reads the reduction in <c>StripTrailingPeriod</c> and this predicate directly in
+    /// <c>SplitTitleOrganization</c>. The segmenter asks it to refuse a field —
     /// a line carrying no field must not BECOME one (#1060 β-3) — and
     /// <see cref="Review.Rules.ReviewText.DescriptionLines"/> asks it to refuse a bullet, so the
     /// review engine never scores the user's date row as prose. Before the promotion those two
@@ -84,8 +88,11 @@ internal static partial class DatePatterns
     /// that decays the moment either changes. Road 3 changes one of them.</para>
     ///
     /// <para><c>PeriodParser</c> is wider at least on: the word separators "till"/"to";
-    /// single-digit months (<c>\d{1,2}</c> against this type's <c>\d{2}</c>); "." / "-" as month
-    /// separators where this type takes only "/"; ISO <c>YYYY-MM</c> END points, because
+    /// single-digit months (<c>\d{1,2}</c> against this type's <c>\d{2}</c>); "." as a month
+    /// separator where this type takes only "/" — <b>not</b> "-", even though
+    /// <c>PeriodParser.PointRegex</c> lists it, because <c>SeparatorRegex</c> splits first and
+    /// <c>(?&lt;!\d{4})-</c> consumes the hyphen of "03-2020" as a RANGE split, leaving "03" to fail
+    /// the point match; ISO <c>YYYY-MM</c> END points, because
     /// <see cref="DateRange"/>'s end-alternation is ordered so the bare <c>\d{4}</c> matches first
     /// and the word boundary after it holds against the following "-", leaving a non-empty tail;
     /// and a lone date POINT with no range separator ("03/2020"), which <see cref="DateRange"/>

@@ -19,10 +19,11 @@ namespace Jobbliggaren.Application.CompanyRegister.Queries.GetCompanySearchMagni
 /// </para>
 ///
 /// <para>
-/// <b>NULL is a legal answer, and it is a product decision rather than a failure</b> (ADR 0120,
-/// clause 3 and its corollary) — an unfiltered browse-all carries NO number at all. The handler
-/// owns that policy; see it for the measurement behind the ruling. Null and zero are different statements here: zero means "nothing
-/// matches", null means "we did not ask".
+/// <b>NULL is a legal answer, and it is a product decision rather than a failure</b>
+/// (ADR 0120, clause 3 and its corollary) — an unfiltered browse-all carries NO number at
+/// all. The handler owns that policy; see it for the measurement behind the ruling. Null
+/// and zero are different statements here: zero means "nothing matches", null means "we
+/// did not ask".
 /// </para>
 ///
 /// <para>

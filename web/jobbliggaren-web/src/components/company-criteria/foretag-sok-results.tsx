@@ -122,13 +122,21 @@ export async function ForetagSokResults({
             </p>
           )}
 
-          {/* The browsable ceiling, stated once, wherever the pager is actually capped. Klas's
+          {/* The browsable ceiling, stated once, wherever matches are actually LOST to it. Klas's
               ruling governs WHICH number may be rendered; it does not license leaving the cap
               unexplained, and both states can hit it — saturated shows "10 000+" above a pager
               that stops at 2 000, and a browse-all shows no number at all against 743 654 rows.
-              The figure is derived from the caps, never restated: MaxPage × pageSize. */}
-          {companies.totalCount >= MAX_PAGE * companies.pageSize && (
-            <p className="mt-1 text-body-sm text-text-secondary">
+              The figure is derived from the caps, never restated: MaxPage × pageSize.
+
+              Gated on the MAGNITUDE, not on `totalCount`, and on `>` rather than `>=`. The
+              pagination count is itself capped, so `totalCount >= cap` is also true at exactly
+              2 000 matches — where every match IS reachable and "hitta fler" would be a claim that
+              more exist when none do. The magnitude is exact up to its own ceiling, so it is the
+              only quantity on the page that can tell those two apart, and it is the same source
+              the count line one node above already uses. */}
+          {(magnitude === null
+            || magnitude.magnitude > MAX_PAGE * companies.pageSize) && (
+            <p className="mt-1 text-body-sm text-text-primary">
               {t("browseCeiling", { count: MAX_PAGE * companies.pageSize })}
             </p>
           )}

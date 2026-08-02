@@ -369,6 +369,22 @@ public class CompanyRegisterSearchCriteriaTests
                 + "a browse-all and lose its magnitude. Add a conjunct to IsUnfiltered, an "
                 + "InlineData case to IsUnfiltered_AnySingleAxisPresent_IsFalse, and update this "
                 + "list.");
+
+        // And close the last way to silence this mechanically. Updating the list above without
+        // adding a case would turn the tripwire green again while IsUnfiltered still lacked its
+        // conjunct — a register pin that can be quieted by editing the register is not a pin.
+        // Binding the Theory's arity to the axis set means the new case has to exist, and a case
+        // for an axis IsUnfiltered ignores fails on its own.
+        var theoryCases = typeof(CompanyRegisterSearchCriteriaTests)
+            .GetMethod(nameof(IsUnfiltered_AnySingleAxisPresent_IsFalse))!
+            .GetCustomAttributes<InlineDataAttribute>()
+            .Count();
+
+        theoryCases.ShouldBe(
+            axes.Count,
+            customMessage:
+                "One InlineData case per axis. Updating the list above without adding a case makes "
+                + "this test green without IsUnfiltered ever gaining its conjunct.");
     }
 
     [Fact]

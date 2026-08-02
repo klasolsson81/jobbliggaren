@@ -265,6 +265,30 @@ describe("ForetagSokResults — browse-all carries NO number, a search carries o
     expect(screen.queryByText(/träffar totalt/)).toBeNull();
   });
 
+  it("FILTERED, exactly at the cap: every match is reachable, so no ceiling copy", async () => {
+    // The boundary both reviewers found independently. `totalCount` is itself capped at 2 000, so
+    // gating the ceiling copy on it cannot tell "exactly 2 000 matches, all reachable" apart from
+    // "more than 2 000, some lost" — and in the first case "Avgränsa sökningen för att hitta fler"
+    // asserts that more exist when none do. The magnitude is exact up to its own ceiling, which is
+    // why the gate reads it instead.
+    respondWith({ magnitude: 2000, saturated: false });
+
+    render(
+      await ForetagSokResults({
+        namn: "ab",
+        sni: [],
+        kommun: [],
+        page: 1,
+        reference: REFERENCE,
+      }),
+    );
+
+    expect(screen.getByRole("status")).toHaveTextContent("2 000 träffar");
+    expect(screen.queryByText(/Du kan bläddra bland/)).toBeNull();
+    // Still 100 pages — every one of them reachable, which is exactly why nothing needs explaining.
+    expect(screen.getByText("Sida 1 av 100")).toBeInTheDocument();
+  });
+
   it("FILTERED, exactly one: the Swedish plural selects the singular", async () => {
     // The number renders as a STRING ("10 000+" when saturated) while the plural selects on the
     // NUMBER — they are separate arguments for that reason, and this is what proves it.

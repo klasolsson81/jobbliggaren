@@ -163,4 +163,26 @@ describe("JobAdPagination", () => {
     );
     expect(screen.getByText(/träffar totalt/)).toBeInTheDocument();
   });
+
+  // The total is a NUMBER, so it is grouped. ICU `{totalCount}` is plain substitution — the
+  // argument has to carry `, number` or the string renders "3391" against §10's thousands rule,
+  // which is what it did until #1149. Every assertion above uses a two-digit count and so cannot
+  // see this: a grouping defect is invisible below 1 000.
+  it("groups the thousands separator in the total", () => {
+    render(
+      <JobAdPagination
+        page={2}
+        pageSize={20}
+        totalCount={3391}
+        buildHref={buildHref}
+      />
+    );
+
+    // Non-breaking space, per §10. The DOM normalizer folds it to a plain space for matching, so
+    // assert the ungrouped form is absent too — otherwise this passes on "3391".
+    expect(
+      screen.getByText("Sida 2 av 170 (3 391 träffar totalt)")
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/3391/)).toBeNull();
+  });
 });

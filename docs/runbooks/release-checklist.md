@@ -36,7 +36,7 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
       p95-budget-överskridande eller High/Critical-CVE noteras och bedöms
       (åtgärda eller medvetet acceptera + motivera).
 - [ ] **Inga öppna Klas-STOPP-flaggor** i `docs/current-work.md`.
-- [ ] **Öppna issues märkta `P0`/`P1` mot release-scope** genomgångna (GitHub Issues)
+- [ ] **Öppna issues märkta `P0`/`P1`/`mvp` mot release-scope** genomgångna (GitHub Issues)
       — varje launch-blocker löst eller medvetet deferrad med motiv. Issues märkta
       `mvp` är de som krävs för riktiga användare. (TD-registret retirerades
       2026-08-02, ADR 0121; parkerade poster ligger i #1172.)
@@ -486,11 +486,11 @@ sessionen. dev/rc-tags är CC-tillåtna efter grön CI.
       (`*/10`-cron etc.) — verifiera i Hangfire-dashboard/loggar.
 - [ ] **Audit-wire** — om release rör audit-genererande flöden: bevisa
       INSERT i `audit_log` via den strukturerade logg-sinken (MEL → Seq; full
-      prod-sink = #196) + direkt `audit_log`-query (ADR 0035).
+      prod-sink = #1175) + direkt `audit_log`-query (ADR 0035).
 - [ ] **Ops-signaler granskade** — health-checks + extern uptime-monitor
       (UptimeRobot/BetterStack, ADR 0050 — ersätter ALB/CloudWatch-health);
       jobtech-sync-/auditor-write-/log-pipeline-health läses via logg-sinken.
-      Konkret alerting-konfig: #196.
+      Konkret alerting-konfig: #196 (box) + #1175 (sink).
 - [ ] **Frontend** (om i scope) — Lighthouse observe-signal mot
       ADR 0045-budgetar; manuell rök-test av kritiska flöden.
 - [ ] **Rollback känd** — återställ föregående byggda image-tag via Compose
@@ -532,7 +532,7 @@ rollback avslöjar ett arkitekturellt problem (CLAUDE.md §8 punkt 9).
   ADR 0035 (audit-wire), ADR 0050 (Hetzner-deploy: CAX31 + Caddy + Compose +
   rollback-modell) / ADR 0066 (AWS-exit), ADR 0036 (ops-alarms — supersederad av
   ADR 0050:s health-check/uptime-monitor-modell), ADR 0044 (coverage-gate),
-  ADR 0045 (perf observe-only-signaler); #196 (konkret Compose-stack + prod-sink)
+  ADR 0045 (perf observe-only-signaler); #196 (Compose-stack) / #1175 (prod-sink)
   (logg-sink/observability)
 - CLAUDE.md §6.3 (granskningsspärrar), §8 (DoD), §9.2 (deploy kräver Klas-GO)
 - BUILD.md §15 (deployment/rollback)

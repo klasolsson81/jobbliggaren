@@ -527,13 +527,19 @@ URL + date in the STOPP report.
 and senior-cto-advisor decides when it is genuinely ambiguous. What changed
 2026-08-02 is the alternative: **there is no TD register to raise anything into.**
 
-Severity is the repo's own **Blocker / Major / Minor**, and this section does **not**
-define those words — `.claude/agents/code-reviewer.md` §Severity is their SSOT, and it
-already binds each one to Block or Allow. §9.6 only says where a finding *goes*:
+**Severity belongs to the agent that reported the finding, and §9.6 does not define it.**
+Each mandatory agent grades in its own charter's scale — `code-reviewer` and
+`design-reviewer` and `security-auditor` each define Blocker/Major/Minor for their own
+domain, and `dotnet-architect` reports Kritiskt/Viktigt/Nice-to-have. **Do not re-grade
+a finding against another agent's table**: a design-reviewer Blocker is a Blocker
+because design-reviewer said so, not because it also fits code-reviewer's definition.
+Map an agent's own top two tiers to Blocker/Major and its lowest to Minor, then route:
 
 - **Blocker or Major** → **in-block**, or a **follow-up PR** if it is a genuinely
   separate change-reason. Never an issue: §6 and §12 make an unresolved agent
   Blocker/Major merge-blocking, so filing one would convert a stop into a backlog row.
+- **The finding does not hold** — its premise is false or revoked → say so plainly, with
+  the measurement. Neither a fix nor an issue. This is a real outcome, not a way out.
 - **Minor / nice-to-have** → a **GitHub issue**, and a line in a PR
   body is not disposal because it has no reader. The reason is **visibility between
   parallel CCs**, not issue inflation, so an issue no other CC would need to see may be

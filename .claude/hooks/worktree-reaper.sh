@@ -170,9 +170,10 @@ for i in "${!WT_PATHS[@]}"; do
   #       reviews, ADRs.)
   #   (b) the main copy HAS it, and the worktree's copy DIFFERS -> that is an EDIT to a
   #       file sync-worktree-docs.ps1 seeded (current-work.md, steg-tracker.md — the
-  #       session state §1.5 requires every session to touch; tech-debt.md is also
-  #       seeded but is read-only history since the register was retired 2026-08-02,
-  #       ADR 0121). Copying over
+  #       session state §1.5 requires every session to touch). tech-debt.md was removed
+  #       from .worktreeinclude 2026-08-02 (ADR 0121), so it is no longer seeded and can
+  #       no longer reach this branch — deliberately, since 11 worktrees carried a stale
+  #       register that would have blocked their reap forever. Copying over
   #       the main copy would clobber a peer lane's block; skipping it silently would
   #       destroy this session's. So: REFUSE TO REAP and say which file. Doubt resolves
   #       to skip, never to "probably fine" (ADR 0094, Saltzer & Schroeder 1975).

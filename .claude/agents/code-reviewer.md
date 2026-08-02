@@ -89,8 +89,12 @@ nextjs-ui-engineer for FE).
 
 ## Edge cases
 
-- **Deadline pressure:** no for Blockers. Majors may become a tracked issue/ADR
-  if the trade-off is documented before merge.
+- **Deadline pressure:** no for Blockers, and no for Majors either. A Major is
+  merge-blocking (CLAUDE.md §6, §12), so it is fixed in-block or in a follow-up PR —
+  **never filed as a backlog issue**, which would convert a stop into a row nobody
+  reads. The only deadline concession is an explicitly documented acceptance (ADR or
+  PR-body waiver) agreed before merge, and it stays visible in the merge signal.
+  Routing for every severity: CLAUDE.md §9.6.
 - **dotnet-architect advice conflicts with CLAUDE.md:** flag the conflict
   explicitly, escalate to Klas — one of them is wrong.
 - **PR >50 files:** propose a split, or state explicitly which areas the review

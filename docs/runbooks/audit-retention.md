@@ -41,7 +41,10 @@ sorterbart som datum).
 
 ### 3.1 Hangfire dashboard
 
-Hangfire-dashboard exponeras inte i Fas 1 (TD-17). När den införs, leta efter
+Hangfire-dashboardet exponeras inte — och kommer inte att göra det. #204 levererade
+en egen civic operatörsyta i stället (`/admin/jobb`, PR #246 read-side + #248
+trigger/retry; ADR 0082), vilket var ett medvetet val framför den inbyggda
+dashboarden. Leta där, eller leta efter
 recurring job `audit-log-retention`:
 
 - **Lyckat:** "Succeeded" status, körtid typiskt < 100ms vid normal volym

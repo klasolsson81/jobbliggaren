@@ -4,8 +4,9 @@
     Sync gitignored local docs (listed in .worktreeinclude) from this main
     checkout into a freshly-created git worktree, so parallel Claude Code
     sessions share session-state docs (current-work.md, steg-tracker.md,
-    sessions/, local reviews/ and ADRs 0074+), plus tech-debt.md as read-only
-    history (register retired 2026-08-02, ADR 0121 - see #1172).
+    sessions/, local reviews/ and ADRs 0074+). It syncs exactly the entries in
+    .worktreeinclude and nothing else; tech-debt.md was removed from that list
+    2026-08-02 when the TD register was retired (ADR 0121 - see #1172).
 
 .DESCRIPTION
     A fresh worktree branched from origin/main has the TRACKED files only;

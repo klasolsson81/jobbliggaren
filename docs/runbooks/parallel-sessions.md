@@ -265,7 +265,9 @@ single most dangerous one.
 3. Land the migration PR (automerge), then **other sessions rebase** before any
    schema touch of their own. Serial, never parallel.
 4. Local migrations are NOT auto-applied (Api/Worker do not migrate locally;
-   `Migrate` is AWS-bound, TD-105). There are **two** DbContexts with separate
+   `Migrate` does not run automatically). *(It was AWS-Secrets-Manager-bound; that was
+   removed by #199 / ADR 0050 and there is no AWS SDK surface left in
+   `Jobbliggaren.Migrate` — measured 2026-08-02.)* There are **two** DbContexts with separate
    snapshots + migration histories — `AppDbContext` (schema `public`) and
    `AppIdentityDbContext` (schema `identity`, ADR 0034; `Migrate` runs them
    separately, Identity with master creds per Npgsql #1770). After pulling a new

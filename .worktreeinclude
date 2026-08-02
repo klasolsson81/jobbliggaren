@@ -20,8 +20,9 @@ docs/steg-tracker.md
 # The reaper derives its rescue pathspec straight from this file and treats every
 # entry as landable session state: main copy has it + worktree copy differs ->
 # "UNLANDED EDIT: land it there, then reap". Measured on the day of the change:
-# 12 of 21 live worktrees carried the pre-retirement register (107 628 B) against a
-# 3 390 B tombstone, so all twelve would have become permanently unreapable — and
+# 11 of the 20 sibling worktrees carried a pre-retirement register (101–108 kB across
+# four vintages) against the main copy's 3 435 B tombstone, so all eleven would have
+# become permanently unreapable — the main copy is the 21st and is never reaped — and
 # the remedy the hook prints ("land it there") is the one thing the retirement
 # forbids, since it would overwrite the tombstone with an old register copy.
 #

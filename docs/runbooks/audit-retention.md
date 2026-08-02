@@ -55,7 +55,9 @@ medvetet val framför den inbyggda dashboarden. Leta där efter recurring job
   kan bära personnummer, e-post eller DEK-dekrypterad CV-text), inte en lucka.
   **Lägg inte till dem.** Orsak utreds i loggen (§3.2) eller via direkt
   `hangfire.*`-SQL.
-- **Requeue** finns som API-endpoint (PR #248), **inte** som kontroll på sidan.
+- **Requeue/trigger** finns som API-endpoints — `POST /api/v1/admin/jobs/failed/{jobId}/retry`
+  och `POST /api/v1/admin/jobs/recurring/{id}/trigger` (PR #248) — **inte** som
+  kontroller på sidan.
 
 ### 3.2 Strukturerad logg (Seq i dev; prod-sinken är obyggd — #1175)
 
@@ -115,7 +117,10 @@ rader om timing-fönstret missas.
 **Åtgärd:**
 
 1. Hangfire retry:ar automatiskt (default 10 retries med exponential backoff).
-2. Om retries uttöms: trigga manuellt via Hangfire dashboard ("Re-run").
+2. Om retries uttöms: kör om det misslyckade jobbet via
+   `POST /api/v1/admin/jobs/failed/{jobId}/retry` (PR #248). Det finns ingen
+   "Re-run"-knapp på `/admin/jobb` — ytan är read-side (ADR 0082), och den inbyggda
+   Hangfire-dashboarden exponeras inte.
 3. Verifiera att partitions skapats korrekt (§3.3).
 
 **Risk:** Försumbar. PG hanterar default-partition-overflow rent.
@@ -160,7 +165,9 @@ Default-partitionen ackumulerar nya audit-skrivningar.
 
 **Åtgärd:**
 
-1. Kör manuellt jobb-trigger (Hangfire dashboard eller via Worker-restart).
+1. Kör manuell trigger via `POST /api/v1/admin/jobs/recurring/{id}/trigger`
+   (PR #248) eller via Worker-restart. Inte via Hangfire-dashboarden — den
+   exponeras inte (ADR 0082).
 2. Om permanent fel: tillfälligt stäng av audit-skrivningar genom att flippa
    `IAuditableCommand`-implementationer (kräver hot-fix, inte standard ops).
 3. Eskalera till Klas — det indikerar djupare DB-problem (disk full,

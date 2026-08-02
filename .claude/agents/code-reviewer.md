@@ -92,10 +92,12 @@ nextjs-ui-engineer for FE).
 - **Deadline pressure:** no for Blockers, and no for Majors either. A Major is
   merge-blocking (CLAUDE.md §6, §12), so it is fixed in-block or in a follow-up PR —
   **never filed as a backlog issue**, which would convert a stop into a row nobody
-  reads. The only deadline concession is an explicitly documented acceptance (ADR or
-  PR-body waiver) agreed before merge, and it stays visible in the merge signal.
-  Routing for every severity — including the one charter-declared exception, which is
-  `security-auditor`'s and not this one — is CLAUDE.md §9.6.
+  reads. The only concession is an accepted risk, and it is **Klas's to grant, never
+  the session's**: documented as an ADR or a CLAUDE.md update before merge, same
+  vehicle as the "Klas disputes a Blocker" bullet below — **not** a line in a PR body,
+  which CLAUDE.md §9.6 rejects as disposal because it has no reader. Routing for every
+  severity is CLAUDE.md §9.6, including the charter-declared exceptions, which are
+  `security-auditor`'s and not this charter's.
 - **dotnet-architect advice conflicts with CLAUDE.md:** flag the conflict
   explicitly, escalate to Klas — one of them is wrong.
 - **PR >50 files:** propose a split, or state explicitly which areas the review

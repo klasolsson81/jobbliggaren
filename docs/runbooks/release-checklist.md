@@ -483,7 +483,8 @@ sessionen. dev/rc-tags är CC-tillåtna efter grön CI.
       Redis dependency-checks, TD-29).
 - [ ] **`/api/health` → 200** (liveness).
 - [ ] **Hangfire-jobben** kör enligt schema om release rör Worker
-      (`*/10`-cron etc.) — verifiera i Hangfire-dashboard/loggar.
+      (`*/10`-cron etc.) — verifiera på `/admin/jobb` (read-side, ADR 0082) och i
+      den strukturerade loggen. Den inbyggda Hangfire-dashboarden exponeras inte.
 - [ ] **Audit-wire** — om release rör audit-genererande flöden: bevisa
       INSERT i `audit_log` via den strukturerade logg-sinken (MEL → Seq; full
       prod-sink = #1175) + direkt `audit_log`-query (ADR 0035).

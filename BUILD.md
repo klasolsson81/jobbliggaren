@@ -1392,13 +1392,18 @@ UptimeRobot/BetterStack free ersätter ALB/CloudWatch-health per ADR 0050):
 >
 > **En länk säger var arbetet ägs — inte att premissen omkring den är aktuell.** Två
 > premisser i detta kapitel är **upphävda** av Klas-direktiv 2026-08-02, inte bara under
-> omprövning: **värdvalet** (Hetzner ut; svensk VPS in, ersättaren obeslutad) och
-> **e-postleverantören** (Resend ut). Ersättningarna skrivs in av CC1-lanen med egen
+> omprövning: **värdvalet** (Hetzner ut; svensk VPS in — **ersättaren obeslutad**,
+> kandidater hostup och one.com) och **e-postleverantören** (Resend ut — **ersättaren
+> ÄR vald: AWS SES i `eu-north-1`**, enda kvarvarande AWS-tjänsten, valt för att den är
+> billigast för utgående e-post och saknar tredjelandsöverföring). Ersättningarna skrivs in av CC1-lanen med egen
 > supersessions-ADR — inklusive **§13.4:s subprocessor-lista**, som matar den publika
 > `/integritet`-sidan och därför har ett eget ärende
 > ([#1169](https://github.com/klasolsson81/jobbliggaren/issues/1169)). Denna PR bytte ut
-> döda markörer mot levande hemvister och skriver medvetet inte in någon ersättare:
-> ersättaren är inte vald, och att välja den är inte en spec-edit-PR:s beslut.
+> döda markörer mot levande hemvister och skriver medvetet inte in någon ersättare i
+> sak. För värden går det inte — den är inte vald. För e-posten vore det en
+> supersession av ADR 0050 plus en omskrivning av §13.4:s subprocessor-lista, som matar
+> den publika `/integritet`-sidan och därför är legal-facing: det arbetet ägs av #1169
+> och #183 och kräver `security-auditor`, inte en spec-edit-PR om ett registerbyte.
 
 ### 15.1 Deploy-layout (ADR 0050, Accepted)
 

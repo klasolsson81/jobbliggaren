@@ -540,11 +540,16 @@ order. (Praise is not a finding and routes nowhere.) Then:
 - **Blocker or Major** → **in-block**, or a **follow-up PR** if it is a genuinely
   separate change-reason. Never an issue: §6 and §12 make an unresolved agent
   Blocker/Major merge-blocking, so filing one would convert a stop into a backlog row.
-  **One exception, and it is the reporting charter's to declare:** a finding its own
-  charter marks non-blocking because it grades **repo state the diff did not create**
-  — `security-auditor` area 8, which escalates to Klas and lets the PR through — has
-  neither an in-block home nor a change-reason of its own. That one is filed as an
-  issue, with the escalation named in it.
+  **Two exceptions, and both are the reporting charter's to declare, never the
+  session's to claim.** (1) A finding its own charter marks non-blocking because it
+  grades **repo state the diff did not create** — `security-auditor` area 8, which
+  escalates to Klas and lets the PR through — has neither an in-block home nor a
+  change-reason of its own, so it is **filed as an issue with the escalation named in
+  it**. (2) A security Major **without GDPR implication** may become a documented
+  **accepted-risk ADR** — `security-auditor`'s own edge case, and **Klas owns that
+  decision**. A GDPR Blocker is never in either category. In both cases the concession
+  is granted by Klas and recorded in an ADR or a CLAUDE.md update, never by the session
+  in a PR body.
 - **The finding does not hold** — its premise is false or revoked → say so plainly, with
   the measurement. Neither a fix nor an issue. This is a real outcome, not a way out.
 - **Minor / nice-to-have** → a **GitHub issue**, and a line in a PR

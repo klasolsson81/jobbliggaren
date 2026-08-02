@@ -97,9 +97,13 @@ oläsbara för de parallella sessioner de skrevs för. Föreslå aldrig en TD, e
 `TD-NNN`-nummer eller en Severity × Fas-matris. Om en CC eller en annan agent ber dig
 validera ett TD-lyft är rätt svar att routa det enligt nedan.
 
-**Severity definieras inte här.** `.claude/agents/code-reviewer.md` §Severity är SSOT
-för Blocker/Major/Minor och binder redan var och en till Block eller Allow. Regel 3
-säger bara vart ett fynd går.
+**Severity definieras inte här, och du omgraderar inte.** Ett fynds severity tillhör
+**den agent som rapporterade det, i den agentens egen skala** — en design-reviewer-
+Blocker är en Blocker för att design-reviewer sa det, inte för att den också passar
+code-reviewers tabell. Att grada om mot en annan agents tabell är hur en a11y-Blocker
+eller en GDPR-överträdelse tyst blir en Minor. Regel 3 säger bara vart ett fynd går;
+routningen i sin helhet, inklusive de undantag ett charter själv deklarerar, står i
+CLAUDE.md §9.6.
 
 Default = **fixa in-block**. Tre utfall, och du väljer ett:
 

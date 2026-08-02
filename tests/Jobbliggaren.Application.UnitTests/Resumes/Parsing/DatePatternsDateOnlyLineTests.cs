@@ -5,7 +5,7 @@ namespace Jobbliggaren.Application.UnitTests.Resumes.Parsing;
 
 /// <summary>
 /// #1060 β-3 follow-up — the promoted predicate's OWN surface.
-/// <c>DatePatterns.StripTrailingDate</c> / <c>DatePatterns.IsDateOnlyLine</c> became public
+/// <c>DatePatterns.StripTrailingDate</c> / <c>DatePatterns.IsDateOnlyLine</c> became
 /// assembly-internal API (<c>DatePatterns</c> is <c>internal</c>, so the consumer set is closed
 /// and named) with THREE call sites across two types (<c>HeadingDrivenResumeSegmenter.StripTrailingPeriod</c>
 /// for the reduction, <c>HeadingDrivenResumeSegmenter.SplitTitleOrganization</c> for the predicate
@@ -19,14 +19,15 @@ namespace Jobbliggaren.Application.UnitTests.Resumes.Parsing;
 /// question — true exactly when the reduction empties the line. <b>The two are asserted TOGETHER on
 /// every input this class carries</b>, because the definitional identity
 /// (<c>IsDateOnlyLine(x) == (StripTrailingDate(x).Length == 0)</c>) is the whole substance of the
-/// promotion: it is what makes one home one home rather than two copies. Most cases reach it through
-/// <c>ShouldReduceTo</c>; the two that cannot — <c>ForALoneSlashPoint</c>, where the reduction is not
-/// a no-op, and <c>PeriodParser_ShouldNotReach_HyphenAsAMonthSeparator</c>, which pins the OTHER
-/// grammar — spell both sides out inline. <b>A row asserting <c>IsDateOnlyLine</c> alone would be a
-/// hole in exactly the drift check this file exists to be</b>; one was introduced mid-review and both
-/// reviewers caught it independently.</para>
+/// promotion: it is what makes one home one home rather than two copies. <b>Every case reaches it
+/// through <c>ShouldReduceTo</c></b> — the helper takes an arbitrary expected reduction, so a case
+/// whose line is neither left whole nor emptied uses it too. <b>A row asserting
+/// <c>IsDateOnlyLine</c> alone is a hole in exactly the drift check this file exists to be</b>; two
+/// were introduced mid-review, on consecutive rounds, and the reviewers caught both.</para>
 ///
-/// <para><b>The four unmodelled forms are on the NEGATIVE side, deliberately.</b>
+/// <para><b>The segmenter pin's four unmodelled forms are on the NEGATIVE side, deliberately</b>
+/// — "four" names that pin's frozen fixture, not the size of the unmodelled class, which this file
+/// has since grown (a lone MM-hyphen point is a fifth form neither disjunct suppresses).
 /// "jan 2020 – dec 2024", "2020 – 2024 (heltid)", "2020/01 – 2024/12" and "2020 –" are the
 /// segmenter pin's frozen negative population
 /// (<c>Segment_DateLineDatePatternsDoesNotModel_IsStillTakenAsTheOrganization</c>). They are
@@ -39,13 +40,16 @@ public class DatePatternsDateOnlyLineTests
 {
     // ── The predicate is exactly the reduction, asserted as an identity ──────────────
     //
-    // Most cases in this class run through this helper rather than asserting IsDateOnlyLine alone.
-    // A future edit that re-implements IsDateOnlyLine as a second copy — the precise thing the
-    // promotion exists to prevent — can drift from StripTrailingDate only by breaking this
+    // EVERY case in this class runs through this helper rather than asserting IsDateOnlyLine
+    // alone. A future edit that re-implements IsDateOnlyLine as a second copy — the precise thing
+    // the promotion exists to prevent — can drift from StripTrailingDate only by breaking this
     // identity, so the identity is asserted on every input the class carries, positive and
-    // negative alike. The two cases that do not use the helper assert BOTH sides inline instead,
-    // because their reduction is not the helper's `expected == line` or `expected == ""` shape;
-    // neither is an exemption from the identity.
+    // negative alike.
+    //
+    // `expected` is arbitrary, and that is load-bearing: an earlier round claimed the helper only
+    // took `line` or `""` and used that as grounds to assert IsDateOnlyLine inline instead. It was
+    // false — StripTrailingDate_ShouldReturnTheFieldsAndDropTheDanglingSeparator passes "Acme AB"
+    // through it — and the false premise is what produced the hole. There is no exemption.
     private static void ShouldReduceTo(string line, string expected)
     {
         DatePatterns.StripTrailingDate(line).ShouldBe(expected,
@@ -144,6 +148,15 @@ public class DatePatternsDateOnlyLineTests
     [InlineData("3/2020 – 6/2024", "single-digit months (\\d{1,2} against DatePatterns' \\d{2})")]
     [InlineData("03.2020 – 06.2024",
         "'.' as the month separator, where DatePatterns' \\d{2}/\\d{4} takes only '/'")]
+    // '-' as the month separator, but ONLY in the RIGHT point. SeparatorRegex splits on the FIRST
+    // separator and Split(trimmed, 2) never splits the right part again, so the en dash is
+    // consumed as the range split and "03-2024" reaches PointRegex's [/.\-] branch whole. Measured,
+    // not derived: an earlier revision of this file asserted the OPPOSITE as a universal, and the
+    // run refuted it. See the lone/left-point pin below for the position where it does NOT hold.
+    [InlineData("2020 – 03-2024",
+        "'-' as the month separator in the RIGHT point of a range")]
+    [InlineData("01/2022 - 06-2024",
+        "'-' in the right point again, after a hyphen-with-spaces range separator")]
     [InlineData("2020-06 – 2024-03",
         "an ISO YYYY-MM END point: DateRange's end-alternation takes the bare \\d{4} first and " +
         "leaves '-03' as a non-empty tail, so the whole line is never consumed")]
@@ -154,11 +167,16 @@ public class DatePatternsDateOnlyLineTests
         string line, string axis)
     {
         // This is the direction of the trap. Swapping ReviewText's PeriodParser test for a
-        // DatePatterns-only one would hand exactly these lines to the review side's bullet scorer
-        // (ReviewText.ExperienceBullets → A1/A2/A6), where a criterion can cite the user's
-        // employment dates as if they were prose — §5's "a CV verdict without cited textual
-        // evidence" in its inverted form. NOT WeakVerbTransform: it proposes only for a bullet
-        // opening with a drop-in-safe weak verb, so it is offered a date row and declines it.
+        // DatePatterns-only one would release exactly these lines into the review side's bullet
+        // scorer (ReviewText.ExperienceBullets → A1/A2/A6) AND into WeakVerbTransform's bullet
+        // unit, which IS DescriptionLines. The transform is offered the row and DECLINES to
+        // propose on it — it fires only for a bullet opening with a drop-in-safe weak verb from
+        // the KnowledgeBank mapping — so only the review side acts.
+        //
+        // What the review side then does — cite the user's employment dates as though they were
+        // prose, §5's "a CV verdict without cited textual evidence" inverted — is DERIVED from
+        // reading the rules, NOT RUN (senior-cto-advisor re-bind 2026-08-02). The date-model
+        // widening owns measuring it.
         ShouldReduceTo(line, line);
         PeriodParser.TryParse(line, out _, out _, out _).ShouldBeTrue(
             $"PeriodParser reaches this form and DatePatterns does not — {axis}.");
@@ -192,33 +210,35 @@ public class DatePatternsDateOnlyLineTests
     }
 
     /// <summary>
-    /// A NEGATIVE pin on the axis list itself: "-" as a MONTH separator is NOT a
-    /// PeriodParser-is-wider axis, even though <c>PeriodParser.PointRegex</c> lists <c>[/.\-]</c>.
+    /// The POSITION where "-" as a month separator stops being a PeriodParser-is-wider axis: a lone
+    /// point, or the LEFT point of a range. There the hyphen is consumed as the range split itself.
     ///
-    /// <para>Found by dotnet-architect against a head whose docblock claimed <c>"." / "-"</c> as one
-    /// axis. It is the only prose axis that had no adjudicating <c>InlineData</c> — written into the
-    /// very paragraph that had just named this file the adjudicator. So it is pinned rather than
-    /// merely corrected: a claim about <c>PeriodParser</c>'s grammar that no run adjudicates is the
-    /// same class of defect as the axis COUNT that preceded it.</para>
+    /// <para><b>This pin exists because a universal claim was published in its place and refuted by
+    /// measurement.</b> A revision of this file asserted that <c>PointRegex</c>'s <c>[/.\-]</c>
+    /// branch is unreachable for any MM-first point, and put that in <c>DatePatterns</c>' docblock
+    /// too. Both reviewers found the counter-example independently, and a run settled it:
+    /// <c>"2020 – 03-2024"</c> and <c>"01/2022 - 06-2024"</c> both parse, because
+    /// <c>SeparatorRegex</c> splits on the FIRST separator and <c>Split(trimmed, 2)</c> never splits
+    /// the right part again. Those rows now sit in the wider-axis theory above; what survives here
+    /// is the narrower, true statement. <b>Swapping a wrong COUNT for a wrong UNIVERSAL is the same
+    /// defect class, and a false claim carrying an adjudicator reads as measured.</b></para>
     ///
-    /// <para>The mechanism: <c>SeparatorRegex</c> splits BEFORE <c>PointRegex</c> ever runs, and its
-    /// <c>(?&lt;!\d{4})-</c> alternative sees only two digits before the hyphen of "03-2020", so the
-    /// lookbehind succeeds and the hyphen is consumed as a RANGE split. That leaves "03" as the left
-    /// point, which matches neither branch. The hyphen survives as a point-internal separator only
-    /// when exactly four digits precede it — the ISO form, which is year-first, not MM-first.
+    /// <para>Both rows go through <c>ShouldReduceTo</c> with reductions taken from the run, not
+    /// derived: <c>"03-2020"</c> reduces to <c>"03"</c> (<c>Year</c> matches "2020" with an empty
+    /// tail and the "-" is trimmed), while <c>"03-2020 – 06-2024"</c> is not reduced at all.
     /// <b>Road 3 touches this grammar; this pin is what will catch it.</b></para>
     /// </summary>
     [Theory]
-    [InlineData("03-2020")]
-    [InlineData("03-2020 – 06-2024")]
-    public void PeriodParser_ShouldNotReach_HyphenAsAMonthSeparator(string line)
+    [InlineData("03-2020", "03")]
+    [InlineData("03-2020 – 06-2024", "03-2020 – 06-2024")]
+    public void IsDateOnlyLine_ShouldBeFalse_ForAnMmHyphenPointAtTheLineStart(
+        string line, string reduced)
     {
+        ShouldReduceTo(line, reduced);
         PeriodParser.TryParse(line, out _, out _, out _).ShouldBeFalse(
-            "SeparatorRegex consumes the hyphen as a range split before PointRegex sees it, so " +
-            "PointRegex's [/.\\-] hyphen branch is unreachable for an MM-first point.");
-        DatePatterns.IsDateOnlyLine(line).ShouldBeFalse(
-            "and DatePatterns does not model it either — so this form is suppressed by NEITHER " +
-            "disjunct, which is what makes it wrong to list as an axis on which PeriodParser wins.");
+            "with the hyphen leading, SeparatorRegex consumes it as the range split before " +
+            "PointRegex sees it, leaving a bare month that matches no branch. This is a claim " +
+            "about POSITION only — in a right point the same separator parses (see the theory above).");
     }
 
     [Theory]
@@ -259,7 +279,7 @@ public class DatePatternsDateOnlyLineTests
     [Fact]
     public void IsDateOnlyLine_ShouldBeTrue_WhenTheLineIsEmpty()
     {
-        // TOTALITY, and DECLARED UNREACHABLE from either reader (CLAUDE.md §5). Neither call site
+        // TOTALITY, and DECLARED UNREACHABLE from every reader (CLAUDE.md §5). No call site
         // can produce it: HeadingDrivenResumeSegmenter's entries carry only non-blank lines, and
         // ReviewText.DescriptionLines filters `l.Length > 0` before the period test runs. It is
         // pinned because the method is shared Infrastructure API that must not throw on the

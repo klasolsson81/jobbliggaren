@@ -18,9 +18,10 @@ namespace Jobbliggaren.Application.UnitTests.Resumes.Review;
 /// revision of this docblock said <c>DescriptionLines</c> feeds <c>WeakVerbTransform</c>, "which
 /// proposes a rewrite of every bullet", and cited CLAUDE.md §5 "synthesising prose the user did not
 /// write". Both halves are false. <c>WeakVerbTransform.Propose</c> emits a change only for a bullet
-/// OPENING with a drop-in-safe weak verb from the KnowledgeBank mapping, and a date row opens with a
-/// digit or a month abbreviation — it is offered the row and DECLINES it; the replacement is a
-/// verbatim KnowledgeBank value, so it could not synthesise even if it fired.</para>
+/// OPENING with a drop-in-safe weak verb from the KnowledgeBank mapping, and NO date row opens with
+/// one — it is offered the row and DECLINES it; the replacement is a verbatim KnowledgeBank value,
+/// so it could not synthesise even if it fired. (The transform IS offered the row: its bullet unit
+/// is <c>DescriptionLines</c> itself, measured below. Saying it is not would over-correct.)</para>
 ///
 /// <para>The consumer that does act on a released row is the REVIEW side, via
 /// <c>ReviewText.ExperienceBullets</c> → A1/A2/A6, and the class is the INVERSE of the one first

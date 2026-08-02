@@ -89,10 +89,12 @@ internal static partial class DatePatterns
     ///
     /// <para><c>PeriodParser</c> is wider at least on: the word separators "till"/"to";
     /// single-digit months (<c>\d{1,2}</c> against this type's <c>\d{2}</c>); "." as a month
-    /// separator where this type takes only "/" — <b>not</b> "-", even though
-    /// <c>PeriodParser.PointRegex</c> lists it, because <c>SeparatorRegex</c> splits first and
-    /// <c>(?&lt;!\d{4})-</c> consumes the hyphen of "03-2020" as a RANGE split, leaving "03" to fail
-    /// the point match; ISO <c>YYYY-MM</c> END points, because
+    /// separator where this type takes only "/"; "-" as a month separator <b>in the RIGHT point of
+    /// a range</b> ("2020 – 03-2024") but NOT in a lone or left point ("03-2020"), because
+    /// <c>SeparatorRegex</c> splits on the FIRST separator and <c>Split(trimmed, 2)</c> never
+    /// splits the right part again — so a leading hyphen is consumed as the range split and its
+    /// "03" fails the point match, while a hyphen to the right of an earlier separator reaches
+    /// <c>PointRegex</c>'s <c>[/.\-]</c> branch intact; ISO <c>YYYY-MM</c> END points, because
     /// <see cref="DateRange"/>'s end-alternation is ordered so the bare <c>\d{4}</c> matches first
     /// and the word boundary after it holds against the following "-", leaving a non-empty tail;
     /// and a lone date POINT with no range separator ("03/2020"), which <see cref="DateRange"/>

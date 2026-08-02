@@ -95,11 +95,13 @@ internal static class ReviewText
             // independently written grammars.
             //
             // Replacing rather than adding is therefore a suppression regression in one direction
-            // or the other, and it releases the line into ExperienceBullets below — and into
+            // or the other, and it releases the line into this method's consumers —
+            // ExperienceBullets below, StructureRules' B5 bullet-marker rule, and into
             // WeakVerbTransform's bullet unit, which IS this method (measured in
             // ReviewTextPeriodLineUnionTests). What that transform then does is DECLINE to propose:
             // it proposes only for a bullet OPENING with a drop-in-safe weak verb from the
-            // KnowledgeBank mapping, and a date row opens with a digit. Offered, not acted on —
+            // KnowledgeBank mapping, and no date row opens with one (naming an opening GLYPH instead
+            // would be wrong for the leading-separator direction). Offered, not acted on —
             // stating it as "not released into WeakVerbTransform" would over-correct in the other
             // direction and contradict that measurement.
             //

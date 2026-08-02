@@ -1012,10 +1012,19 @@ public class HeadingDrivenResumeSegmenterTests
     ///
     /// <para><b>The trigger that reddens this test is a DatePatterns WIDENING</b> — modelling month
     /// names, trailing qualifiers, keyword-less open ends and <c>YYYY/MM</c> — not the predicate
-    /// PROMOTION deferred beside <c>ReviewText</c>'s residual. That promotion factors today's model
-    /// into one home and inherits its blind spot: <c>PeriodParser</c> refuses all four of these too.
-    /// Naming the promotion as the trigger would leave this green while the deferral claimed the gap
-    /// was closed — which is the defect this test exists to make impossible.</para>
+    /// PROMOTION that was deferred beside <c>ReviewText</c>'s residual. That promotion factors
+    /// today's model into one home and inherits its blind spot: <c>PeriodParser</c> refuses all four
+    /// of these too. Naming the promotion as the trigger would leave this green while the deferral
+    /// claimed the gap was closed — which is the defect this test exists to make impossible.</para>
+    ///
+    /// <para><b>The promotion has since SHIPPED and this test stayed green, 4/4, data unchanged</b>
+    /// — which is the prediction above being confirmed rather than a gap being closed.
+    /// <c>StripTrailingPeriod</c>'s reduction now lives in <c>DatePatterns.StripTrailingDate</c> and
+    /// <c>DatePatterns.IsDateOnlyLine</c> is defined as it, so both readers ask one predicate. The
+    /// predicate is the same one; these four forms are still outside it. <b>The widening remains the
+    /// trigger, and these four <c>InlineData</c> stay as they are.</b> If a future change makes one
+    /// of them pass, that change widened the date model — read it as the widening having landed, not
+    /// as a stale fixture to edit.</para>
     /// </summary>
     [Theory]
     [InlineData("jan 2020 – dec 2024", "no month token in the end-alternation")]

@@ -84,7 +84,19 @@ internal static class ReviewText
             var line = lines[i];
 
             // A line that is purely the period ("2013–2021", "01/2022 – nuvarande") is not a bullet.
-            if (PeriodParser.TryParse(line, out _, out _, out _))
+            //
+            // A UNION of two predicates, and it is deliberately not one (#1060 β-3 follow-up).
+            // NEITHER SUBSUMES THE OTHER, measured: PeriodParser is wider on three axes — the word
+            // separators "till"/"to", single-digit months (\d{1,2} against DatePatterns' \d{2}) and
+            // "." / "-" as month separators where DatePatterns takes only "/" — so it alone
+            // suppresses "2019 till 2021" and "3/2020 – 6/2024". DatePatterns.IsDateOnlyLine is
+            // wider for a date line that is not a whole-string period, which is what PeriodParser's
+            // ^…$ anchoring refuses: a LEADING separator ("– 2020 – 2024").
+            //
+            // Replacing rather than adding would therefore be a regression in the opposite
+            // direction — it would hand "2019 till 2021" to the bullet scorer and to
+            // WeakVerbTransform, which proposes a rewrite of every bullet.
+            if (PeriodParser.TryParse(line, out _, out _, out _) || DatePatterns.IsDateOnlyLine(line))
             {
                 continue;
             }
@@ -96,32 +108,34 @@ internal static class ReviewText
                 continue;
             }
 
-            // RESIDUAL, priced rather than left implicit (#1060 β-3). These two suppressions used
-            // to overlap: a period line that PeriodParser rejects was often still caught by the
-            // organization-equality test, because the segmenter had put that very line in the
-            // organization slot. β-3 stops that fabrication, so the overlap is gone and a period
-            // line with a LEADING separator ("– 2020 – 2024") now escapes both — PeriodParser is
-            // anchored and refuses it, and there is no longer an Organization equal to it — and is
-            // yielded as a description bullet for the review criteria to score.
+            // The β-3 residual this union closes, kept because it records WHY the union exists.
+            // The two suppressions above used to overlap: a period line PeriodParser rejects was
+            // often still caught by the organization-equality test, because the segmenter had put
+            // that very line in the organization slot. β-3 stopped that fabrication, so the overlap
+            // went with it and a period line with a LEADING separator ("– 2020 – 2024") escaped
+            // both — and was yielded as a description bullet for the review criteria to score.
+            // Closed by the DatePatterns disjunct above, which suppresses it structurally rather
+            // than as a side effect of a defect.
             //
-            // Not fixed here, deliberately: the honest fix is to promote "is this line nothing but
-            // a period?" into DatePatterns so this reader and SplitTitleOrganization share one
-            // predicate, which is the same DRY move that gave DatePatterns and PeriodParser their
-            // neutral home. That is its own change-reason and does NOT belong inside a segmenter
-            // narrowing, so it ships as a FOLLOW-UP PR off #1060 β-3 — the house rule is a
-            // follow-up PR, never another filed issue. Deliberately NOT deferred to "the routing
-            // work": routing is refused on this lane, so that destination has no owner, and a
-            // deferral whose home does not exist is not tracked at all.
+            // WHAT REMAINS, and it is the segmenter's negative population, not this one: a date
+            // line DatePatterns does not MODEL ("jan 2020 – dec 2024", "2020 – 2024 (heltid)",
+            // "2020/01 – 2024/12", "2020 –") is not reduced, so IsDateOnlyLine declines it exactly
+            // as PeriodParser does. The promotion FACTORED today's model into a shared home; it did
+            // not widen it, and sharing a predicate does not extend one. Closing that needs the
+            // DATE MODEL widened (month names, trailing qualifiers, keyword-less open ends,
+            // YYYY/MM points), which is a separate change-reason with a wider blast radius because
+            // DatePatterns also feeds StripDates and ExtractPeriod.
             //
-            // Scope of that follow-up, stated narrowly because it is easy to over-claim: the
-            // promotion FACTORS the existing predicate into a shared home. It does NOT widen it,
-            // so it closes THIS residual and leaves the segmenter guard's negative population
-            // exactly where it is — that population is by definition what the predicate does not
-            // model, and sharing a predicate does not extend it. Closing that one needs the DATE
-            // MODEL widened (month names, trailing qualifiers, keyword-less open ends, YYYY/MM
-            // points) — the same four the segmenter names — which is a separate
-            // change with a wider blast radius because DatePatterns also feeds StripDates and
-            // ExtractPeriod. Two deferrals, not one.
+            // TWO DEFERRALS, AND THE ORDER IS LOAD-BEARING — this promotion FIRST, the widening
+            // SECOND. Not a preference: today those four forms are suppressed here only because the
+            // segmenter fabricates them into Organization and the equality test above fires on
+            // them. Widening the date model FIRST makes Organization correctly null, the equality
+            // test stops firing, and — without this union already in place — the line would escape
+            // into the bullet scorer and into WeakVerbTransform, which proposes a rewrite of every
+            // bullet. That trades a fabricated employer for a rewritten date row: two CLAUDE.md §5
+            // CV-engine classes, not a fix. With the union here first, the widening extends this
+            // suppression automatically. A count is not a sequence, and the sequence is where the
+            // defect lives (senior-cto-advisor bind 2026-08-02, §2).
 
             yield return line;
         }

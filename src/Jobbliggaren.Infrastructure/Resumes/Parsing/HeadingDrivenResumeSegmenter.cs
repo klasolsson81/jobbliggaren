@@ -621,10 +621,23 @@ internal sealed partial class HeadingDrivenResumeSegmenter(CvParsingLexiconData 
         // Unchanged by β-3 and not a regression: the guard is narrower than this
         // paragraph would read if it said "any date-only line". The honest fix is a DatePatterns
         // WIDENING — modelling month names, trailing qualifiers, keyword-less open ends and
-        // YYYY/MM. The predicate PROMOTION
-        // the ReviewText residual defers is necessary but NOT sufficient: it factors today's model
-        // into a shared home and inherits its blind spot, so it would close that residual and leave
-        // this population exactly here. Two deferrals, not one.
+        // YYYY/MM.
+        //
+        // The predicate PROMOTION has since SHIPPED (the reduction below now lives in
+        // DatePatterns.StripTrailingDate, with DatePatterns.IsDateOnlyLine defined as it, read by
+        // ReviewText.DescriptionLines). It was necessary but NOT sufficient, exactly as this
+        // paragraph said: it factored today's model into a shared home and inherited its blind
+        // spot, so it closed the ReviewText residual and left THIS population precisely here.
+        // Two deferrals, not one, and the promotion was the first.
+        //
+        // THE ORDER WAS LOAD-BEARING, which is the part this paragraph could not say before the
+        // measurement existed. These four forms are today suppressed on the review side only
+        // BECAUSE this fallback fabricates them into Organization and ReviewText's
+        // organization-equality test then fires on them. Widening the date model first would make
+        // Organization correctly null and stop that test firing — handing the line to the bullet
+        // scorer and to WeakVerbTransform, which proposes a rewrite of every bullet. The promotion
+        // had to land first so the widening extends a real suppression instead of removing an
+        // accidental one (senior-cto-advisor bind 2026-08-02, §2).
         //
         // Relocating the fallback to Lines[2] is a separate decision, refused on TWO measurements:
         // β-1 measured that widening the fallback hands a description bullet to the organization
@@ -653,21 +666,12 @@ internal sealed partial class HeadingDrivenResumeSegmenter(CvParsingLexiconData 
     // content — it is the "spara direkt" mechanism — so the correction available there is ordinary
     // editing of an already-saved CV, which requires the user to notice first. Citing ADR 0040 flat
     // would name a remedy one of the two paths does not have.
-    private static string StripTrailingPeriod(string line)
-    {
-        var range = DateRangeRegex().Match(line);
-        if (range.Success && line[(range.Index + range.Length)..].Trim().Length == 0)
-            return TrimTrailingSeparators(line[..range.Index]);
-
-        var year = YearRegex().Match(line);
-        if (year.Success && line[(year.Index + year.Length)..].Trim().Length == 0)
-            return TrimTrailingSeparators(line[..year.Index]);
-
-        return line;
-    }
-
-    private static string TrimTrailingSeparators(string value) =>
-        value.TrimEnd(' ', '\t', ',', ';', '|', '-', '–', '—');
+    //
+    // The reduction itself now lives in DatePatterns.StripTrailingDate, so that
+    // DatePatterns.IsDateOnlyLine — which ReviewText.DescriptionLines reads — is defined AS this
+    // reduction instead of as a second copy of it. This method stays because the paragraph above
+    // is about the SEGMENTER's use of it, not about the reduction.
+    private static string StripTrailingPeriod(string line) => DatePatterns.StripTrailingDate(line);
 
     private static readonly string[] TitleOrgSeparators =
         [" — ", " – ", " - ", ", ", " | ", " @ ", " at ", " på ", " hos "];

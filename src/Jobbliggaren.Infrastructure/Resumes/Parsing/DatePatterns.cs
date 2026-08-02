@@ -92,7 +92,8 @@ internal static partial class DatePatterns
     /// separator where this type takes only "/"; "-" as a month separator <b>in the RIGHT point of
     /// a range</b> ("2020 – 03-2024") but NOT in a lone or left point ("03-2020"), because
     /// <c>SeparatorRegex</c> splits on the FIRST separator and <c>Split(trimmed, 2)</c> never
-    /// splits the right part again — so a leading hyphen is consumed as the range split and its
+    /// splits the right part again — so a hyphen standing BEFORE ANY OTHER SEPARATOR is consumed
+    /// as the range split and its
     /// "03" fails the point match, while a hyphen to the right of an earlier separator reaches
     /// <c>PointRegex</c>'s <c>[/.\-]</c> branch intact; ISO <c>YYYY-MM</c> END points, because
     /// <see cref="DateRange"/>'s end-alternation is ordered so the bare <c>\d{4}</c> matches first

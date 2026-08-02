@@ -26,8 +26,9 @@ namespace Jobbliggaren.Application.UnitTests.Resumes.Parsing;
 /// were introduced mid-review, on consecutive rounds, and the reviewers caught both.</para>
 ///
 /// <para><b>The segmenter pin's four unmodelled forms are on the NEGATIVE side, deliberately</b>
-/// — "four" names that pin's frozen fixture, not the size of the unmodelled class, which this file
-/// has since grown (a lone MM-hyphen point is a fifth form neither disjunct suppresses).
+/// — "four" names that pin's frozen fixture, not the size of the unmodelled class. This file pins
+/// one more form neither disjunct suppresses (a lone MM-hyphen point); no total is claimed for the
+/// class itself.
 /// "jan 2020 – dec 2024", "2020 – 2024 (heltid)", "2020/01 – 2024/12" and "2020 –" are the
 /// segmenter pin's frozen negative population
 /// (<c>Segment_DateLineDatePatternsDoesNotModel_IsStillTakenAsTheOrganization</c>). They are
@@ -166,7 +167,11 @@ public class DatePatternsDateOnlyLineTests
     public void IsDateOnlyLine_ShouldBeFalse_WhereOnlyPeriodParserReachesTheForm(
         string line, string axis)
     {
-        // This is the direction of the trap. Swapping ReviewText's PeriodParser test for a
+        // This is the direction of the trap. B5 does NOT act on these rows — every line here
+        // opens with a digit, so StructureRules' LeadMarker returns null — which is why only
+        // A1/A2/A6 are named below; the leading-separator direction is where B5 bites.
+        //
+        // Swapping ReviewText's PeriodParser test for a
         // DatePatterns-only one would release exactly these lines into the review side's bullet
         // scorer (ReviewText.ExperienceBullets → A1/A2/A6) AND into WeakVerbTransform's bullet
         // unit, which IS DescriptionLines. The transform is offered the row and DECLINES to
@@ -199,12 +204,12 @@ public class DatePatternsDateOnlyLineTests
     [Fact]
     public void IsDateOnlyLine_ShouldBeFalse_ForALoneSlashPoint_EvenThoughTheLineIsReduced()
     {
-        DatePatterns.StripTrailingDate("03/2020").ShouldBe("03/",
-            "Year matches the bare year with an empty tail, so the line reduces — but '/' is not a " +
-            "trailing separator, so the remainder is non-empty.");
-        DatePatterns.IsDateOnlyLine("03/2020").ShouldBeFalse(
-            "a non-empty remainder means the line carries more than a date, as far as this model " +
-            "is concerned.");
+        // Through the helper like everything else, and the arbitrary `expected` is what makes that
+        // possible: Year matches "2020" with an empty tail, so the line IS reduced — to "03/",
+        // because "/" is not in the trailing-separator set, leaving a non-empty remainder and a
+        // false predicate. An earlier round asserted both sides inline here on the false grounds
+        // that the helper only took `line` or `""`.
+        ShouldReduceTo("03/2020", "03/");
         PeriodParser.TryParse("03/2020", out _, out _, out _).ShouldBeTrue(
             "PeriodParser parses a lone MM/YYYY point, so only its disjunct suppresses this row.");
     }
@@ -279,7 +284,9 @@ public class DatePatternsDateOnlyLineTests
     [Fact]
     public void IsDateOnlyLine_ShouldBeTrue_WhenTheLineIsEmpty()
     {
-        // TOTALITY, and DECLARED UNREACHABLE from every reader (CLAUDE.md §5). No call site
+        // TOTALITY: the reduction is TOTAL, and the identity holds VACUOUSLY here — no match
+        // exists, so nothing is stripped and the line is already empty. DECLARED UNREACHABLE from
+        // every reader (CLAUDE.md §5), which is why the value is not a claim about production. No call site
         // can produce it: HeadingDrivenResumeSegmenter's entries carry only non-blank lines, and
         // ReviewText.DescriptionLines filters `l.Length > 0` before the period test runs. It is
         // pinned because the method is shared Infrastructure API that must not throw on the

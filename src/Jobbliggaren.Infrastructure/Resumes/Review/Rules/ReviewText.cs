@@ -100,10 +100,13 @@ internal static class ReviewText
             // WeakVerbTransform's bullet unit, which IS this method (measured in
             // ReviewTextPeriodLineUnionTests). What that transform then does is DECLINE to propose:
             // it proposes only for a bullet OPENING with a drop-in-safe weak verb from the
-            // KnowledgeBank mapping, and no date row opens with one (naming an opening GLYPH instead
-            // would be wrong for the leading-separator direction). Offered, not acted on —
-            // stating it as "not released into WeakVerbTransform" would over-correct in the other
-            // direction and contradict that measurement.
+            // KnowledgeBank mapping (WeakVerbTransform.cs:46-51), and no date row opens with one
+            // (naming an opening GLYPH instead would be wrong for the leading-separator direction).
+            // That the transform DECLINES is read from its firing condition, not run — same
+            // provenance as the A1/A2/A6 clause below. What IS read directly is that its bullet
+            // unit is this method: WeakVerbTransform.cs:34 iterates DescriptionLines. Offered, not
+            // acted on — stating it as "not released into WeakVerbTransform" would over-correct in
+            // the other direction.
             //
             // What ExperienceBullets' criteria (A1/A2/A6) do with a released row — score it and
             // CITE it as though it were prose — is DERIVED from reading the rules, NOT RUN

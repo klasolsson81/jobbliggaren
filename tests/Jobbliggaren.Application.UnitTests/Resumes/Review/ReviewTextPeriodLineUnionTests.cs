@@ -21,10 +21,17 @@ namespace Jobbliggaren.Application.UnitTests.Resumes.Review;
 /// OPENING with a drop-in-safe weak verb from the KnowledgeBank mapping, and NO date row opens with
 /// one — it is offered the row and DECLINES it; the replacement is a verbatim KnowledgeBank value,
 /// so it could not synthesise even if it fired. (The transform IS offered the row: its bullet unit
-/// is <c>DescriptionLines</c> itself, measured below. Saying it is not would over-correct.)</para>
+/// is <c>DescriptionLines</c> itself — read at <c>WeakVerbTransform.cs:34</c>, which iterates this
+/// method; no test calls <c>Propose</c>. What is MEASURED below is that the
+/// <c>ParsedExperience</c> overload suppresses the row. Saying the transform is not offered it
+/// would over-correct.)</para>
 ///
-/// <para>The consumer that does act on a released row is the REVIEW side, via
-/// <c>ReviewText.ExperienceBullets</c> → A1/A2/A6, and the class is the INVERSE of the one first
+/// <para>TWO consumers act on a released row, both on the review side. A1/A2/A6 via
+/// <c>ReviewText.ExperienceBullets</c>, and <b>B5</b> via <c>StructureRules</c> — whose bullet-marker
+/// set contains the en dash, so a leading-separator date row can add a marker and flip it
+/// <c>NotAssessed → Warn</c> with "Blandade punktsymboler" cited against the user's dates. That is
+/// sharpest in exactly the direction this class's first test pins. <b>Derived from reading B5, not
+/// run.</b> The class is the INVERSE of the one first
 /// cited: §5's "a CV verdict without cited textual evidence" — a verdict citing a span that is not
 /// prose. Sharpest on <c>YYYY/MM</c>, which <c>DateRange</c> models on neither endpoint, so
 /// <c>StripDates</c> leaves digits behind and A1 can read the employment dates as a quantified

@@ -22,9 +22,9 @@ export const companySearchResponseSchema = z.object({
   companies: pagedResult(companyBrowseSchema),
   /**
    * NULL for an UNFILTERED browse, by contract rather than by degradation: that view carries no
-   * number at all, and the backend does not compute one. The ruling and the measurement behind it
-   * live in `GetCompanySearchMagnitudeQueryHandler` — one home, because the number it rests on
-   * changes on every SCB sync.
+   * number at all, and the backend does not compute one. The rule is ADR 0120 ("a rendered count is
+   * true, or it is absent"); the measurement behind it lives in
+   * `GetCompanySearchMagnitudeQueryHandler`, because the number it rests on changes on every SCB sync.
    *
    * `nullable()` rather than `optional()`: the key is always on the wire, so the shape does not
    * vary with the filter. NULL and 0 are different answers — 0 means nothing matched.

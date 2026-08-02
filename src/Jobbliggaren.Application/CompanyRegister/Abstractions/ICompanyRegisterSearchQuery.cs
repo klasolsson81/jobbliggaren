@@ -55,6 +55,14 @@ public interface ICompanyRegisterSearchQuery
     /// this method lives on this port, mirroring the sibling's Fork G3 bind): returns
     /// <c>min(true count, ceiling)</c>. A return value equal to <paramref name="ceiling"/> means
     /// SATURATED and the copy must say "10 000+", never the bare number.
+    ///
+    /// <para>
+    /// <b>The contract still accepts any criteria; production no longer sends every kind.</b> Since
+    /// #1149 the only caller returns before reaching here when
+    /// <see cref="CompanyRegisterSearchCriteria.IsUnfiltered"/> — an unfiltered browse-all carries no
+    /// number, so no count is asked for. A test that reaches this method with an axis-free criterion
+    /// is exercising a shape production does not send.
+    /// </para>
     /// </summary>
     ValueTask<int> CountMatchingAsync(
         CompanyRegisterSearchCriteria criteria, int ceiling, CancellationToken cancellationToken);

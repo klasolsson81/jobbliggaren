@@ -126,7 +126,7 @@ public static class CompaniesEndpoints
     ///
     /// <para><see cref="Magnitude"/> is NULL for an unfiltered browse, and that is a contract, not
     /// a degradation: the unfiltered headline carries no number at all. A filtered search always
-    /// carries one. The ruling and its measurement live in
+    /// carries one. The rule is ADR 0120; the measurement behind it lives in
     /// <c>GetCompanySearchMagnitudeQueryHandler</c>.</para>
     /// </summary>
     public sealed record CompanySearchResponse(

@@ -62,12 +62,13 @@ describe("ForetagSokResults — the table announces a SEARCH, not a bevakning", 
     searchCompanies.mockReset();
     getCompanyWatchStatusByOrgNr.mockReset();
     getCompanyWatchStatusByOrgNr.mockResolvedValue([{ companyWatchId: null }]);
-    // totalCount 45 over pageSize 20 = 3 pages, so the pager actually renders. At totalCount 1 it
-    // returns null and every assertion about its summary line would pass vacuously.
+    // One match, so `totalCount` is 1 — production derives it from the same predicate as the
+    // magnitude and caps it, so the two agree below the cap. This block asserts table labels and
+    // never the pager, so it has no reason to want more pages than the fixture describes.
     searchCompanies.mockResolvedValue({
       kind: "ok",
       data: {
-        companies: { items: [COMPANY], page: 1, pageSize: 20, totalCount: 45 },
+        companies: { items: [COMPANY], page: 1, pageSize: 20, totalCount: 1 },
         magnitude: { magnitude: 1, saturated: false },
       },
     });
@@ -123,11 +124,30 @@ describe("ForetagSokResults — the table announces a SEARCH, not a bevakning", 
  * and not the other, or a plural form dropped, fails here rather than rendering a raw key.
  */
 describe("ForetagSokResults — browse-all carries NO number, a search carries one", () => {
-  const respondWith = (magnitude: unknown, totalCount = 45) => {
+  /**
+   * `totalCount` is NOT free to choose. `BuildCountCommand` and `BuildMagnitudeCommand` are the
+   * same statement modulo their caps, so production always sends
+   * `totalCount = min(magnitude, MaxServableRows)` — 2 000 at pageSize 20. A fixture that pairs
+   * magnitude 1 234 with totalCount 45 asserts against a response no `src/` path can emit, and any
+   * assertion resting on the two being different is unreadable as evidence about production.
+   */
+  const respondWith = (
+    magnitude: { readonly magnitude: number; readonly saturated: boolean } | null,
+  ) => {
+    const SERVABLE_CAP = 2000; // MAX_PAGE (100) × pageSize (20)
     searchCompanies.mockResolvedValue({
       kind: "ok",
       data: {
-        companies: { items: [COMPANY], page: 1, pageSize: 20, totalCount },
+        companies: {
+          items: [COMPANY],
+          page: 1,
+          pageSize: 20,
+          // Browse-all matches the whole register, so its page count always saturates.
+          totalCount:
+            magnitude === null
+              ? SERVABLE_CAP
+              : Math.min(magnitude.magnitude, SERVABLE_CAP),
+        },
         magnitude,
       },
     });
@@ -139,7 +159,7 @@ describe("ForetagSokResults — browse-all carries NO number, a search carries o
     getCompanyWatchStatusByOrgNr.mockResolvedValue([{ companyWatchId: null }]);
   });
 
-  it("UNFILTERED: heading only, no count line, no total claim, browse-all table name", async () => {
+  it("UNFILTERED: no magnitude claim at all, and the browse-all table name", async () => {
     respondWith(null);
 
     render(
@@ -157,25 +177,37 @@ describe("ForetagSokResults — browse-all carries NO number, a search carries o
       screen.getByRole("heading", { level: 2, name: "Företag i registret" }),
     ).toBeInTheDocument();
 
-    // No number anywhere on the view. This is the Blocker: the previous fix removed the honest
-    // "10 000+" from the heading and left the saturated pagination total as the only quantity —
+    // No count line exists. Binding to the live region rather than to the text makes this a real
+    // assertion: the `magnitude !== null` guard cannot be mutated into a green suite (dropping it
+    // crashes, and tsc rejects it), so without this the guard was only crash-pinned.
+    expect(screen.queryByRole("status")).toBeNull();
+
+    // This is the Blocker, in the state that produced it. The previous fix removed the honest
+    // "10 000+" and left the saturated pagination total as the only quantity on the view —
     // measured "Sida 1 av 100 (2000 träffar totalt)" against 743 654 active companies.
     expect(screen.queryByText(/träffar totalt/)).toBeNull();
-    expect(screen.queryByText(/träff(ar)?$/)).toBeNull();
 
-    // The page position survives; it is navigation, not a completeness claim.
-    expect(screen.getByText("Sida 1 av 3")).toBeInTheDocument();
+    // The page position survives; it is navigation, not a completeness claim. 100 pages because
+    // browse-all always saturates the servable cap — this is the real production number.
+    expect(screen.getByText("Sida 1 av 100")).toBeInTheDocument();
+
+    // The view is not silent about the cap, though. A quantity that says how far you can BROWSE is
+    // not a claim about how many companies exist, and leaving 2 000 pages unexplained beside a
+    // register of 743 654 is its own dishonesty.
+    expect(
+      screen.getByText(/Du kan bläddra bland de 2 000 första företagen/),
+    ).toBeInTheDocument();
 
     // A screen reader must not be told these are search results when nothing was searched for.
     expect(
-      screen.getByRole("table", { name: "Alla företag i registret" }),
+      screen.getByRole("table", { name: "Företag i registret" }),
     ).toBeInTheDocument();
     expect(
       screen.queryByRole("table", { name: "Företag som matchar sökningen" }),
     ).not.toBeInTheDocument();
   });
 
-  it("FILTERED: same heading, count on its own line, still no total claim", async () => {
+  it("FILTERED: same heading, count in its own live region, no total claim, no ceiling copy", async () => {
     respondWith({ magnitude: 1234, saturated: false });
 
     render(
@@ -193,19 +225,24 @@ describe("ForetagSokResults — browse-all carries NO number, a search carries o
       screen.getByRole("heading", { level: 2, name: "Företag i registret" }),
     ).toBeInTheDocument();
 
-    // Grouped with a non-breaking space by the sv formatter; the DOM normalizer folds it.
-    expect(screen.getByText("1 234 träffar")).toBeInTheDocument();
+    // The number sits in a `<b>` inside the count line, so the string exists in no single text
+    // node; bind to the live region. `role="status"` is load-bearing on its own — the search
+    // commits with `router.push`, so without it the result of the user's action is announced to
+    // nobody (WCAG 4.1.3).
+    expect(screen.getByRole("status")).toHaveTextContent("1 234 träffar");
 
-    // The magnitude is the surface's number. The pager's own count must not appear beside it.
+    // The magnitude is the surface's number. The pager must not put a second one beside it.
     expect(screen.queryByText(/träffar totalt/)).toBeNull();
-    expect(screen.queryByText(/\b45\b/)).toBeNull();
+
+    // Under the cap there is nothing to explain, so the ceiling copy stays away.
+    expect(screen.queryByText(/Du kan bläddra bland/)).toBeNull();
 
     expect(
       screen.getByRole("table", { name: "Företag som matchar sökningen" }),
     ).toBeInTheDocument();
   });
 
-  it("FILTERED, saturated: renders the honest ceiling, never the bare number", async () => {
+  it("FILTERED, saturated: the honest ceiling above, the browse limit below, never conflated", async () => {
     respondWith({ magnitude: 10000, saturated: true });
 
     render(
@@ -218,7 +255,14 @@ describe("ForetagSokResults — browse-all carries NO number, a search carries o
       }),
     );
 
-    expect(screen.getByText("10 000+ träffar")).toBeInTheDocument();
+    // Two different ceilings, both true, and the reason they may sit on one screen: 10 000+ is how
+    // many companies match, 2 000 is how many you can page through. Conflating them is the whole
+    // defect class this PR exists for.
+    expect(screen.getByRole("status")).toHaveTextContent("10 000+ träffar");
+    expect(
+      screen.getByText(/Du kan bläddra bland de 2 000 första företagen/),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/träffar totalt/)).toBeNull();
   });
 
   it("FILTERED, exactly one: the Swedish plural selects the singular", async () => {
@@ -236,6 +280,6 @@ describe("ForetagSokResults — browse-all carries NO number, a search carries o
       }),
     );
 
-    expect(screen.getByText("1 träff")).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("1 träff");
   });
 });

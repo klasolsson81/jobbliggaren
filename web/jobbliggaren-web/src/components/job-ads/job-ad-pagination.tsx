@@ -7,8 +7,10 @@ interface JobAdPaginationProps {
   totalCount: number;
   buildHref: (targetPage: number) => string;
   /**
-   * Whether the summary line may state `totalCount` (#1149). Default TRUE — `/jobb` and the
-   * applications list count a bounded set, so "N träffar totalt" is a true sentence there.
+   * Whether the summary line may state `totalCount` (ADR 0120 clause 4, #1149). Default TRUE —
+   * `/jobb` counts a bounded set, so "N träffar totalt" is a true sentence there. (It is the only
+   * caller that takes the default: `ApplicationsPager` reuses `buildPageItems` alone and renders
+   * no summary line.)
    *
    * Pass FALSE where `totalCount` SATURATES at a servable cap: the register surfaces cap it at
    * `MaxServableRows` (2 000 at pageSize 20), so the word *totalt* turns a ceiling into a

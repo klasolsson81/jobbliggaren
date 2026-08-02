@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Reflection;
 using Jobbliggaren.Application.CompanyRegister.Abstractions;
 using Shouldly;
 
@@ -336,6 +337,38 @@ public class CompanyRegisterSearchCriteriaTests
 
         result.IsSuccess.ShouldBeTrue();
         result.Value.IsUnfiltered.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void IsUnfiltered_MustBeRevisitedWhenTheAxisSetChanges()
+    {
+        // The Theory above proves each axis it NAMES is covered. It cannot prove the set is
+        // complete, because a guard cannot see its own under-reach when everything it enumerates
+        // passes: add a fifth axis and ComposeFromWhere gets a clause, BindPredicate gets a
+        // binding, and IsUnfiltered gets nothing — silently, with this whole file green. The
+        // failure would be product-visible: a search filtered only on the new axis would be
+        // classified as a browse-all and lose its magnitude entirely.
+        //
+        // So pin the SET, which is the only form that can see an axis that does not exist yet.
+        var axes = typeof(CompanyRegisterSearchCriteria)
+            .GetProperties(BindingFlags.Public | BindingFlags.Instance)
+            .Select(p => p.Name)
+            .Except([
+                nameof(CompanyRegisterSearchCriteria.Page),
+                nameof(CompanyRegisterSearchCriteria.PageSize),
+                nameof(CompanyRegisterSearchCriteria.IsUnfiltered),
+            ])
+            .ToList();
+
+        axes.ShouldBe(
+            ["SniCodes", "MunicipalityCodes", "NamePrefix", "OrganizationNumber"],
+            ignoreOrder: true,
+            customMessage:
+                "The criteria carry an axis this test does not list. IsUnfiltered enumerates axes "
+                + "by hand and CANNOT see a new one: a search filtered only on it would be read as "
+                + "a browse-all and lose its magnitude. Add a conjunct to IsUnfiltered, an "
+                + "InlineData case to IsUnfiltered_AnySingleAxisPresent_IsFalse, and update this "
+                + "list.");
     }
 
     [Fact]

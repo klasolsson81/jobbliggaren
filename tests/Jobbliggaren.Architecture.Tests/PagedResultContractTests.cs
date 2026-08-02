@@ -36,6 +36,13 @@ namespace Jobbliggaren.Architecture.Tests;
 /// <c>BrowseCompaniesQuery</c>); <b><c>Result&lt;T&gt;</c> reserveras för queries där
 /// <c>ErrorKind</c> faktiskt väljer</b> (jfr <c>LookupCompanyQuery</c>, som bär både en
 /// Validation-vägran och en NotFound).
+///
+/// <b>Men <c>T?</c> bär TVÅ betydelser i huset, och bara den ena är ett fel.</b> Den andra är ett
+/// PRODUKTBESLUT: null = "vi frågade inte", och endpointen serialiserar det i en 200-kropp i stället
+/// för att mappa det till 404 — se <c>GetCompanySearchMagnitudeQuery</c> (#1149, ingen magnitud på en
+/// ofiltrerad browse-all) och <c>GetLatestPendingParsedResumeQuery</c>. Läs alltså aldrig <c>T?</c> som
+/// "alltså 404" utan att läsa queryns egen docblock; de två formerna är omöjliga att skilja på
+/// signaturen ensam, och att harmonisera dem åt fel håll skulle 404:a en normal vy.
 /// </para>
 /// </summary>
 public class PagedResultContractTests

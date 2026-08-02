@@ -19,10 +19,19 @@ namespace Jobbliggaren.Application.CompanyRegister.Queries.GetCompanySearchMagni
 /// </para>
 ///
 /// <para>
-/// <b>NULL is a legal answer, and it is a product decision rather than a failure</b> — an
-/// unfiltered browse-all carries NO number at all. The handler owns that policy; see it for the
-/// measurement behind the ruling. Null and zero are different statements here: zero means "nothing
+/// <b>NULL is a legal answer, and it is a product decision rather than a failure</b> (ADR 0120,
+/// clause 3 and its corollary) — an unfiltered browse-all carries NO number at all. The handler
+/// owns that policy; see it for the measurement behind the ruling. Null and zero are different statements here: zero means "nothing
 /// matches", null means "we did not ask".
+/// </para>
+///
+/// <para>
+/// <b>The sister query reads its own null the opposite way — do not harmonize them.</b>
+/// <c>GetCriterionMatchMagnitudeQuery</c> returns null for an unknown or another user's criterion
+/// and its endpoint maps that to 404. Here null is part of a 200 body: the endpoint serialises
+/// <c>magnitude: null</c> beside a normal page, and the FE schema declares it nullable so the wire
+/// shape does not vary with the filter. Same DTO family, same <c>IQuery&lt;T?&gt;</c> idiom, opposite
+/// meaning. Pinned by <c>POST_search_UNFILTERED_returns_the_page_with_a_NULL_magnitude</c>.
 /// </para>
 /// </summary>
 public sealed record GetCompanySearchMagnitudeQuery(

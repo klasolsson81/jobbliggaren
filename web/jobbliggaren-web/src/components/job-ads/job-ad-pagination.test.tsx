@@ -130,4 +130,86 @@ describe("JobAdPagination", () => {
       screen.getByText("Sida 2 av 3 (45 träffar totalt)")
     ).toBeInTheDocument();
   });
+
+  // #1149 — the total is a CLAIM, and on the register surfaces `totalCount` saturates at a
+  // servable cap, so the word "totalt" turns a ceiling into a completeness statement. Both
+  // polarities are pinned: without the default case above, flipping the default to false would
+  // silently strip the true total from /jobb and nothing would fail.
+  it("omits the total when showTotalCount is false, keeping the page position", () => {
+    render(
+      <JobAdPagination
+        page={2}
+        pageSize={20}
+        totalCount={45}
+        buildHref={buildHref}
+        showTotalCount={false}
+      />
+    );
+
+    expect(screen.getByText("Sida 2 av 3")).toBeInTheDocument();
+    // The page count survives — it is a navigation quantity (how far you can go), and
+    // `TotalPages <= MaxPage` holds by construction. Only the total claim goes.
+    expect(screen.queryByText(/träffar totalt/)).toBeNull();
+  });
+
+  it("states the total by default, so a caller must opt OUT deliberately", () => {
+    render(
+      <JobAdPagination
+        page={1}
+        pageSize={20}
+        totalCount={45}
+        buildHref={buildHref}
+      />
+    );
+    expect(screen.getByText(/träffar totalt/)).toBeInTheDocument();
+  });
+
+  // Every number in the PROSE is grouped, per §10. ICU `{x}` is plain substitution, so each
+  // argument has to carry `, number` — until #1149 none of the three did, and the string rendered
+  // "3391" against the thousands rule. Every assertion above uses two-digit values and so cannot
+  // see any of it: a grouping defect is invisible below 1 000.
+  //
+  // The pager's LINK labels stay ungrouped on purpose. Those are navigation targets, not prose;
+  // a link reading "1250" is the thing you click, while "av 1 250" is a sentence about how many
+  // there are. Different jobs, different rules.
+  it("groups every number in the summary, not only the total", () => {
+    const { container } = render(
+      <JobAdPagination
+        page={1200}
+        pageSize={1}
+        totalCount={3391}
+        buildHref={buildHref}
+      />
+    );
+
+    // pageSize 1 is reachable: /jobb reads it from the URL and the validator allows 1-100 with no
+    // page ceiling, so `?pageSize=1` against today's corpus is 3 391 pages. All three arguments
+    // cross 1 000 here — the case the shipped string could not survive.
+    expect(
+      screen.getByText("Sida 1 200 av 3 391 (3 391 träffar totalt)")
+    ).toBeInTheDocument();
+
+    // The negatives are scoped to the summary paragraph, NOT the document: the page links
+    // deliberately render "3391" bare, because a link label is a target you click and not a
+    // sentence about how many there are. A document-wide negative would assert the opposite of
+    // the rule this file documents.
+    const summary = container.querySelector("nav > p");
+    expect(summary?.textContent).not.toMatch(/3391/);
+    expect(summary?.textContent).not.toMatch(/1200/);
+  });
+
+  it("groups the page numbers in the pages-only summary too", () => {
+    render(
+      <JobAdPagination
+        page={1200}
+        pageSize={1}
+        totalCount={3391}
+        buildHref={buildHref}
+        showTotalCount={false}
+      />
+    );
+
+    expect(screen.getByText("Sida 1 200 av 3 391")).toBeInTheDocument();
+    expect(screen.queryByText(/träffar totalt/)).toBeNull();
+  });
 });

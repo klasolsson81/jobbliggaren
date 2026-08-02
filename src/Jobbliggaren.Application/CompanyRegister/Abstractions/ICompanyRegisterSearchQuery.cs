@@ -55,6 +55,14 @@ public interface ICompanyRegisterSearchQuery
     /// this method lives on this port, mirroring the sibling's Fork G3 bind): returns
     /// <c>min(true count, ceiling)</c>. A return value equal to <paramref name="ceiling"/> means
     /// SATURATED and the copy must say "10 000+", never the bare number.
+    ///
+    /// <para>
+    /// <b>The contract still accepts any criteria; production no longer sends every kind.</b> Since
+    /// #1149 the only caller returns before reaching here when
+    /// <see cref="CompanyRegisterSearchCriteria.IsUnfiltered"/> — an unfiltered browse-all carries no
+    /// number, so no count is asked for. A test that reaches this method with an axis-free criterion
+    /// is exercising a shape production does not send.
+    /// </para>
     /// </summary>
     ValueTask<int> CountMatchingAsync(
         CompanyRegisterSearchCriteria criteria, int ceiling, CancellationToken cancellationToken);
@@ -141,6 +149,20 @@ public sealed record CompanyRegisterSearchCriteria
     public int Page { get; }
 
     public int PageSize { get; }
+
+    /// <summary>
+    /// TRUE when no axis filters — the legal browse-all this type's summary already names (CTO F1).
+    /// THE authority for that question, for the same reason <see cref="Create"/> is the authority
+    /// for normalization: asked over the NORMALIZED axes, it cannot disagree with what the query
+    /// actually filters on, whereas a caller re-deriving it from raw request input is a second
+    /// normalizer of "empty axis" — and a rule with two normalizers is two rules. Paging is
+    /// deliberately not part of it: page 7 of a browse-all is still a browse-all.
+    /// </summary>
+    public bool IsUnfiltered =>
+        SniCodes.Count == 0
+        && MunicipalityCodes.Count == 0
+        && NamePrefix is null
+        && OrganizationNumber is null;
 
     /// <summary>
     /// The most rows this surface can EVER serve — the pagination count's cap

@@ -75,8 +75,12 @@
     <!-- Jobbliggaren.Migrate — DDL-init console-app (STEG 14b). Behöver Npgsql direkt
          (Application använder bara DbSet<T>-abstraktionen via EF Core).
          Microsoft.Extensions.Logging.Console för stdout (+ Seq-sink, TD-104). -->
-    <!-- Npgsql 10.0.2 minimum: matchar transitiv-krav från Npgsql.EntityFrameworkCore.PostgreSQL 10.0.1
-         (kräver Npgsql >= 10.0.2). Direkt-referens från Jobbliggaren.Migrate. -->
+    <!-- Npgsql 10.0.3 minimum: matchar transitiv-krav från Npgsql.EntityFrameworkCore.PostgreSQL 10.0.3,
+         vars nuspec deklarerar `Npgsql 10.0.3` (verifierat 2026-08-02 mot den upplösta paketet).
+         Direkt-referens från Jobbliggaren.Migrate.
+         *(Meningen namngav tidigare 10.0.1/>= 10.0.2 och var stale redan på main, där provider-pinnen
+         låg på 10.0.2 och Npgsql-pinnen på 10.0.3; bumpen i denna PR vidgade den, så den syncas här
+         i stället för att bäras vidare.)* -->
     <PackageVersion Include="Npgsql" Version="10.0.3" />
     <!-- Alla AWSSDK-paket borttagna: SecretsManager (TD-105 / #199 / ADR 0050),
          SimpleEmailV2 (2026-06-06, ADR 0066), KeyManagementService + Core

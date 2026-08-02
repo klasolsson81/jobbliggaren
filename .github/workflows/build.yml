@@ -51,9 +51,23 @@ jobs:
   #
   # What 25 DOES remove is the de-facto proximity alarm on suite growth. The written
   # owner of that question is ADR 0065 `Trigger för omvärdering` #2 ("median PR-vänt
-  # > 15 min" → parallelisation or subset-gate) — NOT ADR 0045, which carries no
-  # CI-duration budget at all. Measured 2026-08-02: median `ci` wall-clock 14m44s,
-  # 4 of 10 runs over 15m. The trigger is not fired; it is 16 seconds away. #1145.
+  # > 15 min" → parallellisering eller subset-gate) — NOT ADR 0045, which carries no
+  # CI-duration budget at all.
+  #
+  # THAT TRIGGER IS FIRED, and this is the first time it has been measured against
+  # its own terms. It says "median PR-vänt"; every prior reading — including the
+  # first draft of this comment — measured `main` runs instead, a population frozen
+  # at 2026-07-25 by the GITHUB_TOKEN suppression. `build.yml` triggers on
+  # `pull_request` with no base filter (#861), so PR data is fresh and plentiful; it
+  # had simply never been asked for. Measured 2026-08-02 over the 22 most recent
+  # `pull_request` runs with no cancelled job in ci.needs (19 cancelled runs excluded
+  # — `concurrency.cancel-in-progress` kills PR runs routinely and including them
+  # understates the median), dated 2026-08-01..08-02:
+  #
+  #     median ci wall-clock 15m10s · max 16m58s · 15 of 22 runs over 15 min
+  #
+  # Escalated to Klas: ADR 0065's own text requires a superseding ADR when this
+  # fires. Raising the guard here does not answer it and does not pretend to. #1145.
   backend:
     name: backend (.NET 10)
     runs-on: ubuntu-latest

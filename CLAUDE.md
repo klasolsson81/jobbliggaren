@@ -177,12 +177,21 @@ signal available is a discipline miss.
 - Files: components `PascalCase.tsx` (one export); hooks `useCamelCase.ts`;
   types in `types.ts` per folder; tests co-located (`Button.test.tsx`).
 - Data: Server Components by default; `"use client"` only where interactivity
-  requires it; **Server Actions for client mutations** (`useTransition` for
-  pending state, `useOptimistic` where optimistic rendering is wanted) — TanStack
-  Query is not in `package.json` and never was, so do not reach for it (BUILD.md
-  §3.1); short-lived reads use a self-contained debounce hook + `AbortController`
-  (ADR 0042 Beslut C). React Hook Form + Zod for forms — never loose `useState`
-  for large forms.
+  requires it. **Client mutations go through Server Actions** — `useTransition`
+  for pending state, `useOptimistic` where optimistic rendering is wanted — with
+  one delivered exception: a **binary upload** goes through a BFF route
+  (`app/api/cv/import/route.ts`), because Server Actions cannot stream
+  `multipart/form-data` (`duplex: "half"`). **A keystroke-driven read-suggest**
+  uses a self-contained debounce hook + `AbortController` (ADR 0042 Beslut C),
+  not a mutation path. **Periodic refresh** is a visibility-aware `setInterval` +
+  `fetch` in a dedicated client component (`shell/header-stats.tsx`) — that is a
+  poll, not an initial load, so §5's `useEffect`-for-data-fetching ban does not
+  reach it; an initial load still belongs on the server. React Hook Form + Zod
+  for forms — never loose `useState` for large forms.
+- **Do not reach for TanStack Query.** It is not in `package.json` and never was,
+  so adding it is an undiscussed dependency add (§9.2) *and* a reversal of
+  ADR 0042 Beslut C — a Klas-GO supersession, not a library choice. BUILD.md §3.1
+  records the delivered mechanisms above.
 - Naming: routes = Swedish nouns (`/ansokningar`, `/jobb`); components =
   English PascalCase; UI copy Swedish, code English.
 

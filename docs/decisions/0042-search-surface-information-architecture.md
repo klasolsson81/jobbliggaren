@@ -3,7 +3,7 @@
 **Datum:** 2026-05-16
 **Status:** Accepted 2026-05-16 (Klas-GO STOPP 4) — *draft-flaggad: Accepted-flippen kräver Klas-GO på STOPP 4; ADR:n dokumenterar redan låsta beslut*
 **Beslutsfattare:** Klas Olsson
-**Relaterad:** ADR 0039 (SavedSearch-aggregat — **Beslut 3 partiellt superseras av denna ADR**; Beslut 1 delad `JobAdSearch` SPOT **hålls**), ADR 0040 (Smart CV-härlett filter — endast korsreferens, ingen design här), ADR 0032 (JobTech-integration — korpus/taxonomi-källan typeahead och filter speglar; senaste amendment 2026-05-16 hybrid), ADR 0008 (pipeline behavior order — validator-yta), ADR 0009 (ingen Repository — direkt `IAppDbContext`), BUILD.md §18 (Fas 2-milstolpe; **orörd — denna ADR är beslutskällan**), ADR 0049 (Accepted — TD-13 PII-fält-kryptering: Beslut 3:s `raw_payload`-exklusion bevarar generated columns/SPOT som denna ADR:s sök-yta konsumerar), CLAUDE.md §2.3 (CQRS), §5.3, §9.6 (in-block vs TD/fas-regeln), jobbpilot-design-principles regel 3/7 (civic-utility)
+**Relaterad:** ADR 0039 (SavedSearch-aggregat — **Beslut 3 partiellt superseras av denna ADR**; Beslut 1 delad `JobAdSearch` SPOT **hålls**), ADR 0040 (Smart CV-härlett filter — endast korsreferens, ingen design här), ADR 0032 (JobTech-integration — korpus/taxonomi-källan typeahead och filter speglar; senaste amendment 2026-05-16 hybrid), ADR 0008 (pipeline behavior order — validator-yta), ADR 0009 (ingen Repository — direkt `IAppDbContext`), BUILD.md §18 (Fas 2-milstolpe; **orörd — denna ADR är beslutskällan**), ADR 0049 (Accepted — TD-13 PII-fält-kryptering: Beslut 3:s `raw_payload`-exklusion bevarar generated columns/SPOT som denna ADR:s sök-yta konsumerar), CLAUDE.md §2.3 (CQRS), §5, §9.6 (in-block vs TD/fas-regeln), jobbpilot-design-principles regel 3/7 (civic-utility)
 
 ---
 
@@ -265,9 +265,13 @@ Beslut C ("typeahead frontend-datahämtning: self-contained debounce-hook") moti
 att *"CLAUDE.md §4.3 reglerar TanStack Query för mutations och pollar, inte för en kortlivad
 keystroke-driven read-suggest"*. Två mätningar vid head:
 
-1. **CLAUDE.md har inga §4.x-underrubriker** — §4 är platta punkter. Pekaren `§4.3` var redan
-   falsk oberoende av denna ändring (pre-existerande; samma gäller `§5.3` i fil-fotens
-   referensrad — namngivet här, inte svept).
+1. **Pekaren `§4.3` var KORREKT när Beslut C fattades, och en senare omstrukturering
+   föräldralöste den.** CLAUDE.md bar `### 4.3 Data fetching` med brödtexten "TanStack Query
+   för klient-side mutations och pollar" när denna ADR skrevs (2026-05-16, `8e14d40a`).
+   `028d53f1` — "docs(spec): CLAUDE.md-prune till engelska" (#57, 2026-06-12) — plattade §4 till
+   punkter och tog bort både `### 4.3` och `### 5.3`. Rationalen citerade alltså rätt sektion;
+   sektionsnumret slutade existera under den. Samma commit förklarar `§5.3` i fil-fotens
+   referensrad och i header-radens `Relaterad:` — båda renumrerade till `§4`/`§5` i denna PR.
 2. **CLAUDE.md §4 reglerar inte längre TanStack Query.** Biblioteket finns inte i
    `package.json` och har aldrig installerats; §4:s data-punkt namnger nu Server Actions, och
    BUILD.md §3.1 bär en gravsten i stället för raden `| Data fetching | TanStack Query | 5.x |`.
@@ -287,4 +291,4 @@ Truth-sync #1154.
 
 ---
 
-*Referencias: Eric Evans, DDD (2003) kap. 5, 14; Vaughn Vernon, IDDD (2013) kap. 6; Robert C. Martin, Clean Architecture (2017) kap. 7; Beck/Fowler — YAGNI; Ford/Parsons/Kua, Building Evolutionary Architectures (2017); Nygard, Documenting Architecture Decisions (2011). ADR 0008, 0009, 0032, 0039, 0040; jobbpilot-design-principles regel 3/7; CLAUDE.md §2.3, §4.3, §5.3, §9.1, §9.2, §9.6, §9.7.*
+*Referencias: Eric Evans, DDD (2003) kap. 5, 14; Vaughn Vernon, IDDD (2013) kap. 6; Robert C. Martin, Clean Architecture (2017) kap. 7; Beck/Fowler — YAGNI; Ford/Parsons/Kua, Building Evolutionary Architectures (2017); Nygard, Documenting Architecture Decisions (2011). ADR 0008, 0009, 0032, 0039, 0040; jobbpilot-design-principles regel 3/7; CLAUDE.md §2.3, §4, §5, §9.1, §9.2, §9.6, §9.7.*

@@ -26,12 +26,12 @@
 | Smart enum | Ardalis.SmartEnum | 8.x | State machines i domänen |
 | Logging | Microsoft.Extensions.Logging | 10.x | `Microsoft.Extensions.Logging.Console` → stdout + persistent strukturerad sink via Seq (TD-104, STEG 6) |
 | Log sink | Seq.Extensions.Logging | 9.0.0 | MEL-provider → Seq (datalust); config-gated på `Seq:ServerUrl`; net9-asset .NET 10-kompatibel (MEL `>= 9` unifieras uppåt); dev lokal Seq, prod Seq self-hosted EU (TD-104, ADR 0050) |
-| Observability | OpenTelemetry | 1.15+ | Traces + metrics. **Beroende-kandidat, ej implementerad** — ingen `PackageReference` i något `.csproj`, ingen användning i `src/`; exporter/backend definieras med observability-sinken (§14.2, TD-104). `Directory.Packages.props` innehåller `OpenTelemetry.Api` + `.Exporter.OpenTelemetryProtocol` som **transitiva CVE-pins för WireMock.Net** (posternas egen kommentar), inte som en observability-implementation |
+| Observability | OpenTelemetry | 1.15+ | Traces + metrics. **Beroende-kandidat, obyggd** (ingen dom fälld — till skillnad från Catalyst-raden) — ingen `PackageReference` i något `.csproj`, ingen användning i `src/`; exporter/backend definieras med observability-sinken (§14.2, TD-104). `Directory.Packages.props` innehåller `OpenTelemetry.Api` + `.Exporter.OpenTelemetryProtocol` som **transitiva CVE-pins för WireMock.Net** (posternas egen kommentar), inte som en observability-implementation |
 | PDF parsing | PdfPig | 0.1.14+ | Text extraction |
 | DOCX parsing | DocumentFormat.OpenXml | 3.x | Microsoft-underhåll |
 | PDF generation | QuestPDF | 2026.6.0 | Community (source-available, free under USD 1M revenue, non-copyleft — ADR 0050-safe; not OSI-MIT); `QuestPDF.Settings.License = LicenseType.Community` i startup |
 | DOCX generation | DocumentFormat.OpenXml | 3.x | Template-baserad |
-| NLP (svenska) | Catalyst (+ Catalyst.Models.Swedish) | 26.x (CalVer) | MIT; lokal svensk NLP — tokenisering, lemmatisering, POS, NER (deterministisk CV-/matchnings-motor, ADR 0071 Beslut 6); svensk modell = separat MIT-datapaket. **Beroende-kandidat, ej implementerad** — `Jobbliggaren.Infrastructure.csproj` säger "Catalyst medvetet UTE (OQ1)"; inlåst som kandidat 2026-06-14, ej bindande för v1 (se NLP-notisen under tabellen) |
+| NLP (svenska) | Catalyst (+ Catalyst.Models.Swedish) | 26.x (CalVer) | MIT; lokal svensk NLP — tokenisering, lemmatisering, POS, NER (deterministisk CV-/matchnings-motor, ADR 0071 Beslut 6); svensk modell = separat MIT-datapaket. **Beroende-kandidat, utdömd för v1** — `Jobbliggaren.Infrastructure.csproj` säger "Catalyst medvetet UTE (OQ1)"; `Directory.Packages.props` bär CTO-domen (Snowball/libstemmer-only; YAGNI + Worker-minnesbudget ADR 0045) **och återinträdes-triggern: läggs till reaktivt först om ett mätt F4-9/10-kriterium bevisar POS/lemma-behov** |
 | Stemmer (svenska) | libstemmer.net | 2.2.x | MIT-wrapper; Snowball-kärna BSD-3-Clause; svensk Snowball-stemmer |
 | Stavning | WeCantSpell.Hunspell | 7.x | Hunspell-port — tri-licens **MPL 1.1 / GPL 2.0 / LGPL 2.1**; licensval MPL 1.1 (LGPL 2.1 fallback), aldrig GPL; server-side + oförändrad binär → ingen copyleft på produkten (se §3.1-notis) |
 | Svensk ordlista | sv_SE Hunspell-ordlista (DSSO) | datafil | **LGPL-3.0** — oförändrad separat datafil, ej statiskt länkad/inbäddad/modifierad → copyleft smittar ej produkten (se §3.1-notis) |
@@ -49,7 +49,7 @@
 | Språk (frontend) | TypeScript | 6.0 | Strict mode |
 | UI-komponenter | shadcn/ui | senaste (CLI v4) | Tung customisering, se DESIGN.md |
 | Styling | Tailwind CSS | 4.2 | v4 config i `tailwind.config.ts` |
-| Data fetching | Server Actions + RSC | – | **TanStack Query finns inte i `package.json` och har aldrig installerats** (ingen `QueryClientProvider`-infra). Klient-mutationer går via Server Actions, med `useTransition` för pending-tillstånd och `useOptimistic` där optimistisk rendering behövs; kortlivade läsningar via self-contained debounce-hook + `AbortController` — ADR 0042 Beslut C (impl-notat) avvisade TanStack Query för den ytan. Truth-sync #1154 |
+| Data fetching | Server Actions + RSC | – | **TanStack Query finns inte i `package.json` och har aldrig installerats** (ingen `QueryClientProvider`-infra); ADR 0042 Beslut C (impl-notat 2026-05-17) avvisade den för typeahead-ytan. Mönstren — inklusive BFF-undantaget för binär uppladdning och poll-vägen — bor i §10.2. Truth-sync #1154 |
 | Tabeller | Handrullad semantisk `<table>` | – | **TanStack Table finns inte i `package.json` och har aldrig installerats**; det finns ingen `src/components/ui/table.tsx`. Ingen formell avvisning — mönstret är oanvänt, inte omprövat. Truth-sync #1154 |
 | Form | React Hook Form + Zod | RHF ^7.72, Zod 4.x | Schema-baserad validering |
 | Auth-klient | Egen cookie-baserad klient (ADR 0017) | – | NextAuth.js/Auth.js AVVISADES och finns inte i `package.json`; backend utfärdar ingen JWT — bäraren är ett opakt session-id (§11.2). Truth-sync #569/#827 |
@@ -1097,7 +1097,10 @@ public enum CriterionVerdict { Pass, Warn, Fail, NotAssessed }
 ### 10.2 Data fetching-mönster
 
 - Server components för initial rendering (paginerade listor, detaljvyer)
-- Server Actions för mutation-heavy UI (statusändringar, notes) — `useTransition` för pending-tillstånd (§3.1: TanStack Query är inte installerad)
+- Server Actions för mutation-heavy UI (statusändringar, notes) — `useTransition` för pending-tillstånd, `useOptimistic` där optimistisk rendering behövs (§3.1: TanStack Query är inte installerad)
+- **Undantaget: binär uppladdning går via BFF-route** (`app/api/cv/import/route.ts`), eftersom en Server Action inte kan strömma `multipart/form-data` (`duplex: "half"`). Regeln ovan är alltså inte universell, och det är den enda kända avvikelsen
+- **Periodisk uppdatering** = visibility-aware `setInterval` + `fetch` i en dedikerad klient-komponent (`shell/header-stats.tsx`, 10 min). En poll, inte en initial-load — CLAUDE.md §5:s `useEffect`-fetch-förbud gäller initial-load
+- Kortlivad keystroke-driven read-suggest: self-contained debounce-hook + `AbortController` (ADR 0042 Beslut C), aldrig en mutations-väg
 - Form state: React Hook Form + Zod schema
 - Optimistic updates för statustransitions
 - Skeleton/progressiv rendering för CV-granskning och mall-rendering (deterministiskt, inget LLM-streaming)

@@ -149,11 +149,39 @@ updates:
     labels:
       - "dependencies"
       - "github-actions"
-    # Same rule as nuget. Measured on PR #1139 (2026-08-01): three actions in one
-    # group, two of them clean ESM-migration majors and the third a NARROWING of
-    # `github/codeql-action` from its moving major tag to an exact patch — which
-    # defeats the reason codeql.yml gives for its own schedule. Reviewing that
-    # third one required unpicking it from the other two by hand.
+    # codeql-action stays on its moving major tag — see the comment at the
+    # `codeql-action/init` site in codeql.yml for why. This entry is the
+    # ENFORCEMENT half of that decision, and it is not optional: a narrowing from
+    # `@v4` to `@v4.37.3` keeps the major at 4, so Dependabot classifies it
+    # patch/minor -> `dependabot-automerge.yml` sets `eligible=true` -> the vuln
+    # scan (which a tag narrowing passes trivially) -> auto-merge on green `ci`,
+    # with NO agent invoked (CLAUDE.md §9.2 says this in as many words). PR #1139
+    # was caught only by accident: its group happened to carry two unrelated
+    # majors, which forced `eligible=false`. Once both actions sit on their
+    # current major that shield is gone, and a comment in codeql.yml has no reader
+    # on this path. A decision whose only violation route has no reader is not a
+    # decision.
+    #
+    # MAJOR IS DELIBERATELY LEFT ALLOWED — codeql-action@v5 is a real migration we
+    # want to be told about. Only sub-major narrowing is refused.
+    #
+    # Wildcard because it is unverified whether Dependabot emits the repo name or
+    # the `init`/`analyze` sub-paths. A wrong `dependency-name` here fails OPEN and
+    # silently — the same shape as the defect being fixed — and is observable at
+    # the next github-actions run (monthly, Monday 06:00): no codeql-action
+    # sub-major PR should appear.
+    ignore:
+      - dependency-name: "github/codeql-action*"
+        update-types:
+          ["version-update:semver-patch", "version-update:semver-minor"]
+    # Same grouping rule as nuget above. Measured on PR #1139 (2026-08-01): three
+    # actions in one group, two of them clean ESM-migration majors and the third the
+    # codeql narrowing the `ignore` above now refuses. Reviewing that third one
+    # required unpicking it from the other two by hand — and note that the group is
+    # what CAUGHT it, purely by accident: two unrelated majors forced
+    # `eligible=false`. That accident is exactly what the `ignore` replaces with a
+    # rule, because after this change a lone narrowing would be minor/patch and land
+    # here, auto-mergeable.
     groups:
       actions-minor-patch:
         update-types: ["minor", "patch"]

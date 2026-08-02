@@ -70,8 +70,9 @@ const employmentTypes: ReadonlyArray<TaxonomyOption> = [
 ];
 
 // Shared required props. Every field is mandatory in the component's signature,
-// so a new prop is caught by `tsc --noEmit` in pre-commit rather than drifting
-// between the two render helpers.
+// so a new *required* prop is caught by `tsc --noEmit` in pre-commit rather than
+// drifting between the two render helpers. A new optional one passes silently —
+// `satisfies` fails on assignability, and an optional prop stays assignable.
 const modalProps = {
   open: true,
   onOpenChange: vi.fn(),

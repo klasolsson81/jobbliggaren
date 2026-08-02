@@ -209,9 +209,10 @@ DROP TABLE IF EXISTS audit_log_YYYYMMDD;
 ### 5.1 Audit_log korrumperad / oavsiktligt droppad
 
 **Inte realistiskt scenario** i Fas 1 — vi har ingen audit-data av värde
-ännu. Vid prod-deploy: dagliga databas-snapshots (RDS är borta sedan ADR 0066;
-backup-modellen på VPS ägs av #197). Default 7 dagar, GDPR-
-inriktat 30 dagar för audit-data).
+ännu. Vid prod-deploy: dagliga databas-snapshots. RDS är borta sedan ADR 0066 (dess
+automated-backup-default var 7 dagars retention); backup-modellen på VPS och dess
+retention/rotation är **obeslutade** och ägs av #197. Det GDPR-inriktade målet för
+audit-data är 30 dagar.
 
 ### 5.2 Migration `AddAuditLogPartitioning` rollback
 
@@ -221,8 +222,8 @@ behåller alla rader. Trigger:
 ```bash
 export ConnectionStrings__Postgres="..."
 dotnet ef database update <previous-migration> \
-  --project src/JobbPilot.Infrastructure \
-  --startup-project src/JobbPilot.Api \
+  --project src/Jobbliggaren.Infrastructure \
+  --startup-project src/Jobbliggaren.Api \
   --context AppDbContext
 ```
 

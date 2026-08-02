@@ -110,7 +110,8 @@ Default = **fixa in-block**. Tre utfall, och du väljer ett:
 1. **Blocker eller Major** → **in-block**, eller **följd-PR** om det är ett genuint
    eget change-reason. **Aldrig ett issue:** CLAUDE.md §6 och §12 gör ett oupplöst
    agent-Blocker/Major merge-blockerande, så att fila det vore att göra ett stopp
-   till en backlog-rad.
+   till en backlog-rad. *Undantag deklareras av det rapporterande charteret, inte av
+   dig — de två som finns är uppräknade i CLAUDE.md §9.6 och är `security-auditor`:s.*
 2. **Minor / nice-to-have** → **GitHub issue**. Skälet är synlighet mellan
    parallella CC:er.
 3. **Ingen åtgärd** — fyndet håller inte, eller dess premiss är upphävd. Säg det rakt.

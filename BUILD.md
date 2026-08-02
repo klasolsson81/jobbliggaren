@@ -1291,6 +1291,15 @@ permanent infra aktiveras; listan nedan speglar **beslutad** uppsättning, ADR 0
 > AWS (infrastruktur + SES) är avvecklat (ADR 0066) och utgår ur subprocessor-
 > kedjan; **SES:s ersättare är Resend** — se e-postposten i listan ovan för
 > attribution och grindvillkor.
+>
+> **BÅDA MENINGARNA OVAN ÄR UPPHÄVDA (Klas-direktiv 2026-08-02):** Resend ska ut och
+> **AWS SES i `eu-north-1`** in. Denna sektion är avsiktligt inte omskriven här — den
+> matar publika `/integritet#subprocessors`, så omskrivningen är legal-facing och ägs av
+> [#1169](https://github.com/klasolsson81/jobbliggaren/issues/1169) +
+> [#183](https://github.com/klasolsson81/jobbliggaren/issues/183) med
+> `security-auditor`-sign-off. Tredjelandsbedömningen är en **öppen** fråga, inte en
+> avgjord — se §15:s not. Release-checklistan §2.5 punkt 5 tvingar denna sektion vid
+> e-postflippen.
 > Hetzner/Cloudflare läggs till i den publika listan vid faktisk
 > provisionering (ADR 0050 Sekvensering).
 
@@ -1391,17 +1400,16 @@ UptimeRobot/BetterStack free ersätter ALB/CloudWatch-health per ADR 0050):
 > [#1175](https://github.com/klasolsson81/jobbliggaren/issues/1175)).
 >
 > **En länk säger var arbetet ägs — inte att premissen omkring den är aktuell.** Två
-> premisser i detta kapitel är **upphävda** av Klas-direktiv 2026-08-02, inte bara under
+> premisser är **upphävda** av Klas-direktiv 2026-08-02 — i detta kapitel **och i §3.2:s
+> tabell (rad 126, en cell denna PR redigerade)** — inte bara under
 > omprövning: **värdvalet** (Hetzner ut; svensk VPS in — **ersättaren obeslutad**,
 > kandidater hostup och one.com) och **e-postleverantören** (Resend ut — **ersättaren
 > är vald: AWS SES i `eu-north-1`**). Motiveringen och tredjelandsbedömningen står
-> medvetet INTE här: §15.1 avvisar Cloudflare R2 "pga CLOUD Act-tredjelandsöverföring",
-> så en US-ägd leverantör i EU-region är i detta repo en **öppen** fråga och inte en
-> avgjord, och att avgöra den är `security-auditor`:s och inte en spec-edit-PR:s.
-> Ersättningarna skrivs in av CC1-lanen med egen
-> supersessions-ADR — inklusive **§13.4:s subprocessor-lista**, som matar den publika
-> `/integritet`-sidan och därför har ett eget ärende
-> ([#1169](https://github.com/klasolsson81/jobbliggaren/issues/1169)). Denna PR bytte ut
+> medvetet INTE här: §15.1 avvisar Cloudflare R2 "pga CLOUD Act-tredjelandsöverföring **av
+> icke-krypterad pg_dump-PII**", så huruvida en US-ägd leverantör i EU-region faller under
+> samma standard är i detta repo en **öppen** fråga och inte en avgjord — och att avgöra
+> den är `security-auditor`:s och inte en spec-edit-PR:s. Ersättningarna skrivs in av
+> CC1-lanen med egen supersessions-ADR, inklusive §13.4:s subprocessor-lista. Denna PR bytte ut
 > döda markörer mot levande hemvister och skriver medvetet inte in någon ersättare i
 > sak. För värden går det inte — den är inte vald. För e-posten vore det en
 > supersession av ADR 0050 plus en omskrivning av §13.4:s subprocessor-lista, som matar

@@ -39,18 +39,25 @@ sorterbart som datum).
 
 ## 3. Övervakning
 
-### 3.1 Hangfire dashboard
+### 3.1 Operatörsytan `/admin/jobb`
 
 Hangfire-dashboardet exponeras inte — och kommer inte att göra det. #204 levererade
-en egen civic operatörsyta i stället (`/admin/jobb`, PR #246 read-side + #248
-trigger/retry; ADR 0082), vilket var ett medvetet val framför den inbyggda
-dashboarden. Leta där, eller leta efter
-recurring job `audit-log-retention`:
+en egen civic operatörsyta i stället (`/admin/jobb`, PR #246; ADR 0082), vilket var ett
+medvetet val framför den inbyggda dashboarden. Leta där efter recurring job
+`audit-log-retention`:
 
-- **Lyckat:** "Succeeded" status, körtid typiskt < 100ms vid normal volym
-- **Fail:** röd markering i dashboard. Klicka för stack-trace + retry-info
+- **Lyckat:** raden visar senaste körning + status `Succeeded`. **Körtiden syns inte
+  på ytan** — läs den i den strukturerade loggen (§3.2); typiskt < 100 ms vid normal
+  volym.
+- **Fail:** status `Failed`, och körningen listas i failed-tabellen med **undantagets
+  TYPNAMN** som felkategori. Det finns **ingen stack-trace, inget meddelande och inga
+  argument** — den frånvaron är en avsiktlig PII-kontroll (ADR 0082: undantagstexter
+  kan bära personnummer, e-post eller DEK-dekrypterad CV-text), inte en lucka.
+  **Lägg inte till dem.** Orsak utreds i loggen (§3.2) eller via direkt
+  `hangfire.*`-SQL.
+- **Requeue** finns som API-endpoint (PR #248), **inte** som kontroll på sidan.
 
-### 3.2 Strukturerad logg (Seq i dev / CloudWatch i prod)
+### 3.2 Strukturerad logg (Seq i dev; prod-sinken är obyggd — #1175)
 
 Filtrera på sourcecontext `JobbPilot.Application.Common.Auditing.Jobs.AuditLogRetention.AuditLogRetentionJob`.
 

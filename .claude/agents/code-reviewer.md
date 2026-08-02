@@ -94,7 +94,8 @@ nextjs-ui-engineer for FE).
   **never filed as a backlog issue**, which would convert a stop into a row nobody
   reads. The only deadline concession is an explicitly documented acceptance (ADR or
   PR-body waiver) agreed before merge, and it stays visible in the merge signal.
-  Routing for every severity: CLAUDE.md §9.6.
+  Routing for every severity — including the one charter-declared exception, which is
+  `security-auditor`'s and not this one — is CLAUDE.md §9.6.
 - **dotnet-architect advice conflicts with CLAUDE.md:** flag the conflict
   explicitly, escalate to Klas — one of them is wrong.
 - **PR >50 files:** propose a split, or state explicitly which areas the review

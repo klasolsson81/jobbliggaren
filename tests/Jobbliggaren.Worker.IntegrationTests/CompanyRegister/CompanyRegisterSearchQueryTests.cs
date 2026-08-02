@@ -467,8 +467,11 @@ public class CompanyRegisterSearchQueryTests(WorkerTestFixture fixture)
             .ToArray();
         await SeedAsync(ctx.Db, ct, entries);
 
+        // An axis, because since #1149 an axis-free criterion is the ONE shape production never
+        // sends here: the handler returns null for a browse-all before reaching the port. The
+        // seeded rows all carry SniIt, so the saturation at ceiling 5 is unchanged.
         var magnitude = await new CompanyRegisterSearchQuery(ctx.Db).CountMatchingAsync(
-            Criteria(), ceiling: 5, ct);
+            Criteria(sni: [SniIt]), ceiling: 5, ct);
 
         magnitude.ShouldBe(5);
     }
@@ -481,7 +484,7 @@ public class CompanyRegisterSearchQueryTests(WorkerTestFixture fixture)
 
         await Should.ThrowAsync<ArgumentOutOfRangeException>(async () =>
             await new CompanyRegisterSearchQuery(ctx.Db)
-                .CountMatchingAsync(Criteria(), ceiling: 0, ct));
+                .CountMatchingAsync(Criteria(sni: [SniIt]), ceiling: 0, ct));
     }
 
     [Fact]

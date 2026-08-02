@@ -523,7 +523,7 @@ Claude features, NuGet/npm status) → search before answering, never guess
 from training data. Official docs > registries > blogs; verify dates; cite
 URL + date in the STOPP report.
 
-**9.6 Where a finding goes** (formerly §9.6/§9.7, which eight ADRs still cite together)**.** Default is still **fix in-block** — quality > tempo,
+**9.6 Where a finding goes** (formerly §9.6/§9.7, which several ADRs still cite together)**.** Default is still **fix in-block** — quality > tempo,
 and senior-cto-advisor decides when it is genuinely ambiguous. What changed
 2026-08-02 is the alternative: **there is no TD register to raise anything into.**
 

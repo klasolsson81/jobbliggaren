@@ -111,7 +111,10 @@
 > på laptop (Docker Compose: postgres + redis). Permanent deploy-mål — **Hetzner
 > Cloud CAX31 (ARM, 16 GB) all-in-one Docker Compose **BE + FE** + Cloudflare
 > DNS/CDN/proxy** — är beslutat i **ADR 0050 (Accepted 2026-06-08)**. Tabellen
-> nedan beskriver **nuläge (lokalt)** + **beslutat permanent mål**. Faktisk
+> nedan beskriver **nuläge (lokalt)** + **beslutat permanent mål**.
+> **VÄRDVALET ÄR UPPHÄVT 2026-08-02** (Klas-direktiv): Hetzner ut, svensk VPS in,
+> **ersättaren obeslutad**. Topologin står; leverantörsnamnen nedan är platshållare
+> tills CC1:s supersessions-ADR landar — se §15:s not. Faktisk
 > provisionering är fortsatt framtida Klas-gatat arbete (ADR 0050 Sekvensering:
 > Hetzner sist, vid MVP före beta-testare). AWS-kolumnerna i ADR/sessions/
 > research bevaras som historik.
@@ -1292,7 +1295,7 @@ permanent infra aktiveras; listan nedan speglar **beslutad** uppsättning, ADR 0
 > kedjan; **SES:s ersättare är Resend** — se e-postposten i listan ovan för
 > attribution och grindvillkor.
 >
-> **BÅDA MENINGARNA OVAN ÄR UPPHÄVDA (Klas-direktiv 2026-08-02):** Resend ska ut och
+> **BÅDA PÅSTÅENDENA OVAN ÄR UPPHÄVDA (Klas-direktiv 2026-08-02):** Resend ska ut och
 > **AWS SES i `eu-north-1`** in. Denna sektion är avsiktligt inte omskriven här — den
 > matar publika `/integritet#subprocessors`, så omskrivningen är legal-facing och ägs av
 > [#1169](https://github.com/klasolsson81/jobbliggaren/issues/1169) +
@@ -1300,8 +1303,11 @@ permanent infra aktiveras; listan nedan speglar **beslutad** uppsättning, ADR 0
 > `security-auditor`-sign-off. Tredjelandsbedömningen är en **öppen** fråga, inte en
 > avgjord — se §15:s not. Release-checklistan §2.5 punkt 5 tvingar denna sektion vid
 > e-postflippen.
+>
 > Hetzner/Cloudflare läggs till i den publika listan vid faktisk
-> provisionering (ADR 0050 Sekvensering).
+> provisionering (ADR 0050 Sekvensering) — **men värdpremissen är också upphävd**
+> (Hetzner ut, svensk VPS obeslutad), så namnen här är platshållare tills CC1:s
+> supersessions-ADR landar. Se §15:s not.
 
 ### 13.5 Säkerhetshygien
 
@@ -1400,8 +1406,11 @@ UptimeRobot/BetterStack free ersätter ALB/CloudWatch-health per ADR 0050):
 > [#1175](https://github.com/klasolsson81/jobbliggaren/issues/1175)).
 >
 > **En länk säger var arbetet ägs — inte att premissen omkring den är aktuell.** Två
-> premisser är **upphävda** av Klas-direktiv 2026-08-02 — i detta kapitel **och i §3.2:s
-> tabell (rad 126, en cell denna PR redigerade)** — inte bara under
+> premisser är **upphävda** av Klas-direktiv 2026-08-02 — i detta kapitel **och i §3.2**
+> (e-postpremissen i tabellrad 126; värdpremissen i statusbannern och i tabellraderna
+> för Backup m.fl., varav flera är celler denna PR redigerade). Uppräkningen är
+> **inte uttömmande** — den namnger var premisserna är mest lästa, inte varje
+> förekomst. Inte bara under
 > omprövning: **värdvalet** (Hetzner ut; svensk VPS in — **ersättaren obeslutad**,
 > kandidater hostup och one.com) och **e-postleverantören** (Resend ut — **ersättaren
 > är vald: AWS SES i `eu-north-1`**). Motiveringen och tredjelandsbedömningen står

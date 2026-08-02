@@ -32,11 +32,11 @@ Before writing anything, read:
   it and consult senior-cto-advisor — do not guess one.
 - **CLAUDE.md §2.5** (perf as reviewable convention) + **§3.6** (static query
   hygiene — the floor your measurements complement) + **§9.6** (in-block vs följd-PR vs issue)
-- **`src/JobbPilot.Application/Common/Behaviors/LoggingBehavior.cs`** — the
+- **`src/Jobbliggaren.Application/Common/Behaviors/LoggingBehavior.cs`** — the
   existing `Stopwatch.ElapsedMilliseconds` instrumentation; server-side
   handler latency is the measurement point ADR 0045 Beslut 1 mandates (not
   edge-to-edge)
-- **`perf/JobbPilot.LoadTests/`** — the baseline scaffold you extend
+- **`perf/Jobbliggaren.LoadTests/`** — the baseline scaffold you extend
 - **`.github/workflows/build.yml`** — the `lighthouse` / `loadtest` jobs your
   artifacts run in (observe-only Fas 1; do not change their gate status)
 
@@ -62,7 +62,7 @@ scenarios that **report** p99/INP but only **assert-intent** on p95/LCP/CLS.
 
 ## What you build
 
-### NBomber load-test scenarios (`perf/JobbPilot.LoadTests/`)
+### NBomber load-test scenarios (`perf/Jobbliggaren.LoadTests/`)
 
 - One scenario per hot-path class (a)/(b)/(c); an ingestion-throughput
   scenario for (d). Plain C#, NBomber 6.x API (`Scenario.Create`,
@@ -150,7 +150,7 @@ or `ci.needs`
   scenario", "Lighthouse-budget", "fitness function för perf"
 
 **Auto (hook-based / delegation):**
-- New hot-path endpoint in `src/JobbPilot.Api/**` matching ADR 0045 class
+- New hot-path endpoint in `src/Jobbliggaren.Api/**` matching ADR 0045 class
   (a)/(b)/(c) → write/extend the corresponding NBomber scenario
 - New frontend route shipped → add URL to `lighthouserc.json`
 - ADR 0045 budget amended → update affected scenarios/assertions
@@ -181,7 +181,7 @@ or `ci.needs`
 When you create/extend perf fitness functions:
 
 **1.** Place artifacts correctly:
-- Load-test: `perf/JobbPilot.LoadTests/Scenarios/<Class><Name>Scenario.cs`
+- Load-test: `perf/Jobbliggaren.LoadTests/Scenarios/<Class><Name>Scenario.cs`
 - Lighthouse: `web/jobbpilot-web/lighthouserc.json` / `budget.json`
 
 **2.** Report in Swedish (English technical terms untranslated):
@@ -189,7 +189,7 @@ When you create/extend perf fitness functions:
 ```
 ## Perf-fitness-function byggd: <hot path / yta>
 
-**Fil(er):** perf/JobbPilot.LoadTests/Scenarios/...
+**Fil(er):** perf/Jobbliggaren.LoadTests/Scenarios/...
 **ADR 0045-budget mätt mot:** klass (a) p95 300 ms (verbatim — ej uppfunnen)
 **Mätpunkt:** server-side handler-latens (LoggingBehavior-konsekvent)
 **Last-form:** <Simulation.Inject rate/interval/during — kalibrerad mot baslinje>
@@ -198,7 +198,7 @@ When you create/extend perf fitness functions:
 Flip till blockerande = Klas-GO-ratchet (ADR 0045 Beslut 6), ej denna leverans.
 
 **Körs med:**
-  dotnet run --project perf/JobbPilot.LoadTests -c Release
+  dotnet run --project perf/Jobbliggaren.LoadTests -c Release
 
 **Nästa steg:**
 Kör i CI:s observe-only loadtest-job. code-reviewer/CTO bedömer signalen

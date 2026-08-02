@@ -399,8 +399,8 @@ worktrees. The rules below keep parallel work collision-free; full playbook in
   priority.** Klas-direktiv 2026-08-02: a couple of real test users on
   `jobbliggaren.se` **within a month of that date**. An issue earns `mvp` when **a real
   test user meets it, or it blocks going live** — that is the criterion, and **the second
-  clause is doing real work**: measured 2026-08-02, 11 of 21 labelled issues sit in
-  `area:infra`/`area:auth` rather than on any product surface — the deploy stack (#196),
+  clause is doing real work**: measured 2026-08-02, 11 of 21 labelled issues carry
+  `area:infra`/`area:auth` and no product-surface `area:` — the deploy stack (#196),
   backup (#197), key rotation (#198), the log sink (#1175). *(Area is a **proxy** for
   which clause applies, not an adjudicator: #1171 is `area:auth` and is a clause-1 case —
   a user meets a missing password reset — while #853 and #1033 are `area:docs` and are

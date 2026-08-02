@@ -1,6 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
+// `/pure` is the un-aliased real implementation — `vitest.config.ts` anchors the
+// alias with `$`, so this import bypasses the sv-only provider shim. Needed only
+// by the locale-discrimination block at the bottom of this file.
+import { render as rawRender } from "@testing-library/react/pure";
+import { NextIntlClientProvider } from "next-intl";
 import userEvent from "@testing-library/user-event";
+import enMessages from "../../../messages/en";
 import type {
   TaxonomyOccupationField,
   TaxonomyOption,
@@ -63,24 +69,33 @@ const employmentTypes: ReadonlyArray<TaxonomyOption> = [
   { conceptId: "et_fast", label: "Tillsvidareanställning" },
 ];
 
+// Shared required props. Every field is mandatory in the component's signature,
+// so a new *required* prop is caught by `tsc --noEmit` in pre-commit rather than
+// drifting between the two render helpers. A new optional one passes silently —
+// `satisfies` fails on assignability, and an optional prop stays assignable.
+const modalProps = {
+  open: true,
+  onOpenChange: vi.fn(),
+  occupationFields,
+  regions,
+  employmentTypes,
+  persistedOccupationGroups: [],
+  persistedRegions: [],
+  persistedMunicipalities: [],
+  persistedEmploymentTypes: [],
+  persistedSkills: [],
+  persistedOccupationExperience: [],
+  importCvHref: "/cv/importera",
+} satisfies React.ComponentProps<typeof MatchSetupRailModal>;
+
 function renderModal(
   overrides?: Partial<React.ComponentProps<typeof MatchSetupRailModal>>,
 ) {
   const onOpenChange = vi.fn();
   render(
     <MatchSetupRailModal
-      open
+      {...modalProps}
       onOpenChange={onOpenChange}
-      occupationFields={occupationFields}
-      regions={regions}
-      employmentTypes={employmentTypes}
-      persistedOccupationGroups={[]}
-      persistedRegions={[]}
-      persistedMunicipalities={[]}
-      persistedEmploymentTypes={[]}
-      persistedSkills={[]}
-      persistedOccupationExperience={[]}
-      importCvHref="/cv/importera"
       {...overrides}
     />,
   );
@@ -193,5 +208,58 @@ describe("MatchSetupRailModal — live räknare", () => {
     expect(screen.getByText("MATCHAR NU")).toBeInTheDocument();
     const statuses = screen.getAllByRole("status");
     expect(statuses.every((s) => !s.textContent?.includes("0"))).toBe(true);
+  });
+});
+
+// The counter moved from a module-level `new Intl.NumberFormat("sv-SE")` to
+// `formatNumber(useFormatter(), …)`. The two are INDISTINGUISHABLE in sv — both
+// emit U+00A0 as the group separator — so a Swedish test alone would have been
+// green before and after and proven nothing. The locale axis is the only thing
+// that discriminates, and it needs its own provider: `vitest.config.ts` aliases
+// `@testing-library/react` to a shim hardcoding `locale="sv"`, so the English
+// case renders through `/pure`, which the alias's `$` anchor deliberately leaves
+// un-rewritten.
+//
+// The sv case is kept even though it cannot discriminate the two implementations,
+// because it guards a different axis: CLAUDE.md §10's NBSP requirement. If CLDR
+// ever moves Swedish grouping the way it moved fr-FR (U+00A0 → U+202F in CLDR 42),
+// Swedish grouping would break silently on an ICU bump, and this is the assertion
+// that would catch it.
+describe("MatchSetupRailModal — räknarens tal följer aktiv locale", () => {
+  function renderWithEnglishLocale() {
+    rawRender(
+      <NextIntlClientProvider
+        locale="en"
+        messages={enMessages}
+        timeZone="Europe/Stockholm"
+      >
+        {/* Own `onOpenChange`, like `renderModal` — so `modalProps`' default
+            mock is never actually called and cannot accumulate calls across
+            tests (`beforeEach` resets the named mocks, not every mock). */}
+        <MatchSetupRailModal {...modalProps} onOpenChange={vi.fn()} />
+      </NextIntlClientProvider>,
+    );
+  }
+
+  it("grupperar tusental med hårt mellanslag i sv (CLAUDE.md §10)", () => {
+    countMock.mockReturnValue({ count: 1234, loading: false });
+    renderModal();
+    const statuses = screen.getAllByRole("status");
+    expect(
+      statuses.some((s) => s.textContent?.includes("1\u00A0234")),
+    ).toBe(true);
+  });
+
+  it("grupperar enligt en-konventionen när locale är en", () => {
+    countMock.mockReturnValue({ count: 1234, loading: false });
+    renderWithEnglishLocale();
+    const statuses = screen.getAllByRole("status");
+    // Positive: the en grouping renders.
+    expect(statuses.some((s) => s.textContent?.includes("1,234"))).toBe(true);
+    // Negative, and this is the half that fails a reversion: a hardcoded
+    // `sv-SE` instance would have rendered U+00A0 here too.
+    expect(
+      statuses.every((s) => !s.textContent?.includes("1\u00A0234")),
+    ).toBe(true);
   });
 });

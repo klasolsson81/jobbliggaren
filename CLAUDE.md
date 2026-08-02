@@ -49,7 +49,16 @@ Details and formats: `docs/runbooks/session-protocol.md`.
 | `docs/runbooks/` | Operational procedures |
 | `docs/research/` (+`issues/`) | Findings, planning, open questions |
 | `docs/reviews/` | Agent review reports |
-| `docs/tech-debt.md` (+`-archive.md`) | Active TDs (Severity × Fas) / closed TDs — mechanics in the `jobbpilot-td-lifecycle` skill |
+
+**The backlog is GitHub Issues, and nothing else** (Klas-direktiv 2026-08-02). The
+TD register — `docs/tech-debt.md`, its archive, and the `jobbpilot-td-lifecycle`
+skill — is **retired**; see §9.6. Its 44 live entries were disposed of in the same
+pass: 6 closed on measurement, 5 already filed, 1 promoted ([#1170](https://github.com/klasolsson81/jobbliggaren/issues/1170)),
+and 31 parked **inline** in [#1172](https://github.com/klasolsson81/jobbliggaren/issues/1172)
+— inline because both files were gitignored, so "archived" would have meant deleted.
+**A `TD-NNN` marker surviving in `BUILD.md` or a code comment is a historical
+provenance citation**, like a commit hash: it records why something exists and is not
+a pointer into a register you can still open.
 
 Top-level `BUILD.md`/`CLAUDE.md`/`DESIGN.md` may be edited autonomously via the
 normal feature-branch → PR → automerge flow (§9.2/§6); Klas reviews the diff
@@ -365,7 +374,7 @@ worktrees. The rules below keep parallel work collision-free; full playbook in
   architecture + **Testcontainers** (ephemeral DB, parallel-safe) — never
   against the shared dev DB.
 - **Local docs in worktrees.** Gitignored session state (`current-work.md`,
-  `steg-tracker.md`, `tech-debt.md`, `sessions/`, local `reviews/` and ADRs
+  `steg-tracker.md`, `sessions/`, local `reviews/` and ADRs
   0074+) is absent from a fresh worktree. `.worktreeinclude` lists them; run
   `scripts/sync-worktree-docs.ps1 <worktree-path>` after creating a worktree.
   Secrets (`appsettings.Local.json`, `.env.local`) are NEVER synced into a
@@ -432,7 +441,7 @@ worktrees. The rules below keep parallel work collision-free; full playbook in
   liveness proxies outright: doubt resolves to skip, never to "probably fine".
   "I created it" is knowledge; "its lock looks stale" is a guess that yanks a
   live tree.
-  And **land your `current-work.md` / `steg-tracker.md` / `tech-debt.md` edits in
+  And **land your `current-work.md` / `steg-tracker.md` edits in
   the main copy before you stop** — the rescue saves gitignored files the main
   copy does *not* have; it cannot save your edits to ones it already does.
 
@@ -509,10 +518,26 @@ Claude features, NuGet/npm status) → search before answering, never guess
 from training data. Official docs > registries > blogs; verify dates; cite
 URL + date in the STOPP report.
 
-**9.6/9.7 TD discipline.** Default = fix in-block. A TD may be raised only
-for a different phase or a missing functional dependency — full mechanics,
-formats, and lifecycle in the **`jobbpilot-td-lifecycle` skill**. When in
-doubt, in-block wins (quality > tempo) and senior-cto-advisor decides.
+**9.6 Where a finding goes.** Default is still **fix in-block** — quality > tempo,
+and senior-cto-advisor decides when it is genuinely ambiguous. What changed
+2026-08-02 is the alternative: **there is no TD register to raise anything into.**
+
+- **Critical or Major bug, or a fix that must be made** → in-block, or a **follow-up
+  PR** if it is a genuinely separate change-reason.
+- **Minor, or nice-to-have** → a **GitHub issue**. Not a follow-up PR, and not a line
+  in a PR body — a line in a PR body has no reader. The reason is **visibility between
+  parallel CCs**, not issue inflation, so an issue that no other CC would ever need to
+  see is not automatically worth filing.
+- **Never** re-create `docs/tech-debt.md`, a `TD-NNN` identifier, or a
+  Severity × Fas matrix. If the register looks like it is missing something, it is not
+  — read [#1172](https://github.com/klasolsson81/jobbliggaren/issues/1172).
+
+**Filing discipline.** An issue asserting that live code does something **measures it
+first** and names what adjudicated it. Six of the retired register's entries turned out
+already fixed the moment anyone measured them, having sat there for months describing a
+tree that had moved. A parked or deferred item makes **no** truth claim and needs no
+measurement — but it must then be written as scheduling ("not MVP scope, not verified"),
+never as fact ("still applies", "no longer relevant").
 
 ## 10. Swedish UI rules
 
@@ -556,7 +581,8 @@ doubt, in-block wins (quality > tempo) and senior-cto-advisor decides.
   **preserved** `infra/terraform/`, which still carries
   the `Alb__HttpsEnabled` injection — so neither the flag nor the tree is
   residue. Retirement is a Hetzner-cutover ADR, never a cleanup sweep
-  (BUILD.md §15); TD-106 owns the rename to `ReverseProxyOptions`.
+  (BUILD.md §15); [#196](https://github.com/klasolsson81/jobbliggaren/issues/196)
+  owns the rename to `ReverseProxyOptions`.
 - **Dev-boot config contract.** A new fail-fast option (a `ValidateOnStart` secret,
   usually in the Infrastructure DI both hosts share) that a fresh dev-stack boot needs —
   a required key, secret, or pepper the API/Worker refuses to start without — MUST be added to

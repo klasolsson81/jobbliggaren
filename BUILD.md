@@ -123,12 +123,12 @@
 | Cache | Redis 8.6 (Docker Compose) | Redis co-tenant container på CAX31 |
 | Object storage | lokal disk / ej aktiverat | TBD — roll/behov ej fastställt |
 | AI inferens | Ingen — produkten har ingen AI/LLM (ADR 0071) | Ingen (deterministiska motorer på BE/VPS) |
-| Email | `ConsoleEmailSender` (ADR 0066) | Resend, grindad (§13.4, TD-101) |
-| Secrets | `appsettings.Local.json` (gitignored) | Self-managed på VPS (systemd-credentials / sops+age, TD-106) |
-| Encryption keys | `LocalDataKeyProvider` AES-256-GCM (ADR 0066) | Self-managed master-nyckelmodell + rotation (TD-102) |
+| Email | `ConsoleEmailSender` (ADR 0066) | Resend, grindad (§13.4, [#183](https://github.com/klasolsson81/jobbliggaren/issues/183)) |
+| Secrets | `appsettings.Local.json` (gitignored) | Self-managed på VPS (systemd-credentials / sops+age, [#196](https://github.com/klasolsson81/jobbliggaren/issues/196)) |
+| Encryption keys | `LocalDataKeyProvider` AES-256-GCM (ADR 0066) | Self-managed master-nyckelmodell + rotation ([#198](https://github.com/klasolsson81/jobbliggaren/issues/198)) |
 | Frontend | `pnpm dev` (localhost:3000) | Next.js `next start` co-tenant container på CAX31 (bakom Caddy) |
 | DNS / CDN / proxy | — | Cloudflare gratis-tier "Full (strict)" framför Caddy-origin på CAX31 |
-| Backup | — | Nattlig klient-side-krypterad `pg_dump` → Hetzner-EU Storage Box (TD-107) |
+| Backup | — | Nattlig klient-side-krypterad `pg_dump` → Hetzner-EU Storage Box ([#197](https://github.com/klasolsson81/jobbliggaren/issues/197)) |
 | Logging / monitoring | console (MEL) + Seq (`Seq.Extensions.Logging`) | Persistent strukturerad sink via Seq self-hosted EU — TD-104 |
 | Errors | — | Sentry (EU) planerat |
 | CI | GitHub Actions (build + test + coverage, inga moln-anrop) | oförändrat |
@@ -758,7 +758,7 @@ email_log
   subject (text)
   template (text)
   sent_at (timestamptz)
-  provider_message_id (text null)   -- provider-neutralt (SES borttaget, ADR 0066; transaktionell väg = Resend, TD-101/§13.4)
+  provider_message_id (text null)   -- provider-neutralt (SES borttaget, ADR 0066; transaktionell väg = Resend, [#183](https://github.com/klasolsson81/jobbliggaren/issues/183)/§13.4)
   status (text)
 
 -- Integrations
@@ -1224,7 +1224,7 @@ Se [`DESIGN.md`](./DESIGN.md) för komplett specifikation: färgtokens, typograf
 
 **At rest:**
 - Databas: co-tenant PostgreSQL på Hetzner CAX31 (ADR 0050); disk-/volym-kryptering på VPS-nivå
-- Backup: nattlig `pg_dump` klient-side-krypterad (age) → Hetzner-EU Storage Box (ADR 0050 Beslut 4, TD-107)
+- Backup: nattlig `pg_dump` klient-side-krypterad (age) → Hetzner-EU Storage Box (ADR 0050 Beslut 4, [#197](https://github.com/klasolsson81/jobbliggaren/issues/197))
 - PII-fält (`cover_letter`, `resume_versions.content` m.fl.) och OAuth-tokens:
   per-användar-DEK envelope encryption via `IDataKeyProvider`
   (Local AES-256-GCM eller KMS, config-switchat per ADR 0066/0049) — extra lager
@@ -1237,7 +1237,7 @@ Se [`DESIGN.md`](./DESIGN.md) för komplett specifikation: färgtokens, typograf
 
 **Secrets-hantering per miljö:**
 - `local`: `appsettings.Local.json` (gitignored) + `.env` för frontend; committade defaults i `appsettings.Development.json`
-- permanent miljö (Hetzner): self-managed på VPS (systemd-credentials / sops+age, ADR 0050 + TD-106); master-nyckel aldrig plaintext-på-disk (TD-102)
+- permanent miljö (Hetzner): self-managed på VPS (systemd-credentials / sops+age, ADR 0050 + [#196](https://github.com/klasolsson81/jobbliggaren/issues/196)); master-nyckel aldrig plaintext-på-disk ([#198](https://github.com/klasolsson81/jobbliggaren/issues/198))
 - `IConfiguration`-abstraktionen gör att koden är identisk oavsett källa; endast DI-registreringen skiljer
 
 ### 13.3 GDPR-flöden
@@ -1379,7 +1379,7 @@ UptimeRobot/BetterStack free ersätter ALB/CloudWatch-health per ADR 0050):
 > Den kunde alltså fila spöken i backloggen. `infra/certs/rds-global-bundle.pem`
 > BEHÅLLS: alla tre Dockerfiles `COPY` den fortfarande, och `.dockerignore` bär
 > avsiktliga negationer för att släppa igenom den. Dess borttagning har egen ägare
-> (#196/TD-106, Hetzner-image). `infra/terraform/` är **orörd** — den retireras via
+> (#196, Hetzner-image). `infra/terraform/` är **orörd** — den retireras via
 > egen teardown-ADR/PR enligt stycket ovan, inte här.
 
 ### 15.1 Deploy-layout (ADR 0050, Accepted)
@@ -1391,21 +1391,21 @@ Hela backend-stacken kör i **Docker Compose** på boxen: .NET API + .NET Worker
 (reverse proxy, auto-TLS via Let's Encrypt DNS-01 mot Cloudflare). `mem_limit`
 sätts hybrid — hård cap på Worker + Redis (skydda Postgres mot
 ingestion-OOM), generös/osatt på Postgres (data-durabilitet); Bulkhead-principen
-(ADR 0050 mem_limit-not, TD-106).
+(ADR 0050 mem_limit-not, [#196](https://github.com/klasolsson81/jobbliggaren/issues/196)).
 
 **Frontend — Next.js co-tenant container på CAX31.** FE körs som en `next start`-container i samma Compose-stack bakom Caddy (ADR 0050 Beslut 3, amenderad 2026-06-14). `next build` körs i CI; endast den färdiga imagen shippas till boxen (build-toppen belastar aldrig RAM-feldomänen). FE-footprint (~0,5 GB under last) ryms i CAX31:s headroom.
 
 **Edge — Cloudflare gratis-tier** framför boxen (TLS-edge / DNS / CDN / DDoS):
 **"Full (strict)"** mot giltigt origin-cert på Caddy (aldrig "Flexible") +
 origin-IP-lockdown (origin accepterar bara Cloudflare-IP:er på 443) + HSTS
-(ADR 0050 Beslut 4, gate M-5 i TD-106). Caddy reverse-proxiar två upstreams (API
+(ADR 0050 Beslut 4, gate M-5 i [#196](https://github.com/klasolsson81/jobbliggaren/issues/196)). Caddy reverse-proxiar två upstreams (API
 på port 5000 + `next start`-FE på localhost:3000 för icke-`/api`-vägar); "Full
 (strict)" + origin-IP-lockdown + HSTS täcker hela ursprunget.
 
 **Backup — Hetzner-EU Storage Box** (~€3/mån/1 TB): nattlig `pg_dump`
 klient-side-krypterad (age) → Storage Box i samma EU-jurisdiktion (Cloudflare R2
 avvisat pga CLOUD Act-tredjelandsöverföring av icke-krypterad pg_dump-PII).
-Backups ligger INTE på boxens 160 GB. Retention/rotation + restore-drill = TD-107.
+Backups ligger INTE på boxens 160 GB. Retention/rotation + restore-drill = [#197](https://github.com/klasolsson81/jobbliggaren/issues/197).
 
 **Single-box blast-radius** (API/Worker/Postgres/Redis delar OS + RAM + feldomän)
 är ett medvetet beta-skala-val (ADR 0050 Negativa konsekvenser); CAX31:s 16 GB +
@@ -1421,7 +1421,7 @@ Befintlig AWS-Terraform under `infra/terraform/` bevarad som reversibilitets-
 mekanik (ADR 0066 Beslut 1), retireras via egen ADR/PR vid Hetzner-cutover.
 Hetzner-provisioneringen är compose-centrerad (en box, Docker Compose + Caddy);
 VPS-härdnings-baseline (SSH-key-only, brandvägg, fail2ban, auto-patch, PG/Redis
-ej publika, swap/core-dump-hygien) = gate M-6, hemvist TD-106.
+ej publika, swap/core-dump-hygien) = gate M-6, hemvist [#196](https://github.com/klasolsson81/jobbliggaren/issues/196).
 
 ### 15.3 CI/CD
 
@@ -1443,7 +1443,7 @@ Ny deploy-pipeline mot **Hetzner** byggs vid cutover (ADR 0050: Compose-push til
 
 Topologin (Hetzner CAX31 single-box **BE + FE** + Cloudflare) är beslutad; den
 exakta deploy-mekaniken (Compose-pull/re-up-ordning, migrations-ordning via
-`Jobbliggaren.Migrate`, rollback) detaljeras i Hetzner-fas-arbetet (TD-106). FE-containern bör få sin egen healthcheck i Compose (TD-106).
+`Jobbliggaren.Migrate`, rollback) detaljeras i Hetzner-fas-arbetet ([#196](https://github.com/klasolsson81/jobbliggaren/issues/196)). FE-containern bör få sin egen healthcheck i Compose ([#196](https://github.com/klasolsson81/jobbliggaren/issues/196)).
 **Rollback-modell (ADR 0050):** lokal Docker-Compose-stack är
 paritets-baselinen (samma image-byggväg som Hetzner-prod) — misslyckad cutover =
 återgå till lokal-dev + ej-cutad DNS (Cloudflare). DNS-cutover är den enda

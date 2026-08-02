@@ -231,7 +231,7 @@ public class GetParsedResumeEndpointTests(ApiFactory factory)
         var docx = BuildDocx(
             "Anna Andersson", "anna@example.com",
             "Erfarenhet", "Backend-utvecklare",
-            "Utbildning", "KTH", "2015-2020",
+            "Utbildning", "Civilingenjör - KTH", "2015-2020",
             "Kompetenser", "C#, PostgreSQL");
         using var form = FileForm(docx, "cv.docx", DocxContentType);
         var import = await _client.PostAsync("/api/v1/resumes/import", form, ct);
@@ -280,7 +280,7 @@ public class GetParsedResumeEndpointTests(ApiFactory factory)
         var docx = BuildDocx(
             "Anna Andersson", "anna@example.com",
             "Erfarenhet", "Backend-utvecklare", "Beta AB", "2021-2024",
-            "Utbildning", "KTH", "2015-2020",
+            "Utbildning", "Civilingenjör - KTH", "2015-2020",
             "Kompetenser", "C#, PostgreSQL");
         using var form = FileForm(docx, "cv.docx", DocxContentType);
         var import = await client.PostAsync("/api/v1/resumes/import", form, ct);
@@ -333,7 +333,7 @@ public class GetParsedResumeEndpointTests(ApiFactory factory)
         var docx = BuildDocx(
             "Anna Andersson", "anna@example.com",
             "Erfarenhet", "Backend-utvecklare", "Beta AB", "2021-2024",
-            "Utbildning", "KTH", "2015-2020",
+            "Utbildning", "Civilingenjör - KTH", "2015-2020",
             "Kompetenser", "C#, PostgreSQL");
 
         using var form = FileForm(docx, "cv.docx", DocxContentType);

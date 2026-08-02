@@ -34,10 +34,18 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # timeout-minutes is a hang guard, not a performance budget — ADR 0045 owns the
+  # latter. 15 stopped being a hang guard once the suite grew into it: ten main
+  # runs span 14m08s–14m42s, i.e. 94–98 % of the budget, and three PRs were failed
+  # by the ceiling alone (#1141 15m14s, #1143 15m16s, #1139 15m15s). A CANCELLED
+  # job is not `success`, `backend` is in ci.needs, so the ceiling fails `ci`
+  # without naming a cause — and a re-run is the only remedy. 25 gives parity with
+  # `coverage`, which runs the SAME suite *with* instrumentation and finishes
+  # inside it. Raising this weakens no gate: every test still has to pass. #1145.
   backend:
     name: backend (.NET 10)
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -88,8 +96,11 @@ jobs:
   # Coverage-mätning + blockerande regressions-gate (ADR 0044, Accepted
   # 2026-05-17). Per-lager icke-regression-ratchet — golv = floor(uppmätt
   # baseline − 2.0pp), pinnade av senior-cto-advisor mot baseline @ HEAD
-  # 98b6f17. Det snabba backend-jobbet rörs inte (fast fail-feedback
-  # bevaras); detta kör parallellt och ligger i ci.needs.
+  # 98b6f17. Runs in parallel with `backend` and is likewise in ci.needs.
+  # (This clause used to call `backend` "det snabba jobbet" and read its 15-minute
+  # ceiling as headroom the fast job did not need. Both halves expired: `backend`
+  # measures 14m+ on main, and it is now on the same 25-minute guard as this job.
+  # Truth-synced with #1145.)
   coverage:
     name: coverage (.NET 10)
     runs-on: ubuntu-latest

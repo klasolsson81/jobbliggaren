@@ -257,4 +257,34 @@ Det tidsbaserade `JobAdDto.IsNew` och `ListJobAdsQuery.Since` **kvarstår tempor
 
 ---
 
+## Amendment 2026-08-02 — Beslut C:s rationale pekade på en CLAUDE.md-regel som inte längre finns
+
+**Beslut C är oförändrat. Detta amendment reparerar en pekare, inte ett beslut.**
+
+Beslut C ("typeahead frontend-datahämtning: self-contained debounce-hook") motiverades med
+att *"CLAUDE.md §4.3 reglerar TanStack Query för mutations och pollar, inte för en kortlivad
+keystroke-driven read-suggest"*. Två mätningar vid head:
+
+1. **CLAUDE.md har inga §4.x-underrubriker** — §4 är platta punkter. Pekaren `§4.3` var redan
+   falsk oberoende av denna ändring (pre-existerande; samma gäller `§5.3` i fil-fotens
+   referensrad — namngivet här, inte svept).
+2. **CLAUDE.md §4 reglerar inte längre TanStack Query.** Biblioteket finns inte i
+   `package.json` och har aldrig installerats; §4:s data-punkt namnger nu Server Actions, och
+   BUILD.md §3.1 bär en gravsten i stället för raden `| Data fetching | TanStack Query | 5.x |`.
+
+**Konsekvens för Beslut C: ingen — beslutet står starkare än när det fattades.** Rationalen
+argumenterade mot att adoptera ett bibliotek på *en* yta; mätningen visar att trädet aldrig
+adopterade det på *någon* yta. Den ursprungliga formuleringen ("CLAUDE.md reglerar TanStack
+Query för mutations och pollar") beskrev spec-läget 2026-05-16 korrekt och redigeras inte —
+ett resonemang är ett protokoll. Det som repareras är läsvägen: `job-ad-typeahead.tsx` och
+`use-facet-counts.ts` dereferar denna ADR som auktoritet, och en läsare därifrån landade
+annars på en regel som inte finns.
+
+**Detta är inte en supersession.** Att installera TanStack Query vore en reversering av
+Beslut C och kräver Klas-GO via en supersessions-ADR.
+
+Truth-sync #TRUTHSYNC.
+
+---
+
 *Referencias: Eric Evans, DDD (2003) kap. 5, 14; Vaughn Vernon, IDDD (2013) kap. 6; Robert C. Martin, Clean Architecture (2017) kap. 7; Beck/Fowler — YAGNI; Ford/Parsons/Kua, Building Evolutionary Architectures (2017); Nygard, Documenting Architecture Decisions (2011). ADR 0008, 0009, 0032, 0039, 0040; jobbpilot-design-principles regel 3/7; CLAUDE.md §2.3, §4.3, §5.3, §9.1, §9.2, §9.6, §9.7.*

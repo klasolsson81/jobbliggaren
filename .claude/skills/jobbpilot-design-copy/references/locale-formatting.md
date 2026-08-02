@@ -229,12 +229,18 @@ Never store local time in DB. Never assume client timezone == Stockholm.
 > `formatDateTimeStockholm`.
 >
 > Measured against `web/jobbliggaren-web/`: the module path does not exist, and
-> **neither package is in `package.json`**. The two differ where it matters:
-> `date-fns` **is** in BUILD.md §3.1 (`| Datum | date-fns | 4.x |`), so installing it
-> would have been an undiscussed dependency add (§9.2) against a fictional module
-> path — while `date-fns-tz` is in neither, so the §Timezone half specifically is
-> what produced a §12 *non-BUILD.md library* change. That BUILD.md lists a package
-> nobody installed is a real drift this rewrite uncovered, and its own follow-up.
+> **neither package is in `package.json`**. The two differed where it mattered *at
+> the time of that removal*: `date-fns` was then listed in BUILD.md §3.1
+> (`| Datum | date-fns | 4.x |`), so installing it would have been an undiscussed
+> dependency add (§9.2) against a fictional module path — while `date-fns-tz` was
+> in neither, so the §Timezone half specifically is what produced a §12
+> *non-BUILD.md library* change.
+>
+> **That §3.1 row was the root cause, and the follow-up removed it.** §3.1 now
+> records the delivered mechanism (`@/lib/i18n/format` + `@/lib/i18n/relative-time`)
+> with a self-asserting absence claim in place of the package name, so neither
+> package is a listed decision any more, and the §9.2-vs-§12 asymmetry above no
+> longer holds for anything written after it (truth-sync #TRUTHSYNC).
 >
 > The names above are the thirteen this section carried; `formatPercent` made
 > **fourteen** in the same guide, and has its own note above.

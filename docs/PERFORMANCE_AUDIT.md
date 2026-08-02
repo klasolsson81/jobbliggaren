@@ -974,8 +974,13 @@ Kept in the report but NOT proposed as issues (report-only):
 
 - BUILD.md/docs describe TanStack Query for client mutations/polling; the app uses
   Server Actions + `useTransition`/`useOptimistic` throughout (verified — and it is
-  the *better* pattern for perceived performance here). Already tracked as #486;
-  no new issue.
+  the *better* pattern for perceived performance here). ~~Already tracked as #486;
+  no new issue.~~ **Correction 2026-08-02: this finding was never carried by #486.**
+  That issue's body is EF-in-Application, Seq, Resend, AWS-config and the language
+  policy — no TanStack item — so "already tracked" read as "no action needed" and
+  the measurement retired without ever being filed. Consumed by the truth-sync PR
+  #TRUTHSYNC, which replaced the BUILD.md §3.1 rows and the CLAUDE.md §4
+  instruction with the delivered mechanism.
 - `(app)/matchningar/page.tsx:16-18` comment claims the seen-mark is
   "fire-and-forget" while the code deliberately awaits it (`:33-38`) — fixed by
   p2-matchningar. Same contradiction in `company-follows.ts:63-64` vs `:138-158`

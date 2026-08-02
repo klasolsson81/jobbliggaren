@@ -140,7 +140,15 @@ export async function ForetagSokResults({
               cap, and the register holds 743 654. There is deliberately no exact signal to gate on
               there — a browse-all is precisely the case the backend refuses to count — so if the
               register ever shrank below 2 000 this line would need the same treatment the `>` above
-              just got, and nothing here would notice. */}
+              just got, and nothing here would notice.
+
+              A second declared limit, in the other direction: the comparison is exact only while
+              this surface's cap stays below the magnitude's own ceiling. `PAGE_SIZE` is a module
+              constant of 20, so the cap is 2 000 against a Ceiling of 10 000. A caller sending
+              pageSize 100 — which the backend's MaxPageSize permits — would make the cap 10 000
+              too, and a saturated magnitude would then compare 10 000 > 10 000 = false and hide
+              this line while matches past row 10 000 really are being lost. Unreachable from here;
+              it becomes reachable the moment PAGE_SIZE stops being a constant. */}
           {(magnitude === null
             || magnitude.magnitude > MAX_PAGE * companies.pageSize) && (
             <p className="mt-1 text-body-sm text-text-primary">

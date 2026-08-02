@@ -256,9 +256,12 @@ Specifik knapp-text. Konkret konsekvens.
 | Avsluta konto | "Avsluta konto? All data raderas permanent inom 30 dagar." | "Är du säker på att du vill fortsätta?" |
 
 (Gmail-raden är ett **mönsterexempel, inte skeppad copy** — Gmail-synk är uppskjuten,
-inte borttagen: BUILD.md §6.2 listar fem endpoints, §9.2:s not (:1006-1013) säger
-"skjuts upp … specarna ovan bevaras som framtida referens", och :1489 listar `SyncGmailJob`
-som "Ej byggt (Fas 5, #321)".)
+inte borttagen: BUILD.md §6.2 listar fem endpoints, §9.2:s not säger
+"skjuts upp … specarna ovan **bevaras som framtida referens**", och §16:s
+"Ej byggt"-tabell listar **`SyncGmailJob`** som "Ej byggt (Fas 5, #321)".
+Radnummer står medvetet inte här — de två som stod här var sanna vid #1173:s bas
+och falska vid dess head, eftersom den PR:en sköt in rader i BUILD.md ovanför båda.
+Citaten har en träff var.)
 
 ### 7. Påminnelser
 

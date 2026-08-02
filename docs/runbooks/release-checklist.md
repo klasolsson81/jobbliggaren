@@ -196,12 +196,13 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
 - [ ] **5. `BUILD.md` flippas i SAMMA ändring** — den här checklistan räknade tidigare bara upp
       `content-legal.json` och ROPA:n, och nämnde **aldrig** `BUILD.md` som flip-yta. Vid flippen
       blir följande falska utan att något kräver att de rörs: **§13.4**:s e-postpost
-      (*"planerad, ännu inte aktiverad … ingen e-post lämnar systemet"*), **§3.1 rad 39**
+      (*"planerad, ännu inte aktiverad … ingen e-post lämnar systemet"*), **§3.1:s Resend-rad**
       (*"prod-utskick grindat"*) och **§3.2:s Email-rad** (*"Resend, grindad"*).
       **`provider_message_id`-kommentaren i §7:s `email_log`-schema** är provider-neutral
       och blir INTE falsk — kontrollera den, ändra sannolikt inget.
-      *(Radnummer står medvetet inte här: denna punkt bar två, och båda föll när
-      #1173 sköt in rader i §3.2:s och §3.3:s statusbanners. Citaten är sökbara,
+      *(Radnummer står medvetet inte här: punkten bar TRE, och två av dem föll när
+      #1173 sköt in rader i §3.2:s och §3.3:s statusbanners. Det tredje överlevde av
+      POSITION, inte design — hunken direkt ovanför blev netto noll. Citaten är sökbara,
       radnumren var det inte.)*
       `BUILD.md` läses av varje CC-invokation (CLAUDE.md §9.1), så en oflippad rad där får varje
       efterföljande session att resonera från en falsk premiss om en **levande**

@@ -9,9 +9,17 @@
 # - github-actions (CI-workflows + lighthouse-ci-action supply-chain-yta)
 #
 # Strategi: månadsvisa version-updates. Minor + patch grupperas per ecosystem för
-# att minska PR-brus; MAJORS grupperas aldrig, utan kommer en PR i taget så att en
-# brytande bump varken kan gömma sig bland ofarliga eller hålla dem gisslan.
+# att minska PR-brus; MAJORS grupperas aldrig, utan kommer en PR i taget — dels så
+# att var och en får sin egen granskning, dels för att en major i en grupp sätter
+# `eligible=false` i dependabot-automerge.yml och därmed hoppar över scannen för
+# ALLA paket i gruppen. Grupperingen är INGEN garanti mot en trasig grupp: mätt på
+# #1140 var två av tre bygg-brytare semver-minor. `ci` är den grinden.
 # Security updates körs separat och ignorerar schedule (GitHub-default).
+#
+# `open-pull-requests-limit` per entry är dimensionerat för att majors nu tar egna
+# slots. nuget står kvar på 5: #1140:s population ger 2 PR:er i den nya formen. En
+# framtida framework-våg (t.ex. .NET 11) skulle kunna spränga taket tyst — det är
+# inte mätt och därför inte förhandsjusterat, men det är den kända riskformen.
 #
 # CVE-täckning är CI-/Dependabot-formad, INTE agent-formad (security-auditor.md:292
 # delegerar CVE-scan till Dependabot/CI — roster-gap-CTO 2026-05-17 §1.4, ADR 0045
@@ -95,18 +103,29 @@ updates:
     # A MAJOR MUST NOT BE ABLE TO HIDE INSIDE A GROUP.
     #
     # This entry used to group `patterns: ["*"]`, i.e. everything including majors.
-    # Measured on PR #1140 (2026-08-01): eighteen packages in one PR, of which
-    # fifteen built clean and three broke the build — NSubstitute 6.0.0 (a major:
-    # 104 compile errors across 45 test files once nullability annotations landed
+    # Measured on PR #1140 (2026-08-01): eighteen packages in one PR, fifteen of
+    # which built clean. The three that broke the build were NSubstitute 6.0.0
+    # (104 compile errors across 45 test files once nullability annotations landed
     # on its public API), StackExchange.Redis 3.1.0 (10 CS0618) and Resend 0.8.0
-    # (1 CS8604). Because `dependabot-automerge.yml` sets `eligible=false` on any
-    # major and then skips the rest of the job, that PR also got no supply-chain
-    # scan. So one major took fifteen harmless bumps hostage AND disabled the
-    # automation that exists to land them.
+    # (1 CS8604).
     #
-    # Grouping minor+patch only means majors arrive one PR at a time, each
-    # reviewable on its own terms, while the routine bumps stay grouped and
-    # auto-mergeable. This is the shape the `web` entry above has always had.
+    # WHAT THIS CHANGE FIXES, PRECISELY — and it is less than "no more broken
+    # groups". Of those three breakers exactly ONE is a major; 3.0.11 -> 3.1.0 and
+    # 0.5.1 -> 0.8.0 are both semver-MINOR and would still land inside this group.
+    # Re-run against #1140's population, the new shape yields a 17-package group
+    # (still red, because Redis and Resend are still in it) plus one major PR.
+    # `update-type` is a proxy for "breaking" and a leaky one: Redis's minor added
+    # [Obsolete] to public constructors and Resend's 0.x minor made a property
+    # nullable — both breaking only because this house treats warnings as errors.
+    # `ci` is what catches those, and on #1140 it did.
+    #
+    # What the change does buy is the part no gate covered: (1) a major gets its
+    # own PR and its own review instead of riding in behind seventeen siblings,
+    # and (2) the remaining bumps get a supply-chain scan at all —
+    # `dependabot-automerge.yml` sets `eligible=false` on any major and then skips
+    # the rest of the job, so #1140's eighteen packages were never scanned. One
+    # major both took the group hostage AND disabled the automation meant to land
+    # it. This is the shape the `web` entry above has always had.
     groups:
       nuget-minor-patch:
         update-types: ["minor", "patch"]
@@ -119,7 +138,11 @@ updates:
       day: "monday"
       time: "06:00"
       timezone: "Europe/Stockholm"
-    open-pull-requests-limit: 3
+    # Raised 3 -> 5 as part of the grouping change: majors now arrive as individual
+    # PRs, so the same month's work needs more slots. Measured on #1139's own
+    # population — 1 minor/patch group + 2 majors = 3 — which saturates the old
+    # limit EXACTLY, and an overflow is silent (Dependabot simply opens nothing).
+    open-pull-requests-limit: 5
     commit-message:
       prefix: "chore(ci)"
       include: "scope"

@@ -689,6 +689,103 @@ public class ResumeTests
         result.Error.Code.ShouldBe("Resume.EducationInstitutionRequired");
     }
 
+    /// <summary>
+    /// The call-site block ORDER, which #1060 D3(β-2) rewrote and whose new comment calls
+    /// "load-bearing: every experience before every education, first failure wins". Nothing pinned
+    /// it: every existing arm test fails in exactly ONE kind, so swapping the two foreach blocks in
+    /// ValidateContent reddened nothing — measured at a5925e9a, the one mutation that survived the
+    /// whole suite. β-3's router acts on the returned code, and PR 2 read the corpus's blocking
+    /// rows off which code came back, so which kind wins is an observable and not an
+    /// implementation detail.
+    ///
+    /// <para>Premise (CLAUDE.md §5): both entries are the AutoPromoteContentMapper projection —
+    /// <c>e.Organization ?? string.Empty</c> and <c>e.Institution ?? string.Empty</c>. The
+    /// producing path is <c>SplitTitleOrganization</c>'s fallback: a single-line entry carrying no
+    /// separator glyph has no <c>Lines[1]</c> to take an organization from, so it returns
+    /// Organization null with Title intact, which the mapper projects to an EMPTY COMPANY and a
+    /// set Role. The education loop mirrors it exactly (degree from Title, institution from
+    /// Organization). ONE function feeds both typed loops from TWO call sites,
+    /// <c>ParseExperiences</c> and <c>ParseEducations</c>, so one document can present both kinds
+    /// unbuildable at once.</para>
+    ///
+    /// <para><b>NOT corpus rows 18/19/20.</b> They BLOCKED on <c>ExperienceRoleRequired</c>
+    /// BEFORE β-1 — the OPPOSITE slot: the fused role-and-company line went whole into
+    /// Organization and Role came back null. Since β-1 they do not block at all: rows 18/19
+    /// promote lossily and row 20 faithfully, and no corpus row carries a Domain code any more.
+    /// Two revisions of this sentence have been wrong in opposite directions — one cited those
+    /// rows as this shape's producer, and the repair then dropped the tense qualifier the version
+    /// before it had carried. The baseline holds both facts under headings, which is the durable
+    /// locator and the reason no line distance is given here: its SECOND CORRECTION is the one
+    /// about the slot, its THIRD the one about the blocking.</para>
+    /// </summary>
+    [Fact]
+    public void UpdateMasterContent_WithBothKindsUnbuildable_ReportsTheExperienceFirst()
+    {
+        var resume = CreateValidResume();
+        var content = new ResumeContent(
+            new PersonalInfo(ValidFullName, null, null, null),
+            experiences: new[]
+            {
+                new Experience(string.Empty, "Backend Developer", null, null, null),
+            },
+            educations: new[]
+            {
+                new Education(string.Empty, "MSc CS", null, null),
+            });
+
+        var result = resume.UpdateMasterContent(content, Clock);
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe("Resume.ExperienceCompanyRequired");
+    }
+
+    /// <summary>
+    /// The two bounds whose at-bound case existed only in <c>ResumeEntryBuildabilityTests</c>: the
+    /// 100-character RawPeriod and the equal date pair, both kinds in one content because both
+    /// readers carry both arms.
+    ///
+    /// <para>What this adds over the direct at-bound tests: those prove the READER admits the
+    /// value. This proves the AGGREGATE adds no second, stricter home of its own on top of the
+    /// call — an inline <c>RawPeriod is { Length: > 50 }</c> beside the loop, returning that arm's
+    /// own code, would leave every test in <c>ResumeEntryBuildabilityTests</c> green and redden
+    /// this one. (Not a register cell, and "only" is deliberately not claimed: the two
+    /// 101-character tests in <c>HonestDateAbsenceTests</c> stay green under that shape because
+    /// they assert the same code, but a differently-placed inline home could redden them too.)
+    /// The five label/prose caps already had that guard via their
+    /// <c>…AtMaxLength_ReturnsSuccess</c> tests; these two did not (#1060 D3(β-2), round 2).</para>
+    ///
+    /// <para>Premise (CLAUDE.md §5): the 100-character RawPeriod value is
+    /// <c>AutoPromoteContentMapper</c>'s untruncated <c>RawPeriod: e.Period</c> — "an over-long
+    /// period is for the buildability gate to reject, not for this projection to silently
+    /// shorten" — so the VALUE is one production emits. The COMBINATION with structured dates
+    /// comes from the write path alone, since that mapper always nulls both; and that path's
+    /// validators cap only the name and summary fields and never reach
+    /// <c>Content.Experiences</c>.</para>
+    /// </summary>
+    [Fact]
+    public void UpdateMasterContent_WithEntriesAtTheRawPeriodCapAndEqualDates_ReturnsSuccess()
+    {
+        var sameMonth = new DateOnly(2022, 3, 1);
+        var resume = CreateValidResume();
+        var content = new ResumeContent(
+            new PersonalInfo(ValidFullName, null, null, null),
+            experiences: new[]
+            {
+                new Experience(
+                    "Mastercard", "Backend Developer", sameMonth, sameMonth, null,
+                    new string('A', 100)),
+            },
+            educations: new[]
+            {
+                new Education("KTH", "MSc CS", sameMonth, sameMonth, new string('A', 100)),
+            });
+
+        var result = resume.UpdateMasterContent(content, Clock);
+
+        // Names the arm on failure rather than printing "expected True".
+        result.IsSuccess.ShouldBeTrue(result.Error.Code);
+    }
+
     [Fact]
     public void UpdateMasterContent_WithEducationDegreeEmpty_ReturnsFailure()
     {

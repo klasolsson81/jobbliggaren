@@ -178,8 +178,44 @@ public sealed partial class AutoPromoteParsedResumeCommandHandler(
     // THE SAME HOLDS OF `blockDetail`, and it is worth stating on its own terms rather than
     // waved through under "the reason is a token" (#1060 D3(β) PR 2). It is
     // DomainError.CODE — never DomainError.Message, which carries the Swedish user-facing text
-    // — and every value it can hold is a literal declared in Resume.ValidateContent /
-    // ValidateName / CreateFromParsed, e.g. `Resume.ExperienceCompanyRequired`. A code names a
+    // — and every value it can hold is a DomainError code literal. What makes THAT exhaustive —
+    // the half the minimisation argument rests on — is that CreateFromParsed's whole error set is
+    // compile-time literals with no interpolation.
+    //
+    // Adjudicator, so this is checkable rather than asserted — and it has to be THIS shape:
+    //   grep -rA1 -nE 'DomainError\.[A-Za-z]+\(' src/Jobbliggaren.Domain/Resumes/
+    // then READ the code argument on every hit. TWO deliberate non-enumerations, because an
+    // enumeration is what this whole paragraph exists to retire, and each was measured free
+    // before it was taken. RECURSIVE over the directory, not a list of the files on the path
+    // today: extract a further buildability file and a path list still returns nothing but
+    // literals while the interpolated code sits in the file it never looked at — silent, and in
+    // the reassuring direction. β-2 IS that extraction, so the hazard is demonstrated rather than
+    // hypothetical. And `[A-Za-z]+` rather than the four factory names, because DomainError.cs
+    // lives OUTSIDE this scope, so a fifth factory would arrive invisibly the same way; the open
+    // form is byte-identical to the alternation today, so widening costs nothing. The residual
+    // cost is a handful of off-path hits (ResumeFile, ParsedResume) the reader drops by path.
+    //
+    // Two under-reaches make the obvious form useless,
+    // both measured rather than feared. (1) The house wraps after the open paren, so matching
+    // `DomainError.Validation(` alone shows the code on 6 of 39 hits in Resume.cs and 0 of 13 in
+    // ResumeEntryBuildability — the file that declares every per-entry code is entirely blind to
+    // it, and a planted `$"Resume.Experience{nameof(...)}Required"` produced byte-identical
+    // output. (2) Matching `Validation(` alone misses DomainError.NotFound(entity, id), whose
+    // whole job is to INTERPOLATE its code, so an arm added through it would never appear at all.
+    // A bare `$"` sweep is not the fix either: Resume.cs has two, and both are DomainException
+    // MESSAGES carrying literal codes, outside the Result path this parameter draws from.
+    //
+    // SEPARATELY, and for the ROUTING question rather than the PII one, each code is of one of
+    // exactly two kinds: a PER-ENTRY constraint on a work-experience or education entry (e.g.
+    // `Resume.ExperienceCompanyRequired`), or a WHOLE-DOCUMENT one — every other code
+    // CreateFromParsed can return, which is whole-document by definition. That classification is
+    // a complement, so it cannot leak; the files are dated context (today the per-entry ones live
+    // in ResumeEntryBuildability and the rest in Resume.ValidateContent / ValidateName /
+    // CreateFromParsed's own preconditions). The revision that PREDATED #1060 D3(β-2) enumerated
+    // declaring files, and β-2 falsified it by moving thirteen codes, making its own worked
+    // example name a file that no longer declares it — an enumeration survives a new ARM inside
+    // an existing file but not a new file being EXTRACTED, which is precisely the move that broke
+    // it. A code names a
     // CONSTRAINT that was not met; it never carries the field's value, its length, or any
     // fragment of CV text. It is null on every arm but buildability
     // (AutoPromoteGateVerdict.Blocked's docblock; test-pinned).

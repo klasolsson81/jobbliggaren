@@ -14,7 +14,7 @@ import { responseToResult, type ApiResult } from "@/lib/dto/_helpers";
  * ADR 0043 — Taxonomi-ACL. Server-side fetchers mot
  * `GET /api/v1/job-ads/taxonomy` + `/taxonomy/labels` (auth-gated,
  * Bearer-session). Konsumeras av Server Components / route-handlers — INTE
- * useEffect (CLAUDE.md §4.3/§5.2). Mönstret speglar `lib/api/job-ads.ts`
+ * useEffect (CLAUDE.md §4/§5). Mönstret speglar `lib/api/job-ads.ts`
  * (`ApiResult<T>`, Zod-validering vid ACL-gränsen, 401/429-mappning).
  *
  * Träd-svaret är statisk referensdata: backend skickar ETag +

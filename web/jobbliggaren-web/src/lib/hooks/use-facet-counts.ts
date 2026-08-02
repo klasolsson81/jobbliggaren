@@ -12,8 +12,9 @@ import {
  * ADR 0067 Beslut 4 (Fas E2c) — debouncad klient-hämtning av per-option
  * facet-counts mot `/api/jobb/facet-counts` (proxy → backend
  * FacetCountsPolicy 30/10s). Self-contained debounce ≥300 ms +
- * AbortController (typeahead-prejudikatet — INTE TanStack Query, ADR 0042-
- * notatet; §4.3 reglerar mutations/pollar, ej en popover-read).
+ * AbortController (typeahead-prejudikatet — INTE TanStack Query: ADR 0042
+ * Beslut C + dess amendment 2026-08-02. Biblioteket finns inte i
+ * `package.json` och har aldrig installerats, BUILD.md §3.1).
  *
  * Returnerar `null` tills första lyckade svaret (eller vid degradering) —
  * konsumenten visar då inga counts; popovern förblir användbar

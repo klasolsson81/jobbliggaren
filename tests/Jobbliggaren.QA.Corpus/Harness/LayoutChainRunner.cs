@@ -78,8 +78,12 @@ public sealed record LayoutCaseObservation(
 
     // RENAMED 2026-07-28, and the rename IS the fix. It was `WellFormedPromotedExperience` and
     // counted `Role && Company && RawPeriod` non-blank — a hand copy of a predicate this corpus's
-    // own doctrine forbids copying, and wrong about its subject twice over. `Resume.ValidateContent`
-    // REQUIRES Company (:746) and Role (:755) and only LENGTH-CAPS RawPeriod (:783), so on a
+    // own doctrine forbids copying, and wrong about its subject twice over. The buildability rule
+    // REQUIRES Company and Role and only LENGTH-CAPS RawPeriod — the three arms are
+    // `ExperienceCompanyRequired`, `ExperienceRoleRequired` and `ExperienceRawPeriodTooLong`, all
+    // declared by `ResumeEntryBuildability` since #1060 D3(β-2) and reached from
+    // `Resume.ValidateContent`. Anchored by NAME, not by line number: the previous revision cited
+    // three `Resume.cs` line numbers and β-2's own refactor silently moved every one of them. So a
     // PROMOTED row the first two conjuncts are true by invariant — every promoted entry already
     // passed that validation. The count reduced to raw-period presence while wearing a validity
     // name, and the baseline shows it: it equalled `Promoted exp` on every row it ever printed.

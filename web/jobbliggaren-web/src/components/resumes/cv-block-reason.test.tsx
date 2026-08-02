@@ -52,8 +52,11 @@ describe("CvBlockReason", () => {
   });
 
   it("describes incomplete content across the whole validation set, not two branches of it", () => {
-    // ValidateContent has 20+ branches. "arbetsgivare eller titel" sent a user whose EDUCATION
-    // entry lacked an institution to look in the wrong place.
+    // The buildability check spans the whole content, not the experience labels alone.
+    // "arbetsgivare eller titel" sent a user whose EDUCATION entry lacked an institution to look
+    // in the wrong place. (No branch count here: it was "20+", which #1060 D3(β-2) made a claim
+    // about the wrong subject when thirteen arms moved to ResumeEntryBuildability — and the
+    // sentence never needed a quantifier to carry its point.)
     render(<CvBlockReason reason="IncompleteContent" />);
 
     expect(screen.getByText(/anställning har arbetsgivare och titel/i)).toBeInTheDocument();

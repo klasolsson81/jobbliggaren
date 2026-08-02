@@ -40,9 +40,16 @@ jobs:
   # 12m15s–14m42s. Measured 2026-08-02 over runs dated 2026-07-17..07-25 — no `main`
   # run has been recorded since, though 53 commits landed (CLAUDE.md §6.5,
   # GITHUB_TOKEN suppression), so that is the newest population that exists.
-  # Three PRs were failed by the ceiling alone — #1141 15m14s, #1143 15m16s,
-  # #1139 15m15s — each with `coverage` green on the same commit, and each was
-  # resolved by a NEW COMMIT, not by a re-run. A CANCELLED job is not `success`,
+  # As of 2026-08-02T05:10 — a FLOOR, since this population grows for as long as
+  # the ceiling stands — FIVE PR runs have been failed by it: #1141 15m14s, #1143
+  # 15m16s, #1139 15m15s, `docs/spec-library-truth-sync` 15m03s, and
+  # `chore/deps-hygiene-1140` 15m14s. The first three each had `coverage` green on
+  # the same commit and were resolved by a NEW COMMIT, not by a re-run.
+  #
+  # The fourth is the sharpest of them and needs no comparison job to make the
+  # point: on run 30732576203 the `Test` step reported **success at 12m49s** and the
+  # job was killed one second into `Post Cache NuGet`. Every test passed and `ci`
+  # went red anyway. A CANCELLED job is not `success`,
   # `backend` is in ci.needs, so the ceiling fails `ci` without naming a cause and
   # the remedy is another full run of the same work. 25 gives parity with
   # `coverage`, which runs the same suite (same solution, same `-c Release`, no
@@ -59,12 +66,28 @@ jobs:
   # first draft of this comment — measured `main` runs instead, a population frozen
   # at 2026-07-25 by the GITHUB_TOKEN suppression. `build.yml` triggers on
   # `pull_request` with no base filter (#861), so PR data is fresh and plentiful; it
-  # had simply never been asked for. Measured 2026-08-02 over the 22 most recent
-  # `pull_request` runs with no cancelled job in ci.needs (19 cancelled runs excluded
-  # — `concurrency.cancel-in-progress` kills PR runs routinely and including them
-  # understates the median), dated 2026-08-01..08-02:
+  # had simply never been asked for. No prior reading EXISTS IN THIS REPO: grepping
+  # the tree for "PR-vänt" finds ADR 0065:134 and this comment, nothing else.
   #
-  #     median ci wall-clock 15m10s · max 16m58s · 15 of 22 runs over 15 min
+  # Measured 2026-08-02 over 41 consecutive `pull_request` runs, split 22 clean / 19
+  # carrying a cancelled ci.needs job. The exclusion is conservative in BOTH
+  # directions and can only understate: `concurrency.cancel-in-progress` kills PR
+  # runs routinely, cancelled runs are right-censored (a slower run has longer
+  # exposure to being cancelled, so the surviving sample is biased fast), and the
+  # rule also drops #1139's own 15m15s ceiling-cancel — the longest observation
+  # there was.
+  #
+  #     max over ci.needs    median 15m10s · max 16m58s · 15 of 22 over 15 min
+  #     true `ci` wall-clock  median 15m38s · max 18m02s · 12 of 14 over 15 min
+  #
+  # Two metrics, two populations, and BOTH clear the threshold. The first is max
+  # job duration over ci.needs — a LOWER BOUND on what a PR waits. The second is
+  # run-created → `ci` concluded, which is the quantity ADR 0065's "PR-vänt"
+  # actually names; its n is smaller because it additionally requires `ci` itself to
+  # have concluded. The window SLIDES, so these exact figures will not reproduce
+  # later; re-measure rather than trusting the numerals. What is stable across every
+  # framing tried — dropping the fast-fail outlier (median rises), 10 % trimmed,
+  # both metrics, both populations — is that the median sits above 15 minutes.
   #
   # Escalated to Klas: ADR 0065's own text requires a superseding ADR when this
   # fires. Raising the guard here does not answer it and does not pretend to. #1145.
@@ -126,11 +149,14 @@ jobs:
   # folding coverage into it would serialise ~14m + ~15m into ~30m of wall-clock —
   # and is likewise in ci.needs.
   # (This clause used to justify the split as "det snabba backend-jobbet rörs inte
-  # (fast fail-feedback bevaras)". That premise expired: measured 2026-08-02,
-  # `backend` runs 14m08s–14m42s over the six most recent main runs against this
-  # job's 14m38s median, so the feedback delta is under two minutes, and both jobs
-  # now carry the same 25-minute guard. ADR 0044's Mekanism clause — the ORIGIN of
-  # that sentence, not this copy — is amended accordingly. #1145.)
+  # (fast fail-feedback bevaras)". That premise expired. Measured 2026-08-02 by
+  # PAIRING the two jobs on the same ten main runs — not by setting one job's RANGE
+  # against the other's MEDIAN, which is how an earlier draft of this sentence got
+  # it wrong: those are two populations, and the universal claim it produced
+  # ("under two minutes") is false on one of the ten. Both jobs now carry the same
+  # 25-minute guard. ADR 0044's Mekanism clause — the ORIGIN of that sentence, not
+  # this copy — is amended accordingly and HOLDS the paired figures; do not restate
+  # them here. #1145.)
   coverage:
     name: coverage (.NET 10)
     runs-on: ubuntu-latest

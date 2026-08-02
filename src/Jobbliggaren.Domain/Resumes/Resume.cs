@@ -741,80 +741,27 @@ public sealed class Resume : AggregateRoot<ResumeId>
                     "Antal år erfarenhet måste vara mellan 0 och 70."));
         }
 
+        // #1060 D3(β-2): the per-entry arms live in ResumeEntryBuildability, ONE home, and this
+        // is the CALL — not a parallel copy (CTO-bind §3.1). Evaluation order is unchanged and
+        // load-bearing: every experience before every education, first failure wins, and within
+        // an entry the arms run in the order that file writes them. The codes and the Swedish
+        // messages are that file's, returned here verbatim.
+        //
+        // What moved is WHERE the rule is written, never WHAT it accepts: the aggregate still
+        // refuses the same content it refused before, so CreateFromParsed's invariant is intact
+        // (CLAUDE.md §2.2). The falsifier for that is an EMPTY layout-corpus baseline diff.
         foreach (var exp in content.Experiences)
         {
-            if (string.IsNullOrWhiteSpace(exp.Company))
-                return Result.Failure(DomainError.Validation(
-                    "Resume.ExperienceCompanyRequired", "Företagsnamn krävs på erfarenhet."));
-
-            // #855: cap the label fields (200, client .max parity).
-            if (exp.Company.Length > 200)
-                return Result.Failure(DomainError.Validation(
-                    "Resume.ExperienceCompanyTooLong", "Företagsnamn får vara max 200 tecken."));
-
-            if (string.IsNullOrWhiteSpace(exp.Role))
-                return Result.Failure(DomainError.Validation(
-                    "Resume.ExperienceRoleRequired", "Roll krävs på erfarenhet."));
-
-            if (exp.Role.Length > 200)
-                return Result.Failure(DomainError.Validation(
-                    "Resume.ExperienceRoleTooLong", "Roll får vara max 200 tecken."));
-
-            // #855: cap the description prose body (2000, client .max parity — and closes an
-            // internal inconsistency: the sibling prose field Summary is already capped 2000).
-            // Length-only; Description is optional. Inline, NOT coupled to Summary's 2000 (they may
-            // diverge — spurious DRY otherwise).
-            if (exp.Description is { Length: > 2_000 })
-                return Result.Failure(DomainError.Validation(
-                    "Resume.ExperienceDescriptionTooLong",
-                    "Beskrivning får vara max 2 000 tecken."));
-
-            // Honest date absence (CTO-bind 5a-pre): end-before-start is an error only when
-            // BOTH are present. A null start with a set end ("examen 2020") VALIDATES, but
-            // v1 display gates on StartDate-presence: a lone EndDate is stored yet not
-            // rendered/linearized (RawPeriod or nothing shows instead) — degrades honestly,
-            // never fabricates. Whether display should honor a lone EndDate is CTO-triage
-            // for the auto-promote PR (which itself never emits end-only entries).
-            if (exp.StartDate is { } start && exp.EndDate is { } end && end < start)
-                return Result.Failure(DomainError.Validation(
-                    "Resume.ExperienceDatesInvalid",
-                    "Slutdatum får inte vara före startdatum."));
-
-            if (exp.RawPeriod is { Length: > 100 })
-                return Result.Failure(DomainError.Validation(
-                    "Resume.ExperienceRawPeriodTooLong",
-                    "Periodtext får vara max 100 tecken."));
+            var experienceResult = ResumeEntryBuildability.Validate(exp);
+            if (experienceResult.IsFailure)
+                return experienceResult;
         }
 
         foreach (var edu in content.Educations)
         {
-            if (string.IsNullOrWhiteSpace(edu.Institution))
-                return Result.Failure(DomainError.Validation(
-                    "Resume.EducationInstitutionRequired", "Lärosäte krävs på utbildning."));
-
-            // #855: cap the label fields (200, client .max parity).
-            if (edu.Institution.Length > 200)
-                return Result.Failure(DomainError.Validation(
-                    "Resume.EducationInstitutionTooLong", "Lärosäte får vara max 200 tecken."));
-
-            if (string.IsNullOrWhiteSpace(edu.Degree))
-                return Result.Failure(DomainError.Validation(
-                    "Resume.EducationDegreeRequired", "Examen krävs på utbildning."));
-
-            if (edu.Degree.Length > 200)
-                return Result.Failure(DomainError.Validation(
-                    "Resume.EducationDegreeTooLong", "Examen får vara max 200 tecken."));
-
-            // Honest date absence (CTO-bind 5a-pre) — parity with the experience rule above.
-            if (edu.StartDate is { } eduStart && edu.EndDate is { } eduEnd && eduEnd < eduStart)
-                return Result.Failure(DomainError.Validation(
-                    "Resume.EducationDatesInvalid",
-                    "Slutdatum får inte vara före startdatum."));
-
-            if (edu.RawPeriod is { Length: > 100 })
-                return Result.Failure(DomainError.Validation(
-                    "Resume.EducationRawPeriodTooLong",
-                    "Periodtext får vara max 100 tecken."));
+            var educationResult = ResumeEntryBuildability.Validate(edu);
+            if (educationResult.IsFailure)
+                return educationResult;
         }
 
         // Fas 4b AppCopy superset (ADR 0095 D-E). #855 tightened the label fields: they are no

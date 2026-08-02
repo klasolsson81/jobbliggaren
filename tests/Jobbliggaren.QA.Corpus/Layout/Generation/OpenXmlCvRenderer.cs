@@ -101,6 +101,36 @@ internal static class OpenXmlCvRenderer
     internal static byte[] CompanyFirstHeaderWithBlanks(CvModel m) =>
         Build(m, useTable: true, blankSeparators: true, roleFirst: false, companyFirst: true);
 
+    /// <summary>The IRREDUCIBLE arm (#1060 D3(β-3)): every axis held at
+    /// <see cref="RoleFirstWithBlanks"/>'s coordinate — the corpus's clean promote control, 5/5
+    /// and 3/3 — with ONE variable moved, an extra experience block that names a role and a
+    /// period and NO employer.
+    /// <para>Its subject is a document the engine parses CORRECTLY. Nothing is fused, nothing is
+    /// mis-slotted, no blank line is missing: the employer is absent because the SOURCE has none,
+    /// which is a normal thing for a CV to say. That is what makes it the only arm in the corpus
+    /// whose block is irreducibly non-buildable, and why the control it steps from must be the
+    /// faithful one — stepping from a lossy arm would confound "the Domain refused this entry"
+    /// with "the parser already lost that entry".</para>
+    /// <para>The arm takes NO position on routing. It measures HEAD, so that whatever a router
+    /// would later do to this block has a base to be measured against (R4: measure the base, then
+    /// the delta).</para></summary>
+    internal static byte[] RoleFirstWithBlanksAndUnattributedBlock(CvModel m)
+    {
+        // The name asserts a MODEL property this signature cannot hold: the grid coordinate here
+        // is byte-identical to RoleFirstWithBlanks, and the one variable that moves lives in the
+        // model, not in the axes. Guarded rather than renamed, so the name stays checkable — in a
+        // file whose stated discipline is that every call site states its full coordinate, a name
+        // promising something the parameters cannot deliver is the same defect one level up.
+        ArgumentNullException.ThrowIfNull(m);
+        if (m.UnattributedExperience.Count == 0)
+        {
+            throw new InvalidOperationException(
+                "this renderer's name claims an unattributed block; the model carries none");
+        }
+
+        return Build(m, useTable: true, blankSeparators: true, roleFirst: true, companyFirst: false);
+    }
+
     // NO DEFAULT on any axis, deliberately. This file is a factorial design and its whole
     // epistemic value is the one-variable step, so every call site must state its full grid
     // coordinate. The five sites that would have inherited `companyFirst: false` are exactly
@@ -158,6 +188,34 @@ internal static class OpenXmlCvRenderer
                     Line(header);
                     Line(second);
                     Line(e.Bullet);
+                }
+
+                Blank();
+            }
+
+            // #1060 D3(β-3). Empty on every arm but the irreducible one, so this loop is a no-op
+            // for the rest of the corpus. Rendered LAST inside the experience section and in the
+            // arm's own header shape, so the block differs from its neighbours on exactly one
+            // axis: it names no employer. Writing it in a different header order would move two
+            // variables and make the row's verdict unattributable.
+            foreach (var u in m.UnattributedExperience)
+            {
+                var header = roleFirst ? u.Role : u.Period;
+                var second = roleFirst ? u.Period : u.Role;
+
+                if (useTable)
+                {
+                    body.AppendChild(new Table(new TableRow(
+                        new TableCell(new Paragraph(new Run(new Text(header)))),
+                        new TableCell(
+                            new Paragraph(new Run(new Text(second))),
+                            new Paragraph(new Run(new Text(u.Bullet)))))));
+                }
+                else
+                {
+                    Line(header);
+                    Line(second);
+                    Line(u.Bullet);
                 }
 
                 Blank();

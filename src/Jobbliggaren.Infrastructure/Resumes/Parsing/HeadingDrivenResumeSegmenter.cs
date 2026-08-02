@@ -574,14 +574,41 @@ internal sealed partial class HeadingDrivenResumeSegmenter(CvParsingLexiconData 
         }
 
         // #1060 β-3: a line that carries no fields must not BECOME a field — the mirror of β-1's
-        // rule that such a line must not DECIDE the split, and it uses the same predicate three
-        // lines up rather than a new one. Before this, an entry whose first line held no separator
-        // glyph took Lines[1] as its organization unconditionally, so an employment block naming a
-        // role and a period and NO employer promoted with the DATE RANGE as the employer name:
-        // "2026 - 2026". The engine did not drop a field, it asserted one the source never made,
-        // in a document the user sends to employers, while ParseConfidence reported Confident.
-        // Measured by the corpus arm `docx-irreducible-unattributed-experience`, which published
-        // PromotedInflated at the previous commit and blocks honestly after this one.
+        // rule that such a line must not DECIDE the split, and it reuses the predicate the
+        // relocation guard already applies earlier in this same method, rather than a new
+        // one. Before this, an entry whose first line held no separator
+        // glyph took Lines[1] as its organization unconditionally, so a block naming a role and a
+        // period and NO employer promoted with the DATE RANGE as the employer name: "2026 - 2026".
+        // The engine did not drop a field, it asserted one the source never made, in a document
+        // the user sends to employers. Measured by the corpus arm
+        // `docx-irreducible-unattributed-experience`.
+        //
+        // THE GUARD'S SCOPE IS BROADER THAN THAT ARM, and saying so is the point of this
+        // paragraph. It fires on "Lines[0] carries no separator AND Lines[1] is nothing but a
+        // period" — it does not, and cannot, ask whether an employer sits on Lines[2]. So the
+        // layout `Role / Period / Employer` now BLOCKS with the employer physically present in
+        // the document. That is accepted and is still an improvement — an honest refusal the user
+        // can act on beats a CV asserting she worked at "2026 - 2026" — but it is a wider
+        // population than the arm measures, and the arm must not be read as measuring it.
+        // Pinned as accepted-and-known by
+        // Segment_HeaderLineCarryingNoSeparator_BlocksEvenWhenTheEmployerIsOnTheThirdLine.
+        //
+        // BOTH TYPED SECTIONS, because ParseExperiences and ParseEducations call this one
+        // function. On the education side the tuple is swapped at the call site, so the org slot
+        // is INSTITUTION: the same guard nulls it and the refusal arrives as
+        // Resume.EducationInstitutionRequired — a different Domain code from the arm's — and
+        // review criterion A10 moves Pass -> Warn. Pinned separately, per β-1's own rule that
+        // education symmetry is not decoration.
+        //
+        // ParseConfidence still reports Confident, before and after: ListSectionConfidence reads
+        // only whether a heading matched and how many entries came back, and the entry count is
+        // invariant here. Confidence cannot see a fabricated field and does not learn to; the
+        // honesty comes entirely from the Domain gate, which is why the point is to REACH it.
+        //
+        // Relocating the fallback to Lines[2] is a separate decision and is refused on this PR's
+        // own evidence, not merely on β-1's: on the arm's block Lines[2] is the bullet
+        // ("Uppdrag åt mindre uppdragsgivare..."), so relocating would hand a description bullet
+        // to the organization slot on the very fixture that motivated the change.
         //
         // This is a strict NARROWING and adds no positional assumption: StripTrailingPeriod
         // reduces a line that is nothing but a date to the empty string, so the guard fires only

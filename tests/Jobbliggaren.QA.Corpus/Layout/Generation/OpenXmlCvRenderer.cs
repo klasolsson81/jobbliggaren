@@ -114,8 +114,22 @@ internal static class OpenXmlCvRenderer
     /// <para>The arm takes NO position on routing. It measures HEAD, so that whatever a router
     /// would later do to this block has a base to be measured against (R4: measure the base, then
     /// the delta).</para></summary>
-    internal static byte[] RoleFirstWithBlanksAndUnattributedBlock(CvModel m) =>
-        Build(m, useTable: true, blankSeparators: true, roleFirst: true, companyFirst: false);
+    internal static byte[] RoleFirstWithBlanksAndUnattributedBlock(CvModel m)
+    {
+        // The name asserts a MODEL property this signature cannot hold: the grid coordinate here
+        // is byte-identical to RoleFirstWithBlanks, and the one variable that moves lives in the
+        // model, not in the axes. Guarded rather than renamed, so the name stays checkable — in a
+        // file whose stated discipline is that every call site states its full coordinate, a name
+        // promising something the parameters cannot deliver is the same defect one level up.
+        ArgumentNullException.ThrowIfNull(m);
+        if (m.UnattributedExperience.Count == 0)
+        {
+            throw new InvalidOperationException(
+                "this renderer's name claims an unattributed block; the model carries none");
+        }
+
+        return Build(m, useTable: true, blankSeparators: true, roleFirst: true, companyFirst: false);
+    }
 
     // NO DEFAULT on any axis, deliberately. This file is a factorial design and its whole
     // epistemic value is the one-variable step, so every call site must state its full grid

@@ -96,6 +96,20 @@ internal static class ReviewText
                 continue;
             }
 
+            // RESIDUAL, priced rather than left implicit (#1060 β-3). These two suppressions used
+            // to overlap: a period line that PeriodParser rejects was often still caught by the
+            // organization-equality test, because the segmenter had put that very line in the
+            // organization slot. β-3 stops that fabrication, so the overlap is gone and a period
+            // line with a LEADING separator ("– 2020 – 2024") now escapes both — PeriodParser is
+            // anchored and refuses it, and there is no longer an Organization equal to it — and is
+            // yielded as a description bullet for the review criteria to score.
+            //
+            // Not fixed here, deliberately: the honest fix is to promote "is this line nothing but
+            // a period?" into DatePatterns so this reader and SplitTitleOrganization share one
+            // predicate, which is the same DRY move that gave DatePatterns and PeriodParser their
+            // neutral home. That is its own change-reason and belongs with the routing work, not
+            // inside a segmenter narrowing.
+
             yield return line;
         }
     }

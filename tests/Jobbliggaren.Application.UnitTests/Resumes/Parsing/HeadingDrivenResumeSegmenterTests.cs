@@ -631,11 +631,17 @@ public class HeadingDrivenResumeSegmenterTests
         // organization (the existing "Title / Company / Dates" fallback path). Proves the strip
         // does not produce a stray empty field when it over-consumes the whole line.
         //
-        // STILL TRUE AFTER #1060 β-1, and it is the boundary that fix deliberately stops at. β-1
-        // lets the separator split read the SECOND line when the first is period-only — but only
-        // the split. Here the second line ("Acme AB") carries no separator, so no split happens
-        // and this fallback is still what runs. Moving the fallback too was measured and refused:
-        // it would have made "Körde maskiner." the organization.
+        // STILL TRUE AFTER #1060 β-1 AND β-3, and it is the boundary those fixes stop at. β-1 lets
+        // the separator split read the SECOND line when the first is period-only — but only the
+        // split. Here the second line ("Acme AB") carries no separator, so no split happens and
+        // this fallback is still what runs. Moving the fallback too was measured and refused: it
+        // would have made "Körde maskiner." the organization.
+        //
+        // β-3 then NARROWED that same fallback — a line carrying no fields may not become one —
+        // which moved the boundary without relocating it. This fixture is unaffected because
+        // "Acme AB" is a field; the case where the narrowing bites is
+        // Segment_HeaderLineCarryingNoSeparator_*, and the control that proves it is a narrowing
+        // rather than a removal is …StillTakesAFieldBearingSecondLineAsTheOrganization.
         const string cv =
             """
             Anna Andersson
@@ -825,6 +831,161 @@ public class HeadingDrivenResumeSegmenterTests
         exp.Period.ShouldContain("2005");
     }
 
+    // ===============================================================
+    // #1060 β-3 — a line that carries no fields must not BECOME a field
+    // ===============================================================
+
+    /// <summary>
+    /// The mirror of β-1. There a field-less line must not DECIDE the split; here it must not
+    /// BECOME a field. Before β-3 the fallback took Lines[1] whenever Lines[0] carried no
+    /// separator glyph, so a block naming a role and a period and NO employer promoted with the
+    /// DATE RANGE as the employer name. The engine did not drop a field, it ASSERTED one the
+    /// source never made, in a document the user sends to employers.
+    ///
+    /// <para><b>Producer (CLAUDE.md §5).</b> An experience entry whose FIRST line carries no
+    /// separator from <c>TitleOrgSeparators</c> and whose SECOND line is nothing but a date range
+    /// — freelance or self-directed work, an ordinary thing for a CV to say. The same document is
+    /// authored as real DOCX BYTES by
+    /// <c>OpenXmlCvRenderer.RoleFirstWithBlanksAndUnattributedBlock</c> and driven through the
+    /// whole chain by the corpus arm <c>docx-irreducible-unattributed-experience</c>.</para>
+    ///
+    /// <para><b>Why the corpus arm is not enough, and why this test exists.</b> That corpus is
+    /// observe-only in the strongest sense: its report is written to a GITIGNORED artifact and no
+    /// test compares it to the committed baseline — <c>LayoutCorpusReportTests</c> says so in its
+    /// own words. Reverting the guard moves the baseline and nothing else. This is the assertion
+    /// that reddens.</para>
+    ///
+    /// <para>BOTH slots are asserted, not only the organization: the defect was a FABRICATION, so
+    /// a test pinning only "Organization is not the date" would pass on a fix that moved the
+    /// fabricated value into Title instead.</para>
+    /// </summary>
+    [Fact]
+    public void Segment_HeaderLineCarryingNoSeparator_DoesNotTakeTheDateLineAsTheOrganization()
+    {
+        const string cv = """
+            Anna Andersson
+            anna@example.com
+
+            Arbetslivserfarenhet
+            Frilansande systemutvecklare
+            2005 – 2010
+            Uppdrag åt mindre uppdragsgivare.
+            """;
+
+        var result = _sut.Segment(cv);
+
+        var exp = result.Content.Experience.ShouldHaveSingleItem();
+        exp.Title.ShouldBe("Frilansande systemutvecklare");
+        exp.Organization.ShouldBeNull();
+        // The date is still RECOVERED, only refused as an ORGANIZATION. Without this the guard
+        // could be "fixed" by discarding the line, losing the period the CV does carry.
+        exp.Period.ShouldNotBeNull();
+        exp.Period.ShouldContain("2005");
+        exp.Period.ShouldContain("2010");
+    }
+
+    /// <summary>
+    /// EDUCATION symmetry, and it is not decoration — β-1 recorded the same rule twice for the
+    /// same reason. <c>ParseEducations</c> calls the SAME <c>SplitTitleOrganization</c> and swaps
+    /// the tuple at the call site, so the org slot is INSTITUTION: β-3's narrowing changes both
+    /// sections at once, and a regression that special-cased the experience path would leave the
+    /// education half fabricating institutions. The refusal also arrives as a DIFFERENT Domain
+    /// code — <c>Resume.EducationInstitutionRequired</c>, not the arm's
+    /// <c>ExperienceCompanyRequired</c> — and moves review criterion A10 from Pass to Warn.
+    ///
+    /// <para>Not hypothetical: this file's own <c>EnglishCv</c> fixture already carries the shape
+    /// ("MSc Computer Science from Imperial College" / "2016 - 2021"), where Degree and
+    /// Institution are asserted by nothing, so the fabrication has been sitting in the test tree
+    /// unmeasured.</para>
+    /// </summary>
+    [Fact]
+    public void Segment_HeaderLineCarryingNoSeparator_DoesNotTakeTheDateLineAsTheInstitution()
+    {
+        const string cv = """
+            Anna Andersson
+            anna@example.com
+
+            Utbildning
+            Civilingenjör i datateknik
+            2016 – 2021
+            """;
+
+        var result = _sut.Segment(cv);
+
+        var edu = result.Content.Education.ShouldHaveSingleItem();
+        edu.Degree.ShouldBe("Civilingenjör i datateknik");
+        edu.Institution.ShouldBeNull();
+        edu.Period.ShouldNotBeNull();
+        edu.Period.ShouldContain("2016");
+        edu.Period.ShouldContain("2021");
+    }
+
+    /// <summary>
+    /// THE CONTROL THE GUARD SITS ON, unpinned anywhere before β-3. The common
+    /// "Title / Company / Dates" layout: Lines[0] carries no separator, Lines[1] carries a real
+    /// field. β-3 must leave it byte-identical.
+    ///
+    /// <para>A different path from
+    /// <c>Segment_ExperienceHeaderThatIsOnlyADate_FallsBackToSecondLineForOrganization</c>: there
+    /// Lines[0] is a bare date and β-1's relocation runs first. Here Lines[0] is a plain role and
+    /// no relocation happens, so that test does not cover this arm. It is what reddens on the two
+    /// plausible mis-implementations — a predicate applied to <c>first</c> instead of the org
+    /// candidate, or an inverted emptiness test. Without it, "narrowing the fallback" and
+    /// "removing the fallback" are indistinguishable to CI.</para>
+    /// </summary>
+    [Fact]
+    public void Segment_HeaderLineCarryingNoSeparator_StillTakesAFieldBearingSecondLineAsTheOrganization()
+    {
+        const string cv = """
+            Anna Andersson
+            anna@example.com
+
+            Arbetslivserfarenhet
+            Systemutvecklare
+            Acme AB
+            2005 – 2010
+            Byggde saker.
+            """;
+
+        var result = _sut.Segment(cv);
+
+        var exp = result.Content.Experience.ShouldHaveSingleItem();
+        exp.Title.ShouldBe("Systemutvecklare");
+        exp.Organization.ShouldBe("Acme AB");
+    }
+
+    /// <summary>
+    /// ACCEPTED AND KNOWN, pinned so it is not mistaken for the arm's population. The guard asks
+    /// only "does Lines[1] carry a field"; it cannot ask whether the employer sits on Lines[2].
+    /// So this layout — role, then period, then employer — BLOCKS, with the employer physically
+    /// present in the document.
+    ///
+    /// <para>Accepted: an honest refusal the user can act on beats a CV asserting she worked at
+    /// "2005 – 2010". Recorded because the guard's scope is WIDER than the corpus arm that
+    /// measures it, and a reader who takes the arm as the whole population would be wrong. The
+    /// remedy is not to relocate the fallback to Lines[2] — on the arm's own block that line is a
+    /// description bullet, which β-1 measured and refused.</para>
+    /// </summary>
+    [Fact]
+    public void Segment_HeaderLineCarryingNoSeparator_BlocksEvenWhenTheEmployerIsOnTheThirdLine()
+    {
+        const string cv = """
+            Anna Andersson
+            anna@example.com
+
+            Arbetslivserfarenhet
+            Systemutvecklare
+            2005 – 2010
+            Acme AB
+            """;
+
+        var result = _sut.Segment(cv);
+
+        var exp = result.Content.Experience.ShouldHaveSingleItem();
+        exp.Title.ShouldBe("Systemutvecklare");
+        exp.Organization.ShouldBeNull();
+    }
+
     [Theory]
     [InlineData("Operatör - Acme AB", "Operatör", "Acme AB")]
     [InlineData("Klarna AB - Backend-utvecklare", "Klarna AB", "Backend-utvecklare")]
@@ -894,8 +1055,13 @@ public class HeadingDrivenResumeSegmenterTests
 
         foreach (var exp in result.Content.Experience)
         {
-            exp.Organization?.ShouldNotContain("2021");
-            exp.Organization?.ShouldNotContain("2024");
+            // Not `Organization?.ShouldNotContain(...)`: the null-conditional makes the assertion
+            // a silent no-op when Organization IS null, which is fail-open — and #1060 β-3 is the
+            // commit that enlarges the null-Organization population, so the shape that was merely
+            // latent here is now reachable.
+            exp.Organization.ShouldNotBeNull();
+            exp.Organization.ShouldNotContain("2021");
+            exp.Organization.ShouldNotContain("2024");
             exp.Title?.ShouldNotContain("2021");
         }
 

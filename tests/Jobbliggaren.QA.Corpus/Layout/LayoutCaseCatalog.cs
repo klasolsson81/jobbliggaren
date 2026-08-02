@@ -442,18 +442,24 @@ public static class LayoutCaseCatalog
         // different in kind — no upstream fix can BUILD this block, because the employer is
         // absent from the SOURCE.
         //
-        // AND AT THIS COMMIT THE PARSE DOES NOT REFUSE IT. Measured, not predicted: the arm was
-        // authored expecting `Blocked` on Resume.ExperienceCompanyRequired, and it published
-        // PromotedInflated instead. SplitTitleOrganization's fallback takes Lines[1] as the
-        // organization whenever Lines[0] carries no separator glyph — and on a block with no
-        // employer, Lines[1] IS the period line. So the CV promotes with "2026 - 2026" as the
+        // AND WHEN THE ARM WAS AUTHORED, THE PARSE DID NOT REFUSE IT. Measured, not predicted: it
+        // was written expecting `Blocked` on Resume.ExperienceCompanyRequired, and it published
+        // PromotedInflated instead. SplitTitleOrganization's fallback took Lines[1] as the
+        // organization whenever Lines[0] carried no separator glyph — and on a block with no
+        // employer, Lines[1] IS the period line. So the CV promoted with "2026 - 2026" as the
         // employer name: the engine did not drop a field, it ASSERTED one the source never made.
-        // The fallback is original code, byte-identical since before β-1; it had no reader until
+        // The fallback was original code, byte-identical since before β-1; it had no reader until
         // now because every other arm authors an employer, so Lines[0] always carries a separator.
         //
-        // The next commit narrows the fallback so a field-less line cannot BECOME a field, and
-        // this row then reaches the refusal it was authored to measure. Read the two baselines in
-        // the PR body rather than this comment for what each commit published.
+        // The refutation is recorded HERE rather than pointed at by commit, because this PR
+        // squash-merges and no intermediate commit survives on main to point at. #1060 β-3 then
+        // narrowed the fallback so a field-less line cannot BECOME a field, and this row reaches
+        // the refusal it was authored to measure.
+        //
+        // The segmenter behaviour is pinned by HeadingDrivenResumeSegmenterTests'
+        // Segment_HeaderLineCarryingNoSeparator_* family — named here because this corpus is
+        // observe-only and cannot fail on a regression by itself: its report is written to a
+        // gitignored artifact and no test compares it to the committed baseline.
         //
         // It steps from the FAITHFUL control, not a lossy arm: stepping from a lossy one would
         // confound "the Domain refused this entry" with "the parser already lost that entry".
@@ -469,12 +475,29 @@ public static class LayoutCaseCatalog
                 p.Require(
                     xml.Contains("Frilansande systemutvecklare", StringComparison.Ordinal),
                     "expected the employer-less experience block to be rendered");
-                // And it names NO employer — the property the whole arm rests on. Asserted as the
-                // absence of every authored employer from the block, not merely as its presence.
-                p.Require(
-                    !xml.Contains("Frilansande systemutvecklare - ", StringComparison.Ordinal),
-                    "found a separator after the freelance role — this arm's block must carry no "
-                    + "employer at all, or it is a fused entry rather than an irreducible one");
+                // And its role line carries NO EMPLOYER. Stated as what this actually proves: the
+                // renderer writes u.Role in its own w:t node (employments join as
+                // $"{Role} - {Marker}" in ONE node), so the only way a separator can reach this
+                // XML beside the freelance role is from inside the Role LITERAL. That is the
+                // mutation this proof exists to catch — a fixture edit fusing an employer into the
+                // role would turn the arm from irreducible into fused, and row 24 would leave
+                // Blocked while §0 still reported the instrument healthy.
+                //
+                // ALL NINE separators, not just " - ": SplitTitleOrganization tries " — " and
+                // " – " BEFORE the hyphen, so covering only the hyphen would miss the two that
+                // decide first. The table is duplicated here because the fixture cannot read the
+                // segmenter's internal constant — that is a knowingly accepted copy of a lexicon,
+                // not the corpus measuring its own constants: the copy is checked against
+                // AUTHORED BYTES, and if it drifts the arm still fails loudly on the split.
+                foreach (var separator in new[]
+                         { " — ", " – ", " - ", ", ", " | ", " @ ", " at ", " på ", " hos " })
+                {
+                    p.Require(
+                        !xml.Contains("Frilansande systemutvecklare" + separator, StringComparison.Ordinal),
+                        $"found the separator '{separator}' after the freelance role — this arm's "
+                        + "block must carry no employer at all, or it is a fused entry rather than "
+                        + "an irreducible one");
+                }
                 // Variables HELD FIXED, so the one-variable claim is checkable rather than
                 // asserted: role-first header order, a w:tbl, and Word's blank-paragraph form.
                 p.Require(xml.Contains("<w:tbl>", StringComparison.Ordinal), "expected a w:tbl element");

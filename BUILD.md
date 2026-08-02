@@ -48,7 +48,7 @@
 | Frontend bundler | Turbopack | bundlad med Next 16.2 | Next 16-default; `--webpack`-opt-outen (commit `63ea6683`) borttagen i #1046 — den kringgick Vercels edge-routing, och FE byggs inte längre på Vercel (ADR 0050 Beslut 3, amenderad 2026-06-14; §15.3 "ingen Vercel-build") |
 | Språk (frontend) | TypeScript | 6.0 | Strict mode |
 | UI-komponenter | shadcn/ui | senaste (CLI v4) | Tung customisering, se DESIGN.md |
-| Styling | Tailwind CSS | 4.2 | v4 config i `tailwind.config.ts` |
+| Styling | Tailwind CSS | 4.x | **CSS-first-config:** `@import "tailwindcss"` + `@theme {}` i `globals.css`. **Det finns ingen `tailwind.config.ts`** — ADR 0015 Beslut 1 avvisade hybrid-läget (Alt C), och ADR 0015 §19 pekar ut just den här raden som källan till missförståndet. Truth-sync #1154 |
 | Data fetching | Server Actions + RSC | – | **TanStack Query finns inte i `package.json` och har aldrig installerats** (ingen `QueryClientProvider`-infra); ADR 0042 Beslut C (impl-notat 2026-05-17) avvisade den för typeahead-ytan. Mönstren — inklusive BFF-undantaget för binär uppladdning och poll-vägen — bor i §10.2. Truth-sync #1154 |
 | Tabeller | Handrullad semantisk `<table>` | – | **TanStack Table finns inte i `package.json` och har aldrig installerats**; det finns ingen `src/components/ui/table.tsx`. Ingen formell avvisning — mönstret är oanvänt, inte omprövat. Truth-sync #1154 |
 | Form | React Hook Form + Zod | RHF ^7.72, Zod 4.x | Schema-baserad validering |
@@ -1098,9 +1098,10 @@ public enum CriterionVerdict { Pass, Warn, Fail, NotAssessed }
 
 - Server components för initial rendering (paginerade listor, detaljvyer)
 - Server Actions för mutation-heavy UI (statusändringar, notes) — `useTransition` för pending-tillstånd, `useOptimistic` där optimistisk rendering behövs (§3.1: TanStack Query är inte installerad)
-- **Undantaget: binär uppladdning går via BFF-route** (`app/api/cv/import/route.ts`), eftersom en Server Action inte kan strömma `multipart/form-data` (`duplex: "half"`). Regeln ovan är alltså inte universell, och det är den enda kända avvikelsen
-- **Periodisk uppdatering** = visibility-aware `setInterval` + `fetch` i en dedikerad klient-komponent (`shell/header-stats.tsx`, 10 min). En poll, inte en initial-load — CLAUDE.md §5:s `useEffect`-fetch-förbud gäller initial-load
-- Kortlivad keystroke-driven read-suggest: self-contained debounce-hook + `AbortController` (ADR 0042 Beslut C), aldrig en mutations-väg
+- **Undantaget: binär uppladdning går via BFF-route** (`app/api/cv/import/route.ts`), eftersom en Server Action inte kan strömma `multipart/form-data` (`duplex: "half"`). Regeln ovan är alltså inte universell; detta är den enda **mutations**-vägen utanför Server Actions (flera andra klient-`fetch`ar är POST-formade *läsningar*)
+- **Kortlivad klient-read** — keystroke-driven suggest, popover-counts, utkasts-preview-counts, on-demand dokument-/blob-hämtning: self-contained hook driven av inmatningen + `AbortController`, i `useEffect`, aldrig en mutations-väg (ADR 0042 Beslut C = prejudikatet; `lib/hooks/use-facet-counts.ts` och `components/resumes/cv-preview.tsx` är levererade former). Debounce där inmatning driver den; en engångshämtning vid `enabled`-flip behöver ingen
+- **Periodisk uppdatering** = visibility-aware `setInterval` + `fetch` i en dedikerad klient-komponent (`shell/header-stats.tsx`, 10 min)
+- CLAUDE.md §5:s `useEffect`-fetch-förbud gäller **sidans initial-data**, som hör hemma i en Server Component — det når inte de två punkterna ovan
 - Form state: React Hook Form + Zod schema
 - Optimistic updates för statustransitions
 - Skeleton/progressiv rendering för CV-granskning och mall-rendering (deterministiskt, inget LLM-streaming)

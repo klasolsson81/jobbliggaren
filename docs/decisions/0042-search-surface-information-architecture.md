@@ -267,11 +267,13 @@ keystroke-driven read-suggest"*. Två mätningar vid head:
 
 1. **Pekaren `§4.3` var KORREKT när Beslut C fattades, och en senare omstrukturering
    föräldralöste den.** CLAUDE.md bar `### 4.3 Data fetching` med brödtexten "TanStack Query
-   för klient-side mutations och pollar" när denna ADR skrevs (2026-05-16, `8e14d40a`).
+   för klient-side mutations och pollar" både när denna ADR skrevs (2026-05-16, `8e14d40a`)
+   och när impl-notatet nedan daterades (2026-05-17), vilket är där rationalen faktiskt står.
    `028d53f1` — "docs(spec): CLAUDE.md-prune till engelska" (#57, 2026-06-12) — plattade §4 till
-   punkter och tog bort både `### 4.3` och `### 5.3`. Rationalen citerade alltså rätt sektion;
-   sektionsnumret slutade existera under den. Samma commit förklarar `§5.3` i fil-fotens
-   referensrad och i header-radens `Relaterad:` — båda renumrerade till `§4`/`§5` i denna PR.
+   punkter och tog bort `### 4.3`, `### 5.2` och `### 5.3`. Rationalen citerade alltså rätt
+   sektion; sektionsnumret slutade existera under den. Samma commit föräldralöste **tre**
+   kvarvarande pekare i den här filen: `§4.3` och `§5.3` i fil-fotens referensrad, och `§5.3`
+   i header-radens `Relaterad:`. Alla tre renumrerade i denna PR (`§4.3`→`§4`, `§5.3`→`§5`).
 2. **CLAUDE.md §4 reglerar inte längre TanStack Query.** Biblioteket finns inte i
    `package.json` och har aldrig installerats; §4:s data-punkt namnger nu Server Actions, och
    BUILD.md §3.1 bär en gravsten i stället för raden `| Data fetching | TanStack Query | 5.x |`.

@@ -148,7 +148,7 @@ RDS, så rollback är säker).
 curl -I https://dev.jobbpilot.se/api/ready
 # Förväntat: HTTP/2 200 + Strict-Transport-Security: max-age=31536000
 
-# TD-38 stäng i tech-debt.md (header + status-sektion uppdaterade)
+# TD-38 stängdes i det dåvarande TD-registret (retirerat 2026-08-02, ADR 0121)
 # git commit -m "docs: TD-38 STÄNGD — TLS-hardening apply:ad"
 ```
 

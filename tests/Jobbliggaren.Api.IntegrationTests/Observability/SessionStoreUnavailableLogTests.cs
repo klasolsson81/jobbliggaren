@@ -30,7 +30,7 @@ public class SessionStoreUnavailableLogTests
         var (log, provider, factory) = Build();
         using var _ = factory;
 
-        log.Emit(new RedisTimeoutException("Timeout performing GET (5000ms)", CommandStatus.Sent));
+        log.Emit(new RedisTimeoutException(CommandFlags.None, "Timeout performing GET (5000ms)", CommandStatus.Sent));
 
         var record = provider.Logs.ShouldHaveSingleItem();
         record.Level.ShouldBe(LogLevel.Error);
@@ -47,8 +47,8 @@ public class SessionStoreUnavailableLogTests
 
         // A Redis outage fans out to every authenticated request; the coarse throttle must
         // collapse a burst to a single entry so the sink is not flooded.
-        log.Emit(new RedisServerException("LOADING"));
-        log.Emit(new RedisServerException("LOADING"));
+        log.Emit(RedisFaults.Loading("LOADING"));
+        log.Emit(RedisFaults.Loading("LOADING"));
 
         provider.Logs.Count.ShouldBe(1);
     }
@@ -65,7 +65,10 @@ public class SessionStoreUnavailableLogTests
         var userId = Guid.NewGuid();
         log.Emit(new RedisConnectionException(
             ConnectionFailureType.UnableToConnect,
-            $"It was not possible to connect; command=GET, key=jobbliggaren:user:{userId}:deleted"));
+            CommandFlags.None,
+            $"It was not possible to connect; command=GET, key=jobbliggaren:user:{userId}:deleted",
+            null,
+            CommandStatus.Unknown));
 
         var record = provider.Logs.ShouldHaveSingleItem();
         record.Message.ShouldContain("inner_type=RedisConnectionException");

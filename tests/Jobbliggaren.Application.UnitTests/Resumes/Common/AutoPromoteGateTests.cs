@@ -270,10 +270,12 @@ public class AutoPromoteGateTests
     public void Evaluate_UnbuildableContent_CarriesTheDomainCodeVerbatim()
     {
         // The point of the field: `IncompleteContent` is ONE token over every code
-        // `CreateFromParsed` can return — thirty-two from `ValidateContent`, plus
-        // `JobSeekerIdRequired` and `ValidateName`'s three, so thirty-six — and which one fired
-        // decides whether a per-entry router would help at
-        // all. The gate transports `created.Error.Code` unexamined — no predicate is re-encoded
+        // `CreateFromParsed` can return, and which one fired decides whether a per-entry router
+        // would help at all. Since #1060 D3(β-2) that reads off the declaring type:
+        // `ResumeEntryBuildability` declares the per-entry constraints — the
+        // `Resume.ExperienceCompanyRequired` this test asserts is one of them — while
+        // `ValidateContent` and `CreateFromParsed`'s own preconditions declare the rest.
+        // The gate transports `created.Error.Code` unexamined — no predicate is re-encoded
         // here, so this asserts transport, not a second opinion about what the Domain decided.
         var parsed = BuildParsed(
             content: CleanContent(

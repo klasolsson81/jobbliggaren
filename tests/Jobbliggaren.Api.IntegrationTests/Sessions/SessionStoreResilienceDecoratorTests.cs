@@ -1,3 +1,4 @@
+using Jobbliggaren.Api.IntegrationTests.Helpers;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Infrastructure.Auth.Sessions;
 using NSubstitute;
@@ -30,7 +31,7 @@ public class SessionStoreResilienceDecoratorTests
         var ct = TestContext.Current.CancellationToken;
         // RedisTimeoutException derives from TimeoutException, NOT RedisException — the case a
         // naive `catch (RedisException)` would miss. This is the most common degraded state.
-        var timeout = new RedisTimeoutException("Timeout performing GET", CommandStatus.Sent);
+        var timeout = new RedisTimeoutException(CommandFlags.None, "Timeout performing GET", CommandStatus.Sent);
         _inner.GetAsync(Arg.Any<SessionId>(), Arg.Any<CancellationToken>()).Throws(timeout);
 
         var ex = await Should.ThrowAsync<SessionStoreUnavailableException>(
@@ -44,7 +45,7 @@ public class SessionStoreResilienceDecoratorTests
     {
         var ct = TestContext.Current.CancellationToken;
         // RedisServerException (e.g. LOADING during an RDB restart) derives from RedisException.
-        var loading = new RedisServerException("LOADING Redis is loading the dataset in memory");
+        var loading = RedisFaults.Loading("LOADING Redis is loading the dataset in memory");
         _inner.GetAsync(Arg.Any<SessionId>(), Arg.Any<CancellationToken>()).Throws(loading);
 
         var ex = await Should.ThrowAsync<SessionStoreUnavailableException>(
@@ -61,7 +62,7 @@ public class SessionStoreResilienceDecoratorTests
         // The decorator must re-throw that SAME instance, never wrap a contract inside a contract.
         var contract = new SessionStoreUnavailableException(
             "down",
-            new RedisConnectionException(ConnectionFailureType.UnableToConnect, "no conn"));
+            new RedisConnectionException(ConnectionFailureType.UnableToConnect, CommandFlags.None, "no conn", null, CommandStatus.Unknown));
         _inner.GetAsync(Arg.Any<SessionId>(), Arg.Any<CancellationToken>()).Throws(contract);
 
         var ex = await Should.ThrowAsync<SessionStoreUnavailableException>(
@@ -123,7 +124,7 @@ public class SessionStoreResilienceDecoratorTests
         // during login must also surface as 503, uniformly (senior-cto-advisor Decision 1).
         var ct = TestContext.Current.CancellationToken;
         _inner.CreateAsync(Arg.Any<Guid>(), Arg.Any<SessionLifetime>(), Arg.Any<CancellationToken>())
-            .Throws(new RedisTimeoutException("Timeout performing SET", CommandStatus.Sent));
+            .Throws(new RedisTimeoutException(CommandFlags.None, "Timeout performing SET", CommandStatus.Sent));
 
         await Should.ThrowAsync<SessionStoreUnavailableException>(
             () => _sut.CreateAsync(Guid.NewGuid(), SessionLifetime.Persistent, ct));
@@ -135,7 +136,7 @@ public class SessionStoreResilienceDecoratorTests
         // The void-returning arm goes through the same single Guard translation site.
         var ct = TestContext.Current.CancellationToken;
         _inner.MarkUserDeletedAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
-            .Throws(new RedisServerException("LOADING"));
+            .Throws(RedisFaults.Loading("LOADING"));
 
         await Should.ThrowAsync<SessionStoreUnavailableException>(
             () => _sut.MarkUserDeletedAsync(Guid.NewGuid(), ct));

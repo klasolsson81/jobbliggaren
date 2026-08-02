@@ -104,7 +104,7 @@
 > ./Jobbliggaren.QA.Corpus.exe -class "Jobbliggaren.QA.Corpus.LayoutCorpusReportTests"
 > ```
 >
-> Base commit: `d435a9c4`.
+> Base commit: `69b2f87a`.
 > Deterministic; NO AI/LLM anywhere in the measured chain (ADR 0071).
 
 ## Claim discipline (ADR 0109 §4)
@@ -141,7 +141,7 @@ What this run is NOT, stated up front rather than left for a reader to discover:
 
 ## 0. Instrument integrity
 
-- **byte proofs held:** `pdf-sidebar-emitted-first`, `pdf-interleaved-baseline-fusion`, `pdf-zero-xgap-concat`, `pdf-single-column-sv`, `pdf-single-column-spaced`, `pdf-single-column-intra-block-spaced`, `pdf-single-column-intra-block-spaced-tight-list`, `pdf-sidebar-spaced`, `pdf-single-column-en`, `pdf-nonsequential-decorative`, `pdf-headingless`, `pdf-unknown-heading-after-profile`, `pdf-known-heading-after-profile`, `pdf-decorated-heading-glue`, `pdf-two-page-seam`, `pdf-pnr-bearing`, `pdf-clean-body-pnr-in-account-name`, `docx-table-label-first-no-blanks`, `docx-flat-label-first-no-blanks`, `docx-table-label-first-with-blanks`, `docx-role-first-with-blanks`, `docx-role-first-no-blanks`, `docx-company-first-header`
+- **byte proofs held:** `pdf-sidebar-emitted-first`, `pdf-interleaved-baseline-fusion`, `pdf-zero-xgap-concat`, `pdf-single-column-sv`, `pdf-single-column-spaced`, `pdf-single-column-intra-block-spaced`, `pdf-single-column-intra-block-spaced-tight-list`, `pdf-sidebar-spaced`, `pdf-single-column-en`, `pdf-nonsequential-decorative`, `pdf-headingless`, `pdf-unknown-heading-after-profile`, `pdf-known-heading-after-profile`, `pdf-decorated-heading-glue`, `pdf-two-page-seam`, `pdf-pnr-bearing`, `pdf-clean-body-pnr-in-account-name`, `docx-table-label-first-no-blanks`, `docx-flat-label-first-no-blanks`, `docx-table-label-first-with-blanks`, `docx-role-first-with-blanks`, `docx-role-first-no-blanks`, `docx-company-first-header`, `docx-irreducible-unattributed-experience`
 - **byte proofs FAILED:** none
 - **crashed:** none
 - **fixture invalid:** none
@@ -181,6 +181,7 @@ literal "no" on every row forever, which is a decoration rather than a measureme
 | 21 | `docx-role-first-with-blanks` | (c) table-based Word template — the arm that exonerates the segmenter | docx | docx-table-label-first-with-blanks | yes | blank paragraphs use Word's <w:p><w:pPr /></w:p> form |
 | 22 | `docx-role-first-no-blanks` | (c) table-based Word template — the control that de-confounds the two no-blanks variables | docx | docx-role-first-with-blanks | no | the package contains a w:tbl, no blank-paragraph <w:pPr /> and no self-closing <w:p /> |
 | 23 | `docx-company-first-header` | (c) table-based Word template — the arm that publishes beta-1's cost | docx | docx-table-label-first-with-blanks | no | the employment and education lines are written company/institution-first, in a w:tbl, with the blank separators the one-variable step holds fixed |
+| 24 | `docx-irreducible-unattributed-experience` | (c) table-based Word template — the only arm whose block no upstream fix can build | docx | docx-role-first-with-blanks | no | the employer-less block is present with no separator after its role, in a w:tbl, with role-first employment lines and the blank separators the one-variable step holds fixed |
 
 **Mechanics**
 
@@ -207,6 +208,7 @@ literal "no" on every row forever, which is a decoration rather than a measureme
 - `docx-role-first-with-blanks` — blank paragraphs AND role-first header lines — the PROMOTE-level control
 - `docx-role-first-no-blanks` — role-first header lines with NO blank paragraphs — separates entry-boundary loss from header order
 - `docx-company-first-header` — the field-bearing line written COMPANY-first — the shape whose slots come out swapped
+- `docx-irreducible-unattributed-experience` — the clean promote control plus ONE experience block that names no employer
 
 ## 2. Fidelity verdict
 
@@ -241,6 +243,7 @@ published so far: no fixture yet distinguishes them, which is a fact about the f
 | 21 | `docx-role-first-with-blanks` | **PromotedFaithful** | 5 | 5 | 5 | 5 | 3 | 3 | 3 | — |
 | 22 | `docx-role-first-no-blanks` | **PromotedLossy** | 5 | 1 | 1 | 1 | 3 | 1 | 1 | — |
 | 23 | `docx-company-first-header` | **PromotedFaithful** | 5 | 5 | 5 | 5 | 3 | 3 | 3 | — |
+| 24 | `docx-irreducible-unattributed-experience` | **Blocked** | 5 | 6 | — | — | 3 | 3 | — | IncompleteContent |
 
 ## 3. Marker trace
 
@@ -464,6 +467,14 @@ published one table up, per case, in §2's fidelity verdict. Resolve it there.
 | `docx-company-first-header` | Education | Chalmers tekniska högskola | yes | yes | no | yes | — | **RetainedButOrphaned** |
 | `docx-company-first-header` | Education | Göteborgs universitet | yes | yes | no | yes | — | **RetainedButOrphaned** |
 | `docx-company-first-header` | Education | Hvitfeldtska gymnasiet | yes | yes | no | yes | — | **RetainedButOrphaned** |
+| `docx-irreducible-unattributed-experience` | Employment | Klarna AB | yes | yes | no | no | — | **RetainedNotPromoted** |
+| `docx-irreducible-unattributed-experience` | Employment | Volvo Cars | yes | yes | no | no | — | **RetainedNotPromoted** |
+| `docx-irreducible-unattributed-experience` | Employment | Västra Götalandsregionen | yes | yes | no | no | — | **RetainedNotPromoted** |
+| `docx-irreducible-unattributed-experience` | Employment | Consid AB | yes | yes | no | no | — | **RetainedNotPromoted** |
+| `docx-irreducible-unattributed-experience` | Employment | Sigma IT | yes | yes | no | no | — | **RetainedNotPromoted** |
+| `docx-irreducible-unattributed-experience` | Education | Chalmers tekniska högskola | yes | yes | no | no | — | **RetainedNotPromoted** |
+| `docx-irreducible-unattributed-experience` | Education | Göteborgs universitet | yes | yes | no | no | — | **RetainedNotPromoted** |
+| `docx-irreducible-unattributed-experience` | Education | Hvitfeldtska gymnasiet | yes | yes | no | no | — | **RetainedNotPromoted** |
 
 ## 4. Extraction and form
 
@@ -492,6 +503,7 @@ published one table up, per case, in §2's fidelity verdict. Resolve it there.
 | 21 | `docx-role-first-with-blanks` | yes | Extracted | 1543 | 62 | **14** | yes | Sv | 5 | null |
 | 22 | `docx-role-first-no-blanks` | yes | Extracted | 1529 | 48 | **0** | yes | Sv | 5 | null |
 | 23 | `docx-company-first-header` | yes | Extracted | 1543 | 62 | **14** | yes | Sv | 5 | null |
+| 24 | `docx-irreducible-unattributed-experience` | yes | Extracted | 1653 | 66 | **15** | yes | Sv | 5 | null |
 
 ### 4b. Product-side observables
 
@@ -525,6 +537,7 @@ reader's inference, never an emitted ratio.
 | 21 | `docx-role-first-with-blanks` | `9858965A707E` | no | no | `Anna Andersson` |
 | 22 | `docx-role-first-no-blanks` | `05CD8018BF8A` | no | no | `Anna Andersson` |
 | 23 | `docx-company-first-header` | `6EDE5C6A4A3A` | no | no | `Anna Andersson` |
+| 24 | `docx-irreducible-unattributed-experience` | `C6EF355B8C7E` | no | no | `Anna Andersson` |
 
 **Twin comparisons** — the only honest sentence this corpus can emit about tables. The
 DOCX extractor handles `w:t` and `w:p` only, with no `w:tbl`/`w:tr`/`w:tc` handling, so a
@@ -543,6 +556,7 @@ extractor.
 - `docx-role-first-with-blanks` vs `docx-table-label-first-with-blanks` — digests differ (`9858965A707E` / `DCF6058705F8`)
 - `docx-role-first-no-blanks` vs `docx-role-first-with-blanks` — digests differ (`05CD8018BF8A` / `9858965A707E`)
 - `docx-company-first-header` vs `docx-table-label-first-with-blanks` — digests differ (`6EDE5C6A4A3A` / `DCF6058705F8`)
+- `docx-irreducible-unattributed-experience` vs `docx-role-first-with-blanks` — digests differ (`C6EF355B8C7E` / `9858965A707E`)
 
 ## 5. Gate ladder
 
@@ -575,12 +589,14 @@ corrected for (2026-07-28):
 `Domain code` is the constraint `Resume.CreateFromParsed` refused on, carried verbatim
 out of the buildability rung and read off the handler's own `BlockDetail` log property
 (#1060 D3(β) PR 2). It is what makes `**BLOCKED**` on that rung legible: the token
-`IncompleteContent` covers every code `Resume.CreateFromParsed` can return: thirty-two
-declared by `Resume.ValidateContent`, plus `JobSeekerIdRequired` and `ValidateName`'s
-three, so thirty-six. They do not share a fix — a per-entry failure like
-`Resume.ExperienceCompanyRequired` is routable, while a whole-document one like
-`Resume.SummaryTooLong` is not, and a design that assumed the first would spend a
-Domain refactor against a failure it cannot touch.
+`IncompleteContent` covers every code `Resume.CreateFromParsed` can return, and they do
+not share a fix. Since #1060 D3(β-2) the file that DECLARES the code answers which fix:
+the per-entry constraints on a work-experience or education entry are declared by
+`ResumeEntryBuildability`, so a caller can ask about ONE entry and act on the answer — a
+router can set that entry aside (`Resume.ExperienceCompanyRequired`). The rest are
+declared by `Resume.ValidateContent` and by `CreateFromParsed`'s own preconditions, and a
+whole-document refusal (`Resume.SummaryTooLong`) has no entry to set aside — a design
+that assumed the first would spend a Domain refactor against a failure it cannot touch.
 
 Read `—` in that column as **"no Domain refusal produced a code on this row"**, never
 as "no constraint failed": a personnummer block and a promote both print it, and
@@ -612,6 +628,7 @@ neither asked the Domain the question. A row whose code could not be READ prints
 | 21 | `docx-role-first-with-blanks` | passed | passed | passed | passed | passed | — | — | — | yes |
 | 22 | `docx-role-first-no-blanks` | passed | passed | passed | passed | passed | — | — | — | yes |
 | 23 | `docx-company-first-header` | passed | passed | passed | passed | passed | — | — | — | yes |
+| 24 | `docx-irreducible-unattributed-experience` | passed | passed | passed | passed | **BLOCKED** | IncompleteContent | `Resume.ExperienceCompanyRequired` | — | no |
 
 **Observed Domain state** (this is aggregate state, NOT a gate verdict). The personnummer
 column prints the AUTHORED declaration and the OBSERVED aggregate flag side by side: if
@@ -644,6 +661,7 @@ corpus measures. The value itself is never printed.
 | `docx-role-first-with-blanks` | Confident | no | no | none | no |
 | `docx-role-first-no-blanks` | Confident | no | no | none | no |
 | `docx-company-first-header` | Confident | no | no | none | no |
+| `docx-irreducible-unattributed-experience` | Confident | no | — | none | no |
 
 ## 6. Section confidence, verbatim
 
@@ -858,6 +876,15 @@ authored ground truth beside them. `Confident — heading matched, 1 entries` ne
 - `Skills: Confident — heading 'tekniska kompetenser' matched; 7 entries`
 - `Languages: Confident — heading 'språk' matched; 8 entries`
 
+**`docx-irreducible-unattributed-experience`** — ground truth: 5 employments, 3 educations
+
+- `Contact: Confident — name extracted; email extracted; phone extracted`
+- `Profile: Confident — heading 'profil' matched; summary text present`
+- `Experience: Confident — heading 'arbetslivserfarenhet' matched; 6 entries`
+- `Education: Confident — heading 'utbildning' matched; 3 entries`
+- `Skills: Confident — heading 'tekniska kompetenser' matched; 7 entries`
+- `Languages: Confident — heading 'språk' matched; 8 entries`
+
 ## 7. Cross-section contamination
 
 An authored string turning up in a section that is not its declared home. Measured as
@@ -978,6 +1005,13 @@ it never over-reports.
 | `docx-company-first-header` | Languages ← 'Turlistan - reseplanerare för kollektivtrafi…' (declared home: projects) |
 | `docx-company-first-header` | Languages ← 'Bokhyllan - katalogtjänst för folkbiblioteke…' (declared home: projects) |
 | `docx-company-first-header` | Skills ← '.NET' — a FRAGMENT of the authored project line 'Jobbliggaren - deterministisk CV-granskare i…' (the list parser atomised it) |
+| `docx-irreducible-unattributed-experience` | Languages ← 'PROJEKT (URVAL)' (declared home: projects) |
+| `docx-irreducible-unattributed-experience` | Languages ← 'Jobbliggaren - deterministisk CV-granskare i…' (declared home: projects) |
+| `docx-irreducible-unattributed-experience` | Languages ← 'Kartkollen - öppen data om kommunala beslut' — a FRAGMENT of the authored project line 'Kartkollen - öppen data om kommunala beslut,…' (the list parser atomised it) |
+| `docx-irreducible-unattributed-experience` | Languages ← 'byggd på PostGIS.' — a FRAGMENT of the authored project line 'Kartkollen - öppen data om kommunala beslut,…' (the list parser atomised it) |
+| `docx-irreducible-unattributed-experience` | Languages ← 'Turlistan - reseplanerare för kollektivtrafi…' (declared home: projects) |
+| `docx-irreducible-unattributed-experience` | Languages ← 'Bokhyllan - katalogtjänst för folkbiblioteke…' (declared home: projects) |
+| `docx-irreducible-unattributed-experience` | Skills ← '.NET' — a FRAGMENT of the authored project line 'Jobbliggaren - deterministisk CV-granskare i…' (the list parser atomised it) |
 
 ## 8. Pin P7 (unknown heading) and pin P5 (English non-difference)
 

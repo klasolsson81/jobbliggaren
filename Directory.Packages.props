@@ -8,18 +8,25 @@
     <PackageVersion Include="Mediator.Abstractions" Version="3.0.2" />
     <!-- EF Core — Application uses DbSet<T> as abstraction per ADR 0009 (bridge pattern).
          Provider-specific packages (Npgsql, Relational) stay in Infrastructure. -->
-    <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="10.0.9" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="10.0.10" />
     <!-- Test stack -->
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.9">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageVersion>
-    <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.2" />
+    <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
     <PackageVersion Include="xunit.v3.mtp-v2" Version="3.2.2" />
     <!-- MTP code coverage-extension (Microsoft, ADR 0044). Auto-registreras via
          MTP.MSBuild, exponerar coverage-CLI-switcharna för xUnit v3-runnern.
          Test-only, dras in via tests/Directory.Build.props med
-         PrivateAssets=all. Web-verifierad senaste stabila 2026-05-17 (nuget.org). -->
+         PrivateAssets=all. Web-verifierad senaste stabila 2026-05-17 (nuget.org).
+         HELD AT 18.8.0 (#1157, 2026-08-02). 18.9.0 was taken and CI measured it: all 22 160 tests
+         pass, and then ReportGenerator reports `The report file pattern
+         'tests/**/coverage.cobertura.xml' found no matching files` — the collector stops producing
+         a cobertura file where build.yml's glob looks for it. The `coverage` gate then dies two
+         steps later on a missing Summary.json, which names the wrong thing. `dotnet build` and
+         `dotnet test` are BOTH green on 18.9.0; only scripts/coverage.sh is not, so a bump of this
+         package must be verified with that script and never with the test suite alone. -->
     <PackageVersion Include="Microsoft.Testing.Extensions.CodeCoverage" Version="18.8.0" />
     <PackageVersion Include="Shouldly" Version="4.3.0" />
     <PackageVersion Include="NSubstitute" Version="5.3.0" />
@@ -41,49 +48,53 @@
     <PackageVersion Include="Mono.Cecil" Version="0.11.6" />
     <!-- Api -->
     <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.6" />
-    <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="10.0.9" />
+    <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="10.0.10" />
     <!-- Integration testing -->
     <PackageVersion Include="Microsoft.EntityFrameworkCore.InMemory" Version="10.0.9" />
-    <PackageVersion Include="Testcontainers.PostgreSql" Version="4.12.0" />
+    <PackageVersion Include="Testcontainers.PostgreSql" Version="4.13.0" />
     <!-- Worker host -->
     <PackageVersion Include="Microsoft.Extensions.Hosting" Version="10.0.9" />
     <!-- DI-abstraktion i Application (IServiceScopeFactory för snapshot child-scope,
          root-cause-fix 2026-05-16). Ren DI-abstraktion (ej EF/ASP.NET) → Clean Arch OK.
          Tidigare transitiv via FluentValidation.DependencyInjectionExtensions;
          explicit ref = versionshygien (senior-cto-advisor + dotnet-architect 2026-05-16). -->
-    <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.9" />
+    <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.10" />
     <!-- Auth + JWT -->
     <PackageVersion Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="10.0.9" />
-    <PackageVersion Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.9" />
+    <PackageVersion Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.10" />
     <!-- Health checks — TD-29 / F2-P6 strict readiness-probe.
          Microsoft.Extensions.Diagnostics.HealthChecks.* är Microsoft-paket (inte Xabaril).
          AddDbContextCheck<T> pingar DbContext via SELECT 1, returnerar Healthy/Unhealthy.
          Redis-check skrivs som custom IHealthCheck via IConnectionMultiplexer.IsConnected
          — undviker third-party Xabaril-dep, ~10 rader kod. -->
-    <PackageVersion Include="Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore" Version="10.0.9" />
+    <PackageVersion Include="Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore" Version="10.0.10" />
     <!-- Redis -->
-    <PackageVersion Include="StackExchange.Redis" Version="3.0.11" />
+    <PackageVersion Include="StackExchange.Redis" Version="3.1.0" />
     <PackageVersion Include="Microsoft.Extensions.Caching.StackExchangeRedis" Version="10.0.9" />
     <!-- Test — Redis container -->
-    <PackageVersion Include="Testcontainers.Redis" Version="4.12.0" />
+    <PackageVersion Include="Testcontainers.Redis" Version="4.13.0" />
     <!-- Smart enum — state machines i domänen -->
     <PackageVersion Include="Ardalis.SmartEnum" Version="8.2.0" />
     <!-- Hangfire — schedulerade jobb i Worker (BUILD.md §16, ADR 0023) -->
-    <PackageVersion Include="Hangfire.Core" Version="1.8.23" />
-    <PackageVersion Include="Hangfire.AspNetCore" Version="1.8.23" />
+    <PackageVersion Include="Hangfire.Core" Version="1.8.24" />
+    <PackageVersion Include="Hangfire.AspNetCore" Version="1.8.24" />
     <PackageVersion Include="Hangfire.PostgreSql" Version="1.21.1" />
     <!-- Jobbliggaren.Migrate — DDL-init console-app (STEG 14b). Behöver Npgsql direkt
          (Application använder bara DbSet<T>-abstraktionen via EF Core).
          Microsoft.Extensions.Logging.Console för stdout (+ Seq-sink, TD-104). -->
-    <!-- Npgsql 10.0.2 minimum: matchar transitiv-krav från Npgsql.EntityFrameworkCore.PostgreSQL 10.0.1
-         (kräver Npgsql >= 10.0.2). Direkt-referens från Jobbliggaren.Migrate. -->
+    <!-- Npgsql 10.0.3 minimum: matchar transitiv-krav från Npgsql.EntityFrameworkCore.PostgreSQL 10.0.3,
+         vars nuspec deklarerar `Npgsql 10.0.3` (verifierat 2026-08-02 mot den upplösta paketet).
+         Direkt-referens från Jobbliggaren.Migrate.
+         *(Meningen namngav tidigare 10.0.1/>= 10.0.2 och var stale redan på main, där provider-pinnen
+         låg på 10.0.2 och Npgsql-pinnen på 10.0.3; bumpen i denna PR vidgade den, så den syncas här
+         i stället för att bäras vidare.)* -->
     <PackageVersion Include="Npgsql" Version="10.0.3" />
     <!-- Alla AWSSDK-paket borttagna: SecretsManager (TD-105 / #199 / ADR 0050),
          SimpleEmailV2 (2026-06-06, ADR 0066), KeyManagementService + Core
          (#802 — fält-krypteringen är Local-only, ADR 0049/0050). 0 Amazon-paket
          i lösningen; ett tripwire-arch-test håller det så (NoAmazonReferenceTests). -->
 
-    <PackageVersion Include="Microsoft.Extensions.Logging.Console" Version="10.0.9" />
+    <PackageVersion Include="Microsoft.Extensions.Logging.Console" Version="10.0.10" />
     <!-- TD-104 / Pre-4 STEG 6 — persistent strukturerad logg-sink (senior-cto-advisor
          Variant B: MEL → Seq, additivt på befintlig MEL-pipeline; Serilog avvisat YAGNI).
          9.0.0 = senaste stabila (net8/net9/netstandard2.0-asset). .NET 10-kompatibel:
@@ -110,7 +121,7 @@
          Web-verifierad 2026-06-06 (reactiveui/refit #2114, nuget.org). -->
     <PackageVersion Include="Refit" Version="11.2.0" />
     <PackageVersion Include="Refit.HttpClientFactory" Version="11.2.0" />
-    <PackageVersion Include="Microsoft.Extensions.Http.Resilience" Version="10.7.0" />
+    <PackageVersion Include="Microsoft.Extensions.Http.Resilience" Version="10.8.0" />
     <PackageVersion Include="WireMock.Net" Version="1.25.0" />
     <!-- Transitiv CVE-pinning: WireMock.Net 1.25.0 drar in OpenTelemetry.Api 1.14.0 +
          OpenTelemetry.Exporter.OpenTelemetryProtocol 1.14.0 vilka är sårbara mot
@@ -131,14 +142,14 @@
          >= 5.5.0 → uppåt-unifiering, ingen NU1605/downgrade. Web-verifierad 2026-06-30
          (nuget.org, GitHub Advisory Database). -->
     <PackageVersion Include="Scriban.Signed" Version="7.2.5" />
-    <!-- Transitive CVE pin: Microsoft.AspNetCore.OpenApi 10.0.9 pulls in Microsoft.OpenApi
+    <!-- Transitive CVE pin: Microsoft.AspNetCore.OpenApi 10.0.10 pulls in Microsoft.OpenApi
          2.0.0 transitively, which is vulnerable to GHSA-v5pm-xwqc-g5wc (HIGH — circular
          schema references may terminate OpenAPI parsing; DoS). Vulnerable range
          >= 2.0.0-preview11, <= 2.7.4; first patched 2.7.5. We do not reference
          Microsoft.OpenApi directly — the pin applies only via
          CentralPackageTransitivePinningEnabled (Directory.Build.props) to eliminate NU1903,
          which otherwise fails restore repo-wide under TreatWarningsAsErrors. 2.7.5 stays in
-         the same 2.x major that Microsoft.AspNetCore.OpenApi 10.0.9 declares (>= 2.0.0) →
+         the same 2.x major that Microsoft.AspNetCore.OpenApi 10.0.10 declares (>= 2.0.0) →
          upward unification, no NU1605/downgrade. Verified 2026-07-01 (GitHub Advisory
          Database GHSA-v5pm-xwqc-g5wc, nuget.org). -->
     <PackageVersion Include="Microsoft.OpenApi" Version="2.7.5" />
@@ -178,12 +189,53 @@
          (ATS-plain + visual PDF from the same JSON source). NO AI/LLM. The PackageReference
          lives ONLY in Jobbliggaren.Infrastructure (Clean Arch — the QuestPDF SDK types never
          cross the Application port surface, parity PdfPig/OpenXml). License = Community
-         (source-available, free under USD 1M revenue, NON-COPYLEFT vs ADR 0050; not OSI-MIT) —
+         (source-available, free under USD 1M revenue, NON-COPYLEFT assessed against the server-side, non-distributed model ADR 0050 locks; not OSI-MIT) —
          set once via QuestPDF.Settings.License = LicenseType.Community in AddCvRendering.
-         Web-verified 2026-06-15 (nuget.org / questpdf.com/license): 2026.6.0 = latest stable,
-         native net8.0 asset → net10.0 forward-compat. Klas-chosen version (deviates from the
-         earlier 2026.2.x baseline; BUILD §3.1 updated in the same change). -->
-    <PackageVersion Include="QuestPDF" Version="2026.6.1" />
+         Web-verified 2026-08-02 (nuget.org / questpdf.com/license): 2026.7.2 = latest stable
+         (published 2026-07-29), and it ships a NATIVE net10.0 asset - measured in this repo's own
+         project.assets.json, where compile AND runtime both resolve to lib/net10.0/QuestPDF.dll.
+         (An earlier draft of this line said "net8.0 forward-compat"; the truth is stronger.)
+         THE COMMUNITY LICENCE CHANGED, v2.0 (2026-06-10) -> v3.0 (2026-07-06). An earlier draft of
+         this line called it "unchanged" while freshly dated, and a second draft then misdescribed
+         two of the changes. Measured against both resolved packages' LICENSE.md:
+         (1) v3.0 ABOLISHED Developer counting - the 90-day rolling count and the &lt;=10/&gt;10 tier split
+             are gone, and :110 says "The number of Developers never determines your license tier."
+             The new AI-authorship clause is therefore ANTI-AVOIDANCE (it closes "no human wrote the
+             integration, so we have zero Developers"), not a threshold we can trip. Net effect on us:
+             neutral to favourable.
+         (2) Source-form redistribution was ALREADY excluded in v2.0 - Grant #3 was compiled-only.
+             v3.0 deletes a contradictory Copyright Notice sentence and states the denial outright.
+             It removed an inconsistency, not a right.
+         (3) "Developer" did not gain test code; v2.0 already listed "tests". v3.0 moves it from the
+             person axis to the artefact axis. (The non-coding-QA exclusion is NOT a v3.0 change -
+             v2.0 carries it verbatim.) No consequence for us either way.
+         WE REMAIN COMMUNITY-ELIGIBLE ON THE REVENUE GROUND - categories (1) individual / (6) small
+         business, USD 1M threshold, unchanged. NOT on category (5) open-source: that requires an
+         OSI-approved licence and ours is PolyForm Noncommercial (ADR 0072), deliberately not OSI.
+         And NOT via (7) transitive-dependency: CvDocumentComposer calls QuestPDF APIs directly.
+         Known conditional limit: public-sector entities are ineligible REGARDLESS of revenue.
+         THE LICENCE AUTHORITY ALREADY EXISTS, and an earlier draft of this comment claimed it did
+         not. ADR 0071 carries a Library/License/Purpose table, a formal "License correction"
+         (2026-06-14) with security-auditor sign-off, and its 2026-06-14 License correction note
+         concludes: "BUILD.md 3.1 is the authoritative license source going forward." So BUILD.md 3.1 -
+         not this line - is the designated home; no new ADR is needed. Licence FACTS belong there; what
+         lives here is the working note behind them. That draft
+         reached the opposite conclusion from `grep -cniE "licen[cs]" ADR-0050` returning 0 - true,
+         but it does not carry the claim: nobody said ADR 0050 was a licence document. "non-copyleft
+         vs ADR 0050" is this repo's idiom for "assessed against the server-side, non-distributed
+         model ADR 0050 locks" - which is ADR 0071:170's own wording, not merely local shorthand.
+         Measured: THREE other comment blocks here assess copyleft against ADR 0050, covering five
+         packages (libstemmer+Hunspell, PdfPig+OpenXml, Resend). Two use the shorthand; the Hunspell
+         block already writes it out. An earlier draft said "four other rows" - reachable only by
+         counting ADR 0050 MENTIONS, one of which is the AWSSDK removal and no licence claim at all.
+         MECHANISM WORTH KNOWING: v3.0 adds `## Applicable Version` (the Community License section's only new
+         section). Document-wide the count is four added - `Choosing Between Professional and
+         Enterprise`, `Renewal Pricing`, `Applicable Version`, `Application of This Version` - and one
+         removed, `Larger Businesses`, which is exactly where v2.0's &lt;=10/&gt;10 tier split lived. Naming
+         the removal is what carries point (1); a net "+3" does not. The licence shipped WITH a release governs
+         that release, so a NuGet bump CHANGES WHICH LICENCE VERSION GOVERNS - and nothing in this
+         repo reads the licence at a bump. -->
+    <PackageVersion Include="QuestPDF" Version="2026.7.2" />
     <!-- ADR 0080 Vag 4 PR-4 (BUILD §3.1, Klas-GO 2026-06-24) — transaktionell e-post
          via Resend (löser TD-101 dev-vägen). Officiella .NET-SDK:n; PackageReference lever
          ENDAST i Jobbliggaren.Infrastructure (Clean Arch — IResend/EmailMessage korsar aldrig

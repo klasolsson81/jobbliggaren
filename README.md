@@ -108,7 +108,7 @@ flowchart TB
 1. **Plan-design** — scope, sekvens, risker och alternativ designas i chat innan kod skrivs. Ingen kod utan plan.
 2. **STOPP-disciplin** — Claude Code stannar vid varje övergång. Inga `str_replace`, inga commits, ingen analys mellan STOPP och GO ([CLAUDE.md §6](CLAUDE.md)).
 3. **Agent-veto** — `code-reviewer`, `security-auditor` och `design-reviewer` har **blockerande** veto vid relevant scope. En review-agents auktoritet är skriven regel (CLAUDE.md), inte konsensus eller deadline.
-4. **In-block-fix-disciplin** — fynd fixas i samma commit-batch som default. Teknisk skuld lyfts endast vid genuin fas- eller dependency-orsak ([CLAUDE.md §9.6](CLAUDE.md)) — TD-listan är inte ett dumpningsställe.
+4. **In-block-fix-disciplin** — fynd fixas i samma commit-batch som default. Blocker/Major fixas in-block eller i en följd-PR; Minor och nice-to-have filas som GitHub issue ([CLAUDE.md §9.6](CLAUDE.md)). Det separata tech-debt-registret retirerades 2026-08-02 — backloggen är GitHub Issues och inget annat.
 5. **ADR-historik** — alla arkitekturbeslut är immutable ADRs. En ändring skapar en ny ADR som *superseder* den gamla, aldrig en tyst redigering ([docs/decisions/](docs/decisions/)).
 6. **Session-protokoll** — varje session börjar med state-verifiering + git-log-kontroll och avslutas med synkroniserad docs-state ([CLAUDE.md §1.5](CLAUDE.md)).
 

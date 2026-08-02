@@ -314,15 +314,26 @@ public static class LayoutCorpusReport
         L("  nothing for the rungs to report. §0 names it. Distinct from `no verdict`, which is a");
         L("  statement about the handler; here the handler was never asked.");
         L();
+        // NO COUNT HERE, and that is a decision rather than an omission. This paragraph carried
+        // "thirty-two declared by ValidateContent" from #1142 until #1060 D3(β-2) moved the
+        // per-entry arms into ResumeEntryBuildability and made it false in four homes at once.
+        // LayoutCorpusReportTests' own assert list records the same failure one file over — the
+        // count "went wrong once and stale once ... a list sitting directly above the asserts it
+        // describes needs no numeral to be checkable". What replaced it is not a corrected count
+        // but a different KIND of claim: which file declares the code, which a reader checks by
+        // opening two files and which stays true when an arm is added to either. Do not
+        // reintroduce a numeral here (#1150 — counts of live code must name their adjudicator).
         L("`Domain code` is the constraint `Resume.CreateFromParsed` refused on, carried verbatim");
         L("out of the buildability rung and read off the handler's own `BlockDetail` log property");
         L("(#1060 D3(β) PR 2). It is what makes `**BLOCKED**` on that rung legible: the token");
-        L("`IncompleteContent` covers every code `Resume.CreateFromParsed` can return: thirty-two");
-        L("declared by `Resume.ValidateContent`, plus `JobSeekerIdRequired` and `ValidateName`'s");
-        L("three, so thirty-six. They do not share a fix — a per-entry failure like");
-        L("`Resume.ExperienceCompanyRequired` is routable, while a whole-document one like");
-        L("`Resume.SummaryTooLong` is not, and a design that assumed the first would spend a");
-        L("Domain refactor against a failure it cannot touch.");
+        L("`IncompleteContent` covers every code `Resume.CreateFromParsed` can return, and they do");
+        L("not share a fix. Since #1060 D3(β-2) the file that DECLARES the code answers which fix:");
+        L("the per-entry constraints on a work-experience or education entry are declared by");
+        L("`ResumeEntryBuildability`, so a caller can ask about ONE entry and act on the answer — a");
+        L("router can set that entry aside (`Resume.ExperienceCompanyRequired`). The rest are");
+        L("declared by `Resume.ValidateContent` and by `CreateFromParsed`'s own preconditions, and a");
+        L("whole-document refusal (`Resume.SummaryTooLong`) has no entry to set aside — a design");
+        L("that assumed the first would spend a Domain refactor against a failure it cannot touch.");
         L();
         L("Read `—` in that column as **\"no Domain refusal produced a code on this row\"**, never");
         L("as \"no constraint failed\": a personnummer block and a promote both print it, and");
@@ -563,7 +574,7 @@ public static class LayoutCorpusReport
     private static string DomainCode(LayoutCaseObservation c) =>
         c.BlockDetailUnreadable ? "**INSTRUMENT: unreadable**"
         // `is not null`, not a Length guard. The claim behind that is scoped to what can be
-        // checked: the codes reachable on this path are DRAWN FROM the thirty-six literals
+        // checked: the codes reachable on this path are DRAWN FROM the literals
         // `Resume.CreateFromParsed` can return (fewer are actually reachable — the label rung
         // pre-empts one of them), none of them empty — NOT a repo-wide claim about
         // every DomainError anywhere. Testing for emptiness would map a value that cannot occur

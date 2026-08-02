@@ -44,8 +44,15 @@ public class CompanySearchEndpointTests(ApiFactory factory)
         response.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
     }
 
+    /// <summary>
+    /// The one axis that makes the request below a FILTERED search rather than a browse-all.
+    /// Hoisted because CA1861 fires on a constant array written inline at an argument position —
+    /// the analyzer does not ask how often the enclosing method runs, and this one runs once.
+    /// </summary>
+    private static readonly string[] FilteredSniCodes = ["62010"];
+
     [Fact]
-    public async Task POST_search_with_defaults_returns_200_with_the_companies_and_magnitude_envelope()
+    public async Task POST_search_UNFILTERED_returns_the_page_with_a_NULL_magnitude()
     {
         var ct = TestContext.Current.CancellationToken;
         await AuthenticateAsync(ct);
@@ -55,13 +62,39 @@ public class CompanySearchEndpointTests(ApiFactory factory)
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
         var json = await response.Content.ReadFromJsonAsync<JsonElement>(ct);
 
-        // The (capped) page beside the honest magnitude — camelCase, so the FE can never mistake
-        // the pagination count for the magnitude.
+        // The (capped) page — camelCase, so the FE can never mistake the pagination count for
+        // the magnitude.
         var companies = json.GetProperty("companies");
         companies.GetProperty("items").ValueKind.ShouldBe(JsonValueKind.Array);
         companies.GetProperty("totalCount").ValueKind.ShouldBe(JsonValueKind.Number);
 
+        // NULL by contract, not by degradation — the ruling and the measurement behind it live in
+        // GetCompanySearchMagnitudeQueryHandler, which is where the browse-all policy is decided.
+        //
+        // Asserting the PROPERTY EXISTS and is null, rather than that it is absent: the wire
+        // shape stays stable for the FE's schema, which declares it nullable rather than optional.
+        json.TryGetProperty("magnitude", out var magnitude).ShouldBeTrue();
+        magnitude.ValueKind.ShouldBe(JsonValueKind.Null);
+    }
+
+    [Fact]
+    public async Task POST_search_FILTERED_returns_the_honest_magnitude()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await AuthenticateAsync(ct);
+
+        // The other half of the contract, and the reason the null above is a decision rather
+        // than a regression: a filtered search still carries its number. Without this the
+        // unfiltered assertion would be satisfied by an endpoint that had simply stopped
+        // computing magnitudes at all.
+        var response = await _client.PostAsJsonAsync(
+            Endpoint, new { sniCodes = FilteredSniCodes }, ct);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var json = await response.Content.ReadFromJsonAsync<JsonElement>(ct);
+
         var magnitude = json.GetProperty("magnitude");
+        magnitude.ValueKind.ShouldBe(JsonValueKind.Object);
         magnitude.GetProperty("magnitude").ValueKind.ShouldBe(JsonValueKind.Number);
         magnitude.GetProperty("saturated").ValueKind
             .ShouldBeOneOf(JsonValueKind.True, JsonValueKind.False);

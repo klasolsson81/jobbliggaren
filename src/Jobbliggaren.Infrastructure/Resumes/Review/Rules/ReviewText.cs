@@ -96,6 +96,33 @@ internal static class ReviewText
                 continue;
             }
 
+            // RESIDUAL, priced rather than left implicit (#1060 β-3). These two suppressions used
+            // to overlap: a period line that PeriodParser rejects was often still caught by the
+            // organization-equality test, because the segmenter had put that very line in the
+            // organization slot. β-3 stops that fabrication, so the overlap is gone and a period
+            // line with a LEADING separator ("– 2020 – 2024") now escapes both — PeriodParser is
+            // anchored and refuses it, and there is no longer an Organization equal to it — and is
+            // yielded as a description bullet for the review criteria to score.
+            //
+            // Not fixed here, deliberately: the honest fix is to promote "is this line nothing but
+            // a period?" into DatePatterns so this reader and SplitTitleOrganization share one
+            // predicate, which is the same DRY move that gave DatePatterns and PeriodParser their
+            // neutral home. That is its own change-reason and does NOT belong inside a segmenter
+            // narrowing, so it ships as a FOLLOW-UP PR off #1060 β-3 — the house rule is a
+            // follow-up PR, never another filed issue. Deliberately NOT deferred to "the routing
+            // work": routing is refused on this lane, so that destination has no owner, and a
+            // deferral whose home does not exist is not tracked at all.
+            //
+            // Scope of that follow-up, stated narrowly because it is easy to over-claim: the
+            // promotion FACTORS the existing predicate into a shared home. It does NOT widen it,
+            // so it closes THIS residual and leaves the segmenter guard's negative population
+            // exactly where it is — that population is by definition what the predicate does not
+            // model, and sharing a predicate does not extend it. Closing that one needs the DATE
+            // MODEL widened (month names, trailing qualifiers, keyword-less open ends, YYYY/MM
+            // points) — the same four the segmenter names — which is a separate
+            // change with a wider blast radius because DatePatterns also feeds StripDates and
+            // ExtractPeriod. Two deferrals, not one.
+
             yield return line;
         }
     }

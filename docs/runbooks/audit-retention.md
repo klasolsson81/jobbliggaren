@@ -39,17 +39,32 @@ sorterbart som datum).
 
 ## 3. Övervakning
 
-### 3.1 Hangfire dashboard
+### 3.1 Operatörsytan `/admin/jobb`
 
-Hangfire-dashboard exponeras inte i Fas 1 (TD-17). När den införs, leta efter
-recurring job `audit-log-retention`:
+Hangfire-dashboardet exponeras inte — och kommer inte att göra det. #204 levererade
+en egen civic operatörsyta i stället (`/admin/jobb`, PR #246; ADR 0082), vilket var ett
+medvetet val framför den inbyggda dashboarden. Leta där efter recurring job
+`audit-log-retention`:
 
-- **Lyckat:** "Succeeded" status, körtid typiskt < 100ms vid normal volym
-- **Fail:** röd markering i dashboard. Klicka för stack-trace + retry-info
+- **Lyckat:** raden visar senaste körning + status **Lyckades** (rått Hangfire-state
+  `Succeeded` i `GET /api/v1/admin/jobs/recurring`). **Körtiden syns inte
+  på ytan** — läs den i den strukturerade loggen (§3.2); typiskt < 100 ms vid normal
+  volym.
+- **Fail:** status **Misslyckades** (rått `Failed`), och körningen listas i
+  failed-tabellen med **undantagets
+  TYPNAMN** som felkategori. Det finns **ingen stack-trace, inget meddelande och inga
+  argument** — den frånvaron är en avsiktlig PII-kontroll (ADR 0082: undantagstexter
+  kan bära personnummer, e-post eller DEK-dekrypterad CV-text), inte en lucka.
+  **Lägg inte till dem.** Orsak utreds i loggen (§3.2) eller via direkt
+  `hangfire.*`-SQL.
+- **Requeue/trigger** finns som API-endpoints — `POST /api/v1/admin/jobs/failed/{jobId}/retry`
+  och `POST /api/v1/admin/jobs/recurring/{id}/trigger` (PR #248) — **inte** som
+  kontroller på sidan.
 
-### 3.2 Strukturerad logg (Seq i dev / CloudWatch i prod)
+### 3.2 Strukturerad logg (Seq i dev; prod-sinken är obyggd — #1175)
 
-Filtrera på sourcecontext `JobbPilot.Application.Common.Auditing.Jobs.AuditLogRetention.AuditLogRetentionJob`.
+Filtrera på sourcecontext `Jobbliggaren.Application.Common.Auditing.Jobs.AuditLogRetention.AuditLogRetentionJob`
+(mätt mot `AuditLogRetentionJob.cs:4` — det gamla `JobbPilot.`-prefixet ger noll träffar sedan ADR 0069:s rename).
 
 Förväntade meddelanden vid lyckad körning:
 
@@ -99,13 +114,16 @@ Förväntat: 0. Om > 0, se §4.2.
 
 ### 4.1 Jobbet failer en enskild dag
 
-**Symptom:** Hangfire visar "Failed". Default-partitionen kan börja ta emot
+**Symptom:** jobbet står som **Misslyckades** på `/admin/jobb`. Default-partitionen kan börja ta emot
 rader om timing-fönstret missas.
 
 **Åtgärd:**
 
 1. Hangfire retry:ar automatiskt (default 10 retries med exponential backoff).
-2. Om retries uttöms: trigga manuellt via Hangfire dashboard ("Re-run").
+2. Om retries uttöms: kör om det misslyckade jobbet via
+   `POST /api/v1/admin/jobs/failed/{jobId}/retry` (PR #248). Det finns ingen
+   "Re-run"-knapp på `/admin/jobb` — ytan är read-side (ADR 0082), och den inbyggda
+   Hangfire-dashboarden exponeras inte.
 3. Verifiera att partitions skapats korrekt (§3.3).
 
 **Risk:** Försumbar. PG hanterar default-partition-overflow rent.
@@ -150,7 +168,11 @@ Default-partitionen ackumulerar nya audit-skrivningar.
 
 **Åtgärd:**
 
-1. Kör manuellt jobb-trigger (Hangfire dashboard eller via Worker-restart).
+1. Kör manuell trigger via `POST /api/v1/admin/jobs/recurring/{id}/trigger`
+   (PR #248). **Inte** via Worker-restart: `RecurringJobRegistrar.StartAsync` registrerar
+   bara schemat för det här jobbet — metodens enda `Trigger` vid boot gäller
+   `RefreshLandingStats` (rad 178) — så nästa körning blir 03:00, inte nu.
+   Och inte via Hangfire-dashboarden, som inte exponeras (ADR 0082).
 2. Om permanent fel: tillfälligt stäng av audit-skrivningar genom att flippa
    `IAuditableCommand`-implementationer (kräver hot-fix, inte standard ops).
 3. Eskalera till Klas — det indikerar djupare DB-problem (disk full,
@@ -189,8 +211,14 @@ DROP TABLE IF EXISTS audit_log_YYYYMMDD;
 ### 5.1 Audit_log korrumperad / oavsiktligt droppad
 
 **Inte realistiskt scenario** i Fas 1 — vi har ingen audit-data av värde
-ännu. Vid prod-deploy: dagliga RDS-snapshots (default 7 dagar, GDPR-
-inriktat 30 dagar för audit-data).
+ännu. Vid prod-deploy: dagliga databas-snapshots. RDS är borta sedan ADR 0066 (dess
+automated-backup-default var 7 dagars retention); backup-modellen på VPS och dess
+retention/rotation är **obeslutade** och ägs av #197. **Backup/PITR-fönstret fyller Klas
+i — CC uppfinner det inte** (STOPP-4; ADR 0024 rad 636 och ADR 0032 rad 1335, båda
+ordagrant, och STOPP-4 gatar DPIA-signaturen). Förväxla det inte med **audit-tabellens
+egen retention, 90 dagar**, per §1 ovan (BUILD.md §7.1 + ADR 0022) — det är två skilda
+storheter, och Art. 17-restore betjänas dessutom av soft-delete-rader i den LEVANDE
+databasen (ADR 0024 D5), inte av snapshots.
 
 ### 5.2 Migration `AddAuditLogPartitioning` rollback
 
@@ -200,8 +228,8 @@ behåller alla rader. Trigger:
 ```bash
 export ConnectionStrings__Postgres="..."
 dotnet ef database update <previous-migration> \
-  --project src/JobbPilot.Infrastructure \
-  --startup-project src/JobbPilot.Api \
+  --project src/Jobbliggaren.Infrastructure \
+  --startup-project src/Jobbliggaren.Api \
   --context AppDbContext
 ```
 
@@ -230,4 +258,5 @@ för att undvika race med audit-skrivningar.
 - ADR 0023 — Worker-pipeline + Hangfire-infrastruktur (orchestrator-mönstret)
 - [ADR 0024](../decisions/0024-audit-retention-and-art17-cascade.md) D1+D2 — partitioning-strategi
 - BUILD.md §7.1 — `audit_log`-schema + 90-dagars retention
-- [Tech-debt TD-16](../tech-debt.md#td-16-—-audit-log-retention--gdpr-art-17-anonymisering) — STEG 10a stänger del 1
+- TD-16 (audit-log retention + GDPR Art. 17-anonymisering) — STEG 10a stänger del 1.
+  Historisk markör: TD-registret retirerades 2026-08-02 (ADR 0121) och TD-16 var redan stängd.

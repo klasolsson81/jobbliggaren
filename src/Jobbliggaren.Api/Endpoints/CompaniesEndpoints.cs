@@ -84,6 +84,10 @@ public static class CompaniesEndpoints
                     body.Page, body.PageSize),
                 ct);
 
+            // NULL for an unfiltered browse-all — the handler owns that policy, over the
+            // NORMALIZED criteria, and carries the measurement behind it. The endpoint stays two
+            // unconditional sends: deciding here would re-derive "no axes" from raw request input,
+            // a second normalizer of a rule that already has one.
             var magnitude = await mediator.Send(
                 new GetCompanySearchMagnitudeQuery(
                     body.SniCodes, body.MunicipalityCodes, body.Name, body.OrganizationNumber),
@@ -119,8 +123,13 @@ public static class CompaniesEndpoints
     /// <summary>
     /// The composed search response: the page and the honest magnitude side by side, so the FE
     /// can never mistake the pagination count for the magnitude (the criterion-browse precedent).
+    ///
+    /// <para><see cref="Magnitude"/> is NULL for an unfiltered browse, and that is a contract, not
+    /// a degradation: the unfiltered headline carries no number at all. A filtered search always
+    /// carries one. The rule is ADR 0120; the measurement behind it lives in
+    /// <c>GetCompanySearchMagnitudeQueryHandler</c>.</para>
     /// </summary>
     public sealed record CompanySearchResponse(
         PagedResult<CompanyBrowseDto> Companies,
-        CompanySearchMagnitudeDto Magnitude);
+        CompanySearchMagnitudeDto? Magnitude);
 }

@@ -138,6 +138,11 @@ export default async function BevakningBrowsePage({ params, searchParams }: Prop
               page={companies.page}
               pageSize={companies.pageSize}
               totalCount={companies.totalCount}
+              // #1149 — same reason as `/foretag/sok`: this `totalCount` saturates at
+              // CompanyBrowseCriteria.MaxServableRows, so a criterion matching more companies than
+              // the cap would read "(2 000 träffar totalt)" beside a headline that honestly says
+              // "10 000+". The magnitude above is this surface's number.
+              showTotalCount={false}
               buildHref={(targetPage) =>
                 targetPage <= 1
                   ? `/foretag/smarta-bevakningar/${id}`

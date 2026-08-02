@@ -527,10 +527,14 @@ internal sealed partial class HeadingDrivenResumeSegmenter(CvParsingLexiconData 
         // Scope, stated narrowly on purpose. This moves ONLY the line the separator loop reads,
         // and only when the first line carries nothing but a period. ONE step, never more: a third
         // line that would have to be searched for is guessing, not relocating. It does NOT move the
-        // fallback either — when the next line carries no separator, it is a single field and the
-        // pre-existing degradation (Title null, Organization = Lines[1]) is still the honest
-        // reading; widening the fallback too was tried and measured to hand a description bullet to
-        // the organization slot.
+        // fallback either — when the next line carries no separator, it is a single field and
+        // taking it as the organization is the honest reading; widening the fallback too was tried
+        // and measured to hand a description bullet to the organization slot.
+        //
+        // #1060 β-3 qualified that sentence rather than moving the fallback: "a single field" was
+        // only true when the line HAS one. Where Lines[1] carries nothing but a period, taking it
+        // was not a degradation but a fabrication, so the fallback now refuses that one case —
+        // still without relocating, and still without guessing slot order.
         //
         // It changes WHICH LINE is read, never which SIDE of it is the role. StripTrailingPeriod's
         // bind below (senior-cto-advisor 2026-06-23) reserves slot ORDER as deliberately
@@ -569,7 +573,69 @@ internal sealed partial class HeadingDrivenResumeSegmenter(CvParsingLexiconData 
             }
         }
 
-        var org = entry.Lines.Count >= 2 ? NullIfEmpty(entry.Lines[1].Trim()) : null;
+        // #1060 β-3: a line that carries no fields must not BECOME a field — the mirror of β-1's
+        // rule that such a line must not DECIDE the split, and it reuses the predicate the
+        // relocation guard already applies earlier in this same method, rather than a new
+        // one. Before this, an entry whose first line held no separator
+        // glyph took Lines[1] as its organization unconditionally, so a block naming a role and a
+        // period and NO employer promoted with the DATE RANGE as the employer name: "2026 - 2026".
+        // The engine did not drop a field, it asserted one the source never made, in a document
+        // the user sends to employers. Measured by the corpus arm
+        // `docx-irreducible-unattributed-experience`.
+        //
+        // THE GUARD'S SCOPE IS BROADER THAN THAT ARM, and saying so is the point of this
+        // paragraph. It fires on "Lines[0] carries no separator AND Lines[1] is nothing but a
+        // period" — it does not, and cannot, ask whether an employer sits on Lines[2]. So the
+        // layout `Role / Period / Employer` now BLOCKS with the employer physically present in
+        // the document. That is accepted and is still an improvement — an honest refusal the user
+        // can act on beats a CV asserting she worked at "2026 - 2026" — but it is a wider
+        // population than the arm measures, and the arm must not be read as measuring it.
+        // Pinned as accepted-and-known by
+        // Segment_HeaderLineCarryingNoSeparator_YieldsNoOrganizationEvenWhenTheEmployerIsOnTheThirdLine.
+        //
+        // BOTH TYPED SECTIONS, because ParseExperiences and ParseEducations call this one
+        // function. On the education side the tuple is swapped at the call site, so the org slot
+        // is INSTITUTION: the same guard nulls it and the refusal arrives as
+        // Resume.EducationInstitutionRequired — a different Domain code from the arm's — and
+        // review criterion A10 moves Pass -> Warn. Pinned separately, per β-1's own rule that
+        // education symmetry is not decoration.
+        //
+        // ParseConfidence still reports Confident, before and after: ListSectionConfidence reads
+        // only whether a heading matched and how many entries came back, and the entry count is
+        // invariant here. Confidence cannot see a fabricated field and does not learn to; the
+        // honesty comes entirely from the Domain gate, which is why the point is to REACH it.
+        //
+        // This is a strict NARROWING and adds no positional assumption. StripTrailingPeriod
+        // reduces a line to empty only when a DatePatterns match runs to the END OF THE LINE, so
+        // the guard fires only where the candidate carries no field at all. THAT direction — the
+        // absence of false positives — is what the narrowing claim rests on, and it holds.
+        //
+        // THE CONVERSE DOES NOT HOLD, and it is known rather than overlooked. A date line
+        // DatePatterns does not model, or one carrying anything after the match, is NOT reduced
+        // and still becomes the organization: "jan 2020 – dec 2024" (no month token in the
+        // end-alternation, so only the year matches and " – dec 2024" remains), "2020 – 2024
+        // (heltid)", "2005 –" with an open end and no keyword, "2020/01 – 2024/12". The month
+        // form is the most consequential by FREQUENCY, not by effect: three of the four also leave
+        // the segmenter's Period null (measured against ExtractPeriod, which is a different
+        // adjudicator from the PeriodParser the test docblock counts against).
+        // Unchanged by β-3 and not a regression: the guard is narrower than this
+        // paragraph would read if it said "any date-only line". The honest fix is a DatePatterns
+        // WIDENING — modelling month names, trailing qualifiers, keyword-less open ends and
+        // YYYY/MM. The predicate PROMOTION
+        // the ReviewText residual defers is necessary but NOT sufficient: it factors today's model
+        // into a shared home and inherits its blind spot, so it would close that residual and leave
+        // this population exactly here. Two deferrals, not one.
+        //
+        // Relocating the fallback to Lines[2] is a separate decision, refused on TWO measurements:
+        // β-1 measured that widening the fallback hands a description bullet to the organization
+        // slot, and on this PR's own arm Lines[2] IS the bullet ("Uppdrag åt mindre
+        // uppdragsgivare..."), so relocating would do exactly that on the fixture that motivated
+        // the change. A third line that has to be searched for is guessing, not relocating. The
+        // 2026-06-23 slot-order bind is untouched — nothing here decides WHICH side is the role.
+        var orgCandidate = entry.Lines.Count >= 2 ? entry.Lines[1].Trim() : null;
+        var org = orgCandidate is not null && StripTrailingPeriod(orgCandidate).Length > 0
+            ? NullIfEmpty(orgCandidate)
+            : null;
         return (NullIfEmpty(first.Trim()), org);
     }
 

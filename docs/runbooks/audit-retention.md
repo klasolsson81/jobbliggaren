@@ -169,8 +169,9 @@ Default-partitionen ackumulerar nya audit-skrivningar.
 **Åtgärd:**
 
 1. Kör manuell trigger via `POST /api/v1/admin/jobs/recurring/{id}/trigger`
-   (PR #248). **Inte** via Worker-restart: `RecurringJobRegistrar.StartAsync` anropar
-   bara `AddOrUpdate`, alltså registrerar schemat — nästa körning blir 03:00, inte nu.
+   (PR #248). **Inte** via Worker-restart: `RecurringJobRegistrar.StartAsync` registrerar
+   bara schemat för det här jobbet — metodens enda `Trigger` vid boot gäller
+   `RefreshLandingStats` (rad 178) — så nästa körning blir 03:00, inte nu.
    Och inte via Hangfire-dashboarden, som inte exponeras (ADR 0082).
 2. Om permanent fel: tillfälligt stäng av audit-skrivningar genom att flippa
    `IAuditableCommand`-implementationer (kräver hot-fix, inte standard ops).
@@ -212,9 +213,12 @@ DROP TABLE IF EXISTS audit_log_YYYYMMDD;
 **Inte realistiskt scenario** i Fas 1 — vi har ingen audit-data av värde
 ännu. Vid prod-deploy: dagliga databas-snapshots. RDS är borta sedan ADR 0066 (dess
 automated-backup-default var 7 dagars retention); backup-modellen på VPS och dess
-retention/rotation är **obeslutade** och ägs av #197. Snapshot-retentionen bör täcka
-Art. 17-restore-fönstret (30 dagar); **audit-tabellens egen retention är 90 dagar**
-per §1 ovan (BUILD.md §7.1 + ADR 0022) — blanda inte ihop de två.
+retention/rotation är **obeslutade** och ägs av #197. **Backup/PITR-fönstret fyller Klas
+i — CC uppfinner det inte** (STOPP-4; ADR 0024 rad 636 och ADR 0032 rad 1335, båda
+ordagrant, och STOPP-4 gatar DPIA-signaturen). Förväxla det inte med **audit-tabellens
+egen retention, 90 dagar**, per §1 ovan (BUILD.md §7.1 + ADR 0022) — det är två skilda
+storheter, och Art. 17-restore betjänas dessutom av soft-delete-rader i den LEVANDE
+databasen (ADR 0024 D5), inte av snapshots.
 
 ### 5.2 Migration `AddAuditLogPartitioning` rollback
 

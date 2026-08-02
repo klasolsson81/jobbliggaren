@@ -113,8 +113,10 @@
 > DNS/CDN/proxy** — är beslutat i **ADR 0050 (Accepted 2026-06-08)**. Tabellen
 > nedan beskriver **nuläge (lokalt)** + **beslutat permanent mål**.
 > **VÄRDVALET ÄR UPPHÄVT 2026-08-02** (Klas-direktiv): Hetzner ut, svensk VPS in,
-> **ersättaren obeslutad**. Topologin står; leverantörsnamnen nedan är platshållare
-> tills CC1:s supersessions-ADR landar — se §15:s not. Faktisk
+> **ersättaren obeslutad**. Topologin står; **värd- och edge-leverantörsnamnen** nedan är
+> platshållare tills CC1:s supersessions-ADR landar — se §15:s not. E-postraden är också
+> upphävd, men av ett annat direktiv och med **vald** ersättare (AWS SES), ägd av #1169
+> och #183 — se §13.4. Faktisk
 > provisionering är fortsatt framtida Klas-gatat arbete (ADR 0050 Sekvensering:
 > Hetzner sist, vid MVP före beta-testare). AWS-kolumnerna i ADR/sessions/
 > research bevaras som historik.
@@ -141,7 +143,8 @@
 
 > **Status (2026-06-08):** dev/staging/production-AWS-miljöerna är avvecklade
 > (ADR 0066). `local` är enda aktiva miljön. Permanent deploy-mål är **beslutat**
-> (Hetzner CAX31 + Cloudflare, ADR 0050 Accepted 2026-06-08) men ännu
+> (Hetzner CAX31 + Cloudflare, ADR 0050 Accepted 2026-06-08) — **men värdvalet är
+> upphävt 2026-08-02, se §3.2:s statusbanner** — men ännu
 > ej provisionerat (ADR 0050 Sekvensering: Hetzner sist, vid MVP före
 > beta-testare). Tag-baserad AWS-deploy (`v*-dev`/`v*-rc*`/`v*`) refererar
 > **avvecklad infra** — den AWS-baserade stacken är **riven** (ADR 0066,
@@ -1295,7 +1298,8 @@ permanent infra aktiveras; listan nedan speglar **beslutad** uppsättning, ADR 0
 > kedjan; **SES:s ersättare är Resend** — se e-postposten i listan ovan för
 > attribution och grindvillkor.
 >
-> **BÅDA PÅSTÅENDENA OVAN ÄR UPPHÄVDA (Klas-direktiv 2026-08-02):** Resend ska ut och
+> **SES-HALVAN AV FÖRSTA PÅSTÅENDET OCH HELA DET ANDRA ÄR UPPHÄVDA (Klas-direktiv
+> 2026-08-02)** — AWS-*infrastrukturen* förblir avvecklad: Resend ska ut och
 > **AWS SES i `eu-north-1`** in. Denna sektion är avsiktligt inte omskriven här — den
 > matar publika `/integritet#subprocessors`, så omskrivningen är legal-facing och ägs av
 > [#1169](https://github.com/klasolsson81/jobbliggaren/issues/1169) +
@@ -1407,8 +1411,10 @@ UptimeRobot/BetterStack free ersätter ALB/CloudWatch-health per ADR 0050):
 >
 > **En länk säger var arbetet ägs — inte att premissen omkring den är aktuell.** Två
 > premisser är **upphävda** av Klas-direktiv 2026-08-02 — i detta kapitel **och i §3.2**
-> (e-postpremissen i tabellrad 126; värdpremissen i statusbannern och i tabellraderna
-> för Backup m.fl., varav flera är celler denna PR redigerade). Uppräkningen är
+> (e-postpremissen i §3.2:s **Email**-rad; värdpremissen i statusbannern och i raderna
+> för Compute, Database, Cache, Frontend, DNS och Backup, varav flera är celler denna
+> PR redigerade — **radnummer står medvetet inte här: den förra versionen av denna
+> mening bar ett, och det bröts av samma commit som skrev det**). Uppräkningen är
 > **inte uttömmande** — den namnger var premisserna är mest lästa, inte varje
 > förekomst. Inte bara under
 > omprövning: **värdvalet** (Hetzner ut; svensk VPS in — **ersättaren obeslutad**,

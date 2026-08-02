@@ -75,8 +75,13 @@ scenarios that **report** p99/INP but only **assert-intent** on p95/LCP/CLS.
   baseline (the `api_health_baseline` scenario), never against a guessed
   number (senior-cto-advisor / CTO discipline: calibrate to fact).
 
-### Lighthouse-CI configuration (`web/jobbpilot-web/lighthouserc.json` +
+### Lighthouse-CI configuration (`web/jobbliggaren-web/lighthouserc.json` +
 `budget.json`)
+
+> **Measured 2026-08-02:** `lighthouserc.json` exists at that path; **`budget.json` does
+> not exist anywhere in the tree**, under any spelling. Treat it as a file to CREATE,
+> not to find. (The paths in this charter said `web/jobbpilot-web/` until 2026-08-02 —
+> dead since ADR 0069's rename. The repo-wide remainder of that residue is #1176.)
 
 - Keep `numberOfRuns: 3` + median — single-run composite score is documented
   flaky. Assert LCP/CLS/page-weight (error-intent), INP via TBT proxy (warn),
@@ -105,7 +110,7 @@ scenarios that **report** p99/INP but only **assert-intent** on p95/LCP/CLS.
 - **No invented budgets.** Every threshold traces to ADR 0045. Missing budget
   → report + consult senior-cto-advisor, never improvise.
 - **No `src/**` edits.** Like `test-writer`, you scaffold measurement code
-  only (`perf/**`, `web/jobbpilot-web/lighthouse*`/`budget.json`,
+  only (`perf/**`, `web/jobbliggaren-web/lighthouse*`/`budget.json`,
   `.github/workflows/` perf-job bodies). Production code design issues →
   advisory note + consult `dotnet-architect`.
 
@@ -133,8 +138,8 @@ scenarios that **report** p99/INP but only **assert-intent** on p95/LCP/CLS.
 ## Tool access
 
 **Allowed:** `Read`, `Grep`, `Glob`, `WebSearch`, `WebFetch`,
-`Write`/`Edit` (`perf/**`, `web/jobbpilot-web/lighthouserc.json`,
-`web/jobbpilot-web/budget.json`, perf-job bodies in `.github/workflows/`),
+`Write`/`Edit` (`perf/**`, `web/jobbliggaren-web/lighthouserc.json`,
+`web/jobbliggaren-web/budget.json`, perf-job bodies in `.github/workflows/`),
 `Bash` (build/run the load-test project, dotnet/pnpm for local calibration)
 
 **Not allowed:** `Write`/`Edit` against `src/**`, BUILD.md/CLAUDE.md/DESIGN.md
@@ -182,7 +187,7 @@ When you create/extend perf fitness functions:
 
 **1.** Place artifacts correctly:
 - Load-test: `perf/Jobbliggaren.LoadTests/Scenarios/<Class><Name>Scenario.cs`
-- Lighthouse: `web/jobbpilot-web/lighthouserc.json` / `budget.json`
+- Lighthouse: `web/jobbliggaren-web/lighthouserc.json` / `budget.json`
 
 **2.** Report in Swedish (English technical terms untranslated):
 

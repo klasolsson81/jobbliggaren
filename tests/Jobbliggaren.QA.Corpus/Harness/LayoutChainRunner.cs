@@ -21,8 +21,20 @@ public enum FidelityVerdict
     /// content is missing — the finding this corpus exists to expose.</summary>
     PromotedLossy,
 
-    /// <summary>Promoted with MORE entries than authored: fragments invented by over-splitting.
-    /// Distinct from lossy, and equally dishonest.</summary>
+    /// <summary>Promoted with MORE entries than the document ATTRIBUTES. Distinct from lossy, and
+    /// equally dishonest.
+    /// <para><b>Over-splitting is one mechanism, not the definition — and it has never been
+    /// measured.</b> The term was written for fragments invented by over-splitting. The only row
+    /// that has ever published this verdict did so by a different route, and no longer does: at
+    /// #1060 β-3's first commit <c>docx-irreducible-unattributed-experience</c> published it with
+    /// the entry COUNT right — six blocks in, six entries out — and the CV inflated because one
+    /// block naming no employer was promoted as an employment anyway, its organization fabricated
+    /// from the period line below it. β-3's second commit narrowed the segmenter fallback, so that
+    /// row now blocks and <b>no row in the current baseline publishes this verdict at all.</b>
+    /// <c>Decide</c> reaches it when promoted entries exceed <c>GroundTruthEmployments</c>, which
+    /// counts employer-ATTRIBUTED blocks — hence the summary line above. Read the row, not the
+    /// word: a term covering two mechanisms, only one of them ever observed, cannot tell you which
+    /// one you have.</para></summary>
     PromotedInflated,
 
     /// <summary>A gate blocked. Nothing was claimed and nothing was lost silently.</summary>

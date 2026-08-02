@@ -11,6 +11,35 @@ public sealed record EmploymentBlock(string Marker, string Role, string Period, 
 /// <c>EducationDto.Institution</c>).</summary>
 public sealed record EducationBlock(string Marker, string Degree, string Period);
 
+/// <summary>
+/// A block the document renders under the EXPERIENCE heading that names a role and a period but
+/// NO employer — freelance or self-directed work, which is a normal thing for a CV to say and not
+/// a parse defect (#1060 D3(β-3)).
+///
+/// <para><b>Deliberately not an <see cref="EmploymentBlock"/>, and it carries no marker.</b> That
+/// type's <c>Marker</c> is the EMPLOYER string, and it is the marker precisely because it is the
+/// field that survives the chain into <c>ExperienceDto.Company</c>. A block with no employer has
+/// no such field, so it cannot carry the oracle: an empty marker would make
+/// <c>text.Contains("")</c> true against every string <c>CvGroundTruth</c> compares, turning the
+/// whole corpus into an instrument failure. Making <c>Marker</c> nullable instead would reach
+/// further still — <c>GroundTruthEmployments</c> and <c>EmploymentMarkers</c> both DERIVE from
+/// that list, and "derived, never a literal" is the property that stops this corpus measuring its
+/// own constants.</para>
+///
+/// <para><b>It is therefore not an employment the parse lost.</b> It is a block that never
+/// carried the field the canonical type requires, so <see cref="CvModel.GroundTruthEmployments"/>
+/// stays <c>Employments.Count</c> and remains TRUE of the document: the file names that many
+/// employers. What this block adds is a SIXTH entry the segmenter will find and the Domain will
+/// refuse — which is the subject of the arm that renders it.</para>
+///
+/// <para><b>Its text is still checked by the oracle, not exempted from it.</b>
+/// <c>CvGroundTruth.Validate</c> folds <see cref="Role"/> and <see cref="Bullet"/> into the
+/// non-entry text every marker is compared against, so no employer or institution may be a
+/// substring of them. A block introduced without that check could make a genuinely dropped marker
+/// read as present.</para>
+/// </summary>
+public sealed record UnattributedBlock(string Role, string Period, string Bullet);
+
 /// <summary>The heading words a case renders. Swapping this record is what makes the English
 /// case the SAME renderer over a different vocabulary rather than a second renderer.</summary>
 public sealed record HeadingVocabulary(
@@ -44,8 +73,18 @@ public sealed record CvModel(
     IReadOnlyList<string> Languages,
     IReadOnlyList<string> ProjectLines,
     HeadingVocabulary Headings,
-    string? SyntheticPersonnummer = null)
+    string? SyntheticPersonnummer = null,
+    IReadOnlyList<UnattributedBlock>? UnattributedExperience = null)
 {
+    /// <summary>
+    /// Experience-section blocks that name no employer (#1060 D3(β-3)). Additive trailing
+    /// parameter defaulting to EMPTY, so every arm that renders <see cref="Swedish"/> unchanged
+    /// is untouched and <c>LayoutCaseCatalog.ValidateModelSymmetry</c> — which reads only the two
+    /// statics — never sees it. Only a <c>with</c>-derived variant behind one arm carries any.
+    /// </summary>
+    public IReadOnlyList<UnattributedBlock> UnattributedExperience { get; init; } =
+        UnattributedExperience ?? [];
+
     /// <summary>Ground truth, DERIVED. Never a literal.</summary>
     public int GroundTruthEmployments => Employments.Count;
 
@@ -108,6 +147,31 @@ public sealed record CvModel(
             Languages: "SPRÅK",
             KnownProjects: "PROJEKT",
             UnknownProjects: "PROJEKT (URVAL)"));
+
+    /// <summary>
+    /// The Swedish model plus ONE employer-less experience block (#1060 D3(β-3)). A
+    /// <c>with</c>-derived variant, so it reaches exactly the one arm that names it and no other:
+    /// <c>ValidateModelSymmetry</c> compares only <see cref="Swedish"/> and <see cref="English"/>
+    /// and never sees this, while <c>CvGroundTruth.Validate</c> runs per case and does.
+    ///
+    /// <para><b>Ground truth is unchanged and stays true.</b> <c>GroundTruthEmployments</c> is
+    /// still 5 — the document still names five employers — and this block is not a sixth. It is a
+    /// SIXTH ENTRY the segmenter will find and the Domain will refuse, which is a different fact
+    /// and the one the arm measures.</para>
+    ///
+    /// <para>The role text is deliberately distinct from every employer, institution, skill,
+    /// language and project line, because <c>CvGroundTruth</c> folds it into the text every marker
+    /// is compared against — a freelance line that contained "Sigma IT" would let a genuinely
+    /// dropped employer read as present.</para>
+    /// </summary>
+    public static CvModel SwedishWithUnattributedExperience { get; } = Swedish with
+    {
+        UnattributedExperience =
+        [
+            new("Frilansande systemutvecklare", "2026 - 2026",
+                "Uppdrag åt mindre uppdragsgivare utan fast anställningsförhållande."),
+        ],
+    };
 
     /// <summary>
     /// The English model. Same person, same cardinalities, same section set and — load-bearing for

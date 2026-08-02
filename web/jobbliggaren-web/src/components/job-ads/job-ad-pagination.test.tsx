@@ -130,4 +130,37 @@ describe("JobAdPagination", () => {
       screen.getByText("Sida 2 av 3 (45 träffar totalt)")
     ).toBeInTheDocument();
   });
+
+  // #1149 — the total is a CLAIM, and on the register surfaces `totalCount` saturates at a
+  // servable cap, so the word "totalt" turns a ceiling into a completeness statement. Both
+  // polarities are pinned: without the default case above, flipping the default to false would
+  // silently strip the true total from /jobb and nothing would fail.
+  it("omits the total when showTotalCount is false, keeping the page position", () => {
+    render(
+      <JobAdPagination
+        page={2}
+        pageSize={20}
+        totalCount={45}
+        buildHref={buildHref}
+        showTotalCount={false}
+      />
+    );
+
+    expect(screen.getByText("Sida 2 av 3")).toBeInTheDocument();
+    // The page count survives — it is a navigation quantity (how far you can go), and
+    // `TotalPages <= MaxPage` holds by construction. Only the total claim goes.
+    expect(screen.queryByText(/träffar totalt/)).toBeNull();
+  });
+
+  it("states the total by default, so a caller must opt OUT deliberately", () => {
+    render(
+      <JobAdPagination
+        page={1}
+        pageSize={20}
+        totalCount={45}
+        buildHref={buildHref}
+      />
+    );
+    expect(screen.getByText(/träffar totalt/)).toBeInTheDocument();
+  });
 });

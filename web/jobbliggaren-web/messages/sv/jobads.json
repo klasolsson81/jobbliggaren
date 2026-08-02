@@ -271,7 +271,8 @@
       "previous": "Föregående",
       "next": "Nästa",
       "pagePrefix": "Sida ",
-      "summary": "Sida {page} av {totalPages} ({totalCount} träffar totalt)"
+      "summary": "Sida {page} av {totalPages} ({totalCount} träffar totalt)",
+      "summaryPagesOnly": "Sida {page} av {totalPages}"
     },
     "modalShell": {
       "close": "Stäng"

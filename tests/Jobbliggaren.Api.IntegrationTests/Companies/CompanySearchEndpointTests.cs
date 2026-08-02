@@ -44,7 +44,11 @@ public class CompanySearchEndpointTests(ApiFactory factory)
         response.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
     }
 
-    /// <summary>Hoisted for CA1861 — a constant array argument in a repeatedly called method.</summary>
+    /// <summary>
+    /// The one axis that makes the request below a FILTERED search rather than a browse-all.
+    /// Hoisted because CA1861 fires on a constant array written inline at an argument position —
+    /// the analyzer does not ask how often the enclosing method runs, and this one runs once.
+    /// </summary>
     private static readonly string[] FilteredSniCodes = ["62010"];
 
     [Fact]
@@ -64,13 +68,8 @@ public class CompanySearchEndpointTests(ApiFactory factory)
         companies.GetProperty("items").ValueKind.ShouldBe(JsonValueKind.Array);
         companies.GetProperty("totalCount").ValueKind.ShouldBe(JsonValueKind.Number);
 
-        // NULL by contract, not by degradation (Klas 2026-08-01). Unfiltered, the only honest
-        // number is the whole active register — 743 654 rows — and the product ceiling can render
-        // that only as "10 000+", which understates it by two orders of magnitude while being
-        // technically true. The rule was: the exact number if it is free, otherwise NO number,
-        // never the saturated one. It is not free (an exact count is 26 ms with the visibility
-        // map set and 438 ms without it, and autovacuum has never run on this table), so the
-        // endpoint does not compute one. The headline is a plain heading here.
+        // NULL by contract, not by degradation — the ruling and the measurement behind it live in
+        // GetCompanySearchMagnitudeQueryHandler, which is where the browse-all policy is decided.
         //
         // Asserting the PROPERTY EXISTS and is null, rather than that it is absent: the wire
         // shape stays stable for the FE's schema, which declares it nullable rather than optional.

@@ -17,13 +17,20 @@ namespace Jobbliggaren.Application.CompanyRegister.Queries.GetCompanySearchMagni
 /// zero is an honest answer. Paging members are absent — a magnitude has no page. (Result is
 /// reserved for queries whose ErrorKind actually discriminates; here it never would.)
 /// </para>
+///
+/// <para>
+/// <b>NULL is a legal answer, and it is a product decision rather than a failure</b> — an
+/// unfiltered browse-all carries NO number at all. The handler owns that policy; see it for the
+/// measurement behind the ruling. Null and zero are different statements here: zero means "nothing
+/// matches", null means "we did not ask".
+/// </para>
 /// </summary>
 public sealed record GetCompanySearchMagnitudeQuery(
     IReadOnlyList<string?>? SniCodes,
     IReadOnlyList<string?>? MunicipalityCodes,
     string? Name,
     string? OrganizationNumber)
-    : IQuery<CompanySearchMagnitudeDto>, IAuthenticatedRequest
+    : IQuery<CompanySearchMagnitudeDto?>, IAuthenticatedRequest
 {
     /// <summary>REDACTED (#883) — same argument as <c>SearchCompaniesQuery.ToString</c>.</summary>
     public override string ToString() =>

@@ -19,11 +19,15 @@ interface ForetagSokResultsProps {
 
 /**
  * #560 PR-B — the async results region of `/foretag/sok`, Suspense-streamed under the page. Mirrors the
- * criterion-browse body (`bevakningar/[id]`): the honest magnitude headline ("10 000+" when saturated,
- * NEVER the pagination `totalCount`), a mandatory säteskommun explainer, the register table, pagination
- * that preserves the active filter, and the mandatory source attribution (DPIA C-D2/M-C4). An empty
- * filter browses the whole register (Klas bind: browse-all default); a zero-match filter shows the
- * empty state.
+ * criterion-browse body (`bevakningar/[id]`): an invariant section heading with the honest magnitude on
+ * its own line beneath ("10 000+" when saturated, and NEVER the pagination `totalCount`, which saturates
+ * at the servable cap), a mandatory säteskommun explainer, the register table, pagination that preserves
+ * the active filter, and the mandatory source attribution (DPIA C-D2/M-C4). An empty filter browses the
+ * whole register (Klas bind: browse-all default) and then carries NO number at all; a zero-match filter
+ * shows the empty state.
+ *
+ * #1149 — `magnitude === null` is the single thing that distinguishes browse-all from a search here: it
+ * decides the count line, the table's accessible name, and nothing else re-derives it.
  */
 export async function ForetagSokResults({
   namn,
@@ -57,14 +61,11 @@ export async function ForetagSokResults({
   }
 
   const { companies, magnitude } = result.data;
-  // NULL unfiltered, by contract — the backend skips the count there (see
-  // CompaniesEndpoints). The unfiltered headline is a plain heading: the only honest
-  // number for the whole register is 743 654, and the product ceiling can render it
-  // only as "10 000+". Klas ruled 2026-08-01: the exact number if free, otherwise no
-  // number — never the saturated one.
-  const magnitudeText = magnitude !== null ? formatMagnitude(format, magnitude) : null;
-  const hasFilter =
-    namn.length > 0 || sni.length > 0 || kommun.length > 0;
+  // NULL means an unfiltered browse-all, by contract — the ruling and the measurement behind it
+  // live in GetCompanySearchMagnitudeQueryHandler. It is the ONE thing this surface branches on:
+  // a second, local `hasFilter` derived from the URL axes would be a third answer to a question
+  // the backend already answered over the normalized criteria, and it could disagree with the
+  // number actually rendered.
   const filterState = { namn, sni, kommun };
 
   // #560 PR-C — follow-state overlay for the "Bevaka"-per-row affordance. A SEPARATE company_watches read
@@ -94,11 +95,22 @@ export async function ForetagSokResults({
         </div>
       ) : (
         <>
-          <h2 className="text-h2 text-text-primary tabular-nums">
-            {hasFilter && magnitudeText !== null
-              ? t("magnitudeHeadlineFiltered", { count: magnitudeText })
-              : t("magnitudeHeadlineAll")}
-          </h2>
+          {/* The heading is INVARIANT — it names the section, it does not report a number. It used
+              to be both, mutating between a label ("Företag i registret") and a statement ("1 234
+              företag matchar sökningen"), which is the stats-card-heading shape the copy rules
+              reject: a count belongs in its own line above the table, not inside the heading. */}
+          <h2 className="text-h2 text-text-primary">{t("resultsHeading")}</h2>
+
+          {/* The count, and only when there IS one. tabular-nums follows the digits (sans, never
+              mono — DESIGN.md forbids monospace for information-bearing figures). The number and
+              the noun are separate arguments because the magnitude renders as a STRING when it
+              saturates ("10 000+") while the plural has to select on the NUMBER. */}
+          {magnitude !== null && (
+            <p className="mt-1 text-body text-text-primary tabular-nums">
+              {formatMagnitude(format, magnitude)}{" "}
+              {t("resultsCountUnit", { count: magnitude.magnitude })}
+            </p>
+          )}
 
           {/* Mandatory säteskommun explainer + inline help (the kommun is the registered seat, not
               necessarily where the company operates). */}
@@ -117,9 +129,12 @@ export async function ForetagSokResults({
               reference={reference}
               followStateByOrgNr={followStateByOrgNr}
               // The shared table's DEFAULT accessible name says "matchar din bevakning" — false here.
-              // This surface answers a search; the labels name what the table actually is.
+              // This surface answers a search; the labels name what the table actually is. And on
+              // a browse-all there is no search either, so the name branches on the same null: a
+              // screen reader was otherwise told it was hearing search results on a view where
+              // nothing had been searched for.
               labels={{
-                tableAria: t("tableAria"),
+                tableAria: magnitude !== null ? t("tableAria") : t("tableAriaAll"),
                 tableCaption: t("tableCaption"),
               }}
             />
@@ -127,6 +142,11 @@ export async function ForetagSokResults({
               page={companies.page}
               pageSize={companies.pageSize}
               totalCount={companies.totalCount}
+              // UNCONDITIONALLY false: `totalCount` saturates at MaxServableRows here, so "träffar
+              // totalt" would state a ceiling as a total — measured 2000 against 743 654 active
+              // companies. Not branched on the filter, because even a filtered search under the cap
+              // must not put a second, differently-derived number beside the magnitude line.
+              showTotalCount={false}
               buildHref={(targetPage) => buildPageHref(filterState, targetPage)}
             />
           </div>

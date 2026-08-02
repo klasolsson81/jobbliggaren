@@ -84,34 +84,14 @@ public static class CompaniesEndpoints
                     body.Page, body.PageSize),
                 ct);
 
-            // The magnitude is computed ONLY for a filtered search, and the skip is the point
-            // rather than an optimisation. Unfiltered, the honest answer is the whole active
-            // register - 743 654 rows, measured 2026-08-01 - which the ceiling can only render as
-            // "10 000+", a number that understates the register by two orders of magnitude while
-            // being technically true. Klas ruled (2026-08-01): show the exact number if it is
-            // free, otherwise show NO number - never the saturated one.
-            //
-            // It is not free. An exact count is an index-only scan over ix_company_register_status:
-            // 26 ms with the visibility map set, but 438 ms without it, and `autovacuum_count` on
-            // this table is ZERO - it has never run, because the table is written by one periodic
-            // bulk job and the SCB refresher ANALYZEs but does not VACUUM. So the cheap case is
-            // not the case that persists, and the expensive one would land on every unfiltered
-            // page load.
-            //
-            // Skipping also removes the ~1 ms ceilinged count we DID pay for a headline that is
-            // now a plain heading, so the unfiltered path costs strictly less than before.
-            var hasFilter =
-                body.SniCodes is { Count: > 0 }
-                || body.MunicipalityCodes is { Count: > 0 }
-                || !string.IsNullOrWhiteSpace(body.Name)
-                || !string.IsNullOrWhiteSpace(body.OrganizationNumber);
-
-            var magnitude = hasFilter
-                ? await mediator.Send(
-                    new GetCompanySearchMagnitudeQuery(
-                        body.SniCodes, body.MunicipalityCodes, body.Name, body.OrganizationNumber),
-                    ct)
-                : null;
+            // NULL for an unfiltered browse-all — the handler owns that policy, over the
+            // NORMALIZED criteria, and carries the measurement behind it. The endpoint stays two
+            // unconditional sends: deciding here would re-derive "no axes" from raw request input,
+            // a second normalizer of a rule that already has one.
+            var magnitude = await mediator.Send(
+                new GetCompanySearchMagnitudeQuery(
+                    body.SniCodes, body.MunicipalityCodes, body.Name, body.OrganizationNumber),
+                ct);
 
             return Results.Ok(new CompanySearchResponse(page, magnitude));
         }).RequireRateLimiting(RateLimitingExtensions.CompanyBrowsePolicy);
@@ -145,8 +125,9 @@ public static class CompaniesEndpoints
     /// can never mistake the pagination count for the magnitude (the criterion-browse precedent).
     ///
     /// <para><see cref="Magnitude"/> is NULL for an unfiltered browse, and that is a contract, not
-    /// a degradation: the unfiltered headline carries no number at all (see the skip above). A
-    /// filtered search always carries one.</para>
+    /// a degradation: the unfiltered headline carries no number at all. A filtered search always
+    /// carries one. The ruling and its measurement live in
+    /// <c>GetCompanySearchMagnitudeQueryHandler</c>.</para>
     /// </summary>
     public sealed record CompanySearchResponse(
         PagedResult<CompanyBrowseDto> Companies,

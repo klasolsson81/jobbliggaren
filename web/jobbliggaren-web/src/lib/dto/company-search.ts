@@ -21,12 +21,13 @@ import {
 export const companySearchResponseSchema = z.object({
   companies: pagedResult(companyBrowseSchema),
   /**
-   * NULL for an UNFILTERED browse, by contract rather than by degradation: that headline
-   * carries no number at all. Unfiltered, the only honest number is the whole active register
-   * (743 654, measured 2026-08-01), and the product ceiling can render it only as "10 000+" —
-   * two orders of magnitude low while technically true. Klas ruled: the exact number if it is
-   * free, otherwise NO number, never the saturated one. It is not free, so the backend skips
-   * the count entirely rather than computing one nobody renders.
+   * NULL for an UNFILTERED browse, by contract rather than by degradation: that view carries no
+   * number at all, and the backend does not compute one. The ruling and the measurement behind it
+   * live in `GetCompanySearchMagnitudeQueryHandler` — one home, because the number it rests on
+   * changes on every SCB sync.
+   *
+   * `nullable()` rather than `optional()`: the key is always on the wire, so the shape does not
+   * vary with the filter. NULL and 0 are different answers — 0 means nothing matched.
    */
   magnitude: criterionMagnitudeSchema.nullable(),
 });

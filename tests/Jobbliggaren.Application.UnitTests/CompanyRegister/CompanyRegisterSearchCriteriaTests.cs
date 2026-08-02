@@ -295,6 +295,59 @@ public class CompanyRegisterSearchCriteriaTests
         result.Value.OrganizationNumber.ShouldBeNull();
     }
 
+    // ---- browse-all predicate -------------------------------------------------------------------
+
+    [Fact]
+    public void IsUnfiltered_NoAxes_IsTrue()
+    {
+        // The legal browse-all (CTO F1) — what /foretag/sok sends before the user types anything.
+        var result = CompanyRegisterSearchCriteria.Create(null, null, null, null, 1, 20);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.IsUnfiltered.ShouldBeTrue();
+    }
+
+    [Theory]
+    // One case per axis, because a predicate that forgets an axis is exactly the defect the
+    // endpoint's hand-rolled copy of this question could carry undetected: it would then call a
+    // filtered search a browse-all and drop its magnitude.
+    [InlineData("62010", null, null, null)]
+    [InlineData(null, "0180", null, null)]
+    [InlineData(null, null, "acme", null)]
+    [InlineData(null, null, null, "5560125790")]
+    public void IsUnfiltered_AnySingleAxisPresent_IsFalse(
+        string? sni, string? kommun, string? name, string? orgNr)
+    {
+        var result = CompanyRegisterSearchCriteria.Create(
+            sni is null ? null : [sni], kommun is null ? null : [kommun], name, orgNr, 1, 20);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.IsUnfiltered.ShouldBeFalse();
+    }
+
+    [Fact]
+    public void IsUnfiltered_ReadsTheNORMALIZEDAxes_NotTheRawInput()
+    {
+        // A blank name and an empty code array are what "no filter" looks like on the wire; Create
+        // folds both to an absent axis, and the predicate must agree with the WHERE clause that
+        // gets built rather than with what the caller happened to send. This is the whole reason
+        // the question lives here and not on raw request input.
+        var result = CompanyRegisterSearchCriteria.Create([], [], "   ", "  ", 1, 20);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.IsUnfiltered.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void IsUnfiltered_IgnoresPaging()
+    {
+        // Page 7 of a browse-all is still a browse-all — paging is not an axis.
+        var result = CompanyRegisterSearchCriteria.Create(null, null, null, null, 7, 100);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.IsUnfiltered.ShouldBeTrue();
+    }
+
     // ---- derived caps + redaction --------------------------------------------------------------
 
     [Fact]

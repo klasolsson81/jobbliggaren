@@ -143,6 +143,20 @@ public sealed record CompanyRegisterSearchCriteria
     public int PageSize { get; }
 
     /// <summary>
+    /// TRUE when no axis filters — the legal browse-all this type's summary already names (CTO F1).
+    /// THE authority for that question, for the same reason <see cref="Create"/> is the authority
+    /// for normalization: asked over the NORMALIZED axes, it cannot disagree with what the query
+    /// actually filters on, whereas a caller re-deriving it from raw request input is a second
+    /// normalizer of "empty axis" — and a rule with two normalizers is two rules. Paging is
+    /// deliberately not part of it: page 7 of a browse-all is still a browse-all.
+    /// </summary>
+    public bool IsUnfiltered =>
+        SniCodes.Count == 0
+        && MunicipalityCodes.Count == 0
+        && NamePrefix is null
+        && OrganizationNumber is null;
+
+    /// <summary>
     /// The most rows this surface can EVER serve — the pagination count's cap
     /// (<c>LIMIT MaxPage × pageSize</c>). Derived, never hand-picked: the page cap and the count
     /// cap are one knowledge piece (see <c>CompanyBrowseCriteria.MaxServableRows</c> for the full

@@ -81,7 +81,7 @@ public sealed class LayoutCorpusReportTests
     /// carrying a pre-B provenance string — a claim true of the run that first produced the file
     /// and false of the one that last wrote it. Corrected 2026-07-28 to this branch's base.</para>
     /// </summary>
-    private const string BaseCommit = "a5ca961f";
+    private const string BaseCommit = "69b2f87a";
 
     [Fact]
     public async Task LayoutCorpus_FromBytes_EmitsReport()
@@ -179,14 +179,24 @@ public sealed class LayoutCorpusReportTests
         // to read" is not a guard (CTO-bind 2026-08-01, Decision 1).
         //
         // THE OTHER DIRECTION, and it is no longer a forecast: #1060 β-1 was the day. The
-        // docx-label-first rows promote now, so no case in the corpus blocks on IncompleteContent
-        // and no row carries a Domain code.
+        // docx-label-first rows promoted, and for the whole of β-1 and β-2 no case in the corpus
+        // blocked on IncompleteContent and no row carried a Domain code.
         //
-        // The prediction was ALMOST right and the difference is worth keeping. (e) did NOT go
-        // wholly vacuous: rows 16 and 17 still block on personnummer, so a LeftPending is still
-        // logged, ReadBlockDetail still runs, and the property-name contract this assert exists for
-        // is still exercised. What went unmeasured is the CODE-BEARING half — no row produces a
-        // DomainErrorCode any more, so a regression in that propagation would move nothing here.
+        // SINCE #1060 β-3 ONE ROW DOES AGAIN: docx-irreducible-unattributed-experience blocks on
+        // IncompleteContent and publishes Resume.ExperienceCompanyRequired. Written in the past
+        // tense above because the sentence was true when written and this file is the record of
+        // what was measured when — but a reader at HEAD must not take it for the present.
+        //
+        // WHAT THAT DOES AND DOES NOT RESTORE, because the distinction is the whole point of this
+        // assert. It restores the Domain-code COLUMN, and therefore the tracked baseline: a
+        // regression in that propagation now moves a published cell. It does NOT re-arm THIS
+        // assert, whose red condition is READABILITY (BlockDetailUnreadable), and whose two causes
+        // were already exercised by rows 16 and 17. There is exactly one LogLeftPending call site,
+        // so a code-bearing row arms no second placeholder — a regression sending null or a
+        // non-string in BlockDetail still yields matches.Count == 1, Unreadable false, and this
+        // assert green. The earlier revision said a code-bearing row would fix "here"; it fixes
+        // the column, one file over.
+        //
         // §0's "none" still reads the same for "everything was readable" and "there was nothing to
         // read", and inventing a floor on how many cases must block would be the §2.5 ratchet this
         // suite may not make for itself. Accepted, and the emitter half stays pinned separately by

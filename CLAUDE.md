@@ -27,6 +27,10 @@ substitute for reading the files); verify HEAD via `git log --oneline -8`;
 confirm the session-start hook ran. **Then confirm the session's task is the
 right next step per the tracker before starting work — if the prompt diverges
 from the tracker, flag it to Klas** rather than silently following either.
+**Tracker and `mvp` answer different halves:** `steg-tracker.md` holds the strategic
+sequence (what comes after what), the **`mvp` label holds the in-scope subset** (what is
+on the path to real users at all — §6.5). Neither overrides the other; a task should
+clear both, and where they disagree that is the thing to flag.
 **During:** track multi-step work with TodoWrite; mark todos completed only
 when verified; ask Klas before deviating from the planned step.
 **After each STEG (not only session end):** sync `docs/current-work.md`,
@@ -386,9 +390,44 @@ worktrees. The rules below keep parallel work collision-free; full playbook in
   worktree — the stack-owner injects them at runtime via env override
   (`ConnectionStrings__Postgres` from `.env`) so its worktree runs the real
   stack without committing or copying secrets.
-- **Backlog = GitHub Issues** (`area:`/`hotspot:`/`P0`–`P3`/lane `BE`·`FE`·
-  `BE+FE`/`wip`·`blocked`·`next-up` labels); `steg-tracker.md` is the strategic
-  map. **Claim-on-pickup:** the moment you start an issue, assign yourself + add
+- **Backlog = GitHub Issues** (`area:`/`hotspot:`/**`mvp`**/`P0`–`P3`/lane `BE`·`FE`·
+  `BE+FE`/`wip`·`blocked` labels; `next-up` is on zero open issues as of 2026-08-02 and
+  `mvp` replaced it in practice); `steg-tracker.md` is the strategic
+  map.
+
+  **`mvp` is the label you pick work from, and it is a second axis, not a fourth
+  priority.** Klas-direktiv 2026-08-02: a couple of real test users on
+  `jobbliggaren.se` **within a month of that date**. An issue earns `mvp` when **a real
+  test user meets it, or it blocks going live** — that is the criterion, and **the second
+  clause is doing real work**: measured 2026-08-02, 11 of 21 labelled issues carry
+  `area:infra`/`area:auth` and no product-surface `area:` — the deploy stack (#196),
+  backup (#197), key rotation (#198), the log sink (#1175). *(Area is a **proxy** for
+  which clause applies, not an adjudicator: #1171 is `area:auth` and is a clause-1 case —
+  a user meets a missing password reset — while #853 and #1033 are `area:docs` and are
+  clause-2.)* Ties resolve toward labelling: a mis-labelled issue costs one backlog row,
+  a mis-skipped user-facing defect ships.
+
+  On the product side, *"a real test user meets it"* resolves to the **core features**
+  Klas named: `/jobb` · `/ansokningar` · `/foretag` · the **smart watches** (industry +
+  municipality) on the company page · `/cv/granska`. *(The CV **builder** is paused, so
+  builder FEATURES are not MVP — but a builder-adjacent defect a user still meets is,
+  e.g. #1061, where `/cv` offers entry points into the paused builder.)*
+
+  **`P0`–`P3` grades severity and urgency; `mvp` says whether the item is in scope for
+  reaching real users.** They are different questions and they cross — measured
+  2026-08-02: three `mvp` issues are `P3` and eight non-`mvp` issues are `P2`. An
+  ordinal scale cannot carry two orthogonal axes, and overloading `P0` to mean MVP
+  would destroy the severity information on nearly every open issue (55 of 58 carry a
+  `P`, measured 2026-08-02). *(Klas put it
+  both as "kärnfunktion slår prio-siffra" and "MVP-kritiskt = hög prio"; these agree in
+  practice — no non-`mvp` issue carries `P0`/`P1` — but the two-axis split is how the
+  spec resolves them, not a quote.)*
+
+  **Read it as: `mvp` = in scope now; no `mvp` = skippable.** In scope is not the same
+  as unblocked — `mvp` may coexist with `blocked`, and §9's hotspot/migration rules
+  still gate pickup.
+
+  **Claim-on-pickup:** the moment you start an issue, assign yourself + add
   `wip` so no other CC duplicates it (lighter coordination model, playbook §9 —
   soft lane affinity + claim signal, not hard per-CC ownership). A PR-babysitter
   runs via cloud `/schedule` on PR events (rebase + `automerge`); it **must never
@@ -561,6 +600,9 @@ order. (Praise is not a finding and routes nowhere.) Then:
   parallel CCs**, not issue inflation, so an issue no other CC would need to see may be
   skipped — but the skip is **named in the PR body**, one line, with what makes it
   invisible to a peer lane. An unnamed skip is not an exception; it is an omission.
+  **Label it as you file it** — `area:`, a `P0`–`P3`, a lane, and **`mvp` if a real
+  test user meets it or it blocks going live** (§6.5). An unlabelled
+  issue is filed into the same invisibility the TD register was retired for.
 - When it is genuinely ambiguous, **senior-cto-advisor decides**.
 - **Never** re-create `docs/tech-debt.md`, a `TD-NNN` identifier, or a
   Severity × Fas matrix. If the register looks like it is missing something, it is not

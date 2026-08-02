@@ -38,7 +38,7 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
 - [ ] **Inga öppna Klas-STOPP-flaggor** i `docs/current-work.md`.
 - [ ] **Öppna issues märkta `P0`/`P1`/`mvp` mot release-scope** genomgångna (GitHub Issues)
       — varje launch-blocker löst eller medvetet deferrad med motiv. Issues märkta
-      `mvp` är de som krävs för riktiga användare. (TD-registret retirerades
+      `mvp` är de som krävs för riktiga användare (etikettens regel: CLAUDE.md §6.5). (TD-registret retirerades
       2026-08-02, ADR 0121; parkerade poster ligger i #1172.)
 - [ ] **Migrations** — om EF Core-migration ingår: verifiera schema-mode-
       dispatch (ADR 0033) och DB-roll-separation (ADR 0034); Identity-schema-

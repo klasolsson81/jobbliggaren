@@ -26,12 +26,12 @@
 | Smart enum | Ardalis.SmartEnum | 8.x | State machines i domänen |
 | Logging | Microsoft.Extensions.Logging | 10.x | `Microsoft.Extensions.Logging.Console` → stdout + persistent strukturerad sink via Seq (TD-104, STEG 6) |
 | Log sink | Seq.Extensions.Logging | 9.0.0 | MEL-provider → Seq (datalust); config-gated på `Seq:ServerUrl`; net9-asset .NET 10-kompatibel (MEL `>= 9` unifieras uppåt); dev lokal Seq, prod Seq self-hosted EU (TD-104, ADR 0050) |
-| Observability | OpenTelemetry | 1.15+ | Traces + metrics |
+| Observability | OpenTelemetry | 1.15+ | Traces + metrics. **Beroende-kandidat, ej implementerad** — ingen `PackageReference` i något `.csproj`, ingen användning i `src/`; exporter/backend definieras med observability-sinken (§14.2, TD-104). `Directory.Packages.props` innehåller `OpenTelemetry.Api` + `.Exporter.OpenTelemetryProtocol` som **transitiva CVE-pins för WireMock.Net** (posternas egen kommentar), inte som en observability-implementation |
 | PDF parsing | PdfPig | 0.1.14+ | Text extraction |
 | DOCX parsing | DocumentFormat.OpenXml | 3.x | Microsoft-underhåll |
 | PDF generation | QuestPDF | 2026.6.0 | Community (source-available, free under USD 1M revenue, non-copyleft — ADR 0050-safe; not OSI-MIT); `QuestPDF.Settings.License = LicenseType.Community` i startup |
 | DOCX generation | DocumentFormat.OpenXml | 3.x | Template-baserad |
-| NLP (svenska) | Catalyst (+ Catalyst.Models.Swedish) | 26.x (CalVer) | MIT; lokal svensk NLP — tokenisering, lemmatisering, POS, NER (deterministisk CV-/matchnings-motor, ADR 0071 Beslut 6); svensk modell = separat MIT-datapaket |
+| NLP (svenska) | Catalyst (+ Catalyst.Models.Swedish) | 26.x (CalVer) | MIT; lokal svensk NLP — tokenisering, lemmatisering, POS, NER (deterministisk CV-/matchnings-motor, ADR 0071 Beslut 6); svensk modell = separat MIT-datapaket. **Beroende-kandidat, ej implementerad** — `Jobbliggaren.Infrastructure.csproj` säger "Catalyst medvetet UTE (OQ1)"; inlåst som kandidat 2026-06-14, ej bindande för v1 (se NLP-notisen under tabellen) |
 | Stemmer (svenska) | libstemmer.net | 2.2.x | MIT-wrapper; Snowball-kärna BSD-3-Clause; svensk Snowball-stemmer |
 | Stavning | WeCantSpell.Hunspell | 7.x | Hunspell-port — tri-licens **MPL 1.1 / GPL 2.0 / LGPL 2.1**; licensval MPL 1.1 (LGPL 2.1 fallback), aldrig GPL; server-side + oförändrad binär → ingen copyleft på produkten (se §3.1-notis) |
 | Svensk ordlista | sv_SE Hunspell-ordlista (DSSO) | datafil | **LGPL-3.0** — oförändrad separat datafil, ej statiskt länkad/inbäddad/modifierad → copyleft smittar ej produkten (se §3.1-notis) |
@@ -49,11 +49,11 @@
 | Språk (frontend) | TypeScript | 6.0 | Strict mode |
 | UI-komponenter | shadcn/ui | senaste (CLI v4) | Tung customisering, se DESIGN.md |
 | Styling | Tailwind CSS | 4.2 | v4 config i `tailwind.config.ts` |
-| Data fetching | TanStack Query | 5.x | Server state |
-| Tabeller | TanStack Table | 8.x | Headless |
+| Data fetching | Server Actions + RSC | – | **TanStack Query finns inte i `package.json` och har aldrig installerats** (ingen `QueryClientProvider`-infra). Klient-mutationer går via Server Actions, med `useTransition` för pending-tillstånd och `useOptimistic` där optimistisk rendering behövs; kortlivade läsningar via self-contained debounce-hook + `AbortController` — ADR 0042 Beslut C (impl-notat) avvisade TanStack Query för den ytan. Truth-sync #TRUTHSYNC |
+| Tabeller | Handrullad semantisk `<table>` | – | **TanStack Table finns inte i `package.json` och har aldrig installerats**; det finns ingen `src/components/ui/table.tsx`. Ingen formell avvisning — mönstret är oanvänt, inte omprövat. Truth-sync #TRUTHSYNC |
 | Form | React Hook Form + Zod | RHF ^7.72, Zod 4.x | Schema-baserad validering |
 | Auth-klient | Egen cookie-baserad klient (ADR 0017) | – | NextAuth.js/Auth.js AVVISADES och finns inte i `package.json`; backend utfärdar ingen JWT — bäraren är ett opakt session-id (§11.2). Truth-sync #569/#827 |
-| Datum | date-fns | 4.x | Svensk locale |
+| Datum/tal | `@/lib/i18n/format` + `@/lib/i18n/relative-time` | – | **date-fns finns inte i `package.json` och har aldrig installerats.** Aktiv locale resolvas per request ur `NEXT_LOCALE`-cookien, vilket kräver next-intls formaterare — rena funktioner som tar `useFormatter()`/`await getFormatter()` som parameter (CTO 2026-06-25, Variant B). Truth-sync #TRUTHSYNC |
 | Ikoner | Lucide React | ^1.8 | Minimalistiskt, civic-vänligt |
 | Typografi | Source Sans 3 | Google Fonts | Primär (next/font/google, byte från Hanken Grotesk — ADR 0091 / #549 WS4); systemfont-fallback. JetBrains Mono för kod |
 
@@ -1097,15 +1097,15 @@ public enum CriterionVerdict { Pass, Warn, Fail, NotAssessed }
 ### 10.2 Data fetching-mönster
 
 - Server components för initial rendering (paginerade listor, detaljvyer)
-- TanStack Query för mutation-heavy UI (statusändringar, notes)
+- Server Actions för mutation-heavy UI (statusändringar, notes) — `useTransition` för pending-tillstånd (§3.1: TanStack Query är inte installerad)
 - Form state: React Hook Form + Zod schema
 - Optimistic updates för statustransitions
 - Skeleton/progressiv rendering för CV-granskning och mall-rendering (deterministiskt, inget LLM-streaming)
 
 ### 10.3 State management
 
-- Ingen global store — server state via TanStack Query, local UI state via useState/useReducer
-- Auth state via Auth.js session context
+- Ingen global store — server state via RSC + Server Actions (revalidering på servern), local UI state via useState/useReducer
+- Auth state via egen cookie-baserad klient (ADR 0017) — Auth.js finns inte i `package.json` (§3.1)
 - Command palette (⌘K) med custom hook, knappas via shadcn-kommandokomponent
 
 ### 10.4 Sökupplevelse (jobb)

@@ -177,8 +177,12 @@ signal available is a discipline miss.
 - Files: components `PascalCase.tsx` (one export); hooks `useCamelCase.ts`;
   types in `types.ts` per folder; tests co-located (`Button.test.tsx`).
 - Data: Server Components by default; `"use client"` only where interactivity
-  requires it; TanStack Query for client mutations/polling; React Hook Form +
-  Zod for forms — never loose `useState` for large forms.
+  requires it; **Server Actions for client mutations** (`useTransition` for
+  pending state, `useOptimistic` where optimistic rendering is wanted) — TanStack
+  Query is not in `package.json` and never was, so do not reach for it (BUILD.md
+  §3.1); short-lived reads use a self-contained debounce hook + `AbortController`
+  (ADR 0042 Beslut C). React Hook Form + Zod for forms — never loose `useState`
+  for large forms.
 - Naming: routes = Swedish nouns (`/ansokningar`, `/jobb`); components =
   English PascalCase; UI copy Swedish, code English.
 

@@ -313,8 +313,10 @@ public class ResumeEntryBuildabilityTests
     /// from the parse, structured dates honestly absent, no description (the mapper always emits
     /// null) and the verbatim period on <c>RawPeriod</c>. Nothing else here asserts that
     /// combination — the bound tests set <c>RawPeriod</c> at exactly 100 and the date tests never
-    /// set it at all — so without this, a new RULE here that rejected an entry with no structured
-    /// dates and no description would move no test in this file.
+    /// set it at all — so without this, a new rule IN THE EXPERIENCE READER that rejected an entry
+    /// with no structured dates and no description would move no test in this file. (The
+    /// education half is weaker and says so: <c>Validate_EducationAtEveryBound_ReturnsSuccess</c>
+    /// already carries null dates, and Education has no Description at all.)
     ///
     /// <para>Deliberately not the other direction: this test hand-builds the shape rather than
     /// calling <c>AutoPromoteContentMapper</c>, so a change to the PROJECTION cannot reach it. The
@@ -337,20 +339,23 @@ public class ResumeEntryBuildabilityTests
     /// What the aggregate does with the reader's answer: it returns the WHOLE
     /// <see cref="DomainError"/> verbatim — code, Swedish message and <see cref="ErrorKind"/> —
     /// rather than re-wrapping it in one of its own. <c>DomainError</c> is a sealed record, so one
-    /// structural comparison pins that propagation with no hardcoded Swedish. Every other
-    /// assertion in the repo reads <c>.Error.Code</c>, so a <c>ValidateContent</c> that preserved
-    /// the code and substituted the message — <c>DomainError.Validation(err.Code, "Ogiltigt
-    /// innehåll.")</c> — would move nothing else. This is that one guard.
+    /// structural comparison pins that propagation with no hardcoded Swedish. No test anywhere
+    /// asserts one of these per-entry messages (measured), so a <c>ValidateContent</c> that
+    /// preserved the code and substituted the message — <c>DomainError.Validation(err.Code,
+    /// "Ogiltigt innehåll.")</c> — would move nothing else. This is that one guard.
     ///
-    /// <para><b>What it does NOT do, precisely.</b> It cannot detect a REWORDED message or a
-    /// factory swapped from <c>Validation</c> to <c>Conflict</c>: <c>ValidateContent</c> returns
-    /// this reader's own <c>Result</c>, so both sides of the comparison read the same literals and
-    /// such a change moves them together. That guarantee was claimed here once and is WITHDRAWN.
-    /// The <see cref="ErrorKind"/> assertion below is the part that pins a value — a typed enum
-    /// rather than a Swedish literal — and it is what makes the 400 in
-    /// <c>DomainError.ToProblemResult()</c> an assertion rather than an assumption. The MESSAGE
-    /// stays deliberately unpinned: it is user-facing copy (CLAUDE.md §10) and a literal here
-    /// would be the localization-fragile assertion §5 warns against.</para>
+    /// <para><b>What the COMPARISON does not do, precisely.</b> It cannot detect a reworded
+    /// message, nor on its own a factory swapped from <c>Validation</c> to <c>Conflict</c>:
+    /// <c>ValidateContent</c> returns this reader's own <c>Result</c>, so both sides read the same
+    /// literals and move together. That guarantee was claimed for the comparison and is WITHDRAWN.
+    /// The <see cref="ErrorKind"/> assertion below recovers the factory half — it pins
+    /// <c>Kind</c> as a VALUE, so swapping THIS arm's factory reddens even though the comparison
+    /// stays green. It is one arm of thirteen: a swap on any other still moves nothing. And it
+    /// pins the <c>Kind</c> the central mapper reads for 400, not the 400 itself — no test in the
+    /// repo pins <c>ErrorKind.Validation ⇒ 400</c>, so that step is still read from the source.
+    /// The MESSAGE stays deliberately unpinned: it is user-facing copy (CLAUDE.md §10) and a
+    /// literal here would be the localization-fragile assertion §5 warns against — and it would
+    /// not catch the rewording anyway, for the reason above.</para>
     ///
     /// <para>It also catches DRIFT, not duplication: an identical second copy inside
     /// <c>ValidateContent</c> stays green here. Only the mutation falsifier distinguishes one home

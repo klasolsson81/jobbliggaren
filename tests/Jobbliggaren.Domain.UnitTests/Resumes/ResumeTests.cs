@@ -708,11 +708,14 @@ public class ResumeTests
     /// <c>ParseExperiences</c> and <c>ParseEducations</c>, so one document can present both kinds
     /// unbuildable at once.</para>
     ///
-    /// <para><b>NOT corpus rows 18/19/20.</b> They block on <c>ExperienceRoleRequired</c> — the
-    /// OPPOSITE slot: there the fused role-and-company line went whole into Organization and Role
-    /// came back null. An earlier revision of this comment cited them anyway, which the committed
-    /// baseline already carries a correction against under the heading "true of its evidence and
-    /// wrong about its subject".</para>
+    /// <para><b>NOT corpus rows 18/19/20.</b> They BLOCKED on <c>ExperienceRoleRequired</c>
+    /// BEFORE β-1 — the OPPOSITE slot: the fused role-and-company line went whole into
+    /// Organization and Role came back null. Since β-1 they do not block at all: rows 18/19
+    /// promote lossily and row 20 faithfully, and no corpus row carries a Domain code any more.
+    /// Two revisions of this sentence have been wrong in opposite directions — one cited those
+    /// rows as this shape's producer, and the repair then dropped the tense qualifier the version
+    /// before it had carried. The baseline holds both facts ten lines apart: its SECOND
+    /// CORRECTION is the one about the slot, its THIRD the one about the blocking.</para>
     /// </summary>
     [Fact]
     public void UpdateMasterContent_WithBothKindsUnbuildable_ReportsTheExperienceFirst()
@@ -742,16 +745,21 @@ public class ResumeTests
     ///
     /// <para>What this adds over the direct at-bound tests: those prove the READER admits the
     /// value. This proves the AGGREGATE adds no second, stricter home of its own on top of the
-    /// call — an inline <c>RawPeriod is { Length: > 50 }</c> beside the loop would leave every
-    /// direct test green and redden only this one. The five label/prose caps already had that
-    /// guard via their <c>…AtMaxLength_ReturnsSuccess</c> tests; these two did not
-    /// (#1060 D3(β-2), review round 2).</para>
+    /// call — an inline <c>RawPeriod is { Length: > 50 }</c> beside the loop, returning that arm's
+    /// own code, would leave every test in <c>ResumeEntryBuildabilityTests</c> green and redden
+    /// this one. (Not a register cell, and "only" is deliberately not claimed: the two
+    /// 101-character tests in <c>HonestDateAbsenceTests</c> stay green under that shape because
+    /// they assert the same code, but a differently-placed inline home could redden them too.)
+    /// The five label/prose caps already had that guard via their
+    /// <c>…AtMaxLength_ReturnsSuccess</c> tests; these two did not (#1060 D3(β-2), round 2).</para>
     ///
-    /// <para>Premise (CLAUDE.md §5): the 100-character RawPeriod is
+    /// <para>Premise (CLAUDE.md §5): the 100-character RawPeriod value is
     /// <c>AutoPromoteContentMapper</c>'s untruncated <c>RawPeriod: e.Period</c> — "an over-long
     /// period is for the buildability gate to reject, not for this projection to silently
-    /// shorten". The equal date pair and the labels come from the write path, whose validators cap
-    /// only the name and summary fields and never reach <c>Content.Experiences</c>.</para>
+    /// shorten" — so the VALUE is one production emits. The COMBINATION with structured dates
+    /// comes from the write path alone, since that mapper always nulls both; and that path's
+    /// validators cap only the name and summary fields and never reach
+    /// <c>Content.Experiences</c>.</para>
     /// </summary>
     [Fact]
     public void UpdateMasterContent_WithEntriesAtTheRawPeriodCapAndEqualDates_ReturnsSuccess()

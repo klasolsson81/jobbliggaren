@@ -752,7 +752,9 @@ public sealed class Resume : AggregateRoot<ResumeId>
         // (CLAUDE.md §2.2). The falsifier is the layout corpus, and its subject is MEASURED
         // VALUES rather than the file: no row, verdict, entry count, marker verdict or
         // gate-ladder cell moves. β-2's own baseline diff was NOT empty: it carries ONE of this
-        // PR's repaired homes of that claim (§5's glossary) plus a stale BaseCommit bump — so the
+        // PR's repaired homes of that claim (the baseline's §5 gate-ladder glossary — that file's
+        // §5, not CLAUDE.md's, which is what §5 means everywhere else in this file) plus a stale
+        // BaseCommit bump — so the
         // proof is strip-those-two-regions-by-content-and-compare, not an empty diff. (No count
         // of the homes here: the first revision of this sentence said "four", which was a fact
         // about the PR rather than about the baseline diff, and went stale in the very commit

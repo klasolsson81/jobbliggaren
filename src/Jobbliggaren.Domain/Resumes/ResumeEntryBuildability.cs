@@ -67,10 +67,11 @@ namespace Jobbliggaren.Domain.Resumes;
 /// mapper. Contrast <see cref="ResumeContentLinearizer.Linearize"/>, same folder and same
 /// <c>public static</c> shape, which DOES <c>ArgumentNullException.ThrowIfNull</c>: it is the
 /// entry point of a cross-layer API reached from outer layers, and that is the difference — not
-/// a house style this file quietly departs from. <b>When a caller outside the Domain passes a
-/// list an outer layer built, the exposure profile becomes <c>Linearize</c>'s and the guard
-/// belongs here too — <c>ArgumentNullException.ThrowIfNull</c>, never a <c>Result</c> failure: a
-/// null element is a programming error, not a content-validity fact.</b> An earlier revision
+/// a house style this file quietly departs from. <b>When a caller outside the Domain passes an
+/// ENTRY from a list an outer layer built, the exposure profile becomes <c>Linearize</c>'s and
+/// the guard belongs here too — <c>ArgumentNullException.ThrowIfNull(experience)</c> on the
+/// parameter itself, never a <c>Result</c> failure: a null entry is a programming error, not a
+/// content-validity fact.</b> An earlier revision
 /// argued the absence from behaviour preservation instead; that reasoning was withdrawn because
 /// the falsifier it appealed to — the layout corpus — never passes a null entry and therefore
 /// cannot measure the question either way.</para>

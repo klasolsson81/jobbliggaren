@@ -27,6 +27,10 @@ substitute for reading the files); verify HEAD via `git log --oneline -8`;
 confirm the session-start hook ran. **Then confirm the session's task is the
 right next step per the tracker before starting work — if the prompt diverges
 from the tracker, flag it to Klas** rather than silently following either.
+**Tracker and `mvp` answer different halves:** `steg-tracker.md` holds the strategic
+sequence (what comes after what), the **`mvp` label holds the in-scope subset** (what is
+on the path to real users at all — §6.5). Neither overrides the other; a task should
+clear both, and where they disagree that is the thing to flag.
 **During:** track multi-step work with TodoWrite; mark todos completed only
 when verified; ask Klas before deviating from the planned step.
 **After each STEG (not only session end):** sync `docs/current-work.md`,
@@ -390,20 +394,33 @@ worktrees. The rules below keep parallel work collision-free; full playbook in
   `BE+FE`/`wip`·`blocked`·`next-up` labels); `steg-tracker.md` is the strategic
   map.
 
-  **`mvp` is the label that decides what you take, and it is a second axis, not a
-  fourth priority.** Klas-direktiv 2026-08-02: the goal is a couple of real test users
-  on `jobbliggaren.se` within a month, and **core feature beats priority number** —
-  the core features being job ads, Mina ansökningar, Företag, the smart branch
-  watches on the company page, and **CV review**. *(The CV **builder** is paused and is
-  not MVP.)* `P0`–`P3` grades severity and urgency; `mvp` answers a different
-  question — *is this on the path to real users?* An ordinal scale cannot carry two
-  orthogonal axes, and overloading `P0` to mean MVP would destroy the severity
-  information already on every open issue.
+  **`mvp` is the label you pick work from, and it is a second axis, not a fourth
+  priority.** Klas-direktiv 2026-08-02: a couple of real test users on
+  `jobbliggaren.se` **within a month of that date**. An issue earns `mvp` when **a real
+  test user meets it, or it blocks going live** — that is the criterion, and the second
+  clause carries most of the set (measured 2026-08-02: 11 of 21 are `area:infra` or
+  `area:auth` — the deploy stack, backup, key rotation, the log sink, password reset).
+  Ties resolve toward labelling: a mis-labelled issue costs one backlog row, a
+  mis-skipped user-facing defect ships.
 
-  **Read it as: `mvp` = takeable now; no `mvp` = skippable.** An issue earns `mvp`
-  when a real test user meets it within the month, or it blocks going live. Ties
-  resolve toward labelling — a mis-labelled issue costs one row, a mis-skipped
-  user-facing defect ships. Anything else stays visible but out of the way.
+  On the product side, *"a real test user meets it"* resolves to the **core features**
+  Klas named: `/jobb` · `/ansokningar` · `/foretag` · the **smart watches** (industry +
+  municipality) on the company page · `/cv/granska`. *(The CV **builder** is paused, so
+  builder FEATURES are not MVP — but a builder-adjacent defect a user still meets is,
+  e.g. #1061, where `/cv` offers entry points into the paused builder.)*
+
+  **`P0`–`P3` grades severity and urgency; `mvp` says whether the item is in scope for
+  reaching real users.** They are different questions and they cross — measured
+  2026-08-02: three `mvp` issues are `P3` and eight non-`mvp` issues are `P2`. An
+  ordinal scale cannot carry two orthogonal axes, and overloading `P0` to mean MVP
+  would destroy the severity information already on every open issue. *(Klas put it
+  both as "kärnfunktion slår prio-siffra" and "MVP-kritiskt = hög prio"; these agree in
+  practice — no non-`mvp` issue carries `P0`/`P1` — but the two-axis split is how the
+  spec resolves them, not a quote.)*
+
+  **Read it as: `mvp` = in scope now; no `mvp` = skippable.** In scope is not the same
+  as unblocked — `mvp` may coexist with `blocked`, and §9's hotspot/migration rules
+  still gate pickup.
 
   **Claim-on-pickup:** the moment you start an issue, assign yourself + add
   `wip` so no other CC duplicates it (lighter coordination model, playbook §9 —

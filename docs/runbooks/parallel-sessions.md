@@ -422,20 +422,21 @@ Labels: `area:{matching,applications,jobads-cv,auth,landing,frontend,infra,docs}
 `hotspot:{ef-migration,di,i18n}`, **`mvp`**, `P0`–`P3`, lane `{BE,FE,BE+FE}`, and the
 coordination set `{wip, blocked, next-up}` (2026-06-28).
 
-**`mvp` is the label you pick work from** (2026-08-02, CLAUDE.md §6.5). It is a second
-axis, not a fourth priority: `P0`–`P3` grades severity, `mvp` answers *is this on the
-path to real test users on `jobbliggaren.se`?* — and Klas-direktiv 2026-08-02 says core
-feature beats priority number. `gh issue list --label mvp` is the takeable set; an issue
-without it is skippable. Label it **when you file it**, not later.
+**`mvp` is the label you pick work from** — the rule and its reasoning live in
+[`CLAUDE.md` §6.5](../../CLAUDE.md) and are not restated here. `gh issue list --label mvp`
+is the in-scope set. **Label an issue when you file it**, not later.
 
-**There is no TD register.** It was retired 2026-08-02 (ADR 0121, PR #1173) because both
-its files were gitignored and therefore unreadable to every parallel session they were
-written for. Never raise a TD, a `TD-NNN`, or a Severity × Fas matrix; parked entries
-from the old register live inline in #1172.
+**There is no TD register** (retired 2026-08-02, ADR 0121, PR #1173 — CLAUDE.md §1.6
+carries why). Never raise a TD, a `TD-NNN`, or a Severity × Fas matrix; parked entries
+live inline in #1172.
 
 ### Issue template
 
 ```markdown
+## Labels
+<area:… · P0–P3 · lane BE/FE/BE+FE · `mvp` if a real test user meets it or it blocks
+going live (CLAUDE.md §6.5) · hotspot:… if it touches one>
+
 ## Context
 <why this exists; link the source doc / ADR / issue>
 
@@ -446,7 +447,7 @@ from the old register live inline in #1172.
 <current-work.md / steg-tracker.md / GitHub issue #NNNN / ADR 00NN>
 ```
 
-Pick an issue → claim its context → create the worktree → work → PR with
+Pick an `mvp` issue (CLAUDE.md §6.5) → claim its context → create the worktree → work → PR with
 `automerge`. A `hotspot:*` label means the task touches a shared file: confirm
 no other session owns it first.
 
@@ -462,9 +463,12 @@ NOT a hand-ranked per-CC sequence (that drifts every merge):
    issue requires the hotspot/migration single-owner token FIRST** (claim-on-pickup
    is an additional anti-duplication signal, not a replacement for single-ownership;
    for migrations, serial order is harder than "first to `wip` wins").
-2. **Priority = `P0`>`P1`>`P2`>`P3`** (`P0` = drop-everything hotfix, out-of-band)
-   + a thin **`next-up`** label on the one obvious next pick per lane (so you don't
-   re-rank the whole backlog each session).
+2. **`mvp` first, then priority.** `gh issue list --label mvp` is the in-scope set
+   while the goal is real test users (CLAUDE.md §6.5); rank *within* it by
+   `P0`>`P1`>`P2`>`P3` (`P0` = drop-everything hotfix, out-of-band). Taking a
+   non-`mvp` issue is allowed but say why in the session's start prompt.
+   *(`next-up` was a thin "obvious next pick" marker; measured 2026-08-02 it is on
+   **zero** open issues — `mvp` replaced it in practice.)*
 3. **Claim-on-pickup (the anti-collision signal — this was the gap behind the
    #293/#306 duplicate-work collision):** the moment you start an issue,
    `gh issue edit <N> --add-assignee @me` **and add the `wip` label**. Another CC

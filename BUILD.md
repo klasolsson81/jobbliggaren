@@ -24,14 +24,14 @@
 | Mapping | — (manuell) | — | Ingen mapping-bibliotek; explicit DTO-mappning per CLAUDE.md §5 (AutoMapper/Mapster avvisade över domängränsen) |
 | Background jobs | Hangfire | 1.8.x | Postgres-storage |
 | Smart enum | Ardalis.SmartEnum | 8.x | State machines i domänen |
-| Logging | Microsoft.Extensions.Logging | 10.x | `Microsoft.Extensions.Logging.Console` → stdout + persistent strukturerad sink via Seq (TD-104, STEG 6) |
-| Log sink | Seq.Extensions.Logging | 9.0.0 | MEL-provider → Seq (datalust); config-gated på `Seq:ServerUrl`; net9-asset .NET 10-kompatibel (MEL `>= 9` unifieras uppåt); dev lokal Seq, prod Seq self-hosted EU (TD-104, ADR 0050) |
-| Observability | OpenTelemetry | 1.15+ | Traces + metrics |
+| Logging | Microsoft.Extensions.Logging | 10.x | `Microsoft.Extensions.Logging.Console` → stdout + persistent strukturerad sink via Seq (dev levererad under TD-104/STEG 6; prod-sinken är OBYGGD — [#1175](https://github.com/klasolsson81/jobbliggaren/issues/1175)) |
+| Log sink | Seq.Extensions.Logging | 9.0.0 | MEL-provider → Seq (datalust); config-gated på `Seq:ServerUrl`; net9-asset .NET 10-kompatibel (MEL `>= 9` unifieras uppåt); dev lokal Seq, dev-sinken levererad under TD-104; prod Seq self-hosted EU är OBYGGD — [#1175](https://github.com/klasolsson81/jobbliggaren/issues/1175) |
+| Observability | OpenTelemetry | 1.15+ | Traces + metrics. **Beroende-kandidat, obyggd** (ingen dom fälld — till skillnad från Catalyst-raden) — ingen `PackageReference` i något `.csproj`, ingen användning i `src/`; exporter/backend definieras med observability-sinken (§14.2, [#1175](https://github.com/klasolsson81/jobbliggaren/issues/1175)). `Directory.Packages.props` innehåller `OpenTelemetry.Api` + `.Exporter.OpenTelemetryProtocol` som **transitiva CVE-pins för WireMock.Net** (posternas egen kommentar), inte som en observability-implementation |
 | PDF parsing | PdfPig | 0.1.14+ | Text extraction |
 | DOCX parsing | DocumentFormat.OpenXml | 3.x | Microsoft-underhåll |
-| PDF generation | QuestPDF | 2026.6.0 | Community (source-available, free under USD 1M revenue, non-copyleft — ADR 0050-safe; not OSI-MIT); `QuestPDF.Settings.License = LicenseType.Community` i startup |
+| PDF generation | QuestPDF | 2026.7.2 | Community v3.0 (source-available, non-copyleft). Eligible on the **revenue** ground — categories (1)/(6), USD 1M threshold — never on category (5) open-source, which requires an OSI-approved licence and ours is PolyForm Noncommercial (ADR 0072). Public-sector entities are ineligible regardless of revenue. *(Non-copyleft is assessed against the server-side, non-distributed model ADR 0050 locks — the repo idiom this row used as "ADR 0050-safe", now written out. **ADR 0071** carries the dependency-licence table and its 2026-06-14 License correction, and designates this section as the authoritative source; licence facts land here.)*; `QuestPDF.Settings.License = LicenseType.Community` i startup |
 | DOCX generation | DocumentFormat.OpenXml | 3.x | Template-baserad |
-| NLP (svenska) | Catalyst (+ Catalyst.Models.Swedish) | 26.x (CalVer) | MIT; lokal svensk NLP — tokenisering, lemmatisering, POS, NER (deterministisk CV-/matchnings-motor, ADR 0071 Beslut 6); svensk modell = separat MIT-datapaket |
+| NLP (svenska) | Catalyst (+ Catalyst.Models.Swedish) | 26.x (CalVer) | MIT; lokal svensk NLP — tokenisering, lemmatisering, POS, NER (deterministisk CV-/matchnings-motor, ADR 0071 Beslut 6); svensk modell = separat MIT-datapaket. **Beroende-kandidat, utdömd för v1** — `Jobbliggaren.Infrastructure.csproj` säger "Catalyst medvetet UTE (OQ1)"; `Directory.Packages.props` bär CTO-domen (Snowball/libstemmer-only; YAGNI + Worker-minnesbudget ADR 0045) **och återinträdes-triggern: läggs till reaktivt först om ett mätt F4-9/10-kriterium bevisar POS/lemma-behov** |
 | Stemmer (svenska) | libstemmer.net | 2.2.x | MIT-wrapper; Snowball-kärna BSD-3-Clause; svensk Snowball-stemmer |
 | Stavning | WeCantSpell.Hunspell | 7.x | Hunspell-port — tri-licens **MPL 1.1 / GPL 2.0 / LGPL 2.1**; licensval MPL 1.1 (LGPL 2.1 fallback), aldrig GPL; server-side + oförändrad binär → ingen copyleft på produkten (se §3.1-notis) |
 | Svensk ordlista | sv_SE Hunspell-ordlista (DSSO) | datafil | **LGPL-3.0** — oförändrad separat datafil, ej statiskt länkad/inbäddad/modifierad → copyleft smittar ej produkten (se §3.1-notis) |
@@ -48,13 +48,13 @@
 | Frontend bundler | Turbopack | bundlad med Next 16.2 | Next 16-default; `--webpack`-opt-outen (commit `63ea6683`) borttagen i #1046 — den kringgick Vercels edge-routing, och FE byggs inte längre på Vercel (ADR 0050 Beslut 3, amenderad 2026-06-14; §15.3 "ingen Vercel-build") |
 | Språk (frontend) | TypeScript | 6.0 | Strict mode |
 | UI-komponenter | shadcn/ui | senaste (CLI v4) | Tung customisering, se DESIGN.md |
-| Styling | Tailwind CSS | 4.2 | v4 config i `tailwind.config.ts` |
-| Data fetching | TanStack Query | 5.x | Server state |
-| Tabeller | TanStack Table | 8.x | Headless |
-| Form | React Hook Form + Zod | RHF ^7.72, Zod 4.x | Schema-baserad validering |
+| Styling | Tailwind CSS | 4.x | **CSS-first-config:** `@import "tailwindcss"` + `@theme {}` i `globals.css`. **Det finns ingen `tailwind.config.ts`** — ADR 0015 Beslut 1 avvisade hybrid-läget (Alt C), och dess §Kontext, öppen fråga 1, pekar ut just den här raden som källan till missförståndet. Truth-sync #1154 |
+| Data fetching | Server Actions + RSC | – | **TanStack Query finns inte i `package.json` och har aldrig installerats** (ingen `QueryClientProvider`-infra); ADR 0042 Beslut C (impl-notat 2026-05-17) avvisade den för typeahead-ytan. Mönstren — inklusive BFF-undantaget för binär uppladdning och poll-vägen — bor i §10.2. Truth-sync #1154 |
+| Tabeller | Handrullad semantisk `<table>` | – | **TanStack Table finns inte i `package.json` och har aldrig installerats**; det finns ingen `src/components/ui/table.tsx`. Ingen formell avvisning — mönstret är oanvänt, inte omprövat. Truth-sync #1154 |
+| Form | React Hook Form + Zod | RHF 7.x, Zod 4.x | Schema-baserad validering |
 | Auth-klient | Egen cookie-baserad klient (ADR 0017) | – | NextAuth.js/Auth.js AVVISADES och finns inte i `package.json`; backend utfärdar ingen JWT — bäraren är ett opakt session-id (§11.2). Truth-sync #569/#827 |
-| Datum | date-fns | 4.x | Svensk locale |
-| Ikoner | Lucide React | ^1.8 | Minimalistiskt, civic-vänligt |
+| Datum/tal | `@/lib/i18n/format` + `@/lib/i18n/relative-time` | – | **date-fns finns inte i `package.json` och har aldrig installerats.** Aktiv locale resolvas per request ur `NEXT_LOCALE`-cookien, vilket kräver next-intls formaterare — rena funktioner som tar `useFormatter()`/`await getFormatter()` som parameter (CTO 2026-06-25, Variant B). Truth-sync #1154 |
+| Ikoner | Lucide React | 1.x | Minimalistiskt, civic-vänligt |
 | Typografi | Source Sans 3 | Google Fonts | Primär (next/font/google, byte från Hanken Grotesk — ADR 0091 / #549 WS4); systemfont-fallback. JetBrains Mono för kod |
 
 > **AI SDK borttaget (ADR 0071):** `Anthropic`-NuGet och `AWSSDK.BedrockRuntime`
@@ -111,7 +111,12 @@
 > på laptop (Docker Compose: postgres + redis). Permanent deploy-mål — **Hetzner
 > Cloud CAX31 (ARM, 16 GB) all-in-one Docker Compose **BE + FE** + Cloudflare
 > DNS/CDN/proxy** — är beslutat i **ADR 0050 (Accepted 2026-06-08)**. Tabellen
-> nedan beskriver **nuläge (lokalt)** + **beslutat permanent mål**. Faktisk
+> nedan beskriver **nuläge (lokalt)** + **beslutat permanent mål**.
+> **VÄRDVALET ÄR UPPHÄVT 2026-08-02** (Klas-direktiv): Hetzner ut, svensk VPS in,
+> **ersättaren obeslutad**. Topologin står; **värd- och edge-leverantörsnamnen** nedan är
+> platshållare tills CC1:s supersessions-ADR landar — se §15:s not. E-postraden är också
+> upphävd, men av ett annat direktiv och med **vald** ersättare (AWS SES), ägd av #1169
+> och #183 — se §13.4. Faktisk
 > provisionering är fortsatt framtida Klas-gatat arbete (ADR 0050 Sekvensering:
 > Hetzner sist, vid MVP före beta-testare). AWS-kolumnerna i ADR/sessions/
 > research bevaras som historik.
@@ -123,13 +128,13 @@
 | Cache | Redis 8.6 (Docker Compose) | Redis co-tenant container på CAX31 |
 | Object storage | lokal disk / ej aktiverat | TBD — roll/behov ej fastställt |
 | AI inferens | Ingen — produkten har ingen AI/LLM (ADR 0071) | Ingen (deterministiska motorer på BE/VPS) |
-| Email | `ConsoleEmailSender` (ADR 0066) | Resend, grindad (§13.4, TD-101) |
-| Secrets | `appsettings.Local.json` (gitignored) | Self-managed på VPS (systemd-credentials / sops+age, TD-106) |
-| Encryption keys | `LocalDataKeyProvider` AES-256-GCM (ADR 0066) | Self-managed master-nyckelmodell + rotation (TD-102) |
+| Email | `ConsoleEmailSender` (ADR 0066) | Resend, grindad (§13.4, [#183](https://github.com/klasolsson81/jobbliggaren/issues/183)) |
+| Secrets | `appsettings.Local.json` (gitignored) | Self-managed på VPS (systemd-credentials / sops+age, [#196](https://github.com/klasolsson81/jobbliggaren/issues/196)) |
+| Encryption keys | `LocalDataKeyProvider` AES-256-GCM (ADR 0066) | Self-managed master-nyckelmodell + rotation ([#198](https://github.com/klasolsson81/jobbliggaren/issues/198)) |
 | Frontend | `pnpm dev` (localhost:3000) | Next.js `next start` co-tenant container på CAX31 (bakom Caddy) |
 | DNS / CDN / proxy | — | Cloudflare gratis-tier "Full (strict)" framför Caddy-origin på CAX31 |
-| Backup | — | Nattlig klient-side-krypterad `pg_dump` → Hetzner-EU Storage Box (TD-107) |
-| Logging / monitoring | console (MEL) + Seq (`Seq.Extensions.Logging`) | Persistent strukturerad sink via Seq self-hosted EU — TD-104 |
+| Backup | — | Nattlig klient-side-krypterad `pg_dump` → Hetzner-EU Storage Box ([#197](https://github.com/klasolsson81/jobbliggaren/issues/197)) |
+| Logging / monitoring | console (MEL) + Seq (`Seq.Extensions.Logging`) | Persistent strukturerad sink via Seq self-hosted EU (obyggd) — [#1175](https://github.com/klasolsson81/jobbliggaren/issues/1175) |
 | Errors | — | Sentry (EU) planerat |
 | CI | GitHub Actions (build + test + coverage, inga moln-anrop) | oförändrat |
 | IaC | `infra/terraform/` bevarad som reversibilitets-mekanik (ADR 0066 Beslut 1) | retireras via egen ADR vid Hetzner-cutover |
@@ -137,7 +142,9 @@
 ### 3.3 Miljöer
 
 > **Status (2026-06-08):** dev/staging/production-AWS-miljöerna är avvecklade
-> (ADR 0066). `local` är enda aktiva miljön. Permanent deploy-mål är **beslutat**
+> (ADR 0066). `local` är enda aktiva miljön. **Värdvalet är upphävt 2026-08-02**
+> (Klas-direktiv) — se §3.2:s statusbanner; raderna nedan beskriver den beslutade
+> FORMEN, inte en aktuell leverantör. Permanent deploy-mål var **beslutat**
 > (Hetzner CAX31 + Cloudflare, ADR 0050 Accepted 2026-06-08) men ännu
 > ej provisionerat (ADR 0050 Sekvensering: Hetzner sist, vid MVP före
 > beta-testare). Tag-baserad AWS-deploy (`v*-dev`/`v*-rc*`/`v*`) refererar
@@ -150,7 +157,7 @@
 | Miljö | Syfte | Deployment | Status |
 |-------|-------|-----------|--------|
 | local | Utveckling | Docker Compose | **Aktiv** |
-| production (planerad) | Live | Hetzner CAX31 + Cloudflare (ADR 0050) | Beslutad, ej provisionerad |
+| production (planerad) | Live | Hetzner CAX31 + Cloudflare (ADR 0050) | Värdvalet upphävt 2026-08-02 (se §3.2); formen beslutad, ej provisionerad |
 | dev / staging (AWS) | f.d. integration / pre-prod | — | Avvecklad (ADR 0066) |
 
 PR-flöde mot `main` per ADR 0065 (CI-gate). Permanent deploy-strategi och
@@ -758,7 +765,7 @@ email_log
   subject (text)
   template (text)
   sent_at (timestamptz)
-  provider_message_id (text null)   -- provider-neutralt (SES borttaget, ADR 0066; transaktionell väg = Resend, TD-101/§13.4)
+  provider_message_id (text null)   -- provider-neutralt (SES borttaget, ADR 0066; transaktionell väg = Resend, [#183](https://github.com/klasolsson81/jobbliggaren/issues/183)/§13.4)
   status (text)
 
 -- Integrations
@@ -1097,15 +1104,19 @@ public enum CriterionVerdict { Pass, Warn, Fail, NotAssessed }
 ### 10.2 Data fetching-mönster
 
 - Server components för initial rendering (paginerade listor, detaljvyer)
-- TanStack Query för mutation-heavy UI (statusändringar, notes)
+- Server Actions för klient-mutationer (statusändringar, notes m.m.) — `useTransition` för pending-tillstånd, `useOptimistic` där optimistisk rendering behövs (§3.1: TanStack Query är inte installerad)
+- **Undantaget: binär uppladdning går via BFF-route** (`app/api/cv/import/route.ts`), eftersom en Server Action inte kan strömma `multipart/form-data` (`duplex: "half"`). Regeln ovan är alltså inte universell; detta är den enda **mutations**-vägen utanför Server Actions (flera andra klient-`fetch`ar är POST-formade *läsningar*)
+- **Kortlivad klient-read** — keystroke-driven suggest, popover-counts, utkasts-preview-counts, on-demand dokument-/blob-hämtning: `AbortController`, i `useEffect`, aldrig en mutations-väg (ADR 0042 Beslut C = prejudikatet). Formen är en self-contained hook **eller** en komponentlokal `useEffect` — `lib/hooks/use-facet-counts.ts` är den förra, `components/resumes/cv-preview.tsx` den senare. Debounce där inmatning driver den; en engångshämtning vid `enabled`-flip behöver ingen, och inte heller en mount-hämtning av en komponentlokal artefakt som inte kan renderas server-side (`resumes/template-builder.tsx`, blob-preview i iframe)
+- **Periodisk uppdatering** = visibility-aware `setInterval` + `fetch` i en dedikerad klient-komponent (`shell/header-stats.tsx`, 10 min)
+- CLAUDE.md §5:s `useEffect`-fetch-förbud gäller **sidans initial-data**, som hör hemma i en Server Component — det når inte de två punkterna ovan
 - Form state: React Hook Form + Zod schema
 - Optimistic updates för statustransitions
 - Skeleton/progressiv rendering för CV-granskning och mall-rendering (deterministiskt, inget LLM-streaming)
 
 ### 10.3 State management
 
-- Ingen global store — server state via TanStack Query, local UI state via useState/useReducer
-- Auth state via Auth.js session context
+- Ingen global store — server state via RSC + Server Actions (revalidering på servern), local UI state via useState/useReducer
+- Auth state via egen cookie-baserad klient (ADR 0017) — Auth.js finns inte i `package.json` (§3.1)
 - Command palette (⌘K) med custom hook, knappas via shadcn-kommandokomponent
 
 ### 10.4 Sökupplevelse (jobb)
@@ -1220,7 +1231,7 @@ Se [`DESIGN.md`](./DESIGN.md) för komplett specifikation: färgtokens, typograf
 
 **At rest:**
 - Databas: co-tenant PostgreSQL på Hetzner CAX31 (ADR 0050); disk-/volym-kryptering på VPS-nivå
-- Backup: nattlig `pg_dump` klient-side-krypterad (age) → Hetzner-EU Storage Box (ADR 0050 Beslut 4, TD-107)
+- Backup: nattlig `pg_dump` klient-side-krypterad (age) → Hetzner-EU Storage Box (ADR 0050 Beslut 4, [#197](https://github.com/klasolsson81/jobbliggaren/issues/197))
 - PII-fält (`cover_letter`, `resume_versions.content` m.fl.) och OAuth-tokens:
   per-användar-DEK envelope encryption via `IDataKeyProvider`
   (Local AES-256-GCM eller KMS, config-switchat per ADR 0066/0049) — extra lager
@@ -1233,7 +1244,7 @@ Se [`DESIGN.md`](./DESIGN.md) för komplett specifikation: färgtokens, typograf
 
 **Secrets-hantering per miljö:**
 - `local`: `appsettings.Local.json` (gitignored) + `.env` för frontend; committade defaults i `appsettings.Development.json`
-- permanent miljö (Hetzner): self-managed på VPS (systemd-credentials / sops+age, ADR 0050 + TD-106); master-nyckel aldrig plaintext-på-disk (TD-102)
+- permanent miljö (Hetzner): self-managed på VPS (systemd-credentials / sops+age, ADR 0050 + [#196](https://github.com/klasolsson81/jobbliggaren/issues/196)); master-nyckel aldrig plaintext-på-disk ([#198](https://github.com/klasolsson81/jobbliggaren/issues/198))
 - `IConfiguration`-abstraktionen gör att koden är identisk oavsett källa; endast DI-registreringen skiljer
 
 ### 13.3 GDPR-flöden
@@ -1287,8 +1298,21 @@ permanent infra aktiveras; listan nedan speglar **beslutad** uppsättning, ADR 0
 > AWS (infrastruktur + SES) är avvecklat (ADR 0066) och utgår ur subprocessor-
 > kedjan; **SES:s ersättare är Resend** — se e-postposten i listan ovan för
 > attribution och grindvillkor.
+>
+> **SES-HALVAN AV FÖRSTA PÅSTÅENDET OCH HELA DET ANDRA ÄR UPPHÄVDA (Klas-direktiv
+> 2026-08-02)** — AWS-*infrastrukturen* förblir avvecklad: Resend ska ut och
+> **AWS SES i `eu-north-1`** in. Denna sektion är avsiktligt inte omskriven här — den
+> matar publika `/integritet#subprocessors`, så omskrivningen är legal-facing och ägs av
+> [#1169](https://github.com/klasolsson81/jobbliggaren/issues/1169) +
+> [#183](https://github.com/klasolsson81/jobbliggaren/issues/183) med
+> `security-auditor`-sign-off. Tredjelandsbedömningen är en **öppen** fråga, inte en
+> avgjord — se §15:s not. Release-checklistan §2.5 punkt 5 tvingar denna sektion vid
+> e-postflippen.
+>
 > Hetzner/Cloudflare läggs till i den publika listan vid faktisk
-> provisionering (ADR 0050 Sekvensering).
+> provisionering (ADR 0050 Sekvensering) — **men värdpremissen är också upphävd**
+> (Hetzner ut, svensk VPS obeslutad), så namnen här är platshållare tills CC1:s
+> supersessions-ADR landar. Se §15:s not.
 
 ### 13.5 Säkerhetshygien
 
@@ -1307,7 +1331,7 @@ permanent infra aktiveras; listan nedan speglar **beslutad** uppsättning, ADR 0
 ### 14.1 Logging
 
 - `Microsoft.Extensions.Logging` — strukturerad loggning; console (stdout) + Seq-sink
-- Sinks: console (stdout) + persistent strukturerad **Seq**-sink via `Seq.Extensions.Logging` (MEL-provider, config-gated på `Seq:ServerUrl`); dev lokal Seq (`localhost:5341`), prod Seq self-hosted EU (TD-104, ADR 0050)
+- Sinks: console (stdout) + persistent strukturerad **Seq**-sink via `Seq.Extensions.Logging` (MEL-provider, config-gated på `Seq:ServerUrl`); dev lokal Seq (`localhost:5341`), dev-sinken levererad under TD-104; prod Seq self-hosted EU är OBYGGD — [#1175](https://github.com/klasolsson81/jobbliggaren/issues/1175)
 - Log levels:
   - `Trace`/`Debug`: dev only
   - `Information`: normala request-flows (start/slut av handlers)
@@ -1319,7 +1343,7 @@ permanent infra aktiveras; listan nedan speglar **beslutad** uppsättning, ADR 0
 
 ### 14.2 Traces
 
-- OpenTelemetry (exporter/backend definieras med observability-sinken, TD-104)
+- OpenTelemetry (exporter/backend definieras med observability-sinken, [#1175](https://github.com/klasolsson81/jobbliggaren/issues/1175))
 - Trace från frontend genom backend till DB/external (JobTech, Gmail, SCB)
 - Sampling: 100% i dev, 10% i prod
 
@@ -1333,7 +1357,7 @@ permanent infra aktiveras; listan nedan speglar **beslutad** uppsättning, ADR 0
 
 ### 14.4 Alerting
 
-Alarms (plattform med observability-sinken, TD-104; extern uptime-monitor
+Alarms (plattform med observability-sinken, [#1175](https://github.com/klasolsson81/jobbliggaren/issues/1175); larmen själva parkerade i [#1172](https://github.com/klasolsson81/jobbliggaren/issues/1172); extern uptime-monitor
 UptimeRobot/BetterStack free ersätter ALB/CloudWatch-health per ADR 0050):
 - Backend 5xx rate > 1% över 5 min → email
 - JobTech sync misslyckas 3 gånger i rad → email
@@ -1375,8 +1399,38 @@ UptimeRobot/BetterStack free ersätter ALB/CloudWatch-health per ADR 0050):
 > Den kunde alltså fila spöken i backloggen. `infra/certs/rds-global-bundle.pem`
 > BEHÅLLS: alla tre Dockerfiles `COPY` den fortfarande, och `.dockerignore` bär
 > avsiktliga negationer för att släppa igenom den. Dess borttagning har egen ägare
-> (#196/TD-106, Hetzner-image). `infra/terraform/` är **orörd** — den retireras via
+> (#196, Hetzner-image). `infra/terraform/` är **orörd** — den retireras via
 > egen teardown-ADR/PR enligt stycket ovan, inte här.
+>
+> **Not om issue-länkarna (2026-08-02, PR #1173).** `TD-NNN`-markörer som pekade in i
+> det retirerade TD-registret är utbytta mot de issues som äger arbetet — i **§3, §7,
+> §13, §14 och §15**, inte bara här ([#196](https://github.com/klasolsson81/jobbliggaren/issues/196),
+> [#197](https://github.com/klasolsson81/jobbliggaren/issues/197),
+> [#198](https://github.com/klasolsson81/jobbliggaren/issues/198),
+> [#183](https://github.com/klasolsson81/jobbliggaren/issues/183),
+> [#1175](https://github.com/klasolsson81/jobbliggaren/issues/1175)).
+>
+> **En länk säger var arbetet ägs — inte att premissen omkring den är aktuell.** Två
+> premisser är **upphävda** av Klas-direktiv 2026-08-02 — i detta kapitel **och i §3.2**
+> (e-postpremissen i §3.2:s **Email**-rad; värdpremissen i statusbannern och i raderna
+> för Compute, Database, Cache, Frontend, DNS och Backup, varav flera är celler denna
+> PR redigerade — **radnummer står medvetet inte här: den förra versionen av denna
+> mening bar ett, och det bröts av samma commit som skrev det**). Uppräkningen är
+> **inte uttömmande** — den namnger var premisserna är mest lästa, inte varje
+> förekomst. Inte bara under
+> omprövning: **värdvalet** (Hetzner ut; svensk VPS in — **ersättaren obeslutad**,
+> kandidater hostup och one.com) och **e-postleverantören** (Resend ut — **ersättaren
+> är vald: AWS SES i `eu-north-1`**). Motiveringen och tredjelandsbedömningen står
+> medvetet INTE här: §15.1 avvisar Cloudflare R2 "pga CLOUD Act-tredjelandsöverföring **av
+> icke-krypterad pg_dump-PII**", så huruvida en US-ägd leverantör i EU-region faller under
+> samma standard är i detta repo en **öppen** fråga och inte en avgjord — och att avgöra
+> den är `security-auditor`:s och inte en spec-edit-PR:s. Ersättningarna skrivs in av
+> CC1-lanen med egen supersessions-ADR, inklusive §13.4:s subprocessor-lista. Denna PR bytte ut
+> döda markörer mot levande hemvister och skriver medvetet inte in någon ersättare i
+> sak. För värden går det inte — den är inte vald. För e-posten vore det en
+> supersession av ADR 0050 plus en omskrivning av §13.4:s subprocessor-lista, som matar
+> den publika `/integritet`-sidan och därför är legal-facing: det arbetet ägs av #1169
+> och #183 och kräver `security-auditor`, inte en spec-edit-PR om ett registerbyte.
 
 ### 15.1 Deploy-layout (ADR 0050, Accepted)
 
@@ -1387,21 +1441,21 @@ Hela backend-stacken kör i **Docker Compose** på boxen: .NET API + .NET Worker
 (reverse proxy, auto-TLS via Let's Encrypt DNS-01 mot Cloudflare). `mem_limit`
 sätts hybrid — hård cap på Worker + Redis (skydda Postgres mot
 ingestion-OOM), generös/osatt på Postgres (data-durabilitet); Bulkhead-principen
-(ADR 0050 mem_limit-not, TD-106).
+(ADR 0050 mem_limit-not, [#196](https://github.com/klasolsson81/jobbliggaren/issues/196)).
 
 **Frontend — Next.js co-tenant container på CAX31.** FE körs som en `next start`-container i samma Compose-stack bakom Caddy (ADR 0050 Beslut 3, amenderad 2026-06-14). `next build` körs i CI; endast den färdiga imagen shippas till boxen (build-toppen belastar aldrig RAM-feldomänen). FE-footprint (~0,5 GB under last) ryms i CAX31:s headroom.
 
 **Edge — Cloudflare gratis-tier** framför boxen (TLS-edge / DNS / CDN / DDoS):
 **"Full (strict)"** mot giltigt origin-cert på Caddy (aldrig "Flexible") +
 origin-IP-lockdown (origin accepterar bara Cloudflare-IP:er på 443) + HSTS
-(ADR 0050 Beslut 4, gate M-5 i TD-106). Caddy reverse-proxiar två upstreams (API
+(ADR 0050 Beslut 4, gate M-5 i [#196](https://github.com/klasolsson81/jobbliggaren/issues/196)). Caddy reverse-proxiar två upstreams (API
 på port 5000 + `next start`-FE på localhost:3000 för icke-`/api`-vägar); "Full
 (strict)" + origin-IP-lockdown + HSTS täcker hela ursprunget.
 
 **Backup — Hetzner-EU Storage Box** (~€3/mån/1 TB): nattlig `pg_dump`
 klient-side-krypterad (age) → Storage Box i samma EU-jurisdiktion (Cloudflare R2
 avvisat pga CLOUD Act-tredjelandsöverföring av icke-krypterad pg_dump-PII).
-Backups ligger INTE på boxens 160 GB. Retention/rotation + restore-drill = TD-107.
+Backups ligger INTE på boxens 160 GB. Retention/rotation + restore-drill = [#197](https://github.com/klasolsson81/jobbliggaren/issues/197).
 
 **Single-box blast-radius** (API/Worker/Postgres/Redis delar OS + RAM + feldomän)
 är ett medvetet beta-skala-val (ADR 0050 Negativa konsekvenser); CAX31:s 16 GB +
@@ -1417,7 +1471,7 @@ Befintlig AWS-Terraform under `infra/terraform/` bevarad som reversibilitets-
 mekanik (ADR 0066 Beslut 1), retireras via egen ADR/PR vid Hetzner-cutover.
 Hetzner-provisioneringen är compose-centrerad (en box, Docker Compose + Caddy);
 VPS-härdnings-baseline (SSH-key-only, brandvägg, fail2ban, auto-patch, PG/Redis
-ej publika, swap/core-dump-hygien) = gate M-6, hemvist TD-106.
+ej publika, swap/core-dump-hygien) = gate M-6, hemvist [#196](https://github.com/klasolsson81/jobbliggaren/issues/196).
 
 ### 15.3 CI/CD
 
@@ -1439,7 +1493,7 @@ Ny deploy-pipeline mot **Hetzner** byggs vid cutover (ADR 0050: Compose-push til
 
 Topologin (Hetzner CAX31 single-box **BE + FE** + Cloudflare) är beslutad; den
 exakta deploy-mekaniken (Compose-pull/re-up-ordning, migrations-ordning via
-`Jobbliggaren.Migrate`, rollback) detaljeras i Hetzner-fas-arbetet (TD-106). FE-containern bör få sin egen healthcheck i Compose (TD-106).
+`Jobbliggaren.Migrate`, rollback) detaljeras i Hetzner-fas-arbetet ([#196](https://github.com/klasolsson81/jobbliggaren/issues/196)). FE-containern bör få sin egen healthcheck i Compose ([#196](https://github.com/klasolsson81/jobbliggaren/issues/196)).
 **Rollback-modell (ADR 0050):** lokal Docker-Compose-stack är
 paritets-baselinen (samma image-byggväg som Hetzner-prod) — misslyckad cutover =
 återgå till lokal-dev + ej-cutad DNS (Cloudflare). DNS-cutover är den enda

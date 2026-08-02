@@ -41,6 +41,11 @@ Numbered, concrete deliverables. Name files to create/change when known.
 Reference the specific ADRs/BUILD.md sections THIS task needs (not generic
 "read CLAUDE.md" — that loads automatically).
 
+**Pick the task from the `mvp` label, not from the `P`-number** (CLAUDE.md §6.5,
+Klas-direktiv 2026-08-02): `gh issue list --label mvp` is the in-scope set while the
+goal is real test users on `jobbliggaren.se`. An issue without `mvp` is skippable —
+if the start prompt names one anyway, say in the prompt why it is worth the session.
+
 ```
 ## Scope: {phase name}
 
@@ -48,7 +53,7 @@ Per {ADR reference}:
 1. {Deliverable 1 — file pointer if known}
 2. {Deliverable 2}
 
-Task-specific reads: {only docs this task actually needs, e.g. ADR 00XX, TD-NN}
+Task-specific reads: {only docs this task actually needs, e.g. ADR 00XX, issue #NNNN}
 ```
 
 ### 3. Discovery / web-search targets (when external facts are involved)

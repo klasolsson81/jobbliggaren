@@ -435,6 +435,84 @@ public static class LayoutCaseCatalog
             SpikeMeasuredExtractSegment: false,
             OneVariableStepFrom: "docx-table-label-first-with-blanks",
             ProjectHeadingRendered: UnknownProjectHeading),
+
+        // #1060 D3(β-3). The corpus has never carried a block that is IRREDUCIBLY non-buildable:
+        // every arm authors complete entries, and the three that once blocked did so because a
+        // parser defect destroyed a field the document did carry (β-1 fixed it). This one is
+        // different in kind — no upstream fix can BUILD this block, because the employer is
+        // absent from the SOURCE.
+        //
+        // AND WHEN THE ARM WAS AUTHORED, THE PARSE DID NOT REFUSE IT. Measured, not predicted: it
+        // was written expecting `Blocked` on Resume.ExperienceCompanyRequired, and it published
+        // PromotedInflated instead. SplitTitleOrganization's fallback took Lines[1] as the
+        // organization whenever Lines[0] carried no separator glyph — and on a block with no
+        // employer, Lines[1] IS the period line. So the CV promoted with "2026 - 2026" as the
+        // employer name: the engine did not drop a field, it ASSERTED one the source never made.
+        // The fallback was original code, byte-identical since before β-1; it had no reader until
+        // now because every other arm authors an employer, so Lines[0] always carries a separator.
+        //
+        // The refutation is recorded HERE rather than pointed at by commit, because this PR
+        // squash-merges and no intermediate commit survives on main to point at. #1060 β-3 then
+        // narrowed the fallback so a field-less line cannot BECOME a field, and this row reaches
+        // the refusal it was authored to measure.
+        //
+        // The segmenter behaviour is pinned by HeadingDrivenResumeSegmenterTests'
+        // Segment_HeaderLineCarryingNoSeparator_* family — named here because this corpus is
+        // observe-only and cannot fail on a regression by itself: its report is written to a
+        // gitignored artifact and no test compares it to the committed baseline.
+        //
+        // It steps from the FAITHFUL control, not a lossy arm: stepping from a lossy one would
+        // confound "the Domain refused this entry" with "the parser already lost that entry".
+        new("docx-irreducible-unattributed-experience",
+            "the clean promote control plus ONE experience block that names no employer",
+            "(c) table-based Word template — the only arm whose block no upstream fix can build",
+            "docx", "cv.docx", Docx,
+            OpenXmlCvRenderer.RoleFirstWithBlanksAndUnattributedBlock, CvModel.SwedishWithUnattributedExperience,
+            p =>
+            {
+                var xml = p.DocxDocumentXml();
+                // The moved variable: the block IS in the document, in the arm's own header shape.
+                p.Require(
+                    xml.Contains("Frilansande systemutvecklare", StringComparison.Ordinal),
+                    "expected the employer-less experience block to be rendered");
+                // And its role line carries NO EMPLOYER. Stated as what this actually proves: the
+                // renderer writes u.Role in its own w:t node (employments join as
+                // $"{Role} - {Marker}" in ONE node), so the only way a separator can reach this
+                // XML beside the freelance role is from inside the Role LITERAL. That is the
+                // mutation this proof exists to catch — a fixture edit fusing an employer into the
+                // role would turn the arm from irreducible into fused, and row 24 would leave
+                // Blocked while §0 still reported the instrument healthy.
+                //
+                // ALL NINE separators, not just " - ": SplitTitleOrganization tries " — " and
+                // " – " BEFORE the hyphen, so covering only the hyphen would miss the two that
+                // decide first. The table is duplicated here because the fixture cannot read the
+                // segmenter's internal constant — that is a knowingly accepted copy of a lexicon,
+                // not the corpus measuring its own constants: the copy is checked against
+                // AUTHORED BYTES, and if it drifts the arm still fails loudly on the split.
+                foreach (var separator in new[]
+                         { " — ", " – ", " - ", ", ", " | ", " @ ", " at ", " på ", " hos " })
+                {
+                    p.Require(
+                        !xml.Contains("Frilansande systemutvecklare" + separator, StringComparison.Ordinal),
+                        $"found the separator '{separator}' after the freelance role — this arm's "
+                        + "block must carry no employer at all, or it is a fused entry rather than "
+                        + "an irreducible one");
+                }
+                // Variables HELD FIXED, so the one-variable claim is checkable rather than
+                // asserted: role-first header order, a w:tbl, and Word's blank-paragraph form.
+                p.Require(xml.Contains("<w:tbl>", StringComparison.Ordinal), "expected a w:tbl element");
+                p.Require(
+                    xml.Contains("Senior backend-utvecklare - Klarna AB", StringComparison.Ordinal),
+                    "expected the employment lines role-first, as the control renders them");
+                p.Require(xml.Contains("<w:pPr />", StringComparison.Ordinal)
+                          || xml.Contains("<w:pPr/>", StringComparison.Ordinal),
+                    "expected Word's blank-paragraph form — the step holds blank separators fixed");
+            },
+            "the employer-less block is present with no separator after its role, in a w:tbl, with "
+            + "role-first employment lines and the blank separators the one-variable step holds fixed",
+            SpikeMeasuredExtractSegment: false,
+            OneVariableStepFrom: "docx-role-first-with-blanks",
+            ProjectHeadingRendered: UnknownProjectHeading),
     ];
 
     /// <summary>

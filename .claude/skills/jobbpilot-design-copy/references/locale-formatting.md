@@ -24,10 +24,13 @@ carries its own spec. It passes the test, and it is not a licence — it is what
 passing looks like.
 
 **Apply the test; do not look for a list.** Code failing it is drift rather than an
-exception — `match-setup-rail-modal.tsx`'s `new Intl.NumberFormat("sv-SE")` formats
-an ordinary counter and should call `formatNumber`, for example. Convert such sites
-when you are in the file anyway. **No lint rule guards any of this**, unlike the zone
-literal.
+exception: a counter, a result total, or any ordinary presented number built from a
+fresh `Intl` instance should call `formatNumber`. Convert such sites when you are in
+the file anyway — `match-setup-rail-modal.tsx`'s counter was one, and #1155 converted
+it, which is why it is named here as a worked case rather than as an outstanding one.
+**No lint rule guards any of this**, unlike the zone literal, so this section states a
+criterion and deliberately does not carry a count of the sites meeting it — such a
+count would be stale the next time someone follows the instruction above.
 
 ---
 
@@ -229,12 +232,19 @@ Never store local time in DB. Never assume client timezone == Stockholm.
 > `formatDateTimeStockholm`.
 >
 > Measured against `web/jobbliggaren-web/`: the module path does not exist, and
-> **neither package is in `package.json`**. The two differ where it matters:
-> `date-fns` **is** in BUILD.md §3.1 (`| Datum | date-fns | 4.x |`), so installing it
-> would have been an undiscussed dependency add (§9.2) against a fictional module
-> path — while `date-fns-tz` is in neither, so the §Timezone half specifically is
-> what produced a §12 *non-BUILD.md library* change. That BUILD.md lists a package
-> nobody installed is a real drift this rewrite uncovered, and its own follow-up.
+> **neither package is in `package.json`**. The two differed where it mattered *at
+> the time of that removal*: `date-fns` was then listed in BUILD.md §3.1
+> (`| Datum | date-fns | 4.x |`), so installing it would have been an undiscussed
+> dependency add (§9.2) against a fictional module path — while `date-fns-tz` was
+> in neither, so the §Timezone half specifically is what produced a §12
+> *non-BUILD.md library* change.
+>
+> **That §3.1 row was the root cause, and the follow-up removed it.** §3.1 now
+> records the delivered mechanism (`@/lib/i18n/format` + `@/lib/i18n/relative-time`)
+> with a self-asserting absence claim in place of the package name. `date-fns` is
+> therefore no longer a listed decision, and `date-fns-tz` never was — so the
+> §9.2-vs-§12 asymmetry above no longer holds for anything written after it
+> (truth-sync #1154).
 >
 > The names above are the thirteen this section carried; `formatPercent` made
 > **fourteen** in the same guide, and has its own note above.

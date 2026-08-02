@@ -27,7 +27,7 @@ Specialiserade sub-agenter som Claude Code delegerar till. Filerna finns i `agen
 
 | Agent | Tier | Roll |
 |---|---|---|
-| `senior-cto-advisor` | opus | Decision-maker vid multi-approach-val, fynd-triage och TD-skapande |
+| `senior-cto-advisor` | opus | Decision-maker vid multi-approach-val, fynd-triage och in-block-vs-följd-PR-vs-issue |
 | `dotnet-architect` | opus | Clean Architecture-väktare och DDD-rådgivare — read-only, analyserar och föreslår |
 | `test-writer` | opus | Skriver unit- och integrationstester (xUnit v3, Shouldly, NSubstitute, Testcontainers) — TDD-first |
 | `nextjs-ui-engineer` | opus | Next.js 16 App Router, shadcn/ui, Tailwind 4.2 — enforcar civic-utility-estetiken |

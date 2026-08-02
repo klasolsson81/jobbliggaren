@@ -21,8 +21,20 @@ public enum FidelityVerdict
     /// content is missing — the finding this corpus exists to expose.</summary>
     PromotedLossy,
 
-    /// <summary>Promoted with MORE entries than authored: fragments invented by over-splitting.
-    /// Distinct from lossy, and equally dishonest.</summary>
+    /// <summary>Promoted with MORE entries than the document ATTRIBUTES. Distinct from lossy, and
+    /// equally dishonest.
+    /// <para><b>Over-splitting is one mechanism, not the definition — and it has never been
+    /// measured.</b> The term was written for fragments invented by over-splitting. The only row
+    /// that has ever published this verdict did so by a different route, and no longer does: at
+    /// #1060 β-3's first commit <c>docx-irreducible-unattributed-experience</c> published it with
+    /// the entry COUNT right — six blocks in, six entries out — and the CV inflated because one
+    /// block naming no employer was promoted as an employment anyway, its organization fabricated
+    /// from the period line below it. β-3's second commit narrowed the segmenter fallback, so that
+    /// row now blocks and <b>no row in the current baseline publishes this verdict at all.</b>
+    /// <c>Decide</c> reaches it when promoted entries exceed <c>GroundTruthEmployments</c>, which
+    /// counts employer-ATTRIBUTED blocks — hence the summary line above. Read the row, not the
+    /// word: a term covering two mechanisms, only one of them ever observed, cannot tell you which
+    /// one you have.</para></summary>
     PromotedInflated,
 
     /// <summary>A gate blocked. Nothing was claimed and nothing was lost silently.</summary>
@@ -78,8 +90,12 @@ public sealed record LayoutCaseObservation(
 
     // RENAMED 2026-07-28, and the rename IS the fix. It was `WellFormedPromotedExperience` and
     // counted `Role && Company && RawPeriod` non-blank — a hand copy of a predicate this corpus's
-    // own doctrine forbids copying, and wrong about its subject twice over. `Resume.ValidateContent`
-    // REQUIRES Company (:746) and Role (:755) and only LENGTH-CAPS RawPeriod (:783), so on a
+    // own doctrine forbids copying, and wrong about its subject twice over. The buildability rule
+    // REQUIRES Company and Role and only LENGTH-CAPS RawPeriod — the three arms are
+    // `ExperienceCompanyRequired`, `ExperienceRoleRequired` and `ExperienceRawPeriodTooLong`, all
+    // declared by `ResumeEntryBuildability` since #1060 D3(β-2) and reached from
+    // `Resume.ValidateContent`. Anchored by NAME, not by line number: the previous revision cited
+    // three `Resume.cs` line numbers and β-2's own refactor silently moved every one of them. So a
     // PROMOTED row the first two conjuncts are true by invariant — every promoted entry already
     // passed that validation. The count reduced to raw-period presence while wearing a validity
     // name, and the baseline shows it: it equalled `Promoted exp` on every row it ever printed.

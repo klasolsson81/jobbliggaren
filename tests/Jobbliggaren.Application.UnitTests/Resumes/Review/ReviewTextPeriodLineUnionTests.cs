@@ -42,10 +42,17 @@ namespace Jobbliggaren.Application.UnitTests.Resumes.Review;
 /// <c>LeadMarker</c> and pinned by no test; the date-model widening (#1060 road 3) both MEASURED it
 /// and closed it. Measured: beside a bullet using another glyph, B5 returned
 /// <i>Warn — "Blandade punktsymboler"</i>, counting the user's date row as a second bullet style she
-/// had not chosen; the control "– 2020 – nuvarande" returned NotAssessed, so both
-/// <c>LeadMarker</c> guards are now measured in both polarities. Both rows live in
-/// <c>DateModelWideningReviewSideTests</c>, with a counterfactual proving the criterion still Warns
-/// on two genuine glyphs. An earlier round of this review asserted B5 flipped on the
+/// had not chosen. That row lives in <c>DateModelWideningReviewSideTests</c>, with a counterfactual
+/// proving the criterion still Warns on two genuine glyphs.</para>
+///
+/// <para><b>GUARD TWO — the one that nulls a marker whose remainder <c>PeriodParser</c> parses — is
+/// pinned in <c>DateModelWideningLeadMarkerTests</c>, and it was NOT pinned when this paragraph
+/// first claimed it was.</b> An earlier revision said "both guards are now measured in both
+/// polarities" and cited a control row "– 2020 – nuvarande". That row existed only in a throwaway
+/// probe, which was deleted; the claim outlived its measurement, which is exactly the failure the
+/// widening's own acceptance obligation warns about. Road 3 also gives guard two a NEW live input:
+/// <c>PeriodParser</c> now parses a lone month point, so "– maj 2020" flips from marker-bearing to
+/// nulled. Both are pinned now. An earlier round of this review asserted B5 flipped on the
 /// leading-separator form, having read the marker set and not the guard nine lines below it.</para>
 ///
 /// <para>The class is the INVERSE of the one first

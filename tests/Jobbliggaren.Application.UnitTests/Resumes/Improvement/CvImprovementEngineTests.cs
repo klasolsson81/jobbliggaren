@@ -507,20 +507,29 @@ public class CvImprovementEngineTests
     {
         // Mixed/non-canonical period formats trigger a ReformatDate structural transform.
         //
-        // THE FIXTURE MOVED (#1060 road 3), and the reason is worth stating rather than silently
-        // swapping a string. This test read "jan 2022 - juni 2024" — a period NO path in src/ could
-        // produce at the time, since ExtractPeriod never extracted a month name, so the premise was
-        // one production could not create (CLAUDE.md §5, Tests). Road 3 made the segmenter emit that
-        // exact shape AND taught PeriodParser to read it, so the string is now both producible and
-        // canonical — it no longer triggers the transform, because the transform's whole firing
-        // condition is "PeriodParser cannot read this".
+        // THE FIXTURE MOVED (#1060 road 3), and it took two attempts, which is worth recording
+        // because the first attempt made the very error it cited.
         //
-        // The replacement is free text the parser genuinely refuses, which is the population this
-        // transform exists for and which no widening reaches.
+        // This test read "jan 2022 - juni 2024" — a period NO path in src/ could produce at the
+        // time, since ExtractPeriod never extracted a month name, so the premise was one production
+        // could not create (CLAUDE.md §5, Tests). Road 3 made the segmenter emit that exact shape
+        // AND taught PeriodParser to read it, so it became both producible and canonical and stopped
+        // triggering the transform.
+        //
+        // The first replacement was "våren 2022 till hösten 2024" — free text the parser refuses.
+        // MEASURED: it stores Period = NULL. It carries no [-–—], so DateRange never matches it, and
+        // Period is only ever a trimmed DateRange match, a bare year, or null. So that swap moved
+        // the fixture OFF a value that had just become producible ONTO one that never can be — the
+        // same §5 violation, in a new string, in a comment citing §5 as its reason.
+        //
+        // "13/2020 – 2024" is producible AND refused, measured both ways: DateRange matches it whole
+        // (\d{2}/\d{4} – \d{4}, month validated only structurally), and PeriodParser declines on
+        // `month is < 1 or > 12`. That structural-vs-semantic gap IS this transform's live
+        // population, and it is a documented axis of DatePatterns rather than an accident.
         var resume = Resume(experience:
         [
-            Experience(period: "våren 2022 till hösten 2024",
-                rawText: "Backend-utvecklare våren 2022 till hösten 2024"),
+            Experience(period: "13/2020 – 2024",
+                rawText: "Backend-utvecklare 13/2020 – 2024"),
         ]);
 
         var change = Single(await SuggestAsync(resume), ProposedChangeKind.DateNormalization);

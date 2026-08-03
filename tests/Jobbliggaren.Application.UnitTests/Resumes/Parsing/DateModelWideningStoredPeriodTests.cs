@@ -9,9 +9,21 @@ using static Jobbliggaren.Application.UnitTests.Resumes.Review.CvReviewFixtures;
 namespace Jobbliggaren.Application.UnitTests.Resumes.Parsing;
 
 /// <summary>
-/// #1060 road 3 — THE INVARIANT <c>DatePatterns</c>' docblock has always claimed and nothing ever
-/// tested: <b>whatever <c>ExtractPeriod</c> stores, <c>PeriodParser</c> must be able to read</b>
-/// ((S3) obligations 1, 2 and 5; senior-cto-advisor re-bind 2026-08-03).
+/// #1060 road 3 — the relationship <c>DatePatterns</c>' docblock has always claimed and nothing ever
+/// tested: <b>what <c>ExtractPeriod</c> stores, <c>PeriodParser</c> should be able to read</b>
+/// ((S3) obligations 1, 2 and 5, (S4) 1 and 5; senior-cto-advisor binds 2026-08-03).
+///
+/// <para><b>IT IS NOT UNIVERSAL, AND AN EARLIER REVISION OF THIS FILE SAID IT WAS.</b> The honest
+/// statement is a characterisation, not a quantifier: <i>the segmenter stores nothing the parser
+/// refuses, EXCEPT where <c>DateRange</c> validates a component STRUCTURALLY and
+/// <c>PeriodParser</c> validates it SEMANTICALLY.</i> That gap is the two types' deliberate division
+/// of labour — <c>DateRange</c> answers "does this look like a date", <c>PeriodParser</c> answers "is
+/// this a date" — and it is why the second exists.
+/// <b>KNOWN INSTANCES, NOT AN EXHAUSTIVE COUNT, and no total is published here on purpose</b>: the
+/// month (<c>13/2020 – 2024</c>, a documented axis with its own frozen pin) and the year
+/// (<c>1500 – 2000</c>, where <c>DateRange</c> takes any <c>\d{4}</c> and <c>PeriodParser</c>
+/// enforces 1900–2100). Both are pre-existing, neither is a regression, and both are run rather than
+/// read. The lane has had a count wrong twice; this file will not publish a third.</para>
 ///
 /// <para><b>This class exists because the invariant was broken by the commit that stated it.</b> The
 /// widening first landed with month names and <c>YYYY/MM</c> added to <see cref="DatePatterns"/>
@@ -77,6 +89,116 @@ public class DateModelWideningStoredPeriodTests
             "the granularity token drives B6; a month-name point is month granularity like any other.");
     }
 
+    [Theory]
+    // (S4) obligation 1 — THE ACADEMIC / FISCAL YEAR, and the reason DateRange validates the month
+    // structurally in its year-first branches.
+    //
+    // "2019/20" and "2019-20" are how a Swedish CV writes a läsår or a räkenskapsår, so the last two
+    // digits lie outside 01-12 BY CONSTRUCTION rather than by accident. With a bare \d{2} for the
+    // month, prefix-order made the month-bearing branch win and the whole line was stored — then
+    // refused by PeriodParser, costing A4/B6/B7 their verdicts and the deriver its years.
+    //
+    // MEASURED in both polarities. Before this PR: stored "2018 – 2019", parsed. At the widening's
+    // second commit: stored whole, REFUSED. With the structural month class: back to "2018 – 2019",
+    // parses. That is repair to origin/main behaviour, not improvement on it — see the two residuals
+    // pinned below, which are unchanged and stay open.
+    [InlineData("2018 – 2019-20", "2018 – 2019")]
+    [InlineData("2018 – 2019/20", "2018 – 2019")]
+    [InlineData("2020 – 2024/25", "2020 – 2024")]
+    public void AnAcademicYearDegradesToTheBareYear_RatherThanBeingStoredAndRefused(
+        string dateLine, string expectedPeriod)
+    {
+        var period = PeriodFor(dateLine);
+
+        period.ShouldBe(expectedPeriod,
+            "the month-bearing branch must decline a token that is not a month, so the bare-year " +
+            "reading wins and the stored value is one both types agree on.");
+        PeriodParser.TryParse(period, out _, out _, out _).ShouldBeTrue(
+            $"[{period}] is what ExtractPeriod stored; refusing it loses the entry's years entirely.");
+    }
+
+    [Theory]
+    // (S4) obligation 5 — THE TWO RESIDUALS THE REPAIR DELIBERATELY DID NOT CLOSE, pinned rather
+    // than merely priced, because a residual nobody pins decays into a change nobody noticed.
+    //
+    // Both are identical to origin/main and neither is a regression this PR created. Closing them is
+    // a change to the LINE grammar (IsIgnorableTail learning a dangling [-/]\d{2}) on a population
+    // whose frequency nobody has measured, with its own risk surface ("Acme AB 2000-25") — a
+    // genuinely separate change-reason, available as a follow-up PR and not taken here.
+    [InlineData("2018 – 2019-20")]
+    [InlineData("2018 – 2019/20")]
+    public void TheAcademicYearForm_IsStillNotADateOnlyLine_WhichLeavesBetaThreeOpenForIt(string line)
+    {
+        // RESIDUAL 1: the trailing "-20" is not consumed, so the line keeps a non-empty remainder.
+        // On the two-line layout that means the date row still becomes the Organization — the β-3
+        // fabrication class, still open for this form and only this form.
+        DatePatterns.IsDateOnlyLine(line).ShouldBeFalse();
+
+        // RESIDUAL 2: StripDates masks the range but leaves the orphan token, so a prose bullet whose
+        // only digits are an academic year can still read as carrying a measurable digit (#487).
+        // Asserted through the real consumer, not on the mask string, because the mask exists to
+        // answer this question and nothing else reads it.
+        ReviewText.ContainsMeasurableDigit($"Ansvarig {line} för budget").ShouldBeTrue(
+            "the orphaned academic-year suffix survives masking — unchanged from origin/main.");
+    }
+
+    [Fact]
+    public void TheYearFallbackPath_AlsoDegradesRatherThanStoringARefusedValue()
+    {
+        // (S4) obligation 1, the Year() fallback — and it needs its OWN layout, which is the point.
+        // ExtractPeriod tries DateRange over the whole entry text first and only then Year() over
+        // Lines[0], so this path is reached when the date row IS the first line. An earlier revision
+        // asserted this row's value inside the three-line theory above, having measured it on this
+        // shape: a value true of one layout asserted of another, which is the failure this whole
+        // session keeps meeting.
+        const string cv = """
+            Anna Andersson
+            anna@example.com
+
+            Arbetslivserfarenhet
+            2019/20 – 2021
+            Acme AB
+            Ökade konverteringen med 23 procent.
+            """;
+
+        var exp = new HeadingDrivenResumeSegmenter(CvParsingLexiconLoader.Load())
+            .Segment(cv).Content.Experience.ShouldHaveSingleItem();
+
+        exp.Period.ShouldBe("2019",
+            "the bare-year fallback still yields a value both types agree on.");
+        PeriodParser.TryParse(exp.Period, out _, out _, out _).ShouldBeTrue();
+    }
+
+    [Fact]
+    public void TheYearAxis_IsTheOtherKnownStructuralVsSemanticGap()
+    {
+        // (S4) obligation 4 — the second named instance of the characterisation in this class's
+        // docblock, RUN rather than read (the CTO derived it; this measures it). DateRange takes any
+        // \d{4}; PeriodParser enforces 1900-2100. So a quantity or price range in an experience entry
+        // is matched and stored, and then correctly refused.
+        //
+        // Pre-existing, not a regression, and here so the characterisation has more than one instance
+        // — a rule with a single example reads as a special case.
+        PeriodFor("1500 – 2000").ShouldBe("1500 – 2000");
+        PeriodParser.TryParse("1500 – 2000", out _, out _, out _).ShouldBeFalse(
+            "the year guard is PeriodParser's, and DateRange does not duplicate it.");
+    }
+
+    [Fact]
+    public void TheMonthAxis_IsUnchangedByTheStructuralNarrowing()
+    {
+        // (S4) obligation 3 — the SURVIVING instance, pinned here as well as in its frozen row,
+        // because the narrowing deliberately stopped short of it. "13/2020 – 2024" is MM/YYYY, which
+        // stands in no prefix relation to any other alternative, so the ordering contract never
+        // reached it: this is not a wrong branch beating a right one but a form no branch models.
+        // Narrowing it would leave a "13/" residue instead of degrading — flipping IsDateOnlyLine
+        // false and handing the date row back to the Organization slot.
+        PeriodFor("13/2020 – 2024").ShouldBe("13/2020 – 2024");
+        PeriodParser.TryParse("13/2020 – 2024", out _, out _, out _).ShouldBeFalse();
+        DatePatterns.IsDateOnlyLine("13/2020 – 2024").ShouldBeTrue(
+            "the whole line is still consumed, which is what keeps β-3 closed for this form.");
+    }
+
     [Fact]
     public void TheKeywordLessOpenEnd_StoresNoPeriod_AndThatIsTheHonestAnswer()
     {
@@ -88,6 +210,38 @@ public class DateModelWideningStoredPeriodTests
         PeriodFor("2020 –").ShouldBeNull();
         DatePatterns.IsDateOnlyLine("2020 –").ShouldBeTrue(
             "the LINE is still recognised — that is what stops it becoming the employer.");
+    }
+
+    [Fact]
+    public void AMonthWordEndingThePrecedingLine_IsNotAbsorbedIntoTheStoredPeriod()
+    {
+        // THE PIN THAT CROSSES THE THRESHOLD OF THE PROPERTY IT PINS. CvMonthNamesTests composes the
+        // shared fragment into a test-built regex and checks it rejects a newline — useful, but it
+        // cannot fail if someone inlines \s+ back into either production consumer. This one can:
+        // ExtractPeriod matches DateRange against entry.Text, which is the entry's lines joined with
+        // '\n', so the gap token's line-locality is a property of the SEGMENTER's output.
+        //
+        // MEASURED before the fix, through this exact path: Period == "maj\n2020 – 2024" — a newline
+        // and a word lifted out of a description bullet, riding RawPeriod into the promoted CV on
+        // the auto-promote path, which has no approve step.
+        const string cv = """
+            Anna Andersson
+            anna@example.com
+
+            Arbetslivserfarenhet
+            Systemutvecklare
+            Acme AB maj
+            2020 – 2024
+            Ökade konverteringen med 23 procent.
+            """;
+
+        var exp = new HeadingDrivenResumeSegmenter(CvParsingLexiconLoader.Load())
+            .Segment(cv).Content.Experience.ShouldHaveSingleItem();
+
+        var period = exp.Period.ShouldNotBeNull();
+        period.ShouldBe("2020 – 2024",
+            "a month point is line-local; the word above the date row belongs to the line above it.");
+        period.ShouldNotContain("\n");
     }
 
     [Fact]

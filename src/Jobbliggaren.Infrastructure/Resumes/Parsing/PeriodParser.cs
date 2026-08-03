@@ -66,8 +66,10 @@ internal static partial class PeriodParser
         RegexOptions.CultureInvariant | RegexOptions.IgnoreCase)]
     private static partial Regex SeparatorRegex();
 
-    private static readonly string[] PresentKeywords =
-        ["nuvarande", "idag", "pågående", "pagaende", "present", "current", "now", "nu"];
+    // Derived from the SAME const DateRange's end-alternation is built from, so the two cannot
+    // drift (architect R3). DateRange matching a keyword this parser does not know would store a
+    // period the product then drops — the K1 failure mode, one lexicon over.
+    private static readonly string[] PresentKeywords = CvMonthNames.PresentKeywords.Split('|');
 
     /// <summary>
     /// Attempts to parse <paramref name="period"/>. Returns true with start/end dates and a

@@ -22,8 +22,11 @@ namespace Jobbliggaren.Infrastructure.Resumes.Parsing;
 /// invariant is <b>no alternative may precede an alternative it is a prefix of</b> — "januari"
 /// before "jan", "september" before "sept" before "sep", "februari" before "febr" before "feb".
 /// Length-order is sufficient but not necessary, and stating it as the contract makes the rule
-/// unverifiable by inspection: this list has one length inversion ("februari" before "september")
-/// and zero prefix inversions. <c>CvMonthNamesTests</c> checks the prefix invariant mechanically.
+/// unverifiable by inspection: this list is NOT sorted by length ("februari" precedes
+/// "september", among others) and has zero prefix inversions. No count is published here — the
+/// number of length inversions is an artefact of how the list happens to be written and would
+/// decay on the next edit, while the prefix invariant is the property that bites.
+/// <c>CvMonthNamesTests</c> checks it mechanically.
 /// </para>
 ///
 /// <para><b>Not a knowledge-bank asset (CLAUDE.md §5).</b> §5 bans hardcoded rubric thresholds,
@@ -59,6 +62,20 @@ internal static class CvMonthNames
     /// can inherit the defect the other fixed.</para>
     /// </summary>
     public const string AfterName = @"\.?[^\S\r\n]+";
+
+    /// <summary>
+    /// The words that mean "still ongoing" as the END point of a range, Swedish and English, with
+    /// the ASCII fallback for "pågående".
+    ///
+    /// <para><b>Shared for the same reason the month list is</b> (#1060 road 3, architect R3). This
+    /// is the identical producer/consumer contract one file over: <see cref="DatePatterns.DateRange"/>
+    /// matches these as an end point, so <c>ExtractPeriod</c> STORES a range ending in one, and
+    /// <see cref="PeriodParser"/> is what has to read it back. Written twice, the two could drift —
+    /// which is exactly how the month half produced a stored-but-unparseable period. The order is
+    /// PREFIX-ordered like the month list, because "nu" is a prefix of "nuvarande"; the array
+    /// consumer does not care, the regex does.</para>
+    /// </summary>
+    public const string PresentKeywords = "nuvarande|pågående|pagaende|present|current|now|idag|nu";
 
     // Every alternative in Pattern maps here, and nothing else does. CvMonthNamesTests asserts the
     // correspondence in BOTH directions — an alternative with no entry parses to a wrong month
@@ -108,12 +125,14 @@ internal static class CvMonthNames
     public static IReadOnlyCollection<string> KnownTokens => Ordinals.Keys;
 
     /// <summary>
-    /// Resolves a month word to its 1-12 ordinal. <paramref name="token"/> is the raw match, so a
-    /// trailing abbreviating period ("dec.") is tolerated here rather than in every caller.
+    /// Resolves a month word to its 1-12 ordinal.
+    ///
+    /// <para>The abbreviating period is NOT handled here, deliberately: <c>\.?</c> lives in
+    /// <see cref="AfterName"/>, which sits OUTSIDE the capture group in both consumers, so the token
+    /// this method receives never carries one. An earlier revision trimmed it and documented the
+    /// trim as load-bearing — dead code describing a mechanism that does not exist. The period is
+    /// handled at the seam that actually sees it.</para>
     /// </summary>
-    public static bool TryGetOrdinal(string token, out int month)
-    {
-        var trimmed = token.TrimEnd('.');
-        return Ordinals.TryGetValue(trimmed, out month);
-    }
+    public static bool TryGetOrdinal(string token, out int month) =>
+        Ordinals.TryGetValue(token, out month);
 }

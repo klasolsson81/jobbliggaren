@@ -22,15 +22,26 @@ public class CvMonthNamesTests
     // The alternation, recovered from the shared const rather than re-typed. Re-typing the list here
     // would create the third copy the whole design forbids, and it would make this test agree with
     // itself instead of with production.
-    private static string[] PatternAlternatives() =>
-        CvMonthNames.Pattern.TrimStart('(', '?', ':').TrimEnd(')').Split('|');
+    private static string[] PatternAlternatives()
+    {
+        var alternatives = CvMonthNames.Pattern.TrimStart('(', '?', ':').TrimEnd(')').Split('|');
+
+        // THE FLOOR LIVES HERE, not in one caller. This recovers the alternation by string-
+        // manipulating the const, so a change to Pattern's SHAPE — a nested group, a quantifier, a
+        // capture — degrades the parse rather than breaking it. Every caller must inherit the
+        // guard: the prefix-order test iterates pairs, and a collapsed list gives zero iterations
+        // and silent green. A test whose non-vacuity is inherited from a sibling is one refactor
+        // away from measuring nothing.
+        alternatives.Length.ShouldBeGreaterThan(30,
+            "the alternation parse collapsed — Pattern's shape changed under this helper.");
+
+        return alternatives;
+    }
 
     [Fact]
     public void EveryPatternAlternative_HasAnOrdinal_AndEveryOrdinalHasAnAlternative()
     {
         var alternatives = PatternAlternatives().ToHashSet(StringComparer.OrdinalIgnoreCase);
-
-        alternatives.Count.ShouldBeGreaterThan(30, "sanity: the split recovered a real list.");
 
         foreach (var token in alternatives)
         {
@@ -85,9 +96,11 @@ public class CvMonthNamesTests
     [InlineData("nov", 11)]
     [InlineData("december", 12)]
     [InlineData("dec", 12)]
-    // Casing and the abbreviating period, which the raw match carries.
-    [InlineData("Dec.", 12)]
+    // Casing only. NOT "Dec." — the abbreviating period is consumed by AfterName, which sits
+    // OUTSIDE the capture group in both consumers, so the token this method receives never
+    // carries one. A row for "Dec." would assert a mechanism production cannot deliver.
     [InlineData("MARS", 3)]
+    [InlineData("Dec", 12)]
     public void TryGetOrdinal_ResolvesTheRightMonth(string token, int expected)
     {
         CvMonthNames.TryGetOrdinal(token, out var month).ShouldBeTrue();
@@ -98,10 +111,11 @@ public class CvMonthNamesTests
     public void TheOrdering_IsPrefixFree_WhichIsTheContractTheCodeActuallyHolds()
     {
         // THE INVARIANT, CHECKED MECHANICALLY — and it is deliberately NOT "longest first".
-        // Length-order is sufficient but not necessary, and this list has one length inversion
-        // ("februari" before "september") with zero prefix inversions. Stating the unverifiable rule
-        // is what an earlier revision did, and a contract a reader cannot check is the problem
-        // commit 1 exists to fix, not a restatement of its fix.
+        // Length-order is sufficient but not necessary; this list is not sorted by length and has
+        // zero prefix inversions. Stating the unverifiable rule is what an earlier revision did,
+        // and a contract a reader cannot check is the problem commit 1 exists to fix, not a
+        // restatement of its fix. No inversion COUNT is published: it is an artefact of how the
+        // list happens to be written, and this loop checks the property instead.
         var alternatives = PatternAlternatives();
 
         for (var i = 0; i < alternatives.Length; i++)
@@ -117,13 +131,57 @@ public class CvMonthNamesTests
         }
     }
 
-    [Fact]
-    public void TheMonthGap_IsHorizontalWhitespaceOnly_SoAPointCannotSpanTwoLines()
+    [Theory]
+    // The present-keyword lexicon, shared for the same reason the month list is (architect R3).
+    // DateRange matches these as an end point so ExtractPeriod STORES them; PeriodParser must read
+    // every one back. Both rows go through the real segmenter and the real parser, so a drift
+    // between the regex alternation and the array cannot pass.
+    [InlineData("nuvarande")]
+    [InlineData("pågående")]
+    [InlineData("pagaende")]
+    [InlineData("present")]
+    [InlineData("current")]
+    [InlineData("now")]
+    [InlineData("idag")]
+    [InlineData("nu")]
+    public void EveryPresentKeyword_IsBothMatchedAndParsed(string keyword)
     {
-        // (S3) — the V2 fix, pinned on the shared fragment so BOTH consumers inherit line-locality
-        // from one token. With \s+ this matched, and ExtractPeriod runs against entry.Text (lines
-        // joined with '\n'), so a prose bullet ending in a month word was absorbed into the stored
-        // Period: measured "maj\n2020 – 2024" before the fix.
+        var range = $"2020 – {keyword}";
+
+        DatePatterns.DateRange().Match(range).Value.ShouldBe(range,
+            $"[{keyword}] must be reachable as an end point, or the range is truncated.");
+        PeriodParser.TryParse(range, out _, out var end, out _).ShouldBeTrue(
+            $"[{keyword}] must be readable back, or the stored period is dropped downstream.");
+        end.ShouldBe(DateOnly.MaxValue, "an ongoing role uses the far-future sentinel.");
+    }
+
+    [Fact]
+    public void ThePresentKeywords_ArePrefixOrdered_LikeTheMonthList()
+    {
+        // "nu" is a prefix of "nuvarande", so this list has the same ordering obligation the month
+        // list has — and only the regex consumer cares, which is exactly the kind of asymmetry that
+        // makes a shared const worth more than two agreeing copies.
+        var keywords = CvMonthNames.PresentKeywords.Split('|');
+
+        for (var i = 0; i < keywords.Length; i++)
+        {
+            for (var j = i + 1; j < keywords.Length; j++)
+            {
+                keywords[j].StartsWith(keywords[i], StringComparison.OrdinalIgnoreCase)
+                    .ShouldBeFalse($"[{keywords[i]}] precedes [{keywords[j]}] and is a prefix of it.");
+            }
+        }
+    }
+
+    [Fact]
+    public void TheMonthGap_IsHorizontalWhitespaceOnly_InTheSharedFragment()
+    {
+        // (S3) — the V2 fix on the shared fragment, so BOTH consumers inherit line-locality from one
+        // token. This composes the two constants exactly as production does, but it is NOT the
+        // load-bearing pin: a test-built regex cannot fail if someone inlines \s+ back into either
+        // consumer. That is what DateModelWideningStoredPeriodTests' newline case is for, and it
+        // goes through the real segmenter. Both exist because they fail for different reasons — this
+        // one localises a break to the fragment, that one proves production actually reads it.
         var monthPoint = new Regex("^" + CvMonthNames.Pattern + CvMonthNames.AfterName + @"\d{4}$",
             RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
 

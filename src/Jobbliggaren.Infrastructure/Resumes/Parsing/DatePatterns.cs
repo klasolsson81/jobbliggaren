@@ -70,11 +70,37 @@ internal static partial class DatePatterns
     // already settled that a lone bare year on a non-header line must NOT be read as a period.
     // PeriodParser DOES accept the lone point, as it already did for "2020" and "03/2020"; the two
     // types disagree there on purpose and IsDateOnlyLine's docblock records it as a standing axis.
+    // THE YEAR-FIRST BRANCHES VALIDATE THE MONTH STRUCTURALLY, and that is the completion of the
+    // ordering contract rather than a patch on it (senior-cto-advisor bind 2026-08-03 §1.2).
+    //
+    // Prefix-order makes the longest STRUCTURALLY-matching alternative win wherever it can succeed.
+    // That is safe only if every alternative it orders first is structurally EXACT. A bare `\d{2}`
+    // for a month is not: "2018 – 2019-20" is an academic year, and with `\d{4}-\d{2}` written ahead
+    // of `\d{4}` the wrong branch won — the whole line was stored and PeriodParser then refused it,
+    // where before the bare-year branch won and it degraded gracefully to a parseable "2018 – 2019".
+    // Measured in both polarities; the producer is the Swedish academic and fiscal year (2019/20,
+    // 2023/24), whose last two digits lie outside 01-12 BY CONSTRUCTION.
+    //
+    // So: prefix-order is NECESSARY BUT NOT SUFFICIENT. It is sufficient only in combination with
+    // structural exactness of every alternative it orders first, and that pair is the whole contract.
+    //
+    // `\d{2}/\d{4}` IS DELIBERATELY NOT NARROWED, and the reason is the contract, not convenience.
+    // It stands in no prefix relation to any other alternative — strings matching it open with two
+    // digits and a slash — so the rule's premise never reached it. "13/2020 – 2024" is therefore not
+    // a wrong branch beating a right one; it is a form NO branch models, where DateRange matches a
+    // sub-span. Narrowing it would leave a "13/" residue instead of degrading, which flips
+    // IsDateOnlyLine false and hands the date row back to the Organization slot — the β-3 class this
+    // lane just closed. It stays as a documented axis with its own frozen pin.
     [GeneratedRegex(
-        @"\b((?:" + CvMonthNames.Pattern + CvMonthNames.AfterName + @"\d{4}|\d{4}-\d{2}|\d{4}/\d{2}|\d{2}/\d{4}|\d{4}))\s*[-–—]\s*((?:"
-        + CvMonthNames.Pattern + CvMonthNames.AfterName + @"\d{4}|\d{4}-\d{2}|\d{4}/\d{2}|\d{2}/\d{4}|\d{4}|nuvarande|pågående|pagaende|present|current|now|idag|nu))\b",
+        @"\b(" + Point + @")\s*[-–—]\s*(" + Point + "|" + CvMonthNames.PresentKeywords + @")\b",
         RegexOptions.CultureInvariant | RegexOptions.IgnoreCase)]
     public static partial Regex DateRange();
+
+    // One home for the point alternation, so the start and end lists cannot drift. Ordered
+    // prefix-first: the bare `\d{4}` is a prefix of both year-first forms and must come last.
+    private const string Point =
+        "(?:" + CvMonthNames.Pattern + CvMonthNames.AfterName + @"\d{4}"
+        + @"|\d{4}-(?:0[1-9]|1[0-2])|\d{4}/(?:0[1-9]|1[0-2])|\d{2}/\d{4}|\d{4})";
 
     // A bare four-digit year 1900–2099.
     [GeneratedRegex(@"\b(19|20)\d{2}\b", RegexOptions.CultureInvariant)]

@@ -126,6 +126,49 @@ public class DateModelWideningReviewSideTests
     }
 
     [Fact]
+    public async Task B6_NowWarnsOnAGenuinelyMixedGranularityCv_AndThatIsIntentional()
+    {
+        // (S4) obligation 7 — THE DIRECTION THE WIDENING MAKES B6 STRICTER, pinned in the same
+        // breath as the direction it makes B6 kinder, because measuring one polarity and deriving
+        // the other is how this lane keeps producing claims true of their evidence.
+        //
+        // MEASURED before the widening: Pass. But that Pass existed only because the month-named
+        // entry was EXCLUDED from the format set — PeriodParser could not read it, so B6 saw one
+        // token. A Pass produced by under-coverage is a NotAssessed wearing a Pass. Now the CV is
+        // read whole and is genuinely {MM/YYYY, YYYY}: one job written to the month, one to the year.
+        //
+        // The Warn is B6 becoming CORRECT, not stricter, and the threshold behind it
+        // (maxDistinctDateFormats) stays in versioned rubric data where §5 requires it. Raising it to
+        // make this go away is a product-rule change with no change-reason in this PR, and the CTO
+        // forbade it explicitly (bind 2026-08-03 §2).
+        const string cv = """
+            Anna Andersson
+            anna@example.com
+
+            Arbetslivserfarenhet
+            Systemutvecklare
+            Acme AB
+            jan 2020 – dec 2024
+            Ökade konverteringen med 23 procent.
+
+            Utvecklare
+            Beta AB
+            2013 - 2021
+            Byggde en ny betaltjänst.
+            """;
+
+        var result = await Engine().ReviewAsync(
+            CvReviewContext.FromParsed(ResumeFromCvText(cv)),
+            RenderProfile.Ats,
+            TestContext.Current.CancellationToken);
+
+        result.Verdicts.Single(v => v.CriterionId == "B6").Verdict
+            .ShouldBe(CriterionVerdict.Warn,
+                "month granularity beside year granularity IS two date formats — the old Pass came " +
+                "from an entry the parser could not read, not from the CV being consistent.");
+    }
+
+    [Fact]
     public async Task B5_ShouldNotReadTheUsersDateRowAsASecondBulletStyle()
     {
         // THE LIVE ESCAPE NO TEST IN THE TREE PINNED, now measured rather than derived. B5 counts

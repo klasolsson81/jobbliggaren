@@ -26,6 +26,7 @@ namespace Jobbliggaren.Infrastructure.Resumes.Improvement.Transforms;
 /// approves of. Pinned in <c>CvImprovementEngineTests</c>: nothing is proposed for any form the
 /// widened model reads.
 /// </para>
+/// </summary>
 internal sealed class DateNormalizationTransform : ICvTransform
 {
     public ProposedChangeKind Kind => ProposedChangeKind.DateNormalization;

@@ -9,8 +9,8 @@ using static Jobbliggaren.Application.UnitTests.Resumes.Review.CvReviewFixtures;
 namespace Jobbliggaren.Application.UnitTests.Resumes.Parsing;
 
 /// <summary>
-/// #1060 road 3, commit 1 — <c>DatePatterns.DateRange</c>'s point alternations are ordered
-/// LONGEST-ALTERNATIVE-FIRST, and this class is that order's adjudicator.
+/// #1060 road 3, commit 1 — <c>DatePatterns.DateRange</c>'s point alternations put the bare
+/// <c>\d{4}</c> LAST among the digit forms, and this class is that ordering's adjudicator.
 ///
 /// <para><b>What the defect was.</b> .NET alternation is ordered and does not prefer the longest
 /// branch: the first branch that lets the OVERALL match succeed wins. With the bare <c>\d{4}</c>
@@ -29,13 +29,27 @@ namespace Jobbliggaren.Application.UnitTests.Resumes.Parsing;
 /// <b>Every assertion here was measured in both polarities</b>: the pre-correction values are
 /// recorded in each test's comment, taken from a run against <c>b637b691</c>, not derived.</para>
 ///
-/// <para><b>This class is a precondition, not a feature.</b> It carries no widening: the four forms
-/// <c>DatePatterns</c> does not model ("jan 2020 – dec 2024", "2020 – 2024 (heltid)",
-/// "2020/01 – 2024/12", "2020 –") are untouched by the ordering and stay on the negative side in
-/// <c>DatePatternsDateOnlyLineTests</c>. It landed first so that every alternative added afterwards
-/// goes into an ordered list — a "jan" branch before "januari" would match "januari 2020" as far as
-/// "jan", which is the identical defect one alternative later (senior-cto-advisor re-bind
-/// 2026-08-02, bind 9).</para>
+/// <para><b>This class was a precondition, not a feature</b>, and two claims it originally made were
+/// later falsified — kept, because the falsification is the point.</para>
+///
+/// <para>(1) It said the four forms <c>DatePatterns</c> does not model <i>"are untouched by the
+/// ordering and stay on the negative side in <c>DatePatternsDateOnlyLineTests</c>"</i>. True of commit
+/// 1, which carried no widening; <b>false at HEAD</b> — commit 2 widened the model and moved all four
+/// to the positive side. (2) It said the ordering rule was <i>"longest-alternative-first"</i> and that
+/// <i>"a 'jan' branch before 'januari' would match 'januari 2020' as far as 'jan', the identical
+/// defect one alternative later"</i>. <b>Both halves are wrong.</b> The contract the code holds is
+/// PREFIX-order, not length-order (the month list has a length inversion and zero prefix
+/// inversions), and the <c>jan</c>/<c>januari</c> pair cannot truncate at all: every month branch is followed
+/// by the gap-then-year token, which "jan" against "januari 2020" fails on the "u", so .NET
+/// backtracks into the longer branch. That is the same mechanism <c>DatePatterns</c>' own comment
+/// gives for why the START alternation never showed the ISO defect.</para>
+///
+/// <para><b>What bind 9 IS vindicated by is the digit half</b>, and it is real: the bare
+/// <c>\d{4}</c> written before <c>\d{4}-\d{2}</c> let a SHORT branch SUCCEED — the <c>\b</c> held
+/// against the following "-" — so nothing backtracked and the end month was dropped. Order bites
+/// exactly where a short branch can succeed. The month ordering is kept as defence in depth at zero
+/// cost, not as a defect averted (senior-cto-advisor re-bind 2026-08-02 bind 9; the retraction is
+/// test-writer's and code-reviewer's, 2026-08-03).</para>
 /// </summary>
 public class DatePatternsAlternationOrderingTests
 {
@@ -88,6 +102,37 @@ public class DatePatternsAlternationOrderingTests
     // ordering and already pinned in DatePatternsDateOnlyLineTests' PeriodParser-is-wider theory,
     // which is that list's one home. Bounding this correction's blast radius is a real obligation,
     // but discharging it by copying a row is how a list grows a second owner that can disagree.
+
+    [Fact]
+    public void TheOrderingAlsoReachedAPopulationWhereTheSHORTBranchWasRight()
+    {
+        // (S4) obligation 6 — THE COMPLETION OF THIS COMMIT'S OWN ACCOUNT, and it belongs here
+        // because DatePatterns names this class as the ordering's adjudicator. A claim about the
+        // ordering's reach whose counterexample lives in another file is a claim whose adjudicator
+        // does not adjudicate it.
+        //
+        // The commit's comment said "one token of order was three defects" and enumerated the
+        // surfaces. That enumeration was driven by the ISO defect's own evidence, and it is
+        // incomplete IN THE OTHER DIRECTION: order also reached a population where the short branch
+        // succeeding was load-bearing in the BENEFICIAL direction. "2018 – 2019-20" is an academic
+        // year; with \d{4}-\d{2} ordered ahead of \d{4} and the month validated only structurally,
+        // the wrong branch won and PeriodParser then refused the whole value. A sentence true of its
+        // evidence and false of its subject — this lane's recurring failure, here in a commit the
+        // reviewers called exemplary.
+        //
+        // THE DECISION STANDS: the defect commit 1 fixed is real, it landed before any alternative
+        // was added, and it is pinned on four surfaces. It did not CREATE the structural-vs-semantic
+        // gap; it removed the accident that was hiding one instance of it. The wrong ordering was
+        // wrong for the right cases and accidentally right for the wrong ones.
+        //
+        // THE GENERALISATION, which is what makes the contract checkable rather than merely stated:
+        // prefix-order is NECESSARY BUT NOT SUFFICIENT — it is sufficient only when every alternative
+        // it orders first is STRUCTURALLY EXACT. Ordering and structural exactness are joint causes
+        // here, and DatePatterns' year-first branches now carry the second half.
+        DatePatterns.DateRange().Match("2018 – 2019-20").Value.ShouldBe("2018 – 2019",
+            "the month-bearing branch must decline '20', so the correct shorter reading wins.");
+        PeriodParser.TryParse("2018 – 2019", out _, out _, out _).ShouldBeTrue();
+    }
 
     // ── Surface 3: the stored VALUE, on the path with no approve step ────────────────
 

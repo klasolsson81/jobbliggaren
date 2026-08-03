@@ -182,7 +182,14 @@ public class CvImprovementCorpusStressTests
 
     // Rebuilds a corpus CV (via the same ParsedResume.Create path the generator uses) with its
     // first experience's PERIOD replaced by a non-canonical, pnr-bearing string. PeriodParser
-    // rejects "jan 2022 - <pnr>" (month NAME), so DateNormalization fires and quotes the period.
+    // rejects "jan 2022 - <pnr>", so DateNormalization fires and quotes the period.
+    //
+    // WHY IT IS REJECTED CHANGED, and the old reason is now false (#1060 road 3). This comment said
+    // "(month NAME)" — true until the date model learned month names, and this test would have gone
+    // on passing for a reason it no longer gave. The rejection now comes from the RIGHT point: a
+    // personnummer is not a date point in any notation. "jan 2022" alone parses today. The pin is
+    // unaffected and the fixture is still exactly the shape it needs to be, but a security-adjacent
+    // pnr test that is green for an unstated reason is one nobody can audit.
     private static GeneratedCvCase WithPnrBearingPeriod(GeneratedCvCase original)
     {
         var pnr = SwedishCorpusLexicon.FakePersonnummer[0]; // Luhn-valid 811218-9876

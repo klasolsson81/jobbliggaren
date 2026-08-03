@@ -144,6 +144,54 @@ describe("registerAction 400 handling (#616 — breached password reaches the us
   });
 });
 
+describe("registerAction 503 handling (ADR 0083 Amendment 2026-08-03 — registration gate)", () => {
+  const form = () =>
+    formOf({ displayName: "Anna Andersson", email: "anna@example.se", password: "password1" });
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({ status: 503, ok: false }) as Response),
+    );
+  });
+
+  it("returns registrationsClosed for OUR 503, without cookie or redirect", async () => {
+    // Its own state, not `error`: RegisterForm renders a role="status" panel in place of the form
+    // rather than red assertive text above a live submit button.
+    parseResponseMock.mockResolvedValue({ title: "Auth.RegistrationsClosed" });
+
+    const result = await registerAction(null, form());
+
+    expect(result).toEqual({ registrationsClosed: true });
+    expect(setSessionCookieMock).not.toHaveBeenCalled();
+    expect(redirectMock).not.toHaveBeenCalled();
+  });
+
+  it("does NOT claim the gate is closed for a transport 503", async () => {
+    // The counterfactual that makes the title check load-bearing rather than argued. This endpoint
+    // has a second 503 producer: Program.cs maps SessionStoreUnavailableException to 503 across the
+    // pipeline, and the OPEN instant-login path calls sessionStore.CreateAsync — so a Redis outage
+    // during an open registration must not tell the user registration is not open yet. A reverse
+    // proxy in front of the API produces its own 503s too.
+    parseResponseMock.mockResolvedValue({ title: "Session.StoreUnavailable" });
+
+    const result = await registerAction(null, form());
+
+    expect(result).toEqual({ error: "auth.actions.serverUnreachable" });
+  });
+
+  it("treats a 503 with an unparseable body as transport, not as the gate", async () => {
+    // A proxy 503 is HTML, not application/problem+json — parseResponse throws and the branch must
+    // fall through rather than guess.
+    parseResponseMock.mockRejectedValue(new Error("not problem+json"));
+
+    const result = await registerAction(null, form());
+
+    expect(result).toEqual({ error: "auth.actions.serverUnreachable" });
+  });
+});
+
 describe("registerAction 202 handling (#714 — email-confirmation-first)", () => {
   const form = () =>
     formOf({ displayName: "Anna Andersson", email: "anna@example.se", password: "password1" });

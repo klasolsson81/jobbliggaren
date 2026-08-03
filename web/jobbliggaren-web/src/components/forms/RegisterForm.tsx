@@ -56,6 +56,25 @@ export function RegisterForm() {
     );
   }
 
+  // ADR 0083 Amendment 2026-08-03 — public registration is held closed. Rendered in place of the
+  // form, in the SAME channel as the 202 panel above and deliberately not in the error channel:
+  // red text-danger-600 + role="alert" + a live submit button would read as "you typed something
+  // wrong" and invite a retry that cannot succeed until a config flag is flipped and the process
+  // restarts. role="status" + aria-live announces the state without claiming a fault.
+  if (state?.registrationsClosed) {
+    return (
+      <div
+        role="status"
+        aria-live="polite"
+        className="flex flex-col gap-1 focus:outline-none"
+      >
+        <p className="text-body text-text-primary">
+          {t("auth.actions.registrationsClosed")}
+        </p>
+      </div>
+    );
+  }
+
   return (
     <form action={formAction} className="flex flex-col gap-5">
       <input type="hidden" name="next" value={searchParams.get("next") ?? "/jobb"} />

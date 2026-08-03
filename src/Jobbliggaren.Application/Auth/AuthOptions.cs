@@ -52,9 +52,23 @@ public sealed class AuthOptions
     /// </para>
     /// <para>
     /// This flag is NOT a waitlist. ADR 0083's teardown of the Waitlist and Invitations bounded
-    /// contexts stands in full; opening registration for launch is a config change, not a deployment
-    /// of new code. To add a user while closed, flip it on, register, flip it off — never hand-write
-    /// an account into the database (Identity hash + security stamp + the JobSeeker aggregate).
+    /// contexts stands in full.
+    /// </para>
+    /// <para>
+    /// <b>Opening it is not a single switch.</b> Outside Development/Test,
+    /// <c>AuthOptionsValidator</c> refuses to boot on <c>RegistrationsOpen</c> without
+    /// <c>RequireEmailConfirmation</c>: that combination is legacy instant-login, which mints an
+    /// account bound to an address the registrant may not own and puts the acknowledged-deferred
+    /// duplicate-enumeration oracle on a public IP. Going live therefore needs BOTH flags plus a real
+    /// <c>Email:Provider</c> — the prerequisites are owned by <b>#734</b>.
+    /// </para>
+    /// <para>
+    /// Both flags are read through singleton <c>IOptions</c>, and deployed config arrives as
+    /// environment variables, which do not reload. Changing either is <i>set env → restart</i>, and
+    /// the restart is deliberate: it is what keeps the once-per-process boot announcement true, and
+    /// it is the audit trail. To add a user while closed, once email is live: open both flags,
+    /// restart, register, confirm via the real link, close them, restart. Never hand-write an account
+    /// into the database (Identity hash + security stamp + the JobSeeker aggregate).
     /// </para>
     /// <para>
     /// Settable (not init-only) for the same reason as <see cref="RequireEmailConfirmation"/>: the

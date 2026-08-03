@@ -375,11 +375,20 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
       (privacy/terms/cookies/accessibility/recruiterNotice).
 - [ ] **5.5 TVÅ VILLKOR SOM UPPHÖR VID FÖRSTA PRODUKTIONSANVÄNDAREN — de hör HÄR, inte i
       §2.5.** Båda accepteras i dag enbart därför att det finns **noll registrerade
-      produktionsanvändare**. Triggern är **den första `v*`-taggen som öppnar registrering**,
-      och den passerar **inte** §2.5: en prod-tagg med `Email:Provider` osatt (dokumenterad
-      default) ger `NullEmailSender`, registrering fungerar (`RequireEmailConfirmation`
-      defaultar `false`), och Resend-flippen kan ligga månader senare. Villkoren upphör alltså
-      **strikt före** §2.5 någonsin läses (security-auditor 2026-07-26).
+      produktionsanvändare**. **Triggern är den första konfiguration i non-dev som sätter
+      `Auth:RegistrationsOpen=true` — oavsett tagg.** (Omskriven 2026-08-03, ADR 0083
+      Amendment: före den låg triggern på "den första `v*`-taggen som öppnar registrering", och
+      den formuleringen är nu falsk — **ingen** tagg öppnar registrering längre. Registreringen
+      är stängd som default och öppnas av en env-var på en körande host, alltså en händelse som
+      inte passerar någon tagg och inget dokument. Läst bokstavligt hade den gamla triggern
+      aldrig fyrat, och de två villkoren nedan hade fallit ur tyst.)
+      Den passerar **inte** §2.5: `Email:Provider` osatt (dokumenterad default) ger
+      `NullEmailSender`, och Resend-/SES-flippen kan ligga månader senare. Villkoren upphör
+      alltså **strikt före** §2.5 någonsin läses (security-auditor 2026-07-26).
+      *Not:* `AuthOptionsValidator` vägrar numera boota på `RegistrationsOpen` utan
+      `RequireEmailConfirmation` utanför Development/Test, så flippen kan inte längre ske utan
+      att e-postbekräftelsen också slås på (#734). Det är en teknisk spärr mot en osäker
+      **kombination** — den ersätter inte den här grinden, som är juridisk.
       - **(a) `settings.json` påstår ett utskick som inte sker.** Fyra publicerade strängar
         (`:218`, `:220`, `:224`, `:229`) säger att en bekräftelselänk skickats, medan
         `ChangeEmailCommandHandler:66` skickar ogrindat in i `NullEmailSender`: `Result.Success`,

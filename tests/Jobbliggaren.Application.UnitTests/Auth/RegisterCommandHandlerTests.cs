@@ -469,26 +469,82 @@ public class RegisterCommandHandlerTests
     /// fresh and a taken address cannot diverge. Stronger than #714's uniform 202, which holds only as
     /// long as two branches stay byte-identical. Also true with the confirmation flag ON — the gate
     /// precedes that branch entirely.
+    /// <para>
+    /// The fixture models a genuinely TAKEN address (the adapter's real DuplicateAccount failure, the
+    /// same stub Handle_FlagOff_WhenDuplicate_ReturnsFailure_NoNotice uses) rather than two unknown
+    /// ones — otherwise "taken" is a word in a comment that the assertions cannot observe. Both are
+    /// asserted against the constant ABSOLUTELY, not against each other: comparing one refusal to
+    /// another passes even if the handler returns the wrong error entirely.
+    /// </para>
     /// </summary>
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task Handle_RegistrationsClosed_IsIdenticalForAnyAddress(bool requireEmailConfirmation)
+    public async Task Handle_RegistrationsClosed_RefusesIdentically_ForTakenAndFreshAddress(
+        bool requireEmailConfirmation)
     {
-        var handler = CreateHandler(
-            requireEmailConfirmation: requireEmailConfirmation, registrationsOpen: false);
+        const string takenEmail = "redan.tagen@example.com";
+        var userAccountService = UserAccountServiceCreating(Guid.NewGuid());
+        userAccountService.CreateUserAsync(takenEmail, Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(Result.Failure<Guid>(
+                DomainError.Validation(AuthErrorCodes.DuplicateAccount, AuthErrorCodes.DuplicateAccountMessage)));
 
-        var first = await handler.Handle(ValidCommand(), CancellationToken.None);
-        var second = await handler.Handle(
+        var handler = CreateHandler(
+            userAccountService: userAccountService,
+            requireEmailConfirmation: requireEmailConfirmation,
+            registrationsOpen: false);
+
+        var fresh = await handler.Handle(ValidCommand(), CancellationToken.None);
+        var taken = await handler.Handle(
             new RegisterCommand(
-                Email: "nagon.helt.annan@example.com",
+                Email: takenEmail,
                 Password: "S3kret!pass",
                 DisplayName: "Någon Annan"),
             CancellationToken.None);
 
-        first.IsFailure.ShouldBeTrue();
-        second.IsFailure.ShouldBeTrue();
-        second.Error.Code.ShouldBe(first.Error.Code);
-        second.Error.Message.ShouldBe(first.Error.Message);
+        fresh.IsFailure.ShouldBeTrue();
+        taken.IsFailure.ShouldBeTrue();
+        fresh.Error.Code.ShouldBe(AuthErrorCodes.RegistrationsClosed);
+        taken.Error.Code.ShouldBe(AuthErrorCodes.RegistrationsClosed);
+        fresh.Error.Message.ShouldBe(AuthErrorCodes.RegistrationsClosedMessage);
+        taken.Error.Message.ShouldBe(AuthErrorCodes.RegistrationsClosedMessage);
+    }
+
+    /// <summary>
+    /// The fail-safe default itself, pinned past the helper. Every other test in this file goes
+    /// through <c>CreateHandler</c>, which defaults <c>registrationsOpen: true</c> — so none of them
+    /// ever sees a default-constructed <see cref="AuthOptions"/>, and the property the whole change
+    /// rests on would survive its own removal.
+    /// <para>
+    /// This is not hypothetical. The defect this feature exists to fix is exactly a missing
+    /// initialiser: <c>RequireEmailConfirmation</c> is declared without one and absent from every
+    /// non-Development appsettings file, so the Production configuration resolves it to the
+    /// permissive branch. An absent key, a typo or an undeployed config must not open the gate.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public async Task Handle_WithDefaultAuthOptions_RefusesRegistration()
+    {
+        var userAccountService = UserAccountServiceCreating(Guid.NewGuid());
+        var db = Substitute.For<IAppDbContext>();
+        db.JobSeekers.Returns(Substitute.For<DbSet<JobSeeker>>());
+
+        var handler = new RegisterCommandHandler(
+            db,
+            userAccountService,
+            Substitute.For<ISessionStore>(),
+            Substitute.For<IAuthAuditLogger>(),
+            Substitute.For<IEmailSender>(),
+            Substitute.For<ICooldownGate>(),
+            Options.Create(new AuthOptions()),
+            Options.Create(new AuthEmailCooldownOptions()),
+            FakeDateTimeProvider.Default);
+
+        var result = await handler.Handle(ValidCommand(), CancellationToken.None);
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe(AuthErrorCodes.RegistrationsClosed);
+        await userAccountService.DidNotReceive().CreateUserAsync(
+            Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
     }
 }

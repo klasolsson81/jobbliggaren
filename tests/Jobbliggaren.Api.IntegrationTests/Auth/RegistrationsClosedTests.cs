@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json;
 using Jobbliggaren.Api.IntegrationTests.Infrastructure;
 using Shouldly;
 
@@ -36,8 +37,11 @@ public class RegistrationsClosedTests(ApiFactory factory)
         var response = await RegisterAsync(_closed, $"regclosed-{Guid.NewGuid()}@example.com", ct);
 
         response.StatusCode.ShouldBe(HttpStatusCode.ServiceUnavailable);
-        var body = await response.Content.ReadAsStringAsync(ct);
-        body.ShouldContain("Auth.RegistrationsClosed");
+        // Asserted on the parsed ProblemDetails title, not a raw substring over the whole JSON: the
+        // frontend discriminates on exactly this field (a Redis outage produces a 503 here too), so a
+        // match anywhere in the body would not prove the contract the client depends on.
+        var problem = await response.Content.ReadFromJsonAsync<JsonElement>(ct);
+        problem.GetProperty("title").GetString().ShouldBe("Auth.RegistrationsClosed");
     }
 
     /// <summary>
@@ -62,8 +66,10 @@ public class RegistrationsClosedTests(ApiFactory factory)
     }
 
     /// <summary>
-    /// The other half of the counterfactual: the default host is OPEN, so the gate is not simply on
-    /// everywhere. Without this, the two tests above would also pass against a permanently closed app.
+    /// The gate is not simply on everywhere. Strictly speaking this is subsumed — the test above
+    /// already asserts 200 on the open host for the same address — but it is kept as the NAMED
+    /// counterfactual: it states the property on its own rather than leaving it as a side effect of a
+    /// test about something else, so deleting it would be a visible loss rather than a quiet one.
     /// </summary>
     [Fact]
     public async Task POST_register_still_succeeds_on_the_open_host()

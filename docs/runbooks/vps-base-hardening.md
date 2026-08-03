@@ -1,0 +1,561 @@
+# VPS base hardening — Jobbliggaren production host
+
+**Created:** 2026-08-03 (spår B, VPS lane)
+**Host:** Netcup RS 1000 G12, Debian 13 (trixie), Nuremberg (EU)
+**Source:** ADR 0050 pre-beta-data-gates B-1 / M-6; security-auditor 2026-08-03
+**Scope:** base hardening only — no deploy, no application data, no DNS, no TLS
+
+This runbook covers turning a freshly provisioned, password-exposed root server into an
+access-controlled host with a proven rescue path. It is deliberately written to be executed
+against a box that carries **no application data**, and it stops where the deploy work
+starts. The deploy stack, reverse proxy, certificates and secret injection are owned by
+[#196](https://github.com/klasolsson81/jobbliggaren/issues/196) and are **not** in scope here.
+
+---
+
+## 1. Scope and end-state invariants
+
+Hardening is finished when all of the following hold, each proven by the command in §9 —
+never asserted:
+
+1. The **rescue path is proven before anything else changes**. A console session that has
+   never been tested is not a rescue path.
+2. SSH accepts **public keys only**, for **one named non-root user**. Password and
+   keyboard-interactive authentication are refused; root is refused even with a valid key.
+3. The **host firewall** filters inbound traffic with a default-drop policy and survives a
+   reboot.
+4. The **edge firewall** carries an explicit `DROP all` as the last own-rule **in both
+   directions**. Allow-rules alone do nothing here (§6.1).
+5. Egress is **verified from inside the box** after the rules are live: package updates,
+   DNS, NTP and an outbound HTTPS fetch all still work.
+6. **`ss -tlnp` lists only sshd on port 22**, before and after. Hardening adds no listener.
+7. Security updates install themselves, and **no unattended reboot** can happen.
+8. Nothing pages secrets to disk: **zram swap only, no disk swap, core dumps discarded**.
+
+### Not in scope
+
+Deploy, containers, application data, DNS cutover, TLS certificates, the reverse proxy,
+secret injection, backups, and the log sink. `fail2ban` is deliberately **not** installed —
+see the deviation log (§11).
+
+---
+
+## 2. Access inventory
+
+| Item | Value / location |
+|---|---|
+| Host | `v2202608391467492778.supersrv.de` |
+| Public IPv4 | `159.195.203.88` |
+| Public IPv6 | `2a0a:4cc0:c2:afe5::/64` |
+| SSH host key (Ed25519) | `SHA256:TDVIOqy4zBkU/HYG3P0bgT9SogWXtTun86F7ahM7nGk` |
+| Admin user | `jpadmin` (sudo, NOPASSWD — see §11) |
+| Operator key | `~/.ssh/jobbpilot_vps_ed25519` on Klas's workstation, **no passphrase** (§11) |
+| Operator SSH alias | `jp-vps` (see §4.1) |
+| SSH source restriction | one `/32`, recorded in the local `docs/current-work.md` — **deliberately not written here**, because this file is public |
+| Control panel | Netcup SCP, 2FA enabled |
+| API state | `~/.netcup/refresh_token` on the workstation, never in the repo |
+
+**Two console identities exist on purpose.** The `root` password and the `jpadmin` password
+both remain valid **at the VNC console**. Neither can be used over SSH after §4. Losing the
+key must never mean losing the box, so **the root password is never locked** — it is the
+rescue credential. Both live in Klas's password manager.
+
+The host key fingerprint is published deliberately: it lets any future first connection be
+verified against a value that was recorded before hardening began. Publishing a *public*
+fingerprint is a security feature. **Never** put a private key body, a password, or a
+password hash in this file.
+
+---
+
+## 3. Rescue paths, in order
+
+Try them in this order. Each one is independent of the layer below it.
+
+1. **SSH as `jpadmin`** — normal operation.
+2. **Edge firewall edit in SCP** (browser). The control plane rides *your* internet
+   connection, not the box's, so no firewall rule on the box can lock you out of it. This is
+   the fix when the edge rules are the problem — including when your own source IP has
+   changed (§6.5).
+3. **VNC console ("Screen" in SCP)** — out-of-band, below the network stack entirely. This
+   is what survives a wrong `nftables` ruleset, a broken `sshd_config`, and a box that boots
+   into emergency mode. Log in as `root` or `jpadmin` with the console password.
+4. **File-level restores on the box** — `/var/backups/hardening/` holds a timestamped copy
+   of `/etc/ssh`, `/etc/fstab` and the pre-change nftables ruleset.
+
+**Snapshots are not a rescue path here.** One exportable snapshot slot remains and it is
+rationed for the migration work later in the lane. Restoring one also rolls back everything
+else. Do not spend it on a hardening mistake — items 2–4 cover every failure mode in §10.
+
+---
+
+## 4. SSH configuration
+
+### 4.1 Operator side
+
+`~/.ssh/config` on the workstation:
+
+```
+Host jp-vps
+    HostName 159.195.203.88
+    User jpadmin
+    IdentityFile ~/.ssh/jobbpilot_vps_ed25519
+    IdentitiesOnly yes
+    AddressFamily inet
+    ServerAliveInterval 15
+    ServerAliveCountMax 4
+```
+
+`AddressFamily inet` is load-bearing, not cosmetic. The edge rule that permits SSH is
+**IPv4-only**; on a network that prefers IPv6 the connection would otherwise be dropped by
+the edge and read exactly like a lockout. Pin the family and the failure cannot happen.
+
+Every automated connection uses `-o BatchMode=yes` so that an unexpected prompt **fails
+instead of hanging**.
+
+### 4.2 Server side
+
+Debian 13's `sshd_config` puts `Include /etc/ssh/sshd_config.d/*.conf` at the **top**, and
+OpenSSH takes the **first** value it obtains for a keyword. Two consequences:
+
+- Our file is named `00-hardening.conf` so it wins even if a vendor or cloud-init drop-in
+  reappears later.
+- Any pre-existing drop-in is renamed to `*.conf.disabled` (which removes it from the glob)
+  rather than edited.
+
+`/etc/ssh/sshd_config.d/00-hardening.conf`:
+
+```
+PermitRootLogin no
+PubkeyAuthentication yes
+PasswordAuthentication no
+KbdInteractiveAuthentication no
+AuthenticationMethods publickey
+AllowUsers jpadmin
+MaxAuthTries 3
+AllowTcpForwarding no
+X11Forwarding no
+```
+
+If cloud-init is installed, also write `/etc/cloud/cloud.cfg.d/99-no-pwauth.cfg` containing
+`ssh_pwauth: false`, so a regenerated drop-in cannot re-enable passwords.
+
+**Port 22 is kept.** Moving it is noise reduction, not security (security-auditor,
+2026-08-03). What is worth more and costs nothing is restricting port 22 to one source
+address at the edge (§6.3).
+
+### 4.3 Applying a change to sshd — the safe cycle
+
+Never reload sshd without an escape hatch armed and the current session held open.
+
+```bash
+# 1. Back up
+sudo tar -C /etc -czf /var/backups/hardening/etc-ssh-$(date +%Y%m%d%H%M%S).tgz ssh
+
+# 2. Arm a dead-man revert (fires in 10 minutes unless cancelled)
+sudo systemd-run --on-active=10min --unit=sshd-deadman --collect \
+  /bin/sh -c "rm -f /etc/ssh/sshd_config.d/00-hardening.conf; systemctl reload ssh"
+
+# 3. Validate syntax BEFORE reloading, then reload — keep the current session open
+sudo sshd -t && sudo systemctl reload ssh
+# Förväntat: no output from sshd -t; reload returns 0
+```
+
+Verify from **new** sessions (an already-open session proves nothing — it was authenticated
+under the old configuration), then cancel the dead-man **and confirm it did not already
+fire**:
+
+```bash
+sudo systemctl stop sshd-deadman.timer 2>/dev/null
+systemctl list-timers --all | grep -c deadman     # Förväntat: 0
+sudo sshd -T | grep ^passwordauthentication       # Förväntat: passwordauthentication no
+```
+
+That second check is not redundant. A dead-man that was left to fire silently restores
+password authentication ten minutes later, and the box looks fine while it happens.
+
+### 4.4 Key rotation
+
+```bash
+ssh-keygen -t ed25519 -a 100 -N "" -C "jpadmin@jobbliggaren-vps $(date +%Y-%m)" \
+  -f ~/.ssh/jobbpilot_vps_ed25519_new
+ssh-copy-id -i ~/.ssh/jobbpilot_vps_ed25519_new.pub jp-vps   # appends, does not replace
+ssh -i ~/.ssh/jobbpilot_vps_ed25519_new jpadmin@159.195.203.88 'echo NEW-KEY-OK'
+# only after that succeeds: remove the old key's line from authorized_keys, then the local files
+```
+
+Add the new key **before** removing the old one, and prove the new one works from a fresh
+session in between. If the console password is ever lost as well, this ordering is the only
+thing standing between a typo and a reinstall.
+
+---
+
+## 5. Host firewall — nftables
+
+`/etc/nftables.conf`, loaded at boot by `nftables.service`:
+
+```
+#!/usr/sbin/nft -f
+flush ruleset
+
+table inet filter {
+    chain input {
+        type filter hook input priority filter; policy drop;
+
+        iif "lo" accept
+        ct state established,related accept
+        ct state invalid drop
+
+        icmp type { echo-request, echo-reply, destination-unreachable,
+                    time-exceeded, parameter-problem } accept
+
+        # NDP is mandatory: without it IPv6 stops working entirely.
+        icmpv6 type { echo-request, echo-reply, destination-unreachable, packet-too-big,
+                      time-exceeded, parameter-problem, nd-router-advert,
+                      nd-neighbor-solicit, nd-neighbor-advert, mld-listener-query } accept
+
+        tcp dport 22 accept
+        # Pre-opened for the deploy phase. Nothing listens yet, so the kernel answers RST —
+        # zero exposure — and the RST is load-bearing for the edge probes in §6.4.
+        tcp dport { 80, 443 } accept
+    }
+    chain forward {
+        type filter hook forward priority filter; policy drop;
+        # Docker (deploy phase) installs its own chains and punches its own holes.
+        # This interaction MUST be revisited when containers land — see #196.
+    }
+    chain output {
+        type filter hook output priority filter; policy accept;
+        # Egress filtering is owned by the edge firewall (§6). One layer, one place to debug.
+    }
+}
+```
+
+**Why output is `accept`.** Filtering egress in both layers doubles the debugging surface —
+every outage has to be chased through two rule sets — while adding little containment: an
+attacker with root can rewrite `nftables`, but cannot reach the edge rules. Revisit this when
+containers land and per-service egress control becomes meaningful.
+
+**Why the host needs no UDP reply holes.** The host's conntrack is stateful for UDP too, so
+replies match `ct state established`. The edge is stateless for UDP and therefore needs
+explicit reply rules (§6.2) — and the host's default-drop is what backstops them: a packet
+forged with source port 53 passes the edge and dies here unless it answers a real query.
+
+Applying a ruleset uses the same dead-man discipline as §4.3, with `nft flush ruleset` as the
+revert. Two checks matter afterwards:
+
+```bash
+sudo nft -c -f /etc/nftables.conf                      # Förväntat: no output (syntax OK)
+sudo nft list chain inet filter input | grep "policy drop"
+sudo systemctl enable --now nftables && systemctl is-enabled nftables   # Förväntat: enabled
+```
+
+`is-enabled` is not a formality. An unenabled service means the next reboot silently brings
+up a completely unfiltered host, and nothing else in the system reports it.
+
+---
+
+## 6. Edge firewall — Netcup SCP
+
+### 6.1 Semantics you must know before touching a rule
+
+Measured in SCP on 2026-08-03, and every one of these has bitten someone:
+
+- **Default-allow in both directions.** Two implicit `Accept all` rules (one inbound, one
+  outbound) are applied *last*. Writing allow-rules changes **nothing** — the traffic was
+  already allowed. **Each direction needs an explicit `DROP all` as the last own-rule** or
+  the firewall is decoration that looks configured.
+- **First match wins**, top-down. Maximum 500 rules per server per interface.
+- **Stateful for TCP, stateless for UDP.** Replies to outbound TCP are tracked; replies to
+  outbound UDP are **not**, so DNS and NTP need explicit inbound rules on the *source* port.
+- **Established connections survive rule changes.** Your open SSH session is not evidence
+  that the rules permit SSH. Every test must open a **new** connection.
+- The default group **`netcup Mail block`** (outbound TCP 25/465/587 DROP) is on and is
+  **left alone**. Transactional mail goes over the SES HTTPS API — never SMTP — so there is
+  never a reason to ask Netcup to open 587.
+
+### 6.2 Ingress rules
+
+| # | Family | Proto | Source | Sport | Dport | Action | Why |
+|---|---|---|---|---|---|---|---|
+| I1 | v4 | TCP | `<ADMIN_SRC_IP>/32` | any | 22 | ACCEPT | SSH from the operator only |
+| I2 | any | TCP | any | any | 80 | ACCEPT | future ACME/HTTP; nothing listens yet |
+| I3 | any | TCP | any | any | 443 | ACCEPT | future HTTPS |
+| I4 | v4 | ICMP | any | – | – | ACCEPT | ping, PMTUD, errors |
+| I5 | v6 | ICMPv6 | any | – | – | ACCEPT | **NDP — IPv6 dies without it**; source and destination must both be `any` |
+| I6 | any | UDP | any | 53 | ephemeral | ACCEPT | **DNS replies** (UDP is stateless here) |
+| I7 | any | UDP | any | 123 | ephemeral | ACCEPT | NTP replies |
+| I8 | v4 | UDP | any | 67 | 68 | ACCEPT | **only if the box uses DHCPv4** — see §6.6 |
+| I9 | any | any | any | any | any | **DROP** | explicit default-deny inbound |
+
+`<ADMIN_SRC_IP>` is intentionally a placeholder: this file is public. The live value is in
+the local `docs/current-work.md` and in the SCP rule itself.
+
+There is no IPv6 SSH rule, because the operator path is pinned to IPv4 (§4.1).
+
+### 6.3 Egress rules — applied last
+
+| # | Family | Proto | Destination | Dport | Action | Why |
+|---|---|---|---|---|---|---|
+| E1 | any | TCP | any | 443 | ACCEPT | HTTPS: apt, container registry, SES later |
+| E2 | any | TCP | any | 80 | ACCEPT | apt mirrors, OCSP |
+| E3 | any | UDP | any | 53 | ACCEPT | DNS |
+| E4 | any | TCP | any | 53 | ACCEPT | DNS over TCP (truncated answers) |
+| E5 | any | UDP | any | 123 | ACCEPT | NTP |
+| E6 | v4 | ICMP | any | – | ACCEPT | PMTUD; replies to inbound pings |
+| E7 | v6 | ICMPv6 | any | – | ACCEPT | **mandatory for IPv6 (NDP)** |
+| E8–E10 | any | TCP | sport 22 / 80 / 443 → any | any | ACCEPT | **reply belt** — see below |
+| E11 | v4 | UDP | sport 68 → any | 67 | ACCEPT | **only if DHCPv4** — §6.6 |
+| E12 | any | any | any | any | **DROP** | explicit default-deny outbound |
+
+**The reply belt (E8–E10) is deliberate redundancy.** Statefulness is *measured* only for
+outbound-initiated connections. If the edge turns out to be asymmetric, replies to a **new
+inbound** SSH connection would be dropped — while every already-open session keeps working
+and hides it. The belt costs three rules and removes the failure mode. Its residual exposure
+(a local process bound to source port 22/80/443 reaching an arbitrary destination) requires a
+root-level compromise to reach, and SMTP stays blocked by the Mail block group regardless.
+
+### 6.4 Proving the rules actually filter
+
+The textbook probe — an outside connection to a closed port flipping from *refused* to
+*timed out* — **does not work here**, because the host firewall (§5) is applied first and
+already times out everything else. Three signals survive, and together they are sufficient:
+
+1. **Port 22 from a different source address** (a phone on mobile data, with an SSH client
+   app — browsers cannot reach port 22). Reachable before I9, **times out after**. The host
+   accepts the port; only the edge is source-filtering. This proves I9 filters.
+2. **RST pass-through on 443**: `curl -m5 telnet://159.195.203.88:443` gives a **fast
+   "connection refused"** both before and after. That proves the accept rules pass traffic
+   through to a host with no listener.
+3. **The egress flip**: `curl -4 -m5 http://portquiz.net:8080` succeeds at baseline and
+   **times out after E12**.
+
+Run 1 and 3 **at baseline first**. A probe whose "before" value was never measured proves
+nothing about the "after".
+
+### 6.5 Changing rules later
+
+Rules can be edited in the SCP web UI or through the REST API (`https://api.netcup.com/api/v1/`,
+OAuth2 device-code flow against the `scp` Keycloak realm; the refresh token stays valid as
+long as it is used within 30 days). Either way:
+
+1. `GET` the current configuration and **save it** — that file is the rollback.
+2. Apply the change; re-apply/commit if the API requires it.
+3. `GET` again and diff against the tables above.
+4. Re-run the §6.4 probes on new connections.
+
+**If your source IP changes** and SSH stops working, that is not a lockout. Confirm the new
+address from any device (`curl ifconfig.me`), edit I1 in the SCP, and reconnect. Use the VNC
+console in the meantime.
+
+### 6.6 DHCPv4
+
+Rows I8 and E11 exist only if the box actually uses a DHCP client. Determine this **before**
+applying the egress DROP-all — a missed lease renewal fails silently, hours later, and looks
+like a network outage. A root server has a fixed address, so static configuration is
+preferable; keep DHCP only if it is already in use, and then keep both rows.
+
+---
+
+## 7. Updates — unattended-upgrades
+
+Security updates only, and **never** an automatic reboot: a reboot at an arbitrary hour is
+its own outage, and this box will soon carry a key that only exists in RAM.
+
+`/etc/apt/apt.conf.d/52unattended-upgrades-local`:
+
+```
+// Jobbliggaren: security-only, never auto-reboot
+#clear Unattended-Upgrade::Origins-Pattern;
+Unattended-Upgrade::Origins-Pattern {
+        "origin=Debian,codename=${distro_codename}-security,label=Debian-Security";
+};
+Unattended-Upgrade::Automatic-Reboot "false";
+```
+
+**The `#clear` is mandatory.** APT configuration lists *append* across files, so a drop-in
+that simply states an `Origins-Pattern` widens the set instead of narrowing it. Without
+`#clear` the result is the opposite of what the file appears to say.
+
+`/etc/apt/apt.conf.d/20auto-upgrades`:
+
+```
+APT::Periodic::Update-Package-Lists "1";
+APT::Periodic::Unattended-Upgrade "1";
+```
+
+Verify:
+
+```bash
+sudo unattended-upgrade --dry-run --debug 2>&1 | grep -A3 "Allowed origins"
+# Förväntat: exactly one origin, the -security one
+apt-config dump | grep Automatic-Reboot        # Förväntat: "false"
+systemctl is-active apt-daily.timer apt-daily-upgrade.timer   # Förväntat: active active
+```
+
+**What this does not cover:** container image contents. `unattended-upgrades` patches the
+host only. Base-image CVE cadence is a separate mechanism (a `docker` ecosystem entry in
+Dependabot) and belongs to the phase that starts publishing images.
+
+**During risky cutovers, stop the timers** (`systemctl stop apt-daily.timer
+apt-daily-upgrade.timer`). An unattended run holding the dpkg lock in the middle of a
+firewall verification reads exactly like an egress failure. Use `stop`, not `disable`, so a
+reboot restores them.
+
+---
+
+## 8. Memory and crash hygiene
+
+ADR 0050 gate B-1 requires that the future master key **never reaches disk**. Two mechanisms
+would break that promise behind your back, so both are closed here, before any key exists.
+
+**zram instead of disk swap.** `/etc/systemd/zram-generator.conf`:
+
+```ini
+[zram0]
+zram-size = min(ram / 2, 4096)
+compression-algorithm = zstd
+swap-priority = 100
+```
+
+`systemd-zram-generator` is chosen over `zram-tools`: one declarative file, device lifecycle
+owned by a native systemd generator, no shell-script service. **No `writeback-device` is
+configured** — swapped pages must stay in RAM; that is the entire point.
+
+Disk swap is removed. Back up `/etc/fstab` first, `swapoff` everything that is not zram,
+comment out the swap lines, and then:
+
+```bash
+findmnt --verify        # Förväntat: 0 parse errors
+swapon --show           # Förväntat: only /dev/zram0
+```
+
+`findmnt --verify` is the gate that matters: a malformed fstab boots into emergency mode, and
+you would discover it at the reboot rather than at the edit.
+
+Companion sysctls in `/etc/sysctl.d/90-zram.conf` — `vm.swappiness = 100` and
+`vm.page-cluster = 0`. Swapping to zram costs CPU rather than disk I/O, so being eager is
+correct, and read-ahead batching buys nothing for a RAM-backed device.
+
+**Core dumps discarded.** `/etc/systemd/coredump.conf.d/90-disable.conf`:
+
+```ini
+[Coredump]
+Storage=none
+ProcessSizeMax=0
+```
+
+A crash dump of the process holding the master key is precisely the mechanism that would copy
+that key to persistent storage. If `/proc/sys/kernel/core_pattern` does not route to
+`systemd-coredump`, also set `kernel.core_pattern = |/bin/false` via `sysctl.d`, otherwise
+the kernel writes `core` files into the crashing process's working directory.
+
+Verify with an actual crash, not by reading the config:
+
+```bash
+cd /tmp && bash -c 'kill -SEGV $$'
+ls -A /var/lib/systemd/coredump/ 2>/dev/null; ls /tmp/core* 2>/dev/null
+# Förväntat: no files in either location
+```
+
+---
+
+## 9. Verification battery
+
+Run after any change to this box, and in full after every reboot.
+
+```bash
+ss -tlnp                                   # Förväntat: only sshd, :22 and [::]:22
+sudo sshd -T | grep -E "^(passwordauthentication|permitrootlogin|allowusers|maxauthtries) "
+                                           # Förväntat: no / no / jpadmin / 3
+sudo nft list ruleset | grep -E "policy (drop|accept)"
+                                           # Förväntat: input drop, forward drop, output accept
+systemctl is-enabled nftables ssh          # Förväntat: enabled enabled
+swapon --show; zramctl                     # Förväntat: only /dev/zram0, zstd
+timedatectl | grep -E "synchronized|NTP service"    # Förväntat: yes / active
+sudo apt-get update -q >/dev/null && echo APT-EGRESS-OK
+getent hosts deb.debian.org >/dev/null && echo DNS-OK
+curl -6 -m8 -sI https://deb.debian.org >/dev/null && echo V6-EGRESS-OK
+cat /proc/sys/kernel/core_pattern
+```
+
+Negative checks, from the workstation — a hardening claim is only proven by what is
+**refused**:
+
+```bash
+# password path dead (expect "Permission denied (publickey)." and NO password prompt)
+ssh -o PubkeyAuthentication=no -o PreferredAuthentications=password,keyboard-interactive \
+    jpadmin@159.195.203.88
+# root refused even with a valid key
+ssh -i ~/.ssh/jobbpilot_vps_ed25519 -o BatchMode=yes root@159.195.203.88 true
+# edge filtering (from a different source address, e.g. a phone): port 22 must time out
+# accept rules still pass: fast "connection refused", not a timeout
+curl -m5 telnet://159.195.203.88:443
+```
+
+---
+
+## 10. Failure modes and recovery
+
+| # | Situation | How you detect it | Recovery |
+|---|---|---|---|
+| 1 | noVNC keyboard layout mangles the password — the rescue path is fiction | Type the password's special characters into the *username* field before relying on it | Stop. Resolve through Netcup's password-reset facilities before touching SSH |
+| 2 | sshd change locks you out (wrong `AllowUsers`, wrong key) | A new session is refused within seconds | The open session still works; the dead-man reverts within 10 min; VNC console |
+| 3 | Dead-man was never cancelled — password auth silently returns | `systemctl list-timers` + `sshd -T` after every cutover | Re-apply the drop-in and reload |
+| 4 | cloud-init regenerates a drop-in enabling passwords | `sshd -T` in the §9 battery | `00-` prefix wins; `ssh_pwauth: false` is set; delete the file if it reappears |
+| 5 | Malformed `/etc/fstab` → emergency mode at boot | `findmnt --verify` at edit time; no SSH after reboot | VNC console; restore fstab from `/var/backups/hardening/` |
+| 6 | `nftables.service` not enabled → unfiltered host after reboot | `systemctl is-enabled nftables` | `systemctl enable --now nftables` |
+| 7 | Wrong `Origins-Pattern` → zero security updates, silently, forever | The `--dry-run` check shows more or fewer than one origin | Fix the drop-in; re-run the dry run |
+| 8 | Your source IP changed; SSH looks like a lockout | `curl ifconfig.me` from another device | Edit I1 in the SCP (browser path is unaffected); VNC in the meantime |
+| 9 | Egress DROP-all cuts DNS, NTP or apt | The §9 battery fails from inside immediately | Disable E12 in the SCP, fix the gap, re-apply |
+| 10 | Edge is asymmetrically stateful → replies to new inbound SSH die | Open a **new** inbound SSH session right after E12 | The reply belt (E8–E10) pre-empts this; otherwise disable E12 |
+| 11 | Box does not come back from a reboot | No SSH after ~6 minutes | VNC console → `systemctl --failed`, `journalctl -xb` |
+| 12 | Temptation to burn the last snapshot during an incident | — | Don't. Items 2–4 in §3 cover every row in this table |
+
+---
+
+## 11. Deviation log
+
+Decisions that depart from an earlier written expectation, recorded so they are reviewable
+rather than discovered:
+
+- **`fail2ban` is not installed**, although ADR 0050 gate M-6 lists it. security-auditor,
+  2026-08-03: with `PasswordAuthentication no` and `PermitRootLogin no` it "defends against a
+  brute force that cannot succeed", and the application already has per-account lockout and
+  per-IP limiting. What replaces it is worth more and costs nothing: port 22 restricted to one
+  source address at the edge. Install it later if quiet logs are wanted — as a log-hygiene
+  measure, not a security control.
+- **`NOPASSWD` sudo for `jpadmin`.** Non-interactive automation cannot answer a sudo prompt.
+  Combined with a passphrase-less key this means key theft equals root. The account password
+  still exists and is required at the console, so the rescue identity is unaffected. Narrowing
+  this is a live option once the deploy automation's real command set is known.
+- **The operator key has no passphrase.** SSH-agent plumbing under Git Bash is unreliable for
+  background automation. Mitigations: the edge restricts port 22 to one source address, the
+  VNC/SCP rescue paths do not depend on the key, and rotation is a two-command procedure
+  (§4.4).
+- **ICMP is permitted outbound (E6/E7)** beyond the originally scoped egress set. ICMPv6 is
+  not optional — NDP is how IPv6 works — and ICMPv4 carries PMTUD, whose absence produces
+  connections that establish and then hang on large payloads.
+- **Host `output` policy is `accept`** rather than a second filtering layer; rationale in §5.
+
+---
+
+## 12. Notes for the phases that follow
+
+- **Docker will conflict with §5.** It writes its own chains and bypasses a naive host
+  firewall; every container port must be bound explicitly to `127.0.0.1`, and the `forward`
+  policy interaction must be re-examined. This is not optional: the dev compose file binds
+  five of six ports to `0.0.0.0`, including an unauthenticated Seq.
+- Ports 80 and 443 are already open at both layers, so bringing up the reverse proxy needs no
+  firewall change.
+- **Outbound mail stays impossible** and must remain so: SES is called over its HTTPS API.
+- The `_FILE` secret seam, the key-in-tmpfs work, and the mandatory second security audit of
+  the actual production configuration are gates for the *first real user data*, not for this
+  runbook. See ADR 0050's pre-beta-data gates.
+
+---
+
+## 13. References
+
+- [`docs/decisions/0050-deployment-migration-aws-exit-hetzner.md`](../decisions/0050-deployment-migration-aws-exit-hetzner.md) — gates B-1 (master key never plaintext on disk) and M-6 (hardening baseline)
+- [#196](https://github.com/klasolsson81/jobbliggaren/issues/196) — deploy stack; owns everything in §12
+- [`CLAUDE.md`](../../CLAUDE.md) §11 — tooling and the dev-boot config contract

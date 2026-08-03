@@ -232,6 +232,32 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         return _emailConfirmationHost.CreateClient();
     }
 
+    private WebApplicationFactory<Program>? _registrationsClosedHost;
+    private readonly object _registrationsClosedLock = new();
+
+    /// <summary>
+    /// ADR 0083 Amendment 2026-08-03 — an <see cref="HttpClient"/> against a host with the
+    /// public-registration kill-switch forced CLOSED. This is the counterfactual: without a host that
+    /// actually refuses, the base host's 200/202 assertions cannot tell a working gate from an absent
+    /// one.
+    /// <para>
+    /// Cached and shared for the same reason as <see cref="CreateEmailConfirmationClient"/> — one
+    /// derived host per test class would each spin a fresh EF internal service provider and trip EF's
+    /// process-wide <c>ManyServiceProvidersCreatedWarning</c> (&gt;20) across the shared
+    /// <c>[Collection("Api")]</c>. Registered AFTER the base host's PostConfigure, so it wins.
+    /// </para>
+    /// </summary>
+    internal HttpClient CreateRegistrationsClosedClient()
+    {
+        lock (_registrationsClosedLock)
+        {
+            _registrationsClosedHost ??= WithWebHostBuilder(builder => builder.ConfigureServices(services =>
+                services.PostConfigure<AuthOptions>(o => o.RegistrationsOpen = false)));
+        }
+
+        return _registrationsClosedHost.CreateClient();
+    }
+
     public async ValueTask InitializeAsync()
     {
         await Task.WhenAll(_postgres.StartAsync(), _redis.StartAsync());

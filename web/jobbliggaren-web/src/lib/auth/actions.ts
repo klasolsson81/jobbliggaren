@@ -172,6 +172,13 @@ export async function registerAction(
       // thus its email input, unmounts on 202). Uniform across fresh/taken addresses — no oracle.
       return { pendingConfirmation: true, email };
     }
+    // ADR 0083 Amendment 2026-08-03 — public registration is deliberately held closed. Caught BEFORE
+    // the !res.ok fallthrough, which would render "ett oväntat fel uppstod" for a state that is
+    // neither unexpected nor an error (§10: informative, non-blaming). Uniform for every address:
+    // the backend gate never reads the submitted email, so this branch carries no enumeration signal.
+    if (res.status === 503) {
+      return { error: t("auth.actions.registrationsClosed") };
+    }
     if (!res.ok) {
       return { error: t("auth.actions.unexpectedError") };
     }

@@ -193,8 +193,8 @@ var app = builder.Build();
 // over config binding). This is the signal that would have surfaced the Auth:RequireEmailConfirmation
 // drift measured 2026-08-03 — the key is absent from every non-Development appsettings file, so
 // Production silently ran the legacy instant-login branch and nothing said so at boot.
-app.Logger.LogInformation(
-    "Registration gate: {RegistrationGateState}",
+RegistrationGateLog.Announce(
+    app.Logger,
     app.Services.GetRequiredService<IOptions<AuthOptions>>().Value.RegistrationsOpen ? "OPEN" : "CLOSED");
 
 app.Use(async (ctx, next) =>

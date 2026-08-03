@@ -400,9 +400,12 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
       åstadkom. **(b) gör det inte:** Art. 30-posten för konto/auth kristalliseras vid första
       verkliga registrerade användaren och bärs av ingen annan mekanism.
       *Not:* `AuthOptionsValidator` vägrar numera boota **Api:n** på `RegistrationsOpen` utan
-      `RequireEmailConfirmation` utanför Development/Test — på två oberoende ställen (den ivriga
-      `IOptions<AuthOptions>`-läsningen vid boot-announcement i `Program.cs`, och
-      `ValidateOnStart`), båda före Kestrel binder. **Worker:n valideras medvetet inte** och
+      `RequireEmailConfirmation` utanför Development/Test. Garantin bärs av **den ivriga
+      `IOptions<AuthOptions>`-läsningen** vid boot-announcement i `Program.cs`: den ligger
+      bevisligen före `app.Run()` och därmed före att Kestrel binder socketen. `ValidateOnStart`
+      är en redundant backstop — dess ordning relativt `GenericWebHostService` är **inte** pinnad
+      av något i repot, så påstå den inte. Slutsatsen (ingen trafik i den osäkra kombinationen)
+      håller på den första halvan ensam. **Worker:n valideras medvetet inte** och
       fortsätter köra; en operatör som ser jobb-loggar rulla vidare ska inte läsa det som att
       spärren inte slog till. Det är en teknisk spärr mot en osäker **kombination** — den
       ersätter inte den här grinden, som är juridisk, och den säger ingenting om (a) eller (b).

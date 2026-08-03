@@ -1525,10 +1525,12 @@ public class HeadingDrivenResumeSegmenterTests
         // reformat flag. This round-trip pins the contract that diverged: whatever Period the
         // segmenter extracts MUST be consumable by the PeriodParser the downstream engine feeds it
         // to, so the two regexes cannot drift apart again. (Note: DateRangeRegex's alternation order
-        // truncates the range END to a bare year — "2020-06 – 2024" — a separate, non-§5 cosmetic
-        // quirk out of #420 scope; the load-bearing part is that the ISO-month START now parses and
-        // the year span is correct. The direct "2020-06 – 2024-03" case is covered in
-        // PeriodParserYearSpanTests, so this test is robust whether or not that quirk is later fixed.)
+        // used to truncate the range END to a bare year — "2020-06 – 2024" — which this test was
+        // written to survive rather than assert, being out of #420 scope. #1060 road 3 commit 1
+        // corrected the ordering and the truncation is gone; this test stayed green through it,
+        // which is what "robust whether or not that quirk is later fixed" was for. The END value
+        // itself is now pinned in DatePatternsAlternationOrderingTests — deliberately not here,
+        // because this test's subject is the START granularity round-tripping to PeriodParser.)
         const string cv =
             """
             Anna Andersson

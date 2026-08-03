@@ -158,9 +158,12 @@ public class DatePatternsDateOnlyLineTests
         "'-' as the month separator in the RIGHT point of a range")]
     [InlineData("01/2022 - 06-2024",
         "'-' in the right point again, after a hyphen-with-spaces range separator")]
-    [InlineData("2020-06 – 2024-03",
-        "an ISO YYYY-MM END point: DateRange's end-alternation takes the bare \\d{4} first and " +
-        "leaves '-03' as a non-empty tail, so the whole line is never consumed")]
+    // The ISO YYYY-MM END point ("2020-06 – 2024-03") used to be a row here — the axis where
+    // DateRange's end-alternation took the bare \d{4} first and left "-03" as a non-empty tail.
+    // #1060 road 3 commit 1 ordered both alternations longest-alternative-first, so DatePatterns
+    // now reaches that form and the axis is retired. The row MOVED to
+    // DatePatternsAlternationOrderingTests, which pins the correction on all three surfaces; it was
+    // not edited in place, because its subject changed sides rather than its expectation drifting.
     [InlineData("2020-06",
         "a lone ISO YYYY-MM point: DateRange needs a separator and an end point, and Year leaves " +
         "'-06' as a non-empty tail")]

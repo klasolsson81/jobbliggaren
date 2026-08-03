@@ -16,10 +16,30 @@ namespace Jobbliggaren.Infrastructure.Resumes.Parsing;
 internal static partial class DatePatterns
 {
     // A date RANGE: a start point (YYYY, MM/YYYY or ISO YYYY-MM) — dash — an end point or a
-    // present-keyword. (Kept byte-identical to the pattern the segmenter previously owned so
-    // extract/strip behaviour is unchanged by the promotion.)
+    // present-keyword.
+    //
+    // BOTH POINT ALTERNATIONS ARE ORDERED LONGEST-ALTERNATIVE-FIRST, AND THAT ORDER IS THE
+    // CONTRACT — not a formatting preference. .NET's alternation is ordered and non-greedy across
+    // branches: the first branch that lets the OVERALL match succeed wins, and nothing forces
+    // backtracking to a longer one afterwards. With the bare `\d{4}` written first, "2020-06 –
+    // 2024-03" matched only as far as "2024" — the `\b` after it holds against the following "-",
+    // the overall match succeeds, and the end month is dropped. That reached three surfaces at
+    // once (IsDateOnlyLine, ExtractPeriod's stored VALUE, StripDates' masking), so it was one
+    // ordering defect and not three bugs.
+    //
+    // The START alternation never showed the defect, because there a too-short branch makes the
+    // overall match FAIL and the engine backtracks into the longer one. It is ordered anyway: the
+    // rule has to hold by construction rather than by which side happens to be rescued by
+    // backtracking, or the next alternative added to the wrong list reintroduces it silently.
+    //
+    // WHY THIS LANDED BEFORE ANY ALTERNATIVE WAS ADDED (senior-cto-advisor re-bind 2026-08-02,
+    // bind 9): every new alternative is a chance to reproduce it. A trailing-qualifier branch
+    // placed after `\d{4}` would make "2020 – 2024 (heltid)" match "2024" and leave the qualifier
+    // as a tail; a "jan" branch placed before "januari" would match "januari 2020" as far as
+    // "jan". Adding alternatives to an unordered list compounds the defect; adding them to an
+    // ordered one does not.
     [GeneratedRegex(
-        @"\b(\d{4}|\d{2}/\d{4}|\d{4}-\d{2})\s*[-–—]\s*(\d{4}|\d{2}/\d{4}|\d{4}-\d{2}|nuvarande|pågående|pagaende|present|current|now|idag|nu)\b",
+        @"\b(\d{4}-\d{2}|\d{2}/\d{4}|\d{4})\s*[-–—]\s*(\d{4}-\d{2}|\d{2}/\d{4}|\d{4}|nuvarande|pågående|pagaende|present|current|now|idag|nu)\b",
         RegexOptions.CultureInvariant | RegexOptions.IgnoreCase)]
     public static partial Regex DateRange();
 
@@ -95,9 +115,7 @@ internal static partial class DatePatterns
     /// never splits the right part again — so a hyphen in a position that regex accepts as a split
     /// is consumed as one, and its
     /// "03" fails the point match, while a hyphen to the right of an accepted split reaches
-    /// <c>PointRegex</c>'s <c>[/.\-]</c> branch intact; ISO <c>YYYY-MM</c> END points, because
-    /// <see cref="DateRange"/>'s end-alternation is ordered so the bare <c>\d{4}</c> matches first
-    /// and the word boundary after it holds against the following "-", leaving a non-empty tail;
+    /// <c>PointRegex</c>'s <c>[/.\-]</c> branch intact;
     /// and a lone date POINT with no range separator ("03/2020"), which <see cref="DateRange"/>
     /// cannot match at all and <see cref="Year"/> reduces only to "03/", since "/" is not in the
     /// trailing-separator set.</para>
@@ -108,20 +126,21 @@ internal static partial class DatePatterns
     /// validates the month and declines. So the callers take their UNION — substituting either for
     /// the other narrows suppression in one direction or the other.</para>
     ///
-    /// <para><b>The ISO end-point axis is an alternation-ordering defect, and it is NOT
-    /// review-only.</b>
-    /// The same ordering inside <see cref="DateRange"/> reaches every surface that reads the match
-    /// rather than the predicate: <c>HeadingDrivenResumeSegmenter.ExtractPeriod</c> returns the
-    /// match VALUE, so "2020-06 – 2024-03" is stored as <c>Period = "2020-06 – 2024"</c> — the end
-    /// month silently dropped from the value that rides into the promoted CV, on a path with no
-    /// approve step. <see cref="StripDates"/> likewise leaves "-03" unmasked. One ordering, three
-    /// surfaces. <b>The correction is the date-model widening's FIRST commit</b>
-    /// (senior-cto-advisor re-bind 2026-08-02, bind 9): longest-alternative-first must land, pinned,
-    /// BEFORE any alternation is added, or every new alternative reproduces the same defect —
-    /// a trailing-qualifier alternative placed after the bare <c>\d{4}</c> would make
-    /// "2020 – 2024 (heltid)" match "2024" first and leave the qualifier as a tail, exactly as this
-    /// axis does now. Not corrected here: <see cref="DateRange"/> is deliberately unchanged by the
-    /// promotion, whose segmenter half is a pure refactor.</para>
+    /// <para><b>The ISO end-point axis WAS an alternation-ordering defect, and it is CORRECTED
+    /// (#1060 road 3, commit 1).</b> It is recorded here rather than deleted because the shape
+    /// recurs: the ordering inside <see cref="DateRange"/> reached every surface that reads the
+    /// match rather than the predicate, so one token of order was three defects.
+    /// <c>HeadingDrivenResumeSegmenter.ExtractPeriod</c> returns the match VALUE, so
+    /// "2020-06 – 2024-03" was stored as <c>Period = "2020-06 – 2024"</c> — the end month dropped
+    /// from the value that rides into the promoted CV, on a path with no approve step — and
+    /// <see cref="StripDates"/> left "-03" unmasked, so a prose bullet carrying an inline ISO range
+    /// read as carrying a measurable digit. Downstream, the truncated value degraded
+    /// <c>PeriodParser</c>'s format token from <c>MM/YYYY</c> to <c>YYYY</c>, which beside a
+    /// slash-formatted entry produced a false "Blandade datumformat" Warn from B6 on a CV that is
+    /// consistent at month granularity — the defect #420 exists to prevent. All four were measured
+    /// before the correction and re-measured after; the ordering rationale lives on
+    /// <see cref="DateRange"/> itself, and <c>DatePatternsAlternationOrderingTests</c> is the
+    /// adjudicator.</para>
     /// </summary>
     public static bool IsDateOnlyLine(string line) => StripTrailingDate(line).Length == 0;
 

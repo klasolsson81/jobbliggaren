@@ -139,19 +139,23 @@ public class ReviewTextPeriodLineUnionTests
     [Theory]
     [InlineData("2019 till 2021", "the word separator 'till'")]
     [InlineData("3/2020 – 6/2024", "a single-digit month")]
-    [InlineData("2020-06 – 2024-03", "an ISO YYYY-MM end point")]
+    // "2020-06 – 2024-03" was a third row here until #1060 road 3 commit 1 ordered DateRange's
+    // alternations longest-alternative-first. DatePatterns reaches that form now, so it no longer
+    // ISOLATES the PeriodParser half — this method's whole job — and keeping it would have turned a
+    // kill into a row that passes under either substitution. It moved to
+    // DatePatternsAlternationOrderingTests. The two rows left are still individually load-bearing.
     public void DescriptionLines_ShouldStillSuppressTheDateRow_WhereOnlyPeriodParserReachesIt(
         string dateLine, string axis)
     {
         // THE TRAP, PINNED. These are the forms a SUBSTITUTION would have lost: PeriodParser is
-        // wider here and DatePatterns declines all three, so swapping the call site to a
+        // wider here and DatePatterns declines both, so swapping the call site to a
         // DatePatterns-only predicate hands them to the bullet scorer and to WeakVerbTransform.
         //
-        // THIS METHOD IS THE KILL FOR "union → DatePatterns only". The third case is an axis that
-        // no written table named — found by measuring rather than by reading one. The axes now
-        // live as InlineData in DatePatternsDateOnlyLineTests and no total is published anywhere:
-        // DateRange's end-alternation takes the bare \d{4} of "2024" first and leaves "-03" as a
-        // non-empty tail, so the whole line is never consumed.
+        // THIS METHOD IS THE KILL FOR "union → DatePatterns only". The axes live as InlineData in
+        // DatePatternsDateOnlyLineTests and no total is published anywhere — a count of a property
+        // emergent from two independently written grammars decays the moment either changes, and
+        // road 3 changed one of them: the ISO end-point axis that used to be this theory's third
+        // row is retired, which is a row leaving the list without the list ever having a size.
         PeriodParser.TryParse(dateLine, out _, out _, out _).ShouldBeTrue(
             $"premise: PeriodParser reaches this form via {axis}.");
         DatePatterns.IsDateOnlyLine(dateLine).ShouldBeFalse(

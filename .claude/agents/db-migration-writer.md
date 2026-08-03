@@ -23,16 +23,21 @@ confirming in this session.
 
 Write SQL directly only for PostgreSQL-specific constructs that EF Core's
 Fluent API cannot express — partial indexes, functional indexes and GIN/trigram
-opclasses, generated columns (`20260520212725_F6P4aJobAdTrigramIndexes` is the
-worked case). Everything else goes through EF Core configuration.
+opclasses (`20260520212725_F6P4aJobAdTrigramIndexes` is the worked case).
+Everything else goes through EF Core configuration.
 
-**Two things that look like they belong here and do not.** `CREATE EXTENSION`
+**Three things that look like they belong here and do not.** `CREATE EXTENSION`
 runs as **master** in `Jobbliggaren.Migrate`'s `ensure-extensions` mode, not in a
 migration: per ADR 0033 / TD-71 the `jobbliggaren_app` role has no CREATE
 privilege on the database, so a migration that tries it **fails at deploy**.
 `ANALYZE` belongs to the job that did the bulk load, once per completed run
 (CLAUDE.md §3.6, `ScbCompanyRegisterStore.AnalyzeAsync`) — statistics written by
-a migration go stale the moment the next load runs.
+a migration go stale the moment the next load runs. And **generated columns go
+through `HasComputedColumnSql(..., stored: true)`**, which EF Core expresses
+perfectly well (`JobAdConfiguration.cs:198`, `:247`); hand-write
+`GENERATED ALWAYS AS … STORED` via `migrationBuilder.Sql` and it stays out of the
+model snapshot, so the next `migrations add` proposes dropping the column — and
+computed→ordinary destroys the data in it.
 
 Before scaffolding a migration for a new aggregate, consult `dotnet-architect`
 to confirm invariants and entity design are stable. A schema built against an
@@ -232,6 +237,18 @@ content = table.Column<byte[]>(type: "bytea", nullable: false),
 **Do not infer the form from "is it encrypted".** Infer it from whether the model
 ever decrypts: Form A/B round-trip through the model and need the registry, Form
 C is opaque to it and must not be registered.
+
+**Adding a Form C column is a two-file change.** Form C has no allowlist for the
+architecture cross-check to read, so the column is enumerated **by hand** in
+`ErasureCascadeRegistry` — add one without adding it there and the Art. 17
+cascade silently misses it. That registry says so itself; you are the actor it is
+talking to.
+
+**A binary column the model MUST decrypt fits none of the three** — it is bytea
+like Form C but round-trips like Form A/B. BUILD.md already specifies one
+(`oauth_connections.encrypted_access_token`, unbuilt: the Gmail call cannot be
+made without plaintext). Do not force it into Form C because it is bytea; that
+pipeline is defined by opacity, not by type. Escalate the shape before scaffolding it.
 
 Ciphertext is longer than plaintext, so **never `HasMaxLength` on an encrypted
 column**, and never an index on its value — it is opaque and unordered. A column

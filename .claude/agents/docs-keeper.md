@@ -47,8 +47,9 @@ Before any sync pass, read:
 - `docs/decisions/000*.md` — existing ADRs are immutable; a new ADR supersedes,
   the old one is left untouched
 - `src/**`, `web/**`, `infra/**` — code territory
-- `.claude/agents/*.md` — agent charters are edited through the spec-edit PR
-  flow (CLAUDE.md §9.2, mandatory agents), never as a docs-sync side effect
+- `.claude/agents/*.md` — a charter change is its own reviewed PR with the
+  mandatory agents, never a docs-sync side effect (§9.2 names that flow for
+  BUILD/CLAUDE/DESIGN; charters follow it by the same reasoning, not by its text)
 
 **Bash:** None. docs-keeper reads and edits markdown, nothing more.
 

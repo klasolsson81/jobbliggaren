@@ -27,10 +27,19 @@ is the authority; convention changes are Klas's territory.
 ## Review areas
 
 **1. Clean Architecture (§2.1):** Domain depends on nothing external;
-Application on Domain + BCL only; Api/Worker = DI composition, no business
-logic. *Blockers:* EF Core/Anthropic.SDK/DbContext referenced in Domain or
-Application. *Major:* raw HttpClient in Application; business logic in
-endpoints.
+Application defines every interface Infrastructure implements; Api/Worker = DI
+composition, no business logic. **The line is the PROVIDER boundary, not the EF
+Core boundary** — §2.1 and ADR 0009 ratify Application referencing the core
+`Microsoft.EntityFrameworkCore` package, because §3.6 puts `IAppDbContext`
+straight into handlers with no repository layer and that is impossible without
+it. Grading that as a violation blocks the house pattern.
+*Blockers:* any EF Core in Domain; a provider, relational or EF-Identity package
+in Application (`Npgsql*`, `.Relational`, `.SqlServer`, `.Sqlite`,
+`Microsoft.AspNetCore.Identity.EntityFrameworkCore`) — including the member trap
+the package boundary misses, `EF.Functions.JsonExists`/`ILike` and
+`AsSplitQuery`, which belong behind an Application-owned port. `DomainLayerTests`
+is authoritative; read it before grading a borderline case.
+*Major:* raw HttpClient in Application; business logic in endpoints.
 
 **2. DDD (§2.2):** private setters (EF-justified exceptions only); invariants
 in aggregates not handlers; domain events on state changes; cross-aggregate
@@ -67,7 +76,10 @@ fetch + logic + render.
 
 **6. Anti-patterns (§5):** *Blockers:* `DateTime.Now/UtcNow` direct (use
 `IDateTimeProvider`), hardcoded secrets, `.Result`/`.Wait()`, `dynamic`,
-PII logged in plaintext (→ escalate security-auditor). *Major:* magic strings,
+PII logged in plaintext (→ escalate security-auditor), **any LLM/AI inference
+dependency or call path anywhere in the product** — §5 bans it product-wide
+(ADR 0071: the engines are deterministic), so it is a §12 STOPP in whichever
+layer it lands, not a Domain-purity question. *Major:* magic strings,
 repository-over-EF, `console.log` in prod, empty catch, AutoMapper across
 Domain, unprojected `SELECT *`. *Minor:* Service-suffix names, ticket-less
 TODOs.

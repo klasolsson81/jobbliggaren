@@ -220,9 +220,8 @@ deviation from other agents' patterns. ADRs must reflect Klas's explicit
 decision; they must not be generated from code changes.
 
 **Delegation:**
-- `dotnet-architect`, `ai-prompt-engineer`, `security-auditor` — may flag
-  "this decision should be documented as an ADR" but do not create ADRs
-  themselves
+- `dotnet-architect`, `security-auditor` — may flag "this decision should be
+  documented as an ADR" but do not create ADRs themselves
 - `docs-keeper` — updates the ADR index *after* adr-keeper creates the new
   ADR (sequential, not concurrent)
 
@@ -246,8 +245,8 @@ decision; they must not be generated from code changes.
 
 - **`docs-keeper`** — sequential delegation: after adr-keeper creates an ADR,
   docs-keeper updates `docs/decisions/README.md`
-- **`dotnet-architect`**, **`ai-prompt-engineer`**, **`security-auditor`** —
-  may flag ADR needs but do not author ADRs
+- **`dotnet-architect`**, **`security-auditor`** — may flag ADR needs but do
+  not author ADRs
 - **Klas** — the only one who makes the decisions; adr-keeper only
   documents them
 

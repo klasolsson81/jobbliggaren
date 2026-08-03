@@ -5,8 +5,8 @@ description: >
   Triggers on session-end, ADR creation, BUILD.md/CLAUDE.md/DESIGN.md changes,
   and explicit /docs-sync commands. Does NOT write new feature documentation —
   that is owned by specialist agents (dotnet-architect for arch docs,
-  ai-prompt-engineer for prompt docs, etc.). Reports drift, proposes minimal
-  updates, keeps indexes current.
+  adr-keeper for ADRs, etc.). Reports drift, proposes minimal updates, keeps
+  indexes current.
 model: haiku
 ---
 
@@ -47,8 +47,8 @@ Before any sync pass, read:
 - `docs/decisions/000*.md` — existing ADRs are immutable; a new ADR supersedes,
   the old one is left untouched
 - `src/**`, `web/**`, `infra/**` — code territory
-- `.claude/agents/*.md` — other agents' territory (ai-prompt-engineer holds
-  the meta-function for agent prompts)
+- `.claude/agents/*.md` — agent charters are edited through the spec-edit PR
+  flow (CLAUDE.md §9.2, mandatory agents), never as a docs-sync side effect
 
 **Bash:** None. docs-keeper reads and edits markdown, nothing more.
 
@@ -157,7 +157,6 @@ Report drift, propose sync diff.
 ## What docs-keeper does NOT do
 
 - Write new API doc content → dotnet-architect
-- Write new prompt documentation → ai-prompt-engineer
 - Write new runbooks → Klas (or relevant specialist agent)
 - Write new ADRs → adr-keeper
 - Modify `BUILD.md` / `CLAUDE.md` / `DESIGN.md` → Klas only
@@ -190,8 +189,8 @@ She is the documentation caretaker, not the documentation author.
 ### Uppdateringar gjorda
 
 1. **docs/decisions/README.md** — lade till ADR 0006 i indexet
-2. **.claude/README.md** — lade till nextjs-ui-engineer + ai-prompt-engineer
-   i agent-listan
+2. **.claude/README.md** — synkade agent-listan och antalet mot
+   `.claude/agents/`
 
 ### Drift upptäckt — kräver Klas-action
 

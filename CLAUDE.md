@@ -523,8 +523,7 @@ commit → push branch, `gh pr create` with agent reports inline, set the
 Blocker/Major, and only then set `agents-done`** (§6).
 
 **9.2 Boundaries.** CC writes code, tests, migrations, CI config, docs;
-proposes refactorings; reads prompts from `/prompts/` (does not rewrite them);
-creates ADRs for its architecture decisions. **CC MAY edit
+proposes refactorings; creates ADRs for its architecture decisions. **CC MAY edit
 `BUILD.md`/`CLAUDE.md`/`DESIGN.md` autonomously** via the normal feature-branch
 → PR → automerge flow (autonomous multi-session flow, 2026-06-25 — the prior
 spec-edit pre-approval gate is lifted); Klas reviews the diff post-merge.
@@ -545,6 +544,24 @@ discipline miss; reports go to `docs/reviews/<date>-<phase>-<agent>.md`):
 | `dotnet-architect` (mandatory) | All Terraform/IaC scope (ADR 0036 precedent) |
 | `db-migration-writer` | New migrations |
 | `test-writer` | New domain types or handlers |
+
+**None of them can ask Klas anything.** `AskUserQuestion` is stripped from every
+subagent — foreground and background alike, and **even when listed in a `tools:`
+field** (code.claude.com/docs/en/sub-agents, read 2026-08-03). So where a charter
+says "escalate to Klas directly" — security-auditor's GDPR Blockers and her
+area-8 Majors, code-reviewer's CLAUDE.md conflicts — the only act available to
+the agent is to **name the escalation in its report**. Carrying it to Klas is the
+invoking session's duty, and an escalation the session paraphrases away has been
+dropped, not delivered. Background is additionally the **default** for subagents
+(v2.1.198+), and a background subagent keeps only a fixed built-in set — `Read`,
+`Grep`, `Glob`, `Bash`, `PowerShell`, `Edit`, `Write`, `NotebookEdit`,
+`WebFetch`, `WebSearch`, `TodoWrite`, `Skill`, `ToolSearch`, `EnterWorktree`,
+`ExitWorktree`, `Monitor`, `TaskStop`, `SendMessage`, `Artifact` — with
+everything else removed whether inherited or listed, so **the same definition
+resolves to different tools in the foreground and the background**. That removal
+"reports no error" unless it empties the list entirely: a charter section whose
+tool never arrived comes back thin rather than failed, which is the shape to
+suspect before believing a short report.
 
 **9.3 When unsure:** read first (repo, BUILD.md, existing patterns) → ask
 concrete questions → never guess whether a feature should exist.

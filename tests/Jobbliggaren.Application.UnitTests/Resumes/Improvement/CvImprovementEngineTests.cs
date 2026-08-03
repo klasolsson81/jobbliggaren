@@ -506,9 +506,30 @@ public class CvImprovementEngineTests
     public async Task SuggestAsync_ShouldProposeDateNormalization_WhenPeriodFormatIsInconsistent()
     {
         // Mixed/non-canonical period formats trigger a ReformatDate structural transform.
+        //
+        // THE FIXTURE MOVED (#1060 road 3), and it took two attempts, which is worth recording
+        // because the first attempt made the very error it cited.
+        //
+        // This test read "jan 2022 - juni 2024" — a period NO path in src/ could produce at the
+        // time, since ExtractPeriod never extracted a month name, so the premise was one production
+        // could not create (CLAUDE.md §5, Tests). Road 3 made the segmenter emit that exact shape
+        // AND taught PeriodParser to read it, so it became both producible and canonical and stopped
+        // triggering the transform.
+        //
+        // The first replacement was "våren 2022 till hösten 2024" — free text the parser refuses.
+        // MEASURED: it stores Period = NULL. It carries no [-–—], so DateRange never matches it, and
+        // Period is only ever a trimmed DateRange match, a bare year, or null. So that swap moved
+        // the fixture OFF a value that had just become producible ONTO one that never can be — the
+        // same §5 violation, in a new string, in a comment citing §5 as its reason.
+        //
+        // "13/2020 – 2024" is producible AND refused, measured both ways: DateRange matches it whole
+        // (\d{2}/\d{4} – \d{4}, month validated only structurally), and PeriodParser declines on
+        // `month is < 1 or > 12`. That structural-vs-semantic gap IS this transform's live
+        // population, and it is a documented axis of DatePatterns rather than an accident.
         var resume = Resume(experience:
         [
-            Experience(period: "jan 2022 - juni 2024", rawText: "Backend-utvecklare jan 2022 - juni 2024"),
+            Experience(period: "13/2020 – 2024",
+                rawText: "Backend-utvecklare 13/2020 – 2024"),
         ]);
 
         var change = Single(await SuggestAsync(resume), ProposedChangeKind.DateNormalization);
@@ -522,6 +543,119 @@ public class CvImprovementEngineTests
 
         var prov = change.Provenance.ShouldBeOfType<StructuralTransformProvenance>();
         prov.Transform.ShouldBe(StructuralTransformKind.ReformatDate);
+    }
+
+    [Theory]
+    [InlineData("jan 2020 – dec 2024")]
+    [InlineData("jan 2020 – nuvarande")]
+    [InlineData("2020 – 2024 (heltid)")]
+    // "2020/01 – 2024/12" and "2008/09 – 2011/12" are deliberately ABSENT from this theory as of
+    // round 6: they are silent for a DIFFERENT reason than the rows above (nothing is stored to
+    // flag, rather than a stored value the parser reads), so this theory's own name and failure
+    // message — "is a format the date model reads" — would be false of them. Pinned in their own
+    // correctly-named theory below, SuggestAsync_ShouldNotProposeDateNormalization_ForTheSlashFormTheModelNoLongerReads.
+    public async Task SuggestAsync_ShouldNotProposeDateNormalization_ForAFormTheDateModelNowReads(
+        string dateLine)
+    {
+        // (S3) obligation 4 (#1060 road 3) — pinned because "it does not happen" is exactly the
+        // class of claim this lane has twice watched decay, not because anyone expects it to break.
+        //
+        // WHAT THIS ALMOST BECAME. The widening's first attempt moved DatePatterns without
+        // PeriodParser, so the segmenter began storing periods this transform's guard
+        // (!PeriodParser.TryParse) then flagged — a ProposedChange emitted where none was emitted
+        // before, on BOTH the asymmetric and the symmetric population. Under the shared-grammar fix
+        // the guard returns true, the loop continues, and nothing is proposed at all: not the new
+        // change, and not a suppressed version of it.
+        //
+        // The fixture goes through the REAL segmenter rather than Experience(period: …), because the
+        // whole question is what the transform does with what ExtractPeriod actually STORES — and a
+        // hand-built period is how the two fixtures above came to rest on a string production could
+        // not produce (CLAUDE.md §5, Tests).
+        var cv = $"""
+            Anna Andersson
+            anna@example.com
+
+            Arbetslivserfarenhet
+            Systemutvecklare
+            Acme AB
+            {dateLine}
+            Ökade konverteringen med 23 procent.
+            """;
+
+        var result = await SuggestAsync(Review.CvReviewFixtures.ResumeFromCvText(cv));
+
+        result.Changes.ShouldNotContain(c => c.Kind == ProposedChangeKind.DateNormalization,
+            $"[{dateLine}] is a format the date model reads, so there is nothing to standardise. " +
+            "The transform's definition of non-standard is 'our parser cannot read this' — widening " +
+            "the parser must make it quieter, never noisier.");
+    }
+
+    [Theory]
+    [InlineData("2020/01 – 2024/12")]
+    [InlineData("2008/09 – 2011/12")]
+    public async Task SuggestAsync_ShouldNotProposeDateNormalization_ForTheSlashFormTheModelNoLongerReads(
+        string dateLine)
+    {
+        // THE OTHER SILENCE, and it needs its own theory because it is a DIFFERENT property than
+        // "a format the date model reads" — these two are, as of round 5 (decision D′), a format
+        // the model does NOT read at all. "2020/01 – 2024/12" was briefly IN the sibling theory
+        // above (Klas-direktiv 2026-08-03: recognised-but-undated, so the transform fired on it)
+        // and moved here in round 6 once the mismatch between the sibling's own name/message and
+        // what these two rows actually measure was found. "2008/09 – 2011/12" is the läsår
+        // collision, same mechanism: a valid-month slash pair is unmodelled just as completely as
+        // an invalid-month one (decision D′ removed the branch, not narrowed it).
+        //
+        // DateRange no longer matches the slash point on either endpoint, so the segmenter stores
+        // no Period at all for this line (three-line layout) and the transform's own guard —
+        // `string.IsNullOrWhiteSpace(period)` — skips it before the PeriodParser check is even
+        // reached. Silent, not because the parser declines a stored value, but because nothing is
+        // stored to flag. origin/main's behaviour, restored; tracked in #1195.
+        var cv = $"""
+            Anna Andersson
+            anna@example.com
+
+            Arbetslivserfarenhet
+            Systemutvecklare
+            Acme AB
+            {dateLine}
+            Ökade konverteringen med 23 procent.
+            """;
+
+        var result = await SuggestAsync(Review.CvReviewFixtures.ResumeFromCvText(cv));
+
+        result.Changes.ShouldNotContain(c => c.Kind == ProposedChangeKind.DateNormalization,
+            $"[{dateLine}] stores no Period at all, so there is nothing to flag — a different " +
+            "silence than a format the parser can read.");
+    }
+
+    [Theory]
+    [InlineData("2020/01 – 2024/12")]
+    [InlineData("2008/09 – 2011/12")]
+    public async Task SuggestAsync_ShouldNotProposeDateNormalization_ForTheSlashFormOnTheFirstLineLayout(
+        string dateLine)
+    {
+        // THE OTHER LAYOUT decision D′'s obligation 8 names, and it is silent for a DIFFERENT
+        // reason than the three-line case above — the point of pinning it, not a duplicate. Here
+        // the date row IS Lines[0], so ExtractPeriod's Year() fallback fires and stores the LEADING
+        // bare year ("2020" / "2008") — a value that DOES parse (token "YYYY"), so the transform's
+        // guard exits on `PeriodParser.TryParse(period, …)` returning true, never reaching the
+        // "nothing stored" branch the three-line layout takes. Two different silences, same
+        // observable outcome — and a test asserting only one of them cannot tell them apart.
+        var cv = $"""
+            Anna Andersson
+            anna@example.com
+
+            Arbetslivserfarenhet
+            {dateLine}
+            Acme AB
+            Ökade konverteringen med 23 procent.
+            """;
+
+        var result = await SuggestAsync(Review.CvReviewFixtures.ResumeFromCvText(cv));
+
+        result.Changes.ShouldNotContain(c => c.Kind == ProposedChangeKind.DateNormalization,
+            $"[{dateLine}] degrades to a bare leading year on this layout, which PARSES — so there " +
+            "is nothing to standardise, for a different reason than the three-line layout.");
     }
 
     [Fact]
@@ -1130,8 +1264,15 @@ public class CvImprovementEngineTests
             profile: $"{RealClicheList().Entries[0].Phrase} kvalitet.",
             experience:
             [
+                // The period is "13/2020 – 2024" rather than "jan 2022 - juni 2024" since #1060
+                // road 3. This fixture exists to exercise SEVERAL transforms at once and compare two
+                // runs byte-for-byte, so it needs a period the DateNormalization transform still
+                // fires on. Month names are canonical now, so the old value silently dropped that
+                // transform out of the comparison — determinism over a smaller set, and nothing
+                // would have gone red (dotnet-architect R9, 2026-08-03). The bullet keeps its
+                // month-name text: it is prose, and the weak-verb transform is what reads it.
                 Experience(
-                    period: "jan 2022 - juni 2024",
+                    period: "13/2020 – 2024",
                     bullets: [$"{Capitalize(RealVerbMapping().WeakVerbs[0].Weak)} ett område jan 2022 - juni 2024."]),
             ]);
 

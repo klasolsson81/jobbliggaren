@@ -1017,27 +1017,39 @@ public class HeadingDrivenResumeSegmenterTests
     /// of these too. Naming the promotion as the trigger would leave this green while the deferral
     /// claimed the gap was closed — which is the defect this test exists to make impossible.</para>
     ///
-    /// <para><b>The promotion has since SHIPPED and this test stayed green, 4/4, data unchanged</b>
-    /// — which is the prediction above being confirmed rather than a gap being closed.
-    /// <c>StripTrailingPeriod</c>'s reduction now lives in <c>DatePatterns.StripTrailingDate</c> and
-    /// <c>DatePatterns.IsDateOnlyLine</c> is defined as it, so both readers ask one predicate. The
-    /// predicate is the same one; these four forms are still outside it. <b>The widening remains the
-    /// trigger, and these four <c>InlineData</c> stay as they are.</b> If a future change makes one
-    /// of them pass, that change widened the date model — read it as the widening having landed, not
-    /// as a stale fixture to edit.</para>
+    /// <para><b>THE WIDENING LANDED (#1060 road 3, commit 2) AND THIS TEST MOVED SIDES — THREE OF THE
+    /// FOUR, PERMANENTLY.</b> Every paragraph above is the record of what was true before it, kept
+    /// verbatim because the prediction it makes is the one that came true for three of the four: the
+    /// predicate PROMOTION left all four green (4/4, data unchanged), and the date-model WIDENING is
+    /// what reddened them — which is exactly what the trigger was written to distinguish. <b>The
+    /// fourth, <c>YYYY/MM</c>, moved back to its ORIGINAL side in round 5</b> (decision D′, senior-cto-advisor
+    /// round-5 bind): the year-first slash notation collided with the Swedish läsår and DateRange no
+    /// longer models it at all, so this test's own population is once again ACCURATE for it — see
+    /// <c>Segment_DateLineTheYearFirstSlashFormStillReaches_IsTakenAsTheOrganization_KnownAcceptedRegression</c>
+    /// below, which pins that row rather than silently dropping it.</para>
+    ///
+    /// <para>What it pins now, for the surviving three, is β-3's rule reaching its intended
+    /// population: <i>a line that carries no field must not BECOME a field</i>. Before the widening
+    /// these fabricated an employer the source never wrote, with <c>ParseConfidence</c> = Confident,
+    /// in a document the user sends to employers — on the auto-promote path, which has no approve
+    /// step. The period is now recovered as well, for the one form <c>DateRange</c> models as a
+    /// point; the other two are recognised at the LINE level only, so the organization is correctly
+    /// null while the period stays absent (honest-absent over confidently-wrong, ADR 0071).</para>
     /// </summary>
     [Theory]
-    [InlineData("jan 2020 – dec 2024", "no month token in the end-alternation")]
-    [InlineData("2020 – 2024 (heltid)", "a qualifier follows the match")]
-    [InlineData("2020/01 – 2024/12", "YYYY/MM is not a modelled point form")]
-    // The open-ended form WITHOUT a keyword, and it is the sharpest of the four: DateRange needs
-    // an end point so it does not match at all, Year matches "2020", and the tail " –" is
-    // non-empty — so an ongoing employment, rendered the commonest way, still fabricates. Every
+    [InlineData("jan 2020 – dec 2024", "jan 2020 – dec 2024")]
+    [InlineData("2020 – 2024 (heltid)", "2020 – 2024")]
+    // The open-ended form WITHOUT a keyword, and it was the sharpest of the four: DateRange needs
+    // an end point so it does not match at all, Year matches "2020", and the tail " –" was
+    // non-empty — so an ongoing employment, rendered the commonest way, fabricated. Every
     // open-ended fixture in the tree writes a keyword instead ("2005 - nu", "2024 - nuvarande"),
-    // which is why this form was unmeasured rather than disproven.
-    [InlineData("2020 –", "DateRange needs an end point; Year leaves a non-empty tail")]
-    public void Segment_DateLineDatePatternsDoesNotModel_IsStillTakenAsTheOrganization(
-        string dateLine, string why)
+    // which is why this form was unmeasured rather than disproven. It is reached at the LINE level
+    // (IsIgnorableTail) and not by DateRange, so the ORGANIZATION is fixed and the PERIOD stays
+    // null — a dangling separator is not a period, and inventing an end date would be the
+    // confidently-wrong half of the same defect.
+    [InlineData("2020 –", null)]
+    public void Segment_DateLineTheModelNowReaches_IsNoLongerTakenAsTheOrganization(
+        string dateLine, string? expectedPeriod)
     {
         var cv = $"""
             Anna Andersson
@@ -1053,9 +1065,82 @@ public class HeadingDrivenResumeSegmenterTests
 
         var exp = result.Content.Experience.ShouldHaveSingleItem();
         exp.Title.ShouldBe("Systemutvecklare");
-        // Accepted and known: the guard does not reach this form, so the date is still the
-        // organization. `why` names which half of DatePatterns declines to match.
-        exp.Organization.ShouldBe(dateLine, why);
+        exp.Organization.ShouldBeNull(
+            "a line carrying nothing but a date must not become the employer (#1060 β-3's rule, " +
+            "now reaching the population the date model previously hid from it).");
+        exp.Period.ShouldBe(expectedPeriod,
+            "the period is recovered only where DateRange models the form as a POINT range; where " +
+            "the line is recognised at the line level only, honest-absent beats invented.");
+    }
+
+    /// <summary>
+    /// THE PRICE OF DECISION D′ (senior-cto-advisor round-5 bind §9 trade-off 1), pinned rather than
+    /// left implicit. Removing the year-first SLASH point from <c>DatePatterns.DateRange</c> closed a
+    /// Blocker (a mixed-notation range storing a value neither engine could read) at the cost of
+    /// reopening THIS β-3 population for the one notation the fix touched: the date row is no longer
+    /// recognised at the LINE level either, so on the TWO-LINE "Title / Dates" layout it becomes the
+    /// employer — fabricated, with <c>ParseConfidence</c> = Confident, on a CV the user sends to
+    /// employers. This is <c>origin/main</c>'s own behaviour, not a NEW regression this PR created:
+    /// <c>origin/main</c> never modelled the slash form either.
+    /// </summary>
+    [Fact]
+    public void Segment_DateLineTheYearFirstSlashFormStillReaches_IsTakenAsTheOrganization_KnownAcceptedRegression()
+    {
+        const string cv = """
+            Anna Andersson
+            anna@example.com
+
+            Arbetslivserfarenhet
+            Systemutvecklare
+            2020/01 – 2024/12
+            Byggde saker.
+            """;
+
+        var result = _sut.Segment(cv);
+
+        var exp = result.Content.Experience.ShouldHaveSingleItem();
+        exp.Title.ShouldBe("Systemutvecklare");
+        exp.Organization.ShouldBe("2020/01 – 2024/12",
+            "the date row is unrecognised at the LINE level (decision D′), so β-3's guard cannot " +
+            "act on it — origin/main's own behaviour, priced and tracked in #1195.");
+    }
+
+    /// <summary>
+    /// A FOURTH ALTITUDE THE ROUND-5 BIND DID NOT ENUMERATE (found in round 6). On the two-column
+    /// "period first" layout, <c>Lines[0]</c> IS the date row. <c>StripTrailingPeriod</c> used to
+    /// reduce it to empty, so the separator loop below fell through to <c>Lines[1]</c>. Under
+    /// decision D′ the slash form is not reduced at all, so <c>splitSource</c> stays the WHOLE date
+    /// row — and <c>TitleOrgSeparators</c> contains <c>" – "</c>, the exact glyph inside
+    /// <c>"2020/01 – 2024/12"</c>. The loop matches on the date's own separator and splits the DATE
+    /// ITSELF into <c>Title</c>/<c>Organization</c>, so the real employer on <c>Lines[1]</c> is never
+    /// read at all. This is <c>origin/main</c>'s own behaviour (it never reduced the slash row
+    /// either), not something decision D′ creates — but it is a distinct FAILURE SHAPE from the
+    /// two-line-layout Organization fabrication pinned above (there the real Title survives and only
+    /// the Organization is wrong; here BOTH fields are fabricated out of the date row and the real
+    /// employer is lost entirely), so it needs its own pin rather than being assumed covered.
+    /// </summary>
+    [Fact]
+    public void Segment_TheYearFirstSlashFormOnTheFirstLineLayout_IsSplitIntoTitleAndOrganization_KnownAcceptedRegression()
+    {
+        const string cv = """
+            Anna Andersson
+            anna@example.com
+
+            Arbetslivserfarenhet
+            2020/01 – 2024/12
+            Acme AB
+            Byggde saker.
+            """;
+
+        var result = _sut.Segment(cv);
+
+        var exp = result.Content.Experience.ShouldHaveSingleItem();
+        exp.Title.ShouldBe("2020/01",
+            "StripTrailingPeriod no longer reduces the slash row (decision D′), so the separator " +
+            "loop splits the DATE on its own en dash instead of falling through to Lines[1].");
+        exp.Organization.ShouldBe("2024/12",
+            "the real employer, \"Acme AB\" on Lines[1], is never read — both fields are fabricated " +
+            "out of the date row. origin/main's own behaviour, priced and tracked in #1195.");
     }
 
     [Theory]
@@ -1525,10 +1610,12 @@ public class HeadingDrivenResumeSegmenterTests
         // reformat flag. This round-trip pins the contract that diverged: whatever Period the
         // segmenter extracts MUST be consumable by the PeriodParser the downstream engine feeds it
         // to, so the two regexes cannot drift apart again. (Note: DateRangeRegex's alternation order
-        // truncates the range END to a bare year — "2020-06 – 2024" — a separate, non-§5 cosmetic
-        // quirk out of #420 scope; the load-bearing part is that the ISO-month START now parses and
-        // the year span is correct. The direct "2020-06 – 2024-03" case is covered in
-        // PeriodParserYearSpanTests, so this test is robust whether or not that quirk is later fixed.)
+        // used to truncate the range END to a bare year — "2020-06 – 2024" — which this test was
+        // written to survive rather than assert, being out of #420 scope. #1060 road 3 commit 1
+        // corrected the ordering and the truncation is gone; this test stayed green through it,
+        // which is what "robust whether or not that quirk is later fixed" was for. The END value
+        // itself is now pinned in DatePatternsAlternationOrderingTests — deliberately not here,
+        // because this test's subject is the START granularity round-tripping to PeriodParser.)
         const string cv =
             """
             Anna Andersson

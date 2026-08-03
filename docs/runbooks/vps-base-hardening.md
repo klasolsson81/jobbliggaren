@@ -24,19 +24,43 @@ never asserted:
    keyboard-interactive authentication are refused; root is refused even with a valid key.
 3. The **host firewall** filters inbound traffic with a default-drop policy and survives a
    reboot.
-4. The **edge firewall** carries an explicit `DROP all` as the last own-rule **in both
-   directions**. Allow-rules alone do nothing here (§6.1).
+4. Both edge direction defaults (`ingressImplicitRule`, `egressImplicitRule`) read
+   `DROP_ALL`, **verified by reading the firewall object back** — not by the presence of a
+   trailing DROP rule, which does not and must not exist (§6.1). The accept rules are complete
+   *before* the policy is assigned.
 5. Egress is **verified from inside the box** after the rules are live: package updates,
-   DNS, NTP and an outbound HTTPS fetch all still work.
-6. **`ss -tlnp` lists only sshd on port 22**, before and after. Hardening adds no listener.
-7. Security updates install themselves, and **no unattended reboot** can happen.
-8. Nothing pages secrets to disk: **zram swap only, no disk swap, core dumps discarded**.
+   DNS **against an external resolver**, NTP and an outbound HTTPS fetch all still work.
+6. **`ss -tlnp` lists only sshd on `0.0.0.0:22`**, before and after. Hardening adds no
+   listener, and deliberately removes the IPv6 one (§4.2).
+7. Security updates install themselves, **no unattended reboot** can happen, and the
+   pending-reboot flag is on the verification battery — auto-patching without a reboot signal
+   stops covering the kernel and libc the moment the first kernel patch lands (§7).
+8. Nothing pages secrets to disk: **zram swap only, no disk swap, no zram writeback device,
+   core dumps discarded**.
+
+### ADR 0050 gate M-6, clause by clause
+
+M-6 is the hardening baseline this runbook exists to close. It names six things, and this is
+where each one stands — so that "a runbook exists and its battery is green" is never mistaken
+for "M-6 is done":
+
+| M-6 clause | Status | Where |
+|---|---|---|
+| SSH key-only | met, measured | §4, §9.1 |
+| Firewall | met, measured, both layers | §5, §6, §9.1 |
+| fail2ban | **deviation** — replaced by source restriction; needs an ADR 0050 amendment with Klas's GO | §11 |
+| Auto-patch | met, measured | §7, §9.1 |
+| PG/Redis not public | **open** — no such service exists yet; today held by `forward policy drop` + the edge default-deny | #196, §12 |
+| Swap / core-dump hygiene | met, measured (including no zram writeback device) | §8, §9.1 |
+
+Gate B-1 (master key never plaintext on disk) is *prepared*, not met: §8 closes the two
+mechanisms that would page it to disk, but no key exists yet. B-1 itself is a first-real-data
+gate.
 
 ### Not in scope
 
 Deploy, containers, application data, DNS cutover, TLS certificates, the reverse proxy,
-secret injection, backups, and the log sink. `fail2ban` is deliberately **not** installed —
-see the deviation log (§11).
+secret injection, backups, and the log sink.
 
 ---
 
@@ -53,7 +77,8 @@ see the deviation log (§11).
 | Operator SSH alias | `jp-vps` (see §4.1) |
 | SSH source restriction | one `/32`, recorded in the local `docs/current-work.md` — **deliberately not written here**, because this file is public |
 | Control panel | Netcup SCP, 2FA enabled |
-| API state | `~/.netcup/refresh_token` on the workstation, never in the repo |
+| API credential | `~/.netcup/refresh_token` on the workstation, mode 600, never in the repo. **Treat as a credential, not as state:** it is pre-authenticated against the API that owns the firewall rules, so it bypasses the SCP's 2FA. Valid while used within 30 days. |
+| Edge rollback file | The `GET` of the firewall object (§6.5) contains the real `<ADMIN_SRC_IP>`. Keep it beside `~/.netcup/refresh_token` — **never in a worktree**, since gitleaks does not flag IP addresses and would not catch it. |
 
 **Two console identities exist on purpose.** The `root` password and the `jpadmin` password
 both remain valid **at the VNC console**. Neither can be used over SSH after §4. Losing the
@@ -69,7 +94,17 @@ password hash in this file.
 
 ## 3. Rescue paths, in order
 
-Try them in this order. Each one is independent of the layer below it.
+Try them in this order. **They are independent of each other against box-side failure** — a
+wrong nftables ruleset, a broken `sshd_config`, a box in emergency mode. That is the failure
+class this section is for.
+
+They are **not** independent against credential compromise. All four ultimately trace back to
+the operator's workstation: the SSH key lives there without a passphrase, and so does
+`~/.netcup/refresh_token`, a pre-authenticated bearer credential against the same API that owns
+the firewall rules — which is to say it walks past the SCP's 2FA. One compromised workstation
+yields root on the host *and* the control plane *and* every rescue path. That is the argument
+for §11's open question about the passphrase-less key, and it is why the token belongs in the
+access inventory as a credential rather than as "API state".
 
 1. **SSH as `jpadmin`** — normal operation.
 2. **Edge firewall edit in SCP** (browser). The control plane rides *your* internet
@@ -89,6 +124,41 @@ else. Do not spend it on a hardening mistake — items 2–4 cover every failure
 ---
 
 ## 4. SSH configuration
+
+### 4.0 Bootstrap — from root-with-password to a key-only admin
+
+The starting state is a freshly provisioned box where root logs in with a password. Everything
+below assumes `jpadmin` already exists with a key; this is how it gets there. Run it **before**
+§4.2, because §4.2 closes the password path this step depends on.
+
+At the **VNC console**, as root — never by pasting into noVNC, which drops characters (§9.1):
+
+```bash
+adduser jpadmin                                    # set a console password; store it in the password manager
+printf 'jpadmin ALL=(ALL) NOPASSWD:ALL\n' > /etc/sudoers.d/90-jpadmin
+chmod 0440 /etc/sudoers.d/90-jpadmin
+visudo -c                                          # Förväntat: "parsed OK" — never skip this
+install -d -m 0700 /var/backups/hardening          # §4.3 writes here; it must exist first
+```
+
+From the operator's **own terminal**:
+
+```bash
+ssh-keygen -t ed25519 -a 100 -N "" -f ~/.ssh/jobbpilot_vps_ed25519
+ssh-copy-id -i ~/.ssh/jobbpilot_vps_ed25519.pub jpadmin@159.195.203.88
+ssh -o BatchMode=yes jp-vps 'sudo -n true && echo BOOTSTRAP-OK'
+```
+
+That last line is the gate: it proves the key **and** passwordless sudo before §4.2 removes the
+password fallback. Do not proceed without `BOOTSTRAP-OK`.
+
+Then restrict the key host-side, so the restriction does not depend on netcup's control plane
+(a single edit in the SCP would otherwise remove the only source restriction):
+
+```bash
+sudo sed -i 's|^ssh-ed25519|from="<ADMIN_SRC_IP>" ssh-ed25519|' /home/jpadmin/.ssh/authorized_keys
+ssh -o BatchMode=yes jp-vps 'echo STILL-OK'       # verify from a NEW session before trusting it
+```
 
 ### 4.1 Operator side
 
@@ -134,7 +204,20 @@ AllowUsers jpadmin
 MaxAuthTries 3
 AllowTcpForwarding no
 X11Forwarding no
+ListenAddress 0.0.0.0
+LogLevel VERBOSE
 ```
+
+**`ListenAddress 0.0.0.0` removes the IPv6 listener on purpose.** The edge's `DROP_ALL` default
+is proven over IPv4 only — the external probe service used in §6.4 cannot target IPv6 — so
+whether it is address-family-agnostic is **unmeasured**. Rather than depend on an unmeasured
+property for the single load-bearing ingress control, the dependency is removed: with no
+`[::]:22` there is nothing for a v6 path to reach. The operator path is already pinned to IPv4
+(§4.1), so this costs no functionality. Re-open it only after measuring the edge's v6 behaviour.
+
+**`LogLevel VERBOSE` is the one line that records *which key* authenticated.** Everything else
+in this runbook is preventive; this is the only detective control, and it matters precisely
+because key theft is the dominant threat against a passphrase-less key (§11).
 
 If cloud-init is installed, also write `/etc/cloud/cloud.cfg.d/99-no-pwauth.cfg` containing
 `ssh_pwauth: false`, so a regenerated drop-in cannot re-enable passwords.
@@ -327,18 +410,25 @@ ever changes.
 | 3 | UDP | any | any | 53 | ACCEPT | DNS |
 | 4 | TCP | any | any | 53 | ACCEPT | DNS over TCP (truncated answers) |
 | 5 | UDP | any | any | 123 | ACCEPT | NTP |
-| 6–8 | TCP | 22 / 80 / 443 | any | any | ACCEPT | **reply belt** — see below |
-
 SMTP needs no rule: `netcup Mail block` drops 25/465/587 outbound, and the `DROP_ALL` default
 covers everything else. Verified: port 587 outbound is dead.
 
-**The reply belt (6–8) is deliberate redundancy.** TCP statefulness is measured only for
-*outbound-initiated* connections. If the edge were asymmetric, replies to a **new inbound** SSH
-connection would be dropped — while every already-open session kept working and hid it. Three
-rules remove the failure mode. The residual exposure (a local process bound to source port
-22/80/443 reaching an arbitrary destination) requires a root-level compromise to reach, and
-SMTP stays blocked regardless. Whether the belt is load-bearing has **not** been isolated:
-proving it would mean removing it and risking exactly the lockout it prevents.
+**There is no reply belt, and the reason is a measurement.** An earlier version carried three
+`sourcePorts` 22/80/443 ACCEPT rules as insurance: TCP statefulness had only been observed for
+*outbound-initiated* connections, and if the edge were asymmetric, replies to a **new inbound**
+SSH connection would be dropped while every already-open session kept working and hid it.
+
+That looked impossible to test without risking the lockout it prevented — but only if you test
+on port 22. The hypothesis is a property of the edge, not of a port. So the **443** rule alone
+was removed and port 443 re-probed from 8 external nodes: all 8 still answered `connection
+refused`. That RST is itself an outbound packet with source port 443, sent with no egress rule
+matching it. **The edge is stateful for inbound-initiated connections too**, the belt was
+redundant, and all three rules were removed — verified afterwards with a new inbound SSH
+session. Port 22 was never touched during the test.
+
+Removing them also closes what the belt cost: a local process bound to source port 22/80/443
+could otherwise reach any destination, and publishing that in a public runbook told a
+post-compromise attacker exactly which egress channel was open.
 
 ### 6.4 Proving the rules actually filter
 
@@ -388,9 +478,37 @@ months. **Always probe a target outside the provider's own network.**
 
 ### 6.5 Changing rules later
 
-Rules can be edited in the SCP web UI or through the REST API (`https://api.netcup.com/api/v1/`,
-OAuth2 device-code flow against the `scp` Keycloak realm; the refresh token stays valid as
-long as it is used within 30 days). Either way:
+Rules can be edited in the SCP web UI or through the REST API. Everything below is a public
+parameter — no secret appears in this section.
+
+```bash
+BASE=https://www.servercontrolpanel.de/scp-core/api/v1
+REALM=https://www.servercontrolpanel.de/realms/scp/protocol/openid-connect
+
+# One-time authorisation (OAuth2 device code). Open the printed URL and approve; the code
+# expires in 10 minutes, so generate it when you are at the browser.
+curl -s -X POST "$REALM/auth/device" -d client_id=scp
+curl -s -X POST "$REALM/token" -d client_id=scp \
+  -d grant_type=urn:ietf:params:oauth:grant-type:device_code -d device_code=<from above>
+# Store .refresh_token beside ~/.netcup/ (mode 600). Valid while used within 30 days.
+
+# Every call needs a fresh access token:
+AT=$(curl -s -X POST "$REALM/token" -d client_id=scp \
+       -d grant_type=refresh_token -d refresh_token="$(cat ~/.netcup/refresh_token)" \
+     | jq -r .access_token)
+
+# The user id is the token's `id` claim — NOT the customer number (§6.1).
+# The firewall object lives per interface MAC:
+curl -s -H "Authorization: Bearer $AT" \
+  "$BASE/servers/<serverId>/interfaces/<mac>/firewall"
+
+# Policies are created at user level first, then referenced by the server:
+curl -s -X POST -H "Authorization: Bearer $AT" -H "Content-Type: application/json" \
+  "$BASE/users/<userId>/firewall-policies" -d @policy.json
+```
+
+A rule object is `{action, description, direction, protocol, sources[], sourcePorts,
+destinations[], destinationPorts}` — see §6.2/§6.3 for the applied values. Either way:
 
 1. `GET` the current configuration and **save it** — that file is the rollback.
 2. Apply the change; re-apply/commit if the API requires it.
@@ -403,7 +521,7 @@ console in the meantime.
 
 ### 6.6 DHCPv4 — measured: not in use
 
-Rows I8 and E11 exist only if the box actually uses a DHCP client. **Measured 2026-08-03: it
+DHCP rules in either table exist only if the box actually uses a DHCP client. **Measured 2026-08-03: it
 does not.** No `dhclient`/`dhcpcd` process runs, and the address is configured statically by
 cloud-init through `/etc/network/interfaces.d/50-cloud-init.cfg`. Both rows are therefore
 omitted.
@@ -450,9 +568,18 @@ apt-config dump | grep Automatic-Reboot        # Förväntat: "false"
 systemctl is-active apt-daily.timer apt-daily-upgrade.timer   # Förväntat: active active
 ```
 
-**What this does not cover:** container image contents. `unattended-upgrades` patches the
-host only. Base-image CVE cadence is a separate mechanism (a `docker` ecosystem entry in
-Dependabot) and belongs to the phase that starts publishing images.
+**Patches install, but they do not activate.** With `Automatic-Reboot "false"` — which is the
+right call for a host that will hold a RAM-only master key — a kernel or libc update sits
+installed and inert until someone reboots. Nothing here reads `/var/run/reboot-required`, so
+invariant 7 would quietly stop covering the kernel from the first kernel patch onward. The flag
+is on the §9 battery for exactly that reason, and the reboot cadence is a deploy-phase decision
+(#196): every reboot also destroys the RAM-held key and requires re-injection.
+
+**What this does not cover:** container image contents. `unattended-upgrades` patches the host
+only. Base-image CVE cadence needs a `docker` ecosystem entry in `.github/dependabot.yml` —
+**measured 2026-08-04: it does not exist**, the file carries only `npm` (×2), `nuget` and
+`github-actions`. It must land in the same PR as the first image publish, or base images are
+patched by nothing at all.
 
 **During risky cutovers, stop the timers** (`systemctl stop apt-daily.timer
 apt-daily-upgrade.timer`). An unattended run holding the dpkg lock in the middle of a
@@ -540,19 +667,29 @@ ls -A /var/lib/systemd/coredump/ 2>/dev/null; ls /tmp/core* 2>/dev/null
 Run after any change to this box, and in full after every reboot.
 
 ```bash
-ss -tlnp                                   # Förväntat: only sshd, :22 and [::]:22
-sudo sshd -T | grep -E "^(passwordauthentication|permitrootlogin|allowusers|maxauthtries) "
-                                           # Förväntat: no / no / jpadmin / 3
+ss -tlnp                                   # Förväntat: only sshd on 0.0.0.0:22 — no [::]:22
+sudo sshd -T | grep -E "^(passwordauthentication|permitrootlogin|allowusers|maxauthtries|loglevel) "
+                                           # Förväntat: no / no / jpadmin / 3 / VERBOSE
 sudo nft list ruleset | grep -E "policy (drop|accept)"
                                            # Förväntat: input drop, forward drop, output accept
 systemctl is-enabled nftables ssh          # Förväntat: enabled enabled
-swapon --show; zramctl                     # Förväntat: only /dev/zram0, zstd
+/usr/sbin/swapon --show; /usr/sbin/zramctl # Förväntat: only /dev/zram0, zstd
+cat /sys/block/zram0/backing_dev           # Förväntat: none — B-1 depends on this, so measure it
 timedatectl | grep -E "synchronized|NTP service"    # Förväntat: yes / active
+cat /var/run/reboot-required 2>/dev/null || echo "no reboot pending"
+                                           # a pending reboot means kernel/libc patches are NOT live
 sudo apt-get update -q >/dev/null && echo APT-EGRESS-OK
-getent hosts deb.debian.org >/dev/null && echo DNS-OK
+dig +short +time=3 +tries=1 @9.9.9.9 deb.debian.org >/dev/null && echo DNS-OK
+                                           # MUST use an external resolver — see §6.4
 curl -6 -m8 -sI https://deb.debian.org >/dev/null && echo V6-EGRESS-OK
 cat /proc/sys/kernel/core_pattern
 ```
+
+**The DNS line uses `@9.9.9.9` deliberately.** `getent hosts` goes through
+`/etc/resolv.conf` to netcup's own resolvers, on a path that never crosses the edge filter —
+so it prints `DNS-OK` even with the UDP reply rule deleted. It would report success on a
+broken firewall. §6.4 documents that trap; this battery is where it would otherwise be
+re-introduced, in the one instrument an operator actually runs.
 
 Negative checks, from the workstation — a hardening claim is only proven by what is
 **refused**:
@@ -607,6 +744,20 @@ measurement is not a result.
 | Egress default-deny bites | portquiz:8080 reachable at baseline, **times out** after | `curl` from the box |
 | Outbound SMTP | dead (587) | `curl telnet://…:587` |
 
+**2026-08-04 — changes made in response to review:**
+
+| Property | Measured value | Instrument |
+|---|---|---|
+| IPv6 SSH listener | **removed** — `ss` shows only `0.0.0.0:22` | `ListenAddress 0.0.0.0`; the edge's v6 behaviour is unmeasured, so the dependency was removed rather than trusted |
+| Edge is stateful for **inbound**-initiated TCP | 8/8 nodes still `refused` on 443 with the reply rule deleted | the RST is itself an outbound packet from sport 443 |
+| Reply belt | **deleted** — proven redundant by the line above; new inbound SSH still works | `ssh` from a new session afterwards |
+| zram writeback device | `none` — B-1 now measured, not asserted | `cat /sys/block/zram0/backing_dev` |
+| Host-side source restriction | `from="<ADMIN_SRC_IP>"` in `authorized_keys`; new session still works | independent of netcup's control plane |
+| SSH logging | `loglevel VERBOSE` — records *which key* authenticated | `sshd -T` |
+| Journal cleaned | the exposed string went 1 hit → **0** | `journalctl --rotate && --vacuum-time=1s` |
+| Pending reboot | none | `/var/run/reboot-required` |
+| External-resolver DNS | works — the battery no longer measures through netcup's resolver | `dig @9.9.9.9` |
+
 **Incident, same session.** During bootstrap the root password was typed into the console's
 *username* field, so it was written to the journal as a failed login name (measured: 1 hit).
 noVNC also proved unusable for pasting: a 542-character command arrived with characters
@@ -630,8 +781,8 @@ to read output and to run short, hand-typed commands.
 | 6 | `nftables.service` not enabled → unfiltered host after reboot | `systemctl is-enabled nftables` | `systemctl enable --now nftables` |
 | 7 | Wrong `Origins-Pattern` → zero security updates, silently, forever | The `--dry-run` check shows more or fewer than one origin | Fix the drop-in; re-run the dry run |
 | 8 | Your source IP changed; SSH looks like a lockout | `curl ifconfig.me` from another device | Edit I1 in the SCP (browser path is unaffected); VNC in the meantime |
-| 9 | Egress DROP-all cuts DNS, NTP or apt | The §9 battery fails from inside immediately | Disable E12 in the SCP, fix the gap, re-apply |
-| 10 | Edge is asymmetrically stateful → replies to new inbound SSH die | Open a **new** inbound SSH session right after E12 | The reply belt (E8–E10) pre-empts this; otherwise disable E12 |
+| 9 | Egress default-deny cuts DNS, NTP or apt | The §9 battery fails from inside immediately | Set `egressImplicitRule` back to `ACCEPT_ALL` — it is a **field, not a rule** (§6.1) — fix the gap, set `DROP_ALL` again |
+| 10 | An edge rule change locks out SSH | New session refused while the browser still works | SCP/API is unaffected by box-side rules: restore from the saved `GET` (§6.5); VNC console meanwhile |
 | 11 | Box does not come back from a reboot | No SSH after ~6 minutes | VNC console → `systemctl --failed`, `journalctl -xb` |
 | 12 | Temptation to burn the last snapshot during an incident | — | Don't. Items 2–4 in §3 cover every row in this table |
 
@@ -642,39 +793,78 @@ to read output and to run short, hand-typed commands.
 Decisions that depart from an earlier written expectation, recorded so they are reviewable
 rather than discovered:
 
-- **`fail2ban` is not installed**, although ADR 0050 gate M-6 lists it. security-auditor,
-  2026-08-03: with `PasswordAuthentication no` and `PermitRootLogin no` it "defends against a
-  brute force that cannot succeed", and the application already has per-account lockout and
-  per-IP limiting. What replaces it is worth more and costs nothing: port 22 restricted to one
-  source address at the edge. Install it later if quiet logs are wanted — as a log-hygiene
-  measure, not a security control.
-- **`NOPASSWD` sudo for `jpadmin`.** Non-interactive automation cannot answer a sudo prompt.
-  Combined with a passphrase-less key this means key theft equals root. The account password
-  still exists and is required at the console, so the rescue identity is unaffected. Narrowing
-  this is a live option once the deploy automation's real command set is known.
-- **The operator key has no passphrase.** SSH-agent plumbing under Git Bash is unreliable for
-  background automation. Mitigations: the edge restricts port 22 to one source address, the
-  VNC/SCP rescue paths do not depend on the key, and rotation is a two-command procedure
-  (§4.4).
-- **ICMP is permitted outbound (E6/E7)** beyond the originally scoped egress set. ICMPv6 is
-  not optional — NDP is how IPv6 works — and ICMPv4 carries PMTUD, whose absence produces
-  connections that establish and then hang on large payloads.
-- **Host `output` policy is `accept`** rather than a second filtering layer; rationale in §5.
-- **`jpadmin` has passwordless sudo and the operator key has no passphrase**, so possession of
-  that key is equivalent to root on this host. Both are recorded above; the combination is what
-  a reviewer should weigh, not either half alone.
+- **Host and sizing depart from ADR 0050 Beslut 2** — a Netcup RS 1000 G12 (8 GB) instead of a
+  Hetzner CAX31 (16 GB), a sizing that ADR explicitly rejected. The host choice is revoked in
+  BUILD.md (Klas-direktiv 2026-08-02) but **no superseder ADR exists yet**; it is owned by the
+  repo-side track. Capacity conditions: §12.
+- **No Cloudflare** (Klas decision K3) — Caddy will go straight to Let's Encrypt. That is why
+  §6.2 opens 80/443 to `any` rather than to Cloudflare ranges as ADR 0050 gate M-5 prescribes.
+  **Do not "correct" those rules toward M-5's text before the superseder lands**, or ACME
+  HTTP-01 dies.
+- **`fail2ban` is not installed**, although ADR 0050 gate M-6 lists it. With
+  `AuthenticationMethods publickey`, `AllowUsers jpadmin`, `PermitRootLogin no` and port 22
+  restricted to one source address, it would defend an authentication path that does not exist
+  against a population that cannot reach the port — while adding a root-running log parser that
+  consumes attacker-controlled input. **Two limits on that verdict:** it covers SSH only (when
+  80/443 gain a real listener, HTTP abuse is a separate question), and M-6 requires a hardening
+  *baseline*, not fail2ban as a product — the baseline is met without it. **This deviation
+  belongs in an ADR 0050 amendment with Klas's GO, not in a runbook**: a runbook cannot amend an
+  Accepted ADR, and the mandatory second security review will read M-6's text and look for it.
+- **`NOPASSWD` sudo for `jpadmin` combined with a passphrase-less operator key.** Non-interactive
+  automation cannot answer a sudo prompt, and SSH-agent plumbing under Git Bash is unreliable for
+  background work — but together these mean **key theft equals root**, and root means the master
+  key out of process memory once it exists. Two honest corrections to earlier framing: the edge
+  source restriction defends against *remote* use of a stolen key, while the likeliest theft
+  vector is an infostealer reading `~/.ssh` **from that very address**; and after NOPASSWD the
+  `jpadmin` console password is not a lower-privilege second identity — it is root. Mitigated so
+  far by the host-side `from=` restriction (§4.0), which does not depend on netcup's control
+  plane. **Still open, and owned by the deploy phase:** a separate key for automation with
+  `restrict,command=,from=` so the passphrase-less key stops being a general shell, and narrowing
+  NOPASSWD to a `Cmnd_Alias` once the real command set is known. Non-interactive requires *no
+  prompt*, not *unlimited root*; conflating the two is what this trade-off actually is.
+- **Root is rotated but deliberately not locked.** Beyond being the console rescue identity,
+  there is a stronger reason: after the NOPASSWD decision, `jpadmin` at the console already
+  grants unrestricted root. Locking root would remove a tested rescue identity while reducing
+  blast radius by exactly nothing.
+- **ICMP and ICMPv6 are permitted in both directions** — but via the enabled copied policy
+  `netcup Ping allow`, not via rules of our own. NDP is not optional: it is how IPv6 works.
+- **Host `output` policy is `accept`** rather than a second filtering layer. The load-bearing
+  argument is not debugging surface: an attacker with root can rewrite `nftables` but cannot
+  reach the edge rules, so egress control lives in the one layer that survives a host
+  compromise. Rationale in §5.
+- **Detective controls are thin.** `LogLevel VERBOSE` (§4.2) is the only one; there is no
+  `auditd`, no file-integrity monitoring, no alerting. GDPR Art. 33's 72-hour clock runs from
+  becoming *aware*, and on a host where nothing would make anyone aware, that deadline is not
+  hard to meet — it is unmeasurable. ADR 0050's gate table is entirely preventive and needs a
+  detection gate before real user data.
 
 ---
 
 ## 12. Notes for the phases that follow
 
-- **Docker will conflict with §5.** It writes its own chains and bypasses a naive host
-  firewall; every container port must be bound explicitly to `127.0.0.1`, and the `forward`
-  policy interaction must be re-examined. This is not optional: the dev compose file binds
-  five of six ports to `0.0.0.0`, including an unauthenticated Seq.
-- Ports 80 and 443 are already open at both layers, so bringing up the reverse proxy needs no
-  firewall change.
-- **Outbound mail stays impossible** and must remain so: SES is called over its HTTPS API.
+- **`forward policy drop` (§5) stops all container traffic, including traffic to a published
+  reverse proxy.** A container-published port is DNAT'd in `nat/PREROUTING` and then traverses
+  **`forward`**, not `input` — netfilter runs every base chain on the hook, so a DROP in `inet
+  filter` is final and Docker's own ACCEPT rules in `ip filter` do not rescue it. This means
+  `tcp dport {80,443} accept` in `input` does **not** admit a containerised Caddy. The handover
+  needs an active decision; "no firewall change needed" would be wrong.
+- **The same `forward policy drop` is currently what keeps M-6's "PG/Redis not public" true**
+  even against an accidental `0.0.0.0` publish. Whatever resolves the point above **must
+  preserve that**: targeted `iif`/`oif` accepts for the Docker bridge, never a blanket `policy
+  accept`. Open `forward` wholesale and the container's bind address becomes the *only*
+  remaining control on 80/443 — which are already open to `any` at both layers.
+- Verify empirically after deploy: `curl` the host IP on every container port *from outside*,
+  not by reading `expose:` entries. The dev compose file binds five of six ports to `0.0.0.0`,
+  including an unauthenticated Seq, and its own comment claims the opposite.
+- **This is an 8 GB box, and ADR 0050 Beslut 2 rejected that sizing.** The capacity verdict
+  (2026-08-02) let it through as "marginal but workable" conditioned on four things the deploy
+  phase must carry: `next build` in CI and never on the box, `DOTNET_gcServer=0` for Api and
+  Worker, an explicitly tuned Postgres (not defaults, against 8 GB), and **zram instead of disk
+  swap**. The last one is delivered in §8 — but it satisfies *two* requirements at once, B-1 and
+  the capacity verdict. **Adding a disk swap file under memory pressure breaks B-1.** Add RAM
+  instead.
+- **Outbound mail stays impossible** and must remain so: transactional mail goes over the
+  provider's HTTPS API — Resend today, SES planned — never SMTP.
 - The `_FILE` secret seam, the key-in-tmpfs work, and the mandatory second security audit of
   the actual production configuration are gates for the *first real user data*, not for this
   runbook. See ADR 0050's pre-beta-data gates.

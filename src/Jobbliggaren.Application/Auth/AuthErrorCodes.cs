@@ -107,4 +107,26 @@ public static class AuthErrorCodes
     /// </summary>
     public const string ChangeEmailCooldownMessage =
         "Du begärde nyligen ett adressbyte. Vänta en liten stund innan du försöker igen.";
+
+    /// <summary>
+    /// The public-registration kill-switch is CLOSED (<c>Auth:RegistrationsOpen</c> = false;
+    /// ADR 0083 Amendment 2026-08-03). Rendered as an endpoint-local 503 by
+    /// <c>AuthEndpoints.ToErrorResult</c>, not via the kind-union — see that arm for why.
+    /// <para>
+    /// Not an enumeration oracle, and not by care but by construction: the gate is the FIRST
+    /// statement of the handler and never reads the submitted address, so the response cannot vary
+    /// with it. That is a stronger property than #714's uniform 202, which needs two branches held
+    /// byte-identical.
+    /// </para>
+    /// </summary>
+    public const string RegistrationsClosed = "Auth.RegistrationsClosed";
+
+    /// <summary>
+    /// The single user-facing detail for <see cref="RegistrationsClosed"/> (§10: informative,
+    /// non-blaming, no exclamation mark). Deliberately promises no opening date — the app will open,
+    /// but a date we might miss is worse than none. Echoes the copy the retired kill-switch carried
+    /// before ADR 0083 removed it.
+    /// </summary>
+    public const string RegistrationsClosedMessage =
+        "Registreringen är inte öppen än. Försök igen senare.";
 }

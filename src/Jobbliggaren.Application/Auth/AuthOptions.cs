@@ -35,4 +35,31 @@ public sealed class AuthOptions
     /// </para>
     /// </summary>
     public bool RequireEmailConfirmation { get; set; }
+
+    /// <summary>
+    /// Public-registration kill-switch (Klas-beslut 2026-08-03, ADR 0083 Amendment 2026-08-03).
+    /// When <c>false</c> the register command is refused BEFORE any account is created; when
+    /// <c>true</c> registration behaves exactly as it did before the flag existed.
+    /// <para>
+    /// Default <c>false</c> = CLOSED, and the polarity is the whole point: the app becomes publicly
+    /// reachable before its legal and security gates are green, so an unset value must fail CLOSED.
+    /// The mirror-image name (<c>RegistrationsClosed</c>) would default to open and is therefore
+    /// wrong. Measured 2026-08-03: without this flag, Production takes
+    /// <see cref="Commands.Register.RegisterCommandHandler"/>'s legacy instant-login branch —
+    /// <c>Auth:RequireEmailConfirmation</c> is absent from every non-Development appsettings file —
+    /// so a stranger obtains a logged-in account in one request and no email is sent at all.
+    /// <c>NullEmailSender</c> gates nothing on that path; it is never reached.
+    /// </para>
+    /// <para>
+    /// This flag is NOT a waitlist. ADR 0083's teardown of the Waitlist and Invitations bounded
+    /// contexts stands in full; opening registration for launch is a config change, not a deployment
+    /// of new code. To add a user while closed, flip it on, register, flip it off — never hand-write
+    /// an account into the database (Identity hash + security stamp + the JobSeeker aggregate).
+    /// </para>
+    /// <para>
+    /// Settable (not init-only) for the same reason as <see cref="RequireEmailConfirmation"/>: the
+    /// integration harness forces it via <c>PostConfigure&lt;AuthOptions&gt;</c>.
+    /// </para>
+    /// </summary>
+    public bool RegistrationsOpen { get; set; }
 }

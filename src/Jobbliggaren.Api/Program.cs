@@ -6,6 +6,7 @@ using Jobbliggaren.Api.Endpoints;
 using Jobbliggaren.Api.HealthChecks;
 using Jobbliggaren.Api.Observability;
 using Jobbliggaren.Api.RateLimiting;
+using Jobbliggaren.Application.Auth;
 using Jobbliggaren.Application.Common;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Common.Auditing;
@@ -23,6 +24,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using ValidationException = Jobbliggaren.Application.Common.Exceptions.ValidationException;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -185,6 +187,15 @@ builder.Services.AddHsts(o =>
 builder.Services.AddSingleton<SessionStoreUnavailableLog>();
 
 var app = builder.Build();
+
+// ADR 0083 Amendment 2026-08-03 — announce the public-registration kill-switch once per process.
+// Read through IOptions so the value is the one the handler will actually see (PostConfigure wins
+// over config binding). This is the signal that would have surfaced the Auth:RequireEmailConfirmation
+// drift measured 2026-08-03 — the key is absent from every non-Development appsettings file, so
+// Production silently ran the legacy instant-login branch and nothing said so at boot.
+app.Logger.LogInformation(
+    "Registration gate: {RegistrationGateState}",
+    app.Services.GetRequiredService<IOptions<AuthOptions>>().Value.RegistrationsOpen ? "OPEN" : "CLOSED");
 
 app.Use(async (ctx, next) =>
 {

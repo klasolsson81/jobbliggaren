@@ -196,6 +196,15 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
             // flag-ON test classes re-flip it ON per class via WithWebHostBuilder + PostConfigure(true),
             // which registers AFTER this and therefore takes precedence (CTO-bind Risk 3).
             services.PostConfigure<AuthOptions>(o => o.RequireEmailConfirmation = false);
+
+            // ADR 0083 Amendment 2026-08-03 — the registration kill-switch defaults to CLOSED, so the
+            // base host must pin it OPEN or every register-based bootstrap (RegisterAndGetSessionIdAsync
+            // and friends) would be refused before an account is created. Pinned here rather than
+            // inherited from appsettings.Development.json for the same reason the line above is: the
+            // harness must not depend on a dev config file it does not own. The derived hosts below
+            // register their PostConfigure AFTER this one and override only the flags they name, so
+            // they inherit an OPEN registration; the closed-registration host re-flips this one.
+            services.PostConfigure<AuthOptions>(o => o.RegistrationsOpen = true);
         });
     }
 

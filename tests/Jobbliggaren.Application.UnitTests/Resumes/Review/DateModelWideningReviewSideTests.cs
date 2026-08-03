@@ -244,11 +244,18 @@ public class DateModelWideningReviewSideTests
         // correction commit 1's own measurement taught this session: with one entry the defect shows
         // as a Pass carrying the wrong token, not as a Warn.
         //
-        // MEASURED before the widening: "jan 2020 – nuvarande" stored "2020 – nuvarande", whose start
-        // point is a bare year, so the token was YYYY. Beside a slash-formatted sibling that is two
-        // distinct tokens → "Blandade datumformat: YYYY, MM/YYYY" on a CV that is consistent at month
-        // granularity. That is the #420 class in a second notation — the same defect commit 1 fixed
-        // for ISO.
+        // THE FIXTURE MUST BE THE ASYMMETRIC FORM, and an earlier revision used the symmetric one.
+        // With "jan 2020 – dec 2024" this test had ZERO kill power: that entry stored Period = null
+        // before the widening, so it was EXCLUDED from the format set and B6 saw {MM/YYYY} → Pass;
+        // after, it is {MM/YYYY} → Pass. Same verdict either way, while the docblock told a
+        // measurement taken on a different row. A pin whose fixture cannot exhibit the defect is the
+        // failure this whole PR is about, committed inside the pin written to prove the PR fixed it.
+        //
+        // MEASURED before the widening, on THIS fixture: "jan 2020 – nuvarande" stored
+        // "2020 – nuvarande", whose start point is a bare year, so the token was YYYY. Beside a
+        // slash-formatted sibling that is {YYYY, MM/YYYY} → "Blandade datumformat" on a CV that is
+        // consistent at month granularity. That is the #420 class in a second notation — the same
+        // defect commit 1 fixed for ISO — and it reddens on a revert.
         const string cv = """
             Anna Andersson
             anna@example.com
@@ -256,7 +263,7 @@ public class DateModelWideningReviewSideTests
             Arbetslivserfarenhet
             Systemutvecklare
             Acme AB
-            jan 2020 – dec 2024
+            jan 2020 – nuvarande
             Ökade konverteringen med 23 procent.
 
             Utvecklare

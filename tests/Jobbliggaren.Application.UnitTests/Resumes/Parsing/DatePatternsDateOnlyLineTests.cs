@@ -243,9 +243,10 @@ public class DatePatternsDateOnlyLineTests
         // the KnowledgeBank mapping — so only the review side acts.
         //
         // What the review side then does — cite the user's employment dates as though they were
-        // prose, §5's "a CV verdict without cited textual evidence" inverted — is DERIVED from
-        // reading the rules, NOT RUN (senior-cto-advisor re-bind 2026-08-02). The date-model
-        // widening owns measuring it.
+        // prose, §5's "a CV verdict without cited textual evidence" inverted — was DERIVED when this
+        // was written and is now MEASURED (#1060 road 3, (S1)), and the widening closed it for the
+        // forms it reaches. DateModelWideningReviewSideTests is the adjudicator; do not restate this
+        // as derived.
         ShouldReduceTo(line, line);
         PeriodParser.TryParse(line, out _, out _, out _).ShouldBeTrue(
             $"PeriodParser reaches this form and DatePatterns does not — {axis}.");
@@ -317,9 +318,14 @@ public class DatePatternsDateOnlyLineTests
     // second form below. Both rows here are suppressed ONLY by the DatePatterns disjunct.
     [InlineData("– 2020 – 2024",
         "a LEADING separator, which PeriodParser's ^…$ anchoring refuses")]
+    // R13: the reason narrowed with commit 4. DateRange DOES validate the month structurally now —
+    // but only in its YEAR-FIRST branches. This row is MM/YYYY, which stands in no prefix relation
+    // to any other alternative, so the ordering contract never reached it and narrowing it would
+    // leave a "13/" residue instead of degrading. It is the SURVIVING instance, and that is a
+    // property of the branch rather than of the type.
     [InlineData("13/2020 – 2024",
-        "a structurally-matching range whose MONTH is out of range: DateRange does not validate " +
-        "the month, PeriodParser does and declines")]
+        "a structurally-matching range whose MONTH is out of range: DateRange validates the month " +
+        "only in its year-first branches, not in MM/YYYY, so PeriodParser is what declines this one")]
     public void IsDateOnlyLine_ShouldBeTrue_WhereOnlyDatePatternsReachesTheForm(
         string line, string axis)
     {

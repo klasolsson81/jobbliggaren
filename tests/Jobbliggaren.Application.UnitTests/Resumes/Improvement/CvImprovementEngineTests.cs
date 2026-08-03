@@ -1192,8 +1192,15 @@ public class CvImprovementEngineTests
             profile: $"{RealClicheList().Entries[0].Phrase} kvalitet.",
             experience:
             [
+                // The period is "13/2020 – 2024" rather than "jan 2022 - juni 2024" since #1060
+                // road 3. This fixture exists to exercise SEVERAL transforms at once and compare two
+                // runs byte-for-byte, so it needs a period the DateNormalization transform still
+                // fires on. Month names are canonical now, so the old value silently dropped that
+                // transform out of the comparison — determinism over a smaller set, and nothing
+                // would have gone red (dotnet-architect R9, 2026-08-03). The bullet keeps its
+                // month-name text: it is prose, and the weak-verb transform is what reads it.
                 Experience(
-                    period: "jan 2022 - juni 2024",
+                    period: "13/2020 – 2024",
                     bullets: [$"{Capitalize(RealVerbMapping().WeakVerbs[0].Weak)} ett område jan 2022 - juni 2024."]),
             ]);
 

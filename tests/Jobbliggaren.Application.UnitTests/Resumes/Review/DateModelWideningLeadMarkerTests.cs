@@ -58,20 +58,33 @@ public class DateModelWideningLeadMarkerTests
         return result.Verdicts.Single(v => v.CriterionId == "B5").Verdict;
     }
 
-    [Theory]
-    // GUARD TWO FIRING — the remainder parses, so the marker is nulled and B5 sees one glyph.
-    [InlineData("– 2020 – nuvarande", "the row guard two was originally written for")]
-    [InlineData("– maj 2020", "a lone month point, which PeriodParser reaches only since road 3")]
-    [InlineData("- 01/2022 – 06/2024", "an ASCII marker with a slash range")]
-    public async Task LeadMarker_IsNulled_WhenTheRemainderParsesAsAPeriod(string markerRow, string why)
+    [Fact]
+    public async Task LeadMarker_IsNulled_WhenTheRemainderParsesAsAPeriod()
     {
-        // Premise stated as an assertion rather than assumed: guard two keys off PeriodParser, so
-        // the test would measure nothing if the remainder did not actually parse.
-        PeriodParser.TryParse(markerRow.TrimStart('–', '-', ' '), out _, out _, out _)
-            .ShouldBeTrue($"premise: guard two only fires where the remainder parses — {why}.");
+        // ONE ROW, AND THE OTHER TWO WERE REMOVED RATHER THAN KEPT AS PADDING. An earlier revision
+        // ran three: "– 2020 – nuvarande" and "- 01/2022 – 06/2024" alongside this one. Both are
+        // suppressed by DescriptionLines BEFORE LeadMarker is ever offered them — DatePatterns
+        // reduces each to empty, so IsDateOnlyLine is true and the union drops the row upstream. B5
+        // then saw one glyph and returned NotAssessed for a reason that had nothing to do with guard
+        // two. Delete guard two and both rows stayed green; the theory's own comments named a
+        // mechanism two thirds of its data could not reach.
+        //
+        // "– maj 2020" is the row that crosses the threshold, and it is the one road 3 created:
+        // IsDateOnlyLine is FALSE for it (StripTrailingDate leaves "– maj"), so the row survives the
+        // union and reaches LeadMarker — where guard two nulls the marker because PeriodParser now
+        // parses a lone month point. Before road 3 it did not, and the marker survived.
+        const string markerRow = "– maj 2020";
+
+        // Both premises, because either alone leaves the test measuring something else: the row must
+        // SURVIVE the union to be offered the guard, and its remainder must PARSE for the guard to
+        // fire.
+        DatePatterns.IsDateOnlyLine(markerRow).ShouldBeFalse(
+            "premise: the row must survive DescriptionLines, or LeadMarker is never offered it.");
+        PeriodParser.TryParse(markerRow.TrimStart('–', ' '), out _, out _, out _).ShouldBeTrue(
+            "premise: guard two only fires where the remainder parses — and it does only since road 3.");
 
         (await B5ForAsync(markerRow)).ShouldBe(CriterionVerdict.NotAssessed,
-            $"a marker leading a parseable period is a date row, not a bullet STYLE — {why}.");
+            "a marker leading a parseable period is a date row, not a bullet STYLE.");
     }
 
     [Fact]

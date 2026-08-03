@@ -196,7 +196,7 @@ internal static partial class DatePatterns
     /// <summary>
     /// True when a date match runs to the END of <paramref name="line"/> and nothing but separators
     /// precedes it — "the line carries a date and nothing else". <b>What may FOLLOW the match is
-    /// whitespace, a dangling range separator, or a single bracketed qualifier — and nothing
+    /// whitespace, a dangling range separator, or a single parenthesised qualifier — and nothing
     /// else</b>, so <c>"2005 - 2010,"</c> is still false while <c>"2020 –"</c> and
     /// <c>"2020 – 2024 (heltid)"</c> are true; <see cref="IsIgnorableTail"/> owns that set and the
     /// reason it is narrower than the trim applied to the LEFT of the match. Also true VACUOUSLY for
@@ -235,6 +235,17 @@ internal static partial class DatePatterns
     /// are — exactly as a lone "03/2020" is not (#428). <see cref="PeriodParser"/> does accept the
     /// lone point, as it already did for "2020"; that disagreement is deliberate and is one of the
     /// standing axes above, not a deferral.</para>
+    ///
+    /// <para><b>A MONTH WORD THAT IS ALSO A NAME COSTS A REAL ORGANIZATION, and it is priced here
+    /// rather than guarded.</b> "Mars 2020 – 2024" and "Maj 2018 – 2020" reduce to empty, so the line
+    /// is date-only and <c>SplitTitleOrganization</c> nulls the organization — but <i>Mars</i> is a
+    /// real employer (Mars Sverige AB) and <i>Maj</i> and <i>Juni</i> are Swedish given names. This is
+    /// the INVERSE of the class β-3 closed: not asserting a field the source never wrote, but
+    /// dropping one it did. Accepted rather than guarded on two grounds — the shape required is
+    /// narrow (the line must be exactly <c>MonthWord YYYY – endpoint</c>, so an employer line with
+    /// anything else on it is unaffected), and β-3's own framing is that dropping is the lesser
+    /// failure: <i>"the engine did not DROP a field. It ASSERTED one."</i> Named so a later reader
+    /// meets the cost rather than rediscovering it (dotnet-architect R11, 2026-08-03).</para>
     ///
     /// <para><b>A DEFERRAL WAS TAKEN HERE AND THEN OVERTURNED BY MEASUREMENT — kept, because the
     /// prediction it made is the one that came FALSE.</b> This paragraph read: <i>"Nor did

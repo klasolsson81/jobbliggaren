@@ -59,9 +59,11 @@ namespace Jobbliggaren.Application.UnitTests.Resumes.Review;
 /// cited: §5's "a CV verdict without cited textual evidence" — a verdict citing a span that is not
 /// prose. Sharpest on <c>YYYY/MM</c>, which <c>DateRange</c> models on neither endpoint, so
 /// <c>StripDates</c> leaves digits behind and A1 can read the employment dates as a quantified
-/// result. <b>That A1/A2/A6 consequence is DERIVED from reading the rules, not run</b>
-/// (senior-cto-advisor re-bind 2026-08-02); the date-model widening owns measuring it. What IS run
-/// and pinned here is the escape itself.</para>
+/// result. <b>That A1/A2/A6 consequence WAS derived from reading the rules and is now MEASURED</b>
+/// (#1060 road 3, (S1)): all three cited the user's date row, and on the <c>YYYY/MM</c> form A1
+/// returned an affirmative Pass noting "kvantifierad uppgift". The widening then closed it. The
+/// verdicts live in <c>DateModelWideningReviewSideTests</c>; what is run and pinned HERE is the
+/// bullet unit, which is where the cause is.</para>
 ///
 /// <para><b>The pin's whole purpose is to redden under EITHER substitution</b>, which is why the
 /// two directions are separate test methods with disjoint inputs:

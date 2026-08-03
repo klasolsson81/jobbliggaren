@@ -68,15 +68,18 @@ public class DateModelWideningStoredPeriodTests
     [InlineData("jan 2020 – 2024", "YYYY")]
     [InlineData("2020 – 2024/12", "YYYY")]
     [InlineData("2020-06 – 2024/12", "MM/YYYY")]
-    // THE SYMMETRIC CLASS — both endpoints widened. These had NO period at all before; they are here
-    // because the invariant is universal over what the segmenter stores, not over what regressed.
+    // THE SYMMETRIC CLASS — both endpoints widened. These had NO period at all before; they are
+    // here because the property under test is about what the segmenter STORES, not about what
+    // regressed. (An earlier revision said "the invariant is universal over what the segmenter
+    // stores". It is not — see the characterisation in this class's docblock, and the two
+    // structural-vs-semantic instances pinned below.)
     [InlineData("jan 2020 – dec 2024", "MM/YYYY")]
     [InlineData("2020/01 – 2024/12", "MM/YYYY")]
     // Controls the widening must not disturb.
     [InlineData("2013 - 2021", "YYYY")]
     [InlineData("2020-06 – 2024-03", "MM/YYYY")]
     [InlineData("2020 – 2024 (heltid)", "YYYY")]
-    public void WhateverTheSegmenterStores_ThePeriodParserCanRead(string dateLine, string expectedToken)
+    public void WhatTheSegmenterStores_ThePeriodParserCanRead_ForEveryModelledForm(string dateLine, string expectedToken)
     {
         var period = PeriodFor(dateLine);
 

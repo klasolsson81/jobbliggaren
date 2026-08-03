@@ -180,86 +180,113 @@ public class DateRangeYearFirstCharacterisationTests
         parses.ShouldBeTrue("ISO 8601 says these two digits are a month, and both homes agree.");
     }
 
-    // ── SLASH — modelled by NEITHER home before this PR. See the docblock note. ──────
+    // ── SLASH — modelled by NEITHER home. See the docblock note and round 5's decision D′. ──
 
     [Theory]
-    // SLASH x {start, end} x NN OUTSIDE 01-12 — both cells, both axes. The end cell was missing from
-    // an earlier revision of this table while the docblock claimed the index was complete: the
-    // instrument overstating its own coverage, which is the failure this table exists to prevent,
-    // one altitude up.
+    // SLASH x {start, end} x {NN INSIDE 01-12, NN OUTSIDE 01-12} — all four cells, both axes,
+    // merged into ONE theory because decision D′ (senior-cto-advisor round-5 bind) made NN
+    // validity irrelevant: the branch that once read a valid NN as a month is gone from BOTH point
+    // lists, so "2008/09" and "2019/20" are now the SAME grammatical case. Keeping them in separate
+    // theories after that merge would itself be the lane's signature failure one altitude up — an
+    // instrument indexed by a distinction the grammar no longer draws.
     //
-    // origin/main: no match in either position (YYYY/MM was modelled in NEITHER home). Commit 2 grew
-    // it; commit 4's exact class returned both cells to no-match. Unchanged by the restore, which
-    // touches the hyphen branch only — that is the derivation ("YYYY-NN, start position only") being
-    // visible rather than asserted in prose.
+    // ATTRIBUTION, measured per commit, kept because it is the record of how this collided: the
+    // SLASH half arrived in commit 2 (DatePatterns) and commit 3 (PeriodParser). origin/main
+    // modelled it in NEITHER home. It briefly (commits 2-8) read a VALID NN as a month in
+    // DatePatterns — the Klas-direktiv commit narrowed that to PeriodParser only, and round 5
+    // removed it from DatePatterns too, after a Blocker showed the split itself was unsafe (a
+    // mixed-notation range stored an unreadable value — see
+    // DateModelWideningStoredPeriodTests.WhatTheSegmenterStores_ThePeriodParserCanRead_ForEveryModelledForm).
+    //
+    // THE NOTATION-AUTHORITY ASYMMETRY IS STILL THE POINT, even though the collision itself
+    // dissolved. ISO 8601 adjudicates the hyphen (see HyphenValidMonth below). Nothing adjudicates
+    // the slash — this PR tried reading it as a month, on no cited authority, broke twice, and
+    // took the reading back out. Whether the LINE half alone (recognise, still never date) should
+    // return is a product question, tracked in the follow-up issue this file names below.
     [InlineData("2019/20 – 2021", null)]
     [InlineData("2018 – 2019/20", "2018 – 2019")]
-    public void SlashInvalidMonth_IsNotModelled_InEitherPosition(string dateLine, string? expectedPeriod)
+    [InlineData("2008/09 – 2011/12", null)]
+    [InlineData("2000/01 – 2011/12", null)]
+    // THE MISSING CELL an earlier revision of this table did not have: {slash, END, NN ∈ 01-12}
+    // with a NON-slash START — the exact shape of the Blocker that triggered decision D′. The two
+    // existing valid-NN rows above carry slash at BOTH endpoints, so neither can see this cell: a
+    // START that also fails to match masks whatever the END alternation does. These two make the
+    // END alternation's behaviour observable on its own, and they are the two rows a round-5
+    // commit deleted from DateModelWideningStoredPeriodTests under a false claim that they lived
+    // here — restored in both places now.
+    [InlineData("2020 – 2024/12", "2020 – 2024")]
+    [InlineData("2020-06 – 2024/12", "2020-06 – 2024")]
+    public void SlashYearFirst_IsNeverModelled_RegardlessOfMonthValidity(
+        string dateLine, string? expectedPeriod)
     {
         var (isDateOnly, period, parses) = NonFirstLine(dateLine);
 
-        isDateOnly.ShouldBeFalse("YYYY/NN with NN outside 01-12 is modelled by no branch.");
+        isDateOnly.ShouldBeFalse(
+            "YYYY/NN is modelled by no branch, on either endpoint, whatever NN is — decision D′ made " +
+            "this uniform across the whole grammar.");
         period.ShouldBe(expectedPeriod,
-            "the START cell stores nothing; the END cell degrades to the bare year, exactly as the " +
-            "hyphen END cell does — the two notations agree once neither branch models the token.");
+            "a START-position slash point stores nothing; an END-position one degrades to whatever " +
+            "the OTHER endpoint's own branch reaches — a bare year for the two rows above, and " +
+            "the full point value for the two below, exactly as the hyphen END cell degrades to a " +
+            "bare year (HyphenEnd_InvalidMonth_DegradesToTheBareYear).");
         parses.ShouldBe(expectedPeriod is not null,
-            "and whatever is stored must be readable, which is the invariant the whole table serves.");
+            "and whatever IS stored must be readable, which is the invariant the whole table serves " +
+            "— the Blocker this theory's last two rows exist to keep closed.");
     }
 
-    [Fact]
-    public void SlashStart_InvalidMonth_OnTheFirstLineLayout_StoresTheBareYear()
+    [Theory]
+    // THE FIRST-LINE LAYOUT'S TWIN, both NN populations — obligation 6 of the round-5 bind: the
+    // valid-NN row is no longer vacuous under decision D′ (it used to be masked entirely, because
+    // DateRange matched the whole line and the Year() fallback never ran). Now both rows take the
+    // identical path: DateRange declines the START point, so Year() falls back to the LEADING bare
+    // year and the trailing slash residue is simply never reached.
+    [InlineData("2019/20 – 2021", "2019")]
+    [InlineData("2008/09 – 2011/12", "2008")]
+    public void SlashStart_OnTheFirstLineLayout_StoresTheBareYear(string dateLine, string expectedPeriod)
     {
         // The layout split, applied to the slash notation too. It reached one row of six in an
         // earlier revision while obligation 3 asked for it across the value axis — and this split
         // has already produced one wrong assertion in this PR, so the coverage is not decorative.
-        var (_, period, parses) = FirstLine("2019/20 – 2021");
+        var (_, period, parses) = FirstLine(dateLine);
 
-        period.ShouldBe("2019", "Year()'s fallback takes the leading year when DateRange declines.");
+        period.ShouldBe(expectedPeriod, "Year()'s fallback takes the leading year when DateRange declines.");
         parses.ShouldBeTrue();
     }
 
-    [Theory]
-    // THE LÄSÅR COLLISION, PINNED AS A KNOWN INSTANCE — not as a defect, and not as ours to fix.
-    //
-    // A Swedish läsår is YYYY/YY where YY = (YYYY+1) mod 100, which lands INSIDE 01-12 for exactly
-    // twelve start-years: 2000/01 through 2011/12. So this branch reads "2008/09" as September 2008.
-    //
-    // ATTRIBUTION, measured per commit: the SLASH half arrived in commit 2, which introduced
-    // YYYY/MM in DatePatterns (commit 3 taught PeriodParser the same). origin/main modelled it in
-    // NEITHER home. Commit 4 could not have created it — a narrowing cannot add a match.
-    //
-    // THE NOTATION-AUTHORITY ASYMMETRY IS THE POINT. ISO 8601 adjudicates the hyphen. Nothing
-    // adjudicates the slash: this PR picked a reading for the one notation Swedish convention gives
-    // the academic and fiscal year, with no cited standard on either side. That is a product belief,
-    // and it is Klas's to state — see the PR body. Pinned here so the reading is visible rather than
-    // implicit, and so a later change to it is a change to a pinned behaviour.
-    [InlineData("2008/09 – 2011/12")]
-    [InlineData("2000/01 – 2011/12")]
-    public void SlashValidMonth_IsRecognisedAsADateRow_ButNotDated(string dateLine)
+    [Fact]
+    public void SlashYearFirst_DoesNotShadowARangeFurtherRightInTheEntryText()
     {
-        // KLAS-DIREKTIV 2026-08-03, and it resolved the question this row was written to pose.
-        // "2008/09" is how Swedish writes a YEAR PAIR — a läsår or a räkenskapsår — not September
-        // 2008. That is "2008-09", which ISO 8601 adjudicates and which this type still reads.
-        //
-        // The two halves are separable and the ruling separates them. RECOGNISING the line is what
-        // suppresses it from the bullet scorer, masks it out of the measurable-digit test and keeps
-        // it out of the Organization slot — the defects road 3 exists to close. DATING it is a
-        // second claim, and it is the one declined: the entry reports an honest NotAssessed rather
-        // than a span nobody stated.
-        //
-        // Measured before the ruling: "2008/09 – 2011/12" parsed as 2008-09-01..2011-12-01, token
-        // MM/YYYY — September 2008 to December 2011, where the writer meant autumn 2008 to spring
-        // 2012. The notation was also treated INCONSISTENTLY, which is the sharper argument: with a
-        // month class, "2008/09" parsed and "2019/20" did not, because 09 is a valid month number
-        // and 20 is not. Same notation, opposite outcomes, decided by arithmetic rather than meaning.
-        var (isDateOnly, period, parses) = NonFirstLine(dateLine);
+        // THE UNSHADOWING DIRECTION (round-5 bind §2, "the consequence half" — obligation 4). Once
+        // the date row's own slash pair stops matching DateRange, it can no longer consume the
+        // LEFTMOST match over the entry's whole text — so if a later line in the same entry happens
+        // to contain something DateRange DOES model, that later match becomes the one ExtractPeriod
+        // stores instead. Measured, not assumed: this is origin/main's own behaviour for this row
+        // (origin/main never modelled the slash form either), so decision D′ does not create a new
+        // failure mode here — it un-masks one the widening had temporarily hidden by making the
+        // date row itself the leftmost match again.
+        const string cv = """
+            Anna Andersson
+            anna@example.com
 
-        isDateOnly.ShouldBeTrue("the line IS a date row, and that half is what closes the defect.");
-        period.ShouldBe(dateLine, "stored source-faithfully — we decline to date it, not to keep it.");
-        parses.ShouldBeFalse(
-            "a year pair is not a year and a month. Refusing beats asserting a span the CV never " +
-            "stated (ADR 0071, honest-absent).");
+            Arbetslivserfarenhet
+            Systemutvecklare
+            Acme AB
+            2020/01 – 2024/12
+            Ansvarig för perioden 2021 – 2023 av budgeten.
+            """;
+
+        var exp = new HeadingDrivenResumeSegmenter(CvParsingLexiconLoader.Load())
+            .Segment(cv).Content.Experience.ShouldHaveSingleItem();
+
+        exp.Period.ShouldBe("2021 – 2023",
+            "with the date row's own text unmatched, DateRange's leftmost scan over the whole entry " +
+            "finds the range mentioned in the bullet instead — origin/main's behaviour, not a new one.");
     }
+
+    // A CROSS-REFERENCE, not a row: the HYPHEN läsår collision (HyphenValidMonth_IsReadAsAMonth_WhichIsISO8601
+    // above) is unaffected by decision D′. The hyphen form keeps reading these twelve start-years as
+    // a month, on ISO 8601's authority. Written down so a reader who reaches the slash section
+    // second is not left wondering whether the hyphen collision was also removed. It was not.
 
     [Fact]
     public void TheTwoPointLists_DifferByExactlyOneToken()

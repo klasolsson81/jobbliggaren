@@ -44,10 +44,12 @@ public class PeriodParserYearSpanTests
     [InlineData("januari 2022 – december 2024", 2022, 2024)]
     [InlineData("March 2019 – Sept 2021", 2019, 2021)]
     [InlineData("jan 2020 – nuvarande", 2020, CurrentYear)]
-    // "2020/01 – 2024/12" was a row here until Klas-direktiv 2026-08-03 ruled the year-first
-    // SLASH notation a year pair (a läsår), not a year and a month. It is not free-text either —
-    // DatePatterns still recognises the LINE — so it belongs in neither theory of this file and
-    // lives in DateRangeYearFirstCharacterisationTests with the rest of the year-first grammar.
+    // "2020/01 – 2024/12" passed through THIS theory for one commit (Klas-direktiv 2026-08-03: the
+    // year-first SLASH notation was read as a month) and left it again in round 5 (decision D′):
+    // PeriodParser's year-first branch is hyphen-only, so "2020/01" never matches PointRegex on
+    // EITHER side of the range — this parser declines the whole string outright, independent of
+    // whatever DatePatterns does with the LINE. It is free-text again from this type's point of
+    // view, and the row is back in TryParseYearSpan_NullEmptyOrFreeText_ReturnsFalse below.
     [InlineData("maj 2020", 2020, 2020)]     // lone month point → zero-length span, parity with 03/2020
     public void TryParseYearSpan_MonthNamePoints_ResolveTheirSpan(
         string period, int expectedStart, int expectedEnd) =>
@@ -90,6 +92,11 @@ public class PeriodParserYearSpanTests
     // the row had simply been deleted. Written down because a pointer to a test that is not there
     // reads exactly like coverage.)
     [InlineData("1899")]                     // below the 1900 lower year-guard → rejected
+    // "2020/01 – 2024/12" — the reverse of the move above. It was briefly a row in the theory
+    // above (Klas-direktiv 2026-08-03) and moved back HERE in round 5 (decision D′): the year-first
+    // SLASH notation never matches PointRegex, on either endpoint, so this parser sees it as
+    // unstructured text and refuses it — the same honest false as any other free-text period.
+    [InlineData("2020/01 – 2024/12")]
     public void TryParseYearSpan_NullEmptyOrFreeText_ReturnsFalse(string? period)
     {
         var ok = PeriodParser.TryParseYearSpan(period, CurrentYear, out var start, out var end);

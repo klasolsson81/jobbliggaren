@@ -1017,27 +1017,28 @@ public class HeadingDrivenResumeSegmenterTests
     /// of these too. Naming the promotion as the trigger would leave this green while the deferral
     /// claimed the gap was closed — which is the defect this test exists to make impossible.</para>
     ///
-    /// <para><b>THE WIDENING LANDED (#1060 road 3, commit 2) AND THIS TEST MOVED SIDES.</b> Every
-    /// paragraph above is the record of what was true before it, kept verbatim because the
-    /// prediction it makes is the one that came true: the predicate PROMOTION left all four green
-    /// (4/4, data unchanged), and the date-model WIDENING is what reddened them — which is exactly
-    /// what the trigger was written to distinguish. The four <c>InlineData</c> are unchanged; what
-    /// changed is the assertion, from "is still taken as the organization" to "is no longer taken
-    /// as the organization". <b>That is the replacement the docblock above asked for, not an edit to
-    /// keep a fixture green</b>: the data is frozen and the expectation moved with the product.</para>
+    /// <para><b>THE WIDENING LANDED (#1060 road 3, commit 2) AND THIS TEST MOVED SIDES — THREE OF THE
+    /// FOUR, PERMANENTLY.</b> Every paragraph above is the record of what was true before it, kept
+    /// verbatim because the prediction it makes is the one that came true for three of the four: the
+    /// predicate PROMOTION left all four green (4/4, data unchanged), and the date-model WIDENING is
+    /// what reddened them — which is exactly what the trigger was written to distinguish. <b>The
+    /// fourth, <c>YYYY/MM</c>, moved back to its ORIGINAL side in round 5</b> (decision D′, senior-cto-advisor
+    /// round-5 bind): the year-first slash notation collided with the Swedish läsår and DateRange no
+    /// longer models it at all, so this test's own population is once again ACCURATE for it — see
+    /// <c>Segment_DateLineTheYearFirstSlashFormStillReaches_IsTakenAsTheOrganization_KnownAcceptedRegression</c>
+    /// below, which pins that row rather than silently dropping it.</para>
     ///
-    /// <para>What it pins now is β-3's rule reaching its intended population: <i>a line that carries
-    /// no field must not BECOME a field</i>. Before the widening these four fabricated an employer
-    /// the source never wrote, with <c>ParseConfidence</c> = Confident, in a document the user sends
-    /// to employers — on the auto-promote path, which has no approve step. The period is now
-    /// recovered as well, for the two forms <c>DateRange</c> models as points; the other two are
-    /// recognised at the LINE level only, so the organization is correctly null while the period
-    /// stays absent (honest-absent over confidently-wrong, ADR 0071).</para>
+    /// <para>What it pins now, for the surviving three, is β-3's rule reaching its intended
+    /// population: <i>a line that carries no field must not BECOME a field</i>. Before the widening
+    /// these fabricated an employer the source never wrote, with <c>ParseConfidence</c> = Confident,
+    /// in a document the user sends to employers — on the auto-promote path, which has no approve
+    /// step. The period is now recovered as well, for the one form <c>DateRange</c> models as a
+    /// point; the other two are recognised at the LINE level only, so the organization is correctly
+    /// null while the period stays absent (honest-absent over confidently-wrong, ADR 0071).</para>
     /// </summary>
     [Theory]
     [InlineData("jan 2020 – dec 2024", "jan 2020 – dec 2024")]
     [InlineData("2020 – 2024 (heltid)", "2020 – 2024")]
-    [InlineData("2020/01 – 2024/12", "2020/01 – 2024/12")]
     // The open-ended form WITHOUT a keyword, and it was the sharpest of the four: DateRange needs
     // an end point so it does not match at all, Year matches "2020", and the tail " –" was
     // non-empty — so an ongoing employment, rendered the commonest way, fabricated. Every
@@ -1070,6 +1071,39 @@ public class HeadingDrivenResumeSegmenterTests
         exp.Period.ShouldBe(expectedPeriod,
             "the period is recovered only where DateRange models the form as a POINT range; where " +
             "the line is recognised at the line level only, honest-absent beats invented.");
+    }
+
+    /// <summary>
+    /// THE PRICE OF DECISION D′ (senior-cto-advisor round-5 bind §9 trade-off 1), pinned rather than
+    /// left implicit. Removing the year-first SLASH point from <c>DatePatterns.DateRange</c> closed a
+    /// Blocker (a mixed-notation range storing a value neither engine could read) at the cost of
+    /// reopening THIS β-3 population for the one notation the fix touched: the date row is no longer
+    /// recognised at the LINE level either, so on the TWO-LINE "Title / Dates" layout it becomes the
+    /// employer — fabricated, with <c>ParseConfidence</c> = Confident, on a CV the user sends to
+    /// employers. This is <c>origin/main</c>'s own behaviour, not a NEW regression this PR created:
+    /// <c>origin/main</c> never modelled the slash form either.
+    /// </summary>
+    [Fact]
+    public void Segment_DateLineTheYearFirstSlashFormStillReaches_IsTakenAsTheOrganization_KnownAcceptedRegression()
+    {
+        const string cv = """
+            Anna Andersson
+            anna@example.com
+
+            Arbetslivserfarenhet
+            Systemutvecklare
+            2020/01 – 2024/12
+            Byggde saker.
+            """;
+
+        var result = _sut.Segment(cv);
+
+        var exp = result.Content.Experience.ShouldHaveSingleItem();
+        exp.Title.ShouldBe("Systemutvecklare");
+        exp.Organization.ShouldBe("2020/01 – 2024/12",
+            "the date row is unrecognised at the LINE level (decision D′), so β-3's guard cannot " +
+            "act on it — origin/main's own behaviour, priced and tracked in the follow-up issue " +
+            "DateRangeYearFirstCharacterisationTests names.");
     }
 
     [Theory]

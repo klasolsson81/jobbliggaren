@@ -549,12 +549,17 @@ public class CvImprovementEngineTests
     [InlineData("jan 2020 – dec 2024")]
     [InlineData("jan 2020 – nuvarande")]
     [InlineData("2020 – 2024 (heltid)")]
-    // "2020/01 – 2024/12" is NOT here, and the absence is the ruling rather than an oversight.
-    // Klas-direktiv 2026-08-03: the year-first slash notation is a year pair, so PeriodParser
-    // declines it — and this transform fires exactly where PeriodParser declines. It therefore
-    // DOES propose "Standardisera datumformatet" on that form, which is the honest outcome: the
-    // notation genuinely is not machine-readable as a period, and telling the user so is the
-    // transform doing its job rather than flagging a CV its own criterion approves of.
+    // "2020/01 – 2024/12" was OUT of this theory for one commit (Klas-direktiv 2026-08-03: the
+    // slash notation is recognised-but-undated, so this transform fired on it) and is back IN as of
+    // round 5 (decision D′): DateRange no longer matches the slash point on either endpoint, so the
+    // segmenter stores no Period at all for this line (three-line layout) and the transform's own
+    // guard — `string.IsNullOrWhiteSpace(period)` — skips it before the PeriodParser check is even
+    // reached. Silent, not because the parser declines a stored value, but because nothing is
+    // stored to flag. origin/main's behaviour, restored.
+    [InlineData("2020/01 – 2024/12")]
+    // The läsår collision, same mechanism: a valid-month slash pair is unmodelled just as
+    // completely as an invalid-month one (decision D′ removed the branch, not just narrowed it).
+    [InlineData("2008/09 – 2011/12")]
     public async Task SuggestAsync_ShouldNotProposeDateNormalization_ForAFormTheDateModelNowReads(
         string dateLine)
     {
@@ -589,6 +594,36 @@ public class CvImprovementEngineTests
             $"[{dateLine}] is a format the date model reads, so there is nothing to standardise. " +
             "The transform's definition of non-standard is 'our parser cannot read this' — widening " +
             "the parser must make it quieter, never noisier.");
+    }
+
+    [Theory]
+    [InlineData("2020/01 – 2024/12")]
+    [InlineData("2008/09 – 2011/12")]
+    public async Task SuggestAsync_ShouldNotProposeDateNormalization_ForTheSlashFormOnTheFirstLineLayout(
+        string dateLine)
+    {
+        // THE OTHER LAYOUT decision D′'s obligation 8 names, and it is silent for a DIFFERENT
+        // reason than the three-line case above — the point of pinning it, not a duplicate. Here
+        // the date row IS Lines[0], so ExtractPeriod's Year() fallback fires and stores the LEADING
+        // bare year ("2020" / "2008") — a value that DOES parse (token "YYYY"), so the transform's
+        // guard exits on `PeriodParser.TryParse(period, …)` returning true, never reaching the
+        // "nothing stored" branch the three-line layout takes. Two different silences, same
+        // observable outcome — and a test asserting only one of them cannot tell them apart.
+        var cv = $"""
+            Anna Andersson
+            anna@example.com
+
+            Arbetslivserfarenhet
+            {dateLine}
+            Acme AB
+            Ökade konverteringen med 23 procent.
+            """;
+
+        var result = await SuggestAsync(Review.CvReviewFixtures.ResumeFromCvText(cv));
+
+        result.Changes.ShouldNotContain(c => c.Kind == ProposedChangeKind.DateNormalization,
+            $"[{dateLine}] degrades to a bare leading year on this layout, which PARSES — so there " +
+            "is nothing to standardise, for a different reason than the three-line layout.");
     }
 
     [Fact]

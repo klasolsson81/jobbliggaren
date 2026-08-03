@@ -51,9 +51,14 @@ internal static partial class DatePatterns
     // THE POINT FORMS, and each is a modelling decision rather than a pattern that grew:
     //   MONTHNAME YYYY   "jan 2020", "januari 2020", "Dec. 2024"  (Swedish and English, IgnoreCase)
     //   YYYY-MM          ISO 8601
-    //   YYYY/MM          the slash-written year-first form
     //   MM/YYYY          the slash-written month-first form
     //   YYYY             a bare year
+    //
+    // YYYY/MM (the slash-written YEAR-FIRST form, "2020/01") is DELIBERATELY NOT a point form here,
+    // and it is a decision this file made twice. Road 3 briefly modelled it (commit 2) and then
+    // un-modelled it (round 5, this restore) — see the note below and
+    // DateRangeYearFirstCharacterisationTests for why: it collides with the Swedish läsår notation
+    // and this file has no authority to read it as a month.
     //
     // THE POINT FRAGMENT IS SHARED WITH PeriodParser AND THAT IS LOAD-BEARING, not tidiness. This
     // regex's match VALUE is what HeadingDrivenResumeSegmenter.ExtractPeriod STORES as
@@ -89,10 +94,16 @@ internal static partial class DatePatterns
     //
     // A NOTE ON A CLAIM THAT WAS FALSE HERE. This comment read: the academic year's "last two digits
     // lie outside 01-12 BY CONSTRUCTION". They do not. A läsår is YYYY/YY where YY = (YYYY+1) mod
-    // 100, which lands INSIDE 01-12 for twelve start-years, 2000/01 through 2011/12. Those twelve
-    // are read as months by both homes, the hyphen half on ISO 8601's authority and the slash half
-    // on none — see DateRangeYearFirstCharacterisationTests, which pins the collision and the
-    // per-commit attribution.
+    // 100, which lands INSIDE 01-12 for twelve start-years, 2000/01 through 2011/12. The HYPHEN form
+    // reads those twelve as a month on ISO 8601's authority, and that stands. The SLASH form briefly
+    // read them as a month too (commit 2) on no authority at all, and a round-5 measurement found the
+    // asymmetric case that made it a Blocker: a slash point paired with an UNRELATED endpoint (e.g.
+    // "2020 – 2024/12") stored a value the month reading then made unparseable, which origin/main had
+    // stored as a working bare-year degradation. Round 5 removed the slash branch from BOTH point
+    // lists, so YYYY/MM is now read as a month by NEITHER home — origin/main's behaviour, restored
+    // rather than repaired. See DateRangeYearFirstCharacterisationTests, which pins the collision, the
+    // per-commit attribution, and this resolution; the open question of whether the slash form should
+    // be RECOGNISED-but-undated is routed to the follow-up issue it names.
     //
     // `\d{2}/\d{4}` IS DELIBERATELY NOT NARROWED, and the reason is the contract, not convenience.
     // It stands in no prefix relation to any other alternative — strings matching it open with two
@@ -147,7 +158,7 @@ internal static partial class DatePatterns
     private const string SharedPointHead =
         CvMonthNames.Pattern + CvMonthNames.AfterName + @"\d{4}";
 
-    private const string SharedPointTail = @"|\d{4}/(?:0[1-9]|1[0-2])|\d{2}/\d{4}|\d{4})";
+    private const string SharedPointTail = @"|\d{2}/\d{4}|\d{4})";
 
     private const string StartPoint = "(?:" + SharedPointHead + @"|\d{4}-\d{2}" + SharedPointTail;
 
@@ -285,15 +296,23 @@ internal static partial class DatePatterns
     /// with it — in BOTH directions, which is why no total survives the move.</para>
     ///
     /// <para><b>What road 3 added.</b> The date model now reaches month names
-    /// ("jan 2020 – dec 2024"), <c>YYYY/MM</c> ("2020/01 – 2024/12"), a trailing parenthesised
-    /// qualifier ("2020 – 2024 (heltid)") and a keyword-less open end ("2020 –"). The first two are
-    /// POINT forms and live in <see cref="DateRange"/>; the last two are properties of the LINE and
-    /// live in <see cref="IsIgnorableTail"/>, because <see cref="DateRange"/>'s match value is what
+    /// ("jan 2020 – dec 2024"), a trailing parenthesised qualifier ("2020 – 2024 (heltid)") and a
+    /// keyword-less open end ("2020 –"). The first is a POINT form and lives in
+    /// <see cref="DateRange"/>; the other two are properties of the LINE and live in
+    /// <see cref="IsIgnorableTail"/>, because <see cref="DateRange"/>'s match value is what
     /// <c>ExtractPeriod</c> stores and a qualifier inside it would break the stored period rather
     /// than widen it. <b>A LONE month point ("maj 2020") is still not reduced HERE</b> — only ranges
     /// are — exactly as a lone "03/2020" is not (#428). <see cref="PeriodParser"/> does accept the
     /// lone point, as it already did for "2020"; that disagreement is deliberate and is one of the
     /// standing axes above, not a deferral.</para>
+    ///
+    /// <para><b>A fourth form, <c>YYYY/MM</c> ("2020/01"), was ADDED and then TAKEN BACK OUT</b>
+    /// (commit 2 added it; round 5 removed it). It is not a point form here, on EITHER endpoint, for
+    /// the same reason <see cref="PeriodParser"/> never dates it (Klas-direktiv 2026-08-03): the
+    /// year-first slash notation is how Swedish writes a YEAR PAIR — a läsår or a räkenskapsår — and
+    /// this file has no authority to read it as a month. See
+    /// <c>DateRangeYearFirstCharacterisationTests</c> for the collision, the per-commit attribution,
+    /// and the follow-up issue that owns whether the LINE half alone should be recognised.</para>
     ///
     /// <para><b>A MONTH WORD THAT IS ALSO A NAME COSTS A REAL ORGANIZATION, and it is priced here
     /// rather than guarded.</b> "Mars 2020 – 2024" and "Maj 2018 – 2020" reduce to empty, so the line
@@ -315,7 +334,7 @@ internal static partial class DatePatterns
     /// PeriodParser these forms would ASSESS them instead, which is a different change-reason and a
     /// follow-up."</i> The final clause is the load-bearing one and it is the tell: the verification
     /// covered only the shapes whose value <b>was</b> null. For the ASYMMETRIC shapes — a month name
-    /// or <c>YYYY/MM</c> on one side, a parseable point or a present-keyword on the other — the
+    /// on one side, a parseable point or a present-keyword on the other — the
     /// value was not null and it DID parse. Measured in both polarities:
     /// "jan 2020 – nuvarande" stored <c>"2020 – nuvarande"</c> (parseable, years attributed
     /// 2020..2026) and became <c>"jan 2020 – nuvarande"</c> (refused, years lost). A sentence true
@@ -323,7 +342,12 @@ internal static partial class DatePatterns
     /// written for, none of which regressed. <see cref="PeriodParser"/> now moves with this type
     /// (senior-cto-advisor re-bind 2026-08-03, Approach A), and the coverage that deferral called a
     /// separate change-reason turns out to be inseparable from the invariant: one
-    /// <c>PointRegex</c> branch does both, so restoring the one necessarily gains the other.</para>
+    /// <c>PointRegex</c> branch does both, so restoring the one necessarily gains the other.
+    /// <b>One of the four original forms, <c>YYYY/MM</c>, was later carved back OUT of this
+    /// invariant</b> (round 5): its point branch produced the identical asymmetric failure one
+    /// altitude up — an unreadable value stored beside a perfectly readable sibling endpoint — so
+    /// the type-pair now agrees on it by both declining, not by both accepting. The invariant holds;
+    /// what moved is which forms are inside it.</para>
     ///
     /// <para><c>PeriodParser</c> is wider at least on: the word separators "till"/"to";
     /// single-digit months (<c>\d{1,2}</c> against this type's <c>\d{2}</c>); "." as a month

@@ -25,22 +25,26 @@ namespace Jobbliggaren.Application.UnitTests.Resumes.Parsing;
 /// <c>IsDateOnlyLine</c> alone is a hole in exactly the drift check this file exists to be</b>; two
 /// were introduced mid-review, on consecutive rounds, and the reviewers caught both.</para>
 ///
-/// <para><b>The four unmodelled forms were on the NEGATIVE side, and the WIDENING moved them
+/// <para><b>Four unmodelled forms were on the NEGATIVE side, and the WIDENING moved THREE of them
 /// (#1060 road 3).</b> The paragraph that stood here said: <i>"'jan 2020 – dec 2024',
 /// '2020 – 2024 (heltid)', '2020/01 – 2024/12' and '2020 –' are the segmenter pin's frozen negative
 /// population … The trigger that reddens both is a DatePatterns WIDENING … If one of them starts
-/// passing, the widening landed; it is not a stale fixture."</i> It landed, all four pass, and the
-/// <c>InlineData</c> were carried across unchanged with only their assertions moved — the
-/// replacement that paragraph asked for, not an edit to keep a fixture green.</para>
+/// passing, the widening landed; it is not a stale fixture."</i> Three landed and pass, and the
+/// <c>InlineData</c> for them were carried across unchanged with only their assertions moved — the
+/// replacement that paragraph asked for, not an edit to keep a fixture green. <b>The fourth,
+/// <c>YYYY/MM</c>, passed for exactly one commit and was taken back OUT</b> (round 5): it collided
+/// with the Swedish läsår notation and a mixed-endpoint form of it stored a value neither engine
+/// could read. It stays negative here — origin/main's own answer — and lives in
+/// <c>DateRangeYearFirstCharacterisationTests</c>, which owns the year-first grammar.</para>
 ///
-/// <para><b>They now sit in TWO theories, and the split is the design made visible.</b> The two
-/// POINT forms are matched by <c>DateRange</c>, whose match value <c>ExtractPeriod</c> stores — so
-/// they are also in the point grammar <c>PeriodParser</c> shares, and BOTH predicates reach them.
-/// The two LINE forms are answered by <c>IsIgnorableTail</c> and deliberately never enter the match
-/// value, so <c>PeriodParser</c> still declines them and each stays an independent kill for
-/// "union → PeriodParser only". This file also pins the MM-hyphen-point axis in lone and left
-/// position, the qualifier's restriction to the range branch, and the lone month-point residual the
-/// widening did not close; no total is claimed for the class itself.</para>
+/// <para><b>The surviving three sit in TWO theories, and the split is the design made visible.</b>
+/// The month-name POINT form is matched by <c>DateRange</c>, whose match value
+/// <c>ExtractPeriod</c> stores — so it is also in the point grammar <c>PeriodParser</c> shares, and
+/// BOTH predicates reach it. The two LINE forms are answered by <c>IsIgnorableTail</c> and
+/// deliberately never enter the match value, so <c>PeriodParser</c> still declines them and each
+/// stays an independent kill for "union → PeriodParser only". This file also pins the MM-hyphen-point
+/// axis in lone and left position, the qualifier's restriction to the range branch, and the lone
+/// month-point residual the widening did not close; no total is claimed for the class itself.</para>
 /// </summary>
 public class DatePatternsDateOnlyLineTests
 {
@@ -139,12 +143,13 @@ public class DatePatternsDateOnlyLineTests
     [Theory]
     [InlineData("2020 – 2024 (heltid)", "a trailing parenthesised qualifier, tolerated in the TAIL")]
     [InlineData("2020 –", "a keyword-less open end: a dangling range separator in the TAIL")]
-    // YYYY/YY MOVED HERE FROM THE POINT THEORY (Klas-direktiv 2026-08-03). The year-first SLASH
-    // notation is a YEAR PAIR in Swedish — a läsår — not a year and a month, so PeriodParser no
-    // longer models it and only the DatePatterns half suppresses the row. That is the whole
-    // ruling: recognising the line is what closes the A1 citation defect; DATING it was a
-    // separate claim, and it is the one we decline.
-    [InlineData("2020/01 – 2024/12", "a YEAR-PAIR notation DatePatterns recognises and PeriodParser declines")]
+    // YYYY/MM ("2020/01 – 2024/12") passed through this theory for one commit (Klas-direktiv
+    // 2026-08-03) and was taken back OUT of it in round 5: the year-first SLASH notation is a YEAR
+    // PAIR in Swedish — a läsår — and DateRange no longer models it on EITHER endpoint, so the line
+    // is not date-only at all now (origin/main's answer). That form lives in
+    // DateRangeYearFirstCharacterisationTests with the rest of the year-first grammar, not here —
+    // the same cross-reference pattern "13/2020 – 2024" uses below, for the same reason: that table
+    // is indexed by the grammar's own axes.
     public void IsDateOnlyLine_ShouldBeTrue_ForTheLineFormsTheWideningAdded(string line, string how)
     {
         // THE LINE HALF, and the split from the theory above IS the design decision, made visible.

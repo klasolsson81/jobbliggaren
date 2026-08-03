@@ -5,7 +5,7 @@ namespace Jobbliggaren.Infrastructure.Resumes.Parsing;
 
 /// <summary>
 /// Deterministically parses a CV experience period string (e.g. "01/2022 – 06/2024",
-/// "2019–2021", "2020-06 – 2024-03" (ISO 8601), "jan 2020 – nuvarande", "2020/01 – 2024/12") to a
+/// "2019–2021", "2020-06 – 2024-03" (ISO 8601), "jan 2020 – nuvarande") to a
 /// start/end date + a format token (Fas 4 STEG 9, F4-9). Anchored to the full trimmed string so
 /// free-text ("någon gång på 2020-talet",
 /// "ett tag sen") does NOT parse — the conditional-Period criteria (A4/B6/B7) then report
@@ -31,10 +31,10 @@ namespace Jobbliggaren.Infrastructure.Resumes.Parsing;
 internal static partial class PeriodParser
 {
     // A point is one of: MM<sep>YYYY (month-first, sep = / . or -), MONTHNAME YYYY ("jan 2020",
-    // "december 2024"), YYYY<sep>MM (year-first, sep = - for ISO 8601 or / — #420, the granularity
-    // the segmenter's DateRangeRegex extracts), or a bare YYYY. Month and year land in the named
-    // groups regardless of order; a month WORD lands in its own group and is resolved by
-    // CvMonthNames.
+    // "december 2024"), YYYY-MM (year-first, ISO 8601 only — #420, the granularity the segmenter's
+    // DateRangeRegex extracts), or a bare YYYY. Month and year land in the named groups regardless of
+    // order; a month WORD lands in its own group and is resolved by CvMonthNames. The year-first
+    // group is HYPHEN-ONLY — no slash alternative — and the paragraph below is why.
     //
     // YYYY/MM IS DELIBERATELY NOT A POINT FORM HERE, AND THAT IS A PRODUCT RULING (Klas-direktiv
     // 2026-08-03). The year-first SLASH notation is how Swedish writes a YEAR PAIR — a läsår or a
@@ -47,11 +47,15 @@ internal static partial class PeriodParser
     // number) while "2019/20" did not (20 is not) — same notation, opposite outcomes, decided by an
     // accident of arithmetic rather than by what the form means.
     //
-    // DatePatterns still RECOGNISES the form, and the two facts are not in tension: recognising a
-    // line as a date row is what suppresses it from the bullet scorer, masks it out of the
-    // measurable-digit test and keeps it out of the Organization slot — all of which are correct and
-    // are what road 3 exists to fix. DATING it is a separate claim, and it is the one we decline.
-    // The entry reports an honest NotAssessed instead of a span nobody stated.
+    // DatePatterns briefly kept RECOGNISING the form after this ruling landed — this type declined
+    // to date it, DatePatterns.DateRange still matched it — and that split turned out not to be
+    // free: DateRange's match VALUE is what ExtractPeriod stores, so a slash point beside an
+    // UNRELATED, perfectly readable endpoint ("2020 – 2024/12") stored a value this type then
+    // refused whole, where origin/main had stored a working bare-year degradation. Round 5 removed
+    // the branch from DateRange too, on both endpoints — so the form is now unmodelled in BOTH
+    // homes, origin/main's own answer, restored rather than repaired. See
+    // DateRangeYearFirstCharacterisationTests for the measurement and the follow-up issue that owns
+    // whether the LINE half alone (recognise, still never date) should be reintroduced.
     //
     // THE MONTH-NAME FORM IS HERE BECAUSE DatePatterns.DateRange MATCHES IT, and
     // the two must widen together (senior-cto-advisor re-bind 2026-08-03, Approach A). DateRange's

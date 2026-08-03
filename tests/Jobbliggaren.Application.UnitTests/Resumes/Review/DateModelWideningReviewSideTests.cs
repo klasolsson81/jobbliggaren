@@ -77,8 +77,13 @@ public class DateModelWideningReviewSideTests
     [Theory]
     [InlineData("jan 2020 – dec 2024")]
     [InlineData("2020 – 2024 (heltid)")]
-    [InlineData("2020/01 – 2024/12")]
     [InlineData("2020 –")]
+    // "2020/01 – 2024/12" is deliberately ABSENT from this positive theory as of round 5 (decision
+    // D′): DateRange no longer matches the slash point on either endpoint, so the line is not
+    // suppressed at all — origin/main's own behaviour, restored rather than repaired, and it is the
+    // one named, accepted, PRICED regression of decision D′ (senior-cto-advisor round-5 bind §9
+    // trade-off 1). Asserting it here would fail, honestly, and the opposite claim is pinned in
+    // A1CitesTheUsersEmploymentDates_ForTheYearFirstSlashForm_KnownAcceptedRegression below.
     // The two forms the model already reached, carried along as the control: they were never
     // scored, and a change that started scoring them would be the same defect arriving from the
     // other direction.
@@ -111,11 +116,44 @@ public class DateModelWideningReviewSideTests
         }
     }
 
+    [Fact]
+    public async Task A1CitesTheUsersEmploymentDates_ForTheYearFirstSlashForm_KnownAcceptedRegression()
+    {
+        // THE PRICE OF DECISION D′, PINNED RATHER THAN LEFT IMPLICIT (senior-cto-advisor round-5
+        // bind §9 trade-off 1). Removing the year-first SLASH point from DateRange closed a
+        // Blocker (an unreadable value stored beside a readable sibling endpoint) at the cost of
+        // reopening the ORIGINAL live defect this whole PR exists to close, for this ONE notation:
+        // origin/main never modelled YYYY/MM either, so the date row is unsuppressed, reaches
+        // ExperienceBullets as prose, and StripDates leaves its digits unmasked.
+        //
+        // MEASURED (matches this class's own docblock table, run against origin/main before any
+        // road-3 edit — the row returns to exactly that reading, not a new one):
+        var result = await ReviewThreeLineLayoutAsync("2020/01 – 2024/12");
+
+        var a1 = result.Verdicts.Single(v => v.CriterionId == "A1");
+        a1.Verdict.ShouldBe(CriterionVerdict.Pass,
+            "an affirmative Pass grounded entirely in the user's employment dates — the exact §5 " +
+            "class this PR exists to close, unfixed for this one notation and priced as such.");
+        a1.Evidence.OfType<TextSpanEvidence>().Select(e => e.Span.Quote)
+            .ShouldContain("2020/01 – 2024/12",
+                "the criterion cites the date row as though it were a quantified-achievement bullet.");
+
+        var a6 = result.Verdicts.Single(v => v.CriterionId == "A6");
+        a6.Evidence.OfType<TextSpanEvidence>().Select(e => e.Span.Quote)
+            .ShouldContain("2020/01 – 2024/12", "A6 cites the same unsuppressed row.");
+
+        // Not a claim this PR should ever have to re-derive: it is tracked in the follow-up issue
+        // DateRangeYearFirstCharacterisationTests names, which owns whether the LINE half alone
+        // (recognise, still never date) should be reintroduced to close this specific reading.
+    }
+
     [Theory]
     [InlineData("jan 2020 – dec 2024")]
     [InlineData("2020 – 2024 (heltid)")]
-    [InlineData("2020/01 – 2024/12")]
     [InlineData("2020 –")]
+    // "2020/01 – 2024/12" is absent here for the same reason as the theory above: as of round 5
+    // (decision D′) the row is no longer suppressed, so it is not a control for "suppression did
+    // not over-reach" — it is the population where suppression was deliberately taken back out.
     // The academic year gets the anti-vacuity partner too: an absence assertion passes trivially if
     // the criterion assesses nothing, and that is exactly the shape the row above has.
     [InlineData("2019-20 – 2021")]
@@ -226,10 +264,12 @@ public class DateModelWideningReviewSideTests
     [InlineData("jan 2020 – nuvarande")]
     [InlineData("2020 – 2024 (heltid)")]
     [InlineData("2013 - 2021")]
-    // "2020/01 – 2024/12" is deliberately ABSENT (Klas-direktiv 2026-08-03): the year-first slash
-    // notation is a year pair, so PeriodParser declines it and NotAssessed is the honest answer.
-    // Its LINE recognition — which is what closes the A1 citation defect — is asserted in the
-    // theories above, and that separation is the ruling.
+    // "2020/01 – 2024/12" is deliberately ABSENT from this positive theory, and it stays absent
+    // after round 5: DateRange no longer matches the slash point on either endpoint (decision D′),
+    // so the segmenter stores no Period for this line at all — a stronger condition than "stored
+    // but unparseable", and NotAssessed is the honest answer either way. The positive counterpart —
+    // that it actually IS NotAssessed, not merely absent from this list — is
+    // A4B6B7_AreNotAssessed_ForTheYearFirstSlashForm below.
     public async Task A4B6B7_AreAssessed_NotDegradedToNotAssessed(string dateLine)
     {
         // (S3) obligation 6 — the period-conditional criteria, measured as (S1) did for A1/A2/A6.
@@ -250,6 +290,63 @@ public class DateModelWideningReviewSideTests
                     $"{id} reads the period through PeriodParser. A period the segmenter extracted " +
                     "but the parser cannot read is not an honest 'not stated' — it is a period the " +
                     "CV states and the product drops.");
+        }
+    }
+
+    [Fact]
+    public async Task A4B6B7_AreNotAssessed_ForTheYearFirstSlashForm()
+    {
+        // THE POSITIVE COUNTERPART decision D′ owes: not merely "this row is absent from the
+        // Assessed theory above" but "it is actually, positively NotAssessed" — a removed negative
+        // claim with no added positive is unwatched behaviour (senior-cto-advisor round-5 bind §5).
+        //
+        // "2020/01 – 2024/12" stores no Period at all on the three-line layout (DateRange matches
+        // neither slash endpoint), which is origin/main's own answer and honest: the CV states a
+        // date the product declines to read as one, so A4/B6/B7 report NotAssessed rather than
+        // inventing a span. This is a strict A1-defect return, not a new one — the LINE half still
+        // suppresses the row from the bullet scorer (asserted elsewhere in this class and in
+        // DatePatternsDateOnlyLineTests), so the entry does not ALSO get mis-scored as a
+        // "kvantifierad uppgift"; it is simply silent on a value nobody ever confirmed.
+        var result = await ReviewThreeLineLayoutAsync("2020/01 – 2024/12");
+
+        foreach (var id in new[] { "A4", "B6", "B7" })
+        {
+            result.Verdicts.Single(v => v.CriterionId == id).Verdict
+                .ShouldBe(CriterionVerdict.NotAssessed,
+                    $"{id} reads the period through PeriodParser, and nothing was stored to read — " +
+                    "the year-first SLASH form is unmodelled in both homes (decision D′).");
+        }
+    }
+
+    [Fact]
+    public async Task A4B6B7_AreAssessed_ForTheYearFirstSlashForm_OnTheFirstLineLayout()
+    {
+        // THE OTHER LAYOUT (obligation 8's second half): the date row IS Lines[0] here, so
+        // ExtractPeriod's Year() fallback stores the LEADING bare year ("2020"), which parses — so
+        // A4/B6/B7 are ASSESSED, not NotAssessed, the mirror image of the three-line result above.
+        // Two different layouts, two different mechanisms, and a test that ran only one could not
+        // tell them apart — the same reason DateRangeYearFirstCharacterisationTests splits NonFirstLine
+        // from FirstLine throughout.
+        const string cv = """
+            Anna Andersson
+            anna@example.com
+
+            Arbetslivserfarenhet
+            2020/01 – 2024/12
+            Acme AB
+            Ökade konverteringen med 23 procent.
+            """;
+
+        var result = await Engine().ReviewAsync(
+            CvReviewContext.FromParsed(ResumeFromCvText(cv)),
+            RenderProfile.Ats,
+            TestContext.Current.CancellationToken);
+
+        foreach (var id in new[] { "A4", "B6", "B7" })
+        {
+            result.Verdicts.Single(v => v.CriterionId == id).Verdict
+                .ShouldNotBe(CriterionVerdict.NotAssessed,
+                    $"{id} reads a stored Period of \"2020\" (the Year() fallback), which parses.");
         }
     }
 

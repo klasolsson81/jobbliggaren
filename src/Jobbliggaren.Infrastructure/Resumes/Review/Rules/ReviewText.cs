@@ -146,15 +146,22 @@ internal static class ReviewText
             // model into a shared home; it did not widen it, and sharing a predicate does not extend
             // one.
             //
-            // THE DATE MODEL HAS SINCE BEEN WIDENED (#1060 road 3) AND ALL FOUR ARE NOW SUPPRESSED
-            // HERE. The two POINT forms went into DatePatterns.DateRange — and, because that regex's
-            // match value is what ExtractPeriod STORES, into PeriodParser's point grammar with it,
-            // from a month-word home the two types share. The two LINE forms went into
-            // DatePatterns.IsIgnorableTail, deliberately outside the match value. So this call site
-            // now suppresses all four through BOTH disjuncts for the point forms and through the
-            // DatePatterns disjunct alone for the line forms. The union is unchanged and is still a
-            // union: neither predicate subsumes the other, and DatePatternsDateOnlyLineTests owns
-            // the axis list.
+            // THE DATE MODEL HAS SINCE BEEN WIDENED (#1060 road 3) AND THREE OF THE FOUR ARE NOW
+            // SUPPRESSED HERE. The month-name POINT form went into DatePatterns.DateRange — and,
+            // because that regex's match value is what ExtractPeriod STORES, into PeriodParser's
+            // point grammar with it, from a month-word home the two types share. The two LINE forms
+            // went into DatePatterns.IsIgnorableTail, deliberately outside the match value. So this
+            // call site suppresses those three through BOTH disjuncts for the point form and through
+            // the DatePatterns disjunct alone for the line forms.
+            //
+            // THE FOURTH, YYYY/MM ("2020/01 – 2024/12"), WAS ADDED AND THEN DECLINED (round 5): it
+            // collided with the Swedish läsår notation and a mixed-endpoint form of it regressed a
+            // working origin/main degradation into an unparseable stored value. Neither disjunct
+            // models it now, so a CV whose date row is written that way still reaches this method as
+            // an ordinary bullet — origin/main's behaviour, not a regression this PR created, and not
+            // fixed by it either. Tracked in the follow-up issue DateRangeYearFirstCharacterisationTests
+            // names. The union is otherwise unchanged and is still a union: neither predicate subsumes
+            // the other, and DatePatternsDateOnlyLineTests owns the axis list.
             //
             // TWO DEFERRALS, AND THE ORDER WAS LOAD-BEARING — the promotion FIRST, the widening
             // SECOND. Not a preference, and the argument was about the TWO-LINE layout specifically:

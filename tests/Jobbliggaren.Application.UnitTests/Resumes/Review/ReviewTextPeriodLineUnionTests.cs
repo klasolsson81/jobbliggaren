@@ -197,13 +197,17 @@ public class ReviewTextPeriodLineUnionTests
     [Theory]
     [InlineData("jan 2020 – dec 2024")]
     [InlineData("2020 – 2024 (heltid)")]
-    [InlineData("2020/01 – 2024/12")]
     [InlineData("2020 –")]
+    // "2020/01 – 2024/12" was IN this theory (#1060 road 3, commit 2) and moved back OUT in round 5
+    // (decision D′): the year-first slash notation collided with the Swedish läsår and DateRange no
+    // longer models it at all, so this specific escape is open again — origin/main's own behaviour,
+    // priced and pinned rather than silently dropped. See
+    // DescriptionLines_StillYieldsTheYearFirstSlashDateRow_KnownAcceptedRegression below.
     public void DescriptionLines_ShouldNowSuppressTheDateRow_OnTheLayoutWhereItUsedToEscape(
         string dateLine)
     {
         // THE ESCAPE THIS TEST WAS WRITTEN TO MEASURE IS CLOSED (#1060 road 3, commit 2), and the
-        // move is the one its previous revision asked for: the four InlineData are frozen and
+        // move is the one its previous revision asked for: the InlineData are frozen and
         // unchanged, and the ASSERTION moved from "still yields the date row as a bullet" to
         // "suppresses it". Editing the data to keep the old assertion green was the named failure
         // mode; this is its opposite.
@@ -217,12 +221,10 @@ public class ReviewTextPeriodLineUnionTests
         // period test doing its job, not equality masking the row.
         //
         // WHAT THE ESCAPE COST, MEASURED (not derived) on this exact layout before the widening:
-        // A1/A2/A6 all scored and CITED the user's employment dates as though they were prose, and
-        // on "2020/01 – 2024/12" A1 returned an affirmative Pass noting "kvantifierad uppgift" —
-        // the product asserting the user had quantified a result, grounded entirely in her
-        // employment dates. That is CLAUDE.md §5's "a CV verdict without cited textual evidence" in
-        // its inverted form. The verdict-level pin lives in DateModelWideningReviewSideTests; this
-        // one stays at the bullet-unit altitude where the cause is.
+        // A1/A2/A6 all scored and CITED the user's employment dates as though they were prose. That
+        // is CLAUDE.md §5's "a CV verdict without cited textual evidence" in its inverted form. The
+        // verdict-level pin lives in DateModelWideningReviewSideTests; this one stays at the
+        // bullet-unit altitude where the cause is.
         var (review, improve, organization) = BulletsFor(dateLine);
 
         organization.ShouldBe("Acme AB",
@@ -231,5 +233,24 @@ public class ReviewTextPeriodLineUnionTests
             "the date row is not a description bullet — the review criteria must never score it.");
         improve.ShouldBe([Bullet],
             "WeakVerbTransform scores the same unit and must not be offered the date row either.");
+    }
+
+    [Fact]
+    public void DescriptionLines_StillYieldsTheYearFirstSlashDateRow_KnownAcceptedRegression()
+    {
+        // THE PRICE OF DECISION D′ (senior-cto-advisor round-5 bind §9 trade-off 1), pinned at the
+        // bullet-unit altitude to match the test it replaces one row of. Neither half of the union
+        // reaches "2020/01 – 2024/12" any more — DatePatterns no longer models the slash point on
+        // either endpoint, and PeriodParser never did — so the date row is yielded as an ordinary
+        // description bullet, exactly as origin/main did (that notation was never modelled by
+        // either type before #1060 road 3 existed). Not a NEW escape; the original one, returned.
+        var (review, improve, organization) = BulletsFor("2020/01 – 2024/12");
+
+        organization.ShouldBe("Acme AB", "the employer is real here, unaffected by the date model.");
+        review.ShouldBe(["2020/01 – 2024/12", Bullet],
+            "the date row reaches the bullet scorer — origin/main's behaviour, priced and tracked " +
+            "in the follow-up issue DateRangeYearFirstCharacterisationTests names.");
+        improve.ShouldBe(["2020/01 – 2024/12", Bullet],
+            "WeakVerbTransform is offered the same unit, for the same reason.");
     }
 }

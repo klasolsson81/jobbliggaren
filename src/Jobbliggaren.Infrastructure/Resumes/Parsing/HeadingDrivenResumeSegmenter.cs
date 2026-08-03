@@ -622,14 +622,24 @@ internal sealed partial class HeadingDrivenResumeSegmenter(CvParsingLexiconData 
         // named as a DatePatterns WIDENING — month names, trailing qualifiers, keyword-less open
         // ends and YYYY/MM.
         //
-        // THAT WIDENING HAS LANDED (#1060 road 3) AND ALL FOUR NOW REDUCE, so none of them reaches
-        // the fallback below and none becomes the organization. The Period count moved with it:
-        // THREE of the four now yield a period and only "2020 –" stays null, because a dangling
-        // separator has no end point and inventing one would be the confidently-wrong half of the
-        // same defect (ADR 0071, honest-absent). Per form, that is pinned in
+        // THAT WIDENING LANDED (#1060 road 3) AND THREE OF THE FOUR NOW REDUCE, so none of those
+        // three reaches the fallback below and none becomes the organization. Of those three, TWO
+        // yield a period (the month-name point form, and the qualifier form via the LINE-level
+        // reduction); the third ("2020 –") stays null, because a dangling separator has no end
+        // point and inventing one would be the confidently-wrong half of the same defect (ADR 0071,
+        // honest-absent). Per form, that is pinned in
         // HeadingDrivenResumeSegmenterTests.Segment_DateLineTheModelNowReaches_…, and the stored
         // value's readability — the property that makes a recovered period worth recovering — in
         // DateModelWideningStoredPeriodTests.
+        //
+        // THE FOURTH, YYYY/MM ("2020/01 – 2024/12"), REDUCED TOO FOR A WHILE AND WAS TAKEN BACK OUT
+        // (round 5, senior-cto-advisor bind, decision D′): it collided with the Swedish läsår
+        // notation, and a mixed-notation form of it stored a value neither PeriodParser nor its
+        // callers could read. DateRange no longer models the slash point on either endpoint, so this
+        // form reduces to nothing and DOES still reach the fallback below, fabricating the
+        // organization exactly as it did before road 3 — origin/main's own behaviour, priced and
+        // pinned as a known, accepted regression in
+        // HeadingDrivenResumeSegmenterTests.Segment_DateLineTheYearFirstSlashFormStillReaches_….
         //
         // The predicate PROMOTION has since SHIPPED (the reduction below now lives in
         // DatePatterns.StripTrailingDate, with DatePatterns.IsDateOnlyLine defined as it, read by
@@ -658,10 +668,10 @@ internal sealed partial class HeadingDrivenResumeSegmenter(CvParsingLexiconData 
         // prose, and on "2020/01 – 2024/12" A1 returned an affirmative Pass noting "kvantifierad
         // uppgift" — the product asserting the user had quantified a result out of her employment
         // dates, CLAUDE.md §5's cited-evidence rule inverted. Measured by the widening under (S1),
-        // and closed by it; DateModelWideningReviewSideTests is the adjudicator. The earlier
-        // instruction here was to treat this as derived and not repeat it as a measurement — that
-        // instruction is spent, and repeating IT now would tell a reader to distrust a run that
-        // exists.
+        // and closed by it FOR THREE OF THE FOUR FORMS; DateModelWideningReviewSideTests is the
+        // adjudicator. The fourth, YYYY/MM, is open again as of round 5 (decision D′) — the same
+        // affirmative Pass returns for that one notation, priced and pinned as a known regression
+        // in DateModelWideningReviewSideTests.A1CitesTheUsersEmploymentDates_ForTheYearFirstSlashForm_….
         //
         // Relocating the fallback to Lines[2] is a separate decision, refused on TWO measurements:
         // β-1 measured that widening the fallback hands a description bullet to the organization

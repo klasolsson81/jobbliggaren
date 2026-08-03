@@ -66,17 +66,39 @@ public class DateModelWideningStoredPeriodTests
     [InlineData("jan 2020 – nuvarande", "MM/YYYY")]
     [InlineData("mars 2021 – pågående", "MM/YYYY")]
     [InlineData("jan 2020 – 2024", "YYYY")]
+    // A SECOND, DISTINCT asymmetric row — a modelled point (bare year / ISO hyphen) paired with the
+    // year-first SLASH point, which stores whole (DateRange still matched it) and then went from
+    // parsing under commit 3 to REFUSED under the Klas-direktiv commit — a strict regression against
+    // origin/main, where the bare-\d{4} fallback degraded these to a working "YYYY" reading. This is
+    // the row that broke round 5's mandatory review, and it was deleted from this theory in the same
+    // commit that broke it, under a claim that was false — see the correction below.
+    //
+    // ROUND 5 CORRECTION (senior-cto-advisor bind, decision D′). The removed comment here read: "The
+    // year-first SLASH rows moved OUT of this theory … they live in DateRangeYearFirstCharacterisationTests
+    // where the whole year-first grammar is indexed." That was checked and is FALSE: neither string
+    // below exists anywhere in that file, which carries only the PURE both-slash and both-hyphen
+    // pairs, never this mixed-notation shape. What actually happened: the rows were deleted to keep
+    // the theory green against a regression nobody had measured yet. Decision D′ removed the
+    // year-first SLASH point from DateRange entirely (both endpoints, both point lists), so these two
+    // rows are back to origin/main behaviour: the slash tail is dropped by the bare-\d{4} fallback,
+    // never stored, and the token is the COARSER one on a mixed-granularity range (PeriodParser.cs's
+    // TryParse: "the coarser token wins so B6 flags the inconsistency at the entry level").
+    [InlineData("2020 – 2024/12", "YYYY")]
+    [InlineData("2020-06 – 2024/12", "YYYY")]
     // THE SYMMETRIC CLASS — both endpoints widened. These had NO period at all before; they are
     // here because the property under test is about what the segmenter STORES, not about what
     // regressed. (An earlier revision said "the invariant is universal over what the segmenter
     // stores". It is not — see the characterisation in this class's docblock, and the two
     // structural-vs-semantic instances pinned below.)
     [InlineData("jan 2020 – dec 2024", "MM/YYYY")]
-    // The year-first SLASH rows moved OUT of this theory (Klas-direktiv 2026-08-03): that
-    // notation is a year pair, so the segmenter stores it and PeriodParser declines it BY
-    // DESIGN. They are a third named instance of the structural-vs-semantic characterisation in
-    // this class's docblock, alongside the month and the year, and they live in
-    // DateRangeYearFirstCharacterisationTests where the whole year-first grammar is indexed.
+    // "2020/01 – 2024/12" — BOTH endpoints year-first SLASH — is NOT a row here, and that is
+    // decision D′, not an oversight: DateRange no longer matches EITHER slash endpoint, so no
+    // substring of the line survives as a DateRange match at all and the segmenter stores nothing
+    // (PeriodFor returns null). That is a different mechanism from the mixed rows above, which still
+    // store a truncated-but-readable value — a pure-slash pair has no modelled point on either side
+    // to fall back to. Pinned as a stored-nothing case in DateRangeYearFirstCharacterisationTests,
+    // which owns the whole year-first grammar; this theory is about what IS stored, so an input that
+    // stores nothing does not belong in it.
     // Controls the widening must not disturb.
     [InlineData("2013 - 2021", "YYYY")]
     [InlineData("2020-06 – 2024-03", "MM/YYYY")]

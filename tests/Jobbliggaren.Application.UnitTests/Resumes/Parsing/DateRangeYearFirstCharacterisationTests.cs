@@ -27,8 +27,13 @@ namespace Jobbliggaren.Application.UnitTests.Resumes.Parsing;
 ///
 /// <para><b>The <c>origin/main</c> baselines live in comments with the date they were measured, not
 /// as assertions</b> — a test cannot run a tree it is not on, and an undated baseline is a claim
-/// that decays (CLAUDE.md §9.6 filing discipline). Measured 2026-08-03 by checking out
-/// <c>b637b691</c>'s <c>DatePatterns.cs</c> and running the same rows.</para>
+/// that decays (CLAUDE.md §9.6 filing discipline). The <c>DateRange</c> baselines were RUN on
+/// 2026-08-03, by substituting <c>b637b691</c>'s <c>DatePatterns.cs</c> and re-running these rows.
+/// The one claim about <c>origin/main</c>'s <c>PeriodParser</c> — that <c>YYYY/MM</c> was modelled in
+/// NEITHER home — is READ from that file's <c>PointRegex</c> (its year-first branch is
+/// hyphen-only), because the substitution above leaves <c>PeriodParser</c> at HEAD and so cannot
+/// measure it. Said separately rather than folded in: one provenance sentence covering two different
+/// instruments is how a read becomes reported as a run.</para>
 /// </summary>
 public class DateRangeYearFirstCharacterisationTests
 {
@@ -122,6 +127,39 @@ public class DateRangeYearFirstCharacterisationTests
         parses.ShouldBeTrue("the bare-year reading is one both types agree on.");
     }
 
+    [Theory]
+    // THE β-3 AXIS, and it is the argument the restore was made on — so it gets a row rather than a
+    // sentence. Neither layout above is the one where β-3 bites: on the TWO-LINE "Title / Dates"
+    // layout the date row is Lines[1] and therefore the ORGANISATION candidate, and
+    // SplitTitleOrganization nulls the slot only when IsDateOnlyLine says the line carries no field.
+    //
+    // At commit 4 the academic-year form stopped being a date row, so this returned "2019-20 – 2021"
+    // as the employer — a fabricated organization on a CV the user sends to employers, which is the
+    // exact class #1060 β-3 exists to close. Measured here rather than argued.
+    [InlineData("2019-20 – 2021")]
+    [InlineData("2019-20 – nuvarande")]
+    [InlineData("2009-10 – 2021")]
+    public void TheDateRowNeverBecomesTheOrganisation_OnTheTwoLineLayout(string dateLine)
+    {
+        var cv = $"""
+            Anna Andersson
+            anna@example.com
+
+            Arbetslivserfarenhet
+            Systemutvecklare
+            {dateLine}
+            {Bullet}
+            """;
+
+        var exp = new HeadingDrivenResumeSegmenter(CvParsingLexiconLoader.Load())
+            .Segment(cv).Content.Experience.ShouldHaveSingleItem();
+
+        exp.Title.ShouldBe("Systemutvecklare");
+        exp.Organization.ShouldBeNull(
+            "a line carrying nothing but a date must not become the employer (#1060 β-3). This is " +
+            "the axis the restore was justified on, so it is asserted rather than reasoned about.");
+    }
+
     // ── HYPHEN, NN INSIDE 01-12 — the läsår collision. NOT this PR's, see below. ─────
 
     [Theory]
@@ -135,23 +173,49 @@ public class DateRangeYearFirstCharacterisationTests
     [InlineData("2018 – 2019-10")]
     public void HyphenValidMonth_IsReadAsAMonth_WhichIsISO8601(string dateLine)
     {
-        var (isDateOnly, _, parses) = NonFirstLine(dateLine);
+        var (isDateOnly, period, parses) = NonFirstLine(dateLine);
 
         isDateOnly.ShouldBeTrue();
+        period.ShouldNotBeNull("the value axis is asserted on every row, not only the line axis.");
         parses.ShouldBeTrue("ISO 8601 says these two digits are a month, and both homes agree.");
     }
 
     // ── SLASH — modelled by NEITHER home before this PR. See the docblock note. ──────
 
-    [Fact]
-    public void SlashStart_InvalidMonth_IsNotModelled_AsOnMain()
+    [Theory]
+    // SLASH x {start, end} x NN OUTSIDE 01-12 — both cells, both axes. The end cell was missing from
+    // an earlier revision of this table while the docblock claimed the index was complete: the
+    // instrument overstating its own coverage, which is the failure this table exists to prevent,
+    // one altitude up.
+    //
+    // origin/main: no match in either position (YYYY/MM was modelled in NEITHER home). Commit 2 grew
+    // it; commit 4's exact class returned both cells to no-match. Unchanged by the restore, which
+    // touches the hyphen branch only — that is the derivation ("YYYY-NN, start position only") being
+    // visible rather than asserted in prose.
+    [InlineData("2019/20 – 2021", null)]
+    [InlineData("2018 – 2019/20", "2018 – 2019")]
+    public void SlashInvalidMonth_IsNotModelled_InEitherPosition(string dateLine, string? expectedPeriod)
     {
-        // origin/main: no match (YYYY/MM was modelled nowhere). Commit 2 grew it; commit 4's exact
-        // class returned this cell to no-match. Unchanged by the restore, which touches the hyphen
-        // branch only.
-        var (isDateOnly, _, _) = NonFirstLine("2019/20 – 2021");
+        var (isDateOnly, period, parses) = NonFirstLine(dateLine);
 
         isDateOnly.ShouldBeFalse("YYYY/NN with NN outside 01-12 is modelled by no branch.");
+        period.ShouldBe(expectedPeriod,
+            "the START cell stores nothing; the END cell degrades to the bare year, exactly as the " +
+            "hyphen END cell does — the two notations agree once neither branch models the token.");
+        parses.ShouldBe(expectedPeriod is not null,
+            "and whatever is stored must be readable, which is the invariant the whole table serves.");
+    }
+
+    [Fact]
+    public void SlashStart_InvalidMonth_OnTheFirstLineLayout_StoresTheBareYear()
+    {
+        // The layout split, applied to the slash notation too. It reached one row of six in an
+        // earlier revision while obligation 3 asked for it across the value axis — and this split
+        // has already produced one wrong assertion in this PR, so the coverage is not decorative.
+        var (_, period, parses) = FirstLine("2019/20 – 2021");
+
+        period.ShouldBe("2019", "Year()'s fallback takes the leading year when DateRange declines.");
+        parses.ShouldBeTrue();
     }
 
     [Theory]
@@ -173,9 +237,10 @@ public class DateRangeYearFirstCharacterisationTests
     [InlineData("2000/01 – 2011/12")]
     public void SlashValidMonth_IsReadAsAMonth_AndNothingButConventionSaysOtherwise(string dateLine)
     {
-        var (isDateOnly, _, parses) = NonFirstLine(dateLine);
+        var (isDateOnly, period, parses) = NonFirstLine(dateLine);
 
         isDateOnly.ShouldBeTrue();
+        period.ShouldBe(dateLine, "stored source-faithfully, whichever reading is right.");
         parses.ShouldBeTrue(
             "the widening reads YYYY/NN as year-and-month. For NN in 01-12 that collides with a " +
             "Swedish läsår, and no standard decides the slash form — see the PR body's question.");
@@ -199,6 +264,11 @@ public class DateRangeYearFirstCharacterisationTests
             .ShouldBeTrue("START keeps the loose year-first hyphen point — that is the whole delta.");
         DatePatterns.EndPointForTests.Contains(exactHyphenPoint, StringComparison.Ordinal)
             .ShouldBeTrue("END validates the month structurally, because that is where order bites.");
+
+        // Replace is replace-ALL, so the equality alone would license "differs by any number of
+        // occurrences of this substitution". Pinning the count makes it "exactly one token".
+        var occurrences = DatePatterns.StartPointForTests.Split(looseHyphenPoint).Length - 1;
+        occurrences.ShouldBe(1, "the loose branch appears once, so the delta is one token and not a class.");
 
         DatePatterns.StartPointForTests.Replace(looseHyphenPoint, exactHyphenPoint, StringComparison.Ordinal)
             .ShouldBe(DatePatterns.EndPointForTests,

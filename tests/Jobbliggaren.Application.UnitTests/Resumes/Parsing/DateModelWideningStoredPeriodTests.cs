@@ -96,10 +96,14 @@ public class DateModelWideningStoredPeriodTests
     // (S4) obligation 1 — THE ACADEMIC / FISCAL YEAR, and the reason DateRange validates the month
     // structurally in its year-first branches.
     //
-    // "2019/20" and "2019-20" are how a Swedish CV writes a läsår or a räkenskapsår, so the last two
-    // digits lie outside 01-12 BY CONSTRUCTION rather than by accident. With a bare \d{2} for the
-    // month, prefix-order made the month-bearing branch win and the whole line was stored — then
-    // refused by PeriodParser, costing A4/B6/B7 their verdicts and the deriver its years.
+    // "2019/20" and "2019-20" are how a Swedish CV writes a läsår or a räkenskapsår. An earlier
+    // revision said the last two digits therefore lie outside 01-12 "BY CONSTRUCTION". THEY DO
+    // NOT: a läsår is YYYY/YY where YY = (YYYY+1) mod 100, which lands INSIDE 01-12 for twelve
+    // start-years, 2000/01 through 2011/12. Those twelve are read as months and are pinned as a
+    // known collision in DateRangeYearFirstCharacterisationTests. The rows below are the OTHER
+    // half — NN outside 01-12 — where with a bare \d{2} the month-bearing branch won in the END
+    // alternation and the whole line was stored, then refused by PeriodParser, costing A4/B6/B7
+    // their verdicts and the deriver its years.
     //
     // MEASURED in both polarities. Before this PR: stored "2018 – 2019", parsed. At the widening's
     // second commit: stored whole, REFUSED. With the structural month class: back to "2018 – 2019",

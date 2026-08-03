@@ -84,6 +84,16 @@ public class DateModelWideningReviewSideTests
     // other direction.
     [InlineData("2013 - 2021")]
     [InlineData("2020-06 – 2024-03")]
+    // THE ACADEMIC YEAR, and it is here because this is the row where the defect was actually
+    // OBSERVED this session rather than predicted. Measured at 83d7a6b3, where a structural month
+    // class had been applied to both alternations and this form stopped being a date row:
+    //   A1 Pass · quote "2019-20 – 2021" · note "kvantifierad uppgift"
+    // The product asserting the user quantified a result out of her employment dates — the §5 class
+    // this whole PR exists to close, re-opened on a population the PR had not looked at. The
+    // characterisation table pins the CAUSE (IsDateOnlyLine and the stored value); this pins the
+    // consequence at the altitude where it harms someone.
+    [InlineData("2019-20 – 2021")]
+    [InlineData("2019-20 – nuvarande")]
     public async Task NoCriterionCitesTheUsersEmploymentDates_OnTheThreeLineLayout(string dateLine)
     {
         var result = await ReviewThreeLineLayoutAsync(dateLine);
@@ -106,6 +116,9 @@ public class DateModelWideningReviewSideTests
     [InlineData("2020 – 2024 (heltid)")]
     [InlineData("2020/01 – 2024/12")]
     [InlineData("2020 –")]
+    // The academic year gets the anti-vacuity partner too: an absence assertion passes trivially if
+    // the criterion assesses nothing, and that is exactly the shape the row above has.
+    [InlineData("2019-20 – 2021")]
     public async Task TheProseBulletIsStillScored_SoSuppressionDidNotBecomeSilence(string dateLine)
     {
         // The other half of the acceptance, and it is not a formality: removing the date row from

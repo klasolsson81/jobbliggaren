@@ -18,8 +18,10 @@ namespace Jobbliggaren.Application.UnitTests.Resumes.Parsing;
 /// far as "2024" — the <c>\b</c> after it holds against the following "-", the match succeeds, and
 /// nothing backtracks into the longer branch. The START alternation carried the same ordering and
 /// never showed it, because there a too-short branch makes the overall match FAIL and the engine
-/// backtracks. <b>Both are ordered now</b>, so the rule holds by construction rather than by which
-/// side backtracking happens to rescue.</para>
+/// backtracks. <b>Both lists are ORDERED; only the END list is structurally EXACT</b> — and that
+/// asymmetry is deliberate. An earlier revision made both exact and thereby removed the START
+/// position's backtracking rescue, which cost a match on the academic-year form. Order bites only
+/// where a short branch can succeed, so exactness is required only there.</para>
 ///
 /// <para><b>Why it is pinned on THREE surfaces and not one.</b> One token of ordering reached every
 /// consumer that reads the match rather than the predicate. Pinning only
@@ -125,10 +127,20 @@ public class DatePatternsAlternationOrderingTests
         // gap; it removed the accident that was hiding one instance of it. The wrong ordering was
         // wrong for the right cases and accidentally right for the wrong ones.
         //
-        // THE GENERALISATION, which is what makes the contract checkable rather than merely stated:
-        // prefix-order is NECESSARY BUT NOT SUFFICIENT — it is sufficient only when every alternative
-        // it orders first is STRUCTURALLY EXACT. Ordering and structural exactness are joint causes
-        // here, and DatePatterns' year-first branches now carry the second half.
+        // THE GENERALISATION, and it took two attempts — the first is retracted here because this
+        // file is the one DatePatterns names as the ordering's adjudicator, so a retracted rule
+        // surviving HERE is worse than surviving anywhere else.
+        //
+        // RETRACTED: "prefix-order is sufficient only when EVERY ALTERNATIVE IT ORDERS FIRST is
+        // structurally exact". Applied to both alternations, that removed a backtracking rescue
+        // the START position depended on and cost a match (see the START/END split in
+        // DatePatterns and DateRangeYearFirstCharacterisationTests).
+        //
+        // STANDS: prefix-order is NECESSARY BUT NOT SUFFICIENT, and structural exactness completes
+        // it EXACTLY WHERE ORDER BITES — the END alternation, because a short branch can succeed
+        // there and cannot in the START. That is what the comment four paragraphs up in
+        // DatePatterns already said, and stating the rule more widely than its mechanism is this
+        // lane's signature failure, committed twice in this file's own subject.
         DatePatterns.DateRange().Match("2018 – 2019-20").Value.ShouldBe("2018 – 2019",
             "the month-bearing branch must decline '20', so the correct shorter reading wins.");
         PeriodParser.TryParse("2018 – 2019", out _, out _, out _).ShouldBeTrue();

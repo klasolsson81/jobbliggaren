@@ -135,6 +135,15 @@ internal static partial class DatePatterns
     // The language delta is derivable rather than grepped: strings matching `\d{4}-\d{2}` but not
     // `\d{4}-(?:0[1-9]|1[0-2])` — i.e. YYYY-NN with NN in {00, 13..99} — in START position only.
     // Nothing else can move, because no other alternative's language changes.
+    //
+    // THE CONSEQUENCE HALF, which the derivation above does not state and which is the part
+    // worth knowing: the restore is a STRICTLY MONOTONE widening — a loose-branch match and the
+    // `\d{4}` fallthrough can never both succeed at one index, so no match shortens and none is
+    // lost. But ExtractPeriod runs DateRange leftmost over the WHOLE entry text, so a new match
+    // arising to the LEFT can shadow one further right. That direction is favourable here (the
+    // date row is left of the bullets on every layout this lane models), and it is the reason the
+    // narrowing was worse than it looked: at commit 4 an entry whose date row stopped matching
+    // could store an interval lifted out of a DESCRIPTION bullet as its Period.
     private const string SharedPointHead =
         CvMonthNames.Pattern + CvMonthNames.AfterName + @"\d{4}";
 

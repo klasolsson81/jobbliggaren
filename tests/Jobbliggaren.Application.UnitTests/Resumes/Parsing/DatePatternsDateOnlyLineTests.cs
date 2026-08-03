@@ -318,11 +318,18 @@ public class DatePatternsDateOnlyLineTests
     // second form below. Both rows here are suppressed ONLY by the DatePatterns disjunct.
     [InlineData("– 2020 – 2024",
         "a LEADING separator, which PeriodParser's ^…$ anchoring refuses")]
-    // R13: the reason narrowed with commit 4. DateRange DOES validate the month structurally now —
-    // but only in its YEAR-FIRST branches. This row is MM/YYYY, which stands in no prefix relation
-    // to any other alternative, so the ordering contract never reached it and narrowing it would
-    // leave a "13/" residue instead of degrading. It is the SURVIVING instance, and that is a
-    // property of the branch rather than of the type.
+    // The reason narrowed twice. DateRange validates the month structurally in its year-first
+    // branches — but only in the END alternation; the START alternation deliberately keeps the
+    // loose form, because order only bites where a short branch can succeed. This row is MM/YYYY,
+    // which stands in no prefix relation to any other alternative, so the ordering contract never
+    // reached it at all and narrowing it would leave a "13/" residue instead of degrading.
+    //
+    // NOT the only instance of this axis: "2019-20 – 2021" (an academic year in START position)
+    // is reached by DatePatterns and refused by PeriodParser for the same structural-vs-semantic
+    // reason. It lives in DateRangeYearFirstCharacterisationTests with the rest of the year-first
+    // grammar rather than here, because that table is indexed by the grammar's axes — but this
+    // list says of itself "THIS LIST IS THE ADJUDICATOR … Add rows here", so the cross-reference
+    // is the row's stand-in and is deliberate rather than an omission.
     [InlineData("13/2020 – 2024",
         "a structurally-matching range whose MONTH is out of range: DateRange validates the month " +
         "only in its year-first branches, not in MM/YYYY, so PeriodParser is what declines this one")]

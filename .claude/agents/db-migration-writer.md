@@ -35,10 +35,11 @@ privilege on the database, so a migration that tries it **fails at deploy**.
 a migration go stale the moment the next load runs. And **generated columns go
 through `HasComputedColumnSql(..., stored: true)`**, which EF Core expresses
 perfectly well (`JobAdConfiguration.cs:198`, `:247`); hand-write
-`GENERATED ALWAYS AS … STORED` via `migrationBuilder.Sql` and it stays out of the
-model snapshot — EF then tries to INSERT a value into it (**SQLSTATE 428C9**),
-and the next `migrations add` proposes turning it into an ordinary column, which
-destroys the data in it.
+`GENERATED ALWAYS AS … STORED` via `migrationBuilder.Sql` and the model does not
+know the column is generated — so EF tries to INSERT a value into it and
+PostgreSQL rejects the write with **SQLSTATE 428C9**. (The snapshot is blind to
+raw-SQL objects, so it will not propose anything about the column either way;
+that blindness is why the error surfaces at runtime rather than at scaffold time.)
 
 Before scaffolding a migration for a new aggregate, consult `dotnet-architect`
 to confirm invariants and entity design are stable. A schema built against an
@@ -99,7 +100,8 @@ A migration that omits any of these for a PII entity is incomplete.
 | `deleted_at` | `timestamp with time zone` | Yes | Soft delete sentinel |
 
 Optimistic concurrency is **not a column**: use PostgreSQL's system column,
-`builder.Property<uint>("xmin").IsRowVersion()`, which needs no DDL. A
+`builder.Property<uint>("xmin").ValueGeneratedOnAddOrUpdate().IsConcurrencyToken()`
+— the form all three live configurations use — which needs no DDL. A
 `row_version bytea` column was dropped in `20260507193020_RemoveRowVersionUseXmin`
 and appears in zero configurations today — add one and you ship a dead column and
 fail your own completeness check.
@@ -268,11 +270,15 @@ content = table.Column<byte[]>(type: "bytea", nullable: false),
 ever decrypts: Form A/B round-trip through the model and need the registry, Form
 C is opaque to it and must not be registered.
 
-**Adding a Form C column is a two-file change.** Form C has no allowlist for the
-architecture cross-check to read, so the column is enumerated **by hand** in
-`ErasureCascadeRegistry` — add one without adding it there and the Art. 17
-cascade silently misses it. That registry says so itself; you are the actor it is
-talking to.
+**Adding a Form C column is a three-file change**, and the third is the one that
+gets forgotten. Form A/B are covered by `EncryptedFieldRegistry`, but **Form C has
+no allowlist for the architecture cross-check to read**, so the column is
+enumerated **by hand** in `ErasureCascadeRegistryTests` — both the `formC` array
+and the `SealedContent` loop in `EncryptedColumns()`. Miss the registry entry and
+the Art. 17 cascade misses the column; miss the cross-check and the guard goes
+**vacuous for it while the suite stays green**, which is worse, because nothing
+tells you. `ErasureCascadeRegistry` says so itself: "Add a Form-C column and you
+must add it there too" — *there* being the cross-check, not the registry.
 
 **Key material is none of the three.** `user_data_keys.wrapped_dek` is `bytea` and
 the model does unwrap it, but it is the envelope itself, not the PII inside — so

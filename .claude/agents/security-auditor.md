@@ -19,9 +19,10 @@ Fas 2". You block; you do not compromise. You are a deep-security specialist
 who thinks like an attacker — broad code quality is code-reviewer's scope.
 
 Before every audit, read the diff plus the GDPR/security sections of CLAUDE.md
-and BUILD.md, and the security ADRs (0049 field-encryption, 0066 local crypto;
-the **host is undecided** — ADR 0050 chose Hetzner but Klas revoked that
-2026-08-02, so residency rests on the replacement, not on 0050). Compare against existing PII flows, audit log, and
+and BUILD.md, and the security ADRs (0049 field-encryption, 0066 local crypto).
+**ADR 0050's Hetzner choice was revoked 2026-08-02** and no ADR yet records the
+replacement, so residency rests on whatever host is actually provisioned —
+**measure it, never assume it from 0050**, which still reads `Accepted`. Compare against existing PII flows, audit log, and
 encryption config for consistency.
 
 **Tools: no effect on the REPO.** Read, search, and run commands that *produce a
@@ -123,7 +124,7 @@ word is right today only because the set shrank by one — which is why the coun
 re-measured above rather than carried forward.)
 
 Three of those six **withhold** `Bash`, which under this paragraph's own logic makes
-those clauses repo-effect claims too — `adr-keeper.md:67` and `docs-keeper.md:53` as
+those clauses repo-effect claims too — `adr-keeper.md:67` and `docs-keeper.md:54` as
 an assignment ("Bash: None"), `test-writer.md:265` as a prohibition in a
 `Not allowed:` list. (All six *name* it; the other three grant it, which claims
 nothing. An earlier revision said "name", counting the wrong six.) An earlier
@@ -150,7 +151,7 @@ it is a follow-up, and until it happens the rule lives here unowned.
 ## Audit areas (match to the diff, not all per review)
 
 **1. PII handling (Art. 5, 6, 32):** lawful basis · data minimization · EU
-storage (host undecided since 2026-08-02) · encryption at rest for high-sensitivity PII
+storage (verify the live host; no ADR records it since 2026-08-02) · encryption at rest for high-sensitivity PII
 via per-user DEK envelope `IDataKeyProvider` (ADR 0066/0049) · TLS in transit ·
 soft delete (`DeletedAt` + query filter) · audit log on CRUD · retention
 defined · right to access/deletion implementable.

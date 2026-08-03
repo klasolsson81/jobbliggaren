@@ -548,8 +548,9 @@ discipline miss; reports go to `docs/reviews/<date>-<phase>-<agent>.md`):
 **None of them can ask Klas anything.** `AskUserQuestion` is stripped from every
 subagent — foreground and background alike, and **even when listed in a `tools:`
 field** (code.claude.com/docs/en/sub-agents, read 2026-08-03). The one exception
-is a **fork**, which skips both filters and inherits the main conversation's exact
-tool pool; every agent in the table above is a custom subagent, not a fork. So where a charter
+is a **fork**, which "skips both filters and receives the main conversation's exact
+tool pool" (same page, same reading); every agent in the table above is a custom
+subagent, not a fork. So where a charter
 says "escalate to Klas directly" — security-auditor's GDPR Blockers and her
 area-8 Majors, code-reviewer's CLAUDE.md conflicts — what the agent can do is
 **record** the escalation: in its report, and where §9.6 prescribes it (those

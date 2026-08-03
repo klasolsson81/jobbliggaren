@@ -208,7 +208,9 @@ table inet filter {
         icmp type { echo-request, echo-reply, destination-unreachable,
                     time-exceeded, parameter-problem } accept
 
-        # NDP is mandatory: without it IPv6 stops working entirely.
+        # NDP is mandatory. Measured 2026-08-03: the IPv6 default route is
+        # "default via fe80::1 dev eth0" — a link-local next hop. Filter NDP and the
+        # box loses its IPv6 path entirely the moment the router refreshes.
         icmpv6 type { echo-request, echo-reply, destination-unreachable, packet-too-big,
                       time-exceeded, parameter-problem, nd-router-advert,
                       nd-neighbor-solicit, nd-neighbor-advert, mld-listener-query } accept
@@ -347,12 +349,16 @@ long as it is used within 30 days). Either way:
 address from any device (`curl ifconfig.me`), edit I1 in the SCP, and reconnect. Use the VNC
 console in the meantime.
 
-### 6.6 DHCPv4
+### 6.6 DHCPv4 — measured: not in use
 
-Rows I8 and E11 exist only if the box actually uses a DHCP client. Determine this **before**
-applying the egress DROP-all — a missed lease renewal fails silently, hours later, and looks
-like a network outage. A root server has a fixed address, so static configuration is
-preferable; keep DHCP only if it is already in use, and then keep both rows.
+Rows I8 and E11 exist only if the box actually uses a DHCP client. **Measured 2026-08-03: it
+does not.** No `dhclient`/`dhcpcd` process runs, and the address is configured statically by
+cloud-init through `/etc/network/interfaces.d/50-cloud-init.cfg`. Both rows are therefore
+omitted.
+
+Re-check this before any egress change if the network configuration is ever touched: a missed
+lease renewal fails silently, hours later, and reads as a network outage rather than a
+firewall rule.
 
 ---
 
@@ -420,6 +426,24 @@ swap-priority = 100
 `systemd-zram-generator` is chosen over `zram-tools`: one declarative file, device lifecycle
 owned by a native systemd generator, no shell-script service. **No `writeback-device` is
 configured** — swapped pages must stay in RAM; that is the entire point.
+
+**Writing the config is not enough on a running system.** Measured 2026-08-03: the device had
+already been created, so `systemctl start` applied the *size* from the new config but left the
+compression algorithm at the default `lz4`. An active swap device cannot be reconfigured in
+place. Recreate it:
+
+```bash
+sudo swapoff /dev/zram0
+sudo systemctl stop systemd-zram-setup@zram0.service
+echo 1 | sudo tee /sys/block/zram0/reset >/dev/null
+sudo systemctl start systemd-zram-setup@zram0.service
+zramctl        # Förväntat: ALGORITHM zstd
+```
+
+This applies only to the first setup on a running box. At boot the generator creates the
+device from the config directly — verified across a reboot: `zstd` from the start, with no
+intervention. Note that `zramctl` and `swapon` live in `/usr/sbin`, which is **not** on the
+PATH of a non-interactive SSH session; call them by full path from scripts.
 
 Disk swap is removed. Back up `/etc/fstab` first, `swapoff` everything that is not zram,
 comment out the swap lines, and then:
@@ -494,6 +518,41 @@ curl -m5 telnet://159.195.203.88:443
 
 ---
 
+## 9.1 Verification log
+
+Every claim below was produced by the command next to it, on the date given. A line without a
+measurement is not a result.
+
+**2026-08-03 — host layer, verified across a reboot:**
+
+| Property | Measured value | Instrument |
+|---|---|---|
+| Rescue path | root shell obtained at the VNC console **before** any SSH change | Netcup SCP → Screen |
+| Key login | `jpadmin`, fingerprint `SHA256:c1iqLV7QPTDrW/pUI8xC3mwV2Jdtxpn6EPdEhPGl73I` | `ssh -o BatchMode=yes` from a new session |
+| Password login | refused — server advertises only `(publickey)`, previously `(publickey,password)` | `ssh -o PreferredAuthentications=password` |
+| Keyboard-interactive | refused | `ssh -o PreferredAuthentications=keyboard-interactive` |
+| Root over SSH | refused **even with a valid key** | `ssh -i <key> root@…` |
+| Host firewall bites | port 9876 flipped REFUSED → **TIMEOUT**; port 443 stayed REFUSED | `/dev/tcp` probe, before and after |
+| Listeners | only `sshd` on `0.0.0.0:22` and `[::]:22` | `ss -tlnp` |
+| nftables persistence | `enabled` + `active`; input drop / forward drop / output accept | after reboot |
+| zram | `/dev/zram0`, **zstd**, 3.9 G, priority 100; no disk swap anywhere | after reboot |
+| Core dumps | `core_pattern = |/bin/false`; no files produced by a real `SIGSEGV` | live crash test |
+| Auto-patching | exactly one origin: `origin=Debian,codename=trixie-security,label=Debian-Security` | `unattended-upgrade --dry-run --debug` |
+| Auto-reboot | `"false"` | `apt-config dump` |
+| Egress | DNS, apt, and IPv6 HTTPS all reachable | from inside the box |
+| Dead-man timers | 0 remaining, and the hardening survived — neither timer fired | `systemctl list-timers --all` |
+
+**Incident, same session.** During bootstrap the root password was typed into the console's
+*username* field, so it was written to the journal as a failed login name (measured: 1 hit).
+noVNC also proved unusable for pasting: a 542-character command arrived with characters
+dropped and reordered (`/etc/sudoers.d/90-jpadmin` became `/etc/sudoetc/`), which bash rejected
+outright — so nothing executed. The key was installed with `ssh-copy-id` from the operator's
+own terminal instead, the root password was rotated once key access was proven, and the
+interim root `authorized_keys` was removed. **Do not paste long commands into noVNC.** Use it
+to read output and to run short, hand-typed commands.
+
+---
+
 ## 10. Failure modes and recovery
 
 | # | Situation | How you detect it | Recovery |
@@ -536,6 +595,9 @@ rather than discovered:
   not optional — NDP is how IPv6 works — and ICMPv4 carries PMTUD, whose absence produces
   connections that establish and then hang on large payloads.
 - **Host `output` policy is `accept`** rather than a second filtering layer; rationale in §5.
+- **`jpadmin` has passwordless sudo and the operator key has no passphrase**, so possession of
+  that key is equivalent to root on this host. Both are recorded above; the combination is what
+  a reviewer should weigh, not either half alone.
 
 ---
 

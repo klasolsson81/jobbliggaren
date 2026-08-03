@@ -33,7 +33,9 @@ Core boundary** — §2.1 and ADR 0009 ratify Application referencing the core
 `Microsoft.EntityFrameworkCore` package, because §3.6 puts `IAppDbContext`
 straight into handlers with no repository layer and that is impossible without
 it. Grading that as a violation blocks the house pattern.
-*Blockers:* any EF Core in Domain; **Application depending on
+*Blockers:* any EF Core, **Mediator or FluentValidation** in Domain (§2.1's "not
+Mediator, not EF Core" — `DomainLayerTests` forbids all three); **Application
+depending on
 `Jobbliggaren.Infrastructure`, on `Microsoft.AspNetCore.*`
 (Http/Authentication/Authorization/Identity), or on Api/Worker**; a provider,
 relational or EF-Identity package in Application (`Npgsql*`, `.Relational`,
@@ -45,8 +47,10 @@ this paragraph is a snapshot of them.
 `EF.Functions.JsonExists`/`ILike` live in the `Microsoft.EntityFrameworkCore`
 namespace, so the `Npgsql` prefix rule never fires on them — they still belong
 behind an Application-owned port (`IJobAdRequirementBackfillFilter`), and there
-§2.1 governs, not the test. `AsSplitQuery` is relational-only and fails to
-compile in Application, so it self-enforces.
+§2.1 governs, not the test. **`AsSplitQuery` is the same obligation, not a
+contrast:** it is relational-only, so today it will not compile in Application —
+but "the compiler stops it" is a property of the current package list, not a
+verdict that it needs no port. Grade the query, not the build error.
 *Major:* raw HttpClient in Application; business logic in endpoints.
 
 **2. DDD (§2.2):** private setters (EF-justified exceptions only); invariants

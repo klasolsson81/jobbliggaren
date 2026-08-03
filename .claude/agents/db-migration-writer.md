@@ -36,8 +36,9 @@ a migration go stale the moment the next load runs. And **generated columns go
 through `HasComputedColumnSql(..., stored: true)`**, which EF Core expresses
 perfectly well (`JobAdConfiguration.cs:198`, `:247`); hand-write
 `GENERATED ALWAYS AS … STORED` via `migrationBuilder.Sql` and it stays out of the
-model snapshot, so the next `migrations add` proposes dropping the column — and
-computed→ordinary destroys the data in it.
+model snapshot — EF then tries to INSERT a value into it (**SQLSTATE 428C9**),
+and the next `migrations add` proposes turning it into an ordinary column, which
+destroys the data in it.
 
 Before scaffolding a migration for a new aggregate, consult `dotnet-architect`
 to confirm invariants and entity design are stable. A schema built against an
@@ -96,7 +97,12 @@ A migration that omits any of these for a PII entity is incomplete.
 | `updated_at` | `timestamp with time zone` | Yes | Audit |
 | `updated_by` | `uuid` | Yes | Audit |
 | `deleted_at` | `timestamp with time zone` | Yes | Soft delete sentinel |
-| `row_version` | `bytea` | No | Optimistic concurrency |
+
+Optimistic concurrency is **not a column**: use PostgreSQL's system column,
+`builder.Property<uint>("xmin").IsRowVersion()`, which needs no DDL. A
+`row_version bytea` column was dropped in `20260507193020_RemoveRowVersionUseXmin`
+and appears in zero configurations today — add one and you ship a dead column and
+fail your own completeness check.
 
 EF Core global query filter for soft delete:
 
@@ -107,7 +113,7 @@ builder.HasQueryFilter(e => !e.DeletedAt.HasValue);
 Partial index for all soft-delete queries (add via `migrationBuilder.Sql`):
 
 ```sql
-CREATE INDEX CONCURRENTLY ix_<table>_not_deleted
+CREATE INDEX ix_<table>_not_deleted
     ON <table> (id)
     WHERE deleted_at IS NULL;
 ```
@@ -165,9 +171,33 @@ SQL in the migration `Up` method:
 
 ```csharp
 migrationBuilder.Sql(
-    "CREATE INDEX CONCURRENTLY ix_job_ads_published_at_not_deleted " +
+    "CREATE INDEX ix_job_ads_published_at_not_deleted " +
     "ON job_ads (published_at DESC) WHERE deleted_at IS NULL;");
 ```
+
+**`CONCURRENTLY` is available but is not the default, and it takes a second
+argument.** Migrations run inside a transaction (Migrate's schema task) and
+`CONCURRENTLY` cannot — so it requires `suppressTransaction: true`, and without
+it the apply fails with **SQLSTATE 25001**:
+
+```csharp
+migrationBuilder.Sql(
+    """
+    CREATE INDEX CONCURRENTLY IF NOT EXISTS ix_company_register_company_name_lower
+    ON company_register (lower(company_name) text_pattern_ops);
+    """,
+    suppressTransaction: true);
+```
+
+Reach for it when the build would hold a write lock long enough to matter —
+`20260718191128_AddCompanyRegisterNameSearchIndex` is the worked case, on a
+~1M-row table written by a periodic sync. **Decline it for small or brief
+builds**, as four earlier expression-index migrations deliberately did; plain
+`CREATE INDEX` is the right call there and their comments say so. Know the
+failure mode before you use it: an aborted `CONCURRENTLY` build leaves an
+**INVALID** index behind, and `IF NOT EXISTS` treats INVALID as EXISTING — a bare
+re-run silently skips the build and stamps the migration applied. Recovery is
+`DROP INDEX IF EXISTS <name>;` (plain, not `CONCURRENTLY`) and then re-run.
 
 ### JSONB columns
 
@@ -243,6 +273,10 @@ architecture cross-check to read, so the column is enumerated **by hand** in
 `ErasureCascadeRegistry` — add one without adding it there and the Art. 17
 cascade silently misses it. That registry says so itself; you are the actor it is
 talking to.
+
+**Key material is none of the three.** `user_data_keys.wrapped_dek` is `bytea` and
+the model does unwrap it, but it is the envelope itself, not the PII inside — so
+it sits outside this taxonomy rather than in a fourth slot of it.
 
 **A binary column the model MUST decrypt fits none of the three** — it is bytea
 like Form C but round-trips like Form A/B. BUILD.md already specifies one
@@ -374,9 +408,9 @@ When a destructive migration is detected:
 **Schema-ändringar:**
 - CREATE TABLE job_ads (id uuid, title text, status text, published_at timestamptz,
   created_at timestamptz not null, created_by uuid not null,
-  updated_at timestamptz, updated_by uuid, deleted_at timestamptz,
-  row_version bytea not null)
-- CREATE INDEX CONCURRENTLY ix_job_ads_published_at_not_deleted
+  updated_at timestamptz, updated_by uuid, deleted_at timestamptz)
+  [concurrency via xmin — no column]
+- CREATE INDEX ix_job_ads_published_at_not_deleted
   ON job_ads (published_at DESC) WHERE deleted_at IS NULL
 
 **GDPR-kontroller:**

@@ -235,15 +235,30 @@ public class DateRangeYearFirstCharacterisationTests
     // implicit, and so a later change to it is a change to a pinned behaviour.
     [InlineData("2008/09 – 2011/12")]
     [InlineData("2000/01 – 2011/12")]
-    public void SlashValidMonth_IsReadAsAMonth_AndNothingButConventionSaysOtherwise(string dateLine)
+    public void SlashValidMonth_IsRecognisedAsADateRow_ButNotDated(string dateLine)
     {
+        // KLAS-DIREKTIV 2026-08-03, and it resolved the question this row was written to pose.
+        // "2008/09" is how Swedish writes a YEAR PAIR — a läsår or a räkenskapsår — not September
+        // 2008. That is "2008-09", which ISO 8601 adjudicates and which this type still reads.
+        //
+        // The two halves are separable and the ruling separates them. RECOGNISING the line is what
+        // suppresses it from the bullet scorer, masks it out of the measurable-digit test and keeps
+        // it out of the Organization slot — the defects road 3 exists to close. DATING it is a
+        // second claim, and it is the one declined: the entry reports an honest NotAssessed rather
+        // than a span nobody stated.
+        //
+        // Measured before the ruling: "2008/09 – 2011/12" parsed as 2008-09-01..2011-12-01, token
+        // MM/YYYY — September 2008 to December 2011, where the writer meant autumn 2008 to spring
+        // 2012. The notation was also treated INCONSISTENTLY, which is the sharper argument: with a
+        // month class, "2008/09" parsed and "2019/20" did not, because 09 is a valid month number
+        // and 20 is not. Same notation, opposite outcomes, decided by arithmetic rather than meaning.
         var (isDateOnly, period, parses) = NonFirstLine(dateLine);
 
-        isDateOnly.ShouldBeTrue();
-        period.ShouldBe(dateLine, "stored source-faithfully, whichever reading is right.");
-        parses.ShouldBeTrue(
-            "the widening reads YYYY/NN as year-and-month. For NN in 01-12 that collides with a " +
-            "Swedish läsår, and no standard decides the slash form — see the PR body's question.");
+        isDateOnly.ShouldBeTrue("the line IS a date row, and that half is what closes the defect.");
+        period.ShouldBe(dateLine, "stored source-faithfully — we decline to date it, not to keep it.");
+        parses.ShouldBeFalse(
+            "a year pair is not a year and a month. Refusing beats asserting a span the CV never " +
+            "stated (ADR 0071, honest-absent).");
     }
 
     [Fact]

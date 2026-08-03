@@ -36,7 +36,24 @@ internal static partial class PeriodParser
     // groups regardless of order; a month WORD lands in its own group and is resolved by
     // CvMonthNames.
     //
-    // THE MONTH-NAME AND YYYY/MM FORMS ARE HERE BECAUSE DatePatterns.DateRange MATCHES THEM, and
+    // YYYY/MM IS DELIBERATELY NOT A POINT FORM HERE, AND THAT IS A PRODUCT RULING (Klas-direktiv
+    // 2026-08-03). The year-first SLASH notation is how Swedish writes a YEAR PAIR — a läsår or a
+    // räkenskapsår, "2008/09", "2023/24" — not a year and a month. Nobody writes September 2008 as
+    // "2008/09"; that is "2008-09", which this branch does read, because ISO 8601 says so.
+    //
+    // The widening briefly modelled the slash form here and read "2008/09 – 2011/12" as September
+    // 2008 to December 2011, where the writer meant autumn 2008 to spring 2012. Measured before the
+    // ruling. It also treated the notation INCONSISTENTLY: "2008/09" parsed (09 is a valid month
+    // number) while "2019/20" did not (20 is not) — same notation, opposite outcomes, decided by an
+    // accident of arithmetic rather than by what the form means.
+    //
+    // DatePatterns still RECOGNISES the form, and the two facts are not in tension: recognising a
+    // line as a date row is what suppresses it from the bullet scorer, masks it out of the
+    // measurable-digit test and keeps it out of the Organization slot — all of which are correct and
+    // are what road 3 exists to fix. DATING it is a separate claim, and it is the one we decline.
+    // The entry reports an honest NotAssessed instead of a span nobody stated.
+    //
+    // THE MONTH-NAME FORM IS HERE BECAUSE DatePatterns.DateRange MATCHES IT, and
     // the two must widen together (senior-cto-advisor re-bind 2026-08-03, Approach A). DateRange's
     // match VALUE is what HeadingDrivenResumeSegmenter.ExtractPeriod stores as
     // ParsedExperience.Period, and this type is what consumes that value — so a form the segmenter
@@ -52,7 +69,7 @@ internal static partial class PeriodParser
     // index, never culture-sensitive casing.
     [GeneratedRegex(
         @"^(?:(?<month>\d{1,2})[/.\-](?<year>\d{4})|(?<monthName>" + CvMonthNames.Pattern + ")"
-        + CvMonthNames.AfterName + @"(?<year>\d{4})|(?<year>\d{4})(?:[-/](?<month>\d{2}))?)$",
+        + CvMonthNames.AfterName + @"(?<year>\d{4})|(?<year>\d{4})(?:-(?<month>\d{2}))?)$",
         RegexOptions.CultureInvariant | RegexOptions.IgnoreCase)]
     private static partial Regex PointRegex();
 

@@ -44,7 +44,10 @@ public class PeriodParserYearSpanTests
     [InlineData("januari 2022 – december 2024", 2022, 2024)]
     [InlineData("March 2019 – Sept 2021", 2019, 2021)]
     [InlineData("jan 2020 – nuvarande", 2020, CurrentYear)]
-    [InlineData("2020/01 – 2024/12", 2020, 2024)]
+    // "2020/01 – 2024/12" was a row here until Klas-direktiv 2026-08-03 ruled the year-first
+    // SLASH notation a year pair (a läsår), not a year and a month. It is not free-text either —
+    // DatePatterns still recognises the LINE — so it belongs in neither theory of this file and
+    // lives in DateRangeYearFirstCharacterisationTests with the rest of the year-first grammar.
     [InlineData("maj 2020", 2020, 2020)]     // lone month point → zero-length span, parity with 03/2020
     public void TryParseYearSpan_MonthNamePoints_ResolveTheirSpan(
         string period, int expectedStart, int expectedEnd) =>

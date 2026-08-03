@@ -66,15 +66,17 @@ public class DateModelWideningStoredPeriodTests
     [InlineData("jan 2020 – nuvarande", "MM/YYYY")]
     [InlineData("mars 2021 – pågående", "MM/YYYY")]
     [InlineData("jan 2020 – 2024", "YYYY")]
-    [InlineData("2020 – 2024/12", "YYYY")]
-    [InlineData("2020-06 – 2024/12", "MM/YYYY")]
     // THE SYMMETRIC CLASS — both endpoints widened. These had NO period at all before; they are
     // here because the property under test is about what the segmenter STORES, not about what
     // regressed. (An earlier revision said "the invariant is universal over what the segmenter
     // stores". It is not — see the characterisation in this class's docblock, and the two
     // structural-vs-semantic instances pinned below.)
     [InlineData("jan 2020 – dec 2024", "MM/YYYY")]
-    [InlineData("2020/01 – 2024/12", "MM/YYYY")]
+    // The year-first SLASH rows moved OUT of this theory (Klas-direktiv 2026-08-03): that
+    // notation is a year pair, so the segmenter stores it and PeriodParser declines it BY
+    // DESIGN. They are a third named instance of the structural-vs-semantic characterisation in
+    // this class's docblock, alongside the month and the year, and they live in
+    // DateRangeYearFirstCharacterisationTests where the whole year-first grammar is indexed.
     // Controls the widening must not disturb.
     [InlineData("2013 - 2021", "YYYY")]
     [InlineData("2020-06 – 2024-03", "MM/YYYY")]

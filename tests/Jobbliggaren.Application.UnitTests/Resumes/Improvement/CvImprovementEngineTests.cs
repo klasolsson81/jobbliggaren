@@ -547,9 +547,14 @@ public class CvImprovementEngineTests
 
     [Theory]
     [InlineData("jan 2020 – dec 2024")]
-    [InlineData("2020/01 – 2024/12")]
     [InlineData("jan 2020 – nuvarande")]
     [InlineData("2020 – 2024 (heltid)")]
+    // "2020/01 – 2024/12" is NOT here, and the absence is the ruling rather than an oversight.
+    // Klas-direktiv 2026-08-03: the year-first slash notation is a year pair, so PeriodParser
+    // declines it — and this transform fires exactly where PeriodParser declines. It therefore
+    // DOES propose "Standardisera datumformatet" on that form, which is the honest outcome: the
+    // notation genuinely is not machine-readable as a period, and telling the user so is the
+    // transform doing its job rather than flagging a CV its own criterion approves of.
     public async Task SuggestAsync_ShouldNotProposeDateNormalization_ForAFormTheDateModelNowReads(
         string dateLine)
     {

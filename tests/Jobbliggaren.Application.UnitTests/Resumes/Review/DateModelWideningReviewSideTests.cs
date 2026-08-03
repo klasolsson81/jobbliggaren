@@ -223,10 +223,13 @@ public class DateModelWideningReviewSideTests
 
     [Theory]
     [InlineData("jan 2020 – dec 2024")]
-    [InlineData("2020/01 – 2024/12")]
     [InlineData("jan 2020 – nuvarande")]
     [InlineData("2020 – 2024 (heltid)")]
     [InlineData("2013 - 2021")]
+    // "2020/01 – 2024/12" is deliberately ABSENT (Klas-direktiv 2026-08-03): the year-first slash
+    // notation is a year pair, so PeriodParser declines it and NotAssessed is the honest answer.
+    // Its LINE recognition — which is what closes the A1 citation defect — is asserted in the
+    // theories above, and that separation is the ruling.
     public async Task A4B6B7_AreAssessed_NotDegradedToNotAssessed(string dateLine)
     {
         // (S3) obligation 6 — the period-conditional criteria, measured as (S1) did for A1/A2/A6.

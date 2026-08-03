@@ -120,7 +120,6 @@ public class DatePatternsDateOnlyLineTests
 
     [Theory]
     [InlineData("jan 2020 – dec 2024", "a month-NAME point, Swedish or English, in both endpoints")]
-    [InlineData("2020/01 – 2024/12", "the YYYY/MM point form")]
     public void IsDateOnlyLine_ShouldBeTrue_ForThePointFormsTheWideningAdded(string line, string how)
     {
         // THE POINT HALF OF THE WIDENING (#1060 road 3). These two are new POINT forms, so they live
@@ -140,6 +139,12 @@ public class DatePatternsDateOnlyLineTests
     [Theory]
     [InlineData("2020 – 2024 (heltid)", "a trailing parenthesised qualifier, tolerated in the TAIL")]
     [InlineData("2020 –", "a keyword-less open end: a dangling range separator in the TAIL")]
+    // YYYY/YY MOVED HERE FROM THE POINT THEORY (Klas-direktiv 2026-08-03). The year-first SLASH
+    // notation is a YEAR PAIR in Swedish — a läsår — not a year and a month, so PeriodParser no
+    // longer models it and only the DatePatterns half suppresses the row. That is the whole
+    // ruling: recognising the line is what closes the A1 citation defect; DATING it was a
+    // separate claim, and it is the one we decline.
+    [InlineData("2020/01 – 2024/12", "a YEAR-PAIR notation DatePatterns recognises and PeriodParser declines")]
     public void IsDateOnlyLine_ShouldBeTrue_ForTheLineFormsTheWideningAdded(string line, string how)
     {
         // THE LINE HALF, and the split from the theory above IS the design decision, made visible.

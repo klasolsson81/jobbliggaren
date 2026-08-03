@@ -178,15 +178,17 @@ backup-and-dead-man discipline as §4.3, and §4.3's dead-man does **not** cover
 only removes `00-hardening.conf`.
 
 ```bash
+# ON THE BOX (via ssh or the console):
 STAMP=$(date +%Y%m%d%H%M%S)
 sudo cp -a /home/jpadmin/.ssh/authorized_keys /var/backups/hardening/ak-$STAMP
 sudo systemd-run --on-active=10min --unit=ak-deadman --collect \
   /bin/cp -a /var/backups/hardening/ak-$STAMP /home/jpadmin/.ssh/authorized_keys
 
 sudo sed -i 's|^ssh-ed25519|from="<ADMIN_SRC_IP>" ssh-ed25519|' /home/jpadmin/.ssh/authorized_keys
-ssh -i ~/.ssh/jobbpilot_vps_ed25519 jpadmin@159.195.203.88 'echo STILL-OK'   # NEW session, before trusting it
+# ON THE WORKSTATION — a NEW session, before trusting the change:
+ssh -i ~/.ssh/jobbpilot_vps_ed25519 jpadmin@159.195.203.88 'echo STILL-OK'
 
-# only after STILL-OK — and confirm it had not already fired:
+# BACK ON THE BOX, only after STILL-OK — and confirm the dead-man had not already fired:
 sudo systemctl stop ak-deadman.timer 2>/dev/null
 systemctl list-timers --all | grep -c deadman      # Förväntat: 0
 grep -c '^from=' /home/jpadmin/.ssh/authorized_keys # Förväntat: 1 (the restriction survived)
@@ -306,7 +308,9 @@ ssh-copy-id -i ~/.ssh/jobbpilot_vps_ed25519_new.pub jp-vps   # appends, does not
 ssh -o BatchMode=yes jp-vps \
   'sudo sed -i "s|^ssh-ed25519|from=\"<ADMIN_SRC_IP>\" ssh-ed25519|" /home/jpadmin/.ssh/authorized_keys'
 
-ssh -i ~/.ssh/jobbpilot_vps_ed25519_new -o IdentitiesOnly=yes -o IdentityAgent=none \n  jpadmin@159.195.203.88 'echo NEW-KEY-OK'   # pin the identity: an agent-loaded old key would also succeed
+# Pin the identity: without these an agent-loaded OLD key can also answer NEW-KEY-OK
+ssh -i ~/.ssh/jobbpilot_vps_ed25519_new -o IdentitiesOnly=yes -o IdentityAgent=none \
+  jpadmin@159.195.203.88 'echo NEW-KEY-OK'
 # only after that succeeds: remove the old key's line from authorized_keys, then the local files
 
 # Verify no line lost its restriction — Förväntat: no output
@@ -396,8 +400,15 @@ confirmation that it had not already fired:
 
 ```bash
 sudo systemctl stop nft-deadman.timer 2>/dev/null
-systemctl list-timers --all | grep -c deadman     # Förväntat: 0
+systemctl list-timers --all | grep -c deadman            # Förväntat: 0
+# 0 timers alone does NOT distinguish "I stopped it in time" from "it fired and --collect
+# swept it away". Ask whether the unit ever ran — Förväntat: no output.
+sudo journalctl -u nft-deadman --no-pager -q | grep -i "started\|finished"
 ```
+
+Apply the same question to the other two dead-men in this runbook (`sshd-deadman`,
+`ak-deadman`): a timer count of zero is the same number either way, and the difference is
+whether your hardening is still live.
 
 Two checks matter afterwards:
 
@@ -601,18 +612,25 @@ an inline rules array — that returns `202` and lands nothing.
 ```bash
 # 1. GET the current firewall object and keep it — that file is the rollback
 curl -s -H "Authorization: Bearer $AT" \
-  "$BASE/servers/<serverId>/interfaces/<mac>/firewall" > fw-backup.json
+  "$BASE/servers/<serverId>/interfaces/<mac>/firewall" > ~/.netcup/fw-backup.json
+# NOT into a worktree: this file contains the real <ADMIN_SRC_IP>, and gitleaks does not
+# flag IP addresses. An IP tied to a person is personal data (Art. 4(1), Breyer C-582/14).
 
-# 2. add the policy created above to userPolicies, then PUT the whole object back
+# 2. attach our policies by NAME, then PUT the whole object back.
+#    Assigning every policy the account owns would silently attach unrelated ones the day a
+#    third exists — on the interface that carries the only ingress control.
 jq --argjson p "$(curl -s -H "Authorization: Bearer $AT" \
       "$BASE/users/<userId>/firewall-policies")" \
-   '.userPolicies = $p' fw-backup.json > fw-new.json
+   '.userPolicies = [$p[] | select(.name | startswith("jbl-"))]' \
+   ~/.netcup/fw-backup.json > ~/.netcup/fw-new.json
 curl -s -X PUT -H "Authorization: Bearer $AT" -H "Content-Type: application/json" \
-  "$BASE/servers/<serverId>/interfaces/<mac>/firewall" --data-binary @fw-new.json
+  "$BASE/servers/<serverId>/interfaces/<mac>/firewall" --data-binary @~/.netcup/fw-new.json
 
 # 3. read back and compare — the 202 proves nothing
 curl -s -H "Authorization: Bearer $AT" \
-  "$BASE/servers/<serverId>/interfaces/<mac>/firewall" | jq '.userPolicies[].rules | length'
+  "$BASE/servers/<serverId>/interfaces/<mac>/firewall"   | jq -c '{ingressImplicitRule, egressImplicitRule,
+             policies: [.userPolicies[] | {name, n: (.rules|length)}]}'
+# Förväntat: both DROP_ALL, jbl-ingress n=5, jbl-egress n=5 — compare against §6.2/§6.3.
 ```
 
 Note that step 2's policy listing returns rules as **empty arrays**; that is fine here because

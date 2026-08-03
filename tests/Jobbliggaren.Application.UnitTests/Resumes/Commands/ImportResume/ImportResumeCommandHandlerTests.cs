@@ -526,7 +526,7 @@ public class ImportResumeCommandHandlerTests
         // single experience Title + its Organization), via DeriveManyAsync — not the old
         // single-Experience[0].Title path.
         await _deriver.Received(1).DeriveManyAsync(
-            Arg.Is<IReadOnlyList<string>>(s => s.Contains("Systemutvecklare")),
+            Arg.Is<IReadOnlyList<string>>(s => s != null && s.Contains("Systemutvecklare")),
             Arg.Any<CancellationToken>());
     }
 
@@ -555,7 +555,7 @@ public class ImportResumeCommandHandlerTests
         await CreateSut(db).Handle(PdfCommand(), CancellationToken.None);
 
         await _deriver.Received(1).DeriveManyAsync(
-            Arg.Is<IReadOnlyList<string>>(s =>
+            Arg.Is<IReadOnlyList<string>>(s => s != null &&
                 s.Contains("Systemutvecklare .NET") && s.Contains("Operatör") &&
                 s.ToList().IndexOf("Systemutvecklare .NET") < s.ToList().IndexOf("Operatör")),
             Arg.Any<CancellationToken>());
@@ -589,7 +589,7 @@ public class ImportResumeCommandHandlerTests
         await CreateSut(db).Handle(PdfCommand(), CancellationToken.None);
 
         await _deriver.Received(1).DeriveManyAsync(
-            Arg.Is<IReadOnlyList<string>>(s =>
+            Arg.Is<IReadOnlyList<string>>(s => s != null &&
                 // "Systemutvecklare" once + "Acme AB" once (case-insensitive distinct) = 2.
                 s.Count == 2 &&
                 s.Count(x => x.Equals("Systemutvecklare", StringComparison.Ordinal)) == 1 &&
@@ -623,7 +623,7 @@ public class ImportResumeCommandHandlerTests
         await CreateSut(db).Handle(PdfCommand(), CancellationToken.None);
 
         await _deriver.Received(1).DeriveManyAsync(
-            Arg.Is<IReadOnlyList<string>>(s => s.Count == 40),
+            Arg.Is<IReadOnlyList<string>>(s => s != null && s.Count == 40),
             Arg.Any<CancellationToken>());
     }
 
@@ -734,7 +734,7 @@ public class ImportResumeCommandHandlerTests
         await CreateSut(db).Handle(PdfCommand(), CancellationToken.None);
 
         await _experienceDeriver.Received(1).DeriveApproximateYearsAsync(
-            Arg.Is<IReadOnlyList<ParsedExperience>>(e =>
+            Arg.Is<IReadOnlyList<ParsedExperience>>(e => e != null &&
                 e.Count == 1 && e[0].Title == "Operatör"),
             Arg.Any<CancellationToken>());
     }
@@ -809,7 +809,7 @@ public class ImportResumeCommandHandlerTests
         result.IsSuccess.ShouldBeTrue();
         // The handler resolves the CV's claimed skill names exactly once, over content.Skills.
         _skillResolver.Received(1).ResolveDetailed(
-            Arg.Is<IEnumerable<string>>(s => s.Contains("C#") && s.Contains("PostgreSQL")),
+            Arg.Is<IEnumerable<string>>(s => s != null && s.Contains("C#") && s.Contains("PostgreSQL")),
             Arg.Any<CancellationToken>());
 
         var added = db.ParsedResumes.Local.ShouldHaveSingleItem();

@@ -42,7 +42,7 @@ public class RedisCooldownGateTests
         await _cache.Received(1).SetAsync(
             Arg.Any<string>(),
             Arg.Any<byte[]>(),
-            Arg.Is<DistributedCacheEntryOptions>(o =>
+            Arg.Is<DistributedCacheEntryOptions>(o => o != null &&
                 o.AbsoluteExpirationRelativeToNow == TimeSpan.FromSeconds(90)),
             Arg.Any<CancellationToken>());
     }
@@ -68,7 +68,7 @@ public class RedisCooldownGateTests
         var ct = TestContext.Current.CancellationToken;
         var keys = new List<string>();
         _cache.GetAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
-            .Returns(ci => { keys.Add(ci.Arg<string>()); return (byte[]?)null; });
+            .Returns(ci => { keys.Add(ci.ArgAt<string>(0)); return (byte[]?)null; });
 
         await Sut().TryBeginAsync(CooldownScopes.ResendConfirm, "User@Example.COM", TimeSpan.FromSeconds(60), ct);
         await Sut().TryBeginAsync(CooldownScopes.ResendConfirm, "  user@example.com  ", TimeSpan.FromSeconds(60), ct);
@@ -100,7 +100,7 @@ public class RedisCooldownGateTests
         var ct = TestContext.Current.CancellationToken;
         var keys = new List<string>();
         _cache.GetAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
-            .Returns(ci => { keys.Add(ci.Arg<string>()); return (byte[]?)null; });
+            .Returns(ci => { keys.Add(ci.ArgAt<string>(0)); return (byte[]?)null; });
 
         await Sut().TryBeginAsync(CooldownScopes.ResendConfirm, Subject, TimeSpan.FromSeconds(60), ct);
         await Sut().TryBeginAsync(CooldownScopes.ChangeEmailTarget, Subject, TimeSpan.FromSeconds(60), ct);

@@ -111,7 +111,7 @@ public class SyncPlatsbankenStreamJobTests
         await job.RunAsync(TestContext.Current.CancellationToken);
 
         await mediator.Received(1).Send(
-            Arg.Is<UpsertExternalJobAdCommand>(c =>
+            Arg.Is<UpsertExternalJobAdCommand>(c => c != null &&
                 c.ExternalId == "ext-1" && c.Source == JobSource.Platsbanken),
             Arg.Any<CancellationToken>());
     }
@@ -129,7 +129,7 @@ public class SyncPlatsbankenStreamJobTests
         await job.RunAsync(TestContext.Current.CancellationToken);
 
         await mediator.Received(1).Send(
-            Arg.Is<ArchiveExternalJobAdCommand>(c =>
+            Arg.Is<ArchiveExternalJobAdCommand>(c => c != null &&
                 c.ExternalId == "ext-rem" && c.Source == JobSource.Platsbanken),
             Arg.Any<CancellationToken>());
     }

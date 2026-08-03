@@ -705,7 +705,7 @@ public class AutoPromoteParsedResumeCommandHandlerTests
         result.IsSuccess.ShouldBeTrue();
         var promoted = result.Value.ShouldBeOfType<AutoPromoteOutcome.Promoted>();
         await _reconciler.Received(1).ReconcileAsync(
-            Arg.Is<Resume>(r => r.Id.Value == promoted.ResumeId),
+            Arg.Is<Resume>(r => r != null && r.Id.Value == promoted.ResumeId),
             Arg.Is<IReadOnlyCollection<string>>(x => x == null),
             Arg.Any<CancellationToken>());
     }

@@ -265,7 +265,7 @@ public class MatchProfileBuilderTests
         var taxonomy = NewTaxonomy();
         taxonomy
             .GetRelatedOccupationGroupsAsync(
-                Arg.Is<IReadOnlyList<string>>(s => s.SequenceEqual(ExactGroups)),
+                Arg.Is<IReadOnlyList<string>>(s => s != null && s.SequenceEqual(ExactGroups)),
                 Arg.Any<CancellationToken>())
             .Returns(new ValueTask<IReadOnlyList<string>>(RelatedGroups));
         var builder = NewBuilder(db, taxonomy: taxonomy);
@@ -283,7 +283,7 @@ public class MatchProfileBuilderTests
             "Breddning är additiv: exakt-mängden förblir orörd.");
         // The ACL was consulted exactly once, with the EXACT confirmed occupation set.
         await taxonomy.Received(1).GetRelatedOccupationGroupsAsync(
-            Arg.Is<IReadOnlyList<string>>(s => s.SequenceEqual(ExactGroups)),
+            Arg.Is<IReadOnlyList<string>>(s => s != null && s.SequenceEqual(ExactGroups)),
             Arg.Any<CancellationToken>());
     }
 
@@ -336,7 +336,7 @@ public class MatchProfileBuilderTests
         profile.RelatedSsykGroupConceptIds.ShouldBeEmpty(
             "Tom exakt-mängd + breddning på → tom relaterad-mängd, aldrig krasch.");
         await taxonomy.Received(1).GetRelatedOccupationGroupsAsync(
-            Arg.Is<IReadOnlyList<string>>(s => s.Count == 0),
+            Arg.Is<IReadOnlyList<string>>(s => s != null && s.Count == 0),
             Arg.Any<CancellationToken>());
     }
 
@@ -382,7 +382,7 @@ public class MatchProfileBuilderTests
         var taxonomy = NewTaxonomy();
         taxonomy
             .GetContainingRegionsAsync(
-                Arg.Is<IReadOnlyList<string>>(s => s.SequenceEqual(PrefMunicipalities)),
+                Arg.Is<IReadOnlyList<string>>(s => s != null && s.SequenceEqual(PrefMunicipalities)),
                 Arg.Any<CancellationToken>())
             .Returns(new ValueTask<IReadOnlyList<string>>(ContainmentRegions));
         var builder = NewBuilder(db, taxonomy: taxonomy);
@@ -398,7 +398,7 @@ public class MatchProfileBuilderTests
         // The containment ACL fired exactly once, on the NON-related default path, with the stated
         // kommun set — the load-bearing "unconditional" proof.
         await taxonomy.Received(1).GetContainingRegionsAsync(
-            Arg.Is<IReadOnlyList<string>>(s => s.SequenceEqual(PrefMunicipalities)),
+            Arg.Is<IReadOnlyList<string>>(s => s != null && s.SequenceEqual(PrefMunicipalities)),
             Arg.Any<CancellationToken>());
         // ... while the RELATED ACL did NOT fire (includeRelated:false) — the asymmetry that proves
         // containment is unconditional but broadening is gated.
@@ -433,7 +433,7 @@ public class MatchProfileBuilderTests
         // The ACL is STILL consulted unconditionally (with the empty municipality set) — a single
         // unconditional seam, never short-circuited on an empty preference.
         await taxonomy.Received(1).GetContainingRegionsAsync(
-            Arg.Is<IReadOnlyList<string>>(s => s.Count == 0),
+            Arg.Is<IReadOnlyList<string>>(s => s != null && s.Count == 0),
             Arg.Any<CancellationToken>());
     }
 

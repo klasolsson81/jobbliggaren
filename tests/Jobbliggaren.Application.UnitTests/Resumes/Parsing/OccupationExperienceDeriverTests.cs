@@ -47,7 +47,7 @@ public class OccupationExperienceDeriverTests
     // Stub: an experience whose sources contain <title> derives <groupConceptIds>.
     private void DeriveTitleTo(string title, params string[] groupConceptIds) =>
         _deriver.DeriveManyAsync(
-                Arg.Is<IReadOnlyList<string>>(s => s.Contains(title)), Arg.Any<CancellationToken>())
+                Arg.Is<IReadOnlyList<string>>(s => s != null && s.Contains(title)), Arg.Any<CancellationToken>())
             .Returns(Derivation(groupConceptIds));
 
     private async Task<IReadOnlyDictionary<string, int>> Derive(params ParsedExperience[] experiences) =>

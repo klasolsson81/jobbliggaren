@@ -21,10 +21,14 @@ namespace Jobbliggaren.Application.UnitTests.Auth;
 /// </summary>
 public class UserAccountServiceResendTests
 {
+    // Only the user store is exercised; UserManager's eight remaining collaborators are
+    // deliberately absent. NSubstitute 6 types the ctor args as non-nullable object[], so the
+    // absence has to be stated as `null!` — building the eight real Identity collaborators is
+    // what CLAUDE.md §2.4 rules out.
     private readonly UserManager<ApplicationUser> _userManager =
         Substitute.For<UserManager<ApplicationUser>>(
             Substitute.For<IUserStore<ApplicationUser>>(),
-            null, null, null, null, null, null, null, null);
+            null!, null!, null!, null!, null!, null!, null!, null!);
 
     private const string Email = "klas@example.com";
 

@@ -375,20 +375,37 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
       (privacy/terms/cookies/accessibility/recruiterNotice).
 - [ ] **5.5 TVÅ VILLKOR SOM UPPHÖR VID FÖRSTA PRODUKTIONSANVÄNDAREN — de hör HÄR, inte i
       §2.5.** Båda accepteras i dag enbart därför att det finns **noll registrerade
-      produktionsanvändare**. **Triggern är den första konfiguration i non-dev som sätter
-      `Auth:RegistrationsOpen=true` — oavsett tagg.** (Omskriven 2026-08-03, ADR 0083
-      Amendment: före den låg triggern på "den första `v*`-taggen som öppnar registrering", och
-      den formuleringen är nu falsk — **ingen** tagg öppnar registrering längre. Registreringen
-      är stängd som default och öppnas av en env-var på en körande host, alltså en händelse som
-      inte passerar någon tagg och inget dokument. Läst bokstavligt hade den gamla triggern
-      aldrig fyrat, och de två villkoren nedan hade fallit ur tyst.)
+      produktionsanvändare**. **Triggern är den första konfiguration utanför `Development` som
+      sätter `Auth:RegistrationsOpen=true` — oavsett tagg, och `Test` räknas som utanför.**
+      (Den tekniska spärren nedan undantar både `Development` och `Test`; den här grinden gör
+      det inte. En nåbar host som kör med `ASPNETCORE_ENVIRONMENT=Test` är en produktionsstart
+      i Art. 30-mening.)
+      (Omskriven 2026-08-03, ADR 0083 Amendment, ordalydelse bekräftad av security-auditor: före
+      den låg triggern på "den första `v*`-taggen som öppnar registrering", och den formuleringen
+      är nu falsk — **ingen** tagg öppnar registrering längre. Läst bokstavligt hade den gamla
+      triggern aldrig fyrat, och de två villkoren nedan hade fallit ur tyst.)
       Den passerar **inte** §2.5: `Email:Provider` osatt (dokumenterad default) ger
       `NullEmailSender`, och Resend-/SES-flippen kan ligga månader senare. Villkoren upphör
       alltså **strikt före** §2.5 någonsin läses (security-auditor 2026-07-26).
-      *Not:* `AuthOptionsValidator` vägrar numera boota på `RegistrationsOpen` utan
-      `RequireEmailConfirmation` utanför Development/Test, så flippen kan inte längre ske utan
-      att e-postbekräftelsen också slås på (#734). Det är en teknisk spärr mot en osäker
-      **kombination** — den ersätter inte den här grinden, som är juridisk.
+      **Grinden bärs av #734, inte av den här sidan.** Efter ADR 0083 Amendment kan flippen inte
+      ske utan `RequireEmailConfirmation=true` **och** en riktig `Email:Provider`, och båda
+      förutsättningarna ägs av **#734**. Villkoren (a) och (b) nedan ska därför stå som
+      **blockerande acceptanskriterier på #734** (och på **#196**, där env-konfigurationen
+      faktiskt sätts). Kan flippen inte ske utan #734, och kan #734 inte stängas utan (a) och
+      (b), då har triggern en läsare. Den här sektionen är protokollet; #734 är grinden.
+      Notera också att **(a) upphör genom reparation på samma händelse**: en riktig
+      `Email:Provider` är en förutsättning för flippen, och det är precis den som gör
+      `ChangeEmailCommandHandler`:s `NullEmailSender`-svälj till ett minne. (a) och den tekniska
+      spärren konvergerar alltså på ett enda arbetsmoment — något den gamla tagg-triggern aldrig
+      åstadkom. **(b) gör det inte:** Art. 30-posten för konto/auth kristalliseras vid första
+      verkliga registrerade användaren och bärs av ingen annan mekanism.
+      *Not:* `AuthOptionsValidator` vägrar numera boota **Api:n** på `RegistrationsOpen` utan
+      `RequireEmailConfirmation` utanför Development/Test — på två oberoende ställen (den ivriga
+      `IOptions<AuthOptions>`-läsningen vid boot-announcement i `Program.cs`, och
+      `ValidateOnStart`), båda före Kestrel binder. **Worker:n valideras medvetet inte** och
+      fortsätter köra; en operatör som ser jobb-loggar rulla vidare ska inte läsa det som att
+      spärren inte slog till. Det är en teknisk spärr mot en osäker **kombination** — den
+      ersätter inte den här grinden, som är juridisk, och den säger ingenting om (a) eller (b).
       - **(a) `settings.json` påstår ett utskick som inte sker.** Fyra publicerade strängar
         (`:218`, `:220`, `:224`, `:229`) säger att en bekräftelselänk skickats, medan
         `ChangeEmailCommandHandler:66` skickar ogrindat in i `NullEmailSender`: `Result.Success`,

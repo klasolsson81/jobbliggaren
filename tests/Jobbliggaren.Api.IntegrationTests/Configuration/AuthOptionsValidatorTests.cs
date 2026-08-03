@@ -1,3 +1,5 @@
+using System.Net;
+using System.Net.Http.Json;
 using Jobbliggaren.Api.IntegrationTests.Infrastructure;
 using Jobbliggaren.Application.Auth;
 using Microsoft.Extensions.DependencyInjection;
@@ -84,6 +86,44 @@ public class AuthOptionsValidatorTests
             var validators = factory.Services.GetServices<IValidateOptions<AuthOptions>>();
 
             validators.ShouldContain(v => v.GetType().Name == "AuthOptionsValidator");
+        }
+
+        /// <summary>
+        /// The boot announcement, pinned against BEHAVIOUR rather than against configuration. This
+        /// change argues that a posture observable only by attempting to register is a posture nobody
+        /// checks — and that argument applies to the announcement itself, which otherwise ships as the
+        /// one unguarded artefact in the diff (removing the call left every suite green).
+        /// <para>
+        /// Asserted on the same host that serves the request, so the line and the behaviour cannot
+        /// diverge: if they ever did, one of the two assertions below would fail.
+        /// </para>
+        /// </summary>
+        [Fact]
+        public async Task The_host_announces_the_gate_it_actually_enforces()
+        {
+            var logs = factory.StartupLogs.ToArray();
+
+            var announcement = logs.SingleOrDefault(l => l.EventId.Id == 4300);
+            announcement.ShouldNotBeNull(
+                "the gate must announce itself once per process (EventId 4300)");
+            // The harness pins the gate OPEN, so the line must say so — and say it about BOTH flags,
+            // because an open gate without email confirmation is the dangerous combination.
+            announcement.Message.ShouldContain("OPEN");
+            announcement.Message.ShouldContain("email confirmation:");
+
+            var response = await factory.CreateClient().PostAsJsonAsync(
+                "/api/v1/auth/register",
+                new
+                {
+                    email = $"announce-{Guid.NewGuid()}@example.com",
+                    password = "T3stlosen123456",
+                    displayName = "Test User",
+                },
+                TestContext.Current.CancellationToken);
+
+            response.StatusCode.ShouldNotBe(
+                HttpStatusCode.ServiceUnavailable,
+                "the host announced OPEN, so it must not refuse");
         }
     }
 }

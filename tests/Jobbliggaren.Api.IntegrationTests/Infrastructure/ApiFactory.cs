@@ -1,4 +1,5 @@
 using Jobbliggaren.Application.Admin.BackgroundJobs;
+using Jobbliggaren.Api.IntegrationTests.Helpers;
 using Jobbliggaren.Application.Auth;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Infrastructure.Identity;
@@ -13,6 +14,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Testcontainers.PostgreSql;
 using Testcontainers.Redis;
 
@@ -205,8 +207,22 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
             // register their PostConfigure AFTER this one and override only the flags they name, so
             // they inherit an OPEN registration; the closed-registration host re-flips this one.
             services.PostConfigure<AuthOptions>(o => o.RegistrationsOpen = true);
+
+            // ADR 0083 Amendment 2026-08-03 — capture boot-time records so a test can assert the
+            // registration-gate announcement was actually emitted. Registered as an extra provider,
+            // so it observes without replacing the host's own logging.
+            services.AddSingleton<ILoggerProvider>(_startupLogCapture);
         });
     }
+
+    private readonly CapturingLoggerProvider _startupLogCapture = new();
+
+    /// <summary>
+    /// Everything this host logged, including the once-per-process startup lines. Exposed so the
+    /// registration-gate announcement can be pinned against the behaviour of the SAME host — a
+    /// signal nobody asserts is the failure mode the announcement itself exists to prevent.
+    /// </summary>
+    internal IEnumerable<CapturedLog> StartupLogs => _startupLogCapture.Logs;
 
     private WebApplicationFactory<Program>? _emailConfirmationHost;
     private readonly object _emailConfirmationLock = new();

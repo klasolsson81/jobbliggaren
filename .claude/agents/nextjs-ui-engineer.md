@@ -98,7 +98,6 @@ and `messages/sv.json`.
 
 New pages/components/forms/UI tasks; "ny sida", "komponent", "form", "UI".
 Delegate every new view to **design-reviewer** before merge. Consult
-**ai-prompt-engineer** for AI-content UIs (streaming, attribution),
 **dotnet-architect** for BE↔FE type alignment (PascalCase↔camelCase),
 **test-writer** for Playwright E2E on critical flows.
 

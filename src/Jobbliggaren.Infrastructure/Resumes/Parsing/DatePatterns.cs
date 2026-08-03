@@ -70,19 +70,29 @@ internal static partial class DatePatterns
     // already settled that a lone bare year on a non-header line must NOT be read as a period.
     // PeriodParser DOES accept the lone point, as it already did for "2020" and "03/2020"; the two
     // types disagree there on purpose and IsDateOnlyLine's docblock records it as a standing axis.
-    // THE YEAR-FIRST BRANCHES VALIDATE THE MONTH STRUCTURALLY, and that is the completion of the
-    // ordering contract rather than a patch on it (senior-cto-advisor bind 2026-08-03 §1.2).
+    // THE END ALTERNATION VALIDATES THE MONTH STRUCTURALLY; THE START ALTERNATION DOES NOT, AND THE
+    // ASYMMETRY IS THE CONTRACT (senior-cto-advisor R3 bind 2026-08-03, correcting that bind's own
+    // earlier §1.2).
     //
-    // Prefix-order makes the longest STRUCTURALLY-matching alternative win wherever it can succeed.
-    // That is safe only if every alternative it orders first is structurally EXACT. A bare `\d{2}`
-    // for a month is not: "2018 – 2019-20" is an academic year, and with `\d{4}-\d{2}` written ahead
-    // of `\d{4}` the wrong branch won — the whole line was stored and PeriodParser then refused it,
-    // where before the bare-year branch won and it degraded gracefully to a parseable "2018 – 2019".
-    // Measured in both polarities; the producer is the Swedish academic and fiscal year (2019/20,
-    // 2023/24), whose last two digits lie outside 01-12 BY CONSTRUCTION.
+    // The completed rule: prefix-order is NECESSARY BUT NOT SUFFICIENT, and structural exactness
+    // completes it EXACTLY WHERE ORDER BITES — the END alternation, because a short branch can
+    // succeed there and cannot in the START. An earlier revision said "every alternative it orders
+    // first", applied the completion to both alternations, and thereby removed a backtracking rescue
+    // the start position depended on. That is the same shape as the retraction eight lines above
+    // about the month list: a rule stated more widely than the mechanism it describes.
     //
-    // So: prefix-order is NECESSARY BUT NOT SUFFICIENT. It is sufficient only in combination with
-    // structural exactness of every alternative it orders first, and that pair is the whole contract.
+    // "2018 – 2019-20" is an academic year; in the END position, with the loose `\d{2}`, the
+    // month-bearing branch won and the whole line was stored and then refused, where before the
+    // bare-year branch won and it degraded to a parseable "2018 – 2019". In the START position no
+    // such thing happens — `\d{4}` forces the separator to eat the "-", the end point fails, and the
+    // engine backtracks — so the exact class bought nothing there and cost a match.
+    //
+    // A NOTE ON A CLAIM THAT WAS FALSE HERE. This comment read: the academic year's "last two digits
+    // lie outside 01-12 BY CONSTRUCTION". They do not. A läsår is YYYY/YY where YY = (YYYY+1) mod
+    // 100, which lands INSIDE 01-12 for twelve start-years, 2000/01 through 2011/12. Those twelve
+    // are read as months by both homes, the hyphen half on ISO 8601's authority and the slash half
+    // on none — see DateRangeYearFirstCharacterisationTests, which pins the collision and the
+    // per-commit attribution.
     //
     // `\d{2}/\d{4}` IS DELIBERATELY NOT NARROWED, and the reason is the contract, not convenience.
     // It stands in no prefix relation to any other alternative — strings matching it open with two
@@ -92,15 +102,55 @@ internal static partial class DatePatterns
     // IsDateOnlyLine false and hands the date row back to the Organization slot — the β-3 class this
     // lane just closed. It stays as a documented axis with its own frozen pin.
     [GeneratedRegex(
-        @"\b(" + Point + @")\s*[-–—]\s*(" + Point + "|" + CvMonthNames.PresentKeywords + @")\b",
+        @"\b(" + StartPoint + @")\s*[-–—]\s*(" + EndPoint + "|" + CvMonthNames.PresentKeywords + @")\b",
         RegexOptions.CultureInvariant | RegexOptions.IgnoreCase)]
     public static partial Regex DateRange();
 
-    // One home for the point alternation, so the start and end lists cannot drift. Ordered
-    // prefix-first: the bare `\d{4}` is a prefix of both year-first forms and must come last.
-    private const string Point =
-        "(?:" + CvMonthNames.Pattern + CvMonthNames.AfterName + @"\d{4}"
-        + @"|\d{4}-(?:0[1-9]|1[0-2])|\d{4}/(?:0[1-9]|1[0-2])|\d{2}/\d{4}|\d{4})";
+    // THE TWO POINT LISTS DIFFER BY EXACTLY ONE TOKEN, AND THE DELTA IS THE CONTRACT.
+    // `DateRangeYearFirstCharacterisationTests` asserts they are token-identical except at that
+    // position, so the divergence cannot widen silently and a future alternative added to the shared
+    // fragments lands in both.
+    //
+    // WHY THE START LIST KEEPS THE LOOSE `\d{4}-\d{2}` WHILE THE END LIST DOES NOT. Structural
+    // exactness exists to COMPLETE prefix-order, so it is required exactly where prefix-order
+    // bites — and this file already said where that is: "ORDER ONLY BITES WHERE A SHORT BRANCH CAN
+    // SUCCEED … that is why the START alternation never showed the ISO defect." In the END list the
+    // short `\d{4}` can complete the overall match (the `\b` holds against the following "-"), so an
+    // inexact month class lets a wrong branch win. In the START list it cannot: `\d{4}` forces the
+    // separator to eat the "-", the end point then fails, and the engine backtracks into the longer
+    // branch. Applying the completion to a rule that never reached the start position removed a
+    // backtracking rescue that was load-bearing in the BENEFICIAL direction — measured:
+    // "2019-20 – 2021" (an academic year) went from a matched, correctly-suppressed date row to no
+    // match at all, which handed the row back to the Organization slot (β-3) and, on the Lines[0]
+    // layout, turned an honest refusal into a confident "2019" (senior-cto-advisor R3 bind
+    // 2026-08-03).
+    //
+    // The two consumers want OPPOSITE postures and that is why one list cannot serve both: the LINE
+    // question (IsDateOnlyLine → suppression) wants maximal structural coverage, because an
+    // ambiguous date is still a date; the VALUE question (ExtractPeriod → stored Period →
+    // PeriodParser) wants exactness, because an ambiguous date stored as a confident claim is worse
+    // than none. origin/main served both by accident — loose structure plus PeriodParser's semantic
+    // guard. This restores that separation by POSITION, which is where the mechanism differs.
+    //
+    // The language delta is derivable rather than grepped: strings matching `\d{4}-\d{2}` but not
+    // `\d{4}-(?:0[1-9]|1[0-2])` — i.e. YYYY-NN with NN in {00, 13..99} — in START position only.
+    // Nothing else can move, because no other alternative's language changes.
+    private const string SharedPointHead =
+        CvMonthNames.Pattern + CvMonthNames.AfterName + @"\d{4}";
+
+    private const string SharedPointTail = @"|\d{4}/(?:0[1-9]|1[0-2])|\d{2}/\d{4}|\d{4})";
+
+    private const string StartPoint = "(?:" + SharedPointHead + @"|\d{4}-\d{2}" + SharedPointTail;
+
+    private const string EndPoint =
+        "(?:" + SharedPointHead + @"|\d{4}-(?:0[1-9]|1[0-2])" + SharedPointTail;
+
+    // Exposed for the delta correspondence test only. The two lists are a contract, and a contract
+    // nothing can read is a comment; DateRangeYearFirstCharacterisationTests asserts they are
+    // token-identical except at the one position named above.
+    internal const string StartPointForTests = StartPoint;
+
+    internal const string EndPointForTests = EndPoint;
 
     // A bare four-digit year 1900–2099.
     [GeneratedRegex(@"\b(19|20)\d{2}\b", RegexOptions.CultureInvariant)]

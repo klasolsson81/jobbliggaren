@@ -101,7 +101,7 @@ repo-effect boundary:
 | `code-reviewer.md:24` | "`Read`, `Grep`, `Glob` only. No Write/Edit/Bash/WebSearch" |
 | `design-reviewer.md:28` | the same sentence, verbatim |
 | `dotnet-architect.md:15` | "You are read-only. Never call Edit, Write, Bash, or TodoWrite." |
-| `senior-cto-advisor.md:20` | "Du är read-only. Du skriver ingen kod, ändrar ingen fil." |
+| `senior-cto-advisor.md:21` | "Du är read-only. Du skriver ingen kod, ändrar ingen fil." |
 | `test-runner.md:42` | "Not allowed in Bash: any write or modify operation (`git commit`, `git push`, …)" |
 
 The first two carry, word for word, the sentence this file struck as false about the

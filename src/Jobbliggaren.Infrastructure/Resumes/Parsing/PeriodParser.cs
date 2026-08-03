@@ -5,11 +5,22 @@ namespace Jobbliggaren.Infrastructure.Resumes.Parsing;
 
 /// <summary>
 /// Deterministically parses a CV experience period string (e.g. "01/2022 – 06/2024",
-/// "2019–2021", "2020-06 – 2024-03" (ISO 8601), "03/2020 – nuvarande") to a start/end date + a
-/// format token (Fas 4 STEG 9, F4-9). Anchored to the full trimmed string so free-text
-/// ("någon gång på 2020-talet",
+/// "2019–2021", "2020-06 – 2024-03" (ISO 8601), "jan 2020 – nuvarande", "2020/01 – 2024/12") to a
+/// start/end date + a format token (Fas 4 STEG 9, F4-9). Anchored to the full trimmed string so
+/// free-text ("någon gång på 2020-talet",
 /// "ett tag sen") does NOT parse — the conditional-Period criteria (A4/B6/B7) then report
 /// NotAssessed rather than guess gaps/chronology from garbage (V-C, honest-data §5/OQ3).
+/// <para>
+/// <b>Its point grammar is one half of a pair and may not move alone (#1060 road 3).</b>
+/// <see cref="DatePatterns.DateRange"/> is the other half: that regex's match VALUE is what
+/// <c>HeadingDrivenResumeSegmenter.ExtractPeriod</c> STORES, and this type is what CONSUMES the
+/// stored value. A form one side reaches and the other refuses is not an honest "not stated" — it
+/// is a period the CV states and the product drops. The month-word list therefore has a single
+/// home in <see cref="CvMonthNames"/>, read by both. The two are still allowed to disagree where
+/// the disagreement is deliberate and documented: this type parses a LONE point ("2020",
+/// "03/2020", "maj 2020") while <see cref="DatePatterns.IsDateOnlyLine"/> declines one, because
+/// #428 settled that a lone date on a non-header line must not be read as a period.
+/// </para>
 /// <para>
 /// Promoted to a neutral <c>Infrastructure/Resumes/Parsing</c> home (ADR 0079-amendment,
 /// exp-per-occ PR-2): the F4-9 review engine, the F4-10 date-normalization transform AND
@@ -19,12 +30,30 @@ namespace Jobbliggaren.Infrastructure.Resumes.Parsing;
 /// </summary>
 internal static partial class PeriodParser
 {
-    // A point is one of: MM<sep>YYYY (month-first, sep = / . or -), YYYY-MM (ISO 8601 year-first,
-    // #420 — the granularity the segmenter's DateRangeRegex extracts), or a bare YYYY. Month and
-    // year land in the named groups regardless of order; the ISO month is exactly two digits.
+    // A point is one of: MM<sep>YYYY (month-first, sep = / . or -), MONTHNAME YYYY ("jan 2020",
+    // "december 2024"), YYYY<sep>MM (year-first, sep = - for ISO 8601 or / — #420, the granularity
+    // the segmenter's DateRangeRegex extracts), or a bare YYYY. Month and year land in the named
+    // groups regardless of order; a month WORD lands in its own group and is resolved by
+    // CvMonthNames.
+    //
+    // THE MONTH-NAME AND YYYY/MM FORMS ARE HERE BECAUSE DatePatterns.DateRange MATCHES THEM, and
+    // the two must widen together (senior-cto-advisor re-bind 2026-08-03, Approach A). DateRange's
+    // match VALUE is what HeadingDrivenResumeSegmenter.ExtractPeriod stores as
+    // ParsedExperience.Period, and this type is what consumes that value — so a form the segmenter
+    // can extract but this parser refuses is not an honest "not stated", it is a period the CV
+    // states and the product then drops. Measured when the two were briefly out of step:
+    // "jan 2020 – nuvarande" stored a parseable "2020 – nuvarande" before the widening and an
+    // unparseable "jan 2020 – nuvarande" after, costing A4/B6/B7 their verdicts and costing
+    // OccupationExperienceDeriver the entry's years outright. The month list has ONE home,
+    // CvMonthNames, shared with DateRange; a copy here would recreate that defect.
+    //
+    // IgnoreCase is required now that a branch matches letters ("Jan 2020", "DEC 2024"); it was
+    // absent while every branch was digits-only. CultureInvariant stays: the token set is a lexical
+    // index, never culture-sensitive casing.
     [GeneratedRegex(
-        @"^(?:(?<month>\d{1,2})[/.\-](?<year>\d{4})|(?<year>\d{4})(?:-(?<month>\d{2}))?)$",
-        RegexOptions.CultureInvariant)]
+        @"^(?:(?<month>\d{1,2})[/.\-](?<year>\d{4})|(?<monthName>" + CvMonthNames.Pattern + ")"
+        + CvMonthNames.AfterName + @"(?<year>\d{4})|(?<year>\d{4})(?:[-/](?<month>\d{2}))?)$",
+        RegexOptions.CultureInvariant | RegexOptions.IgnoreCase)]
     private static partial Regex PointRegex();
 
     // Range separators: en/em dash, an ASCII hyphen, or the words "till"/"to" (spaces optional).
@@ -153,6 +182,23 @@ internal static partial class PeriodParser
         if (year is < 1900 or > 2100)
         {
             return false;
+        }
+
+        // A month WORD resolves through CvMonthNames and then joins the numeric path below, so it
+        // gets the same range validation and the same "MM/YYYY" token — one month-granularity
+        // concept, not a second one. A word the pattern matched but the map does not know is a
+        // contradiction between two halves of one home; refuse rather than guess a month, and
+        // CvMonthNamesTests pins the correspondence in both directions so it cannot happen quietly.
+        if (match.Groups["monthName"].Success)
+        {
+            if (!CvMonthNames.TryGetOrdinal(match.Groups["monthName"].Value, out var named))
+            {
+                return false;
+            }
+
+            date = new DateOnly(year, named, 1);
+            formatToken = "MM/YYYY";
+            return true;
         }
 
         if (match.Groups["month"].Success)

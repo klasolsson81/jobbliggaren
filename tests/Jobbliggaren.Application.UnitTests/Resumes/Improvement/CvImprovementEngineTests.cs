@@ -506,9 +506,21 @@ public class CvImprovementEngineTests
     public async Task SuggestAsync_ShouldProposeDateNormalization_WhenPeriodFormatIsInconsistent()
     {
         // Mixed/non-canonical period formats trigger a ReformatDate structural transform.
+        //
+        // THE FIXTURE MOVED (#1060 road 3), and the reason is worth stating rather than silently
+        // swapping a string. This test read "jan 2022 - juni 2024" — a period NO path in src/ could
+        // produce at the time, since ExtractPeriod never extracted a month name, so the premise was
+        // one production could not create (CLAUDE.md §5, Tests). Road 3 made the segmenter emit that
+        // exact shape AND taught PeriodParser to read it, so the string is now both producible and
+        // canonical — it no longer triggers the transform, because the transform's whole firing
+        // condition is "PeriodParser cannot read this".
+        //
+        // The replacement is free text the parser genuinely refuses, which is the population this
+        // transform exists for and which no widening reaches.
         var resume = Resume(experience:
         [
-            Experience(period: "jan 2022 - juni 2024", rawText: "Backend-utvecklare jan 2022 - juni 2024"),
+            Experience(period: "våren 2022 till hösten 2024",
+                rawText: "Backend-utvecklare våren 2022 till hösten 2024"),
         ]);
 
         var change = Single(await SuggestAsync(resume), ProposedChangeKind.DateNormalization);
@@ -522,6 +534,47 @@ public class CvImprovementEngineTests
 
         var prov = change.Provenance.ShouldBeOfType<StructuralTransformProvenance>();
         prov.Transform.ShouldBe(StructuralTransformKind.ReformatDate);
+    }
+
+    [Theory]
+    [InlineData("jan 2020 – dec 2024")]
+    [InlineData("2020/01 – 2024/12")]
+    [InlineData("jan 2020 – nuvarande")]
+    [InlineData("2020 – 2024 (heltid)")]
+    public async Task SuggestAsync_ShouldNotProposeDateNormalization_ForAFormTheDateModelNowReads(
+        string dateLine)
+    {
+        // (S3) obligation 4 (#1060 road 3) — pinned because "it does not happen" is exactly the
+        // class of claim this lane has twice watched decay, not because anyone expects it to break.
+        //
+        // WHAT THIS ALMOST BECAME. The widening's first attempt moved DatePatterns without
+        // PeriodParser, so the segmenter began storing periods this transform's guard
+        // (!PeriodParser.TryParse) then flagged — a ProposedChange emitted where none was emitted
+        // before, on BOTH the asymmetric and the symmetric population. Under the shared-grammar fix
+        // the guard returns true, the loop continues, and nothing is proposed at all: not the new
+        // change, and not a suppressed version of it.
+        //
+        // The fixture goes through the REAL segmenter rather than Experience(period: …), because the
+        // whole question is what the transform does with what ExtractPeriod actually STORES — and a
+        // hand-built period is how the two fixtures above came to rest on a string production could
+        // not produce (CLAUDE.md §5, Tests).
+        var cv = $"""
+            Anna Andersson
+            anna@example.com
+
+            Arbetslivserfarenhet
+            Systemutvecklare
+            Acme AB
+            {dateLine}
+            Ökade konverteringen med 23 procent.
+            """;
+
+        var result = await SuggestAsync(Review.CvReviewFixtures.ResumeFromCvText(cv));
+
+        result.Changes.ShouldNotContain(c => c.Kind == ProposedChangeKind.DateNormalization,
+            $"[{dateLine}] is a format the date model reads, so there is nothing to standardise. " +
+            "The transform's definition of non-standard is 'our parser cannot read this' — widening " +
+            "the parser must make it quieter, never noisier.");
     }
 
     [Fact]

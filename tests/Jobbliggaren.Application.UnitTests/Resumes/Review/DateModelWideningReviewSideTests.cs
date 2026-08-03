@@ -165,6 +165,73 @@ public class DateModelWideningReviewSideTests
                 "inconsistently punctuated.");
     }
 
+    [Theory]
+    [InlineData("jan 2020 – dec 2024")]
+    [InlineData("2020/01 – 2024/12")]
+    [InlineData("jan 2020 – nuvarande")]
+    [InlineData("2020 – 2024 (heltid)")]
+    [InlineData("2013 - 2021")]
+    public async Task A4B6B7_AreAssessed_NotDegradedToNotAssessed(string dateLine)
+    {
+        // (S3) obligation 6 — the period-conditional criteria, measured as (S1) did for A1/A2/A6.
+        // These are the criteria that flip to NotAssessed the moment a stored Period stops parsing,
+        // and that flip is exactly what the first attempt at this widening caused on the asymmetric
+        // class. The instrument already existed — this class runs the whole engine and the verdicts
+        // were sitting in result.Verdicts unasserted.
+        //
+        // "2020 –" is deliberately absent: it stores no period at all (honest-absent, no end point),
+        // so NotAssessed is the correct answer there and asserting otherwise would demand the engine
+        // invent an end date.
+        var result = await ReviewThreeLineLayoutAsync(dateLine);
+
+        foreach (var id in new[] { "A4", "B6", "B7" })
+        {
+            result.Verdicts.Single(v => v.CriterionId == id).Verdict
+                .ShouldNotBe(CriterionVerdict.NotAssessed,
+                    $"{id} reads the period through PeriodParser. A period the segmenter extracted " +
+                    "but the parser cannot read is not an honest 'not stated' — it is a period the " +
+                    "CV states and the product drops.");
+        }
+    }
+
+    [Fact]
+    public async Task B6_ShouldNotWarnMixedFormats_WhenOneEntryIsMonthNamedAndTheOtherIsSlashed()
+    {
+        // (S3) obligation 6, the two-entry case — and it needs a SECOND entry to fire, which is the
+        // correction commit 1's own measurement taught this session: with one entry the defect shows
+        // as a Pass carrying the wrong token, not as a Warn.
+        //
+        // MEASURED before the widening: "jan 2020 – nuvarande" stored "2020 – nuvarande", whose start
+        // point is a bare year, so the token was YYYY. Beside a slash-formatted sibling that is two
+        // distinct tokens → "Blandade datumformat: YYYY, MM/YYYY" on a CV that is consistent at month
+        // granularity. That is the #420 class in a second notation — the same defect commit 1 fixed
+        // for ISO.
+        const string cv = """
+            Anna Andersson
+            anna@example.com
+
+            Arbetslivserfarenhet
+            Systemutvecklare
+            Acme AB
+            jan 2020 – dec 2024
+            Ökade konverteringen med 23 procent.
+
+            Utvecklare
+            Beta AB
+            03/2019 – 05/2020
+            Byggde en ny betaltjänst.
+            """;
+
+        var result = await Engine().ReviewAsync(
+            CvReviewContext.FromParsed(ResumeFromCvText(cv)),
+            RenderProfile.Ats,
+            TestContext.Current.CancellationToken);
+
+        result.Verdicts.Single(v => v.CriterionId == "B6").Verdict
+            .ShouldBe(CriterionVerdict.Pass,
+                "a month-named range and a slash range are ONE format at month granularity (#420).");
+    }
+
     [Fact]
     public async Task B5_StillWarns_WhenTheCvGenuinelyMixesTwoBulletStyles()
     {

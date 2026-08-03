@@ -56,7 +56,11 @@ public class PeriodParserYearSpanTests
     [InlineData("   ")]
     [InlineData("ett tag sedan")]            // free-text → honest false (never guessed)
     [InlineData("någon gång på 2020-talet")]
-    [InlineData("jan 2022 - juni 2024")]     // month NAMES are not a recognised point
+    // "jan 2022 - juni 2024" was a row here, on the grounds that month NAMES are not a recognised
+    // point. #1060 road 3 made them one, and the row MOVED to the positive theory rather than being
+    // deleted — it is not free-text now, it is a period this parser reads. The move is the whole
+    // point of the change: the segmenter can EXTRACT that string, so a parser that called it
+    // free-text was dropping a period the CV states. See TryParseYearSpan_MonthNamePoints_*.
     [InlineData("1899")]                     // below the 1900 lower year-guard → rejected
     public void TryParseYearSpan_NullEmptyOrFreeText_ReturnsFalse(string? period)
     {

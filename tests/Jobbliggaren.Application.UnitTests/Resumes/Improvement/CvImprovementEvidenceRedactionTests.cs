@@ -101,11 +101,18 @@ public class CvImprovementEvidenceRedactionTests
     /// <summary>
     /// A clean CV whose ONLY proposed change is a DateNormalization flag (a non-canonical period
     /// with NO pnr): proves redaction does not zero a span that never covered a pnr (the 3B
-    /// precision boundary). "jan 2022 - juni 2024" carries digits and is rejected by PeriodParser.
+    /// precision boundary). The period must carry digits AND be rejected by <c>PeriodParser</c>.
+    ///
+    /// <para>The fixture read "jan 2022 - juni 2024" until #1060 road 3, which taught both the
+    /// segmenter and <c>PeriodParser</c> month names — so that string became canonical and stopped
+    /// flagging. Worth noting rather than silently swapping: before road 3 no path in <c>src/</c>
+    /// could produce a month-name period at all, so this fixture rested on a premise production
+    /// could not create (CLAUDE.md §5, <c>Tests:</c>). The replacement is free text the parser
+    /// genuinely refuses, which is the population this transform exists for.</para>
     /// </summary>
     private static ParsedResume CleanCvWithFlaggablePeriod()
     {
-        var period = "jan 2022 - juni 2024";
+        var period = "våren 2022 till hösten 2024";
         return Resume(
             profile: "Erfaren backend-utvecklare med åtta års erfarenhet inom betalsystem.",
             experience:

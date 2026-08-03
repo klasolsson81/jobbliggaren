@@ -18,40 +18,61 @@ internal static partial class DatePatterns
     // A date RANGE: a start point (YYYY, MM/YYYY or ISO YYYY-MM) — dash — an end point or a
     // present-keyword.
     //
-    // BOTH POINT ALTERNATIONS ARE ORDERED LONGEST-ALTERNATIVE-FIRST, AND THAT ORDER IS THE
-    // CONTRACT — not a formatting preference. .NET's alternation is ordered and non-greedy across
-    // branches: the first branch that lets the OVERALL match succeed wins, and nothing forces
-    // backtracking to a longer one afterwards. With the bare `\d{4}` written first, "2020-06 –
-    // 2024-03" matched only as far as "2024" — the `\b` after it holds against the following "-",
-    // the overall match succeeds, and the end month is dropped. That reached three surfaces at
-    // once (IsDateOnlyLine, ExtractPeriod's stored VALUE, StripDates' masking), so it was one
-    // ordering defect and not three bugs.
+    // THE ORDERING CONTRACT IS PREFIX-ORDER: no alternative may precede an alternative it is a
+    // PREFIX of. That is the invariant the code holds and it is checkable by inspection. An earlier
+    // revision stated it as "longest-alternative-first", which is sufficient but not necessary and
+    // is literally false of this list — CvMonthNames writes "februari" (8) before "september" (9)
+    // and has ZERO prefix inversions. Stating the unverifiable version re-creates exactly the
+    // problem commit 1 fixed: a reader auditing the list finds the stated rule violated, and either
+    // "fixes" it for nothing or stops trusting the contract.
     //
-    // The START alternation never showed the defect, because there a too-short branch makes the
-    // overall match FAIL and the engine backtracks into the longer one. It is ordered anyway: the
-    // rule has to hold by construction rather than by which side happens to be rescued by
-    // backtracking, or the next alternative added to the wrong list reintroduces it silently.
+    // .NET's alternation is ordered and non-greedy across branches: the first branch that lets the
+    // OVERALL match succeed wins, and nothing forces backtracking to a longer one afterwards. With
+    // the bare `\d{4}` written first, "2020-06 – 2024-03" matched only as far as "2024" — the `\b`
+    // after it holds against the following "-", so the overall match SUCCEEDS and the end month is
+    // dropped. That is why `\d{4}` must come last among the digit forms, and it reached three
+    // surfaces at once (IsDateOnlyLine, ExtractPeriod's stored VALUE, StripDates' masking), so it
+    // was one ordering defect and not three bugs.
     //
-    // WHY THIS LANDED BEFORE ANY ALTERNATIVE WAS ADDED (senior-cto-advisor re-bind 2026-08-02,
-    // bind 9): every new alternative is a chance to reproduce it. A trailing-qualifier branch
-    // placed after `\d{4}` would make "2020 – 2024 (heltid)" match "2024" and leave the qualifier
-    // as a tail; a "jan" branch placed before "januari" would match "januari 2020" as far as
-    // "jan". Adding alternatives to an unordered list compounds the defect; adding them to an
-    // ordered one does not.
+    // ORDER ONLY BITES WHERE A SHORT BRANCH CAN SUCCEED, and that is the distinction the earlier
+    // revision missed. Where a too-short branch makes the overall match FAIL, .NET backtracks into
+    // the longer one and no defect is possible: that is why the START alternation never showed the
+    // ISO defect, and it is also why the month list could not have shown one — every month branch
+    // is followed by `\.?[^\S\r\n]+\d{4}`, which "jan" against "januari 2020" cannot satisfy (the
+    // whitespace token falls on the "u"), so the engine backtracks. A previous revision of this
+    // comment claimed the month ordering was load-bearing; it is not, and it is kept as defence in
+    // depth at zero cost rather than as a defect averted. The digit-form ordering IS load-bearing
+    // and is pinned twice.
+    //
+    // WHY THE CORRECTION LANDED BEFORE ANY ALTERNATIVE WAS ADDED (senior-cto-advisor re-bind
+    // 2026-08-02, bind 9): a trailing-qualifier branch placed after `\d{4}` would make
+    // "2020 – 2024 (heltid)" match "2024" and leave the qualifier as a tail — a short branch that
+    // succeeds, which is the class that bites.
     // THE POINT FORMS, and each is a modelling decision rather than a pattern that grew:
     //   MONTHNAME YYYY   "jan 2020", "januari 2020", "Dec. 2024"  (Swedish and English, IgnoreCase)
     //   YYYY-MM          ISO 8601
     //   YYYY/MM          the slash-written year-first form
     //   MM/YYYY          the slash-written month-first form
     //   YYYY             a bare year
-    // A month NAME point is deliberately only recognised INSIDE a range. A lone "maj 2020" is not
-    // reduced (Year() takes the "2020" and leaves "maj"), exactly as a lone "03/2020" is not — the
-    // range separator is what disambiguates a period from a date mentioned in prose, and #428
+    //
+    // THE POINT FRAGMENT IS SHARED WITH PeriodParser AND THAT IS LOAD-BEARING, not tidiness. This
+    // regex's match VALUE is what HeadingDrivenResumeSegmenter.ExtractPeriod STORES as
+    // ParsedExperience.Period, and PeriodParser is what CONSUMES that value. Widening one and not
+    // the other produced a measured regression: "jan 2020 – nuvarande" stored "2020 – nuvarande"
+    // (parseable) before the widening and "jan 2020 – nuvarande" (refused) after, which cost
+    // A4/B6/B7 their verdicts AND cost OccupationExperienceDeriver the entry's years entirely.
+    // The month list therefore lives in CvMonthNames, once (senior-cto-advisor re-bind 2026-08-03,
+    // Approach A). A copy of it here would recreate the defect.
+    //
+    // A month NAME point is deliberately only recognised INSIDE a range HERE. A lone "maj 2020" is
+    // not reduced (Year() takes the "2020" and leaves "maj"), exactly as a lone "03/2020" is not —
+    // the range separator is what disambiguates a period from a date mentioned in prose, and #428
     // already settled that a lone bare year on a non-header line must NOT be read as a period.
-    // Widening the LONE-point case is a further change with a different blast radius, and it is
-    // not this one; the residual is named in IsDateOnlyLine's docblock rather than left implicit.
+    // PeriodParser DOES accept the lone point, as it already did for "2020" and "03/2020"; the two
+    // types disagree there on purpose and IsDateOnlyLine's docblock records it as a standing axis.
     [GeneratedRegex(
-        @"\b((?:februari|september|february|november|december|januari|january|augusti|oktober|october|august|march|april|mars|juni|june|juli|july|sept|maj|may|jan|feb|mar|apr|jun|jul|aug|sep|okt|oct|nov|dec)\.?\s+\d{4}|\d{4}-\d{2}|\d{4}/\d{2}|\d{2}/\d{4}|\d{4})\s*[-–—]\s*((?:februari|september|february|november|december|januari|january|augusti|oktober|october|august|march|april|mars|juni|june|juli|july|sept|maj|may|jan|feb|mar|apr|jun|jul|aug|sep|okt|oct|nov|dec)\.?\s+\d{4}|\d{4}-\d{2}|\d{4}/\d{2}|\d{2}/\d{4}|\d{4}|nuvarande|pågående|pagaende|present|current|now|idag|nu)\b",
+        @"\b((?:" + CvMonthNames.Pattern + CvMonthNames.AfterName + @"\d{4}|\d{4}-\d{2}|\d{4}/\d{2}|\d{2}/\d{4}|\d{4}))\s*[-–—]\s*((?:"
+        + CvMonthNames.Pattern + CvMonthNames.AfterName + @"\d{4}|\d{4}-\d{2}|\d{4}/\d{2}|\d{2}/\d{4}|\d{4}|nuvarande|pågående|pagaende|present|current|now|idag|nu))\b",
         RegexOptions.CultureInvariant | RegexOptions.IgnoreCase)]
     public static partial Regex DateRange();
 
@@ -80,11 +101,11 @@ internal static partial class DatePatterns
     public static string StripTrailingDate(string line)
     {
         var range = DateRange().Match(line);
-        if (range.Success && IsIgnorableTail(line[(range.Index + range.Length)..]))
+        if (range.Success && IsIgnorableTail(line[(range.Index + range.Length)..], allowQualifier: true))
             return TrimTrailingSeparators(line[..range.Index]);
 
         var year = Year().Match(line);
-        if (year.Success && IsIgnorableTail(line[(year.Index + year.Length)..]))
+        if (year.Success && IsIgnorableTail(line[(year.Index + year.Length)..], allowQualifier: false))
             return TrimTrailingSeparators(line[..year.Index]);
 
         return line;
@@ -105,29 +126,45 @@ internal static partial class DatePatterns
     // empty-end alternative in DateRange would match mid-prose ("Acme AB 2020 - Systemutvecklare"),
     // widening the MASK far beyond the line-level question actually being asked.
     //
-    // THE ACCEPTED SET IS DELIBERATELY NARROWER THAN TrimTrailingSeparators'. That method trims
-    // "," ";" "|" from the text to the LEFT of the match; this one does not accept them to the
-    // RIGHT, so "2005 - 2010," stays a non-date-only line and its pin stays green. The asymmetry is
-    // real and intended: a separator BEFORE the date sits between fields that were there, while a
-    // glyph AFTER it is the start of something the line still carries. A parenthesised trailer is
-    // the exception because a bracketed group is self-delimiting — "2020 – 2024, Acme AB" must stay
-    // a line with an employer on it, and only the brackets tell the two apart.
-    private static bool IsIgnorableTail(string tail)
+    // THE ACCEPTED SET IS DELIBERATELY NARROWER THAN TrimTrailingSeparators', and the honest
+    // statement of the rule is about what a glyph CAN BEGIN, not about what follows it. The
+    // right-hand set is restricted to glyphs that cannot begin a field — whitespace and range
+    // separators — plus a self-delimiting parenthesised group. A lone trailing "," / ";" / "|" is
+    // therefore KNOWINGLY left on the non-date-only side even though nothing follows it, so
+    // "2005 - 2010," is still not a date-only line and, on the two-line layout, still becomes the
+    // Organization. That residual is priced, not overlooked.
+    //
+    // The alternative not taken: apply TrimTrailingSeparators' own set to the tail and require the
+    // RESIDUE to be empty — which would reject ", Acme AB" on the residue rather than on the glyph
+    // and would close the residual. It moves a frozen pin, so it is a separate change-reason.
+    //
+    // THE PARENTHESISED QUALIFIER IS ACCEPTED AFTER A RANGE ONLY (allowQualifier), never after a
+    // bare YEAR. A bare year is the weaker date signal — this file's own position, stated in
+    // StripTrailingDate's docblock as why "Studio 2005 Design" is left alone — so licensing a
+    // bracket strip after one contradicts it: "Studio 2005 (Design)" would lose its tail while its
+    // pinned twin one glyph away does not, and "Acme AB 2000 (publ)" would silently drop the
+    // standard suffix of a Swedish public limited company. Parentheses only; square brackets are
+    // not accepted, and the group must span the whole tail with no inner bracket of either kind, so
+    // "(a)(b)", "(a) x" and "Acme AB (heltid)" are all rejected (senior-cto-advisor re-bind
+    // 2026-08-03 §5, which measured that the restriction moves no pinned row).
+    private static bool IsIgnorableTail(string tail, bool allowQualifier)
     {
         var rest = tail.Trim();
         if (rest.Length == 0)
             return true;
 
-        // A dangling range separator, with or without a bracketed qualifier behind it.
+        // A dangling range separator, with or without a qualifier behind it. This half is accepted
+        // on BOTH branches: it is what makes the keyword-less open end ("2020 –") a date-only line,
+        // and there the match comes from Year(), not from DateRange().
         rest = rest.TrimStart(' ', '\t', '-', '–', '—').TrimStart();
         if (rest.Length == 0)
             return true;
 
-        return rest.Length > 1
-            && rest[0] == '('
-            && rest[^1] == ')'
-            && !rest[1..^1].Contains('(')
-            && !rest[1..^1].Contains(')');
+        if (!allowQualifier || rest.Length <= 1 || rest[0] != '(' || rest[^1] != ')')
+            return false;
+
+        var inner = rest[1..^1];
+        return !inner.Contains('(') && !inner.Contains(')');
     }
 
     /// <summary>
@@ -162,22 +199,35 @@ internal static partial class DatePatterns
     /// that decays the moment either changes. Road 3 changed one of them, and the lists below moved
     /// with it — in BOTH directions, which is why no total survives the move.</para>
     ///
-    /// <para><b>What road 3 added, and what it deliberately did not.</b> The date model now reaches
-    /// month names ("jan 2020 – dec 2024"), <c>YYYY/MM</c> ("2020/01 – 2024/12"), a trailing
-    /// bracketed qualifier ("2020 – 2024 (heltid)") and a keyword-less open end ("2020 –"). The
-    /// first two are POINT forms and live in <see cref="DateRange"/>; the last two are properties of
-    /// the LINE and live in <see cref="IsIgnorableTail"/>, because <see cref="DateRange"/>'s match
-    /// value is what <c>ExtractPeriod</c> stores and a qualifier inside it would break the stored
-    /// period rather than widen it. <b>A LONE month point ("maj 2020") is still not reduced</b> —
-    /// only ranges are — exactly as a lone "03/2020" is not. That residual is named rather than
-    /// left implicit: it is a further widening with a different blast radius, and it is not this
-    /// one. Nor did <see cref="PeriodParser"/> move: it still refuses month names and
-    /// <c>YYYY/MM</c>, so those forms now yield a Period that is EXTRACTED but not PARSEABLE. That
-    /// is benign and was verified rather than assumed — <c>CvReviewEngine</c> falls to
-    /// <c>DatedExperience(experience, null, null, null)</c>, identical to an absent period, so
-    /// A4/B6/B7 report the same NotAssessed they reported when the value was null. Teaching
-    /// <c>PeriodParser</c> these forms would ASSESS them instead, which is a different
-    /// change-reason and a follow-up.</para>
+    /// <para><b>What road 3 added.</b> The date model now reaches month names
+    /// ("jan 2020 – dec 2024"), <c>YYYY/MM</c> ("2020/01 – 2024/12"), a trailing parenthesised
+    /// qualifier ("2020 – 2024 (heltid)") and a keyword-less open end ("2020 –"). The first two are
+    /// POINT forms and live in <see cref="DateRange"/>; the last two are properties of the LINE and
+    /// live in <see cref="IsIgnorableTail"/>, because <see cref="DateRange"/>'s match value is what
+    /// <c>ExtractPeriod</c> stores and a qualifier inside it would break the stored period rather
+    /// than widen it. <b>A LONE month point ("maj 2020") is still not reduced HERE</b> — only ranges
+    /// are — exactly as a lone "03/2020" is not (#428). <see cref="PeriodParser"/> does accept the
+    /// lone point, as it already did for "2020"; that disagreement is deliberate and is one of the
+    /// standing axes above, not a deferral.</para>
+    ///
+    /// <para><b>A DEFERRAL WAS TAKEN HERE AND THEN OVERTURNED BY MEASUREMENT — kept, because the
+    /// prediction it made is the one that came FALSE.</b> This paragraph read: <i>"Nor did
+    /// PeriodParser move … those forms now yield a Period that is EXTRACTED but not PARSEABLE. That
+    /// is benign and was verified rather than assumed — CvReviewEngine falls to
+    /// DatedExperience(experience, null, null, null), identical to an absent period, so A4/B6/B7
+    /// report the same NotAssessed they reported <b>when the value was null</b>. Teaching
+    /// PeriodParser these forms would ASSESS them instead, which is a different change-reason and a
+    /// follow-up."</i> The final clause is the load-bearing one and it is the tell: the verification
+    /// covered only the shapes whose value <b>was</b> null. For the ASYMMETRIC shapes — a month name
+    /// or <c>YYYY/MM</c> on one side, a parseable point or a present-keyword on the other — the
+    /// value was not null and it DID parse. Measured in both polarities:
+    /// "jan 2020 – nuvarande" stored <c>"2020 – nuvarande"</c> (parseable, years attributed
+    /// 2020..2026) and became <c>"jan 2020 – nuvarande"</c> (refused, years lost). A sentence true
+    /// of its evidence and false of its subject — the evidence being the four forms the change was
+    /// written for, none of which regressed. <see cref="PeriodParser"/> now moves with this type
+    /// (senior-cto-advisor re-bind 2026-08-03, Approach A), and the coverage that deferral called a
+    /// separate change-reason turns out to be inseparable from the invariant: one
+    /// <c>PointRegex</c> branch does both, so restoring the one necessarily gains the other.</para>
     ///
     /// <para><c>PeriodParser</c> is wider at least on: the word separators "till"/"to";
     /// single-digit months (<c>\d{1,2}</c> against this type's <c>\d{2}</c>); "." as a month

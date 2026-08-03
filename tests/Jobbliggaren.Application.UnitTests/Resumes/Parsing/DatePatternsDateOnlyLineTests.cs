@@ -25,17 +25,22 @@ namespace Jobbliggaren.Application.UnitTests.Resumes.Parsing;
 /// <c>IsDateOnlyLine</c> alone is a hole in exactly the drift check this file exists to be</b>; two
 /// were introduced mid-review, on consecutive rounds, and the reviewers caught both.</para>
 ///
-/// <para><b>The segmenter pin's four unmodelled forms are on the NEGATIVE side, deliberately</b>
-/// — "four" names that pin's frozen fixture, not the size of the unmodelled class. This file also
-/// pins the MM-hyphen-point axis in lone and left position, which neither disjunct suppresses; no
-/// total is claimed for the class itself.
-/// "jan 2020 – dec 2024", "2020 – 2024 (heltid)", "2020/01 – 2024/12" and "2020 –" are the
-/// segmenter pin's frozen negative population
-/// (<c>Segment_DateLineDatePatternsDoesNotModel_IsStillTakenAsTheOrganization</c>). They are
-/// pinned here too — at the predicate rather than at one reader — so the gap has a measurement in
-/// the type that owns it. <b>The trigger that reddens both is a DatePatterns WIDENING</b>
-/// (month names, trailing qualifiers, keyword-less open ends, YYYY/MM), which is the deferred
-/// follow-up PR. If one of them starts passing, the widening landed; it is not a stale fixture.</para>
+/// <para><b>The four unmodelled forms were on the NEGATIVE side, and the WIDENING moved them
+/// (#1060 road 3).</b> The paragraph that stood here said: <i>"'jan 2020 – dec 2024',
+/// '2020 – 2024 (heltid)', '2020/01 – 2024/12' and '2020 –' are the segmenter pin's frozen negative
+/// population … The trigger that reddens both is a DatePatterns WIDENING … If one of them starts
+/// passing, the widening landed; it is not a stale fixture."</i> It landed, all four pass, and the
+/// <c>InlineData</c> were carried across unchanged with only their assertions moved — the
+/// replacement that paragraph asked for, not an edit to keep a fixture green.</para>
+///
+/// <para><b>They now sit in TWO theories, and the split is the design made visible.</b> The two
+/// POINT forms are matched by <c>DateRange</c>, whose match value <c>ExtractPeriod</c> stores — so
+/// they are also in the point grammar <c>PeriodParser</c> shares, and BOTH predicates reach them.
+/// The two LINE forms are answered by <c>IsIgnorableTail</c> and deliberately never enter the match
+/// value, so <c>PeriodParser</c> still declines them and each stays an independent kill for
+/// "union → PeriodParser only". This file also pins the MM-hyphen-point axis in lone and left
+/// position, the qualifier's restriction to the range branch, and the lone month-point residual the
+/// widening did not close; no total is claimed for the class itself.</para>
 /// </summary>
 public class DatePatternsDateOnlyLineTests
 {
@@ -115,31 +120,60 @@ public class DatePatternsDateOnlyLineTests
 
     [Theory]
     [InlineData("jan 2020 – dec 2024", "a month-NAME point, Swedish or English, in both endpoints")]
-    [InlineData("2020 – 2024 (heltid)", "a trailing bracketed qualifier, tolerated in the TAIL")]
     [InlineData("2020/01 – 2024/12", "the YYYY/MM point form")]
-    [InlineData("2020 –", "a keyword-less open end: a dangling range separator in the TAIL")]
-    public void IsDateOnlyLine_ShouldBeTrue_ForTheFormsTheWideningAdded(string line, string how)
+    public void IsDateOnlyLine_ShouldBeTrue_ForThePointFormsTheWideningAdded(string line, string how)
     {
-        // THE WIDENING (#1060 road 3, commit 2), pinned at the predicate that owned the gap. These
-        // four were the ACCEPTED-AND-KNOWN negative population until it landed; the InlineData is
-        // unchanged and the expectation moved, which is the shape a trigger firing is supposed to
-        // have. The segmenter pin measures the same four as a CONSEQUENCE (the line no longer
-        // becomes the organization); this measures the CAUSE, so a later change in the segmenter
-        // cannot mask a regression here.
+        // THE POINT HALF OF THE WIDENING (#1060 road 3). These two are new POINT forms, so they live
+        // in DateRange's alternation — and therefore in the grammar PeriodParser shares, since
+        // DateRange's match VALUE is what ExtractPeriod stores and PeriodParser is what consumes it.
         //
-        // Two live under DateRange as POINT forms and two under IsIgnorableTail as properties of the
-        // LINE — the split is deliberate and DatePatterns' own comments carry the reason (a
-        // qualifier inside the match value would break the stored Period rather than widen it).
+        // BOTH PREDICATES REACH THEM, and that is the design rather than a redundancy: the union at
+        // ReviewText suppresses the row either way, while the shared point grammar is what keeps the
+        // stored Period readable. An earlier revision of this theory asserted PeriodParser DECLINED
+        // them — true for exactly as long as the two grammars were out of step, which was the
+        // regression (DateModelWideningStoredPeriodTests owns that measurement).
+        ShouldReduceTo(line, string.Empty);
+        PeriodParser.TryParse(line, out _, out _, out _).ShouldBeTrue(
+            $"a POINT form the segmenter can extract must be one PeriodParser can read — {how}.");
+    }
+
+    [Theory]
+    [InlineData("2020 – 2024 (heltid)", "a trailing parenthesised qualifier, tolerated in the TAIL")]
+    [InlineData("2020 –", "a keyword-less open end: a dangling range separator in the TAIL")]
+    public void IsDateOnlyLine_ShouldBeTrue_ForTheLineFormsTheWideningAdded(string line, string how)
+    {
+        // THE LINE HALF, and the split from the theory above IS the design decision, made visible.
+        // These two are NOT point forms: they are properties of the whole line, answered by
+        // IsIgnorableTail, and they deliberately never enter DateRange's match value. Putting the
+        // qualifier in the match would store Period = "2020 – 2024 (heltid)", which PeriodParser
+        // refuses — turning a period that parses today into one that does not.
         ShouldReduceTo(line, string.Empty);
 
-        // AND PeriodParser STILL DECLINES ALL FOUR — which is why they belong on this side of the
-        // union rather than merely being covered by it. Each of these rows is now an independent
-        // kill for "union → PeriodParser only": drop the DatePatterns disjunct and the date row
-        // reaches the bullet scorer again.
+        // SO PeriodParser STILL DECLINES THESE TWO, and each is an independent kill for
+        // "union → PeriodParser only": drop the DatePatterns disjunct and the date row reaches the
+        // bullet scorer again. That "2020 – 2024 (heltid)" still yields a PARSEABLE stored period
+        // ("2020 – 2024", the match value without the tail) is the point of the split and is pinned
+        // in DateModelWideningStoredPeriodTests.
         PeriodParser.TryParse(line, out _, out _, out _).ShouldBeFalse(
-            $"PeriodParser declines this form, so only the DatePatterns half suppresses it. The " +
-            $"DatePatterns-side mechanism is: {how}.");
+            $"PeriodParser declines this whole-line form, so only the DatePatterns half suppresses " +
+            $"it. The DatePatterns-side mechanism is: {how}.");
     }
+
+    [Theory]
+    // THE PARENTHESISED QUALIFIER IS ACCEPTED AFTER A RANGE ONLY, NEVER AFTER A BARE YEAR
+    // (senior-cto-advisor re-bind 2026-08-03 §5). A bare year is the weaker date signal — this
+    // file already pins "Studio 2005 Design" negative on exactly that ground — so licensing a
+    // bracket strip after one would treat a line one glyph away from a pinned negative as a date.
+    // "(publ)" is the standard suffix of a Swedish public limited company, and truncating
+    // "Acme AB 2000 (publ)" to "Acme AB" silently drops part of a real organization value.
+    //
+    // The RANGE form with the same qualifier IS accepted, two theories above — that asymmetry is
+    // the ruling, and these rows are what make it a behaviour rather than an intention.
+    [InlineData("Acme AB 2000 (publ)")]
+    [InlineData("Studio 2005 (Design)")]
+    [InlineData("Konsult 2019 (via Bolaget AB)")]
+    public void IsDateOnlyLine_ShouldBeFalse_ForAQualifierAfterABareYear(string line) =>
+        ShouldReduceTo(line, line);
 
     [Theory]
     // THE RESIDUAL THE WIDENING DID NOT CLOSE, named rather than left implicit. A month name is

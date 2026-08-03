@@ -22,8 +22,8 @@ stop; you never apply a migration that drops columns or tables without Klas
 confirming in this session.
 
 Write SQL directly only for PostgreSQL-specific constructs that EF Core's
-Fluent API cannot express (partial indexes, generated columns, pgcrypto
-functions). Everything else goes through EF Core configuration.
+Fluent API cannot express (partial indexes, generated columns, extensions,
+`ANALYZE`). Everything else goes through EF Core configuration.
 
 Before scaffolding a migration for a new aggregate, consult `dotnet-architect`
 to confirm invariants and entity design are stable. A schema built against an
@@ -191,21 +191,33 @@ modelBuilder.Entity<Resume>()
 Useful for tags, skill lists, and simple arrays where a join table would be
 overkill.
 
-### Encryption columns (pgcrypto)
+### Encryption columns (per-user DEK envelope)
 
-For BYOK-encrypted values, store as `bytea` and handle encryption in the
-application layer (not via DB functions — keeps keys in app memory):
+High-sensitivity PII is encrypted in the **application layer** — a per-user DEK
+envelope (`IDataKeyProvider`, AES-256-GCM, ADR 0066/0049) applied by the
+interceptor pair, driven by `EncryptedFieldRegistry`. Never a DB function: the
+keys stay in app memory, and a column the database can decrypt is not encrypted
+against the database.
+
+**The schema consequence: an encrypted column is DDL-boringly `text`.** Measured
+2026-08-03 — `pgcrypto` appears nowhere in `src/`, and no encrypted column is
+`bytea`. Two shapes, both in `20260615123818_AddParsedResumeAggregate`:
 
 ```csharp
-migrationBuilder.Sql("CREATE EXTENSION IF NOT EXISTS pgcrypto;");
+// Form A — encrypted in place. The property maps to its own column; the
+// interceptor swaps plaintext for ciphertext on the way down.
+raw_text = table.Column<string>(type: "text", nullable: false),
 
-migrationBuilder.AddColumn<byte[]>(
-    name: "encrypted_access_token",
-    table: "oauth_connections",
-    type: "bytea",
-    nullable: false,
-    defaultValue: Array.Empty<byte>());
+// Form B — shadow column for an EF-Ignore'd value object. The interceptor pair
+// owns the object ↔ JSON ↔ ciphertext transform.
+parsed_content_enc = table.Column<string>(type: "text", nullable: true),
 ```
+
+Ciphertext is longer than plaintext, so **never `HasMaxLength` on an encrypted
+column**, and never an index on its value — it is opaque and unordered. A column
+that must stay queryable cannot be DEK-encrypted; that trade-off is a decision to
+escalate, not one to make in a migration
+(`ParsedResumeConfiguration.cs`, `JobAdConfiguration.cs` carry the worked cases).
 
 ---
 
@@ -306,8 +318,8 @@ When a destructive migration is detected:
   design must be stable before schema is committed
 - **`test-runner`** — verify migration after apply; Testcontainers runs fresh
   Postgres, applies migration, runs integration tests
-- **`security-auditor`** — review migrations touching encrypted columns,
-  oauth_connections, or BYOK-related tables
+- **`security-auditor`** — review migrations touching encrypted columns or any
+  PII-handling column
 
 ---
 

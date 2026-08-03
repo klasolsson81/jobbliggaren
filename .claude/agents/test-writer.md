@@ -251,9 +251,9 @@ Every entity that contains PII must have tests covering:
    set correctly on save (verify via `DbContext.SaveChanges` override behavior)
 3. **Data retention** — anonymization logic runs after retention period expires
    (test with `IDateTimeProvider` returning future dates)
-4. **BYOK key isolation** — encrypted fields are never logged or serialized to
-   plain text; test that `ToString()` / `JsonSerializer.Serialize()` do not
-   expose key material
+4. **DEK key isolation** — DEK-encrypted fields (per-user envelope, ADR
+   0066/0049) are never logged or serialized in plaintext; test that
+   `ToString()` / `JsonSerializer.Serialize()` expose neither key nor plaintext
 
 ---
 

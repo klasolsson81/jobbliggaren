@@ -196,7 +196,7 @@ public sealed class BackfillRecruiterContactScrubJobTests : IAsyncLifetime
 
         // Accountability (GDPR Art. 30): exactly one destructive audit row.
         await _auditor.Received(1).RecordAsync(
-            Arg.Is<JobAdsSynced>(e => e.JobType == "backfill-contact-scrub"),
+            Arg.Is<JobAdsSynced>(e => e != null && e.JobType == "backfill-contact-scrub"),
             Arg.Any<CancellationToken>());
     }
 

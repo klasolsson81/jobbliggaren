@@ -591,7 +591,7 @@ public class MatchProfileBuilderFullTests
         var taxonomy = NewTaxonomy();
         taxonomy
             .GetRelatedOccupationGroupsAsync(
-                Arg.Is<IReadOnlyList<string>>(s => s.SequenceEqual(ExactGroups)),
+                Arg.Is<IReadOnlyList<string>>(s => s != null && s.SequenceEqual(ExactGroups)),
                 Arg.Any<CancellationToken>())
             .Returns(new ValueTask<IReadOnlyList<string>>(RelatedGroups));
         var builder = NewBuilder(db, taxonomy);
@@ -607,7 +607,7 @@ public class MatchProfileBuilderFullTests
         profile.CvSkillConceptIds.ShouldBe(ConfirmedSkills);
         profile.Fast.Title.ShouldBe("Backend-utvecklare");
         await taxonomy.Received(1).GetRelatedOccupationGroupsAsync(
-            Arg.Is<IReadOnlyList<string>>(s => s.SequenceEqual(ExactGroups)),
+            Arg.Is<IReadOnlyList<string>>(s => s != null && s.SequenceEqual(ExactGroups)),
             Arg.Any<CancellationToken>());
     }
 
@@ -623,7 +623,7 @@ public class MatchProfileBuilderFullTests
         var taxonomy = NewTaxonomy();
         taxonomy
             .GetRelatedOccupationGroupsAsync(
-                Arg.Is<IReadOnlyList<string>>(s => s.SequenceEqual(ExactGroups)),
+                Arg.Is<IReadOnlyList<string>>(s => s != null && s.SequenceEqual(ExactGroups)),
                 Arg.Any<CancellationToken>())
             .Returns(new ValueTask<IReadOnlyList<string>>(RelatedGroups));
         var builder = NewBuilder(db, taxonomy);
@@ -635,7 +635,7 @@ public class MatchProfileBuilderFullTests
         profile.CvSkillConceptIds.ShouldBe(ConfirmedSkills);
         profile.Fast.Title.ShouldBe("Backend-utvecklare");
         await taxonomy.Received(1).GetRelatedOccupationGroupsAsync(
-            Arg.Is<IReadOnlyList<string>>(s => s.SequenceEqual(ExactGroups)),
+            Arg.Is<IReadOnlyList<string>>(s => s != null && s.SequenceEqual(ExactGroups)),
             Arg.Any<CancellationToken>());
     }
 
@@ -734,7 +734,7 @@ public class MatchProfileBuilderFullTests
         var taxonomy = NewTaxonomy();
         taxonomy
             .GetContainingRegionsAsync(
-                Arg.Is<IReadOnlyList<string>>(s => s.SequenceEqual(PrefMunicipalities)),
+                Arg.Is<IReadOnlyList<string>>(s => s != null && s.SequenceEqual(PrefMunicipalities)),
                 Arg.Any<CancellationToken>())
             .Returns(new ValueTask<IReadOnlyList<string>>(ContainmentRegions));
         var builder = NewBuilder(db, taxonomy);
@@ -747,7 +747,7 @@ public class MatchProfileBuilderFullTests
             "Full-vägen bär containment via Fast.ContainmentRegionConceptIds (Full speglar Fast, " +
             "inget eget fält) — även med breddning AV (korrekthetsfix, ovillkorlig).");
         await taxonomy.Received(1).GetContainingRegionsAsync(
-            Arg.Is<IReadOnlyList<string>>(s => s.SequenceEqual(PrefMunicipalities)),
+            Arg.Is<IReadOnlyList<string>>(s => s != null && s.SequenceEqual(PrefMunicipalities)),
             Arg.Any<CancellationToken>());
         // The rest of the Full profile is untouched by containment derivation.
         profile.CvSkillConceptIds.ShouldBe(ConfirmedSkills);
@@ -772,7 +772,7 @@ public class MatchProfileBuilderFullTests
         var taxonomy = NewTaxonomy();
         taxonomy
             .GetContainingRegionsAsync(
-                Arg.Is<IReadOnlyList<string>>(s => s.SequenceEqual(PrefMunicipalities)),
+                Arg.Is<IReadOnlyList<string>>(s => s != null && s.SequenceEqual(PrefMunicipalities)),
                 Arg.Any<CancellationToken>())
             .Returns(new ValueTask<IReadOnlyList<string>>(ContainmentRegions));
         taxonomy
@@ -788,7 +788,7 @@ public class MatchProfileBuilderFullTests
             ContainmentRegions,
             "Bakgrundsvägen får #477-containment (korrekthetsfix, ovillkorlig — även i Worker-scannen).");
         await taxonomy.Received(1).GetContainingRegionsAsync(
-            Arg.Is<IReadOnlyList<string>>(s => s.SequenceEqual(PrefMunicipalities)),
+            Arg.Is<IReadOnlyList<string>>(s => s != null && s.SequenceEqual(PrefMunicipalities)),
             Arg.Any<CancellationToken>());
         // ... but related stays EMPTY and the related ACL is never consulted (structural, question D).
         profile.Fast.RelatedSsykGroupConceptIds.ShouldBeEmpty(

@@ -44,7 +44,7 @@ public class ListSavedSearchesQueryHandlerTests
         _taxonomy.ResolveLabelsAsync(
                 Arg.Any<IReadOnlyList<string>>(), Arg.Any<CancellationToken>())
             .Returns(ci => new ValueTask<IReadOnlyList<TaxonomyLabelDto>>(
-                ((IReadOnlyList<string>)ci[0])
+                ci.ArgAt<IReadOnlyList<string>>(0)
                     .Select(id => new TaxonomyLabelDto(id, $"Okänd kod ({id})"))
                     .ToList()));
     }
@@ -130,7 +130,7 @@ public class ListSavedSearchesQueryHandlerTests
         await db.SaveChangesAsync(CancellationToken.None);
 
         _taxonomy.ResolveLabelsAsync(
-                Arg.Is<IReadOnlyList<string>>(ids => ids.Contains("MVqp_eS8_kDZ")),
+                Arg.Is<IReadOnlyList<string>>(ids => ids != null && ids.Contains("MVqp_eS8_kDZ")),
                 Arg.Any<CancellationToken>())
             .Returns(new ValueTask<IReadOnlyList<TaxonomyLabelDto>>(
                 (IReadOnlyList<TaxonomyLabelDto>)
@@ -138,7 +138,7 @@ public class ListSavedSearchesQueryHandlerTests
                     new TaxonomyLabelDto("MVqp_eS8_kDZ", "Mjukvaru- och systemutvecklare"),
                 ]));
         _taxonomy.ResolveLabelsAsync(
-                Arg.Is<IReadOnlyList<string>>(ids => ids.Contains("AvNB_uwa_6n6")),
+                Arg.Is<IReadOnlyList<string>>(ids => ids != null && ids.Contains("AvNB_uwa_6n6")),
                 Arg.Any<CancellationToken>())
             .Returns(new ValueTask<IReadOnlyList<TaxonomyLabelDto>>(
                 (IReadOnlyList<TaxonomyLabelDto>)
@@ -146,7 +146,7 @@ public class ListSavedSearchesQueryHandlerTests
                     new TaxonomyLabelDto("AvNB_uwa_6n6", "Stockholm"),
                 ]));
         _taxonomy.ResolveLabelsAsync(
-                Arg.Is<IReadOnlyList<string>>(ids => ids.Contains("CifL_Rsz_Hb7")),
+                Arg.Is<IReadOnlyList<string>>(ids => ids != null && ids.Contains("CifL_Rsz_Hb7")),
                 Arg.Any<CancellationToken>())
             .Returns(new ValueTask<IReadOnlyList<TaxonomyLabelDto>>(
                 (IReadOnlyList<TaxonomyLabelDto>)

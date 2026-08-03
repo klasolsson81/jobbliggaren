@@ -54,7 +54,7 @@ public class BrowseCompaniesQueryHandlerTests
 
         // The port receives the criterion's OWN predicate — not something the request could influence.
         await port.Received(1).BrowseAsync(
-            Arg.Is<CompanyBrowseCriteria>(c =>
+            Arg.Is<CompanyBrowseCriteria>(c => c != null &&
                 c.Criteria.SniCodes.SequenceEqual(SniIt)
                 && c.Criteria.MunicipalityCodes.SequenceEqual(KommunStockholm)
                 && c.Page == 1

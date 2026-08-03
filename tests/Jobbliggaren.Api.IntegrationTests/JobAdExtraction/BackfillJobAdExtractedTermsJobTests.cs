@@ -281,7 +281,7 @@ public sealed class BackfillJobAdExtractedTermsJobTests : IAsyncLifetime
         }
 
         await _auditor.Received(1).RecordAsync(
-            Arg.Is<JobAdsSynced>(e => e.JobType == "backfill-extraction"),
+            Arg.Is<JobAdsSynced>(e => e != null && e.JobType == "backfill-extraction"),
             Arg.Any<CancellationToken>());
     }
 

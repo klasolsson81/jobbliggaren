@@ -260,79 +260,131 @@ up a completely unfiltered host, and nothing else in the system reports it.
 
 ### 6.1 Semantics you must know before touching a rule
 
-Measured in SCP on 2026-08-03, and every one of these has bitten someone:
+Measured against the live API on 2026-08-04. Several of these contradict what the SCP web UI
+suggests, and each one has a failure mode attached:
 
-- **Default-allow in both directions.** Two implicit `Accept all` rules (one inbound, one
-  outbound) are applied *last*. Writing allow-rules changes **nothing** — the traffic was
-  already allowed. **Each direction needs an explicit `DROP all` as the last own-rule** or
-  the firewall is decoration that looks configured.
-- **First match wins**, top-down. Maximum 500 rules per server per interface.
-- **Stateful for TCP, stateless for UDP.** Replies to outbound TCP are tracked; replies to
-  outbound UDP are **not**, so DNS and NTP need explicit inbound rules on the *source* port.
+- **The direction defaults are a configurable field, not an unchangeable trailing rule.**
+  `ingressImplicitRule` and `egressImplicitRule` sit in the firewall object and each read
+  `ACCEPT_ALL` on a fresh box — which is what "default-allow in both directions" actually
+  means here.
+- **Assigning a user policy flips that direction's default to `DROP_ALL` by itself.** Measured:
+  a `PUT` that sent `ingressImplicitRule: "ACCEPT_ALL"` together with one INGRESS user rule
+  came back as `DROP_ALL`. **The direction becomes default-deny the moment its first user rule
+  lands**, so the full rule set must be complete *before* assignment, not built up afterwards.
+  A **copied** policy does not do this: `netcup Mail block` has carried three EGRESS DROP rules
+  all along while egress stayed `ACCEPT_ALL`. Copied and user policies are not equivalent, and
+  conflating them is how the older "allow-rules alone are decoration" reading arose.
+- **Stateful for TCP, stateless for UDP** — confirmed the hard way, see §6.4.
 - **Established connections survive rule changes.** Your open SSH session is not evidence
   that the rules permit SSH. Every test must open a **new** connection.
-- The default group **`netcup Mail block`** (outbound TCP 25/465/587 DROP) is on and is
-  **left alone**. Transactional mail goes over the SES HTTPS API — never SMTP — so there is
-  never a reason to ask Netcup to open 587.
+- **Ports ranges use a hyphen** (`32768-60999`). A colon is rejected with HTTP 422.
+- Two default **copied** policies are on and are **left alone**: `netcup Mail block` (outbound
+  TCP 25/465/587 DROP) and `netcup Ping allow` (ICMP **and ICMPv6**, both directions). The
+  second one is why this runbook writes no ICMP rules of its own — including NDP, which arrives
+  as ICMPv6 and would otherwise need its own rule.
+- Transactional mail goes over the SES HTTPS API — never SMTP — so there is never a reason to
+  ask Netcup to open 587.
 
-### 6.2 Ingress rules
+**A 2xx response does not mean the change landed.** A `PUT` assigning an inline `userPolicies`
+object returned `HTTP 202` with a `PENDING` task, and the policy simply never appeared. User
+policies must be created first at `POST /users/{userId}/firewall-policies` and then referenced;
+the server resolves their rules by id. **Always read the configuration back and compare** — the
+status code is not the measurement. Note also that *listing* policies returns them with empty
+`rules` arrays, so a list response is not a safe thing to re-`PUT`.
 
-| # | Family | Proto | Source | Sport | Dport | Action | Why |
-|---|---|---|---|---|---|---|---|
-| I1 | v4 | TCP | `<ADMIN_SRC_IP>/32` | any | 22 | ACCEPT | SSH from the operator only |
-| I2 | any | TCP | any | any | 80 | ACCEPT | future ACME/HTTP; nothing listens yet |
-| I3 | any | TCP | any | any | 443 | ACCEPT | future HTTPS |
-| I4 | v4 | ICMP | any | – | – | ACCEPT | ping, PMTUD, errors |
-| I5 | v6 | ICMPv6 | any | – | – | ACCEPT | **NDP — IPv6 dies without it**; source and destination must both be `any` |
-| I6 | any | UDP | any | 53 | ephemeral | ACCEPT | **DNS replies** (UDP is stateless here) |
-| I7 | any | UDP | any | 123 | ephemeral | ACCEPT | NTP replies |
-| I8 | v4 | UDP | any | 67 | 68 | ACCEPT | **only if the box uses DHCPv4** — see §6.6 |
-| I9 | any | any | any | any | any | **DROP** | explicit default-deny inbound |
+**The user id is not the customer number.** `/users/403517/...` returns HTTP 403 while
+`/users/235072/...` works. The correct value is the `id` claim inside the access token, not
+`preferred_username`.
 
-`<ADMIN_SRC_IP>` is intentionally a placeholder: this file is public. The live value is in
-the local `docs/current-work.md` and in the SCP rule itself.
+### 6.2 Ingress — user policy `jbl-ingress`
 
-There is no IPv6 SSH rule, because the operator path is pinned to IPv4 (§4.1).
+Both direction defaults are `DROP_ALL`. There is **no** explicit trailing DROP rule, because
+the default is a field rather than a rule (§6.1).
 
-### 6.3 Egress rules — applied last
-
-| # | Family | Proto | Destination | Dport | Action | Why |
+| # | Proto | Source | Sport | Dport | Action | Why |
 |---|---|---|---|---|---|---|
-| E1 | any | TCP | any | 443 | ACCEPT | HTTPS: apt, container registry, SES later |
-| E2 | any | TCP | any | 80 | ACCEPT | apt mirrors, OCSP |
-| E3 | any | UDP | any | 53 | ACCEPT | DNS |
-| E4 | any | TCP | any | 53 | ACCEPT | DNS over TCP (truncated answers) |
-| E5 | any | UDP | any | 123 | ACCEPT | NTP |
-| E6 | v4 | ICMP | any | – | ACCEPT | PMTUD; replies to inbound pings |
-| E7 | v6 | ICMPv6 | any | – | ACCEPT | **mandatory for IPv6 (NDP)** |
-| E8–E10 | any | TCP | sport 22 / 80 / 443 → any | any | ACCEPT | **reply belt** — see below |
-| E11 | v4 | UDP | sport 68 → any | 67 | ACCEPT | **only if DHCPv4** — §6.6 |
-| E12 | any | any | any | any | **DROP** | explicit default-deny outbound |
+| 1 | TCP | `<ADMIN_SRC_IP>/32` | any | 22 | ACCEPT | SSH from the operator only |
+| 2 | TCP | any | any | 80 | ACCEPT | future ACME/HTTP; nothing listens yet |
+| 3 | TCP | any | any | 443 | ACCEPT | future HTTPS |
+| 4 | UDP | any | 53 | 32768-60999 | ACCEPT | **DNS replies** — UDP is stateless here (§6.4) |
+| 5 | UDP | any | 123 | 32768-60999 | ACCEPT | **NTP replies** — same reason |
 
-**The reply belt (E8–E10) is deliberate redundancy.** Statefulness is *measured* only for
-outbound-initiated connections. If the edge turns out to be asymmetric, replies to a **new
-inbound** SSH connection would be dropped — while every already-open session keeps working
-and hides it. The belt costs three rules and removes the failure mode. Its residual exposure
-(a local process bound to source port 22/80/443 reaching an arbitrary destination) requires a
-root-level compromise to reach, and SMTP stays blocked by the Mail block group regardless.
+`<ADMIN_SRC_IP>` is intentionally a placeholder: this file is public. The live value is in the
+local `docs/current-work.md` and in the rule itself.
+
+No ICMP rules: `netcup Ping allow` already covers ICMP **and ICMPv6** in both directions, which
+includes NDP. No IPv6 SSH rule: the operator path is pinned to IPv4 (§4.1). No DHCP rules: the
+box is statically configured (§6.6). The destination range is the box's own
+`net.ipv4.ip_local_port_range` — check it rather than assuming, and widen these two rules if it
+ever changes.
+
+### 6.3 Egress — user policy `jbl-egress`
+
+| # | Proto | Sport | Destination | Dport | Action | Why |
+|---|---|---|---|---|---|---|
+| 1 | TCP | any | any | 443 | ACCEPT | HTTPS: apt, container registry, SES later |
+| 2 | TCP | any | any | 80 | ACCEPT | apt mirrors, OCSP |
+| 3 | UDP | any | any | 53 | ACCEPT | DNS |
+| 4 | TCP | any | any | 53 | ACCEPT | DNS over TCP (truncated answers) |
+| 5 | UDP | any | any | 123 | ACCEPT | NTP |
+| 6–8 | TCP | 22 / 80 / 443 | any | any | ACCEPT | **reply belt** — see below |
+
+SMTP needs no rule: `netcup Mail block` drops 25/465/587 outbound, and the `DROP_ALL` default
+covers everything else. Verified: port 587 outbound is dead.
+
+**The reply belt (6–8) is deliberate redundancy.** TCP statefulness is measured only for
+*outbound-initiated* connections. If the edge were asymmetric, replies to a **new inbound** SSH
+connection would be dropped — while every already-open session kept working and hid it. Three
+rules remove the failure mode. The residual exposure (a local process bound to source port
+22/80/443 reaching an arbitrary destination) requires a root-level compromise to reach, and
+SMTP stays blocked regardless. Whether the belt is load-bearing has **not** been isolated:
+proving it would mean removing it and risking exactly the lockout it prevents.
 
 ### 6.4 Proving the rules actually filter
 
-The textbook probe — an outside connection to a closed port flipping from *refused* to
-*timed out* — **does not work here**, because the host firewall (§5) is applied first and
-already times out everything else. Three signals survive, and together they are sufficient:
+The textbook probe — an outside connection to a closed port flipping from *refused* to *timed
+out* — **does not work here**, because the host firewall (§5) is applied first and already
+times out everything else. Three signals survive, and together they are sufficient. Run each
+one **at baseline first**: a probe whose "before" value was never measured proves nothing about
+the "after".
 
-1. **Port 22 from a different source address** (a phone on mobile data, with an SSH client
-   app — browsers cannot reach port 22). Reachable before I9, **times out after**. The host
-   accepts the port; only the edge is source-filtering. This proves I9 filters.
-2. **RST pass-through on 443**: `curl -m5 telnet://159.195.203.88:443` gives a **fast
-   "connection refused"** both before and after. That proves the accept rules pass traffic
-   through to a host with no listener.
-3. **The egress flip**: `curl -4 -m5 http://portquiz.net:8080` succeeds at baseline and
-   **times out after E12**.
+**1. Port 22 from other source addresses.** This needs a vantage point outside the operator's
+network. A phone on mobile data works; so does any external TCP-probe service, which is what
+was used here and is easier to repeat:
 
-Run 1 and 3 **at baseline first**. A probe whose "before" value was never measured proves
-nothing about the "after".
+```bash
+RID=$(curl -s -H "Accept: application/json" \
+  "https://check-host.net/check-tcp?host=159.195.203.88:22&max_nodes=4" | jq -r .request_id)
+sleep 15
+curl -s -H "Accept: application/json" "https://check-host.net/check-result/$RID" | jq
+```
+
+Measured 2026-08-04 — baseline: NL, UA and US all connected. After the ingress rules: **all
+four nodes time out**, while the operator's own SSH keeps working. That difference *is* the
+source restriction.
+
+**2. RST pass-through on 443.** An accepted port with no listener must answer `connection
+refused`, not time out. Measured across 8 nodes: 6 refused (including the Swedish one), 2 timed
+out — the two are almost certainly filtering in their own networks, since a rule that dropped
+443 would drop it for everyone. Re-check this when a listener actually exists.
+
+**3. The egress flip.** `curl -4 -m5 http://portquiz.net:8080` succeeded at baseline and
+**times out** once egress is default-deny.
+
+**Do not test DNS through the provider's own resolver.** This nearly produced a wrong
+conclusion. With ingress at `DROP_ALL` and no UDP reply rule, `getent hosts` still resolved
+fine — suggesting the edge tracked UDP state. It does not. Netcup's resolvers (`46.38.x`) are
+reachable on a path that never crosses the edge filter, so they answer regardless. Probing
+external resolvers separated the cases:
+
+| Target | Result | Meaning |
+|---|---|---|
+| `46.38.252.230` (netcup) | replied in 0.00 s | does not cross the edge — proves nothing |
+| `9.9.9.9`, `8.8.8.8` | timed out | **UDP replies are dropped** |
+| NTP `158.180.28.150` | timed out, then replied in 0.01 s once the rule was added | the reply rule is what fixes it |
+
+Without those probes, NTP would have failed silently and the clock would have drifted for
+months. **Always probe a target outside the provider's own network.**
 
 ### 6.5 Changing rules later
 
@@ -541,6 +593,19 @@ measurement is not a result.
 | Auto-reboot | `"false"` | `apt-config dump` |
 | Egress | DNS, apt, and IPv6 HTTPS all reachable | from inside the box |
 | Dead-man timers | 0 remaining, and the hardening survived — neither timer fired | `systemctl list-timers --all` |
+
+**2026-08-04 — edge layer, verified across a second reboot:**
+
+| Property | Measured value | Instrument |
+|---|---|---|
+| Both direction defaults | `ingressImplicitRule` and `egressImplicitRule` = `DROP_ALL` | `GET …/firewall` |
+| Port 22 from outside | **times out from all probe nodes**; baseline was NL/UA/US all connecting | check-host.net, 4 nodes |
+| Port 443 from outside | `connection refused` from 6 of 8 nodes incl. Sweden — accepted, no listener | check-host.net, 8 nodes |
+| Operator SSH | unaffected throughout | new session each time |
+| DNS / NTP / apt / IPv6 HTTPS | all working from inside | direct probes, external targets |
+| UDP is stateless at the edge | NTP timed out, then replied in 0.01 s once the reply rule landed | raw UDP socket |
+| Egress default-deny bites | portquiz:8080 reachable at baseline, **times out** after | `curl` from the box |
+| Outbound SMTP | dead (587) | `curl telnet://…:587` |
 
 **Incident, same session.** During bootstrap the root password was typed into the console's
 *username* field, so it was written to the journal as a failed login name (measured: 1 hit).

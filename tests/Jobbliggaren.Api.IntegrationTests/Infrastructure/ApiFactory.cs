@@ -1,5 +1,5 @@
-using Jobbliggaren.Application.Admin.BackgroundJobs;
 using Jobbliggaren.Api.IntegrationTests.Helpers;
+using Jobbliggaren.Application.Admin.BackgroundJobs;
 using Jobbliggaren.Application.Auth;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Infrastructure.Identity;

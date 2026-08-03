@@ -38,18 +38,35 @@ namespace Jobbliggaren.Application.UnitTests.Resumes.Review;
 /// leading-separator form, which this union SUPPRESSES anyway.</para>
 ///
 /// <para>So B5 can act only on a row that clears BOTH: a marker glyph, and a remainder
-/// <c>PeriodParser</c> refuses — "– jan 2020 – dec 2024". <b>No test in the tree pins that row</b>,
-/// and this is DERIVED from reading <c>LeadMarker</c>, not run. It belongs to the date-model
-/// widening, not here. An earlier round of this review asserted B5 flipped on the
+/// <c>PeriodParser</c> refuses — "– jan 2020 – dec 2024". That was DERIVED from reading
+/// <c>LeadMarker</c> and pinned by no test; the date-model widening (#1060 road 3) both MEASURED it
+/// and closed it. Measured: beside a bullet using another glyph, B5 returned
+/// <i>Warn — "Blandade punktsymboler"</i>, counting the user's date row as a second bullet style she
+/// had not chosen. That row lives in <c>DateModelWideningReviewSideTests</c>, with a counterfactual
+/// proving the criterion still Warns on two genuine glyphs.</para>
+///
+/// <para><b>GUARD TWO — the one that nulls a marker whose remainder <c>PeriodParser</c> parses — is
+/// pinned in <c>DateModelWideningLeadMarkerTests</c>, and it was NOT pinned when this paragraph
+/// first claimed it was.</b> An earlier revision said "both guards are now measured in both
+/// polarities" and cited a control row "– 2020 – nuvarande". That row existed only in a throwaway
+/// probe, which was deleted; the claim outlived its measurement, which is exactly the failure the
+/// widening's own acceptance obligation warns about. Road 3 also gives guard two a NEW live input:
+/// <c>PeriodParser</c> now parses a lone month point, so "– maj 2020" flips from marker-bearing to
+/// nulled. Both are pinned now. An earlier round of this review asserted B5 flipped on the
 /// leading-separator form, having read the marker set and not the guard nine lines below it.</para>
 ///
 /// <para>The class is the INVERSE of the one first
 /// cited: §5's "a CV verdict without cited textual evidence" — a verdict citing a span that is not
-/// prose. Sharpest on <c>YYYY/MM</c>, which <c>DateRange</c> models on neither endpoint, so
-/// <c>StripDates</c> leaves digits behind and A1 can read the employment dates as a quantified
-/// result. <b>That A1/A2/A6 consequence is DERIVED from reading the rules, not run</b>
-/// (senior-cto-advisor re-bind 2026-08-02); the date-model widening owns measuring it. What IS run
-/// and pinned here is the escape itself.</para>
+/// prose. Sharpest on <c>YYYY/MM</c>, which <c>DateRange</c> modelled on neither endpoint before
+/// this PR, so <c>StripDates</c> left digits behind and A1 could read the employment dates as a
+/// quantified result. <b>That A1/A2/A6 consequence WAS derived from reading the rules and is now
+/// MEASURED</b> (#1060 road 3, (S1)): all three cited the user's date row, and on the
+/// <c>YYYY/MM</c> form A1 returned an affirmative Pass noting "kvantifierad uppgift". <b>The
+/// widening closed it for three of the four forms it added; the fourth, <c>YYYY/MM</c>, is open
+/// again as of round 5 (decision D′)</b> — see
+/// <see cref="DescriptionLines_StillYieldsTheYearFirstSlashDateRow_KnownAcceptedRegression"/> below.
+/// The verdicts live in <c>DateModelWideningReviewSideTests</c>; what is run and pinned HERE is the
+/// bullet unit, which is where the cause is.</para>
 ///
 /// <para><b>The pin's whole purpose is to redden under EITHER substitution</b>, which is why the
 /// two directions are separate test methods with disjoint inputs:
@@ -139,19 +156,23 @@ public class ReviewTextPeriodLineUnionTests
     [Theory]
     [InlineData("2019 till 2021", "the word separator 'till'")]
     [InlineData("3/2020 – 6/2024", "a single-digit month")]
-    [InlineData("2020-06 – 2024-03", "an ISO YYYY-MM end point")]
+    // "2020-06 – 2024-03" was a third row here until #1060 road 3 commit 1 ordered DateRange's
+    // alternations longest-alternative-first. DatePatterns reaches that form now, so it no longer
+    // ISOLATES the PeriodParser half — this method's whole job — and keeping it would have turned a
+    // kill into a row that passes under either substitution. It moved to
+    // DatePatternsAlternationOrderingTests. The two rows left are still individually load-bearing.
     public void DescriptionLines_ShouldStillSuppressTheDateRow_WhereOnlyPeriodParserReachesIt(
         string dateLine, string axis)
     {
         // THE TRAP, PINNED. These are the forms a SUBSTITUTION would have lost: PeriodParser is
-        // wider here and DatePatterns declines all three, so swapping the call site to a
+        // wider here and DatePatterns declines both, so swapping the call site to a
         // DatePatterns-only predicate hands them to the bullet scorer and to WeakVerbTransform.
         //
-        // THIS METHOD IS THE KILL FOR "union → DatePatterns only". The third case is an axis that
-        // no written table named — found by measuring rather than by reading one. The axes now
-        // live as InlineData in DatePatternsDateOnlyLineTests and no total is published anywhere:
-        // DateRange's end-alternation takes the bare \d{4} of "2024" first and leaves "-03" as a
-        // non-empty tail, so the whole line is never consumed.
+        // THIS METHOD IS THE KILL FOR "union → DatePatterns only". The axes live as InlineData in
+        // DatePatternsDateOnlyLineTests and no total is published anywhere — a count of a property
+        // emergent from two independently written grammars decays the moment either changes, and
+        // road 3 changed one of them: the ISO end-point axis that used to be this theory's third
+        // row is retired, which is a row leaving the list without the list ever having a size.
         PeriodParser.TryParse(dateLine, out _, out _, out _).ShouldBeTrue(
             $"premise: PeriodParser reaches this form via {axis}.");
         DatePatterns.IsDateOnlyLine(dateLine).ShouldBeFalse(
@@ -179,32 +200,60 @@ public class ReviewTextPeriodLineUnionTests
     [Theory]
     [InlineData("jan 2020 – dec 2024")]
     [InlineData("2020 – 2024 (heltid)")]
-    [InlineData("2020/01 – 2024/12")]
     [InlineData("2020 –")]
-    public void DescriptionLines_ShouldStillYieldTheDateRowAsABullet_WhenNeitherPredicateModelsTheForm(
+    // "2020/01 – 2024/12" was IN this theory (#1060 road 3, commit 2) and moved back OUT in round 5
+    // (decision D′): the year-first slash notation collided with the Swedish läsår and DateRange no
+    // longer models it at all, so this specific escape is open again — origin/main's own behaviour,
+    // priced and pinned rather than silently dropped. See
+    // DescriptionLines_StillYieldsTheYearFirstSlashDateRow_KnownAcceptedRegression below.
+    public void DescriptionLines_ShouldNowSuppressTheDateRow_OnTheLayoutWhereItUsedToEscape(
         string dateLine)
     {
-        // ACCEPTED-AND-KNOWN, AND A LIVE ESCAPE — pinned because a comment claiming the union
-        // closed the residual would be FALSE about exactly these four, on exactly this layout.
+        // THE ESCAPE THIS TEST WAS WRITTEN TO MEASURE IS CLOSED (#1060 road 3, commit 2), and the
+        // move is the one its previous revision asked for: the InlineData are frozen and
+        // unchanged, and the ASSERTION moved from "still yields the date row as a bullet" to
+        // "suppresses it". Editing the data to keep the old assertion green was the named failure
+        // mode; this is its opposite.
         //
-        // These are the segmenter pin's frozen four. On the two-line "Title / Dates" layout they
-        // are suppressed here, but only as a side effect: the segmenter fabricates them into
-        // Organization and the organisation-equality test fires on them. On THIS layout the
-        // employer is real, nothing fabricates them, and neither half of the union reaches them —
-        // so the date row reaches the bullet scorer and WeakVerbTransform TODAY. That is
-        // unchanged by the promotion, which factored today's model into one home and inherited its
-        // blind spot; it is not a regression this change introduced, and it is not closed.
+        // WHY THIS LAYOUT IS THE ONE THAT MATTERED. On the two-line "Title / Dates" layout these
+        // forms were suppressed even before the widening — but only as a side effect of a defect:
+        // the segmenter fabricated them into Organization and the organisation-equality test fired
+        // on them. Here the employer is real ("Acme AB"), nothing fabricates the date row, and
+        // neither half of the union reached it, so it was scored as prose. The organisation
+        // assertion below is what keeps that distinction honest: it proves the suppression is the
+        // period test doing its job, not equality masking the row.
         //
-        // THE TRIGGER THAT REDDENS THIS IS THE DatePatterns WIDENING — month names, trailing
-        // qualifiers, keyword-less open ends, YYYY/MM — which is the deferred follow-up PR. When
-        // it lands, these four move to the suppressed side and this test is REPLACED by that move,
-        // not edited to keep it green. Until then the escape is measured rather than assumed away.
+        // WHAT THE ESCAPE COST, MEASURED (not derived) on this exact layout before the widening:
+        // A1/A2/A6 all scored and CITED the user's employment dates as though they were prose. That
+        // is CLAUDE.md §5's "a CV verdict without cited textual evidence" in its inverted form. The
+        // verdict-level pin lives in DateModelWideningReviewSideTests; this one stays at the
+        // bullet-unit altitude where the cause is.
         var (review, improve, organization) = BulletsFor(dateLine);
 
-        organization.ShouldBe("Acme AB");
-        review.ShouldBe([dateLine, Bullet],
-            "neither predicate models this form and the employer is real, so nothing suppresses the date row.");
-        improve.ShouldBe([dateLine, Bullet],
-            "WeakVerbTransform is offered the date row today — the cost the widening removes.");
+        organization.ShouldBe("Acme AB",
+            "the employer is real here, so organisation-equality cannot be what suppresses the row.");
+        review.ShouldBe([Bullet],
+            "the date row is not a description bullet — the review criteria must never score it.");
+        improve.ShouldBe([Bullet],
+            "WeakVerbTransform scores the same unit and must not be offered the date row either.");
+    }
+
+    [Fact]
+    public void DescriptionLines_StillYieldsTheYearFirstSlashDateRow_KnownAcceptedRegression()
+    {
+        // THE PRICE OF DECISION D′ (senior-cto-advisor round-5 bind §9 trade-off 1), pinned at the
+        // bullet-unit altitude to match the test it replaces one row of. Neither half of the union
+        // reaches "2020/01 – 2024/12" any more — DatePatterns no longer models the slash point on
+        // either endpoint, and PeriodParser never did — so the date row is yielded as an ordinary
+        // description bullet, exactly as origin/main did (that notation was never modelled by
+        // either type before #1060 road 3 existed). Not a NEW escape; the original one, returned.
+        var (review, improve, organization) = BulletsFor("2020/01 – 2024/12");
+
+        organization.ShouldBe("Acme AB", "the employer is real here, unaffected by the date model.");
+        review.ShouldBe(["2020/01 – 2024/12", Bullet],
+            "the date row reaches the bullet scorer — origin/main's behaviour, priced and tracked " +
+            "in #1195.");
+        improve.ShouldBe(["2020/01 – 2024/12", Bullet],
+            "WeakVerbTransform is offered the same unit, for the same reason.");
     }
 }

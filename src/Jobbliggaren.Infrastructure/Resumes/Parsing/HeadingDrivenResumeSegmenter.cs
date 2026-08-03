@@ -611,18 +611,35 @@ internal sealed partial class HeadingDrivenResumeSegmenter(CvParsingLexiconData 
         // all. THAT direction — the absence of false positives — is what the narrowing claim rests
         // on, and it holds.
         //
-        // THE CONVERSE DOES NOT HOLD, and it is known rather than overlooked. A date line
-        // DatePatterns does not model, or one carrying anything after the match, is NOT reduced
-        // and still becomes the organization: "jan 2020 – dec 2024" (no month token in the
-        // end-alternation, so only the year matches and " – dec 2024" remains), "2020 – 2024
+        // THE CONVERSE DID NOT HOLD WHEN β-3 LANDED, and it was known rather than overlooked. A
+        // date line DatePatterns did not model, or one carrying anything after the match, was NOT
+        // reduced and still became the organization: "jan 2020 – dec 2024" (no month token in the
+        // end-alternation, so only the year matched and " – dec 2024" remained), "2020 – 2024
         // (heltid)", "2005 –" with an open end and no keyword, "2020/01 – 2024/12". The month
-        // form is the most consequential by FREQUENCY, not by effect: three of the four also leave
+        // form was the most consequential by FREQUENCY, not by effect: three of the four also left
         // the segmenter's Period null (measured against ExtractPeriod, which is a different
-        // adjudicator from the PeriodParser the test docblock counts against).
-        // Unchanged by β-3 and not a regression: the guard is narrower than this
-        // paragraph would read if it said "any date-only line". The honest fix is a DatePatterns
-        // WIDENING — modelling month names, trailing qualifiers, keyword-less open ends and
-        // YYYY/MM.
+        // adjudicator from the PeriodParser the test docblock counts against). The honest fix was
+        // named as a DatePatterns WIDENING — month names, trailing qualifiers, keyword-less open
+        // ends and YYYY/MM.
+        //
+        // THAT WIDENING LANDED (#1060 road 3) AND THREE OF THE FOUR NOW REDUCE, so none of those
+        // three reaches the fallback below and none becomes the organization. Of those three, TWO
+        // yield a period (the month-name point form, and the qualifier form via the LINE-level
+        // reduction); the third ("2020 –") stays null, because a dangling separator has no end
+        // point and inventing one would be the confidently-wrong half of the same defect (ADR 0071,
+        // honest-absent). Per form, that is pinned in
+        // HeadingDrivenResumeSegmenterTests.Segment_DateLineTheModelNowReaches_…, and the stored
+        // value's readability — the property that makes a recovered period worth recovering — in
+        // DateModelWideningStoredPeriodTests.
+        //
+        // THE FOURTH, YYYY/MM ("2020/01 – 2024/12"), REDUCED TOO FOR A WHILE AND WAS TAKEN BACK OUT
+        // (round 5, senior-cto-advisor bind, decision D′): it collided with the Swedish läsår
+        // notation, and a mixed-notation form of it stored a value neither PeriodParser nor its
+        // callers could read. DateRange no longer models the slash point on either endpoint, so this
+        // form reduces to nothing and DOES still reach the fallback below, fabricating the
+        // organization exactly as it did before road 3 — origin/main's own behaviour, priced and
+        // pinned as a known, accepted regression in
+        // HeadingDrivenResumeSegmenterTests.Segment_DateLineTheYearFirstSlashFormStillReaches_….
         //
         // The predicate PROMOTION has since SHIPPED (the reduction below now lives in
         // DatePatterns.StripTrailingDate, with DatePatterns.IsDateOnlyLine defined as it, read by
@@ -641,16 +658,20 @@ internal sealed partial class HeadingDrivenResumeSegmenter(CvParsingLexiconData 
         // a real suppression instead of removing an accidental one (senior-cto-advisor bind
         // 2026-08-02, §2).
         //
-        // On the THREE-LINE "Title / Company / Dates" layout none of that applies: the employer is
-        // real, nothing fabricates the date row, and neither half of ReviewText's union models
-        // these forms — so the row REACHES the bullet scorer TODAY. That escape is MEASURED and
-        // pinned in ReviewTextPeriodLineUnionTests. It does not change the ordering; it means the
-        // widening closes a live hole rather than only preserving a suppression.
+        // On the THREE-LINE "Title / Company / Dates" layout none of that applied: the employer is
+        // real, nothing fabricates the date row, and neither half of ReviewText's union modelled
+        // these forms — so the row REACHED the bullet scorer. That escape was MEASURED and pinned in
+        // ReviewTextPeriodLineUnionTests, and it is what made the widening close a live hole rather
+        // than only preserve a suppression.
         //
-        // WHAT THE SCORER THEN DOES WITH IT — A1/A2/A6 scoring and CITING the row as though it were
-        // prose — is DERIVED from reading the rules, NOT RUN (senior-cto-advisor re-bind
-        // 2026-08-02). The widening owns measuring it (S1), and if the run disagrees the run
-        // adjudicates. Do not repeat it as a measurement.
+        // WHAT THE SCORER DID WITH IT is no longer derived: A1/A2/A6 scored and CITED the row as
+        // prose, and on "2020/01 – 2024/12" A1 returned an affirmative Pass noting "kvantifierad
+        // uppgift" — the product asserting the user had quantified a result out of her employment
+        // dates, CLAUDE.md §5's cited-evidence rule inverted. Measured by the widening under (S1),
+        // and closed by it FOR THREE OF THE FOUR FORMS; DateModelWideningReviewSideTests is the
+        // adjudicator. The fourth, YYYY/MM, is open again as of round 5 (decision D′) — the same
+        // affirmative Pass returns for that one notation, priced and pinned as a known regression
+        // in DateModelWideningReviewSideTests.A1CitesTheUsersEmploymentDates_ForTheYearFirstSlashForm_….
         //
         // Relocating the fallback to Lines[2] is a separate decision, refused on TWO measurements:
         // β-1 measured that widening the fallback hands a description bullet to the organization

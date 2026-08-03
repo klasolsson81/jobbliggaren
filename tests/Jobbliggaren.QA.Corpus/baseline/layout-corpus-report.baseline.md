@@ -104,7 +104,7 @@
 > ./Jobbliggaren.QA.Corpus.exe -class "Jobbliggaren.QA.Corpus.LayoutCorpusReportTests"
 > ```
 >
-> Base commit: `69b2f87a`.
+> Base commit: `b637b691`.
 > Deterministic; NO AI/LLM anywhere in the measured chain (ADR 0071).
 
 ## Claim discipline (ADR 0109 §4)

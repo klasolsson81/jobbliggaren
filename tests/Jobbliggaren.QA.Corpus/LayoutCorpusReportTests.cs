@@ -80,8 +80,15 @@ public sealed class LayoutCorpusReportTests
     /// regenerated in <c>a72c77e7</c> (PR B). So the published numbers were post-B behaviour
     /// carrying a pre-B provenance string — a claim true of the run that first produced the file
     /// and false of the one that last wrote it. Corrected 2026-07-28 to this branch's base.</para>
+    ///
+    /// <para>Bumped to <c>b637b691</c> on 2026-08-03 (#1060 road 3, commit 1) — DELIBERATELY, in
+    /// the same commit as the regeneration, because the ordering correction moves the product and
+    /// the baseline beside it is re-emitted against that move. This is the second disjunct of the
+    /// bump rule, not a side effect: the artefact WAS regenerated, so its provenance did move. The
+    /// preceding PR (the predicate promotion) correctly did NOT bump, having regenerated
+    /// nothing.</para>
     /// </summary>
-    private const string BaseCommit = "69b2f87a";
+    private const string BaseCommit = "b637b691";
 
     [Fact]
     public async Task LayoutCorpus_FromBytes_EmitsReport()

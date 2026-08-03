@@ -114,26 +114,49 @@ public class DatePatternsDateOnlyLineTests
         ShouldReduceTo(line, line);
 
     [Theory]
-    [InlineData("jan 2020 – dec 2024", "no month token in the end-alternation")]
-    [InlineData("2020 – 2024 (heltid)", "a qualifier follows the match")]
-    [InlineData("2020/01 – 2024/12", "YYYY/MM is not a modelled point form")]
-    [InlineData("2020 –", "DateRange needs an end point; Year leaves a non-empty tail")]
-    public void IsDateOnlyLine_ShouldBeFalse_WhenTheDateFormIsOneDatePatternsDoesNotModel(
-        string line, string why)
+    [InlineData("jan 2020 – dec 2024", "a month-NAME point, Swedish or English, in both endpoints")]
+    [InlineData("2020 – 2024 (heltid)", "a trailing bracketed qualifier, tolerated in the TAIL")]
+    [InlineData("2020/01 – 2024/12", "the YYYY/MM point form")]
+    [InlineData("2020 –", "a keyword-less open end: a dangling range separator in the TAIL")]
+    public void IsDateOnlyLine_ShouldBeTrue_ForTheFormsTheWideningAdded(string line, string how)
     {
-        // ACCEPTED-AND-KNOWN, pinned at the predicate that owns the gap. These are the same four
-        // forms the segmenter pin freezes, and they are here for a reason that pin cannot serve:
-        // that test measures a CONSEQUENCE (the line becomes the organization), which a change
-        // elsewhere in the segmenter could mask. This measures the CAUSE.
-        ShouldReduceTo(line, line);
+        // THE WIDENING (#1060 road 3, commit 2), pinned at the predicate that owned the gap. These
+        // four were the ACCEPTED-AND-KNOWN negative population until it landed; the InlineData is
+        // unchanged and the expectation moved, which is the shape a trigger firing is supposed to
+        // have. The segmenter pin measures the same four as a CONSEQUENCE (the line no longer
+        // becomes the organization); this measures the CAUSE, so a later change in the segmenter
+        // cannot mask a regression here.
+        //
+        // Two live under DateRange as POINT forms and two under IsIgnorableTail as properties of the
+        // LINE — the split is deliberate and DatePatterns' own comments carry the reason (a
+        // qualifier inside the match value would break the stored Period rather than widen it).
+        ShouldReduceTo(line, string.Empty);
 
-        // And PeriodParser declines all four too — so the ReviewText union does not rescue them
-        // either. Naming it here keeps the promotion's blast radius honest: it factored today's
-        // model into one home and inherited its blind spot, exactly as predicted.
+        // AND PeriodParser STILL DECLINES ALL FOUR — which is why they belong on this side of the
+        // union rather than merely being covered by it. Each of these rows is now an independent
+        // kill for "union → PeriodParser only": drop the DatePatterns disjunct and the date row
+        // reaches the bullet scorer again.
         PeriodParser.TryParse(line, out _, out _, out _).ShouldBeFalse(
-            $"PeriodParser declines this form too, so the union does not rescue it either. The " +
-            $"DatePatterns-side reason is: {why}.");
+            $"PeriodParser declines this form, so only the DatePatterns half suppresses it. The " +
+            $"DatePatterns-side mechanism is: {how}.");
     }
+
+    [Theory]
+    // THE RESIDUAL THE WIDENING DID NOT CLOSE, named rather than left implicit. A month name is
+    // recognised only INSIDE a range: a LONE month point is not reduced, exactly as a lone "03/2020"
+    // is not (that row lives in the PeriodParser-is-wider theory above). Year() takes the "2020" and
+    // leaves the month word behind, so the line keeps a non-empty remainder.
+    //
+    // This is a scope statement, not a defect claim: #428 already settled that a lone bare year on a
+    // non-header line must NOT be read as a period, and the range separator is what tells a period
+    // apart from a date mentioned in prose. Widening the lone-point case has a different blast
+    // radius — it would change what ExtractPeriod recovers, not only what a line is judged to be —
+    // and it is a separate change-reason.
+    [InlineData("maj 2020", "maj")]
+    [InlineData("januari 2020", "januari")]
+    public void IsDateOnlyLine_ShouldBeFalse_ForALoneMonthPoint_WhichIsNotARange(
+        string line, string reduced) =>
+        ShouldReduceTo(line, reduced);
 
     [Theory]
     // THE AXES ON WHICH PeriodParser IS WIDER — the measurement that makes ReviewText's period

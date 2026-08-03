@@ -1017,27 +1017,38 @@ public class HeadingDrivenResumeSegmenterTests
     /// of these too. Naming the promotion as the trigger would leave this green while the deferral
     /// claimed the gap was closed — which is the defect this test exists to make impossible.</para>
     ///
-    /// <para><b>The promotion has since SHIPPED and this test stayed green, 4/4, data unchanged</b>
-    /// — which is the prediction above being confirmed rather than a gap being closed.
-    /// <c>StripTrailingPeriod</c>'s reduction now lives in <c>DatePatterns.StripTrailingDate</c> and
-    /// <c>DatePatterns.IsDateOnlyLine</c> is defined as it, so both readers ask one predicate. The
-    /// predicate is the same one; these four forms are still outside it. <b>The widening remains the
-    /// trigger, and these four <c>InlineData</c> stay as they are.</b> If a future change makes one
-    /// of them pass, that change widened the date model — read it as the widening having landed, not
-    /// as a stale fixture to edit.</para>
+    /// <para><b>THE WIDENING LANDED (#1060 road 3, commit 2) AND THIS TEST MOVED SIDES.</b> Every
+    /// paragraph above is the record of what was true before it, kept verbatim because the
+    /// prediction it makes is the one that came true: the predicate PROMOTION left all four green
+    /// (4/4, data unchanged), and the date-model WIDENING is what reddened them — which is exactly
+    /// what the trigger was written to distinguish. The four <c>InlineData</c> are unchanged; what
+    /// changed is the assertion, from "is still taken as the organization" to "is no longer taken
+    /// as the organization". <b>That is the replacement the docblock above asked for, not an edit to
+    /// keep a fixture green</b>: the data is frozen and the expectation moved with the product.</para>
+    ///
+    /// <para>What it pins now is β-3's rule reaching its intended population: <i>a line that carries
+    /// no field must not BECOME a field</i>. Before the widening these four fabricated an employer
+    /// the source never wrote, with <c>ParseConfidence</c> = Confident, in a document the user sends
+    /// to employers — on the auto-promote path, which has no approve step. The period is now
+    /// recovered as well, for the two forms <c>DateRange</c> models as points; the other two are
+    /// recognised at the LINE level only, so the organization is correctly null while the period
+    /// stays absent (honest-absent over confidently-wrong, ADR 0071).</para>
     /// </summary>
     [Theory]
-    [InlineData("jan 2020 – dec 2024", "no month token in the end-alternation")]
-    [InlineData("2020 – 2024 (heltid)", "a qualifier follows the match")]
-    [InlineData("2020/01 – 2024/12", "YYYY/MM is not a modelled point form")]
-    // The open-ended form WITHOUT a keyword, and it is the sharpest of the four: DateRange needs
-    // an end point so it does not match at all, Year matches "2020", and the tail " –" is
-    // non-empty — so an ongoing employment, rendered the commonest way, still fabricates. Every
+    [InlineData("jan 2020 – dec 2024", "jan 2020 – dec 2024")]
+    [InlineData("2020 – 2024 (heltid)", "2020 – 2024")]
+    [InlineData("2020/01 – 2024/12", "2020/01 – 2024/12")]
+    // The open-ended form WITHOUT a keyword, and it was the sharpest of the four: DateRange needs
+    // an end point so it does not match at all, Year matches "2020", and the tail " –" was
+    // non-empty — so an ongoing employment, rendered the commonest way, fabricated. Every
     // open-ended fixture in the tree writes a keyword instead ("2005 - nu", "2024 - nuvarande"),
-    // which is why this form was unmeasured rather than disproven.
-    [InlineData("2020 –", "DateRange needs an end point; Year leaves a non-empty tail")]
-    public void Segment_DateLineDatePatternsDoesNotModel_IsStillTakenAsTheOrganization(
-        string dateLine, string why)
+    // which is why this form was unmeasured rather than disproven. It is reached at the LINE level
+    // (IsIgnorableTail) and not by DateRange, so the ORGANIZATION is fixed and the PERIOD stays
+    // null — a dangling separator is not a period, and inventing an end date would be the
+    // confidently-wrong half of the same defect.
+    [InlineData("2020 –", null)]
+    public void Segment_DateLineTheModelNowReaches_IsNoLongerTakenAsTheOrganization(
+        string dateLine, string? expectedPeriod)
     {
         var cv = $"""
             Anna Andersson
@@ -1053,9 +1064,12 @@ public class HeadingDrivenResumeSegmenterTests
 
         var exp = result.Content.Experience.ShouldHaveSingleItem();
         exp.Title.ShouldBe("Systemutvecklare");
-        // Accepted and known: the guard does not reach this form, so the date is still the
-        // organization. `why` names which half of DatePatterns declines to match.
-        exp.Organization.ShouldBe(dateLine, why);
+        exp.Organization.ShouldBeNull(
+            "a line carrying nothing but a date must not become the employer (#1060 β-3's rule, " +
+            "now reaching the population the date model previously hid from it).");
+        exp.Period.ShouldBe(expectedPeriod,
+            "the period is recovered only where DateRange models the form as a POINT range; where " +
+            "the line is recognised at the line level only, honest-absent beats invented.");
     }
 
     [Theory]

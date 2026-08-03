@@ -185,30 +185,37 @@ public class ReviewTextPeriodLineUnionTests
     [InlineData("2020 – 2024 (heltid)")]
     [InlineData("2020/01 – 2024/12")]
     [InlineData("2020 –")]
-    public void DescriptionLines_ShouldStillYieldTheDateRowAsABullet_WhenNeitherPredicateModelsTheForm(
+    public void DescriptionLines_ShouldNowSuppressTheDateRow_OnTheLayoutWhereItUsedToEscape(
         string dateLine)
     {
-        // ACCEPTED-AND-KNOWN, AND A LIVE ESCAPE — pinned because a comment claiming the union
-        // closed the residual would be FALSE about exactly these four, on exactly this layout.
+        // THE ESCAPE THIS TEST WAS WRITTEN TO MEASURE IS CLOSED (#1060 road 3, commit 2), and the
+        // move is the one its previous revision asked for: the four InlineData are frozen and
+        // unchanged, and the ASSERTION moved from "still yields the date row as a bullet" to
+        // "suppresses it". Editing the data to keep the old assertion green was the named failure
+        // mode; this is its opposite.
         //
-        // These are the segmenter pin's frozen four. On the two-line "Title / Dates" layout they
-        // are suppressed here, but only as a side effect: the segmenter fabricates them into
-        // Organization and the organisation-equality test fires on them. On THIS layout the
-        // employer is real, nothing fabricates them, and neither half of the union reaches them —
-        // so the date row reaches the bullet scorer and WeakVerbTransform TODAY. That is
-        // unchanged by the promotion, which factored today's model into one home and inherited its
-        // blind spot; it is not a regression this change introduced, and it is not closed.
+        // WHY THIS LAYOUT IS THE ONE THAT MATTERED. On the two-line "Title / Dates" layout these
+        // forms were suppressed even before the widening — but only as a side effect of a defect:
+        // the segmenter fabricated them into Organization and the organisation-equality test fired
+        // on them. Here the employer is real ("Acme AB"), nothing fabricates the date row, and
+        // neither half of the union reached it, so it was scored as prose. The organisation
+        // assertion below is what keeps that distinction honest: it proves the suppression is the
+        // period test doing its job, not equality masking the row.
         //
-        // THE TRIGGER THAT REDDENS THIS IS THE DatePatterns WIDENING — month names, trailing
-        // qualifiers, keyword-less open ends, YYYY/MM — which is the deferred follow-up PR. When
-        // it lands, these four move to the suppressed side and this test is REPLACED by that move,
-        // not edited to keep it green. Until then the escape is measured rather than assumed away.
+        // WHAT THE ESCAPE COST, MEASURED (not derived) on this exact layout before the widening:
+        // A1/A2/A6 all scored and CITED the user's employment dates as though they were prose, and
+        // on "2020/01 – 2024/12" A1 returned an affirmative Pass noting "kvantifierad uppgift" —
+        // the product asserting the user had quantified a result, grounded entirely in her
+        // employment dates. That is CLAUDE.md §5's "a CV verdict without cited textual evidence" in
+        // its inverted form. The verdict-level pin lives in DateModelWideningReviewSideTests; this
+        // one stays at the bullet-unit altitude where the cause is.
         var (review, improve, organization) = BulletsFor(dateLine);
 
-        organization.ShouldBe("Acme AB");
-        review.ShouldBe([dateLine, Bullet],
-            "neither predicate models this form and the employer is real, so nothing suppresses the date row.");
-        improve.ShouldBe([dateLine, Bullet],
-            "WeakVerbTransform is offered the date row today — the cost the widening removes.");
+        organization.ShouldBe("Acme AB",
+            "the employer is real here, so organisation-equality cannot be what suppresses the row.");
+        review.ShouldBe([Bullet],
+            "the date row is not a description bullet — the review criteria must never score it.");
+        improve.ShouldBe([Bullet],
+            "WeakVerbTransform scores the same unit and must not be offered the date row either.");
     }
 }

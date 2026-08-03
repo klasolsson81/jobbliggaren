@@ -41,9 +41,9 @@ Before any sync pass, read:
 - `.claude/README.md`
 
 **Not allowed Write/Edit:**
-- `BUILD.md` — authoritative spec, only Klas modifies
-- `CLAUDE.md` — authoritative spec, only Klas modifies
-- `DESIGN.md` — authoritative spec, only Klas modifies
+- `BUILD.md` / `CLAUDE.md` / `DESIGN.md` — authoritative spec. CC may edit these
+  through the spec-edit PR flow (CLAUDE.md §9.2, mandatory agents, Klas reviews
+  post-merge) — but docs-keeper is not that flow: she reports drift, never writes
 - `docs/decisions/000*.md` — existing ADRs are immutable; a new ADR supersedes,
   the old one is left untouched
 - `src/**`, `web/**`, `infra/**` — code territory
@@ -159,7 +159,7 @@ Report drift, propose sync diff.
 - Write new API doc content → dotnet-architect
 - Write new runbooks → Klas (or relevant specialist agent)
 - Write new ADRs → adr-keeper
-- Modify `BUILD.md` / `CLAUDE.md` / `DESIGN.md` → Klas only
+- Modify `BUILD.md` / `CLAUDE.md` / `DESIGN.md` → the spec-edit PR flow (§9.2)
 - Decide which version is "correct" when drift is detected → reports only,
   Klas decides
 

@@ -22,6 +22,18 @@ public sealed class RegisterCommandHandler(
     public async ValueTask<Result<RegisterOutcome>> Handle(
         RegisterCommand command, CancellationToken cancellationToken)
     {
+        // ADR 0083 Amendment 2026-08-03 — public-registration kill-switch. FIRST statement, before
+        // CreateUserAsync: a refused registration must leave NOTHING behind, not an Identity user for
+        // the #508 orphan-sweep to collect, not a JobSeeker, not an audit row. It also never reads
+        // command.Email, so the response cannot vary with the submitted address — the anti-enumeration
+        // property holds by construction here rather than by keeping two branches identical (#714).
+        // Default is CLOSED (fail-safe default): absent config must not open the gate.
+        if (!authOptions.Value.RegistrationsOpen)
+        {
+            return Result.Failure<RegisterOutcome>(DomainError.Validation(
+                AuthErrorCodes.RegistrationsClosed, AuthErrorCodes.RegistrationsClosedMessage));
+        }
+
         var requireConfirmation = authOptions.Value.RequireEmailConfirmation;
 
         var createResult = await userAccountService.CreateUserAsync(

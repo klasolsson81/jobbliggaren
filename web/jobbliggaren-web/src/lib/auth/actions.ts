@@ -7,6 +7,7 @@ import { deleteSessionCookie, setSessionCookie } from "@/lib/auth/session";
 import { SESSION_COOKIE_NAME } from "@/lib/auth/cookie-names";
 import { env } from "@/lib/env";
 import {
+  problemTitleSchema,
   registrationValidationErrorSchema,
   sessionResponseSchema,
 } from "@/lib/dto/auth";
@@ -40,6 +41,11 @@ export type AuthActionState = {
   // a "check your inbox" panel instead of an error. Identical for a fresh or a taken address — the
   // out-of-band email is the only differentiator, so the FE never distinguishes them.
   pendingConfirmation?: boolean;
+  // ADR 0083 Amendment 2026-08-03: set by registerAction when the backend refuses because the
+  // public-registration kill-switch is closed. Its own state rather than `error` — the form renders
+  // it as a role="status" panel in place of itself, like pendingConfirmation, because a deliberate
+  // pre-launch state is not a validation failure and must not invite a retry that cannot succeed.
+  registrationsClosed?: boolean;
   // #733: set alongside the login 403 gate (Auth.EmailNotConfirmed) so LoginForm can offer a
   // "resend confirmation link" action. Only reachable with a correct password, so not an oracle.
   emailNotConfirmed?: boolean;
@@ -171,6 +177,42 @@ export async function registerAction(
       // #733: echo the submitted email so the check-inbox panel can resend the link (the form, and
       // thus its email input, unmounts on 202). Uniform across fresh/taken addresses — no oracle.
       return { pendingConfirmation: true, email };
+    }
+    // ADR 0083 Amendment 2026-08-03 — public registration is deliberately held closed. Caught BEFORE
+    // the !res.ok fallthrough, which would render "ett oväntat fel uppstod" for a state that is
+    // neither unexpected nor an error (§10: informative, non-blaming). Uniform for every address:
+    // the backend gate never reads the submitted email, so this branch carries no enumeration signal.
+    //
+    // Discriminated on the ProblemDetails TITLE, not on the status: this endpoint has a SECOND 503
+    // producer. `Program.cs` maps SessionStoreUnavailableException to 503 across the whole pipeline,
+    // and the open instant-login path calls sessionStore.CreateAsync — so a Redis outage during an
+    // OPEN registration would otherwise render "registration is not open yet", which is false and
+    // masks the incident. A reverse proxy in front of the API can produce a 503 of its own too. Both
+    // fall through to serverUnreachable, which is literally true for them. Same exact-whitelist
+    // discipline the 400 path applies to "Auth.PwnedPassword" twelve lines up.
+    if (res.status === 503) {
+      let title: string | undefined;
+      try {
+        const problem = await parseResponse(
+          res,
+          problemTitleSchema,
+          "POST /api/v1/auth/register (503)"
+        );
+        title = problem.title;
+      } catch {
+        // A 503 with an unparseable body is not ours — fall through.
+      }
+      if (title === "Auth.RegistrationsClosed") {
+        // Returned as its own state, not as `error`: RegisterForm renders it in a role="status"
+        // panel in place of the form, mirroring the 202 check-inbox branch. The error channel is
+        // red, assertive and keeps the submit button live, which would invite a retry that cannot
+        // succeed until a config flag is flipped.
+        return { registrationsClosed: true };
+      }
+      // Any other 503 on this route is transport, not policy — an API container restarting, an
+      // upstream timeout, a deploy window. "Kunde inte nå servern" is literally true for those and
+      // invites the retry that will actually work; unexpectedError would be vaguer for no gain.
+      return { error: t("auth.actions.serverUnreachable") };
     }
     if (!res.ok) {
       return { error: t("auth.actions.unexpectedError") };

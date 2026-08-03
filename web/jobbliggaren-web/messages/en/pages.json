@@ -474,6 +474,7 @@
       "unexpectedError": "An unexpected error occurred. Try again.",
       "serverUnreachable": "Could not reach the server. Try again.",
       "registrationFailed": "Registration failed.",
+      "registrationsClosed": "Registration is not open yet. Try again later.",
       "passwordBreached": "This password has appeared in known data breaches. Choose a different password.",
       "emailNotConfirmed": "Confirm your email address to log in. We have sent a link to your inbox."
     },

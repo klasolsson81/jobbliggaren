@@ -100,6 +100,71 @@ updates:
         update-types: ["version-update:semver-major"]
       - dependency-name: "Refit.HttpClientFactory"
         update-types: ["version-update:semver-major"]
+      # CodeCoverage 18.9.0 is refused BY VERSION, not by update-type, and the
+      # distinction is the point: 18.8.0 -> 18.9.0 is a semver-MINOR, so an
+      # update-type ignore would also hide 18.10.0 and every later fix. Pinning the
+      # one bad version keeps a future release visible.
+      #
+      # What it does: 18.9.0 stops emitting a cobertura file where build.yml's
+      # `tests/**/coverage.cobertura.xml` glob looks. Measured in CI on #1157
+      # (2026-08-02): `dotnet build` clean, `dotnet test` 22 160 passed — and
+      # `scripts/coverage.sh` red. The failure then surfaces two steps downstream as
+      # `jq: Could not open file artifacts/coverage/Summary.json`, which NAMES THE
+      # WRONG THING, so a reader of the gate failure never reaches the cause.
+      #
+      # This is noise control, not a safety net: `coverage` is in `ci.needs`
+      # (build.yml:687), so a bad collector fails the required aggregate and cannot
+      # auto-merge. The ignore exists because #1174 and #1179 both re-proposed it
+      # after the pin, and each costs a CI run and a review to reject again.
+      #
+      # LIFT WHEN: a release after 18.9.0 restores the cobertura output. Verify it
+      # with `scripts/coverage.sh`, NEVER with the test suite alone — the suite is
+      # green on the broken version, which is exactly how this got in. The pin
+      # comment at the PackageVersion line in Directory.Packages.props carries the
+      # same requirement, for the reader who arrives from the other direction.
+      - dependency-name: "Microsoft.Testing.Extensions.CodeCoverage"
+        versions: ["18.9.0"]
+      # Resend is ignored ENTIRELY, and unlike every other entry here that is not a
+      # quality judgement on the package — it is being REMOVED. Klas-direktiv
+      # 2026-08-02 replaces it with AWS SES in eu-north-1; #183 owns the swap and
+      # #1169 the privacy-policy re-assessment that names Resend today.
+      #
+      # Bumping a dependency scheduled for deletion is work with no subject, and it
+      # is not free work either: 0.5.1 -> 0.8.0 breaks the build with 1x CS8604
+      # (`Subject` became `string?`), at
+      # tests/Jobbliggaren.Application.UnitTests/Email/ResendEmailSenderTests.cs:132.
+      # Verified independently 2026-08-03 by building the bump on origin/main.
+      # Note it is a MINOR in 0.x, so no update-type filter would have caught it —
+      # hence no `update-types` key here.
+      #
+      # SCOPED TO version-update:* ON PURPOSE, and the rule that makes the scoping
+      # work is the one worth writing down, because it is the CONVERSE of the general
+      # warning and a reader who checks only the warning will "fix" this the wrong way:
+      #
+      #   `update-types` affects VERSION updates only. Security updates are created
+      #   regardless of it. (GitHub docs, "Dependabot options reference", verified
+      #   2026-08-03.)
+      #
+      # The general warning is still true of the OTHER two forms: a bare
+      # `dependency-name`, and `versions:`, both DO reach security updates. That is why
+      # the blanket form was rejected here — it would silently suppress a CVE fix for a
+      # package still shipping every confirmation and password-reset mail until #183
+      # lands — and it is why the CodeCoverage rule above is written as one exact
+      # version rather than a range like `>= 18.9.0`, which would have been a real
+      # suppression.
+      #
+      # Do not "simplify" this back to a bare name, and do not convert it to `versions:`.
+      #
+      # LIFT WHEN: never. DELETE this entry together with the Resend PackageVersion
+      # when #183 lands. An ignore rule for a package that no longer exists is dead
+      # config that outlives its reason.
+      - dependency-name: "Resend"
+        update-types:
+          [
+            "version-update:semver-major",
+            "version-update:semver-minor",
+            "version-update:semver-patch",
+          ]
     # A MAJOR MUST NOT BE ABLE TO HIDE INSIDE A GROUP.
     #
     # This entry used to group `patterns: ["*"]`, i.e. everything including majors.

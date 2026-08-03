@@ -314,6 +314,24 @@ public static partial class AuthEndpoints
             title: AuthErrorCodes.EmailNotConfirmed,
             statusCode: StatusCodes.Status403Forbidden),
 
+        // ADR 0083 Amendment 2026-08-03 — public registration is held closed while the app is
+        // reachable but its launch gates are not green. 503 is the SERVER-AVAILABILITY axis
+        // ("capacity deliberately withheld, and coming back" — RFC 9110 §15.6.4 names scheduled
+        // maintenance), which is a third axis distinct from the 400/404/409/410 request/resource
+        // semantics the kind-union models — same rule as the 401 identity arm (#239 Variant B) and
+        // the 403 authorization arm (#714) above, applied a third time. It is therefore NOT the §3
+        // per-endpoint Code-matching anti-pattern: that ban targets the heuristic
+        // Code.EndsWith(".NotFound") shape, not a named constant in one auth switch that still
+        // falls through to the central mapper.
+        //
+        // No Retry-After: the opening date is unknown, and a wrong Retry-After is worse than none
+        // (clients and caches honour it). Only POST /auth/register can return this — the health
+        // endpoints are untouched, so uptime monitoring is unaffected.
+        AuthErrorCodes.RegistrationsClosed => Results.Problem(
+            detail: AuthErrorCodes.RegistrationsClosedMessage,
+            title: AuthErrorCodes.RegistrationsClosed,
+            statusCode: StatusCodes.Status503ServiceUnavailable),
+
         _ => error.ToProblemResult(),
     };
 

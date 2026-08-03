@@ -37,7 +37,7 @@ public class ListRecentSearchesQueryHandlerTests
         _taxonomy.ResolveLabelsAsync(Arg.Any<IReadOnlyList<string>>(), Arg.Any<CancellationToken>())
             .Returns(call =>
             {
-                var ids = call.Arg<IReadOnlyList<string>>();
+                var ids = call.ArgAt<IReadOnlyList<string>>(0);
                 IReadOnlyList<TaxonomyLabelDto> labels = ids
                     .Select(id => new TaxonomyLabelDto(id, $"Label-{id}"))
                     .ToList();

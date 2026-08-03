@@ -103,7 +103,7 @@ public class RetainPlatsbankenJobAdsJobTests
         await job.RunAsync(TestContext.Current.CancellationToken);
 
         await auditor.Received(1).RecordAsync(
-            Arg.Is<JobAdsRetentionCompleted>(e => e.ArchivedCount == 0 && e.Reason == "snapshot-miss"),
+            Arg.Is<JobAdsRetentionCompleted>(e => e != null && e.ArchivedCount == 0 && e.Reason == "snapshot-miss"),
             Arg.Any<CancellationToken>());
     }
 
@@ -157,7 +157,7 @@ public class RetainPlatsbankenJobAdsJobTests
 
         // Audit utan abort.
         await auditor.Received(1).RecordAsync(
-            Arg.Is<JobAdsRetentionCompleted>(e =>
+            Arg.Is<JobAdsRetentionCompleted>(e => e != null &&
                 !e.ThresholdAborted
                 && e.AbortReason == null
                 && e.ArchivedCount == 25),

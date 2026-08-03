@@ -143,7 +143,7 @@ public class JobAdRefetchBackfillRunnerTests
 
         // Audit-rad ska skrivas även vid 0 rader (GDPR Art. 30 — "behandlingsaktivitet har körts").
         await auditor.Received(1).RecordAsync(
-            Arg.Is<JobAdsSynced>(e => e.JobType == "backfill"),
+            Arg.Is<JobAdsSynced>(e => e != null && e.JobType == "backfill"),
             Arg.Any<CancellationToken>());
     }
 
@@ -164,7 +164,7 @@ public class JobAdRefetchBackfillRunnerTests
         var jobSource = Substitute.For<IJobSource>();
         jobSource.Source.Returns(JobSource.Platsbanken);
         jobSource.RefetchByExternalIdAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
-            .Returns(ci => Task.FromResult<JobAdImportItem?>(RefetchedItem(ci.Arg<string>())));
+            .Returns(ci => Task.FromResult<JobAdImportItem?>(RefetchedItem(ci.ArgAt<string>(0))));
 
         var mediator = Substitute.For<IMediator>();
         mediator.Send(Arg.Any<UpsertExternalJobAdCommand>(), Arg.Any<CancellationToken>())
@@ -238,7 +238,7 @@ public class JobAdRefetchBackfillRunnerTests
         var jobSource = Substitute.For<IJobSource>();
         jobSource.Source.Returns(JobSource.Platsbanken);
         jobSource.RefetchByExternalIdAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
-            .Returns(ci => Task.FromResult<JobAdImportItem?>(RefetchedItem(ci.Arg<string>())));
+            .Returns(ci => Task.FromResult<JobAdImportItem?>(RefetchedItem(ci.ArgAt<string>(0))));
 
         var mediator = Substitute.For<IMediator>();
         mediator.Send(Arg.Any<UpsertExternalJobAdCommand>(), Arg.Any<CancellationToken>())
@@ -268,13 +268,13 @@ public class JobAdRefetchBackfillRunnerTests
         var jobSource = Substitute.For<IJobSource>();
         jobSource.Source.Returns(JobSource.Platsbanken);
         jobSource.RefetchByExternalIdAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
-            .Returns(ci => Task.FromResult<JobAdImportItem?>(RefetchedItem(ci.Arg<string>())));
+            .Returns(ci => Task.FromResult<JobAdImportItem?>(RefetchedItem(ci.ArgAt<string>(0))));
 
         var mediator = Substitute.For<IMediator>();
-        mediator.Send(Arg.Is<UpsertExternalJobAdCommand>(c => c.ExternalId == "ext-ok"),
+        mediator.Send(Arg.Is<UpsertExternalJobAdCommand>(c => c != null && c.ExternalId == "ext-ok"),
                 Arg.Any<CancellationToken>())
             .Returns(Result.Success(UpsertOutcome.Updated));
-        mediator.Send(Arg.Is<UpsertExternalJobAdCommand>(c => c.ExternalId == "ext-fail"),
+        mediator.Send(Arg.Is<UpsertExternalJobAdCommand>(c => c != null && c.ExternalId == "ext-fail"),
                 Arg.Any<CancellationToken>())
             .Returns(Result.Failure<UpsertOutcome>(
                 DomainError.Validation("Test.Failure", "expected handler failure")));
@@ -330,7 +330,7 @@ public class JobAdRefetchBackfillRunnerTests
         var jobSource = Substitute.For<IJobSource>();
         jobSource.Source.Returns(JobSource.Platsbanken);
         jobSource.RefetchByExternalIdAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
-            .Returns(ci => Task.FromResult<JobAdImportItem?>(RefetchedItem(ci.Arg<string>())));
+            .Returns(ci => Task.FromResult<JobAdImportItem?>(RefetchedItem(ci.ArgAt<string>(0))));
 
         var mediator = Substitute.For<IMediator>();
         mediator.Send(Arg.Any<UpsertExternalJobAdCommand>(), Arg.Any<CancellationToken>())

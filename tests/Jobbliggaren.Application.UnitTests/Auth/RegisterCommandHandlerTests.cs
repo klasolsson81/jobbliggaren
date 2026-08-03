@@ -26,7 +26,11 @@ public class RegisterCommandHandlerTests
         IEmailSender? emailSender = null,
         ICooldownGate? cooldown = null,
         AuthEmailCooldownOptions? emailCooldownOptions = null,
-        bool requireEmailConfirmation = false)
+        bool requireEmailConfirmation = false,
+        // ADR 0083 Amendment 2026-08-03. Production default is CLOSED; this helper defaults it OPEN so
+        // every pre-existing test in this file still exercises the path it was written for. Only the
+        // kill-switch tests pass false.
+        bool registrationsOpen = true)
     {
         if (db is null)
         {
@@ -47,7 +51,11 @@ public class RegisterCommandHandlerTests
                     Arg.Any<string>(), Arg.Any<string>(), Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>())
                 .Returns(true);
         }
-        var options = Options.Create(new AuthOptions { RequireEmailConfirmation = requireEmailConfirmation });
+        var options = Options.Create(new AuthOptions
+        {
+            RequireEmailConfirmation = requireEmailConfirmation,
+            RegistrationsOpen = registrationsOpen,
+        });
         var cooldownOptions = Options.Create(emailCooldownOptions ?? new AuthEmailCooldownOptions());
 
         return new RegisterCommandHandler(
@@ -167,7 +175,7 @@ public class RegisterCommandHandlerTests
 
         await emailSender.Received(1).SendEmailConfirmationAsync(
             "klas@example.com",
-            Arg.Is<EmailConfirmationEmail>(c => c.UserId == userId && c.UrlSafeToken == "url-safe-token"),
+            Arg.Is<EmailConfirmationEmail>(c => c != null && c.UserId == userId && c.UrlSafeToken == "url-safe-token"),
             Arg.Any<EmailConfirmationIdempotencyKey>(),
             Arg.Any<CancellationToken>());
         await sessionStore.DidNotReceive().CreateAsync(
@@ -409,5 +417,134 @@ public class RegisterCommandHandlerTests
 
         await Should.ThrowAsync<InvalidOperationException>(
             () => handler.Handle(ValidCommand(), CancellationToken.None).AsTask());
+    }
+
+    // ---------- Public-registration kill-switch (ADR 0083 Amendment 2026-08-03) ----------
+
+    [Fact]
+    public async Task Handle_RegistrationsClosed_FailsWithRegistrationsClosedCode()
+    {
+        var handler = CreateHandler(registrationsOpen: false);
+
+        var result = await handler.Handle(ValidCommand(), CancellationToken.None);
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe(AuthErrorCodes.RegistrationsClosed);
+        result.Error.Message.ShouldBe(AuthErrorCodes.RegistrationsClosedMessage);
+    }
+
+    /// <summary>
+    /// The assertion that actually pins "nothing is written". A refused registration must not leave an
+    /// Identity user behind for the #508 orphan-sweep to collect, so the gate has to sit BEFORE
+    /// CreateUserAsync — not after it with a compensating delete.
+    /// </summary>
+    [Fact]
+    public async Task Handle_RegistrationsClosed_CreatesNoAccountAndNoSession()
+    {
+        var userId = Guid.NewGuid();
+        var userAccountService = UserAccountServiceCreating(userId);
+        var sessionStore = DefaultSessionStore(userId);
+        var emailSender = Substitute.For<IEmailSender>();
+        var auditLogger = Substitute.For<IAuthAuditLogger>();
+
+        var handler = CreateHandler(
+            userAccountService: userAccountService,
+            sessionStore: sessionStore,
+            auditLogger: auditLogger,
+            emailSender: emailSender,
+            registrationsOpen: false);
+
+        await handler.Handle(ValidCommand(), CancellationToken.None);
+
+        await userAccountService.DidNotReceive().CreateUserAsync(
+            Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+        await sessionStore.DidNotReceive().CreateAsync(
+            Arg.Any<Guid>(), Arg.Any<SessionLifetime>(), Arg.Any<CancellationToken>());
+        auditLogger.DidNotReceive().LoginSucceeded(Arg.Any<Guid>(), Arg.Any<string>());
+        emailSender.ReceivedCalls().ShouldBeEmpty();
+    }
+
+    /// <summary>
+    /// Anti-enumeration by CONSTRUCTION, not by care: the gate never reads the submitted address, so a
+    /// fresh and a taken address cannot diverge. Stronger than #714's uniform 202, which holds only as
+    /// long as two branches stay byte-identical. Also true with the confirmation flag ON — the gate
+    /// precedes that branch entirely.
+    /// <para>
+    /// The fixture models a genuinely TAKEN address (the adapter's real DuplicateAccount failure, the
+    /// same stub Handle_FlagOff_WhenDuplicate_ReturnsFailure_NoNotice uses) rather than two unknown
+    /// ones — otherwise "taken" is a word in a comment that the assertions cannot observe. Both are
+    /// asserted against the constant ABSOLUTELY, not against each other: comparing one refusal to
+    /// another passes even if the handler returns the wrong error entirely.
+    /// </para>
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Handle_RegistrationsClosed_RefusesIdentically_ForTakenAndFreshAddress(
+        bool requireEmailConfirmation)
+    {
+        const string takenEmail = "redan.tagen@example.com";
+        var userAccountService = UserAccountServiceCreating(Guid.NewGuid());
+        userAccountService.CreateUserAsync(takenEmail, Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(Result.Failure<Guid>(
+                DomainError.Validation(AuthErrorCodes.DuplicateAccount, AuthErrorCodes.DuplicateAccountMessage)));
+
+        var handler = CreateHandler(
+            userAccountService: userAccountService,
+            requireEmailConfirmation: requireEmailConfirmation,
+            registrationsOpen: false);
+
+        var fresh = await handler.Handle(ValidCommand(), CancellationToken.None);
+        var taken = await handler.Handle(
+            new RegisterCommand(
+                Email: takenEmail,
+                Password: "S3kret!pass",
+                DisplayName: "Någon Annan"),
+            CancellationToken.None);
+
+        fresh.IsFailure.ShouldBeTrue();
+        taken.IsFailure.ShouldBeTrue();
+        fresh.Error.Code.ShouldBe(AuthErrorCodes.RegistrationsClosed);
+        taken.Error.Code.ShouldBe(AuthErrorCodes.RegistrationsClosed);
+        fresh.Error.Message.ShouldBe(AuthErrorCodes.RegistrationsClosedMessage);
+        taken.Error.Message.ShouldBe(AuthErrorCodes.RegistrationsClosedMessage);
+    }
+
+    /// <summary>
+    /// The fail-safe default itself, pinned past the helper. Every other test in this file goes
+    /// through <c>CreateHandler</c>, which defaults <c>registrationsOpen: true</c> — so none of them
+    /// ever sees a default-constructed <see cref="AuthOptions"/>, and the property the whole change
+    /// rests on would survive its own removal.
+    /// <para>
+    /// This is not hypothetical. The defect this feature exists to fix is exactly a missing
+    /// initialiser: <c>RequireEmailConfirmation</c> is declared without one and absent from every
+    /// non-Development appsettings file, so the Production configuration resolves it to the
+    /// permissive branch. An absent key, a typo or an undeployed config must not open the gate.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public async Task Handle_WithDefaultAuthOptions_RefusesRegistration()
+    {
+        var userAccountService = UserAccountServiceCreating(Guid.NewGuid());
+        var db = Substitute.For<IAppDbContext>();
+        db.JobSeekers.Returns(Substitute.For<DbSet<JobSeeker>>());
+
+        var handler = new RegisterCommandHandler(
+            db,
+            userAccountService,
+            Substitute.For<ISessionStore>(),
+            Substitute.For<IAuthAuditLogger>(),
+            Substitute.For<IEmailSender>(),
+            Substitute.For<ICooldownGate>(),
+            Options.Create(new AuthOptions()),
+            Options.Create(new AuthEmailCooldownOptions()),
+            FakeDateTimeProvider.Default);
+
+        var result = await handler.Handle(ValidCommand(), CancellationToken.None);
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe(AuthErrorCodes.RegistrationsClosed);
+        await userAccountService.DidNotReceive().CreateUserAsync(
+            Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
     }
 }

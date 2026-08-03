@@ -23,6 +23,18 @@ export const registrationValidationErrorSchema = z.object({
   title: z.string().optional(),
 });
 
+/**
+ * The machine code carried by a ProblemDetails `title`, for responses where the STATUS alone does not
+ * identify the cause. `POST /api/v1/auth/register` has two independent 503 producers: the
+ * registration kill-switch (`Auth.RegistrationsClosed`, ADR 0083 Amendment 2026-08-03) and the
+ * central `SessionStoreUnavailableException` arm, which fires on a Redis outage while registration is
+ * OPEN. Discriminating on 503 alone would render "registration is not open yet" for an incident and
+ * mask it. Same exact-whitelist discipline the 400 path already applies to "Auth.PwnedPassword".
+ */
+export const problemTitleSchema = z.object({
+  title: z.string().optional(),
+});
+
 export type RegistrationValidationError = z.infer<
   typeof registrationValidationErrorSchema
 >;

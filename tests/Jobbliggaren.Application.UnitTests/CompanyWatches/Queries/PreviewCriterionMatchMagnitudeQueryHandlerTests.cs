@@ -47,7 +47,7 @@ public class PreviewCriterionMatchMagnitudeQueryHandlerTests
         result.Value.Saturated.ShouldBeFalse();
 
         await port.Received(1).CountMatchingCompaniesAsync(
-            Arg.Is<CompanyWatchCriteriaSpec>(s =>
+            Arg.Is<CompanyWatchCriteriaSpec>(s => s != null &&
                 s.SniCodes.SequenceEqual(SniIt)
                 && s.MunicipalityCodes.SequenceEqual(KommunStockholm)),
             CriterionMatchMagnitudeDto.Ceiling,

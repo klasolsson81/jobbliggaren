@@ -137,13 +137,23 @@ updates:
       # Note it is a MINOR in 0.x, so no update-type filter would have caught it —
       # hence no `update-types` key here.
       #
-      # SCOPED TO version-update:* ON PURPOSE. A bare `dependency-name` with no
-      # `update-types` ignores the dependency outright, and per GitHub's own docs an
-      # `ignore` condition applies to SECURITY updates as well as version updates —
-      # so the blanket form would silently suppress a CVE fix for a package that is
-      # still shipping every confirmation and reset mail until #183 lands. The three
-      # `version-update:` entries below refuse routine bumps only. Do not "simplify"
-      # this back to a bare name.
+      # SCOPED TO version-update:* ON PURPOSE, and the rule that makes the scoping
+      # work is the one worth writing down, because it is the CONVERSE of the general
+      # warning and a reader who checks only the warning will "fix" this the wrong way:
+      #
+      #   `update-types` affects VERSION updates only. Security updates are created
+      #   regardless of it. (GitHub docs, "Dependabot options reference", verified
+      #   2026-08-03.)
+      #
+      # The general warning is still true of the OTHER two forms: a bare
+      # `dependency-name`, and `versions:`, both DO reach security updates. That is why
+      # the blanket form was rejected here — it would silently suppress a CVE fix for a
+      # package still shipping every confirmation and password-reset mail until #183
+      # lands — and it is why the CodeCoverage rule above is written as one exact
+      # version rather than a range like `>= 18.9.0`, which would have been a real
+      # suppression.
+      #
+      # Do not "simplify" this back to a bare name, and do not convert it to `versions:`.
       #
       # LIFT WHEN: never. DELETE this entry together with the Resend PackageVersion
       # when #183 lands. An ignore rule for a package that no longer exists is dead

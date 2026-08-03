@@ -271,10 +271,12 @@ ever decrypts: Form A/B round-trip through the model and need the registry, Form
 C is opaque to it and must not be registered.
 
 **Adding a Form C column is a three-file change**, and the third is the one that
-gets forgotten. Form A/B are covered by `EncryptedFieldRegistry`, but **Form C has
-no allowlist for the architecture cross-check to read**, so the column is
-enumerated **by hand** in `ErasureCascadeRegistryTests` — both the `formC` array
-and the `SealedContent` loop in `EncryptedColumns()`. Miss the registry entry and
+gets forgotten. Only **Form A** is read automatically — the cross-check reflects
+it out of `EncryptedFieldRegistry`. **Form B is enumerated by hand** there too
+(its allowlist is keyed in a way the EF model will not hand back symmetrically),
+and **Form C has no allowlist for the cross-check to read at all**, so it is
+enumerated by hand in `ErasureCascadeRegistryTests` in two places — the `formC`
+array and the `SealedContent` loop in `EncryptedColumns()`. Miss the registry entry and
 the Art. 17 cascade misses the column; miss the cross-check and the guard goes
 **vacuous for it while the suite stays green**, which is worse, because nothing
 tells you. `ErasureCascadeRegistry` says so itself: "Add a Form-C column and you

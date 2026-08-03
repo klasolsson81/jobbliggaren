@@ -103,7 +103,7 @@ internal static partial class DatePatterns
     // lists, so YYYY/MM is now read as a month by NEITHER home — origin/main's behaviour, restored
     // rather than repaired. See DateRangeYearFirstCharacterisationTests, which pins the collision, the
     // per-commit attribution, and this resolution; the open question of whether the slash form should
-    // be RECOGNISED-but-undated is routed to the follow-up issue it names.
+    // be RECOGNISED-but-undated is routed to #1195.
     //
     // `\d{2}/\d{4}` IS DELIBERATELY NOT NARROWED, and the reason is the contract, not convenience.
     // It stands in no prefix relation to any other alternative — strings matching it open with two
@@ -209,7 +209,8 @@ internal static partial class DatePatterns
 
     // What may follow the match and still leave the line "nothing but a date".
     //
-    // TWO OF THE FOUR WIDENED FORMS LIVE HERE AND NOT IN DateRange, AND THE SPLIT IS THE DESIGN.
+    // TWO OF THE THREE SURVIVING WIDENED FORMS LIVE HERE AND NOT IN DateRange, AND THE SPLIT IS THE
+    // DESIGN (a fourth, YYYY/MM, was tried in DateRange and taken back out — see the note above).
     // DateRange's match VALUE is what ExtractPeriod stores as ParsedExperience.Period, so anything
     // added there rides into the promoted CV and must survive PeriodParser. A trailing qualifier
     // does not: modelling "2020 – 2024 (heltid)" inside DateRange would store
@@ -311,8 +312,8 @@ internal static partial class DatePatterns
     /// the same reason <see cref="PeriodParser"/> never dates it (Klas-direktiv 2026-08-03): the
     /// year-first slash notation is how Swedish writes a YEAR PAIR — a läsår or a räkenskapsår — and
     /// this file has no authority to read it as a month. See
-    /// <c>DateRangeYearFirstCharacterisationTests</c> for the collision, the per-commit attribution,
-    /// and the follow-up issue that owns whether the LINE half alone should be recognised.</para>
+    /// <c>DateRangeYearFirstCharacterisationTests</c> for the collision and the per-commit
+    /// attribution. #1195 owns whether the LINE half alone should be recognised.</para>
     ///
     /// <para><b>A MONTH WORD THAT IS ALSO A NAME COSTS A REAL ORGANIZATION, and it is priced here
     /// rather than guarded.</b> "Mars 2020 – 2024" and "Maj 2018 – 2020" reduce to empty, so the line

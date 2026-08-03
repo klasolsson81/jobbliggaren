@@ -1102,8 +1102,45 @@ public class HeadingDrivenResumeSegmenterTests
         exp.Title.ShouldBe("Systemutvecklare");
         exp.Organization.ShouldBe("2020/01 – 2024/12",
             "the date row is unrecognised at the LINE level (decision D′), so β-3's guard cannot " +
-            "act on it — origin/main's own behaviour, priced and tracked in the follow-up issue " +
-            "DateRangeYearFirstCharacterisationTests names.");
+            "act on it — origin/main's own behaviour, priced and tracked in #1195.");
+    }
+
+    /// <summary>
+    /// A FOURTH ALTITUDE THE ROUND-5 BIND DID NOT ENUMERATE (found in round 6). On the two-column
+    /// "period first" layout, <c>Lines[0]</c> IS the date row. <c>StripTrailingPeriod</c> used to
+    /// reduce it to empty, so the separator loop below fell through to <c>Lines[1]</c>. Under
+    /// decision D′ the slash form is not reduced at all, so <c>splitSource</c> stays the WHOLE date
+    /// row — and <c>TitleOrgSeparators</c> contains <c>" – "</c>, the exact glyph inside
+    /// <c>"2020/01 – 2024/12"</c>. The loop matches on the date's own separator and splits the DATE
+    /// ITSELF into <c>Title</c>/<c>Organization</c>, so the real employer on <c>Lines[1]</c> is never
+    /// read at all. This is <c>origin/main</c>'s own behaviour (it never reduced the slash row
+    /// either), not something decision D′ creates — but it is a distinct FAILURE SHAPE from the
+    /// two-line-layout Organization fabrication pinned above (there the real Title survives and only
+    /// the Organization is wrong; here BOTH fields are fabricated out of the date row and the real
+    /// employer is lost entirely), so it needs its own pin rather than being assumed covered.
+    /// </summary>
+    [Fact]
+    public void Segment_TheYearFirstSlashFormOnTheFirstLineLayout_IsSplitIntoTitleAndOrganization_KnownAcceptedRegression()
+    {
+        const string cv = """
+            Anna Andersson
+            anna@example.com
+
+            Arbetslivserfarenhet
+            2020/01 – 2024/12
+            Acme AB
+            Byggde saker.
+            """;
+
+        var result = _sut.Segment(cv);
+
+        var exp = result.Content.Experience.ShouldHaveSingleItem();
+        exp.Title.ShouldBe("2020/01",
+            "StripTrailingPeriod no longer reduces the slash row (decision D′), so the separator " +
+            "loop splits the DATE on its own en dash instead of falling through to Lines[1].");
+        exp.Organization.ShouldBe("2024/12",
+            "the real employer, \"Acme AB\" on Lines[1], is never read — both fields are fabricated " +
+            "out of the date row. origin/main's own behaviour, priced and tracked in #1195.");
     }
 
     [Theory]

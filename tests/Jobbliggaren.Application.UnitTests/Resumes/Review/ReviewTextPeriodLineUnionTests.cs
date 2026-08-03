@@ -57,12 +57,15 @@ namespace Jobbliggaren.Application.UnitTests.Resumes.Review;
 ///
 /// <para>The class is the INVERSE of the one first
 /// cited: §5's "a CV verdict without cited textual evidence" — a verdict citing a span that is not
-/// prose. Sharpest on <c>YYYY/MM</c>, which <c>DateRange</c> models on neither endpoint, so
-/// <c>StripDates</c> leaves digits behind and A1 can read the employment dates as a quantified
-/// result. <b>That A1/A2/A6 consequence WAS derived from reading the rules and is now MEASURED</b>
-/// (#1060 road 3, (S1)): all three cited the user's date row, and on the <c>YYYY/MM</c> form A1
-/// returned an affirmative Pass noting "kvantifierad uppgift". The widening then closed it. The
-/// verdicts live in <c>DateModelWideningReviewSideTests</c>; what is run and pinned HERE is the
+/// prose. Sharpest on <c>YYYY/MM</c>, which <c>DateRange</c> modelled on neither endpoint before
+/// this PR, so <c>StripDates</c> left digits behind and A1 could read the employment dates as a
+/// quantified result. <b>That A1/A2/A6 consequence WAS derived from reading the rules and is now
+/// MEASURED</b> (#1060 road 3, (S1)): all three cited the user's date row, and on the
+/// <c>YYYY/MM</c> form A1 returned an affirmative Pass noting "kvantifierad uppgift". <b>The
+/// widening closed it for three of the four forms it added; the fourth, <c>YYYY/MM</c>, is open
+/// again as of round 5 (decision D′)</b> — see
+/// <see cref="DescriptionLines_StillYieldsTheYearFirstSlashDateRow_KnownAcceptedRegression"/> below.
+/// The verdicts live in <c>DateModelWideningReviewSideTests</c>; what is run and pinned HERE is the
 /// bullet unit, which is where the cause is.</para>
 ///
 /// <para><b>The pin's whole purpose is to redden under EITHER substitution</b>, which is why the
@@ -249,7 +252,7 @@ public class ReviewTextPeriodLineUnionTests
         organization.ShouldBe("Acme AB", "the employer is real here, unaffected by the date model.");
         review.ShouldBe(["2020/01 – 2024/12", Bullet],
             "the date row reaches the bullet scorer — origin/main's behaviour, priced and tracked " +
-            "in the follow-up issue DateRangeYearFirstCharacterisationTests names.");
+            "in #1195.");
         improve.ShouldBe(["2020/01 – 2024/12", Bullet],
             "WeakVerbTransform is offered the same unit, for the same reason.");
     }

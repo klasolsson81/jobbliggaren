@@ -126,25 +126,27 @@ public class DateModelWideningReviewSideTests
         // origin/main never modelled YYYY/MM either, so the date row is unsuppressed, reaches
         // ExperienceBullets as prose, and StripDates leaves its digits unmasked.
         //
-        // MEASURED (matches this class's own docblock table, run against origin/main before any
-        // road-3 edit — the row returns to exactly that reading, not a new one):
+        // NO VERDICT IS PINNED HERE, deliberately, on this class's OWN stated ground (top of this
+        // file: pinning a fixed verdict "would couple this class to threshold data it has no
+        // business owning"). What must never happen — a criterion CITING the user's employment
+        // dates — is what every row in this class asserts, and this row is no exception, even
+        // though it is a regression rather than a fix. This class's own docblock table (run against
+        // `b637b691`, before any road-3 edit) records this exact row as an affirmative A1 `Pass`
+        // noting "kvantifierad uppgift" — historical record, not re-asserted here as a brittle pin.
         var result = await ReviewThreeLineLayoutAsync("2020/01 – 2024/12");
 
-        var a1 = result.Verdicts.Single(v => v.CriterionId == "A1");
-        a1.Verdict.ShouldBe(CriterionVerdict.Pass,
-            "an affirmative Pass grounded entirely in the user's employment dates — the exact §5 " +
-            "class this PR exists to close, unfixed for this one notation and priced as such.");
-        a1.Evidence.OfType<TextSpanEvidence>().Select(e => e.Span.Quote)
-            .ShouldContain("2020/01 – 2024/12",
-                "the criterion cites the date row as though it were a quantified-achievement bullet.");
+        foreach (var id in new[] { "A1", "A2", "A6" })
+        {
+            var verdict = result.Verdicts.Single(v => v.CriterionId == id);
+            verdict.Evidence.OfType<TextSpanEvidence>().Select(e => e.Span.Quote)
+                .ShouldContain("2020/01 – 2024/12",
+                    $"{id} cites the date row as though it were prose — the exact §5 class this PR " +
+                    "exists to close, unfixed for this one notation and priced as such.");
+        }
 
-        var a6 = result.Verdicts.Single(v => v.CriterionId == "A6");
-        a6.Evidence.OfType<TextSpanEvidence>().Select(e => e.Span.Quote)
-            .ShouldContain("2020/01 – 2024/12", "A6 cites the same unsuppressed row.");
-
-        // Not a claim this PR should ever have to re-derive: it is tracked in the follow-up issue
-        // DateRangeYearFirstCharacterisationTests names, which owns whether the LINE half alone
-        // (recognise, still never date) should be reintroduced to close this specific reading.
+        // Not a claim this PR should ever have to re-derive: it is tracked in #1195, which owns
+        // whether the LINE half alone (recognise, still never date) should be reintroduced to close
+        // this specific reading.
     }
 
     [Theory]
@@ -303,10 +305,12 @@ public class DateModelWideningReviewSideTests
         // "2020/01 – 2024/12" stores no Period at all on the three-line layout (DateRange matches
         // neither slash endpoint), which is origin/main's own answer and honest: the CV states a
         // date the product declines to read as one, so A4/B6/B7 report NotAssessed rather than
-        // inventing a span. This is a strict A1-defect return, not a new one — the LINE half still
-        // suppresses the row from the bullet scorer (asserted elsewhere in this class and in
-        // DatePatternsDateOnlyLineTests), so the entry does not ALSO get mis-scored as a
-        // "kvantifierad uppgift"; it is simply silent on a value nobody ever confirmed.
+        // inventing a span. THE LINE HALF DOES NOT SUPPRESS THE ROW ANY MORE — that is decision D′'s
+        // own price (§9 trade-off 1): the row DOES reach the bullet scorer and IS mis-scored as
+        // "kvantifierad uppgift", pinned in A1CitesTheUsersEmploymentDates_ForTheYearFirstSlashForm_…
+        // above. This method measures a DIFFERENT, independent axis of the same input — the
+        // structured Period field A4/B6/B7 read, not the bullet-scorer path A1/A2/A6 read — and the
+        // two do not agree with each other, which is exactly why both need a separate pin.
         var result = await ReviewThreeLineLayoutAsync("2020/01 – 2024/12");
 
         foreach (var id in new[] { "A4", "B6", "B7" })

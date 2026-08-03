@@ -159,9 +159,9 @@ internal static class ReviewText
             // working origin/main degradation into an unparseable stored value. Neither disjunct
             // models it now, so a CV whose date row is written that way still reaches this method as
             // an ordinary bullet — origin/main's behaviour, not a regression this PR created, and not
-            // fixed by it either. Tracked in the follow-up issue DateRangeYearFirstCharacterisationTests
-            // names. The union is otherwise unchanged and is still a union: neither predicate subsumes
-            // the other, and DatePatternsDateOnlyLineTests owns the axis list.
+            // fixed by it either. Tracked in #1195. The union is otherwise unchanged and is still a
+            // union: neither predicate subsumes the other, and DatePatternsDateOnlyLineTests owns the
+            // axis list.
             //
             // TWO DEFERRALS, AND THE ORDER WAS LOAD-BEARING — the promotion FIRST, the widening
             // SECOND. Not a preference, and the argument was about the TWO-LINE layout specifically:

@@ -54,8 +54,8 @@ internal static partial class PeriodParser
     // refused whole, where origin/main had stored a working bare-year degradation. Round 5 removed
     // the branch from DateRange too, on both endpoints — so the form is now unmodelled in BOTH
     // homes, origin/main's own answer, restored rather than repaired. See
-    // DateRangeYearFirstCharacterisationTests for the measurement and the follow-up issue that owns
-    // whether the LINE half alone (recognise, still never date) should be reintroduced.
+    // DateRangeYearFirstCharacterisationTests for the measurement. #1195 owns whether the LINE half
+    // alone (recognise, still never date) should be reintroduced.
     //
     // THE MONTH-NAME FORM IS HERE BECAUSE DatePatterns.DateRange MATCHES IT, and
     // the two must widen together (senior-cto-advisor re-bind 2026-08-03, Approach A). DateRange's

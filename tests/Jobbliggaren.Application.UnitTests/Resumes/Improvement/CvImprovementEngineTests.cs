@@ -549,17 +549,11 @@ public class CvImprovementEngineTests
     [InlineData("jan 2020 – dec 2024")]
     [InlineData("jan 2020 – nuvarande")]
     [InlineData("2020 – 2024 (heltid)")]
-    // "2020/01 – 2024/12" was OUT of this theory for one commit (Klas-direktiv 2026-08-03: the
-    // slash notation is recognised-but-undated, so this transform fired on it) and is back IN as of
-    // round 5 (decision D′): DateRange no longer matches the slash point on either endpoint, so the
-    // segmenter stores no Period at all for this line (three-line layout) and the transform's own
-    // guard — `string.IsNullOrWhiteSpace(period)` — skips it before the PeriodParser check is even
-    // reached. Silent, not because the parser declines a stored value, but because nothing is
-    // stored to flag. origin/main's behaviour, restored.
-    [InlineData("2020/01 – 2024/12")]
-    // The läsår collision, same mechanism: a valid-month slash pair is unmodelled just as
-    // completely as an invalid-month one (decision D′ removed the branch, not just narrowed it).
-    [InlineData("2008/09 – 2011/12")]
+    // "2020/01 – 2024/12" and "2008/09 – 2011/12" are deliberately ABSENT from this theory as of
+    // round 6: they are silent for a DIFFERENT reason than the rows above (nothing is stored to
+    // flag, rather than a stored value the parser reads), so this theory's own name and failure
+    // message — "is a format the date model reads" — would be false of them. Pinned in their own
+    // correctly-named theory below, SuggestAsync_ShouldNotProposeDateNormalization_ForTheSlashFormTheModelNoLongerReads.
     public async Task SuggestAsync_ShouldNotProposeDateNormalization_ForAFormTheDateModelNowReads(
         string dateLine)
     {
@@ -594,6 +588,44 @@ public class CvImprovementEngineTests
             $"[{dateLine}] is a format the date model reads, so there is nothing to standardise. " +
             "The transform's definition of non-standard is 'our parser cannot read this' — widening " +
             "the parser must make it quieter, never noisier.");
+    }
+
+    [Theory]
+    [InlineData("2020/01 – 2024/12")]
+    [InlineData("2008/09 – 2011/12")]
+    public async Task SuggestAsync_ShouldNotProposeDateNormalization_ForTheSlashFormTheModelNoLongerReads(
+        string dateLine)
+    {
+        // THE OTHER SILENCE, and it needs its own theory because it is a DIFFERENT property than
+        // "a format the date model reads" — these two are, as of round 5 (decision D′), a format
+        // the model does NOT read at all. "2020/01 – 2024/12" was briefly IN the sibling theory
+        // above (Klas-direktiv 2026-08-03: recognised-but-undated, so the transform fired on it)
+        // and moved here in round 6 once the mismatch between the sibling's own name/message and
+        // what these two rows actually measure was found. "2008/09 – 2011/12" is the läsår
+        // collision, same mechanism: a valid-month slash pair is unmodelled just as completely as
+        // an invalid-month one (decision D′ removed the branch, not narrowed it).
+        //
+        // DateRange no longer matches the slash point on either endpoint, so the segmenter stores
+        // no Period at all for this line (three-line layout) and the transform's own guard —
+        // `string.IsNullOrWhiteSpace(period)` — skips it before the PeriodParser check is even
+        // reached. Silent, not because the parser declines a stored value, but because nothing is
+        // stored to flag. origin/main's behaviour, restored; tracked in #1195.
+        var cv = $"""
+            Anna Andersson
+            anna@example.com
+
+            Arbetslivserfarenhet
+            Systemutvecklare
+            Acme AB
+            {dateLine}
+            Ökade konverteringen med 23 procent.
+            """;
+
+        var result = await SuggestAsync(Review.CvReviewFixtures.ResumeFromCvText(cv));
+
+        result.Changes.ShouldNotContain(c => c.Kind == ProposedChangeKind.DateNormalization,
+            $"[{dateLine}] stores no Period at all, so there is nothing to flag — a different " +
+            "silence than a format the parser can read.");
     }
 
     [Theory]

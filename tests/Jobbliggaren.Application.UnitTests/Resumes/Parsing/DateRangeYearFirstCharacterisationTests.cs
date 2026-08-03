@@ -202,11 +202,16 @@ public class DateRangeYearFirstCharacterisationTests
     // dissolved. ISO 8601 adjudicates the hyphen (see HyphenValidMonth below). Nothing adjudicates
     // the slash — this PR tried reading it as a month, on no cited authority, broke twice, and
     // took the reading back out. Whether the LINE half alone (recognise, still never date) should
-    // return is a product question, tracked in the follow-up issue this file names below.
+    // return is a product question, tracked in **#1195**.
     [InlineData("2019/20 – 2021", null)]
     [InlineData("2018 – 2019/20", "2018 – 2019")]
     [InlineData("2008/09 – 2011/12", null)]
     [InlineData("2000/01 – 2011/12", null)]
+    // THE PR's OWN NAMED-DEFECT ROW, direct — every other test that uses this exact string asserts
+    // something ELSE about it (the unshadowing consequence, the two-line Organization fabrication,
+    // the review-engine verdict), so none of them is a direct IsDateOnlyLine/Period pin in isolation.
+    // This row is that pin.
+    [InlineData("2020/01 – 2024/12", null)]
     // THE MISSING CELL an earlier revision of this table did not have: {slash, END, NN ∈ 01-12}
     // with a NON-slash START — the exact shape of the Blocker that triggered decision D′. The two
     // existing valid-NN rows above carry slash at BOTH endpoints, so neither can see this cell: a
@@ -225,13 +230,14 @@ public class DateRangeYearFirstCharacterisationTests
             "YYYY/NN is modelled by no branch, on either endpoint, whatever NN is — decision D′ made " +
             "this uniform across the whole grammar.");
         period.ShouldBe(expectedPeriod,
-            "a START-position slash point stores nothing; an END-position one degrades to whatever " +
-            "the OTHER endpoint's own branch reaches — a bare year for the two rows above, and " +
-            "the full point value for the two below, exactly as the hyphen END cell degrades to a " +
-            "bare year (HyphenEnd_InvalidMonth_DegradesToTheBareYear).");
+            $"[{dateLine}]: a START-position slash point stores nothing (null); an END-position " +
+            "one degrades to whatever the OTHER endpoint's own branch reaches — a bare year, a " +
+            "hyphen point's value, or nothing, depending on that endpoint's own form — exactly as " +
+            "the hyphen END cell degrades to a bare year " +
+            "(HyphenEnd_InvalidMonth_DegradesToTheBareYear).");
         parses.ShouldBe(expectedPeriod is not null,
             "and whatever IS stored must be readable, which is the invariant the whole table serves " +
-            "— the Blocker this theory's last two rows exist to keep closed.");
+            "— the Blocker the mixed-notation rows exist to keep closed.");
     }
 
     [Theory]
@@ -254,16 +260,23 @@ public class DateRangeYearFirstCharacterisationTests
     }
 
     [Fact]
-    public void SlashYearFirst_DoesNotShadowARangeFurtherRightInTheEntryText()
+    public void SlashYearFirst_UnshadowsAConfidentlyWrongSpanFromProse_KnownOriginMainRisk()
     {
-        // THE UNSHADOWING DIRECTION (round-5 bind §2, "the consequence half" — obligation 4). Once
-        // the date row's own slash pair stops matching DateRange, it can no longer consume the
-        // LEFTMOST match over the entry's whole text — so if a later line in the same entry happens
-        // to contain something DateRange DOES model, that later match becomes the one ExtractPeriod
-        // stores instead. Measured, not assumed: this is origin/main's own behaviour for this row
-        // (origin/main never modelled the slash form either), so decision D′ does not create a new
-        // failure mode here — it un-masks one the widening had temporarily hidden by making the
-        // date row itself the leftmost match again.
+        // THE UNSHADOWING DIRECTION (round-5 bind §2, "the consequence half" — obligation 4), NAMED
+        // FOR WHAT IT COSTS, NOT FOR THE FACT THAT IT REPRODUCES origin/main. Once the date row's
+        // own slash pair stops matching DateRange, it can no longer consume the LEFTMOST match over
+        // the entry's whole text — so a range merely MENTIONED in a later bullet becomes the one
+        // ExtractPeriod stores as the entry's Period. That is `origin/main`'s own behaviour (it never
+        // modelled the slash form either, so this fall-through always existed for this row) — but
+        // "not new" is not "safe", and round 6 measured what it actually produces: the CV states
+        // 2020/01 – 2024/12 (~5 years) and the engine reports a PARSEABLE, CONFIDENTLY WRONG
+        // "2021 – 2023" (2 years) lifted out of a sentence about a budget she managed, not her
+        // tenure. TryParseYearSpan succeeds on it, so A4/B6/B7 assess and Pass rather than reporting
+        // the honest NotAssessed a stored-nothing case would — the "confident wrong answer is worse
+        // than a refusal" position this lane holds everywhere else, silently defeated here. Tracked
+        // as an additional named consequence in #1195; not fixed here (decision D′ did not create
+        // it, and fixing it is a change to ExtractPeriod's leftmost-match strategy, a separate
+        // change-reason).
         const string cv = """
             Anna Andersson
             anna@example.com
@@ -281,6 +294,11 @@ public class DateRangeYearFirstCharacterisationTests
         exp.Period.ShouldBe("2021 – 2023",
             "with the date row's own text unmatched, DateRange's leftmost scan over the whole entry " +
             "finds the range mentioned in the bullet instead — origin/main's behaviour, not a new one.");
+        PeriodParser.TryParseYearSpan(exp.Period, currentYear: 2026, out var start, out var end)
+            .ShouldBeTrue("the wrong span PARSES, which is the sharp part: it is not an honest " +
+                "NotAssessed, it is a confident wrong answer.");
+        start.ShouldBe(2021);
+        end.ShouldBe(2023, "not the ~5 years the CV's own date row states.");
     }
 
     // A CROSS-REFERENCE, not a row: the HYPHEN läsår collision (HyphenValidMonth_IsReadAsAMonth_WhichIsISO8601

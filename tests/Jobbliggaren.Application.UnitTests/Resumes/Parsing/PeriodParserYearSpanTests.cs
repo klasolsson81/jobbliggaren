@@ -31,10 +31,11 @@ public class PeriodParserYearSpanTests
         AssertSpan(period, expectedStart, expectedEnd);
 
     [Theory]
-    // #1060 road 3 — the month-NAME point, in both languages and all three lengths, plus the
-    // YYYY/MM notation that widened with it. These are the rows the widening ADDED to this parser,
-    // and they are here rather than merged into the theory above because they are the population
-    // this file previously listed as free-text: "jan 2022 - juni 2024" was an InlineData in
+    // #1060 road 3 — the month-NAME point, in both languages and all three lengths. This is the row
+    // the widening ADDED to this parser and kept (a second form, YYYY/MM, was tried and taken back
+    // out in round 5 — see the note below on that row's own history). They are here rather than
+    // merged into the theory above because they are the population this file previously listed as
+    // free-text: "jan 2022 - juni 2024" was an InlineData in
     // TryParseYearSpan_NullEmptyOrFreeText_ReturnsFalse until the segmenter began producing it.
     //
     // The point of moving rather than deleting: the segmenter can EXTRACT these strings, so a

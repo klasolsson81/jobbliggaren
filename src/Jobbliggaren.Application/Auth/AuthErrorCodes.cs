@@ -141,5 +141,5 @@ public static class AuthErrorCodes
     /// </para>
     /// </summary>
     public const string RegistrationsClosedMessage =
-        "Registreringen är inte öppen än. Försök igen senare.";
+        "Registreringen är inte öppen ännu. Försök igen senare.";
 }

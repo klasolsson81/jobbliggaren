@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using Jobbliggaren.Api.IntegrationTests.Infrastructure;
 using Jobbliggaren.Application.Auth;
+using Jobbliggaren.Infrastructure.Auth;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
@@ -24,14 +25,13 @@ namespace Jobbliggaren.Api.IntegrationTests.Configuration;
 /// </summary>
 public class AuthOptionsValidatorTests
 {
-    private static IValidateOptions<AuthOptions> ValidatorFor(string environmentName)
+    private static AuthOptionsValidator ValidatorFor(string environmentName)
     {
+        // Direct construction, not reflection: Infrastructure already carries an InternalsVisibleTo
+        // for this assembly, and the sibling validator tests construct theirs the same way.
         var env = Substitute.For<IHostEnvironment>();
         env.EnvironmentName = environmentName;
-        return (IValidateOptions<AuthOptions>)Activator.CreateInstance(
-            typeof(Jobbliggaren.Infrastructure.DependencyInjection).Assembly
-                .GetType("Jobbliggaren.Infrastructure.Auth.AuthOptionsValidator", throwOnError: true)!,
-            env)!;
+        return new AuthOptionsValidator(env);
     }
 
     private static AuthOptions Options(bool open, bool confirm) =>
@@ -85,33 +85,26 @@ public class AuthOptionsValidatorTests
             // mode this whole change exists to close, one level up.
             var validators = factory.Services.GetServices<IValidateOptions<AuthOptions>>();
 
-            validators.ShouldContain(v => v.GetType().Name == "AuthOptionsValidator");
+            validators.ShouldContain(v => v is AuthOptionsValidator);
         }
 
         /// <summary>
-        /// The boot announcement, pinned against BEHAVIOUR rather than against configuration. This
-        /// change argues that a posture observable only by attempting to register is a posture nobody
-        /// checks — and that argument applies to the announcement itself, which otherwise ships as the
-        /// one unguarded artefact in the diff (removing the call left every suite green).
+        /// The boot announcement, pinned against BEHAVIOUR rather than configuration. This change
+        /// argues that a posture observable only by attempting to register is a posture nobody
+        /// checks — and that argument applies to the announcement itself, which otherwise ships as
+        /// the one unguarded artefact in the diff (removing the call left every suite green).
         /// <para>
-        /// Asserted on the same host that serves the request, so the line and the behaviour cannot
-        /// diverge: if they ever did, one of the two assertions below would fail.
+        /// Asserted on the closed-registration host, which already exists: the line it emits and the
+        /// 503 it serves come from the same process, so they cannot diverge without one of the two
+        /// assertions below failing.
         /// </para>
         /// </summary>
         [Fact]
         public async Task The_host_announces_the_gate_it_actually_enforces()
         {
-            var logs = factory.StartupLogs.ToArray();
+            var client = factory.CreateRegistrationsClosedClient();
 
-            var announcement = logs.SingleOrDefault(l => l.EventId.Id == 4300);
-            announcement.ShouldNotBeNull(
-                "the gate must announce itself once per process (EventId 4300)");
-            // The harness pins the gate OPEN, so the line must say so — and say it about BOTH flags,
-            // because an open gate without email confirmation is the dangerous combination.
-            announcement.Message.ShouldContain("OPEN");
-            announcement.Message.ShouldContain("email confirmation:");
-
-            var response = await factory.CreateClient().PostAsJsonAsync(
+            var response = await client.PostAsJsonAsync(
                 "/api/v1/auth/register",
                 new
                 {
@@ -121,9 +114,16 @@ public class AuthOptionsValidatorTests
                 },
                 TestContext.Current.CancellationToken);
 
-            response.StatusCode.ShouldNotBe(
-                HttpStatusCode.ServiceUnavailable,
-                "the host announced OPEN, so it must not refuse");
+            response.StatusCode.ShouldBe(
+                HttpStatusCode.ServiceUnavailable, "this host holds the gate closed");
+
+            var announcement = factory.ClosedHostLogs.SingleOrDefault(l => l.EventId.Id == 4300);
+            announcement.ShouldNotBeNull(
+                "the gate must announce itself once per process (EventId 4300)");
+            announcement.Message.ShouldContain("CLOSED");
+            // Both flags, because an open gate WITHOUT email confirmation is the dangerous
+            // combination — announcing only the gate would reproduce this defect class one flag over.
+            announcement.Message.ShouldContain("email confirmation:");
         }
     }
 }

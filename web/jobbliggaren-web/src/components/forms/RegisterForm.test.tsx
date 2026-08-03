@@ -13,6 +13,7 @@ vi.mock("next/navigation", () => ({
 type AuthActionState = {
   error?: string;
   pendingConfirmation?: boolean;
+  registrationsClosed?: boolean;
   email?: string;
 } | null;
 const registerActionMock =
@@ -81,6 +82,29 @@ describe("RegisterForm", () => {
       expect(field).toBeRequired();
       expect(field).toHaveAttribute("aria-required", "true");
     }
+  });
+
+  it("ADR 0083 — replaces the form with a focused status panel when registration is closed", async () => {
+    // The channel matters as much as the copy: a deliberate pre-launch state must not render as a
+    // validation error above a live submit button, which would invite a retry that cannot succeed.
+    registerActionMock.mockResolvedValue({ registrationsClosed: true });
+    const user = userEvent.setup();
+    render(<RegisterForm />);
+
+    await user.type(screen.getByLabelText("Namn"), "Anna Andersson");
+    await user.type(screen.getByLabelText("E-postadress"), "anna@example.se");
+    await user.type(screen.getByLabelText("Lösenord"), "password1");
+    await user.click(screen.getByRole("button", { name: "Skapa konto" }));
+
+    const panel = await screen.findByRole("status");
+    expect(panel).toHaveTextContent("Registreringen är inte öppen ännu.");
+    expect(screen.queryByRole("button", { name: "Skapa konto" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+
+    // Focus must move to the panel. Submitting unmounts the form, so without this the focused
+    // element leaves the DOM and focus falls to <body> — the next Tab restarts at the skip link —
+    // and a live region that mounts already filled is routinely missed by NVDA/JAWS (WCAG 4.1.3).
+    await waitFor(() => expect(panel).toHaveFocus());
   });
 
   it("#714 — shows the check-inbox panel (not the form) when the action returns pendingConfirmation", async () => {

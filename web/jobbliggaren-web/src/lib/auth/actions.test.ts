@@ -168,13 +168,14 @@ describe("registerAction 503 handling (ADR 0083 Amendment 2026-08-03 — registr
     expect(redirectMock).not.toHaveBeenCalled();
   });
 
-  it("does NOT claim the gate is closed for a transport 503", async () => {
-    // The counterfactual that makes the title check load-bearing rather than argued. This endpoint
-    // has a second 503 producer: Program.cs maps SessionStoreUnavailableException to 503 across the
-    // pipeline, and the OPEN instant-login path calls sessionStore.CreateAsync — so a Redis outage
-    // during an open registration must not tell the user registration is not open yet. A reverse
-    // proxy in front of the API produces its own 503s too.
-    parseResponseMock.mockResolvedValue({ title: "Session.StoreUnavailable" });
+  it("does NOT claim the gate is closed for the session-store 503", async () => {
+    // The counterfactual that makes the title check load-bearing rather than argued — stubbed as the
+    // shape the named actor ACTUALLY emits. Program.cs's SessionStoreUnavailableException arm writes
+    // `{ error: ex.Message }`, plain JSON with no `title` field at all, so problemTitleSchema (which
+    // is non-strict) parses it to `{ title: undefined }`. The OPEN instant-login path calls
+    // sessionStore.CreateAsync, so this is what a Redis outage during an open registration looks
+    // like here — and it must not tell the user registration is not open yet.
+    parseResponseMock.mockResolvedValue({});
 
     const result = await registerAction(null, form());
 

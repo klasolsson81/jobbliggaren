@@ -25,6 +25,17 @@ export function RegisterForm() {
     if (state?.pendingConfirmation) pendingRef.current?.focus();
   }, [state?.pendingConfirmation]);
 
+  const closedRef = useRef<HTMLDivElement>(null);
+
+  // Same reason as the panel above, and it is not optional here either. Submitting unmounts the form,
+  // so the focused element leaves the DOM and focus falls to <body> — the next Tab restarts from the
+  // skip link. And role="status" announces CHANGES to a live region that already exists; this one
+  // mounts already filled, which NVDA and JAWS routinely miss (WCAG 4.1.3). The focus move is what
+  // actually delivers the outcome, which is why all four sibling auth panels do it.
+  useEffect(() => {
+    if (state?.registrationsClosed) closedRef.current?.focus();
+  }, [state?.registrationsClosed]);
+
   // #714: email-confirmation-first — the backend returned 202. Show a "check your inbox" panel in
   // place of the form. Byte-identical for a fresh or a taken address (the account-enumeration status
   // oracle is closed; the only differentiator is the out-of-band email), so the FE never distinguishes
@@ -64,9 +75,11 @@ export function RegisterForm() {
   if (state?.registrationsClosed) {
     return (
       <div
+        ref={closedRef}
+        tabIndex={-1}
         role="status"
         aria-live="polite"
-        className="flex flex-col gap-1 focus:outline-none"
+        className="focus:outline-none"
       >
         <p className="text-body text-text-primary">
           {t("auth.actions.registrationsClosed")}

@@ -30,8 +30,11 @@ internal static partial class RegistrationGateLog
     public static partial void Announce(
         ILogger logger, string registrationGateState, string emailConfirmationState);
 
+    // Carries {RegistrationGateState} too, even though this branch only ever fires for OPEN: a Seq
+    // query or alert keyed on that property must match BOTH lines, or the only one it finds is the
+    // harmless one.
     [LoggerMessage(EventId = 4301, Level = LogLevel.Warning,
-        Message = "Registration gate: OPEN outside Development; email confirmation: {EmailConfirmationState}")]
+        Message = "Registration gate: {RegistrationGateState} outside Development; email confirmation: {EmailConfirmationState}")]
     public static partial void AnnounceOpenOutsideDevelopment(
-        ILogger logger, string emailConfirmationState);
+        ILogger logger, string registrationGateState, string emailConfirmationState);
 }

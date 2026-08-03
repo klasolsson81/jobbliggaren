@@ -204,7 +204,7 @@ if (authFlags.RegistrationsOpen && !app.Environment.IsDevelopment())
 {
     // Warning, not Information: an open gate outside Development is a security-posture statement and
     // should be alertable rather than one Information line among a boot's dozens.
-    RegistrationGateLog.AnnounceOpenOutsideDevelopment(app.Logger, emailConfirmationState);
+    RegistrationGateLog.AnnounceOpenOutsideDevelopment(app.Logger, "OPEN", emailConfirmationState);
 }
 else
 {

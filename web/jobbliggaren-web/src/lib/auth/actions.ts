@@ -188,7 +188,7 @@ export async function registerAction(
     // and the open instant-login path calls sessionStore.CreateAsync — so a Redis outage during an
     // OPEN registration would otherwise render "registration is not open yet", which is false and
     // masks the incident. A reverse proxy in front of the API can produce a 503 of its own too. Both
-    // fall through to unexpectedError, which is the right message for them. Same exact-whitelist
+    // fall through to serverUnreachable, which is literally true for them. Same exact-whitelist
     // discipline the 400 path applies to "Auth.PwnedPassword" twelve lines up.
     if (res.status === 503) {
       let title: string | undefined;

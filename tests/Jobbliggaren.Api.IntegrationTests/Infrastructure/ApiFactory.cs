@@ -207,22 +207,8 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
             // register their PostConfigure AFTER this one and override only the flags they name, so
             // they inherit an OPEN registration; the closed-registration host re-flips this one.
             services.PostConfigure<AuthOptions>(o => o.RegistrationsOpen = true);
-
-            // ADR 0083 Amendment 2026-08-03 — capture boot-time records so a test can assert the
-            // registration-gate announcement was actually emitted. Registered as an extra provider,
-            // so it observes without replacing the host's own logging.
-            services.AddSingleton<ILoggerProvider>(_startupLogCapture);
         });
     }
-
-    private readonly CapturingLoggerProvider _startupLogCapture = new();
-
-    /// <summary>
-    /// Everything this host logged, including the once-per-process startup lines. Exposed so the
-    /// registration-gate announcement can be pinned against the behaviour of the SAME host — a
-    /// signal nobody asserts is the failure mode the announcement itself exists to prevent.
-    /// </summary>
-    internal IEnumerable<CapturedLog> StartupLogs => _startupLogCapture.Logs;
 
     private WebApplicationFactory<Program>? _emailConfirmationHost;
     private readonly object _emailConfirmationLock = new();
@@ -268,11 +254,29 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         lock (_registrationsClosedLock)
         {
             _registrationsClosedHost ??= WithWebHostBuilder(builder => builder.ConfigureServices(services =>
-                services.PostConfigure<AuthOptions>(o => o.RegistrationsOpen = false)));
+            {
+                services.PostConfigure<AuthOptions>(o => o.RegistrationsOpen = false);
+                // Capture THIS host's boot records so the gate's announcement can be pinned against
+                // the behaviour of the same host. Hung on an existing derived host on purpose: a
+                // dedicated one is a fourth WebApplicationFactory, and the full suite measured that
+                // as EF's ManyServiceProvidersCreatedWarning (>20 internal providers), which then
+                // fails whichever collection fixture initialises after the ceiling breaks.
+                services.AddSingleton<ILoggerProvider>(_closedHostLogs);
+            }));
         }
 
         return _registrationsClosedHost.CreateClient();
     }
+
+    private readonly CapturingLoggerProvider _closedHostLogs = new();
+
+    /// <summary>
+    /// Boot records from the closed-registration host. Per-host, not shared: the base
+    /// <c>ConfigureWebHost</c> re-runs for every derived host, so one sink would mix three hosts'
+    /// announcements into a single queue and an "announced once" assertion would read whichever
+    /// host happened to boot first.
+    /// </summary>
+    internal IEnumerable<CapturedLog> ClosedHostLogs => _closedHostLogs.Logs;
 
     public async ValueTask InitializeAsync()
     {

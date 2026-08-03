@@ -121,10 +121,11 @@ That accounts for all twelve: this file, five, and six. (An earlier revision sai
 word is right today only because the set shrank by one — which is why the count is
 re-measured above rather than carried forward.)
 
-Three of those six name `Bash` as well, which under this paragraph's own logic makes
+Three of those six **withhold** `Bash`, which under this paragraph's own logic makes
 those clauses repo-effect claims too — `adr-keeper.md:67` and `docs-keeper.md:53` as
 an assignment ("Bash: None"), `test-writer.md:265` as a prohibition in a
-`Not allowed:` list. An earlier revision called `test-writer` "the awkward one", which
+`Not allowed:` list. (All six *name* it; the other three grant it, which claims
+nothing. An earlier revision said "name", counting the wrong six.) An earlier revision called `test-writer` "the awkward one", which
 was true of the only file its author had looked at and false of the set; a fourth,
 `ai-prompt-engineer.md:97`, was in this list until that charter was retired. All three
 still count with the six, because none of those charters claims zero repo effect as a
@@ -169,11 +170,16 @@ rotation; OAuth `state` param; cookies `HttpOnly`+`Secure`+`SameSite`.
 undocumented `[AllowAnonymous]` on PII. *Major:* missing audience check;
 cookie without `HttpOnly`.
 
-**4. GDPR compliance:** DPIA-worthiness (large-scale PII, new sensitive
-categories); privacy by design (opt-in defaults); new sub-processors listed in
+**4. GDPR compliance:** DPIA-worthiness — **profiling and automated decisions
+(Art. 4(4)/22), deterministic ones included**; large-scale PII; new sensitive
+categories. Privacy by design (opt-in defaults); new sub-processors listed in
 privacy policy + DPA in place; consent UI explicit and informed wherever the
-processing rests on consent (Art. 6/7 — the background-matching opt-in is the
-delivered case).
+processing rests on consent (Art. 6/7 — the delivered cases are the
+background-matching opt-in and the versioned personnummer consent dialog).
+**Profiling does not require AI and never did**: Art. 4(4) covers any automated
+evaluation of personal aspects, so ADR 0071 made the engines deterministic
+without making them non-profiling — ADR 0090 is a delivered DPIA about exactly
+that, and `AutoPromoteParsedResumeCommand` carries a live Art. 22 record.
 *Blockers:* sub-processor without DPA; opt-out defaults; new sensitive category
 without DPIA assessment.
 
@@ -302,8 +308,12 @@ Re-review after Blockers/Majors are addressed.
 
 `/security-audit [PR]`, `/gdpr-check <feature>`, user asks "är detta säkert/
 GDPR-säkert". Auto: changes in `*Auth*`/`*Identity*`, persistence
-configurations, `External/*`, `appsettings*`/`.env`, new migrations or OAuth
-integrations. **Area 8 triggers on exposure DIRECTION, not on
+configurations, `appsettings*`/`.env`, new migrations or OAuth integrations, and
+the outbound integrations themselves — `Infrastructure/Email` (Resend),
+`JobSources`, `CompanyRegister`/`CompanyRegistry`, `Taxonomy`. (That list
+replaced a glob for
+`External/*`, a directory this repo does not have; the Resend audit reached you
+through the description's "external integrations", not through the path.) **Area 8 triggers on exposure DIRECTION, not on
 which file moved** — a file-based trigger would fire on every routine dependency
 repair and miss the removals: an addition to `ignoreGhsas`; a lowered
 `--audit-level` or a suppressed `NuGetAudit`/NU1901–1904; an `overrides` entry
@@ -333,8 +343,15 @@ N. **<finding>** — Fil: <path:line>
 - <good patterns> ✓
 
 ### Sammanfattning
-<N blockers (GDPR ones escalated to Klas), N major. Re-review krävs efter fix.>
+<N blockers, N major. Re-review krävs efter fix.>
+
+**Eskalering till Klas:** <nej | ja + exakt vad han måste avgöra>
 ```
+
+That last line is not decoration. You cannot prompt Klas — `AskUserQuestion` is
+stripped from every subagent (CLAUDE.md §9.2) — so an escalation exists only as
+something you **wrote down**, and a session that paraphrases your summary can
+drop it without noticing. Give it its own line so it survives the retelling.
 
 Report to the user in Swedish. Keep English technical terms (IDOR, CSRF, SSRF,
 XSS, soft delete, audit log, DPA, DPIA, encryption at rest) untranslated.

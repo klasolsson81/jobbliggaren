@@ -33,12 +33,20 @@ Core boundary** — §2.1 and ADR 0009 ratify Application referencing the core
 `Microsoft.EntityFrameworkCore` package, because §3.6 puts `IAppDbContext`
 straight into handlers with no repository layer and that is impossible without
 it. Grading that as a violation blocks the house pattern.
-*Blockers:* any EF Core in Domain; a provider, relational or EF-Identity package
-in Application (`Npgsql*`, `.Relational`, `.SqlServer`, `.Sqlite`,
-`Microsoft.AspNetCore.Identity.EntityFrameworkCore`) — including the member trap
-the package boundary misses, `EF.Functions.JsonExists`/`ILike` and
-`AsSplitQuery`, which belong behind an Application-owned port. `DomainLayerTests`
-is authoritative; read it before grading a borderline case.
+*Blockers:* any EF Core in Domain; **Application depending on
+`Jobbliggaren.Infrastructure`, on `Microsoft.AspNetCore.*`
+(Http/Authentication/Authorization/Identity), or on Api/Worker**; a provider,
+relational or EF-Identity package in Application (`Npgsql*`, `.Relational`,
+`.SqlServer`, `.Sqlite`, `Microsoft.AspNetCore.Identity.EntityFrameworkCore`).
+`DomainLayerTests` is authoritative **for those package and assembly lists** —
+read it before grading a borderline one; it holds four Application rules and
+this paragraph is a snapshot of them.
+**It is silent on the MEMBER trap**, which is the point of §2.1 axis 3:
+`EF.Functions.JsonExists`/`ILike` live in the `Microsoft.EntityFrameworkCore`
+namespace, so the `Npgsql` prefix rule never fires on them — they still belong
+behind an Application-owned port (`IJobAdRequirementBackfillFilter`), and there
+§2.1 governs, not the test. `AsSplitQuery` is relational-only and fails to
+compile in Application, so it self-enforces.
 *Major:* raw HttpClient in Application; business logic in endpoints.
 
 **2. DDD (§2.2):** private setters (EF-justified exceptions only); invariants

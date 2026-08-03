@@ -22,8 +22,17 @@ stop; you never apply a migration that drops columns or tables without Klas
 confirming in this session.
 
 Write SQL directly only for PostgreSQL-specific constructs that EF Core's
-Fluent API cannot express (partial indexes, generated columns, extensions,
-`ANALYZE`). Everything else goes through EF Core configuration.
+Fluent API cannot express — partial indexes, functional indexes and GIN/trigram
+opclasses, generated columns (`20260520212725_F6P4aJobAdTrigramIndexes` is the
+worked case). Everything else goes through EF Core configuration.
+
+**Two things that look like they belong here and do not.** `CREATE EXTENSION`
+runs as **master** in `Jobbliggaren.Migrate`'s `ensure-extensions` mode, not in a
+migration: per ADR 0033 / TD-71 the `jobbliggaren_app` role has no CREATE
+privilege on the database, so a migration that tries it **fails at deploy**.
+`ANALYZE` belongs to the job that did the bulk load, once per completed run
+(CLAUDE.md §3.6, `ScbCompanyRegisterStore.AnalyzeAsync`) — statistics written by
+a migration go stale the moment the next load runs.
 
 Before scaffolding a migration for a new aggregate, consult `dotnet-architect`
 to confirm invariants and entity design are stable. A schema built against an
@@ -194,24 +203,35 @@ overkill.
 ### Encryption columns (per-user DEK envelope)
 
 High-sensitivity PII is encrypted in the **application layer** — a per-user DEK
-envelope (`IDataKeyProvider`, AES-256-GCM, ADR 0066/0049) applied by the
-interceptor pair, driven by `EncryptedFieldRegistry`. Never a DB function: the
-keys stay in app memory, and a column the database can decrypt is not encrypted
-against the database.
+envelope (`IDataKeyProvider`, AES-256-GCM, ADR 0066/0049). Never a DB function:
+the keys stay in app memory, and a column the database can decrypt is not
+encrypted against the database. `pgcrypto` appears nowhere in `src/` (measured
+2026-08-03).
 
-**The schema consequence: an encrypted column is DDL-boringly `text`.** Measured
-2026-08-03 — `pgcrypto` appears nowhere in `src/`, and no encrypted column is
-`bytea`. Two shapes, both in `20260615123818_AddParsedResumeAggregate`:
+**The column type follows the pipeline, and there are two pipelines — three
+forms.** The repo names them A/B/C and you should too:
 
 ```csharp
-// Form A — encrypted in place. The property maps to its own column; the
+// STRING pipeline — interceptor pair + EncryptedFieldRegistry entry. TEXT.
+// Form A, encrypted in place: the property maps to its own column and the
 // interceptor swaps plaintext for ciphertext on the way down.
 raw_text = table.Column<string>(type: "text", nullable: false),
-
-// Form B — shadow column for an EF-Ignore'd value object. The interceptor pair
+// Form B, shadow column for an EF-Ignore'd value object; the interceptor pair
 // owns the object ↔ JSON ↔ ciphertext transform.
 parsed_content_enc = table.Column<string>(type: "text", nullable: true),
+//   ^ both from 20260615123818_AddParsedResumeAggregate
+
+// BINARY pipeline — Form C, ADR 0093 §D5. BYTEA, and deliberately none of the
+// above machinery: sealed at construction via IBinaryFieldSealer, no
+// interceptor, no registry entry, its own Art. 17 cascade. Base64 into a text
+// column would waste ~33% on a store whose whole point is raw bytes.
+content = table.Column<byte[]>(type: "bytea", nullable: false),
+//   ^ resume_files.content (ResumeFileConfiguration.cs)
 ```
+
+**Do not infer the form from "is it encrypted".** Infer it from whether the model
+ever decrypts: Form A/B round-trip through the model and need the registry, Form
+C is opaque to it and must not be registered.
 
 Ciphertext is longer than plaintext, so **never `HasMaxLength` on an encrypted
 column**, and never an index on its value — it is opaque and unordered. A column

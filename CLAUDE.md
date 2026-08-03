@@ -549,8 +549,10 @@ discipline miss; reports go to `docs/reviews/<date>-<phase>-<agent>.md`):
 subagent — foreground and background alike, and **even when listed in a `tools:`
 field** (code.claude.com/docs/en/sub-agents, read 2026-08-03). So where a charter
 says "escalate to Klas directly" — security-auditor's GDPR Blockers and her
-area-8 Majors, code-reviewer's CLAUDE.md conflicts — the only act available to
-the agent is to **name the escalation in its report**. Carrying it to Klas is the
+area-8 Majors, code-reviewer's CLAUDE.md conflicts — what the agent can do is
+**record** the escalation: in its report, and where §9.6 prescribes it (those
+area-8 Majors), in a labelled issue, since `Bash` survives both filters and `gh`
+with it. What no subagent can do is **prompt** Klas. Carrying it further is the
 invoking session's duty, and an escalation the session paraphrases away has been
 dropped, not delivered. Background is additionally the **default** for subagents
 (v2.1.198+), and a background subagent keeps only a fixed built-in set — `Read`,
@@ -558,7 +560,10 @@ dropped, not delivered. Background is additionally the **default** for subagents
 `WebFetch`, `WebSearch`, `TodoWrite`, `Skill`, `ToolSearch`, `EnterWorktree`,
 `ExitWorktree`, `Monitor`, `TaskStop`, `SendMessage`, `Artifact` — with
 everything else removed whether inherited or listed, so **the same definition
-resolves to different tools in the foreground and the background**. That removal
+resolves to different tools in the foreground and the background**. `Agent` and
+`ExitPlanMode` are the exceptions: they follow the first filter wherever the
+subagent runs, and `Agent` drops only at the depth limit — so the charters'
+Delegation sections are live, not dead text. That removal
 "reports no error" unless it empties the list entirely: a charter section whose
 tool never arrived comes back thin rather than failed, which is the shape to
 suspect before believing a short report.

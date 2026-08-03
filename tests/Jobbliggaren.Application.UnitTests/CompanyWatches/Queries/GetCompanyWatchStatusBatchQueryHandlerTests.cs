@@ -34,7 +34,7 @@ public class GetCompanyWatchStatusBatchQueryHandlerTests
     {
         _currentUser.UserId.Returns(_userId);
         // Deterministic 64-char token (distinct from plaintext), mirroring a real HMAC.
-        _tokenizer.Tokenize(Arg.Any<string>()).Returns(ci => "hmac" + ci.Arg<string>().PadLeft(60, '0'));
+        _tokenizer.Tokenize(Arg.Any<string>()).Returns(ci => "hmac" + ci.ArgAt<string>(0).PadLeft(60, '0'));
     }
 
     private static string FakeToken(string orgNr) => "hmac" + orgNr.PadLeft(60, '0');

@@ -74,7 +74,7 @@ public class ResendEmailConfirmationCommandHandlerTests
 
         await _emailSender.Received(1).SendEmailConfirmationAsync(
             Email,
-            Arg.Is<EmailConfirmationEmail>(c => c.UserId == userId && c.UrlSafeToken == "url-safe-token"),
+            Arg.Is<EmailConfirmationEmail>(c => c != null && c.UserId == userId && c.UrlSafeToken == "url-safe-token"),
             Arg.Any<EmailConfirmationIdempotencyKey>(),
             Arg.Any<CancellationToken>());
         _auditLogger.Received(1).EmailConfirmationResent(userId);

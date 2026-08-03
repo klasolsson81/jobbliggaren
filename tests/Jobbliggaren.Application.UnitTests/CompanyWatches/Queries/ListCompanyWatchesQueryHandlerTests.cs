@@ -43,7 +43,7 @@ public class ListCompanyWatchesQueryHandlerTests
         _currentUser.UserId.Returns(_userId);
         // Deterministic 64-char token (distinct from plaintext). Only invoked when a pnr-shaped watch
         // is present; these tests seed AB org.nrs, so it stays inert unless a test opts in.
-        _tokenizer.Tokenize(Arg.Any<string>()).Returns(ci => "hmac" + ci.Arg<string>().PadLeft(60, '0'));
+        _tokenizer.Tokenize(Arg.Any<string>()).Returns(ci => "hmac" + ci.ArgAt<string>(0).PadLeft(60, '0'));
         // Empty-SSYK profile ⇒ not-assessed path (MatchingAdCount == null, port never called).
         _profileBuilder
             .BuildFullForSortAsync(Arg.Any<CancellationToken>(), Arg.Any<bool>())
@@ -297,12 +297,12 @@ public class ListCompanyWatchesQueryHandlerTests
 
         await _perUserSearch.Received(1).CountPerUserByEmployerAsync(
             // >= Good band exactly (Good + Strong; Top is not Fast-computable, Basic/Related are below).
-            Arg.Is<IReadOnlyList<string>>(orgNrs =>
+            Arg.Is<IReadOnlyList<string>>(orgNrs => orgNrs != null &&
                 orgNrs.Count == 2
                 && orgNrs.Contains("5592804784")
                 && orgNrs.Contains("2120000142")),
             Arg.Any<FullCandidateMatchProfile>(),
-            Arg.Is<IReadOnlyList<MatchGrade>>(g =>
+            Arg.Is<IReadOnlyList<MatchGrade>>(g => g != null &&
                 g.Count == 2
                 && g.Contains(MatchGrade.Good)
                 && g.Contains(MatchGrade.Strong)),
@@ -500,7 +500,7 @@ public class ListCompanyWatchesQueryHandlerTests
         dto.MatchingAdCount.ShouldBe(3); // 2 + 1 over the two members
         // The member org.nrs were passed to the search port (else the group would report 0).
         await _perUserSearch.Received().CountPerUserByEmployerAsync(
-            Arg.Is<IReadOnlyList<string>>(o => o.Contains(m1) && o.Contains(m2)),
+            Arg.Is<IReadOnlyList<string>>(o => o != null && o.Contains(m1) && o.Contains(m2)),
             Arg.Any<FullCandidateMatchProfile>(),
             Arg.Any<IReadOnlyList<MatchGrade>>(),
             Arg.Any<CancellationToken>());
@@ -524,7 +524,7 @@ public class ListCompanyWatchesQueryHandlerTests
 
         _nameReader
             .GetNamesByOrganizationNumbersAsync(
-                Arg.Is<IReadOnlyList<string>>(o => o.Contains("5592804784")),
+                Arg.Is<IReadOnlyList<string>>(o => o != null && o.Contains("5592804784")),
                 Arg.Any<CancellationToken>())
             .Returns(new Dictionary<string, string> { ["5592804784"] = "Acme Bygg AB" });
 
@@ -565,7 +565,7 @@ public class ListCompanyWatchesQueryHandlerTests
         dto.IsProtectedIdentity.ShouldBeTrue();
         dto.CompanyName.ShouldBeNull();
         await _nameReader.DidNotReceive().GetNamesByOrganizationNumbersAsync(
-            Arg.Is<IReadOnlyList<string>>(o => o.Contains("9001011234")),
+            Arg.Is<IReadOnlyList<string>>(o => o != null && o.Contains("9001011234")),
             Arg.Any<CancellationToken>());
     }
 
@@ -586,7 +586,7 @@ public class ListCompanyWatchesQueryHandlerTests
 
         dto.CompanyName.ShouldBe("Volvo (koncern)"); // catalogue name, not the register
         await _nameReader.DidNotReceive().GetNamesByOrganizationNumbersAsync(
-            Arg.Is<IReadOnlyList<string>>(o => o.Contains("5560125790")),
+            Arg.Is<IReadOnlyList<string>>(o => o != null && o.Contains("5560125790")),
             Arg.Any<CancellationToken>());
     }
 }

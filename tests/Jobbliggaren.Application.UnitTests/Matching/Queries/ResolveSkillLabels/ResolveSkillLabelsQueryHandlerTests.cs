@@ -24,7 +24,7 @@ public class ResolveSkillLabelsQueryHandlerTests
     private void EchoGroups() =>
         _resolver
             .GroupConceptIds(Arg.Any<IEnumerable<string>>(), Arg.Any<CancellationToken>())
-            .Returns(ci => ((IEnumerable<string>)ci[0])
+            .Returns(ci => ci.ArgAt<IEnumerable<string>>(0)
                 .Select(id => new ResolvedSkillGroup(id, id, [id]))
                 .ToList());
 
@@ -35,7 +35,7 @@ public class ResolveSkillLabelsQueryHandlerTests
         _resolver.ResolveLabels(Arg.Any<IEnumerable<string>>(), Arg.Any<CancellationToken>())
             .Returns([new ResolvedSkill("skill_java", "Java")]);
         _resolver
-            .GroupConceptIds(Arg.Is<IEnumerable<string>>(ids => ids.SequenceEqual(JavaKnownId)),
+            .GroupConceptIds(Arg.Is<IEnumerable<string>>(ids => ids != null && ids.SequenceEqual(JavaKnownId)),
                 Arg.Any<CancellationToken>())
             .Returns([new ResolvedSkillGroup("skill_java", "Java", ["skill_java"])]);
 
@@ -59,7 +59,7 @@ public class ResolveSkillLabelsQueryHandlerTests
                 new ResolvedSkill("af_csharp", "C#"),
             ]);
         _resolver
-            .GroupConceptIds(Arg.Is<IEnumerable<string>>(ids => ids.SequenceEqual(CSharpTwinIds)),
+            .GroupConceptIds(Arg.Is<IEnumerable<string>>(ids => ids != null && ids.SequenceEqual(CSharpTwinIds)),
                 Arg.Any<CancellationToken>())
             .Returns([new ResolvedSkillGroup("esco_csharp", "C#", ["esco_csharp", "af_csharp"])]);
 

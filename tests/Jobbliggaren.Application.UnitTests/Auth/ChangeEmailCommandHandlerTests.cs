@@ -83,7 +83,7 @@ public class ChangeEmailCommandHandlerTests
         await _service.Received(1).IsEmailTakenAsync(NewEmail, Arg.Any<CancellationToken>());
         await _emailSender.Received(1).SendEmailChangeConfirmationAsync(
             NewEmail,
-            Arg.Is<EmailChangeConfirmationEmail>(c =>
+            Arg.Is<EmailChangeConfirmationEmail>(c => c != null &&
                 c.UserId == userId && c.NewEmail == NewEmail && c.UrlSafeToken == UrlSafeToken),
             Arg.Any<EmailChangeConfirmationIdempotencyKey>(),
             Arg.Any<CancellationToken>());

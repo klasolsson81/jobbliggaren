@@ -25,7 +25,7 @@ public class SearchSkillsQueryHandlerTests
     private void EchoGroups() =>
         _resolver
             .GroupConceptIds(Arg.Any<IEnumerable<string>>(), Arg.Any<CancellationToken>())
-            .Returns(ci => ((IEnumerable<string>)ci[0])
+            .Returns(ci => ci.ArgAt<IEnumerable<string>>(0)
                 .Select(id => new ResolvedSkillGroup(id, id, [id]))
                 .ToList());
 
@@ -39,7 +39,7 @@ public class SearchSkillsQueryHandlerTests
         ]);
         // Grouping is fed the ranked ids in order → groups preserve the rank.
         _resolver
-            .GroupConceptIds(Arg.Is<IEnumerable<string>>(ids => ids.SequenceEqual(JavRankedIds)),
+            .GroupConceptIds(Arg.Is<IEnumerable<string>>(ids => ids != null && ids.SequenceEqual(JavRankedIds)),
                 Arg.Any<CancellationToken>())
             .Returns(
             [
@@ -70,7 +70,7 @@ public class SearchSkillsQueryHandlerTests
             new ResolvedSkill("af_csharp", "C#"),
         ]);
         _resolver
-            .GroupConceptIds(Arg.Is<IEnumerable<string>>(ids => ids.SequenceEqual(CSharpTwinIds)),
+            .GroupConceptIds(Arg.Is<IEnumerable<string>>(ids => ids != null && ids.SequenceEqual(CSharpTwinIds)),
                 Arg.Any<CancellationToken>())
             .Returns([new ResolvedSkillGroup("esco_csharp", "C#", ["esco_csharp", "af_csharp"])]);
 

@@ -32,7 +32,7 @@ public class CachedCompanyRegistryTests
     private static OrganizationNumber OrgNr(string value) => OrganizationNumber.Create(value).Value;
 
     private void StubInner(string orgNr, CompanyRegistryLookup lookup) =>
-        _inner.LookupAsync(Arg.Is<OrganizationNumber>(o => o.Value == orgNr), Arg.Any<CancellationToken>())
+        _inner.LookupAsync(Arg.Is<OrganizationNumber>(o => o != null && o.Value == orgNr), Arg.Any<CancellationToken>())
             .Returns(lookup);
 
     [Fact]

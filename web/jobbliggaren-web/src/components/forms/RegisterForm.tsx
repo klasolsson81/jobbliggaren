@@ -25,6 +25,17 @@ export function RegisterForm() {
     if (state?.pendingConfirmation) pendingRef.current?.focus();
   }, [state?.pendingConfirmation]);
 
+  const closedRef = useRef<HTMLDivElement>(null);
+
+  // Same reason as the panel above, and it is not optional here either. Submitting unmounts the form,
+  // so the focused element leaves the DOM and focus falls to <body> — the next Tab restarts from the
+  // skip link. And role="status" announces CHANGES to a live region that already exists; this one
+  // mounts already filled, which NVDA and JAWS routinely miss (WCAG 4.1.3). The focus move is what
+  // actually delivers the outcome, which is why all four sibling auth panels do it.
+  useEffect(() => {
+    if (state?.registrationsClosed) closedRef.current?.focus();
+  }, [state?.registrationsClosed]);
+
   // #714: email-confirmation-first — the backend returned 202. Show a "check your inbox" panel in
   // place of the form. Byte-identical for a fresh or a taken address (the account-enumeration status
   // oracle is closed; the only differentiator is the out-of-band email), so the FE never distinguishes
@@ -52,6 +63,27 @@ export function RegisterForm() {
             region is not wrapped inside this one — nested live regions double-announce. Email is
             echoed from the action state because the form (and its input) is unmounted here. */}
         <ResendConfirmationButton getEmail={() => state.email ?? ""} />
+      </div>
+    );
+  }
+
+  // ADR 0083 Amendment 2026-08-03 — public registration is held closed. Rendered in place of the
+  // form, in the SAME channel as the 202 panel above and deliberately not in the error channel:
+  // red text-danger-600 + role="alert" + a live submit button would read as "you typed something
+  // wrong" and invite a retry that cannot succeed until a config flag is flipped and the process
+  // restarts. role="status" + aria-live announces the state without claiming a fault.
+  if (state?.registrationsClosed) {
+    return (
+      <div
+        ref={closedRef}
+        tabIndex={-1}
+        role="status"
+        aria-live="polite"
+        className="focus:outline-none"
+      >
+        <p className="text-body text-text-primary">
+          {t("auth.actions.registrationsClosed")}
+        </p>
       </div>
     );
   }

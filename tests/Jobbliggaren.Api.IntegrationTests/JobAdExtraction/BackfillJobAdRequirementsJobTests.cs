@@ -183,7 +183,7 @@ public sealed class BackfillJobAdRequirementsJobTests(ApiFactory factory)
         var jobSource = Substitute.For<IJobSource>();
         jobSource.Source.Returns(JobSource.Platsbanken);
         jobSource.RefetchByExternalIdAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
-            .Returns(ci => Task.FromResult<JobAdImportItem?>(RefetchedItemWithMustHave(ci.Arg<string>())));
+            .Returns(ci => Task.FromResult<JobAdImportItem?>(RefetchedItemWithMustHave(ci.ArgAt<string>(0))));
 
         var runner = NewRunner(jobSource);
         await runner.RunAsync(MissingMustHavePredicate, Opts, "backfill-requirements", ct);

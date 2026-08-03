@@ -121,7 +121,7 @@ public class CompanyLookupActiveAdCountTests
     private (IServiceScope Scope, LookupCompanyQueryHandler Handler) NewHandler(string foundOrgNr, string name)
     {
         _registry.LookupAsync(
-                Arg.Is<OrganizationNumber>(o => o.Value == foundOrgNr), Arg.Any<CancellationToken>())
+                Arg.Is<OrganizationNumber>(o => o != null && o.Value == foundOrgNr), Arg.Any<CancellationToken>())
             .Returns(CompanyRegistryLookup.Found(new CompanyRegistryEntry(foundOrgNr, name)));
 
         var scope = _factory.Services.CreateScope();

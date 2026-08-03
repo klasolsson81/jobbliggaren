@@ -24,7 +24,7 @@ public class FollowCompanyCommandHandlerTests
         // Deterministic, distinct-from-plaintext test token (a 64-char length ⇒ IsPersonnummerShaped
         // true, mirroring a real HMAC). Only invoked for pnr-shaped input; OrgNr above is an AB number.
         _tokenizer.Tokenize(Arg.Any<string>())
-            .Returns(ci => "hmac" + ci.Arg<string>().PadLeft(60, '0'));
+            .Returns(ci => "hmac" + ci.ArgAt<string>(0).PadLeft(60, '0'));
     }
 
     private FollowCompanyCommandHandler Handler(Jobbliggaren.Infrastructure.Persistence.AppDbContext db) =>

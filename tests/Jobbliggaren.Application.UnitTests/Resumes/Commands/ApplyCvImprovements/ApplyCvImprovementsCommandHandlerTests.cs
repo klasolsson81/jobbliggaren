@@ -399,7 +399,7 @@ public class ApplyCvImprovementsCommandHandlerTests
 
         result.IsSuccess.ShouldBeTrue();
         await _reconciler.Received(1).ReconcileAsync(
-            Arg.Is<Resume>(r => r.Id == resume.Id),
+            Arg.Is<Resume>(r => r != null && r.Id == resume.Id),
             Arg.Is<IReadOnlyCollection<string>>(c => c != null && c.Count == 1 && c.Contains("A2")),
             Arg.Any<CancellationToken>());
     }

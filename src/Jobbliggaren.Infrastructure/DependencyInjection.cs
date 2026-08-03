@@ -1473,7 +1473,16 @@ public static class DependencyInjection
 
         // #714 — email-confirmation-first registration toggle (Application-owned contract, bound
         // here). Read by RegisterCommandHandler + UserAccountService.ValidateCredentialsAsync.
-        services.Configure<AuthOptions>(configuration.GetSection(AuthOptions.SectionName));
+        //
+        // ADR 0083 Amendment 2026-08-03: bound via AddOptions/ValidateOnStart so AuthOptionsValidator
+        // can refuse the one unsafe combination (RegistrationsOpen without RequireEmailConfirmation,
+        // outside Development/Test). Registered HERE only — AddCoreIdentityForWorker binds the same
+        // section with a plain Configure, deliberately: the Worker owns no registration surface, so a
+        // shared env file must not take it down for a condition it cannot exercise.
+        services.AddOptions<AuthOptions>()
+            .Bind(configuration.GetSection(AuthOptions.SectionName))
+            .ValidateOnStart();
+        services.AddSingleton<IValidateOptions<AuthOptions>, AuthOptionsValidator>();
 
         // #733/#703 — Redis-backed anti-email-bomb cooldown gate (ICooldownGate) + its window options. The
         // gate is the #733 primitive generalised (a policy-free check-and-set on a (scope, subject) pair)

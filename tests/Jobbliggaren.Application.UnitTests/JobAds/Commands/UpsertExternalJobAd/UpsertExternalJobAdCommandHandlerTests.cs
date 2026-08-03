@@ -268,7 +268,7 @@ public class UpsertExternalJobAdCommandHandlerTests
         result.Value.ShouldBe(UpsertOutcome.Added);
         // The extractor was invoked with the ad's text and the result was persisted.
         extractor.Received().Extract(Arg.Is<JobAdExtractionInput>(
-            i => i.Title == item.Title && i.Description == item.Description));
+            i => i != null && i.Title == item.Title && i.Description == item.Description));
         var persisted = await db.JobAds.AsNoTracking()
             .FirstAsync(j => j.External!.ExternalId == "ext-extract-add", ct);
         persisted.ExtractedTerms.ShouldNotBeNull(
@@ -320,7 +320,7 @@ public class UpsertExternalJobAdCommandHandlerTests
         existing.ExtractedTerms!.ShouldBe(terms);
         // Re-extraction used the UPDATED text, not the stale seeded text.
         extractor.Received().Extract(Arg.Is<JobAdExtractionInput>(
-            i => i.Title == "New Title" && i.Description == "Ny beskrivning"));
+            i => i != null && i.Title == "New Title" && i.Description == "Ny beskrivning"));
     }
 
     // ---------------------------------------------------------------
@@ -353,7 +353,7 @@ public class UpsertExternalJobAdCommandHandlerTests
         result.Value.ShouldBe(UpsertOutcome.Added);
         // The extraction input carries the item's requirements (same instances).
         extractor.Received().Extract(Arg.Is<JobAdExtractionInput>(
-            i => i.Requirements != null && i.Requirements.Count == 2
+            i => i != null && i.Requirements != null && i.Requirements.Count == 2
                  && i.Requirements.Any(r => r.ConceptId == "Rq01_must_aaa" && r.Source == ExtractedTermSource.MustHave)
                  && i.Requirements.Any(r => r.ConceptId == "Rq02_nice_bbb" && r.Source == ExtractedTermSource.NiceToHave)));
     }
@@ -393,7 +393,7 @@ public class UpsertExternalJobAdCommandHandlerTests
 
         result.Value.ShouldBe(UpsertOutcome.Updated);
         extractor.Received().Extract(Arg.Is<JobAdExtractionInput>(
-            i => i.Requirements != null && i.Requirements.Count == 2
+            i => i != null && i.Requirements != null && i.Requirements.Count == 2
                  && i.Requirements.Any(r => r.ConceptId == "Rq01_must_aaa")));
     }
 

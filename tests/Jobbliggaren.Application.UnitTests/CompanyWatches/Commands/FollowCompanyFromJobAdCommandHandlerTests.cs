@@ -36,13 +36,13 @@ public class FollowCompanyFromJobAdCommandHandlerTests
     public FollowCompanyFromJobAdCommandHandlerTests()
     {
         _currentUser.UserId.Returns(_userId);
-        _tokenizer.Tokenize(Arg.Any<string>()).Returns(ci => FakeToken(ci.Arg<string>()));
+        _tokenizer.Tokenize(Arg.Any<string>()).Returns(ci => FakeToken(ci.ArgAt<string>(0)));
     }
 
     private void ReaderReturns(string? orgNr) =>
         _employerReader
             .GetOrganizationNumbersByJobAdIdsAsync(
-                Arg.Is<IReadOnlyList<Guid>>(ids => ids.Contains(_jobAdId)), Arg.Any<CancellationToken>())
+                Arg.Is<IReadOnlyList<Guid>>(ids => ids != null && ids.Contains(_jobAdId)), Arg.Any<CancellationToken>())
             .Returns(new Dictionary<Guid, string?> { [_jobAdId] = orgNr });
 
     private void ReaderReturnsNoAd() =>

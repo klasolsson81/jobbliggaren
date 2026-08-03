@@ -6,6 +6,7 @@ using Jobbliggaren.Api.Endpoints;
 using Jobbliggaren.Api.HealthChecks;
 using Jobbliggaren.Api.Observability;
 using Jobbliggaren.Api.RateLimiting;
+using Jobbliggaren.Application.Auth;
 using Jobbliggaren.Application.Common;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Common.Auditing;
@@ -23,6 +24,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using ValidationException = Jobbliggaren.Application.Common.Exceptions.ValidationException;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -185,6 +187,30 @@ builder.Services.AddHsts(o =>
 builder.Services.AddSingleton<SessionStoreUnavailableLog>();
 
 var app = builder.Build();
+
+// ADR 0083 Amendment 2026-08-03 — announce the auth-flow posture once per process. Read through
+// IOptions so the values are the ones the handler will actually see (PostConfigure wins over config
+// binding, and both resolve the same singleton, so announcement and behaviour cannot diverge).
+//
+// BOTH flags, deliberately. An OPEN gate with email confirmation OFF is legacy instant-login — an
+// account minted with no proof the registrant owns the address — which is the posture #734 exists to
+// prevent, and announcing only the gate would reproduce this class of defect one flag over. Measured
+// 2026-08-03: the Auth section exists only in appsettings.Development.json, so in the Production
+// configuration the handler WOULD take the legacy branch. No Production host has booted yet — that is
+// a property of the configuration, not a history.
+var authFlags = app.Services.GetRequiredService<IOptions<AuthOptions>>().Value;
+var emailConfirmationState = authFlags.RequireEmailConfirmation ? "REQUIRED" : "NOT REQUIRED";
+if (authFlags.RegistrationsOpen && !app.Environment.IsDevelopment())
+{
+    // Warning, not Information: an open gate outside Development is a security-posture statement and
+    // should be alertable rather than one Information line among a boot's dozens.
+    RegistrationGateLog.AnnounceOpenOutsideDevelopment(app.Logger, "OPEN", emailConfirmationState);
+}
+else
+{
+    RegistrationGateLog.Announce(
+        app.Logger, authFlags.RegistrationsOpen ? "OPEN" : "CLOSED", emailConfirmationState);
+}
 
 app.Use(async (ctx, next) =>
 {

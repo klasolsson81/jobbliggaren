@@ -1,3 +1,4 @@
+using Jobbliggaren.Api.IntegrationTests.Helpers;
 using Jobbliggaren.Application.Admin.BackgroundJobs;
 using Jobbliggaren.Application.Auth;
 using Jobbliggaren.Application.Common.Abstractions;
@@ -13,6 +14,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Testcontainers.PostgreSql;
 using Testcontainers.Redis;
 
@@ -196,6 +198,15 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
             // flag-ON test classes re-flip it ON per class via WithWebHostBuilder + PostConfigure(true),
             // which registers AFTER this and therefore takes precedence (CTO-bind Risk 3).
             services.PostConfigure<AuthOptions>(o => o.RequireEmailConfirmation = false);
+
+            // ADR 0083 Amendment 2026-08-03 — the registration kill-switch defaults to CLOSED, so the
+            // base host must pin it OPEN or every register-based bootstrap (RegisterAndGetSessionIdAsync
+            // and friends) would be refused before an account is created. Pinned here rather than
+            // inherited from appsettings.Development.json for the same reason the line above is: the
+            // harness must not depend on a dev config file it does not own. The derived hosts below
+            // register their PostConfigure AFTER this one and override only the flags they name, so
+            // they inherit an OPEN registration; the closed-registration host re-flips this one.
+            services.PostConfigure<AuthOptions>(o => o.RegistrationsOpen = true);
         });
     }
 
@@ -222,6 +233,50 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
 
         return _emailConfirmationHost.CreateClient();
     }
+
+    private WebApplicationFactory<Program>? _registrationsClosedHost;
+    private readonly object _registrationsClosedLock = new();
+
+    /// <summary>
+    /// ADR 0083 Amendment 2026-08-03 — an <see cref="HttpClient"/> against a host with the
+    /// public-registration kill-switch forced CLOSED. This is the counterfactual: without a host that
+    /// actually refuses, the base host's 200/202 assertions cannot tell a working gate from an absent
+    /// one.
+    /// <para>
+    /// Cached and shared for the same reason as <see cref="CreateEmailConfirmationClient"/> — one
+    /// derived host per test class would each spin a fresh EF internal service provider and trip EF's
+    /// process-wide <c>ManyServiceProvidersCreatedWarning</c> (&gt;20) across the shared
+    /// <c>[Collection("Api")]</c>. Registered AFTER the base host's PostConfigure, so it wins.
+    /// </para>
+    /// </summary>
+    internal HttpClient CreateRegistrationsClosedClient()
+    {
+        lock (_registrationsClosedLock)
+        {
+            _registrationsClosedHost ??= WithWebHostBuilder(builder => builder.ConfigureServices(services =>
+            {
+                services.PostConfigure<AuthOptions>(o => o.RegistrationsOpen = false);
+                // Capture THIS host's boot records so the gate's announcement can be pinned against
+                // the behaviour of the same host. Hung on an existing derived host on purpose: a
+                // dedicated one is a fourth WebApplicationFactory, and the full suite measured that
+                // as EF's ManyServiceProvidersCreatedWarning (>20 internal providers), which then
+                // fails whichever collection fixture initialises after the ceiling breaks.
+                services.AddSingleton<ILoggerProvider>(_closedHostLogs);
+            }));
+        }
+
+        return _registrationsClosedHost.CreateClient();
+    }
+
+    private readonly CapturingLoggerProvider _closedHostLogs = new();
+
+    /// <summary>
+    /// Boot records from the closed-registration host. Per-host, not shared: the base
+    /// <c>ConfigureWebHost</c> re-runs for every derived host, so one sink would mix three hosts'
+    /// announcements into a single queue and an "announced once" assertion would read whichever
+    /// host happened to boot first.
+    /// </summary>
+    internal IEnumerable<CapturedLog> ClosedHostLogs => _closedHostLogs.Logs;
 
     public async ValueTask InitializeAsync()
     {

@@ -34,7 +34,7 @@ services:
     # sådana PR:er auto-mergas ALDRIG. Det generella skälet gäller varje image-bump —
     # ingenting läser den image som ändras — och den tysta felmoden ovan kommer utöver det.
     # Löser någon ICU-frågan får alltså auto-merge INTE återinföras på den grunden ensam.
-    image: postgres:18.3
+    image: postgres:18.4
     container_name: jobbliggaren-postgres-dev
     environment:
       POSTGRES_DB: jobbliggaren
@@ -57,7 +57,7 @@ services:
     restart: unless-stopped
 
   redis-dev:
-    image: redis:8.6-alpine
+    image: redis:8.10-alpine
     container_name: jobbliggaren-redis-dev
     ports:
       - "127.0.0.1:6379:6379"
@@ -117,7 +117,7 @@ services:
   # ==============================================================
 
   postgres-test:
-    image: postgres:18.3
+    image: postgres:18.4
     container_name: jobbliggaren-postgres-test
     profiles: ["test", "full"]
     environment:
@@ -137,7 +137,7 @@ services:
     restart: unless-stopped
 
   redis-test:
-    image: redis:8.6-alpine
+    image: redis:8.10-alpine
     container_name: jobbliggaren-redis-test
     profiles: ["test", "full"]
     ports:

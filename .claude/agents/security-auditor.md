@@ -33,10 +33,14 @@ backup target. **Beslut 4's `Amendment 2026-07-18` (Option B — the API is neve
 edge-exposed, and its six load-bearing invariants) survives unchanged** and is still
 the routing you audit against. Gate M-5 is retired into M-5a + M-5b, a detection gate
 M-7 is added; B-1, B-2, M-1–M-4 stand, and **M-6 stands minus its fail2ban clause**.
-**M-7's severity is yours to set.** **M-5b you already graded `Major` on 2026-08-04** —
-§9.6 forbids re-grading it, so do not. Re-read it at the mandatory second review and
-grade it *then*, per clause (ii) of that grading. An ungraded row stays ungraded until
-you grade it; a graded one is not reopened by a later reader.
+**You already graded both M-5b and M-7 `Major` on 2026-08-04**, so do not re-grade them
+against a fresh reading — §9.6 reserves a finding's severity, and its legal basis, to the
+agent that reported it. What each grade *schedules* is different and both are binding:
+M-5b carries an explicit duty to **re-grade at the mandatory second review** (clause (ii)
+of that grading), and M-7 escalates to **Blocker** if ADR 0123 is still ungranted or
+unmitigated at first real data. A row you have not graded stays ungraded until you grade
+it; a graded one is not reopened by a later reader — but a scheduled re-grade is not a
+reopening, it is the grade doing what it said.
 
 Residency still rests on whatever host is actually provisioned: **measure it, never
 assume it from either ADR**. Compare against existing PII flows, audit log, and

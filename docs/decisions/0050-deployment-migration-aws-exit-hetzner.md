@@ -570,7 +570,7 @@ operativt av TD-102 (master-nyckel), TD-106 (stack/härdning), TD-107 (backup).
 | **M-5a** | **Origin-TLS är hela TLS-historien:** Caddy terminerar med publikt betrott LE-cert (HTTP-01 **eller** TLS-ALPN-01 — se §5), **HSTS emitteras faktiskt i Production**, ingen klartextsträcka. **Bevisas på svaret, inte på konfigen** | Major (ärvd från M-5) | [#196](https://github.com/klasolsson81/jobbliggaren/issues/196) |
 | **M-5b** | **Kantexponeringen är omitigerad** (ingen CDN/WAF/DDoS-absorption, ingen origin-IP-allowlist): kompenserande kontroll är **admission + topologi**, aldrig filtrering — K2-grinden, Option B, per-IP-rate-limit, riktade `forward`-accepts | **Major** (satt av security-auditor 2026-08-04 vid granskningen av PR #1200) — bär tre villkor, se `Amendment 2026-08-04` §5 | [#196](https://github.com/klasolsson81/jobbliggaren/issues/196) |
 | M-6 | VPS-härdnings-baseline (SSH-key-only, brandvägg, ~~fail2ban~~, auto-patch, PG/Redis ej publika, swap/core-dump-hygien mot master-nyckel-minnesläck) | Major | [#196](https://github.com/klasolsson81/jobbliggaren/issues/196) · **baseline i övrigt mätt grön** ([#1196](https://github.com/klasolsson81/jobbliggaren/pull/1196)) · **fail2ban-klausulen: avvikelse REGISTRERAD, ratificering väntar på Klas GO** (`Amendment 2026-08-04`) |
-| **M-7** | **Detektionsförmåga** — grinden ställs på **skyldighet, inte mekanism**. Rättslig grund är **Art. 32(1)(b)+(d)** (förmågan, och den återkommande utvärderingen av den); **Art. 33:s 72-timmarsfrist är konsekvensen som gör bristen akut, inte grunden**. Utan den är ADR 0123:s scope-gräns overkställbar (lokal ADR; `Amendment 2026-08-04` §6b bär skälet i sin helhet) | **Major** (satt av security-auditor 2026-08-04) — **blir Blocker om ADR 0123 fortfarande är obeviljad eller omitigerad vid första riktiga data**: acceptansens utgångsvillkor vilar då på en detektionsförmåga som inte finns | [#1201](https://github.com/klasolsson81/jobbliggaren/issues/1201) — **värd-detektion + alerting ägs av [#196](https://github.com/klasolsson81/jobbliggaren/issues/196), nyckelåtkomst-detektion av [#198](https://github.com/klasolsson81/jobbliggaren/issues/198)** |
+| **M-7** | **Detektionsförmåga** — grinden ställs på **skyldighet, inte mekanism**. Rättslig grund (satt av security-auditor, som äger fyndet — en tidigare version av denna rad skrev om grunden och försvagade den): **Art. 32(1)(b) + Art. 33 läst med Recital 87**, som uttryckligen kräver åtgärder för att *"establish immediately whether a personal data breach has taken place"* — detektionsplikten läses alltså in i anmälningsregimen, Art. 33 är inte bara följden. **Art. 5(2)** (accountability) bär kravet att förmågan ska vara **visbar**. *(Art. 32(1)(d) gäller återkommande testning och utvärdering av åtgärderna — pentest och kontrollutvärdering — och är inte grunden för detektionsförmågan.)* Utan den är ADR 0123:s scope-gräns overkställbar (lokal ADR; `Amendment 2026-08-04` §6b bär skälet i sin helhet) | **Major** (satt av security-auditor 2026-08-04) — **blir Blocker om ADR 0123 fortfarande är obeviljad eller omitigerad vid första riktiga data**: acceptansens utgångsvillkor vilar då på en detektionsförmåga som inte finns | [#1201](https://github.com/klasolsson81/jobbliggaren/issues/1201) — **värd-detektion + alerting ägs av [#196](https://github.com/klasolsson81/jobbliggaren/issues/196), nyckelåtkomst-detektion av [#198](https://github.com/klasolsson81/jobbliggaren/issues/198)** |
 | M-1 | ADR 0050 KMS-blocker-prosa amenderad → TD-102-omframing | Major | **Åtgärdad denna amendment** |
 | M-2 | ADR 0049-amendment: self-managed master-nyckels prod-skyddsmodell + accepterad minne-restrisk + namngiven skala-trigger för extern KV/HSM | Major | [#198](https://github.com/klasolsson81/jobbliggaren/issues/198) (f.d. TD-102, ADR 0049-amendment-scope) |
 
@@ -816,6 +816,15 @@ LE-cert via HTTP-01; **HSTS emitteras faktiskt i Production**; ingen klartextstr
 > grinden en regressionsspärr en Caddyfil saknar. Valet är #196:s.
 > **`AlbOptions → ReverseProxyOptions`-re-homet är fortsatt skyldigt — men för
 > `ForwardedHeaders:KnownNetworks` (M-5b punkt 3), INTE för HSTS.**
+>
+> **Beviset läses på det OAUTENTISERADE 401-svaret**, inte bara på ett autentiserat 200.
+> Caddy svarar 401 utan att nå Next, så en HSTS enbart i `buildSecurityHeaders` finns
+> **inte** på det svaret — och på en basic auth-grindad dev-låda är 401 det första och
+> ofta enda svar en browser möter, vilket är precis det ögonblick HSTS finns för. Vilken
+> komponent som emitterar är **#196:s val**; att **båda** svarsvägarna bär headern är
+> grinden. *(Husprecedens: `Program.cs` ~344 stämplar via `OnStarting` uttryckligen "on
+> EVERY response — the 200, the 404, the 401 auth challenge, and a 405 — not only the
+> happy path".)*
 >
 > **CAA + Strato (klausul under M-5a).** Utan CDN är "origin-TLS är hela TLS-historien"
 > bokstavligt sann: den som tar Strato-kontot får giltiga certifikat och total MITM.

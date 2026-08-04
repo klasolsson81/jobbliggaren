@@ -360,17 +360,31 @@ module "ecs" {
     "ConnectionStrings__Redis"           = module.redis.connection_string_secret_arn
   }
 
-  # Klartext env-vars (icke-känsligt). ReverseProxy__HttpsEnabled gate:ar
+  # Klartext env-vars (icke-känsligt). Alb__HttpsEnabled gate:ar
   # app.UseHttpsRedirection() — se Api/Program.cs (förhindrar redirect-loop
-  # bakom en HTTP-only proxy per ADR 0026 + sec-auditor Sec-Major-2 STEG 13b).
+  # bakom HTTP-only-ALB per ADR 0026 + sec-auditor Sec-Major-2 STEG 13b).
   #
-  # NOTE: this tree is PRESERVED, not live. ADR 0066 destroyed the deployed AWS dev
-  # stack and deliberately kept the code (CLAUDE.md §11); retirement is a cutover-ADR,
-  # never a cleanup sweep. It is not the source of truth for the Netcup stack — #196
-  # is. The key below is renamed only so the tree does not inject a name the
-  # application stopped reading, which would fail silently to false; the AWS-domain
-  # names around it (var.alb_https_enabled, modules/alb) keep their ALB names because
-  # in this tree they really are an ALB.
+  # NOTE: this tree is a RECORD of the destroyed AWS stack, not a maintained
+  # configuration. ADR 0066 tore the deployed dev stack down and deliberately kept the
+  # code (CLAUDE.md §11, BUILD.md §15.2); retirement is a cutover-ADR, never a cleanup
+  # sweep. Do not "repair" it toward the current application — the names below record
+  # what actually ran, and editing them makes a record look like live config.
+  #
+  # That is a MEASUREMENT, not an assertion (measured 2026-08-04 against HEAD 96f2b3ad):
+  #   - This block injects FieldEncryption__CmkKeyId and __AwsRegion (below, and again
+  #     for the worker). Both options were REMOVED from the application by #802 —
+  #     FieldEncryptionOptions now carries only Provider + LocalMasterKeyBase64.
+  #   - The tree injects no FieldEncryption__LocalMasterKeyBase64 at all, and
+  #     FieldEncryptionOptionsValidator hard-fails startup in EVERY environment without
+  #     it (ValidateOnStart, in the AddPersistence both hosts load). A re-apply would
+  #     never reach any middleware gate.
+  #   - infra/terraform still names src/JobbPilot.*/Dockerfile paths; the projects are
+  #     Jobbliggaren.* and those paths do not exist, so the images cannot even build.
+  # So the app-facing halves of this block are already dead in three ways. Renaming one
+  # string would buy one-of-N consistency and leave a current name standing among dead
+  # ones, which reads as maintained. Restoration, if it ever happens, belongs to #196 at
+  # cutover — not to a passing rename. (No line numbers here on purpose; the previous
+  # pointer into this block already rotted once.)
   #
   # AdminBootstrap__InitialAdminEmail — IdempotentAdminRoleSeeder tilldelar
   # Admin-rollen till user med matchande email vid host-startup (senior-cto-
@@ -382,7 +396,7 @@ module "ecs" {
     "ASPNETCORE_ENVIRONMENT"             = "Production"
     "ASPNETCORE_URLS"                    = "http://+:8080"
     "ForwardedHeaders__KnownNetworks__0" = var.vpc_cidr
-    "ReverseProxy__HttpsEnabled"         = tostring(var.alb_https_enabled)
+    "Alb__HttpsEnabled"                  = tostring(var.alb_https_enabled)
     "AdminBootstrap__InitialAdminEmail"  = var.initial_admin_email
     # TD-13 (ADR 0049) — KMS-envelope. ARN ≠ secret (ger ingen access utan
     # IAM-grant) → plain env, JobbPilot-konvention. dotnet-architect 2026-05-19.

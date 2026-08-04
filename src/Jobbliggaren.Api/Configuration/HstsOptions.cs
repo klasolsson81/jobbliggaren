@@ -2,13 +2,16 @@ namespace Jobbliggaren.Api.Configuration;
 
 /// <summary>
 /// Konfig-bindning för HTTP Strict Transport Security (HSTS).
-/// Symmetri med <see cref="AlbOptions"/> + <see cref="ForwardedHeadersConfig"/>
+/// Symmetri med <see cref="ReverseProxyOptions"/> + <see cref="ForwardedHeadersConfig"/>
 /// (sealed class, init-only properties, public const SectionName).
 ///
 /// <para>
 /// HSTS instruerar browsers att alltid använda HTTPS för domänen i <c>MaxAgeDays</c>
-/// dagar framåt. Aktiveras tillsammans med <c>AlbOptions.HttpsEnabled</c> — bägge
-/// flippas synkront vid ADR 0026-trigger 1 (domän + ACM-cert utfärdat).
+/// dagar framåt. Aktiveras tillsammans med <c>ReverseProxyOptions.HttpsEnabled</c> —
+/// bägge flippas synkront med the reverse proxy's TLS listener (ADR 0026-trigger 1).
+/// Note that under Option B neither is expected to flip: browser-visible HSTS is owed by
+/// the edge, since the API's responses never reach a browser. See
+/// <see cref="ReverseProxyOptions"/>.
 /// </para>
 ///
 /// <para>
@@ -54,7 +57,7 @@ public sealed class HstsOptions
     /// Production-defense (paritet med
     /// <c>ForwardedHeadersConfig.EnsureSafeForEnvironment</c>): fail-loud vid
     /// uppstart om HSTS-config skulle ge tyst säkerhetsregression i Production.
-    /// Anropas i Program.cs gate:at på <c>AlbOptions.HttpsEnabled</c> så HTTP-
+    /// Anropas i Program.cs gate:at på <c>ReverseProxyOptions.HttpsEnabled</c> så HTTP-
     /// only Fas 0 (ADR 0026) inte triggar throw.
     /// </summary>
     /// <param name="environmentName">ASP.NET Core-environment-namn (Development/Test/Production/Staging/...).</param>

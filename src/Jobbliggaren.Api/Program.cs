@@ -167,11 +167,11 @@ builder.Services.AddHealthChecks()
 var hstsConfig = builder.Configuration.GetSection(HstsOptions.SectionName).Get<HstsOptions>() ?? new HstsOptions();
 
 // Production-defense per allow-list (paritet med ForwardedHeadersConfig STEG 12).
-// Gate:at på albOptions.HttpsEnabled — under HTTP-only Fas 0 (ADR 0026) ska
+// Gate:at på reverseProxyConfig.HttpsEnabled — under HTTP-only Fas 0 (ADR 0026) ska
 // HSTS-config inte vara obligatorisk; men om HttpsEnabled flippas måste
 // MaxAgeDays>=365 + Preload-krav uppfyllas (annars tyst regression).
-var albConfig = builder.Configuration.GetSection(AlbOptions.SectionName).Get<AlbOptions>() ?? new AlbOptions();
-if (albConfig.HttpsEnabled)
+var reverseProxyConfig = builder.Configuration.GetSection(ReverseProxyOptions.SectionName).Get<ReverseProxyOptions>() ?? new ReverseProxyOptions();
+if (reverseProxyConfig.HttpsEnabled)
     hstsConfig.EnsureSafeForEnvironment(builder.Environment.EnvironmentName);
 
 builder.Services.AddHsts(o =>
@@ -315,28 +315,32 @@ foreach (var proxy in forwardedCfg.ParseKnownProxies())
 
 app.UseForwardedHeaders(forwardedOptions);
 
-// HttpsRedirection bara om ALB-listenern faktiskt har en HTTPS-port att redirecta TILL.
-// Bakom HTTP-only-ALB skulle redirect → port 443 (stängd) → ALB-health-check failer →
-// ECS deployment_circuit_breaker triggar rollback (security-auditor STEG 13b Sec-Major-2).
-// Konfig-driven via AlbOptions.HttpsEnabled (env-var Alb__HttpsEnabled från ECS task-def,
-// sätts av Terraform när var.alb_https_enabled = true; default false fram till ADR 0026-trigger).
+// HttpsRedirection bara om the reverse proxy faktiskt har en HTTPS-port att redirecta
+// TILL. Behind an HTTP-only proxy the redirect targets a closed 443, the health check
+// fails and the deploy rolls back (security-auditor STEG 13b Sec-Major-2).
+//
+// Under Option B this stays FALSE by design, not by omission: Next reaches the API over
+// plain internal HTTP, so a true here would answer 307 to every internal call and break
+// the app. See ReverseProxyOptions for the full reasoning and for why UseHsts() below is
+// inert under the same topology.
+//
 // Development-miljö behåller redirect (dotnet run använder dev-cert via Kestrel + IIS Express).
-var albOptions = builder.Configuration.GetSection(AlbOptions.SectionName).Get<AlbOptions>() ?? new AlbOptions();
+var reverseProxyOptions = builder.Configuration.GetSection(ReverseProxyOptions.SectionName).Get<ReverseProxyOptions>() ?? new ReverseProxyOptions();
 
 // HSTS FÖRE HttpsRedirection så att HSTS-headern sätts på alla HTTPS-svar
 // (inklusive 307-redirect-svaret). Skip i Development för att undvika
 // browser-HTTPS-lock på localhost (HSTS-policy persistar i `MaxAgeDays`
 // dagar även efter dev-cert roterats — bryter `dotnet run` framtida sessioner).
 //
-// Förutsätter att UseForwardedHeaders körts före (rad ~112) — annars är
-// Request.IsHttps false bakom ALB och HSTS-headern sätts aldrig på response
+// Requires the UseForwardedHeaders registration above — otherwise Request.IsHttps is
+// false behind the proxy and the HSTS header is never set on the response
 // (dotnet-architect Viktigt-fynd, ASP.NET Core 10 docs).
-if (!builder.Environment.IsDevelopment() && albOptions.HttpsEnabled)
+if (!builder.Environment.IsDevelopment() && reverseProxyOptions.HttpsEnabled)
 {
     app.UseHsts();
 }
 
-if (builder.Environment.IsDevelopment() || albOptions.HttpsEnabled)
+if (builder.Environment.IsDevelopment() || reverseProxyOptions.HttpsEnabled)
 {
     app.UseHttpsRedirection();
 }

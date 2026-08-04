@@ -102,7 +102,10 @@ services:
       # vuxit förut), eftersom just den
       # här filens kommentar påstod motsatsen i månader utan att någon läsare fångade det.
       # (Det förbjuder inte en form-baserad regressionsvakt som kontrollerar att prefixet
-      # inte försvinner igen — det är en annan fråga än vad som kör, och den saknas i dag.)
+      # inte försvinner igen — det är en annan fråga än vad som kör. Den vakten FINNS sedan
+      # #1198: `.github/scripts/compose-loopback-guard.sh`, grindad av `ci`-jobbet
+      # `scripts (bash fixtures)`. Den bevisar att filen inte ändrats tillbaka, aldrig vad
+      # som lyssnar — `curl`-kravet ovan står oförändrat.)
       - "127.0.0.1:5341:80"      # Seq UI + API (unified http-port)
       - "127.0.0.1:5342:5341"    # Seq ingestion-port (separat listener enligt Seq-startlog)
     volumes:

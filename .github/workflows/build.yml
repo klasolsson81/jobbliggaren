@@ -349,6 +349,13 @@ jobs:
       - name: audit-suppression-guard (fixturer)
         run: bash .github/scripts/audit-suppression-guard.test.sh
 
+      # Fixturerna kör guarden mot den RIKTIGA `docker-compose.yml` (fixtur
+      # `real_repo_file`), så det här steget grindar filen och inte bara sin egen
+      # testdata. Mutationsverifierat 2026-08-04: tas ett `127.0.0.1:`-prefix bort
+      # ur den riktiga filen går sviten 11 → 10 gröna och jobbet faller.
+      - name: compose-loopback-guard (fixturer + den riktiga compose-filen)
+        run: bash .github/scripts/compose-loopback-guard.test.sh
+
   # ---------------------------------------------------------------------------
   # PERF-/SUPPLY-CHAIN-GOVERNANCE (ADR 0045 — observe-only Fas 1).
   #

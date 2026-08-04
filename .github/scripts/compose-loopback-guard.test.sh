@@ -283,6 +283,33 @@ run zero_recognised_refused 2 "$TMPROOT/noports.yml"
 # --- 8j. ...unless zero is stated explicitly ------------------------------------------
 run zero_allowed_explicitly 0 --expect-min 0 "$TMPROOT/noports.yml"
 
+# --- 8k. YAML EXPLICIT-KEY SYNTAX — round 10's fifth silent form ----------------------
+# `? ports` puts the colon on the NEXT line, so a colon-anchored key test never fired. It
+# is accepted by Compose and normalises to a published port. Caught now by the LOOSE
+# detector: it counts ports-like keys word-wise and refuses when more keys exist than
+# blocks opened.
+cat >"$TMPROOT/qkey_explicit.yml" <<'YAML'
+services:
+  a:
+    image: x
+    ? ports
+    : - "0.0.0.0:9999:9999"
+YAML
+run explicit_key_syntax 2 "$TMPROOT/qkey_explicit.yml"
+
+# --- 8l. host networking is REFUSED, not passed over ---------------------------------
+# It publishes nothing through `ports:` — and it is BROADER than what #1198 closed, since
+# it exposes every port the process binds. A ports guard cannot check it, so it says so.
+cat >"$TMPROOT/hostnet.yml" <<'YAML'
+services:
+  a:
+    image: x
+    network_mode: host
+    ports:
+      - "127.0.0.1:5435:5432"
+YAML
+run host_networking_refused 2 "$TMPROOT/hostnet.yml"
+
 # --- 9. a missing file exits 2, never 0 ----------------------------------------------
 run missing_file 2 "$TMPROOT/does-not-exist.yml"
 

@@ -148,7 +148,15 @@ scan=$(
           in_ports = 0
           next
         }
-        in_ports = 1; ports_indent = ind; ports_line = FNR; ports_file = FILENAME; entries = 0
+        in_ports = 1; ports_indent = ind; ports_line = FNR; ports_file = FILENAME; entries = 0; blocks++
+        next
+      }
+
+      # Host networking publishes nothing through `ports:`, so a ports guard cannot check
+      # it — and it is BROADER than what #1198 closed: it exposes every port the process
+      # binds, not one. Refused rather than passed over in silence.
+      if (line ~ /^[[:space:]]*network_mode[[:space:]]*:[[:space:]]*["'"'"']?host["'"'"']?[[:space:]]*$/) {
+        printf "%s:%d: HOST-NETWORKING %s\n", FILENAME, FNR, line
         next
       }
 
@@ -157,17 +165,57 @@ scan=$(
       printf "%s:%d: UNPARSED-ENTRY %s\n", FILENAME, FNR, line
     }
 
-    END { close_block(); printf "##RECOGNISED##%d\n", total + 0 }
+    END {
+      close_block()
+      printf "##RECOGNISED##%d\n", total + 0
+      printf "##BLOCKS##%d\n", blocks + 0
+    }
   ' "${files[@]}"
 )
 
-recognised=$(printf '%s\n' "$scan" | sed -n 's/^##RECOGNISED##//p' | tail -1)
-violations=$(printf '%s\n' "$scan" | grep -v '^##RECOGNISED##' || true)
+# Markers are matched ANCHORED and digits-only. Unanchored, a file literally NAMED
+# `##RECOGNISED##9.yml` would have its violation line swallowed by the filter — the guard
+# would run, find the violation, and print OK. Unreachable from CI; fixed anyway.
+recognised=$(printf '%s\n' "$scan" | sed -n 's/^##RECOGNISED##\([0-9][0-9]*\)$/\1/p' | tail -1)
+blocks=$(printf '%s\n' "$scan" | sed -n 's/^##BLOCKS##\([0-9][0-9]*\)$/\1/p' | tail -1)
+violations=$(printf '%s\n' "$scan" | grep -vE '^##(RECOGNISED|BLOCKS)##[0-9]+$' || true)
+
+# THE KEY AXIS FAILS CLOSED, and this is how. Every other axis refuses what it cannot
+# model; the KEY test could only ever miss SILENTLY, because a spelling that does not match
+# simply never opens a block — no entry, no marker, no complaint. Round 9 added one
+# alternation for quoted keys, which closed that instance and not the class: `? ports`
+# (YAML explicit-key syntax, accepted by Compose) still passed with exit 0.
+#
+# So a SECOND, DELIBERATELY LOOSE detector counts anything that looks like a ports key, and
+# **the divergence between the two counts is the signal**: loose > strict means a spelling
+# reached Compose that the parser never opened.
+#
+# THIS IS NOT THE DOUBLE PARSER ROUND 9 REMOVED, and the difference is the whole point.
+# That one computed the SAME quantity twice and could drift silently in either direction.
+# This one computes a DIFFERENT quantity, and their EQUALITY is the invariant. Do not
+# "simplify" it by making both strict — that reintroduces the blind spot it exists to find.
+# `|| true` is load-bearing under `set -o pipefail`: grep -c exits 1 when a file has NO
+# match, which killed the whole script with exit 1 on any compose file without a ports key.
+# Exit 1 reads as "a violation was found" — so the failure mode was the guard reporting a
+# violation it had not found. Caught by tracing the run rather than by reading it.
+# Deliberately WORD-level, not colon-level: YAML's explicit-key syntax puts the colon on
+# the NEXT line (`? ports` / `: - "..."`), and a colon-anchored detector missed it — which
+# is how `? ports` passed with exit 0 in round 10. Comment lines are excluded so prose
+# about ports does not inflate the count. Measured against the real file: exactly the five
+# `ports:` keys, no false positives.
+loose=$( { grep -hcE '^[[:space:]]*[^#]*(^|[^A-Za-z_.-])["'"'"']?ports["'"'"']?([^A-Za-z_.-]|$)' "${files[@]}" 2>/dev/null || true; } | awk '{ n += $1 } END { print n + 0 }')
+if [ "${loose:-0}" -gt "${blocks:-0}" ]; then
+  echo "::error::compose-loopback-guard: ${loose} ports-like key(s) present, but only ${blocks:-0} block(s) opened." >&2
+  echo "A spelling reached Compose that this guard's key test does not recognise, so its" >&2
+  echo "entries were never checked. Extend the key test rather than removing this one." >&2
+  printf '%s\n' "$violations" >&2
+  exit 2
+fi
 
 if [ -n "$violations" ]; then
   # "could not answer" is exit 2 and must never collapse into exit 1. All three markers
   # below mean the guard did not READ the ports, not that it read them and they were bad.
-  if printf '%s\n' "$violations" | grep -qE 'UNPARSED-ENTRY|UNPARSED-PORTS-FORM|EMPTY-PORTS-BLOCK'; then
+  if printf '%s\n' "$violations" | grep -qE 'UNPARSED-ENTRY|UNPARSED-PORTS-FORM|EMPTY-PORTS-BLOCK|HOST-NETWORKING'; then
     echo "::error::compose-loopback-guard: a ports: entry was in a shape this guard does not model." >&2
     echo "It reads block sequences in BOTH indentation styles. Flow sequences (ports: [...])," >&2
     echo "aliases (ports: *x), long-form mappings and empty blocks are REFUSED, never skipped." >&2
@@ -194,6 +242,15 @@ if [ -z "$expect_min" ]; then
     echo "if zero really is expected." >&2
     exit 2
   fi
+elif [ "$recognised" -eq 0 ] && [ "$expect_min" -gt 0 ]; then
+  # Zero recognised is refused here too, and for the same reason as the no-floor branch:
+  # the guard cannot tell "no ports" from "read no ports", and a floor above zero says the
+  # caller expected some. `--expect-min 0` is exempt on purpose — it is the one way to
+  # STATE that zero is expected, and collapsing it into a refusal would leave no way to say
+  # so at all.
+  echo "::error::compose-loopback-guard: recognised ZERO published ports (floor was $expect_min)." >&2
+  echo "Pass --expect-min 0 if zero really is expected here." >&2
+  exit 2
 elif [ "$recognised" -lt "$expect_min" ]; then
   echo "::error::compose-loopback-guard: expected at least $expect_min published port(s), recognised $recognised" >&2
   echo "Passing with fewer than expected means the ports moved, were deleted, or were" >&2

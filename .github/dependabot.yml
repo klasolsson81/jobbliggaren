@@ -455,7 +455,8 @@ updates:
   #
   # Both pin a floating major (`postgres:18`) while this file pins `postgres:18.3`, and
   # nothing reconciles them. The repair for class 4 — a shared constant, or pinned tags
-  # across 31 files — is a follow-up PR: it touches the test tree, not this PR's CI and
+  # in every file the regenerators above list — is a follow-up PR: it touches the test
+  # tree, not this PR's CI and
   # infra scope. Naming it here is what keeps the enumeration honest; it is not the fix.
   - package-ecosystem: "docker-compose"
     directory: "/"

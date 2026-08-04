@@ -378,9 +378,14 @@ module "ecs" {
   #     FieldEncryptionOptionsValidator hard-fails startup in EVERY environment without
   #     it (ValidateOnStart, in the AddPersistence both hosts load). A re-apply would
   #     never reach any middleware gate.
-  #   - infra/terraform still names src/JobbPilot.*/Dockerfile paths; the projects are
-  #     Jobbliggaren.* and those paths do not exist, so the images cannot even build.
-  # So the app-facing halves of this block are already dead in three ways. Renaming one
+  #   - The BUILD INSTRUCTIONS in this tree (below in this file, and environments/dev/
+  #     README.md) name src/JobbPilot.*/Dockerfile; the projects are Jobbliggaren.* and
+  #     those paths do not exist. The HCL itself consumes prebuilt ECR tags, so this is a
+  #     dead procedure rather than dead HCL. (54 JobbPilot references across 27 files in
+  #     infra/ — case-sensitive; a case-insensitive sweep also catches live AWS resource
+  #     names like jobbpilot-dev-*, which are a different thing.)
+  # So the app-facing halves of this block are dead in two ways, and the procedure around
+  # it in a third. Renaming one
   # string would buy one-of-N consistency and leave a current name standing among dead
   # ones, which reads as maintained. Restoration, if it ever happens, belongs to #196 at
   # cutover — not to a passing rename. (No line numbers here on purpose; the previous

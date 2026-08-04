@@ -15,7 +15,8 @@ namespace Jobbliggaren.Api.Configuration;
 /// Setting it is necessary but NOT sufficient. This class only decides which proxies
 /// are trusted to have set <c>X-Forwarded-For</c>; it cannot conjure a header nobody
 /// sends. Measured 2026-08-04: under Option B no component in the stack sends one, so
-/// six IP-partitioned rate limit policies currently share a single bucket (#1202).
+/// six policies that partition on the client IP currently share a single bucket — two of
+/// them only for unauthenticated callers (#1202).
 ///
 /// Parsing är fail-loud per security-auditor STEG 11 Sec-Major-1: tyst no-op:ad
 /// rate-limiting i prod är värre än uppstart-throw. Ogiltig CIDR-string eller IP
@@ -110,7 +111,9 @@ public sealed class ForwardedHeadersConfig
     /// <summary>
     /// Production-defense per allow-list (security-auditor STEG 12 Sec-Major-1).
     /// Symmetri med Worker <c>safeForAutoSchema</c>-mönstret. Tom <see cref="KnownNetworks"/>
-    /// bakom proxy = IP-rate-limiting i en bucket = effektivt no-op = OWASP A07-yta.
+    /// bakom proxy = alla klienter i EN bucket = sex policies som partitionerar på klient-IP
+    /// (två av dem bara för oautentiserade anropare) blir en GLOBAL limiter, inte en
+    /// frånvarande = OWASP A07-yta.
     /// Bara <c>Development</c> och <c>Test</c> får tom array; allt annat tvingas till
     /// explicit overlay via fail-loud uppstart-throw.
     /// </summary>
@@ -127,8 +130,9 @@ public sealed class ForwardedHeadersConfig
             throw new InvalidOperationException(
                 $"ForwardedHeaders:KnownNetworks must be set outside Development/Test " +
                 $"(current environment: {environmentName}). An empty array behind a proxy " +
-                "collapses every client into ONE bucket, which turns six IP-partitioned rate " +
-                "limit policies into a global limiter — one caller can exhaust the login " +
+                "collapses every client into ONE bucket, which turns six policies that " +
+                "partition on the client IP (two only for unauthenticated callers) into a " +
+                "global limiter — one caller can exhaust the login " +
                 "budget and deny authentication to everyone. " +
                 "Set it to the CIDR of the network the reverse proxy connects FROM — in the " +
                 "Compose stack that is the Docker bridge subnet, never the public address. " +

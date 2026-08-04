@@ -10,7 +10,8 @@ namespace Jobbliggaren.Api.Configuration;
 /// dagar framåt. Aktiveras tillsammans med <c>ReverseProxyOptions.HttpsEnabled</c> —
 /// bägge flippas synkront med reverse-proxyns TLS-listener (ADR 0026-trigger 1).
 /// Note that under Option B neither is expected to flip: browser-visible HSTS is owed by
-/// the edge, since the API's responses never reach a browser. See
+/// the edge on BOTH response paths — Caddy for the 401, <c>buildSecurityHeaders</c> for
+/// the Next path — since the API's responses never reach a browser. See
 /// <see cref="ReverseProxyOptions"/>.
 /// </para>
 ///

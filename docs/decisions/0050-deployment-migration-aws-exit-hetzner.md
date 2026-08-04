@@ -853,7 +853,12 @@ LE-cert via HTTP-01; **HSTS emitteras faktiskt i Production**; ingen klartextstr
 > Kvarlämnad text är protokoll över vad som *påstods* då, inte över vad som var sant, och
 > inte instruktioner. Typen heter sedan 2026-08-04 `ReverseProxyOptions` och
 > konfigsektionen `ReverseProxy` — den gamla `Alb`-nyckeln har **ingen**
-> övergångsbindning, vilket `ReverseProxyOptionsTests` pinnar som körbart faktum.
+> övergångsbindning. Det är en **dokumenterad avsikt, inte en körbar garanti**:
+> `ReverseProxyOptionsTests` pinnar konstanten, inte kompositionen — en fallback-bind i
+> `Program.cs` skulle passera grönt. Det riktiga pinnet avstods medvetet, mot en mätning:
+> Api-sviten ligger redan vid EF:s process-globala `ManyServiceProvidersCreatedWarning`-tak
+> ([#1190](https://github.com/klasolsson81/jobbliggaren/issues/1190)), där nästa host fäller
+> den collection-fixture som råkar initieras därnäst.
 >
 > **Beviset läses på det OAUTENTISERADE 401-svaret**, inte bara på ett autentiserat 200.
 > Caddy svarar 401 utan att nå Next, så en HSTS enbart i `buildSecurityHeaders` finns
@@ -900,8 +905,11 @@ kontrollerna är **levande och mätta**:
    Mätt 2026-08-04 mot HEAD `16aced64`: under Option B når **ingen** `X-Forwarded-For`
    fram till API:t. Next är ingen transparent proxy (noll `rewrites()` i
    `next.config.ts`), `src/proxy.ts` grindar bara, och varje backend-anrop är ett nytt
-   `fetch()` från `src/lib/api/*` vars `authHeaders()` returnerar exakt `Authorization`
-   + `Content-Type` — noll träffar på `x-forwarded` i hela `web/`.
+   `fetch()` med en explicit konstruerad header-mängd. **Beviset som bär slutsatsen är
+   svepet:** noll träffar på `x-forwarded` i hela `web/` (skiftlägesokänsligt, exklusive
+   `node_modules`/`.next`). *(`authHeaders()` — som returnerar exakt `Authorization` +
+   `Content-Type` — finns bara i 2 av 22 filer i `lib/api/` och bär alltså inte
+   slutsatsen; den illustrerar den.)*
    `UseForwardedHeaders` skriver om `Connection.RemoteIpAddress` **bara när headern
    finns**, så utan header är den no-op och **inget CIDR-värde kan laga det**. Nyckeln
    styr vilka proxies som får ha satt headern; den kan inte frambringa en header ingen
@@ -933,6 +941,21 @@ kontrollerna är **levande och mätta**:
    på detektionsförmåga, och #1202 tar bort den enda nätverksattribuering
    auth-revisionsspåret har. Utan den kopplingen kan #196 stänga M-7 med värddetektion och
    alerting medan applagrets attribuering fortfarande är en konstant.
+
+   **ÖPPEN FRÅGA TILL KLAS (rest av security-auditor 2026-08-04 vid granskningen av
+   PR #1203; hennes edge case — en säkerhets-Major utan GDPR-implikation får bli en
+   dokumenterad accepterad-risk-ADR, och **det beslutet äger Klas**).** Grindens
+   uppfyllnadsvillkor är inte kontrollens korrekthetsvillkor: när #196 fyller i
+   bridge-CIDR:n blir `EnsureSafeForEnvironment` grön medan per-IP-limiteringen
+   fortfarande är kollapsad. Alternativen är **(a)** en andra grind som mäter att
+   `X-Forwarded-For` faktiskt anländer innan villkoret räknas som uppfyllt, **(b)** nöja
+   sig med boot-meddelandets varning, eller **(c)** formellt acceptera restrisken i en
+   ADR. Hon rekommenderar inte. Hon konstaterar att (b) blev mätbart starkare i och med
+   A1 — meddelandet namnger nu både bristen och #1202 — men att **(b) ensamt lämnar
+   stackens enda per-IP-kontroll utan mekanisk verifiering vid första riktiga data**,
+   vilket är samma klass av tyst degradering som M-5a redan straffade HSTS för.
+   *Frågan är registrerad här därför att CLAUDE.md §9.6 uttryckligen underkänner en
+   PR-kropp som kärl för en sådan koncession; den är **obesvarad**, inte beviljad.*
 
    Ägs av **[#1202](https://github.com/klasolsson81/jobbliggaren/issues/1202)** — graderad
    **`Major`** av security-auditor 2026-08-04 (Art. 5(2) / Art. 32(1)(b) / Art. 33(3)(a) +

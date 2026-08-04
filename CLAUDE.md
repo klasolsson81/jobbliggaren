@@ -686,8 +686,9 @@ written as scheduling ("not MVP scope, not verified"), never as fact ("still app
   consumer set. That absence is a **documented intent, not an executable guarantee**:
   the pin covers the constant, not the composition root, so a fallback bind added in
   `Program.cs` would still pass. A fourth `WebApplicationFactory` would pin it properly
-  and was declined deliberately — the Api suite already sits at EF's process-global
-  `ManyServiceProvidersCreatedWarning` ceiling
+  and was declined deliberately — the Api suite sits **one `WebApplicationFactory` below**
+  EF's process-global `ManyServiceProvidersCreatedWarning` ceiling, and the next host
+  fells whichever collection fixture initialises after it
   ([#1190](https://github.com/klasolsson81/jobbliggaren/issues/1190)).
   **`HttpsEnabled` must stay `false` under Option B, and that is a decision, not an
   unfinished flip:** Next reaches the API over plain internal HTTP, so `true` would 307

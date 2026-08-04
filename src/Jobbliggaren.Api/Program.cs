@@ -305,8 +305,9 @@ if (app.Environment.IsDevelopment())
 //
 // And that requirement is NECESSARY BUT NOT SUFFICIENT. UseForwardedHeaders only rewrites
 // RemoteIpAddress when an X-Forwarded-For is actually present; measured 2026-08-04, no
-// component in the Option B stack sends one, so six IP-partitioned rate limit policies
-// share a single bucket regardless of what this CIDR says (#1202). Populating the CIDR
+// component in the Option B stack sends one, so six policies that partition on the client
+// IP (two only for unauthenticated callers) share a single bucket regardless of what this
+// CIDR says (#1202). Populating the CIDR
 // silences the startup check — it does not restore per-IP limiting.
 var forwardedCfg = builder.Configuration
     .GetSection(ForwardedHeadersConfig.SectionName)

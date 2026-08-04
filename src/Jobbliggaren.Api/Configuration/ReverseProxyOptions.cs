@@ -20,8 +20,9 @@ namespace Jobbliggaren.Api.Configuration;
 /// would make <c>UseHttpsRedirection()</c> answer 307 to every internal Next-to-API call
 /// and break the app. <c>UseHsts()</c> is inert for a second, independent reason: the
 /// API's response headers are consumed by a Next route handler and never reach a
-/// browser, so browser-visible HSTS is owed by the edge, not by ASP.NET (ADR 0050
-/// Amendment 2026-08-04, section 5; gate M-5a).
+/// browser, so browser-visible HSTS is owed outside ASP.NET, on BOTH response paths —
+/// Caddy for the 401 that never reaches Next, and <c>buildSecurityHeaders</c> for the
+/// Next path. See CLAUDE.md §11 (ADR 0050 Amendment 2026-08-04 §5; gate M-5a).
 /// </para>
 ///
 /// <para>
@@ -30,9 +31,10 @@ namespace Jobbliggaren.Api.Configuration;
 /// pipeline. Not injected as <c>IOptions&lt;T&gt;</c>, because the values are only read at
 /// startup. Binding it twice would be two normalisers for one rule, and the divergence
 /// has a security direction (the validation could be skipped while <c>UseHsts()</c> still
-/// registers). The preserved
-/// Terraform tree still injects this as an env-var (ADR 0066 kept the tree, CLAUDE.md
-/// §11); no live injector exists on the Netcup box, so the value binds false there.
+/// registers). The preserved Terraform tree injects the OLD <c>Alb__HttpsEnabled</c>
+/// name — a record of what actually ran, not live config (ADR 0066 kept the tree; see
+/// the NOTE in <c>environments/dev/main.tf</c> and CLAUDE.md §11). Nothing injects this
+/// section anywhere today, so the value binds false in every environment.
 /// </para>
 /// </summary>
 public sealed class ReverseProxyOptions

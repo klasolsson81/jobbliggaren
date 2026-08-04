@@ -383,12 +383,14 @@ module "ecs" {
   #     those paths do not exist. The HCL itself consumes prebuilt ECR tags, so this is a
   #     dead procedure rather than dead HCL. THREE files under infra/ carry stale
   #     src/JobbPilot.* project paths: this file, environments/dev/README.md and
-  #     modules/ecs/main.tf. Every other JobbPilot token in the tree is a LIVE AWS
-  #     identifier — the JobbPilotBedrock* IAM policies in the preserved prod baseline
-  #     (ADR 0066 Beslut 1), the Project tag, the CloudWatch namespaces. Case-sensitivity
-  #     does NOT separate stale from live: it only separates CamelCase from
-  #     jobbpilot-dev-*, and both forms contain live names. That conflation is how the
-  #     withdrawn "178" figure arose; see #196.
+  #     modules/ecs/main.tf. The rest are LIVE AWS identifiers — the JobbPilotBedrock*
+  #     IAM policies in the preserved prod baseline (ADR 0066 Beslut 1), the Project tag,
+  #     the CloudWatch namespaces, the name-prefix variable defaults — or the old product
+  #     name in prose and in resource descriptions. Case-sensitivity does NOT separate
+  #     stale from live: it only separates CamelCase from jobbpilot-dev-*, and both forms
+  #     contain live names. That conflation is how the withdrawn "178" figure arose; see
+  #     #196. Do not rename any of them in passing either: a current name standing among
+  #     dead ones makes the record read as maintained.
   # So the app-facing halves of this block are dead in two ways, and the procedure around
   # it in a third. Renaming one
   # string would buy one-of-N consistency and leave a current name standing among dead

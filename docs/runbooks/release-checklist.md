@@ -44,7 +44,9 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
       dispatch (ADR 0033) och DB-roll-separation (ADR 0034); Identity-schema-
       ändring → manuell procedur (parkerad, #1172).
 - [ ] **Kollations-version — ENDAST vid Postgres-image-bump eller major-uppgradering**
-      (#884, ADR 0109). Ett btree-index på text är byggt **med** en kollation. Ändras
+      (#884, **ADR 0110** — den tidigare pekaren till ADR 0109 var fel; 0109 är
+      "The engine describes, the user classifies" och rör CV-lanen). Ett btree-index på
+      text är byggt **med** en kollation. Ändras
       kollationens *definition* under det — en ny ICU-version i basimagen, en ny glibc,
       en major-uppgradering — sorterar indexet efter en ordning som inte längre gäller.
       Postgres **kraschar inte** på det: frågorna blir bara tyst fel (rader hittas inte,
@@ -66,6 +68,20 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
       **Kvittera INTE versionen (steg 2b) utan att först ha byggt om (steg 2a)** — det
       tystar varningen utan att laga indexen, vilket är strikt värre än att inte ha
       kollat alls.
+
+      **DEN HÄR GRINDEN LÄSER DEN TAGGADE MILJÖN, OCH DET RÄCKER INTE SEDAN 2026-08-04**
+      (#1197 / PR #1206). Dependabot har nu en `docker-compose`-post, så `postgres:18.3`
+      bumpas automatiskt i `docker-compose.yml`. Basimagen bär ICU-biblioteket, migration
+      `20260714170816` deklarerar `public.swedish` som en **ICU**-kollation, och
+      **dev-databasen är den enda som i dag håller riktiga data** (106 071 annonser,
+      1 066 938 företagsrader). Grinden ovan ser aldrig den bumpen — den läser den taggade
+      miljön vid tag-tillfället. **Kör därför steg 1 mot dev-DB:n också efter varje
+      postgres-bump**, inte bara före tag.
+      *(Samma PR gjorde **varje** image-bump icke auto-mergebar i
+      `dependabot-automerge.yml` — det generella skälet är att ingenting läser den image
+      som ändras; att just compose-felmoden är tyst kommer utöver det. En människa läser
+      dem numera. Den här raden finns ändå: en människa som läser en grön diff ser inte
+      att ICU-versionen rörde sig.)*
 - [ ] **Om en migration faller på `lock_timeout` — kör om den, det är säkert.** Migrationen
       som sätter kollationen (#884) tar ACCESS EXCLUSIVE och binder sin väntan till 3 s.
       Krockar den med en långkörande transaktion får du
@@ -75,6 +91,26 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
       uppstå. Vänta ut den blockerande transaktionen — typiskt nattsynken — och kör om.
       Det är felläget guarden **finns** för: ett högljutt deploy-fel i stället för ett
       tyst läs-avbrott.
+- [ ] **`ForwardedHeaders:KnownNetworks` + per-IP-kontrollen — TVÅ led, och det andra
+      följer INTE av det första** (#1202, ADR 0050 `Amendment 2026-08-04` §5:s punkt *"Per-IP-rate-limiting fungerar"* —
+      citerad på sin text, inte på sitt nummer).
+      Gäller varje release mot en miljö bakom reverse-proxy.
+      - **Led 1 — HÅRD (fail-loud boot).** Värdet måste vara satt för miljön som taggas,
+        via Compose-/env-overlay — **aldrig** genom att redigera den committade
+        `appsettings.Production.json`, där `[]` är avsiktligt (Klas-beslut 2026-08-04,
+        PR #1203: ingen compose-fil i repot deklarerar ett nätverk, så en ifylld gissning
+        hade avväpnat grinden). Utan värdet kastar `ForwardedHeadersConfig.EnsureSafeForEnvironment`
+        och API:t bootar inte alls. Det ledet kan inte hoppas över — det stoppar sig självt.
+      - **Led 2 — MÄNSKLIG, och rubriken säger därför inte "HÅRD" om det.** Att fylla i
+        värdet **tystar startkontrollen utan att göra per-IP-limiteringen levande**:
+        `UseForwardedHeaders` skriver om `RemoteIpAddress` bara när en `X-Forwarded-For`
+        faktiskt anländer, och mätt 2026-08-04 skickar ingen komponent i Option B-stacken
+        någon — sex IP-partitionerade rate-limit-policies delar en hink oavsett värde.
+        **Beviset läses på SVARSSIDAN:** en request från en känd klient-IP ska synas med
+        den IP:n i rate-limit-partitionen **och** i auth-revisionsspåret. **En grön
+        `EnsureSafeForEnvironment` är inte beviset.** Ingenting hindrar taggaren från att
+        hoppa över det här ledet; det är därför #1202 dessutom är ett blockerande
+        acceptanskriterium på #196 (spärrhaken i Klas-beslutet).
 - [ ] **GDPR-konsekvens** för nytt scope bedömd (CLAUDE.md §8 punkt 8) — ny
       PII? loggning? retention? Audit-wire intakt (ADR 0035)?
 - [ ] **Secrets-hygien** — inga nya secrets i klartext; gitignored
@@ -118,8 +154,8 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
 > **"Grön" = INGET led i punkten bär KVAR — inte att rutan är bockad.** (Negation med flit:
 > ett led kan bära **båda** markeringarna — ROPA-ledet är **KLAR för notis-vägen** och **KVAR
 > för kontolivscykel-mallarna** — och "bär KLAR" hade då räknat det som grönt.) Rutorna i
-> hela den här filen är obockade (**37 av 37** vid 2026-07-26 — greppa **radinitialt**
-> (`^- \[ \]`); ett rått grep ger 39 och räknar prosacitaten av literalen längre ned.
+> hela den här filen är obockade (**38 av 38** vid 2026-08-04 — greppa **radinitialt**
+> (`^- \[ \]`); ett rått grep ger 40 och räknar prosacitaten av literalen längre ned.
 > **Regenerera siffran ur greppet efter varje tillagd punkt** — punkt 5.5 tillkom i samma
 > ändring som skrev "35", och punkt 5 i den som skrev "36" — båda gjordes falska i samma andetag) och bockas av den som **utför** releasen; statusen
 > bärs av **KLAR**-markeringarna. Punkt 1:s led står uppräknade i punkten själv, och ett led kan

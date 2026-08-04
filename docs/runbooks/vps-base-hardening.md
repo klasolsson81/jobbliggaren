@@ -1027,8 +1027,11 @@ rather than discovered:
   accept`. Open `forward` wholesale and the container's bind address becomes the *only*
   remaining control on 80/443 — which are already open to `any` at both layers.
 - Verify empirically after deploy: `curl` the host IP on every container port *from outside*,
-  not by reading `expose:` entries. The dev compose file binds five of six ports to `0.0.0.0`,
-  including an unauthenticated Seq, and its own comment claims the opposite (#1198).
+  not by reading `expose:` entries. **The reason this gate reads the response and not the file:**
+  the dev compose file bound five of six ports to `0.0.0.0`, including an unauthenticated Seq,
+  **while its own comment claimed the opposite** — for months, and nobody caught it by reading.
+  Both were repaired in #1198 (all six now `127.0.0.1`, comment rewritten), so the *instance* is
+  gone; the *lesson* is why the proof is a `curl` from outside and never a config read.
 - **The edge's IPv6 behaviour is still unmeasured, and it becomes load-bearing here.** §4.2
   removed the dependency for SSH by not listening on v6 at all, but the host chain accepts
   `tcp dport {80,443}` address-family-agnostically and the edge opens them to `any`. Exposure is

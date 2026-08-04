@@ -7,6 +7,15 @@
 #   pnpm-lock.yaml autodetekteras; pnpm workspace catalogs GA 2025-02)
 # - nuget root (Central Package Management — Directory.Packages.props)
 # - github-actions (CI-workflows + lighthouse-ci-action supply-chain-yta)
+# - docker (de tre Dockerfilerna under src/) + docker-compose (docker-compose.yml).
+#   TVÅ poster därför att det är TVÅ ekosystem: `docker` läser Dockerfiles och
+#   `docker-compose` läser compose-filer, så ingen täcker den andras images.
+#
+# SPRÅK I DEN HÄR FILEN, eftersom den blandar med flit och blandningen annars läser som
+# slarv: headern är svensk och nya rader i den skrivs svenska för att listan ska gå att
+# läsa som en lista. Posternas egna kommentarblock längst ned är engelska, i linje med
+# filens senare tillägg (CodeCoverage-, Resend- och codeql-noterna) och CLAUDE.md §1:s
+# "new comments in English".
 #
 # Strategi: månadsvisa version-updates. Minor + patch grupperas per ecosystem för
 # att minska PR-brus; MAJORS grupperas aldrig, utan kommer en PR i taget — dels så
@@ -14,7 +23,13 @@
 # `eligible=false` i dependabot-automerge.yml och därmed hoppar över scannen för
 # ALLA paket i gruppen. Grupperingen är INGEN garanti mot en trasig grupp: mätt på
 # #1140 var två av tre bygg-brytare semver-minor. `ci` är den grinden.
-# Security updates körs separat och ignorerar schedule (GitHub-default).
+#
+# Security updates körs separat och ignorerar schedule (GitHub-default) — MEN BARA FÖR
+# npm, nuget och github-actions. `docker` och `docker-compose` stöder **version updates
+# only**; GitHub kör inga security updates för dem (GitHub Docs, "Supported ecosystems
+# and repositories", läst 2026-08-04). Meningen ovan gällde fyra entries när den skrevs
+# och är falsk om två av de sex som finns i dag — se de nya entries längst ned för vad
+# det betyder för CVE-vägen.
 #
 # `open-pull-requests-limit` per entry är dimensionerat för att majors nu tar egna
 # slots. nuget står kvar på 5: #1140:s population ger 2 PR:er i den nya formen. En
@@ -249,4 +264,214 @@ updates:
     # here, auto-mergeable.
     groups:
       actions-minor-patch:
+        update-types: ["minor", "patch"]
+
+  # Docker base images — the three Dockerfiles under src/ (Api, Migrate, Worker), all
+  # three on mcr.microsoft.com/dotnet/{sdk,aspnet}:10.0-noble.
+  #
+  # WHAT THIS IS AND IS NOT: a monthly VERSION cadence. It is **not** a CVE cadence, and
+  # #1197's title promising one is wider than what any config can deliver here — GitHub
+  # runs **no security updates** for `docker` or `docker-compose` (Docs, read 2026-08-04).
+  # Nor does the automerge path compensate: `dependabot-automerge.yml`'s blocking scan is
+  # `dotnet list package --vulnerable` plus `pnpm audit`, and **neither reads a container
+  # image**, so a docker PR passes that gate vacuously. A monthly bump to a patched base
+  # image is still worth far more than nothing — but nobody should read this entry as
+  # "images are CVE-scanned". Closing that half needs an image scanner in the blocking
+  # gate, carried as an AC on #196 before GHCR publishing goes live.
+  #
+  # `unattended-upgrades` on the box does NOT cover these either: it patches the host,
+  # never the contents of a container (docs/runbooks/vps-base-hardening.md §7). Nothing
+  # builds or publishes these images yet, so the gap is latent — it goes live with the
+  # deploy-workflow AC on #196 (reconcile-pull against the GHCR digest; cited by its text,
+  # not by an ordinal, because that AC list grows). Landed AHEAD of that PR deliberately:
+  # this config can be early, it must never be late.
+  #
+  # DIRECTORIES ARE LISTED EXPLICITLY AND THE GLOB FORM IS REFUSED. `directories`
+  # supports globbing where `directory` does not (GitHub Docs, read 2026-08-04), so
+  # `/src/*` is the tempting one-liner. It is refused because dependabot-core#12348
+  # ("Support for wild card (*) and globbing is no longer working with directories key")
+  # has been OPEN since 2025-05-30 with no maintainer response, and the only workaround is
+  # this entry's own form — explicit paths. Its symptom is that the glob matches ZERO
+  # manifests — silently. That is the exact
+  # fail-open shape of the defect this entry exists to close: a config that looks like
+  # it has a CVE cadence while having none. Same reasoning as the codeql-action `ignore`
+  # above, where a wrong value also fails open and silently.
+  #
+  # THE PRICE OF THE EXPLICIT FORM, NAMED: a fourth Dockerfile is silently uncovered,
+  # and #196 adds at least two (the Next/web container and Caddy). A comment in this
+  # file has no reader at that moment, so the obligation is carried as an acceptance
+  # criterion on #196 — the issue where that Dockerfile actually gets written.
+  - package-ecosystem: "docker"
+    directories:
+      - "/src/Jobbliggaren.Api"
+      - "/src/Jobbliggaren.Migrate"
+      - "/src/Jobbliggaren.Worker"
+    schedule:
+      interval: "monthly"
+      day: "monday"
+      time: "06:00"
+      timezone: "Europe/Stockholm"
+    # RAISED TO 6, and the reason is the multi-directory shape, not caution. All three
+    # directories carry the SAME two images, so without `group-by` below Dependabot opens
+    # one grouped PR PER DIRECTORY — three identical PRs — and an ungrouped .NET 11 major
+    # would be 2 images x 3 directories = up to 6 PRs against a limit of 5. Overflow is
+    # SILENT (Dependabot simply opens nothing), which is the same failure shape the header
+    # already names for nuget.
+    open-pull-requests-limit: 6
+    commit-message:
+      prefix: "chore(deps)"
+      include: "scope"
+    labels:
+      - "dependencies"
+      # NOTE: `docker` does not exist as a repo label (measured 2026-08-04 via
+      # `gh label list`), and GitHub silently ignores labels that are not defined. This is
+      # PRE-EXISTING practice, not new here — `npm`, `frontend` and `github-actions` above
+      # are all equally undefined. The PRs stay findable via `dependencies`.
+      - "docker"
+    # Same grouping rule as every entry above: minor+patch grouped, a MAJOR always
+    # arrives as its own PR. A .NET major (11.0) is a framework migration and must not
+    # ride in behind a patch.
+    #
+    # `group-by: dependency-name` collapses the per-directory duplication: "a single pull
+    # request for each dependency update across all specified directories, rather than
+    # separate pull requests per directory" (GitHub Docs, read 2026-08-04). It is the only
+    # accepted value for that key.
+    #
+    # UNVERIFIED, AND SAID SO RATHER THAN ASSUMED: the docs do not state whether `group-by`
+    # composes with `update-types` in the same group. Both are sibling keys under `groups`,
+    # which is why it is written this way — but the limit above is set to survive the case
+    # where it does not.
+    #
+    # NOBODY IS WATCHING FOR THAT, AND IT IS ACCEPTABLE HERE — said plainly rather than
+    # dressed up as a control. The failure branch is benign: three identical PRs instead of
+    # one, absorbed by the limit above. They are NOT auto-mergeable — no docker ecosystem is
+    # allow-listed in dependabot-automerge.yml — so the cost of the bad branch is three
+    # manual merges rather than one, which is annoyance, not risk. Whoever next opens this
+    # file can read the answer off the PR list. And removing the key does not avoid the question — without
+    # it, three PRs is the GUARANTEED outcome rather than the bad branch. Contrast the
+    # docker-compose entry below, whose failure branch is silent and therefore needed an
+    # owner rather than a note.
+    groups:
+      docker-minor-patch:
+        update-types: ["minor", "patch"]
+        group-by: dependency-name
+
+  # Docker Compose images — postgres:18.3, redis:8.6-alpine, datalust/seq:latest.
+  #
+  # A `docker` entry does NOT reach these. `docker` and `docker-compose` are SEPARATE
+  # ecosystems (GitHub Docs, read 2026-08-04; docker-compose reached GA 2025-02-25):
+  # the first reads Dockerfiles, the second reads compose files, and neither covers the
+  # other's images. #1197's premise enumerates postgres and redis while its acceptance
+  # criterion names only `docker` — so a Dockerfile-only entry would have closed the
+  # issue while leaving the DATABASE image, the one holding all the data, on no cadence
+  # at all.
+  #
+  # `datalust/seq:latest` IS NOT BUMPED, and the mechanism matters because the wrong one
+  # forecloses the fix: a floating tag carries no version to compare, AND it is not
+  # digest-pinned. Digest-pinning (`datalust/seq:latest@sha256:...`) WOULD give a cadence
+  # — Dependabot does update digests. That path is deliberately declined: dev wants
+  # latest, and the production compose file is specified independently by #196's
+  # Compose-all-in-one AC. Written down so nobody infers coverage from this entry.
+  #
+  # `ci` IS NOT THE GATE FOR THIS FILE — nor for the `docker` entry above, and an earlier
+  # draft's "unlike every other entry" was false for exactly that reason. Measured
+  # 2026-08-04: **no workflow invokes the compose CLI** — regenerate with
+  # `grep -rnE 'docker[[:space:]]+compose|docker-compose[[:space:]]' .github/workflows/ .github/scripts/ scripts/`
+  # and discard comment lines. (`scripts/` is in scope because build.yml invokes
+  # `bash scripts/coverage.sh` — a regenerator that does not cross the surface it certifies
+  # is a guard that cannot see its own under-reach.) So a bump lands green with nothing having read it.
+  #
+  # THIS SENTENCE HAS BEEN WRONG THREE TIMES, so it now carries the command instead of a
+  # count: first a line citation that undercounted, then a claim about WHERE the
+  # occurrences live — which the very next commit falsified by adding comment lines to
+  # dependabot-automerge.yml. Only the invocation claim survived every recount. State the
+  # property and hand over the regenerator; never publish the tally.
+  #
+  # NOTHING FROM THIS ENTRY AUTO-MERGES — `dependabot-automerge.yml`'s gate leaves every
+  # docker ecosystem off its allow-list. The general reason covers every image bump:
+  # nothing reads the image that changes. On top of that, a postgres patch/minor fails
+  # SILENTLY: the base image carries ICU, `public.swedish` is an ICU collation, and a
+  # drifting ICU version leaves btree text indexes sorted by an order that no longer
+  # holds — Postgres does not crash, the queries just go quietly wrong.
+  #
+  # That mechanism has THREE homes serving three audiences — **ADR 0110** (the decision,
+  # and it is GITIGNORED so `git grep` cannot see it), `release-checklist.md` §2 for
+  # whoever tags (which also carries the repair procedure), and `docker-compose.yml`'s
+  # `postgres-dev` block for whoever bumps it. Do not add a fourth — regenerate with
+  #
+  #   grep -rl pg_collation_actual_version . --exclude-dir=.git --exclude-dir=.github
+  #
+  # which should return exactly the three homes named above — and TWO in a tree that does
+  # not have the gitignored ADR, which is every fresh clone and every worktree where
+  # `sync-worktree-docs.ps1` has not run. **No tally is published here on purpose:** a
+  # draft said "three FILES", which is environment-dependent in exactly the way the
+  # `git grep` number was, one clause to its right. The homes are enumerated by name
+  # instead; that is the invariant.
+  #
+  # Three of the command's clauses answer a way this count was already reported wrong:
+  # `-l` not `-n`, because the token occurs twice in one file (release-checklist.md) and a
+  # draft published the line count as a file count; `--exclude-dir=.github`, because THIS
+  # comment and its Swedish twin contain the token and a draft's regenerator counted
+  # itself; and a filesystem grep rather than `git grep`, which **cannot see the
+  # gitignored ADR at all**. The fourth clause, `--exclude-dir=.git`, answers no published
+  # error and is INERT in a worktree, where `.git` is a file rather than a directory — it
+  # is kept for a main checkout, and named rather than swept into "every clause".
+  # That last clause carries no number ON PURPOSE — a draft said `git grep` returns two,
+  # which was true only before these comments existed, and is the same self-reference the
+  # exclusion above fixes. State the property; the numbers move.
+  #
+  # Hand over the invocation, never the instruction — the instruction has now been
+  # mis-executed twice, once by its own author. An earlier draft of
+  # this comment left auto-merge in place and instructed the reader instead — an
+  # instruction to whoever merges the bump, sitting in the one file that bump does not
+  # touch. This file's own rule, forty lines up, is that such a comment has no reader at
+  # that moment; it applies to this file too.
+  #
+  # NO postgres-major `ignore`, and the reason is written down so it is not re-proposed:
+  # dependabot-automerge.yml already sets `eligible=false` on any major, so a postgres
+  # major CANNOT auto-merge today. Such an ignore would duplicate a live control, and
+  # unlike every ignore in this file it would carry no LIFT WHEN condition beyond "when
+  # we feel like upgrading" — a permanent suppression in a gate's clothing. (The
+  # CodeCoverage pin above records what re-proposing a rejected rule costs: a CI run and
+  # a review, twice.)
+  #
+  # TWO FURTHER IMAGE CLASSES ARE COVERED BY NEITHER ENTRY, named here for the same reason
+  # `seq:latest` is: so nobody reads two entries as full coverage. `docker` reads
+  # Dockerfiles, `docker-compose` reads compose files, `github-actions` bumps `uses:`
+  # references — and neither of the following is any of those three.
+  #
+  #   3. GitHub Actions **service containers**: `e2e.yml` runs `postgres:18` and
+  #      `redis:8-alpine` as `services:`.
+  #   4. **Testcontainers image literals in the test tree**, with no central constant —
+  #      `nuget` bumps the Testcontainers PACKAGE and never the string. NO TALLY IS
+  #      PUBLISHED HERE: a draft said "31 files, 39 occurrences" and neither number
+  #      reproduced (the two reviewers who checked it got different answers again).
+  #      Regenerate instead:
+  #        git grep -l -E 'postgres:18|redis:8-alpine' -- tests/ | wc -l
+  #        git grep -oh -E 'postgres:18|redis:8-alpine' -- tests/ | sort | uniq -c
+  #      The property that does not move: no shared constant exists, so every occurrence
+  #        git grep -E 'const string.*(postgres:18|redis:8-alpine)' -- tests/
+  #      is empty, and each literal must be edited on its own.
+  #
+  # Both pin a floating major (`postgres:18`) while this file pins `postgres:18.3`, and
+  # nothing reconciles them. The repair for class 4 — a shared constant, or pinned tags
+  # in every file the regenerators above list — is a follow-up PR: it touches the test
+  # tree, not this PR's CI and
+  # infra scope. Naming it here is what keeps the enumeration honest; it is not the fix.
+  - package-ecosystem: "docker-compose"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+      day: "monday"
+      time: "06:00"
+      timezone: "Europe/Stockholm"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(deps)"
+      include: "scope"
+    labels:
+      - "dependencies"
+      - "docker"
+    groups:
+      compose-minor-patch:
         update-types: ["minor", "patch"]

@@ -35,6 +35,7 @@ Generera starka lösenord. På bash/Git Bash/WSL:
   echo "POSTGRES_PASSWORD_DEV=$(openssl rand -hex 16)"
   echo "POSTGRES_PASSWORD_TEST=$(openssl rand -hex 16)"
   echo "REDIS_PASSWORD_DEV="
+  echo "SEQ_ADMIN_PASSWORD_DEV=$(openssl rand -hex 16)"
 } > .env
 ```
 
@@ -45,8 +46,16 @@ På PowerShell:
 POSTGRES_PASSWORD_DEV=$(-join ((48..57)+(65..90)+(97..122) | Get-Random -Count 32 | ForEach-Object {[char]$_}))
 POSTGRES_PASSWORD_TEST=$(-join ((48..57)+(65..90)+(97..122) | Get-Random -Count 32 | ForEach-Object {[char]$_}))
 REDIS_PASSWORD_DEV=
+SEQ_ADMIN_PASSWORD_DEV=$(-join ((48..57)+(65..90)+(97..122) | Get-Random -Count 32 | ForEach-Object {[char]$_}))
 "@ | Out-File -Encoding utf8 .env
 ```
+
+**`SEQ_ADMIN_PASSWORD_DEV` är obligatorisk** — compose failar utan den. Auth på dev-Seq
+är PÅ sedan 2026-08-04 (#1198), och skälet är inte formalia: dev-Seq bär
+`ConsoleEmailSender`-rader med hela mejlkroppen, alltså aktiverings- och
+bekräftelselänkar i klartext. Loopback-bindningen ensam räckte inte som kontroll över
+det materialet — den var dessutom mätt fel i månader medan compose-filens egen kommentar
+gick i god för den.
 
 `.env` är gitignored — committa aldrig. Kontrollera:
 
@@ -85,7 +94,9 @@ curl -I http://localhost:5341
 # → HTTP/1.1 200 OK
 ```
 
-Öppna http://localhost:5341 i webbläsaren för Seq-dashboarden.
+Öppna http://localhost:5341 i webbläsaren för Seq-dashboarden. **Den kräver inloggning**
+— användarnamn `admin`, lösenord = `.env`:s `SEQ_ADMIN_PASSWORD_DEV` (auth är på sedan
+#1198; §6.4 förklarar varför och vad som gäller om du byter lösenordet).
 
 ### 2.4 App-config (krävs innan .NET-stacken startar)
 
@@ -175,10 +186,14 @@ docker compose --profile full down -v
 
 ### 6.1 Port-konflikter
 
-Om `docker compose up` säger `Bind for 0.0.0.0:5432 failed: port is already allocated`:
+Om `docker compose up` säger `Bind for 127.0.0.1:5435 failed: port is already allocated`:
 
 - En annan postgres-instans kör lokalt. Stoppa den eller ändra port i compose-filen.
-- På Windows: `netstat -ano | findstr :5432` → visar PID → `taskkill /PID <pid> /F`
+- På Windows: `netstat -ano | findstr :5435` → visar PID → `taskkill /PID <pid> /F`
+
+*(Felsträngen bar `0.0.0.0:5432` fram till #1198 — fel på båda halvorna: adressen
+falsifierades av att alla portar nu binds till `127.0.0.1`, och porten var fel redan
+innan, eftersom 5432 är containerporten och 5435 den publicerade.)*
 
 Samma procedur för 5433 (test-postgres), 6379/6380 (redis), 5341/5342 (seq).
 
@@ -200,16 +215,61 @@ Om postgres-containern restartar med fel som refererar `initdb` eller
    docker compose up -d             # Postgres re-initierar
    ```
 
-### 6.4 Seq `firstRun.adminPassword` / `noAuthentication`-fel
+### 6.4 Seq `firstRun.adminPassword` — och varför ett bytt lösenord inte tar
 
-Seq 2025.2+ kräver antingen admin-lösenord eller explicit no-auth. I vår
-compose-fil har vi satt `SEQ_FIRSTRUN_NOAUTHENTICATION=true` — om du vill
-aktivera auth lokalt:
+Seq 2025.2+ kräver antingen admin-lösenord eller explicit no-auth. **Vi kör admin-lösenord
+sedan 2026-08-04** (#1198): `SEQ_FIRSTRUN_ADMINPASSWORD` ur `.env`:s
+`SEQ_ADMIN_PASSWORD_DEV`. Användarnamn är `admin`.
 
-1. Ta bort den raden från compose-filen.
-2. Lägg till `SEQ_FIRSTRUN_ADMINPASSWORD=${SEQ_ADMIN_PASSWORD}` under Seq-servicen.
-3. Lägg till `SEQ_ADMIN_PASSWORD=...` i `.env` + `.env.example`.
-4. `docker compose up -d --force-recreate seq`.
+**Fällan:** `FIRSTRUN`-variabler läses **bara vid första uppstarten mot en tom volym**.
+Ändrar du `SEQ_ADMIN_PASSWORD_DEV` i `.env` och kör `docker compose up -d
+--force-recreate seq` händer **ingenting** — det gamla lösenordet gäller fortfarande,
+eftersom det ligger i `jobbliggaren_seq_data`. Byte kräver att volymen kastas:
+
+```bash
+docker compose down seq && docker volume rm jobbliggaren_jobbliggaren_seq_data
+docker compose up -d seq          # läser nu det nya värdet
+```
+
+*(`down` tar ett service-argument — `docker compose down [OPTIONS] [SERVICES]`, mätt mot
+Compose 2.40.3 2026-08-04. Kör du en äldre 2.x och argumentet inte tas, använd
+`docker compose stop seq && docker compose rm -f seq` i stället. **Lägg aldrig till `-v`
+här** — det river namngivna volymer bortom Seq:s.)*
+
+Det kastar också loggarna, vilket normalt är önskvärt i dev. Glömt lösenordet är samma
+procedur.
+
+**Om du skriptar mot Seq:s API:** `POST /api/users/login` svarar `401` även när
+lösenordet är rätt, om anropet saknar Seq:s CSRF-handskakning. Webbläsaren gör
+handskakningen automatiskt, så dashboarden på `http://localhost:5341` påverkas inte.
+
+**Raden som bevisar att DITT lösenord är det som grindar** — `User admin logged in
+successfully` räcker inte, den säger bara att auth-subsystemet släppte igenom någon.
+Leta i stället efter förstauppstarts-raden i `docker logs jobbliggaren-seq`:
+
+```
+Enabling username/password authentication, and using the supplied default admin password
+```
+
+*"using the supplied ... password"* är Seq som intygar att `SEQ_FIRSTRUN_ADMINPASSWORD`
+faktiskt lästes och applicerades. Saknas den raden körde Seq på något annat.
+
+**Vad auth täcker, och vad den inte gör — och skillnaden går mellan LÄS och SKRIV, inte
+mellan portarna.**
+
+- **Läsning är grindad, på 5341.** `/api/events`, `/api/users`, `/api/data` ger `401` utan
+  inloggning. `/` och `/api` svarar `200` — SPA-skalet respektive rot-dokumentet med
+  produktnamn och länklista, inga data.
+- **Skrivning är INTE grindad, på någondera porten.** Mätt 2026-08-04: en oautentiserad
+  CLEF-POST mot `/api/events/raw` ger `201` på **både 5342 och 5341**. Det ska vara så —
+  appen sätter ingen `Seq:ApiKey`, och `appsettings.Development.json` pekar
+  `Seq:ServerUrl` på **5341**, alltså skriver appen till läs-porten. Härdar du ingestion
+  på 5341 slutar dev-loggningen fungera.
+- **På skrivvägen är bind-adressen därmed enda kontrollen, oavsett port.** Det är precis
+  den kontroll som var mätt fel i månader, vilket är skälet att den står utskriven här
+  i stället för underförstådd. Skrivning ger ingen väg till det redan lagrade innehållet
+  (läsvägarna kräver inloggning), men den ger vem som helst med nätverksåtkomst rätt att
+  fylla sänken.
 
 ### 6.5 Postgres 18+ volym-mount
 

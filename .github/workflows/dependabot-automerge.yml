@@ -1,7 +1,8 @@
 # Dependabot auto-merge — minska manuellt PR-arbete för rutinmässiga dep-bumpar.
 #
-# Aktiverar GitHub auto-merge på Dependabot-PRs som är patch/minor. MAJOR
-# granskas alltid manuellt (auto-merge aktiveras ej för dem).
+# Aktiverar GitHub auto-merge på Dependabot-PRs som är patch/minor OCH kommer från ett
+# allow-listat ekosystem. Major, okänd update-type och ekosystem utanför listan går till
+# manuell granskning. Regeln bor i `gate`-steget nedan, tillsammans med sitt skäl.
 #
 # Respekterar branch protection (ADR 0065): GitHub auto-merge squash-mergar
 # FÖRST när required `ci`-aggregatet är grönt.
@@ -44,7 +45,7 @@ permissions:
 
 jobs:
   automerge:
-    name: auto-merge (patch/minor)
+    name: auto-merge (patch/minor, allow-listat ekosystem)
     runs-on: ubuntu-latest
     timeout-minutes: 15
     # Kör ENBART för Dependabot-öppnade PRs.
@@ -56,13 +57,95 @@ jobs:
         with:
           github-token: "${{ secrets.GITHUB_TOKEN }}"
 
-      # Avgör behörighet en gång: endast patch/minor. Major/okänd → hela resten
-      # hoppas över (ingen scan, ingen auto-merge) → manuell granskning.
-      - name: Avgör behörighet (endast patch/minor)
+      # Avgör behörighet en gång: patch/minor FRÅN ETT ALLOW-LISTAT EKOSYSTEM. Allt annat
+      # → hela resten hoppas över (ingen scan, ingen auto-merge) → manuell granskning.
+      #
+      # **INGET DOCKER-EKOSYSTEM ÄR MED**, och regeln är enkel nog att inte behöva ett
+      # undantag: en image-bump auto-mergas inte, därför att ingenting läser den image som
+      # ändras. Mätt 2026-08-04 — `ci` bygger ingen Dockerfile (enda byggaren är
+      # `deploy-dev.yml`, HISTORICAL och `workflow_dispatch`-only mot riven infra), och den
+      # blockerande vuln-scannen nedan läser .NET- och npm-träden, aldrig en container-image.
+      # En docker-PR hade alltså auto-mergats med grön `ci` som aldrig rört filen, en vakuös
+      # vuln-gate och ingen människa.
+      #
+      # Ett tidigare utkast höll `docker` kvar med skälet att Dockerfilerna står på flytande
+      # taggar och driver ändå vid varje pull. Sant om INNEHÅLLSdrift — men en Dependabot-PR
+      # bär en TAGGändring (`10.0-noble` → `10.1-noble`, semver-minor), och det är precis den
+      # gränsen pull-driften aldrig korsar. Skälet bar inte beslutet, så beslutet ändrades i
+      # stället för skälet.
+      #
+      # `docker_compose` var dessutom det fall vars felmod är **tyst**. Mekanismen har TRE
+      # hem, avsiktligt, för tre publiker: **ADR 0110** § "What this does NOT guarantee",
+      # stycket "Collation-version drift" (beslutet
+      # — GITIGNORERAD, `git grep` ser den inte), `release-checklist.md` §2 (den som taggar,
+      # plus reparationsproceduren) och `docker-compose.yml`:s `postgres-dev`-block (den som
+      # bumpar). Lägg inte till ett fjärde — regenerera med
+      #
+      #   grep -rl pg_collation_actual_version . --exclude-dir=.git --exclude-dir=.github
+      #
+      # som ska ge exakt de tre hem som räknas upp ovan — och TVÅ i ett träd som saknar
+      # den gitignorerade ADR:n, alltså varje färsk klon och varje worktree där
+      # `sync-worktree-docs.ps1` inte körts. **Inget tal publiceras här med flit:** ett
+      # utkast skrev "tre FILER", vilket är miljöberoende på precis samma sätt som
+      # `git grep`-talet var. Hemmen räknas upp vid namn i stället; det är invarianten.
+      #
+      # TRE av kommandots led svarar mot en tidigare felrapportering: `-l` inte `-n`
+      # (token förekommer två gånger i samma fil och ett utkast publicerade radantalet som
+      # ett filantal); `--exclude-dir=.github` (den HÄR kommentaren och dess engelska
+      # tvilling innehåller token, så ett utkasts regenerator räknade sig själv); och
+      # filsystems-grep i stället för `git grep`, som **inte kan se den gitignorerade
+      # ADR:n alls**. Det fjärde ledet, `--exclude-dir=.git`, svarar mot inget publicerat
+      # fel och är INERT i ett worktree, där `.git` är en fil och inte en katalog — det
+      # finns kvar för en huvudkopia, och namnges hellre än sveps in i "varje led".
+      # Kadensen påverkas inte i något av fallen: Dependabot öppnar PR:erna månadsvis som
+      # förut, men en människa läser dem.
+      #
+      # REGELN ÄR INTE UNIFORM, OCH DET SÄGS HELLRE ÄN GÖMS: root-`npm`-posten (Husky-
+      # ankaret) har samma tre egenskaper som fällde `docker` — `ci` installerar aldrig
+      # rot-trädet (webbjobben kör med `working-directory: web/jobbliggaren-web`, och INGET
+      # jobb installerar i roten) och den blockerande pnpm-scannen inte heller. Den auto-mergas ändå, och grinden **kan inte**
+      # skilja den från webben: båda npm-posterna rapporteras som `npm_and_yarn`, ett enda
+      # branch-segment. Accepterat medvetet — husky är ett lokalt git-hook-verktyg, inte i
+      # produktionsträdet. Att i stället stryka `npm_and_yarn` hade stoppat **webbens**
+      # bumpar också, vilket är en materiell ändring av auto-merge-posturen och därmed
+      # Klas beslut, inte en kommentarrad.
+      #
+      # LISTAN ÄR EN ALLOW-LIST OCH BÄR `fetch-metadata`:S INTERNA NAMN, INTE
+      # `dependabot.yml`:s config-nycklar. Det är inte samma namnrymd, och skillnaden är
+      # tyst: `fetch-metadata` läser ekosystemet ur BRANCH-NAMNET
+      # (`packageEcosystem: chunks[1]`), utan att normalisera bindestreck. Mätt på det här
+      # repots 28 Dependabot-PR:er 2026-08-04 — `npm` → `npm_and_yarn`,
+      # `github-actions` → `github_actions`, `nuget` → `nuget`. **Två av tre skiljer sig**,
+      # och en jämförelse mot config-nyckeln hade därför blivit en no-op som ser ut som en
+      # grind. `docker-compose` heter **sannolikt** `docker_compose` här — HÄRLETT ur
+      # bindestrecksmönstret ovan, ALDRIG observerat: repot har inga docker_compose-PR:er
+      # att läsa branch-namnet ur. Verifiera mot en riktig PR innan namnet någonsin
+      # allow-listas — `::notice::`-raden i `gate`-steget nedan kör ovillkorligt och
+      # skriver ut `ecosystem=` på varje Dependabot-PR, inklusive den första compose-PR:en,
+      # så verifieringen är redan byggd; en felstavning där ger en tyst no-op, vilket är precis vad rond 3 av
+      # den här PR:en lagade. Operativt likgiltigt i dag, eftersom listan är fail-closed.
+      #
+      # DÄRFÖR FAIL-CLOSED. Ett ekosystem som inte står i listan blir ICKE behörigt —
+      # tom sträng, **`docker` och `docker_compose` (båda uteslutna i dag, inte i
+      # framtiden)**, och varje ekosystem någon lägger till i `dependabot.yml` senare. Priset är namngivet och går åt rätt håll: ett nytt
+      # ekosystem slutar auto-mergas HÖGLJUTT (PR:er staplas och någon frågar varför),
+      # aldrig tyst. Motsatt polaritet mot en allow-all. Ingen deadlock heller: det som
+      # undanhålls är auto-merge, inte merge — `ci` är orört och PR:en är manuellt
+      # mergebar.
+      #
+      - name: Avgör behörighet (patch/minor från allow-listat ekosystem)
         id: gate
         shell: bash
         run: |
-          if [[ "$UT" == "version-update:semver-patch" || "$UT" == "version-update:semver-minor" ]]; then
+          echo "::notice::update-type=$UT ecosystem=${ECO:-<tomt>}"
+          case "$ECO" in
+            npm_and_yarn|nuget|github_actions) eco_ok=true ;;
+            *) eco_ok=false ;;
+          esac
+          if [[ "$eco_ok" != "true" ]]; then
+            echo "eligible=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::ecosystem=${ECO:-<tomt>} står inte i allow-listan → manuell granskning (fail-closed)."
+          elif [[ "$UT" == "version-update:semver-patch" || "$UT" == "version-update:semver-minor" ]]; then
             echo "eligible=true" >> "$GITHUB_OUTPUT"
           else
             echo "eligible=false" >> "$GITHUB_OUTPUT"
@@ -70,6 +153,7 @@ jobs:
           fi
         env:
           UT: ${{ steps.metadata.outputs.update-type }}
+          ECO: ${{ steps.metadata.outputs.package-ecosystem }}
 
       - name: Checkout
         if: ${{ steps.gate.outputs.eligible == 'true' }}
@@ -106,7 +190,21 @@ jobs:
           dotnet restore Jobbliggaren.sln
           out=$(dotnet list Jobbliggaren.sln package --vulnerable --include-transitive 2>&1 || true)
           echo "$out"
-          if echo "$out" | grep -Eiq '\b(High|Critical)\b'; then
+          # HERESTRING, NOT A PIPE — det är vad som bär fail-closed på SIGPIPE-AXELN.
+          # `grep -q` lämnar vid första träffen; en producent som har mer än en rörbuffert
+          # kvar att skriva dör då av SIGPIPE, och `pipefail` gör 141 till pipeline-status —
+          # `if`-satsen blir FALSK och grinden rapporterar "inga CVE:er" i exakt det fall den
+          # finns för. Triggern är positivt korrelerad med fyndet: per-paket-tabellerna
+          # existerar bara när sårbarheter existerar. Samma form som `label-automerge.yml`s
+          # label-test.
+          #
+          # PÅ EN ANDRA AXEL ÄR GRINDEN INTE FAIL-CLOSED, och det står här för att ingen ska
+          # sluta leta: `|| true` kastar verktygets exitkod och domen vilar på ett ORD i en
+          # ström som via `2>&1` också bär `dotnet list`s egen stderr. "Inga sårbarheter" och
+          # "kunde inte avgöra" är därför oskiljbara — mätt: med restore uppfylld men
+          # audit-källan onåbar blir det `::notice::Inga ...` och exit 0. Pre-existerande,
+          # ägs av #1210.
+          if grep -Eiq '\b(High|Critical)\b' <<<"$out"; then
             echo "::error::NuGet High/Critical-CVE — auto-merge blockeras. Granska manuellt."
             exit 1
           fi

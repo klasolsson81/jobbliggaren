@@ -300,7 +300,10 @@ jobs:
         run: pnpm test
 
   # Fixture-tester för de bash-skript i `.github/scripts/` som CI och
-  # merge-/hygien-kontrollerna själva kör. Idag tre: `is-pure-base-merge.sh`,
+  # merge-/hygien-kontrollerna själva kör. **Räkna dem med
+  # `ls .github/scripts/*.test.sh` i stället för att lita på en siffra här** — den här
+  # raden sa "tre" medan jobbet körde fyra, och blev fem i #1198. De ursprungliga tre:
+  # `is-pure-base-merge.sh`,
   # predikatet som avgör om en push får låta en PR:s granskningsgrind stå kvar
   # armerad (#836); `select-deletable-branches.sh`, predikatet som avgör vilka
   # fjärr-grenar `delete-merged-branches.yml` får RADERA (#725); och
@@ -348,6 +351,16 @@ jobs:
 
       - name: audit-suppression-guard (fixturer)
         run: bash .github/scripts/audit-suppression-guard.test.sh
+
+      # Fixturerna kör guarden mot den RIKTIGA `docker-compose.yml`, så det här steget
+      # grindar filen och inte bara sin egen testdata. Mutationsverifierat 2026-08-04:
+      # tas ett `127.0.0.1:`-prefix bort ur den riktiga filen faller **två** fixturer
+      # (`real_repo_file` och `real_repo_file_floor`) och jobbet med dem. Regenerera talen
+      # med `bash .github/scripts/compose-loopback-guard.test.sh` i stället för att lita på
+      # en siffra här — en tidigare version av den här raden sa "11 → 10" och blev falsk
+      # när sviten växte i samma PR.
+      - name: compose-loopback-guard (fixturer + den riktiga compose-filen)
+        run: bash .github/scripts/compose-loopback-guard.test.sh
 
   # ---------------------------------------------------------------------------
   # PERF-/SUPPLY-CHAIN-GOVERNANCE (ADR 0045 — observe-only Fas 1).
@@ -577,7 +590,18 @@ jobs:
           set -uo pipefail
           out=$(dotnet list Jobbliggaren.sln package --vulnerable --include-transitive 2>&1 || true)
           echo "$out"
-          if echo "$out" | grep -Eiq '\b(High|Critical)\b'; then
+          # Herestring, inte pipe — se den blockerande tvillingen i dependabot-automerge.yml
+          # för SIGPIPE-mekanismen, som är stängd på båda ställena.
+          #
+          # DEN ANDRA AXELN ÄR DÄREMOT LEVANDE ÄVEN HÄR, och det är den som kan producera
+          # utfallet nedan: `|| true` på raden ovan kastar verktygets exitkod och domen
+          # vilar på ett ORD i strömmen, så "inga sårbarheter" är oskiljbart från "kunde
+          # inte avgöra". Då fyrar `else`-grenen och skriver ett FALSKT
+          # `::notice::Inga NuGet High/Critical-CVE:er` — en tillförsäkran om ett faktum
+          # steget inte etablerat, alltså #1198-klassen. Ägs av #1210, som täcker båda
+          # anropsplatserna. Ingen merge hänger på den här: jobbet är `continue-on-error`
+          # och ligger utanför `ci.needs`.
+          if grep -Eiq '\b(High|Critical)\b' <<<"$out"; then
             echo "::warning::NuGet High/Critical CVE upptäckt (ADR 0045 Beslut 7, observe-only Fas 1). Dependabot öppnar fix-PR. security-auditor manuellt Blocker-veto kvarstår."
           else
             echo "::notice::Inga NuGet High/Critical-CVE:er (Moderate/Low ignoreras medvetet pre-launch)."

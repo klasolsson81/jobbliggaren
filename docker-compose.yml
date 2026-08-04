@@ -10,7 +10,8 @@
 #   docker compose --profile test up -d          # lägg till test
 #   docker compose --profile full up -d          # alla services
 #
-# Förkrav: .env-fil i repo-roten med POSTGRES_PASSWORD_DEV + POSTGRES_PASSWORD_TEST.
+# Förkrav: .env-fil i repo-roten med POSTGRES_PASSWORD_DEV, POSTGRES_PASSWORD_TEST
+# + SEQ_ADMIN_PASSWORD_DEV. Alla tre är hårda `:?`-krav — compose vägrar starta utan dem.
 # Se .env.example för mall.
 
 name: jobbliggaren
@@ -22,6 +23,17 @@ services:
   # ==============================================================
 
   postgres-dev:
+    # BUMPAS DU DEN HÄR TAGGEN — kör kollationskontrollen mot dev-DB:n efteråt.
+    # `public.swedish` är en ICU-kollation (migration 20260714170816) och ICU-versionen
+    # kommer ur den här imagen. Driver den, sorteras btree-index på text efter en ordning
+    # som inte längre gäller: Postgres kraschar inte, frågorna blir tyst fel. Steg-1-frågan
+    # (`pg_collation_actual_version`) och reparationen står i
+    # `docs/runbooks/release-checklist.md` §2 — den grinden läser den TAGGADE miljön, så
+    # den fångar inte den här databasen, som är den enda med riktiga data.
+    # Dependabot bevakar taggen (`docker-compose`-posten i .github/dependabot.yml) men
+    # sådana PR:er auto-mergas ALDRIG. Det generella skälet gäller varje image-bump —
+    # ingenting läser den image som ändras — och den tysta felmoden ovan kommer utöver det.
+    # Löser någon ICU-frågan får alltså auto-merge INTE återinföras på den grunden ensam.
     image: postgres:18.3
     container_name: jobbliggaren-postgres-dev
     environment:
@@ -29,7 +41,9 @@ services:
       POSTGRES_USER: jobbliggaren
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD_DEV:?POSTGRES_PASSWORD_DEV måste sättas i .env}
     ports:
-      - "5435:5432"
+      # Loopback-bunden. Se not vid `seq` nedan för varför bind-adressen är
+      # lastbärande och inte kosmetisk (#1198).
+      - "127.0.0.1:5435:5432"
     volumes:
       # Postgres 18+: mount /var/lib/postgresql (inte .../data) så att
       # version-specifika subkataloger skapas — krävs för pg_upgrade --link.
@@ -62,13 +76,38 @@ services:
     container_name: jobbliggaren-seq
     environment:
       ACCEPT_EULA: "Y"
-      # Seq 2025.2+ kräver explicit firstRun-konfig. För localhost-dev
-      # stänger vi av auth helt — Seq är bunden till loopback och innehåller
-      # bara dev-loggar. Produktion kör aldrig Seq (CloudWatch istället).
-      SEQ_FIRSTRUN_NOAUTHENTICATION: "true"
+      # AUTH ÄR PÅ, och det är en ändring (Klas-beslut 2026-08-04, #1198). Fram till dess
+      # körde dev-Seq `SEQ_FIRSTRUN_NOAUTHENTICATION: "true"` med motiveringen "Seq är
+      # loopback-bunden och innehåller bara dev-loggar". **Båda leden var fel.**
+      #
+      # Bindningen var `0.0.0.0` (mätt 2026-08-04: `HTTP 200` mot ett oautentiserat
+      # Seq-API från värdens Ethernet-adress). Och innehållet var inte "bara dev-loggar":
+      # `ConsoleEmailSender` skriver hela `PlainTextBody`, så sinken bar 41 aktiverings-
+      # och bekräftelselänkar i klartext plus en verklig e-postadress. Bindningen lagades
+      # i samma PR — men då hade den varit **enda** kontrollen över det materialet, och
+      # det var precis den kontroll som varit fel i månader medan den här kommentaren
+      # gick i god för den. Därför en andra kontroll som inte är ett påstående.
+      #
+      # `SEQ_FIRSTRUN_ADMINPASSWORD` läses bara vid FÖRSTA uppstarten mot en tom volym.
+      # Byter du lösenord i `.env` senare gäller det inte förrän volymen återskapas
+      # (proceduren står i `docs/runbooks/local-dev-setup.md` §6.4 och bara där — den
+      # måste scopas till Seq-volymen, och ett ` -v ` på fel plats river postgres med).
+      SEQ_FIRSTRUN_ADMINPASSWORD: ${SEQ_ADMIN_PASSWORD_DEV:?SEQ_ADMIN_PASSWORD_DEV måste sättas i .env}
     ports:
-      - "5341:80"      # Seq UI + API (unified http-port)
-      - "5342:5341"    # Seq ingestion-port (separat listener enligt Seq-startlog)
+      # BIND-ADRESSEN ÄR LASTBÄRANDE, inte kosmetisk: `docs/runbooks/vps-base-hardening.md`
+      # §12 registrerar att en publicerad containerport passerar värdens `forward`-kedja i
+      # stället för `input`. Läs den aldrig **härifrån som bevis för vad som faktiskt kör** —
+      # ADR 0050 `Amendment 2026-08-04` §5:s punkt *"Ingen container publicerar till 0.0.0.0"*
+      # kräver `curl` utifrån (citerad på sin text, inte på sitt nummer — §5:s lista har
+      # vuxit förut), eftersom just den
+      # här filens kommentar påstod motsatsen i månader utan att någon läsare fångade det.
+      # (Det förbjuder inte en form-baserad regressionsvakt som kontrollerar att prefixet
+      # inte försvinner igen — det är en annan fråga än vad som kör. Den vakten FINNS sedan
+      # #1198: `.github/scripts/compose-loopback-guard.sh`, grindad av `ci`-jobbet
+      # `scripts (bash fixtures)`. Den bevisar att filen inte ändrats tillbaka, aldrig vad
+      # som lyssnar — `curl`-kravet ovan står oförändrat.)
+      - "127.0.0.1:5341:80"      # Seq UI + API (unified http-port)
+      - "127.0.0.1:5342:5341"    # Seq ingestion-port (separat listener enligt Seq-startlog)
     volumes:
       - jobbliggaren_seq_data:/data
     restart: unless-stopped
@@ -86,7 +125,7 @@ services:
       POSTGRES_USER: jobbliggaren
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD_TEST:?POSTGRES_PASSWORD_TEST måste sättas i .env}
     ports:
-      - "5433:5432"
+      - "127.0.0.1:5433:5432"
     volumes:
       - jobbliggaren_postgres_test_data:/var/lib/postgresql
     healthcheck:
@@ -102,7 +141,7 @@ services:
     container_name: jobbliggaren-redis-test
     profiles: ["test", "full"]
     ports:
-      - "6380:6379"
+      - "127.0.0.1:6380:6379"
     volumes:
       - jobbliggaren_redis_test_data:/data
     healthcheck:

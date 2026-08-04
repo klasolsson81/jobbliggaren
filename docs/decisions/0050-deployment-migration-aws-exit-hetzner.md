@@ -944,16 +944,54 @@ kontrollerna är **levande och mätta**:
    auth-revisionsspåret har. Utan den kopplingen kan #196 stänga M-7 med värddetektion och
    alerting medan applagrets attribuering fortfarande är en konstant.
 
-   **ÖPPEN FRÅGA TILL KLAS — registrerad på
-   [#1202](https://github.com/klasolsson81/jobbliggaren/issues/1202), inte här.** Grindens
-   uppfyllnadsvillkor är inte kontrollens korrekthetsvillkor: när #196 fyller i
-   bridge-CIDR:n blir `EnsureSafeForEnvironment` grön medan per-IP-limiteringen fortfarande
-   är kollapsad. Alternativen (a)/(b)/(c) och security-auditors uttryckliga
-   icke-rekommendation ligger i issue-kommentaren. *Placeringen är avsiktlig: §9.6 gör
-   ADR:n till kärl för den **beviljade** koncessionen, medan §9.2 lägger en **obesvarad**
-   eskalering i en labeled issue — ett stycke i en Accepted ADR har ingen läsare och
-   ruttnar på plats, vilket är precis felklassen TD-registret pensionerades över.*
-   **När Klas svarar skrivs svaret in här**, som beviljad eller avvisad koncession.
+   **BESVARAD AV KLAS 2026-08-04 — (b) + SPÄRRHAKE.** Frågan var registrerad på
+   [#1202](https://github.com/klasolsson81/jobbliggaren/issues/1202), inte här, och gällde
+   att grindens uppfyllnadsvillkor inte är kontrollens korrekthetsvillkor: när #196 fyller
+   i bridge-CIDR:n blir `EnsureSafeForEnvironment` grön medan per-IP-limiteringen
+   fortfarande är kollapsad. Alternativen (a)/(b)/(c) och security-auditors uttryckliga
+   icke-rekommendation ligger kvar i issue-kommentaren.
+
+   **Beslutet är (b) — lita på varningen** som A1 lade i boot-meddelandet, prod-overlayen
+   och `Program.cs` — **plus en spärrhake: #1202 är ett blockerande acceptanskriterium på
+   [#196](https://github.com/klasolsson81/jobbliggaren/issues/196)**, så deploy-issuen
+   inte kan stängas medan kedjan är kapad.
+
+   **Spärrhaken är INTE mekanisk, och ordet är medvetet struket här.** En obockad ruta i
+   en issue-kropp stoppar ingenting — `gh issue close` går igenom oavsett. Det den gör är
+   att flytta villkoret från **operatörens minne vid tagg-tillfället** till ett **skrivet
+   stängningsvillkor** på den issue som äger deployen: bättre än minne, fortfarande en
+   människa som läser. Samma disciplin som `release-checklist.md` §2.6 tillämpar när den
+   vägrar ordet "HÅRD" om ett mänskligt instrument — *"ordet hade hävdat en egenskap
+   instrumentet inte har"*. **Den mekaniska formen kvarstår därmed som skuld**, och den
+   skulden är inte den här ADR:ns att stänga. Raden identifieras i #196:s
+   kropp på sin text (*"BLOCKING — #1202 must be closed before this issue can be"*),
+   **aldrig på ett ordningstal**: den AC-listan växer, och ett ordningstal hade varit sant
+   om sitt underlag och falskt om sitt ämne redan vid nästa tillagda rad.
+
+   **Avvisat, med Klas skäl:** **(a)** en andra grind som mäter att `X-Forwarded-For`
+   faktiskt anländer — bygger en ställning för ett fönster som stängs när #1202 självt
+   landar; riktigt arbete med kort halveringstid. **(c)** en dokumenterad
+   accepterad-risk-ADR — hade formellt accepterat en risk vi **inte** accepterar, utan
+   lagar.
+
+   **Vad spärrhaken tillför.** security-auditors invändning mot (b) ensam avfärdas inte:
+   (b) vilar på att en människa läser en varning. Spärrhaken **byter vilken människa som
+   läser och när** — från operatören mitt i en deploy till den som stänger #196, mot ett
+   skrivet villkor i stället för mot minnet. Det är den billiga länk hennes invändning bad
+   om, utan att bygga (a), och det är mindre än en mekanisk grind (se ovan).
+
+   **En kvarstående glapp-risk, utskriven eftersom den inte följer av texten ovan:**
+   spärrhakens trigger är **#196:s stängning**, medan grindens trigger är **första riktiga
+   data**. De kan glida isär — lådan kan bära testanvändare medan #196 fortfarande är
+   öppen, och då har spärrhaken aldrig löst ut. Täckningen finns kvar via #1202:s egen
+   gradering och dess eskalering till `Blocker` vid samma trigger som M-7; det är den, inte
+   spärrhaken, som är grindens bärande del.
+
+   *Placeringen var avsiktlig och skälet gäller fortfarande: §9.6 gör ADR:n till kärl för
+   den **beviljade** koncessionen, medan §9.2 lade den **då obesvarade** eskaleringen i en
+   labeled issue — ett stycke i en Accepted ADR har ingen läsare och ruttnar på plats,
+   vilket är precis felklassen TD-registret pensionerades över.* **Koncessionen är Klas
+   beviljade, aldrig sessionens hävdade** (§9.6): den står här därför att han svarade.
 
    Ägs av **[#1202](https://github.com/klasolsson81/jobbliggaren/issues/1202)** — graderad
    **`Major`** av security-auditor 2026-08-04 (Art. 5(2) / Art. 32(1)(b) / Art. 33(3)(a) +
@@ -975,10 +1013,27 @@ kontrollerna är **levande och mätta**:
    hash är offline-knäckbar, och K2 är hela admission-kontrollen — då är den en tidsfråga.
    (CLAUDE.md §5 Security: inga hemligheter i committad konfig.)
 6. **Ingen container publicerar till `0.0.0.0`**, verifierat **utifrån** med `curl` mot
-   varje containerport — aldrig genom att läsa `expose:`. Detta är inte hypotetiskt:
-   dev-compose binder **fem av sex portar till `0.0.0.0`, inklusive en oautentiserad
-   Seq** ([#1198](https://github.com/klasolsson81/jobbliggaren/issues/1198)), och det är
-   den filen #196 utgår från. Seq bär loggar — den mest sannolika vägen till att lådan ägs.
+   varje containerport — aldrig genom att läsa `expose:`. **Skälet till att beviset ligger
+   på svaret och inte i filen är mätt, inte hypotetiskt:** dev-compose band **fem av sex
+   portar till `0.0.0.0`, inklusive en oautentiserad Seq**, **medan filens egen kommentar
+   påstod motsatsen** — i månader, utan att någon fångade det genom att läsa. Båda
+   halvorna lagades i [#1198](https://github.com/klasolsson81/jobbliggaren/issues/1198)
+   (alla sex portar `127.0.0.1`, kommentaren omskriven, **och Seq-auth påslagen** så att
+   bind-adressen inte är ensam kontroll), så *instansen* är borta; att en fil kan påstå sin
+   egen bindning fel är det som gör `curl`-formen obligatorisk. Och det är fortfarande den
+   filen #196 utgår från. Seq bär loggar — den mest sannolika vägen till att lådan ägs.
+
+   **Art. 33(5)-noteringen, och den skärper snarare än friskriver.** Exponeringen var
+   `HTTP 200` mot ett oautentiserat Seq-API från värdens Ethernet-adress. Den adressen
+   ligger i **100.64.0.0/10 (RFC 6598, CGNAT)** och är **inte publikt routbar**; nåbarhet
+   från LAN:et och från andra abonnenter i samma CGNAT-segment är **omätt**.
+   security-auditor bedömde 2026-08-04 att **ingen anmälningsplikt enligt Art. 33(1)**
+   utlöstes — en registrerad, som dessutom är den personuppgiftsansvarige, ingen publik
+   routbarhet, ingen åtkomstevidens. **Underlaget går inte att återbesöka:**
+   `SEQ_FIRSTRUN_ADMINPASSWORD` läses bara mot en tom volym, så åtgärden krävde att
+   Seq-volymen kastades. Sänkans innehåll och varje eventuellt åtkomstspår från
+   exponeringsfönstret är därmed borta. Det är utskrivet här därför att en senare läsare
+   annars antar att bevisen finns kvar.
 7. **Request-size- och timeout-tak i Caddy.** Slowloris och stora bodies mot en 8 GB-låda
    är den enda tillgänglighetskontroll som återstår när CDN:et faller. Billig; ta den.
 

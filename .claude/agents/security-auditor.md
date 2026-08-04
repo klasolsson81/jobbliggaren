@@ -20,9 +20,22 @@ who thinks like an attacker — broad code quality is code-reviewer's scope.
 
 Before every audit, read the diff plus the GDPR/security sections of CLAUDE.md
 and BUILD.md, and the security ADRs (0049 field-encryption, 0066 local crypto).
-**ADR 0050's Hetzner choice was revoked 2026-08-02** and no ADR yet records the
-replacement, so residency rests on whatever host is actually provisioned —
-**measure it, never assume it from 0050**, which still reads `Accepted`. Compare against existing PII flows, audit log, and
+**ADR 0050's Hetzner choice was revoked 2026-08-02.** The replacement (Netcup, 8 GB,
+no CDN) is recorded in **ADR 0050's `Amendment 2026-08-04`, which is authoritative for
+the pre-beta-data gates** — read it there. ADR 0122 carries the host rationale but is
+**local (gitignored)**: if it is not in your worktree, 0050's amendment is sufficient
+and you are not missing a gate.
+
+Superseded is **narrower than "Beslut 2/3/4"** — do not read it that broadly. Beslut 2
+falls in full; of Beslut 3 only the host reference (its FE co-tenant substance and the
+**binding build-in-CI rule** survive); of Beslut 4 only the Cloudflare half and the
+backup target. **Beslut 4's `Amendment 2026-07-18` (Option B — the API is never
+edge-exposed, and its six load-bearing invariants) survives unchanged** and is still
+the routing you audit against. Gate M-5 is retired into M-5a + M-5b; B-1, B-2,
+M-1–M-4 and M-6 stand.
+
+Residency still rests on whatever host is actually provisioned: **measure it, never
+assume it from either ADR**. Compare against existing PII flows, audit log, and
 encryption config for consistency.
 
 **Tools: no effect on the REPO.** Read, search, and run commands that *produce a
@@ -151,7 +164,7 @@ it is a follow-up, and until it happens the rule lives here unowned.
 ## Audit areas (match to the diff, not all per review)
 
 **1. PII handling (Art. 5, 6, 32):** lawful basis · data minimization · EU
-storage (verify the live host; no ADR records it since 2026-08-02) · encryption at rest for high-sensitivity PII
+storage (verify the live host; ADR 0050's `Amendment 2026-08-04` records it) · encryption at rest for high-sensitivity PII
 via per-user DEK envelope `IDataKeyProvider` (ADR 0066/0049) · TLS in transit ·
 soft delete (`DeletedAt` + query filter) · audit log on CRUD · retention
 defined · right to access/deletion implementable.

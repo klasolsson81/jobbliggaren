@@ -386,9 +386,10 @@ updates:
   # dependabot-automerge.yml. Only the invocation claim survived every recount. State the
   # property and hand over the regenerator; never publish the tally.
   #
-  # NOTHING FROM THIS ENTRY AUTO-MERGES. The general reason covers every image bump:
+  # NOTHING FROM THIS ENTRY AUTO-MERGES — `dependabot-automerge.yml`'s gate leaves every
+  # docker ecosystem off its allow-list. The general reason covers every image bump:
   # nothing reads the image that changes. On top of that, a postgres patch/minor fails
-  # SILENTLY —
+  # SILENTLY, and here is the mechanism:
   # `dependabot-automerge.yml`'s gate leaves every docker ecosystem off its allow-list. The
   # mechanism has THREE homes serving three audiences — **ADR 0110** (the decision, and it
   # is GITIGNORED so `git grep` cannot see it), `release-checklist.md` §2 for whoever tags
@@ -402,9 +403,13 @@ updates:
   # line count is four (release-checklist.md carries the token twice) and a draft here
   # published that as "four files"; `--exclude-dir=.github`, because THIS comment and its
   # Swedish twin contain the token and a draft's regenerator counted itself, five; and a
-  # filesystem grep rather than `git grep`, which returns two since it cannot see the
-  # gitignored ADR. Hand over the invocation, never the instruction — the instruction has
-  # now been mis-executed twice, once by its own author. An earlier draft of
+  # filesystem grep rather than `git grep`, which **cannot see the gitignored ADR at all**.
+  # That last clause carries no number ON PURPOSE — a draft said `git grep` returns two,
+  # which was true only before these comments existed, and is the same self-reference the
+  # exclusion above fixes. State the property; the numbers move.
+  #
+  # Hand over the invocation, never the instruction — the instruction has now been
+  # mis-executed twice, once by its own author. An earlier draft of
   # this comment left auto-merge in place and instructed the reader instead — an
   # instruction to whoever merges the bump, sitting in the one file that bump does not
   # touch. This file's own rule, forty lines up, is that such a comment has no reader at

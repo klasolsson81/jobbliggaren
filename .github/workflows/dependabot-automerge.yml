@@ -87,8 +87,9 @@ jobs:
       # release-checklist.md bär token två gånger — och ett utkast publicerade det som
       # "fyra filer"); `--exclude-dir=.github` (den HÄR kommentaren och dess engelska
       # tvilling innehåller token, så ett utkasts regenerator räknade sig själv till fem);
-      # och filsystems-grep i stället för `git grep`, som ger två eftersom den inte ser den
-      # gitignorerade ADR:n.
+      # och filsystems-grep i stället för `git grep`, som **inte kan se den gitignorerade
+      # ADR:n alls**. Den sista klausulen bär MED FLIT inget tal — ett utkast skrev att
+      # `git grep` ger två, vilket var sant bara innan de här kommentarerna fanns.
       # Kadensen påverkas inte i något av fallen: Dependabot öppnar PR:erna månadsvis som
       # förut, men en människa läser dem.
       #

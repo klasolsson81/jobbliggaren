@@ -26,7 +26,7 @@ namespace Jobbliggaren.Api.IntegrationTests.Configuration;
 /// (<c>?? GetSection("Alb").Get&lt;...&gt;()</c>) skulle passera grönt här. Och HSTS-valideringsgaten
 /// vid service-registrering pinnas fortfarande av ingenting; denna klass ändrar inte det.
 /// Ett fjärde <c>WebApplicationFactory</c> hade kunnat pinna kompositionen på riktigt, men
-/// avstods medvetet: sviten ligger redan vid EF:s process-globala
+/// avstods medvetet: sviten ligger en <c>WebApplicationFactory</c> under EF:s process-globala
 /// <c>ManyServiceProvidersCreatedWarning</c>-tak, och nästa host fäller den collection-fixture
 /// som råkar initieras därnäst — ett deterministiskt fel som läser som flake (#1190).
 /// </para>

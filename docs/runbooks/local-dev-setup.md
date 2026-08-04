@@ -247,13 +247,22 @@ Enabling username/password authentication, and using the supplied default admin 
 *"using the supplied ... password"* är Seq som intygar att `SEQ_FIRSTRUN_ADMINPASSWORD`
 faktiskt lästes och applicerades. Saknas den raden körde Seq på något annat.
 
-**Vad auth täcker, och vad den inte gör.** Läs-API:t (5341) är grindat — `/api/events`,
-`/api/users`, `/api/data` ger `401` utan inloggning, medan `/` och `/api` svarar `200`
-(SPA-skalet respektive rot-dokumentet med produktnamn och länklista, inga data).
-**Ingestion-porten 5342 tar emot oautentiserade skrivningar** och ska göra det — appen
-sätter ingen `Seq:ApiKey`. Den porten är ren ingestion (`/api/events/raw` svarar `201`;
-läs-vägarna svarar `404` där), så den öppnar ingen väg till innehållet. Men på 5342 är
-bind-adressen fortfarande enda kontrollen.
+**Vad auth täcker, och vad den inte gör — och skillnaden går mellan LÄS och SKRIV, inte
+mellan portarna.**
+
+- **Läsning är grindad, på 5341.** `/api/events`, `/api/users`, `/api/data` ger `401` utan
+  inloggning. `/` och `/api` svarar `200` — SPA-skalet respektive rot-dokumentet med
+  produktnamn och länklista, inga data.
+- **Skrivning är INTE grindad, på någondera porten.** Mätt 2026-08-04: en oautentiserad
+  CLEF-POST mot `/api/events/raw` ger `201` på **både 5342 och 5341**. Det ska vara så —
+  appen sätter ingen `Seq:ApiKey`, och `appsettings.Development.json` pekar
+  `Seq:ServerUrl` på **5341**, alltså skriver appen till läs-porten. Härdar du ingestion
+  på 5341 slutar dev-loggningen fungera.
+- **På skrivvägen är bind-adressen därmed enda kontrollen, oavsett port.** Det är precis
+  den kontroll som var mätt fel i månader, vilket är skälet att den står utskriven här
+  i stället för underförstådd. Skrivning ger ingen väg till det redan lagrade innehållet
+  (läsvägarna kräver inloggning), men den ger vem som helst med nätverksåtkomst rätt att
+  fylla sänken.
 
 ### 6.5 Postgres 18+ volym-mount
 

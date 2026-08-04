@@ -1,7 +1,8 @@
 # Dependabot auto-merge — minska manuellt PR-arbete för rutinmässiga dep-bumpar.
 #
-# Aktiverar GitHub auto-merge på Dependabot-PRs som är patch/minor. MAJOR
-# granskas alltid manuellt (auto-merge aktiveras ej för dem).
+# Aktiverar GitHub auto-merge på Dependabot-PRs som är patch/minor OCH kommer från ett
+# allow-listat ekosystem. Major, okänd update-type och ekosystem utanför listan går till
+# manuell granskning. Regeln bor i `gate`-steget nedan, tillsammans med sitt skäl.
 #
 # Respekterar branch protection (ADR 0065): GitHub auto-merge squash-mergar
 # FÖRST när required `ci`-aggregatet är grönt.
@@ -44,7 +45,7 @@ permissions:
 
 jobs:
   automerge:
-    name: auto-merge (patch/minor)
+    name: auto-merge (patch/minor, allow-listat ekosystem)
     runs-on: ubuntu-latest
     timeout-minutes: 15
     # Kör ENBART för Dependabot-öppnade PRs.
@@ -56,38 +57,50 @@ jobs:
         with:
           github-token: "${{ secrets.GITHUB_TOKEN }}"
 
-      # Avgör behörighet en gång: endast patch/minor. Major/okänd → hela resten
-      # hoppas över (ingen scan, ingen auto-merge) → manuell granskning.
+      # Avgör behörighet en gång: patch/minor FRÅN ETT ALLOW-LISTAT EKOSYSTEM. Allt annat
+      # → hela resten hoppas över (ingen scan, ingen auto-merge) → manuell granskning.
       #
-      # `docker-compose` UNDANTAS HELT, och grinden nycklar på FELMOD, inte på
-      # scan-täckning. Den blockerande scannen nedan är `dotnet list package --vulnerable`
-      # + `pnpm audit`; ingen av dem läser en container-image, så BÅDA docker-ekosystemen
-      # passerar den vakuöst. Ändå undantas bara compose, därför att bara den faller TYST:
-      # `docker-compose.yml` bär `postgres:18.3`, migration
-      # 20260714170816_AddSwedishCollationToCompanyRegisterText deklarerar `public.swedish`
-      # som en ICU-kollation, och ICU-versionen kommer ur basimagen — en patch/minor-bump
-      # kan alltså lämna btree-index sorterade efter en ordning som inte längre gäller.
-      # Postgres kraschar inte på det; frågorna blir tyst fel. Och den träffar dev-DB:n,
-      # den enda som i dag håller riktiga data (mätt 2026-08-04: 106 071 annonser,
-      # 1 066 938 företagsrader). En trasig `sdk`/`aspnet`-basimage faller i stället
-      # högljutt i build eller deploy, och ingenting bygger eller publicerar dem än —
-      # image-scannern för dem ägs av #196:s AC före GHCR-publicering.
+      # `docker_compose` är utelämnad därför att dess felmod är **tyst** — mekanismen
+      # (ICU-kollation ur basimagen mot dev-DB:n) bor på ETT ställe, `postgres-dev`-blocket
+      # i `docker-compose.yml`, som är den enda fil en compose-bump alltid rör. Läs den
+      # där; upprepa den inte här. Kadensen påverkas inte: Dependabot öppnar PR:en
+      # månadsvis som förut, men en människa läser den.
       #
-      # Kadensen påverkas INTE: Dependabot öppnar PR:en månadsvis som förut. Det som
-      # faller bort är auto-merge, alltså att ingen människa läser den.
+      # LISTAN ÄR EN ALLOW-LIST OCH BÄR `fetch-metadata`:S INTERNA NAMN, INTE
+      # `dependabot.yml`:s config-nycklar. Det är inte samma namnrymd, och skillnaden är
+      # tyst: `fetch-metadata` läser ekosystemet ur BRANCH-NAMNET
+      # (`packageEcosystem: chunks[1]`), utan att normalisera bindestreck. Mätt på det här
+      # repots 28 Dependabot-PR:er 2026-08-04 — `npm` → `npm_and_yarn`,
+      # `github-actions` → `github_actions`, `nuget` → `nuget`. **Två av tre skiljer sig**,
+      # och en jämförelse mot config-nyckeln hade därför blivit en no-op som ser ut som en
+      # grind. `docker-compose` heter `docker_compose` här.
       #
-      # `package-ecosystem` är en dokumenterad output från `dependabot/fetch-metadata`
-      # (verifierat 2026-08-04). Skulle den någon gång sakna värde faller villkoret till
-      # tom sträng → PR:en förblir behörig; därför loggas värdet, så att en tyst
-      # regression syns i jobbloggen i stället för att gömma sig.
-      - name: Avgör behörighet (endast patch/minor, aldrig docker-compose)
+      # DÄRFÖR FAIL-CLOSED. Ett ekosystem som inte står i listan — inklusive tom sträng,
+      # `docker_compose`, och varje ekosystem någon lägger till i `dependabot.yml` i
+      # framtiden — blir ICKE behörigt. Priset är namngivet och går åt rätt håll: ett nytt
+      # ekosystem slutar auto-mergas HÖGLJUTT (PR:er staplas och någon frågar varför),
+      # aldrig tyst. Motsatt polaritet mot en allow-all. Ingen deadlock heller: det som
+      # undanhålls är auto-merge, inte merge — `ci` är orört och PR:en är manuellt
+      # mergebar.
+      #
+      # `docker_compose` är medvetet UTELÄMNAD ur listan: dess felmod är tyst. Se
+      # `docker-compose.yml`:s `postgres-dev`-block för mekanismen. `docker` är däremot
+      # med, och asymmetrin är mätt: Dockerfilerna står på flytande taggar
+      # (`10.0-noble`), så deras innehåll driver vid varje pull utan att någon PR öppnas —
+      # att hålla dem borta från auto-merge köper ingenting mot den drift-formen, medan
+      # `postgres:18.3` är pinnad och Dependabot-bumpen är den enda vägen den rör sig.
+      - name: Avgör behörighet (patch/minor från allow-listat ekosystem)
         id: gate
         shell: bash
         run: |
           echo "::notice::update-type=$UT ecosystem=${ECO:-<tomt>}"
-          if [[ "$ECO" == "docker-compose" ]]; then
+          case "$ECO" in
+            npm_and_yarn|nuget|github_actions|docker) eco_ok=true ;;
+            *) eco_ok=false ;;
+          esac
+          if [[ "$eco_ok" != "true" ]]; then
             echo "eligible=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::docker-compose → tyst ICU-kollationsrisk mot dev-DB:n, manuell granskning (release-checklist.md §2)."
+            echo "::notice::ecosystem=${ECO:-<tomt>} står inte i allow-listan → manuell granskning (fail-closed)."
           elif [[ "$UT" == "version-update:semver-patch" || "$UT" == "version-update:semver-minor" ]]; then
             echo "eligible=true" >> "$GITHUB_OUTPUT"
           else

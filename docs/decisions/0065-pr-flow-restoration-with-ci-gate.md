@@ -347,8 +347,10 @@ Dependabot's. But Dependabot PRs are auto-merged by `dependabot-automerge.yml` *
 invoking any agent**, and no `schedule:` consults the measurement — so on the auto-merged
 patch/minor Dependabot PRs, which are the bulk of what drives the tree drift these checks
 detect, there is no reader. Be precise about the boundary rather than rounding it to
-"exactly": `dependabot-automerge.yml` marks major and unknown update types ineligible, and
-a PR that fails the vuln gate falls back to manual review. On that remainder the guard
+"exactly": `dependabot-automerge.yml` marks major and unknown update types ineligible,
+**and since 2026-08-04 (#1197 / PR #1206) any ecosystem outside its allow-list — the gate
+is fail-closed, so `docker_compose` and anything added later are excluded until listed**,
+and a PR that fails the vuln gate falls back to manual review. On that remainder the guard
 is surfaced but unowned — its `::warning::` reaches the Checks view, and `audit` is
 `continue-on-error` and outside `ci`'s `needs`, so nothing obliges anyone to read it
 and a finding moves no merge signal. (Say it that way rather than "nothing surfaces

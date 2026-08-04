@@ -678,8 +678,11 @@ written as scheduling ("not MVP scope, not verified"), never as fact ("still app
   the binding alone had been *measured wrong for months* while the compose
   file's own comment vouched for it. (2) It holds no real-user PII — which was
   **measured FALSE on 2026-08-04**: 41 activation/confirmation links in
-  plaintext plus one real address. Nothing re-measures condition 2 on a cadence,
-  and `ConsoleEmailSender` refills the sink at the next dev registration),
+  plaintext plus one real address. That sink was discarded in the same PR — enabling auth
+  required an empty volume — so the count is zero right now and **refills at the next dev
+  registration**, because `ConsoleEmailSender` still logs the whole body. Nothing
+  re-measures condition 2 on a cadence; [#1208](https://github.com/klasolsson81/jobbliggaren/issues/1208)
+  owns that gap),
   `NullEmailSender` (what `Provider=Console` falls back to outside Dev/Test),
   and `ResendEmailSender` (`Provider=Resend`, fail-loud without
   `Email:ApiKey`). Frontend `.env.local`; backend

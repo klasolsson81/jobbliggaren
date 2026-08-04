@@ -377,23 +377,14 @@ updates:
   # earlier drafts of this sentence each undercounted the comment lines, while the fact
   # that matters never moved.) So a bump lands green with nothing having read it.
   #
-  # THE FAILURE MODE HERE IS SILENT, AND THAT IS WHY NOTHING FROM THIS ENTRY AUTO-MERGES.
-  # A postgres MAJOR fails loudly (incompatible data files), but a patch/minor does not:
-  # the base image carries the ICU library, migration
-  # 20260714170816_AddSwedishCollationToCompanyRegisterText defines `swedish` as an ICU
-  # collation, and a new ICU version leaves btree text indexes sorted by an order that no
-  # longer holds. Postgres does not crash on that; queries just go quietly wrong. And it
-  # lands on the DEV database — the only one holding real data today — which
-  # release-checklist.md §2 does not cover, because that gate reads the TAGGED environment
-  # at tag time.
-  #
-  # So `dependabot-automerge.yml`'s gate now refuses `docker-compose` outright: these PRs
-  # still open monthly, but a human reads them before they land. An earlier draft of this
-  # comment left auto-merge in place and pointed the reader at §2 instead — an instruction
-  # addressed to whoever merges the bump, sitting in the one file that bump does not touch.
-  # This file's own rule, forty lines up, is that a comment here has no reader at that
-  # moment; the rule applies to this file too. The dev-side collation step is also written
-  # into release-checklist.md §2, for the reader arriving from that direction.
+  # NOTHING FROM THIS ENTRY AUTO-MERGES, because a postgres patch/minor fails SILENTLY —
+  # `dependabot-automerge.yml`'s gate leaves `docker_compose` off its allow-list. The
+  # mechanism lives in ONE place, `docker-compose.yml`'s `postgres-dev` block, which is the
+  # only file a compose bump always touches; do not restate it here. An earlier draft of
+  # this comment left auto-merge in place and instructed the reader instead — an
+  # instruction to whoever merges the bump, sitting in the one file that bump does not
+  # touch. This file's own rule, forty lines up, is that such a comment has no reader at
+  # that moment; it applies to this file too.
   #
   # NO postgres-major `ignore`, and the reason is written down so it is not re-proposed:
   # dependabot-automerge.yml already sets `eligible=false` on any major, so a postgres

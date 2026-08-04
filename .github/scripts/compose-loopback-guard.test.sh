@@ -310,6 +310,61 @@ services:
 YAML
 run host_networking_refused 2 "$TMPROOT/hostnet.yml"
 
+# --- 8m. include: / extends: move ports OUT OF VIEW and are refused -------------------
+# Round 10's seventh shape, and the first one that is everyday Compose rather than exotica.
+# The ports live in another file, so neither the strict parser nor the loose key detector
+# can see them — `loose == blocks`, so even the divergence signal stays silent.
+cat >"$TMPROOT/inc.yml" <<'YAML'
+include:
+  - base.yml
+services:
+  a:
+    image: x
+    ports:
+      - "127.0.0.1:5435:5432"
+YAML
+run include_refused 2 "$TMPROOT/inc.yml"
+
+cat >"$TMPROOT/ext.yml" <<'YAML'
+services:
+  a:
+    image: x
+    extends:
+      file: base.yml
+      service: other
+    ports:
+      - "127.0.0.1:5435:5432"
+YAML
+run extends_refused 2 "$TMPROOT/ext.yml"
+
+# --- 8n. host networking WITH a trailing comment, and with ports elsewhere ------------
+# The anchored match without comment-stripping let this through whenever the file also had
+# real ports (the zero-recognised refusal was covering it otherwise). Trailing comments on
+# such lines are this repo's own style.
+cat >"$TMPROOT/hostc.yml" <<'YAML'
+services:
+  a:
+    image: x
+    network_mode: host   # kör mot värdnätet
+  b:
+    image: y
+    ports:
+      - "127.0.0.1:5435:5432"
+YAML
+run host_networking_commented 2 "$TMPROOT/hostc.yml"
+
+# --- 8o. an IPv6 literal the guard cannot read is REFUSED, not called non-loopback ----
+# `[0:0:0:0:0:0:0:1]` IS loopback. Reporting it as "not bound to localhost" would assert a
+# fact the guard has not established — the exact thing it exists to stop.
+cat >"$TMPROOT/v6full.yml" <<'YAML'
+services:
+  a:
+    image: x
+    ports:
+      - "[0:0:0:0:0:0:0:1]:5435:5432"
+YAML
+run ipv6_fullform_refused 2 "$TMPROOT/v6full.yml"
+
 # --- 9. a missing file exits 2, never 0 ----------------------------------------------
 run missing_file 2 "$TMPROOT/does-not-exist.yml"
 

@@ -9,11 +9,22 @@
 # COMMENT STATED IT WAS LOOPBACK-BOUND. That comment was wrong for months and no reader
 # caught it. Human reading is measured, on this exact file, not to cover this class.
 #
-# WHAT IT DOES AND DOES NOT PROVE, and this paragraph is narrow because two earlier
-# versions of it were FALSE. It is a REGRESSION guard over the file. It checks entries
-# written as a block sequence, in either indentation style, and REFUSES with exit 2 every
-# shape it does not model rather than passing it. It proves NOTHING about what is actually
-# listening: ADR 0050 `Amendment 2026-08-04` §5's point "Ingen container publicerar till
+# WHAT IT DOES AND DOES NOT PROVE. THIS PARAGRAPH HAS BEEN FALSE THREE TIMES, every time
+# because it claimed a universal — "refuses every shape it does not model". Four review
+# rounds each produced one more legal spelling it passed silently. So the universal is gone
+# and what stands is what the mechanism delivers:
+#
+#   It reads `ports:` block sequences — both indentation styles, quoted or unquoted key —
+#   fails on any entry there that is not loopback-bound, and refuses rather than passes the
+#   entry shapes and port-relocating constructs it knows it cannot read. A LOOSE second
+#   detector makes the KEY axis fail closed by DIVERGENCE rather than by enumeration, which
+#   is the only part of this that generalises beyond the spellings already found.
+#
+# DO NOT RESTORE A UNIVERSAL HERE. When the next shape gets through, refuse it and leave
+# this paragraph specific. A guard that overstates its coverage is precisely the defect
+# #1198 was, and writing the stronger sentence is what kept reintroducing it.
+#
+# It proves NOTHING about what is actually listening: ADR 0050 `Amendment 2026-08-04` §5's point "Ingen container publicerar till
 # 0.0.0.0" demands a `curl` from outside at cutover, and that requirement is untouched
 # here. The two answer different questions — "did the file change back?" versus "what is
 # running?" — and neither substitutes for the other.
@@ -130,6 +141,13 @@ scan=$(
         }
         total++
         entries++
+        # An IPv6 literal in a spelling this guard does not read — `[0:0:0:0:0:0:0:1]` is
+        # genuine loopback — must not be reported as "not bound to localhost". That would
+        # assert a fact the guard has not established, which is the thing it exists to stop.
+        if (value ~ /^\[/ && value !~ /^\[::1\]:/) {
+          printf "%s:%d: UNPARSED-ENTRY %s\n", FILENAME, FNR, value
+          next
+        }
         if (value !~ /^127\.0\.0\.1:/ && value !~ /^\[::1\]:/) {
           printf "%s:%d: %s\n", FILENAME, FNR, value
         }
@@ -152,11 +170,31 @@ scan=$(
         next
       }
 
-      # Host networking publishes nothing through `ports:`, so a ports guard cannot check
-      # it — and it is BROADER than what #1198 closed: it exposes every port the process
-      # binds, not one. Refused rather than passed over in silence.
-      if (line ~ /^[[:space:]]*network_mode[[:space:]]*:[[:space:]]*["'"'"']?host["'"'"']?[[:space:]]*$/) {
-        printf "%s:%d: HOST-NETWORKING %s\n", FILENAME, FNR, line
+      # THREE CONSTRUCTS MOVE PORTS OUT OF THIS GUARD FIELD OF VIEW. None is a spelling of
+      # `ports:` — they are ways for a published port to exist that this file cannot see —
+      # so each is refused rather than passed over in silence:
+      #
+      #   network_mode: host   publishes nothing through `ports:` at all, and is BROADER
+      #                        than what #1198 closed: every port the process binds.
+      #   include:             pulls in another compose file, whose ports are not here.
+      #   extends:             inherits a service, ports included, from another file.
+      #
+      # `include:` and `extends:` are ordinary Compose, not exotica — and #196 adds compose
+      # files, where splitting one with `include:` is exactly how it is done.
+      #
+      # The comment is stripped BEFORE matching: an anchored match without stripping let
+      # `network_mode: host   # kör mot värdnätet` through, and trailing comments on such
+      # lines are this repo own style.
+      bare = line
+      sub(/[[:space:]]+#.*$/, "", bare)
+      sub(/[[:space:]]+$/, "", bare)
+
+      if (bare ~ /^[[:space:]]*network_mode[[:space:]]*:[[:space:]]*.?host.?$/) {
+        printf "%s:%d: HOST-NETWORKING %s\n", FILENAME, FNR, bare
+        next
+      }
+      if (bare ~ /^[[:space:]]*(include|extends)[[:space:]]*:/) {
+        printf "%s:%d: PORTS-OUT-OF-VIEW %s\n", FILENAME, FNR, bare
         next
       }
 
@@ -215,7 +253,7 @@ fi
 if [ -n "$violations" ]; then
   # "could not answer" is exit 2 and must never collapse into exit 1. All three markers
   # below mean the guard did not READ the ports, not that it read them and they were bad.
-  if printf '%s\n' "$violations" | grep -qE 'UNPARSED-ENTRY|UNPARSED-PORTS-FORM|EMPTY-PORTS-BLOCK|HOST-NETWORKING'; then
+  if printf '%s\n' "$violations" | grep -qE 'UNPARSED-ENTRY|UNPARSED-PORTS-FORM|EMPTY-PORTS-BLOCK|HOST-NETWORKING|PORTS-OUT-OF-VIEW'; then
     echo "::error::compose-loopback-guard: a ports: entry was in a shape this guard does not model." >&2
     echo "It reads block sequences in BOTH indentation styles. Flow sequences (ports: [...])," >&2
     echo "aliases (ports: *x), long-form mappings and empty blocks are REFUSED, never skipped." >&2

@@ -819,6 +819,34 @@ LE-cert via HTTP-01; **HSTS emitteras faktiskt i Production**; ingen klartextstr
 > **`AlbOptions → ReverseProxyOptions`-re-homet är fortsatt skyldigt — men för
 > `ForwardedHeaders:KnownNetworks` (M-5b punkt 3), INTE för HSTS.**
 >
+> **A1-tillägg (levererat 2026-08-04, mätt mot HEAD `16aced64`): emittern är avgjord,
+> ingen halva byggd, och det är avsiktligt.** Caddy-halvan **går inte att bygga i dag** —
+> noll filer matchar `Caddyfile`/`caddy*` i repot, så det finns ingen fil att lägga
+> `header Strict-Transport-Security` i; den uppstår först med #196:s compose-stack.
+> Next-halvan **går** att bygga — `buildSecurityHeaders` emitterar fem headers och HSTS
+> är inte en av dem, och dess kontraktstest fryser mängden med `toEqual` på den ordnade
+> nyckellistan, så tillägget är en tvåfilsändring med regressionsspärr. Den gate:as på
+> den `isDev`-flagga som redan trådas genom funktionen, annars HTTPS-låser `next dev`
+> localhost i `MaxAgeDays` — exakt felet `HstsOptions` varnar för. Men det är en
+> `web/`-ändring med **egen change-reason**, så den landade inte i A1:s Api-PR.
+> **Grinden är oförändrad: båda svarsvägarna, bevisat på 401:an.** Att en halva är
+> byggbar i dag flyttar inte grinden till den halvan.
+>
+> **Vad A1 däremot ändrade i ASP.NET-halvan:** `HttpsEnabled` läses inte längre som en
+> TODO. Kommentarerna sa "aktiveras vid ADR 0026-trigger", vilket under Option B hade
+> lett en läsare att flippa flaggan vid lansering och **bryta appen** — Next når API:t
+> över internt HTTP, så `UseHttpsRedirection()` hade svarat 307 på varje internt anrop,
+> och `UseHsts()` hade ändå inte nått en browser. Flaggan är nu dokumenterad som
+> **korrekt `false` under Option B**, och `Hsts`-blocket som defence-in-depth för en
+> topologi där API:t åter är kant-exponerat — inte som ett väntande lanseringssteg.
+>
+> **Namnet `AlbOptions` lever kvar i äldre text i denna ADR och ska inte städas bort.**
+> `Amendment 2026-07-18` (TD-106-överlämningen) och mätningen ovan i denna amendment
+> skrevs båda när typen hette så; de är protokoll över vad som gällde då, inte
+> instruktioner. Typen heter sedan 2026-08-04 `ReverseProxyOptions` och
+> konfigsektionen `ReverseProxy` — den gamla `Alb`-nyckeln har **ingen**
+> övergångsbindning, vilket `ReverseProxyOptionsTests` pinnar som körbart faktum.
+>
 > **Beviset läses på det OAUTENTISERADE 401-svaret**, inte bara på ett autentiserat 200.
 > Caddy svarar 401 utan att nå Next, så en HSTS enbart i `buildSecurityHeaders` finns
 > **inte** på det svaret — och på en basic auth-grindad dev-låda är 401 det första och
@@ -855,9 +883,32 @@ kontrollerna är **levande och mätta**:
 2. **Option B håller empiriskt** — cutover-curl-matrisen (redan skyldig sedan
    Amendment 2026-07-18), utvidgad till att bevisa `/api/v1/dev` och `/api/v1/admin/*`
    onåbara utifrån.
-3. **Per-IP-rate-limiting fungerar**: `ForwardedHeaders:KnownNetworks` re-homad från
-   ALB:s VPC-CIDR till Caddy/Docker-nätets. Cloudflares bortfall **befordrar detta från
-   korrekthetspost till stackens enda per-IP-kontroll.**
+3. **Per-IP-rate-limiting fungerar.** Cloudflares bortfall **befordrar detta från
+   korrekthetspost till stackens enda per-IP-kontroll.** Grinden ställs på att
+   kontrollen **mäts levande**, aldrig på att en konfignyckel fått ett värde.
+
+   **Re-homet av `ForwardedHeaders:KnownNetworks` är NÖDVÄNDIGT MEN INTE TILLRÄCKLIGT —
+   den tidigare formuleringen, som lade hela villkoret på re-homet, är falsifierad.**
+   Mätt 2026-08-04 mot HEAD `16aced64`: under Option B når **ingen** `X-Forwarded-For`
+   fram till API:t. Next är ingen transparent proxy (noll `rewrites()` i
+   `next.config.ts`), `src/proxy.ts` grindar bara, och varje backend-anrop är ett nytt
+   `fetch()` från `src/lib/api/*` vars `authHeaders()` returnerar exakt `Authorization`
+   + `Content-Type` — noll träffar på `x-forwarded` i hela `web/`.
+   `UseForwardedHeaders` skriver om `Connection.RemoteIpAddress` **bara när headern
+   finns**, så utan header är den no-op och **inget CIDR-värde kan laga det**. Nyckeln
+   styr vilka proxies som får ha satt headern; den kan inte frambringa en header ingen
+   skickar. `AuthWritePolicy` partitionerar därmed på Next-containerns IP — alla
+   användare i en hink — och `AuthAuditLogger` + `RequestContextProvider` registrerar
+   samma container-IP, vilket gör `docs/runbooks/failed-access-anomaly.md` verkningslös.
+
+   Ägs av **[#1202](https://github.com/klasolsson81/jobbliggaren/issues/1202)** (`mvp`),
+   som bär hela mätningen. **Grinden stängs på att en request från en känd klient-IP
+   syns med den IP:n i rate-limit-partitionen och i auth-revisionsspåret** — aldrig på
+   att `KnownNetworks` är ifylld. Re-homet i sig levererades av A1
+   (`AlbOptions` → `ReverseProxyOptions`), som **medvetet lämnade värdet tomt**: ingen
+   compose-fil i repot deklarerar ett nätverk, så det finns ingen bridge-CIDR att mäta,
+   och en gissning hade avväpnat den fail-loud-grind som stoppar en felkonfigurerad
+   deploy.
 4. **`forward policy drop`** löses med riktade `iif`/`oif`-accepts för Docker-bryggan,
    **aldrig `policy accept`** — och kantens **IPv6-halva mäts före den växlingen**; den
    är i dag omätt.

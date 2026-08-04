@@ -677,16 +677,27 @@ written as scheduling ("not MVP scope, not verified"), never as fact ("still app
   and `ResendEmailSender` (`Provider=Resend`, fail-loud without
   `Email:ApiKey`). Frontend `.env.local`; backend
   `appsettings.Development.json` + gitignored `appsettings.Local.json`.
-- `AlbOptions`/`Alb:HttpsEnabled` is **live despite its AWS name** — it co-gates
-  `UseHsts` and `UseHttpsRedirection` with the environment in `Api/Program.cs`,
-  and gates the fail-loud HSTS config validation. `UseHttpsRedirectionGateTests`
-  pins both middleware gates in both polarities; the validation gate itself is
-  unpinned. ADR 0066 destroyed the *deployed* AWS dev stack and deliberately
+- `ReverseProxyOptions`/`ReverseProxy:HttpsEnabled` (renamed from `AlbOptions`/`Alb:`
+  2026-08-04) is **live** — it co-gates `UseHsts` and `UseHttpsRedirection` with the
+  environment in `Api/Program.cs`, and gates the fail-loud HSTS config validation.
+  `UseHttpsRedirectionGateTests` pins both middleware gates in both polarities and
+  `ReverseProxyOptionsTests` pins the section key; the validation gate itself is still
+  unpinned. **The retired `Alb` key has no transitional fallback** — measured empty
+  consumer set, pinned as executable fact.
+  **`HttpsEnabled` must stay `false` under Option B, and that is a decision, not an
+  unfinished flip:** Next reaches the API over plain internal HTTP, so `true` would 307
+  every internal call and break the app, while `UseHsts` stays inert either way because
+  the API's responses are consumed by a Next route handler and never reach a browser.
+  Browser-visible HSTS is owed by the edge on **both** response paths (ADR 0050
+  Amendment 2026-08-04 §5, gate M-5a) — never by flipping this flag.
+  ADR 0066 destroyed the *deployed* AWS dev stack and deliberately
   **preserved** `infra/terraform/`, which still carries
-  the `Alb__HttpsEnabled` injection — so neither the flag nor the tree is
+  the injection (now under the renamed key) — so neither the flag nor the tree is
   residue. Retirement is a Hetzner-cutover ADR, never a cleanup sweep
   (BUILD.md §15); [#196](https://github.com/klasolsson81/jobbliggaren/issues/196)
-  owns the rename to `ReverseProxyOptions`.
+  owns the deploy stack and the `ForwardedHeaders:KnownNetworks` CIDR, which A1
+  deliberately left empty — no compose file in the repo declares a network, so the
+  fail-loud gate stays armed rather than holding a guess.
 - **Dev-boot config contract.** A new fail-fast option (a `ValidateOnStart` secret,
   usually in the Infrastructure DI both hosts share) that a fresh dev-stack boot needs —
   a required key, secret, or pepper the API/Worker refuses to start without — MUST be added to

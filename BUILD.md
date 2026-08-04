@@ -112,9 +112,15 @@
 > Cloud CAX31 (ARM, 16 GB) all-in-one Docker Compose **BE + FE** + Cloudflare
 > DNS/CDN/proxy** — är beslutat i **ADR 0050 (Accepted 2026-06-08)**. Tabellen
 > nedan beskriver **nuläge (lokalt)** + **beslutat permanent mål**.
-> **VÄRDVALET ÄR UPPHÄVT 2026-08-02** (Klas-direktiv): Hetzner ut, svensk VPS in,
-> **ersättaren obeslutad**. Topologin står; **värd- och edge-leverantörsnamnen** nedan är
-> platshållare tills CC1:s supersessions-ADR landar — se §15:s not. E-postraden är också
+> **VÄRDVALET ÄR AVGJORT 2026-08-04** (Klas-direktiv, ersätter 2026-08-02-läget): Hetzner ut
+> **och "svensk VPS" återkallat på pris/prestanda** — värden är en **Netcup RS 1000 G12
+> (x86, 4 kärnor, 8 GB, Nürnberg) utan CDN**. Lådan är köpt, provisionerad och grundhärdad
+> ([#1196](https://github.com/klasolsson81/jobbliggaren/issues/1196)); **ingenting är
+> deployat.** Beslutet bärs av **ADR 0050 `Amendment 2026-08-04`** (Beslut 2/3/4 delvis
+> superseded, gate M-5 → M-5a/M-5b). Topologin står; **värd- och edge-leverantörsnamnen i
+> tabellerna nedan är ännu inte omskrivna** — den sweepen ägs av
+> [#1199](https://github.com/klasolsson81/jobbliggaren/issues/1199), som också grindar
+> första riktiga datan. E-postraden är också
 > upphävd, men av ett annat direktiv och med **vald** ersättare (AWS SES), ägd av #1169
 > och #183 — se §13.4. Faktisk
 > provisionering är fortsatt framtida Klas-gatat arbete (ADR 0050 Sekvensering:
@@ -1418,8 +1424,9 @@ UptimeRobot/BetterStack free ersätter ALB/CloudWatch-health per ADR 0050):
 > mening bar ett, och det bröts av samma commit som skrev det**). Uppräkningen är
 > **inte uttömmande** — den namnger var premisserna är mest lästa, inte varje
 > förekomst. Inte bara under
-> omprövning: **värdvalet** (Hetzner ut; svensk VPS in — **ersättaren obeslutad**,
-> kandidater hostup och one.com) och **e-postleverantören** (Resend ut — **ersättaren
+> omprövning: **värdvalet** (Hetzner ut; **och "svensk VPS" i sin tur återkallat
+> 2026-08-04 på pris/prestanda — ersättaren är VALD: Netcup RS 1000 G12, 8 GB, ingen CDN**,
+> bärs av ADR 0050 `Amendment 2026-08-04`) och **e-postleverantören** (Resend ut — **ersättaren
 > är vald: AWS SES i `eu-north-1`**). Motiveringen och tredjelandsbedömningen står
 > medvetet INTE här: §15.1 avvisar Cloudflare R2 "pga CLOUD Act-tredjelandsöverföring **av
 > icke-krypterad pg_dump-PII**", så huruvida en US-ägd leverantör i EU-region faller under

@@ -7,9 +7,15 @@
 #   pnpm-lock.yaml autodetekteras; pnpm workspace catalogs GA 2025-02)
 # - nuget root (Central Package Management — Directory.Packages.props)
 # - github-actions (CI-workflows + lighthouse-ci-action supply-chain-yta)
-# - docker (the three Dockerfiles under src/) + docker-compose (docker-compose.yml).
-#   TWO entries because they are TWO ecosystems: `docker` reads Dockerfiles and
-#   `docker-compose` reads compose files, so neither covers the other's images.
+# - docker (de tre Dockerfilerna under src/) + docker-compose (docker-compose.yml).
+#   TVÅ poster därför att det är TVÅ ekosystem: `docker` läser Dockerfiles och
+#   `docker-compose` läser compose-filer, så ingen täcker den andras images.
+#
+# SPRÅK I DEN HÄR FILEN, eftersom den blandar med flit och blandningen annars läser som
+# slarv: headern är svensk och nya rader i den skrivs svenska för att listan ska gå att
+# läsa som en lista. Posternas egna kommentarblock längst ned är engelska, i linje med
+# filens senare tillägg (CodeCoverage-, Resend- och codeql-noterna) och CLAUDE.md §1:s
+# "new comments in English".
 #
 # Strategi: månadsvisa version-updates. Minor + patch grupperas per ecosystem för
 # att minska PR-brus; MAJORS grupperas aldrig, utan kommer en PR i taget — dels så
@@ -333,8 +339,15 @@ updates:
     # UNVERIFIED, AND SAID SO RATHER THAN ASSUMED: the docs do not state whether `group-by`
     # composes with `update-types` in the same group. Both are sibling keys under `groups`,
     # which is why it is written this way — but the limit above is set to survive the case
-    # where it does not. Observable at the first monthly run (Monday 06:00): three identical
-    # PRs instead of one means the composition does not hold, and the key should go.
+    # where it does not.
+    #
+    # NOBODY IS WATCHING FOR THAT, AND IT IS ACCEPTABLE HERE — said plainly rather than
+    # dressed up as a control. The failure branch is benign: three identical auto-mergeable
+    # PRs instead of one, absorbed by the limit above. Whoever next opens this file can read
+    # the answer off the PR list. And removing the key does not avoid the question — without
+    # it, three PRs is the GUARANTEED outcome rather than the bad branch. Contrast the
+    # docker-compose entry below, whose failure branch is silent and therefore needed an
+    # owner rather than a note.
     groups:
       docker-minor-patch:
         update-types: ["minor", "patch"]
@@ -357,10 +370,12 @@ updates:
   # latest, and the production compose file is specified independently by #196's
   # Compose-all-in-one AC. Written down so nobody infers coverage from this entry.
   #
-  # `ci` IS NOT THE GATE FOR THIS FILE, unlike every other entry above. No workflow runs
-  # `docker compose` at all (measured 2026-08-04; the only mention under .github/workflows/
-  # is a prose comment at build.yml:500 — the mentions in THIS file are the entry
-  # describing itself and do not count), so a bump lands green with nothing having read it.
+  # `ci` IS NOT THE GATE FOR THIS FILE, unlike every other entry above. Measured
+  # 2026-08-04: **no workflow invokes compose at all** — zero `run:` steps under
+  # .github/workflows/ reference it, and every occurrence there is prose inside build.yml's
+  # load-test block. (Written as the bearing fact rather than as a line citation: two
+  # earlier drafts of this sentence each undercounted the comment lines, while the fact
+  # that matters never moved.) So a bump lands green with nothing having read it.
   #
   # AND THE FAILURE IS NOT RELIABLY LOUD — an earlier draft of this comment said it was,
   # which was true only of the case that cannot auto-merge. A postgres MAJOR fails loudly

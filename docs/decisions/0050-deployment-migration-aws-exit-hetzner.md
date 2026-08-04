@@ -1018,10 +1018,22 @@ kontrollerna är **levande och mätta**:
    portar till `0.0.0.0`, inklusive en oautentiserad Seq**, **medan filens egen kommentar
    påstod motsatsen** — i månader, utan att någon fångade det genom att läsa. Båda
    halvorna lagades i [#1198](https://github.com/klasolsson81/jobbliggaren/issues/1198)
-   (alla sex portar `127.0.0.1`, kommentaren omskriven), så *instansen* är borta; att en
-   fil kan påstå sin egen bindning fel är det som gör `curl`-formen obligatorisk. Och det
-   är fortfarande den filen #196 utgår från. Seq bär loggar — den mest sannolika vägen
-   till att lådan ägs.
+   (alla sex portar `127.0.0.1`, kommentaren omskriven, **och Seq-auth påslagen** så att
+   bind-adressen inte är ensam kontroll), så *instansen* är borta; att en fil kan påstå sin
+   egen bindning fel är det som gör `curl`-formen obligatorisk. Och det är fortfarande den
+   filen #196 utgår från. Seq bär loggar — den mest sannolika vägen till att lådan ägs.
+
+   **Art. 33(5)-noteringen, och den skärper snarare än friskriver.** Exponeringen var
+   `HTTP 200` mot ett oautentiserat Seq-API från värdens Ethernet-adress. Den adressen
+   ligger i **100.64.0.0/10 (RFC 6598, CGNAT)** och är **inte publikt routbar**; nåbarhet
+   från LAN:et och från andra abonnenter i samma CGNAT-segment är **omätt**.
+   security-auditor bedömde 2026-08-04 att **ingen anmälningsplikt enligt Art. 33(1)**
+   utlöstes — en registrerad, som dessutom är den personuppgiftsansvarige, ingen publik
+   routbarhet, ingen åtkomstevidens. **Underlaget går inte att återbesöka:**
+   `SEQ_FIRSTRUN_ADMINPASSWORD` läses bara mot en tom volym, så åtgärden krävde att
+   Seq-volymen kastades. Sänkans innehåll och varje eventuellt åtkomstspår från
+   exponeringsfönstret är därmed borta. Det är utskrivet här därför att en senare läsare
+   annars antar att bevisen finns kvar.
 7. **Request-size- och timeout-tak i Caddy.** Slowloris och stora bodies mot en 8 GB-låda
    är den enda tillgänglighetskontroll som återstår när CDN:et faller. Billig; ta den.
 

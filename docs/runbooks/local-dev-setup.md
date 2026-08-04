@@ -233,10 +233,27 @@ Det kastar också loggarna, vilket normalt är önskvärt i dev. Glömt lösenor
 procedur.
 
 **Om du skriptar mot Seq:s API:** `POST /api/users/login` svarar `401` även när
-lösenordet är rätt, om anropet saknar Seq:s CSRF-handskakning — kontrollera Seq:s egen
-logg (`docker logs jobbliggaren-seq`), som skriver `User admin logged in successfully`
-när autentiseringen faktiskt gick igenom. Webbläsaren gör handskakningen automatiskt, så
-dashboarden på `http://localhost:5341` påverkas inte.
+lösenordet är rätt, om anropet saknar Seq:s CSRF-handskakning. Webbläsaren gör
+handskakningen automatiskt, så dashboarden på `http://localhost:5341` påverkas inte.
+
+**Raden som bevisar att DITT lösenord är det som grindar** — `User admin logged in
+successfully` räcker inte, den säger bara att auth-subsystemet släppte igenom någon.
+Leta i stället efter förstauppstarts-raden i `docker logs jobbliggaren-seq`:
+
+```
+Enabling username/password authentication, and using the supplied default admin password
+```
+
+*"using the supplied ... password"* är Seq som intygar att `SEQ_FIRSTRUN_ADMINPASSWORD`
+faktiskt lästes och applicerades. Saknas den raden körde Seq på något annat.
+
+**Vad auth täcker, och vad den inte gör.** Läs-API:t (5341) är grindat — `/api/events`,
+`/api/users`, `/api/data` ger `401` utan inloggning, medan `/` och `/api` svarar `200`
+(SPA-skalet respektive rot-dokumentet med produktnamn och länklista, inga data).
+**Ingestion-porten 5342 tar emot oautentiserade skrivningar** och ska göra det — appen
+sätter ingen `Seq:ApiKey`. Den porten är ren ingestion (`/api/events/raw` svarar `201`;
+läs-vägarna svarar `404` där), så den öppnar ingen väg till innehållet. Men på 5342 är
+bind-adressen fortfarande enda kontrollen.
 
 ### 6.5 Postgres 18+ volym-mount
 

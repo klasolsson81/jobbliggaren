@@ -10,7 +10,8 @@
 #   docker compose --profile test up -d          # lägg till test
 #   docker compose --profile full up -d          # alla services
 #
-# Förkrav: .env-fil i repo-roten med POSTGRES_PASSWORD_DEV + POSTGRES_PASSWORD_TEST.
+# Förkrav: .env-fil i repo-roten med POSTGRES_PASSWORD_DEV, POSTGRES_PASSWORD_TEST
+# + SEQ_ADMIN_PASSWORD_DEV. Alla tre är hårda `:?`-krav — compose vägrar starta utan dem.
 # Se .env.example för mall.
 
 name: jobbliggaren
@@ -78,13 +79,16 @@ services:
       #
       # `SEQ_FIRSTRUN_ADMINPASSWORD` läses bara vid FÖRSTA uppstarten mot en tom volym.
       # Byter du lösenord i `.env` senare gäller det inte förrän volymen återskapas
-      # (`docker compose down -v seq`) — se `docs/runbooks/local-dev-setup.md` §6.4.
+      # (proceduren står i `docs/runbooks/local-dev-setup.md` §6.4 och bara där — den
+      # måste scopas till Seq-volymen, och ett ` -v ` på fel plats river postgres med).
       SEQ_FIRSTRUN_ADMINPASSWORD: ${SEQ_ADMIN_PASSWORD_DEV:?SEQ_ADMIN_PASSWORD_DEV måste sättas i .env}
     ports:
       # BIND-ADRESSEN ÄR LASTBÄRANDE, inte kosmetisk: `docs/runbooks/vps-base-hardening.md`
       # §12 registrerar att en publicerad containerport passerar värdens `forward`-kedja i
       # stället för `input`. Läs den aldrig **härifrån som bevis för vad som faktiskt kör** —
-      # ADR 0050 `Amendment 2026-08-04` §5 punkt 6 kräver `curl` utifrån, eftersom just den
+      # ADR 0050 `Amendment 2026-08-04` §5:s punkt *"Ingen container publicerar till 0.0.0.0"*
+      # kräver `curl` utifrån (citerad på sin text, inte på sitt nummer — §5:s lista har
+      # vuxit förut), eftersom just den
       # här filens kommentar påstod motsatsen i månader utan att någon läsare fångade det.
       # (Det förbjuder inte en form-baserad regressionsvakt som kontrollerar att prefixet
       # inte försvinner igen — det är en annan fråga än vad som kör, och den saknas i dag.)

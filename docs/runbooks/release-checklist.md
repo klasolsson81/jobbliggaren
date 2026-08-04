@@ -66,6 +66,17 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
       **Kvittera INTE versionen (steg 2b) utan att först ha byggt om (steg 2a)** — det
       tystar varningen utan att laga indexen, vilket är strikt värre än att inte ha
       kollat alls.
+
+      **DEN HÄR GRINDEN LÄSER DEN TAGGADE MILJÖN, OCH DET RÄCKER INTE SEDAN 2026-08-04**
+      (#1197 / PR #1206). Dependabot har nu en `docker-compose`-post, så `postgres:18.3`
+      bumpas automatiskt i `docker-compose.yml` — och en patch/minor **auto-mergas**
+      (`dependabot-automerge.yml` avvisar bara majors). Basimagen bär ICU-biblioteket,
+      migration `20260714170816` deklarerar `public.swedish` som en **ICU**-kollation, och
+      **dev-databasen är den enda som i dag håller riktiga data** (106 071 annonser,
+      1 066 938 företagsrader). Grinden ovan ser aldrig den bumpen: den läser den taggade
+      miljön vid tag-tillfället. **Kör därför steg 1 mot dev-DB:n också, efter varje
+      auto-mergad postgres-bump** — inte bara före tag. Skälet att raden står *här* och
+      inte enbart i `dependabot.yml`: den som mergar bumpen öppnar aldrig den filen.
 - [ ] **Om en migration faller på `lock_timeout` — kör om den, det är säkert.** Migrationen
       som sätter kollationen (#884) tar ACCESS EXCLUSIVE och binder sin väntan till 3 s.
       Krockar den med en långkörande transaktion får du
@@ -76,7 +87,8 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
       Det är felläget guarden **finns** för: ett högljutt deploy-fel i stället för ett
       tyst läs-avbrott.
 - [ ] **`ForwardedHeaders:KnownNetworks` + per-IP-kontrollen — TVÅ led, och det andra
-      följer INTE av det första** (#1202, ADR 0050 `Amendment 2026-08-04` §5 punkt 3).
+      följer INTE av det första** (#1202, ADR 0050 `Amendment 2026-08-04` §5:s punkt *"Per-IP-rate-limiting fungerar"* —
+      citerad på sin text, inte på sitt nummer).
       Gäller varje release mot en miljö bakom reverse-proxy.
       - **Led 1 — HÅRD (fail-loud boot).** Värdet måste vara satt för miljön som taggas,
         via Compose-/env-overlay — **aldrig** genom att redigera den committade

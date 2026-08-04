@@ -229,6 +229,11 @@ docker compose down seq && docker volume rm jobbliggaren_jobbliggaren_seq_data
 docker compose up -d seq          # läser nu det nya värdet
 ```
 
+*(`down` tar ett service-argument — `docker compose down [OPTIONS] [SERVICES]`, mätt mot
+Compose 2.40.3 2026-08-04. Kör du en äldre 2.x och argumentet inte tas, använd
+`docker compose stop seq && docker compose rm -f seq` i stället. **Lägg aldrig till `-v`
+här** — det river namngivna volymer bortom Seq:s.)*
+
 Det kastar också loggarna, vilket normalt är önskvärt i dev. Glömt lösenordet är samma
 procedur.
 

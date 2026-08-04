@@ -371,11 +371,15 @@ updates:
   # Compose-all-in-one AC. Written down so nobody infers coverage from this entry.
   #
   # `ci` IS NOT THE GATE FOR THIS FILE, unlike every other entry above. Measured
-  # 2026-08-04: **no workflow invokes compose at all** — zero `run:` steps under
-  # .github/workflows/ reference it, and every occurrence there is prose inside build.yml's
-  # load-test block. (Written as the bearing fact rather than as a line citation: two
-  # earlier drafts of this sentence each undercounted the comment lines, while the fact
-  # that matters never moved.) So a bump lands green with nothing having read it.
+  # 2026-08-04: **no workflow invokes the compose CLI** — regenerate with
+  # `grep -rnE 'docker[[:space:]]+compose|docker-compose[[:space:]]' .github/workflows/`
+  # and discard comment lines. So a bump lands green with nothing having read it.
+  #
+  # THIS SENTENCE HAS BEEN WRONG THREE TIMES, so it now carries the command instead of a
+  # count: first a line citation that undercounted, then a claim about WHERE the
+  # occurrences live — which the very next commit falsified by adding comment lines to
+  # dependabot-automerge.yml. Only the invocation claim survived every recount. State the
+  # property and hand over the regenerator; never publish the tally.
   #
   # NOTHING FROM THIS ENTRY AUTO-MERGES, because a postgres patch/minor fails SILENTLY —
   # `dependabot-automerge.yml`'s gate leaves `docker_compose` off its allow-list. The

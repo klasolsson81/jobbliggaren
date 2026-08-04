@@ -624,7 +624,8 @@ jq --argjson p "$(curl -s -H "Authorization: Bearer $AT" \
    '.userPolicies = [$p[] | select(.name | startswith("jbl-"))]' \
    ~/.netcup/fw-backup.json > ~/.netcup/fw-new.json
 curl -s -X PUT -H "Authorization: Bearer $AT" -H "Content-Type: application/json" \
-  "$BASE/servers/<serverId>/interfaces/<mac>/firewall" --data-binary @~/.netcup/fw-new.json
+  "$BASE/servers/<serverId>/interfaces/<mac>/firewall" \
+  --data-binary @"$HOME/.netcup/fw-new.json"   # not @~/… — tilde does not expand after @
 
 # 3. read back and compare — the 202 proves nothing
 curl -s -H "Authorization: Bearer $AT" \
@@ -965,8 +966,11 @@ rather than discovered:
   (edge and `authorized_keys`, the latter independent of netcup's control plane, §4.0). What it
   does not stop: `<ADMIN_SRC_IP>` is a **public** address, so behind NAT every device on the
   operator's network satisfies it. A compromised phone or router on the same LAN passes, as does
-  a resident implant that proxies through the workstation. The real granularity is *the
-  operator's network*, not *the operator's machine*.
+  a resident implant that proxies through the workstation. And on a consumer line the address is
+  normally **dynamic** — this runbook assumes that elsewhere (§6.5, §10 row 8) — so the
+  restriction names whatever address the ISP currently leases, and a released lease can be handed
+  to another subscriber who then satisfies `from=` until someone notices. The real granularity is
+  *whoever currently holds that address*, not *the operator's machine*.
 
   **A second correction:** after NOPASSWD, the `jpadmin` console password is not a
   lower-privilege second identity — it is root. §2's "two console identities" is redundancy for

@@ -48,7 +48,7 @@ for "M-6 is done":
 |---|---|---|
 | SSH key-only | met, measured | §4, §9.1 |
 | Firewall | met, measured, both layers | §5, §6, §9.1 |
-| fail2ban | **deviation** — replaced by source restriction; needs an ADR 0050 amendment with Klas's GO | §11 |
+| fail2ban | **deviation, now recorded** — replaced by source restriction. Written up in **ADR 0050 `Amendment 2026-08-04` §6**, which is authoritative; **ratification still awaits Klas's GO** and the row does not read "accepted" until it lands | §11, ADR 0050 |
 | Auto-patch | met, measured | §7, §9.1 |
 | PG/Redis not public | **open** — no such service exists yet; today held by `forward policy drop` + the edge default-deny | #196, §12 |
 | Swap / core-dump hygiene | met, measured (including no zram writeback device) | §8, §9.1 |
@@ -933,9 +933,9 @@ rather than discovered:
   Hetzner CAX31 (16 GB), a sizing that ADR explicitly rejected. **Ratified by Klas 2026-08-04:
   Hetzner is off the table and Netcup is the host going forward**, and the earlier "Swedish VPS"
   direction is withdrawn on price and performance grounds — to be revisited only if a Swedish
-  option reaches comparable terms. So this is a decision, not drift. It still needs a superseder
-  ADR to be recorded where an ADR reader will find it; that is owned by the repo-side track.
-  Capacity conditions: §12.
+  option reaches comparable terms. So this is a decision, not drift. **Recorded 2026-08-04 in
+  ADR 0122**, which supersedes ADR 0050 Beslut 2 in full (plus Beslut 3's host reference,
+  Beslut 4's Cloudflare half and backup target, and gate M-5). Capacity conditions: §12.
 
   The residency question is separate and **measured, not assumed**: RIPE gives
   `netname DE-NETCUP-KVM`, `country DE`, and geolocation Nuremberg. The host leg is EU-resident,
@@ -943,17 +943,22 @@ rather than discovered:
   compliance one.
 - **No Cloudflare** (Klas decision K3) — Caddy will go straight to Let's Encrypt. That is why
   §6.2 opens 80/443 to `any` rather than to Cloudflare ranges as ADR 0050 gate M-5 prescribes.
-  **Do not "correct" those rules toward M-5's text before the superseder lands**, or ACME
-  HTTP-01 dies.
+  **The superseder has landed: ADR 0122 retires M-5** and replaces it with a narrower successor
+  gate (LE certificate + HSTS + the K2 basic-auth gate + loopback-bound container ports,
+  verified empirically). **Do not "correct" these rules toward M-5's original text** — ACME
+  HTTP-01 dies, and M-5's origin-IP lockdown has no mechanism left without a CDN. The residual
+  exposure (no DDoS absorption, no origin hiding) is named in ADR 0122 and is re-read by the
+  mandatory second security audit before first real data.
 - **`fail2ban` is not installed**, although ADR 0050 gate M-6 lists it. With
   `AuthenticationMethods publickey`, `AllowUsers jpadmin`, `PermitRootLogin no` and port 22
   restricted to one source address, it would defend an authentication path that does not exist
   against a population that cannot reach the port — while adding a root-running log parser that
   consumes attacker-controlled input. **Two limits on that verdict:** it covers SSH only (when
   80/443 gain a real listener, HTTP abuse is a separate question), and M-6 requires a hardening
-  *baseline*, not fail2ban as a product — the baseline is met without it. **This deviation
-  belongs in an ADR 0050 amendment with Klas's GO, not in a runbook**: a runbook cannot amend an
-  Accepted ADR, and the mandatory second security review will read M-6's text and look for it.
+  *baseline*, not fail2ban as a product — the baseline is met without it. **Now recorded where
+  the reviewer will look: ADR 0050 `Amendment 2026-08-04` §6**, at the M-6 row itself — a runbook
+  cannot amend an Accepted ADR. **Klas's GO is still outstanding**, so that row reads "deviation
+  recorded, ratification pending", never "accepted".
 - **`NOPASSWD` sudo for `jpadmin` combined with a passphrase-less operator key.** Non-interactive
   automation cannot answer a sudo prompt, and SSH-agent plumbing under Git Bash is unreliable for
   background work — but together these mean **key theft equals root**, and root means the master
@@ -980,8 +985,10 @@ rather than discovered:
   `restrict,command=,from=` so the passphrase-less key stops being a general shell, and narrowing
   NOPASSWD to a `Cmnd_Alias` once the deploy automation's real command set is known.
   Non-interactive operation requires *no prompt*, not *unlimited root* — conflating those two is
-  what this trade-off actually is. Accepting it is Klas's call, and it belongs in an ADR rather
-  than here.
+  what this trade-off actually is. **Now written up as ADR 0123** (local, `Proposed`), which
+  carries this reasoning, a scope limit (accepted only while the box holds no real user data)
+  and both unclosed mitigations. **Accepting it is Klas's call and it is not granted yet** —
+  0123 flips to `Accepted` only on his recorded GO.
 - **Root is rotated but deliberately not locked.** Beyond being the console rescue identity,
   there is a stronger reason: after the NOPASSWD decision, `jpadmin` at the console already
   grants unrestricted root. Locking root would remove a tested rescue identity while reducing
@@ -1026,7 +1033,11 @@ rather than discovered:
   the edge does not pass v6, RST means the packet reached the host. `ListenAddress 0.0.0.0` does
   not spoil that probe; it makes it safe, because a successful packet no longer reaches a
   listener.
-- **This is an 8 GB box, and ADR 0050 Beslut 2 rejected that sizing.** The capacity verdict
+- **This is an 8 GB box, and ADR 0050 Beslut 2 rejected that sizing** — a rejection **ADR 0122
+  supersedes**, on the measurement that its ground (`MaxResponseContentBufferSize = 500 MB`) no
+  longer exists in `src/`. ADR 0122 also supersedes ADR 0050's `mem_limit` doctrine: its
+  "generous/unset cap on Postgres" rested explicitly on 16 GB dissolving the zero-sum game, and
+  at 8 GB that game is back, so every service is capped. The capacity verdict
   (2026-08-02) let it through as "marginal but workable" conditioned on four things the deploy
   phase must carry: `next build` in CI and never on the box, `DOTNET_gcServer=0` for Api and
   Worker, an explicitly tuned Postgres (not defaults, against 8 GB), and **zram instead of disk
@@ -1043,6 +1054,7 @@ rather than discovered:
 
 ## 13. References
 
-- [`docs/decisions/0050-deployment-migration-aws-exit-hetzner.md`](../decisions/0050-deployment-migration-aws-exit-hetzner.md) — gates B-1 (master key never plaintext on disk) and M-6 (hardening baseline)
+- **ADR 0122** — the host, the sizing and the capacity conditions (supersedes ADR 0050 Beslut 2/3/4 in part, and gate M-5). A local ADR per ADR 0072 docs-privacy; it is synced into worktrees by `.worktreeinclude`. **Read it before ADR 0050** on anything host-, sizing- or edge-shaped.
+- [`docs/decisions/0050-deployment-migration-aws-exit-hetzner.md`](../decisions/0050-deployment-migration-aws-exit-hetzner.md) — gates B-1 (master key never plaintext on disk) and M-6 (hardening baseline). Its Hetzner/Cloudflare text is **superseded, not deleted**; the banner at the top of that file carries the precise boundary
 - [#196](https://github.com/klasolsson81/jobbliggaren/issues/196) — deploy stack; owns everything in §12
 - [`CLAUDE.md`](../../CLAUDE.md) §11 — tooling and the dev-boot config contract

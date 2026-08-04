@@ -190,7 +190,14 @@ jobs:
           dotnet restore Jobbliggaren.sln
           out=$(dotnet list Jobbliggaren.sln package --vulnerable --include-transitive 2>&1 || true)
           echo "$out"
-          if echo "$out" | grep -Eiq '\b(High|Critical)\b'; then
+          # HERESTRING, NOT A PIPE, och det är den blockerande grindens fail-closed-egenskap.
+          # `grep -q` lämnar vid första träffen; en producent som har mer än en rörbuffert
+          # kvar att skriva dör då av SIGPIPE, och `pipefail` gör 141 till pipeline-status —
+          # `if`-satsen blir FALSK och grinden rapporterar "inga CVE:er" i exakt det fall den
+          # finns för. Triggern är positivt korrelerad med fyndet: per-paket-tabellerna
+          # existerar bara när sårbarheter existerar, och `2>&1` viker in obegränsad
+          # restore-diagnostik. Samma form som `label-automerge.yml`s label-test.
+          if grep -Eiq '\b(High|Critical)\b' <<<"$out"; then
             echo "::error::NuGet High/Critical-CVE — auto-merge blockeras. Granska manuellt."
             exit 1
           fi

@@ -191,9 +191,8 @@ State: medvetet SPOF-val för beta kompenseras med headroom i delad resurs).
 >      origin-cert + origin-IP-lockdown + HSTS är oförändrade"* — är **falsk under K3**:
 >      "Full (strict)" är moot, origin-cert utgår, origin-IP-lockdown har **ingen**
 >      efterträdare (M-5b), HSTS överlever men **byter emitter** (M-5a).
->   2. **Invariant 5:s parentes:**
->   invariant 5 avslutas med parentesen *"(Med Cloudflare Full (strict) + origin-cert
->   är detta ändå moot.)"*. **Den parentesen är falsk under K3.** Utan CDN kör Caddy
+>   2. **Invariant 5:s avslutande parentes** — *"(Med Cloudflare Full (strict) +
+>      origin-cert är detta ändå moot.)"* — **är falsk under K3.** Utan CDN kör Caddy
 >   ACME **skarpt**, så invariant 5 går från moot till **lastbärande**: det måste bevisas
 >   vid cutover att K2:s basic auth-grind inte skuggar `/.well-known/acme-challenge/*`.
 >
@@ -812,9 +811,11 @@ LE-cert via HTTP-01; **HSTS emitteras faktiskt i Production**; ingen klartextstr
 >
 > **Nettot: i dag finns ingen komponent i stacken som kan emittera browser-synlig
 > HSTS.** Grinden ägs därför av **Caddyfilen i #196**
-> (`header Strict-Transport-Security "max-age=31536000; includeSubDomains"`), alternativt
-> av `buildSecurityHeaders` — den har redan ett kontraktstest som fryser mängden och ger
-> grinden en regressionsspärr en Caddyfil saknar. Valet är #196:s.
+> (`header Strict-Transport-Security "max-age=31536000; includeSubDomains"`) och, **för
+> Next-vägen**, av `buildSecurityHeaders` — den har redan ett kontraktstest som fryser
+> mängden och ger grinden en regressionsspärr en Caddyfil saknar. Next-vägen är ett
+> **komplement, aldrig ett substitut**: se 401-klausulen nedan. Valet av *hur* är #196:s;
+> att **båda** svarsvägarna bär headern är grinden.
 > **`AlbOptions → ReverseProxyOptions`-re-homet är fortsatt skyldigt — men för
 > `ForwardedHeaders:KnownNetworks` (M-5b punkt 3), INTE för HSTS.**
 >
@@ -941,7 +942,9 @@ förutsättningen för §6:s och ADR 0123:s egna gränser.
 
 Grinden ställs på **skyldighetsnivå, inte mekanismnivå**. Rättslig grund står i grindraden
 och är security-auditors att sätta — den restateras medvetet inte här, eftersom en andra
-formulering är en andra plats att driva isär. Skyldigheten ägs av
+formulering är en andra plats att driva isär. **Severity restateras däremot**, eftersom
+grindraden pekar hit och en pekare måste leda till svaret: en grad plus ett villkor är
+billig att hålla synkad, ett stycke juridik är det inte. Skyldigheten ägs av
 [#1201](https://github.com/klasolsson81/jobbliggaren/issues/1201) — **värd-detektion och
 alerting hos [#196](https://github.com/klasolsson81/jobbliggaren/issues/196),
 nyckelåtkomst-detektion hos [#198](https://github.com/klasolsson81/jobbliggaren/issues/198)**;

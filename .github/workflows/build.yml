@@ -591,10 +591,16 @@ jobs:
           out=$(dotnet list Jobbliggaren.sln package --vulnerable --include-transitive 2>&1 || true)
           echo "$out"
           # Herestring, inte pipe — se den blockerande tvillingen i dependabot-automerge.yml
-          # för mekanismen. Utfallet här är inte tystnad: `else`-grenen nedan fyrar och
-          # skriver ett FALSKT `::notice::Inga NuGet High/Critical-CVE:er`, alltså en
-          # tillförsäkran om ett faktum steget inte etablerat. Ingen merge hänger på det,
-          # men klassen är densamma som #1198.
+          # för SIGPIPE-mekanismen, som är stängd på båda ställena.
+          #
+          # DEN ANDRA AXELN ÄR DÄREMOT LEVANDE ÄVEN HÄR, och det är den som kan producera
+          # utfallet nedan: `|| true` på raden ovan kastar verktygets exitkod och domen
+          # vilar på ett ORD i strömmen, så "inga sårbarheter" är oskiljbart från "kunde
+          # inte avgöra". Då fyrar `else`-grenen och skriver ett FALSKT
+          # `::notice::Inga NuGet High/Critical-CVE:er` — en tillförsäkran om ett faktum
+          # steget inte etablerat, alltså #1198-klassen. Ägs av #1210, som täcker båda
+          # anropsplatserna. Ingen merge hänger på den här: jobbet är `continue-on-error`
+          # och ligger utanför `ci.needs`.
           if grep -Eiq '\b(High|Critical)\b' <<<"$out"; then
             echo "::warning::NuGet High/Critical CVE upptäckt (ADR 0045 Beslut 7, observe-only Fas 1). Dependabot öppnar fix-PR. security-auditor manuellt Blocker-veto kvarstår."
           else

@@ -428,11 +428,16 @@ run explicit_network_mode 2 "$TMPROOT/enm.yml"
 #
 # THE FIRST ENTRY IS LOAD-BEARING AND IS NOT A PORT BEING TESTED. Without it no entry is
 # ever recognised, so `close_block()` emits EMPTY-PORTS-BLOCK at the END — a SECOND exit-2
-# ground, arriving LAST in the scan, which forces the classifier to read the whole stream
-# and so prevents the SIGPIPE this fixture exists to provoke. That is not a backstop, it is
-# a mask: it would keep the fixture green under the very defect it pins. One recognised
-# entry makes UNPARSED-ENTRY the only exit-2 ground here. EMPTY-PORTS-BLOCK keeps its own
-# fixture (8m).
+# ground, and one the classifier also matches on.
+#
+# THE SIGPIPE PROPERTY SURVIVED THAT, and saying otherwise was measured false: `grep -q`
+# leaves at the FIRST violation line either way, which here is an UNPARSED-ENTRY, so the
+# trailing marker is never reached. With the pipe restored the pre-fix fixture went RED.
+# What it did NOT survive is the classifier's MATCH SET. Narrow that so UNPARSED-ENTRY is
+# no longer matched and the trailing EMPTY-PORTS-BLOCK still carries the fixture to exit 2
+# — green with the pipe restored or not, so the pipe is not what hid behind it. One
+# recognised entry makes UNPARSED-ENTRY the only exit-2 ground, and the fixture now pins
+# both axes rather than one. EMPTY-PORTS-BLOCK keeps its own fixture (8e).
 {
   printf 'services:\n  s:\n    image: x\n    ports:\n'
   printf '      - "127.0.0.1:1:1"\n'

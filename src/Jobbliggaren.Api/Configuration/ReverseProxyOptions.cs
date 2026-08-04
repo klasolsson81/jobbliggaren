@@ -34,7 +34,23 @@ namespace Jobbliggaren.Api.Configuration;
 /// </summary>
 public sealed class ReverseProxyOptions
 {
-    public const string SectionName = "Alb";
+    /// <summary>
+    /// The retired <c>"Alb"</c> key has NO transitional fallback bind, deliberately
+    /// (#196). Measured before removing it: no <c>"Alb"</c> section existed in any
+    /// appsettings file, so the option bound false everywhere, and the only injector was
+    /// the ECS task-definition ADR 0066 destroyed. A fallback would add a second magic
+    /// string for an empty consumer set, and guard a silent-false failure that is
+    /// indistinguishable from the state it replaced. <c>ReverseProxyOptionsTests</c> pins
+    /// the non-binding as executable fact instead.
+    ///
+    /// <para>
+    /// Latent collision worth knowing: YARP binds a top-level <c>"ReverseProxy"</c>
+    /// section by convention. No YARP package is referenced today (verified against
+    /// Directory.Packages.props), so there is no conflict — but a future adopter would
+    /// otherwise discover this at runtime.
+    /// </para>
+    /// </summary>
+    public const string SectionName = "ReverseProxy";
 
     /// <summary>
     /// True when the reverse proxy terminates TLS and has a reachable HTTPS listener.

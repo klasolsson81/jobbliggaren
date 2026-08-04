@@ -20,32 +20,32 @@ namespace Jobbliggaren.Api.IntegrationTests.Configuration;
 ///
 /// <para>
 /// Sec-Major-2 STEG 13b: om <c>UseHttpsRedirection</c>-gaten tas bort skulle redirect → port 443
-/// mot HTTP-only-ALB trigga ALB-health-check fail → ECS deployment_circuit_breaker rollback.
+/// mot en HTTP-only reverse proxy trigga health-check fail → deploy-rollback.
 /// Strukturellt regression-skydd, inte docs-disciplin. Tre redirect-testfall:
 /// </para>
 ///
 /// <list type="number">
-/// <item>Production + Alb:HttpsEnabled=false → 200 (UseHttpsRedirection EJ registrerad)</item>
-/// <item>Production + Alb:HttpsEnabled=true  → 307 (UseHttpsRedirection registrerad)</item>
-/// <item>Development (oavsett Alb-flag)      → 307 (Development gör default-redirect via dev-cert)</item>
+/// <item>Production + ReverseProxy:HttpsEnabled=false → 200 (UseHttpsRedirection EJ registrerad)</item>
+/// <item>Production + ReverseProxy:HttpsEnabled=true  → 307 (UseHttpsRedirection registrerad)</item>
+/// <item>Development (oavsett ReverseProxy-flag)      → 307 (Development gör default-redirect via dev-cert)</item>
 /// </list>
 ///
 /// <para>
-/// TD-44 (dotnet-architect Mindre 4, Fas 1 Block A3): <c>UseHsts</c>-gaten på rad 150
-/// (<c>!IsDevelopment() &amp;&amp; albOptions.HttpsEnabled</c>) har egen regression-yta —
+/// TD-44 (dotnet-architect Mindre 4, Fas 1 Block A3): <c>UseHsts</c>-gaten
+/// (<c>!IsDevelopment() &amp;&amp; reverseProxyOptions.HttpsEnabled</c>) har egen regression-yta —
 /// HSTS-header-aktivering. Tre HSTS-testfall återanvänder samma factories
 /// (X-Forwarded-Proto-mock så Request.IsHttps==true post-ForwardedHeaders → HSTS-middleware
 /// triggar och returnerar 200 i stället för 307):
 /// </para>
 ///
 /// <list type="number">
-/// <item>Production + Alb:HttpsEnabled=true  → HSTS-header satt (max-age=31536000; includeSubDomains)</item>
-/// <item>Production + Alb:HttpsEnabled=false → HSTS-header EJ satt (gate skip:ar UseHsts)</item>
-/// <item>Development (oavsett Alb-flag)      → HSTS-header EJ satt (Development-asymmetri vs HttpsRedirection)</item>
+/// <item>Production + ReverseProxy:HttpsEnabled=true  → HSTS-header satt (max-age=31536000; includeSubDomains)</item>
+/// <item>Production + ReverseProxy:HttpsEnabled=false → HSTS-header EJ satt (gate skip:ar UseHsts)</item>
+/// <item>Development (oavsett ReverseProxy-flag)      → HSTS-header EJ satt (Development-asymmetri vs HttpsRedirection)</item>
 /// </list>
 ///
 /// <para>
-/// HSTS-Development-asymmetrin är medveten per Program.cs:144 — HSTS-policy persistar i
+/// HSTS-Development-asymmetrin är medveten per UseHsts-gaten i Program.cs — HSTS-policy persistar i
 /// MaxAgeDays-fönstret i browsern, så aktivering på localhost skulle bryta framtida
 /// <c>dotnet run</c>-sessioner efter dev-cert-rotation.
 /// </para>
@@ -67,7 +67,7 @@ public abstract class HttpsRedirectionGateFactoryBase : WebApplicationFactory<Pr
     private string _postgresCs = string.Empty;
     private string _redisCs = string.Empty;
 
-    /// <summary>Värdet som sätts på <c>Alb__HttpsEnabled</c> env-var i InitializeAsync.</summary>
+    /// <summary>Värdet som sätts på <c>ReverseProxy__HttpsEnabled</c> env-var i InitializeAsync.</summary>
     protected abstract bool HttpsEnabled { get; }
 
     /// <summary>ASP.NET environment-name. Override:s av Development-factory; default Production.</summary>
@@ -138,7 +138,7 @@ public abstract class HttpsRedirectionGateFactoryBase : WebApplicationFactory<Pr
         Environment.SetEnvironmentVariable("ConnectionStrings__Redis", _redisCs);
         // ADR 0066 (#802): master-nyckeln (Local-only, krävs i ALLA miljöer, även
         // Production-gate) sätts systemiskt av TestSecrets-module-init före boot.
-        Environment.SetEnvironmentVariable("Alb__HttpsEnabled", HttpsEnabled ? "true" : "false");
+        Environment.SetEnvironmentVariable("ReverseProxy__HttpsEnabled", HttpsEnabled ? "true" : "false");
 
         // TD-44: deterministisk HSTS-konfig så HSTS-header-asserts inte beror på vilken
         // appsettings.*.json som råkar hamna i test-output-directory. Default i HstsOptions
@@ -161,7 +161,7 @@ public abstract class HttpsRedirectionGateFactoryBase : WebApplicationFactory<Pr
         Environment.SetEnvironmentVariable("ForwardedHeaders__KnownNetworks__0", null);
         Environment.SetEnvironmentVariable("ConnectionStrings__Postgres", null);
         Environment.SetEnvironmentVariable("ConnectionStrings__Redis", null);
-        Environment.SetEnvironmentVariable("Alb__HttpsEnabled", null);
+        Environment.SetEnvironmentVariable("ReverseProxy__HttpsEnabled", null);
         Environment.SetEnvironmentVariable("Hsts__MaxAgeDays", null);
         Environment.SetEnvironmentVariable("Hsts__IncludeSubDomains", null);
 
@@ -186,8 +186,8 @@ public sealed class HttpsRedirectionEnabledProductionFactory : HttpsRedirectionG
 
 public sealed class HttpsRedirectionDevelopmentFactory : HttpsRedirectionGateFactoryBase
 {
-    // Development triggar UseHttpsRedirection oavsett Alb-flag (Program.cs:155
-    // första halvan: builder.Environment.IsDevelopment()).
+    // Development triggar UseHttpsRedirection oavsett ReverseProxy-flag (första halvan av
+    // UseHttpsRedirection-gaten i Program.cs: builder.Environment.IsDevelopment()).
     protected override bool HttpsEnabled => false;
     protected override string EnvironmentName => "Development";
 }
@@ -219,10 +219,10 @@ public class HttpsRedirectionGateDisabledTests(HttpsRedirectionDisabledProductio
 
         var response = await _client.GetAsync("/api/ready", ct);
 
-        // Med Alb:HttpsEnabled=false (default fram till ADR 0026-trigger) registreras
+        // Med ReverseProxy:HttpsEnabled=false (default fram till ADR 0026-trigger) registreras
         // INTE UseHttpsRedirection — HTTP-request returnerar direkt utan redirect.
-        // Skydd mot regression där gaten tas bort och redirect → port 443 mot HTTP-only-
-        // ALB → ALB-health-check fail → ECS deployment_circuit_breaker rollback.
+        // Skydd mot regression där gaten tas bort och redirect → port 443 mot en
+        // HTTP-only reverse proxy → health-check fail → deploy-rollback.
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
     }
 
@@ -231,8 +231,8 @@ public class HttpsRedirectionGateDisabledTests(HttpsRedirectionDisabledProductio
     {
         // TD-44 anti-regression: även om Request faktiskt är HTTPS (X-Forwarded-Proto-mock)
         // och Host matchar prod-DNS (HstsOptions.ExcludedHosts-skyddet eliminerat) ska
-        // HSTS-headern INTE sättas när Alb:HttpsEnabled=false. Program.cs:150-gate
-        // (`!IsDevelopment() && albOptions.HttpsEnabled`) skip:ar UseHsts() då. Skydd mot
+        // HSTS-headern INTE sättas när ReverseProxy:HttpsEnabled=false. UseHsts-gaten i Program.cs
+        // (`!IsDevelopment() && reverseProxyOptions.HttpsEnabled`) skip:ar UseHsts() då. Skydd mot
         // regression där HSTS-gaten flyttas/tas bort och browser cache:ar HTTPS-only-
         // policy i 365 dagar — kan inte återgå till HTTP utan att rensa browser-state.
         var ct = TestContext.Current.CancellationToken;
@@ -246,7 +246,7 @@ public class HttpsRedirectionGateDisabledTests(HttpsRedirectionDisabledProductio
 
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
         response.Headers.Contains("Strict-Transport-Security").ShouldBeFalse(
-            "UseHsts() ska INTE registreras när Alb:HttpsEnabled=false (Program.cs:150-gate).");
+            "UseHsts() ska INTE registreras när ReverseProxy:HttpsEnabled=false (UseHsts-gaten i Program.cs).");
     }
 }
 
@@ -265,7 +265,7 @@ public class HttpsRedirectionGateEnabledTests(HttpsRedirectionEnabledProductionF
 
         var response = await _client.GetAsync("/api/ready", ct);
 
-        // Med Alb:HttpsEnabled=true (post-STEG 13c HTTPS-flip) registreras
+        // Med ReverseProxy:HttpsEnabled=true (post-STEG 13c HTTPS-flip) registreras
         // UseHttpsRedirection — HTTP-request returnerar 307 mot https://.
         response.StatusCode.ShouldBe(HttpStatusCode.TemporaryRedirect);
         response.Headers.Location.ShouldNotBeNull();
@@ -279,7 +279,7 @@ public class HttpsRedirectionGateEnabledTests(HttpsRedirectionEnabledProductionF
         // UseForwardedHeaders sätter Request.Scheme=https → Request.IsHttps=true) OCH Host
         // matchar prod-DNS (inte i HstsOptions.ExcludedHosts-default-listan) ska UseHsts()
         // sätta Strict-Transport-Security-headern på svaret. Verifierar att
-        // Program.cs:150-gate (`!IsDevelopment() && albOptions.HttpsEnabled`) är intakt
+        // UseHsts-gaten i Program.cs (`!IsDevelopment() && reverseProxyOptions.HttpsEnabled`) är intakt
         // — om gaten flippas eller tas bort tappar prod sin HSTS-policy tyst.
         //
         // Host-header = "dev.jobbliggaren.se" simulerar verklig prod-trafik (DNS-host).
@@ -301,7 +301,7 @@ public class HttpsRedirectionGateEnabledTests(HttpsRedirectionEnabledProductionF
 
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
         response.Headers.Contains("Strict-Transport-Security").ShouldBeTrue(
-            "UseHsts() ska sätta header på HTTPS-svar när Alb:HttpsEnabled=true i Production.");
+            "UseHsts() ska sätta header på HTTPS-svar när ReverseProxy:HttpsEnabled=true i Production.");
 
         var hstsValue = response.Headers.GetValues("Strict-Transport-Security").Single();
         hstsValue.ShouldContain("max-age=31536000",
@@ -322,13 +322,13 @@ public class HttpsRedirectionGateDevelopmentTests(HttpsRedirectionDevelopmentFac
     });
 
     [Fact]
-    public async Task GET_api_ready_returns_307_in_Development_regardless_of_Alb_flag()
+    public async Task GET_api_ready_returns_307_in_Development_regardless_of_reverse_proxy_flag()
     {
         var ct = TestContext.Current.CancellationToken;
 
         var response = await _client.GetAsync("/api/ready", ct);
 
-        // Program.cs:155 — Development triggar UseHttpsRedirection oavsett Alb-flag
+        // UseHttpsRedirection-gaten i Program.cs — Development triggar redirect oavsett ReverseProxy-flag
         // (dev-cert via Kestrel). Skydd mot regression där env-gate omdesignas så
         // Development-läge tappar redirect.
         response.StatusCode.ShouldBe(HttpStatusCode.TemporaryRedirect);
@@ -341,15 +341,16 @@ public class HttpsRedirectionGateDevelopmentTests(HttpsRedirectionDevelopmentFac
     {
         // TD-44 asymmetri-skydd: även när Request är HTTPS (X-Forwarded-Proto-mock) och
         // Host matchar prod-DNS (ExcludedHosts-default-skyddet eliminerat som confound)
-        // ska HSTS-headern INTE sättas i Development. Program.cs:150-gate
-        // (`!IsDevelopment() && albOptions.HttpsEnabled`) skip:ar UseHsts() i Development
+        // ska HSTS-headern INTE sättas i Development. UseHsts-gaten i Program.cs
+        // (`!IsDevelopment() && reverseProxyOptions.HttpsEnabled`) skip:ar UseHsts() i Development
         // för att undvika browser-HTTPS-lock på localhost (HSTS-policy persistar i 365
         // dagar i browsern → bryter framtida `dotnet run` efter dev-cert-rotation,
-        // per HstsOptions.cs:15-19 + Program.cs:144).
+        // per HstsOptions.cs dev-loop-noten + samma gate).
         //
-        // Asymmetri vs UseHttpsRedirection: Development triggar redirect (rad 155 första
-        // halvan) men INTE HSTS (rad 150 första halvan). Detta test verifierar att
-        // asymmetrin är intakt — regression skulle bryta lokal dev-loop.
+        // Asymmetri vs UseHttpsRedirection: Development triggar redirect (första halvan av
+        // UseHttpsRedirection-gaten) men INTE HSTS (första halvan av UseHsts-gaten negerar
+        // Development). Detta test verifierar att asymmetrin är intakt — regression skulle
+        // bryta lokal dev-loop.
         var ct = TestContext.Current.CancellationToken;
 
         using var request = new HttpRequestMessage(HttpMethod.Get, "/api/ready");
@@ -361,6 +362,6 @@ public class HttpsRedirectionGateDevelopmentTests(HttpsRedirectionDevelopmentFac
 
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
         response.Headers.Contains("Strict-Transport-Security").ShouldBeFalse(
-            "UseHsts() ska ALDRIG registreras i Development (Program.cs:150-gate + HstsOptions.cs:15-19).");
+            "UseHsts() ska ALDRIG registreras i Development (UseHsts-gaten i Program.cs + HstsOptions.cs:15-19).");
     }
 }

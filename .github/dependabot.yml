@@ -442,9 +442,16 @@ updates:
   #
   #   3. GitHub Actions **service containers**: `e2e.yml` runs `postgres:18` and
   #      `redis:8-alpine` as `services:`.
-  #   4. **Testcontainers image literals in the test tree** — measured 2026-08-04: 31
-  #      files, 39 occurrences (`postgres:18` x28, `redis:8-alpine` x11), with no central
-  #      constant. `nuget` bumps the Testcontainers PACKAGE and never the string.
+  #   4. **Testcontainers image literals in the test tree**, with no central constant —
+  #      `nuget` bumps the Testcontainers PACKAGE and never the string. NO TALLY IS
+  #      PUBLISHED HERE: a draft said "31 files, 39 occurrences" and neither number
+  #      reproduced (the two reviewers who checked it got different answers again).
+  #      Regenerate instead:
+  #        git grep -l -E 'postgres:18|redis:8-alpine' -- tests/ | wc -l
+  #        git grep -oh -E 'postgres:18|redis:8-alpine' -- tests/ | sort | uniq -c
+  #      The property that does not move: no shared constant exists, so every occurrence
+  #        git grep -E 'const string.*(postgres:18|redis:8-alpine)' -- tests/
+  #      is empty, and each literal must be edited on its own.
   #
   # Both pin a floating major (`postgres:18`) while this file pins `postgres:18.3`, and
   # nothing reconciles them. The repair for class 4 — a shared constant, or pinned tags

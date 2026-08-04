@@ -1,47 +1,56 @@
 #!/usr/bin/env bash
 #
-# compose-loopback-guard.sh — every published port in docker-compose.yml must bind
-# to 127.0.0.1.
+# compose-loopback-guard.sh — every published port in docker-compose.yml must bind to
+# localhost.
 #
-# WHY THIS EXISTS, and why a comment was not enough. Until #1198 the dev compose file
-# bound five of six published ports to `0.0.0.0` — including a Seq instance running with
+# WHY THIS EXISTS, and why a comment was not enough. Until #1198 the dev compose file bound
+# five of six published ports to `0.0.0.0` — including a Seq instance running with
 # authentication disabled, which held email bodies in plaintext — WHILE THE FILE'S OWN
 # COMMENT STATED IT WAS LOOPBACK-BOUND. That comment was wrong for months and no reader
 # caught it. Human reading is measured, on this exact file, not to cover this class.
 #
-# WHAT IT DOES AND DOES NOT PROVE, and this paragraph is deliberately narrow because an
-# earlier version of it was FALSE. It is a REGRESSION guard over the file: it fails if a
-# published port written in a block sequence — either indentation style — loses its
-# `127.0.0.1:` prefix. Forms it does not model (flow sequences, aliases, long-form
-# mappings, an empty block) are REFUSED with exit 2, never passed. It proves NOTHING about
-# what is actually listening. ADR 0050 `Amendment 2026-08-04` §5's point "Ingen container publicerar
-# till 0.0.0.0" demands a `curl` from outside at cutover, and that requirement is untouched
-# by this script — the two answer different questions ("did the file change back?" vs "what
-# is running?") and neither substitutes for the other.
+# WHAT IT DOES AND DOES NOT PROVE, and this paragraph is narrow because two earlier
+# versions of it were FALSE. It is a REGRESSION guard over the file. It checks entries
+# written as a block sequence, in either indentation style, and REFUSES with exit 2 every
+# shape it does not model rather than passing it. It proves NOTHING about what is actually
+# listening: ADR 0050 `Amendment 2026-08-04` §5's point "Ingen container publicerar till
+# 0.0.0.0" demands a `curl` from outside at cutover, and that requirement is untouched
+# here. The two answer different questions — "did the file change back?" versus "what is
+# running?" — and neither substitutes for the other.
 #
-# SHAPE-BASED, NOT NAME-BASED. It does not know service names or port numbers; it finds
-# `ports:` blocks and checks every list item in them, in both indentation styles. A new
-# service, a new port, or a renamed service is covered on arrival — which a hand-maintained
-# list of expected ports would not be. `--expect-min N` adds the one thing shape alone
-# cannot give: a floor, so "passed" cannot be satisfied by a file that stopped publishing.
+# SHAPE-BASED, NOT NAME-BASED. It knows no service names and no port numbers; it finds
+# `ports:` keys and checks every list item under them. A new service, a new port or a
+# rename is covered on arrival, which a hand-maintained list of expected ports would not be.
+#
+# `--expect-min N` IS LOAD-BEARING, NOT A CONVENIENCE. Shape alone cannot tell "all ports
+# are loopback-bound" from "I found no ports". The floor is what turns a pass into "and it
+# still publishes at least N", and it is the backstop for any shape the parser misses. With
+# no floor given, a run that recognises zero entries is REFUSED — `--expect-min 0` is the
+# only way to say "zero is expected", and it must be said explicitly.
 #
 # Usage:  bash .github/scripts/compose-loopback-guard.sh [--expect-min N] [compose-file ...]
 #         (defaults to docker-compose.yml at the repo root)
 #
-# Exit 0 = every published port is loopback-bound. Exit 1 = at least one is not, with the
-# offending file:line printed. Exit 2 = a usage or input error, which is deliberately NOT
-# folded into exit 1: "the guard could not run" must never read as "the guard passed".
+# Exit 0 = every published port is loopback-bound and the floor is met.
+# Exit 1 = a published port is not loopback-bound (file:line printed), OR the --expect-min
+#          floor is not met. The second case prints no file:line — there is no offending
+#          line to point at; the finding is an absence.
+# Exit 2 = the guard could not answer: a shape it does not model, or a bad invocation.
+#          Deliberately NOT folded into exit 1 — "the guard could not run" must never read
+#          as "the guard passed".
 
 set -euo pipefail
 
-expect_min=0
+expect_min=""
 args=()
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --expect-min)
       [ "$#" -ge 2 ] || { echo "compose-loopback-guard: --expect-min needs a value" >&2; exit 2; }
       expect_min=$2; shift 2
-      case "$expect_min" in (*[!0-9]*|"") echo "compose-loopback-guard: --expect-min must be a non-negative integer" >&2; exit 2;; esac
+      case "$expect_min" in
+        (*[!0-9]*|"") echo "compose-loopback-guard: --expect-min must be a non-negative integer" >&2; exit 2 ;;
+      esac
       ;;
     --) shift; args+=("$@"); break ;;
     *) args+=("$1"); shift ;;
@@ -64,44 +73,36 @@ for f in "${files[@]}"; do
   fi
 done
 
-# The scan, in awk so the indentation bookkeeping stays in one place.
+# ONE PARSER, ONE ANSWER. An earlier version ran a SECOND awk program to count entries for
+# the floor, and the two had already diverged — which matters precisely because the floor
+# is what catches shapes the parser misses. A backstop computed by a drifting copy of the
+# thing it backs up is not a backstop. The scan emits its count on a marker line instead.
 #
-# THE ORDERING OF THE THREE TESTS BELOW IS THE WHOLE CONTROL, and an earlier version of
-# this script got it wrong in a way that returned SILENT GREEN on a 0.0.0.0 binding. It
-# closed the block on `indent <= ports_indent` BEFORE testing for a list item — so YAML's
-# perfectly legal flush form
+# THE ORDER OF THE TESTS IS THE WHOLE CONTROL. Getting it wrong returned SILENT GREEN on a
+# 0.0.0.0 binding once already: the close test ran before the entry test, so a port at the
+# same indentation as its `ports:` key closed the block instead of being checked. That is
+# valid YAML and it is what `docker compose config` itself emits.
 #
-#     ports:
-#     - "5435:5432"
-#
-# closed the block and the entry was never checked. `exit 0`, fixtures 11/11, redis on
-# 0.0.0.0. Measured on the real file, not hypothesised. A list item is therefore tested
-# FIRST, and only a NON-list-item can close a block.
-#
-#   * `ports:` opens a block at indent N. Anything after the colon other than a comment —
-#     a flow sequence (`ports: ["5435:5432"]`), an alias (`ports: *p`) — is a form this
-#     guard does not model, so it is reported and exits 2. Never 0.
-#   * A list item (`- ...`) at indent >= N is a port entry. Flush and indented forms both.
-#   * A NON-list-item at indent <= N closes the block. That is what keeps `volumes:`,
-#     `healthcheck:` and the next service out.
-#   * A NON-list-item at indent > N is a long-form mapping or something else unmodelled:
-#     reported, exit 2.
-#   * A block that closes having recognised ZERO entries is itself reported — an empty or
-#     unreadable `ports:` is not a passing `ports:`.
-#   * Comments and blank lines are never entries, never open and never close a block.
-#
-# A port entry passes only if its value begins `127.0.0.1:`.
-violations=$(
+#   * `ports:`, quoted or not, opens a block. Anything after the colon other than a comment
+#     — a flow sequence, an alias — is a shape this guard does not model: reported, exit 2.
+#   * A list item at indent >= the key's is an entry. Both indentation styles.
+#   * Only a NON-list-item at indent <= the key's closes a block.
+#   * An entry that is not port-shaped is reported as UNPARSED, never as a violation.
+#     Saying "not bound to 127.0.0.1" about a value the guard did not understand would be
+#     asserting a fact it has not established.
+#   * Loopback means `127.0.0.1:` or the IPv6 form `[::1]:`. Both are localhost.
+#   * A block that closes having recognised zero entries is reported.
+scan=$(
   awk '
     function indent(s,   i) { i = match(s, /[^ ]/); return (i == 0) ? 0 : i - 1 }
     function close_block() {
       if (in_ports && entries == 0) {
-        printf "%s:%d: EMPTY-PORTS-BLOCK (opened here, no entry recognised)\n", FILENAME, ports_line
+        printf "%s:%d: EMPTY-PORTS-BLOCK (opened here, no entry recognised)\n", ports_file, ports_line
       }
       in_ports = 0
     }
 
-    FNR == 1 { close_block() }   # a block cannot span files
+    FNR == 1 { close_block() }
 
     { line = $0; sub(/\r$/, "", line) }
 
@@ -112,7 +113,6 @@ violations=$(
       ind = indent(line)
       is_item = (line ~ /^[[:space:]]*-[[:space:]]/)
 
-      # 1. entry test FIRST — a list item at or below the key indent still belongs to it
       if (in_ports && is_item && ind >= ports_indent) {
         value = line
         sub(/^[[:space:]]*-[[:space:]]*/, "", value)
@@ -124,20 +124,23 @@ violations=$(
           printf "%s:%d: UNPARSED-ENTRY (empty list item)\n", FILENAME, FNR
           next
         }
+        if (value !~ /^[0-9[]/) {
+          printf "%s:%d: UNPARSED-ENTRY %s\n", FILENAME, FNR, value
+          next
+        }
+        total++
         entries++
-        if (value !~ /^127\.0\.0\.1:/) {
+        if (value !~ /^127\.0\.0\.1:/ && value !~ /^\[::1\]:/) {
           printf "%s:%d: %s\n", FILENAME, FNR, value
         }
         next
       }
 
-      # 2. only a NON-list-item may close the block
       if (in_ports && !is_item && ind <= ports_indent) { close_block() }
 
-      # 3. a new block, and anything trailing the colon is a form we do not model
-      if (line ~ /^[[:space:]]*ports:/) {
+      if (line ~ /^[[:space:]]*["'"'"']?ports["'"'"']?[[:space:]]*:/) {
         rest = line
-        sub(/^[[:space:]]*ports:/, "", rest)
+        sub(/^[[:space:]]*["'"'"']?ports["'"'"']?[[:space:]]*:/, "", rest)
         sub(/[[:space:]]*#.*$/, "", rest)
         sub(/^[[:space:]]+/, "", rest); sub(/[[:space:]]+$/, "", rest)
         if (rest != "") {
@@ -145,62 +148,34 @@ violations=$(
           in_ports = 0
           next
         }
-        in_ports = 1; ports_indent = ind; ports_line = FNR; entries = 0
+        in_ports = 1; ports_indent = ind; ports_line = FNR; ports_file = FILENAME; entries = 0
         next
       }
 
       if (!in_ports) { next }
 
-      # 4. inside a block, not a list item, deeper than the key: long-form or unknown
       printf "%s:%d: UNPARSED-ENTRY %s\n", FILENAME, FNR, line
     }
 
-    END { close_block() }
+    END { close_block(); printf "##RECOGNISED##%d\n", total + 0 }
   ' "${files[@]}"
 )
 
-# How many entries the scan actually RECOGNISED. `--expect-min` turns "the file passed"
-# into "the file passed and still publishes at least N ports", which a file with the ports
-# block deleted, renamed or restructured cannot satisfy vacuously. A pin that its subject
-# can satisfy by not existing pins nothing.
-recognised=$(
-  awk '
-    function indent(s,   i) { i = match(s, /[^ ]/); return (i == 0) ? 0 : i - 1 }
-    { line = $0; sub(/\r$/, "", line) }
-    line ~ /^[[:space:]]*$/ { next }
-    line ~ /^[[:space:]]*#/ { next }
-    {
-      ind = indent(line); is_item = (line ~ /^[[:space:]]*-[[:space:]]/)
-      if (in_ports && is_item && ind >= ports_indent) {
-        v = line; sub(/^[[:space:]]*-[[:space:]]*/, "", v); sub(/[[:space:]]+#.*$/, "", v)
-        if (v != "") n++
-        next
-      }
-      if (in_ports && !is_item && ind <= ports_indent) { in_ports = 0 }
-      if (line ~ /^[[:space:]]*ports:/) {
-        rest = line; sub(/^[[:space:]]*ports:/, "", rest); sub(/[[:space:]]*#.*$/, "", rest)
-        sub(/^[[:space:]]+/, "", rest); sub(/[[:space:]]+$/, "", rest)
-        if (rest != "") { in_ports = 0; next }
-        in_ports = 1; ports_indent = ind; next
-      }
-    }
-    END { print n + 0 }
-  ' "${files[@]}"
-)
+recognised=$(printf '%s\n' "$scan" | sed -n 's/^##RECOGNISED##//p' | tail -1)
+violations=$(printf '%s\n' "$scan" | grep -v '^##RECOGNISED##' || true)
 
 if [ -n "$violations" ]; then
   # "could not answer" is exit 2 and must never collapse into exit 1. All three markers
   # below mean the guard did not READ the ports, not that it read them and they were bad.
-  if printf '%s
-' "$violations" | grep -qE 'UNPARSED-ENTRY|UNPARSED-PORTS-FORM|EMPTY-PORTS-BLOCK'; then
-    echo "::error::compose-loopback-guard: a ports: block was in a form this guard does not model." >&2
+  if printf '%s\n' "$violations" | grep -qE 'UNPARSED-ENTRY|UNPARSED-PORTS-FORM|EMPTY-PORTS-BLOCK'; then
+    echo "::error::compose-loopback-guard: a ports: entry was in a shape this guard does not model." >&2
     echo "It reads block sequences in BOTH indentation styles. Flow sequences (ports: [...])," >&2
     echo "aliases (ports: *x), long-form mappings and empty blocks are REFUSED, never skipped." >&2
     echo "Extend the guard rather than removing it." >&2
     printf '%s\n' "$violations" >&2
     exit 2
   fi
-  echo "::error::compose-loopback-guard: published port(s) not bound to 127.0.0.1" >&2
+  echo "::error::compose-loopback-guard: published port(s) not bound to localhost" >&2
   printf '%s\n' "$violations" >&2
   echo >&2
   echo "Every published port must be written 127.0.0.1:HOST:CONTAINER (#1198)." >&2
@@ -208,10 +183,21 @@ if [ -n "$violations" ]; then
   exit 1
 fi
 
-if [ "$recognised" -lt "$expect_min" ]; then
+if [ -z "$expect_min" ]; then
+  # No floor given: zero recognised entries is refused rather than reported as clean.
+  # "I found no ports, therefore all ports are fine" is vacuous truth wearing a clean bill
+  # of health — the same shape EMPTY-PORTS-BLOCK exists to kill, one level up.
+  if [ "$recognised" -eq 0 ]; then
+    echo "::error::compose-loopback-guard: recognised ZERO published ports." >&2
+    echo "That is refused rather than reported clean: it usually means the ports are written" >&2
+    echo "in a shape this guard does not read, not that there are none. Pass --expect-min 0" >&2
+    echo "if zero really is expected." >&2
+    exit 2
+  fi
+elif [ "$recognised" -lt "$expect_min" ]; then
   echo "::error::compose-loopback-guard: expected at least $expect_min published port(s), recognised $recognised" >&2
   echo "Passing with fewer than expected means the ports moved, were deleted, or were" >&2
-  echo "written in a form this guard does not model — none of which is a clean bill." >&2
+  echo "written in a shape this guard does not model — none of which is a clean bill." >&2
   exit 1
 fi
 

@@ -158,10 +158,18 @@ run longform_unparsed 2 "$TMPROOT/longform.yml"
 # --- 8b. FLUSH LIST FORM — the silent-green bug, pinned in both polarities -----------
 # Round 8 measured that the first version of this guard returned exit 0 on this shape:
 # the block-close test ran before the list-item test, so an entry at the SAME indent as
-# `ports:` closed the block and was never checked. Valid YAML, and what
-# `docker compose config` itself emits — so a single reformat would have silenced ALL six
-# ports at once while the guard kept printing OK. Both polarities are pinned, because a
-# guard that fails everything is as useless as one that passes everything.
+# `ports:` closed the block and was never checked.
+#
+# THE REACHABILITY CLAIM HERE WAS WRONG ONCE, so it is now the measured one. An earlier
+# version said this is what `docker compose config` emits. Measured 2026-08-04 against
+# Compose 2.40.3, in every flag combination: it emits the LONG form (`- mode: ingress`
+# / `host_ip:` / `target:`), which this guard REFUSES with exit 2 — so the route named as
+# the danger was the one that fails loudly. What actually reaches this shape: any
+# ordinary YAML dumper (PyYAML's default `dump` emits exactly it) and writing it by hand,
+# both of which Compose accepts (verified: `config` exit 0, port published).
+#
+# Both polarities are pinned, because a guard that fails everything is as useless as one
+# that passes everything.
 cat >"$TMPROOT/flush_bad.yml" <<'YAML'
 services:
   a:

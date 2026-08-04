@@ -311,7 +311,9 @@ och Next.js-servern (`localhost:3000`, övriga routes); origin-cert + origin-IP-
 > **forwarded-headers/per-IP-rate-limit:** `AuthWritePolicy` rate-limitar per
 > klient-IP → Caddy måste passa äkta klient-IP. Både `ForwardedHeadersConfig` +
 > `appsettings.Production.json`:s `ForwardedHeaders.KnownNetworks` (den faktiska
-> X-Forwarded-For-wiringen, i dag bunden till ALB:s VPC-CIDR) **och** `AlbOptions`
+> X-Forwarded-For-wiringen, i dag bunden till ALB:s VPC-CIDR **— FALSIFIERAD 2026-08-04:
+> `KnownNetworks` var `[]` och har aldrig varit satt till VPC-CIDR:n i denna fil; värdet
+> fanns bara i den rivna ECS-task-def:en. Se `Amendment 2026-08-04` §5**) **och** `AlbOptions`
 > (HTTPS/HSTS-gaten) är ALB-orienterade och måste re-homas för Caddy/Docker-nätets
 > CIDR (jfr TD-106 punkt 3 `ForwardedHeadersConfig` + punkt 4 `AlbOptions →
 > ReverseProxyOptions`), annars kollapsar limits till Caddys IP och
@@ -788,7 +790,8 @@ LE-cert via HTTP-01; **HSTS emitteras faktiskt i Production**; ingen klartextstr
 > är "ren konfig utan effekt" så länge flaggan är false. Enda **levande** injektorn var
 > Terraforms `Alb__HttpsEnabled` i den **deployade** ECS-task-def:en, som ADR 0066 rev —
 > men Terraform-**koden** är medvetet bevarad och bär injektionen kvar
-> (`infra/terraform/environments/dev/main.tf:377`, CLAUDE.md §11). Ingen injektor finns
+> (`infra/terraform/environments/dev/main.tf`, `api_environment`-blocket — radnumret
+> utelämnat med flit; det förföll redan en gång, CLAUDE.md §11). Ingen injektor finns
 > alltså på Netcup-lådan; trädet är inte residual.
 > **HSTS ser konfigurerat ut och är inert. Fixen ligger INTE i ASP.NET — se
 > EMITTER-noten nedan.** **Bevis avläses på svaret** (`curl -sI` visar
@@ -842,8 +845,13 @@ LE-cert via HTTP-01; **HSTS emitteras faktiskt i Production**; ingen klartextstr
 >
 > **Namnet `AlbOptions` lever kvar i äldre text i denna ADR och ska inte städas bort.**
 > `Amendment 2026-07-18` (TD-106-överlämningen) och mätningen ovan i denna amendment
-> skrevs båda när typen hette så; de är protokoll över vad som gällde då, inte
-> instruktioner. Typen heter sedan 2026-08-04 `ReverseProxyOptions` och
+> skrevs båda när typen hette så. **Men "de var sanna när de skrevs" håller inte som
+> generell utsaga, och den formuleringen är härmed tillbakadragen:** `Amendment
+> 2026-07-18`:s parentes "i dag bunden till ALB:s VPC-CIDR" var **aldrig** sann — den var
+> en omätt gissning, precis den klass A1 finns för att ta bort, och den är nu markerad vid
+> raden. Det korrekta påståendet är smalare: **typnamnet** var aktuellt när texten skrevs.
+> Kvarlämnad text är protokoll över vad som *påstods* då, inte över vad som var sant, och
+> inte instruktioner. Typen heter sedan 2026-08-04 `ReverseProxyOptions` och
 > konfigsektionen `ReverseProxy` — den gamla `Alb`-nyckeln har **ingen**
 > övergångsbindning, vilket `ReverseProxyOptionsTests` pinnar som körbart faktum.
 >
@@ -897,12 +905,41 @@ kontrollerna är **levande och mätta**:
    `UseForwardedHeaders` skriver om `Connection.RemoteIpAddress` **bara när headern
    finns**, så utan header är den no-op och **inget CIDR-värde kan laga det**. Nyckeln
    styr vilka proxies som får ha satt headern; den kan inte frambringa en header ingen
-   skickar. `AuthWritePolicy` partitionerar därmed på Next-containerns IP — alla
-   användare i en hink — och `AuthAuditLogger` + `RequestContextProvider` registrerar
-   samma container-IP, vilket gör `docs/runbooks/failed-access-anomaly.md` verkningslös.
+   skickar.
 
-   Ägs av **[#1202](https://github.com/klasolsson81/jobbliggaren/issues/1202)** (`mvp`),
-   som bär hela mätningen. **Grinden stängs på att en request från en känd klient-IP
+   **Omfattningen är sex policies, inte en, och riktningen är inte "no-op" utan en
+   exploaterbar tillgänglighetsdefekt** (security-auditor, 2026-08-04, mot denna PR).
+   `RateLimitingExtensions` partitionerar på `Connection.RemoteIpAddress` i
+   `AuthWritePolicy`, `AuthLoosePolicy`, `LandingPublicReadPolicy`, `HealthCheckPolicy`
+   samt `ip:`-grenen i `JobAdStatusBatchPolicy` och `JobAdMatchBatchPolicy` — där de två
+   sista enligt sina egna kommentarer bär TD-87:s skyddsegenskap just för att ytorna
+   avsiktligt **inte** är `RequireAuthorization`-grindade. En enda hink är inte *frånvaro*
+   av kontroll utan en **global** limiter: en aktör kan konsumera hela login-budgeten med
+   20 requests/minut och **neka autentisering åt samtliga användare**. Samma container-IP
+   hamnar i `AuthAuditLogger` och `RequestContextProvider`, vilket gör
+   revisionsspårets aktörsattribuering till en konstant.
+
+   **Rättelse till min egen första formulering:** jag skrev att detta gör
+   `docs/runbooks/failed-access-anomaly.md` verkningslös. **Falskt, och omätt när jag skrev
+   det.** `FailedAccessLogger` loggar ingen IP alls — dess fält är `aggregateType`,
+   `requestedAggregateId`, `requestingUserId` — och runbookens steg pivoterar på
+   `requesting_user_id`. XFF-luckan rör dem inte. Runbooken *är* i praktiken verkningslös,
+   men av ett större och tidigare skäl: varje mekanism i den (`aws logs start-query`,
+   CloudWatch-loggruppen, metric filter, SNS-topicen, WAF-blocket i ALB) revs av ADR 0066.
+   Att tillskriva en befintlig, större oförmåga en smalare orsak riskerar att någon lagar
+   #1202 och tror att detektionen är återställd.
+
+   **#1202 är en FÖRUTSÄTTNING för M-7, inte ett syskon.** M-7:s eskaleringsklausul vilar
+   på detektionsförmåga, och #1202 tar bort den enda nätverksattribuering
+   auth-revisionsspåret har. Utan den kopplingen kan #196 stänga M-7 med värddetektion och
+   alerting medan applagrets attribuering fortfarande är en konstant.
+
+   Ägs av **[#1202](https://github.com/klasolsson81/jobbliggaren/issues/1202)** — graderad
+   **`Major`** av security-auditor 2026-08-04 (Art. 5(2) / Art. 32(1)(b) / Art. 33(3)(a) +
+   Recital 87; **inte** PII-exponering, eftersom `IpAnonymizer` trunkerar före lagring, så
+   Art. 5(1)(c) är över-uppfylld). **Eskalerar till `Blocker` vid första riktiga data**, på
+   samma trigger som M-7. Det är ett **pre-beta-data-grindvillkor**, inte "någon gång i
+   MVP-fönstret". **Grinden stängs på att en request från en känd klient-IP
    syns med den IP:n i rate-limit-partitionen och i auth-revisionsspåret** — aldrig på
    att `KnownNetworks` är ifylld. Re-homet i sig levererades av A1
    (`AlbOptions` → `ReverseProxyOptions`), som **medvetet lämnade värdet tomt**: ingen

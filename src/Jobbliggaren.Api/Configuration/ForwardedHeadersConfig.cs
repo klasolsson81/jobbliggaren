@@ -12,6 +12,11 @@ namespace Jobbliggaren.Api.Configuration;
 /// client IP. In the Compose stack that is the Docker bridge subnet — never a public
 /// address. The value is owed by #196, which builds that stack.
 ///
+/// Setting it is necessary but NOT sufficient. This class only decides which proxies
+/// are trusted to have set <c>X-Forwarded-For</c>; it cannot conjure a header nobody
+/// sends. Measured 2026-08-04: under Option B no component in the stack sends one, so
+/// six IP-partitioned rate limit policies currently share a single bucket (#1202).
+///
 /// Parsing är fail-loud per security-auditor STEG 11 Sec-Major-1: tyst no-op:ad
 /// rate-limiting i prod är värre än uppstart-throw. Ogiltig CIDR-string eller IP
 /// → <see cref="InvalidOperationException"/> innan första request.
@@ -96,7 +101,7 @@ public sealed class ForwardedHeadersConfig
         if (ForwardLimit is < 1 or > 10)
         {
             throw new InvalidOperationException(
-                $"ForwardedHeaders:ForwardLimit måste vara 1-10, fick {ForwardLimit}. " +
+                $"ForwardedHeaders:ForwardLimit must be 1-10, got {ForwardLimit}. " +
                 "1 for a single reverse proxy, 2 when a CDN sits in front of it.");
         }
         return ForwardLimit;
@@ -122,9 +127,14 @@ public sealed class ForwardedHeadersConfig
             throw new InvalidOperationException(
                 $"ForwardedHeaders:KnownNetworks must be set outside Development/Test " +
                 $"(current environment: {environmentName}). An empty array behind a proxy " +
-                "collapses every client into one bucket, making IP-based rate limiting a no-op. " +
+                "collapses every client into ONE bucket, which turns six IP-partitioned rate " +
+                "limit policies into a global limiter — one caller can exhaust the login " +
+                "budget and deny authentication to everyone. " +
                 "Set it to the CIDR of the network the reverse proxy connects FROM — in the " +
                 "Compose stack that is the Docker bridge subnet, never the public address. " +
+                "NECESSARY BUT NOT SUFFICIENT: setting this silences THIS check, it does not " +
+                "make per-IP limiting work. That also requires an X-Forwarded-For to actually " +
+                "arrive, and today no component in the stack sends one (issue #1202). " +
                 "See docs/decisions/0050-deployment-migration-aws-exit-hetzner.md, " +
                 "Amendment 2026-08-04, gate M-5b point 3.");
         }

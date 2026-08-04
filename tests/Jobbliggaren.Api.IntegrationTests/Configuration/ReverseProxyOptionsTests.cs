@@ -11,13 +11,24 @@ namespace Jobbliggaren.Api.IntegrationTests.Configuration;
 ///
 /// <para>
 /// <b>Varför sektionsnyckeln behöver en egen pinne (#196).</b> <c>UseHttpsRedirectionGateTests</c>
-/// pinnar pipeline-gaten i båda polariteter, men den kan strukturellt INTE fånga en bruten
-/// sektionsnyckel: en nyckel som slutar binda ger <c>false</c>, och <c>false</c> är exakt vad
-/// Disabled- och Development-factory:erna asserterar. Bara Enabled-factory:ns två fakta går röda
-/// — 2 av 6. Och den tredje konsumenten, HSTS-valideringsgaten vid service-registrering
-/// (<c>if (reverseProxyConfig.HttpsEnabled) hstsConfig.EnsureSafeForEnvironment(...)</c>), pinnas
-/// av ingenting alls; CLAUDE.md §11 noterar det uttryckligen. Ett namnbyte som bröt just den
-/// vägen hade varit grönt överallt. Denna klass gör nyckeln till ett eget faktum.
+/// fångar en bruten sektionsnyckel — men bara <b>indirekt och odiagnostiskt</b>. En nyckel som
+/// slutar binda ger <c>false</c>, och <c>false</c> är exakt vad Disabled- och
+/// Development-factory:erna asserterar, så bara Enabled-factory:ns två fakta går röda — 2 av 6,
+/// och ingen av dem nämner sektionsnyckeln. Felet läser som "Enabled-factory ger 200 i stället
+/// för 307", vilket lika gärna kan vara en pipeline-ordningsbugg, och felsökningen börjar på fel
+/// ställe. Denna klass gör nyckeln till ett eget, namngivet faktum.
+/// </para>
+///
+/// <para>
+/// <b>Vad den INTE täcker.</b> Testerna anropar <c>GetSection(...).Get&lt;T&gt;()</c> direkt och rör
+/// aldrig <c>Program.cs</c>, så de pinnar framework-nivåns sektionsmatchning — inte appens
+/// komposition. En fallback-bind tillagd i <c>Program.cs</c>
+/// (<c>?? GetSection("Alb").Get&lt;...&gt;()</c>) skulle passera grönt här. Och HSTS-valideringsgaten
+/// vid service-registrering pinnas fortfarande av ingenting; denna klass ändrar inte det.
+/// Ett fjärde <c>WebApplicationFactory</c> hade kunnat pinna kompositionen på riktigt, men
+/// avstods medvetet: sviten ligger redan vid EF:s process-globala
+/// <c>ManyServiceProvidersCreatedWarning</c>-tak, och nästa host fäller den collection-fixture
+/// som råkar initieras därnäst — ett deterministiskt fel som läser som flake (#1190).
 /// </para>
 /// </summary>
 public class ReverseProxyOptionsTests

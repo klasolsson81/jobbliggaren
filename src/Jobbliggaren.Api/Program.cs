@@ -167,11 +167,17 @@ builder.Services.AddHealthChecks()
 var hstsConfig = builder.Configuration.GetSection(HstsOptions.SectionName).Get<HstsOptions>() ?? new HstsOptions();
 
 // Production-defense per allow-list (paritet med ForwardedHeadersConfig STEG 12).
-// Gate:at på reverseProxyConfig.HttpsEnabled — under HTTP-only Fas 0 (ADR 0026) ska
+// Gate:at på reverseProxy.HttpsEnabled — under HTTP-only Fas 0 (ADR 0026) ska
 // HSTS-config inte vara obligatorisk; men om HttpsEnabled flippas måste
 // MaxAgeDays>=365 + Preload-krav uppfyllas (annars tyst regression).
-var reverseProxyConfig = builder.Configuration.GetSection(ReverseProxyOptions.SectionName).Get<ReverseProxyOptions>() ?? new ReverseProxyOptions();
-if (reverseProxyConfig.HttpsEnabled)
+//
+// SINGLE bind, two consumers: this HSTS validation gate, and UseHsts/UseHttpsRedirection
+// in the pipeline below. Binding the same section twice would be two normalisers for one
+// rule, and the divergence has a security direction — the validation could be skipped
+// while UseHsts() still registers, booting Production with MaxAgeDays < 365 and no
+// fail-loud (dotnet-architect, PR #1203).
+var reverseProxy = builder.Configuration.GetSection(ReverseProxyOptions.SectionName).Get<ReverseProxyOptions>() ?? new ReverseProxyOptions();
+if (reverseProxy.HttpsEnabled)
     hstsConfig.EnsureSafeForEnvironment(builder.Environment.EnvironmentName);
 
 builder.Services.AddHsts(o =>
@@ -296,6 +302,12 @@ if (app.Environment.IsDevelopment())
 // vid ogiltigt CIDR/IP-format. I dev (tom array) bevaras ASP.NET-default-beteendet
 // (loopback only). Value and stack are owed by #196; the requirement is ADR 0050
 // Amendment 2026-08-04, gate M-5b point 3.
+//
+// And that requirement is NECESSARY BUT NOT SUFFICIENT. UseForwardedHeaders only rewrites
+// RemoteIpAddress when an X-Forwarded-For is actually present; measured 2026-08-04, no
+// component in the Option B stack sends one, so six IP-partitioned rate limit policies
+// share a single bucket regardless of what this CIDR says (#1202). Populating the CIDR
+// silences the startup check — it does not restore per-IP limiting.
 var forwardedCfg = builder.Configuration
     .GetSection(ForwardedHeadersConfig.SectionName)
     .Get<ForwardedHeadersConfig>() ?? new ForwardedHeadersConfig();
@@ -315,7 +327,7 @@ foreach (var proxy in forwardedCfg.ParseKnownProxies())
 
 app.UseForwardedHeaders(forwardedOptions);
 
-// HttpsRedirection bara om the reverse proxy faktiskt har en HTTPS-port att redirecta
+// HttpsRedirection bara om reverse-proxyn faktiskt har en HTTPS-port att redirecta
 // TILL. Behind an HTTP-only proxy the redirect targets a closed 443, the health check
 // fails and the deploy rolls back (security-auditor STEG 13b Sec-Major-2).
 //
@@ -325,7 +337,7 @@ app.UseForwardedHeaders(forwardedOptions);
 // inert under the same topology.
 //
 // Development-miljö behåller redirect (dotnet run använder dev-cert via Kestrel + IIS Express).
-var reverseProxyOptions = builder.Configuration.GetSection(ReverseProxyOptions.SectionName).Get<ReverseProxyOptions>() ?? new ReverseProxyOptions();
+// `reverseProxy` is the single bind made above at service-registration time.
 
 // HSTS FÖRE HttpsRedirection så att HSTS-headern sätts på alla HTTPS-svar
 // (inklusive 307-redirect-svaret). Skip i Development för att undvika
@@ -335,12 +347,12 @@ var reverseProxyOptions = builder.Configuration.GetSection(ReverseProxyOptions.S
 // Requires the UseForwardedHeaders registration above — otherwise Request.IsHttps is
 // false behind the proxy and the HSTS header is never set on the response
 // (dotnet-architect Viktigt-fynd, ASP.NET Core 10 docs).
-if (!builder.Environment.IsDevelopment() && reverseProxyOptions.HttpsEnabled)
+if (!builder.Environment.IsDevelopment() && reverseProxy.HttpsEnabled)
 {
     app.UseHsts();
 }
 
-if (builder.Environment.IsDevelopment() || reverseProxyOptions.HttpsEnabled)
+if (builder.Environment.IsDevelopment() || reverseProxy.HttpsEnabled)
 {
     app.UseHttpsRedirection();
 }

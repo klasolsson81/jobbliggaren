@@ -683,17 +683,27 @@ written as scheduling ("not MVP scope, not verified"), never as fact ("still app
   `UseHttpsRedirectionGateTests` pins both middleware gates in both polarities and
   `ReverseProxyOptionsTests` pins the section key; the validation gate itself is still
   unpinned. **The retired `Alb` key has no transitional fallback** — measured empty
-  consumer set, pinned as executable fact.
+  consumer set. That absence is a **documented intent, not an executable guarantee**:
+  the pin covers the constant, not the composition root, so a fallback bind added in
+  `Program.cs` would still pass. A fourth `WebApplicationFactory` would pin it properly
+  and was declined deliberately — the Api suite already sits at EF's process-global
+  `ManyServiceProvidersCreatedWarning` ceiling
+  ([#1190](https://github.com/klasolsson81/jobbliggaren/issues/1190)).
   **`HttpsEnabled` must stay `false` under Option B, and that is a decision, not an
   unfinished flip:** Next reaches the API over plain internal HTTP, so `true` would 307
   every internal call and break the app, while `UseHsts` stays inert either way because
   the API's responses are consumed by a Next route handler and never reach a browser.
-  Browser-visible HSTS is owed by the edge on **both** response paths (ADR 0050
-  Amendment 2026-08-04 §5, gate M-5a) — never by flipping this flag.
+  Browser-visible HSTS is owed **outside ASP.NET**, on **both** response paths — the
+  Caddyfile in #196 for the 401 that never reaches Next, and `buildSecurityHeaders` for
+  the Next path (ADR 0050 Amendment 2026-08-04 §5, gate M-5a). Never by flipping this flag.
   ADR 0066 destroyed the *deployed* AWS dev stack and deliberately
-  **preserved** `infra/terraform/`, which still carries
-  the injection (now under the renamed key) — so neither the flag nor the tree is
-  residue. Retirement is a Hetzner-cutover ADR, never a cleanup sweep
+  **preserved** `infra/terraform/`, which still carries the **old `Alb__HttpsEnabled`**
+  injection — deliberately, as a **record of what ran**, not as live config. Do not
+  "repair" it toward the current key: measured 2026-08-04, the same block injects two
+  `FieldEncryption__*` options #802 removed, injects no master key (so a re-apply
+  hard-fails at startup), and names `src/JobbPilot.*` Dockerfile paths that do not
+  exist. Renaming one string buys one-of-N consistency and makes a record read as
+  maintained. Retirement — and restoration — is a cutover ADR, never a cleanup sweep
   (BUILD.md §15); [#196](https://github.com/klasolsson81/jobbliggaren/issues/196)
   owns the deploy stack and the `ForwardedHeaders:KnownNetworks` CIDR, which A1
   deliberately left empty — no compose file in the repo declares a network, so the

@@ -309,7 +309,7 @@ public class HttpsRedirectionGateEnabledTests(HttpsRedirectionEnabledProductionF
         hstsValue.ShouldContain("includeSubDomains",
             customMessage: "IncludeSubDomains=true skyddar alla *.jobbliggaren.se-subdomäner.");
         hstsValue.ShouldNotContain("preload",
-            customMessage: "Preload=false initialt — submit till hstspreload.org är prod-launch-step (HstsOptions.cs:47).");
+            customMessage: "Preload=false initialt — submit till hstspreload.org är prod-launch-step (HstsOptions.Preload-doccen).");
     }
 }
 
@@ -362,6 +362,6 @@ public class HttpsRedirectionGateDevelopmentTests(HttpsRedirectionDevelopmentFac
 
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
         response.Headers.Contains("Strict-Transport-Security").ShouldBeFalse(
-            "UseHsts() ska ALDRIG registreras i Development (UseHsts-gaten i Program.cs + HstsOptions.cs:15-19).");
+            "UseHsts() ska ALDRIG registreras i Development (UseHsts-gaten i Program.cs + HstsOptions dev-loop-noten).");
     }
 }

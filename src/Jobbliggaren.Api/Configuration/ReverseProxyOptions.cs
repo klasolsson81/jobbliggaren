@@ -25,9 +25,12 @@ namespace Jobbliggaren.Api.Configuration;
 /// </para>
 ///
 /// <para>
-/// Read directly twice in <c>Program.cs</c> — once at service registration (to validate
-/// the HSTS options) and once when composing the pipeline — rather than injected as
-/// <c>IOptions&lt;T&gt;</c>, because the values are only read at startup. The preserved
+/// Bound ONCE in <c>Program.cs</c>, at service registration, and consumed twice — by the
+/// HSTS validation gate there and by <c>UseHsts</c>/<c>UseHttpsRedirection</c> in the
+/// pipeline. Not injected as <c>IOptions&lt;T&gt;</c>, because the values are only read at
+/// startup. Binding it twice would be two normalisers for one rule, and the divergence
+/// has a security direction (the validation could be skipped while <c>UseHsts()</c> still
+/// registers). The preserved
 /// Terraform tree still injects this as an env-var (ADR 0066 kept the tree, CLAUDE.md
 /// §11); no live injector exists on the Netcup box, so the value binds false there.
 /// </para>
@@ -40,8 +43,11 @@ public sealed class ReverseProxyOptions
     /// appsettings file, so the option bound false everywhere, and the only injector was
     /// the ECS task-definition ADR 0066 destroyed. A fallback would add a second magic
     /// string for an empty consumer set, and guard a silent-false failure that is
-    /// indistinguishable from the state it replaced. <c>ReverseProxyOptionsTests</c> pins
-    /// the non-binding as executable fact instead.
+    /// indistinguishable from the state it replaced. <c>ReverseProxyOptionsTests</c>
+    /// documents the retirement and pins that <b>this constant</b> does not match the old
+    /// key — it does not pin the composition root, so a fallback bind added in
+    /// <c>Program.cs</c> would still pass. The absence of a fallback is a documented
+    /// intent, not an executable guarantee.
     ///
     /// <para>
     /// Latent collision worth knowing: YARP binds a top-level <c>"ReverseProxy"</c>

@@ -424,10 +424,18 @@ run explicit_network_mode 2 "$TMPROOT/enm.yml"
 # Every fixture above holds a handful of violation lines, and at that size the defect this
 # pins is load-dependent — it passed 0 of 150 runs on a quiet machine. Above a pipe buffer
 # it is deterministic. So the fixture is written to the size where the property is
-# decidable: 4000 entries the guard can only report as UNPARSED, i.e. exit 2 by definition,
-# and never exit 1.
+# decidable.
+#
+# THE FIRST ENTRY IS LOAD-BEARING AND IS NOT A PORT BEING TESTED. Without it no entry is
+# ever recognised, so `close_block()` emits EMPTY-PORTS-BLOCK at the END — a SECOND exit-2
+# ground, arriving LAST in the scan, which forces the classifier to read the whole stream
+# and so prevents the SIGPIPE this fixture exists to provoke. That is not a backstop, it is
+# a mask: it would keep the fixture green under the very defect it pins. One recognised
+# entry makes UNPARSED-ENTRY the only exit-2 ground here. EMPTY-PORTS-BLOCK keeps its own
+# fixture (8m).
 {
   printf 'services:\n  s:\n    image: x\n    ports:\n'
+  printf '      - "127.0.0.1:1:1"\n'
   i=1; while [ "$i" -le 4000 ]; do printf '      - notaport%s\n' "$i"; i=$((i + 1)); done
 } >"$TMPROOT/bigrefuse.yml"
 run classifier_survives_large_violation_list 2 --expect-min 0 "$TMPROOT/bigrefuse.yml"

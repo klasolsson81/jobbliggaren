@@ -190,13 +190,20 @@ jobs:
           dotnet restore Jobbliggaren.sln
           out=$(dotnet list Jobbliggaren.sln package --vulnerable --include-transitive 2>&1 || true)
           echo "$out"
-          # HERESTRING, NOT A PIPE, och det är den blockerande grindens fail-closed-egenskap.
+          # HERESTRING, NOT A PIPE — det är vad som bär fail-closed på SIGPIPE-AXELN.
           # `grep -q` lämnar vid första träffen; en producent som har mer än en rörbuffert
           # kvar att skriva dör då av SIGPIPE, och `pipefail` gör 141 till pipeline-status —
           # `if`-satsen blir FALSK och grinden rapporterar "inga CVE:er" i exakt det fall den
           # finns för. Triggern är positivt korrelerad med fyndet: per-paket-tabellerna
-          # existerar bara när sårbarheter existerar, och `2>&1` viker in obegränsad
-          # restore-diagnostik. Samma form som `label-automerge.yml`s label-test.
+          # existerar bara när sårbarheter existerar. Samma form som `label-automerge.yml`s
+          # label-test.
+          #
+          # PÅ EN ANDRA AXEL ÄR GRINDEN INTE FAIL-CLOSED, och det står här för att ingen ska
+          # sluta leta: `|| true` kastar verktygets exitkod och domen vilar på ett ORD i en
+          # ström som via `2>&1` också bär `dotnet list`s egen stderr. "Inga sårbarheter" och
+          # "kunde inte avgöra" är därför oskiljbara — mätt: med restore uppfylld men
+          # audit-källan onåbar blir det `::notice::Inga ...` och exit 0. Pre-existerande,
+          # ägs av #1210.
           if grep -Eiq '\b(High|Critical)\b' <<<"$out"; then
             echo "::error::NuGet High/Critical-CVE — auto-merge blockeras. Granska manuellt."
             exit 1

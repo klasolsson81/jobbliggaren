@@ -365,6 +365,61 @@ services:
 YAML
 run ipv6_fullform_refused 2 "$TMPROOT/v6full.yml"
 
+# --- 8p. THE KEY-SPELLING CLASS, on every axis ---------------------------------------
+# Round 9 taught the `ports` axis about quoted keys. Round 10 added two more key axes
+# (`network_mode`, `include`/`extends`) and they did NOT inherit that lesson, so
+# `"extends":` and `? network_mode` passed silently. All four axes now go through one
+# `keyname()` normaliser; these pin that they stay there.
+cat >"$TMPROOT/qnm.yml" <<'YAML'
+services:
+  a:
+    image: x
+    "network_mode": host
+  b:
+    image: y
+    ports:
+      - "127.0.0.1:5435:5432"
+YAML
+run quoted_network_mode 2 "$TMPROOT/qnm.yml"
+
+cat >"$TMPROOT/qext.yml" <<'YAML'
+services:
+  a:
+    image: x
+    "extends":
+      file: base.yml
+      service: other
+    ports:
+      - "127.0.0.1:5435:5432"
+YAML
+run quoted_extends 2 "$TMPROOT/qext.yml"
+
+cat >"$TMPROOT/qinc.yml" <<'YAML'
+"include":
+  - base.yml
+services:
+  a:
+    image: x
+    ports:
+      - "127.0.0.1:5435:5432"
+YAML
+run quoted_include 2 "$TMPROOT/qinc.yml"
+
+# Explicit-key syntax puts the VALUE on the next line, so the key line carries nothing to
+# read. Refused on every axis rather than guessed at.
+cat >"$TMPROOT/enm.yml" <<'YAML'
+services:
+  a:
+    image: x
+    ? network_mode
+    : host
+  b:
+    image: y
+    ports:
+      - "127.0.0.1:5435:5432"
+YAML
+run explicit_network_mode 2 "$TMPROOT/enm.yml"
+
 # --- 9. a missing file exits 2, never 0 ----------------------------------------------
 run missing_file 2 "$TMPROOT/does-not-exist.yml"
 

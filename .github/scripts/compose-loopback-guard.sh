@@ -106,6 +106,23 @@ done
 scan=$(
   awk '
     function indent(s,   i) { i = match(s, /[^ ]/); return (i == 0) ? 0 : i - 1 }
+
+    # ONE NORMALISER, EVERY KEY AXIS. The guard has four of them — `ports`, `network_mode`,
+    # `include`, `extends` — and each was originally spelled out on its own. That meant a
+    # spelling fix landed on one axis and not the others: round 9 taught the `ports` axis
+    # about quoted keys, and when two more axes arrived they did not inherit it, so
+    # `"extends":` and `? network_mode` passed silently. Every key test now goes through
+    # here, so the next spelling is one edit for all four rather than four edits or, more
+    # likely, one.
+    function keyname(s,   t) {
+      t = s
+      sub(/[[:space:]]+#.*$/, "", t)          # trailing comment
+      sub(/^[[:space:]]*\?[[:space:]]+/, "", t)  # YAML explicit-key syntax
+      gsub(/["'"'"']/, "", t)                 # quoted key
+      sub(/[[:space:]]+$/, "", t)
+      return t
+    }
+
     function close_block() {
       if (in_ports && entries == 0) {
         printf "%s:%d: EMPTY-PORTS-BLOCK (opened here, no entry recognised)\n", ports_file, ports_line
@@ -156,9 +173,9 @@ scan=$(
 
       if (in_ports && !is_item && ind <= ports_indent) { close_block() }
 
-      if (line ~ /^[[:space:]]*["'"'"']?ports["'"'"']?[[:space:]]*:/) {
-        rest = line
-        sub(/^[[:space:]]*["'"'"']?ports["'"'"']?[[:space:]]*:/, "", rest)
+      if (keyname(line) ~ /^[[:space:]]*ports[[:space:]]*:/) {
+        rest = keyname(line)
+        sub(/^[[:space:]]*ports[[:space:]]*:/, "", rest)
         sub(/[[:space:]]*#.*$/, "", rest)
         sub(/^[[:space:]]+/, "", rest); sub(/[[:space:]]+$/, "", rest)
         if (rest != "") {
@@ -185,11 +202,18 @@ scan=$(
       # The comment is stripped BEFORE matching: an anchored match without stripping let
       # `network_mode: host   # kör mot värdnätet` through, and trailing comments on such
       # lines are this repo own style.
-      bare = line
-      sub(/[[:space:]]+#.*$/, "", bare)
-      sub(/[[:space:]]+$/, "", bare)
+      bare = keyname(line)
 
-      if (bare ~ /^[[:space:]]*network_mode[[:space:]]*:[[:space:]]*.?host.?$/) {
+      # YAML explicit-key syntax puts the VALUE on the next line (`? network_mode` /
+      # `: host`), so the key line carries no value to read. The guard cannot tell a host
+      # network from a bridge one there — and its rule is to refuse what it cannot read,
+      # not to guess. Any of the four keys written this way is refused.
+      if (line ~ /^[[:space:]]*\?[[:space:]]/ && bare ~ /^[[:space:]]*(ports|network_mode|include|extends)[[:space:]]*$/) {
+        printf "%s:%d: UNREADABLE-EXPLICIT-KEY %s\n", FILENAME, FNR, bare
+        next
+      }
+
+      if (bare ~ /^[[:space:]]*network_mode[[:space:]]*:[[:space:]]*host$/) {
         printf "%s:%d: HOST-NETWORKING %s\n", FILENAME, FNR, bare
         next
       }
@@ -253,7 +277,7 @@ fi
 if [ -n "$violations" ]; then
   # "could not answer" is exit 2 and must never collapse into exit 1. All three markers
   # below mean the guard did not READ the ports, not that it read them and they were bad.
-  if printf '%s\n' "$violations" | grep -qE 'UNPARSED-ENTRY|UNPARSED-PORTS-FORM|EMPTY-PORTS-BLOCK|HOST-NETWORKING|PORTS-OUT-OF-VIEW'; then
+  if printf '%s\n' "$violations" | grep -qE 'UNPARSED-ENTRY|UNPARSED-PORTS-FORM|EMPTY-PORTS-BLOCK|HOST-NETWORKING|PORTS-OUT-OF-VIEW|UNREADABLE-EXPLICIT-KEY'; then
     echo "::error::compose-loopback-guard: a ports: entry was in a shape this guard does not model." >&2
     echo "It reads block sequences in BOTH indentation styles. Flow sequences (ports: [...])," >&2
     echo "aliases (ports: *x), long-form mappings and empty blocks are REFUSED, never skipped." >&2

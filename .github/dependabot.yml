@@ -290,8 +290,9 @@ updates:
   # supports globbing where `directory` does not (GitHub Docs, read 2026-08-04), so
   # `/src/*` is the tempting one-liner. It is refused because dependabot-core#12348
   # ("Support for wild card (*) and globbing is no longer working with directories key")
-  # has been OPEN since 2025-05-30 with no maintainer response and no workaround, and
-  # its symptom is that the glob matches ZERO manifests — silently. That is the exact
+  # has been OPEN since 2025-05-30 with no maintainer response, and the only workaround is
+  # this entry's own form — explicit paths. Its symptom is that the glob matches ZERO
+  # manifests — silently. That is the exact
   # fail-open shape of the defect this entry exists to close: a config that looks like
   # it has a CVE cadence while having none. Same reasoning as the codeql-action `ignore`
   # above, where a wrong value also fails open and silently.
@@ -389,21 +390,32 @@ updates:
   # NOTHING FROM THIS ENTRY AUTO-MERGES — `dependabot-automerge.yml`'s gate leaves every
   # docker ecosystem off its allow-list. The general reason covers every image bump:
   # nothing reads the image that changes. On top of that, a postgres patch/minor fails
-  # SILENTLY, and here is the mechanism:
-  # `dependabot-automerge.yml`'s gate leaves every docker ecosystem off its allow-list. The
-  # mechanism has THREE homes serving three audiences — **ADR 0110** (the decision, and it
-  # is GITIGNORED so `git grep` cannot see it), `release-checklist.md` §2 for whoever tags
-  # (which also carries the repair procedure), and `docker-compose.yml`'s `postgres-dev`
-  # block for whoever bumps it. Do not add a fourth — regenerate with
+  # SILENTLY: the base image carries ICU, `public.swedish` is an ICU collation, and a
+  # drifting ICU version leaves btree text indexes sorted by an order that no longer
+  # holds — Postgres does not crash, the queries just go quietly wrong.
+  #
+  # That mechanism has THREE homes serving three audiences — **ADR 0110** (the decision,
+  # and it is GITIGNORED so `git grep` cannot see it), `release-checklist.md` §2 for
+  # whoever tags (which also carries the repair procedure), and `docker-compose.yml`'s
+  # `postgres-dev` block for whoever bumps it. Do not add a fourth — regenerate with
   #
   #   grep -rl pg_collation_actual_version . --exclude-dir=.git --exclude-dir=.github
   #
-  # which returns three FILES. Every clause of that command is load-bearing, and each one
-  # answers a way this same count was already reported wrong: `-l` not `-n`, because the
-  # line count is four (release-checklist.md carries the token twice) and a draft here
-  # published that as "four files"; `--exclude-dir=.github`, because THIS comment and its
-  # Swedish twin contain the token and a draft's regenerator counted itself, five; and a
-  # filesystem grep rather than `git grep`, which **cannot see the gitignored ADR at all**.
+  # which should return exactly the three homes named above — and TWO in a tree that does
+  # not have the gitignored ADR, which is every fresh clone and every worktree where
+  # `sync-worktree-docs.ps1` has not run. **No tally is published here on purpose:** a
+  # draft said "three FILES", which is environment-dependent in exactly the way the
+  # `git grep` number was, one clause to its right. The homes are enumerated by name
+  # instead; that is the invariant.
+  #
+  # Three of the command's clauses answer a way this count was already reported wrong:
+  # `-l` not `-n`, because the token occurs twice in one file (release-checklist.md) and a
+  # draft published the line count as a file count; `--exclude-dir=.github`, because THIS
+  # comment and its Swedish twin contain the token and a draft's regenerator counted
+  # itself; and a filesystem grep rather than `git grep`, which **cannot see the
+  # gitignored ADR at all**. The fourth clause, `--exclude-dir=.git`, answers no published
+  # error and is INERT in a worktree, where `.git` is a file rather than a directory — it
+  # is kept for a main checkout, and named rather than swept into "every clause".
   # That last clause carries no number ON PURPOSE — a draft said `git grep` returns two,
   # which was true only before these comments existed, and is the same self-reference the
   # exclusion above fixes. State the property; the numbers move.

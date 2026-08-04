@@ -83,13 +83,20 @@ jobs:
       #
       #   grep -rl pg_collation_actual_version . --exclude-dir=.git --exclude-dir=.github
       #
-      # som ger tre FILER. Varje led bär: `-l` inte `-n` (radantalet är fyra —
-      # release-checklist.md bär token två gånger — och ett utkast publicerade det som
-      # "fyra filer"); `--exclude-dir=.github` (den HÄR kommentaren och dess engelska
-      # tvilling innehåller token, så ett utkasts regenerator räknade sig själv till fem);
-      # och filsystems-grep i stället för `git grep`, som **inte kan se den gitignorerade
-      # ADR:n alls**. Den sista klausulen bär MED FLIT inget tal — ett utkast skrev att
-      # `git grep` ger två, vilket var sant bara innan de här kommentarerna fanns.
+      # som ska ge exakt de tre hem som räknas upp ovan — och TVÅ i ett träd som saknar
+      # den gitignorerade ADR:n, alltså varje färsk klon och varje worktree där
+      # `sync-worktree-docs.ps1` inte körts. **Inget tal publiceras här med flit:** ett
+      # utkast skrev "tre FILER", vilket är miljöberoende på precis samma sätt som
+      # `git grep`-talet var. Hemmen räknas upp vid namn i stället; det är invarianten.
+      #
+      # TRE av kommandots led svarar mot en tidigare felrapportering: `-l` inte `-n`
+      # (token förekommer två gånger i samma fil och ett utkast publicerade radantalet som
+      # ett filantal); `--exclude-dir=.github` (den HÄR kommentaren och dess engelska
+      # tvilling innehåller token, så ett utkasts regenerator räknade sig själv); och
+      # filsystems-grep i stället för `git grep`, som **inte kan se den gitignorerade
+      # ADR:n alls**. Det fjärde ledet, `--exclude-dir=.git`, svarar mot inget publicerat
+      # fel och är INERT i ett worktree, där `.git` är en fil och inte en katalog — det
+      # finns kvar för en huvudkopia, och namnges hellre än sveps in i "varje led".
       # Kadensen påverkas inte i något av fallen: Dependabot öppnar PR:erna månadsvis som
       # förut, men en människa läser dem.
       #
@@ -113,7 +120,9 @@ jobs:
       # grind. `docker-compose` heter **sannolikt** `docker_compose` här — HÄRLETT ur
       # bindestrecksmönstret ovan, ALDRIG observerat: repot har inga docker_compose-PR:er
       # att läsa branch-namnet ur. Verifiera mot en riktig PR innan namnet någonsin
-      # allow-listas; en felstavning där ger en tyst no-op, vilket är precis vad rond 3 av
+      # allow-listas — `::notice::`-raden i `gate`-steget nedan kör ovillkorligt och
+      # skriver ut `ecosystem=` på varje Dependabot-PR, inklusive den första compose-PR:en,
+      # så verifieringen är redan byggd; en felstavning där ger en tyst no-op, vilket är precis vad rond 3 av
       # den här PR:en lagade. Operativt likgiltigt i dag, eftersom listan är fail-closed.
       #
       # DÄRFÖR FAIL-CLOSED. Ett ekosystem som inte står i listan blir ICKE behörigt —

@@ -112,9 +112,15 @@
 > Cloud CAX31 (ARM, 16 GB) all-in-one Docker Compose **BE + FE** + Cloudflare
 > DNS/CDN/proxy** — är beslutat i **ADR 0050 (Accepted 2026-06-08)**. Tabellen
 > nedan beskriver **nuläge (lokalt)** + **beslutat permanent mål**.
-> **VÄRDVALET ÄR UPPHÄVT 2026-08-02** (Klas-direktiv): Hetzner ut, svensk VPS in,
-> **ersättaren obeslutad**. Topologin står; **värd- och edge-leverantörsnamnen** nedan är
-> platshållare tills CC1:s supersessions-ADR landar — se §15:s not. E-postraden är också
+> **VÄRDVALET ÄR AVGJORT 2026-08-04** (Klas-direktiv, ersätter 2026-08-02-läget): Hetzner ut
+> **och "svensk VPS" återkallat på pris/prestanda** — värden är en **Netcup RS 1000 G12
+> (x86, 4 kärnor, 8 GB, Nürnberg) utan CDN**. Lådan är köpt, provisionerad och grundhärdad
+> ([#1196](https://github.com/klasolsson81/jobbliggaren/issues/1196)); **ingenting är
+> deployat.** Beslutet bärs av **ADR 0050 `Amendment 2026-08-04`** (Beslut 2/3/4 delvis
+> superseded, gate M-5 → M-5a/M-5b). Topologin står; **värd- och edge-leverantörsnamnen i
+> tabellerna nedan är ännu inte omskrivna** — den sweepen ägs av
+> [#1199](https://github.com/klasolsson81/jobbliggaren/issues/1199), som också grindar
+> första riktiga datan. E-postraden är också
 > upphävd, men av ett annat direktiv och med **vald** ersättare (AWS SES), ägd av #1169
 > och #183 — se §13.4. Faktisk
 > provisionering är fortsatt framtida Klas-gatat arbete (ADR 0050 Sekvensering:
@@ -142,9 +148,10 @@
 ### 3.3 Miljöer
 
 > **Status (2026-06-08):** dev/staging/production-AWS-miljöerna är avvecklade
-> (ADR 0066). `local` är enda aktiva miljön. **Värdvalet är upphävt 2026-08-02**
-> (Klas-direktiv) — se §3.2:s statusbanner; raderna nedan beskriver den beslutade
-> FORMEN, inte en aktuell leverantör. Permanent deploy-mål var **beslutat**
+> (ADR 0066). `local` är enda aktiva miljön. **Värdvalet är avgjort 2026-08-04**
+> (Klas-direktiv: Netcup, 8 GB, ingen CDN — ADR 0050 `Amendment 2026-08-04`; ersätter
+> det obeslutade 2026-08-02-läget) — se §3.2:s statusbanner; raderna nedan beskriver den
+> beslutade FORMEN och namnger ännu fel leverantör (#1199 äger omskrivningen). Permanent deploy-mål var **beslutat**
 > (Hetzner CAX31 + Cloudflare, ADR 0050 Accepted 2026-06-08) men ännu
 > ej provisionerat (ADR 0050 Sekvensering: Hetzner sist, vid MVP före
 > beta-testare). Tag-baserad AWS-deploy (`v*-dev`/`v*-rc*`/`v*`) refererar
@@ -157,7 +164,7 @@
 | Miljö | Syfte | Deployment | Status |
 |-------|-------|-----------|--------|
 | local | Utveckling | Docker Compose | **Aktiv** |
-| production (planerad) | Live | Hetzner CAX31 + Cloudflare (ADR 0050) | Värdvalet upphävt 2026-08-02 (se §3.2); formen beslutad, ej provisionerad |
+| production (planerad) | Live | ~~Hetzner CAX31 + Cloudflare~~ → **Netcup RS 1000 G12 (8 GB), ingen CDN** (ADR 0050 `Amendment 2026-08-04`) | Värdvalet avgjort 2026-08-04 (se §3.2); lådan provisionerad + grundhärdad (#1196), inget deployat |
 | dev / staging (AWS) | f.d. integration / pre-prod | — | Avvecklad (ADR 0066) |
 
 PR-flöde mot `main` per ADR 0065 (CI-gate). Permanent deploy-strategi och
@@ -1309,10 +1316,12 @@ permanent infra aktiveras; listan nedan speglar **beslutad** uppsättning, ADR 0
 > avgjord — se §15:s not. Release-checklistan §2.5 punkt 5 tvingar denna sektion vid
 > e-postflippen.
 >
-> Hetzner/Cloudflare läggs till i den publika listan vid faktisk
-> provisionering (ADR 0050 Sekvensering) — **men värdpremissen är också upphävd**
-> (Hetzner ut, svensk VPS obeslutad), så namnen här är platshållare tills CC1:s
-> supersessions-ADR landar. Se §15:s not.
+> Värden i den publika listan ska vara **Netcup**, och **Cloudflare utgår helt**
+> (Klas-beslut 2026-08-04, K3 — ingen CDN). Supersessions-ADR:n har **landat**:
+> ADR 0050 `Amendment 2026-08-04`. Själva listan är ännu inte omskriven — den
+> uppdateringen, liksom biträdesavtalskedjan, ägs av
+> [#1199](https://github.com/klasolsson81/jobbliggaren/issues/1199) och grindar första
+> riktiga datan. Se §15:s not.
 
 ### 13.5 Säkerhetshygien
 
@@ -1418,8 +1427,9 @@ UptimeRobot/BetterStack free ersätter ALB/CloudWatch-health per ADR 0050):
 > mening bar ett, och det bröts av samma commit som skrev det**). Uppräkningen är
 > **inte uttömmande** — den namnger var premisserna är mest lästa, inte varje
 > förekomst. Inte bara under
-> omprövning: **värdvalet** (Hetzner ut; svensk VPS in — **ersättaren obeslutad**,
-> kandidater hostup och one.com) och **e-postleverantören** (Resend ut — **ersättaren
+> omprövning: **värdvalet** (Hetzner ut; **och "svensk VPS" i sin tur återkallat
+> 2026-08-04 på pris/prestanda — ersättaren är VALD: Netcup RS 1000 G12, 8 GB, ingen CDN**,
+> bärs av ADR 0050 `Amendment 2026-08-04`) och **e-postleverantören** (Resend ut — **ersättaren
 > är vald: AWS SES i `eu-north-1`**). Motiveringen och tredjelandsbedömningen står
 > medvetet INTE här: §15.1 avvisar Cloudflare R2 "pga CLOUD Act-tredjelandsöverföring **av
 > icke-krypterad pg_dump-PII**", så huruvida en US-ägd leverantör i EU-region faller under

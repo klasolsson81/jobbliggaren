@@ -677,16 +677,38 @@ written as scheduling ("not MVP scope, not verified"), never as fact ("still app
   and `ResendEmailSender` (`Provider=Resend`, fail-loud without
   `Email:ApiKey`). Frontend `.env.local`; backend
   `appsettings.Development.json` + gitignored `appsettings.Local.json`.
-- `AlbOptions`/`Alb:HttpsEnabled` is **live despite its AWS name** — it co-gates
-  `UseHsts` and `UseHttpsRedirection` with the environment in `Api/Program.cs`,
-  and gates the fail-loud HSTS config validation. `UseHttpsRedirectionGateTests`
-  pins both middleware gates in both polarities; the validation gate itself is
-  unpinned. ADR 0066 destroyed the *deployed* AWS dev stack and deliberately
-  **preserved** `infra/terraform/`, which still carries
-  the `Alb__HttpsEnabled` injection — so neither the flag nor the tree is
-  residue. Retirement is a Hetzner-cutover ADR, never a cleanup sweep
+- `ReverseProxyOptions`/`ReverseProxy:HttpsEnabled` (renamed from `AlbOptions`/`Alb:`
+  2026-08-04) is **live** — it co-gates `UseHsts` and `UseHttpsRedirection` with the
+  environment in `Api/Program.cs`, and gates the fail-loud HSTS config validation.
+  `UseHttpsRedirectionGateTests` pins both middleware gates in both polarities and
+  `ReverseProxyOptionsTests` pins the section key; the validation gate itself is still
+  unpinned. **The retired `Alb` key has no transitional fallback** — measured empty
+  consumer set. That absence is a **documented intent, not an executable guarantee**:
+  the pin covers the constant, not the composition root, so a fallback bind added in
+  `Program.cs` would still pass. A fourth `WebApplicationFactory` would pin it properly
+  and was declined deliberately — the Api suite sits **one `WebApplicationFactory` below**
+  EF's process-global `ManyServiceProvidersCreatedWarning` ceiling, and the next host
+  fells whichever collection fixture initialises after it
+  ([#1190](https://github.com/klasolsson81/jobbliggaren/issues/1190)).
+  **`HttpsEnabled` must stay `false` under Option B, and that is a decision, not an
+  unfinished flip:** Next reaches the API over plain internal HTTP, so `true` would 307
+  every internal call and break the app, while `UseHsts` stays inert either way because
+  the API's responses are consumed by a Next route handler and never reach a browser.
+  Browser-visible HSTS is owed **outside ASP.NET**, on **both** response paths — the
+  Caddyfile in #196 for the 401 that never reaches Next, and `buildSecurityHeaders` for
+  the Next path (ADR 0050 Amendment 2026-08-04 §5, gate M-5a). Never by flipping this flag.
+  ADR 0066 destroyed the *deployed* AWS dev stack and deliberately
+  **preserved** `infra/terraform/`, which still carries the **old `Alb__HttpsEnabled`**
+  injection — deliberately, as a **record of what ran**, not as live config. Do not
+  "repair" it toward the current key: measured 2026-08-04, the same block injects two
+  `FieldEncryption__*` options #802 removed, injects no master key (so a re-apply
+  hard-fails at startup), and names `src/JobbPilot.*` Dockerfile paths that do not
+  exist. Renaming one string buys one-of-N consistency and makes a record read as
+  maintained. Retirement — and restoration — is a cutover ADR, never a cleanup sweep
   (BUILD.md §15); [#196](https://github.com/klasolsson81/jobbliggaren/issues/196)
-  owns the rename to `ReverseProxyOptions`.
+  owns the deploy stack and the `ForwardedHeaders:KnownNetworks` CIDR, which A1
+  deliberately left empty — no compose file in the repo declares a network, so the
+  fail-loud gate stays armed rather than holding a guess.
 - **Dev-boot config contract.** A new fail-fast option (a `ValidateOnStart` secret,
   usually in the Infrastructure DI both hosts share) that a fresh dev-stack boot needs —
   a required key, secret, or pepper the API/Worker refuses to start without — MUST be added to

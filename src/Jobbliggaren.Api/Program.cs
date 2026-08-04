@@ -167,11 +167,17 @@ builder.Services.AddHealthChecks()
 var hstsConfig = builder.Configuration.GetSection(HstsOptions.SectionName).Get<HstsOptions>() ?? new HstsOptions();
 
 // Production-defense per allow-list (paritet med ForwardedHeadersConfig STEG 12).
-// Gate:at på albOptions.HttpsEnabled — under HTTP-only Fas 0 (ADR 0026) ska
+// Gate:at på reverseProxy.HttpsEnabled — under HTTP-only Fas 0 (ADR 0026) ska
 // HSTS-config inte vara obligatorisk; men om HttpsEnabled flippas måste
 // MaxAgeDays>=365 + Preload-krav uppfyllas (annars tyst regression).
-var albConfig = builder.Configuration.GetSection(AlbOptions.SectionName).Get<AlbOptions>() ?? new AlbOptions();
-if (albConfig.HttpsEnabled)
+//
+// SINGLE bind, two consumers: this HSTS validation gate, and UseHsts/UseHttpsRedirection
+// in the pipeline below. Binding the same section twice would be two normalisers for one
+// rule, and the divergence has a security direction — the validation could be skipped
+// while UseHsts() still registers, booting Production with MaxAgeDays < 365 and no
+// fail-loud (dotnet-architect, PR #1203).
+var reverseProxy = builder.Configuration.GetSection(ReverseProxyOptions.SectionName).Get<ReverseProxyOptions>() ?? new ReverseProxyOptions();
+if (reverseProxy.HttpsEnabled)
     hstsConfig.EnsureSafeForEnvironment(builder.Environment.EnvironmentName);
 
 builder.Services.AddHsts(o =>
@@ -287,14 +293,22 @@ app.Use(async (ctx, next) =>
 if (app.Environment.IsDevelopment())
     app.MapOpenApi();
 
-// ForwardedHeaders FÖRE auth + rate-limiting. Krävs i prod bakom Next.js-proxy +
-// ALB/CloudFront så Connection.RemoteIpAddress reflekterar klient-IP, inte proxy-IP
+// ForwardedHeaders FÖRE auth + rate-limiting. Required in production behind the reverse
+// proxy so Connection.RemoteIpAddress reflects the client IP, not the proxy's
 // (TD-21 / Sec-Major-1). I dev körs API:t direkt → headers saknas, ingen verkan.
 //
-// SECURITY: KnownNetworks/KnownProxies MÅSTE konfigureras med ALB:s VPC-CIDR i prod
-// innan första traffic. Konfig är direct-bound från ForwardedHeaders-sektionen
-// (STEG 12) — fail-loud vid ogiltigt CIDR/IP-format. I dev (tom array) bevaras
-// ASP.NET-default-beteendet (loopback only). Se docs/runbooks/aws-setup.md §3.3.
+// SECURITY: KnownNetworks MUST carry the reverse proxy's network CIDR before first
+// traffic. Konfig är direct-bound från ForwardedHeaders-sektionen (STEG 12) — fail-loud
+// vid ogiltigt CIDR/IP-format. I dev (tom array) bevaras ASP.NET-default-beteendet
+// (loopback only). Value and stack are owed by #196; the requirement is ADR 0050
+// Amendment 2026-08-04, gate M-5b point 3.
+//
+// And that requirement is NECESSARY BUT NOT SUFFICIENT. UseForwardedHeaders only rewrites
+// RemoteIpAddress when an X-Forwarded-For is actually present; measured 2026-08-04, no
+// component in the Option B stack sends one, so six policies that partition on the client
+// IP (two only for unauthenticated callers) share a single bucket regardless of what this
+// CIDR says (#1202). Populating the CIDR
+// silences the startup check — it does not restore per-IP limiting.
 var forwardedCfg = builder.Configuration
     .GetSection(ForwardedHeadersConfig.SectionName)
     .Get<ForwardedHeadersConfig>() ?? new ForwardedHeadersConfig();
@@ -314,28 +328,32 @@ foreach (var proxy in forwardedCfg.ParseKnownProxies())
 
 app.UseForwardedHeaders(forwardedOptions);
 
-// HttpsRedirection bara om ALB-listenern faktiskt har en HTTPS-port att redirecta TILL.
-// Bakom HTTP-only-ALB skulle redirect → port 443 (stängd) → ALB-health-check failer →
-// ECS deployment_circuit_breaker triggar rollback (security-auditor STEG 13b Sec-Major-2).
-// Konfig-driven via AlbOptions.HttpsEnabled (env-var Alb__HttpsEnabled från ECS task-def,
-// sätts av Terraform när var.alb_https_enabled = true; default false fram till ADR 0026-trigger).
+// HttpsRedirection bara om reverse-proxyn faktiskt har en HTTPS-port att redirecta
+// TILL. Behind an HTTP-only proxy the redirect targets a closed 443, the health check
+// fails and the deploy rolls back (security-auditor STEG 13b Sec-Major-2).
+//
+// Under Option B this stays FALSE by design, not by omission: Next reaches the API over
+// plain internal HTTP, so a true here would answer 307 to every internal call and break
+// the app. See ReverseProxyOptions for the full reasoning and for why UseHsts() below is
+// inert under the same topology.
+//
 // Development-miljö behåller redirect (dotnet run använder dev-cert via Kestrel + IIS Express).
-var albOptions = builder.Configuration.GetSection(AlbOptions.SectionName).Get<AlbOptions>() ?? new AlbOptions();
+// `reverseProxy` is the single bind made above at service-registration time.
 
 // HSTS FÖRE HttpsRedirection så att HSTS-headern sätts på alla HTTPS-svar
 // (inklusive 307-redirect-svaret). Skip i Development för att undvika
 // browser-HTTPS-lock på localhost (HSTS-policy persistar i `MaxAgeDays`
 // dagar även efter dev-cert roterats — bryter `dotnet run` framtida sessioner).
 //
-// Förutsätter att UseForwardedHeaders körts före (rad ~112) — annars är
-// Request.IsHttps false bakom ALB och HSTS-headern sätts aldrig på response
+// Requires the UseForwardedHeaders registration above — otherwise Request.IsHttps is
+// false behind the proxy and the HSTS header is never set on the response
 // (dotnet-architect Viktigt-fynd, ASP.NET Core 10 docs).
-if (!builder.Environment.IsDevelopment() && albOptions.HttpsEnabled)
+if (!builder.Environment.IsDevelopment() && reverseProxy.HttpsEnabled)
 {
     app.UseHsts();
 }
 
-if (builder.Environment.IsDevelopment() || albOptions.HttpsEnabled)
+if (builder.Environment.IsDevelopment() || reverseProxy.HttpsEnabled)
 {
     app.UseHttpsRedirection();
 }

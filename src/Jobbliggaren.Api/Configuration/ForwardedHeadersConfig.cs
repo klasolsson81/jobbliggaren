@@ -5,9 +5,18 @@ namespace Jobbliggaren.Api.Configuration;
 /// <summary>
 /// Konfig-driven <c>UseForwardedHeaders</c>-uppsättning (TD-21 / STEG 12). Bind:as
 /// från <c>appsettings.&lt;env&gt;.json</c>-sektionen <see cref="SectionName"/>. I
-/// dev (default tom array) bevaras ASP.NET-default-beteendet (loopback only). I
-/// prod sätts <see cref="KnownNetworks"/> till ALB:s VPC-CIDR via Fargate task-
-/// definition / IaC så <c>Connection.RemoteIpAddress</c> reflekterar klient-IP.
+/// dev (default tom array) bevaras ASP.NET-default-beteendet (loopback only).
+///
+/// In production <see cref="KnownNetworks"/> is set to the CIDR of the network the
+/// reverse proxy connects FROM, so <c>Connection.RemoteIpAddress</c> reflects the
+/// client IP. In the Compose stack that is the Docker bridge subnet — never a public
+/// address. The value is owed by #196, which builds that stack.
+///
+/// Setting it is necessary but NOT sufficient. This class only decides which proxies
+/// are trusted to have set <c>X-Forwarded-For</c>; it cannot conjure a header nobody
+/// sends. Measured 2026-08-04: under Option B no component in the stack sends one, so
+/// six policies that partition on the client IP currently share a single bucket — two of
+/// them only for unauthenticated callers (#1202).
 ///
 /// Parsing är fail-loud per security-auditor STEG 11 Sec-Major-1: tyst no-op:ad
 /// rate-limiting i prod är värre än uppstart-throw. Ogiltig CIDR-string eller IP
@@ -23,19 +32,21 @@ public sealed class ForwardedHeadersConfig
 
     /// <summary>
     /// CIDR-strings (t.ex. "10.0.0.0/16") som motsvarar trusted proxy-nätverk.
-    /// I Jobbliggaren-prod: ALB:s VPC-CIDR. Tom array = ASP.NET-default (loopback).
+    /// In production: the reverse proxy's network CIDR. Tom array = ASP.NET-default
+    /// (loopback).
     /// </summary>
     public string[] KnownNetworks { get; init; } = [];
 
     /// <summary>
-    /// Single-IP-strings för enskilda proxies utanför VPC:n (t.ex. CloudFront-
-    /// origin-IP om listan är stabil). Sällan använd i ALB-only-deploy.
+    /// Single-IP entries for individual proxies outside the trusted network. Rarely
+    /// needed with a single reverse proxy in front.
     /// </summary>
     public string[] KnownProxies { get; init; } = [];
 
     /// <summary>
-    /// Hur många proxy-hops som accepteras i X-Forwarded-For-kedjan. Default 1 i
-    /// dev; 2 i prod (ALB → CloudFront om används). Värden &lt; 1 throwas.
+    /// Hur många proxy-hops som accepteras i X-Forwarded-For-kedjan. 1 for a single
+    /// reverse proxy — which is what <c>appsettings.Production.json</c> ships; raise to
+    /// 2 only if a CDN is placed in front of it. Värden &lt; 1 throwas.
     /// </summary>
     public int ForwardLimit { get; init; } = 1;
 
@@ -55,7 +66,7 @@ public sealed class ForwardedHeadersConfig
             {
                 throw new InvalidOperationException(
                     $"ForwardedHeaders:KnownNetworks[{i}] '{raw}' är inte ett giltigt CIDR " +
-                    "(förväntat format: '10.0.0.0/16'). Se docs/runbooks/aws-setup.md §3.3.");
+                    "(förväntat format: '10.0.0.0/16').");
             }
             result.Add(network);
         }
@@ -91,8 +102,8 @@ public sealed class ForwardedHeadersConfig
         if (ForwardLimit is < 1 or > 10)
         {
             throw new InvalidOperationException(
-                $"ForwardedHeaders:ForwardLimit måste vara 1-10, fick {ForwardLimit}. " +
-                "Default 1 (direkt-anrop), 2 vid CloudFront+ALB-kedja.");
+                $"ForwardedHeaders:ForwardLimit must be 1-10, got {ForwardLimit}. " +
+                "1 for a single reverse proxy, 2 when a CDN sits in front of it.");
         }
         return ForwardLimit;
     }
@@ -100,7 +111,9 @@ public sealed class ForwardedHeadersConfig
     /// <summary>
     /// Production-defense per allow-list (security-auditor STEG 12 Sec-Major-1).
     /// Symmetri med Worker <c>safeForAutoSchema</c>-mönstret. Tom <see cref="KnownNetworks"/>
-    /// bakom proxy = IP-rate-limiting i en bucket = effektivt no-op = OWASP A07-yta.
+    /// bakom proxy = alla klienter i EN bucket = sex policies som partitionerar på klient-IP
+    /// (två av dem bara för oautentiserade anropare) blir en GLOBAL limiter — inte en
+    /// frånvarande kontroll, utan en delad. OWASP A07-yta.
     /// Bara <c>Development</c> och <c>Test</c> får tom array; allt annat tvingas till
     /// explicit overlay via fail-loud uppstart-throw.
     /// </summary>
@@ -115,10 +128,19 @@ public sealed class ForwardedHeadersConfig
         if (!safeForEmpty && KnownNetworks.Length == 0)
         {
             throw new InvalidOperationException(
-                $"ForwardedHeaders:KnownNetworks måste sättas till ALB:s VPC-CIDR utanför " +
-                $"Development/Test (aktuell miljö: {environmentName}). " +
-                "Tom array bakom proxy gör IP-baserad rate-limiting till no-op. " +
-                "Se docs/runbooks/aws-setup.md §3.3.");
+                $"ForwardedHeaders:KnownNetworks must be set outside Development/Test " +
+                $"(current environment: {environmentName}). An empty array behind a proxy " +
+                "collapses every client into ONE bucket, which turns six policies that " +
+                "partition on the client IP (two only for unauthenticated callers) into a " +
+                "global limiter — one caller can exhaust the login " +
+                "budget and deny authentication to everyone. " +
+                "Set it to the CIDR of the network the reverse proxy connects FROM — in the " +
+                "Compose stack that is the Docker bridge subnet, never the public address. " +
+                "NECESSARY BUT NOT SUFFICIENT: setting this silences THIS check, it does not " +
+                "make per-IP limiting work. That also requires an X-Forwarded-For to actually " +
+                "arrive, and today no component in the stack sends one (issue #1202). " +
+                "See docs/decisions/0050-deployment-migration-aws-exit-hetzner.md, " +
+                "Amendment 2026-08-04, gate M-5b point 3.");
         }
     }
 }

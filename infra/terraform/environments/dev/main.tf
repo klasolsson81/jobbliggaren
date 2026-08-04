@@ -364,6 +364,40 @@ module "ecs" {
   # app.UseHttpsRedirection() — se Api/Program.cs (förhindrar redirect-loop
   # bakom HTTP-only-ALB per ADR 0026 + sec-auditor Sec-Major-2 STEG 13b).
   #
+  # NOTE: this tree is a RECORD of the destroyed AWS stack, not a maintained
+  # configuration. ADR 0066 tore the deployed dev stack down and deliberately kept the
+  # code (CLAUDE.md §11, BUILD.md §15.2); retirement is a cutover-ADR, never a cleanup
+  # sweep. Do not "repair" it toward the current application — the names below record
+  # what actually ran, and editing them makes a record look like live config.
+  #
+  # That is a MEASUREMENT, not an assertion (measured 2026-08-04 against HEAD 96f2b3ad):
+  #   - This block injects FieldEncryption__CmkKeyId and __AwsRegion (below, and again
+  #     for the worker). Both options were REMOVED from the application by #802 —
+  #     FieldEncryptionOptions now carries only Provider + LocalMasterKeyBase64.
+  #   - The tree injects no FieldEncryption__LocalMasterKeyBase64 at all, and
+  #     FieldEncryptionOptionsValidator hard-fails startup in EVERY environment without
+  #     it (ValidateOnStart, in the AddPersistence both hosts load). A re-apply would
+  #     never reach any middleware gate.
+  #   - The BUILD INSTRUCTIONS in this tree (below in this file, and environments/dev/
+  #     README.md) name src/JobbPilot.*/Dockerfile; the projects are Jobbliggaren.* and
+  #     those paths do not exist. The HCL itself consumes prebuilt ECR tags, so this is a
+  #     dead procedure rather than dead HCL. THREE files under infra/ carry stale
+  #     src/JobbPilot.* project paths: this file, environments/dev/README.md and
+  #     modules/ecs/main.tf. The rest are LIVE AWS identifiers — the JobbPilotBedrock*
+  #     IAM policies in the preserved prod baseline (ADR 0066 Beslut 1), the Project tag,
+  #     the CloudWatch namespaces, the name-prefix variable defaults — or the old product
+  #     name in prose and in resource descriptions. Case-sensitivity does NOT separate
+  #     stale from live: it only separates CamelCase from jobbpilot-dev-*, and both forms
+  #     contain live names. That conflation is how the withdrawn "178" figure arose; see
+  #     #196. Do not rename any of them in passing either: a current name standing among
+  #     dead ones makes the record read as maintained.
+  # So the app-facing halves of this block are dead in two ways, and the procedure around
+  # it in a third. Renaming one
+  # string would buy one-of-N consistency and leave a current name standing among dead
+  # ones, which reads as maintained. Restoration, if it ever happens, belongs to #196 at
+  # cutover — not to a passing rename. (No line numbers here on purpose; the previous
+  # pointer into this block already rotted once.)
+  #
   # AdminBootstrap__InitialAdminEmail — IdempotentAdminRoleSeeder tilldelar
   # Admin-rollen till user med matchande email vid host-startup (senior-cto-
   # advisor 2026-05-11 B1 — IaC over manual psql-script). Email är inte

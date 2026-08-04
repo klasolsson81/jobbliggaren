@@ -194,7 +194,13 @@ public class ForwardedHeadersConfigTests
 
         ex.Message.ShouldContain("KnownNetworks");
         ex.Message.ShouldContain(env);
-        ex.Message.ShouldContain("aws-setup.md");
+        // Pin the substance and a stable ADR number rather than a runbook filename: the
+        // previous assertion pinned "aws-setup.md", a runbook that is gitignored and absent
+        // from the tracked repo — so this fail-loud boot message handed the operator a
+        // pointer into nothing, and the test certified it (#196). ADR 0050 is tracked, so
+        // the path it now cites is one the reader can actually open.
+        ex.Message.ShouldContain("CIDR");
+        ex.Message.ShouldContain("0050");
     }
 
     [Theory]

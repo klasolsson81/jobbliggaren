@@ -311,7 +311,9 @@ och Next.js-servern (`localhost:3000`, övriga routes); origin-cert + origin-IP-
 > **forwarded-headers/per-IP-rate-limit:** `AuthWritePolicy` rate-limitar per
 > klient-IP → Caddy måste passa äkta klient-IP. Både `ForwardedHeadersConfig` +
 > `appsettings.Production.json`:s `ForwardedHeaders.KnownNetworks` (den faktiska
-> X-Forwarded-For-wiringen, i dag bunden till ALB:s VPC-CIDR) **och** `AlbOptions`
+> X-Forwarded-For-wiringen, i dag bunden till ALB:s VPC-CIDR **— FALSIFIERAD 2026-08-04:
+> `KnownNetworks` var `[]` och har aldrig varit satt till VPC-CIDR:n i denna fil; värdet
+> fanns bara i den rivna ECS-task-def:en. Se `Amendment 2026-08-04` §5**) **och** `AlbOptions`
 > (HTTPS/HSTS-gaten) är ALB-orienterade och måste re-homas för Caddy/Docker-nätets
 > CIDR (jfr TD-106 punkt 3 `ForwardedHeadersConfig` + punkt 4 `AlbOptions →
 > ReverseProxyOptions`), annars kollapsar limits till Caddys IP och
@@ -788,7 +790,8 @@ LE-cert via HTTP-01; **HSTS emitteras faktiskt i Production**; ingen klartextstr
 > är "ren konfig utan effekt" så länge flaggan är false. Enda **levande** injektorn var
 > Terraforms `Alb__HttpsEnabled` i den **deployade** ECS-task-def:en, som ADR 0066 rev —
 > men Terraform-**koden** är medvetet bevarad och bär injektionen kvar
-> (`infra/terraform/environments/dev/main.tf:377`, CLAUDE.md §11). Ingen injektor finns
+> (`infra/terraform/environments/dev/main.tf`, `api_environment`-blocket — radnumret
+> utelämnat med flit; det förföll redan en gång, CLAUDE.md §11). Ingen injektor finns
 > alltså på Netcup-lådan; trädet är inte residual.
 > **HSTS ser konfigurerat ut och är inert. Fixen ligger INTE i ASP.NET — se
 > EMITTER-noten nedan.** **Bevis avläses på svaret** (`curl -sI` visar
@@ -818,6 +821,45 @@ LE-cert via HTTP-01; **HSTS emitteras faktiskt i Production**; ingen klartextstr
 > att **båda** svarsvägarna bär headern är grinden.
 > **`AlbOptions → ReverseProxyOptions`-re-homet är fortsatt skyldigt — men för
 > `ForwardedHeaders:KnownNetworks` (M-5b punkt 3), INTE för HSTS.**
+>
+> **A1-tillägg (levererat 2026-08-04, mätt mot HEAD `16aced64`): emittern är avgjord,
+> ingen halva byggd, och det är avsiktligt.** Caddy-halvan **går inte att bygga i dag** —
+> noll filer matchar `Caddyfile`/`caddy*` i repot, så det finns ingen fil att lägga
+> `header Strict-Transport-Security` i; den uppstår först med #196:s compose-stack.
+> Next-halvan **går** att bygga — `buildSecurityHeaders` emitterar fem headers och HSTS
+> är inte en av dem, och dess kontraktstest fryser mängden med `toEqual` på den ordnade
+> nyckellistan, så tillägget är en tvåfilsändring med regressionsspärr. Den gate:as på
+> den `isDev`-flagga som redan trådas genom funktionen, annars HTTPS-låser `next dev`
+> localhost i `MaxAgeDays` — exakt felet `HstsOptions` varnar för. Men det är en
+> `web/`-ändring med **egen change-reason**, så den landade inte i A1:s Api-PR.
+> **Grinden är oförändrad: båda svarsvägarna, bevisat på 401:an.** Att en halva är
+> byggbar i dag flyttar inte grinden till den halvan.
+>
+> **Vad A1 däremot ändrade i ASP.NET-halvan:** `HttpsEnabled` läses inte längre som en
+> TODO. Kommentarerna sa "aktiveras vid ADR 0026-trigger", vilket under Option B hade
+> lett en läsare att flippa flaggan vid lansering och **bryta appen** — Next når API:t
+> över internt HTTP, så `UseHttpsRedirection()` hade svarat 307 på varje internt anrop,
+> och `UseHsts()` hade ändå inte nått en browser. Flaggan är nu dokumenterad som
+> **korrekt `false` under Option B**, och `Hsts`-blocket som defence-in-depth för en
+> topologi där API:t åter är kant-exponerat — inte som ett väntande lanseringssteg.
+>
+> **Namnet `AlbOptions` lever kvar i äldre text i denna ADR och ska inte städas bort.**
+> `Amendment 2026-07-18` (TD-106-överlämningen) och mätningen ovan i denna amendment
+> skrevs båda när typen hette så. **Men "de var sanna när de skrevs" håller inte som
+> generell utsaga, och den formuleringen är härmed tillbakadragen:** `Amendment
+> 2026-07-18`:s parentes "i dag bunden till ALB:s VPC-CIDR" var **aldrig** sann — den var
+> en omätt gissning, precis den klass A1 finns för att ta bort, och den är nu markerad vid
+> raden. Det korrekta påståendet är smalare: **typnamnet** var aktuellt när texten skrevs.
+> Kvarlämnad text är protokoll över vad som *påstods* då, inte över vad som var sant, och
+> inte instruktioner. Typen heter sedan 2026-08-04 `ReverseProxyOptions` och
+> konfigsektionen `ReverseProxy` — den gamla `Alb`-nyckeln har **ingen**
+> övergångsbindning. Det är en **dokumenterad avsikt, inte en körbar garanti**:
+> `ReverseProxyOptionsTests` pinnar konstanten, inte kompositionen — en fallback-bind i
+> `Program.cs` skulle passera grönt. Det riktiga pinnet avstods medvetet, mot en mätning:
+> Api-sviten ligger **en `WebApplicationFactory` under** EF:s process-globala
+> `ManyServiceProvidersCreatedWarning`-tak
+> ([#1190](https://github.com/klasolsson81/jobbliggaren/issues/1190)), där nästa host fäller
+> den collection-fixture som råkar initieras därnäst.
 >
 > **Beviset läses på det OAUTENTISERADE 401-svaret**, inte bara på ett autentiserat 200.
 > Caddy svarar 401 utan att nå Next, så en HSTS enbart i `buildSecurityHeaders` finns
@@ -855,9 +897,76 @@ kontrollerna är **levande och mätta**:
 2. **Option B håller empiriskt** — cutover-curl-matrisen (redan skyldig sedan
    Amendment 2026-07-18), utvidgad till att bevisa `/api/v1/dev` och `/api/v1/admin/*`
    onåbara utifrån.
-3. **Per-IP-rate-limiting fungerar**: `ForwardedHeaders:KnownNetworks` re-homad från
-   ALB:s VPC-CIDR till Caddy/Docker-nätets. Cloudflares bortfall **befordrar detta från
-   korrekthetspost till stackens enda per-IP-kontroll.**
+3. **Per-IP-rate-limiting fungerar.** Cloudflares bortfall **befordrar detta från
+   korrekthetspost till stackens enda per-IP-kontroll.** Grinden ställs på att
+   kontrollen **mäts levande**, aldrig på att en konfignyckel fått ett värde.
+
+   **Re-homet av `ForwardedHeaders:KnownNetworks` är NÖDVÄNDIGT MEN INTE TILLRÄCKLIGT —
+   den tidigare formuleringen, som lade hela villkoret på re-homet, är falsifierad.**
+   Mätt 2026-08-04 mot HEAD `16aced64`: under Option B når **ingen** `X-Forwarded-For`
+   fram till API:t. Next är ingen transparent proxy (noll `rewrites()` i
+   `next.config.ts`), `src/proxy.ts` grindar bara, och varje backend-anrop är ett nytt
+   `fetch()` med en explicit konstruerad header-mängd. **Beviset som bär slutsatsen är
+   svepet:** noll träffar på `x-forwarded` i hela `web/` (skiftlägesokänsligt, exklusive
+   `node_modules`/`.next`). *(`authHeaders()` — som returnerar exakt `Authorization` +
+   `Content-Type` — finns bara i 2 av de 21 icke-test-`.ts`-filerna i `lib/api/`
+   (nämnaren är icke-test-filer; katalogen har 32 `.ts` totalt) och bär alltså inte
+   slutsatsen; den illustrerar den.)*
+   `UseForwardedHeaders` skriver om `Connection.RemoteIpAddress` **bara när headern
+   finns**, så utan header är den no-op och **inget CIDR-värde kan laga det**. Nyckeln
+   styr vilka proxies som får ha satt headern; den kan inte frambringa en header ingen
+   skickar.
+
+   **Omfattningen är sex policies, inte en, och riktningen är inte "no-op" utan en
+   exploaterbar tillgänglighetsdefekt** (security-auditor, 2026-08-04, mot denna PR).
+   `RateLimitingExtensions` partitionerar på `Connection.RemoteIpAddress` i
+   `AuthWritePolicy`, `AuthLoosePolicy`, `LandingPublicReadPolicy`, `HealthCheckPolicy`
+   samt `ip:`-grenen i `JobAdStatusBatchPolicy` och `JobAdMatchBatchPolicy` — där de två
+   sista enligt sina egna kommentarer bär TD-87:s skyddsegenskap just för att ytorna
+   avsiktligt **inte** är `RequireAuthorization`-grindade. En enda hink är inte *frånvaro*
+   av kontroll utan en **global** limiter: en aktör kan konsumera hela login-budgeten med
+   20 requests/minut och **neka autentisering åt samtliga användare**. Samma container-IP
+   hamnar i `AuthAuditLogger` och `RequestContextProvider`, vilket gör
+   revisionsspårets aktörsattribuering till en konstant.
+
+   **Rättelse till min egen första formulering:** jag skrev att detta gör
+   `docs/runbooks/failed-access-anomaly.md` verkningslös. **Falskt, och omätt när jag skrev
+   det.** `FailedAccessLogger` loggar ingen IP alls — dess fält är `aggregateType`,
+   `requestedAggregateId`, `requestingUserId` — och runbookens steg pivoterar på
+   `requesting_user_id`. XFF-luckan rör dem inte. Runbooken *är* i praktiken verkningslös,
+   men av ett större och tidigare skäl: varje mekanism i den (`aws logs start-query`,
+   CloudWatch-loggruppen, metric filter, SNS-topicen, WAF-blocket i ALB) revs av ADR 0066.
+   Att tillskriva en befintlig, större oförmåga en smalare orsak riskerar att någon lagar
+   #1202 och tror att detektionen är återställd.
+
+   **#1202 är en FÖRUTSÄTTNING för M-7, inte ett syskon.** M-7:s eskaleringsklausul vilar
+   på detektionsförmåga, och #1202 tar bort den enda nätverksattribuering
+   auth-revisionsspåret har. Utan den kopplingen kan #196 stänga M-7 med värddetektion och
+   alerting medan applagrets attribuering fortfarande är en konstant.
+
+   **ÖPPEN FRÅGA TILL KLAS — registrerad på
+   [#1202](https://github.com/klasolsson81/jobbliggaren/issues/1202), inte här.** Grindens
+   uppfyllnadsvillkor är inte kontrollens korrekthetsvillkor: när #196 fyller i
+   bridge-CIDR:n blir `EnsureSafeForEnvironment` grön medan per-IP-limiteringen fortfarande
+   är kollapsad. Alternativen (a)/(b)/(c) och security-auditors uttryckliga
+   icke-rekommendation ligger i issue-kommentaren. *Placeringen är avsiktlig: §9.6 gör
+   ADR:n till kärl för den **beviljade** koncessionen, medan §9.2 lägger en **obesvarad**
+   eskalering i en labeled issue — ett stycke i en Accepted ADR har ingen läsare och
+   ruttnar på plats, vilket är precis felklassen TD-registret pensionerades över.*
+   **När Klas svarar skrivs svaret in här**, som beviljad eller avvisad koncession.
+
+   Ägs av **[#1202](https://github.com/klasolsson81/jobbliggaren/issues/1202)** — graderad
+   **`Major`** av security-auditor 2026-08-04 (Art. 5(2) / Art. 32(1)(b) / Art. 33(3)(a) +
+   Recital 87; **inte** PII-exponering, eftersom `IpAnonymizer` trunkerar före lagring, så
+   Art. 5(1)(c) är över-uppfylld). **Eskalerar till `Blocker` vid första riktiga data**, på
+   samma trigger som M-7. Det är ett **pre-beta-data-grindvillkor**, inte "någon gång i
+   MVP-fönstret". **Grinden stängs på att en request från en känd klient-IP
+   syns med den IP:n i rate-limit-partitionen och i auth-revisionsspåret** — aldrig på
+   att `KnownNetworks` är ifylld. Re-homet i sig levererades av A1
+   (`AlbOptions` → `ReverseProxyOptions`), som **medvetet lämnade värdet tomt**: ingen
+   compose-fil i repot deklarerar ett nätverk, så det finns ingen bridge-CIDR att mäta,
+   och en gissning hade avväpnat den fail-loud-grind som stoppar en felkonfigurerad
+   deploy.
 4. **`forward policy drop`** löses med riktade `iif`/`oif`-accepts för Docker-bryggan,
    **aldrig `policy accept`** — och kantens **IPv6-halva mäts före den växlingen**; den
    är i dag omätt.

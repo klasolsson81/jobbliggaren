@@ -1,10 +1,31 @@
 # ADR 0050 — Deployment-migration: full AWS-exit → Hetzner CAX31 + Cloudflare
 
-**Status:** Accepted
+**Status:** Accepted — **delvis superseded 2026-08-04 av ADR 0122** (Beslut 2 helt, Beslut 3:s värdreferens, Beslut 4:s Cloudflare-halva + backup-mål, gate M-5)
 **Datum:** 2026-05-19 (Proposed); **Accepted 2026-06-08** (efter targeted amendment, se Livscykel-not + Amendment 2026-06-08)
 **Kontext:** Post-Fas-3 + pre-migration-discovery-session (Block 2). Inför MVP-presentation 2026-05-25 + studentbudget-kostnadshygien. Accepted-flippen 2026-06-08 sker post-AWS-teardown (ADR 0066) som strategisk riktnings-bekräftelse — faktisk provisionering är fortsatt framtida Klas-gatat arbete (se Amendment 2026-06-08, Sekvensering).
 **Beslutsfattare:** Klas Olsson (riktnings-GO 2026-05-19; Accepted-GO + sizing/sekvens-dom 2026-06-08); dotnet-architect (IaC-/sizing-/deploy-review §9.2, 2026-05-19 + 2026-06-08); senior-cto-advisor (§9.6 decision-maker, strategiskt fas-skifte, 2026-05-19 + 2026-06-08); security-auditor (secrets/master-nyckel/PII-residens §9.2, 2026-06-08)
 **Relaterad:** ADR 0005 (kostnadsskydd — relevans-skifte post-migration, ej supersession); ADR 0019 (direct-push, granskningsspärrar); ADR 0065 (PR-flöde + automerge — denna amendment levereras via PR); ADR 0066 (AWS dev-stack-teardown — löser KMS-beroendet via `LocalDataKeyProvider`, se Amendment 2026-06-08); ADR 0049 (TD-13 envelope-encryption — KMS-beroendet LÖST via ADR 0066 `LocalDataKeyProvider`, kvarvarande Hetzner-härdning = TD-102); ADR 0051 (AI-provider — Bedrock utgår, möjliggör ren exit). Underlag: `docs/research/2026-05-19-bedrock-vs-anthropic-direct.md`; `docs/reviews/2026-06-08-adr-0050-aws-exit-hetzner-{architect,security,cto}.md`. BUILD.md Bilaga B planerad `NNNN-aws-over-azure.md` — denna ADR fyller den slotten med motsatt slutsats (helt moln-exit, ej moln-byte).
+
+> ### ⚠ Läs ADR 0122 först på allt som rör värd, sizing eller edge
+>
+> **Värdvalet i denna ADR gäller inte längre.** Klas-beslut 2026-08-04: **Netcup
+> RS 1000 G12 (x86, 4 kärnor, 8 GB, Nürnberg)** är värden framöver; Hetzner är av
+> bordet och den mellanliggande "svensk VPS"-riktningen är återkallad. **ADR 0122**
+> (lokal ADR per ADR 0072 docs-privacy) bär beslutet, residensmätningen, Klas
+> topologibeslut K1–K4 och de fyra kapacitetsvillkoren för en 8 GB-låda.
+>
+> **Superseded här:** Beslut 2 (helt) · Beslut 3 (enbart värdreferensen "på CAX31") ·
+> Beslut 4 (enbart Cloudflare-halvan + backup-**målet**) · gate **M-5**.
+>
+> **INTE superseded — och den distinktionen är lastbärande:** Beslut 1 · **Beslut 4:s
+> `Amendment 2026-07-18` (Option B, "route-all-through-Next", inkl. de sex
+> lastbärande invarianterna)**, som är helt provider-oberoende och gäller oförändrad ·
+> Beslut 3:s substans (Vercel-exit, FE som co-tenant-container, **build-in-CI-regeln**) ·
+> Beslut 2:s topologi (en låda, Compose, co-tenant PG/Redis) · gates B-1/B-2/M-1/M-2/M-3/M-4/M-6 ·
+> kravet på en **obligatorisk andra security-auditor-granskning** före första riktiga data.
+>
+> Texten nedan är **superseded, inte raderad** — den står kvar som protokoll.
+> Se `Amendment 2026-08-04` sist i filen.
 
 > **Livscykel-not:** Skriven 2026-05-19 av Claude Code på explicit Klas-begäran
 > (medveten override av CLAUDE.md §9.4 webb-Claude-verbatim-konventionen för
@@ -58,6 +79,17 @@ enklare ops-yta och eliminerar AWS-SDK-beroenden på driftboxen.
 
 ### Beslut 2 — Backend: Hetzner Cloud CAX31 (ARM), all-in-one Docker Compose
 
+> **SUPERSEDED 2026-08-04 av ADR 0122** — värd och sizing är nu **Netcup RS 1000 G12
+> (x86, 4 dedikerade kärnor, 8 GB, Nürnberg)**. **Grunden för att avvisa 8 GB nedan är
+> mätt död:** `JobTechStreamClient`s `MaxResponseContentBufferSize = 500 MB` finns inte
+> i `src/` (mätt 2026-08-04 mot HEAD `1b98d016`) — båda wire-vägarna strömmar, så en cap
+> vore en no-op. ARM-resonemanget är moot (x86). Korpuset har däremot vuxit 46k →
+> 106 071 annonser och `company_register` (1 066 938 rader) tillkommit, så domen är
+> **marginell men körbar**, villkorad på fyra punkter i ADR 0122. Även
+> `mem_limit`-doktrinen nedan ("generös/osatt cap på Postgres") är superseded: den vilade
+> uttryckligen på att 16 GB upplöste nollsummespelet, och på 8 GB är det tillbaka.
+> **Topologin — en låda, Compose, co-tenant PG/Redis, ingen managed DB — består.**
+
 > **Amenderad 2026-06-08:** ursprungsvalet **CX32** (x86, 8 GB) uppgraderades till
 > **CAX31** (ARM, 16 GB) efter dotnet-architect-/senior-cto-advisor-dom. Skälet:
 > ADR 0050:s ursprungstext vägde bara CX22 vs CX32 (båda x86) — ARM CAX-serien
@@ -96,6 +128,13 @@ State: medvetet SPOF-val för beta kompenseras med headroom i delad resurs).
 
 ### Beslut 3 — Frontend: co-tenant container på CAX31 (Vercel-exit)
 
+> **DELVIS superseded 2026-08-04 av ADR 0122 — enbart värdreferensen.** Läs "CAX31"
+> som "Netcup-lådan" överallt nedan, och sizing-re-valideringen (16 GB, ~8 GB headroom)
+> som ersatt av ADR 0122:s `mem_limit`-tabell mot 8 GB. **Substansen består oförändrad:**
+> Vercel-exiten, FE som `next start`-co-tenant-container bakom Caddy, och **den bindande
+> build-in-CI-regeln** — som i ADR 0122 dessutom är kapacitetsvillkor 1 och därmed
+> lastbärande, inte längre bara bekvämt.
+
 > **Amenderad 2026-06-14 (Klas-direktiv):** ursprungsbeslutet **"Vercel behålls"**
 > är supersederat — Next.js-frontend flyttar in som `next start`-container i samma
 > Compose-stack bakom Caddy på CAX31.
@@ -124,6 +163,30 @@ State: medvetet SPOF-val för beta kompenseras med headroom i delad resurs).
 > bindande regeln.**
 
 ### Beslut 4 — Cloudflare-proxy + Hetzner-EU-backup-offload
+
+> **DELVIS superseded 2026-08-04 av ADR 0122 — och gränsen går mitt i detta beslut.**
+> Läs den innan du läser resten av sektionen:
+>
+> - **Cloudflare-halvan är DÖD** (Klas K3): ingen CDN, ingen "Full (strict)", **ingen
+>   origin-IP-lockdown**, ingen DDoS-absorption. Caddy går direkt mot Let's Encrypt;
+>   DNS ligger hos **Strato**. Därför står 80/443 öppna mot `any` i båda brandväggslagren
+>   — **det krävs för ACME HTTP-01, och får inte "rättas" mot gate M-5:s text.**
+> - **Backup-MÅLET är dött** (Hetzner-EU Storage Box). **Kraven består:** klient-side
+>   age-kryptering före upload oavsett mål, EU-jurisdiktion, definierad rotation — nu
+>   med ett tal, **K4: 30 dagar**. Målet är **inte valt och inte verifierat**; det ägs av
+>   [#197](https://github.com/klasolsson81/jobbliggaren/issues/197).
+> - **`Amendment 2026-07-18` nedan (Option B, "route-all-through-Next") är INTE
+>   superseded.** Den är provider-oberoende — beslutad på applikationens form (11
+>   Next-BFF-handlers under `/api/`, noll publika backend-konsumenter), inte på
+>   Cloudflare. Den och dess **sex lastbärande invarianter gäller oförändrade**, och
+>   att läsa "Beslut 4 är superseded" som att den föll vore att döda den tyst.
+> - **EN rättelse i den, och den är kritisk att läsa FÖRE invariant 5 nedan:**
+>   invariant 5 avslutas med parentesen *"(Med Cloudflare Full (strict) + origin-cert
+>   är detta ändå moot.)"*. **Den parentesen är falsk under K3.** Utan CDN kör Caddy
+>   ACME **HTTP-01 skarpt**, så invariant 5 går från moot till **lastbärande**: det
+>   måste bevisas vid cutover att K2:s basic auth-grind inte skuggar
+>   `/.well-known/acme-challenge/*`. Gör den det dör certifikatförnyelsen **tyst, cirka
+>   60 dagar efter cutover**. Invariantens text i övrigt är oförändrad och gäller.
 
 > **Amenderad 2026-06-08:** backup-målet **Cloudflare R2** ersattes med
 > **Hetzner-EU Storage Box** efter security-auditor-/senior-cto-advisor-dom
@@ -234,7 +297,15 @@ disk-budgeten hållbar mot korpus-tillväxt + WAL + Docker-images).
 skyddar bara fyra kolumner *i* dumpen; resten kräver eget krypto-lager. Plus
 definierad backup-retention/rotation (bortre gräns för icke-krypterad PII i
 gamla dumpar; ADR 0024:s RDS-14d-rotation finns ej gratis på Hetzner — måste
-byggas). Detaljerna = **TD-107**.
+byggas). Detaljerna = [#197](https://github.com/klasolsson81/jobbliggaren/issues/197).
+
+> **Superseded 2026-08-04 av ADR 0122 — enbart MÅLET.** Hetzner-EU Storage Box faller
+> med värdbytet, och boxens disk är 256 GB, inte 160. **Kraven i stycket ovan består
+> ordagrant** (age-kryptering före upload oavsett mål, EU-jurisdiktion, definierad
+> rotation) och får nu ett tal: **K4 = 30 dagars retention**. Ett nytt mål är **inte
+> valt och inte verifierat** — #197 äger valet. **Cloudflare R2 är redan uttryckligen
+> avvisat** i Amendment 2026-06-08 ovan och får inte återföreslås utan att
+> security-auditor väger age-krypteringen mot Kap. V.
 
 ## Konsekvenser
 
@@ -302,6 +373,10 @@ i "Pre-beta-data-gates" under Amendment 2026-06-08.
 - Caddy auto-Let's-Encrypt (DNS-01 via Cloudflare-plugin); health-checks +
   extern uptime-monitor (UptimeRobot/BetterStack free) ersätter
   ALB/CloudWatch-health.
+  > **Rättad 2026-08-04 (ADR 0122 / K3):** "**DNS-01 via Cloudflare-plugin**" är död —
+  > det finns ingen Cloudflare. Caddy kör **HTTP-01** över de portar som därför måste
+  > stå öppna mot `any`. Health-checks + extern uptime-monitor består oförändrade,
+  > men monitorn träffar den publika Next-ytan (Option B invariant 4), aldrig backend.
 - KMS-beroendet är redan löst (ADR 0066 `LocalDataKeyProvider`); kvarvarande
   master-nyckel-prod-härdning + rotation = **TD-102** (egen security-auditor-
   granskning av faktisk prod-config före real-PII).
@@ -340,6 +415,14 @@ i "Pre-beta-data-gates" under Amendment 2026-06-08.
   skala-signal (Trigger, §9.6) — ej TD.
 
 ## Implementationsstatus
+
+> **Föråldrad 2026-08-04 (se ADR 0122).** Lådan **är** provisionerad och
+> grundhärdad — en Netcup RS 1000 G12, inte en Hetzner CAX31 (PR #1196,
+> `docs/runbooks/vps-base-hardening.md`, bevisad över två omstarter). Fortfarande
+> sant: **ingenting är deployat och ingen applikationsdata finns på lådan.**
+> Sekvenseringen nedan ("Hetzner-provisionering sist") är därmed passerad — nästa
+> steg är deploy-stacken ([#196](https://github.com/klasolsson81/jobbliggaren/issues/196)),
+> och samtliga Pre-beta-data-gates står kvar som grind före första riktiga data.
 
 **Accepted 2026-06-08 (riktning bekräftad). Ingen migration/provisionering
 utförd.** Accepted-flippen dokumenterar den bekräftade riktningen — den binder
@@ -420,8 +503,10 @@ operativt av TD-102 (master-nyckel), TD-106 (stack/härdning), TD-107 (backup).
 | B-2 | Gitleaks/historik-scan: ingen master-nyckel/cred committad; rotation om läckt | Blocker | **Verifierad GRÖN 2026-06-08** (`appsettings.Local.json` i .gitignore, aldrig committad; inget nyckel-värde i historik) |
 | M-3 | Körbar idempotent master-nyckel-re-wrap-rotation + kadens (minst årlig + händelse-driven vid box-kompromiss/offboarding) | Major | TD-102 |
 | M-4 | pg_dump klient-side-krypterad + backup-retention/rotation definierad + EU-jurisdiktion | Major | TD-107 |
-| M-5 | Cloudflare "Full (strict)" + origin-IP-lockdown (bara CF-IP på 443) + HSTS | Major | TD-106 |
-| M-6 | VPS-härdnings-baseline (SSH-key-only, brandvägg, fail2ban, auto-patch, PG/Redis ej publika, swap/core-dump-hygien mot master-nyckel-minnesläck) | Major | TD-106 |
+| M-5 | ~~Cloudflare "Full (strict)" + origin-IP-lockdown (bara CF-IP på 443) + HSTS~~ | Major | **SUPERSEDED 2026-08-04 → M-5a + M-5b** (se `Amendment 2026-08-04`) |
+| **M-5a** | **Origin-TLS är hela TLS-historien:** Caddy terminerar med publikt betrott LE-cert (HTTP-01), **HSTS emitteras faktiskt i Production**, ingen klartextsträcka. **Bevisas på svaret, inte på konfigen** | Major (ärvd från M-5) | [#196](https://github.com/klasolsson81/jobbliggaren/issues/196) |
+| **M-5b** | **Kantexponeringen är omitigerad** (ingen CDN/WAF/DDoS-absorption, ingen origin-IP-allowlist): kompenserande kontroll är **admission + topologi**, aldrig filtrering — K2-grinden, Option B, per-IP-rate-limit, riktade `forward`-accepts | **ograderad — severity tillhör security-auditor** | [#196](https://github.com/klasolsson81/jobbliggaren/issues/196) |
+| M-6 | VPS-härdnings-baseline (SSH-key-only, brandvägg, ~~fail2ban~~, auto-patch, PG/Redis ej publika, swap/core-dump-hygien mot master-nyckel-minnesläck) | Major | [#196](https://github.com/klasolsson81/jobbliggaren/issues/196) · **baseline i övrigt mätt grön** ([#1196](https://github.com/klasolsson81/jobbliggaren/pull/1196)) · **fail2ban-klausulen: avvikelse REGISTRERAD, ratificering väntar på Klas GO** (`Amendment 2026-08-04`) |
 | M-1 | ADR 0050 KMS-blocker-prosa amenderad → TD-102-omframing | Major | **Åtgärdad denna amendment** |
 | M-2 | ADR 0049-amendment: self-managed master-nyckels prod-skyddsmodell + accepterad minne-restrisk + namngiven skala-trigger för extern KV/HSM | Major | TD-102 (ADR 0049-amendment-scope) |
 
@@ -498,6 +583,199 @@ exekverar utan extra Klas-GO; override-yta noterad).
    Caddyfil finns ännu). Rör ingen kod (docs-only); security-auditors veto beväpnas
    vid TD-106:s build-tid, inte här.
 
+## Amendment 2026-08-04 — värdbytet Hetzner → Netcup, Cloudflare bort, grind-deltat
+
+**Beslutsfattare:** Klas Olsson (värdvalet + topologibesluten K1–K4, 2026-08-04).
+**Underlag:** senior-cto-advisor (§9.6 decision-maker, artefakt-uppdelning + M-5:s
+efterträdare, 2026-08-04); dotnet-architect (obligatorisk, IaC-scope, ADR 0036-precedens);
+security-auditor (kant-posture, residens). **Rationalen i sin helhet:** ADR 0122 (lokal
+ADR per ADR 0072 docs-privacy).
+
+> **Denna amendment är auktoritativ för grindarna och är skriven för att kunna läsas
+> ensam.** ADR 0122 är gitignorerad och finns i en worktree bara om docs-synken kördes.
+> Saknas den är detta avsnitt tillräckligt — du missar ingen grind, bara rationalen.
+
+### 1. Värd och sizing (supersederar Beslut 2 helt)
+
+**Netcup RS 1000 G12** — x86 (AMD EPYC 9645), 4 **dedikerade** kärnor, **8 GB** DDR5 ECC,
+256 GB NVMe, Debian 13, **Nürnberg**. Ersätter Hetzner CAX31 (ARM, 16 GB).
+
+**Residensen är mätt, inte antagen:** RIPE ger `netname DE-NETCUP-KVM`, `country DE`,
+geolokalisering Nürnberg (2026-08-03) ⇒ EU-resident, **ingen Kap. V-överföring införs**.
+Detta **fullgör inte Art. 28**: ett signerat biträdesavtal med **Netcup** måste finnas
+före första riktiga användardata, det är **Klas att teckna, aldrig CC**, och den
+publicerade policyn namnger fortfarande Hetzner — det ägs av
+[#1199](https://github.com/klasolsson81/jobbliggaren/issues/1199) och grindar första datan.
+
+**Beslut 2:s grund för att avvisa 8 GB är mätt död.** Den vilade på
+`JobTechStreamClient`s `MaxResponseContentBufferSize = 500 MB`. Mätt 2026-08-04 mot HEAD
+`1b98d016`: den raden finns inte i `src/` — `DependencyInjection.cs:312-323` säger
+uttryckligen att ingen cap sätts, eftersom båda wire-vägarna strömmar
+(`ResponseHeadersRead` + `ReadAsStreamAsync` + per-element-deserialisering) och en cap
+därför vore en **no-op**. Enda kvarvarande cap i `src/` är 1 MB på HIBP-klienten (rad
+1595), som inte rör ingestion. **x86 gör dessutom hela ARM-risk-avsnittet moot.**
+
+Två andra ben blev däremot **sämre** (mätt 2026-08-02 mot dev-DB): korpus 46k →
+**106 071 annonser / 2 493 MB**, och `company_register` **1 066 938 rader / 405 MB**
+fanns inte alls i juni. Domen är därför **marginell men körbar**, villkorad på fyra
+punkter (§2). Det osäkraste talet är **Postgres steady-state RSS — härlett ur
+diskstorlek, inte mätt**; [#196](https://github.com/klasolsson81/jobbliggaren/issues/196)
+mäter det på riktig låda.
+
+**`mem_limit`-doktrinen ovan är superseded.** "Generös/osatt cap på Postgres" vilade
+uttryckligen på att 16 GB upplöste nollsummespelet; på 8 GB är det tillbaka, så **varje
+tjänst cappas, Postgres inklusive** (~2 560 MiB). Redis körs `noeviction`, **inte**
+`allkeys-lru` — den hade vräkt sessioner och gett tysta utloggningar.
+
+### 2. De fyra kapacitetsvillkoren — del av beslutet, inte råd
+
+1. **`next build` i CI, aldrig på lådan** (= Beslut 3:s build-in-CI-regel, nu lastbärande).
+2. **`DOTNET_gcServer=0`** för Api **och** Worker.
+3. **Explicit tunad Postgres** — inte defaults, mot 8 GB.
+4. **zram i stället för diskswap.**
+
+> **Villkor 4 bär två krav samtidigt** — kapacitet **och gate B-1** (master-nyckeln
+> aldrig plaintext på disk). Levererat i #1196. Därför: **en swapfil under minnestryck
+> bryter B-1. Lägg till RAM i stället.**
+
+### 3. Cloudflare utgår helt (supersederar Beslut 4:s Cloudflare-halva)
+
+Klas-beslut **K3**. Beslut 4 köpte fyra saker i en mening ("TLS-edge/DNS/CDN/DDoS"); var
+och en behöver eget svar: **TLS-edge → Caddy direkt mot Let's Encrypt** · **DNS → Strato**
+(redan auktoritativ) · **CDN → ingen** · **DDoS-absorption → ingen**, kantfiltret hos
+Netcup är allt som finns · **origin-IP-lockdown → ingen efterträdare, död**.
+
+**80/443 står därför öppna mot `any` i båda brandväggslagren. Det krävs för ACME HTTP-01
+och får inte "rättas" mot M-5:s ursprungstext** — då dör certifikatutfärdandet.
+
+### 4. Klas topologibeslut K1–K4
+
+**K1** live först på `dev.jobbliggaren.se` (apex parkerad hos Strato) · **K2** åtkomst
+grindad med basic auth i Caddy · **K3** Let's Encrypt direkt, ingen CDN · **K4**
+backup-/PITR-retention **30 dagar**. K4 besvarar STOPP-4 — fönstret två ADR:er
+uttryckligen förbjuder CC att uppfinna — och ger #197:s restore-drill ett tal.
+
+### 5. Gate M-5 pensioneras på plats → **M-5a + M-5b**
+
+M-5 var inte en grind utan tre klausuler med tre öden: "Full (strict)" är **uppfylld by
+construction** (utan CDN finns inget sista ben) · origin-IP-lockdown har **ingen
+efterträdare** · HSTS **överlever**.
+
+**M-5a (Major — ärvd från M-5, ej omgraderad).** Caddy terminerar med publikt betrott
+LE-cert via HTTP-01; **HSTS emitteras faktiskt i Production**; ingen klartextsträcka.
+
+> **Lastbärande och mätt trasigt i dag (2026-08-04, HEAD `1b98d016`):** det finns **ingen
+> `Alb`-sektion i någon `appsettings*.json`** ⇒ `AlbOptions.HttpsEnabled` = `false` i
+> Production ⇒ `Program.cs:333` registrerar **aldrig** `UseHsts()` och `:338` aldrig
+> `UseHttpsRedirection()`. `appsettings.Production.json` har ett `Hsts`-block vars **egen
+> kommentar** säger att det är "ren konfig utan effekt" så länge flaggan är false. Enda
+> injektorn var Terraforms `Alb__HttpsEnabled` i ECS-task-def:en, riven med ADR 0066.
+> **HSTS ser konfigurerat ut och är inert.** Rättas i `AlbOptions → ReverseProxyOptions`-
+> re-homet (#196). **Bevis avläses på svaret** (`curl -sI` visar
+> `Strict-Transport-Security`), aldrig på konfigen.
+>
+> Kontrast, samma mätning: `ForwardedHeaders:KnownNetworks: []` **är** fail-loud —
+> `ForwardedHeadersConfig.EnsureSafeForEnvironment` kastar utanför Development/Test.
+> **Rate-limit-halvan degraderar högljutt, HSTS-halvan tyst.**
+
+**M-5b (NY rad — severity ograderad; den tillhör security-auditor vid den obligatoriska
+andra granskningen, och sätts inte av denna session).** Kantexponeringen är omitigerad:
+ingen CDN, ingen WAF, ingen DDoS-absorption, ingen origin-IP-allowlist. Kompenserande
+kontroll är **admission och topologi, aldrig filtrering**, och grinden gäller att
+kontrollerna är **levande och mätta**:
+
+1. **K2-grinden** ger 401 på varje oautentiserad request, med ACME-pathen som enda
+   undantag — och undantaget bevisat att inte läcka något annat.
+2. **Option B håller empiriskt** — cutover-curl-matrisen (redan skyldig sedan
+   Amendment 2026-07-18), utvidgad till att bevisa `/api/v1/dev` och `/api/v1/admin/*`
+   onåbara utifrån.
+3. **Per-IP-rate-limiting fungerar**: `ForwardedHeaders:KnownNetworks` re-homad från
+   ALB:s VPC-CIDR till Caddy/Docker-nätets. Cloudflares bortfall **befordrar detta från
+   korrekthetspost till stackens enda per-IP-kontroll.**
+4. **`forward policy drop`** löses med riktade `iif`/`oif`-accepts för Docker-bryggan,
+   **aldrig `policy accept`** — och kantens **IPv6-halva mäts före den växlingen**; den
+   är i dag omätt.
+
+**Restrisk, utskriven och ograderad av denna session:** en volymetrisk flod eller
+TLS-handskakningsflod når en 8 GB-singelbox utan något framför, och basic auth prövas
+**efter** TCP+TLS och försvarar därför inte tillgänglighet — Beslut 4:s egen negativa
+punkt "singel-box blast-radius" har nu ingen uppströmsabsorbent, vilket är en **strikt
+försämring av en risk ADR 0050 redan accepterade**. Ingen WAF eller bot-filtrering;
+applagerabuse mot `/jobb`- och `/foretag`-sökytorna når Postgres på samma låda. Under
+K1+K2 är exponeringen låg i dev-fasen; **kontrollmängden måste omverifieras när grinden
+tas bort** — och ska grinden stå kvar för de första testanvändarna måste det skrivas
+ner, inte antas.
+
+### 6. Gate M-6 — fail2ban-klausulen
+
+`fail2ban` är **inte installerad**. Den är ersatt av källrestriktion i två lager: en
+kantregel som släpper port 22 bara från operatörens adress, och `from="…"` i
+`authorized_keys` — det senare oberoende av Netcups kontrollplan. Med
+`AuthenticationMethods publickey`, `AllowUsers jpadmin` och `PermitRootLogin no` skulle
+fail2ban försvara en autentiseringsväg som inte finns, mot en population som inte når
+porten, och samtidigt lägga till en root-körande loggparser som läser
+angriparkontrollerad indata.
+
+**Två gränser på den domen, och de gäller:** den täcker **bara SSH** (när 80/443 får en
+riktig lyssnare är HTTP-abuse en egen fråga, se M-5b), och M-6 kräver en härdnings-
+**baseline**, inte fail2ban som produkt — baselinen är mätt grön utan den (#1196).
+
+> **STATUS: avvikelsen är REGISTRERAD, ratificeringen väntar på Klas GO.** Klas
+> ratificerade 2026-08-04 **värdvalet**; ingenting i underlaget säger att han
+> ratificerade fail2ban-utelämnandet, och CLAUDE.md §9.6 gör en säkerhetskoncession till
+> **Klas att bevilja, aldrig sessionens att hävda**. Raden läses därför inte som
+> "accepterad" förrän GO:t är registrerat här.
+
+### 7. Backup: kraven består, målet är öppet
+
+Beslut 4:s **mål** (Hetzner-EU Storage Box) faller med värdbytet. **Kraven består
+ordagrant:** klient-side age-kryptering före upload **oavsett mål**, EU-jurisdiktion,
+definierad rotation — nu med ett tal, **K4: 30 dagar** — och en **testad** restore-drill
+före första riktiga data (M-4). **Målet är inte valt och inte verifierat**; det ägs av
+[#197](https://github.com/klasolsson81/jobbliggaren/issues/197). **Cloudflare R2 är redan
+uttryckligen avvisat** i Amendment 2026-06-08 på CLOUD Act-grund och får inte
+återföreslås utan att security-auditor väger age-krypteringen mot Kap. V.
+
+### 8. Icke-supersessions-staket — vad som står kvar oförändrat
+
+Så att ingen läsare får två bilder. **Detta faller INTE:**
+
+- **Beslut 1** (full AWS-exit) — orört.
+- **Beslut 4:s `Amendment 2026-07-18`** (Option B, "route-all-through-Next") **i sin
+  helhet, alla sex lastbärande invarianter.** Den är provider-oberoende: beslutad på
+  applikationens form, inte på Cloudflare. **Enda rättelsen** är invariant 5:s parentes
+  "*detta ändå moot*", som är falsk under K3 — ACME HTTP-01 körs skarpt och invarianten
+  blir **kritisk** (se bannern vid Beslut 4).
+- **Beslut 3:s substans** — Vercel-exiten, FE som co-tenant `next start`-container bakom
+  Caddy, och **den bindande build-in-CI-regeln**. Endast värdreferensen "på CAX31" dör.
+- **Beslut 2:s topologi** — en låda, Docker Compose, co-tenant Postgres och Redis, ingen
+  separat managed DB (Ubicloud fortsatt avvisad).
+- **Gates B-1, B-2, M-1, M-2, M-3, M-4** (målreferensen undantagen, §7) **och M-6** minus
+  fail2ban-klausulen.
+- **Kravet på en obligatorisk andra security-auditor-granskning av den faktiska
+  prod-konfigurationen före första beta-data.** Ingen designdom, inklusive denna,
+  ersätter den.
+- **Rollback-modellen** — lokal Compose-stack som paritets-baseline; DNS-cutover som den
+  reversibla flippen (TTL 300 s ⇒ fem minuter att göra, fem att ångra).
+
+### 9. Kostnaden
+
+ADR 0050:s "~€19/mån totalt" är **superseded utan ersättningssiffra**: ingen prisuppgift
+för denna låda finns i något mätt underlag, och att uppfinna en vore ett tal ingen
+domare satt.
+
+### 10. Konsekvens som inte fanns i Beslut 4
+
+**Utgående SMTP är blockerat hos leverantören.** Netcups `Mail block` är på som standard
+och droppar 25/465/587. Det är ett andra, oberoende skäl att transaktionsmejl går över
+leverantörens **HTTPS-API** (Resend i dag, SES planerat) och **aldrig SMTP** — och ett
+skäl att aldrig be Netcup öppna 587.
+
+**Netcup-snapshots är inte deploy-rollback:** copy-on-write, kräver 50 % ledig disk, och
+bara *offline*-snapshots är konsistenta — och **en enda exportabel snapshot återstår**
+(mätt 2026-08-03). Primär rollback är image-tag-rollback (sekunder); snapshotens rätta
+roll är **före migreringar**, som en image-rollback inte kan ångra.
+
 ## Relaterade beslut
 
 - **ADR 0005** — kostnadsskydd/launch-gating. Post-migration blir Budget
@@ -514,10 +792,18 @@ exekverar utan extra Klas-GO; override-yta noterad).
 - **ADR 0051** — AI-provider Anthropic Direct/Bedrock utgår. Möjliggör ren
   exit (Beslut 1). AI-transfer (US, opt-in) är separat grindad, rör ej VPS-residens.
 - **ADR 0065** — PR-flöde + automerge. Denna amendment levereras via PR.
-- **TD-101** (mejl-väg) / **TD-102** (master-nyckel + rotation) / **TD-104**
-  (logg-sink) / **TD-105** (Migrate-re-home) / **TD-106** (Compose-stack + proxy
-  + härdning) / **TD-107** (krypterad EU-backup) — Hetzner-fas-arbetet, alla
-  gated på denna ADR.
+- **VPS-fas-arbetet, alla gated på denna ADR** (TD-registret är pensionerat, ADR 0121 —
+  framåtpekarna konverterade till sina issues per CLAUDE.md §1.6):
+  [#183](https://github.com/klasolsson81/jobbliggaren/issues/183) (mejl-väg, f.d. TD-101) ·
+  [#198](https://github.com/klasolsson81/jobbliggaren/issues/198) (master-nyckel + rotation, f.d. TD-102) ·
+  [#1175](https://github.com/klasolsson81/jobbliggaren/issues/1175) (produktions-logg-sink; f.d. TD-104 var Seq-wiringen och är **levererad/stängd** — den kvarvarande sänkan är #1175) ·
+  [#199](https://github.com/klasolsson81/jobbliggaren/issues/199) (Migrate-re-home, f.d. TD-105 — **levererad** i PR #236) ·
+  [#196](https://github.com/klasolsson81/jobbliggaren/issues/196) (Compose-stack + proxy + härdning, f.d. TD-106) ·
+  [#197](https://github.com/klasolsson81/jobbliggaren/issues/197) (krypterad EU-backup, f.d. TD-107).
+  Tillkommit sedan: [#1199](https://github.com/klasolsson81/jobbliggaren/issues/1199)
+  (publicerad policy namnger fel personuppgiftsbiträde — **grindar första riktiga datan**).
+- **ADR 0122** — värd, sizing, topologi och kapacitetsvillkor. Supersederar Beslut 2/3/4
+  (delvis) + gate M-5; se banner överst och `Amendment 2026-08-04` nedan.
 - **BUILD.md Bilaga B** — planerad `NNNN-aws-over-azure.md`. Denna ADR fyller
   slotten med motsatt slutsats (moln-exit, ej moln-byte). adr-keeper
   uppdaterar "Planerade ADRs"-listan.

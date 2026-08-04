@@ -943,9 +943,10 @@ rather than discovered:
   compliance one.
 - **No Cloudflare** (Klas decision K3) — Caddy will go straight to Let's Encrypt. That is why
   §6.2 opens 80/443 to `any` rather than to Cloudflare ranges as ADR 0050 gate M-5 prescribes.
-  **The superseder has landed: ADR 0122 retires M-5** and replaces it with a narrower successor
-  gate (LE certificate + HSTS + the K2 basic-auth gate + loopback-bound container ports,
-  verified empirically). **Do not "correct" these rules toward M-5's original text** — ACME
+  **The superseder has landed: ADR 0050's `Amendment 2026-08-04` retires M-5** into
+  **M-5a** (origin TLS is the whole TLS story) and **M-5b** (the edge exposure is
+  unmitigated) — see that amendment for their normative text; ADR 0122 carries only the
+  rationale. **Do not "correct" these rules toward M-5's original text** — ACME
   HTTP-01 dies, and M-5's origin-IP lockdown has no mechanism left without a CDN. The residual
   exposure (no DDoS absorption, no origin hiding) is named in ADR 0122 and is re-read by the
   mandatory second security audit before first real data.
@@ -1054,7 +1055,7 @@ rather than discovered:
 
 ## 13. References
 
-- **ADR 0122** — the host, the sizing and the capacity conditions (supersedes ADR 0050 Beslut 2/3/4 in part, and gate M-5). A local ADR per ADR 0072 docs-privacy; it is synced into worktrees by `.worktreeinclude`. **Read it before ADR 0050** on anything host-, sizing- or edge-shaped.
-- [`docs/decisions/0050-deployment-migration-aws-exit-hetzner.md`](../decisions/0050-deployment-migration-aws-exit-hetzner.md) — gates B-1 (master key never plaintext on disk) and M-6 (hardening baseline). Its Hetzner/Cloudflare text is **superseded, not deleted**; the banner at the top of that file carries the precise boundary
+- [`docs/decisions/0050-deployment-migration-aws-exit-hetzner.md`](../decisions/0050-deployment-migration-aws-exit-hetzner.md) — **start here.** Gates B-1 (master key never plaintext on disk), M-5a/M-5b, M-6 (hardening baseline) and M-7. Its `Amendment 2026-08-04` is **authoritative for the gates and written to be read alone**; its Hetzner/Cloudflare text is **superseded, not deleted**, and the banner at the top carries the precise boundary
+- **ADR 0122** — the host, the sizing and the capacity *rationale*. **Local (gitignored)** per ADR 0072 docs-privacy; `.worktreeinclude` syncs it, but a worktree that skipped the docs-sync will not have it. **If it is absent, ADR 0050's amendment is sufficient and you are missing no gate.** ADR **0123** (local, `Proposed`) carries the `NOPASSWD` risk acceptance
 - [#196](https://github.com/klasolsson81/jobbliggaren/issues/196) — deploy stack; owns everything in §12
 - [`CLAUDE.md`](../../CLAUDE.md) §11 — tooling and the dev-boot config contract

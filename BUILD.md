@@ -148,9 +148,10 @@
 ### 3.3 Miljöer
 
 > **Status (2026-06-08):** dev/staging/production-AWS-miljöerna är avvecklade
-> (ADR 0066). `local` är enda aktiva miljön. **Värdvalet är upphävt 2026-08-02**
-> (Klas-direktiv) — se §3.2:s statusbanner; raderna nedan beskriver den beslutade
-> FORMEN, inte en aktuell leverantör. Permanent deploy-mål var **beslutat**
+> (ADR 0066). `local` är enda aktiva miljön. **Värdvalet är avgjort 2026-08-04**
+> (Klas-direktiv: Netcup, 8 GB, ingen CDN — ADR 0050 `Amendment 2026-08-04`; ersätter
+> det obeslutade 2026-08-02-läget) — se §3.2:s statusbanner; raderna nedan beskriver den
+> beslutade FORMEN och namnger ännu fel leverantör (#1199 äger omskrivningen). Permanent deploy-mål var **beslutat**
 > (Hetzner CAX31 + Cloudflare, ADR 0050 Accepted 2026-06-08) men ännu
 > ej provisionerat (ADR 0050 Sekvensering: Hetzner sist, vid MVP före
 > beta-testare). Tag-baserad AWS-deploy (`v*-dev`/`v*-rc*`/`v*`) refererar
@@ -163,7 +164,7 @@
 | Miljö | Syfte | Deployment | Status |
 |-------|-------|-----------|--------|
 | local | Utveckling | Docker Compose | **Aktiv** |
-| production (planerad) | Live | Hetzner CAX31 + Cloudflare (ADR 0050) | Värdvalet upphävt 2026-08-02 (se §3.2); formen beslutad, ej provisionerad |
+| production (planerad) | Live | ~~Hetzner CAX31 + Cloudflare~~ → **Netcup RS 1000 G12 (8 GB), ingen CDN** (ADR 0050 `Amendment 2026-08-04`) | Värdvalet avgjort 2026-08-04 (se §3.2); lådan provisionerad + grundhärdad (#1196), inget deployat |
 | dev / staging (AWS) | f.d. integration / pre-prod | — | Avvecklad (ADR 0066) |
 
 PR-flöde mot `main` per ADR 0065 (CI-gate). Permanent deploy-strategi och
@@ -1315,10 +1316,12 @@ permanent infra aktiveras; listan nedan speglar **beslutad** uppsättning, ADR 0
 > avgjord — se §15:s not. Release-checklistan §2.5 punkt 5 tvingar denna sektion vid
 > e-postflippen.
 >
-> Hetzner/Cloudflare läggs till i den publika listan vid faktisk
-> provisionering (ADR 0050 Sekvensering) — **men värdpremissen är också upphävd**
-> (Hetzner ut, svensk VPS obeslutad), så namnen här är platshållare tills CC1:s
-> supersessions-ADR landar. Se §15:s not.
+> Värden i den publika listan ska vara **Netcup**, och **Cloudflare utgår helt**
+> (Klas-beslut 2026-08-04, K3 — ingen CDN). Supersessions-ADR:n har **landat**:
+> ADR 0050 `Amendment 2026-08-04`. Själva listan är ännu inte omskriven — den
+> uppdateringen, liksom biträdesavtalskedjan, ägs av
+> [#1199](https://github.com/klasolsson81/jobbliggaren/issues/1199) och grindar första
+> riktiga datan. Se §15:s not.
 
 ### 13.5 Säkerhetshygien
 

@@ -44,7 +44,9 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
       dispatch (ADR 0033) och DB-roll-separation (ADR 0034); Identity-schema-
       ändring → manuell procedur (parkerad, #1172).
 - [ ] **Kollations-version — ENDAST vid Postgres-image-bump eller major-uppgradering**
-      (#884, ADR 0109). Ett btree-index på text är byggt **med** en kollation. Ändras
+      (#884, **ADR 0110** — den tidigare pekaren till ADR 0109 var fel; 0109 är
+      "The engine describes, the user classifies" och rör CV-lanen). Ett btree-index på
+      text är byggt **med** en kollation. Ändras
       kollationens *definition* under det — en ny ICU-version i basimagen, en ny glibc,
       en major-uppgradering — sorterar indexet efter en ordning som inte längre gäller.
       Postgres **kraschar inte** på det: frågorna blir bara tyst fel (rader hittas inte,
@@ -75,10 +77,11 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
       1 066 938 företagsrader). Grinden ovan ser aldrig den bumpen — den läser den taggade
       miljön vid tag-tillfället. **Kör därför steg 1 mot dev-DB:n också efter varje
       postgres-bump**, inte bara före tag.
-      *(Samma PR gjorde `docker-compose`-bumpar **icke** auto-mergebara i
-      `dependabot-automerge.yml` just för att felmoden är tyst, så en människa läser dem
-      numera. Den här raden finns ändå: en människa som läser en grön diff ser inte att
-      ICU-versionen rörde sig.)*
+      *(Samma PR gjorde **varje** image-bump icke auto-mergebar i
+      `dependabot-automerge.yml` — det generella skälet är att ingenting läser den image
+      som ändras; att just compose-felmoden är tyst kommer utöver det. En människa läser
+      dem numera. Den här raden finns ändå: en människa som läser en grön diff ser inte
+      att ICU-versionen rörde sig.)*
 - [ ] **Om en migration faller på `lock_timeout` — kör om den, det är säkert.** Migrationen
       som sätter kollationen (#884) tar ACCESS EXCLUSIVE och binder sin väntan till 3 s.
       Krockar den med en långkörande transaktion får du

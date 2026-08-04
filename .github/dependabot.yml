@@ -342,9 +342,11 @@ updates:
     # where it does not.
     #
     # NOBODY IS WATCHING FOR THAT, AND IT IS ACCEPTABLE HERE — said plainly rather than
-    # dressed up as a control. The failure branch is benign: three identical auto-mergeable
-    # PRs instead of one, absorbed by the limit above. Whoever next opens this file can read
-    # the answer off the PR list. And removing the key does not avoid the question — without
+    # dressed up as a control. The failure branch is benign: three identical PRs instead of
+    # one, absorbed by the limit above. They are NOT auto-mergeable — no docker ecosystem is
+    # allow-listed in dependabot-automerge.yml — so the cost of the bad branch is three
+    # manual merges rather than one, which is annoyance, not risk. Whoever next opens this
+    # file can read the answer off the PR list. And removing the key does not avoid the question — without
     # it, three PRs is the GUARANTEED outcome rather than the bad branch. Contrast the
     # docker-compose entry below, whose failure branch is silent and therefore needed an
     # owner rather than a note.
@@ -373,8 +375,10 @@ updates:
   # `ci` IS NOT THE GATE FOR THIS FILE — nor for the `docker` entry above, and an earlier
   # draft's "unlike every other entry" was false for exactly that reason. Measured
   # 2026-08-04: **no workflow invokes the compose CLI** — regenerate with
-  # `grep -rnE 'docker[[:space:]]+compose|docker-compose[[:space:]]' .github/workflows/ .github/scripts/`
-  # and discard comment lines. So a bump lands green with nothing having read it.
+  # `grep -rnE 'docker[[:space:]]+compose|docker-compose[[:space:]]' .github/workflows/ .github/scripts/ scripts/`
+  # and discard comment lines. (`scripts/` is in scope because build.yml invokes
+  # `bash scripts/coverage.sh` — a regenerator that does not cross the surface it certifies
+  # is a guard that cannot see its own under-reach.) So a bump lands green with nothing having read it.
   #
   # THIS SENTENCE HAS BEEN WRONG THREE TIMES, so it now carries the command instead of a
   # count: first a line citation that undercounted, then a claim about WHERE the
@@ -382,13 +386,16 @@ updates:
   # dependabot-automerge.yml. Only the invocation claim survived every recount. State the
   # property and hand over the regenerator; never publish the tally.
   #
-  # NOTHING FROM THIS ENTRY AUTO-MERGES, because a postgres patch/minor fails SILENTLY —
+  # NOTHING FROM THIS ENTRY AUTO-MERGES. The general reason covers every image bump:
+  # nothing reads the image that changes. On top of that, a postgres patch/minor fails
+  # SILENTLY —
   # `dependabot-automerge.yml`'s gate leaves every docker ecosystem off its allow-list. The
-  # mechanism has TWO homes serving two audiences — `docker-compose.yml`'s `postgres-dev`
-  # block for whoever bumps it, and `release-checklist.md` §2 for whoever tags, which also
-  # carries the repair procedure. Deliberate, and stated rather than rounded to "one": an
-  # earlier draft here claimed ONE place while the same commit deleted the sentence that
-  # disclosed the second. Do not add a third. An earlier draft of
+  # mechanism has THREE homes serving three audiences — **ADR 0110** (the decision, and it
+  # is GITIGNORED so `git grep` cannot see it), `release-checklist.md` §2 for whoever tags
+  # (which also carries the repair procedure), and `docker-compose.yml`'s `postgres-dev`
+  # block for whoever bumps it. Do not add a fourth, and **count with a filesystem grep**:
+  # two earlier drafts here said ONE and then TWO, and TWO was precisely what `git grep`
+  # returns. An earlier draft of
   # this comment left auto-merge in place and instructed the reader instead — an
   # instruction to whoever merges the bump, sitting in the one file that bump does not
   # touch. This file's own rule, forty lines up, is that such a comment has no reader at

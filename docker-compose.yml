@@ -31,7 +31,9 @@ services:
     # `docs/runbooks/release-checklist.md` §2 — den grinden läser den TAGGADE miljön, så
     # den fångar inte den här databasen, som är den enda med riktiga data.
     # Dependabot bevakar taggen (`docker-compose`-posten i .github/dependabot.yml) men
-    # sådana PR:er auto-mergas ALDRIG, just av det här skälet.
+    # sådana PR:er auto-mergas ALDRIG. Det generella skälet gäller varje image-bump —
+    # ingenting läser den image som ändras — och den tysta felmoden ovan kommer utöver det.
+    # Löser någon ICU-frågan får alltså auto-merge INTE återinföras på den grunden ensam.
     image: postgres:18.3
     container_name: jobbliggaren-postgres-dev
     environment:

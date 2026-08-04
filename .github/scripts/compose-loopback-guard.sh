@@ -207,7 +207,13 @@ scan=$(
       # YAML explicit-key syntax puts the VALUE on the next line (`? network_mode` /
       # `: host`), so the key line carries no value to read. The guard cannot tell a host
       # network from a bridge one there — and its rule is to refuse what it cannot read,
-      # not to guess. Any of the four keys written this way is refused.
+      # not to guess.
+      #
+      # SPECIFIC, NOT UNIVERSAL — see the header. A key written `? name` on ONE line is
+      # refused, on all four axes. `?` alone on its own line with the key on the NEXT is a
+      # different shape and is NOT read: measured exit 0 for `network_mode`, `include` and
+      # `extends`. `ports` survives it only because the loose divergence detector counts the
+      # word and no block opens; the other three have no such backstop.
       if (line ~ /^[[:space:]]*\?[[:space:]]/ && bare ~ /^[[:space:]]*(ports|network_mode|include|extends)[[:space:]]*$/) {
         printf "%s:%d: UNREADABLE-EXPLICIT-KEY %s\n", FILENAME, FNR, bare
         next
@@ -275,9 +281,14 @@ if [ "${loose:-0}" -gt "${blocks:-0}" ]; then
 fi
 
 if [ -n "$violations" ]; then
-  # "could not answer" is exit 2 and must never collapse into exit 1. All three markers
-  # below mean the guard did not READ the ports, not that it read them and they were bad.
-  if printf '%s\n' "$violations" | grep -qE 'UNPARSED-ENTRY|UNPARSED-PORTS-FORM|EMPTY-PORTS-BLOCK|HOST-NETWORKING|PORTS-OUT-OF-VIEW|UNREADABLE-EXPLICIT-KEY'; then
+  # "could not answer" is exit 2 and must never collapse into exit 1. The markers below all
+  # mean the guard did not READ the ports, not that it read them and they were bad.
+  #
+  # HERESTRING, NOT A PIPE. `grep -q` leaves at its first match; a producer still holding
+  # more than a pipe buffer then dies of SIGPIPE, and `pipefail` makes that the pipeline's
+  # status — so the `if` went false on exactly the inputs it exists to catch. Do not
+  # restore the pipe; `classifier_survives_large_violation_list` fails if it comes back.
+  if grep -qE 'UNPARSED-ENTRY|UNPARSED-PORTS-FORM|EMPTY-PORTS-BLOCK|HOST-NETWORKING|PORTS-OUT-OF-VIEW|UNREADABLE-EXPLICIT-KEY' <<<"$violations"; then
     echo "::error::compose-loopback-guard: a ports: entry was in a shape this guard does not model." >&2
     echo "It reads block sequences in BOTH indentation styles. Flow sequences (ports: [...])," >&2
     echo "aliases (ports: *x), long-form mappings and empty blocks are REFUSED, never skipped." >&2

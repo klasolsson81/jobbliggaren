@@ -420,6 +420,18 @@ services:
 YAML
 run explicit_network_mode 2 "$TMPROOT/enm.yml"
 
+# --- 8q. THE CLASSIFIER MUST NOT LOSE ITS ANSWER TO A DEAD PRODUCER -------------------
+# Every fixture above holds a handful of violation lines, and at that size the defect this
+# pins is load-dependent — it passed 0 of 150 runs on a quiet machine. Above a pipe buffer
+# it is deterministic. So the fixture is written to the size where the property is
+# decidable: 4000 entries the guard can only report as UNPARSED, i.e. exit 2 by definition,
+# and never exit 1.
+{
+  printf 'services:\n  s:\n    image: x\n    ports:\n'
+  i=1; while [ "$i" -le 4000 ]; do printf '      - notaport%s\n' "$i"; i=$((i + 1)); done
+} >"$TMPROOT/bigrefuse.yml"
+run classifier_survives_large_violation_list 2 --expect-min 0 "$TMPROOT/bigrefuse.yml"
+
 # --- 9. a missing file exits 2, never 0 ----------------------------------------------
 run missing_file 2 "$TMPROOT/does-not-exist.yml"
 

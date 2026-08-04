@@ -939,7 +939,9 @@ rather than discovered:
   gate). It supersedes ADR 0050 Beslut 2 in full (plus Beslut 3's host reference,
   Beslut 4's Cloudflare half and backup target, and gate M-5). Capacity conditions: §12.
 
-  The residency question is separate and **measured, not assumed**: RIPE gives
+  The residency question is separate and **measured as far as RIPE reaches** (`country:`
+  and `netname:` are registration attributes the LIR sets itself, so they do not prove
+  physical datacentre placement; ADR 0050's amendment carries the full caveat): RIPE gives
   `netname DE-NETCUP-KVM`, `country DE`, and geolocation Nuremberg. The host leg is EU-resident,
   so there is no Chapter V transfer here — the "Swedish VPS" point was a preference, never a
   compliance one.

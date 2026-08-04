@@ -665,10 +665,11 @@ ADR per ADR 0072 docs-privacy).
 256 GB NVMe, Debian 13, **Nürnberg**. Ersätter Hetzner CAX31 (ARM, 16 GB).
 
 **Residensen är mätt så långt RIPE når:** `netname DE-NETCUP-KVM`, `country DE`,
-geolokalisering Nürnberg (2026-08-03) ⇒ EU-resident. *(`country:`/`netname:` är
-registreringsattribut som LIR:en själv sätter — de bevisar inte fysisk DC-placering.
-Slutsatsen bärs av Netcup som tyskt bolag + vald lokation. Netcups ägarstruktur och
-underbiträdeskedja är **omätt** och ägs av #1199:s DPA-arbete.)*, **ingen Kap. V-överföring införs**.
+geolokalisering Nürnberg (2026-08-03) ⇒ värdbenet är EU-resident, så **ingen
+Kap. V-överföring införs** av värdbytet. *(Var precis om bevisstyrkan: `country:` och
+`netname:` är registreringsattribut som LIR:en själv sätter och bevisar inte fysisk
+DC-placering — slutsatsen bärs av Netcup som tyskt bolag plus vald lokation. Netcups
+ägarstruktur och underbiträdeskedja är **omätt** och ägs av #1199:s DPA-arbete.)*
 Detta **fullgör inte Art. 28**: ett signerat biträdesavtal med **Netcup** måste finnas
 före första riktiga användardata, det är **Klas att teckna, aldrig CC**, och den
 publicerade policyn namnger fortfarande Hetzner — det ägs av
@@ -938,8 +939,14 @@ verkställa mot en redan inträffad kompromettering är inte tidsbegränsad; den
 med ett datum på.** Detektionsgrinden är alltså inte en angränsande fråga utan
 förutsättningen för §6:s och ADR 0123:s egna gränser.
 
-Grinden ställs på **skyldighetsnivå, inte mekanismnivå** — mekanismen ägs av #196/#198,
-och severity sätts av security-auditor vid den obligatoriska andra granskningen.
+Grinden ställs på **skyldighetsnivå, inte mekanismnivå**. Den ägs av
+[#1201](https://github.com/klasolsson81/jobbliggaren/issues/1201) — **värd-detektion och
+alerting hos [#196](https://github.com/klasolsson81/jobbliggaren/issues/196),
+nyckelåtkomst-detektion hos [#198](https://github.com/klasolsson81/jobbliggaren/issues/198)**;
+en grind med två ägare har ingen, därav den egna issuen.
+**Severity är satt:** `Major` (security-auditor 2026-08-04), med **eskalering till Blocker
+om ADR 0123 fortfarande är obeviljad eller omitigerad vid första riktiga data** — samma
+text som grindraden, eftersom raden pekar hit.
 
 ### 7. Backup: kraven består, målet är öppet
 

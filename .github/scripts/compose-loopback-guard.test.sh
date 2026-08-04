@@ -225,6 +225,64 @@ services:
 YAML
 run empty_ports_block 2 "$TMPROOT/empty.yml"
 
+# --- 8f. QUOTED KEY — round 9's fourth silent form, pinned in both polarities ---------
+# `"ports":` is valid YAML and Compose accepts it. The key regex required an unquoted key,
+# so the block never opened and the guard printed "OK — 0 published port(s)". Worse, added
+# as an extra service to a real file it printed "OK — 6" with a 0.0.0.0 binding present,
+# because the six existing ports still satisfied the floor.
+cat >"$TMPROOT/qkey_bad.yml" <<'YAML'
+services:
+  a:
+    image: x
+    "ports":
+      - "0.0.0.0:5341:80"
+YAML
+run quoted_key_bare 1 "$TMPROOT/qkey_bad.yml"
+
+cat >"$TMPROOT/qkey_ok.yml" <<'YAML'
+services:
+  a:
+    image: x
+    'ports':
+      - "127.0.0.1:5341:80"
+YAML
+run quoted_key_clean 0 "$TMPROOT/qkey_ok.yml"
+
+# --- 8g. a flow MAPPING entry is UNPARSED, not a violation ---------------------------
+# It may well be loopback-bound (`host_ip: 127.0.0.1`). Reporting it as "not bound to
+# 127.0.0.1" would assert a fact the guard has not established, so it refuses instead.
+cat >"$TMPROOT/flowmap.yml" <<'YAML'
+services:
+  a:
+    image: x
+    ports:
+      - {target: 5432, published: 5435, host_ip: 127.0.0.1}
+YAML
+run flow_mapping_unparsed 2 "$TMPROOT/flowmap.yml"
+
+# --- 8h. IPv6 loopback is loopback ----------------------------------------------------
+cat >"$TMPROOT/v6.yml" <<'YAML'
+services:
+  a:
+    image: x
+    ports:
+      - "[::1]:5435:5432"
+YAML
+run ipv6_loopback_ok 0 "$TMPROOT/v6.yml"
+
+# --- 8i. recognising ZERO ports is refused, not called clean --------------------------
+# "I found no ports, therefore all ports are fine" is vacuous truth wearing a clean bill of
+# health — and it is what the guard printed for every shape it could not read.
+cat >"$TMPROOT/noports.yml" <<'YAML'
+services:
+  a:
+    image: x
+YAML
+run zero_recognised_refused 2 "$TMPROOT/noports.yml"
+
+# --- 8j. ...unless zero is stated explicitly ------------------------------------------
+run zero_allowed_explicitly 0 --expect-min 0 "$TMPROOT/noports.yml"
+
 # --- 9. a missing file exits 2, never 0 ----------------------------------------------
 run missing_file 2 "$TMPROOT/does-not-exist.yml"
 

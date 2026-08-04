@@ -939,7 +939,9 @@ verkställa mot en redan inträffad kompromettering är inte tidsbegränsad; den
 med ett datum på.** Detektionsgrinden är alltså inte en angränsande fråga utan
 förutsättningen för §6:s och ADR 0123:s egna gränser.
 
-Grinden ställs på **skyldighetsnivå, inte mekanismnivå**. Den ägs av
+Grinden ställs på **skyldighetsnivå, inte mekanismnivå**. Rättslig grund står i grindraden
+och är security-auditors att sätta — den restateras medvetet inte här, eftersom en andra
+formulering är en andra plats att driva isär. Skyldigheten ägs av
 [#1201](https://github.com/klasolsson81/jobbliggaren/issues/1201) — **värd-detektion och
 alerting hos [#196](https://github.com/klasolsson81/jobbliggaren/issues/196),
 nyckelåtkomst-detektion hos [#198](https://github.com/klasolsson81/jobbliggaren/issues/198)**;
@@ -985,9 +987,11 @@ Så att ingen läsare får två bilder. **Detta faller INTE:**
   helhet, alla sex lastbärande invarianter.** Den är provider-oberoende: beslutad på
   applikationens form (11 Next-BFF-handlers under `/api/`, noll publika
   backend-konsumenter — **antalet** ommätt 2026-08-04: fortfarande exakt 11. **Uppräkningen
-  är däremot inte ommätt**, och minst ett prefix har glidit: regionen namnger
-  `/api/foretag/lookup`, katalogen innehåller `sok`. Antal ≠ uppräkning — samma lärdom ett
-  snäpp ned), inte på Cloudflare.
+  är nu också ommätt** (dotnet-architect, 2026-08-04): **exakt ett** av fem prefix har
+  glidit — regionen namnger `/api/foretag/lookup`, katalogen innehåller `sok`; övriga fyra
+  stämmer. **Driften rör inte invarianten:** Option B säger "ingen `/api`-matcher vid edge
+  över huvud taget", så ett omdöpt prefix ändrar ingenting i beslutet. Antal ≠ uppräkning —
+  samma lärdom ett snäpp ned), inte på Cloudflare.
 
   **TVÅ rättelser i den, inte en.** *(En tidigare version av detta stycke sa "enda
   rättelsen" och var mätt falsk — regionens text är orörd, men en orörd mening kan bli
@@ -999,7 +1003,7 @@ Så att ingen läsare får två bilder. **Detta faller INTE:**
      **byter emitter** (M-5a). Samma sak gäller motsvarande mening i Beslut 4:s brödtext
      ovanför amendmenten.
   2. **Invariant 5:s parentes** *"(detta ändå moot)"* — se bannern vid Beslut 4 och
-     ACME-noten där.
+     dess ACME-not.
 
   Regionens text ändras inte (husmönstret är daterade noter ovanpå, aldrig omskrivning
   av beslutad text) — men båda meningarna läses som superseded.

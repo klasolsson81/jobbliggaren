@@ -996,10 +996,15 @@ kontrollerna är **levande och mätta**:
    hash är offline-knäckbar, och K2 är hela admission-kontrollen — då är den en tidsfråga.
    (CLAUDE.md §5 Security: inga hemligheter i committad konfig.)
 6. **Ingen container publicerar till `0.0.0.0`**, verifierat **utifrån** med `curl` mot
-   varje containerport — aldrig genom att läsa `expose:`. Detta är inte hypotetiskt:
-   dev-compose binder **fem av sex portar till `0.0.0.0`, inklusive en oautentiserad
-   Seq** ([#1198](https://github.com/klasolsson81/jobbliggaren/issues/1198)), och det är
-   den filen #196 utgår från. Seq bär loggar — den mest sannolika vägen till att lådan ägs.
+   varje containerport — aldrig genom att läsa `expose:`. **Skälet till att beviset ligger
+   på svaret och inte i filen är mätt, inte hypotetiskt:** dev-compose band **fem av sex
+   portar till `0.0.0.0`, inklusive en oautentiserad Seq**, **medan filens egen kommentar
+   påstod motsatsen** — i månader, utan att någon fångade det genom att läsa. Båda
+   halvorna lagades i [#1198](https://github.com/klasolsson81/jobbliggaren/issues/1198)
+   (alla sex portar `127.0.0.1`, kommentaren omskriven), så *instansen* är borta; att en
+   fil kan påstå sin egen bindning fel är det som gör `curl`-formen obligatorisk. Och det
+   är fortfarande den filen #196 utgår från. Seq bär loggar — den mest sannolika vägen
+   till att lådan ägs.
 7. **Request-size- och timeout-tak i Caddy.** Slowloris och stora bodies mot en 8 GB-låda
    är den enda tillgänglighetskontroll som återstår när CDN:et faller. Billig; ta den.
 

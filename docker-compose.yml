@@ -29,7 +29,9 @@ services:
       POSTGRES_USER: jobbliggaren
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD_DEV:?POSTGRES_PASSWORD_DEV måste sättas i .env}
     ports:
-      - "5435:5432"
+      # Loopback-bunden. Se not vid `seq` nedan för varför bind-adressen är
+      # lastbärande och inte kosmetisk (#1198).
+      - "127.0.0.1:5435:5432"
     volumes:
       # Postgres 18+: mount /var/lib/postgresql (inte .../data) så att
       # version-specifika subkataloger skapas — krävs för pg_upgrade --link.
@@ -62,13 +64,31 @@ services:
     container_name: jobbliggaren-seq
     environment:
       ACCEPT_EULA: "Y"
-      # Seq 2025.2+ kräver explicit firstRun-konfig. För localhost-dev
-      # stänger vi av auth helt — Seq är bunden till loopback och innehåller
-      # bara dev-loggar. Produktion kör aldrig Seq (CloudWatch istället).
+      # Seq 2025.2+ kräver explicit firstRun-konfig. För localhost-dev stänger vi av
+      # auth helt: Seq är loopback-bunden (raden nedan) och innehåller bara dev-loggar.
+      #
+      # DEN HÄR KOMMENTAREN BAR TRE FALSKA PÅSTÅENDEN TILL #1198, och alla tre är
+      # utskrivna här därför att nästa läsare annars gör samma slutledning:
+      #
+      #   1. "Seq är bunden till loopback" — den var det INTE. Den band `0.0.0.0` och
+      #      motiverade avstängd auth med en bindning som inte fanns. Mätt 2026-08-04
+      #      från värdens Ethernet-adress: `HTTP 200` mot ett oautentiserat Seq-API.
+      #      Sant först i och med den här ändringen.
+      #   2. "Produktion kör aldrig Seq" — falskt. CLAUDE.md §11 beskriver
+      #      Seq-providern som levande wiring (`AddJobbliggarenLogging`, gated på
+      #      `Seq:ServerUrl`), och #1175 äger den obyggda prod-loggsänkan.
+      #   3. "(CloudWatch istället)" — falskt. AWS är rivet (ADR 0066).
+      #
+      # LÄS ALDRIG EN BIND-ADRESS UR DEN HÄR FILEN. `docs/runbooks/vps-base-hardening.md`
+      # §12 registrerar att en publicerad containerport passerar värdens `forward`-kedja
+      # i stället för `input` — bind-adressen är alltså lastbärande, och grinden i ADR
+      # 0050 `Amendment 2026-08-04` §5 punkt 6 kräver bevis **utifrån** med `curl`, aldrig
+      # genom att läsa den här filen. Precis den här kommentaren är skälet: den påstod
+      # motsatsen i månader och ingen fångade det genom att läsa.
       SEQ_FIRSTRUN_NOAUTHENTICATION: "true"
     ports:
-      - "5341:80"      # Seq UI + API (unified http-port)
-      - "5342:5341"    # Seq ingestion-port (separat listener enligt Seq-startlog)
+      - "127.0.0.1:5341:80"      # Seq UI + API (unified http-port)
+      - "127.0.0.1:5342:5341"    # Seq ingestion-port (separat listener enligt Seq-startlog)
     volumes:
       - jobbliggaren_seq_data:/data
     restart: unless-stopped
@@ -86,7 +106,7 @@ services:
       POSTGRES_USER: jobbliggaren
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD_TEST:?POSTGRES_PASSWORD_TEST måste sättas i .env}
     ports:
-      - "5433:5432"
+      - "127.0.0.1:5433:5432"
     volumes:
       - jobbliggaren_postgres_test_data:/var/lib/postgresql
     healthcheck:
@@ -102,7 +122,7 @@ services:
     container_name: jobbliggaren-redis-test
     profiles: ["test", "full"]
     ports:
-      - "6380:6379"
+      - "127.0.0.1:6380:6379"
     volumes:
       - jobbliggaren_redis_test_data:/data
     healthcheck:

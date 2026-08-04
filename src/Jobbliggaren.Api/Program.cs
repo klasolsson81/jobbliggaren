@@ -287,14 +287,15 @@ app.Use(async (ctx, next) =>
 if (app.Environment.IsDevelopment())
     app.MapOpenApi();
 
-// ForwardedHeaders FÖRE auth + rate-limiting. Krävs i prod bakom Next.js-proxy +
-// ALB/CloudFront så Connection.RemoteIpAddress reflekterar klient-IP, inte proxy-IP
+// ForwardedHeaders FÖRE auth + rate-limiting. Required in production behind the reverse
+// proxy so Connection.RemoteIpAddress reflects the client IP, not the proxy's
 // (TD-21 / Sec-Major-1). I dev körs API:t direkt → headers saknas, ingen verkan.
 //
-// SECURITY: KnownNetworks/KnownProxies MÅSTE konfigureras med ALB:s VPC-CIDR i prod
-// innan första traffic. Konfig är direct-bound från ForwardedHeaders-sektionen
-// (STEG 12) — fail-loud vid ogiltigt CIDR/IP-format. I dev (tom array) bevaras
-// ASP.NET-default-beteendet (loopback only). Se docs/runbooks/aws-setup.md §3.3.
+// SECURITY: KnownNetworks MUST carry the reverse proxy's network CIDR before first
+// traffic. Konfig är direct-bound från ForwardedHeaders-sektionen (STEG 12) — fail-loud
+// vid ogiltigt CIDR/IP-format. I dev (tom array) bevaras ASP.NET-default-beteendet
+// (loopback only). Value and stack are owed by #196; the requirement is ADR 0050
+// Amendment 2026-08-04, gate M-5b point 3.
 var forwardedCfg = builder.Configuration
     .GetSection(ForwardedHeadersConfig.SectionName)
     .Get<ForwardedHeadersConfig>() ?? new ForwardedHeadersConfig();

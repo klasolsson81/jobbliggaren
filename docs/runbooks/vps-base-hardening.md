@@ -933,8 +933,10 @@ rather than discovered:
   Hetzner CAX31 (16 GB), a sizing that ADR explicitly rejected. **Ratified by Klas 2026-08-04:
   Hetzner is off the table and Netcup is the host going forward**, and the earlier "Swedish VPS"
   direction is withdrawn on price and performance grounds — to be revisited only if a Swedish
-  option reaches comparable terms. So this is a decision, not drift. **Recorded 2026-08-04 in
-  ADR 0122**, which supersedes ADR 0050 Beslut 2 in full (plus Beslut 3's host reference,
+  option reaches comparable terms. So this is a decision, not drift. **Recorded 2026-08-04 in ADR 0050's
+  `Amendment 2026-08-04`** (authoritative; ADR 0122 carries the rationale but is local —
+  if it is absent from your worktree the amendment is sufficient and you are missing no
+  gate). It supersedes ADR 0050 Beslut 2 in full (plus Beslut 3's host reference,
   Beslut 4's Cloudflare half and backup target, and gate M-5). Capacity conditions: §12.
 
   The residency question is separate and **measured, not assumed**: RIPE gives
@@ -948,7 +950,8 @@ rather than discovered:
   unmitigated) — see that amendment for their normative text; ADR 0122 carries only the
   rationale. **Do not "correct" these rules toward M-5's original text** — ACME
   HTTP-01 dies, and M-5's origin-IP lockdown has no mechanism left without a CDN. The residual
-  exposure (no DDoS absorption, no origin hiding) is named in ADR 0122 and is re-read by the
+  exposure (no DDoS absorption, no origin hiding) is written out in that amendment's §5 —
+  tracked, and readable without the local ADRs — and is re-read by the
   mandatory second security audit before first real data.
 - **`fail2ban` is not installed**, although ADR 0050 gate M-6 lists it. With
   `AuthenticationMethods publickey`, `AllowUsers jpadmin`, `PermitRootLogin no` and port 22

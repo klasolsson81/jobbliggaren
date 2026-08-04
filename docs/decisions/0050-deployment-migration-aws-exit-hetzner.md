@@ -185,7 +185,13 @@ State: medvetet SPOF-val för beta kompenseras med headroom i delad resurs).
 >   Next-BFF-handlers under `/api/`, noll publika backend-konsumenter), inte på
 >   Cloudflare. Den och dess **sex lastbärande invarianter gäller oförändrade**, och
 >   att läsa "Beslut 4 är superseded" som att den föll vore att döda den tyst.
-> - **EN rättelse i den, och den är kritisk att läsa FÖRE invariant 5 nedan:**
+> - **TVÅ rättelser i den** (samma räkning som §8 — se den för full text). **Den andra
+>   är kritisk att läsa FÖRE invariant 5 nedan.**
+>   1. **Slutmeningen i "Korrigerad topologi"** — *"Cloudflare 'Full (strict)' +
+>      origin-cert + origin-IP-lockdown + HSTS är oförändrade"* — är **falsk under K3**:
+>      "Full (strict)" är moot, origin-cert utgår, origin-IP-lockdown har **ingen**
+>      efterträdare (M-5b), HSTS överlever men **byter emitter** (M-5a).
+>   2. **Invariant 5:s parentes:**
 >   invariant 5 avslutas med parentesen *"(Med Cloudflare Full (strict) + origin-cert
 >   är detta ändå moot.)"*. **Den parentesen är falsk under K3.** Utan CDN kör Caddy
 >   ACME **skarpt**, så invariant 5 går från moot till **lastbärande**: det måste bevisas
@@ -197,9 +203,12 @@ State: medvetet SPOF-val för beta kompenseras med headroom i delad resurs).
 >   läst 2026-08-04). Med både 80 och 443 öppna finns alltså **två** vägar: en skuggad
 >   HTTP-01 dör inte, den **faller tillbaka tyst till TLS-ALPN-01**, och defekten göms
 >   tills något stänger ALPN-vägen — varvid förnyelsen dör **utan koppling till den
->   ändring som orsakade det**. Caddy dokumenterar dessutom att automatiskt inskjutna
->   rutter hamnar *"after your routes with a host matcher"*, alltså ingen garanti att
->   ACME-hanteraren rankar över en site-nivå-`basic_auth`.
+>   ändring som orsakade det**. ACME-hanterarens företräde mot en site-nivå-`basic_auth`
+>   är **omätt** — och det är just därför beviset måste vara en tvingad utfärdning och
+>   inte en curl. *(En tidigare version citerade Caddys mening om att inskjutna rutter
+>   hamnar "after your routes with a host matcher" som stöd. Den meningen handlar om
+>   HTTP→HTTPS-**redirect**-rutterna, inte om challenge-hanteraren — sann om sitt
+>   underlag, falsk om sitt ämne.)*
 >
 >   **Därför duger ingen curl mot ACME-pathen som bevis** — den säger ingenting om vilken
 >   challenge Caddy faktiskt använde. Beviset vid cutover är en **tvingad utfärdning per
@@ -529,8 +538,8 @@ denna amendment re-validerar mot nuläget och flippar Proposed→Accepted.
 > Redis, **generös/osatt cap på Postgres**) vilar uttryckligen på att "CAX31:s 16 GB
 > upplöser det nollsummespel detta vore på 8 GB". Lådan **har** 8 GB, så nollsummespelet
 > är tillbaka och **allt cappas, Postgres inklusive**. Gällande allokering,
-> cgroup-page-cache-priset, `memswap_limit`-kravet och Redis `maxmemory`-fällan:
-> `Amendment 2026-08-04` §1.
+> cgroup-page-cache-priset och Redis `maxmemory`-fällan i
+> `Amendment 2026-08-04` **§1**; `memswap_limit`-kravet i **§2** (villkor 4).
 
 Compose-stacken sätter **hybrid `mem_limit`**: hård cap på Worker + Redis (skydda
 Postgres mot Worker-ingestion-OOM), generös/osatt cap på Postgres
@@ -558,10 +567,10 @@ operativt av TD-102 (master-nyckel), TD-106 (stack/härdning), TD-107 (backup).
 | M-3 | Körbar idempotent master-nyckel-re-wrap-rotation + kadens (minst årlig + händelse-driven vid box-kompromiss/offboarding) | Major | [#198](https://github.com/klasolsson81/jobbliggaren/issues/198) (f.d. TD-102) |
 | M-4 | pg_dump klient-side-krypterad + backup-retention/rotation definierad + EU-jurisdiktion (+ två krav 2026-08-04, se `Amendment 2026-08-04` §7) | Major | [#197](https://github.com/klasolsson81/jobbliggaren/issues/197) (f.d. TD-107) |
 | M-5 | ~~Cloudflare "Full (strict)" + origin-IP-lockdown (bara CF-IP på 443) + HSTS~~ | Major | **SUPERSEDED 2026-08-04 → M-5a + M-5b** (se `Amendment 2026-08-04`) |
-| **M-5a** | **Origin-TLS är hela TLS-historien:** Caddy terminerar med publikt betrott LE-cert (HTTP-01), **HSTS emitteras faktiskt i Production**, ingen klartextsträcka. **Bevisas på svaret, inte på konfigen** | Major (ärvd från M-5) | [#196](https://github.com/klasolsson81/jobbliggaren/issues/196) |
-| **M-5b** | **Kantexponeringen är omitigerad** (ingen CDN/WAF/DDoS-absorption, ingen origin-IP-allowlist): kompenserande kontroll är **admission + topologi**, aldrig filtrering — K2-grinden, Option B, per-IP-rate-limit, riktade `forward`-accepts | **ograderad — severity tillhör security-auditor** | [#196](https://github.com/klasolsson81/jobbliggaren/issues/196) |
+| **M-5a** | **Origin-TLS är hela TLS-historien:** Caddy terminerar med publikt betrott LE-cert (HTTP-01 **eller** TLS-ALPN-01 — se §5), **HSTS emitteras faktiskt i Production**, ingen klartextsträcka. **Bevisas på svaret, inte på konfigen** | Major (ärvd från M-5) | [#196](https://github.com/klasolsson81/jobbliggaren/issues/196) |
+| **M-5b** | **Kantexponeringen är omitigerad** (ingen CDN/WAF/DDoS-absorption, ingen origin-IP-allowlist): kompenserande kontroll är **admission + topologi**, aldrig filtrering — K2-grinden, Option B, per-IP-rate-limit, riktade `forward`-accepts | **Major** (satt av security-auditor 2026-08-04 vid granskningen av PR #1200) — bär tre villkor, se `Amendment 2026-08-04` §5 | [#196](https://github.com/klasolsson81/jobbliggaren/issues/196) |
 | M-6 | VPS-härdnings-baseline (SSH-key-only, brandvägg, ~~fail2ban~~, auto-patch, PG/Redis ej publika, swap/core-dump-hygien mot master-nyckel-minnesläck) | Major | [#196](https://github.com/klasolsson81/jobbliggaren/issues/196) · **baseline i övrigt mätt grön** ([#1196](https://github.com/klasolsson81/jobbliggaren/pull/1196)) · **fail2ban-klausulen: avvikelse REGISTRERAD, ratificering väntar på Klas GO** (`Amendment 2026-08-04`) |
-| **M-7** | **Detektionsförmåga som gör GDPR Art. 33:s awareness-klocka MÄTBAR** (grinden ställs på skyldighet, inte mekanism; mekanismen ägs av #196/#198). Utan den är ADR 0123:s scope-gräns overkställbar — se `Amendment 2026-08-04` §6b | severity sätts av security-auditor vid andra granskningen | [#196](https://github.com/klasolsson81/jobbliggaren/issues/196) / [#198](https://github.com/klasolsson81/jobbliggaren/issues/198) |
+| **M-7** | **Detektionsförmåga** — grinden ställs på **skyldighet, inte mekanism**. Rättslig grund är **Art. 32(1)(b)+(d)** (förmågan, och den återkommande utvärderingen av den); **Art. 33:s 72-timmarsfrist är konsekvensen som gör bristen akut, inte grunden**. Utan den är ADR 0123:s scope-gräns overkställbar (lokal ADR; `Amendment 2026-08-04` §6b bär skälet i sin helhet) | **Major** (satt av security-auditor 2026-08-04) — **blir Blocker om ADR 0123 fortfarande är obeviljad eller omitigerad vid första riktiga data**: acceptansens utgångsvillkor vilar då på en detektionsförmåga som inte finns | [#1201](https://github.com/klasolsson81/jobbliggaren/issues/1201) — **värd-detektion + alerting ägs av [#196](https://github.com/klasolsson81/jobbliggaren/issues/196), nyckelåtkomst-detektion av [#198](https://github.com/klasolsson81/jobbliggaren/issues/198)** |
 | M-1 | ADR 0050 KMS-blocker-prosa amenderad → TD-102-omframing | Major | **Åtgärdad denna amendment** |
 | M-2 | ADR 0049-amendment: self-managed master-nyckels prod-skyddsmodell + accepterad minne-restrisk + namngiven skala-trigger för extern KV/HSM | Major | [#198](https://github.com/klasolsson81/jobbliggaren/issues/198) (f.d. TD-102, ADR 0049-amendment-scope) |
 
@@ -655,8 +664,11 @@ ADR per ADR 0072 docs-privacy).
 **Netcup RS 1000 G12** — x86 (AMD EPYC 9645), 4 **dedikerade** kärnor, **8 GB** DDR5 ECC,
 256 GB NVMe, Debian 13, **Nürnberg**. Ersätter Hetzner CAX31 (ARM, 16 GB).
 
-**Residensen är mätt, inte antagen:** RIPE ger `netname DE-NETCUP-KVM`, `country DE`,
-geolokalisering Nürnberg (2026-08-03) ⇒ EU-resident, **ingen Kap. V-överföring införs**.
+**Residensen är mätt så långt RIPE når:** `netname DE-NETCUP-KVM`, `country DE`,
+geolokalisering Nürnberg (2026-08-03) ⇒ EU-resident. *(`country:`/`netname:` är
+registreringsattribut som LIR:en själv sätter — de bevisar inte fysisk DC-placering.
+Slutsatsen bärs av Netcup som tyskt bolag + vald lokation. Netcups ägarstruktur och
+underbiträdeskedja är **omätt** och ägs av #1199:s DPA-arbete.)*, **ingen Kap. V-överföring införs**.
 Detta **fullgör inte Art. 28**: ett signerat biträdesavtal med **Netcup** måste finnas
 före första riktiga användardata, det är **Klas att teckna, aldrig CC**, och den
 publicerade policyn namnger fortfarande Hetzner — det ägs av
@@ -770,12 +782,16 @@ LE-cert via HTTP-01; **HSTS emitteras faktiskt i Production**; ingen klartextstr
 
 > **Lastbärande och mätt trasigt i dag (2026-08-04, HEAD `1b98d016`):** det finns **ingen
 > `Alb`-sektion i någon `appsettings*.json`** ⇒ `AlbOptions.HttpsEnabled` = `false` i
-> Production ⇒ `Program.cs:333` registrerar **aldrig** `UseHsts()` och `:338` aldrig
-> `UseHttpsRedirection()`. `appsettings.Production.json` har ett `Hsts`-block vars **egen
-> kommentar** säger att det är "ren konfig utan effekt" så länge flaggan är false. Enda
-> injektorn var Terraforms `Alb__HttpsEnabled` i ECS-task-def:en, riven med ADR 0066.
-> **HSTS ser konfigurerat ut och är inert.** Rättas i `AlbOptions → ReverseProxyOptions`-
-> re-homet (#196). **Bevis avläses på svaret** (`curl -sI` visar
+> Production ⇒ grinden på `Program.cs:333` registrerar **aldrig** `UseHsts()` (anropet
+> ligger på `:335`) och grinden på `:338` aldrig `UseHttpsRedirection()` (`:340`).
+> `appsettings.Production.json` har ett `Hsts`-block vars **egen kommentar** säger att det
+> är "ren konfig utan effekt" så länge flaggan är false. Enda **levande** injektorn var
+> Terraforms `Alb__HttpsEnabled` i den **deployade** ECS-task-def:en, som ADR 0066 rev —
+> men Terraform-**koden** är medvetet bevarad och bär injektionen kvar
+> (`infra/terraform/environments/dev/main.tf:377`, CLAUDE.md §11). Ingen injektor finns
+> alltså på Netcup-lådan; trädet är inte residual.
+> **HSTS ser konfigurerat ut och är inert. Fixen ligger INTE i ASP.NET — se
+> EMITTER-noten nedan.** **Bevis avläses på svaret** (`curl -sI` visar
 > `Strict-Transport-Security`), aldrig på konfigen.
 >
 > Kontrast, samma mätning: `ForwardedHeaders:KnownNetworks: []` **är** fail-loud —
@@ -808,8 +824,9 @@ LE-cert via HTTP-01; **HSTS emitteras faktiskt i Production**; ingen klartextstr
 > utfärda. Billig stängning: CAA låst till `letsencrypt.org` + verifierad 2FA på
 > Strato-kontot. Inte orsakad av värdbytet; blir lastbärande i och med att CDN:et faller.
 
-**M-5b (NY rad — severity satt till `Major` av security-auditor 2026-08-04, på begäran;
-denna session graderade den inte).** Tre villkor hör till graden: (i) den är Major **som
+**M-5b (NY rad — severity `Major`, satt av security-auditor 2026-08-04 vid hennes
+granskning av PR #1200; denna session graderade den inte. `docs/reviews/` är gitignorerad,
+så granskarens namn + datum ÄR domarregistret här).** Tre villkor hör till graden: (i) den är Major **som
 grind före första riktiga data** och **inget skäl att hålla tillbaka en tom, basic
 auth-grindad dev-låda**; (ii) den ska **omgraderas, inte ärvas**, vid den obligatoriska
 andra granskningen — "ingen DDoS-absorption" blir en Art. 32(1)(b)-tillgänglighetsfråga
@@ -845,7 +862,8 @@ kontrollerna är **levande och mätta**:
 7. **Request-size- och timeout-tak i Caddy.** Slowloris och stora bodies mot en 8 GB-låda
    är den enda tillgänglighetskontroll som återstår när CDN:et faller. Billig; ta den.
 
-**Restrisk, utskriven och ograderad av denna session:** en volymetrisk flod eller
+**Restrisk, utskriven av denna session och graderad av security-auditor (raden är
+`Major`, se grindtabellen):** en volymetrisk flod eller
 TLS-handskakningsflod når en 8 GB-singelbox utan något framför, och basic auth prövas
 **efter** TCP+TLS och försvarar därför inte tillgänglighet — Beslut 4:s egen negativa
 punkt "singel-box blast-radius" har nu ingen uppströmsabsorbent, vilket är en **strikt
@@ -950,7 +968,10 @@ Så att ingen läsare får två bilder. **Detta faller INTE:**
 - **Beslut 4:s `Amendment 2026-07-18`** (Option B, "route-all-through-Next") **i sin
   helhet, alla sex lastbärande invarianter.** Den är provider-oberoende: beslutad på
   applikationens form (11 Next-BFF-handlers under `/api/`, noll publika
-  backend-konsumenter — ommätt 2026-08-04: fortfarande exakt 11), inte på Cloudflare.
+  backend-konsumenter — **antalet** ommätt 2026-08-04: fortfarande exakt 11. **Uppräkningen
+  är däremot inte ommätt**, och minst ett prefix har glidit: regionen namnger
+  `/api/foretag/lookup`, katalogen innehåller `sok`. Antal ≠ uppräkning — samma lärdom ett
+  snäpp ned), inte på Cloudflare.
 
   **TVÅ rättelser i den, inte en.** *(En tidigare version av detta stycke sa "enda
   rättelsen" och var mätt falsk — regionens text är orörd, men en orörd mening kan bli

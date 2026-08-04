@@ -435,13 +435,21 @@ updates:
   # CodeCoverage pin above records what re-proposing a rejected rule costs: a CI run and
   # a review, twice.)
   #
-  # A THIRD IMAGE CLASS IS COVERED BY NEITHER ENTRY, and it is named here for the same
-  # reason `seq:latest` is: so nobody reads two entries as full coverage. `e2e.yml` runs
-  # `postgres:18` and `redis:8-alpine` as GitHub Actions **service containers**. `docker`
-  # reads Dockerfiles, `docker-compose` reads compose files, and `github-actions` bumps
-  # `uses:` references — a service-container image is none of the three. Note also that
-  # e2e pins a floating major (`postgres:18`) while this file pins `postgres:18.3`, and
-  # nothing reconciles the two.
+  # TWO FURTHER IMAGE CLASSES ARE COVERED BY NEITHER ENTRY, named here for the same reason
+  # `seq:latest` is: so nobody reads two entries as full coverage. `docker` reads
+  # Dockerfiles, `docker-compose` reads compose files, `github-actions` bumps `uses:`
+  # references — and neither of the following is any of those three.
+  #
+  #   3. GitHub Actions **service containers**: `e2e.yml` runs `postgres:18` and
+  #      `redis:8-alpine` as `services:`.
+  #   4. **Testcontainers image literals in the test tree** — measured 2026-08-04: 31
+  #      files, 39 occurrences (`postgres:18` x28, `redis:8-alpine` x11), with no central
+  #      constant. `nuget` bumps the Testcontainers PACKAGE and never the string.
+  #
+  # Both pin a floating major (`postgres:18`) while this file pins `postgres:18.3`, and
+  # nothing reconciles them. The repair for class 4 — a shared constant, or pinned tags
+  # across 31 files — is a follow-up PR: it touches the test tree, not this PR's CI and
+  # infra scope. Naming it here is what keeps the enumeration honest; it is not the fix.
   - package-ecosystem: "docker-compose"
     directory: "/"
     schedule:

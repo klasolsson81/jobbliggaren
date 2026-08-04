@@ -140,18 +140,82 @@ services:
 YAML
 run comments_ignored 0 "$TMPROOT/comments.yml"
 
-# --- 8. an unmodelled entry shape exits 2, never 0 -----------------------------------
-# Long-form mappings are not list items of the shape this guard reads. Reporting beats
-# skipping: a silently unchecked port is the defect, not the fix.
+# --- 8. the REACHABLE long form exits 2, never 0 -------------------------------------
+# Compose's canonical long form is a LIST OF MAPPINGS (`- target: 5432`), not a mapping
+# directly under `ports:` — an earlier fixture pinned the latter, which Compose itself
+# rejects, so it pinned a spelling production cannot produce. This is the one a real
+# compose file can reach.
 cat >"$TMPROOT/longform.yml" <<'YAML'
 services:
   a:
     image: x
     ports:
-      target: 5432
-      published: 5435
+      - target: 5432
+        published: 5435
 YAML
 run longform_unparsed 2 "$TMPROOT/longform.yml"
+
+# --- 8b. FLUSH LIST FORM — the silent-green bug, pinned in both polarities -----------
+# Round 8 measured that the first version of this guard returned exit 0 on this shape:
+# the block-close test ran before the list-item test, so an entry at the SAME indent as
+# `ports:` closed the block and was never checked. Valid YAML, and what
+# `docker compose config` itself emits — so a single reformat would have silenced ALL six
+# ports at once while the guard kept printing OK. Both polarities are pinned, because a
+# guard that fails everything is as useless as one that passes everything.
+cat >"$TMPROOT/flush_bad.yml" <<'YAML'
+services:
+  a:
+    image: x
+    ports:
+    - "5435:5432"
+YAML
+run flush_list_bare 1 "$TMPROOT/flush_bad.yml"
+
+cat >"$TMPROOT/flush_ok.yml" <<'YAML'
+services:
+  a:
+    image: x
+    ports:
+    - "127.0.0.1:5435:5432"
+    volumes:
+    - v:/data
+YAML
+run flush_list_clean 0 "$TMPROOT/flush_ok.yml"
+
+# --- 8c. flow sequence is REFUSED, not skipped ---------------------------------------
+# `ports: ["5435:5432"]` parses to the same value as the block form. It is live house
+# idiom — e2e.yml uses it — so a reader could reasonably write it here.
+cat >"$TMPROOT/flow.yml" <<'YAML'
+services:
+  a:
+    image: x
+    ports: ["5435:5432"]
+YAML
+run flow_sequence 2 "$TMPROOT/flow.yml"
+
+# --- 8d. an alias is REFUSED, not skipped --------------------------------------------
+cat >"$TMPROOT/alias.yml" <<'YAML'
+x-ports: &p
+  - "5435:5432"
+services:
+  a:
+    image: x
+    ports: *p
+YAML
+run anchor_alias 2 "$TMPROOT/alias.yml"
+
+# --- 8e. a ports: block with nothing readable in it is REFUSED ------------------------
+# Exit 0 here would mean "no ports, therefore all ports are fine" — vacuous truth as a
+# clean bill of health.
+cat >"$TMPROOT/empty.yml" <<'YAML'
+services:
+  a:
+    image: x
+    ports:
+  b:
+    image: y
+YAML
+run empty_ports_block 2 "$TMPROOT/empty.yml"
 
 # --- 9. a missing file exits 2, never 0 ----------------------------------------------
 run missing_file 2 "$TMPROOT/does-not-exist.yml"
@@ -164,6 +228,16 @@ run crlf_bare_fails 1 "$TMPROOT/crlf.yml"
 # Not a fixture of the file — the file. This is what makes the guard a guard over the
 # repo rather than over its own test data.
 run real_repo_file 0 "$REPO_ROOT/docker-compose.yml"
+
+# --- 12. AND THAT IT STILL PUBLISHES PORTS AT ALL ------------------------------------
+# `exit 0` above is satisfied vacuously by a file with no ports, a deleted ports block, or
+# any form the guard refuses. The floor makes the pin cross the threshold of the property
+# it pins: the file publishes six ports today, and a restructure that hides them fails
+# here instead of going green.
+run real_repo_file_floor 0 --expect-min 6 "$REPO_ROOT/docker-compose.yml"
+
+# --- 13. and the floor itself must be able to fail ------------------------------------
+run floor_can_fail 1 --expect-min 99 "$REPO_ROOT/docker-compose.yml"
 
 echo
 echo "compose-loopback-guard fixtures: $pass passed, $fail failed"

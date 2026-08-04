@@ -23,6 +23,15 @@ services:
   # ==============================================================
 
   postgres-dev:
+    # BUMPAS DU DEN HÄR TAGGEN — kör kollationskontrollen mot dev-DB:n efteråt.
+    # `public.swedish` är en ICU-kollation (migration 20260714170816) och ICU-versionen
+    # kommer ur den här imagen. Driver den, sorteras btree-index på text efter en ordning
+    # som inte längre gäller: Postgres kraschar inte, frågorna blir tyst fel. Steg-1-frågan
+    # (`pg_collation_actual_version`) och reparationen står i
+    # `docs/runbooks/release-checklist.md` §2 — den grinden läser den TAGGADE miljön, så
+    # den fångar inte den här databasen, som är den enda med riktiga data.
+    # Dependabot bevakar taggen (`docker-compose`-posten i .github/dependabot.yml) men
+    # sådana PR:er auto-mergas ALDRIG, just av det här skälet.
     image: postgres:18.3
     container_name: jobbliggaren-postgres-dev
     environment:

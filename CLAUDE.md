@@ -671,8 +671,15 @@ written as scheduling ("not MVP scope, not verified"), never as fact ("still app
   `Email:Provider` switch — **three** `IEmailSender` impls, not one:
   `ConsoleEmailSender` (Development/Test **only**; it logs the recipient address
   and the whole body, confirmation and activation links included — the gate is
-  real recipients, not sink durability, since dev's Seq does persist that line
-  and is accepted only as a loopback holding no real-user PII),
+  real recipients, not sink durability, since dev's Seq does persist that line.
+  **That sink is accepted on two conditions, and the second is a condition to
+  re-measure, never a standing fact.** (1) It is loopback-bound **and
+  admin-authenticated** — auth was added 2026-08-04 (#1198) precisely because
+  the binding alone had been *measured wrong for months* while the compose
+  file's own comment vouched for it. (2) It holds no real-user PII — which was
+  **measured FALSE on 2026-08-04**: 41 activation/confirmation links in
+  plaintext plus one real address. Nothing re-measures condition 2 on a cadence,
+  and `ConsoleEmailSender` refills the sink at the next dev registration),
   `NullEmailSender` (what `Provider=Console` falls back to outside Dev/Test),
   and `ResendEmailSender` (`Provider=Resend`, fail-loud without
   `Email:ApiKey`). Frontend `.env.local`; backend

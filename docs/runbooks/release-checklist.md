@@ -69,14 +69,16 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
 
       **DEN HÄR GRINDEN LÄSER DEN TAGGADE MILJÖN, OCH DET RÄCKER INTE SEDAN 2026-08-04**
       (#1197 / PR #1206). Dependabot har nu en `docker-compose`-post, så `postgres:18.3`
-      bumpas automatiskt i `docker-compose.yml` — och en patch/minor **auto-mergas**
-      (`dependabot-automerge.yml` avvisar bara majors). Basimagen bär ICU-biblioteket,
-      migration `20260714170816` deklarerar `public.swedish` som en **ICU**-kollation, och
+      bumpas automatiskt i `docker-compose.yml`. Basimagen bär ICU-biblioteket, migration
+      `20260714170816` deklarerar `public.swedish` som en **ICU**-kollation, och
       **dev-databasen är den enda som i dag håller riktiga data** (106 071 annonser,
-      1 066 938 företagsrader). Grinden ovan ser aldrig den bumpen: den läser den taggade
-      miljön vid tag-tillfället. **Kör därför steg 1 mot dev-DB:n också, efter varje
-      auto-mergad postgres-bump** — inte bara före tag. Skälet att raden står *här* och
-      inte enbart i `dependabot.yml`: den som mergar bumpen öppnar aldrig den filen.
+      1 066 938 företagsrader). Grinden ovan ser aldrig den bumpen — den läser den taggade
+      miljön vid tag-tillfället. **Kör därför steg 1 mot dev-DB:n också efter varje
+      postgres-bump**, inte bara före tag.
+      *(Samma PR gjorde `docker-compose`-bumpar **icke** auto-mergebara i
+      `dependabot-automerge.yml` just för att felmoden är tyst, så en människa läser dem
+      numera. Den här raden finns ändå: en människa som läser en grön diff ser inte att
+      ICU-versionen rörde sig.)*
 - [ ] **Om en migration faller på `lock_timeout` — kör om den, det är säkert.** Migrationen
       som sätter kollationen (#884) tar ACCESS EXCLUSIVE och binder sin väntan till 3 s.
       Krockar den med en långkörande transaktion får du

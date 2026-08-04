@@ -393,9 +393,18 @@ updates:
   # mechanism has THREE homes serving three audiences — **ADR 0110** (the decision, and it
   # is GITIGNORED so `git grep` cannot see it), `release-checklist.md` §2 for whoever tags
   # (which also carries the repair procedure), and `docker-compose.yml`'s `postgres-dev`
-  # block for whoever bumps it. Do not add a fourth, and **count with a filesystem grep**:
-  # two earlier drafts here said ONE and then TWO, and TWO was precisely what `git grep`
-  # returns. An earlier draft of
+  # block for whoever bumps it. Do not add a fourth — regenerate with
+  #
+  #   grep -rl pg_collation_actual_version . --exclude-dir=.git --exclude-dir=.github
+  #
+  # which returns three FILES. Every clause of that command is load-bearing, and each one
+  # answers a way this same count was already reported wrong: `-l` not `-n`, because the
+  # line count is four (release-checklist.md carries the token twice) and a draft here
+  # published that as "four files"; `--exclude-dir=.github`, because THIS comment and its
+  # Swedish twin contain the token and a draft's regenerator counted itself, five; and a
+  # filesystem grep rather than `git grep`, which returns two since it cannot see the
+  # gitignored ADR. Hand over the invocation, never the instruction — the instruction has
+  # now been mis-executed twice, once by its own author. An earlier draft of
   # this comment left auto-merge in place and instructed the reader instead — an
   # instruction to whoever merges the bump, sitting in the one file that bump does not
   # touch. This file's own rule, forty lines up, is that such a comment has no reader at

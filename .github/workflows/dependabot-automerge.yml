@@ -75,18 +75,27 @@ jobs:
       # stället för skälet.
       #
       # `docker_compose` var dessutom det fall vars felmod är **tyst**. Mekanismen har TRE
-      # hem, avsiktligt, för tre publiker: **ADR 0110** §"Collation-version drift" (beslutet
+      # hem, avsiktligt, för tre publiker: **ADR 0110** § "What this does NOT guarantee",
+      # stycket "Collation-version drift" (beslutet
       # — GITIGNORERAD, `git grep` ser den inte), `release-checklist.md` §2 (den som taggar,
       # plus reparationsproceduren) och `docker-compose.yml`:s `postgres-dev`-block (den som
-      # bumpar). Lägg inte till ett fjärde, och **räkna med FILSYSTEM-grep** — två tidigare
-      # utkast här sa "ETT" respektive "TVÅ", och "TVÅ" var exakt `git grep`:s svar.
+      # bumpar). Lägg inte till ett fjärde — regenerera med
+      #
+      #   grep -rl pg_collation_actual_version . --exclude-dir=.git --exclude-dir=.github
+      #
+      # som ger tre FILER. Varje led bär: `-l` inte `-n` (radantalet är fyra —
+      # release-checklist.md bär token två gånger — och ett utkast publicerade det som
+      # "fyra filer"); `--exclude-dir=.github` (den HÄR kommentaren och dess engelska
+      # tvilling innehåller token, så ett utkasts regenerator räknade sig själv till fem);
+      # och filsystems-grep i stället för `git grep`, som ger två eftersom den inte ser den
+      # gitignorerade ADR:n.
       # Kadensen påverkas inte i något av fallen: Dependabot öppnar PR:erna månadsvis som
       # förut, men en människa läser dem.
       #
       # REGELN ÄR INTE UNIFORM, OCH DET SÄGS HELLRE ÄN GÖMS: root-`npm`-posten (Husky-
       # ankaret) har samma tre egenskaper som fällde `docker` — `ci` installerar aldrig
-      # rot-trädet (alla jobb kör med `working-directory: web/jobbliggaren-web`) och den
-      # blockerande pnpm-scannen inte heller. Den auto-mergas ändå, och grinden **kan inte**
+      # rot-trädet (webbjobben kör med `working-directory: web/jobbliggaren-web`, och INGET
+      # jobb installerar i roten) och den blockerande pnpm-scannen inte heller. Den auto-mergas ändå, och grinden **kan inte**
       # skilja den från webben: båda npm-posterna rapporteras som `npm_and_yarn`, ett enda
       # branch-segment. Accepterat medvetet — husky är ett lokalt git-hook-verktyg, inte i
       # produktionsträdet. Att i stället stryka `npm_and_yarn` hade stoppat **webbens**
@@ -100,7 +109,11 @@ jobs:
       # repots 28 Dependabot-PR:er 2026-08-04 — `npm` → `npm_and_yarn`,
       # `github-actions` → `github_actions`, `nuget` → `nuget`. **Två av tre skiljer sig**,
       # och en jämförelse mot config-nyckeln hade därför blivit en no-op som ser ut som en
-      # grind. `docker-compose` heter `docker_compose` här.
+      # grind. `docker-compose` heter **sannolikt** `docker_compose` här — HÄRLETT ur
+      # bindestrecksmönstret ovan, ALDRIG observerat: repot har inga docker_compose-PR:er
+      # att läsa branch-namnet ur. Verifiera mot en riktig PR innan namnet någonsin
+      # allow-listas; en felstavning där ger en tyst no-op, vilket är precis vad rond 3 av
+      # den här PR:en lagade. Operativt likgiltigt i dag, eftersom listan är fail-closed.
       #
       # DÄRFÖR FAIL-CLOSED. Ett ekosystem som inte står i listan blir ICKE behörigt —
       # tom sträng, **`docker` och `docker_compose` (båda uteslutna i dag, inte i

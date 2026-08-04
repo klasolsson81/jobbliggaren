@@ -944,16 +944,37 @@ kontrollerna är **levande och mätta**:
    auth-revisionsspåret har. Utan den kopplingen kan #196 stänga M-7 med värddetektion och
    alerting medan applagrets attribuering fortfarande är en konstant.
 
-   **ÖPPEN FRÅGA TILL KLAS — registrerad på
-   [#1202](https://github.com/klasolsson81/jobbliggaren/issues/1202), inte här.** Grindens
-   uppfyllnadsvillkor är inte kontrollens korrekthetsvillkor: när #196 fyller i
-   bridge-CIDR:n blir `EnsureSafeForEnvironment` grön medan per-IP-limiteringen fortfarande
-   är kollapsad. Alternativen (a)/(b)/(c) och security-auditors uttryckliga
-   icke-rekommendation ligger i issue-kommentaren. *Placeringen är avsiktlig: §9.6 gör
-   ADR:n till kärl för den **beviljade** koncessionen, medan §9.2 lägger en **obesvarad**
-   eskalering i en labeled issue — ett stycke i en Accepted ADR har ingen läsare och
-   ruttnar på plats, vilket är precis felklassen TD-registret pensionerades över.*
-   **När Klas svarar skrivs svaret in här**, som beviljad eller avvisad koncession.
+   **BESVARAD AV KLAS 2026-08-04 — (b) + SPÄRRHAKE.** Frågan var registrerad på
+   [#1202](https://github.com/klasolsson81/jobbliggaren/issues/1202), inte här, och gällde
+   att grindens uppfyllnadsvillkor inte är kontrollens korrekthetsvillkor: när #196 fyller
+   i bridge-CIDR:n blir `EnsureSafeForEnvironment` grön medan per-IP-limiteringen
+   fortfarande är kollapsad. Alternativen (a)/(b)/(c) och security-auditors uttryckliga
+   icke-rekommendation ligger kvar i issue-kommentaren.
+
+   **Beslutet är (b) — lita på varningen** som A1 lade i boot-meddelandet, prod-overlayen
+   och `Program.cs` — **plus en mekanisk spärrhake: #1202 är ett blockerande
+   acceptanskriterium på [#196](https://github.com/klasolsson81/jobbliggaren/issues/196)**,
+   så deploy-issuen inte kan stängas medan kedjan är kapad. Raden identifieras i #196:s
+   kropp på sin text (*"BLOCKING — #1202 must be closed before this issue can be"*),
+   **aldrig på ett ordningstal**: den AC-listan växer, och ett ordningstal hade varit sant
+   om sitt underlag och falskt om sitt ämne redan vid nästa tillagda rad.
+
+   **Avvisat, med Klas skäl:** **(a)** en andra grind som mäter att `X-Forwarded-For`
+   faktiskt anländer — bygger en ställning för ett fönster som stängs när #1202 självt
+   landar; riktigt arbete med kort halveringstid. **(c)** en dokumenterad
+   accepterad-risk-ADR — hade formellt accepterat en risk vi **inte** accepterar, utan
+   lagar.
+
+   **Vad spärrhaken tillför.** security-auditors invändning mot (b) ensam avfärdas inte:
+   (b) vilar på att en människa läser en varning. Spärrhaken stänger det **mekaniskt i
+   stället för genom minne** — villkoret flyttas från operatörens uppmärksamhet till
+   issue-stängningen. Det är den billiga länk hennes invändning bad om, utan att bygga (a).
+
+   *Placeringen var avsiktlig och skälet gäller fortfarande: §9.6 gör ADR:n till kärl för
+   den **beviljade** koncessionen, medan §9.2 lade den **då obesvarade** eskaleringen i en
+   labeled issue — ett stycke i en Accepted ADR har ingen läsare och ruttnar på plats,
+   vilket är precis felklassen TD-registret pensionerades över.* **Koncessionen är Klas
+   beviljade, aldrig sessionens hävdade** (§9.6): den står här därför att han svarade.
 
    Ägs av **[#1202](https://github.com/klasolsson81/jobbliggaren/issues/1202)** — graderad
    **`Major`** av security-auditor 2026-08-04 (Art. 5(2) / Art. 32(1)(b) / Art. 33(3)(a) +

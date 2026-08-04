@@ -60,11 +60,27 @@ jobs:
       # Avgör behörighet en gång: patch/minor FRÅN ETT ALLOW-LISTAT EKOSYSTEM. Allt annat
       # → hela resten hoppas över (ingen scan, ingen auto-merge) → manuell granskning.
       #
-      # `docker_compose` är utelämnad därför att dess felmod är **tyst** — mekanismen
-      # (ICU-kollation ur basimagen mot dev-DB:n) bor på ETT ställe, `postgres-dev`-blocket
-      # i `docker-compose.yml`, som är den enda fil en compose-bump alltid rör. Läs den
-      # där; upprepa den inte här. Kadensen påverkas inte: Dependabot öppnar PR:en
-      # månadsvis som förut, men en människa läser den.
+      # **INGET DOCKER-EKOSYSTEM ÄR MED**, och regeln är enkel nog att inte behöva ett
+      # undantag: en image-bump auto-mergas inte, därför att ingenting läser den image som
+      # ändras. Mätt 2026-08-04 — `ci` bygger ingen Dockerfile (enda byggaren är
+      # `deploy-dev.yml`, HISTORICAL och `workflow_dispatch`-only mot riven infra), och den
+      # blockerande vuln-scannen nedan läser .NET- och npm-träden, aldrig en container-image.
+      # En docker-PR hade alltså auto-mergats med grön `ci` som aldrig rört filen, en vakuös
+      # vuln-gate och ingen människa.
+      #
+      # Ett tidigare utkast höll `docker` kvar med skälet att Dockerfilerna står på flytande
+      # taggar och driver ändå vid varje pull. Sant om INNEHÅLLSdrift — men en Dependabot-PR
+      # bär en TAGGändring (`10.0-noble` → `10.1-noble`, semver-minor), och det är precis den
+      # gränsen pull-driften aldrig korsar. Skälet bar inte beslutet, så beslutet ändrades i
+      # stället för skälet.
+      #
+      # `docker_compose` var det första fallet, och dess felmod är dessutom **tyst**.
+      # Mekanismen har TVÅ hem, för två publiker: `docker-compose.yml`:s `postgres-dev`-block
+      # (den som bumpar) och `release-checklist.md` §2 (den som taggar, plus
+      # reparationsproceduren). Det är avsiktligt — ett tidigare utkast här påstod "ETT
+      # ställe" och strök samtidigt meningen som redovisade det andra. Upprepa dem inte här.
+      # Kadensen påverkas inte i något av fallen: Dependabot öppnar PR:erna månadsvis som
+      # förut, men en människa läser dem.
       #
       # LISTAN ÄR EN ALLOW-LIST OCH BÄR `fetch-metadata`:S INTERNA NAMN, INTE
       # `dependabot.yml`:s config-nycklar. Det är inte samma namnrymd, och skillnaden är
@@ -83,19 +99,13 @@ jobs:
       # undanhålls är auto-merge, inte merge — `ci` är orört och PR:en är manuellt
       # mergebar.
       #
-      # `docker_compose` är medvetet UTELÄMNAD ur listan: dess felmod är tyst. Se
-      # `docker-compose.yml`:s `postgres-dev`-block för mekanismen. `docker` är däremot
-      # med, och asymmetrin är mätt: Dockerfilerna står på flytande taggar
-      # (`10.0-noble`), så deras innehåll driver vid varje pull utan att någon PR öppnas —
-      # att hålla dem borta från auto-merge köper ingenting mot den drift-formen, medan
-      # `postgres:18.3` är pinnad och Dependabot-bumpen är den enda vägen den rör sig.
       - name: Avgör behörighet (patch/minor från allow-listat ekosystem)
         id: gate
         shell: bash
         run: |
           echo "::notice::update-type=$UT ecosystem=${ECO:-<tomt>}"
           case "$ECO" in
-            npm_and_yarn|nuget|github_actions|docker) eco_ok=true ;;
+            npm_and_yarn|nuget|github_actions) eco_ok=true ;;
             *) eco_ok=false ;;
           esac
           if [[ "$eco_ok" != "true" ]]; then

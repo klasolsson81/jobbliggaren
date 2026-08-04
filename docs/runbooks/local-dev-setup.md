@@ -94,7 +94,9 @@ curl -I http://localhost:5341
 # → HTTP/1.1 200 OK
 ```
 
-Öppna http://localhost:5341 i webbläsaren för Seq-dashboarden.
+Öppna http://localhost:5341 i webbläsaren för Seq-dashboarden. **Den kräver inloggning**
+— användarnamn `admin`, lösenord = `.env`:s `SEQ_ADMIN_PASSWORD_DEV` (auth är på sedan
+#1198; §6.4 förklarar varför och vad som gäller om du byter lösenordet).
 
 ### 2.4 App-config (krävs innan .NET-stacken startar)
 

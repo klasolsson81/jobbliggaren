@@ -370,9 +370,10 @@ updates:
   # latest, and the production compose file is specified independently by #196's
   # Compose-all-in-one AC. Written down so nobody infers coverage from this entry.
   #
-  # `ci` IS NOT THE GATE FOR THIS FILE, unlike every other entry above. Measured
+  # `ci` IS NOT THE GATE FOR THIS FILE — nor for the `docker` entry above, and an earlier
+  # draft's "unlike every other entry" was false for exactly that reason. Measured
   # 2026-08-04: **no workflow invokes the compose CLI** — regenerate with
-  # `grep -rnE 'docker[[:space:]]+compose|docker-compose[[:space:]]' .github/workflows/`
+  # `grep -rnE 'docker[[:space:]]+compose|docker-compose[[:space:]]' .github/workflows/ .github/scripts/`
   # and discard comment lines. So a bump lands green with nothing having read it.
   #
   # THIS SENTENCE HAS BEEN WRONG THREE TIMES, so it now carries the command instead of a
@@ -382,9 +383,12 @@ updates:
   # property and hand over the regenerator; never publish the tally.
   #
   # NOTHING FROM THIS ENTRY AUTO-MERGES, because a postgres patch/minor fails SILENTLY —
-  # `dependabot-automerge.yml`'s gate leaves `docker_compose` off its allow-list. The
-  # mechanism lives in ONE place, `docker-compose.yml`'s `postgres-dev` block, which is the
-  # only file a compose bump always touches; do not restate it here. An earlier draft of
+  # `dependabot-automerge.yml`'s gate leaves every docker ecosystem off its allow-list. The
+  # mechanism has TWO homes serving two audiences — `docker-compose.yml`'s `postgres-dev`
+  # block for whoever bumps it, and `release-checklist.md` §2 for whoever tags, which also
+  # carries the repair procedure. Deliberate, and stated rather than rounded to "one": an
+  # earlier draft here claimed ONE place while the same commit deleted the sentence that
+  # disclosed the second. Do not add a third. An earlier draft of
   # this comment left auto-merge in place and instructed the reader instead — an
   # instruction to whoever merges the bump, sitting in the one file that bump does not
   # touch. This file's own rule, forty lines up, is that such a comment has no reader at

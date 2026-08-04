@@ -360,9 +360,17 @@ module "ecs" {
     "ConnectionStrings__Redis"           = module.redis.connection_string_secret_arn
   }
 
-  # Klartext env-vars (icke-känsligt). Alb__HttpsEnabled gate:ar
+  # Klartext env-vars (icke-känsligt). ReverseProxy__HttpsEnabled gate:ar
   # app.UseHttpsRedirection() — se Api/Program.cs (förhindrar redirect-loop
-  # bakom HTTP-only-ALB per ADR 0026 + sec-auditor Sec-Major-2 STEG 13b).
+  # bakom en HTTP-only proxy per ADR 0026 + sec-auditor Sec-Major-2 STEG 13b).
+  #
+  # NOTE: this tree is PRESERVED, not live. ADR 0066 destroyed the deployed AWS dev
+  # stack and deliberately kept the code (CLAUDE.md §11); retirement is a cutover-ADR,
+  # never a cleanup sweep. It is not the source of truth for the Netcup stack — #196
+  # is. The key below is renamed only so the tree does not inject a name the
+  # application stopped reading, which would fail silently to false; the AWS-domain
+  # names around it (var.alb_https_enabled, modules/alb) keep their ALB names because
+  # in this tree they really are an ALB.
   #
   # AdminBootstrap__InitialAdminEmail — IdempotentAdminRoleSeeder tilldelar
   # Admin-rollen till user med matchande email vid host-startup (senior-cto-
@@ -374,7 +382,7 @@ module "ecs" {
     "ASPNETCORE_ENVIRONMENT"             = "Production"
     "ASPNETCORE_URLS"                    = "http://+:8080"
     "ForwardedHeaders__KnownNetworks__0" = var.vpc_cidr
-    "Alb__HttpsEnabled"                  = tostring(var.alb_https_enabled)
+    "ReverseProxy__HttpsEnabled"         = tostring(var.alb_https_enabled)
     "AdminBootstrap__InitialAdminEmail"  = var.initial_admin_email
     # TD-13 (ADR 0049) — KMS-envelope. ARN ≠ secret (ger ingen access utan
     # IAM-grant) → plain env, JobbPilot-konvention. dotnet-architect 2026-05-19.

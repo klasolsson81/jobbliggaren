@@ -9,7 +9,7 @@
 #
 # ACM-cert validerat 2026-05-10 via Route53 DNS-validation. Flippar
 # ALB-HTTP-listenern till HTTPS-redirect via dynamic-block i modules/alb/main.tf.
-# Samtidigt injiceras Alb__HttpsEnabled=true som env-var i Api-task-def vilket
+# Samtidigt injiceras ReverseProxy__HttpsEnabled=true som env-var i Api-task-def vilket
 # aktiverar app.UseHsts() + app.UseHttpsRedirection() i ASP.NET-pipelinen.
 # ---------------------------------------------------------------------------
 alb_https_enabled       = true

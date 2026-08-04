@@ -35,6 +35,7 @@ Generera starka lösenord. På bash/Git Bash/WSL:
   echo "POSTGRES_PASSWORD_DEV=$(openssl rand -hex 16)"
   echo "POSTGRES_PASSWORD_TEST=$(openssl rand -hex 16)"
   echo "REDIS_PASSWORD_DEV="
+  echo "SEQ_ADMIN_PASSWORD_DEV=$(openssl rand -hex 16)"
 } > .env
 ```
 
@@ -45,8 +46,16 @@ På PowerShell:
 POSTGRES_PASSWORD_DEV=$(-join ((48..57)+(65..90)+(97..122) | Get-Random -Count 32 | ForEach-Object {[char]$_}))
 POSTGRES_PASSWORD_TEST=$(-join ((48..57)+(65..90)+(97..122) | Get-Random -Count 32 | ForEach-Object {[char]$_}))
 REDIS_PASSWORD_DEV=
+SEQ_ADMIN_PASSWORD_DEV=$(-join ((48..57)+(65..90)+(97..122) | Get-Random -Count 32 | ForEach-Object {[char]$_}))
 "@ | Out-File -Encoding utf8 .env
 ```
+
+**`SEQ_ADMIN_PASSWORD_DEV` är obligatorisk** — compose failar utan den. Auth på dev-Seq
+är PÅ sedan 2026-08-04 (#1198), och skälet är inte formalia: dev-Seq bär
+`ConsoleEmailSender`-rader med hela mejlkroppen, alltså aktiverings- och
+bekräftelselänkar i klartext. Loopback-bindningen ensam räckte inte som kontroll över
+det materialet — den var dessutom mätt fel i månader medan compose-filens egen kommentar
+gick i god för den.
 
 `.env` är gitignored — committa aldrig. Kontrollera:
 
@@ -175,10 +184,14 @@ docker compose --profile full down -v
 
 ### 6.1 Port-konflikter
 
-Om `docker compose up` säger `Bind for 0.0.0.0:5432 failed: port is already allocated`:
+Om `docker compose up` säger `Bind for 127.0.0.1:5435 failed: port is already allocated`:
 
 - En annan postgres-instans kör lokalt. Stoppa den eller ändra port i compose-filen.
-- På Windows: `netstat -ano | findstr :5432` → visar PID → `taskkill /PID <pid> /F`
+- På Windows: `netstat -ano | findstr :5435` → visar PID → `taskkill /PID <pid> /F`
+
+*(Felsträngen bar `0.0.0.0:5432` fram till #1198 — fel på båda halvorna: adressen
+falsifierades av att alla portar nu binds till `127.0.0.1`, och porten var fel redan
+innan, eftersom 5432 är containerporten och 5435 den publicerade.)*
 
 Samma procedur för 5433 (test-postgres), 6379/6380 (redis), 5341/5342 (seq).
 
@@ -200,16 +213,30 @@ Om postgres-containern restartar med fel som refererar `initdb` eller
    docker compose up -d             # Postgres re-initierar
    ```
 
-### 6.4 Seq `firstRun.adminPassword` / `noAuthentication`-fel
+### 6.4 Seq `firstRun.adminPassword` — och varför ett bytt lösenord inte tar
 
-Seq 2025.2+ kräver antingen admin-lösenord eller explicit no-auth. I vår
-compose-fil har vi satt `SEQ_FIRSTRUN_NOAUTHENTICATION=true` — om du vill
-aktivera auth lokalt:
+Seq 2025.2+ kräver antingen admin-lösenord eller explicit no-auth. **Vi kör admin-lösenord
+sedan 2026-08-04** (#1198): `SEQ_FIRSTRUN_ADMINPASSWORD` ur `.env`:s
+`SEQ_ADMIN_PASSWORD_DEV`. Användarnamn är `admin`.
 
-1. Ta bort den raden från compose-filen.
-2. Lägg till `SEQ_FIRSTRUN_ADMINPASSWORD=${SEQ_ADMIN_PASSWORD}` under Seq-servicen.
-3. Lägg till `SEQ_ADMIN_PASSWORD=...` i `.env` + `.env.example`.
-4. `docker compose up -d --force-recreate seq`.
+**Fällan:** `FIRSTRUN`-variabler läses **bara vid första uppstarten mot en tom volym**.
+Ändrar du `SEQ_ADMIN_PASSWORD_DEV` i `.env` och kör `docker compose up -d
+--force-recreate seq` händer **ingenting** — det gamla lösenordet gäller fortfarande,
+eftersom det ligger i `jobbliggaren_seq_data`. Byte kräver att volymen kastas:
+
+```bash
+docker compose down seq && docker volume rm jobbliggaren_jobbliggaren_seq_data
+docker compose up -d seq          # läser nu det nya värdet
+```
+
+Det kastar också loggarna, vilket normalt är önskvärt i dev. Glömt lösenordet är samma
+procedur.
+
+**Om du skriptar mot Seq:s API:** `POST /api/users/login` svarar `401` även när
+lösenordet är rätt, om anropet saknar Seq:s CSRF-handskakning — kontrollera Seq:s egen
+logg (`docker logs jobbliggaren-seq`), som skriver `User admin logged in successfully`
+när autentiseringen faktiskt gick igenom. Webbläsaren gör handskakningen automatiskt, så
+dashboarden på `http://localhost:5341` påverkas inte.
 
 ### 6.5 Postgres 18+ volym-mount
 

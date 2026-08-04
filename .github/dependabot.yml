@@ -17,7 +17,13 @@
 # `eligible=false` i dependabot-automerge.yml och därmed hoppar över scannen för
 # ALLA paket i gruppen. Grupperingen är INGEN garanti mot en trasig grupp: mätt på
 # #1140 var två av tre bygg-brytare semver-minor. `ci` är den grinden.
-# Security updates körs separat och ignorerar schedule (GitHub-default).
+#
+# Security updates körs separat och ignorerar schedule (GitHub-default) — MEN BARA FÖR
+# npm, nuget och github-actions. `docker` och `docker-compose` stöder **version updates
+# only**; GitHub kör inga security updates för dem (GitHub Docs, "Supported ecosystems
+# and repositories", läst 2026-08-04). Meningen ovan gällde fyra entries när den skrevs
+# och är falsk om två av de sex som finns i dag — se de nya entries längst ned för vad
+# det betyder för CVE-vägen.
 #
 # `open-pull-requests-limit` per entry är dimensionerat för att majors nu tar egna
 # slots. nuget står kvar på 5: #1140:s population ger 2 PR:er i den nya formen. En
@@ -257,11 +263,22 @@ updates:
   # Docker base images — the three Dockerfiles under src/ (Api, Migrate, Worker), all
   # three on mcr.microsoft.com/dotnet/{sdk,aspnet}:10.0-noble.
   #
-  # `unattended-upgrades` on the box does NOT cover these: it patches the host, never
-  # the contents of a container (docs/runbooks/vps-base-hardening.md §7). Nothing builds
-  # or publishes these images yet, so the gap is latent — it goes live the moment GHCR
-  # publishing lands (#196 AC 11, the deploy-workflow row). Landed AHEAD of that PR
-  # deliberately: this config can be early, it must never be late.
+  # WHAT THIS IS AND IS NOT: a monthly VERSION cadence. It is **not** a CVE cadence, and
+  # #1197's title promising one is wider than what any config can deliver here — GitHub
+  # runs **no security updates** for `docker` or `docker-compose` (Docs, read 2026-08-04).
+  # Nor does the automerge path compensate: `dependabot-automerge.yml`'s blocking scan is
+  # `dotnet list package --vulnerable` plus `pnpm audit`, and **neither reads a container
+  # image**, so a docker PR passes that gate vacuously. A monthly bump to a patched base
+  # image is still worth far more than nothing — but nobody should read this entry as
+  # "images are CVE-scanned". Closing that half needs an image scanner in the blocking
+  # gate, carried as an AC on #196 before GHCR publishing goes live.
+  #
+  # `unattended-upgrades` on the box does NOT cover these either: it patches the host,
+  # never the contents of a container (docs/runbooks/vps-base-hardening.md §7). Nothing
+  # builds or publishes these images yet, so the gap is latent — it goes live with the
+  # deploy-workflow AC on #196 (reconcile-pull against the GHCR digest; cited by its text,
+  # not by an ordinal, because that AC list grows). Landed AHEAD of that PR deliberately:
+  # this config can be early, it must never be late.
   #
   # DIRECTORIES ARE LISTED EXPLICITLY AND THE GLOB FORM IS REFUSED. `directories`
   # supports globbing where `directory` does not (GitHub Docs, read 2026-08-04), so
@@ -287,19 +304,41 @@ updates:
       day: "monday"
       time: "06:00"
       timezone: "Europe/Stockholm"
-    open-pull-requests-limit: 5
+    # RAISED TO 6, and the reason is the multi-directory shape, not caution. All three
+    # directories carry the SAME two images, so without `group-by` below Dependabot opens
+    # one grouped PR PER DIRECTORY — three identical PRs — and an ungrouped .NET 11 major
+    # would be 2 images x 3 directories = up to 6 PRs against a limit of 5. Overflow is
+    # SILENT (Dependabot simply opens nothing), which is the same failure shape the header
+    # already names for nuget.
+    open-pull-requests-limit: 6
     commit-message:
       prefix: "chore(deps)"
       include: "scope"
     labels:
       - "dependencies"
+      # NOTE: `docker` does not exist as a repo label (measured 2026-08-04 via
+      # `gh label list`), and GitHub silently ignores labels that are not defined. This is
+      # PRE-EXISTING practice, not new here — `npm`, `frontend` and `github-actions` above
+      # are all equally undefined. The PRs stay findable via `dependencies`.
       - "docker"
     # Same grouping rule as every entry above: minor+patch grouped, a MAJOR always
     # arrives as its own PR. A .NET major (11.0) is a framework migration and must not
     # ride in behind a patch.
+    #
+    # `group-by: dependency-name` collapses the per-directory duplication: "a single pull
+    # request for each dependency update across all specified directories, rather than
+    # separate pull requests per directory" (GitHub Docs, read 2026-08-04). It is the only
+    # accepted value for that key.
+    #
+    # UNVERIFIED, AND SAID SO RATHER THAN ASSUMED: the docs do not state whether `group-by`
+    # composes with `update-types` in the same group. Both are sibling keys under `groups`,
+    # which is why it is written this way — but the limit above is set to survive the case
+    # where it does not. Observable at the first monthly run (Monday 06:00): three identical
+    # PRs instead of one means the composition does not hold, and the key should go.
     groups:
       docker-minor-patch:
         update-types: ["minor", "patch"]
+        group-by: dependency-name
 
   # Docker Compose images — postgres:18.3, redis:8.6-alpine, datalust/seq:latest.
   #
@@ -311,16 +350,29 @@ updates:
   # issue while leaving the DATABASE image, the one holding all the data, on no cadence
   # at all.
   #
-  # `datalust/seq:latest` CANNOT BE BUMPED — not here, not in any ecosystem. It is a
-  # floating tag and Dependabot resolves versions, not digests. Written down so nobody
-  # infers coverage from this entry's existence. The floating tag is deliberate: dev
-  # wants latest, and the production compose file is specified independently (#196 AC 1).
+  # `datalust/seq:latest` IS NOT BUMPED, and the mechanism matters because the wrong one
+  # forecloses the fix: a floating tag carries no version to compare, AND it is not
+  # digest-pinned. Digest-pinning (`datalust/seq:latest@sha256:...`) WOULD give a cadence
+  # — Dependabot does update digests. That path is deliberately declined: dev wants
+  # latest, and the production compose file is specified independently by #196's
+  # Compose-all-in-one AC. Written down so nobody infers coverage from this entry.
   #
-  # `ci` IS NOT THE GATE FOR THIS FILE, unlike every other entry above. No workflow
-  # reads docker-compose.yml (measured 2026-08-04: the only mention under .github/ is a
-  # prose comment at build.yml:500), so a bump that breaks the stack lands green. The
-  # failure is loud and local — the next stack-owner's `docker compose up` fails — never
-  # silent and never production-facing, which is why the cadence is still worth having.
+  # `ci` IS NOT THE GATE FOR THIS FILE, unlike every other entry above. No workflow runs
+  # `docker compose` at all (measured 2026-08-04; the only mention under .github/workflows/
+  # is a prose comment at build.yml:500 — the mentions in THIS file are the entry
+  # describing itself and do not count), so a bump lands green with nothing having read it.
+  #
+  # AND THE FAILURE IS NOT RELIABLY LOUD — an earlier draft of this comment said it was,
+  # which was true only of the case that cannot auto-merge. A postgres MAJOR fails loudly
+  # (incompatible data files) but majors are never auto-merged. What CAN auto-merge is
+  # patch/minor, and there the failure mode is SILENT: the base image carries the ICU
+  # library, migration 20260714170816_AddSwedishCollationToCompanyRegisterText defines
+  # `swedish` as an ICU collation, and a new ICU version leaves btree text indexes sorted
+  # by an order that no longer holds. Postgres does not crash on that; queries just go
+  # quietly wrong. release-checklist.md §2's collation check reads the TAGGED environment
+  # at tag time — it does not cover the dev database, which is the one this bump changes
+  # and the only one holding real data today. After an auto-merged postgres bump, run §2's
+  # `pg_collation_actual_version` query against dev too.
   #
   # NO postgres-major `ignore`, and the reason is written down so it is not re-proposed:
   # dependabot-automerge.yml already sets `eligible=false` on any major, so a postgres
@@ -330,10 +382,13 @@ updates:
   # CodeCoverage pin above records what re-proposing a rejected rule costs: a CI run and
   # a review, twice.)
   #
-  # KNOWN INTERACTION, not a defect: a postgres image bump ARMS the collation-version
-  # check in docs/runbooks/release-checklist.md §2 (ADR 0109 / #884). That is a RELEASE
-  # gate read at tag time, not a merge gate, so an auto-merged patch/minor still meets
-  # it — the bump simply arrives automatically instead of deliberately.
+  # A THIRD IMAGE CLASS IS COVERED BY NEITHER ENTRY, and it is named here for the same
+  # reason `seq:latest` is: so nobody reads two entries as full coverage. `e2e.yml` runs
+  # `postgres:18` and `redis:8-alpine` as GitHub Actions **service containers**. `docker`
+  # reads Dockerfiles, `docker-compose` reads compose files, and `github-actions` bumps
+  # `uses:` references — a service-container image is none of the three. Note also that
+  # e2e pins a floating major (`postgres:18`) while this file pins `postgres:18.3`, and
+  # nothing reconciles the two.
   - package-ecosystem: "docker-compose"
     directory: "/"
     schedule:

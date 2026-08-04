@@ -64,29 +64,30 @@ services:
     container_name: jobbliggaren-seq
     environment:
       ACCEPT_EULA: "Y"
-      # Seq 2025.2+ kräver explicit firstRun-konfig. För localhost-dev stänger vi av
-      # auth helt: Seq är loopback-bunden (raden nedan) och innehåller bara dev-loggar.
+      # AUTH ÄR PÅ, och det är en ändring (Klas-beslut 2026-08-04, #1198). Fram till dess
+      # körde dev-Seq `SEQ_FIRSTRUN_NOAUTHENTICATION: "true"` med motiveringen "Seq är
+      # loopback-bunden och innehåller bara dev-loggar". **Båda leden var fel.**
       #
-      # DEN HÄR KOMMENTAREN BAR TRE FALSKA PÅSTÅENDEN TILL #1198, och alla tre är
-      # utskrivna här därför att nästa läsare annars gör samma slutledning:
+      # Bindningen var `0.0.0.0` (mätt 2026-08-04: `HTTP 200` mot ett oautentiserat
+      # Seq-API från värdens Ethernet-adress). Och innehållet var inte "bara dev-loggar":
+      # `ConsoleEmailSender` skriver hela `PlainTextBody`, så sinken bar 41 aktiverings-
+      # och bekräftelselänkar i klartext plus en verklig e-postadress. Bindningen lagades
+      # i samma PR — men då hade den varit **enda** kontrollen över det materialet, och
+      # det var precis den kontroll som varit fel i månader medan den här kommentaren
+      # gick i god för den. Därför en andra kontroll som inte är ett påstående.
       #
-      #   1. "Seq är bunden till loopback" — den var det INTE. Den band `0.0.0.0` och
-      #      motiverade avstängd auth med en bindning som inte fanns. Mätt 2026-08-04
-      #      från värdens Ethernet-adress: `HTTP 200` mot ett oautentiserat Seq-API.
-      #      Sant först i och med den här ändringen.
-      #   2. "Produktion kör aldrig Seq" — falskt. CLAUDE.md §11 beskriver
-      #      Seq-providern som levande wiring (`AddJobbliggarenLogging`, gated på
-      #      `Seq:ServerUrl`), och #1175 äger den obyggda prod-loggsänkan.
-      #   3. "(CloudWatch istället)" — falskt. AWS är rivet (ADR 0066).
-      #
-      # LÄS ALDRIG EN BIND-ADRESS UR DEN HÄR FILEN. `docs/runbooks/vps-base-hardening.md`
-      # §12 registrerar att en publicerad containerport passerar värdens `forward`-kedja
-      # i stället för `input` — bind-adressen är alltså lastbärande, och grinden i ADR
-      # 0050 `Amendment 2026-08-04` §5 punkt 6 kräver bevis **utifrån** med `curl`, aldrig
-      # genom att läsa den här filen. Precis den här kommentaren är skälet: den påstod
-      # motsatsen i månader och ingen fångade det genom att läsa.
-      SEQ_FIRSTRUN_NOAUTHENTICATION: "true"
+      # `SEQ_FIRSTRUN_ADMINPASSWORD` läses bara vid FÖRSTA uppstarten mot en tom volym.
+      # Byter du lösenord i `.env` senare gäller det inte förrän volymen återskapas
+      # (`docker compose down -v seq`) — se `docs/runbooks/local-dev-setup.md` §6.4.
+      SEQ_FIRSTRUN_ADMINPASSWORD: ${SEQ_ADMIN_PASSWORD_DEV:?SEQ_ADMIN_PASSWORD_DEV måste sättas i .env}
     ports:
+      # BIND-ADRESSEN ÄR LASTBÄRANDE, inte kosmetisk: `docs/runbooks/vps-base-hardening.md`
+      # §12 registrerar att en publicerad containerport passerar värdens `forward`-kedja i
+      # stället för `input`. Läs den aldrig **härifrån som bevis för vad som faktiskt kör** —
+      # ADR 0050 `Amendment 2026-08-04` §5 punkt 6 kräver `curl` utifrån, eftersom just den
+      # här filens kommentar påstod motsatsen i månader utan att någon läsare fångade det.
+      # (Det förbjuder inte en form-baserad regressionsvakt som kontrollerar att prefixet
+      # inte försvinner igen — det är en annan fråga än vad som kör, och den saknas i dag.)
       - "127.0.0.1:5341:80"      # Seq UI + API (unified http-port)
       - "127.0.0.1:5342:5341"    # Seq ingestion-port (separat listener enligt Seq-startlog)
     volumes:

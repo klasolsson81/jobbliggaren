@@ -952,9 +952,18 @@ kontrollerna är **levande och mätta**:
    icke-rekommendation ligger kvar i issue-kommentaren.
 
    **Beslutet är (b) — lita på varningen** som A1 lade i boot-meddelandet, prod-overlayen
-   och `Program.cs` — **plus en mekanisk spärrhake: #1202 är ett blockerande
-   acceptanskriterium på [#196](https://github.com/klasolsson81/jobbliggaren/issues/196)**,
-   så deploy-issuen inte kan stängas medan kedjan är kapad. Raden identifieras i #196:s
+   och `Program.cs` — **plus en spärrhake: #1202 är ett blockerande acceptanskriterium på
+   [#196](https://github.com/klasolsson81/jobbliggaren/issues/196)**, så deploy-issuen
+   inte kan stängas medan kedjan är kapad.
+
+   **Spärrhaken är INTE mekanisk, och ordet är medvetet struket här.** En obockad ruta i
+   en issue-kropp stoppar ingenting — `gh issue close` går igenom oavsett. Det den gör är
+   att flytta villkoret från **operatörens minne vid tagg-tillfället** till ett **skrivet
+   stängningsvillkor** på den issue som äger deployen: bättre än minne, fortfarande en
+   människa som läser. Samma disciplin som `release-checklist.md` §2.6 tillämpar när den
+   vägrar ordet "HÅRD" om ett mänskligt instrument — *"ordet hade hävdat en egenskap
+   instrumentet inte har"*. **Den mekaniska formen kvarstår därmed som skuld**, och den
+   skulden är inte den här ADR:ns att stänga. Raden identifieras i #196:s
    kropp på sin text (*"BLOCKING — #1202 must be closed before this issue can be"*),
    **aldrig på ett ordningstal**: den AC-listan växer, och ett ordningstal hade varit sant
    om sitt underlag och falskt om sitt ämne redan vid nästa tillagda rad.
@@ -966,9 +975,17 @@ kontrollerna är **levande och mätta**:
    lagar.
 
    **Vad spärrhaken tillför.** security-auditors invändning mot (b) ensam avfärdas inte:
-   (b) vilar på att en människa läser en varning. Spärrhaken stänger det **mekaniskt i
-   stället för genom minne** — villkoret flyttas från operatörens uppmärksamhet till
-   issue-stängningen. Det är den billiga länk hennes invändning bad om, utan att bygga (a).
+   (b) vilar på att en människa läser en varning. Spärrhaken **byter vilken människa som
+   läser och när** — från operatören mitt i en deploy till den som stänger #196, mot ett
+   skrivet villkor i stället för mot minnet. Det är den billiga länk hennes invändning bad
+   om, utan att bygga (a), och det är mindre än en mekanisk grind (se ovan).
+
+   **En kvarstående glapp-risk, utskriven eftersom den inte följer av texten ovan:**
+   spärrhakens trigger är **#196:s stängning**, medan grindens trigger är **första riktiga
+   data**. De kan glida isär — lådan kan bära testanvändare medan #196 fortfarande är
+   öppen, och då har spärrhaken aldrig löst ut. Täckningen finns kvar via #1202:s egen
+   gradering och dess eskalering till `Blocker` vid samma trigger som M-7; det är den, inte
+   spärrhaken, som är grindens bärande del.
 
    *Placeringen var avsiktlig och skälet gäller fortfarande: §9.6 gör ADR:n till kärl för
    den **beviljade** koncessionen, medan §9.2 lade den **då obesvarade** eskaleringen i en

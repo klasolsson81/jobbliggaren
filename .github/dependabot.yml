@@ -7,6 +7,9 @@
 #   pnpm-lock.yaml autodetekteras; pnpm workspace catalogs GA 2025-02)
 # - nuget root (Central Package Management — Directory.Packages.props)
 # - github-actions (CI-workflows + lighthouse-ci-action supply-chain-yta)
+# - docker (the three Dockerfiles under src/) + docker-compose (docker-compose.yml).
+#   TWO entries because they are TWO ecosystems: `docker` reads Dockerfiles and
+#   `docker-compose` reads compose files, so neither covers the other's images.
 #
 # Strategi: månadsvisa version-updates. Minor + patch grupperas per ecosystem för
 # att minska PR-brus; MAJORS grupperas aldrig, utan kommer en PR i taget — dels så
@@ -249,4 +252,102 @@ updates:
     # here, auto-mergeable.
     groups:
       actions-minor-patch:
+        update-types: ["minor", "patch"]
+
+  # Docker base images — the three Dockerfiles under src/ (Api, Migrate, Worker), all
+  # three on mcr.microsoft.com/dotnet/{sdk,aspnet}:10.0-noble.
+  #
+  # `unattended-upgrades` on the box does NOT cover these: it patches the host, never
+  # the contents of a container (docs/runbooks/vps-base-hardening.md §7). Nothing builds
+  # or publishes these images yet, so the gap is latent — it goes live the moment GHCR
+  # publishing lands (#196 AC 11, the deploy-workflow row). Landed AHEAD of that PR
+  # deliberately: this config can be early, it must never be late.
+  #
+  # DIRECTORIES ARE LISTED EXPLICITLY AND THE GLOB FORM IS REFUSED. `directories`
+  # supports globbing where `directory` does not (GitHub Docs, read 2026-08-04), so
+  # `/src/*` is the tempting one-liner. It is refused because dependabot-core#12348
+  # ("Support for wild card (*) and globbing is no longer working with directories key")
+  # has been OPEN since 2025-05-30 with no maintainer response and no workaround, and
+  # its symptom is that the glob matches ZERO manifests — silently. That is the exact
+  # fail-open shape of the defect this entry exists to close: a config that looks like
+  # it has a CVE cadence while having none. Same reasoning as the codeql-action `ignore`
+  # above, where a wrong value also fails open and silently.
+  #
+  # THE PRICE OF THE EXPLICIT FORM, NAMED: a fourth Dockerfile is silently uncovered,
+  # and #196 adds at least two (the Next/web container and Caddy). A comment in this
+  # file has no reader at that moment, so the obligation is carried as an acceptance
+  # criterion on #196 — the issue where that Dockerfile actually gets written.
+  - package-ecosystem: "docker"
+    directories:
+      - "/src/Jobbliggaren.Api"
+      - "/src/Jobbliggaren.Migrate"
+      - "/src/Jobbliggaren.Worker"
+    schedule:
+      interval: "monthly"
+      day: "monday"
+      time: "06:00"
+      timezone: "Europe/Stockholm"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(deps)"
+      include: "scope"
+    labels:
+      - "dependencies"
+      - "docker"
+    # Same grouping rule as every entry above: minor+patch grouped, a MAJOR always
+    # arrives as its own PR. A .NET major (11.0) is a framework migration and must not
+    # ride in behind a patch.
+    groups:
+      docker-minor-patch:
+        update-types: ["minor", "patch"]
+
+  # Docker Compose images — postgres:18.3, redis:8.6-alpine, datalust/seq:latest.
+  #
+  # A `docker` entry does NOT reach these. `docker` and `docker-compose` are SEPARATE
+  # ecosystems (GitHub Docs, read 2026-08-04; docker-compose reached GA 2025-02-25):
+  # the first reads Dockerfiles, the second reads compose files, and neither covers the
+  # other's images. #1197's premise enumerates postgres and redis while its acceptance
+  # criterion names only `docker` — so a Dockerfile-only entry would have closed the
+  # issue while leaving the DATABASE image, the one holding all the data, on no cadence
+  # at all.
+  #
+  # `datalust/seq:latest` CANNOT BE BUMPED — not here, not in any ecosystem. It is a
+  # floating tag and Dependabot resolves versions, not digests. Written down so nobody
+  # infers coverage from this entry's existence. The floating tag is deliberate: dev
+  # wants latest, and the production compose file is specified independently (#196 AC 1).
+  #
+  # `ci` IS NOT THE GATE FOR THIS FILE, unlike every other entry above. No workflow
+  # reads docker-compose.yml (measured 2026-08-04: the only mention under .github/ is a
+  # prose comment at build.yml:500), so a bump that breaks the stack lands green. The
+  # failure is loud and local — the next stack-owner's `docker compose up` fails — never
+  # silent and never production-facing, which is why the cadence is still worth having.
+  #
+  # NO postgres-major `ignore`, and the reason is written down so it is not re-proposed:
+  # dependabot-automerge.yml already sets `eligible=false` on any major, so a postgres
+  # major CANNOT auto-merge today. Such an ignore would duplicate a live control, and
+  # unlike every ignore in this file it would carry no LIFT WHEN condition beyond "when
+  # we feel like upgrading" — a permanent suppression in a gate's clothing. (The
+  # CodeCoverage pin above records what re-proposing a rejected rule costs: a CI run and
+  # a review, twice.)
+  #
+  # KNOWN INTERACTION, not a defect: a postgres image bump ARMS the collation-version
+  # check in docs/runbooks/release-checklist.md §2 (ADR 0109 / #884). That is a RELEASE
+  # gate read at tag time, not a merge gate, so an auto-merged patch/minor still meets
+  # it — the bump simply arrives automatically instead of deliberately.
+  - package-ecosystem: "docker-compose"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+      day: "monday"
+      time: "06:00"
+      timezone: "Europe/Stockholm"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(deps)"
+      include: "scope"
+    labels:
+      - "dependencies"
+      - "docker"
+    groups:
+      compose-minor-patch:
         update-types: ["minor", "patch"]

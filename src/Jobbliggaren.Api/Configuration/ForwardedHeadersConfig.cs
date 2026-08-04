@@ -112,8 +112,8 @@ public sealed class ForwardedHeadersConfig
     /// Production-defense per allow-list (security-auditor STEG 12 Sec-Major-1).
     /// Symmetri med Worker <c>safeForAutoSchema</c>-mönstret. Tom <see cref="KnownNetworks"/>
     /// bakom proxy = alla klienter i EN bucket = sex policies som partitionerar på klient-IP
-    /// (två av dem bara för oautentiserade anropare) blir en GLOBAL limiter, inte en
-    /// frånvarande = OWASP A07-yta.
+    /// (två av dem bara för oautentiserade anropare) blir en GLOBAL limiter — inte en
+    /// frånvarande kontroll, utan en delad. OWASP A07-yta.
     /// Bara <c>Development</c> och <c>Test</c> får tom array; allt annat tvingas till
     /// explicit overlay via fail-loud uppstart-throw.
     /// </summary>

@@ -9,9 +9,10 @@ namespace Jobbliggaren.Api.Configuration;
 /// HSTS instruerar browsers att alltid använda HTTPS för domänen i <c>MaxAgeDays</c>
 /// dagar framåt. Aktiveras tillsammans med <c>ReverseProxyOptions.HttpsEnabled</c> —
 /// bägge flippas synkront med reverse-proxyns TLS-listener (ADR 0026-trigger 1).
-/// Note that under Option B neither is expected to flip: browser-visible HSTS is owed by
-/// the edge on BOTH response paths — Caddy for the 401, <c>buildSecurityHeaders</c> for
-/// the Next path — since the API's responses never reach a browser. See
+/// Note that under Option B neither is expected to flip: browser-visible HSTS is owed
+/// outside ASP.NET, on BOTH response paths — Caddy for the 401, and
+/// <c>buildSecurityHeaders</c> for the Next path, which is not the edge — since the
+/// API's responses never reach a browser. See
 /// <see cref="ReverseProxyOptions"/>.
 /// </para>
 ///

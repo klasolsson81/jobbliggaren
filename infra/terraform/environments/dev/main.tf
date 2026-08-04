@@ -381,9 +381,12 @@ module "ecs" {
   #   - The BUILD INSTRUCTIONS in this tree (below in this file, and environments/dev/
   #     README.md) name src/JobbPilot.*/Dockerfile; the projects are Jobbliggaren.* and
   #     those paths do not exist. The HCL itself consumes prebuilt ECR tags, so this is a
-  #     dead procedure rather than dead HCL. (54 JobbPilot references across 27 files in
-  #     infra/ — case-sensitive; a case-insensitive sweep also catches live AWS resource
-  #     names like jobbpilot-dev-*, which are a different thing.)
+  #     dead procedure rather than dead HCL. (A case-sensitive sweep of infra/ finds these
+  #     stale project references across 27 files; a case-insensitive one also catches LIVE
+  #     AWS resource names like jobbpilot-dev-*, which are a different thing — that is how
+  #     an earlier "178" figure was arrived at, withdrawn on #196. Counts are omitted on
+  #     purpose: this note sits inside the corpus it would be counting, and every edit
+  #     here moves the number.)
   # So the app-facing halves of this block are dead in two ways, and the procedure around
   # it in a third. Renaming one
   # string would buy one-of-N consistency and leave a current name standing among dead

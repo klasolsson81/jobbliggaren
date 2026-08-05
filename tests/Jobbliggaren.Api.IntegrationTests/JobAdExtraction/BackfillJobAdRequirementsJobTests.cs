@@ -11,6 +11,7 @@ using Jobbliggaren.TestSupport;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using NSubstitute;
 using Shouldly;
 
@@ -92,6 +93,8 @@ public sealed class BackfillJobAdRequirementsJobTests(ApiFactory factory)
             jobSource: jobSource,
             scopeFactory: serviceProvider.GetRequiredService<IServiceScopeFactory>(),
             db: serviceProvider.GetRequiredService<IAppDbContext>(),
+            ingestOptions: serviceProvider
+                .GetRequiredService<IOptions<JobSourceIngestOptions>>(),
             clock: serviceProvider.GetRequiredService<IDateTimeProvider>(),
             auditor: serviceProvider.GetRequiredService<ISystemEventAuditor>(),
             logger: NullLogger<JobAdRefetchBackfillRunner>.Instance);

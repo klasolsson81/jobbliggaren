@@ -106,13 +106,16 @@ public class JobAdRefetchBackfillRunnerTests
         IJobSource jobSource,
         IServiceScopeFactory scopeFactory,
         AppDbContext db,
-        ISystemEventAuditor? auditor = null)
+        ISystemEventAuditor? auditor = null,
+        bool ingestEnabled = true)
     {
         var clock = new FakeDateTimeProvider(Now);
         return new JobAdRefetchBackfillRunner(
             jobSource: jobSource,
             scopeFactory: scopeFactory,
             db: db,
+            ingestOptions: Microsoft.Extensions.Options.Options.Create(
+                new JobSourceIngestOptions { IngestEnabled = ingestEnabled }),
             clock: clock,
             auditor: auditor ?? Substitute.For<ISystemEventAuditor>(),
             logger: NullLogger<JobAdRefetchBackfillRunner>.Instance);
@@ -183,6 +186,75 @@ public class JobAdRefetchBackfillRunnerTests
 
         // En egen scope per item (ADR 0032 §5 single-command-scope-paritet)
         scopeFactory.ScopesCreated.ShouldBe(3);
+    }
+
+    // ── Ingestion gate (JobSourceIngestOptions) ────────────────────────────────────────────
+    // The runner is the third sender of UpsertExternalJobAdCommand and refetches through the
+    // same converter, so it writes the same recruiter contact records as the stream and
+    // snapshot jobs. The pair below is one measurement: the disabled case alone would also
+    // pass against an empty database, so the enabled case seeds the same rows and proves the
+    // gate is what stops the run.
+
+    [Fact]
+    public async Task RunAsync_WithIngestDisabled_NeverReachesTheJobSource()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var clock = new FakeDateTimeProvider(Now);
+        var db = TestAppDbContextFactory.Create();
+        db.JobAds.Add(CreateImportedJobAd("ext-1", clock));
+        await db.SaveChangesAsync(ct);
+
+        var jobSource = Substitute.For<IJobSource>();
+        jobSource.Source.Returns(JobSource.Platsbanken);
+        jobSource.RefetchByExternalIdAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(ci => Task.FromResult<JobAdImportItem?>(RefetchedItem(ci.ArgAt<string>(0))));
+
+        var mediator = Substitute.For<IMediator>();
+        var auditor = Substitute.For<ISystemEventAuditor>();
+        var runner = CreateRunner(
+            jobSource, new FakeScopeFactory(mediator), db, auditor, ingestEnabled: false);
+
+        var counts = await runner.RunAsync(SsykNullPredicate, Opts(), "backfill", ct);
+
+        counts.Fetched.ShouldBe(0);
+        counts.RefetchAttempted.ShouldBe(0);
+        await jobSource.DidNotReceiveWithAnyArgs()
+            .RefetchByExternalIdAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
+        await mediator.DidNotReceiveWithAnyArgs()
+            .Send(Arg.Any<UpsertExternalJobAdCommand>(), Arg.Any<CancellationToken>());
+        await auditor.DidNotReceiveWithAnyArgs()
+            .RecordAsync(Arg.Any<JobAdsSynced>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task RunAsync_WithIngestEnabled_ReachesTheJobSource()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var clock = new FakeDateTimeProvider(Now);
+        var db = TestAppDbContextFactory.Create();
+        db.JobAds.Add(CreateImportedJobAd("ext-1", clock));
+        await db.SaveChangesAsync(ct);
+
+        var jobSource = Substitute.For<IJobSource>();
+        jobSource.Source.Returns(JobSource.Platsbanken);
+        jobSource.RefetchByExternalIdAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(ci => Task.FromResult<JobAdImportItem?>(RefetchedItem(ci.ArgAt<string>(0))));
+
+        var mediator = Substitute.For<IMediator>();
+        mediator.Send(Arg.Any<UpsertExternalJobAdCommand>(), Arg.Any<CancellationToken>())
+            .Returns(Result.Success(UpsertOutcome.Updated));
+        var auditor = Substitute.For<ISystemEventAuditor>();
+        var runner = CreateRunner(
+            jobSource, new FakeScopeFactory(mediator), db, auditor, ingestEnabled: true);
+
+        var counts = await runner.RunAsync(SsykNullPredicate, Opts(), "backfill", ct);
+
+        counts.Fetched.ShouldBe(1);
+        counts.RefetchAttempted.ShouldBe(1);
+        await jobSource.ReceivedWithAnyArgs(1)
+            .RefetchByExternalIdAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
+        await auditor.ReceivedWithAnyArgs(1)
+            .RecordAsync(Arg.Any<JobAdsSynced>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]

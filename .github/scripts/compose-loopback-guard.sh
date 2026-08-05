@@ -268,10 +268,26 @@ for f in "${files[@]}"; do
     #
     # ONE PREDICATE FOR ALL THREE, deliberately. Repairing the seat that was reported and
     # leaving its siblings is how this class survived a round: the repair must be the class,
-    # not the instance. This is UNRESOLVED-ENTRY from the ports axis with a different noun,
-    # and it is conservative in the same way — UNRESOLVED-ENTRY refuses `localhost:9000:9000`
-    # too, though that binding is in fact loopback. Refusing what cannot be read beats
-    # guessing at it.
+    # not the instance.
+    #
+    # THE REF SEAT IS UNCONDITIONAL, AND NARROWING IT REOPENS A MEASURED HOLE. The tempting
+    # optimisation is to refuse an unresolved attachment only when the file also declares a
+    # network that resolves to `host`. Measured, that misses this file:
+    #
+    #   networks: {n: {external: true, name: "${HOST}"}}
+    #   services: {a: {networks: ["${NET}"], ports: ["127.0.0.1:1:1"]}}
+    #
+    # With HOST=host and NET=n it is host networking. The NAME seat cannot fire, because
+    # `unresolved_nets` holds the key `n` while `attached` holds `${NET}` and the two never
+    # intersect. A narrowed REF seat cannot fire either, because NO declared network resolves
+    # to the literal `host` — the only candidate is itself a variable. Only the broad rule
+    # sees it. So the breadth is load-bearing through the interaction of two seats, and the
+    # consistency argument below is the weaker of the two grounds, not the reason.
+    #
+    # (It is also consistent with UNRESOLVED-ENTRY on the ports axis, which refuses
+    # `localhost:9000:9000` though that binding is in fact loopback. Refusing what cannot be
+    # read beats guessing at it. The over-refusal is real — `"${STACK}_backend"` never becomes
+    # `host` and is refused anyway — but it is exit 2, "I could not read this", which is true.)
     def is_unresolved: (type == "string") and test("\\$");
     def host_nets: [ (.networks // {}) | to_entries[] | select(.value.name == "host") | .key ];
     def unresolved_nets: [ (.networks // {}) | to_entries[]

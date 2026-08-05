@@ -437,24 +437,19 @@ static async Task ExecutePhaseAAsync(NpgsqlConnection conn, string dbName, strin
     // REVOKE PUBLIC från databasen. Identifier dbName valideras via regex
     // innan interpolation (Sec-Minor-3 defensiv hardening).
     ValidateIdentifier(dbName);
-    await ExecuteAsync(conn,
-        string.Create(CultureInfo.InvariantCulture, $"REVOKE ALL ON DATABASE \"{dbName}\" FROM PUBLIC;"),
-        log, "Revoke PUBLIC från db", ct);
-
     // CREATE ROLE × 3 — två-stegs SELECT + DDL för att kringgå pl/pgsql-parameter-
-    // begränsning i anonyma DO-block.
+    // begränsning i anonyma DO-block. Måste ligga före GRANTs: en roll kan inte beviljas
+    // något innan den finns.
     await CreateRoleIfNotExistsAsync(conn, Roles.Migrations, pwdMig, log, ct);
     await CreateRoleIfNotExistsAsync(conn, Roles.App, pwdApp, log, ct);
     await CreateRoleIfNotExistsAsync(conn, Roles.Worker, pwdWrk, log, ct);
 
-    // GRANT CONNECT till alla 3.
-    foreach (var role in new[] { Roles.Migrations, Roles.App, Roles.Worker })
+    // The database-level privilege model lives in PhaseADatabaseGrants so it has a reader:
+    // as a bare sequence of awaits it was unreachable from any test assembly, and deleting a
+    // grant left every suite green (#196).
+    foreach (var statement in PhaseADatabaseGrants.For(dbName))
     {
-        await ExecuteAsync(conn,
-            string.Create(CultureInfo.InvariantCulture, $"GRANT CONNECT ON DATABASE \"{dbName}\" TO {role};"),
-            log,
-            string.Create(CultureInfo.InvariantCulture, $"GRANT CONNECT till {role}"),
-            ct);
+        await ExecuteAsync(conn, statement.Sql, log, statement.Description, ct);
     }
 
     // För `CREATE SCHEMA AUTHORIZATION jobbliggaren_migrations` krävs att master har
@@ -581,10 +576,4 @@ static async Task ExecuteAsync(NpgsqlConnection conn, string sql, ILogger log, s
 // Defensiv identifier-validation — Postgres-rolnamn / db-namn / schema-namn
 // måste matcha [a-z_][a-z0-9_]{0,62} för att vara säkra att interpolera utan
 // escape. Hardcoded constants i Roles passerar redan; runtime-värden valideras.
-static void ValidateIdentifier(string ident)
-{
-    if (!System.Text.RegularExpressions.Regex.IsMatch(ident, @"^[a-z_][a-z0-9_]{0,62}$"))
-    {
-        throw new InvalidOperationException($"Ogiltigt Postgres-identifier: {ident}");
-    }
-}
+static void ValidateIdentifier(string ident) => PostgresIdentifier.Validate(ident);

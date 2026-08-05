@@ -759,18 +759,30 @@ run classifier_survives_large_refusal_list 2 "$TMPROOT/bigrefuse"
 #     entry it never read. #1206's Blocker form, rebuilt inside its own remedy.
 #   - `network_mode` carries a real newline, which SPLIT the output and forged a whole line.
 #
-# THE ASSERTIONS ARE THE TWO HALVES. Exit 2 crosses the token anchor: without it this project
-# exits 1. Zero lines beginning with the marker crosses `oneline`: without it the forged line
-# appears at position 0. Neither assertion alone reaches both.
-proj injected <<'YAML'
+# ONE FIXTURE PER ROUTE, BECAUSE THEY MASK EACH OTHER. The obvious economy is a single project
+# carrying both, and it was written that way first and measured wrong: the newline route's own
+# refusal line reads `network_mode=${X}\nNOT-LOOPBACK …` with no colon-space before the marker,
+# so it SURVIVES the old text predicate and holds the exit code at 2 — the marker-in-payload
+# route then crosses nothing, and the mutation that restores the text predicate leaves the
+# whole suite green. Measured, not reasoned: that mutation fell 0 of 82 before the split.
+proj injected_marker <<'YAML'
+services:
+  a:
+    image: x
+    ports:
+      - "zz: NOT-LOOPBACK yy"
+YAML
+run injected_marker_stays_a_refusal 2 "$TMPROOT/injected_marker"
+
+proj injected_newline <<'YAML'
 services:
   a:
     image: x
     network_mode: "${X}\nNOT-LOOPBACK forged host_ip=127.0.0.1"
     ports:
-      - "zz: NOT-LOOPBACK yy"
+      - "127.0.0.1:5435:5432"
 YAML
-run_lines classifier_reads_the_token_not_the_payload 2 0 '^NOT-LOOPBACK ' "$TMPROOT/injected"
+run_lines injected_newline_forges_no_line 2 0 '^NOT-LOOPBACK ' "$TMPROOT/injected_newline"
 
 # ==========================================================================================
 # 7. WHICH PROJECT IS JUDGED — the half the guard used to get wrong

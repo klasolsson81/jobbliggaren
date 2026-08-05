@@ -33,6 +33,10 @@ public class DeployComposeRoleTests
     private static string ComposeText =>
         File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "deploy", "docker-compose.yml"));
 
+    /// <summary>The value after the first colon, trimmed — never the key or the whole line.</summary>
+    private static string ValueOf(string key) =>
+        LineContaining(key).Split(':', 2)[1].Trim();
+
     private static string LineContaining(string key) =>
         ComposeText.Split('\n').SingleOrDefault(l => l.Contains(key, StringComparison.Ordinal))
         ?? throw new InvalidOperationException(
@@ -44,7 +48,7 @@ public class DeployComposeRoleTests
     {
         var line = LineContaining("MIGRATE_APP_CONNECTION_STRING:");
 
-        line.ShouldContain($"Username={Roles.App}",
+        line.ShouldContain($"Username={Roles.App}", Case.Sensitive,
             customMessage:
             "schema mode applies the app schema's EF migrations, and ExecutePhaseAAsync grants " +
             "CREATE on schema public to the app role only. Any other role fails with 42501 on " +
@@ -56,7 +60,13 @@ public class DeployComposeRoleTests
     {
         // The vacuity guard: the role split only means something if the master credential is a
         // DIFFERENT identity from the one the test above pins.
-        LineContaining("MIGRATE_MASTER_USERNAME:").ShouldContain("postgres");
+        //
+        // Assert the VALUE, not the line. Shouldly's ShouldContain defaults to a
+        // case-insensitive comparison, and the whole line contains the variable name — so
+        // `MIGRATE_MASTER_USERNAME: ${POSTGRES_MASTER_USER:?}` satisfied the earlier form by
+        // matching "POSTGRES" inside the placeholder, certifying an identity it never read.
+        // Measured by code-reviewer against this test: 19/19 green on that edit.
+        ValueOf("MIGRATE_MASTER_USERNAME:").ShouldBe("postgres");
 
         // And the migrations role must still be PROVISIONED even though — after the repair this
         // file pins — no connection string connects AS it. `init` creates all three roles from

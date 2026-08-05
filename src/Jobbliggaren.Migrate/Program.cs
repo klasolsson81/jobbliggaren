@@ -437,44 +437,20 @@ static async Task ExecutePhaseAAsync(NpgsqlConnection conn, string dbName, strin
     // REVOKE PUBLIC från databasen. Identifier dbName valideras via regex
     // innan interpolation (Sec-Minor-3 defensiv hardening).
     ValidateIdentifier(dbName);
-    await ExecuteAsync(conn,
-        string.Create(CultureInfo.InvariantCulture, $"REVOKE ALL ON DATABASE \"{dbName}\" FROM PUBLIC;"),
-        log, "Revoke PUBLIC från db", ct);
-
     // CREATE ROLE × 3 — två-stegs SELECT + DDL för att kringgå pl/pgsql-parameter-
-    // begränsning i anonyma DO-block.
+    // begränsning i anonyma DO-block. Måste ligga före GRANTs: en roll kan inte beviljas
+    // något innan den finns.
     await CreateRoleIfNotExistsAsync(conn, Roles.Migrations, pwdMig, log, ct);
     await CreateRoleIfNotExistsAsync(conn, Roles.App, pwdApp, log, ct);
     await CreateRoleIfNotExistsAsync(conn, Roles.Worker, pwdWrk, log, ct);
 
-    // GRANT CONNECT till alla 3.
-    foreach (var role in new[] { Roles.Migrations, Roles.App, Roles.Worker })
+    // The database-level privilege model lives in PhaseADatabaseGrants so it has a reader:
+    // as a bare sequence of awaits it was unreachable from any test assembly, and deleting a
+    // grant left every suite green (#196).
+    foreach (var statement in PhaseADatabaseGrants.For(dbName))
     {
-        await ExecuteAsync(conn,
-            string.Create(CultureInfo.InvariantCulture, $"GRANT CONNECT ON DATABASE \"{dbName}\" TO {role};"),
-            log,
-            string.Create(CultureInfo.InvariantCulture, $"GRANT CONNECT till {role}"),
-            ct);
+        await ExecuteAsync(conn, statement.Sql, log, statement.Description, ct);
     }
-
-    // TEMPORARY back to the app role, and it is the REVOKE above that makes this necessary.
-    // A database grants TEMP to PUBLIC by default; `REVOKE ALL ... FROM PUBLIC` takes it from
-    // every non-superuser at once, and the CONNECT loop above hands back only `c`. Two applied
-    // migrations create temp tables (C2SearchParityReverseLookupAndRecentExpansion,
-    // MaterialiseJobAdSourceFacets), so `schema` mode — which runs as the app role and is a
-    // gating dependency of api and worker on EVERY `up` — dies with 42501 on any database this
-    // very function provisioned. Measured on the Netcup box 2026-08-05, first boot: "permission
-    // denied to create temporary tables in database jobbliggaren", after `datacl` showed
-    // {postgres=CTc, migrations=c, app=c, worker=c}.
-    //
-    // Only the app role: it is the one that runs migrations. Temp tables are session-scoped and
-    // vanish with the connection, so this is a narrower grant than the CREATE on schema public
-    // the app role already holds.
-    await ExecuteAsync(conn,
-        string.Create(CultureInfo.InvariantCulture, $"GRANT TEMPORARY ON DATABASE \"{dbName}\" TO {Roles.App};"),
-        log,
-        string.Create(CultureInfo.InvariantCulture, $"GRANT TEMPORARY till {Roles.App}"),
-        ct);
 
     // För `CREATE SCHEMA AUTHORIZATION jobbliggaren_migrations` krävs att master har
     // medlemskap i migrations-rollen (master kan vara en begränsad superuser utan

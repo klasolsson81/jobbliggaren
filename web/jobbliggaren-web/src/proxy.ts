@@ -15,6 +15,7 @@ import {
   MAX_SNI_CODES,
   MAX_MUNICIPALITY_CODES,
 } from "@/lib/company-search/search-params";
+import { pickForwardedHeaders } from "@/lib/http/forwarded-headers";
 
 // Defense-in-depth (ADR 0017): this proxy (Next 16's renamed middleware; runs on
 // the nodejs runtime) blocks unauthenticated noise before it reaches the BE; the
@@ -158,7 +159,13 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
   try {
     const res = await fetch(`${env.BACKEND_URL}/api/v1/auth/refresh`, {
       method: "POST",
-      headers: { Authorization: `Bearer ${sessionId}` },
+      // pickForwardedHeaders, not forwardedHeaders(): middleware has no `next/headers`
+      // request scope, but it does have the NextRequest, which carries the same inbound
+      // headers. Refresh is rate-limited per client IP like every other auth route (#1202).
+      headers: {
+        ...pickForwardedHeaders(request.headers),
+        Authorization: `Bearer ${sessionId}`,
+      },
       cache: "no-store",
       signal: AbortSignal.timeout(REFRESH_TIMEOUT_MS),
     });

@@ -3,6 +3,7 @@
 import { getTranslations } from "next-intl/server";
 import { env } from "@/lib/env";
 import type { ActionResult } from "./_action-result";
+import { forwardedHeaders } from "@/lib/http/forwarded-headers";
 
 /**
  * #714 — PUBLIC registration email-confirmation (the CONFIRM step of email-confirmation-first signup).
@@ -29,7 +30,7 @@ export async function confirmAccountAction(
   try {
     const res = await fetch(`${env.BACKEND_URL}/api/v1/auth/verify-email`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { ...(await forwardedHeaders()), "Content-Type": "application/json" },
       cache: "no-store",
       body: JSON.stringify({ uid, token }),
     });

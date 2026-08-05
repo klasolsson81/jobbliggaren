@@ -11,6 +11,7 @@ import { redirect } from "next/navigation";
 import { env } from "@/lib/env";
 import { getSessionId } from "@/lib/auth/session";
 import { SETUP_WELCOMED_COOKIE } from "@/lib/onboarding/setup-welcome";
+import { forwardedHeaders } from "@/lib/http/forwarded-headers";
 
 /**
  * DEV-ONLY (remove before launch). POSTs `/api/v1/dev/reset-my-data` with the
@@ -25,7 +26,7 @@ export async function resetMyDataAction(): Promise<void> {
     try {
       await fetch(`${env.BACKEND_URL}/api/v1/dev/reset-my-data`, {
         method: "POST",
-        headers: { Authorization: `Bearer ${sessionId}` },
+        headers: { ...(await forwardedHeaders()), Authorization: `Bearer ${sessionId}` },
         cache: "no-store",
       });
     } catch {

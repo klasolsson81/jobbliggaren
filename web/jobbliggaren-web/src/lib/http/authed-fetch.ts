@@ -1,5 +1,6 @@
 import "server-only";
 import { env } from "@/lib/env";
+import { forwardedHeaders } from "./forwarded-headers";
 
 /**
  * Bearer + JSON content-type header pair for authenticated backend calls. Kept
@@ -44,7 +45,10 @@ export async function authedFetch(
 ): Promise<Response> {
   return fetch(`${env.BACKEND_URL}${path}`, {
     ...init,
-    headers: authHeaders(sessionId),
+    // The forwarded pair first, the auth pair second: spreading auth last makes the Bearer
+    // and content-type invariants un-overridable by a relayed header, which is the same
+    // property `Omit<..., "headers">` gives the call site (#1202).
+    headers: { ...(await forwardedHeaders()), ...authHeaders(sessionId) },
     cache: "no-store",
   });
 }

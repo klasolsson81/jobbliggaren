@@ -57,7 +57,7 @@ services:
     restart: unless-stopped
 
   redis-dev:
-    image: redis:8.6-alpine
+    image: redis:8.10-alpine
     container_name: jobbliggaren-redis-dev
     ports:
       - "127.0.0.1:6379:6379"
@@ -137,7 +137,7 @@ services:
     restart: unless-stopped
 
   redis-test:
-    image: redis:8.6-alpine
+    image: redis:8.10-alpine
     container_name: jobbliggaren-redis-test
     profiles: ["test", "full"]
     ports:

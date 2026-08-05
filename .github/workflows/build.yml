@@ -372,18 +372,24 @@ jobs:
         continue-on-error: true
         run: docker compose version
 
-      # Fixturerna kör guarden mot den RIKTIGA `docker-compose.yml`, så det här steget
-      # grindar filen och inte bara sin egen testdata. Mutationsverifierat 2026-08-05
-      # mot den OMBYGGDA sviten: tas ett `127.0.0.1:`-prefix bort ur den riktiga filen
-      # faller **två** fixturer (`real_repo_file` och `real_repo_file_floor`) och jobbet
-      # med dem. Regenerera talen med `bash .github/scripts/compose-loopback-guard.test.sh`
-      # i stället för att lita på en siffra här — en tidigare version av den här raden sa
-      # "11 → 10" och blev falsk när sviten växte i samma PR.
+      # Fixturerna kör guarden mot repots EGET compose-projekt (`$REPO_ROOT`, sedan
+      # projekt-semantiken — vilket inkluderar en auto-laddad override och en
+      # skuggande `compose.yaml` om någon committas), så det här steget grindar det
+      # som faktiskt körs och inte bara sin egen testdata. Mutationsverifierat: tas
+      # ett `127.0.0.1:`-prefix bort ur den riktiga filen faller fixturerna som pekar
+      # på `$REPO_ROOT`, och jobbet med dem.
       #
-      # Steget är LÅNGSAMMARE än sina grannar: sviten gör en compose-invokation per
-      # fixtur. Mätt lokalt (Windows/Docker Desktop 2.40.3): ~35 s för 41 fixturer.
-      # Runner-siffran står i den här körningens egen logg — den är inte gissad här.
-      - name: compose-loopback-guard (fixturer + den riktiga compose-filen)
+      # INGEN SIFFRA HÄR, och den raden är inhämtad genom att bryta mot den. Föregående
+      # version varnade — korrekt — för att lita på ett tal här, och publicerade sedan
+      # "**två** fixturer" i samma mening. Mätt 2026-08-05 föll **tre**: även
+      # `floor_accepts_equals_form` grindar samma projekt, och den räknades aldrig. Talet
+      # var alltså falskt redan när det skrevs, inte efter att sviten växte. Kör
+      # `bash .github/scripts/compose-loopback-guard.test.sh` för det aktuella svaret.
+      #
+      # Steget är LÅNGSAMMARE än sina grannar, och skälet är strukturellt snarare än en
+      # mätning som ruttnar: sviten gör en compose-invokation per fixtur, så tiden växer
+      # med fixturantalet. Runner-siffran står i den här körningens egen logg.
+      - name: compose-loopback-guard (fixturer + repots eget compose-projekt)
         run: bash .github/scripts/compose-loopback-guard.test.sh
 
   # ---------------------------------------------------------------------------

@@ -8,6 +8,7 @@ using Jobbliggaren.Domain.JobAds;
 using Mediator;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Jobbliggaren.Application.JobAds.Jobs.SyncPlatsbanken;
 
@@ -55,6 +56,7 @@ namespace Jobbliggaren.Application.JobAds.Jobs.SyncPlatsbanken;
 public sealed partial class SyncPlatsbankenStreamJob(
     IJobSource jobSource,
     IServiceScopeFactory scopeFactory,
+    IOptions<JobSourceIngestOptions> ingestOptions,
     IDateTimeProvider clock,
     ISystemEventAuditor auditor,
     IngestionThroughputReporter throughputReporter,
@@ -69,6 +71,16 @@ public sealed partial class SyncPlatsbankenStreamJob(
 
     public async Task RunAsync(CancellationToken cancellationToken)
     {
+        // Ingestion gate (JobSourceIngestOptions). Returns before the source is touched, so no
+        // recruiter contact record can reach the database while the switch is off — see the
+        // options type for the B-1 sequencing this enforces. No audit row: a run that did not
+        // happen has no Art. 30 processing to record (parity ScbCompanyRegisterRefresher).
+        if (!ingestOptions.Value.IngestEnabled)
+        {
+            LogIngestDisabled(logger, JobTypeName);
+            return;
+        }
+
         // Per-run-Guid för audit-rad — bevarar AggregateId-invarianten (non-Empty)
         // och länkar framtida started+completed-events i samma run (ADR 0035 §2).
         var runId = Guid.NewGuid();
@@ -204,6 +216,10 @@ public sealed partial class SyncPlatsbankenStreamJob(
 #pragma warning restore CA1031
         }
     }
+
+    [LoggerMessage(EventId = 5304, Level = LogLevel.Warning,
+        Message = "SyncPlatsbankenStreamJob: JobTech:IngestEnabled=false — no-op (ingen källa kontaktad, inga annonser skrivna), jobType={JobType}.")]
+    private static partial void LogIngestDisabled(ILogger logger, string jobType);
 
     [LoggerMessage(EventId = 5301, Level = LogLevel.Information,
         Message = "SyncPlatsbankenStreamJob: startad — source={Source}, since={Since:O}.")]

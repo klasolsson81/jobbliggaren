@@ -183,6 +183,45 @@ limits are 5 duplicate certificates per week and 5 failed validations per hour, 
 mistake discovered there costs days. **Never configure TLS-ALPN-01 away without having
 proven HTTP-01 for real.**
 
+The seam is `ACME_CHALLENGE_MODE` in `deploy/.env`, selecting one of three snippets baked into
+the edge image. Run all three modes — that the container starts in each **is** the measurement
+that the import mechanism works, and needs no separate check:
+
+```bash
+cd /opt/jobbliggaren
+C="docker compose -f deploy/docker-compose.yml"
+
+# 1. Staging, HTTP-01 only (row 5).
+sed -i "s|^#*ACME_CHALLENGE_MODE=.*|ACME_CHALLENGE_MODE=http01|" deploy/.env
+$C up -d --force-recreate caddy
+$C logs caddy | grep -iE "http-01|tls-alpn|obtained|certificate"
+
+# 2. Staging, TLS-ALPN-01 only (row 6). Step 1 left a VALID certificate, so Caddy would issue
+#    nothing and the row would be ticked on step 1 all over again. Discard it first.
+sed -i "s|^ACME_CHALLENGE_MODE=.*|ACME_CHALLENGE_MODE=alpn01|" deploy/.env
+$C exec caddy rm -rf /data/caddy/certificates
+$C up -d --force-recreate caddy
+$C logs caddy | grep -iE "http-01|tls-alpn|obtained|certificate"
+
+# 3. Back to default, then production issuance ONCE.
+sed -i "s|^ACME_CHALLENGE_MODE=.*|#ACME_CHALLENGE_MODE=both|" deploy/.env
+sed -i "s|^ACME_CA=.*|#ACME_CA=|" deploy/.env
+$C exec caddy rm -rf /data/caddy/certificates
+$C up -d --force-recreate caddy
+curl -sSI https://dev.jobbliggaren.se | head -1
+```
+
+**`both` is an EMPTY snippet, and that is load-bearing rather than tidy.** Measured before it
+shipped: with `both`, `caddy adapt` emits no explicit issuer at all, so the running configuration
+is the default automation policy it was before the seam existed. `http01` emits
+`"challenges":{"tls-alpn":{"disabled":true}}`, `alpn01` emits `"challenges":{"http":{"disabled":true}}`.
+The proof modes change behaviour; the default does not.
+
+**The Caddyfile directive for the CA URL is `dir`, not `ca`.** `ca` is only what it adapts to in
+the JSON config; writing it in a Caddyfile fails with `unrecognized ACME issuer property`. Both
+snippets were validated against caddy 2 before shipping, because a mistake here surfaces at
+cutover — in the window where rate limit is being spent.
+
 ### Verification log
 
 Fill in as each is measured. Property · measured value · instrument · date — the same
@@ -197,8 +236,8 @@ from one that has decayed.
 | 2c | The K2 gate's hash is bcrypt cost 11, not the tool's default 14 — the gate pays the full hash on every WRONG password, and nothing upstream filters | `docker exec jobbliggaren-caddy printenv BASIC_AUTH_HASH \| cut -c1-7` prints `$2a$11$` and nothing more: the hash itself is offline-crackable, so do not put it in the cutover scrollback. Then time a wrong-password request against a right one | | |
 | 3 | Postgres steady-state RSS against the 2 560 MiB cap | cgroup `memory.stat` anon/file during the 02:00 snapshot job | | |
 | 4 | Postgres tuning is explicit, derived from the cap | `SHOW shared_buffers` etc. | | |
-| 5 | Certificate issues over HTTP-01 with the K2 gate live (M-5a) | forced issuance on staging **with TLS-ALPN-01 disabled** — otherwise the row can be ticked on a cert ALPN issued, which is the silent fallback this proof exists to catch | | |
-| 6 | Certificate issues over TLS-ALPN-01 (the fallback path) | forced issuance on staging **with HTTP-01 disabled** | | |
+| 5 | Certificate issues over HTTP-01 with the K2 gate live (M-5a) | `ACME_CHALLENGE_MODE=http01` on staging, then **the issuance log line naming the challenge type** **and** the counterfactual that the other was off (`caddy adapt` shows `"tls-alpn":{"disabled":true}`). BOTH halves: a certificate alone can be ticked on one ALPN issued — the silent fallback this proof exists to catch — and the counterfactual alone does not survive an operator confusing `http01` with `alpn01` | | |
+| 6 | Certificate issues over TLS-ALPN-01 (the fallback path) | `ACME_CHALLENGE_MODE=alpn01` on staging; same two halves as row 5, mirrored (`"http":{"disabled":true}`) | | |
 | 7 | The edge OWNS the ACME prefix (nothing under it proxies) | `curl -sI` unknown challenge path → 404 **and `Server: Caddy`**, never the upstream's own `Server`/`Via` | | |
 | 8 | HSTS on the **unauthenticated 401** (M-5a) | `curl -sI` | | |
 | 9 | HSTS on a Next-served 200 (M-5a, complement) | `curl -sI -u` | | |

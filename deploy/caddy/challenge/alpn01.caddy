@@ -1,0 +1,16 @@
+# ACME_CHALLENGE_MODE=alpn01 — PROOF ONLY, NEVER A RUNNING CONFIGURATION.
+#
+# The mirror of http01.caddy: forces issuance over TLS-ALPN-01 so the fallback path is proven
+# to work on its own. Verification-log row 6. Same reason `ca` and `email` are restated.
+#
+# `dir` is the Caddyfile directive; `ca` is only its JSON name — measured before this shipped.
+#
+# Runbook §5: "Never configure TLS-ALPN-01 away without having proven HTTP-01 for real." This
+# file is how the other half of that sentence gets measured.
+tls {
+	issuer acme {
+		dir {$ACME_CA}
+		email {$ACME_EMAIL}
+		disable_http_challenge
+	}
+}

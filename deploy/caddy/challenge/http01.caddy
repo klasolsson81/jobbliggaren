@@ -1,0 +1,19 @@
+# ACME_CHALLENGE_MODE=http01 — PROOF ONLY, NEVER A RUNNING CONFIGURATION.
+#
+# Forces issuance over HTTP-01 by disabling the other path, which is the only way to prove
+# HTTP-01 actually works: Caddy runs both challenges and falls back SILENTLY, so a certificate
+# obtained with both enabled says nothing about which one carried it. Verification-log row 5.
+#
+# `dir` and `email` are restated rather than inherited. NOTE THE DIRECTIVE NAME: the
+# Caddyfile property is `dir`; `ca` is what it adapts to in the JSON config, and writing `ca`
+# here fails with "unrecognized ACME issuer property" — measured on caddy 2 before this shipped. The global block sets acme_ca/email for
+# the DEFAULT automation policy; an explicitly declared issuer is a different policy, and
+# whether the Caddyfile adapter back-fills the globals into it is UNMEASURED here. An unmeasured
+# dependency in the issuance path is paid for in Let's Encrypt rate limit, so it is not taken.
+tls {
+	issuer acme {
+		dir {$ACME_CA}
+		email {$ACME_EMAIL}
+		disable_tlsalpn_challenge
+	}
+}

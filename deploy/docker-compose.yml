@@ -68,6 +68,10 @@ services:
       SITE_HOST: ${SITE_HOST:?}
       ACME_EMAIL: ${ACME_EMAIL:?}
       ACME_CA: ${ACME_CA:-https://acme-v02.api.letsencrypt.org/directory}
+      # Selects one of three snippets baked into the image. Default `both` is an EMPTY file,
+      # so the running configuration is unchanged; `http01` and `alpn01` each disable the other
+      # challenge so issuance can be proven per path. Never a running value (#196).
+      ACME_CHALLENGE_MODE: ${ACME_CHALLENGE_MODE:-both}
       BASIC_AUTH_USER: ${BASIC_AUTH_USER:?}
       # bcrypt hash from `caddy hash-password`. Never committed: this repo is public
       # and K2 is the whole admission control, so a committed hash is offline-crackable

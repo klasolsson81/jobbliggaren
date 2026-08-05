@@ -297,27 +297,30 @@ updates:
   # it has a CVE cadence while having none. Same reasoning as the codeql-action `ignore`
   # above, where a wrong value also fails open and silently.
   #
-  # THE PRICE OF THE EXPLICIT FORM, NAMED: a fourth Dockerfile is silently uncovered,
-  # and #196 adds at least two (the Next/web container and Caddy). A comment in this
-  # file has no reader at that moment, so the obligation is carried as an acceptance
-  # criterion on #196 — the issue where that Dockerfile actually gets written.
+  # THE PRICE OF THE EXPLICIT FORM, NAMED: a new Dockerfile is silently uncovered unless
+  # it is listed here, which is why #196 carries that obligation as an acceptance
+  # criterion — a comment in this file has no reader at the moment the Dockerfile is
+  # written. `/web/jobbliggaren-web` is the first discharge of it (the Next container);
+  # Caddy's follows with the stack PR.
   - package-ecosystem: "docker"
     directories:
       - "/src/Jobbliggaren.Api"
       - "/src/Jobbliggaren.Migrate"
       - "/src/Jobbliggaren.Worker"
+      - "/web/jobbliggaren-web"
     schedule:
       interval: "monthly"
       day: "monday"
       time: "06:00"
       timezone: "Europe/Stockholm"
-    # RAISED TO 6, and the reason is the multi-directory shape, not caution. All three
-    # directories carry the SAME two images, so without `group-by` below Dependabot opens
-    # one grouped PR PER DIRECTORY — three identical PRs — and an ungrouped .NET 11 major
-    # would be 2 images x 3 directories = up to 6 PRs against a limit of 5. Overflow is
-    # SILENT (Dependabot simply opens nothing), which is the same failure shape the header
-    # already names for nuget.
-    open-pull-requests-limit: 6
+    # The reason is the multi-directory shape, not caution. The three src/ directories
+    # carry the SAME two images, so without `group-by` below Dependabot opens one grouped
+    # PR PER DIRECTORY, and an ungrouped .NET 11 major would be 2 images x 3 directories =
+    # up to 6 PRs. Overflow is SILENT (Dependabot simply opens nothing), which is the same
+    # failure shape the header already names for nuget. Raised by one when
+    # `/web/jobbliggaren-web` arrived: node is a fourth image on its own major track, and a
+    # node major is one more slot on top of that .NET worst case.
+    open-pull-requests-limit: 7
     commit-message:
       prefix: "chore(deps)"
       include: "scope"

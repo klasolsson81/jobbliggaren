@@ -41,10 +41,14 @@ COPY --from=build /app/publish .
 
 USER app
 
-# Inga portar. Inga HEALTHCHECK — Hangfire-process är sin egen liveness-signal.
-# ECS task-def avgör health via container exit code (process-crash → restart).
-
+# Inga portar. Inga HEALTHCHECK — Hangfire-processen är sin egen liveness-signal, och
+# liveness uttrycks i compose som healthcheck + restart-policy, som #196 äger.
+#
 # SIGTERM-handling: Hangfire ShutdownTimeoutSeconds=25 (per appsettings.Production.json),
-# Fargate stopTimeout=30s (ECS task-def) → 5s margin för task-state-commit.
+# host disposal 28 s, och därefter orkestratorns grace-period innan SIGKILL. Den sista
+# halvan finns INTE i repot än — ingen compose-fil här deklarerar en worker-tjänst eller
+# en grace-period, och #196 äger den. Marginalen går alltså inte att ange här; den följer
+# av det värde #196 sätter. (Blocket namngav Fargate stopTimeout=30 s och en 5 s marginal
+# till 2026-08-05; ADR 0066 rev den plattformen.)
 
 ENTRYPOINT ["dotnet", "Jobbliggaren.Worker.dll"]

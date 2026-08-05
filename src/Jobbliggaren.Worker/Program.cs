@@ -236,7 +236,8 @@ if (hangfireOpts.ShutdownTimeoutSeconds is < 1 or > 300)
 {
     throw new InvalidOperationException(
         $"Hangfire:ShutdownTimeoutSeconds måste vara 1-300, fick " +
-        $"{hangfireOpts.ShutdownTimeoutSeconds}. Default 25s (strax under Fargate 30s).");
+        $"{hangfireOpts.ShutdownTimeoutSeconds}. Default 25s; host disposal följer på " +
+        $"+3s, och orkestratorns grace-period måste ligga över den summan.");
 }
 
 builder.Services.AddHangfire(cfg => cfg
@@ -248,12 +249,18 @@ builder.Services.AddHangfire(cfg => cfg
         // lease via heartbeat instead of being re-fetched at the 30-min invisibility ceiling).
         HangfireStorageOptionsFactory.Create(hangfireOpts.PrepareSchemaIfNecessary)));
 
-// Worker-count explicit satt — default Environment.ProcessorCount blir 1 i Fargate-container
-// med 1 vCPU. 4 är lämpligt för IO-bundna Mediator-jobb.
+// Worker-count explicit satt. Skälet var ursprungligen att Fargate-tasken gav 0,25 vCPU och
+// därmed ProcessorCount=1; den plattformen är riven, och vad containern får på den nya
+// värden är inte avgjort i den här filens räckvidd (#196 äger resurstilldelningen). 4 är
+// valt för IO-bundna Mediator-jobb och är explicit just för att inte följa värdens
+// kärnantal.
 //
-// ShutdownTimeout strax under Fargate default stopTimeout (30 s) så Hangfire hinner
-// committa job-state innan SIGKILL (TD-17 punkt 6). Alla jobb är idempotenta — vid
-// abort plockar nästa daily run upp igen via orphan/state-check.
+// ShutdownTimeout ligger 3 s under host disposal, som i sin tur måste ligga under
+// orkestratorns grace-period, så Hangfire hinner
+// committa job-state innan SIGKILL (TD-17 punkt 6). Grace-perioden är INTE satt i
+// repot ännu — den ägs av #196, som levererar compose-stacken; tills dess står 25 s mot
+// ett kontrakt som ingen fil bär. Alla jobb är idempotenta — vid abort plockar nästa
+// daily run upp igen via orphan/state-check.
 builder.Services.AddHangfireServer(opts =>
 {
     opts.WorkerCount = 4;
@@ -261,8 +268,9 @@ builder.Services.AddHangfireServer(opts =>
 });
 
 // Generic Host shutdown-timeout — explicit satt så hela timeout-kedjan (Hangfire 25s →
-// Host disposal 28s → Fargate 30s → SIGKILL) är synlig på ett ställe. 3s marginal mellan
-// Hangfire-stop och host-disposal räcker för EF Core dispose + log-flush.
+// Host disposal 28s → orkestratorns grace-period → SIGKILL) är synlig på ett ställe.
+// 3s marginal mellan Hangfire-stop och host-disposal räcker för EF Core dispose +
+// log-flush.
 builder.Services.Configure<HostOptions>(opts =>
     opts.ShutdownTimeout = TimeSpan.FromSeconds(hangfireOpts.ShutdownTimeoutSeconds + 3));
 

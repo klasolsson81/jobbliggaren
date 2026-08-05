@@ -1,7 +1,7 @@
 # Hangfire schema + Worker prod-härdning — JobbPilot
 
 Operativ runbook för Hangfire-PostgreSQL-schemats lifecycle, GRANT-modell,
-ConnectionStrings-split, dashboard-säkerhet och Fargate SIGTERM-handling.
+ConnectionStrings-split, dashboard-säkerhet och SIGTERM-handling.
 Implementerar TD-17 (Fas 1 prod-deploy-blockare) per
 [ADR 0023](../decisions/0023-worker-pipeline-and-hangfire.md) +
 [ADR 0024](../decisions/0024-audit-retention-and-art17-cascade.md).
@@ -283,22 +283,45 @@ ORDER BY key;
 
 ---
 
-## 6. Fargate SIGTERM + Hangfire ShutdownTimeout (TD-17 punkt 6)
+## 6. SIGTERM + Hangfire ShutdownTimeout (TD-17 punkt 6)
 
-**Default-flöde i AWS ECS Fargate:**
+> **Omskriven 2026-08-05.** Avsnittet beskrev Fargate `stopTimeout` och bar ett
+> `aws_ecs_task_definition`-block. ADR 0066 rev den plattformen. Den gamla texten är
+> borta snarare än bevarad — den namngav en ratt som inte finns, i ett avsnitt en
+> operatör följer under cutover.
 
-1. ECS skickar SIGTERM till containern
-2. 30 s grace-period (default `stopTimeout`)
-3. SIGKILL om processen inte avslutat
+**Flödet vid SIGTERM, och mellansteget är det som bestämmer golvet:**
 
-**Hangfire-handling:**
+1. Orkestratorn skickar SIGTERM till containern.
+2. Hangfire slutar ta nya jobb och committar pågående — `ShutdownTimeoutSeconds`, **25 s**.
+3. Generic Host disposal — `ShutdownTimeoutSeconds + 3`, alltså **28 s**. Här sker EF Core
+   dispose och log-flush.
+4. Orkestratorns grace-period löper ut.
+5. SIGKILL.
 
-- `BackgroundJobServerOptions.ShutdownTimeout` = **25 sekunder** (Worker-default
-  via `HangfireWorkerOptions.ShutdownTimeoutSeconds`). Strax under Fargate
-  default → Hangfire hinner committa job-state innan SIGKILL.
-- Vid hög belastning (SaveChanges-batches > 25 s eller cleanup-väntan på
-  open transactions): höj Fargate `stopTimeout` till 60 s + matchande
-  `ShutdownTimeoutSeconds` i `appsettings.Production.json`.
+**Kopplingen är ett PAR, och bara den ena halvan finns i repot i dag:**
+
+| Ratt | Var | Status |
+|---|---|---|
+| `Hangfire:ShutdownTimeoutSeconds` | `HangfireWorkerOptions`, default **25 s** | **Levererad** |
+| Orkestratorns grace-period | compose-stacken | **Finns inte ännu — ägs av [#196](https://github.com/klasolsson81/jobbliggaren/issues/196)** |
+
+Mätt 2026-08-05: repots enda compose-fil är dev-filen i roten, och den har ingen
+`worker`-tjänst och ingen `stop_grace_period`. De 25 sekunderna står alltså mot ett
+kontrakt ingen fil bär. Det är inte fel — Hangfire ska ligga under grace-perioden, och
+utan orkestrator finns ingen — men det är inte heller verifierat, och
+`release-checklist.md`s efter-deploy-steg noterar samma sak om compose-tjänsterna.
+
+**När #196 landar sin worker-tjänst gäller: grace-perioden måste vara högre än 28 s**, inte
+högre än 25. Golvet är host disposal i steg 3, inte Hangfire i steg 2 — sätter man 26, 27
+eller 28 uppfyller man den naiva regeln och kapar ändå EF Core dispose och log-flush, vilket
+är precis det felläge det här avsnittet finns för.
+
+Composes default är **10 s**. Ärvs den avslutas processen 18 s före host disposal och 15 s
+före Hangfire hunnit committa. Värdet måste alltså sättas explicit i compose-filen, och de
+två flyttas i samma ändring — att höja `ShutdownTimeoutSeconds` ensam gör ingen nytta,
+eftersom grace-perioden fäller processen först. Höjs `ShutdownTimeoutSeconds` följer host
+disposal med automatiskt (`+ 3`), så golvet flyttas med.
 
 **Idempotency-säkring (alla jobb):**
 
@@ -306,19 +329,6 @@ ORDER BY key;
 |---|---|---|
 | `audit-log-retention` | Ja | Nästa daily run skapar samma partition (CREATE IF NOT EXISTS) + droppar gamla (DROP IF EXISTS) |
 | `hard-delete-accounts` | Ja | Steg 0 orphan-cleanup plockar upp Identity-rader vars JobSeeker redan deletats; Steg 1+2 idempotent via `WHERE deleted_at < ...` filter |
-
-**Fargate task-definition (för IaC vid prod-deploy):**
-
-```hcl
-resource "aws_ecs_task_definition" "worker" {
-  # ...
-  container_definitions = jsonencode([{
-    name = "jobbpilot-worker"
-    # ...
-    stop_timeout = 30  # default; höj till 60 om smoke-tests visar behov
-  }])
-}
-```
 
 ---
 

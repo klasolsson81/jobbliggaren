@@ -23,7 +23,7 @@ public class HangfireWorkerOptionsTests
         var sut = new HangfireWorkerOptions();
 
         sut.PrepareSchemaIfNecessary.ShouldBeTrue("Dev-default — Worker skapar schema vid uppstart");
-        sut.ShutdownTimeoutSeconds.ShouldBe(25, "Strax under Fargate default stopTimeout 30s");
+        sut.ShutdownTimeoutSeconds.ShouldBe(25, "Strax under orkestratorns grace-period vid SIGTERM");
     }
 
     [Fact]

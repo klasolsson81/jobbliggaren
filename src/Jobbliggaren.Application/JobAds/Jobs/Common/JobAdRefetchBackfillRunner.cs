@@ -9,6 +9,7 @@ using Mediator;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Jobbliggaren.Application.JobAds.Jobs.Common;
 
@@ -61,6 +62,7 @@ public sealed partial class JobAdRefetchBackfillRunner(
     IJobSource jobSource,
     IServiceScopeFactory scopeFactory,
     IAppDbContext db,
+    IOptions<JobSourceIngestOptions> ingestOptions,
     IDateTimeProvider clock,
     ISystemEventAuditor auditor,
     ILogger<JobAdRefetchBackfillRunner> logger)
@@ -77,6 +79,18 @@ public sealed partial class JobAdRefetchBackfillRunner(
         string auditJobType,
         CancellationToken cancellationToken)
     {
+        // Ingestion gate (JobSourceIngestOptions) — the THIRD sender of
+        // UpsertExternalJobAdCommand, and it refetches from the same source through the same
+        // converter, so it carries the same recruiter contact records as the stream and
+        // snapshot jobs. Unlike those two it is admin-triggered rather than cron-driven, and it
+        // writes nothing on an empty corpus, so it was never the path that made the gate urgent
+        // — but a switch that documents itself as the master switch has to be one.
+        if (!ingestOptions.Value.IngestEnabled)
+        {
+            LogIngestDisabled(logger, auditJobType);
+            return new BackfillCounts { StartedAt = clock.UtcNow, CompletedAt = clock.UtcNow };
+        }
+
         var runId = Guid.NewGuid();
         var startedAt = clock.UtcNow;
         var source = jobSource.Source.Value;
@@ -193,6 +207,10 @@ public sealed partial class JobAdRefetchBackfillRunner(
 
         return counts;
     }
+
+    [LoggerMessage(EventId = 6006, Level = LogLevel.Warning,
+        Message = "JobAdRefetchBackfillRunner: JobTech:IngestEnabled=false — no-op (ingen källa kontaktad, inga annonser skrivna), jobType={JobType}.")]
+    private static partial void LogIngestDisabled(ILogger logger, string jobType);
 
     [LoggerMessage(EventId = 6001, Level = LogLevel.Information,
         Message = "JobAdRefetchBackfill: startad — source={Source}, jobType={JobType}, perItemDelayMs={Delay}, maxItemsPerRun={Max}.")]

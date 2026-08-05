@@ -66,15 +66,18 @@ describe("authedFetch", () => {
     expect(init.headers).toMatchObject({ Authorization: "Bearer sess-2" });
   });
 
-  it("relays the inbound client IP, and the auth pair still wins on collision (#1202)", async () => {
+  it("relays the inbound client IP alongside the auth pair (#1202)", async () => {
     headersMock.mockResolvedValue({
       get: (name: string) =>
         ({
           "x-forwarded-for": "198.51.100.10",
           "x-forwarded-proto": "https",
-          // A relayed header must never displace the Bearer token. Caddy strips an inbound
-          // Authorization before the upstream sees it, but this transport must not depend
-          // on that: the spread order is the guarantee.
+          // An inbound Authorization is present to show it goes nowhere. The guarantee is
+          // the two-name allowlist in RELAYED, NOT the spread order — dotnet-architect
+          // measured that reversing the spread still passes, because the relayed and auth
+          // key sets are disjoint by construction. The earlier comment here also claimed
+          // Caddy strips an inbound Authorization; nothing in the Caddyfile does that, and
+          // an untrue security claim is worse than none.
           authorization: "Bearer attacker-supplied",
         })[name.toLowerCase()] ?? null,
     });

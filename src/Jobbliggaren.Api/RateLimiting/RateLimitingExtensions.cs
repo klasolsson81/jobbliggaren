@@ -447,6 +447,13 @@ public static partial class RateLimitingExtensions
             // inte svälter en mutation (bulkhead, Nygard). Auth-gated → anonym fångas
             // av RequireAuthorization (NoLimiter bypass). senior-cto-advisor 2026-06-14
             // Beslut A1. security-auditor BLOCKING verifierar tal (riktvärde 30/min).
+            //
+            // IF YOU EVER MOVE THIS AXIS TO THE CLIENT IP, read ForwardedHeadersConfig first.
+            // The seen-marking writes behind this policy are reached from Next `after()`
+            // callbacks registered in the RENDER phase, and such a callback cannot read
+            // `headers()` at all (Next E839) — so no X-Forwarded-For arrives and an IP
+            // partition would collapse those requests into the web container. Harmless while
+            // the axis is `sub`; it is the trigger that makes it stop being harmless (#1202).
             options.AddPolicy(MeWritePolicy, ctx =>
             {
                 var userId = ctx.User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;

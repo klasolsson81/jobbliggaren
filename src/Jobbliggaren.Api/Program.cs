@@ -303,12 +303,14 @@ if (app.Environment.IsDevelopment())
 // (loopback only). Value and stack are owed by #196; the requirement is ADR 0050
 // Amendment 2026-08-04, gate M-5b point 3.
 //
-// And that requirement is NECESSARY BUT NOT SUFFICIENT. UseForwardedHeaders only rewrites
-// RemoteIpAddress when an X-Forwarded-For is actually present; measured 2026-08-04, no
-// component in the Option B stack sends one, so six policies that partition on the client
-// IP (two only for unauthenticated callers) share a single bucket regardless of what this
-// CIDR says (#1202). Populating the CIDR
-// silences the startup check — it does not restore per-IP limiting.
+// That requirement WAS necessary but not sufficient, and #1202 changed which half is missing.
+// UseForwardedHeaders only rewrites RemoteIpAddress when an X-Forwarded-For is actually
+// present; measured 2026-08-04, no component in the Option B stack sent one, so six policies
+// that partition on the client IP (two only for unauthenticated callers) shared a single
+// bucket regardless of what this CIDR said. Closed by #1202: Caddy writes the header toward
+// web and Next relays it verbatim, so populating the CIDR is now the step that decides
+// whether this middleware trusts an arriving header, not one that silences a check and
+// changes nothing.
 var forwardedCfg = builder.Configuration
     .GetSection(ForwardedHeadersConfig.SectionName)
     .Get<ForwardedHeadersConfig>() ?? new ForwardedHeadersConfig();

@@ -63,7 +63,10 @@ public sealed class ForwardedHeadersConfig
     /// wrong. The edge SETS the header rather than appending (<c>header_up</c> with no <c>+</c>),
     /// and Caddy's <c>{client_ip}</c> is trusted_proxies-aware: told to trust a CDN it resolves
     /// to the real client and writes that ONE value; not told, it resolves to the CDN and the
-    /// limit is not what is broken. So a CDN is a <c>trusted_proxies</c> change at the edge,
+    /// limit is not what is broken. So a CDN is a change to the GLOBAL
+    /// <c>servers &gt; trusted_proxies</c> at the edge — the one that enables client-IP parsing,
+    /// not the reverse_proxy subdirective, which governs only that handler's own X-Forwarded-*
+    /// augmentation and would leave <c>{client_ip}</c> resolving to the CDN —
     /// never a limit change here. Värden &lt; 1 throwas.
     /// </summary>
     public int ForwardLimit { get; init; } = 1;

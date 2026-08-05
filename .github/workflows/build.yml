@@ -359,10 +359,17 @@ jobs:
       - name: audit-suppression-guard (fixturer)
         run: bash .github/scripts/audit-suppression-guard.test.sh
 
-      # Diagnostik, INGEN grind — versionen skrivs ut så att ett svar som ändrades
-      # med verktygskedjan går att läsa direkt ur loggen i stället för att härledas.
+      # Diagnostik, INGEN grind — och till skillnad från `git --version` ovan är det
+      # INTE gratis: `docker compose version` avslutar 1 när plugin:et saknas
+      # (`'compose' is not a docker command`), och ett `run:`-steg fäller jobbet på
+      # nollskild status. Utan `continue-on-error` hade steget alltså varit en grind
+      # medan den här kommentaren gick i god för motsatsen — och eftersom det ligger
+      # FÖRE vaktsteget hade det dessutom fällt jobbet med ett rått shell-fel innan
+      # vaktens egen `::error:: … 'docker compose' unavailable` hann skrivas ut.
+      # Egenskapen görs sann av mekanismen nedan, inte av den här meningen.
       # Golvet grindas av vakten själv: saknas subkommandot avslutar den 2, aldrig 0.
       - name: docker-compose-version (diagnostik — golvet grindas av vakten)
+        continue-on-error: true
         run: docker compose version
 
       # Fixturerna kör guarden mot den RIKTIGA `docker-compose.yml`, så det här steget

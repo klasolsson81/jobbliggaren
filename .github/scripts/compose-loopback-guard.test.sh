@@ -63,6 +63,25 @@ run() {
   fi
 }
 
+# run_lines <name> <expected-exit> <expected-count> <regex> <arg...>
+# Asserts on the OUTPUT, not only the exit code. Needed because the multi-file accumulator's
+# failure mode was invisible to an exit-code assertion: fused lines kept the exit code and
+# only corrupted the message.
+run_lines() {
+  local name=$1 expected=$2 count=$3 regex=$4; shift 4
+  local actual=0 got
+  bash "$SUT" "$@" >"$TMPROOT/out.txt" 2>&1 || actual=$?
+  got=$(grep -cE "$regex" "$TMPROOT/out.txt" || true)
+  if [ "$actual" -eq "$expected" ] && [ "$got" -eq "$count" ]; then
+    pass=$((pass + 1))
+    printf 'ok   %-38s (exit %d, %d line(s))\n' "$name" "$actual" "$got"
+  else
+    fail=$((fail + 1))
+    printf 'FAIL %-38s expected exit %d + %d line(s), got exit %d + %d\n' "$name" "$expected" "$count" "$actual" "$got"
+    sed 's/^/       | /' "$TMPROOT/out.txt"
+  fi
+}
+
 # ==========================================================================================
 # 1. THE CORE PREDICATE — both halves, in both polarities
 # ==========================================================================================
@@ -149,6 +168,32 @@ services:
 YAML
 run loopback_127_8_ok 0 "$TMPROOT/lo8.yml"
 
+# THE CONTAINER PORT ALONE is not a bare HOST:CONTAINER and does not have its fix. Compose
+# emits neither `published` nor `host_ip`, and the result publishes on a RANDOM host port
+# across every interface — so exit 1 is right, and the remedy is `127.0.0.1::5435`, which
+# keeps the random port and binds it to loopback. Measured, both forms and the remedy.
+cat >"$TMPROOT/eph.yml" <<'YAML'
+services:
+  a:
+    image: x
+    ports:
+      - "5435"
+  b:
+    image: y
+    ports:
+      - target: 5432
+YAML
+run_lines ephemeral_port_is_not_loopback 1 2 'published=<ephemeral> host_ip=<absent>' "$TMPROOT/eph.yml"
+
+cat >"$TMPROOT/eph_ok.yml" <<'YAML'
+services:
+  c:
+    image: z
+    ports:
+      - "127.0.0.1::5435"
+YAML
+run ephemeral_bound_to_loopback_ok 0 "$TMPROOT/eph_ok.yml"
+
 cat >"$TMPROOT/v6.yml" <<'YAML'
 services:
   a:
@@ -200,8 +245,11 @@ run crlf_bare_fails 1 "$TMPROOT/crlf.yml"
 # Each of these cost a review round against the awk parser (#1206), and each was left as a
 # refusal because teaching a hand-written YAML parser one more spelling never closed the
 # class. Compose normalises all seven to one shape before the guard sees them. Both polarities
-# where a clean counterpart is writable — a guard that fails everything is as useless as one
-# that passes everything.
+# in BOTH polarities — a guard that fails everything is as useless as one that passes
+# everything, and every one of these seven has a writable clean counterpart, so every one gets
+# it. An earlier version of this comment said "both polarities where a clean counterpart is
+# writable" while three of them (alias, include, extends) carried only the negative: the
+# hedge was doing the work the fixtures were supposed to do.
 # ==========================================================================================
 
 cat >"$TMPROOT/longform_bad.yml" <<'YAML'
@@ -291,6 +339,16 @@ services:
 YAML
 run anchor_alias_bare 1 "$TMPROOT/alias.yml"
 
+cat >"$TMPROOT/alias_ok.yml" <<'YAML'
+x-ports: &p
+  - "127.0.0.1:5435:5432"
+services:
+  a:
+    image: x
+    ports: *p
+YAML
+run anchor_alias_loopback 0 "$TMPROOT/alias_ok.yml"
+
 # `[::]` is the IPv6 wildcard, present and wide. The awk parser refused every bracketed form
 # that was not literally `[::1]:`, so this arrived as a refusal rather than a finding.
 cat >"$TMPROOT/v6wild.yml" <<'YAML'
@@ -336,6 +394,36 @@ services:
 YAML
 run extends_is_resolved_and_checked 1 "$TMPROOT/inc/extended.yml"
 
+# The clean counterparts. Without them these two pin only that the resolution path can FAIL,
+# which a path that always failed would satisfy too.
+cat >"$TMPROOT/inc/base_ok.yml" <<'YAML'
+services:
+  frombase_ok:
+    image: b
+    ports:
+      - "127.0.0.1:7777:7777"
+YAML
+cat >"$TMPROOT/inc/included_ok.yml" <<'YAML'
+include:
+  - base_ok.yml
+services:
+  a:
+    image: x
+    ports:
+      - "127.0.0.1:5435:5432"
+YAML
+run include_resolved_loopback 0 --expect-min 2 "$TMPROOT/inc/included_ok.yml"
+
+cat >"$TMPROOT/inc/extended_ok.yml" <<'YAML'
+services:
+  a:
+    image: x
+    extends:
+      file: base_ok.yml
+      service: frombase_ok
+YAML
+run extends_resolved_loopback 0 --expect-min 1 "$TMPROOT/inc/extended_ok.yml"
+
 # ==========================================================================================
 # 3. THE UNIT OF --expect-min CHANGED, and it is pinned rather than left as prose
 #
@@ -371,6 +459,54 @@ services:
 YAML
 run host_networking_refused 2 "$TMPROOT/hostnet.yml"
 
+# THE SECOND ROUTE TO HOST NETWORKING, and it carries no `network_mode` key at all. A service
+# attached to a top-level network that resolves to the Docker network named `host` gets host
+# networking; the model shows only `networks: {hostnet: null}`. Measured: the awk predecessor
+# on cf642a71 exits 0 on this same file, so the gap predates the rewrite — it is closed here
+# because this suite's guard claims host networking is refused.
+cat >"$TMPROOT/hostnet_ext.yml" <<'YAML'
+networks:
+  hostnet:
+    external: true
+    name: host
+services:
+  a:
+    image: x
+    networks: [hostnet]
+    ports:
+      - "127.0.0.1:5435:5432"
+YAML
+run host_network_via_external_refused 2 "$TMPROOT/hostnet_ext.yml"
+
+# …and compose fills `name` in from the key when it is omitted, so the short spelling is the
+# same finding and must not need a second rule.
+cat >"$TMPROOT/hostnet_key.yml" <<'YAML'
+networks:
+  host:
+    external: true
+services:
+  a:
+    image: x
+    networks: [host]
+    ports:
+      - "127.0.0.1:5435:5432"
+YAML
+run host_network_short_spelling_refused 2 "$TMPROOT/hostnet_key.yml"
+
+# The counterweight: an ordinary named network must NOT be mistaken for the host network.
+cat >"$TMPROOT/ordinary_net.yml" <<'YAML'
+networks:
+  backend:
+    external: true
+services:
+  a:
+    image: x
+    networks: [backend]
+    ports:
+      - "127.0.0.1:5435:5432"
+YAML
+run ordinary_network_not_refused 0 "$TMPROOT/ordinary_net.yml"
+
 # `--no-interpolate` does NOT normalise an entry carrying an unexpanded variable — measured:
 # it comes back as the raw string, so the model is not uniformly a mapping. The guard cannot
 # read a bind address it has not seen expanded.
@@ -394,10 +530,11 @@ services:
 YAML
 run hostname_bind_refused 2 "$TMPROOT/hostname.yml"
 
-# THE HONEST REFUSAL. `[0:0:0:0:0:0:0:1]` IS loopback, and compose does NOT normalise it — it
-# comes back verbatim. Reporting it as "not bound to loopback" would assert a fact the guard
-# has not established, which is exactly the class #1198 was. Exit 2 says "I will not judge
-# this spelling"; exit 1 would be a false statement about a correct binding.
+# THE HONEST REFUSAL. `[0:0:0:0:0:0:0:1]` IS loopback, and compose does not normalise the
+# address — it strips the brackets and hands back `0:0:0:0:0:0:0:1`. Reporting that as "not
+# bound to loopback" would assert a fact the guard has not established, which is exactly the
+# class #1198 was. Exit 2 says "I will not judge this spelling"; exit 1 would be a false
+# statement about a correct binding.
 cat >"$TMPROOT/v6full.yml" <<'YAML'
 services:
   a:
@@ -486,10 +623,20 @@ run real_repo_file 0 "$REPO_ROOT/docker-compose.yml"
 run real_repo_file_floor 0 --expect-min 6 "$REPO_ROOT/docker-compose.yml"
 
 run floor_can_fail 1 --expect-min 99 "$REPO_ROOT/docker-compose.yml"
+run floor_accepts_equals_form 0 --expect-min=6 "$REPO_ROOT/docker-compose.yml"
 
 # One invocation per file: several `-f` in ONE compose invocation would MERGE them with
 # override semantics, which answers a different question than "is each of these clean".
+# `clean.yml` alone exits 0, so the order here is load-bearing.
 run second_file_still_checked 1 "$TMPROOT/clean.yml" "$TMPROOT/bare.yml"
+
+# ...and the accumulator must keep the two files' findings on SEPARATE LINES. The fixture
+# above cannot see this: only one of its files carries a finding, so the accumulator's only
+# stateful branch is never crossed. With the earlier `violations=$(printf '%s%s\n' …)` the
+# command substitution stripped the trailing newline and the last finding of file 1 fused with
+# the first of file 2 into one line naming two files — with the exit code unchanged, which is
+# exactly why an exit-code assertion could not pin it.
+run_lines both_files_report_separate_lines 1 2 '^.*: NOT-LOOPBACK ' "$TMPROOT/bare.yml" "$TMPROOT/explicit.yml"
 
 echo
 echo "compose-loopback-guard fixtures: $pass passed, $fail failed"

@@ -285,33 +285,35 @@ ORDER BY key;
 
 ## 6. SIGTERM + Hangfire ShutdownTimeout (TD-17 punkt 6)
 
-> **Omskriven 2026-08-05.** Detta avsnitt beskrev Fargate `stopTimeout` och bar ett
-> `aws_ecs_task_definition`-block. ADR 0066 rev den plattformen; #196 ersatte den med
-> Compose-stacken på Netcup-lådan. Instruktionen nedan gäller den stacken, och den
-> gamla texten är borta snarare än bevarad — den namngav en ratt som inte finns, i ett
-> avsnitt en operatör följer under cutover.
+> **Omskriven 2026-08-05.** Avsnittet beskrev Fargate `stopTimeout` och bar ett
+> `aws_ecs_task_definition`-block. ADR 0066 rev den plattformen. Den gamla texten är
+> borta snarare än bevarad — den namngav en ratt som inte finns, i ett avsnitt en
+> operatör följer under cutover.
 
-**Flödet vid `docker compose down`, `stop` eller en reconcile som recreatar tjänsten:**
+**Flödet vid SIGTERM:**
 
-1. Docker skickar SIGTERM till containern.
-2. Grace-period löper — `stop_grace_period` på `worker` i `deploy/docker-compose.yml`.
+1. Orkestratorn skickar SIGTERM till containern.
+2. En grace-period löper.
 3. SIGKILL om processen inte avslutat.
 
-**Kopplingen är ett PAR, och båda halvorna måste flyttas tillsammans:**
+**Kopplingen är ett PAR, och bara den ena halvan finns i repot i dag:**
 
-| Ratt | Var | Värde |
+| Ratt | Var | Status |
 |---|---|---|
-| `stop_grace_period` | `deploy/docker-compose.yml`, tjänsten `worker` | 30 s |
-| `Hangfire:ShutdownTimeoutSeconds` | `HangfireWorkerOptions` (default) | 25 s |
+| `Hangfire:ShutdownTimeoutSeconds` | `HangfireWorkerOptions`, default **25 s** | **Levererad** |
+| Orkestratorns grace-period | compose-stacken | **Finns inte ännu — ägs av [#196](https://github.com/klasolsson81/jobbliggaren/issues/196)** |
 
-Hangfire ska hinna committa job-state innan SIGKILL, alltså ligger den lägre av de två
-i appen. **Composes default är 10 s**, inte 30 — därför är värdet satt explicit i
-compose-filen i stället för ärvt, och därför är raden inte borttagbar: utan den anländer
-SIGKILL 15 s för tidigt, mitt i en commit.
+Mätt 2026-08-05: repots enda compose-fil är dev-filen i roten, och den har ingen
+`worker`-tjänst och ingen `stop_grace_period`. De 25 sekunderna står alltså mot ett
+kontrakt ingen fil bär. Det är inte fel — Hangfire ska ligga under grace-perioden, och
+utan orkestrator finns ingen — men det är inte heller verifierat, och
+`release-checklist.md` §2 noterar samma sak om compose-tjänsterna.
 
-Vid hög belastning (SaveChanges-batcher > 25 s, eller cleanup som väntar på öppna
-transaktioner): höj **båda**, i samma ändring. Att höja `ShutdownTimeoutSeconds` ensam
-gör ingen nytta, eftersom grace-perioden fäller processen först.
+**När #196 landar sin worker-tjänst gäller:** grace-perioden måste vara **högre** än 25 s,
+och Composes default är **10 s**, inte 30. Ärvs defaulten anländer SIGKILL 15 s för tidigt,
+mitt i en commit. Värdet måste alltså sättas explicit i compose-filen, och de två flyttas
+i samma ändring — att höja `ShutdownTimeoutSeconds` ensam gör ingen nytta, eftersom
+grace-perioden fäller processen först.
 
 **Idempotency-säkring (alla jobb):**
 

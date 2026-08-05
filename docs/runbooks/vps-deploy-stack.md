@@ -111,7 +111,7 @@ snapshot remains. Their role is **before a migration**, once real user data exis
 ## 4. Host-side prerequisites
 
 **Docker daemon.** Write `/etc/docker/daemon.json` **before the first `up`**: `json-file`
-logging capped at `max-size: 10m` and `max-file: 3` — the same values the compose file sets, so the two cannot drift unnoticed, because no production log sink exists yet
+logging capped at `max-size: 10m` and `max-file: 3` — the same values the compose file sets, written here so a divergence can be seen. Nothing compares them automatically, and nothing needs to: every service sets `logging: *logging`, so the daemon default never reaches this stack, because no production log sink exists yet
 (#1175) and rotation is the only thing standing between the stack and a full disk;
 `live-restore: true`; pinned `default-address-pools` so an ad-hoc network cannot collide
 with the stack's subnet. Never set `"iptables": false` — publishing needs Docker's DNAT,
@@ -183,8 +183,8 @@ from one that has decayed.
 |---|---|---|---|---|
 | 1 | Per-service `mem_limit`/`memswap_limit` match the ADR 0122 table | `docker inspect` | | |
 | 2 | Redis runs `maxmemory` **and** `noeviction` | `redis-cli config get maxmemory*` | | |
-| 1b | The K2 gate's hash is bcrypt cost 11, not the tool's default 14 — the gate pays the full hash on every WRONG password, and nothing upstream filters | `docker exec jobbliggaren-caddy printenv BASIC_AUTH_HASH \| cut -c1-7` prints `$2a$11$` and nothing more: the hash itself is offline-crackable, so do not put it in the cutover scrollback. Then time a wrong-password request against a right one | | |
 | 2b | Redis has headroom under real traffic — `noeviction` means a full instance refuses writes, and the write that fails is the session store, so it surfaces as nobody being able to log in | `redis-cli info memory` — `used_memory` against `maxmemory` | | |
+| 2c | The K2 gate's hash is bcrypt cost 11, not the tool's default 14 — the gate pays the full hash on every WRONG password, and nothing upstream filters | `docker exec jobbliggaren-caddy printenv BASIC_AUTH_HASH \| cut -c1-7` prints `$2a$11$` and nothing more: the hash itself is offline-crackable, so do not put it in the cutover scrollback. Then time a wrong-password request against a right one | | |
 | 3 | Postgres steady-state RSS against the 2 560 MiB cap | cgroup `memory.stat` anon/file during the 02:00 snapshot job | | |
 | 4 | Postgres tuning is explicit, derived from the cap | `SHOW shared_buffers` etc. | | |
 | 5 | Certificate issues over HTTP-01 with the K2 gate live (M-5a) | forced issuance on staging **with TLS-ALPN-01 disabled** — otherwise the row can be ticked on a cert ALPN issued, which is the silent fallback this proof exists to catch | | |

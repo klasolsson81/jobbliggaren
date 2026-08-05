@@ -83,11 +83,18 @@ services:
     # answer. A request carrying any `Authorization: Basic` header pays the full hash,
     # because Caddy caches only SUCCESSFUL comparisons — so wrong passwords pay every
     # time, and nothing upstream filters them. The first half is the hash cost itself,
-    # lowered to bcrypt 11 in `.env.example` (Klas 2026-08-05); relative cost measured
-    # through this image with a wrong password, same machine, `--cpus 1.0`:
-    #   bcrypt 14  217 ms  ·  bcrypt 11  78 ms  ·  argon2id  52 ms but 46 MiB EACH.
-    # argon2id is refused at the class: a per-request allocation on an unauthenticated
-    # edge is a memory-exhaustion primitive whose concurrency the attacker chooses.
+    # lowered to bcrypt 11 in `.env.example` (Klas 2026-08-05).
+    #
+    # THE RATIO IS ARITHMETIC, NOT A MEASUREMENT: bcrypt is exponential in cost, so 11 to
+    # 14 is 2^3 = 8x by construction and no machine can produce another answer. Two
+    # independent measurements put cost 14 near 850 ms on a one-CPU container; a third
+    # (mine) reported 217 ms and is withdrawn, because it contradicts both the others and
+    # the arithmetic. The ratio is what the decision rests on and it cannot rot.
+    #
+    # argon2id is faster still and refused anyway, at the class rather than at a
+    # threshold: a per-request allocation (46 MiB at its default m=47104) on an
+    # unauthenticated edge is a memory-exhaustion primitive whose concurrency the attacker
+    # chooses, so no value of m makes it safe here.
     # The cap alone does not make the amplifier cheap; it stops it starving Postgres, the
     # API and the Worker along with the edge.
     cpus: 1.0

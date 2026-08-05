@@ -4,6 +4,7 @@ import { getSessionId } from "@/lib/auth/session";
 import { parseResponse, parseRetryAfter } from "@/lib/dto/_helpers";
 import { isValidId } from "@/lib/validation/guid";
 import { atsTextResponseSchema } from "@/lib/dto/resumes";
+import { pickForwardedHeaders } from "@/lib/http/forwarded-headers";
 
 /**
  * BFF för den kanoniska ATS-textvyn av en BEFORDRAD Resume (Fas 4b PR-8.2/8.3).
@@ -28,7 +29,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   ctx: { params: Promise<{ id: string }> }
 ): Promise<NextResponse> {
   const sessionId = await getSessionId();
@@ -46,7 +47,10 @@ export async function GET(
     backendRes = await fetch(
       `${env.BACKEND_URL}/api/v1/resumes/${encodeURIComponent(id)}/ats-text`,
       {
-        headers: { Authorization: `Bearer ${sessionId}` },
+        headers: {
+          ...pickForwardedHeaders(request.headers),
+          Authorization: `Bearer ${sessionId}`,
+        },
         cache: "no-store",
       }
     );

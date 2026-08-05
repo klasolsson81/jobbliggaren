@@ -3,6 +3,7 @@
 import { getTranslations } from "next-intl/server";
 import { env } from "@/lib/env";
 import type { ActionResult } from "./_action-result";
+import { forwardedHeaders } from "@/lib/http/forwarded-headers";
 
 /**
  * #733 — PUBLIC resend of the registration-confirmation link (the RESEND step of the
@@ -30,7 +31,7 @@ export async function resendConfirmationAction(
       `${env.BACKEND_URL}/api/v1/auth/resend-confirmation`,
       {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { ...(await forwardedHeaders()), "Content-Type": "application/json" },
         cache: "no-store",
         body: JSON.stringify({ email }),
       }

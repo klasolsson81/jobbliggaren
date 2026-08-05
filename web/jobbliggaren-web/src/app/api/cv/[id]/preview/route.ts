@@ -4,6 +4,7 @@ import { getSessionId } from "@/lib/auth/session";
 import { parseRetryAfter } from "@/lib/dto/_helpers";
 import { isValidId } from "@/lib/validation/guid";
 import { renderProfileSchema } from "@/lib/dto/parsed-resume";
+import { pickForwardedHeaders } from "@/lib/http/forwarded-headers";
 
 /**
  * BFF för förhandsgranskning av en BEFORDRAD, kanonisk Resume (TD-112 / #202). Binär
@@ -66,7 +67,10 @@ export async function GET(
         id
       )}/render?profile=${profile}`,
       {
-        headers: { Authorization: `Bearer ${sessionId}` },
+        headers: {
+          ...pickForwardedHeaders(request.headers),
+          Authorization: `Bearer ${sessionId}`,
+        },
         cache: "no-store",
       }
     );

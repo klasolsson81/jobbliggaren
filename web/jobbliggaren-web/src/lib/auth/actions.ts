@@ -12,6 +12,7 @@ import {
   sessionResponseSchema,
 } from "@/lib/dto/auth";
 import { parseResponse } from "@/lib/dto/_helpers";
+import { forwardedHeaders } from "@/lib/http/forwarded-headers";
 
 // F6 P5 Punkt 4 svans-PR3 (2026-05-24, Klas-feedback "kom direkt till jobb"):
 // /jobb och rot / hoppar över next-param och defaultar till /oversikt.
@@ -77,7 +78,7 @@ export async function loginAction(
   try {
     const res = await fetch(`${env.BACKEND_URL}/api/v1/auth/login`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { ...(await forwardedHeaders()), "Content-Type": "application/json" },
       body: JSON.stringify({ email, password, rememberMe }),
       cache: "no-store",
     });
@@ -140,7 +141,7 @@ export async function registerAction(
   try {
     const res = await fetch(`${env.BACKEND_URL}/api/v1/auth/register`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { ...(await forwardedHeaders()), "Content-Type": "application/json" },
       body: JSON.stringify({ displayName, email, password, rememberMe }),
       cache: "no-store",
     });
@@ -240,7 +241,7 @@ export async function logoutAction(): Promise<void> {
     try {
       const res = await fetch(`${env.BACKEND_URL}/api/v1/auth/logout`, {
         method: "POST",
-        headers: { Authorization: `Bearer ${sessionId}` },
+        headers: { ...(await forwardedHeaders()), Authorization: `Bearer ${sessionId}` },
         cache: "no-store",
       });
       // Best-effort logout: backend-session försvinner via Redis-TTL (14d) om

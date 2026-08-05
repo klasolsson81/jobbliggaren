@@ -71,6 +71,8 @@ export async function getCriterionReference(): Promise<ApiResult<CriterionRefere
   if (!sessionId) return { kind: "unauthorized" };
 
   try {
+    // No forwarded headers here, deliberately (#1202) — same reason as taxonomy.ts:
+    // revalidate-cached shared reference data behind no IP-partitioned policy.
     const res = await fetch(`${env.BACKEND_URL}${BASE}/reference`, {
       headers: authHeaders(sessionId),
       next: { revalidate: REFERENCE_REVALIDATE_SECONDS },

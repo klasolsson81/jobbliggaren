@@ -8,6 +8,7 @@ import {
   PERSISTENT_MAX_AGE_SECONDS,
   SESSION_COOKIE_NAME,
 } from "@/lib/auth/cookie-names";
+import { forwardedHeaders } from "@/lib/http/forwarded-headers";
 
 // Re-exported so existing importers of `@/lib/auth/session` keep working; the
 // literal now lives once in cookie-names.ts (importable by the non-server-only
@@ -52,7 +53,7 @@ export const getServerSession = cache(
 
     try {
       const res = await fetch(`${env.BACKEND_URL}/api/v1/me`, {
-        headers: { Authorization: `Bearer ${sessionId}` },
+        headers: { ...(await forwardedHeaders()), Authorization: `Bearer ${sessionId}` },
         cache: "no-store",
       });
       if (!res.ok) return null;

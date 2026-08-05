@@ -91,6 +91,23 @@
 		# where a round-trip failed after connecting is GET-only unless lb_retry_match says
 		# otherwise. Do not add lb_retry_match without revisiting that.
 		reverse_proxy web:3000 {
+			# THE ONLY WRITER OF THIS HEADER IN THE STACK, and pinning that is the point.
+			# Since 2.5 Caddy already ignores an inbound X-Forwarded-For from an untrusted
+			# peer and sets it to the TCP client address, and no `trusted_proxies` is
+			# configured here — so this line is behaviour-neutral today. It is written down
+			# because the docs reserve the right to stop setting these headers by default,
+			# and a silent default change would re-sever the chain #1202 exists to close,
+			# with no signal. `{client_ip}` is trusted_proxies-aware, so inserting a CDN
+			# later keeps the single-value contract without touching the ForwardLimit — but only via the
+			# GLOBAL `servers > trusted_proxies`, which is what enables client-IP parsing. The
+			# reverse_proxy subdirective governs only this handler's own X-Forwarded-* augmentation and
+			# would leave {client_ip} resolving to the CDN.
+			header_up X-Forwarded-For {client_ip}
+			# X-Forwarded-Proto for the same reason and by the same argument. Doubly inert today —
+			# Caddy overwrites it for an untrusted peer, and nothing in the API reads Request.Scheme
+			# (UseHsts and UseHttpsRedirection are both off under Option B) — but pinning one header
+			# of a pair and leaving the other on a default is an asymmetry with no reason behind it.
+			header_up X-Forwarded-Proto {scheme}
 			health_uri /api/health
 			health_interval 5s
 			health_timeout 3s

@@ -7,7 +7,7 @@
 FROM mcr.microsoft.com/dotnet/sdk:10.0-noble AS build
 WORKDIR /src
 
-COPY global.json Directory.Build.props Directory.Packages.props Jobbliggaren.sln ./
+COPY global.json Directory.Build.props Directory.Packages.props Jobbliggaren.sln .editorconfig ./
 
 COPY src/Jobbliggaren.Domain/Jobbliggaren.Domain.csproj src/Jobbliggaren.Domain/
 COPY src/Jobbliggaren.Application/Jobbliggaren.Application.csproj src/Jobbliggaren.Application/
@@ -35,13 +35,6 @@ RUN dotnet publish src/Jobbliggaren.Worker/Jobbliggaren.Worker.csproj \
 # Worker startar ingen HTTP-server (ADR 0023) trots aspnet-runtime.
 # ---------------------------------------------------------------------------
 FROM mcr.microsoft.com/dotnet/aspnet:10.0-noble AS runtime
-
-# AWS-residual: RDS CA-bundle för TLS-validering mot Postgres (TD-38-eran).
-# Motiveringen som stod här — "täcker alla AWS-regions för portability
-# dev→staging→prod" — gäller inte längre: AWS-stacken revs 2026-05-26 (ADR 0066).
-# COPY:n är kvar tills #196 (TD-106) bygger om imagen för Hetzner (samma ägare som
-# Migrate-imagens). Se #808 för varför en radering går grön i CI och ändå är fel.
-COPY infra/certs/rds-global-bundle.pem /etc/ssl/certs/rds-global-bundle.pem
 
 WORKDIR /app
 COPY --from=build /app/publish .

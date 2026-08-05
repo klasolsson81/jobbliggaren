@@ -74,6 +74,22 @@
 		# lb_try_duration makes a request WAIT and retry instead of failing instantly, and
 		# the shorter interval shrinks the window behind it. Proven: upstream started after
 		# caddy, request served 200 rather than 503.
+		#
+		# THE THREE NUMBERS ARE BOUND BY ONE INEQUALITY: health_interval + health_timeout
+		# must stay under lb_try_duration, because that sum is the worst-case time to
+		# notice the upstream came back. 5 + 3 < 10 leaves two seconds. Raise either of the
+		# first two without the third and the boot-race 503 returns intermittently.
+		#
+		# AND THE TRADE IS REAL IN THE OTHER DIRECTION: during a genuine web outage every
+		# request now blocks for up to 10 s instead of failing fast, so caddy holds roughly
+		# rate x 10s concurrent connections where it held none. Bounded here because
+		# basic_auth runs BEFORE the proxy in this same handle block, so an unauthenticated
+		# flood gets 401 and never reaches the retry loop.
+		#
+		# Retrying is safe for non-idempotent methods by Caddy's default and not by luck: a
+		# retry after the connection itself failed sends nothing upstream, and the case
+		# where a round-trip failed after connecting is GET-only unless lb_retry_match says
+		# otherwise. Do not add lb_retry_match without revisiting that.
 		reverse_proxy web:3000 {
 			health_uri /api/health
 			health_interval 5s

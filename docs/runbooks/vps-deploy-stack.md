@@ -224,6 +224,13 @@ from one that has decayed.
   key as it is, because the box holds no user data — but the 51 347 recruiter contact
   records must not land until B-1 is closed.** Nothing mechanical enforces that; this
   paragraph is the reader.
+- **The edge binary is ours, not upstream's, and the scanned image must be the published
+  one.** `deploy/caddy/Dockerfile` compiles caddy rather than taking it from the published
+  tag, so "we run stock caddy 2.11.4" is no longer true when reading an upstream bug report.
+  It is also non-deterministic in three ways — a floating builder tag, `apk upgrade`, and
+  live Go module resolution — which means **a rebuild is a different artefact than the one
+  trivy approved**. Whatever publishes must promote the image it scanned (scan and push the
+  same loaded image, or push by digest), never rebuild from the Dockerfile for the push.
 - **Publishing the images this stack pulls** — #196's own deploy-workflow AC, and it is
   **not built yet**. Until it is, §3's `docker compose pull` has nothing to pull: the tags
   do not exist. Named here because the rest of this section reads as an enumeration, and a

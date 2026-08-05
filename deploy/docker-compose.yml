@@ -106,8 +106,9 @@ services:
     # started, while removing the key entirely leaves it RUNNING. Caddy needs nothing from
     # web to boot — reverse_proxy resolves upstream per request — so the only thing the
     # dependency bought was the failure it was written to prevent: a stack that never
-    # becomes healthy would have no edge, no error page and no certificate renewal. A 502
-    # is the better outcome.
+    # becomes healthy would have no edge, no error page and no certificate renewal. A 503 from the edge is the
+    # better outcome — that is what an active health check answers once the upstream is
+    # marked down, and it is what was measured here.
     security_opt:
       - no-new-privileges:true
     logging: *logging

@@ -533,6 +533,38 @@ services:
 YAML
 run host_network_short_spelling_refused 2 "$TMPROOT/hostnet_key"
 
+# THE THIRD ROUTE, keyed on the DRIVER rather than on a name. `driver: host` resolves to
+# `{"driver":"host","name":"<project>_n"}` — project-scoped, so the name lookup cannot fire and
+# the guard exited 0 on a service attached to it (measured 2026-08-05, client-side; the runtime
+# half is NOT measured, and the refusal is correct either way — see the guard's own note).
+proj hostnet_driver <<'YAML'
+networks:
+  n:
+    driver: host
+services:
+  a:
+    image: x
+    networks: [n]
+    ports:
+      - "127.0.0.1:5435:5432"
+YAML
+run host_network_via_driver_refused 2 "$TMPROOT/hostnet_driver"
+
+# ...and the counterweight the driver rule needs of its own: an ordinary driver must not be
+# refused, or the rule would fail every file that names one.
+proj bridge_driver <<'YAML'
+networks:
+  n:
+    driver: bridge
+services:
+  a:
+    image: x
+    networks: [n]
+    ports:
+      - "127.0.0.1:5435:5432"
+YAML
+run ordinary_driver_not_refused 0 "$TMPROOT/bridge_driver"
+
 # The counterweight: an ordinary named network must NOT be mistaken for the host network.
 proj ordinary_net <<'YAML'
 networks:
@@ -999,6 +1031,41 @@ export COMPOSE_PROJECT_NAME=jbl_ambient_probe
 run ambient_project_name_still_answers 0 "$TMPROOT/clean"
 unset COMPOSE_PROJECT_NAME
 
+# THE AMBIENT ENV-FILES CHANNEL, WHICH IS CLOSED TWICE OVER — and this fixture pins the
+# conjunction, NOT the prefix rule, which is the opposite of what it was written to do.
+#
+# `code-reviewer` measured that narrowing the guard's loop to `for v in COMPOSE_FILE` leaves the
+# suite green, and proposed exactly this fixture as the pin. Measured before writing the comment,
+# it is not one: an explicit `--env-file` OVERRIDES ambient `COMPOSE_ENV_FILES` (with the flag,
+# a redirecting `COMPOSE_ENV_FILES` yields the real project; without it, the decoy). So the
+# narrowed loop leaves this green too — the flag is already closing the channel. Neither single
+# mutation fells this fixture; BOTH together do, which is the measurement that makes it a pin of
+# anything at all: `COMPOSE_ENV_FILES` -> an env file -> `COMPOSE_FILE` -> a different project is
+# a real route, and it is defended in depth.
+#
+# SO THE PREFIX RULE HAS NO PRODUCIBLE DISCRIMINATOR TODAY, and that is named rather than
+# papered over with a fixture that appears to supply one. Measured: `COMPOSE_ENV_FILES` is
+# subsumed by `--env-file`; `COMPOSE_PROFILES` does not remove services from the model;
+# `COMPOSE_PROJECT_NAME` cannot reach a port. `COMPOSE_FILE` is the only variable the loop is
+# load-bearing for, and `ambient_compose_file_does_not_reselect` already crosses that. The rule
+# is broader than any variable currently requires — deliberately, because the enumeration is the
+# shape that let a repair land on one seat of three in #1215, and a release adding a
+# file-selecting variable would defeat a list silently. That is a claim about the FUTURE and no
+# fixture can cross it.
+#
+# THE VALUE IS CONVERTED FOR THE SAME REASON THE `.env` FIXTURE'S IS: `COMPOSE_ENV_FILES` reaches
+# a Windows `docker.exe` as an ENVIRONMENT VARIABLE, and MSYS rewrites arguments, not the
+# environment. An unconverted `/tmp/...` value is read as `C:\tmp\...`, compose finds nothing,
+# and the fixture would go green against a guard that never cleared anything.
+printf 'COMPOSE_FILE=%s\n' "$dotenv_target" >"$TMPROOT/redirect.env"
+redirect_env="$TMPROOT/redirect.env"
+if command -v cygpath >/dev/null 2>&1; then
+  redirect_env=$(cygpath -m "$redirect_env")
+fi
+export COMPOSE_ENV_FILES="$redirect_env"
+run_lines ambient_env_files_does_not_reselect 1 1 ': NOT-LOOPBACK service=a published=5435' "$TMPROOT/bare"
+unset COMPOSE_ENV_FILES
+
 # ==========================================================================================
 # 8. THE DELIVERY ITSELF — not a fixture of the repo's project, the repo's project
 # ==========================================================================================
@@ -1012,9 +1079,17 @@ unset COMPOSE_PROJECT_NAME
 # `deploy/` DOES NOT BELONG HERE when #196 adds it. The name means "directories this suite
 # gates with THIS predicate", and the loopback predicate is the wrong verdict for a reverse
 # proxy that must publish 80 and 443 wide. It goes in UNJUDGED_COMPOSE_FILES below.
-readonly GATED_PROJECT_DIRS="$REPO_ROOT"
+# AN ARRAY, not a space-separated string. The string form split on any path containing a space
+# — fail-closed and loud (two nonexistent fragments, two FAIL rows), but a fragility this delta
+# would have introduced, and `$REPO_ROOT` is a path a developer chooses. `GATED_COMPOSE_FILES`
+# below must stay a string, because it is compared against `compose_files_in`'s space-joined
+# output; this one is only iterated and has no such binding.
+readonly GATED_PROJECT_DIRS=("$REPO_ROOT")
 
-for pd in $GATED_PROJECT_DIRS; do
+# A SECOND ENTRY GETS THE PRESENCE ASSERTION ONLY. The floor below is a separate `run` line
+# naming `$REPO_ROOT`, because a floor is a fact about one project and cannot be shared; whoever
+# adds a directory here owes it one.
+for pd in "${GATED_PROJECT_DIRS[@]}"; do
   label=${pd#"$REPO_ROOT"}; label=${label#/}; label=${label:-.}
   run "gated_project_is_clean[$label]" 0 "$pd"
 done
@@ -1107,9 +1182,24 @@ readonly COMPOSE_FILE_PATTERN='(^|/)(docker-)?compose([.-][A-Za-z0-9_.-]+)?\.ya?
 # resolves. That is this guard's own defect class living in a data structure, and it does not
 # get an exemption for being test data.
 #
-# Space-separated and `sort`-ordered, matching what compose_files_in emits; the UNION is what
-# the tracked set is compared against. Whoever adds the second entry is doing it under a red
-# build, so the ordering rule is written here rather than left to be re-derived.
+# THE ALLOCATION BETWEEN THE COLUMNS IS DECLARED, NOT VERIFIED, and saying so is the point.
+# The UNION is checked — a dead entry, a duplicate across the columns, and an arrival all turn
+# this red — but moving a file from one column to the other changes nothing the suite can see.
+# `code-reviewer` measured that: `gated='deploy/… docker-compose.yml' unjudged=''` is
+# byte-identical to the correct labelling. What the split buys is that a mislabelling is now a
+# written claim in a diff instead of an invisible property of one list; the tripwire itself is
+# the same move.
+#
+# AND THE OBVIOUS CROSS-CHECK IS UNSOUND IN BOTH DIRECTIONS, which is why there is none.
+# "Every gated file lies in a gated directory" is NOT NECESSARY — `include:`/`extends:` inline
+# files from anywhere into a gated project and those files are genuinely judged (section 2 does
+# exactly this). It is NOT SUFFICIENT either — `docker-compose.prod.yml` sits in a gated
+# directory and compose never reads it, which is arm 2 below verbatim. It would be a name-based
+# proxy for a resolution fact, in a suite whose own message says that is the wrong instrument.
+#
+# Space-separated and `sort`-ordered, matching what compose_files_in emits. Whoever adds the
+# second entry is doing it under a red build, so the ordering rule is written here rather than
+# left to be re-derived.
 readonly GATED_COMPOSE_FILES='docker-compose.yml'
 # Tracked, known, and judged by nothing here. #196's `deploy/docker-compose.yml` is the
 # expected first entry — it owes its OWN predicate (a reverse proxy must publish 80/443 wide),

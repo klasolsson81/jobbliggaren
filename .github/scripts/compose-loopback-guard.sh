@@ -108,21 +108,32 @@
 # is for: it asserts the set of TRACKED compose files against a known list, so a new one
 # turns the suite RED instead of arriving silently. It makes the file NOTICED, never JUDGED,
 # and it matches on a NAME pattern, so a file called something else (`stack.yml`) is
-# invisible to it, exactly as it is to compose itself.
+# invisible to it. The comparison that used to follow — that compose cannot see such a file
+# either — is struck rather than reworded: `docker compose -f stack.yml up` is the ordinary
+# deploy invocation and reads it, and an `include:` from a gated project pulls it in and JUDGES
+# it. It had been written twice, differently, in this file and the suite, which is the second
+# reason to delete rather than attempt a third version.
 #
 # THE RESIDUAL THIS REBUILD INTRODUCES, named rather than left implicit: the answer now
 # depends on a compose CLI VERSION as well as on the file. That is a DIFFERENT risk from the
 # one being retired (a parser that missed spellings), not a smaller version of it — and it has
 # TWO classes, not one, with different fail-closure properties.
-#   (1) The NORMALISATIONS the reading predicate leans on. Fail-closed, as the ports-axis
-#       argument below sets out.
+#   (1) The NORMALISATIONS the PORTS predicate leans on. Fail-closed, as the argument below
+#       sets out.
 #   (2) SELECTION — file resolution, the precedence between default names, the base-name set
 #       itself, the upward walk, and which environment inputs compose consults. Project
 #       semantics moved this class from "not used" to "load-bearing", and per the paragraph
-#       above it is fail-closed in one direction only. `--env-file` is in this class too: it
-#       neutralises the `.env` seat by being a flag the CLI still honours.
-# The paragraph below proves fail-closure for class (1) and is easily read as answering both.
-# It does not.
+#       above it is fail-closed in one direction only. `--env-file` is in this class, and its
+#       two failure modes differ: the flag being DROPPED makes compose read `.env` again and
+#       is caught by `dotenv_compose_file_does_not_reselect`; the flag turning ADDITIVE — an
+#       env-file read alongside `.env` rather than instead of it — reopens the same seat and
+#       that fixture is its only coverage.
+#   (3) The HOST-NETWORKING axis's lookups, which are version-dependent like class (1) and
+#       are NOT fail-closed — its own paragraph below says so and the fixtures are its only
+#       cover. It is listed here because it sits inside class (1)'s subject and outside its
+#       guarantee, and an earlier version of this list said "two classes" and hid it.
+# The argument below proves fail-closure for class (1) and is easily read as answering all
+# three. It does not.
 #
 # AND IT IS DATED, NOT HYPOTHETICAL. Measured 2026-08-05 from actions/runner-images: the
 # `ubuntu-latest` image (24.04) carries Docker Compose **2.38.2**, and the 26.04 image already
@@ -276,6 +287,12 @@ done
 # carries 5.1.3, so a `v2`-shaped check would fail the build on an upgrade that may well be
 # fine. The suite is where a behaviour change is decided; this only establishes that a
 # subcommand exists to ask.
+# Ambient seat: cleared before ANY `docker compose` call, including the version probe below.
+# The earlier placement put it after that probe while claiming "before any docker compose call
+# can read it" -- measured harmless (`COMPOSE_FILE`/`COMPOSE_ENV_FILES` do not disturb
+# `version --short` on 2.40.3), but a universal the mechanism did not have.
+for v in "${!COMPOSE_@}"; do unset "$v"; done
+
 command -v docker >/dev/null 2>&1 || { echo "::error::compose-loopback-guard: docker not on PATH — cannot resolve the compose model." >&2; exit 2; }
 command -v jq >/dev/null 2>&1 || { echo "::error::compose-loopback-guard: jq not on PATH." >&2; exit 2; }
 compose_version=$(docker compose version --short 2>/dev/null) || {
@@ -290,10 +307,18 @@ errfile=$(mktemp)
 nullenv=$(mktemp)
 trap 'rm -f "$errfile" "$nullenv"' EXIT
 
-# Ambient seat: cleared before any `docker compose` call can read it. See the rule above.
-for v in "${!COMPOSE_@}"; do unset "$v"; done
 
-# THE SUBJECT IS THE TRACKED PROJECT, AND UNTRACKED LOCAL STATE NEVER REACHES THE VERDICT.
+# THE SUBJECT IS THE TRACKED PROJECT, AND NO UNTRACKED *CONFIGURATION* REACHES THE VERDICT.
+# The scope of that sentence is exact and was measured too wide once: an untracked
+# `docker-compose.override.yml` DOES reach the verdict, and in the permissive direction —
+# tracked base publishing `0.0.0.0:5341` gives exit 1, and adding an untracked override with
+# `ports: !override ["127.0.0.1:5341:80"]` gives exit 0. That is DELIBERATE and is the whole
+# point of judging a project: an override is what `docker compose up` runs. It is not a CI
+# hole either — `actions/checkout` produces only tracked files, and a COMMITTED override turns
+# the suite's tripwire red. What must never reach the verdict is untracked CONFIGURATION —
+# the environment and the env file — because that decides WHICH artefact is judged rather than
+# being part of it.
+#
 # That rule was already written here twice — `--no-interpolate` exists so `.env` does not
 # reach the model, and the suite's tripwire keys on `git ls-files` — but until this change it
 # was only half true, and the half that was false is the one project semantics opened.
@@ -329,12 +354,20 @@ for v in "${!COMPOSE_@}"; do unset "$v"; done
 # ports is lost. It also runs with the daemon DOWN — `config` is client-side, and every
 # measurement behind this file was taken that way.
 #
-# THE FLAG CARRIES A SECOND REASON, AND IT IS A SECURITY ONE. Without it, compose resolves
-# `.env` into the model: measured, `POSTGRES_PASSWORD` comes back as the literal password
-# instead of `${POSTGRES_PASSWORD_DEV:?...}`. The guard never prints `$model`, so nothing
-# leaks today — but the natural reason to reach for `--interpolate` is to "fix" the
-# UNRESOLVED-ENTRY refusals, and that trade weakens the guard AND pulls real secrets into a
-# variable one `echo` away from a CI log. Both reasons have to fall before the flag moves.
+# THE FLAG CARRIES A SECOND REASON, AND IT IS A SECURITY ONE. The natural reason to reach for
+# `--interpolate` is to "fix" the UNRESOLVED-ENTRY refusals, and that trade weakens the guard
+# AND pulls resolved secrets into a variable one `echo` away from a CI log. Both reasons have
+# to fall before the flag moves.
+#
+# THE CHANNEL THAT CARRIES THAT RISK IS THE ENVIRONMENT, NOT `.env`. An earlier version of this
+# paragraph proved the point with `.env` — `POSTGRES_PASSWORD` coming back as the literal
+# password — and this PR's own `--env-file "$nullenv"` falsified the demonstration without
+# touching the conclusion: with an empty env-file compose does not read `.env` at all, so that
+# counterfactual no longer reproduces under the invocation that ships. Deleted rather than
+# rewritten. What survives is a secret EXPORTED IN THE SHELL, which `--interpolate` would
+# resolve into the model just the same — measured — and which the `COMPOSE_`-prefix clearing
+# above does not touch, because it clears compose's own configuration and not the environment
+# at large.
 #
 # ONE INVOCATION PER PROJECT. Merging is no longer the thing to avoid — WITHIN a project it
 # is precisely what is wanted, because override semantics is what `docker compose up` applies
@@ -396,7 +429,14 @@ for d in "${dirs[@]}"; do
     # newline; the anchor covers it without any check, because the forged line carries no
     # token and is therefore a refusal. That is a property of the anchor, not a claim about
     # the argument.
-    def oneline: tostring | gsub("\n"; "\\n") | gsub("\r"; "\\r");
+    def oneline: tostring | gsub("\n"; "\\n") | gsub("\r"; "\\r") | gsub("\\u0001"; "\\\\u0001");
+    # AND THE PROJECT PREFIX GOES THROUGH IT TOO. `$p` is argv, not artefact, so it is a weaker
+    # threat — but the anchor was described as covering a forged line "without any check", and
+    # that reached further than the mechanism. A directory name may legally hold a newline OR a
+    # literal U+0001: the first forges a line the anchor rejects, the second would put a token
+    # at position 0 of every REFUSAL and turn each into a finding. One binding closes both,
+    # with no validation step and no claim about what argv may contain.
+    def pp: $p | oneline;
     def is_ipv4: (type == "string") and test("^[0-9]{1,3}(\\.[0-9]{1,3}){3}$");
     def is_loopback: (. == "::1") or (is_ipv4 and startswith("127."));
     def is_wide: (. == "::") or (is_ipv4 and (startswith("127.") | not));
@@ -436,7 +476,19 @@ for d in "${dirs[@]}"; do
     # read beats guessing at it. The over-refusal is real — `"${STACK}_backend"` never becomes
     # `host` and is refused anyway — but it is exit 2, "I could not read this", which is true.)
     def is_unresolved: (type == "string") and test("\\$");
-    def host_nets: [ (.networks // {}) | to_entries[] | select(.value.name == "host") | .key ];
+    # A THIRD ROUTE, AND IT IS KEYED ON THE DRIVER RATHER THAN THE NAME. `networks: {n: {driver:
+    # host}}` resolves to `{"driver":"host","name":"<project>_n"}` — the name is project-scoped,
+    # so the name lookup cannot fire, and the guard exited 0 on a service attached to it
+    # (measured 2026-08-05, client-side).
+    #
+    # REFUSED WITHOUT MEASURING THE RUNTIME HALF, because the answer is the same either way.
+    # Docker permits only one instance of the `host` network, so `up` may well reject the file
+    # outright — in which case exit 2 costs nothing, since the file does not run. If instead it
+    # yields host networking, the refusal closes a real bypass on the axis this header already
+    # says is NOT fail-closed. Refusing what cannot be certified is the standing rule here, and
+    # it is the same rule that already refuses `name: host` WITHOUT `external:`.
+    def host_nets: [ (.networks // {}) | to_entries[]
+                     | select(.value.name == "host" or .value.driver == "host") | .key ];
     def unresolved_nets: [ (.networks // {}) | to_entries[]
                            | select(.value.name | is_unresolved) | .key ];
     def attached: (.networks // {}) | if type == "object" then keys else . end;
@@ -446,36 +498,36 @@ for d in "${dirs[@]}"; do
     | (.services // {}) as $svc
     | [ $svc | to_entries[]
         | select(.value.network_mode == "host")
-        | "\($p): HOST-NETWORKING service=\(.key|oneline) via=network_mode" ]
+        | "\(pp): HOST-NETWORKING service=\(.key|oneline) via=network_mode" ]
     + [ $svc | to_entries[] as $s
         | ($s.value | attached)[]
         | select(. as $n | $hostnets | index($n))
-        | "\($p): HOST-NETWORKING service=\($s.key|oneline) via=network:\(.|oneline)" ]
+        | "\(pp): HOST-NETWORKING service=\($s.key|oneline) via=network:\(.|oneline)" ]
     + [ $svc | to_entries[]
         | select(.value.network_mode | is_unresolved)
-        | "\($p): UNRESOLVED-NETWORK-MODE service=\(.key|oneline) network_mode=\(.value.network_mode|oneline)" ]
+        | "\(pp): UNRESOLVED-NETWORK-MODE service=\(.key|oneline) network_mode=\(.value.network_mode|oneline)" ]
     + [ $svc | to_entries[] as $s
         | ($s.value | attached)[] as $n
         | select($unresolved | index($n))
-        | "\($p): UNRESOLVED-NETWORK-NAME service=\($s.key|oneline) network=\($n|oneline)" ]
+        | "\(pp): UNRESOLVED-NETWORK-NAME service=\($s.key|oneline) network=\($n|oneline)" ]
     + [ $svc | to_entries[] as $s
         | ($s.value | attached)[] as $n
         | select($n | is_unresolved)
-        | "\($p): UNRESOLVED-NETWORK-REF service=\($s.key|oneline) network=\($n|oneline)" ]
+        | "\(pp): UNRESOLVED-NETWORK-REF service=\($s.key|oneline) network=\($n|oneline)" ]
     + [ $svc | to_entries[] as $s
         | ($s.value.ports // [])[]
         | select(type != "object")
-        | "\($p): UNRESOLVED-ENTRY service=\($s.key|oneline) entry=\(.|oneline)" ]
+        | "\(pp): UNRESOLVED-ENTRY service=\($s.key|oneline) entry=\(.|oneline)" ]
     + [ $svc | to_entries[] as $s
         | ($s.value.ports // [])[]
         | select(type == "object")
         | select(has("host_ip") and (((.host_ip | is_loopback) or (.host_ip | is_wide)) | not))
-        | "\($p): UNJUDGED-BIND-IP service=\($s.key|oneline) published=\(.published // "<ephemeral>"|oneline) host_ip=\(.host_ip|oneline)" ]
+        | "\(pp): UNJUDGED-BIND-IP service=\($s.key|oneline) published=\(.published // "<ephemeral>"|oneline) host_ip=\(.host_ip|oneline)" ]
     + [ $svc | to_entries[] as $s
         | ($s.value.ports // [])[]
         | select(type == "object")
         | select((has("host_ip") | not) or (.host_ip | is_wide))
-        | "\u0001\($p): NOT-LOOPBACK service=\($s.key|oneline) published=\(.published // "<ephemeral>"|oneline) host_ip=\(.host_ip // "<absent>"|oneline)" ]
+        | "\u0001\(pp): NOT-LOOPBACK service=\($s.key|oneline) published=\(.published // "<ephemeral>"|oneline) host_ip=\(.host_ip // "<absent>"|oneline)" ]
     | .[]
   ' <<<"$model") || { echo "::error::compose-loopback-guard: could not read the resolved model for $d." >&2; exit 2; }
 

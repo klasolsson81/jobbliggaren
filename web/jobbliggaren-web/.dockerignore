@@ -3,8 +3,10 @@
 #
 # The secret patterns below are deliberately WIDER than the repo .gitignore rather
 # than a copy of it: this file decides what reaches an image layer, and a layer is
-# published. `.env*` rather than three named spellings, and the `**/` forms so a
-# nested match is not missed.
+# published. `.env*` replaces three named spellings, and the `**/` forms catch a
+# nested match. Note the asymmetry: `.env*` carries no `**/`, so it covers the
+# context root only. Measured: zero nested `.env` files in this tree today, so it is
+# a coverage question rather than a live exposure.
 
 # Installed and built output — the image builds both itself.
 node_modules/
@@ -13,14 +15,16 @@ out/
 .turbo/
 **/*.tsbuildinfo
 
-# Tests and their artefacts — not in the image.
+# Tests and their artefacts — not in the image. The Playwright specs live under
+# `tests/e2e/`, so `tests/` already covers them; there is no top-level `e2e/`.
 tests/
-e2e/
 playwright-report/
 test-results/
 coverage/
+.lighthouseci/
 **/*.test.ts
 **/*.test.tsx
+**/*.test.mjs
 vitest.config.ts
 playwright.config.ts
 

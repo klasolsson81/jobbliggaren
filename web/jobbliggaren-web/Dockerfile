@@ -1,28 +1,29 @@
 # Jobbliggaren web (Next.js) Dockerfile — multi-stage, non-root, standalone output.
-# Build context: THIS directory (`docker build -f web/jobbliggaren-web/Dockerfile
-# web/jobbliggaren-web`), not the repo root — the root .dockerignore excludes `web/`,
-# and this app carries its own pnpm-lock.yaml.
+# Build context: THIS directory, not the repo root — the root .dockerignore excludes
+# `web/`, and this app carries its own pnpm-lock.yaml:
 #
-# BUILT BY CI, NEVER ON THE BOX. That is capacity condition 1 (ADR 0050 Amendment
-# 2026-08-04 §2) and it is a requirement on whoever builds this file, not a property
-# of the file: an 8 GB host cannot run a Next build alongside the stack. The builder
-# is `.github/workflows/release-images.yml` and the deploy stack consumes the result
-# by tag — `deploy/docker-compose.yml` declares no `build:` for any service, which is
-# what keeps the requirement true rather than merely stated. Both land under #196.
+#   docker build -f web/jobbliggaren-web/Dockerfile \
+#     --build-arg NEXT_PUBLIC_SITE_URL=https://<host> web/jobbliggaren-web
+#
+# BUILT BY CI, NEVER ON THE BOX — capacity condition 1 (ADR 0050 Amendment 2026-08-04
+# §2): an 8 GB host cannot run a Next build alongside the stack. That is a requirement
+# on whoever builds this file, and nothing in this file can enforce it. Nothing builds
+# it yet; the builder and the compose stack that consumes the result by tag both land
+# under #196, and until they do the requirement is stated and not held.
 
 # ---------------------------------------------------------------------------
 # Stage 1: dependencies
 #
 # NODE AND PNPM MAJORS ARE PINNED TO WHAT CI RUNS, and neither pin is cosmetic.
-# `pnpm-lock.yaml` is lockfileVersion 9.0 and `.github/workflows/build.yml` pins
-# pnpm 9 for every job. There is no `packageManager` field anywhere in this repo, so
-# a bare `corepack enable` would resolve whatever pnpm ships as the image default —
-# and pnpm 11 reads NONE of the `pnpm` block in package.json (CLAUDE.md §9.2). That
-# block is the vulnerability-suppression surface: seven `overrides`, the single
-# accepted advisory, and `ignoredBuiltDependencies`. Dropping it would ship an image
-# whose remediations were silently not applied while every gate still reported clean.
-# Node follows the same rule for the weaker reason: no CI job runs a Node major other
-# than 22, so a different one here builds what nothing tests.
+# `pnpm-lock.yaml` is lockfileVersion 9.0 and every `pnpm/action-setup` call site in
+# the repo pins `version: 9`. There is no `packageManager` field anywhere here, so a
+# bare `corepack enable` would resolve whatever pnpm ships as the image default — and
+# pnpm 11 reads NONE of the `pnpm` block in package.json (CLAUDE.md §9.2). That block
+# is the vulnerability-suppression surface: eight `overrides` entries across seven
+# packages, the single accepted advisory, and `ignoredBuiltDependencies`. Dropping it
+# would ship an image whose remediations were silently not applied while every gate
+# still reported clean. Node follows the same rule for the weaker reason: no CI job
+# runs a Node major other than 22, so a different one here builds what nothing tests.
 # ---------------------------------------------------------------------------
 FROM node:22-alpine AS deps
 RUN npm install --global pnpm@9
@@ -37,25 +38,32 @@ RUN pnpm install --frozen-lockfile
 # correct it later — Next's own documentation names the single-image-many-environments
 # case explicitly. `NEXT_PUBLIC_SITE_URL` reaches `metadataBase` (og/twitter images,
 # canonical URLs), the `Sitemap:` line in robots.txt and every `<loc>` in sitemap.xml.
-# Measured on a build with it unset: all three carried the source fallback.
+# Measured on a build with it unset: robots.txt and sitemap.xml both carried the
+# source fallback.
 #
-# Required rather than defaulted: an unset ARG is the empty string, and `?? fallback`
-# does not fire on empty, so a defaulted build would emit an empty base URL instead of
-# a wrong one. Failing here costs a build; the alternative ships silently.
+# Required rather than defaulted, and the mechanism is worth stating exactly because
+# it differs per surface: an unset ARG is the empty string, and `?? fallback` does not
+# fire on empty. robots.txt and sitemap.xml would then emit an empty base; `new URL("")`
+# throws, so `metadataBase` takes the whole render down instead. Neither is a good
+# outcome, and the guard converts both into a named failure on this stage's first
+# instruction rather than an opaque one from inside Next.
 # ---------------------------------------------------------------------------
 FROM deps AS build
 ARG NEXT_PUBLIC_SITE_URL
 RUN test -n "$NEXT_PUBLIC_SITE_URL" || { \
-      echo "NEXT_PUBLIC_SITE_URL build-arg is required (it is inlined and cannot be set at runtime)" >&2; \
+      echo "NEXT_PUBLIC_SITE_URL build-arg is required: it is inlined at build time and" >&2; \
+      echo "cannot be set at runtime. Rebuild with --build-arg NEXT_PUBLIC_SITE_URL=https://<host>" >&2; \
       exit 1; \
     }
 ENV NEXT_PUBLIC_SITE_URL=$NEXT_PUBLIC_SITE_URL
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
 # next/font downloads Source Sans 3 and JetBrains Mono at build time and self-hosts
-# them. The production branch throws on a failed fetch rather than falling back to
-# system fonts, but it passes no timeout — so a build host without egress to Google
-# Fonts hangs here rather than failing.
+# them, so the build host needs egress to fonts.googleapis.com and fonts.gstatic.com.
+# The production branch throws on a failed fetch rather than falling back to system
+# fonts, but passes no timeout (`fetch-resource.js`: the timeout is dev-only). So the
+# two failure shapes differ: a refused connection or a DNS failure fails fast, while a
+# BLACKHOLED network hangs here with no deadline.
 RUN pnpm build
 
 # ---------------------------------------------------------------------------

@@ -28,6 +28,29 @@
 }
 
 {$SITE_HOST} {
+	# CHALLENGE-TYPE SEAM (#196). Default `both` resolves to an EMPTY file, so the running
+	# configuration is byte-for-byte what it was before this line existed — Caddy's default
+	# automation policy, both challenges enabled, adaptive fallback.
+	#
+	# The other two values exist because verification-log rows 5 and 6 cannot be taken without
+	# them. Caddy picks between HTTP-01 and TLS-ALPN-01 and falls back SILENTLY, so one
+	# certificate proves nothing about which path carried it — and a renewal path that was
+	# never proven dies quietly about 60 days after cutover. Disabling one is how you PROVE
+	# the other, never how you run.
+	#
+	# The key is PERMANENT (CTO 2026-08-05). The certificate renews forever and the renewal
+	# path can be broken later by a firewall change, a Caddy upgrade or a DNS move; this is a
+	# diagnostic instrument, not cutover scaffolding. Removing it would mean re-deriving and
+	# re-deploying the mechanism on a box that is, at that moment, down.
+	#
+	# SINGLE COLON, not `:-`. Caddy splits env substitution on the FIRST colon, so `:-both`
+	# makes the default the literal string `-both` and the import fails on `-both.caddy`.
+	# Compose uses `:-` for the same job one layer out, and that IS correct there — the two
+	# syntaxes look alike and are not. Measured: with the variable unset, `:-` gives
+	# "File to import not found: /etc/caddy/challenge/-both.caddy" and exit 1, which behind
+	# `restart: unless-stopped` is a crash-loop on the only service that publishes 80/443.
+	import /etc/caddy/challenge/{$ACME_CHALLENGE_MODE:both}.caddy
+
 	encode zstd gzip
 
 	# Gate M-5a. This is the load-bearing half: the 401 below is answered here and

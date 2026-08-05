@@ -57,3 +57,8 @@ RUN apk --no-cache upgrade
 COPY --from=build /out/caddy /usr/bin/caddy
 
 COPY Caddyfile /etc/caddy/Caddyfile
+
+# The three challenge snippets the Caddyfile imports by ACME_CHALLENGE_MODE. Baked in for the
+# same reason the Caddyfile is: the edge configuration stays pinned to an image digest, so the
+# proof is reproducible from a tag rather than from an operator remembering a bind-mount.
+COPY challenge/ /etc/caddy/challenge/

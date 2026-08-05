@@ -7,7 +7,7 @@
 FROM mcr.microsoft.com/dotnet/sdk:10.0-noble AS build
 WORKDIR /src
 
-COPY global.json Directory.Build.props Directory.Packages.props Jobbliggaren.sln ./
+COPY global.json Directory.Build.props Directory.Packages.props Jobbliggaren.sln .editorconfig ./
 
 COPY src/Jobbliggaren.Domain/Jobbliggaren.Domain.csproj src/Jobbliggaren.Domain/
 COPY src/Jobbliggaren.Application/Jobbliggaren.Application.csproj src/Jobbliggaren.Application/

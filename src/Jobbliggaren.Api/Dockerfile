@@ -8,7 +8,7 @@ FROM mcr.microsoft.com/dotnet/sdk:10.0-noble AS build
 WORKDIR /src
 
 # Centralt versions-filer + sln (kopieras först för bättre layer-cache).
-COPY global.json Directory.Build.props Directory.Packages.props Jobbliggaren.sln ./
+COPY global.json Directory.Build.props Directory.Packages.props Jobbliggaren.sln .editorconfig ./
 
 # csproj först (cache restore om bara kod ändras).
 COPY src/Jobbliggaren.Domain/Jobbliggaren.Domain.csproj src/Jobbliggaren.Domain/

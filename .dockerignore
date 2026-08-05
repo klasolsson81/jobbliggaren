@@ -12,7 +12,8 @@
 # Tests — körs inte i image, bara i CI
 tests/
 
-# Frontend — Vercel hanterar
+# Frontend — bygger ur sin EGEN kontext (web/jobbliggaren-web/Dockerfile +
+# dess egen .dockerignore), aldrig ur repo-roten.
 web/
 
 # Node
@@ -31,23 +32,27 @@ out/
 .gitattributes
 .github/
 
-# Dev secrets — får ALDRIG in i image
-.env
-.env.local
-.env.*.local
-appsettings.Local.json
-.secrets/
-*.pem
-*.key
+# Dev secrets — must NEVER reach an image layer.
+#
+# THE `**/` FORMS ARE LOAD-BEARING, not style. A Docker pattern without a slash matches
+# the context root only, and the Dockerfiles copy whole project directories
+# (`COPY src/Jobbliggaren.Api/ src/Jobbliggaren.Api/`). Measured 2026-08-05 against a
+# build-context probe using this file: under the old root-anchored form both
+# `src/Jobbliggaren.Api/appsettings.Local.json` and a nested `*.pem` reached the context,
+# as did `deploy/.env` — the file the runbook tells the operator to create with the master
+# key and all four database passwords. The main checkout carries a real Local.json, and the
+# Web SDK's default glob pulls in `appsettings.*.json` without any csproj listing them,
+# proven on the artefact. CI is clean only because these are gitignored; a local
+# `docker build` is not, and #196 publishes these images publicly.
+**/.env
+**/.env.*
+**/appsettings.Local.json
+**/.secrets/
+**/*.pem
+**/*.key
 
 # Terraform — separat lifecycle
 infra/
-
-# Undantag: RDS CA-bundle behöver finnas i build-context för Api/Worker
-# Dockerfile-COPY (TD-38). Negationer måste komma EFTER `infra/` och `*.pem`
-# exkluderingarna ovan för att Docker BuildKit ska tolka dem korrekt.
-!infra/certs/
-!infra/certs/*.pem
 
 # Docs — onödigt i image
 docs/

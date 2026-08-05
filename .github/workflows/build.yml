@@ -399,6 +399,12 @@ jobs:
       - name: compose-loopback-guard (fixturer + repots eget compose-projekt)
         run: bash .github/scripts/compose-loopback-guard.test.sh
 
+      # Deploy-projektets EGET predikat (#196). Motsatt dom mot vakten ovan: edge:en MÅSTE
+      # publicera 80/443 vitt, allt annat får inte publicera alls. Sista fixturen dömer den
+      # riktiga `deploy/`-katalogen, inte en kopia av den.
+      - name: compose-edge-publish-guard (fixturer + deploy-projektet)
+        run: bash .github/scripts/compose-edge-publish-guard.test.sh
+
   # ---------------------------------------------------------------------------
   # PERF-/SUPPLY-CHAIN-GOVERNANCE (ADR 0045 — observe-only Fas 1).
   #
@@ -743,9 +749,71 @@ jobs:
   # blockerande från början, för logik som styr när en PR får mergas. Ett
   # observe-only test av en merge-kontroll hade varit samma tomma signal som
   # #861 tog bort. Kostar ~4 s och ligger inte på kritisk väg.
+  # ---------------------------------------------------------------------------
+  # images — bygger varje container-image PR:en kan bryta. INGEN push.
+  #
+  # VARFÖR DETTA JOBB FINNS, mätt 2026-08-05: `ci` byggde ingen Dockerfile alls, och de
+  # enda `docker build`-stegen i repot ligger i `deploy-dev.yml`, vars första rad säger
+  # HISTORICAL och vars auto-trigger togs bort 2026-06-28. Följden satt på `main` utan
+  # att någon visste: alla tre .NET-images gick inte att bygga, därför att
+  # `.editorconfig` — som markerar EF-migrationerna `generated_code = true` — aldrig
+  # kopierades in i byggkontexten. Utanför containern finns filen, alltså var CI grön;
+  # inuti fanns den inte, och `TreatWarningsAsErrors` gjorde analysvarningarna till
+  # byggfel. En grind hade fångat det den dag Dockerfilen gled från rot-konfigen.
+  #
+  # Byggkontexten är ett HANDHÅLLET URVAL av repots konfiguration, och det här jobbet är
+  # vad som gör ett felaktigt urval högljutt i stället för latent.
+  #
+  # Trivy blockerar, och den blockerar HÄR snarare än först vid publicering: #196:s AC
+  # kräver en bildskanner i den blockerande grinden innan GHCR-publicering går live, och
+  # imagesarna blir publika (CTO-dom 2026-08-05, beslut 3) — en publik image är en publik
+  # CVE-inventering.
+  images:
+    name: images (docker build + trivy)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: api, context: ".", file: "src/Jobbliggaren.Api/Dockerfile" }
+          - { name: worker, context: ".", file: "src/Jobbliggaren.Worker/Dockerfile" }
+          - { name: migrate, context: ".", file: "src/Jobbliggaren.Migrate/Dockerfile" }
+          - { name: web, context: "web/jobbliggaren-web", file: "web/jobbliggaren-web/Dockerfile" }
+          - { name: caddy, context: "deploy/caddy", file: "deploy/caddy/Dockerfile" }
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: docker/setup-buildx-action@v4
+
+      - name: Build ${{ matrix.name }}
+        uses: docker/build-push-action@v7
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.file }}
+          push: false
+          load: true
+          tags: jobbliggaren-${{ matrix.name }}:ci
+          cache-from: type=gha,scope=${{ matrix.name }}
+          cache-to: type=gha,scope=${{ matrix.name }},mode=max
+          # web-imagen bakar in NEXT_PUBLIC_* vid build och kan inte rättas vid runtime.
+          # Värdet här är CI:ns, inte produktionens — jobbet bevisar att bygget går, inte
+          # vad som publiceras. Release-workflowen skickar sitt eget.
+          build-args: |
+            NEXT_PUBLIC_SITE_URL=https://ci.invalid
+
+      - name: Trivy ${{ matrix.name }}
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: jobbliggaren-${{ matrix.name }}:ci
+          format: table
+          exit-code: "1"
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+
   ci:
     name: ci
-    needs: [backend, frontend, coverage, scripts]
+    needs: [backend, frontend, coverage, scripts, images]
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -754,7 +822,8 @@ jobs:
           if [[ "${{ needs.backend.result }}" != "success" ]] || \
              [[ "${{ needs.frontend.result }}" != "success" ]] || \
              [[ "${{ needs.coverage.result }}" != "success" ]] || \
-             [[ "${{ needs.scripts.result }}" != "success" ]]; then
+             [[ "${{ needs.scripts.result }}" != "success" ]] || \
+             [[ "${{ needs.images.result }}" != "success" ]]; then
             echo "One or more jobs failed"
             exit 1
           fi

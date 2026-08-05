@@ -308,6 +308,22 @@ updates:
       - "/src/Jobbliggaren.Migrate"
       - "/src/Jobbliggaren.Worker"
       - "/web/jobbliggaren-web"
+      # /deploy/caddy IS LISTED AND IS PARTLY UNCOVERED, and the gap is worth naming here
+      # rather than discovering it from a green PR. The `docker` ecosystem reads `FROM`
+      # lines. After 2026-08-05 that file compiles caddy itself and copies the binary in,
+      # so `FROM caddy:2-alpine` decides the base layer and NOT the caddy version — a
+      # Dependabot base-image bump can go green while the edge binary has not moved. The
+      # three pins that do decide it (`xcaddy build v2.11.4`, `x/text`, `grpc`) sit in a
+      # RUN argument no ecosystem reads, and there is no go.mod for `gomod` to read.
+      # Trivy in the blocking `images` job is a partial detector: it catches advisories,
+      # never an upstream hardening that carries no CVE. Same reason `seq:latest` is
+      # written out below — so nobody reads an entry as coverage it does not give.
+      #
+      # AND THE SAME MECHANISM `seq:latest` NAMES APPLIES TO BOTH ITS `FROM` TAGS: they are
+      # floating (`caddy:2-alpine`, `caddy:2-builder-alpine`) and not digest-pinned, so
+      # there is no version to compare and Dependabot has nothing to propose here at all
+      # until caddy 3 — not even for the base layer.
+      - "/deploy/caddy"
     schedule:
       interval: "monthly"
       day: "monday"
@@ -317,10 +333,10 @@ updates:
     # carry the SAME two images, so without `group-by` below Dependabot opens one grouped
     # PR PER DIRECTORY, and an ungrouped .NET 11 major would be 2 images x 3 directories =
     # up to 6 PRs. Overflow is SILENT (Dependabot simply opens nothing), which is the same
-    # failure shape the header already names for nuget. Raised by one when
-    # `/web/jobbliggaren-web` arrived: node is a fourth image on its own major track, and a
-    # node major is one more slot on top of that .NET worst case.
-    open-pull-requests-limit: 7
+    # failure shape the header already names for nuget. Raised twice as directories arrived:
+    # node (`/web/jobbliggaren-web`) and caddy (`/deploy/caddy`) are each a fourth and fifth
+    # image on their own major track, one slot apiece on top of that .NET worst case.
+    open-pull-requests-limit: 8
     commit-message:
       prefix: "chore(deps)"
       include: "scope"

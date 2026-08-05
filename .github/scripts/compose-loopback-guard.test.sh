@@ -878,6 +878,14 @@ services:
 YAML
 run shadowed_file_is_not_judged 0 --expect-min 1 "$TMPROOT/shadowed_wide"
 
+# ...and compose's own warning that one file is shadowing another must SURVIVE a successful
+# run. It was written to the error file and read only on the failure branch, so it was
+# discarded on exactly the runs where nothing else would mention it. The tripwire catches a
+# COMMITTED second file; an uncommitted local one is outside any CI control by construction,
+# and this line is the only thing that tells a developer their project is not the file they
+# are editing. Asserted on the exit-0 project on purpose — the failure path never had the bug.
+run_lines shadowing_is_announced_on_success 0 1 'compose said:.*Found multiple config files' --expect-min 1 "$TMPROOT/shadowed_wide"
+
 # ALL FOUR DEFAULT BASE NAMES RESOLVE, and this is a counterweight to the guard's own
 # pre-flight rather than to compose. The guard enumerates the four names itself to decide
 # whether a directory has a compose file of its own; an enumeration narrower than compose's
@@ -1109,11 +1117,13 @@ readonly GATED_COMPOSE_FILES='docker-compose.yml'
 readonly UNJUDGED_COMPOSE_FILES=''
 
 # `|| true` IS LOAD-BEARING. `grep` exits 1 when nothing matches; under `set -o pipefail`
-# that becomes the substitution's status and `set -e` kills the whole suite ON THIS LINE —
-# no FAIL row, no gated/found comparison, none of the six diagnostic lines, and no summary.
-# Measured: exit 1, zero output. The awk predecessor carried this exact lesson in a comment
-# and it did not travel with the rewrite. The reachable trigger is the arm the message itself
-# names: a compose file REMOVED or renamed out of the pattern.
+# that becomes the substitution's status and `set -e` would kill the whole suite ON THIS LINE
+# — no FAIL row, no comparison, none of the diagnostic lines, and no summary. Measured ON THE
+# FORM WITHOUT IT, which is the only thing that sentence can be about: exit 1, zero output.
+# With `|| true` the suite runs to its summary, as it does above and below this line. The awk
+# predecessor carried this exact lesson in a comment and it did not travel with the rewrite.
+# The reachable trigger is the arm the message itself names: a compose file REMOVED or renamed
+# out of the pattern.
 compose_files_in() {
   printf '%s\n' "$1" | { grep -E "$COMPOSE_FILE_PATTERN" || true; } | sort | paste -sd' ' -
 }
@@ -1173,19 +1183,23 @@ else
     printf '       | unjudged:   %s\n' "$UNJUDGED_COMPOSE_FILES"
     printf '       | found:      %s\n' "$found"
     printf '       |\n'
-    printf '       | A compose file was added, renamed or removed. Decide which of three it is\n'
-    printf '       | before updating ACCOUNTED_COMPOSE_FILES:\n'
+    printf '       | A compose file was added, renamed or removed. Decide which of three it is,\n'
+    printf '       | then put it in the column that says so:\n'
     printf '       |   1. The root project now MERGES it (an override) or is SHADOWED by it\n'
     printf '       |      (compose.yaml outranks docker-compose.yml). It is judged already --\n'
-    printf '       |      confirm the root verdict still says what you meant, then list it.\n'
+    printf '       |      confirm the root verdict still says what you meant, then add it to\n'
+    printf '       |      GATED_COMPOSE_FILES.\n'
     printf '       |   2. It sits at the root but compose does NOT auto-load it\n'
     printf '       |      (docker-compose.prod.yml). Being in a gated directory is not being\n'
-    printf '       |      read by it: nothing judges this one.\n'
+    printf '       |      read by it: nothing judges this one -> UNJUDGED_COMPOSE_FILES.\n'
     printf '       |   3. It is in a directory nothing points the guard at (deploy/). Also\n'
-    printf '       |      unjudged, and this is the expected shape for #196.\n'
+    printf '       |      unjudged, and this is the expected shape for #196 ->\n'
+    printf '       |      UNJUDGED_COMPOSE_FILES.\n'
     printf '       |\n'
     printf '       | For 2 and 3 the loopback predicate may be the WRONG verdict anyway -- a\n'
     printf '       | reverse proxy must publish 80/443 wide, so #196 owes its own predicate.\n'
+    printf '       | Adding a directory to GATED_PROJECT_DIRS is what gates a project; adding\n'
+    printf '       | a file to GATED_COMPOSE_FILES only records that something already does.\n'
   fi
 fi
 

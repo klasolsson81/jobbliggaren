@@ -376,15 +376,22 @@ jobs:
       # projekt-semantiken — vilket inkluderar en auto-laddad override och en
       # skuggande `compose.yaml` om någon committas), så det här steget grindar det
       # som faktiskt körs och inte bara sin egen testdata. Mutationsverifierat: tas
-      # ett `127.0.0.1:`-prefix bort ur den riktiga filen faller fixturerna som pekar
-      # på `$REPO_ROOT`, och jobbet med dem.
+      # ett `127.0.0.1:`-prefix bort ur den riktiga filen faller flera av fixturerna
+      # som pekar på `$REPO_ROOT`, och jobbet med dem. **INTE alla** — `floor_can_fail`
+      # förväntar sig redan exit 1 och förblir grön, vilket är hela skälet att inte
+      # skriva "de som pekar dit" som en universal.
       #
-      # INGEN SIFFRA HÄR, och den raden är inhämtad genom att bryta mot den. Föregående
-      # version varnade — korrekt — för att lita på ett tal här, och publicerade sedan
-      # "**två** fixturer" i samma mening. Mätt 2026-08-05 föll **tre**: även
-      # `floor_accepts_equals_form` grindar samma projekt, och den räknades aldrig. Talet
-      # var alltså falskt redan när det skrevs, inte efter att sviten växte. Kör
+      # INGEN SIFFRA HÄR, och den raden är inhämtad genom att bryta mot den TVÅ gånger.
+      # Först varnade en version — korrekt — för att lita på ett tal här och publicerade
+      # "**två** fixturer" i samma mening; mätt 2026-08-05 föll **tre**, så talet var
+      # falskt redan när det skrevs. Ersättningsmeningen sa sedan "fixturerna som pekar
+      # på `$REPO_ROOT`", vilket är fyra och alltså också falskt. Kör
       # `bash .github/scripts/compose-loopback-guard.test.sh` för det aktuella svaret.
+      #
+      # OCH LÄS SVITENS EGEN SUMMERINGSRAD, inte `$?` efter en pipe. `bash …test.sh | tail`
+      # rapporterar `tail`:s status, så en körning med FAIL-rader läses som grön — mätt
+      # under granskningen av just den här ändringen, av en agent som rapporterade ett
+      # omätt resultat på grund av det.
       #
       # Steget är LÅNGSAMMARE än sina grannar, och skälet är strukturellt snarare än en
       # mätning som ruttnar: sviten gör en compose-invokation per fixtur, så tiden växer

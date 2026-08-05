@@ -88,6 +88,19 @@
 # there. Without that check, project semantics would have opened a new false-clean path while
 # closing two.
 #
+# THE SELECTION AXIS IS FAIL-CLOSED IN ONE DIRECTION AND NOT THE OTHER, and a reader who takes
+# the ports axis's fail-closure argument as covering this one is reading a claim that was never
+# made. If a compose release ADDS a fifth default base name, this list is narrower than
+# compose's, the directory looks empty, and the guard REFUSES — loud, exit 2, and the message
+# names the four it knows. If a release RETIRES one, the list is wider than compose's: the
+# guard accepts a directory compose would walk up out of, and answers about an ancestor's
+# project. That direction is fail-OPEN and silent, and NOTHING here detects it — measured by
+# `dotnet-architect` with a superset list on a scratch copy, exit 0 on the parent's file. The
+# only coverage is the four `default_base_name_resolves[*]` fixtures, which fail if a name in
+# this list stops resolving; there is no cheap post-hoc check, because compose's resolved model
+# carries no file provenance, writes nothing to stderr on a walk-up, and names the project
+# after the directory it was given whichever file it read.
+#
 # WHAT IS STILL NAME-BASED IS WHICH PROJECTS IT IS POINTED AT. Inside a project it knows no
 # service names and no port numbers, so a new service, port or rename is covered on arrival,
 # and every file compose merges into that project is now covered with it. But a compose file
@@ -98,10 +111,18 @@
 # invisible to it, exactly as it is to compose itself.
 #
 # THE RESIDUAL THIS REBUILD INTRODUCES, named rather than left implicit: the answer now
-# depends on a compose CLI VERSION as well as on the file. Every normalisation above is
-# behaviour of the binary on the runner, and nothing in this repo pins it. That is a
-# DIFFERENT risk from the one being retired (a parser that missed spellings), not a smaller
-# version of it.
+# depends on a compose CLI VERSION as well as on the file. That is a DIFFERENT risk from the
+# one being retired (a parser that missed spellings), not a smaller version of it — and it has
+# TWO classes, not one, with different fail-closure properties.
+#   (1) The NORMALISATIONS the reading predicate leans on. Fail-closed, as the ports-axis
+#       argument below sets out.
+#   (2) SELECTION — file resolution, the precedence between default names, the base-name set
+#       itself, the upward walk, and which environment inputs compose consults. Project
+#       semantics moved this class from "not used" to "load-bearing", and per the paragraph
+#       above it is fail-closed in one direction only. `--env-file` is in this class too: it
+#       neutralises the `.env` seat by being a flag the CLI still honours.
+# The paragraph below proves fail-closure for class (1) and is easily read as answering both.
+# It does not.
 #
 # AND IT IS DATED, NOT HYPOTHETICAL. Measured 2026-08-05 from actions/runner-images: the
 # `ubuntu-latest` image (24.04) carries Docker Compose **2.38.2**, and the 26.04 image already
@@ -175,8 +196,9 @@
 #          refusal class added later lands here without being remembered in a second place
 #          (#1216). Today's members: a bad invocation, an argument that is not a directory or
 #          carries no compose file of its own, a project compose refused, a missing tool, a
-#          service on host networking, an entry compose left unresolved, and an IPv6 spelling
-#          the guard will not judge.
+#          service on host networking, an entry compose left unresolved, an IPv6 spelling the
+#          guard will not judge, and ZERO recognised published ports with no `--expect-min`
+#          floor to say zero was expected.
 
 set -euo pipefail
 
@@ -214,10 +236,15 @@ else
   dirs=("$repo_root")
 fi
 
-# COMPOSE'S FOUR DEFAULT BASE NAMES, in its own precedence order. Enumerated here rather than
-# globbed because the property being checked is "compose resolves THIS directory", and that is
-# true of exactly these four. An override alone does not stop the upward walk — measured, the
-# parent's file wins and the child's override is dropped without a word.
+# COMPOSE'S FOUR DEFAULT BASE NAMES. The ORDER HERE IS NOT COMPOSE'S PRECEDENCE and does not
+# try to be: the loop breaks on the first name that EXISTS, so order cannot change the answer.
+# An earlier version of this comment claimed precedence order and got it wrong —
+# `docker-compose.yml` beats `docker-compose.yaml`, measured — which would have invited a
+# reader to believe the guard implements precedence. It does not; precedence is compose's
+# business, and the guard only asks whether compose will resolve THIS directory at all.
+# Enumerated rather than globbed for the same reason: that question is true of exactly these
+# four. An override alone does not stop the upward walk — measured, the parent's file wins and
+# the child's override is dropped without a word.
 compose_base_names=(compose.yaml compose.yml docker-compose.yaml docker-compose.yml)
 
 for d in "${dirs[@]}"; do
@@ -326,6 +353,17 @@ for d in "${dirs[@]}"; do
     echo "::error::compose-loopback-guard: compose refused the project in $d — the guard cannot answer." >&2
     cat "$errfile" >&2
     exit 2
+  fi
+
+  # COMPOSE'S OWN WARNINGS SURVIVE A SUCCESSFUL RUN. `$errfile` used to be read only on the
+  # failure branch, so `Found multiple config files with supported names: …compose.yaml,
+  # …docker-compose.yml` — compose telling the reader that one file is SHADOWING another — was
+  # discarded on exactly the runs where nothing else would mention it. The tripwire catches a
+  # COMMITTED second file; an uncommitted local one is outside any CI control by construction,
+  # and this line is the only thing that would tell a developer their project is not the file
+  # they are editing. Surfaced, never classified: it does not touch the exit code.
+  if [ -s "$errfile" ]; then
+    sed 's/^/compose-loopback-guard: compose said: /' "$errfile" >&2
   fi
 
   # AN ENTRY IS NOT ALWAYS A MAPPING, and the shapes that stay raw are not exotic. Measured:

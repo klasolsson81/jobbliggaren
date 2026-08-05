@@ -995,7 +995,21 @@ unset COMPOSE_PROJECT_NAME
 # 8. THE DELIVERY ITSELF — not a fixture of the repo's project, the repo's project
 # ==========================================================================================
 
-run real_repo_project 0 "$REPO_ROOT"
+# THE PROJECT DIRECTORIES THIS SUITE GATES, as data rather than as a sentence. Section 9 used
+# to say "the suite points the guard at `$REPO_ROOT` and nothing else", which was a property of
+# three `run` lines and asserted nowhere — the same shape as a comment vouching for a binding,
+# which is what this whole guard exists to close. A second entry here is gated on arrival
+# instead of on someone remembering to write a `run` line for it.
+#
+# `deploy/` DOES NOT BELONG HERE when #196 adds it. The name means "directories this suite
+# gates with THIS predicate", and the loopback predicate is the wrong verdict for a reverse
+# proxy that must publish 80 and 443 wide. It goes in UNJUDGED_COMPOSE_FILES below.
+readonly GATED_PROJECT_DIRS="$REPO_ROOT"
+
+for pd in $GATED_PROJECT_DIRS; do
+  label=${pd#"$REPO_ROOT"}; label=${label#/}; label=${label:-.}
+  run "gated_project_is_clean[$label]" 0 "$pd"
+done
 
 # `exit 0` above is satisfied vacuously by a project with no ports or a deleted ports block.
 # The floor makes the pin cross the threshold of the property it pins: the project publishes
@@ -1077,17 +1091,22 @@ run refusal_survives_the_accumulator 2 "$TMPROOT/bare" "$TMPROOT/var"
 # and is not a compose file. Tripping on one costs a line in ACCOUNTED_COMPOSE_FILES; missing
 # a real one costs an unjudged file, so the pattern is deliberately generous.
 readonly COMPOSE_FILE_PATTERN='(^|/)(docker-)?compose([.-][A-Za-z0-9_.-]+)?\.ya?ml$'
-# ACCOUNTED, NOT GATED — the list was called GATED_COMPOSE_FILES while the guard read one file
-# and the two words meant the same thing. Under project semantics they part company: a
-# `docs/compose-notes.yml` or a `docker-compose.prod.yml` would belong on this list and be
-# judged by nothing, so a name promising "gated" would vouch for a property the entry does not
-# have. That is the defect class this whole guard exists to close, and it does not get an
-# exemption for living in a variable name.
+# TWO COLUMNS, BECAUSE THE JUDGEMENT HAS TWO STATES. One list was enough while the guard read
+# one file and "accounted" and "gated" meant the same thing. Under project semantics they part
+# company: `docker-compose.prod.yml` at the root, or `deploy/docker-compose.yml`, would belong
+# on a single list and be judged by NOTHING — so a one-column list would record #196's arrival
+# and then, once CI was green again, be indistinguishable from a file the root project
+# resolves. That is this guard's own defect class living in a data structure, and it does not
+# get an exemption for being test data.
 #
-# Space-separated and `sort`-ordered, matching what compose_files_in emits. One entry today,
-# and it IS gated (the root project resolves it); whoever adds the second is doing it under a
-# red build, so the ordering rule is written here rather than left to be re-derived.
-readonly ACCOUNTED_COMPOSE_FILES='docker-compose.yml'
+# Space-separated and `sort`-ordered, matching what compose_files_in emits; the UNION is what
+# the tracked set is compared against. Whoever adds the second entry is doing it under a red
+# build, so the ordering rule is written here rather than left to be re-derived.
+readonly GATED_COMPOSE_FILES='docker-compose.yml'
+# Tracked, known, and judged by nothing here. #196's `deploy/docker-compose.yml` is the
+# expected first entry — it owes its OWN predicate (a reverse proxy must publish 80/443 wide),
+# so pointing this suite at it would be wrong rather than merely insufficient.
+readonly UNJUDGED_COMPOSE_FILES=''
 
 # `|| true` IS LOAD-BEARING. `grep` exits 1 when nothing matches; under `set -o pipefail`
 # that becomes the substitution's status and `set -e` kills the whole suite ON THIS LINE —
@@ -1131,18 +1150,27 @@ pnpm-lock.yaml
 src/Composer.cs
 decompose.yml'
 
+# The union of the two columns, in the same space-separated sorted form `compose_files_in`
+# emits. `sed` drops the blank line an empty column would otherwise contribute.
+accounted_compose_files() {
+  printf '%s\n' $GATED_COMPOSE_FILES $UNJUDGED_COMPOSE_FILES | sed '/^$/d' | sort | paste -sd' ' -
+}
+
 if ! tracked=$(git -C "$REPO_ROOT" ls-files 2>/dev/null); then
   fail=$((fail + 1))
   printf 'FAIL %-38s could not list tracked files (not a git repo?)\n' "compose_file_set_is_accounted"
 else
   found=$(compose_files_in "$tracked")
-  if [ "$found" = "$ACCOUNTED_COMPOSE_FILES" ]; then
+  accounted=$(accounted_compose_files)
+  if [ "$found" = "$accounted" ]; then
     pass=$((pass + 1))
-    printf 'ok   %-38s (%s)\n' "compose_file_set_is_accounted" "$found"
+    printf 'ok   %-38s (gated: [%s] unjudged: [%s])\n' "compose_file_set_is_accounted" \
+      "$GATED_COMPOSE_FILES" "$UNJUDGED_COMPOSE_FILES"
   else
     fail=$((fail + 1))
     printf 'FAIL %-38s tracked compose files changed\n' "compose_file_set_is_accounted"
-    printf '       | accounted:  %s\n' "$ACCOUNTED_COMPOSE_FILES"
+    printf '       | gated:      %s\n' "$GATED_COMPOSE_FILES"
+    printf '       | unjudged:   %s\n' "$UNJUDGED_COMPOSE_FILES"
     printf '       | found:      %s\n' "$found"
     printf '       |\n'
     printf '       | A compose file was added, renamed or removed. Decide which of three it is\n'

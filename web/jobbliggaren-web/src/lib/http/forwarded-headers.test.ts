@@ -1,3 +1,6 @@
+// The bailout assertion below needs no special environment: the relay decides on the error's
+// `digest` itself rather than through next/navigation, whose implementation differs between
+// the server and browser builds. That import was measured and withdrawn — see the module.
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 // `headers()` is the only thing mocked. The pure relay is exercised directly, so its
@@ -88,16 +91,38 @@ describe("forwardedHeaders", () => {
     await expect(forwardedHeaders()).resolves.toEqual({});
   });
 
-  it("does NOT swallow a failure in the relay itself", async () => {
-    // The try wraps only `headers()`. A header bag that throws on `get` is a bug in this
-    // layer, and it must surface rather than silently degrade to "no client IP" — that is
-    // the exact failure mode #1202 was: a missing header nobody noticed.
-    headersMock.mockResolvedValue({
-      get() {
-        throw new Error("broken header bag");
-      },
+  it("rethrows Next's dynamic bailout instead of swallowing it", async () => {
+    // The actor is Next's own DynamicServerError, which `headers()` throws during prerender:
+    // its constructor sets `digest = "DYNAMIC_SERVER_USAGE"`, and `unstable_rethrow` decides
+    // purely on that digest (hooks-server-context.js `isDynamicServerError`). The shape is
+    // reproduced rather than imported because the class lives behind a deep internal path.
+    //
+    // Swallowing it would let a per-user response be cached statically, which is a worse
+    // defect than the missing header this module exists to fix.
+    const bailout = Object.assign(new Error("Dynamic server usage: headers"), {
+      digest: "DYNAMIC_SERVER_USAGE",
     });
+    headersMock.mockRejectedValue(bailout);
 
-    await expect(forwardedHeaders()).rejects.toThrow("broken header bag");
+    await expect(forwardedHeaders()).rejects.toBe(bailout);
   });
+
+  it("still returns {} for an ordinary out-of-scope error, which carries no digest", async () => {
+    // The counterfactual for the test above: a plain Error is NOT framework control flow, so
+    // it must still degrade to "no forwarding headers" rather than breaking the call.
+    headersMock.mockRejectedValue(new Error("`headers` was called outside a request scope"));
+
+    await expect(forwardedHeaders()).resolves.toEqual({});
+  });
+
+  // A test asserting that a header bag whose `get` throws propagates was REMOVED, not
+  // relaxed. code-reviewer measured that `headers()` resolves to ReadonlyHeaders over
+  // HeadersAdapter, whose `get` goes through a proxy trap that cannot throw — only
+  // append/delete/set do. The premise was one production cannot produce (§5 Tests:), and
+  // it made the pin true in the impossible case while saying nothing about the reachable
+  // ones. Those are pinned above instead: a digest-bearing error propagates, an ordinary
+  // one degrades to {}. The errors `headers()` really throws — E839 inside a render-phase
+  // after(), E833/E838 outside a cache scope — are ordinary Errors, and degrading is the
+  // intended behaviour there, not a defect.
+
 });

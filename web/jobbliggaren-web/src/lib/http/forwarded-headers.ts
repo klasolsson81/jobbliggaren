@@ -24,6 +24,11 @@ type HeaderSource = { get(name: string): string | null };
  * OMIT, NEVER SYNTHESISE — with no header the API's middleware is a no-op and the client IP
  * falls back to the connection address, which for an internal call IS the right answer. A
  * fabricated value would be a lie the rate limiter and the auth audit trail both believe.
+ * A callback registered with `after()` from the RENDER phase is the one in-request case that
+ * also gets `{}` — Next refuses `headers()` there (E839), the same restriction the seen-marking
+ * pages already work around for `cookies()` by reading at render and threading the value in.
+ * Measured on #1231 and left alone: those three writes are UserId-partitioned and none is
+ * auditable, so no consumer of a client IP sits behind them.
  */
 export function pickForwardedHeaders(source: HeaderSource): Record<string, string> {
   const relayed: Record<string, string> = {};
@@ -50,7 +55,24 @@ export async function forwardedHeaders(): Promise<Record<string, string>> {
   let inbound: HeaderSource;
   try {
     inbound = await headers();
-  } catch {
+  } catch (error) {
+    // Let framework control flow through. During prerender `headers()` throws a
+    // DynamicServerError whose PURPOSE is to force the route dynamic; swallowing it would
+    // let a per-user response be cached statically — a worse defect than the missing header
+    // this module fixes. Not reachable on any path today (every authed call reaches
+    // `cookies()` first, and landing stats is `no-store`), so this is a guard, not a repair.
+    //
+    // Checked on the digest rather than through next/navigation's `unstable_rethrow`, and
+    // that is a measured choice: importing it pulls `next/navigation` into a module 17 call
+    // sites depend on, and the suite mocks that module PARTIALLY in several places — the
+    // import alone turned 23 tests across 5 files red, because the mocked module has no such
+    // export and calling `undefined` became a TypeError the actions mapped to a network
+    // error. A string `digest` is how Next marks its control-flow errors, and an ordinary
+    // Error carries none.
+    if (typeof error === "object" && error !== null && "digest" in error
+        && typeof (error as { digest: unknown }).digest === "string") {
+      throw error;
+    }
     return {};
   }
   return pickForwardedHeaders(inbound);

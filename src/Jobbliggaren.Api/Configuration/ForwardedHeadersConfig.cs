@@ -18,9 +18,19 @@ namespace Jobbliggaren.Api.Configuration;
 /// that partition on the client IP shared a single bucket — two of them only for
 /// unauthenticated callers. Closed by #1202: Caddy writes the header toward web, and
 /// Next relays it verbatim rather than appending, so exactly one entry reaches this
-/// middleware and <see cref="ForwardLimit"/> stays at 1. A backend call made outside a
-/// request scope — build, static render, background work — sends none and falls back to
-/// the connection address, which for internal traffic is the right answer.
+/// middleware and <see cref="ForwardLimit"/> stays at 1.
+///
+/// TWO CLASSES OF CALL STILL SEND NO HEADER, and both fall back to the connection address.
+/// Outside a request scope — build, static render, background work — that is simply right:
+/// there is no client to attribute. The second is narrower and was measured by code-reviewer
+/// on #1231: a callback registered with Next's <c>after()</c> from the RENDER phase cannot
+/// read <c>headers()</c> at all (Next E839), so the three seen-marking writes behind
+/// <c>/jobb</c>, <c>/jobb/{id}</c> and <c>/matchningar</c> reach the API without one. Harmless
+/// today and deliberately left alone: all three are UserId-partitioned and none is an
+/// <c>IAuditableCommand</c>, so nothing on those paths consumes a client IP. It stops being
+/// harmless the day an IP-partitioned policy sits behind a write reachable from <c>after()</c>,
+/// and the repair is the one the same files already use for <c>cookies()</c> — read at render,
+/// thread the value in.
 ///
 /// Parsing är fail-loud per security-auditor STEG 11 Sec-Major-1: tyst no-op:ad
 /// rate-limiting i prod är värre än uppstart-throw. Ogiltig CIDR-string eller IP
@@ -48,9 +58,13 @@ public sealed class ForwardedHeadersConfig
     public string[] KnownProxies { get; init; } = [];
 
     /// <summary>
-    /// Hur många proxy-hops som accepteras i X-Forwarded-For-kedjan. 1 for a single
-    /// reverse proxy — which is what <c>appsettings.Production.json</c> ships; raise to
-    /// 2 only if a CDN is placed in front of it. Värden &lt; 1 throwas.
+    /// Hur många proxy-hops som accepteras i X-Forwarded-For-kedjan. 1, and a CDN in front
+    /// does NOT change that — the earlier "raise to 2 for a CDN" guidance is withdrawn as
+    /// wrong. The edge SETS the header rather than appending (<c>header_up</c> with no <c>+</c>),
+    /// and Caddy's <c>{client_ip}</c> is trusted_proxies-aware: told to trust a CDN it resolves
+    /// to the real client and writes that ONE value; not told, it resolves to the CDN and the
+    /// limit is not what is broken. So a CDN is a <c>trusted_proxies</c> change at the edge,
+    /// never a limit change here. Värden &lt; 1 throwas.
     /// </summary>
     public int ForwardLimit { get; init; } = 1;
 

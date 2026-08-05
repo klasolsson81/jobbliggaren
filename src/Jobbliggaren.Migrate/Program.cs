@@ -457,6 +457,25 @@ static async Task ExecutePhaseAAsync(NpgsqlConnection conn, string dbName, strin
             ct);
     }
 
+    // TEMPORARY back to the app role, and it is the REVOKE above that makes this necessary.
+    // A database grants TEMP to PUBLIC by default; `REVOKE ALL ... FROM PUBLIC` takes it from
+    // every non-superuser at once, and the CONNECT loop above hands back only `c`. Two applied
+    // migrations create temp tables (C2SearchParityReverseLookupAndRecentExpansion,
+    // MaterialiseJobAdSourceFacets), so `schema` mode — which runs as the app role and is a
+    // gating dependency of api and worker on EVERY `up` — dies with 42501 on any database this
+    // very function provisioned. Measured on the Netcup box 2026-08-05, first boot: "permission
+    // denied to create temporary tables in database jobbliggaren", after `datacl` showed
+    // {postgres=CTc, migrations=c, app=c, worker=c}.
+    //
+    // Only the app role: it is the one that runs migrations. Temp tables are session-scoped and
+    // vanish with the connection, so this is a narrower grant than the CREATE on schema public
+    // the app role already holds.
+    await ExecuteAsync(conn,
+        string.Create(CultureInfo.InvariantCulture, $"GRANT TEMPORARY ON DATABASE \"{dbName}\" TO {Roles.App};"),
+        log,
+        string.Create(CultureInfo.InvariantCulture, $"GRANT TEMPORARY till {Roles.App}"),
+        ct);
+
     // För `CREATE SCHEMA AUTHORIZATION jobbliggaren_migrations` krävs att master har
     // medlemskap i migrations-rollen (master kan vara en begränsad superuser utan
     // implicit SET ROLE). GRANT … TO CURRENT_USER ger master detta. Idempotent

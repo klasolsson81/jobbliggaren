@@ -8,6 +8,11 @@
 
   <ItemGroup>
     <Content Include="xunit.runner.json" CopyToOutputDirectory="PreserveNewest" />
+    <!-- The deploy stack's compose file, so DeployComposeRoleTests can read the connection
+         strings it hands the migrate service. The roles those strings name are decided by the
+         GRANTs in this project's Program.cs, and nothing else couples the two files. -->
+    <Content Include="..\..\deploy\docker-compose.yml"
+             Link="deploy\docker-compose.yml" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>

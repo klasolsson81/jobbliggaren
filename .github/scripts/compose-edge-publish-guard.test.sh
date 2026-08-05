@@ -268,6 +268,83 @@ services:
 YAML
 run_says host_networked_service 2 'HOST-NETWORK-OR-MODE' "$TMPROOT/host_networked_service"
 
+# The host-networking axis has four seats and a variable defeats any literal comparison,
+# so all of them are refused rather than judged — the same rule the loopback guard states.
+proj host_network_via_network_name <<'YAML'
+services:
+  caddy:
+    image: x
+    ports:
+      - "80:80"
+      - "443:443"
+    networks: [hostish]
+networks:
+  hostish:
+    external: true
+    name: host
+YAML
+run_says host_network_via_network_name 2 'HOST-NETWORK-OR-MODE' "$TMPROOT/host_network_via_network_name"
+
+proj unresolved_network_ref <<'YAML'
+services:
+  caddy:
+    image: x
+    ports:
+      - "80:80"
+      - "443:443"
+    networks: ["${NET}"]
+YAML
+run_says unresolved_network_ref 2 'UNRESOLVED-NETWORK' "$TMPROOT/unresolved_network_ref"
+
+# An IPv6 spelling the guard has not decided is a REFUSAL, never a not-wide finding.
+# `[0:0:0:0:0:0:0:0]` IS the wildcard and compose does not normalise it, so calling it
+# loopback-bound would assert a fact the guard has not established — #1198 one level down.
+proj unjudged_bind_ip <<'YAML'
+services:
+  caddy:
+    image: x
+    ports:
+      - "[0:0:0:0:0:0:0:0]:80:80"
+      - "443:443"
+YAML
+run_says unjudged_bind_ip 2 'UNJUDGED-BIND-IP' "$TMPROOT/unjudged_bind_ip"
+
+# `::` IS decided, and it is wide. Without this the wide disjunction is never crossed.
+proj clean_ipv6_wildcard <<'YAML'
+services:
+  caddy:
+    image: x
+    ports:
+      - target: 80
+        published: "80"
+        host_ip: "::"
+        protocol: tcp
+        mode: ingress
+      - target: 443
+        published: "443"
+        host_ip: "::"
+        protocol: tcp
+        mode: ingress
+YAML
+run clean_ipv6_wildcard 0 "$TMPROOT/clean_ipv6_wildcard"
+
+# An unquoted long-form `published` is a JSON NUMBER, not a string. Read, not refused.
+proj numeric_published <<'YAML'
+services:
+  caddy:
+    image: x
+    ports:
+      - target: 80
+        published: 80
+        protocol: tcp
+        mode: ingress
+      - target: 443
+        published: 443
+        protocol: tcp
+        mode: ingress
+YAML
+run numeric_published 0 "$TMPROOT/numeric_published"
+
 # A REFUSAL MUST WIN OVER A FINDING. This file breaks clause 2 as well (the publisher is not
 # the edge), so if refusals and findings were merged into one verdict the exit code would be
 # 1 and the reader would be told the wrong thing about a port nobody read.
@@ -310,10 +387,14 @@ services:
       - "9999:9999"
 YAML
 cp "$TMPROOT/clean/docker-compose.yml" "$TMPROOT/env_override_target/clean-copy.yml"
-(
-  export COMPOSE_FILE="$TMPROOT/env_override_target/clean-copy.yml"
-  run_says ambient_compose_file_ignored 1 'PUBLISHER-NOT-EDGE' "$TMPROOT/env_override_target"
-)
+# NOT IN A SUBSHELL, and that is not style. `run_says` increments `pass`/`fail`, and a
+# subshell increments a COPY: with the guard's ambient-clearing removed — the exact control
+# this fixture exists for — the suite printed FAIL, then summarised 0 failed and exited 0.
+# A fixture that cannot turn the suite red is not a fixture. Measured; it is also why the
+# summary said 22 while the suite printed 23 ok lines.
+export COMPOSE_FILE="$TMPROOT/env_override_target/clean-copy.yml"
+run_says ambient_compose_file_ignored 1 'PUBLISHER-NOT-EDGE' "$TMPROOT/env_override_target"
+unset COMPOSE_FILE
 
 # The second seat: the same variable inside the project own .env, which clearing the
 # environment does not reach. It needs the empty --env-file on the compose call.

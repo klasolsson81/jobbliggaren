@@ -110,16 +110,34 @@ out=$(jq -r --arg p "$dir" --arg edge "$EDGE_SERVICE" --arg want "$EXPECTED_PORT
     def pp: $p | oneline;
     # published is a STRING in the resolved model. A range (8000-8005) and an absent key
     # (ephemeral) are both unreadable as a single number, so both are refused, never guessed.
-    def is_port_number: (type == "string") and test("^[0-9]+$");
-    def binds_wide: (has("host_ip") | not) or (.host_ip == "0.0.0.0") or (.host_ip == "::");
+    # published is a STRING in the short form and a NUMBER in an unquoted long form.
+    def is_port_number: (type == "number") or ((type == "string") and test("^[0-9]+$"));
+    def port_text: tostring;
+    def is_ipv4: (type == "string") and test("^[0-9]{1,3}(\\.[0-9]{1,3}){3}$");
+    def is_wide_ip: (. == "::") or (is_ipv4 and (startswith("127.") | not));
+    def is_loopback_ip: (. == "::1") or (is_ipv4 and startswith("127."));
+    def binds_wide: (has("host_ip") | not) or (.host_ip | is_wide_ip);
+    def bind_unreadable: has("host_ip")
+        and ((.host_ip | is_wide_ip) or (.host_ip | is_loopback_ip) | not);
+
+    def is_unresolved: (type == "string") and test("\\$");
+    def host_nets: [ (.networks // {}) | to_entries[]
+                     | select(.value.name == "host" or .value.driver == "host") | .key ];
+    def unresolved_nets: [ (.networks // {}) | to_entries[]
+                           | select((.value.name | is_unresolved)
+                                    or (.value.driver | is_unresolved)) | .key ];
+    def attached: (.networks // {}) | if type == "object" then keys else . end;
 
     ($want | split(" ") | sort) as $wanted
+    | host_nets as $hostnets
+    | unresolved_nets as $unresolved
     | (.services // {}) as $svc
     | [ $svc | to_entries[] | select(((.value.ports // []) | length) > 0) ] as $pub
     | [ $pub[] | .key ] as $names
     | [ $pub[] | .value.ports[] ] as $entries
     | [ $entries[] | select(type == "object")
-        | select(has("published")) | select(.published | is_port_number) | .published ] as $readable
+        | select(has("published")) | select(.published | is_port_number)
+        | .published | port_text ] as $readable
 
     # A host-networked service listens on every host interface with ZERO ports entries,
     # so the publisher count above cannot see it. Measured: postgres with
@@ -129,6 +147,12 @@ out=$(jq -r --arg p "$dir" --arg edge "$EDGE_SERVICE" --arg want "$EXPECTED_PORT
     # at up time is not readable here.
     | [ $svc | to_entries[] | select(.value.network_mode != null)
         | "\(pp): HOST-NETWORK-OR-MODE service=\(.key|oneline) network_mode=\(.value.network_mode|oneline)" ]
+    + [ $svc | to_entries[] as $s | ($s.value | attached)[]
+        | select(. as $n | $hostnets | index($n))
+        | "\(pp): HOST-NETWORK-OR-MODE service=\($s.key|oneline) via=network:\(.|oneline)" ]
+    + [ $svc | to_entries[] as $s | ($s.value | attached)[] as $n
+        | select(($unresolved | index($n)) or ($n | is_unresolved))
+        | "\(pp): UNRESOLVED-NETWORK service=\($s.key|oneline) network=\($n|oneline)" ]
 
     # Refusals — untagged, so any one of them makes the whole run exit 2.
     + [ $entries[] | select(type != "object")
@@ -138,6 +162,8 @@ out=$(jq -r --arg p "$dir" --arg edge "$EDGE_SERVICE" --arg want "$EXPECTED_PORT
     + [ $entries[] | select(type == "object") | select(has("published"))
         | select((.published | is_port_number) | not)
         | "\(pp): UNREADABLE-PUBLISH published=\(.published|oneline)" ]
+    + [ $entries[] | select(type == "object") | select(bind_unreadable)
+        | "\(pp): UNJUDGED-BIND-IP host_ip=\(.host_ip|oneline)" ]
 
     # Findings — tagged.
     + [ select(($pub | length) != 1)

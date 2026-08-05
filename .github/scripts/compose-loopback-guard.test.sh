@@ -891,12 +891,19 @@ run override_alone_does_not_stop_the_walk 2 "$TMPROOT/walkup/only_override"
 # THE ARGUMENT IS A DIRECTORY, AND COMPOSE WILL NOT SAY SO. Measured: `--project-directory`
 # handed a FILE path exits 0 — compose reads it as a directory name, walks up to the parent
 # and judges that project, naming it `docker-composeyml`. So a caller still passing the old
-# file-path interface would receive a confident verdict about a different project. The guard
-# refuses before compose is invoked; this fixture is what makes that refusal removable-with-
-# a-red-suite rather than a matter of trust.
-run file_path_argument_refused 2 "$TMPROOT/clean/docker-compose.yml"
+# file-path interface would receive a confident verdict about a different project.
+#
+# BOTH ASSERT THE MESSAGE, NOT ONLY THE EXIT CODE, and that is not belt-and-braces. Measured
+# by mutation: with the `-d` branch deleted, both of these still exit 2 — the base-name check
+# behind it refuses a path that holds none of compose's four default names, and a file and a
+# missing path both hold none. So the exit code does not cross the `-d` branch at all, and a
+# fixture asserting only the exit code would have gone green on a guard that no longer had it.
+# What the branch actually buys is a true diagnosis: `no compose file in <…/docker-compose.yml>`
+# is a strange thing to say about a path that IS a compose file, and it points the reader at
+# the file's contents instead of at the interface they got wrong.
+run_lines file_path_argument_refused 2 1 'not a directory: .*docker-compose\.yml' "$TMPROOT/clean/docker-compose.yml"
 
-run missing_dir 2 "$TMPROOT/does-not-exist"
+run_lines missing_dir 2 1 'not a directory: .*does-not-exist' "$TMPROOT/does-not-exist"
 
 # ==========================================================================================
 # 8. THE DELIVERY ITSELF — not a fixture of the repo's project, the repo's project

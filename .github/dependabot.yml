@@ -318,6 +318,11 @@ updates:
       # Trivy in the blocking `images` job is a partial detector: it catches advisories,
       # never an upstream hardening that carries no CVE. Same reason `seq:latest` is
       # written out below — so nobody reads an entry as coverage it does not give.
+      #
+      # AND THE SAME MECHANISM `seq:latest` NAMES APPLIES TO BOTH ITS `FROM` TAGS: they are
+      # floating (`caddy:2-alpine`, `caddy:2-builder-alpine`) and not digest-pinned, so
+      # there is no version to compare and Dependabot has nothing to propose here at all
+      # until caddy 3 — not even for the base layer.
       - "/deploy/caddy"
     schedule:
       interval: "monthly"

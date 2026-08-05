@@ -32,19 +32,18 @@
 # internet-facing process in the stack, behind no CDN and no WAF.
 FROM caddy:2-builder-alpine AS build
 
-# --output is explicit because its absence is a SILENT failure: xcaddy writes ./caddy into
-# the builder's WORKDIR, which happens to be /usr/bin today. Move that WORKDIR and the COPY
-# below picks up the builder image's own stock binary instead — the build stays green and
-# produces a plausible image with the five advisories back.
+# --output writes to a path nothing else creates. The builder's own stock caddy sits at
+# /usr/bin/caddy, so producing there — or relying on the WORKDIR default, which is that
+# same directory — means a build that fails to produce a binary still yields a working
+# image built from the stock one, with all five advisories back. Writing to /out makes
+# that a hard COPY error.
 #
-# `--with` rather than `--replace`, also deliberate: --with adds a require, which under MVS
-# is a FLOOR and can only raise. --replace would be a ceiling and would silently hold these
-# versions down if caddy later required newer ones. It is off-label — xcaddy documents
-# --with for plugins — and it adds a blank import of each module root, which both of these
-# have. The measurement beats the documentation here, but the next person repairing a
-# module without an importable root will need --replace and should know why.
-RUN xcaddy build v2.11.4 \
-      --output /usr/bin/caddy \
+# --with, not --replace: --with adds a require, which under MVS is a floor and can only
+# raise. --replace is a ceiling and would hold these versions down if caddy later required
+# newer ones.
+RUN mkdir -p /out \
+    && xcaddy build v2.11.4 \
+      --output /out/caddy \
       --with golang.org/x/text@v0.39.0 \
       --with google.golang.org/grpc@v1.82.1
 
@@ -55,6 +54,6 @@ FROM caddy:2-alpine
 # that has a fix available upstream.
 RUN apk --no-cache upgrade
 
-COPY --from=build /usr/bin/caddy /usr/bin/caddy
+COPY --from=build /out/caddy /usr/bin/caddy
 
 COPY Caddyfile /etc/caddy/Caddyfile

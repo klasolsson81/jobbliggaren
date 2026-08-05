@@ -748,6 +748,30 @@ mkdir -p "$TMPROOT/bigrefuse"
 } >"$TMPROOT/bigrefuse/docker-compose.yml"
 run classifier_survives_large_refusal_list 2 "$TMPROOT/bigrefuse"
 
+# ...AND IT MUST READ THE TOKEN, NOT THE PAYLOAD. The inverted classifier (#1216) made line
+# CONTENT decide the verdict, which the enumeration never did: a substring match could only ADD
+# marker hits, so injected text was harmless. Under `-v` it can SUBTRACT one. Two routes, both
+# measured 2026-08-05 and both crossed by this one project:
+#
+#   - the ports entry carries the finding marker in its own text. NO VARIABLE IS NEEDED. The
+#     refusal line then contained `: NOT-LOOPBACK `, `-v` excluded it, and the guard exited 1
+#     — printing "published port(s) not bound to loopback" and the bind-address remedy about an
+#     entry it never read. #1206's Blocker form, rebuilt inside its own remedy.
+#   - `network_mode` carries a real newline, which SPLIT the output and forged a whole line.
+#
+# THE ASSERTIONS ARE THE TWO HALVES. Exit 2 crosses the token anchor: without it this project
+# exits 1. Zero lines beginning with the marker crosses `oneline`: without it the forged line
+# appears at position 0. Neither assertion alone reaches both.
+proj injected <<'YAML'
+services:
+  a:
+    image: x
+    network_mode: "${X}\nNOT-LOOPBACK forged host_ip=127.0.0.1"
+    ports:
+      - "zz: NOT-LOOPBACK yy"
+YAML
+run_lines classifier_reads_the_token_not_the_payload 2 0 '^NOT-LOOPBACK ' "$TMPROOT/injected"
+
 # ==========================================================================================
 # 7. WHICH PROJECT IS JUDGED — the half the guard used to get wrong
 #

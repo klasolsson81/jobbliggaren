@@ -334,6 +334,31 @@ for d in "${dirs[@]}"; do
   # read a bind address compose did not resolve, so it refuses. Letting jq crash on it would
   # refuse too — with a message blaming the model instead of naming the entry.
   out=$(jq -r --arg p "$d" '
+    # THE VERDICT TRAVELS ON A CHANNEL THE ARTEFACT CANNOT WRITE INTO. Findings — and only
+    # findings — carry U+0001 at position 0; every refusal producer is untagged, so a refusal
+    # class added later lands in the refusal set with no edit anywhere (#1216, stated as the
+    # rule rather than as a list). The token is stripped before anything is printed, so the
+    # message a reader sees is unchanged.
+    #
+    # WITHOUT IT THE CLASSIFIER READ THE PAYLOAD. Measured 2026-08-05, no variable needed:
+    #   ports: - "zz: NOT-LOOPBACK yy"
+    # emits an UNRESOLVED-ENTRY line whose own text contains the finding marker, so the
+    # inverted match excluded it and the guard exited 1 — printing "published port(s) not
+    # bound to loopback", and the bind-address remedy, about an entry it never read. That is
+    # #1206'"'"'s Blocker form, and it is a hole the INVERSION opened: under the enumeration a
+    # substring match could only ADD marker hits, never remove one.
+    #
+    # `oneline` IS THE SECOND HALF, not decoration. A value carrying a real newline splits the
+    # output and forges a whole line — measured on `network_mode`. Escaping the newline at the
+    # source closes it for every producer at once. It is deliberately NOT `tojson`: the printed
+    # text must stay byte-identical or every fixture regex in the suite moves with it, and the
+    # threat is only a line break, not quoting.
+    #
+    # `$p` COMES FROM ARGV AND IS NOT VALIDATED. A directory name may legally contain a
+    # newline; the anchor covers it without any check, because the forged line carries no
+    # token and is therefore a refusal. That is a property of the anchor, not a claim about
+    # the argument.
+    def oneline: tostring | gsub("\n"; "\\n") | gsub("\r"; "\\r");
     def is_ipv4: (type == "string") and test("^[0-9]{1,3}(\\.[0-9]{1,3}){3}$");
     def is_loopback: (. == "::1") or (is_ipv4 and startswith("127."));
     def is_wide: (. == "::") or (is_ipv4 and (startswith("127.") | not));
@@ -383,36 +408,36 @@ for d in "${dirs[@]}"; do
     | (.services // {}) as $svc
     | [ $svc | to_entries[]
         | select(.value.network_mode == "host")
-        | "\($p): HOST-NETWORKING service=\(.key) via=network_mode" ]
+        | "\($p): HOST-NETWORKING service=\(.key|oneline) via=network_mode" ]
     + [ $svc | to_entries[] as $s
         | ($s.value | attached)[]
         | select(. as $n | $hostnets | index($n))
-        | "\($p): HOST-NETWORKING service=\($s.key) via=network:\(.)" ]
+        | "\($p): HOST-NETWORKING service=\($s.key|oneline) via=network:\(.|oneline)" ]
     + [ $svc | to_entries[]
         | select(.value.network_mode | is_unresolved)
-        | "\($p): UNRESOLVED-NETWORK-MODE service=\(.key) network_mode=\(.value.network_mode)" ]
+        | "\($p): UNRESOLVED-NETWORK-MODE service=\(.key|oneline) network_mode=\(.value.network_mode|oneline)" ]
     + [ $svc | to_entries[] as $s
         | ($s.value | attached)[] as $n
         | select($unresolved | index($n))
-        | "\($p): UNRESOLVED-NETWORK-NAME service=\($s.key) network=\($n)" ]
+        | "\($p): UNRESOLVED-NETWORK-NAME service=\($s.key|oneline) network=\($n|oneline)" ]
     + [ $svc | to_entries[] as $s
         | ($s.value | attached)[] as $n
         | select($n | is_unresolved)
-        | "\($p): UNRESOLVED-NETWORK-REF service=\($s.key) network=\($n)" ]
+        | "\($p): UNRESOLVED-NETWORK-REF service=\($s.key|oneline) network=\($n|oneline)" ]
     + [ $svc | to_entries[] as $s
         | ($s.value.ports // [])[]
         | select(type != "object")
-        | "\($p): UNRESOLVED-ENTRY service=\($s.key) entry=\(. | tostring)" ]
+        | "\($p): UNRESOLVED-ENTRY service=\($s.key|oneline) entry=\(.|oneline)" ]
     + [ $svc | to_entries[] as $s
         | ($s.value.ports // [])[]
         | select(type == "object")
         | select(has("host_ip") and (((.host_ip | is_loopback) or (.host_ip | is_wide)) | not))
-        | "\($p): UNJUDGED-BIND-IP service=\($s.key) published=\(.published // "<ephemeral>") host_ip=\(.host_ip)" ]
+        | "\($p): UNJUDGED-BIND-IP service=\($s.key|oneline) published=\(.published // "<ephemeral>"|oneline) host_ip=\(.host_ip|oneline)" ]
     + [ $svc | to_entries[] as $s
         | ($s.value.ports // [])[]
         | select(type == "object")
         | select((has("host_ip") | not) or (.host_ip | is_wide))
-        | "\($p): NOT-LOOPBACK service=\($s.key) published=\(.published // "<ephemeral>") host_ip=\(.host_ip // "<absent>")" ]
+        | "\u0001\($p): NOT-LOOPBACK service=\($s.key|oneline) published=\(.published // "<ephemeral>"|oneline) host_ip=\(.host_ip // "<absent>"|oneline)" ]
     | .[]
   ' <<<"$model") || { echo "::error::compose-loopback-guard: could not read the resolved model for $d." >&2; exit 2; }
 
@@ -440,6 +465,16 @@ for d in "${dirs[@]}"; do
   fi
 done
 
+# THE TOKEN NEVER REACHES A READER. It exists so the classifier can read a field the artefact
+# cannot write into; the message is text and travels as text. Stripping here keeps the printed
+# output byte-identical to what it was before the token existed, which is why no fixture regex
+# in the suite moves with this change.
+#
+# NO TRAILING NEWLINE ADDED, and that is the reason for the `%` trim rather than a plain
+# herestring: `$violations` already ends in one, and a second produced a blank line before the
+# explanation. The trim removes exactly the newline the herestring puts back.
+strip_token() { sed $'s/^\001//' <<<"${violations%$'\n'}"; }
+
 if [ -n "$violations" ]; then
   # "could not answer" is exit 2 and must never collapse into exit 1. The markers below all
   # mean the guard did not READ the binding, not that it read it and it was wide.
@@ -453,17 +488,22 @@ if [ -n "$violations" ]; then
   # INVERTED, SO THE RULE IS THE MECHANISM AND NOT A LIST (#1216). The previous form
   # enumerated the refusal markers, which is the same shape that let a repair land on one seat
   # of three: a new marker had to be remembered in two places, and the second place is silent
-  # when forgotten. A refusal class added later would have fallen through to exit 1 — the
-  # guard announcing "not bound to loopback" about a state it never read, which is #1206's
-  # Blocker form. Now only a READ bind address is a finding, and everything else is a refusal
-  # by default, so a new marker needs no second edit.
+  # when forgotten. Now only a finding is a finding and everything else is a refusal by
+  # default, so a refusal class added later needs no second edit.
+  #
+  # ANCHORED ON THE TOKEN, NOT ON THE MARKER TEXT, and that is the repair rather than a
+  # refinement. Matching `': NOT-LOOPBACK '` read the PAYLOAD: a refusal line whose own text
+  # carried those characters was excluded and the guard exited 1 about an entry it never read
+  # (measured — `ports: - "zz: NOT-LOOPBACK yy"`, no variable required). jq now stamps U+0001
+  # at position 0 of findings and nothing else, and `oneline` stops a value forging a line
+  # break, so the artefact cannot write into the channel the verdict travels on.
   #
   # `|^$` IS LOAD-BEARING, NOT DEFENSIVE. `$violations` already ends in a newline and the
   # herestring appends its own, so the input carries a trailing BLANK line. Without `^$` the
   # `-v` match hits that blank line on every run and the guard exits 2 UNCONDITIONALLY —
   # including on `bare_mapping`, which is the one fixture that must stay exit 1 for this guard
   # to be worth running. Measured by `code-reviewer` on #1215 before the inversion was written.
-  if grep -qvE ': NOT-LOOPBACK |^$' <<<"$violations"; then
+  if grep -qvE $'^\001|^$' <<<"$violations"; then
     echo "::error::compose-loopback-guard: a published port is in a state this guard will not judge." >&2
     echo "HOST-NETWORKING publishes outside ports: entirely. UNRESOLVED-ENTRY is an entry compose" >&2
     echo "left as a raw string (an unexpanded variable, a hostname bind address)." >&2
@@ -476,13 +516,11 @@ if [ -n "$violations" ]; then
     echo "would assert a fact the guard has not established. All are refused, never passed." >&2
     echo "This list describes today's markers; the RULE is that anything which is not a bind" >&2
     echo "address the guard actually read lands here, so a marker not named above is one too." >&2
-    printf '%s' "$violations" >&2
+    strip_token >&2
     exit 2
   fi
   echo "::error::compose-loopback-guard: published port(s) not bound to loopback" >&2
-  # No trailing \n: `$violations` already ends in one, and printing a second produced a blank
-  # line before the explanation.
-  printf '%s' "$violations" >&2
+  strip_token >&2
   echo >&2
   echo "Every published port must name a loopback bind address (#1198)." >&2
   echo "host_ip=<absent> means compose read no bind address at all — it omits the key rather" >&2

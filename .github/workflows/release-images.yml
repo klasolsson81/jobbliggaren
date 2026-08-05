@@ -1,0 +1,137 @@
+# Publishes the five container images the production stack pulls (#196).
+#
+# NO PUSH TRIGGER, AND NO DISPATCH FROM `arm` — both were considered and both are refused
+# on measurement (senior-cto-advisor, 2026-08-05).
+#
+# `on: push: branches: [main]` never fires here: automerge merges as a GitHub App, and
+# app-triggered events start no workflow runs. Measured counterfactual on #1107 (app-merged,
+# zero runs) against #1108 (human-merged, run after 5 s).
+#
+# `repository_dispatch` from `label-automerge.yml`'s `arm` job was the obvious replacement
+# and is worse than it looks. `arm` runs when the gate labels are applied, which is not when
+# the merge lands: over the last 14 merged PRs, 7 of 12 gated merges landed 3.4 to 16.0
+# minutes after `arm` ran. In every one of those a dispatched build would check out a `main`
+# that does not contain the PR, push an identical digest, and report green — the failure
+# shape `delete-merged-branches.yml`'s header condemns in this same subsystem. It cannot be
+# fixed by dispatching later inside `arm` either: on the `--auto` branch the merge is
+# arbitrarily later than the job, and `arm` carries `timeout-minutes: 5` against a measured
+# lag reaching 956 s. And it is structurally blind to Dependabot, which merges through
+# `dependabot-automerge.yml` and never touches `label-automerge.yml` — precisely the PRs
+# that bump the base images going INTO these containers.
+#
+# So the trigger is a reconciler, which is the same answer `delete-merged-branches.yml`
+# reached for the same cause: the only mechanism whose trigger survives the condition it
+# exists to repair. The build is SHA-idempotent, so no trigger is load-bearing — a missed
+# schedule self-heals on the next one, and an extra trigger costs one manifest lookup.
+#
+# The owning session dispatches manually when it wants the image now; CLAUDE.md §6.5
+# already requires it to watch its PR to merge, so it is standing at the right moment.
+name: release-images
+
+on:
+  schedule:
+    # Hourly. A no-op run is one manifest lookup per image, and Actions on standard
+    # runners is free for public repositories.
+    - cron: "17 * * * *"
+  workflow_dispatch:
+
+# `packages: write` is what pushing to GHCR needs; nothing here writes to the repository.
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: release-images
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: ${{ matrix.name }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: api, context: ".", file: "src/Jobbliggaren.Api/Dockerfile" }
+          - { name: worker, context: ".", file: "src/Jobbliggaren.Worker/Dockerfile" }
+          - { name: migrate, context: ".", file: "src/Jobbliggaren.Migrate/Dockerfile" }
+          - { name: web, context: "web/jobbliggaren-web", file: "web/jobbliggaren-web/Dockerfile" }
+          - { name: caddy, context: "deploy/caddy", file: "deploy/caddy/Dockerfile" }
+
+    steps:
+      # ALWAYS main, never the triggering ref. The build answers "what is on main now",
+      # not "what did some event think was on main" — which is what makes re-running it
+      # harmless and a missed trigger recoverable.
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+
+      - name: Resolve tag from main HEAD
+        id: tag
+        run: |
+          sha=$(git rev-parse --short HEAD)
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          echo "image=ghcr.io/${GITHUB_REPOSITORY,,}-${{ matrix.name }}" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # THE IDEMPOTENCE, and it is what removes the trigger from the critical path. If the
+      # digest for this SHA is already published there is nothing to do — the hourly run
+      # costs one manifest lookup and exits. `|| true` because a missing manifest is the
+      # expected answer, not an error.
+      - name: Skip if this SHA is already published
+        id: published
+        run: |
+          if docker manifest inspect "${{ steps.tag.outputs.image }}:sha-${{ steps.tag.outputs.sha }}" >/dev/null 2>&1; then
+            echo "already=true" >> "$GITHUB_OUTPUT"
+            echo "sha-${{ steps.tag.outputs.sha }} is already published; nothing to build."
+          else
+            echo "already=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: docker/setup-buildx-action@v4
+        if: steps.published.outputs.already == 'false'
+
+      # Built and LOADED, not pushed. The scan below is the gate, and a gate that runs
+      # after the push is not a gate — a public image is a public CVE inventory.
+      - name: Build ${{ matrix.name }}
+        if: steps.published.outputs.already == 'false'
+        uses: docker/build-push-action@v7
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.file }}
+          push: false
+          load: true
+          tags: ${{ steps.tag.outputs.image }}:sha-${{ steps.tag.outputs.sha }}
+          cache-from: type=gha,scope=release-${{ matrix.name }}
+          cache-to: type=gha,scope=release-${{ matrix.name }},mode=min
+          build-args: |
+            NEXT_PUBLIC_SITE_URL=${{ vars.NEXT_PUBLIC_SITE_URL }}
+
+      # BLOCKING, and it is #196's own acceptance criterion: an image scanner in the
+      # blocking gate before GHCR publishing goes live. `format: table` deliberately —
+      # `sarif` ignores `exit-code` silently. No `continue-on-error`.
+      - name: Trivy ${{ matrix.name }}
+        if: steps.published.outputs.already == 'false'
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: ${{ steps.tag.outputs.image }}:sha-${{ steps.tag.outputs.sha }}
+          format: table
+          exit-code: "1"
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+
+      # Two tags, and `sha-<short>` is the one that matters: it is the rollback handle the
+      # box pins in its `.env`. `latest` is what an unpinned reconcile pulls.
+      - name: Push ${{ matrix.name }}
+        if: steps.published.outputs.already == 'false'
+        run: |
+          docker tag "${{ steps.tag.outputs.image }}:sha-${{ steps.tag.outputs.sha }}" \
+                     "${{ steps.tag.outputs.image }}:latest"
+          docker push "${{ steps.tag.outputs.image }}:sha-${{ steps.tag.outputs.sha }}"
+          docker push "${{ steps.tag.outputs.image }}:latest"

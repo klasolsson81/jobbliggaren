@@ -1,0 +1,49 @@
+# Build context for the web image is this directory (the root .dockerignore
+# excludes `web/` entirely and does not apply here).
+#
+# The secret patterns below are deliberately WIDER than the repo .gitignore rather
+# than a copy of it: this file decides what reaches an image layer, and a layer is
+# published. `.env*` replaces three named spellings, and every pattern carries `**/`
+# so a nested match is caught too — a Docker pattern without a slash matches the
+# context root only. Closing the gap costs one prefix, and measuring whether anything
+# currently sits in it cannot be done from a worktree: gitignored files are absent
+# from a fresh checkout, so "none found" and "none visible" are the same result.
+
+# Installed and built output — the image builds both itself.
+node_modules/
+.next/
+out/
+.turbo/
+**/*.tsbuildinfo
+
+# Tests and their artefacts — not in the image. The Playwright specs live under
+# `tests/e2e/`, so `tests/` already covers them; there is no top-level `e2e/`.
+tests/
+playwright-report/
+test-results/
+coverage/
+.lighthouseci/
+**/*.test.ts
+**/*.test.tsx
+**/*.test.mjs
+vitest.config.ts
+playwright.config.ts
+
+# Secrets and local-only files — must never reach a layer.
+**/.env*
+**/*.local.ts
+**/*.local.json
+**/*.pem
+**/*.key
+
+# Tooling and docs.
+.vscode/
+.idea/
+*.md
+lighthouserc*
+scripts/visual-verify.ts
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini

@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   PERMISSIONS_POLICY,
+  STRICT_TRANSPORT_SECURITY,
   buildContentSecurityPolicy,
   buildSecurityHeaders,
 } from "./security-headers";
@@ -100,13 +101,14 @@ describe("buildSecurityHeaders", () => {
   const headers = buildSecurityHeaders(false);
   const byKey = Object.fromEntries(headers.map((h) => [h.key, h.value]));
 
-  it("serves exactly the five security headers", () => {
+  it("serves exactly the six security headers in production", () => {
     expect(headers.map((h) => h.key)).toEqual([
       "Content-Security-Policy",
       "X-Frame-Options",
       "X-Content-Type-Options",
       "Referrer-Policy",
       "Permissions-Policy",
+      "Strict-Transport-Security",
     ]);
   });
 
@@ -129,6 +131,22 @@ describe("buildSecurityHeaders", () => {
     );
     expect(devByKey["Content-Security-Policy"]).toBe(
       buildContentSecurityPolicy(true)
+    );
+  });
+
+  it("emits HSTS in production with the max-age ADR 0050 prescribes", () => {
+    // Asserted against the literal rather than against the exported constant: a
+    // test that compares the module to itself passes whatever the value drifts to,
+    // and this value is half of a two-emitter contract.
+    expect(byKey["Strict-Transport-Security"]).toBe(
+      "max-age=31536000; includeSubDomains"
+    );
+    expect(STRICT_TRANSPORT_SECURITY).toBe(byKey["Strict-Transport-Security"]);
+  });
+
+  it("omits HSTS on the dev branch (localhost is http, no certificate)", () => {
+    expect(buildSecurityHeaders(true).map((h) => h.key)).not.toContain(
+      "Strict-Transport-Security"
     );
   });
 });

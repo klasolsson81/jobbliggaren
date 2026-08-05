@@ -1501,14 +1501,23 @@ Ny deploy-pipeline mot **Hetzner** byggs vid cutover (ADR 0050: Compose-push til
 
 ### 15.4 Deployment-strategi (ADR 0050)
 
-Topologin (Hetzner CAX31 single-box **BE + FE** + Cloudflare) är beslutad; den
-exakta deploy-mekaniken (Compose-pull/re-up-ordning, migrations-ordning via
-`Jobbliggaren.Migrate`, rollback) detaljeras i Hetzner-fas-arbetet ([#196](https://github.com/klasolsson81/jobbliggaren/issues/196)). FE-containern bör få sin egen healthcheck i Compose ([#196](https://github.com/klasolsson81/jobbliggaren/issues/196)).
-**Rollback-modell (ADR 0050):** lokal Docker-Compose-stack är
-paritets-baselinen (samma image-byggväg som Hetzner-prod) — misslyckad cutover =
-återgå till lokal-dev + ej-cutad DNS (Cloudflare). DNS-cutover är den enda
-reversibla/irreversibla flippen; tills den sker påverkas ingen live-trafik.
-Health-check-kravet `/api/ready` → 200 inom 30 s består oavsett plattform.
+Topologin är en **Netcup RS 1000 G12** (x86, 4 kärnor, 8 GB) som kör hela stacken
+som en Compose-projekt-katalog, **utan CDN** — Hetzner och Cloudflare är av bordet
+sedan Klas-beslut 2026-08-04 (ADR 0050 `Amendment 2026-08-04`, kapacitetstabellen i
+ADR 0122). Kanten är Caddy med Let's Encrypt via HTTP-01 direkt; **Option B** gäller
+oförändrat, alltså går all trafik genom Next och API:t är aldrig edge-exponerat.
+
+Deploy-mekaniken i sin helhet — first-boot-ordning, migrationsgrind via
+`Jobbliggaren.Migrate`, hälsokontroller, nftables-`forward`-deltat och
+cutover-bevisen — står i [`docs/runbooks/vps-deploy-stack.md`](docs/runbooks/vps-deploy-stack.md);
+den återupprepas inte här. Images byggs i CI och **aldrig på lådan** (kapacitetsvillkor
+1); lådan hämtar dem ur GHCR.
+
+**Rollback-modell:** image-tagg. Pinna föregående `sha-<short>` i boxens `.env` och kör
+reconcile — sekunder. En Netcup-snapshot är **inte** deploy-rollback (copy-on-write,
+kräver 50 % ledigt disk, endast offline-snapshots är konsistenta); dess roll är **före en
+migration**, när riktig användardata väl finns. Health-check-kravet `/api/ready` → 200
+inom 30 s består oavsett plattform.
 
 ---
 
@@ -1518,7 +1527,7 @@ Health-check-kravet `/api/ready` → 200 inom 30 s består oavsett plattform.
 
 - Postgres-storage (`Hangfire.PostgreSql`)
 - Dashboard på `/hangfire` skyddad med Admin-roll
-- Dedicerad worker-process (separat från Api — egen container i Docker Compose-stacken på Hetzner CAX31, ADR 0050)
+- Dedicerad worker-process (separat från Api — egen container i Compose-stacken på Netcup-lådan, ADR 0050 + dess `Amendment 2026-08-04`)
 
 ### 16.2 Schedulerade jobb
 

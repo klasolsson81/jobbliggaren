@@ -8,7 +8,7 @@ FROM mcr.microsoft.com/dotnet/sdk:10.0-noble AS build
 WORKDIR /src
 
 # Centralt versions-filer + sln (kopieras först för bättre layer-cache).
-COPY global.json Directory.Build.props Directory.Packages.props Jobbliggaren.sln ./
+COPY global.json Directory.Build.props Directory.Packages.props Jobbliggaren.sln .editorconfig ./
 
 # csproj först (cache restore om bara kod ändras).
 COPY src/Jobbliggaren.Domain/Jobbliggaren.Domain.csproj src/Jobbliggaren.Domain/
@@ -34,28 +34,13 @@ RUN dotnet publish src/Jobbliggaren.Api/Jobbliggaren.Api.csproj \
 # Stage 2: runtime
 # .NET 10 ASP.NET-image. Default `app`-user (uid 1654) är non-root sedan .NET 8.
 #
-# Ingen Docker HEALTHCHECK och ingen curl-installation:
-#   - Fargate respekterar inte Docker HEALTHCHECK (per AWS-docs — bara EC2-launch-type)
-#   - ECS task-def har egen healthCheck-block som är den auktoritativa health-check
-#   - ALB target-group har egen health-check mot /api/ready
-#   - Lokal `docker run` kan testas via `curl` från host istället
-# Mindre image-storlek + mindre attack-yta.
+# Ingen Docker HEALTHCHECK och ingen curl-installation. Skälet var ECS/ALB-format och
+# stacken revs (ADR 0066); det som bär beslutet nu är att `deploy/docker-compose.yml`
+# äger hälsokontrollen och probar `/api/ready` per tjänst. Att låta imagen förbli
+# verktygsfri är mindre attack-yta — proben i compose använder bashens `/dev/tcp`
+# just för att slippa installera curl här.
 # ---------------------------------------------------------------------------
 FROM mcr.microsoft.com/dotnet/aspnet:10.0-noble AS runtime
-
-# AWS-residual: RDS CA-bundle för TLS-validering mot Postgres (TD-38-eran).
-# Motiveringen som stod här — "täcker alla AWS-regions för portability
-# dev→staging→prod" — gäller inte längre: AWS-stacken revs 2026-05-26 (ADR 0066)
-# och Secrets Manager-vägen är borta med den. COPY:n är kvar tills #196 (TD-106)
-# bygger om imagen för Hetzner, där cert-strategin avgörs (privat bridge utan TLS,
-# eller intern CA + VerifyFull) — samma ägare och samma villkor som Migrate-imagens.
-# Rör den inte i en städ-PR: #808 verifierade att alla tre Dockerfiles COPY:ar den
-# och att .dockerignore bär negationer för just det, medan den enda docker build i
-# CI pekar på pre-rename-sökvägar. Skyddet är dessutom dubbelt: den workflowen är
-# `workflow_dispatch`-only sedan 2026-06-28, så ingen `docker build` körs i CI
-# överhuvudtaget. En radering går alltså GRÖN av två oberoende skäl och faller
-# först vid Hetzner-cutovern.
-COPY infra/certs/rds-global-bundle.pem /etc/ssl/certs/rds-global-bundle.pem
 
 WORKDIR /app
 COPY --from=build /app/publish .

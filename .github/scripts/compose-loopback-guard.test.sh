@@ -1275,10 +1275,12 @@ readonly COMPOSE_FILE_PATTERN='(^|/)(docker-)?compose([.-][A-Za-z0-9_.-]+)?\.ya?
 # second entry is doing it under a red build, so the ordering rule is written here rather than
 # left to be re-derived.
 readonly GATED_COMPOSE_FILES='docker-compose.yml'
-# Tracked, known, and judged by nothing here. #196's `deploy/docker-compose.yml` is the
-# expected first entry — it owes its OWN predicate (a reverse proxy must publish 80/443 wide),
-# so pointing this suite at it would be wrong rather than merely insufficient.
-readonly UNJUDGED_COMPOSE_FILES=''
+# Tracked, known, and judged by nothing HERE — which is not the same as unjudged. #196's
+# `deploy/docker-compose.yml` arrived as this column predicted, and pointing this suite at it
+# would have been wrong rather than merely insufficient: its edge must publish 80/443 WIDE,
+# which is exit 1 under this predicate. It is judged by `compose-edge-publish-guard.sh` and
+# its own fixture suite, which run from the same `scripts` job.
+readonly UNJUDGED_COMPOSE_FILES='deploy/docker-compose.yml'
 
 # `|| true` IS LOAD-BEARING. `grep` exits 1 when nothing matches; under `set -o pipefail`
 # that becomes the substitution's status and `set -e` would kill the whole suite ON THIS LINE

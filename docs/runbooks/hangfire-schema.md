@@ -16,9 +16,9 @@ Hangfire-storage är PostgreSQL via `Hangfire.PostgreSql`. Schema-namnet är
 **STEG 6 Plan B-uppdatering 2026-05-24:** `ConnectionStrings__HangfireStorage`
 konsumeras av BÅDA Worker-processen (jobb-execution via `HangfireServer`) OCH
 Api-processen (`IBackgroundJobClient.Enqueue` för admin-endpoint
-`/api/v1/admin/job-ads/backfill-ssyk`). Rollen `jobbpilot_worker` förblir
-hangfire-only (PUBLIC revoke:ad, ingen `jobbpilot_app`-inheritance — se §4).
-Roll-namnet är legacy; renamning planerad i STEG 14 prod-DDL-cutover (TD-99).
+`/api/v1/admin/job-ads/backfill-ssyk`). Rollen `jobbliggaren_worker` förblir
+hangfire-only (PUBLIC revoke:ad, ingen `jobbliggaren_app`-inheritance — se §4).
+Suffixet `_worker` är missvisande för en hangfire-only-roll som BÅDA processerna bär credentialen till. Ingen renamning är planerad i denna deploy (CTO-dom 2026-08-05); frågan ägs av [#1222](https://github.com/klasolsson81/jobbliggaren/issues/1222).
 
 **Två schema-lifecycle-strategier:**
 
@@ -73,7 +73,7 @@ cat $INSTALL_SQL | head -20  # eller: Get-Content $installSql -TotalCount 20
 **Steg 2 — kör som migrations-user (DDL-rättigheter):**
 
 ```bash
-psql "host=<rds-endpoint> dbname=jobbpilot user=jobbpilot_migrations" \
+psql "host=postgres dbname=jobbliggaren user=jobbliggaren_migrations" \
     -v SchemaName=hangfire \
     -f $INSTALL_SQL
 ```
@@ -101,34 +101,34 @@ ORDER BY tablename;
 -- Postgres-default ger PUBLIC-rollen läsbara-yta på new schemas. Måste explicit revokeas
 -- så framtida roller inte ärver Hangfire-access via PUBLIC-medlemskap.
 REVOKE ALL ON SCHEMA hangfire FROM PUBLIC;
-REVOKE ALL ON DATABASE jobbpilot FROM PUBLIC;
+REVOKE ALL ON DATABASE jobbliggaren FROM PUBLIC;
 
 -- STEG 1 — Migrations-roll: kör Install.sql + framtida schema-uppgraderingar.
 -- CREATE bara på hangfire-schemat (inte hela databasen) — least-privilege.
-CREATE ROLE jobbpilot_migrations LOGIN PASSWORD '<from-secrets-manager>';
-GRANT CONNECT ON DATABASE jobbpilot TO jobbpilot_migrations;
-GRANT CREATE, USAGE ON SCHEMA hangfire TO jobbpilot_migrations;
+CREATE ROLE jobbliggaren_migrations LOGIN PASSWORD '<from deploy/.env>';
+GRANT CONNECT ON DATABASE jobbliggaren TO jobbliggaren_migrations;
+GRANT CREATE, USAGE ON SCHEMA hangfire TO jobbliggaren_migrations;
 
 -- (En gång vid bootstrap, om hangfire-schemat inte ännu existerar:)
---   som postgres/superuser:  CREATE SCHEMA hangfire AUTHORIZATION jobbpilot_migrations;
+--   som postgres/superuser:  CREATE SCHEMA hangfire AUTHORIZATION jobbliggaren_migrations;
 -- Därefter behöver migrations-rollen aldrig CREATE ON DATABASE.
 
 -- STEG 2 — Worker runtime-roll: bara DML på hangfire.* (TD-17 punkt 4).
-CREATE ROLE jobbpilot_worker LOGIN PASSWORD '<from-secrets-manager>';
-GRANT CONNECT ON DATABASE jobbpilot TO jobbpilot_worker;
-GRANT USAGE ON SCHEMA hangfire TO jobbpilot_worker;
-GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA hangfire TO jobbpilot_worker;
-GRANT USAGE, SELECT, UPDATE ON ALL SEQUENCES IN SCHEMA hangfire TO jobbpilot_worker;
+CREATE ROLE jobbliggaren_worker LOGIN PASSWORD '<from deploy/.env>';
+GRANT CONNECT ON DATABASE jobbliggaren TO jobbliggaren_worker;
+GRANT USAGE ON SCHEMA hangfire TO jobbliggaren_worker;
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA hangfire TO jobbliggaren_worker;
+GRANT USAGE, SELECT, UPDATE ON ALL SEQUENCES IN SCHEMA hangfire TO jobbliggaren_worker;
 
 -- STEG 3 — Default privileges för framtida tabeller (skapade av migrations-roll).
--- Krav: alla framtida hangfire-DDL i prod MÅSTE köras som jobbpilot_migrations
--- (annars ärver jobbpilot_worker inte rättigheter på nya tabeller/sequencer).
-ALTER DEFAULT PRIVILEGES FOR ROLE jobbpilot_migrations
+-- Krav: alla framtida hangfire-DDL i prod MÅSTE köras som jobbliggaren_migrations
+-- (annars ärver jobbliggaren_worker inte rättigheter på nya tabeller/sequencer).
+ALTER DEFAULT PRIVILEGES FOR ROLE jobbliggaren_migrations
     IN SCHEMA hangfire
-    GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO jobbpilot_worker;
-ALTER DEFAULT PRIVILEGES FOR ROLE jobbpilot_migrations
+    GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO jobbliggaren_worker;
+ALTER DEFAULT PRIVILEGES FOR ROLE jobbliggaren_migrations
     IN SCHEMA hangfire
-    GRANT USAGE, SELECT, UPDATE ON SEQUENCES TO jobbpilot_worker;
+    GRANT USAGE, SELECT, UPDATE ON SEQUENCES TO jobbliggaren_worker;
 ```
 
 **ConnectionStrings split (TD-17 punkt 4):**
@@ -140,8 +140,8 @@ en per Hangfire-yta. Lateral access-yta minskar.
 // appsettings.Production.json (overlay) eller AWS Secrets Manager
 {
   "ConnectionStrings": {
-    "Postgres": "Host=...;Database=jobbpilot;Username=jobbpilot_app;Password=...",
-    "HangfireStorage": "Host=...;Database=jobbpilot;Username=jobbpilot_worker;Password=..."
+    "Postgres": "Host=...;Database=jobbliggaren;Username=jobbliggaren_app;Password=...",
+    "HangfireStorage": "Host=...;Database=jobbliggaren;Username=jobbliggaren_worker;Password=..."
   }
 }
 ```

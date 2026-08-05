@@ -249,13 +249,14 @@ builder.Services.AddHangfire(cfg => cfg
         // lease via heartbeat instead of being re-fetched at the 30-min invisibility ceiling).
         HangfireStorageOptionsFactory.Create(hangfireOpts.PrepareSchemaIfNecessary)));
 
-// Worker-count explicit satt. Skälet var ursprungligen att Fargate gav 1 vCPU och
+// Worker-count explicit satt. Skälet var ursprungligen att Fargate-tasken gav 0,25 vCPU och
 // därmed ProcessorCount=1; den plattformen är riven, och vad containern får på den nya
 // värden är inte avgjort i den här filens räckvidd (#196 äger resurstilldelningen). 4 är
 // valt för IO-bundna Mediator-jobb och är explicit just för att inte följa värdens
 // kärnantal.
 //
-// ShutdownTimeout ligger strax under orkestratorns grace-period så Hangfire hinner
+// ShutdownTimeout ligger 3 s under host disposal, som i sin tur måste ligga under
+// orkestratorns grace-period, så Hangfire hinner
 // committa job-state innan SIGKILL (TD-17 punkt 6). Grace-perioden är INTE satt i
 // repot ännu — den ägs av #196, som levererar compose-stacken; tills dess står 25 s mot
 // ett kontrakt som ingen fil bär. Alla jobb är idempotenta — vid abort plockar nästa

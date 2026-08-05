@@ -49,7 +49,7 @@ COPY --from=build /app/publish .
 USER app
 
 # Inga portar. Inga HEALTHCHECK — Hangfire-processen är sin egen liveness-signal, och
-# orkestratorn läser health ur container exit code (process-crash → restart).
+# liveness uttrycks i compose som healthcheck + restart-policy, som #196 äger.
 #
 # SIGTERM-handling: Hangfire ShutdownTimeoutSeconds=25 (per appsettings.Production.json),
 # host disposal 28 s, och därefter orkestratorns grace-period innan SIGKILL. Den sista

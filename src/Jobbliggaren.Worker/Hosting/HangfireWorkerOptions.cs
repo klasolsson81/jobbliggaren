@@ -9,8 +9,9 @@ namespace Jobbliggaren.Worker.Hosting;
 ///     användarens GRANT-set blir minimal utanför dev (DML-only på
 ///     <c>hangfire.*</c>); schema-DDL körs via runbook
 ///     <c>docs/runbooks/hangfire-schema.md</c> innan deploy.</item>
-///   <item><see cref="ShutdownTimeoutSeconds"/> — deliberately just under the
-///     orchestrator's grace period, so Hangfire commits job state before SIGKILL.
+///   <item><see cref="ShutdownTimeoutSeconds"/> — 3 s under host disposal, which
+///     must in turn sit under the orchestrator grace period, so Hangfire commits job
+///     state before SIGKILL.
 ///     Range 1-300, default 25 s. THE VALUE IS DERIVED, NOT CHOSEN — and the thing it
 ///     is derived from is not in this repository yet: no compose file here declares a
 ///     worker service or a grace period, and #196 owns both. Until it lands, 25 s sits

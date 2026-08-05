@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 #
-# compose-loopback-guard.sh — every published port in docker-compose.yml must bind to
-# localhost.
+# compose-loopback-guard.sh — every published port in a compose file must bind to loopback.
 #
 # WHY THIS EXISTS, and why a comment was not enough. Until #1198 the dev compose file bound
 # five of six published ports to `0.0.0.0` — including a Seq instance running with
@@ -9,46 +8,149 @@
 # COMMENT STATED IT WAS LOOPBACK-BOUND. That comment was wrong for months and no reader
 # caught it. Human reading is measured, on this exact file, not to cover this class.
 #
-# WHAT IT DOES AND DOES NOT PROVE. THIS PARAGRAPH HAS BEEN FALSE THREE TIMES, every time
-# because it claimed a universal — "refuses every shape it does not model". Four review
-# rounds each produced one more legal spelling it passed silently. So the universal is gone
-# and what stands is what the mechanism delivers:
+# IT READS COMPOSE'S OWN RESOLVED MODEL, NOT THE FILE. The predecessor was a YAML parser
+# written in awk, and four review rounds each produced one more legal spelling it passed
+# silently — a quoted key, `? ports`, a flow sequence, a long-form mapping. `docker compose
+# config` normalises every one of those to a single shape before the guard sees it, so the
+# guard has no YAML parser and therefore no spelling to miss. That is the whole reason it
+# exists in this form.
 #
-#   It reads `ports:` block sequences — both indentation styles, quoted or unquoted key —
-#   fails on any entry there that is not loopback-bound, and refuses rather than passes the
-#   entry shapes and port-relocating constructs it knows it cannot read. A LOOSE second
-#   detector makes the KEY axis fail closed by DIVERGENCE rather than by enumeration, which
-#   is the only part of this that generalises beyond the spellings already found.
+# WHAT THE REBUILD MADE STRICTER, measured 2026-08-04/05 against Compose v2.40.3. Shapes the
+# awk parser could only REFUSE (exit 2 — the reader learns nothing) are now CAUGHT (exit 1,
+# naming service and port): `? ports`, quoted keys, flow sequences, long-form mappings, and
+# `[::]:`. `include:` and `extends:` were refused as PORTS-OUT-OF-VIEW because their ports
+# live in another file; compose resolves both and inlines the ports, so that refusal class is
+# gone and those ports are now checked. Host networking is the one refusal that stays: it
+# publishes through no `ports:` key at all, so a ports check is structurally blind to it.
 #
-# DO NOT RESTORE A UNIVERSAL HERE. When the next shape gets through, refuse it and leave
-# this paragraph specific. A guard that overstates its coverage is precisely the defect
-# #1198 was, and writing the stronger sentence is what kept reintroducing it.
+# HOST NETWORKING HAS TWO ROUTES AND THE OBVIOUS ONE IS NOT THE ONLY ONE. `network_mode: host`
+# is the spelling everyone knows. The second is a service attached to a top-level network that
+# resolves to the Docker network named `host` — `hostnet: {external: true, name: host}`, or
+# just `host: {external: true}`, which compose fills in as `name: "host"`. That service gets
+# host networking with **no `network_mode` key in its model at all**. Measured 2026-08-05, and
+# measured against the awk predecessor too: it exits 0 on the same file, so this is a gap that
+# predates the rewrite rather than one the rewrite opened. Closed here because this header
+# claims host networking is refused, and a guard that overstates its coverage is the #1198
+# defect. A network written `name: host` WITHOUT `external:` is refused on the same rule: the
+# guard cannot certify what compose would do with a name that collides with the built-in.
 #
-# It proves NOTHING about what is actually listening: ADR 0050 `Amendment 2026-08-04` §5's point "Ingen container publicerar till
-# 0.0.0.0" demands a `curl` from outside at cutover, and that requirement is untouched
-# here. The two answer different questions — "did the file change back?" versus "what is
-# running?" — and neither substitutes for the other.
+# THE PREDICATE HAS TWO HALVES AND NEEDS BOTH:
+#   - a bare `5435:5432`  -> the `host_ip` key is ABSENT (compose does not emit `0.0.0.0`)
+#   - `0.0.0.0:5435:5432` -> `host_ip: "0.0.0.0"`, present and wide
+# Checking only the value passes the first; checking only presence passes the second. So
+# absence IS the violation, and so is a present-but-wide value.
 #
-# SHAPE-BASED, NOT NAME-BASED. It knows no service names and no port numbers; it finds
-# `ports:` keys and checks every list item under them. A new service, a new port or a
-# rename is covered on arrival, which a hand-maintained list of expected ports would not be.
+# WHAT IT DECIDES AND WHAT IT REFUSES TO DECIDE — specific, not a universal:
+#   IPv4 it decides in full. 127.0.0.0/8 is loopback (RFC 1122), so `127.0.0.2` passes; any
+#   other dotted quad, `0.0.0.0` included, is a violation.
+#   IPv6 it decides in exactly two spellings: `::1` passes and `::` is a violation. EVERY
+#   OTHER IPv6 SPELLING IS REFUSED (exit 2), NOT JUDGED. Measured: compose strips the brackets
+#   but does NOT normalise the address, so `[0:0:0:0:0:0:0:1]` arrives as
+#   `0:0:0:0:0:0:0:1` — and that address IS loopback. Calling it "not bound to loopback" would
+#   be asserting a fact this guard has not established, which is #1198's own defect one level
+#   down. Deciding it needs IPv6 expansion the guard does not do, so it says so instead of
+#   guessing. The refusal UNDER-claims on `[fe80::1]`, and that is the intended side of the
+#   error: the refused class holds genuine loopback AND genuine wildcards (`[::0]`,
+#   `[0:0:0:0:0:0:0:0]`, `[::ffff:0.0.0.0]` all land there, measured), and no member of it
+#   exits 0. It costs precision, never permissiveness.
 #
-# `--expect-min N` IS LOAD-BEARING, NOT A CONVENIENCE. Shape alone cannot tell "all ports
-# are loopback-bound" from "I found no ports". The floor is what turns a pass into "and it
-# still publishes at least N", and it is the backstop for any shape the parser misses. With
-# no floor given, a run that recognises zero entries is REFUSED — `--expect-min 0` is the
-# only way to say "zero is expected", and it must be said explicitly.
+# DO NOT REPLACE THAT PARAGRAPH WITH A UNIVERSAL. The predecessor's header claimed "refuses
+# every shape it does not model" three times and was false three times. When a shape gets
+# through, refuse it and leave this paragraph specific.
+#
+# IT PROVES NOTHING ABOUT WHAT IS LISTENING. ADR 0050 `Amendment 2026-08-04` §5's point
+# "Ingen container publicerar till 0.0.0.0" requires a `curl` from outside at cutover, and
+# that requirement is untouched here. "Did the file change back?" and "what is running?" are
+# different questions and neither substitutes for the other.
+#
+# SHAPE-BASED IN HOW IT READS A FILE, NAME-BASED IN WHICH FILE IT READS — and the second half
+# is a real limit, not a quibble. Inside a file it knows no service names and no port numbers,
+# so a new service, port or rename is covered on arrival. But the file SET is a hardcoded
+# path, and compose's own project resolution is wider than that path in at least two measured
+# ways: `docker compose up` auto-loads a sibling `docker-compose.override.yml` that `-f`
+# suppresses, and a committed `compose.yaml` OUTRANKS `docker-compose.yml` entirely — bare
+# `docker compose config` then reads only the shadowing file while this guard still reports
+# OK on the one nobody runs. Both predate this rewrite (the awk predecessor exits 0 on both)
+# and neither is fixed here: closing them means judging a PROJECT rather than a FILE, which
+# reverses this file's own "ONE INVOCATION PER FILE, deliberately" and is a separate change.
+# What IS here is the tripwire in the suite: the set of TRACKED compose files is asserted
+# against a known list, so a new one turns the suite RED instead of arriving silently. It
+# makes the file NOTICED, never JUDGED — it decides nothing about any file's contents — and
+# it matches on a NAME pattern, so a file called something else (`stack.yml`,
+# `deploy/compose/prod.yml`) is invisible to it, exactly as it is to compose without `-f`.
+#
+# THE RESIDUAL THIS REBUILD INTRODUCES, named rather than left implicit: the answer now
+# depends on a compose CLI VERSION as well as on the file. Every normalisation above is
+# behaviour of the binary on the runner, and nothing in this repo pins it. That is a
+# DIFFERENT risk from the one being retired (a parser that missed spellings), not a smaller
+# version of it.
+#
+# AND IT IS DATED, NOT HYPOTHETICAL. Measured 2026-08-05 from actions/runner-images: the
+# `ubuntu-latest` image (24.04) carries Docker Compose **2.38.2**, and the 26.04 image already
+# in public preview carries **5.1.3** — a major version. `-latest` migrations are gradual and
+# GitHub states they can change the OS under a workflow, so this repo will cross that boundary
+# without editing a file. The measurements this guard was written against are Compose 2.40.3.
+#
+# WHAT CARRIES MOST OF THAT RISK IS FAIL-CLOSURE, NOT FIXTURE COVERAGE — ON THE PORTS AXIS.
+# There, a model shape this guard does not recognise becomes a violation or a refusal, never
+# a pass: rename or move `host_ip` and `has("host_ip")` goes false for EVERY entry, so every
+# entry falls to NOT-LOOPBACK and the `clean` fixture falls with them; drop `config` or
+# `--no-interpolate` and it is exit 2; change the JSON shape and it is exit 2. That is a
+# property of the predicate and does not depend on the suite crossing the right thing.
+#
+# THE HOST-NETWORKING AXIS IS NOT FAIL-CLOSED AND MUST NOT BE READ AS IF IT WERE. Its two
+# detections are NAME LOOKUPS — `network_mode == "host"`, and a network whose resolved `name`
+# is `host` — so a compose release that stopped filling `name` in from the key, or renamed
+# `network_mode`, would turn them into silent passes rather than refusals. The fixtures are
+# the ONLY thing covering that axis.
+#
+# AND THAT WEAKNESS WAS PRESENT TENSE, NOT PROSPECTIVE, FOR TWO REVISIONS OF THIS PARAGRAPH.
+# A literal comparison is defeated by a variable, and all three seats of the axis were
+# measured exiting 0 while `up` gave host networking. They are refused now as
+# UNRESOLVED-NETWORK-MODE/-NAME/-REF. What remains is the prospective risk above: a literal
+# comparison against a value compose has RESOLVED. Two earlier versions of this paragraph
+# were false — first without qualification, then by putting a live bypass in the future
+# tense — which is why it now says which risk is which.
+#
+# THE FIXTURES MAKE THE DRIFT READABLE; THEY ARE NOT WHAT MAKES IT SAFE. Every normalisation
+# this guard leans on is crossed by at least one fixture next to it — absent `host_ip` for a
+# bare mapping, `0.0.0.0`/`::` for the wide forms, `[::1]` stripped to `::1`,
+# `[0:0:0:0:0:0:0:1]` NOT normalised, `${VAR}` and a hostname left raw, ranges expanded per
+# port, `include:`/`extends:` resolved, profile-gated services present without `--profile` —
+# so an upgrade that changes one names itself instead of having to be diagnosed. A coverage
+# argument is incomplete by construction: it does not reach a compose change no fixture
+# crosses. Do not read it as a pin.
+#
+# PINNING THE RUNNER WAS CONSIDERED AND REJECTED, recorded here because it is the only part
+# of this mechanism change that binds future work. A pinned `ubuntu-24.04` on one job while
+# eleven others take `ubuntu-latest` rots into an incoherence, and GitHub retires images on a
+# hard cutoff — so the pin converts a normal PR into a deadline-driven migration. It also
+# freezes the unknown rather than removing it: the class worried about, a compose change no
+# fixture crosses, exists identically under a pin. The measured cost of being wrong without
+# one is a single red CI run, which is the signal you want.
+#
+# `--expect-min N` IS LOAD-BEARING. Shape alone cannot tell "all ports are loopback-bound"
+# from "I found no ports". With no floor given, a run recognising zero entries is REFUSED;
+# `--expect-min 0` is the only way to say zero is expected. THE UNIT CHANGED WITH THIS
+# REWRITE: compose expands `8000-8002:8000-8002` into three entries where the awk parser
+# counted one written list item. The repo's file has no ranges, so its floor of 6 is
+# unaffected — but the floor now counts published ports, not written lines.
 #
 # Usage:  bash .github/scripts/compose-loopback-guard.sh [--expect-min N] [compose-file ...]
 #         (defaults to docker-compose.yml at the repo root)
 #
 # Exit 0 = every published port is loopback-bound and the floor is met.
-# Exit 1 = a published port is not loopback-bound (file:line printed), OR the --expect-min
-#          floor is not met. The second case prints no file:line — there is no offending
-#          line to point at; the finding is an absence.
-# Exit 2 = the guard could not answer: a shape it does not model, or a bad invocation.
-#          Deliberately NOT folded into exit 1 — "the guard could not run" must never read
-#          as "the guard passed".
+# Exit 1 = a published port is not loopback-bound (service and port printed), OR the
+#          --expect-min floor is not met. The second case names no port — the finding is an
+#          absence.
+#          THE FILE PREFIX ON A FINDING IS THE FILE THE GUARD WAS ASKED ABOUT, not necessarily
+#          the file the entry is written in: over `include:`/`extends:` the port may live in
+#          another file, and compose's resolved model does not carry its origin. Read it as
+#          "reachable from here", not as "written here".
+# Exit 2 = the guard could not answer: compose refused the file, a tool is missing, a service
+#          uses host networking, an entry compose left unresolved, a bind address it will not
+#          judge, or a bad invocation. Deliberately NOT folded into exit 1 — "the guard could
+#          not run" must never read as "the guard passed".
 
 set -euo pipefail
 
@@ -59,6 +161,15 @@ while [ "$#" -gt 0 ]; do
     --expect-min)
       [ "$#" -ge 2 ] || { echo "compose-loopback-guard: --expect-min needs a value" >&2; exit 2; }
       expect_min=$2; shift 2
+      case "$expect_min" in
+        (*[!0-9]*|"") echo "compose-loopback-guard: --expect-min must be a non-negative integer" >&2; exit 2 ;;
+      esac
+      ;;
+    # The `=` form is accepted because rejecting it was fail-closed but illegible: it fell
+    # through to the file loop and reported `no such file: --expect-min=6`, which names the
+    # argument but describes it as something it is not.
+    --expect-min=*)
+      expect_min=${1#--expect-min=}; shift
       case "$expect_min" in
         (*[!0-9]*|"") echo "compose-loopback-guard: --expect-min must be a non-negative integer" >&2; exit 2 ;;
       esac
@@ -84,251 +195,225 @@ for f in "${files[@]}"; do
   fi
 done
 
-# ONE PARSER, ONE ANSWER. An earlier version ran a SECOND awk program to count entries for
-# the floor, and the two had already diverged — which matters precisely because the floor
-# is what catches shapes the parser misses. A backstop computed by a drifting copy of the
-# thing it backs up is not a backstop. The scan emits its count on a marker line instead.
+# A MISSING TOOL IS EXIT 2, NEVER A PASS. Checked before any file is read, so the failure
+# names the tool rather than surfacing as an empty scan that looks clean. `docker compose
+# version` is the one that matters: a host carrying only Compose v1 (`docker-compose`) has
+# `docker` on PATH and cannot answer.
 #
-# THE ORDER OF THE TESTS IS THE WHOLE CONTROL. Getting it wrong returned SILENT GREEN on a
-# 0.0.0.0 binding once already: the close test ran before the entry test, so a port at the
-# same indentation as its `ports:` key closed the block instead of being checked. That is
-# valid YAML and it is what `docker compose config` itself emits.
-#
-#   * `ports:`, quoted or not, opens a block. Anything after the colon other than a comment
-#     — a flow sequence, an alias — is a shape this guard does not model: reported, exit 2.
-#   * A list item at indent >= the key's is an entry. Both indentation styles.
-#   * Only a NON-list-item at indent <= the key's closes a block.
-#   * An entry that is not port-shaped is reported as UNPARSED, never as a violation.
-#     Saying "not bound to 127.0.0.1" about a value the guard did not understand would be
-#     asserting a fact it has not established.
-#   * Loopback means `127.0.0.1:` or the IPv6 form `[::1]:`. Both are localhost.
-#   * A block that closes having recognised zero entries is reported.
-scan=$(
-  awk '
-    function indent(s,   i) { i = match(s, /[^ ]/); return (i == 0) ? 0 : i - 1 }
-
-    # ONE NORMALISER, EVERY KEY AXIS. The guard has four of them — `ports`, `network_mode`,
-    # `include`, `extends` — and each was originally spelled out on its own. That meant a
-    # spelling fix landed on one axis and not the others: round 9 taught the `ports` axis
-    # about quoted keys, and when two more axes arrived they did not inherit it, so
-    # `"extends":` and `? network_mode` passed silently. Every key test now goes through
-    # here, so the next spelling is one edit for all four rather than four edits or, more
-    # likely, one.
-    function keyname(s,   t) {
-      t = s
-      sub(/[[:space:]]+#.*$/, "", t)          # trailing comment
-      sub(/^[[:space:]]*\?[[:space:]]+/, "", t)  # YAML explicit-key syntax
-      gsub(/["'"'"']/, "", t)                 # quoted key
-      sub(/[[:space:]]+$/, "", t)
-      return t
-    }
-
-    function close_block() {
-      if (in_ports && entries == 0) {
-        printf "%s:%d: EMPTY-PORTS-BLOCK (opened here, no entry recognised)\n", ports_file, ports_line
-      }
-      in_ports = 0
-    }
-
-    FNR == 1 { close_block() }
-
-    { line = $0; sub(/\r$/, "", line) }
-
-    line ~ /^[[:space:]]*$/ { next }
-    line ~ /^[[:space:]]*#/ { next }
-
-    {
-      ind = indent(line)
-      is_item = (line ~ /^[[:space:]]*-[[:space:]]/)
-
-      if (in_ports && is_item && ind >= ports_indent) {
-        value = line
-        sub(/^[[:space:]]*-[[:space:]]*/, "", value)
-        sub(/[[:space:]]+#.*$/, "", value)
-        gsub(/^["'"'"']|["'"'"']$/, "", value)
-        sub(/[[:space:]]+$/, "", value)
-
-        if (value == "") {
-          printf "%s:%d: UNPARSED-ENTRY (empty list item)\n", FILENAME, FNR
-          next
-        }
-        if (value !~ /^[0-9[]/) {
-          printf "%s:%d: UNPARSED-ENTRY %s\n", FILENAME, FNR, value
-          next
-        }
-        total++
-        entries++
-        # An IPv6 literal in a spelling this guard does not read — `[0:0:0:0:0:0:0:1]` is
-        # genuine loopback — must not be reported as "not bound to localhost". That would
-        # assert a fact the guard has not established, which is the thing it exists to stop.
-        if (value ~ /^\[/ && value !~ /^\[::1\]:/) {
-          printf "%s:%d: UNPARSED-ENTRY %s\n", FILENAME, FNR, value
-          next
-        }
-        if (value !~ /^127\.0\.0\.1:/ && value !~ /^\[::1\]:/) {
-          printf "%s:%d: %s\n", FILENAME, FNR, value
-        }
-        next
-      }
-
-      if (in_ports && !is_item && ind <= ports_indent) { close_block() }
-
-      if (keyname(line) ~ /^[[:space:]]*ports[[:space:]]*:/) {
-        rest = keyname(line)
-        sub(/^[[:space:]]*ports[[:space:]]*:/, "", rest)
-        sub(/[[:space:]]*#.*$/, "", rest)
-        sub(/^[[:space:]]+/, "", rest); sub(/[[:space:]]+$/, "", rest)
-        if (rest != "") {
-          printf "%s:%d: UNPARSED-PORTS-FORM %s\n", FILENAME, FNR, line
-          in_ports = 0
-          next
-        }
-        in_ports = 1; ports_indent = ind; ports_line = FNR; ports_file = FILENAME; entries = 0; blocks++
-        next
-      }
-
-      # THREE CONSTRUCTS MOVE PORTS OUT OF THIS GUARD FIELD OF VIEW. None is a spelling of
-      # `ports:` — they are ways for a published port to exist that this file cannot see —
-      # so each is refused rather than passed over in silence:
-      #
-      #   network_mode: host   publishes nothing through `ports:` at all, and is BROADER
-      #                        than what #1198 closed: every port the process binds.
-      #   include:             pulls in another compose file, whose ports are not here.
-      #   extends:             inherits a service, ports included, from another file.
-      #
-      # `include:` and `extends:` are ordinary Compose, not exotica — and #196 adds compose
-      # files, where splitting one with `include:` is exactly how it is done.
-      #
-      # The comment is stripped BEFORE matching: an anchored match without stripping let
-      # `network_mode: host   # kör mot värdnätet` through, and trailing comments on such
-      # lines are this repo own style.
-      bare = keyname(line)
-
-      # YAML explicit-key syntax puts the VALUE on the next line (`? network_mode` /
-      # `: host`), so the key line carries no value to read. The guard cannot tell a host
-      # network from a bridge one there — and its rule is to refuse what it cannot read,
-      # not to guess.
-      #
-      # SPECIFIC, NOT UNIVERSAL — see the header. A key written `? name` on ONE line is
-      # refused, on all four axes. `?` alone on its own line with the key on the NEXT is a
-      # different shape and is NOT read: measured exit 0 for `network_mode`, `include` and
-      # `extends`. `ports` survives it only because the loose divergence detector counts the
-      # word and no block opens; the other three have no such backstop.
-      if (line ~ /^[[:space:]]*\?[[:space:]]/ && bare ~ /^[[:space:]]*(ports|network_mode|include|extends)[[:space:]]*$/) {
-        printf "%s:%d: UNREADABLE-EXPLICIT-KEY %s\n", FILENAME, FNR, bare
-        next
-      }
-
-      if (bare ~ /^[[:space:]]*network_mode[[:space:]]*:[[:space:]]*host$/) {
-        printf "%s:%d: HOST-NETWORKING %s\n", FILENAME, FNR, bare
-        next
-      }
-      if (bare ~ /^[[:space:]]*(include|extends)[[:space:]]*:/) {
-        printf "%s:%d: PORTS-OUT-OF-VIEW %s\n", FILENAME, FNR, bare
-        next
-      }
-
-      if (!in_ports) { next }
-
-      printf "%s:%d: UNPARSED-ENTRY %s\n", FILENAME, FNR, line
-    }
-
-    END {
-      close_block()
-      printf "##RECOGNISED##%d\n", total + 0
-      printf "##BLOCKS##%d\n", blocks + 0
-    }
-  ' "${files[@]}"
-)
-
-# Markers are matched ANCHORED and digits-only. Unanchored, a file literally NAMED
-# `##RECOGNISED##9.yml` would have its violation line swallowed by the filter — the guard
-# would run, find the violation, and print OK. Unreachable from CI; fixed anyway.
-recognised=$(printf '%s\n' "$scan" | sed -n 's/^##RECOGNISED##\([0-9][0-9]*\)$/\1/p' | tail -1)
-blocks=$(printf '%s\n' "$scan" | sed -n 's/^##BLOCKS##\([0-9][0-9]*\)$/\1/p' | tail -1)
-violations=$(printf '%s\n' "$scan" | grep -vE '^##(RECOGNISED|BLOCKS)##[0-9]+$' || true)
-
-# THE KEY AXIS FAILS CLOSED, and this is how. Every other axis refuses what it cannot
-# model; the KEY test could only ever miss SILENTLY, because a spelling that does not match
-# simply never opens a block — no entry, no marker, no complaint. Round 9 added one
-# alternation for quoted keys, which closed that instance and not the class: `? ports`
-# (YAML explicit-key syntax, accepted by Compose) still passed with exit 0.
-#
-# So a SECOND, DELIBERATELY LOOSE detector counts anything that looks like a ports key, and
-# **the divergence between the two counts is the signal**: loose > strict means a spelling
-# reached Compose that the parser never opened.
-#
-# THIS IS NOT THE DOUBLE PARSER ROUND 9 REMOVED, and the difference is the whole point.
-# That one computed the SAME quantity twice and could drift silently in either direction.
-# This one computes a DIFFERENT quantity, and their EQUALITY is the invariant. Do not
-# "simplify" it by making both strict — that reintroduces the blind spot it exists to find.
-# `|| true` is load-bearing under `set -o pipefail`: grep -c exits 1 when a file has NO
-# match, which killed the whole script with exit 1 on any compose file without a ports key.
-# Exit 1 reads as "a violation was found" — so the failure mode was the guard reporting a
-# violation it had not found. Caught by tracing the run rather than by reading it.
-# Deliberately WORD-level, not colon-level: YAML's explicit-key syntax puts the colon on
-# the NEXT line (`? ports` / `: - "..."`), and a colon-anchored detector missed it — which
-# is how `? ports` passed with exit 0 in round 10. Comment lines are excluded so prose
-# about ports does not inflate the count. Measured against the real file: exactly the five
-# `ports:` keys, no false positives.
-loose=$( { grep -hcE '^[[:space:]]*[^#]*(^|[^A-Za-z_.-])["'"'"']?ports["'"'"']?([^A-Za-z_.-]|$)' "${files[@]}" 2>/dev/null || true; } | awk '{ n += $1 } END { print n + 0 }')
-if [ "${loose:-0}" -gt "${blocks:-0}" ]; then
-  echo "::error::compose-loopback-guard: ${loose} ports-like key(s) present, but only ${blocks:-0} block(s) opened." >&2
-  echo "A spelling reached Compose that this guard's key test does not recognise, so its" >&2
-  echo "entries were never checked. Extend the key test rather than removing this one." >&2
-  printf '%s\n' "$violations" >&2
+# NOT GATED ON A MAJOR VERSION, deliberately. The runner is on 2.38.2 and the next image
+# carries 5.1.3, so a `v2`-shaped check would fail the build on an upgrade that may well be
+# fine. The suite is where a behaviour change is decided; this only establishes that a
+# subcommand exists to ask.
+command -v docker >/dev/null 2>&1 || { echo "::error::compose-loopback-guard: docker not on PATH — cannot resolve the compose model." >&2; exit 2; }
+command -v jq >/dev/null 2>&1 || { echo "::error::compose-loopback-guard: jq not on PATH." >&2; exit 2; }
+compose_version=$(docker compose version --short 2>/dev/null) || {
+  echo "::error::compose-loopback-guard: 'docker compose' unavailable (Compose v2 or newer required)." >&2
   exit 2
-fi
+}
+
+errfile=$(mktemp)
+trap 'rm -f "$errfile"' EXIT
+
+# `--no-interpolate` so the guard needs no `.env`: it must gate the file in CI, where no
+# secret exists, and the repo's compose file makes three variables hard `:?` requirements.
+# Verified 2026-08-04 that no `ports:` value in this repo is interpolated, so nothing under
+# ports is lost. It also runs with the daemon DOWN — `config` is client-side, and every
+# measurement behind this file was taken that way.
+#
+# THE FLAG CARRIES A SECOND REASON, AND IT IS A SECURITY ONE. Without it, compose resolves
+# `.env` into the model: measured, `POSTGRES_PASSWORD` comes back as the literal password
+# instead of `${POSTGRES_PASSWORD_DEV:?...}`. The guard never prints `$model`, so nothing
+# leaks today — but the natural reason to reach for `--interpolate` is to "fix" the
+# UNRESOLVED-ENTRY refusals, and that trade weakens the guard AND pulls real secrets into a
+# variable one `echo` away from a CI log. Both reasons have to fall before the flag moves.
+#
+# ONE INVOCATION PER FILE, deliberately: passing several `-f` to one invocation makes compose
+# MERGE them with override semantics, which answers a different question than "is each of
+# these files clean".
+#
+# Profile-gated services are included WITHOUT `--profile '*'` — measured on this repo's own
+# file, whose `postgres-test` and `redis-test` sit behind the `test` profile and whose six
+# ports are all counted. Their bindings were otherwise provable only by not running them.
+violations=""
+recognised=0
+
+for f in "${files[@]}"; do
+  if ! model=$(docker compose -f "$f" config --no-interpolate --format json 2>"$errfile"); then
+    echo "::error::compose-loopback-guard: compose refused $f — the guard cannot answer." >&2
+    cat "$errfile" >&2
+    exit 2
+  fi
+
+  # AN ENTRY IS NOT ALWAYS A MAPPING, and the shapes that stay raw are not exotic. Measured:
+  # an unexpanded `"127.0.0.1:${HOST_PORT}:5432"` under `--no-interpolate`, and a hostname
+  # bind address `"localhost:9000:9000"`, both come back as the RAW STRING. The guard cannot
+  # read a bind address compose did not resolve, so it refuses. Letting jq crash on it would
+  # refuse too — with a message blaming the model instead of naming the entry.
+  out=$(jq -r --arg f "$f" '
+    def is_ipv4: (type == "string") and test("^[0-9]{1,3}(\\.[0-9]{1,3}){3}$");
+    def is_loopback: (. == "::1") or (is_ipv4 and startswith("127."));
+    def is_wide: (. == "::") or (is_ipv4 and (startswith("127.") | not));
+    # A service reaches host networking through a top-level network whose RESOLVED name is
+    # `host`, with no `network_mode` key anywhere in its model. Compose fills `name` in from
+    # the key when it is omitted, so matching on the resolved name covers both spellings.
+    # THE HOST-NETWORKING AXIS IS THREE LITERAL COMPARISONS, AND A VARIABLE DEFEATS ANY OF
+    # THEM. Under `--no-interpolate` compose hands back the raw string, so `== "host"` cannot
+    # see what the value becomes at `up` time. All three seats were measured exiting 0 while
+    # `docker compose up` gave host networking:
+    #   network_mode: "${NETMODE}"                       -> the mode the service declares
+    #   networks: {n: {external: true, name: "${HOST}"}} -> the name a network resolves to
+    #   networks: ["${NET}"]                             -> which network is joined
+    # `"${NETMODE:-host}"` is the worst of them: it names `host` as its own DEFAULT, so the
+    # file gives host networking even with no variable set, and the guard read it as clean.
+    #
+    # ONE PREDICATE FOR ALL THREE, deliberately. Repairing the seat that was reported and
+    # leaving its siblings is how this class survived a round: the repair must be the class,
+    # not the instance.
+    #
+    # THE REF SEAT IS UNCONDITIONAL, AND NARROWING IT REOPENS A MEASURED HOLE. The tempting
+    # optimisation is to refuse an unresolved attachment only when the file also declares a
+    # network that resolves to `host`. Measured, that misses this file:
+    #
+    #   networks: {n: {external: true, name: "${HOST}"}}
+    #   services: {a: {networks: ["${NET}"], ports: ["127.0.0.1:1:1"]}}
+    #
+    # With HOST=host and NET=n it is host networking. The NAME seat cannot fire, because
+    # `unresolved_nets` holds the key `n` while `attached` holds `${NET}` and the two never
+    # intersect. A narrowed REF seat cannot fire either, because NO declared network resolves
+    # to the literal `host` — the only candidate is itself a variable. Only the broad rule
+    # sees it. So the breadth is load-bearing through the interaction of two seats, and the
+    # consistency argument below is the weaker of the two grounds, not the reason.
+    #
+    # (It is also consistent with UNRESOLVED-ENTRY on the ports axis, which refuses
+    # `localhost:9000:9000` though that binding is in fact loopback. Refusing what cannot be
+    # read beats guessing at it. The over-refusal is real — `"${STACK}_backend"` never becomes
+    # `host` and is refused anyway — but it is exit 2, "I could not read this", which is true.)
+    def is_unresolved: (type == "string") and test("\\$");
+    def host_nets: [ (.networks // {}) | to_entries[] | select(.value.name == "host") | .key ];
+    def unresolved_nets: [ (.networks // {}) | to_entries[]
+                           | select(.value.name | is_unresolved) | .key ];
+    def attached: (.networks // {}) | if type == "object" then keys else . end;
+
+    host_nets as $hostnets
+    | unresolved_nets as $unresolved
+    | (.services // {}) as $svc
+    | [ $svc | to_entries[]
+        | select(.value.network_mode == "host")
+        | "\($f): HOST-NETWORKING service=\(.key) via=network_mode" ]
+    + [ $svc | to_entries[] as $s
+        | ($s.value | attached)[]
+        | select(. as $n | $hostnets | index($n))
+        | "\($f): HOST-NETWORKING service=\($s.key) via=network:\(.)" ]
+    + [ $svc | to_entries[]
+        | select(.value.network_mode | is_unresolved)
+        | "\($f): UNRESOLVED-NETWORK-MODE service=\(.key) network_mode=\(.value.network_mode)" ]
+    + [ $svc | to_entries[] as $s
+        | ($s.value | attached)[] as $n
+        | select($unresolved | index($n))
+        | "\($f): UNRESOLVED-NETWORK-NAME service=\($s.key) network=\($n)" ]
+    + [ $svc | to_entries[] as $s
+        | ($s.value | attached)[] as $n
+        | select($n | is_unresolved)
+        | "\($f): UNRESOLVED-NETWORK-REF service=\($s.key) network=\($n)" ]
+    + [ $svc | to_entries[] as $s
+        | ($s.value.ports // [])[]
+        | select(type != "object")
+        | "\($f): UNRESOLVED-ENTRY service=\($s.key) entry=\(. | tostring)" ]
+    + [ $svc | to_entries[] as $s
+        | ($s.value.ports // [])[]
+        | select(type == "object")
+        | select(has("host_ip") and (((.host_ip | is_loopback) or (.host_ip | is_wide)) | not))
+        | "\($f): UNJUDGED-BIND-IP service=\($s.key) published=\(.published // "<ephemeral>") host_ip=\(.host_ip)" ]
+    + [ $svc | to_entries[] as $s
+        | ($s.value.ports // [])[]
+        | select(type == "object")
+        | select((has("host_ip") | not) or (.host_ip | is_wide))
+        | "\($f): NOT-LOOPBACK service=\($s.key) published=\(.published // "<ephemeral>") host_ip=\(.host_ip // "<absent>")" ]
+    | .[]
+  ' <<<"$model") || { echo "::error::compose-loopback-guard: could not read the resolved model for $f." >&2; exit 2; }
+
+  # The same guard as the call above, and for the same reason: `jq` exits 5 on a runtime
+  # error, which `set -e` would propagate straight out of the documented 0/1/2 contract.
+  n=$(jq '[(.services // {})[] | (.ports // []) | length] | add // 0' <<<"$model") \
+    || { echo "::error::compose-loopback-guard: could not count published ports for $f." >&2; exit 2; }
+  recognised=$((recognised + n))
+
+  # `+=` with an explicit newline, NOT `violations=$(printf ...)`: command substitution strips
+  # the trailing newline, so the last finding of one file fused with the first of the next and
+  # a single line named two files. The exit code never moved (`grep -qE` matches substrings,
+  # so fusion can only add marker hits), but a guard whose whole thesis is that its message
+  # names the service and port truthfully cannot print a line naming two files.
+  if [ -n "$out" ]; then
+    violations+="$out"$'\n'
+  fi
+done
 
 if [ -n "$violations" ]; then
   # "could not answer" is exit 2 and must never collapse into exit 1. The markers below all
-  # mean the guard did not READ the ports, not that it read them and they were bad.
+  # mean the guard did not READ the binding, not that it read it and it was wide.
   #
   # HERESTRING, NOT A PIPE. `grep -q` leaves at its first match; a producer still holding
   # more than a pipe buffer then dies of SIGPIPE, and `pipefail` makes that the pipeline's
-  # status — so the `if` went false on exactly the inputs it exists to catch. Do not
-  # restore the pipe; `classifier_survives_large_violation_list` fails if it comes back.
-  if grep -qE 'UNPARSED-ENTRY|UNPARSED-PORTS-FORM|EMPTY-PORTS-BLOCK|HOST-NETWORKING|PORTS-OUT-OF-VIEW|UNREADABLE-EXPLICIT-KEY' <<<"$violations"; then
-    echo "::error::compose-loopback-guard: a ports: entry was in a shape this guard does not model." >&2
-    echo "It reads block sequences in BOTH indentation styles. Flow sequences (ports: [...])," >&2
-    echo "aliases (ports: *x), long-form mappings and empty blocks are REFUSED, never skipped." >&2
-    echo "Extend the guard rather than removing it." >&2
-    printf '%s\n' "$violations" >&2
+  # status — so the `if` went false on exactly the inputs it exists to catch, and the guard
+  # printed "not bound to loopback" about entries it had only failed to read. Measured on the
+  # awk predecessor (#1206), and the reason that guard's Blocker was a Blocker. Do not
+  # restore the pipe; `classifier_survives_large_refusal_list` fails if it comes back.
+  # MATCHED ON THE CLASS PREFIX, NOT ON AN ENUMERATION. `UNRESOLVED-NETWORK-` covers MODE,
+  # NAME and REF, and covers a fourth seat on arrival. The previous form listed the markers
+  # one by one, which is the shape that let a repair land on one seat of three: a new marker
+  # had to be remembered in two places, and the second place is silent when forgotten.
+  if grep -qE 'HOST-NETWORKING|UNRESOLVED-ENTRY|UNRESOLVED-NETWORK-|UNJUDGED-BIND-IP' <<<"$violations"; then
+    echo "::error::compose-loopback-guard: a published port is in a state this guard will not judge." >&2
+    echo "HOST-NETWORKING publishes outside ports: entirely. UNRESOLVED-ENTRY is an entry compose" >&2
+    echo "left as a raw string (an unexpanded variable, a hostname bind address)." >&2
+    echo "UNRESOLVED-NETWORK-MODE/-NAME/-REF are the host-networking axis's three seats with an" >&2
+    echo "unexpanded variable in them — the service's own network_mode, a network's resolved" >&2
+    echo "name, or which network is joined. Any of the three can become 'host' at up time, so" >&2
+    echo "write the value literally. (A name containing a literal, escaped \$\$ trips this too:" >&2
+    echo "fail-closed, and Docker publishes no name pattern that says it is legal.) UNJUDGED-BIND-IP" >&2
+    echo "is an IPv6 spelling other than ::1 or :: — it may well BE loopback, and saying otherwise" >&2
+    echo "would assert a fact the guard has not established. All are refused, never passed." >&2
+    printf '%s' "$violations" >&2
     exit 2
   fi
-  echo "::error::compose-loopback-guard: published port(s) not bound to localhost" >&2
-  printf '%s\n' "$violations" >&2
+  echo "::error::compose-loopback-guard: published port(s) not bound to loopback" >&2
+  # No trailing \n: `$violations` already ends in one, and printing a second produced a blank
+  # line before the explanation.
+  printf '%s' "$violations" >&2
   echo >&2
-  echo "Every published port must be written 127.0.0.1:HOST:CONTAINER (#1198)." >&2
-  echo "A bare HOST:CONTAINER binds 0.0.0.0 — reachable from the LAN, not only localhost." >&2
+  echo "Every published port must name a loopback bind address (#1198)." >&2
+  echo "host_ip=<absent> means compose read no bind address at all — it omits the key rather" >&2
+  echo "than emitting 0.0.0.0, and the result binds every interface. Two shapes reach it, and" >&2
+  echo "they do NOT have the same fix:" >&2
+  echo "  a bare HOST:CONTAINER  (e.g. 5435:5432)  -> write 127.0.0.1:5435:5432" >&2
+  echo "  the container port alone (5435, or a long form with no published:) -> that publishes" >&2
+  echo "  on a RANDOM host port across every interface; write 127.0.0.1::5435 to keep the" >&2
+  echo "  random port and bind it to loopback. Those are reported as published=<ephemeral>." >&2
+  echo "In the LONG form neither remedy needs a syntax change: add host_ip: 127.0.0.1 to the" >&2
+  echo "entry and leave target:/published: alone." >&2
   exit 1
 fi
 
 if [ -z "$expect_min" ]; then
   # No floor given: zero recognised entries is refused rather than reported as clean.
-  # "I found no ports, therefore all ports are fine" is vacuous truth wearing a clean bill
-  # of health — the same shape EMPTY-PORTS-BLOCK exists to kill, one level up.
+  # "I found no ports, therefore all ports are fine" is vacuous truth wearing a clean bill of
+  # health.
   if [ "$recognised" -eq 0 ]; then
     echo "::error::compose-loopback-guard: recognised ZERO published ports." >&2
-    echo "That is refused rather than reported clean: it usually means the ports are written" >&2
-    echo "in a shape this guard does not read, not that there are none. Pass --expect-min 0" >&2
-    echo "if zero really is expected." >&2
+    echo "Refused rather than reported clean. Pass --expect-min 0 if zero really is expected." >&2
     exit 2
   fi
 elif [ "$recognised" -eq 0 ] && [ "$expect_min" -gt 0 ]; then
-  # Zero recognised is refused here too, and for the same reason as the no-floor branch:
-  # the guard cannot tell "no ports" from "read no ports", and a floor above zero says the
-  # caller expected some. `--expect-min 0` is exempt on purpose — it is the one way to
-  # STATE that zero is expected, and collapsing it into a refusal would leave no way to say
-  # so at all.
+  # Refused here for the same reason as the no-floor branch. `--expect-min 0` is exempt on
+  # purpose — it is the one way to STATE that zero is expected, and collapsing it into a
+  # refusal would leave no way to say so at all.
   echo "::error::compose-loopback-guard: recognised ZERO published ports (floor was $expect_min)." >&2
   echo "Pass --expect-min 0 if zero really is expected here." >&2
   exit 2
 elif [ "$recognised" -lt "$expect_min" ]; then
   echo "::error::compose-loopback-guard: expected at least $expect_min published port(s), recognised $recognised" >&2
-  echo "Passing with fewer than expected means the ports moved, were deleted, or were" >&2
-  echo "written in a shape this guard does not model — none of which is a clean bill." >&2
+  echo "Passing with fewer than expected means the ports moved or were deleted — not a clean bill." >&2
   exit 1
 fi
 
-echo "compose-loopback-guard: OK — $recognised published port(s), all loopback-bound (${#files[@]} file(s))"
+echo "compose-loopback-guard: OK — $recognised published port(s), all loopback-bound (${#files[@]} file(s), Compose $compose_version)"

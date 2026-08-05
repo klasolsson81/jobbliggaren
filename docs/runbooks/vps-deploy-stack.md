@@ -121,14 +121,24 @@ sed -i "s|^#*ACME_CA=.*|#ACME_CA=|" deploy/.env
 $C up -d --force-recreate caddy
 
 # 3b. THE END STATE IS ITS OWN MEASUREMENT (verification-log row 6b). Rows 5 and 6 prove the
-#     PROOF modes; nothing above proves the box was LEFT with both challenges live. Three ways
-#     to fail, none visible in a certificate: a left-over mode, a stale image, and a glob value —
+#     PROOF modes; nothing above proves the box was LEFT with both challenges live. Two ways to
+#     fail that no certificate reveals: a left-over mode, and a glob value —
 #     ACME_CHALLENGE_MODE=* imports all three snippets and adapts exit 0 with BOTH challenges
-#     disabled (measured). Every plain typo fail-closes; the glob does not. The certificate
-#     issues fine in all of them, and the RENEWAL dies silently about 60 days later.
-$C exec caddy caddy adapt --config /etc/caddy/Caddyfile | grep -q '"challenges"' &&
-  { echo "REFUSING: a challenge is disabled in the RUNNING config"; exit 1; } ||
-  echo "OK: both challenges live"
+#     disabled (measured). Every plain typo fail-closes; the glob does not. Both issue fine at
+#     cutover and kill the RENEWAL about 60 days later.
+#
+#     CAPTURE, THEN JUDGE — never `adapt | grep && refuse || ok`. A pipeline's exit code is
+#     grep's, not adapt's: with the container down or the config broken, stdout is empty, grep
+#     returns 1, and the `||` arm prints OK on a run that measured NOTHING. That is the very
+#     state the seam's own broken-default bug produced, reporting itself as a pass. `-T` is
+#     deliberate — without it exec may allocate a TTY and put CR into the captured string.
+adapted=$($C exec -T caddy caddy adapt --config /etc/caddy/Caddyfile) ||
+  { echo "REFUSING: adapt failed — nothing was measured"; exit 1; }
+$C exec -T caddy test -f /etc/caddy/challenge/both.caddy ||
+  { echo "REFUSING: pre-seam image — rows 5 and 6 measured nothing"; exit 1; }
+grep -q '"challenges"' <<<"$adapted" &&
+  { echo "REFUSING: a challenge is disabled in the RUNNING config"; exit 1; }
+echo "OK: both challenges live"
 curl -sSI https://dev.jobbliggaren.se | head -1
 ```
 
@@ -266,7 +276,7 @@ from one that has decayed.
 | 4 | Postgres tuning is explicit, derived from the cap | `SHOW shared_buffers` etc. | | |
 | 5 | Certificate issues over HTTP-01 with the K2 gate live (M-5a) | `ACME_CHALLENGE_MODE=http01` on staging, then **the issuance log line naming the challenge type** **and** the counterfactual that the other was off (`caddy adapt` shows `"tls-alpn":{"disabled":true}` **on the policy whose `subjects` contain `SITE_HOST`** — the adapted config carries two automation policies and a bare substring match would be satisfied by either). BOTH halves: a certificate alone can be ticked on one ALPN issued — the silent fallback this proof exists to catch — and the counterfactual alone does not survive an operator confusing `http01` with `alpn01` | | |
 | 6 | Certificate issues over TLS-ALPN-01 (the fallback path) | `ACME_CHALLENGE_MODE=alpn01` on staging; same two halves as row 5, mirrored (`"http":{"disabled":true}`) | | |
-| 6b | The box was LEFT with both challenges live | `caddy adapt` **inside the running container** shows no `"challenges"` key at all. Rows 5 and 6 measure the PROOF modes; this measures the END state, and nothing else does — a left-over mode, a stale image, or a glob value (`ACME_CHALLENGE_MODE=*` imports all three snippets and disables BOTH, exit 0, measured) all issue a valid certificate at cutover and kill the RENEWAL ~60 days later | | |
+| 6b | The box was LEFT with both challenges live | `caddy adapt` **inside the running container** shows no `"challenges"` key at all. Rows 5 and 6 measure the PROOF modes; this measures the END state, and nothing else does — a left-over mode or a glob value — plus a pre-seam image, which the gate detects separately by asserting the snippet exists, (`ACME_CHALLENGE_MODE=*` imports all three snippets and disables BOTH, exit 0, measured) all issue a valid certificate at cutover and kill the RENEWAL ~60 days later | | |
 | 7 | The edge OWNS the ACME prefix (nothing under it proxies) | `curl -sI` unknown challenge path → 404 **and `Server: Caddy`**, never the upstream's own `Server`/`Via` | | |
 | 8 | HSTS on the **unauthenticated 401** (M-5a) | `curl -sI` | | |
 | 9 | HSTS on a Next-served 200 (M-5a, complement) | `curl -sI -u` | | |

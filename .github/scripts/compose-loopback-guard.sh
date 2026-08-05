@@ -98,13 +98,19 @@
 # `--no-interpolate` and it is exit 2; change the JSON shape and it is exit 2. That is a
 # property of the predicate and does not depend on the suite crossing the right thing.
 #
-# THE HOST-NETWORKING AXIS IS NOT FAIL-CLOSED AND MUST NOT BE READ AS IF IT WERE. Both of its
-# branches are NAME LOOKUPS — `network_mode == "host"`, and a network whose resolved `name` is
-# `host` — so a compose release that stopped filling `name` in from the key, or renamed
+# THE HOST-NETWORKING AXIS IS NOT FAIL-CLOSED AND MUST NOT BE READ AS IF IT WERE. Its two
+# detections are NAME LOOKUPS — `network_mode == "host"`, and a network whose resolved `name`
+# is `host` — so a compose release that stopped filling `name` in from the key, or renamed
 # `network_mode`, would turn them into silent passes rather than refusals. The fixtures are
-# the ONLY thing covering that axis. This paragraph said "a model shape this guard does not
-# recognise … never a pass" without qualification one revision ago, and that sentence was
-# false about the two branches added in the same commit that wrote it.
+# the ONLY thing covering that axis.
+#
+# AND THAT WEAKNESS WAS PRESENT TENSE, NOT PROSPECTIVE, FOR TWO REVISIONS OF THIS PARAGRAPH.
+# A literal comparison is defeated by a variable, and all three seats of the axis were
+# measured exiting 0 while `up` gave host networking. They are refused now as
+# UNRESOLVED-NETWORK-MODE/-NAME/-REF. What remains is the prospective risk above: a literal
+# comparison against a value compose has RESOLVED. Two earlier versions of this paragraph
+# were false — first without qualification, then by putting a live bypass in the future
+# tense — which is why it now says which risk is which.
 #
 # THE FIXTURES MAKE THE DRIFT READABLE; THEY ARE NOT WHAT MAKES IT SAFE. Every normalisation
 # this guard leans on is crossed by at least one fixture next to it — absent `host_ip` for a
@@ -250,15 +256,26 @@ for f in "${files[@]}"; do
     # A service reaches host networking through a top-level network whose RESOLVED name is
     # `host`, with no `network_mode` key anywhere in its model. Compose fills `name` in from
     # the key when it is omitted, so matching on the resolved name covers both spellings.
+    # THE HOST-NETWORKING AXIS IS THREE LITERAL COMPARISONS, AND A VARIABLE DEFEATS ANY OF
+    # THEM. Under `--no-interpolate` compose hands back the raw string, so `== "host"` cannot
+    # see what the value becomes at `up` time. All three seats were measured exiting 0 while
+    # `docker compose up` gave host networking:
+    #   network_mode: "${NETMODE}"                       -> the mode the service declares
+    #   networks: {n: {external: true, name: "${HOST}"}} -> the name a network resolves to
+    #   networks: ["${NET}"]                             -> which network is joined
+    # `"${NETMODE:-host}"` is the worst of them: it names `host` as its own DEFAULT, so the
+    # file gives host networking even with no variable set, and the guard read it as clean.
+    #
+    # ONE PREDICATE FOR ALL THREE, deliberately. Repairing the seat that was reported and
+    # leaving its siblings is how this class survived a round: the repair must be the class,
+    # not the instance. This is UNRESOLVED-ENTRY from the ports axis with a different noun,
+    # and it is conservative in the same way — UNRESOLVED-ENTRY refuses `localhost:9000:9000`
+    # too, though that binding is in fact loopback. Refusing what cannot be read beats
+    # guessing at it.
+    def is_unresolved: (type == "string") and test("\\$");
     def host_nets: [ (.networks // {}) | to_entries[] | select(.value.name == "host") | .key ];
-    # A network name is only readable when compose RESOLVED it. Under `--no-interpolate`
-    # `name: "${HOSTNET}"` survives as the raw string, and `host_nets` — a literal comparison
-    # — cannot see that it becomes `host` at `up` time. Measured: the guard exited 0 on
-    # exactly that file. This is the SAME class the ports axis already refuses as
-    # UNRESOLVED-ENTRY, one noun over, so it gets the same answer rather than a weaker one.
     def unresolved_nets: [ (.networks // {}) | to_entries[]
-                           | select((.value.name | type) == "string" and (.value.name | test("\\$")))
-                           | .key ];
+                           | select(.value.name | is_unresolved) | .key ];
     def attached: (.networks // {}) | if type == "object" then keys else . end;
 
     host_nets as $hostnets
@@ -271,10 +288,17 @@ for f in "${files[@]}"; do
         | ($s.value | attached)[]
         | select(. as $n | $hostnets | index($n))
         | "\($f): HOST-NETWORKING service=\($s.key) via=network:\(.)" ]
+    + [ $svc | to_entries[]
+        | select(.value.network_mode | is_unresolved)
+        | "\($f): UNRESOLVED-NETWORK-MODE service=\(.key) network_mode=\(.value.network_mode)" ]
     + [ $svc | to_entries[] as $s
         | ($s.value | attached)[] as $n
         | select($unresolved | index($n))
         | "\($f): UNRESOLVED-NETWORK-NAME service=\($s.key) network=\($n)" ]
+    + [ $svc | to_entries[] as $s
+        | ($s.value | attached)[] as $n
+        | select($n | is_unresolved)
+        | "\($f): UNRESOLVED-NETWORK-REF service=\($s.key) network=\($n)" ]
     + [ $svc | to_entries[] as $s
         | ($s.value.ports // [])[]
         | select(type != "object")
@@ -318,15 +342,22 @@ if [ -n "$violations" ]; then
   # printed "not bound to loopback" about entries it had only failed to read. Measured on the
   # awk predecessor (#1206), and the reason that guard's Blocker was a Blocker. Do not
   # restore the pipe; `classifier_survives_large_refusal_list` fails if it comes back.
-  if grep -qE 'HOST-NETWORKING|UNRESOLVED-ENTRY|UNJUDGED-BIND-IP|UNRESOLVED-NETWORK-NAME' <<<"$violations"; then
+  # MATCHED ON THE CLASS PREFIX, NOT ON AN ENUMERATION. `UNRESOLVED-NETWORK-` covers MODE,
+  # NAME and REF, and covers a fourth seat on arrival. The previous form listed the markers
+  # one by one, which is the shape that let a repair land on one seat of three: a new marker
+  # had to be remembered in two places, and the second place is silent when forgotten.
+  if grep -qE 'HOST-NETWORKING|UNRESOLVED-ENTRY|UNRESOLVED-NETWORK-|UNJUDGED-BIND-IP' <<<"$violations"; then
     echo "::error::compose-loopback-guard: a published port is in a state this guard will not judge." >&2
     echo "HOST-NETWORKING publishes outside ports: entirely. UNRESOLVED-ENTRY is an entry compose" >&2
     echo "left as a raw string (an unexpanded variable, a hostname bind address)." >&2
-    echo "UNRESOLVED-NETWORK-NAME is a network whose name is still a variable, so the guard" >&2
-    echo "cannot tell whether it resolves to the host network. UNJUDGED-BIND-IP" >&2
+    echo "UNRESOLVED-NETWORK-MODE/-NAME/-REF are the host-networking axis's three seats with an" >&2
+    echo "unexpanded variable in them — the service's own network_mode, a network's resolved" >&2
+    echo "name, or which network is joined. Any of the three can become 'host' at up time, so" >&2
+    echo "write the value literally. (A name containing a literal, escaped \$\$ trips this too:" >&2
+    echo "fail-closed, and Docker publishes no name pattern that says it is legal.) UNJUDGED-BIND-IP" >&2
     echo "is an IPv6 spelling other than ::1 or :: — it may well BE loopback, and saying otherwise" >&2
     echo "would assert a fact the guard has not established. All are refused, never passed." >&2
-    printf '%s\n' "$violations" >&2
+    printf '%s' "$violations" >&2
     exit 2
   fi
   echo "::error::compose-loopback-guard: published port(s) not bound to loopback" >&2

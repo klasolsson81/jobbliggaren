@@ -546,6 +546,56 @@ services:
 YAML
 run unresolved_network_name_refused 2 "$TMPROOT/varnet.yml"
 
+# SEAT 2 — the service's OWN network_mode. Same defeat, and this seat outlived the first
+# repair by a round: the fix went where the finding pointed instead of where the class lives.
+for spelling in '${NETMODE}' '$NETMODE' '${NETMODE:-host}'; do
+  cat >"$TMPROOT/varmode.yml" <<YAML
+services:
+  a:
+    image: x
+    network_mode: "$spelling"
+    ports:
+      - "127.0.0.1:5435:5432"
+YAML
+  run "unresolved_network_mode_refused[$spelling]" 2 "$TMPROOT/varmode.yml"
+done
+
+# `\${NETMODE:-host}` above is the one that matters most: it names `host` as its own DEFAULT,
+# so the file gives host networking with no variable set at all — and it read as clean.
+
+# SEAT 3 — which network is joined. The host network is declared and readable; the
+# ATTACHMENT is not, so the guard cannot tell whether this service joins it.
+cat >"$TMPROOT/varref.yml" <<'YAML'
+networks:
+  hostnet:
+    external: true
+    name: host
+services:
+  a:
+    image: x
+    networks: ["${NET}"]
+    ports:
+      - "127.0.0.1:5435:5432"
+YAML
+run unresolved_network_ref_refused 2 "$TMPROOT/varref.yml"
+
+# THE COUNTERWEIGHTS FOR SEAT 2. Without these the rule could drift into refusing every
+# `network_mode`, which would fail every legitimate file. All three are resolved literals and
+# none is host networking.
+for mode in bridge none 'service:api'; do
+  cat >"$TMPROOT/plainmode.yml" <<YAML
+services:
+  api:
+    image: y
+    ports:
+      - "127.0.0.1:8080:8080"
+  a:
+    image: x
+    network_mode: "$mode"
+YAML
+  run "resolved_network_mode_ok[$mode]" 0 "$TMPROOT/plainmode.yml"
+done
+
 # The counterweight: an unresolved network name nobody is attached to publishes nothing, so
 # it must not be refused. Without this the rule could drift into refusing any variable.
 cat >"$TMPROOT/varnet_unused.yml" <<'YAML'

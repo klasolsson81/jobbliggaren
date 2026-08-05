@@ -121,8 +121,17 @@ out=$(jq -r --arg p "$dir" --arg edge "$EDGE_SERVICE" --arg want "$EXPECTED_PORT
     | [ $entries[] | select(type == "object")
         | select(has("published")) | select(.published | is_port_number) | .published ] as $readable
 
+    # A host-networked service listens on every host interface with ZERO ports entries,
+    # so the publisher count above cannot see it. Measured: postgres with
+    # network_mode host alongside a correct caddy scored exit 0 and the message said
+    # nothing else publishes. Refused rather than judged, for the same reason the
+    # loopback guard refuses this axis: the value can be a variable, and what it becomes
+    # at up time is not readable here.
+    | [ $svc | to_entries[] | select(.value.network_mode != null)
+        | "\(pp): HOST-NETWORK-OR-MODE service=\(.key|oneline) network_mode=\(.value.network_mode|oneline)" ]
+
     # Refusals — untagged, so any one of them makes the whole run exit 2.
-    | [ $entries[] | select(type != "object")
+    + [ $entries[] | select(type != "object")
         | "\(pp): UNRESOLVED-ENTRY entry=\(.|oneline)" ]
     + [ $entries[] | select(type == "object") | select(has("published") | not)
         | "\(pp): EPHEMERAL-PUBLISH service-port=\(.target // "<none>"|oneline)" ]

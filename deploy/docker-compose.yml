@@ -66,9 +66,15 @@ services:
       - caddy_data:/data
       - caddy_config:/config
     mem_limit: 128m
+    # ORDER, NOT HEALTH, and the difference is the certificate. Caddy needs nothing from
+    # web to start — reverse_proxy resolves upstream per request, and ACME is independent
+    # of upstream entirely. Gating the edge on application health means that a stack which
+    # never becomes healthy has no edge at all: no error page, and no renewal. A 502 is a
+    # better outcome than a site that silently loses its certificate while broken.
     depends_on:
-      web:
-        condition: service_healthy
+      - web
+    security_opt:
+      - no-new-privileges:true
     restart: unless-stopped
     networks: [stack]
 
@@ -88,7 +94,7 @@ services:
       HOSTNAME: "0.0.0.0"
     mem_limit: 640m
     healthcheck:
-      # node is the only runtime in this image; fetch is global in node 24.
+      # node is the only runtime in this image; fetch has been global since node 18.
       test:
         - CMD
         - node
@@ -101,6 +107,8 @@ services:
     depends_on:
       api:
         condition: service_healthy
+    security_opt:
+      - no-new-privileges:true
     restart: unless-stopped
     networks: [stack]
 
@@ -147,6 +155,8 @@ services:
         condition: service_healthy
       migrate:
         condition: service_completed_successfully
+    security_opt:
+      - no-new-privileges:true
     restart: unless-stopped
     networks: [stack]
 
@@ -173,6 +183,8 @@ services:
         condition: service_healthy
       migrate:
         condition: service_completed_successfully
+    security_opt:
+      - no-new-privileges:true
     restart: unless-stopped
     networks: [stack]
 
@@ -205,6 +217,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    security_opt:
+      - no-new-privileges:true
     restart: "no"
     networks: [stack]
 
@@ -234,10 +248,26 @@ services:
       - work_mem=8MB
       - -c
       - maintenance_work_mem=192MB
+      # autovacuum_work_mem INHERITS maintenance_work_mem when unset, and there are three
+      # workers — so the 192 MB knob above is really up to 576 MiB per cycle inside a
+      # 2 560 MiB cap. Bounded explicitly so the file sets what it appears to set.
+      - -c
+      - autovacuum_work_mem=64MB
       - -c
       - max_connections=60
       - -c
       - wal_compression=on
+      # The dimensioning workload is not memory-bound: the nightly snapshot job commits
+      # per item, so ~47k transactions land against a 2.5 GB table in one window. At the
+      # 1 GB default, checkpoints fire on VOLUME long before the timeout and every first
+      # touch of a page after one writes a full-page image. Disk is not the scarce
+      # resource on this box; RAM is.
+      - -c
+      - max_wal_size=4GB
+      - -c
+      - min_wal_size=1GB
+      - -c
+      - log_checkpoints=on
     environment:
       POSTGRES_DB: jobbliggaren
       POSTGRES_USER: postgres
@@ -255,6 +285,8 @@ services:
       timeout: 3s
       retries: 10
       start_period: 15s
+    security_opt:
+      - no-new-privileges:true
     restart: unless-stopped
     networks: [stack]
 
@@ -283,6 +315,8 @@ services:
       timeout: 3s
       retries: 10
       start_period: 5s
+    security_opt:
+      - no-new-privileges:true
     restart: unless-stopped
     networks: [stack]
 

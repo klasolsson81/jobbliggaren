@@ -250,6 +250,24 @@ services:
 YAML
 run_says port_range_long_form 2 'UNREADABLE-PUBLISH' "$TMPROOT/port_range_long_form"
 
+# A host-networked service listens on every host interface and has ZERO ports entries,
+# so the publisher count cannot see it. Measured against the guard before this clause
+# existed: exit 0, with the message saying nothing else publishes while 5432 was open on
+# the host. The edge itself is correct in this fixture, which is what makes it a test of
+# the new clause and not of the old ones.
+proj host_networked_service <<'YAML'
+services:
+  caddy:
+    image: x
+    ports:
+      - "80:80"
+      - "443:443"
+  postgres:
+    image: z
+    network_mode: host
+YAML
+run_says host_networked_service 2 'HOST-NETWORK-OR-MODE' "$TMPROOT/host_networked_service"
+
 # A REFUSAL MUST WIN OVER A FINDING. This file breaks clause 2 as well (the publisher is not
 # the edge), so if refusals and findings were merged into one verdict the exit code would be
 # 1 and the reader would be told the wrong thing about a port nobody read.

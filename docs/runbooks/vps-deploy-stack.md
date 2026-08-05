@@ -24,7 +24,7 @@ from GHCR — nothing is built on the box, which is capacity condition 1.
 | `worker` | Hangfire jobs | nothing |
 | `migrate` | Oneshot; gates `api`/`worker` via `service_completed_successfully` | nothing |
 | `postgres` | Data | nothing |
-| `redis` | Sessions, cooldown gates, rate limiting, landing-stats cache | nothing |
+| `redis` | Sessions, cooldown gates, landing-stats cache, and the company-register cache | nothing |
 
 **Why the edge publishes wide and everything else publishes nothing.** ACME HTTP-01
 arrives on 80 and TLS-ALPN-01 on 443, both from the public internet: a loopback-bound
@@ -148,8 +148,12 @@ while its own comment claimed the opposite, and no reader caught it (#1198).
 chooses between them adaptively, so a shadowed HTTP-01 **falls back silently** — a `curl`
 against the challenge path proves nothing. Set `ACME_CA` to the Let's Encrypt staging
 directory and force issuance **once per challenge type** (one disabled at a time). Both
-must succeed. Then confirm the exemption leaks nothing else: an unknown path under
-`/.well-known/acme-challenge/` returns 404 with no application content, and every other
+must succeed. Then confirm the prefix leaks nothing: an unknown path under
+`/.well-known/acme-challenge/` must be answered BY CADDY — `Server: Caddy`, not the
+upstream's own header. A 404 alone proves nothing, because Next answers 404 too: measured
+2026-08-05 against an earlier form of the Caddyfile that merely exempted the prefix from
+the gate, `GET /.well-known/acme-challenge/probe.txt` returned application content with no
+credentials. The edge now owns the prefix with a `handle` block. Every other
 path unauthenticated returns 401. Only then switch to production issuance — the production
 limits are 5 duplicate certificates per week and 5 failed validations per hour, and a
 mistake discovered there costs days. **Never configure TLS-ALPN-01 away without having
@@ -165,11 +169,12 @@ from one that has decayed.
 |---|---|---|---|---|
 | 1 | Per-service `mem_limit`/`memswap_limit` match the ADR 0122 table | `docker inspect` | | |
 | 2 | Redis runs `maxmemory` **and** `noeviction` | `redis-cli config get maxmemory*` | | |
+| 2b | Redis has headroom under real traffic — `noeviction` means a full instance refuses writes, and the write that fails is the session store, so it surfaces as nobody being able to log in | `redis-cli info memory` — `used_memory` against `maxmemory` | | |
 | 3 | Postgres steady-state RSS against the 2 560 MiB cap | cgroup `memory.stat` anon/file during the 02:00 snapshot job | | |
 | 4 | Postgres tuning is explicit, derived from the cap | `SHOW shared_buffers` etc. | | |
 | 5 | Certificate issues over HTTP-01 with the K2 gate live (M-5a) | forced issuance, staging | | |
 | 6 | Certificate issues over TLS-ALPN-01 (the fallback path) | forced issuance, staging | | |
-| 7 | ACME exemption leaks nothing else | `curl` unknown challenge path → 404; other paths → 401 | | |
+| 7 | The edge OWNS the ACME prefix (nothing under it proxies) | `curl -sI` unknown challenge path → 404 **and `Server: Caddy`**, never the upstream's own `Server`/`Via` | | |
 | 8 | HSTS on the **unauthenticated 401** (M-5a) | `curl -sI` | | |
 | 9 | HSTS on a Next-served 200 (M-5a, complement) | `curl -sI -u` | | |
 | 10 | Only 80/443 answer from outside (M-5b p6) | external TCP probe per container port | | |
@@ -177,10 +182,10 @@ from one that has decayed.
 | 12 | `/api/v1/dev` and `/api/v1/admin/*` unreachable from outside | same matrix | | |
 | 13 | `forward` keeps `policy drop` with targeted accepts (M-5b p4) | `nft list chain inet filter forward` | | |
 | 14 | The edge's IPv6 behaviour | `nc -6 -vz <box-v6> 22` from mobile data | | |
-| 15 | Every container runs non-root | `docker inspect -f '{{.Config.User}}'` | | |
+| 15 | api/worker/migrate run as a non-root uid; caddy, postgres and redis drop privileges in their own entrypoints and every service carries `no-new-privileges` | `docker inspect -f '{{.Config.User}}'` + `docker inspect -f '{{.HostConfig.SecurityOpt}}'` | | |
 | 16 | `DOTNET_gcServer=0` reaches api and worker | `docker exec ... env` | | |
 | 17 | Swap is zram only, no disk swap (B-1) | `swapon --show` | | |
-| 18 | Per-IP rate limiting partitions on the real client IP (#1202) | two known client IPs; one exhausts, the other still authenticates | | |
+| 18 | Per-IP rate limiting partitions on the real client IP | two known client IPs; one exhausts the login budget, the other still authenticates | **blocked on #1202** — measured 2026-08-04, no component in this stack sends `X-Forwarded-For`: Caddy sets it toward `web`, and Next's BFF fetches toward `api` do not forward it. This row fails until that chain is closed. | |
 | 19 | Hot-path latency against the ADR 0045 budgets after `gcServer=0` | NBomber | | |
 | 20 | Reconcile-pull runs and applies a digest change | `systemctl list-timers` + journal of a real run | | |
 
@@ -196,6 +201,10 @@ from one that has decayed.
   separately from this file.
 - **The production log sink** — #1175, unbuilt and unowned. Docker's log rotation above is
   a disk control, not a log sink.
+- **Publishing the images this stack pulls** — #196's own deploy-workflow AC, and it is
+  **not built yet**. Until it is, §3's `docker compose pull` has nothing to pull: the tags
+  do not exist. Named here because the rest of this section reads as an enumeration, and a
+  reader would otherwise conclude publishing is owned and delivered.
 - **`infra/terraform/`** — a record of what once ran on AWS, not a starting point. Do not
   repair its names toward the current application: it injects options #802 removed, injects
   no master key (so a re-apply hard-fails at startup), and names Dockerfile paths that do

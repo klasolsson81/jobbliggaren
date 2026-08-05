@@ -41,18 +41,34 @@
 		max_size 20MB
 	}
 
-	# The ACME challenge path must never be shadowed by the gate. Caddy answers
-	# HTTP-01 internally ahead of site routing, so this exemption is belt-and-braces
-	# — but the cost of being wrong is a renewal that dies silently about 60 days
-	# after cutover, so it is written rather than assumed.
-	@gated not path /.well-known/acme-challenge/*
-	basic_auth @gated {
-		{$BASIC_AUTH_USER} {$BASIC_AUTH_HASH}
+	# THE EDGE OWNS THE ACME PREFIX; it is not merely exempted from the gate. Caddy
+	# answers a live HTTP-01 challenge internally, ahead of site routing, so this block
+	# never sees one. What it does see is every OTHER path under the prefix — and an
+	# exemption alone would send those through to Next unauthenticated.
+	#
+	# Measured on the built image with a real upstream behind it: with `basic_auth`
+	# merely scoped by `not path`, `GET /.well-known/acme-challenge/probe.txt` returned
+	# application content with no credentials, carrying the upstream's own `Server`
+	# header — proof the request was proxied rather than answered at the edge. Under
+	# Option B that is Next running middleware, routing and i18n on unauthenticated
+	# input, and K2 is the whole of admission control (gate M-5b point 5).
+	#
+	# The earlier form reasoned correctly about being wrong in one direction (a renewal
+	# that dies silently about 60 days after cutover) and never considered the other,
+	# which is the one that happened.
+	handle /.well-known/acme-challenge/* {
+		respond 404
 	}
 
-	reverse_proxy web:3000 {
-		health_uri /api/health
-		health_interval 30s
-		health_timeout 5s
+	handle {
+		basic_auth {
+			{$BASIC_AUTH_USER} {$BASIC_AUTH_HASH}
+		}
+
+		reverse_proxy web:3000 {
+			health_uri /api/health
+			health_interval 30s
+			health_timeout 5s
+		}
 	}
 }

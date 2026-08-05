@@ -236,7 +236,8 @@ if (hangfireOpts.ShutdownTimeoutSeconds is < 1 or > 300)
 {
     throw new InvalidOperationException(
         $"Hangfire:ShutdownTimeoutSeconds måste vara 1-300, fick " +
-        $"{hangfireOpts.ShutdownTimeoutSeconds}. Default 25s (strax under Fargate 30s).");
+        $"{hangfireOpts.ShutdownTimeoutSeconds}. Default 25s — just under the 30s " +
+        $"stop_grace_period the worker service sets in deploy/docker-compose.yml.");
 }
 
 builder.Services.AddHangfire(cfg => cfg

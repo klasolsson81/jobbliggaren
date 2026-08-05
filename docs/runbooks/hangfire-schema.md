@@ -1,7 +1,7 @@
 # Hangfire schema + Worker prod-härdning — JobbPilot
 
 Operativ runbook för Hangfire-PostgreSQL-schemats lifecycle, GRANT-modell,
-ConnectionStrings-split, dashboard-säkerhet och Fargate SIGTERM-handling.
+ConnectionStrings-split, dashboard-säkerhet och SIGTERM-handling.
 Implementerar TD-17 (Fas 1 prod-deploy-blockare) per
 [ADR 0023](../decisions/0023-worker-pipeline-and-hangfire.md) +
 [ADR 0024](../decisions/0024-audit-retention-and-art17-cascade.md).
@@ -283,22 +283,35 @@ ORDER BY key;
 
 ---
 
-## 6. Fargate SIGTERM + Hangfire ShutdownTimeout (TD-17 punkt 6)
+## 6. SIGTERM + Hangfire ShutdownTimeout (TD-17 punkt 6)
 
-**Default-flöde i AWS ECS Fargate:**
+> **Omskriven 2026-08-05.** Detta avsnitt beskrev Fargate `stopTimeout` och bar ett
+> `aws_ecs_task_definition`-block. ADR 0066 rev den plattformen; #196 ersatte den med
+> Compose-stacken på Netcup-lådan. Instruktionen nedan gäller den stacken, och den
+> gamla texten är borta snarare än bevarad — den namngav en ratt som inte finns, i ett
+> avsnitt en operatör följer under cutover.
 
-1. ECS skickar SIGTERM till containern
-2. 30 s grace-period (default `stopTimeout`)
-3. SIGKILL om processen inte avslutat
+**Flödet vid `docker compose down`, `stop` eller en reconcile som recreatar tjänsten:**
 
-**Hangfire-handling:**
+1. Docker skickar SIGTERM till containern.
+2. Grace-period löper — `stop_grace_period` på `worker` i `deploy/docker-compose.yml`.
+3. SIGKILL om processen inte avslutat.
 
-- `BackgroundJobServerOptions.ShutdownTimeout` = **25 sekunder** (Worker-default
-  via `HangfireWorkerOptions.ShutdownTimeoutSeconds`). Strax under Fargate
-  default → Hangfire hinner committa job-state innan SIGKILL.
-- Vid hög belastning (SaveChanges-batches > 25 s eller cleanup-väntan på
-  open transactions): höj Fargate `stopTimeout` till 60 s + matchande
-  `ShutdownTimeoutSeconds` i `appsettings.Production.json`.
+**Kopplingen är ett PAR, och båda halvorna måste flyttas tillsammans:**
+
+| Ratt | Var | Värde |
+|---|---|---|
+| `stop_grace_period` | `deploy/docker-compose.yml`, tjänsten `worker` | 30 s |
+| `Hangfire:ShutdownTimeoutSeconds` | `HangfireWorkerOptions` (default) | 25 s |
+
+Hangfire ska hinna committa job-state innan SIGKILL, alltså ligger den lägre av de två
+i appen. **Composes default är 10 s**, inte 30 — därför är värdet satt explicit i
+compose-filen i stället för ärvt, och därför är raden inte borttagbar: utan den anländer
+SIGKILL 15 s för tidigt, mitt i en commit.
+
+Vid hög belastning (SaveChanges-batcher > 25 s, eller cleanup som väntar på öppna
+transaktioner): höj **båda**, i samma ändring. Att höja `ShutdownTimeoutSeconds` ensam
+gör ingen nytta, eftersom grace-perioden fäller processen först.
 
 **Idempotency-säkring (alla jobb):**
 
@@ -306,19 +319,6 @@ ORDER BY key;
 |---|---|---|
 | `audit-log-retention` | Ja | Nästa daily run skapar samma partition (CREATE IF NOT EXISTS) + droppar gamla (DROP IF EXISTS) |
 | `hard-delete-accounts` | Ja | Steg 0 orphan-cleanup plockar upp Identity-rader vars JobSeeker redan deletats; Steg 1+2 idempotent via `WHERE deleted_at < ...` filter |
-
-**Fargate task-definition (för IaC vid prod-deploy):**
-
-```hcl
-resource "aws_ecs_task_definition" "worker" {
-  # ...
-  container_definitions = jsonencode([{
-    name = "jobbpilot-worker"
-    # ...
-    stop_timeout = 30  # default; höj till 60 om smoke-tests visar behov
-  }])
-}
-```
 
 ---
 

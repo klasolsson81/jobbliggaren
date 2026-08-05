@@ -42,6 +42,7 @@ public sealed partial class SyncPlatsbankenSnapshotJob(
     IServiceScopeFactory scopeFactory,
     IJobAdSnapshotMissTracker missTracker,
     IOptions<JobSourceRetentionOptions> retentionOptions,
+    IOptions<JobSourceIngestOptions> ingestOptions,
     IDateTimeProvider clock,
     ISystemEventAuditor auditor,
     IngestionThroughputReporter throughputReporter,
@@ -53,6 +54,16 @@ public sealed partial class SyncPlatsbankenSnapshotJob(
 
     public async Task<SyncCounts> RunAsync(CancellationToken cancellationToken)
     {
+        // Ingestion gate (JobSourceIngestOptions). Returns before the source is touched, so no
+        // recruiter contact record can reach the database while the switch is off — see the
+        // options type for the B-1 sequencing this enforces. No audit row: a run that did not
+        // happen has no Art. 30 processing to record (parity ScbCompanyRegisterRefresher).
+        if (!ingestOptions.Value.IngestEnabled)
+        {
+            LogIngestDisabled(logger, JobTypeName);
+            return new SyncCounts();
+        }
+
         // Per-run-Guid för audit-rad (ADR 0035 §2).
         var runId = Guid.NewGuid();
         var startedAt = clock.UtcNow;
@@ -201,6 +212,10 @@ public sealed partial class SyncPlatsbankenSnapshotJob(
 
         return counts;
     }
+
+    [LoggerMessage(EventId = 5407, Level = LogLevel.Warning,
+        Message = "SyncPlatsbankenSnapshotJob: JobTech:IngestEnabled=false — no-op (ingen källa kontaktad, inga annonser skrivna), jobType={JobType}.")]
+    private static partial void LogIngestDisabled(ILogger logger, string jobType);
 
     [LoggerMessage(EventId = 5401, Level = LogLevel.Information,
         Message = "SyncPlatsbankenSnapshotJob: startad — source={Source}.")]

@@ -52,9 +52,11 @@ public class SyncPlatsbankenStreamJobTests
         IServiceScopeFactory scopeFactory,
         IDateTimeProvider? clock = null,
         ISystemEventAuditor? auditor = null,
-        IngestionThroughputReporter? throughputReporter = null) =>
+        IngestionThroughputReporter? throughputReporter = null,
+        bool ingestEnabled = true) =>
         new(
             jobSource, scopeFactory,
+            Options.Create(new JobSourceIngestOptions { IngestEnabled = ingestEnabled }),
             clock ?? new FakeDateTimeProvider(Now),
             auditor ?? Substitute.For<ISystemEventAuditor>(),
             throughputReporter ?? new IngestionThroughputReporter(
@@ -96,6 +98,53 @@ public class SyncPlatsbankenStreamJobTests
             .Send(Arg.Any<UpsertExternalJobAdCommand>(), Arg.Any<CancellationToken>());
         await mediator.DidNotReceiveWithAnyArgs()
             .Send(Arg.Any<ArchiveExternalJobAdCommand>(), Arg.Any<CancellationToken>());
+    }
+
+    // ── Ingestion gate (JobSourceIngestOptions) ────────────────────────────────────────────
+    // Platsbanken ingestion writes recruiter contact records (PlatsbankenJobSource.MapContacts →
+    // JobAdImportItem.DeclaredContacts → UpsertExternalJobAdCommandHandler), which ADR 0050's
+    // gate B-1 covers. The pair below is one measurement, not two: the disabled case alone would
+    // also pass if the stub simply yielded nothing, so the enabled case is the counterfactual
+    // that proves the gate is what stops the run.
+
+    [Fact]
+    public async Task RunAsync_WithIngestDisabled_NeverReachesTheJobSource()
+    {
+        var jobSource = StubJobSource(new JobAdUpsert("ext-1", ValidItem("ext-1"), Now));
+        var mediator = Substitute.For<IMediator>();
+        var auditor = Substitute.For<ISystemEventAuditor>();
+        var job = CreateJob(jobSource, new FakeScopeFactory(mediator),
+            auditor: auditor, ingestEnabled: false);
+
+        await job.RunAsync(TestContext.Current.CancellationToken);
+
+        jobSource.DidNotReceiveWithAnyArgs()
+            .StreamChangesAsync(Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>());
+        await mediator.DidNotReceiveWithAnyArgs()
+            .Send(Arg.Any<UpsertExternalJobAdCommand>(), Arg.Any<CancellationToken>());
+        await auditor.DidNotReceiveWithAnyArgs()
+            .RecordAsync(Arg.Any<JobAdsSynced>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task RunAsync_WithIngestEnabled_ReachesTheJobSource()
+    {
+        var jobSource = StubJobSource(new JobAdUpsert("ext-1", ValidItem("ext-1"), Now));
+        var mediator = Substitute.For<IMediator>();
+        mediator.Send(Arg.Any<UpsertExternalJobAdCommand>(), Arg.Any<CancellationToken>())
+            .Returns(Result.Success(UpsertOutcome.Added));
+        var auditor = Substitute.For<ISystemEventAuditor>();
+        var job = CreateJob(jobSource, new FakeScopeFactory(mediator),
+            auditor: auditor, ingestEnabled: true);
+
+        await job.RunAsync(TestContext.Current.CancellationToken);
+
+        jobSource.ReceivedWithAnyArgs(1)
+            .StreamChangesAsync(Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>());
+        await mediator.ReceivedWithAnyArgs(1)
+            .Send(Arg.Any<UpsertExternalJobAdCommand>(), Arg.Any<CancellationToken>());
+        await auditor.ReceivedWithAnyArgs(1)
+            .RecordAsync(Arg.Any<JobAdsSynced>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]

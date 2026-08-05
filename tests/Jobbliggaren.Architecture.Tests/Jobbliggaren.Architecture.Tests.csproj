@@ -24,6 +24,8 @@
              Link="hosts\Worker.appsettings.json" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="..\..\src\Jobbliggaren.Worker\appsettings.Development.json"
              Link="hosts\Worker.appsettings.Development.json" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="..\..\src\Jobbliggaren.Worker\appsettings.Production.json"
+             Link="hosts\Worker.appsettings.Production.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>

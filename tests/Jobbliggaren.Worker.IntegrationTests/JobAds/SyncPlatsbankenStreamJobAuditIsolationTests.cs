@@ -150,6 +150,7 @@ public class SyncPlatsbankenStreamJobAuditIsolationTests(WorkerTestFixture fixtu
         var job = new SyncPlatsbankenStreamJob(
             jobSource,
             _fixture.Services.GetRequiredService<IServiceScopeFactory>(),
+            Options.Create(new JobSourceIngestOptions()),
             new FixedClock(Now),
             auditor,
             new IngestionThroughputReporter(

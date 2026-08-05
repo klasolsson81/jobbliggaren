@@ -280,6 +280,14 @@ public static class DependencyInjection
             .ValidateDataAnnotations()
             .ValidateOnStart();
 
+        // Ingestion master switch, same section and same aliasing rationale as the retention
+        // contract above. Separate type because the name has to say what it gates: the retention
+        // knobs stay live while ingestion is dark.
+        services.AddOptions<JobSourceIngestOptions>()
+            .Bind(configuration.GetSection(JobTechOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
         // JobSearch (Refit) — klassisk REST/JSON. Standard resilience-pipeline
         // (retry+CB+timeout) räcker här eftersom JobSearch saknar publicerad
         // rate-limit (429 endast vid abuse).

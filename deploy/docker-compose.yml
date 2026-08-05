@@ -211,7 +211,15 @@ services:
     container_name: jobbliggaren-worker
     environment:
       <<: [*app-secrets, *app-connections]
-      ASPNETCORE_ENVIRONMENT: Production
+      # DOTNET_ENVIRONMENT, not ASPNETCORE_ENVIRONMENT, and the difference is load-bearing.
+      # The Worker is a generic host (Host.CreateApplicationBuilder), which reads
+      # DOTNET_ENVIRONMENT; ASPNETCORE_ENVIRONMENT is what a WebApplication reads, so on this
+      # service it was inert. The Production overlay was being loaded only because Production
+      # is the framework default when nothing is set — which meant the overlay's
+      # JobTech:IngestEnabled=false, i.e. the whole pre-beta-data ingestion gate, rested on a
+      # default rather than on anything this file declared. The api service below keeps
+      # ASPNETCORE_ENVIRONMENT because it IS a WebApplication.
+      DOTNET_ENVIRONMENT: Production
       DOTNET_gcServer: "0"
     mem_limit: 1024m
     memswap_limit: 1024m

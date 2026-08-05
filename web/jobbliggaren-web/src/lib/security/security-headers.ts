@@ -66,6 +66,20 @@ export function buildContentSecurityPolicy(isDev: boolean): string {
   return directives.join("; ");
 }
 
+/**
+ * HSTS — gate M-5a (ADR 0050 `Amendment 2026-08-04` §5). Caddy emits the same
+ * value on the edge, and that half is the load-bearing one: under Option B the
+ * K2 basic-auth 401 never reaches Next, so a header only served here would be
+ * absent from the first response a browser sees. This is the complement, never
+ * the substitute — the two values are byte-identical so the paths cannot
+ * disagree.
+ *
+ * Omitted on the dev branch: `next dev` serves http on localhost, and an HSTS
+ * header there pins the browser to https for `max-age` against a host that has
+ * no certificate.
+ */
+export const STRICT_TRANSPORT_SECURITY = "max-age=31536000; includeSubDomains";
+
 export interface HttpHeader {
   readonly key: string;
   readonly value: string;
@@ -84,5 +98,13 @@ export function buildSecurityHeaders(isDev: boolean): readonly HttpHeader[] {
     { key: "X-Content-Type-Options", value: "nosniff" },
     { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
     { key: "Permissions-Policy", value: PERMISSIONS_POLICY },
+    ...(isDev
+      ? []
+      : [
+          {
+            key: "Strict-Transport-Security",
+            value: STRICT_TRANSPORT_SECURITY,
+          },
+        ]),
   ];
 }

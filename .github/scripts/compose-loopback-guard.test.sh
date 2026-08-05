@@ -512,6 +512,55 @@ services:
 YAML
 run ordinary_network_not_refused 0 "$TMPROOT/ordinary_net.yml"
 
+# ...and a network key literally called `host` WITHOUT `external:` is a project-scoped bridge
+# network that merely shares the name. Compose resolves it to `<project>_host`, so it must not
+# be refused — the rule keys on the RESOLVED name, not on the key.
+cat >"$TMPROOT/local_host_net.yml" <<'YAML'
+networks:
+  host: {}
+services:
+  a:
+    image: x
+    networks: [host]
+    ports:
+      - "127.0.0.1:5435:5432"
+YAML
+run local_network_named_host_ok 0 "$TMPROOT/local_host_net.yml"
+
+# THE NAME LOOKUP ONLY WORKS ON A NAME COMPOSE RESOLVED. Under `--no-interpolate` a network
+# written `name: "${HOSTNET}"` keeps the raw string, so a literal comparison cannot see that
+# it becomes `host` at `up` time — measured, the guard exited 0 on exactly this file while
+# `docker compose config` with the variable set returns `name: "host"`. Refused as
+# UNRESOLVED-NETWORK-NAME, which is the ports axis's UNRESOLVED-ENTRY rule one noun over.
+cat >"$TMPROOT/varnet.yml" <<'YAML'
+networks:
+  n:
+    external: true
+    name: "${HOSTNET}"
+services:
+  a:
+    image: x
+    networks: [n]
+    ports:
+      - "127.0.0.1:5435:5432"
+YAML
+run unresolved_network_name_refused 2 "$TMPROOT/varnet.yml"
+
+# The counterweight: an unresolved network name nobody is attached to publishes nothing, so
+# it must not be refused. Without this the rule could drift into refusing any variable.
+cat >"$TMPROOT/varnet_unused.yml" <<'YAML'
+networks:
+  n:
+    external: true
+    name: "${HOSTNET}"
+services:
+  a:
+    image: x
+    ports:
+      - "127.0.0.1:5435:5432"
+YAML
+run unresolved_network_unattached_ok 0 "$TMPROOT/varnet_unused.yml"
+
 # `--no-interpolate` does NOT normalise an entry carrying an unexpanded variable — measured:
 # it comes back as the raw string, so the model is not uniformly a mapping. The guard cannot
 # read a bind address it has not seen expanded.
@@ -671,14 +720,62 @@ run_lines both_files_report_separate_lines 1 2 '^.*: NOT-LOOPBACK ' "$TMPROOT/ba
 # and the ordinary `-suffix`/`.suffix` variants; a file deliberately named something else
 # (`stack.yml`) is invisible to it, as it is to compose without `-f`. The CTO's proposed form
 # was measured to also match `composer-notes.yml`, so the suffix is anchored on `.` or `-`.
+# IT ALSO OVER-REACHES, and that is the cheaper direction: `docs/compose-notes.yml` matches
+# and is not a compose file. Tripping on one costs a line in GATED_COMPOSE_FILES; missing a
+# real one costs an ungated file, so the pattern is deliberately generous.
 readonly COMPOSE_FILE_PATTERN='(^|/)(docker-)?compose([.-][A-Za-z0-9_.-]+)?\.ya?ml$'
+# Space-separated and `sort`-ordered, matching what compose_files_in emits. One entry today;
+# whoever adds the second is doing it under a red build, so the ordering rule is written here
+# rather than left to be re-derived.
 readonly GATED_COMPOSE_FILES='docker-compose.yml'
+
+# `|| true` IS LOAD-BEARING. `grep` exits 1 when nothing matches; under `set -o pipefail`
+# that becomes the substitution's status and `set -e` kills the whole suite ON THIS LINE —
+# no FAIL row, no gated/found comparison, none of the six diagnostic lines, and no summary.
+# Measured: exit 1, zero output. The awk predecessor carried this exact lesson in a comment
+# and it did not travel with the rewrite. The reachable trigger is the arm the message itself
+# names: a compose file REMOVED or renamed out of the pattern.
+compose_files_in() {
+  printf '%s\n' "$1" | { grep -E "$COMPOSE_FILE_PATTERN" || true; } | sort | paste -sd' ' -
+}
+
+# assert_compose_set <name> <expected> <newline-separated paths>
+# The three arms are asserted on SYNTHETIC input because the live block below can only ever
+# exercise one of them — the repo has the files it has. `if ! got=$(...)` also catches the
+# abort above and reports it, instead of the suite dying mid-run.
+assert_compose_set() {
+  local name=$1 expected=$2 input=$3 got=""
+  if ! got=$(compose_files_in "$input"); then
+    fail=$((fail + 1))
+    printf 'FAIL %-38s the matcher ABORTED (grep found nothing and killed the pipeline)\n' "$name"
+    return
+  fi
+  if [ "$got" = "$expected" ]; then
+    pass=$((pass + 1))
+    printf 'ok   %-38s ([%s])\n' "$name" "$got"
+  else
+    fail=$((fail + 1))
+    printf 'FAIL %-38s expected [%s], got [%s]\n' "$name" "$expected" "$got"
+  fi
+}
+
+assert_compose_set compose_matcher_empty_set '' 'src/a.cs
+docs/b.md'
+assert_compose_set compose_matcher_finds_gated 'docker-compose.yml' 'docker-compose.yml
+src/a.cs'
+assert_compose_set compose_matcher_finds_arrival 'compose.yaml docker-compose.yml' 'docker-compose.yml
+compose.yaml'
+assert_compose_set compose_matcher_rejects_lookalikes '' 'docs/composer-notes.yml
+pnpm-lock.yaml
+.github/workflows/e2e.yml
+src/Composer.cs
+decompose.yml'
 
 if ! tracked=$(git -C "$REPO_ROOT" ls-files 2>/dev/null); then
   fail=$((fail + 1))
   printf 'FAIL %-38s could not list tracked files (not a git repo?)\n' "compose_file_set_is_gated"
 else
-  found=$(printf '%s\n' "$tracked" | grep -E "$COMPOSE_FILE_PATTERN" | sort | paste -sd' ' -)
+  found=$(compose_files_in "$tracked")
   if [ "$found" = "$GATED_COMPOSE_FILES" ]; then
     pass=$((pass + 1))
     printf 'ok   %-38s (%s)\n' "compose_file_set_is_gated" "$found"

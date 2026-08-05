@@ -73,8 +73,11 @@
 # OK on the one nobody runs. Both predate this rewrite (the awk predecessor exits 0 on both)
 # and neither is fixed here: closing them means judging a PROJECT rather than a FILE, which
 # reverses this file's own "ONE INVOCATION PER FILE, deliberately" and is a separate change.
-# What IS here is the tripwire in the suite: the tracked compose set is asserted against a
-# known list, so a new compose file cannot arrive unnoticed and unjudged.
+# What IS here is the tripwire in the suite: the set of TRACKED compose files is asserted
+# against a known list, so a new one turns the suite RED instead of arriving silently. It
+# makes the file NOTICED, never JUDGED — it decides nothing about any file's contents — and
+# it matches on a NAME pattern, so a file called something else (`stack.yml`,
+# `deploy/compose/prod.yml`) is invisible to it, exactly as it is to compose without `-f`.
 #
 # THE RESIDUAL THIS REBUILD INTRODUCES, named rather than left implicit: the answer now
 # depends on a compose CLI VERSION as well as on the file. Every normalisation above is
@@ -88,12 +91,20 @@
 # GitHub states they can change the OS under a workflow, so this repo will cross that boundary
 # without editing a file. The measurements this guard was written against are Compose 2.40.3.
 #
-# WHAT ACTUALLY CARRIES THAT RISK IS FAIL-CLOSURE, NOT FIXTURE COVERAGE. A model shape this
-# guard does not recognise becomes a violation or a refusal, never a pass. Rename or move
-# `host_ip` and `has("host_ip")` goes false for EVERY entry, so every entry falls to
-# NOT-LOOPBACK and the `clean` fixture falls with them; drop `config` or `--no-interpolate`
-# and it is exit 2; change the JSON shape and it is exit 2. That is a property of the
-# predicate and it does not depend on the suite happening to cross the right thing.
+# WHAT CARRIES MOST OF THAT RISK IS FAIL-CLOSURE, NOT FIXTURE COVERAGE — ON THE PORTS AXIS.
+# There, a model shape this guard does not recognise becomes a violation or a refusal, never
+# a pass: rename or move `host_ip` and `has("host_ip")` goes false for EVERY entry, so every
+# entry falls to NOT-LOOPBACK and the `clean` fixture falls with them; drop `config` or
+# `--no-interpolate` and it is exit 2; change the JSON shape and it is exit 2. That is a
+# property of the predicate and does not depend on the suite crossing the right thing.
+#
+# THE HOST-NETWORKING AXIS IS NOT FAIL-CLOSED AND MUST NOT BE READ AS IF IT WERE. Both of its
+# branches are NAME LOOKUPS — `network_mode == "host"`, and a network whose resolved `name` is
+# `host` — so a compose release that stopped filling `name` in from the key, or renamed
+# `network_mode`, would turn them into silent passes rather than refusals. The fixtures are
+# the ONLY thing covering that axis. This paragraph said "a model shape this guard does not
+# recognise … never a pass" without qualification one revision ago, and that sentence was
+# false about the two branches added in the same commit that wrote it.
 #
 # THE FIXTURES MAKE THE DRIFT READABLE; THEY ARE NOT WHAT MAKES IT SAFE. Every normalisation
 # this guard leans on is crossed by at least one fixture next to it — absent `host_ip` for a
@@ -240,9 +251,18 @@ for f in "${files[@]}"; do
     # `host`, with no `network_mode` key anywhere in its model. Compose fills `name` in from
     # the key when it is omitted, so matching on the resolved name covers both spellings.
     def host_nets: [ (.networks // {}) | to_entries[] | select(.value.name == "host") | .key ];
+    # A network name is only readable when compose RESOLVED it. Under `--no-interpolate`
+    # `name: "${HOSTNET}"` survives as the raw string, and `host_nets` — a literal comparison
+    # — cannot see that it becomes `host` at `up` time. Measured: the guard exited 0 on
+    # exactly that file. This is the SAME class the ports axis already refuses as
+    # UNRESOLVED-ENTRY, one noun over, so it gets the same answer rather than a weaker one.
+    def unresolved_nets: [ (.networks // {}) | to_entries[]
+                           | select((.value.name | type) == "string" and (.value.name | test("\\$")))
+                           | .key ];
     def attached: (.networks // {}) | if type == "object" then keys else . end;
 
     host_nets as $hostnets
+    | unresolved_nets as $unresolved
     | (.services // {}) as $svc
     | [ $svc | to_entries[]
         | select(.value.network_mode == "host")
@@ -251,6 +271,10 @@ for f in "${files[@]}"; do
         | ($s.value | attached)[]
         | select(. as $n | $hostnets | index($n))
         | "\($f): HOST-NETWORKING service=\($s.key) via=network:\(.)" ]
+    + [ $svc | to_entries[] as $s
+        | ($s.value | attached)[] as $n
+        | select($unresolved | index($n))
+        | "\($f): UNRESOLVED-NETWORK-NAME service=\($s.key) network=\($n)" ]
     + [ $svc | to_entries[] as $s
         | ($s.value.ports // [])[]
         | select(type != "object")
@@ -294,17 +318,21 @@ if [ -n "$violations" ]; then
   # printed "not bound to loopback" about entries it had only failed to read. Measured on the
   # awk predecessor (#1206), and the reason that guard's Blocker was a Blocker. Do not
   # restore the pipe; `classifier_survives_large_refusal_list` fails if it comes back.
-  if grep -qE 'HOST-NETWORKING|UNRESOLVED-ENTRY|UNJUDGED-BIND-IP' <<<"$violations"; then
+  if grep -qE 'HOST-NETWORKING|UNRESOLVED-ENTRY|UNJUDGED-BIND-IP|UNRESOLVED-NETWORK-NAME' <<<"$violations"; then
     echo "::error::compose-loopback-guard: a published port is in a state this guard will not judge." >&2
     echo "HOST-NETWORKING publishes outside ports: entirely. UNRESOLVED-ENTRY is an entry compose" >&2
-    echo "left as a raw string (an unexpanded variable, a hostname bind address). UNJUDGED-BIND-IP" >&2
+    echo "left as a raw string (an unexpanded variable, a hostname bind address)." >&2
+    echo "UNRESOLVED-NETWORK-NAME is a network whose name is still a variable, so the guard" >&2
+    echo "cannot tell whether it resolves to the host network. UNJUDGED-BIND-IP" >&2
     echo "is an IPv6 spelling other than ::1 or :: — it may well BE loopback, and saying otherwise" >&2
     echo "would assert a fact the guard has not established. All are refused, never passed." >&2
     printf '%s\n' "$violations" >&2
     exit 2
   fi
   echo "::error::compose-loopback-guard: published port(s) not bound to loopback" >&2
-  printf '%s\n' "$violations" >&2
+  # No trailing \n: `$violations` already ends in one, and printing a second produced a blank
+  # line before the explanation.
+  printf '%s' "$violations" >&2
   echo >&2
   echo "Every published port must name a loopback bind address (#1198)." >&2
   echo "host_ip=<absent> means compose read no bind address at all — it omits the key rather" >&2
@@ -314,6 +342,8 @@ if [ -n "$violations" ]; then
   echo "  the container port alone (5435, or a long form with no published:) -> that publishes" >&2
   echo "  on a RANDOM host port across every interface; write 127.0.0.1::5435 to keep the" >&2
   echo "  random port and bind it to loopback. Those are reported as published=<ephemeral>." >&2
+  echo "In the LONG form neither remedy needs a syntax change: add host_ip: 127.0.0.1 to the" >&2
+  echo "entry and leave target:/published: alone." >&2
   exit 1
 fi
 

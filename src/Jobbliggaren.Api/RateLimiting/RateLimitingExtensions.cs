@@ -449,8 +449,10 @@ public static partial class RateLimitingExtensions
             // Beslut A1. security-auditor BLOCKING verifierar tal (riktvärde 30/min).
             //
             // IF YOU EVER MOVE THIS AXIS TO THE CLIENT IP, read ForwardedHeadersConfig first.
-            // The seen-marking writes behind this policy are reached from Next `after()`
-            // callbacks registered in the RENDER phase, and such a callback cannot read
+            // TWO of the three seen-marking writes behind this policy are reached from Next
+            // `after()` callbacks registered in the RENDER phase (the third,
+            // /me/followed-company-ads/seen, is awaited during render and does relay), and such
+            // a callback cannot read
             // `headers()` at all (Next E839) — so no X-Forwarded-For arrives and an IP
             // partition would collapse those requests into the web container. Harmless while
             // the axis is `sub`; it is the trigger that makes it stop being harmless (#1202).
@@ -478,6 +480,12 @@ public static partial class RateLimitingExtensions
             // avfyras sällan). Egen bucket → kan varken svälta eller svältas av genuina writes. Auth-
             // gated → anonym fångas av RequireAuthorization (NoLimiter bypass). senior-cto-advisor
             // 2026-07-02 (b), riktvärde 60/min; security-auditor verifierar (BLOCKING). IOptions (§5.1).
+            // SAME WARNING AS MeWritePolicy ABOVE, and this is the likelier one to be tempted:
+            // this policy exists because the write AUTO-fires on every ad-detail open, which is
+            // exactly the profile that invites a client-IP axis. It cannot have one. The write is
+            // reached from a Next `after()` callback registered in the RENDER phase, which cannot
+            // read `headers()` at all (Next E839), so no X-Forwarded-For arrives and an IP
+            // partition would collapse every such request into the web container (#1202).
             options.AddPolicy(FollowSeenMarkPolicy, ctx =>
             {
                 var userId = ctx.User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;

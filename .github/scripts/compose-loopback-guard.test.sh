@@ -68,9 +68,25 @@ proj() {
 }
 
 # run <name> <expected-exit> <arg...>
+# record_pointed_at <arg...> — notes every argument inside the repo that the suite hands the
+# guard. `GATED_PROJECT_DIRS` DECLARES which projects this suite gates; this OBSERVES which
+# ones it actually pointed at, and the two are compared at the end. Without it, adding a `run`
+# line beside the loop leaves the declaration and section 9 both silently false — measured by
+# `dotnet-architect`, who added such a line and got 88 passed, 0 failed.
+#
+# SHAPE-BASED, NOT NAME-BASED: it filters on being inside `$REPO_ROOT`, so fixture projects
+# under `mktemp -d` fall out on their own and `--expect-min N` flags never match.
+record_pointed_at() {
+  local a
+  for a in "$@"; do
+    case "$a" in "$REPO_ROOT"|"$REPO_ROOT"/*) printf '%s\n' "$a" >>"$TMPROOT/pointed_at.txt" ;; esac
+  done
+}
+
 run() {
   local name=$1 expected=$2; shift 2
   local actual=0
+  record_pointed_at "$@"
   bash "$SUT" "$@" >"$TMPROOT/out.txt" 2>&1 || actual=$?
   if [ "$actual" -eq "$expected" ]; then
     pass=$((pass + 1))
@@ -89,6 +105,7 @@ run() {
 run_lines() {
   local name=$1 expected=$2 count=$3 regex=$4; shift 4
   local actual=0 got
+  record_pointed_at "$@"
   bash "$SUT" "$@" >"$TMPROOT/out.txt" 2>&1 || actual=$?
   got=$(grep -cE "$regex" "$TMPROOT/out.txt" || true)
   if [ "$actual" -eq "$expected" ] && [ "$got" -eq "$count" ]; then
@@ -1097,6 +1114,13 @@ unset COMPOSE_PROJECT_NAME
 # exit 1 and the finding names its service; loop narrowed to `COMPOSE_FILE` exit 2, masked.
 # `ambient_project_name_still_answers` above cannot cross it — it uses a VALID name on purpose.
 #
+# AND TWO MORE MOVE THE VERDICT, both fail-closed, which is why the claim needs the word
+# PERMISSIVELY. `dotnet-architect` swept the twenty `COMPOSE_*` names out of the compose
+# BINARY rather than out of documentation: `COMPOSE_PROGRESS` and `COMPOSE_PARALLEL_LIMIT`
+# make compose reject its own invocation, so without the loop they turn a finding into exit 2
+# as well. No `COMPOSE_*` other than `COMPOSE_FILE` moves the verdict PERMISSIVELY — that is
+# the exact claim, and the unqualified version was false.
+#
 # THE FIXTURE HAS ITS OWN WEAKNESS AND IT IS NAMED, in the same spirit as the rest of this file:
 # it fail-opens if a future compose accepts `Bad Name`. What it pins is the loop, not compose.
 export COMPOSE_PROJECT_NAME="Bad Name"
@@ -1288,6 +1312,31 @@ assert_compose_set() {
   fi
 }
 
+# AN APOSTROPHE IN THE jq BLOCK ENDS THE SHELL STRING, and a comment is not exempt. The jq
+# program lives inside a single-quoted shell string, so one apostrophe anywhere in it —
+# including inside an explanatory comment — terminates the string, and bash then reports a
+# syntax error on an unrelated line. It has happened three times while writing the comments
+# this guard depends on, plus once in #1215.
+#
+# REMEMBERING IS THE WRONG INSTRUMENT, so this removes the channel instead: it reads the
+# delivered file, extracts the jq block by its own delimiters, and fails if an apostrophe is
+# inside it. It also gives "comment-only" a meaning here — in that block a comment IS
+# executable surface. Rewrite the wording; do not escape it.
+jq_block_apostrophes() {
+  awk '/out=\$\(jq -r --arg p/{inblk=1} inblk{print} inblk && /^  .\ <<<"\$model"\)/{exit}' "$SUT" \
+    | tail -n +2 | head -n -1 | tr -cd "'" | wc -c | tr -d ' '
+}
+got=$(jq_block_apostrophes)
+if [ "$got" = "0" ]; then
+  pass=$((pass + 1)); printf 'ok   %-38s (0 in the jq block)\n' "jq_block_carries_no_apostrophe"
+else
+  fail=$((fail + 1))
+  printf 'FAIL %-38s %s apostrophe(s) inside the jq block\n' "jq_block_carries_no_apostrophe" "$got"
+  printf '       | The jq program is a single-quoted shell string. One apostrophe -- in code\n'
+  printf '       | OR in a comment -- ends it, and bash reports a syntax error elsewhere.\n'
+  printf '       | Rewrite the wording. Do not escape it.\n'
+fi
+
 assert_compose_set compose_matcher_empty_set '' 'src/a.cs
 docs/b.md'
 assert_compose_set compose_matcher_finds_accounted 'docker-compose.yml' 'docker-compose.yml
@@ -1341,6 +1390,23 @@ else
     printf '       | Adding a directory to GATED_PROJECT_DIRS is what gates a project; adding\n'
     printf '       | a file to GATED_COMPOSE_FILES only records that something already does.\n'
   fi
+fi
+
+# THE OTHER HALF OF `GATED_PROJECT_DIRS`. The array made the DECLARATION data; this asserts
+# the OBSERVATION against it, which is what section 9 arm 1 actually claims. Declaring
+# without observing left that sentence able to go quietly false — a `run` line added beside
+# the loop kept the suite green, measured.
+observed=$(sort -u "$TMPROOT/pointed_at.txt" 2>/dev/null | paste -sd' ' -)
+declared=$(printf '%s\n' "${GATED_PROJECT_DIRS[@]}" | sort -u | paste -sd' ' -)
+if [ "$observed" = "$declared" ]; then
+  pass=$((pass + 1))
+  printf 'ok   %-38s (%s)\n' "gated_dirs_match_what_was_pointed_at" "$observed"
+else
+  fail=$((fail + 1))
+  printf 'FAIL %-38s declared [%s], pointed at [%s]\n' "gated_dirs_match_what_was_pointed_at" "$declared" "$observed"
+  printf '       | A project inside the repo was handed to the guard without being declared,\n'
+  printf '       | or a declared one was never exercised. GATED_PROJECT_DIRS and the suite\n'
+  printf '       | disagree, so section 9 arm 1 is describing something that is not true.\n'
 fi
 
 echo

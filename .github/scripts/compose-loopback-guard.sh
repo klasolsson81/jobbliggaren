@@ -398,6 +398,14 @@ for d in "${dirs[@]}"; do
     sed 's/^/compose-loopback-guard: compose said: /' "$errfile" >&2
   fi
 
+  # JUDGING A RAW ENTRY BY ITS LITERAL PREFIX WAS PROPOSED AND IS CLOSED — Klas 2026-08-05,
+  # recorded here so a later reader does not re-derive it. The idea was to read
+  # `"127.0.0.1:${PORT}:5432"` as loopback because the bind address is literal even when the
+  # port is not. It is sound — compose itself rejects a hostile `${X}` after a literal prefix
+  # — but under ADR 0050 Option B the API, Worker, Postgres, Redis and web publish NO ports
+  # at all, and the only publishing service is a reverse proxy whose 80/443 are fixed by
+  # ACME. It optimises away a refusal that almost nothing hits.
+  #
   # AN ENTRY IS NOT ALWAYS A MAPPING, and the shapes that stay raw are not exotic. Measured:
   # an unexpanded `"127.0.0.1:${HOST_PORT}:5432"` under `--no-interpolate`, and a hostname
   # bind address `"localhost:9000:9000"`, both come back as the RAW STRING. The guard cannot
@@ -415,7 +423,7 @@ for d in "${dirs[@]}"; do
     # emits an UNRESOLVED-ENTRY line whose own text contains the finding marker, so the
     # inverted match excluded it and the guard exited 1 — printing "published port(s) not
     # bound to loopback", and the bind-address remedy, about an entry it never read. That is
-    # #1206'"'"'s Blocker form, and it is a hole the INVERSION opened: under the enumeration a
+    # the Blocker form of #1206, and it is a hole the INVERSION opened: under the enumeration a
     # substring match could only ADD marker hits, never remove one.
     #
     # `oneline` IS THE SECOND HALF, not decoration. A value carrying a real newline splits the
@@ -442,13 +450,14 @@ for d in "${dirs[@]}"; do
     # A service reaches host networking through a top-level network whose RESOLVED name is
     # `host`, with no `network_mode` key anywhere in its model. Compose fills `name` in from
     # the key when it is omitted, so matching on the resolved name covers both spellings.
-    # THE HOST-NETWORKING AXIS IS THREE LITERAL COMPARISONS, AND A VARIABLE DEFEATS ANY OF
+    # THE HOST-NETWORKING AXIS IS FOUR LITERAL COMPARISONS, AND A VARIABLE DEFEATS ANY OF
     # THEM. Under `--no-interpolate` compose hands back the raw string, so `== "host"` cannot
     # see what the value becomes at `up` time. All three seats were measured exiting 0 while
     # `docker compose up` gave host networking:
     #   network_mode: "${NETMODE}"                       -> the mode the service declares
     #   networks: {n: {external: true, name: "${HOST}"}} -> the name a network resolves to
     #   networks: ["${NET}"]                             -> which network is joined
+    #   networks: {n: {driver: "${DRV:-host}"}}          -> the driver a network declares
     # `"${NETMODE:-host}"` is the worst of them: it names `host` as its own DEFAULT, so the
     # file gives host networking even with no variable set, and the guard read it as clean.
     #
@@ -480,7 +489,10 @@ for d in "${dirs[@]}"; do
     # so the name lookup cannot fire, and the guard exited 0 on a service attached to it
     # (measured 2026-08-05, client-side).
     #
-    # REFUSED WITHOUT MEASURING THE RUNTIME HALF, because the answer is the same either way.
+    # REFUSED WITHOUT MEASURING THE RUNTIME HALF, because all three outcomes land the same
+    # way. The third is that Docker accepts it and yields something that is NOT host
+    # networking, in which case the refusal is an over-refusal — the declared and accepted
+    # error direction here, cited three times elsewhere in this file.
     # Docker permits only one instance of the `host` network, so `up` may well reject the file
     # outright — in which case exit 2 costs nothing, since the file does not run. If instead it
     # yields host networking, the refusal closes a real bypass on the axis this header already

@@ -32,14 +32,22 @@ out/
 .gitattributes
 .github/
 
-# Dev secrets — får ALDRIG in i image
-.env
-.env.local
-.env.*.local
-appsettings.Local.json
+# Dev secrets — får ALDRIG in i image.
+#
+# `**/`-FORMERNA ÄR LASTBÄRANDE, inte stil. Ett Docker-mönster utan `/` matchar bara
+# rotnivån, och Dockerfilerna kopierar hela projektkataloger (`COPY src/Jobbliggaren.Api/
+# src/Jobbliggaren.Api/`). Mätt 2026-08-05 mot en build-context-probe med den här filen:
+# under den gamla rot-ankrade formen nådde både `src/Jobbliggaren.Api/appsettings.Local.json`
+# och en nästlad `*.pem` in i kontexten. Huvudkopian bär en verklig sådan fil, och
+# Web-SDK:ns default-glob tar med `appsettings.*.json` utan att någon csproj listar dem —
+# bevisat på artefakten. CI är ren enbart för att filen är gitignorerad; en lokal
+# `docker build` är det inte, och #196 gör imagesarna publika.
+**/.env
+**/.env.*
+**/appsettings.Local.json
 .secrets/
-*.pem
-*.key
+**/*.pem
+**/*.key
 
 # Terraform — separat lifecycle
 infra/

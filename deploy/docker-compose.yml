@@ -23,6 +23,17 @@
 
 name: jobbliggaren-prod
 
+# Container logs are capped here rather than left to the daemon default. No production log
+# sink exists (#1175), so rotation is the only thing between this stack and a full disk —
+# and an uncapped log is also an undefined retention period for whatever the app writes
+# (Art. 5(1)(e)). The daemon config on the box sets the same thing; this makes the artefact
+# say it too, for anyone who runs the stack elsewhere.
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 # The four pepper/key values MUST be byte-identical between api and worker: both hosts
 # validate them at startup (ValidateOnStart in the Infrastructure DI they share), and
 # data written under one value is unreadable under another. An anchor makes divergence
@@ -66,6 +77,13 @@ services:
       - caddy_data:/data
       - caddy_config:/config
     mem_limit: 128m
+    # THE GATE IS AN UNAUTHENTICATED CPU AMPLIFIER, measured: a request carrying any
+    # `Authorization: Basic` header costs ~850 ms of CPU because bcrypt cost 14 runs
+    # before anything else, and Caddy caches only SUCCESSFUL comparisons — so wrong
+    # passwords pay it every time. Forty parallel requests saturated twelve cores in the
+    # probe. On four cores that starves Postgres, the API and the Worker along with the
+    # edge. The cap does not make the amplifier cheap; it makes it survivable.
+    cpus: 1.0
     # ORDER, NOT HEALTH, and the difference is the certificate. Caddy needs nothing from
     # web to start — reverse_proxy resolves upstream per request, and ACME is independent
     # of upstream entirely. Gating the edge on application health means that a stack which
@@ -75,6 +93,7 @@ services:
       - web
     security_opt:
       - no-new-privileges:true
+    logging: *logging
     restart: unless-stopped
     networks: [stack]
 
@@ -109,6 +128,7 @@ services:
         condition: service_healthy
     security_opt:
       - no-new-privileges:true
+    logging: *logging
     restart: unless-stopped
     networks: [stack]
 
@@ -131,9 +151,13 @@ services:
       # appsettings.Production.json leaves it empty and the value is injected here.
       ForwardedHeaders__KnownNetworks__0: "172.28.0.0/24"
     mem_limit: 1024m
-    # Gate B-1: the field-encryption master key must never reach disk. The host swaps
-    # to zram only (no disk swap, #1196 §8), and equal limits keep this container's
-    # memory out of swap entirely.
+    # Gate M-6's swap hygiene, NOT gate B-1. Equal limits keep this container's memory
+    # out of swap, and the host swaps to zram only (#1196 §8) — that is swap hygiene.
+    # B-1 is a different and stricter thing: the master key must never be plaintext ON
+    # DISK, and it currently is, in `deploy/.env` and a second time in Docker's own
+    # container state, which survives the container. Closing B-1 needs a TPM-bound
+    # systemd credential or sops+age into tmpfs, and it belongs to #198. Nothing here
+    # closes it, and this comment previously implied otherwise.
     memswap_limit: 1024m
     healthcheck:
       # The aspnet image ships no curl or wget deliberately (see its Dockerfile), so the
@@ -157,6 +181,7 @@ services:
         condition: service_completed_successfully
     security_opt:
       - no-new-privileges:true
+    logging: *logging
     restart: unless-stopped
     networks: [stack]
 
@@ -185,6 +210,7 @@ services:
         condition: service_completed_successfully
     security_opt:
       - no-new-privileges:true
+    logging: *logging
     restart: unless-stopped
     networks: [stack]
 
@@ -219,6 +245,7 @@ services:
         condition: service_healthy
     security_opt:
       - no-new-privileges:true
+    logging: *logging
     restart: "no"
     networks: [stack]
 
@@ -287,6 +314,7 @@ services:
       start_period: 15s
     security_opt:
       - no-new-privileges:true
+    logging: *logging
     restart: unless-stopped
     networks: [stack]
 
@@ -317,6 +345,7 @@ services:
       start_period: 5s
     security_opt:
       - no-new-privileges:true
+    logging: *logging
     restart: unless-stopped
     networks: [stack]
 

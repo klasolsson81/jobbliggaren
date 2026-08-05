@@ -56,7 +56,19 @@ docker compose -f /opt/jobbliggaren/deploy/docker-compose.yml <command>
 `deploy/.env.example` is the template and the required-key list. Every key is a hard `:?`
 requirement: compose refuses to start rather than starting on a default nobody chose.
 
-**The master key lives in `.env`, and that is a deliberate v1 position, not an oversight.**
+**The master key lives in `.env` on disk, and gate B-1 is therefore NOT closed.** B-1
+requires the key never be plaintext on disk — a TPM-bound systemd credential, or sops+age
+into tmpfs. It is owed by #198, and the `<NAME>_FILE` seam alone does not discharge it:
+a plain file plus an env var pointing at it is still plaintext on disk. Measured
+2026-08-05, there is a **second** copy nobody had registered — `docker inspect` returns
+the value after the container has exited, so Docker persists it in its own state.
+
+**B-1 is a Blocker-graded pre-beta-data gate, and the recruiter corpus IS beta data.**
+The stack may be deployed with the key in `.env`; the corpus may not land until B-1 is
+closed. That sequencing is a Klas decision and is recorded in this runbook so it is not
+carried in anyone memory.
+
+What `memswap_limit == mem_limit` actually delivers is M-6 swap hygiene:
 `memswap_limit == mem_limit` on `api` and `worker` keeps their memory out of swap, and the
 host swaps to zram only (gate B-1). The `<NAME>_FILE` seam exists in `Jobbliggaren.Migrate`
 only — the API and Worker read plain environment through `IConfiguration` — so moving the

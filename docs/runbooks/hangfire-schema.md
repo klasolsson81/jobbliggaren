@@ -290,11 +290,14 @@ ORDER BY key;
 > borta snarare än bevarad — den namngav en ratt som inte finns, i ett avsnitt en
 > operatör följer under cutover.
 
-**Flödet vid SIGTERM:**
+**Flödet vid SIGTERM, och mellansteget är det som bestämmer golvet:**
 
 1. Orkestratorn skickar SIGTERM till containern.
-2. En grace-period löper.
-3. SIGKILL om processen inte avslutat.
+2. Hangfire slutar ta nya jobb och committar pågående — `ShutdownTimeoutSeconds`, **25 s**.
+3. Generic Host disposal — `ShutdownTimeoutSeconds + 3`, alltså **28 s**. Här sker EF Core
+   dispose och log-flush.
+4. Orkestratorns grace-period löper ut.
+5. SIGKILL.
 
 **Kopplingen är ett PAR, och bara den ena halvan finns i repot i dag:**
 
@@ -307,13 +310,18 @@ Mätt 2026-08-05: repots enda compose-fil är dev-filen i roten, och den har ing
 `worker`-tjänst och ingen `stop_grace_period`. De 25 sekunderna står alltså mot ett
 kontrakt ingen fil bär. Det är inte fel — Hangfire ska ligga under grace-perioden, och
 utan orkestrator finns ingen — men det är inte heller verifierat, och
-`release-checklist.md` §2 noterar samma sak om compose-tjänsterna.
+`release-checklist.md`s efter-deploy-steg noterar samma sak om compose-tjänsterna.
 
-**När #196 landar sin worker-tjänst gäller:** grace-perioden måste vara **högre** än 25 s,
-och Composes default är **10 s**, inte 30. Ärvs defaulten anländer SIGKILL 15 s för tidigt,
-mitt i en commit. Värdet måste alltså sättas explicit i compose-filen, och de två flyttas
-i samma ändring — att höja `ShutdownTimeoutSeconds` ensam gör ingen nytta, eftersom
-grace-perioden fäller processen först.
+**När #196 landar sin worker-tjänst gäller: grace-perioden måste vara högre än 28 s**, inte
+högre än 25. Golvet är host disposal i steg 3, inte Hangfire i steg 2 — sätter man 26, 27
+eller 28 uppfyller man den naiva regeln och kapar ändå EF Core dispose och log-flush, vilket
+är precis det felläge det här avsnittet finns för.
+
+Composes default är **10 s**. Ärvs den avslutas processen 18 s före host disposal och 15 s
+före Hangfire hunnit committa. Värdet måste alltså sättas explicit i compose-filen, och de
+två flyttas i samma ändring — att höja `ShutdownTimeoutSeconds` ensam gör ingen nytta,
+eftersom grace-perioden fäller processen först. Höjs `ShutdownTimeoutSeconds` följer host
+disposal med automatiskt (`+ 3`), så golvet flyttas med.
 
 **Idempotency-säkring (alla jobb):**
 

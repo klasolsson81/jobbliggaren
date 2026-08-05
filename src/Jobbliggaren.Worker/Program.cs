@@ -236,8 +236,8 @@ if (hangfireOpts.ShutdownTimeoutSeconds is < 1 or > 300)
 {
     throw new InvalidOperationException(
         $"Hangfire:ShutdownTimeoutSeconds måste vara 1-300, fick " +
-        $"{hangfireOpts.ShutdownTimeoutSeconds}. Default 25s, satt strax under den " +
-        $"grace-period orkestratorn ger vid SIGTERM.");
+        $"{hangfireOpts.ShutdownTimeoutSeconds}. Default 25s; host disposal följer på " +
+        $"+3s, och orkestratorns grace-period måste ligga över den summan.");
 }
 
 builder.Services.AddHangfire(cfg => cfg
@@ -249,8 +249,11 @@ builder.Services.AddHangfire(cfg => cfg
         // lease via heartbeat instead of being re-fetched at the 30-min invisibility ceiling).
         HangfireStorageOptionsFactory.Create(hangfireOpts.PrepareSchemaIfNecessary)));
 
-// Worker-count explicit satt — default Environment.ProcessorCount speglar containerns
-// CPU-tilldelning, som är liten. 4 är lämpligt för IO-bundna Mediator-jobb.
+// Worker-count explicit satt. Skälet var ursprungligen att Fargate gav 1 vCPU och
+// därmed ProcessorCount=1; den plattformen är riven, och vad containern får på den nya
+// värden är inte avgjort i den här filens räckvidd (#196 äger resurstilldelningen). 4 är
+// valt för IO-bundna Mediator-jobb och är explicit just för att inte följa värdens
+// kärnantal.
 //
 // ShutdownTimeout ligger strax under orkestratorns grace-period så Hangfire hinner
 // committa job-state innan SIGKILL (TD-17 punkt 6). Grace-perioden är INTE satt i

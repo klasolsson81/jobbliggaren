@@ -1,11 +1,17 @@
 # Build context for the web image is this directory (the root .dockerignore
 # excludes `web/` entirely and does not apply here).
+#
+# The secret patterns below are deliberately WIDER than the repo .gitignore rather
+# than a copy of it: this file decides what reaches an image layer, and a layer is
+# published. `.env*` rather than three named spellings, and the `**/` forms so a
+# nested match is not missed.
 
 # Installed and built output — the image builds both itself.
 node_modules/
 .next/
 out/
 .turbo/
+**/*.tsbuildinfo
 
 # Tests and their artefacts — not in the image.
 tests/
@@ -18,12 +24,12 @@ coverage/
 vitest.config.ts
 playwright.config.ts
 
-# Secrets — must never reach a layer.
-.env
-.env.local
-.env.*.local
-*.pem
-*.key
+# Secrets and local-only files — must never reach a layer.
+.env*
+**/*.local.ts
+**/*.local.json
+**/*.pem
+**/*.key
 
 # Tooling and docs.
 .vscode/

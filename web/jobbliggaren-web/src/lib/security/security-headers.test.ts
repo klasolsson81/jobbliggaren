@@ -134,8 +134,14 @@ describe("buildSecurityHeaders", () => {
     );
   });
 
-  it("emits HSTS in production with the value Caddy also emits", () => {
-    expect(byKey["Strict-Transport-Security"]).toBe(STRICT_TRANSPORT_SECURITY);
+  it("emits HSTS in production with the max-age ADR 0050 prescribes", () => {
+    // Asserted against the literal rather than against the exported constant: a
+    // test that compares the module to itself passes whatever the value drifts to,
+    // and this value is half of a two-emitter contract.
+    expect(byKey["Strict-Transport-Security"]).toBe(
+      "max-age=31536000; includeSubDomains"
+    );
+    expect(STRICT_TRANSPORT_SECURITY).toBe(byKey["Strict-Transport-Security"]);
   });
 
   it("omits HSTS on the dev branch (localhost is http, no certificate)", () => {

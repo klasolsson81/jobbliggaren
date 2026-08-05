@@ -67,12 +67,16 @@ export function buildContentSecurityPolicy(isDev: boolean): string {
 }
 
 /**
- * HSTS — gate M-5a (ADR 0050 `Amendment 2026-08-04` §5). Caddy emits the same
- * value on the edge, and that half is the load-bearing one: under Option B the
- * K2 basic-auth 401 never reaches Next, so a header only served here would be
- * absent from the first response a browser sees. This is the complement, never
- * the substitute — the two values are byte-identical so the paths cannot
- * disagree.
+ * HSTS — gate M-5a (ADR 0050 `Amendment 2026-08-04` §5), which requires the
+ * header on BOTH response paths. This is the Next path, and it is the lesser
+ * half: under Option B the K2 basic-auth 401 is answered at the edge and never
+ * reaches Next, so this header is absent from the first response a browser sees.
+ * The edge half is owed by the reverse proxy under #196 and nothing here can
+ * stand in for it.
+ *
+ * The value is the one ADR 0050 §5 prescribes. Nothing enforces that the two
+ * emitters agree — the gate is read off `curl -sI` against both paths at
+ * cutover, never off either configuration.
  *
  * Omitted on the dev branch: `next dev` serves http on localhost, and an HSTS
  * header there pins the browser to https for `max-age` against a host that has

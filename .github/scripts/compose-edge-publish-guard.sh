@@ -108,13 +108,15 @@ out=$(jq -r --arg p "$dir" --arg edge "$EDGE_SERVICE" --arg want "$EXPECTED_PORT
     # the token itself. Both are neutralised at the source, so no producer has to remember.
     def oneline: tostring | gsub("\n"; "\\n") | gsub("\r"; "\\r") | gsub("\\x01"; "\\u0001");
     def pp: $p | oneline;
-    # published is a STRING in the resolved model. A range (8000-8005) and an absent key
-    # (ephemeral) are both unreadable as a single number, so both are refused, never guessed.
     # published is a STRING in the short form and a NUMBER in an unquoted long form.
     def is_port_number: (type == "number") or ((type == "string") and test("^[0-9]+$"));
     def port_text: tostring;
     def is_ipv4: (type == "string") and test("^[0-9]{1,3}(\\.[0-9]{1,3}){3}$");
-    def is_wide_ip: (. == "::") or (is_ipv4 and (startswith("127.") | not));
+    # EXACTLY the two wildcards, never a complement. Widening this to "any IPv4 that is
+    # not 127." passed an edge bound to 10.0.0.5 while still refusing the real IPv6
+    # wildcard - the guard certifying the opposite of what its header promises, which is
+    # #1198 rebuilt inside the remedy. Anything not decided here is UNJUDGED-BIND-IP.
+    def is_wide_ip: (. == "0.0.0.0") or (. == "::");
     def is_loopback_ip: (. == "::1") or (is_ipv4 and startswith("127."));
     def binds_wide: (has("host_ip") | not) or (.host_ip | is_wide_ip);
     def bind_unreadable: has("host_ip")
@@ -139,6 +141,7 @@ out=$(jq -r --arg p "$dir" --arg edge "$EDGE_SERVICE" --arg want "$EXPECTED_PORT
         | select(has("published")) | select(.published | is_port_number)
         | .published | port_text ] as $readable
 
+    # REFUSALS from here down are untagged, so any one of them makes the whole run exit 2.
     # A host-networked service listens on every host interface with ZERO ports entries,
     # so the publisher count above cannot see it. Measured: postgres with
     # network_mode host alongside a correct caddy scored exit 0 and the message said
@@ -154,7 +157,6 @@ out=$(jq -r --arg p "$dir" --arg edge "$EDGE_SERVICE" --arg want "$EXPECTED_PORT
         | select(($unresolved | index($n)) or ($n | is_unresolved))
         | "\(pp): UNRESOLVED-NETWORK service=\($s.key|oneline) network=\($n|oneline)" ]
 
-    # Refusals — untagged, so any one of them makes the whole run exit 2.
     + [ $entries[] | select(type != "object")
         | "\(pp): UNRESOLVED-ENTRY entry=\(.|oneline)" ]
     + [ $entries[] | select(type == "object") | select(has("published") | not)

@@ -91,8 +91,10 @@ services:
     # (mine) reported 217 ms and is withdrawn, because it contradicts both the others and
     # the arithmetic. The ratio is what the decision rests on and it cannot rot.
     #
-    # argon2id is faster still and refused anyway, at the class rather than at a
-    # threshold: a per-request allocation (46 MiB at its default m=47104) on an
+    # argon2id is refused at the class rather than at a threshold, and deliberately with
+    # no speed figure: the only one measured came from the same run as the withdrawn
+    # bcrypt number, and keeping one while retracting the other would be arbitrary. The
+    # ground is shape, not speed - a per-request allocation (46 MiB at its default m=47104) on an
     # unauthenticated edge is a memory-exhaustion primitive whose concurrency the attacker
     # chooses, so no value of m makes it safe here.
     # The cap alone does not make the amplifier cheap; it stops it starving Postgres, the
@@ -311,8 +313,6 @@ services:
       - max_wal_size=4GB
       - -c
       - min_wal_size=1GB
-      - -c
-      - log_checkpoints=on
     environment:
       POSTGRES_DB: jobbliggaren
       POSTGRES_USER: postgres

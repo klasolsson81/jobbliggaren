@@ -345,6 +345,19 @@ services:
 YAML
 run numeric_published 0 "$TMPROOT/numeric_published"
 
+# A PRIVATE INTERFACE IS NOT WIDE, and no other fixture crosses that band: the clean ones
+# use 0.0.0.0 and ::, the negative one uses 127.0.0.1. Binding the edge to a private
+# address is neither wildcard nor loopback, so the guard must refuse rather than pass it.
+proj edge_bound_to_private_ip <<'YAML'
+services:
+  caddy:
+    image: x
+    ports:
+      - "10.0.0.5:80:80"
+      - "192.168.1.10:443:443"
+YAML
+run_says edge_bound_to_private_ip 2 'UNJUDGED-BIND-IP' "$TMPROOT/edge_bound_to_private_ip"
+
 # A REFUSAL MUST WIN OVER A FINDING. This file breaks clause 2 as well (the publisher is not
 # the edge), so if refusals and findings were merged into one verdict the exit code would be
 # 1 and the reader would be told the wrong thing about a port nobody read.
@@ -361,14 +374,14 @@ run refusal_outranks_finding 2 "$TMPROOT/refusal_outranks_finding"
 # 4. INVOCATION — a guard that cannot run must never look like a guard that passed
 # ==========================================================================================
 
-run missing_dir 2 "$TMPROOT/does-not-exist"
+run_says missing_dir 2 'not a directory' "$TMPROOT/does-not-exist"
 
 # A file path is not a project directory. Compose would silently walk up and judge the
 # parent, so the guard refuses the argument itself.
-run file_path_argument_refused 2 "$TMPROOT/clean/docker-compose.yml"
+run_says file_path_argument_refused 2 'not a directory' "$TMPROOT/clean/docker-compose.yml"
 
 mkdir -p "$TMPROOT/empty_dir"
-run no_compose_file 2 "$TMPROOT/empty_dir"
+run_says no_compose_file 2 'no compose file in' "$TMPROOT/empty_dir"
 
 run too_many_arguments 2 "$TMPROOT/clean" "$TMPROOT/clean"
 

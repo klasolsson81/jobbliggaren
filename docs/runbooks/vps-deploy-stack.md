@@ -197,7 +197,7 @@ from one that has decayed.
 | 12 | `/api/v1/dev` and `/api/v1/admin/*` unreachable from outside | same matrix | | |
 | 13 | `forward` keeps `policy drop` with targeted accepts (M-5b p4) | `nft list chain inet filter forward` | | |
 | 14 | The edge's IPv6 behaviour | `nc -6 -vz <box-v6> 22` from mobile data | | |
-| 15 | api/worker/migrate run as a non-root uid; postgres and redis drop privileges in their own entrypoints (`gosu` / `setpriv`); **caddy runs as root and is a named exception** — it binds 80/443 and its image sets no `USER`; every service carries `no-new-privileges` | `docker inspect -f '{{.Config.User}}'` per container + `docker exec <c> id` for the two that drop + `docker inspect -f '{{.HostConfig.SecurityOpt}}'` | | |
+| 15 | api/worker/migrate/web run as a non-root uid (`app`, `app`, `app`, `node`); postgres and redis drop privileges in their own entrypoints (`gosu` / `setpriv`); **caddy runs as root and is a named exception** — it binds 80/443 and its image sets no `USER`; every service carries `no-new-privileges` | `docker inspect -f '{{.Config.User}}'` per container + `docker exec <c> id` for the two that drop + `docker inspect -f '{{.HostConfig.SecurityOpt}}'` | | |
 | 16 | `DOTNET_gcServer=0` reaches api and worker | `docker exec ... env` | | |
 | 17 | Swap is zram only, no disk swap (B-1) | `swapon --show` | | |
 | 18 | Per-IP rate limiting partitions on the real client IP | two known client IPs; one exhausts the login budget, the other still authenticates | **blocked on #1202** — measured 2026-08-04, no component in this stack sends `X-Forwarded-For`: Caddy sets it toward `web`, and Next's BFF fetches toward `api` do not forward it. This row fails until that chain is closed. | |

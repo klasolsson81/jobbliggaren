@@ -95,6 +95,18 @@ public class PhaseADatabaseGrantsTests
             .ShouldAllBe(s => !string.IsNullOrWhiteSpace(s.Description));
     }
 
+    [Theory]
+    [InlineData("jobbliggaren\"; DROP DATABASE x; --")]
+    [InlineData("Jobbliggaren")]
+    [InlineData("")]
+    public void For_RejectsAnIdentifierItCannotSafelyInterpolate(string dbName)
+    {
+        // Postgres cannot parameterise an identifier, so this type interpolates one. The
+        // extraction that gave it a testable surface also separated it from the caller's guard;
+        // it now enforces its own precondition rather than documenting it.
+        Should.Throw<InvalidOperationException>(() => PhaseADatabaseGrants.For(dbName));
+    }
+
     [Fact]
     public void For_InterpolatesTheDatabaseName_IntoEveryDatabaseLevelStatement()
     {

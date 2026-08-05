@@ -27,12 +27,17 @@ internal static class PhaseADatabaseGrants
     internal readonly record struct Statement(string Sql, string Description);
 
     /// <summary>
-    /// The database-level sequence, in execution order. <paramref name="dbName"/> must already
-    /// have passed <c>ValidateIdentifier</c> — Postgres cannot parameterise an identifier, so
-    /// the caller owns that guard and this type does not repeat it.
+    /// The database-level sequence, in execution order. Validates <paramref name="dbName"/>
+    /// itself: Postgres cannot parameterise an identifier, and the extraction that gave this
+    /// type its own testable surface also separated it from the caller's guard — a precondition
+    /// documented but not enforced is one the next caller does not know about.
     /// </summary>
-    internal static IReadOnlyList<Statement> For(string dbName) =>
-    [
+    internal static IReadOnlyList<Statement> For(string dbName)
+    {
+        PostgresIdentifier.Validate(dbName);
+
+        return
+        [
         new(
             string.Create(CultureInfo.InvariantCulture, $"REVOKE ALL ON DATABASE \"{dbName}\" FROM PUBLIC;"),
             "Revoke PUBLIC från db"),
@@ -57,5 +62,6 @@ internal static class PhaseADatabaseGrants
         new(
             string.Create(CultureInfo.InvariantCulture, $"GRANT TEMPORARY ON DATABASE \"{dbName}\" TO {Roles.App};"),
             string.Create(CultureInfo.InvariantCulture, $"GRANT TEMPORARY till {Roles.App}")),
-    ];
+        ];
+    }
 }

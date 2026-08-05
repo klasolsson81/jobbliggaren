@@ -576,10 +576,4 @@ static async Task ExecuteAsync(NpgsqlConnection conn, string sql, ILogger log, s
 // Defensiv identifier-validation — Postgres-rolnamn / db-namn / schema-namn
 // måste matcha [a-z_][a-z0-9_]{0,62} för att vara säkra att interpolera utan
 // escape. Hardcoded constants i Roles passerar redan; runtime-värden valideras.
-static void ValidateIdentifier(string ident)
-{
-    if (!System.Text.RegularExpressions.Regex.IsMatch(ident, @"^[a-z_][a-z0-9_]{0,62}$"))
-    {
-        throw new InvalidOperationException($"Ogiltigt Postgres-identifier: {ident}");
-    }
-}
+static void ValidateIdentifier(string ident) => PostgresIdentifier.Validate(ident);

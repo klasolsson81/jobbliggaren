@@ -88,8 +88,18 @@ Prerequisite: Docker installed, `/etc/docker/daemon.json` written, and the nftab
 cd /opt/jobbliggaren
 docker compose -f deploy/docker-compose.yml pull
 
-# One-time role provisioning. Needs the master credentials, which is why it is an
-# operator step and not part of `up`.
+# Role provisioning. Needs the master credentials, which is why it is an operator step
+# and not part of `up`. NOT one-time: `init` is idempotent (no CREATE DATABASE, every
+# CREATE SCHEMA is IF NOT EXISTS, CreateRoleIfNotExists branches to ALTER ROLE, GRANT and
+# REVOKE are idempotent, and Hangfire’s installer tolerates re-run), and it MUST be re-run
+# whenever Phase A’s privilege model changes — a grant added there reaches an already-
+# provisioned database no other way. Not hypothetical: `migrate schema` died on a clean box
+# because Phase A revoked TEMPORARY from PUBLIC and never granted it back (#196).
+#
+# One caveat on a LIVE box: a re-run rewrites all three role passwords from the current
+# environment. With an unchanged `.env` that is a no-op. If `.env` has drifted since the
+# containers started, already-running api/worker keep their old connection string and start
+# failing with 28P01 until they are restarted.
 docker compose -f deploy/docker-compose.yml run --rm migrate init
 docker compose -f deploy/docker-compose.yml run --rm migrate bootstrap
 docker compose -f deploy/docker-compose.yml run --rm migrate ensure-extensions

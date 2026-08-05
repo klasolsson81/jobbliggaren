@@ -399,6 +399,12 @@ jobs:
       - name: compose-loopback-guard (fixturer + repots eget compose-projekt)
         run: bash .github/scripts/compose-loopback-guard.test.sh
 
+      # Deploy-projektets EGET predikat (#196). Motsatt dom mot vakten ovan: edge:en MÅSTE
+      # publicera 80/443 vitt, allt annat får inte publicera alls. Sista fixturen dömer den
+      # riktiga `deploy/`-katalogen, inte en kopia av den.
+      - name: compose-edge-publish-guard (fixturer + deploy-projektet)
+        run: bash .github/scripts/compose-edge-publish-guard.test.sh
+
   # ---------------------------------------------------------------------------
   # PERF-/SUPPLY-CHAIN-GOVERNANCE (ADR 0045 — observe-only Fas 1).
   #

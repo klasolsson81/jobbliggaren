@@ -308,6 +308,7 @@ updates:
       - "/src/Jobbliggaren.Migrate"
       - "/src/Jobbliggaren.Worker"
       - "/web/jobbliggaren-web"
+      - "/deploy/caddy"
     schedule:
       interval: "monthly"
       day: "monday"
@@ -317,10 +318,10 @@ updates:
     # carry the SAME two images, so without `group-by` below Dependabot opens one grouped
     # PR PER DIRECTORY, and an ungrouped .NET 11 major would be 2 images x 3 directories =
     # up to 6 PRs. Overflow is SILENT (Dependabot simply opens nothing), which is the same
-    # failure shape the header already names for nuget. Raised by one when
-    # `/web/jobbliggaren-web` arrived: node is a fourth image on its own major track, and a
-    # node major is one more slot on top of that .NET worst case.
-    open-pull-requests-limit: 7
+    # failure shape the header already names for nuget. Raised twice as directories arrived:
+    # node (`/web/jobbliggaren-web`) and caddy (`/deploy/caddy`) are each a fourth and fifth
+    # image on their own major track, one slot apiece on top of that .NET worst case.
+    open-pull-requests-limit: 8
     commit-message:
       prefix: "chore(deps)"
       include: "scope"

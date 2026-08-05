@@ -12,7 +12,8 @@
 # Tests — körs inte i image, bara i CI
 tests/
 
-# Frontend — Vercel hanterar
+# Frontend — bygger ur sin EGEN kontext (web/jobbliggaren-web/Dockerfile +
+# dess egen .dockerignore), aldrig ur repo-roten.
 web/
 
 # Node
@@ -42,12 +43,6 @@ appsettings.Local.json
 
 # Terraform — separat lifecycle
 infra/
-
-# Undantag: RDS CA-bundle behöver finnas i build-context för Api/Worker
-# Dockerfile-COPY (TD-38). Negationer måste komma EFTER `infra/` och `*.pem`
-# exkluderingarna ovan för att Docker BuildKit ska tolka dem korrekt.
-!infra/certs/
-!infra/certs/*.pem
 
 # Docs — onödigt i image
 docs/

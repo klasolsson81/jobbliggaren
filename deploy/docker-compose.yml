@@ -1,0 +1,306 @@
+# Jobbliggaren production stack — Netcup RS 1000 G12 (x86, 4 cores, 8 GB).
+# ADR 0050 + its `Amendment 2026-08-04`; capacity table in ADR 0122.
+#
+# Selected BY PATH, never by COMPOSE_FILE in the box's .env:
+#
+#   docker compose -f /opt/jobbliggaren/deploy/docker-compose.yml pull
+#   docker compose -f /opt/jobbliggaren/deploy/docker-compose.yml up -d
+#
+# COMPOSE_FILE overrides a project's own file resolution, and the compose guard is
+# structurally blind to it (#1217) — a green guard would then vouch for a file the
+# deploy does not run.
+#
+# Only `caddy` publishes, and it publishes WIDE on 80/443. That is not an oversight
+# in the loopback rule: ACME HTTP-01 arrives on 80 and TLS-ALPN-01 on 443, both from
+# the public internet, so a loopback-bound reverse proxy means no certificate and no
+# site (ADR 0050 Amendment 2026-08-04 §5, gate M-5b). Every other service publishes
+# nothing at all — under Option B the API is not edge-exposed and is reached only over
+# the internal network. `.github/scripts/compose-edge-publish-guard.sh` is the gate on
+# exactly that shape.
+#
+# Secrets come from `deploy/.env` on the box (root-owned, chmod 600, never committed).
+# Every one is a hard `:?` requirement — compose refuses to start without it.
+
+name: jobbliggaren-prod
+
+# The four pepper/key values MUST be byte-identical between api and worker: both hosts
+# validate them at startup (ValidateOnStart in the Infrastructure DI they share), and
+# data written under one value is unreadable under another. An anchor makes divergence
+# structurally impossible rather than a thing to remember.
+x-app-secrets: &app-secrets
+  FieldEncryption__Provider: Local
+  FieldEncryption__LocalMasterKeyBase64: ${FIELD_ENCRYPTION_MASTER_KEY:?}
+  AuditPseudonymization__PepperBase64: ${AUDIT_PEPPER:?}
+  CompanyWatchPseudonymization__PepperBase64: ${COMPANY_WATCH_PEPPER:?}
+  CvReviewFingerprintPseudonymization__PepperBase64: ${CV_FINGERPRINT_PEPPER:?}
+
+x-app-connections: &app-connections
+  ConnectionStrings__Postgres: "Host=postgres;Port=5432;Database=jobbliggaren;Username=jobbliggaren_app;Password=${POSTGRES_APP_PASSWORD:?}"
+  ConnectionStrings__HangfireStorage: "Host=postgres;Port=5432;Database=jobbliggaren;Username=jobbliggaren_worker;Password=${POSTGRES_WORKER_PASSWORD:?}"
+  ConnectionStrings__Redis: "redis:6379"
+
+services:
+
+  # ==============================================================
+  # Edge — the only service that publishes
+  # ==============================================================
+  caddy:
+    image: ghcr.io/klasolsson81/jobbliggaren-caddy:${IMAGE_TAG:-latest}
+    container_name: jobbliggaren-caddy
+    ports:
+      # Wide by requirement, not by omission — see the header.
+      - "80:80"
+      - "443:443"
+    environment:
+      SITE_HOST: ${SITE_HOST:?}
+      ACME_EMAIL: ${ACME_EMAIL:?}
+      ACME_CA: ${ACME_CA:-https://acme-v02.api.letsencrypt.org/directory}
+      BASIC_AUTH_USER: ${BASIC_AUTH_USER:?}
+      # bcrypt hash from `caddy hash-password`. Never committed: this repo is public
+      # and K2 is the whole admission control, so a committed hash is offline-crackable
+      # (ADR 0050 Amendment 2026-08-04 §5, M-5b point 5).
+      BASIC_AUTH_HASH: ${BASIC_AUTH_HASH:?}
+    volumes:
+      # Certificates and ACME account state. Losing this volume means re-issuing, which
+      # spends Let's Encrypt rate limit — treat it as durable.
+      - caddy_data:/data
+      - caddy_config:/config
+    mem_limit: 128m
+    depends_on:
+      web:
+        condition: service_healthy
+    restart: unless-stopped
+    networks: [stack]
+
+  # ==============================================================
+  # Next.js — the only thing Caddy proxies to (Option B)
+  # ==============================================================
+  web:
+    image: ghcr.io/klasolsson81/jobbliggaren-web:${IMAGE_TAG:-latest}
+    container_name: jobbliggaren-web
+    environment:
+      # Option B invariant 6: server-only, internal service DNS, never the public
+      # origin. Pointed at the public origin, every SSR/BFF call loops back through
+      # Caddy to Next, which has no /api/v1/* handlers, and 404s.
+      BACKEND_URL: "http://api:8080"
+      NODE_ENV: production
+      PORT: "3000"
+      HOSTNAME: "0.0.0.0"
+    mem_limit: 640m
+    healthcheck:
+      # node is the only runtime in this image; fetch is global in node 24.
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:3000/api/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+    networks: [stack]
+
+  # ==============================================================
+  # Application
+  # ==============================================================
+  api:
+    image: ghcr.io/klasolsson81/jobbliggaren-api:${IMAGE_TAG:-latest}
+    container_name: jobbliggaren-api
+    environment:
+      <<: [*app-secrets, *app-connections]
+      ASPNETCORE_ENVIRONMENT: Production
+      # Capacity condition 2 (ADR 0050 Amendment 2026-08-04 §2). Real behaviour change
+      # here: Microsoft.NET.Sdk.Web sets ServerGarbageCollection=true, and Workstation GC
+      # costs throughput under concurrent load — which is why the NBomber run against the
+      # ADR 0045 budgets is part of this deploy's validation and not an afterthought.
+      DOTNET_gcServer: "0"
+      # The bridge subnet declared under `networks:` below. ForwardedHeadersConfig
+      # fail-stops a Production boot on an empty value, which is why the committed
+      # appsettings.Production.json leaves it empty and the value is injected here.
+      ForwardedHeaders__KnownNetworks__0: "172.28.0.0/24"
+    mem_limit: 1024m
+    # Gate B-1: the field-encryption master key must never reach disk. The host swaps
+    # to zram only (no disk swap, #1196 §8), and equal limits keep this container's
+    # memory out of swap entirely.
+    memswap_limit: 1024m
+    healthcheck:
+      # The aspnet image ships no curl or wget deliberately (see its Dockerfile), so the
+      # probe is a bash /dev/tcp socket against the strict readiness endpoint — which
+      # checks Postgres CanConnect and Redis PING and answers 503 until both are up.
+      test:
+        - CMD
+        - bash
+        - -c
+        - 'exec 3<>/dev/tcp/127.0.0.1/8080 && printf "GET /api/ready HTTP/1.0\r\n\r\n" >&3 && read -r status <&3 && case "$$status" in *" 200 "*) exit 0 ;; *) exit 1 ;; esac'
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+    networks: [stack]
+
+  worker:
+    image: ghcr.io/klasolsson81/jobbliggaren-worker:${IMAGE_TAG:-latest}
+    container_name: jobbliggaren-worker
+    environment:
+      <<: [*app-secrets, *app-connections]
+      ASPNETCORE_ENVIRONMENT: Production
+      DOTNET_gcServer: "0"
+    mem_limit: 1024m
+    memswap_limit: 1024m
+    # Hangfire's ShutdownTimeout is 25 s (HangfireWorkerOptions), sized to sit just under
+    # a 30 s grace period so job state is committed before SIGKILL. Compose's default is
+    # 10 s, which would kill the process 15 s early — so the value is set here rather than
+    # inherited. Raising ShutdownTimeoutSeconds means raising this in the same change.
+    stop_grace_period: 30s
+    # No healthcheck: the Worker hosts no HTTP surface, so there is nothing to probe
+    # that is not already covered by the restart policy.
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+    networks: [stack]
+
+  # Oneshot schema migration. It gates api and worker mechanically via
+  # `service_completed_successfully`, so ordering holds on every `up`, not only on the
+  # first one. The one-time role provisioning (`init`, `bootstrap`, `ensure-extensions`)
+  # is an operator step — `docker compose -f <path> run --rm migrate init` — because it
+  # needs the master credentials and must not run on every restart.
+  migrate:
+    image: ghcr.io/klasolsson81/jobbliggaren-migrate:${IMAGE_TAG:-latest}
+    container_name: jobbliggaren-migrate
+    command: ["schema"]
+    environment:
+      MIGRATE_DB_HOST: postgres
+      MIGRATE_DB_PORT: "5432"
+      MIGRATE_DB_NAME: jobbliggaren
+      # Disable, not Require: the stock postgres image serves no TLS, so Require fails
+      # the handshake. ADR 0050's "Require is acceptable only on the private bridge" is
+      # a ceiling on what may be relaxed, not an instruction to set it. Nothing but this
+      # network can reach 5432 — no service publishes it, and the host's forward chain
+      # admits only 80/443 from outside.
+      MIGRATE_SSL_MODE: Disable
+      MIGRATE_MASTER_USERNAME: postgres
+      MIGRATE_MASTER_PASSWORD: ${POSTGRES_MASTER_PASSWORD:?}
+      MIGRATE_MIGRATIONS_PASSWORD: ${POSTGRES_MIGRATIONS_PASSWORD:?}
+      MIGRATE_APP_PASSWORD: ${POSTGRES_APP_PASSWORD:?}
+      MIGRATE_WORKER_PASSWORD: ${POSTGRES_WORKER_PASSWORD:?}
+      MIGRATE_APP_CONNECTION_STRING: "Host=postgres;Port=5432;Database=jobbliggaren;Username=jobbliggaren_migrations;Password=${POSTGRES_MIGRATIONS_PASSWORD:?};SSL Mode=Disable"
+    mem_limit: 512m
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+    networks: [stack]
+
+  # ==============================================================
+  # Data
+  # ==============================================================
+  postgres:
+    # BUMPING THIS TAG — run the collation check against the box afterwards. `public.swedish`
+    # is an ICU collation and the ICU version comes out of this image; if it drifts, btree
+    # text indexes are sorted by an order that no longer holds. Postgres does not crash, the
+    # queries go quietly wrong. Query and repair: docs/runbooks/release-checklist.md §2.
+    image: postgres:18.3
+    container_name: jobbliggaren-postgres
+    # Tuned FROM the 2 560 MiB cap, not beside it. Under cgroup v2 the page cache is
+    # charged to the cgroup that faults it in, so this container's cap prices Postgres's
+    # file cache too — the host's spare RAM is not reachable from in here (ADR 0122).
+    # shared_buffers 640 MB = 25 % of the cap; effective_cache_size is what remains of it
+    # for file cache, NOT the host total; work_mem x max_connections is the sort/hash
+    # ceiling and is what makes 60 connections rather than the default 100 the safe number.
+    command:
+      - postgres
+      - -c
+      - shared_buffers=640MB
+      - -c
+      - effective_cache_size=1536MB
+      - -c
+      - work_mem=8MB
+      - -c
+      - maintenance_work_mem=192MB
+      - -c
+      - max_connections=60
+      - -c
+      - wal_compression=on
+    environment:
+      POSTGRES_DB: jobbliggaren
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_MASTER_PASSWORD:?}
+    volumes:
+      # Postgres 18+: mount /var/lib/postgresql (not .../data) so version-specific
+      # subdirectories are created — required for pg_upgrade --link.
+      - postgres_data:/var/lib/postgresql
+    mem_limit: 2560m
+    # Docker's 64 MB default breaks parallel workers on a corpus this size.
+    shm_size: 256m
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d jobbliggaren"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 15s
+    restart: unless-stopped
+    networks: [stack]
+
+  redis:
+    image: redis:8.6-alpine
+    container_name: jobbliggaren-redis
+    # BOTH keys or neither. Without maxmemory Redis grows past the container cap and the
+    # kernel OOM-kills it, losing every session at once; without a policy the default
+    # would evict. `noeviction` is the decided value (ADR 0122): allkeys-lru would evict
+    # session keys and produce silent logouts. Under noeviction a full instance refuses
+    # writes loudly instead, which is the failure we can see.
+    command:
+      - redis-server
+      - --maxmemory
+      - 400mb
+      - --maxmemory-policy
+      - noeviction
+      - --appendonly
+      - "yes"
+    volumes:
+      - redis_data:/data
+    mem_limit: 512m
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+    restart: unless-stopped
+    networks: [stack]
+
+networks:
+  stack:
+    driver: bridge
+    # The subnet is FIXED because a value derived from it is configuration: the API's
+    # ForwardedHeaders__KnownNetworks__0 above must equal this CIDR, and a Docker-assigned
+    # pool address would change under it. The bridge is named so the host's nftables
+    # forward rules can match on the interface rather than on a generated name.
+    driver_opts:
+      com.docker.network.bridge.name: br-jbl
+    ipam:
+      config:
+        - subnet: 172.28.0.0/24
+
+volumes:
+  caddy_data:
+  caddy_config:
+  postgres_data:
+  redis_data:

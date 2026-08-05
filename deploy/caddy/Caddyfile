@@ -1,0 +1,58 @@
+# Jobbliggaren edge — Caddy v2. ADR 0050 Option B: every request goes to Next.
+# There is no /api matcher here on purpose; the ASP.NET API is not edge-exposed.
+#
+# Values arrive as container environment (deploy/docker-compose.yml, from the box's
+# deploy/.env). No credential is committed: this repo is public, and the basic-auth
+# gate is the whole of admission control (gate M-5b point 5).
+
+{
+	email {$ACME_EMAIL}
+	# Let's Encrypt production by default; point ACME_CA at the staging directory to
+	# prove issuance without spending production rate limit. Both HTTP-01 and
+	# TLS-ALPN-01 stay enabled — Caddy picks between them and falls back silently, so
+	# disabling one is how you PROVE the other works, never how you run.
+	acme_ca {$ACME_CA}
+
+	servers {
+		# Slowloris and slow-body defence. With no CDN in front, these timeouts and the
+		# body cap below are the only availability controls the stack has (M-5b point 7).
+		timeouts {
+			read_body 10s
+			read_header 5s
+			write 30s
+			idle 2m
+		}
+		# HTTP/3 is not advertised: the edge firewall passes TCP only, so an Alt-Svc
+		# header would point clients at a UDP port that silently never answers.
+		protocols h1 h2
+	}
+}
+
+{$SITE_HOST} {
+	encode zstd gzip
+
+	# Gate M-5a. This is the load-bearing half: the 401 below is answered here and
+	# never reaches Next, so a header set only by buildSecurityHeaders would be absent
+	# from the first response a browser sees. The value is byte-identical to the
+	# STRICT_TRANSPORT_SECURITY constant in the web app.
+	header Strict-Transport-Security "max-age=31536000; includeSubDomains"
+
+	request_body {
+		max_size 20MB
+	}
+
+	# The ACME challenge path must never be shadowed by the gate. Caddy answers
+	# HTTP-01 internally ahead of site routing, so this exemption is belt-and-braces
+	# — but the cost of being wrong is a renewal that dies silently about 60 days
+	# after cutover, so it is written rather than assumed.
+	@gated not path /.well-known/acme-challenge/*
+	basic_auth @gated {
+		{$BASIC_AUTH_USER} {$BASIC_AUTH_HASH}
+	}
+
+	reverse_proxy web:3000 {
+		health_uri /api/health
+		health_interval 30s
+		health_timeout 5s
+	}
+}

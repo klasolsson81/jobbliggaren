@@ -70,7 +70,7 @@
          Microsoft.NET.ILLink). Test-only. -->
     <PackageVersion Include="Mono.Cecil" Version="0.11.6" />
     <!-- Api -->
-    <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.6" />
+    <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.10" />
     <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="10.0.10" />
     <!-- Integration testing -->
     <PackageVersion Include="Microsoft.EntityFrameworkCore.InMemory" Version="10.0.10" />
@@ -92,7 +92,7 @@
          — undviker third-party Xabaril-dep, ~10 rader kod. -->
     <PackageVersion Include="Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore" Version="10.0.10" />
     <!-- Redis -->
-    <PackageVersion Include="StackExchange.Redis" Version="3.1.0" />
+    <PackageVersion Include="StackExchange.Redis" Version="3.1.3" />
     <PackageVersion Include="Microsoft.Extensions.Caching.StackExchangeRedis" Version="10.0.10" />
     <!-- Test — Redis container -->
     <PackageVersion Include="Testcontainers.Redis" Version="4.13.0" />

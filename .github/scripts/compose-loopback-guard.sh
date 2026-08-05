@@ -240,7 +240,7 @@ for d in "${dirs[@]}"; do
   fi
 done
 
-# A MISSING TOOL IS EXIT 2, NEVER A PASS. Checked before any file is read, so the failure
+# A MISSING TOOL IS EXIT 2, NEVER A PASS. Checked before any project is read, so the failure
 # names the tool rather than surfacing as an empty scan that looks clean. `docker compose
 # version` is the one that matters: a host carrying only Compose v1 (`docker-compose`) has
 # `docker` on PATH and cannot answer.
@@ -386,10 +386,18 @@ for d in "${dirs[@]}"; do
   recognised=$((recognised + n))
 
   # `+=` with an explicit newline, NOT `violations=$(printf ...)`: command substitution strips
-  # the trailing newline, so the last finding of one file fused with the first of the next and
-  # a single line named two files. The exit code never moved (`grep -qE` matches substrings,
-  # so fusion can only add marker hits), but a guard whose whole thesis is that its message
-  # names the service and port truthfully cannot print a line naming two files.
+  # the trailing newline, so the last finding of one project fused with the first of the next
+  # and a single line named two.
+  #
+  # THE STAKE ROSE WHEN THE CLASSIFIER WAS INVERTED (#1216), and the old note here is now
+  # false where it was true. Under the enumeration, fusion was harmless to the VERDICT —
+  # `grep -qE` matches substrings, so gluing lines together could only add marker hits. Under
+  # `grep -qvE ': NOT-LOOPBACK '` it can SUBTRACT one: a line carrying a refusal marker glued
+  # onto the end of a NOT-LOOPBACK finding contains `: NOT-LOOPBACK `, so `-v` excludes it and
+  # the refusal disappears. A run that should exit 2 exits 1 instead, announcing "not bound to
+  # loopback" about a state it never read — #1206's Blocker form, rebuilt out of a line-ending.
+  # So this line is load-bearing for the exit code now and not only for the message.
+  # `refusal_survives_the_accumulator` is the fixture that fails if it is undone.
   if [ -n "$out" ]; then
     violations+="$out"$'\n'
   fi

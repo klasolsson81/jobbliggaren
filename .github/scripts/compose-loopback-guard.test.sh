@@ -938,6 +938,18 @@ run second_project_still_checked 1 "$TMPROOT/clean" "$TMPROOT/bare"
 # is exactly why an exit-code assertion could not pin it.
 run_lines both_projects_report_separate_lines 1 2 '^.*: NOT-LOOPBACK ' "$TMPROOT/bare" "$TMPROOT/explicit"
 
+# ...AND THE ACCUMULATOR NOW DECIDES THE EXIT CODE, WHICH IT DID NOT BEFORE. Under the old
+# enumerating classifier, fusing two lines was harmless to the verdict — `grep -qE` matches
+# substrings, so gluing could only ADD marker hits. Under the inverted predicate (#1216) it can
+# SUBTRACT one: a refusal glued onto the end of a NOT-LOOPBACK finding yields a line containing
+# `: NOT-LOOPBACK `, which `-v` excludes, so the refusal vanishes and a run that must exit 2
+# exits 1 — the guard announcing "not bound to loopback" about a state it never read.
+#
+# Project 1 is a finding, project 2 is a refusal, and the refusal is what must survive. The
+# fixture above cannot see this: both of its projects carry findings of the SAME kind, so no
+# fusion of theirs could ever cross the predicate.
+run refusal_survives_the_accumulator 2 "$TMPROOT/bare" "$TMPROOT/var"
+
 # ==========================================================================================
 # 9. THE TRIPWIRE — a compose file cannot arrive in this repo unjudged
 #

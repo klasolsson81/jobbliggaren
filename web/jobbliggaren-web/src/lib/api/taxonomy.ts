@@ -45,6 +45,9 @@ export async function getTaxonomyTree(): Promise<ApiResult<TaxonomyTree>> {
 
   try {
     const res = await fetch(
+      // No forwarded headers here, deliberately (#1202): this is revalidate-cached shared
+      // reference data, so a per-client header would fragment the Data Cache, and the
+      // endpoint carries no IP-partitioned policy that could use one.
       `${env.BACKEND_URL}/api/v1/job-ads/taxonomy`,
       {
         headers: authHeaders(sessionId),

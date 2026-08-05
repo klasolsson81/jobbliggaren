@@ -5,6 +5,7 @@ import {
   landingStatsDtoSchema,
   type LandingStatsDto,
 } from "@/lib/dto/landing";
+import { forwardedHeaders } from "@/lib/http/forwarded-headers";
 
 /**
  * ADR 0064 — publik anonym landing-stats. Server-only fetch mot
@@ -31,6 +32,7 @@ export const fetchLandingStats = cache(
   async (): Promise<LandingStatsDto | null> => {
     try {
       const res = await fetch(`${env.BACKEND_URL}/api/v1/landing/stats`, {
+        headers: await forwardedHeaders(),
         cache: "no-store",
       });
       if (!res.ok) return null;

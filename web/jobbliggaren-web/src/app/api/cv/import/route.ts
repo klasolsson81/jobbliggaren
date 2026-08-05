@@ -4,6 +4,7 @@ import { env } from "@/lib/env";
 import { getSessionId } from "@/lib/auth/session";
 import { parseResponse, parseRetryAfter } from "@/lib/dto/_helpers";
 import { importOutcomeResponseSchema } from "@/lib/dto/parsed-resume";
+import { pickForwardedHeaders } from "@/lib/http/forwarded-headers";
 
 /**
  * BFF för CV-import (Fas 4 STEG B, F1). Binär-passthrough: klienten POST:ar en
@@ -72,6 +73,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const init: StreamingRequestInit = {
     method: "POST",
     headers: {
+      ...pickForwardedHeaders(request.headers),
       Authorization: `Bearer ${sessionId}`,
       // Original-Content-Type bär multipart-boundaryn — måste skickas vidareverbatim.
       "Content-Type": contentType,

@@ -257,8 +257,45 @@ compose_version=$(docker compose version --short 2>/dev/null) || {
 }
 
 errfile=$(mktemp)
-trap 'rm -f "$errfile"' EXIT
+# An EMPTY env-file, not `/dev/null`: both were measured to close the `.env` seat, and the
+# real file is the portable one — `/dev/null` is a POSIX path that MSYS rewrites on its way to
+# a Windows `docker.exe`, and this suite runs on both.
+nullenv=$(mktemp)
+trap 'rm -f "$errfile" "$nullenv"' EXIT
 
+# Ambient seat: cleared before any `docker compose` call can read it. See the rule above.
+for v in "${!COMPOSE_@}"; do unset "$v"; done
+
+# THE SUBJECT IS THE TRACKED PROJECT, AND UNTRACKED LOCAL STATE NEVER REACHES THE VERDICT.
+# That rule was already written here twice — `--no-interpolate` exists so `.env` does not
+# reach the model, and the suite's tripwire keys on `git ls-files` — but until this change it
+# was only half true, and the half that was false is the one project semantics opened.
+# Measured 2026-08-05, in the polarity that matters: pointed at a project publishing
+# `0.0.0.0:1234`, with `COMPOSE_FILE` naming an unrelated loopback-bound file, the guard
+# printed `OK — 1 published port(s), all loopback-bound` and exited 0. The verdict rested on
+# the CHECKER'S ENVIRONMENT rather than on the artefact, which is #1198's defect class and the
+# ground `senior-cto-advisor` rejected an interpolating mode on (2026-08-05, Decision 2a).
+# The `-f` form was IMMUNE, so this is a channel project semantics OPENS, closed in the same
+# change that opens it.
+#
+# TWO SEATS, ONE RULE, AND THE MECHANISMS DIFFER BECAUSE WHAT THERE IS TO REMOVE DIFFERS.
+# Ambient `COMPOSE_*` in the environment is unset in-process below; `COMPOSE_FILE=` inside the
+# project's own `.env` needs an empty env-file on the call, because compose reads that file
+# for its OWN configuration and not only for interpolation. Measured: each mechanism closes
+# exactly one seat and neither closes both. The ambient list is built from the `COMPOSE_`
+# PREFIX rather than from an enumeration of the harmful names — `COMPOSE_PROJECT_NAME` cannot
+# reach a port and is cleared anyway, because a list of the ones known to matter is the shape
+# that let a repair land on one seat of three in #1215, and a future release adding a
+# file-selecting variable would defeat it silently.
+#
+# NEUTRALISED RATHER THAN REFUSED, deliberately. Removing the channel beats posting a detector
+# on it — the same move as having no YAML parser and therefore no spelling to miss. It also
+# has the cheap error direction: over-clearing costs nothing measurable, while over-refusing
+# would fail the build on any runner or dev shell that happens to export a `COMPOSE_*`. The
+# cost is real and named: a developer whose `COMPOSE_FILE` genuinely selects their stack gets
+# a verdict that differs from their own `docker compose up`, and is not told. That is correct
+# here, because the subject is the tracked project.
+#
 # `--no-interpolate` so the guard needs no `.env`: it must gate the project in CI, where no
 # secret exists, and the repo's compose file makes three variables hard `:?` requirements.
 # Verified 2026-08-04 that no `ports:` value in this repo is interpolated, so nothing under
@@ -285,7 +322,7 @@ violations=""
 recognised=0
 
 for d in "${dirs[@]}"; do
-  if ! model=$(docker compose --project-directory "$d" config --no-interpolate --format json 2>"$errfile"); then
+  if ! model=$(docker compose --project-directory "$d" --env-file "$nullenv" config --no-interpolate --format json 2>"$errfile"); then
     echo "::error::compose-loopback-guard: compose refused the project in $d — the guard cannot answer." >&2
     cat "$errfile" >&2
     exit 2

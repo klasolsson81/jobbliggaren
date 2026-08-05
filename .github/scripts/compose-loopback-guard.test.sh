@@ -905,6 +905,44 @@ run_lines file_path_argument_refused 2 1 'not a directory: .*docker-compose\.yml
 
 run_lines missing_dir 2 1 'not a directory: .*does-not-exist' "$TMPROOT/does-not-exist"
 
+# UNTRACKED LOCAL STATE MUST NOT RESELECT THE FILE, and this is the hazard project semantics
+# INTRODUCES rather than inherits: `COMPOSE_FILE` overrides a directory's own resolution, while
+# the old `-f` form ignored it entirely (measured). Both fixtures point the guard at
+# `$TMPROOT/bare`, which publishes `5435:5432` WIDE, while the redirection names a
+# loopback-bound file. Before the repair each printed `OK — 1 published port(s), all
+# loopback-bound` and exited 0 — the verdict describing the environment instead of the
+# artefact, which is #1198's own shape.
+#
+# EXIT 1 IS THE ASSERTION, NOT EXIT 2. The guard neutralises rather than refuses, so the right
+# answer is the wide project's own verdict, naming the wide project's own service. An exit-2
+# assertion here would be satisfied by a guard that had merely stopped working.
+export COMPOSE_FILE="$TMPROOT/clean/docker-compose.yml"
+run_lines ambient_compose_file_does_not_reselect 1 1 ': NOT-LOOPBACK service=a published=5435' "$TMPROOT/bare"
+unset COMPOSE_FILE
+
+# THE SECOND SEAT, and it needs a different mechanism: compose reads the project's own `.env`
+# for its OWN configuration, not only for interpolation, so clearing the environment does not
+# reach it. THE PATH HERE IS ABSOLUTE ON PURPOSE — a relative value resolves against the
+# CALLER'S CWD, so a relative fixture would pass without ever crossing the control, which is
+# the likeliest way this repair ships untested.
+proj dotenv_wide <<'YAML'
+services:
+  a:
+    image: x
+    ports:
+      - "5435:5432"
+YAML
+printf 'COMPOSE_FILE=%s\n' "$TMPROOT/clean/docker-compose.yml" >"$TMPROOT/dotenv_wide/.env"
+run_lines dotenv_compose_file_does_not_reselect 1 1 ': NOT-LOOPBACK service=a published=5435' "$TMPROOT/dotenv_wide"
+
+# ...and neutralising never became refusing. `COMPOSE_PROJECT_NAME` is cleared by the same
+# prefix rule though it cannot reach a port, so this pins that the guard still ANSWERS with an
+# ambient variable set. Without it, a repair that swapped clearing for an exit-2 refusal would
+# leave the two fixtures above green — they only assert that the redirection failed.
+export COMPOSE_PROJECT_NAME=jbl_ambient_probe
+run ambient_project_name_still_answers 0 "$TMPROOT/clean"
+unset COMPOSE_PROJECT_NAME
+
 # ==========================================================================================
 # 8. THE DELIVERY ITSELF — not a fixture of the repo's project, the repo's project
 # ==========================================================================================

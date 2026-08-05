@@ -4,7 +4,6 @@
 # Values arrive as container environment (deploy/docker-compose.yml, from the box's
 # deploy/.env). No credential is committed: this repo is public, and the basic-auth
 # gate is the whole of admission control (gate M-5b point 5).
-
 {
 	email {$ACME_EMAIL}
 	# Let's Encrypt production by default; point ACME_CA at the staging directory to
@@ -65,10 +64,22 @@
 			{$BASIC_AUTH_USER} {$BASIC_AUTH_HASH}
 		}
 
+		# lb_try_duration IS THE ONE THAT MATTERS AT DEPLOY TIME, and it was missing.
+		# Measured: caddy has no depends_on (deliberately — see docker-compose.yml), so on
+		# `up -d` it can win the race against web. Its first active health check then gets
+		# connection refused, the upstream is marked down, and with a 30 s interval the site
+		# returns 503 for up to half a minute after everything is already healthy. That is a
+		# visible outage on every reconcile.
+		#
+		# lb_try_duration makes a request WAIT and retry instead of failing instantly, and
+		# the shorter interval shrinks the window behind it. Proven: upstream started after
+		# caddy, request served 200 rather than 503.
 		reverse_proxy web:3000 {
 			health_uri /api/health
-			health_interval 30s
-			health_timeout 5s
+			health_interval 5s
+			health_timeout 3s
+			lb_try_duration 10s
+			lb_try_interval 500ms
 		}
 	}
 }

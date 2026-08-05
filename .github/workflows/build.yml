@@ -315,10 +315,17 @@ jobs:
   # den defektklass kontrollen finns för att stänga. Samma sak gäller ett
   # destruktivt svep: skillnaden är bara att dess felutfall är oåterkalleligt.
   #
-  # Inget toolchain-steg: bara bash, git och `jq` (den senare krävs hårt av
-  # BÅDA de nya skripten — `select-deletable-branches.sh` och
-  # `assert-not-truncated.sh`) — alla tre finns förinstallerade på
-  # ubuntu-runnern. Mätt 2026-07-27 på ubuntu-runner: **9 s när jobbet körde
+  # Inget toolchain-steg — men verktygslistan är INTE längre bara bash/git/jq.
+  # `compose-loopback-guard.sh` läser sedan den här ändringen compose EGEN
+  # upplösta modell (`docker compose config`), så jobbet kräver **compose-CLI:t**.
+  # Det kräver INGEN daemon: `config` är klientsidig, och varje mätning bakom
+  # vakten togs med Docker nere. Alla fyra finns förinstallerade på
+  # ubuntu-runnern — mätt 2026-08-05 ur `actions/runner-images`: `ubuntu-latest`
+  # (24.04) bär **Docker Compose 2.38.2**. **26.04-imagen, redan i public preview,
+  # bär 5.1.3 — ett majorhopp**, och `-latest`-migreringar byter OS under ett
+  # workflow utan att någon fil ändras här. Vakten grindar därför inte på
+  # majorversion; fixtursviten är det som avgör ett beteendebyte, genom att korsa
+  # varje normalisering vakten lutar sig mot. Mätt 2026-07-27 på ubuntu-runner: **9 s när jobbet körde
   # ENBART `is-pure-base-merge`-fixturerna**; siffran är alltså ett golv, inte
   # jobbets nuvarande varaktighet. Storleksordningen är det som bär: mot
   # `coverage` på ~913 s (kritisk väg) är ci:s väggklocka oförändrad oavsett
@@ -352,13 +359,23 @@ jobs:
       - name: audit-suppression-guard (fixturer)
         run: bash .github/scripts/audit-suppression-guard.test.sh
 
+      # Diagnostik, INGEN grind — versionen skrivs ut så att ett svar som ändrades
+      # med verktygskedjan går att läsa direkt ur loggen i stället för att härledas.
+      # Golvet grindas av vakten själv: saknas subkommandot avslutar den 2, aldrig 0.
+      - name: docker-compose-version (diagnostik — golvet grindas av vakten)
+        run: docker compose version
+
       # Fixturerna kör guarden mot den RIKTIGA `docker-compose.yml`, så det här steget
-      # grindar filen och inte bara sin egen testdata. Mutationsverifierat 2026-08-04:
-      # tas ett `127.0.0.1:`-prefix bort ur den riktiga filen faller **två** fixturer
-      # (`real_repo_file` och `real_repo_file_floor`) och jobbet med dem. Regenerera talen
-      # med `bash .github/scripts/compose-loopback-guard.test.sh` i stället för att lita på
-      # en siffra här — en tidigare version av den här raden sa "11 → 10" och blev falsk
-      # när sviten växte i samma PR.
+      # grindar filen och inte bara sin egen testdata. Mutationsverifierat 2026-08-05
+      # mot den OMBYGGDA sviten: tas ett `127.0.0.1:`-prefix bort ur den riktiga filen
+      # faller **två** fixturer (`real_repo_file` och `real_repo_file_floor`) och jobbet
+      # med dem. Regenerera talen med `bash .github/scripts/compose-loopback-guard.test.sh`
+      # i stället för att lita på en siffra här — en tidigare version av den här raden sa
+      # "11 → 10" och blev falsk när sviten växte i samma PR.
+      #
+      # Steget är LÅNGSAMMARE än sina grannar: sviten gör en compose-invokation per
+      # fixtur. Mätt lokalt (Windows/Docker Desktop 2.40.3): ~35 s för 41 fixturer.
+      # Runner-siffran står i den här körningens egen logg — den är inte gissad här.
       - name: compose-loopback-guard (fixturer + den riktiga compose-filen)
         run: bash .github/scripts/compose-loopback-guard.test.sh
 

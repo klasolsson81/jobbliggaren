@@ -53,12 +53,25 @@
 #
 # THE RESIDUAL THIS REBUILD INTRODUCES, named rather than left implicit: the answer now
 # depends on a compose CLI VERSION as well as on the file. Every normalisation above is
-# behaviour of the binary on the runner, and nothing in this repo pins it — `ubuntu-latest`
-# ships whatever Compose v2 it ships. A future compose could change a normalisation and this
-# guard would follow it silently. That is a DIFFERENT risk from the one being retired (a
-# parser that missed spellings), not a smaller version of it. Partial mitigation, not a fix:
-# the version is printed on the OK line, so an answer that changed with the toolchain is
-# readable from the CI log instead of having to be re-derived.
+# behaviour of the binary on the runner, and nothing in this repo pins it. That is a
+# DIFFERENT risk from the one being retired (a parser that missed spellings), not a smaller
+# version of it.
+#
+# AND IT IS DATED, NOT HYPOTHETICAL. Measured 2026-08-05 from actions/runner-images: the
+# `ubuntu-latest` image (24.04) carries Docker Compose **2.38.2**, and the 26.04 image already
+# in public preview carries **5.1.3** — a major version. `-latest` migrations are gradual and
+# GitHub states they can change the OS under a workflow, so this repo will cross that boundary
+# without editing a file. The measurements this guard was written against are Compose 2.40.3.
+#
+# WHAT MAKES THE DRIFT LOUD RATHER THAN SILENT — a property, not a promise. Every
+# normalisation this guard leans on is crossed by at least one fixture in the suite next to
+# it: absent `host_ip` for a bare mapping, `0.0.0.0`/`::` emitted for the wide forms, `[::1]`
+# stripped to `::1`, `[0:0:0:0:0:0:0:1]` NOT normalised, `${VAR}` and a hostname left as raw
+# strings, ranges expanded per port, `include:`/`extends:` resolved, profile-gated services
+# present without `--profile`. So a compose upgrade that changes any of them turns the suite
+# RED on the next PR instead of turning this guard quietly permissive. It does NOT prevent the
+# change, and it does not cover a compose change that no fixture crosses. Do not read it as
+# a pin.
 #
 # `--expect-min N` IS LOAD-BEARING. Shape alone cannot tell "all ports are loopback-bound"
 # from "I found no ports". With no floor given, a run recognising zero entries is REFUSED;
@@ -117,10 +130,15 @@ done
 # names the tool rather than surfacing as an empty scan that looks clean. `docker compose
 # version` is the one that matters: a host carrying only Compose v1 (`docker-compose`) has
 # `docker` on PATH and cannot answer.
+#
+# NOT GATED ON A MAJOR VERSION, deliberately. The runner is on 2.38.2 and the next image
+# carries 5.1.3, so a `v2`-shaped check would fail the build on an upgrade that may well be
+# fine. The suite is where a behaviour change is decided; this only establishes that a
+# subcommand exists to ask.
 command -v docker >/dev/null 2>&1 || { echo "::error::compose-loopback-guard: docker not on PATH — cannot resolve the compose model." >&2; exit 2; }
 command -v jq >/dev/null 2>&1 || { echo "::error::compose-loopback-guard: jq not on PATH." >&2; exit 2; }
 compose_version=$(docker compose version --short 2>/dev/null) || {
-  echo "::error::compose-loopback-guard: 'docker compose' unavailable (Compose v2 required)." >&2
+  echo "::error::compose-loopback-guard: 'docker compose' unavailable (Compose v2 or newer required)." >&2
   exit 2
 }
 

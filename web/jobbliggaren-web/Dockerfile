@@ -75,6 +75,13 @@ COPY --from=build --chown=node:node /app/.next/standalone ./
 COPY --from=build --chown=node:node /app/.next/static ./.next/static
 COPY --from=build --chown=node:node /app/public ./public
 
+# NPM IS REMOVED FROM THE RUNTIME IMAGE, and it is a vulnerability fix rather than a size
+# one. Every HIGH advisory the blocking scanner found in this image lived in npm's own
+# bundled dependencies under /usr/local/lib/node_modules/npm — measured: brace-expansion,
+# ip-address, picomatch, sigstore, tar, and nothing else. A standalone Next server runs
+# `node server.js` and needs no package manager at runtime, so the whole surface goes.
+RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx     && rm -rf /opt/yarn* /usr/local/bin/yarn /usr/local/bin/yarnpkg /usr/local/bin/corepack
+
 USER node
 EXPOSE 3000
 

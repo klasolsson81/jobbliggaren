@@ -25,9 +25,11 @@ name: jobbliggaren-prod
 
 # Container logs are capped here rather than left to the daemon default. No production log
 # sink exists (#1175), so rotation is the only thing between this stack and a full disk —
-# and an uncapped log is also an undefined retention period for whatever the app writes
-# (Art. 5(1)(e)). The daemon config on the box sets the same thing; this makes the artefact
-# say it too, for anyone who runs the stack elsewhere.
+# and an uncapped log grows without bound. Note what this does NOT do: it caps VOLUME,
+# not AGE, so retention time stays undefined — a quiet container keeps its 30 MB for
+# months. That is a disk control, not a log sink (#1175). The box's daemon config sets the
+# same 10m x 3; this makes the artefact carry it too, for anyone running the stack
+# elsewhere.
 x-logging: &logging
   driver: json-file
   options:
@@ -84,13 +86,14 @@ services:
     # probe. On four cores that starves Postgres, the API and the Worker along with the
     # edge. The cap does not make the amplifier cheap; it makes it survivable.
     cpus: 1.0
-    # ORDER, NOT HEALTH, and the difference is the certificate. Caddy needs nothing from
-    # web to start — reverse_proxy resolves upstream per request, and ACME is independent
-    # of upstream entirely. Gating the edge on application health means that a stack which
-    # never becomes healthy has no edge at all: no error page, and no renewal. A 502 is a
-    # better outcome than a site that silently loses its certificate while broken.
-    depends_on:
-      - web
+    # NO depends_on AT ALL, and the short form was not enough. `web` itself waits on
+    # `api: service_healthy`, so `depends_on: [web]` inherits that transitively: measured
+    # on Compose 2.40.3, with api unhealthy the short form leaves caddy CREATED and never
+    # started, while removing the key entirely leaves it RUNNING. Caddy needs nothing from
+    # web to boot — reverse_proxy resolves upstream per request — so the only thing the
+    # dependency bought was the failure it was written to prevent: a stack that never
+    # becomes healthy would have no edge, no error page and no certificate renewal. A 502
+    # is the better outcome.
     security_opt:
       - no-new-privileges:true
     logging: *logging
@@ -151,13 +154,16 @@ services:
       # appsettings.Production.json leaves it empty and the value is injected here.
       ForwardedHeaders__KnownNetworks__0: "172.28.0.0/24"
     mem_limit: 1024m
-    # Gate M-6's swap hygiene, NOT gate B-1. Equal limits keep this container's memory
-    # out of swap, and the host swaps to zram only (#1196 §8) — that is swap hygiene.
-    # B-1 is a different and stricter thing: the master key must never be plaintext ON
-    # DISK, and it currently is, in `deploy/.env` and a second time in Docker's own
-    # container state, which survives the container. Closing B-1 needs a TPM-bound
-    # systemd credential or sops+age into tmpfs, and it belongs to #198. Nothing here
-    # closes it, and this comment previously implied otherwise.
+    # B-1 POSTURE, and do not remove this line. ADR 0050 Amendment 2026-08-04 §2
+    # condition 4 attributes it explicitly: `mem_limit` binds only the memory axis, so a
+    # container at its ceiling swaps into zram — the same physical RAM, compressed — and
+    # `memswap_limit == mem_limit` is called a "strictly stronger B-1 posture" there,
+    # because the key then cannot reach zram either, only anonymous RAM.
+    #
+    # It STRENGTHENS B-1; it does not discharge it. B-1 requires the key never be
+    # plaintext on disk, and it currently is — in `deploy/.env`, and a second time in
+    # Docker's own container state, which survives the container (measured). Closing it
+    # needs a TPM-bound systemd credential or sops+age into tmpfs, and #198 owns that.
     memswap_limit: 1024m
     healthcheck:
       # The aspnet image ships no curl or wget deliberately (see its Dockerfile), so the

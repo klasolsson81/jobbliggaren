@@ -45,7 +45,7 @@ out/
 **/.env
 **/.env.*
 **/appsettings.Local.json
-.secrets/
+**/.secrets/
 **/*.pem
 **/*.key
 

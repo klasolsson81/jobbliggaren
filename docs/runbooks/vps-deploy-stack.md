@@ -68,7 +68,9 @@ The stack may be deployed with the key in `.env`; the corpus may not land until 
 closed. That sequencing is a Klas decision and is recorded in this runbook so it is not
 carried in anyone memory.
 
-What `memswap_limit == mem_limit` actually delivers is M-6 swap hygiene:
+What `memswap_limit == mem_limit` delivers is a **stronger B-1 posture**, which ADR 0050
+`Amendment 2026-08-04` §2 condition 4 attributes to B-1 in as many words — the key cannot
+reach zram either, only anonymous RAM. It strengthens the gate; it does not close it:
 `memswap_limit == mem_limit` on `api` and `worker` keeps their memory out of swap, and the
 host swaps to zram only (gate B-1). The `<NAME>_FILE` seam exists in `Jobbliggaren.Migrate`
 only — the API and Worker read plain environment through `IConfiguration` — so moving the
@@ -109,7 +111,7 @@ snapshot remains. Their role is **before a migration**, once real user data exis
 ## 4. Host-side prerequisites
 
 **Docker daemon.** Write `/etc/docker/daemon.json` **before the first `up`**: `json-file`
-logging capped (`max-size` + `max-file`), because no production log sink exists yet
+logging capped at `max-size: 10m` and `max-file: 3` — the same values the compose file sets, so the two cannot drift unnoticed, because no production log sink exists yet
 (#1175) and rotation is the only thing standing between the stack and a full disk;
 `live-restore: true`; pinned `default-address-pools` so an ad-hoc network cannot collide
 with the stack's subnet. Never set `"iptables": false` — publishing needs Docker's DNAT,
@@ -184,8 +186,8 @@ from one that has decayed.
 | 2b | Redis has headroom under real traffic — `noeviction` means a full instance refuses writes, and the write that fails is the session store, so it surfaces as nobody being able to log in | `redis-cli info memory` — `used_memory` against `maxmemory` | | |
 | 3 | Postgres steady-state RSS against the 2 560 MiB cap | cgroup `memory.stat` anon/file during the 02:00 snapshot job | | |
 | 4 | Postgres tuning is explicit, derived from the cap | `SHOW shared_buffers` etc. | | |
-| 5 | Certificate issues over HTTP-01 with the K2 gate live (M-5a) | forced issuance, staging | | |
-| 6 | Certificate issues over TLS-ALPN-01 (the fallback path) | forced issuance, staging | | |
+| 5 | Certificate issues over HTTP-01 with the K2 gate live (M-5a) | forced issuance on staging **with TLS-ALPN-01 disabled** — otherwise the row can be ticked on a cert ALPN issued, which is the silent fallback this proof exists to catch | | |
+| 6 | Certificate issues over TLS-ALPN-01 (the fallback path) | forced issuance on staging **with HTTP-01 disabled** | | |
 | 7 | The edge OWNS the ACME prefix (nothing under it proxies) | `curl -sI` unknown challenge path → 404 **and `Server: Caddy`**, never the upstream's own `Server`/`Via` | | |
 | 8 | HSTS on the **unauthenticated 401** (M-5a) | `curl -sI` | | |
 | 9 | HSTS on a Next-served 200 (M-5a, complement) | `curl -sI -u` | | |
@@ -194,7 +196,7 @@ from one that has decayed.
 | 12 | `/api/v1/dev` and `/api/v1/admin/*` unreachable from outside | same matrix | | |
 | 13 | `forward` keeps `policy drop` with targeted accepts (M-5b p4) | `nft list chain inet filter forward` | | |
 | 14 | The edge's IPv6 behaviour | `nc -6 -vz <box-v6> 22` from mobile data | | |
-| 15 | api/worker/migrate run as a non-root uid; caddy, postgres and redis drop privileges in their own entrypoints and every service carries `no-new-privileges` | `docker inspect -f '{{.Config.User}}'` + `docker inspect -f '{{.HostConfig.SecurityOpt}}'` | | |
+| 15 | api/worker/migrate run as a non-root uid; postgres and redis drop privileges in their own entrypoints (`gosu` / `setpriv`); **caddy runs as root and is a named exception** — it binds 80/443 and its image sets no `USER`; every service carries `no-new-privileges` | `docker inspect -f '{{.Config.User}}'` per container + `docker exec <c> id` for the two that drop + `docker inspect -f '{{.HostConfig.SecurityOpt}}'` | | |
 | 16 | `DOTNET_gcServer=0` reaches api and worker | `docker exec ... env` | | |
 | 17 | Swap is zram only, no disk swap (B-1) | `swapon --show` | | |
 | 18 | Per-IP rate limiting partitions on the real client IP | two known client IPs; one exhausts the login budget, the other still authenticates | **blocked on #1202** — measured 2026-08-04, no component in this stack sends `X-Forwarded-For`: Caddy sets it toward `web`, and Next's BFF fetches toward `api` do not forward it. This row fails until that chain is closed. | |

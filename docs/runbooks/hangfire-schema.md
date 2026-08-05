@@ -18,7 +18,7 @@ konsumeras av BÅDA Worker-processen (jobb-execution via `HangfireServer`) OCH
 Api-processen (`IBackgroundJobClient.Enqueue` för admin-endpoint
 `/api/v1/admin/job-ads/backfill-ssyk`). Rollen `jobbliggaren_worker` förblir
 hangfire-only (PUBLIC revoke:ad, ingen `jobbliggaren_app`-inheritance — se §4).
-Roll-namnet är legacy; renamning planerad i STEG 14 prod-DDL-cutover (TD-99).
+Suffixet `_worker` är missvisande för en hangfire-only-roll som BÅDA processerna bär credentialen till. Ingen renamning är planerad i denna deploy (CTO-dom 2026-08-05); frågan ägs av [#1222](https://github.com/klasolsson81/jobbliggaren/issues/1222).
 
 **Två schema-lifecycle-strategier:**
 

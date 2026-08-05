@@ -30,8 +30,13 @@
 # not normalise it, so calling it a violation would assert a fact the guard has not
 # established — #1198's own defect one level down.
 #
-# `real_repo_file` pins the delivery itself rather than a fixture of it, so a future edit that
-# reintroduces a 0.0.0.0 binding fails here and not only in review.
+# SECTION 7 ASKS THE OTHER QUESTION ENTIRELY, and it is the one that had live fail-opens on
+# `main`: not "did the guard read this binding right" but "is the artefact it read the one
+# that runs". Sections 1–6 would all have passed against a guard pointed at a dead file.
+#
+# EVERY FIXTURE IS A DIRECTORY, not a file, because the guard's unit is a compose PROJECT —
+# see `proj` below. `real_repo_project` pins the delivery itself rather than a fixture of it,
+# so a future edit that reintroduces a 0.0.0.0 binding fails here and not only in review.
 
 set -euo pipefail
 
@@ -47,6 +52,20 @@ trap 'rm -rf "$TMPROOT"' EXIT
 
 pass=0
 fail=0
+
+# proj <name> — writes stdin to $TMPROOT/<name>/docker-compose.yml and leaves the directory
+# for a `run` line to hand the guard.
+#
+# A FIXTURE IS A DIRECTORY, because the guard's unit is a compose PROJECT and not a compose
+# file. That is not decoration: `docker compose` resolves a project from a directory, merging
+# an auto-loaded override and honouring its own file precedence, and a suite that handed the
+# guard loose files would exercise an entry point production no longer has. It also means
+# every fixture below re-proves the reading predicate THROUGH the new selection path rather
+# than beside it.
+proj() {
+  mkdir -p "$TMPROOT/$1"
+  cat >"$TMPROOT/$1/docker-compose.yml"
+}
 
 # run <name> <expected-exit> <arg...>
 run() {
@@ -86,7 +105,7 @@ run_lines() {
 # 1. THE CORE PREDICATE — both halves, in both polarities
 # ==========================================================================================
 
-cat >"$TMPROOT/clean.yml" <<'YAML'
+proj clean <<'YAML'
 services:
   a:
     image: x
@@ -100,43 +119,43 @@ services:
     ports:
       - "127.0.0.1:6379:6379"
 YAML
-run clean 0 "$TMPROOT/clean.yml"
+run clean 0 "$TMPROOT/clean"
 
 # THE COUNTERFACTUAL. A bare HOST:CONTAINER binds every interface. This is the exact form the
 # tree carried for months while its comment claimed loopback. Compose emits NO `host_ip` key
 # for it rather than `0.0.0.0` — so absence is the violation, and a guard checking only the
 # VALUE passes this silently.
-cat >"$TMPROOT/bare.yml" <<'YAML'
+proj bare <<'YAML'
 services:
   a:
     image: x
     ports:
       - "5435:5432"
 YAML
-run bare_mapping 1 "$TMPROOT/bare.yml"
+run bare_mapping 1 "$TMPROOT/bare"
 
 # The other half. `0.0.0.0` IS emitted, present and wide — so a guard checking only PRESENCE
 # passes this one. Both halves or neither.
-cat >"$TMPROOT/explicit.yml" <<'YAML'
+proj explicit <<'YAML'
 services:
   a:
     image: x
     ports:
       - "0.0.0.0:5435:5432"
 YAML
-run explicit_wildcard 1 "$TMPROOT/explicit.yml"
+run explicit_wildcard 1 "$TMPROOT/explicit"
 
-cat >"$TMPROOT/unquoted.yml" <<'YAML'
+proj unquoted <<'YAML'
 services:
   a:
     image: x
     ports:
       - 5435:5432
 YAML
-run unquoted_bare 1 "$TMPROOT/unquoted.yml"
+run unquoted_bare 1 "$TMPROOT/unquoted"
 
 # One bad entry among good ones is not masked by its neighbours.
-cat >"$TMPROOT/mixed.yml" <<'YAML'
+proj mixed <<'YAML'
 services:
   a:
     image: x
@@ -145,34 +164,34 @@ services:
       - "5342:5341"
       - "127.0.0.1:6379:6379"
 YAML
-run one_bad_among_good 1 "$TMPROOT/mixed.yml"
+run one_bad_among_good 1 "$TMPROOT/mixed"
 
 # A routable address is a violation, not a refusal: the guard decides IPv4 in full.
-cat >"$TMPROOT/lan.yml" <<'YAML'
+proj lan <<'YAML'
 services:
   a:
     image: x
     ports:
       - "192.168.1.5:9100:9100"
 YAML
-run routable_ipv4 1 "$TMPROOT/lan.yml"
+run routable_ipv4 1 "$TMPROOT/lan"
 
 # 127.0.0.0/8 is loopback (RFC 1122), so the guard passes it. It is not the house spelling,
 # but the guard checks the security property, not the convention.
-cat >"$TMPROOT/lo8.yml" <<'YAML'
+proj lo8 <<'YAML'
 services:
   a:
     image: x
     ports:
       - "127.0.0.2:8000:8000"
 YAML
-run loopback_127_8_ok 0 "$TMPROOT/lo8.yml"
+run loopback_127_8_ok 0 "$TMPROOT/lo8"
 
 # THE CONTAINER PORT ALONE is not a bare HOST:CONTAINER and does not have its fix. Compose
 # emits neither `published` nor `host_ip`, and the result publishes on a RANDOM host port
 # across every interface — so exit 1 is right, and the remedy is `127.0.0.1::5435`, which
 # keeps the random port and binds it to loopback. Measured, both forms and the remedy.
-cat >"$TMPROOT/eph.yml" <<'YAML'
+proj eph <<'YAML'
 services:
   a:
     image: x
@@ -183,30 +202,30 @@ services:
     ports:
       - target: 5432
 YAML
-run_lines ephemeral_port_is_not_loopback 1 2 'published=<ephemeral> host_ip=<absent>' "$TMPROOT/eph.yml"
+run_lines ephemeral_port_is_not_loopback 1 2 'published=<ephemeral> host_ip=<absent>' "$TMPROOT/eph"
 
-cat >"$TMPROOT/eph_ok.yml" <<'YAML'
+proj eph_ok <<'YAML'
 services:
   c:
     image: z
     ports:
       - "127.0.0.1::5435"
 YAML
-run ephemeral_bound_to_loopback_ok 0 "$TMPROOT/eph_ok.yml"
+run ephemeral_bound_to_loopback_ok 0 "$TMPROOT/eph_ok"
 
-cat >"$TMPROOT/v6.yml" <<'YAML'
+proj v6 <<'YAML'
 services:
   a:
     image: x
     ports:
       - "[::1]:5435:5432"
 YAML
-run ipv6_loopback_ok 0 "$TMPROOT/v6.yml"
+run ipv6_loopback_ok 0 "$TMPROOT/v6"
 
 # Volumes, commands and healthchecks are lists too. Under the awk parser this needed
 # indentation bookkeeping; compose's model makes it structural. Pinned anyway — with a floor,
 # so "it did not read the volume as a port" is asserted rather than assumed.
-cat >"$TMPROOT/lists.yml" <<'YAML'
+proj lists <<'YAML'
 services:
   a:
     image: x
@@ -221,10 +240,10 @@ services:
     command:
       - "--flag=1"
 YAML
-run other_lists_are_not_ports 0 --expect-min 1 "$TMPROOT/lists.yml"
-run other_lists_do_not_inflate 1 --expect-min 2 "$TMPROOT/lists.yml"
+run other_lists_are_not_ports 0 --expect-min 1 "$TMPROOT/lists"
+run other_lists_do_not_inflate 1 --expect-min 2 "$TMPROOT/lists"
 
-cat >"$TMPROOT/comments.yml" <<'YAML'
+proj comments <<'YAML'
 services:
   a:
     image: x
@@ -233,11 +252,12 @@ services:
       # - "5435:5432"   <- an example inside a comment must not be read as an entry
       - "127.0.0.1:5435:5432"
 YAML
-run comments_ignored 0 "$TMPROOT/comments.yml"
+run comments_ignored 0 "$TMPROOT/comments"
 
 # The repo default is core.autocrlf=true.
-printf 'services:\r\n  a:\r\n    image: x\r\n    ports:\r\n      - "5435:5432"\r\n' >"$TMPROOT/crlf.yml"
-run crlf_bare_fails 1 "$TMPROOT/crlf.yml"
+mkdir -p "$TMPROOT/crlf"
+printf 'services:\r\n  a:\r\n    image: x\r\n    ports:\r\n      - "5435:5432"\r\n' >"$TMPROOT/crlf/docker-compose.yml"
+run crlf_bare_fails 1 "$TMPROOT/crlf"
 
 # ==========================================================================================
 # 2. THE REBUILD'S POINT — seven spellings that were REFUSED (exit 2) and are now CAUGHT
@@ -252,7 +272,7 @@ run crlf_bare_fails 1 "$TMPROOT/crlf.yml"
 # hedge was doing the work the fixtures were supposed to do.
 # ==========================================================================================
 
-cat >"$TMPROOT/longform_bad.yml" <<'YAML'
+proj longform_bad <<'YAML'
 services:
   a:
     image: x
@@ -260,9 +280,9 @@ services:
       - target: 5432
         published: 5435
 YAML
-run longform_mapping_bare 1 "$TMPROOT/longform_bad.yml"
+run longform_mapping_bare 1 "$TMPROOT/longform_bad"
 
-cat >"$TMPROOT/longform_ok.yml" <<'YAML'
+proj longform_ok <<'YAML'
 services:
   a:
     image: x
@@ -271,65 +291,65 @@ services:
         published: 5435
         host_ip: 127.0.0.1
 YAML
-run longform_mapping_loopback 0 "$TMPROOT/longform_ok.yml"
+run longform_mapping_loopback 0 "$TMPROOT/longform_ok"
 
 # Live house idiom — e2e.yml uses the flow form.
-cat >"$TMPROOT/flow_bad.yml" <<'YAML'
+proj flow_bad <<'YAML'
 services:
   a:
     image: x
     ports: ["5435:5432"]
 YAML
-run flow_sequence_bare 1 "$TMPROOT/flow_bad.yml"
+run flow_sequence_bare 1 "$TMPROOT/flow_bad"
 
-cat >"$TMPROOT/flow_ok.yml" <<'YAML'
+proj flow_ok <<'YAML'
 services:
   a:
     image: x
     ports: ["127.0.0.1:5435:5432"]
 YAML
-run flow_sequence_loopback 0 "$TMPROOT/flow_ok.yml"
+run flow_sequence_loopback 0 "$TMPROOT/flow_ok"
 
-cat >"$TMPROOT/qkey_bad.yml" <<'YAML'
+proj qkey_bad <<'YAML'
 services:
   a:
     image: x
     "ports":
       - "0.0.0.0:5341:80"
 YAML
-run quoted_key_bare 1 "$TMPROOT/qkey_bad.yml"
+run quoted_key_bare 1 "$TMPROOT/qkey_bad"
 
-cat >"$TMPROOT/qkey_ok.yml" <<'YAML'
+proj qkey_ok <<'YAML'
 services:
   a:
     image: x
     'ports':
       - "127.0.0.1:5341:80"
 YAML
-run quoted_key_loopback 0 "$TMPROOT/qkey_ok.yml"
+run quoted_key_loopback 0 "$TMPROOT/qkey_ok"
 
 # YAML explicit-key syntax puts the colon on the NEXT line, so no colon-anchored key test
 # could ever fire. It took a second, deliberately loose divergence detector to make the awk
 # parser merely REFUSE it.
-cat >"$TMPROOT/ekey_bad.yml" <<'YAML'
+proj ekey_bad <<'YAML'
 services:
   a:
     image: x
     ? ports
     : - "0.0.0.0:9999:9999"
 YAML
-run explicit_key_syntax_bare 1 "$TMPROOT/ekey_bad.yml"
+run explicit_key_syntax_bare 1 "$TMPROOT/ekey_bad"
 
-cat >"$TMPROOT/ekey_ok.yml" <<'YAML'
+proj ekey_ok <<'YAML'
 services:
   a:
     image: x
     ? ports
     : - "127.0.0.1:9999:9999"
 YAML
-run explicit_key_syntax_loopback 0 "$TMPROOT/ekey_ok.yml"
+run explicit_key_syntax_loopback 0 "$TMPROOT/ekey_ok"
 
-cat >"$TMPROOT/alias.yml" <<'YAML'
+proj alias <<'YAML'
 x-ports: &p
   - "5435:5432"
 services:
@@ -337,9 +357,9 @@ services:
     image: x
     ports: *p
 YAML
-run anchor_alias_bare 1 "$TMPROOT/alias.yml"
+run anchor_alias_bare 1 "$TMPROOT/alias"
 
-cat >"$TMPROOT/alias_ok.yml" <<'YAML'
+proj alias_ok <<'YAML'
 x-ports: &p
   - "127.0.0.1:5435:5432"
 services:
@@ -347,18 +367,18 @@ services:
     image: x
     ports: *p
 YAML
-run anchor_alias_loopback 0 "$TMPROOT/alias_ok.yml"
+run anchor_alias_loopback 0 "$TMPROOT/alias_ok"
 
 # `[::]` is the IPv6 wildcard, present and wide. The awk parser refused every bracketed form
 # that was not literally `[::1]:`, so this arrived as a refusal rather than a finding.
-cat >"$TMPROOT/v6wild.yml" <<'YAML'
+proj v6wild <<'YAML'
 services:
   a:
     image: x
     ports:
       - "[::]:6379:6379"
 YAML
-run ipv6_wildcard_caught 1 "$TMPROOT/v6wild.yml"
+run ipv6_wildcard_caught 1 "$TMPROOT/v6wild"
 
 # `include:` and `extends:` pull ports in from another file. The awk parser could only report
 # PORTS-OUT-OF-VIEW — the ports genuinely were not in the file it was reading. Compose
@@ -366,19 +386,13 @@ run ipv6_wildcard_caught 1 "$TMPROOT/v6wild.yml"
 # in an included file is caught — provided the including file is one the guard is given.
 #
 # DO NOT READ THIS AS #196 COVERAGE. An earlier version of this comment cited #196 as the
-# beneficiary, which overstated the wiring: the guard resolves an included file only when it
-# is included FROM a file it was handed, and a deploy compose file added by #196 will not be
-# included from `docker-compose.yml`. #196's file is gated by the tripwire at the bottom of
-# this suite, which refuses to let it arrive unjudged — not by these two fixtures.
-mkdir -p "$TMPROOT/inc"
-cat >"$TMPROOT/inc/base.yml" <<'YAML'
-services:
-  frombase:
-    image: b
-    ports:
-      - "0.0.0.0:7777:7777"
-YAML
-cat >"$TMPROOT/inc/included.yml" <<'YAML'
+# beneficiary, which overstated the wiring: the guard resolves an included file only when the
+# PROJECT it was pointed at reaches it, and a deploy compose file added by #196 lives in a
+# directory of its own that nothing here points at. #196's file is gated by the tripwire at
+# the bottom of this suite, which refuses to let it arrive unjudged — not by these fixtures.
+# The `base.yml` files below are not compose default names, so they are reached only through
+# the `include:`/`extends:` keys under test and never as a project's own base file.
+proj inc_bad <<'YAML'
 include:
   - base.yml
 services:
@@ -387,9 +401,16 @@ services:
     ports:
       - "127.0.0.1:5435:5432"
 YAML
-run include_is_resolved_and_checked 1 "$TMPROOT/inc/included.yml"
+cat >"$TMPROOT/inc_bad/base.yml" <<'YAML'
+services:
+  frombase:
+    image: b
+    ports:
+      - "0.0.0.0:7777:7777"
+YAML
+run include_is_resolved_and_checked 1 "$TMPROOT/inc_bad"
 
-cat >"$TMPROOT/inc/extended.yml" <<'YAML'
+proj ext_bad <<'YAML'
 services:
   a:
     image: x
@@ -397,18 +418,18 @@ services:
       file: base.yml
       service: frombase
 YAML
-run extends_is_resolved_and_checked 1 "$TMPROOT/inc/extended.yml"
+cat >"$TMPROOT/ext_bad/base.yml" <<'YAML'
+services:
+  frombase:
+    image: b
+    ports:
+      - "0.0.0.0:7777:7777"
+YAML
+run extends_is_resolved_and_checked 1 "$TMPROOT/ext_bad"
 
 # The clean counterparts. Without them these two pin only that the resolution path can FAIL,
 # which a path that always failed would satisfy too.
-cat >"$TMPROOT/inc/base_ok.yml" <<'YAML'
-services:
-  frombase_ok:
-    image: b
-    ports:
-      - "127.0.0.1:7777:7777"
-YAML
-cat >"$TMPROOT/inc/included_ok.yml" <<'YAML'
+proj inc_ok <<'YAML'
 include:
   - base_ok.yml
 services:
@@ -417,9 +438,16 @@ services:
     ports:
       - "127.0.0.1:5435:5432"
 YAML
-run include_resolved_loopback 0 --expect-min 2 "$TMPROOT/inc/included_ok.yml"
+cat >"$TMPROOT/inc_ok/base_ok.yml" <<'YAML'
+services:
+  frombase_ok:
+    image: b
+    ports:
+      - "127.0.0.1:7777:7777"
+YAML
+run include_resolved_loopback 0 --expect-min 2 "$TMPROOT/inc_ok"
 
-cat >"$TMPROOT/inc/extended_ok.yml" <<'YAML'
+proj ext_ok <<'YAML'
 services:
   a:
     image: x
@@ -427,7 +455,14 @@ services:
       file: base_ok.yml
       service: frombase_ok
 YAML
-run extends_resolved_loopback 0 --expect-min 1 "$TMPROOT/inc/extended_ok.yml"
+cat >"$TMPROOT/ext_ok/base_ok.yml" <<'YAML'
+services:
+  frombase_ok:
+    image: b
+    ports:
+      - "127.0.0.1:7777:7777"
+YAML
+run extends_resolved_loopback 0 --expect-min 1 "$TMPROOT/ext_ok"
 
 # ==========================================================================================
 # 3. THE UNIT OF --expect-min CHANGED, and it is pinned rather than left as prose
@@ -437,15 +472,15 @@ run extends_resolved_loopback 0 --expect-min 1 "$TMPROOT/inc/extended_ok.yml"
 # by the width of every range in the file.
 # ==========================================================================================
 
-cat >"$TMPROOT/range.yml" <<'YAML'
+proj range <<'YAML'
 services:
   a:
     image: x
     ports:
       - "127.0.0.1:8000-8002:8000-8002"
 YAML
-run range_counts_three 0 --expect-min 3 "$TMPROOT/range.yml"
-run range_is_not_one_entry 1 --expect-min 4 "$TMPROOT/range.yml"
+run range_counts_three 0 --expect-min 3 "$TMPROOT/range"
+run range_is_not_one_entry 1 --expect-min 4 "$TMPROOT/range"
 
 # ==========================================================================================
 # 4. WHAT THE GUARD STILL REFUSES — and the class it refuses on purpose
@@ -454,7 +489,7 @@ run range_is_not_one_entry 1 --expect-min 4 "$TMPROOT/range.yml"
 # Host networking publishes every port the process binds, through no `ports:` key at all. A
 # ports check is structurally blind to it, so it is refused. This is the one refusal class the
 # rebuild does NOT retire.
-cat >"$TMPROOT/hostnet.yml" <<'YAML'
+proj hostnet <<'YAML'
 services:
   a:
     image: x
@@ -462,14 +497,14 @@ services:
     ports:
       - "127.0.0.1:5435:5432"
 YAML
-run host_networking_refused 2 "$TMPROOT/hostnet.yml"
+run host_networking_refused 2 "$TMPROOT/hostnet"
 
 # THE SECOND ROUTE TO HOST NETWORKING, and it carries no `network_mode` key at all. A service
 # attached to a top-level network that resolves to the Docker network named `host` gets host
 # networking; the model shows only `networks: {hostnet: null}`. Measured: the awk predecessor
 # on cf642a71 exits 0 on this same file, so the gap predates the rewrite — it is closed here
 # because this suite's guard claims host networking is refused.
-cat >"$TMPROOT/hostnet_ext.yml" <<'YAML'
+proj hostnet_ext <<'YAML'
 networks:
   hostnet:
     external: true
@@ -481,11 +516,11 @@ services:
     ports:
       - "127.0.0.1:5435:5432"
 YAML
-run host_network_via_external_refused 2 "$TMPROOT/hostnet_ext.yml"
+run host_network_via_external_refused 2 "$TMPROOT/hostnet_ext"
 
 # …and compose fills `name` in from the key when it is omitted, so the short spelling is the
 # same finding and must not need a second rule.
-cat >"$TMPROOT/hostnet_key.yml" <<'YAML'
+proj hostnet_key <<'YAML'
 networks:
   host:
     external: true
@@ -496,10 +531,10 @@ services:
     ports:
       - "127.0.0.1:5435:5432"
 YAML
-run host_network_short_spelling_refused 2 "$TMPROOT/hostnet_key.yml"
+run host_network_short_spelling_refused 2 "$TMPROOT/hostnet_key"
 
 # The counterweight: an ordinary named network must NOT be mistaken for the host network.
-cat >"$TMPROOT/ordinary_net.yml" <<'YAML'
+proj ordinary_net <<'YAML'
 networks:
   backend:
     external: true
@@ -510,12 +545,12 @@ services:
     ports:
       - "127.0.0.1:5435:5432"
 YAML
-run ordinary_network_not_refused 0 "$TMPROOT/ordinary_net.yml"
+run ordinary_network_not_refused 0 "$TMPROOT/ordinary_net"
 
 # ...and a network key literally called `host` WITHOUT `external:` is a project-scoped bridge
 # network that merely shares the name. Compose resolves it to `<project>_host`, so it must not
 # be refused — the rule keys on the RESOLVED name, not on the key.
-cat >"$TMPROOT/local_host_net.yml" <<'YAML'
+proj local_host_net <<'YAML'
 networks:
   host: {}
 services:
@@ -525,14 +560,14 @@ services:
     ports:
       - "127.0.0.1:5435:5432"
 YAML
-run local_network_named_host_ok 0 "$TMPROOT/local_host_net.yml"
+run local_network_named_host_ok 0 "$TMPROOT/local_host_net"
 
 # THE NAME LOOKUP ONLY WORKS ON A NAME COMPOSE RESOLVED. Under `--no-interpolate` a network
 # written `name: "${HOSTNET}"` keeps the raw string, so a literal comparison cannot see that
 # it becomes `host` at `up` time — measured, the guard exited 0 on exactly this file while
 # `docker compose config` with the variable set returns `name: "host"`. Refused as
 # UNRESOLVED-NETWORK-NAME, which is the ports axis's UNRESOLVED-ENTRY rule one noun over.
-cat >"$TMPROOT/varnet.yml" <<'YAML'
+proj varnet <<'YAML'
 networks:
   n:
     external: true
@@ -544,12 +579,12 @@ services:
     ports:
       - "127.0.0.1:5435:5432"
 YAML
-run unresolved_network_name_refused 2 "$TMPROOT/varnet.yml"
+run unresolved_network_name_refused 2 "$TMPROOT/varnet"
 
 # SEAT 2 — the service's OWN network_mode. Same defeat, and this seat outlived the first
 # repair by a round: the fix went where the finding pointed instead of where the class lives.
 for spelling in '${NETMODE}' '$NETMODE' '${NETMODE:-host}'; do
-  cat >"$TMPROOT/varmode.yml" <<YAML
+  proj varmode <<YAML
 services:
   a:
     image: x
@@ -557,7 +592,7 @@ services:
     ports:
       - "127.0.0.1:5435:5432"
 YAML
-  run "unresolved_network_mode_refused[$spelling]" 2 "$TMPROOT/varmode.yml"
+  run "unresolved_network_mode_refused[$spelling]" 2 "$TMPROOT/varmode"
 done
 
 # `\${NETMODE:-host}` above is the one that matters most: it names `host` as its own DEFAULT,
@@ -565,7 +600,7 @@ done
 
 # SEAT 3 — which network is joined. The host network is declared and readable; the
 # ATTACHMENT is not, so the guard cannot tell whether this service joins it.
-cat >"$TMPROOT/varref.yml" <<'YAML'
+proj varref <<'YAML'
 networks:
   hostnet:
     external: true
@@ -577,13 +612,13 @@ services:
     ports:
       - "127.0.0.1:5435:5432"
 YAML
-run unresolved_network_ref_refused 2 "$TMPROOT/varref.yml"
+run unresolved_network_ref_refused 2 "$TMPROOT/varref"
 
 # THE COUNTERWEIGHTS FOR SEAT 2. Without these the rule could drift into refusing every
 # `network_mode`, which would fail every legitimate file. All three are resolved literals and
 # none is host networking.
 for mode in bridge none 'service:api'; do
-  cat >"$TMPROOT/plainmode.yml" <<YAML
+  proj plainmode <<YAML
 services:
   api:
     image: y
@@ -593,12 +628,12 @@ services:
     image: x
     network_mode: "$mode"
 YAML
-  run "resolved_network_mode_ok[$mode]" 0 "$TMPROOT/plainmode.yml"
+  run "resolved_network_mode_ok[$mode]" 0 "$TMPROOT/plainmode"
 done
 
 # The counterweight: an unresolved network name nobody is attached to publishes nothing, so
 # it must not be refused. Without this the rule could drift into refusing any variable.
-cat >"$TMPROOT/varnet_unused.yml" <<'YAML'
+proj varnet_unused <<'YAML'
 networks:
   n:
     external: true
@@ -609,74 +644,74 @@ services:
     ports:
       - "127.0.0.1:5435:5432"
 YAML
-run unresolved_network_unattached_ok 0 "$TMPROOT/varnet_unused.yml"
+run unresolved_network_unattached_ok 0 "$TMPROOT/varnet_unused"
 
 # `--no-interpolate` does NOT normalise an entry carrying an unexpanded variable — measured:
 # it comes back as the raw string, so the model is not uniformly a mapping. The guard cannot
 # read a bind address it has not seen expanded.
-cat >"$TMPROOT/var.yml" <<'YAML'
+proj var <<'YAML'
 services:
   a:
     image: x
     ports:
       - "127.0.0.1:${HOST_PORT}:5432"
 YAML
-run unexpanded_variable_refused 2 "$TMPROOT/var.yml"
+run unexpanded_variable_refused 2 "$TMPROOT/var"
 
 # The same raw-string class, reached without any variable at all: a hostname bind address.
 # Named separately because "unresolved" reads as "interpolation" and this is not that.
-cat >"$TMPROOT/hostname.yml" <<'YAML'
+proj hostname <<'YAML'
 services:
   a:
     image: x
     ports:
       - "localhost:9000:9000"
 YAML
-run hostname_bind_refused 2 "$TMPROOT/hostname.yml"
+run hostname_bind_refused 2 "$TMPROOT/hostname"
 
 # THE HONEST REFUSAL. `[0:0:0:0:0:0:0:1]` IS loopback, and compose does not normalise the
 # address — it strips the brackets and hands back `0:0:0:0:0:0:0:1`. Reporting that as "not
 # bound to loopback" would assert a fact the guard has not established, which is exactly the
 # class #1198 was. Exit 2 says "I will not judge this spelling"; exit 1 would be a false
 # statement about a correct binding.
-cat >"$TMPROOT/v6full.yml" <<'YAML'
+proj v6full <<'YAML'
 services:
   a:
     image: x
     ports:
       - "[0:0:0:0:0:0:0:1]:5435:5432"
 YAML
-run ipv6_fullform_unjudged 2 "$TMPROOT/v6full.yml"
+run ipv6_fullform_unjudged 2 "$TMPROOT/v6full"
 
 # The same refusal UNDER-claims here — `fe80::1` is link-local, not loopback, so this could in
 # principle be exit 1. It is exit 2 because the guard decides IPv6 in two spellings only, and
 # a rule that judged this one would have to judge the fixture above too. Both fail the build;
 # only one of the two possible errors is a false claim, and this is the side that avoids it.
-cat >"$TMPROOT/v6ll.yml" <<'YAML'
+proj v6ll <<'YAML'
 services:
   a:
     image: x
     ports:
       - "[fe80::1]:9200:9200"
 YAML
-run ipv6_linklocal_unjudged 2 "$TMPROOT/v6ll.yml"
+run ipv6_linklocal_unjudged 2 "$TMPROOT/v6ll"
 
 # ==========================================================================================
 # 5. THE GUARD CANNOT REPORT CLEAN WHEN IT READ NOTHING
 # ==========================================================================================
 
-cat >"$TMPROOT/noports.yml" <<'YAML'
+proj noports <<'YAML'
 services:
   a:
     image: x
 YAML
-run zero_recognised_refused 2 "$TMPROOT/noports.yml"
-run zero_allowed_explicitly 0 --expect-min 0 "$TMPROOT/noports.yml"
+run zero_recognised_refused 2 "$TMPROOT/noports"
+run zero_allowed_explicitly 0 --expect-min 0 "$TMPROOT/noports"
 
 # A file compose itself rejects is a refusal, never a pass. The awk parser had its own
 # EMPTY-PORTS-BLOCK class for `ports:` with nothing under it; compose rejects that outright
 # ("services.a.ports must be a array"), so the class moved into the tool.
-cat >"$TMPROOT/emptyports.yml" <<'YAML'
+proj emptyports <<'YAML'
 services:
   a:
     image: x
@@ -684,12 +719,11 @@ services:
   b:
     image: y
 YAML
-run compose_refuses_empty_ports 2 "$TMPROOT/emptyports.yml"
+run compose_refuses_empty_ports 2 "$TMPROOT/emptyports"
 
-printf 'services:\n  a:\n   image: x\n  ports: [\n' >"$TMPROOT/broken.yml"
-run compose_refuses_broken_yaml 2 "$TMPROOT/broken.yml"
-
-run missing_file 2 "$TMPROOT/does-not-exist.yml"
+mkdir -p "$TMPROOT/broken"
+printf 'services:\n  a:\n   image: x\n  ports: [\n' >"$TMPROOT/broken/docker-compose.yml"
+run compose_refuses_broken_yaml 2 "$TMPROOT/broken"
 
 # ==========================================================================================
 # 6. THE CLASSIFIER MUST NOT LOSE ITS ANSWER TO A DEAD PRODUCER
@@ -707,59 +741,223 @@ run missing_file 2 "$TMPROOT/does-not-exist.yml"
 # NO `--expect-min 0` HERE, deliberately. Its predecessor carried one, and it was inert: the
 # classifier exits 2 long before any floor is evaluated. A flag that cannot change the outcome
 # reads as part of the setup and is not.
+mkdir -p "$TMPROOT/bigrefuse"
 {
   printf 'services:\n  s:\n    image: x\n    ports:\n'
   i=1; while [ "$i" -le 4000 ]; do printf '      - "127.0.0.1:${P%s}:5432"\n' "$i"; i=$((i + 1)); done
-} >"$TMPROOT/bigrefuse.yml"
-run classifier_survives_large_refusal_list 2 "$TMPROOT/bigrefuse.yml"
+} >"$TMPROOT/bigrefuse/docker-compose.yml"
+run classifier_survives_large_refusal_list 2 "$TMPROOT/bigrefuse"
 
 # ==========================================================================================
-# 7. THE DELIVERY ITSELF — not a fixture of the file, the file
+# 7. WHICH PROJECT IS JUDGED — the half the guard used to get wrong
+#
+# Every fixture above asks "does the guard read this binding correctly". These ask the other
+# question, and it is the one that had two live fail-opens on `main`: IS THE ARTEFACT IT READ
+# THE ONE THAT RUNS. Under the old `-f <path>` the answer was no in two measured ways, and
+# compose's own resolution introduced a third hazard in the other direction the moment the
+# `-f` came off.
+#
+# THE NEGATIVE HALF IS WHAT CARRIES THESE. A pair where the wide port sits in the file the
+# guard used to read proves nothing — it would pass under either semantics. The load-bearing
+# fixtures are the ones where the two semantics DISAGREE: the wide port is in the file the old
+# guard could not see, or the clean bill is in the file compose no longer reads.
 # ==========================================================================================
 
-run real_repo_file 0 "$REPO_ROOT/docker-compose.yml"
+# GAP 1 — `docker compose up` auto-loads a sibling override, and `-f` suppressed it. Measured
+# 2026-08-05: base loopback-bound + this override published `0.0.0.0:9999` and the guard said
+# `OK — 1 published port(s), all loopback-bound`, exit 0. Older than the config rewrite; the
+# awk predecessor exits 0 on it too. The override file is NOT gitignored, so it was committable.
+proj override_wide <<'YAML'
+services:
+  a:
+    image: x
+    ports:
+      - "127.0.0.1:5435:5432"
+YAML
+cat >"$TMPROOT/override_wide/docker-compose.override.yml" <<'YAML'
+services:
+  b:
+    image: y
+    ports:
+      - "0.0.0.0:9999:9999"
+YAML
+run_lines override_is_loaded_and_judged 1 1 ': NOT-LOOPBACK service=b published=9999' "$TMPROOT/override_wide"
 
-# `exit 0` above is satisfied vacuously by a file with no ports or a deleted ports block. The
-# floor makes the pin cross the threshold of the property it pins: the file publishes six
-# ports today — including the two behind the `test` profile, which compose's model carries
+# The counterweight, and its floor is the assertion. Without `--expect-min 2` this fixture is
+# satisfied by a guard that never opened the override at all — the same vacuous exit 0 the
+# gap consisted of. The floor makes it cross: the override's port has to be COUNTED.
+proj override_clean <<'YAML'
+services:
+  a:
+    image: x
+    ports:
+      - "127.0.0.1:5435:5432"
+YAML
+cat >"$TMPROOT/override_clean/docker-compose.override.yml" <<'YAML'
+services:
+  b:
+    image: y
+    ports:
+      - "127.0.0.1:9999:9999"
+YAML
+run override_clean_is_counted 0 --expect-min 2 "$TMPROOT/override_clean"
+
+# GAP 2 — a committed `compose.yaml` OUTRANKS `docker-compose.yml` in compose's own file
+# precedence. Measured: with both present, bare `docker compose config` reports only the
+# shadowing file's services while the old guard reported OK on the one nobody runs.
+proj shadowed_clean <<'YAML'
+services:
+  ignored:
+    image: x
+    ports:
+      - "127.0.0.1:5435:5432"
+YAML
+cat >"$TMPROOT/shadowed_clean/compose.yaml" <<'YAML'
+services:
+  shadow:
+    image: x
+    ports:
+      - "0.0.0.0:7777:7777"
+YAML
+run_lines shadowing_file_is_judged 1 1 ': NOT-LOOPBACK service=shadow published=7777' "$TMPROOT/shadowed_clean"
+
+# THE SHARPER POLARITY, and it is the one that discriminates the two semantics outright: the
+# wide binding is in `docker-compose.yml` — the file the OLD guard was hardcoded to read — and
+# `compose.yaml` shadows it clean. The old guard fails this file; the new one passes it,
+# because compose does not read the shadowed file and neither should its guard. A suite that
+# only had the fixture above would be satisfied by a guard that read BOTH files.
+proj shadowed_wide <<'YAML'
+services:
+  ignored:
+    image: x
+    ports:
+      - "0.0.0.0:5435:5432"
+YAML
+cat >"$TMPROOT/shadowed_wide/compose.yaml" <<'YAML'
+services:
+  shadow:
+    image: x
+    ports:
+      - "127.0.0.1:7777:7777"
+YAML
+run shadowed_file_is_not_judged 0 --expect-min 1 "$TMPROOT/shadowed_wide"
+
+# ALL FOUR DEFAULT BASE NAMES RESOLVE, and this is a counterweight to the guard's own
+# pre-flight rather than to compose. The guard enumerates the four names itself to decide
+# whether a directory has a compose file of its own; an enumeration narrower than compose's
+# would refuse a legitimate project, and one wider would let the upward walk through. Each is
+# written WIDE so the fixture fails if the file was never read at all.
+for base in compose.yaml compose.yml docker-compose.yaml docker-compose.yml; do
+  mkdir -p "$TMPROOT/basename_$base"
+  cat >"$TMPROOT/basename_$base/$base" <<'YAML'
+services:
+  a:
+    image: x
+    ports:
+      - "0.0.0.0:5435:5432"
+YAML
+  run "default_base_name_resolves[$base]" 1 "$TMPROOT/basename_$base"
+done
+
+# THE HAZARD PROJECT SEMANTICS INTRODUCES, and the reason the guard checks those names at all:
+# COMPOSE WALKS UP. Measured — `--project-directory <child with no compose file>` resolves the
+# PARENT's file and names the project after the child. Without the pre-flight this fixture
+# would inherit the parent's verdict, which is a clean bill of health for a project nobody
+# asked about: the same defect one level up from the one the guard exists to close.
+mkdir -p "$TMPROOT/walkup/empty_child"
+cat >"$TMPROOT/walkup/docker-compose.yml" <<'YAML'
+services:
+  fromparent:
+    image: x
+    ports:
+      - "127.0.0.1:5435:5432"
+YAML
+run parent_project_is_not_inherited 2 "$TMPROOT/walkup/empty_child"
+
+# ...and an override ALONE does not stop the walk. Measured, and this one is worse than the
+# empty child: compose loads the parent's base file and DROPS this override silently, so the
+# wide port below appears in no model at all. `docker-compose.override.yml` is not one of the
+# four base names for exactly this reason.
+mkdir -p "$TMPROOT/walkup/only_override"
+cat >"$TMPROOT/walkup/only_override/docker-compose.override.yml" <<'YAML'
+services:
+  orphan:
+    image: y
+    ports:
+      - "0.0.0.0:9999:9999"
+YAML
+run override_alone_does_not_stop_the_walk 2 "$TMPROOT/walkup/only_override"
+
+# THE ARGUMENT IS A DIRECTORY, AND COMPOSE WILL NOT SAY SO. Measured: `--project-directory`
+# handed a FILE path exits 0 — compose reads it as a directory name, walks up to the parent
+# and judges that project, naming it `docker-composeyml`. So a caller still passing the old
+# file-path interface would receive a confident verdict about a different project. The guard
+# refuses before compose is invoked; this fixture is what makes that refusal removable-with-
+# a-red-suite rather than a matter of trust.
+run file_path_argument_refused 2 "$TMPROOT/clean/docker-compose.yml"
+
+run missing_dir 2 "$TMPROOT/does-not-exist"
+
+# ==========================================================================================
+# 8. THE DELIVERY ITSELF — not a fixture of the repo's project, the repo's project
+# ==========================================================================================
+
+run real_repo_project 0 "$REPO_ROOT"
+
+# `exit 0` above is satisfied vacuously by a project with no ports or a deleted ports block.
+# The floor makes the pin cross the threshold of the property it pins: the project publishes
+# six ports today — including the two behind the `test` profile, which compose's model carries
 # WITHOUT `--profile`, so their bindings are checked rather than merely asserted — and a
-# restructure that hides them fails here instead of going green.
-run real_repo_file_floor 0 --expect-min 6 "$REPO_ROOT/docker-compose.yml"
+# restructure that hides them fails here instead of going green. Six is also the number the
+# project resolves to, not just the number written in `docker-compose.yml`: measured
+# 2026-08-05, the repo root has no override and no shadowing file, so the two are equal today
+# and this fixture is what makes a future divergence visible.
+run real_repo_project_floor 0 --expect-min 6 "$REPO_ROOT"
 
-run floor_can_fail 1 --expect-min 99 "$REPO_ROOT/docker-compose.yml"
-run floor_accepts_equals_form 0 --expect-min=6 "$REPO_ROOT/docker-compose.yml"
+run floor_can_fail 1 --expect-min 99 "$REPO_ROOT"
+run floor_accepts_equals_form 0 --expect-min=6 "$REPO_ROOT"
 
-# One invocation per file: several `-f` in ONE compose invocation would MERGE them with
-# override semantics, which answers a different question than "is each of these clean".
-# `clean.yml` alone exits 0, so the order here is load-bearing.
-run second_file_still_checked 1 "$TMPROOT/clean.yml" "$TMPROOT/bare.yml"
+# ONE INVOCATION PER PROJECT: two arguments are two projects and must not be merged into one.
+# (Merging WITHIN a project is now wanted — section 7 — but across projects it would answer a
+# different question than "is each of these clean".) The `clean` project alone exits 0, so the
+# order here is load-bearing.
+run second_project_still_checked 1 "$TMPROOT/clean" "$TMPROOT/bare"
 
-# ...and the accumulator must keep the two files' findings on SEPARATE LINES. The fixture
-# above cannot see this: only one of its files carries a finding, so the accumulator's only
+# ...and the accumulator must keep the two projects' findings on SEPARATE LINES. The fixture
+# above cannot see this: only one of its projects carries a finding, so the accumulator's only
 # stateful branch is never crossed. With the earlier `violations=$(printf '%s%s\n' …)` the
-# command substitution stripped the trailing newline and the last finding of file 1 fused with
-# the first of file 2 into one line naming two files — with the exit code unchanged, which is
-# exactly why an exit-code assertion could not pin it.
-run_lines both_files_report_separate_lines 1 2 '^.*: NOT-LOOPBACK ' "$TMPROOT/bare.yml" "$TMPROOT/explicit.yml"
+# command substitution stripped the trailing newline and the last finding of project 1 fused
+# with the first of project 2 into one line naming two — with the exit code unchanged, which
+# is exactly why an exit-code assertion could not pin it.
+run_lines both_projects_report_separate_lines 1 2 '^.*: NOT-LOOPBACK ' "$TMPROOT/bare" "$TMPROOT/explicit"
 
 # ==========================================================================================
-# 8. THE TRIPWIRE — a compose file cannot arrive in this repo unjudged
+# 9. THE TRIPWIRE — a compose file cannot arrive in this repo unjudged
 #
-# The guard is shape-based in how it reads a file and NAME-BASED in which file it reads: the
-# suite hands it one hardcoded path. Compose's own project resolution is wider, in two ways
-# both measured 2026-08-05 and both older than this rewrite (the awk predecessor exits 0 on
-# each): `docker compose up` auto-loads a sibling `docker-compose.override.yml` that `-f`
-# suppresses, and a committed `compose.yaml` OUTRANKS `docker-compose.yml` outright — bare
-# `docker compose config` then reads only the shadowing file while the guard reports OK on
-# the one nobody runs. Neither is fixed here: fixing them means judging a PROJECT rather than
-# a FILE, which reverses the guard's own "ONE INVOCATION PER FILE, deliberately" and is a
-# separate change (CTO 2026-08-05 — follow-up PR).
+# ITS REASON NARROWED WITH PROJECT SEMANTICS, and the narrowing is the point of reading this
+# block again rather than skimming it. When the guard read one hardcoded FILE, this tripwire
+# covered three things at once: a sibling `docker-compose.override.yml` the `-f` suppressed, a
+# shadowing `compose.yaml` that outranked the gated file, and a compose file somewhere else in
+# the tree. The guard now resolves the PROJECT (section 7), so the first two are no longer
+# ungated — they are merged, or they shadow, and either way the verdict follows compose.
 #
-# WHAT THIS BLOCK DOES INSTEAD, and it is deliberately dumber than a predicate: it asserts
-# that the set of TRACKED compose files is still the set the suite gates. It decides nothing
-# about any file's contents. A new compose file — #196's deploy stack is the expected one —
-# turns this RED the moment it is committed, so it cannot arrive silently ungated. That is
-# what makes the follow-up unskippable rather than remembered: the build stops.
+# WHAT IS LEFT IS STILL REAL, AND IT IS TWO THINGS, NOT NONE:
+#   - A compose file in a directory NOBODY GATES. The suite points the guard at `$REPO_ROOT`
+#     and at nothing else, so `deploy/docker-compose.yml` — #196's expected shape — is
+#     unjudged no matter how well the root project is judged. This is the case the tripwire
+#     exists for now.
+#   - A root-level compose file COMPOSE DOES NOT AUTO-LOAD. `docker-compose.prod.yml` sits in
+#     a gated directory and matches the pattern below, yet compose merges only a base file and
+#     its override, so it too is unjudged. Being inside a gated project is NOT the same as
+#     being read by it, and a tripwire keyed on the directory alone would have missed this.
+#
+# AND A THIRD ARM THAT IS NOT A GAP BUT STILL WANTS A HUMAN: a file the root project now DOES
+# absorb changes what the gated verdict covers without `docker-compose.yml` changing at all.
+# Going red there is correct — the three arms are indistinguishable by name, so the tripwire
+# stops and asks rather than guessing which one arrived.
+#
+# IT IS STILL DELIBERATELY DUMBER THAN A PREDICATE: it asserts that the set of TRACKED compose
+# files is the set this suite accounts for, and decides nothing about any file's contents.
 #
 # NOT #196'S GUARD. #196's file will legitimately publish 80 and 443 WIDE — a containerised
 # Caddy must, or ACME HTTP-01 cannot complete — so this suite's loopback predicate is the
@@ -771,13 +969,20 @@ run_lines both_files_report_separate_lines 1 2 '^.*: NOT-LOOPBACK ' "$TMPROOT/ba
 # (`stack.yml`) is invisible to it, as it is to compose without `-f`. The CTO's proposed form
 # was measured to also match `composer-notes.yml`, so the suffix is anchored on `.` or `-`.
 # IT ALSO OVER-REACHES, and that is the cheaper direction: `docs/compose-notes.yml` matches
-# and is not a compose file. Tripping on one costs a line in GATED_COMPOSE_FILES; missing a
-# real one costs an ungated file, so the pattern is deliberately generous.
+# and is not a compose file. Tripping on one costs a line in ACCOUNTED_COMPOSE_FILES; missing
+# a real one costs an unjudged file, so the pattern is deliberately generous.
 readonly COMPOSE_FILE_PATTERN='(^|/)(docker-)?compose([.-][A-Za-z0-9_.-]+)?\.ya?ml$'
-# Space-separated and `sort`-ordered, matching what compose_files_in emits. One entry today;
-# whoever adds the second is doing it under a red build, so the ordering rule is written here
-# rather than left to be re-derived.
-readonly GATED_COMPOSE_FILES='docker-compose.yml'
+# ACCOUNTED, NOT GATED — the list was called GATED_COMPOSE_FILES while the guard read one file
+# and the two words meant the same thing. Under project semantics they part company: a
+# `docs/compose-notes.yml` or a `docker-compose.prod.yml` would belong on this list and be
+# judged by nothing, so a name promising "gated" would vouch for a property the entry does not
+# have. That is the defect class this whole guard exists to close, and it does not get an
+# exemption for living in a variable name.
+#
+# Space-separated and `sort`-ordered, matching what compose_files_in emits. One entry today,
+# and it IS gated (the root project resolves it); whoever adds the second is doing it under a
+# red build, so the ordering rule is written here rather than left to be re-derived.
+readonly ACCOUNTED_COMPOSE_FILES='docker-compose.yml'
 
 # `|| true` IS LOAD-BEARING. `grep` exits 1 when nothing matches; under `set -o pipefail`
 # that becomes the substitution's status and `set -e` kills the whole suite ON THIS LINE —
@@ -811,7 +1016,7 @@ assert_compose_set() {
 
 assert_compose_set compose_matcher_empty_set '' 'src/a.cs
 docs/b.md'
-assert_compose_set compose_matcher_finds_gated 'docker-compose.yml' 'docker-compose.yml
+assert_compose_set compose_matcher_finds_accounted 'docker-compose.yml' 'docker-compose.yml
 src/a.cs'
 assert_compose_set compose_matcher_finds_arrival 'compose.yaml docker-compose.yml' 'docker-compose.yml
 compose.yaml'
@@ -823,23 +1028,31 @@ decompose.yml'
 
 if ! tracked=$(git -C "$REPO_ROOT" ls-files 2>/dev/null); then
   fail=$((fail + 1))
-  printf 'FAIL %-38s could not list tracked files (not a git repo?)\n' "compose_file_set_is_gated"
+  printf 'FAIL %-38s could not list tracked files (not a git repo?)\n' "compose_file_set_is_accounted"
 else
   found=$(compose_files_in "$tracked")
-  if [ "$found" = "$GATED_COMPOSE_FILES" ]; then
+  if [ "$found" = "$ACCOUNTED_COMPOSE_FILES" ]; then
     pass=$((pass + 1))
-    printf 'ok   %-38s (%s)\n' "compose_file_set_is_gated" "$found"
+    printf 'ok   %-38s (%s)\n' "compose_file_set_is_accounted" "$found"
   else
     fail=$((fail + 1))
-    printf 'FAIL %-38s tracked compose files changed\n' "compose_file_set_is_gated"
-    printf '       | gated:  %s\n' "$GATED_COMPOSE_FILES"
-    printf '       | found:  %s\n' "$found"
+    printf 'FAIL %-38s tracked compose files changed\n' "compose_file_set_is_accounted"
+    printf '       | accounted:  %s\n' "$ACCOUNTED_COMPOSE_FILES"
+    printf '       | found:      %s\n' "$found"
     printf '       |\n'
-    printf '       | A compose file was added, renamed or removed. It is NOT gated by this\n'
-    printf '       | suite, and compose may even PREFER it to the file that is (a committed\n'
-    printf '       | compose.yaml outranks docker-compose.yml). Decide which verdict it owes\n'
-    printf '       | before updating GATED_COMPOSE_FILES -- the loopback predicate is the\n'
-    printf '       | WRONG verdict for a reverse proxy, which must publish 80/443 wide.\n'
+    printf '       | A compose file was added, renamed or removed. Decide which of three it is\n'
+    printf '       | before updating ACCOUNTED_COMPOSE_FILES:\n'
+    printf '       |   1. The root project now MERGES it (an override) or is SHADOWED by it\n'
+    printf '       |      (compose.yaml outranks docker-compose.yml). It is judged already --\n'
+    printf '       |      confirm the root verdict still says what you meant, then list it.\n'
+    printf '       |   2. It sits at the root but compose does NOT auto-load it\n'
+    printf '       |      (docker-compose.prod.yml). Being in a gated directory is not being\n'
+    printf '       |      read by it: nothing judges this one.\n'
+    printf '       |   3. It is in a directory nothing points the guard at (deploy/). Also\n'
+    printf '       |      unjudged, and this is the expected shape for #196.\n'
+    printf '       |\n'
+    printf '       | For 2 and 3 the loopback predicate may be the WRONG verdict anyway -- a\n'
+    printf '       | reverse proxy must publish 80/443 wide, so #196 owes its own predicate.\n'
   fi
 fi
 

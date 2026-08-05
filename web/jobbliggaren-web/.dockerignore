@@ -1,0 +1,38 @@
+# Build context for the web image is this directory (the root .dockerignore
+# excludes `web/` entirely and does not apply here).
+
+# Installed and built output — the image builds both itself.
+node_modules/
+.next/
+out/
+.turbo/
+
+# Tests and their artefacts — not in the image.
+tests/
+e2e/
+playwright-report/
+test-results/
+coverage/
+**/*.test.ts
+**/*.test.tsx
+vitest.config.ts
+playwright.config.ts
+
+# Secrets — must never reach a layer.
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+
+# Tooling and docs.
+.vscode/
+.idea/
+*.md
+lighthouserc*
+scripts/visual-verify.ts
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini

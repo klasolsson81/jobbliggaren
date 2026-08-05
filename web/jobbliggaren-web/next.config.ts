@@ -11,6 +11,12 @@ const nextConfig: NextConfig = {
   // Remove the `X-Powered-By: Next.js` fingerprint (information disclosure).
   poweredByHeader: false,
 
+  // The FE container (#196): emit `.next/standalone` with a self-contained
+  // `server.js` and only the traced runtime dependencies, so the image does not
+  // ship the whole `node_modules`. The trace root comes from `turbopack.root`
+  // below — which is why that pin stopped being cosmetic the moment this landed.
+  output: "standalone",
+
   // #1046: the repo carries two lockfiles (repo root + this app), so Next's root
   // inference walks up and selects the repo root, then warns that it may be wrong.
   // Pin it to this app instead. Restored from the form `63ea6683` removed when it

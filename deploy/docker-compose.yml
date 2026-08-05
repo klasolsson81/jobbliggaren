@@ -85,8 +85,9 @@ services:
     # time, and nothing upstream filters them. The first half is the hash cost itself,
     # lowered to bcrypt 11 in `.env.example` (Klas 2026-08-05); relative cost measured
     # through this image with a wrong password, same machine, `--cpus 1.0`:
-    #   bcrypt 14  217 ms  ·  bcrypt 11  78 ms  ·  argon2id  52 ms but 46 MiB EACH,
-    # which against this 128 MiB cap is an OOM kill rather than a slowdown.
+    #   bcrypt 14  217 ms  ·  bcrypt 11  78 ms  ·  argon2id  52 ms but 46 MiB EACH.
+    # argon2id is refused at the class: a per-request allocation on an unauthenticated
+    # edge is a memory-exhaustion primitive whose concurrency the attacker chooses.
     # The cap alone does not make the amplifier cheap; it stops it starving Postgres, the
     # API and the Worker along with the edge.
     cpus: 1.0

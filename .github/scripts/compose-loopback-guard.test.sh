@@ -925,6 +925,14 @@ unset COMPOSE_FILE
 # reach it. THE PATH HERE IS ABSOLUTE ON PURPOSE — a relative value resolves against the
 # CALLER'S CWD, so a relative fixture would pass without ever crossing the control, which is
 # the likeliest way this repair ships untested.
+#
+# AND IT IS PLATFORM-SHAPED, which is the second likeliest way. Argument paths are rewritten
+# for a Windows `docker.exe` on their way out of MSYS; the CONTENTS of `.env` are not, so a
+# `/tmp/...` value there is read as `C:\tmp\...` and compose fails to find it. The fixture
+# would still go red under mutation — 2 is as far from 1 as 0 is — but it would be crossing a
+# path error instead of the false-clean verdict it exists to pin, on every developer machine.
+# Measured 2026-08-05: with the value converted, the unrepaired guard reports
+# `OK — all loopback-bound` and exits 0, on both platforms.
 proj dotenv_wide <<'YAML'
 services:
   a:
@@ -932,7 +940,11 @@ services:
     ports:
       - "5435:5432"
 YAML
-printf 'COMPOSE_FILE=%s\n' "$TMPROOT/clean/docker-compose.yml" >"$TMPROOT/dotenv_wide/.env"
+dotenv_target="$TMPROOT/clean/docker-compose.yml"
+if command -v cygpath >/dev/null 2>&1; then
+  dotenv_target=$(cygpath -m "$dotenv_target")
+fi
+printf 'COMPOSE_FILE=%s\n' "$dotenv_target" >"$TMPROOT/dotenv_wide/.env"
 run_lines dotenv_compose_file_does_not_reselect 1 1 ': NOT-LOOPBACK service=a published=5435' "$TMPROOT/dotenv_wide"
 
 # ...and neutralising never became refusing. `COMPOSE_PROJECT_NAME` is cleared by the same

@@ -86,29 +86,50 @@ Prerequisite: Docker installed, `/etc/docker/daemon.json` written, and the nftab
 
 ```bash
 cd /opt/jobbliggaren
-docker compose -f deploy/docker-compose.yml pull
+C="docker compose -f deploy/docker-compose.yml"
 
-# Role provisioning. Needs the master credentials, which is why it is an operator step
-# and not part of `up`. NOT one-time: `init` is idempotent (no CREATE DATABASE, every
-# CREATE SCHEMA is IF NOT EXISTS, CreateRoleIfNotExists branches to ALTER ROLE, GRANT and
-# REVOKE are idempotent, and Hangfire’s installer tolerates re-run), and it MUST be re-run
-# whenever Phase A’s privilege model changes — a grant added there reaches an already-
-# provisioned database no other way. Not hypothetical: `migrate schema` died on a clean box
-# because Phase A revoked TEMPORARY from PUBLIC and never granted it back (#196).
-#
-# One caveat on a LIVE box: a re-run rewrites all three role passwords from the current
-# environment. With an unchanged `.env` that is a no-op. If `.env` has drifted since the
-# containers started, already-running api/worker keep their old connection string and start
-# failing with 28P01 until they are restarted.
-docker compose -f deploy/docker-compose.yml run --rm migrate init
-docker compose -f deploy/docker-compose.yml run --rm migrate bootstrap
-docker compose -f deploy/docker-compose.yml run --rm migrate ensure-extensions
+# 0. STAGING FIRST, AND PROVE IT FROM THE CONTAINER. The block below forces issuance three
+#    times; against production that is 3 of 5 weekly duplicate-certificate slots, and a FAILED
+#    validation — the expected outcome when a path really is broken, which is why you are here —
+#    locks issuance for an hour mid-cutover. compose defaults ACME_CA to PRODUCTION and the
+#    template ships the key commented out, so nothing about a fresh .env is safe by default.
+#    The sed matches the commented form too; an anchored ^ACME_CA= would silently no-op on it.
+sed -i "s|^#*ACME_CA=.*|ACME_CA=https://acme-staging-v02.api.letsencrypt.org/directory|" deploy/.env
+$C pull caddy   # a pre-seam image ignores the variable and starts clean in EVERY mode
+$C up -d --force-recreate caddy
+$C exec caddy printenv ACME_CA | grep -q acme-staging || { echo "REFUSING: not staging"; exit 1; }
 
-# Hangfire's own schema — see hangfire-schema.md. Runs as jobbliggaren_migrations.
-# Then the stack. `migrate schema` runs as a gated dependency of api/worker, so
-# ordering holds on every `up`, not only the first.
-docker compose -f deploy/docker-compose.yml up -d
-docker compose -f deploy/docker-compose.yml ps
+# 1. HTTP-01 only (row 5). Read the counterfactual out of the RUNNING container, not the file.
+sed -i "s|^#*ACME_CHALLENGE_MODE=.*|ACME_CHALLENGE_MODE=http01|" deploy/.env
+$C up -d --force-recreate caddy
+$C exec caddy caddy adapt --config /etc/caddy/Caddyfile | grep -o '"challenges":{[^}]*}'
+$C logs caddy | grep -iE "http-01|tls-alpn|obtained|certificate"
+
+# 2. TLS-ALPN-01 only (row 6). Step 1 left a VALID staging certificate, so Caddy would issue
+#    nothing and row 6 would be ticked on row 5's work. Discard the STAGING tree only.
+sed -i "s|^#*ACME_CHALLENGE_MODE=.*|ACME_CHALLENGE_MODE=alpn01|" deploy/.env
+$C exec caddy rm -rf /data/caddy/certificates/acme-staging-v02.api.letsencrypt.org-directory
+$C up -d --force-recreate caddy
+$C exec caddy caddy adapt --config /etc/caddy/Caddyfile | grep -o '"challenges":{[^}]*}'
+$C logs caddy | grep -iE "http-01|tls-alpn|obtained|certificate"
+
+# 3. Back to default, then production issuance ONCE. Storage is CA-scoped, so switching the
+#    issuer is itself what forces a fresh production certificate — no rm belongs here, and one
+#    would throw away a VALID production cert on any re-run and spend a duplicate slot.
+sed -i "s|^#*ACME_CHALLENGE_MODE=.*|#ACME_CHALLENGE_MODE=both|" deploy/.env
+sed -i "s|^#*ACME_CA=.*|#ACME_CA=|" deploy/.env
+$C up -d --force-recreate caddy
+
+# 3b. THE END STATE IS ITS OWN MEASUREMENT (verification-log row 6b). Rows 5 and 6 prove the
+#     PROOF modes; nothing above proves the box was LEFT with both challenges live. Three ways
+#     to fail, none visible in a certificate: a left-over mode, a stale image, and a glob value —
+#     ACME_CHALLENGE_MODE=* imports all three snippets and adapts exit 0 with BOTH challenges
+#     disabled (measured). Every plain typo fail-closes; the glob does not. The certificate
+#     issues fine in all of them, and the RENEWAL dies silently about 60 days later.
+$C exec caddy caddy adapt --config /etc/caddy/Caddyfile | grep -q '"challenges"' &&
+  { echo "REFUSING: a challenge is disabled in the RUNNING config"; exit 1; } ||
+  echo "OK: both challenges live"
+curl -sSI https://dev.jobbliggaren.se | head -1
 ```
 
 **Rollback is an image tag.** Pin `IMAGE_TAG=sha-<short>` in `.env` and re-run the
@@ -211,11 +232,18 @@ $C up -d --force-recreate caddy
 curl -sSI https://dev.jobbliggaren.se | head -1
 ```
 
-**`both` is an EMPTY snippet, and that is load-bearing rather than tidy.** Measured before it
-shipped: with `both`, `caddy adapt` emits no explicit issuer at all, so the running configuration
-is the default automation policy it was before the seam existed. `http01` emits
-`"challenges":{"tls-alpn":{"disabled":true}}`, `alpn01` emits `"challenges":{"http":{"disabled":true}}`.
-The proof modes change behaviour; the default does not.
+**`both` is an EMPTY snippet, and that is load-bearing rather than tidy.** The invariant is that
+the default branch produces the configuration the stack had BEFORE the seam existed, and it is
+measured as exactly that — `caddy adapt` on the pre-seam Caddyfile against `adapt` in mode
+`both`, identical environment: **1401 bytes vs 1401 bytes, byte-identical**. The proof modes do
+change behaviour (`http01` adds `"challenges":{"tls-alpn":{"disabled":true}}`, `alpn01` the
+mirror); the default provably does not.
+
+*An earlier version of this paragraph claimed instead that mode `both` emits no explicit issuer
+at all. That was measured with `ACME_CA` unset — a state compose never produces, since it always
+injects the directory URL — and with it set the global block emits an issuer regardless of the
+seam. The number was true of its evidence and false of its subject. The diff above is the claim
+that survives measurement, and it is the stronger one anyway.*
 
 **The Caddyfile directive for the CA URL is `dir`, not `ca`.** `ca` is only what it adapts to in
 the JSON config; writing it in a Caddyfile fails with `unrecognized ACME issuer property`. Both
@@ -236,8 +264,9 @@ from one that has decayed.
 | 2c | The K2 gate's hash is bcrypt cost 11, not the tool's default 14 — the gate pays the full hash on every WRONG password, and nothing upstream filters | `docker exec jobbliggaren-caddy printenv BASIC_AUTH_HASH \| cut -c1-7` prints `$2a$11$` and nothing more: the hash itself is offline-crackable, so do not put it in the cutover scrollback. Then time a wrong-password request against a right one | | |
 | 3 | Postgres steady-state RSS against the 2 560 MiB cap | cgroup `memory.stat` anon/file during the 02:00 snapshot job | | |
 | 4 | Postgres tuning is explicit, derived from the cap | `SHOW shared_buffers` etc. | | |
-| 5 | Certificate issues over HTTP-01 with the K2 gate live (M-5a) | `ACME_CHALLENGE_MODE=http01` on staging, then **the issuance log line naming the challenge type** **and** the counterfactual that the other was off (`caddy adapt` shows `"tls-alpn":{"disabled":true}`). BOTH halves: a certificate alone can be ticked on one ALPN issued — the silent fallback this proof exists to catch — and the counterfactual alone does not survive an operator confusing `http01` with `alpn01` | | |
+| 5 | Certificate issues over HTTP-01 with the K2 gate live (M-5a) | `ACME_CHALLENGE_MODE=http01` on staging, then **the issuance log line naming the challenge type** **and** the counterfactual that the other was off (`caddy adapt` shows `"tls-alpn":{"disabled":true}` **on the policy whose `subjects` contain `SITE_HOST`** — the adapted config carries two automation policies and a bare substring match would be satisfied by either). BOTH halves: a certificate alone can be ticked on one ALPN issued — the silent fallback this proof exists to catch — and the counterfactual alone does not survive an operator confusing `http01` with `alpn01` | | |
 | 6 | Certificate issues over TLS-ALPN-01 (the fallback path) | `ACME_CHALLENGE_MODE=alpn01` on staging; same two halves as row 5, mirrored (`"http":{"disabled":true}`) | | |
+| 6b | The box was LEFT with both challenges live | `caddy adapt` **inside the running container** shows no `"challenges"` key at all. Rows 5 and 6 measure the PROOF modes; this measures the END state, and nothing else does — a left-over mode, a stale image, or a glob value (`ACME_CHALLENGE_MODE=*` imports all three snippets and disables BOTH, exit 0, measured) all issue a valid certificate at cutover and kill the RENEWAL ~60 days later | | |
 | 7 | The edge OWNS the ACME prefix (nothing under it proxies) | `curl -sI` unknown challenge path → 404 **and `Server: Caddy`**, never the upstream's own `Server`/`Via` | | |
 | 8 | HSTS on the **unauthenticated 401** (M-5a) | `curl -sI` | | |
 | 9 | HSTS on a Next-served 200 (M-5a, complement) | `curl -sI -u` | | |

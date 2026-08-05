@@ -42,7 +42,14 @@
 	# path can be broken later by a firewall change, a Caddy upgrade or a DNS move; this is a
 	# diagnostic instrument, not cutover scaffolding. Removing it would mean re-deriving and
 	# re-deploying the mechanism on a box that is, at that moment, down.
-	import /etc/caddy/challenge/{$ACME_CHALLENGE_MODE:-both}.caddy
+	#
+	# SINGLE COLON, not `:-`. Caddy splits env substitution on the FIRST colon, so `:-both`
+	# makes the default the literal string `-both` and the import fails on `-both.caddy`.
+	# Compose uses `:-` for the same job one layer out, and that IS correct there — the two
+	# syntaxes look alike and are not. Measured: with the variable unset, `:-` gives
+	# "File to import not found: /etc/caddy/challenge/-both.caddy" and exit 1, which behind
+	# `restart: unless-stopped` is a crash-loop on the only service that publishes 80/443.
+	import /etc/caddy/challenge/{$ACME_CHALLENGE_MODE:both}.caddy
 
 	encode zstd gzip
 

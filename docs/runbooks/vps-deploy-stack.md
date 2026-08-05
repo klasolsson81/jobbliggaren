@@ -183,6 +183,7 @@ from one that has decayed.
 |---|---|---|---|---|
 | 1 | Per-service `mem_limit`/`memswap_limit` match the ADR 0122 table | `docker inspect` | | |
 | 2 | Redis runs `maxmemory` **and** `noeviction` | `redis-cli config get maxmemory*` | | |
+| 1b | The K2 gate's hash is bcrypt cost 11, not the tool's default 14 — the gate pays the full hash on every WRONG password, and nothing upstream filters | `docker exec caddy env | grep BASIC_AUTH_HASH` shows `$2a$11$`; and time a wrong-password request against a right one | | |
 | 2b | Redis has headroom under real traffic — `noeviction` means a full instance refuses writes, and the write that fails is the session store, so it surfaces as nobody being able to log in | `redis-cli info memory` — `used_memory` against `maxmemory` | | |
 | 3 | Postgres steady-state RSS against the 2 560 MiB cap | cgroup `memory.stat` anon/file during the 02:00 snapshot job | | |
 | 4 | Postgres tuning is explicit, derived from the cap | `SHOW shared_buffers` etc. | | |
@@ -215,6 +216,14 @@ from one that has decayed.
   separately from this file.
 - **The production log sink** — #1175, unbuilt and unowned. Docker's log rotation above is
   a disk control, not a log sink.
+- **Closing gate B-1 — and the corpus waits for it.** The field-encryption master key is
+  plaintext on disk here, in `deploy/.env` and a second time in Docker's own container
+  state (measured: `docker inspect` returns it after the container has exited). B-1
+  requires it never be plaintext on disk, and #198 owns the repair. **Klas confirmed the
+  sequencing 2026-08-05: the stack may be deployed and every cutover proof taken with the
+  key as it is, because the box holds no user data — but the 51 347 recruiter contact
+  records must not land until B-1 is closed.** Nothing mechanical enforces that; this
+  paragraph is the reader.
 - **Publishing the images this stack pulls** — #196's own deploy-workflow AC, and it is
   **not built yet**. Until it is, §3's `docker compose pull` has nothing to pull: the tags
   do not exist. Named here because the rest of this section reads as an enumeration, and a

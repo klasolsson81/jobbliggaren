@@ -68,7 +68,10 @@ export async function forwardedHeaders(): Promise<Record<string, string>> {
     // import alone turned 23 tests across 5 files red, because the mocked module has no such
     // export and calling `undefined` became a TypeError the actions mapped to a network
     // error. A string `digest` is how Next marks its control-flow errors, and an ordinary
-    // Error carries none.
+    // Error carries none. That covers six of `unstable_rethrow`'s eight predicates; the two
+    // it does not — React postpone and dynamic-postpone — are reachable only from the
+    // prerender-ppr path, and neither `experimental.ppr` nor `cacheComponents` is on. Turning
+    // either on is the trigger to revisit this guard.
     if (typeof error === "object" && error !== null && "digest" in error
         && typeof (error as { digest: unknown }).digest === "string") {
       throw error;

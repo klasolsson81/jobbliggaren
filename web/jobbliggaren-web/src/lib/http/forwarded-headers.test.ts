@@ -107,10 +107,13 @@ describe("forwardedHeaders", () => {
     await expect(forwardedHeaders()).rejects.toBe(bailout);
   });
 
-  it("still returns {} for an ordinary out-of-scope error, which carries no digest", async () => {
-    // The counterfactual for the test above: a plain Error is NOT framework control flow, so
-    // it must still degrade to "no forwarding headers" rather than breaking the call.
-    headersMock.mockRejectedValue(new Error("`headers` was called outside a request scope"));
+  it("degrades when digest is present but not a string — the guard checks the type too", async () => {
+    // Crosses the `typeof digest === "string"` clause, which the two cases above leave
+    // unprobed: one carries a string digest, the other none at all. Next's own errors set
+    // the digest in a constructor and it is always a string, so this pins the guard's
+    // narrowness rather than a production state — an object that merely HAS a digest is not
+    // framework control flow, and must not be mistaken for it.
+    headersMock.mockRejectedValue(Object.assign(new Error("not a bailout"), { digest: 42 }));
 
     await expect(forwardedHeaders()).resolves.toEqual({});
   });

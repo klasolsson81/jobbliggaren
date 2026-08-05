@@ -86,7 +86,8 @@ public class SyncPlatsbankenSnapshotJobTests
         ISystemEventAuditor? auditor = null,
         IJobAdSnapshotMissTracker? missTracker = null,
         IDateTimeProvider? clock = null,
-        IngestionThroughputReporter? throughputReporter = null)
+        IngestionThroughputReporter? throughputReporter = null,
+        bool ingestEnabled = true)
     {
         IJobAdSnapshotMissTracker tracker;
         if (missTracker is null)
@@ -117,12 +118,59 @@ public class SyncPlatsbankenSnapshotJobTests
         });
 
         return new SyncPlatsbankenSnapshotJob(
-            jobSource, scopeFactory, tracker, opts, clock ?? new FakeDateTimeProvider(Now),
+            jobSource, scopeFactory, tracker, opts,
+            Options.Create(new JobSourceIngestOptions { IngestEnabled = ingestEnabled }),
+            clock ?? new FakeDateTimeProvider(Now),
             auditor ?? Substitute.For<ISystemEventAuditor>(),
             throughputReporter ?? new IngestionThroughputReporter(
                 Options.Create(new IngestionThroughputOptions()),
                 NullLogger<IngestionThroughputReporter>.Instance),
             NullLogger<SyncPlatsbankenSnapshotJob>.Instance);
+    }
+
+    // ── Ingestion gate (JobSourceIngestOptions) ────────────────────────────────────────────
+    // Same gate and same reasoning as SyncPlatsbankenStreamJobTests: the daily full backfill
+    // writes the same recruiter contact records, so it carries the same switch. The pair is one
+    // measurement — the enabled case is the counterfactual for the disabled one.
+
+    [Fact]
+    public async Task RunAsync_WithIngestDisabled_NeverReachesTheJobSource()
+    {
+        var jobSource = StubJobSource(ValidItem("ext-1"));
+        var mediator = Substitute.For<IMediator>();
+        var auditor = Substitute.For<ISystemEventAuditor>();
+        var job = CreateJob(jobSource, new FakeScopeFactory(mediator),
+            auditor: auditor, ingestEnabled: false);
+
+        var counts = await job.RunAsync(TestContext.Current.CancellationToken);
+
+        counts.Fetched.ShouldBe(0);
+        jobSource.DidNotReceiveWithAnyArgs()
+            .FetchSnapshotAsync(Arg.Any<SnapshotOutcomeRecorder>(), Arg.Any<CancellationToken>());
+        await mediator.DidNotReceiveWithAnyArgs()
+            .Send(Arg.Any<UpsertExternalJobAdCommand>(), Arg.Any<CancellationToken>());
+        await auditor.DidNotReceiveWithAnyArgs()
+            .RecordAsync(Arg.Any<JobAdsSynced>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task RunAsync_WithIngestEnabled_ReachesTheJobSource()
+    {
+        var jobSource = StubJobSource(ValidItem("ext-1"));
+        var mediator = Substitute.For<IMediator>();
+        mediator.Send(Arg.Any<UpsertExternalJobAdCommand>(), Arg.Any<CancellationToken>())
+            .Returns(Result.Success(UpsertOutcome.Added));
+        var auditor = Substitute.For<ISystemEventAuditor>();
+        var job = CreateJob(jobSource, new FakeScopeFactory(mediator),
+            auditor: auditor, ingestEnabled: true);
+
+        var counts = await job.RunAsync(TestContext.Current.CancellationToken);
+
+        counts.Fetched.ShouldBe(1);
+        jobSource.ReceivedWithAnyArgs(1)
+            .FetchSnapshotAsync(Arg.Any<SnapshotOutcomeRecorder>(), Arg.Any<CancellationToken>());
+        await auditor.ReceivedWithAnyArgs(1)
+            .RecordAsync(Arg.Any<JobAdsSynced>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -372,6 +420,7 @@ public class SyncPlatsbankenSnapshotJobTests
         var auditor = Substitute.For<ISystemEventAuditor>();
         var job = new SyncPlatsbankenSnapshotJob(
             jobSource, new FakeScopeFactory(mediator), tracker, opts,
+            Options.Create(new JobSourceIngestOptions()),
             new FakeDateTimeProvider(Now), auditor,
             new IngestionThroughputReporter(
                 Options.Create(new IngestionThroughputOptions()), NullLogger<IngestionThroughputReporter>.Instance),
@@ -414,6 +463,7 @@ public class SyncPlatsbankenSnapshotJobTests
         var auditor = Substitute.For<ISystemEventAuditor>();
         var job = new SyncPlatsbankenSnapshotJob(
             jobSource, new FakeScopeFactory(mediator), tracker, opts,
+            Options.Create(new JobSourceIngestOptions()),
             new FakeDateTimeProvider(Now), auditor,
             new IngestionThroughputReporter(
                 Options.Create(new IngestionThroughputOptions()), NullLogger<IngestionThroughputReporter>.Instance),

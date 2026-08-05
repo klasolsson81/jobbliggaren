@@ -211,7 +211,15 @@ services:
     container_name: jobbliggaren-worker
     environment:
       <<: [*app-secrets, *app-connections]
-      ASPNETCORE_ENVIRONMENT: Production
+      # DOTNET_ENVIRONMENT, not ASPNETCORE_ENVIRONMENT, and the difference is load-bearing.
+      # The Worker is a generic host (Host.CreateApplicationBuilder), which reads
+      # DOTNET_ENVIRONMENT; ASPNETCORE_ENVIRONMENT is what a WebApplication reads, so on this
+      # service it was inert. The Production overlay was being loaded only because Production
+      # is the framework default when nothing is set — which meant the overlay's
+      # JobTech:IngestEnabled=false, i.e. the whole pre-beta-data ingestion gate, rested on a
+      # default rather than on anything this file declared. The api service below keeps
+      # ASPNETCORE_ENVIRONMENT because it IS a WebApplication.
+      DOTNET_ENVIRONMENT: Production
       DOTNET_gcServer: "0"
     mem_limit: 1024m
     memswap_limit: 1024m
@@ -259,7 +267,16 @@ services:
       MIGRATE_MIGRATIONS_PASSWORD: ${POSTGRES_MIGRATIONS_PASSWORD:?}
       MIGRATE_APP_PASSWORD: ${POSTGRES_APP_PASSWORD:?}
       MIGRATE_WORKER_PASSWORD: ${POSTGRES_WORKER_PASSWORD:?}
-      MIGRATE_APP_CONNECTION_STRING: "Host=postgres;Port=5432;Database=jobbliggaren;Username=jobbliggaren_migrations;Password=${POSTGRES_MIGRATIONS_PASSWORD:?};SSL Mode=Disable"
+      # jobbliggaren_app, not jobbliggaren_migrations, and the variable name is the clue:
+      # `schema` mode applies the APP schema's EF migrations. `migrate init` grants
+      # USAGE+CREATE on schema public, ALL on its tables and sequences, and the matching
+      # default privileges to the app role — and to no one else. Pointed at the migrations
+      # role this service dies with 42501 "permission denied for schema public" the moment
+      # EF tries to create __EFMigrationsHistory, which is a gating dependency of api and
+      # worker on every `up`. Measured on the Netcup box 2026-08-05, first boot.
+      # The migrations role owns the hangfire schema (see the runbook's GRANT model); it is
+      # not the role that owns public.
+      MIGRATE_APP_CONNECTION_STRING: "Host=postgres;Port=5432;Database=jobbliggaren;Username=jobbliggaren_app;Password=${POSTGRES_APP_PASSWORD:?};SSL Mode=Disable"
     mem_limit: 512m
     depends_on:
       postgres:

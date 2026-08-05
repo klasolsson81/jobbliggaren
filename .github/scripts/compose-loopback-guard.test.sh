@@ -550,6 +550,27 @@ services:
 YAML
 run host_network_via_driver_refused 2 "$TMPROOT/hostnet_driver"
 
+# ...AND THE DRIVER SEAT NEEDS ITS UNRESOLVED COUNTERPART, which the first version of it did not
+# have. Its three siblings each have one; without a fourth, `driver: "${DRV:-host}"` resolved to
+# host networking at `up` and the guard reported OK — measured, exit 0, and compose returns
+# `{"name":"<project>_n","driver":"host"}` with DRV unset. That is the same shape this file
+# already calls the worst on the network_mode axis: it names `host` as its own default, so the
+# file gives host networking with no variable set anywhere. Repairing the literal comparison and
+# leaving its variable form is the one-seat-of-three defect inside the fix for a host-networking
+# seat.
+proj hostnet_driver_var <<'YAML'
+networks:
+  n:
+    driver: "${DRV:-host}"
+services:
+  a:
+    image: x
+    networks: [n]
+    ports:
+      - "127.0.0.1:5435:5432"
+YAML
+run host_network_via_driver_variable_refused 2 "$TMPROOT/hostnet_driver_var"
+
 # ...and the counterweight the driver rule needs of its own: an ordinary driver must not be
 # refused, or the rule would fail every file that names one.
 proj bridge_driver <<'YAML'
@@ -816,6 +837,28 @@ services:
 YAML
 run_lines injected_newline_forges_no_line 2 0 '^NOT-LOOPBACK ' "$TMPROOT/injected_newline"
 
+# THE ESCAPE ITSELF, crossed by an ARTEFACT rather than by a directory name. `oneline` escapes
+# U+0001 so a control character cannot reach position 0; the first version of that escape was a
+# NO-OP and corrupted innocent text instead — jq lexes `"\\u0001"` into the six characters
+# ``, which is then a REGEX, and Oniguruma has no `\u`, so it degraded to matching the
+# literal letters `u0001`. Two measured consequences: a real U+0001 passed through untouched
+# (the security half of the claim was false), and a service legitimately named `svc-u0001-x` was
+# rewritten to `svc--x` — the remedy naming a service that is not in the file.
+#
+# THE ARGV HALF IS NOT CROSSED HERE and is named rather than counted: a project directory whose
+# name carries a control character is creatable on NTFS but compose refuses to open it, so the
+# Windows run exits 2 for a different reason, and the Linux case is unmeasured. This fixture
+# takes the half that IS producible on both, and it is the half that also proves the escape is
+# not a no-op.
+proj svc_u0001_name <<'YAML'
+services:
+  svc-u0001-x:
+    image: x
+    ports:
+      - "5435:5432"
+YAML
+run_lines service_name_holding_u0001_text_is_verbatim 1 1 'service=svc-u0001-x published=5435' "$TMPROOT/svc_u0001_name"
+
 # ==========================================================================================
 # 7. WHICH PROJECT IS JUDGED — the half the guard used to get wrong
 #
@@ -1043,15 +1086,22 @@ unset COMPOSE_PROJECT_NAME
 # anything at all: `COMPOSE_ENV_FILES` -> an env file -> `COMPOSE_FILE` -> a different project is
 # a real route, and it is defended in depth.
 #
-# SO THE PREFIX RULE HAS NO PRODUCIBLE DISCRIMINATOR TODAY, and that is named rather than
-# papered over with a fixture that appears to supply one. Measured: `COMPOSE_ENV_FILES` is
-# subsumed by `--env-file`; `COMPOSE_PROFILES` does not remove services from the model;
-# `COMPOSE_PROJECT_NAME` cannot reach a port. `COMPOSE_FILE` is the only variable the loop is
-# load-bearing for, and `ambient_compose_file_does_not_reselect` already crosses that. The rule
-# is broader than any variable currently requires — deliberately, because the enumeration is the
-# shape that let a repair land on one seat of three in #1215, and a release adding a
-# file-selecting variable would defeat a list silently. That is a claim about the FUTURE and no
-# fixture can cross it.
+# A SECOND VARIABLE DOES CROSS THE LOOP, AND THE ROUTE IS NOT A PORT. An earlier version of this
+# comment concluded that `COMPOSE_FILE` was the only variable the loop is load-bearing for and
+# that the rest was an unprovable claim about the future. `code-reviewer` swept all twenty
+# `COMPOSE_*` names out of the compose binary and measured otherwise:
+# `COMPOSE_PROJECT_NAME` cannot reach a port — that much was true — but compose VALIDATES its own
+# project name and refuses the project outright, which lands in the guard as exit 2. So an
+# invalid name exported in a developer shell turns a real finding into "could not answer", which
+# is #1206's form. Measured in both polarities against a `bare`-shaped project: loop intact
+# exit 1 and the finding names its service; loop narrowed to `COMPOSE_FILE` exit 2, masked.
+# `ambient_project_name_still_answers` above cannot cross it — it uses a VALID name on purpose.
+#
+# THE FIXTURE HAS ITS OWN WEAKNESS AND IT IS NAMED, in the same spirit as the rest of this file:
+# it fail-opens if a future compose accepts `Bad Name`. What it pins is the loop, not compose.
+export COMPOSE_PROJECT_NAME="Bad Name"
+run ambient_invalid_project_name_does_not_mask 1 "$TMPROOT/bare"
+unset COMPOSE_PROJECT_NAME
 #
 # THE VALUE IS CONVERTED FOR THE SAME REASON THE `.env` FIXTURE'S IS: `COMPOSE_ENV_FILES` reaches
 # a Windows `docker.exe` as an ENVIRONMENT VARIABLE, and MSYS rewrites arguments, not the
@@ -1148,7 +1198,7 @@ run refusal_survives_the_accumulator 2 "$TMPROOT/bare" "$TMPROOT/var"
 #     and at nothing else, so `deploy/docker-compose.yml` — #196's expected shape — is
 #     unjudged no matter how well the root project is judged. This is the case the tripwire
 #     exists for now.
-#   - A root-level compose file COMPOSE DOES NOT AUTO-LOAD. `docker-compose.prod.yml` sits in
+#   - A root-level compose file COMPOSE DOES NOT AUTO-LOAD. A `docker-compose.prod.yml` would sit in
 #     a gated directory and matches the pattern below, yet compose merges only a base file and
 #     its override, so it too is unjudged. Being inside a gated project is NOT the same as
 #     being read by it, and a tripwire keyed on the directory alone would have missed this.
@@ -1168,7 +1218,7 @@ run refusal_survives_the_accumulator 2 "$TMPROOT/bare" "$TMPROOT/var"
 #
 # THE PATTERN IS A NAME PATTERN AND CANNOT BE COMPLETE. It covers compose's own default names
 # and the ordinary `-suffix`/`.suffix` variants; a file deliberately named something else
-# (`stack.yml`) is invisible to it, as it is to compose without `-f`. The CTO's proposed form
+# (`stack.yml`) is invisible to it. The CTO's proposed form
 # was measured to also match `composer-notes.yml`, so the suffix is anchored on `.` or `-`.
 # IT ALSO OVER-REACHES, and that is the cheaper direction: `docs/compose-notes.yml` matches
 # and is not a compose file. Tripping on one costs a line in ACCOUNTED_COMPOSE_FILES; missing

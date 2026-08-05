@@ -307,7 +307,6 @@ errfile=$(mktemp)
 nullenv=$(mktemp)
 trap 'rm -f "$errfile" "$nullenv"' EXIT
 
-
 # THE SUBJECT IS THE TRACKED PROJECT, AND NO UNTRACKED *CONFIGURATION* REACHES THE VERDICT.
 # The scope of that sentence is exact and was measured too wide once: an untracked
 # `docker-compose.override.yml` DOES reach the verdict, and in the permissive direction —
@@ -429,7 +428,7 @@ for d in "${dirs[@]}"; do
     # newline; the anchor covers it without any check, because the forged line carries no
     # token and is therefore a refusal. That is a property of the anchor, not a claim about
     # the argument.
-    def oneline: tostring | gsub("\n"; "\\n") | gsub("\r"; "\\r") | gsub("\\u0001"; "\\\\u0001");
+    def oneline: tostring | gsub("\n"; "\\n") | gsub("\r"; "\\r") | gsub("\u0001"; "\\u0001");
     # AND THE PROJECT PREFIX GOES THROUGH IT TOO. `$p` is argv, not artefact, so it is a weaker
     # threat — but the anchor was described as covering a forged line "without any check", and
     # that reached further than the mechanism. A directory name may legally hold a newline OR a
@@ -489,8 +488,15 @@ for d in "${dirs[@]}"; do
     # it is the same rule that already refuses `name: host` WITHOUT `external:`.
     def host_nets: [ (.networks // {}) | to_entries[]
                      | select(.value.name == "host" or .value.driver == "host") | .key ];
+    # A NETWORK IS UNRESOLVED IF EITHER HALF IS. The `driver` seat was added as a literal
+    # comparison with no unresolved counterpart, while its three siblings all had one -- so
+    # `driver: "${DRV:-host}"` resolved to host networking and the guard reported OK, measured.
+    # That is the shape this file already calls the worst on the network_mode axis: it names
+    # `host` as its own default, so the file gives host networking with no variable set. The
+    # repair is the class, not the instance -- the rule this axis exists to demonstrate.
     def unresolved_nets: [ (.networks // {}) | to_entries[]
-                           | select(.value.name | is_unresolved) | .key ];
+                           | select((.value.name | is_unresolved)
+                                    or (.value.driver | is_unresolved)) | .key ];
     def attached: (.networks // {}) | if type == "object" then keys else . end;
 
     host_nets as $hostnets

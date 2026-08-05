@@ -363,8 +363,13 @@ run ipv6_wildcard_caught 1 "$TMPROOT/v6wild.yml"
 # `include:` and `extends:` pull ports in from another file. The awk parser could only report
 # PORTS-OUT-OF-VIEW — the ports genuinely were not in the file it was reading. Compose
 # resolves both and inlines the ports, so they are now CHECKED, and a 0.0.0.0 binding hiding
-# in an included file is caught. #196 adds compose files, where splitting one with `include:`
-# is exactly how it is done.
+# in an included file is caught — provided the including file is one the guard is given.
+#
+# DO NOT READ THIS AS #196 COVERAGE. An earlier version of this comment cited #196 as the
+# beneficiary, which overstated the wiring: the guard resolves an included file only when it
+# is included FROM a file it was handed, and a deploy compose file added by #196 will not be
+# included from `docker-compose.yml`. #196's file is gated by the tripwire at the bottom of
+# this suite, which refuses to let it arrive unjudged — not by these two fixtures.
 mkdir -p "$TMPROOT/inc"
 cat >"$TMPROOT/inc/base.yml" <<'YAML'
 services:
@@ -637,6 +642,59 @@ run second_file_still_checked 1 "$TMPROOT/clean.yml" "$TMPROOT/bare.yml"
 # the first of file 2 into one line naming two files — with the exit code unchanged, which is
 # exactly why an exit-code assertion could not pin it.
 run_lines both_files_report_separate_lines 1 2 '^.*: NOT-LOOPBACK ' "$TMPROOT/bare.yml" "$TMPROOT/explicit.yml"
+
+# ==========================================================================================
+# 8. THE TRIPWIRE — a compose file cannot arrive in this repo unjudged
+#
+# The guard is shape-based in how it reads a file and NAME-BASED in which file it reads: the
+# suite hands it one hardcoded path. Compose's own project resolution is wider, in two ways
+# both measured 2026-08-05 and both older than this rewrite (the awk predecessor exits 0 on
+# each): `docker compose up` auto-loads a sibling `docker-compose.override.yml` that `-f`
+# suppresses, and a committed `compose.yaml` OUTRANKS `docker-compose.yml` outright — bare
+# `docker compose config` then reads only the shadowing file while the guard reports OK on
+# the one nobody runs. Neither is fixed here: fixing them means judging a PROJECT rather than
+# a FILE, which reverses the guard's own "ONE INVOCATION PER FILE, deliberately" and is a
+# separate change (CTO 2026-08-05 — follow-up PR).
+#
+# WHAT THIS BLOCK DOES INSTEAD, and it is deliberately dumber than a predicate: it asserts
+# that the set of TRACKED compose files is still the set the suite gates. It decides nothing
+# about any file's contents. A new compose file — #196's deploy stack is the expected one —
+# turns this RED the moment it is committed, so it cannot arrive silently ungated. That is
+# what makes the follow-up unskippable rather than remembered: the build stops.
+#
+# NOT #196'S GUARD. #196's file will legitimately publish 80 and 443 WIDE — a containerised
+# Caddy must, or ACME HTTP-01 cannot complete — so this suite's loopback predicate is the
+# wrong verdict for it and pointing it here would be wrong. It owes its own predicate. This
+# block only refuses to let it pass unnoticed.
+#
+# THE PATTERN IS A NAME PATTERN AND CANNOT BE COMPLETE. It covers compose's own default names
+# and the ordinary `-suffix`/`.suffix` variants; a file deliberately named something else
+# (`stack.yml`) is invisible to it, as it is to compose without `-f`. The CTO's proposed form
+# was measured to also match `composer-notes.yml`, so the suffix is anchored on `.` or `-`.
+readonly COMPOSE_FILE_PATTERN='(^|/)(docker-)?compose([.-][A-Za-z0-9_.-]+)?\.ya?ml$'
+readonly GATED_COMPOSE_FILES='docker-compose.yml'
+
+if ! tracked=$(git -C "$REPO_ROOT" ls-files 2>/dev/null); then
+  fail=$((fail + 1))
+  printf 'FAIL %-38s could not list tracked files (not a git repo?)\n' "compose_file_set_is_gated"
+else
+  found=$(printf '%s\n' "$tracked" | grep -E "$COMPOSE_FILE_PATTERN" | sort | paste -sd' ' -)
+  if [ "$found" = "$GATED_COMPOSE_FILES" ]; then
+    pass=$((pass + 1))
+    printf 'ok   %-38s (%s)\n' "compose_file_set_is_gated" "$found"
+  else
+    fail=$((fail + 1))
+    printf 'FAIL %-38s tracked compose files changed\n' "compose_file_set_is_gated"
+    printf '       | gated:  %s\n' "$GATED_COMPOSE_FILES"
+    printf '       | found:  %s\n' "$found"
+    printf '       |\n'
+    printf '       | A compose file was added, renamed or removed. It is NOT gated by this\n'
+    printf '       | suite, and compose may even PREFER it to the file that is (a committed\n'
+    printf '       | compose.yaml outranks docker-compose.yml). Decide which verdict it owes\n'
+    printf '       | before updating GATED_COMPOSE_FILES -- the loopback predicate is the\n'
+    printf '       | WRONG verdict for a reverse proxy, which must publish 80/443 wide.\n'
+  fi
+fi
 
 echo
 echo "compose-loopback-guard fixtures: $pass passed, $fail failed"

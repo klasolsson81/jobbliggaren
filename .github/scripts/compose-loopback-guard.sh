@@ -63,8 +63,18 @@
 # that requirement is untouched here. "Did the file change back?" and "what is running?" are
 # different questions and neither substitutes for the other.
 #
-# SHAPE-BASED, NOT NAME-BASED: no service names, no port numbers. A new service, port or
-# rename is covered on arrival.
+# SHAPE-BASED IN HOW IT READS A FILE, NAME-BASED IN WHICH FILE IT READS — and the second half
+# is a real limit, not a quibble. Inside a file it knows no service names and no port numbers,
+# so a new service, port or rename is covered on arrival. But the file SET is a hardcoded
+# path, and compose's own project resolution is wider than that path in at least two measured
+# ways: `docker compose up` auto-loads a sibling `docker-compose.override.yml` that `-f`
+# suppresses, and a committed `compose.yaml` OUTRANKS `docker-compose.yml` entirely — bare
+# `docker compose config` then reads only the shadowing file while this guard still reports
+# OK on the one nobody runs. Both predate this rewrite (the awk predecessor exits 0 on both)
+# and neither is fixed here: closing them means judging a PROJECT rather than a FILE, which
+# reverses this file's own "ONE INVOCATION PER FILE, deliberately" and is a separate change.
+# What IS here is the tripwire in the suite: the tracked compose set is asserted against a
+# known list, so a new compose file cannot arrive unnoticed and unjudged.
 #
 # THE RESIDUAL THIS REBUILD INTRODUCES, named rather than left implicit: the answer now
 # depends on a compose CLI VERSION as well as on the file. Every normalisation above is

@@ -1,0 +1,34 @@
+[Unit]
+# Pulls the published images and applies any digest change. The deploy model is
+# reconcile-pull, not push: `release-images` publishes on an hourly schedule because
+# automerge merges as a GitHub App and app-triggered events start no workflow runs
+# (measured counterfactual on #1107 vs #1108). Nothing tells the box a new image exists,
+# so the box asks.
+Description=Jobbliggaren: reconcile the deploy stack against the published images
+Documentation=https://github.com/klasolsson81/jobbliggaren/blob/main/docs/runbooks/vps-deploy-stack.md
+After=docker.service network-online.target
+Requires=docker.service
+
+[Service]
+Type=oneshot
+
+# `pull` then `up -d`. Compose recreates only the services whose image digest actually
+# moved, so an unchanged pull is a no-op and this unit is safe to run on a timer.
+#
+# BY PATH, never COMPOSE_FILE — the guards are structurally blind to that channel
+# (#1217), so a green guard would vouch for a file the deploy does not run.
+ExecStart=/usr/bin/docker compose -f /opt/jobbliggaren/deploy/docker-compose.yml pull --quiet
+ExecStart=/usr/bin/docker compose -f /opt/jobbliggaren/deploy/docker-compose.yml up -d --remove-orphans
+
+# A pull that races another run would fight over the same containers. flock makes the
+# unit exclusive against itself without needing systemd's own job serialisation, which
+# does not cover a manual `systemctl start` landing on top of a timer firing.
+ExecStartPre=/usr/bin/flock -n /run/jobbliggaren-reconcile.lock /bin/true
+
+TimeoutStartSec=900
+# Registry hiccups are the common failure and they self-heal by the next tick. A unit
+# that retries forever would hold the lock and mask a real failure in the journal.
+Restart=no
+
+[Install]
+WantedBy=multi-user.target

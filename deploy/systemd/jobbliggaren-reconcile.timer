@@ -1,0 +1,20 @@
+[Unit]
+Description=Jobbliggaren: hourly reconcile against the published images
+Documentation=https://github.com/klasolsson81/jobbliggaren/blob/main/docs/runbooks/vps-deploy-stack.md
+
+[Timer]
+# :47, deliberately offset from `release-images`' own :17 cron. The publish run builds and
+# scans five images and takes tens of minutes, so pulling at :17 would race a half-published
+# tag — `latest` moving while `sha-<short>` has not, which is exactly the split the release
+# workflow's idempotence predicate treats as "not done".
+OnCalendar=*-*-* *:47:00
+
+# A box that was off at :47 reconciles on boot rather than waiting up to an hour.
+Persistent=true
+
+# Five containers' worth of registry traffic from every box at the same second is not a
+# problem at N=1, but the jitter costs nothing and the unit outlives the assumption.
+RandomizedDelaySec=180
+
+[Install]
+WantedBy=timers.target

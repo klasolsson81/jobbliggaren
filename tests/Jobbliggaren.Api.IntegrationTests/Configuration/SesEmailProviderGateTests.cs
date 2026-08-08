@@ -96,6 +96,58 @@ public class SesEmailProviderGateTests
         return settings;
     }
 
+    /// <summary>
+    /// Overrides <c>Email:FromAddress</c> — note the section is <c>Email:</c>, NOT <c>Email:Ses:</c>,
+    /// so <see cref="SesSettingsWith"/> cannot express it.
+    /// </summary>
+    private static Dictionary<string, string?> SesSettingsWithFromAddress(string? fromAddress)
+    {
+        var settings = FullSesSettings();
+        if (fromAddress is not null)
+            settings[$"{EmailOptions.SectionName}:{nameof(EmailOptions.FromAddress)}"] = fromAddress;
+        return settings;
+    }
+
+    /// <summary>
+    /// The <c>FromAddress</c> gate, which had NO coverage at all until code-reviewer measured it
+    /// (Major, 2026-08-08): every sibling gate is densely pinned, and this one's throw branch was
+    /// unreachable in the entire suite because <see cref="FullSesSettings"/> never sets the key and
+    /// the <see cref="EmailOptions"/> default is valid.
+    /// <para>
+    /// The gate is not cosmetic. <c>_dmarc.jobbliggaren.se</c> publishes <c>p=reject</c> with no
+    /// <c>rua=</c> (measured 2026-08-08, ADR 0124), so a sender address outside the DKIM-verified
+    /// identity is not an error — it is total, silent, unreported delivery loss.
+    /// </para>
+    /// <para>
+    /// The empty and whitespace rows matter beyond "blank is rejected": the DI arm reads the key
+    /// with <c>?? new EmailOptions().FromAddress</c>, so a null coalesces to the valid default and
+    /// must NOT throw, while an explicitly empty value must. Those are different code paths.
+    /// </para>
+    /// </summary>
+    [Theory]
+    [InlineData("")]                  // explicitly empty — the fallback must not rescue it
+    [InlineData("   ")]               // whitespace
+    [InlineData("no-reply")]          // no @ — a local part someone forgot to qualify
+    [InlineData("jobbliggaren.se")]   // a domain pasted where an address belongs
+    public void SesProvider_WithAnUnusableFromAddress_FailsLoud(string fromAddress)
+    {
+        var ex = Should.Throw<InvalidOperationException>(() =>
+            BuildServices("Development", SesSettingsWithFromAddress(fromAddress)));
+
+        ex.Message.ShouldContain("Email:FromAddress");
+    }
+
+    /// <summary>
+    /// Non-vacuity for the gate above, and it pins the coalesce specifically: with the key ABSENT
+    /// the arm falls back to <see cref="EmailOptions"/>'s default, which is a valid address, so
+    /// registration must succeed. Without this row the theory above would still pass if the gate
+    /// had been written to reject every unset value.
+    /// </summary>
+    [Fact]
+    public void SesProvider_WithNoFromAddressConfigured_FallsBackToTheDefaultAndRegisters() =>
+        ResolveEmailSenderImpl("Development", SesSettingsWithFromAddress(null))
+            .ShouldBe(typeof(SesEmailSender));
+
     private static Type? ResolveEmailSenderImpl(
         string environmentName, IReadOnlyDictionary<string, string?> emailSettings) =>
         BuildServices(environmentName, emailSettings)

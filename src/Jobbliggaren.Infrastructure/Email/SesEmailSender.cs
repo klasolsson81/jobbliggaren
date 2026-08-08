@@ -144,11 +144,10 @@ public sealed partial class SesEmailSender(
 
             // And do not let the PROVIDER's exception out of this adapter (ADR 0124;
             // senior-cto-advisor bind 4, 2026-08-08). AWS embeds the recipient address in its error
-            // messages, twenty-six [LoggerMessage] declarations in src/ forward an Exception object
-            // to the sink, and Api/Program.cs has no generic catch to stop an unmatched one — so a
-            // rethrow here is a PII leak the call sites cannot see and cannot be patched into
-            // safety. `ex` is passed as a TYPE NAME, never as InnerException: exception formatting
-            // walks the inner chain including messages, so attaching it would defeat this entirely.
+            // messages, many [LoggerMessage] declarations forward an Exception object to the sink,
+            // and Api/Program.cs has no generic catch to stop an unmatched one — so a rethrow here
+            // is a PII leak the call sites cannot see. `ex` is passed as a TYPE NAME, never as
+            // InnerException, which exception formatting would walk.
             //
             // Deliberately NOT typed-catching AccountSuspendedException/MessageRejected into a
             // Result: the port returns bare Task and caller isolation is the design, so a typed

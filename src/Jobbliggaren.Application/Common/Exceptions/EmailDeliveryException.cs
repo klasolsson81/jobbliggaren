@@ -8,15 +8,13 @@ namespace Jobbliggaren.Application.Common.Exceptions;
 /// <para>
 /// <b>Why the provider's own exception must not escape the adapter.</b> Amazon SES embeds the
 /// recipient address in its error messages — in the sandbox every recipient must be verified, and
-/// the failure reads <c>"Email address is not verified. The following identities failed the check
-/// in region EU-NORTH-1: &lt;address&gt;"</c>. Twenty-six <c>[LoggerMessage]</c> declarations across
-/// <c>src/</c> forward an <see cref="Exception"/> object to the sink, and the sink is durable
-/// whenever <c>Seq:ServerUrl</c> is set. Patching those call sites was rejected: it is an
-/// enumeration, and an incomplete one, because <c>Api/Program.cs</c> has NO generic
-/// <c>catch (Exception)</c>, no <c>UseExceptionHandler</c> and no <c>UseDeveloperExceptionPage</c>
-/// (measured 2026-08-08) — so a provider exception matching none of its typed catches escapes the
-/// application's own handler chain entirely and is logged by framework code no diff here can reach.
-/// Containment belongs at the only layer that knows the exception is PII-bearing.
+/// the failure names the failing identity. Many <c>[LoggerMessage]</c> declarations across
+/// <c>src/</c> forward an <see cref="Exception"/> object to the sink (the count and its grep live
+/// in ADR 0124), and the sink is durable whenever <c>Seq:ServerUrl</c> is set. Patching those call
+/// sites was rejected as an enumeration that cannot be completed: <c>Api/Program.cs</c> has NO
+/// generic <c>catch (Exception)</c>, no <c>UseExceptionHandler</c> and no
+/// <c>UseDeveloperExceptionPage</c>, so an unmatched provider exception escapes the application's
+/// own handler chain and is logged by framework code no diff can reach.
 /// </para>
 ///
 /// <para>

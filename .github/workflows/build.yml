@@ -299,10 +299,13 @@ jobs:
       - name: Test (Vitest)
         run: pnpm test
 
-  # Fixture-tester för de bash-skript i `.github/scripts/` som CI och
-  # merge-/hygien-kontrollerna själva kör. **Räkna dem med
-  # `ls .github/scripts/*.test.sh` i stället för att lita på en siffra här** — den här
-  # raden sa "tre" medan jobbet körde fyra, och blev fem i #1198. De ursprungliga tre:
+  # Fixture-tester för de bash-skript som CI, merge-/hygien-kontrollerna och **deployen på
+  # lådan** själva kör. **Räkna dem med `ls .github/scripts/*.test.sh deploy/systemd/*.test.sh`
+  # i stället för att lita på en siffra här** — den här raden sa "tre" medan jobbet körde fyra,
+  # blev fem i #1198, och sa `.github/scripts/` medan sviterna låg i två kataloger (#196:
+  # attestationsgrinden bor under `deploy/`, därför att lådan klonar `deploy/` och en
+  # runtime-grind inte kan bo där runtime inte ser den — det instrument raden själv föreskrev
+  # missade den alltså helt). De ursprungliga tre:
   # `is-pure-base-merge.sh`,
   # predikatet som avgör om en push får låta en PR:s granskningsgrind stå kvar
   # armerad (#836); `select-deletable-branches.sh`, predikatet som avgör vilka

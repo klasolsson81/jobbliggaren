@@ -25,6 +25,9 @@
 set -euo pipefail
 
 readonly COMPOSE_FILE=/opt/jobbliggaren/deploy/docker-compose.yml
+# Not read here, and deliberately named: compose discovers `.env` beside the compose file on
+# its own, and IMAGE_TAG (the rollback control) reaches the images through that discovery. A
+# reader looking for where the pinned tag enters would otherwise find nothing at all.
 readonly ENV_FILE=/opt/jobbliggaren/deploy/.env
 readonly VERIFIER=/opt/jobbliggaren/deploy/systemd/verify-image-attestation.sh
 readonly LOCK=/run/jobbliggaren-reconcile.lock
@@ -38,12 +41,26 @@ readonly OURS_PREFIX="ghcr.io/klasolsson81/jobbliggaren-"
 # Upstream images we deliberately do not verify, named one by one. Attestations for these are
 # not ours to demand — the trust decision for them is the pin in the compose file, which is why
 # each entry carries a tag rather than a bare name.
+# KEEP IN SYNC WITH `deploy/docker-compose.yml`. A version bump there without one here makes
+# this script refuse the whole apply, hourly, with `systemctl --failed` as the only signal on a
+# box that has no log sink (#1175). The compose file carries the reciprocal note next to each
+# pinned tag.
 readonly -a UPSTREAM_ALLOWLIST=(
   "postgres:18.3"
   "redis:8.6-alpine"
 )
 
 log() { printf '%s\n' "$*"; }
+
+# flock's ABSENCE must not read as its verdict. Without this guard a missing binary makes
+# `flock -n 9` fail with "command not found", which is indistinguishable from "someone else
+# holds the lock" — so the unit would exit 0, apply nothing, and report success on every tick,
+# forever, silently. Found by the fixture suite on a host without util-linux; the wrapper had
+# been one absent package away from being permanently inert while looking healthy.
+command -v flock >/dev/null 2>&1 || {
+  log "REFUSING: flock not found — exclusivity cannot be established (install util-linux)"
+  exit 2
+}
 
 # EXIT 0 WHEN THE LOCK IS HELD, and this is deliberate. A benign overlap — a manual run landing
 # on a timer firing — is not a unit failure, and marking it one would put the unit in
@@ -70,9 +87,8 @@ compose() { /usr/bin/docker compose -f "$COMPOSE_FILE" "$@"; }
 log "pulling images declared in $COMPOSE_FILE"
 compose pull --quiet
 
-# The tag is resolved exactly ONCE, here, by asking what the pull actually landed. Everything
-# downstream works from the digest. Reading the tag again later would be a second lookup with a
-# possibly different answer.
+# The image LIST, from compose's own resolved model — client-side, no daemon call. The tag of
+# each image is resolved to a digest further down, once, from what the pull landed.
 mapfile -t images < <(compose config --images | sort -u)
 [ "${#images[@]}" -gt 0 ] || {
   log "REFUSING: compose declared no images"
@@ -122,7 +138,14 @@ for image in "${images[@]}"; do
 done
 
 log "verified $verified image(s), skipped $skipped upstream; applying"
-compose up -d --remove-orphans
+
+# `--pull never` COMPLETES THE TOCTOU ARGUMENT. Verification ran against the digests already
+# on disk; if `up -d` were free to consult the registry again it could resolve a tag to
+# something newer than what was verified, and the whole check would guard a different image.
+# compose's default is `missing`, which would only pull an absent image — but "would only" is
+# an assumption about a version, and the box runs Compose v5.4.0 while this file's behavioural
+# notes were taken on 2.40.3. Stating it removes the assumption instead of documenting it.
+compose up -d --remove-orphans --pull never
 
 # A SUCCESS STAMP, so that "the box stopped reconciling" is a readable state rather than an
 # absence. Refusals are journal lines, and a journal line nobody reads is indistinguishable

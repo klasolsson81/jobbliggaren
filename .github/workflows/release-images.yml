@@ -160,13 +160,29 @@ jobs:
       # AND IT IS MEASURED IN THE REGISTRY, NOT THROUGH THE ATTESTATIONS API. The box reads the
       # bundle from GHCR's referrers; an attestation that exists in the API but not in the
       # registry would satisfy an API check while the box refuses forever — the same defect one
-      # layer up. So the predicate calls the SAME script the box calls. One mechanism, three
-      # payoffs: it measures the layer that matters, it proves the presence where the failure
-      # has a reader, and any drift between box and CI turns this job red.
+      # layer up. So the predicate calls the SAME script the box calls: it measures the layer
+      # that matters, and the presence is proven where a failure has a reader.
+      #
+      # WHAT IT DOES NOT DO IS FAIL THIS JOB. A verifier that cannot answer sends this run down
+      # the rebuild path with a `::warning::` and exit 0, so a structural breakage — cosign
+      # gone, bundle format moved, GHCR referrers unreadable — rebuilds five images every hour,
+      # green, for as long as it lasts. That is deliberate (the alternative is a red publish
+      # pipeline on every transient registry hiccup) but it is NOT a drift alarm, and this
+      # comment previously claimed it was. The cosign version here is pinned to the box's, which
+      # ISOLATES CI from the box's drift rather than exposing it; a divergence between them
+      # surfaces on the box, in the journal, and #1175 is why that has no reader yet.
       - name: Skip only if both tags agree AND the attestation is readable from the registry
         id: published
         run: |
           img="${{ steps.tag.outputs.image }}"
+          # STDERR IS DISCARDED HERE, WHICH IS A CHANGE FROM THE ORIGINAL AND IS THE POINT.
+          # Under `2>&1` a failed lookup put the error text INTO the variable, so two identical
+          # failures compared equal, `already=true` followed, and the tag pair was declared
+          # settled on the strength of two error messages. The reason for a failure is no longer
+          # captured, and that trade is deliberate: an unexplained rebuild is recoverable, a
+          # permanent skip on two matching errors is not. (`|| x=""` is retained for readers;
+          # Actions runs `bash -e {0}` without pipefail, so the pipe already returns `tr`'s
+          # status and the fallback never fires.)
           sha_digest=$(docker buildx imagetools inspect --format '{{json .Manifest.Digest}}' "$img:sha-${{ steps.tag.outputs.sha }}" 2>/dev/null | tr -d '"') || sha_digest=""
           latest_digest=$(docker buildx imagetools inspect --format '{{json .Manifest.Digest}}' "$img:latest" 2>/dev/null | tr -d '"') || latest_digest=""
           if [ -z "$sha_digest" ] || [ "$sha_digest" != "$latest_digest" ]; then
@@ -174,12 +190,21 @@ jobs:
             echo "Building. sha-tag digest: [$sha_digest] latest digest: [$latest_digest]"
             exit 0
           fi
-          if deploy/systemd/verify-image-attestation.sh "$img@$sha_digest"; then
+          # Captured into a variable rather than read from `$?` inside a branch: `$?` is the
+          # status of the last command run, which any added line silently changes. The repo has
+          # measured that class twice (a pipe's status read as a tool's), so the code is written
+          # so a later edit cannot introduce it.
+          verify_status=0
+          deploy/systemd/verify-image-attestation.sh "$img@$sha_digest" || verify_status=$?
+          if [ "$verify_status" -eq 0 ]; then
             echo "already=true" >> "$GITHUB_OUTPUT"
             echo "Both tags resolve to $sha_digest and it carries a verifiable attestation; nothing to do."
           else
             echo "already=false" >> "$GITHUB_OUTPUT"
-            echo "::warning::$sha_digest is published under both tags but has no verifiable attestation — rebuilding to produce one. The box would refuse this image."
+            # 1 is "no attestation", 2 is "could not answer", and this branch takes both. The
+            # message reports which, because naming "missing attestation" during a TUF outage
+            # would put a false cause in the log beside the verifier's own honest one.
+            echo "::warning::$sha_digest is published under both tags but did not verify (verifier exit $verify_status — 1: no attestation, 2: could not answer) — rebuilding. The box applies the same predicate, so it would refuse this image."
           fi
 
       - uses: docker/setup-buildx-action@v4

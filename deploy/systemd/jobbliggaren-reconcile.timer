@@ -13,10 +13,19 @@ Documentation=https://github.com/klasolsson81/jobbliggaren/blob/main/docs/runboo
 # landing in that window installs a MIXED SET — a web from this commit against an api from
 # the last — and compose will start it, because every tag resolved to something.
 #
-# The offset shrinks that window; it does not close it. Each cell carries
-# `timeout-minutes: 30`, so a slow :17 run can legally still be pushing at :47. What actually
-# protects the box is per-image verification in the reconcile wrapper, which refuses the whole
-# apply unless every image verifies — the offset is defence in depth behind it, not the gate.
+# THE OFFSET SHRINKS THAT WINDOW AND NOTHING CLOSES IT. Each cell carries
+# `timeout-minutes: 30`, so a slow :17 run can legally still be pushing at :47.
+#
+# AND ATTESTATION DOES NOT CLOSE IT EITHER — do not read the verification in the wrapper as a
+# gate against this. It pins WHO built an image, never WHICH TREE: a `web` from commit A and an
+# `api` from commit B were both built by this workflow on main, both carry a valid attestation,
+# and both verify. The mixed set is applied. (`release-images.yml` states the same limitation
+# about a different hole, and the push-ref condition there is what closes that one.)
+#
+# What a coherent set would require is that all five images resolve to the same `sha-<short>`,
+# which `prepare` already guarantees by resolving ONE commit for all five cells — so pinning
+# `IMAGE_TAG` gives a coherent set by construction while `latest` does not. Enforcing that on
+# the pull path is owed, not delivered — #1238.
 OnCalendar=*-*-* *:47:00
 
 # A box that was off at :47 reconciles on boot rather than waiting up to an hour.

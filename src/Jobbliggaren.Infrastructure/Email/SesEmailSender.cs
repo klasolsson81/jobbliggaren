@@ -1,6 +1,7 @@
 using Amazon.SimpleEmailV2;
 using Amazon.SimpleEmailV2.Model;
 using Jobbliggaren.Application.Common.Abstractions;
+using Jobbliggaren.Application.Common.Exceptions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -132,14 +133,22 @@ public sealed partial class SesEmailSender(
         }
         catch (Exception ex)
         {
-            // Log WITHOUT recipient/body (PII) and without the exception message (AWS embeds request
-            // context in it). The error bubbles up — the Api pipeline and the dispatch jobs'
-            // per-user isolation decide handling. Deliberately NOT typed-catching
-            // AccountSuspendedException/MessageRejected/SendingPausedException into a Result: the
-            // port returns bare Task and caller isolation is the design, so a typed catch that
-            // swallowed would be §5's "catch-all try/catch without action" wearing a type name.
+            // Log WITHOUT recipient/body (PII) and without the exception message.
             LogFailed(emailKind, ex.GetType().Name);
-            throw;
+
+            // And do not let the PROVIDER's exception out of this adapter (ADR 0124;
+            // senior-cto-advisor bind 4, 2026-08-08). AWS embeds the recipient address in its error
+            // messages, twenty-six [LoggerMessage] declarations in src/ forward an Exception object
+            // to the sink, and Api/Program.cs has no generic catch to stop an unmatched one — so a
+            // rethrow here is a PII leak the call sites cannot see and cannot be patched into
+            // safety. `ex` is passed as a TYPE NAME, never as InnerException: exception formatting
+            // walks the inner chain including messages, so attaching it would defeat this entirely.
+            //
+            // Deliberately NOT typed-catching AccountSuspendedException/MessageRejected into a
+            // Result: the port returns bare Task and caller isolation is the design, so a typed
+            // catch that swallowed would be §5's "catch-all try/catch without action" wearing a
+            // type name. This still throws — it just throws something safe to log.
+            throw new EmailDeliveryException(emailKind, ex.GetType().Name);
         }
     }
 

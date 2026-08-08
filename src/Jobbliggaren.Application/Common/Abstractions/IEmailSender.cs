@@ -20,6 +20,18 @@ namespace Jobbliggaren.Application.Common.Abstractions;
 /// own idempotency-key dedup)"</i>. Kvar fanns bara transport-retry INOM en dispatch, och den
 /// stängs av <c>MaxErrorRetry = 0</c> på SES-klienten.
 /// </para>
+/// <para>
+/// <b>Undantagskontrakt (ADR 0124, senior-cto-advisor bind 4).</b> En implementation som
+/// misslyckas kastar <see cref="Exceptions.EmailDeliveryException"/>, som bär e-postens KIND och
+/// det underliggande undantagets TYPNAMN — ingenting annat, och med <c>InnerException</c>
+/// avsiktligt TOM. Leverantörens eget undantag får ALDRIG lämna adaptern: Amazon SES lägger
+/// mottagaradressen i sina felmeddelanden, 26 <c>[LoggerMessage]</c>-deklarationer i <c>src/</c>
+/// vidarebefordrar ett <see cref="Exception"/>-objekt till sänkan, och <c>Api/Program.cs</c> har
+/// ingen generisk <c>catch</c> som stoppar ett omatchat (båda mätta 2026-08-08). Ett undantag ÄR
+/// en osynlig del av en signatur, så kontraktet står här och inte bara i implementationen — och
+/// <c>ConfirmEmailChangeCommandHandler</c>:s lokala <i>"§5 parity with the sender boundary"</i>
+/// blir därmed den allmänna regeln i stället för en handlares egen disciplin.
+/// </para>
 /// </summary>
 public interface IEmailSender
 {

@@ -1,6 +1,7 @@
 using Amazon.SimpleEmailV2;
 using Amazon.SimpleEmailV2.Model;
 using Jobbliggaren.Application.Common.Abstractions;
+using Jobbliggaren.Application.Common.Exceptions;
 using Jobbliggaren.Domain.JobSeekers;
 using Jobbliggaren.Infrastructure.Email;
 using Jobbliggaren.TestSupport;
@@ -401,20 +402,47 @@ public class SesEmailSenderTests
 
     // ---------- failure path: rethrow, single attempt, no fan-out ----------
 
+    /// <summary>
+    /// The failure still propagates — the sender must never swallow it into a silent success, and
+    /// caller isolation (the dispatch jobs' per-user try/catch, the Api pipeline) is the design.
+    /// <para>
+    /// <b>But it propagates as <see cref="EmailDeliveryException"/>, not as the provider's own
+    /// exception</b> (ADR 0124; senior-cto-advisor bind 4 on a security-auditor Major). The fixture
+    /// message below is AWS's real sandbox wording and it CARRIES A RECIPIENT ADDRESS. Twenty-six
+    /// <c>[LoggerMessage]</c> declarations in <c>src/</c> forward an <c>Exception</c> object to the
+    /// sink, and <c>Api/Program.cs</c> has no generic <c>catch</c> to stop an unmatched one — so
+    /// letting the provider exception out is a PII leak the call sites cannot see. This test is the
+    /// pin: the address must not survive the boundary, in the message OR through
+    /// <c>InnerException</c>, which exception formatting would walk.
+    /// </para>
+    /// </summary>
     [Fact]
-    public async Task SesEmailSender_SesRejectsTheMessage_RethrowsToTheCaller()
+    public async Task SesEmailSender_SesRejectsTheMessage_ThrowsAPiiFreeEmailDeliveryException()
     {
-        // MessageRejectedException is a real SES v2 SendEmail error (Amazon.SimpleEmailV2.Model) —
-        // the sender must not swallow it into a silent success. Caller isolation (the dispatch jobs'
-        // per-user try/catch, the Api pipeline) is the design.
+        const string leakyProviderMessage =
+            "Email address is not verified. The following identities failed the check in "
+            + "region EU-NORTH-1: " + Recipient;
+
         _ses.SendEmailAsync(Arg.Any<SendEmailRequest>(), Arg.Any<CancellationToken>())
-            .ThrowsAsync(new MessageRejectedException("Email address is not verified."));
+            .ThrowsAsync(new MessageRejectedException(leakyProviderMessage));
         var sut = CreateSut();
 
         var act = async () => await sut.SendEmailConfirmationAsync(
             Recipient, SampleConfirmationContent(), CancellationToken.None);
 
-        await act.ShouldThrowAsync<MessageRejectedException>();
+        var ex = await act.ShouldThrowAsync<EmailDeliveryException>();
+
+        ex.EmailKind.ShouldBe("email-confirmation");
+        ex.UnderlyingErrorType.ShouldBe(nameof(MessageRejectedException));
+
+        // InnerException is EMPTY on purpose: .NET's exception formatting walks the inner chain
+        // including messages, so attaching the provider exception would carry the address to the
+        // sink through this very wrapper.
+        ex.InnerException.ShouldBeNull();
+
+        // The address must appear nowhere a sink can reach — not in the message, not in ToString().
+        ex.Message.ShouldNotContain(Recipient);
+        ex.ToString().ShouldNotContain(Recipient);
     }
 
     [Fact]
@@ -428,7 +456,7 @@ public class SesEmailSenderTests
             .ThrowsAsync(new MessageRejectedException("Email address is not verified."));
         var sut = CreateSut();
 
-        await Should.ThrowAsync<MessageRejectedException>(async () =>
+        await Should.ThrowAsync<EmailDeliveryException>(async () =>
             await sut.SendEmailConfirmationAsync(
                 Recipient, SampleConfirmationContent(), CancellationToken.None));
 
@@ -491,7 +519,7 @@ public class SesEmailSenderTests
             .ThrowsAsync(new MessageRejectedException(SentinelMessage));
         var sut = CreateSut();
 
-        await Should.ThrowAsync<MessageRejectedException>(async () =>
+        await Should.ThrowAsync<EmailDeliveryException>(async () =>
             await sut.SendEmailConfirmationAsync(
                 Recipient, SampleConfirmationContent(), CancellationToken.None));
 
@@ -511,7 +539,7 @@ public class SesEmailSenderTests
             .ThrowsAsync(new MessageRejectedException("Email address is not verified."));
         var sut = CreateSut();
 
-        await Should.ThrowAsync<MessageRejectedException>(async () =>
+        await Should.ThrowAsync<EmailDeliveryException>(async () =>
             await sut.SendEmailConfirmationAsync(
                 Recipient, SampleConfirmationContent(), CancellationToken.None));
 

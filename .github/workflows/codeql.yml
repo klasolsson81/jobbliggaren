@@ -81,20 +81,20 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       # --- C#-only: SDK + NuGet-cache (krävs av manual build nedan) ----------
       # global.json låser 10.0.200 (rollForward latestFeature) — identiskt med
       # build.yml så CodeQL bygger exakt samma produkt som grön CI.
       - name: Setup .NET
         if: matrix.language == 'csharp'
-        uses: actions/setup-dotnet@v6
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
           global-json-file: global.json
 
       - name: Cache NuGet
         if: matrix.language == 'csharp'
-        uses: actions/cache@v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: ~/.nuget/packages
           key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', 'Directory.Packages.props', 'global.json') }}
@@ -114,7 +114,7 @@ jobs:
       # anywhere is pinned below its major. That grep is the adjudicator; do not
       # maintain a count here. If a future Dependabot PR proposes `@v4.x.y`, close it.
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@v4
+        uses: github/codeql-action/init@5595ccaf912efad79be6eef63a5619ff05969be3 # v4
         with:
           languages: ${{ matrix.language }}
           build-mode: ${{ matrix.build-mode }}
@@ -131,7 +131,7 @@ jobs:
 
       # --- CodeQL analyze ----------------------------------------------------
       - name: Perform CodeQL analysis
-        uses: github/codeql-action/analyze@v4
+        uses: github/codeql-action/analyze@5595ccaf912efad79be6eef63a5619ff05969be3 # v4
         with:
           category: '/language:${{ matrix.language }}'
 

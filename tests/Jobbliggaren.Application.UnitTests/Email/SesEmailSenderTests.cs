@@ -403,17 +403,6 @@ public class SesEmailSenderTests
     // ---------- failure path: rethrow, single attempt, no fan-out ----------
 
     /// <summary>
-    /// The failure still propagates — the sender must never swallow it into a silent success, and
-    /// caller isolation (the dispatch jobs' per-user try/catch, the Api pipeline) is the design.
-    /// <para>
-    /// <b>But it propagates as <see cref="EmailDeliveryException"/>, not as the provider's own
-    /// exception</b> (ADR 0124; senior-cto-advisor bind 4 on a security-auditor Major). The fixture
-    /// message below is AWS's real sandbox wording and it CARRIES A RECIPIENT ADDRESS. This test is
-    /// the pin: the address must not survive the boundary, in the message OR through
-    /// <c>InnerException</c>, which exception formatting would walk.
-    /// </para>
-    /// </summary>
-    /// <summary>
     /// The OTHER branch of the cancellation filter, and it was unpinned until dotnet-architect
     /// named it (R2-N2, 2026-08-08). A client-side timeout raises <see cref="TimeoutException"/>,
     /// which is NOT an <see cref="OperationCanceledException"/> — measured against the real SDK —
@@ -456,6 +445,17 @@ public class SesEmailSenderTests
         _logger.Latest.EventId.Id.ShouldBe(3006);
     }
 
+    /// <summary>
+    /// The failure still propagates — the sender must never swallow it into a silent success, and
+    /// caller isolation (the dispatch jobs' per-user try/catch, the Api pipeline) is the design.
+    /// <para>
+    /// <b>But it propagates as <see cref="EmailDeliveryException"/>, not as the provider's own
+    /// exception</b> (ADR 0124; senior-cto-advisor bind 4 on a security-auditor Major). The fixture
+    /// message below is AWS's real sandbox wording and it CARRIES A RECIPIENT ADDRESS. This test is
+    /// the pin: the address must not survive the boundary, in the message OR through
+    /// <c>InnerException</c>, which exception formatting would walk.
+    /// </para>
+    /// </summary>
     [Fact]
     public async Task SesEmailSender_SesRejectsTheMessage_ThrowsAPiiFreeEmailDeliveryException()
     {

@@ -37,7 +37,7 @@ namespace Jobbliggaren.Migrate.UnitTests;
 ///
 /// <para>
 /// <b>Scope.</b> This covers the YAML that composes the value. The IL surface — a connection
-/// string built in C# — is pinned separately in <c>ConnectionStringLeakageTests</c>, because a
+/// string built in C# — is pinned separately in <c>PooledConnectionResetIlTests</c>, because a
 /// Mono.Cecil literal scan cannot see a YAML file and a text scan cannot see a compiled literal.
 /// <c>infra/terraform/</c> is deliberately NOT covered: ADR 0066 retired the deployed AWS stack
 /// and CLAUDE.md §11 preserves that tree as a record of what ran, not as live config.
@@ -98,7 +98,8 @@ public class PooledConnectionResetTests
         var builder = new NpgsqlConnectionStringBuilder(value);
 
         builder.NoResetOnClose.ShouldBeFalse(
-            $"{source} composes a ConnectionStrings__Postgres with reset-on-close disabled. " +
+            $"{source} composes a ConnectionStrings__Postgres (host={builder.Host}) with " +
+            "reset-on-close disabled. " +
             "pg_temp is searched before public and EF emits unqualified table names, so a temp " +
             "table surviving a pooled physical connection is resolvable by another user's later " +
             "request. If this is genuinely wanted, it needs an accepted-risk ADR, not a config edit.");
@@ -130,7 +131,12 @@ public class PooledConnectionResetTests
         // on" from "there was nothing here to read".
         var builder = new NpgsqlConnectionStringBuilder(value);
 
-        builder.Host.ShouldNotBeNullOrWhiteSpace($"{source} yielded a value with no Host: '{value}'");
-        builder.Database.ShouldNotBeNullOrWhiteSpace($"{source} yielded a value with no Database: '{value}'");
+        // The raw value is deliberately NOT echoed. Nothing leaks today — both sources are
+        // tracked in a public repo and carry a placeholder or an ephemeral CI credential — but
+        // `Sources` is documented as a list meant to grow, and the day it gains a file that
+        // resolves a real credential this message would print it. Host and Database are enough to
+        // diagnose a value that failed to parse.
+        builder.Host.ShouldNotBeNullOrWhiteSpace($"{source} yielded a value with no Host.");
+        builder.Database.ShouldNotBeNullOrWhiteSpace($"{source} yielded a value with no Database (host={builder.Host}).");
     }
 }

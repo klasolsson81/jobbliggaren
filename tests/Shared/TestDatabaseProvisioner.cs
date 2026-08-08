@@ -75,10 +75,19 @@ public static class TestDatabaseProvisioner
 
             // Identities first: a role cannot be granted anything before it exists.
             //
-            // Two-step SELECT-then-DDL, mirroring production's CreateRoleIfNotExistsAsync, because
-            // Postgres has no CREATE ROLE IF NOT EXISTS and a second call against the same
-            // database throws 42710. One caller today, but this file is linked into more than one
-            // test project on purpose and the next adopter is who would meet it.
+            // An in-server DO-block guard, because Postgres has no CREATE ROLE IF NOT EXISTS and a
+            // second call against the same database throws 42710. One caller today, but this file
+            // is linked into more than one test project on purpose and the next adopter is who
+            // would meet it.
+            //
+            // NOT the shape production uses, and deliberately so. CreateRoleIfNotExistsAsync does a
+            // client-side parameterised SELECT then a separate DDL statement, and its own comment
+            // rejects anonymous DO blocks precisely because pl/pgsql takes no Npgsql parameters.
+            // Here the values are compile-time constants, so that constraint does not apply — and
+            // role creation is the half this type declares as hand-written rather than mirrored.
+            // Two differences worth knowing: production also ALTERs an existing role's password,
+            // this only creates when absent; and SELECT-then-CREATE is not atomic, so the EXCEPTION
+            // handler is what makes two concurrent provisioners against one server safe.
             foreach (var role in new[] { Roles.Migrations, Roles.App, Roles.Worker })
             {
                 await ExecuteAsync(
@@ -88,6 +97,7 @@ public static class TestDatabaseProvisioner
                        IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '{role}') THEN
                          CREATE ROLE {role} LOGIN PASSWORD '{TestRolePassword}';
                        END IF;
+                     EXCEPTION WHEN duplicate_object THEN NULL;
                      END $$;
                      """,
                     ct);

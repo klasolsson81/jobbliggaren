@@ -85,10 +85,15 @@ public class JobAdBrowsePlanFixturePostureTests(JobAdBrowsePlanFixture fixture)
         // On an unprovisioned database every role inherits PUBLIC's default TEMPORARY, so this is
         // TRUE. It becomes false only after `REVOKE ALL ON DATABASE … FROM PUBLIC` followed by a
         // CONNECT-only regrant — i.e. only if `PhaseADatabaseGrants.For` actually ran. Without it
-        // the other four assertions here all still pass (current_user and usesuper come from role
-        // creation, database CREATE is false by default, and schema CREATE comes from
-        // PublicSchema), so deleting the entire database-level list would leave this class green.
-        // Found by dotnet-architect walking that counterfactual, not by running anything.
+        // the other FIVE assertions here all still pass, so deleting the entire database-level
+        // list would leave this class green. current_user and usesuper come from role creation;
+        // database CREATE is false by default; schema CREATE comes from PublicSchema — and the
+        // fifth is the non-obvious one: Fixture_Database_GrantsTemporary_ToTheAppRole also stays
+        // green, because without the REVOKE the app role inherits TEMPORARY from PUBLIC rather
+        // than from its grant. (That test still crosses for the defect it names: deleting only
+        // the GRANT TEMPORARY statement does fail it, because the REVOKE strips PUBLIC first.)
+        // Found by dotnet-architect walking the counterfactual, and measured after: with the
+        // database-level list removed, exactly one of six fails, and it is this one.
         ScalarAs<bool>($"SELECT has_database_privilege('{Roles.Worker}', current_database(), 'TEMPORARY');")
             .ShouldBeFalse();
     }

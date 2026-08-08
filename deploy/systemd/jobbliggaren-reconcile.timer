@@ -3,10 +3,20 @@ Description=Jobbliggaren: hourly reconcile against the published images
 Documentation=https://github.com/klasolsson81/jobbliggaren/blob/main/docs/runbooks/vps-deploy-stack.md
 
 [Timer]
-# :47, deliberately offset from `release-images`' own :17 cron. The publish run builds and
-# scans five images and takes tens of minutes, so pulling at :17 would race a half-published
-# tag — `latest` moving while `sha-<short>` has not, which is exactly the split the release
-# workflow's idempotence predicate treats as "not done".
+# :47, offset from `release-images`' own :17 cron — but the hazard the offset addresses is
+# NOT `latest` moving ahead of `sha-<short>` within one image. That split is the publish
+# workflow's own idempotence predicate's job, and it repairs itself on the next run.
+#
+# The real hazard is CROSS-IMAGE SKEW. The publish job is a five-cell matrix with no fan-in:
+# each cell pushes when it finishes, so between the first cell's push and the last one's,
+# `latest` resolves to the new build for some images and the previous one for others. A pull
+# landing in that window installs a MIXED SET — a web from this commit against an api from
+# the last — and compose will start it, because every tag resolved to something.
+#
+# The offset shrinks that window; it does not close it. Each cell carries
+# `timeout-minutes: 30`, so a slow :17 run can legally still be pushing at :47. What actually
+# protects the box is per-image verification in the reconcile wrapper, which refuses the whole
+# apply unless every image verifies — the offset is defence in depth behind it, not the gate.
 OnCalendar=*-*-* *:47:00
 
 # A box that was off at :47 reconciles on boot rather than waiting up to an hour.

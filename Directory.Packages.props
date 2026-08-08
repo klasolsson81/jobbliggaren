@@ -253,7 +253,7 @@
          vs ADR 0050" is this repo's idiom for "assessed against the server-side, non-distributed
          model ADR 0050 locks" - which is ADR 0071:170's own wording, not merely local shorthand.
          Measured: THREE other comment blocks here assess copyleft against ADR 0050, covering five
-         packages (libstemmer+Hunspell, PdfPig+OpenXml, Resend). Two use the shorthand; the Hunspell
+         packages (libstemmer+Hunspell, PdfPig+OpenXml, AWSSDK.SimpleEmailV2). Two use the shorthand; the Hunspell
          block already writes it out. An earlier draft said "four other rows" - reachable only by
          counting ADR 0050 MENTIONS, one of which is the AWSSDK removal and no licence claim at all.
          MECHANISM WORTH KNOWING: v3.0 adds `## Applicable Version` (the Community License section's only new

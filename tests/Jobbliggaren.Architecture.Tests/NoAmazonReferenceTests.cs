@@ -106,8 +106,7 @@ public class NoAmazonReferenceTests
             foreach (Match match in PackageElement.Matches(text))
             {
                 var id = match.Groups["id"].Value;
-                if (!id.StartsWith("AWSSDK", StringComparison.Ordinal)
-                    && !id.StartsWith("Amazon", StringComparison.Ordinal))
+                if (!IsAmazonPackageId(id))
                 {
                     continue;
                 }
@@ -204,6 +203,33 @@ public class NoAmazonReferenceTests
             + $"Offenders: {string.Join(", ", result.FailingTypeNames ?? [])}");
     }
 
+    /// <summary>
+    /// Non-vacuity for the IL fact above, and it is the anchor the class most needed
+    /// (dotnet-architect, 2026-08-08). The IL fact was the ONLY one here without one, despite this
+    /// file's own claim that "the anchors are not decoration".
+    /// <para>
+    /// <b>Measured: changing the dependency string from <c>"Amazon"</c> to <c>"Amazon."</c> —
+    /// one character, and it reads as tidying — turns the whole class GREEN at 10/10 while
+    /// asserting nothing at all.</b> NetArchTest matches on dot-delimited namespace segments, so
+    /// the trailing dot matches no segment and the search set silently empties. This test fails in
+    /// that state, because the SES arm's two types MUST be found.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public void TheAmazonDependencySearchIsNotVacuous()
+    {
+        var found = Types.InAssembly(typeof(EmailOptions).Assembly)
+            .That().ResideInNamespaceStartingWith(SesNamespace)
+            .Should().NotHaveDependencyOn("Amazon")
+            .GetResult();
+
+        (found.FailingTypeNames ?? []).ShouldNotBeEmpty(
+            "The SES arm itself no longer registers as depending on Amazon. Either the arm was "
+            + "removed — in which case remove this whole guard's allow-list too — or the dependency "
+            + "string was altered and the IL fact above is now asserting over an EMPTY set and "
+            + "passing vacuously (ADR 0124).");
+    }
+
     [Theory]
     [MemberData(nameof(AssembliesThatMayNeverTouchAmazon))]
     public void NoAssemblyOutsideInfrastructureDependsOnAnAmazonType(string name, Assembly assembly)
@@ -229,6 +255,23 @@ public class NoAmazonReferenceTests
             // so it is the assembly handle, not a choice about what to test.
             { "Jobbliggaren.Migrate", typeof(ConnectionStringFactory).Assembly },
         };
+
+    /// <summary>
+    /// Which package ids this guard adjudicates at all.
+    /// <para>
+    /// <b><c>AWS.Logger.*</c> is here because of what those packages DO</b>, not for tidiness
+    /// (security-auditor Minor 2, 2026-08-08). <c>AWS.Logger.AspNetCore</c>, <c>AWS.Logger.Core</c>
+    /// and <c>AWS.Logger.SeriLog</c> are MEL providers that ship the application log to CloudWatch:
+    /// exactly the pair "PII in a log" plus "a region nobody chose". They match neither
+    /// <c>AWSSDK</c> nor <c>Amazon</c>, so the previous predicate — unchanged on <c>origin/main</c>,
+    /// so this is a repair and not a regression — would have let them in while the guard's own
+    /// message promised that <c>AWSSDK.Extensions.*</c> was barred.
+    /// </para>
+    /// </summary>
+    private static bool IsAmazonPackageId(string id) =>
+        id.StartsWith("AWSSDK", StringComparison.Ordinal)
+        || id.StartsWith("Amazon", StringComparison.Ordinal)
+        || id.StartsWith("AWS.", StringComparison.Ordinal);
 
     private static IEnumerable<string> ProjectAndPropsFiles(string repoRoot) =>
         ScannedRoots

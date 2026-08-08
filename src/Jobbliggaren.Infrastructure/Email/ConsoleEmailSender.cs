@@ -6,13 +6,21 @@ namespace Jobbliggaren.Infrastructure.Email;
 
 /// <summary>
 /// Dev/MVP-impl av IEmailSender. Skriver email-innehåll till ILogger istället
-/// för att skicka via riktig mailserver. Räcker för Fas 2-MVP (Klas kontrollerar
-/// både utfärdande och mottagare via klasskamrat-tester). Riktig transaktionell
-/// mejlväg (SMTP/HTTP-API) är TD för Hetzner-fasen (ADR 0066 — AWS SES borttaget).
+/// för att skicka via riktig mailserver. Registreras BARA i Development/Test
+/// (<c>AddEmailSender</c>); i övriga miljöer faller "Console" tillbaka på
+/// <see cref="NullEmailSender"/>.
+///
+/// Den riktiga transaktionella mejlvägen ÄR byggd och lever bredvid den här:
+/// <see cref="SesEmailSender"/> bakom <c>Email:Provider=Ses</c> (Amazon SES v2 i
+/// eu-north-1, ADR 0124). Den här kommentaren påstod tvärtom — att en riktig väg var
+/// "TD för Hetzner-fasen (ADR 0066 — AWS SES borttaget)" — vilket var falskt i alla
+/// tre leden: vägen fanns, värden är Netcup och inte Hetzner, och TD-registret är
+/// pensionerat (#1207).
 ///
 /// Säkerhet: plaintext-tokens skrivs till logs här, vilket är acceptabelt för
-/// dev men ALDRIG i prod. När en riktig mejl-provider återinförs registreras den
-/// via EmailOptions.Provider-switchen istället för denna sender.
+/// dev men ALDRIG i prod. Sedan 2026-08-04 är dev-Seq admin-autentiserad (#1198),
+/// men sänkan bär fortfarande hela mejlkroppen och ingen kadens ommäter det —
+/// [#1208](https://github.com/klasolsson81/jobbliggaren/issues/1208) äger den luckan.
 /// </summary>
 public sealed partial class ConsoleEmailSender(
     ILogger<ConsoleEmailSender> logger,
@@ -26,7 +34,6 @@ public sealed partial class ConsoleEmailSender(
         MatchNotificationEmail content,
         CancellationToken cancellationToken)
     {
-        // just renders the template.
         var body = EmailTemplates.MatchNotification(_options.BaseUrl, content);
         LogEmail(toEmail, body.Subject, body.PlainTextBody);
         return Task.CompletedTask;

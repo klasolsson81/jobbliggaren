@@ -129,12 +129,6 @@ public class SesEmailProviderGateTests
     /// <c>[Required]</c> attribute and the endpoint construction alike. Nothing failed until the
     /// first real send, in production, after a deploy.
     /// </para>
-    /// <para>
-    /// The <c>us-east-1</c> row is deliberately a CONTROL, not a policy assertion: it is a real
-    /// region and therefore must still PASS here. Whether a non-EU region should be refused as a
-    /// data-residency guard is `security-auditor`'s call under the open Chapter V question (#1169),
-    /// and pinning a policy this suite has not been given would pre-empt her.
-    /// </para>
     /// </summary>
     [Theory]
     [InlineData("eu-nrth-1")]      // the realistic typo
@@ -147,13 +141,69 @@ public class SesEmailProviderGateTests
         ex.Message.ShouldContain(region);
     }
 
-    [Fact]
-    public void SesProvider_WithAKnownNonEuRegion_StillRegisters_BecauseResidencyPolicyIsNotDecidedHere()
+    /// <summary>
+    /// A region OUTSIDE the EEA must be refused even though it is perfectly real
+    /// (security-auditor ruling 2026-08-08). <c>Email:Ses:Region</c> is the only string that decides
+    /// the jurisdiction of every outgoing PII transfer, and <c>us-east-1</c> is the default in
+    /// practically every AWS example a human might copy.
+    /// <para>
+    /// <b>The last two rows are the ones that matter</b>, and they are why the guard is an explicit
+    /// list rather than a <c>StartsWith("eu-")</c> check: London is the UK and Zurich is
+    /// Switzerland — both third countries, both <c>eu-</c>-prefixed. A prefix guard would have
+    /// admitted them while looking exactly as strict.
+    /// </para>
+    /// </summary>
+    [Theory]
+    [InlineData("us-east-1")]      // the copy-paste default
+    [InlineData("eu-west-2")]      // Europe (London) — UK, NOT EEA
+    [InlineData("eu-central-2")]   // Europe (Zurich) — CH, NOT EEA
+    [InlineData("eu-isoe-west-1")] // isolated aws-iso-e partition, not commercial
+    public void SesProvider_WithARegionOutsideTheEea_FailsLoud(string region)
     {
-        var impl = ResolveEmailSenderImpl(
-            "Development", SesSettingsWith(nameof(SesEmailOptions.Region), "us-east-1"));
+        var ex = Should.Throw<InvalidOperationException>(() =>
+            BuildServices("Development", SesSettingsWith(nameof(SesEmailOptions.Region), region)));
 
-        impl.ShouldBe(typeof(SesEmailSender));
+        ex.Message.ShouldContain(region);
+    }
+
+    /// <summary>
+    /// Non-vacuity for the guard above: an EEA region other than the configured default must still
+    /// PASS, so the allow-list cannot silently collapse to "only eu-north-1" and read as correct.
+    /// </summary>
+    [Theory]
+    [InlineData("eu-central-1")]
+    [InlineData("eu-west-1")]
+    [InlineData("eu-south-2")]
+    public void SesProvider_WithAnotherEeaRegion_StillRegisters(string region) =>
+        ResolveEmailSenderImpl("Development", SesSettingsWith(nameof(SesEmailOptions.Region), region))
+            .ShouldBe(typeof(SesEmailSender));
+
+    /// <summary>
+    /// The two client-config decisions from senior-cto-advisor's bind, pinned rather than merely
+    /// commented (dotnet-architect, 2026-08-08: they had eight grep hits and all eight were prose).
+    /// <list type="bullet">
+    ///   <item><b><c>MaxErrorRetry = 0</c></b> — SES v2 has no idempotency parameter, so an SDK retry
+    ///     of a request whose outcome is unknown is a duplicate delivery, not a recovery. The SDK
+    ///     default under <c>RetryMode.Standard</c> is <b>2</b>, so this is a real override and a
+    ///     silent revert would restore two possible re-sends of an accepted request.</item>
+    ///   <item><b>The region is the configured one</b>, never the SDK's default region chain.</item>
+    /// </list>
+    /// <para>
+    /// This is the ONLY test in the file that RESOLVES the SDK client rather than inspecting the
+    /// descriptor. That is deliberate and it is cheap: construction is offline and needs no valid
+    /// credentials — no network call happens until a send. Everything else here stays at
+    /// descriptor level so the suite keeps its no-client-ever-constructed property.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public void SesProvider_ConfiguresTheClientWithZeroRetriesAndTheConfiguredRegion()
+    {
+        using var provider = BuildServices("Development", FullSesSettings()).BuildServiceProvider();
+
+        var client = provider.GetRequiredService<IAmazonSimpleEmailServiceV2>();
+
+        client.Config.MaxErrorRetry.ShouldBe(0);
+        client.Config.RegionEndpoint.SystemName.ShouldBe(Region);
     }
 
     // --- Fail loud: credentials (each half independently) ---

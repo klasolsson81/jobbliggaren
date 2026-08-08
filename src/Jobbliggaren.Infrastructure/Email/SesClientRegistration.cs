@@ -84,27 +84,58 @@ internal static class SesClientRegistration
     /// why the order below is load-bearing rather than stylistic.
     /// </para>
     /// <para>
-    /// This checks that the region EXISTS. Whether it is an ACCEPTABLE region — i.e. whether a
-    /// non-EU value should be refused outright as a data-residency guard — is a `security-auditor`
-    /// question tied to the open Chapter V assessment (#1169, ADR 0124), and is deliberately not
-    /// decided here.
+    /// <b>An unknown region is refused, and so is a known one outside the EEA</b>
+    /// (security-auditor ruling 2026-08-08 — the call senior-cto-advisor delegated to her).
+    /// <c>Email:Ses:Region</c> is the ONLY configuration string that decides the jurisdiction of
+    /// every outgoing PII transfer, it is typed by a human at the flip, and <c>us-east-1</c> is the
+    /// default in practically every AWS example. Refusing costs nothing: under this repo's own
+    /// applied standard there is no legitimate non-EEA value, and if one is ever needed that is an
+    /// ADR decision rather than a config edit.
     /// </para>
     /// </summary>
     private static RegionEndpoint ResolveKnownRegion(string region)
     {
-        var known = RegionEndpoint.EnumerableAllRegions.Any(r =>
-            string.Equals(r.SystemName, region, StringComparison.Ordinal));
-
-        if (!known)
+        if (!EeaRegions.Contains(region))
         {
             throw new InvalidOperationException(
-                $"Email:Ses:Region='{region}' är ingen känd AWS-region. Kontrollera stavningen "
-                + "(t.ex. 'eu-north-1'). SDK:ns RegionEndpoint.GetBySystemName KASTAR INTE på ett "
-                + "okänt namn — den syntetiserar en endpoint med DisplayName='Unknown', så utan "
-                + "den här kontrollen skulle en felstavning passera DI och falla först vid första "
-                + "utskicket i drift (mätt 2026-08-08, ADR 0124).");
+                $"Email:Ses:Region='{region}' är inte en tillåten region. Tillåtna är AWS "
+                + $"kommersiella EES-regioner: {string.Join(", ", EeaRegions.Order())}. "
+                + "TVÅ separata skäl, båda mätta 2026-08-08 (ADR 0124): (1) SDK:ns "
+                + "RegionEndpoint.GetBySystemName KASTAR INTE på ett okänt namn — den syntetiserar "
+                + "en endpoint med DisplayName='Unknown', så en felstavning som 'eu-nrth-1' hade "
+                + "passerat DI och fallit först vid första utskicket i drift. (2) Regionen avgör "
+                + "jurisdiktionen för varje utgående PII-överföring, så ett värde utanför EES är "
+                + "ett dataresidens-beslut och inte en konfigurationsdetalj.");
         }
 
         return RegionEndpoint.GetBySystemName(region);
     }
+
+    /// <summary>
+    /// AWS commercial regions inside the EEA, by <c>SystemName</c>.
+    /// <para>
+    /// <b>An explicit list, because <c>StartsWith("eu-")</c> is the WRONG FORM</b> — and that is
+    /// measured, not cautious. Enumerating the SDK's own `eu-`-prefixed regions on 2026-08-08 gives
+    /// nine, and three of them do not belong here: <c>eu-west-2</c> is Europe (London), i.e. the UK,
+    /// a third country with an adequacy decision; <c>eu-central-2</c> is Europe (Zurich), i.e.
+    /// Switzerland, likewise; and <c>eu-isoe-west-1</c> is in the isolated <c>aws-iso-e</c>
+    /// partition, not the commercial one. A prefix guard would have admitted two third countries
+    /// while looking exactly as strict.
+    /// </para>
+    /// <para>
+    /// Note the ordering constraint this list also satisfies for free: membership is tested against
+    /// a literal set, never against <see cref="RegionEndpoint.EnumerableAllRegions"/> after a
+    /// <c>GetBySystemName</c> call, which would be self-fulfilling (measured: the collection grows
+    /// from 47 to 48 entries, with the bogus name among them, once that call has run).
+    /// </para>
+    /// </summary>
+    private static readonly HashSet<string> EeaRegions = new(StringComparer.Ordinal)
+    {
+        "eu-north-1",    // Stockholm, SE
+        "eu-central-1",  // Frankfurt, DE
+        "eu-west-1",     // Ireland, IE
+        "eu-west-3",     // Paris, FR
+        "eu-south-1",    // Milan, IT
+        "eu-south-2",    // Spain, ES
+    };
 }

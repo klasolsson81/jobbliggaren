@@ -1046,10 +1046,30 @@ public static class DependencyInjection
                     + "identitet (ingen tyst no-op som ser ut att skicka).");
             }
 
+            // FromAddress grindas här och inte bara av EmailOptions default (security-auditor Minor 3).
+            // Konsekvensen är inte kosmetisk: _dmarc.jobbliggaren.se publicerar redan p=reject UTAN
+            // rua= (mätt 2026-08-08, ADR 0124), så en avsändaradress utanför den DKIM-verifierade
+            // identiteten ger totalt leveransbortfall — tyst, och utan en enda rapport som avslöjar det.
+            var fromAddress = configuration[$"{EmailOptions.SectionName}:{nameof(EmailOptions.FromAddress)}"]
+                ?? new EmailOptions().FromAddress;
+            if (string.IsNullOrWhiteSpace(fromAddress) || !fromAddress.Contains('@', StringComparison.Ordinal))
+            {
+                throw new InvalidOperationException(
+                    $"Email:Provider='Ses' kräver en avsändaradress; Email:FromAddress='{fromAddress}' "
+                    + "är inte en adress. Den måste dessutom ligga under den SES-verifierade "
+                    + "domän-identiteten — domänens DMARC står på p=reject utan rua=, så ett fel här "
+                    + "syns inte som ett fel utan som tystnad.");
+            }
+
             // Backstop för de SEMANTISKA kontroller den råa läsningen inte uttrycker. Registreras
-            // ENBART i den här armen: EmailOptions självt får medvetet INTE ValidateOnStart, för då
-            // blev hela Email-sektionen ett boot-villkor på DEFAULT-vägen — och både
-            // appsettings.Local.json.example och local-dev-setup.md §7 lovar att den är VALFRI.
+            // ENBART i den här armen, och EmailOptions självt får medvetet INTE ValidateOnStart.
+            // SKÄLET, mätt 2026-08-08 (dotnet-architect fällde en tidigare formulering av den här
+            // kommentaren som var falsk): EmailOptions bär NOLL data-annotations, så
+            // ValidateDataAnnotations() där hade asserterat ingenting — en grind till namnet, som
+            // läses som skydd. Och i samma stund någon lade till ett [Required] hade den blivit ett
+            // boot-villkor på DEFAULT-vägen, vilket är precis vad appsettings.Local.json.example
+            // ("OPTIONAL") och local-dev-setup.md §7 lovar mot. Valideringen hör alltså hemma på de
+            // provider-scopade optionsen som faktiskt ÄR obligatoriska när armen valts.
             services.AddOptions<SesEmailOptions>()
                 .Bind(configuration.GetSection(SesEmailOptions.SectionName))
                 .ValidateDataAnnotations()
@@ -1352,7 +1372,10 @@ public static class DependencyInjection
         // (t.ex. en kvarlämnad "Kms" i stale config) MÅSTE dö loud vid boot —
         // aldrig tyst falla till Local (det skulle maskera en felkonfiguration;
         // #802-footgunklassen). Den AWS-KMS-baserade providern + klienten är
-        // borttagna; ingen Amazon-SDK-instans registreras.
+        // borttagna; ingen Amazon-SDK-instans registreras PÅ KRYPTERINGSVÄGEN. (Sedan ADR 0124
+        // finns exakt EN Amazon-klient i lösningen — SES-avsändarens, registrerad i
+        // AddEmailSender/AddSesClient. Den rör inte fält-krypteringen och kan inte: DEK-providern
+        // väljs av FieldEncryption:Provider, som bara accepterar Local.)
         var fieldEncryptionProvider = configuration[
             $"{Security.FieldEncryptionOptions.SectionName}:Provider"];
         if (!string.IsNullOrWhiteSpace(fieldEncryptionProvider)

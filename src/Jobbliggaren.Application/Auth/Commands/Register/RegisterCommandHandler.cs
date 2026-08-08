@@ -58,9 +58,11 @@ public sealed class RegisterCommandHandler(
                 // silently SKIPS the send but returns the SAME uniform 202 — a visible throttle here would
                 // itself be an enumeration channel (this is the UNAUTHENTICATED register surface), and the
                 // notice is informational so suppression strands no one. Keyed per-target only (no
-                // authenticated actor on this path). The Resend idempotency-key already dedupes per-address
-                // within Resend's own window, but that is provider-specific; this is the provider-independent
-                // throttle the #679 gate requires before Resend activation.
+                // authenticated actor on this path). This cooldown is the WHOLE anti-email-bomb control,
+                // full stop (ADR 0103, ADR 0124). It used to be described as the provider-independent
+                // half of a pair whose other half was a provider idempotency-key — that key is gone
+                // with Resend, and it was never armed anyway (Email:Provider has never been set in any
+                // committed config), so nothing here got weaker. SES has no equivalent to inherit.
                 if (await cooldown.TryBeginAsync(
                         CooldownScopes.AccountExists,
                         command.Email!,

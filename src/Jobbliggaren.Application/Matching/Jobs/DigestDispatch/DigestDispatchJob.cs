@@ -278,7 +278,7 @@ public sealed partial class DigestDispatchJob(
         var content = new MatchNotificationEmail(
             MatchNotificationKind.Digest, cadence, items, presentableTotal);
 
-        // No idempotency key (ADR 0124). The claim below the send is what makes this safe: the rows
+        // No idempotency key (ADR 0124). The claim ABOVE this send is what makes it safe: the rows
         // are Queued before the send and never re-sent on failure ("never double-email > never
         // miss"), so dedupe across calls never depended on the provider. The old content-hash key
         // only bounded a transport retry inside this one dispatch, which MaxErrorRetry = 0 removes.

@@ -66,10 +66,30 @@ public class JobAdBrowsePlanFixturePostureTests(JobAdBrowsePlanFixture fixture)
     [Fact]
     public void Fixture_Database_WithholdsCreate_FromTheAppRole()
     {
-        // ADR 0034: no role below master may add a schema. This is what proves the database was
-        // provisioned by Phase A rather than left at Postgres' defaults — where PUBLIC (and so
-        // every role) holds both CREATE and TEMPORARY on the database.
+        // ADR 0034: no role below master may add a schema.
+        //
+        // NOTE WHAT THIS DOES *NOT* PROVE. Postgres grants PUBLIC only CONNECT and TEMPORARY on a
+        // database (default ACL `=Tc/owner`) — never CREATE. So this assertion also passes on a
+        // database Phase A never touched, and it is not the one that proves provisioning ran.
+        // That is `Fixture_Database_WithholdsTemporary_FromTheWorkerRole` below. Kept because the
+        // privilege is genuinely part of the model and a future GRANT would still fail it.
         ScalarAs<bool>("SELECT has_database_privilege(current_user, current_database(), 'CREATE');")
+            .ShouldBeFalse();
+    }
+
+    [Fact]
+    public void Fixture_Database_WithholdsTemporary_FromTheWorkerRole()
+    {
+        // THE ASSERTION THAT CROSSES THE THRESHOLD, and the reason it is worth its own name.
+        //
+        // On an unprovisioned database every role inherits PUBLIC's default TEMPORARY, so this is
+        // TRUE. It becomes false only after `REVOKE ALL ON DATABASE … FROM PUBLIC` followed by a
+        // CONNECT-only regrant — i.e. only if `PhaseADatabaseGrants.For` actually ran. Without it
+        // the other four assertions here all still pass (current_user and usesuper come from role
+        // creation, database CREATE is false by default, and schema CREATE comes from
+        // PublicSchema), so deleting the entire database-level list would leave this class green.
+        // Found by dotnet-architect walking that counterfactual, not by running anything.
+        ScalarAs<bool>($"SELECT has_database_privilege('{Roles.Worker}', current_database(), 'TEMPORARY');")
             .ShouldBeFalse();
     }
 

@@ -119,7 +119,15 @@ public sealed class JobAdBrowsePlanFixture : IAsyncLifetime
 
     public async ValueTask DisposeAsync()
     {
-        await Services.DisposeAsync();
+        // Null-guarded because InitializeAsync now has a network- and SQL-bearing failure point
+        // BEFORE Services is assigned (the Phase A provisioning above). Unguarded, a provisioning
+        // failure would raise a NullReferenceException out of here alongside the real error —
+        // burying exactly the diagnostic you need when this fixture fails for its real reason.
+        if (Services is not null)
+        {
+            await Services.DisposeAsync();
+        }
+
         await _postgres.StopAsync();
     }
 }

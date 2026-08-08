@@ -22,6 +22,7 @@ COPY global.json Directory.Build.props Directory.Packages.props Jobbliggaren.sln
 COPY src/Jobbliggaren.Domain/Jobbliggaren.Domain.csproj src/Jobbliggaren.Domain/
 COPY src/Jobbliggaren.Application/Jobbliggaren.Application.csproj src/Jobbliggaren.Application/
 COPY src/Jobbliggaren.Infrastructure/Jobbliggaren.Infrastructure.csproj src/Jobbliggaren.Infrastructure/
+COPY src/Jobbliggaren.Migrate.Provisioning/Jobbliggaren.Migrate.Provisioning.csproj src/Jobbliggaren.Migrate.Provisioning/
 COPY src/Jobbliggaren.Migrate/Jobbliggaren.Migrate.csproj src/Jobbliggaren.Migrate/
 
 RUN dotnet restore src/Jobbliggaren.Migrate/Jobbliggaren.Migrate.csproj
@@ -29,6 +30,7 @@ RUN dotnet restore src/Jobbliggaren.Migrate/Jobbliggaren.Migrate.csproj
 COPY src/Jobbliggaren.Domain/ src/Jobbliggaren.Domain/
 COPY src/Jobbliggaren.Application/ src/Jobbliggaren.Application/
 COPY src/Jobbliggaren.Infrastructure/ src/Jobbliggaren.Infrastructure/
+COPY src/Jobbliggaren.Migrate.Provisioning/ src/Jobbliggaren.Migrate.Provisioning/
 COPY src/Jobbliggaren.Migrate/ src/Jobbliggaren.Migrate/
 
 RUN dotnet publish src/Jobbliggaren.Migrate/Jobbliggaren.Migrate.csproj \

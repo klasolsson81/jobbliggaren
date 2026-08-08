@@ -74,9 +74,23 @@ public static class TestDatabaseProvisioner
             await conn.OpenAsync(ct);
 
             // Identities first: a role cannot be granted anything before it exists.
+            //
+            // Two-step SELECT-then-DDL, mirroring production's CreateRoleIfNotExistsAsync, because
+            // Postgres has no CREATE ROLE IF NOT EXISTS and a second call against the same
+            // database throws 42710. One caller today, but this file is linked into more than one
+            // test project on purpose and the next adopter is who would meet it.
             foreach (var role in new[] { Roles.Migrations, Roles.App, Roles.Worker })
             {
-                await ExecuteAsync(conn, $"CREATE ROLE {role} LOGIN PASSWORD '{TestRolePassword}';", ct);
+                await ExecuteAsync(
+                    conn,
+                    $"""
+                     DO $$ BEGIN
+                       IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '{role}') THEN
+                         CREATE ROLE {role} LOGIN PASSWORD '{TestRolePassword}';
+                       END IF;
+                     END $$;
+                     """,
+                    ct);
             }
 
             // Production's statements, in production's order.

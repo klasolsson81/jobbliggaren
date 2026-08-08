@@ -423,6 +423,21 @@ public class SesEmailSenderTests
     /// filter would turn every per-user timeout into an aborted digest run, and only the happy
     /// half of the filter would notice.
     /// </para>
+    /// <para>
+    /// <b>AND THE COST OF THAT WIDENING IS WORSE THAN AN ABORTED RUN — it reopens the PII
+    /// containment.</b> Measured 2026-08-08 (security-auditor, reproduced independently):
+    /// <c>MessageRejectedException</c> has THREE constructors taking an inner exception, so a
+    /// PII-bearing provider exception WITH an inner cancellation is constructible — outer not
+    /// <see cref="OperationCanceledException"/>, inner yes, and the outer message still carrying
+    /// the recipient address. A filter that unwrapped <c>InnerException</c> would let exactly that
+    /// escape the adapter raw.
+    /// </para>
+    /// <para>
+    /// <b>The forward constraint:</b> any future widening of <c>SesEmailSender</c>'s catch filter
+    /// must discriminate on the OUTER exception type against the Amazon exception family, never by
+    /// unwrapping <c>InnerException</c> — the outer type is the only thing that tells you whether
+    /// the message is provider-authored.
+    /// </para>
     /// </summary>
     [Fact]
     public async Task SesEmailSender_SendTimesOut_ContainsItRatherThanTreatingItAsCancellation()

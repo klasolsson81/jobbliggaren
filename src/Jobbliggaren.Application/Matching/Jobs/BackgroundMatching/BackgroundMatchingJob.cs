@@ -304,11 +304,12 @@ public sealed partial class BackgroundMatchingJob(
 
                 var content = new MatchNotificationEmail(
                     MatchNotificationKind.Direct, null, [item], 1);
-                // Idempotency key (#187): one Top match = one email → key the single ad. Deterministic
-                // + PII-free (Guids only); a transport-retry of this exact send dedupes at Resend.
-                var idempotencyKey = MatchNotificationIdempotencyKey.ForDirect(
-                    userId, match.JobAdId.Value);
-                await emailSender.SendMatchNotificationEmailAsync(toEmail, content, idempotencyKey, ct);
+                // No idempotency key is passed, and that is the design (ADR 0124): dedupe across calls
+                // is the claim-then-send spine's job — this row is already Queued before the send, and
+                // StrandedMatchReaperJob moves a stranded row to Failed rather than re-sending. The
+                // provider key only ever covered a transport retry WITHIN this one send, and the SES
+                // client is configured with MaxErrorRetry = 0 so that retry no longer happens.
+                await emailSender.SendMatchNotificationEmailAsync(toEmail, content, ct);
 
                 match.MarkSent(clock);
                 await db.SaveChangesAsync(ct);

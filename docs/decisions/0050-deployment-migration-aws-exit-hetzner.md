@@ -618,6 +618,30 @@ reversibilitet). `AWSSDK.SecretsManager` rensas när Migrate re-homas (TD-105).
 > reducerad till enbart `"Local"`. Prod-master-nyckelns skyddsmodell kvarstår
 > **TD-102** — självständig från den borttagna KMS-providern.
 
+> **Truth-sync 2026-08-08 (ADR 0124 / [#1237](https://github.com/klasolsson81/jobbliggaren/issues/1237)):
+> meningen "Lösningen har nu **0 Amazon-paket**" ovan är inte längre sann, och
+> Klas-citatet "no AWS, ever" är överskrivet av Klas själv.** Lösningen bär sedan
+> 2026-08-08 exakt **ett** Amazon-paket: `AWSSDK.SimpleEmailV2` (+ transitiv
+> `AWSSDK.Core`), confined till `Jobbliggaren.Infrastructure`.
+>
+> **Detta är en Klas-överskrivning av ett Klas-direktiv, och den skrivs ut i stället för
+> att glidas förbi.** 2026-07-12 sa han "no AWS, ever" — i en truth-sync om
+> *fält-krypteringens* KMS-provider, men formulerad absolut. 2026-08-02 valde han
+> **AWS SES i `eu-north-1`** som e-postleverantör, och 2026-08-08 bekräftade han att
+> SES är den enda: *"Vi ska enbart ha AWS SES, detta är vår enda email-provider."*
+> Han gav samma dag §12-GO:t för biblioteket. Det senare direktivet är specifikt,
+> senare och givet med kännedom om grinden, så det gäller.
+>
+> **Vad som INTE är överskrivet, och det är merparten:** fält-krypteringen är
+> fortsatt Local-only (`LocalDataKeyProvider`), `KmsDataKeyProvider` är fortsatt
+> borttagen, och KMS, Secrets Manager, S3, Bedrock samt varje
+> `AWSSDK.Extensions.*`/`AWS.Logger.*` är fortsatt bannade — nu av en allow-list i
+> `NoAmazonReferenceTests` i stället för av ett blankettförbud. #802:s faktiska
+> invariant (ingen AWS i krypteringsvägen) står orörd; det som föll var den bredare
+> läsningen "noll paket", som aldrig var #802:s ärende.
+>
+> Motiveringen och gränsdragningen mot ADR 0066 bor i **ADR 0124** (lokal, ADR 0072).
+
 ## Amendment 2026-07-18 — reverse-proxy-rutt-regeln korrigerad (#756)
 
 **Beslutsfattare:** senior-cto-advisor (decision-maker, §9.2 — entydigt verdikt,

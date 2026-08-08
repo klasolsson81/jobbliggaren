@@ -47,7 +47,6 @@ public sealed partial class ResendEmailConfirmationCommandHandler(
             await emailSender.SendEmailConfirmationAsync(
                 delivery.Email,
                 new EmailConfirmationEmail(delivery.UserId, delivery.UrlSafeToken),
-                EmailConfirmationIdempotencyKey.For(delivery.UserId, delivery.UrlSafeToken),
                 cancellationToken);
 
             // Audit ONLY after a link was actually sent (a truthful "resent" event; CTO-bind ii).

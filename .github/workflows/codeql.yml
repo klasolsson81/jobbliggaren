@@ -81,20 +81,20 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       # --- C#-only: SDK + NuGet-cache (krävs av manual build nedan) ----------
       # global.json låser 10.0.200 (rollForward latestFeature) — identiskt med
       # build.yml så CodeQL bygger exakt samma produkt som grön CI.
       - name: Setup .NET
         if: matrix.language == 'csharp'
-        uses: actions/setup-dotnet@v6
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
           global-json-file: global.json
 
       - name: Cache NuGet
         if: matrix.language == 'csharp'
-        uses: actions/cache@v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: ~/.nuget/packages
           key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', 'Directory.Packages.props', 'global.json') }}
@@ -102,19 +102,42 @@ jobs:
             nuget-${{ runner.os }}-
 
       # --- CodeQL init -------------------------------------------------------
-      # KEEP THE MOVING MAJOR TAG. Dependabot proposed narrowing both codeql-action
-      # sites to an exact patch (`@v4.37.3`, PR #1139) and that was rejected: this
-      # file's own schedule exists to catch "nya CodeQL-queries" (see the `schedule`
-      # comment at the top), and pinning the analysis engine to one patch defeats
-      # the purpose the file writes out for itself. It is also strictly worse than
-      # a SHA pin — a version tag is mutable, so the narrowing buys no tamper
-      # resistance while paying the full staleness cost. Repo-wide the convention
-      # is exceptionless rather than merely dominant: `grep -rhoE 'uses: [^ ]+@[^ ]+'
-      # .github/workflows/ | grep -vE '@v[0-9]+$'` returns NOTHING — not one action
-      # anywhere is pinned below its major. That grep is the adjudicator; do not
-      # maintain a count here. If a future Dependabot PR proposes `@v4.x.y`, close it.
+      # SHA-PINNED, AND THE ENGINE STILL HAS TO MOVE. Both halves matter; neither
+      # works alone.
+      #
+      # History, because this block previously said the opposite. #1139 proposed
+      # narrowing both codeql-action sites to an exact patch (`@v4.37.3`) and that
+      # was rejected — a version tag is mutable, so the narrowing bought no tamper
+      # resistance while paying the full staleness cost, and this file's schedule
+      # exists to catch "nya CodeQL-queries" (see the `schedule` comment at the
+      # top). #1239 then SHA-pinned every action in the repo, on Klas-beslut
+      # 2026-08-08, after a measured path from a moved upstream release tag to root
+      # on the production box.
+      #
+      # A SHA pin is what the #1139 rejection called the better trade: it pays the
+      # same staleness cost and DOES buy the tamper resistance. But paying that cost
+      # only makes sense if something still advances the engine — and a SHA does not
+      # move on its own. So the staleness half is carried by Dependabot: the
+      # `github/codeql-action*` sub-major `ignore` in `.github/dependabot.yml` was
+      # REMOVED in the same change, because with a SHA pin that rule refused the
+      # only PRs that can unfreeze the analysis engine. Left in place it would have
+      # frozen the weekly scan on whatever bundle this SHA carries, silently and
+      # green (measured 2026-08-08: v4 shipped .4, .5 and .6 inside one week).
+      #
+      # And the hole that `ignore` originally closed is closed elsewhere rather than
+      # reopened: a codeql-action bump is patch/minor, so it would auto-merge with
+      # no agent on it. `dependabot-automerge.yml`'s gate now excludes
+      # `github/codeql-action` BY DEPENDENCY NAME. Changing the analysis engine
+      # stays a decision with a reader.
+      #
+      # THREE FILES, ONE MECHANISM: the pin here, the absent `ignore` in
+      # dependabot.yml, the name exclusion in dependabot-automerge.yml. Moving any
+      # one without the others reintroduces either the freeze or the silent
+      # auto-merge. The adjudicator for the pinning convention is
+      # `grep -rhoE 'uses:\s*\S+' .github/workflows/ | grep -vE 'uses: [^@]+@[0-9a-f]{40}$'`,
+      # which returns only prose; do not maintain a count here.
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@v4
+        uses: github/codeql-action/init@5595ccaf912efad79be6eef63a5619ff05969be3 # v4
         with:
           languages: ${{ matrix.language }}
           build-mode: ${{ matrix.build-mode }}
@@ -131,7 +154,7 @@ jobs:
 
       # --- CodeQL analyze ----------------------------------------------------
       - name: Perform CodeQL analysis
-        uses: github/codeql-action/analyze@v4
+        uses: github/codeql-action/analyze@5595ccaf912efad79be6eef63a5619ff05969be3 # v4
         with:
           category: '/language:${{ matrix.language }}'
 

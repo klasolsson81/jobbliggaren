@@ -13,6 +13,11 @@
          GRANTs in this project's Program.cs, and nothing else couples the two files. -->
     <Content Include="..\..\deploy\docker-compose.yml"
              Link="deploy\docker-compose.yml" CopyToOutputDirectory="PreserveNewest" />
+    <!-- #1232 - PooledConnectionResetTests parses every ConnectionStrings__Postgres the repo
+         composes. The deploy stack is one surface; CI's e2e host is the other, and it composes
+         its own value rather than reading the compose file. -->
+    <Content Include="..\..\.github\workflows\e2e.yml"
+             Link=".github\workflows\e2e.yml" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>

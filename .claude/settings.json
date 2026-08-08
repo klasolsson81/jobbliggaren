@@ -156,6 +156,9 @@
       "Bash(which:*)",
       "Bash(jq:*)",
       "Bash(openssl rand:*)",
+      "Bash(pwsh:*)",
+      "Bash(powershell.exe:*)",
+      "Bash(powershell:*)",
 
       "Bash(gh auth status:*)",
       "Bash(gh repo:*)",

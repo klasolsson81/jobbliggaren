@@ -6,13 +6,18 @@ namespace Jobbliggaren.Infrastructure.Email;
 
 /// <summary>
 /// Dev/MVP-impl av IEmailSender. Skriver email-innehåll till ILogger istället
-/// för att skicka via riktig mailserver. Räcker för Fas 2-MVP (Klas kontrollerar
-/// både utfärdande och mottagare via klasskamrat-tester). Riktig transaktionell
-/// mejlväg (SMTP/HTTP-API) är TD för Hetzner-fasen (ADR 0066 — AWS SES borttaget).
+/// för att skicka via riktig mailserver. Registreras BARA i Development/Test
+/// (<c>AddEmailSender</c>); i övriga miljöer faller "Console" tillbaka på
+/// <see cref="NullEmailSender"/>.
+///
+/// Den riktiga transaktionella mejlvägen ÄR byggd och lever bredvid den här:
+/// <see cref="SesEmailSender"/> bakom <c>Email:Provider=Ses</c> (Amazon SES v2 i
+/// eu-north-1, ADR 0124, #1207).
 ///
 /// Säkerhet: plaintext-tokens skrivs till logs här, vilket är acceptabelt för
-/// dev men ALDRIG i prod. När en riktig mejl-provider återinförs registreras den
-/// via EmailOptions.Provider-switchen istället för denna sender.
+/// dev men ALDRIG i prod. Sedan 2026-08-04 är dev-Seq admin-autentiserad (#1198),
+/// men sänkan bär fortfarande hela mejlkroppen och ingen kadens ommäter det —
+/// [#1208](https://github.com/klasolsson81/jobbliggaren/issues/1208) äger den luckan.
 /// </summary>
 public sealed partial class ConsoleEmailSender(
     ILogger<ConsoleEmailSender> logger,
@@ -24,11 +29,8 @@ public sealed partial class ConsoleEmailSender(
     public Task SendMatchNotificationEmailAsync(
         string toEmail,
         MatchNotificationEmail content,
-        MatchNotificationIdempotencyKey idempotencyKey,
         CancellationToken cancellationToken)
     {
-        // idempotencyKey is a Resend-only concern (dedupe a transport retry); the dev console sender
-        // just renders the template.
         var body = EmailTemplates.MatchNotification(_options.BaseUrl, content);
         LogEmail(toEmail, body.Subject, body.PlainTextBody);
         return Task.CompletedTask;
@@ -37,10 +39,8 @@ public sealed partial class ConsoleEmailSender(
     public Task SendFollowedCompanyNotificationEmailAsync(
         string toEmail,
         FollowedCompanyNotificationEmail content,
-        FollowedCompanyNotificationIdempotencyKey idempotencyKey,
         CancellationToken cancellationToken)
     {
-        // idempotencyKey is a Resend-only concern; the dev console sender just renders the template.
         var body = EmailTemplates.FollowedCompanyNotification(_options.BaseUrl, content);
         LogEmail(toEmail, body.Subject, body.PlainTextBody);
         return Task.CompletedTask;
@@ -49,10 +49,8 @@ public sealed partial class ConsoleEmailSender(
     public Task SendEmailChangeConfirmationAsync(
         string toEmail,
         EmailChangeConfirmationEmail content,
-        EmailChangeConfirmationIdempotencyKey idempotencyKey,
         CancellationToken cancellationToken)
     {
-        // idempotencyKey is a Resend-only concern; the dev console sender just renders the template.
         // The confirmation link (with the plaintext token) is written to the log here — acceptable in
         // Dev/Test (this sender is Dev/Test-only; NullEmailSender is the non-dev fallback), NEVER in
         // prod. Read the link out of the console/Seq log to complete the flow locally.
@@ -63,7 +61,6 @@ public sealed partial class ConsoleEmailSender(
 
     public Task SendEmailChangedNotificationAsync(
         string toEmail,
-        EmailChangedNotificationIdempotencyKey idempotencyKey,
         CancellationToken cancellationToken)
     {
         var body = EmailTemplates.EmailChangedNotification(_options.BaseUrl);
@@ -74,10 +71,8 @@ public sealed partial class ConsoleEmailSender(
     public Task SendEmailConfirmationAsync(
         string toEmail,
         EmailConfirmationEmail content,
-        EmailConfirmationIdempotencyKey idempotencyKey,
         CancellationToken cancellationToken)
     {
-        // idempotencyKey is a Resend-only concern; the dev console sender just renders the template.
         // The activation link (with the plaintext token) is written to the log here — acceptable in
         // Dev/Test (this sender is Dev/Test-only; NullEmailSender is the non-dev fallback), NEVER in
         // prod. Read the link out of the console/Seq log to complete the flow locally.
@@ -88,7 +83,6 @@ public sealed partial class ConsoleEmailSender(
 
     public Task SendAccountExistsNoticeAsync(
         string toEmail,
-        AccountExistsNoticeIdempotencyKey idempotencyKey,
         CancellationToken cancellationToken)
     {
         var body = EmailTemplates.AccountExistsNotice(_options.BaseUrl);

@@ -322,7 +322,11 @@ Alla tre startas av CC som bakgrundsprocesser.
    `FieldEncryption` + de tre pseudonymiserings-pepprarna `AuditPseudonymization` +
    `CompanyWatchPseudonymization` + `CvReviewFingerprintPseudonymization`. `Email` är VALFRI —
    `Email:Provider` defaultar till `Console` i koden, så att utelämna sektionen är en stödd
-   konfiguration (mallen märker den så sedan #1165).
+   konfiguration (mallen märker den så sedan #1165). **Undantaget, och det är ett villkorat
+   undantag:** sätter du `Email:Provider=Ses` (ADR 0124) blir `Email:Ses:Region` +
+   `Email:Ses:AccessKeyId` + `Email:Ses:SecretAccessKey` obligatoriska, och DI fail-stoppar med
+   namngivet fel om någon saknas. Valideringen är registrerad **inuti Ses-armen** just för att
+   `Email` ska förbli valfri på default-vägen; `EmailOptions` har medvetet ingen `ValidateOnStart`.
    **Kopiera `appsettings.Local.json.example` → `appsettings.Local.json` och generera
    nycklarna** (`openssl rand -base64 32` per sektion; `.example` är källan till sanning för
    listan). De tre pepprarna tillkom successivt — `AuditPseudonymization` 2026-07-14 (ADR 0090
@@ -414,4 +418,7 @@ docker exec jobbliggaren-postgres-dev psql -U jobbliggaren -d jobbliggaren -tAc 
 ### EJ i stacken
 
 - Ingen Azurite/Minio — fält-kryptering lokalt via `LocalDataKeyProvider` (ADR 0066,
-  AES-256-GCM); e-post via `ConsoleEmailSender`. AWS retired (ADR 0066).
+  AES-256-GCM); e-post via `ConsoleEmailSender`. AWS-**infrastrukturen** är riven (ADR 0066) och
+  förblir riven: ingen ECS, RDS, KMS eller Secrets Manager. Den enda AWS-ytan som finns kvar är
+  ett utgående HTTPS-anrop till Amazon SES i `eu-north-1`, och det är avstängt lokalt — SES-armen
+  registreras bara när du själv sätter `Email:Provider=Ses` (ADR 0124).

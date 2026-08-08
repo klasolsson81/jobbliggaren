@@ -278,16 +278,13 @@ public sealed partial class DigestDispatchJob(
         var content = new MatchNotificationEmail(
             MatchNotificationKind.Digest, cadence, items, presentableTotal);
 
-        // Idempotency key (#187): key the CONTENT of the claimed Strong set (a content hash of the
-        // claimed match ids), NOT a wall-clock window — so two same-period runs that claimed
-        // different sets get different keys and Resend never sees a key/payload mismatch (409). The
-        // factory sorts the ids itself; stable across a transport-retry within this single dispatch.
-        var idempotencyKey = MatchNotificationIdempotencyKey.ForDigest(
-            userId, cadence, pending.Select(m => m.Id.Value));
-
+        // No idempotency key (ADR 0124). The claim ABOVE this send is what makes it safe: the rows
+        // are Queued before the send and never re-sent on failure ("never double-email > never
+        // miss"), so dedupe across calls never depended on the provider. The old content-hash key
+        // only bounded a transport retry inside this one dispatch, which MaxErrorRetry = 0 removes.
         try
         {
-            await emailSender.SendMatchNotificationEmailAsync(toEmail, content, idempotencyKey, ct);
+            await emailSender.SendMatchNotificationEmailAsync(toEmail, content, ct);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
@@ -525,15 +522,11 @@ public sealed partial class DigestDispatchJob(
         var content = new FollowedCompanyNotificationEmail(
             cadence, items, presentableTotal, filterSummary);
 
-        // Idempotency key: CONTENT fingerprint of the CLAIMED hit set (namespaced follow/v1/…), NOT a
-        // wall-clock window — two same-period runs that claimed different sets get different keys.
-        var idempotencyKey = FollowedCompanyNotificationIdempotencyKey.ForDigest(
-            userId, cadence, effective.Select(h => h.Id.Value));
-
+        // No idempotency key (ADR 0124) — same reasoning as the match digest above: the claim is the
+        // dedupe, and a claimed hit set is never re-sent.
         try
         {
-            await emailSender.SendFollowedCompanyNotificationEmailAsync(
-                toEmail, content, idempotencyKey, ct);
+            await emailSender.SendFollowedCompanyNotificationEmailAsync(toEmail, content, ct);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {

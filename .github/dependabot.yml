@@ -14,7 +14,7 @@
 # SPRÅK I DEN HÄR FILEN, eftersom den blandar med flit och blandningen annars läser som
 # slarv: headern är svensk och nya rader i den skrivs svenska för att listan ska gå att
 # läsa som en lista. Posternas egna kommentarblock längst ned är engelska, i linje med
-# filens senare tillägg (CodeCoverage-, Resend- och codeql-noterna) och CLAUDE.md §1:s
+# filens senare tillägg (CodeCoverage- och codeql-noterna) och CLAUDE.md §1:s
 # "new comments in English".
 #
 # Strategi: månadsvisa version-updates. Minor + patch grupperas per ecosystem för
@@ -139,47 +139,6 @@ updates:
       # same requirement, for the reader who arrives from the other direction.
       - dependency-name: "Microsoft.Testing.Extensions.CodeCoverage"
         versions: ["18.9.0"]
-      # Resend is ignored ENTIRELY, and unlike every other entry here that is not a
-      # quality judgement on the package — it is being REMOVED. Klas-direktiv
-      # 2026-08-02 replaces it with AWS SES in eu-north-1; #183 owns the swap and
-      # #1169 the privacy-policy re-assessment that names Resend today.
-      #
-      # Bumping a dependency scheduled for deletion is work with no subject, and it
-      # is not free work either: 0.5.1 -> 0.8.0 breaks the build with 1x CS8604
-      # (`Subject` became `string?`), at
-      # tests/Jobbliggaren.Application.UnitTests/Email/ResendEmailSenderTests.cs:132.
-      # Verified independently 2026-08-03 by building the bump on origin/main.
-      # Note it is a MINOR in 0.x, so no update-type filter would have caught it —
-      # hence no `update-types` key here.
-      #
-      # SCOPED TO version-update:* ON PURPOSE, and the rule that makes the scoping
-      # work is the one worth writing down, because it is the CONVERSE of the general
-      # warning and a reader who checks only the warning will "fix" this the wrong way:
-      #
-      #   `update-types` affects VERSION updates only. Security updates are created
-      #   regardless of it. (GitHub docs, "Dependabot options reference", verified
-      #   2026-08-03.)
-      #
-      # The general warning is still true of the OTHER two forms: a bare
-      # `dependency-name`, and `versions:`, both DO reach security updates. That is why
-      # the blanket form was rejected here — it would silently suppress a CVE fix for a
-      # package still shipping every confirmation and password-reset mail until #183
-      # lands — and it is why the CodeCoverage rule above is written as one exact
-      # version rather than a range like `>= 18.9.0`, which would have been a real
-      # suppression.
-      #
-      # Do not "simplify" this back to a bare name, and do not convert it to `versions:`.
-      #
-      # LIFT WHEN: never. DELETE this entry together with the Resend PackageVersion
-      # when #183 lands. An ignore rule for a package that no longer exists is dead
-      # config that outlives its reason.
-      - dependency-name: "Resend"
-        update-types:
-          [
-            "version-update:semver-major",
-            "version-update:semver-minor",
-            "version-update:semver-patch",
-          ]
     # A MAJOR MUST NOT BE ABLE TO HIDE INSIDE A GROUP.
     #
     # This entry used to group `patterns: ["*"]`, i.e. everything including majors.
@@ -193,7 +152,10 @@ updates:
     # groups". Of those three breakers exactly ONE is a major; 3.0.11 -> 3.1.0 and
     # 0.5.1 -> 0.8.0 are both semver-MINOR and would still land inside this group.
     # Re-run against #1140's population, the new shape yields a 17-package group
-    # (still red, because Redis and Resend are still in it) plus one major PR.
+    # (red at the time, because Redis and Resend were both still in the tree) plus one
+    # major PR. Resend has since been removed entirely (ADR 0124, #1237); the #1140
+    # measurement is kept in the past tense because it is a record of what happened,
+    # not a claim about the current population.
     # `update-type` is a proxy for "breaking" and a leaky one: Redis's minor added
     # [Obsolete] to public constructors and Resend's 0.x minor made a property
     # nullable — both breaking only because this house treats warnings as errors.

@@ -44,11 +44,14 @@
          to Infrastructure — the QuestPDF SDK types never cross the Application port surface
          (ICvRenderer is BCL-only; NetArchTest layer guard). -->
     <PackageReference Include="QuestPDF" />
-    <!-- ADR 0080 Vag 4 PR-4 (BUILD §3.1, Klas-GO 2026-06-24) — transaktionell e-post via
-         Resend (löser TD-101 dev-vägen). Version pinnad i Directory.Packages.props. SDK:n
-         (IResend/EmailMessage) är confined till Infrastructure — korsar aldrig IEmailSender-
-         porten (BCL-only; NetArchTest layer guard), paritet Refit/PdfPig/QuestPDF. MIT. -->
-    <PackageReference Include="Resend" />
+    <!-- ADR 0124 (BUILD §3.1, Klas-GO 2026-08-08, #1237) — transaktionell e-post via Amazon SES
+         v2 (eu-north-1), ersätter Resend. Version pinnad i Directory.Packages.props. SDK:n
+         (IAmazonSimpleEmailServiceV2/SendEmailRequest) är confined till Infrastructure — korsar
+         aldrig IEmailSender-porten (BCL-only), paritet Refit/PdfPig/QuestPDF. Apache-2.0.
+         Detta är den ENDA csproj som får deklarera ett AWSSDK-paket; NoAmazonReferenceTests
+         allow-listar exakt den här filen och Directory.Packages.props, och ett NetArchTest-
+         faktum pinnar att bara Jobbliggaren.Infrastructure.Email beror på Amazon.*. -->
+    <PackageReference Include="AWSSDK.SimpleEmailV2" />
   </ItemGroup>
 
   <PropertyGroup>

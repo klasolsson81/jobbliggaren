@@ -60,7 +60,7 @@ public class ResendEmailConfirmationCommandHandlerTests
     private void SendThrows(Exception ex) =>
         _emailSender.SendEmailConfirmationAsync(
                 Arg.Any<string>(), Arg.Any<EmailConfirmationEmail>(),
-                Arg.Any<EmailConfirmationIdempotencyKey>(), Arg.Any<CancellationToken>())
+                Arg.Any<CancellationToken>())
             .ThrowsAsync(ex);
 
     [Fact]
@@ -75,7 +75,6 @@ public class ResendEmailConfirmationCommandHandlerTests
         await _emailSender.Received(1).SendEmailConfirmationAsync(
             Email,
             Arg.Is<EmailConfirmationEmail>(c => c != null && c.UserId == userId && c.UrlSafeToken == "url-safe-token"),
-            Arg.Any<EmailConfirmationIdempotencyKey>(),
             Arg.Any<CancellationToken>());
         _auditLogger.Received(1).EmailConfirmationResent(userId);
     }
@@ -91,7 +90,7 @@ public class ResendEmailConfirmationCommandHandlerTests
 
         await _emailSender.DidNotReceive().SendEmailConfirmationAsync(
             Arg.Any<string>(), Arg.Any<EmailConfirmationEmail>(),
-            Arg.Any<EmailConfirmationIdempotencyKey>(), Arg.Any<CancellationToken>());
+            Arg.Any<CancellationToken>());
         _auditLogger.DidNotReceive().EmailConfirmationResent(Arg.Any<Guid>());
     }
 
@@ -106,7 +105,7 @@ public class ResendEmailConfirmationCommandHandlerTests
             Arg.Any<string>(), Arg.Any<CancellationToken>());
         await _emailSender.DidNotReceive().SendEmailConfirmationAsync(
             Arg.Any<string>(), Arg.Any<EmailConfirmationEmail>(),
-            Arg.Any<EmailConfirmationIdempotencyKey>(), Arg.Any<CancellationToken>());
+            Arg.Any<CancellationToken>());
         _auditLogger.DidNotReceive().EmailConfirmationResent(Arg.Any<Guid>());
     }
 

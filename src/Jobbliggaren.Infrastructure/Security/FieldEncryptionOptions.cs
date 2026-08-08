@@ -2,7 +2,7 @@ namespace Jobbliggaren.Infrastructure.Security;
 
 /// <summary>
 /// TD-13 (ADR 0049) / ADR 0066 — konfiguration för lokal envelope-fält-
-/// kryptering. Efter AWS-exiten (ADR 0050/0066 — "no AWS, ever") är
+/// kryptering. Efter AWS-exiten (ADR 0050/0066) är
 /// <see cref="LocalDataKeyProvider"/> den enda DEK-wrap-mekanismen; den
 /// AWS-KMS-baserade providern och dess <c>CmkKeyId</c>/<c>AwsRegion</c>-options
 /// är borttagna (#802). Master-nyckeln binds via <c>IOptions</c> + env-var

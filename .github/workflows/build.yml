@@ -368,6 +368,13 @@ jobs:
       - name: verify-image-attestation (fixturer)
         run: bash deploy/systemd/verify-image-attestation.test.sh
 
+      # Wrapperns två rena predikat: klassificeraren (okänd image → REFUSE) och digest-regeln.
+      # Stubbar `docker` och `flock`, så varken daemon, registry eller root krävs. Notera att
+      # sviten SJÄLV kör båda dessa steg — men bara det här jobbet grindar dem, och en svit som
+      # ingen grind kör kan inte falla, vilket är den defektklass preambeln ovan namnger.
+      - name: jobbliggaren-reconcile (fixturer)
+        run: bash deploy/systemd/jobbliggaren-reconcile.test.sh
+
       # Diagnostik, INGEN grind — och till skillnad från `git --version` ovan är det
       # INTE gratis: `docker compose version` avslutar 1 när plugin:et saknas
       # (`'compose' is not a docker command`), och ett `run:`-steg fäller jobbet på

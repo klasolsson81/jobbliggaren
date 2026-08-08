@@ -192,7 +192,10 @@ assert_not_applied "and the running containers are left alone"
 
 stub_docker "$OURS:latest" "$DIGEST"
 stub_verifier 2
-expect_exit 1 "a verifier 'cannot answer' (exit 2) also refuses — never a pass"
+# 2 SURVIVES to the unit's status rather than collapsing into 1: `systemctl --failed` is this
+# box's only alarm surface, and "not proven" and "the check could not run" call for different
+# responses. Both still refuse the apply.
+expect_exit 2 "a verifier 'cannot answer' (exit 2) refuses AND keeps its own code"
 assert_not_applied "and still nothing is applied"
 
 echo "-- what reaches the verifier"

@@ -130,9 +130,16 @@ for image in "${images[@]}"; do
     exit 1
   fi
 
-  if ! "$VERIFIER" "${digests[0]}"; then
-    log "REFUSING: $image did not verify. Nothing is applied; the running containers stay up."
-    exit 1
+  # THE VERIFIER'S THREE OUTCOMES SURVIVE TO THE UNIT'S EXIT STATUS. Collapsing 1 and 2 into
+  # one code would leave `systemctl --failed` unable to distinguish "this image is not proven"
+  # from "the check could not run" — and on a box whose only alarm surface is that list
+  # (#1175: no log sink), the difference is the difference between a compromise and an outage.
+  # Both still refuse; only the reported reason differs.
+  verify_status=0
+  "$VERIFIER" "${digests[0]}" || verify_status=$?
+  if [ "$verify_status" -ne 0 ]; then
+    log "REFUSING: $image did not verify (verifier exit $verify_status — 1: not proven, 2: could not answer). Nothing is applied; the running containers stay up."
+    exit "$verify_status"
   fi
   verified=$((verified + 1))
 done

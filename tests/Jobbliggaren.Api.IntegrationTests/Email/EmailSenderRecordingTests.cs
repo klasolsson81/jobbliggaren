@@ -9,7 +9,7 @@ namespace Jobbliggaren.Api.IntegrationTests.Email;
 /// #241 — locks the integration host onto the recording email fake instead of any real provider.
 /// <para>
 /// Regression guard: before #241, a gitignored <c>appsettings.Local.json</c> with
-/// <c>Email:Provider=Resend</c> + a live key made the host resolve <c>ResendEmailSender</c>, so
+/// <c>Email:Provider=Ses</c> + live IAM keys would make the host resolve <c>SesEmailSender</c>, so
 /// email-success tests 500'd locally (403 test-mode) while passing in CI (no Local.json → Console).
 /// This test fails loudly if anyone drops the <see cref="ApiFactory"/> override and lets a real
 /// provider back into the integration host.

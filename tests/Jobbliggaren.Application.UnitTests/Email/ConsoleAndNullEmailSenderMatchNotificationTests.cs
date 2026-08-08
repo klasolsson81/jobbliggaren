@@ -23,8 +23,6 @@ public class ConsoleAndNullEmailSenderMatchNotificationTests
             Items: [new MatchNotificationItem("Backend-utvecklare", "Acme AB", "Toppmatch")],
             TotalCount: 1);
 
-    private static MatchNotificationIdempotencyKey SampleKey() =>
-        MatchNotificationIdempotencyKey.ForDirect(Guid.NewGuid(), Guid.NewGuid());
 
     [Fact]
     public async Task NullEmailSender_ShouldSuppressMatchNotification_WithoutThrowing()
@@ -32,7 +30,7 @@ public class ConsoleAndNullEmailSenderMatchNotificationTests
         var sut = new NullEmailSender(Substitute.For<ILogger<NullEmailSender>>());
 
         var act = async () => await sut.SendMatchNotificationEmailAsync(
-            "user@example.com", SampleContent(), SampleKey(), CancellationToken.None);
+            "user@example.com", SampleContent(), CancellationToken.None);
 
         await act.ShouldNotThrowAsync();
     }
@@ -44,7 +42,7 @@ public class ConsoleAndNullEmailSenderMatchNotificationTests
         var sut = new ConsoleEmailSender(Substitute.For<ILogger<ConsoleEmailSender>>(), options);
 
         var act = async () => await sut.SendMatchNotificationEmailAsync(
-            "user@example.com", SampleContent(), SampleKey(), CancellationToken.None);
+            "user@example.com", SampleContent(), CancellationToken.None);
 
         await act.ShouldNotThrowAsync();
     }

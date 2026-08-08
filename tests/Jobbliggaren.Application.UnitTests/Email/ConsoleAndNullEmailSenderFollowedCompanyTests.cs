@@ -23,9 +23,6 @@ public class ConsoleAndNullEmailSenderFollowedCompanyTests
             Items: [new FollowedCompanyAdItem("Backend-utvecklare", "Acme AB")],
             TotalCount: 1);
 
-    private static FollowedCompanyNotificationIdempotencyKey SampleKey() =>
-        FollowedCompanyNotificationIdempotencyKey.ForDigest(
-            Guid.NewGuid(), DigestCadence.Weekly, [Guid.NewGuid()]);
 
     [Fact]
     public async Task NullEmailSender_ShouldSuppressFollowedCompanyNotification_WithoutThrowing()
@@ -33,7 +30,7 @@ public class ConsoleAndNullEmailSenderFollowedCompanyTests
         var sut = new NullEmailSender(Substitute.For<ILogger<NullEmailSender>>());
 
         var act = async () => await sut.SendFollowedCompanyNotificationEmailAsync(
-            "user@example.com", SampleContent(), SampleKey(), CancellationToken.None);
+            "user@example.com", SampleContent(), CancellationToken.None);
 
         await act.ShouldNotThrowAsync();
     }
@@ -45,7 +42,7 @@ public class ConsoleAndNullEmailSenderFollowedCompanyTests
         var sut = new ConsoleEmailSender(Substitute.For<ILogger<ConsoleEmailSender>>(), options);
 
         var act = async () => await sut.SendFollowedCompanyNotificationEmailAsync(
-            "user@example.com", SampleContent(), SampleKey(), CancellationToken.None);
+            "user@example.com", SampleContent(), CancellationToken.None);
 
         await act.ShouldNotThrowAsync();
     }

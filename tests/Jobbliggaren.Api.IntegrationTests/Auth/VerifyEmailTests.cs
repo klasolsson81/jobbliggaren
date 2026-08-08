@@ -219,7 +219,7 @@ public class VerifyEmailTests(ApiFactory factory)
     public async Task POST_verify_email_activates_from_the_uid_and_token_in_the_emitted_activation_link()
     {
         // #981 — the REAL activation seam. EmailTemplates.EmailConfirmation renders the exact link the
-        // inbox receives (ConsoleEmailSender/ResendEmailSender both render through it). This test takes THAT
+        // inbox receives (ConsoleEmailSender/SesEmailSender both render through it). This test takes THAT
         // link, decodes its query the way a browser (URLSearchParams / Next useSearchParams) does, and POSTs
         // the values as strings — so the uid crosses the endpoint's System.Text.Json Guid binder in the form
         // the template emits. That is the one thing the other tests here do NOT do (they POST a Guid object,

@@ -59,7 +59,26 @@ internal sealed class RecordingLogger<T> : ILogger<T>
     {
         // [LoggerMessage]-generated TState implements IReadOnlyList<KVP> — that list IS
         // what a structured sink writes. Anything else (a plain string) has no properties.
-        var properties = state as IReadOnlyList<KeyValuePair<string, object?>> ?? [];
+        //
+        // SNAPSHOT, never hold the reference (#1237, measured 2026-08-08). Which state type
+        // arrives depends on WHICH [LoggerMessage] generator compiled the caller, and the two
+        // behave differently after Log returns:
+        //   - Jobbliggaren.Application types compile against the BCL generator and pass an
+        //     IMMUTABLE readonly struct. Holding it is harmless, which is why this helper
+        //     appeared to work for three consumers.
+        //   - Jobbliggaren.INFRASTRUCTURE types compile against the R9 generator in
+        //     Microsoft.Extensions.Telemetry.Abstractions (transitive via
+        //     Microsoft.Extensions.Resilience — present in Infrastructure's assets, ABSENT from
+        //     Application's) and pass Microsoft.Extensions.Logging.LoggerMessageState, which is
+        //     THREAD-LOCAL, POOLED and CLEARED the moment the generated method returns. Measured:
+        //     Count == 2 inside this method, Count == 0 one statement after the call.
+        // Holding that reference made Properties read as EMPTY for every Infrastructure logger —
+        // silently, because an empty list fails no assertion that only reads names. No test had
+        // ever asserted properties on an Infrastructure type, so nothing surfaced it until
+        // SesEmailSenderTests did.
+        var properties = state is IReadOnlyList<KeyValuePair<string, object?>> pairs
+            ? pairs.ToArray()
+            : [];
 
         Records.Add((logLevel, eventId, formatter(state, exception), properties));
     }

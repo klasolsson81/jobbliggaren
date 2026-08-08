@@ -74,7 +74,7 @@ jobs:
     timeout-minutes: 25
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       # Resolve tag-name (push-tag-event eller workflow_dispatch-input).
       # GITHUB_REF_NAME är "v0.1.0-dev" vid tag-push. workflow_dispatch.inputs.tag
@@ -94,7 +94,7 @@ jobs:
           echo "Resolved tag: $TAG"
 
       - name: Configure AWS credentials (OIDC)
-        uses: aws-actions/configure-aws-credentials@v6
+        uses: aws-actions/configure-aws-credentials@e6de054238d6b7531b4efff3b6587d9aade6a06c # v6
         with:
           role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
@@ -105,17 +105,17 @@ jobs:
 
       - name: Login to ECR
         id: ecr-login
-        uses: aws-actions/amazon-ecr-login@v2
+        uses: aws-actions/amazon-ecr-login@d539f0932e70871a027e9d5a9d8fc38589180a64 # v2
 
       # ------------------------------------------------------------------
       # Build + push images
       # ------------------------------------------------------------------
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v4
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4
 
       - name: Build + push API image
-        uses: docker/build-push-action@v7
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
         with:
           context: .
           file: src/JobbPilot.Api/Dockerfile
@@ -127,7 +127,7 @@ jobs:
           cache-to: type=gha,mode=max,scope=api
 
       - name: Build + push Worker image
-        uses: docker/build-push-action@v7
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
         with:
           context: .
           file: src/JobbPilot.Worker/Dockerfile
@@ -145,7 +145,7 @@ jobs:
       # vid TD-38 TLS-rotation, schema-mutation eller secret-rotation
       # (se docs/runbooks/td-38-tls-apply.md).
       - name: Build + push Migrate image
-        uses: docker/build-push-action@v7
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
         with:
           context: .
           file: src/JobbPilot.Migrate/Dockerfile
@@ -190,7 +190,7 @@ jobs:
 
       - name: Render Migrate task-def
         id: render-migrate
-        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        uses: aws-actions/amazon-ecs-render-task-definition@138c24f321fdbdf7edee4a685519d253cae2cdea # v1
         with:
           task-definition: task-def-migrate.json
           container-name: ${{ env.CONTAINER_NAME_MIGRATE }}
@@ -331,14 +331,14 @@ jobs:
 
       - name: Render API task-def
         id: render-api
-        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        uses: aws-actions/amazon-ecs-render-task-definition@138c24f321fdbdf7edee4a685519d253cae2cdea # v1
         with:
           task-definition: task-def-api.json
           container-name: ${{ env.CONTAINER_NAME_API }}
           image: ${{ env.ECR_REGISTRY }}/jobbpilot-dev-api:${{ github.sha }}
 
       - name: Deploy API service
-        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
+        uses: aws-actions/amazon-ecs-deploy-task-definition@c465972ecbd160473f22e683363b422a5412a3de # v2
         with:
           task-definition: ${{ steps.render-api.outputs.task-definition }}
           service: ${{ env.ECS_SERVICE_API }}
@@ -355,7 +355,7 @@ jobs:
 
       - name: Render Worker task-def
         id: render-worker
-        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        uses: aws-actions/amazon-ecs-render-task-definition@138c24f321fdbdf7edee4a685519d253cae2cdea # v1
         with:
           task-definition: task-def-worker.json
           container-name: ${{ env.CONTAINER_NAME_WORKER }}
@@ -365,7 +365,7 @@ jobs:
       # creds gör Worker till restart-loop tills 14b sätter riktiga values.
       # wait-for-service-stability: false → workflow fail:ar inte på worker.
       - name: Deploy Worker service (no-wait)
-        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
+        uses: aws-actions/amazon-ecs-deploy-task-definition@c465972ecbd160473f22e683363b422a5412a3de # v2
         with:
           task-definition: ${{ steps.render-worker.outputs.task-definition }}
           service: ${{ env.ECS_SERVICE_WORKER }}

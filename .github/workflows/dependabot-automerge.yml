@@ -53,7 +53,7 @@ jobs:
     steps:
       - name: Hämta Dependabot-metadata
         id: metadata
-        uses: dependabot/fetch-metadata@v3
+        uses: dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98 # v3
         with:
           github-token: "${{ secrets.GITHUB_TOKEN }}"
 
@@ -137,12 +137,49 @@ jobs:
         id: gate
         shell: bash
         run: |
-          echo "::notice::update-type=$UT ecosystem=${ECO:-<tomt>}"
+          echo "::notice::update-type=$UT ecosystem=${ECO:-<tomt>} deps=${DEPS:-<tomt>}"
           case "$ECO" in
             npm_and_yarn|nuget|github_actions) eco_ok=true ;;
             *) eco_ok=false ;;
           esac
-          if [[ "$eco_ok" != "true" ]]; then
+          # github/codeql-action ÄR UNDANTAGEN VID NAMN, och undantaget är inte en
+          # ekosystem-fråga (#1239, Klas-beslut 2026-08-08). Sedan varje action är
+          # SHA-pinnad är en Dependabot-PR den ENDA vägen som flyttar CodeQL-motorn
+          # framåt — och en patch/minor-bump skulle annars nå `eligible=true` och
+          # auto-mergas på grön `ci` UTAN att någon agent ser den (CLAUDE.md §9.2).
+          # Att byta analysmotor är ett beslut och ska ha en läsare. Detta ersätter
+          # `ignore`-regeln i dependabot.yml, som SHA-pinningen inverterade: den
+          # regeln refuserade numera de enda PR:er som kan avfrysa motorn.
+          #
+          # Substring-matchning på avsikt: `dependency-names` bär antingen repo-
+          # namnet eller `init`/`analyze`-underpaths, och det är oobserverat vilket.
+          # Båda innehåller `github/codeql-action`. Fail-CLOSED åt rätt håll — en
+          # bredare träff kostar en manuell merge, en missad träff auto-mergar en
+          # motorbyte-PR.
+          #
+          # SKIFTLÄGESOKÄNSLIG: `case` är skiftlägeskänsligt, men GitHub Actions löser
+          # `owner/repo` skiftlägesokänsligt — `GitHub/CodeQL-Action` skulle alltså köra
+          # och samtidigt avväpna undantaget. Enda missformen som fanns (security-auditor,
+          # mätt 2026-08-08).
+          #
+          # TOM `$DEPS` ÄR OCKSÅ ETT AVSLAG. Steget ovan failar hellre än sätter tomma
+          # outputs, så tomt är i dag onåbart — men det är den enda oförsvarade inputen
+          # i ett steg där okänt ekosystem och okänd update-type båda failar stängt, och
+          # en framtida `fetch-metadata` som döper om outputen skulle annars göra hela
+          # undantaget till en tyst no-op.
+          case "${DEPS,,}" in
+            "") codeql_hit=true ;;
+            *github/codeql-action*) eco_ok=false; codeql_hit=true ;;
+            *) codeql_hit=false ;;
+          esac
+          if [[ "$codeql_hit" == "true" ]]; then
+            echo "eligible=false" >> "$GITHUB_OUTPUT"
+            if [[ -z "$DEPS" ]]; then
+              echo "::notice::dependency-names är tomt → kan inte avgöra, manuell granskning (fail-closed)."
+            else
+              echo "::notice::github/codeql-action → analysmotorn byts, manuell granskning (ingen auto-merge)."
+            fi
+          elif [[ "$eco_ok" != "true" ]]; then
             echo "eligible=false" >> "$GITHUB_OUTPUT"
             echo "::notice::ecosystem=${ECO:-<tomt>} står inte i allow-listan → manuell granskning (fail-closed)."
           elif [[ "$UT" == "version-update:semver-patch" || "$UT" == "version-update:semver-minor" ]]; then
@@ -154,27 +191,28 @@ jobs:
         env:
           UT: ${{ steps.metadata.outputs.update-type }}
           ECO: ${{ steps.metadata.outputs.package-ecosystem }}
+          DEPS: ${{ steps.metadata.outputs.dependency-names }}
 
       - name: Checkout
         if: ${{ steps.gate.outputs.eligible == 'true' }}
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Setup .NET
         if: ${{ steps.gate.outputs.eligible == 'true' }}
-        uses: actions/setup-dotnet@v6
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
           global-json-file: global.json
 
       - name: Setup pnpm
         if: ${{ steps.gate.outputs.eligible == 'true' }}
-        uses: pnpm/action-setup@v6
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
         with:
           version: 9
           run_install: false
 
       - name: Setup Node
         if: ${{ steps.gate.outputs.eligible == 'true' }}
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: '22'
           cache: pnpm

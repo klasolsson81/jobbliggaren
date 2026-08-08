@@ -47,9 +47,13 @@ on:
         default: true
 
 # `packages: write` is what pushing to GHCR needs; nothing here writes to the repository.
+# `id-token: write` mints the OIDC token the provenance attestation is signed against, and
+# `attestations: write` is what records it. The box refuses any image without one (#196).
 permissions:
   contents: read
   packages: write
+  id-token: write
+  attestations: write
 
 concurrency:
   group: release-images
@@ -135,18 +139,43 @@ jobs:
       # Any failure to read either digest resolves to `already=false`, i.e. build and push.
       # The reason is logged rather than swallowed: a permanent auth or CLI breakage would
       # otherwise look identical to normal operation while rebuilding five images hourly.
-      - name: Skip only if both tags already resolve to the same digest
+      # PINNED TO THE BOX'S VERSION, not to latest. Debian 13 ships cosign 2.5.0 and apt
+      # security-maintains it; running a newer cosign here would let a bundle-format change pass
+      # CI and then be refused on the box, which is the failure this whole gate exists to make
+      # impossible. Drift now shows up as a red job instead of a silent hourly refusal.
+      - uses: sigstore/cosign-installer@v4
+        with:
+          cosign-release: "v2.5.0"
+
+      # A THIRD CONDITION SINCE #196's ATTESTATION REPAIR: the attestation must exist too.
+      # Without it, a run where `docker push` succeeded and the attest step then failed is
+      # unrecoverable — every later run sees both tags agreeing, skips, and never attests, while
+      # the box refuses that digest hourly for as long as it stays on `latest`. No merge, no new
+      # SHA, no repair, and nothing surfaces it (#1175: there is no log sink).
+      #
+      # AND IT IS MEASURED IN THE REGISTRY, NOT THROUGH THE ATTESTATIONS API. The box reads the
+      # bundle from GHCR's referrers; an attestation that exists in the API but not in the
+      # registry would satisfy an API check while the box refuses forever — the same defect one
+      # layer up. So the predicate calls the SAME script the box calls. One mechanism, three
+      # payoffs: it measures the layer that matters, it proves the presence where the failure
+      # has a reader, and any drift between box and CI turns this job red.
+      - name: Skip only if both tags agree AND the attestation is readable from the registry
         id: published
         run: |
           img="${{ steps.tag.outputs.image }}"
-          sha_digest=$(docker buildx imagetools inspect --format '{{.Manifest.Digest}}' "$img:sha-${{ steps.tag.outputs.sha }}" 2>&1) || sha_digest=""
-          latest_digest=$(docker buildx imagetools inspect --format '{{.Manifest.Digest}}' "$img:latest" 2>&1) || latest_digest=""
-          if [ -n "$sha_digest" ] && [ "$sha_digest" = "$latest_digest" ]; then
-            echo "already=true" >> "$GITHUB_OUTPUT"
-            echo "sha-${{ steps.tag.outputs.sha }} and latest both resolve to $sha_digest; nothing to do."
-          else
+          sha_digest=$(docker buildx imagetools inspect --format '{{json .Manifest.Digest}}' "$img:sha-${{ steps.tag.outputs.sha }}" 2>/dev/null | tr -d '"') || sha_digest=""
+          latest_digest=$(docker buildx imagetools inspect --format '{{json .Manifest.Digest}}' "$img:latest" 2>/dev/null | tr -d '"') || latest_digest=""
+          if [ -z "$sha_digest" ] || [ "$sha_digest" != "$latest_digest" ]; then
             echo "already=false" >> "$GITHUB_OUTPUT"
             echo "Building. sha-tag digest: [$sha_digest] latest digest: [$latest_digest]"
+            exit 0
+          fi
+          if deploy/systemd/verify-image-attestation.sh "$img@$sha_digest"; then
+            echo "already=true" >> "$GITHUB_OUTPUT"
+            echo "Both tags resolve to $sha_digest and it carries a verifiable attestation; nothing to do."
+          else
+            echo "already=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::$sha_digest is published under both tags but has no verifiable attestation — rebuilding to produce one. The box would refuse this image."
           fi
 
       - uses: docker/setup-buildx-action@v4
@@ -189,10 +218,41 @@ jobs:
 
       # Two tags, and `sha-<short>` is the one that matters: it is the rollback handle the
       # box pins in its `.env`. `latest` is what an unpinned reconcile pulls.
+      # THE REF CONDITION IS A SECURITY GATE, NOT TIDINESS. Without it a `workflow_dispatch`
+      # with `ref: <some-branch>` builds that branch's tree, pushes it as `latest`, and — since
+      # the attestation below binds WHO built the image, never WHICH TREE was built — attests it
+      # under an identity the box accepts. The box would verify and deploy a branch. Attestation
+      # cannot close this; only the push condition can. The dry-run purpose is untouched:
+      # proving a build never required pushing it.
       - name: Push ${{ matrix.name }}
-        if: steps.published.outputs.already == 'false' && (github.event_name != 'workflow_dispatch' || inputs.push)
+        id: push
+        if: steps.published.outputs.already == 'false' && (github.event_name != 'workflow_dispatch' || (inputs.push && (inputs.ref == 'main' || inputs.ref == '')))
         run: |
           docker tag "${{ steps.tag.outputs.image }}:sha-${{ steps.tag.outputs.sha }}" \
                      "${{ steps.tag.outputs.image }}:latest"
           docker push "${{ steps.tag.outputs.image }}:sha-${{ steps.tag.outputs.sha }}"
           docker push "${{ steps.tag.outputs.image }}:latest"
+          # The registry manifest digest, which only exists after the push — `load: true` means
+          # build-push-action never produced one. `{{json .Manifest.Digest}}` deliberately: the
+          # bare template silently falls back to the full pretty output on Docker 29 (measured
+          # 2026-08-08), which would feed a paragraph of text to the attest action as a digest.
+          digest=$(docker buildx imagetools inspect --format '{{json .Manifest.Digest}}' \
+            "${{ steps.tag.outputs.image }}:sha-${{ steps.tag.outputs.sha }}" | tr -d '"')
+          case "$digest" in
+            sha256:*) ;;
+            *) echo "::error::could not resolve a manifest digest after push: [$digest]"; exit 1 ;;
+          esac
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+
+      # WITHOUT THIS THE BOX REFUSES EVERY IMAGE, by design — the reconcile wrapper treats an
+      # absent attestation exactly like a bad one. `push-to-registry` writes the bundle to GHCR
+      # under the referrers tag scheme, which is where both the box and the skip predicate above
+      # read it from; GHCR does not implement the OCI referrers API endpoint, and the tag scheme
+      # is what makes discovery work anyway.
+      - name: Attest ${{ matrix.name }}
+        if: steps.push.outcome == 'success' && steps.push.outputs.digest != ''
+        uses: actions/attest-build-provenance@v4
+        with:
+          subject-name: ${{ steps.tag.outputs.image }}
+          subject-digest: ${{ steps.push.outputs.digest }}
+          push-to-registry: true

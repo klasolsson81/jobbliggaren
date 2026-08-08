@@ -193,10 +193,19 @@ echo "OK: both challenges live"
 #     Expected: no TLS error, and `Verify return code: 0 (ok)` against a public root.
 ```
 
-**Rollback is an image tag.** Pin `IMAGE_TAG=sha-<short>` in `.env` and re-run the
-reconcile unit — seconds. A Netcup snapshot is **not** deploy rollback: snapshots are
-copy-on-write, need 50 % free disk, only *offline* ones are consistent, and one exportable
-snapshot remains. Their role is **before a migration**, once real user data exists.
+**Rollback is an image tag — for CODE. It is not a rollback for SCHEMA.** Pin
+`IMAGE_TAG=sha-<short>` in `.env` and re-run the reconcile unit, and the four long-running
+services are back on the old build in seconds. But `migrate` runs EF migrations before `api`
+and `worker` start, and pinning an older tag re-runs an older `migrate` against a database the
+newer one has already changed. EF has no down-migrations here, and this repo has measured
+cases where a schema change destroys data irreversibly (a computed column reverted to an
+ordinary one; a `DROP COLUMN` taking its indexes silently). So: **an image-tag rollback across
+a migration boundary is not a rollback, and nothing in this stack currently stops one** —
+[#1236](https://github.com/klasolsson81/jobbliggaren/issues/1236) owns that control. A Netcup
+snapshot is **not** deploy rollback either: snapshots are copy-on-write, need 50 % free disk,
+only *offline* ones are consistent, and one exportable snapshot remains. Their role is
+**before a migration**, once real user data exists — which is precisely the boundary the tag
+cannot cross.
 
 ---
 
@@ -207,27 +216,76 @@ merges as a GitHub App and app-triggered events start no workflow runs (measured
 counterfactual: #1107 app-merged, zero runs; #1108 human-merged, a run after 5 s). Nothing
 tells the box a new image exists, so the box asks. Install once:
 
+**What it verifies, and why the box needs a tool for it.** The unit pulls five images as root
+every hour. `latest` is mutable, so the Trivy gate in `release-images.yml` speaks about the
+image the workflow *built*, not about the one the box pulls an hour later under the same tag —
+which leaves the whole chain resting on nobody having taken over the GitHub account. Since
+#196 the wrapper verifies each pulled **digest** against a provenance attestation naming our
+workflow on `main`, and refuses the entire apply if any image fails. Refused means *nothing is
+applied*: the containers already running keep running.
+
+**cosign, and pinned to what Debian ships.** `apt install cosign` on trixie gives 2.5.0, which
+is exactly the release that introduced `--new-bundle-format`, and Debian security-maintains it.
+CI pins the same version (`sigstore/cosign-installer` with `cosign-release: v2.5.0`) so a
+bundle-format divergence between CI and the box surfaces as a red job rather than as an hourly
+refusal nobody sees. The alternative, `gh attestation verify`, was rejected: it needs gh ≥
+2.97.0 (that release fixes a verification *bypass*), Debian ships 2.46.0, and GitHub's apt repo
+serves only "latest" — so unattended-upgrades would move the gate's own binary underneath it.
+
+**Install once** (order matters — the tool before the unit that requires it):
+
 ```bash
-sudo cp /opt/jobbliggaren/deploy/systemd/jobbliggaren-reconcile.{service,timer} /etc/systemd/system/
+sudo apt-get update && sudo apt-get install -y cosign
+cosign version   # expect 2.5.0 on trixie
+
+cd /opt/jobbliggaren && sudo git pull --ff-only      # the wrapper and verifier live in deploy/
+sudo cp deploy/systemd/jobbliggaren-reconcile.{service,timer} /etc/systemd/system/
+sudo chmod 0755 deploy/systemd/jobbliggaren-reconcile.sh deploy/systemd/verify-image-attestation.sh
 sudo systemctl daemon-reload
 sudo systemctl enable --now jobbliggaren-reconcile.timer
 systemctl list-timers jobbliggaren-reconcile            # Förväntat: one entry, next at :47
 sudo systemctl start jobbliggaren-reconcile.service     # prove it runs at all, not just that it is scheduled
-journalctl -u jobbliggaren-reconcile -n 20 --no-pager
+journalctl -u jobbliggaren-reconcile -n 40 --no-pager
 ```
 
 `enable --now` schedules it; it does not run it. `list-timers` showing an entry proves
 scheduling and nothing else — the one-shot `start` above is what proves the unit works,
 and it is safe because an unchanged pull is a no-op.
 
+**JUDGE THE JOURNAL, NOT THE EXIT CODE.** `systemctl start` returning 0 does not mean the
+reconcile ran: if the timer fires in the same window (:47 plus up to `RandomizedDelaySec`), the
+wrapper takes the lock-held branch and exits 0 **deliberately** — a benign overlap must not
+land the unit in `systemctl --failed`, which is this box's only alarm surface. So the proof is
+the journal carrying `verified N image(s)` followed by `reconcile complete`. A run that logged
+`another reconcile holds` proved nothing and should simply be repeated.
+
+**Install only after a publish that carries attestations.** Images pushed before the attest
+step existed have none, and the wrapper refuses them correctly — which would read as a broken
+install rather than as a working gate.
+
+**Refusal is readable, and absence is not.** A refused run writes to the journal, and a journal
+line nobody reads is indistinguishable from silence, so a successful apply also stamps
+`/var/lib/jobbliggaren/last-successful-reconcile`. "When did this box last apply anything"
+is then one `stat` rather than an inference from missing output.
+
+**Manual applies go through the unit.** `sudo systemctl start jobbliggaren-reconcile.service`,
+never a hand-typed `docker compose up -d`. The wrapper guards the path that goes through it:
+a manual apply takes no lock and runs no verification, and after a refused run the local
+`latest` tag already points at the image that was just refused.
+
 **The timer fires at :47, deliberately offset from the publish run's :17.** That run builds
 and scans five images and takes tens of minutes, so pulling at :17 would race a
 half-published tag — `latest` moved while `sha-<short>` has not, which is exactly the split
 the release workflow's own idempotence predicate treats as unfinished.
 
-**Rollback stays an image tag.** Pin `IMAGE_TAG=sha-<short>` in `deploy/.env` and run the
-unit: the pull resolves the pinned tag and `up -d` recreates only what moved. Seconds, and
-it is the primary rollback path — a Netcup snapshot is not deploy rollback.
+**Rollback stays an image tag, with the schema caveat above.** Pin `IMAGE_TAG=sha-<short>` in
+`deploy/.env` and run the unit: the pull resolves the pinned tag, every image is verified
+against it, and `up -d` recreates only what moved. Seconds, and it is the primary rollback path
+for the four long-running services. Across a **migration boundary** it is not a rollback at all
+— see §3's paragraph and [#1236](https://github.com/klasolsson81/jobbliggaren/issues/1236).
+A pinned tag must also be one that was published *with* an attestation, or the wrapper refuses
+it: images pushed before #196's attest step exist but cannot be verified, so the reachable
+rollback window starts there.
 
 ## 4. Host-side prerequisites
 

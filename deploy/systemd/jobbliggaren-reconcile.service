@@ -1,34 +1,43 @@
 [Unit]
-# Pulls the published images and applies any digest change. The deploy model is
-# reconcile-pull, not push: `release-images` publishes on an hourly schedule because
-# automerge merges as a GitHub App and app-triggered events start no workflow runs
-# (measured counterfactual on #1107 vs #1108). Nothing tells the box a new image exists,
-# so the box asks.
+# Pulls the published images, verifies each one was built by our workflow on main, and applies
+# what moved. The deploy model is reconcile-pull, not push: `release-images` publishes on an
+# hourly schedule because automerge merges as a GitHub App and app-triggered events start no
+# workflow runs (measured counterfactual: #1107 app-merged, zero runs; #1108 human-merged, a
+# run after 5 s). Nothing tells the box a new image exists, so the box asks.
 Description=Jobbliggaren: reconcile the deploy stack against the published images
 Documentation=https://github.com/klasolsson81/jobbliggaren/blob/main/docs/runbooks/vps-deploy-stack.md
-After=docker.service network-online.target
 Requires=docker.service
+After=docker.service network-online.target
+# WITHOUT THIS `Wants=`, THE `After=` ABOVE IS INERT. Ordering against network-online.target
+# does nothing unless something pulls the target into the transaction, and this unit needs the
+# network for more than the pull now: the attestation check talks to the registry and to
+# Sigstore's TUF hosts.
+Wants=network-online.target
 
 [Service]
 Type=oneshot
 
-# `pull` then `up -d`. Compose recreates only the services whose image digest actually
-# moved, so an unchanged pull is a no-op and this unit is safe to run on a timer.
-#
-# BY PATH, never COMPOSE_FILE — the guards are structurally blind to that channel
-# (#1217), so a green guard would vouch for a file the deploy does not run.
-ExecStart=/usr/bin/docker compose -f /opt/jobbliggaren/deploy/docker-compose.yml pull --quiet
-ExecStart=/usr/bin/docker compose -f /opt/jobbliggaren/deploy/docker-compose.yml up -d --remove-orphans
+# One process for the whole critical section, because the lock has to survive it. The previous
+# form — `ExecStartPre=/usr/bin/flock -n <file> /bin/true` — released the lock the instant
+# /bin/true exited, before ExecStart began, and its comment vouched for exclusivity it did not
+# provide. The script is also where verification lives, and verification must sit INSIDE the
+# lock: pull, verify, apply, all under one descriptor.
+ExecStart=/opt/jobbliggaren/deploy/systemd/jobbliggaren-reconcile.sh
 
-# A pull that races another run would fight over the same containers. flock makes the
-# unit exclusive against itself without needing systemd's own job serialisation, which
-# does not cover a manual `systemctl start` landing on top of a timer firing.
-ExecStartPre=/usr/bin/flock -n /run/jobbliggaren-reconcile.lock /bin/true
-
+# Sized against what the run actually does, not a round number. The pull of five images
+# dominates on a cold digest change; verification adds five cosign invocations, each of which
+# may fetch a Sigstore TUF root and read the registry's referrers, and a slow-but-working
+# network is exactly the case that must not be cut off mid-apply. For reference: the migrate
+# container applied 80 migrations in 3.2 s on this box (2026-08-05), so the database is not
+# what this timeout is protecting. 900 s leaves roughly an order of magnitude of headroom over
+# an observed-normal run and still fires long before the next tick.
 TimeoutStartSec=900
-# Registry hiccups are the common failure and they self-heal by the next tick. A unit
-# that retries forever would hold the lock and mask a real failure in the journal.
+
+# Registry hiccups are the common failure and they self-heal by the next tick. A unit that
+# retries forever would hold the lock and mask a real failure in the journal.
 Restart=no
 
-[Install]
-WantedBy=multi-user.target
+# NO [Install] SECTION. This unit is started by its timer and by an operator running
+# `systemctl start`; neither needs an install symlink, and `WantedBy=multi-user.target` would
+# additionally run a full reconcile at every boot as a side effect of enabling. The timer
+# carries the only [Install] in this pair.

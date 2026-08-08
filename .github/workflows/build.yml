@@ -359,6 +359,12 @@ jobs:
       - name: audit-suppression-guard (fixturer)
         run: bash .github/scripts/audit-suppression-guard.test.sh
 
+      # Ligger under deploy/ och inte .github/scripts/ därför att lådan klonar deploy/ — en
+      # runtime-grind kan inte bo där runtime inte ser den. Fixturerna stubbar cosign, så
+      # sviten behöver varken daemon, registry eller nätverk.
+      - name: verify-image-attestation (fixturer)
+        run: bash deploy/systemd/verify-image-attestation.test.sh
+
       # Diagnostik, INGEN grind — och till skillnad från `git --version` ovan är det
       # INTE gratis: `docker compose version` avslutar 1 när plugin:et saknas
       # (`'compose' is not a docker command`), och ett `run:`-steg fäller jobbet på

@@ -85,9 +85,20 @@ public partial class PhaseASchemaGrantsTests
         Hangfire().Count.ShouldBe(PhaseASchemaGrants.HangfireSchema.Count - 1);  // 3 - 1 CREATE SCHEMA
         Identity().Count.ShouldBe(PhaseASchemaGrants.IdentitySchema.Count - 1);  // 7 - 1 CREATE SCHEMA
 
-        // And the privileges actually came out as a LIST, not as one uncut blob — the precise
-        // thing #1230's substring form cannot do.
-        Public().ShouldContain(a => a.Privileges.Count > 1);
+    }
+
+    [Fact]
+    public void Parser_SplitsAMultiPrivilegeGrant_IntoSeparatePrivileges()
+    {
+        // The capability #1230's substring form lacks, asserted against a SYNTHETIC statement
+        // rather than against whatever the production lists happen to contain today. Bound to
+        // the production data instead, this would fail whenever a grant legitimately narrowed —
+        // reporting "the parser broke" for a change in the thing the parser reads. A guard must
+        // fail for its own reason.
+        var parsed = Parse([new PrivilegeStatement(
+            $"GRANT USAGE, CREATE, TEMPORARY ON SCHEMA public TO {Roles.App};", "synthetic")]);
+
+        parsed.Single().Privileges.ShouldBe(["USAGE", "CREATE", "TEMPORARY"]);
     }
 
     // ---------------------------------------------------------------------------------------

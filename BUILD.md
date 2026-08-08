@@ -36,7 +36,7 @@
 | Stavning | WeCantSpell.Hunspell | 7.x | Hunspell-port — tri-licens **MPL 1.1 / GPL 2.0 / LGPL 2.1**; licensval MPL 1.1 (LGPL 2.1 fallback), aldrig GPL; server-side + oförändrad binär → ingen copyleft på produkten (se §3.1-notis) |
 | Svensk ordlista | sv_SE Hunspell-ordlista (DSSO) | datafil | **LGPL-3.0** — oförändrad separat datafil, ej statiskt länkad/inbäddad/modifierad → copyleft smittar ej produkten (se §3.1-notis) |
 | HTTP | HttpClientFactory + Refit | 10.x | JobTech-klient |
-| Transaktionell e-post | Resend | 0.5.x | MIT; officiella .NET-SDK:n, Infrastructure-confined (IResend/EmailMessage korsar aldrig IEmailSender-porten, paritet Refit/QuestPDF); **all** utgående e-post: notiser (ADR 0080 Vag 4 PR-4) + kontolivscykel (§13.4); wrappar IHttpClientFactory; dev = test-mode (`onboarding@resend.dev`); prod-utskick grindat — se §13.4 + release-checklist.md §2.5 punkt 1 |
+| Transaktionell e-post | AWSSDK.SimpleEmailV2 (Amazon SES v2, `eu-north-1`) | 4.0.x | Apache-2.0; officiella .NET-SDK:n, Infrastructure-confined (`IAmazonSimpleEmailServiceV2`/`SendEmailRequest` korsar aldrig IEmailSender-porten, paritet Refit/QuestPDF, pinnat av NetArchTest); **all** utgående e-post: notiser (ADR 0080 Vag 4 PR-4) + kontolivscykel (§13.4); **HTTPS-API, aldrig SMTP** (Netcup blockerar 25/465/587, ADR 0050 §10); `MaxErrorRetry = 0` eftersom SES v2 saknar idempotensparameter; prod-utskick grindat — se §13.4 + release-checklist.md §2.5. Klas-GO 2026-08-08, ADR 0124, [#1237](https://github.com/klasolsson81/jobbliggaren/issues/1237) |
 | Database | PostgreSQL | 18.3 | lokal Docker Compose nu; co-tenant container på Hetzner CAX31 (ADR 0050, ingen separat managed-DB) |
 | Cache | Redis | 8.6 | lokal Docker Compose nu; co-tenant container på Hetzner CAX31 (ADR 0050) |
 | Test-assertions | Shouldly | 4.3.x | MIT, ersätter commercial FluentAssertions |
@@ -134,7 +134,7 @@
 | Cache | Redis 8.6 (Docker Compose) | Redis co-tenant container på CAX31 |
 | Object storage | lokal disk / ej aktiverat | TBD — roll/behov ej fastställt |
 | AI inferens | Ingen — produkten har ingen AI/LLM (ADR 0071) | Ingen (deterministiska motorer på BE/VPS) |
-| Email | `ConsoleEmailSender` (ADR 0066) | Resend, grindad (§13.4, [#183](https://github.com/klasolsson81/jobbliggaren/issues/183)) |
+| Email | `ConsoleEmailSender` (dev/test) / `NullEmailSender` (default annars) | Amazon SES v2 `eu-north-1`, grindad (§13.4, ADR 0124, [#183](https://github.com/klasolsson81/jobbliggaren/issues/183)) |
 | Secrets | `appsettings.Local.json` (gitignored) | Self-managed på VPS (systemd-credentials / sops+age, [#196](https://github.com/klasolsson81/jobbliggaren/issues/196)) |
 | Encryption keys | `LocalDataKeyProvider` AES-256-GCM (ADR 0066) | Self-managed master-nyckelmodell + rotation ([#198](https://github.com/klasolsson81/jobbliggaren/issues/198)) |
 | Frontend | `pnpm dev` (localhost:3000) | Next.js `next start` co-tenant container på CAX31 (bakom Caddy) |
@@ -188,7 +188,7 @@ miljö-topologi är fastställd i ADR 0050; pipelinen byggs vid Hetzner-cutover.
 │  ├─ Identity                                        │
 │  ├─ JobSources.Platsbanken                          │
 │  ├─ CvEngines (parsing, lokal NLP, render — Fas 4)  │
-│  ├─ Email (Console/Null/Resend, ADR 0080)           │
+│  ├─ Email (Console/Null/Ses, ADR 0080/0124)         │
 │  ├─ Security (Local/Kms DEK-provider, ADR 0066)     │
 │  ├─ CalendarIntegration.Google                      │
 │  ├─ GmailSync                                       │
@@ -772,7 +772,7 @@ email_log
   subject (text)
   template (text)
   sent_at (timestamptz)
-  provider_message_id (text null)   -- provider-neutralt (SES borttaget, ADR 0066; transaktionell väg = Resend, [#183](https://github.com/klasolsson81/jobbliggaren/issues/183)/§13.4)
+  provider_message_id (text null)   -- provider-neutralt (transaktionell väg = Amazon SES v2, ADR 0124/§13.4; SES:s MessageId skrivs medvetet INTE av avsändaren, se ADR 0124)
   status (text)
 
 -- Integrations

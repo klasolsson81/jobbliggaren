@@ -665,8 +665,7 @@ written as scheduling ("not MVP scope, not verified"), never as fact ("still app
 - Dev env: Docker Compose (`postgres`, `redis`, `seq`) — MEL logs to console
   **and to Seq**: `AddJobbliggarenLogging` (shared by Api + Worker) attaches the
   Seq provider **only when `Seq:ServerUrl` is set**; the Hetzner residual is the
-  *production* Seq, not the wiring. Everything runs locally (AWS retired,
-  ADR 0066): `LocalDataKeyProvider`
+  *production* Seq, not the wiring. Everything runs locally: `LocalDataKeyProvider`
   (AES-256-GCM) for field encryption, and mail via `AddEmailSender`'s
   `Email:Provider` switch — **three** `IEmailSender` impls, not one:
   `ConsoleEmailSender` (Development/Test **only**; it logs the recipient address
@@ -684,8 +683,16 @@ written as scheduling ("not MVP scope, not verified"), never as fact ("still app
   re-measures condition 2 on a cadence; [#1208](https://github.com/klasolsson81/jobbliggaren/issues/1208)
   owns that gap),
   `NullEmailSender` (what `Provider=Console` falls back to outside Dev/Test),
-  and `ResendEmailSender` (`Provider=Resend`, fail-loud without
-  `Email:ApiKey`). Frontend `.env.local`; backend
+  and `SesEmailSender` (`Provider=Ses` — Amazon SES v2 in `eu-north-1` over the
+  **HTTPS API, never SMTP**; fail-loud without `Email:Ses:Region` **and** both
+  `Email:Ses:AccessKeyId`/`SecretAccessKey`, ADR 0124, #1237). **The count is
+  still three because SES REPLACED Resend, which Klas removed entirely on
+  2026-08-08** — a `Resend` provider value now throws like any other unknown one.
+  The port lost its typed idempotency-key parameter in the same change: SES v2
+  `SendEmail` has no equivalent, and what actually prevented double delivery was
+  never the provider key but the claim-then-send spine (plus
+  `StrandedMatchReaperJob`) and `ICooldownGate`, which ADR 0103 already states
+  works *"regardless of Resend's own idempotency-key dedup"*. Frontend `.env.local`; backend
   `appsettings.Development.json` + gitignored `appsettings.Local.json`.
 - `ReverseProxyOptions`/`ReverseProxy:HttpsEnabled` (renamed from `AlbOptions`/`Alb:`
   2026-08-04) is **live** — it co-gates `UseHsts` and `UseHttpsRedirection` with the

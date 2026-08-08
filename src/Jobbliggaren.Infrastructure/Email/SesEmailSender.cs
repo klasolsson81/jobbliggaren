@@ -108,12 +108,11 @@ public sealed partial class SesEmailSender(
         string emailKind,
         CancellationToken cancellationToken)
     {
-        // The request is built INSIDE the try, deliberately (security-auditor Minor 7, 2026-08-08).
-        // It is the code that handles `toEmail` and the rendered body, so leaving it outside would
-        // make the containment boundary incidental — "nothing here throws today" — rather than
-        // structural, which is the whole point of containing at the adapter. Measured: EmailTemplates
-        // has zero throw sites, so there is no reachable leak either way; this is about the boundary
-        // being a property of the code rather than of the current implementation.
+        // The try starts here, not at the SDK call: everything that touches `toEmail` or the
+        // rendered body belongs inside the boundary. The line is the THREAT MODEL, not throw-site
+        // arithmetic — this adapter contains a THIRD PARTY's exceptions, whose messages we neither
+        // write nor control. Our own code above (EmailTemplates) is outside it for the same reason,
+        // not because it happens to have no throw sites today.
         try
         {
             var request = new SendEmailRequest
@@ -142,28 +141,16 @@ public sealed partial class SesEmailSender(
             // Log WITHOUT recipient/body (PII) and without the exception message.
             LogFailed(emailKind, ex.GetType().Name);
 
-            // And do not let the PROVIDER's exception out of this adapter (ADR 0124;
-            // senior-cto-advisor bind 4, 2026-08-08). AWS embeds the recipient address in its error
-            // messages, many [LoggerMessage] declarations forward an Exception object to the sink,
-            // and Api/Program.cs has no generic catch to stop an unmatched one — so a rethrow here
-            // is a PII leak the call sites cannot see. `ex` is passed as a TYPE NAME, never as
-            // InnerException, which exception formatting would walk.
+            // The provider's exception does not leave this adapter: AWS puts the recipient address
+            // in its error messages. `ex` becomes a TYPE NAME, never an InnerException. Why
+            // containment rather than patching the log sites, and why the port declares this
+            // contract: ADR 0124.
             //
-            // Deliberately NOT typed-catching AccountSuspendedException/MessageRejected into a
-            // Result: the port returns bare Task and caller isolation is the design, so a typed
-            // catch that swallowed would be §5's "catch-all try/catch without action" wearing a
-            // type name. This still throws — it just throws something safe to log.
-            //
-            // CANCELLATION IS EXCLUDED (`when` above; security-auditor Minor 6, 2026-08-08). Without
-            // it a TaskCanceledException became an EmailDeliveryException, which is NOT an
-            // OperationCanceledException — so the callers' `when (ex is not OperationCanceledException)`
-            // filters matched and SWALLOWED a host shutdown as a per-user send failure, leaving rows
-            // Queued to be reaped to Failed and never re-sent. DigestDispatchJob's own doc promises
-            // "A cancellation propagates (host shutdown / cron-timeout) — not mis-logged as a user
-            // failure"; this keeps that true. It does NOT reopen the PII containment: an OCE/TCE is
-            // raised by the cancellation machinery, never by an SES response — AmazonServiceException
-            // does not inherit OperationCanceledException, and an HttpClient timeout's message names
-            // the timeout value, never a recipient.
+            // Cancellation is EXCLUDED by the `when` above. Without it a TaskCanceledException
+            // became an EmailDeliveryException — not an OperationCanceledException — so the
+            // callers' own cancellation filters matched and swallowed a host shutdown as one
+            // user's send failure. It does not reopen the containment: an OCE is raised by the
+            // cancellation machinery, never by an SES response.
             throw new EmailDeliveryException(emailKind, ex.GetType().Name);
         }
     }

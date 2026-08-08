@@ -413,6 +413,34 @@ public class SesEmailSenderTests
     /// <c>InnerException</c>, which exception formatting would walk.
     /// </para>
     /// </summary>
+    /// <summary>
+    /// The OTHER branch of the cancellation filter, and it was unpinned until dotnet-architect
+    /// named it (R2-N2, 2026-08-08). A client-side timeout raises <see cref="TimeoutException"/>,
+    /// which is NOT an <see cref="OperationCanceledException"/> — measured against the real SDK —
+    /// so it must be CONTAINED, because a timeout is a genuine per-user send failure.
+    /// <para>
+    /// Without this fact, a future "improvement" that unwrapped inner exceptions or widened the
+    /// filter would turn every per-user timeout into an aborted digest run, and only the happy
+    /// half of the filter would notice.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public async Task SesEmailSender_SendTimesOut_ContainsItRatherThanTreatingItAsCancellation()
+    {
+        _ses.SendEmailAsync(Arg.Any<SendEmailRequest>(), Arg.Any<CancellationToken>())
+            .ThrowsAsync(new TimeoutException("The operation has timed out."));
+        var sut = CreateSut();
+
+        var act = async () => await sut.SendEmailConfirmationAsync(
+            Recipient, SampleConfirmationContent(), CancellationToken.None);
+
+        var ex = await act.ShouldThrowAsync<EmailDeliveryException>();
+        ex.UnderlyingErrorType.ShouldBe(nameof(TimeoutException));
+
+        // A timeout IS a send failure, so unlike cancellation it is logged as one.
+        _logger.Latest.EventId.Id.ShouldBe(3006);
+    }
+
     [Fact]
     public async Task SesEmailSender_SesRejectsTheMessage_ThrowsAPiiFreeEmailDeliveryException()
     {

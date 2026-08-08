@@ -1062,14 +1062,10 @@ public static class DependencyInjection
             }
 
             // Backstop för de SEMANTISKA kontroller den råa läsningen inte uttrycker. Registreras
-            // ENBART i den här armen, och EmailOptions självt får medvetet INTE ValidateOnStart.
-            // SKÄLET, mätt 2026-08-08 (dotnet-architect fällde en tidigare formulering av den här
-            // kommentaren som var falsk): EmailOptions bär NOLL data-annotations, så
-            // ValidateDataAnnotations() där hade asserterat ingenting — en grind till namnet, som
-            // läses som skydd. Och i samma stund någon lade till ett [Required] hade den blivit ett
-            // boot-villkor på DEFAULT-vägen, vilket är precis vad appsettings.Local.json.example
-            // ("OPTIONAL") och local-dev-setup.md §7 lovar mot. Valideringen hör alltså hemma på de
-            // provider-scopade optionsen som faktiskt ÄR obligatoriska när armen valts.
+            // ENBART i den här armen. EmailOptions självt får medvetet INTE ValidateOnStart: det
+            // bär noll data-annotations (mätt), så det hade asserterat ingenting — och ett senare
+            // [Required] hade gjort hela Email-sektionen till ett boot-villkor på DEFAULT-vägen,
+            // som appsettings.Local.json.example och local-dev-setup.md §7 lovar mot.
             services.AddOptions<SesEmailOptions>()
                 .Bind(configuration.GetSection(SesEmailOptions.SectionName))
                 .ValidateDataAnnotations()

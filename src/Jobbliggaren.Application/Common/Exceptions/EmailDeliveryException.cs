@@ -18,20 +18,12 @@ namespace Jobbliggaren.Application.Common.Exceptions;
 /// </para>
 ///
 /// <para>
-/// <b><see cref="Exception.InnerException"/> is deliberately EMPTY, and this is the detail that
-/// will otherwise be "fixed" back.</b> .NET's exception formatting walks the whole inner chain
-/// INCLUDING messages, so attaching the provider exception would carry the recipient address to the
-/// sink through this wrapper and defeat the entire point. The obvious counter-precedent does not
-/// transfer: <c>SessionStoreUnavailableException</c> DOES keep its inner exception, and
-/// <c>Api/Program.cs</c> states why in its own comment — <i>"Auth runs outside the Mediator
-/// pipeline, so LoggingBehavior never sees this."</i> Email runs INSIDE that pipeline, and
-/// <c>LoggingBehavior</c> logs the exception object. Same shape, opposite conclusion.
-/// </para>
-///
-/// <para>
-/// Diagnostics are not lost, only relocated: the sender logs kind + underlying type at Error
-/// before throwing, and the provider's own console retains the full detail against a message id
-/// this codebase deliberately does not capture.
+/// <b><see cref="Exception.InnerException"/> is deliberately EMPTY, and it is the detail that will
+/// otherwise be "fixed" back.</b> Exception formatting walks the inner chain including messages,
+/// so attaching the provider exception would carry the address through this wrapper.
+/// <c>SessionStoreUnavailableException</c> keeps its inner exception for a reason that does not
+/// transfer, stated in <c>Api/Program.cs</c>: auth runs OUTSIDE the Mediator pipeline. Email runs
+/// inside it, and <c>LoggingBehavior</c> logs the exception object.
 /// </para>
 /// </summary>
 public sealed class EmailDeliveryException(string emailKind, string underlyingErrorType)

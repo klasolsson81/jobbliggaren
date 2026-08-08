@@ -12,10 +12,7 @@ namespace Jobbliggaren.Infrastructure.Email;
 ///
 /// Den riktiga transaktionella mejlvägen ÄR byggd och lever bredvid den här:
 /// <see cref="SesEmailSender"/> bakom <c>Email:Provider=Ses</c> (Amazon SES v2 i
-/// eu-north-1, ADR 0124). Den här kommentaren påstod tvärtom — att en riktig väg var
-/// "TD för Hetzner-fasen (ADR 0066 — AWS SES borttaget)" — vilket var falskt i alla
-/// tre leden: vägen fanns, värden är Netcup och inte Hetzner, och TD-registret är
-/// pensionerat (#1207).
+/// eu-north-1, ADR 0124, #1207).
 ///
 /// Säkerhet: plaintext-tokens skrivs till logs här, vilket är acceptabelt för
 /// dev men ALDRIG i prod. Sedan 2026-08-04 är dev-Seq admin-autentiserad (#1198),

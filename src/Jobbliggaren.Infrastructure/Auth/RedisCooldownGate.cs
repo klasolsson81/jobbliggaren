@@ -38,9 +38,7 @@ internal sealed class RedisCooldownGate(IDistributedCache cache) : ICooldownGate
     }
 
     // SHA-256 hex of the normalized subject (trim + lower-invariant) — one-way, non-reversible,
-    // never the raw value. (This normalisation used to be described as "parity with
-    // AccountExistsNoticeIdempotencyKey.For"; that type went with the Resend arm in ADR 0124, and
-    // the rule it referenced is written out above rather than pointed at.)
+    // never the raw value.
     private static string Key(string scope, string subject)
     {
         var normalized = subject.Trim().ToLowerInvariant();

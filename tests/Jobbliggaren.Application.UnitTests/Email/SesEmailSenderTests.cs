@@ -416,6 +416,39 @@ public class SesEmailSenderTests
     /// <c>InnerException</c>, which exception formatting would walk.
     /// </para>
     /// </summary>
+    /// <summary>
+    /// A cancellation must propagate AS a cancellation, not as a send failure
+    /// (security-auditor Minor 6, 2026-08-08).
+    /// <para>
+    /// Without the <c>when (ex is not OperationCanceledException)</c> filter, a
+    /// <see cref="TaskCanceledException"/> from the SDK became an <see cref="EmailDeliveryException"/>
+    /// — which is NOT an <see cref="OperationCanceledException"/>, so the callers' own
+    /// <c>when (ex is not OperationCanceledException)</c> filters matched and SWALLOWED a host
+    /// shutdown as one user's send failure. <c>DigestDispatchJob</c> promises the opposite in its
+    /// own doc: <i>"A cancellation propagates (host shutdown / cron-timeout) — not mis-logged as a
+    /// user failure."</i>
+    /// </para>
+    /// </summary>
+    [Fact]
+    public async Task SesEmailSender_SendIsCancelled_PropagatesTheCancellationRatherThanASendFailure()
+    {
+        _ses.SendEmailAsync(Arg.Any<SendEmailRequest>(), Arg.Any<CancellationToken>())
+            .ThrowsAsync(new TaskCanceledException("A task was canceled."));
+        var sut = CreateSut();
+
+        var act = async () => await sut.SendEmailConfirmationAsync(
+            Recipient, SampleConfirmationContent(), CancellationToken.None);
+
+        var ex = await act.ShouldThrowAsync<TaskCanceledException>();
+
+        // The callers filter on OperationCanceledException, so this is the property that actually
+        // decides whether a shutdown is swallowed as a user failure.
+        ex.ShouldBeAssignableTo<OperationCanceledException>();
+
+        // And it is not logged as a send failure either — the Error line is for real failures.
+        _logger.Records.ShouldBeEmpty();
+    }
+
     [Fact]
     public async Task SesEmailSender_SesRejectsTheMessage_ThrowsAPiiFreeEmailDeliveryException()
     {

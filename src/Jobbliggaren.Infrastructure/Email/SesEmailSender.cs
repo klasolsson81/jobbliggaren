@@ -108,30 +108,36 @@ public sealed partial class SesEmailSender(
         string emailKind,
         CancellationToken cancellationToken)
     {
-        var request = new SendEmailRequest
-        {
-            FromEmailAddress = $"{_options.FromName} <{_options.FromAddress}>",
-
-            // AWS SDK v4 leaves request collections NULL by default (v4 migration guide), so these
-            // are ASSIGNED, never .Add()-ed onto an assumed-empty list. AWSConfigs.InitializeCollections
-            // is deliberately not set — it is process-global and buys nothing here.
-            Destination = new Destination { ToAddresses = [toEmail] },
-            Content = new EmailContent
-            {
-                Simple = new Message
-                {
-                    Subject = new Content { Data = body.Subject, Charset = Utf8 },
-                    Body = new Body { Text = new Content { Data = body.PlainTextBody, Charset = Utf8 } },
-                },
-            },
-        };
-
+        // The request is built INSIDE the try, deliberately (security-auditor Minor 7, 2026-08-08).
+        // It is the code that handles `toEmail` and the rendered body, so leaving it outside would
+        // make the containment boundary incidental — "nothing here throws today" — rather than
+        // structural, which is the whole point of containing at the adapter. Measured: EmailTemplates
+        // has zero throw sites, so there is no reachable leak either way; this is about the boundary
+        // being a property of the code rather than of the current implementation.
         try
         {
+            var request = new SendEmailRequest
+            {
+                FromEmailAddress = $"{_options.FromName} <{_options.FromAddress}>",
+
+                // AWS SDK v4 leaves request collections NULL by default (v4 migration guide), so these
+                // are ASSIGNED, never .Add()-ed onto an assumed-empty list. AWSConfigs.InitializeCollections
+                // is deliberately not set — it is process-global and buys nothing here.
+                Destination = new Destination { ToAddresses = [toEmail] },
+                Content = new EmailContent
+                {
+                    Simple = new Message
+                    {
+                        Subject = new Content { Data = body.Subject, Charset = Utf8 },
+                        Body = new Body { Text = new Content { Data = body.PlainTextBody, Charset = Utf8 } },
+                    },
+                },
+            };
+
             await ses.SendEmailAsync(request, cancellationToken);
             LogSent(emailKind);
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
             // Log WITHOUT recipient/body (PII) and without the exception message.
             LogFailed(emailKind, ex.GetType().Name);
@@ -148,6 +154,17 @@ public sealed partial class SesEmailSender(
             // Result: the port returns bare Task and caller isolation is the design, so a typed
             // catch that swallowed would be §5's "catch-all try/catch without action" wearing a
             // type name. This still throws — it just throws something safe to log.
+            //
+            // CANCELLATION IS EXCLUDED (`when` above; security-auditor Minor 6, 2026-08-08). Without
+            // it a TaskCanceledException became an EmailDeliveryException, which is NOT an
+            // OperationCanceledException — so the callers' `when (ex is not OperationCanceledException)`
+            // filters matched and SWALLOWED a host shutdown as a per-user send failure, leaving rows
+            // Queued to be reaped to Failed and never re-sent. DigestDispatchJob's own doc promises
+            // "A cancellation propagates (host shutdown / cron-timeout) — not mis-logged as a user
+            // failure"; this keeps that true. It does NOT reopen the PII containment: an OCE/TCE is
+            // raised by the cancellation machinery, never by an SES response — AmazonServiceException
+            // does not inherit OperationCanceledException, and an HttpClient timeout's message names
+            // the timeout value, never a recipient.
             throw new EmailDeliveryException(emailKind, ex.GetType().Name);
         }
     }

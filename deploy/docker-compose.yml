@@ -299,6 +299,10 @@ services:
     # is an ICU collation and the ICU version comes out of this image; if it drifts, btree
     # text indexes are sorted by an order that no longer holds. Postgres does not crash, the
     # queries go quietly wrong. Query and repair: docs/runbooks/release-checklist.md §2.
+    # BUMPING THIS TAG ALSO REQUIRES an edit to UPSTREAM_ALLOWLIST in
+    # deploy/systemd/jobbliggaren-reconcile.sh — the reconcile wrapper verifies our own
+    # images and skips only the upstream tags named there, so an unlisted tag refuses the
+    # whole apply, hourly, with no reader (#1175).
     image: postgres:18.3
     container_name: jobbliggaren-postgres
     # Tuned FROM the 2 560 MiB cap, not beside it. Under cgroup v2 the page cache is
@@ -359,6 +363,10 @@ services:
     networks: [stack]
 
   redis:
+    # BUMPING THIS TAG ALSO REQUIRES an edit to UPSTREAM_ALLOWLIST in
+    # deploy/systemd/jobbliggaren-reconcile.sh — the reconcile wrapper verifies our own
+    # images and skips only the upstream tags named there, so an unlisted tag refuses the
+    # whole apply, hourly, with no reader (#1175).
     image: redis:8.6-alpine
     container_name: jobbliggaren-redis
     # BOTH keys or neither. Without maxmemory Redis grows past the container cap and the

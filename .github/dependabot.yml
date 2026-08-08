@@ -229,31 +229,36 @@ updates:
     labels:
       - "dependencies"
       - "github-actions"
-    # codeql-action stays on its moving major tag — see the comment at the
-    # `codeql-action/init` site in codeql.yml for why. This entry is the
-    # ENFORCEMENT half of that decision, and it is not optional: a narrowing from
-    # `@v4` to `@v4.37.3` keeps the major at 4, so Dependabot classifies it
-    # patch/minor -> `dependabot-automerge.yml` sets `eligible=true` -> the vuln
-    # scan (which a tag narrowing passes trivially) -> auto-merge on green `ci`,
-    # with NO agent invoked (CLAUDE.md §9.2 says this in as many words). PR #1139
-    # was caught only by accident: its group happened to carry two unrelated
-    # majors, which forced `eligible=false`. Once both actions sit on their
-    # current major that shield is gone, and a comment in codeql.yml has no reader
-    # on this path. A decision whose only violation route has no reader is not a
-    # decision.
+    # THE codeql-action SUB-MAJOR `ignore` WAS REMOVED HERE (2026-08-08, #1239,
+    # Klas-beslut). It is not obsolete — it inverted, and the reason is worth the
+    # paragraph because deleting an enforcement half normally IS the defect.
     #
-    # MAJOR IS DELIBERATELY LEFT ALLOWED — codeql-action@v5 is a real migration we
-    # want to be told about. Only sub-major narrowing is refused.
+    # What it enforced: #1139 rejected narrowing `@v4` to `@v4.37.3` and kept the
+    # MOVING major tag, so the weekly scan would keep picking up new CodeQL queries.
+    # The `ignore` stopped Dependabot re-proposing that narrowing behind an
+    # auto-merge with no agent on it.
     #
-    # Wildcard because it is unverified whether Dependabot emits the repo name or
-    # the `init`/`analyze` sub-paths. A wrong `dependency-name` here fails OPEN and
-    # silently — the same shape as the defect being fixed — and is observable at
-    # the next github-actions run (monthly, Monday 06:00): no codeql-action
-    # sub-major PR should appear.
-    ignore:
-      - dependency-name: "github/codeql-action*"
-        update-types:
-          ["version-update:semver-patch", "version-update:semver-minor"]
+    # What changed: #1239 SHA-pins every action, `codeql-action` included. That
+    # inverts the polarity of this rule completely. `@<sha>` does not move, so the
+    # ONLY way the analysis engine can advance is now a Dependabot PR — and this
+    # rule was refusing exactly those. Kept as it stood, the engine would freeze on
+    # whatever bundle the pinned SHA carries (measured 2026-08-08: v4 shipped
+    # v4.37.4, .5 and .6 inside one week), and it would freeze SILENTLY, with the
+    # weekly scan still green.
+    #
+    # This is not a reversal of #1139. That decision's own words at
+    # `codeql.yml`'s init site call a narrow VERSION tag "strictly worse than a SHA
+    # pin — a version tag is mutable, so the narrowing buys no tamper resistance
+    # while paying the full staleness cost." A SHA pin pays the same staleness cost
+    # and does buy the tamper resistance; removing this rule is what stops it being
+    # paid twice.
+    #
+    # THE HOLE THIS USED TO CLOSE IS CLOSED ELSEWHERE NOW, not reopened: a
+    # codeql-action bump is patch/minor, so it would reach `eligible=true` and
+    # auto-merge with NO agent invoked. `dependabot-automerge.yml`'s gate therefore
+    # excludes `github/codeql-action` by dependency name. That exclusion is this
+    # rule's replacement and the two must be read together — moving the analysis
+    # engine stays a decision with a reader.
     # Same grouping rule as nuget above. Measured on PR #1139 (2026-08-01): three
     # actions in one group, two of them clean ESM-migration majors and the third the
     # codeql narrowing the `ignore` above now refuses. Reviewing that third one

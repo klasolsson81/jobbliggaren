@@ -27,8 +27,9 @@ namespace Jobbliggaren.Architecture.Tests;
 /// measured the same blind spot independently: the likeliest regression is an append —
 /// <c>GetConnectionString("Postgres") + ";No Reset On Close=true"</c> — which compiles to the
 /// standalone literal <c>";No Reset On Close=true"</c>, carrying no host segment at all. It was
-/// skipped. So the predicate now asks only "does any segment set this key to true", which the
-/// append form satisfies and a connection string containing it also satisfies.
+/// skipped. So the predicate now asks only "is this key mentioned at all", which the append form
+/// satisfies, a whole connection string containing it satisfies, and a key literal whose VALUE is
+/// supplied at runtime also satisfies.
 /// </para>
 ///
 /// <para>
@@ -53,29 +54,39 @@ public class PooledConnectionResetIlTests
     private const string Setter = "set_NoResetOnClose";
 
     /// <summary>
-    /// True when some <c>;</c>-separated segment of <paramref name="literal"/> sets the
-    /// reset-on-close key to a true value. Key normalisation mirrors Npgsql's: case-insensitive,
-    /// internal spaces ignored.
+    /// True when <paramref name="literal"/> mentions the reset-on-close key at all.
+    ///
+    /// <para>
+    /// <b>Deliberately an over-approximation: the key alone, with no value test.</b> The first
+    /// version required key AND a parseable <c>true</c> inside one literal, normalised for spaces
+    /// only, and `code-reviewer` measured three shapes that slip through it — an underscore
+    /// spelling if Npgsql folds <c>_</c> like a space; a quoted value, since
+    /// <c>DbConnectionStringBuilder</c> strips quotes before the property setter sees them, so
+    /// <c>="true"</c> parses true while <c>bool.TryParse</c> does not; and — the closest relative
+    /// of the append hole this guard was rewritten for — a key literal with a RUNTIME value,
+    /// where <c>$"{cs};No Reset On Close={flag}"</c> compiles to the literal
+    /// <c>";No Reset On Close="</c> carrying no value at all.
+    /// </para>
+    ///
+    /// <para>
+    /// Over-approximating is free here, and that is a measurement rather than a hope: the key is
+    /// mentioned <b>zero</b> times in <c>src/</c>, so the correct count is zero and a false
+    /// positive costs a deliberate config change one comment can justify. It also makes the two
+    /// halves of this guard consistent — the setter half already fires on
+    /// <c>NoResetOnClose = false</c>.
+    /// </para>
     /// </summary>
-    internal static bool DisablesResetOnClose(string literal)
+    internal static bool MentionsResetOnClose(string literal)
     {
-        foreach (var segment in literal.Split(';'))
-        {
-            var parts = segment.Split('=', 2);
-            if (parts.Length != 2)
-                continue;
+        // Npgsql keyword lookup ignores case and internal spaces; underscores and quotes are
+        // stripped too, so a spelling cannot hide behind punctuation the parser would forgive.
+        var normalised = literal
+            .Replace(" ", string.Empty, StringComparison.Ordinal)
+            .Replace("_", string.Empty, StringComparison.Ordinal)
+            .Replace("\"", string.Empty, StringComparison.Ordinal)
+            .Replace("'", string.Empty, StringComparison.Ordinal);
 
-            var key = parts[0].Replace(" ", string.Empty, StringComparison.Ordinal).Trim();
-            if (!key.Equals(Key, StringComparison.OrdinalIgnoreCase))
-                continue;
-
-            // Npgsql rejects anything that is not a bool here, so only `true` matters; a
-            // non-bool value cannot reach a live connection at all.
-            if (bool.TryParse(parts[1].Trim(), out var enabled) && enabled)
-                return true;
-        }
-
-        return false;
+        return normalised.Contains(Key, StringComparison.OrdinalIgnoreCase);
     }
 
     [Theory]
@@ -103,7 +114,7 @@ public class PooledConnectionResetIlTests
                     {
                         if (instruction.OpCode == OpCodes.Ldstr
                             && instruction.Operand is string literal
-                            && DisablesResetOnClose(literal))
+                            && MentionsResetOnClose(literal))
                         {
                             offenders.Add($"{type.FullName}::{method.Name} (literal)");
                         }
@@ -135,6 +146,10 @@ public class PooledConnectionResetIlTests
     [InlineData("  NoResetOnClose  =  true  ")]
     [InlineData("Host=h;Database=d;No Reset On Close=true")]
     [InlineData(";No Reset On Close=true")]
+    [InlineData("No_Reset_On_Close=true")]
+    [InlineData("No Reset On Close=\"true\"")]
+    [InlineData(";No Reset On Close=")]
+    [InlineData("NoResetOnClose")]
     public void Predicate_catches_every_spelling_including_the_bare_append(string literal)
     {
         // THE VACUITY GUARD, and it is a self-test rather than a corpus count on purpose.
@@ -145,17 +160,20 @@ public class PooledConnectionResetIlTests
         // corpus is empty cannot demonstrate anything about itself, so the predicate is exercised
         // directly instead.
         //
-        // The last case is the one that motivated the rewrite: `cs + ";No Reset On Close=true"`
-        // compiles to exactly that standalone literal, and the previous host-keyed predicate
-        // skipped it.
-        DisablesResetOnClose(literal).ShouldBeTrue();
+        // The last four are the shapes the VALUE test missed, all found by code-reviewer:
+        // underscores, a quoted value (DbConnectionStringBuilder strips quotes before the setter
+        // sees them, so `="true"` parses true while bool.TryParse does not), and a key whose value
+        // arrives at runtime — `$"{cs};No Reset On Close={flag}"` compiles to a literal with no
+        // value in it at all. `;No Reset On Close=true` is the append form that motivated the
+        // rewrite before that: the previous host-keyed predicate skipped it entirely.
+        MentionsResetOnClose(literal).ShouldBeTrue();
     }
 
     [Theory]
     [InlineData("Host=postgres;Port=5432;Database=jobbliggaren;Username=jobbliggaren_app")]
     [InlineData("Starting Migrate: host={Host}:{Port} db={Db}")]
-    [InlineData("No Reset On Close=false")]
-    [InlineData("NoResetOnCloseSomethingElse=true")]
+    [InlineData("Pooling=false;Maximum Pool Size=10")]
+    [InlineData("ResetOnClose=true")]
     [InlineData("")]
     public void Predicate_does_not_fire_on_anything_else(string literal)
     {
@@ -163,6 +181,6 @@ public class PooledConnectionResetIlTests
         // of this guard parsed candidate literals with NpgsqlConnectionStringBuilder, and that
         // template — which merely contains `host=` — made Npgsql take the whole prefix as a
         // keyword and throw, turning one architecture test red.
-        DisablesResetOnClose(literal).ShouldBeFalse();
+        MentionsResetOnClose(literal).ShouldBeFalse();
     }
 }

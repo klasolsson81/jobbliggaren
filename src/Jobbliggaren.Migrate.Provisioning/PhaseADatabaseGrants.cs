@@ -20,19 +20,23 @@ namespace Jobbliggaren.Migrate;
 /// here: ADR 0034 forbids <c>CREATE ON DATABASE</c> for the app role, and the schemas the app
 /// needs are created by Phase A itself under master credentials.
 /// </para>
+///
+/// <para>
+/// The schema-level half of the same phase lives in <see cref="PhaseASchemaGrants"/>. It was
+/// left inline for longer, and #1232 measured the consequence: the migration oracle could not
+/// see the <c>permission denied for schema public</c> defect because the grant that fixes it
+/// was unreachable from any test assembly, exactly as the <c>TEMPORARY</c> grant had been.
+/// </para>
 /// </summary>
-internal static class PhaseADatabaseGrants
+public static class PhaseADatabaseGrants
 {
-    /// <summary>One statement plus the operator-facing description Phase A logs for it.</summary>
-    internal readonly record struct Statement(string Sql, string Description);
-
     /// <summary>
     /// The database-level sequence, in execution order. Validates <paramref name="dbName"/>
     /// itself: Postgres cannot parameterise an identifier, and the extraction that gave this
     /// type its own testable surface also separated it from the caller's guard — a precondition
     /// documented but not enforced is one the next caller does not know about.
     /// </summary>
-    internal static IReadOnlyList<Statement> For(string dbName)
+    public static IReadOnlyList<PrivilegeStatement> For(string dbName)
     {
         PostgresIdentifier.Validate(dbName);
 
@@ -42,7 +46,7 @@ internal static class PhaseADatabaseGrants
             string.Create(CultureInfo.InvariantCulture, $"REVOKE ALL ON DATABASE \"{dbName}\" FROM PUBLIC;"),
             "Revoke PUBLIC från db"),
 
-        .. new[] { Roles.Migrations, Roles.App, Roles.Worker }.Select(role => new Statement(
+        .. new[] { Roles.Migrations, Roles.App, Roles.Worker }.Select(role => new PrivilegeStatement(
             string.Create(CultureInfo.InvariantCulture, $"GRANT CONNECT ON DATABASE \"{dbName}\" TO {role};"),
             string.Create(CultureInfo.InvariantCulture, $"GRANT CONNECT till {role}"))),
 

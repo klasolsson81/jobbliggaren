@@ -13,7 +13,7 @@ namespace Jobbliggaren.Migrate;
 /// to invoke is one the next caller will not.
 /// </para>
 /// </summary>
-internal static partial class PostgresIdentifier
+public static partial class PostgresIdentifier
 {
     /// <summary>
     /// Unquoted Postgres identifiers fold to lower case and cap at 63 bytes, so anything a
@@ -24,7 +24,7 @@ internal static partial class PostgresIdentifier
     private static partial Regex Valid();
 
     /// <summary>Throws unless <paramref name="ident"/> is safe to interpolate into SQL.</summary>
-    internal static string Validate(string ident) =>
+    public static string Validate(string ident) =>
         Valid().IsMatch(ident)
             ? ident
             : throw new InvalidOperationException($"Ogiltigt Postgres-identifier: {ident}");

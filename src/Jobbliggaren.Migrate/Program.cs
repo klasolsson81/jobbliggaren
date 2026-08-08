@@ -383,27 +383,16 @@ static async Task ExecuteBootstrapSchemaAsync(NpgsqlConnection conn, string dbNa
 {
     ValidateIdentifier(dbName);
 
-    // 1. Skapa identity-schema ägt av jobbliggaren_migrations (samma pattern som hangfire).
-    await ExecuteAsync(conn,
-        $"CREATE SCHEMA IF NOT EXISTS identity AUTHORIZATION {Roles.Migrations};",
-        log, "CREATE SCHEMA identity AUTHORIZATION migrations", ct);
-
-    await ExecuteAsync(conn, "REVOKE ALL ON SCHEMA identity FROM PUBLIC;",
-        log, "Revoke PUBLIC från identity", ct);
-
-    // 2. GRANT jobbliggaren_app full DML+DDL på identity (samma pattern som public).
-    await ExecuteAsync(conn, $"GRANT USAGE, CREATE ON SCHEMA identity TO {Roles.App};",
-        log, "GRANT USAGE/CREATE på identity till app", ct);
-    await ExecuteAsync(conn, $"GRANT ALL ON ALL TABLES IN SCHEMA identity TO {Roles.App};",
-        log, "GRANT ALL på identity-tabeller till app", ct);
-    await ExecuteAsync(conn, $"GRANT ALL ON ALL SEQUENCES IN SCHEMA identity TO {Roles.App};",
-        log, "GRANT ALL på identity-sequences till app", ct);
-    await ExecuteAsync(conn,
-        $"ALTER DEFAULT PRIVILEGES IN SCHEMA identity GRANT ALL ON TABLES TO {Roles.App};",
-        log, "DEFAULT PRIVILEGES identity-tabeller -> app", ct);
-    await ExecuteAsync(conn,
-        $"ALTER DEFAULT PRIVILEGES IN SCHEMA identity GRANT ALL ON SEQUENCES TO {Roles.App};",
-        log, "DEFAULT PRIVILEGES identity-sequences -> app", ct);
+    // The SAME list `init` issues in Phase A. These seven statements used to be written out
+    // here a second time, byte-identically, differing only in the operator description on the
+    // first line — so a repair to the identity posture could land in one copy and not the
+    // other, silently. `bootstrap` runs under master credentials and `init` may not have run
+    // against this database yet, so issuing them here is not redundant; issuing a SECOND COPY
+    // of them was.
+    foreach (var statement in PhaseASchemaGrants.IdentitySchema)
+    {
+        await ExecuteAsync(conn, statement.Sql, log, statement.Description, ct);
+    }
 }
 
 // ===========================================================================
@@ -464,50 +453,17 @@ static async Task ExecutePhaseAAsync(NpgsqlConnection conn, string dbName, strin
     await ExecuteAsync(conn, $"GRANT {Roles.Worker} TO CURRENT_USER;",
         log, "GRANT worker-role TO master", ct);
 
-    // CREATE SCHEMA hangfire (om inte finns) — ägs av jobbliggaren_migrations.
-    await ExecuteAsync(conn,
-        $"CREATE SCHEMA IF NOT EXISTS hangfire AUTHORIZATION {Roles.Migrations};",
-        log, "CREATE SCHEMA hangfire", ct);
-
-    await ExecuteAsync(conn, "REVOKE ALL ON SCHEMA hangfire FROM PUBLIC;", log, "Revoke PUBLIC från hangfire", ct);
-
-    await ExecuteAsync(conn, $"GRANT USAGE, CREATE ON SCHEMA hangfire TO {Roles.Migrations};",
-        log, "GRANT USAGE/CREATE på hangfire till migrations", ct);
-
-    // GRANT på public-schema till jobbliggaren_app (full DML/DDL för EF Core-migrations app-side).
-    await ExecuteAsync(conn, $"GRANT USAGE, CREATE ON SCHEMA public TO {Roles.App};",
-        log, "GRANT USAGE/CREATE på public till app", ct);
-    await ExecuteAsync(conn, $"GRANT ALL ON ALL TABLES IN SCHEMA public TO {Roles.App};",
-        log, "GRANT ALL på public.* till app", ct);
-    await ExecuteAsync(conn, $"GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO {Roles.App};",
-        log, "GRANT ALL på public-sequences till app", ct);
-    await ExecuteAsync(conn,
-        $"ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO {Roles.App};",
-        log, "DEFAULT PRIVILEGES public-tabeller -> app", ct);
-    await ExecuteAsync(conn,
-        $"ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO {Roles.App};",
-        log, "DEFAULT PRIVILEGES public-sequences -> app", ct);
-
-    // ADR 0034 — identity-schema för AppIdentityDbContext (HasDefaultSchema("identity")).
-    // Skapas i init så nästa init-körning garanterar att schemat finns med korrekta
-    // GRANTs. Identity-migrations appliceras separat via `bootstrap`-mode med master-creds.
-    await ExecuteAsync(conn,
-        $"CREATE SCHEMA IF NOT EXISTS identity AUTHORIZATION {Roles.Migrations};",
-        log, "CREATE SCHEMA identity (ADR 0034)", ct);
-    await ExecuteAsync(conn, "REVOKE ALL ON SCHEMA identity FROM PUBLIC;",
-        log, "Revoke PUBLIC från identity", ct);
-    await ExecuteAsync(conn, $"GRANT USAGE, CREATE ON SCHEMA identity TO {Roles.App};",
-        log, "GRANT USAGE/CREATE på identity till app", ct);
-    await ExecuteAsync(conn, $"GRANT ALL ON ALL TABLES IN SCHEMA identity TO {Roles.App};",
-        log, "GRANT ALL på identity-tabeller till app", ct);
-    await ExecuteAsync(conn, $"GRANT ALL ON ALL SEQUENCES IN SCHEMA identity TO {Roles.App};",
-        log, "GRANT ALL på identity-sequences till app", ct);
-    await ExecuteAsync(conn,
-        $"ALTER DEFAULT PRIVILEGES IN SCHEMA identity GRANT ALL ON TABLES TO {Roles.App};",
-        log, "DEFAULT PRIVILEGES identity-tabeller -> app", ct);
-    await ExecuteAsync(conn,
-        $"ALTER DEFAULT PRIVILEGES IN SCHEMA identity GRANT ALL ON SEQUENCES TO {Roles.App};",
-        log, "DEFAULT PRIVILEGES identity-sequences -> app", ct);
+    // The schema-level privilege model lives in PhaseASchemaGrants for the same reason the
+    // database-level one lives in PhaseADatabaseGrants: as bare awaits it was unreachable from
+    // any test assembly, so the migration oracle could not see the 42501 the `public` block
+    // repairs (#1232). `identity` is the same list `bootstrap` mode issues — one property, two
+    // callers, instead of two byte-identical copies that a repair could land in half of.
+    foreach (var statement in PhaseASchemaGrants.HangfireSchema
+        .Concat(PhaseASchemaGrants.PublicSchema)
+        .Concat(PhaseASchemaGrants.IdentitySchema))
+    {
+        await ExecuteAsync(conn, statement.Sql, log, statement.Description, ct);
+    }
 }
 
 static async Task ExecutePhaseCAsync(NpgsqlConnection conn, ILogger log, CancellationToken ct)

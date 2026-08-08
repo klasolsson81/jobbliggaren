@@ -165,6 +165,34 @@ assert_arg "https://token.actions.githubusercontent.com" "the OIDC issuer is Git
 assert_arg "--new-bundle-format" "the new bundle format is requested (required on 2.5.x)"
 assert_arg "$DIGEST_REF" "the digest reaches cosign unchanged"
 
+# THE FLAG NAMES, NOT ONLY THEIR VALUES — and this gap was real. Measured by mutation
+# 2026-08-08: swapping `--certificate-identity` for `--certificate-identity-regexp` left the
+# suite green at 23/0, and cosign's regexp matcher is UNANCHORED, so `…release-images.yml@…`
+# would then match a longer attacker-influenced identity. That is precisely the bypass class
+# this script's own header cites as the reason for not choosing gh — reproduced here, in the
+# gate, invisible to a suite that only checked values. Four more survived the same way:
+# swapping the issuer flag for its regexp form, dropping `--type`, changing the predicate to
+# `slsaprovenance02`, and replacing `verify-attestation` with plain `verify` (which checks a
+# signature, not a provenance predicate).
+assert_arg "--certificate-identity" "the identity matcher is EXACT — never the unanchored -regexp form"
+assert_arg "--certificate-oidc-issuer" "the issuer matcher is EXACT — never the -regexp form"
+assert_arg "--type" "the predicate type is constrained at all"
+assert_arg "slsaprovenance1" "and it is SLSA provenance v1, not v0.2"
+assert_arg "verify-attestation" "the subcommand verifies a PREDICATE, not merely a signature"
+
+# The negative half: a regexp matcher must never appear, whatever its value. Asserting the
+# exact flag is present does not exclude a regexp flag ALSO being passed, and cosign would
+# accept the looser one.
+for forbidden in --certificate-identity-regexp --certificate-oidc-issuer-regexp; do
+  if grep -qxF -- "$forbidden" "$TMPROOT/last-args"; then
+    fail=$((fail + 1))
+    echo "  FAIL $forbidden is passed to cosign — its matcher is unanchored" >&2
+  else
+    pass=$((pass + 1))
+    echo "  ok   $forbidden is never passed"
+  fi
+done
+
 # A trust root passed with --trusted-root would silence revocation. Its ABSENCE is the
 # decision (see the script header), so it is pinned as an absence.
 if grep -qxF -- "--trusted-root" "$TMPROOT/last-args"; then

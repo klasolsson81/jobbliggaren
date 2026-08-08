@@ -143,7 +143,11 @@ jobs:
       # security-maintains it; running a newer cosign here would let a bundle-format change pass
       # CI and then be refused on the box, which is the failure this whole gate exists to make
       # impossible. Drift now shows up as a red job instead of a silent hourly refusal.
-      - uses: sigstore/cosign-installer@v4
+      # An EXACT release tag, not `@v4`: this action publishes no floating major above v3
+      # (measured 2026-08-08 — `v3` is the only `v[0-9]+` tag, while releases run to v4.1.2), so
+      # `@v4` fails at "Set up job" with "unable to find version", before any step runs. Found by
+      # dispatching this file rather than by reading it.
+      - uses: sigstore/cosign-installer@v4.1.2
         with:
           cosign-release: "v2.5.0"
 

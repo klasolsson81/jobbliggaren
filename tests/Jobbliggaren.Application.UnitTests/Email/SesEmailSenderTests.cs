@@ -428,7 +428,7 @@ public class SesEmailSenderTests
     public async Task SesEmailSender_SendTimesOut_ContainsItRatherThanTreatingItAsCancellation()
     {
         _ses.SendEmailAsync(Arg.Any<SendEmailRequest>(), Arg.Any<CancellationToken>())
-            .ThrowsAsync(new TimeoutException("The operation has timed out."));
+            .ThrowsAsync(new TimeoutException("A task was canceled.", new TaskCanceledException()));
         var sut = CreateSut();
 
         var act = async () => await sut.SendEmailConfirmationAsync(

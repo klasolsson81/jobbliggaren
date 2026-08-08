@@ -1,11 +1,13 @@
 using Jobbliggaren.Infrastructure;
 using Jobbliggaren.Infrastructure.Persistence;
+using Jobbliggaren.TestSupport;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Hosting.Internal;
 using Microsoft.Extensions.Logging;
+using Npgsql;
 using Testcontainers.PostgreSql;
 
 namespace Jobbliggaren.Api.IntegrationTests.JobAds;
@@ -52,10 +54,25 @@ public sealed class JobAdBrowsePlanFixture : IAsyncLifetime
     {
         await _postgres.StartAsync();
 
+        // #1232 — TWO CONNECTIONS, MIRRORING THE REAL BOOT ORDER, and the split is the point.
+        //
+        // This fixture used to do everything as the Testcontainers superuser against a database
+        // where `REVOKE ALL ON DATABASE … FROM PUBLIC` had never run, which made it blind BY
+        // CONSTRUCTION to the two 42501s #1229 repaired — both found by booting the stack on the
+        // Netcup box rather than by CI. Provisioning with production's own Phase A statements and
+        // then migrating as `jobbliggaren_app` is what turns this into an oracle for that class.
+        //
+        // `CREATE EXTENSION pg_trgm` (below) still runs as the superuser, because that is what
+        // production does: `ensure-extensions` mode connects with MASTER credentials, and only
+        // `schema` mode drops to the app role. So the credential switch belongs exactly here —
+        // between provisioning and MigrateAsync — rather than at the top.
+        var appConnectionString = await TestDatabaseProvisioner
+            .ProvisionAndGetAppConnectionStringAsync(_postgres.GetConnectionString());
+
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["ConnectionStrings:Postgres"] = _postgres.GetConnectionString(),
+                ["ConnectionStrings:Postgres"] = appConnectionString,
                 ["FieldEncryption:Provider"] = "Local",
                 ["FieldEncryption:LocalMasterKeyBase64"] = TestMasterKeyBase64,
             })
@@ -82,17 +99,35 @@ public sealed class JobAdBrowsePlanFixture : IAsyncLifetime
 
         Services = services.BuildServiceProvider();
 
+        // pg_trgm is required by the job_ads trigram-index migration. Production creates it in
+        // `ensure-extensions` mode under MASTER credentials — the app role cannot CREATE
+        // EXTENSION — so this runs on the superuser connection, not through AppDbContext.
+        await using (var superuser = new NpgsqlConnection(_postgres.GetConnectionString()))
+        {
+            await superuser.OpenAsync();
+            await using var cmd = new NpgsqlCommand("CREATE EXTENSION IF NOT EXISTS pg_trgm;", superuser);
+            await cmd.ExecuteNonQueryAsync();
+        }
+
         using var scope = Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        // pg_trgm is required by the job_ads trigram-index migration (created by ensure-extensions mode in
-        // prod; the Testcontainers superuser can CREATE EXTENSION). Idempotent.
-        await db.Database.ExecuteSqlRawAsync("CREATE EXTENSION IF NOT EXISTS pg_trgm;");
+        // As `jobbliggaren_app`, against a database Phase A provisioned — i.e. under the same
+        // privilege posture `schema` mode runs under in production. A missing grant fails HERE
+        // now, instead of on a clean-database boot in Nürnberg.
         await db.Database.MigrateAsync();
     }
 
     public async ValueTask DisposeAsync()
     {
-        await Services.DisposeAsync();
+        // Null-guarded because InitializeAsync now has a network- and SQL-bearing failure point
+        // BEFORE Services is assigned (the Phase A provisioning above). Unguarded, a provisioning
+        // failure would raise a NullReferenceException out of here alongside the real error —
+        // burying exactly the diagnostic you need when this fixture fails for its real reason.
+        if (Services is not null)
+        {
+            await Services.DisposeAsync();
+        }
+
         await _postgres.StopAsync();
     }
 }

@@ -148,7 +148,7 @@ public class RegisterCommandHandlerTests
         result.IsFailure.ShouldBeTrue();
         result.Error.Code.ShouldBe(AuthErrorCodes.DuplicateAccount);
         await emailSender.DidNotReceive().SendAccountExistsNoticeAsync(
-            Arg.Any<string>(), Arg.Any<AccountExistsNoticeIdempotencyKey>(), Arg.Any<CancellationToken>());
+            Arg.Any<string>(), Arg.Any<CancellationToken>());
     }
 
     // ---------- Email-confirmation-first path (flag ON) ----------
@@ -176,7 +176,6 @@ public class RegisterCommandHandlerTests
         await emailSender.Received(1).SendEmailConfirmationAsync(
             "klas@example.com",
             Arg.Is<EmailConfirmationEmail>(c => c != null && c.UserId == userId && c.UrlSafeToken == "url-safe-token"),
-            Arg.Any<EmailConfirmationIdempotencyKey>(),
             Arg.Any<CancellationToken>());
         await sessionStore.DidNotReceive().CreateAsync(
             Arg.Any<Guid>(), Arg.Any<SessionLifetime>(), Arg.Any<CancellationToken>());
@@ -227,10 +226,10 @@ public class RegisterCommandHandlerTests
         result.Value.Session.ShouldBeNull();
 
         await emailSender.Received(1).SendAccountExistsNoticeAsync(
-            "klas@example.com", Arg.Any<AccountExistsNoticeIdempotencyKey>(), Arg.Any<CancellationToken>());
+            "klas@example.com", Arg.Any<CancellationToken>());
         await emailSender.DidNotReceive().SendEmailConfirmationAsync(
             Arg.Any<string>(), Arg.Any<EmailConfirmationEmail>(),
-            Arg.Any<EmailConfirmationIdempotencyKey>(), Arg.Any<CancellationToken>());
+            Arg.Any<CancellationToken>());
         seekerSet.DidNotReceive().Add(Arg.Any<JobSeeker>());
         await sessionStore.DidNotReceive().CreateAsync(
             Arg.Any<Guid>(), Arg.Any<SessionLifetime>(), Arg.Any<CancellationToken>());
@@ -262,7 +261,7 @@ public class RegisterCommandHandlerTests
         result.IsSuccess.ShouldBeTrue("a cooled duplicate is still swallowed to the same 202 outcome");
         result.Value.Session.ShouldBeNull();
         await emailSender.DidNotReceive().SendAccountExistsNoticeAsync(
-            Arg.Any<string>(), Arg.Any<AccountExistsNoticeIdempotencyKey>(), Arg.Any<CancellationToken>());
+            Arg.Any<string>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -318,7 +317,7 @@ public class RegisterCommandHandlerTests
             CooldownScopes.AccountExists, "klas@example.com",
             TimeSpan.FromSeconds(77), Arg.Any<CancellationToken>());
         await emailSender.Received(1).SendAccountExistsNoticeAsync(
-            "klas@example.com", Arg.Any<AccountExistsNoticeIdempotencyKey>(), Arg.Any<CancellationToken>());
+            "klas@example.com", Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -343,10 +342,10 @@ public class RegisterCommandHandlerTests
         result.IsFailure.ShouldBeTrue();
         result.Error.Code.ShouldBe("Auth.PwnedPassword");
         await emailSender.DidNotReceive().SendAccountExistsNoticeAsync(
-            Arg.Any<string>(), Arg.Any<AccountExistsNoticeIdempotencyKey>(), Arg.Any<CancellationToken>());
+            Arg.Any<string>(), Arg.Any<CancellationToken>());
         await emailSender.DidNotReceive().SendEmailConfirmationAsync(
             Arg.Any<string>(), Arg.Any<EmailConfirmationEmail>(),
-            Arg.Any<EmailConfirmationIdempotencyKey>(), Arg.Any<CancellationToken>());
+            Arg.Any<CancellationToken>());
     }
 
     // ---------- Shared: JobSeeker creation failure (both paths) ----------
@@ -369,7 +368,7 @@ public class RegisterCommandHandlerTests
         await userAccountService.Received(1).DeleteUserAsync(userId, Arg.Any<CancellationToken>());
         await emailSender.DidNotReceive().SendEmailConfirmationAsync(
             Arg.Any<string>(), Arg.Any<EmailConfirmationEmail>(),
-            Arg.Any<EmailConfirmationIdempotencyKey>(), Arg.Any<CancellationToken>());
+            Arg.Any<CancellationToken>());
     }
 
     // ---------- Send-failure symmetry (CTO-bind Risk 1) ----------
@@ -389,7 +388,7 @@ public class RegisterCommandHandlerTests
         var emailSender = Substitute.For<IEmailSender>();
         emailSender.SendEmailConfirmationAsync(
                 Arg.Any<string>(), Arg.Any<EmailConfirmationEmail>(),
-                Arg.Any<EmailConfirmationIdempotencyKey>(), Arg.Any<CancellationToken>())
+                Arg.Any<CancellationToken>())
             .Returns(Task.FromException(new InvalidOperationException("send failed")));
 
         var handler = CreateHandler(
@@ -409,7 +408,7 @@ public class RegisterCommandHandlerTests
                 DomainError.Validation(AuthErrorCodes.DuplicateAccount, AuthErrorCodes.DuplicateAccountMessage)));
         var emailSender = Substitute.For<IEmailSender>();
         emailSender.SendAccountExistsNoticeAsync(
-                Arg.Any<string>(), Arg.Any<AccountExistsNoticeIdempotencyKey>(), Arg.Any<CancellationToken>())
+                Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromException(new InvalidOperationException("send failed")));
 
         var handler = CreateHandler(

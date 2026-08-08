@@ -69,7 +69,6 @@ public sealed class RegisterCommandHandler(
                 {
                     await emailSender.SendAccountExistsNoticeAsync(
                         command.Email!,
-                        AccountExistsNoticeIdempotencyKey.For(command.Email!),
                         cancellationToken);
                 }
 
@@ -107,7 +106,6 @@ public sealed class RegisterCommandHandler(
             await emailSender.SendEmailConfirmationAsync(
                 command.Email!,
                 new EmailConfirmationEmail(userId, urlSafeToken),
-                EmailConfirmationIdempotencyKey.For(userId, urlSafeToken),
                 cancellationToken);
 
             return Result.Success(new RegisterOutcome(Session: null));

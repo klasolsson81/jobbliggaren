@@ -24,10 +24,8 @@ public sealed partial class ConsoleEmailSender(
     public Task SendMatchNotificationEmailAsync(
         string toEmail,
         MatchNotificationEmail content,
-        MatchNotificationIdempotencyKey idempotencyKey,
         CancellationToken cancellationToken)
     {
-        // idempotencyKey is a Resend-only concern (dedupe a transport retry); the dev console sender
         // just renders the template.
         var body = EmailTemplates.MatchNotification(_options.BaseUrl, content);
         LogEmail(toEmail, body.Subject, body.PlainTextBody);
@@ -37,10 +35,8 @@ public sealed partial class ConsoleEmailSender(
     public Task SendFollowedCompanyNotificationEmailAsync(
         string toEmail,
         FollowedCompanyNotificationEmail content,
-        FollowedCompanyNotificationIdempotencyKey idempotencyKey,
         CancellationToken cancellationToken)
     {
-        // idempotencyKey is a Resend-only concern; the dev console sender just renders the template.
         var body = EmailTemplates.FollowedCompanyNotification(_options.BaseUrl, content);
         LogEmail(toEmail, body.Subject, body.PlainTextBody);
         return Task.CompletedTask;
@@ -49,10 +45,8 @@ public sealed partial class ConsoleEmailSender(
     public Task SendEmailChangeConfirmationAsync(
         string toEmail,
         EmailChangeConfirmationEmail content,
-        EmailChangeConfirmationIdempotencyKey idempotencyKey,
         CancellationToken cancellationToken)
     {
-        // idempotencyKey is a Resend-only concern; the dev console sender just renders the template.
         // The confirmation link (with the plaintext token) is written to the log here — acceptable in
         // Dev/Test (this sender is Dev/Test-only; NullEmailSender is the non-dev fallback), NEVER in
         // prod. Read the link out of the console/Seq log to complete the flow locally.
@@ -63,7 +57,6 @@ public sealed partial class ConsoleEmailSender(
 
     public Task SendEmailChangedNotificationAsync(
         string toEmail,
-        EmailChangedNotificationIdempotencyKey idempotencyKey,
         CancellationToken cancellationToken)
     {
         var body = EmailTemplates.EmailChangedNotification(_options.BaseUrl);
@@ -74,10 +67,8 @@ public sealed partial class ConsoleEmailSender(
     public Task SendEmailConfirmationAsync(
         string toEmail,
         EmailConfirmationEmail content,
-        EmailConfirmationIdempotencyKey idempotencyKey,
         CancellationToken cancellationToken)
     {
-        // idempotencyKey is a Resend-only concern; the dev console sender just renders the template.
         // The activation link (with the plaintext token) is written to the log here — acceptable in
         // Dev/Test (this sender is Dev/Test-only; NullEmailSender is the non-dev fallback), NEVER in
         // prod. Read the link out of the console/Seq log to complete the flow locally.
@@ -88,7 +79,6 @@ public sealed partial class ConsoleEmailSender(
 
     public Task SendAccountExistsNoticeAsync(
         string toEmail,
-        AccountExistsNoticeIdempotencyKey idempotencyKey,
         CancellationToken cancellationToken)
     {
         var body = EmailTemplates.AccountExistsNotice(_options.BaseUrl);

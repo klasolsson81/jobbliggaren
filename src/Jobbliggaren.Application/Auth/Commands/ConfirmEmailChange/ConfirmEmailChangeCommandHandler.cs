@@ -44,7 +44,6 @@ public sealed partial class ConfirmEmailChangeCommandHandler(
             {
                 await emailSender.SendEmailChangedNotificationAsync(
                     oldEmail,
-                    EmailChangedNotificationIdempotencyKey.For(command.UserId, command.Token),
                     cancellationToken);
             }
             catch (Exception ex)

@@ -30,7 +30,6 @@ using Microsoft.Extensions.Options;
 using Polly;
 using Polly.RateLimiting;
 using Refit;
-using Resend;
 using StackExchange.Redis;
 
 namespace Jobbliggaren.Infrastructure;
@@ -978,20 +977,24 @@ public static class DependencyInjection
     }
 
     /// <summary>
-    /// Email provider-switch (ADR 0080 Vag 4 PR-4b). Called by BOTH the Api
-    /// (<see cref="AddInfrastructure"/>) AND the HTTP-free Worker (ADR 0023) so both register the
-    /// SAME dev=Console/Resend, non-dev=Null gating without drift. The Worker needs
+    /// Email provider-switch (ADR 0080 Vag 4 PR-4b; provider bytt i ADR 0124). Called by BOTH the
+    /// Api (<see cref="AddInfrastructure"/>) AND the HTTP-free Worker (ADR 0023) so both register
+    /// the SAME dev=Console, non-dev=Null gating without drift. The Worker needs
     /// <see cref="IEmailSender"/> for the Vag 4 match-notification jobs (Top-direct scan hook +
     /// <c>DigestDispatchJob</c>). Binds <see cref="EmailOptions"/> and selects the sender per
     /// <c>Email:Provider</c>.
     /// <para>
-    /// ADR 0066 — AWS SES borttaget; transaktionell mejlväg via Resend (TD-101).
-    /// <see cref="ConsoleEmailSender"/> skriver mottagar-email + plaintext-token till ILogger
+    /// Transaktionell mejlväg via Amazon SES v2 i eu-north-1 (ADR 0124, #1237) — HTTPS-API, aldrig
+    /// SMTP. <see cref="ConsoleEmailSender"/> skriver mottagar-email + plaintext-token till ILogger
     /// (dev-providern) — registreras BARA i Development/Test (TD-104/STEG 6 security-auditor
     /// Major #1: en PERSISTENT logg-sink gör den raden durabel PII-lagring). I andra miljöer
     /// faller "Console" tillbaka på <see cref="NullEmailSender"/> (no-op) tills en riktig provider
-    /// wiras. Resend = US-processor: prod-utskick kräver DPA/SCC + security-auditor-sign-off
-    /// (CTO 2026-06-24); dev = test-mode. Okänt provider-värde fail-stoppas.
+    /// wiras. Okänt provider-värde fail-stoppas.
+    /// </para>
+    /// <para>
+    /// <b>Defaulten är oförändrad och det är avsiktligt.</b> <c>Email:Provider</c> är osatt i varje
+    /// committad <c>appsettings*.json</c>, så <c>?? "Console"</c> gäller: Console i Dev/Test, Null
+    /// överallt annars. Att SES-armen finns ändrar ingenting förrän någon sätter nyckeln.
     /// </para>
     /// </summary>
     public static IServiceCollection AddEmailSender(
@@ -1015,27 +1018,59 @@ public static class DependencyInjection
                 services.AddSingleton<IEmailSender, NullEmailSender>();
             }
         }
-        else if (string.Equals(emailProvider, "Resend", StringComparison.OrdinalIgnoreCase))
+        else if (string.Equals(emailProvider, "Ses", StringComparison.OrdinalIgnoreCase))
         {
-            // Nyckel ENDAST via gitignored appsettings.Local.json (Email:ApiKey) → fail-LOUD om
-            // den saknas (ingen tyst no-op som ser ut att skicka).
-            var apiKey = configuration[$"{EmailOptions.SectionName}:ApiKey"];
-            if (string.IsNullOrWhiteSpace(apiKey))
+            // Läses RÅTT ur IConfiguration, inte via IOptions, så att en felkonfiguration fäller
+            // REGISTRERINGEN och inte första utskicket. Det är vad AddEmailSenderGateTests kan
+            // asserta mot en naken ServiceCollection utan att boota en host — och det är därför
+            // kontrollen inte kan bo i SesEmailSenders konstruktor: AddSingleton<T,TImpl> är LAT,
+            // så prod hade bootat rent och fallit först på första mejlet.
+            var region = configuration[$"{SesEmailOptions.SectionName}:{nameof(SesEmailOptions.Region)}"];
+            var accessKeyId = configuration[$"{SesEmailOptions.SectionName}:{nameof(SesEmailOptions.AccessKeyId)}"];
+            var secretAccessKey = configuration[$"{SesEmailOptions.SectionName}:{nameof(SesEmailOptions.SecretAccessKey)}"];
+
+            if (string.IsNullOrWhiteSpace(region))
             {
                 throw new InvalidOperationException(
-                    "Email:Provider='Resend' kräver Email:ApiKey (gitignored appsettings.Local.json).");
+                    "Email:Provider='Ses' kräver Email:Ses:Region (t.ex. eu-north-1). Regionen sätts "
+                    + "ALLTID explicit — SDK:ns default-regionkedja (AWS_REGION / ~/.aws/config / IMDS) "
+                    + "får aldrig avgöra vilken jurisdiktion e-post lämnar ifrån (#1169).");
             }
 
-            // AddResend registrerar IResend som en IHttpClientFactory-typed client (transient).
-            services.AddResend(o => o.ApiToken = apiKey);
-            // Transient (EJ Singleton): en singleton-sender som fångar den transienta IResend
-            // vore en captive dependency som fryser HttpMessageHandler-rotationen.
-            services.AddTransient<IEmailSender, ResendEmailSender>();
+            if (string.IsNullOrWhiteSpace(accessKeyId) || string.IsNullOrWhiteSpace(secretAccessKey))
+            {
+                throw new InvalidOperationException(
+                    "Email:Provider='Ses' kräver Email:Ses:AccessKeyId + Email:Ses:SecretAccessKey "
+                    + "(gitignored appsettings.Local.json / managed secret). Det finns ingen instansroll "
+                    + "på VPS:en, och SDK:ns default-credential-kedja får aldrig tyst plocka upp en annan "
+                    + "identitet (ingen tyst no-op som ser ut att skicka).");
+            }
+
+            // Backstop för de SEMANTISKA kontroller den råa läsningen inte uttrycker. Registreras
+            // ENBART i den här armen: EmailOptions självt får medvetet INTE ValidateOnStart, för då
+            // blev hela Email-sektionen ett boot-villkor på DEFAULT-vägen — och både
+            // appsettings.Local.json.example och local-dev-setup.md §7 lovar att den är VALFRI.
+            services.AddOptions<SesEmailOptions>()
+                .Bind(configuration.GetSection(SesEmailOptions.SectionName))
+                .ValidateDataAnnotations()
+                .ValidateOnStart();
+
+            // Klient-konstruktionen bor i Email/SesClientRegistration så att den här filen — en
+            // §6.5-hotspot många sessioner redigerar — förblir textuellt Amazon-fri.
+            // NoAmazonReferenceTests allow-listar src/Jobbliggaren.Infrastructure/Email/ och inget
+            // annat; koden är formad efter regeln, regeln är inte vidgad efter koden.
+            services.AddSesClient(region, accessKeyId, secretAccessKey);
+
+            // Singleton, och registrerad som AddSingleton<TService, TImplementation> — INTE via en
+            // factory-lambda. Gate-testerna assertar på ServiceDescriptor.ImplementationType, som är
+            // null för en lambda; en lambda kompilerar, registrerar korrekt och fäller testet på ett
+            // sätt som ser ut som en DI-bugg.
+            services.AddSingleton<IEmailSender, SesEmailSender>();
         }
         else
         {
             throw new InvalidOperationException(
-                $"Email:Provider='{emailProvider}' stöds inte. Använd 'Console' eller 'Resend'.");
+                $"Email:Provider='{emailProvider}' stöds inte. Använd 'Console' eller 'Ses'.");
         }
 
         return services;

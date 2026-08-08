@@ -9,8 +9,8 @@ namespace Jobbliggaren.Infrastructure.Auth;
 /// Redis-backed <see cref="ICooldownGate"/> (generalised from the #733 resend primitive; #703).
 /// Form: a key with an absolute TTL via <see cref="IDistributedCache"/>. The key is
 /// <c>cd/{scope}/v1/{sha256(subject)}</c> — the subject (an
-/// email address or a user id) is normalised (trim + lower-invariant, parity with
-/// <see cref="AccountExistsNoticeIdempotencyKey.For"/>) and SHA-256-hashed, a one-way non-PII fingerprint
+/// email address or a user id) is normalised (<c>Trim()</c> + <c>ToLowerInvariant()</c>) and
+/// SHA-256-hashed, a one-way non-PII fingerprint
 /// (the raw value is never written to Redis); every call on the same <c>(scope, subject)</c> collapses to
 /// the same key, so the window is a pure per-subject throttle. Pure mechanism: the window is a caller
 /// parameter (OCP — a new scope adds a caller, never edits this class), and the policy (window length,
@@ -37,8 +37,10 @@ internal sealed class RedisCooldownGate(IDistributedCache cache) : ICooldownGate
         return true;
     }
 
-    // SHA-256 hex of the normalized subject (trim + lower-invariant), parity with
-    // AccountExistsNoticeIdempotencyKey.For — one-way, non-reversible, never the raw value.
+    // SHA-256 hex of the normalized subject (trim + lower-invariant) — one-way, non-reversible,
+    // never the raw value. (This normalisation used to be described as "parity with
+    // AccountExistsNoticeIdempotencyKey.For"; that type went with the Resend arm in ADR 0124, and
+    // the rule it referenced is written out above rather than pointed at.)
     private static string Key(string scope, string subject)
     {
         var normalized = subject.Trim().ToLowerInvariant();

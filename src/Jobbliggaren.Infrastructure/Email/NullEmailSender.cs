@@ -20,10 +20,8 @@ public sealed partial class NullEmailSender(ILogger<NullEmailSender> logger) : I
     public Task SendMatchNotificationEmailAsync(
         string toEmail,
         MatchNotificationEmail content,
-        MatchNotificationIdempotencyKey idempotencyKey,
         CancellationToken cancellationToken)
     {
-        // idempotencyKey is irrelevant to a no-op sender (no transactional provider to dedupe).
         LogSuppressed("match-notification");
         return Task.CompletedTask;
     }
@@ -31,7 +29,6 @@ public sealed partial class NullEmailSender(ILogger<NullEmailSender> logger) : I
     public Task SendFollowedCompanyNotificationEmailAsync(
         string toEmail,
         FollowedCompanyNotificationEmail content,
-        FollowedCompanyNotificationIdempotencyKey idempotencyKey,
         CancellationToken cancellationToken)
     {
         LogSuppressed("followed-company-notification");
@@ -41,7 +38,6 @@ public sealed partial class NullEmailSender(ILogger<NullEmailSender> logger) : I
     public Task SendEmailChangeConfirmationAsync(
         string toEmail,
         EmailChangeConfirmationEmail content,
-        EmailChangeConfirmationIdempotencyKey idempotencyKey,
         CancellationToken cancellationToken)
     {
         LogSuppressed("email-change-confirmation");
@@ -50,7 +46,6 @@ public sealed partial class NullEmailSender(ILogger<NullEmailSender> logger) : I
 
     public Task SendEmailChangedNotificationAsync(
         string toEmail,
-        EmailChangedNotificationIdempotencyKey idempotencyKey,
         CancellationToken cancellationToken)
     {
         LogSuppressed("email-changed-notification");
@@ -60,7 +55,6 @@ public sealed partial class NullEmailSender(ILogger<NullEmailSender> logger) : I
     public Task SendEmailConfirmationAsync(
         string toEmail,
         EmailConfirmationEmail content,
-        EmailConfirmationIdempotencyKey idempotencyKey,
         CancellationToken cancellationToken)
     {
         LogSuppressed("email-confirmation");
@@ -69,7 +63,6 @@ public sealed partial class NullEmailSender(ILogger<NullEmailSender> logger) : I
 
     public Task SendAccountExistsNoticeAsync(
         string toEmail,
-        AccountExistsNoticeIdempotencyKey idempotencyKey,
         CancellationToken cancellationToken)
     {
         LogSuppressed("account-exists-notice");

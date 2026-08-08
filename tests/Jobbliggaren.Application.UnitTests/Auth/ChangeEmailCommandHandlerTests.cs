@@ -85,7 +85,6 @@ public class ChangeEmailCommandHandlerTests
             NewEmail,
             Arg.Is<EmailChangeConfirmationEmail>(c => c != null &&
                 c.UserId == userId && c.NewEmail == NewEmail && c.UrlSafeToken == UrlSafeToken),
-            Arg.Any<EmailChangeConfirmationIdempotencyKey>(),
             Arg.Any<CancellationToken>());
     }
 
@@ -105,7 +104,7 @@ public class ChangeEmailCommandHandlerTests
             Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
         await _emailSender.DidNotReceive().SendEmailChangeConfirmationAsync(
             Arg.Any<string>(), Arg.Any<EmailChangeConfirmationEmail>(),
-            Arg.Any<EmailChangeConfirmationIdempotencyKey>(), Arg.Any<CancellationToken>());
+            Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -123,7 +122,7 @@ public class ChangeEmailCommandHandlerTests
         result.Error.Code.ShouldBe("Auth.UserNotFound");
         await _emailSender.DidNotReceive().SendEmailChangeConfirmationAsync(
             Arg.Any<string>(), Arg.Any<EmailChangeConfirmationEmail>(),
-            Arg.Any<EmailChangeConfirmationIdempotencyKey>(), Arg.Any<CancellationToken>());
+            Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -146,7 +145,7 @@ public class ChangeEmailCommandHandlerTests
             Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
         await _emailSender.DidNotReceive().SendEmailChangeConfirmationAsync(
             Arg.Any<string>(), Arg.Any<EmailChangeConfirmationEmail>(),
-            Arg.Any<EmailChangeConfirmationIdempotencyKey>(), Arg.Any<CancellationToken>());
+            Arg.Any<CancellationToken>());
     }
 
     [Theory]
@@ -191,7 +190,7 @@ public class ChangeEmailCommandHandlerTests
             Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
         await _emailSender.DidNotReceive().SendEmailChangeConfirmationAsync(
             Arg.Any<string>(), Arg.Any<EmailChangeConfirmationEmail>(),
-            Arg.Any<EmailChangeConfirmationIdempotencyKey>(), Arg.Any<CancellationToken>());
+            Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -212,7 +211,7 @@ public class ChangeEmailCommandHandlerTests
             Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
         await _emailSender.DidNotReceive().SendEmailChangeConfirmationAsync(
             Arg.Any<string>(), Arg.Any<EmailChangeConfirmationEmail>(),
-            Arg.Any<EmailChangeConfirmationIdempotencyKey>(), Arg.Any<CancellationToken>());
+            Arg.Any<CancellationToken>());
     }
 
     [Fact]

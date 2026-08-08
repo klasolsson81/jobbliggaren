@@ -47,9 +47,9 @@ public class ConfirmEmailChangeCommandHandlerTests
 
         // The security notice goes to the OLD address captured before the swap, never the new one.
         await _emailSender.Received(1).SendEmailChangedNotificationAsync(
-            OldEmail, Arg.Any<EmailChangedNotificationIdempotencyKey>(), Arg.Any<CancellationToken>());
+            OldEmail, Arg.Any<CancellationToken>());
         await _emailSender.DidNotReceive().SendEmailChangedNotificationAsync(
-            NewEmail, Arg.Any<EmailChangedNotificationIdempotencyKey>(), Arg.Any<CancellationToken>());
+            NewEmail, Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -68,7 +68,7 @@ public class ConfirmEmailChangeCommandHandlerTests
         result.Error.Code.ShouldBe("Auth.InvalidEmailChangeToken");
         // A failed confirm sends no notice (nothing changed to notify about).
         await _emailSender.DidNotReceive().SendEmailChangedNotificationAsync(
-            Arg.Any<string>(), Arg.Any<EmailChangedNotificationIdempotencyKey>(), Arg.Any<CancellationToken>());
+            Arg.Any<string>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -79,7 +79,7 @@ public class ConfirmEmailChangeCommandHandlerTests
         _service.ConfirmChangeEmailAsync(userId, NewEmail, UrlSafeToken, Arg.Any<CancellationToken>())
             .Returns(Result.Success());
         _emailSender.SendEmailChangedNotificationAsync(
-                OldEmail, Arg.Any<EmailChangedNotificationIdempotencyKey>(), Arg.Any<CancellationToken>())
+                OldEmail, Arg.Any<CancellationToken>())
             .Returns(Task.FromException(new InvalidOperationException("e-post-transport nere")));
         var handler = CreateHandler();
 
@@ -105,7 +105,7 @@ public class ConfirmEmailChangeCommandHandlerTests
         result.IsSuccess.ShouldBeTrue();
         // A null old address (user already gone from Identity's view) skips the notice — no throw.
         await _emailSender.DidNotReceive().SendEmailChangedNotificationAsync(
-            Arg.Any<string>(), Arg.Any<EmailChangedNotificationIdempotencyKey>(), Arg.Any<CancellationToken>());
+            Arg.Any<string>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]

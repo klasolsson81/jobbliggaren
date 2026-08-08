@@ -10,7 +10,9 @@ namespace Jobbliggaren.Infrastructure.Email;
 /// <see cref="ConsoleEmailSender"/> writes the recipient email + notification body to
 /// <c>ILogger</c>, which becomes durable PII once the persistent Seq sink (TD-104) is
 /// attached, so it must never run in a sink-backed, real-recipient environment. A real
-/// transactional provider replaces this for beta/prod (TD-101, Hetzner-fas).
+/// transactional provider exists alongside it: SesEmailSender behind Email:Provider=Ses
+/// (Amazon SES v2, eu-north-1, ADR 0124). This sender is what an UNSET Email:Provider
+/// resolves to outside Development/Test, which is the live default today.
 ///
 /// Suppression is logged at Debug WITHOUT any recipient/token so ops can see that mail
 /// is being dropped without leaking PII.
@@ -20,10 +22,8 @@ public sealed partial class NullEmailSender(ILogger<NullEmailSender> logger) : I
     public Task SendMatchNotificationEmailAsync(
         string toEmail,
         MatchNotificationEmail content,
-        MatchNotificationIdempotencyKey idempotencyKey,
         CancellationToken cancellationToken)
     {
-        // idempotencyKey is irrelevant to a no-op sender (no transactional provider to dedupe).
         LogSuppressed("match-notification");
         return Task.CompletedTask;
     }
@@ -31,7 +31,6 @@ public sealed partial class NullEmailSender(ILogger<NullEmailSender> logger) : I
     public Task SendFollowedCompanyNotificationEmailAsync(
         string toEmail,
         FollowedCompanyNotificationEmail content,
-        FollowedCompanyNotificationIdempotencyKey idempotencyKey,
         CancellationToken cancellationToken)
     {
         LogSuppressed("followed-company-notification");
@@ -41,7 +40,6 @@ public sealed partial class NullEmailSender(ILogger<NullEmailSender> logger) : I
     public Task SendEmailChangeConfirmationAsync(
         string toEmail,
         EmailChangeConfirmationEmail content,
-        EmailChangeConfirmationIdempotencyKey idempotencyKey,
         CancellationToken cancellationToken)
     {
         LogSuppressed("email-change-confirmation");
@@ -50,7 +48,6 @@ public sealed partial class NullEmailSender(ILogger<NullEmailSender> logger) : I
 
     public Task SendEmailChangedNotificationAsync(
         string toEmail,
-        EmailChangedNotificationIdempotencyKey idempotencyKey,
         CancellationToken cancellationToken)
     {
         LogSuppressed("email-changed-notification");
@@ -60,7 +57,6 @@ public sealed partial class NullEmailSender(ILogger<NullEmailSender> logger) : I
     public Task SendEmailConfirmationAsync(
         string toEmail,
         EmailConfirmationEmail content,
-        EmailConfirmationIdempotencyKey idempotencyKey,
         CancellationToken cancellationToken)
     {
         LogSuppressed("email-confirmation");
@@ -69,7 +65,6 @@ public sealed partial class NullEmailSender(ILogger<NullEmailSender> logger) : I
 
     public Task SendAccountExistsNoticeAsync(
         string toEmail,
-        AccountExistsNoticeIdempotencyKey idempotencyKey,
         CancellationToken cancellationToken)
     {
         LogSuppressed("account-exists-notice");
@@ -77,6 +72,6 @@ public sealed partial class NullEmailSender(ILogger<NullEmailSender> logger) : I
     }
 
     [LoggerMessage(3002, LogLevel.Debug,
-        "[NullEmailSender] {EmailKind} email suppressed — no transactional provider configured (TD-101)")]
+        "[NullEmailSender] {EmailKind} email suppressed — no transactional provider configured")]
     private partial void LogSuppressed(string emailKind);
 }

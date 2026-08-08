@@ -122,7 +122,7 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
 
 ---
 
-## 2.5 HÅRD GRIND: Resend e-post-prod-flip (ADR 0080)
+## 2.5 HÅRD GRIND: e-post-prod-flip — Amazon SES `eu-north-1` (ADR 0080, provider bytt i ADR 0124)
 
 > **ETT HEM PER TAL (regel, 2026-07-26).** Varje räknebart påstående i §2.5/§2.6 står på
 > **exakt ett** ställe, tillsammans med greppet som regenererar det. Alla andra omnämnanden är
@@ -141,10 +141,19 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
 > ställe är nästa tillagda punkt garanterad att producera nästa fynd. **Lägg aldrig till ett tal
 > på en andra plats** — skriv "antalet står i ‹hem›" i stället.
 
-> Gäller ENDAST en release som aktiverar `Email:Provider=Resend` i non-dev.
+> Gäller ENDAST en release som aktiverar `Email:Provider=Ses` i non-dev.
 > Tills dess kör `NullEmailSender` — ingen
-> e-post skickas, och denna grind är inte relevant. Resend är en **US-processor**
-> → mottagar-adress **+ meddelandets innehåll** är en tredjelandsöverföring (för notiserna
+> e-post skickas, och denna grind är inte relevant.
+>
+> **PROVIDERN BYTTES 2026-08-08 (ADR 0124, #1237) OCH GRINDENS PREMISS ÖVERLEVER INTE BYTET
+> OFÖRÄNDRAD.** Sektionen skrevs mot Resend, Inc. — ett **amerikanskt** biträde. Motparten är nu
+> **Amazon Web Services EMEA SARL (Luxemburg)** med behandling i `eu-north-1`, vilket är en annan
+> juridisk person, ett annat avtal och ett annat överföringsläge. Den bedömningen är
+> `security-auditor`:s tillsammans med Klas och är **inte gjord här** — så varje Resend-specifikt
+> led i punkt 1 är återöppnat till **KVAR**. Det är avsiktligt strängare än läget före bytet:
+> en grind får aldrig ärva ett grönt led från en motpart som inte längre är part.
+> Vad som INTE ändras av bytet: mottagar-adress **+ meddelandets innehåll** når en extern
+> processor oavsett jurisdiktion (för notiserna
 > **avslöjar** leveransen opt-in-faktumet, och `EmailTemplates` skriver det dessutom i klartext
 > i själva kroppen — själva *flaggan* i vår DB överförs aldrig, men faktumet gör det). Ett kontolivscykel-mejl har inget opt-in — men adressen och innehållet
 > når providern lika fullt. **VARJE numrerad punkt i DEN HÄR sektionen (§2.5) MÅSTE vara grön innan `Email:Provider`
@@ -180,16 +189,28 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
 - [ ] **1. Tredjelands-grund** — **fem** led, per behandling-status (ägare: **#183**).
       *Detta är talets hem: räkna om leden i punkten efter varje tillägg, och lägg det inte någon
       annanstans.*
-      - signerad **DPA** med Resend på fil — **KVAR** (Klas, aldrig CC);
-      - dokumenterad **Kap. V-grund** — **KVAR**, och disjunktionen "SCC **eller**
-        adekvans/DPF" måste upplösas till **en** grund före första överföringen;
-      - Resend-posten i `docs/runbooks/gdpr-processing-register.md` (ROPA, lokal) —
-        **KLAR för notis-vägen** (PR #213), **KVAR för kontolivscykel-mallarna** (se `Källa:`
-        nedan). Registret speglar och grindar inte (#1040) — men sign-off-ledet nedan kan
-        inte ges utan en behandling att signera mot;
-      - **integritetspolicy-post som namnger Resend** — **KLAR** (#186 / PR #1083).
-        Denna halva stod tidigare inte i punkten alls: transkriberingen ur ADR 0080
-        punkt 1 tappade den och behöll bara ROPA-halvan;
+      - **biträdesavtal med AWS på fil** — **KVAR** (Klas, aldrig CC). Mätt 2026-08-08 mot
+        aws.amazon.com/compliance/gdpr-center: AWS GDPR-DPA:t inkorporerar EU-kommissionens
+        SCC:er från juni 2021 och *"will apply automatically"* — det finns alltså sannolikt
+        **inget dokument att signera**, till skillnad från Netcup (#1199) och Resend. Ledet är
+        ändå KVAR: att verifiera och skriva ned att avtalet gäller, och för vilken avtalspart,
+        är inte samma sak som att anta det. Klas verifierar kontots avtalspart i Billing →
+        Tax Settings;
+      - dokumenterad **Kap. V-grund** — **KVAR**, och frågan är **öppen i båda riktningarna**:
+        `eu-north-1` är en EU-region och avtalsparten är luxemburgsk, men moderbolaget är
+        amerikanskt, och `BUILD.md` §15.1 avvisar Cloudflare R2 *"pga CLOUD Act-
+        tredjelandsöverföring"*, alltså behandlar detta repos egen tillämpade standard ett
+        US-ägt biträde som en tredjelandsfråga **oavsett EU-region**. Om standarden gäller här
+        avgörs av `security-auditor`, inte av den här filen. #1169:s påstående att AWS är
+        DPF-listat är **OMÄTT** — AWS GDPR-sida gör ingen DPF-utsaga;
+      - **ROPA-posten** i `docs/runbooks/gdpr-processing-register.md` (lokal) — **KVAR**.
+        Den namnger Resend och är därmed falsk om sin motpart; notis-vägens tidigare KLAR
+        (PR #213) bärs inte över till en annan processor. Registret speglar och grindar inte
+        (#1040) — men sign-off-ledet nedan kan inte ges utan en behandling att signera mot;
+      - **integritetspolicy-post som namnger providern** — **KVAR**, återöppnad. Den var KLAR
+        (#186 / PR #1083) men namnger **Resend, Inc. (USA)** i fyra stycken × två språk, vilket
+        är falskt sedan 2026-08-08. **#1169 äger omskrivningen** och den levereras i en egen PR
+        eftersom innehållet beror på Kap. V-ledet ovan;
       - **security-auditor-sign-off på prod-e-post-konfigen** — **KVAR**. Det gamla
         TD-116:s sign-off är PR-4:s, inte prod-konfigens; bocka aldrig punkten på den.
         (TD-116 stängdes 2026-07-26; residualen ägs av #183.)
@@ -200,9 +221,12 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
       kopia-formuleringen hänger på Art. 46/47-grunden, så tvärtom påstår du en SCC-grund
       som kanske inte används. Alltså **(iii) → (ii)**, och listans första post — flytten in i `Mottagare`-listan —
       när avtalet signeras.
-      (i) flytta Resend in i `Mottagare`-listan när biträdesavtalet är signerat —
+      (i) flytta **e-postleverantören** in i `Mottagare`-listan när biträdesavtalet är på plats —
       prosaformen är vald just för att listrubriken påstår ett tecknat avtal, och det
-      förbudet **upphör med signeringen**; (ii) **Art. 13(1)(f)** — "means to obtain a
+      förbudet **upphör när avtalet gäller**. *Sedan ADR 0124 är motparten AWS, och för AWS är
+      "på plats" sannolikt inte detsamma som "signerat" (DPA:t inkorporeras automatiskt, mätt
+      2026-08-08) — men villkoret för flytten är oförändrat: listan får bara namnge en part vars
+      avtal faktiskt gäller.* (ii) **Art. 13(1)(f)** — "means to obtain a
       copy" av skyddsåtgärderna saknas i policyn; (iii) upplös SCC/adekvans-
       disjunktionen.
 - [ ] **2. TD-115** — legacy opt-OUT-default sanerad (#185 / PR #211 — **KLAR**).
@@ -226,15 +250,22 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
       markör där skulle svaga Art. 7(2). Den ligger dessutom utanför §2.6:s grep-scope
       (som bara täcker `content-legal.json`), så en glömd markör-borttagning vid flippen
       skulle falla i den farliga riktningen.
-- [ ] **4. TD-114** — stranded-Queued-reaper (#184 / PR #212 — **KLAR**) +
-      **Resend `Idempotency-Key`** på real-send-vägen (#187 / PR #230 — **KLAR**;
-      VO `MatchNotificationIdempotencyKey`, ad-scoped Direct + content-hash Digest).
+- [ ] **4. TD-114** — stranded-Queued-reaper (#184 / PR #212 — **KLAR**).
+      *Ledet om en **provider-`Idempotency-Key`** (#187 / PR #230) är **struket 2026-08-08**, inte
+      obockat: SES v2 `SendEmail` har ingen idempotensparameter (mätt mot API-referensen samma
+      dag — inget `ClientToken`, ingen dedup), så ledet är **osatisfierbart**, och §2.5:s egen
+      grammatik ("grön = inget led bär KVAR") hade gjort ett KVAR här till en permanent
+      låsning av hela prod-grinden. Vad ledet skyddade bär spinen redan: raden är Queued före
+      utskicket och `StrandedMatchReaperJob` markerar en strandad rad Failed utan att skicka om.
+      senior-cto-advisor-bind + ADR 0124, #1237.*
 - [ ] **5. `BUILD.md` flippas i SAMMA ändring** — den här checklistan räknade tidigare bara upp
       `content-legal.json` och ROPA:n, och nämnde **aldrig** `BUILD.md` som flip-yta. Vid flippen
       blir följande falska utan att något kräver att de rörs: **§13.4**:s e-postpost
       (*"planerad, ännu inte"* … *"ingen e-post lämnar systemet"* — det första citatet
-      radbryts i BUILD.md, så grep på den KORTA formen), **§3.1:s Resend-rad**
-      (*"prod-utskick grindat"*) och **§3.2:s Email-rad** (*"Resend, grindad"*).
+      radbryts i BUILD.md, så grep på den KORTA formen), **§3.1:s SES-rad**
+      (*"prod-utskick grindat"*) och **§3.2:s Email-rad** (*"grindad"*).
+      *(Raderna namngav Resend till 2026-08-08; ADR 0124 bytte dem till SES och citaten ovan
+      är regenererade ur filen, inte översatta.)*
       **`provider_message_id`-kommentaren i §7:s `email_log`-schema** är provider-neutral
       och blir INTE falsk — kontrollera den, ändra sannolikt inget.
       *(Radnummer står medvetet inte här: punkten bar TRE, och två av dem föll när

@@ -112,10 +112,15 @@
          låg på 10.0.2 och Npgsql-pinnen på 10.0.3; bumpen i denna PR vidgade den, så den syncas här
          i stället för att bäras vidare.)* -->
     <PackageVersion Include="Npgsql" Version="10.0.3" />
-    <!-- Alla AWSSDK-paket borttagna: SecretsManager (TD-105 / #199 / ADR 0050),
-         SimpleEmailV2 (2026-06-06, ADR 0066), KeyManagementService + Core
-         (#802 — fält-krypteringen är Local-only, ADR 0049/0050). 0 Amazon-paket
-         i lösningen; ett tripwire-arch-test håller det så (NoAmazonReferenceTests). -->
+    <!-- AWSSDK-ytan är en ALLOW-LIST om exakt ett paket-id, inte ett förbud (ADR 0124, #1237).
+         Kvar borttagna och fortsatt bannade: SecretsManager (TD-105 / #199 / ADR 0050),
+         KeyManagementService + Core-som-krypteringsberoende (#802 — fält-krypteringen är
+         Local-only, ADR 0049/0050), S3, Bedrock och varje AWSSDK.Extensions.Logging.*.
+         SimpleEmailV2 raderades 2026-06-06 med hänvisning till ADR 0066 — och den
+         hänvisningen var härledd, inte skriven: ADR 0066 nämner aldrig SES (mätt 2026-08-08,
+         noll förekomster av "SES"/"SimpleEmail" i den filen). Den rev den DEPLOYADE
+         dev-stacken och bevarade uttryckligen kontonivå-ytan. Se ADR 0124 §"Gränsen".
+         NoAmazonReferenceTests håller allow-listan smal och bär två icke-vakuitetsankare. -->
 
     <PackageVersion Include="Microsoft.Extensions.Logging.Console" Version="10.0.10" />
     <!-- TD-104 / Pre-4 STEG 6 — persistent strukturerad logg-sink (senior-cto-advisor
@@ -248,7 +253,7 @@
          vs ADR 0050" is this repo's idiom for "assessed against the server-side, non-distributed
          model ADR 0050 locks" - which is ADR 0071:170's own wording, not merely local shorthand.
          Measured: THREE other comment blocks here assess copyleft against ADR 0050, covering five
-         packages (libstemmer+Hunspell, PdfPig+OpenXml, Resend). Two use the shorthand; the Hunspell
+         packages (libstemmer+Hunspell, PdfPig+OpenXml, AWSSDK.SimpleEmailV2). Two use the shorthand; the Hunspell
          block already writes it out. An earlier draft said "four other rows" - reachable only by
          counting ADR 0050 MENTIONS, one of which is the AWSSDK removal and no licence claim at all.
          MECHANISM WORTH KNOWING: v3.0 adds `## Applicable Version` (the Community License section's only new
@@ -259,13 +264,21 @@
          that release, so a NuGet bump CHANGES WHICH LICENCE VERSION GOVERNS - and nothing in this
          repo reads the licence at a bump. -->
     <PackageVersion Include="QuestPDF" Version="2026.7.2" />
-    <!-- ADR 0080 Vag 4 PR-4 (BUILD §3.1, Klas-GO 2026-06-24) — transaktionell e-post
-         via Resend (löser TD-101 dev-vägen). Officiella .NET-SDK:n; PackageReference lever
-         ENDAST i Jobbliggaren.Infrastructure (Clean Arch — IResend/EmailMessage korsar aldrig
-         IEmailSender-porten, paritet Refit/PdfPig/QuestPDF). License = MIT (NON-COPYLEFT vs
-         ADR 0050). Wrappar IHttpClientFactory + absorberar auth-header/User-Agent (Resend
-         403:ar utan)/Idempotency-Key. Web-verifierad 2026-06-24 (nuget.org /
-         github.com/resend/resend-dotnet): 0.5.1 = senaste stabila. -->
-    <PackageVersion Include="Resend" Version="0.5.1" />
+    <!-- ADR 0124 (BUILD §3.1, Klas-GO 2026-08-08, #1237) — transaktionell e-post via Amazon SES
+         v2 i eu-north-1. Ersätter Resend, som Klas tog ut helt samma dag; det är ett
+         LEVERANTÖRSBYTE, inte ett tillägg, så antalet IEmailSender-implementationer står kvar
+         på tre (Console/Null/Ses). Officiella .NET-SDK:n; PackageReference lever ENDAST i
+         Jobbliggaren.Infrastructure (Clean Arch — AmazonSimpleEmailServiceV2Client/SendEmailRequest
+         korsar aldrig IEmailSender-porten, paritet Refit/PdfPig/QuestPDF), och NetArchTest pinnar
+         att ingen typ utanför Jobbliggaren.Infrastructure.Email beror på Amazon.*.
+         License = Apache-2.0 (NON-COPYLEFT vs ADR 0050) — QuestPDF-blockets räkning ovan står
+         därmed kvar oförändrad: fortfarande TRE andra block, fortfarande FEM paket, fortfarande
+         TVÅ i kortform, eftersom den här raden ersätter Resend i alla tre talen.
+         TRANSPORT: HTTPS-API, ALDRIG SMTP — Netcup blockerar 25/465/587 och ADR 0050:1201
+         ratificerar redan valet. AWSSDK.Core pinnas INTE separat: SimpleEmailV2 4.0.102.1
+         deklarerar AWSSDK.Core [4.0.100.9, 5.0.0) och transitiv upplösning landar på 4.0.100.9,
+         vilket är senaste — en egen pin skulle bara frysa den. Läggs till om NuGetAudit fäller.
+         Web-verifierad 2026-08-08 (api.nuget.org flatcontainer): 4.0.102.1 = senaste stabila. -->
+    <PackageVersion Include="AWSSDK.SimpleEmailV2" Version="4.0.102.1" />
   </ItemGroup>
 </Project>

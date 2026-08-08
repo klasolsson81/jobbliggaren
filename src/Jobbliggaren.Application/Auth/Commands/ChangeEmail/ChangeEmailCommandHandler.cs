@@ -66,7 +66,6 @@ public sealed class ChangeEmailCommandHandler(
         await emailSender.SendEmailChangeConfirmationAsync(
             newEmail,
             new EmailChangeConfirmationEmail(userId, newEmail, urlSafeToken),
-            EmailChangeConfirmationIdempotencyKey.For(userId, urlSafeToken),
             cancellationToken);
 
         // Return the authenticated user id: the User.EmailChangeRequested audit aggregate id. The

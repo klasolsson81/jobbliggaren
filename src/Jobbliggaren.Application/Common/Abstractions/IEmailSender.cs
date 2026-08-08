@@ -4,8 +4,35 @@ namespace Jobbliggaren.Application.Common.Abstractions;
 /// Email-utskick för transactional flows (background-match notifications, ADR 0080 Vag 4).
 /// Impl: ConsoleEmailSender (Infrastructure) — loggar via ILogger (MEL → Seq-sink,
 /// TD-104) för lokal dev/MVP; Dev/Test-only (security-auditor Major #1, STEG 6),
-/// NullEmailSender i andra miljöer. Transaktionell mejlväg via Resend (TD-101, ADR 0066 —
-/// AWS SES borttaget). Templates på svenska per civic-utility-design.
+/// NullEmailSender i andra miljöer. Transaktionell mejlväg via Amazon SES v2 i eu-north-1
+/// (ADR 0124, #1237 — HTTPS-API, aldrig SMTP). Templates på svenska per civic-utility-design.
+/// <para>
+/// <b>Ingen idempotensparameter, och det är ett beslut (ADR 0124, senior-cto-advisor
+/// 2026-08-08).</b> Porten bar tidigare en typad idempotensnyckel per metod. Den var en
+/// Resend-artefakt hela vägen ned i sin egen invariant (<c>"at most 256 chars (Resend limit)"</c>)
+/// och SES v2 <c>SendEmail</c> har ingen motsvarighet — inget <c>ClientToken</c>, ingen
+/// dedup-parameter (mätt mot API-referensen 2026-08-08). Att behålla den hade lämnat en
+/// Application-ägd port som bär en avvecklad leverantörs trådformat, som ingen implementation
+/// kan konsumera (ISP). <b>Vad som faktiskt skyddade vad, efter mätning:</b> dedup ÖVER anrop
+/// ägs en nivå upp — av claim-then-send-spinen plus <c>StrandedMatchReaperJob</c> för
+/// notiserna, och av <c>ICooldownGate</c> för kontolivscykeln. ADR 0103 säger det uttryckligen
+/// om anti-email-bomb-kontrollen: den är <i>"provider-independent (works regardless of Resend's
+/// own idempotency-key dedup)"</i>. Kvar fanns bara transport-retry INOM en dispatch, och den
+/// stängs av <c>MaxErrorRetry = 0</c> på SES-klienten.
+/// </para>
+/// <para>
+/// <b>Undantagskontrakt (ADR 0124, senior-cto-advisor bind 4).</b> En implementation som
+/// misslyckas kastar <see cref="Exceptions.EmailDeliveryException"/>, som bär e-postens KIND och
+/// det underliggande undantagets TYPNAMN — ingenting annat, och med <c>InnerException</c>
+/// avsiktligt TOM. Leverantörens eget undantag får ALDRIG lämna adaptern: Amazon SES lägger
+/// mottagaradressen i sina felmeddelanden, många <c>[LoggerMessage]</c>-deklarationer
+/// vidarebefordrar ett <see cref="Exception"/>-objekt till sänkan (antalet och dess grep bor i
+/// ADR 0124), och <c>Api/Program.cs</c> har ingen generisk <c>catch</c> som stoppar ett
+/// omatchat. Ett undantag ÄR
+/// en osynlig del av en signatur, så kontraktet står här och inte bara i implementationen — och
+/// <c>ConfirmEmailChangeCommandHandler</c>:s lokala <i>"§5 parity with the sender boundary"</i>
+/// blir därmed den allmänna regeln i stället för en handlares egen disciplin.
+/// </para>
 /// </summary>
 public interface IEmailSender
 {
@@ -16,16 +43,14 @@ public interface IEmailSender
     /// inställnings-/avregistreringslänk (GDPR Art. 7(3)). Consent-grindas av anroparen
     /// (opt-in OFF default, withdrawal stoppar omedelbart — ADR 0080 Beslut 5).
     /// <para>
-    /// <paramref name="idempotencyKey"/> är en deterministisk, PII-fri idempotensmarkör
-    /// (ADR 0080 PR-4 item 4, #187) som det transaktionella utskicket (Resend) använder för att
-    /// inte dubbel-leverera vid en transport-retry. Icke-transaktionella impls (Console/Null)
-    /// ignorerar den.
+    /// Dubbel-leverans förhindras av claim-then-send-spinen (<c>NotificationStatus</c>
+    /// Pending→Queued→Sent) plus <c>StrandedMatchReaperJob</c>, som markerar en strandad
+    /// rad Failed och ALDRIG skickar om — inte av en provider-nyckel (ADR 0124).
     /// </para>
     /// </summary>
     Task SendMatchNotificationEmailAsync(
         string toEmail,
         MatchNotificationEmail content,
-        MatchNotificationIdempotencyKey idempotencyKey,
         CancellationToken cancellationToken);
 
     /// <summary>
@@ -39,15 +64,12 @@ public interface IEmailSender
     /// avregistreringslänk (GDPR Art. 7(3)). Consent-grindas av anroparen (den SEPARATA
     /// FollowedCompanyNotificationsEnabled-flaggan, opt-in OFF default, withdrawal stoppar omedelbart).
     /// <para>
-    /// <paramref name="idempotencyKey"/> är en deterministisk, PII-fri idempotensmarkör
-    /// (namespace <c>follow/v1/…</c>) som Resend använder för att inte dubbel-leverera vid en
-    /// transport-retry. Icke-transaktionella impls (Console/Null) ignorerar den.
+    /// Dubbel-leverans förhindras av samma claim-then-send-spine som matchnings-vägen (ADR 0124).
     /// </para>
     /// </summary>
     Task SendFollowedCompanyNotificationEmailAsync(
         string toEmail,
         FollowedCompanyNotificationEmail content,
-        FollowedCompanyNotificationIdempotencyKey idempotencyKey,
         CancellationToken cancellationToken);
 
     /// <summary>
@@ -57,15 +79,16 @@ public interface IEmailSender
     /// address is NOT changed until the link is opened. This is the codebase's first
     /// token-&gt;email-&gt;confirm path (registration is not email-confirmed).
     /// <para>
-    /// <paramref name="idempotencyKey"/> is a deterministic, PII-free marker the transactional sender
-    /// (Resend) uses to avoid double-delivery on a transport retry. Non-transactional impls
-    /// (Console/Null) ignore it.
+    /// Repeated sends are bounded by <c>ICooldownGate</c> on BOTH
+    /// <c>CooldownScopes.ChangeEmailUser</c> (per actor) and <c>CooldownScopes.ChangeEmailTarget</c>
+    /// (per new address) before the send (ADR 0103, <c>ChangeEmailCommandHandler</c>) — the VISIBLE
+    /// half of the asymmetry (409), since the surface is authenticated. Provider-independent by
+    /// construction.
     /// </para>
     /// </summary>
     Task SendEmailChangeConfirmationAsync(
         string toEmail,
         EmailChangeConfirmationEmail content,
-        EmailChangeConfirmationIdempotencyKey idempotencyKey,
         CancellationToken cancellationToken);
 
     /// <summary>
@@ -73,12 +96,11 @@ public interface IEmailSender
     /// address after a completed change, so the previous owner can detect an unauthorized change
     /// (OWASP ASVS V2.5 / NIST SP 800-63B). Carries NO token, NO link to the new address, and does NOT
     /// reveal the new address - only a factual notice + a help-centre link built template-side from
-    /// <c>EmailOptions.BaseUrl</c>. <paramref name="idempotencyKey"/> dedupes a transport retry;
-    /// Console/Null ignore it.
+    /// <c>EmailOptions.BaseUrl</c>. Sent at most once per completed change by construction: the
+    /// change itself is the single trigger.
     /// </summary>
     Task SendEmailChangedNotificationAsync(
         string toEmail,
-        EmailChangedNotificationIdempotencyKey idempotencyKey,
         CancellationToken cancellationToken);
 
     /// <summary>
@@ -90,15 +112,17 @@ public interface IEmailSender
     /// the confirmation link is the only out-of-band signal (delivered only to an inbox the requester
     /// controls, i.e. a fresh address).
     /// <para>
-    /// <paramref name="idempotencyKey"/> is a deterministic, PII-free marker the transactional sender
-    /// (Resend) uses to avoid double-delivery on a transport retry. Non-transactional impls
-    /// (Console/Null) ignore it.
+    /// Two call sites, and only one of them can repeat: the fresh registration send
+    /// (<c>RegisterCommandHandler</c>) happens once per accepted signup and is ungated, while the
+    /// user-driven resend endpoint is bounded by <c>ICooldownGate</c> on
+    /// <c>CooldownScopes.ResendConfirm</c> (ADR 0103, <c>ResendEmailConfirmationCommandHandler</c>) —
+    /// SILENT, because the surface is unauthenticated and a visible cooldown would itself be an
+    /// enumeration oracle.
     /// </para>
     /// </summary>
     Task SendEmailConfirmationAsync(
         string toEmail,
         EmailConfirmationEmail content,
-        EmailConfirmationIdempotencyKey idempotencyKey,
         CancellationToken cancellationToken);
 
     /// <summary>
@@ -108,12 +132,15 @@ public interface IEmailSender
     /// told someone tried to register their address (login-nudge, Klas decision) while the HTTP response
     /// stays an identical 202 (no enumeration signal). Mirrors the change-email old-address notice.
     /// <para>
-    /// <paramref name="idempotencyKey"/> dedupes a transport retry AND repeated attempts on the same
-    /// address (anti-email-bomb); Console/Null ignore it.
+    /// <b>Anti-email-bomb lives in <c>ICooldownGate</c>, not here (ADR 0103).</b> The per-target,
+    /// existence-independent, SILENT cooldown on <c>CooldownScopes.AccountExists</c>, checked in
+    /// <c>RegisterCommandHandler</c> before this call, is what stops an attacker flooding a taken
+    /// address; ADR 0103's Consequences state it works <i>"regardless of Resend's own
+    /// idempotency-key dedup"</i>, which is why the control survived that provider's removal
+    /// untouched. The port carried a second, weaker copy of this claim until ADR 0124.
     /// </para>
     /// </summary>
     Task SendAccountExistsNoticeAsync(
         string toEmail,
-        AccountExistsNoticeIdempotencyKey idempotencyKey,
         CancellationToken cancellationToken);
 }

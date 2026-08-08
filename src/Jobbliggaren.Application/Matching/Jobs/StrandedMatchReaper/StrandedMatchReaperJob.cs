@@ -28,8 +28,10 @@ namespace Jobbliggaren.Application.Matching.Jobs.StrandedMatchReaper;
 /// <b>Strategy (senior-cto-advisor): MarkFailed, never re-send.</b> A row Queued past the
 /// threshold is moved to the terminal <see cref="NotificationStatus.Failed"/> state — it becomes
 /// observable + queryable, is NEVER re-sent (honouring the dedup stance), and is safe against the
-/// non-dev <c>NullEmailSender</c> (no send is attempted, so a still-broken Resend config can never
-/// be masked as a false delivery). The missing-account-email strand and the transient-send-failure
+/// non-dev <c>NullEmailSender</c> (no send is attempted, so a still-broken provider config can never
+/// be masked as a false delivery). Since ADR 0124 this job is not merely honouring the dedup stance
+/// but carrying it: the port no longer takes a provider idempotency key, so "MarkFailed, never
+/// re-send" is the whole mechanism. The missing-account-email strand and the transient-send-failure
 /// strand both terminate here (the original reason is not stored — distinguishing them would need
 /// a new column / migration, out of scope; the reap is logged either way).
 /// </para>

@@ -113,18 +113,43 @@ $C up -d --force-recreate caddy
 $C exec caddy printenv ACME_CA | grep -q acme-staging || { echo "REFUSING: not staging"; exit 1; }
 
 # 1. HTTP-01 only (row 5). Read the counterfactual out of the RUNNING container, not the file.
+#
+#    DISCARD THE ACME ACCOUNT, NOT ONLY THE CERTIFICATE. Measured 2026-08-08: with the
+#    certificate tree deleted and http01 selected, a certificate arrived in twelve seconds
+#    over NO challenge at all — the CA still held a valid authorization for this identifier
+#    from the previous issuance, and authorizations are cached per ACME ACCOUNT. The row
+#    would have been ticked on a certificate that proves nothing. Deleting the account
+#    directory makes Caddy register a new one, which holds no authorizations. Free on
+#    staging; never on production, where a new account and order spend real rate limit.
 sed -i "s|^#*ACME_CHALLENGE_MODE=.*|ACME_CHALLENGE_MODE=http01|" deploy/.env
+S=acme-staging-v02.api.letsencrypt.org-directory
+$C exec -T caddy rm -rf /data/caddy/certificates/$S /data/caddy/acme/$S
 $C up -d --force-recreate caddy
-$C exec caddy caddy adapt --config /etc/caddy/Caddyfile | grep -o '"challenges":{[^}]*}'
-$C logs caddy | grep -iE "http-01|tls-alpn|obtained|certificate"
+sleep 30
 
-# 2. TLS-ALPN-01 only (row 6). Step 1 left a VALID staging certificate, so Caddy would issue
-#    nothing and row 6 would be ticked on row 5's work. Discard the STAGING tree only.
+#    HALF A — the issuance line must NAME the challenge type. "certificate obtained" alone
+#    is exactly the evidence the paragraph above shows can be produced without a challenge.
+$C logs caddy --since 2m | grep -iE 'challenge_type|served key authentication|obtained successfully'
+
+#    HALF B — the counterfactual, on the policy whose subjects contain SITE_HOST. The adapted
+#    config carries TWO automation policies (measured: one for the site, one catch-all with no
+#    subjects and no challenges key), so `grep -o '"challenges"...'` is satisfied by either and
+#    cannot answer this. Capture, then parse.
+adapted=$($C exec -T caddy caddy adapt --config /etc/caddy/Caddyfile) ||
+  { echo "REFUSING: adapt failed — nothing was measured"; exit 1; }
+printf '%s' "$adapted" | python3 -c 'import json,sys
+for p in json.load(sys.stdin)["apps"]["tls"]["automation"]["policies"]:
+    print(p.get("subjects","(none)"), [i.get("challenges","(none)") for i in p.get("issuers",[])])'
+#    Expected on the SITE_HOST policy: {"tls-alpn": {"disabled": true}}
+
+# 2. TLS-ALPN-01 only (row 6). Step 1 left a VALID staging certificate AND a warm account, so
+#    Caddy would issue nothing — or issue without a challenge. Discard both again.
 sed -i "s|^#*ACME_CHALLENGE_MODE=.*|ACME_CHALLENGE_MODE=alpn01|" deploy/.env
-$C exec caddy rm -rf /data/caddy/certificates/acme-staging-v02.api.letsencrypt.org-directory
+$C exec -T caddy rm -rf /data/caddy/certificates/$S /data/caddy/acme/$S
 $C up -d --force-recreate caddy
-$C exec caddy caddy adapt --config /etc/caddy/Caddyfile | grep -o '"challenges":{[^}]*}'
-$C logs caddy | grep -iE "http-01|tls-alpn|obtained|certificate"
+sleep 30
+$C logs caddy --since 2m | grep -iE 'challenge_type|served key authentication|obtained successfully'
+#    Same parse as half B above; expected mirror: {"http": {"disabled": true}}
 
 # 3. Back to default, then production issuance ONCE. Storage is CA-scoped, so switching the
 #    issuer is itself what forces a fresh production certificate — no rm belongs here, and one
@@ -132,6 +157,13 @@ $C logs caddy | grep -iE "http-01|tls-alpn|obtained|certificate"
 sed -i "s|^#*ACME_CHALLENGE_MODE=.*|#ACME_CHALLENGE_MODE=both|" deploy/.env
 sed -i "s|^#*ACME_CA=.*|#ACME_CA=|" deploy/.env
 $C up -d --force-recreate caddy
+
+#    AND PROVE THE CA FROM THE RUNNING CONTAINER BEFORE READING ANY LOG. Commenting the key
+#    out means compose's default applies; that the default IS production is a fact about the
+#    compose file, not about this container. Judge the container.
+ca=$($C exec -T caddy printenv ACME_CA) || { echo "REFUSING: printenv failed"; exit 1; }
+[ "$ca" = "https://acme-v02.api.letsencrypt.org/directory" ] ||
+  { echo "REFUSING: running CA is [$ca], not production"; exit 1; }
 
 # 3b. THE END STATE IS ITS OWN MEASUREMENT (verification-log row 6b). Rows 5 and 6 prove the
 #     PROOF modes; nothing above proves the box was LEFT with both challenges live. Two ways to
@@ -152,7 +184,13 @@ $C exec -T caddy test -f /etc/caddy/challenge/both.caddy ||
 grep -q '"challenges"' <<<"$adapted" &&
   { echo "REFUSING: a challenge is disabled in the RUNNING config"; exit 1; }
 echo "OK: both challenges live"
-curl -sSI https://dev.jobbliggaren.se | head -1
+
+# 3c. THE CERTIFICATE IS ONLY PROVEN FROM OUTSIDE (verification-log row 6c). A curl on the box
+#     shares the box's trust store and resolver, so it cannot speak for a browser. Run this from
+#     the OPERATOR'S machine, and without -k — the whole point is that no flag is needed:
+#       curl -sSI https://dev.jobbliggaren.se
+#       echo | openssl s_client -connect dev.jobbliggaren.se:443 -servername dev.jobbliggaren.se
+#     Expected: no TLS error, and `Verify return code: 0 (ok)` against a public root.
 ```
 
 **Rollback is an image tag.** Pin `IMAGE_TAG=sha-<short>` in `.env` and re-run the
@@ -327,9 +365,9 @@ that came from the older one.
 |---|---|---|---|---|
 | 1 | Per-service `mem_limit`/`memswap_limit` match the ADR 0122 table | `docker inspect` | caddy 128/256 · web 640/1280 · **api 1024/1024** · **worker 1024/1024** · postgres 2560/5120 · redis 512/1024 (MiB, mem/memswap) — the six long-running services, matching ADR 0122's table. `migrate` is **512/1024 and deliberately absent from that table**: it is a one-shot that exits before the stack serves, so it is not part of the 5 888 MiB steady-state sum. `memswap_limit == mem_limit` holds on exactly two services, and the condition naming them is **ADR 0050 `Amendment 2026-08-04` §2 condition 4**, not ADR 0122 — 0122 carries the limit table, the amendment carries the normative condition | 2026-08-06 |
 | 2 | Redis runs `maxmemory` **and** `noeviction` | `redis-cli config get maxmemory*` | `maxmemory 419430400` (400 MiB) · `maxmemory-policy noeviction` — both set, which is the requirement: `noeviction` only engages when `maxmemory` is | 2026-08-06 |
-| 2b | Redis has headroom under real traffic — `noeviction` means a full instance refuses writes, and the write that fails is the session store, so it surfaces as nobody being able to log in | `redis-cli info memory` — `used_memory` against `maxmemory` | **Baseline only, and the row's own condition is unmet.** `used_memory 1.58 MiB` (and `used_memory_peak` identical) against `maxmemory 400 MiB` — 0.4 %. There is no real traffic and no session load on this box, so this measures an empty instance, not headroom. What would close the row is the same thing that closes row 19: users | 2026-08-08 (empty) |
+| 2b | Redis has headroom under real traffic — `noeviction` means a full instance refuses writes, and the write that fails is the session store, so it surfaces as nobody being able to log in | `redis-cli info memory` — `used_memory` against `maxmemory` | **Baseline only, and the row's own condition is unmet.** `used_memory 1.58 MiB` (and `used_memory_peak` identical) against `maxmemory 400 MiB` — 0.4 %. There is no real traffic and no session load on this box, so this measures an empty instance, not headroom. What would close the row is the same thing that closes row 19: users. Owned by [#1235](https://github.com/klasolsson81/jobbliggaren/issues/1235) | 2026-08-08 (empty) |
 | 2c | The K2 gate's hash is bcrypt cost 11, not the tool's default 14 — the gate pays the full hash on every WRONG password, and nothing upstream filters | `docker exec jobbliggaren-caddy printenv BASIC_AUTH_HASH \| cut -c1-7` prints `$2a$11$` and nothing more: the hash itself is offline-crackable, so do not put it in the cutover scrollback. Then time a wrong-password request against a right one | **Half measured, half owed, and the halves answer different questions.** Measured: `$2a$11$` — cost 11, not the tool default 14, so the *configured* work factor is the repaired one. **Not measured: the timing.** The cost prefix says what bcrypt was asked to do; only the wall-clock difference between a wrong and a right password says what an unauthenticated caller can make this box spend, and that is the half the amplifier concern is actually about. It needs the K2 password, so it is taken with Klas | 2026-08-06 (prefix only) |
-| 3 | Postgres steady-state RSS against the 2 560 MiB cap | cgroup `memory.peak` (which retains the high-water mark across the whole uptime, so it captures any 02:00 run without watching one) + `memory.stat` anon/file | **Steady state measured, the deciding workload NOT.** Over 2 days 7 h of uptime: `memory.peak` **151.8 MiB**, `memory.current` 138.6 MiB against a `memory.max` of 2 560 MiB — **5.9 % of the cap**, and the split is 11.8 MiB anon against 117.1 MiB file, i.e. almost entirely page cache the cgroup charges to Postgres. **But the 02:00 snapshot job does not exist yet** (#197 owns backup and is unbuilt), so the peak reflects idle operation plus one 80-migration boot, not the workload ADR 0122 called the least certain number. The headroom is large enough that this is reassurance rather than a result; the row is not closed | 2026-08-08 (idle only) |
+| 3 | Postgres steady-state RSS against the 2 560 MiB cap | cgroup `memory.peak` (which retains the high-water mark across the whole uptime, so it captures any 02:00 run without watching one) + `memory.stat` anon/file | **Steady state measured, the deciding workload NOT.** Over 2 days 7 h of uptime: `memory.peak` **151.8 MiB**, `memory.current` 138.6 MiB against a `memory.max` of 2 560 MiB — **5.9 % of the cap**, and the split is 11.8 MiB anon against 117.1 MiB file, i.e. almost entirely page cache the cgroup charges to Postgres. **But the 02:00 snapshot job does not exist yet** (#197 owns backup and is unbuilt), so the peak reflects idle operation plus one 80-migration boot, not the workload ADR 0122 called the least certain number. The headroom is large enough that this is reassurance rather than a result; the row is not closed, and [#1235](https://github.com/klasolsson81/jobbliggaren/issues/1235) owns the condition being met (it is blocked on #197 building the job) | 2026-08-08 (idle only) |
 | 4 | Postgres tuning is explicit, derived from the cap | `SHOW shared_buffers` etc. | `shared_buffers 640MB` · `effective_cache_size 1536MB` · `work_mem 8MB` · `maintenance_work_mem 192MB` · `autovacuum_work_mem 64MB` · `max_connections 60` · `max_wal_size 4GB` — every value explicit, none a default | 2026-08-06 |
 | 5 | Certificate issues over HTTP-01 with the K2 gate live (M-5a) | `ACME_CHALLENGE_MODE=http01` on staging, then **the issuance log line naming the challenge type** **and** the counterfactual that the other was off (`caddy adapt` shows `"tls-alpn":{"disabled":true}` **on the policy whose `subjects` contain `SITE_HOST`** — the adapted config carries two automation policies and a bare substring match would be satisfied by either). BOTH halves: a certificate alone can be ticked on one ALPN issued — the silent fallback this proof exists to catch — and the counterfactual alone does not survive an operator confusing `http01` with `alpn01` | **Half A:** `"msg":"trying to solve challenge","challenge_type":"http-01"`, then **five** `"served key authentication","challenge":"http-01"` lines from five Let's Encrypt validation nodes (66.133.109.36, 51.20.52.251, 3.19.55.58, 54.185.127.228, 13.229.69.141), then `certificate obtained successfully`. Those five lines are also the strongest form of the M-5a gate: **the K2 basic-auth gate does not shadow the challenge path**, proven by external validators fetching through it, not by reading the Caddyfile. **Half B:** the adapted config carries **two** automation policies; the one whose `subjects` are `["dev.jobbliggaren.se"]` carries `{"tls-alpn":{"disabled":true}}` and the other carries no `challenges` key at all — which is precisely why this instrument names the SITE_HOST policy instead of substring-matching the document | 2026-08-08 |
 | 6 | Certificate issues over TLS-ALPN-01 (the fallback path) | `ACME_CHALLENGE_MODE=alpn01` on staging; same two halves as row 5, mirrored (`"http":{"disabled":true}`) | **Half A:** `"challenge_type":"tls-alpn-01"`, then five `"served key authentication certificate","challenge":"tls-alpn-01"` lines from five validation nodes, then `certificate obtained successfully`. **Half B:** the SITE_HOST policy carries `{"http":{"disabled":true}}` — the exact mirror of row 5 | 2026-08-08 |
@@ -342,12 +380,12 @@ that came from the older one.
 | 11 | The BFF `/api/*` handlers resolve to Next (Option B) | cutover curl matrix | **9 of 12 probed**, all answered by Next with application statuses (200 health, 200 landing-stats, 400 suggest/facet-counts on missing params, 401 recent-searches, 405 on the four POST-only surfaces). No 404, no ASP.NET signature. **The three unprobed are the parameterised CV routes** — `/api/cv/[id]/preview`, `/api/cv/[id]/ats-text`, `/api/cv/parsed/[parsedId]/preview` — each needs an authenticated session plus a real CV id, so probing them is a data-bearing act, not a curl. **The 12-vs-11 discrepancy is resolved:** ADR 0050 counted 11 and was right when written; the twelfth is `/api/health`, added **2026-08-05** by this stack's own compose health check (`git log --diff-filter=A`). Enumeration: `find src/app/api -name route.ts` | 2026-08-06 |
 | 12 | `/api/v1/dev` and `/api/v1/admin/*` unreachable from outside | the edge's own structure, read on the box — not a response code | **Three structural facts, each measured on the running box:** `reverse_proxy` occurrences in the Caddyfile = **1** (a single upstream, and it is `web`); services publishing a host port = **only caddy** (80, 443); `127.0.0.1:8080` from the host = **closed**. There is no path from outside to ASP.NET. **The 307 that an earlier version of this row cited proves nothing** and is withdrawn: `/api/v1/dev`, `/api/v1/admin/jobs/recurring` and `/api/v1/auth/login` do return `307 → /logga-in`, but so do `/zzz-nonexistent-path` and `/helt-pahittad` — the redirect comes from the auth gate in `src/app/(app)/layout.tsx:42` (`if (!user) redirect("/logga-in")`), which catches every unmatched route. It was a property of unauthenticated routing, not of API reachability | 2026-08-06 |
 | 13 | `forward` keeps `policy drop` with targeted accepts (M-5b p4) | `nft list chain inet filter forward` | `policy drop` with targeted `iifname`/`oifname` accepts, each explicitly `meta nfproto ipv4`. **What that scoping does and does not buy** (measured 2026-08-08, and worth stating because the natural reading is wrong): it does **not** keep IPv6 away from the *published* ports. `userland-proxy` is unset in `/etc/docker/daemon.json`, so it defaults on, and `docker-proxy` accepts 80/443 as a host process through the `input` chain — `forward` is never traversed for them. The containment of everything else comes from those services having no host port mapping at all. Setting `userland-proxy: false` would move published traffic onto the DNAT+`forward` path and change what this row means; do not flip it without re-measuring. Dead-man discipline: backup with leading `flush ruleset` dry-run-verified loadable, 10-min revert unit armed, verified from a NEW connection, timer stopped and `journalctl` confirms it never fired | 2026-08-06 |
-| 14 | The edge's IPv6 behaviour | an external `nc -6 -vz <box-v6> 22` is the direct instrument and still needs a v6-capable client (the operator's machine has **no v6 egress** — its "Network is unreachable" measures the prober, not the box, and reading it as containment is the failure row 10's control exists to prevent). Structural instruments meanwhile: `ip -6 addr`, `nft list chain inet filter input`, `ss -tlnp6`, `docker ps` port bindings | **The box is v6-reachable in principle and exposes exactly the v4 port set — no more.** It holds a global address (`2a0a:4cc0:c2:afe5:…:8fa4/64`) though DNS publishes **no AAAA**; the host `input` chain is **family-agnostic** (`tcp dport 22 accept`, `tcp dport { 80, 443 } accept` — no `meta nfproto` scoping), so v6 is admitted on those three ports; `docker-proxy` binds `[::]:80` and `[::]:443`, so the published ports do answer over v6; and **nothing else is published to the host at all** (web 3000, api 8080, redis 6379, postgres 5432 carry no host mapping), which closes them in both families for a reason that has nothing to do with address family. The remaining external probe would confirm the mechanism, not change the exposure | 2026-08-08 |
+| 14 | The edge's IPv6 behaviour | an external `nc -6 -vz <box-v6> 22` is the direct instrument and still needs a v6-capable client (the operator's machine has **no v6 egress** — its "Network is unreachable" measures the prober, not the box, and reading it as containment is the failure row 10's control exists to prevent). Structural instruments meanwhile: `ip -6 addr`, `nft list chain inet filter input`, `ss -tlnp6`, `docker ps` port bindings | **The box is v6-reachable in principle and exposes exactly the v4 port set — no more.** It holds a global address (`2a0a:4cc0:c2:afe5:…:8fa4/64`) though DNS publishes **no AAAA**; the host `input` chain is **family-agnostic** (`tcp dport 22 accept`, `tcp dport { 80, 443 } accept` — no `meta nfproto` scoping), so v6 is admitted on those three ports; `docker-proxy` binds `[::]:80` and `[::]:443`, so the published ports do answer over v6; and **nothing else is published to the host at all** (web 3000, api 8080, redis 6379, postgres 5432 carry no host mapping), which closes them in both families for a reason that has nothing to do with address family. The remaining external probe would confirm the mechanism, not change the exposure, and is parked in [#1235](https://github.com/klasolsson81/jobbliggaren/issues/1235) | 2026-08-08 |
 | 15 | api/worker/migrate/web run as a non-root uid (`app`, `app`, `app`, `node`); postgres and redis drop privileges in their own entrypoints (`gosu` / `setpriv`); **caddy runs as root and is a named exception** — it binds 80/443 and its image sets no `USER`; every service carries `no-new-privileges` | `docker inspect -f '{{.Config.User}}'` for the declared user + **`docker top` cross-checked against `/proc/1/status`** for the uid the main process actually runs as + `docker inspect -f '{{.HostConfig.SecurityOpt}}'`. The two instruments answer different questions and the row needs both: `Config.User` is what was *declared*, `/proc/1/status` is what is *running* | api 1654 · worker 1654 · web 1000 (`node`; `docker top` prints the host name for that uid) · **postgres 999 · redis 999** (`/proc/1/status`, after their entrypoints drop) · **caddy root, the named exception** · **migrate `Config.User=app`**, exited 0 after applying 80 migrations. `no-new-privileges:true` on all six plus migrate. NOTE: `docker exec <c> id` is the WRONG instrument and is not used here — it spawns a NEW process as the container's configured user and reported root for postgres and redis | 2026-08-06 |
 | 16 | `DOTNET_gcServer=0` reaches api and worker | `docker exec ... env` | `DOTNET_gcServer=0` present in api and in worker | 2026-08-06 |
 | 17 | Swap is zram only, no disk swap (B-1) | `swapon --show` | `/dev/zram0`, 3.9 G, priority 100, 0 B used. No disk swap anywhere; `backing_dev` = `none` | 2026-08-06 |
 | 18 | Per-IP rate limiting partitions on the real client IP | two known client IPs; one exhausts the login budget, the other still authenticates; plus a spoof probe — a client-supplied `X-Forwarded-For` must not reach the partition | **The chain is closed in code** (`1d61a98a`, #1231: Next's BFF now forwards the client IP toward `api`), which retires this row's earlier text — that text said no component sends `X-Forwarded-For` and was a present-tense claim about a state two commits below this HEAD had already changed. **What is owed is the measurement, not the fix:** the two-client proof needs a second external client, so it is taken with Klas rather than from this worktree | |
-| 19 | Hot-path latency against the ADR 0045 budgets after `gcServer=0` | NBomber | | |
+| 19 | Hot-path latency against the ADR 0045 budgets after `gcServer=0` | NBomber | Not measured — needs load, and load needs users. Owned by [#1235](https://github.com/klasolsson81/jobbliggaren/issues/1235) together with rows 2b and 3, which resolve on the same trigger | |
 | 20 | Reconcile-pull runs and applies a digest change | `systemctl list-timers` + journal of a real run | | |
 
 ---

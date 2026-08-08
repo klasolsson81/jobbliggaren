@@ -42,6 +42,12 @@ public class ProvisioningLibraryDependencyTests
             .ShouldNot()
             .HaveDependencyOnAny(
                 "Npgsql",
+                // System.Data too, and it is not redundant: the csproj carries zero package and
+                // zero project references, so the SHARED FRAMEWORK is the only data-access surface
+                // reachable WITHOUT touching the csproj. An `ExecuteAsync(DbConnection, ...)`
+                // helper added here would pass a list that bans only Npgsql, while making these
+                // types execute the SQL they exist to emit.
+                "System.Data",
                 "Microsoft.EntityFrameworkCore",
                 "Hangfire",
                 "Microsoft.Extensions",

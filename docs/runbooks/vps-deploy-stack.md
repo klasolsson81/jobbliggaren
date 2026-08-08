@@ -251,7 +251,7 @@ sudo cp deploy/systemd/jobbliggaren-reconcile.{service,timer} /etc/systemd/syste
 sudo chmod 0755 deploy/systemd/jobbliggaren-reconcile.sh deploy/systemd/verify-image-attestation.sh
 sudo systemctl daemon-reload
 sudo systemctl enable --now jobbliggaren-reconcile.timer
-systemctl list-timers jobbliggaren-reconcile            # Förväntat: one entry, next at :47
+systemctl list-timers jobbliggaren-reconcile            # Expected: one entry, next at :47
 sudo systemctl start jobbliggaren-reconcile.service     # prove it runs at all, not just that it is scheduled
 journalctl -u jobbliggaren-reconcile -n 40 --no-pager
 ```
@@ -428,7 +428,7 @@ it rides real scope):
 - `compose-edge-publish-guard.test.sh`: **30 passed, 0 failed**, including
   `real_deploy_project_by_default`.
 
-**The box runs Compose v5.4.0**, a major ahead of the 2.40.3 those numbers and this file's
+**The box runs Compose v5.4.0** — three majors ahead of the 2.40.3 those numbers and this file's
 behavioural comments were measured on. No divergence has been observed in the boot sequence,
 the health-check semantics or `--force-recreate`, but the version belongs to every claim below
 that came from the older one.

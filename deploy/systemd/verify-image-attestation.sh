@@ -9,7 +9,10 @@
 # THIS TAKES A DIGEST, NEVER A TAG, AND THAT IS THE POINT. Verifying `…:latest` and then
 # letting `docker compose up` resolve `latest` again is two lookups with two possible answers —
 # the TOCTOU the tag mutability creates in the first place. The caller resolves the tag ONCE,
-# by pulling, and passes what it got (`docker image inspect --format '{{index .RepoDigests …}}'`).
+# by pulling, and passes the digest belonging to that image's OWN repository — never simply
+# `{{index .RepoDigests 0}}`, because an image id can carry several and index 0 is not a
+# contract. `jobbliggaren-reconcile.sh` is the reference caller and refuses on zero or
+# on two distinct digests for the same repository.
 #
 # WHY cosign AND NOT `gh attestation verify` (senior-cto-advisor, 2026-08-08). Debian 13 ships
 # cosign 2.5.0, which is exactly the version that introduced `--new-bundle-format`, and apt
@@ -71,7 +74,9 @@ case "$REF" in
   *@sha256:*) ;;
   *)
     echo "::error::verify-image-attestation: not a digest reference: $REF" >&2
-    echo "  Resolve the tag once (docker image inspect --format '{{index .RepoDigests 0}}')" >&2
+    echo "  Resolve the tag once and pass the digest for THIS repository — e.g." >&2
+    echo "    docker image inspect --format '{{range .RepoDigests}}{{println .}}{{end}}' <image> | grep '^<repo>@'" >&2
+    echo "  and refuse unless exactly one matches; index 0 is not a contract." >&2
     echo "  and pass the result. Verifying a tag and then applying it is a TOCTOU." >&2
     exit 2
     ;;

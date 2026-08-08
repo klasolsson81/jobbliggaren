@@ -1,3 +1,4 @@
+using System.Linq;
 using Amazon;
 using Amazon.Runtime;
 using Amazon.SimpleEmailV2;
@@ -40,7 +41,7 @@ internal static class SesClientRegistration
         {
             // Explicit ALWAYS. The parameterless config walks the SDK's default region chain, which
             // on a box without IMDS can also stall while it tries.
-            RegionEndpoint = RegionEndpoint.GetBySystemName(region),
+            RegionEndpoint = ResolveKnownRegion(region),
 
             // MaxErrorRetry = 0 (senior-cto-advisor bind 2, 2026-08-08). SES v2 SendEmail has NO
             // idempotency parameter — no ClientToken, no dedup (measured against the API reference
@@ -62,5 +63,48 @@ internal static class SesClientRegistration
             _ => new AmazonSimpleEmailServiceV2Client(credentials, config));
 
         return services;
+    }
+
+    /// <summary>
+    /// Resolves a region name that the SDK actually knows, and throws otherwise.
+    /// <para>
+    /// <b>`GetBySystemName` alone is fail-OPEN, measured 2026-08-08.</b> It does not throw on an
+    /// unknown name: it SYNTHESISES an endpoint, so the typo `eu-nrth-1` returned
+    /// <c>SystemName='eu-nrth-1' DisplayName='Unknown'</c> and passed every guard the arm had —
+    /// the null check, the <c>[Required]</c> attribute, and the endpoint construction. Nothing
+    /// failed until the first real send, in production, after a deploy.
+    /// </para>
+    /// <para>
+    /// <b>And the obvious repair is ALSO fail-open, for a reason worth writing down.</b> Checking
+    /// membership of <see cref="RegionEndpoint.EnumerableAllRegions"/> *after* calling
+    /// <c>GetBySystemName</c> always succeeds, because that call REGISTERS the synthesised region
+    /// into the enumeration as a side effect. Measured: the collection held 47 entries before
+    /// <c>GetBySystemName("totally-bogus")</c> and 48 after, with the bogus name among them. The
+    /// membership test is therefore only meaningful BEFORE the endpoint is ever resolved, which is
+    /// why the order below is load-bearing rather than stylistic.
+    /// </para>
+    /// <para>
+    /// This checks that the region EXISTS. Whether it is an ACCEPTABLE region — i.e. whether a
+    /// non-EU value should be refused outright as a data-residency guard — is a `security-auditor`
+    /// question tied to the open Chapter V assessment (#1169, ADR 0124), and is deliberately not
+    /// decided here.
+    /// </para>
+    /// </summary>
+    private static RegionEndpoint ResolveKnownRegion(string region)
+    {
+        var known = RegionEndpoint.EnumerableAllRegions.Any(r =>
+            string.Equals(r.SystemName, region, StringComparison.Ordinal));
+
+        if (!known)
+        {
+            throw new InvalidOperationException(
+                $"Email:Ses:Region='{region}' är ingen känd AWS-region. Kontrollera stavningen "
+                + "(t.ex. 'eu-north-1'). SDK:ns RegionEndpoint.GetBySystemName KASTAR INTE på ett "
+                + "okänt namn — den syntetiserar en endpoint med DisplayName='Unknown', så utan "
+                + "den här kontrollen skulle en felstavning passera DI och falla först vid första "
+                + "utskicket i drift (mätt 2026-08-08, ADR 0124).");
+        }
+
+        return RegionEndpoint.GetBySystemName(region);
     }
 }

@@ -29,6 +29,13 @@ set -euo pipefail
 readonly SECRETS_DIR=/run/jobbliggaren/secrets
 readonly COMPOSE_FILE=/opt/jobbliggaren/deploy/docker-compose.yml
 
+# A SECOND DIRECTORY, FOR SECRETS NO CONTAINER MAY SEE (#197). SECRETS_DIR is bind-mounted
+# read-only into api and worker; this one is mounted nowhere, stays 0700 root:root, and holds
+# what only a host-side root process reads — today the backup upload credential. See
+# jobbliggaren-tmpfiles.conf for why the separation is structural rather than a mode bit.
+readonly HOST_SECRETS_DIR=/run/jobbliggaren/host-secrets
+readonly HOST_DIR_MODE=0700
+
 # The directory mode the running stack needs: root owns it, the container's group may traverse
 # but not list. /etc/tmpfiles.d/jobbliggaren.conf creates it 0700 root:root at boot (correct
 # posture before injection) and marks mode/owner create-only, so a later `systemd-tmpfiles
@@ -43,6 +50,14 @@ readonly -a SECRET_KEYS=(
   "AuditPseudonymization__PepperBase64"
   "CompanyWatchPseudonymization__PepperBase64"
   "CvReviewFingerprintPseudonymization__PepperBase64"
+)
+
+# The host-only secrets. Same one-row-per-secret contract as SECRET_KEYS above, different
+# destination — and the name is NOT a .NET configuration key, because no .NET process reads
+# these. jobbliggaren-backup.sh names the file it wants; the `__` spelling is kept only so the
+# two directories read alike to an operator.
+readonly -a HOST_SECRET_KEYS=(
+  "Backup__RcloneConfigBase64"
 )
 
 # Not a secret: the key identity, stamped into user_data_keys.cmk_key_id and read by the
@@ -106,6 +121,23 @@ if [[ "${1:-}" == "--check" ]]; then
     fi
   done
 
+  # The host-only directory is checked by the same loop rather than by a second predicate, so a
+  # new entry in either array is covered the moment it is added — which is what makes "adding a
+  # secret here is the whole change on the host side" true of both destinations. Its absence is
+  # a different severity from a missing master key (the stack still serves; only the nightly
+  # backup stops), and the message says so instead of leaving an operator to infer it.
+  if [[ ! -d "$HOST_SECRETS_DIR" ]]; then
+    log "MISSING: $HOST_SECRETS_DIR (directory does not exist)"
+    missing=1
+  fi
+  for key in "${HOST_SECRET_KEYS[@]}"; do
+    if ! has_usable_content "${HOST_SECRETS_DIR}/${key}"; then
+      log "MISSING: ${HOST_SECRETS_DIR}/${key} — the stack still serves, but the nightly backup"
+      log "         cannot upload (#197). jobbliggaren-backup.service will refuse."
+      missing=1
+    fi
+  done
+
   if [[ $missing -ne 0 ]]; then
     log "The box has booted without usable crypto secrets. api and worker are crash-looping"
     log "by design (fail-closed, never a fallback key). Inject with:"
@@ -154,16 +186,20 @@ log "container runtime ids measured from the api image: uid=${uid} gid=${gid}"
 
 install -d -m "$DIR_MODE" -o root -g "$gid" "$SECRETS_DIR"
 
+# Destination and owner are parameters rather than globals: the two directories have different
+# readers (a container process vs a host root process) and therefore different owners, and a
+# single function that knew only one of them would have needed a second copy of the same careful
+# install/printf sequence.
 write_secret() {
-  local name="$1" value="$2" path="${SECRETS_DIR}/$1"
+  local dir="$1" owner_uid="$2" owner_gid="$3" name="$4" value="$5" path="$1/$4"
   # Created 0400 from the outset. A plain redirect would create the file under root's umask
   # (typically 0644) and only narrow it afterwards; the parent's 0710 closes that window in
   # practice, but the class is removable rather than merely bounded.
-  install -m 0400 -o "$uid" -g "$gid" /dev/null "$path"
+  install -m 0400 -o "$owner_uid" -g "$owner_gid" /dev/null "$path"
   # printf '%s' — no trailing newline is written at all. The reader trims as a backstop, but
   # writing exactly the bytes intended is the control; relying on the backstop is not.
   printf '%s' "$value" > "$path"
-  log "wrote ${name} (${#value} chars, mode 0400, owner ${uid}:${gid})"
+  log "wrote ${name} (${#value} chars, mode 0400, owner ${owner_uid}:${owner_gid})"
 }
 
 # THE KEY IDENTITY IS WRITTEN FIRST, AND IT IS BOUND TO THE MASTER KEY'S PRESENCE.
@@ -197,7 +233,7 @@ if ! has_usable_content "$master_key_file"; then
   fi
   [[ "$key_id" =~ ^[A-Za-z0-9._-]+$ ]] || die "key identity must match [A-Za-z0-9._-]+, got '${key_id}'"
   rm -f "$key_id_path"
-  write_secret "$KEY_ID_FILE" "$key_id"
+  write_secret "$SECRETS_DIR" "$uid" "$gid" "$KEY_ID_FILE" "$key_id"
 else
   log "${KEY_ID_FILE} already present ($(cat "$key_id_path")) — master key unchanged, identity kept"
 fi
@@ -226,7 +262,39 @@ complete one"
       || die "${key} must decode to 32 bytes (AES-256), got ${decoded_len}"
   fi
 
-  write_secret "$key" "$value"
+  write_secret "$SECRETS_DIR" "$uid" "$gid" "$key" "$value"
+  unset value
+done
+
+# ---------------------------------------------------------------------------------------------
+# The host-only secrets (#197). Same prompt discipline, different destination and a root owner:
+# nothing in a container may read these, and the directory they land in is mounted nowhere.
+# ---------------------------------------------------------------------------------------------
+install -d -m "$HOST_DIR_MODE" -o root -g root "$HOST_SECRETS_DIR"
+
+for key in "${HOST_SECRET_KEYS[@]}"; do
+  if has_usable_content "${HOST_SECRETS_DIR}/${key}"; then
+    log "${key} already present — skipping (remove the file first to replace it)"
+    continue
+  fi
+
+  printf 'Value for %s (host-only, no container reads it): ' "$key" >&2
+  read -rs value
+  printf '\n' >&2
+  [[ -n "${value//[[:space:]]/}" ]] || die "${key} was empty or whitespace-only — nothing
+written, and the run is aborted so a partially injected directory is never mistaken for a
+complete one"
+
+  # The rclone credential is the base64 of a complete rclone config file. Catching a paste of
+  # the RAW config here turns a nightly unit failure — noticed a day later, if at all — into an
+  # immediate error with the operator still at the keyboard.
+  if [[ "$key" == "Backup__RcloneConfigBase64" ]]; then
+    printf '%s' "$value" | base64 -d > /dev/null 2>&1 \
+      || die "${key} is not valid base64. It is the base64 OF an rclone config file, not the
+config itself: produce it with  base64 -w0 < rclone.conf"
+  fi
+
+  write_secret "$HOST_SECRETS_DIR" root root "$key" "$value"
   unset value
 done
 

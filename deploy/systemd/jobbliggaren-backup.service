@@ -1,0 +1,65 @@
+[Unit]
+# #197 / ADR 0050 gate M-4 — the nightly encrypted offsite backup.
+#
+# WHAT IT PRODUCES: two artefacts. A main dump carrying every table except the CONTENTS of
+# user_data_keys, and a DEK dump carrying exactly those contents, of which one verified
+# generation is retained. A restore pairs any main artefact inside the retention window with the
+# current DEK artefact — so a user hard-deleted since that main artefact was taken has no key
+# anywhere in what we hold. A single full dump would carry the wrapped DEK beside the ciphertext
+# it unwraps, which is what makes ADR 0049 Beslut 2's crypto-erasure claim, and the sentence
+# published to users in content-legal.json, true or false (senior-cto-advisor bind 2026-08-09).
+#
+# WHY IT IS A HOST UNIT AND NOT A COMPOSE SERVICE. A container able to do this needs pg_dump,
+# age and rclone in one image: either a third-party image, which jobbliggaren-reconcile.sh's
+# UPSTREAM_ALLOWLIST exists to refuse, or a sixth image of our own through release-images.yml
+# with Trivy and attestation. Neither is proportionate to a job that talks to a local docker
+# socket and one endpoint, and #198 already established the host-script shape on this box.
+#
+# NO CREDENTIAL REACHES A CONTAINER. The upload credential lives on /run/jobbliggaren/host-secrets,
+# which — unlike /run/jobbliggaren/secrets — is bind-mounted nowhere. An RCE in the API therefore
+# cannot read it, and the box's write access to the backups is not reachable from the application.
+Description=Jobbliggaren: nightly encrypted offsite database backup
+Documentation=https://github.com/klasolsson81/jobbliggaren/blob/main/docs/runbooks/backup-restore.md
+Requires=docker.service
+After=docker.service network-online.target
+# Without this `Wants=`, the `After=` above is inert: ordering against network-online.target does
+# nothing unless something pulls the target into the transaction, and this unit uploads.
+Wants=network-online.target
+
+# THE CATCH-UP RUN THE TIMER'S Persistent=true PROMISES CANNOT SUCCEED ON THIS BOX WITHOUT THIS
+# LINE. The upload credential lives on tmpfs and is gone after every boot until an operator
+# re-injects it — which is this box's designed operating model, not an edge case. A boot-time
+# catch-up would therefore reach the credential check and exit 2, and the unit would sit LATCHED
+# in `systemctl --failed` until the next 02:15, even after the operator injected — while
+# jobbliggaren-backup-fresh.service simultaneously reported the backup fresh, because the stamp
+# is younger than 26 h. The box's only alarm surface would be showing a fault that no longer
+# exists, and this repo's own doctrine on that is explicit: an alarm that is always lit is worse
+# than no alarm (jobbliggaren-secrets-present.timer).
+#
+# A failed Condition makes systemd SKIP the unit — inactive, logged, not failed. Nothing is lost:
+# a missing credential is already alarmed by jobbliggaren-secrets-present.service via its
+# HOST_SECRET_KEYS loop, and a genuinely missed backup is caught by the 26 h freshness threshold.
+ConditionPathExists=/run/jobbliggaren/host-secrets/Backup__RcloneConfigBase64
+
+[Service]
+Type=oneshot
+
+# One process for the whole run. The lock (flock inside the script) has to span dump, upload and
+# the DEK promotion; an ExecStartPre-held lock would be released before ExecStart began — the
+# defect jobbliggaren-reconcile.service already carries the note about.
+ExecStart=/opt/jobbliggaren/deploy/systemd/jobbliggaren-backup.sh
+
+# Sized against the dominant cost, which is the upload rather than the dump: the migrate
+# container applied 80 migrations in 3.2 s on this box (2026-08-05), so Postgres is not what this
+# protects. A slow-but-working uplink is exactly the case that must not be cut off mid-run, and
+# 3600 s still finishes long before the next night.
+TimeoutStartSec=3600
+
+# A failed night self-heals on the next one, and the freshness probe puts a run of failures on
+# `systemctl --failed` within the hour. Retrying here would hold the lock and bury the first,
+# most informative failure under identical repeats.
+Restart=no
+
+# NO [Install] SECTION — the timer carries the only one, the same discipline as
+# jobbliggaren-reconcile.service. `WantedBy=multi-user.target` here would additionally take a
+# backup at every boot as a side effect of enabling.

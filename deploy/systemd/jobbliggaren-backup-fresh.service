@@ -1,0 +1,28 @@
+[Unit]
+# #197 — STALENESS detection for the nightly backup.
+#
+# WHY IT EXISTS AS A SEPARATE UNIT. jobbliggaren-backup.service failing puts itself on
+# `systemctl --failed`, so a single bad night is already visible. What is NOT visible is the
+# unit that stopped being triggered at all — a disabled or masked timer, a clock that never
+# reached 02:15, an operator who ran `systemctl stop` and forgot. In every one of those the
+# backup service is not failed; it is simply absent, and absence is what no failure list shows.
+# The same argument, and the same shape, as jobbliggaren-secrets-present.service for the keys.
+#
+# WHAT IT MEASURES, AND WHAT IT DOES NOT. It reads one mtime: "the nightly run last succeeded
+# within 26 hours". It deliberately does not talk to the remote, because a probe that listed
+# objects could report health from an OLD artefact that is still sitting there. And it cannot
+# establish that anything DECRYPTS — the box holds no private key by design. That claim belongs
+# to the restore drill and to nothing on this machine.
+Description=Jobbliggaren: verify the nightly backup is not stale
+Documentation=https://github.com/klasolsson81/jobbliggaren/blob/main/docs/runbooks/backup-restore.md
+
+[Service]
+Type=oneshot
+# --check stats one file and never touches docker or the network, so it is safe at boot before
+# dockerd and cheap enough to run hourly.
+ExecStart=/opt/jobbliggaren/deploy/systemd/jobbliggaren-backup.sh --check
+# Self-clearing: the next successful backup writes the stamp, and the following run of this unit
+# exits 0 and takes it off `systemctl --failed` with no operator action.
+RemainAfterExit=no
+
+# NO [Install] SECTION — the timer enables this pair.

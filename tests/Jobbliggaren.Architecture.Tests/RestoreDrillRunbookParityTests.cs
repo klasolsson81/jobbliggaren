@@ -109,12 +109,13 @@ public partial class RestoreDrillRunbookParityTests
         // INVERTED on purpose: every psql INVOCATION except the single-statement forms. Listing
         // the feeding forms instead (-f, <<) let `psql < script.sql` and `cat … | psql` fall
         // silently outside, and the non-empty guard cannot see a shortfall while other carriers
-        // remain. Anchored on `psql -U ` rather than on `psql`, because the drill is C# and a bare
+        // remain. Anchored on `psql -` rather than on `psql`, because the drill is C# and a bare
         // substring also matches identifiers and prose — measured: `psqlStdout` made four
         // non-command lines carriers, so the first inverted draft over-reached exactly as far as
-        // the original under-reached.
+        // the original under-reached. `psql -` and not `psql -U `: the user can come from PGUSER,
+        // and an anchor that requires a flag we happen to pass today is the same under-reach again.
         ("a psql invocation that is not a single statement",
-            line => line.Contains("psql -U ", StringComparison.Ordinal)
+            line => line.Contains("psql -", StringComparison.Ordinal)
                     && !line.Contains(" -c ", StringComparison.Ordinal)
                     && !line.Contains(" -tAc ", StringComparison.Ordinal),
             "-v ON_ERROR_STOP=1",

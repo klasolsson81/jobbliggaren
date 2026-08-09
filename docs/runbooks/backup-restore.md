@@ -13,11 +13,15 @@ ADR 0050 `Amendment 2026-08-04` §7 is the binding requirement set).
 >
 > **What is now observed rather than derived:** steps 3 to 7 run in CI against a real
 > `postgres:18` pair, on the real migrated schema, over dumps the mechanism's own `pg_dump`
-> invocations produce — `BackupRestoreDrillTests` (#197 PR-2). The commands below are the strings
-> that test executes; it does not paraphrase them, and a change to either side that the other
-> does not follow fails `RestoreDrillRunbookParityTests`. So the *semantics* are no longer a
-> hypothesis: a user erased after a main artefact was taken restores with ciphertext and no key,
-> the survivor decrypts, and the staging table's necessity is measured rather than asserted.
+> invocations produce — `BackupRestoreDrillTests` (#197 PR-2). **Most** commands below are the
+> strings that test executes; the four it does not type verbatim are named in its own docblock,
+> and `RestoreDrillRunbookParityTests` holds a **fixed set of load-bearing properties** across the
+> two files rather than every divergence — its own docblock says two files can satisfy every rule
+> and still differ. Four semantics are measured: a user erased after a main artefact was taken
+> restores with ciphertext and no key, the survivor decrypts, the staging table's necessity, and
+> (b2)'s inability to distinguish erasure from a reversed pairing. **Step 7 is proven over a
+> superuser connection only** — its privilege axis is unproven and is
+> [#1286](https://github.com/klasolsson81/jobbliggaren/issues/1286).
 >
 > **What is still entirely underived:** every step's behaviour against a **real artefact from the
 > real target** — the fetch, the `age` decryption, the private key, the object names, the pairing
@@ -278,7 +282,7 @@ at all: "exactly one generation" is achieved by overwrite.
 
 ## 5. Restore
 
-> **Read the §0 note first: this procedure has not been executed.**
+> **Read the §0 note first: it says which half of this procedure is executed and which is not.**
 
 **What you need, and where.** The two artefacts may be fetched anywhere — they are ciphertext.
 The **decryption must happen on the machine holding the age private key, and that machine is

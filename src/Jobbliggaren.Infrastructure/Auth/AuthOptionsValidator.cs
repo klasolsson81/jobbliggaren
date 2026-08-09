@@ -46,9 +46,10 @@ namespace Jobbliggaren.Infrastructure.Auth;
 /// </para>
 /// <para>
 /// <b>Why the dependency resolves here and why the Worker is untouched.</b> This validator is
-/// registered in <c>AddIdentityAndSessions</c>, which is reached only through a composition that
-/// also calls <c>AddEmailSender</c>, so wherever this type resolves, an <see cref="IEmailSender"/>
-/// does — and where that ever stops being true it fails LOUD, on an unresolvable constructor
+/// registered in <c>AddIdentityAndSessions</c>, which every HOST composition reaches together with
+/// <c>AddEmailSender</c>, so wherever this type resolves, an <see cref="IEmailSender"/>
+/// does. (One test calls that module alone, to pin the registration; it never resolves the
+/// validator.) Where the pairing ever stops holding it fails LOUD, on an unresolvable constructor
 /// argument at boot, never on a silently open gate. <c>ProductionStartupSmokeTests</c> boots a real
 /// Production host with the real <c>NullEmailSender</c>, so the construction is pinned rather than
 /// argued. Re-measure the composition with:

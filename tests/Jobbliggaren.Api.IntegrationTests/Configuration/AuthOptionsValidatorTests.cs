@@ -39,9 +39,11 @@ public class AuthOptionsValidatorTests
     /// <summary>
     /// A sender that delivers. Rule 2 keys on <see cref="IEmailSender.CanDeliver"/>, so every case
     /// that is NOT about delivery has to hold it fixed at the value the real delivering adapters
-    /// emit; otherwise a rule-1 assertion could pass for rule 2's reason. That the real adapters do
-    /// emit <see langword="true"/> is pinned elsewhere and not restated here —
-    /// <c>AddEmailSenderGateTests.AddEmailSender_InDevelopmentOrTest_CanDeliver</c> owns it.
+    /// emit; otherwise a rule-1 assertion could pass for rule 2's reason. That the Dev/Test default
+    /// answers <see langword="true"/> is pinned elsewhere and not restated here —
+    /// <c>AddEmailSenderGateTests.AddEmailSender_InDevelopmentOrTest_CanDeliver</c> owns that one
+    /// clause; the Ses arm and the throwing arms have their own pins in the same file and in
+    /// <c>SesEmailProviderGateTests</c>.
     /// </summary>
     private static IEmailSender DeliveringSender()
     {
@@ -205,7 +207,9 @@ public class AuthOptionsValidatorTests
             new ConfigurationBuilder()
                 .AddInMemoryCollection(new Dictionary<string, string?>
                 {
-                    // Both composition methods read these at registration time and throw without them.
+                    // Read at registration time, and absence throws: Postgres by both identity
+                    // modules, Redis by AddIdentityAndSessions alone. One dictionary for all three
+                    // tests, so the only difference between them is which method is called.
                     ["ConnectionStrings:Postgres"] = "Host=localhost;Database=jobbliggaren;Username=x;Password=y",
                     ["ConnectionStrings:Redis"] = "localhost:6379",
                     [$"{AuthOptions.SectionName}:{nameof(AuthOptions.RegistrationsOpen)}"] = "true",

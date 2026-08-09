@@ -1298,13 +1298,21 @@ permanent infra aktiveras; listan nedan speglar **beslutad** uppsättning, ADR 0
   påstående om den är det inte. ⚠ **Inget Art. 28-avtal är tecknat** — netcups AVV gäller **inte**
   automatiskt utan sluts i Customer Control Panel, och den mätningen får aldrig generaliseras från
   AWS GDPR-DPA:t. Grind: `release-checklist.md` §2.6 punkt 3 (**Klas**, aldrig CC).
-- Backup: mål **inte valt** — ägs av [#197](https://github.com/klasolsson81/jobbliggaren/issues/197)
-  (Hetzner-EU Storage Box föll med värdbytet). **Det här är kravens enda hem.** Kraven består
-  oförändrade: klient-side age-kryptering före upload oavsett mål · EU-jurisdiktion ·
-  retention/rotation **30 dagar** (Klas-beslut K4) · testad restore-drill · ett mål vars **feldomän
-  är oberoende av både lådan och operatörens arbetsstation** · och age-**privatnyckeln** aldrig
-  lagrad tillsammans med ciphertexten (de två sista: `security-auditor` 2026-08-09, ur ADR 0050
-  `Amendment 2026-08-04` §7).
+- Backup: **mekanismen är byggd, målet är inte upphandlat** — ägs av
+  [#197](https://github.com/klasolsson81/jobbliggaren/issues/197) (Hetzner-EU Storage Box föll med
+  värdbytet). **Det här är kravens enda hem.** Kraven består oförändrade: klient-side
+  age-kryptering före upload oavsett mål · EU-jurisdiktion · retention/rotation **30 dagar**
+  (Klas-beslut K4) · testad restore-drill · ett mål vars **feldomän är oberoende av både lådan och
+  operatörens arbetsstation** · och age-**privatnyckeln** aldrig lagrad tillsammans med
+  ciphertexten (de två sista: `security-auditor` 2026-08-09, ur ADR 0050 `Amendment 2026-08-04`
+  §7). **ADR 0125 (2026-08-09) urladdar dem** med en nattlig splittad dump — huvudartefakt utan
+  `user_data_keys`-innehåll plus en separat DEK-artefakt — och binder ett **kravprofil-mål**
+  (S3-kompatibelt, server-side lifecycle, credential utan `DELETE`, EU, **annan leverantör OCH
+  annat konto än Netcup**). **Klas väljer och tecknar**; interimsmålet är hans arbetsstation, som
+  security-auditor godkänt endast så länge lådan saknar riktig data. Procedur:
+  `docs/runbooks/backup-restore.md`. **Två grindar kvar och båda är Klas:** upphandlingen med sitt
+  Art. 28-avtal, och **escrow av age-privatnyckeln** — en backup vars nyckel inte är escrowad är
+  ingen backup (samma grind som masternyckelns, `vps-deploy-stack.md` §5 rad 26 respektive 32).
 - DNS / CDN / proxy: **utgår helt** (Klas-beslut K3 2026-08-04, ADR 0050 `Amendment 2026-08-04` §3).
   Ingen CDN, ingen edge-proxy; Caddy terminerar TLS direkt mot Let's Encrypt och DNS ligger hos
   Strato. **Strato är inte ett personuppgiftsbiträde:** en auktoritativ DNS-operatör publicerar vår
@@ -1533,10 +1541,11 @@ får inte "rättas" mot gate M-5:s ursprungstext.** M-5 är pensionerad på plat
 faktiskt emitterad i Production, bevisad på det **oautentiserade 401-svaret**) + **M-5b**; se
 ADR 0050 `Amendment 2026-08-04` §5.
 
-**Backup — mål inte valt, ägs av [#197](https://github.com/klasolsson81/jobbliggaren/issues/197).**
-Hetzner-EU Storage Box föll med värdbytet och har ingen ersättare. **Kraven räknas inte upp här —
-de har ett enda hem, §13.4:s backup-post**, och en andra uppräkning hade blivit ett andra hem som
-ruttnar isär från det första. Backups ligger INTE på lådans disk. **Cloudflare R2 är fortsatt
+**Backup — mekanismen levererad (ADR 0125), målet inte upphandlat; ägs av
+[#197](https://github.com/klasolsson81/jobbliggaren/issues/197).** Hetzner-EU Storage Box föll med
+värdbytet; ersättaren är bunden som **kravprofil**, inte som leverantör. **Kraven räknas inte upp
+här — de har ett enda hem, §13.4:s backup-post**, och en andra uppräkning hade blivit ett andra hem
+som ruttnar isär från det första. Backups ligger INTE på lådans disk. **Cloudflare R2 är fortsatt
 avvisat pga CLOUD Act-tredjelandsöverföring av icke-krypterad `pg_dump`-PII** — den meningen står
 kvar med avsikt: den är den tillämpade standard som gör §13.4:s AWS-SCC-redovisning icke-selektiv
 (Art. 5(2)), och en standard som tillämpas selektivt är ingen standard.

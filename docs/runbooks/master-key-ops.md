@@ -246,15 +246,36 @@ the damage unrecoverable.
 7. **Read an encrypted field through the app.** A health probe decrypts nothing, and this is the
    box half of the gate ADR 0049 §5 names — the CI half is
    `Rewrap_FieldCiphertextStillDecrypts`.
-8. **Only after step 7 succeeds:** `sudo rm -f /run/jobbliggaren/secrets/OLD_KEY`.
+8. **Take a fresh backup and verify it landed, BEFORE step 9 destroys `OLD_KEY` (#197).**
 
-   > **If step 5 or step 7 fails, STOP and do NOT remove `OLD_KEY`.** It is the only way back:
+   ```bash
+   sudo systemctl start jobbliggaren-backup.service
+   journalctl -u jobbliggaren-backup.service -n 30    # expect a promoted DEK generation
+   ```
+
+   > **Every offsite DEK artefact taken before this rotation becomes unreadable the moment
+   > `OLD_KEY` dies.** The re-wrap rewrites `wrapped_dek` in place, so the DEK artefacts already
+   > offsite are wrapped under the retiring key and nothing else can open them. Skip this step
+   > and the 30-day window collapses to whatever this rotation produces next — the retained main
+   > artefacts survive, but there is no key generation that pairs with them until the next
+   > nightly run, and if THAT run fails there is none at all.
+   >
+   > Main artefacts are unaffected: they carry no keys. That asymmetry is why ADR 0125 splits
+   > the dump — a single full dump would have made every pre-rotation artefact unrestorable
+   > here, i.e. the entire retention window, once a year, by design.
+   >
+   > `dek_version` is untouched by a rotation, so the new DEK artefact pairs with **any**
+   > retained main artefact, not only ones taken after it.
+
+9. **Only after steps 7 and 8 succeed:** `sudo rm -f /run/jobbliggaren/secrets/OLD_KEY`.
+
+   > **If step 5, 7 or 8 fails, STOP and do NOT remove `OLD_KEY`.** It is the only way back:
    > step 4 already replaced the live key, so rows still wrapped under the retiring key can be
    > reached through nothing else. The re-wrap tool's own post-commit message says to re-run
    > rather than restore the old key — and re-running reads `OLD_KEY`.
 
-9. `sudo systemctl start jobbliggaren-secrets-present.timer` if it was stopped, and re-arm the
-   reconcile timer.
+10. `sudo systemctl start jobbliggaren-secrets-present.timer` if it was stopped, and re-arm the
+    reconcile timer.
 
 ---
 
@@ -282,10 +303,15 @@ procedure here will help.
   under this model every illegitimate read of the tmpfs file is by construction a root action
   — a subset of host root-activity detection, which ADR 0050:574 assigns to #196/#1201. The
   disposition is recorded on [#1201](https://github.com/klasolsson81/jobbliggaren/issues/1201).
-- **Backup encryption.** [#197](https://github.com/klasolsson81/jobbliggaren/issues/197) — its
-  acceptance criterion says the backup key is "handled like the master key", so it consumes
-  this model rather than rebuilding one. Its age identity must be a **different** identity
-  that never sits on the box.
+- **Backup encryption.** [`backup-restore.md`](backup-restore.md) (#197, ADR 0125). It consumed
+  this model rather than rebuilding one, and the shape it took is worth knowing here: the
+  **upload credential** rides the injection script, in a sibling directory
+  (`/run/jobbliggaren/host-secrets`) that is mounted into no container — but the **age identity
+  never reaches this box at all**. The box holds only the public recipient, so there is nothing
+  to inject, nothing to escrow *here*, and nothing to steal that would read a backup.
+  §4 step 8 is the one place the two runbooks are coupled, and it is a data-loss guard: a
+  rotation makes every offsite DEK artefact unreadable, so a fresh verified backup must land
+  before `OLD_KEY` is destroyed.
 - **The database and edge credentials.** `POSTGRES_*` and `BASIC_AUTH_HASH` stay in
   `deploy/.env`. They are **not** B-1 subjects, and moving them is deliberately out of scope
   here — a named non-goal, not an oversight.

@@ -126,10 +126,8 @@ Do not edit any file. An edit is a content push, and a content push strips
 agents-done (CLAUDE.md §6) — it tears down the gate you were invoked to close.
 ```
 
-Nothing is fixed in-block *during* a re-check — every in-block fix invalidates the
-check just run. What the re-check raises is routed per §9.6, and a **new-in-delta
-Blocker/Major** is fixed and then **re-checked again against the new delta**: §6
-and §12 make it merge-blocking, so it cannot be carried past the label.
+What the re-check raises is routed by §9.6, including its rule for a new-in-delta
+Blocker/Major. Nothing is fixed in-block *during* a re-check — §9.6.
 
 ---
 

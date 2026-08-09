@@ -5,7 +5,7 @@
       "description": "Hur Jobbliggaren behandlar dina personuppgifter: ändamål, laglig grund, lagringstid, dina rättigheter och säkerhet. Ingen spårning och ingen AI."
     },
     "title": "Integritetspolicy",
-    "updated": "Senast uppdaterad: 2026-07-26",
+    "updated": "Senast uppdaterad: 2026-08-09",
     "intro": "Den här integritetspolicyn beskriver hur Jobbliggaren behandlar dina personuppgifter, varför, med vilken laglig grund och hur länge. Här finns också dina rättigheter och hur du använder dem. Jobbliggaren är en kostnadsfri tjänst som hjälper dig att hitta och hålla ordning på dina jobbansökningar, byggd på öppna data om lediga jobb från Arbetsförmedlingens JobTech (Platsbanken).",
     "sections": [
       {
@@ -60,7 +60,7 @@
         "heading": "Bevakningsnotiser i bakgrunden (laglig grund: samtycke)",
         "paragraphs": [
           "Om du vill kan du slå på notiser om nya jobb som matchar dina önskemål. Den behandlingen sker bara om du själv aktivt slår på den. Den rättsliga grunden är ditt samtycke (artikel 6.1 a). Funktionen är avstängd som standard. Slår du på den sparar vi en uppgift om att och när du lämnade ditt samtycke, så att vi kan visa att behandlingen är laglig.",
-          "Notiserna planeras att skickas med e-post till adressen du har på ditt konto, och levereras då av Resend, Inc. i USA. Vad det innebär för dina uppgifter står i avsnitten Mottagare av uppgifter och Överföring till tredje land nedan. Detta är planerat och ännu inte i drift.",
+          "Notiserna planeras att skickas med e-post till adressen du har på ditt konto, och levereras då av Amazon Web Services EMEA SARL i Luxemburg, som behandlar e-posten i Stockholm inom EU. Koncernmodern är amerikansk, så en överföring till tredje land kan ske, och den vilar då på EU-kommissionens standardavtalsklausuler. Vad det innebär för dina uppgifter står i avsnitten Mottagare av uppgifter och Överföring till tredje land nedan. Detta är planerat och ännu inte i drift.",
           "Du kan när som helst återkalla ditt samtycke genom att stänga av notiserna i dina inställningar. Då upphör vi att skicka dem. Att du återkallar samtycket påverkar inte att behandlingen var laglig innan du återkallade det."
         ]
       },
@@ -70,8 +70,8 @@
           "Jobbliggaren säljer aldrig dina uppgifter och delar dem inte för marknadsföring. För att kunna drifta tjänsten anlitar vi vissa leverantörer som behandlar uppgifter för vår räkning (personuppgiftsbiträden). Med dem har vi personuppgiftsbiträdesavtal.",
           "Arbetsförmedlingens JobTech (Platsbanken) är vår källa för öppna data om lediga jobb, inte en mottagare av dina personuppgifter. Vi skickar inga uppgifter om dig till JobTech.",
           "Statistiska centralbyrån (SCB) planeras att ta emot de organisationsnummer som slås upp i företagssöket: när du söker på ett organisationsnummer skickas det till SCB:s företagsregister för att hämta företagets namn. SCB är en självständig myndighet med eget personuppgiftsansvar för sitt register och är inte vårt personuppgiftsbiträde. Detta är planerat och ännu inte i drift.",
-          "Resend, Inc. (planerad e-postleverantör, USA) planeras att leverera all e-post från tjänsten: både de notiser du själv slår på och e-post om ditt konto, till exempel för att bekräfta din e-postadress. I dagsläget skickar Jobbliggaren ingen e-post, och inga uppgifter om dig lämnas till någon e-postleverantör. Detta är planerat och ännu inte i drift.",
-          "De uppgifter som planeras att lämnas till Resend är din e-postadress och meddelandets innehåll, som för en bevakningsnotis innehåller jobbtiteln, företagsnamnet och hur stark matchningen är. Att du får notisen visar samtidigt att du har slagit på bevakningen. Innan vi börjar skicka tecknar vi personuppgiftsbiträdesavtal med Resend och säkerställer grunden för överföringen till USA, se avsnittet Överföring till tredje land nedan. Detta är planerat och ännu inte i drift."
+          "Amazon Web Services EMEA SARL (planerad e-postleverantör, Luxemburg) planeras att leverera all e-post från tjänsten genom tjänsten Amazon SES: både de notiser du själv slår på och e-post om ditt konto, till exempel för att bekräfta din e-postadress eller meddela att adressen har ändrats. E-posten behandlas i regionen eu-north-1 i Stockholm. I dagsläget skickar Jobbliggaren ingen e-post, och inga uppgifter om dig lämnas till någon e-postleverantör. Detta är planerat och ännu inte i drift.",
+          "De uppgifter som planeras att lämnas till Amazon Web Services EMEA SARL är din e-postadress och meddelandets innehåll, som för en bevakningsnotis innehåller jobbtiteln, företagsnamnet och hur stark matchningen är. Att du får notisen visar samtidigt att du har slagit på bevakningen. Byter du e-postadress går aviseringen om bytet till din tidigare adress, som därmed också lämnas till leverantören. Innan vi börjar skicka säkerställer vi att personuppgiftsbiträdesavtalet gäller och att grunden för överföringen till koncernmodern Amazon Web Services, Inc. i USA är dokumenterad, se avsnittet Överföring till tredje land nedan. Detta är planerat och ännu inte i drift."
         ],
         "list": [
           "Hetzner (planerad driftsleverantör, EU). Jobbliggaren planeras att driftas hos Hetzner i EU, där applikationen och databasen körs. Detta är planerat och ännu inte i drift.",
@@ -82,7 +82,7 @@
         "heading": "Överföring till tredje land",
         "paragraphs": [
           "Vi behandlar dina uppgifter inom EU/EES. I dagsläget sker inga överföringar av dina personuppgifter till länder utanför EU/EES. Anlitar vi en leverantör utanför EU/EES säkerställer vi en laglig grund för överföringen enligt dataskyddsförordningens kapitel V, till exempel EU-kommissionens standardavtalsklausuler eller ett giltigt adekvansbeslut, och uppdaterar den här policyn innan överföringen sker.",
-          "Den leverantör som planeras för tjänstens e-post är Resend, Inc. Företaget är amerikanskt, och en del av uppgifterna lagras i USA även om e-posten skickas från EU. Innan vi börjar skicka säkerställer vi grunden för överföringen enligt kapitel V, antingen genom standardavtalsklausuler eller genom ett giltigt adekvansbeslut. Detta är planerat och ännu inte i drift."
+          "Den leverantör som planeras för tjänstens e-post är Amazon Web Services EMEA SARL i Luxemburg, som är vår avtalspart, och e-posten behandlas i regionen eu-north-1 i Stockholm. Koncernmodern Amazon Web Services, Inc. är amerikansk, och åtkomst från USA kan förekomma, vilket räknas som en överföring till tredje land. Grunden för den överföringen är EU-kommissionens standardavtalsklausuler enligt artikel 46.2 c i dataskyddsförordningen, som ingår i leverantörens personuppgiftsbiträdesavtal. Vill du ha en kopia av standardavtalsklausulerna får du den om du kontaktar oss på adressen under Personuppgiftsansvarig och kontakt. Detta är planerat och ännu inte i drift."
         ]
       },
       {

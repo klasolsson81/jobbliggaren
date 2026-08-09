@@ -28,6 +28,44 @@ internal sealed class RecordingEmailSender : IEmailSender
     /// <summary>Snapshot of every email queued through this fake since host start.</summary>
     public IReadOnlyList<RecordedEmail> Sent => [.. _sent];
 
+    private volatile bool _canDeliver = true;
+
+    /// <summary>
+    /// <see langword="true"/> by default — this fake RECORDS, which is the test-suite analogue of
+    /// delivering (#1087). Answering <see langword="false"/> unconditionally would make every
+    /// delivery-dependent handler refuse before reaching the send, and the assertions over
+    /// <see cref="Sent"/> would then pass or fail for reasons unrelated to what they check.
+    /// </summary>
+    public bool CanDeliver => _canDeliver;
+
+    /// <summary>
+    /// Flips this fake to incapable for the duration of the returned scope, so a test can drive the
+    /// refusal path end to end. <b>A scope rather than a bare setter, and the reason is structural:</b>
+    /// this instance is a singleton shared by every host <see cref="ApiFactory"/> builds, so a leaked
+    /// <c>false</c> would silently convert unrelated later tests in the <c>Api</c> collection into
+    /// refusal tests — passing or failing for a cause they never name. <c>using</c> makes the reset
+    /// impossible to forget; a <c>finally</c> would only make it easy to remember.
+    /// <para>
+    /// <b>Why the capability is flipped in place instead of on a dedicated host.</b> A
+    /// <c>WithWebHostBuilder</c> override would be the cleaner seam, but it would be the FOURTH
+    /// <c>WebApplicationFactory</c> in this suite, and the suite sits one below EF's process-global
+    /// <c>ManyServiceProvidersCreatedWarning</c> ceiling — the next host fells whichever collection
+    /// fixture initialises after it (CLAUDE.md §11, #1190, and the same reasoning already written at
+    /// <c>ApiFactory.CreateRegistrationsClosedClient</c>). Safe because <c>[Collection("Api")]</c>
+    /// serialises every class that shares this fixture.
+    /// </para>
+    /// </summary>
+    internal IDisposable Incapable()
+    {
+        _canDeliver = false;
+        return new CapabilityScope(this);
+    }
+
+    private sealed class CapabilityScope(RecordingEmailSender owner) : IDisposable
+    {
+        public void Dispose() => owner._canDeliver = true;
+    }
+
     public Task SendMatchNotificationEmailAsync(
         string toEmail,
         MatchNotificationEmail content,

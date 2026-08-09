@@ -37,6 +37,44 @@ namespace Jobbliggaren.Application.Common.Abstractions;
 public interface IEmailSender
 {
     /// <summary>
+    /// Whether this sender actually delivers. <b>The contract is: <c>SendXAsync</c> delivers if and
+    /// only if this is <see langword="true"/>; a caller whose own success DEPENDS on delivery must
+    /// consult it and refuse up front rather than report success afterwards.</b>
+    /// <para>
+    /// <b>This exists because <c>NullEmailSender</c> was an LSP violation without it (#1087).</b> It
+    /// is registered as a valid <see cref="IEmailSender"/> in every non-Development/Test environment
+    /// and is the live default today (<c>Email:Provider</c> is unset in every committed
+    /// <c>appsettings*.json</c>). Dropping a notification is correct — a missed convenience. Dropping
+    /// an ownership-confirmation link is not: <c>ChangeEmailCommandHandler</c> minted a token, mailed
+    /// it into the void, returned <c>Result.Success</c> and had a <c>User.EmailChangeRequested</c>
+    /// audit row stamped, while the address is only ever swapped when the link is opened. The user
+    /// was told an action completed that could not occur, with no way forward. Without a member on
+    /// the port the two callers cannot be told apart, so <b>every new delivery-dependent path
+    /// inherited the defect silently</b> — which is the reason this is a widening of the CONTRACT and
+    /// not a fix in one handler.
+    /// </para>
+    /// <para>
+    /// <b>A constant per implementation, never a per-message question</b> (senior-cto-advisor Q3(b)
+    /// 2026-07-26, dotnet-architect optionsset 2026-08-09). Delivery-dependence is a property of the
+    /// CALLER, not of the sender: no implementation would answer differently per email kind — Null
+    /// drops all six, SES sends all six — so a <c>CanDeliver(kind)</c> overload would carry a
+    /// parameter that is dead by construction, and would invent a second enumeration of this port's
+    /// six methods to keep in sync with them. The BCL precedent for one type plus capability queries
+    /// over a lattice of interfaces is <see cref="System.IO.Stream.CanRead"/>/<c>CanSeek</c>/
+    /// <c>CanWrite</c>.
+    /// </para>
+    /// <para>
+    /// <b>The value never comes from the environment.</b> Application does not know what a
+    /// "Production" is and cannot ask — <c>Jobbliggaren.Application.csproj</c> has no
+    /// <c>Microsoft.Extensions.Hosting</c> reference, so an <c>IHostEnvironment</c> branch in a
+    /// handler would not compile (CLAUDE.md §2.1). The environment-to-capability translation already
+    /// lives in Infrastructure, in <c>AddEmailSender</c>'s choice of WHICH class to register; each
+    /// class then answers for itself.
+    /// </para>
+    /// </summary>
+    bool CanDeliver { get; }
+
+    /// <summary>
     /// Skickar en bakgrundsmatchnings-notis (ADR 0080 Vag 4 PR-4). <paramref name="content"/>
     /// är icke-PII (jobbtitlar + företag + grad-labels, aldrig en siffra/CV-data); mottagar-
     /// adressen bärs separat i <paramref name="toEmail"/>. Mallen lägger en OBLIGATORISK

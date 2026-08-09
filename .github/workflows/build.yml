@@ -375,6 +375,21 @@ jobs:
       - name: jobbliggaren-reconcile (fixturer)
         run: bash deploy/systemd/jobbliggaren-reconcile.test.sh
 
+      # Frånvaro-detektorn för lådans kryptohemligheter (#198, grind B-1). `--check` är lådans
+      # ENDA larm för en saknad masternyckel: en crash-loopande container syns aldrig i
+      # `systemctl --failed`, så ett falskt "all present" lämnar API:t nere utan spår på den
+      # enda yta någon läser (#1175, ingen loggsink). Fixturerna stat:ar bara filer — varken
+      # daemon, root eller nätverk krävs — och en av dem bevisar att `--check` aldrig rör
+      # docker, eftersom den kör vid boot innan dockerd är uppe.
+      # JBL_REQUIRE_MODE_CASES: sviten skippar katalog-läge-fallen på filsystem som inte
+      # hedrar chmod (Git Bash/Windows) och SÄGER det högljutt — men en annonserad skip är
+      # inte en mätning. På ubuntu ska ingenting skippas, så här blir en skip ett fel.
+      # Utan den här raden vore "de körs i CI" ett påstående framtvingat av ingenting.
+      - name: jobbliggaren-inject-secrets (fixturer)
+        run: bash deploy/systemd/jobbliggaren-inject-secrets.test.sh
+        env:
+          JBL_REQUIRE_MODE_CASES: "1"
+
       # Diagnostik, INGEN grind — och till skillnad från `git --version` ovan är det
       # INTE gratis: `docker compose version` avslutar 1 när plugin:et saknas
       # (`'compose' is not a docker command`), och ett `run:`-steg fäller jobbet på

@@ -49,12 +49,14 @@ public class LocalDataKeyProviderTests
         _sut = NewProvider(_masterKeyBase64);
     }
 
-    private static LocalDataKeyProvider NewProvider(string masterKeyBase64) =>
+    private static LocalDataKeyProvider NewProvider(
+        string masterKeyBase64, string keyId = "local-v1") =>
         new(
             Options.Create(new FieldEncryptionOptions
             {
                 Provider = "Local",
                 LocalMasterKeyBase64 = masterKeyBase64,
+                LocalMasterKeyId = keyId,
             }),
             Substitute.For<ILogger<LocalDataKeyProvider>>());
 
@@ -84,7 +86,33 @@ public class LocalDataKeyProviderTests
     {
         var created = await _sut.CreateDataKeyAsync(_owner, CancellationToken.None);
 
+        // Default preserved: an omitted FieldEncryption:LocalMasterKeyId keeps stamping
+        // "local-v1", so every pre-#198 row and every dev environment is unchanged.
         created.CmkKeyId.ShouldBe("local-v1");
+    }
+
+    [Fact]
+    public async Task LocalDataKeyProvider_CreateDataKey_StampsConfiguredKeyId()
+    {
+        // #198 (M-3): the stamp is the offline re-wrap's idempotency marker, so it must follow
+        // the configured identity. With it hardcoded, every row created AFTER a rotation would
+        // claim the retired key's identity while being wrapped under the new key — and the next
+        // rotation would then select rows it cannot unwrap.
+        var sut = NewProvider(_masterKeyBase64, keyId: "local-v2");
+
+        var created = await sut.CreateDataKeyAsync(_owner, CancellationToken.None);
+
+        created.CmkKeyId.ShouldBe("local-v2");
+    }
+
+    [Fact]
+    public void LocalDataKeyProvider_BlankKeyId_FailsClosedAtConstruction()
+    {
+        // Re-guard past the options pipeline, parity with the master-key length guard: a
+        // hand-constructed instance (the re-wrap tool will build two -- #198 PR-2, not yet code)
+        // must not be able to stamp
+        // an empty marker.
+        Should.Throw<CryptographicException>(() => NewProvider(_masterKeyBase64, keyId: "  "));
     }
 
     [Fact]

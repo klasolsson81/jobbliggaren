@@ -49,33 +49,43 @@ docker compose -f /opt/jobbliggaren/deploy/docker-compose.yml <command>
 ```
 /opt/jobbliggaren/
   deploy/          # the tracked deploy/ directory, from a shallow clone of the repo
-  .env             # root:root 0600 — every secret the stack needs. NEVER COMPOSE_FILE.
+  .env             # root:root 0600 — DB + edge credentials. NEVER COMPOSE_FILE, and since
+                   # #198 never the crypto values either.
   staging/         # transient only (corpus dump); emptied and shredded after use
+/run/jobbliggaren/secrets/   # tmpfs — the four crypto values, RAM only, re-injected per boot
 ```
 
-`deploy/.env.example` is the template and the required-key list. Every key is a hard `:?`
-requirement: compose refuses to start rather than starting on a default nobody chose.
+`deploy/.env.example` is the template and the required-key list for what remains in `.env`.
+Every key there is a hard `:?` requirement: compose refuses to start rather than starting on
+a default nobody chose.
 
-**The master key lives in `.env` on disk, and gate B-1 is therefore NOT closed.** B-1
-requires the key never be plaintext on disk — a TPM-bound systemd credential, or sops+age
-into tmpfs. It is owed by #198, and the `<NAME>_FILE` seam alone does not discharge it:
-a plain file plus an env var pointing at it is still plaintext on disk. Measured
-2026-08-05, there is a **second** copy nobody had registered — `docker inspect` returns
-the value after the container has exited, so Docker persists it in its own state.
+**The crypto values are no longer in `.env`, and gate B-1's repair shipped in #198.** The
+field-encryption master key and the three pseudonymisation peppers are files on
+`/run/jobbliggaren/secrets` (tmpfs, RAM-backed), bind-mounted read-only into api and worker
+as `/run/app-secrets`, and reaching configuration through the `<KEY>_FILE` seam. Both
+measured plaintext-on-disk surfaces are addressed by that move: `deploy/.env` itself, and
+Docker's own container state — `docker inspect` returned the value after the container had
+exited (measured 2026-08-05).
 
-**B-1 is a Blocker-graded pre-beta-data gate, and the recruiter corpus IS beta data.**
-The stack may be deployed with the key in `.env`; the corpus may not land until B-1 is
-closed. That sequencing is a Klas decision and is recorded in this runbook so it is not
-carried in anyone memory.
+**B-1's parenthetical is exhausted, and satisfying the gate by a mechanism it does not name
+is not a deviation.** The gate text names "systemd-credentials TPM-bunden el. sops+age→tmpfs".
+Measured 2026-08-09: this host has no TPM (`systemd-analyze has-tpm2` → `partial`, no
+`/dev/tpm0`, no libtss2) and `sops` is absent from apt on trixie. Without a TPM a sealed blob
+and its unsealing key travel in the same disk snapshot. The requirement is *never plaintext
+on disk*; **no at-rest copy at all** meets it more strongly than either named option would.
+Full rationale and the operator procedure: [`master-key-ops.md`](master-key-ops.md).
+
+**B-1 is discharged when the verification rows exist, not when the PR merged.** The PR proves
+the mechanism; the operator's injection proves the instance. Until the rows in §5 are filled
+in against this box, treat the gate as owed.
 
 What `memswap_limit == mem_limit` delivers is a **stronger B-1 posture**, which ADR 0050
-`Amendment 2026-08-04` §2 condition 4 attributes to B-1 in as many words — the key cannot
-reach zram either, only anonymous RAM. It strengthens the gate; it does not close it:
-`memswap_limit == mem_limit` on `api` and `worker` keeps their memory out of swap, and the
-host swaps to zram only (gate B-1). The `<NAME>_FILE` seam exists in `Jobbliggaren.Migrate`
-only — the API and Worker read plain environment through `IConfiguration` — so moving the
-key to a file is a code change, and it belongs to #198 (master-key protection and
-rotation) rather than here.
+`Amendment 2026-08-04` §2 condition 4 attributes to B-1 in as many words. It never closed the
+gate and it is not what closed it now — but it stays load-bearing for the half that remains:
+the key is plaintext in api/worker process memory for the process lifetime, and without
+`memswap_limit` a container at its ceiling would page that memory into zram. That residual is
+described in ADR 0049 `Amendment 2026-08-09` and its acceptance lives in ADR 0123, which is
+still `Proposed`.
 
 ---
 
@@ -83,6 +93,23 @@ rotation) rather than here.
 
 Prerequisite: Docker installed, `/etc/docker/daemon.json` written, and the nftables
 `forward` delta applied — all in §4 below, all before anything here.
+
+> **AND the crypto-secrets mechanism, before the first `up`.** Since #198 the four crypto
+> values are not in `.env`, so compose no longer refuses to start when they are missing — it
+> starts, and api/worker crash-loop instead. Two consequences the old `:?` guards used to make
+> impossible:
+>
+> - **Install `/etc/tmpfiles.d/jobbliggaren.conf` first.** The secrets bind mount carries
+>   `create_host_path: true` (measured), so without it Docker silently creates the directory
+>   root-owned and un-traversable by the container — and the app then reports a *missing key*
+>   rather than a permission problem.
+> - **Install and enable `jobbliggaren-secrets-present.timer` in the same step.** A
+>   crash-looping container never appears in `systemctl --failed`; that timer is what puts the
+>   condition on the box's only alarm surface.
+>
+> Both are the install block in [`master-key-ops.md`](master-key-ops.md) §2. Run it **before**
+> the first `docker compose up`, then inject (§3 of that runbook) and confirm
+> `--check` passes. Nothing mechanical enforces this ordering — that is what these lines are.
 
 ```bash
 cd /opt/jobbliggaren
@@ -460,14 +487,35 @@ that came from the older one.
 | 20 | Reconcile-pull runs and applies a digest change | `systemctl list-timers` + journal of a real run | **Installed and proven on a run that actually moved every digest**, 2026-08-08 17:20 UTC. The journal — not the exit code, which is 0 on the lock branch by design — carries `verified 5 image(s), skipped 2 upstream; applying`, preceded by one `verified:` line per ghcr image naming its digest, and `skipping postgres:18.3 / redis:8.6-alpine (upstream, on the allowlist)`. Compose then **recreated all six services**, so this was a digest change applied end to end and not a no-op tick. `Result=success`, `ExecMainStatus=0`, stamp written to `/var/lib/jobbliggaren/last-successful-reconcile`. The site was re-checked afterwards: 401 with HSTS unauthenticated, 200 and `<title>Jobbliggaren</title>` past the gate, `/api/health` 200, certificate chain still `Verify return code: 0`. Timer armed for :47+jitter | 2026-08-08 |
 | 20b | The attestation gate answers correctly on the box, with real cosign and a real bundle | `verify-image-attestation.sh` against published digests, run **on the box** — the fixture suite stubs cosign and so cannot speak for Debian's build, GHCR's referrer layout, or the bundle format | **Five polarities, all as designed.** **Positive: exit 0** — `cosign 2.5.0-2+b4` from Debian main read an `actions/attest-build-provenance@v4` bundle out of GHCR's referrer tags and verified it. That is the one load-bearing joint the fixtures cannot reach, and it holds. Negatives, each exit 1: a pre-#196 digest (`no valid bundles exist in registry`) · a wrong signer workflow · a wrong repository owner · and — the sharpest — **the same bundle against a different ref**, refused with `expected SAN … @refs/heads/main, got … @refs/heads/feat/…`. **Why the production identity could not be the positive case yet:** the OIDC token is minted from the ref the *run* executes on, not from `inputs.ref`, so a dispatch from this branch attests under the branch's ref even when it builds `main`'s tree. Only a run on `main` can produce `@refs/heads/main` — and that run has since happened. **Measured after the merge, with the unmodified verifier from `main`:** a freshly published image verifies `built by .github/workflows/release-images.yml on refs/heads/main in klasolsson81/jobbliggaren`, exit 0. The positive case against the PRODUCTION identity is therefore no longer owed | 2026-08-08 |
 
----
+### Rows 21–25 — gate B-1's own subject (#198)
 
-## 6. What this runbook does not own
+**These are UNMEASURED and are written as a checklist for the cutover, deliberately.** Until
+#198 nothing in this log measured B-1's actual subject: row 17 measures swap hygiene, which
+prepares the gate without discharging it. The rows are written *before* the cutover rather
+than reconstructed after it, because `deploy/` gets no integration coverage from `ci` and the
+cutover happens once.
+
+Every command below captures the key into a shell variable from the tmpfs file and greps with
+`-F "$K"`, so the value transits operator-shell RAM only and never scrollback. `unset K` at the
+end. Procedure and rationale: [`master-key-ops.md`](master-key-ops.md).
+
+| # | Property | Instrument | Measured | Date |
+|---|---|---|---|---|
+| 21 | `docker inspect` returns the key on **no** container, including exited ones | `K=$(sudo cat /run/jobbliggaren/secrets/FieldEncryption__LocalMasterKeyBase64)` then `sudo docker inspect $(sudo docker ps -aq) \| grep -cF "$K"` — expect `0`. `ps -aq`, **not** `ps -q`: the measured 2026-08-05 leak was state surviving container *exit*, so an inspect over running containers only would re-measure the wrong set. Structural half: `sudo docker inspect -f '{{.Name}}: {{range .Config.Env}}{{println .}}{{end}}' $(sudo docker ps -aq) \| grep -iE 'MasterKey\|Pepper'` — expect only `*_FILE=` **path** lines | | |
+| 22 | No plaintext copy on persistent disk | `sudo grep -rIlF "$K" /opt /etc /root /home /var/lib/jobbliggaren /var/lib/docker/containers` — expect no output. `grep -c '^FIELD_ENCRYPTION_MASTER_KEY=' /opt/jobbliggaren/deploy/.env` — expect `0`, line **deleted** and not blanked. `sudo journalctl --grep "$K" -q \| head -1` — expect empty. **Named scope limits:** `/var/lib/docker/overlay2` is excluded (a box-generated key cannot be in an image layer — `.dockerignore:35-49`); and freed SSD blocks that once held the old `.env` line are unreachable by any grep, **which is why the cutover rotates the key rather than relocating it** — rotation makes those remnants worthless | | |
+| 23 | The app boots and decrypts from the file-sourced key | `docker inspect -f '{{.State.Health.Status}}' jobbliggaren-api` → `healthy`. This **is** key evidence rather than a liveness check: `ValidateOnStart` plus the `LocalDataKeyProvider` constructor make an unreadable or invalid key a boot failure, so a healthy api has parsed and validated the file. Then read one encrypted field through the app (any page showing CV or profile data) — the DEK-level check alone cannot catch a re-wrap that generated a fresh DEK | | |
+| 24 | Reboot survival is the DESIGNED failure, and self-heal works | `sudo systemctl reboot`. Expect: api `restarting` (crash-loop, fail-closed — no fallback key), `jobbliggaren-secrets-present.service` in `systemctl --failed` within ~2 min naming the missing files. Then inject and expect api `healthy` within one restart-backoff interval **with no `compose up` and no reconcile run**. Closes two unmeasured premises at once: the crash-loop-then-self-heal behaviour, and that the absence detector actually fires | | |
+| 25 | The hourly reconcile is unaffected | after the cutover, one `systemctl start jobbliggaren-reconcile.service` → `Result=success`, stamp written, and the journal shows no interpolation error. The key is no longer referenced by the compose file, so there is nothing left to interpolate and **no `:?` guard for it remains anywhere** (measured: two references repo-wide, both removed by #198) | | |
+| 26 | **Escrow exists off-box for all four secrets — and this row is a GATE, not a report** | Klas confirms the four values are in the password manager, and records the date here. With no at-rest copy this is the only recovery path, and losing a value is as final as rotating it after rows exist: the master key takes every encrypted field, the company-watch pepper every org.nr token (its plaintext was destroyed in place), the CV-fingerprint pepper every Ignored/Resolved decision. (The audit pepper is the fourth and the exception: nothing reads back against it, so losing it costs only the ability to link erasure-audit records to one another across the gap.) **Undecided as of 2026-08-09** — the CTO escalated it and bound it as a hard cutover prerequisite; §9.6 makes the acceptance Klas's to grant. **Do not cut over on an empty cell here** | | |
+| 27 | The peppers were replaced, not carried forward | **Re-measure AFTER `docker stop jobbliggaren-api jobbliggaren-worker`** (`master-key-ops.md` §4 step 2), never merely "before cutover": while the old stack runs the write path is open, and a single `company_watches` row landing between the measurement and the injection locks that pepper permanently without the rotation noticing. Stopping the containers first makes measurement and rotation atomic with respect to new rows. Then, with raw SQL inside the postgres container (not through EF — soft-delete filters hide rows): `resume_finding_statuses`, `company_watches`, `user_data_keys` all 0. Measured 2026-08-09: all three were 0, `audit_log` 13 (its pepper is rotatable regardless — see row 26's note). Confirm the new values landed with `jobbliggaren-inject-secrets.sh --check` plus `sudo stat -c '%a %U:%G' /run/jobbliggaren/secrets/*` — the files are 0400, so do not try to read them back | | |
 
 - **Backup and restore** — #197. The target is still open; §7 of ADR 0050's amendment adds
   that it must be a failure domain independent of both the box and the operator's
   workstation, and that the age private key must never sit with the ciphertext.
-- **Master-key protection and rotation, and key-access detection** — #198.
+- **Master-key operations** — [`master-key-ops.md`](master-key-ops.md) (#198): the injection
+  procedure, the per-boot re-injection this model requires, rotation and its drill, and
+  recovery. Key-**access** detection is not there either: it is dispositioned to #1201, and
+  what #198 delivers is **absence** detection (`jobbliggaren-secrets-present.timer`).
 - **Host detection and alerting (gate M-7)** — the obligation and its `Hemvist` are
   [#1201](https://github.com/klasolsson81/jobbliggaren/issues/1201); the host-level half
   (auditd or equivalent, file-integrity monitoring, log shipping off the box, something
@@ -475,14 +523,15 @@ that came from the older one.
   #196's closure. Delivered separately from this file either way.
 - **The production log sink** — #1175, unbuilt and unowned. Docker's log rotation above is
   a disk control, not a log sink.
-- **Closing gate B-1 — and the corpus waits for it.** The field-encryption master key is
-  plaintext on disk here, in `deploy/.env` and a second time in Docker's own container
-  state (measured: `docker inspect` returns it after the container has exited). B-1
-  requires it never be plaintext on disk, and #198 owns the repair. **Klas confirmed the
-  sequencing 2026-08-05: the stack may be deployed and every cutover proof taken with the
-  key as it is, because the box holds no user data — but the 51 347 recruiter contact
-  records must not land until B-1 is closed.** Nothing mechanical enforces that; this
-  paragraph is the reader.
+- **Gate B-1's cutover — and the corpus still waits for it.** #198 shipped the repair (see §2
+  and [`master-key-ops.md`](master-key-ops.md)), but **shipping a mechanism is not closing a
+  gate**: the key is not moved on this box until the operator performs the cutover, and B-1 is
+  discharged only when rows 21–25 in §5 carry measurements. **Klas confirmed the sequencing
+  2026-08-05: the stack may be deployed and every cutover proof taken with the key as it was,
+  because the box holds no user data — but the 51 347 recruiter contact records must not land
+  until B-1 is closed.** Nothing mechanical enforces that; this paragraph is the reader. The
+  corpus additionally waits on #1199 (the Netcup DPA), which is Klas's signature and not
+  affected by any of this.
 - **The edge binary is ours, not upstream's, and the scanned image must be the published
   one.** `deploy/caddy/Dockerfile` compiles caddy rather than taking it from the published
   tag, so "we run stock caddy 2.11.4" is no longer true when reading an upstream bug report.

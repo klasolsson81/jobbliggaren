@@ -109,7 +109,8 @@ public class LocalDataKeyProviderTests
     public void LocalDataKeyProvider_BlankKeyId_FailsClosedAtConstruction()
     {
         // Re-guard past the options pipeline, parity with the master-key length guard: a
-        // hand-constructed instance (the re-wrap tool builds two) must not be able to stamp
+        // hand-constructed instance (the re-wrap tool will build two -- #198 PR-2, not yet code)
+        // must not be able to stamp
         // an empty marker.
         Should.Throw<CryptographicException>(() => NewProvider(_masterKeyBase64, keyId: "  "));
     }

@@ -119,7 +119,8 @@ public sealed partial class LocalDataKeyProvider : IDataKeyProvider
 
         // Re-guard past the options pipeline, same as the key bytes above: a blank identity
         // would silently stamp empty markers. The validator fails this at startup; this keeps
-        // the invariant true for any hand-constructed instance (the re-wrap tool builds two).
+        // the invariant true for any hand-constructed instance (the re-wrap tool WILL build two --
+        // #198 PR-2, not yet code).
         var keyId = options.Value.LocalMasterKeyId;
         if (string.IsNullOrWhiteSpace(keyId))
         {

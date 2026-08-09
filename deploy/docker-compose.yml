@@ -77,8 +77,14 @@ x-app-secrets: &app-secrets
 # host path is a literal, deliberately NOT a ${...:?} variable: a new hard requirement
 # would make the hourly reconcile refuse the entire apply until the operator had filled it
 # in, with `systemctl --failed` as the only reader (deploy/systemd/jobbliggaren-reconcile.sh).
-# The directory is created at boot by /etc/tmpfiles.d/jobbliggaren.conf, so the mount never
-# auto-creates a root-owned one of its own.
+#
+# THE DIRECTORY MUST EXIST BEFORE THE FIRST `up`, and nothing here enforces that. Measured:
+# this mount carries `create_host_path: true`, so if /etc/tmpfiles.d/jobbliggaren.conf has not
+# been installed, Docker silently creates the path itself — root-owned, un-traversable by the
+# container — and the app then fails with "master key missing" rather than a permission error.
+# Installing the tmpfiles unit is therefore a step in the first-boot procedure
+# (docs/runbooks/vps-deploy-stack.md §3), not an optional extra, and
+# `jobbliggaren-inject-secrets.sh --check` asserts the directory's mode for the same reason.
 x-app-secrets-mount: &app-secrets-mount
   - /run/jobbliggaren/secrets:/run/app-secrets:ro
 

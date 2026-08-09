@@ -94,6 +94,23 @@ still `Proposed`.
 Prerequisite: Docker installed, `/etc/docker/daemon.json` written, and the nftables
 `forward` delta applied — all in §4 below, all before anything here.
 
+> **AND the crypto-secrets mechanism, before the first `up`.** Since #198 the four crypto
+> values are not in `.env`, so compose no longer refuses to start when they are missing — it
+> starts, and api/worker crash-loop instead. Two consequences the old `:?` guards used to make
+> impossible:
+>
+> - **Install `/etc/tmpfiles.d/jobbliggaren.conf` first.** The secrets bind mount carries
+>   `create_host_path: true` (measured), so without it Docker silently creates the directory
+>   root-owned and un-traversable by the container — and the app then reports a *missing key*
+>   rather than a permission problem.
+> - **Install and enable `jobbliggaren-secrets-present.timer` in the same step.** A
+>   crash-looping container never appears in `systemctl --failed`; that timer is what puts the
+>   condition on the box's only alarm surface.
+>
+> Both are the install block in [`master-key-ops.md`](master-key-ops.md) §2. Run it **before**
+> the first `docker compose up`, then inject (§3 of that runbook) and confirm
+> `--check` passes. Nothing mechanical enforces this ordering — that is what these lines are.
+
 ```bash
 cd /opt/jobbliggaren
 C="docker compose -f deploy/docker-compose.yml"
@@ -489,6 +506,8 @@ end. Procedure and rationale: [`master-key-ops.md`](master-key-ops.md).
 | 23 | The app boots and decrypts from the file-sourced key | `docker inspect -f '{{.State.Health.Status}}' jobbliggaren-api` → `healthy`. This **is** key evidence rather than a liveness check: `ValidateOnStart` plus the `LocalDataKeyProvider` constructor make an unreadable or invalid key a boot failure, so a healthy api has parsed and validated the file. Then read one encrypted field through the app (any page showing CV or profile data) — the DEK-level check alone cannot catch a re-wrap that generated a fresh DEK | | |
 | 24 | Reboot survival is the DESIGNED failure, and self-heal works | `sudo systemctl reboot`. Expect: api `restarting` (crash-loop, fail-closed — no fallback key), `jobbliggaren-secrets-present.service` in `systemctl --failed` within ~2 min naming the missing files. Then inject and expect api `healthy` within one restart-backoff interval **with no `compose up` and no reconcile run**. Closes two unmeasured premises at once: the crash-loop-then-self-heal behaviour, and that the absence detector actually fires | | |
 | 25 | The hourly reconcile is unaffected | after the cutover, one `systemctl start jobbliggaren-reconcile.service` → `Result=success`, stamp written, and the journal shows no interpolation error. The key is no longer referenced by the compose file, so there is nothing left to interpolate and **no `:?` guard for it remains anywhere** (measured: two references repo-wide, both removed by #198) | | |
+| 26 | **Escrow exists off-box for all four secrets — and this row is a GATE, not a report** | Klas confirms the four values are in the password manager, and records the date here. With no at-rest copy this is the only recovery path, and losing a value is as final as rotating it after rows exist: the master key takes every encrypted field, the company-watch pepper every org.nr token (its plaintext was destroyed in place), the CV-fingerprint pepper every Ignored/Resolved decision. **Undecided as of 2026-08-09** — the CTO escalated it and bound it as a hard cutover prerequisite; §9.6 makes the acceptance Klas's to grant. **Do not cut over on an empty cell here** | | |
+| 27 | The peppers were replaced, not carried forward | before cutover, re-measure with raw SQL inside the postgres container (not through EF — soft-delete filters hide rows): `resume_finding_statuses`, `company_watches`, `user_data_keys` all 0. Measured 2026-08-09: all three were 0, `audit_log` 13 (immaterial — nothing reads back against that pepper). **The `company_watches` window closes at the FIRST row**, so a re-measure is required rather than a formality. Then confirm all four files hold new values | | |
 
 - **Backup and restore** — #197. The target is still open; §7 of ADR 0050's amendment adds
   that it must be a failure domain independent of both the box and the operator's

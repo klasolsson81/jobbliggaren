@@ -14,8 +14,17 @@ production box. Owned by [#198](https://github.com/klasolsson81/jobbliggaren/iss
 The four crypto values live **only in RAM**: as files on `/run/jobbliggaren/secrets`
 (tmpfs) and, from there, in the api and worker process memory. There is **no encrypted copy
 on disk anywhere on this box**, and that is the decision rather than an omission. Every
-reboot destroys them and an operator must re-inject. The only other copy in existence is the
-escrow in Klas's password manager.
+reboot destroys them and an operator must re-inject.
+
+> **ESCROW IS A HARD PREREQUISITE TO CUTOVER, AND IT IS UNDECIDED AS OF 2026-08-09.** With no
+> at-rest copy, an off-box escrow is the *only* recovery path: an operator who loses these
+> values destroys every encrypted field and every pseudonymised lookup irreversibly. The
+> senior-cto-advisor escalated the decision to Klas and bound it as a hard prerequisite — it is
+> a risk acceptance, which CLAUDE.md §9.6 makes Klas's to grant and never a session's to claim.
+> **Do not cut over until it is decided.** An earlier draft of this runbook stated the escrow as
+> delivered fact; it was not, and stating it that way would have let the cutover proceed past an
+> open gate. When it is decided, record the date here and fill in the escrow row in
+> `vps-deploy-stack.md` §5.
 
 **Why not a sealed blob on disk.** Gate B-1's own text names two mechanisms — a TPM-bound
 `systemd-creds` credential, or sops+age into tmpfs — and measurement on 2026-08-09 exhausted
@@ -114,6 +123,12 @@ idempotence proof.
 > this section describes the intended procedure and **must not be read as a delivered
 > capability**. The drill below is what proves it.
 
+> **The FIRST rotation — the one in #198's cutover — needs none of it.** Measured 2026-08-09 with
+> raw SQL on the box: `user_data_keys` holds **0 rows**. There is nothing to re-wrap, so rotating
+> the master key today is simply injecting different bytes. **The B-1 cutover is therefore not
+> blocked on PR-2.** Re-measure before assuming it still holds — one registered user creates the
+> first row.
+
 ### Drill against a copy — required before any real rotation
 
 Run against a **copy**, never production, and steer the copy with
@@ -136,23 +151,40 @@ the damage unrecoverable.
 1. `sudo systemctl stop jobbliggaren-reconcile.timer` — a `*:47` tick would otherwise start
    api/worker in the middle of the rewrap.
 2. `docker stop jobbliggaren-api jobbliggaren-worker`.
-3. Generate the new key **into tmpfs**, never into a file on disk and never into `.env`.
-   Escrow it in the password manager in the same step.
-4. Rewrap old → new; verify.
-5. Update `FieldEncryption__LocalMasterKeyId` to the new identity in the same directory.
-6. Start the containers; confirm `healthy`; re-arm the reconcile timer.
+3. Remove the old pair and inject the new one. The identity and the bytes are written together
+   by one run, deliberately — the script refuses a master key without a matching identity,
+   because a v2 key stamped `local-v1` makes the next rotation's compare-and-swap skip exactly
+   the rows it must not skip:
+
+   ```bash
+   sudo rm -f /run/jobbliggaren/secrets/FieldEncryption__LocalMasterKeyBase64 \
+              /run/jobbliggaren/secrets/FieldEncryption__LocalMasterKeyId
+   sudo JBL_MASTER_KEY_ID=local-v2 \
+     /opt/jobbliggaren/deploy/systemd/jobbliggaren-inject-secrets.sh
+   ```
+   Escrow the new value in the same step (§1 — Klas's decision, and a prerequisite).
+4. Rewrap old → new; verify. **Skip when `user_data_keys` is empty** — there is nothing to
+   re-wrap, and the new bytes are already in force.
+5. Start the containers; confirm `healthy`.
+6. `sudo systemctl start jobbliggaren-secrets-present.timer` if it was stopped, and re-arm the
+   reconcile timer.
 
 ---
 
 ## 5. Recovery, and the one way to lose everything
 
-**Losing the key destroys every encrypted field, irreversibly.** With no at-rest copy, the
-escrow in Klas's password manager is the only recovery path. Crypto-erasure is the design
-(ADR 0049 Beslut 2) — the same property that makes an account deletion final makes a lost key
-final.
+**Losing a value destroys what it protects, irreversibly** — and that is true of all four, not
+only the master key. The master key: every encrypted field. The company-watch pepper: every
+stored organisation-number token, because the backfill destroyed the plaintext in place. The
+CV-fingerprint pepper: every Ignored/Resolved finding decision reverts to Open. (The audit
+pepper is the exception — nothing reads back against it.)
 
-If the escrow copy exists: inject it (§3). If it does not, there is nothing to recover and no
-procedure below will help.
+With no at-rest copy, an **off-box escrow is the only recovery path**, and per §1 it is a
+decision Klas has not yet made. Crypto-erasure is the design (ADR 0049 Beslut 2) — the same
+property that makes an account deletion final makes a lost key final.
+
+If an escrow copy exists: inject it (§3). If it does not, there is nothing to recover and no
+procedure here will help.
 
 ---
 

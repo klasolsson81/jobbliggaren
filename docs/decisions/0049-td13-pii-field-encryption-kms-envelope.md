@@ -927,10 +927,13 @@ never as a value in `deploy/.env`.
   `appsettings.Local.json` works exactly as before (CLAUDE.md §11) — no new mandatory dev key,
   no template change.
 - **There is no encrypted-at-rest copy of the master key anywhere on this disk.** That is a
-  decision, not an omission (§2). The only other copy is the escrow in Klas's password
-  manager, bound as a hard cutover prerequisite by the CTO ruling
-  (`docs/reviews/2026-08-09-198-masterkey-cto.md:118-121`) and recorded as delivered fact in
-  the runbook (`docs/runbooks/master-key-ops.md:17-18`).
+  decision, not an omission (§2). An off-box escrow is therefore the only recovery path — and
+  it is **undecided as of this writing, not delivered**. The CTO ruling escalates it to Klas
+  and binds it as a hard cutover prerequisite
+  (`docs/reviews/2026-08-09-198-masterkey-cto.md:118-121`); §9.6 makes a risk acceptance his to
+  grant and never a session's to claim. An earlier draft of this amendment recorded it as
+  delivered fact, which would have let a cutover proceed past an open gate. It covers all four
+  secrets, not only the master key (§6).
 
 ### 2. B-1 discharge and its evidence form
 
@@ -957,14 +960,26 @@ rather than open for lacking a named mechanism.
 exited ones** — because the exited-container surface is exactly the one a running-only sweep
 would miss (that is how #1240 was found in the first place):
 
-```
-docker inspect $(docker ps -aq) | grep -iE 'FieldEncryption|Pepper'
+```bash
+K=$(sudo cat /run/jobbliggaren/secrets/FieldEncryption__LocalMasterKeyBase64)
+sudo docker inspect $(sudo docker ps -aq) | grep -cF "$K"   # expect 0
+unset K
 ```
 
-An empty result, together with `deploy/.env` containing none of the four values
-(`deploy/.env.example:93-107`, the block this PR replaced) and
-`jobbliggaren-inject-secrets.sh --check` reporting all four files present
-(`docs/runbooks/master-key-ops.md:91`), **is** the discharge evidence.
+**The check greps for the VALUE, not the variable name, and an earlier draft of this
+amendment had that wrong** — it matched on `FieldEncryption|Pepper` and called an empty
+result the evidence. That test can never pass on a correctly configured box: the anchor
+deliberately leaves five `*_FILE=` **pointers** in the environment, so the name-based grep
+matches by design. An operator following the wrong form would have concluded B-1 was still
+open. Corrected against `vps-deploy-stack.md` row 21, which is authoritative for the command.
+
+The structural half is separate and also required: no environment entry may carry a crypto
+**value** — only `*_FILE=` path lines.
+
+That, together with `deploy/.env` containing none of the four values and
+`jobbliggaren-inject-secrets.sh --check` reporting all five files present and the directory
+traversable, **is** the discharge evidence. (Five, not four: the key identity travels as a
+file alongside the key bytes.)
 
 **B-1 is satisfied when those verification-log lines exist against the real box, not when
 this PR merges.** This PR delivers the mechanism; it cannot prove the instance, because the
@@ -1024,6 +1039,16 @@ security dom, `docs/reviews/2026-06-08-adr-0050-aws-exit-hetzner-security.md:51-
 `AppDbContext` without interceptors, so the operation runs with no audit side-effects and no
 DEK-bearing aggregate materialised in a system job.
 
+> **PR-2 must also give `migrate` the secrets mount.** The compose `migrate` service receives
+> neither `x-app-secrets-mount` nor the `*_FILE` variables today, and that is correct for
+> `schema` mode — but the re-wrap arm needs two master keys. Named here so PR-2's author does
+> not discover it at cutover.
+
+> **The FIRST rotation does not need this arm at all.** Measured 2026-08-09 with raw SQL:
+> `user_data_keys` holds **0 rows**, so there is nothing to re-wrap and rotating the master key
+> is simply injecting different bytes. **B-1's cutover is therefore not chained to PR-2.**
+> Re-measure before relying on it — the first registered user creates the first row.
+
 - **Idempotency marker:** `user_data_keys.cmk_key_id`, stamped from
   `FieldEncryptionOptions.LocalMasterKeyId` (`UserDataKeyStore.cs:79`) — configurable rather
   than hardcoded specifically so that rows written after a rotation are not mis-stamped with
@@ -1075,11 +1100,8 @@ today.
 
 ### 6. The three peppers rode a shared change-reason — never a B-1 requirement
 
-**All four secrets move onto the tmpfs mechanism, but they are not the same operation.** The
-master key is **rotated** — new bytes, generated inside the mechanism. The three
-pseudonymisation peppers (`AuditPseudonymization__PepperBase64`,
-`CompanyWatchPseudonymization__PepperBase64`, `CvReviewFingerprintPseudonymization__PepperBase64`)
-are **moved** — byte-identical, hash-verified before the old `.env` line is removed.
+**All four secrets move onto the tmpfs mechanism, and — as corrected below — all four get new
+bytes at cutover.**
 
 **B-1 names the master key, singular.** The peppers travel because `docker-compose.yml`'s
 `x-app-secrets` anchor exists so that `api` and `worker` cannot structurally diverge on any of
@@ -1089,13 +1111,47 @@ one. **This must be read as defence in depth riding a shared change-reason, not 
 requirement.** A future reader must not conclude that the gate demanded moving the peppers; it
 did not.
 
-A pepper cannot be rotated the way the master key can — the repository's own instruction is
-*"still generate-once: rotating a pepper against a database that already holds data
-pseudonymised under the old value makes that data unmatchable"* (`deploy/.env.example:103-107`).
-Moving one is safe only if the bytes are identical: the injection script writes with
-`printf '%s'` so no trailing newline is introduced (`jobbliggaren-inject-secrets.sh:99-107`),
-and the configuration reader's `.Trim()` (`EnvFileSecretsConfiguration.cs:136`) is a backstop,
-never the control.
+#### The peppers are ROTATED too, and the reasoning that said otherwise was a generalisation
+
+The first version of this section had the peppers **moved byte-identically**, on the ground that
+a pepper is generate-once. That ground was `deploy/.env.example`'s single sentence covering all
+four values — **a template sentence standing in for a measurement**, and it was wrong in three
+different ways at once. security-auditor graded the omission Major; the CTO bind was re-opened
+and corrected on 2026-08-09.
+
+Rotatability is per secret, and only one of the three actually depended on whether the database
+was empty:
+
+| Secret | Rotatable? | Why |
+|---|---|---|
+| `AuditPseudonymization` | **Always**, even against a full database | Written into a write-only jsonb audit field that no read path matches against; partitions age out. The DI registration already calls it *"rotation-tolerant"*. |
+| `CvReviewFingerprintPseudonymization` | **While `resume_finding_statuses` is empty** | The fingerprint is recomputable, but rotating makes every stored `target_fingerprint` mismatch, so every Ignored/Resolved finding silently reverts to Open. |
+| `CompanyWatchPseudonymization` | **Only while `company_watches` has no rows** | `BackfillCompanyWatchOrgNrTokenJob` destroyed the plaintext organisation number in place, so an existing token cannot be recomputed under a new pepper — not expensively, but mathematically. |
+
+**Measured on the box 2026-08-09, raw SQL inside the postgres container (not through EF, so
+soft-delete query filters cannot hide rows):** `resume_finding_statuses` **0**,
+`company_watches` **0**, `user_data_keys` **0**. `audit_log` holds 13 rows, which is immaterial
+for the reason in the table.
+
+All three windows are therefore open, and **the company-watch window closes at the FIRST row,
+not at "first real data"** — one test user following one company would lock that pepper
+permanently. The peppers carry the same disk exposure as the master key (same `.env`, same
+container state, since 2026-08-05), and the argument for rotating rather than relocating the
+master key applies to them unchanged: freed disk blocks, deleted container state, operator
+scrollback and any provider snapshot are unreachable by any procedure — **only new bytes make
+them worthless**.
+
+Two code comments are qualified rather than reversed in the same change
+(`DependencyInjection.cs`, `BackfillCompanyWatchOrgNrTokenJob.cs`): *"permanent/non-rotatable"*
+is precise only as **"non-rotatable once any row exists"**. Without the condition, the next
+reader takes it as a prohibition on what was just done.
+
+**This must still be read as defence in depth riding a shared change-reason, not as a B-1
+requirement.** B-1 names the master key, singular. The peppers travel because
+`docker-compose.yml`'s `x-app-secrets` anchor exists so `api` and `worker` cannot structurally
+diverge on any of the four values; splitting one out would leave that guarantee resting on two
+mechanisms instead of one. And escrow (§1) covers all four: losing a pepper has the same effect
+as rotating it after rows exist.
 
 ### 7. Relation to the mandatory second security review, and to ADR 0093 / DPIA R-F4
 

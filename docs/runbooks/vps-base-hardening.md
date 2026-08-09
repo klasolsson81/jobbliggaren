@@ -37,6 +37,28 @@ never asserted:
    stops covering the kernel and libc the moment the first kernel patch lands (§7).
 8. Nothing pages secrets to disk: **zram swap only, no disk swap, no zram writeback device,
    core dumps discarded**.
+9. ⚠ **The published privacy policy names THIS box's CITY, so moving the box is a legal-copy
+   change.** Since 2026-08-09 (#1199) `messages/{sv,en}/content-legal.json` states that the
+   service runs on a server at netcup GmbH in **Nuremberg** — a data-subject-facing Art. 13(1)(e)
+   disclosure, not an internal note. A reprovision to any other netcup location (Vienna,
+   Amsterdam, Manassas, Singapore) **falsifies published copy** and must be changed in the same
+   change. Regenerate the affected set rather than working from a list — a hand-written
+   enumeration rots, which is `release-checklist.md` §2.6 point 1's rule applied here:
+
+   ```bash
+   grep -rn "Nürnberg\|Nuremberg\|Nurnberg" --include="*.json" --include="*.md" \
+     web/jobbliggaren-web/messages docs BUILD.md README.md
+   ```
+
+   Sweep **both spellings and the umlaut-less form**; a single-language sweep closes nothing.
+   Measured 2026-08-09: **29 lines across 7 files**, of which **eight are Art. 30 entries in
+   `docs/runbooks/gdpr-processing-register.md`** — those are the legally heaviest and the ones a
+   two-file fix would leave false.
+
+   **No test can catch this.** A copy tripwire fails a silent *deletion*; here the string
+   survives the move and CI stays green, so the obligation is hooked at the action that
+   falsifies it. It is an invariant rather than a note in §12 because a reprovision can happen
+   at any time — hardware failure, capacity, price — and is not a phase transition or a release.
 
 ### ADR 0050 gate M-6, clause by clause
 
@@ -950,13 +972,9 @@ rather than discovered:
   EU-resident, so there is no Chapter V transfer here; the "Swedish VPS" point was a preference,
   never a compliance one. *(Attribution corrected 2026-08-09, #1199.)*
 
-  ⚠ **The published privacy policy names this box's CITY.** `messages/{sv,en}/content-legal.json`,
-  the recipients section's `list` (the `netcup GmbH` tripwire in `content-legal-parity.test.ts`
-  locates the leaves). A reprovision to any other netcup location — Vienna, Amsterdam, Manassas,
-  Singapore — **falsifies published copy** and must be changed in the same change. No test can
-  catch this: the string survives the move and CI stays green, which is why the obligation is
-  hooked here, at the action that falsifies it, rather than in a release checklist. A
-  reprovision is not a release.
+  ⚠ **The city is a published, data-subject-facing claim** — the obligation that follows from that
+  lives in **§1 invariant 9**, not here. This section is a register of decisions taken; an
+  obligation recorded only in a deviation log is one nobody executes.
 - **No Cloudflare** (Klas decision K3) — Caddy will go straight to Let's Encrypt. That is why
   §6.2 opens 80/443 to `any` rather than to Cloudflare ranges as ADR 0050 gate M-5 prescribes.
   **The superseder has landed: ADR 0050's `Amendment 2026-08-04` retires M-5** into

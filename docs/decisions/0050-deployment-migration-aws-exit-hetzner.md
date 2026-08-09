@@ -704,10 +704,15 @@ tyskt bolag plus vald lokation. Netcups underbiträdeskedja är fortfarande **om
 sedan samma dag namnger den **publicerade** integritetspolicyn den här lådans stad, så den som
 kontrollerar provenienskedjan mot RIPE hade hittat Karlsruhe och dragit slutsatsen att copyn är
 fel.)*
-Detta **fullgör inte Art. 28**: ett signerat biträdesavtal med **Netcup** måste finnas
-före första riktiga användardata, det är **Klas att teckna, aldrig CC**, och den
-publicerade policyn namnger fortfarande Hetzner — det ägs av
-[#1199](https://github.com/klasolsson81/jobbliggaren/issues/1199) och grindar första datan.
+Detta **fullgör inte Art. 28**: ett biträdesavtal med **netcup GmbH** måste finnas före första
+riktiga användardata, det är **Klas att teckna, aldrig CC**, och det är fortfarande otecknat — det
+ägs av [#1199](https://github.com/klasolsson81/jobbliggaren/issues/1199) och grindar första datan.
+*Mekaniken är mätt 2026-08-09 och skiljer sig från AWS: netcups AVV gäller **inte** automatiskt
+utan sluts av kunden i Customer Control Panel; generalisera aldrig AWS-DPA:t hit.*
+**Den publicerade policyn namngav Hetzner till 2026-08-09**, då #1199 skrev om den till netcup GmbH
+i Nürnberg utan statusmarkör — copy-halvan är alltså levererad och bara avtalshalvan står kvar.
+*(Meningen stod i presens till 2026-08-09 och gjordes falsk av den commit som rättade stycket
+ovanför; delad här i samma ändring.)*
 
 **Beslut 2:s grund för att avvisa 8 GB är mätt död.** Den vilade på
 `JobTechStreamClient`s `MaxResponseContentBufferSize = 500 MB`. Mätt 2026-08-04 mot HEAD

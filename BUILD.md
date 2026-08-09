@@ -118,12 +118,14 @@
 > ([#1196](https://github.com/klasolsson81/jobbliggaren/issues/1196)); **ingenting är
 > deployat.** Beslutet bärs av **ADR 0050 `Amendment 2026-08-04`** (Beslut 2/3/4 delvis
 > superseded, gate M-5 → M-5a/M-5b). Topologin står; **värd- och edge-leverantörsnamnen i
-> tabellerna nedan är fortfarande inte omskrivna** — den sweepen är **topologi-ytan** och ägs av
-> cutover-lanen ([#196](https://github.com/klasolsson81/jobbliggaren/issues/196) /
-> [#1202](https://github.com/klasolsson81/jobbliggaren/issues/1202)), inte av #1199.
-> **#1199 levererade 2026-08-09 den halva som lovar en REGISTRERAD något** — den publicerade
-> `/integritet`-copyn, §13.4:s underbiträdeslista, ROPA-posterna och §2.6:s grind — och **står kvar
-> öppen på biträdesavtalet**, som fortsatt grindar första riktiga datan (Klas, aldrig CC). E-postraden är också
+> tabellerna nedan är fortfarande inte omskrivna.** Skärlinjen är **substitution mot beslut**
+> (senior-cto-advisor 2026-08-09): #1199 bytte 2026-08-09 varje mening vars ersättare **redan är
+> ratificerad** — den publicerade `/integritet`-copyn, §13.4:s underbiträdeslista, §13.2/§13.3,
+> §15.1:s värd/kant/backup, ROPA-posterna och §2.6:s grind — och lät varje mening som påstår en
+> **kapacitet, sizing eller feldomän** stå, eftersom en omskrivning där kräver tal ADR 0122 äger.
+> Tabellerna nedan är den senare klassen och ägs av
+> [#1264](https://github.com/klasolsson81/jobbliggaren/issues/1264). **#1199 står kvar öppen på
+> biträdesavtalet**, som fortsatt grindar första riktiga datan (Klas, aldrig CC). E-postraden är också
 > upphävd, men av ett annat direktiv och med **vald** ersättare (AWS SES), ägd av #1169
 > och #183 — se §13.4. Faktisk
 > provisionering är fortsatt framtida Klas-gatat arbete (ADR 0050 Sekvensering:
@@ -154,8 +156,9 @@
 > (ADR 0066). `local` är enda aktiva miljön. **Värdvalet är avgjort 2026-08-04**
 > (Klas-direktiv: Netcup, 8 GB, ingen CDN — ADR 0050 `Amendment 2026-08-04`; ersätter
 > det obeslutade 2026-08-02-läget) — se §3.2:s statusbanner; raderna nedan beskriver den
-> beslutade FORMEN och namnger ännu fel leverantör (topologi-ytan, ägd av #196/#1202 — **inte**
-> av #1199, som 2026-08-09 levererade redovisnings-ytan och därefter bara bär biträdesavtalet).
+> beslutade FORMEN och namnger ännu fel leverantör. De är sizing-bärande och ägs därför av
+> [#1264](https://github.com/klasolsson81/jobbliggaren/issues/1264), inte av #1199, som
+> 2026-08-09 svepte substitutionerna och därefter bara bär biträdesavtalet.
 > Permanent deploy-mål var **beslutat**
 > (Hetzner CAX31 + Cloudflare, ADR 0050 Accepted 2026-06-08) men ännu
 > ej provisionerat (ADR 0050 Sekvensering: Hetzner sist, vid MVP före
@@ -1242,8 +1245,8 @@ Se [`DESIGN.md`](./DESIGN.md) för komplett specifikation: färgtokens, typograf
 ### 13.2 Encryption
 
 **At rest:**
-- Databas: co-tenant PostgreSQL på Hetzner CAX31 (ADR 0050); disk-/volym-kryptering på VPS-nivå
-- Backup: nattlig `pg_dump` klient-side-krypterad (age) → Hetzner-EU Storage Box (ADR 0050 Beslut 4, [#197](https://github.com/klasolsson81/jobbliggaren/issues/197))
+- Databas: co-tenant PostgreSQL på netcup-lådan (ADR 0050 `Amendment 2026-08-04`/0122); disk-/volym-kryptering på VPS-nivå
+- Backup: nattlig `pg_dump` klient-side-krypterad (age) → **mål inte valt, ägs av [#197](https://github.com/klasolsson81/jobbliggaren/issues/197)**; kraven står i §13.4:s backup-post, som är det enda hemmet för dem
 - PII-fält (`cover_letter`, `resume_versions.content` m.fl.) och OAuth-tokens:
   per-användar-DEK envelope encryption via `IDataKeyProvider`
   (Local AES-256-GCM eller KMS, config-switchat per ADR 0066/0049) — extra lager
@@ -1256,14 +1259,14 @@ Se [`DESIGN.md`](./DESIGN.md) för komplett specifikation: färgtokens, typograf
 
 **Secrets-hantering per miljö:**
 - `local`: `appsettings.Local.json` (gitignored) + `.env` för frontend; committade defaults i `appsettings.Development.json`
-- permanent miljö (Hetzner): self-managed på VPS (systemd-credentials / sops+age, ADR 0050 + [#196](https://github.com/klasolsson81/jobbliggaren/issues/196)); master-nyckel aldrig plaintext-på-disk ([#198](https://github.com/klasolsson81/jobbliggaren/issues/198))
+- permanent miljö (netcup): self-managed på VPS (systemd-credentials / sops+age, ADR 0050 + [#196](https://github.com/klasolsson81/jobbliggaren/issues/196)); master-nyckel aldrig plaintext-på-disk ([#198](https://github.com/klasolsson81/jobbliggaren/issues/198))
 - `IConfiguration`-abstraktionen gör att koden är identisk oavsett källa; endast DI-registreringen skiljer
 
 ### 13.3 GDPR-flöden
 
 **Registerutdrag (Art. 15):**
 - `GET /api/v1/me/export` genererar ZIP med alla användardata som JSON + originalfiler
-- Delivered via signerad nedladdnings-URL, giltig 24 h (lagring på Hetzner-box / EU-storage, ADR 0050)
+- Delivered via signerad nedladdnings-URL, giltig 24 h (lagring på netcup-lådan / EU-storage, ADR 0050 `Amendment 2026-08-04`/0122)
 - Loggas som `DataExportRequestedEvent`
 
 **Rätt till radering (Art. 17):**
@@ -1495,9 +1498,11 @@ UptimeRobot/BetterStack free ersätter ALB/CloudWatch-health per ADR 0050):
 > behandlingen sker i **Nürnberg**; ingen amerikansk part är i kedjan, och därmed finns ingen
 > selektivitet att pröva. **R2-avvisandet står orört och ska inte städas bort** — det är den
 > tillämpade standard som gör AWS-redovisningen icke-selektiv (Art. 5(2)), och den behövs lika
-> mycket nu som före värdbytet. Värdraderna i §13.4:s subprocessor-lista är omskrivna i samma
-> ändring; **topologitabellerna är medvetet orörda** och ägs av cutover-lanen (#196/#1202) — de
-> lovar en ingenjör ett byggmål, inte en registrerad en redovisning.
+> mycket nu som före värdbytet. Värdraderna i §13.4:s subprocessor-lista, §13.2, §13.3 och §15.1:s
+> värd/kant/backup är omskrivna i samma ändring; **kapacitetsprosan är medvetet orörd** och ägs av
+> [#1264](https://github.com/klasolsson81/jobbliggaren/issues/1264). Skärlinjen är **substitution
+> mot beslut**: ett leverantörsnamn vars ersättare redan är ratificerad byts, ett tal som 8 GB mot
+> 16 GB ändrar gör det inte — det senare kräver siffror ADR 0122 äger.
 >
 > **Vad #1199 fortfarande bär: biträdesavtalet med netcup**, som är Klas att teckna och som grindar
 > första riktiga datan. Ingen supersessions-ADR blev skyldig — ADR 0050 `Amendment 2026-08-04`
@@ -1505,33 +1510,46 @@ UptimeRobot/BetterStack free ersätter ALB/CloudWatch-health per ADR 0050):
 
 ### 15.1 Deploy-layout (ADR 0050, Accepted)
 
-**Backend — en Hetzner Cloud CAX31** (8 vCPU shared ARM Ampere Altra / 16 GB RAM
-/ 160 GB NVMe / 20 TB trafik, ~€16/mån, EU-DC Falkenstein/Nuremberg/Helsinki).
-Hela backend-stacken kör i **Docker Compose** på boxen: .NET API + .NET Worker
-+ PostgreSQL (co-tenant container, ingen managed-DB) + Redis + **Caddy**
-(reverse proxy, auto-TLS via Let's Encrypt DNS-01 mot Cloudflare). `mem_limit`
-sätts hybrid — hård cap på Worker + Redis (skydda Postgres mot
-ingestion-OOM), generös/osatt på Postgres (data-durabilitet); Bulkhead-principen
-(ADR 0050 mem_limit-not, [#196](https://github.com/klasolsson81/jobbliggaren/issues/196)).
+**Backend — en netcup RS 1000 G12** (x86 AMD EPYC 9645, 4 dedikerade kärnor / 8 GB DDR5 ECC
+/ 256 GB NVMe, Debian 13, Nürnberg). Hela backend-stacken kör i **Docker Compose** på boxen:
+.NET API + .NET Worker + PostgreSQL (co-tenant container, ingen managed-DB) + Redis + **Caddy**
+(reverse proxy, auto-TLS via Let's Encrypt **direkt**, HTTP-01/TLS-ALPN-01 — ingen DNS-01 och
+ingen CDN, Klas-beslut K3). **`mem_limit` sätts på varje tjänst, Postgres inklusive** — den
+tidigare hybrid-doktrinen ("generös/osatt på Postgres") vilade uttryckligen på att 16 GB löste
+nollsummespelet och är superseded av ADR 0050 `Amendment 2026-08-04` §1; kapacitetstabellen och
+de fyra villkoren bor i ADR 0122, inte här ([#196](https://github.com/klasolsson81/jobbliggaren/issues/196)).
 
-**Frontend — Next.js co-tenant container på CAX31.** FE körs som en `next start`-container i samma Compose-stack bakom Caddy (ADR 0050 Beslut 3, amenderad 2026-06-14). `next build` körs i CI; endast den färdiga imagen shippas till boxen (build-toppen belastar aldrig RAM-feldomänen). FE-footprint (~0,5 GB under last) ryms i CAX31:s headroom.
+**Frontend — Next.js co-tenant container på netcup-lådan.** FE körs som en `next start`-container i samma Compose-stack bakom Caddy (ADR 0050 Beslut 3, amenderad 2026-06-14). `next build` körs i CI; endast den färdiga imagen shippas till boxen (build-toppen belastar aldrig RAM-feldomänen) — det är sedan ADR 0122 **kapacitetsvillkor 1** och därmed lastbärande, inte bara bekvämt. FE-footprint (~0,5 GB under last) ryms i CAX31:s headroom.
 
-**Edge — Cloudflare gratis-tier** framför boxen (TLS-edge / DNS / CDN / DDoS):
-**"Full (strict)"** mot giltigt origin-cert på Caddy (aldrig "Flexible") +
-origin-IP-lockdown (origin accepterar bara Cloudflare-IP:er på 443) + HSTS
-(ADR 0050 Beslut 4, gate M-5 i [#196](https://github.com/klasolsson81/jobbliggaren/issues/196)). Caddy reverse-proxiar två upstreams (API
-på port 5000 + `next start`-FE på localhost:3000 för icke-`/api`-vägar); "Full
-(strict)" + origin-IP-lockdown + HSTS täcker hela ursprunget.
+**Edge — ingen.** Cloudflare utgår helt (Klas-beslut K3, ADR 0050 `Amendment 2026-08-04` §3): ingen
+CDN, ingen TLS-edge, ingen DDoS-absorption och **ingen efterträdare till origin-IP-lockdown** —
+kantfiltret hos netcup är allt som finns. DNS ligger hos Strato. Caddy terminerar TLS direkt och
+reverse-proxiar två upstreams (API på port 5000 + `next start`-FE på localhost:3000 för
+icke-`/api`-vägar). **80/443 står öppna mot `any` i båda brandväggslagren — det krävs för ACME och
+får inte "rättas" mot gate M-5:s ursprungstext.** M-5 är pensionerad på plats → **M-5a** (HSTS
+faktiskt emitterad i Production, bevisad på det **oautentiserade 401-svaret**) + **M-5b**; se
+ADR 0050 `Amendment 2026-08-04` §5.
 
-**Backup — Hetzner-EU Storage Box** (~€3/mån/1 TB): nattlig `pg_dump`
-klient-side-krypterad (age) → Storage Box i samma EU-jurisdiktion (Cloudflare R2
-avvisat pga CLOUD Act-tredjelandsöverföring av icke-krypterad pg_dump-PII).
-Backups ligger INTE på boxens 160 GB. Retention/rotation + restore-drill = [#197](https://github.com/klasolsson81/jobbliggaren/issues/197).
+**Backup — mål inte valt, ägs av [#197](https://github.com/klasolsson81/jobbliggaren/issues/197).**
+Hetzner-EU Storage Box föll med värdbytet och har ingen ersättare. **Kraven består oförändrade och
+är hemma i §13.4:s backup-post** — klient-side age-kryptering före upload oavsett mål,
+EU-jurisdiktion, retention/rotation **30 dagar** (Klas-beslut K4), testad restore-drill, ett mål
+vars feldomän är oberoende av **både** lådan och operatörens arbetsstation, och age-**privatnyckeln**
+aldrig lagrad med ciphertexten. Backups ligger INTE på lådans disk. **Cloudflare R2 är fortsatt
+avvisat pga CLOUD Act-tredjelandsöverföring av icke-krypterad `pg_dump`-PII** — den meningen står
+kvar med avsikt: den är den tillämpade standard som gör §13.4:s AWS-SCC-redovisning icke-selektiv
+(Art. 5(2)), och en standard som tillämpas selektivt är ingen standard.
 
 **Single-box blast-radius** (API/Worker/Postgres/Redis delar OS + RAM + feldomän)
 är ett medvetet beta-skala-val (ADR 0050 Negativa konsekvenser); CAX31:s 16 GB +
 per-service `mem_limit` ger headroom. NBomber-lasttest mot 46k-korpuset (ADR 0045)
 körs före cutover för att validera sizing empiriskt.
+
+> ⚠ **Stycket ovan sizear mot en låda vi inte har, och det är MEDVETET orört.** 16 GB, 46k-korpuset
+> och FE-footprintens headroom är **tal**, inte leverantörsnamn — att skriva om dem kräver siffror
+> ADR 0122 äger (korpuset är mätt till 106 071 annonser / 2 493 MB, och `mem_limit`-doktrinen är
+> superseded). #1199 svepte **substitutioner**, aldrig beslut.
+> Ägs av [#1264](https://github.com/klasolsson81/jobbliggaren/issues/1264).
 
 Den tidigare AWS-layouten (VPC/ECS/RDS/ElastiCache/S3/Bedrock/Route 53) finns
 dokumenterad i ADR 0066 + sessions som historik.

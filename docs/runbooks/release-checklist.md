@@ -624,7 +624,7 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
         D3 *"a new purpose section under 6(1)(b)"*, dvs. vidarebehandling för ett
         nytt ändamål av redan insamlade uppgifter → **Art. 13(3) kräver
         information "prior to that further processing"**, och policyns eget löfte
-        (rad 154) säger *"Vid mer betydande ändringar informerar vi dig på lämpligt
+        (rad 153) säger *"Vid mer betydande ändringar informerar vi dig på lämpligt
         sätt"*. Formulera som förhandsbesked (*"från och med &lt;datum&gt; behandlar vi
         även …"*), aldrig som påstående om pågående drift.
       Aldrig **efter** aktiveringen i något av fallen.
@@ -641,14 +641,14 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
       den står som i drift, och omvänt.** Kör inventeringsgreppet igen efter
       flippen: antalet träffar ska minska med **exakt** antalet poster releasen
       aktiverar, aldrig med fler.
-      **Rad 135 kräver särskild kontroll — den är den enda rad greppet inte
+      **Rad 134 kräver särskild kontroll — den är den enda rad greppet inte
       självskyddar.** Dess inledning (`planerar` / `plans`) matchas INTE av
       inventeringsmönstret (verifierat: 0 träffar), så raden syns bara via sin
       avslutande mening. Tas bara den bort faller raden ur greppet helt, räkne-
       testet ovan säger "minskade med exakt 1 — korrekt", och policyn påstår
       fortfarande *"Jobbliggaren planerar en översikt av din egen
       ansökningshistorik"* — mitt i avsnittet **"Inga automatiserade beslut"**,
-      dvs. i Art. 22-negationen. Läs rad 135 i sin helhet: hela stycket skrivs om
+      dvs. i Art. 22-negationen. Läs rad 134 i sin helhet: hela stycket skrivs om
       till presens, aldrig trunkeras. (Varje **annan** rad ur punkt 1:s mängd bär `(planerat)`/
       `planeras` i själva sakpåståendet och lämnar därför kvar en grepp-träff om
       flippen är ofullständig.)

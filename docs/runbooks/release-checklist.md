@@ -606,8 +606,11 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
       spärren konvergerar alltså på ett enda arbetsmoment — något den gamla tagg-triggern aldrig
       åstadkom. **(b) gör det inte:** Art. 30-posten för konto/auth kristalliseras vid första
       verkliga registrerade användaren och bärs av ingen annan mekanism.
-      *Not:* `AuthOptionsValidator` vägrar numera boota **Api:n** på `RegistrationsOpen` utan
-      `RequireEmailConfirmation` utanför Development/Test. Garantin bärs av **den ivriga
+      *Not:* `AuthOptionsValidator` vägrar numera boota **Api:n** på två kombinationer utanför
+      Development/Test — `RegistrationsOpen` utan `RequireEmailConfirmation`, och (sedan
+      2026-08-09) `RegistrationsOpen` MED `RequireEmailConfirmation` när den registrerade
+      avsändaren inte kan leverera. Allt som följer i den här noten gäller **båda** reglerna:
+      garantin bärs av **den ivriga
       `IOptions<AuthOptions>`-läsningen** vid boot-announcement i `Program.cs`: den ligger
       bevisligen före `app.Run()` och därmed före att Kestrel binder socketen. `ValidateOnStart`
       är en redundant backstop — dess ordning relativt `GenericWebHostService` är **inte** pinnad
@@ -655,21 +658,28 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
         publiceras fortfarande före handlingen och utlovar ett utskick som defaultkonfigurationen
         inte kan göra. Villkoret upphör vid **en riktig `Email:Provider`** — samma upphörande som
         stycket ovan redan namnger — aldrig vid att #1087 mergats.
-        **Registerkedjan hör till samma trigger och är ännu inte stängd.** Utanför
-        Development/Test **vägrar `AuthOptionsValidator` att boota** på `RegistrationsOpen=true`
-        utan `RequireEmailConfirmation` (ADR 0083 Amendment 2026-08-03) — den **sätter ingenting**,
-        så tillståndet nås av en medveten tvåflaggs-åtgärd, och varje *bootbar* öppen-registrerings-
-        konfiguration bär därmed flaggan. Med osatt `Email:Provider` går
-        aktiveringslänken då till `NullEmailSender`, `UserAccountService` spärrar inloggning på
-        `EmailConfirmed`, och återsändningen är lika tyst: **kontot skapas och blir permanent
+        **Registerkedjan hör till samma trigger, och den tekniska halvan är STÄNGD sedan
+        2026-08-09** ([PR #1282](https://github.com/klasolsson81/jobbliggaren/pull/1282), D1).
+        Tillståndet som skulle stängas: utanför Development/Test bootade
+        `RegistrationsOpen=true` + `RequireEmailConfirmation=true` med osatt `Email:Provider` rent —
+        aktiveringslänken gick till `NullEmailSender`, `UserAccountService` spärrade inloggning på
+        `EmailConfirmed`, och återsändningen var lika tyst: **kontot skapades och blev permanent
         onåbart.** Det är strikt värre än (a):s ursprungliga fall — ett misslyckat adressbyte
-        lämnar användaren där hon var. Åtgärden är en kompositionstids-vägran att boota på den
-        kombinationen, och den måste lösa att `AuthOptions` valideras i Api:n (bindningen med
-        `ValidateOnStart` + `AddSingleton<IValidateOptions<AuthOptions>, AuthOptionsValidator>` —
-        sök på typnamnet, radnumret skrivs medvetet inte här) men **medvetet inte i Worker:n**
-        (noten om det står i punktens eget stycke ovan) medan båda hostarna anropar
-        `AddEmailSender`.
-        **Ingen release som öppnar registrering får ske innan den grinden finns.**
+        lämnar användaren där hon var.
+        Åtgärden landade som föreskriven: `AuthOptionsValidator` bär numera **två** vägransregler,
+        och den andra frågar den registrerade avsändarens `IEmailSender.CanDeliver` i stället för
+        att läsa om `Email:Provider`. Asymmetrin är löst som punkten krävde — regeln bor i
+        validatorn, som binds i Api:ns identitetsmodul, och **inte** i `AddEmailSender`, den enda
+        sömmen båda hostarna delar; Worker:n binder samma `Auth`-sektion med ett rent `Configure`
+        och registrerar ingen validator. **Båda halvorna är pinnade vid anropsplatsen**, så
+        paritets-editen åt endera hållet landar rött.
+        ⚠ **Detta stänger INTE punkt 5.5.** Villkor (a) upphör alltjämt först vid en riktig
+        `Email:Provider` (`:218`/`:220`/`:224` publicerar fortfarande ett utlovat utskick), (b) är
+        orörd, och **`Test`-divergensen står kvar**: den tekniska spärren undantar
+        Development/Test via allowlisten, medan den juridiska grinden här räknar en nåbar
+        `Test`-host som produktionsstart. Klientarmen (B-ii, stycket ovan) är fortfarande ett eget
+        blockerande villkor.
+        **Ingen release som öppnar registrering får ske innan de kvarvarande villkoren är gröna.**
         Copyn får INTE mjukas upp först — det falska påståendet är enda användarsynliga tecknet
         att flödet är trasigt. Art. 5(1)(a) + 12(1).
         Ägare av residualen: **#734** (bär flippens förutsättningar) och **#183** (SES-prod-flippens

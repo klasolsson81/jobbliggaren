@@ -60,7 +60,10 @@ public sealed class AuthOptions
     /// <c>RequireEmailConfirmation</c>: that combination is legacy instant-login, which mints an
     /// account bound to an address the registrant may not own and puts the acknowledged-deferred
     /// duplicate-enumeration oracle on a public IP. Going live therefore needs BOTH flags plus a real
-    /// <c>Email:Provider</c> — the prerequisites are owned by <b>#734</b>.
+    /// <c>Email:Provider</c> — the prerequisites are owned by <b>#734</b>. <b>All three are enforced,
+    /// not merely documented:</b> since 2026-08-09 the same validator also refuses to boot when both
+    /// flags are on and the registered sender cannot deliver, because that configuration creates
+    /// accounts whose activation link reaches nobody.
     /// </para>
     /// <para>
     /// Both flags are read through singleton <c>IOptions</c>, and deployed config arrives as

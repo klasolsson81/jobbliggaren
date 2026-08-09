@@ -34,8 +34,18 @@ namespace Jobbliggaren.Infrastructure.Security;
 /// <b>Wire-format (wrapped-DEK):</b>
 /// <c>[0x4C, 0x01] || nonce(12) || ciphertext(32) || tag(16)</c>.
 /// Prefix <c>0x4C</c> ('L' = Local), <c>0x01</c> = wrap-format-version 1 —
-/// crypto-agility: en framtida master-nyckel-rotation (v2) failar tydligt vid
-/// unwrap istället för som auth-tag-mismatch.
+/// crypto-agility: a future change to the LAYOUT fails loudly at unwrap instead of as an
+/// auth-tag mismatch.
+/// </para>
+///
+/// <para>
+/// <b>The version byte is LAYOUT, not key identity</b> (corrected 2026-08-09, #198). This
+/// comment previously said a master-key rotation would bump it to v2; that was wrong, and
+/// the field note on <c>LocalKeyId</c> below was right all along. A master-key re-wrap
+/// produces the same layout under different key bytes, so bumping the header would make
+/// every pre-rotation row unreadable by design and would collide with #501's separate
+/// dek_version axis. Key identity lives in <c>user_data_keys.cmk_key_id</c>, stamped from
+/// <see cref="FieldEncryptionOptions.LocalMasterKeyId"/>.
 /// </para>
 ///
 /// <para>
@@ -57,7 +67,11 @@ public sealed partial class LocalDataKeyProvider : IDataKeyProvider
     // CmkKeyId-motsvarighet — rent metadata/forensik-fält i user_data_keys.
     // Ingen läsväg jämför detta för krypto-beslut (UnwrapDataKeyAsync tar bara
     // owner + wrappedDek). varchar(2048) rymmer det.
-    private const string LocalKeyId = "local-v1";
+    //
+    // #198: the value is configuration (FieldEncryption:LocalMasterKeyId, default
+    // "local-v1"), because it is the offline re-wrap operation's idempotency marker and
+    // must change when the master key does. Still metadata: no crypto decision reads it.
+    private readonly string _keyId;
 
     private readonly byte[] _masterKey;
     private readonly ILogger<LocalDataKeyProvider> _logger;
@@ -102,6 +116,20 @@ public sealed partial class LocalDataKeyProvider : IDataKeyProvider
         // Master-nyckeln lever singleton-instansens livstid (paritet med KMS-
         // klientens livstid). Exponeras aldrig, kopieras aldrig ut.
         _masterKey = key;
+
+        // Re-guard past the options pipeline, same as the key bytes above: a blank identity
+        // would silently stamp empty markers. The validator fails this at startup; this keeps
+        // the invariant true for any hand-constructed instance (the re-wrap tool builds two).
+        var keyId = options.Value.LocalMasterKeyId;
+        if (string.IsNullOrWhiteSpace(keyId))
+        {
+            CryptographicOperations.ZeroMemory(_masterKey);
+            throw new CryptographicException(
+                "FieldEncryption:LocalMasterKeyId saknas — nyckel-identiteten är " +
+                "rotationens idempotens-markör (#198).");
+        }
+
+        _keyId = keyId;
     }
 
     public Task<GeneratedDataKey> CreateDataKeyAsync(
@@ -116,7 +144,7 @@ public sealed partial class LocalDataKeyProvider : IDataKeyProvider
             // Plaintext-DEK ägs nu av anroparen (UserDataKeyStore nollar via cache);
             // wrapped-DEK lagras. Returnera utan att nolla dek (kontraktet säger
             // anroparen nollar PlaintextDek efter bruk).
-            return Task.FromResult(new GeneratedDataKey(dek, wrapped, LocalKeyId));
+            return Task.FromResult(new GeneratedDataKey(dek, wrapped, _keyId));
         }
         catch (Exception ex)
         {

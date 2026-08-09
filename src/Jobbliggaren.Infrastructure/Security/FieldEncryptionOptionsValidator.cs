@@ -55,6 +55,19 @@ internal sealed class FieldEncryptionOptionsValidator : IValidateOptions<FieldEn
         }
 
         System.Security.Cryptography.CryptographicOperations.ZeroMemory(key);
+
+        // #198 (M-3): the key IDENTITY is not a secret, but it is the re-wrap operation's
+        // idempotency marker. A blank one would stamp every new row with an empty
+        // cmk_key_id, and the next rotation would select on a value it can neither match
+        // nor tell apart from "never stamped". Fail loud instead.
+        if (string.IsNullOrWhiteSpace(options.LocalMasterKeyId))
+        {
+            return ValidateOptionsResult.Fail(
+                "FieldEncryption:LocalMasterKeyId saknas — nyckel-identiteten stämplas i " +
+                "user_data_keys.cmk_key_id och är rotationens idempotens-markör (#198). " +
+                "Utelämna nyckeln för default 'local-v1'.");
+        }
+
         return ValidateOptionsResult.Success;
     }
 }

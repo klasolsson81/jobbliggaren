@@ -18,8 +18,12 @@
 # the internal network. `.github/scripts/compose-edge-publish-guard.sh` is the gate on
 # exactly that shape.
 #
-# Secrets come from `deploy/.env` on the box (root-owned, chmod 600, never committed).
-# Every one is a hard `:?` requirement — compose refuses to start without it.
+# Database and edge-gate credentials come from `deploy/.env` on the box (root-owned,
+# chmod 600, never committed). Every one is a hard `:?` requirement — compose refuses to
+# start without it.
+#
+# The four CRYPTO values are not among them: since #198 they are files on tmpfs, never
+# environment values and never in `.env` (gate B-1 — see the x-app-secrets anchor).
 
 name: jobbliggaren-prod
 
@@ -36,16 +40,47 @@ x-logging: &logging
     max-size: "10m"
     max-file: "3"
 
-# The four pepper/key values MUST be byte-identical between api and worker: both hosts
-# validate them at startup (ValidateOnStart in the Infrastructure DI they share), and
-# data written under one value is unreadable under another. An anchor makes divergence
-# structurally impossible rather than a thing to remember.
+# THE FOUR CRYPTO VALUES ARE FILES, NOT ENVIRONMENT VALUES (#198, gate B-1).
+#
+# A container's environment is persisted by Docker in its own on-disk state, and
+# `docker inspect` returns it even after the container has exited — measured on the box
+# 2026-08-05 (#1240). That was one of B-1's two plaintext-on-disk surfaces; `deploy/.env`
+# was the other. What travels below is a PATH, and a path is not a secret.
+#
+# The files live on /run (tmpfs, RAM-backed) and are written by the operator after each
+# boot — there is no encrypted-at-rest copy anywhere on this disk, deliberately: with no
+# TPM on this host (measured 2026-08-09: `systemd-analyze has-tpm2` = partial, no /dev/tpm0),
+# a sealed blob and its unsealing key would travel in the same disk snapshot, which is
+# obfuscation rather than encryption. See docs/runbooks/master-key-ops.md.
+#
+# The peppers ride the same mechanism, and that is defence in depth rather than a gate
+# requirement: B-1 names the master key alone. They travel because the anchor below exists
+# so api/worker cannot diverge, and splitting one value out would leave that guarantee
+# spread across two mechanisms. A shared read-only mount makes divergence impossible at a
+# stronger level than YAML did: both containers read the same inode.
+#
+# The four values MUST be byte-identical between api and worker: both hosts validate them
+# at startup (ValidateOnStart in the Infrastructure DI they share), and data written under
+# one value is unreadable under another.
 x-app-secrets: &app-secrets
   FieldEncryption__Provider: Local
-  FieldEncryption__LocalMasterKeyBase64: ${FIELD_ENCRYPTION_MASTER_KEY:?}
-  AuditPseudonymization__PepperBase64: ${AUDIT_PEPPER:?}
-  CompanyWatchPseudonymization__PepperBase64: ${COMPANY_WATCH_PEPPER:?}
-  CvReviewFingerprintPseudonymization__PepperBase64: ${CV_FINGERPRINT_PEPPER:?}
+  FieldEncryption__LocalMasterKeyBase64_FILE: /run/app-secrets/FieldEncryption__LocalMasterKeyBase64
+  # Key identity, not a secret — the re-wrap operation's idempotency marker (#198, M-3).
+  # It travels as a file with the key bytes on purpose: identity and bytes change at the
+  # same instant for the same reason, so the pair is written atomically by one script.
+  FieldEncryption__LocalMasterKeyId_FILE: /run/app-secrets/FieldEncryption__LocalMasterKeyId
+  AuditPseudonymization__PepperBase64_FILE: /run/app-secrets/AuditPseudonymization__PepperBase64
+  CompanyWatchPseudonymization__PepperBase64_FILE: /run/app-secrets/CompanyWatchPseudonymization__PepperBase64
+  CvReviewFingerprintPseudonymization__PepperBase64_FILE: /run/app-secrets/CvReviewFingerprintPseudonymization__PepperBase64
+
+# Read-only, and the SAME host directory for both services — see the anchor above. The
+# host path is a literal, deliberately NOT a ${...:?} variable: a new hard requirement
+# would make the hourly reconcile refuse the entire apply until the operator had filled it
+# in, with `systemctl --failed` as the only reader (deploy/systemd/jobbliggaren-reconcile.sh).
+# The directory is created at boot by /etc/tmpfiles.d/jobbliggaren.conf, so the mount never
+# auto-creates a root-owned one of its own.
+x-app-secrets-mount: &app-secrets-mount
+  - /run/jobbliggaren/secrets:/run/app-secrets:ro
 
 x-app-connections: &app-connections
   ConnectionStrings__Postgres: "Host=postgres;Port=5432;Database=jobbliggaren;Username=jobbliggaren_app;Password=${POSTGRES_APP_PASSWORD:?}"
@@ -172,6 +207,7 @@ services:
       # fail-stops a Production boot on an empty value, which is why the committed
       # appsettings.Production.json leaves it empty and the value is injected here.
       ForwardedHeaders__KnownNetworks__0: "172.28.0.0/24"
+    volumes: *app-secrets-mount
     mem_limit: 1024m
     # B-1 POSTURE, and do not remove this line. ADR 0050 Amendment 2026-08-04 §2
     # condition 4 attributes it explicitly: `mem_limit` binds only the memory axis, so a
@@ -179,10 +215,11 @@ services:
     # `memswap_limit == mem_limit` is called a "strictly stronger B-1 posture" there,
     # because the key then cannot reach zram either, only anonymous RAM.
     #
-    # It STRENGTHENS B-1; it does not discharge it. B-1 requires the key never be
-    # plaintext on disk, and it currently is — in `deploy/.env`, and a second time in
-    # Docker's own container state, which survives the container (measured). Closing it
-    # needs a TPM-bound systemd credential or sops+age into tmpfs, and #198 owns that.
+    # It STRENGTHENS B-1 and it never discharged it. #198 closed the gate itself by taking
+    # the key out of container environment and out of `deploy/.env` entirely — see the
+    # x-app-secrets anchor above. This line remains load-bearing for the OTHER half: the key
+    # is plaintext in this process's memory for its whole lifetime, and without
+    # `memswap_limit` a container at its ceiling would page that memory into zram.
     memswap_limit: 1024m
     healthcheck:
       # The aspnet image ships no curl or wget deliberately (see its Dockerfile), so the
@@ -225,6 +262,7 @@ services:
       # ASPNETCORE_ENVIRONMENT because it IS a WebApplication.
       DOTNET_ENVIRONMENT: Production
       DOTNET_gcServer: "0"
+    volumes: *app-secrets-mount
     mem_limit: 1024m
     memswap_limit: 1024m
     # Hangfire's ShutdownTimeout is 25 s (HangfireWorkerOptions), sized to sit just under

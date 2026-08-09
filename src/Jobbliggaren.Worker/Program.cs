@@ -6,6 +6,7 @@ using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Common.Auditing;
 using Jobbliggaren.Application.Common.Behaviors;
 using Jobbliggaren.Infrastructure;
+using Jobbliggaren.Infrastructure.Configuration;
 using Jobbliggaren.Infrastructure.Logging;
 using Jobbliggaren.Worker.Auditing;
 using Jobbliggaren.Worker.Hosting;
@@ -17,6 +18,12 @@ using Microsoft.Extensions.Hosting;
 var builder = Host.CreateApplicationBuilder(args);
 
 builder.Configuration.AddJsonFile("appsettings.Local.json", optional: true, reloadOnChange: false);
+
+// #198 / ADR 0050 gate B-1 — secrets arrive as FILES on a RAM-backed mount, never as container
+// environment values (Docker persists those to disk in its own container state). LAST source,
+// deliberately: on the box the file is the authority. Inert in dev — with no *_FILE variables
+// set it contributes zero keys, so appsettings.Local.json keeps working unchanged.
+builder.Configuration.AddEnvFileSecrets();
 
 // TD-104 / STEG 6 — persistent strukturerad logg-sink (MEL → Seq, config-gated på
 // Seq:ServerUrl). Delad extension med Api så sink-konfig inte driftar mellan hosts.

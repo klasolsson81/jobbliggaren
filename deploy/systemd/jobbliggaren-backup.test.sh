@@ -439,6 +439,21 @@ check "…no pairing stamp is published" [ ! -f "$(stored "jbl-backup:jobbliggar
 check "…and no local stamp is written" [ ! -f "$STAMP" ]
 unset RCLONE_FAILS_ON
 
+# THE STAMP UPLOAD IS ITS OWN FAILURE PATH, AND IT PRODUCES THE STATE §5 STEP 0 MUST REFUSE ON.
+# Promotion succeeds, the stamp does not: the generation is current but nothing records which
+# generation it is. An operator meeting an empty `rclone cat` there has to read absence as a
+# refusal rather than as an unknown, so the refusal text has to say to re-run.
+echo "== a failed stamp upload is its own state, and it is named =="
+reset_world; RCLONE_FAILS_ON="jbl-backup:jobbliggaren-backups/deks/verified.stamp"
+expect_exit 1 "a failing stamp upload fails the run"
+check "…the promoted generation is still there" \
+  [ -f "$(stored "jbl-backup:jobbliggaren-backups/deks/verified.dump.age")" ]
+check "…but no stamp was published" [ ! -f "$(stored "jbl-backup:jobbliggaren-backups/deks/verified.stamp")" ]
+check "…the refusal calls an absent stamp a REFUSAL, not an unknown" grep -q "REFUSAL rather than an unknown" "$TMPROOT/out"
+check "…and tells the operator to re-run before relying on tonight" grep -q "Re-run this unit" "$TMPROOT/out"
+check "…and no local stamp is written" [ ! -f "$STAMP" ]
+unset RCLONE_FAILS_ON
+
 # THE ROUND TRIP MUST BE ABLE TO FAIL, and this is the case that proves it does. Without it the
 # comparison could be tautological — comparing a value against itself — and every run would pass.
 echo "== the round trip actually verifies =="

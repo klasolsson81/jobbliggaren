@@ -235,6 +235,20 @@ once real data exists that choice is open and is security-auditor's to settle (�
 > **The value it prints must be greater than or equal to the `<STAMP>` in the main artefact's own
 > file name.** If it is not, do not use that main artefact: pick an older one whose stamp the DEK
 > generation covers, or run `systemctl start jobbliggaren-backup.service` and use tonight's pair.
+>
+> **If the command prints NOTHING, the stamp does not exist — and that is a REFUSAL, not an
+> unknown state.** No run has ever published a pairing stamp, or the one run that promoted a
+> generation failed on the stamp upload afterwards. Either way the pairing cannot be checked, so
+> it must not be assumed: run `systemctl start jobbliggaren-backup.service` and use the pair that
+> run produces. This is the same rule the rest of this stack is built on — a tool's or a value's
+> absence must never read as its verdict — and it is written here because it is the one branch of
+> step 0 that would otherwise fail open.
+>
+> **What step 0 is and is not.** It is a consistency check against operational error, not a
+> tamper control. The stamp is the only input to this step carrying no cryptographic integrity —
+> everything else in §5 is age-framed — so anyone holding the upload credential could move it
+> forward. That widens nothing (the same credential could upload a wrong generation outright),
+> but do not read a plaintext, credential-writable object as an authority.
 
 ```bash
 # 1. Fetch. Any main artefact whose stamp is <= the DEK generation's stamp (step 0), and the
@@ -319,9 +333,15 @@ FROM _dek_restore d WHERE d.job_seeker_id NOT IN (SELECT id FROM job_seekers);
 SELECT count(*) AS users_without_a_key_TOTAL
 FROM job_seekers j WHERE j.id NOT IN (SELECT job_seeker_id FROM user_data_keys);
 
--- (b2) The number that IS the crypto-erasure claim: restored users who have ciphertext but no
---      key. Ciphertext without a key is the erased-user signature; no ciphertext and no key is
---      simply a user who never wrote any.
+-- (b2) The erasure signature: restored users who have ciphertext but no key. Ciphertext without
+--      a key is what an erased user looks like; no ciphertext and no key is simply a user who
+--      never wrote any.
+--      SCOPE, STATED RATHER THAN IMPLIED: the EXISTS below inspects `applications.cover_letter`
+--      alone. A user whose only ciphertext was a note, a follow-up, `resume_versions.content_enc`
+--      or `parsed_resumes` is invisible to it. That is safe for what the drill needs — one
+--      confirmed case proves the mechanism, and a zero is a prompt to investigate rather than a
+--      pass — but it is an EXISTENTIAL proof over one column, not a census. Widen the EXISTS if
+--      you ever need the count itself to be complete. (security-auditor, 2026-08-09.)
 SELECT count(*) AS users_with_ciphertext_but_no_key
 FROM job_seekers j
 WHERE j.id NOT IN (SELECT job_seeker_id FROM user_data_keys)
@@ -425,8 +445,17 @@ a date is a claim that cannot be told from one that has decayed.
    day −25 DEK **version** reads an erased user again. Object Lock implies versioning on the
    implementations that offer it, so ADR 0125's Object Lock rider makes this reachable rather
    than theoretical. **Provisioning gate:** either do not version `deks/`, or set
-   `NoncurrentVersionExpiration: 1 day` on it, and read the lifecycle configuration back to
-   confirm. `main/` is unaffected — it carries no keys. (security-auditor, 2026-08-09, Major.)
+   `NoncurrentVersionExpiration: 1 day` on it (1 is S3's minimum, so it is a floor, not a choice).
+   **And `main/` is NOT exempt, though the first draft of this premise said it was.** No keys
+   travel there, so the Art. 17 property is unharmed — but on a versioned bucket an
+   `Expiration: 30 days` rule writes a delete marker and demotes the object to noncurrent rather
+   than removing it, and main artefacts are the ones carrying clear-text PII inside the age
+   envelope. K4's 30 days would then be unenforced there too. On a versioned bucket `main/` needs
+   `Expiration` **plus** `NoncurrentVersionExpiration` **plus** `ExpiredObjectDeleteMarker`.
+   **Measure the effect, not the rule:** a correctly shaped rule with a wrong prefix filter reads
+   back clean, so also run `get-bucket-versioning` and, after two nights,
+   `list-object-versions --prefix deks/` — exactly one version per key.
+   (security-auditor, 2026-08-09, Major, restated in the scoped recheck the same day.)
 6. **A failed run can leave a truncated object offsite, and the box cannot remove it.** If `age`
    or `pg_dump` dies mid-stream, `rclone` has already opened the destination and writes what it
    received. The run fails loudly, and age is an authenticated format so a restore from that

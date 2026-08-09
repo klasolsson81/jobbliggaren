@@ -283,7 +283,7 @@ done
 readonly UNPAIRED_MAIN_WARNING="The main artefact for ${run_stamp} IS offsite, and this run did
 NOT promote a DEK generation for it. The newest verified DEK artefact is therefore OLDER than that
 main artefact: any user created since it has no key in a restore from it. Do not pair them — see
-docs/runbooks/backup-restore.md §5 step 1, which compares ${DEK_VERIFIED_STAMP} against the stamp
+docs/runbooks/backup-restore.md §5 step 0, which compares ${DEK_VERIFIED_STAMP} against the stamp
 in the main artefact's own name. Re-run this unit; a successful run repairs the pairing."
 
 # ---------------------------------------------------------------------------------------------
@@ -338,12 +338,15 @@ a restore may use it instead (docs/runbooks/backup-restore.md §5). ${UNPAIRED_M
 # so an observer who can list the bucket already knows when backups run.
 #
 # The stamp goes up LAST and only on the success path, so it can never claim a generation that was
-# not promoted. A stamp that lags its artefact is safe — it under-claims, and the restore refuses
-# a pair it could have accepted. A stamp that leads one is not, which is why this is not written
-# before the promotion it describes.
-printf '%s
-' "$run_stamp"   | rclone rcat "${RCLONE_FLAGS[@]}" "${BACKUP_REMOTE}/${DEK_VERIFIED_STAMP}"   || die "the DEK generation was promoted but its stamp did not upload. A restore cannot check the
-pairing without it — re-run this unit before relying on tonight's artefacts."
+# not promoted. A stamp that lags its artefact is SAFE: it under-claims, so the restore refuses a
+# pair it could have accepted, which is the fail-closed direction the rest of this design takes.
+# A stamp that LEADS its artefact would do the opposite, and that is why it is not written before
+# the promotion it describes. The box holds no DELETE, so leading is unreachable by construction.
+printf '%s\n' "$run_stamp" \
+  | rclone rcat "${RCLONE_FLAGS[@]}" "${BACKUP_REMOTE}/${DEK_VERIFIED_STAMP}" \
+  || die "the DEK generation was promoted but its stamp did not upload. A restore cannot check the
+pairing without it, and an ABSENT stamp is a REFUSAL rather than an unknown state (see
+docs/runbooks/backup-restore.md §5 step 0). Re-run this unit before relying on tonight's artefacts."
 
 install -d -m 0755 "$(dirname "$STAMP_FILE")"
 printf '%s\n' "$run_stamp" > "$STAMP_FILE"

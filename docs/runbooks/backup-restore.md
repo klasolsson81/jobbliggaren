@@ -97,10 +97,11 @@ sudo install -m 0644 /opt/jobbliggaren/deploy/systemd/jobbliggaren-tmpfiles.conf
 sudo systemd-tmpfiles --create
 stat -c '%a %U:%G' /run/jobbliggaren/host-secrets     # expect: 700 root:root
 
-# 3. The recipient. Klas generates the identity OFF this box; only the public half arrives here.
-sudo install -d -m 0755 /opt/jobbliggaren/deploy/backup
-sudo install -m 0444 /dev/null /opt/jobbliggaren/deploy/backup/age.recipient
-# paste the age1… line, nothing else. See deploy/backup/age.recipient.example.
+# 3. The recipient. It is TRACKED in the repo (it is public), so it arrives with the deploy/
+#    clone. Klas generated the identity on his own machine 2026-08-09; the private half has
+#    never left it, which is what makes requirement (b) structural rather than a rule.
+sudo chmod 0444 /opt/jobbliggaren/deploy/backup/age.recipient
+cat /opt/jobbliggaren/deploy/backup/age.recipient   # one age1... line, nothing else
 
 # 4. The units.
 sudo install -m 0644 /opt/jobbliggaren/deploy/systemd/jobbliggaren-backup*.{service,timer} \
@@ -198,13 +199,36 @@ the sha256 against what it sent, and only then writes the same verified bytes to
 generation is untouched — which matters, because without a DEK generation **every** retained main
 artefact is unreadable.
 
-**Interim deficiency, named.** Until the final target exists, backups go to Klas's workstation
-over the same rclone seam. A workstation has no lifecycle engine, so the 30 days there is an
-operator duty rather than an enforced rule, and ADR 0123 places the workstation *inside*
-production's trust boundary — so requirement (a) is not met either. Security-auditor's ruling
-(ADR 0050 `Amendment 2026-08-04` §7) is that this is **acceptable while the box holds no real
-data and not acceptable at first real data.** These two deficiencies are what make the target
-interim; neither is an exception to the decision.
+**The target is contracted and MEASURED, 2026-08-09.** OVHcloud Object Storage, container
+`jobbliggaren-backups`, region **`eu-west-par`** (Paris), endpoint
+`https://s3.eu-west-par.io.cloud.ovh.net`. Measured against the live container the same day, not
+read off an order form: `get-bucket-location` -> `eu-west-par` (EU) - versioning **not enabled**
+- Object Lock **not enabled**. The last two are Klas's decision, and they are the simpler and
+strictly stronger branch for the one-generation property, since an unversioned overwrite genuinely
+replaces. The stated cost: Object Lock is a creation-time property and is therefore closed on this
+container permanently.
+
+**K4 is now enforced by the provider rather than promised by us.** Lifecycle rule
+`k4-main-artefacts-30-days` (`Expiration: 30 days`), applied and read back 2026-08-09.
+**It is scoped to `main/` on purpose, and the scope is load-bearing:** a time expiry over `deks/`
+would delete the key generation 30 days after its last write, so a pause in the nightly job would
+expire the KEYS while 29-day-old main artefacts survived, leaving those permanently unreadable -
+the silent-data-loss shape this whole design exists to avoid. The DEK artefacts need no time rule
+at all: "exactly one generation" is achieved by overwrite.
+
+> **THE UPLOAD CREDENTIAL CAN DELETE, AND ON THIS CONTAINER NO POLICY CAN TAKE THAT AWAY.**
+> Measured 2026-08-09: `delete-object` with the box's credential **succeeded**. ADR 0125 Decision
+> 3 binds a credential *without* `DELETE` - that is the entire ransomware posture, and it is the
+> property that chose OVH over Hetzner Storage Box in the first place. Two further measurements
+> say why a policy cannot repair it here: `get-bucket-policy` returns **`NotImplemented`** on OVH,
+> and `get-bucket-acl` shows the backup user **owns** the container with `FULL_CONTROL` - and
+> OVH's documented evaluation authorises an owner even with no explicit allow.
+>
+> **The repair is structural: the container must be owned by an identity the box does not hold.**
+> Create it under a different user, then grant the backup user a policy without `s3:DeleteObject`.
+> **Klas owns this.** Until it is done, a compromised box can destroy the backup history in one
+> action, and D5's posture is documented but not in force. It blocks neither taking backups nor
+> the drill.
 
 ---
 

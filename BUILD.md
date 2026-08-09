@@ -1308,8 +1308,15 @@ permanent infra aktiveras; listan nedan speglar **beslutad** uppsättning, ADR 0
   §7). **ADR 0125 (2026-08-09) urladdar dem** med en nattlig splittad dump — huvudartefakt utan
   `user_data_keys`-innehåll plus en separat DEK-artefakt — och binder ett **kravprofil-mål**
   (S3-kompatibelt, server-side lifecycle, credential utan `DELETE`, EU, **annan leverantör OCH
-  annat konto än Netcup**). **Klas väljer och tecknar**; interimsmålet är hans arbetsstation, som
-  security-auditor godkänt endast så länge lådan saknar riktig data. Procedur:
+  annat konto än Netcup**). **MÅLET ÄR VALT OCH MÄTT 2026-08-09:** OVHcloud Object Storage,
+  container `jobbliggaren-backups`, region `eu-west-par` (Paris), med **provider-verkställd**
+  30-dagarsregel scopad till `main/` (en tidsregel över `deks/` hade kunnat radera nycklarna före
+  ciphertexten). Versionering och Object Lock **av** — Klas-beslut, enklare och strikt starkare
+  för en-generationsegenskapen; priset är att Object Lock är permanent stängt på containern.
+  ⚠ **Två krav i profilen är INTE uppfyllda, båda Klas:** **Art. 28-avtalet är inte tecknat**
+  (konto och credits är inget biträdesavtal), och **credentialen KAN radera** — mätt, och
+  oreparerbar med policy eftersom backup-användaren **äger** containern och OVH inte
+  implementerar bucket policies. Containern måste ägas av en identitet lådan inte har.
   `docs/runbooks/backup-restore.md`. **Två grindar kvar och båda är Klas:** upphandlingen med sitt
   Art. 28-avtal, och **escrow av age-privatnyckeln** — en backup vars nyckel inte är escrowad är
   ingen backup (samma grind som masternyckelns, `vps-deploy-stack.md` §5 rad 26 respektive 32).

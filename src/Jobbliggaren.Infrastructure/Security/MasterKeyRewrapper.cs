@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using Jobbliggaren.Domain.JobSeekers;
 using Jobbliggaren.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace Jobbliggaren.Infrastructure.Security;
 
@@ -61,12 +62,24 @@ namespace Jobbliggaren.Infrastructure.Security;
 /// the scan.
 /// </para>
 /// </summary>
-public sealed class MasterKeyRewrapper(
+public sealed partial class MasterKeyRewrapper(
     LocalDataKeyProvider retiringKey,
     LocalDataKeyProvider incomingKey,
     string retiringKeyId,
-    string incomingKeyId)
+    string incomingKeyId,
+    ILogger<MasterKeyRewrapper> logger)
 {
+    // Logged from INSIDE the operation, before the transaction opens, because that is the only
+    // place it can actually happen. An earlier version logged the counts from the caller after
+    // RewrapAllAsync returned -- which meant a run against a large table stayed silent until it
+    // finished (the opposite of what the comment claimed), and on every failure path there was
+    // no Result at all, so the line never appeared on precisely the runs where the operator most
+    // needs to know how big the table was.
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        Message = "Scanned {TotalCount} row(s); {PendingCount} carry the retiring identity")]
+    private partial void LogScanned(int totalCount, int pendingCount);
+
     /// <summary>Outcome of one run. <paramref name="Rewrapped"/> is 0 on a repeat run.</summary>
     public sealed record Result(int Rewrapped, int AlreadyCurrent, int Verified)
     {
@@ -125,6 +138,8 @@ public sealed class MasterKeyRewrapper(
 
         var pending = rows.Where(r => r.CmkKeyId == retiringKeyId).ToList();
         var alreadyCurrent = rows.Count - pending.Count;
+
+        LogScanned(rows.Count, pending.Count);
 
         // ONE TRANSACTION over every row. At beta scale user_data_keys is a handful of rows, so
         // the cost is nil and the property is worth everything: a crash mid-run rolls back to an

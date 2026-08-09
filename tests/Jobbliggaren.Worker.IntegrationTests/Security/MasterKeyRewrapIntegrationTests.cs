@@ -64,7 +64,8 @@ public class MasterKeyRewrapIntegrationTests(WorkerTestFixture fixture)
             Provider(retiring ?? RetiringKeyBase64, RetiringKeyId),
             Provider(incoming ?? IncomingKeyBase64, IncomingKeyId),
             RetiringKeyId,
-            IncomingKeyId);
+            IncomingKeyId,
+            NullLogger<MasterKeyRewrapper>.Instance);
 
     /// <summary>
     /// Creates an owner AND its DEK row through the production write path, returning the
@@ -181,7 +182,7 @@ public class MasterKeyRewrapIntegrationTests(WorkerTestFixture fixture)
         // affected-not-1 guard all unmeasured.
         var ct = TestContext.Current.CancellationToken;
         await SeedOwnerWithDekAsync(ct);
-        var ownerB = await AddAnotherOwnerWithDekAsync(ct);
+        await AddAnotherOwnerWithDekAsync(ct);
 
         using var scope = _fixture.Services.CreateScope();
         var db = NewContext(scope);
@@ -194,20 +195,39 @@ public class MasterKeyRewrapIntegrationTests(WorkerTestFixture fixture)
         // Deliberately NOT justified as "the same shape another test uses": §5 names seam parity
         // with another test as insufficient provenance, because #843's fiction was authorised
         // exactly that way.
-        var rowB = await db.Set<UserDataKey>().AsNoTracking()
-            .SingleAsync(k => k.JobSeekerId == ownerB, ct);
-        var tampered = (byte[])rowB.WrappedDek.Clone();
+        // CORRUPT THE ROW THE PRODUCTION ORDER VISITS LAST — read back in that same order.
+        //
+        // Seeding order is not sort order: JobSeeker.Register mints its id from
+        // JobSeekerId.New() => Guid.NewGuid(), a random v4, so which of the two owners the loop
+        // reaches first is a coin toss per run. Tampering with "the second one seeded" therefore
+        // measured rollback only about half the time — and when it lost the toss the loop threw
+        // on the first iteration, nothing had been written, and the assertion held with or
+        // without a transaction. Green either way, so CI could never report the gap; the earlier
+        // "tx-drop killed" measurement was a single throw of that die.
+        //
+        // Ordering the scan in production code (which is right for its own reasons) made the
+        // order DEFINED, not KNOWN to the test. Reading it back here is what closes that, and
+        // reading rather than computing it also sidesteps whether .NET Guid ordering matches
+        // Postgres uuid ordering.
+        var ordered = await db.Set<UserDataKey>().AsNoTracking()
+            .OrderBy(k => k.JobSeekerId).ThenBy(k => k.DekVersion)
+            .ToListAsync(ct);
+        var writtenFirst = ordered[0].JobSeekerId;
+        var doomed = ordered[^1];
+
+        var tampered = (byte[])doomed.WrappedDek.Clone();
         tampered[^1] ^= 0xFF;
-        await db.Set<UserDataKey>().Where(k => k.JobSeekerId == ownerB)
+        await db.Set<UserDataKey>().Where(k => k.JobSeekerId == doomed.JobSeekerId)
             .ExecuteUpdateAsync(u => u.SetProperty(k => k.WrappedDek, tampered), ct);
 
         await Should.ThrowAsync<CryptographicException>(() => Rewrapper().RewrapAllAsync(db, ct));
 
-        // Whichever of the two the loop reached first, NEITHER may be left rotated: that is what
-        // one transaction buys, and a committed partial rotation is the state with no clean
-        // recovery.
+        // The loop rotated writtenFirst, then threw on doomed. Naming that row is what makes
+        // this a measurement of ROLLBACK rather than of pre-write refusal: without the
+        // transaction it would still be carrying the incoming identity here.
         var after = await db.Set<UserDataKey>().AsNoTracking().ToListAsync(ct);
         after.Count.ShouldBe(2);
+        after.Single(r => r.JobSeekerId == writtenFirst).CmkKeyId.ShouldBe(RetiringKeyId);
         after.ShouldAllBe(r => r.CmkKeyId == RetiringKeyId);
     }
 
@@ -248,7 +268,8 @@ public class MasterKeyRewrapIntegrationTests(WorkerTestFixture fixture)
             Provider(RetiringKeyBase64, RetiringKeyId),
             Provider(wrongIncoming, IncomingKeyId),
             RetiringKeyId,
-            IncomingKeyId);
+            IncomingKeyId,
+            NullLogger<MasterKeyRewrapper>.Instance);
 
         await Should.ThrowAsync<CryptographicException>(() => wrongTool.RewrapAllAsync(db, ct));
     }
@@ -270,7 +291,8 @@ public class MasterKeyRewrapIntegrationTests(WorkerTestFixture fixture)
             Provider(RetiringKeyBase64, RetiringKeyId),
             Provider(RetiringKeyBase64, IncomingKeyId),
             RetiringKeyId,
-            IncomingKeyId);
+            IncomingKeyId,
+            NullLogger<MasterKeyRewrapper>.Instance);
 
         var ex = await Should.ThrowAsync<InvalidOperationException>(() =>
             sameBytes.RewrapAllAsync(db, ct));
@@ -349,7 +371,8 @@ public class MasterKeyRewrapIntegrationTests(WorkerTestFixture fixture)
             Provider(RetiringKeyBase64, RetiringKeyId),
             Provider(IncomingKeyBase64, RetiringKeyId),
             RetiringKeyId,
-            RetiringKeyId);
+            RetiringKeyId,
+            NullLogger<MasterKeyRewrapper>.Instance);
 
         // Without a distinguishable marker the operation cannot tell rotated rows from
         // un-rotated ones, which makes the second run destructive instead of idempotent.

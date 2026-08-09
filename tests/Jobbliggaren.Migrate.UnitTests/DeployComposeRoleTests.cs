@@ -37,40 +37,27 @@ public class DeployComposeRoleTests
     private static string ValueOf(string key) =>
         LineContaining(key).Split(':', 2)[1].Trim();
 
-    private static List<string> LinesContaining(string key) =>
-        [.. ComposeText.Split('\n').Where(l => l.Contains(key, StringComparison.Ordinal))];
-
     private static string LineContaining(string key) =>
         ComposeText.Split('\n').SingleOrDefault(l => l.Contains(key, StringComparison.Ordinal))
         ?? throw new InvalidOperationException(
             $"deploy/docker-compose.yml has no single line containing '{key}'. If the file was " +
             "restructured, this pin must be rewritten rather than deleted.");
 
-    /// <summary>
-    /// EVERY line, not the first. Since #198 two services declare this variable — `migrate`
-    /// (schema, on every `up`) and `migrate-rewrap` (the master-key rotation, ops profile only).
-    /// Narrowing this to `First` would pin one and leave the other free to be pointed at the
-    /// superuser without anything catching it, which is exactly the 42501 class this test exists
-    /// for — and the unpinned one would be the rotation, which runs once a year and is therefore
-    /// discovered last.
-    /// </summary>
     [Fact]
     public void MigrateAppConnectionString_NamesTheRoleThatOwnsSchemaPublic()
     {
-        var lines = LinesContaining("MIGRATE_APP_CONNECTION_STRING:");
+        // ONE line again, and deliberately: `migrate` and `migrate-rewrap` share the
+        // x-migrate-app-connection anchor, so there is exactly one definition to pin. An
+        // earlier version of this test asserted a count of two matching lines, which caught
+        // the role but let host, port, database and SSL mode drift between the copies — and
+        // made every legitimate new consumer fail on a number rather than on a property.
+        var line = LineContaining("MIGRATE_APP_CONNECTION_STRING:");
 
-        lines.Count.ShouldBe(2,
-            "expected the variable on `migrate` and on `migrate-rewrap`. A different count means " +
-            "a service was added or removed; extend this pin rather than relaxing it.");
-
-        foreach (var line in lines)
-        {
-            line.ShouldContain($"Username={Roles.App}", Case.Sensitive,
-                customMessage:
-                "schema mode applies the app schema's EF migrations, and ExecutePhaseAAsync " +
-                "grants CREATE on schema public to the app role only. Any other role fails with " +
-                "42501 on a database this tool provisioned.");
-        }
+        line.ShouldContain($"Username={Roles.App}", Case.Sensitive,
+            customMessage:
+            "schema mode applies the app schema's EF migrations, and ExecutePhaseAAsync grants " +
+            "CREATE on schema public to the app role only. Any other role fails with 42501 on " +
+            "a database this tool provisioned.");
     }
 
     [Fact]

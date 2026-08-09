@@ -90,13 +90,6 @@ internal static partial class MigrateLog
         Message = "Re-wrapping DEKs from cmk_key_id {RetiringKeyId} to {IncomingKeyId}")]
     public static partial void RewrapStart(ILogger logger, string retiringKeyId, string incomingKeyId);
 
-    // The row count, logged BEFORE the transaction opens. Without it a run against a large table
-    // is silent until it finishes, and the scale trigger named in ADR 0049 §5 has no instrument
-    // to fire on.
-    [LoggerMessage(EventId = 214, Level = LogLevel.Information,
-        Message = "Scanned {TotalCount} row(s); {PendingCount} carry the retiring identity")]
-    public static partial void RewrapScanned(ILogger logger, int totalCount, int pendingCount);
-
     // The exit-0-with-zero-rows path IS the idempotency proof M-3 asks for, so it gets its own
     // line rather than being folded into the summary.
     [LoggerMessage(EventId = 212, Level = LogLevel.Information,

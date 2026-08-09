@@ -23,6 +23,10 @@
     <ProjectReference Include="..\..\src\Jobbliggaren.Application\Jobbliggaren.Application.csproj" />
     <ProjectReference Include="..\..\src\Jobbliggaren.Infrastructure\Jobbliggaren.Infrastructure.csproj" />
     <ProjectReference Include="..\..\src\Jobbliggaren.Worker\Jobbliggaren.Worker.csproj" />
+    <!-- #197 PR-2 - the Phase A privilege statements the restore drill's SOURCE database is
+         provisioned with. Jobbliggaren.Migrate.Provisioning, never Jobbliggaren.Migrate itself:
+         that project has top-level statements (same reasoning as the Api suite's reference). -->
+    <ProjectReference Include="..\..\src\Jobbliggaren.Migrate.Provisioning\Jobbliggaren.Migrate.Provisioning.csproj" />
   </ItemGroup>
 
   <!-- #841 - shared JobAdFacets test builder (tests/Shared). Linked rather than duplicated:
@@ -31,5 +35,9 @@
   <ItemGroup>
     <Compile Include="..\Shared\TestFacets.cs" Link="Shared\TestFacets.cs" />
     <Compile Include="..\Shared\TestKeywordExtraction.cs" Link="Shared\TestKeywordExtraction.cs" />
+    <!-- #197 PR-2 - production's own Phase A posture for the restore drill's source database.
+         Linked rather than duplicated for the reason its own docblock gives: a hand-written copy
+         of the grants would be a second truth that drifts silently. -->
+    <Compile Include="..\Shared\TestDatabaseProvisioner.cs" Link="Shared\TestDatabaseProvisioner.cs" />
   </ItemGroup>
 </Project>

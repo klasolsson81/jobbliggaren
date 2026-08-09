@@ -51,18 +51,35 @@ public static class TestDatabaseProvisioner
     /// </summary>
     /// <remarks>
     /// <para>
-    /// <b>Mirrors production's boot order, and skips two phases on purpose.</b> Real <c>init</c>
+    /// <b>Mirrors production's boot order, and skips Hangfire on purpose.</b> Real <c>init</c>
     /// also runs Hangfire's schema installer as <see cref="Roles.Migrations"/> (Phase B) and the
-    /// worker's <c>hangfire.*</c> DML grants (Phase C). A persistence-slice fixture has neither
-    /// Hangfire nor an <c>AppIdentityDbContext</c>, so <see cref="PhaseASchemaGrants.HangfireSchema"/>
-    /// and <see cref="PhaseASchemaGrants.IdentitySchema"/> are not issued either. Omitting them
-    /// creates no false premise for the assertion this enables — "AppDbContext's migrations
-    /// apply as the app role" — because no migration in that context touches those schemas. It
-    /// is written down so the omission reads as a decision rather than an oversight.
+    /// worker's <c>hangfire.*</c> DML grants (Phase C). No caller here has Hangfire, so
+    /// <see cref="PhaseASchemaGrants.HangfireSchema"/> is not issued. Omitting it creates no false
+    /// premise for the assertion this enables — "AppDbContext's migrations apply as the app role" —
+    /// because no migration in that context touches that schema. It is written down so the
+    /// omission reads as a decision rather than an oversight.
+    /// </para>
+    /// <para>
+    /// <b><see cref="PhaseASchemaGrants.IdentitySchema"/> is opt-in, and the default is off.</b>
+    /// This used to be omitted unconditionally, on the ground that "a persistence-slice fixture
+    /// has neither Hangfire nor an <c>AppIdentityDbContext</c>". That ground held for the one
+    /// caller that existed and stopped holding when #197's restore drill arrived: it seeds
+    /// through <c>UserManager</c>, so its graph carries an <c>AppIdentityDbContext</c> whose
+    /// migrations run as <see cref="Roles.App"/> and would fail 42501 without USAGE and CREATE on
+    /// <c>identity</c>. The parameter is off by default so no existing caller's posture moves —
+    /// a wider grant set is a weaker oracle, not a stronger one, and a fixture that never touches
+    /// the schema should not be handed rights on it.
     /// </para>
     /// </remarks>
+    /// <param name="superuserConnectionString">The container's superuser connection string.</param>
+    /// <param name="includeIdentitySchema">
+    /// Issue <see cref="PhaseASchemaGrants.IdentitySchema"/> as well. Required by, and only by, a
+    /// caller whose graph migrates <c>AppIdentityDbContext</c> as the app role.
+    /// </param>
+    /// <param name="ct">Cancellation.</param>
     public static async Task<string> ProvisionAndGetAppConnectionStringAsync(
         string superuserConnectionString,
+        bool includeIdentitySchema = false,
         CancellationToken ct = default)
     {
         var builder = new NpgsqlConnectionStringBuilder(superuserConnectionString);
@@ -104,7 +121,13 @@ public static class TestDatabaseProvisioner
             }
 
             // Production's statements, in production's order.
-            foreach (var statement in PhaseADatabaseGrants.For(dbName).Concat(PhaseASchemaGrants.PublicSchema))
+            var statements = PhaseADatabaseGrants.For(dbName).Concat(PhaseASchemaGrants.PublicSchema);
+            if (includeIdentitySchema)
+            {
+                statements = statements.Concat(PhaseASchemaGrants.IdentitySchema);
+            }
+
+            foreach (var statement in statements)
             {
                 await ExecuteAsync(conn, statement.Sql, ct);
             }

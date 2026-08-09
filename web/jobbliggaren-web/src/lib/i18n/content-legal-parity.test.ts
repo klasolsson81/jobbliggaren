@@ -266,7 +266,16 @@ describe("content-legal i18n-paritet (sv ↔ en)", () => {
    *
    * **ICKE-VAKUOSITETEN ÄR MÄTT I FYRA KÖRNINGAR, EN PER ASSERTION SOM KAN VARA TYST.** Den
    * första räckte inte, och varför den inte räckte är hela poängen (code-reviewer Major 2,
-   * 2026-08-09):
+   * 2026-08-09).
+   *
+   * ⚠ **Alla fyra kördes mot `0ad5587c`**, alltså FÖRE `c56e167b` flyttade värdstycket ur
+   * `sections.6.list` till `paragraphs[1]`. Felmeddelandena nedan citeras därför **verbatim** och
+   * ska inte skrivas om: de är protokoll över vad specifika körningar faktiskt skrev ut, och en
+   * omskrivning till dagens path hade förfalskat bevisningen. Konsekvensen av stämpeln är att
+   * `sections.6.list.0` i körning 2 och 3 upplöses till ingenting i dag medan körning 4:s
+   * `sections.5.paragraphs.1` fortfarande upplöses — **stickprova inte ett av dem och
+   * generalisera.** Stämpeln daterar alla fyra på en gång och överlever nästa strukturflytt utan
+   * redigering, till skillnad från en per-rad-parentes som hade krävt en tredje ommätning.
    *
    * 1. **Golvet.** Testet skrevs FÖRST, med `content-legal.json` orörd →
    *    `AssertionError: expected 0 to be greater than or equal to 1`. Hade mätningen gjorts efter

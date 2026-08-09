@@ -741,7 +741,7 @@ Vid fel efter prod-deploy (Hetzner-modell, ADR 0050 "Rollback" amenderat
 2026-06-08 — AWS-stacken är riven, ADR 0066):
 
 ```bash
-# På CAX31-boxen: pinna image-taggen tillbaka till föregående release och
+# På netcup-lådan: pinna image-taggen tillbaka till föregående release och
 # re-deploya Compose-stacken. Samma image-byggväg som prod (next build / dotnet
 # publish körs i CI → enbart den byggda imagen skickas till boxen), så den lokala
 # Docker-Compose-stacken är dev/prod-paritets-baselinen vid en misslyckad cutover.

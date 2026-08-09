@@ -10,7 +10,7 @@
 #
 # ONE LINE, STARTING age1. It is the output of `age-keygen`'s "Public key:" line.
 #
-#   age1<52 more bech32 characters>       <- SHAPE ONLY. A well-formed sample value used to sit
+#   age1<58 more bech32 characters>       <- SHAPE ONLY. A well-formed sample value used to sit
 #                                            here, and the script accepts any well-formed one:
 #                                            installing the sample by mistake would encrypt every
 #                                            night to a key nobody holds, silently, until the

@@ -193,25 +193,6 @@ public class BackupUnitFilePinTests
 
 
     /// <summary>
-    /// The unit file's directives, with comments and blank lines removed.
-    ///
-    /// <para>
-    /// <b>Absence assertions must run against this and never against the raw text</b>, and this
-    /// class learned that the expensive way: every one of these unit files carries a comment
-    /// explaining why a directive is <em>absent</em> - "NO [Install] SECTION", "Deliberately NOT
-    /// Persistent=true" - so a substring search over the whole file matches the prose that
-    /// documents the property and reports the opposite of the truth. Three cases failed against
-    /// correct unit files before this existed.
-    /// </para>
-    ///
-    /// <para>
-    /// It is also the ONLY definition of "what is a directive line" in this class.
-    /// <see cref="DirectiveOf"/> used to re-implement the same filter, which is the very fault its
-    /// own failure message names: two spellings of one rule is how an assertion quietly keeps
-    /// checking the one that is no longer in effect.
-    /// </para>
-    /// </summary>
-    /// <summary>
     /// The age recipient is tracked, so it can be pinned — and pinning it is the one control that
     /// tracking buys.
     ///
@@ -258,6 +239,25 @@ public class BackupUnitFilePinTests
             "value fails the build instead of the 02:15 run.");
     }
 
+    /// <summary>
+    /// The unit file's directives, with comments and blank lines removed.
+    ///
+    /// <para>
+    /// <b>Absence assertions must run against this and never against the raw text</b>, and this
+    /// class learned that the expensive way: every one of these unit files carries a comment
+    /// explaining why a directive is <em>absent</em> - "NO [Install] SECTION", "Deliberately NOT
+    /// Persistent=true" - so a substring search over the whole file matches the prose that
+    /// documents the property and reports the opposite of the truth. Three cases failed against
+    /// correct unit files before this existed.
+    /// </para>
+    ///
+    /// <para>
+    /// It is also the ONLY definition of "what is a directive line" in this class.
+    /// <see cref="DirectiveOf"/> used to re-implement the same filter, which is the very fault its
+    /// own failure message names: two spellings of one rule is how an assertion quietly keeps
+    /// checking the one that is no longer in effect.
+    /// </para>
+    /// </summary>
     private static List<string> Directives(string unitText) =>
         unitText
             .Split('\n')

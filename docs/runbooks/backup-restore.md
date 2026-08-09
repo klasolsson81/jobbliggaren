@@ -100,8 +100,13 @@ stat -c '%a %U:%G' /run/jobbliggaren/host-secrets     # expect: 700 root:root
 # 3. The recipient. It is TRACKED in the repo (it is public), so it arrives with the deploy/
 #    clone. Klas generated the identity on his own machine 2026-08-09; the private half has
 #    never left it, which is what makes requirement (b) structural rather than a rule.
-sudo chmod 0444 /opt/jobbliggaren/deploy/backup/age.recipient
-cat /opt/jobbliggaren/deploy/backup/age.recipient   # one age1... line, nothing else
+#    chown, not just chmod: the file arrives from a clone and is owned by whoever cloned it, and
+#    0444 stops everyone EXCEPT the owner. Its integrity is the control - a swapped recipient
+#    costs every subsequent night, silently, and only the drill notices.
+sudo chown root:root /opt/jobbliggaren/deploy/backup/age.recipient
+sudo chmod 0444      /opt/jobbliggaren/deploy/backup/age.recipient
+stat -c '%a %U:%G' /opt/jobbliggaren/deploy/backup/age.recipient   # expect: 444 root:root
+grep -qx age1vrkznkydenf372h8a5fs3hnkclxsq4ul903yg4e67knn7pvy74hqhckruz   /opt/jobbliggaren/deploy/backup/age.recipient && echo RECIPIENT-OK   # an oracle that CAN fail
 
 # 4. The units.
 sudo install -m 0644 /opt/jobbliggaren/deploy/systemd/jobbliggaren-backup*.{service,timer} \
@@ -198,7 +203,8 @@ than this paragraph.
 both applied and read back 2026-08-09. **Never "no rule on `deks/`", and never an equal or shorter
 one.** Both prefixes are written in the same run, so a longer key expiry means a main artefact that
 is still alive implies its key generation still exists - by construction rather than by scheduling
-luck. And `deks/` does need a bound: `user_data_keys` carries `JobSeekerId` and `CreatedAt`, which
+luck. Precisely: the ordering holds while the DEK leg has not failed for 60 consecutive days
+(90 - 30). Longer than that is an alarm nobody read, not a retention question. And `deks/` does need a bound: `user_data_keys` carries `JobSeekerId` and `CreatedAt`, which
 is pseudonymous personal data (Art. 4(1), Recital 26), so an object with no expiry at all becomes
 retention without purpose the moment the job stops running for good (Art. 5(1)(e)). While the job
 runs, the objects are overwritten nightly and approach neither number.
@@ -210,7 +216,7 @@ the sha256 against what it sent, and only then writes the same verified bytes to
 generation is untouched — which matters, because without a DEK generation **every** retained main
 artefact is unreadable.
 
-**The target is contracted and MEASURED, 2026-08-09.** OVHcloud Object Storage, container
+**The target is CHOSEN and MEASURED, 2026-08-09 — the Art. 28 DPA is NOT signed (§7).** OVHcloud Object Storage, container
 `jobbliggaren-backups`, region **`eu-west-par`** (Paris), endpoint
 `https://s3.eu-west-par.io.cloud.ovh.net`. Measured against the live container the same day, not
 read off an order form: `get-bucket-location` -> `eu-west-par` (EU) - versioning **not enabled**
@@ -227,7 +233,7 @@ expire the KEYS while 29-day-old main artefacts survived, leaving those permanen
 the silent-data-loss shape this whole design exists to avoid. The DEK artefacts need no time rule
 at all: "exactly one generation" is achieved by overwrite.
 
-> **THE UPLOAD CREDENTIAL CAN DELETE, AND ON THIS CONTAINER NO POLICY CAN TAKE THAT AWAY.**
+> **THE UPLOAD CREDENTIAL CAN DELETE, AND NOTHING HAS YET TAKEN THAT AWAY.**
 > Measured 2026-08-09: `delete-object` with the box's credential **succeeded**. ADR 0125 Decision
 > 3 binds a credential *without* `DELETE` - that is the entire ransomware posture, and it is the
 > property that chose OVH over Hetzner Storage Box in the first place. Two further measurements
@@ -479,10 +485,14 @@ a date is a claim that cannot be told from one that has decayed.
 1. **Whether `age` and `rclone` are in apt on Debian 13 (trixie).** Not measured, on this box or
    anywhere. If either is absent, that is a STOPP to security-auditor and Klas — not an
    improvised binary fetch. (2026-08-09)
-2. **The final target's lifecycle and immutability behaviour.** OVHcloud Object Storage was
-   measured from its documentation as offering server-side lifecycle expiry and Object Lock; the
-   claim that Object Lock is *creation-time only* on their implementation is not verified, and
-   the recommendation to create the bucket with it enabled from the start depends on it.
+2. **CLOSED 2026-08-09 — the target's lifecycle and immutability behaviour.** Object Lock is set
+   at bucket creation and cannot be enabled afterwards, and enabling it enables versioning
+   (OVHcloud's Object Lock guide, read 2026-08-09 and quoted in ADR 0125's amendment). So
+   "permanently closed on this container" is a measurement with a source, and ADR 0125 Decision
+   §3's Object Lock rider is superseded on this provider — the two riders were mutually exclusive
+   here. The recommendation that premise supported is moot: the container exists. *(Kept as a
+   closed entry rather than deleted, so a reader who came for this question finds the answer
+   instead of its absence.)*
 3. **Whether `rclone` can report a usable checksum for a streamed object on the chosen target.**
    The DEK promotion compares a full read-back rather than a remote hash precisely because this
    is unmeasured; if the read-back proves expensive at scale, that is when to measure it.
@@ -496,26 +506,9 @@ a date is a claim that cannot be told from one that has decayed.
    `list-object-versions --prefix deks/` after two nights, and a `main/` listing after 31.
    *(Split from a single premise that read as wholly unmeasured once its first half was closed;
    a discharged premise loitering in an unmeasured list makes the whole list less credible.)*
-6. **Whether the chosen target versions the `deks/` prefix.** "Exactly one verified DEK
-   generation" is achieved by OVERWRITE, because the credential holds no `DELETE`. On a
-   **versioned** bucket an overwrite deletes nothing: the previous generation survives as a
-   noncurrent version, a `DELETE`-less credential cannot remove it, and an `Expiration` lifecycle
-   rule does not touch noncurrent versions — that needs `NoncurrentVersionExpiration`. Thirty
-   days of DEK generations would then be retained, and pairing a day −25 main artefact with the
-   day −25 DEK **version** reads an erased user again. Object Lock implies versioning on the
-   implementations that offer it, so ADR 0125's Object Lock rider makes this reachable rather
-   than theoretical. **Provisioning gate:** either do not version `deks/`, or set
-   `NoncurrentVersionExpiration: 1 day` on it (1 is S3's minimum, so it is a floor, not a choice).
-   **And `main/` is NOT exempt, though the first draft of this premise said it was.** No keys
-   travel there, so the Art. 17 property is unharmed — but on a versioned bucket an
-   `Expiration: 30 days` rule writes a delete marker and demotes the object to noncurrent rather
-   than removing it, and main artefacts are the ones carrying clear-text PII inside the age
-   envelope. K4's 30 days would then be unenforced there too. On a versioned bucket `main/` needs
-   `Expiration` **plus** `NoncurrentVersionExpiration` **plus** `ExpiredObjectDeleteMarker`.
-   **Measure the effect, not the rule:** a correctly shaped rule with a wrong prefix filter reads
-   back clean, so also run `get-bucket-versioning` and, after two nights,
-   `list-object-versions --prefix deks/` — exactly one version per key.
-   (security-auditor, 2026-08-09, Major, restated in the scoped recheck the same day.)
+6. **Whether a stopped job is ever noticed.** `deks/` is bounded at 90 days and `main/` at 30,
+   so a permanently stopped job self-cleans — but the freshness probe that would tell anyone it
+   stopped is read by nothing on a cadence (#1175). The bound is a backstop, not a detector.
 7. **A failed run can leave a truncated object offsite, and the box cannot remove it.** If `age`
    or `pg_dump` dies mid-stream, `rclone` has already opened the destination and writes what it
    received. The run fails loudly, and age is an authenticated format so a restore from that

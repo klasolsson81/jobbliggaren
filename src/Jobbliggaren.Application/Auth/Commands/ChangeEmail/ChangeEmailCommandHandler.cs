@@ -26,6 +26,32 @@ public sealed class ChangeEmailCommandHandler(
             return Result.Failure<Guid>(
                 DomainError.Validation("Auth.InvalidInput", "Nuvarande lösenord och ny e-postadress krävs."));
 
+        // #1087 — this flow's success is DEFINED by delivery: the address is swapped only when the
+        // emailed link is opened (ConfirmEmailChangeCommandHandler), so a send that goes nowhere
+        // leaves the user with a success message, a stamped User.EmailChangeRequested audit row, an
+        // unchanged address and no way forward. Refuse BEFORE anything happens rather than lie after.
+        //
+        // Placed ahead of the cooldown deliberately: this is a static server condition that reads no
+        // request input, so burning the actor's 60s anti-email-bomb window on a request the server
+        // could never fulfil would punish the user for our configuration. Ahead of the token mint for
+        // the same reason — no credential is minted for a request that cannot complete.
+        //
+        // No User.EmailChangeRequested row follows, because AuditBehavior stamps only on
+        // Result.Success. Note precisely what that removes: the OLD row was TRUE — a request WAS
+        // made — and what was false was the 202 and the flow it implied. The row goes because the
+        // flow never starts, not because it was a false record (security-auditor 2026-08-09). The
+        // distinction matters for the next reader: where the REQUEST itself is the security-relevant
+        // event, #842's Art. 12(3) AuditFailures opt-in binds and absence would be wrong.
+        //
+        // The capability is asked of the PORT, never of the environment: Application has no
+        // Microsoft.Extensions.Hosting reference and an IHostEnvironment branch here would not
+        // compile (CLAUDE.md §2.1). See IEmailSender.CanDeliver.
+        if (!emailSender.CanDeliver)
+            return Result.Failure<Guid>(
+                DomainError.Validation(
+                    AuthErrorCodes.EmailDeliveryUnavailable,
+                    AuthErrorCodes.EmailDeliveryUnavailableMessage));
+
         var userId = currentUser.UserId.Value;
         var newEmail = command.NewEmail;
 

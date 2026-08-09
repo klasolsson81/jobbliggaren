@@ -26,6 +26,16 @@ public sealed partial class ConsoleEmailSender(
 {
     private readonly EmailOptions _options = options.Value;
 
+    /// <summary>
+    /// <see langword="true"/>, and that is a substantive answer rather than a convenience for the
+    /// test suite (#1087). This sender writes the whole body — activation and confirmation links
+    /// included — to <c>ILogger</c>, so a developer CAN complete a token→email→confirm flow from the
+    /// log. Delivery-dependent handlers must therefore work in Development exactly as they will in
+    /// production; answering <see langword="false"/> here would refuse the very flows dev exists to
+    /// exercise. See <see cref="IEmailSender.CanDeliver"/>.
+    /// </summary>
+    public bool CanDeliver => true;
+
     public Task SendMatchNotificationEmailAsync(
         string toEmail,
         MatchNotificationEmail content,

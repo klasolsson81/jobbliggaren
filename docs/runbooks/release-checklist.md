@@ -591,9 +591,15 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
       **Grinden bärs av #734, inte av den här sidan.** Efter ADR 0083 Amendment kan flippen inte
       ske utan `RequireEmailConfirmation=true` **och** en riktig `Email:Provider`, och båda
       förutsättningarna ägs av **#734**. Villkoren (a) och (b) nedan ska därför stå som
-      **blockerande acceptanskriterier på #734** (och på **#196**, där env-konfigurationen
-      faktiskt sätts). Kan flippen inte ske utan #734, och kan #734 inte stängas utan (a) och
-      (b), då har triggern en läsare. Den här sektionen är protokollet; #734 är grinden.
+      **blockerande acceptanskriterier på #734**. Kan flippen inte ske utan #734, och kan #734 inte
+      stängas utan (a) och (b), då har triggern en läsare. Den här sektionen är protokollet; #734 är
+      grinden. *(Raden namngav till 2026-08-09 även **#196** som medägare "där env-konfigurationen
+      faktiskt sätts". #196 är **STÄNGD**, och en stängd pekare i en merge-blockerande grind läses
+      som utförd. Var env-konfigurationen sätts är mätt i stället för gissat: `deploy/docker-compose.yml`
+      och `deploy/.env.example`, båda i repot.)* ⚠ **Mätt 2026-08-09: #734 bär inget av villkoren
+      nedan**, och dess kropp namnger fortfarande Resend som levande leverantör trots ADR 0124.
+      Transkriberingen är kommenterad på #734 samma dag; om acceptanslistan ska struktureras om i
+      dess kropp är Klas beslut, liksom om flippen får ske med något villkor ouppfyllt.
       Notera också att **(a) upphör genom reparation på samma händelse**: en riktig
       `Email:Provider` är en förutsättning för flippen, och det är precis den som gör
       `ChangeEmailCommandHandler`:s `NullEmailSender`-svälj till ett minne. (a) och den tekniska
@@ -611,11 +617,67 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
       spärren inte slog till. Det är en teknisk spärr mot en osäker **kombination** — den
       ersätter inte den här grinden, som är juridisk, och den säger ingenting om (a) eller (b).
       - **(a) `settings.json` påstår ett utskick som inte sker.** Fyra publicerade strängar
-        (`:218`, `:220`, `:224`, `:229`) säger att en bekräftelselänk skickats, medan
-        `ChangeEmailCommandHandler:66` skickar ogrindat in i `NullEmailSender`: `Result.Success`,
-        auditrad stämplad, **adressen byts aldrig**, ingen väg framåt. Ägare **#1087**
-        (port-capability-predikat). Copyn får INTE mjukas upp först — det falska påståendet är
-        enda användarsynliga tecknet att flödet är trasigt. Art. 5(1)(a) + 12(1).
+        (`:218`, `:220`, `:224`, `:229`) säger att en bekräftelselänk skickas eller har skickats,
+        medan `NullEmailSender` är den levande defaulten.
+        **Kriteriet, utskrivet, eftersom uppräkningen ensam får nästa läsare att räkna fel åt andra
+        hållet:** en yta hör hit om den **påstår en leverans som sakförhållande** — tre utlovar den i
+        presens, en påstår den fullbordad. Ett grepp på verbstammen — mönstret
+        `skickar|skickat|skicka\b|sänder|sent|send|sending`, skiftlägesokänsligt, över alla
+        strängvärden under `account.changeEmail` i `messages/{sv,en}/settings.json` — ger **sex**
+        träffar per språk, men de två extra är `submit` ("Skicka bekräftelselänk",
+        imperativ som namnger den handling användaren begär) och `pending` ("Skickar…", som beskriver
+        en pågående request). **Ingen av de två falsifieras av ett svalt utskick**, och båda förblir
+        sanna under förhandsavslaget. Verbstammen är alltså en proxy för kriteriet och överskattar
+        det: skillnaden ligger i talakten, inte i ordet. *(Mätt 2026-08-09 under #1087; issuens egen
+        tabell placerade dessutom `success` på `:226`, vilket är `submit` — den här raden har haft
+        rätt uppsättning sedan tidigare.)* **Villkoret, triggern och upphörandet
+        står oförändrade; bara mekanismmeningen är omskriven, för att den blev falsk 2026-08-09
+        (#1087, PR i samma ändring som denna rad).**
+        Vad #1087 ändrade: `ChangeEmailCommandHandler` skickar inte längre ogrindat — porten bär
+        `IEmailSender.CanDeliver`, handlern vägrar i förväg med **503**
+        (`Auth.EmailDeliveryUnavailable`), ingen token mintas, och nedkylningsfönstret konsumeras
+        inte. `:229` (`success`) är därmed **onåbar** när leverans är omöjlig. **Ingen
+        `User.EmailChangeRequested`-rad skrivs — men läs varför rätt:** den gamla raden var **sann**
+        (en begäran gjordes); det falska var 202:an och flödet den antydde. Raden försvinner för att
+        flödet aldrig startar, inte för att den var ett falskt protokoll (security-auditor
+        2026-08-09). Där **själva begäran** är den säkerhetsrelevanta händelsen binder i stället
+        #842:s Art. 12(3)-opt-in, och frånvaro vore fel.
+        ⚠ **Backend-halvan är sluten, användarytan är det inte.** En 503 faller i dag igenom till
+        det generiska `changeEmailFailed`, så användaren får ingen förklaring och submit-knappen
+        lever kvar. Klientarmen är **eget blockerande villkor på den här triggern** och ägs av en
+        följd-PR i e-postlanen (senior-cto-advisor 2026-08-09). Den **måste** diskriminera på
+        ProblemDetails-**titeln**, aldrig på statusen: action-lagret får kontraktsmässigt inte läsa
+        bodyn, och rutten har minst två andra 503-producenter (`SessionStoreUnavailableException`
+        via Redis, samt en omvänd proxy) — en statusbaserad arm skriver "e-post är inte aktiverat"
+        mitt under ett driftavbrott och **maskerar incidenten**. Ingen användare kan nå tillståndet
+        före flippen, vilket är varför det är ett grindvillkor och inte en defekt i drift.
+        **Vad #1087 INTE ändrade, och därför upphör villkoret inte:** `:218`, `:220` och `:224`
+        publiceras fortfarande före handlingen och utlovar ett utskick som defaultkonfigurationen
+        inte kan göra. Villkoret upphör vid **en riktig `Email:Provider`** — samma upphörande som
+        stycket ovan redan namnger — aldrig vid att #1087 mergats.
+        **Registerkedjan hör till samma trigger och är ännu inte stängd.** Utanför
+        Development/Test **vägrar `AuthOptionsValidator` att boota** på `RegistrationsOpen=true`
+        utan `RequireEmailConfirmation` (ADR 0083 Amendment 2026-08-03) — den **sätter ingenting**,
+        så tillståndet nås av en medveten tvåflaggs-åtgärd, och varje *bootbar* öppen-registrerings-
+        konfiguration bär därmed flaggan. Med osatt `Email:Provider` går
+        aktiveringslänken då till `NullEmailSender`, `UserAccountService` spärrar inloggning på
+        `EmailConfirmed`, och återsändningen är lika tyst: **kontot skapas och blir permanent
+        onåbart.** Det är strikt värre än (a):s ursprungliga fall — ett misslyckat adressbyte
+        lämnar användaren där hon var. Åtgärden är en kompositionstids-vägran att boota på den
+        kombinationen, och den måste lösa att `AuthOptions` valideras i Api:n (bindningen med
+        `ValidateOnStart` + `AddSingleton<IValidateOptions<AuthOptions>, AuthOptionsValidator>` —
+        sök på typnamnet, radnumret skrivs medvetet inte här) men **medvetet inte i Worker:n**
+        (noten om det står i punktens eget stycke ovan) medan båda hostarna anropar
+        `AddEmailSender`.
+        **Ingen release som öppnar registrering får ske innan den grinden finns.**
+        Copyn får INTE mjukas upp först — det falska påståendet är enda användarsynliga tecknet
+        att flödet är trasigt. Art. 5(1)(a) + 12(1).
+        Ägare av residualen: **#734** (bär flippens förutsättningar) och **#183** (SES-prod-flippens
+        GDPR-grind), båda öppna och `mvp`. *(Raden namngav tidigare **#1087**, som stängs med
+        den här ändringen, och **#196**, som är **STÄNGD** sedan tidigare — en stängd pekare i en
+        merge-blockerande grind läses som utförd. Var env-konfigurationen faktiskt sätts efter att
+        #196 stängdes stod först här som en öppen fråga; den är nu **mätt** och svaret bor i
+        punktens eget stycke ovan, inte på en andra plats.)*
       - **(b) ROPA:n saknar behandling för användarkontot/autentiseringen HELT** (Art. 30(1)).
         Mätt: nio behandlingar, ingen för konto/auth. Registret är gitignorerat (ADR 0072) och
         speglar (#1040), så skyldigheten bor här. Den kristalliseras vid **produktionsstart**,

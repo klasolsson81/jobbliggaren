@@ -332,6 +332,21 @@ public static partial class AuthEndpoints
             title: AuthErrorCodes.RegistrationsClosed,
             statusCode: StatusCodes.Status503ServiceUnavailable),
 
+        // #1087 — no transactional email provider is configured, so a flow whose success is DEFINED
+        // by delivery refuses instead of reporting a completed action that cannot occur. The SAME
+        // availability axis as the RegistrationsClosed arm directly above, applied a fourth time
+        // (after the 401 identity arm and the 403 authorization arm): capacity deliberately withheld,
+        // returning when someone sets Email:Provider. No new ErrorKind — see AuthErrorCodes
+        // .EmailDeliveryUnavailable for why the fork the CTO named is closed by this precedent.
+        //
+        // No Retry-After, for the reason written on the arm above: the date is unknown and a wrong
+        // one is worse than none. Reachable only from POST /auth/change-email, an authenticated and
+        // re-authenticated surface, so the 503 discloses nothing about any address.
+        AuthErrorCodes.EmailDeliveryUnavailable => Results.Problem(
+            detail: AuthErrorCodes.EmailDeliveryUnavailableMessage,
+            title: AuthErrorCodes.EmailDeliveryUnavailable,
+            statusCode: StatusCodes.Status503ServiceUnavailable),
+
         _ => error.ToProblemResult(),
     };
 

@@ -109,13 +109,13 @@ public partial class RestoreDrillRunbookParityTests
         // INVERTED on purpose: every psql INVOCATION except the single-statement forms. Listing
         // the feeding forms instead (-f, <<) let `psql < script.sql` and `cat … | psql` fall
         // silently outside, and the non-empty guard cannot see a shortfall while other carriers
-        // remain. Anchored on `psql -` rather than on `psql`, because the drill is C# and a bare
-        // substring also matches identifiers and prose — measured: `psqlStdout` made four
-        // non-command lines carriers, so the first inverted draft over-reached exactly as far as
-        // the original under-reached. `psql -` and not `psql -U `: the user can come from PGUSER,
-        // and an anchor that requires a flag we happen to pass today is the same under-reach again.
+        // remain. Anchored on `psql ` WITH THE TRAILING SPACE, because the drill is C# and a bare
+        // `psql` also matches identifiers — measured: `psqlStdout` made four non-command lines
+        // carriers, so the first inverted draft over-reached exactly as far as the original
+        // under-reached. Not `psql -U ` or `psql -`: both give up PGUSER and connection-URI forms
+        // for nothing, since the trailing space already excludes the identifiers.
         ("a psql invocation that is not a single statement",
-            line => line.Contains("psql -", StringComparison.Ordinal)
+            line => line.Contains("psql ", StringComparison.Ordinal)
                     && !line.Contains(" -c ", StringComparison.Ordinal)
                     && !line.Contains(" -tAc ", StringComparison.Ordinal),
             "-v ON_ERROR_STOP=1",
@@ -232,12 +232,51 @@ public partial class RestoreDrillRunbookParityTests
             end = lines.Length;
         }
 
-        return [.. lines[start..end]
+        var kept = lines[start..end]
             .Select(line => line.TrimStart('>', ' ', '\t'))
             .Where(line => line.Length > 0
                            && !line.StartsWith('#')
                            && !SqlComment().IsMatch(line)
-                           && !line.StartsWith("```", StringComparison.Ordinal))];
+                           && !line.StartsWith("```", StringComparison.Ordinal));
+
+        return JoinContinuations(kept);
+    }
+
+    /// <summary>
+    /// Folds shell line-continuations into one logical command.
+    ///
+    /// <para>
+    /// The co-location rules are statements about a COMMAND, and §5 wraps its longer invocations.
+    /// Without this, §5's wrapped psql pair is two lines: the first matches the psql rule and
+    /// cannot see the <c>-c</c> that exempts it, so the rule's own name is false of it and a
+    /// correctly written continuation could go red. Same failure direction the
+    /// <see cref="SqlComment"/> regex guards in reverse.
+    /// </para>
+    /// </summary>
+    private static List<string> JoinContinuations(IEnumerable<string> lines)
+    {
+        List<string> joined = [];
+        var pending = string.Empty;
+
+        foreach (var line in lines)
+        {
+            var continues = line.EndsWith('\\');
+            var body = continues ? line[..^1].TrimEnd() : line;
+            pending = pending.Length == 0 ? body : pending + " " + body;
+
+            if (!continues)
+            {
+                joined.Add(pending);
+                pending = string.Empty;
+            }
+        }
+
+        if (pending.Length > 0)
+        {
+            joined.Add(pending);
+        }
+
+        return joined;
     }
 
     /// <summary>

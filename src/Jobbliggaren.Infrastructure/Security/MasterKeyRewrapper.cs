@@ -35,8 +35,18 @@ namespace Jobbliggaren.Infrastructure.Security;
 /// the round-trip goes through the same <c>Wrap</c> it verifies. Mutation-verified 2026-08-09:
 /// removing any of the three leaves the suite green, while removing the transaction, the
 /// byte-difference guard, the foreign-identity guard or the post-commit pass each turns it red.
-/// They are concurrency and future-#501 defence in depth, not dead code — pinning them would
-/// require manufacturing a race this operation is procedurally forbidden to have. <c>UserDataKey</c> has no
+/// (Method, because the first attempt at this measurement was worthless: the mutated code failed
+/// to compile and the suite ran against a stale assembly. Mutate, rebuild, ASSERT THE OUTPUT
+/// ASSEMBLY TIMESTAMP MOVED, then run.) The same applies to the 32-byte length guard on
+/// <c>WrapDataKey</c> and to this pass's identity branch.
+/// What would make them reachable, so the next person knows when to pin them: a concurrent
+/// writer — which the stopped-world procedure forbids — for the CAS terms and
+/// <c>affected != 1</c>; a second <c>dek_version</c> for the version term (#501); and, for the
+/// in-loop round-trip, nothing at all — it is a regression guard on <c>Wrap</c>/<c>BuildAad</c>
+/// and the wire layout, structurally unpinnable from outside because making it fire requires
+/// <c>Wrap</c> and <c>Unwrap</c> to disagree.
+/// <c>affected != 1</c> is NOT a duplicate of the CAS predicate: it fails INSIDE the
+/// transaction, where the post-commit pass would catch the same skipped row only after commit. <c>UserDataKey</c> has no
 /// mutator by design; adding one whose only caller is this operation would widen the entity for
 /// everyone and route the write through the change tracker, losing the atomic guard that makes
 /// "affected != 1" meaningful.
@@ -58,7 +68,11 @@ public sealed class MasterKeyRewrapper(
     string incomingKeyId)
 {
     /// <summary>Outcome of one run. <paramref name="Rewrapped"/> is 0 on a repeat run.</summary>
-    public sealed record Result(int Rewrapped, int AlreadyCurrent, int Verified);
+    public sealed record Result(int Rewrapped, int AlreadyCurrent, int Verified)
+    {
+        /// <summary>Every row the scan saw, whatever identity it carried.</summary>
+        public int Scanned => Rewrapped + AlreadyCurrent;
+    }
 
     public async Task<Result> RewrapAllAsync(AppDbContext db, CancellationToken ct)
     {
@@ -79,12 +93,19 @@ public sealed class MasterKeyRewrapper(
         // every row. That is not a hypothetical path: it is the natural repair when an operator
         // finds the retiring key missing mid-rotation and copies the live file over it.
         //
-        // AES-GCM auth-fails under any other key, so a successful unwrap under the INCOMING key
-        // of a row still stamped with the RETIRING identity proves the two keys are the same.
-        EnsureMasterKeysDiffer(retiringKey, incomingKey);
+        // AES-GCM auth-fails under any other key, so if the INCOMING key can open something the
+        // RETIRING key wrapped, the two are the same key. The probe is a throwaway value, not a
+        // stored row: that works on an empty table and touches no production data.
+        await EnsureMasterKeysDifferAsync(retiringKey, incomingKey, ct).ConfigureAwait(false);
 
+        // ORDERED, and that is production behaviour rather than a test affordance: a rotation
+        // that visits rows in an undefined order makes its own logs unreadable, makes resuming
+        // ambiguous, and makes any test of "row N failed after row 1 was written" depend on
+        // which row the heap happened to return first.
         var rows = await db.Set<UserDataKey>()
             .AsNoTracking()
+            .OrderBy(k => k.JobSeekerId)
+            .ThenBy(k => k.DekVersion)
             .ToListAsync(ct)
             .ConfigureAwait(false);
 
@@ -176,17 +197,12 @@ public sealed class MasterKeyRewrapper(
     }
 
     /// <summary>
-    /// Post-commit proof: every row now carries the incoming identity AND unwraps under the
-    /// incoming key. Read fresh from the database rather than from the in-memory list, so this
-    /// measures what was persisted.
-    /// </summary>
-    /// <summary>
     /// Proves the two providers hold different key material. Wraps a throwaway value under the
     /// retiring key and asserts the incoming key CANNOT open it — AES-GCM auth-fails under any
     /// other key, so a successful unwrap means the keys are identical.
     /// </summary>
-    private static void EnsureMasterKeysDiffer(
-        LocalDataKeyProvider retiring, LocalDataKeyProvider incoming)
+    private static async Task EnsureMasterKeysDifferAsync(
+        LocalDataKeyProvider retiring, LocalDataKeyProvider incoming, CancellationToken ct)
     {
         // A throwaway owner and a throwaway DEK: this never touches stored data, and the probe
         // value is discarded either way.
@@ -198,8 +214,8 @@ public sealed class MasterKeyRewrapper(
             byte[]? opened = null;
             try
             {
-                opened = incoming.UnwrapDataKeyAsync(probeOwner, wrapped, CancellationToken.None)
-                    .GetAwaiter().GetResult();
+                opened = await incoming.UnwrapDataKeyAsync(probeOwner, wrapped, ct)
+                    .ConfigureAwait(false);
             }
             catch (CryptographicException)
             {
@@ -225,6 +241,11 @@ public sealed class MasterKeyRewrapper(
         }
     }
 
+    /// <summary>
+    /// Post-commit proof: every row now carries the incoming identity AND unwraps under the
+    /// incoming key. Read fresh from the database rather than from the in-memory list, so this
+    /// measures what was persisted.
+    /// </summary>
     private async Task<int> VerifyAllUnwrapUnderIncomingKeyAsync(
         AppDbContext db, CancellationToken ct)
     {

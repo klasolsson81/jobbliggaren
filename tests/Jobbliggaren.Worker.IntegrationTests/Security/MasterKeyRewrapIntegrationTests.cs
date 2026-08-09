@@ -186,8 +186,14 @@ public class MasterKeyRewrapIntegrationTests(WorkerTestFixture fixture)
         using var scope = _fixture.Services.CreateScope();
         var db = NewContext(scope);
 
-        // Corrupt B blob so it fails at unwrap. Produced by tampering with bytes the provider
-        // itself wrote — the same shape LocalDataKeyProviderTests uses for its tamper case.
+        // PREMISE (§5 Tests:). The state this assertion rests on is "the loop throws AFTER
+        // writing at least one row", and production produces that: a transient DB error on row
+        // N>1, a dropped connection, a cancellation, a CAS miss. The byte flip is the induction
+        // mechanism, not the state — an incidental detail beside it.
+        //
+        // Deliberately NOT justified as "the same shape another test uses": §5 names seam parity
+        // with another test as insufficient provenance, because #843's fiction was authorised
+        // exactly that way.
         var rowB = await db.Set<UserDataKey>().AsNoTracking()
             .SingleAsync(k => k.JobSeekerId == ownerB, ct);
         var tampered = (byte[])rowB.WrappedDek.Clone();

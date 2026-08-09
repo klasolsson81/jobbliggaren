@@ -25,6 +25,14 @@ reboot destroys them and an operator must re-inject.
 > delivered fact; it was not, and stating it that way would have let the cutover proceed past an
 > open gate. When it is decided, record the date here and fill in the escrow row in
 > `vps-deploy-stack.md` §5.
+>
+> **One measured input for that decision, because it is new:** `OLD_KEY` in step 3 lives on
+> tmpfs like everything else here. A reboot between step 4 and step 8 therefore destroys BOTH
+> the retiring key and the live one — the live one is escrowed at step 4, the retiring one is
+> not. If rows are still wrapped under the retiring key at that moment (a rollback at step 5, or
+> a partial rotation), the loss is total. So an escrow that merely *replaces* on rotation
+> reproduces the failure this runbook just repaired, one layer outside the box: it has to cover
+> the rotation window — both generations, bytes and identity.
 
 **Why not a sealed blob on disk.** Gate B-1's own text names two mechanisms — a TPM-bound
 `systemd-creds` credential, or sops+age into tmpfs — and measurement on 2026-08-09 exhausted
@@ -160,8 +168,9 @@ docker compose -f /opt/jobbliggaren/deploy/docker-compose.yml --profile ops run 
 
 The two `*_FILE` values are **paths**, never secrets — `MigrateEnv` resolves the suffix, the same
 convention api and worker use. The two `*_KEY_ID` values are literal identities, not paths, and
-not secret either. The `migrate` service carries the secrets mount for exactly
-this run; `schema` mode needs no crypto material and receives none.
+not secret either. The dedicated `migrate-rewrap` service carries the secrets mount and runs
+only under `--profile ops`; the `migrate` service that runs on every `up` receives no crypto
+material at all.
 
 **To run it against a COPY, override the connection string — not `MIGRATE_DB_NAME`.** That
 variable feeds only the master-credential path, so overriding it would leave the tool pointed at
@@ -233,11 +242,18 @@ the damage unrecoverable.
 5. Rewrap old → new, using `OLD_KEY` from step 3 (the command above). **Skip entirely when
    `user_data_keys` is empty** — there is nothing to re-wrap and the new bytes are already in
    force; the tool would report a no-op anyway.
-6. **Read an encrypted field through the app** after the containers are back — a health probe
-   decrypts nothing, and this is the box half of the gate ADR 0049 §5 names. Then
-   `sudo rm -f /run/jobbliggaren/secrets/OLD_KEY`.
-7. Start the containers; confirm `healthy`.
-8. `sudo systemctl start jobbliggaren-secrets-present.timer` if it was stopped, and re-arm the
+6. Start the containers; confirm `healthy`.
+7. **Read an encrypted field through the app.** A health probe decrypts nothing, and this is the
+   box half of the gate ADR 0049 §5 names — the CI half is
+   `Rewrap_FieldCiphertextStillDecrypts`.
+8. **Only after step 7 succeeds:** `sudo rm -f /run/jobbliggaren/secrets/OLD_KEY`.
+
+   > **If step 5 or step 7 fails, STOP and do NOT remove `OLD_KEY`.** It is the only way back:
+   > step 4 already replaced the live key, so rows still wrapped under the retiring key can be
+   > reached through nothing else. The re-wrap tool's own post-commit message says to re-run
+   > rather than restore the old key — and re-running reads `OLD_KEY`.
+
+9. `sudo systemctl start jobbliggaren-secrets-present.timer` if it was stopped, and re-arm the
    reconcile timer.
 
 ---

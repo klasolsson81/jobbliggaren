@@ -219,10 +219,11 @@ static async Task<int> RunRewrapMasterKeyAsync(ILogger log, CancellationToken ct
         MigrationsOptionsFactory.BuildAppOptions(appCs));
 
     var result = await rewrapper.RewrapAllAsync(dbContext, ct);
+    MigrateLog.RewrapScanned(log, result.Scanned, result.Rewrapped);
 
     if (result.Rewrapped == 0)
     {
-        MigrateLog.RewrapNoOp(log, retiringKeyId, result.AlreadyCurrent, incomingKeyId);
+        MigrateLog.RewrapNoOp(log, retiringKeyId, result.AlreadyCurrent, incomingKeyId, result.Verified);
         return 0;
     }
 

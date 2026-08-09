@@ -283,7 +283,11 @@ describe("content-legal i18n-paritet (sv ↔ en)", () => {
     const sv = matchingLeaves(svLegal, /netcup GmbH/);
     const en = matchingLeaves(enLegal, /netcup GmbH/);
 
-    // Vacuity guard + invariant 1. ETT känt löv i dag: mottagarsektionens leverantörslista.
+    // Vacuity guard + invariant 1. ETT känt löv i dag: mottagarsektionens värdstycke
+    // (`privacy.sections.6.paragraphs.1`). Det låg i sektionens `list` till 2026-08-09;
+    // design-reviewer mätte att en enelements-`list` var ensam i hela katalogen och att
+    // sektionens egen praxis är ett stycke per mottagare, så behållaren finns inte längre.
+    // Spärren bryr sig inte: den binder sv↔en, aldrig sv↔behållare.
     expect(sv.length).toBeGreaterThanOrEqual(1);
 
     // Parity by LOCATION, not count — see `matchingLeaves`.

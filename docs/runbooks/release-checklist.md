@@ -442,21 +442,26 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
       grep -n "planned"                      web/jobbliggaren-web/messages/en/content-legal.json
       ```
       **Regenererad 2026-08-09 (#1199, värdbytet Hetzner → Netcup): 10 + 10** (rad 37, 49,
-      63, 72, 73, 74, 84, 98, 99, 134 — identiska i sv och en, alla äkta statuspåståenden,
-      ingen falsk träff med detta mönster). **Både talet och radmängden ändrades**, av två
-      skilda skäl i samma ändring: Cloudflare-posten raderades ur `sections.6.list`, och
-      värdposten skrevs om **utan** markör — två markörbärande rader (77, 78) blev alltså en
-      markörfri rad 77, och allt därunder gick ner ett steg (85, 99, 100, 135 → 84, 98, 99,
-      134). Talet stod på **12 + 12** vid 2026-07-26 (#186) och var oförändrat vid 2026-08-09
+      63, 73, 74, 75, 82, 96, 97, 132 — identiska i sv och en, alla äkta statuspåståenden,
+      ingen falsk träff med detta mönster). **Både talet och radmängden ändrades**, av tre
+      skilda skäl i samma ändring: Cloudflare-posten raderades, värdposten skrevs om **utan**
+      markör, och värdposten flyttades sedan ur `sections.6.list` till `paragraphs[1]` varvid
+      hela `list`-nyckeln försvann. Nettot: **två markörbärande rader blev noll**, värdstycket
+      hamnade **ovanför** SCB- och AWS-styckena i stället för under dem, och raderna rörde sig
+      i **båda** riktningarna — mottagaravsnittets tre markörrader gick ett steg NER (72, 73,
+      74 → 73, 74, 75) medan allt från tredjelandsavsnittet och neråt gick två steg UPP
+      (85, 99, 100, 135 → 82, 96, 97, 132). **Att räkna fram den mängden ur den gamla är
+      alltså inte bara opålitligt utan omöjligt** — en enda ändring flyttade rader åt två håll.
+      Talet stod på **12 + 12** vid 2026-07-26 (#186) och var oförändrat vid 2026-08-09
       (#1169, providerbytet Resend → AWS SES), där fyra rader skrevs om i sak men behöll sin
       markörmening. **Det är ett mätresultat, inte en förutsägelse:** en ändring som tar bort
       ett arrayelement eller delar ett stycke flyttar varje rad under sig, så greppet ska
       köras om även när en ändring "bara" byter ord.
       **Grepa INTE bara på `"planerat och ännu inte i drift"`** — det ger 8 och
-      missar de TVÅ retentionsposterna på rad 98 och 99, som bär `(planerat)` utan
-      avslutningsmeningen. Rad 98 (organisationsnumret i en annons, #880) nämner
+      missar de TVÅ retentionsposterna på rad 96 och 97, som bär `(planerat)` utan
+      avslutningsmeningen. Rad 96 (organisationsnumret i en annons, #880) nämner
       ansökningshistoriken som ett ÄNDAMÅL med att arbetsgivarens identitet sparas;
-      rad 99 är ansökningshistorikens egen post. **Regenerera den här listan ur
+      rad 97 är ansökningshistorikens egen post. **Regenerera den här listan ur
       greppen ovan efter varje redigering av `privacy`-sektionerna** — inte bara
       retentionsavsnittet: #880 delade en
       punkt i två och flyttade fyra av åtta rader, och #186 rörde tre andra avsnitt
@@ -468,11 +473,11 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
       kategorilistan drift medan retentionsavsnittet säger planerat.
 - [ ] **2. Avgör vad releasen faktiskt aktiverar** — två olika klasser, blanda dem
       inte:
-      - **Kod-aktiverad:** ansökningshistorik/företagsöversikt (rad 37, 98, 99, 134).
+      - **Kod-aktiverad:** ansökningshistorik/företagsöversikt (rad 37, 96, 97, 132).
         Handlers + endpoints + FE är skeppade utan feature-flagga → aktiveras av
         att tjänsten alls går i drift.
-      - **Konfigurations-grindad:** SCB (rad 49, 72) **och e-postleverantören AWS SES
-        (rad 63, 73, 74, 84, #186 + #1169)**. **Aktiveras INTE av en
+      - **Konfigurations-grindad:** SCB (rad 49, 73) **och e-postleverantören AWS SES
+        (rad 63, 74, 75, 82, #186 + #1169)**. **Aktiveras INTE av en
         `v*`-tagg.** Tre skilda mekanismer, alla mörka i prod: per-sökningens
         `ICompanyRegistry` (ADR 0088) får `NullCompanyRegistry` — valet styrs av
         `CompanyRegistry:Provider`, den riktiga adaptern siktar på SCB:s nya
@@ -483,9 +488,9 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
         användarskrivet org.nr. E-posten styrs av `Email:Provider`, som defaultar till
         `Console` och i non-dev löser till `NullEmailSender` — flippen är grindad av
         **§2.5 punkt 1** (uppräkningen bor DÄR, inte här — och därför står antalet inte heller här), inte av en
-        tagg, och gäller **all** utgående e-post (§2.5:s widening). **Flippa rad 49/72 (SCB) respektive 63/73/74/84 (e-post) först när respektive grind är
+        tagg, och gäller **all** utgående e-post (§2.5:s widening). **Flippa rad 49/73 (SCB) respektive 63/74/75/82 (e-post) först när respektive grind är
         passerad** — inte när koden deployas.
-        *Raderna 63/73/74/84 namngav Resend, Inc. (USA) till 2026-08-09; #1169 skrev om dem till
+        *Raderna 63/74/75/82 namngav Resend, Inc. (USA) till 2026-08-09; #1169 skrev om dem till
         Amazon Web Services EMEA SARL (Luxemburg) med behandling i `eu-north-1`. **Det var en
         korrigering av en falsk motpartsuppgift, inte en flip** — markörmeningen står kvar i alla
         fyra styckena i båda språken, och armen är fortfarande mörk.*
@@ -519,7 +524,7 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
         behandlingen. **Läs AVV-bilagans underbiträdeslista när den genereras** — netcup
         publicerar ingen (mätt: DPA-sidan, AVV-sidan, Impressum och DC-sidan bär noll), så
         bilagan är den enda mätningen av kedjan som finns. Namnger den ett icke-EU-underbiträde
-        ska rad 83 **och** värdraden omprövas **före** korpusladdningen.
+        ska rad 81 **och** värdraden omprövas **före** korpusladdningen.
         Rad 70 påstår redan i presens *"Med dem har vi personuppgiftsbiträdesavtal"*; den
         meningen bärs i dag av att ingen listad part behandlar något, och den blir falsk
         vid (i) — inte vid (ii), och inte av mergen av #1199.
@@ -530,11 +535,12 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
         **absolut** påstående (*"I dagsläget sker inga överföringar av dina personuppgifter
         till länder utanför EU/EES"*), men dess antecedent — *"Anlitar vi en leverantör
         **utanför EU/EES**"* — täcker inte netcup alls, så värdbytet rör den inte.
-        **E-postflippen (§2.5) är fortfarande den händelse som gör rad 83 falsk**; #186 la
-        därför rad 84 **bredvid** den absoluta meningen i stället för att ersätta den, och
+        **E-postflippen (§2.5) är fortfarande den händelse som gör rad 81 falsk**; #186 la
+        därför rad 82 **bredvid** den absoluta meningen i stället för att ersätta den, och
         båda är sanna samtidigt så länge inget skickas. *(Raderna hette 84 och 85 till
-        2026-08-09; raderingen av Cloudflare-posten flyttade allt under rad 78 ett steg upp.
-        Adekvans-disjunktionen ströks bara på rad 84 — `security-auditor` 2026-08-08: EN
+        2026-08-09; raderingen av Cloudflare-posten OCH flytten av värdraden ur `list` till
+        `paragraphs` flyttade dem två steg upp. Adekvans-disjunktionen ströks bara på det
+        stycket — `security-auditor` 2026-08-08: EN
         grund, SCC Art. 46(2)(c).)*
       - **ROPA-posterna uppdaterade** + **security-auditor-sign-off**.
       - **`ACME_EMAIL` på lådan bekräftad som personuppgiftsansvariges egen adress.** Med
@@ -557,11 +563,11 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
       punkt 1 producerar** (antalet står där, med sitt grep; det står med flit inte här):
       kategorilistan (rad 37), ändamåls-/SCB-avsnittet (49), samtyckesavsnittet
       "Bevakningsnotiser i bakgrunden" (63, #186), mottagare + tredjeland
-      — mottagaravsnittet (72/**73/74**) och tredjelandsavsnittet (84) är TVÅ skilda
-      sections, inte ett — retentionslistan (98/99) och "Inga automatiserade beslut"
-      (134). Missa inte retentionsposten — och notera att **både** retentionslistan **och**
+      — mottagaravsnittet (73/**74/75**) och tredjelandsavsnittet (82) är TVÅ skilda
+      sections, inte ett — retentionslistan (96/97) och "Inga automatiserade beslut"
+      (132). Missa inte retentionsposten — och notera att **både** retentionslistan **och**
       e-postprosan i mottagaravsnittet bär **två** rader var, inte en.
-      **Mottagaravsnittets leverantörslista (rad 77) står INTE längre i den här mängden**:
+      **Värdstycket (rad 71) står INTE i den här mängden**:
       värdraden bär sedan #1199 ingen markör och äger därför ingen flip. Den vaktas i stället
       av `content-legal-parity.test.ts`, som pinnar att `netcup GmbH` är namngiven i båda
       språken **och** att raden inte bär markörmeningen.
@@ -624,7 +630,7 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
         D3 *"a new purpose section under 6(1)(b)"*, dvs. vidarebehandling för ett
         nytt ändamål av redan insamlade uppgifter → **Art. 13(3) kräver
         information "prior to that further processing"**, och policyns eget löfte
-        (rad 153) säger *"Vid mer betydande ändringar informerar vi dig på lämpligt
+        (rad 151) säger *"Vid mer betydande ändringar informerar vi dig på lämpligt
         sätt"*. Formulera som förhandsbesked (*"från och med &lt;datum&gt; behandlar vi
         även …"*), aldrig som påstående om pågående drift.
       Aldrig **efter** aktiveringen i något av fallen.
@@ -641,14 +647,14 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
       den står som i drift, och omvänt.** Kör inventeringsgreppet igen efter
       flippen: antalet träffar ska minska med **exakt** antalet poster releasen
       aktiverar, aldrig med fler.
-      **Rad 134 kräver särskild kontroll — den är den enda rad greppet inte
+      **Rad 132 kräver särskild kontroll — den är den enda rad greppet inte
       självskyddar.** Dess inledning (`planerar` / `plans`) matchas INTE av
       inventeringsmönstret (verifierat: 0 träffar), så raden syns bara via sin
       avslutande mening. Tas bara den bort faller raden ur greppet helt, räkne-
       testet ovan säger "minskade med exakt 1 — korrekt", och policyn påstår
       fortfarande *"Jobbliggaren planerar en översikt av din egen
       ansökningshistorik"* — mitt i avsnittet **"Inga automatiserade beslut"**,
-      dvs. i Art. 22-negationen. Läs rad 134 i sin helhet: hela stycket skrivs om
+      dvs. i Art. 22-negationen. Läs rad 132 i sin helhet: hela stycket skrivs om
       till presens, aldrig trunkeras. (Varje **annan** rad ur punkt 1:s mängd bär `(planerat)`/
       `planeras` i själva sakpåståendet och lämnar därför kvar en grepp-träff om
       flippen är ofullständig.)

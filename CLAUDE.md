@@ -295,6 +295,18 @@ localStorage · CORS `*` or broad credentials · raw SQL via concatenation
 (parameterize) · impersonation without an audit event · `User.Identity.Name`
 for authorization (use policies via `[Authorize(Policy = ...)]`).
 
+**Comments (Klas-direktiv 2026-08-04/05):** prose restating what the next line
+already shows · a comment re-arguing a decision an ADR or the commit message
+already owns (fix reasoning belongs in the commit message, which is not reviewed
+as code) · a measured number in a tracked file (it decays within a commit or two
+— publish the command that regenerates it). Comment where the code cannot show
+the thing itself, and nowhere else: one guard file shipped 70 % comment, one PR
+added 564 comment lines against 405 code lines, and that mass is what turned
+review into rounds. **A factually wrong comment — wrong number, wrong gate name,
+stale §-reference — is a defect and is fixed. Imperfect phrasing is not** ("en
+kommentar är ingen bugg"); it is graded in `code-reviewer`'s charter and routed
+by §9.6, and **§12 gains no new class here**.
+
 ## 6. Commits, branches, PR flow
 
 - `main` is protected; **all changes via feature branch + PR** (ADR 0065,
@@ -520,7 +532,8 @@ patterns (reuse, don't invent) → identify the layer → test-first for new
 domain logic → implement minimally → `dotnet test` + lint → conventional
 commit → push branch, `gh pr create` with agent reports inline, set the
 `automerge` label → **run the mandatory agents, wait in ALL of them, resolve every
-Blocker/Major, and only then set `agents-done`** (§6).
+Blocker/Major** — batched, and closed by scoped re-checks (§9.6; the procedure is
+the `jobbpilot-review-discipline` skill) — **and only then set `agents-done`** (§6).
 
 **9.2 Boundaries.** CC writes code, tests, migrations, CI config, docs;
 proposes refactorings; creates ADRs for its architecture decisions. **CC MAY edit
@@ -642,6 +655,23 @@ re-measuring an entry, and an issue is re-read by no one on its own. A parked or
 deferred item makes **no** truth claim and needs no measurement — but it must then be
 written as scheduling ("not MVP scope, not verified"), never as fact ("still applies",
 "no longer relevant").
+
+**Closing a Blocker/Major — the scoped re-check** (measured 2026-08-09, PRs #1249/#1254:
+0 blocking findings in under three minutes, against full rounds of twenty that generated
+fresh sentences to defend). A fix landing after an agent's verdict goes back to **the agent
+that issued it** — only the issuer can say its own finding is closed, and a fresh reviewer
+re-reviews the whole PR. The re-check is **report-only**: a reviewer that helpfully applies
+its own fix produces a content push, and a content push strips `agents-done` (§6), tearing
+down the gate it was invoked to close. Scope is **the fix delta**, enumerated with
+`git log --no-merges` — never a two-dot diff, which spans the base merge and once reported
+69 files including a parallel lane's work. The re-check grades that delta only: **no new
+findings on unchanged lines and no phrasing findings**; a defect the delta itself introduces
+is reported and marked as such. Non-blocking findings it does raise are routed by
+`senior-cto-advisor` and are **not fixed in-block** — each in-block fix invalidates the check
+just run. Verify HEAD is unchanged immediately before setting `agents-done`. Batching,
+delta commands, the report-only prompt and the label checklist are the
+`jobbpilot-review-discipline` skill's; **this section stays the norm's only home, and §12
+gains no new class here.**
 
 ## 10. Swedish UI rules
 

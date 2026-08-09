@@ -127,7 +127,7 @@ agents-done (CLAUDE.md §6) — it tears down the gate you were invoked to close
 ```
 
 What the re-check raises is routed by §9.6, including its rule for a new-in-delta
-Blocker/Major. Nothing is fixed in-block *during* a re-check — §9.6.
+Blocker/Major and its rule on in-block fixes during a re-check.
 
 ---
 

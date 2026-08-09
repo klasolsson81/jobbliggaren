@@ -162,8 +162,16 @@ public sealed partial class NullEmailSender(ILogger<NullEmailSender> logger) : I
     /// is registered. <b>Kind only — never a recipient, address or token</b>: this level reaches a
     /// durable sink (CLAUDE.md §11, #1208).
     /// </summary>
+    /// <remarks>
+    /// The message names the CONSEQUENCE, not the caller, and that is a correction rather than a
+    /// style choice: an earlier draft ended "this send was required for the caller to complete",
+    /// which both reviewers measured false for every kind that can actually emit this line — all
+    /// four callers return success anyway. It was true only of <c>email-change-confirmation</c>,
+    /// the one kind that cannot reach here. This is the string an on-call engineer reads at 03:00;
+    /// pointing it at a failed call that never failed sends them looking for the wrong thing.
+    /// </remarks>
     [LoggerMessage(3007, LogLevel.Warning,
         "[NullEmailSender] {EmailKind} email suppressed — no transactional provider configured; "
-        + "this send was required for the caller to complete")]
+        + "a recipient is stranded or a security notice is lost")]
     private partial void LogSuppressedConsequential(string emailKind);
 }

@@ -1,15 +1,15 @@
 ---
 name: jobbpilot-review-discipline
 description: >
-  Procedure for JobbPilot's PR review cycle: batching agent findings, writing
-  fixes that create no new reviewable claims, isolating the fix delta, and
-  closing Blocker/Major findings via scoped report-only re-checks by the agent
-  that issued them. Use when a mandatory agent has reported findings, when a fix
-  lands after an agent's verdict, when preparing to set the agents-done label,
-  or at PR creation. Triggers on: review, re-review, re-check, omgranskning,
-  granskningsrunda, review round, finding, fynd, Blocker, Major, verdict, dom,
-  agents-done, automerge, gh pr create, PR body, delta, git log --no-merges,
-  report-only, inga editeringar, batcha fixar, fix commit.
+  Procedure for closing out a JobbPilot review cycle once a mandatory agent has
+  already ruled: batching the findings, writing fixes that create no new
+  reviewable claims, isolating the fix delta, and closing Blocker/Major findings
+  via scoped report-only re-checks by the agent that issued them. Use after a
+  verdict exists — not during the first review round, where CLAUDE.md §9.6's
+  default is an ordinary in-block fix. Triggers on: re-review, re-check,
+  omgranskning, omkontroll, granskningsrunda, review round, scoped re-check,
+  report-only, inga editeringar, agents-done, new-in-delta, fix efter review,
+  batcha fixar, isolera deltat.
 ---
 
 # JobbPilot Review Discipline
@@ -21,15 +21,22 @@ description: >
 > - Comment discipline (author side) → `CLAUDE.md` §5 `Comments:`
 >
 > If this file disagrees with §9.6, §9.6 is right.
+>
+> **Scope:** this is the *closing* half of a review cycle — it applies once an
+> agent has ruled. In a first round, §9.6's default is an ordinary in-block fix.
 
 ---
 
 ## Why this exists
 
-Measured, not asserted. **PR #1206 took 11 review rounds and zero of its ~16
-findings were code defects.** PR #1220/#1221 carried ~11 real defects against
-~20 findings that were only sentences. A guard file shipped in that batch was
-70 % comment; the PR added 564 comment lines against 405 code lines.
+Measured, not asserted. **PR #1206 (2026-08-04) took 11 review rounds and zero
+of its ~16 findings were code defects.** PR #1220/#1221 (2026-08-05) carried
+~11 real defects against ~20 findings that were only sentences. Comment mass is
+the visible symptom: `.github/scripts/compose-loopback-guard.sh` reached
+**70,7 % comment** (472 of 668 lines, measured 2026-08-09) across two rewrites
+in that stretch. These are dated observations of finished events — §1.6
+provenance, not live measurements; regenerate with
+`grep -cE '^\s*#' <file>` and `wc -l <file>`.
 
 The mechanism is arithmetic, not bad luck: **every fix that carries prose adds
 new reviewable claims, so round N's explanations become round N+1's findings.**
@@ -63,8 +70,8 @@ the hook exits silently.
 | ✅ Ja | ❌ Nej |
 |---|---|
 | Fix reasoning in the **commit message** — it is not reviewed as code | A comment above the fix explaining why it is correct |
-| Publish the **command that regenerates** a number | Publish the number in a tracked file — it decays within 1–2 commits |
-| Comment only where the code cannot show the thing itself (§5) | Prose restating the next line, or re-arguing an ADR |
+| Publish the **command that regenerates** a number | Publish a live number in a tracked file (§5 `Comments:`) |
+| Run the fix's comments against §5 `Comments:` before you commit | Prose restating the next line, or re-arguing an ADR |
 | Measure the fix **the way the defect was measured**, before push | Report a fix as landed because the edit succeeded |
 
 Three of #1206's rounds existed only because a fix was reported as landed with
@@ -75,41 +82,54 @@ no counter-check — one of them a PR body that was empty.
 ## Step 3 — Isolate the delta
 
 ```bash
-git log --no-merges --oneline <verdict-sha>..HEAD   # your fix commits, only yours
+git fetch origin main --quiet
+git log --no-merges --oneline <verdict-sha>..HEAD --not origin/main
 git show --stat <fix-sha>                            # file scope per commit
 ```
 
-❌ **Never a two-dot diff for review scope.** It spans the base merge:
-`bd0df72b..ac329eb1` reported **69 files** and pulled a parallel lane's SES work
-into the review scope. See `reference_two_dot_diff_range_spans_the_base_merge`.
+`--not origin/main` is the load-bearing part, and it is the only form that errs
+in neither direction (measured 2026-08-09 on this repo's history):
+
+| Form | Base merge pulls in a sibling's commits | You merged your own topic branch in |
+|---|---|---|
+| `git diff A..B` | ❌ admits them — `bd0df72b..ac329eb1` reported **69 files** including a parallel lane's SES work | — |
+| `git log --no-merges A..B` | ❌ still admits them (it drops the *merge commit*, not what the merge brought) — 3 commits on that same range | ✅ |
+| `--first-parent` | ✅ 1 commit | ❌ **hides your own unreviewed work** — `97022d25` (6 files) vanished from `feat/foretag-sok-live-commit` |
+| `--not origin/main` | ✅ 1 commit | ✅ `97022d25` retained |
+
+The `--first-parent` row is the dangerous one: it fails by *under*-inclusion, so
+the reviewer never sees code that is merging. Fetch first — the exclusion is only
+as current as the local `origin/main` ref.
 
 ---
 
 ## Step 4 — Scoped re-check, one per issuing agent
 
 Send it to **the agent that issued the verdict** — `dotnet-architect` for its own
-Kritiskt/Viktigt, `code-reviewer` for its own Majors. Only the issuer can say
-whether its finding is closed; a fresh reviewer re-reviews the whole PR.
+Kritiskt/Viktigt, `code-reviewer` for its own Majors (§9.6).
 
 Prompt template — the report-only clause is load-bearing:
 
 ```
 REPORT-ONLY re-check — inga editeringar. You issued <N> findings on PR #<PR>;
 your verdict was against commit <sha>. Fixes have landed. Scope: ONLY these
-commits: <git log --no-merges --oneline output>.
+commits: <git log --no-merges --oneline <sha>..HEAD --not origin/main output>.
 
 Per finding: is it closed by this delta — yes/no, verified with the same
-measurement that established it? Raise no new findings on unchanged lines and
-no phrasing findings. A NEW defect the delta itself introduces is reported,
-marked "new in delta".
+measurement that established it? Raise no phrasing findings, and no new
+findings on lines this delta did not touch — EXCEPT anything your own charter
+grades as a Blocker, or any class your charter defines repo-wide rather than
+per-diff. Those you always report, wherever you see them. A defect the delta
+itself introduces is reported and marked "new in delta".
 
 Do not edit any file. An edit is a content push, and a content push strips
 agents-done (CLAUDE.md §6) — it tears down the gate you were invoked to close.
 ```
 
-Non-blocking findings the re-check does raise are routed by
-`senior-cto-advisor` per §9.6 and are **not fixed in-block** — every in-block fix
-invalidates the check just run.
+Nothing is fixed in-block *during* a re-check — every in-block fix invalidates the
+check just run. What the re-check raises is routed per §9.6, and a **new-in-delta
+Blocker/Major** is fixed and then **re-checked again against the new delta**: §6
+and §12 make it merge-blocking, so it cannot be carried past the label.
 
 ---
 
@@ -119,14 +139,20 @@ invalidates the check just run.
 merging**. Before setting it:
 
 1. Every mandatory agent (§9.2) has reported, or closed its findings via its own
-   scoped re-check.
+   scoped re-check — **including any new-in-delta finding that re-check raised**.
 2. No unresolved Blocker/Major, and no §12 merge-blocking condition.
-3. `git log --oneline -1` matches the SHA the verdicts answered — verify
-   **immediately** before setting the label, not before the last round of fixes.
-4. `gh pr view <N> --json mergeStateStatus` — `BEHIND` is fixed with
-   `gh pr update-branch` **before** the label, never after (a pure base merge
-   does not disarm the gate; a content push does).
-5. Push nothing afterwards.
+3. `git log --oneline -1` still matches the SHA the **last re-check** answered —
+   check it immediately before setting the label, not before the final fixes.
+4. After the label, confirm it actually armed:
+   `gh pr view <N> --json autoMergeRequest,mergeStateStatus`. The arm job re-reads
+   the head and **no-ops with a `::notice::` if it moved since the label was set**
+   (`label-automerge.yml`) — a green skip nothing surfaces, and `label-automerge`
+   is not a required check. Head moved? Remove and re-add `agents-done` so the
+   event re-fires against the current SHA.
+5. Push nothing afterwards. `BEHIND` may be cleared with `gh pr update-branch` at
+   any point — there is deliberately **no ordering rule** against the label
+   (`docs/runbooks/parallel-sessions.md` §8.1), because a pure base merge does not
+   disarm the gate. It does move the head, so step 4 applies afterwards.
 
 ---
 

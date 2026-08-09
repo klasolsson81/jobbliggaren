@@ -295,17 +295,18 @@ localStorage · CORS `*` or broad credentials · raw SQL via concatenation
 (parameterize) · impersonation without an audit event · `User.Identity.Name`
 for authorization (use policies via `[Authorize(Policy = ...)]`).
 
-**Comments (Klas-direktiv 2026-08-04/05):** prose restating what the next line
-already shows · a comment re-arguing a decision an ADR or the commit message
-already owns (fix reasoning belongs in the commit message, which is not reviewed
-as code) · a measured number in a tracked file (it decays within a commit or two
-— publish the command that regenerates it). Comment where the code cannot show
-the thing itself, and nowhere else: one guard file shipped 70 % comment, one PR
-added 564 comment lines against 405 code lines, and that mass is what turned
-review into rounds. **A factually wrong comment — wrong number, wrong gate name,
-stale §-reference — is a defect and is fixed. Imperfect phrasing is not** ("en
-kommentar är ingen bugg"); it is graded in `code-reviewer`'s charter and routed
-by §9.6, and **§12 gains no new class here**.
+**Comments — graded, not merge-blocking (Klas-direktiv 2026-08-04/05):** prose
+restating what the next line already shows · a comment re-arguing a decision an
+ADR or the commit message already owns (fix reasoning belongs in the commit
+message, which is not reviewed as code) · **a live** measured number in a tracked
+file — it decays within a commit or two, so publish the command that regenerates
+it; a *dated historical* measurement of a finished event ("PR #1206 took 11
+rounds") is §1.6 provenance and does not decay. Comment where the code cannot
+show the thing itself, and nowhere else: comment mass is what turned review into
+rounds. **A factually wrong comment — wrong number, wrong gate name, stale
+§-reference — is a defect and is fixed. Imperfect phrasing is not** ("en kommentar
+är ingen bugg"); it is graded in `code-reviewer`'s charter and routed by §9.6.
+**Unlike every other list in §5, this block is not a §12 STOPP class** — see §12.
 
 ## 6. Commits, branches, PR flow
 
@@ -333,7 +334,9 @@ by §9.6, and **§12 gains no new class here**.
   green `ci`; Klas reviews the diff **post-merge**. **A push that carries content
   of its own removes `agents-done` and disables auto-merge** — the reviewers
   answered against a diff that is no longer the one merging; wait them in against
-  the new head and set it again. **Bringing the branch up to base does not** —
+  the new head and set it again. That is also why a re-check after a verdict is
+  **report-only** (§9.6): a reviewer that applies its own fix pushes content, and
+  tears down the gate it was invoked to close. **Bringing the branch up to base does not** —
   `.github/scripts/is-pure-base-merge.sh` compares the pushed tree against the
   tree an automatic merge would produce and leaves the gate alone when they are
   identical, which is what `gh pr update-branch` produces. It is fail-closed:
@@ -660,18 +663,20 @@ written as scheduling ("not MVP scope, not verified"), never as fact ("still app
 0 blocking findings in under three minutes, against full rounds of twenty that generated
 fresh sentences to defend). A fix landing after an agent's verdict goes back to **the agent
 that issued it** — only the issuer can say its own finding is closed, and a fresh reviewer
-re-reviews the whole PR. The re-check is **report-only**: a reviewer that helpfully applies
-its own fix produces a content push, and a content push strips `agents-done` (§6), tearing
-down the gate it was invoked to close. Scope is **the fix delta**, enumerated with
-`git log --no-merges` — never a two-dot diff, which spans the base merge and once reported
-69 files including a parallel lane's work. The re-check grades that delta only: **no new
-findings on unchanged lines and no phrasing findings**; a defect the delta itself introduces
-is reported and marked as such. Non-blocking findings it does raise are routed by
-`senior-cto-advisor` and are **not fixed in-block** — each in-block fix invalidates the check
-just run. Verify HEAD is unchanged immediately before setting `agents-done`. Batching,
-delta commands, the report-only prompt and the label checklist are the
-`jobbpilot-review-discipline` skill's; **this section stays the norm's only home, and §12
-gains no new class here.**
+re-reviews the whole PR. The re-check is **report-only** and scoped to the **fix delta**;
+it grades that delta only — **no phrasing findings, and no new findings on lines the delta
+did not touch, except a finding the re-checking charter itself grades as a Blocker or
+defines repo-wide rather than per-diff**, which is always reported. That carve-out is not
+optional: an unconditional gag would silence a GDPR or a11y veto the charter holds, and
+§9.6 does not overrule a charter's own exceptions. What the re-check raises is routed by
+this section as any finding is — a **new-in-delta Blocker/Major** is fixed and then
+re-checked against the new delta, since §6 and §12 keep it merge-blocking. Nothing is fixed
+in-block *during* a re-check: each in-block fix invalidates the check just run. Verify HEAD
+is unchanged immediately before setting `agents-done`. **Charters and the skill carry
+pointers here, never restatements** — a restatement that survives an edit to this section is
+the drift #1173 measured, where a retired rule lived on in a satellite file for three
+months. Batching, the delta command, the report-only prompt and the label checklist are the
+`jobbpilot-review-discipline` skill's, and **§12 gains no new class here.**
 
 ## 10. Swedish UI rules
 
@@ -773,6 +778,11 @@ tests → **STOPP: do not automerge** — flag in a PR comment and wait for Klas
 This is the merge-blocking class referenced by the §6/§6.5 automerge exception
 (alongside an unresolved agent Blocker/Major); everything else rides the
 autonomous flow.
+
+**One §5 block is carved out: `Comments:`.** It is graded in `code-reviewer`'s
+charter and routed by §9.6 — never a STOPP. A talkative comment that blocks a
+merge costs more than it saves, which is what 2026-08-04/05 measured. Every
+other §5 list stays fully STOPP-blocking.
 
 **Scope clarification (Klas-direktiv 2026-07-16):** the security clause gates
 on the two conditions it names — missing tests or an unresolved

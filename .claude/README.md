@@ -44,7 +44,7 @@ Lägg till ny agent: skapa `agents/<name>.md` med YAML frontmatter (`name`, `mod
 
 ## Skills
 
-Kunskapspaket som laddas vid behov. Filerna finns i `skills/<name>/SKILL.md`. Fem `jobbpilot-design-*` täcker designsystemet; `jobbpilot-review-discipline` täcker granskningscykelns procedur.
+Kunskapspaket som laddas vid behov. Filerna finns i `skills/<name>/SKILL.md`. `jobbpilot-design-*` täcker designsystemet; `jobbpilot-review-discipline` täcker granskningscykelns procedur.
 
 | Skill | Innehåll | Referensfiler |
 |---|---|---|

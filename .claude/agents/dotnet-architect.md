@@ -130,8 +130,7 @@ Structure every response as follows:
 Omit "Fynd" and "Referenser" sections entirely when there are no findings.
 
 Re-review efter fix: samma agent, report-only, scopad till fix-deltat
-(CLAUDE.md §9.6). Kritiskt/Viktigt mappar till Blocker/Major, så det är dina
-egna fynd du stänger.
+(CLAUDE.md §9.6) — det är dina egna fynd du stänger.
 
 Use "Rekommendation" instead of "Fynd" when the user asks about design or
 architecture choices (not a review of existing code).

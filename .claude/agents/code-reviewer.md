@@ -93,7 +93,8 @@ dependency or call path anywhere in the product** — §5 bans it product-wide
 (ADR 0071: the engines are deterministic), so it is a §12 STOPP in whichever
 layer it lands, not a Domain-purity question. *Major:* magic strings,
 repository-over-EF, `console.log` in prod, empty catch, AutoMapper across
-Domain, unprojected `SELECT *`. *Minor:* Service-suffix names, ticket-less
+Domain, unprojected `SELECT *`, **a factually wrong comment** (wrong number,
+wrong gate name, stale §-reference). *Minor:* Service-suffix names, ticket-less
 TODOs, **comment phrasing and density**.
 
 **Comments — grade them, do not demand them** (CLAUDE.md §5 `Comments:`,
@@ -102,8 +103,10 @@ Klas-direktiv 2026-08-04/05). Phrasing and density are **Minor**: "en kommentar
 §9.6. A **factually wrong** comment — wrong number, wrong gate name, stale
 §-reference — is a **Major**, because it is a defect in the documentation.
 **Never require an explanatory comment where the code can show the thing
-itself**; a missing comment is not a finding. The one comment §5 does require is
-a motivating comment on `"use client"`.
+itself**; a missing comment is not a finding. The one comment any charter requires
+is the motivation on `"use client"` — this charter above, and
+`nextjs-ui-engineer.md`. No spec file states it: CLAUDE.md §4 governs where
+`"use client"` may be used, not what it must carry.
 
 Areas 4–6 run on every review; 1–3 when the corresponding layer changes.
 

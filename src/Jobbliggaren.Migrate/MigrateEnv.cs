@@ -1,5 +1,3 @@
-using Microsoft.Extensions.Logging;
-
 namespace Jobbliggaren.Migrate;
 
 /// <summary>
@@ -48,29 +46,4 @@ internal static class MigrateEnv
     /// <summary>Process-bunden resolution med fallback när värdet saknas.</summary>
     public static string Optional(string name, string fallback) =>
         Resolve(name, Environment.GetEnvironmentVariable, File.ReadAllText) ?? fallback;
-}
-
-/// <summary>
-/// #198 — adapts the plain <see cref="ILogger"/> the Migrate dispatch already holds to the
-/// <see cref="ILogger{TCategoryName}"/> that <c>MasterKeyRewrapper</c> takes.
-///
-/// <para>
-/// Migrate has no DI container, and its mode handlers are <c>static</c> local functions, which
-/// cannot capture the outer <c>ILoggerFactory</c>. Widening every handler's signature to carry
-/// the factory would spread a dependency only one mode needs; this keeps it local to that mode.
-/// Category naming differs from a factory-created logger (it inherits the outer "Migrate"
-/// category), which is the deliberate trade: the event ids identify the messages.
-/// </para>
-/// </summary>
-internal sealed class TypedLoggerAdapter<T>(ILogger inner) : ILogger<T>
-{
-    public IDisposable? BeginScope<TState>(TState state) where TState : notnull =>
-        inner.BeginScope(state);
-
-    public bool IsEnabled(LogLevel logLevel) => inner.IsEnabled(logLevel);
-
-    public void Log<TState>(
-        LogLevel logLevel, EventId eventId, TState state, Exception? exception,
-        Func<TState, Exception?, string> formatter) =>
-        inner.Log(logLevel, eventId, state, exception, formatter);
 }

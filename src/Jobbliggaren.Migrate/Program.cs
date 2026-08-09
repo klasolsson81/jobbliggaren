@@ -214,7 +214,7 @@ static async Task<int> RunRewrapMasterKeyAsync(ILogger log, CancellationToken ct
         NewProvider(incomingKey, incomingKeyId),
         retiringKeyId,
         incomingKeyId,
-        RewrapLogger(log));
+        log);
 
     await using var dbContext = new AppDbContext(
         MigrationsOptionsFactory.BuildAppOptions(appCs));
@@ -229,12 +229,6 @@ static async Task<int> RunRewrapMasterKeyAsync(ILogger log, CancellationToken ct
 
     MigrateLog.RewrapComplete(log, result.Rewrapped, result.AlreadyCurrent, result.Verified);
     return 0;
-
-    // The rewrapper logs its scan itself, so it needs a typed logger. The dispatch helpers are
-    // static local functions and cannot capture the outer factory, so it is adapted from the
-    // ILogger this function already receives rather than by widening every helper's signature.
-    static ILogger<MasterKeyRewrapper> RewrapLogger(ILogger inner) =>
-        new TypedLoggerAdapter<MasterKeyRewrapper>(inner);
 
     static LocalDataKeyProvider NewProvider(string masterKeyBase64, string keyId) =>
         new(

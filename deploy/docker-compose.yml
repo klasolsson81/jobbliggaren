@@ -94,6 +94,15 @@ x-app-secrets-mount: &app-secrets-mount
 # role or SSL mode drift between them — and the copy that drifts unnoticed would be the
 # rotation's, which runs once a year and is therefore discovered last. Same argument the
 # x-app-secrets anchor makes for api and worker.
+# jobbliggaren_app, not jobbliggaren_migrations, and the variable name is the clue:
+# `schema` mode applies the APP schema's EF migrations. `migrate init` grants
+# USAGE+CREATE on schema public, ALL on its tables and sequences, and the matching
+# default privileges to the app role — and to no one else. Pointed at the migrations
+# role this service dies with 42501 "permission denied for schema public" the moment
+# EF tries to create __EFMigrationsHistory, which is a gating dependency of api and
+# worker on every `up`. Measured on the Netcup box 2026-08-05, first boot.
+# The migrations role owns the hangfire schema (see the runbook's GRANT model); it is
+# not the role that owns public.
 x-migrate-app-connection: &migrate-app-connection
   MIGRATE_APP_CONNECTION_STRING: "Host=postgres;Port=5432;Database=jobbliggaren;Username=jobbliggaren_app;Password=${POSTGRES_APP_PASSWORD:?};SSL Mode=Disable"
 

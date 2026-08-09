@@ -67,8 +67,13 @@ public sealed partial class MasterKeyRewrapper(
     LocalDataKeyProvider incomingKey,
     string retiringKeyId,
     string incomingKeyId,
-    ILogger<MasterKeyRewrapper> logger)
+    ILogger logger)
 {
+    // A plain ILogger, not ILogger<T>: this type is never DI-registered (it is an offline tool
+    // constructed by hand in the Migrate host), and all Migrate output belongs under one
+    // category the operator reads as a single stream. [LoggerMessage] only needs something
+    // assignable to ILogger.
+    //
     // Logged from INSIDE the operation, before the transaction opens, because that is the only
     // place it can actually happen. An earlier version logged the counts from the caller after
     // RewrapAllAsync returned -- which meant a run against a large table stayed silent until it
@@ -81,11 +86,7 @@ public sealed partial class MasterKeyRewrapper(
     private partial void LogScanned(int totalCount, int pendingCount);
 
     /// <summary>Outcome of one run. <paramref name="Rewrapped"/> is 0 on a repeat run.</summary>
-    public sealed record Result(int Rewrapped, int AlreadyCurrent, int Verified)
-    {
-        /// <summary>Every row the scan saw, whatever identity it carried.</summary>
-        public int Scanned => Rewrapped + AlreadyCurrent;
-    }
+    public sealed record Result(int Rewrapped, int AlreadyCurrent, int Verified);
 
     public async Task<Result> RewrapAllAsync(AppDbContext db, CancellationToken ct)
     {

@@ -118,9 +118,12 @@
 > ([#1196](https://github.com/klasolsson81/jobbliggaren/issues/1196)); **ingenting är
 > deployat.** Beslutet bärs av **ADR 0050 `Amendment 2026-08-04`** (Beslut 2/3/4 delvis
 > superseded, gate M-5 → M-5a/M-5b). Topologin står; **värd- och edge-leverantörsnamnen i
-> tabellerna nedan är ännu inte omskrivna** — den sweepen ägs av
-> [#1199](https://github.com/klasolsson81/jobbliggaren/issues/1199), som också grindar
-> första riktiga datan. E-postraden är också
+> tabellerna nedan är fortfarande inte omskrivna** — den sweepen är **topologi-ytan** och ägs av
+> cutover-lanen ([#196](https://github.com/klasolsson81/jobbliggaren/issues/196) /
+> [#1202](https://github.com/klasolsson81/jobbliggaren/issues/1202)), inte av #1199.
+> **#1199 levererade 2026-08-09 den halva som lovar en REGISTRERAD något** — den publicerade
+> `/integritet`-copyn, §13.4:s underbiträdeslista, ROPA-posterna och §2.6:s grind — och **står kvar
+> öppen på biträdesavtalet**, som fortsatt grindar första riktiga datan (Klas, aldrig CC). E-postraden är också
 > upphävd, men av ett annat direktiv och med **vald** ersättare (AWS SES), ägd av #1169
 > och #183 — se §13.4. Faktisk
 > provisionering är fortsatt framtida Klas-gatat arbete (ADR 0050 Sekvensering:
@@ -151,7 +154,9 @@
 > (ADR 0066). `local` är enda aktiva miljön. **Värdvalet är avgjort 2026-08-04**
 > (Klas-direktiv: Netcup, 8 GB, ingen CDN — ADR 0050 `Amendment 2026-08-04`; ersätter
 > det obeslutade 2026-08-02-läget) — se §3.2:s statusbanner; raderna nedan beskriver den
-> beslutade FORMEN och namnger ännu fel leverantör (#1199 äger omskrivningen). Permanent deploy-mål var **beslutat**
+> beslutade FORMEN och namnger ännu fel leverantör (topologi-ytan, ägd av #196/#1202 — **inte**
+> av #1199, som 2026-08-09 levererade redovisnings-ytan och därefter bara bär biträdesavtalet).
+> Permanent deploy-mål var **beslutat**
 > (Hetzner CAX31 + Cloudflare, ADR 0050 Accepted 2026-06-08) men ännu
 > ej provisionerat (ADR 0050 Sekvensering: Hetzner sist, vid MVP före
 > beta-testare). Tag-baserad AWS-deploy (`v*-dev`/`v*-rc*`/`v*`) refererar
@@ -1278,8 +1283,28 @@ Se [`DESIGN.md`](./DESIGN.md) för komplett specifikation: färgtokens, typograf
 
 Upprätthålls i publik lista på `/integritet#subprocessors` (publiceras när
 permanent infra aktiveras; listan nedan speglar **beslutad** uppsättning, ADR 0050):
-- Infrastruktur (hosting/databas/backup): Hetzner Cloud (EU — Falkenstein/Nuremberg/Helsinki) inkl. Hetzner-EU Storage Box för krypterad backup
-- DNS / CDN / proxy: Cloudflare (gratis-tier, "Full (strict)")
+- Infrastruktur (hosting/databas): **netcup GmbH** (Emmy-Noether-Straße 10, 76131 Karlsruhe,
+  Tyskland — HRB 705547 Amtsgericht Mannheim), server i **Nürnberg, Tyskland** — inom EU/EES
+  (ADR 0050 `Amendment 2026-08-04` / ADR 0122; ersätter Hetzner Cloud, Klas-beslut 2026-08-04).
+  **Ingen Kap. V-överföring** införs av värdbenet: avtalsparten är tysk och behandlingen sker i
+  Tyskland, så AWS-postens krok — EU-avtalspart under **amerikansk** koncernmoder — saknas här
+  (`security-auditor` 2026-08-09). **Underbiträdeskedjan är OMÄTT och får inte påstås ligga inom
+  EU/EES:** netcup publicerar ingen lista (mätt 2026-08-09 mot DPA-sidan, AVV-sidan, Impressum och
+  DC-sidan), den bor i AVV-bilagan och blir läsbar först när avtalet tecknas. Tystnad om kedjan är
+  laglig (Art. 13(1)(e) kräver mottagare eller kategorier, inte biträdets egen lista); ett
+  påstående om den är det inte. ⚠ **Inget Art. 28-avtal är tecknat** — netcups AVV gäller **inte**
+  automatiskt utan sluts i Customer Control Panel, och den mätningen får aldrig generaliseras från
+  AWS GDPR-DPA:t. Grind: `release-checklist.md` §2.6 punkt 3 (**Klas**, aldrig CC).
+- Backup: mål **inte valt** — ägs av [#197](https://github.com/klasolsson81/jobbliggaren/issues/197)
+  (Hetzner-EU Storage Box föll med värdbytet). Kraven består oförändrade: klient-side age-kryptering
+  före upload oavsett mål, EU-jurisdiktion, retention/rotation **30 dagar** (Klas-beslut K4) och en
+  testad restore-drill.
+- DNS / CDN / proxy: **utgår helt** (Klas-beslut K3 2026-08-04, ADR 0050 `Amendment 2026-08-04` §3).
+  Ingen CDN, ingen edge-proxy; Caddy terminerar TLS direkt mot Let's Encrypt och DNS ligger hos
+  Strato. **Strato är inte ett personuppgiftsbiträde:** en auktoritativ DNS-operatör publicerar vår
+  zon och tar inte emot registrerades uppgifter för vår räkning (Art. 4(8)). Cloudflare hade blivit
+  biträde i egenskap av **proxy/CDN som terminerar användartrafik** — den funktionen har ingen
+  efterträdare, så posten stryks utan ersättare i stället för att pekas om.
 - Transaktionell e-post: **Amazon Web Services EMEA SARL (Luxemburg)** via Amazon SES i
   **`eu-north-1` (Stockholm)** — beslutad (Klas-GO 2026-08-08; ADR 0124, #1237 — ersätter
   Resend, Inc. (USA), som är helt ute), **planerad, ännu inte
@@ -1329,12 +1354,20 @@ permanent infra aktiveras; listan nedan speglar **beslutad** uppsättning, ADR 0
 > Release-checklistan §2.5 punkt 5 tvingar fortfarande denna sektion vid **e-postflippen**;
 > denna ändring var en motpartskorrigering, inte flippen.
 >
-> Värden i den publika listan ska vara **Netcup**, och **Cloudflare utgår helt**
-> (Klas-beslut 2026-08-04, K3 — ingen CDN). Supersessions-ADR:n har **landat**:
-> ADR 0050 `Amendment 2026-08-04`. Själva listan är ännu inte omskriven — den
-> uppdateringen, liksom biträdesavtalskedjan, ägs av
-> [#1199](https://github.com/klasolsson81/jobbliggaren/issues/1199) och grindar första
-> riktiga datan. Se §15:s not.
+> **VÄRDPOSTEN ÄR OMSKRIVEN 2026-08-09 (#1199) och Kap. V-frågan för värdbenet är AVGJORD** —
+> `security-auditor` 2026-08-09: **ingen** tredjelandsöverföring införs, och copyn ska därför vara
+> **tyst** om Kap. V för värden, till skillnad från e-postposten. Skillnaden är strukturell och inte
+> en gradskillnad: AWS-domen vilade på **vem som kan nå uppgifterna** (EU-avtalspart under
+> amerikansk koncernmoder ⇒ Schrems II / EDPB Rec. 01/2020), och den kroken saknas när avtalsparten
+> är tysk och behandlingen sker i Tyskland. **Cloudflare-posten är struken utan efterträdare**
+> (Klas-beslut K3) — listan tappar en leverantör i stället för att byta en. Den publika copyn på
+> `/integritet` skrevs om i samma ändring, ROPA-posterna följde med, och `content-legal-parity.test.ts`
+> pinnar sedan dess att `netcup GmbH` är namngiven i båda språken **och** att raden inte bär
+> status-markören.
+>
+> **Kvar hos Klas: biträdesavtalet.** #1199 står öppen på just det ledet — netcups AVV gäller
+> **inte** automatiskt (mätt förstahands 2026-08-09) och inget är tecknat, vilket grindar första
+> riktiga datan via `release-checklist.md` §2.6 punkt 3. Se §15:s not.
 
 ### 13.5 Säkerhetshygien
 
@@ -1455,11 +1488,20 @@ UptimeRobot/BetterStack free ersätter ALB/CloudWatch-health per ADR 0050):
 > omskriven; den publika `/integritet`-copyn och ROPA-posten ändrades i samma ändring.
 > **Domen är skopad till e-posten** och avgör ingenting om värdvalet eller om R2.
 >
-> **Värdhalvan är fortfarande öppen och ägs av #1199.** Ersättningarna där skrivs in av
-> CC1-lanen med egen supersessions-ADR, inklusive värdraderna i §13.4:s subprocessor-lista.
-> Den ursprungliga spec-edit-PR:n bytte ut döda markörer mot levande hemvister och skrev
-> medvetet inte in någon ersättare i sak — för värden gick det inte, och för e-posten krävdes
-> `security-auditor`, vilket är exakt vad #1169 sedan levererade.
+> **VÄRDHALVAN ÄR SEDAN 2026-08-09 (#1199) OCKSÅ AVGJORD, och svaret blev det motsatta mot
+> e-postens.** `security-auditor` 2026-08-09: värdbenet införer **ingen** tredjelandsöverföring, så
+> den frågan §15 ställde — faller en US-**ägd** leverantör i EU-region under samma standard? — når
+> inte netcup alls. Avtalsparten är **tysk** (`netcup GmbH`, HRB 705547 Amtsgericht Mannheim) och
+> behandlingen sker i **Nürnberg**; ingen amerikansk part är i kedjan, och därmed finns ingen
+> selektivitet att pröva. **R2-avvisandet står orört och ska inte städas bort** — det är den
+> tillämpade standard som gör AWS-redovisningen icke-selektiv (Art. 5(2)), och den behövs lika
+> mycket nu som före värdbytet. Värdraderna i §13.4:s subprocessor-lista är omskrivna i samma
+> ändring; **topologitabellerna är medvetet orörda** och ägs av cutover-lanen (#196/#1202) — de
+> lovar en ingenjör ett byggmål, inte en registrerad en redovisning.
+>
+> **Vad #1199 fortfarande bär: biträdesavtalet med netcup**, som är Klas att teckna och som grindar
+> första riktiga datan. Ingen supersessions-ADR blev skyldig — ADR 0050 `Amendment 2026-08-04`
+> hade redan landat och bär värdbeslutet.
 
 ### 15.1 Deploy-layout (ADR 0050, Accepted)
 

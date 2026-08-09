@@ -185,6 +185,64 @@ describe("content-legal i18n-paritet (sv ↔ en)", () => {
     for (const [path, paragraph] of en) expect(paragraph, path).toMatch(/not yet in operation/i);
   });
 
+  /**
+   * #1199 — VÄRDLEVERANTÖRS-TRIPWIRE (security-auditor, bindande 2026-08-09).
+   *
+   * Systerspärr till de två ovan, med en avgörande skillnad: **raden bär medvetet INGEN
+   * status-markör.** ADR 0050 `Amendment 2026-08-04` bytte värden Hetzner → Netcup, och lådan
+   * KÖR sedan 2026-08-05. `release-checklist.md` §2.6 punkt 2 klassade själv värdraden som
+   * "deploy-aktiverad: aktiveras av att stacken körs hos dem" — alltså har aktiveringshändelsen
+   * redan inträffat, och en markör hade sagt "ännu inte i drift" om en drift som pågår. Det är
+   * ADR 0090 D3:s defekt i spegelvänd form. Systrarna ovan får därför INTE läsas som prejudikat
+   * för den här raden; de vaktar behandlingar som bevisligen är mörka.
+   *
+   * Två invarianter, EN term (`netcup GmbH`) — ingen union, av exakt de skäl e-post-spärren
+   * skriver ut ovan:
+   *
+   * 1. **Värden ÄR namngiven** (Art. 13(1)(e) — en mottagare måste framgå). Strukturtestet
+   *    överst fäller en ENSIDIG radering via array-längder, men två språk raderade i takt
+   *    passerar det. Ett räknat golv är det enda som fäller en tystnad.
+   * 2. **Raden bär INTE markörmeningen.** Negativ pin, och inte symmetri för symmetrins skull:
+   *    felmoden är en framtida session som "återställer paritet" mot de tre andra
+   *    planerat-styckena och därmed återinför påståendet att driften inte är i drift. Pinnen är
+   *    icke-vakuös så länge golvet håller — faller golvet itererar loopen noll löv, och golvet
+   *    asserteras först.
+   *
+   * **Termen är den PART-BÄRANDE formen `netcup GmbH`**, inte `Netcup` och inte `netcup`:
+   * avtalsparten är den juridiska personen (Impressum, läst 2026-08-09: `netcup GmbH`,
+   * HRB 705547 Amtsgericht Mannheim), och det är den formen mottagarsektionen måste bära —
+   * samma precisionsstandard som `Amazon Web Services EMEA SARL` på e-postraden. **Vik den
+   * ALDRIG in i e-post-spärrens union** och **återanvänd inte dess markör-halva**; båda
+   * fällorna är namngivna i security-auditors Major 3.
+   *
+   * **Icke-vakuositeten är mätt i den enda ordning som bevisar den:** testet skrevs FÖRST, med
+   * `content-legal.json` orörd, och föll på golvet
+   * (`AssertionError: expected 0 to be greater than or equal to 1`). Hade mätningen gjorts efter
+   * copy-redigeringen hade den inte skilt en fungerande spärr från en som matchar vad som helst
+   * — jfr #1237, där `"Amazon"` → `"Amazon."` gav 10/10 grönt medan spärren asserterade
+   * ingenting.
+   *
+   * Testet ska INTE falla vid någon lansering, till skillnad från systrarna ovan. Raden är
+   * formulerad för att aldrig behöva en flip: den påstår drift, inte planer, och äger därför
+   * ingen aktiveringshändelse. Faller den är det för att disclosuren försvann eller för att en
+   * markör kröp tillbaka.
+   */
+  it("värdleverantören netcup GmbH är namngiven och raden bär INGEN status-markör (#1199)", () => {
+    const sv = matchingLeaves(svLegal, /netcup GmbH/);
+    const en = matchingLeaves(enLegal, /netcup GmbH/);
+
+    // Vacuity guard + invariant 1. ETT känt löv i dag: mottagarsektionens leverantörslista.
+    expect(sv.length).toBeGreaterThanOrEqual(1);
+
+    // Parity by LOCATION, not count — see `matchingLeaves`.
+    expect(en.map(([path]) => path)).toEqual(sv.map(([path]) => path));
+
+    // Invariant 2 — samma RATIFIERADE markörformer som e-post-spärren binder, i negativ polaritet.
+    for (const [path, item] of sv)
+      expect(item, path).not.toMatch(/planerat och ännu inte i drift/i);
+    for (const [path, item] of en) expect(item, path).not.toMatch(/not yet in operation/i);
+  });
+
   it("integritetspolicyn har minst tio sektioner med rubrik i båda katalogerna", () => {
     const sv = svLegal.privacy.sections;
     const en = enLegal.privacy.sections;

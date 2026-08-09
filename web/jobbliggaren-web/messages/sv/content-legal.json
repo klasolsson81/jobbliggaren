@@ -74,8 +74,7 @@
           "De uppgifter som planeras att lämnas till Amazon Web Services EMEA SARL är din e-postadress och meddelandets innehåll, som för en bevakningsnotis innehåller jobbtiteln, företagsnamnet och hur stark matchningen är. Att du får notisen visar samtidigt att du har slagit på bevakningen. Byter du e-postadress går aviseringen om bytet till din tidigare adress, som därmed också lämnas till leverantören. Innan vi börjar skicka säkerställer vi att personuppgiftsbiträdesavtalet gäller och att grunden för överföringen till koncernmodern Amazon Web Services, Inc. i USA är dokumenterad, se avsnittet Överföring till tredje land nedan. Detta är planerat och ännu inte i drift."
         ],
         "list": [
-          "Hetzner (planerad driftsleverantör, EU). Jobbliggaren planeras att driftas hos Hetzner i EU, där applikationen och databasen körs. Detta är planerat och ännu inte i drift.",
-          "Cloudflare (planerad DNS- och CDN-leverantör, EU). Cloudflare planeras att hantera namnuppslag och trafik fram till tjänsten. Detta är planerat och ännu inte i drift."
+          "netcup GmbH (driftsleverantör, Tyskland). Jobbliggaren driftas på en server hos netcup GmbH i Nürnberg i Tyskland, där applikationen och databasen körs."
         ]
       },
       {

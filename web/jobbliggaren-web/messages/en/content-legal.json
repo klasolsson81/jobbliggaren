@@ -74,8 +74,7 @@
           "The data that is planned to be disclosed to Amazon Web Services EMEA SARL is your email address and the content of the message, which for a watch notification contains the job title, the company name and how strong the match is. Receiving the notification also shows that you have turned that feature on. If you change your email address, the notice about the change goes to your previous address, which is therefore also disclosed to the provider. Before we start sending, we will ensure that the data processing agreement applies and that the basis for the transfer to the group parent Amazon Web Services, Inc. in the USA is documented, see the section Transfer to third countries below. This is planned and not yet in operation."
         ],
         "list": [
-          "Hetzner (planned hosting provider, EU). Jobbliggaren is planned to be hosted at Hetzner in the EU, where the application and the database run. This is planned and not yet in operation.",
-          "Cloudflare (planned DNS and CDN provider, EU). Cloudflare is planned to handle name resolution and traffic up to the service. This is planned and not yet in operation."
+          "netcup GmbH (hosting provider, Germany). Jobbliggaren is hosted on a server at netcup GmbH in Nuremberg in Germany, where the application and the database run."
         ]
       },
       {

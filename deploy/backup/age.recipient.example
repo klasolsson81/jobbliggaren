@@ -1,13 +1,21 @@
 # The age RECIPIENT for the nightly backup — the public half, and only the public half.
 #
-# Install the real file at /opt/jobbliggaren/deploy/backup/age.recipient, root-owned and 0444.
-# jobbliggaren-backup.sh refuses to run without it, and refuses a value that does not look like
-# an age recipient. This example is committed; the real recipient is written on the box when
-# Klas generates the identity, because until then there is nothing true to commit.
+# THE REAL RECIPIENT IS NOW COMMITTED, at `deploy/backup/age.recipient` — Klas generated the
+# identity on his own machine 2026-08-09, and only this public half has ever left it. This file
+# remains as the format note and as the standing warning below.
+#
+# Install the tracked recipient to /opt/jobbliggaren/deploy/backup/age.recipient, root-owned and
+# 0444. jobbliggaren-backup.sh refuses to run without it, and refuses a value that does not look
+# like an age recipient.
 #
 # ONE LINE, STARTING age1. It is the output of `age-keygen`'s "Public key:" line.
 #
-#   age1ql3z7hjy54pw3hyww5ayyfg7zqgvc7w3j2elw8zmrj2kg5sfn9aqmcac8p
+#   age1<58 more bech32 characters>       <- SHAPE ONLY. A well-formed sample value used to sit
+#                                            here, and the script accepts any well-formed one:
+#                                            installing the sample by mistake would encrypt every
+#                                            night to a key nobody holds, silently, until the
+#                                            drill. The real value is in `age.recipient` beside
+#                                            this file and the runbook verifies against it.
 #
 # THE PRIVATE KEY (AGE-SECRET-KEY-…) MUST NEVER EXIST ON THIS BOX, in this directory or any
 # other. ADR 0050 `Amendment 2026-08-04` §7 requirement (b): a private key stored with the

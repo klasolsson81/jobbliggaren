@@ -193,6 +193,53 @@ public class BackupUnitFilePinTests
 
 
     /// <summary>
+    /// The age recipient is tracked, so it can be pinned — and pinning it is the one control that
+    /// tracking buys.
+    ///
+    /// <para>
+    /// The box refuses to run without a well-formed recipient, but that refusal happens at 02:15
+    /// on a machine nobody is watching. A recipient mangled by an editor, a CRLF, a stray blank
+    /// line or a paste of the <c>.example</c> file reaches the box and is discovered a night later
+    /// at best. Here it is a build failure.
+    /// </para>
+    ///
+    /// <para>
+    /// It cannot check that the recipient is the RIGHT one — only Klas holds the private half, and
+    /// a swapped-but-well-formed recipient is exactly what the periodic drill exists to catch
+    /// (<c>docs/runbooks/backup-restore.md</c> §6). What it does check is everything shape can
+    /// carry, including the one that would be catastrophic and is trivially detectable: a PRIVATE
+    /// key pasted into the public file.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public void AgeRecipient_IsExactlyOneWellFormedPublicRecipient()
+    {
+        var path = Path.Combine(RepositoryRoot(), "deploy", "backup", "age.recipient");
+        File.Exists(path).ShouldBeTrue(
+            "deploy/backup/age.recipient is what the box encrypts to. Without it the nightly " +
+            "unit refuses, and it refuses at 02:15 rather than here.");
+
+        var lines = File.ReadAllLines(path)
+            .Select(line => line.Trim())
+            .Where(line => line.Length > 0)
+            .ToList();
+
+        lines.Count.ShouldBe(1,
+            $"expected exactly one recipient line, found {lines.Count}. The script reads the whole " +
+            "file and strips whitespace, so a second line silently becomes part of the value.");
+
+        lines[0].StartsWith("AGE-SECRET-KEY-", StringComparison.OrdinalIgnoreCase).ShouldBeFalse(
+            "that is a PRIVATE key. It must never exist in this repository or on the box — the " +
+            "whole point of encrypting to a recipient is that the box holds no key that opens a " +
+            "backup (ADR 0050 Amendment 2026-08-04 §7 requirement b).");
+
+        System.Text.RegularExpressions.Regex.IsMatch(lines[0], "^age1[0-9a-z]+$").ShouldBeTrue(
+            $"'{lines[0]}' is not a well-formed age recipient. This is the same predicate " +
+            "jobbliggaren-backup.sh applies before it will run, asserted here so a malformed " +
+            "value fails the build instead of the 02:15 run.");
+    }
+
+    /// <summary>
     /// The unit file's directives, with comments and blank lines removed.
     ///
     /// <para>

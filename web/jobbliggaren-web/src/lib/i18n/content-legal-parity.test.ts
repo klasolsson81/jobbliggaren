@@ -141,25 +141,41 @@ describe("content-legal i18n-paritet (sv ↔ en)", () => {
     // matchar både avtalsparten (`... EMEA SARL`) och koncernmodern (`..., Inc.`), vilket är precis
     // de två parter Kap. V-stycket måste namnge.
     //
-    // **UNIONEN ÄR INTE KOSMETISK** (code-reviewer Minor 1, 2026-08-09). Copyn bär sedan #1169 TVÅ
-    // namnformer: bolaget (`Amazon Web Services EMEA SARL`) och tjänsten (`Amazon SES`, rad 73). I dag
-    // bär rad 73 båda, så en term ensam täcker alla fyra löven — men invariant 2 lyder "VARJE
-    // omnämnande bär markören", och ett framtida stycke som namnger leverantören enbart som
-    // `Amazon SES` (eller `AWS SES`, formen BUILD.md §3.1/§3.2 och release-checklistan använder)
-    // hade inte itererats av markör-loopen och kunnat bära ett presens-påstående med testet grönt.
-    // Det är under-räckvidd en guard inte kan rapportera själv när varje item passerar. Lövantalet
-    // är oförändrat 4, så golvet och path-pariteten rörs inte: strikt starkare till noll kostnad.
+    // **EN TERM PER INVARIANT, och det är inte symmetri för symmetrins skull** (code-reviewer
+    // Minor 1 + dess omkontroll, 2026-08-09). Copyn bär sedan #1169 TVÅ namnformer: bolaget
+    // (`Amazon Web Services EMEA SARL`) och tjänsten (`Amazon SES`, rad 73). De två invarianterna
+    // vill ha OLIKA mängder, och att driva båda ur en union gör invariant 1 svagare i samma
+    // andetag som invariant 2 blir starkare:
+    //
+    //   Invariant 1 (golv + path-paritet) vill ha den PART-BÄRANDE formen. `count(union) >= 4`
+    //   uppfylls av strikt fler dokumenttillstånd än `count(bolaget) >= 4`. Mätt vittne: skriv om
+    //   Kap. V-stycket så att BÅDE avtalsparten och koncernmodern försvinner och bara `Amazon SES`
+    //   står kvar — unionen ger 4 och passerar, den part-bärande formen ger 3 och fäller. Termen
+    //   valdes för att den fångar precis de två parter det stycket måste namnge; en union hade
+    //   låtit stycket tappa båda utan att CI sa något.
+    //
+    //   Invariant 2 (markören) vill ha VARJE omnämnande, alltså unionen. Ett framtida stycke som
+    //   namnger leverantören enbart som `Amazon SES` (eller `AWS SES`, formen BUILD.md §3.1/§3.2
+    //   och release-checklistan använder) itereras inte av en bolagsbunden loop och kan bära ett
+    //   presens-påstående med testet grönt. Mätt: den formen ger gamla loopen GRÖN och den nya RÖD.
+    //
+    // **Mitt första kontrafaktum bevisade fel sats** och är värt att minnas: det visade att
+    // union-grenen är NÅBAR, inte att den skärper spärren — i just det scenariot *släppte* unionen
+    // igenom vad den smalare termen fällde. En probe måste korsa den kontroll den påstår sig testa.
+    const svNamed = matchingLeaves(svLegal, /Amazon Web Services/);
+    const enNamed = matchingLeaves(enLegal, /Amazon Web Services/);
     const sv = matchingLeaves(svLegal, /Amazon Web Services|Amazon SES/);
     const en = matchingLeaves(enLegal, /Amazon Web Services|Amazon SES/);
 
     // Vacuity guard, and simultaneously invariant 1: FOUR known sites today (consent section, TWO in
     // "Mottagare av uppgifter" and one in "Överföring till tredje land"). A rename or deletion that
     // drops the disclosure fails here instead of shipping silently. Golvet är OFÖRÄNDRAT 4 över
-    // providerbytet: samma fyra stycken bär namnet före och efter (#1169).
-    expect(sv.length).toBeGreaterThanOrEqual(4);
+    // providerbytet: samma fyra stycken bär namnet före och efter (#1169). Bunden till den
+    // PART-BÄRANDE formen, aldrig till unionen — se resonemanget ovan.
+    expect(svNamed.length).toBeGreaterThanOrEqual(4);
 
     // Parity by LOCATION, not count — see `matchingLeaves`.
-    expect(en.map(([path]) => path)).toEqual(sv.map(([path]) => path));
+    expect(enNamed.map(([path]) => path)).toEqual(svNamed.map(([path]) => path));
 
     // The RATIFIED SENTENCE, not a token. `/planerat/i` alone accepts a truncated marker ("Detta är
     // planerat.") that drops "ännu inte i drift" — the very clause that says NOT IN OPERATION — while

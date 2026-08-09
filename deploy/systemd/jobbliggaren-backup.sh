@@ -27,7 +27,8 @@
 # lifecycle policy — a rule a third party enforces and we can export, which is what Art. 5(2)
 # demonstrability asks for, and which a credential without DELETE keeps out of reach of a
 # compromised box. The only object this script replaces is the DEK generation, and it does that
-# by overwrite-after-verification rather than by deleting anything (see promote_dek below).
+# by overwrite-after-verification rather than by deleting anything (the staged/verified
+# promotion near the end of this file).
 set -euo pipefail
 
 readonly HOST_SECRETS_DIR=/run/jobbliggaren/host-secrets
@@ -35,6 +36,11 @@ readonly CREDENTIAL_FILE="${HOST_SECRETS_DIR}/Backup__RcloneConfigBase64"
 readonly RECIPIENT_FILE=/opt/jobbliggaren/deploy/backup/age.recipient
 readonly STAMP_FILE=/var/lib/jobbliggaren/last-successful-backup
 readonly LOCK_FILE=/var/lock/jobbliggaren-backup.lock
+# KEEP IN SYNC WITH `deploy/docker-compose.yml` — container_name, POSTGRES_DB and POSTGRES_USER
+# on the postgres service. Same coupling, and the same house precedent, as
+# jobbliggaren-reconcile.sh's UPSTREAM_ALLOWLIST. All three fail loudly at run time rather than
+# silently (the container probe below, then pg_dump itself), so this is a maintenance note and
+# not a guard.
 readonly PG_CONTAINER=jobbliggaren-postgres
 readonly PG_DATABASE=jobbliggaren
 readonly PG_USER=postgres
@@ -57,6 +63,19 @@ readonly BACKUP_REMOTE="jbl-backup:jobbliggaren-backups"
 readonly MAIN_PREFIX="main"
 readonly DEK_STAGED="deks/staged.dump.age"
 readonly DEK_VERIFIED="deks/verified.dump.age"
+
+# The DEK generation's age, as a value a restore can COMPARE rather than a rule a runbook asks
+# someone to remember. Written last, after the generation is promoted, and holding the run stamp
+# of the DEK artefact now in place.
+#
+# WHY IT EXISTS. The pairing invariant is "the DEK artefact must never be older than the main
+# artefact it is paired with", and the failure that makes it bite is not exotic: if the DEK leg
+# fails after the main artefact has already uploaded, tonight's main sits offsite beside
+# LAST night's DEK generation. Every user created since that generation is then in a main
+# artefact whose key exists nowhere — and both objects are present and both decrypt, so the pair
+# looks perfectly restorable. The stamp is what makes it checkable in one command; the runbook's
+# §5 step 1 compares it against the stamp in the main artefact's own name, and refuses the pair.
+readonly DEK_VERIFIED_STAMP="deks/verified.stamp"
 
 # A backup older than this reads as a stopped backup. 26 h rather than 24 h: the nightly timer
 # carries RandomizedDelaySec, and a threshold equal to the period alarms on ordinary jitter,
@@ -90,6 +109,12 @@ die_unavailable() { log "CANNOT ANSWER: $*"; exit "$EXIT_UNAVAILABLE"; }
 # drill's job and is owned by the runbook, not by any timer on this box.
 # ---------------------------------------------------------------------------------------------
 if [[ "${1:-}" == "--check" ]]; then
+  # --check takes no further arguments. Without this line a caller could pass anything after it
+  # and be silently ignored — and the fixture case that claimed to pin this was measuring the
+  # missing-stamp branch instead, so it would have stayed green against a --check that honoured
+  # an invented flag.
+  [[ $# -eq 1 ]] || die "unknown argument '$2' (use --check on its own)"
+
   if [[ ! -f "$STAMP_FILE" ]]; then
     log "MISSING: $STAMP_FILE — no backup run has ever succeeded on this box."
     log "Run one by hand and read the journal:"
@@ -170,7 +195,19 @@ WORKDIR=$(mktemp -d "${HOST_SECRETS_DIR}/backup.XXXXXX") \
 tmpfs mounted? has the injection script run since the last boot?)"
 readonly WORKDIR
 chmod 0700 "$WORKDIR"
+
+# THE EXIT TRAP ALONE DOES NOT SURVIVE A SIGNAL, AND THREE DOCUMENTS VOUCHED THAT IT DID.
+# Bash runs an EXIT trap on normal termination and on `exit`, but NOT when a signal with its
+# default disposition kills the shell. This unit carries TimeoutStartSec=3600, and `systemctl
+# stop` sends SIGTERM — either would have left the DECODED upload credential and the DEK
+# ciphertext in the working directory until the next reboot. The exposure is small (tmpfs, 0700
+# root:root, and the base64 form of the same secret already lives permanently one directory up),
+# but `vps-deploy-stack.md` row 29 is written as an INSTRUMENT that says a survivor here is a
+# real defect — so an operator finding one after a timeout kill would have reported correct
+# behaviour as a fault. The explicit `exit` is what makes the EXIT trap run.
 trap 'rm -rf "$WORKDIR"' EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 rclone_config="${WORKDIR}/rclone.conf"
 install -m 0600 /dev/null "$rclone_config"
@@ -179,8 +216,13 @@ base64 -d < "$CREDENTIAL_FILE" > "$rclone_config" \
 config file; see docs/runbooks/backup-restore.md §2."
 [[ -s "$rclone_config" ]] || die "the decoded rclone config is empty"
 
-export RCLONE_CONFIG="$rclone_config"
-# rclone's own log must never carry the config it just read.
+# ONE MECHANISM, NOT TWO. An `export RCLONE_CONFIG` alongside this array would silently rescue a
+# future rclone call that forgot the flags — which turns the flags into a guarantee that does not
+# bear, and makes the fixture suite (which asserts on argv) blind to the omission. The array is
+# the explicit form and every invocation below uses it.
+#
+# --log-level NOTICE keeps rclone's own output to the journal terse; it is not what keeps the
+# config out of the log, which is simply that rclone does not print it.
 readonly RCLONE_FLAGS=(--config "$rclone_config" --log-level NOTICE --retries 3)
 
 # One run at a time. A second run overlapping the first would interleave two DEK generations
@@ -225,6 +267,25 @@ for i in "${!main_status[@]}"; do
 (1=pg_dump 2=age 3=rclone). No stamp is written and no DEK artefact is promoted."
 done
 
+# FROM HERE ON, TONIGHT'S MAIN ARTEFACT IS OFFSITE AND EVERY REMAINING FAILURE LEAVES IT THERE.
+#
+# The box holds no DELETE on the target by design (see the header), so a failed DEK leg cannot be
+# undone by removing what already uploaded. What it leaves is the one pairing the ordering
+# invariant forbids: tonight's main artefact beside the PREVIOUS generation's DEK artefact. Every
+# job_seeker created since that generation is then in a main artefact whose key exists in nothing
+# we hold — and because both objects are present and both decrypt, the pair looks restorable.
+#
+# An earlier version of the messages below said the previous generation "still pairs with it". It
+# does not, and saying so told the operator the opposite of the truth at the one moment the
+# distinction costs data. The condition self-heals on the next successful run, and the unit sits
+# in `systemctl --failed` until then — but the restore side needs something it can COMPARE, which
+# is what deks/verified.stamp is for.
+readonly UNPAIRED_MAIN_WARNING="The main artefact for ${run_stamp} IS offsite, and this run did
+NOT promote a DEK generation for it. The newest verified DEK artefact is therefore OLDER than that
+main artefact: any user created since it has no key in a restore from it. Do not pair them — see
+docs/runbooks/backup-restore.md §5 step 1, which compares ${DEK_VERIFIED_STAMP} against the stamp
+in the main artefact's own name. Re-run this unit; a successful run repairs the pairing."
+
 # ---------------------------------------------------------------------------------------------
 # The DEK artefact: dump, encrypt, hash locally, upload to `staged`, read it back, compare.
 # ---------------------------------------------------------------------------------------------
@@ -241,8 +302,7 @@ set -e
 
 for i in "${!dek_status[@]}"; do
   [[ "${dek_status[$i]}" -eq 0 ]] || die "DEK artefact stage $((i + 1)) of 2 exited ${dek_status[$i]}
-(1=pg_dump 2=age). The main artefact for ${run_stamp} is offsite but this run did not promote a
-DEK generation; the previously verified one is untouched and still pairs with it."
+(1=pg_dump 2=age). ${UNPAIRED_MAIN_WARNING}"
 done
 
 [[ -s "$dek_local" ]] || die "the encrypted DEK artefact is empty"
@@ -251,7 +311,7 @@ local_sha=$(sha256sum < "$dek_local" | cut -d' ' -f1)
 log "DEK artefact: $(stat -c '%s' "$dek_local") bytes, sha256 ${local_sha}"
 
 rclone rcat "${RCLONE_FLAGS[@]}" "${BACKUP_REMOTE}/${DEK_STAGED}" < "$dek_local" \
-  || die "upload of the staged DEK artefact failed"
+  || die "upload of the staged DEK artefact failed. ${UNPAIRED_MAIN_WARNING}"
 
 # THE ROUND TRIP IS THE VERIFICATION, and it is compared against the bytes we sent rather than
 # against a size or a remote-reported hash. It proves the object is retrievable and intact; it
@@ -261,15 +321,29 @@ remote_sha=$(rclone cat "${RCLONE_FLAGS[@]}" "${BACKUP_REMOTE}/${DEK_STAGED}" | 
   || die "could not read back the staged DEK artefact"
 
 [[ "$remote_sha" == "$local_sha" ]] || die "the staged DEK artefact does not match what was
-uploaded (local ${local_sha}, remote ${remote_sha}). NOT promoted — the previously verified DEK
-generation is untouched and still pairs with every retained main artefact."
+uploaded (local ${local_sha}, remote ${remote_sha}). NOT promoted. ${UNPAIRED_MAIN_WARNING}"
 
 # Promotion writes the SAME LOCAL BYTES that were just verified, never a server-side copy of the
 # staged object: a copy would be a second thing to go wrong between two objects we have already
 # established agree with what we hold.
 rclone rcat "${RCLONE_FLAGS[@]}" "${BACKUP_REMOTE}/${DEK_VERIFIED}" < "$dek_local" \
-  || die "promotion of the DEK artefact failed. ${DEK_STAGED} is verified and current — a restore
-may use it; see docs/runbooks/backup-restore.md §5."
+  || die "promotion of the DEK artefact failed. ${DEK_STAGED} carries the same verified bytes and
+a restore may use it instead (docs/runbooks/backup-restore.md §5). ${UNPAIRED_MAIN_WARNING}"
+
+# THE STAMP IS DELIBERATELY NOT ENCRYPTED, and that is a decision rather than an oversight.
+# A restore compares it BEFORE it decrypts anything — often on a machine that is fetching
+# artefacts to work out which pair to use, and which may not hold the private key at that moment.
+# An age-framed stamp would have to be decrypted to be read, which defeats the one job it has.
+# It leaks nothing: the main artefacts' object NAMES already carry the same timestamps in clear,
+# so an observer who can list the bucket already knows when backups run.
+#
+# The stamp goes up LAST and only on the success path, so it can never claim a generation that was
+# not promoted. A stamp that lags its artefact is safe — it under-claims, and the restore refuses
+# a pair it could have accepted. A stamp that leads one is not, which is why this is not written
+# before the promotion it describes.
+printf '%s
+' "$run_stamp"   | rclone rcat "${RCLONE_FLAGS[@]}" "${BACKUP_REMOTE}/${DEK_VERIFIED_STAMP}"   || die "the DEK generation was promoted but its stamp did not upload. A restore cannot check the
+pairing without it — re-run this unit before relying on tonight's artefacts."
 
 install -d -m 0755 "$(dirname "$STAMP_FILE")"
 printf '%s\n' "$run_stamp" > "$STAMP_FILE"

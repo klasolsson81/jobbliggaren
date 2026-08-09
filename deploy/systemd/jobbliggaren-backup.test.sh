@@ -117,6 +117,7 @@ STUB
 make_stub age <<'STUB'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >> "$CALLS/age"
+[ -n "${AGE_FAILS:-}" ] && { echo "age: stub failure" >&2; exit 5; }
 printf 'age-encrypted-frame:'
 cat
 STUB
@@ -139,7 +140,12 @@ done
 target="$STORE/$(printf '%s' "$obj" | tr '/:' '__')"
 case "$verb" in
   rcat)
-    [ "${RCLONE_FAILS_ON:-}" = "$obj" ] && { echo "rclone stub: refusing $obj" >&2; exit 7; }
+    # PREFIX match, not equality. The main artefact's object name carries a run stamp minted
+    # inside the SUT, so a test could never name it in advance — which is exactly why stage 3 of
+    # the main pipe was uncovered until this changed.
+    case "$obj" in ${RCLONE_FAILS_ON:-__no_such_object__}*)
+      echo "rclone stub: refusing $obj" >&2; exit 7 ;;
+    esac
     cat > "$target"
     ;;
   cat)
@@ -203,7 +209,7 @@ reset_world() {
   # base64 of a plausible rclone config. Content is irrelevant to the stub; the SUT only
   # requires that it decodes to something non-empty.
   printf '[jbl-backup]\ntype = s3\n' | base64 > "$HOST_SECRETS/Backup__RcloneConfigBase64"
-  unset DOCKER_PG_RUNNING DOCKER_DUMP_FAILS RCLONE_FAILS_ON
+  unset DOCKER_PG_RUNNING DOCKER_DUMP_FAILS RCLONE_FAILS_ON AGE_FAILS
 }
 
 # Runs the SUT with a PATH containing exactly the tools named, plus the coreutils.
@@ -229,6 +235,7 @@ run_sut() {
     DOCKER_PG_RUNNING="${DOCKER_PG_RUNNING:-true}" \
     DOCKER_DUMP_FAILS="${DOCKER_DUMP_FAILS:-}" \
     RCLONE_FAILS_ON="${RCLONE_FAILS_ON:-}" \
+    AGE_FAILS="${AGE_FAILS:-}" \
     "$REAL_BASH" "$SUT_COPY" "$@" >"$TMPROOT/out" 2>&1
 }
 
@@ -329,8 +336,13 @@ check "main is dumped BEFORE the DEKs" bash -c \
 
 check "age was invoked with -r (a recipient)" grep -q -- '-r age1' "$CALLS/age"
 check "age was NEVER invoked with -i (an identity)" bash -c '! grep -q -- " -i " "'"$CALLS"'/age"'
-check "everything uploaded passed through age" bash -c \
-  'for f in "'"$STORE"'"/*; do head -c 20 "$f" | grep -q "age-encrypted-frame:" || exit 1; done'
+# EVERY UPLOADED OBJECT IS age-FRAMED - WITH ONE DELIBERATE EXEMPTION, NAMED HERE SO IT CANNOT
+# BE WIDENED SILENTLY. deks/verified.stamp is plaintext by design: a restore compares it before
+# it decrypts anything, and it carries no information the main artefacts' own object names do
+# not already publish in clear. Every OTHER object must be framed, and the exemption is an exact
+# name rather than a pattern, so a second unencrypted object cannot inherit it.
+check "everything uploaded passed through age, except the pairing stamp" bash -c \
+  'for f in "'"$STORE"'"/*; do case "$f" in *verified.stamp) continue ;; esac; head -c 20 "$f" | grep -q "age-encrypted-frame:" || { echo "unframed: $f"; exit 1; }; done'
 
 check "no plaintext dump survives anywhere under the fixture root" bash -c \
   '! grep -rl "PGDMP-STUB-PAYLOAD" "'"$TMPROOT"'/run" "'"$TMPROOT"'/var" 2>/dev/null | grep -q .'
@@ -354,6 +366,59 @@ reset_world; RCLONE_FAILS_ON="jbl-backup:jobbliggaren-backups/deks/staged.dump.a
 expect_exit 1 "a failing DEK upload fails the run"
 check "…and promotes no DEK generation" [ ! -f "$(stored "jbl-backup:jobbliggaren-backups/deks/verified.dump.age")" ]
 unset RCLONE_FAILS_ON
+
+# STAGE 2 AND STAGE 3 OF THE PIPES, WHICH HAD NO COVERAGE AT ALL UNTIL THIS BLOCK.
+# `PIPESTATUS` is checked stage by stage in the SUT and that check is the mechanism's headline
+# claim — but only stage 1 (pg_dump) was ever exercised, so four of the five arms were prose.
+echo "== every stage of every pipe can fail the run =="
+reset_world; AGE_FAILS=1
+expect_exit 1 "a failing age (stage 2) fails the run"
+check "…and it is reported as a pipe-stage failure, not a success" grep -q "stage . of 3 exited" "$TMPROOT/out"
+check "…and no stamp is written" [ ! -f "$STAMP" ]
+check "…and no DEK generation is promoted" [ ! -f "$(stored "jbl-backup:jobbliggaren-backups/deks/verified.dump.age")" ]
+
+# A TRUNCATED OBJECT IS LEFT OFFSITE, AND IT IS MEASURED RATHER THAN WISHED AWAY. When age dies
+# mid-stream, rclone has already opened the destination and writes what it received - so an empty
+# or partial object survives under a legitimate-looking run-stamped name, and the box holds no
+# DELETE by design and cannot remove it. Two things make that acceptable, and both are asserted:
+# the run fails loudly (above), and age is an AUTHENTICATED format, so a restore from that object
+# fails at decrypt rather than yielding partial data. It expires with everything else at 30 days.
+check "…a surviving truncated main object is not age-framed, so it cannot decrypt" bash -c \
+  'f=$(ls "'"$STORE"'" | grep main || true); [ -z "$f" ] || ! head -c 20 "'"$STORE"'/$f" | grep -q "age-encrypted-frame:"'
+unset AGE_FAILS
+
+reset_world; RCLONE_FAILS_ON="jbl-backup:jobbliggaren-backups/main/"
+expect_exit 1 "a failing main upload (stage 3) fails the run"
+check "…and no DEK generation is promoted" [ ! -f "$(stored "jbl-backup:jobbliggaren-backups/deks/verified.dump.age")" ]
+check "…and no stamp is written" [ ! -f "$STAMP" ]
+unset RCLONE_FAILS_ON
+
+# THE UNPAIRED-MAIN WARNING. When the DEK leg fails AFTER the main artefact is already offsite,
+# the newest verified DEK generation is OLDER than that main artefact — the one pairing the
+# ordering invariant forbids. The message used to say the opposite ("still pairs with it"), which
+# is why this is asserted on the wording and not only on the exit code.
+echo "== a failed DEK leg tells the truth about what it left offsite =="
+reset_world; DOCKER_DUMP_FAILS=dek
+expect_exit 1 "the run fails"
+check "…the refusal says the main artefact IS offsite" grep -q "IS offsite" "$TMPROOT/out"
+check "…and that the newest DEK artefact is OLDER" grep -q "OLDER than" "$TMPROOT/out"
+check "…and never claims the old generation still pairs" bash -c '! grep -qi "still pairs" "'"$TMPROOT"'/out"'
+unset DOCKER_DUMP_FAILS
+
+# THE PAIRING STAMP. A restore compares it against the stamp in a main artefact's name, so it
+# must exist on success and must never be written when no generation was promoted.
+echo "== the pairing stamp =="
+reset_world
+expect_exit 0 "a complete run publishes the pairing stamp"
+check "the stamp object exists" [ -f "$(stored "jbl-backup:jobbliggaren-backups/deks/verified.stamp")" ]
+check "it holds the run stamp, not a path or a hash" bash -c   'grep -qE "^[0-9]{8}T[0-9]{6}Z$" "$(ls "'"$STORE"'" | grep verified.stamp | sed "s#^#'"$STORE"'/#")"'
+check "it is deliberately NOT age-framed, so a restore can read it before decrypting" bash -c \
+  '! head -c 20 "$(ls "'"$STORE"'"/*verified.stamp)" | grep -q "age-encrypted-frame:"'
+
+reset_world; DOCKER_DUMP_FAILS=dek
+expect_exit 1 "a failed DEK leg publishes no pairing stamp"
+check "…no stamp object" [ ! -f "$(stored "jbl-backup:jobbliggaren-backups/deks/verified.stamp")" ]
+unset DOCKER_DUMP_FAILS
 
 # THE ROUND TRIP MUST BE ABLE TO FAIL, and this is the case that proves it does. Without it the
 # comparison could be tautological — comparing a value against itself — and every run would pass.
@@ -407,21 +472,36 @@ expect_exit 1 "no stamp at all -> stale" --check
 reset_world; printf 'x' > "$STAMP"
 expect_exit 0 "a stamp written just now -> fresh" --check
 
-reset_world; printf 'x' > "$STAMP"
-touch -d '27 hours ago' "$STAMP" 2>/dev/null || touch -t "$(date -d '27 hours ago' +%Y%m%d%H%M 2>/dev/null || echo 197001010000)" "$STAMP"
+# BACKDATING MUST WORK OR THE THRESHOLD CASES MEASURE NOTHING. The earlier form fell back to
+# `touch` with no argument, which stamps NOW — so the 25 h case would have reported "fresh" while
+# measuring only that a fresh stamp is fresh, and the 27 h case would have measured a 1970
+# fallback rather than the boundary. Measured 2026-08-09: `touch -d` works on both Git Bash and
+# ubuntu, so this never fires; it fails loudly rather than degrading if that ever changes.
+backdate() {
+  touch -d "$1" "$STAMP" 2>/dev/null || {
+    echo "FIXTURE BROKEN: 'touch -d' is unavailable, so the freshness threshold cannot be" >&2
+    echo "                measured on this host. The suite refuses to report a result." >&2
+    exit 1
+  }
+}
+
+reset_world; printf 'x' > "$STAMP"; backdate '27 hours ago'
 expect_exit 1 "a stamp 27h old -> stale (threshold is 26h)" --check
 check "…the message says how old it is" grep -qi "STALE" "$TMPROOT/out"
 
-reset_world; printf 'x' > "$STAMP"
-touch -d '25 hours ago' "$STAMP" 2>/dev/null || touch "$STAMP"
+reset_world; printf 'x' > "$STAMP"; backdate '25 hours ago'
 expect_exit 0 "a stamp 25h old -> still fresh (the threshold is not 24h)" --check
 
-reset_world; printf 'x' > "$STAMP"
-touch -d '2 hours' "$STAMP" 2>/dev/null || touch "$STAMP"
+reset_world; printf 'x' > "$STAMP"; backdate '2 hours'
 expect_exit 1 "a stamp dated in the FUTURE is not fresh" --check
 
-reset_world
-expect_exit 1 "--check does not accept a second argument" --check --force 2>/dev/null || true
+# THE STAMP IS SEEDED FRESH ON PURPOSE. Without it --check exits 1 on the missing-stamp branch,
+# and this case passed while measuring nothing about argument handling — it would have stayed
+# green against a --check that silently honoured an invented flag. With a fresh stamp the only
+# remaining route to exit 1 is the argument itself, and the message binds it.
+reset_world; printf 'x' > "$STAMP"
+expect_exit 1 "--check refuses a second argument" --check --force
+check "…and names the argument rather than the stamp" grep -q "unknown argument" "$TMPROOT/out"
 
 echo "== argument handling =="
 reset_world

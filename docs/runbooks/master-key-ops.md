@@ -27,7 +27,7 @@ reboot destroys them and an operator must re-inject.
 > `vps-deploy-stack.md` §5.
 >
 > **One measured input for that decision, because it is new:** `OLD_KEY` in step 3 lives on
-> tmpfs like everything else here. A reboot between step 4 and step 8 therefore destroys BOTH
+> tmpfs like everything else here. A reboot between step 4 and step 9 therefore destroys BOTH
 > the retiring key and the live one — the live one is escrowed at step 4, the retiring one is
 > not. If rows are still wrapped under the retiring key at that moment (a rollback at step 5, or
 > a partial rotation), the loss is total. So an escrow that merely *replaces* on rotation

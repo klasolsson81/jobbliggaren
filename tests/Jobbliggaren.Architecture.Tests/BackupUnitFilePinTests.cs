@@ -156,27 +156,41 @@ public class BackupUnitFilePinTests
     }
 
     /// <summary>
-    /// The vacuity guard. Every assertion above reads a file, and a test suite whose files have
-    /// all been renamed or deleted would otherwise report a green run over nothing at all —
-    /// <see cref="ReadUnit"/> throws, but only for the files a case happens to name.
+    /// The set of backup units is exactly these four, asserted as an EQUALITY in both directions.
+    ///
+    /// <para>
+    /// This began as an existence check, and that version guarded nothing:
+    /// <see cref="Units_DocumentationPointsAtARunbookThatExists"/> already names all four, so it
+    /// could not fail without another case failing first. The gap it left is the opposite one - a
+    /// fifth <c>jobbliggaren-backup-*.timer</c> added later would get no coverage from any case
+    /// here and nothing would say so. An equality catches a deletion AND an unpinned addition.
+    /// </para>
     /// </summary>
     [Fact]
-    public void AllFourUnitFilesExist()
+    public void TheBackupUnitSetIsExactlyThese_SoAnAdditionCannotArriveUnpinned()
     {
         string[] expected =
         [
-            "jobbliggaren-backup.service",
-            "jobbliggaren-backup.timer",
             "jobbliggaren-backup-fresh.service",
             "jobbliggaren-backup-fresh.timer",
+            "jobbliggaren-backup.service",
+            "jobbliggaren-backup.timer",
         ];
 
-        foreach (var fileName in expected)
-        {
-            File.Exists(Path.Combine(RepositoryRoot(), SystemdDirectory, fileName))
-                .ShouldBeTrue($"{SystemdDirectory}/{fileName} is missing");
-        }
+        var actual = Directory
+            .GetFiles(Path.Combine(RepositoryRoot(), SystemdDirectory), "jobbliggaren-backup*")
+            .Select(Path.GetFileName)
+            .Where(name => name!.EndsWith(".service", StringComparison.Ordinal)
+                           || name.EndsWith(".timer", StringComparison.Ordinal))
+            .Order()
+            .ToArray();
+
+        actual.ShouldBe(expected,
+            "the backup unit set changed. Every unit here is pinned by the cases above; a new one " +
+            "must be added to them and to this list in the same change, or it ships with its " +
+            "properties held by nothing but a comment.");
     }
+
 
     /// <summary>
     /// The unit file's directives, with comments and blank lines removed.
@@ -184,10 +198,17 @@ public class BackupUnitFilePinTests
     /// <para>
     /// <b>Absence assertions must run against this and never against the raw text</b>, and this
     /// class learned that the expensive way: every one of these unit files carries a comment
-    /// explaining why a directive is <em>absent</em> — "NO [Install] SECTION", "Deliberately NOT
-    /// Persistent=true" — so a substring search over the whole file matches the prose that
+    /// explaining why a directive is <em>absent</em> - "NO [Install] SECTION", "Deliberately NOT
+    /// Persistent=true" - so a substring search over the whole file matches the prose that
     /// documents the property and reports the opposite of the truth. Three cases failed against
     /// correct unit files before this existed.
+    /// </para>
+    ///
+    /// <para>
+    /// It is also the ONLY definition of "what is a directive line" in this class.
+    /// <see cref="DirectiveOf"/> used to re-implement the same filter, which is the very fault its
+    /// own failure message names: two spellings of one rule is how an assertion quietly keeps
+    /// checking the one that is no longer in effect.
     /// </para>
     /// </summary>
     private static List<string> Directives(string unitText) =>
@@ -212,10 +233,7 @@ public class BackupUnitFilePinTests
     /// </summary>
     private static string DirectiveOf(string unitText, string directive)
     {
-        var matches = unitText
-            .Split('\n')
-            .Select(line => line.Trim())
-            .Where(line => !line.StartsWith('#'))
+        var matches = Directives(unitText)
             .Where(line => line.StartsWith(directive + "=", StringComparison.Ordinal))
             .Select(line => line[(directive.Length + 1)..].Trim())
             .ToList();

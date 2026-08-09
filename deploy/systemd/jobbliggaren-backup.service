@@ -26,6 +26,21 @@ After=docker.service network-online.target
 # nothing unless something pulls the target into the transaction, and this unit uploads.
 Wants=network-online.target
 
+# THE CATCH-UP RUN THE TIMER'S Persistent=true PROMISES CANNOT SUCCEED ON THIS BOX WITHOUT THIS
+# LINE. The upload credential lives on tmpfs and is gone after every boot until an operator
+# re-injects it — which is this box's designed operating model, not an edge case. A boot-time
+# catch-up would therefore reach the credential check and exit 2, and the unit would sit LATCHED
+# in `systemctl --failed` until the next 02:15, even after the operator injected — while
+# jobbliggaren-backup-fresh.service simultaneously reported the backup fresh, because the stamp
+# is younger than 26 h. The box's only alarm surface would be showing a fault that no longer
+# exists, and this repo's own doctrine on that is explicit: an alarm that is always lit is worse
+# than no alarm (jobbliggaren-secrets-present.timer).
+#
+# A failed Condition makes systemd SKIP the unit — inactive, logged, not failed. Nothing is lost:
+# a missing credential is already alarmed by jobbliggaren-secrets-present.service via its
+# HOST_SECRET_KEYS loop, and a genuinely missed backup is caught by the 26 h freshness threshold.
+ConditionPathExists=/run/jobbliggaren/host-secrets/Backup__RcloneConfigBase64
+
 [Service]
 Type=oneshot
 

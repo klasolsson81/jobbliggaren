@@ -341,6 +341,27 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
+      # DEN ENDA EGENSKAP HOS ETT DEPLOY-SKRIPT SOM VARKEN CI ELLER DESS EGEN FIXTURSVIT KAN SE.
+      # systemd kör `ExecStart=` på filen direkt och svarar 203/EXEC om exec-biten saknas — men
+      # varje fixtursvit anropar sitt skript som `bash <path>`, vilket är mode-blint, och
+      # `core.filemode=false` på Windows gör att en utvecklare inte heller ser det lokalt.
+      # Mätt 2026-08-09 (#197): båda de nya skripten committades 100644 medan varje syskon i
+      # samma katalog är 100755, så hela backup-mekanismen hade varit inert från
+      # installationsögonblicket och inget grönt jobb hade sagt emot.
+      #
+      # Indexet är mätobjektet, inte arbetsträdet: `File.GetUnixFileMode` och `test -x` mäter
+      # utcheckningen, som på Windows ljuger. Därför bash här och inte en C#-pin.
+      - name: deploy/systemd/*.sh är exekverbara i indexet
+        run: |
+          bad=$(git ls-files -s 'deploy/systemd/*.sh' | grep -v '^100755 ' || true)
+          if [ -n "$bad" ]; then
+            echo "::error::icke-exekverbara skript i deploy/systemd (systemd ger 203/EXEC):"
+            echo "$bad"
+            echo "Åtgärd: git update-index --chmod=+x <fil>"
+            exit 1
+          fi
+          echo "alla $(git ls-files 'deploy/systemd/*.sh' | wc -l) skript är 100755"
+
       # Diagnostik, INGEN grind — `git --version` avslutar alltid 0. Predikatets
       # golv (git >= 2.38, för `merge-tree --write-tree`) grindas av fixtur 1:
       # på en äldre git returnerar den `git-too-old` i stället för

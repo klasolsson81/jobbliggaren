@@ -127,9 +127,21 @@ base64 -w0 < rclone.conf        # produce it wherever you configured rclone, the
 
 ## 3. After every reboot
 
-`/run` is tmpfs, so the upload credential dies with the box exactly as the master key does. Until
-it is re-injected the nightly unit **refuses** — it does not skip, and it does not upload
-unencrypted. Re-inject with the command above; there is nothing backup-specific to remember.
+`/run` is tmpfs, so the upload credential dies with the box exactly as the master key does.
+Re-inject with the command above; there is nothing backup-specific to remember.
+
+**What happens in the meantime, precisely, because the two cases differ.** A *scheduled* run with
+no credential is **skipped**, not failed: `jobbliggaren-backup.service` carries
+`ConditionPathExists=` on the credential, so systemd marks the unit inactive and logs the reason.
+That is deliberate — the timer is `Persistent=true`, so a boot-time catch-up would otherwise
+**latch** the unit in `systemctl --failed` until the next 02:15, even after an operator injected,
+while the freshness probe simultaneously reported the backup fresh. An alarm that is lit for a
+condition that no longer exists trains an operator to stop reading the only alarm surface there
+is. A run started **by hand** with no credential still refuses loudly (exit 2), and a genuinely
+missing backup is caught by the 26-hour freshness threshold rather than by the scheduled run.
+Nothing is unreported: the missing credential itself is already alarmed by
+`jobbliggaren-secrets-present.service`, which covers it through the same `--check` loop as the
+crypto secrets.
 
 Verify:
 
@@ -161,7 +173,13 @@ cadence — that gap is #1175 and this runbook does not close it):
 systemctl --failed
 sudo /opt/jobbliggaren/deploy/systemd/jobbliggaren-backup.sh --check
 rclone --config <cfg> lsl jbl-backup:jobbliggaren-backups/main | tail -5   # newest artefacts
+rclone --config <cfg> cat jbl-backup:jobbliggaren-backups/deks/verified.stamp
 ```
+
+**Read those two together, not separately.** The DEK stamp must be at least as recent as the
+newest main artefact. If it is behind, some run's DEK leg failed after its main artefact
+uploaded, and the newest main artefact is unusable until the next successful run repairs the
+pairing — `deks/` is the half a `main`-only listing cannot see.
 
 ### Retention
 
@@ -199,8 +217,28 @@ The **decryption must happen on the machine holding the age private key, and tha
 never this box.** For a drill before real data exists, that machine is the operator workstation;
 once real data exists that choice is open and is security-auditor's to settle (§8).
 
+> **STEP 0, AND IT IS NOT OPTIONAL: CHECK THE PAIRING BEFORE YOU FETCH ANYTHING.** The DEK
+> artefact must never be older than the main artefact you pair it with. That is normally true by
+> construction — the nightly run dumps main first and promotes the DEK generation second — but it
+> is **false after any run whose DEK leg failed after the main artefact uploaded**: tonight's main
+> then sits offsite beside last night's DEK generation, both objects present, both decrypting,
+> and the pair looks fine. Every user created since that generation would restore with no key.
+>
+> The mechanism publishes the DEK generation's own run stamp for exactly this comparison, in
+> plaintext so it can be read without the private key:
+>
+> ```bash
+> rclone --config <cfg> cat jbl-backup:jobbliggaren-backups/deks/verified.stamp
+> # -> e.g. 20260809T021500Z
+> ```
+>
+> **The value it prints must be greater than or equal to the `<STAMP>` in the main artefact's own
+> file name.** If it is not, do not use that main artefact: pick an older one whose stamp the DEK
+> generation covers, or run `systemctl start jobbliggaren-backup.service` and use tonight's pair.
+
 ```bash
-# 1. Fetch. Any main artefact inside the retention window, and the CURRENT DEK artefact.
+# 1. Fetch. Any main artefact whose stamp is <= the DEK generation's stamp (step 0), and the
+#    CURRENT DEK artefact.
 rclone --config <cfg> copy jbl-backup:jobbliggaren-backups/main/jobbliggaren-<STAMP>.dump.age .
 rclone --config <cfg> copy jbl-backup:jobbliggaren-backups/deks/verified.dump.age .
 
@@ -341,6 +379,23 @@ decayed.
 4. **The dump's cost on this box.** `pg_dump` runs inside the Postgres container's 2 560 MiB cap,
    and the peak recorded in `vps-deploy-stack.md` §5 row 3 reflects idle operation because this
    job did not exist. That row is unblocked by this change and is #1235's to close.
-5. **Where decryption happens once real data exists.** The workstation is inside the trust
+5. **Whether the chosen target versions the `deks/` prefix.** "Exactly one verified DEK
+   generation" is achieved by OVERWRITE, because the credential holds no `DELETE`. On a
+   **versioned** bucket an overwrite deletes nothing: the previous generation survives as a
+   noncurrent version, a `DELETE`-less credential cannot remove it, and an `Expiration` lifecycle
+   rule does not touch noncurrent versions — that needs `NoncurrentVersionExpiration`. Thirty
+   days of DEK generations would then be retained, and pairing a day −25 main artefact with the
+   day −25 DEK **version** reads an erased user again. Object Lock implies versioning on the
+   implementations that offer it, so ADR 0125's Object Lock rider makes this reachable rather
+   than theoretical. **Provisioning gate:** either do not version `deks/`, or set
+   `NoncurrentVersionExpiration: 1 day` on it, and read the lifecycle configuration back to
+   confirm. `main/` is unaffected — it carries no keys. (security-auditor, 2026-08-09, Major.)
+6. **A failed run can leave a truncated object offsite, and the box cannot remove it.** If `age`
+   or `pg_dump` dies mid-stream, `rclone` has already opened the destination and writes what it
+   received. The run fails loudly, and age is an authenticated format so a restore from that
+   object fails at decrypt rather than yielding partial data — but the object sits under a
+   legitimate-looking run-stamped name until the lifecycle expires it. **Do not read a main
+   artefact's existence as evidence it is complete;** the journal for that run is the evidence.
+7. **Where decryption happens once real data exists.** The workstation is inside the trust
    boundary (ADR 0123). Acceptable for a drill on an empty box; open beyond that, and
    security-auditor's to settle.

@@ -1242,6 +1242,42 @@ has:
 - **Crash-loop self-heal after injection** (`restart: unless-stopped` recovering api/worker
   with no `compose up`) is designed, not yet observed against the real box.
 
+## Amendment 2026-08-09 (#197) — Beslut 2's claim held only by an unwritten premise, now written down
+
+**Trigger:** #197 (nightly encrypted offsite backup + restore drill). **Source:**
+`docs/reviews/2026-08-09-197-cto.md` (gitignored, so restated here) and **ADR 0125** (local-only,
+the mechanism this amendment names).
+
+Beslut 2 states, above: *"restore av en backup med sedan-raderad användare ger olesbar
+ciphertext"* (this file, `:142-144`). `content-legal.json:139` publishes the same claim to users.
+**Both were true only by an unwritten premise.** `user_data_keys` is an ordinary table with no
+special handling in a `pg_dump`: a full dump carries every user's wrapped DEK next to the
+ciphertext it unwraps, and the master key survives on the box (this file's 2026-06-06/2026-07-12
+head-notes; ADR 0123). Restoring such a dump makes an erased user's field-encrypted columns
+readable again — the opposite of what Beslut 2 claims.
+
+The claim holds **only where the DEK table's contents are excluded from the artefact the
+ciphertext travels in.** **ADR 0125** binds that as the nightly mechanism: a split `pg_dump` —
+a main artefact with `user_data_keys` present but empty, and a separate DEK artefact of which
+exactly one verified generation is retained — restored by pairing any main artefact within the
+retention window against the *current* DEK artefact. That mechanism is this claim's guardian.
+
+**This amendment is required even though the mechanism now makes the sentence true.** A ratified
+claim whose truth condition is documented nowhere is one refactor away from being false again —
+the next reader who adds a convenience single-command full-dump script would silently reintroduce
+exactly the failure this amendment names, with no ADR text anywhere to stop them.
+
+**No copy change follows from this.** `content-legal.json:139`'s claim is scoped to the four
+field-encrypted columns — the paragraph immediately before it (`:138`) names them: *"ditt cv, dina
+personliga brev, dina anteckningar och dina uppföljningar"*. Under the split dump the sentence
+needed no edit. It would have needed one under a single full dump, which is why ADR 0125 binds the
+split design rather than the simpler alternative (its Decision §2, Ground 2).
+
+**Not touched by this amendment:** a restore from a main artefact taken *before* a user's deletion
+*request* still resurrects that user as live, with the request lost. That is bounded to 30 days
+and inherent to backups of any shape; it is disclosed in `docs/runbooks/backup-restore.md` and
+ADR 0125, and its adjudication belongs to security-auditor, not to this file.
+
 ## Relaterade beslut
 
 - **ADR 0009** — krypto-`ValueConverter` bor i Infrastructure-EF-config;

@@ -39,6 +39,35 @@ function matchingLeaves(catalogue: unknown, term: RegExp): [string, string][] {
     .filter((entry): entry is [string, string] => typeof entry[1] === "string" && term.test(entry[1]));
 }
 
+/**
+ * DE RATIFIERADE MARKÖRFORMERNA — ETT HEM, TVÅ POLARITETER (#1199, code-reviewer Major 2).
+ *
+ * Formerna är ratificerade av senior-cto-advisor (#186/TD-116) och binder hela MENINGEN, inte
+ * ett token — resonemanget bor i e-post-tripwirens doc-kommentar nedan och upprepas inte här.
+ *
+ * De ligger som konstanter för att de sedan #1199 används i **båda** polariteterna: e-post- och
+ * ansökningshistorik-spärrarna kräver att markören finns, värd-spärren kräver att den saknas.
+ * Två textkopior av samma mönster hade gett "ETT HEM PER TAL" applicerat på ett regex — och
+ * felmoden är inte symmetrisk: bara den POSITIVA assertionen körs mot text som faktiskt bär
+ * markören, så en felstavning i en separat negativ kopia hade varit **osynlig för hela sviten**
+ * (den negerade assertionen passerar på allt ett trasigt mönster inte matchar). Med ett delat
+ * hem är den positiva spärrens gröna körning liveness-beviset för den negativa.
+ *
+ * Ingen `g`-flagga, med flit: ett delat `RegExp` med `g` bär `lastIndex` mellan anrop och hade
+ * gjort assertionerna ordningsberoende.
+ */
+const SV_STATUS_MARKER = /planerat och ännu inte i drift/i;
+const EN_STATUS_MARKER = /not yet in operation/i;
+
+/**
+ * E-postleverantörens UNION-form (bolag ELLER tjänst) — invariant 2:s term i e-post-spärren
+ * nedan, och samma term i värd-spärrens fail-fast-kontroll. Ett hem, två läsare: skulle de
+ * divergera skulle kollisionskontrollen vakta en annan mängd än den som faktiskt kolliderar.
+ * **Golvet i e-post-spärren använder AVSIKTLIGT inte den här** utan den snävare part-bärande
+ * formen — resonemanget, och mätningen bakom det, står i den spärrens doc-kommentar.
+ */
+const EMAIL_PROVIDER_ANY = /Amazon Web Services|Amazon SES/;
+
 describe("content-legal i18n-paritet (sv ↔ en)", () => {
   it("sv och en har identisk nyckel-struktur", () => {
     expect(leafPaths(enLegal)).toEqual(leafPaths(svLegal));
@@ -122,7 +151,7 @@ describe("content-legal i18n-paritet (sv ↔ en)", () => {
    * och 73 med testet grönt, medan §2.6:s smala grep tyst föll 9+9 → 7+7. Mönstren nedan är därför
    * de RATIFIERADE markörformerna och inget bredare — och de binder hela MENINGEN
    * (`planerat och ännu inte i drift`), **avsiktligt smalare** än ansökningshistorik-tripwirens
-   * `planerat`. Systern kan INTE följa med: rad 99/100 bär `(planerat)` utan markörmeningen, så
+   * `planerat`. Systern kan INTE följa med: rad 98/99 bär `(planerat)` utan markörmeningen, så
    * meningsformen hade fällt dem. Bredda aldrig tillbaka. Och "not yet in operation" är den engelska
    * markörens bärande led (`/planned/` är otillräcklig oavsett bredd).
    *
@@ -164,8 +193,8 @@ describe("content-legal i18n-paritet (sv ↔ en)", () => {
     // igenom vad den smalare termen fällde. En probe måste korsa den kontroll den påstår sig testa.
     const svNamed = matchingLeaves(svLegal, /Amazon Web Services/);
     const enNamed = matchingLeaves(enLegal, /Amazon Web Services/);
-    const sv = matchingLeaves(svLegal, /Amazon Web Services|Amazon SES/);
-    const en = matchingLeaves(enLegal, /Amazon Web Services|Amazon SES/);
+    const sv = matchingLeaves(svLegal, EMAIL_PROVIDER_ANY);
+    const en = matchingLeaves(enLegal, EMAIL_PROVIDER_ANY);
 
     // Vacuity guard, and simultaneously invariant 1: FOUR known sites today (consent section, TWO in
     // "Mottagare av uppgifter" and one in "Överföring till tredje land"). A rename or deletion that
@@ -181,8 +210,8 @@ describe("content-legal i18n-paritet (sv ↔ en)", () => {
     // planerat.") that drops "ännu inte i drift" — the very clause that says NOT IN OPERATION — while
     // the en pattern accepts no such truncation. That asymmetry let a Swedish-only thinning pass CI.
     // Both sides now bind the sentence, which also closes the "planerat for an unrelated reason" hole.
-    for (const [path, paragraph] of sv) expect(paragraph, path).toMatch(/planerat och ännu inte i drift/i);
-    for (const [path, paragraph] of en) expect(paragraph, path).toMatch(/not yet in operation/i);
+    for (const [path, paragraph] of sv) expect(paragraph, path).toMatch(SV_STATUS_MARKER);
+    for (const [path, paragraph] of en) expect(paragraph, path).toMatch(EN_STATUS_MARKER);
   });
 
   /**
@@ -215,12 +244,35 @@ describe("content-legal i18n-paritet (sv ↔ en)", () => {
    * ALDRIG in i e-post-spärrens union** och **återanvänd inte dess markör-halva**; båda
    * fällorna är namngivna i security-auditors Major 3.
    *
-   * **Icke-vakuositeten är mätt i den enda ordning som bevisar den:** testet skrevs FÖRST, med
-   * `content-legal.json` orörd, och föll på golvet
-   * (`AssertionError: expected 0 to be greater than or equal to 1`). Hade mätningen gjorts efter
-   * copy-redigeringen hade den inte skilt en fungerande spärr från en som matchar vad som helst
-   * — jfr #1237, där `"Amazon"` → `"Amazon."` gav 10/10 grönt medan spärren asserterade
-   * ingenting.
+   * **ICKE-VAKUOSITETEN ÄR MÄTT I FYRA KÖRNINGAR, EN PER ASSERTION SOM KAN VARA TYST.** Den
+   * första räckte inte, och varför den inte räckte är hela poängen (code-reviewer Major 2,
+   * 2026-08-09):
+   *
+   * 1. **Golvet.** Testet skrevs FÖRST, med `content-legal.json` orörd →
+   *    `AssertionError: expected 0 to be greater than or equal to 1`. Hade mätningen gjorts efter
+   *    copy-redigeringen hade den inte skilt en fungerande spärr från en som matchar vad som
+   *    helst — jfr #1237, där `"Amazon"` → `"Amazon."` gav 10/10 grönt medan spärren asserterade
+   *    ingenting.
+   * 2. **Den svenska negativa pinnen.** Golv-kontrafaktumet ovan bevisade den INTE: `expect`
+   *    kastar på golvet, så loop-raderna nedan **kördes aldrig** i den röda körningen, och i den
+   *    gröna passerar de på ett löv som inte bär markören — alltså oavsett vad mönstret
+   *    innehåller. Båda körningarna hade sett identiska ut med ett felstavat mönster. Mätt genom
+   *    att korsa spärren i stället: markörmeningen lades tillfälligt på värdraden i `sv` →
+   *    `AssertionError: privacy.sections.6.list.0: expected 'netcup GmbH (driftsleverantör,
+   *    Tyskla…' not to match /planerat och ännu inte i drift/i`.
+   * 3. **Den engelska negativa pinnen, separat.** Samma fälla en nivå ned: när `sv` föll nådde
+   *    `en`-loopen aldrig fram. `sv` återställdes, `en` muterades ensam →
+   *    `AssertionError: privacy.sections.6.list.0: … not to match /not yet in operation/i`.
+   * 4. **Att det delade markör-hemmet är levande.** `SV_STATUS_MARKER` fick sitt ä strippat
+   *    (`annu`) → **e-post-spärren** ovan gick RÖD på `privacy.sections.5.paragraphs.1`. Det är
+   *    beviset som gör konstanterna värda något: en negerad assertion kan aldrig fälla sitt eget
+   *    mönster, så livness måste komma från den positiva systern.
+   *
+   * ⚠ **En fälla den negativa loopen bygger in** (code-reviewer Minor 5, inte ett fel i dag):
+   * loopen går över HELA katalogen. Namnger ett löv någon gång **både** `netcup GmbH` och
+   * `Amazon Web Services` blir sviten osatisfierbar — e-post-spärren kräver markören på det
+   * lövet, den här förbjuder den — och enda utvägen vore att försvaga en av dem. Skopa i så fall
+   * den här loopen till mottagarsektionen; försvaga aldrig någon av spärrarna.
    *
    * Testet ska INTE falla vid någon lansering, till skillnad från systrarna ovan. Raden är
    * formulerad för att aldrig behöva en flip: den påstår drift, inte planer, och äger därför
@@ -237,10 +289,21 @@ describe("content-legal i18n-paritet (sv ↔ en)", () => {
     // Parity by LOCATION, not count — see `matchingLeaves`.
     expect(en.map(([path]) => path)).toEqual(sv.map(([path]) => path));
 
+    // FAIL-FAST mot den latenta konflikten ovan, i stället för en varning ingen läser i tid:
+    // namnger ett löv BÅDA parterna kräver e-post-spärren markören på det lövet medan den här
+    // förbjuder den, och sviten blir osatisfierbar — varvid den "uppenbara" utvägen är att
+    // försvaga en av spärrarna. Den här assertionen fäller i stället vid den commit som skriver
+    // lövet, och åtgärden är att dela stycket i två: sektionens egen praxis är en mottagare per
+    // stycke. Skopa INTE bort täckning för att lösa det.
+    const emailSv = new Set(matchingLeaves(svLegal, EMAIL_PROVIDER_ANY).map(([path]) => path));
+    const emailEn = new Set(matchingLeaves(enLegal, EMAIL_PROVIDER_ANY).map(([path]) => path));
+    expect(sv.map(([path]) => path).filter((path) => emailSv.has(path))).toEqual([]);
+    expect(en.map(([path]) => path).filter((path) => emailEn.has(path))).toEqual([]);
+
     // Invariant 2 — samma RATIFIERADE markörformer som e-post-spärren binder, i negativ polaritet.
-    for (const [path, item] of sv)
-      expect(item, path).not.toMatch(/planerat och ännu inte i drift/i);
-    for (const [path, item] of en) expect(item, path).not.toMatch(/not yet in operation/i);
+    // Delat hem med den positiva assertionen, se konstanternas doc-kommentar överst.
+    for (const [path, item] of sv) expect(item, path).not.toMatch(SV_STATUS_MARKER);
+    for (const [path, item] of en) expect(item, path).not.toMatch(EN_STATUS_MARKER);
   });
 
   it("integritetspolicyn har minst tio sektioner med rubrik i båda katalogerna", () => {

@@ -166,8 +166,8 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
 > prod-flip-checklista). CC får ALDRIG flippa providern eller signera DPA:t.
 >
 > **"Grön" = INGET led i punkten bär KVAR — inte att rutan är bockad.** (Negation med flit:
-> ett led kan bära **båda** markeringarna — ROPA-ledet är sedan 2026-08-09 **levererat för alla
-> sex mallarna** men **KVAR (delvis)**, eftersom kontolivscykel-mallarnas rättsliga grunder är
+> ett led kan bära **båda** markeringarna — ROPA-ledet är sedan 2026-08-09 **levererat för samtliga
+> e-postmallar** men **KVAR (delvis)**, eftersom kontolivscykel-mallarnas rättsliga grunder är
 > ett oprövat utkast — och "bär KLAR" hade då räknat det som grönt.) Rutorna i
 > hela den här filen är obockade (**38 av 38** vid 2026-08-04 — greppa **radinitialt**
 > (`^- \[ \]`); ett rått grep ger 40 och räknar prosacitaten av literalen längre ned.
@@ -212,8 +212,10 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
         kvar är att bekräfta att DPA:t faktiskt gäller för den parten, vilket är den ärvda
         mätningen ovan och inte omgjord. Vad som INTE längre behöver göras är
         Tax-Settings-avläsningen;
-      - dokumenterad **Kap. V-grund** — **UPPLÖST 2026-08-08 av `security-auditor`, ledet
-        kvarstår som dokumentationsled.** Domen: överföringen **ska** redovisas trots
+      - dokumenterad **Kap. V-grund** — **UPPLÖST 2026-08-08 av `security-auditor`, och
+        dokumentationen är levererad 2026-08-09 (#1169)** i policyns tredjelandsavsnitt, i
+        `BUILD.md` §13.4 och i ROPA-posten. Ledet bär därför ingen KVAR-markering; punkten är ändå
+        inte grön, eftersom (a), (c) och (e) gör det. Domen: överföringen **ska** redovisas trots
         `eu-north-1`, eftersom `BUILD.md` §15.1:s egen tillämpade standard avvisar Cloudflare R2
         *"pga CLOUD Act-tredjelandsöverföring"* och därmed behandlar ett US-ägt biträde som en
         tredjelandsfråga **oavsett EU-region** — att tillämpa den standarden selektivt bryter
@@ -224,10 +226,11 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
         **OMÄTT** och är dessutom irrelevant — skriv det inte;
       - **ROPA-posten** i `docs/runbooks/gdpr-processing-register.md` (lokal) — **KVAR (delvis)**,
         omskriven 2026-08-09 (#1169): ombunden från notis-vägen till behandlingen *"Utgående
-        transaktionell e-post (Amazon SES, `eu-north-1`)"*, som täcker alla **sex** mallarna,
-        båda mottagarklasserna och Kap. V-grunden ovan. Registret speglar och grindar inte
+        transaktionell e-post (Amazon SES, `eu-north-1`)"*, som täcker **samtliga e-postmallar**
+        (antalet står i blockquoten ovan), båda mottagarklasserna och Kap. V-grunden ovan.
+        Registret speglar och grindar inte
         (#1040), och **statusen på det här ledet sätts av sign-off-ledet nedan, inte av att
-        posten finns** — de fyra kontolivscykel-mallarnas rättsliga grunder är CC:s utkast och
+        posten finns** — kontolivscykel-mallarnas rättsliga grunder är CC:s utkast och
         har aldrig prövats av `security-auditor`;
       - **integritetspolicy-post som namnger providern** — **omskriven 2026-08-09 (#1169)**:
         fyra stycken × två språk namnger nu Amazon Web Services EMEA SARL (Luxemburg) med
@@ -237,14 +240,15 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
       - **security-auditor-sign-off på prod-e-post-konfigen** — **KVAR**. Det gamla
         TD-116:s sign-off är PR-4:s, inte prod-konfigens; bocka aldrig punkten på den.
         (TD-116 stängdes 2026-07-26; residualen ägs av #183.)
-        **Tre namngivna förutsättningar för sign-off (security-auditor 2026-08-09, #1169) —
-        hon signerar inte utan dem:**
+        **Fyra namngivna förutsättningar för sign-off (security-auditor + code-reviewer
+        2026-08-09, #1169) — hon signerar inte utan dem. *Detta är antalets hem; räkna om
+        posterna här efter varje tillägg och lägg det inte någon annanstans.***
         1. **Kontobindning.** Avtalsparten är en egenskap hos ett KONTO, och hela SCC-argumentet
            i den publicerade copyn hänger på vilken part. Kör `aws sts get-caller-identity` med
            **prod-nyckeln** (den som hamnar i `Email:Ses:AccessKeyId`) och kräv
            `Account == 710427215829` — samma konto som avtalspartsmätningen i led (a) gjordes mot.
            Utan det är mätningen gjord på ett konto och nyckeln kan tillhöra ett annat.
-        2. **De fyra kontolivscykel-mallarnas rättsliga grunder prövas.** ROPA:ns utkast är
+        2. **Kontolivscykel-mallarnas rättsliga grunder prövas.** ROPA:ns utkast är
            Art. 6(1)(b) för `EmailConfirmation`/`EmailChangeConfirmation` och **Art. 6(1)(f)** för
            `EmailChangedNotification`/`AccountExistsNotice`. **Står 6(1)(f) kvar efter prövningen
            krävs en matchande Art. 13(1)(d)-post i policyn FÖRE flippen** — dagens
@@ -255,6 +259,16 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
         3. **Nyckelrotation för den statiska IAM-nyckeln** — ingen instance role finns, så nyckeln
            är långlivad per definition. Oförändrad sedan 2026-08-08, återregistrerad här så den
            inte tappas; ägs även av #198.
+        4. **Sändande identitet får inte bära ett default configuration set.** ROPA:ns retentionspost
+           påstår som mätt faktum att SES mottagarnivå-metrik (60 dagar) inte uppstår, på två
+           oberoende skäl. Det ena — att requesten inte namnger någon `ConfigurationSetName` — är
+           pinnat i `SesEmailSenderTests`, men det är **inte slutet på request-nivå**: SES v2 låter ett
+           default configuration set hängas på sändande IDENTITET
+           (`PutEmailIdentityConfigurationSetAttributes`), och då tillämpas det ändå. Det är
+           AWS-sidigt tillstånd som **inget test i repot kan pinna**, så det verifieras här i stället
+           (`aws sesv2 get-email-identity`). Det andra skälet (ingen HTML-del) är inte defeasibelt så
+           och är fullt pinnat, så posten håller på det ensamt — men skriv aldrig om posten som om
+           skäl 1 vore garanterat av testet. code-reviewer Minor 3, 2026-08-09.
 
       **Kvarstående policy-residualer under denna punkt, inte under punkt 3.**
       **ORDNINGEN STÅR FÖRST, för att den styr posterna under sig:** upplös

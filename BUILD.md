@@ -1298,7 +1298,9 @@ permanent infra aktiveras; listan nedan speglar **beslutad** uppsättning, ADR 0
   **avslöjar** leveransen opt-in-faktumet, och `EmailTemplates` skriver det dessutom i klartext
   i själva kroppen — själva *flaggan* i vår DB överförs aldrig, men faktumet gör det).
   **Avtalsparten är MÄTT 2026-08-09** ur två oberoende AWS-API:er (`taxsettings`
-  `accountMetaData.seller` och `invoicing` `Entity.InvoicingEntity`, 5/5 dokument), inte antagen.
+  `accountMetaData.seller` och `invoicing` `Entity.InvoicingEntity`), inte antagen —
+  **dokumentantalet och den mätta perioden står i `release-checklist.md` §2.5 punkt 1 led (a)**,
+  som är det talets hem.
   Kräver före flippen
   flera led — **antalet och uppräkningen bor på ett ställe, inte här**:
   `docs/runbooks/release-checklist.md` §2.5 punkt 1 (avtalsledet = Klas, aldrig CC).
@@ -1321,8 +1323,8 @@ permanent infra aktiveras; listan nedan speglar **beslutad** uppsättning, ADR 0
 > **E-POSTPOSTEN ÄR OMSKRIVEN 2026-08-09 (#1169) och tredjelandsfrågan är AVGJORD, inte öppen** —
 > `security-auditor` 2026-08-08: överföringen redovisas, grunden är SCC Art. 46(2)(c), adekvans
 > och DPF är strukna. Den publika copyn på `/integritet` är omskriven i samma ändring, och
-> ROPA-posten är ombunden till behandlingen *"Utgående transaktionell e-post"* (alla sex
-> mallarna). **Kvar hos `security-auditor` + Klas:** sign-off på prod-e-post-konfigen och
+> ROPA-posten är ombunden till behandlingen *"Utgående transaktionell e-post"* (samtliga
+> e-postmallar). **Kvar hos `security-auditor` + Klas:** sign-off på prod-e-post-konfigen och
 > bekräftelsen av avtalsledet — se §2.5 punkt 1, som är uppräkningens hem.
 > Release-checklistan §2.5 punkt 5 tvingar fortfarande denna sektion vid **e-postflippen**;
 > denna ändring var en motpartskorrigering, inte flippen.
@@ -1443,8 +1445,8 @@ UptimeRobot/BetterStack free ersätter ALB/CloudWatch-health per ADR 0050):
 > bärs av ADR 0050 `Amendment 2026-08-04`) och **e-postleverantören** (Resend ut — **ersättaren
 > är vald: AWS SES i `eu-north-1`**, ADR 0124).
 >
-> **E-POSTHALVAN ÄR SEDAN 2026-08-09 (#1169) INTE LÄNGRE EN ÖPPEN FRÅGA — läs inte stycket
-> nedan som om den vore det.** Frågan var: faller en US-**ägd** leverantör i EU-region under
+> **E-POSTHALVAN ÄR SEDAN 2026-08-09 (#1169) INTE LÄNGRE EN ÖPPEN FRÅGA** — stycket som beskrev
+> den som öppen är struket ur meningen ovan. Frågan var: faller en US-**ägd** leverantör i EU-region under
 > samma standard som §15.1 tillämpar när den avvisar Cloudflare R2 *"pga CLOUD
 > Act-tredjelandsöverföring **av icke-krypterad pg_dump-PII**"*? `security-auditor` avgjorde
 > den 2026-08-08 för e-postens del: **ja** — överföringen redovisas trots `eu-north-1`,

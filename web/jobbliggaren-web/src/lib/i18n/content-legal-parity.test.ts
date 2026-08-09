@@ -136,12 +136,21 @@ describe("content-legal i18n-paritet (sv ↔ en)", () => {
     // mention in `terms`/`cookies`/`recruiterNotice` would otherwise escape both the floor and the
     // marker requirement.
     //
-    // Termen är den PROCESSOR-BÄRANDE strängen, inte "SES" och inte "Amazon": `Amazon Web Services`
+    // Termen är den PROCESSOR-BÄRANDE strängen, inte "Amazon" (för brett — #1237 mätte att
+    // `"Amazon."` gav 10/10 grönt medan spärren asserterade ingenting). `Amazon Web Services`
     // matchar både avtalsparten (`... EMEA SARL`) och koncernmodern (`..., Inc.`), vilket är precis
-    // de två parter Kap. V-stycket måste namnge. "SES" hade missat mottagar-stycket, som namnger
-    // bolaget och inte produkten.
-    const sv = matchingLeaves(svLegal, /Amazon Web Services/);
-    const en = matchingLeaves(enLegal, /Amazon Web Services/);
+    // de två parter Kap. V-stycket måste namnge.
+    //
+    // **UNIONEN ÄR INTE KOSMETISK** (code-reviewer Minor 1, 2026-08-09). Copyn bär sedan #1169 TVÅ
+    // namnformer: bolaget (`Amazon Web Services EMEA SARL`) och tjänsten (`Amazon SES`, rad 73). I dag
+    // bär rad 73 båda, så en term ensam täcker alla fyra löven — men invariant 2 lyder "VARJE
+    // omnämnande bär markören", och ett framtida stycke som namnger leverantören enbart som
+    // `Amazon SES` (eller `AWS SES`, formen BUILD.md §3.1/§3.2 och release-checklistan använder)
+    // hade inte itererats av markör-loopen och kunnat bära ett presens-påstående med testet grönt.
+    // Det är under-räckvidd en guard inte kan rapportera själv när varje item passerar. Lövantalet
+    // är oförändrat 4, så golvet och path-pariteten rörs inte: strikt starkare till noll kostnad.
+    const sv = matchingLeaves(svLegal, /Amazon Web Services|Amazon SES/);
+    const en = matchingLeaves(enLegal, /Amazon Web Services|Amazon SES/);
 
     // Vacuity guard, and simultaneously invariant 1: FOUR known sites today (consent section, TWO in
     // "Mottagare av uppgifter" and one in "Överföring till tredje land"). A rename or deletion that

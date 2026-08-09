@@ -250,10 +250,10 @@ public class SesEmailSenderTests
     {
         // GDPR pin, not a style pin (security-auditor Minor 3, 2026-08-09 / #1169). The Art. 30
         // entry "Utgående transaktionell e-post" states as MEASURED FACT that SES's 60-day,
-        // RECIPIENT-LEVEL open/click metrics do not arise for us. That claim rests on exactly these
-        // two properties of the request, and on nothing else:
+        // RECIPIENT-LEVEL open/click metrics do not arise for us. That claim rests on these two
+        // properties of the request:
         //
-        //   ConfigurationSetName == null -> no event destination, so no open/click events at all.
+        //   ConfigurationSetName == null -> this request names no event destination.
         //   Body.Html          == null -> open tracking needs a pixel and click tracking needs link
         //                                 rewriting; AWS states both are HTML-only.
         //
@@ -262,6 +262,15 @@ public class SesEmailSenderTests
         // would silently falsify a retention statement written as measured — the half that must not
         // be allowed to rot. Change either property and this test tells you the register needs
         // re-measuring BEFORE the change ships.
+        //
+        // WHAT THIS TEST CANNOT REACH, said plainly rather than left to be assumed (code-reviewer
+        // Minor 3, 2026-08-09): reason 1 is not closed at request level. SES v2 lets a DEFAULT
+        // configuration set be attached to the sending IDENTITY
+        // (`PutEmailIdentityConfigurationSetAttributes`), and it then applies even though the request
+        // names none. That is AWS-side state no test in this repo can pin, so it is carried as a
+        // named precondition on `release-checklist.md` §2.5 leg (e) instead. Reason 2 is NOT
+        // defeasible that way and is fully pinned here, so the register's statement holds on it
+        // alone — which is exactly why the register cites two independent reasons.
         var sut = CreateSut();
 
         await sut.SendEmailConfirmationAsync(

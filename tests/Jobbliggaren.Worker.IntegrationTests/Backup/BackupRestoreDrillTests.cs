@@ -51,10 +51,12 @@ namespace Jobbliggaren.Worker.IntegrationTests.Backup;
 /// <para>
 /// <b>What "types §5's commands" does and does not mean here.</b> The commands' shape, flags,
 /// pipeline and redirections are §5's; only connection identifiers and file paths are substituted.
-/// Three things are deliberately NOT verbatim, named rather than left to be discovered:
+/// Four things are deliberately NOT verbatim, named rather than left to be discovered:
 /// step 4's staging-table count and the per-user checks are read through Npgsql because the drill
-/// needs the values in C#; the seed is the drill's own; and §5's <c>--</c> prose inside the step-5
-/// script is omitted, since the parity pin's contract is over command lines and psql ignores it.
+/// needs the values in C#; the seed is the drill's own; §5's <c>--</c> prose inside the step-5
+/// script is omitted, since the parity pin's contract is over command lines and psql ignores it;
+/// and §5's step-5 heredoc is delivered as <c>-f</c> over a copied file, because ON_ERROR_STOP's
+/// semantics belong to script-vs-<c>-c</c> rather than to heredoc-vs-<c>-f</c>.
 /// </para>
 ///
 /// <para>
@@ -234,10 +236,10 @@ public class BackupRestoreDrillTests(RestoreDrillFixture fixture)
         // NOTE: `grep -c` exits 1 when the count is 0, so the SECOND of these legitimately exits
         // non-zero. Asserting exit 0 here would be a rig defect that fails a correct runbook;
         // the number on stdout is the measurement, and it is what is asserted.
-        (await ExecCapturingAsync(_fixture.Target,
+        (await ExecCountAsync(_fixture.Target,
                 @"grep -c '^COPY public\._dek_restore ' /tmp/deks.sql", ct))
             .ShouldBe("1", "§5 step 4: the substituted COPY must appear exactly once");
-        (await ExecCapturingAsync(_fixture.Target,
+        (await ExecCountAsync(_fixture.Target,
                 @"grep -c '^COPY public\.user_data_keys ' /tmp/deks.sql", ct))
             .ShouldBe("0", "§5 step 4: no COPY may still target user_data_keys directly");
 
@@ -329,10 +331,14 @@ public class BackupRestoreDrillTests(RestoreDrillFixture fixture)
         step5.ExitCode.ShouldBe(0L,
             $"§5 step 5 failed. stdout: {step5.Stdout} stderr: {step5.Stderr}");
 
-        // psql's own report line. It is the only place the INSERT's row count is observable, and
-        // it is what an operator reads.
-        step5.Stdout.Contains("INSERT 0 1", StringComparison.Ordinal).ShouldBeTrue(
-            $"§5 step 5's INSERT must report exactly one row loaded. stdout: {step5.Stdout}");
+        // psql's own report line, matched as a WHOLE LINE: Contains("INSERT 0 1") is also
+        // satisfied by `INSERT 0 10` and `INSERT 0 1000`, and StagingRowsAfterLoad's own docblock
+        // invites a fourth seeded user.
+        Lines(step5.Stdout)
+            .Any(l => l.Trim() == $"INSERT 0 {StagingRowsAfterLoad - 1}")
+            .ShouldBeTrue(
+                $"§5 step 5's INSERT must report exactly {StagingRowsAfterLoad - 1} row(s) loaded — " +
+                $"the staged keys minus the orphan dropped by the WHERE. stdout: {step5.Stdout}");
 
         // Evidence (a) — DEK rows dropped as belonging to nobody in this generation, read off the
         // invocation's own output.
@@ -431,9 +437,15 @@ public class BackupRestoreDrillTests(RestoreDrillFixture fixture)
         await ExecOkAsync(_fixture.Target,
             $"createdb -U postgres {ReversedPairingDatabaseName}",
             "the reversed-pairing restore database", ct);
-        await ExecOkAsync(_fixture.Target,
-            $"pg_restore -U postgres -d {ReversedPairingDatabaseName} --no-owner --no-privileges /tmp/main-newer.dump",
-            "restore of the newer main artefact", ct);
+        var reversedRestore = await _fixture.Target.ExecAsync(
+            ["sh", "-c", $"pg_restore -U postgres -d {ReversedPairingDatabaseName} --no-owner --no-privileges /tmp/main-newer.dump"],
+            ct);
+
+        reversedRestore.ExitCode.ShouldBe(0L,
+            $"restore of the newer main artefact failed. stderr: {reversedRestore.Stderr}");
+        reversedRestore.Stderr.Contains("errors ignored on restore", StringComparison.Ordinal).ShouldBeFalse(
+            "same guard as step 3 - pg_restore continues past errors by default, and the two " +
+            $"absence assertions below would otherwise rest on a partial restore. stderr: {reversedRestore.Stderr}");
         await ExecOkAsync(_fixture.Target,
             $"psql -U postgres -d {ReversedPairingDatabaseName} -v ON_ERROR_STOP=1 -c 'CREATE TABLE _dek_restore (LIKE user_data_keys);'",
             "the reversed pairing's staging table", ct);
@@ -444,9 +456,9 @@ public class BackupRestoreDrillTests(RestoreDrillFixture fixture)
             $"psql -U postgres -d {ReversedPairingDatabaseName} -v ON_ERROR_STOP=1 -c 'INSERT INTO user_data_keys SELECT * FROM _dek_restore WHERE job_seeker_id IN (SELECT id FROM job_seekers);'",
             "the reversed pairing's key load", ct);
 
-        var reversed = await ExecCapturingAsync(_fixture.Target,
+        var reversed = await ExecScalarAsync(_fixture.Target,
             $"psql -U postgres -d {ReversedPairingDatabaseName} -tAc \"SELECT count(*) FROM job_seekers j WHERE j.id NOT IN (SELECT job_seeker_id FROM user_data_keys) AND EXISTS (SELECT 1 FROM applications a WHERE a.job_seeker_id = j.id AND a.cover_letter LIKE '{FieldEncryptionSentinel.SqlLikePattern}')\"",
-            ct);
+            "the reversed pairing's (b2)", ct);
 
         // ONE. Exactly what the legitimate restore above reported — where it meant one erasure.
         // Here it means ZERO erasures and one user whose key is permanently gone. The two
@@ -459,9 +471,9 @@ public class BackupRestoreDrillTests(RestoreDrillFixture fixture)
             "data loss wearing erasure's clothes. This is why §5 step 0 is a refusal and not a " +
             "formality, and why (b2) is erasure evidence ONLY once step 0 has passed.");
 
-        var reversedNamed = await ExecCapturingAsync(_fixture.Target,
+        var reversedNamed = await ExecScalarAsync(_fixture.Target,
             $"psql -U postgres -d {ReversedPairingDatabaseName} -tAc \"SELECT count(*) FROM user_data_keys WHERE job_seeker_id = '{postDek.JobSeekerId.Value}'\"",
-            ct);
+            "the reversed pairing's named keyless user", ct);
 
         reversedNamed.ShouldBe("0",
             "named, so the count above cannot be right for the wrong user: the keyless one is the " +
@@ -469,9 +481,9 @@ public class BackupRestoreDrillTests(RestoreDrillFixture fixture)
 
         // And the erased user is absent here entirely — this main artefact post-dates the erasure —
         // so the 1 above cannot be them. Without this the counterfactual would be arguable.
-        var erasedInReversed = await ExecCapturingAsync(_fixture.Target,
+        var erasedInReversed = await ExecScalarAsync(_fixture.Target,
             $"psql -U postgres -d {ReversedPairingDatabaseName} -tAc \"SELECT count(*) FROM job_seekers WHERE id = '{erased.JobSeekerId.Value}'\"",
-            ct);
+            "the erased user's absence from the reversed generation", ct);
 
         erasedInReversed.ShouldBe("0",
             "the erased user is not in this generation at all, so the (b2) of 1 above is entirely " +
@@ -525,10 +537,10 @@ public class BackupRestoreDrillTests(RestoreDrillFixture fixture)
 
     /// <summary>
     /// Runs a single-line shell command and returns trimmed stdout WITHOUT asserting the exit
-    /// code. Used only for <c>grep -c</c>, which exits 1 on a zero count — a correct result that
-    /// an exit-code assertion would fail.
+    /// code. For <c>grep -c</c> only, which exits 1 on a zero count — a correct result an
+    /// exit-code assertion would fail. Anything else uses <see cref="ExecScalarAsync"/>.
     /// </summary>
-    private static async Task<string> ExecCapturingAsync(
+    private static async Task<string> ExecCountAsync(
         PostgreSqlContainer container, string command, CancellationToken ct)
     {
         var result = await container.ExecAsync(["sh", "-c", command], ct);
@@ -563,7 +575,7 @@ public class BackupRestoreDrillTests(RestoreDrillFixture fixture)
     /// </summary>
     private static string EvidenceFrom(string psqlStdout, string alias)
     {
-        var lines = psqlStdout.Replace("\r\n", "\n", StringComparison.Ordinal).Split('\n');
+        var lines = Lines(psqlStdout);
 
         // Case-insensitive because Postgres FOLDS unquoted identifiers to lower case, so §5's
         // `AS users_without_a_key_TOTAL` comes back as `users_without_a_key_total`. Matching the
@@ -580,6 +592,33 @@ public class BackupRestoreDrillTests(RestoreDrillFixture fixture)
             $"'{alias}' has a header but no value row. stdout: {psqlStdout}");
 
         return lines[header + 2].Trim();
+    }
+
+    /// <summary>
+    /// Container output split into lines, normalised so a CRLF-emitting tool reads the same as an
+    /// LF one. One definition, because two spellings of a split is how the two halves of an
+    /// assertion drift apart.
+    /// </summary>
+    private static string[] Lines(string output) =>
+        output.Replace("\r\n", "\n", StringComparison.Ordinal).Split('\n');
+
+    /// <summary>
+    /// A single scalar read through <c>psql -tAc</c> inside the container, requiring exit 0. The
+    /// exit code IS meaningful here — unlike <see cref="ExecCountAsync"/>'s <c>grep -c</c> — so a
+    /// failed read reports as itself instead of as an empty string mismatching an expected value.
+    /// Callers interpolate GUIDs and constants only.
+    /// </summary>
+    private static async Task<string> ExecScalarAsync(
+        PostgreSqlContainer container, string command, string what, CancellationToken ct)
+    {
+        var result = await container.ExecAsync(["sh", "-c", command], ct);
+
+        result.ExitCode.ShouldNotBe(127L,
+            $"{what}: a tool was not found in the container (exit 127). stderr: {result.Stderr}");
+        result.ExitCode.ShouldBe(0L,
+            $"{what} failed. command: {command} stdout: {result.Stdout} stderr: {result.Stderr}");
+
+        return result.Stdout.Trim();
     }
 
     /// <summary>
@@ -620,9 +659,16 @@ public class BackupRestoreDrillTests(RestoreDrillFixture fixture)
     /// <summary>
     /// Seeds one account through production entry points: an Identity user,
     /// <see cref="JobSeeker.Register"/>, and an <see cref="DomainApplication"/> whose cover letter
-    /// the field-encryption interceptor writes as ciphertext — which is also what creates the
-    /// wrapped-DEK row. Optionally soft-deletes it, which is the only state
-    /// <c>HardDeleteAccountsJob</c> ever hard-deletes from.
+    /// the field-encryption interceptor writes as ciphertext. Optionally soft-deletes it, which is
+    /// the only state <c>HardDeleteAccountsJob</c> ever hard-deletes from.
+    ///
+    /// <para>
+    /// The wrapped-DEK row is created by <see cref="WarmOwnerDekAsync"/> →
+    /// <c>IUserDataKeyStore.GetOrCreateDataKeyAsync</c>, which runs BEFORE the interceptor — not by
+    /// the interceptor itself. Production reaches the same port through
+    /// <c>FieldEncryptionKeyPrefetchBehavior</c>, which is what makes this state one <c>src/</c>
+    /// produces (CLAUDE.md §5 <c>Tests:</c>).
+    /// </para>
     /// </summary>
     private async Task<(JobSeekerId JobSeekerId, ApplicationId ApplicationId)>
         SeedUserWithEncryptedCoverLetterAsync(string coverLetter, bool softDeleted, CancellationToken ct)

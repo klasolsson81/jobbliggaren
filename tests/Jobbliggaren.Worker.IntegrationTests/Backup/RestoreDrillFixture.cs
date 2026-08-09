@@ -98,19 +98,12 @@ public sealed class RestoreDrillFixture : IAsyncLifetime
     internal static readonly string TestMasterKeyBase64 =
         Convert.ToBase64String([.. Enumerable.Range(0, 32).Select(i => (byte)i)]);
 
-    // #842/#544/#692 — deterministic peppers, each distinct from the master key and from each
-    // other so nothing can pass by peppering with the wrong secret.
-    //
-    // ALL THREE ARE INERT IN THIS GRAPH, and that is measured rather than assumed: the only
-    // consumers of IIdentifierPseudonymizer are AuditBehavior and IAuditableCommand (both behind
-    // Mediator, which this graph has no AddApplication for), IProtectedIdentityTokenizer reaches
-    // only the CompanyWatch handlers, and CvReviewFingerprintPseudonymizationOptions is registered
-    // by AddCvReview - which this graph never calls - not by AddPersistence. An earlier version of
-    // this comment claimed AuditTrailEraser resolves the audit pepper inside the hard delete; it
-    // does not, it takes AppDbContext and nothing else.
-    //
-    // Set anyway, for WorkerTestFixture's own stated reason: the day someone adds AddApplication
-    // here, the failure should not be an OptionsValidationException pointing away from this file.
+    // #842/#544/#692 — deterministic peppers, distinct from the master key and from each other.
+    // ALL THREE ARE INERT IN THIS GRAPH, measured: IIdentifierPseudonymizer and
+    // IProtectedIdentityTokenizer are only reachable behind Mediator and the CompanyWatch
+    // handlers, and CvReviewFingerprintPseudonymizationOptions is registered by AddCvReview, which
+    // this graph never calls. Set anyway, for WorkerTestFixture's own stated reason: the day
+    // someone adds AddApplication here, the failure should not point away from this file.
     internal static readonly string TestAuditPepperBase64 =
         Convert.ToBase64String([.. Enumerable.Range(100, 32).Select(i => (byte)i)]);
 

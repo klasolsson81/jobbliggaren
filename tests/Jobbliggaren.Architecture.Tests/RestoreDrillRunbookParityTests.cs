@@ -82,6 +82,13 @@ public partial class RestoreDrillRunbookParityTests
         "(LIKE user_data_keys)",
         "SELECT count(*) FROM _dek_restore",
         "job_seeker_id IN (SELECT id FROM job_seekers)",
+
+        // The three evidence aliases. The drill reads its counts out of psql's stdout BY THESE
+        // NAMES, so a rename in §5 would leave the drill green while it measured its own SQL
+        // rather than §5's - the same shape as the defect this class was rebuilt for.
+        "AS deks_dropped_as_orphans",
+        "AS users_without_a_key_TOTAL",
+        "AS users_with_ciphertext_but_no_key",
     ];
 
     /// <summary>
@@ -97,18 +104,19 @@ public partial class RestoreDrillRunbookParityTests
     /// to fail for the thing it exists to catch.
     /// </para>
     /// </summary>
-    /// <remarks>
-    /// The quantifier is UNIVERSAL, not existential, and that is the whole difference. "Some psql
-    /// line carries the flag" was true of both files while the flag was missing from the one
-    /// invocation that needed it. "Every script-fed psql line carries it" is false the moment any
-    /// of them loses it.
-    /// </remarks>
     private static readonly (string Name, Func<string, bool> Applies, string Required, string Why)[] CoLocated =
     [
-        ("a script-fed psql invocation",
-            line => line.Contains("psql", StringComparison.Ordinal)
-                    && (line.Contains(" -f ", StringComparison.Ordinal)
-                        || line.Contains("<<", StringComparison.Ordinal)),
+        // INVERTED on purpose: every psql INVOCATION except the single-statement forms. Listing
+        // the feeding forms instead (-f, <<) let `psql < script.sql` and `cat … | psql` fall
+        // silently outside, and the non-empty guard cannot see a shortfall while other carriers
+        // remain. Anchored on `psql -U ` rather than on `psql`, because the drill is C# and a bare
+        // substring also matches identifiers and prose — measured: `psqlStdout` made four
+        // non-command lines carriers, so the first inverted draft over-reached exactly as far as
+        // the original under-reached.
+        ("a psql invocation that is not a single statement",
+            line => line.Contains("psql -U ", StringComparison.Ordinal)
+                    && !line.Contains(" -c ", StringComparison.Ordinal)
+                    && !line.Contains(" -tAc ", StringComparison.Ordinal),
             "-v ON_ERROR_STOP=1",
             "a psql fed a SCRIPT continues past a failed statement and exits 0, so later statements " +
             "report against state the failed one never produced. That is #197 PR-1's defect, and " +
@@ -247,9 +255,7 @@ public partial class RestoreDrillRunbookParityTests
             .Replace("\r\n", "\n", StringComparison.Ordinal)
             .Split('\n')
             .Select(line => line.Trim())
-            .Where(line => line.Length > 0
-                           && !line.StartsWith("//", StringComparison.Ordinal)
-                           && !line.StartsWith("///", StringComparison.Ordinal))];
+            .Where(line => line.Length > 0 && !line.StartsWith("//", StringComparison.Ordinal))];
 
     /// <summary>
     /// A SQL comment line, which is <c>--</c> followed by whitespace.

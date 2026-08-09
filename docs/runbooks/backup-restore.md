@@ -8,14 +8,27 @@ ADR 0050 `Amendment 2026-08-04` §7 is the binding requirement set).
 **Related:** [`vps-deploy-stack.md`](./vps-deploy-stack.md) ·
 [`master-key-ops.md`](./master-key-ops.md) · [`account-deletion.md`](./account-deletion.md)
 
-> **THE RESTORE PROCEDURE IN §5 HAS NOT BEEN EXECUTED. Read it as a design, not as a report.**
+> **§5's COMMANDS ARE EXECUTED ON EVERY BUILD (2026-08-09). §5 AS AN OPERATIONAL PROCEDURE STILL
+> IS NOT. Read the difference before relying on either.**
 >
-> It is written from the mechanism in `deploy/systemd/jobbliggaren-backup.sh` and from the
-> schema, and every step is derived rather than observed. A runbook that has never been run is a
-> hypothesis, and #197's own acceptance criterion is that untested is not a backup. The drill
-> that turns this into a procedure is §6; it is gate M-4 and it must complete **before first real
-> data**. When it has run, replace this note with the date it ran and fill the verification rows
-> in `vps-deploy-stack.md` §5.
+> **What is now observed rather than derived:** steps 3 to 7 run in CI against a real
+> `postgres:18` pair, on the real migrated schema, over dumps the mechanism's own `pg_dump`
+> invocations produce — `BackupRestoreDrillTests` (#197 PR-2). **Most** commands below are the
+> strings that test executes; the four it does not type verbatim are named in its own docblock,
+> and `RestoreDrillRunbookParityTests` holds a **fixed set of load-bearing properties** across the
+> two files rather than every divergence — its own docblock says two files can satisfy every rule
+> and still differ. Four semantics are measured: a user erased after a main artefact was taken
+> restores with ciphertext and no key, the survivor decrypts, the staging table's necessity, and
+> (b2)'s inability to distinguish erasure from a reversed pairing. **Step 7 is proven over a
+> superuser connection only** — its privilege axis is unproven and is
+> [#1286](https://github.com/klasolsson81/jobbliggaren/issues/1286).
+>
+> **What is still entirely underived:** every step's behaviour against a **real artefact from the
+> real target** — the fetch, the `age` decryption, the private key, the object names, the pairing
+> stamp, and the schema as it will actually be on the day. CI possesses no private key by design
+> (§1), so it can prove none of that. **Gate M-4 is closed by the ops half, not by this note**, and
+> it must complete **before first real data**. When it has run, record the date here and fill the
+> verification rows in `vps-deploy-stack.md` §5.
 
 ---
 
@@ -269,7 +282,7 @@ at all: "exactly one generation" is achieved by overwrite.
 
 ## 5. Restore
 
-> **Read the §0 note first: this procedure has not been executed.**
+> **Read the §0 note first: it says which half of this procedure is executed and which is not.**
 
 **What you need, and where.** The two artefacts may be fetched anywhere — they are ciphertext.
 The **decryption must happen on the machine holding the age private key, and that machine is
@@ -338,7 +351,7 @@ pg_restore -U postgres -d jobbliggaren_restore --no-owner --no-privileges main.d
 #    20260518145927_AddUserDataKeys). A DEK row whose owner is absent from THIS generation would
 #    abort the whole COPY on that constraint — and that is not an edge case, it is precisely the
 #    cross-generation restore this design exists to make possible.
-psql -U postgres -d jobbliggaren_restore \
+psql -U postgres -d jobbliggaren_restore -v ON_ERROR_STOP=1 \
   -c 'CREATE TABLE _dek_restore (LIKE user_data_keys);'
 
 #    Convert the custom-format dump to SQL and redirect the COPY at the staging table.
@@ -370,7 +383,17 @@ psql -U postgres -d jobbliggaren_restore -tAc 'SELECT count(*) FROM _dek_restore
 #    -> must be > 0 on any generation that had users. Zero here means STOP.
 
 # 5. Insert the rows that belong to a user this generation actually has.
-psql -U postgres -d jobbliggaren_restore <<'SQL'
+#
+#    -v ON_ERROR_STOP=1 IS LOAD-BEARING HERE AND IT WAS MISSING UNTIL 2026-08-09. This one
+#    invocation carries the INSERT *and* all three evidence queries. Without the flag, an INSERT
+#    that hits fk_user_data_keys_job_seekers prints its error, psql CONTINUES INTO THE EVIDENCE
+#    QUERIES, and exits 0 — so (a), (b) and (b2) are computed against a user_data_keys the INSERT
+#    never populated, i.e. every restored user reported keyless. That is step 4's callout one step
+#    later, and it is the number gate M-4 records. Measured in a throwaway postgres:18: script-fed
+#    without the flag -> error printed, SELECTs still run, exit 0; with it -> exit 3, SELECTs never
+#    run. (Note that the flag changes nothing for a single-statement `psql -c`, which fails loudly
+#    either way — the shape is what makes it matter.)
+psql -U postgres -d jobbliggaren_restore -v ON_ERROR_STOP=1 <<'SQL'
 INSERT INTO user_data_keys
 SELECT * FROM _dek_restore
 WHERE job_seeker_id IN (SELECT id FROM job_seekers);
@@ -395,6 +418,14 @@ FROM job_seekers j WHERE j.id NOT IN (SELECT job_seeker_id FROM user_data_keys);
 -- (b2) The erasure signature: restored users who have ciphertext but no key. Ciphertext without
 --      a key is what an erased user looks like; no ciphertext and no key is simply a user who
 --      never wrote any.
+--      (b2) IS AN ERASURE COUNT ONLY IF STEP 0 PASSED, and that is a precondition rather than a
+--      caveat. Under a REVERSED pairing — a DEK artefact older than the main one, which is what a
+--      run whose DEK leg failed after its main artefact uploaded leaves behind — every user who
+--      registered between the two generations has ciphertext and no key too. That is
+--      byte-identical to what this query counts. So a (b2) recorded without step 0 may be
+--      measuring silent data loss and reporting it as a successful Art. 17 erasure. The drill
+--      measures exactly this ambiguity (`BackupRestoreDrillTests`, the reversed-pairing
+--      counterfactual); the operator's protection is step 0, not this query.
 --      SCOPE, STATED RATHER THAN IMPLIED: the EXISTS below inspects `applications.cover_letter`
 --      alone. A user whose only ciphertext was a note, a follow-up, `resume_versions.content_enc`
 --      or `parsed_resumes` is invisible to it. That is safe for what the drill needs — one
@@ -427,6 +458,21 @@ psql -U postgres -d jobbliggaren_restore -c 'ANALYZE;'
 # 7. Boot the application against the restored database and READ AN ENCRYPTED FIELD through it.
 #    A health probe decrypts nothing, so it cannot tell you the envelope survived.
 #    ConnectionStrings__Postgres override, then open an application with a cover letter.
+#
+#    RUN THIS STEP AFTER STEP 5, NEVER BEFORE, AND NEVER RE-RUN THE COUNTS AFTERWARDS.
+#    IUserDataKeyStore.GetOrCreateDataKeyAsync WRITES: reaching a keyless user through the
+#    application MINTS a fresh key row in the restored database. Re-running (b)/(b2) after this
+#    step therefore returns a lower, quieter number than the one that is the evidence, and an
+#    operator could read that as "no erasure is visible". Record the counts from step 5 and treat
+#    them as final.
+#
+#    THE RESTORED CLUSTER HAS NO APPLICATION ROLES, and this step is where that surfaces.
+#    pg_restore ran with --no-privileges and the target is a cluster an operator just created, so
+#    `jobbliggaren_app` does not exist and no grants arrived. Connect as `postgres`, or run
+#    Jobbliggaren.Migrate's Phase A against jobbliggaren_restore first if the boot must use the
+#    application role. Following this step literally with an app-role connection string fails with
+#    `role "jobbliggaren_app" does not exist` or 42501 — the #1229/#1232 class, at the last step of
+#    a real restore.
 ```
 
 ### 8. Reconciliation after a restore — mandatory, not optional
@@ -452,10 +498,16 @@ Do not promote a restored database to live until both have been addressed.
 **A backup is a hypothesis until a restore has run.** The drill is what closes M-4, and it has
 two halves that prove different things:
 
-- **The CI half** (#197 PR-2) proves the *semantics* against a real Postgres: seed users through
-  production entry points, dump, hard-delete one through `IAccountHardDeleter`, restore, and
-  assert that the erased user has no key while the other decrypts. It runs on every build and
-  needs no box.
+- **The CI half — DELIVERED 2026-08-09 (#197 PR-2).**
+  `tests/Jobbliggaren.Worker.IntegrationTests/Backup/BackupRestoreDrillTests.cs` proves the
+  *semantics* against a real Postgres: seed users through production entry points, dump,
+  hard-delete one through `IAccountHardDeleter`, restore into a **second cluster**, and assert
+  that the erased user has no key while the other decrypts. It runs on every build and needs no
+  box. Two containers rather than two databases because Postgres roles are cluster-global, so a
+  single-cluster drill could never fail for a missing production role — measured: dropping
+  `--no-owner --no-privileges` from **step 3's `pg_restore`** fails with
+  `role "jobbliggaren_migrations" does not exist`, while dropping the same flags from the
+  mechanism's `pg_dump` changes nothing, because step 3 strips ownership either way.
 - **The ops half** is this runbook's §5, executed end to end against a **real artefact from the
   real target**, on the real schema. It is what proves the units, the credential, the recipient,
   the retention layout and the decryption path — none of which CI can see.

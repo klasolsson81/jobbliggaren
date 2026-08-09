@@ -8,14 +8,23 @@ ADR 0050 `Amendment 2026-08-04` §7 is the binding requirement set).
 **Related:** [`vps-deploy-stack.md`](./vps-deploy-stack.md) ·
 [`master-key-ops.md`](./master-key-ops.md) · [`account-deletion.md`](./account-deletion.md)
 
-> **THE RESTORE PROCEDURE IN §5 HAS NOT BEEN EXECUTED. Read it as a design, not as a report.**
+> **§5's COMMANDS ARE EXECUTED ON EVERY BUILD (2026-08-09). §5 AS AN OPERATIONAL PROCEDURE STILL
+> IS NOT. Read the difference before relying on either.**
 >
-> It is written from the mechanism in `deploy/systemd/jobbliggaren-backup.sh` and from the
-> schema, and every step is derived rather than observed. A runbook that has never been run is a
-> hypothesis, and #197's own acceptance criterion is that untested is not a backup. The drill
-> that turns this into a procedure is §6; it is gate M-4 and it must complete **before first real
-> data**. When it has run, replace this note with the date it ran and fill the verification rows
-> in `vps-deploy-stack.md` §5.
+> **What is now observed rather than derived:** steps 3 to 7 run in CI against a real
+> `postgres:18` pair, on the real migrated schema, over dumps the mechanism's own `pg_dump`
+> invocations produce — `BackupRestoreDrillTests` (#197 PR-2). The commands below are the strings
+> that test executes; it does not paraphrase them, and a change to either side that the other
+> does not follow fails `RestoreDrillRunbookParityTests`. So the *semantics* are no longer a
+> hypothesis: a user erased after a main artefact was taken restores with ciphertext and no key,
+> the survivor decrypts, and the staging table's necessity is measured rather than asserted.
+>
+> **What is still entirely underived:** every step's behaviour against a **real artefact from the
+> real target** — the fetch, the `age` decryption, the private key, the object names, the pairing
+> stamp, and the schema as it will actually be on the day. CI possesses no private key by design
+> (§1), so it can prove none of that. **Gate M-4 is closed by the ops half, not by this note**, and
+> it must complete **before first real data**. When it has run, record the date here and fill the
+> verification rows in `vps-deploy-stack.md` §5.
 
 ---
 
@@ -452,10 +461,16 @@ Do not promote a restored database to live until both have been addressed.
 **A backup is a hypothesis until a restore has run.** The drill is what closes M-4, and it has
 two halves that prove different things:
 
-- **The CI half** (#197 PR-2) proves the *semantics* against a real Postgres: seed users through
-  production entry points, dump, hard-delete one through `IAccountHardDeleter`, restore, and
-  assert that the erased user has no key while the other decrypts. It runs on every build and
-  needs no box.
+- **The CI half — DELIVERED 2026-08-09 (#197 PR-2).**
+  `tests/Jobbliggaren.Worker.IntegrationTests/Backup/BackupRestoreDrillTests.cs` proves the
+  *semantics* against a real Postgres: seed users through production entry points, dump,
+  hard-delete one through `IAccountHardDeleter`, restore into a **second cluster**, and assert
+  that the erased user has no key while the other decrypts. It runs on every build and needs no
+  box. Two containers rather than two databases because Postgres roles are cluster-global, so a
+  single-cluster drill could never fail for a missing production role — measured: dropping
+  `--no-owner --no-privileges` from **step 3's `pg_restore`** fails with
+  `role "jobbliggaren_migrations" does not exist`, while dropping the same flags from the
+  mechanism's `pg_dump` changes nothing, because step 3 strips ownership either way.
 - **The ops half** is this runbook's §5, executed end to end against a **real artefact from the
   real target**, on the real schema. It is what proves the units, the credential, the recipient,
   the retention layout and the decryption path — none of which CI can see.

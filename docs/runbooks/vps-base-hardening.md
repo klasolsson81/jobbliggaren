@@ -940,12 +940,23 @@ rather than discovered:
   gate). It supersedes ADR 0050 Beslut 2 in full (plus Beslut 3's host reference,
   Beslut 4's Cloudflare half and backup target, and gate M-5). Capacity conditions: §12.
 
-  The residency question is separate and **measured as far as RIPE reaches** (`country:`
+  The residency question is separate, and **its two halves have different sources** (`country:`
   and `netname:` are registration attributes the LIR sets itself, so they do not prove
-  physical datacentre placement; ADR 0050's amendment carries the full caveat): RIPE gives
-  `netname DE-NETCUP-KVM`, `country DE`, and geolocation Nuremberg. The host leg is EU-resident,
-  so there is no Chapter V transfer here — the "Swedish VPS" point was a preference, never a
-  compliance one.
+  physical datacentre placement; ADR 0050's amendment carries the full caveat). RIPE gives
+  `netname DE-NETCUP-KVM`, `country DE` and `route`/`origin AS197540` — **the country**. RIPE
+  carries **no `geoloc:`**, and the only city in the object is the contact address **Karlsruhe**
+  (netcup GmbH's registered seat, not this server). **The city — Nuremberg — comes from netcup's
+  own control panel for this box**, measured 2026-08-03 over SCP + SSH. The host leg is
+  EU-resident, so there is no Chapter V transfer here; the "Swedish VPS" point was a preference,
+  never a compliance one. *(Attribution corrected 2026-08-09, #1199.)*
+
+  ⚠ **The published privacy policy names this box's CITY.** `messages/{sv,en}/content-legal.json`,
+  the recipients section's `list` (the `netcup GmbH` tripwire in `content-legal-parity.test.ts`
+  locates the leaves). A reprovision to any other netcup location — Vienna, Amsterdam, Manassas,
+  Singapore — **falsifies published copy** and must be changed in the same change. No test can
+  catch this: the string survives the move and CI stays green, which is why the obligation is
+  hooked here, at the action that falsifies it, rather than in a release checklist. A
+  reprovision is not a release.
 - **No Cloudflare** (Klas decision K3) — Caddy will go straight to Let's Encrypt. That is why
   §6.2 opens 80/443 to `any` rather than to Cloudflare ranges as ADR 0050 gate M-5 prescribes.
   **The superseder has landed: ADR 0050's `Amendment 2026-08-04` retires M-5** into

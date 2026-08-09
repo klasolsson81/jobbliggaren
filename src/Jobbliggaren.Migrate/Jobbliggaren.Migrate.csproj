@@ -21,6 +21,10 @@
   <ItemGroup>
     <!-- Phase E (ADR 0033) — EF Core MigrateAsync mot AppDbContext -->
     <ProjectReference Include="..\Jobbliggaren.Infrastructure\Jobbliggaren.Infrastructure.csproj" />
+    <!-- The ADR 0034 privilege model as data. Its own assembly rather than internals here,
+         because Jobbliggaren.Api.IntegrationTests provisions its migration oracle with the
+         same statements (#1232) and a composition root is not a library to reference. -->
+    <ProjectReference Include="..\Jobbliggaren.Migrate.Provisioning\Jobbliggaren.Migrate.Provisioning.csproj" />
   </ItemGroup>
 
   <ItemGroup>

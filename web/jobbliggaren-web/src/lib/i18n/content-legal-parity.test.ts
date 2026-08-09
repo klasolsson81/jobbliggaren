@@ -65,7 +65,7 @@ describe("content-legal i18n-paritet (sv ↔ en)", () => {
    * ändring som flippar copyn, och stäng #852.
    */
   it("ansökningshistoriken bär status-markören 'planerat' i policyn tills #852 flippar den", () => {
-    // Scoped to `privacy` DELIBERATELY, unlike the Resend tripwire below: widening to the whole
+    // Scoped to `privacy` DELIBERATELY, unlike the email-provider tripwire below: widening to the whole
     // catalogue pulls in `recruiterNotice.sections.2.paragraphs.1`, which describes the same feature
     // to a different audience and carries no status marker. Measured, not assumed.
     const sv = matchingLeaves(svLegal.privacy, /ansökningshistorik/i);
@@ -87,17 +87,28 @@ describe("content-legal i18n-paritet (sv ↔ en)", () => {
   });
 
   /**
-   * #186 / TD-116 — RESEND-TRIPWIRE (senior-cto-advisor, bindande scope-bind 2026-07-26).
+   * #186 / TD-116 — E-POSTLEVERANTÖRS-TRIPWIRE (senior-cto-advisor, bindande scope-bind
+   * 2026-07-26). **TERMEN RIKTADES OM 2026-08-09 (#1169)**: ADR 0124 bytte providern från
+   * Resend, Inc. (USA) till Amazon Web Services EMEA SARL (Luxemburg), så `/Resend/` hade blivit
+   * en spärr som vaktar en part vi inte längre har. Vad som INTE ändrades: golvet, path-pariteten
+   * och markör-halvan. Detta är inte prod-flippen — armen förblir mörk.
+   *
+   * **Omriktningen är mätt icke-vakuös, i den ordning som är det enda beviset:** termen byttes
+   * FÖRST, med `content-legal.json` orörd, och testet föll på golvet
+   * (`AssertionError: expected 0 to be greater than or equal to 4`). Hade den mätningen gjorts
+   * efter copy-redigeringen hade den inte skilt en fungerande spärr från en som matchar vad som
+   * helst — jfr #1237, där `"Amazon"` → `"Amazon."` gav 10/10 grönt medan spärren asserterade
+   * ingenting.
    *
    * Två invarianter i ett test, båda riktningarna av samma defekt:
    *
    * 1. **Leverantören ÄR namngiven.** Detta är hela #186:s leverans (Art. 13(1)(e)/28 — en
-   *    mottagare av personuppgifter måste framgå). Före den här ändringen bar policyn ett
+   *    mottagare av personuppgifter måste framgå). Före den ändringen bar policyn ett
    *    e-poststycke som var *sant* men aldrig nämnde en leverantör, vilket gjorde frånvaron
-   *    OSYNLIG för varje token-grep: "Resend" hade noll träffar i hela katalogen, och tre
+   *    OSYNLIG för varje token-grep: leverantörstoken hade noll träffar i hela katalogen, och tre
    *    nollträffs-scopingar i rad missade därför att stycket alls fanns. Ett räknat golv är
    *    det enda som fäller en tystnad.
-   * 2. **Varje omnämnande bär status-markören** tills `Email:Provider` flippas. Resend är i dag
+   * 2. **Varje omnämnande bär status-markören** tills `Email:Provider` flippas. SES är i dag
    *    dark i non-dev (`AddEmailSender` → `NullEmailSender`), så ett presens-påstående vore den
    *    motsatta osanningen — exakt den ansökningshistoriken-fällan som testet ovan finns för.
    *    Flippen är grindad av `release-checklist.md` §2.5 punkt 1 (FEM led — uppräkningen bor
@@ -119,20 +130,52 @@ describe("content-legal i18n-paritet (sv ↔ en)", () => {
    * copyn — men BEHÅLL golvet OCH path-pariteten: leverantören måste vara namngiven efter flippen
    * också, och då hårdare än nu.
    */
-  it("e-postleverantören Resend är namngiven i policyn och varje omnämnande bär status-markören (#186)", () => {
-    // WHOLE catalogue, not just `privacy`: measured 0 Resend mentions outside `privacy` today, so the
-    // widening is free and strictly increases coverage. A future mention in `terms`/`cookies`/
-    // `recruiterNotice` would otherwise escape both the floor and the marker requirement.
-    const sv = matchingLeaves(svLegal, /Resend/);
-    const en = matchingLeaves(enLegal, /Resend/);
+  it("e-postleverantören AWS är namngiven i policyn och varje omnämnande bär status-markören (#186/#1169)", () => {
+    // WHOLE catalogue, not just `privacy`: measured 0 mentions outside `privacy` today (4 of 4 leaves
+    // per språk ligger i `privacy`), so the widening is free and strictly increases coverage. A future
+    // mention in `terms`/`cookies`/`recruiterNotice` would otherwise escape both the floor and the
+    // marker requirement.
+    //
+    // Termen är den PROCESSOR-BÄRANDE strängen, inte "Amazon" (för brett — #1237 mätte att
+    // `"Amazon."` gav 10/10 grönt medan spärren asserterade ingenting). `Amazon Web Services`
+    // matchar både avtalsparten (`... EMEA SARL`) och koncernmodern (`..., Inc.`), vilket är precis
+    // de två parter Kap. V-stycket måste namnge.
+    //
+    // **EN TERM PER INVARIANT, och det är inte symmetri för symmetrins skull** (code-reviewer
+    // Minor 1 + dess omkontroll, 2026-08-09). Copyn bär sedan #1169 TVÅ namnformer: bolaget
+    // (`Amazon Web Services EMEA SARL`) och tjänsten (`Amazon SES`, rad 73). De två invarianterna
+    // vill ha OLIKA mängder, och att driva båda ur en union gör invariant 1 svagare i samma
+    // andetag som invariant 2 blir starkare:
+    //
+    //   Invariant 1 (golv + path-paritet) vill ha den PART-BÄRANDE formen. `count(union) >= 4`
+    //   uppfylls av strikt fler dokumenttillstånd än `count(bolaget) >= 4`. Mätt vittne: skriv om
+    //   Kap. V-stycket så att BÅDE avtalsparten och koncernmodern försvinner och bara `Amazon SES`
+    //   står kvar — unionen ger 4 och passerar, den part-bärande formen ger 3 och fäller. Termen
+    //   valdes för att den fångar precis de två parter det stycket måste namnge; en union hade
+    //   låtit stycket tappa båda utan att CI sa något.
+    //
+    //   Invariant 2 (markören) vill ha VARJE omnämnande, alltså unionen. Ett framtida stycke som
+    //   namnger leverantören enbart som `Amazon SES` (eller `AWS SES`, formen BUILD.md §3.1/§3.2
+    //   och release-checklistan använder) itereras inte av en bolagsbunden loop och kan bära ett
+    //   presens-påstående med testet grönt. Mätt: den formen ger gamla loopen GRÖN och den nya RÖD.
+    //
+    // **Mitt första kontrafaktum bevisade fel sats** och är värt att minnas: det visade att
+    // union-grenen är NÅBAR, inte att den skärper spärren — i just det scenariot *släppte* unionen
+    // igenom vad den smalare termen fällde. En probe måste korsa den kontroll den påstår sig testa.
+    const svNamed = matchingLeaves(svLegal, /Amazon Web Services/);
+    const enNamed = matchingLeaves(enLegal, /Amazon Web Services/);
+    const sv = matchingLeaves(svLegal, /Amazon Web Services|Amazon SES/);
+    const en = matchingLeaves(enLegal, /Amazon Web Services|Amazon SES/);
 
-    // Vacuity guard, and simultaneously invariant 1: FOUR known sites today (consent section, and
-    // three in "Mottagare av uppgifter" + "Överföring till tredje land"). A rename or deletion that
-    // drops the disclosure fails here instead of shipping silently.
-    expect(sv.length).toBeGreaterThanOrEqual(4);
+    // Vacuity guard, and simultaneously invariant 1: FOUR known sites today (consent section, TWO in
+    // "Mottagare av uppgifter" and one in "Överföring till tredje land"). A rename or deletion that
+    // drops the disclosure fails here instead of shipping silently. Golvet är OFÖRÄNDRAT 4 över
+    // providerbytet: samma fyra stycken bär namnet före och efter (#1169). Bunden till den
+    // PART-BÄRANDE formen, aldrig till unionen — se resonemanget ovan.
+    expect(svNamed.length).toBeGreaterThanOrEqual(4);
 
     // Parity by LOCATION, not count — see `matchingLeaves`.
-    expect(en.map(([path]) => path)).toEqual(sv.map(([path]) => path));
+    expect(enNamed.map(([path]) => path)).toEqual(svNamed.map(([path]) => path));
 
     // The RATIFIED SENTENCE, not a token. `/planerat/i` alone accepts a truncated marker ("Detta är
     // planerat.") that drops "ännu inte i drift" — the very clause that says NOT IN OPERATION — while

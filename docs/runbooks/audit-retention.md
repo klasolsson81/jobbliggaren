@@ -218,8 +218,10 @@ en huvudartefakt och en DEK-artefakt, retention 30 dagar.** Procedur och restore
 [`backup-restore.md`](backup-restore.md). Fönstret är Klas eget tal — **K4 = 30 dagar**,
 beslutat 2026-08-04 — vilket besvarar **STOPP-4**, som ADR 0024 rad 636 och ADR 0032
 rad 1335 uttryckligen förbjöd CC att uppfinna. Två saker kvarstår innan siffran är
-*demonstrerbar* i Art. 5(2)-mening: målet är inte upphandlat (interimsmålet saknar
-lifecycle-motor) och **DPIA-signaturen har inte skrivits om** — kontrollera
+*demonstrerbar* i Art. 5(2)-mening — men **skälet är inte längre att målet saknas.** Målet är
+valt och mätt 2026-08-09 (OVHcloud Object Storage, `eu-west-par`) och 30-dagarsregeln
+verkställs av leverantören. Kvar står **Art. 28-avtalet** (otecknat), **att credentialen kan
+radera** (mätt; `vps-deploy-stack.md` §5 rad 27d) och att **DPIA-signaturen inte skrivits om** — kontrollera
 `gdpr-processing-register.md` innan STOPP-4 räknas som stängd någon annanstans. Förväxla det inte med **audit-tabellens
 egen retention, 90 dagar**, per §1 ovan (BUILD.md §7.1 + ADR 0022) — det är två skilda
 storheter, och Art. 17-restore betjänas dessutom av soft-delete-rader i den LEVANDE

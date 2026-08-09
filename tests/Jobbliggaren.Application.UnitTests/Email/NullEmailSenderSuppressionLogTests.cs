@@ -25,9 +25,15 @@ namespace Jobbliggaren.Application.UnitTests.Email;
 /// </summary>
 public class NullEmailSenderSuppressionLogTests
 {
+    private sealed record Entry(
+        LogLevel Level,
+        EventId EventId,
+        string Message,
+        IReadOnlyList<KeyValuePair<string, object?>> State);
+
     private sealed class RecordingLogger<T> : ILogger<T>
     {
-        public List<(LogLevel Level, EventId EventId, string Message)> Records { get; } = [];
+        public List<Entry> Records { get; } = [];
 
         public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
 
@@ -35,9 +41,27 @@ public class NullEmailSenderSuppressionLogTests
         // would keep it is the floor question, and the floor is what made the old level useless.
         public bool IsEnabled(LogLevel logLevel) => true;
 
+        // STATE is captured, not just the rendered message, and that distinction is the whole
+        // point of the payload test below. [LoggerMessage] exposes every method parameter as a
+        // structured property, while only the TEMPLATED tokens reach the rendered text — so a
+        // recipient added as a parameter without a matching token lands in the state, is persisted
+        // durably by Seq, and is invisible to any assertion over Message alone (code-reviewer
+        // Minor D3, 2026-08-09).
+        //
+        // COPIED here, not retained: the runtime state is Microsoft.Extensions.Logging
+        // .LoggerMessageState, which is POOLED and reset once Log returns. Holding the reference
+        // and reading it afterwards yields an EMPTY list, which would make every assertion over it
+        // vacuously pass. Measured — the vacuity guard in the payload test caught exactly that on
+        // the first attempt.
         public void Log<TState>(LogLevel logLevel, EventId eventId, TState state,
             Exception? exception, Func<TState, Exception?, string> formatter)
-            => Records.Add((logLevel, eventId, formatter(state, exception)));
+            => Records.Add(new Entry(
+                logLevel,
+                eventId,
+                formatter(state, exception),
+                state is IReadOnlyList<KeyValuePair<string, object?>> kvps
+                    ? kvps.ToArray()
+                    : []));
     }
 
     private static (NullEmailSender Sender, RecordingLogger<NullEmailSender> Log) Create()
@@ -107,8 +131,14 @@ public class NullEmailSenderSuppressionLogTests
     public async Task SuppressionLog_CarriesTheKindAndNothingElse()
     {
         // Warning reaches a durable sink, which is exactly when a recipient added later "for
-        // debuggability" becomes durable PII (CLAUDE.md §11, #1208). The payload invariant is
-        // pinned against the values actually passed in, not against the format string.
+        // debuggability" becomes durable PII (CLAUDE.md §11, #1208).
+        //
+        // Asserted over the STRUCTURED STATE as well as the rendered message, because the message
+        // alone cannot see the dangerous case: [LoggerMessage] promotes every method parameter to a
+        // structured property, but only TEMPLATED tokens reach the text. Adding a `toEmail`
+        // parameter without touching the template would put an address in Seq while leaving the
+        // rendered line spotless — the variant hardest to catch in review, and the one an
+        // assertion over Message would wave through (code-reviewer Minor D3, 2026-08-09).
         var (sender, log) = Create();
         const string Recipient = "stranded.person@example.com";
         const string Token = "opaque-url-safe-token"; // gitleaks:allow
@@ -122,5 +152,15 @@ public class NullEmailSenderSuppressionLogTests
         record.Message.ShouldNotContain(Token);
         record.Message.ShouldNotContain(userId.ToString());
         record.Message.ShouldContain("email-confirmation");
+
+        // Every structured value, not only the ones the template happens to render.
+        var values = record.State.Select(kv => kv.Value?.ToString() ?? string.Empty).ToList();
+        values.ShouldNotContain(v => v.Contains(Recipient, StringComparison.Ordinal));
+        values.ShouldNotContain(v => v.Contains(Token, StringComparison.Ordinal));
+        values.ShouldNotContain(v => v.Contains(userId.ToString(), StringComparison.Ordinal));
+
+        // The state must actually carry something, or the three assertions above are vacuous
+        // against an empty list — the failure mode a `state as ... ?? []` fallback introduces.
+        record.State.ShouldContain(kv => kv.Key == "EmailKind" && Equals(kv.Value, "email-confirmation"));
     }
 }

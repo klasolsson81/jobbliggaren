@@ -179,6 +179,38 @@ public sealed partial class LocalDataKeyProvider : IDataKeyProvider
         }
     }
 
+    /// <summary>
+    /// #198 (M-3) — rotation-only seam: wrap an ALREADY EXISTING DEK under this provider's
+    /// master key. Used by <see cref="MasterKeyRewrapper"/> to re-wrap stored DEKs from a
+    /// retiring key to a new one.
+    ///
+    /// <para>
+    /// <b>Deliberately not on <c>IDataKeyProvider</c>.</b> The port lets a caller create and
+    /// unwrap keys; it must never let Application wrap arbitrary bytes as a DEK. Keeping this on
+    /// the concrete type also makes AAD drift between rotation and production structurally
+    /// impossible: the re-wrap goes through the same <see cref="BuildAad"/>, the same layout and
+    /// the same fail-closed guards as every ordinary wrap, because it is literally the same code.
+    /// A re-implementation in the rotation tool is the alternative, and it is the one that would
+    /// silently diverge.
+    /// </para>
+    ///
+    /// <para>
+    /// The wire format is unchanged (<c>0x4C, 0x01</c>): a re-wrap produces the same layout under
+    /// different key bytes. Key identity lives in <c>user_data_keys.cmk_key_id</c>.
+    /// </para>
+    /// </summary>
+    public byte[] WrapDataKey(ReadOnlySpan<byte> plaintextDek, JobSeekerId owner)
+    {
+        if (plaintextDek.Length != Aes256KeySize)
+        {
+            throw new CryptographicException(
+                $"DEK måste vara {Aes256KeySize} byte (AES-256) för att wrappas, " +
+                $"fick {plaintextDek.Length} byte.");
+        }
+
+        return Wrap(plaintextDek, owner);
+    }
+
     private byte[] Wrap(ReadOnlySpan<byte> dek, JobSeekerId owner)
     {
         var nonce = RandomNumberGenerator.GetBytes(NonceSize);

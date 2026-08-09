@@ -242,10 +242,10 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
         (TD-116 stängdes 2026-07-26; residualen ägs av #183.)
         **Namngivna förutsättningar för sign-off (security-auditor + code-reviewer
         2026-08-09, #1169) — hon signerar inte utan dem.** *(Medvetet utan numeral: listan räknar
-        sig själv, och ett tal här hade blivit ett FJÄRDE hem medan blockquoten ovan räknar upp tre
-        och säger att övriga tal inte är hem. Den raden bar en numeral och en hem-deklaration till
-        2026-08-09; `dotnet-architect` mätte att den gjorde uppräkningen falsk i samma commit som
-        skrev den — filens egen dokumenterade felmod.)*
+        sig själv, och ett tal här hade blivit ytterligare ett hem medan blockquoten ovan räknar upp
+        sina och säger att övriga tal inte är hem. Den raden bar en numeral och en hem-deklaration
+        till 2026-08-09; `dotnet-architect` mätte att den gjorde uppräkningen falsk i samma commit
+        som skrev den — filens egen dokumenterade felmod.)*
         1. **Kontobindning.** Avtalsparten är en egenskap hos ett KONTO, och hela SCC-argumentet
            i den publicerade copyn hänger på vilken part. Kör `aws sts get-caller-identity` med
            **prod-nyckeln** (den som hamnar i `Email:Ses:AccessKeyId`) och kräv

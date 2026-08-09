@@ -48,6 +48,39 @@ public class FieldEncryptionOptionsValidatorTests
     }
 
     [Fact]
+    public void BlankMasterKeyId_Fails()
+    {
+        // #198 (M-3): the key identity is not a secret, but it is the re-wrap operation's
+        // idempotency marker. A blank one stamps empty cmk_key_id values, and the next
+        // rotation would select on a value it can neither match nor distinguish from
+        // "never stamped".
+        var result = Validator().Validate(null,
+            new FieldEncryptionOptions
+            {
+                Provider = "Local",
+                LocalMasterKeyBase64 = ValidMasterKeyBase64(),
+                LocalMasterKeyId = "   ",
+            });
+
+        result.Failed.ShouldBeTrue();
+        result.FailureMessage.ShouldContain("LocalMasterKeyId");
+    }
+
+    [Fact]
+    public void OmittedMasterKeyId_DefaultsAndSucceeds()
+    {
+        // Dev and every pre-rotation row are unchanged by the new option.
+        var result = Validator().Validate(null,
+            new FieldEncryptionOptions
+            {
+                Provider = "Local",
+                LocalMasterKeyBase64 = ValidMasterKeyBase64(),
+            });
+
+        result.Succeeded.ShouldBeTrue();
+    }
+
+    [Fact]
     public void InvalidBase64MasterKey_Fails()
     {
         var result = Validator().Validate(null,

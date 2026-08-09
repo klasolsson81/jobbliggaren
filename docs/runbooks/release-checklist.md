@@ -414,7 +414,10 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
 > en PR.
 >
 > **Läget idag är korrekt, inte trasigt.** Policyn beskriver ansökningshistorik/
-> företagsöversikt, SCB-uppslag, Hetzner och Cloudflare som planerade. Koden är
+> företagsöversikt, SCB-uppslag och e-postleverantören som planerade. **Värdraden gör
+> det INTE längre:** #1199 tog bort dess markör 2026-08-09, eftersom lådan kör
+> (`dev.jobbliggaren.se` sedan 2026-08-05) och en markör där hade förnekat en pågående
+> drift — samma defekt som en förtidig flip, i spegelvänd form. Koden är
 > skeppad till dev, men det finns ingen prod-deploy och inga registrerade som når
 > policysidorna — policyn styr den *driftsatta* tjänsten. **Flippa aldrig i
 > förväg**, och för SCB är det inte ens ett val mellan två oriktigheter: prod-
@@ -438,20 +441,22 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
       grep -n "planerat\|planerad\|planeras" web/jobbliggaren-web/messages/sv/content-legal.json
       grep -n "planned"                      web/jobbliggaren-web/messages/en/content-legal.json
       ```
-      Vid 2026-07-26 (efter #186 + dess remediation): **12 + 12** (rad 37, 49, 63, 72,
-      73, 74, 77, 78, 85, 99, 100, 135 — identiska i
-      sv och en, alla äkta statuspåståenden, ingen falsk träff med detta mönster).
-      **Regenererad 2026-08-09 (#1169, providerbytet Resend → AWS SES): oförändrat 12 + 12 på
-      identisk radmängd.** Fyra av raderna (63, 73, 74, 85) skrevs om i sak i den ändringen
-      utan att röra talet, eftersom varje omskrivet stycke behöll sin markörmening och inget
-      element lades till eller togs bort ur någon array. **Det är ett mätresultat, inte en
-      förutsägelse:** en omskrivning som delar ett stycke i två flyttar varje rad under sig,
-      så greppet ska köras om även när en ändring "bara" byter ord.
-      **Grepa INTE bara på `"planerat och ännu inte i drift"`** — det ger 10 och
-      missar de TVÅ retentionsposterna på rad 99 och 100, som bär `(planerat)` utan
-      avslutningsmeningen. Rad 99 (organisationsnumret i en annons, #880) nämner
+      **Regenererad 2026-08-09 (#1199, värdbytet Hetzner → Netcup): 10 + 10** (rad 37, 49,
+      63, 72, 73, 74, 84, 98, 99, 134 — identiska i sv och en, alla äkta statuspåståenden,
+      ingen falsk träff med detta mönster). **Både talet och radmängden ändrades**, av två
+      skilda skäl i samma ändring: Cloudflare-posten raderades ur `sections.6.list`, och
+      värdposten skrevs om **utan** markör — två markörbärande rader (77, 78) blev alltså en
+      markörfri rad 77, och allt därunder gick ner ett steg (85, 99, 100, 135 → 84, 98, 99,
+      134). Talet stod på **12 + 12** vid 2026-07-26 (#186) och var oförändrat vid 2026-08-09
+      (#1169, providerbytet Resend → AWS SES), där fyra rader skrevs om i sak men behöll sin
+      markörmening. **Det är ett mätresultat, inte en förutsägelse:** en ändring som tar bort
+      ett arrayelement eller delar ett stycke flyttar varje rad under sig, så greppet ska
+      köras om även när en ändring "bara" byter ord.
+      **Grepa INTE bara på `"planerat och ännu inte i drift"`** — det ger 8 och
+      missar de TVÅ retentionsposterna på rad 98 och 99, som bär `(planerat)` utan
+      avslutningsmeningen. Rad 98 (organisationsnumret i en annons, #880) nämner
       ansökningshistoriken som ett ÄNDAMÅL med att arbetsgivarens identitet sparas;
-      rad 100 är ansökningshistorikens egen post. **Regenerera den här listan ur
+      rad 99 är ansökningshistorikens egen post. **Regenerera den här listan ur
       greppen ovan efter varje redigering av `privacy`-sektionerna** — inte bara
       retentionsavsnittet: #880 delade en
       punkt i två och flyttade fyra av åtta rader, och #186 rörde tre andra avsnitt
@@ -461,15 +466,13 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
       uppgift (Art. 13(2)(a)) och ADR 0090 D3 räknar uttryckligen upp
       retentionsraden som del av samma leverans. Flippar du 6 och lämnar 1 säger
       kategorilistan drift medan retentionsavsnittet säger planerat.
-- [ ] **2. Avgör vad releasen faktiskt aktiverar** — tre olika klasser, blanda dem
+- [ ] **2. Avgör vad releasen faktiskt aktiverar** — två olika klasser, blanda dem
       inte:
-      - **Kod-aktiverad:** ansökningshistorik/företagsöversikt (rad 37, 99, 100, 135).
+      - **Kod-aktiverad:** ansökningshistorik/företagsöversikt (rad 37, 98, 99, 134).
         Handlers + endpoints + FE är skeppade utan feature-flagga → aktiveras av
         att tjänsten alls går i drift.
-      - **Deploy-aktiverad:** Hetzner, Cloudflare (rad 77, 78) → aktiveras av att
-        stacken körs hos dem. Se punkt 3 — dessa får inte flippas på egen hand.
       - **Konfigurations-grindad:** SCB (rad 49, 72) **och e-postleverantören AWS SES
-        (rad 63, 73, 74, 85, #186 + #1169)**. **Aktiveras INTE av en
+        (rad 63, 73, 74, 84, #186 + #1169)**. **Aktiveras INTE av en
         `v*`-tagg.** Tre skilda mekanismer, alla mörka i prod: per-sökningens
         `ICompanyRegistry` (ADR 0088) får `NullCompanyRegistry` — valet styrs av
         `CompanyRegistry:Provider`, den riktiga adaptern siktar på SCB:s nya
@@ -480,46 +483,88 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
         användarskrivet org.nr. E-posten styrs av `Email:Provider`, som defaultar till
         `Console` och i non-dev löser till `NullEmailSender` — flippen är grindad av
         **§2.5 punkt 1** (uppräkningen bor DÄR, inte här — och därför står antalet inte heller här), inte av en
-        tagg, och gäller **all** utgående e-post (§2.5:s widening). **Flippa rad 49/72 (SCB) respektive 63/73/74/85 (e-post) först när respektive grind är
+        tagg, och gäller **all** utgående e-post (§2.5:s widening). **Flippa rad 49/72 (SCB) respektive 63/73/74/84 (e-post) först när respektive grind är
         passerad** — inte när koden deployas.
-        *Raderna 63/73/74/85 namngav Resend, Inc. (USA) till 2026-08-09; #1169 skrev om dem till
+        *Raderna 63/73/74/84 namngav Resend, Inc. (USA) till 2026-08-09; #1169 skrev om dem till
         Amazon Web Services EMEA SARL (Luxemburg) med behandling i `eu-north-1`. **Det var en
         korrigering av en falsk motpartsuppgift, inte en flip** — markörmeningen står kvar i alla
         fyra styckena i båda språken, och armen är fortfarande mörk.*
       Kvarstående planerat-meningar för behandlingar som fortfarande inte är i
       drift ska stå kvar. Släpper releasen ingen av dem är rätt utfall att **inte
       ändra något**.
-- [ ] **3. Art. 28 + Kap. V innan Hetzner/Cloudflare flippas** (speglar §2.5
-      punkt 1 — utan detta blir två redan presens-formulerade meningar falska i
-      samma ögonblick):
-      - signerat **personuppgiftsbiträdesavtal** med **Hetzner** och med
-        **Cloudflare** på fil (rad 70 påstår redan *"Med dem har vi
-        personuppgiftsbiträdesavtal"* — idag finns inga aktiva biträden alls, och
-        e-poststycket säger uttryckligen att avtalsledet säkerställs *innan* utskicken
-        börjar, just för att inte ärva den raden);
-      - dokumenterad **Kap. V-grund** för Cloudflare (US-domicilierat bolag; även
-        en EU-only-konfiguration kräver grunden dokumenterad) — rad 84 är ett
-        **absolut** påstående: *"I dagsläget sker inga överföringar av dina
-        personuppgifter till länder utanför EU/EES"*, och det måste omprövas som
-        del av samma flip. **Detsamma gäller e-postflippen** (§2.5), som är den
-        andra av två oberoende händelser som gör rad 84 falsk; #186 la därför rad 85
-        **bredvid** den absoluta meningen i stället för att ersätta den — båda är
-        sanna samtidigt så länge inget skickas. *#1169 rörde rad 85 men INTE rad 84, och
-        det är avsiktligt: rad 84 är ett generiskt villkor för varje framtida leverantör
-        utanför EU/EES och är sant. Det är rad 85 som namnger en part, och bara den som
-        blev falsk av providerbytet. Adekvans-disjunktionen ströks därför bara på rad 85
-        (`security-auditor` 2026-08-08: EN grund, SCC Art. 46(2)(c));*
-      - ROPA-posterna uppdaterade + **security-auditor-sign-off**.
+- [ ] **3. Art. 28 innan personuppgifter når lådan** (speglar §2.5 punkt 1).
+      **Triggern är INTE längre en flip, och den gamla "Deploy-aktiverad"-klassen i punkt 2
+      är struken i samma ändring.** #1199 tog bort värdradens markör 2026-08-09, så det finns
+      ingen värd-flip kvar att grinda — men skyldigheten består och fick en ny utlösare
+      (`security-auditor` 2026-08-09). Grinden biter vid **det tidigare av**:
+      - **(i) varje ingest av JobTech-korpuset på lådan** ([#1240](https://github.com/klasolsson81/jobbliggaren/issues/1240) — 51 347 rekryterar-kontaktposter
+        över 27 160 annonser, Art. 14-uppgifter om icke-användare), och
+      - **(ii) första konfigurationen utanför `Development` som sätter `Auth:RegistrationsOpen=true`**.
+
+      **(i) är den tidigare, och det är den ingen mental modell håller:** rekryterar-PII når
+      lådan **före** den första användaren, i klartext i `job_ads.description`, fritextsökbart
+      och utan purge-väg (`gdpr-processing-register.md`, JobTech-posten). Modellen "vi hinner
+      teckna avtalet innan vi öppnar för användare" är fel med ett helt steg.
+
+      Kravmängden:
+      - **slutet personuppgiftsbiträdesavtal med `netcup GmbH`**, och **mekanismen är
+        namngiven med flit**: netcups AVV gäller **inte** automatiskt (mätt förstahands
+        2026-08-09 — generalisera aldrig AWS-mätningen hit, där DPA:t uppges gälla av sig
+        självt). Den sluts av kunden i **Customer Control Panel → Stammdaten / Master Data →
+        Auftragsverarbeitung / Order Processing → Generate DPA**; elektronisk signatur räcker
+        och den kostar inget. "Signera ett DPA" antyder ett motpartsflöde netcup inte har.
+        ⚠ **Generatorn ber om *"circle of affected persons"* — det är en materiell deklaration,
+        inte ett formulärfält.** Den måste namnge **rekryterar-kontaktpersoner** (Art. 14,
+        icke-användare), inte bara kontoinnehavare, annars blir avtalets räckvidd smalare än
+        behandlingen. **Läs AVV-bilagans underbiträdeslista när den genereras** — netcup
+        publicerar ingen (mätt: DPA-sidan, AVV-sidan, Impressum och DC-sidan bär noll), så
+        bilagan är den enda mätningen av kedjan som finns. Namnger den ett icke-EU-underbiträde
+        ska rad 83 **och** värdraden omprövas **före** korpusladdningen.
+        Rad 70 påstår redan i presens *"Med dem har vi personuppgiftsbiträdesavtal"*; den
+        meningen bärs i dag av att ingen listad part behandlar något, och den blir falsk
+        vid (i) — inte vid (ii), och inte av mergen av #1199.
+      - **inget Kap. V-led — det är raderat, inte ompekat.** Det gamla ledet krävde en
+        dokumenterad grund för **Cloudflare** (US-domicilierat) och dog med parten
+        (Klas-beslut K3). `security-auditor` 2026-08-09: netcup GmbH är tysk, behandlingen
+        sker i Nürnberg, och Kap. V engageras inte av värdbenet. Rad 83 är fortfarande ett
+        **absolut** påstående (*"I dagsläget sker inga överföringar av dina personuppgifter
+        till länder utanför EU/EES"*), men dess antecedent — *"Anlitar vi en leverantör
+        **utanför EU/EES**"* — täcker inte netcup alls, så värdbytet rör den inte.
+        **E-postflippen (§2.5) är fortfarande den händelse som gör rad 83 falsk**; #186 la
+        därför rad 84 **bredvid** den absoluta meningen i stället för att ersätta den, och
+        båda är sanna samtidigt så länge inget skickas. *(Raderna hette 84 och 85 till
+        2026-08-09; raderingen av Cloudflare-posten flyttade allt under rad 78 ett steg upp.
+        Adekvans-disjunktionen ströks bara på rad 84 — `security-auditor` 2026-08-08: EN
+        grund, SCC Art. 46(2)(c).)*
+      - **ROPA-posterna uppdaterade** + **security-auditor-sign-off**.
+      - **`ACME_EMAIL` på lådan bekräftad som personuppgiftsansvariges egen adress.** Med
+        Cloudflare borta går Caddy direkt mot Let's Encrypt, så **ISRG (USA)** är den enda nya
+        part kanten fick. Är adressen Klas egen är den den ansvariges egna uppgifter och ingen
+        biträdesrad är skyldig; blir den någon gång delad eller användarvänd är ISRG mottagare av
+        användardata och Kap. V öppnas igen. Kravet står också i `deploy/.env.example` där värdet
+        skrivs in — värdet självt bor bara på lådan och går inte att mäta ur repot.
+      - **`recruiterNotice` prövas om i samma grind.** Den sidan blir Art. 14-notisen för
+        exakt den population (i) skapar, och den namnger **noll** mottagare — den når
+        mottagardisclosuren enbart via `relatedPrivacy`-länken till integritetspolicyn. Får
+        policyns mottagarsektion någon gång **population-skopade** formuleringar bryts
+        länkvägen för just den populationen (Art. 14(1)(e)). Det är också det direkta skälet
+        att värdraden är skriven utan lägesmening och utan datamängds-klausul: en mening av
+        formen "i dag finns inga uppgifter om dig hos leverantören" hade varit falsk om en
+        rekryterare i samma sekund korpuset laddats.
       DPA-signering = **Klas**, aldrig CC.
 - [ ] **4. Paritet sv + en** — båda språken i samma ändring. Formuleringen bärs av
       elementen i `privacy.sections` som bär formuleringen — tillsammans **exakt den radmängd
       punkt 1 producerar** (antalet står där, med sitt grep; det står med flit inte här):
       kategorilistan (rad 37), ändamåls-/SCB-avsnittet (49), samtyckesavsnittet
       "Bevakningsnotiser i bakgrunden" (63, #186), mottagare + tredjeland
-      — mottagaravsnittet (72/**73/74**/77/78) och tredjelandsavsnittet (85) är TVÅ skilda
-      sections, inte ett — retentionslistan (99/100) och "Inga automatiserade beslut"
-      (135). Missa inte retentionsposten — och notera att **både** retentionslistan **och**
+      — mottagaravsnittet (72/**73/74**) och tredjelandsavsnittet (84) är TVÅ skilda
+      sections, inte ett — retentionslistan (98/99) och "Inga automatiserade beslut"
+      (134). Missa inte retentionsposten — och notera att **både** retentionslistan **och**
       e-postprosan i mottagaravsnittet bär **två** rader var, inte en.
+      **Mottagaravsnittets leverantörslista (rad 77) står INTE längre i den här mängden**:
+      värdraden bär sedan #1199 ingen markör och äger därför ingen flip. Den vaktas i stället
+      av `content-legal-parity.test.ts`, som pinnar att `netcup GmbH` är namngiven i båda
+      språken **och** att raden inte bär markörmeningen.
 - [ ] **5. Bumpa `privacy.updated`** ("Senast uppdaterad: YYYY-MM-DD"), båda
       språken. Skopa till **`privacy.updated`** — filen har fem `updated`-nycklar
       (privacy/terms/cookies/accessibility/recruiterNotice).

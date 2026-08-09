@@ -24,8 +24,12 @@
     <ProjectReference Include="..\..\src\Jobbliggaren.Infrastructure\Jobbliggaren.Infrastructure.csproj" />
     <ProjectReference Include="..\..\src\Jobbliggaren.Worker\Jobbliggaren.Worker.csproj" />
     <!-- #197 PR-2 - the Phase A privilege statements the restore drill's SOURCE database is
-         provisioned with. Jobbliggaren.Migrate.Provisioning, never Jobbliggaren.Migrate itself:
-         that project has top-level statements (same reasoning as the Api suite's reference). -->
+         provisioned with, so its tables end up owned by a role the RESTORE target does not have.
+         Jobbliggaren.Migrate.Provisioning and not Jobbliggaren.Migrate: that project is an Exe with
+         top-level statements, which is what its own csproj comment gives as the reason the model
+         was extracted at all. (The Api suite avoids it for a sharper reason that does not transfer
+         here - a second `Program` in the global namespace colliding with its
+         WebApplicationFactory<Program> usages.) -->
     <ProjectReference Include="..\..\src\Jobbliggaren.Migrate.Provisioning\Jobbliggaren.Migrate.Provisioning.csproj" />
   </ItemGroup>
 

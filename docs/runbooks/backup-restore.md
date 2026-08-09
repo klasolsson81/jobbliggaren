@@ -347,7 +347,7 @@ pg_restore -U postgres -d jobbliggaren_restore --no-owner --no-privileges main.d
 #    20260518145927_AddUserDataKeys). A DEK row whose owner is absent from THIS generation would
 #    abort the whole COPY on that constraint — and that is not an edge case, it is precisely the
 #    cross-generation restore this design exists to make possible.
-psql -U postgres -d jobbliggaren_restore \
+psql -U postgres -d jobbliggaren_restore -v ON_ERROR_STOP=1 \
   -c 'CREATE TABLE _dek_restore (LIKE user_data_keys);'
 
 #    Convert the custom-format dump to SQL and redirect the COPY at the staging table.
@@ -379,7 +379,17 @@ psql -U postgres -d jobbliggaren_restore -tAc 'SELECT count(*) FROM _dek_restore
 #    -> must be > 0 on any generation that had users. Zero here means STOP.
 
 # 5. Insert the rows that belong to a user this generation actually has.
-psql -U postgres -d jobbliggaren_restore <<'SQL'
+#
+#    -v ON_ERROR_STOP=1 IS LOAD-BEARING HERE AND IT WAS MISSING UNTIL 2026-08-09. This one
+#    invocation carries the INSERT *and* all three evidence queries. Without the flag, an INSERT
+#    that hits fk_user_data_keys_job_seekers prints its error, psql CONTINUES INTO THE EVIDENCE
+#    QUERIES, and exits 0 — so (a), (b) and (b2) are computed against a user_data_keys the INSERT
+#    never populated, i.e. every restored user reported keyless. That is step 4's callout one step
+#    later, and it is the number gate M-4 records. Measured in a throwaway postgres:18: script-fed
+#    without the flag -> error printed, SELECTs still run, exit 0; with it -> exit 3, SELECTs never
+#    run. (Note that the flag changes nothing for a single-statement `psql -c`, which fails loudly
+#    either way — the shape is what makes it matter.)
+psql -U postgres -d jobbliggaren_restore -v ON_ERROR_STOP=1 <<'SQL'
 INSERT INTO user_data_keys
 SELECT * FROM _dek_restore
 WHERE job_seeker_id IN (SELECT id FROM job_seekers);
@@ -404,6 +414,14 @@ FROM job_seekers j WHERE j.id NOT IN (SELECT job_seeker_id FROM user_data_keys);
 -- (b2) The erasure signature: restored users who have ciphertext but no key. Ciphertext without
 --      a key is what an erased user looks like; no ciphertext and no key is simply a user who
 --      never wrote any.
+--      (b2) IS AN ERASURE COUNT ONLY IF STEP 0 PASSED, and that is a precondition rather than a
+--      caveat. Under a REVERSED pairing — a DEK artefact older than the main one, which is what a
+--      run whose DEK leg failed after its main artefact uploaded leaves behind — every user who
+--      registered between the two generations has ciphertext and no key too. That is
+--      byte-identical to what this query counts. So a (b2) recorded without step 0 may be
+--      measuring silent data loss and reporting it as a successful Art. 17 erasure. The drill
+--      measures exactly this ambiguity (`BackupRestoreDrillTests`, the reversed-pairing
+--      counterfactual); the operator's protection is step 0, not this query.
 --      SCOPE, STATED RATHER THAN IMPLIED: the EXISTS below inspects `applications.cover_letter`
 --      alone. A user whose only ciphertext was a note, a follow-up, `resume_versions.content_enc`
 --      or `parsed_resumes` is invisible to it. That is safe for what the drill needs — one
@@ -436,6 +454,21 @@ psql -U postgres -d jobbliggaren_restore -c 'ANALYZE;'
 # 7. Boot the application against the restored database and READ AN ENCRYPTED FIELD through it.
 #    A health probe decrypts nothing, so it cannot tell you the envelope survived.
 #    ConnectionStrings__Postgres override, then open an application with a cover letter.
+#
+#    RUN THIS STEP AFTER STEP 5, NEVER BEFORE, AND NEVER RE-RUN THE COUNTS AFTERWARDS.
+#    IUserDataKeyStore.GetOrCreateDataKeyAsync WRITES: reaching a keyless user through the
+#    application MINTS a fresh key row in the restored database. Re-running (b)/(b2) after this
+#    step therefore returns a lower, quieter number than the one that is the evidence, and an
+#    operator could read that as "no erasure is visible". Record the counts from step 5 and treat
+#    them as final.
+#
+#    THE RESTORED CLUSTER HAS NO APPLICATION ROLES, and this step is where that surfaces.
+#    pg_restore ran with --no-privileges and the target is a cluster an operator just created, so
+#    `jobbliggaren_app` does not exist and no grants arrived. Connect as `postgres`, or run
+#    Jobbliggaren.Migrate's Phase A against jobbliggaren_restore first if the boot must use the
+#    application role. Following this step literally with an app-role connection string fails with
+#    `role "jobbliggaren_app" does not exist` or 42501 — the #1229/#1232 class, at the last step of
+#    a real restore.
 ```
 
 ### 8. Reconciliation after a restore — mandatory, not optional

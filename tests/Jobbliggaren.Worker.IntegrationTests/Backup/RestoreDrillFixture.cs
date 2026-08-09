@@ -43,9 +43,18 @@ namespace Jobbliggaren.Worker.IntegrationTests.Backup;
 /// restore strips ownership regardless of what the dump emitted. Removing them from the
 /// <b>restore</b> turns it red — <c>role "jobbliggaren_migrations" does not exist</c>, which the
 /// <c>CREATE SCHEMA identity AUTHORIZATION</c> statement needs. So the flags that protect the
-/// operator are the RESTORE's, and the dump's are redundancy. Written down because the opposite
-/// was assumed here first, and an unmeasured claim about which half is load-bearing is exactly
-/// the kind a later reader would act on.
+/// operator are the RESTORE's. Written down because the opposite was assumed here first, and an
+/// unmeasured claim about which half is load-bearing is exactly the kind a later reader would act
+/// on.
+/// </para>
+///
+/// <para>
+/// <b>And the dump's two flags are not redundant in the same way</b>, which the measurement alone
+/// does not show. <c>pg_dump --help</c>: <c>-O, --no-owner  skip restoration of object ownership
+/// in plain-text format</c> — so for the mechanism's <c>-Fc</c> archives it is inert by
+/// documentation, not merely superseded. <c>-x/--no-privileges</c> carries no such restriction and
+/// genuinely omits GRANTs at dump time. Saying "redundancy" of both would invite a maintainer to
+/// keep a flag that does nothing on the belief it is belt-and-braces.
 /// </para>
 ///
 /// <para>
@@ -90,9 +99,18 @@ public sealed class RestoreDrillFixture : IAsyncLifetime
         Convert.ToBase64String([.. Enumerable.Range(0, 32).Select(i => (byte)i)]);
 
     // #842/#544/#692 — deterministic peppers, each distinct from the master key and from each
-    // other so nothing can pass by peppering with the wrong secret. AddPersistence registers all
-    // three option types with ValidateDataAnnotations; the source graph resolves the audit one
-    // through IAuditTrailEraser inside the hard delete, so it must be a real 32-byte value.
+    // other so nothing can pass by peppering with the wrong secret.
+    //
+    // ALL THREE ARE INERT IN THIS GRAPH, and that is measured rather than assumed: the only
+    // consumers of IIdentifierPseudonymizer are AuditBehavior and IAuditableCommand (both behind
+    // Mediator, which this graph has no AddApplication for), IProtectedIdentityTokenizer reaches
+    // only the CompanyWatch handlers, and CvReviewFingerprintPseudonymizationOptions is registered
+    // by AddCvReview - which this graph never calls - not by AddPersistence. An earlier version of
+    // this comment claimed AuditTrailEraser resolves the audit pepper inside the hard delete; it
+    // does not, it takes AppDbContext and nothing else.
+    //
+    // Set anyway, for WorkerTestFixture's own stated reason: the day someone adds AddApplication
+    // here, the failure should not be an OptionsValidationException pointing away from this file.
     internal static readonly string TestAuditPepperBase64 =
         Convert.ToBase64String([.. Enumerable.Range(100, 32).Select(i => (byte)i)]);
 
@@ -130,11 +148,12 @@ public sealed class RestoreDrillFixture : IAsyncLifetime
     public ServiceProvider RestoredServices { get; private set; } = null!;
 
     /// <summary>
-    /// The superuser connection string for the target's DEFAULT database — where <c>createdb</c>
-    /// is issued from. Distinct from <see cref="RestoredServices"/>'s, which points at
-    /// <see cref="RestoreDatabaseName"/>.
+    /// The target's superuser connection string for its DEFAULT database. Private: every command
+    /// the drill issues against the target goes through <c>ExecAsync</c> inside the container, so
+    /// nothing outside this fixture connects to it; it exists only to derive
+    /// <see cref="RestoredServices"/>'s string for <see cref="RestoreDatabaseName"/>.
     /// </summary>
-    public string TargetAdminConnectionString { get; private set; } = string.Empty;
+    private string TargetAdminConnectionString { get; set; } = string.Empty;
 
     public async ValueTask InitializeAsync()
     {
@@ -192,6 +211,14 @@ public sealed class RestoreDrillFixture : IAsyncLifetime
             applicationName: "Jobbliggaren.Worker.IntegrationTests.RestoreDrill.Restored");
     }
 
+    /// <summary>
+    /// A SUBSET of <c>Worker/Program.cs</c>, not its composition root. <c>AddApplication</c>,
+    /// <c>AddJobSources</c>, the matching engine, email and Hangfire are all omitted because the
+    /// hard-delete path reaches none of them — <c>AccountHardDeleter</c> takes <c>AppDbContext</c>,
+    /// <c>UserManager</c>, <c>IAuditTrailEraser</c>, <c>IUserDataKeyStore</c>,
+    /// <c>IDateTimeProvider</c> and a logger. A narrower graph is a stronger oracle; do not read
+    /// this as Worker parity.
+    /// </summary>
     private static ServiceProvider BuildGraph(
         string connectionString, bool withIdentity, string applicationName)
     {

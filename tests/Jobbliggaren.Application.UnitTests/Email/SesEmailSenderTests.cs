@@ -246,6 +246,33 @@ public class SesEmailSenderTests
     }
 
     [Fact]
+    public async Task SesEmailSender_SendsAnEmailConfirmation_EmitsNoHtmlPartAndNoConfigurationSet()
+    {
+        // GDPR pin, not a style pin (security-auditor Minor 3, 2026-08-09 / #1169). The Art. 30
+        // entry "Utgående transaktionell e-post" states as MEASURED FACT that SES's 60-day,
+        // RECIPIENT-LEVEL open/click metrics do not arise for us. That claim rests on exactly these
+        // two properties of the request, and on nothing else:
+        //
+        //   ConfigurationSetName == null -> no event destination, so no open/click events at all.
+        //   Body.Html          == null -> open tracking needs a pixel and click tracking needs link
+        //                                 rewriting; AWS states both are HTML-only.
+        //
+        // They are INDEPENDENT: either alone suppresses the metrics, which is why the register cites
+        // two reasons rather than one. Adding an HTML template is a plausible product change, and it
+        // would silently falsify a retention statement written as measured — the half that must not
+        // be allowed to rot. Change either property and this test tells you the register needs
+        // re-measuring BEFORE the change ships.
+        var sut = CreateSut();
+
+        await sut.SendEmailConfirmationAsync(
+            Recipient, SampleConfirmationContent(), CancellationToken.None);
+
+        var request = CapturedRequest();
+        request.ConfigurationSetName.ShouldBeNull();
+        request.Content.Simple.Body.Html.ShouldBeNull();
+    }
+
+    [Fact]
     public async Task SesEmailSender_SendsAnEmailConfirmation_CarriesNonAsciiInBothFieldsTheCharsetCovers()
     {
         // The counterfactual that makes the charset fact above non-vacuous: SES defaults to 7-bit

@@ -149,9 +149,14 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
 > OFÖRÄNDRAD.** Sektionen skrevs mot Resend, Inc. — ett **amerikanskt** biträde. Motparten är nu
 > **Amazon Web Services EMEA SARL (Luxemburg)** med behandling i `eu-north-1`, vilket är en annan
 > juridisk person, ett annat avtal och ett annat överföringsläge. Den bedömningen är
-> `security-auditor`:s tillsammans med Klas och är **inte gjord här** — så varje Resend-specifikt
-> led i punkt 1 är återöppnat till **KVAR**. Det är avsiktligt strängare än läget före bytet:
+> `security-auditor`:s tillsammans med Klas och var **inte gjord här** — så varje Resend-specifikt
+> led i punkt 1 återöppnades till **KVAR**. Det var avsiktligt strängare än läget före bytet:
 > en grind får aldrig ärva ett grönt led från en motpart som inte längre är part.
+> **DEN ÅTERÖPPNINGEN ÄR DELVIS UPPHÄVD 2026-08-09 (#1169), och på återöppningens EGET villkor:**
+> villkoret var att bedömningen inte var gjord, och `security-auditor` gjorde den 2026-08-08.
+> Led (b) och (d) bär därför ingen KVAR-markering längre, och led (c) står **KVAR (delvis)**.
+> **Punkten är fortsatt inte grön** — led (a) och (e) bär KVAR, och läs statusen på leden
+> själva, aldrig ur den här preambeln.
 > Vad som INTE ändras av bytet: mottagar-adress **+ meddelandets innehåll** når en extern
 > processor oavsett jurisdiktion (för notiserna
 > **avslöjar** leveransen opt-in-faktumet, och `EmailTemplates` skriver det dessutom i klartext
@@ -161,15 +166,18 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
 > prod-flip-checklista). CC får ALDRIG flippa providern eller signera DPA:t.
 >
 > **"Grön" = INGET led i punkten bär KVAR — inte att rutan är bockad.** (Negation med flit:
-> ett led kan bära **båda** markeringarna — ROPA-ledet är **KLAR för notis-vägen** och **KVAR
-> för kontolivscykel-mallarna** — och "bär KLAR" hade då räknat det som grönt.) Rutorna i
+> ett led kan bära **båda** markeringarna — ROPA-ledet är sedan 2026-08-09 **levererat för alla
+> sex mallarna** men **KVAR (delvis)**, eftersom kontolivscykel-mallarnas rättsliga grunder är
+> ett oprövat utkast — och "bär KLAR" hade då räknat det som grönt.) Rutorna i
 > hela den här filen är obockade (**38 av 38** vid 2026-08-04 — greppa **radinitialt**
 > (`^- \[ \]`); ett rått grep ger 40 och räknar prosacitaten av literalen längre ned.
 > **Regenerera siffran ur greppet efter varje tillagd punkt** — punkt 5.5 tillkom i samma
 > ändring som skrev "35", och punkt 5 i den som skrev "36" — båda gjordes falska i samma andetag) och bockas av den som **utför** releasen; statusen
 > bärs av **KLAR**-markeringarna. Punkt 1:s led står uppräknade i punkten själv, och ett led kan
 > vara **delvis** KVAR
-> (ROPA-ledet är det i dag) — **ett delvis KVAR led är KVAR**, så punkten är grön först när
+> (ROPA-ledet är det i dag, av ett annat skäl än före 2026-08-09: då saknades hela
+> kontolivscykel-vägen, nu finns den men dess grunder är oprövade) — **ett delvis KVAR led är
+> KVAR**, så punkten är grön först när
 > inget av **punktens led** bär KVAR i någon form. Läs aldrig en obockad ruta som "inte levererat",
 > och bocka aldrig en ruta för att en förutsättning är levererad.
 >
@@ -214,8 +222,8 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
         täcker överföringar till den **US-etablerade** enheten, och avtalsparten är luxemburgsk
         (nu mätt, se ledet ovan). #1169:s ursprungliga påstående att AWS är DPF-listat förblir
         **OMÄTT** och är dessutom irrelevant — skriv det inte;
-      - **ROPA-posten** i `docs/runbooks/gdpr-processing-register.md` (lokal) — **omskriven
-        2026-08-09 (#1169)**: ombunden från notis-vägen till behandlingen *"Utgående
+      - **ROPA-posten** i `docs/runbooks/gdpr-processing-register.md` (lokal) — **KVAR (delvis)**,
+        omskriven 2026-08-09 (#1169): ombunden från notis-vägen till behandlingen *"Utgående
         transaktionell e-post (Amazon SES, `eu-north-1`)"*, som täcker alla **sex** mallarna,
         båda mottagarklasserna och Kap. V-grunden ovan. Registret speglar och grindar inte
         (#1040), och **statusen på det här ledet sätts av sign-off-ledet nedan, inte av att
@@ -229,6 +237,24 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
       - **security-auditor-sign-off på prod-e-post-konfigen** — **KVAR**. Det gamla
         TD-116:s sign-off är PR-4:s, inte prod-konfigens; bocka aldrig punkten på den.
         (TD-116 stängdes 2026-07-26; residualen ägs av #183.)
+        **Tre namngivna förutsättningar för sign-off (security-auditor 2026-08-09, #1169) —
+        hon signerar inte utan dem:**
+        1. **Kontobindning.** Avtalsparten är en egenskap hos ett KONTO, och hela SCC-argumentet
+           i den publicerade copyn hänger på vilken part. Kör `aws sts get-caller-identity` med
+           **prod-nyckeln** (den som hamnar i `Email:Ses:AccessKeyId`) och kräv
+           `Account == 710427215829` — samma konto som avtalspartsmätningen i led (a) gjordes mot.
+           Utan det är mätningen gjord på ett konto och nyckeln kan tillhöra ett annat.
+        2. **De fyra kontolivscykel-mallarnas rättsliga grunder prövas.** ROPA:ns utkast är
+           Art. 6(1)(b) för `EmailConfirmation`/`EmailChangeConfirmation` och **Art. 6(1)(f)** för
+           `EmailChangedNotification`/`AccountExistsNotice`. **Står 6(1)(f) kvar efter prövningen
+           krävs en matchande Art. 13(1)(d)-post i policyn FÖRE flippen** — dagens
+           berättigat-intresse-avsnitt räknar upp fyra behandlingar och ingen av dem är e-post.
+           Faller de i stället ut som 6(1)(b) täcks de av befintlig copy och luckan stänger sig
+           själv. **En behandling som körs utan redovisad grund är en Blocker i det ögonblicket**,
+           inte en Minor.
+        3. **Nyckelrotation för den statiska IAM-nyckeln** — ingen instance role finns, så nyckeln
+           är långlivad per definition. Oförändrad sedan 2026-08-08, återregistrerad här så den
+           inte tappas; ägs även av #198.
 
       **Kvarstående policy-residualer under denna punkt, inte under punkt 3.**
       **ORDNINGEN STÅR FÖRST, för att den styr posterna under sig:** upplös

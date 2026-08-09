@@ -353,6 +353,16 @@ jobs:
       # utcheckningen, som på Windows ljuger. Därför bash här och inte en C#-pin.
       - name: deploy/systemd/*.sh är exekverbara i indexet
         run: |
+          # A GLOB THAT MATCHES NOTHING PASSES VACUOUSLY, so the count is checked first: a
+          # renamed directory would otherwise turn this gate into a green no-op that reads as
+          # coverage. Seven scripts as of 2026-08-09; the floor is deliberately a floor and not
+          # an equality, so adding one does not fail the build for the wrong reason.
+          n=$(git ls-files 'deploy/systemd/*.sh' | wc -l)
+          if [ "$n" -lt 8 ]; then
+            echo "::error::found only $n scripts under deploy/systemd — expected at least 8."
+            echo "If one was legitimately removed, lower the floor in this step deliberately."
+            exit 1
+          fi
           bad=$(git ls-files -s 'deploy/systemd/*.sh' | grep -v '^100755 ' || true)
           if [ -n "$bad" ]; then
             echo "::error::icke-exekverbara skript i deploy/systemd (systemd ger 203/EXEC):"

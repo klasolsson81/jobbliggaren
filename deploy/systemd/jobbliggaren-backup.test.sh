@@ -338,10 +338,16 @@ check "age was invoked with -r (a recipient)" grep -q -- '-r age1' "$CALLS/age"
 # THE ONLY CODE-LEVEL CHECK OF ADR 0050 §7 REQUIREMENT (b), AND IT COULD NOT FAIL.
 # The pattern used to be " -i " with a space on BOTH sides - and a leading flag has none, so
 # `age -i /tmp/key -r age1...` passed it. Mutation-verified by code-reviewer against both the
-# 53-case and the 72-case suite: green with -i injected into both invocations. The word-boundary
-# form below goes red in that mutation.
+# 53-case and the 72-case suite: green with -i injected into both invocations.
+#
+# The repaired form went red on that mutation but still let two spellings through, both
+# measured green at 77/0 by the same reviewer: `--identity`, which is age's own documented
+# long form of the very same flag, and `-i/tmp/k` glued. The form below drops the trailing
+# boundary and matches -i at the start of any token, covering all three. Safe rather than
+# over-broad: age has no other short flag beginning -i (-e -d -o -a -p -r -R -j), so nothing
+# legitimate collides.
 check "age was NEVER invoked with -i (an identity)" bash -c \
-  '! grep -qE "(^| )-i( |$)" "'"$CALLS"'/age"'
+  '! grep -qE "(^| )(-i|--identity)" "'"$CALLS"'/age"'
 # EVERY UPLOADED OBJECT IS age-FRAMED - WITH ONE DELIBERATE EXEMPTION, NAMED HERE SO IT CANNOT
 # BE WIDENED SILENTLY. deks/verified.stamp is plaintext by design: a restore compares it before
 # it decrypts anything, and it carries no information the main artefacts' own object names do

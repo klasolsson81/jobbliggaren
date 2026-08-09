@@ -74,7 +74,7 @@ readonly DEK_VERIFIED="deks/verified.dump.age"
 # LAST night's DEK generation. Every user created since that generation is then in a main
 # artefact whose key exists nowhere — and both objects are present and both decrypt, so the pair
 # looks perfectly restorable. The stamp is what makes it checkable in one command; the runbook's
-# §5 step 1 compares it against the stamp in the main artefact's own name, and refuses the pair.
+# §5 step 0 compares it against the stamp in the main artefact's own name, and refuses the pair.
 readonly DEK_VERIFIED_STAMP="deks/verified.stamp"
 
 # A backup older than this reads as a stopped backup. 26 h rather than 24 h: the nightly timer

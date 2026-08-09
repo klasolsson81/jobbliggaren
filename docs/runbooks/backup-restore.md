@@ -347,8 +347,14 @@ FROM job_seekers j
 WHERE j.id NOT IN (SELECT job_seeker_id FROM user_data_keys)
   AND EXISTS (
     SELECT 1 FROM applications a
-    WHERE a.job_seeker_id = j.id AND a.cover_letter IS NOT NULL AND a.cover_letter <> ''
+    WHERE a.job_seeker_id = j.id AND a.cover_letter LIKE 'v1:%'
   );
+--      `LIKE 'v1:%'` and not `<> ''`: the first tests for CIPHERTEXT, the second only for a
+--      non-empty value, and this count's whole point is the presence of encrypted content. The
+--      pattern is production's own — `FieldEncryptionSentinel.SqlLikePattern`
+--      (`src/Jobbliggaren.Application/Common/Security/FieldEncryptionSentinel.cs:43`), the same
+--      constant `FieldEncryptionBackfiller` uses as its SSOT — restated here because this is a
+--      runbook an operator types, not code that can reference it.
 SQL
 
 psql -U postgres -d jobbliggaren_restore -c 'DROP TABLE _dek_restore;'

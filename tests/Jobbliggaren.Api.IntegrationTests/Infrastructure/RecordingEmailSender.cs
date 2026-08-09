@@ -28,6 +28,15 @@ internal sealed class RecordingEmailSender : IEmailSender
     /// <summary>Snapshot of every email queued through this fake since host start.</summary>
     public IReadOnlyList<RecordedEmail> Sent => [.. _sent];
 
+    /// <summary>
+    /// <see langword="true"/> — this fake RECORDS, which is the test-suite analogue of delivering
+    /// (#1087). Answering <see langword="false"/> would make every delivery-dependent handler refuse
+    /// before reaching the send, and the assertions over <see cref="Sent"/> would then pass or fail
+    /// for a reason that has nothing to do with what they were written to check. A test that needs
+    /// the refusal path arranges an incapable sender explicitly, at that test.
+    /// </summary>
+    public bool CanDeliver => true;
+
     public Task SendMatchNotificationEmailAsync(
         string toEmail,
         MatchNotificationEmail content,

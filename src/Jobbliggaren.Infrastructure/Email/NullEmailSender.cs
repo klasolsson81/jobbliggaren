@@ -15,10 +15,38 @@ namespace Jobbliggaren.Infrastructure.Email;
 /// resolves to outside Development/Test, which is the live default today.
 ///
 /// Suppression is logged at Debug WITHOUT any recipient/token so ops can see that mail
-/// is being dropped without leaking PII.
+/// is being dropped without leaking PII. <b>The level is uniform across all six kinds, and
+/// that is currently unexamined rather than decided</b> — a dropped ASVS V2.5 old-address
+/// security notice and a dropped background-match notification are the same Debug line.
+/// dotnet-architect raised the split as Nice-to-have (2026-08-09) and routed the question
+/// of whether dropping the security notice is acceptable at all to security-auditor; the
+/// level follows her verdict, not this comment.
+///
+/// <para>
+/// <b>Whom this is a valid substitute for (#1087, AC 6).</b> <see cref="CanDeliver"/> is
+/// <see langword="false"/>, and that is the whole answer: it is a valid <see cref="IEmailSender"/>
+/// for a caller whose success does NOT depend on delivery, and the contract now requires a
+/// delivery-dependent caller to consult the property and refuse up front. Before that member
+/// existed this class was an LSP violation — the two caller kinds were indistinguishable, so
+/// <c>ChangeEmailCommandHandler</c> reported a completed action that could not occur.
+/// </para>
+/// <para>
+/// <b>One consequence for the notification callers, stated rather than left to be discovered.</b>
+/// <c>BackgroundMatchingJob</c> calls <c>match.MarkSent(clock)</c> after this sender returns, so
+/// the claim-then-send spine records rows as <c>Sent</c> for mail that was never sent. That is
+/// deliberate and defensible — the port call did succeed, and the state machine tracks DISPATCH,
+/// not delivery — but a reader of <c>NotificationStatus.Sent</c> should know it does not mean an
+/// inbox received anything while this sender is registered.
+/// </para>
 /// </summary>
 public sealed partial class NullEmailSender(ILogger<NullEmailSender> logger) : IEmailSender
 {
+    /// <summary>
+    /// Always <see langword="false"/> — this sender delivers nothing, by design. See
+    /// <see cref="IEmailSender.CanDeliver"/> for the contract this answers.
+    /// </summary>
+    public bool CanDeliver => false;
+
     public Task SendMatchNotificationEmailAsync(
         string toEmail,
         MatchNotificationEmail content,

@@ -142,4 +142,47 @@ public static class AuthErrorCodes
     /// </summary>
     public const string RegistrationsClosedMessage =
         "Registreringen är inte öppen ännu. Försök igen senare.";
+
+    /// <summary>
+    /// No transactional email provider is configured, so a flow whose success DEPENDS on delivery
+    /// refuses up front instead of reporting a completed action that cannot occur (#1087). Raised by
+    /// <c>ChangeEmailCommandHandler</c> when <c>IEmailSender.CanDeliver</c> is false — today the live
+    /// default outside Development/Test, since <c>Email:Provider</c> is unset in every committed
+    /// <c>appsettings*.json</c>.
+    /// <para>
+    /// Rendered as an endpoint-local <b>503</b> by <c>AuthEndpoints.ToErrorResult</c>, on the same
+    /// ratified reasoning as <see cref="RegistrationsClosed"/>: server availability is a third axis,
+    /// distinct from the 400/404/409/410 request/resource semantics the kind-union models, and a
+    /// capacity deliberately withheld that returns when someone sets a config key is exactly
+    /// RFC 9110 §15.6.4's case. <b>No new <c>ErrorKind</c></b> — that fork was named as requiring an
+    /// architect optionsset before code (senior-cto-advisor 2026-07-26), and the optionsset
+    /// (dotnet-architect 2026-08-09) closed it against extension by pointing at this precedent.
+    /// </para>
+    /// <para>
+    /// <b>No <c>Retry-After</c></b>, for the precedent's own reason: the date on which the provider
+    /// is configured is unknown, and a wrong <c>Retry-After</c> is worse than none because clients
+    /// and caches honour it.
+    /// </para>
+    /// <para>
+    /// The <c>Kind</c> stamped by <c>DomainError.Validation</c> is a FALLBACK CARRIER, not a semantic
+    /// claim — same trade as <see cref="RegistrationsClosed"/>. Delete the endpoint arm and this
+    /// degrades to 400, not 500, which is why the 503 is pinned by an integration test rather than
+    /// left to the carrier.
+    /// </para>
+    /// <para>
+    /// Not an enumeration oracle: the surface is authenticated AND re-authenticated, the check reads
+    /// no request input, and the response cannot vary with the submitted address.
+    /// </para>
+    /// </summary>
+    public const string EmailDeliveryUnavailable = "Auth.EmailDeliveryUnavailable";
+
+    /// <summary>
+    /// The single user-facing detail for <see cref="EmailDeliveryUnavailable"/> (§10: du-form,
+    /// informative, non-blaming, no exclamation mark). States the consequence the user actually
+    /// needs — that the address is unchanged — so nobody is left wondering whether a half-change
+    /// happened.
+    /// </summary>
+    public const string EmailDeliveryUnavailableMessage =
+        "E-postutskick är inte aktiverat, så vi kan inte skicka någon bekräftelselänk. "
+        + "Din adress är oförändrad.";
 }

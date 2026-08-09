@@ -8,7 +8,7 @@ flip itself is [`release-checklist.md`](./release-checklist.md) §2.5 and is Kla
 prod-flip checklist).
 **Related:** [`release-checklist.md`](./release-checklist.md) §2.5 (the gate) ·
 [`vps-deploy-stack.md`](./vps-deploy-stack.md) §5 (verification rows 33–38) ·
-[`aws-setup.md`](./aws-setup.md) (the `jobbpilot` SSO profile).
+[`aws-setup.md`](./aws-setup.md) (the `jobbpilot` SSO profile; local-only, gitignored).
 **Authority:** ADR 0124 and `release-checklist.md` §2.5. Where this runbook and an ADR disagree,
 the ADR wins and this file is wrong.
 
@@ -33,11 +33,13 @@ Easy DKIM: SES generates three tokens, you publish three CNAME records under the
 when SES can resolve all three it considers the domain verified and signs every outgoing message
 with `d=jobbliggaren.se`. That signature is the entire delivery story here, because the domain
 already publishes `v=DMARC1;p=reject;` — a message that fails DMARC is **rejected outright, not
-spam-foldered**. DMARC passes on either SPF alignment or DKIM alignment, and this domain has
-never had SPF, so DKIM is the only mechanism in play. It already is: Klas's ordinary mail from
-`@jobbliggaren.se` goes through STRATO and is signed by STRATO's own selectors, which is why
-`p=reject` has not been breaking it. Adding SES means adding a second, independent set of DKIM
-selectors under the same domain — additive, and invisible to the first.
+spam-foldered**. DMARC passes on either SPF alignment or DKIM alignment, and for SES mail SPF
+cannot align without a custom MAIL FROM domain (§5 — the default envelope is a subdomain of
+`amazonses.com`), so DKIM is the only aligning mechanism in play here. The domain already works
+this way: Klas's ordinary mail from `@jobbliggaren.se` goes through STRATO and is signed by
+STRATO's own selectors, which is why `p=reject` has not been breaking it. Adding SES means
+adding a second, independent set of DKIM selectors under the same domain — additive, and
+invisible to the first.
 
 ---
 
@@ -90,7 +92,10 @@ aws sso login --profile jobbpilot --no-browser
 ```
 
 This prints a URL. It must be opened in a browser **on the same machine**, because the callback
-goes to `127.0.0.1`. Sessions last 12 hours; see [`aws-setup.md`](./aws-setup.md) §1.
+goes to `127.0.0.1`. Sessions last 12 hours per the SSO profile's own configuration —
+[`aws-setup.md`](./aws-setup.md) §1 carries the profile details, and that file is **local-only**
+(gitignored, ADR 0072): a reader on GitHub or in a fresh worktree will not find it, and the
+command above is complete without it.
 
 ### Step 2 — create the domain identity
 
@@ -100,9 +105,11 @@ aws sesv2 create-email-identity \
   --profile jobbpilot --region eu-north-1
 ```
 
-The domain is the **apex**. `no-reply@jobbliggaren.se` is the sender
-(`EmailOptions.FromAddress`, pinned in `SesEmailSenderTests`), and a domain identity covers every
-address under it, so no address identity is needed for sending. Easy DKIM with a 2048-bit key is
+The domain is the **apex**. `no-reply@jobbliggaren.se` is the sender — the default in
+`EmailOptions.FromAddress`; `SesEmailSenderTests` pins the From-header *composition*
+`FromName <FromAddress>`, not that value, which itself lives unpinned in `EmailOptions.cs` —
+and a domain identity covers every address under it, so no address identity is needed for
+sending. Easy DKIM with a 2048-bit key is
 the SES default and is what we want; no `--dkim-signing-attributes` is passed.
 
 Ran 2026-08-09. Output carried `DkimAttributes.Status: NOT_STARTED`, three `Tokens`, and
@@ -217,33 +224,48 @@ would produce a DMARC record that looks correct and delivers no reports at all. 
 mailbox or alias; forwarding it onward to Gmail afterwards is a mailbox rule and DMARC never
 sees it.
 
+One consequence to name before the mailbox exists rather than after: aggregate reports carry a
+`source_ip` for every sending source, spoofers included, and an IP address can be personal data
+(C-582/14 *Breyer*). Receiving them is ordinary network security (Art. 6(1)(f), recital 49) and
+touches no user data — but the mailbox is a new inbound flow, and STRATO appears nowhere in the
+policy's recipient list today. When verification row 38 is measured, name the legal basis and
+the mailbox's retention wherever the flip's paperwork lands (security-auditor, 2026-08-09).
+
 ---
 
-## 5. There is deliberately no SPF record, and adding one would be a regression
+## 5. There is deliberately no apex SPF record — and what it would govern is not SES
 
-**Do not "fix" the absence of an SPF record on the apex.** It is a decision, measured
-2026-08-09.
+**Do not "fix" the absence of an SPF record on the apex as part of the SES work.** It is a
+decision, measured 2026-08-09 — on a narrower ground than an earlier version of this section
+claimed, and the correction is load-bearing (security-auditor Major, 2026-08-09).
 
-DMARC passes on either mechanism — AWS states it as *"A message passes DMARC if one or both of
-the described SPF or DKIM checks pass"* — and this domain has never published SPF, so the SPF
-result is `none` and can never align. Klas's ordinary mail from `@jobbliggaren.se` nonetheless
-arrives under `p=reject`, which is only possible via DKIM: the `strato-dkim-0002` and
-`strato-dkim-0003` selectors measured in §2. SES Easy DKIM passes the same way once §3 is done.
-Neither sender needs SPF.
+**SPF is evaluated against the envelope (MAIL FROM) domain, not the From header** (RFC 7208
+§2.4). Without a custom MAIL FROM domain (§6.1), SES sends with an envelope on a subdomain of
+`amazonses.com` — AWS: *"Messages that you send through Amazon SES automatically use a
+subdomain of amazonses.com as the default MAIL FROM domain. SPF authentication successfully
+validates these messages because the default MAIL FROM domain matches the application that sent
+the email."* So SES mail already carries an SPF **pass** on `amazonses.com`, **an apex record
+on `jobbliggaren.se` is never consulted for it, and publishing one can neither help nor harm
+SES delivery.** What that pass cannot do is align: `amazonses.com` does not match the From
+domain, so it contributes nothing to DMARC — which is why DKIM (§3) is the only *aligning*
+mechanism SES mail has until §6.1 exists.
 
-What an apex SPF record *can* do is break the working case. STRATO's documented form is
-`v=spf1 redirect=_spf.strato.com`, and that target ends in `-all`:
+**What an apex SPF record does govern is STRATO's mail**, which sends with an envelope on
+`@jobbliggaren.se`. Today that path has SPF `none` (no apex TXT at all, §2) and survives
+`p=reject` on STRATO's DKIM selectors alone. STRATO's documented record,
+`v=spf1 redirect=_spf.strato.com`, would give that mail an aligned SPF **pass** — a second
+passing mechanism where today there is one:
 
 ```bash
 nslookup -type=TXT _spf.strato.com 8.8.8.8   # expect: v=spf1 ip4:... ip6:... -all
 ```
 
-Publishing it verbatim would put SES mail into SPF **fail** rather than SPF `none` — strictly
-worse than the current state — while adding nothing to a DMARC outcome DKIM already satisfies.
-A record that lists only `amazonses.com` inverts the damage and takes STRATO's mail with it.
+Whether to publish it is therefore a question about the **existing** mail path, not about SES.
+The two senders use different envelope domains and an apex record never collides with §6.1's
+subdomain record. **That choice is Klas's and is escalated, not decided here.**
 
-If SPF is wanted later as defence in depth, the place for it is a custom MAIL FROM subdomain
-(§6), where the record lives on a subdomain and the apex is never touched.
+The decision this runbook makes is only this: **the SES lane does not touch the apex**, because
+the one mail path an apex record affects is the one this lane must not disturb.
 
 ---
 
@@ -251,10 +273,12 @@ If SPF is wanted later as defence in depth, the place for it is a custom MAIL FR
 
 ### 6.1 Custom MAIL FROM domain
 
-ADR 0124 lists this as Klas's to provision, and it is not done. It would give SPF alignment as a
-second passing mechanism and put bounce handling on our own subdomain instead of
-`amazonses.com`. It is **not** required for delivery, which is why it is sequenced after §3
-rather than beside it.
+ADR 0124 lists this as Klas's to provision, and it is not done. It would give SES mail SPF
+**alignment** — the thing §5 explains the default `amazonses.com` envelope can never provide —
+and put bounce handling on our own subdomain. It is **not** required for delivery, which is why
+it is sequenced after §3 rather than beside it. Its SPF record lives on the subdomain and
+governs only SES's envelope; it never collides with an apex record, which governs only
+STRATO's (§5).
 
 It has one trap that must be handled and is measured in §2: **`*.jobbliggaren.se MX` exists**, so
 any subdomain already inherits an MX pointing at STRATO. SES requires the MAIL FROM subdomain's
@@ -280,9 +304,11 @@ answers a different question.
 ### 6.3 The flip
 
 `Email:Provider=Ses` is not set by this runbook and never by CC. It is gated by
-`release-checklist.md` §2.5, whose point 1 currently carries KVAR on the AWS processing-agreement
-leg and the `security-auditor` sign-off leg. Two mechanical prerequisites also have to exist
-first, and both are named in §8 of this file rather than assumed.
+`release-checklist.md` §2.5. **Point 1 is not green; its legs and their statuses live in the
+point itself**, and §2.5's own preamble instructs reading them there rather than from any
+summary — including this one. Two mechanical prerequisites also have to exist first — the
+`Email__*` variables set in `deploy/.env`, and the two credential files written on the box —
+and §8's `Email__*` entry names both, along with the injection gap that owns the second.
 
 ---
 
@@ -310,9 +336,8 @@ aws sesv2 get-email-identity --email-identity jobbliggaren.se \
 # expect: no ConfigurationSetName key in the response at all.
 ```
 
-Measured 2026-08-09 immediately after the identity was created: absent. Before that date the
-precondition held only trivially, because no identity existed — the two are different claims and
-only the later one is worth anything.
+The measurement, its date and the re-measure obligation are protocolled in verification row 35
+— read the outcome there, not here; this section carries only the command.
 
 **A real send, which proves what no DNS query can.** It goes only to the verified recipient and
 does not touch the application or the box, so it exercises no gate that §6.3 owns:
@@ -338,10 +363,13 @@ the word "pass" is how that distinction gets missed.
   Klas's alone. ADR 0124 states it unconditionally.
 - **The AWS processing agreement and the Chapter V documentation** —
   [#183](https://github.com/klasolsson81/jobbliggaren/issues/183) and §2.5 point 1.
-- **`Email__*` delivery into the box's containers** — `deploy/docker-compose.yml` and
-  `deploy/.env.example`, documented in [`vps-deploy-stack.md`](./vps-deploy-stack.md). Secrets
-  reach the containers through `deploy/systemd/jobbliggaren-inject-secrets.sh` and never through
-  `.env.example`.
+- **`Email__*` delivery into the box's containers** — the operator view (variables, defaults,
+  what setting each does) lives in `deploy/.env.example`, and the anchor itself in
+  `deploy/docker-compose.yml`. The two SES credential **files** the `_FILE` pointers name do
+  not exist yet and nothing writes them: `deploy/systemd/jobbliggaren-inject-secrets.sh`
+  carries a fixed fail-loud `SECRET_KEYS` array without the SES pair, so secrets *will* reach
+  the containers through that script only once it is extended — which is the flip's work, not
+  this runbook's. Both of §6.3's mechanical prerequisites resolve here.
 - **Leaving the SES sandbox.** It is an application, not a payment: AWS requires the applicant to
   *"confirm that you have a process in place for handling bounce and complaint notifications"*,
   and no such process is built. Requesting production access before it exists would be attesting

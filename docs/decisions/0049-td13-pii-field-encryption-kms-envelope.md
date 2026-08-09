@@ -879,8 +879,8 @@ enskilda osäkerheter).
 
 **Status:** Accepted (amendment to ADR 0049). The protection model (§1–§2) ships in this PR
 (`feat/master-key-protection-198`, #198 PR-1). The rotation mechanism (§5) is a bound design;
-the `migrate rewrap-master-key` dispatch arm is **not yet code** — it ships in #198's second
-PR. Read §5 with that tense in mind — the same discipline this ADR's own #845/#842 corrections
+the `migrate rewrap-master-key` dispatch arm **shipped in #198 PR-2** (2026-08-09); §5 is now
+descriptive rather than forward-looking — the same discipline this ADR's own #845/#842 corrections
 already apply elsewhere in this document.
 **Date:** 2026-08-09
 **Decision-makers:** Klas Olsson — self-managed master key over an external KV/HSM, and the
@@ -1034,15 +1034,15 @@ to reconsider.
 box access, or any known exposure of the key (ADR 0050:568; consistent with the earlier
 security dom, `docs/reviews/2026-06-08-adr-0050-aws-exit-hetzner-security.md:51-54`).
 
-**Mechanism (BOUND, not yet shipped — ships in #198 PR-2):** an offline
+**Mechanism (SHIPPED, #198 PR-2, 2026-08-09):** an offline
 `rewrap-master-key` dispatch arm in `Jobbliggaren.Migrate`. Migrate has no DI and builds
 `AppDbContext` without interceptors, so the operation runs with no audit side-effects and no
 DEK-bearing aggregate materialised in a system job.
 
-> **PR-2 must also give `migrate` the secrets mount.** The compose `migrate` service receives
-> neither `x-app-secrets-mount` nor the `*_FILE` variables today, and that is correct for
-> `schema` mode — but the re-wrap arm needs two master keys. Named here so PR-2's author does
-> not discover it at cutover.
+> **Delivered as a separate `migrate-rewrap` service under `profiles: ["ops"]`**, rather than a
+> mount on `migrate`. `schema` runs on every `up`, so a mount there would hand the master key
+> hourly to a container that needs no crypto material; the profile keeps the declaration in the
+> compose file without putting it on the default path.
 
 > **The FIRST rotation does not need this arm at all.** Measured 2026-08-09 with raw SQL:
 > `user_data_keys` holds **0 rows**, so there is nothing to re-wrap and rotating the master key

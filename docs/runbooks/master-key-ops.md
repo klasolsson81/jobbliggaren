@@ -150,11 +150,17 @@ compare-and-swaps the row. One transaction over all rows, then a post-commit pas
 every row unwraps under the new key.
 
 ```bash
-docker compose -f /opt/jobbliggaren/deploy/docker-compose.yml run --rm   -e REWRAP_RETIRING_MASTER_KEY_FILE=/run/app-secrets/OLD_KEY   -e REWRAP_INCOMING_MASTER_KEY_FILE=/run/app-secrets/FieldEncryption__LocalMasterKeyBase64   -e REWRAP_RETIRING_KEY_ID=local-v1   -e REWRAP_INCOMING_KEY_ID=local-v2   migrate rewrap-master-key
+docker compose -f /opt/jobbliggaren/deploy/docker-compose.yml --profile ops run --rm \
+  -e REWRAP_RETIRING_MASTER_KEY_FILE=/run/app-secrets/OLD_KEY \
+  -e REWRAP_INCOMING_MASTER_KEY_FILE=/run/app-secrets/FieldEncryption__LocalMasterKeyBase64 \
+  -e REWRAP_RETIRING_KEY_ID=local-v1 \
+  -e REWRAP_INCOMING_KEY_ID=local-v2 \
+  migrate-rewrap
 ```
 
-Every value above is a **path**, never a secret — `MigrateEnv` resolves the `_FILE` suffix, the
-same convention api and worker use. The `migrate` service carries the secrets mount for exactly
+The two `*_FILE` values are **paths**, never secrets — `MigrateEnv` resolves the suffix, the same
+convention api and worker use. The two `*_KEY_ID` values are literal identities, not paths, and
+not secret either. The `migrate` service carries the secrets mount for exactly
 this run; `schema` mode needs no crypto material and receives none.
 
 **To run it against a COPY, override the connection string — not `MIGRATE_DB_NAME`.** That
@@ -190,7 +196,27 @@ the damage unrecoverable.
 1. `sudo systemctl stop jobbliggaren-reconcile.timer` — a `*:47` tick would otherwise start
    api/worker in the middle of the rewrap.
 2. `docker stop jobbliggaren-api jobbliggaren-worker`.
-3. Remove the old pair and inject the new one. The identity and the bytes are written together
+3. **PRESERVE THE RETIRING KEY FIRST. It exists nowhere else.** Step 5 needs it, and step 4
+   overwrites the only copy — with no at-rest copy on this box and escrow still undecided (§1),
+   skipping this step means every DEK is permanently unopenable and every encrypted field
+   permanently unreadable. An earlier draft of this runbook had steps 4 and 5 without this one;
+   that ordering destroyed the input to its own next step.
+
+   ```bash
+   # uid/gid measured from the image, the same way the injection script does it
+   ids=$(sudo docker run --rm --entrypoint sh \
+     "$(sudo docker compose -f /opt/jobbliggaren/deploy/docker-compose.yml config --images \
+        | grep -m1 -F jobbliggaren-api)" -c 'id -u; id -g')
+   uid=$(echo "$ids" | head -1); gid=$(echo "$ids" | tail -1)
+
+   sudo install -m 0400 -o "$uid" -g "$gid" \
+     /run/jobbliggaren/secrets/FieldEncryption__LocalMasterKeyBase64 \
+     /run/jobbliggaren/secrets/OLD_KEY
+   ```
+   A `sudo tee`-created file would be `root:root` and the container could not read it — the tool
+   would then fail with a configuration error rather than a permission one.
+
+4. Remove the old pair and inject the new one. The identity and the bytes are written together
    by one run, deliberately — the script refuses a master key without a matching identity,
    because a v2 key stamped `local-v1` makes the next rotation's compare-and-swap skip exactly
    the rows it must not skip:
@@ -204,12 +230,14 @@ the damage unrecoverable.
    Escrow **the new bytes and the new identity** in the same step (§1 — Klas's decision, and
    a prerequisite). The identity is not a secret, but losing track of it costs the next
    rotation its marker.
-4. Rewrap old → new (the command above), using the retiring key written to a temporary file on
-   the same tmpfs. **Skip entirely when `user_data_keys` is empty** — there is nothing to
-   re-wrap and the new bytes are already in force; the tool would report a no-op anyway.
-   Remove the temporary retiring-key file afterwards.
-5. Start the containers; confirm `healthy`.
-6. `sudo systemctl start jobbliggaren-secrets-present.timer` if it was stopped, and re-arm the
+5. Rewrap old → new, using `OLD_KEY` from step 3 (the command above). **Skip entirely when
+   `user_data_keys` is empty** — there is nothing to re-wrap and the new bytes are already in
+   force; the tool would report a no-op anyway.
+6. **Read an encrypted field through the app** after the containers are back — a health probe
+   decrypts nothing, and this is the box half of the gate ADR 0049 §5 names. Then
+   `sudo rm -f /run/jobbliggaren/secrets/OLD_KEY`.
+7. Start the containers; confirm `healthy`.
+8. `sudo systemctl start jobbliggaren-secrets-present.timer` if it was stopped, and re-arm the
    reconcile timer.
 
 ---

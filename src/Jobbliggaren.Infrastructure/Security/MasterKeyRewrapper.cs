@@ -27,7 +27,16 @@ namespace Jobbliggaren.Infrastructure.Security;
 /// <para>
 /// <b>Compare-and-swap, not a tracked update.</b> The write predicate re-states
 /// <c>CmkKeyId == oldKeyId</c>, so a row that changed underneath the scan updates zero rows and
-/// the run fails loudly instead of overwriting someone else's work. <c>UserDataKey</c> has no
+/// the run fails loudly instead of overwriting someone else's work.
+/// <b>Declared unreachable single-threaded, and therefore deliberately unpinned</b>
+/// (CLAUDE.md §5): the CAS terms, the <c>affected != 1</c> guard and the in-loop round-trip
+/// cannot fire while this runs as the documented stopped-world operation — <c>pending</c> is
+/// filtered on exactly that identity, <c>(JobSeekerId, DekVersion)</c> is the primary key, and
+/// the round-trip goes through the same <c>Wrap</c> it verifies. Mutation-verified 2026-08-09:
+/// removing any of the three leaves the suite green, while removing the transaction, the
+/// byte-difference guard, the foreign-identity guard or the post-commit pass each turns it red.
+/// They are concurrency and future-#501 defence in depth, not dead code — pinning them would
+/// require manufacturing a race this operation is procedurally forbidden to have. <c>UserDataKey</c> has no
 /// mutator by design; adding one whose only caller is this operation would widen the entity for
 /// everyone and route the write through the change tracker, losing the atomic guard that makes
 /// "affected != 1" meaningful.

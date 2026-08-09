@@ -29,15 +29,23 @@ namespace Jobbliggaren.Worker.IntegrationTests.Backup;
 /// </para>
 ///
 /// <para>
-/// <b>TWO containers, and the second one is what makes two flags an oracle at all.</b> Both dumps
-/// in <c>deploy/systemd/jobbliggaren-backup.sh</c> pass <c>--no-owner --no-privileges</c>, and §5
-/// restores as <c>postgres</c> into a cluster an operator just created. Postgres roles are
-/// CLUSTER-global, not per-database — so a drill that restored into a second database on the
-/// SOURCE container would find <c>jobbliggaren_app</c> already present, and deleting those two
-/// flags from the mechanism would stay green in CI while failing on the operator's workstation
-/// with <c>role "jobbliggaren_app" does not exist</c>. A green result that means nothing is the
-/// exact defect shape this drill exists to end. The target is therefore a SEPARATE cluster which
-/// has never heard of production's roles, which is also what an operator's workstation is.
+/// <b>TWO containers, and the second one is what makes <c>--no-owner --no-privileges</c> an
+/// oracle at all.</b> Postgres roles are CLUSTER-global, not per-database, so a drill that
+/// restored into a second database on the SOURCE container would find production's roles already
+/// present and could never fail for their absence. The target is therefore a SEPARATE cluster
+/// that has never heard of them — which is also what an operator's workstation is.
+/// </para>
+///
+/// <para>
+/// <b>Which side of the pipeline that oracle actually guards was MEASURED, and the first answer
+/// was wrong.</b> Removing <c>--no-owner --no-privileges</c> from the mechanism's <c>pg_dump</c>
+/// leaves this drill GREEN: §5's <c>pg_restore</c> passes its own copy of both flags, so the
+/// restore strips ownership regardless of what the dump emitted. Removing them from the
+/// <b>restore</b> turns it red — <c>role "jobbliggaren_migrations" does not exist</c>, which the
+/// <c>CREATE SCHEMA identity AUTHORIZATION</c> statement needs. So the flags that protect the
+/// operator are the RESTORE's, and the dump's are redundancy. Written down because the opposite
+/// was assumed here first, and an unmeasured claim about which half is load-bearing is exactly
+/// the kind a later reader would act on.
 /// </para>
 ///
 /// <para>

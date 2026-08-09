@@ -156,9 +156,10 @@ public class BackupRestoreDrillTests(RestoreDrillFixture fixture)
 
         // ── §5 STEP 3: restore the main artefact into a FRESH database ─────────────────────────
         //
-        // The target cluster has never heard of jobbliggaren_app. That is what makes
-        // --no-owner --no-privileges an oracle here rather than a no-op: without them this
-        // restore fails with `role "jobbliggaren_app" does not exist`.
+        // The target cluster has never heard of production's roles. THESE flags — the restore's,
+        // not the dump's — are what make that survivable: measured 2026-08-09, dropping them here
+        // fails with `role "jobbliggaren_migrations" does not exist`, while dropping them from the
+        // pg_dump above changes nothing, because this command strips ownership either way.
         await ExecOkAsync(_fixture.Target,
             $"createdb -U postgres {RestoreDrillFixture.RestoreDatabaseName}",
             "§5 step 3 createdb", ct);

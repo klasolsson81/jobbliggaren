@@ -63,6 +63,17 @@ public sealed class MasterKeyRewrapper(
                 "un-rotated ones.");
         }
 
+        // AND THE BYTES MUST DIFFER, not only the labels. The identity guard above checks the
+        // stickers; this checks the keys. Without it, pointing both _FILE pointers at the same
+        // file succeeds end to end — unwrap, wrap, round-trip, CAS and post-commit verification
+        // all pass — and the tool reports "Re-wrap COMPLETE" while the retiring key still opens
+        // every row. That is not a hypothetical path: it is the natural repair when an operator
+        // finds the retiring key missing mid-rotation and copies the live file over it.
+        //
+        // AES-GCM auth-fails under any other key, so a successful unwrap under the INCOMING key
+        // of a row still stamped with the RETIRING identity proves the two keys are the same.
+        EnsureMasterKeysDiffer(retiringKey, incomingKey);
+
         var rows = await db.Set<UserDataKey>()
             .AsNoTracking()
             .ToListAsync(ct)
@@ -160,6 +171,51 @@ public sealed class MasterKeyRewrapper(
     /// incoming key. Read fresh from the database rather than from the in-memory list, so this
     /// measures what was persisted.
     /// </summary>
+    /// <summary>
+    /// Proves the two providers hold different key material. Wraps a throwaway value under the
+    /// retiring key and asserts the incoming key CANNOT open it — AES-GCM auth-fails under any
+    /// other key, so a successful unwrap means the keys are identical.
+    /// </summary>
+    private static void EnsureMasterKeysDiffer(
+        LocalDataKeyProvider retiring, LocalDataKeyProvider incoming)
+    {
+        // A throwaway owner and a throwaway DEK: this never touches stored data, and the probe
+        // value is discarded either way.
+        var probeOwner = new JobSeekerId(Guid.NewGuid());
+        var probe = RandomNumberGenerator.GetBytes(32);
+        try
+        {
+            var wrapped = retiring.WrapDataKey(probe, probeOwner);
+            byte[]? opened = null;
+            try
+            {
+                opened = incoming.UnwrapDataKeyAsync(probeOwner, wrapped, CancellationToken.None)
+                    .GetAwaiter().GetResult();
+            }
+            catch (CryptographicException)
+            {
+                return; // the incoming key cannot open it — the keys differ, which is required
+            }
+            finally
+            {
+                if (opened is not null)
+                {
+                    CryptographicOperations.ZeroMemory(opened);
+                }
+            }
+
+            throw new InvalidOperationException(
+                "The retiring and incoming master keys are the SAME key material (different " +
+                "identities). Rotating would stamp rows as rotated while leaving them wrapped " +
+                "under the key being retired — which defeats the rotation entirely. Nothing was " +
+                "written. Check that the two *_FILE pointers reference different files.");
+        }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(probe);
+        }
+    }
+
     private async Task<int> VerifyAllUnwrapUnderIncomingKeyAsync(
         AppDbContext db, CancellationToken ct)
     {
@@ -173,8 +229,9 @@ public sealed class MasterKeyRewrapper(
             if (row.CmkKeyId != incomingKeyId)
             {
                 throw new InvalidOperationException(
-                    $"Post-commit verification: owner {row.JobSeekerId.Value:D} still carries " +
-                    $"cmk_key_id '{row.CmkKeyId}', expected '{incomingKeyId}'.");
+                    "POST-COMMIT: the re-wrap IS committed and the incoming key MUST be kept. " +
+                    $"Owner {row.JobSeekerId.Value:D} still carries cmk_key_id '{row.CmkKeyId}', " +
+                    $"expected '{incomingKeyId}'. Re-run to finish; do NOT restore the old key.");
             }
 
             var dek = await incomingKey.UnwrapDataKeyAsync(row.JobSeekerId, row.WrappedDek, ct)

@@ -197,7 +197,11 @@ static async Task<int> RunRewrapMasterKeyAsync(ILogger log, CancellationToken ct
     var appCs = MigrateEnv.Required("MIGRATE_APP_CONNECTION_STRING");
     var retiringKey = MigrateEnv.Required("REWRAP_RETIRING_MASTER_KEY");
     var incomingKey = MigrateEnv.Required("REWRAP_INCOMING_MASTER_KEY");
-    var retiringKeyId = MigrateEnv.Optional("REWRAP_RETIRING_KEY_ID", "local-v1");
+    // Required, not Optional-with-a-default. Three of four inputs are already required, and this
+    // is the one where a wrong guess is a data-loss path: on a rotated box the on-disk identity
+    // file already holds the INCOMING id, so there is no on-box source for the retiring one. The
+    // runbook always passes it explicitly, so nothing breaks.
+    var retiringKeyId = MigrateEnv.Required("REWRAP_RETIRING_KEY_ID");
     var incomingKeyId = MigrateEnv.Required("REWRAP_INCOMING_KEY_ID");
 
     MigrateLog.RewrapStart(log, retiringKeyId, incomingKeyId);

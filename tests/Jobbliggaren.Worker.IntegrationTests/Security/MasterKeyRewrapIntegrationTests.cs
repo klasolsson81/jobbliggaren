@@ -59,7 +59,7 @@ public class MasterKeyRewrapIntegrationTests(WorkerTestFixture fixture)
             NullLogger<LocalDataKeyProvider>.Instance);
 
     private static MasterKeyRewrapper Rewrapper(
-        string retiring = null!, string incoming = null!) =>
+        string? retiring = null, string? incoming = null) =>
         new(
             Provider(retiring ?? RetiringKeyBase64, RetiringKeyId),
             Provider(incoming ?? IncomingKeyBase64, IncomingKeyId),
@@ -95,11 +95,27 @@ public class MasterKeyRewrapIntegrationTests(WorkerTestFixture fixture)
         return (seeker.Id, (byte[])dek.Clone());
     }
 
+    /// <summary>Adds a SECOND owner with a DEK without clearing the table.</summary>
+    private async Task<JobSeekerId> AddAnotherOwnerWithDekAsync(CancellationToken ct)
+    {
+        using var scope = _fixture.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
+        var seeker = JobSeeker.Register(Guid.NewGuid(), "Rewrap Test 2", clock).Value;
+        db.JobSeekers.Add(seeker);
+        await db.SaveChangesAsync(ct);
+
+        var store = scope.ServiceProvider.GetRequiredService<IUserDataKeyStore>();
+        var dek = await store.GetOrCreateDataKeyAsync(seeker.Id, ct);
+        CryptographicOperations.ZeroMemory(dek);
+        return seeker.Id;
+    }
+
     private static AppDbContext NewContext(IServiceScope scope) =>
         scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
     [Fact]
-    public async Task Rewrap_PreservesTheDekBytes_SoFieldCiphertextStillDecrypts()
+    public async Task Rewrap_PreservesTheDekBytes()
     {
         var ct = TestContext.Current.CancellationToken;
         var (owner, dekBefore) = await SeedOwnerWithDekAsync(ct);
@@ -125,6 +141,134 @@ public class MasterKeyRewrapIntegrationTests(WorkerTestFixture fixture)
         await Should.ThrowAsync<CryptographicException>(() =>
             Provider(RetiringKeyBase64, RetiringKeyId)
                 .UnwrapDataKeyAsync(owner, row.WrappedDek, ct));
+    }
+
+    [Fact]
+    public async Task Rewrap_FieldCiphertextStillDecrypts()
+    {
+        // ADR 0049 `Amendment 2026-08-09` §5 and the CTO bind (Q4) name this test BY NAME and
+        // call it required. The sibling above measures DEK bytes; this one reaches actual field
+        // ciphertext, which is what the gate asks for. Only this one fails if
+        // AesGcmFieldEncryptor ever starts binding something beyond the DEK.
+        var ct = TestContext.Current.CancellationToken;
+        var (owner, dekBefore) = await SeedOwnerWithDekAsync(ct);
+
+        const string plaintext = "Rotationen far inte gora detta olasbart.";
+        var encryptor = new AesGcmFieldEncryptor();
+        var ciphertext = encryptor.Encrypt(plaintext, dekBefore);
+
+        using var scope = _fixture.Services.CreateScope();
+        var db = NewContext(scope);
+        await Rewrapper().RewrapAllAsync(db, ct);
+
+        // Read the DEK back the way the app will after the rotation: through the INCOMING
+        // provider. Going through the DI graph instead would either hit the scoped DEK cache
+        // (false pass) or the fixture retiring key (false fail).
+        var row = await db.Set<UserDataKey>().AsNoTracking()
+            .SingleAsync(k => k.JobSeekerId == owner, ct);
+        var dekAfter = await Provider(IncomingKeyBase64, IncomingKeyId)
+            .UnwrapDataKeyAsync(owner, row.WrappedDek, ct);
+
+        encryptor.Decrypt(ciphertext, dekAfter).ShouldBe(plaintext);
+    }
+
+    [Fact]
+    public async Task Rewrap_WhenALaterRowFails_NeitherRowIsLeftRotated()
+    {
+        // THE TRANSACTION OWN PROPERTY, and until now it was asserted in three documents and
+        // measured nowhere. Every other case has a single row, so the loop never writes one row
+        // before failing on another — which left the transaction, the CAS predicate and the
+        // affected-not-1 guard all unmeasured.
+        var ct = TestContext.Current.CancellationToken;
+        await SeedOwnerWithDekAsync(ct);
+        var ownerB = await AddAnotherOwnerWithDekAsync(ct);
+
+        using var scope = _fixture.Services.CreateScope();
+        var db = NewContext(scope);
+
+        // Corrupt B blob so it fails at unwrap. Produced by tampering with bytes the provider
+        // itself wrote — the same shape LocalDataKeyProviderTests uses for its tamper case.
+        var rowB = await db.Set<UserDataKey>().AsNoTracking()
+            .SingleAsync(k => k.JobSeekerId == ownerB, ct);
+        var tampered = (byte[])rowB.WrappedDek.Clone();
+        tampered[^1] ^= 0xFF;
+        await db.Set<UserDataKey>().Where(k => k.JobSeekerId == ownerB)
+            .ExecuteUpdateAsync(u => u.SetProperty(k => k.WrappedDek, tampered), ct);
+
+        await Should.ThrowAsync<CryptographicException>(() => Rewrapper().RewrapAllAsync(db, ct));
+
+        // Whichever of the two the loop reached first, NEITHER may be left rotated: that is what
+        // one transaction buys, and a committed partial rotation is the state with no clean
+        // recovery.
+        var after = await db.Set<UserDataKey>().AsNoTracking().ToListAsync(ct);
+        after.Count.ShouldBe(2);
+        after.ShouldAllBe(r => r.CmkKeyId == RetiringKeyId);
+    }
+
+    [Fact]
+    public async Task Rewrap_VerifiesEveryRow_NotJustTheOnesItRewrapped()
+    {
+        // Pins Result.Verified against the row count. Stubbing the verification pass to
+        // return rows.Count used to leave every case green, which made the only guard against
+        // "the operator pointed the tool at the wrong incoming key" deletable in silence.
+        var ct = TestContext.Current.CancellationToken;
+        await SeedOwnerWithDekAsync(ct);
+        await AddAnotherOwnerWithDekAsync(ct);
+
+        using var scope = _fixture.Services.CreateScope();
+        var db = NewContext(scope);
+
+        var result = await Rewrapper().RewrapAllAsync(db, ct);
+
+        result.Rewrapped.ShouldBe(2);
+        result.Verified.ShouldBe(2);
+    }
+
+    [Fact]
+    public async Task Rewrap_WithTheWrongIncomingKey_FailsInVerification()
+    {
+        // The operator error the post-commit pass exists for: the rows are already rotated, so
+        // pending is empty and every pre-flight guard passes — only unwrapping under the
+        // supplied incoming key can tell that it is the wrong key.
+        var ct = TestContext.Current.CancellationToken;
+        await SeedOwnerWithDekAsync(ct);
+
+        using var scope = _fixture.Services.CreateScope();
+        var db = NewContext(scope);
+        await Rewrapper().RewrapAllAsync(db, ct);
+
+        var wrongIncoming = Convert.ToBase64String([.. Enumerable.Range(80, 32).Select(i => (byte)i)]);
+        var wrongTool = new MasterKeyRewrapper(
+            Provider(RetiringKeyBase64, RetiringKeyId),
+            Provider(wrongIncoming, IncomingKeyId),
+            RetiringKeyId,
+            IncomingKeyId);
+
+        await Should.ThrowAsync<CryptographicException>(() => wrongTool.RewrapAllAsync(db, ct));
+    }
+
+    [Fact]
+    public async Task Rewrap_WithIdenticalKeyBytesUnderDifferentIdentities_IsRefused()
+    {
+        // The identity guard checks the labels; this checks the keys. Reachable as the natural
+        // repair when an operator finds the retiring key gone mid-rotation and copies the live
+        // file over it — after which the tool would otherwise report COMPLETE while every row
+        // stayed wrapped under the key being retired.
+        var ct = TestContext.Current.CancellationToken;
+        await SeedOwnerWithDekAsync(ct);
+
+        using var scope = _fixture.Services.CreateScope();
+        var db = NewContext(scope);
+
+        var sameBytes = new MasterKeyRewrapper(
+            Provider(RetiringKeyBase64, RetiringKeyId),
+            Provider(RetiringKeyBase64, IncomingKeyId),
+            RetiringKeyId,
+            IncomingKeyId);
+
+        var ex = await Should.ThrowAsync<InvalidOperationException>(() =>
+            sameBytes.RewrapAllAsync(db, ct));
+        ex.Message.ShouldContain("SAME key material");
     }
 
     [Fact]
@@ -225,14 +369,23 @@ public class MasterKeyRewrapIntegrationTests(WorkerTestFixture fixture)
             .Where(k => k.JobSeekerId == owner)
             .ExecuteUpdateAsync(s => s.SetProperty(k => k.CmkKeyId, "local-v9"), ct);
 
+        // A SECOND, legitimate row is what makes "nothing was written" measurable. With only the
+        // foreign row present, pending is empty either way and the case passed even with the
+        // guard deleted — the post-commit pass then threw a message containing the same string.
+        var bystander = await AddAnotherOwnerWithDekAsync(ct);
+
         var ex = await Should.ThrowAsync<InvalidOperationException>(() =>
             Rewrapper().RewrapAllAsync(db, ct));
         ex.Message.ShouldContain("local-v9");
 
-        // Nothing written: the guard runs before the transaction opens.
         var row = await db.Set<UserDataKey>().AsNoTracking()
             .SingleAsync(k => k.JobSeekerId == owner, ct);
         row.CmkKeyId.ShouldBe("local-v9");
+
+        // The guard runs before the transaction opens, so the rotatable row is untouched.
+        var untouched = await db.Set<UserDataKey>().AsNoTracking()
+            .SingleAsync(k => k.JobSeekerId == bystander, ct);
+        untouched.CmkKeyId.ShouldBe(RetiringKeyId);
     }
 
     [Fact]

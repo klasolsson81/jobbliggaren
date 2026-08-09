@@ -68,14 +68,11 @@
         "heading": "Mottagare av uppgifter",
         "paragraphs": [
           "Jobbliggaren säljer aldrig dina uppgifter och delar dem inte för marknadsföring. För att kunna drifta tjänsten anlitar vi vissa leverantörer som behandlar uppgifter för vår räkning (personuppgiftsbiträden). Med dem har vi personuppgiftsbiträdesavtal.",
+          "netcup GmbH (driftsleverantör, Tyskland). Jobbliggaren driftas på en server hos netcup GmbH i Nürnberg, Tyskland, där applikationen och databasen körs.",
           "Arbetsförmedlingens JobTech (Platsbanken) är vår källa för öppna data om lediga jobb, inte en mottagare av dina personuppgifter. Vi skickar inga uppgifter om dig till JobTech.",
           "Statistiska centralbyrån (SCB) planeras att ta emot de organisationsnummer som slås upp i företagssöket: när du söker på ett organisationsnummer skickas det till SCB:s företagsregister för att hämta företagets namn. SCB är en självständig myndighet med eget personuppgiftsansvar för sitt register och är inte vårt personuppgiftsbiträde. Detta är planerat och ännu inte i drift.",
           "Amazon Web Services EMEA SARL (planerad e-postleverantör, Luxemburg) planeras att leverera all e-post från tjänsten via Amazon SES. Det gäller både de notiser du själv slår på och e-post om ditt konto, till exempel för att bekräfta din e-postadress eller meddela att adressen har ändrats. E-posten behandlas i Stockholm, i regionen eu-north-1. I dagsläget skickar Jobbliggaren ingen e-post, och inga uppgifter om dig lämnas till någon e-postleverantör. Detta är planerat och ännu inte i drift.",
           "De uppgifter som planeras att lämnas till Amazon Web Services EMEA SARL är din e-postadress och meddelandets innehåll, som för en bevakningsnotis innehåller jobbtiteln, företagsnamnet och hur stark matchningen är. Att du får notisen visar samtidigt att du har slagit på bevakningen. Byter du e-postadress går aviseringen om bytet till din tidigare adress, som därmed också lämnas till leverantören. Innan vi börjar skicka säkerställer vi att personuppgiftsbiträdesavtalet gäller och att grunden för överföringen till koncernmodern Amazon Web Services, Inc. i USA är dokumenterad, se avsnittet Överföring till tredje land nedan. Detta är planerat och ännu inte i drift."
-        ],
-        "list": [
-          "Hetzner (planerad driftsleverantör, EU). Jobbliggaren planeras att driftas hos Hetzner i EU, där applikationen och databasen körs. Detta är planerat och ännu inte i drift.",
-          "Cloudflare (planerad DNS- och CDN-leverantör, EU). Cloudflare planeras att hantera namnuppslag och trafik fram till tjänsten. Detta är planerat och ännu inte i drift."
         ]
       },
       {

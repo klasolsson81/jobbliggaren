@@ -708,9 +708,22 @@ checklist item asserting the BFF prefixes are served by Next.
 
 **d2-compression-placement-undocumented `[P3/S]`** — no `compress` key in
 `next.config.ts`, so Node gzips by default; no ADR documents compression placement.
-Verifier: Cloudflare (ADR 0050 M-5) serves brotli at the edge regardless, softening
-browser impact; Node CPU + the undocumented decision remain. *Fix:* `encode zstd
-gzip` in the TD-106 Caddyfile + `compress: false` in Next; record in the TD-106 ADR.
+Verifier: **NONE — the previous one was revoked, and no replacement has been measured.** It read
+*"Cloudflare (ADR 0050 M-5) serves brotli at the edge regardless, softening browser impact"*, which
+is false under Klas decision K3 (2026-08-04): there is no CDN, so nothing serves brotli at an edge,
+because there is no edge. **The severity softener is therefore gone and this finding is currently
+UNMITIGATED** — a reader who inherited the old sentence would under-rate it on a premise that no
+longer holds. *Do not re-attribute the verifier to Caddy without measuring it:* Caddy can compress,
+but whether it does, with which encodings and at what CPU cost on a 4-core box is unmeasured, and
+writing an unmeasured mitigation back in would repeat the defect in a new name. Note also that
+gate **M-5 no longer exists** in the form cited — it retires into M-5a + M-5b (ADR 0050
+`Amendment 2026-08-04` §5). Node CPU + the undocumented decision remain.
+*Fix (unchanged, and unaffected by any of the above):* `encode zstd gzip` in the Caddyfile +
+`compress: false` in Next; record the decision in an ADR. The Caddyfile exists since
+[#196](https://github.com/klasolsson81/jobbliggaren/issues/196) (`deploy/caddy/`).
+*(Verifier revoked and rewritten 2026-08-09 in #1199, per Klas's directive in that issue's comment
+thread; `dotnet-architect` graded it nice-to-have the same day and `senior-cto-advisor` bound the
+form: write it as unverified, never as re-attributed.)*
 
 **d3-proxy-refresh-serial-nav-hop `[P3/S]`** — when the 15-min throttle elapses,
 `proxy.ts:104-116` serially awaits POST `/auth/refresh` inside the navigation

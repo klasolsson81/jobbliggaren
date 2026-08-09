@@ -708,8 +708,8 @@ sessionen. dev/rc-tags är CC-tillåtna efter grön CI.
 
 ## 4. Efter deploy (verifiering)
 
-> Hetzner-modell (ADR 0050/0066): hela stacken (API + Worker + Postgres + Redis +
-> Caddy + Next.js) kör i Docker Compose på CAX31-boxen bakom Caddy. Konkreta
+> Compose-modell (ADR 0050 `Amendment 2026-08-04`/0122): hela stacken (API + Worker + Postgres +
+> Redis + Caddy + Next.js) kör i Docker Compose på **netcup-lådan (RS 1000 G12)** bakom Caddy. Konkreta
 > service-namn/kommandon finalize:ras med **#196** (Compose-stack + proxy
 > + härdning) — stegen nedan är på modell-altitud tills dess.
 

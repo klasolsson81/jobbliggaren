@@ -46,14 +46,24 @@ never asserted:
    enumeration rots, which is `release-checklist.md` §2.6 point 1's rule applied here:
 
    ```bash
-   grep -rn "Nürnberg\|Nuremberg\|Nurnberg" --include="*.json" --include="*.md" \
-     web/jobbliggaren-web/messages docs BUILD.md README.md
+   grep -rn "Nürnberg\|Nuremberg\|Nurnberg" \
+     web/jobbliggaren-web/messages docs/runbooks docs/decisions BUILD.md README.md
    ```
 
    Sweep **both spellings and the umlaut-less form**; a single-language sweep closes nothing.
-   Measured 2026-08-09: **29 lines across 7 files**, of which **eight are Art. 30 entries in
-   `docs/runbooks/gdpr-processing-register.md`** — those are the legally heaviest and the ones a
-   two-file fix would leave false.
+   Measured against exactly this command, 2026-08-09: **32 lines across 9 files**, of which
+   **nine are in `docs/runbooks/gdpr-processing-register.md`** (eight Art. 30 sub-processor
+   entries plus one Chapter V passage) — the legally heaviest, and the ones a two-file fix would
+   leave false.
+
+   ⚠ **The paths are enumerated deliberately and `docs/` as a whole is NOT swept.** A wholesale
+   `docs/` sweep drags in `docs/sessions/` and `docs/reviews/`, which must **never** be rewritten
+   at a reprovision: a session log or a review report that acquires a new city is falsified
+   history, not a corrected record. It also makes the count unstable for reasons that have
+   nothing to do with the box — a review report landing mid-sweep moves it. If you widen the
+   paths, regenerate the number from the widened form or drop the number and let the command be
+   the only answer (`release-checklist.md` §2.6 point 1's doctrine, which this invariant invokes,
+   applies to the number as much as to the list).
 
    **No test can catch this.** A copy tripwire fails a silent *deletion*; here the string
    survives the move and CI stays green, so the obligation is hooked at the action that

@@ -147,11 +147,11 @@ describe("content-legal i18n-paritet (sv ↔ en)", () => {
    * mätt: den första formen passerade VACUÖST i två av tre leaves i BÅDA språken). Orsaken är att
    * disclosure-meningens egna participform mättar en bred assertion — "Notiserna **planeras** att
    * skickas", "All e-post **planeras** att levereras" / "are **planned** to be sent". Med
-   * `/planerat|planerad|planeras/` respektive `/planned/` kunde markörmeningen strykas ur rad 63
-   * och 73 med testet grönt, medan §2.6:s smala grep tyst föll 9+9 → 7+7. Mönstren nedan är därför
+   * `/planerat|planerad|planeras/` respektive `/planned/` kunde markörmeningen strykas ur samtyckes-
+   * och mottagarstyckena med testet grönt, medan §2.6:s smala grep tyst föll 9+9 → 7+7. Mönstren nedan är därför
    * de RATIFIERADE markörformerna och inget bredare — och de binder hela MENINGEN
    * (`planerat och ännu inte i drift`), **avsiktligt smalare** än ansökningshistorik-tripwirens
-   * `planerat`. Systern kan INTE följa med: rad 98/99 bär `(planerat)` utan markörmeningen, så
+   * `planerat`. Systern kan INTE följa med: retentionsposterna bär `(planerat)` utan markörmeningen, så
    * meningsformen hade fällt dem. Bredda aldrig tillbaka. Och "not yet in operation" är den engelska
    * markörens bärande led (`/planned/` är otillräcklig oavsett bredd).
    *
@@ -172,7 +172,7 @@ describe("content-legal i18n-paritet (sv ↔ en)", () => {
     //
     // **EN TERM PER INVARIANT, och det är inte symmetri för symmetrins skull** (code-reviewer
     // Minor 1 + dess omkontroll, 2026-08-09). Copyn bär sedan #1169 TVÅ namnformer: bolaget
-    // (`Amazon Web Services EMEA SARL`) och tjänsten (`Amazon SES`, rad 73). De två invarianterna
+    // (`Amazon Web Services EMEA SARL`) och tjänsten (`Amazon SES`, mottagarsektionen). De två invarianterna
     // vill ha OLIKA mängder, och att driva båda ur en union gör invariant 1 svagare i samma
     // andetag som invariant 2 blir starkare:
     //
@@ -205,6 +205,26 @@ describe("content-legal i18n-paritet (sv ↔ en)", () => {
 
     // Parity by LOCATION, not count — see `matchingLeaves`.
     expect(enNamed.map(([path]) => path)).toEqual(svNamed.map(([path]) => path));
+
+    // LIVENESS-GOLV PÅ UNIONSTERMEN (code-reviewer, omkontroll 2026-08-09). Utan det här har
+    // `EMAIL_PROVIDER_ANY` **ingen assertion som faller när den slutar matcha**: dess två läsare
+    // — markör-loopen nedan och värd-spärrens snittkontroll — passerar BÅDA på tom mängd (noll
+    // iterationer respektive tomt snitt), och golvet ovan använder den separata part-bärande
+    // formen. Mätt: `EMAIL_PROVIDER_ANY` ersatt med `/Amazon Web Servicez|Amazon SEZ/` gav HELA
+    // sviten grön med konstanten död och två spärrar tysta. Extraktionen gjorde den dessutom mer
+    // bärande, eftersom den nya läsaren är en tomhets-assertion — den vakuositetsbenägnaste form
+    // som finns.
+    //
+    // Detta bryter INTE "en term per invariant": invariant 1:s golv ligger kvar på `svNamed`
+    // (den part-bärande formen). Det här är ett tredje påstående med ren vakuositetsroll, samma
+    // funktion som `sv.length >= 1` har i värd-spärren.
+    //
+    // **Gränsen, utskriven:** unionsmängden är i dag IDENTISK med part-mängden (4 = 4, samma
+    // paths), så golvet bevisar att regexet lever — **inte** att `Amazon SES`-alternationen gör
+    // det. Ett strikt superset-påstående vore starkare; golvet är husets form och räcker mot den
+    // mätta felmoden.
+    expect(sv.length).toBeGreaterThanOrEqual(4);
+    expect(en.length).toBeGreaterThanOrEqual(4);
 
     // The RATIFIED SENTENCE, not a token. `/planerat/i` alone accepts a truncated marker ("Detta är
     // planerat.") that drops "ännu inte i drift" — the very clause that says NOT IN OPERATION — while

@@ -144,7 +144,7 @@
 | Encryption keys | `LocalDataKeyProvider` AES-256-GCM (ADR 0066) | Self-managed master-nyckelmodell + rotation ([#198](https://github.com/klasolsson81/jobbliggaren/issues/198)) |
 | Frontend | `pnpm dev` (localhost:3000) | Next.js `next start` co-tenant container på CAX31 (bakom Caddy) |
 | DNS / CDN / proxy | — | Cloudflare gratis-tier "Full (strict)" framför Caddy-origin på CAX31 |
-| Backup | — | Nattlig klient-side-krypterad `pg_dump` → Hetzner-EU Storage Box ([#197](https://github.com/klasolsson81/jobbliggaren/issues/197)) |
+| Backup | — | Nattlig klient-side-krypterad `pg_dump` → **mål inte valt, ägs av [#197](https://github.com/klasolsson81/jobbliggaren/issues/197)** (kraven i §13.4) |
 | Logging / monitoring | console (MEL) + Seq (`Seq.Extensions.Logging`) | Persistent strukturerad sink via Seq self-hosted EU (obyggd) — [#1175](https://github.com/klasolsson81/jobbliggaren/issues/1175) |
 | Errors | — | Sentry (EU) planerat |
 | CI | GitHub Actions (build + test + coverage, inga moln-anrop) | oförändrat |
@@ -1299,9 +1299,12 @@ permanent infra aktiveras; listan nedan speglar **beslutad** uppsättning, ADR 0
   automatiskt utan sluts i Customer Control Panel, och den mätningen får aldrig generaliseras från
   AWS GDPR-DPA:t. Grind: `release-checklist.md` §2.6 punkt 3 (**Klas**, aldrig CC).
 - Backup: mål **inte valt** — ägs av [#197](https://github.com/klasolsson81/jobbliggaren/issues/197)
-  (Hetzner-EU Storage Box föll med värdbytet). Kraven består oförändrade: klient-side age-kryptering
-  före upload oavsett mål, EU-jurisdiktion, retention/rotation **30 dagar** (Klas-beslut K4) och en
-  testad restore-drill.
+  (Hetzner-EU Storage Box föll med värdbytet). **Det här är kravens enda hem.** Kraven består
+  oförändrade: klient-side age-kryptering före upload oavsett mål · EU-jurisdiktion ·
+  retention/rotation **30 dagar** (Klas-beslut K4) · testad restore-drill · ett mål vars **feldomän
+  är oberoende av både lådan och operatörens arbetsstation** · och age-**privatnyckeln** aldrig
+  lagrad tillsammans med ciphertexten (de två sista: `security-auditor` 2026-08-09, ur ADR 0050
+  `Amendment 2026-08-04` §7).
 - DNS / CDN / proxy: **utgår helt** (Klas-beslut K3 2026-08-04, ADR 0050 `Amendment 2026-08-04` §3).
   Ingen CDN, ingen edge-proxy; Caddy terminerar TLS direkt mot Let's Encrypt och DNS ligger hos
   Strato. **Strato är inte ett personuppgiftsbiträde:** en auktoritativ DNS-operatör publicerar vår
@@ -1531,11 +1534,9 @@ faktiskt emitterad i Production, bevisad på det **oautentiserade 401-svaret**) 
 ADR 0050 `Amendment 2026-08-04` §5.
 
 **Backup — mål inte valt, ägs av [#197](https://github.com/klasolsson81/jobbliggaren/issues/197).**
-Hetzner-EU Storage Box föll med värdbytet och har ingen ersättare. **Kraven består oförändrade och
-är hemma i §13.4:s backup-post** — klient-side age-kryptering före upload oavsett mål,
-EU-jurisdiktion, retention/rotation **30 dagar** (Klas-beslut K4), testad restore-drill, ett mål
-vars feldomän är oberoende av **både** lådan och operatörens arbetsstation, och age-**privatnyckeln**
-aldrig lagrad med ciphertexten. Backups ligger INTE på lådans disk. **Cloudflare R2 är fortsatt
+Hetzner-EU Storage Box föll med värdbytet och har ingen ersättare. **Kraven räknas inte upp här —
+de har ett enda hem, §13.4:s backup-post**, och en andra uppräkning hade blivit ett andra hem som
+ruttnar isär från det första. Backups ligger INTE på lådans disk. **Cloudflare R2 är fortsatt
 avvisat pga CLOUD Act-tredjelandsöverföring av icke-krypterad `pg_dump`-PII** — den meningen står
 kvar med avsikt: den är den tillämpade standard som gör §13.4:s AWS-SCC-redovisning icke-selektiv
 (Art. 5(2)), och en standard som tillämpas selektivt är ingen standard.

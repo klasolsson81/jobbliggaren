@@ -149,9 +149,14 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
 > OFÖRÄNDRAD.** Sektionen skrevs mot Resend, Inc. — ett **amerikanskt** biträde. Motparten är nu
 > **Amazon Web Services EMEA SARL (Luxemburg)** med behandling i `eu-north-1`, vilket är en annan
 > juridisk person, ett annat avtal och ett annat överföringsläge. Den bedömningen är
-> `security-auditor`:s tillsammans med Klas och är **inte gjord här** — så varje Resend-specifikt
-> led i punkt 1 är återöppnat till **KVAR**. Det är avsiktligt strängare än läget före bytet:
+> `security-auditor`:s tillsammans med Klas och var **inte gjord här** — så varje Resend-specifikt
+> led i punkt 1 återöppnades till **KVAR**. Det var avsiktligt strängare än läget före bytet:
 > en grind får aldrig ärva ett grönt led från en motpart som inte längre är part.
+> **DEN ÅTERÖPPNINGEN ÄR DELVIS UPPHÄVD 2026-08-09 (#1169), och på återöppningens EGET villkor:**
+> villkoret var att bedömningen inte var gjord, och `security-auditor` gjorde den 2026-08-08.
+> Led (b) och (d) bär därför ingen KVAR-markering längre, och led (c) står **KVAR (delvis)**.
+> **Punkten är fortsatt inte grön** — led (a) och (e) bär KVAR, och läs statusen på leden
+> själva, aldrig ur den här preambeln.
 > Vad som INTE ändras av bytet: mottagar-adress **+ meddelandets innehåll** når en extern
 > processor oavsett jurisdiktion (för notiserna
 > **avslöjar** leveransen opt-in-faktumet, och `EmailTemplates` skriver det dessutom i klartext
@@ -161,15 +166,18 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
 > prod-flip-checklista). CC får ALDRIG flippa providern eller signera DPA:t.
 >
 > **"Grön" = INGET led i punkten bär KVAR — inte att rutan är bockad.** (Negation med flit:
-> ett led kan bära **båda** markeringarna — ROPA-ledet är **KLAR för notis-vägen** och **KVAR
-> för kontolivscykel-mallarna** — och "bär KLAR" hade då räknat det som grönt.) Rutorna i
+> ett led kan bära **båda** markeringarna — ROPA-ledet är sedan 2026-08-09 **levererat för samtliga
+> e-postmallar** men **KVAR (delvis)**, eftersom kontolivscykel-mallarnas rättsliga grunder är
+> ett oprövat utkast — och "bär KLAR" hade då räknat det som grönt.) Rutorna i
 > hela den här filen är obockade (**38 av 38** vid 2026-08-04 — greppa **radinitialt**
 > (`^- \[ \]`); ett rått grep ger 40 och räknar prosacitaten av literalen längre ned.
 > **Regenerera siffran ur greppet efter varje tillagd punkt** — punkt 5.5 tillkom i samma
 > ändring som skrev "35", och punkt 5 i den som skrev "36" — båda gjordes falska i samma andetag) och bockas av den som **utför** releasen; statusen
 > bärs av **KLAR**-markeringarna. Punkt 1:s led står uppräknade i punkten själv, och ett led kan
 > vara **delvis** KVAR
-> (ROPA-ledet är det i dag) — **ett delvis KVAR led är KVAR**, så punkten är grön först när
+> (ROPA-ledet är det i dag, av ett annat skäl än före 2026-08-09: då saknades hela
+> kontolivscykel-vägen, nu finns den men dess grunder är oprövade) — **ett delvis KVAR led är
+> KVAR**, så punkten är grön först när
 > inget av **punktens led** bär KVAR i någon form. Läs aldrig en obockad ruta som "inte levererat",
 > och bocka aldrig en ruta för att en förutsättning är levererad.
 >
@@ -194,26 +202,76 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
         SCC:er från juni 2021 och *"will apply automatically"* — det finns alltså sannolikt
         **inget dokument att signera**, till skillnad från Netcup (#1199) och Resend. Ledet är
         ändå KVAR: att verifiera och skriva ned att avtalet gäller, och för vilken avtalspart,
-        är inte samma sak som att anta det. Klas verifierar kontots avtalspart i Billing →
-        Tax Settings;
-      - dokumenterad **Kap. V-grund** — **KVAR**, och frågan är **öppen i båda riktningarna**:
-        `eu-north-1` är en EU-region och avtalsparten är luxemburgsk, men moderbolaget är
-        amerikanskt, och `BUILD.md` §15.1 avvisar Cloudflare R2 *"pga CLOUD Act-
-        tredjelandsöverföring"*, alltså behandlar detta repos egen tillämpade standard ett
-        US-ägt biträde som en tredjelandsfråga **oavsett EU-region**. Om standarden gäller här
-        avgörs av `security-auditor`, inte av den här filen. #1169:s påstående att AWS är
-        DPF-listat är **OMÄTT** — AWS GDPR-sida gör ingen DPF-utsaga;
-      - **ROPA-posten** i `docs/runbooks/gdpr-processing-register.md` (lokal) — **KVAR**.
-        Den namnger Resend och är därmed falsk om sin motpart; notis-vägens tidigare KLAR
-        (PR #213) bärs inte över till en annan processor. Registret speglar och grindar inte
-        (#1040) — men sign-off-ledet nedan kan inte ges utan en behandling att signera mot;
-      - **integritetspolicy-post som namnger providern** — **KVAR**, återöppnad. Den var KLAR
-        (#186 / PR #1083) men namnger **Resend, Inc. (USA)** i fyra stycken × två språk, vilket
-        är falskt sedan 2026-08-08. **#1169 äger omskrivningen** och den levereras i en egen PR
-        eftersom innehållet beror på Kap. V-ledet ovan;
+        är inte samma sak som att anta det.
+        **AVTALSPARTEN ÄR MÄTT 2026-08-09 (#1169), och det ledets halva är därmed avklarad:**
+        två oberoende AWS-API:er mot konto `710427215829` ger båda **Amazon Web Services EMEA
+        SARL** — `taxsettings list-tax-registrations` (`accountMetaData.seller`, samma fält som
+        konsolens `Seller`-kolumn) och `invoicing list-invoice-summaries`
+        (`Entity.InvoicingEntity`, **5 av 5** dokument över faktureringsperioderna 2026-04 t.o.m.
+        2026-07, distinkt entitetsmängd av storlek ett). **Ledet är ändå KVAR i sin helhet:**
+        kvar är att bekräfta att DPA:t faktiskt gäller för den parten, vilket är den ärvda
+        mätningen ovan och inte omgjord. Vad som INTE längre behöver göras är
+        Tax-Settings-avläsningen;
+      - dokumenterad **Kap. V-grund** — **UPPLÖST 2026-08-08 av `security-auditor`, och
+        dokumentationen är levererad 2026-08-09 (#1169)** i policyns tredjelandsavsnitt, i
+        `BUILD.md` §13.4 och i ROPA-posten. Ledet bär därför ingen KVAR-markering; punkten är ändå
+        inte grön, eftersom (a), (c) och (e) gör det. Domen: överföringen **ska** redovisas trots
+        `eu-north-1`, eftersom `BUILD.md` §15.1:s egen tillämpade standard avvisar Cloudflare R2
+        *"pga CLOUD Act-tredjelandsöverföring"* och därmed behandlar ett US-ägt biträde som en
+        tredjelandsfråga **oavsett EU-region** — att tillämpa den standarden selektivt bryter
+        Art. 5(2). Grunden är **SCC Art. 46(2)(c)** (juni 2021, inkorporerade i AWS GDPR-DPA:t).
+        **Adekvans och DPF är strukna.** DPF är fel instrument oavsett listning: certifieringen
+        täcker överföringar till den **US-etablerade** enheten, och avtalsparten är luxemburgsk
+        (nu mätt, se ledet ovan). #1169:s ursprungliga påstående att AWS är DPF-listat förblir
+        **OMÄTT** och är dessutom irrelevant — skriv det inte;
+      - **ROPA-posten** i `docs/runbooks/gdpr-processing-register.md` (lokal) — **KVAR (delvis)**,
+        omskriven 2026-08-09 (#1169): ombunden från notis-vägen till behandlingen *"Utgående
+        transaktionell e-post (Amazon SES, `eu-north-1`)"*, som täcker **samtliga e-postmallar**
+        (antalet står i blockquoten ovan), båda mottagarklasserna och Kap. V-grunden ovan.
+        Registret speglar och grindar inte
+        (#1040), och **statusen på det här ledet sätts av sign-off-ledet nedan, inte av att
+        posten finns** — kontolivscykel-mallarnas rättsliga grunder är CC:s utkast och
+        har aldrig prövats av `security-auditor`;
+      - **integritetspolicy-post som namnger providern** — **omskriven 2026-08-09 (#1169)**:
+        fyra stycken × två språk namnger nu Amazon Web Services EMEA SARL (Luxemburg) med
+        behandling i `eu-north-1`, koncernmodern Amazon Web Services, Inc. (USA), SCC-grunden,
+        och den Art. 13(1)(f)-väg till en kopia av skyddsåtgärderna som saknades. Markörmeningen
+        står kvar i alla åtta strängarna — **detta var inte flippen**;
       - **security-auditor-sign-off på prod-e-post-konfigen** — **KVAR**. Det gamla
         TD-116:s sign-off är PR-4:s, inte prod-konfigens; bocka aldrig punkten på den.
         (TD-116 stängdes 2026-07-26; residualen ägs av #183.)
+        **Namngivna förutsättningar för sign-off (security-auditor + code-reviewer
+        2026-08-09, #1169) — hon signerar inte utan dem.** *(Medvetet utan numeral: listan räknar
+        sig själv, och ett tal här hade blivit ytterligare ett hem medan blockquoten ovan räknar upp
+        sina och säger att övriga tal inte är hem. Den raden bar en numeral och en hem-deklaration
+        till 2026-08-09; `dotnet-architect` mätte att den gjorde uppräkningen falsk i samma commit
+        som skrev den — filens egen dokumenterade felmod.)*
+        1. **Kontobindning.** Avtalsparten är en egenskap hos ett KONTO, och hela SCC-argumentet
+           i den publicerade copyn hänger på vilken part. Kör `aws sts get-caller-identity` med
+           **prod-nyckeln** (den som hamnar i `Email:Ses:AccessKeyId`) och kräv
+           `Account == 710427215829` — samma konto som avtalspartsmätningen i led (a) gjordes mot.
+           Utan det är mätningen gjord på ett konto och nyckeln kan tillhöra ett annat.
+        2. **Kontolivscykel-mallarnas rättsliga grunder prövas.** ROPA:ns utkast är
+           Art. 6(1)(b) för `EmailConfirmation`/`EmailChangeConfirmation` och **Art. 6(1)(f)** för
+           `EmailChangedNotification`/`AccountExistsNotice`. **Står 6(1)(f) kvar efter prövningen
+           krävs en matchande Art. 13(1)(d)-post i policyn FÖRE flippen** — dagens
+           berättigat-intresse-avsnitt räknar upp fyra behandlingar och ingen av dem är e-post.
+           Faller de i stället ut som 6(1)(b) täcks de av befintlig copy och luckan stänger sig
+           själv. **En behandling som körs utan redovisad grund är en Blocker i det ögonblicket**,
+           inte en Minor.
+        3. **Nyckelrotation för den statiska IAM-nyckeln** — ingen instance role finns, så nyckeln
+           är långlivad per definition. Oförändrad sedan 2026-08-08, återregistrerad här så den
+           inte tappas; ägs även av #198.
+        4. **Sändande identitet får inte bära ett default configuration set.** ROPA:ns retentionspost
+           påstår som mätt faktum att SES mottagarnivå-metrik (60 dagar) inte uppstår, på två
+           oberoende skäl. Det ena — att requesten inte namnger någon `ConfigurationSetName` — är
+           pinnat i `SesEmailSenderTests`, men det är **inte slutet på request-nivå**: SES v2 låter ett
+           default configuration set hängas på sändande IDENTITET
+           (`PutEmailIdentityConfigurationSetAttributes`), och då tillämpas det ändå. Det är
+           AWS-sidigt tillstånd som **inget test i repot kan pinna**, så det verifieras här i stället
+           (`aws sesv2 get-email-identity`). Det andra skälet (ingen HTML-del) är inte defeasibelt så
+           och är fullt pinnat, så posten håller på det ensamt — men skriv aldrig om posten som om
+           skäl 1 vore garanterat av testet. code-reviewer Minor 3, 2026-08-09.
 
       **Kvarstående policy-residualer under denna punkt, inte under punkt 3.**
       **ORDNINGEN STÅR FÖRST, för att den styr posterna under sig:** upplös
@@ -226,9 +284,14 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
       förbudet **upphör när avtalet gäller**. *Sedan ADR 0124 är motparten AWS, och för AWS är
       "på plats" sannolikt inte detsamma som "signerat" (DPA:t inkorporeras automatiskt, mätt
       2026-08-08) — men villkoret för flytten är oförändrat: listan får bara namnge en part vars
-      avtal faktiskt gäller.* (ii) **Art. 13(1)(f)** — "means to obtain a
-      copy" av skyddsåtgärderna saknas i policyn; (iii) upplös SCC/adekvans-
-      disjunktionen.
+      avtal faktiskt gäller.* **(i) är den enda residual som kvarstår.**
+      (ii) **Art. 13(1)(f)** — "means to obtain a copy" av skyddsåtgärderna — **LEVERERAD
+      2026-08-09 (#1169)**: tredjelandsavsnittet hänvisar till kontaktvägen under
+      "Personuppgiftsansvarig och kontakt" för en kopia av standardavtalsklausulerna.
+      (iii) SCC/adekvans-disjunktionen — **UPPLÖST** till SCC Art. 46(2)(c) och struken ur
+      copyn (`security-auditor` 2026-08-08; se Kap. V-ledet ovan).
+      **Ordningskravet ovan hölls:** (iii) avgjordes i granskningen 2026-08-08, och (ii)
+      skrevs först därefter — kopia-formuleringen namnger den grund som faktiskt används.
 - [ ] **2. TD-115** — legacy opt-OUT-default sanerad (#185 / PR #211 — **KLAR**).
 - [ ] **3. TD-116** — consent-/disclosure-copy avslöjar e-postleverans för
       användaren (**PR #182 — KLAR**; TD-116:s consent-copy-halva, fast-follow till #181,
@@ -280,10 +343,13 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
       Tillagt 2026-07-26 på dotnet-architects mätning — och just denna PR **ökade** ytan.
 
 Källa: ADR 0080 §"Prod-Resend-flip pre-condition checklist"; ROPA-behandlingen
-"Bakgrundsmatchnings-notiser via e-post (Resend)" — som i dag täcker **endast**
-notis-vägen. Efter wideningen ovan gäller grinden all utgående e-post, men ingen
-Art. 30-behandling täcker de **fyra kontolivscykel-mallarna** — och **TVÅ**
-av dem är ogrindade: `EmailChangeConfirmation` (`ChangeEmailCommandHandler:66`) och
+**"Utgående transaktionell e-post (Amazon SES, `eu-north-1`)"** — omdöpt och omskopad
+2026-08-09 (#1169) från *"Bakgrundsmatchnings-notiser via e-post (Resend)"*, som täckte
+**endast** notis-vägen. Efter wideningen ovan gäller grinden all utgående e-post, och
+Art. 30-posten täcker sedan omskrivningen alla sex mallarna — **men de fyra
+kontolivscykel-mallarnas rättsliga grunder är CC:s utkast och är inte prövade**, så
+sign-off-ledet i punkt 1 är oförändrat KVAR. **TVÅ**
+av mallarna är ogrindade: `EmailChangeConfirmation` (`ChangeEmailCommandHandler:66`) och
 `EmailChangedNotification` (`ConfirmEmailChangeCommandHandler:45`, vars enda villkor är att
 den gamla adressen finns). **Den senare går till den GAMLA adressen** — en annan
 mottagarklass än den användaren just skrev, så en Art. 30-behandling som bara skopas till
@@ -292,10 +358,13 @@ den första lämnar en mottagare oregistrerad. (`EmailConfirmation` är däremot
 prod-lansering tvingar alltså inte i sig grinden.)
 
 Det är samma lucka som den redan eskalerade frågan om att ROPA:n saknar behandling för
-användarkontot/autentiseringen helt (Art. 30(1)). **Luckan grindar inte via registret** —
-registret speglar (#1040) — men den blockerar **security-auditor-sign-off-ledet** i punkt 1:
-det finns ingen Art. 30-behandling att signera prod-e-post-konfigen mot för
-kontolivscykel-vägen. Registret är gitignorerat och kan inte rida en PR (ADR 0072), så
+användarkontot/autentiseringen helt (Art. 30(1)) — **och den luckan är INTE stängd av
+#1169**: den nya posten täcker e-postbehandlingen, inte kontot/autentiseringen som sådan.
+**Luckan grindar inte via registret** — registret speglar (#1040) — men den blockerade
+**security-auditor-sign-off-ledet** i punkt 1, eftersom det inte fanns någon Art. 30-behandling
+att signera prod-e-post-konfigen mot för kontolivscykel-vägen. **Efter #1169 finns behandlingen;
+det som återstår är att den prövas.** Att posten existerar är alltså en förutsättning för
+sign-off, aldrig sign-off i sig. Registret är gitignorerat och kan inte rida en PR (ADR 0072), så
 residualen står här, i den trackade filen, och åtgärdas lokalt före flippen.
 
 ---
@@ -345,7 +414,10 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
 > en PR.
 >
 > **Läget idag är korrekt, inte trasigt.** Policyn beskriver ansökningshistorik/
-> företagsöversikt, SCB-uppslag, Hetzner och Cloudflare som planerade. Koden är
+> företagsöversikt, SCB-uppslag och e-postleverantören som planerade. **Värdraden gör
+> det INTE längre:** #1199 tog bort dess markör 2026-08-09, eftersom lådan kör
+> (`dev.jobbliggaren.se` sedan 2026-08-05) och en markör där hade förnekat en pågående
+> drift — samma defekt som en förtidig flip, i spegelvänd form. Koden är
 > skeppad till dev, men det finns ingen prod-deploy och inga registrerade som når
 > policysidorna — policyn styr den *driftsatta* tjänsten. **Flippa aldrig i
 > förväg**, och för SCB är det inte ens ett val mellan två oriktigheter: prod-
@@ -369,14 +441,27 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
       grep -n "planerat\|planerad\|planeras" web/jobbliggaren-web/messages/sv/content-legal.json
       grep -n "planned"                      web/jobbliggaren-web/messages/en/content-legal.json
       ```
-      Vid 2026-07-26 (efter #186 + dess remediation): **12 + 12** (rad 37, 49, 63, 72,
-      73, 74, 77, 78, 85, 99, 100, 135 — identiska i
-      sv och en, alla äkta statuspåståenden, ingen falsk träff med detta mönster).
-      **Grepa INTE bara på `"planerat och ännu inte i drift"`** — det ger 10 och
-      missar de TVÅ retentionsposterna på rad 99 och 100, som bär `(planerat)` utan
-      avslutningsmeningen. Rad 99 (organisationsnumret i en annons, #880) nämner
+      **Regenererad 2026-08-09 (#1199, värdbytet Hetzner → Netcup): 10 + 10** (rad 37, 49,
+      63, 73, 74, 75, 82, 96, 97, 132 — identiska i sv och en, alla äkta statuspåståenden,
+      ingen falsk träff med detta mönster). **Både talet och radmängden ändrades**, av tre
+      skilda skäl i samma ändring: Cloudflare-posten raderades, värdposten skrevs om **utan**
+      markör, och värdposten flyttades sedan ur `sections.6.list` till `paragraphs[1]` varvid
+      hela `list`-nyckeln försvann. Nettot: **två markörbärande rader blev noll**, värdstycket
+      hamnade **ovanför** SCB- och AWS-styckena i stället för under dem, och raderna rörde sig
+      i **båda** riktningarna — mottagaravsnittets tre markörrader gick ett steg NER (72, 73,
+      74 → 73, 74, 75) medan allt från tredjelandsavsnittet och neråt gick två steg UPP
+      (85, 99, 100, 135 → 82, 96, 97, 132). **Att räkna fram den mängden ur den gamla är
+      alltså inte bara opålitligt utan omöjligt** — en enda ändring flyttade rader åt två håll.
+      Talet stod på **12 + 12** vid 2026-07-26 (#186) och var oförändrat vid 2026-08-09
+      (#1169, providerbytet Resend → AWS SES), där fyra rader skrevs om i sak men behöll sin
+      markörmening. **Det är ett mätresultat, inte en förutsägelse:** en ändring som tar bort
+      ett arrayelement eller delar ett stycke flyttar varje rad under sig, så greppet ska
+      köras om även när en ändring "bara" byter ord.
+      **Grepa INTE bara på `"planerat och ännu inte i drift"`** — det ger 8 och
+      missar de TVÅ retentionsposterna på rad 96 och 97, som bär `(planerat)` utan
+      avslutningsmeningen. Rad 96 (organisationsnumret i en annons, #880) nämner
       ansökningshistoriken som ett ÄNDAMÅL med att arbetsgivarens identitet sparas;
-      rad 100 är ansökningshistorikens egen post. **Regenerera den här listan ur
+      rad 97 är ansökningshistorikens egen post. **Regenerera den här listan ur
       greppen ovan efter varje redigering av `privacy`-sektionerna** — inte bara
       retentionsavsnittet: #880 delade en
       punkt i två och flyttade fyra av åtta rader, och #186 rörde tre andra avsnitt
@@ -386,15 +471,13 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
       uppgift (Art. 13(2)(a)) och ADR 0090 D3 räknar uttryckligen upp
       retentionsraden som del av samma leverans. Flippar du 6 och lämnar 1 säger
       kategorilistan drift medan retentionsavsnittet säger planerat.
-- [ ] **2. Avgör vad releasen faktiskt aktiverar** — tre olika klasser, blanda dem
+- [ ] **2. Avgör vad releasen faktiskt aktiverar** — två olika klasser, blanda dem
       inte:
-      - **Kod-aktiverad:** ansökningshistorik/företagsöversikt (rad 37, 99, 100, 135).
+      - **Kod-aktiverad:** ansökningshistorik/företagsöversikt (rad 37, 96, 97, 132).
         Handlers + endpoints + FE är skeppade utan feature-flagga → aktiveras av
         att tjänsten alls går i drift.
-      - **Deploy-aktiverad:** Hetzner, Cloudflare (rad 77, 78) → aktiveras av att
-        stacken körs hos dem. Se punkt 3 — dessa får inte flippas på egen hand.
-      - **Konfigurations-grindad:** SCB (rad 49, 72) **och Resend (rad 63, 73, 74, 85,
-        #186)**. **Aktiveras INTE av en
+      - **Konfigurations-grindad:** SCB (rad 49, 73) **och e-postleverantören AWS SES
+        (rad 63, 74, 75, 82, #186 + #1169)**. **Aktiveras INTE av en
         `v*`-tagg.** Tre skilda mekanismer, alla mörka i prod: per-sökningens
         `ICompanyRegistry` (ADR 0088) får `NullCompanyRegistry` — valet styrs av
         `CompanyRegistry:Provider`, den riktiga adaptern siktar på SCB:s nya
@@ -402,41 +485,92 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
         DPIA #456 + SCB terms review** (ADR 0088 D3); bulk-populeringen
         `IScbCompanyRegisterSource` (ADR 0091) är Worker-only och grindad på
         `ScbRegister:Enabled=true` + klientcert, och skickar aldrig ett
-        användarskrivet org.nr. Resend styrs av `Email:Provider`, som defaultar till
+        användarskrivet org.nr. E-posten styrs av `Email:Provider`, som defaultar till
         `Console` och i non-dev löser till `NullEmailSender` — flippen är grindad av
         **§2.5 punkt 1** (uppräkningen bor DÄR, inte här — och därför står antalet inte heller här), inte av en
-        tagg, och gäller **all** utgående e-post (§2.5:s widening). **Flippa rad 49/72 (SCB) respektive 63/73/74/85 (Resend) först när respektive grind är
+        tagg, och gäller **all** utgående e-post (§2.5:s widening). **Flippa rad 49/73 (SCB) respektive 63/74/75/82 (e-post) först när respektive grind är
         passerad** — inte när koden deployas.
+        *Raderna 63/74/75/82 namngav Resend, Inc. (USA) till 2026-08-09; #1169 skrev om dem till
+        Amazon Web Services EMEA SARL (Luxemburg) med behandling i `eu-north-1`. **Det var en
+        korrigering av en falsk motpartsuppgift, inte en flip** — markörmeningen står kvar i alla
+        fyra styckena i båda språken, och armen är fortfarande mörk.*
       Kvarstående planerat-meningar för behandlingar som fortfarande inte är i
       drift ska stå kvar. Släpper releasen ingen av dem är rätt utfall att **inte
       ändra något**.
-- [ ] **3. Art. 28 + Kap. V innan Hetzner/Cloudflare flippas** (speglar §2.5
-      punkt 1 — utan detta blir två redan presens-formulerade meningar falska i
-      samma ögonblick):
-      - signerat **personuppgiftsbiträdesavtal** med **Hetzner** och med
-        **Cloudflare** på fil (rad 70 påstår redan *"Med dem har vi
-        personuppgiftsbiträdesavtal"* — idag finns inga aktiva biträden alls, och
-        #186:s Resend-stycke säger uttryckligen att avtalet tecknas *innan* utskicken
-        börjar, just för att inte ärva den raden);
-      - dokumenterad **Kap. V-grund** för Cloudflare (US-domicilierat bolag; även
-        en EU-only-konfiguration kräver grunden dokumenterad) — rad 84 är ett
-        **absolut** påstående: *"I dagsläget sker inga överföringar av dina
-        personuppgifter till länder utanför EU/EES"*, och det måste omprövas som
-        del av samma flip. **Detsamma gäller Resend-flippen** (§2.5), som är den
-        andra av två oberoende händelser som gör rad 84 falsk; #186 la därför rad 85
-        **bredvid** den absoluta meningen i stället för att ersätta den — båda är
-        sanna samtidigt så länge inget skickas;
-      - ROPA-posterna uppdaterade + **security-auditor-sign-off**.
+- [ ] **3. Art. 28 innan personuppgifter når lådan** (speglar §2.5 punkt 1).
+      **Triggern är INTE längre en flip, och den gamla "Deploy-aktiverad"-klassen i punkt 2
+      är struken i samma ändring.** #1199 tog bort värdradens markör 2026-08-09, så det finns
+      ingen värd-flip kvar att grinda — men skyldigheten består och fick en ny utlösare
+      (`security-auditor` 2026-08-09). Grinden biter vid **det tidigare av**:
+      - **(i) varje ingest av JobTech-korpuset på lådan** ([#1240](https://github.com/klasolsson81/jobbliggaren/issues/1240) — 51 347 rekryterar-kontaktposter
+        över 27 160 annonser, Art. 14-uppgifter om icke-användare), och
+      - **(ii) första konfigurationen utanför `Development` som sätter `Auth:RegistrationsOpen=true`**.
+
+      **(i) är den tidigare, och det är den ingen mental modell håller:** rekryterar-PII når
+      lådan **före** den första användaren, i klartext i `job_ads.description`, fritextsökbart
+      och utan purge-väg (`gdpr-processing-register.md`, JobTech-posten). Modellen "vi hinner
+      teckna avtalet innan vi öppnar för användare" är fel med ett helt steg.
+
+      Kravmängden:
+      - **slutet personuppgiftsbiträdesavtal med `netcup GmbH`**, och **mekanismen är
+        namngiven med flit**: netcups AVV gäller **inte** automatiskt (mätt förstahands
+        2026-08-09 — generalisera aldrig AWS-mätningen hit, där DPA:t uppges gälla av sig
+        självt). Den sluts av kunden i **Customer Control Panel → Stammdaten / Master Data →
+        Auftragsverarbeitung / Order Processing → Generate DPA**; elektronisk signatur räcker
+        och den kostar inget. "Signera ett DPA" antyder ett motpartsflöde netcup inte har.
+        ⚠ **Generatorn ber om *"circle of affected persons"* — det är en materiell deklaration,
+        inte ett formulärfält.** Den måste namnge **rekryterar-kontaktpersoner** (Art. 14,
+        icke-användare), inte bara kontoinnehavare, annars blir avtalets räckvidd smalare än
+        behandlingen. **Läs AVV-bilagans underbiträdeslista när den genereras** — netcup
+        publicerar ingen (mätt: DPA-sidan, AVV-sidan, Impressum och DC-sidan bär noll), så
+        bilagan är den enda mätningen av kedjan som finns. Namnger den ett icke-EU-underbiträde
+        ska rad 81 **och** värdraden omprövas **före** korpusladdningen.
+        Rad 70 påstår redan i presens *"Med dem har vi personuppgiftsbiträdesavtal"*; den
+        meningen bärs i dag av att ingen listad part behandlar något, och den blir falsk
+        vid (i) — inte vid (ii), och inte av mergen av #1199.
+      - **inget Kap. V-led — det är raderat, inte ompekat.** Det gamla ledet krävde en
+        dokumenterad grund för **Cloudflare** (US-domicilierat) och dog med parten
+        (Klas-beslut K3). `security-auditor` 2026-08-09: netcup GmbH är tysk, behandlingen
+        sker i Nürnberg, och Kap. V engageras inte av värdbenet. Rad 83 är fortfarande ett
+        **absolut** påstående (*"I dagsläget sker inga överföringar av dina personuppgifter
+        till länder utanför EU/EES"*), men dess antecedent — *"Anlitar vi en leverantör
+        **utanför EU/EES**"* — täcker inte netcup alls, så värdbytet rör den inte.
+        **E-postflippen (§2.5) är fortfarande den händelse som gör rad 81 falsk**; #186 la
+        därför rad 82 **bredvid** den absoluta meningen i stället för att ersätta den, och
+        båda är sanna samtidigt så länge inget skickas. *(Raderna hette 84 och 85 till
+        2026-08-09; raderingen av Cloudflare-posten OCH flytten av värdraden ur `list` till
+        `paragraphs` flyttade dem två steg upp. Adekvans-disjunktionen ströks bara på det
+        stycket — `security-auditor` 2026-08-08: EN
+        grund, SCC Art. 46(2)(c).)*
+      - **ROPA-posterna uppdaterade** + **security-auditor-sign-off**.
+      - **`ACME_EMAIL` på lådan bekräftad som personuppgiftsansvariges egen adress.** Med
+        Cloudflare borta går Caddy direkt mot Let's Encrypt, så **ISRG (USA)** är den enda nya
+        part kanten fick. Är adressen Klas egen är den den ansvariges egna uppgifter och ingen
+        biträdesrad är skyldig; blir den någon gång delad eller användarvänd är ISRG mottagare av
+        användardata och Kap. V öppnas igen. Kravet står också i `deploy/.env.example` där värdet
+        skrivs in — värdet självt bor bara på lådan och går inte att mäta ur repot.
+      - **`recruiterNotice` prövas om i samma grind.** Den sidan blir Art. 14-notisen för
+        exakt den population (i) skapar, och den namnger **noll** mottagare — den når
+        mottagardisclosuren enbart via `relatedPrivacy`-länken till integritetspolicyn. Får
+        policyns mottagarsektion någon gång **population-skopade** formuleringar bryts
+        länkvägen för just den populationen (Art. 14(1)(e)). Det är också det direkta skälet
+        att värdraden är skriven utan lägesmening och utan datamängds-klausul: en mening av
+        formen "i dag finns inga uppgifter om dig hos leverantören" hade varit falsk om en
+        rekryterare i samma sekund korpuset laddats.
       DPA-signering = **Klas**, aldrig CC.
 - [ ] **4. Paritet sv + en** — båda språken i samma ändring. Formuleringen bärs av
       elementen i `privacy.sections` som bär formuleringen — tillsammans **exakt den radmängd
       punkt 1 producerar** (antalet står där, med sitt grep; det står med flit inte här):
       kategorilistan (rad 37), ändamåls-/SCB-avsnittet (49), samtyckesavsnittet
       "Bevakningsnotiser i bakgrunden" (63, #186), mottagare + tredjeland
-      — mottagaravsnittet (72/**73/74**/77/78) och tredjelandsavsnittet (85) är TVÅ skilda
-      sections, inte ett — retentionslistan (99/100) och "Inga automatiserade beslut"
-      (135). Missa inte retentionsposten — och notera att **både** retentionslistan **och**
-      Resend-prosan i mottagaravsnittet bär **två** rader var, inte en.
+      — mottagaravsnittet (73/**74/75**) och tredjelandsavsnittet (82) är TVÅ skilda
+      sections, inte ett — retentionslistan (96/97) och "Inga automatiserade beslut"
+      (132). Missa inte retentionsposten — och notera att **både** retentionslistan **och**
+      e-postprosan i mottagaravsnittet bär **två** rader var, inte en.
+      **Värdstycket (rad 71) står INTE i den här mängden**:
+      värdraden bär sedan #1199 ingen markör och äger därför ingen flip. Den vaktas i stället
+      av `content-legal-parity.test.ts`, som pinnar att `netcup GmbH` är namngiven i båda
+      språken **och** att raden inte bär markörmeningen.
 - [ ] **5. Bumpa `privacy.updated`** ("Senast uppdaterad: YYYY-MM-DD"), båda
       språken. Skopa till **`privacy.updated`** — filen har fem `updated`-nycklar
       (privacy/terms/cookies/accessibility/recruiterNotice).
@@ -452,14 +586,20 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
       är nu falsk — **ingen** tagg öppnar registrering längre. Läst bokstavligt hade den gamla
       triggern aldrig fyrat, och de två villkoren nedan hade fallit ur tyst.)
       Den passerar **inte** §2.5: `Email:Provider` osatt (dokumenterad default) ger
-      `NullEmailSender`, och Resend-/SES-flippen kan ligga månader senare. Villkoren upphör
+      `NullEmailSender`, och SES-flippen kan ligga månader senare. Villkoren upphör
       alltså **strikt före** §2.5 någonsin läses (security-auditor 2026-07-26).
       **Grinden bärs av #734, inte av den här sidan.** Efter ADR 0083 Amendment kan flippen inte
       ske utan `RequireEmailConfirmation=true` **och** en riktig `Email:Provider`, och båda
       förutsättningarna ägs av **#734**. Villkoren (a) och (b) nedan ska därför stå som
-      **blockerande acceptanskriterier på #734** (och på **#196**, där env-konfigurationen
-      faktiskt sätts). Kan flippen inte ske utan #734, och kan #734 inte stängas utan (a) och
-      (b), då har triggern en läsare. Den här sektionen är protokollet; #734 är grinden.
+      **blockerande acceptanskriterier på #734**. Kan flippen inte ske utan #734, och kan #734 inte
+      stängas utan (a) och (b), då har triggern en läsare. Den här sektionen är protokollet; #734 är
+      grinden. *(Raden namngav till 2026-08-09 även **#196** som medägare "där env-konfigurationen
+      faktiskt sätts". #196 är **STÄNGD**, och en stängd pekare i en merge-blockerande grind läses
+      som utförd. Var env-konfigurationen sätts är mätt i stället för gissat: `deploy/docker-compose.yml`
+      och `deploy/.env.example`, båda i repot.)* ⚠ **Mätt 2026-08-09: #734 bär inget av villkoren
+      nedan**, och dess kropp namnger fortfarande Resend som levande leverantör trots ADR 0124.
+      Transkriberingen är kommenterad på #734 samma dag; om acceptanslistan ska struktureras om i
+      dess kropp är Klas beslut, liksom om flippen får ske med något villkor ouppfyllt.
       Notera också att **(a) upphör genom reparation på samma händelse**: en riktig
       `Email:Provider` är en förutsättning för flippen, och det är precis den som gör
       `ChangeEmailCommandHandler`:s `NullEmailSender`-svälj till ett minne. (a) och den tekniska
@@ -477,11 +617,67 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
       spärren inte slog till. Det är en teknisk spärr mot en osäker **kombination** — den
       ersätter inte den här grinden, som är juridisk, och den säger ingenting om (a) eller (b).
       - **(a) `settings.json` påstår ett utskick som inte sker.** Fyra publicerade strängar
-        (`:218`, `:220`, `:224`, `:229`) säger att en bekräftelselänk skickats, medan
-        `ChangeEmailCommandHandler:66` skickar ogrindat in i `NullEmailSender`: `Result.Success`,
-        auditrad stämplad, **adressen byts aldrig**, ingen väg framåt. Ägare **#1087**
-        (port-capability-predikat). Copyn får INTE mjukas upp först — det falska påståendet är
-        enda användarsynliga tecknet att flödet är trasigt. Art. 5(1)(a) + 12(1).
+        (`:218`, `:220`, `:224`, `:229`) säger att en bekräftelselänk skickas eller har skickats,
+        medan `NullEmailSender` är den levande defaulten.
+        **Kriteriet, utskrivet, eftersom uppräkningen ensam får nästa läsare att räkna fel åt andra
+        hållet:** en yta hör hit om den **påstår en leverans som sakförhållande** — tre utlovar den i
+        presens, en påstår den fullbordad. Ett grepp på verbstammen — mönstret
+        `skickar|skickat|skicka\b|sänder|sent|send|sending`, skiftlägesokänsligt, över alla
+        strängvärden under `account.changeEmail` i `messages/{sv,en}/settings.json` — ger **sex**
+        träffar per språk, men de två extra är `submit` ("Skicka bekräftelselänk",
+        imperativ som namnger den handling användaren begär) och `pending` ("Skickar…", som beskriver
+        en pågående request). **Ingen av de två falsifieras av ett svalt utskick**, och båda förblir
+        sanna under förhandsavslaget. Verbstammen är alltså en proxy för kriteriet och överskattar
+        det: skillnaden ligger i talakten, inte i ordet. *(Mätt 2026-08-09 under #1087; issuens egen
+        tabell placerade dessutom `success` på `:226`, vilket är `submit` — den här raden har haft
+        rätt uppsättning sedan tidigare.)* **Villkoret, triggern och upphörandet
+        står oförändrade; bara mekanismmeningen är omskriven, för att den blev falsk 2026-08-09
+        (#1087, PR i samma ändring som denna rad).**
+        Vad #1087 ändrade: `ChangeEmailCommandHandler` skickar inte längre ogrindat — porten bär
+        `IEmailSender.CanDeliver`, handlern vägrar i förväg med **503**
+        (`Auth.EmailDeliveryUnavailable`), ingen token mintas, och nedkylningsfönstret konsumeras
+        inte. `:229` (`success`) är därmed **onåbar** när leverans är omöjlig. **Ingen
+        `User.EmailChangeRequested`-rad skrivs — men läs varför rätt:** den gamla raden var **sann**
+        (en begäran gjordes); det falska var 202:an och flödet den antydde. Raden försvinner för att
+        flödet aldrig startar, inte för att den var ett falskt protokoll (security-auditor
+        2026-08-09). Där **själva begäran** är den säkerhetsrelevanta händelsen binder i stället
+        #842:s Art. 12(3)-opt-in, och frånvaro vore fel.
+        ⚠ **Backend-halvan är sluten, användarytan är det inte.** En 503 faller i dag igenom till
+        det generiska `changeEmailFailed`, så användaren får ingen förklaring och submit-knappen
+        lever kvar. Klientarmen är **eget blockerande villkor på den här triggern** och ägs av en
+        följd-PR i e-postlanen (senior-cto-advisor 2026-08-09). Den **måste** diskriminera på
+        ProblemDetails-**titeln**, aldrig på statusen: action-lagret får kontraktsmässigt inte läsa
+        bodyn, och rutten har minst två andra 503-producenter (`SessionStoreUnavailableException`
+        via Redis, samt en omvänd proxy) — en statusbaserad arm skriver "e-post är inte aktiverat"
+        mitt under ett driftavbrott och **maskerar incidenten**. Ingen användare kan nå tillståndet
+        före flippen, vilket är varför det är ett grindvillkor och inte en defekt i drift.
+        **Vad #1087 INTE ändrade, och därför upphör villkoret inte:** `:218`, `:220` och `:224`
+        publiceras fortfarande före handlingen och utlovar ett utskick som defaultkonfigurationen
+        inte kan göra. Villkoret upphör vid **en riktig `Email:Provider`** — samma upphörande som
+        stycket ovan redan namnger — aldrig vid att #1087 mergats.
+        **Registerkedjan hör till samma trigger och är ännu inte stängd.** Utanför
+        Development/Test **vägrar `AuthOptionsValidator` att boota** på `RegistrationsOpen=true`
+        utan `RequireEmailConfirmation` (ADR 0083 Amendment 2026-08-03) — den **sätter ingenting**,
+        så tillståndet nås av en medveten tvåflaggs-åtgärd, och varje *bootbar* öppen-registrerings-
+        konfiguration bär därmed flaggan. Med osatt `Email:Provider` går
+        aktiveringslänken då till `NullEmailSender`, `UserAccountService` spärrar inloggning på
+        `EmailConfirmed`, och återsändningen är lika tyst: **kontot skapas och blir permanent
+        onåbart.** Det är strikt värre än (a):s ursprungliga fall — ett misslyckat adressbyte
+        lämnar användaren där hon var. Åtgärden är en kompositionstids-vägran att boota på den
+        kombinationen, och den måste lösa att `AuthOptions` valideras i Api:n (bindningen med
+        `ValidateOnStart` + `AddSingleton<IValidateOptions<AuthOptions>, AuthOptionsValidator>` —
+        sök på typnamnet, radnumret skrivs medvetet inte här) men **medvetet inte i Worker:n**
+        (noten om det står i punktens eget stycke ovan) medan båda hostarna anropar
+        `AddEmailSender`.
+        **Ingen release som öppnar registrering får ske innan den grinden finns.**
+        Copyn får INTE mjukas upp först — det falska påståendet är enda användarsynliga tecknet
+        att flödet är trasigt. Art. 5(1)(a) + 12(1).
+        Ägare av residualen: **#734** (bär flippens förutsättningar) och **#183** (SES-prod-flippens
+        GDPR-grind), båda öppna och `mvp`. *(Raden namngav tidigare **#1087**, som stängs med
+        den här ändringen, och **#196**, som är **STÄNGD** sedan tidigare — en stängd pekare i en
+        merge-blockerande grind läses som utförd. Var env-konfigurationen faktiskt sätts efter att
+        #196 stängdes stod först här som en öppen fråga; den är nu **mätt** och svaret bor i
+        punktens eget stycke ovan, inte på en andra plats.)*
       - **(b) ROPA:n saknar behandling för användarkontot/autentiseringen HELT** (Art. 30(1)).
         Mätt: nio behandlingar, ingen för konto/auth. Registret är gitignorerat (ADR 0072) och
         speglar (#1040), så skyldigheten bor här. Den kristalliseras vid **produktionsstart**,
@@ -496,7 +692,7 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
         D3 *"a new purpose section under 6(1)(b)"*, dvs. vidarebehandling för ett
         nytt ändamål av redan insamlade uppgifter → **Art. 13(3) kräver
         information "prior to that further processing"**, och policyns eget löfte
-        (rad 154) säger *"Vid mer betydande ändringar informerar vi dig på lämpligt
+        (rad 151) säger *"Vid mer betydande ändringar informerar vi dig på lämpligt
         sätt"*. Formulera som förhandsbesked (*"från och med &lt;datum&gt; behandlar vi
         även …"*), aldrig som påstående om pågående drift.
       Aldrig **efter** aktiveringen i något av fallen.
@@ -505,22 +701,22 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
       Ansökningshistoriken nämns på fyra ställen (kategorilistan, retentionslistan,
       "Inga automatiserade beslut" och Art. 30-registret); SCB på tre
       (ändamålslistan, mottagarstycket — tredjelandsavsnittet nämner INTE SCB; uppräkningen
-      sa "tre" ända till 2026-07-26); **Resend på fyra** (samtyckesavsnittet, TVÅ stycken i
-      mottagaravsnittet, "Överföring till tredje land") —
-      och Resend-flippen styrs av **§2.5**, inte av taggen, så den kan mycket väl
+      sa "tre" ända till 2026-07-26); **e-postleverantören på fyra** (samtyckesavsnittet, TVÅ
+      stycken i mottagaravsnittet, "Överföring till tredje land") —
+      och e-postflippen styrs av **§2.5**, inte av taggen, så den kan mycket väl
       inte höra till releasen alls medan de andra gör det. **En
       mottagare får aldrig stå som planerad medan behandlingen som skickar till
       den står som i drift, och omvänt.** Kör inventeringsgreppet igen efter
       flippen: antalet träffar ska minska med **exakt** antalet poster releasen
       aktiverar, aldrig med fler.
-      **Rad 135 kräver särskild kontroll — den är den enda rad greppet inte
+      **Rad 132 kräver särskild kontroll — den är den enda rad greppet inte
       självskyddar.** Dess inledning (`planerar` / `plans`) matchas INTE av
       inventeringsmönstret (verifierat: 0 träffar), så raden syns bara via sin
       avslutande mening. Tas bara den bort faller raden ur greppet helt, räkne-
       testet ovan säger "minskade med exakt 1 — korrekt", och policyn påstår
       fortfarande *"Jobbliggaren planerar en översikt av din egen
       ansökningshistorik"* — mitt i avsnittet **"Inga automatiserade beslut"**,
-      dvs. i Art. 22-negationen. Läs rad 135 i sin helhet: hela stycket skrivs om
+      dvs. i Art. 22-negationen. Läs rad 132 i sin helhet: hela stycket skrivs om
       till presens, aldrig trunkeras. (Varje **annan** rad ur punkt 1:s mängd bär `(planerat)`/
       `planeras` i själva sakpåståendet och lämnar därför kvar en grepp-träff om
       flippen är ofullständig.)
@@ -574,8 +770,8 @@ sessionen. dev/rc-tags är CC-tillåtna efter grön CI.
 
 ## 4. Efter deploy (verifiering)
 
-> Hetzner-modell (ADR 0050/0066): hela stacken (API + Worker + Postgres + Redis +
-> Caddy + Next.js) kör i Docker Compose på CAX31-boxen bakom Caddy. Konkreta
+> Compose-modell (ADR 0050 `Amendment 2026-08-04`/0122): hela stacken (API + Worker + Postgres +
+> Redis + Caddy + Next.js) kör i Docker Compose på **netcup-lådan (RS 1000 G12)** bakom Caddy. Konkreta
 > service-namn/kommandon finalize:ras med **#196** (Compose-stack + proxy
 > + härdning) — stegen nedan är på modell-altitud tills dess.
 
@@ -607,7 +803,7 @@ Vid fel efter prod-deploy (Hetzner-modell, ADR 0050 "Rollback" amenderat
 2026-06-08 — AWS-stacken är riven, ADR 0066):
 
 ```bash
-# På CAX31-boxen: pinna image-taggen tillbaka till föregående release och
+# På netcup-lådan: pinna image-taggen tillbaka till föregående release och
 # re-deploya Compose-stacken. Samma image-byggväg som prod (next build / dotnet
 # publish körs i CI → enbart den byggda imagen skickas till boxen), så den lokala
 # Docker-Compose-stacken är dev/prod-paritets-baselinen vid en misslyckad cutover.

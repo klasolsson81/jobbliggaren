@@ -1,0 +1,23 @@
+[Unit]
+# #197 — drives the staleness probe (see jobbliggaren-backup-fresh.service).
+Description=Jobbliggaren: periodic check that the nightly backup is not stale
+Documentation=https://github.com/klasolsson81/jobbliggaren/blob/main/docs/runbooks/backup-restore.md
+
+[Timer]
+# Twenty minutes after boot, then hourly on the wall clock.
+#
+# OnCalendar, NOT OnUnitActiveSec, and that is correctness rather than preference:
+# OnUnitActiveSec= measures from the moment the triggered unit became ACTIVE, and a Type=oneshot
+# unit never is — it goes activating -> inactive and never passes through active (systemd#21600,
+# and the defect this repo already repaired once in jobbliggaren-secrets-present.timer). The
+# earlier spelling would neither re-fire nor clear, leaving the box's only alarm surface
+# permanently lit, which trains an operator to stop reading it.
+OnBootSec=20min
+OnCalendar=hourly
+
+# Deliberately NOT Persistent=true. "Is the backup stale right now" has no missed-run semantics;
+# a catch-up firing would only duplicate the OnBootSec run.
+AccuracySec=1min
+
+[Install]
+WantedBy=timers.target

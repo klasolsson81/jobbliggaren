@@ -16,9 +16,17 @@ namespace Jobbliggaren.Application.CompanyWatches.Jobs.BackfillCompanyWatchOrgNr
 /// <c>CompanyWatchFollowExecutor</c> seam; this closes the historical rows.
 /// <para>
 /// <b>EXECUTION IS KLAS-GATED (STOPP-5, security-auditor B5):</b> the rewrite DESTROYS the plaintext
-/// personnummer in place (irreversible — the point; the pepper is permanent/non-rotatable, R1). Run
-/// with <c>dryRun: true</c> FIRST and put the count report in front of Klas before the destructive
-/// run; never run destructively unprompted.
+/// personnummer in place (irreversible — the point). Run with <c>dryRun: true</c> FIRST and put the
+/// count report in front of Klas before the destructive run; never run destructively unprompted.
+/// </para>
+/// <para>
+/// <b>And that destruction is what makes the pepper non-rotatable — once any row exists</b>
+/// (qualified 2026-08-09, #198; R1 previously said "permanent/non-rotatable" without the
+/// condition). With the plaintext gone, an existing token cannot be recomputed under a new
+/// pepper: not expensively, but mathematically. While <c>company_watches</c> is empty the pepper
+/// is just a value and replacing it costs nothing — the window closes at the FIRST row, not at
+/// "first real data". Read the unqualified form as a prohibition on rotating away from live
+/// tokens, never as a prohibition on choosing a fresh pepper before any exist.
 /// </para>
 /// </summary>
 /// <remarks>

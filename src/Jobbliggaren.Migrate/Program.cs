@@ -45,6 +45,7 @@ using System.Text;
 using Hangfire.PostgreSql;
 using Jobbliggaren.Infrastructure.Identity;
 using Jobbliggaren.Infrastructure.Persistence;
+using Jobbliggaren.Infrastructure.Security;
 using Jobbliggaren.Migrate;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -97,6 +98,7 @@ try
         "ensure-extensions" => await RunEnsureExtensionsAsync(log, cts.Token),
         "explain-search" => await RunExplainSearchAsync(log, cts.Token),
         "schema" => await RunSchemaAsync(log, cts.Token),
+        "rewrap-master-key" => await RunRewrapMasterKeyAsync(log, cts.Token),
         _ => UsageError(log),
     };
 }
@@ -178,6 +180,67 @@ static async Task<int> RunInitAsync(ILogger log, CancellationToken ct)
 
 // ADR 0033 — Phase E. Ansluter med jobbliggaren_app-creds ur env,
 // bygger AppDbContext programmatiskt, kör Database.MigrateAsync. Idempotent.
+// #198 gate M-3 — offline master-key rotation.
+//
+// WHY IT LIVES HERE. Migrate has no DI container and builds AppDbContext through
+// MigrationsOptionsFactory, i.e. WITHOUT the field-encryption interceptors. That is exactly what
+// this operation needs: raw access to user_data_keys, no audit side-effects, and no DEK-bearing
+// aggregate materialised in a system job. It also already resolves secrets through MigrateEnv,
+// which supports the <NAME>_FILE convention the box uses.
+//
+// The dispatch takes exactly one argument (ADR 0033), so there is no --verify-only flag; the
+// verification pass is part of the run and its result is logged.
+static async Task<int> RunRewrapMasterKeyAsync(ILogger log, CancellationToken ct)
+{
+    MigrateLog.ModeRewrapMasterKey(log);
+
+    var appCs = MigrateEnv.Required("MIGRATE_APP_CONNECTION_STRING");
+    var retiringKey = MigrateEnv.Required("REWRAP_RETIRING_MASTER_KEY");
+    var incomingKey = MigrateEnv.Required("REWRAP_INCOMING_MASTER_KEY");
+    // Required, not Optional-with-a-default. Three of four inputs are already required, and this
+    // is the one where a wrong guess is a data-loss path: on a rotated box the on-disk identity
+    // file already holds the INCOMING id, so there is no on-box source for the retiring one. The
+    // runbook always passes it explicitly, so nothing breaks.
+    var retiringKeyId = MigrateEnv.Required("REWRAP_RETIRING_KEY_ID");
+    var incomingKeyId = MigrateEnv.Required("REWRAP_INCOMING_KEY_ID");
+
+    MigrateLog.RewrapStart(log, retiringKeyId, incomingKeyId);
+
+    // Both providers are constructed by hand — Migrate has no DI. Using the real provider rather
+    // than re-implementing the crypto is the point: same AAD, same layout, same fail-closed
+    // guards as production, because it is the same code.
+    var rewrapper = new MasterKeyRewrapper(
+        NewProvider(retiringKey, retiringKeyId),
+        NewProvider(incomingKey, incomingKeyId),
+        retiringKeyId,
+        incomingKeyId,
+        log);
+
+    await using var dbContext = new AppDbContext(
+        MigrationsOptionsFactory.BuildAppOptions(appCs));
+
+    var result = await rewrapper.RewrapAllAsync(dbContext, ct);
+
+    if (result.Rewrapped == 0)
+    {
+        MigrateLog.RewrapNoOp(log, retiringKeyId, result.AlreadyCurrent, incomingKeyId, result.Verified);
+        return 0;
+    }
+
+    MigrateLog.RewrapComplete(log, result.Rewrapped, result.AlreadyCurrent, result.Verified);
+    return 0;
+
+    static LocalDataKeyProvider NewProvider(string masterKeyBase64, string keyId) =>
+        new(
+            Microsoft.Extensions.Options.Options.Create(new FieldEncryptionOptions
+            {
+                Provider = "Local",
+                LocalMasterKeyBase64 = masterKeyBase64,
+                LocalMasterKeyId = keyId,
+            }),
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<LocalDataKeyProvider>.Instance);
+}
+
 static async Task<int> RunSchemaAsync(ILogger log, CancellationToken ct)
 {
     MigrateLog.ModeSchema(log);
@@ -383,27 +446,16 @@ static async Task ExecuteBootstrapSchemaAsync(NpgsqlConnection conn, string dbNa
 {
     ValidateIdentifier(dbName);
 
-    // 1. Skapa identity-schema ägt av jobbliggaren_migrations (samma pattern som hangfire).
-    await ExecuteAsync(conn,
-        $"CREATE SCHEMA IF NOT EXISTS identity AUTHORIZATION {Roles.Migrations};",
-        log, "CREATE SCHEMA identity AUTHORIZATION migrations", ct);
-
-    await ExecuteAsync(conn, "REVOKE ALL ON SCHEMA identity FROM PUBLIC;",
-        log, "Revoke PUBLIC från identity", ct);
-
-    // 2. GRANT jobbliggaren_app full DML+DDL på identity (samma pattern som public).
-    await ExecuteAsync(conn, $"GRANT USAGE, CREATE ON SCHEMA identity TO {Roles.App};",
-        log, "GRANT USAGE/CREATE på identity till app", ct);
-    await ExecuteAsync(conn, $"GRANT ALL ON ALL TABLES IN SCHEMA identity TO {Roles.App};",
-        log, "GRANT ALL på identity-tabeller till app", ct);
-    await ExecuteAsync(conn, $"GRANT ALL ON ALL SEQUENCES IN SCHEMA identity TO {Roles.App};",
-        log, "GRANT ALL på identity-sequences till app", ct);
-    await ExecuteAsync(conn,
-        $"ALTER DEFAULT PRIVILEGES IN SCHEMA identity GRANT ALL ON TABLES TO {Roles.App};",
-        log, "DEFAULT PRIVILEGES identity-tabeller -> app", ct);
-    await ExecuteAsync(conn,
-        $"ALTER DEFAULT PRIVILEGES IN SCHEMA identity GRANT ALL ON SEQUENCES TO {Roles.App};",
-        log, "DEFAULT PRIVILEGES identity-sequences -> app", ct);
+    // The SAME list `init` issues in Phase A. These seven statements used to be written out
+    // here a second time, byte-identically, differing only in the operator description on the
+    // first line — so a repair to the identity posture could land in one copy and not the
+    // other, silently. `bootstrap` runs under master credentials and `init` may not have run
+    // against this database yet, so issuing them here is not redundant; issuing a SECOND COPY
+    // of them was.
+    foreach (var statement in PhaseASchemaGrants.IdentitySchema)
+    {
+        await ExecuteAsync(conn, statement.Sql, log, statement.Description, ct);
+    }
 }
 
 // ===========================================================================
@@ -464,50 +516,17 @@ static async Task ExecutePhaseAAsync(NpgsqlConnection conn, string dbName, strin
     await ExecuteAsync(conn, $"GRANT {Roles.Worker} TO CURRENT_USER;",
         log, "GRANT worker-role TO master", ct);
 
-    // CREATE SCHEMA hangfire (om inte finns) — ägs av jobbliggaren_migrations.
-    await ExecuteAsync(conn,
-        $"CREATE SCHEMA IF NOT EXISTS hangfire AUTHORIZATION {Roles.Migrations};",
-        log, "CREATE SCHEMA hangfire", ct);
-
-    await ExecuteAsync(conn, "REVOKE ALL ON SCHEMA hangfire FROM PUBLIC;", log, "Revoke PUBLIC från hangfire", ct);
-
-    await ExecuteAsync(conn, $"GRANT USAGE, CREATE ON SCHEMA hangfire TO {Roles.Migrations};",
-        log, "GRANT USAGE/CREATE på hangfire till migrations", ct);
-
-    // GRANT på public-schema till jobbliggaren_app (full DML/DDL för EF Core-migrations app-side).
-    await ExecuteAsync(conn, $"GRANT USAGE, CREATE ON SCHEMA public TO {Roles.App};",
-        log, "GRANT USAGE/CREATE på public till app", ct);
-    await ExecuteAsync(conn, $"GRANT ALL ON ALL TABLES IN SCHEMA public TO {Roles.App};",
-        log, "GRANT ALL på public.* till app", ct);
-    await ExecuteAsync(conn, $"GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO {Roles.App};",
-        log, "GRANT ALL på public-sequences till app", ct);
-    await ExecuteAsync(conn,
-        $"ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO {Roles.App};",
-        log, "DEFAULT PRIVILEGES public-tabeller -> app", ct);
-    await ExecuteAsync(conn,
-        $"ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO {Roles.App};",
-        log, "DEFAULT PRIVILEGES public-sequences -> app", ct);
-
-    // ADR 0034 — identity-schema för AppIdentityDbContext (HasDefaultSchema("identity")).
-    // Skapas i init så nästa init-körning garanterar att schemat finns med korrekta
-    // GRANTs. Identity-migrations appliceras separat via `bootstrap`-mode med master-creds.
-    await ExecuteAsync(conn,
-        $"CREATE SCHEMA IF NOT EXISTS identity AUTHORIZATION {Roles.Migrations};",
-        log, "CREATE SCHEMA identity (ADR 0034)", ct);
-    await ExecuteAsync(conn, "REVOKE ALL ON SCHEMA identity FROM PUBLIC;",
-        log, "Revoke PUBLIC från identity", ct);
-    await ExecuteAsync(conn, $"GRANT USAGE, CREATE ON SCHEMA identity TO {Roles.App};",
-        log, "GRANT USAGE/CREATE på identity till app", ct);
-    await ExecuteAsync(conn, $"GRANT ALL ON ALL TABLES IN SCHEMA identity TO {Roles.App};",
-        log, "GRANT ALL på identity-tabeller till app", ct);
-    await ExecuteAsync(conn, $"GRANT ALL ON ALL SEQUENCES IN SCHEMA identity TO {Roles.App};",
-        log, "GRANT ALL på identity-sequences till app", ct);
-    await ExecuteAsync(conn,
-        $"ALTER DEFAULT PRIVILEGES IN SCHEMA identity GRANT ALL ON TABLES TO {Roles.App};",
-        log, "DEFAULT PRIVILEGES identity-tabeller -> app", ct);
-    await ExecuteAsync(conn,
-        $"ALTER DEFAULT PRIVILEGES IN SCHEMA identity GRANT ALL ON SEQUENCES TO {Roles.App};",
-        log, "DEFAULT PRIVILEGES identity-sequences -> app", ct);
+    // The schema-level privilege model lives in PhaseASchemaGrants for the same reason the
+    // database-level one lives in PhaseADatabaseGrants: as bare awaits it was unreachable from
+    // any test assembly, so the migration oracle could not see the 42501 the `public` block
+    // repairs (#1232). `identity` is the same list `bootstrap` mode issues — one property, two
+    // callers, instead of two byte-identical copies that a repair could land in half of.
+    foreach (var statement in PhaseASchemaGrants.HangfireSchema
+        .Concat(PhaseASchemaGrants.PublicSchema)
+        .Concat(PhaseASchemaGrants.IdentitySchema))
+    {
+        await ExecuteAsync(conn, statement.Sql, log, statement.Description, ct);
+    }
 }
 
 static async Task ExecutePhaseCAsync(NpgsqlConnection conn, ILogger log, CancellationToken ct)

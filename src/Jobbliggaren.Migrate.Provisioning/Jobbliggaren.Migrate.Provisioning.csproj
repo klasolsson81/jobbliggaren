@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The Phase A privilege model (ADR 0034), as a library rather than as statements inside a
+    console Exe's top-level program.
+
+    WHY IT IS ITS OWN PROJECT AND NOT `InternalsVisibleTo` ON `Jobbliggaren.Migrate`.
+    Three assemblies need this model: `Jobbliggaren.Migrate` executes it,
+    `Jobbliggaren.Migrate.UnitTests` pins it, and `Jobbliggaren.Api.IntegrationTests`
+    provisions a test database with it so the migration oracle runs under the same privilege
+    posture production does (#1232). IVT is the escape hatch for a test peeking at internals;
+    it is not the mechanism for three assemblies sharing a model, and `Jobbliggaren.Migrate`
+    is a composition root (CLAUDE.md §2.1) rather than a library to reference.
+
+    There is also a concrete compile hazard on the IVT route. Both `Jobbliggaren.Api` and
+    `Jobbliggaren.Migrate` use top-level statements, so both generate a `Program` type in the
+    global namespace. `Jobbliggaren.Api.IntegrationTests` names `WebApplicationFactory<Program>`
+    unqualified in 11 files; granting it IVT to Migrate would make a second `Program`
+    accessible there, which is CS0433. Neither existing consumer exercises that combination —
+    `Migrate.UnitTests` does not reference Api, and `Architecture.Tests` references both but
+    holds no IVT.
+
+    NO PACKAGE REFERENCES ON PURPOSE. These types emit SQL text; they never execute it. Npgsql
+    stays in `Jobbliggaren.Migrate`, which owns connections and logging.
+  -->
+
+  <PropertyGroup>
+    <RootNamespace>Jobbliggaren.Migrate</RootNamespace>
+    <AssemblyName>Jobbliggaren.Migrate.Provisioning</AssemblyName>
+  </PropertyGroup>
+
+</Project>

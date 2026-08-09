@@ -17,6 +17,7 @@ using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Infrastructure;
 using Jobbliggaren.Infrastructure.Auth;
 using Jobbliggaren.Infrastructure.Auth.Sessions;
+using Jobbliggaren.Infrastructure.Configuration;
 using Jobbliggaren.Infrastructure.Logging;
 using Jobbliggaren.Infrastructure.Persistence;
 using Mediator;
@@ -37,6 +38,12 @@ var builder = WebApplication.CreateBuilder(args);
 builder.WebHost.ConfigureKestrel(options => options.Limits.MaxRequestBodySize = 16L * 1024 * 1024);
 
 builder.Configuration.AddJsonFile("appsettings.Local.json", optional: true, reloadOnChange: false);
+
+// #198 / ADR 0050 gate B-1 — secrets arrive as FILES on a RAM-backed mount, never as container
+// environment values (Docker persists those to disk in its own container state). LAST source,
+// deliberately: on the box the file is the authority. Inert in dev — with no *_FILE variables
+// set it contributes zero keys, so appsettings.Local.json keeps working unchanged.
+builder.Configuration.AddEnvFileSecrets();
 
 // TD-104 / STEG 6 — persistent strukturerad logg-sink (MEL → Seq, config-gated på
 // Seq:ServerUrl). Delad extension med Worker så sink-konfig inte driftar mellan hosts.

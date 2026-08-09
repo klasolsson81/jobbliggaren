@@ -58,11 +58,20 @@ namespace Jobbliggaren.Infrastructure.Email;
 /// <c>AuthOptionsValidator</c> now refuses to boot outside Development/Test when registrations are
 /// open and the registered sender answers <see cref="CanDeliver"/> false — which is this class.
 /// The handler is unchanged and needs no <see cref="CanDeliver"/> branch of its own: the
-/// configuration that would strand a registrant no longer starts, so the state is unreachable rather
-/// than handled. What the guard does NOT cover, stated so it is not assumed away: it keys on
-/// <c>RegistrationsOpen</c>, so a host with registrations CLOSED boots clean with this sender, and an
-/// account registered earlier under a delivering provider and still unconfirmed keeps the silent
-/// resend path in the next bullet.</item>
+/// configuration that would strand a registrant no longer starts, so <b>for this producer</b> the
+/// state is unreachable rather than handled. What the guard does NOT cover, stated so the scope is
+/// not read wider than it is: (1) it keys on <c>RegistrationsOpen</c>, so a host with registrations
+/// CLOSED boots clean with this sender; (2) an account registered earlier under a delivering
+/// provider and still unconfirmed keeps the silent resend path in the next bullet; (3) the allowlist
+/// exempts Development and <b>Test</b>, and a reachable <c>ASPNETCORE_ENVIRONMENT=Test</c> host
+/// strands registrants exactly as before — <c>release-checklist.md</c> §2.6 point 5.5 counts such a
+/// host as a production start and gates it legally, which the technical guard does not; (4) the
+/// guard reads a CAPABILITY, not a delivery probe, so a sender answering
+/// <see cref="CanDeliver"/> <see langword="true"/> that is nonetheless rejected downstream produces
+/// the same stranded account — <c>SesEmailSender</c> answers <see langword="true"/>
+/// unconditionally, and the domain publishes DMARC <c>p=reject</c> without <c>rua=</c> (measured
+/// 2026-08-08, ADR 0124, cited in <c>AddEmailSender</c>'s SES arm), so a From address outside the
+/// verified identity fails silently. Case 4 is owned by #183/#734, never by this gate.</item>
 /// <item><c>ResendEmailConfirmationCommandHandler</c> — same stranding, and it must keep returning
 /// a uniform 202 for anti-enumeration reasons, so it cannot signal the failure to the caller at
 /// all. It no longer writes a <c>User.EmailConfirmationResent</c> audit row for a link that reached

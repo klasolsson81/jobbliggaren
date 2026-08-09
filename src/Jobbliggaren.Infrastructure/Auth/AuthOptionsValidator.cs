@@ -21,9 +21,6 @@ namespace Jobbliggaren.Infrastructure.Auth;
 /// Added 2026-08-09 as senior-cto-advisor's D1, the composition-time boot refusal
 /// <c>NullEmailSender</c>'s own contract names as its owner.</item>
 /// </list>
-/// Rule 2 is strictly worse than rule 1's original case, which is why it is a boot refusal too: a
-/// failed email change leaves the user where she was, while this strands her outside an account that
-/// exists.
 /// <para>
 /// Why controls rather than comments: both combinations were documented and unenforced, and
 /// repairing that with more documentation would reproduce its mechanism.
@@ -49,9 +46,14 @@ namespace Jobbliggaren.Infrastructure.Auth;
 /// </para>
 /// <para>
 /// <b>Why the dependency resolves here and why the Worker is untouched.</b> This validator is
-/// registered in <c>AddIdentityAndSessions</c>, whose only caller is <c>AddInfrastructure</c>, which
-/// also calls <c>AddEmailSender</c> — so wherever this type resolves, an <see cref="IEmailSender"/>
-/// does. The Worker calls <c>AddEmailSender</c> too but composes identity through
+/// registered in <c>AddIdentityAndSessions</c>, which is reached only through a composition that
+/// also calls <c>AddEmailSender</c>, so wherever this type resolves, an <see cref="IEmailSender"/>
+/// does — and where that ever stops being true it fails LOUD, on an unresolvable constructor
+/// argument at boot, never on a silently open gate. <c>ProductionStartupSmokeTests</c> boots a real
+/// Production host with the real <c>NullEmailSender</c>, so the construction is pinned rather than
+/// argued. Re-measure the composition with:
+/// <c>grep -rn "AddIdentityAndSessions" --include=*.cs src/ tests/</c>.
+/// The Worker calls <c>AddEmailSender</c> too but composes identity through
 /// <c>AddCoreIdentityForWorker</c>, which binds the same <c>Auth</c> section with a plain
 /// <c>Configure</c> and registers no validator. That asymmetry is deliberate and is preserved here:
 /// the Worker owns no registration surface, so a shared env file must not take it down for a
@@ -85,8 +87,8 @@ internal sealed class AuthOptionsValidator(IHostEnvironment environment, IEmailS
         if (options.RegistrationsOpen && options.RequireEmailConfirmation && !emailSender.CanDeliver)
         {
             return ValidateOptionsResult.Fail(
-                $"Auth:RegistrationsOpen=true med Auth:RequireEmailConfirmation=true kräver en "
-                + $"Email:Provider som faktiskt levererar utanför Development/Test (aktuell miljö: "
+                "Auth:RegistrationsOpen=true med Auth:RequireEmailConfirmation=true kräver en "
+                + "Email:Provider som faktiskt levererar utanför Development/Test (aktuell miljö: "
                 + $"{environment.EnvironmentName}; registrerad avsändare: "
                 + $"{emailSender.GetType().Name}). Utan leverans skapas kontot, inloggningen spärras "
                 + "på EmailConfirmed och aktiveringslänken når ingen — kontot blir permanent onåbart, "

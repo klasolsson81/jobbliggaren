@@ -39,8 +39,9 @@ public class AuthOptionsValidatorTests
     /// <summary>
     /// A sender that delivers. Rule 2 keys on <see cref="IEmailSender.CanDeliver"/>, so every case
     /// that is NOT about delivery has to hold it fixed at the value the real delivering adapters
-    /// emit (<c>SesEmailSender</c> and <c>ConsoleEmailSender</c> both answer <see langword="true"/>);
-    /// otherwise a rule-1 assertion could pass for rule 2's reason.
+    /// emit; otherwise a rule-1 assertion could pass for rule 2's reason. That the real adapters do
+    /// emit <see langword="true"/> is pinned elsewhere and not restated here —
+    /// <c>AddEmailSenderGateTests.AddEmailSender_InDevelopmentOrTest_CanDeliver</c> owns it.
     /// </summary>
     private static IEmailSender DeliveringSender()
     {
@@ -83,8 +84,10 @@ public class AuthOptionsValidatorTests
         result.Failed.ShouldBeTrue();
         result.FailureMessage.ShouldContain("#734");
         result.FailureMessage.ShouldContain(environmentName);
-        // Rule 1's own hazard, so a passing assertion cannot be rule 2 firing under a different name.
-        result.FailureMessage.ShouldContain("Auth:RequireEmailConfirmation=true");
+        // Rule 1's remedy key, in ENV-VAR form with the double underscore. The colon form
+        // ("Auth:RequireEmailConfirmation=true") is a substring of rule 2's message too, so it
+        // cannot tell the two apart; this one appears in rule 1's message and nowhere else.
+        result.FailureMessage.ShouldContain("Auth__RequireEmailConfirmation=true");
     }
 
     [Theory]
@@ -108,7 +111,7 @@ public class AuthOptionsValidatorTests
     }
 
     [Fact]
-    public void The_delivery_rule_is_a_choice_not_the_only_outcome()
+    public void Open_with_confirmation_refuses_when_the_sender_cannot_deliver_and_boots_when_it_can()
     {
         // The crossing counterfactual for the theory above, in ONE test so a later tidy-up cannot
         // separate the control from the arm that gives it meaning. Same environment, same flags,
@@ -133,7 +136,8 @@ public class AuthOptionsValidatorTests
     {
         // Fires in ONE direction. The fail-safe default (both false, i.e. an absent Auth section) must
         // still boot clean — a guard that also broke the safe state would have replaced one outage
-        // class with another. The sender delivers here; the non-delivering half is the theory below.
+        // class with another. The sender delivers here; the closed-registration rows' non-delivering
+        // half is the theory below, and (true, true)'s is the crossing pair above.
         ValidatorFor("Production").Validate(null, Options(open, confirm)).Succeeded.ShouldBeTrue();
     }
 
@@ -143,9 +147,10 @@ public class AuthOptionsValidatorTests
     public void Closed_registration_boots_in_Production_even_when_nothing_can_be_delivered(
         bool confirm)
     {
-        // Rule 2 keys on RegistrationsOpen, and that is the deployed posture right now: the VPS runs
-        // with registrations CLOSED and Email:Provider unset. A rule that also refused here would
-        // have taken production down to prevent a state production cannot reach.
+        // Rule 2 keys on RegistrationsOpen, and the committed default composes exactly this pair:
+        // Email:Provider is unset in every appsettings*.json, so NullEmailSender is what a deployed
+        // host gets, with registrations closed by AuthOptions' fail-safe default. A rule that also
+        // refused here would have taken that host down to prevent a state it cannot reach.
         ValidatorFor("Production", NonDeliveringSender())
             .Validate(null, Options(open: false, confirm))
             .Succeeded.ShouldBeTrue();
@@ -167,9 +172,12 @@ public class AuthOptionsValidatorTests
     [InlineData("Test")]
     public void The_stranding_combination_is_exempt_in_Development_and_Test(string environmentName)
     {
-        // Same allowlist, second rule. Development composes ConsoleEmailSender (which DOES deliver),
-        // so this exemption is about the predicate's shape rather than a configuration dev reaches:
-        // it must not be possible to take the local stack down by hand-setting Email:Provider.
+        // Same allowlist, second rule. No composition produces the pair (Development,
+        // non-delivering sender): AddEmailSender's Null fallback is gated on !Dev && !Test, the Ses
+        // arm yields a sender that delivers or throws at registration, and every other value throws
+        // (AddEmailSenderGateTests.AddEmailSender_InDevelopmentOrTest_CanDeliver measures it). The
+        // pair is therefore declared unreachable, and what this pins is the predicate's ORDER: the
+        // allowlist short-circuits BEFORE rule 2, so swapping the two checks turns this red.
         ValidatorFor(environmentName, NonDeliveringSender())
             .Validate(null, Options(open: true, confirm: true))
             .Succeeded.ShouldBeTrue();
@@ -179,8 +187,17 @@ public class AuthOptionsValidatorTests
     /// The Api/Worker asymmetry, pinned at the call site rather than only in the rule. Both hosts call
     /// <c>AddEmailSender</c>, but only the Api composes a validator over <c>AuthOptions</c> — the
     /// Worker owns no registration surface, so a shared env file must not take it down for a condition
-    /// it cannot exercise. Without these two, the natural "helpful" edit (move the check into the
-    /// shared email seam, or bind the validator in the Worker for parity) lands green.
+    /// it cannot exercise. Without these, the natural "helpful" edit (bind the validator in the Worker
+    /// for parity, or move the check into the shared email seam) lands green.
+    /// <para>
+    /// All three run the same instrument over the same configuration and differ only in which
+    /// composition method is called, so the two absences are a MEASUREMENT rather than two silences
+    /// beside a differently-measured presence. Note what the shape does and does not catch: asserting
+    /// on the registered <c>ServiceType</c> catches a validator placed in either seam, and the
+    /// dangerous flags are present so an inline <c>throw</c> in <c>AddEmailSender</c> — that file's own
+    /// idiom in the Ses arm — would surface as an exception rather than as a failed assertion. A check
+    /// that neither registers nor throws would pass.
+    /// </para>
     /// </summary>
     public class TheWorkerIsNotSubjectToTheGate
     {
@@ -188,12 +205,26 @@ public class AuthOptionsValidatorTests
             new ConfigurationBuilder()
                 .AddInMemoryCollection(new Dictionary<string, string?>
                 {
-                    // AddCoreIdentityForWorker reads this at registration time and throws without it.
+                    // Both composition methods read these at registration time and throw without them.
                     ["ConnectionStrings:Postgres"] = "Host=localhost;Database=jobbliggaren;Username=x;Password=y",
+                    ["ConnectionStrings:Redis"] = "localhost:6379",
                     [$"{AuthOptions.SectionName}:{nameof(AuthOptions.RegistrationsOpen)}"] = "true",
                     [$"{AuthOptions.SectionName}:{nameof(AuthOptions.RequireEmailConfirmation)}"] = "true",
                 })
                 .Build();
+
+        [Fact]
+        public void AddIdentityAndSessions_registers_the_validator_for_AuthOptions()
+        {
+            // The control the two absences below are measured against: same instrument, same
+            // configuration, opposite outcome. Without it they would pass just as happily against a
+            // build where nothing anywhere registers the validator.
+            var services = new ServiceCollection();
+
+            services.AddIdentityAndSessions(ConfigurationWithTheDangerousFlags());
+
+            services.ShouldContain(d => d.ServiceType == typeof(IValidateOptions<AuthOptions>));
+        }
 
         [Fact]
         public void AddCoreIdentityForWorker_registers_no_validator_for_AuthOptions()

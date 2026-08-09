@@ -14,13 +14,22 @@ namespace Jobbliggaren.Infrastructure.Email;
 /// (Amazon SES v2, eu-north-1, ADR 0124). This sender is what an UNSET Email:Provider
 /// resolves to outside Development/Test, which is the live default today.
 ///
-/// Suppression is logged at Debug WITHOUT any recipient/token so ops can see that mail
-/// is being dropped without leaking PII. <b>The level is uniform across all six kinds, and
-/// that is currently unexamined rather than decided</b> — a dropped ASVS V2.5 old-address
-/// security notice and a dropped background-match notification are the same Debug line.
-/// dotnet-architect raised the split as Nice-to-have (2026-08-09) and routed the question
-/// of whether dropping the security notice is acceptable at all to security-auditor; the
-/// level follows her verdict, not this comment.
+/// Suppression is logged WITHOUT any recipient/token, and the level is split by consequence:
+/// <b>Warning</b> for the four account-lifecycle kinds, <b>Debug</b> for the two notification
+/// kinds. security-auditor's minimum named three (<c>email-confirmation</c>,
+/// <c>email-changed-notification</c>, <c>account-exists-notice</c>);
+/// <c>email-change-confirmation</c> is raised with them for a different reason, stated because it
+/// is a deviation from her spec — it is now UNREACHABLE through this sender, since its only caller
+/// refuses first, so an occurrence means the gate was bypassed and is more alarming, not less.
+/// Until 2026-08-09 all six were Debug, which
+/// security-auditor measured as emitting <b>nowhere</b>: <c>Logging:LogLevel:Default</c> is
+/// <c>Information</c> in every committed <c>appsettings*.json</c> for both hosts, <c>deploy/</c>
+/// sets no override, and this class is registered ONLY outside Development/Test — so the floor,
+/// not the uniformity, was the binding constraint, and the sentence claiming ops could see the
+/// drop was false in every configuration where the class exists.
+/// <b>The payload stays kind-only.</b> Warning reaches a durable sink, so a recipient or token
+/// added here later "for debuggability" becomes durable PII (CLAUDE.md §11, #1208). The level is
+/// the change; the shape is the invariant.
 ///
 /// <para>
 /// <b>Whom this is a valid substitute for, and whom it is NOT (#1087, AC 6).</b>
@@ -46,8 +55,10 @@ namespace Jobbliggaren.Infrastructure.Email;
 /// <c>Auth:RequireEmailConfirmation</c> is on. <b>This one is still open and is the worse
 /// case:</b> the account is created, login is blocked by the <c>EmailConfirmed</c> gate, and the
 /// activation link exists nowhere — a permanently unreachable account. The combination is
-/// reachable, not hypothetical: <c>AuthOptionsValidator</c> forces that flag on whenever
-/// <c>Auth:RegistrationsOpen</c> is true outside Development/Test. Owned by the composition-time
+/// reachable, not hypothetical: <c>AuthOptionsValidator</c> REFUSES TO BOOT on
+/// <c>Auth:RegistrationsOpen</c> without that flag outside Development/Test — it sets nothing, so
+/// reaching this state needs a deliberate two-flag action with the provider still unset, and every
+/// bootable open-registration configuration therefore has the flag on. Owned by the composition-time
 /// boot guard (senior-cto-advisor D1, 2026-08-09), and anchored as a condition on
 /// <c>release-checklist.md</c> §2.6 point 5.5 rather than left in an issue body — the trigger there
 /// is already exactly that configuration.</item>
@@ -57,13 +68,20 @@ namespace Jobbliggaren.Infrastructure.Email;
 /// nobody.</item>
 /// <item><c>ConfirmEmailChangeCommandHandler</c>'s old-address notice — an OWASP ASVS V2.5 /
 /// NIST SP 800-63B breach-detection control. Deliberately NOT refused (that would fail a completed,
-/// legitimate change), so with this sender the control is silently off. Whether that is acceptable
-/// is <c>security-auditor</c>'s call, not this comment's.</item>
+/// legitimate change), so with this sender the control is silently off. <b>security-auditor ruled
+/// that acceptable on 2026-08-09, on trigger-unreachability rather than on a launch condition:</b>
+/// the only mint site (<c>ChangeEmailCommandHandler</c>) is now behind <see cref="CanDeliver"/>, so
+/// while this sender is registered no token can exist and the event the control detects cannot
+/// occur. Control and guarded flow go dark together, and both return when the provider is set —
+/// no checklist item, nothing to remember. Residual, stated so it is not rediscovered: a token
+/// minted under a capable sender and confirmed after an operator swaps to this one, bounded by the
+/// 24h token lifespan, with C6 logout-everywhere as the previous owner's crude remaining signal.</item>
 /// </list>
 /// </para>
 /// <para>
 /// <b>One consequence for the notification callers, stated rather than left to be discovered.</b>
-/// <c>BackgroundMatchingJob</c> calls <c>match.MarkSent(clock)</c> after this sender returns, so
+/// All three call <c>MarkSent(clock)</c> after this sender returns — <c>BackgroundMatchingJob</c>,
+/// and <c>DigestDispatchJob</c> on both its match and its followed-company path — so
 /// the claim-then-send spine records rows as <c>Sent</c> for mail that was never sent. That is
 /// deliberate and defensible — the port call did succeed, and the state machine tracks DISPATCH,
 /// not delivery — but a reader of <c>NotificationStatus.Sent</c> should know it does not mean an
@@ -83,7 +101,7 @@ public sealed partial class NullEmailSender(ILogger<NullEmailSender> logger) : I
         MatchNotificationEmail content,
         CancellationToken cancellationToken)
     {
-        LogSuppressed("match-notification");
+        LogSuppressedNotification("match-notification");
         return Task.CompletedTask;
     }
 
@@ -92,7 +110,7 @@ public sealed partial class NullEmailSender(ILogger<NullEmailSender> logger) : I
         FollowedCompanyNotificationEmail content,
         CancellationToken cancellationToken)
     {
-        LogSuppressed("followed-company-notification");
+        LogSuppressedNotification("followed-company-notification");
         return Task.CompletedTask;
     }
 
@@ -101,7 +119,7 @@ public sealed partial class NullEmailSender(ILogger<NullEmailSender> logger) : I
         EmailChangeConfirmationEmail content,
         CancellationToken cancellationToken)
     {
-        LogSuppressed("email-change-confirmation");
+        LogSuppressedConsequential("email-change-confirmation");
         return Task.CompletedTask;
     }
 
@@ -109,7 +127,7 @@ public sealed partial class NullEmailSender(ILogger<NullEmailSender> logger) : I
         string toEmail,
         CancellationToken cancellationToken)
     {
-        LogSuppressed("email-changed-notification");
+        LogSuppressedConsequential("email-changed-notification");
         return Task.CompletedTask;
     }
 
@@ -118,7 +136,7 @@ public sealed partial class NullEmailSender(ILogger<NullEmailSender> logger) : I
         EmailConfirmationEmail content,
         CancellationToken cancellationToken)
     {
-        LogSuppressed("email-confirmation");
+        LogSuppressedConsequential("email-confirmation");
         return Task.CompletedTask;
     }
 
@@ -126,11 +144,26 @@ public sealed partial class NullEmailSender(ILogger<NullEmailSender> logger) : I
         string toEmail,
         CancellationToken cancellationToken)
     {
-        LogSuppressed("account-exists-notice");
+        LogSuppressedConsequential("account-exists-notice");
         return Task.CompletedTask;
     }
 
+    /// <summary>
+    /// A dropped convenience. Debug is correct here and is NOT the defect security-auditor measured:
+    /// nobody is stranded or blinded by a missed notification, so this one may stay below the floor.
+    /// </summary>
     [LoggerMessage(3002, LogLevel.Debug,
         "[NullEmailSender] {EmailKind} email suppressed — no transactional provider configured")]
-    private partial void LogSuppressed(string emailKind);
+    private partial void LogSuppressedNotification(string emailKind);
+
+    /// <summary>
+    /// A drop that strands a person or blinds a security control. Warning, because the whole point
+    /// is that an operator sees it, and Debug is filtered out in every environment where this class
+    /// is registered. <b>Kind only — never a recipient, address or token</b>: this level reaches a
+    /// durable sink (CLAUDE.md §11, #1208).
+    /// </summary>
+    [LoggerMessage(3007, LogLevel.Warning,
+        "[NullEmailSender] {EmailKind} email suppressed — no transactional provider configured; "
+        + "this send was required for the caller to complete")]
+    private partial void LogSuppressedConsequential(string emailKind);
 }

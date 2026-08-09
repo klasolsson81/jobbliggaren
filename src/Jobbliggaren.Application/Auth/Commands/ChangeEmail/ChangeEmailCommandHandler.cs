@@ -34,9 +34,14 @@ public sealed class ChangeEmailCommandHandler(
         // Placed ahead of the cooldown deliberately: this is a static server condition that reads no
         // request input, so burning the actor's 60s anti-email-bomb window on a request the server
         // could never fulfil would punish the user for our configuration. Ahead of the token mint for
-        // the same reason — no credential is minted for a request that cannot complete (AC 3: with no
-        // Success there is no audit row either, since AuditBehavior stamps only on Result.Success, so
-        // no change is needed there).
+        // the same reason — no credential is minted for a request that cannot complete.
+        //
+        // No User.EmailChangeRequested row follows, because AuditBehavior stamps only on
+        // Result.Success. Note precisely what that removes: the OLD row was TRUE — a request WAS
+        // made — and what was false was the 202 and the flow it implied. The row goes because the
+        // flow never starts, not because it was a false record (security-auditor 2026-08-09). The
+        // distinction matters for the next reader: where the REQUEST itself is the security-relevant
+        // event, #842's Art. 12(3) AuditFailures opt-in binds and absence would be wrong.
         //
         // The capability is asked of the PORT, never of the environment: Application has no
         // Microsoft.Extensions.Hosting reference and an IHostEnvironment branch here would not

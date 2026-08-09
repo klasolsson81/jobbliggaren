@@ -293,5 +293,20 @@ public class ChangeEmailTests(ApiFactory factory)
             .StatusCode.ShouldBe(HttpStatusCode.Accepted);
         _factory.Emails.Sent.ShouldContain(e =>
             e.ToEmail == newEmail && e.Kind == RecordedEmailKind.EmailChangeConfirmation);
+
+        // The audit count's positive sister. Without it the == 0 above is a negated assertion whose
+        // pattern nothing crosses: a handler that never audits at all would satisfy it.
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+            var user = await userManager.FindByEmailAsync(email);
+            user.ShouldNotBeNull();
+
+            (await db.AuditLogEntries
+                .AsNoTracking()
+                .CountAsync(e => e.UserId == user.Id && e.EventType == "User.EmailChangeRequested", ct))
+                .ShouldBe(1, "the accepted request writes exactly the row the refused one withheld");
+        }
     }
 }

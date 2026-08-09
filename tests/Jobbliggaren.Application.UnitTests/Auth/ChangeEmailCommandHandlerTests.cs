@@ -55,7 +55,9 @@ public class ChangeEmailCommandHandlerTests
         // MEASURED, because the size of that hazard was itself asserted wrongly and the difference
         // matters. dotnet-architect (2026-08-09) graded it Viktigt on the premise that the five
         // DidNotReceive() assertions "would ALL still pass", silently repurposed. Run against this
-        // fixture with the line removed, 6 of 12 FAIL: four on result.Error.Code (each test pins its own
+        // fixture with the line removed, 6 of the 12 cases that existed when he measured FAIL —
+        // the denominator is the pre-#1087 fixture, not this file, which now has 14: four on
+        // result.Error.Code (each test pins its own
         // cause — UserNotFound, ChangeEmailCooldown ×2, EmailTaken), one on result.IsSuccess, one on the
         // ordering case's success assertion. None of them went quietly. The remedy below is still
         // required; what is NOT true is that this fixture would have hidden the change. It does not rely
@@ -290,10 +292,9 @@ public class ChangeEmailCommandHandlerTests
         await _emailSender.DidNotReceive().SendEmailChangeConfirmationAsync(
             Arg.Any<string>(), Arg.Any<EmailChangeConfirmationEmail>(), Arg.Any<CancellationToken>());
 
-        // AC 3: no audit row. AuditBehavior stamps only on Result.Success, so the refusal discharges
-        // this by construction — pinned here so a later change to that behavior is caught at the site
-        // that depends on it, not only where the behavior lives.
-        result.IsSuccess.ShouldBeFalse();
+        // AC 3 (no audit row) is NOT pinned here and cannot be: AuditBehavior is not in this
+        // fixture, so no assertion at this level can observe it. The real pin is
+        // ChangeEmailTests.POST_change_email_returns_503_..., which counts the rows.
 
         // The actor's 60s anti-email-bomb window is NOT consumed: the gate reads no request input and
         // runs ahead of the cooldown, so a server-side misconfiguration cannot rate-limit the user out

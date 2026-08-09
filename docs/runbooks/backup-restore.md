@@ -112,7 +112,7 @@ sudo chmod 0755      /opt/jobbliggaren/deploy/backup
 sudo chmod 0444      /opt/jobbliggaren/deploy/backup/age.recipient
 stat -c '%a %U:%G' /opt/jobbliggaren/deploy/backup /opt/jobbliggaren/deploy/backup/age.recipient
 #    expect: 755 root:root   then   444 root:root
-grep -qx age1vrkznkydenf372h8a5fs3hnkclxsq4ul903yg4e67knn7pvy74hqhckruz   /opt/jobbliggaren/deploy/backup/age.recipient \n  && echo RECIPIENT-OK || echo RECIPIENT-MISMATCH   # silence is not a result
+grep -qx age1vrkznkydenf372h8a5fs3hnkclxsq4ul903yg4e67knn7pvy74hqhckruz /opt/jobbliggaren/deploy/backup/age.recipient && echo RECIPIENT-OK || echo RECIPIENT-MISMATCH   # silence is not a result
 
 # 4. The units.
 sudo install -m 0644 /opt/jobbliggaren/deploy/systemd/jobbliggaren-backup*.{service,timer} \

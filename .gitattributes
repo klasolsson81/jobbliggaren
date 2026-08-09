@@ -24,3 +24,15 @@ src/Jobbliggaren.Infrastructure/TextAnalysis/english.stop -text
 # fail-closed, so the damage would be an invisible "always disarm" rather than a
 # loud break — which is exactly why the endings are pinned instead of trusted (#836).
 .github/scripts/*.sh text eol=lf
+
+# And the same rule for everything the BOX runs. These were unpinned until #198 — which held
+# only because the box clones on Linux, where core.autocrlf defaults to false, so the working
+# tree happened to get LF. That is a property of the checkout host, not a guarantee: a `\r`
+# reaches systemd as part of the interpreter path and the unit dies with
+# "bad interpreter: /usr/bin/env bash^M". Pre-existing gap, repaired here because #198 adds
+# more files to the same directory rather than because it caused it.
+#
+# The whole directory, not just *.sh: the identical `\r` in an `ExecStart=` line or in a
+# tmpfiles.d `d` line is the same failure, and the argument for pinning scripts never had a
+# reason to stop at the file extension.
+deploy/systemd/* text eol=lf

@@ -32,6 +32,14 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\Jobbliggaren.Api\Jobbliggaren.Api.csproj" />
     <ProjectReference Include="..\..\src\Jobbliggaren.Infrastructure\Jobbliggaren.Infrastructure.csproj" />
+    <!-- #1232 — JobAdBrowsePlanFixture provisions its database with the SAME Phase A statements
+         production issues, so the migration oracle runs under production's privilege posture
+         instead of as the Testcontainers superuser. Deliberately NOT a reference to
+         Jobbliggaren.Migrate itself: that project has top-level statements, so referencing it
+         with InternalsVisibleTo would put a second `Program` in the global namespace alongside
+         Api's, and this assembly names WebApplicationFactory<Program> unqualified in 11 files
+         (CS0433). -->
+    <ProjectReference Include="..\..\src\Jobbliggaren.Migrate.Provisioning\Jobbliggaren.Migrate.Provisioning.csproj" />
   </ItemGroup>
 
   <!-- #841 - shared JobAdFacets test builder (tests/Shared). Linked rather than duplicated:
@@ -41,5 +49,9 @@
     <Compile Include="..\Shared\TestFacets.cs" Link="Shared\TestFacets.cs" />
     <Compile Include="..\Shared\TestKeywordExtraction.cs" Link="Shared\TestKeywordExtraction.cs" />
     <Compile Include="..\Shared\TestIds.cs" Link="Shared\TestIds.cs" />
+    <!-- #1232 — Phase A provisioning for the migration oracle. Linked rather than duplicated so
+         the Worker suite's CompanyRegisterPlanFixture can adopt the same posture without a
+         second copy. -->
+    <Compile Include="..\Shared\TestDatabaseProvisioner.cs" Link="Shared\TestDatabaseProvisioner.cs" />
   </ItemGroup>
 </Project>

@@ -689,16 +689,30 @@ ADR per ADR 0072 docs-privacy).
 **Netcup RS 1000 G12** — x86 (AMD EPYC 9645), 4 **dedikerade** kärnor, **8 GB** DDR5 ECC,
 256 GB NVMe, Debian 13, **Nürnberg**. Ersätter Hetzner CAX31 (ARM, 16 GB).
 
-**Residensen är mätt så långt RIPE når:** `netname DE-NETCUP-KVM`, `country DE`,
-geolokalisering Nürnberg (2026-08-03) ⇒ värdbenet är EU-resident, så **ingen
-Kap. V-överföring införs** av värdbytet. *(Var precis om bevisstyrkan: `country:` och
-`netname:` är registreringsattribut som LIR:en själv sätter och bevisar inte fysisk
-DC-placering — slutsatsen bärs av Netcup som tyskt bolag plus vald lokation. Netcups
-ägarstruktur och underbiträdeskedja är **omätt** och ägs av #1199:s DPA-arbete.)*
-Detta **fullgör inte Art. 28**: ett signerat biträdesavtal med **Netcup** måste finnas
-före första riktiga användardata, det är **Klas att teckna, aldrig CC**, och den
-publicerade policyn namnger fortfarande Hetzner — det ägs av
-[#1199](https://github.com/klasolsson81/jobbliggaren/issues/1199) och grindar första datan.
+**Residensen är mätt, men de två halvorna har olika källor och fick fel attribution här till
+2026-08-09.** RIPE bär `netname DE-NETCUP-KVM`, `country DE` samt `route`/`origin AS197540`
+(2026-08-03) ⇒ **landet** är mätt. **RIPE bär däremot ingen `geoloc:`** — den enda ort RIPE-objektet
+nämner är kontaktadressen **Karlsruhe** (netcup GmbH:s säte), inte Nürnberg. **Staden** bärs av
+netcups egen kontrollpanel för vår låda (mätt 2026-08-03 via SCP + SSH). Slutsatsen står oförändrad
+och **stärks** av rättelsen: värdbenet är EU-resident, så **ingen Kap. V-överföring införs** av
+värdbytet, och stadens källa är en förstapartsuppgift om just vår server i stället för en
+geoIP-gissning. *(Var precis om bevisstyrkan: `country:` och `netname:` är registreringsattribut
+som LIR:en själv sätter och bevisar inte fysisk DC-placering — slutsatsen bärs av netcup GmbH som
+tyskt bolag plus vald lokation. Netcups underbiträdeskedja är fortfarande **omätt** och ägs av
+#1199:s DPA-arbete; den publiceras ingenstans och blir läsbar först när AVV:t tecknas.)*
+*(Attributionen rättad 2026-08-09 i #1199 — `security-auditor` Minor 2. Skälet är inte pedanteri:
+sedan samma dag namnger den **publicerade** integritetspolicyn den här lådans stad, så den som
+kontrollerar provenienskedjan mot RIPE hade hittat Karlsruhe och dragit slutsatsen att copyn är
+fel.)*
+Detta **fullgör inte Art. 28**: ett biträdesavtal med **netcup GmbH** måste finnas före första
+riktiga användardata, det är **Klas att teckna, aldrig CC**, och det är fortfarande otecknat — det
+ägs av [#1199](https://github.com/klasolsson81/jobbliggaren/issues/1199) och grindar första datan.
+*Mekaniken är mätt 2026-08-09 och skiljer sig från AWS: netcups AVV gäller **inte** automatiskt
+utan sluts av kunden i Customer Control Panel; generalisera aldrig AWS-DPA:t hit.*
+**Den publicerade policyn namngav Hetzner till 2026-08-09**, då #1199 skrev om den till netcup GmbH
+i Nürnberg utan statusmarkör — copy-halvan är alltså levererad och bara avtalshalvan står kvar.
+*(Meningen stod i presens till 2026-08-09 och gjordes falsk av den commit som rättade stycket
+ovanför; delad här i samma ändring.)*
 
 **Beslut 2:s grund för att avvisa 8 GB är mätt död.** Den vilade på
 `JobTechStreamClient`s `MaxResponseContentBufferSize = 500 MB`. Mätt 2026-08-04 mot HEAD

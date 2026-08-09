@@ -37,6 +37,41 @@ never asserted:
    stops covering the kernel and libc the moment the first kernel patch lands (§7).
 8. Nothing pages secrets to disk: **zram swap only, no disk swap, no zram writeback device,
    core dumps discarded**.
+9. ⚠ **The published privacy policy names THIS box's CITY, so moving the box is a legal-copy
+   change.** Since 2026-08-09 (#1199) `messages/{sv,en}/content-legal.json` states that the
+   service runs on a server at netcup GmbH in **Nuremberg** — a data-subject-facing Art. 13(1)(e)
+   disclosure, not an internal note. A reprovision to any other netcup location (Vienna,
+   Amsterdam, Manassas, Singapore) **falsifies published copy** and must be changed in the same
+   change. Regenerate the affected set rather than working from a list — a hand-written
+   enumeration rots, which is `release-checklist.md` §2.6 point 1's rule applied here:
+
+   ```bash
+   grep -rn "Nürnberg\|Nuremberg\|Nurnberg" \
+     web/jobbliggaren-web/messages docs/runbooks docs/decisions BUILD.md README.md
+   ```
+
+   Sweep **both spellings and the umlaut-less form**; a single-language sweep closes nothing.
+   Measured against exactly this command, 2026-08-09: **32 lines across 9 files**, of which
+   **nine are in `docs/runbooks/gdpr-processing-register.md`** (eight Art. 30 sub-processor
+   entries plus one Chapter V passage) — the legally heaviest, and the ones a two-file fix would
+   leave false.
+
+   ⚠ **The paths are enumerated deliberately and `docs/` as a whole is NOT swept.** A wholesale
+   `docs/` sweep drags in `docs/sessions/`, `docs/reviews/` and `docs/current-work.md`, which must
+   **never** be rewritten at a reprovision: a session log, a review report, or a dated
+   `BOXEN ÄR MÄTT` block that acquires a new city is falsified history, not a corrected record.
+   Read that list as the CLASS, not as an exhaustive enumeration — any dated record of what was
+   measured then belongs to it, including present-tense sentences sitting under a dated heading,
+   which assert what held THEN and not what holds now. It also makes the count unstable for reasons that have
+   nothing to do with the box — a review report landing mid-sweep moves it. If you widen the
+   paths, regenerate the number from the widened form or drop the number and let the command be
+   the only answer (`release-checklist.md` §2.6 point 1's doctrine, which this invariant invokes,
+   applies to the number as much as to the list).
+
+   **No test can catch this.** A copy tripwire fails a silent *deletion*; here the string
+   survives the move and CI stays green, so the obligation is hooked at the action that
+   falsifies it. It is an invariant rather than a note in §12 because a reprovision can happen
+   at any time — hardware failure, capacity, price — and is not a phase transition or a release.
 
 ### ADR 0050 gate M-6, clause by clause
 
@@ -940,12 +975,19 @@ rather than discovered:
   gate). It supersedes ADR 0050 Beslut 2 in full (plus Beslut 3's host reference,
   Beslut 4's Cloudflare half and backup target, and gate M-5). Capacity conditions: §12.
 
-  The residency question is separate and **measured as far as RIPE reaches** (`country:`
+  The residency question is separate, and **its two halves have different sources** (`country:`
   and `netname:` are registration attributes the LIR sets itself, so they do not prove
-  physical datacentre placement; ADR 0050's amendment carries the full caveat): RIPE gives
-  `netname DE-NETCUP-KVM`, `country DE`, and geolocation Nuremberg. The host leg is EU-resident,
-  so there is no Chapter V transfer here — the "Swedish VPS" point was a preference, never a
-  compliance one.
+  physical datacentre placement; ADR 0050's amendment carries the full caveat). RIPE gives
+  `netname DE-NETCUP-KVM`, `country DE` and `route`/`origin AS197540` — **the country**. RIPE
+  carries **no `geoloc:`**, and the only city in the object is the contact address **Karlsruhe**
+  (netcup GmbH's registered seat, not this server). **The city — Nuremberg — comes from netcup's
+  own control panel for this box**, measured 2026-08-03 over SCP + SSH. The host leg is
+  EU-resident, so there is no Chapter V transfer here; the "Swedish VPS" point was a preference,
+  never a compliance one. *(Attribution corrected 2026-08-09, #1199.)*
+
+  ⚠ **The city is a published, data-subject-facing claim** — the obligation that follows from that
+  lives in **§1 invariant 9**, not here. This section is a register of decisions taken; an
+  obligation recorded only in a deviation log is one nobody executes.
 - **No Cloudflare** (Klas decision K3) — Caddy will go straight to Let's Encrypt. That is why
   §6.2 opens 80/443 to `any` rather than to Cloudflare ranges as ADR 0050 gate M-5 prescribes.
   **The superseder has landed: ADR 0050's `Amendment 2026-08-04` retires M-5** into

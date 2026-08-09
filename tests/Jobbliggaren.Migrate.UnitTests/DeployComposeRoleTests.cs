@@ -46,6 +46,11 @@ public class DeployComposeRoleTests
     [Fact]
     public void MigrateAppConnectionString_NamesTheRoleThatOwnsSchemaPublic()
     {
+        // ONE line again, and deliberately: `migrate` and `migrate-rewrap` share the
+        // x-migrate-app-connection anchor, so there is exactly one definition to pin. An
+        // earlier version of this test asserted a count of two matching lines, which caught
+        // the role but let host, port, database and SSL mode drift between the copies — and
+        // made every legitimate new consumer fail on a number rather than on a property.
         var line = LineContaining("MIGRATE_APP_CONNECTION_STRING:");
 
         line.ShouldContain($"Username={Roles.App}", Case.Sensitive,

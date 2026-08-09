@@ -212,10 +212,15 @@ DROP TABLE IF EXISTS audit_log_YYYYMMDD;
 
 **Inte realistiskt scenario** i Fas 1 — vi har ingen audit-data av värde
 ännu. Vid prod-deploy: dagliga databas-snapshots. RDS är borta sedan ADR 0066 (dess
-automated-backup-default var 7 dagars retention); backup-modellen på VPS och dess
-retention/rotation är **obeslutade** och ägs av #197. **Backup/PITR-fönstret fyller Klas
-i — CC uppfinner det inte** (STOPP-4; ADR 0024 rad 636 och ADR 0032 rad 1335, båda
-ordagrant, och STOPP-4 gatar DPIA-signaturen). Förväxla det inte med **audit-tabellens
+automated-backup-default var 7 dagars retention). **Backup-modellen på VPS är beslutad
+sedan 2026-08-09 (ADR 0125, #197): nattlig age-krypterad `pg_dump` 02:15 UTC, splittad i
+en huvudartefakt och en DEK-artefakt, retention 30 dagar.** Procedur och restore:
+[`backup-restore.md`](backup-restore.md). Fönstret är Klas eget tal — **K4 = 30 dagar**,
+beslutat 2026-08-04 — vilket besvarar **STOPP-4**, som ADR 0024 rad 636 och ADR 0032
+rad 1335 uttryckligen förbjöd CC att uppfinna. Två saker kvarstår innan siffran är
+*demonstrerbar* i Art. 5(2)-mening: målet är inte upphandlat (interimsmålet saknar
+lifecycle-motor) och **DPIA-signaturen har inte skrivits om** — kontrollera
+`gdpr-processing-register.md` innan STOPP-4 räknas som stängd någon annanstans. Förväxla det inte med **audit-tabellens
 egen retention, 90 dagar**, per §1 ovan (BUILD.md §7.1 + ADR 0022) — det är två skilda
 storheter, och Art. 17-restore betjänas dessutom av soft-delete-rader i den LEVANDE
 databasen (ADR 0024 D5), inte av snapshots.

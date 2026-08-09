@@ -44,7 +44,7 @@ Lägg till ny agent: skapa `agents/<name>.md` med YAML frontmatter (`name`, `mod
 
 ## Skills
 
-Kunskapspaket som laddas vid behov. Filerna finns i `skills/<name>/SKILL.md`. Alla fem skills täcker designsystemet.
+Kunskapspaket som laddas vid behov. Filerna finns i `skills/<name>/SKILL.md`. `jobbpilot-design-*` täcker designsystemet; `jobbpilot-review-discipline` täcker granskningscykelns procedur.
 
 | Skill | Innehåll | Referensfiler |
 |---|---|---|
@@ -53,5 +53,6 @@ Kunskapspaket som laddas vid behov. Filerna finns i `skills/<name>/SKILL.md`. Al
 | `jobbpilot-design-components` | Button, Card, Table, Dialog, Form m.fl. — varianter och kompositionsmönster | 2 filer |
 | `jobbpilot-design-copy` | Svensk copy, microcopy-bibliotek, felkoder, locale-formatering | 3 filer |
 | `jobbpilot-design-a11y` | WCAG 2.1 AA-krav, screen reader-testning, testverktyg | 3 filer |
+| `jobbpilot-review-discipline` | Granskningscykelns procedur — batchning, fix-hygien, delta-isolering, scopad omkontroll, `agents-done`-checklista | — |
 
 Lägg till ny skill: skapa `skills/<name>/SKILL.md` och eventuella referensfiler i `skills/<name>/references/`.

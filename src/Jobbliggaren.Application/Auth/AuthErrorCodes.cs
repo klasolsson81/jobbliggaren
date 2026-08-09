@@ -142,4 +142,58 @@ public static class AuthErrorCodes
     /// </summary>
     public const string RegistrationsClosedMessage =
         "Registreringen är inte öppen ännu. Försök igen senare.";
+
+    /// <summary>
+    /// No transactional email provider is configured, so a flow whose success DEPENDS on delivery
+    /// refuses up front instead of reporting a completed action that cannot occur (#1087). Raised by
+    /// <c>ChangeEmailCommandHandler</c> when <c>IEmailSender.CanDeliver</c> is false — today the live
+    /// default outside Development/Test, since <c>Email:Provider</c> is unset in every committed
+    /// <c>appsettings*.json</c>.
+    /// <para>
+    /// Rendered as an endpoint-local <b>503</b> by <c>AuthEndpoints.ToErrorResult</c>, on the same
+    /// ratified reasoning as <see cref="RegistrationsClosed"/>: server availability is a third axis,
+    /// distinct from the 400/404/409/410 request/resource semantics the kind-union models, and a
+    /// capacity deliberately withheld that returns when someone sets a config key is exactly
+    /// RFC 9110 §15.6.4's case. <b>No new <c>ErrorKind</c></b> — that fork was named as requiring an
+    /// architect optionsset before code (senior-cto-advisor 2026-07-26), and the optionsset
+    /// (dotnet-architect 2026-08-09) closed it against extension by pointing at this precedent.
+    /// </para>
+    /// <para>
+    /// <b>No <c>Retry-After</c></b>, for the precedent's own reason: the date on which the provider
+    /// is configured is unknown, and a wrong <c>Retry-After</c> is worse than none because clients
+    /// and caches honour it.
+    /// </para>
+    /// <para>
+    /// The <c>Kind</c> stamped by <c>DomainError.Validation</c> is a FALLBACK CARRIER, not a semantic
+    /// claim — same trade as <see cref="RegistrationsClosed"/>. Delete the endpoint arm and this
+    /// degrades to 400, not 500, which is why the 503 is pinned by an integration test rather than
+    /// left to the carrier.
+    /// </para>
+    /// <para>
+    /// Not an enumeration oracle: the surface is authenticated AND re-authenticated, the check reads
+    /// no request input, and the response cannot vary with the submitted address.
+    /// </para>
+    /// </summary>
+    public const string EmailDeliveryUnavailable = "Auth.EmailDeliveryUnavailable";
+
+    /// <summary>
+    /// The single user-facing detail for <see cref="EmailDeliveryUnavailable"/> (§10: du-form,
+    /// informative, non-blaming, no exclamation mark).
+    /// <para>
+    /// <b>No client renders it yet, and saying otherwise would be the defect this issue exists to
+    /// fix.</b> Measured 2026-08-09: <c>mapActionError</c> has no 503 arm, so a 503 on this surface
+    /// falls through to the generic <c>settings.account.errors.changeEmailFailed</c> and the user
+    /// learns nothing about the address being unchanged. The client arm is a follow-up PR in this
+    /// lane (senior-cto-advisor 2026-08-09) and is a blocking condition on the flip in
+    /// <c>release-checklist.md</c> §2.6 point 5.5 — no user can reach this state before then.
+    /// <b>That arm must discriminate on the ProblemDetails TITLE, never on the status</b>: the
+    /// action layer is contractually barred from reading the body, and this route has at least two
+    /// other 503 producers (a Redis-backed <c>SessionStoreUnavailableException</c>, and a reverse
+    /// proxy), so a status-only arm would print "e-post är inte aktiverat" during an incident and
+    /// mask it.
+    /// </para>
+    /// </summary>
+    public const string EmailDeliveryUnavailableMessage =
+        "E-postutskick är inte aktiverat, så vi kan inte skicka någon bekräftelselänk. "
+        + "Din adress är oförändrad.";
 }

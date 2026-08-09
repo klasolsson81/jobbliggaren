@@ -341,6 +341,37 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
+      # DEN ENDA EGENSKAP HOS ETT DEPLOY-SKRIPT SOM VARKEN CI ELLER DESS EGEN FIXTURSVIT KAN SE.
+      # systemd kör `ExecStart=` på filen direkt och svarar 203/EXEC om exec-biten saknas — men
+      # varje fixtursvit anropar sitt skript som `bash <path>`, vilket är mode-blint, och
+      # `core.filemode=false` på Windows gör att en utvecklare inte heller ser det lokalt.
+      # Mätt 2026-08-09 (#197): båda de nya skripten committades 100644 medan varje syskon i
+      # samma katalog är 100755, så hela backup-mekanismen hade varit inert från
+      # installationsögonblicket och inget grönt jobb hade sagt emot.
+      #
+      # Indexet är mätobjektet, inte arbetsträdet: `File.GetUnixFileMode` och `test -x` mäter
+      # utcheckningen, som på Windows ljuger. Därför bash här och inte en C#-pin.
+      - name: deploy/systemd/*.sh är exekverbara i indexet
+        run: |
+          # A GLOB THAT MATCHES NOTHING PASSES VACUOUSLY, so the count is checked first: a
+          # renamed directory would otherwise turn this gate into a green no-op that reads as
+          # coverage. EIGHT scripts, measured 2026-08-09 with `git ls-files`; the floor is a floor and not
+          # an equality, so adding one does not fail the build for the wrong reason.
+          n=$(git ls-files 'deploy/systemd/*.sh' | wc -l)
+          if [ "$n" -lt 8 ]; then
+            echo "::error::found only $n scripts under deploy/systemd — expected at least 8."
+            echo "If one was legitimately removed, lower the floor in this step deliberately."
+            exit 1
+          fi
+          bad=$(git ls-files -s 'deploy/systemd/*.sh' | grep -v '^100755 ' || true)
+          if [ -n "$bad" ]; then
+            echo "::error::icke-exekverbara skript i deploy/systemd (systemd ger 203/EXEC):"
+            echo "$bad"
+            echo "Åtgärd: git update-index --chmod=+x <fil>"
+            exit 1
+          fi
+          echo "alla $(git ls-files 'deploy/systemd/*.sh' | wc -l) skript är 100755"
+
       # Diagnostik, INGEN grind — `git --version` avslutar alltid 0. Predikatets
       # golv (git >= 2.38, för `merge-tree --write-tree`) grindas av fixtur 1:
       # på en äldre git returnerar den `git-too-old` i stället för
@@ -374,6 +405,35 @@ jobs:
       # ingen grind kör kan inte falla, vilket är den defektklass preambeln ovan namnger.
       - name: jobbliggaren-reconcile (fixturer)
         run: bash deploy/systemd/jobbliggaren-reconcile.test.sh
+
+      # Frånvaro-detektorn för lådans kryptohemligheter (#198, grind B-1). `--check` är lådans
+      # ENDA larm för en saknad masternyckel: en crash-loopande container syns aldrig i
+      # `systemctl --failed`, så ett falskt "all present" lämnar API:t nere utan spår på den
+      # enda yta någon läser (#1175, ingen loggsink). Fixturerna stat:ar bara filer — varken
+      # daemon, root eller nätverk krävs — och en av dem bevisar att `--check` aldrig rör
+      # docker, eftersom den kör vid boot innan dockerd är uppe.
+      # JBL_REQUIRE_MODE_CASES: sviten skippar katalog-läge-fallen på filsystem som inte
+      # hedrar chmod (Git Bash/Windows) och SÄGER det högljutt — men en annonserad skip är
+      # inte en mätning. På ubuntu ska ingenting skippas, så här blir en skip ett fel.
+      # Utan den här raden vore "de körs i CI" ett påstående framtvingat av ingenting.
+      - name: jobbliggaren-inject-secrets (fixturer)
+        run: bash deploy/systemd/jobbliggaren-inject-secrets.test.sh
+        env:
+          JBL_REQUIRE_MODE_CASES: "1"
+
+      # Nattliga krypterade offsite-backupen (#197, grind M-4). Sviten stubbar `docker`, `age`,
+      # `rclone` och `flock` på en PATH den bygger FRÅN GRUNDEN — det är enda sättet att mäta
+      # "ett saknat verktyg producerar INGEN backup", eftersom en påklistrad stub-katalog låter
+      # `command -v flock` hitta /usr/bin/flock under sig. rclone-stubben håller ett riktigt
+      # litet objektlager på disk, så skriptets upload → läs-tillbaka → jämför-runda EXEKVERAS
+      # i stället för att påstås; ett fall korrumperar objektet mellan halvorna och bevisar att
+      # jämförelsen kan gå röd. Ingen daemon, ingen root, inget nätverk, ingen Postgres.
+      #
+      # Vad sviten INTE mäter, och det står i dess huvud: att artefakten går att DEKRYPTERA.
+      # Lådan har medvetet ingen privat nyckel, så varken den eller den här sviten kan avgöra
+      # det — det är restore-drillens påstående (#197 PR-2 + runbooken).
+      - name: jobbliggaren-backup (fixturer)
+        run: bash deploy/systemd/jobbliggaren-backup.test.sh
 
       # Diagnostik, INGEN grind — och till skillnad från `git --version` ovan är det
       # INTE gratis: `docker compose version` avslutar 1 när plugin:et saknas

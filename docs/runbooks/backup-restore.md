@@ -1,0 +1,473 @@
+# Backup and restore — operations
+
+**Scope:** the nightly encrypted offsite backup of the production database, its retention, and
+the procedure for restoring from it.
+**Owned by** [#197](https://github.com/klasolsson81/jobbliggaren/issues/197) (ADR 0050 gate M-4;
+ADR 0050 `Amendment 2026-08-04` §7 is the binding requirement set).
+**Host:** Netcup RS 1000 G12, Debian 13 (trixie), Nuremberg.
+**Related:** [`vps-deploy-stack.md`](./vps-deploy-stack.md) ·
+[`master-key-ops.md`](./master-key-ops.md) · [`account-deletion.md`](./account-deletion.md)
+
+> **THE RESTORE PROCEDURE IN §5 HAS NOT BEEN EXECUTED. Read it as a design, not as a report.**
+>
+> It is written from the mechanism in `deploy/systemd/jobbliggaren-backup.sh` and from the
+> schema, and every step is derived rather than observed. A runbook that has never been run is a
+> hypothesis, and #197's own acceptance criterion is that untested is not a backup. The drill
+> that turns this into a procedure is §6; it is gate M-4 and it must complete **before first real
+> data**. When it has run, replace this note with the date it ran and fill the verification rows
+> in `vps-deploy-stack.md` §5.
+
+---
+
+## 1. The model, in one paragraph
+
+Every night at 02:15 UTC a systemd timer runs `pg_dump` inside the running Postgres container,
+pipes it through `age` on the host, and streams the ciphertext to an offsite target. **Plaintext
+never touches a disk** — it exists only inside a pipe. **The box holds no private key**, only the
+public recipient, so there is nothing here to steal that would read a backup; that is how ADR
+0050 `Amendment 2026-08-04` §7 requirement (b) is satisfied structurally rather than by a rule
+someone has to remember. The cost of that, stated plainly: **this box cannot verify that its own
+backups decrypt.** Only the drill can.
+
+**Two artefacts per night, and the split is the design.** The *main* artefact carries every table
+except the **contents** of `user_data_keys`; the *DEK* artefact carries exactly those contents,
+and exactly one verified generation of it is kept. A restore pairs **any main artefact inside the
+retention window with the current DEK artefact**. A user hard-deleted since that main artefact was
+taken therefore has no key anywhere in what we hold, and their field-encrypted columns are
+unreadable by any combination of artefacts in our possession.
+
+**Why that matters rather than being a nicety.** A single full dump would carry each user's
+wrapped DEK *beside* the ciphertext it unwraps, and the master key survives on the box — so
+restoring a dump taken before an erasure would make that user readable again. ADR 0049 Beslut 2
+claims the opposite, and `content-legal.json` publishes the same claim to users
+(*"…även från en eventuell säkerhetskopia"*). The claim was true only by an unwritten premise.
+The split dump is what makes it true, and ADR 0049's amendment now records the premise so a later
+refactor cannot quietly remove it (senior-cto-advisor bind 2026-08-09, D2).
+
+> **ESCROW OF THE AGE PRIVATE KEY IS A HARD PREREQUISITE, AND IT IS UNDECIDED AS OF 2026-08-09.**
+>
+> There is no copy of the private key on this box by design, so an off-box escrow is the only
+> path from ciphertext back to data. **A backup whose key is not escrowed is not a backup** — it
+> is an offsite copy of noise. This is the same gate, with the same owner, as the master key's
+> escrow (`vps-deploy-stack.md` §5 row 26): **do not treat the offsite artefacts as a recovery
+> path until the escrow row carries a measurement.** Klas owns it. When it is decided, record the
+> date here and fill in the row.
+>
+> Backups may be *taken* meanwhile — encryption needs only the recipient — and taking them is
+> strictly better than not. What may not happen is anyone relying on them.
+
+**What this does not protect against, named rather than implied.** A restore from a main artefact
+that predates a user's *deletion request* resurrects that user as live, with the request lost.
+That is inherent to backups of any shape, it is bounded to 30 days by the retention window, and
+neither the split dump nor any other design closes it. It is disclosed here because the
+alternative is a runbook that reads as if it did.
+
+---
+
+## 2. Files, units, and install
+
+| Path | What |
+|---|---|
+| `deploy/systemd/jobbliggaren-backup.sh` | the mechanism, and the `--check` freshness probe |
+| `deploy/systemd/jobbliggaren-backup.{service,timer}` | nightly at 02:15 UTC, `Persistent=true` |
+| `deploy/systemd/jobbliggaren-backup-fresh.{service,timer}` | hourly staleness probe |
+| `/run/jobbliggaren/host-secrets/Backup__RcloneConfigBase64` | upload credential, tmpfs, `0400 root:root` |
+| `/opt/jobbliggaren/deploy/backup/age.recipient` | the **public** recipient, `0444 root:root` |
+| `/var/lib/jobbliggaren/last-successful-backup` | the stamp the freshness probe reads |
+
+**`/run/jobbliggaren/host-secrets` is not `/run/jobbliggaren/secrets`, and the difference is the
+control.** The second is bind-mounted read-only into `api` and `worker`; the first is mounted
+**nowhere**. The upload credential is the box's write access to the backups, and an RCE in the
+application must not reach it. Putting it in the mounted directory as a root-owned `0400` file
+would also have worked — but then the separation rests on a mode bit and on nobody widening the
+mount later, and a directory that is not mounted cannot be exposed by any edit to a mount.
+
+### Install (once)
+
+```bash
+# 1. The tools. THIS STEP IS UNMEASURED — see §8. If either package is absent from trixie,
+#    STOP and escalate rather than fetching a binary: `sops` was measured absent for #198, so
+#    this class of absence is live on this box, not hypothetical.
+sudo apt-get update && sudo apt-get install -y age rclone
+age --version && rclone version
+
+# 2. The tmpfiles line that creates the host-only directory at every boot.
+sudo install -m 0644 /opt/jobbliggaren/deploy/systemd/jobbliggaren-tmpfiles.conf \
+  /etc/tmpfiles.d/jobbliggaren.conf
+sudo systemd-tmpfiles --create
+stat -c '%a %U:%G' /run/jobbliggaren/host-secrets     # expect: 700 root:root
+
+# 3. The recipient. Klas generates the identity OFF this box; only the public half arrives here.
+sudo install -d -m 0755 /opt/jobbliggaren/deploy/backup
+sudo install -m 0444 /dev/null /opt/jobbliggaren/deploy/backup/age.recipient
+# paste the age1… line, nothing else. See deploy/backup/age.recipient.example.
+
+# 4. The units.
+sudo install -m 0644 /opt/jobbliggaren/deploy/systemd/jobbliggaren-backup*.{service,timer} \
+  /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now jobbliggaren-backup.timer jobbliggaren-backup-fresh.timer
+```
+
+The upload credential is injected by the same script as the crypto secrets, so it is one prompt
+in an existing procedure rather than a new one:
+
+```bash
+sudo /opt/jobbliggaren/deploy/systemd/jobbliggaren-inject-secrets.sh
+```
+
+It wants **the base64 of a complete rclone config file**, not the config itself — one value that
+carries the whole target, which is what keeps a vendor change to one constant and one secret:
+
+```bash
+base64 -w0 < rclone.conf        # produce it wherever you configured rclone, then paste
+```
+
+---
+
+## 3. After every reboot
+
+`/run` is tmpfs, so the upload credential dies with the box exactly as the master key does.
+Re-inject with the command above; there is nothing backup-specific to remember.
+
+**What happens in the meantime, precisely, because the two cases differ.** A *scheduled* run with
+no credential is **skipped**, not failed: `jobbliggaren-backup.service` carries
+`ConditionPathExists=` on the credential, so systemd marks the unit inactive and logs the reason.
+That is deliberate — the timer is `Persistent=true`, so a boot-time catch-up would otherwise
+**latch** the unit in `systemctl --failed` until the next 02:15, even after an operator injected,
+while the freshness probe simultaneously reported the backup fresh. An alarm that is lit for a
+condition that no longer exists trains an operator to stop reading the only alarm surface there
+is. A run started **by hand** with no credential still refuses loudly (exit 2), and a genuinely
+missing backup is caught by the 26-hour freshness threshold rather than by the scheduled run.
+Nothing is unreported: the missing credential itself is already alarmed by
+`jobbliggaren-secrets-present.service`, which covers it through the same `--check` loop as the
+crypto secrets.
+
+Verify:
+
+```bash
+sudo /opt/jobbliggaren/deploy/systemd/jobbliggaren-inject-secrets.sh --check
+sudo /opt/jobbliggaren/deploy/systemd/jobbliggaren-backup.sh --check
+```
+
+---
+
+## 4. Running it, and reading the alarm
+
+```bash
+sudo systemctl start jobbliggaren-backup.service     # a run by hand, e.g. before a rotation
+journalctl -u jobbliggaren-backup.service -n 50
+systemctl list-timers 'jobbliggaren-backup*'
+```
+
+**The alarm surface is `systemctl --failed`, and there are two units on it for two different
+failures.** `jobbliggaren-backup.service` failing means last night's run broke.
+`jobbliggaren-backup-fresh.service` failing means the backup stopped happening *at all* — a
+masked timer, a stopped unit, a clock that never reached 02:15. The second is the one no failure
+list would otherwise show, because a unit that is never triggered is not failed.
+
+**Weekly operator check** (there is no log sink and nothing reads `systemctl --failed` on a
+cadence — that gap is #1175 and this runbook does not close it):
+
+```bash
+systemctl --failed
+sudo /opt/jobbliggaren/deploy/systemd/jobbliggaren-backup.sh --check
+rclone --config <cfg> lsl jbl-backup:jobbliggaren-backups/main | tail -5   # newest artefacts
+rclone --config <cfg> cat jbl-backup:jobbliggaren-backups/deks/verified.stamp
+```
+
+**Read those two together, not separately.** The DEK stamp must be at least as recent as the
+newest main artefact. If it is behind, some run's DEK leg failed after its main artefact
+uploaded, and the newest main artefact is unusable until the next successful run repairs the
+pairing — `deks/` is the half a `main`-only listing cannot see.
+
+### Retention
+
+**30 days (K4, Klas 2026-08-04), enforced by the target and not by this box.** The upload
+credential carries no `DELETE`; the box appends and never prunes. Two reasons, and the second is
+the stronger: a provider-enforced lifecycle policy is an artefact a third party issued and that
+we can export, which is what Art. 5(2) accountability asks for, whereas a prune journal is a
+document we write about ourselves — and its integrity depends on the very box that would be
+compromised in the scenario that matters. With no `DELETE`, the worst a compromised box can do to
+the history is add to it.
+
+The one object the box replaces is the DEK generation, and it does that by **overwrite after
+verification**, never by deleting: it uploads to `deks/staged.dump.age`, reads it back, compares
+the sha256 against what it sent, and only then writes the same verified bytes to
+`deks/verified.dump.age`. If the comparison fails nothing is promoted and the previous verified
+generation is untouched — which matters, because without a DEK generation **every** retained main
+artefact is unreadable.
+
+**Interim deficiency, named.** Until the final target exists, backups go to Klas's workstation
+over the same rclone seam. A workstation has no lifecycle engine, so the 30 days there is an
+operator duty rather than an enforced rule, and ADR 0123 places the workstation *inside*
+production's trust boundary — so requirement (a) is not met either. Security-auditor's ruling
+(ADR 0050 `Amendment 2026-08-04` §7) is that this is **acceptable while the box holds no real
+data and not acceptable at first real data.** These two deficiencies are what make the target
+interim; neither is an exception to the decision.
+
+---
+
+## 5. Restore
+
+> **Read the §0 note first: this procedure has not been executed.**
+
+**What you need, and where.** The two artefacts may be fetched anywhere — they are ciphertext.
+The **decryption must happen on the machine holding the age private key, and that machine is
+never this box.** For a drill before real data exists, that machine is the operator workstation;
+once real data exists that choice is open and is security-auditor's to settle (§8).
+
+> **STEP 0, AND IT IS NOT OPTIONAL: CHECK THE PAIRING BEFORE YOU FETCH ANYTHING.** The DEK
+> artefact must never be older than the main artefact you pair it with. That is normally true by
+> construction — the nightly run dumps main first and promotes the DEK generation second — but it
+> is **false after any run whose DEK leg failed after the main artefact uploaded**: tonight's main
+> then sits offsite beside last night's DEK generation, both objects present, both decrypting,
+> and the pair looks fine. Every user created since that generation would restore with no key.
+>
+> The mechanism publishes the DEK generation's own run stamp for exactly this comparison, in
+> plaintext so it can be read without the private key:
+>
+> ```bash
+> rclone --config <cfg> cat jbl-backup:jobbliggaren-backups/deks/verified.stamp
+> # -> e.g. 20260809T021500Z
+> ```
+>
+> **The value it prints must be greater than or equal to the `<STAMP>` in the main artefact's own
+> file name.** If it is not, do not use that main artefact: pick an older one whose stamp the DEK
+> generation covers, or run `systemctl start jobbliggaren-backup.service` and use tonight's pair.
+>
+> **If the command prints NOTHING, the stamp does not exist — and that is a REFUSAL, not an
+> unknown state.** No run has ever published a pairing stamp, or the one run that promoted a
+> generation failed on the stamp upload afterwards. Either way the pairing cannot be checked, so
+> it must not be assumed: run `systemctl start jobbliggaren-backup.service` and use the pair that
+> run produces. This is the same rule the rest of this stack is built on — a tool's or a value's
+> absence must never read as its verdict — and it is written here because it is the one branch of
+> step 0 that would otherwise fail open.
+>
+> **What step 0 is and is not.** It is a consistency check against operational error, not a
+> tamper control. The stamp is the only input to this step carrying no cryptographic integrity —
+> everything else in §5 is age-framed — so anyone holding the upload credential could move it
+> forward. That widens nothing (the same credential could upload a wrong generation outright),
+> but do not read a plaintext, credential-writable object as an authority.
+
+```bash
+# 1. Fetch. Any main artefact whose stamp is <= the DEK generation's stamp (step 0), and the
+#    CURRENT DEK artefact.
+rclone --config <cfg> copy jbl-backup:jobbliggaren-backups/main/jobbliggaren-<STAMP>.dump.age .
+rclone --config <cfg> copy jbl-backup:jobbliggaren-backups/deks/verified.dump.age .
+
+# 2. Decrypt, on the key-holding machine.
+age -d -i <identity-file> jobbliggaren-<STAMP>.dump.age > main.dump
+age -d -i <identity-file> verified.dump.age            > deks.dump
+```
+
+> **NEVER PAIR AN OLDER DEK ARTEFACT WITH A NEWER MAIN ARTEFACT.** The invariant runs one way:
+> the DEK artefact must be at least as new as the main one. Reversed, a user who registered
+> between the two dumps lands in the restore with no key, and their fields are permanently
+> unreadable — silent data loss wearing erasure's clothes. There is exactly one current DEK
+> artefact for this reason. If `deks/verified.dump.age` fails to decrypt, use
+> `deks/staged.dump.age`: it is the last upload that passed its round trip, and the two differ
+> only when a promotion was interrupted.
+
+```bash
+# 3. Restore the main artefact into a FRESH database. Never into the live one.
+createdb -U postgres jobbliggaren_restore
+pg_restore -U postgres -d jobbliggaren_restore --no-owner --no-privileges main.dump
+
+# 4. Load the DEKs through a staging table. THE STAGING TABLE IS NOT OPTIONAL.
+#    user_data_keys carries fk_user_data_keys_job_seekers (ON DELETE CASCADE, added in raw SQL by
+#    20260518145927_AddUserDataKeys). A DEK row whose owner is absent from THIS generation would
+#    abort the whole COPY on that constraint — and that is not an edge case, it is precisely the
+#    cross-generation restore this design exists to make possible.
+psql -U postgres -d jobbliggaren_restore \
+  -c 'CREATE TABLE _dek_restore (LIKE user_data_keys);'
+
+#    Convert the custom-format dump to SQL and redirect the COPY at the staging table.
+#
+#    TWO THINGS HERE WERE MEASURED WRONG AND BOTH FAILED SILENTLY (code-reviewer, 2026-08-09,
+#    reproduced in a throwaway postgres:18.3):
+#
+#    * THE TARGET MUST BE SCHEMA-QUALIFIED. pg_restore emits
+#      `SELECT pg_catalog.set_config('search_path', '', false);` at the top of its output, so an
+#      unqualified `_dek_restore` resolves to nothing: `ERROR: relation "_dek_restore" does not
+#      exist`, zero rows loaded.
+#    * psql MUST RUN WITH -v ON_ERROR_STOP=1. Without it psql prints that error and still exits
+#      0, so the failure is invisible to anything checking the exit code.
+#
+#    Together they produced the worst possible outcome for this procedure: a restore that loaded
+#    no keys at all, while evidence count (b) below reported EVERY user as having no key —
+#    i.e. a broken restore presenting itself as a flawless crypto-erasure result, and that number
+#    is what gate M-4 records. The grep checks below verify the SUBSTITUTION, not the load; they
+#    passed throughout.
+pg_restore -f - deks.dump | sed 's/^COPY public\.user_data_keys /COPY public._dek_restore /' > deks.sql
+grep -c '^COPY public\._dek_restore ' deks.sql   # expect exactly 1
+grep -c '^COPY public\.user_data_keys ' deks.sql # expect exactly 0
+psql -U postgres -d jobbliggaren_restore -v ON_ERROR_STOP=1 -f deks.sql
+
+#    AND VERIFY THE LOAD ITSELF, because the two checks above cannot. A staging table that is
+#    empty here means the restore has loaded no keys, and every count below would then be
+#    measuring that fact rather than an erasure.
+psql -U postgres -d jobbliggaren_restore -tAc 'SELECT count(*) FROM _dek_restore'
+#    -> must be > 0 on any generation that had users. Zero here means STOP.
+
+# 5. Insert the rows that belong to a user this generation actually has.
+psql -U postgres -d jobbliggaren_restore <<'SQL'
+INSERT INTO user_data_keys
+SELECT * FROM _dek_restore
+WHERE job_seeker_id IN (SELECT id FROM job_seekers);
+
+-- THE TWO COUNTS BELOW ARE THE EVIDENCE, not diagnostics. Record both.
+-- (a) DEK rows dropped as belonging to nobody in this generation: users who registered after
+--     the main artefact was taken. Expected to be non-zero on any cross-generation restore.
+SELECT count(*) AS deks_dropped_as_orphans
+FROM _dek_restore d WHERE d.job_seeker_id NOT IN (SELECT id FROM job_seekers);
+
+-- (b) Restored users with NO key. READ THIS CAREFULLY: it is NOT the crypto-erasure count on
+--     its own, and calling it that would overstate the result. DEK rows are created LAZILY —
+--     a user gets one the first time they write a field-encrypted value, so a registered user
+--     who never saved a cover letter, note, follow-up or CV has no key and never did. This
+--     number is therefore (users erased since the main artefact) PLUS (users who never wrote
+--     encrypted data), and only the first group is what the drill is measuring.
+--     (code-reviewer, 2026-08-09: RegisterCommand does not carry IRequiresFieldEncryptionKey,
+--     so the prefetch that would create one eagerly does not run at registration.)
+SELECT count(*) AS users_without_a_key_TOTAL
+FROM job_seekers j WHERE j.id NOT IN (SELECT job_seeker_id FROM user_data_keys);
+
+-- (b2) The erasure signature: restored users who have ciphertext but no key. Ciphertext without
+--      a key is what an erased user looks like; no ciphertext and no key is simply a user who
+--      never wrote any.
+--      SCOPE, STATED RATHER THAN IMPLIED: the EXISTS below inspects `applications.cover_letter`
+--      alone. A user whose only ciphertext was a note, a follow-up, `resume_versions.content_enc`
+--      or `parsed_resumes` is invisible to it. That is safe for what the drill needs — one
+--      confirmed case proves the mechanism, and a zero is a prompt to investigate rather than a
+--      pass — but it is an EXISTENTIAL proof over one column, not a census. Widen the EXISTS if
+--      you ever need the count itself to be complete. (security-auditor, 2026-08-09.)
+SELECT count(*) AS users_with_ciphertext_but_no_key
+FROM job_seekers j
+WHERE j.id NOT IN (SELECT job_seeker_id FROM user_data_keys)
+  AND EXISTS (
+    SELECT 1 FROM applications a
+    WHERE a.job_seeker_id = j.id AND a.cover_letter LIKE 'v1:%'
+  );
+--      `LIKE 'v1:%'` and not `<> ''`: the first tests for CIPHERTEXT, the second only for a
+--      non-empty value, and this count's whole point is the presence of encrypted content. The
+--      pattern is production's own — `FieldEncryptionSentinel.SqlLikePattern`
+--      (`src/Jobbliggaren.Application/Common/Security/FieldEncryptionSentinel.cs:43`), the same
+--      constant `FieldEncryptionBackfiller` uses as its SSOT — restated here because this is a
+--      runbook an operator types, not code that can reference it.
+SQL
+
+psql -U postgres -d jobbliggaren_restore -c 'DROP TABLE _dek_restore;'
+
+# 6. ANALYZE. A restore carries no planner statistics — pg_dump omits them unless --statistics is
+#    passed, and this one does not pass it. Without this the first queries against the restored
+#    database plan against nothing, which is how `company_register` sat at a million rows with
+#    zero statistics (#560). This is a step, not a footnote.
+psql -U postgres -d jobbliggaren_restore -c 'ANALYZE;'
+
+# 7. Boot the application against the restored database and READ AN ENCRYPTED FIELD through it.
+#    A health probe decrypts nothing, so it cannot tell you the envelope survived.
+#    ConnectionStrings__Postgres override, then open an application with a cover letter.
+```
+
+### 8. Reconciliation after a restore — mandatory, not optional
+
+A restored generation is a snapshot of a moment, and deletions that happened after that moment
+are not in it. Two different states, and only one of them self-heals:
+
+- **Users soft-deleted before the artefact was taken** carry `deleted_at` into the restore, and
+  `HardDeleteAccountsJob` erases them again on its next 04:00 UTC run. Nothing to do but let it
+  run, and confirm it did.
+- **Users whose deletion request came *after* the artefact was taken** are restored as live, and
+  the request is gone. Nothing in the restored data records it. If a restore is ever performed
+  on real data, the deletion requests received since the artefact's timestamp must be
+  reconstructed from outside the database and re-applied — and if they cannot be, that is a
+  personal-data incident to be assessed, not a footnote.
+
+Do not promote a restored database to live until both have been addressed.
+
+---
+
+## 6. The drill (gate M-4)
+
+**A backup is a hypothesis until a restore has run.** The drill is what closes M-4, and it has
+two halves that prove different things:
+
+- **The CI half** (#197 PR-2) proves the *semantics* against a real Postgres: seed users through
+  production entry points, dump, hard-delete one through `IAccountHardDeleter`, restore, and
+  assert that the erased user has no key while the other decrypts. It runs on every build and
+  needs no box.
+- **The ops half** is this runbook's §5, executed end to end against a **real artefact from the
+  real target**, on the real schema. It is what proves the units, the credential, the recipient,
+  the retention layout and the decryption path — none of which CI can see.
+
+**Run the ops half before first real data**, and again after any change to the target, the
+recipient, or the master key. Record each run in `vps-deploy-stack.md` §5 with the date and the
+counts from step 5 — **(b2), not (b)**, is the one that carries the erasure claim; a row without
+a date is a claim that cannot be told from one that has decayed.
+
+---
+
+## 7. What this runbook does not own
+
+- **The master key and the peppers** — `master-key-ops.md`. One overlap, and it is load-bearing:
+  a master-key rotation re-wraps every stored DEK, so **every DEK artefact taken before the
+  rotation is unreadable the moment the retiring key is destroyed.** The rotation procedure
+  therefore takes a fresh backup and verifies it offsite *before* that step. Main artefacts are
+  unaffected — they carry no keys — which is why this design loses nothing at a rotation while a
+  single-full-dump design would lose its entire 30-day window once a year.
+- **The choice of target and the Art. 28 DPA with its operator** — Klas, per ADR 0050
+  `Amendment 2026-08-04` §7. The requirement profile is bound (EU, S3-compatible with server-side
+  lifecycle, a credential that can exclude `DELETE`, a provider and account distinct from
+  Netcup); the contract is not.
+- **Escrow of the age private key** — Klas, see §1.
+- **The deploy stack, the box's hardening, and TLS** — `vps-deploy-stack.md`,
+  `vps-base-hardening.md`, #196.
+- **Reading `systemctl --failed` on a cadence** — nothing does. #1175.
+
+---
+
+## 8. Unmeasured, and named
+
+1. **Whether `age` and `rclone` are in apt on Debian 13 (trixie).** Not measured, on this box or
+   anywhere. If either is absent, that is a STOPP to security-auditor and Klas — not an
+   improvised binary fetch. (2026-08-09)
+2. **The final target's lifecycle and immutability behaviour.** OVHcloud Object Storage was
+   measured from its documentation as offering server-side lifecycle expiry and Object Lock; the
+   claim that Object Lock is *creation-time only* on their implementation is not verified, and
+   the recommendation to create the bucket with it enabled from the start depends on it.
+3. **Whether `rclone` can report a usable checksum for a streamed object on the chosen target.**
+   The DEK promotion compares a full read-back rather than a remote hash precisely because this
+   is unmeasured; if the read-back proves expensive at scale, that is when to measure it.
+4. **The dump's cost on this box.** `pg_dump` runs inside the Postgres container's 2 560 MiB cap,
+   and the peak recorded in `vps-deploy-stack.md` §5 row 3 reflects idle operation because this
+   job did not exist. That row is unblocked by this change and is #1235's to close.
+5. **Whether the chosen target versions the `deks/` prefix.** "Exactly one verified DEK
+   generation" is achieved by OVERWRITE, because the credential holds no `DELETE`. On a
+   **versioned** bucket an overwrite deletes nothing: the previous generation survives as a
+   noncurrent version, a `DELETE`-less credential cannot remove it, and an `Expiration` lifecycle
+   rule does not touch noncurrent versions — that needs `NoncurrentVersionExpiration`. Thirty
+   days of DEK generations would then be retained, and pairing a day −25 main artefact with the
+   day −25 DEK **version** reads an erased user again. Object Lock implies versioning on the
+   implementations that offer it, so ADR 0125's Object Lock rider makes this reachable rather
+   than theoretical. **Provisioning gate:** either do not version `deks/`, or set
+   `NoncurrentVersionExpiration: 1 day` on it (1 is S3's minimum, so it is a floor, not a choice).
+   **And `main/` is NOT exempt, though the first draft of this premise said it was.** No keys
+   travel there, so the Art. 17 property is unharmed — but on a versioned bucket an
+   `Expiration: 30 days` rule writes a delete marker and demotes the object to noncurrent rather
+   than removing it, and main artefacts are the ones carrying clear-text PII inside the age
+   envelope. K4's 30 days would then be unenforced there too. On a versioned bucket `main/` needs
+   `Expiration` **plus** `NoncurrentVersionExpiration` **plus** `ExpiredObjectDeleteMarker`.
+   **Measure the effect, not the rule:** a correctly shaped rule with a wrong prefix filter reads
+   back clean, so also run `get-bucket-versioning` and, after two nights,
+   `list-object-versions --prefix deks/` — exactly one version per key.
+   (security-auditor, 2026-08-09, Major, restated in the scoped recheck the same day.)
+6. **A failed run can leave a truncated object offsite, and the box cannot remove it.** If `age`
+   or `pg_dump` dies mid-stream, `rclone` has already opened the destination and writes what it
+   received. The run fails loudly, and age is an authenticated format so a restore from that
+   object fails at decrypt rather than yielding partial data — but the object sits under a
+   legitimate-looking run-stamped name until the lifecycle expires it. **Do not read a main
+   artefact's existence as evidence it is complete;** the journal for that run is the evidence.
+7. **Where decryption happens once real data exists.** The workstation is inside the trust
+   boundary (ADR 0123). Acceptable for a drill on an empty box; open beyond that, and
+   security-auditor's to settle.

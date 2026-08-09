@@ -46,6 +46,24 @@ public class ChangeEmailCommandHandlerTests
         _cooldown.TryBeginAsync(
                 Arg.Any<string>(), Arg.Any<string>(), Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>())
             .Returns(true);
+
+        // #1087 — the capability gate is OPEN by default so every other test keeps failing for ITS OWN
+        // cause. NSubstitute returns default(bool) = false for an unconfigured property, and the gate is
+        // the handler's first check after self-defence, so without this line it would pre-empt every
+        // cooldown / email-taken / token-failure case below.
+        //
+        // MEASURED, because the size of that hazard was itself asserted wrongly and the difference
+        // matters. dotnet-architect (2026-08-09) graded it Viktigt on the premise that the five
+        // DidNotReceive() assertions "would ALL still pass", silently repurposed. Run against this
+        // fixture with the line removed, 6 of the 12 cases that existed when he measured FAIL —
+        // the denominator is the pre-#1087 fixture, not this file, which now has 14: four on
+        // result.Error.Code (each test pins its own
+        // cause — UserNotFound, ChangeEmailCooldown ×2, EmailTaken), one on result.IsSuccess, one on the
+        // ordering case's success assertion. None of them went quietly. The remedy below is still
+        // required; what is NOT true is that this fixture would have hidden the change. It does not rely
+        // on DidNotReceive() alone anywhere — every negative assertion has a positive sister in the same
+        // test, which is exactly what makes a negated assertion able to fail at all.
+        _emailSender.CanDeliver.Returns(true);
     }
 
     private ChangeEmailCommandHandler CreateHandler(ICurrentUser currentUser)
@@ -236,6 +254,74 @@ public class ChangeEmailCommandHandlerTests
         await _cooldown.Received(1).TryBeginAsync(
             CooldownScopes.ChangeEmailTarget, NewEmail,
             TimeSpan.FromSeconds(ChangeEmailWindowSeconds), Arg.Any<CancellationToken>());
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // #1087 — the capability gate, pinned at the CALL SITE and as a PAIR.
+    //
+    // AC 4 asks for the call site rather than the rule, and the reason is exact: a rule test
+    // (NullEmailSender.CanDeliver is false) stays green forever while this handler never consults
+    // it. Only a test that drives THIS handler can tell a live gate from a dead one.
+    //
+    // The pair is not tidiness either. The refusal half is built from negated assertions
+    // (DidNotReceive, no token minted), and a negated assertion cannot fail its own pattern — delete
+    // the gate from the handler and the sends happen, which the negatives catch, but delete the
+    // handler's whole body and they pass just as well. The capability-TRUE sister is what proves the
+    // branch is a choice: same fixture, same command, exactly one input flipped.
+    // ---------------------------------------------------------------------------------------
+
+    [Fact]
+    public async Task Handle_WhenSenderCannotDeliver_RefusesBeforeMintingOrSending()
+    {
+        var userId = Guid.NewGuid();
+        _emailSender.CanDeliver.Returns(false);
+        _service.IsEmailTakenAsync(NewEmail, Arg.Any<CancellationToken>()).Returns(false);
+        _service.GenerateChangeEmailTokenAsync(userId, NewEmail, Arg.Any<CancellationToken>())
+            .Returns(Result.Success(UrlSafeToken));
+        var handler = CreateHandler(AuthenticatedUser(userId));
+
+        var result = await handler.Handle(new ChangeEmailCommand(CurrentPassword, NewEmail), CancellationToken.None);
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe(AuthErrorCodes.EmailDeliveryUnavailable);
+
+        // No token is minted for a request that cannot complete — the credential would be a live
+        // change-email token nobody can ever receive.
+        await _service.DidNotReceive().GenerateChangeEmailTokenAsync(
+            Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+        await _emailSender.DidNotReceive().SendEmailChangeConfirmationAsync(
+            Arg.Any<string>(), Arg.Any<EmailChangeConfirmationEmail>(), Arg.Any<CancellationToken>());
+
+        // AC 3 (no audit row) is NOT pinned here and cannot be: AuditBehavior is not in this
+        // fixture, so no assertion at this level can observe it. The real pin is
+        // ChangeEmailTests.POST_change_email_returns_503_..., which counts the rows.
+
+        // The actor's 60s anti-email-bomb window is NOT consumed: the gate reads no request input and
+        // runs ahead of the cooldown, so a server-side misconfiguration cannot rate-limit the user out
+        // of retrying once the provider is configured.
+        await _cooldown.DidNotReceive().TryBeginAsync(
+            Arg.Any<string>(), Arg.Any<string>(), Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Handle_WhenSenderCanDeliver_ProceedsToSend()
+    {
+        // The crossing sister of the test above: identical arrangement, CanDeliver flipped to true.
+        // Without this the refusal test would pass against a handler that refuses unconditionally.
+        var userId = Guid.NewGuid();
+        _emailSender.CanDeliver.Returns(true);
+        _service.IsEmailTakenAsync(NewEmail, Arg.Any<CancellationToken>()).Returns(false);
+        _service.GenerateChangeEmailTokenAsync(userId, NewEmail, Arg.Any<CancellationToken>())
+            .Returns(Result.Success(UrlSafeToken));
+        var handler = CreateHandler(AuthenticatedUser(userId));
+
+        var result = await handler.Handle(new ChangeEmailCommand(CurrentPassword, NewEmail), CancellationToken.None);
+
+        result.IsSuccess.ShouldBeTrue();
+        await _emailSender.Received(1).SendEmailChangeConfirmationAsync(
+            NewEmail, Arg.Any<EmailChangeConfirmationEmail>(), Arg.Any<CancellationToken>());
+        await _cooldown.Received(2).TryBeginAsync(
+            Arg.Any<string>(), Arg.Any<string>(), Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]

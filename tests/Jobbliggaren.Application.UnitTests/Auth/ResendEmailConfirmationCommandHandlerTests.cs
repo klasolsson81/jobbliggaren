@@ -30,6 +30,13 @@ public class ResendEmailConfirmationCommandHandlerTests
     private readonly IEmailSender _emailSender = Substitute.For<IEmailSender>();
     private readonly IAuthAuditLogger _auditLogger = Substitute.For<IAuthAuditLogger>();
 
+    public ResendEmailConfirmationCommandHandlerTests() =>
+        // #1087 — capability OPEN by default so the existing cases keep exercising their own causes.
+        // NSubstitute returns default(bool) = false for an unconfigured property, and the audit stamp
+        // is now conditional on it; without this line Handle_Eligible_SendsConfirmationThenAudits
+        // fails on the audit assertion (measured: 1 of 8 red before this arrangement was added).
+        _emailSender.CanDeliver.Returns(true);
+
     private ResendEmailConfirmationCommandHandler CreateHandler() =>
         new(_cooldown, _cooldownOptions, _userAccountService, _emailSender, _auditLogger,
             NullLogger<ResendEmailConfirmationCommandHandler>.Instance);
@@ -76,6 +83,50 @@ public class ResendEmailConfirmationCommandHandlerTests
             Email,
             Arg.Is<EmailConfirmationEmail>(c => c != null && c.UserId == userId && c.UrlSafeToken == "url-safe-token"),
             Arg.Any<CancellationToken>());
+        _auditLogger.Received(1).EmailConfirmationResent(userId);
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // #1087 D2 (senior-cto-advisor 2026-08-09) — the audit row must not outlive the delivery.
+    //
+    // This is the SAME acceptance criterion as ChangeEmail's ("no audit row for a request that
+    // cannot complete") at a second call site, and the reasoning that discharges it there does NOT
+    // reach here: ChangeEmail relies on AuditBehavior stamping only on Result.Success, while this
+    // handler returns Success by contract and stamps manually inside the try.
+    //
+    // The pair pins BOTH halves, and the second half is the one that protects the anti-enumeration
+    // contract: the response must stay a uniform Success whether or not delivery is possible. A fix
+    // that refused here would be a live existence oracle, since the eligibility lookup above already
+    // distinguishes absent and already-confirmed addresses by returning null.
+    // ---------------------------------------------------------------------------------------
+
+    [Fact]
+    public async Task Handle_EligibleButSenderCannotDeliver_StillSucceeds_ButWritesNoAudit()
+    {
+        var userId = Guid.NewGuid();
+        NotCooled();
+        Eligible(userId);
+        _emailSender.CanDeliver.Returns(false);
+
+        // Unchanged response — this is the invariant the refusal must not break.
+        (await Handle()).IsSuccess.ShouldBeTrue();
+
+        // No "resent" event for a link that reached nobody.
+        _auditLogger.DidNotReceive().EmailConfirmationResent(Arg.Any<Guid>());
+    }
+
+    [Fact]
+    public async Task Handle_EligibleAndSenderCanDeliver_WritesTheAudit()
+    {
+        // The crossing sister. Without it the test above passes against a handler that never audits
+        // at all — a negated assertion cannot fail its own pattern.
+        var userId = Guid.NewGuid();
+        NotCooled();
+        Eligible(userId);
+        _emailSender.CanDeliver.Returns(true);
+
+        (await Handle()).IsSuccess.ShouldBeTrue();
+
         _auditLogger.Received(1).EmailConfirmationResent(userId);
     }
 

@@ -45,6 +45,7 @@ using System.Text;
 using Hangfire.PostgreSql;
 using Jobbliggaren.Infrastructure.Identity;
 using Jobbliggaren.Infrastructure.Persistence;
+using Jobbliggaren.Infrastructure.Security;
 using Jobbliggaren.Migrate;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -97,6 +98,7 @@ try
         "ensure-extensions" => await RunEnsureExtensionsAsync(log, cts.Token),
         "explain-search" => await RunExplainSearchAsync(log, cts.Token),
         "schema" => await RunSchemaAsync(log, cts.Token),
+        "rewrap-master-key" => await RunRewrapMasterKeyAsync(log, cts.Token),
         _ => UsageError(log),
     };
 }
@@ -178,6 +180,67 @@ static async Task<int> RunInitAsync(ILogger log, CancellationToken ct)
 
 // ADR 0033 — Phase E. Ansluter med jobbliggaren_app-creds ur env,
 // bygger AppDbContext programmatiskt, kör Database.MigrateAsync. Idempotent.
+// #198 gate M-3 — offline master-key rotation.
+//
+// WHY IT LIVES HERE. Migrate has no DI container and builds AppDbContext through
+// MigrationsOptionsFactory, i.e. WITHOUT the field-encryption interceptors. That is exactly what
+// this operation needs: raw access to user_data_keys, no audit side-effects, and no DEK-bearing
+// aggregate materialised in a system job. It also already resolves secrets through MigrateEnv,
+// which supports the <NAME>_FILE convention the box uses.
+//
+// The dispatch takes exactly one argument (ADR 0033), so there is no --verify-only flag; the
+// verification pass is part of the run and its result is logged.
+static async Task<int> RunRewrapMasterKeyAsync(ILogger log, CancellationToken ct)
+{
+    MigrateLog.ModeRewrapMasterKey(log);
+
+    var appCs = MigrateEnv.Required("MIGRATE_APP_CONNECTION_STRING");
+    var retiringKey = MigrateEnv.Required("REWRAP_RETIRING_MASTER_KEY");
+    var incomingKey = MigrateEnv.Required("REWRAP_INCOMING_MASTER_KEY");
+    // Required, not Optional-with-a-default. Three of four inputs are already required, and this
+    // is the one where a wrong guess is a data-loss path: on a rotated box the on-disk identity
+    // file already holds the INCOMING id, so there is no on-box source for the retiring one. The
+    // runbook always passes it explicitly, so nothing breaks.
+    var retiringKeyId = MigrateEnv.Required("REWRAP_RETIRING_KEY_ID");
+    var incomingKeyId = MigrateEnv.Required("REWRAP_INCOMING_KEY_ID");
+
+    MigrateLog.RewrapStart(log, retiringKeyId, incomingKeyId);
+
+    // Both providers are constructed by hand — Migrate has no DI. Using the real provider rather
+    // than re-implementing the crypto is the point: same AAD, same layout, same fail-closed
+    // guards as production, because it is the same code.
+    var rewrapper = new MasterKeyRewrapper(
+        NewProvider(retiringKey, retiringKeyId),
+        NewProvider(incomingKey, incomingKeyId),
+        retiringKeyId,
+        incomingKeyId,
+        log);
+
+    await using var dbContext = new AppDbContext(
+        MigrationsOptionsFactory.BuildAppOptions(appCs));
+
+    var result = await rewrapper.RewrapAllAsync(dbContext, ct);
+
+    if (result.Rewrapped == 0)
+    {
+        MigrateLog.RewrapNoOp(log, retiringKeyId, result.AlreadyCurrent, incomingKeyId, result.Verified);
+        return 0;
+    }
+
+    MigrateLog.RewrapComplete(log, result.Rewrapped, result.AlreadyCurrent, result.Verified);
+    return 0;
+
+    static LocalDataKeyProvider NewProvider(string masterKeyBase64, string keyId) =>
+        new(
+            Microsoft.Extensions.Options.Options.Create(new FieldEncryptionOptions
+            {
+                Provider = "Local",
+                LocalMasterKeyBase64 = masterKeyBase64,
+                LocalMasterKeyId = keyId,
+            }),
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<LocalDataKeyProvider>.Instance);
+}
+
 static async Task<int> RunSchemaAsync(ILogger log, CancellationToken ct)
 {
     MigrateLog.ModeSchema(log);

@@ -153,4 +153,60 @@ public class AddEmailSenderGateTests
         ex.Message.ShouldContain("'Ses'");
         ex.Message.ShouldContain("'Console'");
     }
+
+    // ---------------------------------------------------------------------------------------
+    // #1087 — CanDeliver, at the layer that decides WHICH sender exists.
+    //
+    // This is the RULE half and it is vacuous on its own: it would stay green forever against a
+    // handler that never asks. The call-site pins are ChangeEmailCommandHandlerTests' refusal pair
+    // and ChangeEmailTests' 503 crossing; this file only establishes that the registration the
+    // environment produces answers the way those pins assume.
+    //
+    // Worth having anyway, and for a reason the handler pins cannot cover: the mapping from
+    // ENVIRONMENT to capability is what this switch decides, and a future edit that registered
+    // ConsoleEmailSender outside Dev/Test — or Null inside it — would leave every handler test green
+    // while changing which environments can complete an email change.
+    // ---------------------------------------------------------------------------------------
+
+    private static bool ResolveCanDeliver(
+        string environmentName, IReadOnlyDictionary<string, string?> values)
+    {
+        var services = BuildServices(environmentName, values);
+        using var provider = services.AddLogging().BuildServiceProvider();
+        return provider.GetRequiredService<IEmailSender>().CanDeliver;
+    }
+
+    private static bool ResolveCanDeliver(string environmentName, string? provider = null) =>
+        ResolveCanDeliver(
+            environmentName,
+            provider is null
+                ? new Dictionary<string, string?>()
+                : new Dictionary<string, string?> { [$"{EmailOptions.SectionName}:Provider"] = provider });
+
+    [Theory]
+    [InlineData("Production")]
+    [InlineData("Staging")]
+    public void AddEmailSender_TheLiveDefaultOutsideDevelopment_CannotDeliver(string env) =>
+        // Provider unset — the documented, committed default. This is the state production is in
+        // today, and it is the whole reason #1087 exists.
+        ResolveCanDeliver(env, provider: null).ShouldBeFalse();
+
+    [Theory]
+    [InlineData("Development")]
+    [InlineData("Test")]
+    public void AddEmailSender_InDevelopmentOrTest_CanDeliver(string env) =>
+        // ConsoleEmailSender writes the whole body — activation and confirmation links included — to
+        // ILogger, so a developer can complete a token→email→confirm flow from the log. Answering
+        // false here would refuse the very flows dev exists to exercise.
+        ResolveCanDeliver(env, provider: null).ShouldBeTrue();
+
+    [Fact]
+    public void AddEmailSender_CapabilityCrossesOnTheProviderKeyAlone()
+    {
+        // Same environment, exactly one input changed — the pair, not the halves. Either assertion
+        // alone is compatible with a capability that is hard-coded: all-false would pass the control,
+        // all-true would pass the crossing arm. Only the pair shows the value tracks the switch.
+        ResolveCanDeliver("Production", provider: null).ShouldBeFalse();
+        ResolveCanDeliver("Production", FullSesSettings()).ShouldBeTrue();
+    }
 }

@@ -54,6 +54,19 @@ public sealed partial class SesEmailSender(
 
     private readonly EmailOptions _options = options.Value;
 
+    /// <summary>
+    /// <see langword="true"/> — this is the real transactional path. Reaching this class at all
+    /// already means <c>AddEmailSender</c> accepted an explicit <c>Email:Provider=Ses</c> together
+    /// with a region and both credentials, fail-loud at REGISTRATION time; the arm cannot be entered
+    /// half-configured. See <see cref="IEmailSender.CanDeliver"/>.
+    /// <para>
+    /// A transport failure after that is a different question from capability and is NOT modelled
+    /// here: it surfaces as <c>EmailDeliveryException</c> from the send itself. This property answers
+    /// "is delivery possible at all", never "will this particular message arrive".
+    /// </para>
+    /// </summary>
+    public bool CanDeliver => true;
+
     public Task SendMatchNotificationEmailAsync(
         string toEmail, MatchNotificationEmail content, CancellationToken cancellationToken) =>
         SendAsync(

@@ -38,4 +38,24 @@ public sealed class FieldEncryptionOptions
     /// trasig lokal master-nyckel får aldrig tyst degradera krypteringen.
     /// </summary>
     public string LocalMasterKeyBase64 { get; init; } = string.Empty;
+
+    /// <summary>
+    /// #198 (M-3) — identity of the master key currently in force. NOT a secret: it is stamped
+    /// into <c>user_data_keys.cmk_key_id</c> on every new wrapped DEK and is the idempotency
+    /// marker the offline re-wrap operation reads ("local-v1" → "local-v2").
+    ///
+    /// <para>
+    /// It must be configurable, and that is load-bearing rather than cosmetic: with the value
+    /// hardcoded, every row created AFTER a rotation would be stamped with the retired key's
+    /// identity while actually wrapped under the new key, so the next rotation's marker would
+    /// select rows it cannot unwrap. Default <c>"local-v1"</c> preserves every pre-rotation row
+    /// and every dev environment unchanged.
+    /// </para>
+    ///
+    /// <para>
+    /// Key identity lives HERE, never in the wrapped-DEK wire header. That header's version byte
+    /// is format agility (layout), a separate axis — see <see cref="LocalDataKeyProvider"/>.
+    /// </para>
+    /// </summary>
+    public string LocalMasterKeyId { get; init; } = "local-v1";
 }

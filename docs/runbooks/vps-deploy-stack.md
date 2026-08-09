@@ -49,33 +49,43 @@ docker compose -f /opt/jobbliggaren/deploy/docker-compose.yml <command>
 ```
 /opt/jobbliggaren/
   deploy/          # the tracked deploy/ directory, from a shallow clone of the repo
-  .env             # root:root 0600 — every secret the stack needs. NEVER COMPOSE_FILE.
+  .env             # root:root 0600 — DB + edge credentials. NEVER COMPOSE_FILE, and since
+                   # #198 never the crypto values either.
   staging/         # transient only (corpus dump); emptied and shredded after use
+/run/jobbliggaren/secrets/   # tmpfs — the four crypto values, RAM only, re-injected per boot
 ```
 
-`deploy/.env.example` is the template and the required-key list. Every key is a hard `:?`
-requirement: compose refuses to start rather than starting on a default nobody chose.
+`deploy/.env.example` is the template and the required-key list for what remains in `.env`.
+Every key there is a hard `:?` requirement: compose refuses to start rather than starting on
+a default nobody chose.
 
-**The master key lives in `.env` on disk, and gate B-1 is therefore NOT closed.** B-1
-requires the key never be plaintext on disk — a TPM-bound systemd credential, or sops+age
-into tmpfs. It is owed by #198, and the `<NAME>_FILE` seam alone does not discharge it:
-a plain file plus an env var pointing at it is still plaintext on disk. Measured
-2026-08-05, there is a **second** copy nobody had registered — `docker inspect` returns
-the value after the container has exited, so Docker persists it in its own state.
+**The crypto values are no longer in `.env`, and gate B-1's repair shipped in #198.** The
+field-encryption master key and the three pseudonymisation peppers are files on
+`/run/jobbliggaren/secrets` (tmpfs, RAM-backed), bind-mounted read-only into api and worker
+as `/run/app-secrets`, and reaching configuration through the `<KEY>_FILE` seam. Both
+measured plaintext-on-disk surfaces are addressed by that move: `deploy/.env` itself, and
+Docker's own container state — `docker inspect` returned the value after the container had
+exited (measured 2026-08-05).
 
-**B-1 is a Blocker-graded pre-beta-data gate, and the recruiter corpus IS beta data.**
-The stack may be deployed with the key in `.env`; the corpus may not land until B-1 is
-closed. That sequencing is a Klas decision and is recorded in this runbook so it is not
-carried in anyone memory.
+**B-1's parenthetical is exhausted, and satisfying the gate by a mechanism it does not name
+is not a deviation.** The gate text names "systemd-credentials TPM-bunden el. sops+age→tmpfs".
+Measured 2026-08-09: this host has no TPM (`systemd-analyze has-tpm2` → `partial`, no
+`/dev/tpm0`, no libtss2) and `sops` is absent from apt on trixie. Without a TPM a sealed blob
+and its unsealing key travel in the same disk snapshot. The requirement is *never plaintext
+on disk*; **no at-rest copy at all** meets it more strongly than either named option would.
+Full rationale and the operator procedure: [`master-key-ops.md`](master-key-ops.md).
+
+**B-1 is discharged when the verification rows exist, not when the PR merged.** The PR proves
+the mechanism; the operator's injection proves the instance. Until the rows in §5 are filled
+in against this box, treat the gate as owed.
 
 What `memswap_limit == mem_limit` delivers is a **stronger B-1 posture**, which ADR 0050
-`Amendment 2026-08-04` §2 condition 4 attributes to B-1 in as many words — the key cannot
-reach zram either, only anonymous RAM. It strengthens the gate; it does not close it:
-`memswap_limit == mem_limit` on `api` and `worker` keeps their memory out of swap, and the
-host swaps to zram only (gate B-1). The `<NAME>_FILE` seam exists in `Jobbliggaren.Migrate`
-only — the API and Worker read plain environment through `IConfiguration` — so moving the
-key to a file is a code change, and it belongs to #198 (master-key protection and
-rotation) rather than here.
+`Amendment 2026-08-04` §2 condition 4 attributes to B-1 in as many words. It never closed the
+gate and it is not what closed it now — but it stays load-bearing for the half that remains:
+the key is plaintext in api/worker process memory for the process lifetime, and without
+`memswap_limit` a container at its ceiling would page that memory into zram. That residual is
+described in ADR 0049 `Amendment 2026-08-09` and its acceptance lives in ADR 0123, which is
+still `Proposed`.
 
 ---
 
@@ -83,6 +93,23 @@ rotation) rather than here.
 
 Prerequisite: Docker installed, `/etc/docker/daemon.json` written, and the nftables
 `forward` delta applied — all in §4 below, all before anything here.
+
+> **AND the crypto-secrets mechanism, before the first `up`.** Since #198 the four crypto
+> values are not in `.env`, so compose no longer refuses to start when they are missing — it
+> starts, and api/worker crash-loop instead. Two consequences the old `:?` guards used to make
+> impossible:
+>
+> - **Install `/etc/tmpfiles.d/jobbliggaren.conf` first.** The secrets bind mount carries
+>   `create_host_path: true` (measured), so without it Docker silently creates the directory
+>   root-owned and un-traversable by the container — and the app then reports a *missing key*
+>   rather than a permission problem.
+> - **Install and enable `jobbliggaren-secrets-present.timer` in the same step.** A
+>   crash-looping container never appears in `systemctl --failed`; that timer is what puts the
+>   condition on the box's only alarm surface.
+>
+> Both are the install block in [`master-key-ops.md`](master-key-ops.md) §2. Run it **before**
+> the first `docker compose up`, then inject (§3 of that runbook) and confirm
+> `--check` passes. Nothing mechanical enforces this ordering — that is what these lines are.
 
 ```bash
 cd /opt/jobbliggaren
@@ -438,7 +465,7 @@ that came from the older one.
 | 2 | Redis runs `maxmemory` **and** `noeviction` | `redis-cli config get maxmemory*` | `maxmemory 419430400` (400 MiB) · `maxmemory-policy noeviction` — both set, which is the requirement: `noeviction` only engages when `maxmemory` is | 2026-08-06 |
 | 2b | Redis has headroom under real traffic — `noeviction` means a full instance refuses writes, and the write that fails is the session store, so it surfaces as nobody being able to log in | `redis-cli info memory` — `used_memory` against `maxmemory` | **Baseline only, and the row's own condition is unmet.** `used_memory 1.58 MiB` (and `used_memory_peak` identical) against `maxmemory 400 MiB` — 0.4 %. There is no real traffic and no session load on this box, so this measures an empty instance, not headroom. What would close the row is the same thing that closes row 19: users. Owned by [#1235](https://github.com/klasolsson81/jobbliggaren/issues/1235) | 2026-08-08 (empty) |
 | 2c | The K2 gate's hash is bcrypt cost 11, not the tool's default 14 — the gate pays the full hash on every WRONG password, and nothing upstream filters | `docker exec jobbliggaren-caddy printenv BASIC_AUTH_HASH \| cut -c1-7` prints `$2a$11$` and nothing more: the hash itself is offline-crackable, so do not put it in the cutover scrollback. Then time a wrong-password request against a right one — **from the box**, so network latency does not swamp the signal, and with **distinct** wrong passwords | **Both halves measured, and the second one qualifies the first.** Prefix: `$2a$11$` — cost 11, not the tool default 14. Timing, from the box (12 runs each): no credentials **9.4 ms** · a *distinct* wrong password **121.4 ms**, every single time · a *repeated* wrong password 125 ms once and then **9.5 ms**. So bcrypt costs **~112 ms of server CPU per distinct guess**, and Caddy caches the verdict per credential — meaning a naive flood of one wrong password amplifies nothing, while a guessing attacker, who by definition sends distinct values, pays full price on every one. **The denominator is one core, not four:** `caddy` runs under `cpus: 1.0` (measured on the running container, `NanoCpus=1000000000`), and the gate is inside caddy — so roughly **9 guesses/s saturates the quota**, not 36. That quota is also the containment: an attacker exhausts caddy's own share and the other five services keep their CPU, which is why the exposure is acceptable rather than merely small. Cost 14 would be about 8x worse on the same denominator. Measured externally the same run reads 106 ms wrong vs 190 ms right, which inverts the apparent conclusion — the 84 ms gap there is Next rendering the page behind a *correct* password, not bcrypt. An external instrument cannot see this | 2026-08-08 |
-| 3 | Postgres steady-state RSS against the 2 560 MiB cap | cgroup `memory.peak` (which retains the high-water mark across the whole uptime, so it captures any 02:00 run without watching one) + `memory.stat` anon/file | **Steady state measured, the deciding workload NOT.** Over 2 days 7 h of uptime: `memory.peak` **151.8 MiB**, `memory.current` 138.6 MiB against a `memory.max` of 2 560 MiB — **5.9 % of the cap**, and the split is 11.8 MiB anon against 117.1 MiB file, i.e. almost entirely page cache the cgroup charges to Postgres. **But the 02:00 snapshot job does not exist yet** (#197 owns backup and is unbuilt), so the peak reflects idle operation plus one 80-migration boot, not the workload ADR 0122 called the least certain number. The headroom is large enough that this is reassurance rather than a result; the row is not closed, and [#1235](https://github.com/klasolsson81/jobbliggaren/issues/1235) owns the condition being met (it is blocked on #197 building the job) | 2026-08-08 (idle only) |
+| 3 | Postgres steady-state RSS against the 2 560 MiB cap | cgroup `memory.peak` (which retains the high-water mark across the whole uptime, so it captures any 02:00 run without watching one) + `memory.stat` anon/file | **Steady state measured, the deciding workload NOT.** Over 2 days 7 h of uptime: `memory.peak` **151.8 MiB**, `memory.current` 138.6 MiB against a `memory.max` of 2 560 MiB — **5.9 % of the cap**, and the split is 11.8 MiB anon against 117.1 MiB file, i.e. almost entirely page cache the cgroup charges to Postgres. **The nightly dump job did not exist when this was measured**, so the peak reflects idle operation plus one 80-migration boot, not the workload ADR 0122 called the least certain number. The headroom is large enough that this is reassurance rather than a result. #197 merged the job on 2026-08-09 with a timer set to 02:15 UTC — but **merged is not installed**: rows 28–31 below are empty, so nothing has yet measured that the units are on the box, let alone that a dump has run. [#1235](https://github.com/klasolsson81/jobbliggaren/issues/1235) owns closing this, and what unblocks it is row 29 carrying a date, not the merge. `pg_dump` runs inside this container's own cgroup, so its cost will land here when it does | 2026-08-08 (idle only) |
 | 4 | Postgres tuning is explicit, derived from the cap | `SHOW shared_buffers` etc. | `shared_buffers 640MB` · `effective_cache_size 1536MB` · `work_mem 8MB` · `maintenance_work_mem 192MB` · `autovacuum_work_mem 64MB` · `max_connections 60` · `max_wal_size 4GB` — every value explicit, none a default | 2026-08-06 |
 | 5 | Certificate issues over HTTP-01 with the K2 gate live (M-5a) | `ACME_CHALLENGE_MODE=http01` on staging, then **the issuance log line naming the challenge type** **and** the counterfactual that the other was off (`caddy adapt` shows `"tls-alpn":{"disabled":true}` **on the policy whose `subjects` contain `SITE_HOST`** — the adapted config carries two automation policies and a bare substring match would be satisfied by either). BOTH halves: a certificate alone can be ticked on one ALPN issued — the silent fallback this proof exists to catch — and the counterfactual alone does not survive an operator confusing `http01` with `alpn01` | **Half A:** `"msg":"trying to solve challenge","challenge_type":"http-01"`, then **five** `"served key authentication","challenge":"http-01"` lines from five Let's Encrypt validation nodes (66.133.109.36, 51.20.52.251, 3.19.55.58, 54.185.127.228, 13.229.69.141), then `certificate obtained successfully`. Those five lines are also the strongest form of the M-5a gate: **the K2 basic-auth gate does not shadow the challenge path**, proven by external validators fetching through it, not by reading the Caddyfile. **Half B:** the adapted config carries **two** automation policies; the one whose `subjects` are `["dev.jobbliggaren.se"]` carries `{"tls-alpn":{"disabled":true}}` and the other carries no `challenges` key at all — which is precisely why this instrument names the SITE_HOST policy instead of substring-matching the document | 2026-08-08 |
 | 6 | Certificate issues over TLS-ALPN-01 (the fallback path) | `ACME_CHALLENGE_MODE=alpn01` on staging; same two halves as row 5, mirrored (`"http":{"disabled":true}`) | **Half A:** `"challenge_type":"tls-alpn-01"`, then five `"served key authentication certificate","challenge":"tls-alpn-01"` lines from five validation nodes, then `certificate obtained successfully`. **Half B:** the SITE_HOST policy carries `{"http":{"disabled":true}}` — the exact mirror of row 5 | 2026-08-08 |
@@ -460,14 +487,66 @@ that came from the older one.
 | 20 | Reconcile-pull runs and applies a digest change | `systemctl list-timers` + journal of a real run | **Installed and proven on a run that actually moved every digest**, 2026-08-08 17:20 UTC. The journal — not the exit code, which is 0 on the lock branch by design — carries `verified 5 image(s), skipped 2 upstream; applying`, preceded by one `verified:` line per ghcr image naming its digest, and `skipping postgres:18.3 / redis:8.6-alpine (upstream, on the allowlist)`. Compose then **recreated all six services**, so this was a digest change applied end to end and not a no-op tick. `Result=success`, `ExecMainStatus=0`, stamp written to `/var/lib/jobbliggaren/last-successful-reconcile`. The site was re-checked afterwards: 401 with HSTS unauthenticated, 200 and `<title>Jobbliggaren</title>` past the gate, `/api/health` 200, certificate chain still `Verify return code: 0`. Timer armed for :47+jitter | 2026-08-08 |
 | 20b | The attestation gate answers correctly on the box, with real cosign and a real bundle | `verify-image-attestation.sh` against published digests, run **on the box** — the fixture suite stubs cosign and so cannot speak for Debian's build, GHCR's referrer layout, or the bundle format | **Five polarities, all as designed.** **Positive: exit 0** — `cosign 2.5.0-2+b4` from Debian main read an `actions/attest-build-provenance@v4` bundle out of GHCR's referrer tags and verified it. That is the one load-bearing joint the fixtures cannot reach, and it holds. Negatives, each exit 1: a pre-#196 digest (`no valid bundles exist in registry`) · a wrong signer workflow · a wrong repository owner · and — the sharpest — **the same bundle against a different ref**, refused with `expected SAN … @refs/heads/main, got … @refs/heads/feat/…`. **Why the production identity could not be the positive case yet:** the OIDC token is minted from the ref the *run* executes on, not from `inputs.ref`, so a dispatch from this branch attests under the branch's ref even when it builds `main`'s tree. Only a run on `main` can produce `@refs/heads/main` — and that run has since happened. **Measured after the merge, with the unmodified verifier from `main`:** a freshly published image verifies `built by .github/workflows/release-images.yml on refs/heads/main in klasolsson81/jobbliggaren`, exit 0. The positive case against the PRODUCTION identity is therefore no longer owed | 2026-08-08 |
 
----
+### Rows 21–27 — gate B-1's own subject (#198)
 
-## 6. What this runbook does not own
+<!-- This heading said "21–25" from the day rows 26 and 27 were appended under it, which is the
+     drift a range in a heading invites: the table grew, the label did not, and a reader looking
+     for the escrow gate by heading would not have found it. Corrected 2026-08-09 while adding
+     the backup rows, which live in their own section below rather than extending this one —
+     they belong to a different gate (M-4) and a different issue. -->
 
-- **Backup and restore** — #197. The target is still open; §7 of ADR 0050's amendment adds
-  that it must be a failure domain independent of both the box and the operator's
-  workstation, and that the age private key must never sit with the ciphertext.
-- **Master-key protection and rotation, and key-access detection** — #198.
+
+**These are UNMEASURED and are written as a checklist for the cutover, deliberately.** Until
+#198 nothing in this log measured B-1's actual subject: row 17 measures swap hygiene, which
+prepares the gate without discharging it. The rows are written *before* the cutover rather
+than reconstructed after it, because `deploy/` gets no integration coverage from `ci` and the
+cutover happens once.
+
+Every command below captures the key into a shell variable from the tmpfs file and greps with
+`-F "$K"`, so the value transits operator-shell RAM only and never scrollback. `unset K` at the
+end. Procedure and rationale: [`master-key-ops.md`](master-key-ops.md).
+
+| # | Property | Instrument | Measured | Date |
+|---|---|---|---|---|
+| 21 | `docker inspect` returns the key on **no** container, including exited ones | `K=$(sudo cat /run/jobbliggaren/secrets/FieldEncryption__LocalMasterKeyBase64)` then `sudo docker inspect $(sudo docker ps -aq) \| grep -cF "$K"` — expect `0`. `ps -aq`, **not** `ps -q`: the measured 2026-08-05 leak was state surviving container *exit*, so an inspect over running containers only would re-measure the wrong set. Structural half: `sudo docker inspect -f '{{.Name}}: {{range .Config.Env}}{{println .}}{{end}}' $(sudo docker ps -aq) \| grep -iE 'MasterKey\|Pepper'` — expect only `*_FILE=` **path** lines | | |
+| 22 | No plaintext copy on persistent disk | `sudo grep -rIlF "$K" /opt /etc /root /home /var/lib/jobbliggaren /var/lib/docker/containers` — expect no output. `grep -c '^FIELD_ENCRYPTION_MASTER_KEY=' /opt/jobbliggaren/deploy/.env` — expect `0`, line **deleted** and not blanked. `sudo journalctl --grep "$K" -q \| head -1` — expect empty. **Named scope limits:** `/var/lib/docker/overlay2` is excluded (a box-generated key cannot be in an image layer — `.dockerignore:35-49`); and freed SSD blocks that once held the old `.env` line are unreachable by any grep, **which is why the cutover rotates the key rather than relocating it** — rotation makes those remnants worthless | | |
+| 23 | The app boots and decrypts from the file-sourced key | `docker inspect -f '{{.State.Health.Status}}' jobbliggaren-api` → `healthy`. This **is** key evidence rather than a liveness check: `ValidateOnStart` plus the `LocalDataKeyProvider` constructor make an unreadable or invalid key a boot failure, so a healthy api has parsed and validated the file. Then read one encrypted field through the app (any page showing CV or profile data) — the DEK-level check alone cannot catch a re-wrap that generated a fresh DEK | | |
+| 24 | Reboot survival is the DESIGNED failure, and self-heal works | `sudo systemctl reboot`. Expect: api `restarting` (crash-loop, fail-closed — no fallback key), `jobbliggaren-secrets-present.service` in `systemctl --failed` within ~2 min naming the missing files. Then inject and expect api `healthy` within one restart-backoff interval **with no `compose up` and no reconcile run**. Closes two unmeasured premises at once: the crash-loop-then-self-heal behaviour, and that the absence detector actually fires | | |
+| 25 | The hourly reconcile is unaffected | after the cutover, one `systemctl start jobbliggaren-reconcile.service` → `Result=success`, stamp written, and the journal shows no interpolation error. The key is no longer referenced by the compose file, so there is nothing left to interpolate and **no `:?` guard for it remains anywhere** (measured: two references repo-wide, both removed by #198) | | |
+| 26 | **Escrow exists off-box for all four secrets — and this row is a GATE, not a report** | Klas confirms the four values are in the password manager, and records the date here. With no at-rest copy this is the only recovery path, and losing a value is as final as rotating it after rows exist: the master key takes every encrypted field, the company-watch pepper every org.nr token (its plaintext was destroyed in place), the CV-fingerprint pepper every Ignored/Resolved decision. (The audit pepper is the fourth and the exception: nothing reads back against it, so losing it costs only the ability to link erasure-audit records to one another across the gap.) **Undecided as of 2026-08-09** — the CTO escalated it and bound it as a hard cutover prerequisite; §9.6 makes the acceptance Klas's to grant. **Do not cut over on an empty cell here** | | |
+| 27 | The peppers were replaced, not carried forward | **Re-measure AFTER `docker stop jobbliggaren-api jobbliggaren-worker`** (`master-key-ops.md` §4 step 2), never merely "before cutover": while the old stack runs the write path is open, and a single `company_watches` row landing between the measurement and the injection locks that pepper permanently without the rotation noticing. Stopping the containers first makes measurement and rotation atomic with respect to new rows. Then, with raw SQL inside the postgres container (not through EF — soft-delete filters hide rows): `resume_finding_statuses`, `company_watches`, `user_data_keys` all 0. Measured 2026-08-09: all three were 0, `audit_log` 13 (its pepper is rotatable regardless — see row 26's note). Confirm the new values landed with `jobbliggaren-inject-secrets.sh --check` plus `sudo stat -c '%a %U:%G' /run/jobbliggaren/secrets/*` — the files are 0400, so do not try to read them back | | |
+
+
+### Rows 28–32 — gate M-4's own subject (#197)
+
+**These are UNMEASURED and are written as a checklist for the drill, deliberately** — the same
+discipline as rows 21–27 above, and for the same reason: `deploy/` gets no integration coverage
+from `ci`, so the box is where these are decided. A row without a date is a claim that cannot be
+told from one that has decayed.
+
+Rows 28–31 close **gate M-4**. Row 32 is a **gate**, not a report, and it is Klas's — the same
+class as row 26, which it inherits.
+
+| # | Property (gate) | Instrument | Measured | Date |
+|---|---|---|---|---|
+| 27b | **The target's lifecycle actually removes objects, measured as an EFFECT and not as a rule** | Provisioning gate, and it is a gate: `get-bucket-versioning`, then the lifecycle configuration read back, then after two nights `list-object-versions --prefix deks/` returning **exactly one version per key**. On a versioned bucket an overwrite deletes nothing and an `Expiration` rule only writes a delete marker — so **both** prefixes need `NoncurrentVersionExpiration` (and `main/` additionally `ExpiredObjectDeleteMarker`), or the "exactly one DEK generation" property AND K4's 30 days are both unenforced while every rule reads back correct. A rule is a claim; the version listing is the measurement | | |
+| 28 | `age` and `rclone` are installable from apt on trixie, and the versions are recorded | `apt-cache policy age rclone`, then `age --version` / `rclone version`. **If either is absent this is a STOPP to security-auditor and Klas, not an improvised binary fetch** — `sops` was measured absent from trixie for #198, so this class of absence is live on this box rather than hypothetical | | |
+| 29 | A real nightly run produces both artefacts, and the box holds no plaintext afterwards | `systemctl start jobbliggaren-backup.service`, then `journalctl -u jobbliggaren-backup.service`. Expect `Result=success`, a `main/jobbliggaren-<stamp>.dump.age` object, and a promoted DEK generation. Then `sudo find /run /var/lib/jobbliggaren /tmp -newermt '-1 hour' -type f` — expect no dump-shaped file. The working directory is on tmpfs and is removed by a trap on every exit path, so a survivor here is a real defect | | |
+| 30 | The freshness probe fires AND clears — both halves, because a probe that cannot clear is worse than none | Move the stamp back 27 h (`touch -d '27 hours ago'`), run `jobbliggaren-backup-fresh.service`, expect it in `systemctl --failed` naming a stale backup. Then run a real backup and expect the next firing to take it **off** the list with no operator action. The clearing half is the one #198's timer got wrong (`OnUnitActiveSec` on a `Type=oneshot`, systemd#21600) | | |
+| 31 | **The restore drill (M-4).** A real artefact, decrypted off-box, restored, and read through the application — and the crypto-erasure semantics measured rather than asserted | `backup-restore.md` §5 end to end against a real object from the real target, on a synthetic user manufactured through production paths and then hard-deleted. Record the counts from step 5, and record **(b2)** as the erasure result — *not* (b). DEK rows are created lazily, so (b) "restored users with no key" also counts users who never wrote an encrypted field and never had one; (b2) counts users who have ciphertext but no key, which is the erased-user signature. Reporting (b) would overstate the drill. **And record (b2) with its scope beside it**, because this row is where the number is protocolled and a later reader reads the row rather than the runbook: (b2)'s `EXISTS` inspects `applications.cover_letter` alone, while `EncryptedFieldRegistry` carries **six** encrypted columns — a user whose only ciphertext was a note, a follow-up, a resume version or a parsed CV is invisible to it. It is an **existential** proof (one confirmed case proves the mechanism; a zero is a prompt to investigate), not a census. Also record that a non-deleted user's encrypted field decrypts through the app — without that, "unreadable" is indistinguishable from "the restore broke" | | |
+| 32 | **The age private key exists in escrow, off-box, and never beside the ciphertext — this row is a GATE, not a report** | Klas confirms the identity is in the password manager and records the date. The box holds only the public recipient by design, so escrow is the **only** path from ciphertext back to data, and a lost age key makes every retained artefact permanently unreadable — the same finality as row 26, with a wider blast radius. **Undecided as of 2026-08-09.** Do not treat the offsite artefacts as a recovery path on an empty cell here. Backups may be *taken* meanwhile; encryption needs only the recipient | | |
+
+- **Backup and restore** — [`backup-restore.md`](backup-restore.md) (#197): the nightly job,
+  the split-dump model, retention, and the restore procedure. The **target** is still open —
+  ADR 0125 binds a requirement profile (EU, S3-compatible, server-side lifecycle, a credential
+  that can exclude `DELETE`, a provider **and account** distinct from Netcup) and Klas selects
+  and contracts; the interim target is his workstation, which §7 of ADR 0050's amendment rules
+  acceptable only while the box holds no real data. **Escrow of the age private key is the same
+  gate as row 26 above and is equally undecided** — see rows 28–32.
+- **Master-key operations** — [`master-key-ops.md`](master-key-ops.md) (#198): the injection
+  procedure, the per-boot re-injection this model requires, rotation and its drill, and
+  recovery. Key-**access** detection is not there either: it is dispositioned to #1201, and
+  what #198 delivers is **absence** detection (`jobbliggaren-secrets-present.timer`).
 - **Host detection and alerting (gate M-7)** — the obligation and its `Hemvist` are
   [#1201](https://github.com/klasolsson81/jobbliggaren/issues/1201); the host-level half
   (auditd or equivalent, file-integrity monitoring, log shipping off the box, something
@@ -475,14 +554,15 @@ that came from the older one.
   #196's closure. Delivered separately from this file either way.
 - **The production log sink** — #1175, unbuilt and unowned. Docker's log rotation above is
   a disk control, not a log sink.
-- **Closing gate B-1 — and the corpus waits for it.** The field-encryption master key is
-  plaintext on disk here, in `deploy/.env` and a second time in Docker's own container
-  state (measured: `docker inspect` returns it after the container has exited). B-1
-  requires it never be plaintext on disk, and #198 owns the repair. **Klas confirmed the
-  sequencing 2026-08-05: the stack may be deployed and every cutover proof taken with the
-  key as it is, because the box holds no user data — but the 51 347 recruiter contact
-  records must not land until B-1 is closed.** Nothing mechanical enforces that; this
-  paragraph is the reader.
+- **Gate B-1's cutover — and the corpus still waits for it.** #198 shipped the repair (see §2
+  and [`master-key-ops.md`](master-key-ops.md)), but **shipping a mechanism is not closing a
+  gate**: the key is not moved on this box until the operator performs the cutover, and B-1 is
+  discharged only when rows 21–25 in §5 carry measurements. **Klas confirmed the sequencing
+  2026-08-05: the stack may be deployed and every cutover proof taken with the key as it was,
+  because the box holds no user data — but the 51 347 recruiter contact records must not land
+  until B-1 is closed.** Nothing mechanical enforces that; this paragraph is the reader. The
+  corpus additionally waits on #1199 (the Netcup DPA), which is Klas's signature and not
+  affected by any of this.
 - **The edge binary is ours, not upstream's, and the scanned image must be the published
   one.** `deploy/caddy/Dockerfile` compiles caddy rather than taking it from the published
   tag, so "we run stock caddy 2.11.4" is no longer true when reading an upstream bug report.

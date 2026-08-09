@@ -1220,8 +1220,15 @@ public static class DependencyInjection
             Security.HmacIdentifierPseudonymizer>();
 
         // #544 (ADR 0090 D5) — SEPARATE watch pepper for the enskild-firma org.nr at-rest token
-        // (security-auditor B1: one key = one purpose; permanent/non-rotatable, R1 — unlike the
-        // rotation-tolerant audit pepper). Same fail-closed ValidateOnStart posture.
+        // (security-auditor B1: one key = one purpose; R1 — unlike the rotation-tolerant audit
+        // pepper). Same fail-closed ValidateOnStart posture.
+        //
+        // "Non-rotatable" is precise only with its condition attached (#198): NON-ROTATABLE ONCE
+        // ANY ROW EXISTS. BackfillCompanyWatchOrgNrTokenJob destroyed the plaintext organisation
+        // number in place, so an existing token cannot be recomputed under a new pepper — not
+        // expensively, but mathematically. While company_watches is empty the pepper is simply a
+        // value, and replacing it costs nothing. The window closes at the FIRST row, which is why
+        // #198's cutover replaces it rather than carrying the exposed value forward.
         services.AddOptions<Security.CompanyWatchPseudonymizationOptions>()
             .Bind(configuration.GetSection(Security.CompanyWatchPseudonymizationOptions.SectionName))
             .ValidateOnStart();

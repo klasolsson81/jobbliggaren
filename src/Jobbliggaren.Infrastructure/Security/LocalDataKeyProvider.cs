@@ -119,8 +119,8 @@ public sealed partial class LocalDataKeyProvider : IDataKeyProvider
 
         // Re-guard past the options pipeline, same as the key bytes above: a blank identity
         // would silently stamp empty markers. The validator fails this at startup; this keeps
-        // the invariant true for any hand-constructed instance (the re-wrap tool WILL build two --
-        // #198 PR-2, not yet code).
+        // the invariant true for any hand-constructed instance (MasterKeyRewrapper builds two --
+        // #198, M-3).
         var keyId = options.Value.LocalMasterKeyId;
         if (string.IsNullOrWhiteSpace(keyId))
         {
@@ -177,6 +177,45 @@ public sealed partial class LocalDataKeyProvider : IDataKeyProvider
             LogUnwrapFailed(owner.Value, ex.GetType().Name);
             throw;
         }
+    }
+
+    /// <summary>
+    /// #198 (M-3) — rotation-only seam: wrap an ALREADY EXISTING DEK under this provider's
+    /// master key. Used by <see cref="MasterKeyRewrapper"/> to re-wrap stored DEKs from a
+    /// retiring key to a new one.
+    ///
+    /// <para>
+    /// <b>Deliberately not on <c>IDataKeyProvider</c>.</b> The port lets a caller create and
+    /// unwrap keys; it must never let Application wrap arbitrary bytes as a DEK. Keeping this on
+    /// the concrete type also makes AAD drift between rotation and production structurally
+    /// impossible: the re-wrap goes through the same <see cref="BuildAad"/>, the same layout and
+    /// the same fail-closed guards as every ordinary wrap, because it is literally the same code.
+    /// A re-implementation in the rotation tool is the alternative, and it is the one that would
+    /// silently diverge.
+    /// </para>
+    ///
+    /// <para>
+    /// The wire format is unchanged (<c>0x4C, 0x01</c>): a re-wrap produces the same layout under
+    /// different key bytes. Key identity lives in <c>user_data_keys.cmk_key_id</c>.
+    /// </para>
+    ///
+    /// <para>
+    /// <b><c>internal</c>, not <c>public</c>.</b> The only caller is
+    /// <see cref="MasterKeyRewrapper"/>, in this same assembly, so the assembly boundary now
+    /// carries what the prose above carried alone — and it costs no <c>InternalsVisibleTo</c>.
+    /// The compiler is the gate.
+    /// </para>
+    /// </summary>
+    internal byte[] WrapDataKey(ReadOnlySpan<byte> plaintextDek, JobSeekerId owner)
+    {
+        if (plaintextDek.Length != Aes256KeySize)
+        {
+            throw new CryptographicException(
+                $"DEK måste vara {Aes256KeySize} byte (AES-256) för att wrappas, " +
+                $"fick {plaintextDek.Length} byte.");
+        }
+
+        return Wrap(plaintextDek, owner);
     }
 
     private byte[] Wrap(ReadOnlySpan<byte> dek, JobSeekerId owner)

@@ -73,7 +73,8 @@ x-app-secrets: &app-secrets
   CompanyWatchPseudonymization__PepperBase64_FILE: /run/app-secrets/CompanyWatchPseudonymization__PepperBase64
   CvReviewFingerprintPseudonymization__PepperBase64_FILE: /run/app-secrets/CvReviewFingerprintPseudonymization__PepperBase64
 
-# Read-only, and the SAME host directory for both services — see the anchor above. The
+# Read-only, and the SAME host directory for every service that gets it — see the anchor
+# above. The
 # host path is a literal, deliberately NOT a ${...:?} variable: a new hard requirement
 # would make the hourly reconcile refuse the entire apply until the operator had filled it
 # in, with `systemctl --failed` as the only reader (deploy/systemd/jobbliggaren-reconcile.sh).
@@ -87,6 +88,23 @@ x-app-secrets: &app-secrets
 # `jobbliggaren-inject-secrets.sh --check` asserts the directory's mode for the same reason.
 x-app-secrets-mount: &app-secrets-mount
   - /run/jobbliggaren/secrets:/run/app-secrets:ro
+
+# ONE definition, two consumers: `migrate` (schema, every `up`) and `migrate-rewrap` (the
+# master-key rotation, ops profile only). Duplicating the string would let host, port, database,
+# role or SSL mode drift between them — and the copy that drifts unnoticed would be the
+# rotation's, which runs once a year and is therefore discovered last. Same argument the
+# x-app-secrets anchor makes for api and worker.
+# jobbliggaren_app, not jobbliggaren_migrations, and the variable name is the clue:
+# `schema` mode applies the APP schema's EF migrations. `migrate init` grants
+# USAGE+CREATE on schema public, ALL on its tables and sequences, and the matching
+# default privileges to the app role — and to no one else. Pointed at the migrations
+# role this service dies with 42501 "permission denied for schema public" the moment
+# EF tries to create __EFMigrationsHistory, which is a gating dependency of api and
+# worker on every `up`. Measured on the Netcup box 2026-08-05, first boot.
+# The migrations role owns the hangfire schema (see the runbook's GRANT model); it is
+# not the role that owns public.
+x-migrate-app-connection: &migrate-app-connection
+  MIGRATE_APP_CONNECTION_STRING: "Host=postgres;Port=5432;Database=jobbliggaren;Username=jobbliggaren_app;Password=${POSTGRES_APP_PASSWORD:?};SSL Mode=Disable"
 
 x-app-connections: &app-connections
   ConnectionStrings__Postgres: "Host=postgres;Port=5432;Database=jobbliggaren;Username=jobbliggaren_app;Password=${POSTGRES_APP_PASSWORD:?}"
@@ -301,6 +319,7 @@ services:
     container_name: jobbliggaren-migrate
     command: ["schema"]
     environment:
+      <<: *migrate-app-connection
       MIGRATE_DB_HOST: postgres
       MIGRATE_DB_PORT: "5432"
       MIGRATE_DB_NAME: jobbliggaren
@@ -315,20 +334,43 @@ services:
       MIGRATE_MIGRATIONS_PASSWORD: ${POSTGRES_MIGRATIONS_PASSWORD:?}
       MIGRATE_APP_PASSWORD: ${POSTGRES_APP_PASSWORD:?}
       MIGRATE_WORKER_PASSWORD: ${POSTGRES_WORKER_PASSWORD:?}
-      # jobbliggaren_app, not jobbliggaren_migrations, and the variable name is the clue:
-      # `schema` mode applies the APP schema's EF migrations. `migrate init` grants
-      # USAGE+CREATE on schema public, ALL on its tables and sequences, and the matching
-      # default privileges to the app role — and to no one else. Pointed at the migrations
-      # role this service dies with 42501 "permission denied for schema public" the moment
-      # EF tries to create __EFMigrationsHistory, which is a gating dependency of api and
-      # worker on every `up`. Measured on the Netcup box 2026-08-05, first boot.
-      # The migrations role owns the hangfire schema (see the runbook's GRANT model); it is
-      # not the role that owns public.
-      MIGRATE_APP_CONNECTION_STRING: "Host=postgres;Port=5432;Database=jobbliggaren;Username=jobbliggaren_app;Password=${POSTGRES_APP_PASSWORD:?};SSL Mode=Disable"
     mem_limit: 512m
     depends_on:
       postgres:
         condition: service_healthy
+    security_opt:
+      - no-new-privileges:true
+    logging: *logging
+    restart: "no"
+    networks: [stack]
+
+  # The rotation, as its own service under a profile so `up` never starts it and `schema` never
+  # carries the secrets mount. #198 M-3.
+  #
+  # WHY A SIBLING RATHER THAN A MOUNT ON `migrate`. `schema` runs on EVERY `up` — api and worker
+  # gate on it via service_completed_successfully, and the hourly reconcile calls `up -d` — so a
+  # mount there would hand the master key to a container that needs no crypto material at all,
+  # once an hour, for the life of the box. All three images run `USER app` and the files are 0400
+  # owned by that uid, so the container really could read them. Least privilege, and the profile
+  # keeps the declaration in this file rather than in a `compose run -v` the runbook would have
+  # to keep in sync by hand.
+  #
+  # `memswap_limit == mem_limit`, same reason as api and worker: during a rotation this process
+  # holds TWO master keys in plaintext for the whole run, and without it a container at its
+  # ceiling pages that memory into zram.
+  migrate-rewrap:
+    image: ghcr.io/klasolsson81/jobbliggaren-migrate:${IMAGE_TAG:-latest}
+    container_name: jobbliggaren-migrate-rewrap
+    profiles: ["ops"]
+    command: ["rewrap-master-key"]
+    volumes: *app-secrets-mount
+    environment:
+      <<: *migrate-app-connection
+    mem_limit: 512m
+    memswap_limit: 512m
+    # No `depends_on`: this runs mid-rotation with api and worker deliberately stopped, and a
+    # `service_healthy` dependency would START postgres rather than fail clearly. That is a
+    # decision, not the oversight the asymmetry against `migrate` reads as.
     security_opt:
       - no-new-privileges:true
     logging: *logging

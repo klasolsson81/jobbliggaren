@@ -76,8 +76,34 @@ internal static partial class MigrateLog
     public static partial void ModeSchema(ILogger logger);
 
     [LoggerMessage(EventId = 202, Level = LogLevel.Error,
-        Message = "Usage: Jobbliggaren.Migrate <init|bootstrap|ensure-extensions|schema|explain-search>")]
+        Message = "Usage: Jobbliggaren.Migrate <init|bootstrap|ensure-extensions|schema|explain-search|rewrap-master-key>")]
     public static partial void UsageError(ILogger logger);
+
+    // #198 gate M-3 — master-key rotation. Offline: api and worker must be stopped, because a
+    // concurrent first-use would insert a row under the retiring identity behind the scan.
+    [LoggerMessage(EventId = 210, Level = LogLevel.Information,
+        Message = "Mode: rewrap-master-key (offline master-key rotation — #198, M-3). " +
+                  "api and worker MUST be stopped; see docs/runbooks/master-key-ops.md §4")]
+    public static partial void ModeRewrapMasterKey(ILogger logger);
+
+    [LoggerMessage(EventId = 211, Level = LogLevel.Information,
+        Message = "Re-wrapping DEKs from cmk_key_id {RetiringKeyId} to {IncomingKeyId}")]
+    public static partial void RewrapStart(ILogger logger, string retiringKeyId, string incomingKeyId);
+
+    // The exit-0-with-zero-rows path IS the idempotency proof M-3 asks for, so it gets its own
+    // line rather than being folded into the summary.
+    [LoggerMessage(EventId = 212, Level = LogLevel.Information,
+        Message = "Nothing to re-wrap: 0 row(s) carry {RetiringKeyId}, {AlreadyCurrent} already " +
+                  "carry {IncomingKeyId}. This run is a no-op (idempotent), and {Verified} " +
+                  "row(s) were verified to unwrap under the incoming key.")]
+    public static partial void RewrapNoOp(
+        ILogger logger, string retiringKeyId, int alreadyCurrent, string incomingKeyId, int verified);
+
+    [LoggerMessage(EventId = 213, Level = LogLevel.Information,
+        Message = "Re-wrap COMPLETE — {Rewrapped} row(s) re-wrapped, {AlreadyCurrent} already " +
+                  "current, {Verified} row(s) verified to unwrap under the new key")]
+    public static partial void RewrapComplete(
+        ILogger logger, int rewrapped, int alreadyCurrent, int verified);
 
     // F6 P4 (2026-05-20) — ensure-extensions-mode (master-creds, PG extensions)
     [LoggerMessage(EventId = 204, Level = LogLevel.Information,

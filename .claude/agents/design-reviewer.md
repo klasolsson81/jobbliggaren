@@ -107,7 +107,8 @@ N. **<finding>** — Fil: <path:line>
 
 ### Sammanfattning
 <N blockers, N major, N minor. Delegera fixes till nextjs-ui-engineer.
-Re-review efter fix.>
+Re-review efter fix: samma agent, report-only, scopad till fix-deltat
+(CLAUDE.md §9.6).>
 ```
 
 Report to the user in Swedish. Keep English technical terms (blocker,

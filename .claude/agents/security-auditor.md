@@ -317,7 +317,8 @@ carve-out contradicts the area three screens above it.
 
 Escalate GDPR Blockers to Klas directly. Delegate repair to the relevant agent
 (dotnet-architect BE, nextjs-ui-engineer FE, db-migration-writer schema).
-Re-review after Blockers/Majors are addressed.
+Re-review after Blockers/Majors are addressed — same agent, report-only, scoped to
+the fix delta (CLAUDE.md §9.6).
 
 ## Edge cases
 
@@ -371,7 +372,7 @@ N. **<finding>** — Fil: <path:line>
 - <good patterns> ✓
 
 ### Sammanfattning
-<N blockers, N major. Re-review krävs efter fix.>
+<N blockers, N major. Re-review krävs efter fix — scopad, §9.6.>
 
 **Eskalering till Klas:** <nej | ja + exakt vad han måste avgöra>
 ```

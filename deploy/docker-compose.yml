@@ -300,6 +300,12 @@ services:
     image: ghcr.io/klasolsson81/jobbliggaren-migrate:${IMAGE_TAG:-latest}
     container_name: jobbliggaren-migrate
     command: ["schema"]
+    # The secrets mount, and it is NOT for `schema` mode — that applies EF migrations and needs
+    # no crypto material at all. It is for the operator-invoked `rewrap-master-key` run (#198,
+    # M-3), which needs the retiring and the incoming key. Declared on the service rather than
+    # passed with `compose run -v` so the rotation procedure cannot drift from the file layout
+    # api and worker already use; the run supplies the two REWRAP_* pointers itself.
+    volumes: *app-secrets-mount
     environment:
       MIGRATE_DB_HOST: postgres
       MIGRATE_DB_PORT: "5432"

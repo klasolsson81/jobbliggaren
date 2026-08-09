@@ -144,9 +144,23 @@ never touched, and `dek_version` never changes** (that is #501's separate axis;
 `cmk_key_id`, so a second run finds nothing and exits 0 — and that exit code is the
 idempotence proof.
 
-> The mechanism (`migrate rewrap-master-key`) ships in #198's second PR. Until it has merged,
-> this section describes the intended procedure and **must not be read as a delivered
-> capability**. The drill below is what proves it.
+The mechanism is `migrate rewrap-master-key`. It selects rows by the retiring `cmk_key_id`,
+unwraps each DEK with the retiring key, wraps the same bytes under the incoming key, and
+compare-and-swaps the row. One transaction over all rows, then a post-commit pass that proves
+every row unwraps under the new key.
+
+```bash
+docker compose -f /opt/jobbliggaren/deploy/docker-compose.yml run --rm   -e REWRAP_RETIRING_MASTER_KEY_FILE=/run/app-secrets/OLD_KEY   -e REWRAP_INCOMING_MASTER_KEY_FILE=/run/app-secrets/FieldEncryption__LocalMasterKeyBase64   -e REWRAP_RETIRING_KEY_ID=local-v1   -e REWRAP_INCOMING_KEY_ID=local-v2   migrate rewrap-master-key
+```
+
+Every value above is a **path**, never a secret — `MigrateEnv` resolves the `_FILE` suffix, the
+same convention api and worker use. The `migrate` service carries the secrets mount for exactly
+this run; `schema` mode needs no crypto material and receives none.
+
+**To run it against a COPY, override the connection string — not `MIGRATE_DB_NAME`.** That
+variable feeds only the master-credential path, so overriding it would leave the tool pointed at
+the live database while the operator believed otherwise, and the drill's throwaway key is deleted
+at the end. Add `-e MIGRATE_APP_CONNECTION_STRING="…;Database=jobbliggaren_drill;…"`.
 
 > **The FIRST rotation — the one in #198's cutover — needs none of it.** Measured 2026-08-09 with
 > raw SQL on the box: `user_data_keys` holds **0 rows**. There is nothing to re-wrap, so rotating
@@ -190,8 +204,10 @@ the damage unrecoverable.
    Escrow **the new bytes and the new identity** in the same step (§1 — Klas's decision, and
    a prerequisite). The identity is not a secret, but losing track of it costs the next
    rotation its marker.
-4. Rewrap old → new; verify. **Skip when `user_data_keys` is empty** — there is nothing to
-   re-wrap, and the new bytes are already in force.
+4. Rewrap old → new (the command above), using the retiring key written to a temporary file on
+   the same tmpfs. **Skip entirely when `user_data_keys` is empty** — there is nothing to
+   re-wrap and the new bytes are already in force; the tool would report a no-op anyway.
+   Remove the temporary retiring-key file afterwards.
 5. Start the containers; confirm `healthy`.
 6. `sudo systemctl start jobbliggaren-secrets-present.timer` if it was stopped, and re-arm the
    reconcile timer.

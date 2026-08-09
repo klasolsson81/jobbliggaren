@@ -194,23 +194,38 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
         SCC:er från juni 2021 och *"will apply automatically"* — det finns alltså sannolikt
         **inget dokument att signera**, till skillnad från Netcup (#1199) och Resend. Ledet är
         ändå KVAR: att verifiera och skriva ned att avtalet gäller, och för vilken avtalspart,
-        är inte samma sak som att anta det. Klas verifierar kontots avtalspart i Billing →
-        Tax Settings;
-      - dokumenterad **Kap. V-grund** — **KVAR**, och frågan är **öppen i båda riktningarna**:
-        `eu-north-1` är en EU-region och avtalsparten är luxemburgsk, men moderbolaget är
-        amerikanskt, och `BUILD.md` §15.1 avvisar Cloudflare R2 *"pga CLOUD Act-
-        tredjelandsöverföring"*, alltså behandlar detta repos egen tillämpade standard ett
-        US-ägt biträde som en tredjelandsfråga **oavsett EU-region**. Om standarden gäller här
-        avgörs av `security-auditor`, inte av den här filen. #1169:s påstående att AWS är
-        DPF-listat är **OMÄTT** — AWS GDPR-sida gör ingen DPF-utsaga;
-      - **ROPA-posten** i `docs/runbooks/gdpr-processing-register.md` (lokal) — **KVAR**.
-        Den namnger Resend och är därmed falsk om sin motpart; notis-vägens tidigare KLAR
-        (PR #213) bärs inte över till en annan processor. Registret speglar och grindar inte
-        (#1040) — men sign-off-ledet nedan kan inte ges utan en behandling att signera mot;
-      - **integritetspolicy-post som namnger providern** — **KVAR**, återöppnad. Den var KLAR
-        (#186 / PR #1083) men namnger **Resend, Inc. (USA)** i fyra stycken × två språk, vilket
-        är falskt sedan 2026-08-08. **#1169 äger omskrivningen** och den levereras i en egen PR
-        eftersom innehållet beror på Kap. V-ledet ovan;
+        är inte samma sak som att anta det.
+        **AVTALSPARTEN ÄR MÄTT 2026-08-09 (#1169), och det ledets halva är därmed avklarad:**
+        två oberoende AWS-API:er mot konto `710427215829` ger båda **Amazon Web Services EMEA
+        SARL** — `taxsettings list-tax-registrations` (`accountMetaData.seller`, samma fält som
+        konsolens `Seller`-kolumn) och `invoicing list-invoice-summaries`
+        (`Entity.InvoicingEntity`, **5 av 5** dokument över faktureringsperioderna 2026-04 t.o.m.
+        2026-07, distinkt entitetsmängd av storlek ett). **Ledet är ändå KVAR i sin helhet:**
+        kvar är att bekräfta att DPA:t faktiskt gäller för den parten, vilket är den ärvda
+        mätningen ovan och inte omgjord. Vad som INTE längre behöver göras är
+        Tax-Settings-avläsningen;
+      - dokumenterad **Kap. V-grund** — **UPPLÖST 2026-08-08 av `security-auditor`, ledet
+        kvarstår som dokumentationsled.** Domen: överföringen **ska** redovisas trots
+        `eu-north-1`, eftersom `BUILD.md` §15.1:s egen tillämpade standard avvisar Cloudflare R2
+        *"pga CLOUD Act-tredjelandsöverföring"* och därmed behandlar ett US-ägt biträde som en
+        tredjelandsfråga **oavsett EU-region** — att tillämpa den standarden selektivt bryter
+        Art. 5(2). Grunden är **SCC Art. 46(2)(c)** (juni 2021, inkorporerade i AWS GDPR-DPA:t).
+        **Adekvans och DPF är strukna.** DPF är fel instrument oavsett listning: certifieringen
+        täcker överföringar till den **US-etablerade** enheten, och avtalsparten är luxemburgsk
+        (nu mätt, se ledet ovan). #1169:s ursprungliga påstående att AWS är DPF-listat förblir
+        **OMÄTT** och är dessutom irrelevant — skriv det inte;
+      - **ROPA-posten** i `docs/runbooks/gdpr-processing-register.md` (lokal) — **omskriven
+        2026-08-09 (#1169)**: ombunden från notis-vägen till behandlingen *"Utgående
+        transaktionell e-post (Amazon SES, `eu-north-1`)"*, som täcker alla **sex** mallarna,
+        båda mottagarklasserna och Kap. V-grunden ovan. Registret speglar och grindar inte
+        (#1040), och **statusen på det här ledet sätts av sign-off-ledet nedan, inte av att
+        posten finns** — de fyra kontolivscykel-mallarnas rättsliga grunder är CC:s utkast och
+        har aldrig prövats av `security-auditor`;
+      - **integritetspolicy-post som namnger providern** — **omskriven 2026-08-09 (#1169)**:
+        fyra stycken × två språk namnger nu Amazon Web Services EMEA SARL (Luxemburg) med
+        behandling i `eu-north-1`, koncernmodern Amazon Web Services, Inc. (USA), SCC-grunden,
+        och den Art. 13(1)(f)-väg till en kopia av skyddsåtgärderna som saknades. Markörmeningen
+        står kvar i alla åtta strängarna — **detta var inte flippen**;
       - **security-auditor-sign-off på prod-e-post-konfigen** — **KVAR**. Det gamla
         TD-116:s sign-off är PR-4:s, inte prod-konfigens; bocka aldrig punkten på den.
         (TD-116 stängdes 2026-07-26; residualen ägs av #183.)
@@ -226,9 +241,14 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
       förbudet **upphör när avtalet gäller**. *Sedan ADR 0124 är motparten AWS, och för AWS är
       "på plats" sannolikt inte detsamma som "signerat" (DPA:t inkorporeras automatiskt, mätt
       2026-08-08) — men villkoret för flytten är oförändrat: listan får bara namnge en part vars
-      avtal faktiskt gäller.* (ii) **Art. 13(1)(f)** — "means to obtain a
-      copy" av skyddsåtgärderna saknas i policyn; (iii) upplös SCC/adekvans-
-      disjunktionen.
+      avtal faktiskt gäller.* **(i) är den enda residual som kvarstår.**
+      (ii) **Art. 13(1)(f)** — "means to obtain a copy" av skyddsåtgärderna — **LEVERERAD
+      2026-08-09 (#1169)**: tredjelandsavsnittet hänvisar till kontaktvägen under
+      "Personuppgiftsansvarig och kontakt" för en kopia av standardavtalsklausulerna.
+      (iii) SCC/adekvans-disjunktionen — **UPPLÖST** till SCC Art. 46(2)(c) och struken ur
+      copyn (`security-auditor` 2026-08-08; se Kap. V-ledet ovan).
+      **Ordningskravet ovan hölls:** (iii) avgjordes i granskningen 2026-08-08, och (ii)
+      skrevs först därefter — kopia-formuleringen namnger den grund som faktiskt används.
 - [ ] **2. TD-115** — legacy opt-OUT-default sanerad (#185 / PR #211 — **KLAR**).
 - [ ] **3. TD-116** — consent-/disclosure-copy avslöjar e-postleverans för
       användaren (**PR #182 — KLAR**; TD-116:s consent-copy-halva, fast-follow till #181,
@@ -280,10 +300,13 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
       Tillagt 2026-07-26 på dotnet-architects mätning — och just denna PR **ökade** ytan.
 
 Källa: ADR 0080 §"Prod-Resend-flip pre-condition checklist"; ROPA-behandlingen
-"Bakgrundsmatchnings-notiser via e-post (Resend)" — som i dag täcker **endast**
-notis-vägen. Efter wideningen ovan gäller grinden all utgående e-post, men ingen
-Art. 30-behandling täcker de **fyra kontolivscykel-mallarna** — och **TVÅ**
-av dem är ogrindade: `EmailChangeConfirmation` (`ChangeEmailCommandHandler:66`) och
+**"Utgående transaktionell e-post (Amazon SES, `eu-north-1`)"** — omdöpt och omskopad
+2026-08-09 (#1169) från *"Bakgrundsmatchnings-notiser via e-post (Resend)"*, som täckte
+**endast** notis-vägen. Efter wideningen ovan gäller grinden all utgående e-post, och
+Art. 30-posten täcker sedan omskrivningen alla sex mallarna — **men de fyra
+kontolivscykel-mallarnas rättsliga grunder är CC:s utkast och är inte prövade**, så
+sign-off-ledet i punkt 1 är oförändrat KVAR. **TVÅ**
+av mallarna är ogrindade: `EmailChangeConfirmation` (`ChangeEmailCommandHandler:66`) och
 `EmailChangedNotification` (`ConfirmEmailChangeCommandHandler:45`, vars enda villkor är att
 den gamla adressen finns). **Den senare går till den GAMLA adressen** — en annan
 mottagarklass än den användaren just skrev, så en Art. 30-behandling som bara skopas till
@@ -292,10 +315,13 @@ den första lämnar en mottagare oregistrerad. (`EmailConfirmation` är däremot
 prod-lansering tvingar alltså inte i sig grinden.)
 
 Det är samma lucka som den redan eskalerade frågan om att ROPA:n saknar behandling för
-användarkontot/autentiseringen helt (Art. 30(1)). **Luckan grindar inte via registret** —
-registret speglar (#1040) — men den blockerar **security-auditor-sign-off-ledet** i punkt 1:
-det finns ingen Art. 30-behandling att signera prod-e-post-konfigen mot för
-kontolivscykel-vägen. Registret är gitignorerat och kan inte rida en PR (ADR 0072), så
+användarkontot/autentiseringen helt (Art. 30(1)) — **och den luckan är INTE stängd av
+#1169**: den nya posten täcker e-postbehandlingen, inte kontot/autentiseringen som sådan.
+**Luckan grindar inte via registret** — registret speglar (#1040) — men den blockerade
+**security-auditor-sign-off-ledet** i punkt 1, eftersom det inte fanns någon Art. 30-behandling
+att signera prod-e-post-konfigen mot för kontolivscykel-vägen. **Efter #1169 finns behandlingen;
+det som återstår är att den prövas.** Att posten existerar är alltså en förutsättning för
+sign-off, aldrig sign-off i sig. Registret är gitignorerat och kan inte rida en PR (ADR 0072), så
 residualen står här, i den trackade filen, och åtgärdas lokalt före flippen.
 
 ---
@@ -372,6 +398,12 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
       Vid 2026-07-26 (efter #186 + dess remediation): **12 + 12** (rad 37, 49, 63, 72,
       73, 74, 77, 78, 85, 99, 100, 135 — identiska i
       sv och en, alla äkta statuspåståenden, ingen falsk träff med detta mönster).
+      **Regenererad 2026-08-09 (#1169, providerbytet Resend → AWS SES): oförändrat 12 + 12 på
+      identisk radmängd.** Fyra av raderna (63, 73, 74, 85) skrevs om i sak i den ändringen
+      utan att röra talet, eftersom varje omskrivet stycke behöll sin markörmening och inget
+      element lades till eller togs bort ur någon array. **Det är ett mätresultat, inte en
+      förutsägelse:** en omskrivning som delar ett stycke i två flyttar varje rad under sig,
+      så greppet ska köras om även när en ändring "bara" byter ord.
       **Grepa INTE bara på `"planerat och ännu inte i drift"`** — det ger 10 och
       missar de TVÅ retentionsposterna på rad 99 och 100, som bär `(planerat)` utan
       avslutningsmeningen. Rad 99 (organisationsnumret i en annons, #880) nämner
@@ -393,8 +425,8 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
         att tjänsten alls går i drift.
       - **Deploy-aktiverad:** Hetzner, Cloudflare (rad 77, 78) → aktiveras av att
         stacken körs hos dem. Se punkt 3 — dessa får inte flippas på egen hand.
-      - **Konfigurations-grindad:** SCB (rad 49, 72) **och Resend (rad 63, 73, 74, 85,
-        #186)**. **Aktiveras INTE av en
+      - **Konfigurations-grindad:** SCB (rad 49, 72) **och e-postleverantören AWS SES
+        (rad 63, 73, 74, 85, #186 + #1169)**. **Aktiveras INTE av en
         `v*`-tagg.** Tre skilda mekanismer, alla mörka i prod: per-sökningens
         `ICompanyRegistry` (ADR 0088) får `NullCompanyRegistry` — valet styrs av
         `CompanyRegistry:Provider`, den riktiga adaptern siktar på SCB:s nya
@@ -402,11 +434,15 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
         DPIA #456 + SCB terms review** (ADR 0088 D3); bulk-populeringen
         `IScbCompanyRegisterSource` (ADR 0091) är Worker-only och grindad på
         `ScbRegister:Enabled=true` + klientcert, och skickar aldrig ett
-        användarskrivet org.nr. Resend styrs av `Email:Provider`, som defaultar till
+        användarskrivet org.nr. E-posten styrs av `Email:Provider`, som defaultar till
         `Console` och i non-dev löser till `NullEmailSender` — flippen är grindad av
         **§2.5 punkt 1** (uppräkningen bor DÄR, inte här — och därför står antalet inte heller här), inte av en
-        tagg, och gäller **all** utgående e-post (§2.5:s widening). **Flippa rad 49/72 (SCB) respektive 63/73/74/85 (Resend) först när respektive grind är
+        tagg, och gäller **all** utgående e-post (§2.5:s widening). **Flippa rad 49/72 (SCB) respektive 63/73/74/85 (e-post) först när respektive grind är
         passerad** — inte när koden deployas.
+        *Raderna 63/73/74/85 namngav Resend, Inc. (USA) till 2026-08-09; #1169 skrev om dem till
+        Amazon Web Services EMEA SARL (Luxemburg) med behandling i `eu-north-1`. **Det var en
+        korrigering av en falsk motpartsuppgift, inte en flip** — markörmeningen står kvar i alla
+        fyra styckena i båda språken, och armen är fortfarande mörk.*
       Kvarstående planerat-meningar för behandlingar som fortfarande inte är i
       drift ska stå kvar. Släpper releasen ingen av dem är rätt utfall att **inte
       ändra något**.
@@ -416,16 +452,20 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
       - signerat **personuppgiftsbiträdesavtal** med **Hetzner** och med
         **Cloudflare** på fil (rad 70 påstår redan *"Med dem har vi
         personuppgiftsbiträdesavtal"* — idag finns inga aktiva biträden alls, och
-        #186:s Resend-stycke säger uttryckligen att avtalet tecknas *innan* utskicken
+        e-poststycket säger uttryckligen att avtalsledet säkerställs *innan* utskicken
         börjar, just för att inte ärva den raden);
       - dokumenterad **Kap. V-grund** för Cloudflare (US-domicilierat bolag; även
         en EU-only-konfiguration kräver grunden dokumenterad) — rad 84 är ett
         **absolut** påstående: *"I dagsläget sker inga överföringar av dina
         personuppgifter till länder utanför EU/EES"*, och det måste omprövas som
-        del av samma flip. **Detsamma gäller Resend-flippen** (§2.5), som är den
+        del av samma flip. **Detsamma gäller e-postflippen** (§2.5), som är den
         andra av två oberoende händelser som gör rad 84 falsk; #186 la därför rad 85
         **bredvid** den absoluta meningen i stället för att ersätta den — båda är
-        sanna samtidigt så länge inget skickas;
+        sanna samtidigt så länge inget skickas. *#1169 rörde rad 85 men INTE rad 84, och
+        det är avsiktligt: rad 84 är ett generiskt villkor för varje framtida leverantör
+        utanför EU/EES och är sant. Det är rad 85 som namnger en part, och bara den som
+        blev falsk av providerbytet. Adekvans-disjunktionen ströks därför bara på rad 85
+        (`security-auditor` 2026-08-08: EN grund, SCC Art. 46(2)(c));*
       - ROPA-posterna uppdaterade + **security-auditor-sign-off**.
       DPA-signering = **Klas**, aldrig CC.
 - [ ] **4. Paritet sv + en** — båda språken i samma ändring. Formuleringen bärs av
@@ -436,7 +476,7 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
       — mottagaravsnittet (72/**73/74**/77/78) och tredjelandsavsnittet (85) är TVÅ skilda
       sections, inte ett — retentionslistan (99/100) och "Inga automatiserade beslut"
       (135). Missa inte retentionsposten — och notera att **både** retentionslistan **och**
-      Resend-prosan i mottagaravsnittet bär **två** rader var, inte en.
+      e-postprosan i mottagaravsnittet bär **två** rader var, inte en.
 - [ ] **5. Bumpa `privacy.updated`** ("Senast uppdaterad: YYYY-MM-DD"), båda
       språken. Skopa till **`privacy.updated`** — filen har fem `updated`-nycklar
       (privacy/terms/cookies/accessibility/recruiterNotice).
@@ -452,7 +492,7 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
       är nu falsk — **ingen** tagg öppnar registrering längre. Läst bokstavligt hade den gamla
       triggern aldrig fyrat, och de två villkoren nedan hade fallit ur tyst.)
       Den passerar **inte** §2.5: `Email:Provider` osatt (dokumenterad default) ger
-      `NullEmailSender`, och Resend-/SES-flippen kan ligga månader senare. Villkoren upphör
+      `NullEmailSender`, och SES-flippen kan ligga månader senare. Villkoren upphör
       alltså **strikt före** §2.5 någonsin läses (security-auditor 2026-07-26).
       **Grinden bärs av #734, inte av den här sidan.** Efter ADR 0083 Amendment kan flippen inte
       ske utan `RequireEmailConfirmation=true` **och** en riktig `Email:Provider`, och båda
@@ -505,9 +545,9 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
       Ansökningshistoriken nämns på fyra ställen (kategorilistan, retentionslistan,
       "Inga automatiserade beslut" och Art. 30-registret); SCB på tre
       (ändamålslistan, mottagarstycket — tredjelandsavsnittet nämner INTE SCB; uppräkningen
-      sa "tre" ända till 2026-07-26); **Resend på fyra** (samtyckesavsnittet, TVÅ stycken i
-      mottagaravsnittet, "Överföring till tredje land") —
-      och Resend-flippen styrs av **§2.5**, inte av taggen, så den kan mycket väl
+      sa "tre" ända till 2026-07-26); **e-postleverantören på fyra** (samtyckesavsnittet, TVÅ
+      stycken i mottagaravsnittet, "Överföring till tredje land") —
+      och e-postflippen styrs av **§2.5**, inte av taggen, så den kan mycket väl
       inte höra till releasen alls medan de andra gör det. **En
       mottagare får aldrig stå som planerad medan behandlingen som skickar till
       den står som i drift, och omvänt.** Kör inventeringsgreppet igen efter

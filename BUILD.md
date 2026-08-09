@@ -1280,41 +1280,52 @@ Upprätthålls i publik lista på `/integritet#subprocessors` (publiceras när
 permanent infra aktiveras; listan nedan speglar **beslutad** uppsättning, ADR 0050):
 - Infrastruktur (hosting/databas/backup): Hetzner Cloud (EU — Falkenstein/Nuremberg/Helsinki) inkl. Hetzner-EU Storage Box för krypterad backup
 - DNS / CDN / proxy: Cloudflare (gratis-tier, "Full (strict)")
-- Transaktionell e-post: **Resend, Inc. (USA)** — beslutad (Klas-GO 2026-06-24; ADR 0080 Våg 4 PR-4 — se §3.1 och
-  `Directory.Packages.props:187`, båda trackade; ADR 0080 själv är gitignorerad), **planerad, ännu inte
+- Transaktionell e-post: **Amazon Web Services EMEA SARL (Luxemburg)** via Amazon SES i
+  **`eu-north-1` (Stockholm)** — beslutad (Klas-GO 2026-08-08; ADR 0124, #1237 — ersätter
+  Resend, Inc. (USA), som är helt ute), **planerad, ännu inte
   aktiverad**: `Email:Provider` defaultar till `Console`, vilket i non-dev löser till
   `NullEmailSender`, så ingen e-post lämnar systemet. Gäller **all** utgående e-post, inte bara
   notiser: `EmailTemplates` har sex sorter varav fyra är kontolivscykel (bekräfta e-post,
-  byta e-post, ändrad-e-post-avisering, konto-finns-redan). **Tredjelandsöverföring** —
-  mottagar-adressen och meddelandets innehåll går till en US-processor (för notiserna
+  byta e-post, ändrad-e-post-avisering, konto-finns-redan). **Tredjelandsöverföring — den
+  redovisas trots EU-regionen, och det är en avgjord fråga sedan 2026-08-08, inte en öppen:**
+  behandlingen sker i EU under en EU-avtalspart, men koncernmodern **Amazon Web Services, Inc.
+  (USA)** kan nå uppgifterna, vilket i sig är en överföring (Schrems II / EDPB Rec. 01/2020).
+  Skälet att redovisa den är att §15.1:s egen tillämpade standard avvisar Cloudflare R2 *"pga
+  CLOUD Act-tredjelandsöverföring"*, och att tillämpa den standarden selektivt bryter Art. 5(2).
+  **Grunden är SCC Art. 46(2)(c)** (juni 2021, i AWS GDPR-DPA:t) — **ingen adekvans, ingen DPF**
+  (fel instrument för en luxemburgsk avtalspart, oavsett listning). Överfört innehåll är
+  mottagar-adressen och meddelandets innehåll (för notiserna
   **avslöjar** leveransen opt-in-faktumet, och `EmailTemplates` skriver det dessutom i klartext
-  i själva kroppen — själva *flaggan* i vår DB överförs aldrig, men faktumet gör det), och Resends konto-data
-  (metadata, leverans-loggar) lagras i USA oavsett sändande region. Kräver före flippen
+  i själva kroppen — själva *flaggan* i vår DB överförs aldrig, men faktumet gör det).
+  **Avtalsparten är MÄTT 2026-08-09** ur två oberoende AWS-API:er (`taxsettings`
+  `accountMetaData.seller` och `invoicing` `Entity.InvoicingEntity`, 5/5 dokument), inte antagen.
+  Kräver före flippen
   flera led — **antalet och uppräkningen bor på ett ställe, inte här**:
-  `docs/runbooks/release-checklist.md` §2.5 punkt 1 (DPA-signering = Klas, aldrig CC).
+  `docs/runbooks/release-checklist.md` §2.5 punkt 1 (avtalsledet = Klas, aldrig CC).
 - **Ingen AI-subprocessor** (ADR 0071): produkten har ingen AI/LLM, så ingen CV-PII och
   ingen matchningsdata lämnar systemet till någon **AI-leverantör**, och det finns inget
   AI-relaterat tredjelands-transfer. CV-innehåll lämnar aldrig systemet alls. CV- och
   matchnings-motorerna är deterministiska och körs på egen infra. Notis-kropparna
-  (jobbtitel, företagsnamn, grad-label) går till Resend per e-postposten ovan — det är
+  (jobbtitel, företagsnamn, grad-label) går till e-postleverantören per posten ovan — det är
   inte en AI-överföring, men det ÄR matchningsdata, så ledet får inte skopas på dataklass.
 - Google (Gmail/Calendar, frivilligt, global)
 - Sentry (errors, EU) — planerat
 - PostHog self-hosted (analytics, EU — inte subprocessor)
 
-> AWS (infrastruktur + SES) är avvecklat (ADR 0066) och utgår ur subprocessor-
-> kedjan; **SES:s ersättare är Resend** — se e-postposten i listan ovan för
-> attribution och grindvillkor.
+> AWS (infrastruktur + SES) var avvecklat (ADR 0066) och utgick ur subprocessor-kedjan.
+> **SES-halvan av det påståendet är upphävd (Klas-direktiv 2026-08-02, verkställt i ADR 0124
+> / #1237): AWS-*infrastrukturen* förblir avvecklad, men SES är tillbaka som e-postleverantör.**
+> Att Resend var SES:s ersättare gällde mellan 2026-06-24 och 2026-08-08 och gäller inte längre;
+> Resend är helt borttaget ur lösningen.
 >
-> **SES-HALVAN AV FÖRSTA PÅSTÅENDET OCH HELA DET ANDRA ÄR UPPHÄVDA (Klas-direktiv
-> 2026-08-02)** — AWS-*infrastrukturen* förblir avvecklad: Resend ska ut och
-> **AWS SES i `eu-north-1`** in. Denna sektion är avsiktligt inte omskriven här — den
-> matar publika `/integritet#subprocessors`, så omskrivningen är legal-facing och ägs av
-> [#1169](https://github.com/klasolsson81/jobbliggaren/issues/1169) +
-> [#183](https://github.com/klasolsson81/jobbliggaren/issues/183) med
-> `security-auditor`-sign-off. Tredjelandsbedömningen är en **öppen** fråga, inte en
-> avgjord — se §15:s not. Release-checklistan §2.5 punkt 5 tvingar denna sektion vid
-> e-postflippen.
+> **E-POSTPOSTEN ÄR OMSKRIVEN 2026-08-09 (#1169) och tredjelandsfrågan är AVGJORD, inte öppen** —
+> `security-auditor` 2026-08-08: överföringen redovisas, grunden är SCC Art. 46(2)(c), adekvans
+> och DPF är strukna. Den publika copyn på `/integritet` är omskriven i samma ändring, och
+> ROPA-posten är ombunden till behandlingen *"Utgående transaktionell e-post"* (alla sex
+> mallarna). **Kvar hos `security-auditor` + Klas:** sign-off på prod-e-post-konfigen och
+> bekräftelsen av avtalsledet — se §2.5 punkt 1, som är uppräkningens hem.
+> Release-checklistan §2.5 punkt 5 tvingar fortfarande denna sektion vid **e-postflippen**;
+> denna ändring var en motpartskorrigering, inte flippen.
 >
 > Värden i den publika listan ska vara **Netcup**, och **Cloudflare utgår helt**
 > (Klas-beslut 2026-08-04, K3 — ingen CDN). Supersessions-ADR:n har **landat**:
@@ -1430,17 +1441,23 @@ UptimeRobot/BetterStack free ersätter ALB/CloudWatch-health per ADR 0050):
 > omprövning: **värdvalet** (Hetzner ut; **och "svensk VPS" i sin tur återkallat
 > 2026-08-04 på pris/prestanda — ersättaren är VALD: Netcup RS 1000 G12, 8 GB, ingen CDN**,
 > bärs av ADR 0050 `Amendment 2026-08-04`) och **e-postleverantören** (Resend ut — **ersättaren
-> är vald: AWS SES i `eu-north-1`**). Motiveringen och tredjelandsbedömningen står
-> medvetet INTE här: §15.1 avvisar Cloudflare R2 "pga CLOUD Act-tredjelandsöverföring **av
-> icke-krypterad pg_dump-PII**", så huruvida en US-ägd leverantör i EU-region faller under
-> samma standard är i detta repo en **öppen** fråga och inte en avgjord — och att avgöra
-> den är `security-auditor`:s och inte en spec-edit-PR:s. Ersättningarna skrivs in av
-> CC1-lanen med egen supersessions-ADR, inklusive §13.4:s subprocessor-lista. Denna PR bytte ut
-> döda markörer mot levande hemvister och skriver medvetet inte in någon ersättare i
-> sak. För värden går det inte — den är inte vald. För e-posten vore det en
-> supersession av ADR 0050 plus en omskrivning av §13.4:s subprocessor-lista, som matar
-> den publika `/integritet`-sidan och därför är legal-facing: det arbetet ägs av #1169
-> och #183 och kräver `security-auditor`, inte en spec-edit-PR om ett registerbyte.
+> är vald: AWS SES i `eu-north-1`**, ADR 0124).
+>
+> **E-POSTHALVAN ÄR SEDAN 2026-08-09 (#1169) INTE LÄNGRE EN ÖPPEN FRÅGA — läs inte stycket
+> nedan som om den vore det.** Frågan var: faller en US-**ägd** leverantör i EU-region under
+> samma standard som §15.1 tillämpar när den avvisar Cloudflare R2 *"pga CLOUD
+> Act-tredjelandsöverföring **av icke-krypterad pg_dump-PII**"*? `security-auditor` avgjorde
+> den 2026-08-08 för e-postens del: **ja** — överföringen redovisas trots `eu-north-1`,
+> eftersom en standard som tillämpas selektivt inte är en standard (Art. 5(2)), och grunden är
+> **SCC Art. 46(2)(c)**, inte adekvans och inte DPF. Detaljerna bor i §13.4:s e-postpost, som är
+> omskriven; den publika `/integritet`-copyn och ROPA-posten ändrades i samma ändring.
+> **Domen är skopad till e-posten** och avgör ingenting om värdvalet eller om R2.
+>
+> **Värdhalvan är fortfarande öppen och ägs av #1199.** Ersättningarna där skrivs in av
+> CC1-lanen med egen supersessions-ADR, inklusive värdraderna i §13.4:s subprocessor-lista.
+> Den ursprungliga spec-edit-PR:n bytte ut döda markörer mot levande hemvister och skrev
+> medvetet inte in någon ersättare i sak — för värden gick det inte, och för e-posten krävdes
+> `security-auditor`, vilket är exakt vad #1169 sedan levererade.
 
 ### 15.1 Deploy-layout (ADR 0050, Accepted)
 

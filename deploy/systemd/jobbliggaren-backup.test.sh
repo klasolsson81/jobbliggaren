@@ -335,7 +335,13 @@ check "main is dumped BEFORE the DEKs" bash -c \
    y=$(grep -n -- "--data-only" "'"$CALLS"'/docker" | head -1 | cut -d: -f1); [ "$x" -lt "$y" ]'
 
 check "age was invoked with -r (a recipient)" grep -q -- '-r age1' "$CALLS/age"
-check "age was NEVER invoked with -i (an identity)" bash -c '! grep -q -- " -i " "'"$CALLS"'/age"'
+# THE ONLY CODE-LEVEL CHECK OF ADR 0050 §7 REQUIREMENT (b), AND IT COULD NOT FAIL.
+# The pattern used to be " -i " with a space on BOTH sides - and a leading flag has none, so
+# `age -i /tmp/key -r age1...` passed it. Mutation-verified by code-reviewer against both the
+# 53-case and the 72-case suite: green with -i injected into both invocations. The word-boundary
+# form below goes red in that mutation.
+check "age was NEVER invoked with -i (an identity)" bash -c \
+  '! grep -qE "(^| )-i( |$)" "'"$CALLS"'/age"'
 # EVERY UPLOADED OBJECT IS age-FRAMED - WITH ONE DELIBERATE EXEMPTION, NAMED HERE SO IT CANNOT
 # BE WIDENED SILENTLY. deks/verified.stamp is plaintext by design: a restore compares it before
 # it decrypts anything, and it carries no information the main artefacts' own object names do
@@ -419,6 +425,19 @@ reset_world; DOCKER_DUMP_FAILS=dek
 expect_exit 1 "a failed DEK leg publishes no pairing stamp"
 check "…no stamp object" [ ! -f "$(stored "jbl-backup:jobbliggaren-backups/deks/verified.stamp")" ]
 unset DOCKER_DUMP_FAILS
+
+# THE PROMOTION STEP CAN FAIL SEPARATELY FROM THE UPLOAD, AND THE RUNBOOK'S FALLBACK RESTS ON
+# WHAT IT LEAVES BEHIND: `staged` is verified at that point, so §5 tells an operator to use it
+# when `verified` will not decrypt. Untested, that instruction is a hypothesis.
+echo "== a failed promotion leaves the verified staged object behind =="
+reset_world; RCLONE_FAILS_ON="jbl-backup:jobbliggaren-backups/deks/verified.dump.age"
+expect_exit 1 "a failing promotion fails the run"
+check "…the staged object survives, and it is what the runbook falls back to" \
+  [ -f "$(stored "jbl-backup:jobbliggaren-backups/deks/staged.dump.age")" ]
+check "…the refusal names the staged object as usable" grep -q "staged.dump.age" "$TMPROOT/out"
+check "…no pairing stamp is published" [ ! -f "$(stored "jbl-backup:jobbliggaren-backups/deks/verified.stamp")" ]
+check "…and no local stamp is written" [ ! -f "$STAMP" ]
+unset RCLONE_FAILS_ON
 
 # THE ROUND TRIP MUST BE ABLE TO FAIL, and this is the case that proves it does. Without it the
 # comparison could be tautological — comparing a value against itself — and every run would pass.

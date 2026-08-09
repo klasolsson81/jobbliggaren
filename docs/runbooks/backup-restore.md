@@ -268,13 +268,33 @@ pg_restore -U postgres -d jobbliggaren_restore --no-owner --no-privileges main.d
 psql -U postgres -d jobbliggaren_restore \
   -c 'CREATE TABLE _dek_restore (LIKE user_data_keys);'
 
-#    Convert the custom-format dump to SQL and redirect the COPY at the staging table. VERIFY the
-#    substitution landed rather than assuming it: a schema-qualification change upstream would
-#    otherwise send the rows straight at the constrained table and fail for a confusing reason.
-pg_restore -f - deks.dump | sed 's/^COPY public\.user_data_keys /COPY _dek_restore /' > deks.sql
-grep -c '^COPY _dek_restore ' deks.sql          # expect exactly 1
+#    Convert the custom-format dump to SQL and redirect the COPY at the staging table.
+#
+#    TWO THINGS HERE WERE MEASURED WRONG AND BOTH FAILED SILENTLY (code-reviewer, 2026-08-09,
+#    reproduced in a throwaway postgres:18.3):
+#
+#    * THE TARGET MUST BE SCHEMA-QUALIFIED. pg_restore emits
+#      `SELECT pg_catalog.set_config('search_path', '', false);` at the top of its output, so an
+#      unqualified `_dek_restore` resolves to nothing: `ERROR: relation "_dek_restore" does not
+#      exist`, zero rows loaded.
+#    * psql MUST RUN WITH -v ON_ERROR_STOP=1. Without it psql prints that error and still exits
+#      0, so the failure is invisible to anything checking the exit code.
+#
+#    Together they produced the worst possible outcome for this procedure: a restore that loaded
+#    no keys at all, while evidence count (b) below reported EVERY user as having no key —
+#    i.e. a broken restore presenting itself as a flawless crypto-erasure result, and that number
+#    is what gate M-4 records. The grep checks below verify the SUBSTITUTION, not the load; they
+#    passed throughout.
+pg_restore -f - deks.dump | sed 's/^COPY public\.user_data_keys /COPY public._dek_restore /' > deks.sql
+grep -c '^COPY public\._dek_restore ' deks.sql   # expect exactly 1
 grep -c '^COPY public\.user_data_keys ' deks.sql # expect exactly 0
-psql -U postgres -d jobbliggaren_restore -f deks.sql
+psql -U postgres -d jobbliggaren_restore -v ON_ERROR_STOP=1 -f deks.sql
+
+#    AND VERIFY THE LOAD ITSELF, because the two checks above cannot. A staging table that is
+#    empty here means the restore has loaded no keys, and every count below would then be
+#    measuring that fact rather than an erasure.
+psql -U postgres -d jobbliggaren_restore -tAc 'SELECT count(*) FROM _dek_restore'
+#    -> must be > 0 on any generation that had users. Zero here means STOP.
 
 # 5. Insert the rows that belong to a user this generation actually has.
 psql -U postgres -d jobbliggaren_restore <<'SQL'
@@ -288,10 +308,27 @@ WHERE job_seeker_id IN (SELECT id FROM job_seekers);
 SELECT count(*) AS deks_dropped_as_orphans
 FROM _dek_restore d WHERE d.job_seeker_id NOT IN (SELECT id FROM job_seekers);
 
--- (b) Restored users with NO key: users erased since the main artefact was taken. This number
---     is the crypto-erasure claim, measured. Their ciphertext is present and unreadable.
-SELECT count(*) AS users_without_a_key
+-- (b) Restored users with NO key. READ THIS CAREFULLY: it is NOT the crypto-erasure count on
+--     its own, and calling it that would overstate the result. DEK rows are created LAZILY —
+--     a user gets one the first time they write a field-encrypted value, so a registered user
+--     who never saved a cover letter, note, follow-up or CV has no key and never did. This
+--     number is therefore (users erased since the main artefact) PLUS (users who never wrote
+--     encrypted data), and only the first group is what the drill is measuring.
+--     (code-reviewer, 2026-08-09: RegisterCommand does not carry IRequiresFieldEncryptionKey,
+--     so the prefetch that would create one eagerly does not run at registration.)
+SELECT count(*) AS users_without_a_key_TOTAL
 FROM job_seekers j WHERE j.id NOT IN (SELECT job_seeker_id FROM user_data_keys);
+
+-- (b2) The number that IS the crypto-erasure claim: restored users who have ciphertext but no
+--      key. Ciphertext without a key is the erased-user signature; no ciphertext and no key is
+--      simply a user who never wrote any.
+SELECT count(*) AS users_with_ciphertext_but_no_key
+FROM job_seekers j
+WHERE j.id NOT IN (SELECT job_seeker_id FROM user_data_keys)
+  AND EXISTS (
+    SELECT 1 FROM applications a
+    WHERE a.job_seeker_id = j.id AND a.cover_letter IS NOT NULL AND a.cover_letter <> ''
+  );
 SQL
 
 psql -U postgres -d jobbliggaren_restore -c 'DROP TABLE _dek_restore;'
@@ -340,8 +377,8 @@ two halves that prove different things:
 
 **Run the ops half before first real data**, and again after any change to the target, the
 recipient, or the master key. Record each run in `vps-deploy-stack.md` §5 with the date and the
-two counts from step 5; a row without a date is a claim that cannot be told from one that has
-decayed.
+counts from step 5 — **(b2), not (b)**, is the one that carries the erasure claim; a row without
+a date is a claim that cannot be told from one that has decayed.
 
 ---
 

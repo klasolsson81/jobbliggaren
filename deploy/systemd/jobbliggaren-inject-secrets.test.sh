@@ -155,10 +155,25 @@ echo "-- a WHITESPACE-ONLY file is not a present secret either"
 # Producible by the actor the runbook itself names: the operator, editing a file by hand during
 # rotation, or any `echo > file`. The three peppers have no content validation at all, so
 # nothing upstream would reject it.
+#
+# THE ASSERTION IS ON THE MESSAGE, NOT ON THE EXIT CODE, and that is not decoration. --check
+# has more than one reason to exit 1 (a wrong directory mode is another), so on a filesystem
+# that ignores chmod the mode branch fires first and the exit code alone would report these
+# cases as passing while the whitespace predicate was gone. Measured: with the whitespace half
+# of has_usable_content deleted, an exit-code-only assertion stayed green here. Binding to
+# "MISSING: <the pepper>" makes the case fail for the one reason it exists to detect.
 for ws in " " "  " "$(printf '\n')" "$(printf '\t')"; do
   seed_all_secrets
   printf '%s' "$ws" > "$SECRETS/AuditPseudonymization__PepperBase64"
-  expect_check 1 "a whitespace-only pepper is detected as missing"
+  run_check || true
+  if grep -qF "MISSING: ${SECRETS}/AuditPseudonymization__PepperBase64" "$TMPROOT/out"; then
+    pass=$((pass + 1))
+    echo "  ok   a whitespace-only pepper is reported missing by name"
+  else
+    fail=$((fail + 1))
+    echo "  FAIL a whitespace-only pepper was NOT reported missing" >&2
+    sed 's/^/       /' "$TMPROOT/out" >&2
+  fi
 done
 
 echo "-- the DIRECTORY's mode is load-bearing, not just the files"

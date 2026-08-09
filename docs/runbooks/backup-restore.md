@@ -103,10 +103,16 @@ stat -c '%a %U:%G' /run/jobbliggaren/host-secrets     # expect: 700 root:root
 #    chown, not just chmod: the file arrives from a clone and is owned by whoever cloned it, and
 #    0444 stops everyone EXCEPT the owner. Its integrity is the control - a swapped recipient
 #    costs every subsequent night, silently, and only the drill notices.
-sudo chown root:root /opt/jobbliggaren/deploy/backup/age.recipient
+#    THE DIRECTORY TOO, not only the file. Write access to a directory governs unlink and rename,
+#    so whoever owns deploy/backup/ can REPLACE age.recipient however the file itself is moded --
+#    and a stat that reads only the file cannot see that. The reason given above ("owned by
+#    whoever cloned it") applies to the directory verbatim.
+sudo chown root:root /opt/jobbliggaren/deploy/backup /opt/jobbliggaren/deploy/backup/age.recipient
+sudo chmod 0755      /opt/jobbliggaren/deploy/backup
 sudo chmod 0444      /opt/jobbliggaren/deploy/backup/age.recipient
-stat -c '%a %U:%G' /opt/jobbliggaren/deploy/backup/age.recipient   # expect: 444 root:root
-grep -qx age1vrkznkydenf372h8a5fs3hnkclxsq4ul903yg4e67knn7pvy74hqhckruz   /opt/jobbliggaren/deploy/backup/age.recipient && echo RECIPIENT-OK   # an oracle that CAN fail
+stat -c '%a %U:%G' /opt/jobbliggaren/deploy/backup /opt/jobbliggaren/deploy/backup/age.recipient
+#    expect: 755 root:root   then   444 root:root
+grep -qx age1vrkznkydenf372h8a5fs3hnkclxsq4ul903yg4e67knn7pvy74hqhckruz   /opt/jobbliggaren/deploy/backup/age.recipient \n  && echo RECIPIENT-OK || echo RECIPIENT-MISMATCH   # silence is not a result
 
 # 4. The units.
 sudo install -m 0644 /opt/jobbliggaren/deploy/systemd/jobbliggaren-backup*.{service,timer} \
@@ -506,9 +512,13 @@ a date is a claim that cannot be told from one that has decayed.
    `list-object-versions --prefix deks/` after two nights, and a `main/` listing after 31.
    *(Split from a single premise that read as wholly unmeasured once its first half was closed;
    a discharged premise loitering in an unmeasured list makes the whole list less credible.)*
-6. **Whether a stopped job is ever noticed.** `deks/` is bounded at 90 days and `main/` at 30,
-   so a permanently stopped job self-cleans — but the freshness probe that would tell anyone it
-   stopped is read by nothing on a cadence (#1175). The bound is a backstop, not a detector.
+6. **CLOSED 2026-08-09 — whether the target versions the `deks/` prefix.** It does not:
+   `get-bucket-versioning` returns empty, so an overwrite genuinely replaces and the whole
+   noncurrent-version class does not arise (row 27c). *(Kept as a closed entry rather than
+   deleted and its number reused — the same treatment item 2 got in this file, and for the same
+   reason: a reader who came for this question should meet the answer, not its absence. The
+   "is a stopped job ever noticed" question that briefly occupied this slot is not an unmeasured
+   premise at all — it is measured and owned by #1175, and §7 already says so.)*
 7. **A failed run can leave a truncated object offsite, and the box cannot remove it.** If `age`
    or `pg_dump` dies mid-stream, `rclone` has already opened the destination and writes what it
    received. The run fails loudly, and age is an authenticated format so a restore from that

@@ -225,4 +225,73 @@ public class ChangeEmailTests(ApiFactory factory)
         auditEntries[0].AggregateType.ShouldBe("User");
         auditEntries[0].AggregateId.ShouldBe(user.Id, "the aggregate id is the Identity user id");
     }
+
+    // ---------------------------------------------------------------------------------------
+    // #1087 — the transport half of the capability gate.
+    //
+    // The Application-side pin lives in ChangeEmailCommandHandlerTests. It cannot see the STATUS:
+    // AuthErrorCodes.EmailDeliveryUnavailable is carried by DomainError.Validation, so if the
+    // AuthEndpoints arm is ever deleted this degrades to a 400 — silently, with the whole unit suite
+    // still green. That is why the carrier kind is a deliberate fallback and the 503 is pinned here
+    // instead, mirroring RegistrationsClosedTests.
+    //
+    // Both halves live in ONE test on purpose. The 503 assertion alone is compatible with a gate
+    // stuck permanently on; the crossing arm — same user, same request, capability restored — is what
+    // proves it is a choice. Splitting them would let a later tidy-up delete the arm that carries the
+    // proof and leave the control standing alone.
+    // ---------------------------------------------------------------------------------------
+
+    [Fact]
+    public async Task POST_change_email_returns_503_when_the_sender_cannot_deliver_and_202_when_it_can()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var email = $"ce-nodeliver-{Guid.NewGuid()}@example.se";
+        var newEmail = $"ce-nodeliver-new-{Guid.NewGuid()}@example.se";
+        var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(_client, email, ct: ct);
+
+        HttpResponseMessage refused;
+        using (_factory.Emails.Incapable())
+        {
+            refused = await ChangeAsync(sessionId, AuthTestHelpers.DefaultTestPassword, newEmail, ct);
+        }
+
+        refused.StatusCode.ShouldBe(HttpStatusCode.ServiceUnavailable);
+        // Asserted on the parsed ProblemDetails title for the reason RegistrationsClosedTests states:
+        // a Redis outage also produces a 503 on this surface, so a substring match over the body would
+        // not prove the contract a client discriminates on.
+        var problem = await refused.Content.ReadFromJsonAsync<JsonElement>(ct);
+        problem.GetProperty("title").GetString().ShouldBe("Auth.EmailDeliveryUnavailable");
+
+        // Nothing was attempted and nothing was recorded — the refusal is up front, not a swallowed send.
+        _factory.Emails.Sent.ShouldNotContain(e =>
+            e.ToEmail == newEmail && e.Kind == RecordedEmailKind.EmailChangeConfirmation);
+
+        // AC 3, end to end: no User.EmailChangeRequested row for a request that could not complete.
+        // The unit pin asserts the handler returns a failure; only this proves AuditBehavior therefore
+        // wrote nothing, which is the property the AC actually names.
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+            var user = await userManager.FindByEmailAsync(email);
+            user.ShouldNotBeNull();
+
+            (await db.AuditLogEntries
+                .AsNoTracking()
+                .CountAsync(e => e.UserId == user.Id && e.EventType == "User.EmailChangeRequested", ct))
+                .ShouldBe(0, "a refused request must leave no audit trail of a change that was never requested");
+        }
+
+        // The crossing arm: capability restored, everything else identical.
+        //
+        // It carries a second proof it was not written for, and the proof is free. Both cooldown
+        // scopes (per-actor and per-target) have a 60s window, and this call is immediate — so a 202
+        // here also establishes that the refusal above did NOT begin either window. Had the gate been
+        // placed after the cooldown, this line would be a 409 (Auth.ChangeEmailCooldown), and the user
+        // would have been rate-limited out of retrying by our own misconfiguration.
+        (await ChangeAsync(sessionId, AuthTestHelpers.DefaultTestPassword, newEmail, ct))
+            .StatusCode.ShouldBe(HttpStatusCode.Accepted);
+        _factory.Emails.Sent.ShouldContain(e =>
+            e.ToEmail == newEmail && e.Kind == RecordedEmailKind.EmailChangeConfirmation);
+    }
 }

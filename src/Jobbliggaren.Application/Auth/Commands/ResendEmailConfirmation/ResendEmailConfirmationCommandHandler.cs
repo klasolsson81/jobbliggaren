@@ -50,7 +50,23 @@ public sealed partial class ResendEmailConfirmationCommandHandler(
                 cancellationToken);
 
             // Audit ONLY after a link was actually sent (a truthful "resent" event; CTO-bind ii).
-            auditLogger.EmailConfirmationResent(delivery.UserId);
+            //
+            // #1087 — "actually sent" needs the capability, not just the absence of an exception. A
+            // non-delivering sender returns Task.CompletedTask, so the line below used to stamp
+            // User.EmailConfirmationResent for a link that reached nobody, and the comment above
+            // asserted the very truthfulness it lost. ChangeEmailCommandHandler discharges the same
+            // AC ("no audit row for a request that cannot complete") via AuditBehavior, which stamps
+            // only on Result.Success — that reasoning does NOT reach here, because this handler
+            // returns Success by contract and stamps manually.
+            //
+            // The RESPONSE is deliberately unchanged: still the uniform Result.Success / 202 for every
+            // address, cooled or not, existing or not (FORK 1, ADR 0102). Refusing visibly here would
+            // split 503 from 202 on an UNAUTHENTICATED surface after an existence-dependent lookup
+            // (TryPrepareEmailConfirmationResendAsync returns null for absent AND already-confirmed),
+            // which would be a live enumeration oracle. Only the audit record changes, and it changes
+            // from false to absent.
+            if (emailSender.CanDeliver)
+                auditLogger.EmailConfirmationResent(delivery.UserId);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {

@@ -120,6 +120,20 @@ else
   skipped=$((skipped + 1))
   echo "  SKIP positive case: --check asserts directory mode 0710 and this filesystem does not"
   echo "       honour chmod (Git Bash/Windows). It RUNS in CI on ubuntu."
+
+  # Recover what CAN be measured here. Without this, a chmod-less run has NO exit-0 assertion
+  # at all -- the positive case is skipped and the docker case asserts only that docker was not
+  # invoked -- so the file loop's happy path would go entirely unmeasured locally.
+  seed_all_secrets
+  run_check || true
+  if grep -q "MISSING:" "$TMPROOT/out"; then
+    fail=$((fail + 1))
+    echo "  FAIL with all five files seeded, --check still reported a MISSING file" >&2
+    sed 's/^/       /' "$TMPROOT/out" >&2
+  else
+    pass=$((pass + 1))
+    echo "  ok   with all five seeded, no file is reported missing (mode branch not measured)"
+  fi
 fi
 
 echo "-- every secret is individually load-bearing"
@@ -130,7 +144,7 @@ for missing in "${EXPECTED_FILES[@]}"; do
 
   # The journal line must NAME the file. An operator reading `systemctl --failed` at 03:00
   # needs to know which one, and a bare exit code does not carry that.
-  if grep -qF "$missing" "$TMPROOT/out"; then
+  if grep -qF "MISSING: ${SECRETS}/${missing}" "$TMPROOT/out"; then
     pass=$((pass + 1))
     echo "  ok   the failure names $missing"
   else
@@ -140,9 +154,17 @@ for missing in "${EXPECTED_FILES[@]}"; do
 done
 
 echo "-- an EMPTY file is not a present secret"
+# Message-bound for the same reason as the whitespace block below: --check reaches exit 1 by
+# more than one route, so an exit code alone cannot say WHICH check fired.
 seed_all_secrets
 : > "$SECRETS/FieldEncryption__LocalMasterKeyBase64"
-expect_check 1 "a zero-byte master key is detected as missing"
+run_check || true
+if grep -qF "MISSING: ${SECRETS}/FieldEncryption__LocalMasterKeyBase64" "$TMPROOT/out"; then
+  pass=$((pass + 1)); echo "  ok   a zero-byte master key is reported missing by name"
+else
+  fail=$((fail + 1)); echo "  FAIL a zero-byte master key was NOT reported missing" >&2
+  sed 's/^/       /' "$TMPROOT/out" >&2
+fi
 
 echo "-- a WHITESPACE-ONLY file is not a present secret either"
 # THE PREDICATE-DIVERGENCE CASE, and it is the one that matters most. The reader trims and
@@ -196,8 +218,18 @@ else
 fi
 
 echo "-- a missing directory is the post-reboot state"
+# OVERDETERMINED, and named as such: with no directory the -d branch fires AND all five file
+# branches fire. Deleting the -d check entirely leaves this case green (stat fails, dir_mode
+# becomes "?", WRONG MODE fires). So it is bound to the directory branch's own wording, which
+# is the only string that distinguishes "no directory" from "the files are gone".
 rm -rf "$TMPROOT/run"
-expect_check 1 "no secrets directory at all is detected"
+run_check || true
+if grep -qF "MISSING: $SECRETS (directory does not exist)" "$TMPROOT/out"; then
+  pass=$((pass + 1)); echo "  ok   a missing directory is reported as a missing DIRECTORY"
+else
+  fail=$((fail + 1)); echo "  FAIL a missing directory was not distinguished from missing files" >&2
+  sed 's/^/       /' "$TMPROOT/out" >&2
+fi
 
 echo "-- --check never touches docker"
 # It runs at boot, potentially before dockerd. If it ever shells out to docker, a boot-time
@@ -240,4 +272,16 @@ fi
 
 echo
 echo "passed: $pass   failed: $fail   skipped: $skipped"
+
+# THE SKIP IS ACCOUNTED FOR, NOT MERELY ANNOUNCED. Without this, a run that skipped the
+# directory-mode cases exits identically to one that ran them, and "they RUN in CI" would be a
+# claim enforced by nothing. build.yml sets JBL_REQUIRE_MODE_CASES=1, so on the runner a skip
+# is a failure rather than a line of prose.
+if [ -n "${JBL_REQUIRE_MODE_CASES:-}" ] && [ "$skipped" -ne 0 ]; then
+  echo "FAIL: JBL_REQUIRE_MODE_CASES is set but $skipped case(s) were skipped." >&2
+  echo "      This environment must honour chmod; a skip here means the suite measured less" >&2
+  echo "      than it reports." >&2
+  exit 1
+fi
+
 [ "$fail" -eq 0 ]

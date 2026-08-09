@@ -60,7 +60,15 @@ die() { log "REFUSING: $*"; exit 1; }
 # A file counts as present only if it holds something the READER will accept. The reader trims
 # and treats whitespace-only as absent (EnvFileSecretsConfiguration.cs), so a file holding a
 # single space would otherwise pass `-s` here while crash-looping the stack — a false all-clear
-# on the box's only alarm surface. The two predicates must not diverge.
+# on the box's only alarm surface.
+#
+# THE TWO PREDICATES AGREE ON ASCII WHITESPACE AND DIVERGE BEYOND IT, which is worth stating
+# rather than claiming an equivalence that does not hold. Measured 2026-08-09: a UTF-8 NBSP
+# (0xC2 0xA0) survives `tr -d '[:space:]'` while .NET's Trim() removes it, so such a file would
+# read as present here and absent to the app — the fail-OPEN direction. Reachable only by
+# pasting from a rendered document. Making bash Unicode-aware is not proportionate; leaving the
+# gap unnamed is not either. (U+200B is not whitespace to Trim() either, so that class does not
+# arise.)
 has_usable_content() {
   local path="$1"
   [[ -s "$path" ]] || return 1
@@ -81,9 +89,12 @@ if [[ "${1:-}" == "--check" ]]; then
     missing=1
   else
     dir_mode=$(stat -c '%a' "$SECRETS_DIR" 2>/dev/null || echo "?")
-    if [[ "$dir_mode" != "710" ]]; then
-      log "WRONG MODE: $SECRETS_DIR is $dir_mode, expected 710 — the container's group cannot"
-      log "            traverse it, so api/worker crash-loop with the files present."
+    # Compared against DIR_MODE, not a second spelling of it: two literals for one value is
+    # how an assertion quietly keeps checking the old one after the setter changes.
+    if [[ "$dir_mode" != "${DIR_MODE#0}" ]]; then
+      log "WRONG MODE: $SECRETS_DIR is $dir_mode, expected ${DIR_MODE#0} — the container's group"
+      log "            cannot traverse it. After a reboot this is expected and the files are gone"
+      log "            too; if the files ARE present, api/worker crash-loop despite them."
       missing=1
     fi
   fi
@@ -127,6 +138,9 @@ resolve_runtime_ids() {
     || die "could not resolve the api image from ${COMPOSE_FILE} (compose interpolates .env —
 a missing required variable fails here)"
   [[ -n "$image" ]] || die "no api image found in ${COMPOSE_FILE}"
+  # stderr is in that pipe, so a compose error line containing the substring would otherwise be
+  # handed to `docker run` as an image name and fail for the wrong stated reason.
+  [[ "$image" =~ ^[a-z0-9./_-]+:[A-Za-z0-9._-]+$ ]]     || die "resolved api image is not an image reference: '${image}' (compose likely errored)"
   docker run --rm --entrypoint sh "$image" -c 'id -u; id -g' 2>/dev/null \
     || die "could not read the runtime uid/gid from ${image} (is it pulled? is dockerd up?)"
 }
@@ -197,8 +211,11 @@ for key in "${SECRET_KEYS[@]}"; do
   printf 'Value for %s: ' "$key" >&2
   read -rs value
   printf '\n' >&2
-  [[ -n "$value" ]] || die "${key} was empty — nothing written, and the run is aborted so a
-partially injected directory is never mistaken for a complete one"
+  # Whitespace-only is rejected here, at the prompt, rather than downstream by --check: the
+  # operator is standing right there, and the reader would treat such a value as absent anyway.
+  [[ -n "${value//[[:space:]]/}" ]] || die "${key} was empty or whitespace-only — nothing
+written, and the run is aborted so a partially injected directory is never mistaken for a
+complete one"
 
   # The master key must decode to 32 bytes (AES-256). Catching it here turns a crash-loop with a
   # startup message into an immediate, local error.

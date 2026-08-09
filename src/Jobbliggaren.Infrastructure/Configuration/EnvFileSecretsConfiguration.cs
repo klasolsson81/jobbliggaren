@@ -142,10 +142,15 @@ internal sealed class EnvFileSecretsConfigurationProvider(
     /// </para>
     ///
     /// <para>
-    /// Note also that the first-party <c>AddKeyPerFile</c> does <b>not</b> trim and does not treat
-    /// a whitespace-only file as absent (both measured against 10.0.0). This reader is therefore
-    /// strictly more permissive, which is the safe direction: swapping to the package later
-    /// cannot start accepting something rejected today.
+    /// <b>This reader and <c>AddKeyPerFile</c> are not on a single permissiveness axis</b>, and an
+    /// earlier version of this comment claimed they were. Measured against 10.0.0: the package does
+    /// not trim, and it treats a whitespace-only file as PRESENT — so for that input the package is
+    /// the more permissive of the two, the opposite of what was written here. It also sweeps the
+    /// directory rather than following pointers, so it would read files this reader never opens.
+    /// The narrower claim that does hold: <b>for the five production files both sources bind the
+    /// same values</b>, because the four secrets are consumed through
+    /// <c>Convert.FromBase64String</c> (whitespace-ignoring, measured) and an empty file fails the
+    /// same validator either way.
     /// </para>
     /// </summary>
     internal static Dictionary<string, string?> Resolve(

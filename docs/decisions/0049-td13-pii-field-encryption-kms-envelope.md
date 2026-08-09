@@ -915,7 +915,7 @@ never as a value in `deploy/.env`.
   owned by that UID.
 - **Container side:** `deploy/docker-compose.yml`'s `x-app-secrets-mount` anchor bind-mounts
   the same host directory read-only into both `api` and `worker` at `/run/app-secrets`
-  (`docker-compose.yml:76-83`).
+  (`docker-compose.yml`, the `x-app-secrets-mount` anchor).
 - **Code side:** the four values arrive as `<KEY>_FILE` environment variables whose *value is
   a path*, resolved by `EnvFileSecretsConfiguration.cs` into ordinary `IConfiguration` keys
   (`__` → `:`), registered last in both hosts (`Api/Program.cs`, `Worker/Program.cs`) so the
@@ -1124,7 +1124,7 @@ was empty:
 
 | Secret | Rotatable? | Why |
 |---|---|---|
-| `AuditPseudonymization` | **Always**, even against a full database | Written into a write-only jsonb audit field that no read path matches against; partitions age out. The DI registration already calls it *"rotation-tolerant"*. |
+| `AuditPseudonymization` | **Any time**, at one named cost | No read path matches against it — verified by tracing the consumers, not taken from the DI comment that calls it *"rotation-tolerant"*: the query handler filters on `OccurredAt`/`UserId`/`EventType`/`AggregateType`, and the only `Pseudonymize(` call site outside the interface is a write. The cost is forensic rather than functional: the pseudonym's purpose is to link one erased subject's Art. 17 audit records to each other, and a rotation breaks that linkage **across the rotation boundary**, permanently. Immaterial at 13 rows; state it rather than claiming an unqualified "even against a full database", which is broader than the evidence. |
 | `CvReviewFingerprintPseudonymization` | **While `resume_finding_statuses` is empty** | The fingerprint is recomputable, but rotating makes every stored `target_fingerprint` mismatch, so every Ignored/Resolved finding silently reverts to Open. |
 | `CompanyWatchPseudonymization` | **Only while `company_watches` has no rows** | `BackfillCompanyWatchOrgNrTokenJob` destroyed the plaintext organisation number in place, so an existing token cannot be recomputed under a new pepper — not expensively, but mathematically. |
 

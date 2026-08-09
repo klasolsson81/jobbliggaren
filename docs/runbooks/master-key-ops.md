@@ -50,7 +50,7 @@ within two minutes — the box's only alarm surface, since no log sink exists (#
 
 | Path | What |
 |---|---|
-| `/run/jobbliggaren/secrets/` | tmpfs staging dir, `0710 root:<container-uid>`, created at boot by `/etc/tmpfiles.d/jobbliggaren.conf` |
+| `/run/jobbliggaren/secrets/` | tmpfs staging dir. **`0700 root:root` at boot** (`/etc/tmpfiles.d/jobbliggaren.conf`), **raised to `0710 root:<container-gid>` by the injection script**. Two actors, two states — and with the `:` prefix tmpfiles can never produce the second one, so a `WRONG MODE` from `--check` means the injection has not run |
 | `…/FieldEncryption__LocalMasterKeyBase64` | the master key, `0400` |
 | `…/FieldEncryption__LocalMasterKeyId` | key identity, not a secret — the rotation marker |
 | `…/AuditPseudonymization__PepperBase64` | pepper |
@@ -88,10 +88,35 @@ does not exist here.
 sudo /opt/jobbliggaren/deploy/systemd/jobbliggaren-inject-secrets.sh
 ```
 
-It prompts for each value with `read -rs` (never argv — `/proc` is world-readable, so a
-secret on a command line is published to every local process), validates that the master key
-decodes to 32 bytes, measures the container runtime uid **out of the api image** rather than
-hardcoding it, and writes each file `0400` owned by that uid.
+What it does, in order:
+
+1. **Refuses a non-terminal stdin.** Piping a value in would put it in argv and in shell
+   history; `/proc` is world-readable, so a secret on a command line is published to every
+   local process.
+2. **Measures the container runtime uid AND gid out of the api image** rather than hardcoding
+   or deriving them. Group traversal is the container's only way into a `0710` directory, so
+   an image where gid differs from uid would make the mount unreadable — and the app would
+   then report a *missing key* rather than a permission problem.
+3. **Asks for the key identity first**, defaulting to `local-v1`, and writes it before the
+   key bytes. Identity and bytes are one unit: a v2 key stamped `local-v1` makes the next
+   rotation's compare-and-swap skip exactly the rows it must not skip.
+4. Prompts for each secret with `read -rs`, validates that the master key decodes to 32 bytes,
+   and creates each file `0400` owned by the measured uid.
+
+> **NEVER ACCEPT THE IDENTITY DEFAULT BLINDLY ON A ROTATED BOX.** After a rotation the box
+> holds no record of which identity is in force — tmpfs was cleared by the reboot and `.env`
+> no longer carries it. Pressing Enter would stamp `local-v1` onto v2 bytes, and the next
+> rotation's `cmk_key_id == 'local-v2'` predicate would then skip precisely those rows, which
+> become unrecoverable when the v2 key is discarded. **The answer is recoverable, so look it
+> up rather than guessing:**
+>
+> ```bash
+> docker exec jobbliggaren-postgres psql -U postgres -d jobbliggaren -tAc 'SELECT DISTINCT cmk_key_id FROM user_data_keys'
+> ```
+>
+> An empty result means no DEK exists yet and the default is correct. Otherwise pass the value
+> it prints: `sudo JBL_MASTER_KEY_ID=<value> …inject-secrets.sh`. The identity is also part of
+> what escrow must hold — **the bytes AND the identity**, not just the bytes.
 
 Then verify, and do not skip this — the whole point of the model is that a partial injection
 looks like a healthy box from the outside:
@@ -162,7 +187,9 @@ the damage unrecoverable.
    sudo JBL_MASTER_KEY_ID=local-v2 \
      /opt/jobbliggaren/deploy/systemd/jobbliggaren-inject-secrets.sh
    ```
-   Escrow the new value in the same step (§1 — Klas's decision, and a prerequisite).
+   Escrow **the new bytes and the new identity** in the same step (§1 — Klas's decision, and
+   a prerequisite). The identity is not a secret, but losing track of it costs the next
+   rotation its marker.
 4. Rewrap old → new; verify. **Skip when `user_data_keys` is empty** — there is nothing to
    re-wrap, and the new bytes are already in force.
 5. Start the containers; confirm `healthy`.

@@ -184,13 +184,24 @@ pairing — `deks/` is the half a `main`-only listing cannot see.
 
 ### Retention
 
-**30 days (K4, Klas 2026-08-04), enforced by the target and not by this box.** The upload
-credential carries no `DELETE`; the box appends and never prunes. Two reasons, and the second is
-the stronger: a provider-enforced lifecycle policy is an artefact a third party issued and that
-we can export, which is what Art. 5(2) accountability asks for, whereas a prune journal is a
-document we write about ourselves — and its integrity depends on the very box that would be
-compromised in the scenario that matters. With no `DELETE`, the worst a compromised box can do to
-the history is add to it.
+**30 days (K4, Klas 2026-08-04), enforced by the target and not by this box.** The box issues no
+delete verb at all; it appends. Two reasons, and the second is the stronger: a provider-enforced
+lifecycle policy is an artefact a third party issued and that we can export, which is what
+Art. 5(2) accountability asks for, whereas a prune journal is a document we write about ourselves,
+and its integrity depends on the very box that would be compromised in the scenario that matters.
+The credential is *supposed* to carry no `DELETE` so that the worst a compromised box can do is
+add; **measured 2026-08-09 it does carry it**, and the callout below is the current state rather
+than this paragraph.
+
+**`deks/` outlives `main/`, and that ordering is the invariant.** Two rules on the target:
+`k4-main-artefacts-30-days` (`main/`, 30 days) and `deks-outlive-main-90-days` (`deks/`, 90 days),
+both applied and read back 2026-08-09. **Never "no rule on `deks/`", and never an equal or shorter
+one.** Both prefixes are written in the same run, so a longer key expiry means a main artefact that
+is still alive implies its key generation still exists - by construction rather than by scheduling
+luck. And `deks/` does need a bound: `user_data_keys` carries `JobSeekerId` and `CreatedAt`, which
+is pseudonymous personal data (Art. 4(1), Recital 26), so an object with no expiry at all becomes
+retention without purpose the moment the job stops running for good (Art. 5(1)(e)). While the job
+runs, the objects are overwritten nightly and approach neither number.
 
 The one object the box replaces is the DEK generation, and it does that by **overwrite after
 verification**, never by deleting: it uploads to `deks/staged.dump.age`, reads it back, compares
@@ -224,11 +235,23 @@ at all: "exactly one generation" is achieved by overwrite.
 > and `get-bucket-acl` shows the backup user **owns** the container with `FULL_CONTROL` - and
 > OVH's documented evaluation authorises an owner even with no explicit allow.
 >
-> **The repair is structural: the container must be owned by an identity the box does not hold.**
-> Create it under a different user, then grant the backup user a policy without `s3:DeleteObject`.
-> **Klas owns this.** Until it is done, a compromised box can destroy the backup history in one
-> action, and D5's posture is documented but not in force. It blocks neither taking backups nor
-> the drill.
+> **THE REPAIR IS A USER POLICY, AND AN EARLIER DRAFT OF THIS CALLOUT GOT THAT WRONG.** It said
+> the situation was irreparable by policy, reasoning from `NotImplemented` on *bucket* policies to
+> "no instrument exists". OVH's other instrument is a **user policy**, attached to the S3 user and
+> therefore invisible to `get-bucket-policy` by construction. Its documented evaluation checks for
+> an **explicit** `Deny` first, before any ACL fallback; the owner exemption defeats only
+> **implicit** deny. An explicit `Deny` on `s3:DeleteObject` is therefore honoured even for the
+> owner.
+>
+> It is compatible with the mechanism, measured rather than assumed: this script issues **no delete
+> verb at all** - the DEK promotion is an overwrite, i.e. `PutObject`. Nothing breaks.
+>
+> **Klas owns the next step, and it is a measurement before a plan:** apply the explicit `Deny`
+> (OVH panel, Object Storage, Policy Users, import JSON), then counter-measure - `put-object` must
+> still succeed and `delete-object` must return `AccessDenied`. Re-creating the container under a
+> different owner is *a* repair and the expensive one; it is not needed if the policy holds.
+> **Neither has been applied**, so D5's posture is documented and not in force. It blocks neither
+> taking backups nor the drill.
 
 ---
 
@@ -466,7 +489,14 @@ a date is a claim that cannot be told from one that has decayed.
 4. **The dump's cost on this box.** `pg_dump` runs inside the Postgres container's 2 560 MiB cap,
    and the peak recorded in `vps-deploy-stack.md` §5 row 3 reflects idle operation because this
    job did not exist. That row is unblocked by this change and is #1235's to close.
-5. **Whether the chosen target versions the `deks/` prefix.** "Exactly one verified DEK
+5. **Whether the target's lifecycle rules take EFFECT, not merely exist.** The *rule* half is
+   measured (row 27c): versioning is off, so an overwrite genuinely replaces, and both prefixes
+   carry a rule with `deks/` outliving `main/`. **The effect half is not**: nothing has yet
+   confirmed that objects actually disappear on schedule. Row 27b owns it —
+   `list-object-versions --prefix deks/` after two nights, and a `main/` listing after 31.
+   *(Split from a single premise that read as wholly unmeasured once its first half was closed;
+   a discharged premise loitering in an unmeasured list makes the whole list less credible.)*
+6. **Whether the chosen target versions the `deks/` prefix.** "Exactly one verified DEK
    generation" is achieved by OVERWRITE, because the credential holds no `DELETE`. On a
    **versioned** bucket an overwrite deletes nothing: the previous generation survives as a
    noncurrent version, a `DELETE`-less credential cannot remove it, and an `Expiration` lifecycle
@@ -486,12 +516,12 @@ a date is a claim that cannot be told from one that has decayed.
    back clean, so also run `get-bucket-versioning` and, after two nights,
    `list-object-versions --prefix deks/` — exactly one version per key.
    (security-auditor, 2026-08-09, Major, restated in the scoped recheck the same day.)
-6. **A failed run can leave a truncated object offsite, and the box cannot remove it.** If `age`
+7. **A failed run can leave a truncated object offsite, and the box cannot remove it.** If `age`
    or `pg_dump` dies mid-stream, `rclone` has already opened the destination and writes what it
    received. The run fails loudly, and age is an authenticated format so a restore from that
    object fails at decrypt rather than yielding partial data — but the object sits under a
    legitimate-looking run-stamped name until the lifecycle expires it. **Do not read a main
    artefact's existence as evidence it is complete;** the journal for that run is the evidence.
-7. **Where decryption happens once real data exists.** The workstation is inside the trust
+8. **Where decryption happens once real data exists.** The workstation is inside the trust
    boundary (ADR 0123). Acceptable for a drill on an empty box; open beyond that, and
    security-auditor's to settle.

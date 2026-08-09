@@ -1298,7 +1298,7 @@ permanent infra aktiveras; listan nedan speglar **beslutad** uppsättning, ADR 0
   påstående om den är det inte. ⚠ **Inget Art. 28-avtal är tecknat** — netcups AVV gäller **inte**
   automatiskt utan sluts i Customer Control Panel, och den mätningen får aldrig generaliseras från
   AWS GDPR-DPA:t. Grind: `release-checklist.md` §2.6 punkt 3 (**Klas**, aldrig CC).
-- Backup: **mekanismen är byggd, målet är inte upphandlat** — ägs av
+- Backup: **mekanismen är byggd och målet är valt och mätt (2026-08-09); Art. 28-avtalet är INTE tecknat** — ägs av
   [#197](https://github.com/klasolsson81/jobbliggaren/issues/197) (Hetzner-EU Storage Box föll med
   värdbytet). **Det här är kravens enda hem.** Kraven består oförändrade: klient-side
   age-kryptering före upload oavsett mål · EU-jurisdiktion · retention/rotation **30 dagar**
@@ -1314,12 +1314,19 @@ permanent infra aktiveras; listan nedan speglar **beslutad** uppsättning, ADR 0
   ciphertexten). Versionering och Object Lock **av** — Klas-beslut, enklare och strikt starkare
   för en-generationsegenskapen; priset är att Object Lock är permanent stängt på containern.
   ⚠ **Två krav i profilen är INTE uppfyllda, båda Klas:** **Art. 28-avtalet är inte tecknat**
-  (konto och credits är inget biträdesavtal), och **credentialen KAN radera** — mätt, och
-  oreparerbar med policy eftersom backup-användaren **äger** containern och OVH inte
-  implementerar bucket policies. Containern måste ägas av en identitet lådan inte har.
-  `docs/runbooks/backup-restore.md`. **Två grindar kvar och båda är Klas:** upphandlingen med sitt
-  Art. 28-avtal, och **escrow av age-privatnyckeln** — en backup vars nyckel inte är escrowad är
-  ingen backup (samma grind som masternyckelns, `vps-deploy-stack.md` §5 rad 26 respektive 32).
+  (konto och credits är inget biträdesavtal), och **credentialen KAN radera** (mätt). Det senare
+  är **reparerbart** — en OVH **user policy** med explicit `Deny` på `s3:DeleteObject`; explicit
+  deny hedras även för en ägare, det är bara *implicit* deny som inte gör det. Skriptet utfärdar
+  inget delete-verb alls, så inget går sönder. **Ingen av dem är applicerad.**
+  **Klas accepterade 2026-08-09 restexponeringen där en återställning från en artefakt äldre än
+  en raderingsbegäran återuppväcker användaren** — daterat, och registrerat här därför att båda
+  dess andra hemvister är gitignorerade och ett accepterande som bara finns i osynliga filer är
+  inget accepterande.
+  `docs/runbooks/backup-restore.md`. **Tre grindar kvar och alla är Klas:** **Art. 28-avtalet** med
+  OVHcloud (målet är valt och mätt, avtalet är inte tecknat), **credentialens `DELETE`** — mätt att
+  den finns, reparerbar med en OVH user policy med explicit `Deny` (rad 27d) — och **escrow av
+  age-privatnyckeln**: en backup vars nyckel inte är escrowad är ingen backup (samma grind som
+  masternyckelns, `vps-deploy-stack.md` §5 rad 26 respektive 32).
 - DNS / CDN / proxy: **utgår helt** (Klas-beslut K3 2026-08-04, ADR 0050 `Amendment 2026-08-04` §3).
   Ingen CDN, ingen edge-proxy; Caddy terminerar TLS direkt mot Let's Encrypt och DNS ligger hos
   Strato. **Strato är inte ett personuppgiftsbiträde:** en auktoritativ DNS-operatör publicerar vår
@@ -1548,7 +1555,7 @@ får inte "rättas" mot gate M-5:s ursprungstext.** M-5 är pensionerad på plat
 faktiskt emitterad i Production, bevisad på det **oautentiserade 401-svaret**) + **M-5b**; se
 ADR 0050 `Amendment 2026-08-04` §5.
 
-**Backup — mekanismen levererad (ADR 0125), målet inte upphandlat; ägs av
+**Backup — mekanismen levererad (ADR 0125), målet valt och mätt 2026-08-09; ägs av
 [#197](https://github.com/klasolsson81/jobbliggaren/issues/197).** Hetzner-EU Storage Box föll med
 värdbytet; ersättaren är bunden som **kravprofil**, inte som leverantör. **Kraven räknas inte upp
 här — de har ett enda hem, §13.4:s backup-post**, och en andra uppräkning hade blivit ett andra hem

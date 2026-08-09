@@ -10,7 +10,12 @@
 #
 # ONE LINE, STARTING age1. It is the output of `age-keygen`'s "Public key:" line.
 #
-#   age1ql3z7hjy54pw3hyww5ayyfg7zqgvc7w3j2elw8zmrj2kg5sfn9aqmcac8p
+#   age1<52 more bech32 characters>       <- SHAPE ONLY. A well-formed sample value used to sit
+#                                            here, and the script accepts any well-formed one:
+#                                            installing the sample by mistake would encrypt every
+#                                            night to a key nobody holds, silently, until the
+#                                            drill. The real value is in `age.recipient` beside
+#                                            this file and the runbook verifies against it.
 #
 # THE PRIVATE KEY (AGE-SECRET-KEY-…) MUST NEVER EXIST ON THIS BOX, in this directory or any
 # other. ADR 0050 `Amendment 2026-08-04` §7 requirement (b): a private key stored with the

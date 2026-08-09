@@ -23,6 +23,14 @@
 # unwraps, which is the unwritten premise that makes ADR 0049 Beslut 2's claim, and the published
 # sentence in content-legal.json, true or false.
 #
+# MEASURED FALSE 2026-08-09, AND THE THREE CLAIMS BELOW DESCRIBE THE INTENDED PROPERTY, NOT THE
+# CURRENT ONE: the upload credential CAN delete. `delete-object` succeeded against the live
+# container. The repair is an OVH USER POLICY with an explicit `Deny` on `s3:DeleteObject` —
+# explicit deny IS honoured for a bucket owner; only IMPLICIT deny is not — and it is compatible,
+# because this script issues no delete verb at all (promotion is an overwrite, i.e. PutObject).
+# Neither that policy nor the alternative repair has been applied. Until one is,
+# D5's posture is DOCUMENTED BUT NOT IN FORCE. Owner: Klas, vps-deploy-stack.md §5 row 27d.
+#
 # THE BOX APPENDS AND NEVER PRUNES (D5). Retention of main artefacts is the target's own
 # lifecycle policy — a rule a third party enforces and we can export, which is what Art. 5(2)
 # demonstrability asks for, and which a credential without DELETE keeps out of reach of a
@@ -51,8 +59,9 @@ readonly PG_USER=postgres
 readonly DEK_TABLE=user_data_keys
 
 # The remote. The name before the colon must match a section header in the injected rclone
-# config; everything after it is the bucket or directory. THIS IS THE ONLY TARGET-SPECIFIC LINE
-# IN THE FILE — a vendor change is this constant plus a new credential, and no code.
+# config; everything after it is the bucket or directory. Region and endpoint live entirely in
+# that config, so a vendor change is this constant plus a new credential, and no code — measured
+# 2026-08-09 when OVHcloud was bound and nothing here moved.
 readonly BACKUP_REMOTE="jbl-backup:jobbliggaren-backups"
 
 # Object layout under that root. `staged` is the freshly uploaded DEK artefact whose round trip
@@ -60,6 +69,13 @@ readonly BACKUP_REMOTE="jbl-backup:jobbliggaren-backups"
 # by overwriting the single object a restore depends on would, on a failed write, leave zero
 # readable DEK generations — and without a DEK generation every retained main artefact is
 # permanently unreadable.
+# KEEP IN SYNC WITH THE TARGET'S LIFECYCLE RULES, and unlike the PG_* block above this coupling
+# fails SILENTLY IN BOTH DIRECTIONS. The target carries `k4-main-artefacts-30-days`
+# (`Filter.Prefix: main/`, 30 days) and `deks-outlive-main-90-days` (`Filter.Prefix: deks/`,
+# 90 days). Change `MAIN_PREFIX` and K4 stops applying to anything, with no error anywhere; let a
+# DEK object land under `main/` and the KEYS expire at 30 days while ciphertext survives.
+# The invariant the two rules encode: deks/ expiry > main/ expiry, so a live main artefact implies
+# its key generation still exists. vps-deploy-stack.md §5 row 27c.
 readonly MAIN_PREFIX="main"
 readonly DEK_STAGED="deks/staged.dump.age"
 readonly DEK_VERIFIED="deks/verified.dump.age"
@@ -269,8 +285,9 @@ done
 
 # FROM HERE ON, TONIGHT'S MAIN ARTEFACT IS OFFSITE AND EVERY REMAINING FAILURE LEAVES IT THERE.
 #
-# The box holds no DELETE on the target by design (see the header), so a failed DEK leg cannot be
-# undone by removing what already uploaded. What it leaves is the one pairing the ordering
+# The box is not supposed to hold DELETE on the target (see the header, and note the dated
+# correction there: it currently does). Either way this script never deletes, so a failed DEK leg
+# cannot be undone by removing what already uploaded. What it leaves is the one pairing the ordering
 # invariant forbids: tonight's main artefact beside the PREVIOUS generation's DEK artefact. Every
 # job_seeker created since that generation is then in a main artefact whose key exists in nothing
 # we hold — and because both objects are present and both decrypt, the pair looks restorable.
@@ -340,8 +357,10 @@ a restore may use it instead (docs/runbooks/backup-restore.md §5). ${UNPAIRED_M
 # The stamp goes up LAST and only on the success path, so it can never claim a generation that was
 # not promoted. A stamp that lags its artefact is SAFE: it under-claims, so the restore refuses a
 # pair it could have accepted, which is the fail-closed direction the rest of this design takes.
-# A stamp that LEADS its artefact would do the opposite, and that is why it is not written before
-# the promotion it describes. The box holds no DELETE, so leading is unreachable by construction.
+# A stamp that LEADS its artefact would do the opposite, and that is why it is written AFTER the
+# promotion it describes. The write order is what makes leading unreachable — an earlier version
+# of this line credited the absent DELETE instead, which was measured false on 2026-08-09 and was
+# the weaker argument anyway: ordering holds whatever the credential can do.
 printf '%s\n' "$run_stamp" \
   | rclone rcat "${RCLONE_FLAGS[@]}" "${BACKUP_REMOTE}/${DEK_VERIFIED_STAMP}" \
   || die "the DEK generation was promoted but its stamp did not upload. A restore cannot check the

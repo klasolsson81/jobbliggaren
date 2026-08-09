@@ -395,20 +395,22 @@ Versioner är låsta.
 
 ### Datalager och infra
 
-> AWS-dev-stacken avvecklad (ADR 0066); permanent mål (Hetzner BE + Vercel FE + Cloudflare) i ADR 0050 (Proposed). Tabellen visar **nuläge (lokalt)** + **permanent mål**.
+> AWS-dev-stacken avvecklad (ADR 0066); permanent mål — **netcup RS 1000 G12 (Nürnberg) med BE + FE som co-tenant-containrar, ingen CDN** — i ADR 0050 (**Accepted** 2026-06-08, `Amendment 2026-08-04`) + ADR 0122. Tabellen visar **nuläge (lokalt)** + **permanent mål**.
+>
+> *Raden namngav till 2026-08-09 fyra döda uppgifter: **Hetzner** (ut 2026-08-04, Klas-beslut), **Vercel** (ut redan 2026-06-14, ADR 0050 Beslut 3 amenderad — FE är en co-tenant-container, ingen Vercel-build), **Cloudflare** (ut 2026-08-04, Klas-beslut K3) och statusen **Proposed** (ADR 0050 är `Accepted` sedan 2026-06-08). Rättat i #1199 per Klas-direktiv i den issuens kommentarstråd: en spårad yta som namnger en leverantör som inte är leverantören hör hemma där.*
 
 | Tjänst | Nuläge (lokal dev) | Permanent mål |
 |--------|--------------------|---------------|
 | Databas | PostgreSQL 18.3 (Docker Compose) | TBD (ADR 0050) |
 | Cache | Redis 8 (Docker Compose) | TBD (ADR 0050) |
-| Compute | `dotnet run` lokalt | TBD — Hetzner (ADR 0050) |
+| Compute | `dotnet run` lokalt | netcup RS 1000 G12, Docker Compose (ADR 0050 `Amendment 2026-08-04`/0122) |
 | Object storage | lokal disk / ej aktiverat | TBD — S3-kompatibel (ADR 0050) |
 | Encryption | `LocalDataKeyProvider` AES-256-GCM (ADR 0066) | TBD — self-managed |
-| Frontend hosting | `pnpm dev` (localhost) | TBD — Vercel (ADR 0050) |
-| DNS / CDN | — | TBD — Cloudflare (ADR 0050) |
+| Frontend hosting | `pnpm dev` (localhost) | `next start` co-tenant-container på samma låda (ADR 0050 Beslut 3, amenderad 2026-06-14) |
+| DNS / CDN | — | DNS hos Strato; **ingen CDN** (Klas-beslut K3, ADR 0050 `Amendment 2026-08-04` §3) |
 | Email | `ConsoleEmailSender` → Seq (ADR 0066) | TBD — transaktionell väg |
 | Logs / metrics | Seq (lokalt) | TBD (ADR 0050) |
-| IaC | `infra/terraform/` bevarad (reversibilitet, ADR 0066) | Hetzner-IaC TBD (ADR 0050) |
+| IaC | `infra/terraform/` bevarad (reversibilitet, ADR 0066) | compose-centrerad, ingen IaC-stack (ADR 0050) |
 | CI | GitHub Actions (build + test + coverage) | oförändrat |
 
 ### Tester
@@ -597,8 +599,8 @@ dotnet run --project src/Jobbliggaren.Api
 dotnet run --project src/Jobbliggaren.Worker
 ```
 
-Permanent deploy-infra (Hetzner/Vercel/Cloudflare) definieras i ADR 0050
-(Proposed). `infra/terraform/` är bevarad men inaktiv som reversibilitets-mekanik.
+Permanent deploy-infra (netcup-lådan, BE + FE co-tenant, ingen CDN) definieras i ADR 0050
+(**Accepted**, `Amendment 2026-08-04`) + ADR 0122. `infra/terraform/` är bevarad men inaktiv som reversibilitets-mekanik.
 
 ---
 

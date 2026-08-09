@@ -111,6 +111,47 @@ x-app-connections: &app-connections
   ConnectionStrings__HangfireStorage: "Host=postgres;Port=5432;Database=jobbliggaren;Username=jobbliggaren_worker;Password=${POSTGRES_WORKER_PASSWORD:?}"
   ConnectionStrings__Redis: "redis:6379"
 
+# Outbound email (#183). Carried by api and worker — the two services that call
+# AddEmailSender — and by nothing else.
+#
+# THIS ANCHOR DOES NOT ENABLE EMAIL AND MUST NOT. The default resolves to
+# NullEmailSender exactly as before; the flip to `Ses` is release-checklist.md §2.5 and
+# Klas's alone (ADR 0124 states it unconditionally). What this adds is the ability to
+# express the flip at all: measured 2026-08-09, `deploy/` carried no Email__* variable of
+# any kind, so the flip was not merely gated, it was unreachable.
+#
+# AddEmailSender reads `configuration["Email:Provider"] ?? "Console"`, and `??` does not
+# catch an EMPTY string — compose renders an unset `${EMAIL_PROVIDER:-}` as "" and sets the
+# variable anyway, so the empty form would fall through to the unknown-provider arm and
+# refuse the boot with `Email:Provider='' stöds inte`. Hence the literal default.
+#
+# The two credential pointers use the `_FILE` seam and default EMPTY, which is also not a
+# style choice: EnvFileSecretsConfiguration THROWS when a `_FILE` variable names a path it
+# cannot read, so these cannot carry a literal path the way the master key's pointers do
+# until something actually writes those files. A blank pointer is "not configured" and is
+# inert. The paths lie under the x-app-secrets-mount volume, which any service carrying
+# this anchor must also carry — without the mount, a set pointer is a boot refusal.
+#
+# NOTHING WRITES THOSE TWO FILES YET. jobbliggaren-inject-secrets.sh carries a fixed
+# SECRET_KEYS array and is fail-loud, so adding SES to it would demand the credentials at
+# every boot and take the box down today. Wiring the injection belongs to the flip —
+# email-ses-setup.md §8 owns that gap. Operator view: deploy/.env.example.
+#
+# Email__BaseUrl is set unconditionally because it is wrong unconditionally otherwise: it
+# is unset everywhere in the tree, so it falls back to EmailOptions' http://localhost:3000
+# and every confirmation link in a real send would point at the reader's own machine. Its
+# only consumers are the e-mail templates.
+x-app-email: &app-email
+  Email__Provider: ${EMAIL_PROVIDER:-Console}
+  Email__Ses__Region: ${EMAIL_SES_REGION:-}
+  Email__Ses__AccessKeyId_FILE: ${EMAIL_SES_ACCESS_KEY_ID_FILE:-}
+  Email__Ses__SecretAccessKey_FILE: ${EMAIL_SES_SECRET_ACCESS_KEY_FILE:-}
+  # A literal equal to the EmailOptions code default, deliberately NOT a knob: the sender
+  # must lie under the SES-verified domain identity, and p=reject makes a wrong sender
+  # silence rather than a bounce — so every reachable non-default value is a wrong one.
+  Email__FromAddress: no-reply@jobbliggaren.se
+  Email__BaseUrl: https://${SITE_HOST:?}
+
 services:
 
   # ==============================================================
@@ -220,7 +261,7 @@ services:
     image: ghcr.io/klasolsson81/jobbliggaren-api:${IMAGE_TAG:-latest}
     container_name: jobbliggaren-api
     environment:
-      <<: [*app-secrets, *app-connections]
+      <<: [*app-secrets, *app-connections, *app-email]
       ASPNETCORE_ENVIRONMENT: Production
       # Capacity condition 2 (ADR 0050 Amendment 2026-08-04 §2). Real behaviour change
       # here: Microsoft.NET.Sdk.Web sets ServerGarbageCollection=true, and Workstation GC
@@ -275,7 +316,7 @@ services:
     image: ghcr.io/klasolsson81/jobbliggaren-worker:${IMAGE_TAG:-latest}
     container_name: jobbliggaren-worker
     environment:
-      <<: [*app-secrets, *app-connections]
+      <<: [*app-secrets, *app-connections, *app-email]
       # DOTNET_ENVIRONMENT, not ASPNETCORE_ENVIRONMENT, and the difference is load-bearing.
       # The Worker is a generic host (Host.CreateApplicationBuilder), which reads
       # DOTNET_ENVIRONMENT; ASPNETCORE_ENVIRONMENT is what a WebApplication reads, so on this

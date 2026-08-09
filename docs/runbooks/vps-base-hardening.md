@@ -57,9 +57,11 @@ never asserted:
    leave false.
 
    ⚠ **The paths are enumerated deliberately and `docs/` as a whole is NOT swept.** A wholesale
-   `docs/` sweep drags in `docs/sessions/` and `docs/reviews/`, which must **never** be rewritten
-   at a reprovision: a session log or a review report that acquires a new city is falsified
-   history, not a corrected record. It also makes the count unstable for reasons that have
+   `docs/` sweep drags in `docs/sessions/`, `docs/reviews/` and `docs/current-work.md`, which must
+   **never** be rewritten at a reprovision: a session log, a review report or a dated measurement
+   (*"BOXEN ÄR MÄTT (2026-08-03, via SCP + SSH)"*) that acquires a new city is falsified history,
+   not a corrected record. Read that list as the CLASS, not as an exhaustive enumeration — any
+   dated record of what was measured then belongs to it. It also makes the count unstable for reasons that have
    nothing to do with the box — a review report landing mid-sweep moves it. If you widen the
    paths, regenerate the number from the widened form or drop the number and let the command be
    the only answer (`release-checklist.md` §2.6 point 1's doctrine, which this invariant invokes,

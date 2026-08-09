@@ -1,0 +1,28 @@
+# The age RECIPIENT for the nightly backup — the public half, and only the public half.
+#
+# Install the real file at /opt/jobbliggaren/deploy/backup/age.recipient, root-owned and 0444.
+# jobbliggaren-backup.sh refuses to run without it, and refuses a value that does not look like
+# an age recipient. This example is committed; the real recipient is written on the box when
+# Klas generates the identity, because until then there is nothing true to commit.
+#
+# ONE LINE, STARTING age1. It is the output of `age-keygen`'s "Public key:" line.
+#
+#   age1ql3z7hjy54pw3hyww5ayyfg7zqgvc7w3j2elw8zmrj2kg5sfn9aqmcac8p
+#
+# THE PRIVATE KEY (AGE-SECRET-KEY-…) MUST NEVER EXIST ON THIS BOX, in this directory or any
+# other. ADR 0050 `Amendment 2026-08-04` §7 requirement (b): a private key stored with the
+# ciphertext makes the encryption decoration against theft of the same device. Encryption needs
+# only the recipient, so the box has no reason to hold the other half — which is why requirement
+# (b) is satisfied structurally here rather than by a rule anyone has to remember.
+# jobbliggaren-backup.sh rejects an AGE-SECRET-KEY- value by name, as a cheap guard against a
+# paste into the wrong file.
+#
+# THIS FILE IS NOT A SECRET, BUT ITS INTEGRITY MATTERS. An attacker who swaps the recipient for
+# one they hold gets every subsequent night's data and costs us restorability of those nights —
+# silently, because nothing on the box can decrypt what it produced. Only the restore drill
+# detects it. That is one of the reasons the drill is periodic rather than one-off; see
+# docs/runbooks/backup-restore.md §6.
+#
+# Where the private half lives, and its escrow, are Klas's to decide and are NOT settled — the
+# same open gate as the master key's escrow (vps-deploy-stack.md §5 row 26). A backup whose key
+# is not escrowed is not a backup.

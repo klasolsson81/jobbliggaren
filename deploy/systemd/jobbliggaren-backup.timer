@@ -1,0 +1,26 @@
+[Unit]
+# #197 — drives the nightly backup (see jobbliggaren-backup.service).
+Description=Jobbliggaren: nightly encrypted offsite database backup
+Documentation=https://github.com/klasolsson81/jobbliggaren/blob/main/docs/runbooks/backup-restore.md
+
+[Timer]
+# 02:15 UTC. Deliberately clear of the two jobs already on this box's clock: the hourly reconcile
+# at :47, and HardDeleteAccountsJob at 04:00 UTC. The second is not a scheduling nicety — a dump
+# taken WHILE the hard-delete transaction runs is still consistent (pg_dump takes one snapshot),
+# but keeping them apart means the nightly artefact reflects a settled state rather than one an
+# operator has to reason about after an incident.
+OnCalendar=*-*-* 02:15:00
+
+# A box that was off at 02:15 takes its backup on boot rather than skipping a night. This is the
+# opposite of jobbliggaren-secrets-present.timer's choice, and for the opposite reason: "are the
+# secrets present right now" has no missed-run semantics, while a missed backup is a missing
+# artefact that no later run replaces.
+Persistent=true
+
+# Jitter costs nothing at N=1 boxes and keeps the unit honest if that ever stops being true.
+# Note this is why the freshness threshold is 26 h and not 24 h: a probe set to the period would
+# alarm on ordinary jitter.
+RandomizedDelaySec=300
+
+[Install]
+WantedBy=timers.target

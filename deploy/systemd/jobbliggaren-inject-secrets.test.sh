@@ -33,6 +33,7 @@ readonly TMPROOT
 trap 'rm -rf "$TMPROOT"' EXIT
 
 readonly SECRETS="$TMPROOT/run/jobbliggaren/secrets"
+readonly HOST_SECRETS="$TMPROOT/run/jobbliggaren/host-secrets"
 
 pass=0
 fail=0
@@ -47,6 +48,15 @@ readonly -a EXPECTED_FILES=(
   "AuditPseudonymization__PepperBase64"
   "CompanyWatchPseudonymization__PepperBase64"
   "CvReviewFingerprintPseudonymization__PepperBase64"
+)
+
+# The host-only files (#197). Restated here for the same reason as the list above: a test that
+# derives its expectation from the code under test cannot detect the code dropping an entry.
+# These live in a DIFFERENT directory, and that separation is the control — see
+# jobbliggaren-tmpfiles.conf. A case that seeded them into $SECRETS would pass while the
+# structural property it exists to protect was gone.
+readonly -a EXPECTED_HOST_FILES=(
+  "Backup__RcloneConfigBase64"
 )
 
 # Whether this filesystem honours chmod at all. Git Bash on Windows does not — `chmod 0710`
@@ -71,6 +81,11 @@ seed_all_secrets() {
   for f in "${EXPECTED_FILES[@]}"; do
     printf '%s' "seeded-value-for-$f" > "$SECRETS/$f"
   done
+  mkdir -p "$HOST_SECRETS"
+  chmod 0700 "$HOST_SECRETS" 2>/dev/null || true
+  for f in "${EXPECTED_HOST_FILES[@]}"; do
+    printf '%s' "seeded-value-for-$f" > "$HOST_SECRETS/$f"
+  done
 }
 
 # Builds a copy of the SUT with SECRETS_DIR redirected at the fixture, and PROVES the redirect
@@ -84,9 +99,16 @@ seed_all_secrets() {
 # populated, those two would have passed for the wrong reason.
 make_sut_copy() {
   local sut_copy="$TMPROOT/sut.sh"
-  sed "s#^readonly SECRETS_DIR=.*#readonly SECRETS_DIR=$SECRETS#" "$SUT" > "$sut_copy"
+  sed \
+    -e "s#^readonly SECRETS_DIR=.*#readonly SECRETS_DIR=$SECRETS#" \
+    -e "s#^readonly HOST_SECRETS_DIR=.*#readonly HOST_SECRETS_DIR=$HOST_SECRETS#" \
+    "$SUT" > "$sut_copy"
   grep -qxF "readonly SECRETS_DIR=$SECRETS" "$sut_copy" || {
     echo "FIXTURE BROKEN: SECRETS_DIR redirect did not apply — the suite would measure the host" >&2
+    exit 1
+  }
+  grep -qxF "readonly HOST_SECRETS_DIR=$HOST_SECRETS" "$sut_copy" || {
+    echo "FIXTURE BROKEN: HOST_SECRETS_DIR redirect did not apply — the suite would measure the host" >&2
     exit 1
   }
   printf '%s' "$sut_copy"
@@ -152,6 +174,47 @@ for missing in "${EXPECTED_FILES[@]}"; do
     echo "  FAIL the failure did not name $missing" >&2
   fi
 done
+
+echo "-- the host-only secrets are load-bearing too, and they live somewhere else"
+# Their absence has a different consequence from a missing master key — the stack keeps serving
+# and only the nightly backup stops — so the message is asserted, not just the exit code.
+for missing in "${EXPECTED_HOST_FILES[@]}"; do
+  seed_all_secrets
+  rm -f "$HOST_SECRETS/$missing"
+  expect_check 1 "missing $missing is detected"
+  if grep -qF "MISSING: ${HOST_SECRETS}/${missing}" "$TMPROOT/out"; then
+    pass=$((pass + 1)); echo "  ok   the failure names $missing in the host-only directory"
+  else
+    fail=$((fail + 1)); echo "  FAIL the failure did not name $missing" >&2
+    sed 's/^/       /' "$TMPROOT/out" >&2
+  fi
+done
+
+# THE DIRECTORIES MUST NOT BE INTERCHANGEABLE, and this is the case that says so. Seeding the
+# credential into the MOUNTED directory instead of the host-only one must still read as missing:
+# if --check accepted either location, the structural separation that keeps the credential away
+# from api and worker could be undone by an operator's typo and nothing would report it.
+seed_all_secrets
+rm -f "$HOST_SECRETS/Backup__RcloneConfigBase64"
+printf '%s' "seeded-in-the-wrong-place" > "$SECRETS/Backup__RcloneConfigBase64"
+run_check || true
+if grep -qF "MISSING: ${HOST_SECRETS}/Backup__RcloneConfigBase64" "$TMPROOT/out"; then
+  pass=$((pass + 1)); echo "  ok   the credential in the MOUNTED directory does not satisfy the check"
+else
+  fail=$((fail + 1)); echo "  FAIL a credential in the container-readable directory was accepted" >&2
+  sed 's/^/       /' "$TMPROOT/out" >&2
+fi
+
+echo "-- a missing host-only DIRECTORY is the post-reboot state"
+seed_all_secrets
+rm -rf "$HOST_SECRETS"
+run_check || true
+if grep -qF "MISSING: $HOST_SECRETS (directory does not exist)" "$TMPROOT/out"; then
+  pass=$((pass + 1)); echo "  ok   a missing host-only directory is reported as a missing DIRECTORY"
+else
+  fail=$((fail + 1)); echo "  FAIL a missing host-only directory was not distinguished" >&2
+  sed 's/^/       /' "$TMPROOT/out" >&2
+fi
 
 echo "-- an EMPTY file is not a present secret"
 # Message-bound for the same reason as the whitespace block below: --check reaches exit 1 by

@@ -390,6 +390,20 @@ jobs:
         env:
           JBL_REQUIRE_MODE_CASES: "1"
 
+      # Nattliga krypterade offsite-backupen (#197, grind M-4). Sviten stubbar `docker`, `age`,
+      # `rclone` och `flock` på en PATH den bygger FRÅN GRUNDEN — det är enda sättet att mäta
+      # "ett saknat verktyg producerar INGEN backup", eftersom en påklistrad stub-katalog låter
+      # `command -v flock` hitta /usr/bin/flock under sig. rclone-stubben håller ett riktigt
+      # litet objektlager på disk, så skriptets upload → läs-tillbaka → jämför-runda EXEKVERAS
+      # i stället för att påstås; ett fall korrumperar objektet mellan halvorna och bevisar att
+      # jämförelsen kan gå röd. Ingen daemon, ingen root, inget nätverk, ingen Postgres.
+      #
+      # Vad sviten INTE mäter, och det står i dess huvud: att artefakten går att DEKRYPTERA.
+      # Lådan har medvetet ingen privat nyckel, så varken den eller den här sviten kan avgöra
+      # det — det är restore-drillens påstående (#197 PR-2 + runbooken).
+      - name: jobbliggaren-backup (fixturer)
+        run: bash deploy/systemd/jobbliggaren-backup.test.sh
+
       # Diagnostik, INGEN grind — och till skillnad från `git --version` ovan är det
       # INTE gratis: `docker compose version` avslutar 1 när plugin:et saknas
       # (`'compose' is not a docker command`), och ett `run:`-steg fäller jobbet på

@@ -50,10 +50,11 @@ withdrew its own finding — "the finding does not hold" is a real outcome (§9.
 | One Major = one `TodoWrite` row, ticked only after re-run | One row for "fix review findings" |
 | **Commit the batch before you tick the fix todos** | Tick a code todo with a dirty tree |
 
-That last row is mechanical, not stylistic: `post-todo-review.sh` invokes a full
-`code-reviewer` when a completed todo looks like code work **and** the worktree
-is dirty. Mid-batch that produces a fresh verdict against a moving tree — a new
-round you created yourself. A clean tree exits the hook silently.
+That last row is mechanical, not stylistic: `post-todo-review.sh` asks for a full
+`code-reviewer` when a completed todo matches its keyword list **and** the tree
+carries uncommitted `.cs/.ts/.tsx/.razor/.cshtml`. Mid-batch that is a fresh
+verdict against a moving tree — a round you created yourself. Commit first and
+the hook exits silently.
 
 ---
 

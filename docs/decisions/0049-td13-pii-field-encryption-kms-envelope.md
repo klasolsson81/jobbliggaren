@@ -873,6 +873,319 @@ enskilda osäkerheter).
   verifierar att backup-resident ciphertext blir olesbar utan att
   icke-raderade användares wrapped DEK:er påverkas.
 
+---
+
+## Amendment 2026-08-09 (#198) — prod master-key protection model, B-1 discharge, rotation cadence (M-2/M-3)
+
+**Status:** Accepted (amendment to ADR 0049). The protection model (§1–§2) ships in this PR
+(`feat/master-key-protection-198`, #198 PR-1). The rotation mechanism (§5) is a bound design;
+the `migrate rewrap-master-key` dispatch arm is **not yet code** — it ships in #198's second
+PR. Read §5 with that tense in mind — the same discipline this ADR's own #845/#842 corrections
+already apply elsewhere in this document.
+**Date:** 2026-08-09
+**Decision-makers:** Klas Olsson — self-managed master key over an external KV/HSM, and the
+scale trigger in §4, both binding inputs not renegotiated by this amendment
+(`docs/reviews/2026-08-09-198-masterkey-cto.md:8-10`); senior-cto-advisor — decision-maker
+(CLAUDE.md §9.2) for gates B-1 (Blocker), M-2, M-3 (Major) and M-7's key-access half (Major,
+escalated to Klas, not resolved here).
+**Source:** `docs/reviews/2026-08-09-198-masterkey-cto.md` (the bound ruling, Q1–Q8). That file
+is gitignored (`.gitignore:123`) and absent from a fresh worktree or a peer session unless
+docs-sync ran — this amendment restates every fact it depends on so it stands alone.
+**Trigger:** #198 (formerly TD-102) — the ADR 0050 pre-beta-data gate this ADR's own
+2026-06-06 and 2026-07-12 head-notes both deferred: *"Self-managed-nyckelns prod-skyddsmodell +
+rotation för Hetzner ... kräver ADR-amendment ... innan riktig PII"* (this file, line 28).
+
+> **This amendment is authoritative for the prod master-key protection model and is written to
+> be read alone**, per the precedent ADR 0050 set for itself in its own
+> `Amendment 2026-08-04` (`docs/decisions/0050-deployment-migration-aws-exit-hetzner.md:683-685`):
+> its CTO source is gitignored, so a fresh worktree without docs-sync loses the rationale, never
+> the gate.
+
+### 1. Protection model: files on tmpfs, never container environment
+
+The field-encryption master key and the three pseudonymisation peppers reach `api` and
+`worker` as **files on a RAM-backed tmpfs mount**, never as container environment values and
+never as a value in `deploy/.env`.
+
+- **Host side:** `/etc/tmpfiles.d/jobbliggaren.conf` creates `/run/jobbliggaren/secrets`
+  (mode `0700`) at every boot (`deploy/systemd/jobbliggaren-tmpfiles.conf:20-21`). An operator
+  runs `deploy/systemd/jobbliggaren-inject-secrets.sh` after each boot, which measures the
+  container runtime UID **out of the api image** (`docker run --rm --entrypoint id <image> -u`,
+  never hardcoded — `jobbliggaren-inject-secrets.sh:76-93`) and writes each value `0400`,
+  owned by that UID.
+- **Container side:** `deploy/docker-compose.yml`'s `x-app-secrets-mount` anchor bind-mounts
+  the same host directory read-only into both `api` and `worker` at `/run/app-secrets`
+  (`docker-compose.yml:76-83`).
+- **Code side:** the four values arrive as `<KEY>_FILE` environment variables whose *value is
+  a path*, resolved by `EnvFileSecretsConfiguration.cs` into ordinary `IConfiguration` keys
+  (`__` → `:`), registered last in both hosts (`Api/Program.cs`, `Worker/Program.cs`) so the
+  file outranks any stray environment variable. This is the **same convention
+  `Jobbliggaren.Migrate` already used** — `MigrateEnv.Resolve`
+  (`src/Jobbliggaren.Migrate/MigrateEnv.cs:24-38`) implements the identical `<NAME>_FILE`-first
+  policy for the one host with no configuration pipeline. One spelling, three executables.
+- **Dev is unaffected.** With no `*_FILE` variables set, the provider contributes zero keys;
+  `appsettings.Local.json` works exactly as before (CLAUDE.md §11) — no new mandatory dev key,
+  no template change.
+- **There is no encrypted-at-rest copy of the master key anywhere on this disk.** That is a
+  decision, not an omission (§2). The only other copy is the escrow in Klas's password
+  manager, bound as a hard cutover prerequisite by the CTO ruling
+  (`docs/reviews/2026-08-09-198-masterkey-cto.md:118-121`) and recorded as delivered fact in
+  the runbook (`docs/runbooks/master-key-ops.md:17-18`).
+
+### 2. B-1 discharge and its evidence form
+
+**Two plaintext-on-disk surfaces were measured, not one.** `deploy/.env` (root-owned, `0600`)
+was the obvious one. The second was found on the box on 2026-08-05 (#1240): Docker persists a
+container's environment in its own on-disk state, and `docker inspect` returns the value
+**even after the container has exited** (`docker-compose.yml:45-48`). A sweep that only
+checked `.env` and running containers would have missed it.
+
+**The gate's own parenthetical is exhausted, and that must be written down rather than
+silently worked around.** B-1 reads *"(systemd-credentials TPM-bunden el.
+sops+age→tmpfs)"* (ADR 0050:566) — written 2026-06-08 against the Hetzner CAX31 host, since
+superseded by Netcup (ADR 0050 `Amendment 2026-08-04`; ADR 0122). Measured on the actual box,
+2026-08-09: `systemd-analyze has-tpm2` reports `partial` with no `/dev/tpm0` and no `libtss2`
+— the TPM branch is closed. `sops` is absent from apt on Debian 13 (trixie) — the second
+branch would arrive through a non-apt channel, against this project's own precedent of
+pinning to what Debian maintains. **The gate's requirement is "never plaintext on disk"; its
+parenthetical is an illustrative enumeration, not an exhaustive one.** Discharging B-1 with
+operator-injected RAM-only files — a mechanism the parenthetical does not name — is not a
+deviation from the gate. It is written here explicitly so a later reader scores B-1 met
+rather than open for lacking a named mechanism.
+
+**Evidence form.** The check must run over `docker ps -aq` — every container, **including
+exited ones** — because the exited-container surface is exactly the one a running-only sweep
+would miss (that is how #1240 was found in the first place):
+
+```
+docker inspect $(docker ps -aq) | grep -iE 'FieldEncryption|Pepper'
+```
+
+An empty result, together with `deploy/.env` containing none of the four values
+(`deploy/.env.example:93-107`, the block this PR replaced) and
+`jobbliggaren-inject-secrets.sh --check` reporting all four files present
+(`docs/runbooks/master-key-ops.md:91`), **is** the discharge evidence.
+
+**B-1 is satisfied when those verification-log lines exist against the real box, not when
+this PR merges.** This PR delivers the mechanism; it cannot prove the instance, because the
+session driving it has read-only SSH (`docs/reviews/2026-08-09-198-masterkey-cto.md:8`) and
+the injection is Klas's own ops action. The gate closes on his verification, not on merge.
+
+### 3. Accepted in-memory residual — described here, granted nowhere
+
+The master key lives in `api`/`worker` process memory for the whole process lifetime
+(`LocalDataKeyProvider.cs:76,116-118` — `_masterKey`, *"lever singleton-instansens
+livstid"*). Anyone with root on the box can read it out of that memory. Under this host's
+configuration, key theft **is** root: `NOPASSWD` sudo for `jpadmin` plus a passphrase-less
+operator key together mean whoever holds the operator key has unrestricted root (ADR 0123).
+
+**This amendment states that exposure and cites ADR 0123 for its acceptance. It grants
+nothing.** ADR 0123's own status line is explicit: *"this is a risk acceptance, and CLAUDE.md
+§9.6 makes that Klas's to grant, never a session's to claim"*
+(`docs/decisions/0123-nopasswd-sudo-with-a-passphrase-less-operator-key-means-key-theft-is-root.md:3`),
+and as of this writing **ADR 0123 is `Proposed`, not `Accepted`** (same file, line 1). A
+reader who cites ADR 0123 as closed authority for the in-memory residual is reading a document
+ahead of its own status line. This amendment does not create a second, competing acceptance of
+the same risk — the memory-residual risk named in ADR 0050's gate M-2 and ADR 0123's
+root-theft risk are the **same risk**, and it has exactly one place to be granted.
+
+### 4. Ratified scale trigger for external KV/HSM
+
+**Klas decision, 2026-08-09:** self-managed key now; no external KV/HSM; no §9.5 web research
+commissioned for this decision (`docs/reviews/2026-08-09-198-masterkey-cto.md:9-10`).
+
+The trigger to revisit fires on **any** of:
+- a second box,
+- a paid hosting tier,
+- **≥100 real users with encrypted PII**,
+- a compromised box, or
+- a second key holder.
+
+When any one fires, **Klas decides then** — this amendment does not pre-commit to a
+mechanism, only to the moment of reconsideration.
+
+**HSM is assessed as not legally required at beta scale.** Art. 32 sets a proportionality
+standard, not an absolute HSM requirement, for an opt-in-testers, low-volume phase
+(`docs/reviews/2026-06-08-adr-0050-aws-exit-hetzner-security.md:26`). AWS KMS specifically is
+closed by `NoAmazonReferenceTests`' allow-list
+(`tests/Jobbliggaren.Architecture.Tests/NoAmazonReferenceTests.cs:16-31`) — reopening it is a
+rule change, not a config flip. A non-AWS external KV (Vault, Infisical) is **not** touched by
+that test, but is graded YAGNI at current scale and is exactly what the trigger above exists
+to reconsider.
+
+### 5. Ratified rotation cadence (gate M-3)
+
+**Cadence: at least annual, plus event-driven** — box compromise, offboarding of anyone with
+box access, or any known exposure of the key (ADR 0050:568; consistent with the earlier
+security dom, `docs/reviews/2026-06-08-adr-0050-aws-exit-hetzner-security.md:51-54`).
+
+**Mechanism (BOUND, not yet shipped — ships in #198 PR-2):** an offline
+`rewrap-master-key` dispatch arm in `Jobbliggaren.Migrate`. Migrate has no DI and builds
+`AppDbContext` without interceptors, so the operation runs with no audit side-effects and no
+DEK-bearing aggregate materialised in a system job.
+
+- **Idempotency marker:** `user_data_keys.cmk_key_id`, stamped from
+  `FieldEncryptionOptions.LocalMasterKeyId` (`UserDataKeyStore.cs:79`) — configurable rather
+  than hardcoded specifically so that rows written after a rotation are not mis-stamped with
+  the retired key's identity (`FieldEncryptionOptions.cs:42-60`). A rotation moves it
+  `local-v1` → `local-v2`.
+- **`dek_version` is untouched.** The #501 single-version invariant governs DEK rotation and
+  explicitly carves out this operation: *"ej TD-102:s master-nyckel-re-wrap, som behåller
+  dek_version"* (`UserDataKeyStore.cs:44-45`). #501's own axis is a different hazard — a
+  versionsblind read path silently decrypting a `dek_version=2` row with the wrong DEK — pinned
+  by `ResolveDek_WhenHigherDekVersionExists_FailsClosed`
+  (`tests/Jobbliggaren.Worker.IntegrationTests/Security/UserDataKeyStoreIntegrationTests.cs:280-324`,
+  "Scenario 10"). A master-key re-wrap never inserts a second `dek_version` row, so it never
+  exercises that guard.
+- **The wire header (`0x01`) does NOT bump.** An earlier version of this file's own code
+  comment said a master-key rotation would bump it — that was wrong, and is now corrected in
+  the code itself: layout is unchanged across a rotation, and identity lives in `cmk_key_id`,
+  not the wrapped-DEK header (`LocalDataKeyProvider.cs:41-48`, "corrected 2026-08-09, #198").
+  This also **corrects an older security review's recommendation** of a `0x01`→`0x02`
+  version-byte progression (`docs/reviews/2026-06-08-adr-0050-aws-exit-hetzner-security.md:54`),
+  which predates this bind and must not be read as still current.
+- **Write path:** `ExecuteUpdateAsync` with compare-and-swap on
+  `(JobSeekerId, DekVersion, CmkKeyId == oldKeyId)`; `affected != 1` fails loud. No mutator is
+  added to `UserDataKey` — it is an Infrastructure-internal persistence type, not a Domain
+  aggregate (§2.2 does not govern it), and a mutator would route the write through the change
+  tracker, losing the atomic CAS.
+- **One transaction over all rows.** At beta scale `user_data_keys` is a handful of rows. A
+  crash rolls back to an untouched database; a re-run after success selects 0 rows and exits
+  0 — that exit code **is** the idempotence proof required to close M-3.
+- **Verification must reach field ciphertext, not only the DEK.** A rewrap that generates a
+  *new* DEK instead of re-wrapping the existing one passes every DEK-level check while
+  destroying all field data. Both a CI-level field-ciphertext round-trip test and an app-level
+  read after the real rotation are required before M-3 is called closed.
+- **A drill against a copy is required before any real rotation** — steered by
+  `MIGRATE_APP_CONNECTION_STRING`, never `MIGRATE_DB_NAME` (which only reaches the
+  master-credential path). Procedure: `docs/runbooks/master-key-ops.md` §4.
+
+**Why the current key rotates at cutover rather than merely relocates.** The key has been
+plaintext on disk since 2026-08-05, on a host where key theft is root (ADR 0123). Relocating
+it to tmpfs does not erase the copies already made: `sed -i` on `.env` writes a new file and
+renames, leaving the old bytes in freed disk blocks, and deleting the exited containers' state
+frees more — no in-guest procedure can reach physical NVMe blocks a wear-levelling controller
+has already reassigned. **Rotation is the only operation that makes every such copy worthless
+simultaneously; relocation makes none of them worthless.** The current key is rotated as part
+of the #198 cutover for exactly this reason, once the mechanism above ships.
+
+**Named scale trigger for the mechanism itself:** when the `user_data_keys` row count makes
+the single-transaction offline window unacceptable, the shape above is revisited. Not fired
+today.
+
+### 6. The three peppers rode a shared change-reason — never a B-1 requirement
+
+**All four secrets move onto the tmpfs mechanism, but they are not the same operation.** The
+master key is **rotated** — new bytes, generated inside the mechanism. The three
+pseudonymisation peppers (`AuditPseudonymization__PepperBase64`,
+`CompanyWatchPseudonymization__PepperBase64`, `CvReviewFingerprintPseudonymization__PepperBase64`)
+are **moved** — byte-identical, hash-verified before the old `.env` line is removed.
+
+**B-1 names the master key, singular.** The peppers travel because `docker-compose.yml`'s
+`x-app-secrets` anchor exists so that `api` and `worker` cannot structurally diverge on any of
+the four values (`docker-compose.yml:56-64`); splitting one value out would leave that
+guarantee resting on two mechanisms — a file mount and `${...:?}` interpolation — instead of
+one. **This must be read as defence in depth riding a shared change-reason, not as a B-1
+requirement.** A future reader must not conclude that the gate demanded moving the peppers; it
+did not.
+
+A pepper cannot be rotated the way the master key can — the repository's own instruction is
+*"still generate-once: rotating a pepper against a database that already holds data
+pseudonymised under the old value makes that data unmatchable"* (`deploy/.env.example:103-107`).
+Moving one is safe only if the bytes are identical: the injection script writes with
+`printf '%s'` so no trailing newline is introduced (`jobbliggaren-inject-secrets.sh:99-107`),
+and the configuration reader's `.Trim()` (`EnvFileSecretsConfiguration.cs:136`) is a backstop,
+never the control.
+
+### 7. Relation to the mandatory second security review, and to ADR 0093 / DPIA R-F4
+
+ADR 0050 requires *"en andra security-auditor-granskning av den faktiska
+prod-konfigurationen (master-nyckel-injektion, backup-kryptering, TLS-topologi, härdning) ...
+innan första beta-data laddas"* (ADR 0050:578-581). This amendment states explicitly that the
+obligation splits into three parts, none of which substitutes for another:
+
+1. **The PR-time mechanism review** — code-reviewer/security-auditor reading this diff
+   (CLAUDE.md §9.2), against no live box.
+2. **A post-ops signing of the master-key leg specifically**, against the *measured state of
+   the real box* after Klas's injection (§2's evidence form). This leg is what closes B-1, M-2
+   and M-3 for #198.
+3. **The remaining legs** — backup encryption (#197), TLS topology (M-5a/M-5b, #196), the
+   hardening baseline including a re-review of ADR 0123 — stay open until first real-data
+   corpus load, independent of this amendment.
+
+**No PR-time APPROVE of this diff should be read as satisfying ADR 0050:578-581 in full.** It
+satisfies leg 1, for the master-key mechanism only.
+
+**ADR 0093 (Fas4b CV motor v2) and DPIA finding R-F4 are not raised or altered by this
+amendment.** R-F4 is Minor 3 of the #659 DPIA review — a cross-reference gap between the Form
+C binary-blob deploy gate (cited there as "TD-102", now #198) and the backup-residency gate
+(#197/TD-107) (`docs/reviews/2026-07-10-659-dpia-security-auditor.md:103-112`). That
+cross-reference is a separate, still-open editorial gap on a different document; closing it is
+not this amendment's scope and must not be inferred from it.
+
+### 8. Premise-conflict register
+
+Two premises this work started from do not survive contact with the measured facts, and are
+recorded rather than quietly worked around:
+
+(i) **#198's acceptance criteria said "env/secret injection, never a file."** That is
+contradicted by both B-1's own text and the 2026-08-05 measurement (§2): environment injection
+**is** the `docker inspect`-after-exit leak, and a file on a RAM-backed tmpfs mount is RAM,
+not disk. The AC text predates the measurement; B-1's requirement plus the measurement wins,
+and "never a file" is not followed here.
+
+(ii) **"Hetzner PROD"** — the host named in this ADR's 2026-06-06/2026-07-12 head-notes and in
+the 2026-06-08 security dom cited throughout this amendment — **is a revoked premise.** The
+production host is Netcup RS 1000 G12, Nuremberg (ADR 0122; ADR 0050 `Amendment 2026-08-04`).
+Every host-specific fact measured in this amendment (TPM, apt, tmpfs size) is measured against
+Netcup, not Hetzner.
+
+### 9. Out of scope, named
+
+- **The `v1:` sentinel ↛ `dek_version` mapping** — the naive-rotation trap
+  `ResolveDek_WhenHigherDekVersionExists_FailsClosed` ("Scenario 10",
+  `UserDataKeyStoreIntegrationTests.cs:280-324`) pins against — is **#501's axis, not this
+  one.** The master-key re-wrap in §5 preserves `dek_version` throughout; it does not touch
+  the sentinel-to-version mapping #501 owns.
+- **Key-ACCESS detection (M-7's key-access half) is dispositioned to #1201, not delivered
+  here.** `auditd` is absent from the box, measured 2026-08-09. Under this protection model
+  every illegitimate read of the tmpfs secret file is, by construction, a root action — a
+  strict subset of host root-activity detection, which ADR 0050:574 already assigns to
+  #196/#1201. #198 cannot deliver a detection capability its own threat model resolves into
+  someone else's scope. **What #198 does deliver is ABSENCE detection** —
+  `jobbliggaren-secrets-present.timer` running `--check` at boot and every ten minutes,
+  landing a missing key on `systemctl --failed`
+  (`deploy/systemd/jobbliggaren-secrets-present.service:1-33`, `.timer:1-22`;
+  `docs/runbooks/master-key-ops.md:161-165`). Absence detection and access detection must not
+  be read as one capability; they are not.
+
+### 10. Unmeasured premises carried forward
+
+Eight premises behind this amendment were checked against the tree rather than assumed; six
+held (the CTO source's §0 carries the full table). Two of the open ones matter enough to
+restate here so a reader does not treat this amendment as resting on more certainty than it
+has:
+
+- **The frequency of unplanned reboots is unmeasured.** `last reboot` returned no readable
+  history on this host as of 2026-08-09. `jobbliggaren-secrets-present.timer` (§9) is the
+  instrument that starts converting this into an actual series — every firing after a
+  secrets-loss event timestamps one in the journal. Until that series exists, the availability
+  cost of the no-at-rest-copy model in §1 is bounded by nothing firmer than "reboots are
+  manual today."
+- **Whether any host snapshot was taken since 2026-08-05**, and **whether the hosting
+  provider's snapshot facility captures guest RAM at all**, are both unmeasured. Either would
+  mean a copy of the plaintext key already exists outside this box's disk entirely — part of
+  why §5 rotates the current key rather than merely relocating it.
+- **Compose semantics were measured on Compose 2.40.3; the box runs v5.4.0.** Bind-mount and
+  `${...}`-interpolation behaviour — both load-bearing for §1 — should be re-measured against
+  the running binary before the real cutover.
+- **`ExecuteUpdate` translation of the strongly-typed `JobSeekerId`** inside the §5
+  compare-and-swap predicate is unverified; this repository has a measured EF translation trap
+  on this value-object family elsewhere, so it must be proven at build time in PR-2 rather
+  than assumed to translate.
+- **Crash-loop self-heal after injection** (`restart: unless-stopped` recovering api/worker
+  with no `compose up`) is designed, not yet observed against the real box.
+
 ## Relaterade beslut
 
 - **ADR 0009** — krypto-`ValueConverter` bor i Infrastructure-EF-config;

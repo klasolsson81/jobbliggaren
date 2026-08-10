@@ -120,17 +120,21 @@ mount later, and a directory that is not mounted cannot be exposed by any edit t
 > while whether #198's install was ever *run* shows only on the host.
 >
 > - **Both files present** — continue into the install below. **If `/run/jobbliggaren/secrets` is
->   nonetheless absent, stop and treat this as the branch below instead.** The absence says #198's
->   install has not run on this host; it does **not** say the stack is broken yet, and the
->   difference decides what you do. An `up -d` from the `_FILE` compose would itself have created
->   that directory — `create_host_path: true`, measured, in `deploy/docker-compose.yml` — so its
->   absence is evidence that reconcile has **not** yet applied the new compose. The failure is the
->   next tick, not a past one, which means you are racing the timer exactly as the branch below
->   is: close the window, run `master-key-ops.md` §2 and §3, then continue here.
+>   nonetheless absent, stop and run the five ordered steps below, skipping step 2** — your clone
+>   is already current, so what you need is step 1 (close the window: timer **and** service), step
+>   3 (`master-key-ops.md` §2 and §3), step 4 and step 5. The absence says #198's install has not
+>   run on this host; it does **not** say the stack is broken yet, and the difference decides what
+>   you do. An `up -d` from the `_FILE` compose would itself have created that directory — the
+>   mount carries `create_host_path: true`, which you can re-measure on the box with
+>   `docker compose -f /opt/jobbliggaren/deploy/docker-compose.yml config` — so its absence is
+>   evidence that reconcile has **not yet applied** the new compose. Note *applied*, not *ticked*:
+>   `jobbliggaren-reconcile.sh` fail-closes before `up -d` on several paths and then keeps serving
+>   the old containers, so a tick is not an apply. The failure is therefore the next apply, not a
+>   past one, which is why you are racing the timer and must close the window.
 > - **`inject-secrets.sh` present, `age.recipient` missing** — the clone sits between #198 and
 >   #197. Update the clone, then run this install. **And if `/run/jobbliggaren/secrets` is absent,
->   run `master-key-ops.md` §2 and §3 as well**: a clone carrying #198 does not mean anyone
->   installed it.
+>   this is the same race as the bullet above** — a clone carrying #198 does not mean anyone
+>   installed it — so run the five steps below in full, `master-key-ops.md` §2 and §3 included.
 > - **Both files missing** — the clone predates #198, and **the clone update must come FIRST.** It
 >   cannot be second: #198's own install block reads every file it installs out of the clone
 >   (`master-key-ops.md` §2 installs `/opt/jobbliggaren/deploy/systemd/jobbliggaren-tmpfiles.conf`
@@ -153,8 +157,9 @@ mount later, and a directory that is not mounted cannot be exposed by any edit t
 > `vps-deploy-stack.md` §3 states the outcome: api and worker **crash-loop rather than refusing to
 > start**. **That outcome is quoted, not re-measured here — the counterfactual is a live outage.**
 >
-> **So on the both-files-missing branch, close the reconcile window around the pull rather than
-> racing it. Five ordered steps, and steps 3 and 4 are procedures rather than commands —
+> **So on any branch that reaches this point — both files missing, or either of the two above with
+> `/run/jobbliggaren/secrets` absent — close the reconcile window rather than racing it. Five
+> ordered steps, and steps 3 and 4 are procedures rather than commands —
 > DO NOT PASTE THIS AS ONE BLOCK.** A paste would run stop, pull and start with nothing between
 > them, and `Persistent=true` makes that `start` fire the missed elapse **immediately**, applying
 > the pulled `_FILE` compose against a `/run/jobbliggaren/secrets` no install has created. That is
@@ -193,9 +198,16 @@ mount later, and a directory that is not mounted cannot be exposed by any edit t
 > branch exists to avoid, waved through by its own guard.
 >
 > Use the injector's own `--check`, which inspects the directory, its mode and each secret's
-> contents and names what is missing on stderr. Then confirm the timer, because a short-circuited
-> `&&` and a successful `systemctl start` are both completely silent — and step 1 left the timer
-> stopped, so a silent refusal disarms reconcile indefinitely with nothing on any alarm surface.
+> contents. It is also the diagnostic `master-key-ops.md` §2 already relies on: with the `:` prefix
+> in the tmpfiles unit, a `WRONG MODE` from `--check` **means the injection has not run**.
+>
+> Then confirm the timer — and note what is and is not silent here, because the reason is not the
+> one that applied to a `test -d`. **`--check` is loud when it refuses**, a named line per missing
+> item on stderr. What says nothing is `systemctl start` on success, and **neither command tells
+> you whether the timer ended up armed.** Step 1 left it stopped, so a refusal you skim past leaves
+> reconcile disarmed indefinitely, and a stopped timer appears on no alarm surface: it is not in
+> `systemctl --failed`, there is no freshness probe for reconcile the way there is for backup, and
+> nothing reads its stamp on a cadence.
 >
 > ```bash
 > sudo /opt/jobbliggaren/deploy/systemd/jobbliggaren-inject-secrets.sh --check \

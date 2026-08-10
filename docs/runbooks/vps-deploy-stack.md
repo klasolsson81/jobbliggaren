@@ -584,9 +584,17 @@ and `email-ses-setup.md` §4 now names which STRATO control publishes it.
   [#1201](https://github.com/klasolsson81/jobbliggaren/issues/1201); the host-level half
   (auditd or equivalent, file-integrity monitoring, log shipping off the box, something
   that pages a human) was re-homed there by Klas 2026-08-06 rather than being carried by
-  #196's closure. Delivered separately from this file either way.
+  #196's closure. **The mechanism and its own verification log now live in
+  [`host-detection.md`](./host-detection.md)** — auditd watch rules, a journal retention
+  floor, and a heartbeat that reads `systemctl --failed` on a cadence and pings a dead-man
+  expecter. **Log shipping is deliberately NOT part of it** and stays with #1175.
 - **The production log sink** — #1175, unbuilt and unowned. Docker's log rotation above is
-  a disk control, not a log sink.
+  a disk control, not a log sink. **What changed 2026-08-10:** M-7 took the *cadenced
+  reader* half that this file and `backup-restore.md` had informally annexed to #1175 —
+  a heartbeat **will read** the failure list every fifteen minutes **once it is installed on the
+  box**, which has not happened yet — the rows in [`host-detection.md`](./host-detection.md) §7
+  are what discharge it, not this merge. #1175 still owns the sink,
+  the off-box corpus, and the retention that would survive a root attacker.
 - **Gate B-1's cutover — and the corpus still waits for it.** #198 shipped the repair (see §2
   and [`master-key-ops.md`](master-key-ops.md)), but **shipping a mechanism is not closing a
   gate**: the key is not moved on this box until the operator performs the cutover, and B-1 is

@@ -133,3 +133,6 @@ docs/runbooks/aws-setup.md
 docs/runbooks/gdpr-processing-register.md
 # Lokala loadtest-artefakter
 loadtest-reports/
+
+# Gate M-7 (#1201): the heartbeat capability URL. Only the .example template is tracked.
+deploy/detection/detection.env

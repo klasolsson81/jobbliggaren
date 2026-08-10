@@ -1,0 +1,114 @@
+# /etc/audit/rules.d/zz-jobbliggaren.rules — gate M-7's detection primitive (#1201).
+#
+# ONE OWNER, ONE FILE. #1201 owns auditd configuration on this box. A future watch — #197's
+# host-secrets directory, say — is added HERE, through this issue's Hemvist, and never as a
+# second rules file. A gate with two owners has none, which is the invisibility that created
+# #1201 in the first place.
+#
+# THE FILENAME SORTS LAST BY CONVENTION, NOT BECAUSE A COLLISION WOULD OTHERWISE OCCUR.
+# An earlier revision claimed a numeric prefix would be wiped by the `-D` in Debian's own
+# audit.rules. That is FALSE, and code-reviewer measured it: augenrules(8) states that "the last
+# processed -D directive without an option, if present, is always emitted as the first line in
+# the resultant file" — augenrules hoists it, so the ordering collision cannot happen. Confirmed
+# on the box 2026-08-10: Debian's rules.d/audit.rules does carry a bare `-D`, and the generated
+# /etc/audit/audit.rules carries it as line one. (The same claim also named the wrong algorithm:
+# augenrules sorts naturally, `ls -v`, not by C-locale collation.)
+#
+# `zz-` is kept anyway so ours are the last rules appended, which keeps the generated file easy
+# to read and leaves room for future files to be ordered ahead of it deliberately. Never edit
+# Debian's audit.rules.
+#
+# WATCH RULES ONLY, NO SYSCALL RULES. Syscall/execve auditing is auditd's classic
+# over-configuration: its volume competes directly with the journal retention floor and with
+# ADR 0122's capacity conditions, on a box where the answer to memory pressure (disk swap) is
+# forbidden because it breaks gate B-1. These rules emit an event only when something touches a
+# watched path.
+#
+# -D, -b and -f are deliberately ABSENT: Debian's audit.rules owns them and sorts first.
+#
+# WHAT THIS CANNOT DO, stated here so nobody reads a tripwire as an alarm. Root can disarm it
+# (`auditctl -e 0`), and can erase both the audit log and the journal. A raw device read
+# (`dd` against /dev/vda) touches no watched path, and /proc/<pid>/mem touches no file at all —
+# so the master key can be taken from a running process without any rule here firing. This is a
+# tripwire for the mistake and lower-privilege classes plus a forensic trail. It is not an alarm,
+# and it does not lift ADR 0123's scope limit.
+
+# --- The key surface (#198, gate B-1, ADR 0123's asset) -------------------------------------
+# The PARENT directory, not .../secrets: a -w against a path that does not exist at load time is
+# not loaded — MEASURED 2026-08-10, because this premise is load-bearing and was previously only
+# asserted: `auditctl -w /nonexistent/... ` returns "Error sending add rule data request (No such
+# file or directory)" and the rule does not appear in `auditctl -l`. The tmpfs subdirectories are
+# created by jobbliggaren-tmpfiles.conf, and `audit-rules.service` is
+# `After=systemd-tmpfiles-setup.service` — so tmpfiles runs BEFORE this file is loaded, which is
+# what makes the parent watch work at all. An earlier revision claimed the opposite ordering; if
+# it were true, this rule would abort the whole load on every boot. INSTALL THAT FILE: without it
+# nothing recreates /run/jobbliggaren after a reboot, and rule 1 failing takes every other rule
+# and auditd with it (measured 2026-08-10: it was absent on this box).
+# Watching the parent is recursive and covers both secrets/ and host-secrets/ regardless of
+# whether either exists when the rules load. The heartbeat's P4 predicate measures that these
+# keys are actually loaded in the kernel, because "the file is on disk" is not the same claim.
+-w /run/jobbliggaren -p rwa -k jbl-key-tmpfs
+
+# --- The two controls ADR 0123's open mitigations name ---------------------------------------
+# -p wa, not rwa: a read watch on sudoers would fire on every single `sudo` invocation, which is
+# alarm fatigue as a mechanism. The attack is the WRITE.
+#
+# The .ssh DIRECTORY, not the authorized_keys file: OpenSSH's default AuthorizedKeysFile is
+# ".ssh/authorized_keys .ssh/authorized_keys2" and nothing in this repo overrides it, so both are
+# live and a file watch would cover one of two. Watching the directory also survives the file
+# being replaced rather than edited.
+#
+# /root/.ssh AND NOT /root. A directory watch is recursive (auditctl(8): "almost the same as
+# using the -F dir option"), and /root is NOT quiet on this box — measured 2026-08-10: 20 files
+# changed in 48 h under /root/.sigstore/root/tuf.db and /root/.docker/buildx, because the hourly
+# reconcile runs cosign as root and cosign keeps its TUF cache there. Watching /root would file
+# that traffic under jbl-authkeys, turning the one watch that would catch an SSH backdoor into
+# the noisiest channel present — the same alarm fatigue this file rejects for sudoers reads.
+# /root/.ssh exists (measured the same day), so the narrow watch loads.
+-w /home/jpadmin/.ssh -p wa -k jbl-authkeys
+-w /root/.ssh         -p wa -k jbl-authkeys
+-w /etc/ssh/sshd_config    -p wa -k jbl-sshd
+-w /etc/ssh/sshd_config.d  -p wa -k jbl-sshd
+-w /etc/sudoers            -p wa -k jbl-sudoers
+-w /etc/sudoers.d          -p wa -k jbl-sudoers
+
+# Account creation is the same persistence class as an authorized_keys write.
+-w /etc/passwd -p wa -k jbl-accounts
+-w /etc/shadow -p wa -k jbl-accounts
+-w /etc/group  -p wa -k jbl-accounts
+
+# --- Persistence: what installs a backdoor as a unit or a job ---------------------------------
+-w /etc/systemd/system              -p wa -k jbl-units
+-w /opt/jobbliggaren/deploy/systemd -p wa -k jbl-units
+# cron has no reader on this box (measured 2026-08-10: no user crontab, only distribution
+# entries), so a write here is signal with almost no baseline noise — the cheapest watch present.
+-w /etc/crontab            -p wa -k jbl-cron
+-w /etc/cron.d             -p wa -k jbl-cron
+-w /var/spool/cron/crontabs -p wa -k jbl-cron
+# The reconcile unit applies both of these as root every hour; a write here starts arbitrary
+# containers with arbitrary mounts. The sibling directory is watched above, these were not.
+-w /opt/jobbliggaren/deploy/docker-compose.yml -p wa -k jbl-deploy
+-w /opt/jobbliggaren/deploy/.env               -p wa -k jbl-deploy
+# The heartbeat's own credential. Reading it is the one action that defeats the dead-man (see
+# jobbliggaren-heartbeat.sh's header), so -p r is deliberate here where it is avoided elsewhere:
+# this file has no legitimate reader except the heartbeat itself, so the baseline is knowable.
+-w /etc/jobbliggaren/detection.env -p rwa -k jbl-detection
+
+# --- The detection configuration itself -------------------------------------------------------
+-w /etc/audit -p wa -k jbl-auditconf
+
+# --- Enable, mutable (-e 1). THE RATCHET TO -e 2 IS A CONDITION, NOT A DATE. ------------------
+# -e 2 makes the rule set immutable until reboot and refuses `auditctl -e 0` — the named
+# disarm vector. It is not v1 for a measured reason: on this box every rule change would then
+# cost a reboot AND a manual key re-injection (the master key is RAM-only, #198), and the
+# baseline noise is not measured yet. An immutable rule set that is WRONG is worse than a mutable
+# one that is right. -e 2 also closes only one vector: `rm -rf /var/log/audit` is untouched by it.
+#
+# RATCHET CONDITION, with its instrument: once the baseline-noise list in
+# docs/runbooks/host-detection.md has held over a written window of at least 14 days (measured
+# with `ausearch -if /var/log/audit/audit.log -k jbl-key-tmpfs` — the bare `-k` form returns
+# nothing on this box while the events exist, so it would report a silent baseline and invite the
+# flip on an empty measurement), flip this to `-e 2` at the next
+# PLANNED reboot — which already requires key injection, so the marginal cost is zero. Do not
+# schedule an outage for the ratchet's sake.
+-e 1

@@ -22,3 +22,37 @@ export async function readProblemTitle(res: Response): Promise<string | null> {
     return null;
   }
 }
+
+const problemBodySchema = z.object({
+  title: z.string().optional(),
+  errors: z.record(z.string(), z.array(z.string())).optional(),
+});
+
+/** An error body in either shape the backend produces. See {@link readProblemBody}. */
+export type ProblemBody = z.infer<typeof problemBodySchema>;
+
+/**
+ * #1171 — reads an error body that may be EITHER of the two shapes the backend emits on 400, in ONE
+ * read: ProblemDetails with a `title` (a `DomainError` mapped by the endpoint or the kind-mapper) or
+ * the ValidationException shape `{ errors: { Field: [messages] } }` that `ValidationBehavior` writes
+ * BEFORE the handler runs.
+ *
+ * It exists because a caller that needs to tell those apart cannot use {@link readProblemTitle}
+ * twice — the first call consumes the body — and a second `res.json()` throws on a real Response.
+ * Callers that only need the title should keep using {@link readProblemTitle}; this is the wider
+ * reader, not a replacement.
+ *
+ * Same discipline as its sibling: never throws, and the values are ONLY for comparison against an
+ * exact whitelist. Backend text (`detail`, or the messages inside `errors`) is never rendered — it
+ * can carry server internals.
+ *
+ * Consumes the response body — call at most once per response.
+ */
+export async function readProblemBody(res: Response): Promise<ProblemBody | null> {
+  try {
+    const parsed = problemBodySchema.safeParse(await res.json());
+    return parsed.success ? parsed.data : null;
+  } catch {
+    return null;
+  }
+}

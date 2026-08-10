@@ -447,7 +447,8 @@
       "submit": "Logga in",
       "submitting": "Loggar in…",
       "noAccount": "Inget konto?",
-      "createAccount": "Skapa konto"
+      "createAccount": "Skapa konto",
+      "forgotPassword": "Glömt lösenordet?"
     },
     "register": {
       "title": "Skapa konto",
@@ -476,7 +477,10 @@
       "registrationFailed": "Registreringen misslyckades.",
       "registrationsClosed": "Registreringen är inte öppen ännu. Försök igen senare.",
       "passwordBreached": "Lösenordet har förekommit i kända dataläckor. Välj ett annat lösenord.",
-      "emailNotConfirmed": "Bekräfta din e-postadress för att logga in. Vi har skickat en länk till din inkorg."
+      "emailNotConfirmed": "Bekräfta din e-postadress för att logga in. Vi har skickat en länk till din inkorg.",
+      "passwordResetEmailRequired": "Skriv in din e-postadress.",
+      "passwordResetFailed": "Det gick inte att skicka någon återställningslänk just nu. Försök igen om en liten stund.",
+      "emailDeliveryUnavailable": "E-postutskick är inte aktiverat just nu, så vi kan inte skicka någon återställningslänk. Ditt lösenord är oförändrat. Försök igen senare."
     },
     "confirmEmailChange": {
       "title": "Bekräfta din nya e-postadress",
@@ -508,6 +512,32 @@
       "sent": "Om adressen behöver bekräftas har vi skickat en ny länk. Kontrollera inkorgen och skräpposten.",
       "error": "Det gick inte att skicka just nu. Försök igen om en stund.",
       "cooldownHint": "Du kan begära en ny länk om {seconds, plural, one {# sekund} other {# sekunder}}."
+    },
+    "forgotPassword": {
+      "title": "Glömt lösenordet",
+      "intro": "Skriv in din e-postadress, så skickar vi en länk där du kan välja ett nytt lösenord.",
+      "emailLabel": "E-postadress",
+      "emailHint": "Samma adress som du använde när du skapade kontot.",
+      "submit": "Skicka återställningslänk",
+      "submitting": "Skickar…",
+      "sentTitle": "Kontrollera din inkorg",
+      "sentBody": "Om adressen hör till ett konto har vi skickat en länk dit. Länken gäller en kort stund, och tiden står i mejlet.",
+      "backToLogin": "Tillbaka till inloggningen"
+    },
+    "resetPassword": {
+      "title": "Välj ett nytt lösenord",
+      "intro": "Skriv in ditt nya lösenord. Du loggas ut på alla enheter när det är sparat.",
+      "passwordLabel": "Nytt lösenord",
+      "passwordHint": "Minst 12 tecken.",
+      "submit": "Spara nytt lösenord",
+      "submitting": "Sparar…",
+      "successTitle": "Lösenordet är ändrat",
+      "successBody": "Du är utloggad på alla enheter. Logga in med ditt nya lösenord.",
+      "loginLink": "Logga in",
+      "invalidTitle": "Länken fungerar inte",
+      "invalidBody": "Länken är ogiltig eller har gått ut. Begär en ny återställningslänk och försök igen.",
+      "passwordTooShort": "Lösenordet måste vara minst 12 tecken.",
+      "networkError": "Det gick inte att nå tjänsten. Försök igen om en liten stund."
     }
   }
 }

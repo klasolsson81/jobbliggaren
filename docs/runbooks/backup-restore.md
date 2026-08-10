@@ -119,9 +119,14 @@ mount later, and a directory that is not mounted cannot be exposed by any edit t
 > The directory is a **separate fact and is not inferable from the files**: `ls` dates the clone,
 > while whether #198's install was ever *run* shows only on the host.
 >
-> - **Both files present** — continue into the install below. If `/run/jobbliggaren/secrets` is
->   nonetheless absent, stop: this clone already carries the `_FILE` compose, so the running stack
->   is crash-looping already and that is `master-key-ops.md`'s problem before it is this file's.
+> - **Both files present** — continue into the install below. **If `/run/jobbliggaren/secrets` is
+>   nonetheless absent, stop and treat this as the branch below instead.** The absence says #198's
+>   install has not run on this host; it does **not** say the stack is broken yet, and the
+>   difference decides what you do. An `up -d` from the `_FILE` compose would itself have created
+>   that directory — `create_host_path: true`, measured, in `deploy/docker-compose.yml` — so its
+>   absence is evidence that reconcile has **not** yet applied the new compose. The failure is the
+>   next tick, not a past one, which means you are racing the timer exactly as the branch below
+>   is: close the window, run `master-key-ops.md` §2 and §3, then continue here.
 > - **`inject-secrets.sh` present, `age.recipient` missing** — the clone sits between #198 and
 >   #197. Update the clone, then run this install. **And if `/run/jobbliggaren/secrets` is absent,
 >   run `master-key-ops.md` §2 and §3 as well**: a clone carrying #198 does not mean anyone
@@ -177,12 +182,25 @@ mount later, and a directory that is not mounted cannot be exposed by any edit t
 >
 > **4.** Run the install block below.
 >
-> **5.** Re-arm, and let the command refuse rather than trust that steps 3 and 4 happened.
-> `Persistent=true` fires the missed elapse at once, which is the desired end state **only** if
-> the secrets directory now exists — the same precondition this whole branch exists to establish.
+> **5.** Re-arm — and **measure** rather than trust that steps 3 and 4 happened, because
+> `Persistent=true` fires the missed elapse at once and there is no second chance to notice.
+>
+> **The precondition is injected secrets, not a directory.** `master-key-ops.md` §2 creates
+> `/run/jobbliggaren/secrets` **empty on purpose** — its tmpfiles unit says why, an empty
+> directory makes api and worker fail loudly instead of silently — and §3 is what fills it, with
+> many ways to stop before it does. So a `test -d` would pass the moment §2 had run, before §3
+> had asked for a single value, and arm the timer against empty secrets: the crash-loop this
+> branch exists to avoid, waved through by its own guard.
+>
+> Use the injector's own `--check`, which inspects the directory, its mode and each secret's
+> contents and names what is missing on stderr. Then confirm the timer, because a short-circuited
+> `&&` and a successful `systemctl start` are both completely silent — and step 1 left the timer
+> stopped, so a silent refusal disarms reconcile indefinitely with nothing on any alarm surface.
 >
 > ```bash
-> test -d /run/jobbliggaren/secrets && sudo systemctl start jobbliggaren-reconcile.timer
+> sudo /opt/jobbliggaren/deploy/systemd/jobbliggaren-inject-secrets.sh --check \
+>   && sudo systemctl start jobbliggaren-reconcile.timer
+> systemctl is-active jobbliggaren-reconcile.timer   # expect: active
 > ```
 >
 > (Written 2026-08-10, when the box was measured carrying neither file and no secrets directory,

@@ -12,7 +12,7 @@ export async function generateMetadata(): Promise<Metadata> {
 /**
  * Publik innehållssida: Kontakta oss (#262). Statisk RSC. Återbrukar
  * (marketing-inner)-mönstret. v1 = e-postkontakt (mailto), inget formulär:
- * e-postutskick är prod-gejtat (Resend, ADR 0080), så ett formulär kan inte
+ * e-postutskick är prod-gejtat (Amazon SES, ADR 0080/0124), så ett formulär kan inte
  * leverera än. Formuläret byggs när e-post slås på. Civic-utility: en h1,
  * hög-kontrast text, ingen em-dash, inget utropstecken.
  */

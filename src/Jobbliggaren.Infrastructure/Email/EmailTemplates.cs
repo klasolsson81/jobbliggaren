@@ -90,7 +90,7 @@ internal static class EmailTemplates
     /// namnbärande påstående vore FALSKT så snart en andra bevakning filtrerar på en annan ort:
     /// "detta mejl visar bara annonser i Göteborg" ljuger för den som också följer ett bolag
     /// filtrerat på Malmö. Att bära ortsnamn
-    /// skulle dessutom skicka preferens-PII till en tredjepartsavsändare (Resend) utan nytta för
+    /// skulle dessutom skicka preferens-PII till en tredjepartsavsändare (Amazon SES, ADR 0124) utan nytta för
     /// användaren, för en detalj som ligger ett klick bort i appen (Art. 5(1)(c)). Utöka därför
     /// INTE kontraktet med ortsnamn.
     /// </para>

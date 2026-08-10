@@ -100,6 +100,25 @@ public sealed partial class ConsoleEmailSender(
         return Task.CompletedTask;
     }
 
+    public Task SendPasswordResetAsync(
+        string toEmail,
+        PasswordResetEmail content,
+        CancellationToken cancellationToken)
+    {
+        var body = EmailTemplates.PasswordReset(_options.BaseUrl, content);
+        LogEmail(toEmail, body.Subject, body.PlainTextBody);
+        return Task.CompletedTask;
+    }
+
+    public Task SendPasswordChangedNoticeAsync(
+        string toEmail,
+        CancellationToken cancellationToken)
+    {
+        var body = EmailTemplates.PasswordChangedNotice(_options.BaseUrl);
+        LogEmail(toEmail, body.Subject, body.PlainTextBody);
+        return Task.CompletedTask;
+    }
+
     [LoggerMessage(3001, LogLevel.Information,
         "[ConsoleEmailSender] To={To} Subject={Subject}\n---\n{Body}\n---")]
     private partial void LogEmail(string to, string subject, string body);

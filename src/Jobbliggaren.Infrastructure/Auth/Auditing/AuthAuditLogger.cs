@@ -41,6 +41,12 @@ public sealed partial class AuthAuditLogger(
         LogEmailConfirmationResent(logger, "email_confirmation_resent", userId, resolvedIp, resolvedAgent);
     }
 
+    public void PasswordResetRequested(Guid userId)
+    {
+        var (resolvedIp, resolvedAgent) = ExtractRequestContext();
+        LogPasswordResetRequested(logger, "password_reset_requested", userId, resolvedIp, resolvedAgent);
+    }
+
     // App-loggens IP/UA går genom samma anonymiserings-port som audit-tabellen
     // (ADR 0024 D7). Defense-in-depth: även om CloudWatch-retention (30d) failar
     // ska app-loggen inte bära unika IP-fingerprints.
@@ -81,5 +87,12 @@ public sealed partial class AuthAuditLogger(
     [LoggerMessage(1005, LogLevel.Information,
         "AuditEvent={AuditEvent} UserId={UserId} Ip={Ip} UserAgent={UserAgent}")]
     private static partial void LogEmailConfirmationResent(
+        ILogger logger, string auditEvent, Guid userId, string ip, string userAgent);
+
+    // #1171. UserId only — never the address and never the token. The token is a bearer credential for
+    // the account until it is used, and this level reaches a durable sink (CLAUDE.md §11, #1208).
+    [LoggerMessage(1006, LogLevel.Information,
+        "AuditEvent={AuditEvent} UserId={UserId} Ip={Ip} UserAgent={UserAgent}")]
+    private static partial void LogPasswordResetRequested(
         ILogger logger, string auditEvent, Guid userId, string ip, string userAgent);
 }

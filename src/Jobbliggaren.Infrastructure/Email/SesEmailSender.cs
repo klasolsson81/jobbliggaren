@@ -115,6 +115,22 @@ public sealed partial class SesEmailSender(
             "account-exists-notice",
             cancellationToken);
 
+    public Task SendPasswordResetAsync(
+        string toEmail, PasswordResetEmail content, CancellationToken cancellationToken) =>
+        SendAsync(
+            toEmail,
+            EmailTemplates.PasswordReset(_options.BaseUrl, content),
+            "password-reset",
+            cancellationToken);
+
+    public Task SendPasswordChangedNoticeAsync(
+        string toEmail, CancellationToken cancellationToken) =>
+        SendAsync(
+            toEmail,
+            EmailTemplates.PasswordChangedNotice(_options.BaseUrl),
+            "password-changed-notice",
+            cancellationToken);
+
     private async Task SendAsync(
         string toEmail,
         EmailTemplates.EmailContent body,

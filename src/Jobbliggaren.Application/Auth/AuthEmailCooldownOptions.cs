@@ -29,4 +29,17 @@ public sealed class AuthEmailCooldownOptions
     /// </summary>
     [Range(1, 3600)]
     public int ChangeEmailWindowSeconds { get; set; } = 60;
+
+    /// <summary>
+    /// The flat, non-escalating window (seconds) a single target address waits between password-reset
+    /// links (#1171). Default 60 (parity with the #733 resend window).
+    /// <para>
+    /// It caps two things at once, and the second is the reason not to raise it casually: the mail
+    /// volume an attacker can aim at one inbox, and — since a forgot-password request for an existing
+    /// account costs an outbound send that a non-existent one does not — the rate at which a response
+    /// timing differential can be sampled. One measurement per address per window.
+    /// </para>
+    /// </summary>
+    [Range(1, 3600)]
+    public int PasswordResetWindowSeconds { get; set; } = 60;
 }

@@ -7,7 +7,9 @@ using Jobbliggaren.Application.Auth.Commands.Login;
 using Jobbliggaren.Application.Auth.Commands.Logout;
 using Jobbliggaren.Application.Auth.Commands.RefreshSession;
 using Jobbliggaren.Application.Auth.Commands.Register;
+using Jobbliggaren.Application.Auth.Commands.RequestPasswordReset;
 using Jobbliggaren.Application.Auth.Commands.ResendEmailConfirmation;
+using Jobbliggaren.Application.Auth.Commands.ResetPassword;
 using Jobbliggaren.Application.Auth.Commands.VerifyEmail;
 using Jobbliggaren.Application.Auth.Queries.VerifyCredentials;
 using Jobbliggaren.Application.Common.Abstractions;
@@ -242,6 +244,77 @@ public static partial class AuthEndpoints
                 ? ToErrorResult(result.Error)
                 : Results.Accepted();
         }).RequireRateLimiting(RateLimitingExtensions.AuthWritePolicy);
+
+        // Password reset — REQUEST step (#1171). PUBLIC: the requester has lost access by definition, so
+        // there is nothing to authenticate with. ALWAYS 202 Accepted for a known address, an unknown one
+        // and a cooled repeat alike — a malformed email is the only 400, and it is existence-INDEPENDENT
+        // so it is not an oracle (parity /resend-confirmation).
+        //
+        // The ONE non-202 is a 503 (Auth.EmailDeliveryUnavailable) when no configured sender can deliver,
+        // and it is not an oracle because of WHERE the handler decides it: the capability check is the
+        // handler's first statement and reads no input, so the split is a property of the server's
+        // configuration, evaluated before the submitted address is looked at. Placed after the account
+        // lookup it would be reachable only for existing accounts — which is why /resend-confirmation,
+        // whose check sits after its lookup, must never return 503 at all.
+        //
+        // AuthWrite (per-IP, and its rejection is 429 rather than 503 because RateLimitingExtensions
+        // overrides ASP.NET's default) plus the per-target 60s Redis cooldown throttle email-bombing. That
+        // cooldown also rate-caps the residual response-timing channel — an existing account costs an
+        // outbound send that an unknown address does not — to one measurement per address per window
+        // (accepted, ADR 0102 precedent; see the handler).
+        group.MapPost("/forgot-password", async (
+            ForgotPasswordRequest body,
+            IMediator mediator,
+            CancellationToken ct) =>
+        {
+            var result = await mediator.Send(new RequestPasswordResetCommand(body.Email), ct);
+            return result.IsFailure
+                ? ToErrorResult(result.Error)
+                : Results.Accepted();
+        }).RequireRateLimiting(RateLimitingExtensions.AuthWritePolicy);
+
+        // Password reset — APPLY step (#1171). PUBLIC: the link is opened from the account's own inbox,
+        // logged out by definition, so the opaque single-use token IS the authorization. Every TOKEN
+        // rejection is a uniform 400; a PASSWORD rejection (Auth.PwnedPassword, Auth.PasswordTooShort)
+        // names its rule, which is safe because Identity verifies the token BEFORE running the password
+        // validators — that arm is reachable only by someone already holding a valid token.
+        //
+        // On success the endpoint enacts C6 (logout-everywhere) with NO re-issue, following
+        // /confirm-email-change rather than /change-password: the actor here is anonymous and the link may
+        // be opened on any device, so minting a session for whoever opened it would turn recovery into
+        // login. 204, and the user logs in with the new password.
+        group.MapPost("/reset-password", async (
+            ResetPasswordRequest body,
+            IMediator mediator,
+            ISessionStore sessions,
+            ILogger<ResetPasswordCommand> logger,
+            CancellationToken ct) =>
+        {
+            var result = await mediator.Send(
+                new ResetPasswordCommand(body.Uid, body.Token, body.NewPassword), ct);
+            if (result.IsFailure)
+                return ToErrorResult(result.Error);
+
+            var userId = result.Value;
+
+            // C6 — the password just changed via a recovery vector, so every session dies. The Redis store
+            // is independent of Identity's SecurityStamp, so the stamp rotation inside ResetPasswordAsync
+            // does NOT touch it and this call is the only logout-everywhere mechanism.
+            // CancellationToken.None: the reset is committed; a disconnect must not leave sessions alive.
+            // Best-effort + logged as a security event — a Redis blip must not fail a completed reset
+            // (the token is already spent, so a retry would report "invalid link"), but live-session
+            // residue after a possible account takeover must be detectable.
+            try
+            {
+                await sessions.InvalidateAllForUserAsync(userId, CancellationToken.None);
+            }
+            catch (Exception ex)
+            {
+                LogResetSessionInvalidationFailed(logger, ex, userId);
+            }
+
+            return Results.NoContent();
+        }).RequireRateLimiting(RateLimitingExtensions.AuthWritePolicy);
     }
 
     /// <summary>
@@ -257,6 +330,23 @@ public static partial class AuthEndpoints
     /// confirmed via an emailed link before the swap). A pure transport DTO; neither value is logged.
     /// </summary>
     public sealed record ChangeEmailRequest(string? CurrentPassword, string? NewEmail);
+
+    /// <summary>
+    /// POST /auth/forgot-password body — the address to send a reset link to. A pure transport DTO; the
+    /// address is never logged, and the response is identical whether or not it belongs to an account.
+    /// </summary>
+    public sealed record ForgotPasswordRequest(string? Email);
+
+    /// <summary>
+    /// POST /auth/reset-password body — the userId and opaque token from the emailed link, plus the new
+    /// password. A pure transport DTO; no value is logged.
+    /// <para>
+    /// <c>Uid</c> is a <see cref="Guid"/>, so the emailed link MUST carry the dashed "D" form:
+    /// System.Text.Json's Guid converter accepts only that, and a compact "N" uid 400s at the binder on
+    /// every click (#981). <c>EmailTemplates.PasswordReset</c> renders <c>{UserId:D}</c> for this reason.
+    /// </para>
+    /// </summary>
+    public sealed record ResetPasswordRequest(Guid Uid, string? Token, string? NewPassword);
 
     /// <summary>
     /// POST /auth/confirm-email-change body — the (uid, new email, URL-safe token) carried by the
@@ -340,8 +430,17 @@ public static partial class AuthEndpoints
         // .EmailDeliveryUnavailable for why the fork the CTO named is closed by this precedent.
         //
         // No Retry-After, for the reason written on the arm above: the date is unknown and a wrong
-        // one is worse than none. Reachable only from POST /auth/change-email, an authenticated and
-        // re-authenticated surface, so the 503 discloses nothing about any address.
+        // one is worse than none.
+        //
+        // TWO producers since #1171, and the second is PUBLIC — the earlier note that this was
+        // reachable only from the authenticated /auth/change-email no longer holds, so the reason it
+        // discloses nothing about any address is different for each:
+        //   · POST /auth/change-email — authenticated and re-authenticated, so the caller already
+        //     owns the account and learns nothing new.
+        //   · POST /auth/forgot-password — unauthenticated, and safe instead by ORDER: the handler's
+        //     capability check is its first statement and reads no input, so this 503 is decided
+        //     before the submitted address is looked at and cannot vary with it. Move that check
+        //     after the account lookup and this arm becomes an enumeration oracle.
         AuthErrorCodes.EmailDeliveryUnavailable => Results.Problem(
             detail: AuthErrorCodes.EmailDeliveryUnavailableMessage,
             title: AuthErrorCodes.EmailDeliveryUnavailable,
@@ -360,4 +459,12 @@ public static partial class AuthEndpoints
         "Change-email confirm: session invalidation FAILED for user {UserId} — " +
         "email changed, sessions may still be live")]
     private static partial void LogSessionInvalidationFailed(ILogger logger, Exception ex, Guid userId);
+
+    // #1171 — the same shape as 4003 above and for the same reason (a Redis fault's stack aids ops and
+    // carries no user PII). Its own EventId because the consequence differs: after a RESET, live-session
+    // residue means an account that may have just been taken over still has the attacker's sessions.
+    [LoggerMessage(4004, LogLevel.Error,
+        "Password reset: session invalidation FAILED for user {UserId} — " +
+        "password changed, sessions may still be live")]
+    private static partial void LogResetSessionInvalidationFailed(ILogger logger, Exception ex, Guid userId);
 }

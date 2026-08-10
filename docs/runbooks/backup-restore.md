@@ -125,8 +125,15 @@ mount later, and a directory that is not mounted cannot be exposed by any edit t
 >   3 (`master-key-ops.md` §2 and §3), step 4 and step 5. The absence says #198's install has not
 >   run on this host; it does **not** say the stack is broken yet, and the difference decides what
 >   you do. An `up -d` from the `_FILE` compose would itself have created that directory — the
->   mount carries `create_host_path: true`, which you can re-measure on the box with
->   `docker compose -f /opt/jobbliggaren/deploy/docker-compose.yml config` — so its absence is
+>   mount carries `create_host_path: true`, which you can re-measure with
+>   `docker compose -f /opt/jobbliggaren/deploy/docker-compose.yml --env-file /dev/null config
+>   --no-interpolate` (**both flags are load-bearing, not decoration:** without them compose
+>   resolves `deploy/.env` into its output, which is all four database passwords and the edge
+>   basic-auth hash printed to your terminal — the plaintext surface #198 exists to remove. They
+>   are also why this needs no `sudo`, since `.env` is never read. Measured against the current
+>   compose: the property survives the flags, and `${POSTGRES_APP_PASSWORD:?}` comes back
+>   unexpanded). **Read an empty result as a statement about the clone, not the property** — a
+>   clone predating #198 has no such mount to report. So the directory's absence is
 >   evidence that reconcile has **not yet applied** the new compose. Note *applied*, not *ticked*:
 >   `jobbliggaren-reconcile.sh` fail-closes before `up -d` on several paths and then keeps serving
 >   the old containers, so a tick is not an apply. The failure is therefore the next apply, not a

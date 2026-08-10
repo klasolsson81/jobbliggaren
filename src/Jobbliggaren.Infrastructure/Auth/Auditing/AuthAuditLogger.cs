@@ -41,12 +41,6 @@ public sealed partial class AuthAuditLogger(
         LogEmailConfirmationResent(logger, "email_confirmation_resent", userId, resolvedIp, resolvedAgent);
     }
 
-    public void PasswordResetRequested(Guid userId)
-    {
-        var (resolvedIp, resolvedAgent) = ExtractRequestContext();
-        LogPasswordResetRequested(logger, "password_reset_requested", userId, resolvedIp, resolvedAgent);
-    }
-
     public void PasswordResetRequested(Guid userId, string? ipAddress, string? userAgent)
     {
         // Carried, not extracted. ExtractRequestContext() would return the "unknown" label here because

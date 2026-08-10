@@ -19,7 +19,10 @@ namespace Jobbliggaren.Infrastructure.Identity;
 /// <para>
 /// Api-only, and that is a constraint rather than an accident: token providers need
 /// <c>IDataProtectionProvider</c>, and <c>AddCoreIdentityForWorker</c> deliberately registers none
-/// (ADR 0102). Minting and validating a reset token must therefore both happen in the Api process,
+/// (CTO 2026-07-10 — recorded on <c>ResendEmailConfirmationCommandHandler</c> and in
+/// <c>AddCoreIdentityForWorker</c>, NOT in an ADR: "ADR 0102" is cited in several files and no such
+/// document exists, measured 2026-08-10; see #1302). Minting and validating a reset token must
+/// therefore both happen in the Api process,
 /// which is where both endpoints live.
 /// </para>
 /// </summary>

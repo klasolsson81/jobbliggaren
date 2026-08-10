@@ -45,14 +45,18 @@ internal sealed class RedisCooldownGate(IDistributedCache cache) : ICooldownGate
     // UpperInvariantLookupNormalizer — `Normalize().ToUpperInvariant()`, i.e. NFC then upper — and the
     // previous `ToLowerInvariant()` was not its inverse.
     //
-    // Two BMP characters break the old form, and both are trivially typeable: U+017F LATIN SMALL LETTER
-    // LONG S (ſ) upper-cases to 'S', and U+0131 LATIN SMALL LETTER DOTLESS I (ı) upper-cases to 'I' —
-    // while both lower-case to themselves. So `klaſ.olſſon@…` and `admın@…` pass the validator, resolve
-    // to the same Identity account as their ASCII spellings, and used to get their OWN 60 s window: 2^k
-    // independent windows for an address with k such letters. NFC closes the second axis, where a
-    // decomposed (NFD) spelling of any accented address did the same.
+    // U+017F LATIN SMALL LETTER LONG S (ſ) upper-cases to 'S' while lower-casing to itself, so a
+    // long-s spelling passes the validator, resolves to the SAME Identity account as its ASCII
+    // spelling, and used to get its OWN 60 s window: 2^k independent windows for an address with k
+    // such letters. NFC closes a second axis, where a decomposed (NFD) spelling of any accented
+    // address did the same.
     //
-    // This is a shared gate, so the fix covers all four scopes (resend-confirm, account-exists,
+    // U+0131 DOTLESS I (ı) is NOT such a character and never was a bypass - .NET's invariant
+    // upper-casing leaves it alone. It is named here because a probe run in Python said otherwise and
+    // that claim reached a draft; the sweep in RedisCooldownGateTests measures the property in the
+    // runtime that SHIPS rather than trusting either list.
+    //
+    // This is a shared gate, so the fix covers all five scopes (resend-confirm, account-exists,
     // change-email-target/user, password-reset), not only the one that surfaced it. Changing the derived
     // key resets in-flight windows exactly once, which is harmless at a 60 s window. `ToUpperInvariant`
     // rather than `ToLower` deliberately: it is what Identity does, and the Turkish-I hazard runs the

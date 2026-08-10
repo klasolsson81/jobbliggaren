@@ -19,7 +19,15 @@ namespace Jobbliggaren.Infrastructure.Auth;
 /// would have been the first to break that. Keeping the mint in-process keeps the token in memory.
 /// </para>
 /// <para>
-/// The cost accepted for that: work is lost if the process restarts, and there is no retry. Delivery
+/// <b>One consequence of dropping rather than blocking, named so it is not rediscovered</b>
+/// (security-auditor 2026-08-10): a saturated queue drops OTHER people's legitimate resets, not only
+/// the flood that saturated it. That is new against the inline version, which had no queue to fill.
+/// It is bounded by the per-address cooldown (an attacker needs many DISTINCT addresses) and by the
+/// per-IP rate limit, and the only signal is the Warning below, which nothing alerts on (#1175 owns
+/// the log sink). A second consumer would raise the drain rate if that trade stops being acceptable.
+/// </para>
+/// <para>
+/// The cost accepted: work is lost if the process restarts, and there is no retry. Delivery
 /// here is best-effort by design either way — the inline version already swallowed every send failure
 /// into the uniform 202 for anti-enumeration reasons — and a reset link dies after
 /// <c>PasswordResetTokenProviderOptions.LifespanMinutes</c> anyway, with the user's remedy being one

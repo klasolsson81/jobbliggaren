@@ -31,21 +31,35 @@ internal sealed partial class PasswordResetDispatchService(
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        // ReadAllAsync completes when the writer is completed (StopAsync below), so a graceful shutdown
-        // drains what is already queued instead of abandoning it. Anything still unqueued at that point
-        // is lost by design — see the queue's own docs for why that trade was taken.
-        await foreach (var dispatch in queue.Reader.ReadAllAsync(stoppingToken))
+        // CancellationToken.None, deliberately, and NOT the stopping token — the drain depends on it.
+        //
+        // BackgroundService.StopAsync cancels its own token source BEFORE awaiting this task, so by the
+        // time StopAsync has completed the writer the stopping token is already cancelled. Passing it
+        // down would abort the drain on the first awaited send: SesEmailSender awaits the SDK call with
+        // the token, and both catch filters here and there exclude OperationCanceledException, so the
+        // OCE would unwind straight out of this loop and take the rest of the queue with it.
+        //
+        // Worse, it would fail ONLY in the configuration that matters. NullEmailSender and
+        // ConsoleEmailSender ignore the token, so a drain looks healthy in Development and in
+        // Testcontainers while Provider=Ses drops everything queued (dotnet-architect 2026-08-10).
+        //
+        // What ends this loop is the writer being completed, which is exactly what StopAsync does
+        // first. What BOUNDS it is base.StopAsync's own await on the host's shutdown token.
+        await foreach (var dispatch in queue.Reader.ReadAllAsync(CancellationToken.None))
         {
-            await DispatchOneAsync(dispatch, stoppingToken);
+            await DispatchOneAsync(dispatch, CancellationToken.None);
         }
+
+        _ = stoppingToken;
     }
 
     public override async Task StopAsync(CancellationToken cancellationToken)
     {
-        // Complete the writer FIRST so the loop above sees the end of the stream and drains, rather than
-        // being cancelled mid-queue. The host's own shutdown timeout bounds how long that drain gets;
-        // no number is named here because the Api does not configure HostOptions.ShutdownTimeout and
-        // inventing one would be a claim about a value this process does not set.
+        // Complete the writer FIRST so the loop above sees the end of the stream and drains. That is
+        // the ONLY thing that ends the loop — see ExecuteAsync for why it must not observe the stopping
+        // token. The bound is base.StopAsync's own await below, which honours the host's shutdown
+        // timeout; no number is named here because the Api does not configure
+        // HostOptions.ShutdownTimeout and inventing one would be a claim about a value it never sets.
         queue.Complete();
         await base.StopAsync(cancellationToken);
     }
@@ -54,13 +68,18 @@ internal sealed partial class PasswordResetDispatchService(
     {
         // A scope per item: IUserAccountService and IEmailSender are scoped, and a BackgroundService is
         // a singleton. One scope for the whole loop would leak a DbContext across unrelated requests.
-        using var scope = scopeFactory.CreateScope();
-        var accounts = scope.ServiceProvider.GetRequiredService<IUserAccountService>();
-        var emailSender = scope.ServiceProvider.GetRequiredService<IEmailSender>();
-        var audit = scope.ServiceProvider.GetRequiredService<IAuthAuditLogger>();
+        await using var scope = scopeFactory.CreateAsyncScope();
 
         try
         {
+            // Resolution lives INSIDE the try (security-auditor 2026-08-10). A failure to resolve is a
+            // configuration fault, and outside the try it would fault ExecuteAsync itself - killing the
+            // consumer for the lifetime of the process and dropping every later request silently,
+            // rather than logging one item's failure and continuing.
+            var accounts = scope.ServiceProvider.GetRequiredService<IUserAccountService>();
+            var emailSender = scope.ServiceProvider.GetRequiredService<IEmailSender>();
+            var audit = scope.ServiceProvider.GetRequiredService<IAuthAuditLogger>();
+
             // null for a non-existent address, and indistinguishable here from any other ineligible
             // case. Nothing downstream of this point can reach the caller, so there is no uniformity to
             // preserve any more — that guarantee now lives entirely in the request path.

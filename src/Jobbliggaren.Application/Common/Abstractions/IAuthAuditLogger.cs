@@ -37,11 +37,9 @@ public interface IAuthAuditLogger
     /// request is not. Same reasoning as <see cref="EmailConfirmationResent"/>.
     /// </para>
     /// </summary>
-    void PasswordResetRequested(Guid userId);
-
     /// <summary>
-    /// #1171 — the same event, written from OUTSIDE a request scope, with the client context carried in
-    /// rather than read from an <c>HttpContext</c> that no longer exists.
+    /// #1171 — a password-reset link was sent. Written from OUTSIDE a request scope, with the client
+    /// context carried IN rather than read from an <c>HttpContext</c> that no longer exists.
     /// <para>
     /// Needed because the send moved off the request path: the dispatch consumer is a background
     /// service, so the implementation's <c>IHttpContextAccessor</c> read returns null there and both

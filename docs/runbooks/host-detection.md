@@ -87,7 +87,7 @@ The predicate, in `deploy/systemd/jobbliggaren-heartbeat.sh`:
 | **P1** | `systemctl --failed` is empty | the existing signal surface |
 | **P2** | every **enabled** `jobbliggaren-*.timer` is also **active** | derived, never a list — catches a `stop` or `mask` on any current or future unit, which a failure list structurally cannot show |
 | **P3** | the floor set of timers is enabled **and** active | non-vacuity: without it, an empty failure list on a box where nothing runs reports perfect health |
-| **P4** | every `jbl-*` key the rules file defines is loaded in the kernel | the detection configuration's own integrity — a missing rules file, a missing `auditctl` and an unloaded rule are all failures, never passes |
+| **P4** | every watch RULE the file defines is loaded in the kernel, compared as (path, key) | the detection configuration's own integrity — a missing rules file, a missing `auditctl` and an unloaded rule are all failures, never passes |
 | **P5** | free space on `/` and the Docker filesystem is above the floor | absorbs the **detection** half of the disk-usage finding (below) |
 
 **The script always exits 0.** It must never land on the failure list it reads: P1 would then be
@@ -199,7 +199,7 @@ sudo auditctl -l | grep -c 'jbl-'
 #    discrepancy that does not exist. The heartbeat's P4 predicate compares (path, key) pairs for
 #    the same reason: a single watch failing to load is invisible to a key-set comparison.
 grep -v '^[[:space:]]*#' /opt/jobbliggaren/deploy/systemd/zz-jobbliggaren-audit.rules |
-  grep -cE -- '^-w[[:space:]]+[^[:space:]]+[[:space:]]+-p[[:space:]]+[^[:space:]]+[[:space:]]+-k[[:space:]]+jbl-'
+  grep -cE -- '^-w.*-k[[:space:]]+jbl-'
 
 # 3. The capability URL. Create the check at the expecter first, then paste its ping URL here.
 sudo install -d -m 0700 -o root -g root /etc/jobbliggaren
@@ -277,7 +277,7 @@ install happens once.
 | **The baseline this gate was opened against** — no cadenced reader existed, and nothing left the box | `systemctl list-timers --all`, `crontab -l` + `/etc/cron.*`, `dpkg -l rsyslog auditd aide`, absence of journal-upload/remote config, `systemctl list-unit-files 'jobbliggaren*'` | Only `jobbliggaren-reconcile.{service,timer}` installed; no `rsyslog`/`auditd`/`aide`; no forwarding config; no cron reader; `systemctl --failed` empty **because nothing feeds it** | 2026-08-10 |
 | **The SSH signal exists, names key and source, and had no reader** | `sudo sshd -T \| grep loglevel`, then `journalctl -u ssh -g "Accepted publickey"` | `loglevel VERBOSE`; accepted-publickey lines carry key fingerprint, source and timestamp — the signal is strong and was read by nobody. *(Values not reproduced here: the source address is personal data.)* | 2026-08-10 |
 | **The journal window is computed, not declared** | `journalctl --disk-usage`; oldest entry timestamp; `systemd-analyze cat-config systemd/journald.conf` for the EFFECTIVE floor | | |
-| **The audit rules are loaded in the kernel, not merely on disk** | `sudo auditctl -l \| grep -c 'jbl-'` against the `-k` keys in the rules file | | |
+| **The audit rules are loaded in the kernel, not merely on disk** | `sudo auditctl -l \| grep -c 'jbl-'` against the number of WATCH RULES in the rules file — **not** the number of distinct keys, which is a smaller number (seven keys are carried by several paths). Derive it with the same command §5 step 2 uses, so the two sections cannot drift apart: `grep -v '^[[:space:]]*#' <rules> \| grep -cE -- '^-w.*-k[[:space:]]+jbl-'` | | |
 | **The rules survive a reboot** | same instrument, after `sudo systemctl reboot` | | |
 | **A read of the key tmpfs produces a record naming uid and exe** | drill D1, then `ausearch -k jbl-key-tmpfs` | | |
 | **A write to a watched control produces a record** | drill D2 | | |

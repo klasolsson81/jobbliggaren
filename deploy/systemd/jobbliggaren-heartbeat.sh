@@ -197,9 +197,12 @@ audit_watch_pairs() {
   # file is comment-heavy by house style, and a commented-out rule — the likeliest future edit —
   # would otherwise mint a phantom expectation that can never be loaded, i.e. a permanently lit
   # alarm. The rules file's own prose already contains an `ausearch -k jbl-key-tmpfs` example.
+  # `-p` is deliberately not part of the pair, and the order of -p and -k is not assumed:
+  # auditd accepts `-w <path> -k <key> -p <perms>` as readily as the house form, and an earlier
+  # revision of this extraction required the house order — so a rule written the other way would
+  # have silently dropped out of the expectation and never been verified at all.
   grep -v '^[[:space:]]*#' |
-    grep -oE -- '-w[[:space:]]+[^[:space:]]+[[:space:]]+-p[[:space:]]+[^[:space:]]+[[:space:]]+-k[[:space:]]+jbl-[A-Za-z0-9_-]+' |
-    sed -E 's/^-w[[:space:]]+([^[:space:]]+).*-k[[:space:]]+(jbl-[A-Za-z0-9_-]+)$/\1|\2/' |
+    sed -E -n 's/^[[:space:]]*-w[[:space:]]+([^[:space:]]+)[[:space:]].*-k[[:space:]]+(jbl-[A-Za-z0-9_-]+).*$/\1|\2/p' |
     sort -u
 }
 

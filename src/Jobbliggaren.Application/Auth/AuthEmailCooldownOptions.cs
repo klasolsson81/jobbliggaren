@@ -35,10 +35,12 @@ public sealed class AuthEmailCooldownOptions
     /// The flat, non-escalating window (seconds) a single target address waits between password-reset
     /// links (#1171). Default 60 (parity with the #733 resend window).
     /// <para>
-    /// It caps two things at once, and the second is the reason not to raise it casually: the mail
-    /// volume an attacker can aim at one inbox, and — since a forgot-password request for an existing
-    /// account costs an outbound send that a non-existent one does not — the rate at which a response
-    /// timing differential can be sampled. One measurement per address per window.
+    /// It caps ONE thing: the mail volume an attacker can aim at a single inbox. An earlier draft of
+    /// this comment also credited it with rate-capping a response-timing differential, and that is
+    /// withdrawn (security-auditor 2026-08-10) — a per-address window caps REPEATED sampling of one
+    /// address, while enumeration needs exactly one measurement per candidate address, which it never
+    /// touches. There is no such differential left on this route in any case: the lookup, the mint and
+    /// the provider round trip all moved behind <c>IPasswordResetDispatcher</c>.
     /// </para>
     /// </summary>
     [Range(1, 3600)]

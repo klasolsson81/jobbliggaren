@@ -339,7 +339,8 @@ public sealed partial class UserAccountService(
 
         // Same Base64Url shape as the two sibling mints so the emailed link survives the query round-trip
         // unescaped. Minted here, Api-side, in the same Data-Protection keyring that validates it at
-        // /reset-password (ADR 0102). The provider behind this call is PasswordResetTokenProvider, whose
+        // /reset-password (CTO 2026-07-10; see the port for why this cites the decision and not an ADR —
+        // "ADR 0102" does not exist). The provider behind this call is PasswordResetTokenProvider, whose
         // lifespan is PasswordResetTokenProviderOptions.LifespanMinutes rather than the shared 24h.
         var token = await userManager.GeneratePasswordResetTokenAsync(user);
         var urlSafeToken = Base64Url.EncodeToString(Encoding.UTF8.GetBytes(token));

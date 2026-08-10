@@ -38,4 +38,18 @@ public interface IAuthAuditLogger
     /// </para>
     /// </summary>
     void PasswordResetRequested(Guid userId);
+
+    /// <summary>
+    /// #1171 — the same event, written from OUTSIDE a request scope, with the client context carried in
+    /// rather than read from an <c>HttpContext</c> that no longer exists.
+    /// <para>
+    /// Needed because the send moved off the request path: the dispatch consumer is a background
+    /// service, so the implementation's <c>IHttpContextAccessor</c> read returns null there and both
+    /// fields would silently degrade to "unknown" — on the auth event most closely tied to account
+    /// takeover, and exactly the defence-in-depth ADR 0024 D7 ratified. The values are anonymised and
+    /// truncated by the request path before they are carried, so this overload never receives a raw
+    /// address or an untruncated agent.
+    /// </para>
+    /// </summary>
+    void PasswordResetRequested(Guid userId, string? ipAddress, string? userAgent);
 }

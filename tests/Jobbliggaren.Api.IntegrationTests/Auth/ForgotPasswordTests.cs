@@ -55,6 +55,42 @@ public class ForgotPasswordTests(ApiFactory factory)
         => _factory.Emails.Sent.Count(e =>
             e.ToEmail == email && e.Kind == RecordedEmailKind.PasswordReset);
 
+    /// <summary>
+    /// Blocks until the dispatcher has processed everything enqueued BEFORE this call, so a mail count
+    /// read afterwards is a verdict rather than a snapshot of a race.
+    /// <para>
+    /// <b>Needed because the send is no longer synchronous.</b> #1171's request path hands the address
+    /// to <c>IPasswordResetDispatcher</c> and returns; the lookup, the mint and the send all happen in
+    /// a background consumer. That is the point - an inline send cost time only when the account
+    /// existed, which is a timing oracle on a surface whose whole contract is that its answers cannot
+    /// be told apart. But it means a count read immediately after the 202 measures nothing.
+    /// </para>
+    /// <para>
+    /// <b>Why a sentinel rather than a sleep or a poll-for-zero.</b> Polling for the EXPECTED count is
+    /// fine for a mail that is coming and useless for one that is not: "still zero" is exactly what
+    /// "not yet" looks like, so every absence assertion in this class would pass vacuously. The channel
+    /// is FIFO with a single reader and the consumer awaits each item in turn, so a sentinel enqueued
+    /// after the subject cannot be delivered before the subject was handled. Its arrival is therefore
+    /// proof about the SUBJECT, not about itself.
+    /// </para>
+    /// </summary>
+    private async Task DrainDispatchAsync(CancellationToken ct)
+    {
+        var sentinel = $"fp-drain-{Guid.NewGuid()}@example.se";
+        await CreateAccountAsync(sentinel, ct);
+        (await ForgotAsync(sentinel, ct)).StatusCode.ShouldBe(HttpStatusCode.Accepted);
+
+        var deadline = DateTime.UtcNow.AddSeconds(30);
+        while (ResetMailCount(sentinel) == 0)
+        {
+            DateTime.UtcNow.ShouldBeLessThan(
+                deadline,
+                "the dispatch consumer never delivered the sentinel - the queue is stuck, and every "
+                + "count in this class would otherwise be read against an unprocessed backlog");
+            await Task.Delay(25, ct);
+        }
+    }
+
     [Fact]
     public async Task POST_forgot_password_for_known_address_returns_202_and_sends_one_reset_link()
     {
@@ -66,6 +102,7 @@ public class ForgotPasswordTests(ApiFactory factory)
 
         response.StatusCode.ShouldBe(HttpStatusCode.Accepted);
         (await response.Content.ReadAsStringAsync(ct)).ShouldBeNullOrEmpty("202 carries no body");
+        await DrainDispatchAsync(ct);
         ResetMailCount(email).ShouldBe(1);
     }
 
@@ -78,6 +115,9 @@ public class ForgotPasswordTests(ApiFactory factory)
         var response = await ForgotAsync(email, ct);
 
         response.StatusCode.ShouldBe(HttpStatusCode.Accepted);
+        // Drain FIRST. Without it "zero mails" is indistinguishable from "not dispatched yet", and this
+        // assertion would hold even if the consumer were mailing every unknown address a second later.
+        await DrainDispatchAsync(ct);
         ResetMailCount(email).ShouldBe(0, "no account, so there is nothing to send a link for");
     }
 
@@ -107,6 +147,7 @@ public class ForgotPasswordTests(ApiFactory factory)
         // The counterfactual, without which the parity above is satisfiable by two addresses that are
         // both unknown (a silently broken registration would produce exactly that). The two requests
         // above DID differ in the property the response must not reveal.
+        await DrainDispatchAsync(ct);
         ResetMailCount(known).ShouldBe(1);
         ResetMailCount(nobody).ShouldBe(0);
     }
@@ -125,6 +166,7 @@ public class ForgotPasswordTests(ApiFactory factory)
         // is an enumeration oracle assembled out of the anti-abuse control itself.
         (await ForgotAsync(email, ct)).StatusCode.ShouldBe(HttpStatusCode.Accepted);
 
+        await DrainDispatchAsync(ct);
         ResetMailCount(email).ShouldBe(1, "the second request is cooled — same answer, no second mail");
     }
 
@@ -164,7 +206,10 @@ public class ForgotPasswordTests(ApiFactory factory)
         (await refused.Content.ReadFromJsonAsync<JsonElement>(ct))
             .GetProperty("title").GetString().ShouldBe("Auth.EmailDeliveryUnavailable");
 
-        // Nothing was attempted and nothing recorded — the refusal is up front, not a swallowed send.
+        // Nothing was attempted and nothing recorded - the refusal is up front, not a swallowed send.
+        // Drained first, so this is absence rather than "not yet": a refusal that wrongly enqueued would
+        // otherwise look identical here and only surface as a second mail later.
+        await DrainDispatchAsync(ct);
         ResetMailCount(email).ShouldBe(0);
 
         // The crossing arm, in the same test for the reason ChangeEmailTests states: the 503 assertion
@@ -174,6 +219,9 @@ public class ForgotPasswordTests(ApiFactory factory)
         // the refusal did not begin the window. Had the capability check been placed after the cooldown,
         // a user would be throttled out of retrying by our own misconfiguration.
         (await ForgotAsync(email, ct)).StatusCode.ShouldBe(HttpStatusCode.Accepted);
+        await DrainDispatchAsync(ct);
+        // EXACTLY one: a refusal that had wrongly enqueued would land a second mail for this address,
+        // and the drain above guarantees it would already have arrived.
         ResetMailCount(email).ShouldBe(1, "capability restored, everything else identical");
     }
 
@@ -218,6 +266,7 @@ public class ForgotPasswordTests(ApiFactory factory)
             .ShouldBe(knownProblem.GetProperty("detail").GetString());
 
         // Neither address was mailed while the sender was incapable.
+        await DrainDispatchAsync(ct);
         ResetMailCount(known).ShouldBe(0);
         ResetMailCount(nobody).ShouldBe(0);
 
@@ -227,6 +276,7 @@ public class ForgotPasswordTests(ApiFactory factory)
         // difference the two 503s had to conceal.
         (await ForgotAsync(known, ct)).StatusCode.ShouldBe(HttpStatusCode.Accepted);
         (await ForgotAsync(nobody, ct)).StatusCode.ShouldBe(HttpStatusCode.Accepted);
+        await DrainDispatchAsync(ct);
         ResetMailCount(known).ShouldBe(1, "the known address is genuinely known");
         ResetMailCount(nobody).ShouldBe(0, "the unknown address is genuinely unknown");
     }

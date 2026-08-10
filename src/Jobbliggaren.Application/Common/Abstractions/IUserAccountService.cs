@@ -144,8 +144,11 @@ public interface IUserAccountService
     /// misuse — the same discipline as the resend sibling. Read the guarantee precisely: the uniform
     /// anti-enumeration answer is the HANDLER's responsibility (and its tests'), not this port's. The port
     /// still returns null for an absent account; what it refuses to offer is a bare DoesAccountExist. The token is minted Api-side, in the same
-    /// Data-Protection keyring that validates it at /reset-password (ADR 0102 — no cross-process token,
-    /// and the Worker registers no token providers at all).
+    /// Data-Protection keyring that validates it at /reset-password (CTO 2026-07-10 — no cross-process
+    /// token; the Worker registers no token providers at all). That decision is recorded on
+    /// <c>ResendEmailConfirmationCommandHandler</c> and in <c>AddCoreIdentityForWorker</c>'s comment,
+    /// NOT in an ADR: "ADR 0102" is cited in several files and no such document exists (measured
+    /// 2026-08-10; docs/decisions jumps 0101 → 0103, and 0103 is used twice).
     /// </para>
     /// </summary>
     Task<PasswordResetDelivery?> TryPreparePasswordResetAsync(string email, CancellationToken ct);

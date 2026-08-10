@@ -1594,6 +1594,20 @@ public static class DependencyInjection
             .ValidateOnStart();
         services.AddScoped<ICooldownGate, RedisCooldownGate>();
 
+        // #1171 — the out-of-band forgot-password dispatch. Api-EXCLUSIVE for the same reason the
+        // cooldown is (it runs in the request path) and for one more that is structural: the consumer
+        // MINTS a reset token, which needs the token providers only this composition registers. The
+        // Worker cannot host it. Singleton because the channel is the shared state; the hosted service
+        // is its only reader.
+        services.AddOptions<PasswordResetDispatchOptions>()
+            .Bind(configuration.GetSection(PasswordResetDispatchOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+        services.AddSingleton<PasswordResetDispatchChannel>();
+        services.AddSingleton<IPasswordResetDispatcher>(
+            sp => sp.GetRequiredService<PasswordResetDispatchChannel>());
+        services.AddHostedService<PasswordResetDispatchService>();
+
         // Admin-bootstrap: idempotent seeder kör vid app-startup. Skapar Admin-rollen
         // om saknas och tilldelar till user med email AdminBootstrap__InitialAdminEmail.
         // Senior-cto-advisor-beslut 2026-05-11 (B1 — IaC over manual psql-script).

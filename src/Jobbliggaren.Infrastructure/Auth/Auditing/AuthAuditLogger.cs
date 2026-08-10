@@ -47,6 +47,20 @@ public sealed partial class AuthAuditLogger(
         LogPasswordResetRequested(logger, "password_reset_requested", userId, resolvedIp, resolvedAgent);
     }
 
+    public void PasswordResetRequested(Guid userId, string? ipAddress, string? userAgent)
+    {
+        // Carried, not extracted. ExtractRequestContext() would return the "unknown" label here because
+        // the caller is a background service with no HttpContext — see the port's overload docs. The
+        // fallbacks match what ExtractRequestContext produces, so the two overloads write the same
+        // shape and a reader cannot tell which path wrote a line by its format alone.
+        LogPasswordResetRequested(
+            logger,
+            "password_reset_requested",
+            userId,
+            ipAddress ?? IIpAnonymizer.UnknownLabel,
+            userAgent ?? string.Empty);
+    }
+
     // App-loggens IP/UA går genom samma anonymiserings-port som audit-tabellen
     // (ADR 0024 D7). Defense-in-depth: även om CloudWatch-retention (30d) failar
     // ska app-loggen inte bära unika IP-fingerprints.

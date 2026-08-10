@@ -231,8 +231,12 @@ public static partial class AuthEndpoints
         // malformed email is the only 400 (existence-INDEPENDENT, not an oracle): a fresh-unconfirmed, a
         // taken-confirmed and a non-existent address are indistinguishable on status AND body. The send is
         // INLINE Api-side (mint+send in one process / one Data-Protection keyring so the link resolves at
-        // /verify-email; ADR 0102) — the residual response-timing channel is rate-capped by the per-target
-        // 60s cooldown and inert while the flag is OFF (non-exploitable, security-auditor). AuthWrite
+        // /verify-email; CTO 2026-07-10, recorded on the handler). ⚠ The residual response-timing channel
+        // here is NOT rate-capped by the per-target cooldown — that claim is withdrawn (security-auditor
+        // 2026-08-10): a per-address window caps REPEATED sampling of one address, while enumeration needs
+        // exactly one measurement per candidate. What binds is AuthWrite, per-IP and parallelisable. It IS
+        // inert while the flag is OFF. #1171 moved the reset path's send off the request path for this
+        // reason; this endpoint has not been reworked and its channel is open when the flag is on. AuthWrite
         // (per-IP) + that per-target Redis cooldown (handler) throttle email-bombing.
         group.MapPost("/resend-confirmation", async (
             ResendConfirmationRequest body,
@@ -258,10 +262,12 @@ public static partial class AuthEndpoints
         // whose check sits after its lookup, must never return 503 at all.
         //
         // AuthWrite (per-IP, and its rejection is 429 rather than 503 because RateLimitingExtensions
-        // overrides ASP.NET's default) plus the per-target 60s Redis cooldown throttle email-bombing. That
-        // cooldown also rate-caps the residual response-timing channel — an existing account costs an
-        // outbound send that an unknown address does not — to one measurement per address per window
-        // (accepted, ADR 0102 precedent; see the handler).
+        // overrides ASP.NET's default) plus the per-target 60s Redis cooldown throttle email-bombing. The
+        // cooldown does that and ONLY that: it does not rate-cap a timing channel, because a per-address
+        // window caps repeated sampling of one address while enumeration needs one measurement per
+        // candidate. There is no timing channel left to cap — the lookup, the mint and the provider round
+        // trip all moved behind IPasswordResetDispatcher, so the request path never reads the account
+        // (senior-cto-advisor 2026-08-10).
         group.MapPost("/forgot-password", async (
             ForgotPasswordRequest body,
             IMediator mediator,

@@ -12,16 +12,23 @@ prod-flip checklist).
 **Authority:** ADR 0124 and `release-checklist.md` §2.5. Where this runbook and an ADR disagree,
 the ADR wins and this file is wrong.
 
-> **THE DNS HALF OF §3 HAS NOT BEEN EXECUTED, AND NOTHING HAS EVER BEEN SENT. Read §3 step 4
-> onward as a design, not as a report.**
+> **THE DOMAIN IS VERIFIED AND CAN SIGN, AND NOTHING HAS EVER BEEN SENT.** §3 is now a report.
+> §7 is still a design.
 >
-> The AWS-side calls in §3 steps 1–3 and §3 step 6 **have** run — 2026-08-09, and the values in
-> this file are their real output, not placeholders. What has not happened is the DNS
-> publication at STRATO, which is Klas's and is the only thing that can move
-> `DkimAttributes.Status` off `PENDING`. Until it does, SES holds a domain identity it cannot
-> sign for, and the product still sends nothing. When the records are published and verified,
-> replace this note with the date and fill verification rows 33–38 in
-> [`vps-deploy-stack.md`](./vps-deploy-stack.md) §5.
+> Klas published the three CNAME records at STRATO on **2026-08-10**. SES moved
+> `DkimAttributes.Status` `PENDING` → **`SUCCESS`** and `VerifiedForSendingStatus` → **`true`** in
+> under half an hour, against the 72 h AWS reserves for propagation. Measured independently against
+> the SES API **and** against public DNS, never read out of STRATO's control panel — what counts is
+> what SES can see. Verification rows **33 and 34** in
+> [`vps-deploy-stack.md`](./vps-deploy-stack.md) §5 carry the values and the date; the measurement
+> is protocolled on
+> [#183](https://github.com/klasolsson81/jobbliggaren/issues/183#issuecomment-5240287056).
+>
+> **What does NOT follow from that, and is the whole reason this note survives rather than being
+> deleted:** no message has ever been sent, so §7's `Authentication-Results` reading is unmade and
+> row 37 is open. The account is still in the **sandbox** — one verified recipient, 200/24 h — and
+> `Email:Provider` is still unset, so the product sends nothing. Being able to sign is not the
+> flip; the flip is [`release-checklist.md`](./release-checklist.md) §2.5 and is Klas's alone.
 
 ---
 
@@ -156,6 +163,11 @@ values are **per-Region** — an identity in another Region would have different
 
 These tokens are not secrets. They are published in public DNS by design.
 
+**Published 2026-08-10.** The prefix-only rule held: all three records resolve (step 5), so the
+double-append failure mode this step warns about did not occur. That is an observation about one
+publication at one registrar, not a reason to skip the check next time — the failure is silent for
+up to 72 h, which is exactly why it is measured rather than assumed.
+
 ### Step 5 — verify the records resolve, against the outside
 
 ```bash
@@ -168,14 +180,23 @@ done
 Query a public resolver, not the registrar's. What matters is what SES can see, not what the
 STRATO control panel believes it saved.
 
+Ran 2026-08-10 against Google DoH: each of the three resolved to `<same token>.dkim.amazonses.com.`,
+and the three tokens were checked against the identity's own — read out of the API response before
+publication, not retyped from the table above.
+
 Then let SES decide:
 
 ```bash
 aws sesv2 get-email-identity --email-identity jobbliggaren.se \
   --profile jobbpilot --region eu-north-1 \
   --query '{Dkim:DkimAttributes.Status,Verified:VerifiedForSendingStatus}'
-# expect eventually: Dkim SUCCESS, Verified true. AWS allows up to 72 h for DNS propagation.
+# expect: Dkim SUCCESS, Verified true. AWS reserves up to 72 h for DNS propagation.
 ```
+
+Ran 2026-08-10: `Dkim SUCCESS`, `Verified true`, `SigningEnabled true`, `SigningHostedZone`
+unchanged — in under half an hour, not the reserved 72 h. **SES is the only authority on this
+question**, which is why the DNS check above does not close it: records that resolve for us can
+still be records SES has not yet re-read. Protocolled in verification row 34.
 
 ### Step 6 — verify a recipient, because the account is in the sandbox
 
@@ -192,6 +213,10 @@ aws sesv2 create-email-identity \
 Ran 2026-08-09. AWS sends a verification message to that address; the link in it expires after
 24 hours. Until it is clicked, `VerifiedForSendingStatus` stays `false` and sends to that address
 are rejected.
+
+**Confirmed the same day** — the recipient identity read `SUCCESS`, measured directly against the
+SES API, so the 24 h link did not lapse and this step does not need re-running. Re-confirmed
+2026-08-10 as part of the domain measurement: the account has **exactly one** verified recipient.
 
 **The sandbox is not a problem to be solved here.** It caps sending at 200/24 h and 1/s, which is
 ample for one recipient, and it enforces at the account level what we want during dev anyway:
@@ -380,16 +405,20 @@ the word "pass" is how that distinction gets missed.
 
 ## 9. Unmeasured, and named
 
-1. **Whether the three CNAMEs verify.** As of 2026-08-09 they are not published, so
-   `DkimAttributes.Status` is `PENDING` and no send can succeed. Everything in §3 step 4 onward
-   is derived from AWS's documentation, not observed here.
-2. **Whether the recipient identity was confirmed.** The verification link expires 24 hours after
-   2026-08-09; if it lapsed, step 6 must be re-run to reissue it.
-3. **What SES's `Authentication-Results` actually says on a real send.** §7's expectation is what
-   alignment ought to produce, not a reading taken from a delivered message.
-4. **Whether `dmarc@jobbliggaren.se` exists.** §4 assumes it can be created at STRATO; that has
+*Two entries left this list on 2026-08-10 — whether the three CNAMEs verify, and whether the
+recipient identity was confirmed. Both are now measured, and a measured thing does not belong in a
+section titled "Unmeasured": the outcomes live in §3 steps 5 and 6, beside the commands that
+produced them. What remains below is unchanged, and none of it is discharged by the domain being
+verified.*
+
+1. **What SES's `Authentication-Results` actually says on a real send.** §7's expectation is what
+   alignment ought to produce, not a reading taken from a delivered message. **This is the one the
+   verification is most likely to be mistaken for:** a signing domain is a precondition for
+   alignment, never evidence of it — `dkim=pass` on some other `header.d` would not survive
+   `p=reject` and would look identical to anyone reading only for the word "pass". Row 37.
+2. **Whether `dmarc@jobbliggaren.se` exists.** §4 assumes it can be created at STRATO; that has
    not been done, and an `rua=` pointing at a non-existent mailbox collects nothing while looking
    correct.
-5. **Deliverability beyond authentication.** DKIM and DMARC decide whether a message is accepted,
+3. **Deliverability beyond authentication.** DKIM and DMARC decide whether a message is accepted,
    not whether it lands in an inbox. Reputation on a new sending domain is unmeasured and cannot
    be measured without volume this account is not permitted to send.

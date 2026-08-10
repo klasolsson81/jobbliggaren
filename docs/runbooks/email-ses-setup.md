@@ -378,8 +378,9 @@ nslookup -type=TXT jobbliggaren.se 8.8.8.8                               # expec
 ```
 
 The `_dmarc` line is the fifth leg, added 2026-08-10 with §4's mechanism. Read it for **count as well
-as value**: two records is not a stricter policy but no policy at all (RFC 7489 §6.6.3), and that
-failure looks identical to a correct one in a panel that lists them.
+as value**: two DMARC records are not a stricter policy but no policy at all (RFC 7489 §6.6.3
+discards anything not starting with `v=DMARC1`, then terminates on a surviving set of more than
+one), and that failure looks identical to a correct one in a panel that lists them.
 
 **Identity-level configuration set**, which is `release-checklist.md` §2.5 point 1 precondition
 4 and cannot be pinned by any test in the repo, because it is AWS-side state:

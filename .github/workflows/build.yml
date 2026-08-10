@@ -440,15 +440,20 @@ jobs:
       # Lådans kadenserade läsare och dess dead-man (#1201, grind M-7). Sviten stubbar
       # `systemctl`, `auditctl`, `df` och `curl` — varken root, auditd eller nätverk krävs.
       #
-      # Två egenskaper här kan INTE observeras av en grön produktionskörning, vilket är hela
-      # skälet att de har fixturer: (1) predikatets två icke-vakuitetsarmar — golv-timers och
-      # "audit-nycklarna är laddade i KÄRNAN" — fyrar per definition bara på en låda där något
-      # redan är fel, och en tom `systemctl --failed` på en låda där ingenting matar den är
-      # precis det tillstånd lådan mätte i 2026-08-10; (2) payload-invarianten, vars fixtur
-      # matar en adress genom den enda ytan som kan bära godtycklig text (ett fallerat
-      # unit-namn) och KORSAR kontrollen: varje tecken i `155.4.133.179` ligger inom
-      # teckenlistan, så en teckenbaserad filtrering släpper igenom den och fallet blir rött.
-      # Bara den formbaserade kontrollen passerar — verifierat med mutation 2026-08-10.
+      # Tre egenskaper här kan INTE observeras av en grön produktionskörning, vilket är hela
+      # skälet att de har fixturer — och alla tre är mutationsverifierade 2026-08-10, var och en
+      # mot en mutation som fäller SINA assertioner och inga andra:
+      #   1. Predikatets icke-vakuitetsarmar (golv-timers, "audit-nycklarna är laddade i KÄRNAN")
+      #      fyrar per definition bara på en låda där något redan är fel.
+      #   2. Payload-invarianten. Fixturen matar en adress genom den enda ytan som kan bära
+      #      godtycklig text — ett fallerat unit-namn — och KORSAR kontrollen två gånger om: en
+      #      teckenbaserad filtrering släpper igenom `155.4.133.179` (varje tecken är tillåtet),
+      #      och en formkontroll som bara gäller tokens med `@` släpper igenom den likaså. Båda
+      #      mutationerna fäller exakt sina fall.
+      #   3. Att stubben emitterar systemds statusglyf om `--plain` saknas. Utan den mätte hela
+      #      P1- och payload-blocket en form produktionen aldrig producerar: skarpt returnerade
+      #      `awk '{print $1}'` glyfen, namnet nådde aldrig saneringen, och invarianten höll av
+      #      misstag. Ta bort `--plain` ur skriptet och sviten går röd.
       - name: jobbliggaren-heartbeat (fixturer)
         run: bash deploy/systemd/jobbliggaren-heartbeat.test.sh
 

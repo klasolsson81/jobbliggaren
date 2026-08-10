@@ -98,27 +98,60 @@ mount later, and a directory that is not mounted cannot be exposed by any edit t
 > **PRECONDITION, AND IT IS NOT THE TOOLS: THE BOX'S CLONE MUST ALREADY CARRY THIS MECHANISM.**
 > Step 3 below says the recipient "arrives with the `deploy/` clone". That is true of a clone new
 > enough to contain it and false of every older one, and **nothing in this block checks which one
-> you have** — the install would proceed to `chown` a path that is not there. Measure it first:
+> you have** — the install would proceed to `chown` a path that is not there.
+>
+> **Three paths, not two, because two cannot tell the two failing cases apart:**
 >
 > ```bash
 > ls /opt/jobbliggaren/deploy/backup/age.recipient \
->    /opt/jobbliggaren/deploy/systemd/jobbliggaren-backup.sh
+>    /opt/jobbliggaren/deploy/systemd/jobbliggaren-backup.sh \
+>    /opt/jobbliggaren/deploy/systemd/jobbliggaren-inject-secrets.sh
 > ```
 >
-> **If either is missing, updating the clone is not a free step of this install and must not be
-> taken as one.** `jobbliggaren-reconcile.timer` runs hourly and ends in `docker compose up -d`, so
-> whatever a pull brings is applied to the live stack within the hour — by a unit, not by a
-> decision, and not at a moment anyone chose. A clone predating #198 is the case that bites: it
-> carries `.env`-sourced crypto values, while the compose file the pull brings reads them through
-> `_FILE` pointers into `/run/jobbliggaren/secrets`, a directory that does not exist until #198's
-> own install block has run. `vps-deploy-stack.md` §3 states the outcome — api and worker
-> crash-loop rather than refusing to start. **That outcome is quoted, not re-measured here: the
-> counterfactual is a live outage.**
+> The third path is what makes this a measurement rather than a warning. `66f2ac39` (#198) added
+> `jobbliggaren-inject-secrets.sh`, `jobbliggaren-tmpfiles.conf` **and** the compose `_FILE`
+> switch in one commit, so its presence dates the clone against #198 (verify with
+> `git log --diff-filter=A --oneline -- deploy/systemd/jobbliggaren-inject-secrets.sh`):
 >
-> **Order, therefore: #198's install block, then the clone update, then this one.** (Written
-> 2026-08-10, when the box was measured carrying neither mechanism while the reconcile timer was
-> live and enabled — the ordering had never been stated, and the install block above reads as
-> though the clone is always current.)
+> - **All three present** — nothing to do; continue into the install below.
+> - **First two missing, third present** — clone is between #198 and #197. Update the clone, then
+>   run this install. #198's side is already on the box.
+> - **All three missing** — clone predates #198, and **the clone update must come FIRST.** It
+>   cannot be second: #198's own install block reads every file it installs out of the clone
+>   (`master-key-ops.md` §2 installs `/opt/jobbliggaren/deploy/systemd/jobbliggaren-tmpfiles.conf`
+>   and the two `-secrets-present` units; §3 runs
+>   `/opt/jobbliggaren/deploy/systemd/jobbliggaren-inject-secrets.sh`). "Run #198's install first"
+>   is unexecutable on a clone that does not contain it.
+>
+> **Whichever branch applies, a clone update is not a free step and must not be taken as one.**
+> `jobbliggaren-reconcile.timer` fires at `*:47:00` with `RandomizedDelaySec=180`, and
+> `jobbliggaren-reconcile.sh` applies `docker compose up -d --remove-orphans --pull never` before
+> writing its stamp. The unit runs no `git` command — it applies whatever is already in the clone
+> — so **a pull is applied to the live stack by the next tick, up to ~63 minutes later, by a unit
+> rather than by a decision, and not at a moment anyone chose.** Confirm the timer's state before
+> you rely on any of this: `systemctl list-timers 'jobbliggaren-reconcile*'`.
+>
+> A clone predating #198 is the case that bites: it carries `.env`-sourced crypto values, while
+> the compose file the pull brings reads them through `_FILE` pointers naming `/run/app-secrets`
+> — the container side of the read-only bind mount whose host side is `/run/jobbliggaren/secrets`,
+> a directory that does not exist until #198's install block has run.
+> `vps-deploy-stack.md` §3 states the outcome: api and worker **crash-loop rather than refusing to
+> start**. **That outcome is quoted, not re-measured here — the counterfactual is a live outage.**
+>
+> **So on the all-three-missing branch, close the reconcile window around the pull rather than
+> racing it:**
+>
+> ```bash
+> sudo systemctl stop jobbliggaren-reconcile.timer
+> sudo git -C /opt/jobbliggaren pull
+> # master-key-ops.md §2 (install) then §3 (inject) — both now possible
+> # then the install block below
+> sudo systemctl start jobbliggaren-reconcile.timer
+> ```
+>
+> (Written 2026-08-10, when the box was measured carrying none of the three while the reconcile
+> timer was live — the ordering had never been stated, and the install block below reads as though
+> the clone is always current.)
 
 ### Install (once)
 

@@ -2,7 +2,10 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ReAuthDialog, type ReAuthDialogProps } from "./reauth-dialog";
-import type { ActionResult } from "@/lib/actions/_action-result";
+import type {
+  ActionResult,
+  RefusableActionResult,
+} from "@/lib/actions/_action-result";
 
 // The generic re-auth shell (PR2c-1). It owns the password field, the submit
 // gating, the pending lock and the server-error line; consumers inject any extra
@@ -182,6 +185,76 @@ describe("ReAuthDialog", () => {
 
     await screen.findByRole("alert");
     expect(onSuccess).not.toHaveBeenCalled();
+    expect(screen.getByLabelText("Lösenord")).toBeInTheDocument();
+  });
+
+  // #734 B-ii — the refusal escape hatch. `open` is private uncontrolled state, so a
+  // consumer cannot close this dialog from outside; a failure that must NOT re-offer
+  // submit has to be handled here. Both counterfactuals below exist because the branch is
+  // double-gated (flag AND handler) — that gating is what keeps delete-account and
+  // change-password on exactly their old behaviour.
+  it("closes and calls onRefused when the action refuses, instead of showing the error line", async () => {
+    const onRefused = vi.fn();
+    const onSuccess = vi.fn();
+    const action = vi
+      .fn<(password: string) => Promise<RefusableActionResult>>()
+      .mockResolvedValue({
+        success: false,
+        refused: true,
+        error: "E-postutskick är inte aktiverat just nu.",
+      });
+    const user = userEvent.setup();
+    renderReAuth({ action, onRefused, onSuccess });
+    await openDialog(user);
+
+    await user.type(screen.getByLabelText("Lösenord"), "hemligt123");
+    await user.click(screen.getByRole("button", { name: "Bekräfta" }));
+
+    await waitFor(() =>
+      expect(onRefused).toHaveBeenCalledWith("E-postutskick är inte aktiverat just nu."),
+    );
+    expect(onRefused).toHaveBeenCalledTimes(1);
+    expect(onSuccess).not.toHaveBeenCalled();
+    // Closed, and the refusal never went through the retryable error channel.
+    await waitFor(() =>
+      expect(screen.queryByLabelText("Lösenord")).not.toBeInTheDocument(),
+    );
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("COUNTERFACTUAL: a refused failure without onRefused behaves exactly as before", async () => {
+    // The fail-safe the other three consumers rely on: they never pass onRefused, so even a
+    // flagged failure stays an ordinary error line in an open dialog rather than vanishing.
+    const action = vi
+      .fn<(password: string) => Promise<RefusableActionResult>>()
+      .mockResolvedValue({ success: false, refused: true, error: "Vägrat." });
+    const user = userEvent.setup();
+    renderReAuth({ action });
+    await openDialog(user);
+
+    await user.type(screen.getByLabelText("Lösenord"), "hemligt123");
+    await user.click(screen.getByRole("button", { name: "Bekräfta" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Vägrat.");
+    expect(screen.getByLabelText("Lösenord")).toBeInTheDocument();
+  });
+
+  it("COUNTERFACTUAL: an ordinary failure with onRefused given does not call it", async () => {
+    // Pins that the discriminator is the FLAG, not the handler's presence — otherwise the
+    // card would swallow a wrong-password error into a permanent panel.
+    const onRefused = vi.fn();
+    const action = vi
+      .fn<(password: string) => Promise<RefusableActionResult>>()
+      .mockResolvedValue({ success: false, error: "Lösenordet är felaktigt." });
+    const user = userEvent.setup();
+    renderReAuth({ action, onRefused });
+    await openDialog(user);
+
+    await user.type(screen.getByLabelText("Lösenord"), "fel");
+    await user.click(screen.getByRole("button", { name: "Bekräfta" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Lösenordet är felaktigt.");
+    expect(onRefused).not.toHaveBeenCalled();
     expect(screen.getByLabelText("Lösenord")).toBeInTheDocument();
   });
 });

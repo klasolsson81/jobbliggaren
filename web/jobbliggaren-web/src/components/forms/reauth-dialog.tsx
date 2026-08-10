@@ -37,7 +37,7 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { PasswordInput } from "@/components/forms/PasswordInput";
-import type { ActionResult } from "@/lib/actions/_action-result";
+import type { RefusableActionResult } from "@/lib/actions/_action-result";
 
 export interface ReAuthDialogProps {
   /** The element that opens the dialog (rendered via `DialogTrigger asChild`). */
@@ -56,8 +56,12 @@ export interface ReAuthDialogProps {
    * operation carries the password and the backend verifies it. Returns
    * `{ success: false, error }` on failure; on success the action redirects, so
    * control never resolves back here.
+   *
+   * Typed against `RefusableActionResult` so a `refused` failure can reach `onRefused`.
+   * A plain `ActionResult`-returning action is assignable (the flag is optional), which
+   * is why the three consumers that do not use it need no change.
    */
-  action: (password: string) => Promise<ActionResult>;
+  action: (password: string) => Promise<RefusableActionResult>;
   /** Extra fields rendered next to the password (e.g. delete's confirm-email). */
   children?: ReactNode;
   /**
@@ -100,6 +104,17 @@ export interface ReAuthDialogProps {
    * returns here and nothing is called.
    */
   onSuccess?: () => void;
+  /**
+   * Invoked when the action resolves a failure carrying `refused` — the operation is
+   * blocked by deployment configuration and no retry can succeed. Reset/close runs first
+   * (as for `onSuccess`), then the consumer renders the explanation OUTSIDE the dialog,
+   * because the inline `role="alert"` line keeps submit live and reads as "you typed
+   * something wrong" for a state that is neither the user's fault nor retryable.
+   *
+   * When omitted, a `refused` failure is rendered as an ordinary server error — the
+   * pre-existing behaviour, which is what the other three consumers still get.
+   */
+  onRefused?: (message: string) => void;
 }
 
 interface ReAuthFormValues {
@@ -122,6 +137,7 @@ export function ReAuthDialog({
   canSubmit,
   onOpenChange,
   onSuccess,
+  onRefused,
 }: ReAuthDialogProps) {
   const ts = useTranslations("settings");
   const tv = useTranslations("validation");
@@ -173,6 +189,17 @@ export function ReAuthDialog({
     startTransition(async () => {
       const result = await action(parsed.data.password);
       if (!result.success) {
+        // A refusal the consumer handles: close and hand it over, so the explanation can be
+        // rendered where the retry affordance is removed rather than beside a live submit.
+        // Both conditions are required — without onRefused this falls through to the error
+        // line below, which is why the other consumers are untouched.
+        if (result.refused && onRefused) {
+          reset();
+          setServerError(null);
+          setOpen(false);
+          onRefused(result.error);
+          return;
+        }
         setServerError(result.error);
         return;
       }

@@ -11,7 +11,7 @@
 // emailed link is opened, so the confirmation says a link was SENT, not that the
 // email was changed.
 
-import { useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
@@ -36,6 +36,20 @@ export function ChangeEmailCard({ currentEmail }: ChangeEmailCardProps) {
   const sameEmailFeedbackId = useId();
   const [newEmail, setNewEmail] = useState("");
   const [sent, setSent] = useState(false);
+  // #734 B-ii: the backend refused up front because no configured sender can deliver
+  // (503 + Auth.EmailDeliveryUnavailable). Its own state rather than the dialog's error
+  // line, because no retry can succeed until an operator sets a real Email:Provider.
+  const [refusedMessage, setRefusedMessage] = useState<string | null>(null);
+  const refusedRef = useRef<HTMLParagraphElement>(null);
+
+  // Focus management (not data fetching): submitting closes the dialog, so the focused
+  // element leaves the DOM and focus falls to <body>. And role="status" announces CHANGES
+  // to a live region that already exists; this one mounts already filled, which NVDA and
+  // JAWS routinely miss (WCAG 4.1.3). The focus move is what actually delivers the message
+  // — the same reason every sibling auth panel does it (RegisterForm).
+  useEffect(() => {
+    if (refusedMessage) refusedRef.current?.focus();
+  }, [refusedMessage]);
 
   function resetFields() {
     setNewEmail("");
@@ -56,6 +70,33 @@ export function ChangeEmailCard({ currentEmail }: ChangeEmailCardProps) {
     const trimmed = newEmail.trim();
     if (!emailShape.safeParse(trimmed).success) return false;
     return trimmed.toLowerCase() !== currentEmail.trim().toLowerCase();
+  }
+
+  // Delivery is refused for the whole deployment, so the change-email flow is rendered in
+  // place of itself: no trigger, no dialog, nothing to submit. Mirrors RegisterForm's
+  // registrations-closed panel, and for the same reason — a live control that cannot
+  // succeed invites a retry and reads as a fault the user could fix.
+  //
+  // The promise copy (`description`) is deliberately NOT rendered here. Its string is
+  // untouched in messages/, so release-checklist.md §2.6 point 5.5 condition (a) is
+  // unaffected — this is one conditional state, not a softening of the published claim,
+  // and publishing "Vi skickar en bekräftelselänk" directly above its own denial would
+  // contradict the panel.
+  if (refusedMessage) {
+    return (
+      <section className="jp-card">
+        <h2 className="jp-card__title">{ts("account.changeEmail.title")}</h2>
+        <p
+          ref={refusedRef}
+          tabIndex={-1}
+          role="status"
+          aria-live="polite"
+          className="text-body-sm text-text-primary focus:outline-none"
+        >
+          {refusedMessage}
+        </p>
+      </section>
+    );
   }
 
   return (
@@ -100,6 +141,14 @@ export function ChangeEmailCard({ currentEmail }: ChangeEmailCardProps) {
           onSuccess={() => {
             resetFields();
             setSent(true);
+          }}
+          // The dialog closes and hands the message over; the card then renders itself as
+          // the panel above. The action already resolved the copy from messages/ — the
+          // backend `detail` is never rendered (see changeEmailAction's 503 arm).
+          onRefused={(message) => {
+            resetFields();
+            setSent(false);
+            setRefusedMessage(message);
           }}
         >
           <div className="flex flex-col gap-1.5">

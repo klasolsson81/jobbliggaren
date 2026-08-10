@@ -2,10 +2,10 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ChangeEmailCard } from "./change-email-card";
-import type { ActionResult } from "@/lib/actions/_action-result";
+import type { RefusableActionResult } from "@/lib/actions/_action-result";
 
 const changeEmailActionMock =
-  vi.fn<(current: string, newEmail: string) => Promise<ActionResult>>();
+  vi.fn<(current: string, newEmail: string) => Promise<RefusableActionResult>>();
 
 vi.mock("@/lib/actions/me", () => ({
   changeEmailAction: (current: string, newEmail: string) =>
@@ -148,6 +148,74 @@ describe("ChangeEmailCard", () => {
     expect(
       screen.queryByText(/Vi har skickat en bekräftelselänk/),
     ).not.toBeInTheDocument();
+    // COUNTERFACTUAL for the refusal panel below: an ordinary, retryable failure must
+    // never remove the retry affordance. The card trigger is aria-hidden behind the open
+    // dialog, so the affordance that exists here is the live submit inside it.
+    const stillOpen = within(screen.getByRole("dialog"));
+    expect(
+      stillOpen.getByRole("button", { name: "Skicka bekräftelselänk" }),
+    ).toBeEnabled();
+  });
+
+  // #734 B-ii — the delivery-refusal panel. Reached only when the backend answers 503 with
+  // title Auth.EmailDeliveryUnavailable, i.e. no configured sender can deliver at all.
+  const REFUSAL_COPY =
+    "E-postutskick är inte aktiverat just nu, så vi kan inte skicka någon bekräftelselänk. Din adress är oförändrad.";
+
+  it("replaces the card with a focused status panel and removes the trigger when delivery is refused", async () => {
+    changeEmailActionMock.mockResolvedValueOnce({
+      success: false,
+      refused: true,
+      error: REFUSAL_COPY,
+    });
+    const user = userEvent.setup();
+    render(<ChangeEmailCard currentEmail={CURRENT_EMAIL} />);
+    const dialog = await openDialog(user);
+
+    await user.type(dialog.getByLabelText("Nuvarande lösenord"), CURRENT_PASSWORD);
+    await user.type(dialog.getByLabelText("Ny e-postadress"), NEW_EMAIL);
+    await user.click(dialog.getByRole("button", { name: "Skicka bekräftelselänk" }));
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+
+    // The explanation is delivered...
+    const panel = await screen.findByText(REFUSAL_COPY);
+    expect(panel).toHaveAttribute("role", "status");
+    // ...focus moves to it (role=status mounted already filled is missed by NVDA/JAWS,
+    // and the element Radix would restore focus to is being removed in the same commit)...
+    await waitFor(() => expect(panel).toHaveFocus());
+    // ...it is NOT the red retryable error channel...
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    // ...and the retry affordance is gone, which is half of the defect this closes.
+    expect(
+      screen.queryByRole("button", { name: "Byt e-postadress" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("does not publish the delivery promise above its own denial", async () => {
+    // The string in messages/ is untouched (release-checklist §2.6 point 5.5 condition (a)
+    // forbids softening it); this pins only that it is not RENDERED in the refused state.
+    changeEmailActionMock.mockResolvedValueOnce({
+      success: false,
+      refused: true,
+      error: REFUSAL_COPY,
+    });
+    const user = userEvent.setup();
+    render(<ChangeEmailCard currentEmail={CURRENT_EMAIL} />);
+    const dialog = await openDialog(user);
+
+    await user.type(dialog.getByLabelText("Nuvarande lösenord"), CURRENT_PASSWORD);
+    await user.type(dialog.getByLabelText("Ny e-postadress"), NEW_EMAIL);
+    await user.click(dialog.getByRole("button", { name: "Skicka bekräftelselänk" }));
+
+    await screen.findByText(REFUSAL_COPY);
+    expect(
+      screen.queryByText(/Vi skickar en bekräftelselänk till den nya adressen/),
+    ).not.toBeInTheDocument();
+    // The heading stays — the card is still identifiable in the settings page outline.
+    expect(
+      screen.getByRole("heading", { name: "Byt e-postadress" }),
+    ).toBeInTheDocument();
   });
 
   it("resets the new-email field after close and reopen", async () => {

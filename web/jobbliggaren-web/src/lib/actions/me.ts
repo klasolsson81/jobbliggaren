@@ -28,7 +28,7 @@ import {
   type UpdateFollowedCompanyNotificationConsentInput,
 } from "./me-schemas";
 import { mapActionError } from "./_action-error";
-import type { ActionResult } from "./_action-result";
+import type { ActionResult, RefusableActionResult } from "./_action-result";
 
 export async function updateMyProfileAction(
   input: UpdateMyProfileInput
@@ -363,7 +363,7 @@ export async function changePasswordAction(
 export async function changeEmailAction(
   currentPassword: string,
   newEmail: string
-): Promise<ActionResult> {
+): Promise<RefusableActionResult> {
   const ts = await getTranslations("settings");
   const te = await getTranslations("errors");
   const t = await getTranslations("validation");
@@ -409,6 +409,34 @@ export async function changeEmailAction(
             ? ts("account.errors.changeEmailCooldown")
             : ts("account.errors.emailTaken"),
       };
+    }
+    if (res.status === 503) {
+      // #734 B-ii. Discriminated on the ProblemDetails TITLE, never on the status alone,
+      // because at least two other producers answer 503 on THIS route:
+      //   - `Program.cs` maps SessionStoreUnavailableException across the whole pipeline, and
+      //     this endpoint is RequireAuthorization(), so every request touches the session
+      //     store first. It writes JSON that HAS no `title` key.
+      //   - A reverse proxy can answer 503 of its own, with a body that is not JSON at all.
+      // Those are two different mechanisms and readProblemTitle resolves both to null by
+      // different routes (missing key vs. rejected parse); each is pinned separately. They
+      // then fall through to the generic copy, which is literally true for them. A status-only
+      // arm would instead print "email is not enabled" during a Redis outage and mask it.
+      // The rate limiter is NOT a third producer: ASP.NET defaults rejection to 503, but
+      // RateLimitingExtensions overrides it to 429. That override buys the right COPY, not
+      // the arm's correctness — a 503 from the limiter carries no title either, so it would
+      // fall through here rather than claim email is off.
+      const title = await readProblemTitle(res);
+      if (title === "Auth.EmailDeliveryUnavailable") {
+        // `refused`, not a plain error: the sender cannot deliver until an operator sets a real
+        // Email:Provider, so the card replaces its trigger with a status panel instead of
+        // re-offering a submit that cannot succeed. Same exact-whitelist discipline as the 409
+        // arm above — the title is compared, never rendered, and backend `detail` is not read.
+        return {
+          success: false,
+          refused: true,
+          error: ts("account.errors.emailDeliveryUnavailable"),
+        };
+      }
     }
     if (!res.ok) {
       return {

@@ -33,11 +33,12 @@ internal sealed partial class PasswordResetDispatchService(
     {
         // CancellationToken.None, deliberately, and NOT the stopping token — the drain depends on it.
         //
-        // BackgroundService.StopAsync cancels its own token source BEFORE awaiting this task, so by the
-        // time StopAsync has completed the writer the stopping token is already cancelled. Passing it
-        // down would abort the drain on the first awaited send: SesEmailSender awaits the SDK call with
-        // the token, and both catch filters here and there exclude OperationCanceledException, so the
-        // OCE would unwind straight out of this loop and take the rest of the queue with it.
+        // The order is: our StopAsync completes the writer, THEN base.StopAsync cancels its own token
+        // source, and only then does it await this task. So the cancellation lands while this loop is
+        // still draining, not before it starts. Passing that token down would abort the drain on the
+        // first awaited send: SesEmailSender awaits the SDK call with the token, and both catch filters
+        // here and there exclude OperationCanceledException, so the OCE would unwind straight out of
+        // this loop and take the rest of the queue with it.
         //
         // Worse, it would fail ONLY in the configuration that matters. NullEmailSender and
         // ConsoleEmailSender ignore the token, so a drain looks healthy in Development and in
@@ -49,17 +50,16 @@ internal sealed partial class PasswordResetDispatchService(
         {
             await DispatchOneAsync(dispatch, CancellationToken.None);
         }
-
-        _ = stoppingToken;
     }
 
     public override async Task StopAsync(CancellationToken cancellationToken)
     {
         // Complete the writer FIRST so the loop above sees the end of the stream and drains. That is
         // the ONLY thing that ends the loop — see ExecuteAsync for why it must not observe the stopping
-        // token. The bound is base.StopAsync's own await below, which honours the host's shutdown
-        // timeout; no number is named here because the Api does not configure
-        // HostOptions.ShutdownTimeout and inventing one would be a claim about a value it never sets.
+        // token. The bound is base.StopAsync's own await below, which honours HostOptions.ShutdownTimeout.
+        // That timeout is NOT unset: the framework carries a default, and this app does not pin it. The
+        // number is left out on purpose — it belongs to the runtime, so writing it here would put a value
+        // a version bump can change into a comment nothing re-measures.
         queue.Complete();
         await base.StopAsync(cancellationToken);
     }

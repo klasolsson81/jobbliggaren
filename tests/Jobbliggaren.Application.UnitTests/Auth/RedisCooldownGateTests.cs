@@ -142,6 +142,12 @@ public class RedisCooldownGateTests
         // loop that iterated over nothing, which is exactly how the first draft of this test passed.
         swept.ShouldBeGreaterThan(500, "the sweep must actually have exercised the gate");
         char.ToUpperInvariant('ſ').ShouldBe('S', "U+017F is the character the audit measured");
+
+        // And the correction above becomes a measurement rather than a sentence. If a future runtime
+        // ever DID fold U+0131 onto 'I', this line falls and the comment stops being false in silence.
+        char.ToUpperInvariant('ı').ShouldBe('ı',
+            "U+0131 is NOT a bypass character in .NET - the Python probe that claimed it measured "
+            + "another runtime's casing rules");
     }
 
     [Fact]

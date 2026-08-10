@@ -15,8 +15,9 @@ namespace Jobbliggaren.Application.UnitTests.Auth;
 /// cancellation token.
 /// <para>
 /// <b>This test exists because the bug it pins was invisible in every environment we run tests in.</b>
-/// <c>BackgroundService.StopAsync</c> cancels its own token source BEFORE awaiting the execute task, so
-/// the stopping token is already cancelled by the time the writer is completed. An earlier version
+/// The override completes the writer first, and only then calls <c>base.StopAsync</c> — which cancels its
+/// own token source BEFORE awaiting the execute task. The cancellation therefore lands while the drain is
+/// still running. An earlier version
 /// passed that token down into the per-item work; <c>SesEmailSender</c> awaits the SDK call with it, and
 /// both catch filters exclude <c>OperationCanceledException</c> — so the OCE unwound straight out of the
 /// loop and took the rest of the queue with it.

@@ -411,14 +411,18 @@ export async function changeEmailAction(
       };
     }
     if (res.status === 503) {
-      // #734 B-ii. Discriminated on the ProblemDetails TITLE, never on the status, because at
-      // least two other producers answer 503 on THIS route. `Program.cs` maps
-      // SessionStoreUnavailableException across the whole pipeline and this endpoint is
-      // RequireAuthorization(), so every request touches the session store first; a reverse
-      // proxy can answer 503 of its own. Both write a body with no `title`, so
-      // readProblemTitle resolves them to null and they fall through to the generic copy,
-      // which is literally true for them. A status-only arm would instead print "email is not
-      // enabled" during a Redis outage and mask the incident.
+      // #734 B-ii. Discriminated on the ProblemDetails TITLE, never on the status alone,
+      // because at least two other producers answer 503 on THIS route:
+      //   - `Program.cs` maps SessionStoreUnavailableException across the whole pipeline, and
+      //     this endpoint is RequireAuthorization(), so every request touches the session
+      //     store first. It writes JSON that HAS no `title` key.
+      //   - A reverse proxy can answer 503 of its own, with a body that is not JSON at all.
+      // Those are two different mechanisms and readProblemTitle resolves both to null by
+      // different routes (missing key vs. rejected parse); each is pinned separately. They
+      // then fall through to the generic copy, which is literally true for them. A status-only
+      // arm would instead print "email is not enabled" during a Redis outage and mask it.
+      // The rate limiter is NOT a third producer: ASP.NET defaults rejection to 503, but
+      // RateLimitingExtensions overrides it to 429 — the arm's correctness rests on that.
       const title = await readProblemTitle(res);
       if (title === "Auth.EmailDeliveryUnavailable") {
         // `refused`, not a plain error: the sender cannot deliver until an operator sets a real

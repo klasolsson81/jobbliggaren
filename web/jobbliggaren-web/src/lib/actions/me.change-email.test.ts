@@ -174,8 +174,11 @@ describe("changeEmailAction", () => {
   });
 
   it("does NOT claim email is disabled for a 503 carrying some OTHER ProblemDetails title", async () => {
-    // The whitelist is exact, not "has a title" — a well-formed ProblemDetails from any
-    // other producer must still fall through to the generic copy.
+    // The whitelist is exact, not "has a title". DECLARED UNREACHABLE: no producer sends this
+    // particular title on this route (Auth.RegistrationsClosed comes from POST /auth/register
+    // only), so the fixture is a deliberately non-matching well-formed ProblemDetails. It pins
+    // the SHAPE of the comparison — exact match, not "title present" — and asserts only that
+    // the read side degrades to the generic copy.
     authedFetchMock.mockResolvedValue(
       fakeResponse(503, { title: "Auth.RegistrationsClosed" })
     );
@@ -202,8 +205,11 @@ describe("changeEmailAction", () => {
   });
 
   it("does NOT refuse on a 409 carrying our title — the arm is bound to the status too", async () => {
-    // Mirror of the hard constraint: the title alone must not trigger the refusal. Catches
-    // a 503 arm placed ABOVE the 409 arm, which would swallow the cooldown/taken branch.
+    // Mirror of the hard constraint: the title alone must not trigger the refusal. What this
+    // crosses is an arm that reads the title WITHOUT the `res.status === 503` gate — that arm
+    // would swallow the cooldown/taken branch. Moving the 503 block verbatim above the 409 arm
+    // is behaviour-neutral while the status gate is present, and would leave this test green;
+    // the gate, not the position, is what it measures.
     authedFetchMock.mockResolvedValue(
       fakeResponse(409, { title: "Auth.EmailDeliveryUnavailable" })
     );

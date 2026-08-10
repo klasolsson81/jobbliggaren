@@ -645,14 +645,16 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
         flödet aldrig startar, inte för att den var ett falskt protokoll (security-auditor
         2026-08-09). Där **själva begäran** är den säkerhetsrelevanta händelsen binder i stället
         #842:s Art. 12(3)-opt-in, och frånvaro vore fel.
-        ✅ **Användarytan är sluten sedan 2026-08-10 (B-ii).** Tillståndet som stängdes: en 503 föll
+        **Användarytan är STÄNGD sedan 2026-08-10 (B-ii).** Tillståndet som stängdes: en 503 föll
         igenom till det generiska `changeEmailFailed`, så användaren fick ingen förklaring, inte
         veta att adressen var oförändrad, och submit-knappen levde kvar för ett omförsök som inte
         kan lyckas. `changeEmailAction` bär nu en 503-arm som returnerar ett `refused`-resultat, och
         kortet ersätter sig självt med en `role="status"`-panel utan trigger — affordansen tas bort,
-        inte bara texten. Armen diskriminerar på ProblemDetails-**titeln**, aldrig på statusen:
+        inte bara texten. Armen diskriminerar på ProblemDetails-**titeln**, aldrig på statusen
+        ensam (grinden är konjunktiv: status 503 OCH exakt titel):
         rutten har minst två andra 503-producenter (`SessionStoreUnavailableException` via Redis,
-        vars body saknar `title` helt, samt en omvänd proxy) — en statusbaserad arm skriver
+        vars body saknar `title`-nyckeln, samt en omvänd proxy, vars body inte är JSON alls) — en
+        statusbaserad arm skriver
         "e-post är inte aktiverat" mitt under ett driftavbrott och **maskerar incidenten**. **Båda
         kontrafaktumen är pinnade** (`me.change-email.test.ts`: Redis-bodyn `Program.cs` faktiskt
         skriver, främmande titel, icke-JSON-proxy, samt en 409 som bär vår egen titel och inte får

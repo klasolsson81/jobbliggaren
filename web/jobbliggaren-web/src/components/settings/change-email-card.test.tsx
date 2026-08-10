@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ChangeEmailCard } from "./change-email-card";
 import type { RefusableActionResult } from "@/lib/actions/_action-result";
@@ -148,9 +148,26 @@ describe("ChangeEmailCard", () => {
     expect(
       screen.queryByText(/Vi har skickat en bekräftelselänk/),
     ).not.toBeInTheDocument();
-    // COUNTERFACTUAL for the refusal panel below: an ordinary, retryable failure must
-    // never remove the retry affordance. The card trigger is aria-hidden behind the open
-    // dialog, so the affordance that exists here is the live submit inside it.
+  });
+
+  it("keeps the retry affordance alive when an ordinary failure is shown", async () => {
+    // COUNTERFACTUAL for the refusal panel below: only a `refused` failure may remove the
+    // retry affordance. Its own `it` so a regression names which property broke. The card
+    // trigger is aria-hidden behind the open dialog, so the affordance that exists in this
+    // state is the live submit inside it.
+    changeEmailActionMock.mockResolvedValueOnce({
+      success: false,
+      error: "E-postadressen används redan av ett annat konto.",
+    });
+    const user = userEvent.setup();
+    render(<ChangeEmailCard currentEmail={CURRENT_EMAIL} />);
+    const dialog = await openDialog(user);
+
+    await user.type(dialog.getByLabelText("Nuvarande lösenord"), CURRENT_PASSWORD);
+    await user.type(dialog.getByLabelText("Ny e-postadress"), NEW_EMAIL);
+    await user.click(dialog.getByRole("button", { name: "Skicka bekräftelselänk" }));
+
+    await screen.findByRole("alert");
     const stillOpen = within(screen.getByRole("dialog"));
     expect(
       stillOpen.getByRole("button", { name: "Skicka bekräftelselänk" }),
@@ -160,7 +177,19 @@ describe("ChangeEmailCard", () => {
   // #734 B-ii — the delivery-refusal panel. Reached only when the backend answers 503 with
   // title Auth.EmailDeliveryUnavailable, i.e. no configured sender can deliver at all.
   const REFUSAL_COPY =
-    "E-postutskick är inte aktiverat just nu, så vi kan inte skicka någon bekräftelselänk. Din adress är oförändrad.";
+    "E-postutskick är inte aktiverat just nu, så vi kan inte skicka någon bekräftelselänk. Din adress är oförändrad. Försök igen senare.";
+
+  /**
+   * Radix restores focus from `FocusScope`'s cleanup inside a `setTimeout(…, 0)`, i.e. AFTER
+   * the card's own focus effect. A bare `waitFor(...toHaveFocus())` resolves on the first
+   * passing poll and therefore cannot tell "focus held" from "focus was stolen a tick later".
+   * Flushing the macrotask queue first puts the assertion on the far side of that threshold.
+   */
+  async function flushRadixFocusRestore() {
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+  }
 
   it("replaces the card with a focused status panel and removes the trigger when delivery is refused", async () => {
     changeEmailActionMock.mockResolvedValueOnce({
@@ -181,9 +210,16 @@ describe("ChangeEmailCard", () => {
     // The explanation is delivered...
     const panel = await screen.findByText(REFUSAL_COPY);
     expect(panel).toHaveAttribute("role", "status");
-    // ...focus moves to it (role=status mounted already filled is missed by NVDA/JAWS,
-    // and the element Radix would restore focus to is being removed in the same commit)...
-    await waitFor(() => expect(panel).toHaveFocus());
+    // ...focus moves to the WRAPPER that carries the heading with it, and survives Radix's
+    // own restore attempt (role=status mounted already filled is missed by NVDA/JAWS, so the
+    // focus move is what actually delivers the message)...
+    await flushRadixFocusRestore();
+    expect(panel.parentElement).toHaveFocus();
+    expect(
+      within(panel.parentElement as HTMLElement).getByRole("heading", {
+        name: "Byt e-postadress",
+      }),
+    ).toBeInTheDocument();
     // ...it is NOT the red retryable error channel...
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     // ...and the retry affordance is gone, which is half of the defect this closes.

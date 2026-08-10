@@ -192,9 +192,10 @@ public static class AuthErrorCodes
     /// reason nor that the address was unchanged, and the submit button stayed live).
     /// <c>changeEmailAction</c> now returns a <c>refused</c> result on this title and the card
     /// replaces itself with a <c>role="status"</c> panel, removing the retry affordance.
-    /// <b>It discriminates on the TITLE, never on the status</b>, because this route has at least two
-    /// other 503 producers — a Redis-backed <c>SessionStoreUnavailableException</c> (whose body
-    /// carries no <c>title</c> at all) and a reverse proxy — and a status-only arm would print
+    /// <b>It discriminates on the TITLE, never on the status alone</b> (the gate is conjunctive —
+    /// status 503 AND the exact title), because this route has at least two other 503 producers:
+    /// a Redis-backed <c>SessionStoreUnavailableException</c>, whose body carries no <c>title</c>
+    /// key, and a reverse proxy, whose body is not JSON at all. A status-only arm would print
     /// "e-post är inte aktiverat" during an incident and mask it. Both counterfactuals are pinned in
     /// <c>me.change-email.test.ts</c>; do not relax the arm to a bare status check.
     /// </para>

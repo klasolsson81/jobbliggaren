@@ -22,7 +22,7 @@ export type ActionResult = ActionSuccess | ActionFailure;
 
 /**
  * `ActionResult` plus an opt-in refusal flag (#734 B-ii). A separate type rather than a
- * wider `ActionResult`, so ~30 actions and the three `ReAuthDialog` consumers that will
+ * wider `ActionResult`, so the many actions and the two `ReAuthDialog` consumers that will
  * never set it do not have to advertise it; the widening is visible in the signature of
  * the one action that does.
  *
@@ -33,8 +33,8 @@ export type ActionResult = ActionSuccess | ActionFailure;
  * different input can succeed until an operator changes something. It is deliberately
  * named for the class, not the feature.
  *
- * <b>What it is NOT, because the near miss is seven lines from the only call site:</b> a
- * cooldown or rate-limit is not a refusal. `changeEmailAction`'s 409 arm
+ * <b>What it is NOT, and the near miss sits in the same function as the only call site:</b>
+ * a cooldown or rate-limit is not a refusal. `changeEmailAction`'s 409 arm
  * (`Auth.ChangeEmailCooldown`) is also a refusal by deployment state, but a retry after
  * waiting DOES succeed, so marking it `refused` would tell a cooling-down user their
  * address change is permanently unavailable and remove the control they need.

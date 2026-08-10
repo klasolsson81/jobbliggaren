@@ -40,7 +40,7 @@ export function ChangeEmailCard({ currentEmail }: ChangeEmailCardProps) {
   // (503 + Auth.EmailDeliveryUnavailable). Its own state rather than the dialog's error
   // line, because no retry can succeed until an operator sets a real Email:Provider.
   const [refusedMessage, setRefusedMessage] = useState<string | null>(null);
-  const refusedRef = useRef<HTMLParagraphElement>(null);
+  const refusedRef = useRef<HTMLDivElement>(null);
 
   // Focus management (not data fetching): submitting closes the dialog, so the focused
   // element leaves the DOM and focus falls to <body>. And role="status" announces CHANGES
@@ -85,16 +85,22 @@ export function ChangeEmailCard({ currentEmail }: ChangeEmailCardProps) {
   if (refusedMessage) {
     return (
       <section className="jp-card">
-        <h2 className="jp-card__title">{ts("account.changeEmail.title")}</h2>
-        <p
-          ref={refusedRef}
-          tabIndex={-1}
-          role="status"
-          aria-live="polite"
-          className="text-body-sm text-text-primary focus:outline-none"
-        >
-          {refusedMessage}
-        </p>
+        {/* Focus lands on the wrapper, not the message, so the heading is read with it:
+            /installningar renders nine cards and the message alone gives a screen-reader
+            user no anchor to which one it belongs to. role="status" stays on the <p>
+            alone — nested live regions double-announce. No focus:outline-none here: the
+            global *:focus-visible rule paints a token-borne ring, which a keyboard user
+            needs in order to see where focus went. */}
+        <div ref={refusedRef} tabIndex={-1}>
+          <h2 className="jp-card__title">{ts("account.changeEmail.title")}</h2>
+          <p
+            role="status"
+            aria-live="polite"
+            className="text-body-sm text-text-primary"
+          >
+            {refusedMessage}
+          </p>
+        </div>
       </section>
     );
   }

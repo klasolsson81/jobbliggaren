@@ -59,7 +59,7 @@ export interface ReAuthDialogProps {
    *
    * Typed against `RefusableActionResult` so a `refused` failure can reach `onRefused`.
    * A plain `ActionResult`-returning action is assignable (the flag is optional), which
-   * is why the three consumers that do not use it need no change.
+   * is why the two consumers that do not use it need no change.
    */
   action: (password: string) => Promise<RefusableActionResult>;
   /** Extra fields rendered next to the password (e.g. delete's confirm-email). */
@@ -93,6 +93,11 @@ export interface ReAuthDialogProps {
    * Notified when the dialog opens (`true`) / closes (`false`). Lets a consumer
    * reset its own injected-field state on close; the password field and the
    * server error are reset here automatically.
+   *
+   * User-driven opens and closes only. The programmatic closes on `onSuccess` and
+   * `onRefused` call `setOpen(false)` directly and do NOT route through this — they
+   * cannot, because the close happens inside the transition and `handleOpenChange`
+   * refuses to act while pending. Those two callbacks own their own cleanup.
    */
   onOpenChange?: (open: boolean) => void;
   /**
@@ -112,7 +117,7 @@ export interface ReAuthDialogProps {
    * something wrong" for a state that is neither the user's fault nor retryable.
    *
    * When omitted, a `refused` failure is rendered as an ordinary server error — the
-   * pre-existing behaviour, which is what the other three consumers still get.
+   * pre-existing behaviour, which is what the other two consumers still get.
    */
   onRefused?: (message: string) => void;
 }

@@ -241,7 +241,7 @@
       "emailTaken": "The email address is already used by another account.",
       "changeEmailFailed": "Could not change the email address.",
       "changeEmailCooldown": "You recently requested an email change. Wait a moment before trying again.",
-      "emailDeliveryUnavailable": "Email delivery is not enabled right now, so we cannot send a confirmation link. Your address is unchanged."
+      "emailDeliveryUnavailable": "Email delivery is not enabled right now, so we cannot send a confirmation link. Your address is unchanged. Try again later."
     }
   }
 }

@@ -5,11 +5,18 @@
 # second rules file. A gate with two owners has none, which is the invisibility that created
 # #1201 in the first place.
 #
-# THE FILENAME IS LOAD-BEARING AND IS NOT A NUMBER. `augenrules` concatenates rules.d in sort
-# order, and Debian's own audit.rules carries `-D` (delete all rules). In the C locale a numeric
-# prefix sorts BEFORE `audit.rules` ('0'-'9' < 'a'), so a file named 50- or 99- would be loaded
-# and then deleted again by the distribution's file — leaving `auditctl -s` reporting "enabled"
-# with none of our watches present. `zz-` sorts after. Never edit Debian's audit.rules.
+# THE FILENAME SORTS LAST BY CONVENTION, NOT BECAUSE A COLLISION WOULD OTHERWISE OCCUR.
+# An earlier revision claimed a numeric prefix would be wiped by the `-D` in Debian's own
+# audit.rules. That is FALSE, and code-reviewer measured it: augenrules(8) states that "the last
+# processed -D directive without an option, if present, is always emitted as the first line in
+# the resultant file" — augenrules hoists it, so the ordering collision cannot happen. Confirmed
+# on the box 2026-08-10: Debian's rules.d/audit.rules does carry a bare `-D`, and the generated
+# /etc/audit/audit.rules carries it as line one. (The same claim also named the wrong algorithm:
+# augenrules sorts naturally, `ls -v`, not by C-locale collation.)
+#
+# `zz-` is kept anyway so ours are the last rules appended, which keeps the generated file easy
+# to read and leaves room for future files to be ordered ahead of it deliberately. Never edit
+# Debian's audit.rules.
 #
 # WATCH RULES ONLY, NO SYSCALL RULES. Syscall/execve auditing is auditd's classic
 # over-configuration: its volume competes directly with the journal retention floor and with
@@ -37,16 +44,41 @@
 # --- The two controls ADR 0123's open mitigations name ---------------------------------------
 # -p wa, not rwa: a read watch on sudoers would fire on every single `sudo` invocation, which is
 # alarm fatigue as a mechanism. The attack is the WRITE.
--w /home/jpadmin/.ssh/authorized_keys -p wa -k jbl-authkeys
--w /root/.ssh/authorized_keys         -p wa -k jbl-authkeys
--w /etc/ssh/sshd_config               -p wa -k jbl-sshd
--w /etc/ssh/sshd_config.d             -p wa -k jbl-sshd
--w /etc/sudoers                       -p wa -k jbl-sudoers
--w /etc/sudoers.d                     -p wa -k jbl-sudoers
+#
+# The .ssh DIRECTORY, not the authorized_keys file: OpenSSH's default AuthorizedKeysFile is
+# ".ssh/authorized_keys .ssh/authorized_keys2" and nothing in this repo overrides it, so both are
+# live and a file watch would cover one of two. Watching the directory also survives the file
+# being replaced rather than edited. /root/.ssh is watched via /root for the same reason it is
+# not watched directly: it may not exist at load time, and a -w against a missing path is not
+# loaded at all (see the tmpfs note above).
+-w /home/jpadmin/.ssh -p wa -k jbl-authkeys
+-w /root              -p wa -k jbl-authkeys
+-w /etc/ssh/sshd_config    -p wa -k jbl-sshd
+-w /etc/ssh/sshd_config.d  -p wa -k jbl-sshd
+-w /etc/sudoers            -p wa -k jbl-sudoers
+-w /etc/sudoers.d          -p wa -k jbl-sudoers
 
-# --- Persistence: what installs a backdoor as a unit ------------------------------------------
+# Account creation is the same persistence class as an authorized_keys write.
+-w /etc/passwd -p wa -k jbl-accounts
+-w /etc/shadow -p wa -k jbl-accounts
+-w /etc/group  -p wa -k jbl-accounts
+
+# --- Persistence: what installs a backdoor as a unit or a job ---------------------------------
 -w /etc/systemd/system              -p wa -k jbl-units
 -w /opt/jobbliggaren/deploy/systemd -p wa -k jbl-units
+# cron has no reader on this box (measured 2026-08-10: no user crontab, only distribution
+# entries), so a write here is signal with almost no baseline noise — the cheapest watch present.
+-w /etc/crontab            -p wa -k jbl-cron
+-w /etc/cron.d             -p wa -k jbl-cron
+-w /var/spool/cron/crontabs -p wa -k jbl-cron
+# The reconcile unit applies both of these as root every hour; a write here starts arbitrary
+# containers with arbitrary mounts. The sibling directory is watched above, these were not.
+-w /opt/jobbliggaren/deploy/docker-compose.yml -p wa -k jbl-deploy
+-w /opt/jobbliggaren/deploy/.env               -p wa -k jbl-deploy
+# The heartbeat's own credential. Reading it is the one action that defeats the dead-man (see
+# jobbliggaren-heartbeat.sh's header), so -p r is deliberate here where it is avoided elsewhere:
+# this file has no legitimate reader except the heartbeat itself, so the baseline is knowable.
+-w /etc/jobbliggaren/detection.env -p rwa -k jbl-detection
 
 # --- The detection configuration itself -------------------------------------------------------
 -w /etc/audit -p wa -k jbl-auditconf

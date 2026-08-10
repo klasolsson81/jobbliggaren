@@ -64,10 +64,25 @@ prepare_sut() {
 # Each stub reads a fixture file so a case can set state without rewriting the stub.
 
 write_stubs() {
+  # THE --failed STUB EMITS systemd's LEADING STATUS GLYPH UNLESS `--plain` IS PASSED, because
+  # that is what the real command does: `--failed` is `list-units --state=failed`, and only
+  # `--plain` removes the bullet column — `--no-legend` drops the header and footer and nothing
+  # else. Measured on the box 2026-08-10 against a real failed unit.
+  #
+  # This is what makes the P1 and payload cases cross their control instead of sitting beside it.
+  # An earlier revision of this suite emitted no glyph, so every assertion about unit NAMES was
+  # made against a shape production never produces: in production `awk '{print $1}'` returned the
+  # glyph, the name never reached the sanitiser, and the payload invariant held only by accident.
+  # Drop `--plain` from the script and this suite now goes red.
   cat >"$BIN/systemctl" <<EOF
 #!/usr/bin/env bash
 case "\$*" in
-  *"--failed"*)          cat "$TMPROOT/failed-units" ;;
+  *"--failed"*)
+      if [[ "\$*" == *--plain* ]]; then
+        cat "$TMPROOT/failed-units"
+      else
+        sed 's/^/\xe2\x97\x8f /' "$TMPROOT/failed-units"
+      fi ;;
   *"list-unit-files"*)   cat "$TMPROOT/enabled-timers" ;;
   *"is-active"*)
       for a in "\$@"; do :; done
@@ -94,19 +109,27 @@ EOF
 
   # Records every invocation as "<url> <body>", one per line, so a case can assert both the
   # number of posts and their destination.
+  #
+  # THE URL ARRIVES ON STDIN, NOT IN argv. The script passes `--config -` and writes
+  # `url = "..."` to stdin, so the capability does not appear in /proc/<pid>/cmdline. This stub
+  # must therefore read it the same way — when it parsed argv instead, every case in this suite
+  # recorded zero posts and the payload assertions passed VACUOUSLY, because "the address is not
+  # in the body" is trivially true of a body that was never sent.
   cat >"$BIN/curl" <<EOF
 #!/usr/bin/env bash
-url=""; body=""
+url=""; body=""; use_stdin=0
 while [ \$# -gt 0 ]; do
   case "\$1" in
+    --config) [ "\$2" = "-" ] && use_stdin=1; shift 2 ;;
     --data-binary) body="\$2"; shift 2 ;;
-    -*) case "\$1" in
-          --max-time|--retry|--retry-delay|-H|-X) shift 2 ;;
-          *) shift ;;
-        esac ;;
+    --max-time|--retry|--retry-delay|--retry-max-time|-H|-X) shift 2 ;;
+    -*) shift ;;
     *) url="\$1"; shift ;;
   esac
 done
+if [ "\$use_stdin" -eq 1 ]; then
+  url=\$(sed -n 's/^[[:space:]]*url[[:space:]]*=[[:space:]]*"\(.*\)"[[:space:]]*\$/\1/p')
+fi
 printf '%s %s\n' "\$url" "\$body" >> "$TMPROOT/posts"
 exit 0
 EOF
@@ -247,6 +270,34 @@ assert_exit_zero "P4-file-absent"
 assert_one_fail_post_naming "P4-file-absent" "audit-rules-file-absent"
 
 echo
+echo "P4 — the rules file exists but defines no jbl- keys (the falsest green)"
+# An empty expectation compared against an empty kernel would agree perfectly. This is the arm
+# the script's own comment calls the falsest green there is, and it was the one arm with no case.
+healthy_state
+printf -- '-e 1\n' >"$TMPROOT/audit.rules"
+: >"$TMPROOT/loaded-rules"
+run_sut
+assert_exit_zero "P4-no-keys"
+assert_one_fail_post_naming "P4-no-keys" "audit-rules-file-defines-no-keys"
+
+echo
+echo "P4 — a COMMENTED-OUT rule must not mint a phantom key"
+# The rules file is comment-heavy by house style and its prose contains `ausearch -k jbl-...`
+# examples. A key that exists only in a comment can never be loaded, so counting it would light
+# the alarm permanently — the worst outcome this mechanism has.
+healthy_state
+cat >"$TMPROOT/audit.rules" <<'RULES'
+-w /run/jobbliggaren -p rwa -k jbl-key-tmpfs
+# example: sudo ausearch -k jbl-not-a-real-rule
+#-w /etc/retired -p wa -k jbl-retired
+-e 1
+RULES
+printf -- '-w /run/jobbliggaren -p rwa -k jbl-key-tmpfs\n' >"$TMPROOT/loaded-rules"
+run_sut
+assert_exit_zero "P4-comments"
+assert_one_success_post "P4-comments"
+
+echo
 echo "P5 — disk below the free-space floor"
 healthy_state
 printf '95%%\n' >"$TMPROOT/disk-pcent"
@@ -264,6 +315,7 @@ healthy_state
 printf 'sshd@155.4.133.179:22-10.0.0.9:41000.service loaded failed failed\n' \
   >"$TMPROOT/failed-units"
 run_sut
+assert_one_fail_post_naming "positive-control for [no address reaches the wire]" "failed-units="
 assert_exit_zero "payload"
 if grep -qE '155\.4\.133\.179|10\.0\.0\.9' "$TMPROOT/posts"; then
   no "payload: no address reaches the wire" "posted: $(cat "$TMPROOT/posts")"
@@ -279,28 +331,120 @@ fi
 healthy_state
 printf 'notify@someone.private@example.com.service loaded failed failed\n' >"$TMPROOT/failed-units"
 run_sut
+assert_one_fail_post_naming "positive-control for [no mail address reaches the wire]" "failed-units="
 if grep -q 'someone.private@example.com' "$TMPROOT/posts"; then
   no "payload: no mail address reaches the wire" "posted: $(cat "$TMPROOT/posts")"
 else
   ok "payload: no mail address reaches the wire"
 fi
 
-echo
-echo "CAPABILITY URL — never echoed to stdout or stderr"
+# WITHOUT AN `@` AT ALL — the case an earlier revision of the sanitiser passed through verbatim.
+# Every character of an address is inside any character allowlist, so this input is only stopped
+# by requiring the token to MATCH a unit shape. security-auditor measured the old behaviour:
+# `155.4.133.179` came out unchanged.
 healthy_state
+printf '155.4.133.179 loaded failed failed\n' >"$TMPROOT/failed-units"
 run_sut
-if grep -q "UUID-CANARY-9f3a" "$TMPROOT/stdout" "$TMPROOT/stderr"; then
-  no "url: never appears in script output" "$(cat "$TMPROOT/stdout" "$TMPROOT/stderr")"
+assert_one_fail_post_naming "positive-control for [a bare address (no @) does not reach the wire]" "failed-units="
+if grep -q '155\.4\.133\.179' "$TMPROOT/posts"; then
+  no "payload: a bare address (no @) does not reach the wire" "posted: $(cat "$TMPROOT/posts")"
 else
-  ok "url: never appears in script output"
+  ok "payload: a bare address (no @) does not reach the wire"
+fi
+
+# An address wearing a unit suffix. The shape check must reject it on the NAME part containing
+# dots, not merely on the suffix being unknown.
+healthy_state
+printf '155.4.133.179.service loaded failed failed\n' >"$TMPROOT/failed-units"
+run_sut
+assert_one_fail_post_naming "positive-control for [an address wearing .service does not reach the wire]" "failed-units="
+if grep -q '155\.4\.133\.179' "$TMPROOT/posts"; then
+  no "payload: an address wearing .service does not reach the wire" "posted: $(cat "$TMPROOT/posts")"
+else
+  ok "payload: an address wearing .service does not reach the wire"
+fi
+
+# And the ordinary case still reports by name — a control that rejected everything would pass
+# every case above while destroying the predicate's whole diagnostic value.
+healthy_state
+printf 'jobbliggaren-backup.service loaded failed failed\n' >"$TMPROOT/failed-units"
+run_sut
+if grep -q 'jobbliggaren-backup.service' "$TMPROOT/posts"; then
+  ok "payload: an ordinary unit is still reported by name"
+else
+  no "payload: an ordinary unit is still reported by name" "posted: $(cat "$TMPROOT/posts")"
 fi
 
 echo
-echo "EXIT CONTRACT — the script never fails its own unit"
+echo "CAPABILITY URL — never echoed to stdout or stderr"
+# WITH A POSITIVE CONTROL. Without asserting that the run actually reached the post path, a
+# script that exited early would pass this case in silence — the canary would be absent because
+# nothing happened, not because nothing leaked.
 healthy_state
-rm -f "$BIN/curl"
 run_sut
-assert_exit_zero "curl-absent"
+assert_one_success_post "url-canary(success path)"
+if grep -q "UUID-CANARY-9f3a" "$TMPROOT/stdout" "$TMPROOT/stderr"; then
+  no "url: never appears in script output (success path)" "$(cat "$TMPROOT/stdout" "$TMPROOT/stderr")"
+else
+  ok "url: never appears in script output (success path)"
+fi
+
+# The FAIL path with a broken curl exercises both diagnostic branches in post() and the
+# "heartbeat: FAILING" log line — the places a future edit would most plausibly interpolate the
+# URL into a message.
+healthy_state
+printf 'some-broken.service loaded failed failed\n' >"$TMPROOT/failed-units"
+cat >"$BIN/curl" <<'EOF'
+#!/usr/bin/env bash
+exit 7
+EOF
+chmod +x "$BIN/curl"
+run_sut
+if grep -q "UUID-CANARY-9f3a" "$TMPROOT/stdout" "$TMPROOT/stderr"; then
+  no "url: never appears in script output (fail path, curl broken)" "$(cat "$TMPROOT/stderr")"
+else
+  ok "url: never appears in script output (fail path, curl broken)"
+fi
+write_stubs
+
+echo
+echo "EXIT CONTRACT — the script never fails its own unit"
+# PATH IS BUILT FROM SCRATCH FOR THIS CASE, not merely prepended. With `$BIN` in front of
+# /usr/bin, `command -v curl` still finds the real binary underneath and the guard branch is
+# never reached — the case would then quietly measure the same thing as `curl-fails` below. This
+# is the house pattern from jobbliggaren-backup.test.sh, which records the same trap.
+healthy_state
+mkdir -p "$TMPROOT/nocurl"
+for t in bash sed awk grep tr sort head tail cat cut wc printf; do
+  p=$(command -v "$t" 2>/dev/null) && cp "$p" "$TMPROOT/nocurl/$t" 2>/dev/null
+done
+cp "$BIN/systemctl" "$BIN/auditctl" "$BIN/df" "$TMPROOT/nocurl/" 2>/dev/null
+
+# The scratch PATH is only a measurement if the tools the script needs are actually reachable on
+# it. On a filesystem where copying the shell does not produce a runnable binary (Git Bash on
+# Windows), the run would exit 127 and a naive assertion would read that as "the script failed" —
+# a rig defect reported as a finding. So the case checks its own precondition and ANNOUNCES a
+# skip instead, which is the house pattern from jobbliggaren-reconcile.test.sh. On the ubuntu
+# runner, where the blocking `scripts` job runs, nothing is skipped.
+# The precondition must be that the scratch PATH RUNS, not merely that a file called bash sits on
+# it: a copied binary can exist and still fail to execute (Git Bash binaries need their DLLs), and
+# the run would then exit 127 — a rig defect that a naive assertion reports as a finding against
+# the script. So prove the toolchain end to end first.
+scratch_works=0
+if PATH="$TMPROOT/nocurl" "$TMPROOT/nocurl/bash" -c 'printf x | tr x y' 2>/dev/null | grep -q y; then
+  scratch_works=1
+fi
+if [ "$scratch_works" -eq 1 ] &&
+  ! PATH="$TMPROOT/nocurl" command -v curl >/dev/null 2>&1; then
+  : >"$TMPROOT/posts"
+  PATH="$TMPROOT/nocurl" "$TMPROOT/nocurl/bash" "$FIXTURE_SUT" \
+    >"$TMPROOT/stdout" 2>"$TMPROOT/stderr"
+  printf '%s' "$?" >"$TMPROOT/exit"
+  assert_exit_zero "curl-absent(PATH from scratch)"
+else
+  echo "  SKIP  curl-absent(PATH from scratch): scratch PATH is not runnable on this host"
+  echo "        (an announced skip is not a measurement — this case measures on the CI runner)"
+fi
 write_stubs
 
 healthy_state

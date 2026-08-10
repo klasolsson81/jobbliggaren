@@ -15,15 +15,20 @@ Documentation=https://github.com/klasolsson81/jobbliggaren/blob/main/docs/runboo
 
 [Service]
 Type=oneshot
-# INTOLERANT ON PURPOSE. Without the ping URL this unit cannot do its job, so it fails rather
-# than pretending — and the dead-man is the backstop that turns that failure into a page. The
-# two layers covering each other is the property, and the drill measures it.
-EnvironmentFile=/etc/jobbliggaren/detection.env
+# THE LEADING `-` IS DELIBERATE, AND IT RESOLVES A CONTRADICTION RATHER THAN RELAXING A GUARD.
+# Without it, a missing file means ExecStart never runs and systemd reports "Failed to load
+# environment files" — so the unit fails, which is exactly what the script's exit contract exists
+# to prevent, AND the script's own branch (the only text that names this runbook and tells the
+# operator what to do) becomes unreachable under the unit. With it, the script runs, logs the
+# named diagnosis to the journal, and sends nothing — so the dead-man is still the backstop and
+# the operator gets a sentence instead of a systemd error. Nothing is lost: the absence is
+# reported by silence either way.
+EnvironmentFile=-/etc/jobbliggaren/detection.env
 ExecStart=/opt/jobbliggaren/deploy/systemd/jobbliggaren-heartbeat.sh
-# The script always exits 0 by contract: it must never land on the failure list it reads, or its
-# own presence would make the predicate permanently false and the alarm permanently lit.
-TimeoutStartSec=60
-Restart=no
+# Bounds the unit well above the script's own curl budget (~30 s worst case; see post() there).
+# The two numbers are one design: a unit killed on timeout is a failed unit, which would defeat
+# the script's always-exit-0 contract by the clock rather than by the code.
+TimeoutStartSec=90
 RemainAfterExit=no
 
 # NO [Install] SECTION — the timer enables this pair, matching every other unit in this repo.

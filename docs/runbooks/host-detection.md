@@ -43,7 +43,7 @@ mechanism existed. Regenerate with the commands in §7.
 
 | Surface | What lands on it | Reader | Cadence |
 |---|---|---|---|
-| `systemctl --failed` | **nothing** — the only jobbliggaren unit installed was `jobbliggaren-reconcile`; the three units that feed this surface (`secrets-present`, `backup`, `backup-fresh`) were shipped but not installed | nobody | ∞ |
+| `systemctl --failed` | **one feeder of four** — `jobbliggaren-reconcile` was installed and succeeding, so the list was empty on its merits; the other three (`secrets-present`, `backup`, `backup-fresh`) were shipped and never installed | nobody | ∞ |
 | systemd journal (persistent) | sshd VERBOSE, sudo, unit output | nobody | ∞ |
 | Docker json-file logs | app and container logs — a **disjoint** stream from the host journal | nobody | ∞ |
 | `audit_log` table | application auth/audit events | nobody | ∞ |
@@ -51,9 +51,10 @@ mechanism existed. Regenerate with the commands in §7.
 | off-box: anything | **nothing left the box** — no `rsyslog`, `auditd`, `aide`, journal-upload, shipping agent or cron reader | — | — |
 | weekly operator check (`backup-restore.md` §4) | prose procedure, not a scheduled job | Klas, when performed | asserted, never logged |
 
-**The sharpest fact, and the reason the predicate in §3 carries non-vacuity arms:** the box's
-stated "only alarm surface" was fed by nothing at all. A green light whose green is true of its
-evidence and false of its subject is worse than no light.
+**The sharpest fact, and the reason the predicate in §3 carries non-vacuity arms:** an empty
+failure list cannot distinguish "everything is well" from "almost nothing reports here" — three of
+four feeders were absent, and nobody read the list either way. A green light whose green is true
+of its evidence and false of its subject is worse than no light.
 
 ## 3. The mechanism
 
@@ -62,7 +63,17 @@ Bound by senior-cto-advisor 2026-08-10. **One script, one unit pair, one check, 
 - **Predicate false → `POST <url>/fail`** with an allowlisted diagnosis. Fast and diagnostic.
   Does **not** survive an attacker who controls the box.
 - **No ping at all → the expecter fires after its grace period.** Slow, carries no diagnosis, and
-  it is the **one signal a root attacker cannot erase**: disarming the heartbeat *is* the alarm.
+  it is the only signal that does not depend on the box choosing to send it: **disarming the
+  heartbeat is itself the alarm.**
+
+**How far that second property actually reaches, stated precisely — the generous reading is
+wrong, and security-auditor measured it.** It catches an attacker who *disarms* this box's
+reporting: stops the timer, kills the unit, cuts the network, takes the machine. It does **not**
+catch the attacker ADR 0123 names. That attacker is root, root reads the ping URL out of
+`/etc/jobbliggaren/detection.env`, and replayed success pings mean silence never occurs — one
+`cat` and one cron line. So the dead-man converts *disarmed* into *alerted* **only while the
+credential beside it is not taken too**, which puts it in the same mistake-and-lower-privilege
+class as everything else here. It is not a control against root.
 
 Neither property contains the other, which is why both exist. Period 15 min, grace 45 min ⇒ the
 dead-man fires no later than **one hour** after the last successful ping, and it takes four
@@ -135,20 +146,34 @@ produces events nobody can triage, which is the same failure as no rule at all.
 armed **last**, so arming does not itself page.
 
 ```bash
-# 1. Journal floor first: it is what gives every later step an evidence window.
+cd /opt/jobbliggaren && sudo git pull --ff-only    # the units and rules live in deploy/
+
+# 1. Journal window first: it is what gives every later step an evidence window.
+#    The 60- prefix is deliberate — drop-ins sort by filename across ALL directories and systemd
+#    reserves 10–40 for vendor files under /usr, so a 10- name here can be overridden by the
+#    distribution.
+sudo install -d -m 0755 /etc/systemd/journald.conf.d
 sudo install -m 0644 -o root -g root \
   /opt/jobbliggaren/deploy/systemd/journald-jobbliggaren-retention.conf \
-  /etc/systemd/journald.conf.d/10-jobbliggaren-retention.conf
+  /etc/systemd/journald.conf.d/60-jobbliggaren-retention.conf
 sudo systemctl restart systemd-journald
+sudo systemd-analyze cat-config systemd/journald.conf | grep -E 'SystemMaxUse|SystemKeepFree|Storage'
 
-# 2. auditd, then its configuration, then the rules. Installing the package starts it with
-#    Debian's defaults, one of which can SUSPEND logging on a full disk — so the config lands
-#    before the rules that raise the write rate.
+# 2. auditd. INSTALLING THE PACKAGE STARTS IT WITH DEBIAN'S DEFAULTS, and three of those
+#    (admin_space_left_action, disk_full_action, disk_error_action) are SUSPEND — a detective
+#    control that stops the audit trail exactly when something is going wrong. Repair them
+#    immediately after install, BEFORE loading rules that raise the write rate.
+#
+#    THERE IS NO auditd.conf.d. Measured 2026-08-10: auditd reads exactly one file, the package
+#    ships only plugins.d, and the binary contains no such path. The values are edited in place.
 sudo apt-get update && sudo apt-get install -y auditd
-sudo install -d -m 0755 /etc/audit/auditd.conf.d
-sudo install -m 0640 -o root -g root \
-  /opt/jobbliggaren/deploy/systemd/auditd-jobbliggaren.conf \
-  /etc/audit/auditd.conf.d/10-jobbliggaren.conf
+for kv in 'admin_space_left_action SYSLOG' 'disk_full_action ROTATE' 'disk_error_action SYSLOG'; do
+  k=${kv% *}; v=${kv#* }
+  sudo sed -i "s/^${k}[[:space:]]*=.*/${k} = ${v}/" /etc/audit/auditd.conf
+done
+grep -E '^(admin_space_left_action|disk_full_action|disk_error_action) ' /etc/audit/auditd.conf
+#    Expected: SYSLOG / ROTATE / SYSLOG — and no SUSPEND anywhere in that output.
+
 sudo install -m 0640 -o root -g root \
   /opt/jobbliggaren/deploy/systemd/zz-jobbliggaren-audit.rules \
   /etc/audit/rules.d/zz-jobbliggaren.rules
@@ -156,9 +181,12 @@ sudo augenrules --load
 sudo systemctl restart auditd
 
 # JUDGE THE KERNEL, NOT THE FILE. `auditctl -s` says "enabled" whether or not our rules loaded,
-# and the two ways they silently do not are a sort-order collision and a watch on a path that
-# did not exist at load time.
-sudo auditctl -l | grep -c 'jbl-'        # expect the number of -k keys in the rules file
+# and a watch on a path that did not exist at load time is silently absent.
+sudo auditctl -l | grep -c 'jbl-'
+#    Expected: the number of DISTINCT -k keys in the rules file, which the heartbeat's own P4
+#    predicate derives rather than hard-codes:
+grep -v '^[[:space:]]*#' /opt/jobbliggaren/deploy/systemd/zz-jobbliggaren-audit.rules |
+  grep -oE -- '-k[[:space:]]+jbl-[A-Za-z0-9_-]+' | awk '{print $2}' | sort -u | wc -l
 
 # 3. The capability URL. Create the check at the expecter first, then paste its ping URL here.
 sudo install -d -m 0700 -o root -g root /etc/jobbliggaren
@@ -166,9 +194,8 @@ sudo install -m 0600 -o root -g root \
   /opt/jobbliggaren/deploy/detection/detection.env.example /etc/jobbliggaren/detection.env
 sudo nano /etc/jobbliggaren/detection.env      # paste the real URL; never echo it
 
-# 4. The heartbeat.
-sudo install -m 0755 /opt/jobbliggaren/deploy/systemd/jobbliggaren-heartbeat.sh \
-  /opt/jobbliggaren/deploy/systemd/jobbliggaren-heartbeat.sh
+# 4. The heartbeat. The script is already executable in the clone (git carries the mode, and CI
+#    gates it), so there is nothing to install — only the units are copied.
 sudo cp /opt/jobbliggaren/deploy/systemd/jobbliggaren-heartbeat.{service,timer} \
   /etc/systemd/system/
 sudo systemctl daemon-reload
@@ -247,7 +274,7 @@ install happens once.
 | **The alarm self-clears with no operator action** | drill D4 | | |
 | **The dead-man fires, and the delta is within the stated bound** | drill D5 — stop the timer, measure wall-clock from last successful ping to the page | | |
 | **The payload carries no personal data** | the exact body the expecter stored, plus confirmation that no audit-record body appears in any ping | | |
-| **auditd cannot suspend or halt the box on a full disk** | effective `disk_full_action` / `admin_space_left_action` / `max_log_file_action` / `num_logs`. **The drill is deliberately NOT run** — filling the production disk is a self-inflicted incident — so this row measures configuration and says so | | |
+| **auditd cannot suspend or stop logging when the disk fills** | `grep -E '^(space_left_action\|admin_space_left_action\|disk_full_action\|disk_error_action\|max_log_file_action\|num_logs\|max_log_file) ' /etc/audit/auditd.conf` — read back from the file auditd actually reads, since there is no `auditd.conf.d` and no `cat-config` equivalent. **The drill is deliberately NOT run** — filling the production disk is a self-inflicted incident — so this row measures configuration and says so | | |
 | **The RAM cost is measured, not asserted** | `systemctl show -p MemoryCurrent auditd`, `MemAvailable` before and after, against ADR 0122's honest free RAM | | |
 | **The ping URL is single-purpose and absent from the repo** | `stat -c '%a %U:%G' /etc/jobbliggaren/detection.env`; `git log -S` finds no URL | | |
 | **E-class's bound is conditional, and the condition is unmet today** | the floor set in the script against `systemctl list-unit-files 'jobbliggaren*'` | Floor set holds two timers. #197's and #198's units are not on the box, so this row **names the dependency** and does not claim their rows | 2026-08-10 |
@@ -264,8 +291,10 @@ install happens once.
   limit half is filed separately.
 - **Granting the risk acceptance.** ADR 0123 is `Proposed` and Klas grants, never a session
   (§9.6). This mechanism narrows what that acceptance rests on; it does not close it.
-- **Availability monitoring.** An external HTTP probe is a different obligation. The certificate
-  expiry roughly 60 days after cutover is a real silent-death vector and is **named here as
-  uncovered** rather than absorbed into a detection-duty gate.
+- **Availability monitoring.** An external HTTP probe is a different obligation. Certificate
+  RENEWAL is a real silent-death vector — Caddy attempts it with about a third of a 90-day
+  certificate left, so a renewal that silently stops surfaces as an outage roughly a month later,
+  and nothing here would notice. It is **named as uncovered** rather than absorbed into a
+  detection-duty gate.
 - **The recurring re-drill cadence.** Art. 32(1)(d) grounds "tested, not asserted"; the cadence
   row is owed once the mechanism has run through one full drill set.

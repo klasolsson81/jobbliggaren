@@ -582,7 +582,9 @@ DNS resolving is not the same as a receiver accepting.
 - **The production log sink** — #1175, unbuilt and unowned. Docker's log rotation above is
   a disk control, not a log sink. **What changed 2026-08-10:** M-7 took the *cadenced
   reader* half that this file and `backup-restore.md` had informally annexed to #1175 —
-  something now reads the failure list every fifteen minutes. #1175 still owns the sink,
+  a heartbeat **will read** the failure list every fifteen minutes **once it is installed on the
+  box**, which has not happened yet — the rows in [`host-detection.md`](./host-detection.md) §7
+  are what discharge it, not this merge. #1175 still owns the sink,
   the off-box corpus, and the retention that would survive a root attacker.
 - **Gate B-1's cutover — and the corpus still waits for it.** #198 shipped the repair (see §2
   and [`master-key-ops.md`](master-key-ops.md)), but **shipping a mechanism is not closing a

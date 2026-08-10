@@ -7,33 +7,33 @@
 # senior-cto-advisor bound on 2026-08-10, and the obligation it answers is written in
 # docs/runbooks/host-detection.md.
 #
-# TWO PROPERTIES, ONE MECHANISM, AND NEITHER CONTAINS THE OTHER.
-#   · Predicate false -> POST to <url>/fail. The box says something is wrong: fast, diagnostic,
-#     and it does NOT survive an attacker who controls the box.
-#   · No ping at all -> the expecter fires after its grace period. The box stopped saying it is
-#     well: slow, carries no diagnosis, and it is the ONE signal a root attacker cannot erase,
-#     because silence is the signal. Disarming this unit IS the alarm.
-# The honest limit, written here so nobody reads the mechanism as more than it is: an attacker
-# who leaves the heartbeat running is not caught by either property. This converts "disarmed"
-# into "alerted"; it never converts "compromised" into "alerted".
+# TWO PROPERTIES, ONE MECHANISM. Rationale and the variant verdicts live in ADR 0126 and
+# docs/runbooks/host-detection.md §3; what is written here is only what the code cannot show.
+#   · Predicate false -> POST to <url>/fail: fast and diagnostic.
+#   · No ping at all  -> the expecter fires after its grace period: slow, no diagnosis.
 #
-# WHY POLLING RATHER THAN `OnFailure=` DROP-INS. A reader of `systemctl --failed` covers every
-# unit, including units that do not exist yet, with no per-unit registration. `OnFailure=` needs
-# one drop-in per unit — a hand-maintained list whose failure mode is a NEW unit shipped without
-# its drop-in, silently uncovered. Polling is strictly more general, and against a <= 1 h bound
-# the extra latency is free. It also means this mechanism edits no unit that #196/#197/#198
-# delivered.
+# WHAT THE DEAD-MAN ACTUALLY SURVIVES, stated precisely because the obvious reading is too
+# generous. It catches an attacker who DISARMS this box's reporting — stopping the timer, killing
+# the unit, cutting the network, taking the machine. It does NOT catch the attacker ADR 0123
+# names: root reads the ping URL out of /etc/jobbliggaren/detection.env (root-owned, and root
+# reads it trivially) and replays success pings from anywhere, so silence never occurs. Cost to
+# that attacker: one `cat` and one cron line. So this converts "disarmed" into "alerted" only
+# while the credential beside it is not taken too — which is the same mistake-and-lower-privilege
+# class the rest of this mechanism is honest about, and NOT a control against root.
 #
-# THE PREDICATE MUST NOT BE VACUOUS, AND ON THIS BOX IT WOULD BE. `systemctl --failed` is empty
-# today because NOTHING FEEDS IT: measured 2026-08-10, the only jobbliggaren unit installed is
-# jobbliggaren-reconcile. A green light whose green is true of its evidence and false of its
-# subject is worse than no light, so P3 below asserts a floor set of timers is actually running,
-# and P4 asserts the audit rules are actually loaded.
+# THE PREDICATE MUST NOT BE VACUOUS. `systemctl --failed` can be empty because everything is well
+# OR because almost nothing feeds it — on this box, three of the four feeding units were shipped
+# and never installed. A green light whose green is true of its evidence and false of its subject
+# is worse than no light, so P3 asserts a floor set of timers is actually running and P4 asserts
+# the audit rules are actually loaded in the kernel. Regenerate the current state with the
+# commands in host-detection.md §7 rather than trusting a number written here.
 #
 # EXIT CONTRACT: THIS SCRIPT ALWAYS EXITS 0. It must never land on `systemctl --failed` itself,
-# because P1 would then be permanently false and the alarm permanently lit — and an alarm that is
-# always lit trains an operator to stop reading it. A bash-level crash is still covered twice
-# over: the unit fails AND the ping is not sent.
+# because P1 would then be false for as long as the failure stands and the alarm lit with it —
+# and an alarm that is lit for its own reasons trains an operator to stop reading it. That is
+# also why the curl budget below is bounded well under the unit's TimeoutStartSec: a unit killed
+# on timeout is a failed unit, and the exit contract would be defeated by the clock rather than
+# by the code.
 set -uo pipefail
 
 readonly ENV_FILE=/etc/jobbliggaren/detection.env
@@ -48,10 +48,9 @@ readonly AUDIT_RULES_FILE=/etc/audit/rules.d/zz-jobbliggaren.rules
 # permanently. Sequencing, not a defect.
 readonly FLOOR_TIMERS="jobbliggaren-reconcile.timer jobbliggaren-heartbeat.timer"
 
-# Free-space floor, in percent, on the two filesystems a full disk would stop the stack from.
-# This absorbs the DETECTION half of the disk-usage finding security-auditor routed to #196 on
-# PR #1229; #196 closed without it. The QUOTA half is deliberately not absorbed — a threshold is
-# detection, not a limit — and is filed separately.
+# Free-space floor, in percent. This absorbs the DETECTION half of a disk-usage finding
+# security-auditor routed to #196, which closed without it. The QUOTA half is deliberately not
+# absorbed — a threshold is detection, not a limit — and is filed as its own issue.
 readonly DISK_MIN_FREE_PCT=15
 readonly DOCKER_ROOT=/var/lib/docker
 
@@ -69,36 +68,52 @@ log() { printf '%s\n' "$*" >&2; }
 # and a source address is personal data (Breyer C-582/14, the precedent this repo already applies
 # in vps-base-hardening.md §6.5).
 #
-# THE CONTROL IS THE SHAPE, NOT A CHARACTER SET, AND THE DIFFERENCE IS NOT ACADEMIC. A character
-# allowlist of [A-Za-z0-9@._-] passes `155.4.133.179` and `someone@example.com` through
-# UNCHANGED — every character in both is "allowed". systemd puts arbitrary escaped data in the
-# INSTANCE part of a templated unit name, and per-connection units are named exactly that way
-# (`sshd@<addr>:<port>-<addr>:<port>.service`), so the address of whoever connected can reach a
-# failure list verbatim. That is the whole exposure, and a character filter does not touch it.
+# THE CONTROL IS THE SHAPE, AND IT IS UNCONDITIONAL. A character allowlist cannot do this job:
+# every character of `155.4.133.179` and of `someone@example.com` is inside any sane allowlist,
+# so a character filter emits both verbatim. An earlier revision reduced only tokens containing
+# `@`, which made the guarantee conditional on the very thing an attacker controls — security
+# auditor measured `155.4.133.179` passing through untouched.
 #
-# So: drop the instance part outright and keep only the template name and the unit type, which
-# together carry all the diagnostic value and none of the payload. `sshd@1.2.3.4:22-....service`
-# becomes `sshd@.service`; `jobbliggaren-backup.service` is unchanged. Anything that is not
-# shaped like a unit name at all still passes the character filter and the length bound.
+# So the token must MATCH a unit name to be reported at all, and anything else is replaced by a
+# marker. A unit name is `<name>[@<instance>].<type>`: the instance part is where systemd puts
+# arbitrary escaped data (per-connection units are literally
+# `sshd@<addr>:<port>-<addr>:<port>.service`), so it is dropped always; `<type>` must be a known
+# unit type; and `<name>` must be plain — letters, digits, underscore, hyphen. Requiring no dots
+# in `<name>` is what stops `155.4.133.179.service` from being reported as a "unit name".
+#
+# The cost, stated rather than discovered: a legitimate unit whose name contains a dot (some
+# path-derived .mount units) is reported as the marker instead of by name. That is a diagnostic
+# loss on a rare class, bought for a guarantee that holds for every input rather than for most.
+readonly UNIT_SHAPE_REJECTED="unit-shape-rejected"
+
 sanitize_token() {
-  local raw="$1" out template suffix
+  local raw="$1" out type rest name
   out=$(printf '%s' "$raw" | tr -cd 'A-Za-z0-9@._:-')
-  if [[ "$out" == *@* ]]; then
-    template="${out%%@*}"
-    suffix="${out##*.}"
-    # Only re-attach a suffix that looks like a unit type; otherwise leave it off entirely
-    # rather than risk carrying instance data that happened to follow the last dot.
-    case "$suffix" in
-      service | timer | socket | mount | scope | slice | path | target | device | swap)
-        out="${template}@.${suffix}"
-        ;;
-      *) out="${template}@" ;;
-    esac
+
+  type="${out##*.}"
+  case "$type" in
+    service | timer | socket | mount | automount | swap | target | path | slice | scope | device) ;;
+    *)
+      printf '%s' "$UNIT_SHAPE_REJECTED"
+      return 0
+      ;;
+  esac
+
+  rest="${out%.*}"   # everything before the last dot
+  name="${rest%%@*}" # the template name, before any instance
+
+  case "$name" in
+    '' | *[!A-Za-z0-9_-]*)
+      printf '%s' "$UNIT_SHAPE_REJECTED"
+      return 0
+      ;;
+  esac
+
+  if [ "$rest" != "$name" ]; then
+    printf '%.64s' "${name}@.${type}"
+  else
+    printf '%.64s' "${name}.${type}"
   fi
-  # A colon is legal in an instance name and is now gone with it; strip any survivor so no
-  # `host:port` shape can leave in a token that was not unit-shaped.
-  out=$(printf '%s' "$out" | tr -d ':')
-  printf '%.64s' "$out"
 }
 
 # ------------------------------------------------------------------------------------------
@@ -112,9 +127,17 @@ fail_with() {
 }
 
 # P1 — the existing alarm surface is clean.
+#
+# `--plain` IS LOAD-BEARING, NOT TIDINESS. `--failed` is `list-units --state=failed`, and
+# list-units prints a leading status glyph that only `--plain` removes — `--no-legend` drops the
+# header and footer and nothing else. Without it `awk '{print $1}'` yields the glyph, the name is
+# lost to the character filter, and the body reads `failed-units=1:` with no name at all.
+# Measured on the box 2026-08-10 against a real failed unit: `[●]` without the flag,
+# `[jbl-probe-fail.service]` with it. The alarm still fired either way — what was inert was the
+# diagnosis, which is the entire value of this predicate over the dead-man.
 check_failed_units() {
   local failed count names
-  failed=$(systemctl --failed --no-legend --no-pager 2>/dev/null | awk '{print $1}')
+  failed=$(systemctl --failed --plain --no-legend --no-pager 2>/dev/null | awk '{print $1}')
   [ -z "$failed" ] && return 0
   count=$(printf '%s\n' "$failed" | grep -c . || true)
   names=""
@@ -170,7 +193,12 @@ check_audit_rules_loaded() {
     fail_with "auditctl-absent"
     return 0
   fi
-  expected=$(grep -oE -- '-k[[:space:]]+jbl-[A-Za-z0-9_-]+' "$AUDIT_RULES_FILE" 2>/dev/null |
+  # Comment lines are stripped FIRST: this file is comment-heavy by house style, and a commented
+  # -out rule — the likeliest future edit — would otherwise mint a phantom key that can never be
+  # loaded, i.e. a permanently lit alarm. The rules file's own prose already contains an
+  # `ausearch -k jbl-key-tmpfs` example that happens to collide with a real key today.
+  expected=$(grep -v '^[[:space:]]*#' "$AUDIT_RULES_FILE" 2>/dev/null |
+    grep -oE -- '-k[[:space:]]+jbl-[A-Za-z0-9_-]+' |
     awk '{print $2}' | sort -u)
   if [ -z "$expected" ]; then
     fail_with "audit-rules-file-defines-no-keys"
@@ -185,40 +213,58 @@ check_audit_rules_loaded() {
   [ -z "$missing" ] || fail_with "audit-keys-not-loaded=${missing}"
 }
 
-# P5 — free space on the two filesystems whose exhaustion stops the stack. Detection only.
+# P5 — free space where exhaustion would stop the stack. Detection only, never a quota.
+#
+# On this box both paths resolve to the same filesystem (measured 2026-08-10: / and
+# /var/lib/docker are both /dev/vda4), so the two checks agree. They are kept separate because a
+# future box may separate them, and a check that silently assumed one filesystem would then miss
+# the one that fills.
+#
+# Fixed labels rather than sanitize_token: that function exists to reduce UNIT NAMES, and a
+# filesystem path is neither personal data nor unit-shaped — running one through it produced an
+# empty label for `/` and `varlibdocker` for the other, losing diagnostics for no gain.
 check_disk() {
-  local path used free low=""
-  for path in / "$DOCKER_ROOT"; do
+  local entry path label used free low=""
+  for entry in "root:/" "docker:$DOCKER_ROOT"; do
+    label="${entry%%:*}"
+    path="${entry#*:}"
     [ -d "$path" ] || continue
     used=$(df --output=pcent "$path" 2>/dev/null | tail -1 | tr -cd '0-9')
     [ -z "$used" ] && continue
     free=$((100 - used))
     [ "$free" -lt "$DISK_MIN_FREE_PCT" ] &&
-      low="${low}${low:+,}$(sanitize_token "$path")=${free}pct"
+      low="${low}${low:+,}${label}=${free}pct"
   done
   [ -z "$low" ] || fail_with "disk-low=${low}"
 }
 
 # ------------------------------------------------------------------------------------------
-# The wire. The URL is a capability: possession is authority, so it is read from a root-owned
-# file and never logged, never echoed, and never included in any diagnostic. A capability URL
-# that reaches a log is a leaked credential.
+# The wire. The URL is a capability: possession is authority. Rationale for choosing a credential
+# shape whose theft grants nothing new is in ADR 0126; what matters here is the handling.
 #
-# What a stolen ping URL buys an attacker is deliberately small: suppressing or faking this
-# box's alarms. A root attacker can do that anyway by leaving the heartbeat running, so the
-# credential adds no capability that the threat model did not already grant. That is the reason
-# this channel shape was chosen over one whose credential opens a second failure domain.
+# THE URL IS PASSED ON STDIN, NOT ON THE COMMAND LINE. An argument is world-readable in
+# /proc/<pid>/cmdline for the lifetime of the process, so `curl … "$url"` publishes the
+# credential to every local reader. `--config -` reads it from stdin instead, which no other
+# process can see. It is also never logged and never included in a diagnostic.
+#
+# THE RETRY BUDGET IS BOUNDED UNDER THE UNIT'S TimeoutStartSec, AND THE TWO ARE ONE DESIGN.
+# `--max-time` is PER ATTEMPT, not for the whole operation, so `--max-time 20 --retry 2` can run
+# 3×20 + 2×3 = 66 s — past a 60 s timeout, at which point systemd kills the unit and it lands on
+# the failure list, defeating the exit contract by the clock. `--retry-max-time` bounds the whole
+# retry sequence; keep the total comfortably under the unit's timeout when changing either.
 post() {
   local url="$1" body="$2"
   command -v curl >/dev/null 2>&1 || {
     log "curl absent: cannot report; the expecter's grace period is the backstop"
     return 0
   }
-  # --max-time bounds the unit; failure to reach the expecter is NOT an error here, because the
-  # dead-man is exactly the mechanism that covers an unreachable expecter.
-  curl -fsS --max-time 20 --retry 2 --retry-delay 3 \
-    -X POST -H 'Content-Type: text/plain' \
-    --data-binary "$body" "$url" >/dev/null 2>&1 ||
+  # Failure to reach the expecter is NOT an error here: the dead-man is precisely the mechanism
+  # that covers an unreachable expecter.
+  printf 'url = "%s"\n' "$url" |
+    curl -fsS --config - \
+      --max-time 10 --retry 2 --retry-delay 3 --retry-max-time 30 \
+      -X POST -H 'Content-Type: text/plain' \
+      --data-binary "$body" >/dev/null 2>&1 ||
     log "ping did not complete; the expecter's grace period is the backstop"
   return 0
 }

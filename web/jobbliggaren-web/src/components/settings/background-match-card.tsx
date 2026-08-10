@@ -44,7 +44,7 @@ interface BackgroundMatchCardProps {
  * Veckovis), Bra-matchningar visas i matchningslistan utan e-post. Graden är en
  * NAMNGIVEN kategori, aldrig en siffra (ADR 0071, Goodhart). Copy:n namnger
  * e-post som leveranskanal (GDPR Art. 7(2) transparens, TD-116; Vag 4 PR-4b
- * skickar riktiga notiser via Resend).
+ * skickar riktiga notiser via e-post — Amazon SES sedan ADR 0124).
  *
  * Kortet äger sin EGEN save (egen action/endpoint `PUT /me/notification-consent`,
  * egen useTransition) — INTE det delade `updateMyProfileAction`-flödet. Toggle

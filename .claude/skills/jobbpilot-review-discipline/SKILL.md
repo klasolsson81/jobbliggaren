@@ -5,8 +5,8 @@ description: >
   already ruled: batching the findings, writing fixes that create no new
   reviewable claims, isolating the fix delta, and closing Blocker/Major findings
   via scoped report-only re-checks by the agent that issued them. Use after a
-  verdict exists — not during the first review round, where CLAUDE.md §9.6's
-  default is an ordinary in-block fix. Triggers on: re-review, re-check,
+  verdict exists — not during the first review round; CLAUDE.md §9.6 governs
+  what happens there. Triggers on: re-review, re-check,
   omgranskning, omkontroll, granskningsrunda, review round, scoped re-check,
   report-only, inga editeringar, agents-done, new-in-delta, fix efter review,
   batcha fixar, isolera deltat.
@@ -23,7 +23,7 @@ description: >
 > If this file disagrees with §9.6, §9.6 is right.
 >
 > **Scope:** this is the *closing* half of a review cycle — it applies once an
-> agent has ruled. In a first round, §9.6's default is an ordinary in-block fix.
+> agent has ruled. In a first round, §9.6 governs what happens; this skill does not apply.
 
 ---
 

@@ -70,7 +70,8 @@ aws sesv2 list-configuration-sets --profile jobbpilot --region eu-north-1
 ```bash
 # DNS, read against a resolver that is not the registrar's own.
 nslookup -type=TXT jobbliggaren.se 8.8.8.8          # expect: no TXT answer at all — no SPF
-nslookup -type=TXT _dmarc.jobbliggaren.se 8.8.8.8   # expect: v=DMARC1;p=reject;  (no rua=)
+nslookup -type=TXT _dmarc.jobbliggaren.se 8.8.8.8   # 2026-08-09: v=DMARC1;p=reject; (no rua=).
+                                                    # §4 adds a rua= via row 38; p=reject is the invariant.
 nslookup -type=MX  jobbliggaren.se 8.8.8.8          # expect: smtp.rzone.de
 nslookup -type=TXT strato-dkim-0002._domainkey.jobbliggaren.se 8.8.8.8   # expect: v=DKIM1; k=rsa; ...
 nslookup -type=TXT strato-dkim-0003._domainkey.jobbliggaren.se 8.8.8.8   # expect: v=DKIM1; k=ed25519; ...
@@ -371,7 +372,8 @@ that the existing mail path is untouched:
 nslookup -type=TXT strato-dkim-0002._domainkey.jobbliggaren.se 8.8.8.8   # unchanged
 nslookup -type=TXT strato-dkim-0003._domainkey.jobbliggaren.se 8.8.8.8   # unchanged
 nslookup -type=MX  jobbliggaren.se 8.8.8.8                               # expect: smtp.rzone.de
-nslookup -type=TXT _dmarc.jobbliggaren.se 8.8.8.8   # expect: v=DMARC1;p=reject; and EXACTLY ONE record
+nslookup -type=TXT _dmarc.jobbliggaren.se 8.8.8.8   # expect: p=reject present (a rua= added by row 38
+                                                    # is additive and expected), and EXACTLY ONE record
 nslookup -type=TXT jobbliggaren.se 8.8.8.8                               # expect: still no TXT
 ```
 

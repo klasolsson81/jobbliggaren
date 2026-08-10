@@ -38,7 +38,12 @@
 # not loaded — MEASURED 2026-08-10, because this premise is load-bearing and was previously only
 # asserted: `auditctl -w /nonexistent/... ` returns "Error sending add rule data request (No such
 # file or directory)" and the rule does not appear in `auditctl -l`. The tmpfs subdirectories are
-# created by jobbliggaren-tmpfiles.conf at boot, i.e. after rules load.
+# created by jobbliggaren-tmpfiles.conf, and `audit-rules.service` is
+# `After=systemd-tmpfiles-setup.service` — so tmpfiles runs BEFORE this file is loaded, which is
+# what makes the parent watch work at all. An earlier revision claimed the opposite ordering; if
+# it were true, this rule would abort the whole load on every boot. INSTALL THAT FILE: without it
+# nothing recreates /run/jobbliggaren after a reboot, and rule 1 failing takes every other rule
+# and auditd with it (measured 2026-08-10: it was absent on this box).
 # Watching the parent is recursive and covers both secrets/ and host-secrets/ regardless of
 # whether either exists when the rules load. The heartbeat's P4 predicate measures that these
 # keys are actually loaded in the kernel, because "the file is on disk" is not the same claim.
@@ -101,7 +106,9 @@
 #
 # RATCHET CONDITION, with its instrument: once the baseline-noise list in
 # docs/runbooks/host-detection.md has held over a written window of at least 14 days (measured
-# with `ausearch -k jbl-key-tmpfs`, every actor accounted for), flip this to `-e 2` at the next
+# with `ausearch -if /var/log/audit/audit.log -k jbl-key-tmpfs` — the bare `-k` form returns
+# nothing on this box while the events exist, so it would report a silent baseline and invite the
+# flip on an empty measurement), flip this to `-e 2` at the next
 # PLANNED reboot — which already requires key injection, so the marginal cost is zero. Do not
 # schedule an outage for the ratchet's sake.
 -e 1

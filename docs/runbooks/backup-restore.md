@@ -127,12 +127,15 @@ mount later, and a directory that is not mounted cannot be exposed by any edit t
 >   you do. An `up -d` from the `_FILE` compose would itself have created that directory — the
 >   mount carries `create_host_path: true`, which you can re-measure with
 >   `docker compose -f /opt/jobbliggaren/deploy/docker-compose.yml --env-file /dev/null config
->   --no-interpolate` (**both flags are load-bearing, and they carry different loads.**
->   `--no-interpolate` is the security one: without it compose resolves `deploy/.env` into the
->   output — all four database passwords, both edge basic-auth values and the ACME address,
->   printed to your terminal, which is the plaintext surface #198 exists to remove. `--env-file`
->   is why this needs no `sudo`: it is what stops compose opening the root-only `.env` at all.
->   Measured against the current compose: the property survives both flags, and
+>   --no-interpolate` (**both flags are load-bearing, they close different channels, and measured,
+>   neither closes both.** `--env-file` closes the *file* channel — compose never opens the
+>   root-only `deploy/.env`, which is why this needs no `sudo`. `--no-interpolate` closes the
+>   *substitution* channel — nothing is expanded at all, which is what still protects you when the
+>   values are reachable some other way, exported in your shell or `--env-file` pointed at the real
+>   file. Drop **both** and compose prints all four database passwords, both edge basic-auth values
+>   and the ACME address to your terminal. Those seven live in `.env` by decision, not by oversight
+>   — `master-key-ops.md` calls moving them a named non-goal — which is why that file is root-only
+>   `0600`. Measured against the current compose: the property survives both flags, and
 >   `${POSTGRES_APP_PASSWORD:?}` comes back unexpanded, which is the visible control that
 >   interpolation is off). So the directory's absence is
 >   evidence that reconcile has **not yet applied** the new compose. Note *applied*, not *ticked*:

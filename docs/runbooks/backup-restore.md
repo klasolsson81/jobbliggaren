@@ -119,7 +119,9 @@ mount later, and a directory that is not mounted cannot be exposed by any edit t
 > The directory is a **separate fact and is not inferable from the files**: `ls` dates the clone,
 > while whether #198's install was ever *run* shows only on the host.
 >
-> - **Both files present** — nothing to do here; continue into the install below.
+> - **Both files present** — continue into the install below. If `/run/jobbliggaren/secrets` is
+>   nonetheless absent, stop: this clone already carries the `_FILE` compose, so the running stack
+>   is crash-looping already and that is `master-key-ops.md`'s problem before it is this file's.
 > - **`inject-secrets.sh` present, `age.recipient` missing** — the clone sits between #198 and
 >   #197. Update the clone, then run this install. **And if `/run/jobbliggaren/secrets` is absent,
 >   run `master-key-ops.md` §2 and §3 as well**: a clone carrying #198 does not mean anyone
@@ -175,14 +177,16 @@ mount later, and a directory that is not mounted cannot be exposed by any edit t
 >
 > **4.** Run the install block below.
 >
-> **5.** Re-arm. `Persistent=true` fires the missed elapse at once — which is now the desired end
-> state rather than the failure, because steps 2 to 4 have happened.
+> **5.** Re-arm, and let the command refuse rather than trust that steps 3 and 4 happened.
+> `Persistent=true` fires the missed elapse at once, which is the desired end state **only** if
+> the secrets directory now exists — the same precondition this whole branch exists to establish.
 >
 > ```bash
-> sudo systemctl start jobbliggaren-reconcile.timer
+> test -d /run/jobbliggaren/secrets && sudo systemctl start jobbliggaren-reconcile.timer
 > ```
 >
-> (Written 2026-08-10, when the box was measured carrying none of the three while the reconcile
+> (Written 2026-08-10, when the box was measured carrying neither file and no secrets directory,
+> while the reconcile
 > timer was live — the ordering had never been stated, and the install block below reads as though
 > the clone is always current.)
 
@@ -499,10 +503,12 @@ FROM _dek_restore d WHERE d.job_seeker_id NOT IN (SELECT id FROM job_seekers);
 
 -- (b) Restored users with NO key. READ THIS CAREFULLY: it is NOT the crypto-erasure count on
 --     its own, and calling it that would overstate the result. DEK rows are created LAZILY —
---     a user gets one the first time they write a field-encrypted value, so a registered user
---     who never saved a cover letter, note, follow-up or CV has no key and never did. This
---     number is therefore (users erased since the main artefact) PLUS (users who never wrote
---     encrypted data), and only the first group is what the drill is measuring.
+--     a user gets one on their first request carrying IRequiresFieldEncryptionKey, which is the
+--     same trigger (b2) describes below and is NOT the same as writing: many carriers are
+--     read-only queries, so merely opening an application or a CV mints one. A user who has
+--     never made such a request has no key and never did. This number is therefore
+--     (users erased since the main artefact) PLUS (users who never triggered a key), and only
+--     the first group is what the drill is measuring.
 --     (code-reviewer, 2026-08-09: RegisterCommand does not carry IRequiresFieldEncryptionKey,
 --     so the prefetch that would create one eagerly does not run at registration.)
 SELECT count(*) AS users_without_a_key_TOTAL

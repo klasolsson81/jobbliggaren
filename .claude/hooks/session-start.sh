@@ -38,7 +38,7 @@ fi
 #    jest-worker-render-barnen kraschade på uncachade routes och maskerade felet
 #    som "Jest worker encountered N child process exceptions". Icke-blockerande
 #    parity-check (Twelve-Factor §10): jämför installerad next mot package.json-pin.
-WEB_DIR="web/jobbpilot-web"
+WEB_DIR="web/jobbliggaren-web"
 if [ -f "$WEB_DIR/package.json" ] && [ -f "$WEB_DIR/node_modules/next/package.json" ]; then
     declared=$(grep -oE '"next"[[:space:]]*:[[:space:]]*"[^"]+"' "$WEB_DIR/package.json" | head -1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
     installed=$(grep -oE '"version"[[:space:]]*:[[:space:]]*"[^"]+"' "$WEB_DIR/node_modules/next/package.json" | head -1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)

@@ -132,10 +132,10 @@ public class PooledConnectionResetIlTests
         }
 
         offenders.ShouldBeEmpty(
-            $"Reset-on-close avstängt i {assembly.Name.Name} (#1232). pg_temp söks före public och " +
-            $"EF skickar okvalificerade tabellnamn, så en temp-tabell som överlever en poolad " +
-            $"fysisk anslutning kan läsas av en ANNAN användares senare request. Vill man ändå ha " +
-            $"det krävs en accepted-risk-ADR, inte en config-ändring. " +
+            $"Reset-on-close-nyckeln OMNÄMNS i {assembly.Name.Name} (#1232) — guarden mäter omnämnandet, " +
+            "inte att värdet faktiskt är true. pg_temp söks före public och EF skickar okvalificerade " +
+            "tabellnamn, så en temp-tabell som överlever en poolad fysisk anslutning kan läsas av en " +
+            "ANNAN användares senare request. En avsiktlig avstängning kräver en accepted-risk-ADR. " +
             $"Förekomster: {string.Join(", ", offenders)}");
     }
 

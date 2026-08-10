@@ -355,11 +355,13 @@ jobs:
         run: |
           # A GLOB THAT MATCHES NOTHING PASSES VACUOUSLY, so the count is checked first: a
           # renamed directory would otherwise turn this gate into a green no-op that reads as
-          # coverage. EIGHT scripts, measured 2026-08-09 with `git ls-files`; the floor is a floor and not
-          # an equality, so adding one does not fail the build for the wrong reason.
+          # coverage. TEN scripts, measured 2026-08-10 with `git ls-files` (was eight until #1201
+          # added the heartbeat and its fixture suite); the floor is a floor and not an equality,
+          # so adding one does not fail the build for the wrong reason — but it is RAISED when
+          # scripts land, or the gate silently stops noticing that some went missing.
           n=$(git ls-files 'deploy/systemd/*.sh' | wc -l)
-          if [ "$n" -lt 8 ]; then
-            echo "::error::found only $n scripts under deploy/systemd — expected at least 8."
+          if [ "$n" -lt 10 ]; then
+            echo "::error::found only $n scripts under deploy/systemd — expected at least 10."
             echo "If one was legitimately removed, lower the floor in this step deliberately."
             exit 1
           fi
@@ -434,6 +436,21 @@ jobs:
       # det — det är restore-drillens påstående (#197 PR-2 + runbooken).
       - name: jobbliggaren-backup (fixturer)
         run: bash deploy/systemd/jobbliggaren-backup.test.sh
+
+      # Lådans kadenserade läsare och dess dead-man (#1201, grind M-7). Sviten stubbar
+      # `systemctl`, `auditctl`, `df` och `curl` — varken root, auditd eller nätverk krävs.
+      #
+      # Två egenskaper här kan INTE observeras av en grön produktionskörning, vilket är hela
+      # skälet att de har fixturer: (1) predikatets två icke-vakuitetsarmar — golv-timers och
+      # "audit-nycklarna är laddade i KÄRNAN" — fyrar per definition bara på en låda där något
+      # redan är fel, och en tom `systemctl --failed` på en låda där ingenting matar den är
+      # precis det tillstånd lådan mätte i 2026-08-10; (2) payload-invarianten, vars fixtur
+      # matar en adress genom den enda ytan som kan bära godtycklig text (ett fallerat
+      # unit-namn) och KORSAR kontrollen: varje tecken i `155.4.133.179` ligger inom
+      # teckenlistan, så en teckenbaserad filtrering släpper igenom den och fallet blir rött.
+      # Bara den formbaserade kontrollen passerar — verifierat med mutation 2026-08-10.
+      - name: jobbliggaren-heartbeat (fixturer)
+        run: bash deploy/systemd/jobbliggaren-heartbeat.test.sh
 
       # Diagnostik, INGEN grind — och till skillnad från `git --version` ovan är det
       # INTE gratis: `docker compose version` avslutar 1 när plugin:et saknas

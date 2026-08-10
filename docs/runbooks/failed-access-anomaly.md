@@ -1,5 +1,33 @@
 # Runbook — Failed access anomaly-alarm
 
+> ## ⚠ INOPERATIVE — every mechanism in this file was destroyed by ADR 0066 (banner added 2026-08-10)
+>
+> **Do not follow the procedures below expecting them to work.** The CloudWatch log group, the
+> metric filters, the SNS topic, the `aws logs start-query` steps and the ALB WAF block were all
+> torn down with the AWS dev stack. ADR 0050 states it plainly: *"Runbooken är i praktiken
+> verkningslös … varje mekanism i den revs av ADR 0066."* The Terraform modules still in
+> `infra/terraform/` are a record of what once ran, not a starting point.
+>
+> **This is deliberately not a rewrite, and the file is kept rather than deleted** because two
+> parts of it are host-independent and still authoritative:
+> - **The Art. 33 assessment** (Steg 2.5–2.6): the 72-hour window runs from awareness, IMY is the
+>   supervisory authority, and the assessment is recorded whatever its conclusion.
+> - **"No data = no detection"** (Steg 4): a detector that stopped receiving is provably
+>   non-functional, which is why any replacement needs its own health check.
+>
+> **Where the live obligations went:**
+> - **Host-level detection and alerting** — [#1201](https://github.com/klasolsson81/jobbliggaren/issues/1201),
+>   mechanism in [`host-detection.md`](./host-detection.md).
+> - **Application-level alarms** (this file's actual subject: failed-access anomaly, 5xx rate,
+>   DB CPU) — parked in [#1172](https://github.com/klasolsson81/jobbliggaren/issues/1172), and
+>   they need the log sink [#1175](https://github.com/klasolsson81/jobbliggaren/issues/1175)
+>   before anything can carry them. **#1201 does not cover them.**
+> - **Client-IP attribution**, which this file's pivot depends on, was restored by #1202
+>   (closed 2026-08-08).
+>
+> The application signals themselves (`IFailedAccessLogger`, ADR 0031) are **still emitted** — it
+> is only everything downstream of them that is gone.
+
 **Skapad:** 2026-05-12 (TD-68 / ADR 0031)
 **Owner:** Klas (Fas 1) — överlämnas till SecOps-roll vid Fas 2-bemanning
 **SNS-topic:** `${name_prefix}-secops-anomaly`

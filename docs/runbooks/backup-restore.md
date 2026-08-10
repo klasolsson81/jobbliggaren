@@ -133,8 +133,9 @@ mount later, and a directory that is not mounted cannot be exposed by any edit t
 >   *substitution* channel — nothing is expanded at all, which is what still protects you when the
 >   values are reachable some other way, exported in your shell or `--env-file` pointed at the real
 >   file. Drop **both** and compose prints all four database passwords, both edge basic-auth values
->   and the ACME address to your terminal. Those seven live in `.env` by decision, not by oversight
->   — `master-key-ops.md` calls moving them a named non-goal — which is why that file is root-only
+>   and the ACME address to your terminal. Those values live in `.env` by decision, not by
+>   oversight: `master-key-ops.md` calls moving the database and edge credentials a named non-goal,
+>   and the ACME address is a contact rather than a credential. That is why the file is root-only
 >   `0600`. Measured against the current compose: the property survives both flags, and
 >   `${POSTGRES_APP_PASSWORD:?}` comes back unexpanded, which is the visible control that
 >   interpolation is off). So the directory's absence is

@@ -39,6 +39,9 @@ describe("ForgotPasswordForm", () => {
 
     const heading = await screen.findByRole("heading", { name: "Kontrollera din inkorg" });
     expect(heading).toBeInTheDocument();
+    // The instruction belongs to the field and must not survive it — left on the page it tells the
+    // user to fill in something that is gone.
+    expect(screen.queryByText(/Skriv in din e-postadress/)).not.toBeInTheDocument();
     expect(screen.getByText(/Om adressen hör till ett konto/)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: SUBMIT })).not.toBeInTheDocument();
   });
@@ -60,6 +63,10 @@ describe("ForgotPasswordForm", () => {
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: SUBMIT })).not.toBeInTheDocument();
     await waitFor(() => expect(panel.parentElement).toHaveFocus());
+    // A way out. The layout renders no login link (showLogin={false}), so without this the refused
+    // page body offers no navigation at all.
+    expect(screen.getByRole("link", { name: "Tillbaka till inloggningen" }))
+      .toHaveAttribute("href", "/logga-in");
   });
 
   it("keeps the retry affordance alive when an ORDINARY failure is shown", async () => {
@@ -77,7 +84,10 @@ describe("ForgotPasswordForm", () => {
     const alert = await screen.findByRole("alert");
     expect(alert).toHaveTextContent("Det gick inte att skicka");
     expect(screen.getByRole("button", { name: SUBMIT })).toBeInTheDocument();
-    expect(screen.getByLabelText("E-postadress")).toBeInTheDocument();
+    const field = screen.getByLabelText("E-postadress");
+    expect(field).toBeInTheDocument();
+    expect(field).toHaveAttribute("aria-invalid", "true");
+    expect(field.getAttribute("aria-describedby")).toContain(alert.id);
   });
 
   it("offers a way back to sign-in before and after submitting", async () => {

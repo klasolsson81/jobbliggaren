@@ -1,30 +1,9 @@
 import { z } from "zod";
 
-const problemTitleSchema = z.object({ title: z.string() });
-
-/**
- * #616 — reads the ProblemDetails `title` (the backend's machine error code, e.g.
- * "Auth.PwnedPassword") from an error response. Never throws: non-JSON bodies and shapes
- * without a `title` resolve to null.
- *
- * The title is ONLY for comparison against an exact whitelist at the call site — callers map a
- * recognized code to localized copy from `messages/` and must never render backend text
- * (`detail`) directly.
- *
- * Consumes the response body — call at most once per response, and not alongside another body
- * read of the same response.
- */
-export async function readProblemTitle(res: Response): Promise<string | null> {
-  try {
-    const parsed = problemTitleSchema.safeParse(await res.json());
-    return parsed.success ? parsed.data.title : null;
-  } catch {
-    return null;
-  }
-}
-
 const problemBodySchema = z.object({
-  title: z.string().optional(),
+  // Capped: the value is only ever compared against an exact whitelist, never rendered, and a cap
+  // keeps a hostile or broken upstream from handing megabytes to a string comparison.
+  title: z.string().max(200).optional(),
   errors: z.record(z.string(), z.array(z.string())).optional(),
 });
 
@@ -56,3 +35,24 @@ export async function readProblemBody(res: Response): Promise<ProblemBody | null
     return null;
   }
 }
+
+/**
+ * #616 — reads the ProblemDetails `title` (the backend's machine error code, e.g.
+ * "Auth.PwnedPassword") from an error response. Never throws: non-JSON bodies and shapes
+ * without a `title` resolve to null.
+ *
+ * The title is ONLY for comparison against an exact whitelist at the call site — callers map a
+ * recognized code to localized copy from `messages/` and must never render backend text
+ * (`detail`) directly.
+ *
+ * Consumes the response body — call at most once per response, and not alongside another body
+ * read of the same response.
+ */
+export async function readProblemTitle(res: Response): Promise<string | null> {
+  // Delegates rather than parsing again. The two were byte-equivalent on every branch (missing title,
+  // wrong type, non-JSON), so two schemas and two try/catches over the same body were two places for
+  // one truth to drift — and a caller had to choose between them for no reason. Both names stay: this
+  // is the common case and reads better at the call site.
+  return (await readProblemBody(res))?.title ?? null;
+}
+

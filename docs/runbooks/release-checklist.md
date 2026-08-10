@@ -347,12 +347,29 @@ Källa: ADR 0080 §"Prod-Resend-flip pre-condition checklist"; ROPA-behandlingen
 **"Utgående transaktionell e-post (Amazon SES, `eu-north-1`)"** — omdöpt och omskopad
 2026-08-09 (#1169) från *"Bakgrundsmatchnings-notiser via e-post (Resend)"*, som täckte
 **endast** notis-vägen. Efter wideningen ovan gäller grinden all utgående e-post, och
-Art. 30-posten täcker sedan omskrivningen alla åtta mallarna — **men de sex
+Art. 30-posten täcker sedan omskrivningen **de sex mallar som fanns 2026-08-09** — **men de fyra
 kontolivscykel-mallarnas rättsliga grunder är CC:s utkast och är inte prövade**, så
-sign-off-ledet i punkt 1 är oförändrat KVAR. **TVÅ**
-av mallarna är ogrindade: `EmailChangeConfirmation` (`ChangeEmailCommandHandler:66`) och
+sign-off-ledet i punkt 1 är oförändrat KVAR.
+⚠ **Och sedan #1171 är täckningen dessutom OFULLSTÄNDIG:** `PasswordReset` och
+`PasswordChangedNotice` saknar Art. 30-post **helt** och har ingen Art. 6-grund någonstans i
+registret. Registret är gitignorerat (ADR 0072) och kan därför inte rida den PR som införde
+mallarna — det åtgärdas **lokalt före flippen**, och ingenting i CI kommer någonsin att fälla
+att det inte gjorts. Mängden mallar med oprövade grunder växer alltså från fyra till sex, vilket
+`security-auditor` 2026-08-10 uttryckligen vägrar signera punkt 1:s sista led mot.
+*(Sifferbumpen sex→åtta gjordes först på den här meningen och var fel: meningens subjekt är
+REGISTRETS TÄCKNING, inte mallantalet, så bumpen konverterade ett sant påstående till ett falskt
+i en merge-blockerande grind — i den lugnande riktningen. Mätt 2026-08-10 av dotnet-architect och
+security-auditor oberoende.)*
+
+**FYRA**
+av mallarna är ogrindade: `EmailChangeConfirmation` (`ChangeEmailCommandHandler:66`),
 `EmailChangedNotification` (`ConfirmEmailChangeCommandHandler:45`, vars enda villkor är att
-den gamla adressen finns). **Den senare går till den GAMLA adressen** — en annan
+den gamla adressen finns), samt sedan #1171 `PasswordReset`
+(`RequestPasswordResetCommandHandler`) och `PasswordChangedNotice`
+(`ResetPasswordCommandHandler`) — **båda utan feature-villkor alls**, så en flipp gör dem levande
+vid första `/glomt-losenord`. *(Läs "grindad" som checklistan gör: ett villkor UTÖVER
+providerswitchen. En `CanDeliver`-kontroll räknas inte — `CanDeliver` ÄR switchen, och
+`EmailChangeConfirmation` har en och listas ändå här.)* **Den senare går till den GAMLA adressen** — en annan
 mottagarklass än den användaren just skrev, så en Art. 30-behandling som bara skopas till
 den första lämnar en mottagare oregistrerad. (`EmailConfirmation` är däremot grindad på `RequireEmailConfirmation`,
 `RegisterCommandHandler.cs:81`, som defaultar **false** — se blockquoten ovan. En

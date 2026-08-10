@@ -140,9 +140,10 @@ public interface IUserAccountService
     /// second activation path and change #714's activation model (deferred, Klas 2026-08-10).
     /// </para>
     /// <para>
-    /// Sealing "does an account exist here" in Infrastructure is the same discipline as the resend
-    /// sibling: it keeps the uniform anti-enumeration answer in the handler and stops a future handler
-    /// turning a bare existence primitive into an oracle. The token is minted Api-side, in the same
+    /// It bundles the existence bit WITH the delivery material so no naked existence primitive exists to
+    /// misuse — the same discipline as the resend sibling. Read the guarantee precisely: the uniform
+    /// anti-enumeration answer is the HANDLER's responsibility (and its tests'), not this port's. The port
+    /// still returns null for an absent account; what it refuses to offer is a bare DoesAccountExist. The token is minted Api-side, in the same
     /// Data-Protection keyring that validates it at /reset-password (ADR 0102 — no cross-process token,
     /// and the Worker registers no token providers at all).
     /// </para>

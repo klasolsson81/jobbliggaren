@@ -514,15 +514,16 @@
       "cooldownHint": "You can request a new link in {seconds, plural, one {# second} other {# seconds}}."
     },
     "forgotPassword": {
-      "title": "Forgotten password",
-      "intro": "Enter your email address and we will send you a link where you can choose a new password.",
+      "title": "Reset your password",
+      "intro": "Enter your email address and we will send you a link you can use to choose a new password.",
       "emailLabel": "Email address",
       "emailHint": "The same address you used when you created the account.",
       "submit": "Send reset link",
       "submitting": "Sending…",
       "sentTitle": "Check your inbox",
-      "sentBody": "If the address belongs to an account, we have sent a link there. The link is valid for a short while, and the email states how long.",
-      "backToLogin": "Back to sign in"
+      "sentBody": "If the address belongs to an account, we have sent a link there. Check your spam folder if you do not see the email within a few minutes. The link is valid for a short time, and the email says how long.",
+      "backToLogin": "Back to sign in",
+      "requestNewLink": "Request a new reset link"
     },
     "resetPassword": {
       "title": "Choose a new password",
@@ -534,10 +535,10 @@
       "successTitle": "Your password has been changed",
       "successBody": "You are signed out on all devices. Sign in with your new password.",
       "loginLink": "Sign in",
-      "invalidTitle": "This link does not work",
+      "invalidTitle": "This link cannot be used",
       "invalidBody": "The link is invalid or has expired. Request a new reset link and try again.",
       "passwordTooShort": "The password must be at least 12 characters.",
-      "networkError": "We could not reach the service. Try again in a moment."
+      "networkError": "We could not reach the server. Try again in a moment."
     }
   }
 }

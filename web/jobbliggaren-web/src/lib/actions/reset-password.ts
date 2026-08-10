@@ -10,7 +10,9 @@ import { readProblemBody } from "@/lib/http/problem";
  * `AuthActionState`, because `useActionState` consumes it. `done` and `error` are mutually exclusive in
  * practice; the form renders `done` first.
  */
-export type ResetPasswordActionState = { error?: string; done?: true } | null;
+export type ResetPasswordActionState =
+  | { error?: string; done?: true; linkDead?: true }
+  | null;
 
 /**
  * #1171 — PUBLIC password reset (the APPLY step). The link is opened from the account's own inbox with
@@ -27,6 +29,11 @@ export type ResetPasswordActionState = { error?: string; done?: true } | null;
  * sees either. It reads TWO shapes rather than an exact title whitelist alone, because the backend
  * emits two on 400 — see the arm itself.
  *
+ * `linkDead` splits the failure channel by RETRYABILITY, which is what the caller renders on. A token
+ * rejection cannot be fixed by anything the user types here, so the page replaces the form and offers
+ * a way to request a new link; a password rejection can, and leaves the form intact — the link itself
+ * survives it. Same distinction, and the same reason, as `refused` on the request half.
+ *
  * SECURITY (§5): `uid`, `token` and the password are NEVER logged on any path, the body is read at most
  * ONCE (`readProblemBody` consumes it) and backend `detail` is never rendered. The caller page carries
  * `robots: noindex` because the URL holds a single-use credential.
@@ -42,7 +49,7 @@ export async function resetPasswordAction(
   const newPassword = (formData.get("newPassword") as string | null) ?? "";
 
   if (!uid || !token) {
-    return { error: t("auth.resetPassword.invalidBody") };
+    return { error: t("auth.resetPassword.invalidBody"), linkDead: true };
   }
   if (newPassword.length < 12) {
     // Client friction only; the server is authoritative and enforces the same floor.
@@ -82,9 +89,12 @@ export async function resetPasswordAction(
         return { error: t("auth.resetPassword.passwordTooShort") };
       }
 
-      // Everything else is a token rejection, uniform by construction on the backend. One message,
-      // and it names the recovery: request a new link.
-      return { error: t("auth.resetPassword.invalidBody") };
+      // Everything else is a token rejection, uniform by construction on the backend. `linkDead`
+      // marks it NON-RETRYABLE: no password the user types on this page can make a spent or expired
+      // token work, so the caller replaces the form rather than leaving a live button on a dead link.
+      // The password arms above deliberately do NOT set it — those ARE retryable, because the token
+      // survives a rejected password.
+      return { error: t("auth.resetPassword.invalidBody"), linkDead: true };
     }
 
     // Transient server-side failures (rate-limit / 5xx) are retryable, so they get the network message
@@ -94,7 +104,7 @@ export async function resetPasswordAction(
       return { error: t("auth.resetPassword.networkError") };
     }
 
-    return { error: t("auth.resetPassword.invalidBody") };
+    return { error: t("auth.resetPassword.invalidBody"), linkDead: true };
   } catch {
     return { error: t("auth.resetPassword.networkError") };
   }

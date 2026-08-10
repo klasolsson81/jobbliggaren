@@ -13,6 +13,11 @@ import { ResetPassword } from "@/components/auth/reset-password";
 // cross-origin request sends the origin without the path or query.
 export const metadata: Metadata = {
   robots: { index: false, follow: false },
+  // The URL's query carries the token, and Referrer-Policy: strict-origin-when-cross-origin strips
+  // path+query only CROSS-origin — a same-origin navigation would send the whole URL, token included.
+  // Nothing persists it today (the Caddyfile declares no `log` and Caddy v2 logs no access by
+  // default), but "no-referrer" makes that a property of this page rather than of the edge config.
+  referrer: "no-referrer",
 };
 
 interface PageProps {
@@ -53,7 +58,7 @@ export default async function AterstallLosenordPage({ searchParams }: PageProps)
             href="/glomt-losenord"
             className="text-brand-700 underline underline-offset-2"
           >
-            {t("auth.forgotPassword.title")}
+            {t("auth.forgotPassword.requestNewLink")}
           </Link>
         </div>
       </div>

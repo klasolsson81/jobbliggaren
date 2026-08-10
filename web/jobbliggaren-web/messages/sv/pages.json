@@ -514,15 +514,16 @@
       "cooldownHint": "Du kan begära en ny länk om {seconds, plural, one {# sekund} other {# sekunder}}."
     },
     "forgotPassword": {
-      "title": "Glömt lösenordet",
+      "title": "Återställ ditt lösenord",
       "intro": "Skriv in din e-postadress, så skickar vi en länk där du kan välja ett nytt lösenord.",
       "emailLabel": "E-postadress",
       "emailHint": "Samma adress som du använde när du skapade kontot.",
       "submit": "Skicka återställningslänk",
       "submitting": "Skickar…",
       "sentTitle": "Kontrollera din inkorg",
-      "sentBody": "Om adressen hör till ett konto har vi skickat en länk dit. Länken gäller en kort stund, och tiden står i mejlet.",
-      "backToLogin": "Tillbaka till inloggningen"
+      "sentBody": "Om adressen hör till ett konto har vi skickat en länk dit. Kontrollera skräpposten om du inte ser mejlet inom några minuter. Länken gäller en kort stund, och tiden står i mejlet.",
+      "backToLogin": "Tillbaka till inloggningen",
+      "requestNewLink": "Begär en ny återställningslänk"
     },
     "resetPassword": {
       "title": "Välj ett nytt lösenord",
@@ -534,10 +535,10 @@
       "successTitle": "Lösenordet är ändrat",
       "successBody": "Du är utloggad på alla enheter. Logga in med ditt nya lösenord.",
       "loginLink": "Logga in",
-      "invalidTitle": "Länken fungerar inte",
+      "invalidTitle": "Länken går inte att använda",
       "invalidBody": "Länken är ogiltig eller har gått ut. Begär en ny återställningslänk och försök igen.",
       "passwordTooShort": "Lösenordet måste vara minst 12 tecken.",
-      "networkError": "Det gick inte att nå tjänsten. Försök igen om en liten stund."
+      "networkError": "Det gick inte att nå servern. Försök igen om en stund."
     }
   }
 }

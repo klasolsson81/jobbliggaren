@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useRef } from "react";
+import { useActionState, useEffect, useId, useRef } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
@@ -39,6 +39,7 @@ export function ForgotPasswordForm() {
   const sentRef = useRef<HTMLDivElement>(null);
   const refusedRef = useRef<HTMLDivElement>(null);
   const emailInputRef = useRef<HTMLInputElement>(null);
+  const errorId = useId();
 
   const refused = state?.success === false && state.refused === true;
   const sent = state?.success === true;
@@ -59,14 +60,14 @@ export function ForgotPasswordForm() {
 
   if (sent) {
     return (
-      <div
-        ref={sentRef}
-        tabIndex={-1}
-        role="status"
-        aria-live="polite"
-        className="flex flex-col gap-4 focus:outline-none"
-      >
-        <div className="flex flex-col gap-1">
+      <div className="flex flex-col gap-4">
+        <div
+          ref={sentRef}
+          tabIndex={-1}
+          role="status"
+          aria-live="polite"
+          className="flex flex-col gap-1 focus:outline-none"
+        >
           {/* h2, not a second h1 — the page owns the h1. Keeps the panel in the heading outline
               while role=status announces the change. */}
           <h2 className="text-body font-bold text-heading-1">
@@ -76,10 +77,12 @@ export function ForgotPasswordForm() {
             {t("auth.forgotPassword.sentBody")}
           </p>
         </div>
+        {/* Sibling of the live region, not nested — the exemplar (RegisterForm) keeps its affordance
+            outside for the same reason: a live region should announce the state, not the navigation. */}
         <p className="text-body-sm">
           <Link
             href="/logga-in"
-            className="text-brand-700 underline underline-offset-2"
+            className="text-brand-600 hover:text-brand-700 underline underline-offset-2"
           >
             {t("auth.forgotPassword.backToLogin")}
           </Link>
@@ -90,20 +93,37 @@ export function ForgotPasswordForm() {
 
   if (refused) {
     return (
-      <div
-        ref={refusedRef}
-        tabIndex={-1}
-        role="status"
-        aria-live="polite"
-        className="focus:outline-none"
-      >
-        <p className="text-body text-text-primary">{state.error}</p>
+      <div className="flex flex-col gap-4">
+        <div
+          ref={refusedRef}
+          tabIndex={-1}
+          role="status"
+          aria-live="polite"
+          className="focus:outline-none"
+        >
+          <p className="text-body text-text-primary">{state.error}</p>
+        </div>
+        {/* A way out. The refusal removes the form, the auth layout renders no login link
+            (showLogin={false}), so without this the page body offers no navigation at all. */}
+        <p className="text-body-sm">
+          <Link
+            href="/logga-in"
+            className="text-brand-600 hover:text-brand-700 underline underline-offset-2"
+          >
+            {t("auth.forgotPassword.backToLogin")}
+          </Link>
+        </p>
       </div>
     );
   }
 
   return (
     <form action={formAction} className="flex flex-col gap-5">
+      {/* The instruction belongs to the FIELD, so it unmounts with it. Left on the page it would tell
+          the user to fill in something that is gone, and in the refused state it would contradict the
+          panel outright ("we will send you a link" above "we cannot send a link"). */}
+      <p className="text-body text-text-secondary">{t("auth.forgotPassword.intro")}</p>
+
       <div className="flex flex-col gap-1.5">
         <label htmlFor="email" className="text-label font-medium text-text-primary">
           {t("auth.forgotPassword.emailLabel")}
@@ -116,7 +136,12 @@ export function ForgotPasswordForm() {
           autoComplete="email"
           required
           aria-required="true"
-          aria-describedby="email-hint"
+          aria-invalid={state?.success === false && !state.refused ? true : undefined}
+          aria-describedby={
+            state?.success === false && !state.refused
+              ? `email-hint ${errorId}`
+              : "email-hint"
+          }
         />
         <p id="email-hint" className="text-body-sm text-text-primary">
           {t("auth.forgotPassword.emailHint")}
@@ -124,7 +149,7 @@ export function ForgotPasswordForm() {
       </div>
 
       {state?.success === false && !state.refused && (
-        <p role="alert" className="text-body-sm leading-5 text-danger-600">
+        <p id={errorId} role="alert" className="text-body-sm leading-5 text-danger-600">
           {state.error}
         </p>
       )}

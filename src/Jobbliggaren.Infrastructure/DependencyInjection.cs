@@ -1528,8 +1528,8 @@ public static class DependencyInjection
             })
             .AddEntityFrameworkStores<AppIdentityDbContext>()
             .AddDefaultTokenProviders()
-            // #1171: chained AFTER AddDefaultTokenProviders so the name below is a fourth entry
-            // beside Default/Email/Phone/Authenticator rather than a replacement for any of them.
+            // #1171: its own ProviderMap name, distinct from the four AddDefaultTokenProviders registers
+            // (Default/Email/Phone/Authenticator), so it adds a provider rather than replacing one.
             .AddTokenProvider<PasswordResetTokenProvider<ApplicationUser>>(PasswordResetTokenProviderName)
             // #616 (CTO-bind Variant B): breached-password rejection at the UserManager
             // chokepoint — CreateAsync + ChangePasswordAsync (and any future reset flow)
@@ -1577,9 +1577,10 @@ public static class DependencyInjection
 
         // #733/#703 — Redis-backed anti-email-bomb cooldown gate (ICooldownGate) + its window options. The
         // gate is the #733 primitive generalised (a policy-free check-and-set on a (scope, subject) pair)
-        // and now throttles three requester-chosen-address outbound surfaces: confirmation-link resend
-        // (#733, window from ResendCooldownOptions), the register account-exists notice, and the
-        // change-email request (#703, windows from AuthEmailCooldownOptions). Api-only — the cooldown runs
+        // and now throttles four requester-chosen-address outbound surfaces: confirmation-link resend
+        // (#733, window from ResendCooldownOptions), the register account-exists notice, the
+        // change-email request, and the forgot-password request (#703/#1171, windows from
+        // AuthEmailCooldownOptions). Api-only — the cooldown runs
         // in the request path. ValidateOnStart + [Range] so a misconfigured window fails the host loud (a
         // security invariant), parity DigestDispatchOptions. The two option sections stay independent so the
         // already-shipped Auth:ResendCooldown key is not broken.

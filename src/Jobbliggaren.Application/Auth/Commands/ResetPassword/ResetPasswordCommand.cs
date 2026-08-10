@@ -16,8 +16,7 @@ namespace Jobbliggaren.Application.Auth.Commands.ResetPassword;
 /// name, it mirrors <c>IUserAccountService.ResetPasswordAsync</c> and Identity's own API, and the failure
 /// mode is beneficial: anyone later adding <c>IAuthenticatedRequest</c> to it gets a red build demanding
 /// re-authentication, which is impossible for a token-gated command and is exactly the right stop signal.
-/// The negative is pinned by a test rather than left to this paragraph. Same escape the sibling
-/// <c>ConfirmEmailChangeCommand</c> and <c>VerifyEmailCommand</c> names take.
+/// Same escape the sibling <c>ConfirmEmailChangeCommand</c> and <c>VerifyEmailCommand</c> names take.
 /// </para>
 /// <para>
 /// <b>Auditable, unlike the request half.</b> A completed credential mutation with a known user id, exact

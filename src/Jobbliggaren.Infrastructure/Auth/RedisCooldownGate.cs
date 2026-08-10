@@ -37,11 +37,29 @@ internal sealed class RedisCooldownGate(IDistributedCache cache) : ICooldownGate
         return true;
     }
 
-    // SHA-256 hex of the normalized subject (trim + lower-invariant) — one-way, non-reversible,
-    // never the raw value.
+    // SHA-256 hex of the normalized subject — one-way, non-reversible, never the raw value.
+    //
+    // The normalisation MUST be Identity's, not merely "a" normalisation (#1171, security-auditor
+    // 2026-08-10). Every subject here is an email address, and the throttle is only meaningful if two
+    // spellings that reach the SAME ACCOUNT land on the SAME KEY. Identity's lookup is
+    // UpperInvariantLookupNormalizer — `Normalize().ToUpperInvariant()`, i.e. NFC then upper — and the
+    // previous `ToLowerInvariant()` was not its inverse.
+    //
+    // Two BMP characters break the old form, and both are trivially typeable: U+017F LATIN SMALL LETTER
+    // LONG S (ſ) upper-cases to 'S', and U+0131 LATIN SMALL LETTER DOTLESS I (ı) upper-cases to 'I' —
+    // while both lower-case to themselves. So `klaſ.olſſon@…` and `admın@…` pass the validator, resolve
+    // to the same Identity account as their ASCII spellings, and used to get their OWN 60 s window: 2^k
+    // independent windows for an address with k such letters. NFC closes the second axis, where a
+    // decomposed (NFD) spelling of any accented address did the same.
+    //
+    // This is a shared gate, so the fix covers all four scopes (resend-confirm, account-exists,
+    // change-email-target/user, password-reset), not only the one that surfaced it. Changing the derived
+    // key resets in-flight windows exactly once, which is harmless at a 60 s window. `ToUpperInvariant`
+    // rather than `ToLower` deliberately: it is what Identity does, and the Turkish-I hazard runs the
+    // other way (`ToLower` on the invariant culture is what people reach for and what was wrong here).
     private static string Key(string scope, string subject)
     {
-        var normalized = subject.Trim().ToLowerInvariant();
+        var normalized = subject.Trim().Normalize().ToUpperInvariant();
         var hex = Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(normalized)));
         return $"cd/{scope}/v1/{hex}";
     }

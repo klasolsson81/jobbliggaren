@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useRef } from "react";
+import { useActionState, useEffect, useId, useRef } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
@@ -35,17 +35,28 @@ export function ResetPassword({ uid, token }: { uid: string; token: string }) {
   >(resetPasswordAction, null);
 
   const doneRef = useRef<HTMLHeadingElement>(null);
+  const deadRef = useRef<HTMLDivElement>(null);
   const passwordRef = useRef<HTMLInputElement>(null);
+  const errorId = useId();
+
+  // A token rejection is NOT retryable — see `linkDead` in the action. Split here rather than in the
+  // markup so the retryable and non-retryable failures cannot drift into one channel again.
+  const linkDead = state?.linkDead === true;
+  const retryableError = state?.error !== undefined && !linkDead ? state.error : undefined;
 
   useEffect(() => {
     if (state?.done) doneRef.current?.focus();
   }, [state?.done]);
 
-  // On an ordinary failure focus returns to the field the user would correct — the form is still here
-  // precisely so they can.
   useEffect(() => {
-    if (state?.error) passwordRef.current?.focus();
-  }, [state?.error]);
+    if (linkDead) deadRef.current?.focus();
+  }, [linkDead]);
+
+  // On a RETRYABLE failure focus returns to the field the user would correct — the form is still here
+  // precisely so they can. Never on a dead link, where the field is gone.
+  useEffect(() => {
+    if (retryableError) passwordRef.current?.focus();
+  }, [retryableError]);
 
   if (state?.done) {
     return (
@@ -65,6 +76,35 @@ export function ResetPassword({ uid, token }: { uid: string; token: string }) {
         <div>
           <Button asChild>
             <Link href="/logga-in">{t("auth.resetPassword.loginLink")}</Link>
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  if (linkDead) {
+    // Replaces the form: no password typed here can revive a spent or expired token, so leaving a live
+    // submit button would invite a retry that cannot succeed — the same reasoning the request form
+    // applies to its refusal. The way out is a real affordance, not just prose telling them to find one.
+    return (
+      <div className="flex flex-col gap-6">
+        <div
+          ref={deadRef}
+          tabIndex={-1}
+          role="status"
+          aria-live="polite"
+          className="flex flex-col gap-1 focus:outline-none"
+        >
+          <h1 className="text-h1 font-bold text-heading-1">
+            {t("auth.resetPassword.invalidTitle")}
+          </h1>
+          <p className="text-body text-text-primary">{state?.error}</p>
+        </div>
+        <div>
+          <Button asChild>
+            <Link href="/glomt-losenord">
+              {t("auth.forgotPassword.requestNewLink")}
+            </Link>
           </Button>
         </div>
       </div>
@@ -100,16 +140,19 @@ export function ResetPassword({ uid, token }: { uid: string; token: string }) {
             autoComplete="new-password"
             required
             aria-required="true"
-            aria-describedby="newPassword-hint"
+            aria-invalid={retryableError ? true : undefined}
+            aria-describedby={
+              retryableError ? `newPassword-hint ${errorId}` : "newPassword-hint"
+            }
           />
           <p id="newPassword-hint" className="text-body-sm text-text-primary">
             {t("auth.resetPassword.passwordHint")}
           </p>
         </div>
 
-        {state?.error && (
-          <p role="alert" className="text-body-sm leading-5 text-danger-600">
-            {state.error}
+        {retryableError && (
+          <p id={errorId} role="alert" className="text-body-sm leading-5 text-danger-600">
+            {retryableError}
           </p>
         )}
 

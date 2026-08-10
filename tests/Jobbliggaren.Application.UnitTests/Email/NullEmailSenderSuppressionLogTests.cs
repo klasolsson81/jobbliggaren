@@ -111,11 +111,16 @@ public class NullEmailSenderSuppressionLogTests
         var ct = CancellationToken.None;
         var userId = Guid.NewGuid();
 
-        // All six, so the mapping is pinned kind by kind rather than by one representative. Three of
-        // them are UNREACHABLE in production — email-change-confirmation, password-reset and
-        // password-changed-notice, whose only callers refuse before sending (#1087, #1171) — and are
-        // raised anyway: if one ever fires, an invariant broke, which is a louder event than a missing
-        // provider, not a quieter one.
+        // All six, so the mapping is pinned kind by kind rather than by one representative. Three are
+        // UNREACHABLE in production, but by TWO different mechanisms and the distinction matters:
+        //   · email-change-confirmation and password-reset — their callers READ CanDeliver and refuse
+        //     before minting or sending (#1087, #1171).
+        //   · password-changed-notice — its caller has NO CanDeliver branch. It is unreachable
+        //     INDIRECTLY: no reset token can be minted while the sender cannot deliver, so the event
+        //     this notice reports cannot occur (the same trigger-unreachability argument
+        //     security-auditor accepted 2026-08-09 for the old-address notice).
+        // All three are raised at Warning anyway: if one ever fires, an invariant broke, which is a
+        // louder event than a missing provider, not a quieter one.
         await sender.SendEmailConfirmationAsync(
             "user@example.com", new EmailConfirmationEmail(userId, "tok"), ct);
         await sender.SendEmailChangedNotificationAsync("old@example.com", ct);

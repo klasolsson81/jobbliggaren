@@ -92,7 +92,7 @@ describe("resetPasswordAction", () => {
 
     const result = await resetPasswordAction(null, form());
 
-    expect(result).toEqual({ error: "auth.resetPassword.invalidBody" });
+    expect(result).toEqual({ error: "auth.resetPassword.invalidBody", linkDead: true });
   });
 
   it("treats a 400 with no recognised title as an invalid link", async () => {
@@ -100,7 +100,7 @@ describe("resetPasswordAction", () => {
 
     const result = await resetPasswordAction(null, form());
 
-    expect(result).toEqual({ error: "auth.resetPassword.invalidBody" });
+    expect(result).toEqual({ error: "auth.resetPassword.invalidBody", linkDead: true });
   });
 
   it("treats 429 and 5xx as retryable rather than as a broken link", async () => {
@@ -124,7 +124,7 @@ describe("resetPasswordAction", () => {
   it("rejects a missing uid or token without calling the backend", async () => {
     for (const overrides of [{ uid: "" }, { token: "" }]) {
       const result = await resetPasswordAction(null, form(overrides));
-      expect(result).toEqual({ error: "auth.resetPassword.invalidBody" });
+      expect(result).toEqual({ error: "auth.resetPassword.invalidBody", linkDead: true });
     }
     expect(fetchMock).not.toHaveBeenCalled();
   });
@@ -134,6 +134,24 @@ describe("resetPasswordAction", () => {
 
     expect(result).toEqual({ error: "auth.resetPassword.passwordTooShort" });
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("marks token rejections NON-retryable and password rejections retryable", async () => {
+    // The split the page renders on. A token rejection cannot be fixed by anything typed on that page,
+    // so it must replace the form; a password rejection can, and the link survives it — so the form
+    // must stay. Conflating them either strands a user on a dead link with a live button, or throws
+    // away a working link because the password was weak.
+    fetchMock.mockResolvedValueOnce(fakeResponse(400, { title: "Auth.InvalidPasswordResetToken" }));
+    const dead = await resetPasswordAction(null, form());
+    expect(dead).toHaveProperty("linkDead", true);
+
+    fetchMock.mockResolvedValueOnce(fakeResponse(400, { title: "Auth.PwnedPassword" }));
+    const retryable = await resetPasswordAction(null, form());
+    expect(retryable).not.toHaveProperty("linkDead");
+
+    fetchMock.mockResolvedValueOnce(fakeResponse(503));
+    const transient = await resetPasswordAction(null, form());
+    expect(transient).not.toHaveProperty("linkDead");
   });
 
   it("never logs the token", async () => {

@@ -50,11 +50,33 @@ describe("ResetPassword", () => {
     expect(screen.queryByRole("button", { name: SUBMIT })).not.toBeInTheDocument();
   });
 
+  it("REPLACES the form on a dead link and offers a way to request a new one", async () => {
+    // The dead end this test exists to prevent: the copy says "request a new reset link" while the page
+    // offers no affordance to do it, and a live submit button invites a retry no password can satisfy.
+    actionMock.mockResolvedValue({
+      error: "Länken är ogiltig eller har gått ut.",
+      linkDead: true,
+    });
+    const user = userEvent.setup();
+    render(<ResetPassword uid={UID} token={TOKEN} />);
+
+    await submit(user);
+
+    const heading = await screen.findByRole("heading", { name: "Länken går inte att använda" });
+    await waitFor(() => expect(heading.parentElement).toHaveFocus());
+    expect(screen.getByRole("link", { name: "Begär en ny återställningslänk" }))
+      .toHaveAttribute("href", "/glomt-losenord");
+    expect(screen.queryByRole("button", { name: SUBMIT })).not.toBeInTheDocument();
+    // Status channel, not the error channel: this is not the user's mistake and not retryable here.
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
   it("KEEPS the form mounted when the password is rejected, because the link still works", async () => {
     // The invariant that costs the most if it regresses: Identity verifies the token first, so a
     // breached-password rejection does not rotate the stamp and the SAME link is still usable. If this
     // component replaced the form on error, a user whose only fault was a weak password would be sent
     // to request a new link they do not need.
+    // No linkDead — a rejected password leaves the token intact, so the same link still works.
     actionMock.mockResolvedValue({ error: "Lösenordet finns i kända dataintrång." });
     const user = userEvent.setup();
     render(<ResetPassword uid={UID} token={TOKEN} />);
@@ -64,7 +86,12 @@ describe("ResetPassword", () => {
     const alert = await screen.findByRole("alert");
     expect(alert).toHaveTextContent("Lösenordet finns i kända dataintrång.");
     expect(screen.getByRole("button", { name: SUBMIT })).toBeInTheDocument();
-    expect(screen.getByLabelText("Nytt lösenord", { exact: true })).toBeInTheDocument();
+    const field = screen.getByLabelText("Nytt lösenord", { exact: true });
+    expect(field).toBeInTheDocument();
+    // The error is wired to the field, not merely announced beside it: focus moves INTO the input, so
+    // without aria-describedby a screen-reader user hears the label and hint and never the reason.
+    expect(field).toHaveAttribute("aria-invalid", "true");
+    expect(field.getAttribute("aria-describedby")).toContain(alert.id);
   });
 
   it("carries uid and token as hidden fields rather than re-reading the URL", async () => {

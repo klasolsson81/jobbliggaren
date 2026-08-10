@@ -82,15 +82,23 @@ public sealed partial class RequestPasswordResetCommandHandler(
         {
             // Uniform 202 regardless of mint/send outcome: a transport fault for an existing account must
             // not surface as a differential 500 that an unknown address (a clean 202) never produces —
-            // that would re-open the existence oracle from the other side. Logged server-side without the
-            // address or the token; the user can retry after the cooldown. No audit line (nothing was sent).
-            LogPasswordResetSendFailed(logger, ex);
+            // that would re-open the existence oracle from the other side. The user can retry after the
+            // cooldown. No audit line (nothing was sent).
+            //
+            // TYPE NAME ONLY, never the exception object (security-auditor 2026-08-10, parity with
+            // ResetPasswordCommandHandler and with the SesEmailSender boundary). The send leg is
+            // contained — EmailDeliveryException carries a kind and a type name and deliberately no
+            // InnerException — but this catch ALSO spans TryPreparePasswordResetAsync, whose database
+            // and Data-Protection exceptions are not contained and can carry the address or connection
+            // detail in their message.
+            LogPasswordResetSendFailed(logger, ex.GetType().Name);
         }
 
         return Result.Success();
     }
 
     [LoggerMessage(Level = LogLevel.Warning,
-        Message = "RequestPasswordResetCommand: mint/send failed — uniform 202 returned, no email sent")]
-    private static partial void LogPasswordResetSendFailed(ILogger logger, Exception ex);
+        Message = "RequestPasswordResetCommand: mint/send failed ({ErrorType}) — uniform 202 returned, "
+        + "no email sent")]
+    private static partial void LogPasswordResetSendFailed(ILogger logger, string errorType);
 }

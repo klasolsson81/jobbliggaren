@@ -204,7 +204,6 @@ public static class AuthErrorCodes
     /// of several conditions on the same trigger; condition (a) still expires only at a real
     /// <c>Email:Provider</c>, and (b) is untouched.
     /// </para>
-    /// </summary>
     /// <para>
     /// <b>Generalised for #1171.</b> It read "…någon bekräftelselänk. Din adress är oförändrad." while
     /// change-email was the only producer; the forgot-password request is the second, and there no
@@ -227,9 +226,17 @@ public static class AuthErrorCodes
     /// <para>
     /// <b>Password rejections do NOT collapse into this</b>, and that asymmetry is safe for a measured
     /// reason rather than a stylistic one: Identity verifies the token BEFORE running the password
-    /// validators, so <c>Auth.PwnedPassword</c> and <c>Auth.PasswordTooShort</c> are reachable only by
-    /// someone already holding a valid token. They disclose nothing that person does not have, and a
-    /// real user needs to know which rule they broke.
+    /// validators, so a password rejection is reachable only by someone already holding a valid token.
+    /// It discloses nothing that person does not have, and a real user needs to know which rule they
+    /// broke.
+    /// </para>
+    /// <para>
+    /// On the wire that means <c>Auth.PwnedPassword</c> and nothing else. A too-short password never
+    /// reaches <c>UserManager</c>: <c>ResetPasswordCommandValidator</c> carries the same 12-character
+    /// floor as <c>IdentityOptions.Password.RequiredLength</c>, so <c>ValidationBehavior</c> fells it
+    /// first and answers with the <c>{errors}</c> shape. <c>Auth.PasswordTooShort</c> IS producible by
+    /// <c>IUserAccountService.ResetPasswordAsync</c> if called directly — the port maps every Identity
+    /// error code — but no HTTP request can produce it here.
     /// </para>
     /// </summary>
     public const string InvalidPasswordResetToken = "Auth.InvalidPasswordResetToken";

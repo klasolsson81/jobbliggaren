@@ -275,9 +275,12 @@ public static partial class AuthEndpoints
 
         // Password reset — APPLY step (#1171). PUBLIC: the link is opened from the account's own inbox,
         // logged out by definition, so the opaque single-use token IS the authorization. Every TOKEN
-        // rejection is a uniform 400; a PASSWORD rejection (Auth.PwnedPassword, Auth.PasswordTooShort)
-        // names its rule, which is safe because Identity verifies the token BEFORE running the password
-        // validators — that arm is reachable only by someone already holding a valid token.
+        // rejection is a uniform 400; a PASSWORD rejection names its rule, which is safe because Identity
+        // verifies the token BEFORE running the password validators — that arm is reachable only by
+        // someone already holding a valid token. In practice that is Auth.PwnedPassword alone:
+        // ResetPasswordCommandValidator carries Identity's own 12-character floor, so ValidationBehavior
+        // fells a short password first and answers with the {errors} shape instead — Auth.PasswordTooShort
+        // is never emitted on this route.
         //
         // On success the endpoint enacts C6 (logout-everywhere) with NO re-issue, following
         // /confirm-email-change rather than /change-password: the actor here is anonymous and the link may

@@ -217,9 +217,16 @@ mount later, and a directory that is not mounted cannot be exposed by any edit t
 > one that applied to a `test -d`. **`--check` is loud when it refuses**, a named line per missing
 > item on stderr. What says nothing is `systemctl start` on success, and **neither command tells
 > you whether the timer ended up armed.** Step 1 left it stopped, so a refusal you skim past leaves
-> reconcile disarmed indefinitely, and a stopped timer appears on no alarm surface: it is not in
-> `systemctl --failed`, there is no freshness probe for reconcile the way there is for backup, and
-> nothing reads its stamp on a cadence.
+> reconcile disarmed indefinitely, and a stopped timer appears on no alarm surface of its own: it
+> is not in `systemctl --failed`, there is no freshness probe for reconcile the way there is for
+> backup, and nothing reads its stamp on a cadence.
+>
+> **Since #1201 that specific gap has a mechanism** — `jobbliggaren-heartbeat` names
+> `jobbliggaren-reconcile.timer` in its floor set and pages when an enabled timer is not active,
+> which is exactly this failure. **But shipping a mechanism is not closing a gap:** it covers this
+> only once it is installed on the box and the rows in
+> [`host-detection.md`](./host-detection.md) §7 carry measurements. Until then, read the paragraph
+> above as still true of this box.
 >
 > ```bash
 > sudo /opt/jobbliggaren/deploy/systemd/jobbliggaren-inject-secrets.sh --check \
@@ -330,8 +337,11 @@ failures.** `jobbliggaren-backup.service` failing means last night's run broke.
 masked timer, a stopped unit, a clock that never reached 02:15. The second is the one no failure
 list would otherwise show, because a unit that is never triggered is not failed.
 
-**Weekly operator check** (there is no log sink and nothing reads `systemctl --failed` on a
-cadence — that gap is #1175 and this runbook does not close it):
+**Weekly operator check** (there is still no log sink — #1175. The *cadenced reader* half of this
+parenthetical was answered by #1201: `jobbliggaren-heartbeat` reads `systemctl --failed` every
+fifteen minutes and pages, **once installed** — see [`host-detection.md`](./host-detection.md).
+The check below stays worth doing regardless, because it inspects the remote, which no predicate
+on the box does):
 
 ```bash
 systemctl --failed
@@ -682,7 +692,11 @@ a date is a claim that cannot be told from one that has decayed.
 - **Escrow of the age private key** — Klas, see §1.
 - **The deploy stack, the box's hardening, and TLS** — `vps-deploy-stack.md`,
   `vps-base-hardening.md`, #196.
-- **Reading `systemctl --failed` on a cadence** — nothing does. #1175.
+- **Reading `systemctl --failed` on a cadence** — **#1201 owns this since 2026-08-10**, not #1175.
+  `jobbliggaren-heartbeat` reads the list every fifteen minutes and pages, and its silence is
+  itself an alarm ([`host-detection.md`](./host-detection.md)). Discharged when that runbook's §7
+  rows carry measurements against this box, not when the mechanism merged. **#1175 still owns the
+  log sink**, which is a different thing and is still unbuilt.
 
 ---
 

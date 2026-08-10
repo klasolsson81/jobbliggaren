@@ -355,11 +355,13 @@ jobs:
         run: |
           # A GLOB THAT MATCHES NOTHING PASSES VACUOUSLY, so the count is checked first: a
           # renamed directory would otherwise turn this gate into a green no-op that reads as
-          # coverage. EIGHT scripts, measured 2026-08-09 with `git ls-files`; the floor is a floor and not
-          # an equality, so adding one does not fail the build for the wrong reason.
+          # coverage. TEN scripts, measured 2026-08-10 with `git ls-files` (was eight until #1201
+          # added the heartbeat and its fixture suite); the floor is a floor and not an equality,
+          # so adding one does not fail the build for the wrong reason — but it is RAISED when
+          # scripts land, or the gate silently stops noticing that some went missing.
           n=$(git ls-files 'deploy/systemd/*.sh' | wc -l)
-          if [ "$n" -lt 8 ]; then
-            echo "::error::found only $n scripts under deploy/systemd — expected at least 8."
+          if [ "$n" -lt 10 ]; then
+            echo "::error::found only $n scripts under deploy/systemd — expected at least 10."
             echo "If one was legitimately removed, lower the floor in this step deliberately."
             exit 1
           fi
@@ -434,6 +436,34 @@ jobs:
       # det — det är restore-drillens påstående (#197 PR-2 + runbooken).
       - name: jobbliggaren-backup (fixturer)
         run: bash deploy/systemd/jobbliggaren-backup.test.sh
+
+      # Lådans kadenserade läsare och dess dead-man (#1201, grind M-7). Sviten stubbar
+      # `systemctl`, `auditctl`, `df` och `curl` — varken root, auditd eller nätverk krävs.
+      #
+      # Tre egenskaper här kan INTE observeras av en grön produktionskörning, vilket är hela
+      # skälet att de har fixturer — och alla tre är mutationsverifierade 2026-08-10, var och en
+      # mot en mutation som fäller SINA assertioner och inga andra:
+      #   1. Predikatets icke-vakuitetsarmar (golv-timers, "audit-nycklarna är laddade i KÄRNAN")
+      #      fyrar per definition bara på en låda där något redan är fel.
+      #   2. Payload-invarianten. Fixturen matar en adress genom den enda ytan som kan bära
+      #      godtycklig text — ett fallerat unit-namn — och KORSAR kontrollen två gånger om: en
+      #      teckenbaserad filtrering släpper igenom `155.4.133.179` (varje tecken är tillåtet),
+      #      och en formkontroll som bara gäller tokens med `@` släpper igenom den likaså. Båda
+      #      mutationerna fäller exakt sina fall.
+      #   3. Att stubben emitterar systemds statusglyf om `--plain` saknas. Utan den mätte hela
+      #      P1- och payload-blocket en form produktionen aldrig producerar: skarpt returnerade
+      #      `awk '{print $1}'` glyfen, namnet nådde aldrig saneringen, och invarianten höll av
+      #      misstag. Ta bort `--plain` ur skriptet och sviten går röd.
+      #
+      # JBL_REQUIRE_SCRATCH_PATH: `curl-absent`-fallet bygger sin PATH från grunden och skippar
+      # sig självt annonserat där skalet inte går att kopiera körbart (Git Bash/Windows). En
+      # annonserad skip är inte en mätning — på ubuntu ska ingenting skippas, så här blir en skip
+      # ett fel. Samma grind, och samma skäl, som `JBL_REQUIRE_MODE_CASES` på inject-secrets-
+      # steget ovan: utan raden vore "den mäter på runnern" ett påstående framtvingat av ingenting.
+      - name: jobbliggaren-heartbeat (fixturer)
+        run: bash deploy/systemd/jobbliggaren-heartbeat.test.sh
+        env:
+          JBL_REQUIRE_SCRATCH_PATH: "1"
 
       # Diagnostik, INGEN grind — och till skillnad från `git --version` ovan är det
       # INTE gratis: `docker compose version` avslutar 1 när plugin:et saknas

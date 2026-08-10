@@ -206,9 +206,14 @@ check_audit_rules_loaded() {
   fi
   loaded=$(auditctl -l 2>/dev/null | grep -oE -- '-k[[:space:]]+jbl-[A-Za-z0-9_-]+' |
     awk '{print $2}' | sort -u)
+  # Audit keys are NOT run through sanitize_token. That function reduces UNIT NAMES to a unit
+  # shape, and a key is not unit-shaped — every key would come out as the rejection marker, so
+  # the body would say how MANY keys were missing but never which, which is the whole diagnostic
+  # value of this arm. The keys need no reduction either: they come from a root-owned file we
+  # ship, and the extraction regex above already bounds them to `jbl-[A-Za-z0-9_-]+`.
   while IFS= read -r k; do
     [ -z "$k" ] && continue
-    printf '%s\n' "$loaded" | grep -qxF "$k" || missing="${missing}${missing:+,}$(sanitize_token "$k")"
+    printf '%s\n' "$loaded" | grep -qxF "$k" || missing="${missing}${missing:+,}${k}"
   done <<<"$expected"
   [ -z "$missing" ] || fail_with "audit-keys-not-loaded=${missing}"
 }

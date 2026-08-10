@@ -250,7 +250,7 @@ healthy_state
 : >"$TMPROOT/loaded-rules"
 run_sut
 assert_exit_zero "P4-not-loaded"
-assert_one_fail_post_naming "P4-not-loaded" "audit-keys-not-loaded="
+assert_one_fail_post_naming "P4-not-loaded" "audit-keys-not-loaded=jbl-"
 
 echo
 echo "P4 — auditctl absent entirely"
@@ -441,9 +441,17 @@ if [ "$scratch_works" -eq 1 ] &&
     >"$TMPROOT/stdout" 2>"$TMPROOT/stderr"
   printf '%s' "$?" >"$TMPROOT/exit"
   assert_exit_zero "curl-absent(PATH from scratch)"
+elif [ "${JBL_REQUIRE_SCRATCH_PATH:-0}" = "1" ]; then
+  # An announced skip is not a measurement, so on the runner a skip is a FAILURE. Without this
+  # the V3 closing argument ("it measures on ubuntu") would be a claim enforced by nothing — the
+  # same reasoning the inject-secrets suite already carries as JBL_REQUIRE_MODE_CASES, in this
+  # very CI job.
+  no "curl-absent(PATH from scratch): skipped while JBL_REQUIRE_SCRATCH_PATH=1" \
+    "the scratch PATH must be runnable on the CI runner; a skip here is an unmeasured case"
 else
   echo "  SKIP  curl-absent(PATH from scratch): scratch PATH is not runnable on this host"
-  echo "        (an announced skip is not a measurement — this case measures on the CI runner)"
+  echo "        (an announced skip is not a measurement — set JBL_REQUIRE_SCRATCH_PATH=1 to"
+  echo "         make it an error, which CI does)"
 fi
 write_stubs
 

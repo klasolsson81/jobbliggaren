@@ -95,7 +95,7 @@ permanently false and the alarm permanently lit, which trains an operator to sto
 bash-level crash is still covered twice — the unit fails *and* the ping is not sent.
 
 **Detection primitive:** `auditd` with **watch rules only** — no syscall rules, whose volume
-would compete directly with the journal floor and ADR 0122's capacity conditions on a box where
+would compete directly with the journal's evidence window and ADR 0122's capacity conditions on a box where
 the answer to memory pressure (disk swap) is forbidden because it breaks gate B-1. Rules and the
 reasoning for the `zz-` filename, the `-p` flags and `-e 1` are in
 `deploy/systemd/zz-jobbliggaren-audit.rules`; the ratchet to `-e 2` carries its condition and
@@ -131,14 +131,23 @@ whose ordinary traffic is not written down is alarm fatigue with extra steps.
 Fill after a real observation window (§5 has the procedure). The expected actors on
 `jbl-key-tmpfs`:
 
-| Actor | Expected shape | Notes |
-|---|---|---|
-| `jobbliggaren-inject-secrets.sh` | writes, at injection | one burst per operator injection |
-| api / worker container start | one read per secret file per start | **containers restart on every applied reconcile**, so this is not "rare" — it is as frequent as deploys |
-| *(expected silent)* | `--check` runs `stat()`, which triggers none of `r`/`w`/`a` | a firing here is a real finding, not noise to be baselined away |
+**Every watch family gets a row, not just the key one.** A family whose ordinary traffic is
+undocumented is a family whose findings cannot be triaged.
 
-**Any actor not in this table is a finding.** The table is the discriminator; without it the rule
-produces events nobody can triage, which is the same failure as no rule at all.
+| Key | Expected actors | Notes |
+|---|---|---|
+| `jbl-key-tmpfs` | `jobbliggaren-inject-secrets.sh` writes at injection; **one read per secret file per api/worker container start** | containers restart on **every applied reconcile**, so this is as frequent as deploys, not rare. *(Expected silent: `--check` uses `stat()`, which triggers none of `r`/`w`/`a` — a firing there is a real finding.)* |
+| `jbl-authkeys` | none in normal operation | `/root/.ssh` and `/home/jpadmin/.ssh` only. **Deliberately not `/root`:** measured 2026-08-10, `/root` carries hourly cosign TUF-cache and docker buildx writes, which would drown this family |
+| `jbl-sshd`, `jbl-sudoers`, `jbl-accounts` | none in normal operation | `unattended-upgrades` can touch these during a package upgrade — expected, and worth confirming against the upgrade log before treating one as a finding |
+| `jbl-units` | operator installs, and `git pull` in `/opt/jobbliggaren/deploy/systemd` | the reconcile unit pulls the clone, so a deploy that changes a unit file fires here legitimately |
+| `jbl-cron` | none | no user crontab exists on this box (measured 2026-08-10), so this family is close to pure signal |
+| `jbl-deploy` | `git pull` during reconcile, when compose or `.env` actually changes | not every hour — only when the pull brings a change |
+| `jbl-detection` | **two reads per heartbeat run**: systemd reads `EnvironmentFile=` and the script sources it | the timer runs every 15 min, so expect ~192 reads/day. Anything that is not those two is the finding this watch exists for |
+
+**Any actor not in this table is a finding.** The table is the discriminator; without it the rules
+produce events nobody can triage, which is the same failure as no rules at all. **Fill the counts
+after a real observation window** — the shapes above are derived from what runs; the numbers are
+not measured until §7's baseline row carries a date.
 
 ## 5. Install and drill
 
@@ -171,7 +180,7 @@ for kv in 'admin_space_left_action SYSLOG' 'disk_full_action ROTATE' 'disk_error
   k=${kv% *}; v=${kv#* }
   sudo sed -i "s/^${k}[[:space:]]*=.*/${k} = ${v}/" /etc/audit/auditd.conf
 done
-grep -E '^(admin_space_left_action|disk_full_action|disk_error_action) ' /etc/audit/auditd.conf
+sudo grep -E '^(admin_space_left_action|disk_full_action|disk_error_action) ' /etc/audit/auditd.conf
 #    Expected: SYSLOG / ROTATE / SYSLOG — and no SUSPEND anywhere in that output.
 
 sudo install -m 0640 -o root -g root \
@@ -274,7 +283,7 @@ install happens once.
 | **The alarm self-clears with no operator action** | drill D4 | | |
 | **The dead-man fires, and the delta is within the stated bound** | drill D5 — stop the timer, measure wall-clock from last successful ping to the page | | |
 | **The payload carries no personal data** | the exact body the expecter stored, plus confirmation that no audit-record body appears in any ping | | |
-| **auditd cannot suspend or stop logging when the disk fills** | `grep -E '^(space_left_action\|admin_space_left_action\|disk_full_action\|disk_error_action\|max_log_file_action\|num_logs\|max_log_file) ' /etc/audit/auditd.conf` — read back from the file auditd actually reads, since there is no `auditd.conf.d` and no `cat-config` equivalent. **The drill is deliberately NOT run** — filling the production disk is a self-inflicted incident — so this row measures configuration and says so | | |
+| **auditd cannot suspend or stop logging when the disk fills** | `sudo grep -E '^(space_left_action\|admin_space_left_action\|disk_full_action\|disk_error_action\|max_log_file_action\|num_logs\|max_log_file) ' /etc/audit/auditd.conf` — read back from the file auditd actually reads, since there is no `auditd.conf.d` and no `cat-config` equivalent. **The drill is deliberately NOT run** — filling the production disk is a self-inflicted incident — so this row measures configuration and says so | | |
 | **The RAM cost is measured, not asserted** | `systemctl show -p MemoryCurrent auditd`, `MemAvailable` before and after, against ADR 0122's honest free RAM | | |
 | **The ping URL is single-purpose and absent from the repo** | `stat -c '%a %U:%G' /etc/jobbliggaren/detection.env`; `git log -S` finds no URL | | |
 | **E-class's bound is conditional, and the condition is unmet today** | the floor set in the script against `systemctl list-unit-files 'jobbliggaren*'` | Floor set holds two timers. #197's and #198's units are not on the box, so this row **names the dependency** and does not claim their rows | 2026-08-10 |

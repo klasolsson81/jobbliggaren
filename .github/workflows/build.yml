@@ -454,8 +454,16 @@ jobs:
       #      P1- och payload-blocket en form produktionen aldrig producerar: skarpt returnerade
       #      `awk '{print $1}'` glyfen, namnet nådde aldrig saneringen, och invarianten höll av
       #      misstag. Ta bort `--plain` ur skriptet och sviten går röd.
+      #
+      # JBL_REQUIRE_SCRATCH_PATH: `curl-absent`-fallet bygger sin PATH från grunden och skippar
+      # sig självt annonserat där skalet inte går att kopiera körbart (Git Bash/Windows). En
+      # annonserad skip är inte en mätning — på ubuntu ska ingenting skippas, så här blir en skip
+      # ett fel. Samma grind, och samma skäl, som `JBL_REQUIRE_MODE_CASES` på inject-secrets-
+      # steget ovan: utan raden vore "den mäter på runnern" ett påstående framtvingat av ingenting.
       - name: jobbliggaren-heartbeat (fixturer)
         run: bash deploy/systemd/jobbliggaren-heartbeat.test.sh
+        env:
+          JBL_REQUIRE_SCRATCH_PATH: "1"
 
       # Diagnostik, INGEN grind — och till skillnad från `git --version` ovan är det
       # INTE gratis: `docker compose version` avslutar 1 när plugin:et saknas

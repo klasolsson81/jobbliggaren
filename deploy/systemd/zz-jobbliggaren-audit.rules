@@ -35,7 +35,10 @@
 
 # --- The key surface (#198, gate B-1, ADR 0123's asset) -------------------------------------
 # The PARENT directory, not .../secrets: a -w against a path that does not exist at load time is
-# not loaded, and the tmpfs subdirectories are created by jobbliggaren-tmpfiles.conf at boot.
+# not loaded — MEASURED 2026-08-10, because this premise is load-bearing and was previously only
+# asserted: `auditctl -w /nonexistent/... ` returns "Error sending add rule data request (No such
+# file or directory)" and the rule does not appear in `auditctl -l`. The tmpfs subdirectories are
+# created by jobbliggaren-tmpfiles.conf at boot, i.e. after rules load.
 # Watching the parent is recursive and covers both secrets/ and host-secrets/ regardless of
 # whether either exists when the rules load. The heartbeat's P4 predicate measures that these
 # keys are actually loaded in the kernel, because "the file is on disk" is not the same claim.
@@ -48,11 +51,17 @@
 # The .ssh DIRECTORY, not the authorized_keys file: OpenSSH's default AuthorizedKeysFile is
 # ".ssh/authorized_keys .ssh/authorized_keys2" and nothing in this repo overrides it, so both are
 # live and a file watch would cover one of two. Watching the directory also survives the file
-# being replaced rather than edited. /root/.ssh is watched via /root for the same reason it is
-# not watched directly: it may not exist at load time, and a -w against a missing path is not
-# loaded at all (see the tmpfs note above).
+# being replaced rather than edited.
+#
+# /root/.ssh AND NOT /root. A directory watch is recursive (auditctl(8): "almost the same as
+# using the -F dir option"), and /root is NOT quiet on this box — measured 2026-08-10: 20 files
+# changed in 48 h under /root/.sigstore/root/tuf.db and /root/.docker/buildx, because the hourly
+# reconcile runs cosign as root and cosign keeps its TUF cache there. Watching /root would file
+# that traffic under jbl-authkeys, turning the one watch that would catch an SSH backdoor into
+# the noisiest channel present — the same alarm fatigue this file rejects for sudoers reads.
+# /root/.ssh exists (measured the same day), so the narrow watch loads.
 -w /home/jpadmin/.ssh -p wa -k jbl-authkeys
--w /root              -p wa -k jbl-authkeys
+-w /root/.ssh         -p wa -k jbl-authkeys
 -w /etc/ssh/sshd_config    -p wa -k jbl-sshd
 -w /etc/ssh/sshd_config.d  -p wa -k jbl-sshd
 -w /etc/sudoers            -p wa -k jbl-sudoers

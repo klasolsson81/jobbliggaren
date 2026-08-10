@@ -481,8 +481,11 @@ FROM job_seekers j WHERE j.id NOT IN (SELECT job_seeker_id FROM user_data_keys);
 --      (b2) IS AN ERASURE COUNT ONLY IF STEP 0 PASSED, and that is a precondition rather than a
 --      caveat. Under a REVERSED pairing — a DEK artefact older than the main one, which is what a
 --      run whose DEK leg failed after its main artefact uploaded leaves behind — every user who
---      registered between the two generations has ciphertext and no key too. That is
---      byte-identical to what this query counts. So a (b2) recorded without step 0 may be
+--      registered AND WROTE AN ENCRYPTED FIELD between the two generations has ciphertext and no
+--      key too. That is byte-identical to what this query counts. (Registration alone does not
+--      qualify: no encrypted column sits on job_seekers, so such a user has no ciphertext and is
+--      counted by (b) instead — which is the very distinction (b2) exists to draw.)
+--      So a (b2) recorded without step 0 may be
 --      measuring silent data loss and reporting it as a successful Art. 17 erasure. The drill
 --      measures exactly this ambiguity (`BackupRestoreDrillTests`, the reversed-pairing
 --      counterfactual); the operator's protection is step 0, not this query.

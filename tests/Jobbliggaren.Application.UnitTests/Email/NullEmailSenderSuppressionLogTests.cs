@@ -103,22 +103,28 @@ public class NullEmailSenderSuppressionLogTests
     [InlineData("email-changed-notification")]
     [InlineData("account-exists-notice")]
     [InlineData("email-change-confirmation")]
+    [InlineData("password-reset")]
+    [InlineData("password-changed-notice")]
     public async Task EveryAccountLifecycleKind_LogsAtWarning(string expectedKind)
     {
         var (sender, log) = Create();
         var ct = CancellationToken.None;
         var userId = Guid.NewGuid();
 
-        // All four, so the mapping is pinned kind by kind rather than by one representative. The
-        // fourth (email-change-confirmation) is UNREACHABLE in production — its only caller refuses
-        // before sending — and is raised anyway: if it ever fires, an invariant broke, which is a
-        // louder event than a missing provider, not a quieter one.
+        // All six, so the mapping is pinned kind by kind rather than by one representative. Three of
+        // them are UNREACHABLE in production — email-change-confirmation, password-reset and
+        // password-changed-notice, whose only callers refuse before sending (#1087, #1171) — and are
+        // raised anyway: if one ever fires, an invariant broke, which is a louder event than a missing
+        // provider, not a quieter one.
         await sender.SendEmailConfirmationAsync(
             "user@example.com", new EmailConfirmationEmail(userId, "tok"), ct);
         await sender.SendEmailChangedNotificationAsync("old@example.com", ct);
         await sender.SendAccountExistsNoticeAsync("taken@example.com", ct);
         await sender.SendEmailChangeConfirmationAsync(
             "new@example.com", new EmailChangeConfirmationEmail(userId, "new@example.com", "tok"), ct);
+        await sender.SendPasswordResetAsync(
+            "user@example.com", new PasswordResetEmail(userId, "tok"), ct);
+        await sender.SendPasswordChangedNoticeAsync("user@example.com", ct);
 
         var record = log.Records
             .Where(r => r.Message.Contains(expectedKind, StringComparison.Ordinal))

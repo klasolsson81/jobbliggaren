@@ -41,9 +41,17 @@ public sealed partial class ResendEmailConfirmationCommandHandler(
 
             // Inline mint+send in the SAME Api process as /verify-email's validation (one Data-Protection
             // keyring) so the resent link actually resolves — mirrors RegisterCommandHandler. The out-of-
-            // band Hangfire path was reverted (CTO 2026-07-10, ADR 0102): it needed a cross-process shared
-            // DP keyring whose blast radius exceeded the non-exploitable FORK-2 timing oracle it closed
-            // (the 60s cooldown rate-caps that oracle to one measurement/address, and it is inert flag-OFF).
+            // band Hangfire path was reverted (CTO 2026-07-10): it needed a cross-process shared DP keyring
+            // whose blast radius exceeded the FORK-2 timing oracle it closed. ⚠ Two corrections to that
+            // reasoning, measured 2026-08-10. First, "the 60s cooldown rate-caps that oracle to one
+            // measurement/address" is FALSE (security-auditor): a per-address window caps repeated
+            // sampling of one address, and enumeration needs one measurement per candidate. The oracle is
+            // capped only by AuthWrite, per-IP and parallelisable — it is inert flag-OFF, which is what
+            // still makes it non-exploitable in the default configuration, and nothing else does.
+            // Second, the revert is cited here and in five other files as "ADR 0102"; no such document
+            // exists (docs/decisions jumps 0101 → 0103, and 0103 is used twice). The decision is real and
+            // is recorded in these comments; the ADR pointer is not. #1171 solved the same problem on the
+            // reset route by moving the send off the request path — this route has not been reworked.
             await emailSender.SendEmailConfirmationAsync(
                 delivery.Email,
                 new EmailConfirmationEmail(delivery.UserId, delivery.UrlSafeToken),

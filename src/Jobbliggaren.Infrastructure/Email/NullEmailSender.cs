@@ -86,6 +86,20 @@ namespace Jobbliggaren.Infrastructure.Email;
 /// no checklist item, nothing to remember. Residual, stated so it is not rediscovered: a token
 /// minted under a capable sender and confirmed after an operator swaps to this one, bounded by the
 /// 24h token lifespan, with C6 logout-everywhere as the previous owner's crude remaining signal.</item>
+/// <item><c>RequestPasswordResetCommandHandler</c> (#1171) — the password changes only when the
+/// emailed link is opened, so a dropped send leaves someone who has already lost access with no way
+/// back in. It consults <see cref="CanDeliver"/> and refuses (503), like change-email. <b>The check
+/// is the handler's FIRST statement, and that position is the anti-enumeration property, not
+/// tidiness:</b> the surface is unauthenticated and answers a uniform 202, so a capability check
+/// placed after the account lookup would be reachable only when an account exists and the 503 would
+/// itself disclose existence.</item>
+/// <item><c>ResetPasswordCommand</c>'s password-changed notice (#1171) — the same OWASP ASVS V2.5 /
+/// NIST SP 800-63B breach-detection control as the old-address notice above, and closed by the same
+/// argument rather than by a new gate: no reset token can be minted while this sender is registered,
+/// so the event the control reports cannot occur. Control and guarded flow go dark together. It
+/// carries the narrower residual too — a token minted under a capable sender and redeemed after an
+/// operator swaps to this one — bounded by the reset lifespan, which is
+/// <c>PasswordResetTokenProviderOptions.LifespanMinutes</c> rather than the 24h above.</item>
 /// </list>
 /// </para>
 /// <para>
@@ -155,6 +169,23 @@ public sealed partial class NullEmailSender(ILogger<NullEmailSender> logger) : I
         CancellationToken cancellationToken)
     {
         LogSuppressedConsequential("account-exists-notice");
+        return Task.CompletedTask;
+    }
+
+    public Task SendPasswordResetAsync(
+        string toEmail,
+        PasswordResetEmail content,
+        CancellationToken cancellationToken)
+    {
+        LogSuppressedConsequential("password-reset");
+        return Task.CompletedTask;
+    }
+
+    public Task SendPasswordChangedNoticeAsync(
+        string toEmail,
+        CancellationToken cancellationToken)
+    {
+        LogSuppressedConsequential("password-changed-notice");
         return Task.CompletedTask;
     }
 

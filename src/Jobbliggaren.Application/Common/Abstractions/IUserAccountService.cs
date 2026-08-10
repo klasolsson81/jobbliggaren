@@ -24,6 +24,21 @@ public sealed record EmailConfirmationResend(Guid UserId, string Email, string U
 /// </summary>
 public sealed record AccountSummary(string? Email, IReadOnlyList<string> Roles);
 
+/// <summary>
+/// The material a password-reset link needs (#1171): the account's userId + address plus a freshly minted
+/// opaque Base64Url reset token. Produced by
+/// <see cref="IUserAccountService.TryPreparePasswordResetAsync"/> ONLY when an account exists at the
+/// address; the token is minted and validated in the SAME Api process (one Data-Protection keyring) so the
+/// emailed link resolves at /reset-password.
+/// <para>
+/// <c>Email</c> is the account's own stored address rather than the submitted one, for the same reason
+/// <see cref="EmailConfirmationResend"/> carries it: the reset link must go to the address on record, and
+/// Identity's lookup is case-insensitive, so echoing the request's spelling back into the send would mail a
+/// form the account does not actually have.
+/// </para>
+/// </summary>
+public sealed record PasswordResetDelivery(Guid UserId, string Email, string UrlSafeToken);
+
 public interface IUserAccountService
 {
     Task<Result<Guid>> CreateUserAsync(string email, string password, CancellationToken ct);
@@ -111,4 +126,51 @@ public interface IUserAccountService
     /// validates it at /verify-email (CTO 2026-07-10 / ADR 0102 — no cross-process token).
     /// </summary>
     Task<EmailConfirmationResend?> TryPrepareEmailConfirmationResendAsync(string email, CancellationToken ct);
+
+    /// <summary>
+    /// #1171 — eligibility + token mint for a PASSWORD RESET, sealed in Infrastructure. Returns the
+    /// delivery material ONLY when an account exists at <paramref name="email"/>; <c>null</c> otherwise,
+    /// and the caller answers identically either way.
+    /// <para>
+    /// <b>No confirmation gate, deliberately.</b> Unlike the resend sibling this does not consult
+    /// <see cref="Auth.AuthOptions.RequireEmailConfirmation"/> and does not skip unconfirmed accounts:
+    /// possession of the emailed token proves control of the inbox, which is exactly what confirmation
+    /// proves, so refusing an unconfirmed account would lock out a real owner for a reason unrelated to
+    /// their password. It does not SET <c>EmailConfirmed</c> either — that would make the reset link a
+    /// second activation path and change #714's activation model (deferred, Klas 2026-08-10).
+    /// </para>
+    /// <para>
+    /// It bundles the existence bit WITH the delivery material so no naked existence primitive exists to
+    /// misuse — the same discipline as the resend sibling. Read the guarantee precisely: the uniform
+    /// anti-enumeration answer is the HANDLER's responsibility (and its tests'), not this port's. The port
+    /// still returns null for an absent account; what it refuses to offer is a bare DoesAccountExist. The token is minted Api-side, in the same
+    /// Data-Protection keyring that validates it at /reset-password (CTO 2026-07-10 — no cross-process
+    /// token; the Worker registers no token providers at all). That decision is recorded on
+    /// <c>ResendEmailConfirmationCommandHandler</c> and in <c>AddCoreIdentityForWorker</c>'s comment,
+    /// NOT in an ADR: "ADR 0102" is cited in several files and no such document exists (measured
+    /// 2026-08-10; docs/decisions jumps 0101 → 0103, and 0103 is used twice).
+    /// </para>
+    /// </summary>
+    Task<PasswordResetDelivery?> TryPreparePasswordResetAsync(string email, CancellationToken ct);
+
+    /// <summary>
+    /// #1171 — applies a password reset against an emailed token. Every token rejection (unknown user,
+    /// malformed, wrong, expired) collapses to ONE uniform failure, because the endpoint is public and
+    /// distinguishing them would make it an account-existence oracle.
+    /// <para>
+    /// <b>Password rejections are NOT collapsed, and that is safe for a measured reason:</b> Identity
+    /// verifies the token BEFORE it validates the password, so a <c>Auth.PwnedPassword</c> or
+    /// <c>Auth.PasswordTooShort</c> answer is reachable only by someone who already holds a valid token.
+    /// It discloses nothing they do not have. The user needs to know which rule they broke.
+    /// </para>
+    /// <para>
+    /// Single-use comes from the same verification order: the security stamp the token is bound to is
+    /// rotated only on a SUCCESSFUL reset, so a rejected password leaves the link usable for a retry
+    /// while a completed reset kills it. An active lockout is cleared on success — the failed-attempt
+    /// counter belongs to the credential just replaced, and clearing it needs a token only the inbox
+    /// owner holds, so it is not a lockout-bypass primitive.
+    /// </para>
+    /// </summary>
+    Task<Result> ResetPasswordAsync(
+        Guid userId, string urlSafeToken, string newPassword, CancellationToken ct);
 }

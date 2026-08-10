@@ -103,15 +103,23 @@ public class NullEmailSenderSuppressionLogTests
     [InlineData("email-changed-notification")]
     [InlineData("account-exists-notice")]
     [InlineData("email-change-confirmation")]
+    [InlineData("password-reset")]
+    [InlineData("password-changed-notice")]
     public async Task EveryAccountLifecycleKind_LogsAtWarning(string expectedKind)
     {
         var (sender, log) = Create();
         var ct = CancellationToken.None;
         var userId = Guid.NewGuid();
 
-        // All four, so the mapping is pinned kind by kind rather than by one representative. The
-        // fourth (email-change-confirmation) is UNREACHABLE in production — its only caller refuses
-        // before sending — and is raised anyway: if it ever fires, an invariant broke, which is a
+        // All six, so the mapping is pinned kind by kind rather than by one representative. Three are
+        // UNREACHABLE in production, but by TWO different mechanisms and the distinction matters:
+        //   · email-change-confirmation and password-reset — their callers READ CanDeliver and refuse
+        //     before minting or sending (#1087, #1171).
+        //   · password-changed-notice — its caller has NO CanDeliver branch. It is unreachable
+        //     INDIRECTLY: no reset token can be minted while the sender cannot deliver, so the event
+        //     this notice reports cannot occur (the same trigger-unreachability argument
+        //     security-auditor accepted 2026-08-09 for the old-address notice).
+        // All three are raised at Warning anyway: if one ever fires, an invariant broke, which is a
         // louder event than a missing provider, not a quieter one.
         await sender.SendEmailConfirmationAsync(
             "user@example.com", new EmailConfirmationEmail(userId, "tok"), ct);
@@ -119,6 +127,9 @@ public class NullEmailSenderSuppressionLogTests
         await sender.SendAccountExistsNoticeAsync("taken@example.com", ct);
         await sender.SendEmailChangeConfirmationAsync(
             "new@example.com", new EmailChangeConfirmationEmail(userId, "new@example.com", "tok"), ct);
+        await sender.SendPasswordResetAsync(
+            "user@example.com", new PasswordResetEmail(userId, "tok"), ct);
+        await sender.SendPasswordChangedNoticeAsync("user@example.com", ct);
 
         var record = log.Records
             .Where(r => r.Message.Contains(expectedKind, StringComparison.Ordinal))

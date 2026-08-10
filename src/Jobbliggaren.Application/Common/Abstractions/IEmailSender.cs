@@ -57,9 +57,9 @@ public interface IEmailSender
     /// <b>A constant per implementation, never a per-message question</b> (senior-cto-advisor Q3(b)
     /// 2026-07-26, dotnet-architect optionsset 2026-08-09). Delivery-dependence is a property of the
     /// CALLER, not of the sender: no implementation would answer differently per email kind — Null
-    /// drops all six, SES sends all six — so a <c>CanDeliver(kind)</c> overload would carry a
+    /// drops every one, SES sends every one — so a <c>CanDeliver(kind)</c> overload would carry a
     /// parameter that is dead by construction, and would invent a second enumeration of this port's
-    /// six methods to keep in sync with them. The BCL precedent for one type plus capability queries
+    /// send methods to keep in sync with them. The BCL precedent for one type plus capability queries
     /// over a lattice of interfaces is <see cref="System.IO.Stream.CanRead"/>/<c>CanSeek</c>/
     /// <c>CanWrite</c>.
     /// </para>
@@ -179,6 +179,59 @@ public interface IEmailSender
     /// </para>
     /// </summary>
     Task SendAccountExistsNoticeAsync(
+        string toEmail,
+        CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Sends the PASSWORD-RESET link (#1171) to the address that requested it. <paramref name="content"/>
+    /// carries the userId plus an opaque Base64Url token the template builds
+    /// <c>{BaseUrl}/aterstall-losenord?uid=&amp;token=</c> from.
+    /// <para>
+    /// <b>Delivery-dependent, and the strictest case on this port.</b> The password is only changed when
+    /// the emailed link is opened, so a dropped send leaves the requester with a "check your inbox"
+    /// message, no link, and no way back into the account — which is the whole defect #1171 exists to
+    /// close. <c>RequestPasswordResetCommandHandler</c> therefore consults <see cref="CanDeliver"/> and
+    /// refuses with a 503 BEFORE any token is minted.
+    /// </para>
+    /// <para>
+    /// <b>That refusal is the FIRST statement of the handler, and the ordering is load-bearing rather
+    /// than tidy.</b> The surface is unauthenticated and answers a uniform 202 for known and unknown
+    /// addresses alike. A capability check placed AFTER the account lookup would only ever be reachable
+    /// when an account exists, making the 503 itself an existence oracle — the trap
+    /// <c>ResendEmailConfirmationCommandHandler</c> avoids by never returning 503 at all. Checked first,
+    /// the 503/202 split is a property of the server's configuration, evaluated before the submitted
+    /// address is read, so it can carry no information about any account.
+    /// </para>
+    /// <para>
+    /// Single-use without any stored token: <c>ResetPasswordAsync</c> rotates the user's SecurityStamp,
+    /// which the token is bound to. Lifespan is <c>PasswordResetTokenProviderOptions.LifespanMinutes</c>,
+    /// shorter than the other link kinds and enforced by its own token provider. Anti-email-bomb is
+    /// <c>ICooldownGate</c> on <c>CooldownScopes.PasswordReset</c> — SILENT, for the same reason the
+    /// resend cooldown is: a visible throttle on an unauthenticated surface is itself an oracle.
+    /// </para>
+    /// </summary>
+    Task SendPasswordResetAsync(
+        string toEmail,
+        PasswordResetEmail content,
+        CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Sends the PASSWORD-CHANGED security notice (#1171) after a completed reset, to the address the
+    /// reset was performed for. Carries NO token and NO link that grants access — it is a factual
+    /// notice, the breach-detection control OWASP ASVS V2.5 and NIST SP 800-63B ask for on a credential
+    /// change, and the twin of <see cref="SendEmailChangedNotificationAsync"/>.
+    /// <para>
+    /// A password reset is an account-takeover vector by construction: whoever holds the inbox holds the
+    /// account. This notice is what lets a real owner notice a reset they did not perform, at the one
+    /// moment they still could act on it.
+    /// </para>
+    /// <para>
+    /// <b><c>NullEmailSender</c> dropping this is unreachable rather than tolerated.</b> No reset token
+    /// can be minted while <see cref="CanDeliver"/> is false, so the event this notice reports cannot
+    /// occur with a sender that would drop it. It needs no gate of its own.
+    /// </para>
+    /// </summary>
+    Task SendPasswordChangedNoticeAsync(
         string toEmail,
         CancellationToken cancellationToken);
 }

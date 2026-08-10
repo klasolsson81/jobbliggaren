@@ -326,6 +326,86 @@ public sealed partial class UserAccountService(
             "Auth.InvalidEmailChangeToken",
             "Bekräftelselänken är ogiltig eller har gått ut. Begär en ny ändring av e-postadressen."));
 
+    public async Task<PasswordResetDelivery?> TryPreparePasswordResetAsync(
+        string email, CancellationToken ct)
+    {
+        // No RequireEmailConfirmation gate, unlike the resend sibling above: holding the emailed token
+        // proves inbox control, which is what confirmation proves, so an unconfirmed account is still
+        // entitled to recover. An account with no stored address cannot be mailed and yields null like
+        // any other ineligible case — indistinguishable to the caller, which is the point.
+        var user = await userManager.FindByEmailAsync(email);
+        if (user is not { Email: { } accountEmail })
+            return null;
+
+        // Same Base64Url shape as the two sibling mints so the emailed link survives the query round-trip
+        // unescaped. Minted here, Api-side, in the same Data-Protection keyring that validates it at
+        // /reset-password (CTO 2026-07-10; see the port for why this cites the decision and not an ADR —
+        // "ADR 0102" does not exist). The provider behind this call is PasswordResetTokenProvider, whose
+        // lifespan is PasswordResetTokenProviderOptions.LifespanMinutes rather than the shared 24h.
+        var token = await userManager.GeneratePasswordResetTokenAsync(user);
+        var urlSafeToken = Base64Url.EncodeToString(Encoding.UTF8.GetBytes(token));
+
+        // The account's OWN address, never the submitted spelling: Identity's lookup is case-insensitive,
+        // so echoing the request back would mail a form the account does not have.
+        return new PasswordResetDelivery(user.Id, accountEmail, urlSafeToken);
+    }
+
+    public async Task<Result> ResetPasswordAsync(
+        Guid userId, string urlSafeToken, string newPassword, CancellationToken ct)
+    {
+        // Uniform failure for every TOKEN rejection (unknown user, malformed, wrong, expired) — a PUBLIC
+        // endpoint must not distinguish them, or it becomes an existence oracle. Parity with
+        // ConfirmEmailAsync above.
+        var user = await userManager.FindByIdAsync(userId.ToString());
+        if (user is null)
+            return InvalidPasswordResetTokenFailure();
+
+        string token;
+        try
+        {
+            token = Encoding.UTF8.GetString(Base64Url.DecodeFromChars(urlSafeToken));
+        }
+        catch (FormatException)
+        {
+            return InvalidPasswordResetTokenFailure();
+        }
+
+        // ResetPasswordAsync verifies the token FIRST and only then runs the password validators
+        // (UserManager.ResetPasswordAsync -> UpdatePasswordHash(validatePassword: true)). Three
+        // consequences this method depends on, in order:
+        //   1. PwnedPasswordValidator (#616) and the RequiredLength=12 rule both run here, with no
+        //      registration of their own — which is what the #616 comment meant by "any future reset flow".
+        //   2. The security stamp rotates only on SUCCESS, so the token is single-use, while a rejected
+        //      password leaves the same link usable for a retry.
+        //   3. A password error is therefore reachable ONLY with a valid token, which is why the arm below
+        //      may name the failing rule instead of collapsing it. Anyone who can reach it already holds
+        //      the token; the specific answer costs them nothing and tells a real user what to fix.
+        var result = await userManager.ResetPasswordAsync(user, token, newPassword);
+        if (!result.Succeeded)
+        {
+            var error = result.Errors.First();
+            return error.Code == IdentityInvalidTokenCode
+                ? InvalidPasswordResetTokenFailure()
+                : Result.Failure(DomainError.Validation($"Auth.{error.Code}", error.Description));
+        }
+
+        // Clear an active lockout: the failed-attempt counter belongs to the credential just replaced.
+        // Without this, an attacker who brute-forces a victim's login locks them out for 15 minutes and
+        // a legitimate reset does not release it — the recovery path would not recover. Not a bypass
+        // primitive: reaching this line requires a token only the inbox owner receives.
+        await userManager.ResetAccessFailedCountAsync(user);
+        await userManager.SetLockoutEndDateAsync(user, null);
+
+        return Result.Success();
+    }
+
+    private const string IdentityInvalidTokenCode = "InvalidToken";
+
+    private static Result InvalidPasswordResetTokenFailure() =>
+        Result.Failure(DomainError.Validation(
+            AuthErrorCodes.InvalidPasswordResetToken,
+            AuthErrorCodes.InvalidPasswordResetTokenMessage));
+
     private static Result InvalidConfirmationTokenFailure() =>
         Result.Failure(DomainError.Validation(
             AuthErrorCodes.InvalidEmailConfirmationToken,

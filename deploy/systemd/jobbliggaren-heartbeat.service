@@ -1,0 +1,34 @@
+[Unit]
+# #1201 — gate M-7. The box's cadenced reader of its own alarm surface, and the sender of the
+# dead-man ping.
+#
+# WHY IT EXISTS. Every signal this box produces — `systemctl --failed`, the journal, the
+# reconcile stamp — was read by nobody on any cadence (measured 2026-08-10). A signal nobody
+# reads is not awareness, and Art. 33's clock runs from awareness. This unit is the reader.
+#
+# WHAT IT IS NOT. It is not a log sink (#1175) and not application-level alerting (#1172). It
+# reports THAT something is wrong and never ships the corpus; the forensic trail stays local and
+# is root-erasable until #1175 lands. That limit is named in docs/runbooks/host-detection.md
+# rather than left for a reader to discover.
+Description=Jobbliggaren: read the box's alarm surface and ping the dead-man expecter
+Documentation=https://github.com/klasolsson81/jobbliggaren/blob/main/docs/runbooks/host-detection.md
+
+[Service]
+Type=oneshot
+# THE LEADING `-` IS DELIBERATE, AND IT RESOLVES A CONTRADICTION RATHER THAN RELAXING A GUARD.
+# Without it, a missing file means ExecStart never runs and systemd reports "Failed to load
+# environment files" — so the unit fails, which is exactly what the script's exit contract exists
+# to prevent, AND the script's own branch (the only text that names this runbook and tells the
+# operator what to do) becomes unreachable under the unit. With it, the script runs, logs the
+# named diagnosis to the journal, and sends nothing — so the dead-man is still the backstop and
+# the operator gets a sentence instead of a systemd error. Nothing is lost: the absence is
+# reported by silence either way.
+EnvironmentFile=-/etc/jobbliggaren/detection.env
+ExecStart=/opt/jobbliggaren/deploy/systemd/jobbliggaren-heartbeat.sh
+# Bounds the unit well above the script's own curl budget (~30 s worst case; see post() there).
+# The two numbers are one design: a unit killed on timeout is a failed unit, which would defeat
+# the script's always-exit-0 contract by the clock rather than by the code.
+TimeoutStartSec=90
+RemainAfterExit=no
+
+# NO [Install] SECTION — the timer enables this pair, matching every other unit in this repo.

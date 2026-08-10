@@ -575,6 +575,22 @@ operativt av TD-102 (master-nyckel), TD-106 (stack/härdning), TD-107 (backup).
 | M-1 | ADR 0050 KMS-blocker-prosa amenderad → TD-102-omframing | Major | **Åtgärdad denna amendment** |
 | M-2 | ADR 0049-amendment: self-managed master-nyckels prod-skyddsmodell + accepterad minne-restrisk + namngiven skala-trigger för extern KV/HSM | Major | [#198](https://github.com/klasolsson81/jobbliggaren/issues/198) (f.d. TD-102, ADR 0049-amendment-scope) |
 
+> **Daterad not 2026-08-10 — M-7:s `Hemvist`-cell ovan är superseded, och grindraden i övrigt
+> är orörd.** Raden delar mekanismen i en värd-halva hos #196 och en nyckelåtkomst-halva hos
+> #198. **Båda ligger sedan dess hos [#1201](https://github.com/klasolsson81/jobbliggaren/issues/1201):**
+> värd-halvan omhemmades av **Klas-beslut 2026-08-06** när #196 stängde utan att ha levererat
+> den (att lämna pekaren mot en stängande issue hade pensionerat skyldigheten av misstag), och
+> nyckelåtkomst-halvan dispositionerades dit **2026-08-09** av #198 — under den modellen är varje
+> olegitim nyckelläsning per konstruktion en root-handling, alltså en strikt delmängd av
+> värd-root-detektion, och #198 kan inte leverera en förmåga vars egen hotmodell upplöses i någon
+> annans scope (ADR 0049 `Amendment 2026-08-09` §9). Vad #198 levererade är **frånvaro**-detektion,
+> uttryckligen inte åtkomst-detektion; de två får inte läsas som en.
+>
+> **Severity, rättslig grund och eskaleringsvillkoret i raden ändras inte av detta** — de är
+> security-auditors (§9.6). Mekanismen är bunden 2026-08-10 (senior-cto-advisor) och bor i
+> `docs/runbooks/host-detection.md`; skyldighetssvaret som grindens första AC kräver är skrivet
+> där. **Grinden stängs på den runbookens verifikationsrader, inte på att mekanismen mergade.**
+
 **Obligatorisk re-review:** en andra security-auditor-granskning av den faktiska
 prod-konfigurationen (master-nyckel-injektion, backup-kryptering, TLS-topologi,
 härdning) krävs **innan första beta-data laddas** (TD-102 punkt 3). Den

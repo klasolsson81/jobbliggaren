@@ -626,8 +626,11 @@ a date is a claim that cannot be told from one that has decayed.
 5. **Whether the target's lifecycle rules take EFFECT, not merely exist.** The *rule* half is
    measured (row 27c): versioning is off, so an overwrite genuinely replaces, and both prefixes
    carry a rule with `deks/` outliving `main/`. **The effect half is not**: nothing has yet
-   confirmed that objects actually disappear on schedule. Row 27b owns it —
-   `list-object-versions --prefix deks/` after two nights, and a `main/` listing after 31.
+   confirmed that objects actually disappear on schedule. Row 27b owns it — a `deks/` listing
+   after two nights showing exactly one generation, and a `main/` listing after 31 showing the
+   older artefacts gone. **Not `list-object-versions`:** with versioning off (item 6) it returns
+   one `null`-id version per key whatever the lifecycle does, so it cannot fail and cannot
+   measure this.
    *(Split from a single premise that read as wholly unmeasured once its first half was closed;
    a discharged premise loitering in an unmeasured list makes the whole list less credible.)*
 6. **CLOSED 2026-08-09 — whether the target versions the `deks/` prefix.** It does not:

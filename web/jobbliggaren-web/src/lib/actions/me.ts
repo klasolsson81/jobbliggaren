@@ -422,7 +422,9 @@ export async function changeEmailAction(
       // then fall through to the generic copy, which is literally true for them. A status-only
       // arm would instead print "email is not enabled" during a Redis outage and mask it.
       // The rate limiter is NOT a third producer: ASP.NET defaults rejection to 503, but
-      // RateLimitingExtensions overrides it to 429 — the arm's correctness rests on that.
+      // RateLimitingExtensions overrides it to 429. That override buys the right COPY, not
+      // the arm's correctness — a 503 from the limiter carries no title either, so it would
+      // fall through here rather than claim email is off.
       const title = await readProblemTitle(res);
       if (title === "Auth.EmailDeliveryUnavailable") {
         // `refused`, not a plain error: the sender cannot deliver until an operator sets a real

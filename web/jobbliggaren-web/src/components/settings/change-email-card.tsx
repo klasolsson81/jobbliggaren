@@ -86,8 +86,8 @@ export function ChangeEmailCard({ currentEmail }: ChangeEmailCardProps) {
     return (
       <section className="jp-card">
         {/* Focus lands on the wrapper, not the message, so the heading is read with it:
-            /installningar renders nine cards and the message alone gives a screen-reader
-            user no anchor to which one it belongs to. role="status" stays on the <p>
+            /installningar is a page of stacked cards, and the message alone gives a
+            screen-reader user no anchor to which one it belongs to. role="status" stays on the <p>
             alone — nested live regions double-announce. No focus:outline-none here: the
             global *:focus-visible rule paints a token-borne ring, which a keyboard user
             needs in order to see where focus went. */}

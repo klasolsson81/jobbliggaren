@@ -223,7 +223,7 @@ describe("ReAuthDialog", () => {
   });
 
   it("COUNTERFACTUAL: a refused failure without onRefused behaves exactly as before", async () => {
-    // The fail-safe the other three consumers rely on: they never pass onRefused, so even a
+    // The fail-safe the other two consumers rely on: they never pass onRefused, so even a
     // flagged failure stays an ordinary error line in an open dialog rather than vanishing.
     const action = vi
       .fn<(password: string) => Promise<RefusableActionResult>>()

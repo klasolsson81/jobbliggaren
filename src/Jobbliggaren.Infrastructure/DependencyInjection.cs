@@ -37,6 +37,16 @@ namespace Jobbliggaren.Infrastructure;
 public static class DependencyInjection
 {
     /// <summary>
+    /// The Identity token-provider name for password-reset tokens (#1171). Named rather than
+    /// literal per CLAUDE.md §5 (no magic strings): the value has to be byte-identical in the
+    /// <c>opts.Tokens.PasswordResetTokenProvider</c> assignment and in the matching
+    /// <c>AddTokenProvider</c> call, and a typo in either would silently fall back to a provider
+    /// with the shared 24h lifespan rather than fail. It is an Identity registry key, distinct from
+    /// <see cref="PasswordResetTokenProviderOptions.Name"/>, which is the DataProtector purpose.
+    /// </summary>
+    private const string PasswordResetTokenProviderName = "PasswordReset";
+
+    /// <summary>
     /// Composition-root entry för Api. Registrerar alla Infrastructure-moduler.
     /// Worker använder INTE denna metod — Worker anropar bara <see cref="AddPersistence"/>
     /// + egna stub-implementationer av audit-portarna (per ADR 0022 + ADR 0023 / STEG 9).
@@ -1486,7 +1496,8 @@ public static class DependencyInjection
                 // brute-forceable (10^6, stateless), which on the PUBLIC confirm endpoint would be
                 // an account-takeover path. The DataProtector token is HMAC'd + encrypted, bound to
                 // (SecurityStamp, new email), single-use (SecurityStamp rotates on ChangeEmailAsync),
-                // and honours the 24h TokenLifespan. Password-reset/email-confirm already default here.
+                // and honours the 24h TokenLifespan. Email-confirm already defaults here; password-reset
+                // did too until #1171 moved it to its own named provider (see below) for a shorter life.
                 opts.Tokens.ChangeEmailTokenProvider = TokenOptions.DefaultProvider;
 
                 // #714 (defense-in-depth): pin the email-confirmation token to the same opaque
@@ -1497,6 +1508,14 @@ public static class DependencyInjection
                 // registration confirm endpoint is PUBLIC, so a short brute-forceable TOTP would be an
                 // account-activation-takeover path (parity with the #679 rationale).
                 opts.Tokens.EmailConfirmationTokenProvider = TokenOptions.DefaultProvider;
+
+                // #1171: password-reset gets its OWN provider, registered by name below, so its
+                // lifespan can be shorter than the shared 24h without touching the two kinds above.
+                // The shared DataProtectionTokenProviderOptions is one type read by one provider, so
+                // configuring it would shorten all three — and the change-email and email-confirm
+                // bodies promise 24h in published copy. PasswordResetTokenProviderOptions carries the
+                // number and EmailTemplates.PasswordReset reads the same constant.
+                opts.Tokens.PasswordResetTokenProvider = PasswordResetTokenProviderName;
 
                 // #503 (OWASP A07 / NIST SP 800-63B §5.2.2): per-account anti-automation on
                 // login. ValidateCredentialsAsync (UserAccountService) counts failed attempts
@@ -1509,6 +1528,9 @@ public static class DependencyInjection
             })
             .AddEntityFrameworkStores<AppIdentityDbContext>()
             .AddDefaultTokenProviders()
+            // #1171: chained AFTER AddDefaultTokenProviders so the name below is a fourth entry
+            // beside Default/Email/Phone/Authenticator rather than a replacement for any of them.
+            .AddTokenProvider<PasswordResetTokenProvider<ApplicationUser>>(PasswordResetTokenProviderName)
             // #616 (CTO-bind Variant B): breached-password rejection at the UserManager
             // chokepoint — CreateAsync + ChangePasswordAsync (and any future reset flow)
             // are covered by this ONE registration. Api-EXCLUSIVE: AddCoreIdentityForWorker

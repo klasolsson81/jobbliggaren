@@ -13,7 +13,7 @@ prod-flip checklist).
 the ADR wins and this file is wrong.
 
 > **THE DOMAIN IS VERIFIED AND CAN SIGN, AND NOTHING HAS EVER BEEN SENT.** §3 is now a report.
-> §7 is still a design.
+> §7's real send is still a design — its configuration-set check is measured (row 35).
 >
 > Klas published the three CNAME records at STRATO on **2026-08-10**. SES moved
 > `DkimAttributes.Status` `PENDING` → **`SUCCESS`** and `VerifiedForSendingStatus` → **`true`** in
@@ -26,7 +26,8 @@ the ADR wins and this file is wrong.
 >
 > **What does NOT follow from that, and is the whole reason this note survives rather than being
 > deleted:** no message has ever been sent, so §7's `Authentication-Results` reading is unmade and
-> row 37 is open. The account is still in the **sandbox** — one verified recipient, 200/24 h — and
+> row 37 is open. The account is still in the **sandbox** (its quotas are in §2 and its recipient
+> count in §3 step 6; neither is restated here) and
 > `Email:Provider` is still unset, so the product sends nothing. Being able to sign is not the
 > flip; the flip is [`release-checklist.md`](./release-checklist.md) §2.5 and is Klas's alone.
 
@@ -189,14 +190,22 @@ Then let SES decide:
 ```bash
 aws sesv2 get-email-identity --email-identity jobbliggaren.se \
   --profile jobbpilot --region eu-north-1 \
-  --query '{Dkim:DkimAttributes.Status,Verified:VerifiedForSendingStatus}'
-# expect: Dkim SUCCESS, Verified true. AWS reserves up to 72 h for DNS propagation.
+  --query 'DkimAttributes.{Status:Status,Signing:SigningEnabled,Zone:SigningHostedZone}'
+aws sesv2 get-email-identity --email-identity jobbliggaren.se \
+  --profile jobbpilot --region eu-north-1 --query 'VerifiedForSendingStatus'
+# expect: SUCCESS / true / dkim.amazonses.com, and true. AWS reserves up to 72 h for propagation.
 ```
 
-Ran 2026-08-10: `Dkim SUCCESS`, `Verified true`, `SigningEnabled true`, `SigningHostedZone`
-unchanged — in under half an hour, not the reserved 72 h. **SES is the only authority on this
-question**, which is why the DNS check above does not close it: records that resolve for us can
-still be records SES has not yet re-read. Protocolled in verification row 34.
+Ran 2026-08-10: `Status SUCCESS`, `SigningEnabled true`, `SigningHostedZone` unchanged, and
+`VerifiedForSendingStatus true` — in under half an hour, not the reserved 72 h. **SES is the only
+authority on this question**, which is why the DNS check above does not close it: records that
+resolve for us can still be records SES has not yet re-read. Protocolled in verification row 34.
+
+*Two projections rather than one, because `VerifiedForSendingStatus` is a top-level field and the
+other three sit under `DkimAttributes` — a single flat `--query` returning all four would have to
+name two different roots. The narrower two-field projection this step carried until 2026-08-10 could
+not produce `SigningEnabled` or `SigningHostedZone`, which the prose beside it nevertheless
+reported.*
 
 ### Step 6 — verify a recipient, because the account is in the sandbox
 
@@ -214,9 +223,10 @@ Ran 2026-08-09. AWS sends a verification message to that address; the link in it
 24 hours. Until it is clicked, `VerifiedForSendingStatus` stays `false` and sends to that address
 are rejected.
 
-**Confirmed the same day** — the recipient identity read `SUCCESS`, measured directly against the
-SES API, so the 24 h link did not lapse and this step does not need re-running. Re-confirmed
-2026-08-10 as part of the domain measurement: the account has **exactly one** verified recipient.
+**Confirmed by 2026-08-10:** the account has **exactly one** verified recipient
+(`klasolsson81@gmail.com`), measured as part of the domain measurement on
+[#183](https://github.com/klasolsson81/jobbliggaren/issues/183#issuecomment-5240287056). The 24 h
+link therefore did not lapse and this step does not need re-running.
 
 **The sandbox is not a problem to be solved here.** It caps sending at 200/24 h and 1/s, which is
 ample for one recipient, and it enforces at the account level what we want during dev anyway:
@@ -230,9 +240,20 @@ The domain publishes `v=DMARC1;p=reject;` with no `rua=`, so mail that fails DMA
 and **no one is told**. Adding a reporting address does not change the policy; it is purely
 additive.
 
-| STRATO "Präfix" (type TXT) | Value |
+⚠ **`_dmarc` is NOT a free TXT record here, and reaching for one is the destructive mistake.**
+Measured 2026-08-10 while publishing the DKIM records: STRATO's own **DMARC control** was found
+unset, saving it produced `STRATO Standard DMARC-regel`, and the published record was **unchanged**
+afterwards. So that control is what already owns `v=DMARC1;p=reject;` — there is no separate TXT row
+to edit. It is the button to press when `rua=` is added, and **it must not be set to "Ingen"**: that
+deletes the `p=reject` Klas's ordinary mail path depends on, which is the exact risk verification
+row 36 exists to control. Adding a second `_dmarc` TXT record beside the control would in any case
+be invalid — RFC 7489 §6.6.3 discards a domain with multiple DMARC records outright.
+
+Set the value through that control:
+
+| STRATO DMARC control | Value |
 |---|---|
-| `_dmarc` | `v=DMARC1;p=reject;rua=mailto:dmarc@jobbliggaren.se` |
+| the existing `_dmarc` rule (do **not** create a new TXT record) | `v=DMARC1;p=reject;rua=mailto:dmarc@jobbliggaren.se` |
 
 **The reporting address must be at `jobbliggaren.se`, and a Gmail address will not work.**
 RFC 7489 §7.1 requires that a report destination outside the policy domain be authorised by a
@@ -339,8 +360,10 @@ and §8's `Email__*` entry names both, along with the injection gap that owns th
 
 ## 7. Verifying it actually works
 
-Verification rows **33–38** in [`vps-deploy-stack.md`](./vps-deploy-stack.md) §5 are the
-protocol; this section is how they are produced.
+Verification rows 33–38 in [`vps-deploy-stack.md`](./vps-deploy-stack.md) §5 are the protocol.
+**This section produces rows 35, 36 and 37 only** — rows 33 and 34 are produced by §3 step 5, and
+row 38 by §4, which is what those rows' own instruments cite. Naming the split matters because a
+row produced in two places is a row whose evidence can be ticked from whichever half ran.
 
 **The control measurement comes first, and it is the point of §5.** After any DNS work, confirm
 that the existing mail path is untouched:
@@ -408,7 +431,7 @@ the word "pass" is how that distinction gets missed.
 *Two entries left this list on 2026-08-10 — whether the three CNAMEs verify, and whether the
 recipient identity was confirmed. Both are now measured, and a measured thing does not belong in a
 section titled "Unmeasured": the outcomes live in §3 steps 5 and 6, beside the commands that
-produced them. What remains below is unchanged, and none of it is discharged by the domain being
+produced them. Everything below is still open, and none of it is discharged by the domain being
 verified.*
 
 1. **What SES's `Authentication-Results` actually says on a real send.** §7's expectation is what

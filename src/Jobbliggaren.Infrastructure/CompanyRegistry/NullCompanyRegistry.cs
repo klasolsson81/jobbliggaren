@@ -6,7 +6,7 @@ namespace Jobbliggaren.Infrastructure.CompanyRegistry;
 /// <summary>
 /// #454 (ADR 0088 D3) — the prod-dark provider: always
 /// <see cref="CompanyRegistryStatus.Unavailable"/> until the real SCB adapter (follow-up, Sept-2026
-/// API) is activated. Deliberately fail-CIVIC rather than fail-loud (contrast SesEmailSender's
+/// API) is activated. Deliberately fail-CIVIC rather than fail-loud (contrast AddEmailSender's
 /// missing-key startup throw, ADR 0124): the lookup endpoint must DEGRADE (200-with-status → the FE renders/hides the
 /// civic state), never crash, and prod legitimately runs with no registry source for months. The
 /// FE additionally hides the whole search section behind <c>COMPANY_REGISTRY_ENABLED=false</c>

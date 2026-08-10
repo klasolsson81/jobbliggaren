@@ -13,7 +13,7 @@ namespace Jobbliggaren.Application.Matching.Jobs.StrandedMatchReaper;
 /// <see cref="Domain.CompanyWatches.FollowedCompanyAdHit"/> rows. The Top-direct
 /// (<c>BackgroundMatchingJob</c>), match-digest and follow-digest (<c>DigestDispatchJob</c>) dispatch
 /// paths all use the same claim-then-send spine (<c>Pending → MarkQueued</c> + commit → send →
-/// <c>MarkSent</c> + commit). If the send never completes (a Resend failure, or the account had
+/// <c>MarkSent</c> + commit). If the send never completes (a send failure, or the account had
 /// no email) the row stays permanently Queued with no recovery — the deliberate "never double-email
 /// &gt; never miss" MVP trade-off, conditional (ADR 0080) on this reaper existing before the
 /// prod-Resend flip.

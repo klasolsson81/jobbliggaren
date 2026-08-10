@@ -4,7 +4,7 @@ namespace Jobbliggaren.Application.Auth.Commands.ChangeEmail;
 
 public sealed class ChangeEmailCommandValidator : AbstractValidator<ChangeEmailCommand>
 {
-    // Identity's EmailAddressAttribute / NormalizedEmail column and Resend both stay well within this;
+    // Identity's EmailAddressAttribute and the NormalizedEmail column both stay well within this;
     // a generous cap that still bounds the input before UserManager runs.
     private const int MaxEmailLength = 256;
 

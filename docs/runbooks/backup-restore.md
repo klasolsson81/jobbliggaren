@@ -95,10 +95,149 @@ application must not reach it. Putting it in the mounted directory as a root-own
 would also have worked — but then the separation rests on a mode bit and on nobody widening the
 mount later, and a directory that is not mounted cannot be exposed by any edit to a mount.
 
+> **PRECONDITION, AND IT IS NOT THE TOOLS: THE BOX'S CLONE MUST ALREADY CARRY THIS MECHANISM.**
+> Step 3 below says the recipient "arrives with the `deploy/` clone". That is true of a clone new
+> enough to contain it and false of every older one, and **nothing in this block checks which one
+> you have** — the install would proceed to `chown` a path that is not there.
+>
+> **Measure two files in the clone and one directory on the host, because the clone's age and
+> whether anyone acted on it are different facts:**
+>
+> ```bash
+> ls /opt/jobbliggaren/deploy/systemd/jobbliggaren-inject-secrets.sh \
+>    /opt/jobbliggaren/deploy/backup/age.recipient
+> ls -d /run/jobbliggaren/secrets
+> ```
+>
+> The two files **bracket** the clone. `jobbliggaren-inject-secrets.sh` arrived with #198
+> (`66f2ac39`, which added it, `jobbliggaren-tmpfiles.conf` **and** the compose `_FILE` switch in
+> one commit) and `age.recipient` arrived last, with #197 (`c1d293b4`), so between them they date
+> the clone against both changes. `jobbliggaren-backup.sh` (`90db66e1`) lands between the two and
+> adds no state of its own, which is why it is not part of the test. Verify the dating with
+> `git log --diff-filter=A --oneline -- <path>` on either file.
+>
+> The directory is a **separate fact and is not inferable from the files**: `ls` dates the clone,
+> while whether #198's install was ever *run* shows only on the host.
+>
+> - **Both files present** — continue into the install below. **If `/run/jobbliggaren/secrets` is
+>   nonetheless absent, stop and run the five ordered steps below, skipping step 2** — your clone
+>   is already current, so what you need is step 1 (close the window: timer **and** service), step
+>   3 (`master-key-ops.md` §2 and §3), step 4 and step 5. The absence says #198's install has not
+>   run on this host; it does **not** say the stack is broken yet, and the difference decides what
+>   you do. An `up -d` from the `_FILE` compose would itself have created that directory — the
+>   mount carries `create_host_path: true`, which you can re-measure with
+>   `docker compose -f /opt/jobbliggaren/deploy/docker-compose.yml --env-file /dev/null config
+>   --no-interpolate` (**both flags are load-bearing, they close different channels, and measured,
+>   neither closes both.** `--env-file` closes the *file* channel — compose never opens the
+>   root-only `deploy/.env`, which is why this needs no `sudo`. `--no-interpolate` closes the
+>   *substitution* channel — nothing is expanded at all, which is what still protects you when the
+>   values are reachable some other way, exported in your shell or `--env-file` pointed at the real
+>   file. Drop **both** and compose prints all four database passwords, both edge basic-auth values
+>   and the ACME address to your terminal. Those values live in `.env` by decision, not by
+>   oversight: `master-key-ops.md` calls moving the database and edge credentials a named non-goal,
+>   and the ACME address is a contact rather than a credential. That is why the file is root-only
+>   `0600`. Measured against the current compose: the property survives both flags, and
+>   `${POSTGRES_APP_PASSWORD:?}` comes back unexpanded, which is the visible control that
+>   interpolation is off). So the directory's absence is
+>   evidence that reconcile has **not yet applied** the new compose. Note *applied*, not *ticked*:
+>   `jobbliggaren-reconcile.sh` fail-closes before `up -d` on several paths and then keeps serving
+>   the old containers, so a tick is not an apply. The failure is therefore the next apply, not a
+>   past one, which is why you are racing the timer and must close the window.
+> - **`inject-secrets.sh` present, `age.recipient` missing** — the clone sits between #198 and
+>   #197. Update the clone, then run this install. **And if `/run/jobbliggaren/secrets` is absent,
+>   this is the same race as the bullet above** — a clone carrying #198 does not mean anyone
+>   installed it — so run the five steps below in full, `master-key-ops.md` §2 and §3 included.
+> - **Both files missing** — the clone predates #198, and **the clone update must come FIRST.** It
+>   cannot be second: #198's own install block reads every file it installs out of the clone
+>   (`master-key-ops.md` §2 installs `/opt/jobbliggaren/deploy/systemd/jobbliggaren-tmpfiles.conf`
+>   and the two `-secrets-present` units; §3 runs
+>   `/opt/jobbliggaren/deploy/systemd/jobbliggaren-inject-secrets.sh`). "Run #198's install first"
+>   is unexecutable on a clone that does not contain it.
+>
+> **Whichever branch applies, a clone update is not a free step and must not be taken as one.**
+> `jobbliggaren-reconcile.timer` fires at `*:47:00` with `RandomizedDelaySec=180`, and
+> `jobbliggaren-reconcile.sh` applies `docker compose up -d --remove-orphans --pull never` before
+> writing its stamp. The unit runs no `git` command — it applies whatever is already in the clone
+> — so **a pull is applied to the live stack by the next tick, up to ~63 minutes later, by a unit
+> rather than by a decision, and not at a moment anyone chose.** Confirm the timer's state before
+> you rely on any of this: `systemctl list-timers 'jobbliggaren-reconcile*'`.
+>
+> A clone predating #198 is the case that bites: it carries `.env`-sourced crypto values, while
+> the compose file the pull brings reads them through `_FILE` pointers naming `/run/app-secrets`
+> — the container side of the read-only bind mount whose host side is `/run/jobbliggaren/secrets`,
+> a directory that does not exist until #198's install block has run.
+> `vps-deploy-stack.md` §3 states the outcome: api and worker **crash-loop rather than refusing to
+> start**. **That outcome is quoted, not re-measured here — the counterfactual is a live outage.**
+>
+> **So on any branch that reaches this point — both files missing, or either of the two above with
+> `/run/jobbliggaren/secrets` absent — close the reconcile window rather than racing it. Five
+> ordered steps, and steps 3 and 4 are procedures rather than commands —
+> DO NOT PASTE THIS AS ONE BLOCK.** A paste would run stop, pull and start with nothing between
+> them, and `Persistent=true` makes that `start` fire the missed elapse **immediately**, applying
+> the pulled `_FILE` compose against a `/run/jobbliggaren/secrets` no install has created. That is
+> the crash-loop this branch exists to avoid, arriving sooner than if you had done nothing.
+>
+> **1.** Stop the timer **and the service**, then measure that it took. Stopping the timer alone
+> is not enough: nothing binds the two — no `PropagatesStopTo`, `BindsTo` or `PartOf` — so a
+> reconcile already in flight keeps running and reads the compose file off disk at `up -d` time,
+> which is after your pull. Its `flock` does not help either; that lock exists against a human
+> running compose by hand, and `git pull` takes no lock.
+>
+> ```bash
+> sudo systemctl stop jobbliggaren-reconcile.timer jobbliggaren-reconcile.service
+> systemctl is-active jobbliggaren-reconcile.service   # expect: inactive
+> ```
+>
+> **2.** Update the clone.
+>
+> ```bash
+> sudo git -C /opt/jobbliggaren pull
+> ```
+>
+> **3.** Run `master-key-ops.md` §2 (install), then §3 (inject). §3 prompts for the secret values
+> and is not something you can paste from here.
+>
+> **4.** Run the install block below.
+>
+> **5.** Re-arm — and **measure** rather than trust that steps 3 and 4 happened, because
+> `Persistent=true` fires the missed elapse at once and there is no second chance to notice.
+>
+> **The precondition is injected secrets, not a directory.** `master-key-ops.md` §2 creates
+> `/run/jobbliggaren/secrets` **empty on purpose** — its tmpfiles unit says why, an empty
+> directory makes api and worker fail loudly instead of silently — and §3 is what fills it, with
+> many ways to stop before it does. So a `test -d` would pass the moment §2 had run, before §3
+> had asked for a single value, and arm the timer against empty secrets: the crash-loop this
+> branch exists to avoid, waved through by its own guard.
+>
+> Use the injector's own `--check`, which inspects the directory, its mode and each secret's
+> contents. It is also the diagnostic `master-key-ops.md` §2 already relies on: with the `:` prefix
+> in the tmpfiles unit, a `WRONG MODE` from `--check` **means the injection has not run**.
+>
+> Then confirm the timer — and note what is and is not silent here, because the reason is not the
+> one that applied to a `test -d`. **`--check` is loud when it refuses**, a named line per missing
+> item on stderr. What says nothing is `systemctl start` on success, and **neither command tells
+> you whether the timer ended up armed.** Step 1 left it stopped, so a refusal you skim past leaves
+> reconcile disarmed indefinitely, and a stopped timer appears on no alarm surface: it is not in
+> `systemctl --failed`, there is no freshness probe for reconcile the way there is for backup, and
+> nothing reads its stamp on a cadence.
+>
+> ```bash
+> sudo /opt/jobbliggaren/deploy/systemd/jobbliggaren-inject-secrets.sh --check \
+>   && sudo systemctl start jobbliggaren-reconcile.timer
+> systemctl is-active jobbliggaren-reconcile.timer   # expect: active
+> ```
+>
+> (Written 2026-08-10, when the box was measured carrying neither file and no secrets directory,
+> while the reconcile
+> timer was live — the ordering had never been stated, and the install block below reads as though
+> the clone is always current.)
+
 ### Install (once)
 
 ```bash
-# 1. The tools. THIS STEP IS UNMEASURED — see §8. If either package is absent from trixie,
+# 1. The tools. MEASURED 2026-08-10 and installed on this box — versions in
+#    `vps-deploy-stack.md` §5 row 28. The STOPP below still stands for any other host or a
+#    later trixie: it is the procedure, not a prediction. If either package is absent from trixie,
 #    STOP and escalate rather than fetching a binary: `sops` was measured absent for #198, so
 #    this class of absence is live on this box, not hypothetical.
 sudo apt-get update && sudo apt-get install -y age rclone
@@ -406,10 +545,12 @@ FROM _dek_restore d WHERE d.job_seeker_id NOT IN (SELECT id FROM job_seekers);
 
 -- (b) Restored users with NO key. READ THIS CAREFULLY: it is NOT the crypto-erasure count on
 --     its own, and calling it that would overstate the result. DEK rows are created LAZILY —
---     a user gets one the first time they write a field-encrypted value, so a registered user
---     who never saved a cover letter, note, follow-up or CV has no key and never did. This
---     number is therefore (users erased since the main artefact) PLUS (users who never wrote
---     encrypted data), and only the first group is what the drill is measuring.
+--     a user gets one on their first request carrying IRequiresFieldEncryptionKey, which is the
+--     same trigger (b2) describes below and is NOT the same as writing: many carriers are
+--     read-only queries, so merely opening an application or a CV mints one. A user who has
+--     never made such a request has no key and never did. This number is therefore
+--     (users erased since the main artefact) PLUS (users who never triggered a key), and only
+--     the first group is what the drill is measuring.
 --     (code-reviewer, 2026-08-09: RegisterCommand does not carry IRequiresFieldEncryptionKey,
 --     so the prefetch that would create one eagerly does not run at registration.)
 SELECT count(*) AS users_without_a_key_TOTAL
@@ -420,9 +561,16 @@ FROM job_seekers j WHERE j.id NOT IN (SELECT job_seeker_id FROM user_data_keys);
 --      never wrote any.
 --      (b2) IS AN ERASURE COUNT ONLY IF STEP 0 PASSED, and that is a precondition rather than a
 --      caveat. Under a REVERSED pairing — a DEK artefact older than the main one, which is what a
---      run whose DEK leg failed after its main artefact uploaded leaves behind — every user who
---      registered between the two generations has ciphertext and no key too. That is
---      byte-identical to what this query counts. So a (b2) recorded without step 0 may be
+--      run whose DEK leg failed after its main artefact uploaded leaves behind — every
+--      user whose FIRST KEY-CREATING REQUEST fell between the two generations, and who has
+--      cover_letter ciphertext here, has ciphertext and no key too. That is byte-identical to
+--      what this query counts. Two likelier readings of that trigger are both wrong. It is not
+--      registration: no encrypted column sits on job_seekers, so a merely-registered user has no
+--      ciphertext and is counted by (b) instead — the very distinction (b2) exists to draw. Nor
+--      is it writing: the DEK row is minted by FieldEncryptionKeyPrefetchBehavior on the first
+--      request carrying IRequiresFieldEncryptionKey, and many of those are READ-ONLY queries, so
+--      merely opening an application or a CV creates one.
+--      So a (b2) recorded without step 0 may be
 --      measuring silent data loss and reporting it as a successful Art. 17 erasure. The drill
 --      measures exactly this ambiguity (`BackupRestoreDrillTests`, the reversed-pairing
 --      counterfactual); the operator's protection is step 0, not this query.
@@ -540,9 +688,12 @@ a date is a claim that cannot be told from one that has decayed.
 
 ## 8. Unmeasured, and named
 
-1. **Whether `age` and `rclone` are in apt on Debian 13 (trixie).** Not measured, on this box or
-   anywhere. If either is absent, that is a STOPP to security-auditor and Klas — not an
-   improvised binary fetch. (2026-08-09)
+1. **CLOSED 2026-08-10 — whether `age` and `rclone` are in apt on Debian 13 (trixie).** Both are:
+   `age` candidate `1.2.1-1+b5` and `rclone` candidate `1.60.1+dfsg-4`, both from `trixie/main`,
+   installed on this box and recorded from the binaries in `vps-deploy-stack.md` §5 row 28. The
+   STOPP branch this entry was written for — `sops` was measured absent from trixie for #198, so
+   the class was live rather than hypothetical — did not fire. *(Kept as a closed entry rather
+   than deleted, the same treatment items 2 and 6 got in this file and for the same reason.)*
 2. **CLOSED 2026-08-09 — the target's lifecycle and immutability behaviour.** Object Lock is set
    at bucket creation and cannot be enabled afterwards, and enabling it enables versioning
    (OVHcloud's Object Lock guide, read 2026-08-09 and quoted in ADR 0125's amendment). So
@@ -560,8 +711,16 @@ a date is a claim that cannot be told from one that has decayed.
 5. **Whether the target's lifecycle rules take EFFECT, not merely exist.** The *rule* half is
    measured (row 27c): versioning is off, so an overwrite genuinely replaces, and both prefixes
    carry a rule with `deks/` outliving `main/`. **The effect half is not**: nothing has yet
-   confirmed that objects actually disappear on schedule. Row 27b owns it —
-   `list-object-versions --prefix deks/` after two nights, and a `main/` listing after 31.
+   confirmed that objects actually disappear on schedule. Row 27b owns it, and **only the `main/`
+   half is measurable**: a plain `main/` listing after 31 days showing the older artefacts gone.
+   Main objects carry a per-run stamp in their names, so they accumulate and only the 30-day rule
+   removes them — that listing can fail. **Not `list-object-versions`:** with versioning off
+   (item 6) it returns one `null`-id version per key whatever the lifecycle does. **And not a
+   `deks/` listing either** ([#1292](https://github.com/klasolsson81/jobbliggaren/issues/1292)):
+   three constant names overwritten nightly hold one generation by construction, and the nightly
+   overwrite resets `LastModified`, so the 90-day rule never fires while the job runs. That rule
+   is dormant by design — row 27c wants it for the state after the job stops for good — but no
+   instrument observes it on a running system.
    *(Split from a single premise that read as wholly unmeasured once its first half was closed;
    a discharged premise loitering in an unmeasured list makes the whole list less credible.)*
 6. **CLOSED 2026-08-09 — whether the target versions the `deks/` prefix.** It does not:

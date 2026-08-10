@@ -190,10 +190,9 @@ Then let SES decide:
 ```bash
 aws sesv2 get-email-identity --email-identity jobbliggaren.se \
   --profile jobbpilot --region eu-north-1 \
-  --query 'DkimAttributes.{Status:Status,Signing:SigningEnabled,Zone:SigningHostedZone}'
-aws sesv2 get-email-identity --email-identity jobbliggaren.se \
-  --profile jobbpilot --region eu-north-1 --query 'VerifiedForSendingStatus'
-# expect: SUCCESS / true / dkim.amazonses.com, and true. AWS reserves up to 72 h for propagation.
+  --query '{Status:DkimAttributes.Status,Signing:DkimAttributes.SigningEnabled,
+            Zone:DkimAttributes.SigningHostedZone,Verified:VerifiedForSendingStatus}'
+# expect: SUCCESS / true / dkim.amazonses.com / true. AWS reserves up to 72 h for propagation.
 ```
 
 Ran 2026-08-10: `Status SUCCESS`, `SigningEnabled true`, `SigningHostedZone` unchanged, and
@@ -201,11 +200,11 @@ Ran 2026-08-10: `Status SUCCESS`, `SigningEnabled true`, `SigningHostedZone` unc
 authority on this question**, which is why the DNS check above does not close it: records that
 resolve for us can still be records SES has not yet re-read. Protocolled in verification row 34.
 
-*Two projections rather than one, because `VerifiedForSendingStatus` is a top-level field and the
-other three sit under `DkimAttributes` — a single flat `--query` returning all four would have to
-name two different roots. The narrower two-field projection this step carried until 2026-08-10 could
-not produce `SigningEnabled` or `SigningHostedZone`, which the prose beside it nevertheless
-reported.*
+*The projection names all four fields explicitly because they sit under two roots — three under
+`DkimAttributes`, one at the top level. The narrower two-field projection this step carried until
+2026-08-10 could not produce `SigningEnabled` or `SigningHostedZone`, which the prose beside it
+nevertheless reported. Verification row 34 reads the same call unprojected, which is the authority;
+this projection is the convenience.*
 
 ### Step 6 — verify a recipient, because the account is in the sandbox
 
@@ -362,8 +361,8 @@ and §8's `Email__*` entry names both, along with the injection gap that owns th
 
 Verification rows 33–38 in [`vps-deploy-stack.md`](./vps-deploy-stack.md) §5 are the protocol.
 **This section produces rows 35, 36 and 37 only** — rows 33 and 34 are produced by §3 step 5, and
-row 38 by §4, which is what those rows' own instruments cite. Naming the split matters because a
-row produced in two places is a row whose evidence can be ticked from whichever half ran.
+row 38 by §4, whose own instrument cites it. Naming the split matters because a row produced in two
+places is a row whose evidence can be ticked from whichever half ran.
 
 **The control measurement comes first, and it is the point of §5.** After any DNS work, confirm
 that the existing mail path is untouched:
@@ -372,8 +371,13 @@ that the existing mail path is untouched:
 nslookup -type=TXT strato-dkim-0002._domainkey.jobbliggaren.se 8.8.8.8   # unchanged
 nslookup -type=TXT strato-dkim-0003._domainkey.jobbliggaren.se 8.8.8.8   # unchanged
 nslookup -type=MX  jobbliggaren.se 8.8.8.8                               # expect: smtp.rzone.de
+nslookup -type=TXT _dmarc.jobbliggaren.se 8.8.8.8   # expect: v=DMARC1;p=reject; and EXACTLY ONE record
 nslookup -type=TXT jobbliggaren.se 8.8.8.8                               # expect: still no TXT
 ```
+
+The `_dmarc` line is the fifth leg, added 2026-08-10 with §4's mechanism. Read it for **count as well
+as value**: two records is not a stricter policy but no policy at all (RFC 7489 §6.6.3), and that
+failure looks identical to a correct one in a panel that lists them.
 
 **Identity-level configuration set**, which is `release-checklist.md` §2.5 point 1 precondition
 4 and cannot be pinned by any test in the repo, because it is AWS-side state:

@@ -100,23 +100,31 @@ mount later, and a directory that is not mounted cannot be exposed by any edit t
 > enough to contain it and false of every older one, and **nothing in this block checks which one
 > you have** — the install would proceed to `chown` a path that is not there.
 >
-> **Three paths, not two, because two cannot tell the two failing cases apart:**
+> **Measure two files in the clone and one directory on the host, because the clone's age and
+> whether anyone acted on it are different facts:**
 >
 > ```bash
-> ls /opt/jobbliggaren/deploy/backup/age.recipient \
->    /opt/jobbliggaren/deploy/systemd/jobbliggaren-backup.sh \
->    /opt/jobbliggaren/deploy/systemd/jobbliggaren-inject-secrets.sh
+> ls /opt/jobbliggaren/deploy/systemd/jobbliggaren-inject-secrets.sh \
+>    /opt/jobbliggaren/deploy/backup/age.recipient
+> ls -d /run/jobbliggaren/secrets
 > ```
 >
-> The third path is what makes this a measurement rather than a warning. `66f2ac39` (#198) added
-> `jobbliggaren-inject-secrets.sh`, `jobbliggaren-tmpfiles.conf` **and** the compose `_FILE`
-> switch in one commit, so its presence dates the clone against #198 (verify with
-> `git log --diff-filter=A --oneline -- deploy/systemd/jobbliggaren-inject-secrets.sh`):
+> The two files **bracket** the clone. `jobbliggaren-inject-secrets.sh` arrived with #198
+> (`66f2ac39`, which added it, `jobbliggaren-tmpfiles.conf` **and** the compose `_FILE` switch in
+> one commit) and `age.recipient` arrived last, with #197 (`c1d293b4`), so between them they date
+> the clone against both changes. `jobbliggaren-backup.sh` (`90db66e1`) lands between the two and
+> adds no state of its own, which is why it is not part of the test. Verify the dating with
+> `git log --diff-filter=A --oneline -- <path>` on either file.
 >
-> - **All three present** — nothing to do; continue into the install below.
-> - **First two missing, third present** — clone is between #198 and #197. Update the clone, then
->   run this install. #198's side is already on the box.
-> - **All three missing** — clone predates #198, and **the clone update must come FIRST.** It
+> The directory is a **separate fact and is not inferable from the files**: `ls` dates the clone,
+> while whether #198's install was ever *run* shows only on the host.
+>
+> - **Both files present** — nothing to do here; continue into the install below.
+> - **`inject-secrets.sh` present, `age.recipient` missing** — the clone sits between #198 and
+>   #197. Update the clone, then run this install. **And if `/run/jobbliggaren/secrets` is absent,
+>   run `master-key-ops.md` §2 and §3 as well**: a clone carrying #198 does not mean anyone
+>   installed it.
+> - **Both files missing** — the clone predates #198, and **the clone update must come FIRST.** It
 >   cannot be second: #198's own install block reads every file it installs out of the clone
 >   (`master-key-ops.md` §2 installs `/opt/jobbliggaren/deploy/systemd/jobbliggaren-tmpfiles.conf`
 >   and the two `-secrets-present` units; §3 runs
@@ -138,14 +146,39 @@ mount later, and a directory that is not mounted cannot be exposed by any edit t
 > `vps-deploy-stack.md` §3 states the outcome: api and worker **crash-loop rather than refusing to
 > start**. **That outcome is quoted, not re-measured here — the counterfactual is a live outage.**
 >
-> **So on the all-three-missing branch, close the reconcile window around the pull rather than
-> racing it:**
+> **So on the both-files-missing branch, close the reconcile window around the pull rather than
+> racing it. Five ordered steps, and steps 3 and 4 are procedures rather than commands —
+> DO NOT PASTE THIS AS ONE BLOCK.** A paste would run stop, pull and start with nothing between
+> them, and `Persistent=true` makes that `start` fire the missed elapse **immediately**, applying
+> the pulled `_FILE` compose against a `/run/jobbliggaren/secrets` no install has created. That is
+> the crash-loop this branch exists to avoid, arriving sooner than if you had done nothing.
+>
+> **1.** Stop the timer **and the service**, then measure that it took. Stopping the timer alone
+> is not enough: nothing binds the two — no `PropagatesStopTo`, `BindsTo` or `PartOf` — so a
+> reconcile already in flight keeps running and reads the compose file off disk at `up -d` time,
+> which is after your pull. Its `flock` does not help either; that lock exists against a human
+> running compose by hand, and `git pull` takes no lock.
 >
 > ```bash
-> sudo systemctl stop jobbliggaren-reconcile.timer
+> sudo systemctl stop jobbliggaren-reconcile.timer jobbliggaren-reconcile.service
+> systemctl is-active jobbliggaren-reconcile.service   # expect: inactive
+> ```
+>
+> **2.** Update the clone.
+>
+> ```bash
 > sudo git -C /opt/jobbliggaren pull
-> # master-key-ops.md §2 (install) then §3 (inject) — both now possible
-> # then the install block below
+> ```
+>
+> **3.** Run `master-key-ops.md` §2 (install), then §3 (inject). §3 prompts for the secret values
+> and is not something you can paste from here.
+>
+> **4.** Run the install block below.
+>
+> **5.** Re-arm. `Persistent=true` fires the missed elapse at once — which is now the desired end
+> state rather than the failure, because steps 2 to 4 have happened.
+>
+> ```bash
 > sudo systemctl start jobbliggaren-reconcile.timer
 > ```
 >
@@ -480,11 +513,15 @@ FROM job_seekers j WHERE j.id NOT IN (SELECT job_seeker_id FROM user_data_keys);
 --      never wrote any.
 --      (b2) IS AN ERASURE COUNT ONLY IF STEP 0 PASSED, and that is a precondition rather than a
 --      caveat. Under a REVERSED pairing — a DEK artefact older than the main one, which is what a
---      run whose DEK leg failed after its main artefact uploaded leaves behind — every user who
---      registered AND WROTE AN ENCRYPTED FIELD between the two generations has ciphertext and no
---      key too. That is byte-identical to what this query counts. (Registration alone does not
---      qualify: no encrypted column sits on job_seekers, so such a user has no ciphertext and is
---      counted by (b) instead — which is the very distinction (b2) exists to draw.)
+--      run whose DEK leg failed after its main artefact uploaded leaves behind — every
+--      user whose FIRST KEY-CREATING REQUEST fell between the two generations, and who has
+--      cover_letter ciphertext here, has ciphertext and no key too. That is byte-identical to
+--      what this query counts. Two likelier readings of that trigger are both wrong. It is not
+--      registration: no encrypted column sits on job_seekers, so a merely-registered user has no
+--      ciphertext and is counted by (b) instead — the very distinction (b2) exists to draw. Nor
+--      is it writing: the DEK row is minted by FieldEncryptionKeyPrefetchBehavior on the first
+--      request carrying IRequiresFieldEncryptionKey, and many of those are READ-ONLY queries, so
+--      merely opening an application or a CV creates one.
 --      So a (b2) recorded without step 0 may be
 --      measuring silent data loss and reporting it as a successful Art. 17 erasure. The drill
 --      measures exactly this ambiguity (`BackupRestoreDrillTests`, the reversed-pairing
@@ -626,11 +663,16 @@ a date is a claim that cannot be told from one that has decayed.
 5. **Whether the target's lifecycle rules take EFFECT, not merely exist.** The *rule* half is
    measured (row 27c): versioning is off, so an overwrite genuinely replaces, and both prefixes
    carry a rule with `deks/` outliving `main/`. **The effect half is not**: nothing has yet
-   confirmed that objects actually disappear on schedule. Row 27b owns it — a `deks/` listing
-   after two nights showing exactly one generation, and a `main/` listing after 31 showing the
-   older artefacts gone. **Not `list-object-versions`:** with versioning off (item 6) it returns
-   one `null`-id version per key whatever the lifecycle does, so it cannot fail and cannot
-   measure this.
+   confirmed that objects actually disappear on schedule. Row 27b owns it, and **only the `main/`
+   half is measurable**: a plain `main/` listing after 31 days showing the older artefacts gone.
+   Main objects carry a per-run stamp in their names, so they accumulate and only the 30-day rule
+   removes them — that listing can fail. **Not `list-object-versions`:** with versioning off
+   (item 6) it returns one `null`-id version per key whatever the lifecycle does. **And not a
+   `deks/` listing either** ([#1292](https://github.com/klasolsson81/jobbliggaren/issues/1292)):
+   three constant names overwritten nightly hold one generation by construction, and the nightly
+   overwrite resets `LastModified`, so the 90-day rule never fires while the job runs. That rule
+   is dormant by design — row 27c wants it for the state after the job stops for good — but no
+   instrument observes it on a running system.
    *(Split from a single premise that read as wholly unmeasured once its first half was closed;
    a discharged premise loitering in an unmeasured list makes the whole list less credible.)*
 6. **CLOSED 2026-08-09 — whether the target versions the `deks/` prefix.** It does not:

@@ -95,6 +95,31 @@ application must not reach it. Putting it in the mounted directory as a root-own
 would also have worked — but then the separation rests on a mode bit and on nobody widening the
 mount later, and a directory that is not mounted cannot be exposed by any edit to a mount.
 
+> **PRECONDITION, AND IT IS NOT THE TOOLS: THE BOX'S CLONE MUST ALREADY CARRY THIS MECHANISM.**
+> Step 3 below says the recipient "arrives with the `deploy/` clone". That is true of a clone new
+> enough to contain it and false of every older one, and **nothing in this block checks which one
+> you have** — the install would proceed to `chown` a path that is not there. Measure it first:
+>
+> ```bash
+> ls /opt/jobbliggaren/deploy/backup/age.recipient \
+>    /opt/jobbliggaren/deploy/systemd/jobbliggaren-backup.sh
+> ```
+>
+> **If either is missing, updating the clone is not a free step of this install and must not be
+> taken as one.** `jobbliggaren-reconcile.timer` runs hourly and ends in `docker compose up -d`, so
+> whatever a pull brings is applied to the live stack within the hour — by a unit, not by a
+> decision, and not at a moment anyone chose. A clone predating #198 is the case that bites: it
+> carries `.env`-sourced crypto values, while the compose file the pull brings reads them through
+> `_FILE` pointers into `/run/jobbliggaren/secrets`, a directory that does not exist until #198's
+> own install block has run. `vps-deploy-stack.md` §3 states the outcome — api and worker
+> crash-loop rather than refusing to start. **That outcome is quoted, not re-measured here: the
+> counterfactual is a live outage.**
+>
+> **Order, therefore: #198's install block, then the clone update, then this one.** (Written
+> 2026-08-10, when the box was measured carrying neither mechanism while the reconcile timer was
+> live and enabled — the ordering had never been stated, and the install block above reads as
+> though the clone is always current.)
+
 ### Install (once)
 
 ```bash

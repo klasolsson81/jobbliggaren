@@ -127,13 +127,14 @@ mount later, and a directory that is not mounted cannot be exposed by any edit t
 >   you do. An `up -d` from the `_FILE` compose would itself have created that directory — the
 >   mount carries `create_host_path: true`, which you can re-measure with
 >   `docker compose -f /opt/jobbliggaren/deploy/docker-compose.yml --env-file /dev/null config
->   --no-interpolate` (**both flags are load-bearing, not decoration:** without them compose
->   resolves `deploy/.env` into its output, which is all four database passwords and the edge
->   basic-auth hash printed to your terminal — the plaintext surface #198 exists to remove. They
->   are also why this needs no `sudo`, since `.env` is never read. Measured against the current
->   compose: the property survives the flags, and `${POSTGRES_APP_PASSWORD:?}` comes back
->   unexpanded). **Read an empty result as a statement about the clone, not the property** — a
->   clone predating #198 has no such mount to report. So the directory's absence is
+>   --no-interpolate` (**both flags are load-bearing, and they carry different loads.**
+>   `--no-interpolate` is the security one: without it compose resolves `deploy/.env` into the
+>   output — all four database passwords, both edge basic-auth values and the ACME address,
+>   printed to your terminal, which is the plaintext surface #198 exists to remove. `--env-file`
+>   is why this needs no `sudo`: it is what stops compose opening the root-only `.env` at all.
+>   Measured against the current compose: the property survives both flags, and
+>   `${POSTGRES_APP_PASSWORD:?}` comes back unexpanded, which is the visible control that
+>   interpolation is off). So the directory's absence is
 >   evidence that reconcile has **not yet applied** the new compose. Note *applied*, not *ticked*:
 >   `jobbliggaren-reconcile.sh` fail-closes before `up -d` on several paths and then keeps serving
 >   the old containers, so a tick is not an apply. The failure is therefore the next apply, not a

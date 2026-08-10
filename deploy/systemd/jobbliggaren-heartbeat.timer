@@ -1,0 +1,26 @@
+[Unit]
+# #1201 — drives the heartbeat (see jobbliggaren-heartbeat.service).
+Description=Jobbliggaren: periodic alarm-surface read and dead-man ping
+Documentation=https://github.com/klasolsson81/jobbliggaren/blob/main/docs/runbooks/host-detection.md
+
+[Timer]
+# Three minutes after boot, then every fifteen minutes.
+#
+# THE PERIOD AND THE EXPECTER'S GRACE ARE ONE DESIGN, NOT TWO SETTINGS. Period 15 min with a
+# 45 min grace means the dead-man fires no later than an hour after the last successful ping,
+# which is the bound docs/runbooks/host-detection.md commits to — and it takes FOUR consecutive
+# missed pings to get there, so ordinary jitter or one unreachable moment does not page anyone.
+# Changing either number without the other silently moves the bound the verification row measured.
+#
+# OnCalendar, NOT OnUnitActiveSec: a Type=oneshot unit never becomes active, so OnUnitActiveSec
+# would neither re-fire nor clear (systemd#21600 — a defect this repo has already repaired twice,
+# in jobbliggaren-secrets-present.timer and jobbliggaren-backup-fresh.timer).
+OnBootSec=3min
+OnCalendar=*:0/15
+AccuracySec=30s
+
+# Deliberately NOT Persistent=true. "Is the box well right now" has no missed-run semantics, and
+# a catch-up firing after downtime would send a success ping that falsely clears a dead-man alert
+# which had fired correctly — the mechanism reporting health for a window in which it was absent.
+[Install]
+WantedBy=timers.target

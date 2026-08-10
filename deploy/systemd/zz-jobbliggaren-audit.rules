@@ -1,0 +1,66 @@
+# /etc/audit/rules.d/zz-jobbliggaren.rules — gate M-7's detection primitive (#1201).
+#
+# ONE OWNER, ONE FILE. #1201 owns auditd configuration on this box. A future watch — #197's
+# host-secrets directory, say — is added HERE, through this issue's Hemvist, and never as a
+# second rules file. A gate with two owners has none, which is the invisibility that created
+# #1201 in the first place.
+#
+# THE FILENAME IS LOAD-BEARING AND IS NOT A NUMBER. `augenrules` concatenates rules.d in sort
+# order, and Debian's own audit.rules carries `-D` (delete all rules). In the C locale a numeric
+# prefix sorts BEFORE `audit.rules` ('0'-'9' < 'a'), so a file named 50- or 99- would be loaded
+# and then deleted again by the distribution's file — leaving `auditctl -s` reporting "enabled"
+# with none of our watches present. `zz-` sorts after. Never edit Debian's audit.rules.
+#
+# WATCH RULES ONLY, NO SYSCALL RULES. Syscall/execve auditing is auditd's classic
+# over-configuration: its volume competes directly with the journal retention floor and with
+# ADR 0122's capacity conditions, on a box where the answer to memory pressure (disk swap) is
+# forbidden because it breaks gate B-1. These rules emit an event only when something touches a
+# watched path.
+#
+# -D, -b and -f are deliberately ABSENT: Debian's audit.rules owns them and sorts first.
+#
+# WHAT THIS CANNOT DO, stated here so nobody reads a tripwire as an alarm. Root can disarm it
+# (`auditctl -e 0`), and can erase both the audit log and the journal. A raw device read
+# (`dd` against /dev/vda) touches no watched path, and /proc/<pid>/mem touches no file at all —
+# so the master key can be taken from a running process without any rule here firing. This is a
+# tripwire for the mistake and lower-privilege classes plus a forensic trail. It is not an alarm,
+# and it does not lift ADR 0123's scope limit.
+
+# --- The key surface (#198, gate B-1, ADR 0123's asset) -------------------------------------
+# The PARENT directory, not .../secrets: a -w against a path that does not exist at load time is
+# not loaded, and the tmpfs subdirectories are created by jobbliggaren-tmpfiles.conf at boot.
+# Watching the parent is recursive and covers both secrets/ and host-secrets/ regardless of
+# whether either exists when the rules load. The heartbeat's P4 predicate measures that these
+# keys are actually loaded in the kernel, because "the file is on disk" is not the same claim.
+-w /run/jobbliggaren -p rwa -k jbl-key-tmpfs
+
+# --- The two controls ADR 0123's open mitigations name ---------------------------------------
+# -p wa, not rwa: a read watch on sudoers would fire on every single `sudo` invocation, which is
+# alarm fatigue as a mechanism. The attack is the WRITE.
+-w /home/jpadmin/.ssh/authorized_keys -p wa -k jbl-authkeys
+-w /root/.ssh/authorized_keys         -p wa -k jbl-authkeys
+-w /etc/ssh/sshd_config               -p wa -k jbl-sshd
+-w /etc/ssh/sshd_config.d             -p wa -k jbl-sshd
+-w /etc/sudoers                       -p wa -k jbl-sudoers
+-w /etc/sudoers.d                     -p wa -k jbl-sudoers
+
+# --- Persistence: what installs a backdoor as a unit ------------------------------------------
+-w /etc/systemd/system              -p wa -k jbl-units
+-w /opt/jobbliggaren/deploy/systemd -p wa -k jbl-units
+
+# --- The detection configuration itself -------------------------------------------------------
+-w /etc/audit -p wa -k jbl-auditconf
+
+# --- Enable, mutable (-e 1). THE RATCHET TO -e 2 IS A CONDITION, NOT A DATE. ------------------
+# -e 2 makes the rule set immutable until reboot and refuses `auditctl -e 0` — the named
+# disarm vector. It is not v1 for a measured reason: on this box every rule change would then
+# cost a reboot AND a manual key re-injection (the master key is RAM-only, #198), and the
+# baseline noise is not measured yet. An immutable rule set that is WRONG is worse than a mutable
+# one that is right. -e 2 also closes only one vector: `rm -rf /var/log/audit` is untouched by it.
+#
+# RATCHET CONDITION, with its instrument: once the baseline-noise list in
+# docs/runbooks/host-detection.md has held over a written window of at least 14 days (measured
+# with `ausearch -k jbl-key-tmpfs`, every actor accounted for), flip this to `-e 2` at the next
+# PLANNED reboot — which already requires key injection, so the marginal cost is zero. Do not
+# schedule an outage for the ratchet's sake.
+-e 1

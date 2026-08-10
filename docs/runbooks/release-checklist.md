@@ -645,15 +645,25 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
         flödet aldrig startar, inte för att den var ett falskt protokoll (security-auditor
         2026-08-09). Där **själva begäran** är den säkerhetsrelevanta händelsen binder i stället
         #842:s Art. 12(3)-opt-in, och frånvaro vore fel.
-        ⚠ **Backend-halvan är sluten, användarytan är det inte.** En 503 faller i dag igenom till
-        det generiska `changeEmailFailed`, så användaren får ingen förklaring och submit-knappen
-        lever kvar. Klientarmen är **eget blockerande villkor på den här triggern** och ägs av en
-        följd-PR i e-postlanen (senior-cto-advisor 2026-08-09). Den **måste** diskriminera på
-        ProblemDetails-**titeln**, aldrig på statusen: action-lagret får kontraktsmässigt inte läsa
-        bodyn, och rutten har minst två andra 503-producenter (`SessionStoreUnavailableException`
-        via Redis, samt en omvänd proxy) — en statusbaserad arm skriver "e-post är inte aktiverat"
-        mitt under ett driftavbrott och **maskerar incidenten**. Ingen användare kan nå tillståndet
-        före flippen, vilket är varför det är ett grindvillkor och inte en defekt i drift.
+        **Användarytan är STÄNGD sedan 2026-08-10 (B-ii).** Tillståndet som stängdes: en 503 föll
+        igenom till det generiska `changeEmailFailed`, så användaren fick ingen förklaring, inte
+        veta att adressen var oförändrad, och submit-knappen levde kvar för ett omförsök som inte
+        kan lyckas. `changeEmailAction` bär nu en 503-arm som returnerar ett `refused`-resultat, och
+        kortet ersätter sig självt med en `role="status"`-panel utan trigger — affordansen tas bort,
+        inte bara texten. Armen diskriminerar på ProblemDetails-**titeln**, aldrig på statusen
+        ensam (grinden är konjunktiv: status 503 OCH exakt titel):
+        rutten har minst två andra 503-producenter (`SessionStoreUnavailableException` via Redis,
+        vars body saknar `title`-nyckeln, samt en omvänd proxy, vars body inte är JSON alls) — en
+        statusbaserad arm skriver
+        "e-post är inte aktiverat" mitt under ett driftavbrott och **maskerar incidenten**. **Båda
+        kontrafaktumen är pinnade** (`me.change-email.test.ts`: Redis-bodyn `Program.cs` faktiskt
+        skriver, främmande titel, icke-JSON-proxy, samt en 409 som bär vår egen titel och inte får
+        fyra). Ingen användare kunde nå tillståndet före flippen, vilket är varför det var ett
+        grindvillkor och inte en defekt i drift.
+        **Löftestexten renderas inte i det vägrade läget** — strängarna `:218`/`:220`/`:224` är
+        **orörda** i `settings.json`, så villkor (a) är oförändrat; det är villkorad rendering i ett
+        läge, inte en uppmjukning av copy (Klas-beslut 2026-08-10). Den nya nyckeln ligger under
+        `account.errors`, utanför verbstams-greppets skop, så **sexsiffran nedan är oförändrad**.
         **Vad #1087 INTE ändrade, och därför upphör villkoret inte:** `:218`, `:220` och `:224`
         publiceras fortfarande före handlingen och utlovar ett utskick som defaultkonfigurationen
         inte kan göra. Villkoret upphör vid **en riktig `Email:Provider`** — samma upphörande som
@@ -673,12 +683,14 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
         sömmen båda hostarna delar; Worker:n binder samma `Auth`-sektion med ett rent `Configure`
         och registrerar ingen validator. **Båda halvorna är pinnade vid anropsplatsen**, så
         paritets-editen åt endera hållet landar rött.
-        ⚠ **Detta stänger INTE punkt 5.5.** Villkor (a) upphör alltjämt först vid en riktig
-        `Email:Provider` (`:218`/`:220`/`:224` publicerar fortfarande ett utlovat utskick), (b) är
-        orörd, och **`Test`-divergensen står kvar**: den tekniska spärren undantar
+        ⚠ **Detta stänger INTE punkt 5.5, och inte heller B-ii gör det.** Villkor (a) upphör
+        alltjämt först vid en riktig `Email:Provider` (`:218`/`:220`/`:224` publicerar fortfarande
+        ett utlovat utskick som defaultkonfigurationen inte kan göra — B-ii döljer dem i **ett**
+        vägrat läge, den ändrar ingen sträng och når inte den publicerade copyn i normalläget),
+        (b) är orörd, och **`Test`-divergensen står kvar**: den tekniska spärren undantar
         Development/Test via allowlisten, medan den juridiska grinden här räknar en nåbar
-        `Test`-host som produktionsstart. Klientarmen (B-ii, stycket ovan) är fortfarande ett eget
-        blockerande villkor.
+        `Test`-host som produktionsstart. **Klientarmen är det enda villkor på triggern som B-ii
+        stänger** — den står kvar i listan som levererad, inte som utestående.
         **Ingen release som öppnar registrering får ske innan de kvarvarande villkoren är gröna.**
         Copyn får INTE mjukas upp först — det falska påståendet är enda användarsynliga tecknet
         att flödet är trasigt. Art. 5(1)(a) + 12(1).

@@ -156,7 +156,9 @@ mount later, and a directory that is not mounted cannot be exposed by any edit t
 ### Install (once)
 
 ```bash
-# 1. The tools. THIS STEP IS UNMEASURED — see §8. If either package is absent from trixie,
+# 1. The tools. MEASURED 2026-08-10 and installed on this box — versions in
+#    `vps-deploy-stack.md` §5 row 28. The STOPP below still stands for any other host or a
+#    later trixie: it is the procedure, not a prediction. If either package is absent from trixie,
 #    STOP and escalate rather than fetching a binary: `sops` was measured absent for #198, so
 #    this class of absence is live on this box, not hypothetical.
 sudo apt-get update && sudo apt-get install -y age rclone
@@ -598,9 +600,12 @@ a date is a claim that cannot be told from one that has decayed.
 
 ## 8. Unmeasured, and named
 
-1. **Whether `age` and `rclone` are in apt on Debian 13 (trixie).** Not measured, on this box or
-   anywhere. If either is absent, that is a STOPP to security-auditor and Klas — not an
-   improvised binary fetch. (2026-08-09)
+1. **CLOSED 2026-08-10 — whether `age` and `rclone` are in apt on Debian 13 (trixie).** Both are:
+   `age` candidate `1.2.1-1+b5` and `rclone` candidate `1.60.1+dfsg-4`, both from `trixie/main`,
+   installed on this box and recorded from the binaries in `vps-deploy-stack.md` §5 row 28. The
+   STOPP branch this entry was written for — `sops` was measured absent from trixie for #198, so
+   the class was live rather than hypothetical — did not fire. *(Kept as a closed entry rather
+   than deleted, the same treatment items 2 and 6 got in this file and for the same reason.)*
 2. **CLOSED 2026-08-09 — the target's lifecycle and immutability behaviour.** Object Lock is set
    at bucket creation and cannot be enabled afterwards, and enabling it enables versioning
    (OVHcloud's Object Lock guide, read 2026-08-09 and quoted in ADR 0125's amendment). So

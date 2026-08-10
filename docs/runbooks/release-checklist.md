@@ -183,8 +183,9 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
 >
 > **Grinden gäller ALL utgående e-post, inte bara bakgrundsmatchnings-notiserna**
 > (widening 2026-07-26, #186). `Email:Provider` är EN switch, och `EmailTemplates`
-> har **sex** sorter varav **fyra är kontolivscykel** (`EmailConfirmation`,
-> `EmailChangeConfirmation`, `EmailChangedNotification`, `AccountExistsNotice`) och
+> har **åtta** sorter varav **sex är kontolivscykel** (`EmailConfirmation`,
+> `EmailChangeConfirmation`, `EmailChangedNotification`, `AccountExistsNotice`,
+> `PasswordReset`, `PasswordChangedNotice`) och
 > två är notiser (`MatchNotification`, `FollowedCompanyNotification`). En release som
 > aktiverar providern **bara** för e-postbekräftelse triggar därför varje punkt nedan
 > lika fullt — mottagar-adressen når en US-processor oavsett vilken mall som skickas.
@@ -346,7 +347,7 @@ Källa: ADR 0080 §"Prod-Resend-flip pre-condition checklist"; ROPA-behandlingen
 **"Utgående transaktionell e-post (Amazon SES, `eu-north-1`)"** — omdöpt och omskopad
 2026-08-09 (#1169) från *"Bakgrundsmatchnings-notiser via e-post (Resend)"*, som täckte
 **endast** notis-vägen. Efter wideningen ovan gäller grinden all utgående e-post, och
-Art. 30-posten täcker sedan omskrivningen alla sex mallarna — **men de fyra
+Art. 30-posten täcker sedan omskrivningen alla åtta mallarna — **men de sex
 kontolivscykel-mallarnas rättsliga grunder är CC:s utkast och är inte prövade**, så
 sign-off-ledet i punkt 1 är oförändrat KVAR. **TVÅ**
 av mallarna är ogrindade: `EmailChangeConfirmation` (`ChangeEmailCommandHandler:66`) och

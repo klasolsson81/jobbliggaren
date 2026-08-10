@@ -250,7 +250,7 @@ healthy_state
 : >"$TMPROOT/loaded-rules"
 run_sut
 assert_exit_zero "P4-not-loaded"
-assert_one_fail_post_naming "P4-not-loaded" "audit-keys-not-loaded=jbl-"
+assert_one_fail_post_naming "P4-not-loaded" "audit-rules-not-loaded=jbl-"
 
 echo
 echo "P4 — auditctl absent entirely"
@@ -296,6 +296,23 @@ printf -- '-w /run/jobbliggaren -p rwa -k jbl-key-tmpfs\n' >"$TMPROOT/loaded-rul
 run_sut
 assert_exit_zero "P4-comments"
 assert_one_success_post "P4-comments"
+
+echo
+echo "P4 — one key, two paths, only ONE loaded (the key-set blind spot)"
+# Seven of ten real keys are carried by more than one watch. Comparing key SETS reports green as
+# soon as any rule per key loads, so a single watch failing to load — exactly what happens when
+# its path does not exist yet — would be invisible. This case must go red.
+healthy_state
+cat >"$TMPROOT/audit.rules" <<'RULES'
+-w /home/jpadmin/.ssh -p wa -k jbl-authkeys
+-w /root/.ssh -p wa -k jbl-authkeys
+-e 1
+RULES
+printf -- '-w /home/jpadmin/.ssh -p wa -k jbl-authkeys
+' >"$TMPROOT/loaded-rules"
+run_sut
+assert_exit_zero "P4-partial-key"
+assert_one_fail_post_naming "P4-partial-key" "jbl-authkeys@/root/.ssh"
 
 echo
 echo "P5 — disk below the free-space floor"

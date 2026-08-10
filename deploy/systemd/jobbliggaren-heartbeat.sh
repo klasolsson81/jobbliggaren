@@ -178,13 +178,33 @@ check_floor_timers() {
 
 # P4 — the detection configuration's own integrity: are the rules actually LOADED in the kernel?
 #
-# The expected key set is derived from the rules file, never from a literal here — two homes for
-# one list is how they drift. Both a missing rules file and a missing auditctl are failures, not
+# The expectation is derived from the rules file, never from a literal here — two homes for one
+# list is how they drift. Both a missing rules file and a missing auditctl are failures, not
 # passes: an empty expectation compared against an empty kernel would be the falsest green there
-# is, and it is precisely what an ordering mistake (rules.d sort order, or a watch on a tmpfs
-# path that did not exist at load time) produces.
+# is, and it is precisely what an ordering mistake, or a watch on a path that did not exist at
+# load time, produces.
+#
+# COMPARE RULES, NOT KEYS, AND THE DIFFERENCE IS A REAL BLIND SPOT. Seven of the ten keys in the
+# rules file are carried by more than one watch (`jbl-authkeys` by /root/.ssh AND
+# /home/jpadmin/.ssh, `jbl-cron` by three paths, and so on). Comparing key SETS therefore reports
+# green whenever at least one rule per key loaded — so a single watch silently failing to load,
+# which is exactly what happens when its path does not exist yet, would be invisible to the
+# predicate written to catch it. Pairs of (path, key) restore per-rule granularity. Measured
+# 2026-08-10: `auditctl -l` prints watches back in the rules file's own form
+# (`-w <path> -p <perms> -k <key>`), so the two sides are directly comparable.
+audit_watch_pairs() {
+  # stdin -> "<path>|<key>" per watch rule, deduplicated. Comment lines are stripped FIRST: this
+  # file is comment-heavy by house style, and a commented-out rule — the likeliest future edit —
+  # would otherwise mint a phantom expectation that can never be loaded, i.e. a permanently lit
+  # alarm. The rules file's own prose already contains an `ausearch -k jbl-key-tmpfs` example.
+  grep -v '^[[:space:]]*#' |
+    grep -oE -- '-w[[:space:]]+[^[:space:]]+[[:space:]]+-p[[:space:]]+[^[:space:]]+[[:space:]]+-k[[:space:]]+jbl-[A-Za-z0-9_-]+' |
+    sed -E 's/^-w[[:space:]]+([^[:space:]]+).*-k[[:space:]]+(jbl-[A-Za-z0-9_-]+)$/\1|\2/' |
+    sort -u
+}
+
 check_audit_rules_loaded() {
-  local expected loaded missing="" k
+  local expected loaded missing="" pair
   if [ ! -r "$AUDIT_RULES_FILE" ]; then
     fail_with "audit-rules-file-absent"
     return 0
@@ -193,29 +213,23 @@ check_audit_rules_loaded() {
     fail_with "auditctl-absent"
     return 0
   fi
-  # Comment lines are stripped FIRST: this file is comment-heavy by house style, and a commented
-  # -out rule — the likeliest future edit — would otherwise mint a phantom key that can never be
-  # loaded, i.e. a permanently lit alarm. The rules file's own prose already contains an
-  # `ausearch -k jbl-key-tmpfs` example that happens to collide with a real key today.
-  expected=$(grep -v '^[[:space:]]*#' "$AUDIT_RULES_FILE" 2>/dev/null |
-    grep -oE -- '-k[[:space:]]+jbl-[A-Za-z0-9_-]+' |
-    awk '{print $2}' | sort -u)
+  expected=$(audit_watch_pairs <"$AUDIT_RULES_FILE" 2>/dev/null)
   if [ -z "$expected" ]; then
     fail_with "audit-rules-file-defines-no-keys"
     return 0
   fi
-  loaded=$(auditctl -l 2>/dev/null | grep -oE -- '-k[[:space:]]+jbl-[A-Za-z0-9_-]+' |
-    awk '{print $2}' | sort -u)
-  # Audit keys are NOT run through sanitize_token. That function reduces UNIT NAMES to a unit
-  # shape, and a key is not unit-shaped — every key would come out as the rejection marker, so
-  # the body would say how MANY keys were missing but never which, which is the whole diagnostic
-  # value of this arm. The keys need no reduction either: they come from a root-owned file we
-  # ship, and the extraction regex above already bounds them to `jbl-[A-Za-z0-9_-]+`.
-  while IFS= read -r k; do
-    [ -z "$k" ] && continue
-    printf '%s\n' "$loaded" | grep -qxF "$k" || missing="${missing}${missing:+,}${k}"
+  loaded=$(auditctl -l 2>/dev/null | audit_watch_pairs)
+  # Neither path nor key is run through sanitize_token. That function reduces UNIT NAMES to a unit
+  # shape, and neither of these is unit-shaped — every one would come out as the rejection marker,
+  # so the body would say how MANY rules were missing but never which, which is the whole
+  # diagnostic value of this arm. They need no reduction either: both come from a root-owned file
+  # we ship, and the extraction above already bounds the key to `jbl-[A-Za-z0-9_-]+`.
+  while IFS= read -r pair; do
+    [ -z "$pair" ] && continue
+    printf '%s\n' "$loaded" | grep -qxF "$pair" ||
+      missing="${missing}${missing:+,}${pair##*|}@${pair%%|*}"
   done <<<"$expected"
-  [ -z "$missing" ] || fail_with "audit-keys-not-loaded=${missing}"
+  [ -z "$missing" ] || fail_with "audit-rules-not-loaded=${missing}"
 }
 
 # P5 — free space where exhaustion would stop the stack. Detection only, never a quota.

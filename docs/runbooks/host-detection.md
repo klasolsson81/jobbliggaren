@@ -143,6 +143,7 @@ undocumented is a family whose findings cannot be triaged.
 | `jbl-cron` | none | no user crontab exists on this box (measured 2026-08-10), so this family is close to pure signal |
 | `jbl-deploy` | `git pull` during reconcile, when compose or `.env` actually changes | not every hour — only when the pull brings a change |
 | `jbl-detection` | **two reads per heartbeat run**: systemd reads `EnvironmentFile=` and the script sources it | the timer runs every 15 min, so expect ~192 reads/day. Anything that is not those two is the finding this watch exists for |
+| `jbl-auditconf` | `augenrules --load` writing the merged `/etc/audit/audit.rules`, and `unattended-upgrades` when the auditd package is upgraded | **this family is NOT quiet, and the install procedure itself triggers it:** §5 step 2 runs `augenrules --load`, and Debian's `auditd.service` runs it again via `ExecStartPost=` on every restart — including every reboot, and the reboot drill in §7 |
 
 **Any actor not in this table is a finding.** The table is the discriminator; without it the rules
 produce events nobody can triage, which is the same failure as no rules at all. **Fill the counts
@@ -192,10 +193,13 @@ sudo systemctl restart auditd
 # JUDGE THE KERNEL, NOT THE FILE. `auditctl -s` says "enabled" whether or not our rules loaded,
 # and a watch on a path that did not exist at load time is silently absent.
 sudo auditctl -l | grep -c 'jbl-'
-#    Expected: the number of DISTINCT -k keys in the rules file, which the heartbeat's own P4
-#    predicate derives rather than hard-codes:
+#    Expected: the number of WATCH RULES carrying a jbl- key — NOT the number of distinct keys.
+#    Seven of the ten keys are carried by more than one path, so the two counts differ (19 vs 10
+#    as this file stands), and comparing against the key count would show the operator a
+#    discrepancy that does not exist. The heartbeat's P4 predicate compares (path, key) pairs for
+#    the same reason: a single watch failing to load is invisible to a key-set comparison.
 grep -v '^[[:space:]]*#' /opt/jobbliggaren/deploy/systemd/zz-jobbliggaren-audit.rules |
-  grep -oE -- '-k[[:space:]]+jbl-[A-Za-z0-9_-]+' | awk '{print $2}' | sort -u | wc -l
+  grep -cE -- '^-w[[:space:]]+[^[:space:]]+[[:space:]]+-p[[:space:]]+[^[:space:]]+[[:space:]]+-k[[:space:]]+jbl-'
 
 # 3. The capability URL. Create the check at the expecter first, then paste its ping URL here.
 sudo install -d -m 0700 -o root -g root /etc/jobbliggaren

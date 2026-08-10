@@ -9,7 +9,8 @@ namespace Jobbliggaren.Infrastructure.Auth;
 /// Redis-backed <see cref="ICooldownGate"/> (generalised from the #733 resend primitive; #703).
 /// Form: a key with an absolute TTL via <see cref="IDistributedCache"/>. The key is
 /// <c>cd/{scope}/v1/{sha256(subject)}</c> — the subject (an
-/// email address or a user id) is normalised (<c>Trim()</c> + <c>ToLowerInvariant()</c>) and
+/// email address or a user id) is normalised the way Identity normalises a lookup key
+/// (<c>Trim()</c> + <c>Normalize()</c> + <c>ToUpperInvariant()</c>, see <c>Key</c> for why) and
 /// SHA-256-hashed, a one-way non-PII fingerprint
 /// (the raw value is never written to Redis); every call on the same <c>(scope, subject)</c> collapses to
 /// the same key, so the window is a pure per-subject throttle. Pure mechanism: the window is a caller

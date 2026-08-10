@@ -40,11 +40,26 @@ public sealed class PasswordResetDispatchServiceShutdownTests
     {
         public List<string> Sent { get; } = [];
 
+        /// <summary>
+        /// Signals that the consumer loop has actually begun draining. The test waits on this before
+        /// stopping the host — see the call site for why a race, not a preference.
+        /// <para>
+        /// <c>RunContinuationsAsynchronously</c> is load-bearing: without it the waiting test thread's
+        /// continuation can run inline on the pool thread inside this method, reordering the very
+        /// sequence the wait exists to establish.
+        /// </para>
+        /// </summary>
+        public TaskCompletionSource FirstSendStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
         public bool CanDeliver => true;
 
         public async Task SendPasswordResetAsync(
             string toEmail, PasswordResetEmail content, CancellationToken cancellationToken)
         {
+            // Signalled BEFORE the awaited call, so the wait means "the drain has started", not "the
+            // first send has finished" — the latter would be satisfied by a loop that then dies.
+            FirstSendStarted.TrySetResult();
+
             // The awaited call the real adapter makes. If the consumer hands down a cancelled token,
             // this throws before recording anything — which is the defect.
             await Task.Delay(20, cancellationToken);
@@ -94,11 +109,26 @@ public sealed class PasswordResetDispatchServiceShutdownTests
         channel.TryEnqueue(new PasswordResetDispatch("c@example.se", null, null));
 
         await sut.StartAsync(ct);
+
+        // Wait for the drain to have STARTED before stopping the host, and do it on a deterministic
+        // signal rather than a sleep. .NET 10 changed BackgroundService.StartAsync to
+        // `Task.Run(() => ExecuteAsync(_stoppingCts.Token), _stoppingCts.Token)` (dotnet/runtime
+        // #116283); with the token as the SECOND argument, a Cancel() that beats the thread pool's
+        // dequeue means the delegate never runs at all. base.StopAsync then awaits with
+        // ConfigureAwaitOptions.SuppressThrowing, so it returns normally and this test asserts 3
+        // against 0 — red, with the exact signature of the defect it pins. Only `queue.Complete()`
+        // separates Task.Run from Cancel(), so nothing gives the pool time on its own.
+        //
+        // This is a CI property, not a theoretical one: the suite does not set
+        // parallelizeTestCollections=false (two other suites in the repo do, deliberately), and CI
+        // runs on a 2-4 vCPU runner. A pass on an idle developer machine measures the wrong pool.
+        await sender.FirstSendStarted.Task.WaitAsync(TimeSpan.FromSeconds(30), ct);
+
         await sut.StopAsync(ct);
 
-        // THE threshold. Under the previous shape this was zero: StopAsync cancelled the stopping token
-        // before the loop had processed anything, and the first Task.Delay(_, token) threw straight
-        // through both catch filters.
+        // THE threshold. Under the previous shape this was zero. The writer was completed first there
+        // too, so the cancellation did not PRECEDE the drain — it landed while the drain was running,
+        // and the first Task.Delay(_, token) threw straight through both catch filters.
         sender.Sent.Count.ShouldBe(
             3,
             "StopAsync completes the writer to END the loop; it must not also cancel the work the loop "

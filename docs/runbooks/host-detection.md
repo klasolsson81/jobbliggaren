@@ -143,7 +143,7 @@ undocumented is a family whose findings cannot be triaged.
 | `jbl-cron` | none | no user crontab exists on this box (measured 2026-08-10), so this family is close to pure signal |
 | `jbl-deploy` | `git pull` during reconcile, when compose or `.env` actually changes | not every hour — only when the pull brings a change |
 | `jbl-detection` | **two reads per heartbeat run**: systemd reads `EnvironmentFile=` and the script sources it | the timer runs every 15 min, so expect ~192 reads/day. Anything that is not those two is the finding this watch exists for |
-| `jbl-auditconf` | `augenrules --load` writing the merged `/etc/audit/audit.rules`, and `unattended-upgrades` when the auditd package is upgraded | **this family is NOT quiet, and the install procedure itself triggers it:** §5 step 2 runs `augenrules --load`, and Debian's `auditd.service` runs it again via `ExecStartPost=` on every restart — including every reboot, and the reboot drill in §7 |
+| `jbl-auditconf` | `unattended-upgrades` when the auditd package is upgraded; §5's own `install` and `sed` under `/etc/audit` on any RE-RUN; an operator editing by hand | **The watch fires — measured 2026-08-10 with a counterfactual** (`touch -a /etc/audit/auditd.conf` → 1 record), which is why this row is a measurement and not an argument. It produced zero during the census for a narrower reason than an earlier version of this row claimed: nothing touched `/etc/audit` while the rule was live in that window. **On a FIRST load the family also cannot record §5 itself** — `augenrules` writes `/etc/audit/audit.rules` before the rule is in the kernel — but on a re-run the rule IS live and §5's own writes fire it, which is expected rather than a finding |
 
 **Any actor not in this table is a finding.** The table is the discriminator; without it the rules
 produce events nobody can triage, which is the same failure as no rules at all. **Fill the counts
@@ -184,14 +184,47 @@ done
 sudo grep -E '^(admin_space_left_action|disk_full_action|disk_error_action) ' /etc/audit/auditd.conf
 #    Expected: SYSLOG / ROTATE / SYSLOG — and no SUSPEND anywhere in that output.
 
+# TWO PATHS MUST EXIST BEFORE THE RULES LOAD, and rule 1 is the dangerous one.
+# `augenrules --load` ABORTS THE ENTIRE LOAD at the first rule it cannot apply — measured
+# 2026-08-10 twice. With /etc/jobbliggaren/detection.env absent (rule 18) the load stopped at
+# line 23, `audit-rules.service` failed, `auditd.service` never started because it depends on
+# it, and 17 of 19 rules were in the kernel with NOTHING being collected. A counterfactual with
+# a bad rule 1 gave 0 of 2. So the order below is not tidiness.
+#
+# `-w /run/jobbliggaren` IS RULE 1 AND LIVES ON tmpfs, so it is destroyed by every reboot. The
+# only thing that recreates it is jobbliggaren-tmpfiles.conf — and `audit-rules.service` is
+# `After=systemd-tmpfiles-setup.service` (measured), so tmpfiles runs FIRST and the ordering
+# works. Without that file installed, a reboot leaves rule 1 unloadable and the box gets ZERO
+# audit rules and no auditd at all. Measured 2026-08-10: it was not installed on this box.
+# THE COMMAND IS NOT COPIED HERE ON PURPOSE. jobbliggaren-tmpfiles.conf is #198's artefact and
+# its install lives in master-key-ops.md §2 — which already has a second, drifted copy in
+# backup-restore.md — and the drift is real but not the one an earlier version of this comment
+# claimed: BOTH carry `systemd-tmpfiles --create`, but master-key-ops.md scopes it to the file
+# while backup-restore.md applies every tmpfiles.d file on the box. A third home
+# is how the next divergence starts, and this PR's own rules file says a gate with two owners
+# has none. What M-7 needs is the DEPENDENCY named, not the command duplicated:
+#   · rule 1 does not load unless /run/jobbliggaren exists at load time
+#   · so master-key-ops.md §2's install must have run before the block below
+# Verify rather than re-run. If either line prints nothing, go run that runbook's §2 first.
+# Not an && chain: a missing conf file must not stop the second check from reporting.
+ls -l /etc/tmpfiles.d/jobbliggaren.conf; ls -ld /run/jobbliggaren
+
+# The env file is rule 18. Create it even when the URL is unknown: an empty file loads the
+# rule, and the script refuses to post without a URL.
+sudo install -d -m 0700 -o root -g root /etc/jobbliggaren
+sudo touch /etc/jobbliggaren/detection.env && sudo chmod 0600 /etc/jobbliggaren/detection.env
+
 sudo install -m 0640 -o root -g root \
   /opt/jobbliggaren/deploy/systemd/zz-jobbliggaren-audit.rules \
   /etc/audit/rules.d/zz-jobbliggaren.rules
 sudo augenrules --load
 sudo systemctl restart auditd
+# `augenrules` is quiet on success and its failure is easy to skim past — judge the units.
+systemctl is-active auditd; systemctl --failed --plain --no-legend --no-pager
 
 # JUDGE THE KERNEL, NOT THE FILE. `auditctl -s` says "enabled" whether or not our rules loaded,
-# and a watch on a path that did not exist at load time is silently absent.
+# and a watch on a path that did not exist at load time is not merely skipped — it aborts the
+# load, as the block above records.
 sudo auditctl -l | grep -c 'jbl-'
 #    Expected: the number of WATCH RULES carrying a jbl- key — NOT the number of distinct keys.
 #    Seven of the ten keys are carried by more than one path, so the two counts differ (19 vs 10
@@ -201,10 +234,12 @@ sudo auditctl -l | grep -c 'jbl-'
 grep -v '^[[:space:]]*#' /opt/jobbliggaren/deploy/systemd/zz-jobbliggaren-audit.rules |
   grep -cE -- '^-w.*-k[[:space:]]+jbl-'
 
-# 3. The capability URL. Create the check at the expecter first, then paste its ping URL here.
-sudo install -d -m 0700 -o root -g root /etc/jobbliggaren
-sudo install -m 0600 -o root -g root \
-  /opt/jobbliggaren/deploy/detection/detection.env.example /etc/jobbliggaren/detection.env
+# 3. The capability URL. Create the check at the expecter first, then paste its ping URL into
+#    the file step 2 created. THE LINE MUST BE `HEARTBEAT_PING_URL=<url>` — a bare URL would be
+#    sourced as a command and the variable would stay unset, which produces a dead-man page with
+#    no diagnosis. Format: deploy/detection/detection.env.example. Until then it stays empty and
+#    the script refuses to post — the
+#    correct state, and the dead-man reports the resulting silence.
 sudo nano /etc/jobbliggaren/detection.env      # paste the real URL; never echo it
 
 # 4. The heartbeat. The script is already executable in the clone (git carries the mode, and CI
@@ -226,13 +261,20 @@ Each drill fills a row in §7. **Measure on the expecter's side, never on the bo
 
 ```bash
 # D1 — a key read produces a record naming uid and exe.
-sudo dd if=/run/jobbliggaren/secrets/FieldEncryption__LocalMasterKeyBase64 \
-  of=/dev/null bs=1 count=1 2>/dev/null
-sudo ausearch -k jbl-key-tmpfs -ts recent
+# /run/jobbliggaren/secrets is created by master-key-ops.md §2 but holds no KEY FILE until
+# #198's cutover, so until then this runs against the watched PARENT and §7's row stays
+# undischarged. `-ts recent` is required: this box already carries jbl-key-tmpfs records from
+# earlier drills, and without a time bound the drill passes on records it did not produce.
+# stderr is NOT swallowed — a missing path must be visible, or a working mechanism reads as broken.
+sudo touch /run/jobbliggaren/jbl-m7-drill && sudo cat /run/jobbliggaren/jbl-m7-drill >/dev/null
+sudo ausearch -if /var/log/audit/audit.log -ts recent -k jbl-key-tmpfs
+sudo rm -f /run/jobbliggaren/jbl-m7-drill
+# AFTER #198's cutover, replace the touch/cat/rm drill above with the real key read:
+#   sudo dd if=/run/jobbliggaren/secrets/FieldEncryption__LocalMasterKeyBase64 of=/dev/null bs=1 count=1
 # Record the FIELD NAMES plus uid/exe. Redact any addr=/hostname= before it reaches this file.
 
 # D2 — a write to a watched control produces a record.
-sudo touch -a /etc/sudoers && sudo ausearch -k jbl-sudoers -ts recent   # expect a record
+sudo touch -a /etc/sudoers && sudo ausearch -if /var/log/audit/audit.log -ts recent -k jbl-sudoers   # expect a record
 
 # D3 — active fail pages with a diagnosis. Use a TRANSIENT unit; never touch a delivered one.
 sudo systemd-run --unit=jbl-m7-drill --service-type=oneshot /bin/false
@@ -257,7 +299,8 @@ sudo systemctl start jobbliggaren-heartbeat.timer      # re-arm and confirm the 
    body's predicate name says where to look. Nothing here is an emergency by itself.
 3. **On dead-man silence:** try SSH. If the box answers, the heartbeat or its config was
    disarmed — **treat that as a security event, not a maintenance one**, and check
-   `ausearch -k jbl-units -k jbl-auditconf` before restarting anything, because a restart
+   `ausearch -if /var/log/audit/audit.log -k jbl-units` and the same for `jbl-auditconf` before
+   restarting anything, because a restart
    overwrites the state you would want to read. If the box does not answer, it is an availability
    incident until proven otherwise (the provider panel is the next instrument).
 4. **If a compromise is suspected**, the Art. 33 assessment is the same one
@@ -276,18 +319,19 @@ install happens once.
 |---|---|---|---|
 | **The baseline this gate was opened against** — no cadenced reader existed, and nothing left the box | `systemctl list-timers --all`, `crontab -l` + `/etc/cron.*`, `dpkg -l rsyslog auditd aide`, absence of journal-upload/remote config, `systemctl list-unit-files 'jobbliggaren*'` | Only `jobbliggaren-reconcile.{service,timer}` installed; no `rsyslog`/`auditd`/`aide`; no forwarding config; no cron reader; `systemctl --failed` empty **because nothing feeds it** | 2026-08-10 |
 | **The SSH signal exists, names key and source, and had no reader** | `sudo sshd -T \| grep loglevel`, then `journalctl -u ssh -g "Accepted publickey"` | `loglevel VERBOSE`; accepted-publickey lines carry key fingerprint, source and timestamp — the signal is strong and was read by nobody. *(Values not reproduced here: the source address is personal data.)* | 2026-08-10 |
-| **The journal window is computed, not declared** | `journalctl --disk-usage`; oldest entry timestamp; `systemd-analyze cat-config systemd/journald.conf` for the EFFECTIVE floor | | |
-| **The audit rules are loaded in the kernel, not merely on disk** | `sudo auditctl -l \| grep -c 'jbl-'` against the number of WATCH RULES in the rules file — **not** the number of distinct keys, which is a smaller number (seven keys are carried by several paths). Derive it with the same command §5 step 2 uses, so the two sections cannot drift apart: `grep -v '^[[:space:]]*#' <rules> \| grep -cE -- '^-w.*-k[[:space:]]+jbl-'` | | |
+| **The journal window is computed, not declared** | `journalctl --disk-usage`; oldest entry timestamp; `systemd-analyze cat-config systemd/journald.conf` for the EFFECTIVE limits | Effective after install: `Storage=persistent`, `SystemMaxUse=4G`, `SystemKeepFree=2G`. **The window is not limit-bound and therefore not yet computable from rotation:** the journal held ~24 MB spanning 2026-08-04 → 2026-08-10 against a 4 G ceiling — 0.6 %, so nothing has rotated and the 6.5 days is the journal's AGE, not its retention. At that write rate (~3.7 MB/day) the size limit implies a window of order a thousand days, i.e. the binding constraint is the box's age and `journalctl --vacuum`, not journald. Re-measure once auditd has been running for a week — the direction is not obvious and is unmeasured: audit records go to `/var/log/audit/audit.log`, not the journal, and before the install the kernel's audit messages reached the journal via printk, so a running auditd may well LOWER the journal rate. `/` is 251 G, so both journald defaults bind at their 4 G cap — see the config file's own note on which of the two settings actually widens the window | 2026-08-10 |
+| **The audit rules are loaded in the kernel, not merely on disk** | `sudo auditctl -l \| grep -c 'jbl-'` against the number of WATCH RULES in the rules file — **not** the number of distinct keys, which is a smaller number (seven keys are carried by several paths). Derive it with the same command §5 step 2 uses, so the two sections cannot drift apart: `grep -v '^[[:space:]]*#' <rules> \| grep -cE -- '^-w.*-k[[:space:]]+jbl-'` | **19 of 19**, after a repair the first attempt made necessary. The first load reached **17 of 19**: `/etc/jobbliggaren/detection.env` did not exist, `augenrules` aborted the whole load there, `audit-rules.service` failed, and **`auditd` did not start at all** — so the two missing rules were the unloadable one and the one after it in the file. Creating the file first loaded all 19. The install order in §5 now enforces this | 2026-08-10 |
 | **The rules survive a reboot** | same instrument, after `sudo systemctl reboot` | | |
-| **A read of the key tmpfs produces a record naming uid and exe** | drill D1, then `ausearch -k jbl-key-tmpfs` | | |
-| **A write to a watched control produces a record** | drill D2 | | |
-| **The baseline-noise table is complete enough to discriminate** | §4's table against `ausearch -k jbl-key-tmpfs` over a window covering ≥1 injection and ≥1 applied reconcile | | |
+| **A read of the key tmpfs produces a record naming uid and exe** | drill D1, then `ausearch -if /var/log/audit/audit.log -k jbl-key-tmpfs` | **The watch fires and attributes correctly — but NOT against a real key.** `/run/jobbliggaren/secrets` exists (created by `master-key-ops.md` §2's tmpfiles unit, installed 2026-08-10) but holds **no key file** until #198's cutover, so the drill ran against a file created under the watched parent instead: 5 `jbl-key-tmpfs` records. A sibling drill on `/etc/systemd/system` gives the full attribution shape — `auid=1000 uid=0 exe="/usr/bin/rm" key="jbl-units"`, i.e. the login identity survives the sudo. **This row is NOT discharged**: it must be re-run against the real key file after #198's cutover | 2026-08-10 (parent watch only) |
+| **A write to a watched control produces a record** | drill D2 | **Nine of the ten families fired during the census, and the tenth was proven separately.** `jbl-auditconf` produced zero here because nothing touched `/etc/audit` while the rule was live in that window — **not** because the family is inert. Counterfactual, measured 2026-08-10: `sudo touch -a /etc/audit/auditd.conf` then `sudo ausearch -if /var/log/audit/audit.log -ts recent -k jbl-auditconf` → **1 record**. (A cold load additionally cannot record itself, since `augenrules` writes `/etc/audit/audit.rules` before the rule is in the kernel; on a re-run the rule is live and §5's own writes fire it.) The nine: `jbl-units` 6 · `jbl-key-tmpfs` 5 · `jbl-sudoers` 4 · `jbl-cron` 3 · `jbl-accounts` 3 · `jbl-sshd` 2 · `jbl-deploy` 2 · `jbl-authkeys` 2 · `jbl-detection` 1. Regenerate with `sudo grep -oE 'key="jbl-[a-z-]+"' /var/log/audit/audit.log \| sort \| uniq -c` — **and read it against the key list in the rules file, because a family with zero events is absent from that output entirely**, so the command alone can never establish "every family" | 2026-08-10 |
+| **The baseline-noise table is complete enough to discriminate** | §4's table against `ausearch -if /var/log/audit/audit.log -k jbl-key-tmpfs` over a window covering ≥1 injection and ≥1 applied reconcile | | |
 | **The heartbeat reaches the expecter — measured at the expecter** | the service's own `last ping` timestamp, never the box's `curl` exit code | | |
 | **Active fail pages, and the body names the predicate** | drill D3 | | |
 | **The alarm self-clears with no operator action** | drill D4 | | |
 | **The dead-man fires, and the delta is within the stated bound** | drill D5 — stop the timer, measure wall-clock from last successful ping to the page | | |
 | **The payload carries no personal data** | the exact body the expecter stored, plus confirmation that no audit-record body appears in any ping | | |
-| **auditd cannot suspend or stop logging when the disk fills** | `sudo grep -E '^(space_left_action\|admin_space_left_action\|disk_full_action\|disk_error_action\|max_log_file_action\|num_logs\|max_log_file) ' /etc/audit/auditd.conf` — read back from the file auditd actually reads, since there is no `auditd.conf.d` and no `cat-config` equivalent. **The drill is deliberately NOT run** — filling the production disk is a self-inflicted incident — so this row measures configuration and says so | | |
+| **auditd cannot suspend or stop logging when the disk fills** | `sudo grep -E '^(space_left_action\|admin_space_left_action\|disk_full_action\|disk_error_action\|max_log_file_action\|num_logs\|max_log_file) ' /etc/audit/auditd.conf` — read back from the file auditd actually reads, since there is no `auditd.conf.d` and no `cat-config` equivalent. **The drill is deliberately NOT run** — filling the production disk is a self-inflicted incident — so this row measures configuration and says so | `admin_space_left_action = SYSLOG`, `disk_full_action = ROTATE`, `disk_error_action = SYSLOG` — the three Debian shipped as SUSPEND. The other four were already correct and are unchanged: `space_left_action = SYSLOG`, `max_log_file_action = ROTATE`, `num_logs = 5`, `max_log_file = 8`. **Zero occurrences of SUSPEND in the whole file.** `halt` and `single` are excluded by the enumeration above, not by that count — a SUSPEND sweep says nothing about them, and an operator who later re-runs only the sweep would wrongly conclude otherwise. Drill not run, by the reasoning in the instrument | 2026-08-10 (config only) |
+| **The drill instrument itself works — `ausearch` must be pointed at the log** | `sudo ausearch -k <key>` compared against `sudo ausearch -if /var/log/audit/audit.log -k <key>`, with a raw `grep` on the log as the control | **`ausearch -k` returns `<no matches>` on this box while the events exist.** Measured: `ausearch -k jbl-units` → 0, `ausearch -if /var/log/audit/audit.log -k jbl-units` → 6, and `grep -c 'key="jbl-units"'` on the log → 6. Without `-if` the drill would report a working mechanism as broken, which is why every drill in §5 carries it | 2026-08-10 |
 | **The RAM cost is measured, not asserted** | `systemctl show -p MemoryCurrent auditd`, `MemAvailable` before and after, against ADR 0122's honest free RAM | | |
 | **The ping URL is single-purpose and absent from the repo** | `stat -c '%a %U:%G' /etc/jobbliggaren/detection.env`; `git log -S` finds no URL | | |
 | **E-class's bound is conditional, and the condition is unmet today** | the floor set in the script against `systemctl list-unit-files 'jobbliggaren*'` | Floor set holds two timers. #197's and #198's units are not on the box, so this row **names the dependency** and does not claim their rows | 2026-08-10 |
@@ -302,6 +346,10 @@ install happens once.
   M-7 covers the **host**; it neither delivers nor unblocks those.
 - **The disk QUOTA** — a `df` threshold is detection, not a limit. The detection half is P5; the
   limit half is filed separately.
+- **The tmpfs directories the key watch depends on.** `/run/jobbliggaren` is created by #198's
+  `jobbliggaren-tmpfiles.conf`, installed by [`master-key-ops.md`](master-key-ops.md) §2. M-7
+  depends on it — watch rule 1 does not load without it, and an unloadable rule 1 takes the whole
+  rule set and `auditd` with it — but M-7 does not own it, and §5 verifies rather than re-runs it.
 - **Granting the risk acceptance.** ADR 0123 is `Proposed` and Klas grants, never a session
   (§9.6). This mechanism narrows what that acceptance rests on; it does not close it.
 - **Availability monitoring.** An external HTTP probe is a different obligation. Certificate

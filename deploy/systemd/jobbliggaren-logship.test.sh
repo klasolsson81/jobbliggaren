@@ -316,13 +316,25 @@ check "T14 a header-only app extract is NOT shipped" \
   "$([ "$rc" -eq 0 ] && echo "$out" | grep -q 'no container output' \
      && ! ls "$TMPROOT/remote" 2>/dev/null | grep -q '^app-' && echo 0 || echo 1)"
 
-# --- T15: the sunset condition is a WHERE, not an IF ----------------------------------------------
-# The original bind's sunset rule ("remove the app leg when (B) lands") was falsified on
-# 2026-08-11: if (B) is box-local, this leg is the only off-box copy and removing it deletes the
-# durable record. That correction lives in prose, so this is the instrument that stops a future
-# edit from quietly restoring the unconditional form.
-check "T15 the app leg's sunset condition is qualified by OFF-BOX, not by (B) existing" \
-  "$(grep -q 'ONLY IF (B) holds the app-log stream OFF-BOX' "$SUT" && echo 0 || echo 1)"
+# --- T15: the app leg is permanent, and no sunset rule may creep back -----------------------------
+# The original bind carried "remove the app leg when (B) lands". That was withdrawn on 2026-08-11
+# once (B) was bound to the production box: a box-local Seq is not a second OFF-BOX store, so
+# removing this leg would delete the only off-box copy rather than de-duplicate it. The decision
+# lives in prose, so this is the instrument that stops a future edit from restoring it — and it
+# asserts BOTH halves, because a file that merely lacks the word "sunset" proves nothing.
+check "T15 the app leg is declared permanent" \
+  "$(grep -q 'THIS LEG IS PERMANENT' "$SUT" && echo 0 || echo 1)"
+# T15b was first written as an ABSENCE test — grep for a sunset directive, fail if present. It
+# fired on the file's own HISTORICAL sentence describing the withdrawn rule, and no narrowing
+# fixes that: a pattern that matches the directive is a substring of the prose explaining why the
+# directive was withdrawn, so it cannot discriminate the two. Absence over prose is the wrong
+# instrument. What is asserted instead is that the withdrawal and its REASON are both recorded —
+# an edit that restores the sunset rule has to delete these to be coherent, and one that leaves
+# them in place while restoring it is self-contradicting on the same screen.
+check "T15b the withdrawal is recorded with its reason (box-local Seq is not a second off-box store)" \
+  "$(grep -q 'not a second OFF-BOX store' "$SUT" && echo 0 || echo 1)"
+check "T15c the file instructs against restoring the unconditional form" \
+  "$(grep -q 'Do not restore the unconditional form' "$SUT" && echo 0 || echo 1)"
 
 # --- T16: the lock exists at the source -----------------------------------------------------------
 # The flock stub above is permissive where the real tool is absent, so a run on such a host cannot

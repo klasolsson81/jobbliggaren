@@ -289,16 +289,17 @@ fi
 
 # ── Stream 3: the application containers ─────────────────────────────────────────────────────
 #
-# THE SUNSET CONDITION IS A *WHERE*, NOT AN *IF*, AND GETTING THAT BACKWARDS DELETES THE DURABLE
-# COPY. senior-cto-advisor re-bind 2026-08-11, correcting the original bind's own sunset rule:
+# THIS LEG IS PERMANENT. IT IS NOT AN INTERIM, AND (B) LANDING DOES NOT RETIRE IT.
 #
-#   This leg sunsets ONLY IF (B) holds the app-log stream OFF-BOX. If (B) lands on the production
-#   box — which is where the re-bind put it, conditional on the RAM upgrade — then this leg is
-#   PERMANENT and is the only off-box copy of the app stream. A box-local Seq is not a second
-#   off-box store, so the Art. 5(1)(c) minimisation argument that motivated the original sunset
-#   rule does not apply to it.
+# The bind originally carried a sunset rule — drop this leg once the Seq sink (B) exists, on an
+# Art. 5(1)(c) argument against holding two off-box stores of the same personal data. That rule
+# was withdrawn on 2026-08-11 when (B) was bound to the PRODUCTION BOX: a box-local Seq is
+# not a second OFF-BOX store, so the minimisation argument never engages, and acting on the
+# withdrawn rule would delete the only off-box copy of the app stream rather than de-duplicate
+# anything.
 #
-# So: do not remove this leg when (B) appears. Remove it only when (B) is demonstrably off-box.
+# Do not restore the unconditional form. Seq and this archive hold the same events for different
+# purposes: Seq is queryable and root-erasable; this is neither.
 #
 # WALL-CLOCK, AND THAT IS A REAL WEAKNESS RATHER THAN A CHOICE. Docker exposes no cursor, so this
 # leg cannot have the property `--cursor-file` gives the journal leg. It is anchored to the

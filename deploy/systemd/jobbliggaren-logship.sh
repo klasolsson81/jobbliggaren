@@ -341,7 +341,12 @@ fi
 # tables are empty until the registration gate opens, so early artefacts are near-empty. That is
 # a state, not a measurement — it changes at the first registration — so no count is quoted here.
 # The leg's lifetime is permanent under the current bind either way.
-readonly APP_CONTAINERS="jobbliggaren-api jobbliggaren-worker jobbliggaren-web jobbliggaren-caddy"
+readonly -a APP_CONTAINERS=(
+  jobbliggaren-api
+  jobbliggaren-worker
+  jobbliggaren-web
+  jobbliggaren-caddy
+)
 
 if command -v docker >/dev/null 2>&1; then
   # The anchor. On a first run there is no stamp, so the window opens at the container's start —
@@ -356,7 +361,7 @@ if command -v docker >/dev/null 2>&1; then
   app_extract="${WORKDIR}/app-${run_stamp}.log"
   : > "$app_extract"
 
-  for container in $APP_CONTAINERS; do
+  for container in "${APP_CONTAINERS[@]}"; do
     # A container that is not running is not an error: the migrate containers exit by design and
     # a service may be down for a reason this script does not own.
     docker inspect "$container" >/dev/null 2>&1 || continue

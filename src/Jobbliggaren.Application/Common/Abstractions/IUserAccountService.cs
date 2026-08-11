@@ -136,8 +136,10 @@ public interface IUserAccountService
     /// <see cref="Auth.AuthOptions.RequireEmailConfirmation"/> and does not skip unconfirmed accounts:
     /// possession of the emailed token proves control of the inbox, which is exactly what confirmation
     /// proves, so refusing an unconfirmed account would lock out a real owner for a reason unrelated to
-    /// their password. It does not SET <c>EmailConfirmed</c> either — that would make the reset link a
-    /// second activation path and change #714's activation model (deferred, Klas 2026-08-10).
+    /// their password. This REQUEST half nonetheless writes nothing — the endpoint behind it is
+    /// unauthenticated and takes an arbitrary address, so confirming here would let anyone confirm
+    /// anyone. <c>EmailConfirmed</c> is written by <see cref="ResetPasswordAsync"/> (#1303), after the
+    /// token is verified.
     /// </para>
     /// <para>
     /// It bundles the existence bit WITH the delivery material so no naked existence primitive exists to
@@ -169,6 +171,13 @@ public interface IUserAccountService
     /// while a completed reset kills it. An active lockout is cleared on success — the failed-attempt
     /// counter belongs to the credential just replaced, and clearing it needs a token only the inbox
     /// owner holds, so it is not a lockout-bypass primitive.
+    /// </para>
+    /// <para>
+    /// <b>A successful reset also sets <c>EmailConfirmed</c> (#1303), regardless of
+    /// <see cref="Auth.AuthOptions.RequireEmailConfirmation"/>.</b> The token reaching this point was
+    /// mailed to the address, which is the proof <see cref="ConfirmEmailAsync"/> and
+    /// <see cref="ConfirmChangeEmailAsync"/> already accept. Why the flag does not gate it, and why the
+    /// extra persist is safe: ADR 0127 Amendment 2026-08-11.
     /// </para>
     /// </summary>
     Task<Result> ResetPasswordAsync(

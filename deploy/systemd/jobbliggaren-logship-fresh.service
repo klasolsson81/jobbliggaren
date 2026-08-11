@@ -1,0 +1,42 @@
+[Unit]
+# #1175 (A) — STALENESS detection for the hourly log archive. The consumer of
+# jobbliggaren-logship.sh --check, without which the probe is delivered and called by nothing.
+#
+# WHY A SEPARATE UNIT, AND WHY IT IS SHARPER HERE THAN FOR THE BACKUP. jobbliggaren-backup-fresh
+# exists because a timer that stopped being triggered is absent rather than failed, and absence
+# is what no failure list shows. jobbliggaren-logship.service adds a second way to be absent:
+# its ConditionPathExists makes a run without the upload credential SKIP — inactive, logged,
+# explicitly not failed. So an archive that never once succeeds is invisible to every surface
+# M-7 reads: P1 lists failed units and this one is not failed, P2 lists enabled timers that are
+# inactive and this one is enabled and active, P3's FLOOR_TIMERS does not name it. The stamp is
+# the only thing that separates "shipping" from "skipping every hour", and this unit is what
+# reads it.
+Description=Jobbliggaren: verify the off-box log archive is not stale
+Documentation=https://github.com/klasolsson81/jobbliggaren/blob/main/docs/runbooks/log-sink.md
+
+# THE SAME CONDITION AS THE SHIPPING UNIT, AND FOR THE OPPOSITE-LOOKING REASON. Without it this
+# probe would fail on every box where the credential has not been injected yet — which is every
+# box between a reboot and an operator's injection, this box's designed operating model. The
+# stamp cannot be fresh where shipping is legitimately not happening, so the alarm would be
+# permanently lit, and an alarm that is always lit trains its reader to stop reading
+# (jobbliggaren-secrets-present.timer records that lesson at length).
+#
+# The residual, named rather than left implicit: removing the credential SILENCES this probe.
+# That absence is not unwatched — Backup__RcloneConfigBase64 is in jobbliggaren-inject-secrets.sh's
+# HOST_SECRET_KEYS, so jobbliggaren-secrets-present.service alarms on exactly that state. The two
+# probes cover each other; neither covers both states alone.
+ConditionPathExists=/run/jobbliggaren/host-secrets/Backup__RcloneConfigBase64
+
+[Service]
+Type=oneshot
+# --check stats one file. It neither ships, nor reads the credential, nor touches docker or the
+# network, so it is cheap enough to run hourly and safe at boot before dockerd.
+ExecStart=/opt/jobbliggaren/deploy/systemd/jobbliggaren-logship.sh --check
+# Self-clearing: the next successful archive writes the stamp and the following run of this unit
+# exits 0, taking it off `systemctl --failed` with no operator action. After a reboot that is
+# quick by construction — jobbliggaren-logship.timer is Persistent=true, so a missed window
+# archives on boot rather than waiting for the next :17.
+RemainAfterExit=no
+
+# NO [Install] SECTION — the timer enables this pair, the same discipline as the three other
+# unit pairs in this directory.

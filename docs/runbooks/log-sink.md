@@ -38,22 +38,36 @@ the service's `ConditionPathExists` skips the run rather than failing it.
 ```bash
 # The clone. NOT `git pull` blind — on this box a pull is a DEPLOY that
 # jobbliggaren-reconcile.timer applies within the hour, and one such pull cost a 13-minute
-# outage on 2026-08-10. Check what it would bring before pulling, and read
-# vps-deploy-stack.md §6 if deploy/docker-compose.yml is involved.
+# outage on 2026-08-10. Read what it would bring FIRST, then pull; the fetch+log is what makes
+# the pull deliberate, never a substitute for it. Read vps-deploy-stack.md §6 if
+# deploy/docker-compose.yml is involved.
 git -C /opt/jobbliggaren fetch origin
 git -C /opt/jobbliggaren log --oneline HEAD..origin/main -- deploy/
+sudo git -C /opt/jobbliggaren pull --ff-only
 
-# The units. The script is already executable in the clone (git carries the mode, CI gates it).
+# FOUR unit files, two pairs. The shipping pair archives; the -fresh pair is the only thing that
+# ever calls `--check`, and without it a stopped archive is on no surface at all: the service's
+# ConditionPathExists SKIPS a credential-less run, and a skip is inactive, not failed.
+# The script is already executable in the clone (git carries the mode, CI gates it).
 sudo cp /opt/jobbliggaren/deploy/systemd/jobbliggaren-logship.{service,timer} /etc/systemd/system/
+sudo cp /opt/jobbliggaren/deploy/systemd/jobbliggaren-logship-fresh.{service,timer} /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable --now jobbliggaren-logship.timer
+sudo systemctl enable --now jobbliggaren-logship-fresh.timer
 
 # Prove it RUNS, not merely that it is scheduled. Before #197's secrets exist this is EXPECTED to
-# report a skipped condition rather than a failure — that is the designed state, not a fault.
+# report a skipped condition rather than a failure — that is the designed state, not a fault, and
+# the probe skips for the same reason rather than lighting a permanent alarm.
 sudo systemctl start jobbliggaren-logship.service
 sudo journalctl -u jobbliggaren-logship -n 30 --no-pager
 systemctl show -p ConditionResult -p Result jobbliggaren-logship.service
 ```
+
+**Add `jobbliggaren-logship.timer` to `FLOOR_TIMERS` in `jobbliggaren-heartbeat.sh` at this
+point, and not before.** That list is the non-vacuity floor for M-7's P3 — a timer named there
+must be enabled and active or the box pages. The file's own `KEEP IN SYNC AS UNITS LAND` note
+binds at the moment of installation, so the obligation falls due here. The `-fresh` timer belongs
+there too by the same argument; the two are installed together.
 
 **The lifecycle rule on the new prefix is a separate, Klas-owned step**, and until it exists the
 archive is append-only with no age bound at all — i.e. it discharges the off-box obligation and

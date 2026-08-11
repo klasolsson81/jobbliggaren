@@ -145,7 +145,7 @@
 | Frontend | `pnpm dev` (localhost:3000) | Next.js `next start` co-tenant container på CAX31 (bakom Caddy) |
 | DNS / CDN / proxy | — | Cloudflare gratis-tier "Full (strict)" framför Caddy-origin på CAX31 |
 | Backup | — | Nattlig klient-side-krypterad `pg_dump` → **mål inte valt, ägs av [#197](https://github.com/klasolsson81/jobbliggaren/issues/197)** (kraven i §13.4) |
-| Logging / monitoring | console (MEL) + Seq (`Seq.Extensions.Logging`) | **Två mekanismer, inte en** (ADR 0128): Seq self-hosted på produktionslådan för sökbarhet (30 d retention), plus `jobbliggaren-logship` — timrad, `age`-krypterad off-box-arkivering av journal, auditd och app-loggar till OVH `hostlogs/`. Levererat i repot, ej installerat. Åldersgränsen för `json-file`-lagret är fortfarande öppen — [#1170](https://github.com/klasolsson81/jobbliggaren/issues/1170) |
+| Logging / monitoring | console (MEL) + Seq (`Seq.Extensions.Logging`) | **Två mekanismer, inte en** (ADR 0128): Seq self-hosted på produktionslådan för sökbarhet (30 d retention — en policy som sätts för hand inne i Seq, det finns ingen miljövariabel för den), plus `jobbliggaren-logship` — timrad, `age`-krypterad off-box-arkivering av journal, auditd och app-loggar till OVH `hostlogs/`. Levererat i repot, ej installerat. Åldersgränsen för `json-file`-lagret är fortfarande öppen — [#1170](https://github.com/klasolsson81/jobbliggaren/issues/1170) |
 | Errors | — | Sentry (EU) planerat |
 | CI | GitHub Actions (build + test + coverage, inga moln-anrop) | oförändrat |
 | IaC | `infra/terraform/` bevarad som reversibilitets-mekanik (ADR 0066 Beslut 1) | retireras via egen ADR vid Hetzner-cutover |
@@ -1418,8 +1418,9 @@ permanent infra aktiveras; listan nedan speglar **beslutad** uppsättning, ADR 0
 - Sinks: console (stdout) + persistent strukturerad **Seq**-sink via `Seq.Extensions.Logging` (MEL-provider, config-gated på `Seq:ServerUrl`); dev lokal Seq (`localhost:5341`), dev-sinken levererad under TD-104
 - **Prod är TVÅ mekanismer med olika ändamål, och de får inte läsas som en** (ADR 0128):
   - **Sökbarhet** — Seq som compose-tjänst på produktionslådan, `mem_limit: 512m` (den **mätta**
-    konfigurationen: 79 MiB idle, 111 MiB efter 5 000 events, 2026-08-11 — Seq dimensionerar sin
-    cache mot cgroup-gränsen, så ett högre tak är en annan, omätt konfiguration och inte marginal).
+    konfigurationen — Seq dimensionerar sin cache mot cgroup-gränsen, så ett högre tak är en annan,
+    omätt konfiguration och inte marginal. Talen och instrumentet som återskapar dem har **ett**
+    hem: `docs/runbooks/log-sink.md` §4).
     Ingen publicerad port; `Seq:ServerUrl` pekar på ingest-lyssnaren `5341`, så en komprometterad
     api/worker kan skriva men inte läsa tillbaka. Retention: en policy, 30 dagar.
   - **Varaktighet** — `jobbliggaren-logship`, timrad off-box-arkivering krypterad med `age` till en
@@ -1461,8 +1462,12 @@ båda fram till 2026-08-11, och **ADR 0126 avvisade båda på jurisdiktion** —
 och att välja någondera vore en supersession av ADR 0122:s "US-part ur kedjan", inte ett
 leverantörsval. Det som faktiskt kör är **Healthchecks.io** (SIA Monkey See Monkey Do, Lettland;
 Hetzner, Tyskland), som dead-man plus `/fail`-verb, installerad på lådan 2026-08-10
-([#1201](https://github.com/klasolsson81/jobbliggaren/issues/1201)). Larmen nedan är fortfarande
-parkerade och ingenting nedan är byggt:
+([#1201](https://github.com/klasolsson81/jobbliggaren/issues/1201)). **"Installerad" är lådsidan,
+och expecter-sidan är ett eget led:** `host-detection.md` §7:s rader för expectern bär ännu inga
+datum. Att pingen når fram, att `/fail` sidar och att larmet självläker mättes vid expectern
+2026-08-11 under en verklig incident och är protokollfört på #1201 — dead-man-armen (D5) och
+nyttolastraden är fortfarande omätta. Larmen nedan är fortfarande parkerade och ingenting nedan är
+byggt:
 - Backend 5xx rate > 1% över 5 min → email
 - JobTech sync misslyckas 3 gånger i rad → email
 - Databas CPU > 80% i 10 min → email

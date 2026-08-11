@@ -89,6 +89,30 @@ reset_fixture() {
 }
 
 # --- stubs -------------------------------------------------------------------------------------
+
+# rclone rcat writes the object into the fixture "remote" so a test can assert what arrived, and
+# fails when the fixture flag file is non-empty so T6 can drive the failure arm.
+#
+# ITS OWN FUNCTION so T10b can swap in a LEAKING rclone and put this one back afterwards. Calling
+# write_stubs to restore would work too, but it would append "flock" to STUBBED_REAL_TOOLS a
+# second time and make the run's own honesty note wrong.
+write_rclone_stub() {
+  cat >"$BIN/rclone" <<STUB
+#!/usr/bin/env bash
+if [ -s "$TMPROOT/rclone-fail" ]; then
+  echo "rclone: simulated upload failure" >&2
+  cat >/dev/null
+  exit 1
+fi
+object=""
+for a in "\$@"; do object="\$a"; done
+mkdir -p "$TMPROOT/remote"
+cat >"$TMPROOT/remote/\$(basename "\$object")"
+exit 0
+STUB
+  chmod +x "$BIN/rclone"
+}
+
 write_stubs() {
   # journalctl honours --cursor-file the way the real one does: it reads the cursor, emits only
   # what the fixture says is new, and WRITES THE NEW CURSOR AS A SIDE EFFECT OF READING. That
@@ -117,21 +141,7 @@ cat
 exit 0
 STUB
 
-  # rclone rcat writes the object into the fixture "remote" so a test can assert what arrived,
-  # and fails when the fixture flag file is non-empty so T6 can drive the failure arm.
-  cat >"$BIN/rclone" <<STUB
-#!/usr/bin/env bash
-if [ -s "$TMPROOT/rclone-fail" ]; then
-  echo "rclone: simulated upload failure" >&2
-  cat >/dev/null
-  exit 1
-fi
-object=""
-for a in "\$@"; do object="\$a"; done
-mkdir -p "$TMPROOT/remote"
-cat >"$TMPROOT/remote/\$(basename "\$object")"
-exit 0
-STUB
+  write_rclone_stub
 
   # docker: `inspect` decides whether a container is considered present, `logs` emits whatever the
   # fixture put in the per-container file. Both read fixture files so a case sets state without
@@ -268,7 +278,8 @@ size=$(stat -c '%s' "$TMPROOT/audit/audit.log")
 printf '%s %s\n' "$inode" "$size" >"$TMPROOT/state/logship.audit-offset"
 out=$(run_sut); rc=$?
 check "T9  no new audit bytes ships no audit artefact" \
-  "$([ "$rc" -eq 0 ] && echo "$out" | grep -q 'no new bytes' && echo 0 || echo 1)"
+  "$([ "$rc" -eq 0 ] && echo "$out" | grep -q 'no new bytes' \
+     && ! ls "$TMPROOT/remote" 2>/dev/null | grep -q '^audit-' && echo 0 || echo 1)"
 
 # --- T10: the credential must not reach the journal ---------------------------------------------
 reset_fixture
@@ -279,6 +290,32 @@ out=$(run_sut); rc=$?
 # shape T6 was rescued from, one file over — and it was found by an auditor, not by this suite.
 check "T10 the run succeeds AND the decoded credential never appears in its output" \
   "$([ "$rc" -eq 0 ] && ! echo "$out" | grep -q "$TEST_SECRET_TOKEN" && echo 0 || echo 1)"
+
+# --- T10b: CROSSES THE CONTROL ------------------------------------------------------------------
+# T10 is an absence assertion, and an absence assertion that has never been shown to fail cannot
+# be told from a broken grep. This drives the leak through the one channel the credential really
+# reaches: ship() pipes into `rclone rcat --config <decoded credential>`, and rclone's stdout is
+# the script's stdout, so an rclone that dumps its config file — what `--log-level DEBUG` or a
+# careless diagnostic would do — puts the secret in exactly the place T10 looks. The assertion is
+# that T10's predicate then FAILS.
+reset_fixture
+printf 'entry-one\n' >"$TMPROOT/journal-entries"
+cat >"$BIN/rclone" <<STUB
+#!/usr/bin/env bash
+config=""; prev=""
+for a in "\$@"; do [ "\$prev" = "--config" ] && config="\$a"; prev="\$a"; done
+[ -n "\$config" ] && [ -r "\$config" ] && cat "\$config"
+object=""
+for a in "\$@"; do object="\$a"; done
+mkdir -p "$TMPROOT/remote"
+cat >"$TMPROOT/remote/\$(basename "\$object")"
+exit 0
+STUB
+chmod +x "$BIN/rclone"
+out=$(run_sut); rc=$?
+check "T10b a LEAKING rclone makes T10's predicate fail (the rig can see a leak)" \
+  "$([ "$rc" -eq 0 ] && echo "$out" | grep -q "$TEST_SECRET_TOKEN" && echo 0 || echo 1)"
+write_rclone_stub
 
 # --- T11: no plaintext credential on persistent disk --------------------------------------------
 # Asserted against the SOURCE, not the rewritten fixture — the fixture deliberately relocates the
@@ -374,6 +411,31 @@ after=$(cat "$TMPROOT/state/logship.journal-cursor")
 check "T17 a failed journal read dies, keeps the cursor and writes no stamp"   "$([ "$rc" -ne 0 ] && [ "$after" = "s=cursor-ORIGINAL" ]      && [ ! -f "$TMPROOT/state/last-successful-logship" ] && echo 0 || echo 1)"
 
 check "T17b the failure names journalctl rather than reporting an empty window"   "$(echo "$out" | grep -q 'journalctl exited' && echo 0 || echo 1)"
+
+# --- T18: --check has a CONSUMER, and that is what makes it a control ----------------------------
+# T1-T4 measure the probe's behaviour and say nothing about whether anything calls it. It was
+# delivered with no caller: three files asserted that a stopped archive lights the box's alarm
+# surface, and none of them would have. The gap is invisible to every runtime surface, because
+# jobbliggaren-logship.service's ConditionPathExists makes a credential-less run SKIP — inactive,
+# logged, explicitly not failed — so an archive that never once succeeds is not on
+# `systemctl --failed` either. Source assertions, in the T12/T15/T16 family: the units are
+# installed by hand from the repo, so the repo is where the coupling can be pinned at all.
+fresh_service="$script_dir/jobbliggaren-logship-fresh.service"
+fresh_timer="$script_dir/jobbliggaren-logship-fresh.timer"
+check "T18  a unit exists whose ExecStart calls this script with --check" \
+  "$(grep -qE '^ExecStart=.*jobbliggaren-logship\.sh --check$' "$fresh_service" 2>/dev/null && echo 0 || echo 1)"
+# Same condition as the shipping unit, and it is not cosmetic: without it the probe fails on every
+# box between a reboot and a credential injection — the designed operating model — and an alarm
+# that is always lit trains its reader to stop reading.
+check "T18b the probe carries the shipping unit's ConditionPathExists" \
+  "$([ "$(grep -c '^ConditionPathExists=/run/jobbliggaren/host-secrets/Backup__RcloneConfigBase64$' "$fresh_service" 2>/dev/null)" = 1 ] \
+     && [ "$(grep -c '^ConditionPathExists=/run/jobbliggaren/host-secrets/Backup__RcloneConfigBase64$' "$script_dir/jobbliggaren-logship.service" 2>/dev/null)" = 1 ] \
+     && echo 0 || echo 1)"
+# OnCalendar and not OnUnitActiveSec: a Type=oneshot unit never becomes ACTIVE (systemd#21600), so
+# the wrong spelling would neither re-fire nor clear. This repo has repaired that defect once
+# already, in jobbliggaren-secrets-present.timer.
+check "T18c the probe's timer is OnCalendar-driven, not OnUnitActiveSec" \
+  "$(grep -q '^OnCalendar=' "$fresh_timer" 2>/dev/null && ! grep -q '^OnUnitActiveSec=' "$fresh_timer" 2>/dev/null && echo 0 || echo 1)"
 
 echo
 if [ -n "$STUBBED_REAL_TOOLS" ]; then

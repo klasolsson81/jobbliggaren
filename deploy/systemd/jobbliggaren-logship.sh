@@ -66,8 +66,10 @@ readonly LOCK_FILE=/var/lock/jobbliggaren-logship.lock
 readonly AUDIT_LOG=/var/log/audit/audit.log
 
 # Freshness threshold for --check. The timer runs hourly; 150 min tolerates one entirely missed
-# run plus jitter before the box's alarm surface lights. Set to the period it would alarm on
-# ordinary lateness, which is the mistake jobbliggaren-backup-fresh.timer's 26 h note records.
+# run plus jitter before the box's alarm surface lights — jobbliggaren-logship-fresh.timer is
+# what lights it, and until that pair is enabled this threshold is a number nothing reads. Set to
+# the period it would alarm on ordinary lateness, which is the mistake
+# jobbliggaren-backup-fresh.timer's 26 h note records.
 readonly MAX_AGE_SECONDS=9000
 
 log() { printf 'logship: %s\n' "$*"; }
@@ -248,10 +250,13 @@ fi
 # into a lifecycle rule.
 #
 # THERE IS NO CURSOR HERE, SO ROTATION HAS TO BE DETECTED RATHER THAN ASSUMED AWAY. The state is
-# (inode, offset). auditd rotates at max_log_file=8 MB keeping num_logs=5 (measured 2026-08-11),
-# which at this box's current write rate is roughly every two days — infrequent, but not rare
-# enough to ignore, and a silently-dropped rotation is exactly the hole an attacker's window
-# would fall into.
+# (inode, offset). auditd rotates at max_log_file=8 MB keeping num_logs=5 — both read from
+# host-detection.md §7, which dates them, rather than repeated here, because one measurement with
+# two homes gets two dates the first time either is re-measured. HOW OFTEN that is depends on the
+# audit write rate, and that rate has no measured home: `ls -l /var/log/audit/` across two days
+# is the instrument. Rotation frequency is not what this state machine turns on, though — only
+# that rotation happens at all, since a silently-dropped one is exactly the hole an attacker's
+# window would fall into.
 #
 # RESIDUAL, NAMED RATHER THAN SOLVED: if the log rotates TWICE between two runs, the middle file
 # is never shipped. At 8 MB per rotation against an hourly cadence that is not reachable at any
@@ -332,10 +337,10 @@ fi
 # the register's OVH row gains a category in this PR, and why the retention number on the
 # `hostlogs/` prefix is not a housekeeping detail.
 #
-# Measured 2026-08-10 and stated so nobody reads more into today's artefacts than is there: zero
-# users, zero job_ads, zero company_register rows. This leg ships almost nothing right now. It is
-# built now because its lifetime is permanent under the current bind, not because it carries a
-# record today.
+# This leg is built for the corpus it will carry, not the one it carries today: the product
+# tables are empty until the registration gate opens, so early artefacts are near-empty. That is
+# a state, not a measurement — it changes at the first registration — so no count is quoted here.
+# The leg's lifetime is permanent under the current bind either way.
 readonly APP_CONTAINERS="jobbliggaren-api jobbliggaren-worker jobbliggaren-web jobbliggaren-caddy"
 
 if command -v docker >/dev/null 2>&1; then

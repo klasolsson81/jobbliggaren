@@ -19,7 +19,7 @@
 # /run/jobbliggaren/host-secrets, which — unlike /run/jobbliggaren/secrets — is bind-mounted
 # nowhere. An RCE in the API cannot read it.
 Description=Jobbliggaren: hourly encrypted off-box archive of the host log streams
-Documentation=https://github.com/klasolsson81/jobbliggaren/blob/main/docs/runbooks/host-detection.md
+Documentation=https://github.com/klasolsson81/jobbliggaren/blob/main/docs/runbooks/log-sink.md
 # `docker.service` is ordered but NOT required. The app leg needs it; the journal and audit legs
 # do not, and they are the two carrying the forensic obligation. A hard `Requires=` would make a
 # docker failure suppress the archive of the very journal that would explain the docker failure.
@@ -37,8 +37,11 @@ Wants=network-online.target
 # its reader to stop reading, which is the doctrine jobbliggaren-secrets-present.timer records.
 #
 # A failed Condition makes systemd SKIP the unit — inactive, logged, not failed. Nothing is lost:
-# a missing credential is separately alarmed, and a genuinely stopped archive is caught by
-# --check's freshness threshold.
+# a missing credential is separately alarmed by jobbliggaren-secrets-present.service, and a
+# genuinely stopped archive is caught by --check's freshness threshold, which
+# jobbliggaren-logship-fresh.service is the unit that actually runs. Without that pair installed
+# this sentence would describe a probe nothing calls: the skip is not failed, so it is invisible
+# to every surface M-7 reads.
 ConditionPathExists=/run/jobbliggaren/host-secrets/Backup__RcloneConfigBase64
 
 [Service]

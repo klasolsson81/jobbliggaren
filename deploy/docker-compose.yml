@@ -27,13 +27,16 @@
 
 name: jobbliggaren-prod
 
-# Container logs are capped here rather than left to the daemon default. No production log
-# sink exists (#1175), so rotation is the only thing between this stack and a full disk —
-# and an uncapped log grows without bound. Note what this does NOT do: it caps VOLUME,
-# not AGE, so retention time stays undefined — a quiet container keeps its 30 MB for
-# months. That is a disk control, not a log sink (#1175). The box's daemon config sets the
-# same 10m x 3; this makes the artefact carry it too, for anyone running the stack
-# elsewhere.
+# Container logs are capped here rather than left to the daemon default, and since #1175 this
+# is the LAST-RESORT BUFFER of three layers rather than the store. The three, and what bounds
+# each: the seq service below (queryable, box-local, 30-day retention policy set inside Seq);
+# the `hostlogs/` prefix jobbliggaren-logship.service ships to (off-box, encrypted, bounded by
+# a lifecycle rule that is NOT yet created); and this — bounded by VOLUME and by nothing else.
+# A quiet container still keeps its 30 MB for months, so retention time here stays undefined.
+# That is what keeps #1170 open: demoting this layer is what finally makes a smaller max-size
+# defensible, but the number needs a write rate and there is no write rate until there are
+# users. The box's daemon config sets the same 10m x 3; this makes the artefact carry it too,
+# for anyone running the stack elsewhere.
 x-logging: &logging
   driver: json-file
   options:
@@ -157,7 +160,9 @@ x-app-email: &app-email
 #
 # THE PORT IS 5341, NOT 80, AND THAT IS A SECURITY BOUNDARY RATHER THAN A DETAIL. Seq listens
 # for INGESTION on 5341 and serves its UI and query API on 80; the dev compose file maps both
-# and labels them (`5341:80 # UI + API`, `5342:5341 # ingestion`). Pointing the app at 5341
+# and labels them (`"127.0.0.1:5341:80"` UI + API, `"127.0.0.1:5342:5341"` ingestion — the bind
+# address is quoted because in a comment whose whole subject is that the binding is the control,
+# eliding it is how #1198 happened). Pointing the app at 5341
 # means a compromised api or worker container cannot reach the query API over the network at
 # all — it can write events and not read them back. `Seq:ServerUrl` is read by
 # LoggingBuilderExtensions, which attaches the provider ONLY when the value is non-empty, so
@@ -568,8 +573,14 @@ services:
     # publishes, and nothing else does", and caddy is that one service. The two guards give
     # opposite verdicts on the same engine, which the edge guard's own header records.
     #
-    # Operator access is therefore an SSH tunnel, never a published port:
-    #   ssh -L 8341:jobbliggaren-seq:80 jp-vps      (see docs/runbooks/host-detection.md)
+    # AND THERE IS NO SSH TUNNEL EITHER, which an earlier draft of this comment asserted.
+    # This box runs `AllowTcpForwarding no` (vps-base-hardening.md §4.2's drop-in; measured
+    # effective on the box 2026-08-11 with `sshd -T`), so `ssh -L` in ANY address form is
+    # refused with "administratively prohibited" — the address was never the defect. What
+    # reaches an unpublished container is the box's own curl against the container IP.
+    # docs/runbooks/log-sink.md §3 owns the procedure and the measurement; do not restate
+    # the command here, because the last time it lived in two homes the two disagreed.
+    #
     # That is also why #1198 cannot recur in this shape: there is no listener on a host
     # interface to leave unauthenticated.
     environment:
@@ -588,12 +599,13 @@ services:
       - seq_data:/data
     # THE MEASURED CONFIGURATION, NOT A ROUNDED-UP ONE — and raising it is not the safe move
     # it looks like. Seq sizes its own caches against what it measures as available memory,
-    # and under Docker the cgroup limit IS how it learns that. Measured on this box
-    # 2026-08-11 under exactly this cap: 79 MiB idle, 111 MiB after ingesting 5 000 events,
-    # no OOM. A 1024m cap would be a DIFFERENT, UNMEASURED configuration in which the cache
-    # grows toward the higher target — a new unmeasured number rather than headroom.
-    # Datalust's published "3.5 GB for a light workload" is a recommendation, not a
-    # requirement, and it is ~31x the measured idle footprint of this workload.
+    # and under Docker the cgroup limit IS how it learns that, so a 1024m cap would be a
+    # DIFFERENT, UNMEASURED configuration in which the cache grows toward the higher target —
+    # a new unmeasured number rather than headroom. Datalust's published "3.5 GB for a light
+    # workload" is a recommendation and was falsified as a requirement by measuring instead.
+    # The figures and the command that regenerates them have ONE home, deliberately:
+    # docs/runbooks/log-sink.md §4. Repeating them here would mean a re-measurement under a
+    # different cap had to find this file too.
     mem_limit: 512m
     # memswap_limit == mem_limit here is CAPACITY HONESTY, NOT gate B-1. On api and worker the
     # same line is partly a B-1 control, because those processes hold the master key in memory

@@ -139,6 +139,19 @@ api and worker recover on their own restart backoff (`restart: unless-stopped`).
 `docker compose up -d` takes no lock and runs no attestation
 (`jobbliggaren-reconcile.sh` header).
 
+**Then start the archive by hand, once, if `jobbliggaren-logship.timer` is installed** (#1175):
+
+```bash
+sudo systemctl start jobbliggaren-logship.service
+```
+
+Its `ConditionPathExists` skipped every hourly run while the credential was absent, so the
+freshness stamp is now as old as the reboot and `jobbliggaren-logship-fresh` will report the
+archive stale — correctly, but for a condition you just cleared. `Persistent=true` does not cover
+this: the catch-up firing happened at boot, when there was still no credential. Without this line
+the alarm stays lit until the next `:17`, up to an hour, which is exactly the always-lit surface
+these units are written against.
+
 ---
 
 ## 4. Rotation (gate M-3)

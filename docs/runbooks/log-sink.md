@@ -63,11 +63,27 @@ sudo journalctl -u jobbliggaren-logship -n 30 --no-pager
 systemctl show -p ConditionResult -p Result jobbliggaren-logship.service
 ```
 
-**Add `jobbliggaren-logship.timer` to `FLOOR_TIMERS` in `jobbliggaren-heartbeat.sh` at this
-point, and not before.** That list is the non-vacuity floor for M-7's P3 — a timer named there
-must be enabled and active or the box pages. The file's own `KEEP IN SYNC AS UNITS LAND` note
-binds at the moment of installation, so the obligation falls due here. The `-fresh` timer belongs
-there too by the same argument; the two are installed together.
+**Both timers join `FLOOR_TIMERS` in `jobbliggaren-heartbeat.sh` at this point, and not before** —
+that list is the non-vacuity floor for M-7's P3, a timer named there must be enabled and active or
+the box pages, and the file's own `KEEP IN SYNC AS UNITS LAND` note binds at the moment of
+installation. Until the edit lands, P3 is vacuous for these two: a disabled `logship.timer` is on
+no surface at all, which is the hole the `-fresh` pair exists to close, one level up.
+
+**Make that edit IN THE REPO, as its own PR, and pull it down here — never in the clone.**
+`jobbliggaren-heartbeat.service` runs the script straight out of `/opt/jobbliggaren`, and the file
+is git-tracked, so editing it on the box makes every later `git pull --ff-only` fail — the pull
+that is this box's whole deploy path, three lines above. The handover row lives in
+[`host-detection.md`](host-detection.md) §7, which is where the heartbeat script says to look.
+
+**The cross-cover the `-fresh` unit names is not installed yet, and the sequence has to say so.**
+Installing before #197's host secrets exist is fine and intended — both units then skip on the same
+`ConditionPathExists`, which is the designed state, not a fault. But `-fresh.service`'s residual
+paragraph leans on `jobbliggaren-secrets-present.service` alarming on a missing credential, and
+that unit is **#198's and is not on the box** (`host-detection.md` §7, measured 2026-08-10). In the
+window between installing these units and installing #198's, a credential-less archive that has
+never once succeeded is watched by nothing. Either install
+`jobbliggaren-secrets-present.timer` at or before this point, or verify the credential by hand
+until it is there.
 
 **The lifecycle rule on the new prefix is a separate, Klas-owned step**, and until it exists the
 archive is append-only with no age bound at all — i.e. it discharges the off-box obligation and
@@ -189,9 +205,26 @@ key gets. Interactive editor again, deliberately outside this block:
 `SEQ_SERVER_URL=http://seq:5341`.
 
 ```bash
-rm -f /tmp/seq.jar
 sudo systemctl start jobbliggaren-reconcile.timer
+sudo docker compose -f /opt/jobbliggaren/deploy/docker-compose.yml up -d api worker
 ```
+
+**9.** **Prove an event arrived, in the same session as the install.** Everything up to here talks
+to port 80; `SEQ_SERVER_URL` points the app at **5341**, a listener nothing in steps 1–8 has
+touched, and a transport failure there is silent — the MEL provider drops events without failing
+its host. So the one setting that decides whether the sink works would otherwise be set blind, last,
+and proven by nothing. This fills §4's `The MEL provider actually posts to 5341, not 80` row.
+
+```bash
+curl -s -b /tmp/seq.jar -G --data-urlencode 'count=5' "http://$SEQ_IP/api/events" \
+  | python3 -c 'import json,sys; e=json.load(sys.stdin); print(len(e), "events"); [print(x["Timestamp"], x["Level"]) for x in e[:3]]'
+rm -f /tmp/seq.jar
+```
+
+Zero events means the app leg is not connected — re-read step 8's ordering before anything else.
+The loop itself is measured: against `datalust/seq:2026.1`, a CLEF `POST` to the **5341** listener
+answers `201` and the event reads back through this query on 80, so a zero here is the app's
+configuration and not the split.
 
 **`SEQ_ADMIN_PASSWORD` is deliberately a `:-` default and not `:?`.** A hard requirement the box's
 `.env` does not yet carry makes compose refuse the **entire** apply, every service, every hour,

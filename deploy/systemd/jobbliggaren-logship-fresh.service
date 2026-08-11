@@ -22,9 +22,14 @@ Documentation=https://github.com/klasolsson81/jobbliggaren/blob/main/docs/runboo
 # (jobbliggaren-secrets-present.timer records that lesson at length).
 #
 # The residual, named rather than left implicit: removing the credential SILENCES this probe.
-# That absence is not unwatched — Backup__RcloneConfigBase64 is in jobbliggaren-inject-secrets.sh's
-# HOST_SECRET_KEYS, so jobbliggaren-secrets-present.service alarms on exactly that state. The two
-# probes cover each other; neither covers both states alone.
+# That absence is covered by a DIFFERENT unit — Backup__RcloneConfigBase64 is the sole entry in
+# jobbliggaren-inject-secrets.sh's HOST_SECRET_KEYS, and jobbliggaren-secrets-present.service's
+# --check exits non-zero on it, so that unit FAILS rather than skips on exactly the state that
+# silences this one. The two probes cover each other; neither covers both states alone.
+#
+# WHEN INSTALLED, and it is not yet: jobbliggaren-secrets-present is #198's unit and the box does
+# not carry it (host-detection.md §7, measured 2026-08-10). Until it does, the cover above is a
+# property of the repo and not of the box, and log-sink.md §2 says so at the point of install.
 ConditionPathExists=/run/jobbliggaren/host-secrets/Backup__RcloneConfigBase64
 
 [Service]
@@ -33,9 +38,14 @@ Type=oneshot
 # network, so it is cheap enough to run hourly and safe at boot before dockerd.
 ExecStart=/opt/jobbliggaren/deploy/systemd/jobbliggaren-logship.sh --check
 # Self-clearing: the next successful archive writes the stamp and the following run of this unit
-# exits 0, taking it off `systemctl --failed` with no operator action. After a reboot that is
-# quick by construction — jobbliggaren-logship.timer is Persistent=true, so a missed window
-# archives on boot rather than waiting for the next :17.
+# exits 0, taking it off `systemctl --failed` with no operator action.
+#
+# HOW FAST depends on the credential, and after a reboot there is none. logship.timer is
+# Persistent=true, so a missed window archives on boot — but only if the credential is already
+# there, and on this box it is not until an operator injects it. So the honest bound is: the probe
+# stays lit from injection until the next :17, up to an hour, unless the operator runs
+# `systemctl start jobbliggaren-logship.service` right after injecting. master-key-ops.md's
+# injection procedure carries that line for exactly this reason.
 RemainAfterExit=no
 
 # NO [Install] SECTION — the timer enables this pair, the same discipline as the three other

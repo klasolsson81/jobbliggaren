@@ -341,6 +341,13 @@ fi
 # tables are empty until the registration gate opens, so early artefacts are near-empty. That is
 # a state, not a measurement — it changes at the first registration — so no count is quoted here.
 # The leg's lifetime is permanent under the current bind either way.
+# FOUR OF THE NINE CONTAINERS, and the omission is deliberate rather than a list that fell behind.
+# ADR 0128's Streams table fixes these four as the app stream. Left out, with what is lost by it:
+# the two migrate containers (exit by design, and their output is in the reconcile journal, which
+# the journal leg already ships); postgres and redis (connection and authentication traces, not
+# app events); and seq itself — whose log is the only place an ingest-auth refusal appears after
+# log-sink.md §3 step 5. None of those reach the journal either, because docker writes container
+# output to json-file. Adding one is a change to ADR 0128's table, not to this array alone.
 readonly -a APP_CONTAINERS=(
   jobbliggaren-api
   jobbliggaren-worker

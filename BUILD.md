@@ -1696,8 +1696,8 @@ Triggas av handlers för:
 - WebApplicationFactory
 - Shouldly för assertions
 - Happy-path + nyckel-felscenarion per endpoint
-- Kör i CI som del av hela sviten: `dotnet test --solution Jobbliggaren.sln`
-  (ingen trait-filtrering — se not under README §Vanliga kommandon)
+- Kör i CI som del av hela sviten, utan trait-filtrering. Invocation-formen har
+  ett hem — `.github/workflows/build.yml` — och anropsreglerna ett: CLAUDE.md §7
 
 **Architecture tests** (Jobbliggaren.Architecture.Tests)
 - NetArchTest-regler:

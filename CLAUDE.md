@@ -519,30 +519,31 @@ cd web/jobbliggaren-web && pnpm playwright test # E2E
 dotnet test --project tests/Jobbliggaren.Architecture.Tests  # architecture
 ```
 
-**These suites run on Microsoft.Testing.Platform, not VSTest, and the difference
-is silent.** A path passed positionally — project, directory or solution alike —
-and the VSTest-shaped `--filter`/`--nologo` flags are rejected as unknown
-options, and **zero tests run**. Three different exit codes all mean "nothing
-ran": **1** (positional path), **5** (unknown option), **8** (a filter that
-matched nothing) — each printed under a summary that reads as normal rather than
-as an error. Select one project with `--project`, every project with
-`--solution`, and a subset **inside** a project by passing MTP's own filters
-after `--`: `--filter-class`, `--filter-method`, `--filter-trait`, each taking
-`*` wildcards. A `Category` trait excludes nothing from a default run — the
-`Category=SmokeTest` tests run in it. **The proof that a suite ran is the
-`total:` line, never the exit code** — which after a pipe measures the pipe, not
-the tool. §8 point 3 rests on exactly that: "architecture tests green" is a
-non-zero `total:` with `failed: 0`, and a run that selected nothing satisfies it
-only in appearance.
+**These suites run on Microsoft.Testing.Platform, not VSTest.** The VSTest-shaped
+flags — `--filter`, `--logger`, `--collect`, `--nologo` — are rejected as invalid
+command-line arguments: exit **5**, `Unknown option`, then a help dump. A path
+passed positionally, project, directory or solution alike, fails differently:
+exit **1**, the platform's catch-all, one line and no summary block at all.
+Either way **zero tests run**. Select one project with `--project`, every project
+with `--solution`, and a subset **inside** a project with MTP's own filters after
+`--`: `--filter-class`, `--filter-method`, `--filter-trait`, each taking `*`
+wildcards; a selector that matches nothing runs to completion and exits **8**. A
+`Category` trait excludes nothing from a default run — the `Category=SmokeTest`
+tests run in it. **The proof that a suite ran is the `total:` line, never the
+exit code** — which after a pipe measures the pipe, and which exit 1 never prints
+at all. §8 point 3 rests on that: "architecture tests green" is a non-zero
+`total:` with `failed: 0`. #1311 was not a quiet failure — every form above says
+`Zero tests ran` or names the right flag. It survived because nobody read the
+line.
 
 ## 8. Definition of Done
 
 1. Acceptance criteria (BUILD.md §2) met · 2. unit + integration tests,
-coverage not lowered · 3. architecture tests green · 4. manually tested in dev
-· 5. Lighthouse > 90 on affected pages · 6. keyboard + screen-reader
-accessible · 7. domain events documented · 8. GDPR impact assessed (new PII?
-logging? retention?) · 9. ADR written for architecture decisions · 10. code
-review done.
+coverage not lowered · 3. architecture tests green (§7 — read the `total:` line)
+· 4. manually tested in dev · 5. Lighthouse > 90 on affected pages · 6. keyboard
++ screen-reader accessible · 7. domain events documented · 8. GDPR impact
+assessed (new PII? logging? retention?) · 9. ADR written for architecture
+decisions · 10. code review done.
 
 ## 9. Working with Claude Code
 

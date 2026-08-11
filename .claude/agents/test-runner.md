@@ -48,19 +48,20 @@ modification of test files)
 ## Test commands
 
 Every test project runs on **Microsoft.Testing.Platform (MTP)**, not VSTest, so
-the VSTest vocabulary is not available here: `--filter`, `--logger`, `--collect`
-and `--nologo` are all rejected as unknown options, and a path passed
-positionally (project, directory or solution alike) is rejected too. Each of
-those runs **zero tests** while printing a summary that reads as normal. Use the
-forms below and no others; CLAUDE.md §7 carries the rule.
+the VSTest vocabulary is not available here. `--filter`, `--logger`, `--collect`
+and `--nologo` are rejected as invalid arguments — exit 5, `Unknown option`,
+help dump. A path passed positionally (project, directory or solution alike)
+fails differently: exit 1, one line, no summary block. Both run **zero tests**.
+These are the selection forms; CLAUDE.md §7 carries the rule.
 
-**Full suite** (the form `.github/workflows/build.yml` runs):
+**Full suite** — CI runs this same form with `--no-build -c Release`
+(`.github/workflows/build.yml`):
 
 ```bash
 dotnet test --solution Jobbliggaren.sln
 ```
 
-**One project** — `--project`, never a positional path:
+**One project** — `--project`, never a positional path. All seven:
 
 ```bash
 dotnet test --project tests/Jobbliggaren.Domain.UnitTests
@@ -68,6 +69,8 @@ dotnet test --project tests/Jobbliggaren.Application.UnitTests
 dotnet test --project tests/Jobbliggaren.Architecture.Tests
 dotnet test --project tests/Jobbliggaren.Api.IntegrationTests
 dotnet test --project tests/Jobbliggaren.Worker.IntegrationTests
+dotnet test --project tests/Jobbliggaren.Migrate.UnitTests
+dotnet test --project tests/Jobbliggaren.QA.Corpus
 ```
 
 **A subset inside a project** — MTP's own filters, passed after `--`, `*`
@@ -82,10 +85,11 @@ dotnet test --project tests/Jobbliggaren.Worker.IntegrationTests -- --filter-tra
 A `Category` trait excludes nothing from a default run — the
 `Category=SmokeTest` tests run in it, so a plain project run already covers them.
 
-**Coverage** — the ADR 0044 mechanism, never `--collect`:
+**Coverage** — the ADR 0044 mechanism, never `--collect`. A full Release run of
+the whole solution plus ReportGenerator, not a quick command:
 
 ```bash
-bash scripts/coverage.sh
+bash scripts/coverage.sh          # Windows: scripts/coverage.ps1
 ```
 
 Before running integration tests, verify Docker is reachable:
@@ -104,12 +108,17 @@ abort — do not attempt to run integration tests.
 MTP prints `Test run summary:` followed by indented `total:` / `failed:` /
 `succeeded:` / `skipped:` lines. **The count is the evidence; the exit code is
 not** — after a pipe `$?` measures the pipe, not the tool, so never pipe the run.
+**No `total:` line above zero means nothing ran. Never report a pass without
+one** — and note that the worst case prints no summary block at all.
 
 | Pattern | Meaning |
 |---|---|
-| `Test run summary: Passed!` with `total:` above zero and `failed: 0` | All green |
+| `Test run summary:` with `total:` above zero and `failed: 0` | All green |
 | `failed:` above zero | That many failures |
-| `Test run summary: Zero tests ran` with `total: 0` | **Nothing ran** — exit 1 (positional path), 5 (unknown option) or 8 (filter matched nothing). Never report this as a pass; report the command as wrong |
+| `Specifying a project/directory/solution for 'dotnet test' should be via …` — one line, **no summary block** (exit 1) | Wrong invocation: path passed positionally. **Nothing ran** |
+| `Unknown option '<flag>'` + a usage dump (exit 5) | Wrong invocation: a VSTest flag. **Nothing ran** |
+| `Test run summary: Zero tests ran` with `total: 0` (exit 8) | The selector matched nothing |
+| `Test run completed with non-success exit code: N` | Present on 5 and 8 — the run did not succeed, whatever else was printed |
 | `Build FAILED.` + CS-error codes | Compilation error |
 | `Docker daemon not running` | Docker not available |
 | `Container did not start within timeout` | Testcontainers setup failure |

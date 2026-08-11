@@ -555,14 +555,17 @@ jobbliggaren/
 # Bygg hela solutionen
 dotnet build
 
-# Kör alla tester (kan vara fragilt på solution-nivå — kör test-projekt direkt vid behov)
+# Kör alla tester (hela sviten tar en halvtimme — kör ett enskilt projekt vid behov)
 dotnet test
 
 # Specifika test-suiter (sökvägen MÅSTE gå via --project, se noten under blocket)
 dotnet test --project tests/Jobbliggaren.Domain.UnitTests
 dotnet test --project tests/Jobbliggaren.Application.UnitTests
 dotnet test --project tests/Jobbliggaren.Api.IntegrationTests
+dotnet test --project tests/Jobbliggaren.Worker.IntegrationTests
 dotnet test --project tests/Jobbliggaren.Architecture.Tests
+dotnet test --project tests/Jobbliggaren.Migrate.UnitTests
+dotnet test --project tests/Jobbliggaren.QA.Corpus
 
 # Coverage (reproducerbar in-repo-mekanism, ADR 0044)
 bash scripts/coverage.sh          # Windows: scripts/coverage.ps1
@@ -577,17 +580,17 @@ dotnet ef migrations add <Name> --project src/Jobbliggaren.Infrastructure --star
 dotnet ef database update --project src/Jobbliggaren.Infrastructure --startup-project src/Jobbliggaren.Api
 ```
 
-**Testsuiterna kör på Microsoft.Testing.Platform, inte VSTest — och skillnaden är tyst.** En
-sökväg som skickas positionellt (projekt, katalog eller solution) och de VSTest-formade
-flaggorna `--filter`/`--nologo` avvisas som okända optioner, och **noll tester körs**. Tre
-olika exitkoder betyder alla att ingenting kördes: **1** (positionell sökväg), **5** (okänd
-option), **8** (ett filter som matchade noll) — var och en under en summering som ser normal
-ut i stället för något en operatör läser som ett fel. Välj ett projekt med `--project`, alla
-projekt med `--solution`, och en delmängd **inuti** ett projekt genom att skicka MTP:s egna
-filter efter `--`: `--filter-class`, `--filter-method`, `--filter-trait`, alla med
-`*`-wildcards. En `Category`-trait utesluter ingenting ur en default-körning —
-`Category=SmokeTest`-testerna körs i den. **Beviset för att en svit har kört är raden
-`total:`, aldrig exitkoden** — som efter en pipe mäter pipen och inte verktyget.
+**Testsuiterna kör på Microsoft.Testing.Platform, inte VSTest.** De VSTest-formade flaggorna
+— `--filter`, `--logger`, `--collect`, `--nologo` — avvisas som ogiltiga kommandoradsargument:
+exit **5**, `Unknown option`, sedan en help-dump. En sökväg som skickas positionellt (projekt,
+katalog eller solution) faller på ett annat sätt: exit **1**, plattformens catch-all, en enda
+rad och inget summeringsblock alls. Åt båda hållen körs **noll tester**. Välj ett projekt med
+`--project`, alla projekt med `--solution`, och en delmängd **inuti** ett projekt med MTP:s
+egna filter efter `--`: `--filter-class`, `--filter-method`, `--filter-trait`, alla med
+`*`-wildcards; en selektor som matchar noll kör färdigt och exitar **8**. En `Category`-trait
+utesluter ingenting ur en default-körning — `Category=SmokeTest`-testerna körs i den.
+**Beviset för att en svit har kört är raden `total:`, aldrig exitkoden** — som efter en pipe
+mäter pipen, och som exit 1 aldrig skriver ut. Reglerna i sin normativa form: CLAUDE.md §7.
 
 ### Frontend
 

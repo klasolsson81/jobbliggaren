@@ -334,7 +334,8 @@ fi
 #
 # THIS IS THE ONLY LEG CARRYING DATA-SUBJECT PERSONAL DATA. The journal carries the operator's
 # own source addresses; the audit log carries uid/exe/path. This one carries users. That is why
-# the register's OVH row gains a category in this PR, and why the retention number on the
+# the register's OVH row gains a category alongside this change — in the register itself, which is
+# gitignored and therefore not in this diff, so do not look for it here — and why the retention number on the
 # `hostlogs/` prefix is not a housekeeping detail.
 #
 # This leg is built for the corpus it will carry, not the one it carries today: the product

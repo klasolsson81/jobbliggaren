@@ -179,7 +179,7 @@ CSRF=$(printf '%s' "$LOGIN" | python3 -c 'import json,sys; print(json.load(sys.s
 nothing. Measured on a stock 2026.1 with authentication enabled: `RequireApiKeyForWritingEvents`
 defaults to **`false`**, and with it false a `POST /api/events/raw?clef` is accepted with a valid
 key, an **empty** key, a **wrong** key and **no key at all** — 201 in all four cases. With it true:
-201 for the valid key, **401** for the other three. **No environment variable sets this** — both
+201 for the valid key, **401** for the other three. **No environment variable sets this** — all three of
 `SEQ_API_REQUIREAPIKEYFORWRITINGEVENTS`, `SEQ_REQUIREAPIKEYFORWRITINGEVENTS` and
 `SEQ_FIRSTRUN_REQUIREAPIKEYFORWRITINGEVENTS` — the last using the prefix Seq actually does read —
 were all measured silently ignored — so it cannot be shipped fail-closed in compose and has to be a step here.
@@ -211,12 +211,14 @@ curl -s -b /tmp/seq.jar -H 'Content-Type: application/json' -H "X-Seq-CsrfToken:
 # expect: 201 with "RetentionTime":"30.00:00:00"
 ```
 
-**8.** Only now put the two remaining values in `.env`, **in this order**, and re-arm reconcile.
+**8.** One editor pass, **three** values, **in this order**, and then re-arm reconcile.
 `SEQ_SERVER_URL` is what ATTACHES the provider, so setting it before the key exists points both
 hosts at a sink that answers 401 to every event — which step 5 measured is exactly what an empty
 key gets. Interactive editor again, deliberately outside this block:
 `sudo nano /opt/jobbliggaren/deploy/.env` — `SEQ_INGEST_API_KEY=<token>` first, then
-`SEQ_SERVER_URL=http://seq:5341`.
+`SEQ_SERVER_URL=http://seq:5341`, and **`SEQ_ADMIN_PASSWORD` overwritten with the new password
+from step 4** (it is stale for the running Seq and is the first-run password if the volume is
+ever lost — step 4's note says why).
 
 ```bash
 sudo systemctl start jobbliggaren-reconcile.timer

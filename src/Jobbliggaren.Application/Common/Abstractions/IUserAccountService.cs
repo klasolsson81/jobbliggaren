@@ -176,11 +176,8 @@ public interface IUserAccountService
     /// <b>A successful reset also sets <c>EmailConfirmed</c> (#1303), regardless of
     /// <see cref="Auth.AuthOptions.RequireEmailConfirmation"/>.</b> The token reaching this point was
     /// mailed to the address, which is the proof <see cref="ConfirmEmailAsync"/> and
-    /// <see cref="ConfirmChangeEmailAsync"/> already accept — so this is a third writer of an existing
-    /// rule, not a weaker one. The flag governs enforcement at login, not whether the fact is recorded,
-    /// and neither existing writer consults it. Without this the flow strands its own user: the stamp
-    /// rotation kills the pending confirmation link in their inbox, so the reset would take away the
-    /// way to confirm and leave nothing behind it.
+    /// <see cref="ConfirmChangeEmailAsync"/> already accept. Why the flag does not gate it, and why the
+    /// extra persist is safe: ADR 0127 Amendment 2026-08-11.
     /// </para>
     /// </summary>
     Task<Result> ResetPasswordAsync(

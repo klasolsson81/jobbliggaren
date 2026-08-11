@@ -401,33 +401,28 @@ public sealed partial class UserAccountService(
         await userManager.SetLockoutEndDateAsync(user, null);
 
         // #1303 — the reset RECORDS the address as confirmed. The token reaching this line was mailed to
-        // that address, which is the same proof ConfirmEmailAsync and ChangeEmailAsync accept; this is a
-        // third writer applying an existing rule, not a weaker one. Without it the flow strands its own
-        // user: the stamp rotation above kills the pending confirmation link in their inbox, so a reset
-        // would remove the way to confirm and put nothing in its place.
+        // that address, which is the same proof ConfirmEmailAsync and ChangeEmailAsync accept, so this
+        // applies an existing rule rather than a weaker one. Without it the reset costs the user a second
+        // errand: the stamp rotation above kills the confirmation link already in their inbox, so they
+        // must fetch another through the login-403 resend (#733) after already proving inbox control.
         //
         // NOT gated on RequireEmailConfirmation, and the asymmetry with the resend sibling is deliberate:
         // that flag governs ENFORCEMENT at login, while this is a fact about the address. Neither
-        // existing writer consults it. Flag-OFF the write is observationally inert (nothing reads the
-        // column), so a branch would add a second path whose polarities cannot be told apart.
-        //
-        // UpdateAsync does not rotate the security stamp (verified against the .NET 10 source:
-        // UpdateAsync -> UpdateUserAsync runs the user validators and the two normalizers only;
-        // rotation lives in UpdateSecurityStampInternal, called from UpdatePasswordHash and
-        // UpdateSecurityStampAsync). So this persists the flag without invalidating the reset the caller
-        // just completed.
+        // existing writer consults it. Flag-OFF every reader of the column is itself flag-gated, so the
+        // write is observationally inert and a branch would add a second path whose polarities cannot be
+        // told apart. Why UpdateAsync is safe to call here: ADR 0127 Amendment 2026-08-11.
         if (!user.EmailConfirmed)
         {
             user.EmailConfirmed = true;
             var confirmResult = await userManager.UpdateAsync(user);
-            // Fail loud rather than report a reset that leaves the user unable to log in. The password
-            // change is already committed, so this cannot roll back — but a silent failure would hand
-            // back 204 and drop them into the very 403 this exists to prevent, with the link spent. No
-            // address in the message (§5: no PII in logs).
+            // Log and continue, matching the notice-send arm in ResetPasswordCommandHandler and the
+            // UserName-sync arm in ConfirmChangeEmailAsync above: the password is already changed and the
+            // token already spent, so throwing would skip the session teardown and the User.PasswordReset
+            // audit row, and answer 500 to a user whose retry then reports "invalid link". Codes, never
+            // Descriptions — four of the five reachable ones interpolate the address.
             if (!confirmResult.Succeeded)
-                throw new InvalidOperationException(
-                    "Password reset succeeded but persisting EmailConfirmed failed: "
-                    + string.Join("; ", confirmResult.Errors.Select(e => e.Description)));
+                LogEmailConfirmedPersistFailed(
+                    userId, string.Join("; ", confirmResult.Errors.Select(e => e.Code)));
         }
 
         return Result.Success();
@@ -449,4 +444,9 @@ public sealed partial class UserAccountService(
         "[UserAccountService] Change-email: UserName sync lagged Email for user {UserId} " +
         "(username kept stale, email change succeeded)")]
     private partial void LogUserNameSyncLagged(Guid userId);
+
+    [LoggerMessage(4006, LogLevel.Warning,
+        "[UserAccountService] Password reset: persisting EmailConfirmed failed for user {UserId} " +
+        "({ErrorCodes}) (the reset itself succeeded; the login 403 still offers a confirmation resend)")]
+    private partial void LogEmailConfirmedPersistFailed(Guid userId, string errorCodes);
 }

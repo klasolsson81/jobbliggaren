@@ -21,11 +21,12 @@ namespace Jobbliggaren.Api.IntegrationTests.Auth;
 /// Its own class rather than more cases in <see cref="ResetPasswordTests"/>: that class pins the #1171
 /// flow against the BASE (flag-OFF) host and says so in its summary, while the user-visible half of this
 /// behaviour is only observable with the login gate ON. Both hosts here are the ApiFactory's CACHED,
-/// shared ones (<c>CreateClient</c> and <c>CreateEmailConfirmationClient</c>, the latter already shared by
-/// five classes), so this adds no <c>WebApplicationFactory</c> and does not move #1190's ceiling.
+/// shared ones (<c>CreateClient</c> and <c>CreateEmailConfirmationClient</c>), so this adds no
+/// <c>WebApplicationFactory</c> and does not move #1190's ceiling. Re-measure the sharing with:
+/// <c>grep -rn "CreateEmailConfirmationClient" tests/</c>.
 /// </para>
 /// <para>
-/// Two tests, because the behaviour has two halves that fail independently:
+/// Three tests, because the behaviour has parts that fail independently:
 /// <list type="bullet">
 /// <item><b>Flag ON</b> — the end-to-end outcome #1303 was filed for: a user who registers, never
 /// confirms, and resets can log in afterwards. The in-test 403 BEFORE the reset is the counterfactual,
@@ -36,6 +37,9 @@ namespace Jobbliggaren.Api.IntegrationTests.Auth;
 /// only way to hold the flag-INDEPENDENCE decision: the flag governs enforcement at login, not whether
 /// the fact is recorded. Without this test a later "be symmetric with the resend gate" refactor would
 /// add a flag branch and no test would go red.</item>
+/// <item><b>Rejected token</b> — the write's POSITION rather than its polarity. The two above stay green
+/// if the write is hoisted into the request half or above the token verification, and both of those are
+/// unauthenticated confirm-anyone primitives.</item>
 /// </list>
 /// </para>
 /// </summary>
@@ -48,11 +52,13 @@ public class ResetPasswordConfirmsAddressTests(ApiFactory factory)
 
     private const string BaseUrl = "https://jobbliggaren.se";
 
-    // Hardcoded TEST fixture passwords, not real secrets. Unique per test: the breach-check stub is a
-    // dictionary keyed by password and shared across the whole "Api" collection.
-    private const string RegisterPassword = "T3stlosen123456";           // gitleaks:allow
+    // The bootstrap password is the suite's shared default; the breach-check stub is a dictionary keyed
+    // by password and shared across the whole "Api" collection, so the three NEW passwords below it are
+    // unique to this class.
+    private const string RegisterPassword = AuthTestHelpers.DefaultTestPassword;
     private const string ConfirmsFlagOnPassword = "BekraftatL0sen1234";  // gitleaks:allow
     private const string ConfirmsFlagOffPassword = "OberoendeL0sen123";  // gitleaks:allow
+    private const string RejectedTokenPassword = "AvvisadL0sen12345";    // gitleaks:allow
 
     /// <summary>The (uid, token) pair a real inbox receives, already browser-decoded.</summary>
     private sealed record ResetLink(string Uid, string Token);
@@ -135,15 +141,41 @@ public class ResetPasswordConfirmsAddressTests(ApiFactory factory)
         var email = $"rp-confirms-flagoff-{Guid.NewGuid()}@example.se";
         await AuthTestHelpers.RegisterAndGetSessionIdAsync(_client, email, ct: ct);
 
-        // Pre-state, or the assertion below cannot tell the write from an account that arrived confirmed.
-        // Instant-login registration leaves the column false: CreateUserAsync never touches it.
+        var link = await EmittedResetLinkAsync(email, ct);
+
+        // Pre-state, and deliberately AFTER the mint rather than before it. Placed before, it would only
+        // say that registration leaves the column false; placed here it also says the REQUEST half wrote
+        // nothing — and that half is reached from an unauthenticated endpoint taking an arbitrary
+        // address, so a write there would confirm anyone on demand.
         (await IsEmailConfirmedAsync(email, ct)).ShouldBeFalse();
 
-        var link = await EmittedResetLinkAsync(email, ct);
         var reset = await ResetAsync(_client, link, ConfirmsFlagOffPassword, ct);
         reset.StatusCode.ShouldBe(HttpStatusCode.NoContent);
 
         (await IsEmailConfirmedAsync(email, ct)).ShouldBeTrue(
             "the flag governs enforcement at login, not whether the confirmed fact is recorded");
+    }
+
+    [Fact]
+    public async Task POST_reset_password_with_a_rejected_token_leaves_the_address_unconfirmed()
+    {
+        // The write's POSITION, not its polarity — the property the two tests above cannot fail on.
+        // /reset-password is public and takes an arbitrary uid, so a write hoisted above the token
+        // verification would be an unauthenticated confirm-anyone primitive: 400 on the way out, address
+        // confirmed on the way through. ResetPasswordTests pins the 400; this pins that nothing was
+        // recorded behind it.
+        var ct = TestContext.Current.CancellationToken;
+        var email = $"rp-confirms-badtoken-{Guid.NewGuid()}@example.se";
+        await AuthTestHelpers.RegisterAndGetSessionIdAsync(_client, email, ct: ct);
+
+        // A real uid with a junk token. The token is in the Base64Url alphabet on purpose: a malformed
+        // one short-circuits at the decode and would leave a write placed after it uncaught.
+        var uid = (await EmittedResetLinkAsync(email, ct)).Uid;
+        var rejected = await ResetAsync(
+            _client, new ResetLink(uid, "not-a-real-token"), RejectedTokenPassword, ct);
+
+        rejected.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+        (await IsEmailConfirmedAsync(email, ct)).ShouldBeFalse(
+            "a reset that verified no token proves no inbox control, so it records nothing");
     }
 }

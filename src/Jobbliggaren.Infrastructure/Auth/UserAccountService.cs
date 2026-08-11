@@ -333,6 +333,10 @@ public sealed partial class UserAccountService(
         // proves inbox control, which is what confirmation proves, so an unconfirmed account is still
         // entitled to recover. An account with no stored address cannot be mailed and yields null like
         // any other ineligible case — indistinguishable to the caller, which is the point.
+        //
+        // This half writes nothing. It is reached from an unauthenticated endpoint taking an arbitrary
+        // address, so confirming here would let anyone confirm anyone; the EmailConfirmed write belongs
+        // after token verification and lives in ResetPasswordAsync (#1303).
         var user = await userManager.FindByEmailAsync(email);
         if (user is not { Email: { } accountEmail })
             return null;
@@ -395,6 +399,36 @@ public sealed partial class UserAccountService(
         // primitive: reaching this line requires a token only the inbox owner receives.
         await userManager.ResetAccessFailedCountAsync(user);
         await userManager.SetLockoutEndDateAsync(user, null);
+
+        // #1303 — the reset RECORDS the address as confirmed. The token reaching this line was mailed to
+        // that address, which is the same proof ConfirmEmailAsync and ChangeEmailAsync accept; this is a
+        // third writer applying an existing rule, not a weaker one. Without it the flow strands its own
+        // user: the stamp rotation above kills the pending confirmation link in their inbox, so a reset
+        // would remove the way to confirm and put nothing in its place.
+        //
+        // NOT gated on RequireEmailConfirmation, and the asymmetry with the resend sibling is deliberate:
+        // that flag governs ENFORCEMENT at login, while this is a fact about the address. Neither
+        // existing writer consults it. Flag-OFF the write is observationally inert (nothing reads the
+        // column), so a branch would add a second path whose polarities cannot be told apart.
+        //
+        // UpdateAsync does not rotate the security stamp (verified against the .NET 10 source:
+        // UpdateAsync -> UpdateUserAsync runs the user validators and the two normalizers only;
+        // rotation lives in UpdateSecurityStampInternal, called from UpdatePasswordHash and
+        // UpdateSecurityStampAsync). So this persists the flag without invalidating the reset the caller
+        // just completed.
+        if (!user.EmailConfirmed)
+        {
+            user.EmailConfirmed = true;
+            var confirmResult = await userManager.UpdateAsync(user);
+            // Fail loud rather than report a reset that leaves the user unable to log in. The password
+            // change is already committed, so this cannot roll back — but a silent failure would hand
+            // back 204 and drop them into the very 403 this exists to prevent, with the link spent. No
+            // address in the message (§5: no PII in logs).
+            if (!confirmResult.Succeeded)
+                throw new InvalidOperationException(
+                    "Password reset succeeded but persisting EmailConfirmed failed: "
+                    + string.Join("; ", confirmResult.Errors.Select(e => e.Description)));
+        }
 
         return Result.Success();
     }

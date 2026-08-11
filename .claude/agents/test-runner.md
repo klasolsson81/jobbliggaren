@@ -47,47 +47,45 @@ modification of test files)
 
 ## Test commands
 
-**Full suite:**
+Every test project runs on **Microsoft.Testing.Platform (MTP)**, not VSTest, so
+the VSTest vocabulary is not available here: `--filter`, `--logger`, `--collect`
+and `--nologo` are all rejected as unknown options, and a path passed
+positionally (project, directory or solution alike) is rejected too. Each of
+those runs **zero tests** while printing a summary that reads as normal. Use the
+forms below and no others; CLAUDE.md §7 carries the rule.
+
+**Full suite** (the form `.github/workflows/build.yml` runs):
 
 ```bash
-dotnet test \
-  --logger "console;verbosity=minimal" \
-  --logger "trx;LogFileName=testresults.trx" \
-  --results-directory tests/TestResults
+dotnet test --solution Jobbliggaren.sln
 ```
 
-**Unit tests only:**
+**One project** — `--project`, never a positional path:
 
 ```bash
-dotnet test tests/JobbPilot.UnitTests/JobbPilot.UnitTests.csproj \
-  --logger "console;verbosity=minimal"
+dotnet test --project tests/Jobbliggaren.Domain.UnitTests
+dotnet test --project tests/Jobbliggaren.Application.UnitTests
+dotnet test --project tests/Jobbliggaren.Architecture.Tests
+dotnet test --project tests/Jobbliggaren.Api.IntegrationTests
+dotnet test --project tests/Jobbliggaren.Worker.IntegrationTests
 ```
 
-**Integration tests only:**
+**A subset inside a project** — MTP's own filters, passed after `--`, `*`
+wildcards allowed:
 
 ```bash
-dotnet test tests/JobbPilot.IntegrationTests/ \
-  --logger "console;verbosity=minimal"
+dotnet test --project tests/Jobbliggaren.Architecture.Tests -- --filter-class "*DomainLayerTests"
+dotnet test --project tests/Jobbliggaren.Architecture.Tests -- --filter-method "*Application_should_not_depend*"
+dotnet test --project tests/Jobbliggaren.Worker.IntegrationTests -- --filter-trait "Category=SmokeTest"
 ```
 
-**Filter by name:**
+A `Category` trait excludes nothing from a default run — the
+`Category=SmokeTest` tests run in it, so a plain project run already covers them.
+
+**Coverage** — the ADR 0044 mechanism, never `--collect`:
 
 ```bash
-dotnet test --filter "FullyQualifiedName~JobAdTests"
-```
-
-**Filter by trait:**
-
-```bash
-dotnet test --filter "Category=Integration"
-```
-
-**With code coverage:**
-
-```bash
-dotnet test \
-  --collect:"XPlat Code Coverage" \
-  --results-directory tests/TestResults
+bash scripts/coverage.sh
 ```
 
 Before running integration tests, verify Docker is reachable:
@@ -103,15 +101,19 @@ abort — do not attempt to run integration tests.
 
 ## xUnit output patterns
 
+MTP prints `Test run summary:` followed by indented `total:` / `failed:` /
+`succeeded:` / `skipped:` lines. **The count is the evidence; the exit code is
+not** — after a pipe `$?` measures the pipe, not the tool, so never pipe the run.
+
 | Pattern | Meaning |
 |---|---|
-| `Passed!  - Failed:     0, Passed:    N` | All green |
-| `Failed!  - Failed:     M, Passed:    N` | M failures |
+| `Test run summary: Passed!` with `total:` above zero and `failed: 0` | All green |
+| `failed:` above zero | That many failures |
+| `Test run summary: Zero tests ran` with `total: 0` | **Nothing ran** — exit 1 (positional path), 5 (unknown option) or 8 (filter matched nothing). Never report this as a pass; report the command as wrong |
 | `Build FAILED.` + CS-error codes | Compilation error |
 | `Docker daemon not running` | Docker not available |
 | `Container did not start within timeout` | Testcontainers setup failure |
 | `Test exceeded timeout` | Timeout — possible flaky test |
-| `AssemblyInitialize timed out` | Collection fixture timeout |
 
 ---
 
@@ -230,8 +232,7 @@ in technical developer output. Do not use decorative emojis (🎉, 🚀, etc.).
 **test-runner** runs full suite:
 
 ```bash
-dotnet test --logger "console;verbosity=minimal" \
-  --results-directory tests/TestResults
+dotnet test --solution Jobbliggaren.sln
 ```
 
 Output (parsed):

@@ -319,7 +319,7 @@ When test-writer creates test files:
 - GDPR: soft delete / audit trail / retention verifierad
 
 **Körs med:**
-  dotnet test --filter "FullyQualifiedName~JobAdTests"
+  dotnet test --project tests/Jobbliggaren.Domain.UnitTests -- --filter-class "*JobAdTests"
 
 **Nästa steg:**
 Tester är RÖDA — production code finns inte. Klas eller en
@@ -416,7 +416,7 @@ public class JobAdTests
 - Domain events: Archive höjer JobAdArchivedEvent
 
 **Körs med:**
-  dotnet test --filter "FullyQualifiedName~JobAdTests"
+  dotnet test --project tests/Jobbliggaren.Domain.UnitTests -- --filter-class "*JobAdTests"
 
 **Nästa steg:**
 Tester är RÖDA. Klas implementerar JobAd-aggregate i

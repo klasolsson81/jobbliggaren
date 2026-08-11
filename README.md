@@ -579,13 +579,15 @@ dotnet ef database update --project src/Jobbliggaren.Infrastructure --startup-pr
 
 **Testsuiterna kör på Microsoft.Testing.Platform, inte VSTest — och skillnaden är tyst.** En
 sökväg som skickas positionellt (projekt, katalog eller solution) och de VSTest-formade
-flaggorna `--filter`/`--nologo` avvisas som okända optioner, och **noll tester körs**:
-filterformen exitar **5** ("Zero tests ran"), en positionell sökväg exitar **1**, och båda
-lämnar en utskrift som ser normal ut i stället för något en operatör läser som ett fel. Välj
-ett projekt med `--project`, alla projekt med `--solution`, och en enskild klass eller metod
-**inuti** ett projekt genom att köra projektets byggda EXE (`-class` / `-method` /
-`-namespace`). **Beviset för att en svit har kört är raden `total:`, aldrig exitkoden** — som
-efter en pipe mäter pipen och inte verktyget.
+flaggorna `--filter`/`--nologo` avvisas som okända optioner, och **noll tester körs**. Tre
+olika exitkoder betyder alla att ingenting kördes: **1** (positionell sökväg), **5** (okänd
+option), **8** (ett filter som matchade noll) — var och en under en summering som ser normal
+ut i stället för något en operatör läser som ett fel. Välj ett projekt med `--project`, alla
+projekt med `--solution`, och en delmängd **inuti** ett projekt genom att skicka MTP:s egna
+filter efter `--`: `--filter-class`, `--filter-method`, `--filter-trait`, alla med
+`*`-wildcards. En `Category`-trait utesluter ingenting ur en default-körning —
+`Category=SmokeTest`-testerna körs i den. **Beviset för att en svit har kört är raden
+`total:`, aldrig exitkoden** — som efter en pipe mäter pipen och inte verktyget.
 
 ### Frontend
 

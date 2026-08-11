@@ -520,17 +520,20 @@ dotnet test --project tests/Jobbliggaren.Architecture.Tests  # architecture
 ```
 
 **These suites run on Microsoft.Testing.Platform, not VSTest, and the difference
-is silent.** A path passed positionally — project, directory, or solution — and
-the VSTest-shaped `--filter`/`--nologo` flags are rejected as unknown options,
-and **zero tests run**: the filter form exits **5** ("Zero tests ran"), a
-positional path exits **1**, and both print a normal-looking summary rather than
-anything an operator reads as an error. Select one project with `--project`,
-every project with `--solution`, and a single class or method **inside** a
-project by running its built EXE (`-class` / `-method` / `-namespace`).
-**The proof that a suite ran is the `total:` line, never the exit code** — which
-after a pipe measures the pipe, not the tool. That is what §8 point 3 rests on:
-"architecture tests green" is a non-zero `total:` with `failed: 0`, and a run
-that selected nothing satisfies it only in appearance.
+is silent.** A path passed positionally — project, directory or solution alike —
+and the VSTest-shaped `--filter`/`--nologo` flags are rejected as unknown
+options, and **zero tests run**. Three different exit codes all mean "nothing
+ran": **1** (positional path), **5** (unknown option), **8** (a filter that
+matched nothing) — each printed under a summary that reads as normal rather than
+as an error. Select one project with `--project`, every project with
+`--solution`, and a subset **inside** a project by passing MTP's own filters
+after `--`: `--filter-class`, `--filter-method`, `--filter-trait`, each taking
+`*` wildcards. A `Category` trait excludes nothing from a default run — the
+`Category=SmokeTest` tests run in it. **The proof that a suite ran is the
+`total:` line, never the exit code** — which after a pipe measures the pipe, not
+the tool. §8 point 3 rests on exactly that: "architecture tests green" is a
+non-zero `total:` with `failed: 0`, and a run that selected nothing satisfies it
+only in appearance.
 
 ## 8. Definition of Done
 

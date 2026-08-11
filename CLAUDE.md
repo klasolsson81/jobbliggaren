@@ -610,14 +610,20 @@ and senior-cto-advisor decides when it is genuinely ambiguous. What changed
 **The list below answers "where does what is not fixed go" — never "what should
 happen to a finding."** The default disposal is the fix itself; a destination is
 for the remainder, and choosing one is the exception that needs a reason.
-Measured 2026-08-10: in the eight days after the register retired the backlog
-grew +62 net (4.3 filed per closed; 48 of 60 new were `area:infra`, one was
-user-facing) — not because the rule was wrong but because this sentence was read
-as a router. **A session therefore leaves the backlog no larger than it found
-it** — issues filed ≤ issues closed or fixed, per session — **except for genuine
-defects in delivered code**, which are always recorded. The cap binds filing,
-never closing: an issue closes only per Filing discipline below, never to buy
-filing room.
+Measured 2026-08-10: the backlog grew +62 net in the eight days after the
+register retired (4.3 filed per closed), and 48 of the 60 issues filed in the
+last week were `area:infra`, one of them user-facing — not because the rule was
+wrong but because "fix in-block" above was read as a router. **A session
+therefore leaves the backlog no larger than it found it** — issues filed ≤
+issues closed or fixed, per session — **except for genuine defects in delivered
+code, which are always filed**, and except for a filing a charter itself
+mandates (security-auditor's area-8 Major): a charter-declared outcome is never
+the session's to withhold, so the cap never blocks it. An ordinary Minor that
+would breach the cap is fixed instead or carried as a named skip in the PR body
+— the Minor bullet's issue route yields to the cap. The cap binds filing, never
+closing: an issue closes only against Filing discipline's measurement duty,
+never to buy filing room. **§12 gains no new class here** — an overrun cap is a
+discipline miss, not a STOPP.
 
 **Severity belongs to the agent that reported the finding, and §9.6 does not define it.**
 Each mandatory agent grades in its own charter's scale — `code-reviewer` and

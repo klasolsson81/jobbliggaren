@@ -105,20 +105,10 @@ eller en GDPR-överträdelse tyst blir en Minor. Regel 3 säger bara vart ett fy
 routningen i sin helhet, inklusive de undantag ett charter själv deklarerar, står i
 CLAUDE.md §9.6.
 
-Default = **fixa in-block**. Tre utfall, och du väljer ett:
-
-1. **Blocker eller Major** → **in-block**, eller **följd-PR** om det är ett genuint
-   eget change-reason. **Aldrig ett issue:** CLAUDE.md §6 och §12 gör ett oupplöst
-   agent-Blocker/Major merge-blockerande, så att fila det vore att göra ett stopp
-   till en backlog-rad. *Undantag deklareras av det rapporterande charteret, inte av
-   dig — de två som finns är uppräknade i CLAUDE.md §9.6 och är `security-auditor`:s.*
-2. **Minor / nice-to-have** → **GitHub issue**, **märkt när det filas**: `area:`, ett
-   `P0`–`P3`, en lane, och **`mvp`** om en riktig testanvändare möter det eller det
-   blockerar lansering (CLAUDE.md §6.5). Ett omärkt issue filas in i samma osynlighet
-   som registret retirerades för. Skälet är synlighet mellan parallella CC:er.
-3. **Ingen åtgärd** — fyndet håller inte, eller dess premiss är upphävd. Säg det rakt.
-
-Vid tveksamhet: in-block vinner. JobbPilots policy: kvalitet > tempo.
+Utfallen, deras villkor och undantag — inklusive defaulten, Minor-vägens form och
+sessionens netto-tak — står i **CLAUDE.md §9.6, som är enda hemmet**; du tillämpar
+den listan, du återger den inte här (en restatement som överlever en §9.6-edit är
+#1173-driften). Vid tveksamhet: in-block vinner. JobbPilots policy: kvalitet > tempo.
 
 **Scope-storlek är inte längre ett eget kriterium.** Den gamla 4-timmarsregeln lät
 "det här tar för lång tid" bli en giltig grund att skjuta upp på, vilket är hur ett
@@ -220,11 +210,11 @@ acceptabelt eftersom file count är inte design-värde i sig."]
 change-reason — annars hör fyndet hemma in-block.]
 
 ### Issues att fila
-[Minor / nice-to-have, med motivering per issue. **Ange etiketterna** — `area:`,
-`P0`–`P3`, lane, och `mvp` om det når en riktig testanvändare eller blockerar
-lansering (CLAUDE.md §6.5). Ett issue ingen annan CC skulle behöva se får hoppas
-över — men skrivs då ut här som ett namngivet hopp, aldrig tyst. Föreslå ALDRIG en
-TD; registret är retirerat (Regel 3).]
+[Minor / nice-to-have som CLAUDE.md §9.6 routar till issue — villkoren, hoppgrunderna
+och netto-taket står DÄR, inte här. **Ange etiketterna** — `area:`, `P0`–`P3`, lane,
+och `mvp` om det når en riktig testanvändare eller blockerar lansering (CLAUDE.md
+§6.5). Ett hopp skrivs ut här som namngivet, aldrig tyst. Föreslå ALDRIG en TD;
+registret är retirerat (Regel 3).]
 
 ### Referenser
 [Lista av källor (böcker, Microsoft Learn-sidor, GitHub-templates) som citerats.]

@@ -384,8 +384,8 @@ fi
 
 # ── The stamp ────────────────────────────────────────────────────────────────────────────────
 # Written LAST and only on success, so --check measures completed runs. A stamp written earlier
-# would report freshness for a run that then failed to ship anything.
-install -d -m 0755 "$STATE_DIR"
+# would report freshness for a run that then failed to ship anything. STATE_DIR was created at
+# the top of the run; creating it twice said the second one carried a reason, and it did not.
 printf '%s\n' "$run_stamp" > "$STAMP_FILE"
 chmod 0644 "$STAMP_FILE"
 # Backdate to the run's start — see run_epoch. `--check` stays correct because a start time is

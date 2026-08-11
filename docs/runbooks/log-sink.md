@@ -79,29 +79,105 @@ from the one K4 answered for database artefacts.
 
 ## 3. Install — (B), Seq
 
-```bash
-# 1. Two values in the box's .env (root-owned, chmod 600, never committed).
-#    SEQ_ADMIN_PASSWORD is read ONLY on Seq's first run against an empty volume. After that the
-#    password lives in Seq's own store and this value stops being the source of truth.
-sudo nano /opt/jobbliggaren/deploy/.env      # SEQ_ADMIN_PASSWORD=..., leave SEQ_INGEST_API_KEY empty for now
+**THERE IS NO SSH TUNNEL, AND NO ADDRESS FORM FIXES THAT.** An earlier draft of this section, of
+`deploy/docker-compose.yml`'s seq comment and of ADR 0128 all said operator access is an `ssh -L`
+tunnel. Measured 2026-08-11: this box runs `AllowTcpForwarding no` — the drop-in `vps-base-hardening.md`
+§4.2 itself prescribes, confirmed effective with `sudo sshd -T | grep allowtcpforwarding`. The
+counterfactual was run rather than assumed: `ssh -f -N -L 18342:<container-ip>:8080 jp-vps` is
+accepted by the client and then refused by the server with
+`channel 1: open failed: administratively prohibited`. So Seq's **browser UI is not reachable at
+all** from an operator workstation today, and reaching it would mean lowering a hardening control —
+which is Klas's decision and an ADR, never a step in this file.
 
-# 2. Bring the service up. reconcile does this hourly on its own; doing it by hand takes no lock,
-#    so prefer letting the timer apply, or stop the timer first.
+**Everything below is therefore headless, and every command was run against `datalust/seq:2026.1`
+(`sha256:91e93ff2…`) on 2026-08-11 before it was written here.** What talks to Seq is the box's own
+`curl` against the container IP; that path is measured (host → container over the docker bridge,
+HTTP 404 from a live container endpoint, i.e. reachable). `jq` is **not** installed on this box —
+`python3` and `curl` are, so JSON is built and read with `python3`.
+
+**1.** Put `SEQ_ADMIN_PASSWORD` in the box's `.env` (root-owned, chmod 600, never committed). Leave
+`SEQ_INGEST_API_KEY` empty and `SEQ_SERVER_URL` **absent** for now — the order in step 8 is
+load-bearing. This is an interactive editor and is not something you can paste from here:
+`sudo nano /opt/jobbliggaren/deploy/.env`.
+
+> `SEQ_ADMIN_PASSWORD` is read ONLY on Seq's first run against an empty volume. After that the
+> password lives in Seq's own store and **this value stops being the source of truth.** Do not
+> spend it on an experiment: a `docker volume rm seq_data` is the only way back.
+
+**2.** Bring the service up. reconcile does this hourly on its own; doing it by hand takes no lock,
+so stop the timer first.
+
+```bash
 sudo systemctl stop jobbliggaren-reconcile.timer
 sudo docker compose -f /opt/jobbliggaren/deploy/docker-compose.yml up -d seq
 sudo docker logs jobbliggaren-seq --tail 20
+```
 
-# 3. Reach the UI. THERE IS NO PUBLISHED PORT, and that is the control rather than an omission:
-#    compose-edge-publish-guard allows exactly one publishing service and caddy is it. Tunnel:
-#      ssh -L 8341:127.0.0.1:8341 jp-vps
-#      # then on the box, forward the container's port into the tunnel's local end
-#    or read it through a one-shot container on the stack network.
+**3.** Find the container's address. It changes whenever the container is recreated, so it is looked
+up at use time and never written down.
 
-# 4. In Seq: change the admin password, create an INGEST-ONLY API key, and set retention.
-#    Retention: one policy, "All events", 30 days. There is no environment variable for it.
+```bash
+SEQ_IP=$(sudo docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' jobbliggaren-seq)
+curl -s -o /dev/null -w '%{http_code}\n' "http://$SEQ_IP/"     # expect: 200
+```
 
-# 5. Put the ingest key in .env and let reconcile apply, so api and worker pick it up.
-sudo nano /opt/jobbliggaren/deploy/.env      # SEQ_INGEST_API_KEY=...
+**4.** Sign in — and note that the **first** sign-in fails by design. Measured: with a first-run
+admin password set, `POST /api/users/login` answers `401 {"Error":"A password change is
+required.","MustChangePassword":true}`. Supplying `NewPassword` in the same request both changes it
+and signs in. Everything after this needs two things: the `Seq-Session` cookie and the `CsrfToken`
+from the response, sent back as `X-Seq-CsrfToken` on every non-GET.
+
+```bash
+read -rsp 'Current SEQ_ADMIN_PASSWORD: ' OLD_PW; echo
+read -rsp 'New admin password: ' NEW_PW; echo
+LOGIN=$(python3 -c 'import json,sys; print(json.dumps({"Username":"admin","Password":sys.argv[1],"NewPassword":sys.argv[2]}))' "$OLD_PW" "$NEW_PW" \
+  | curl -s -c /tmp/seq.jar -H 'Content-Type: application/json' --data-binary @- "http://$SEQ_IP/api/users/login")
+CSRF=$(printf '%s' "$LOGIN" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("CsrfToken",""))')
+[ -n "$CSRF" ] && echo "signed in" || { echo "LOGIN FAILED: $LOGIN"; }
+```
+
+**5.** Turn on the ingestion gate **before** creating the key, because until it is on the key bounds
+nothing. Measured on a stock 2026.1 with authentication enabled: `RequireApiKeyForWritingEvents`
+defaults to **`false`**, and with it false a `POST /api/events/raw?clef` is accepted with a valid
+key, an **empty** key, a **wrong** key and **no key at all** — 201 in all four cases. With it true:
+201 for the valid key, **401** for the other three. **No environment variable sets this** — both
+`SEQ_API_REQUIREAPIKEYFORWRITINGEVENTS` and `SEQ_REQUIREAPIKEYFORWRITINGEVENTS` were measured
+silently ignored — so it cannot be shipped fail-closed in compose and has to be a step here.
+
+```bash
+curl -s -b /tmp/seq.jar -H 'Content-Type: application/json' -H "X-Seq-CsrfToken: $CSRF" -X PUT \
+  -d '{"Name":"requireapikeyforwritingevents","Value":true,"Id":"setting-requireapikeyforwritingevents"}' \
+  "http://$SEQ_IP/api/settings/setting-requireapikeyforwritingevents"
+# expect: "Value":true — a PUT carrying only Id+Value answers 500, the full object answers 200
+```
+
+**6.** Create the INGEST-ONLY key and keep the token: it is shown once.
+
+```bash
+curl -s -b /tmp/seq.jar -H 'Content-Type: application/json' -H "X-Seq-CsrfToken: $CSRF" \
+  -d '{"Title":"jobbliggaren-app-ingest","AssignedPermissions":["Ingest"],"InputSettings":{"AppliedProperties":[],"Filter":{"DescriptionIsExcluded":false},"UseServerTimestamps":false}}' \
+  "http://$SEQ_IP/api/apikeys" | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d["Token"], d["AssignedPermissions"])'
+# expect: <token> ['Ingest']
+```
+
+**7.** Set retention: one policy, all events, 30 days.
+
+```bash
+curl -s -b /tmp/seq.jar -H 'Content-Type: application/json' -H "X-Seq-CsrfToken: $CSRF" \
+  -d '{"RetentionTime":"30.00:00:00","RemovedSignalExpression":null}' \
+  "http://$SEQ_IP/api/retentionpolicies"
+# expect: 201 with "RetentionTime":"30.00:00:00"
+```
+
+**8.** Only now put the two remaining values in `.env`, **in this order**, and re-arm reconcile.
+`SEQ_SERVER_URL` is what ATTACHES the provider, so setting it before the key exists points both
+hosts at a sink that answers 401 to every event — which step 5 measured is exactly what an empty
+key gets. Interactive editor again, deliberately outside this block:
+`sudo nano /opt/jobbliggaren/deploy/.env` — `SEQ_INGEST_API_KEY=<token>` first, then
+`SEQ_SERVER_URL=http://seq:5341`.
+
+```bash
+rm -f /tmp/seq.jar
 sudo systemctl start jobbliggaren-reconcile.timer
 ```
 
@@ -132,6 +208,8 @@ integration coverage from `ci`, and the install happens once.
 | **The journal cursor neither drops nor duplicates across a restart** | stop the timer, reboot, run once, compare the last entry of run *n* against the first of run *n+1* | | |
 | **The MEL provider actually posts to 5341, not 80** | `Seq:ServerUrl` set to the 5341 form, then confirm events arrive | If ingestion is measured unavailable on 5341, fall back to `:80` **and record that the split was measured unreachable** — never switch silently, because the split is the control that stops a compromised app container reading the corpus back | |
 | **An empty `.env` value counts as NOT SUPPLIED** | unset `SEQ_SERVER_URL`, confirm both hosts stay console-only | `Email__Provider` in the same file is a measured case where empty ≠ unset (`??` does not catch `""`), so this cannot be assumed from the `:-` default alone | |
+| **The one-time setup completes with NO change to sshd** | the §3 command sequence, end to end | **Measured against `datalust/seq:2026.1` (`sha256:91e93ff2…`), not against this box:** login-with-`NewPassword` 200, gate PUT 200, `POST /api/apikeys` 201 with `['Ingest']`, `POST /api/retentionpolicies` 201. The box-side run is what this row still owes; the mechanism is no longer an assumption | 2026-08-11 (image only) |
+| **Ingestion REFUSES an unkeyed write at this box** | `curl -X POST "http://$SEQ_IP/api/events/raw?clef"` with no `X-Seq-ApiKey` | **This is the row that says whether the ingest key bounds anything.** Measured on a stock 2026.1: with `RequireApiKeyForWritingEvents=false` — the DEFAULT — no key, an empty key and a wrong key are all accepted (201). The gate is §3 step 5 and has no environment variable, so it is a step someone can skip; expect **401** here | |
 | **Seq's retention policy removes events, and the DISK follows later** | query for an event older than the window; separately, `du` on the volume | Retention makes events inaccessible; space returns via compaction, which runs at **7 days of file age** — bytes can persist past the 30-day mark, and the register says so | |
 | **The seq container has a healthcheck** | `docker inspect -f '{{.State.Health.Status}}'` | **Not shipped.** The compose file omits it deliberately rather than shipping an unverified probe that would paint a permanent "unhealthy"; whether this image carries a client to call Seq's health endpoint was not measured. This row closes that | |
 | **`logship` runs, and its cost is bounded** | `systemd-analyze` on the unit; artefact size per run | | |

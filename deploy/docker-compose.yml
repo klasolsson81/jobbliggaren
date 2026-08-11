@@ -173,6 +173,16 @@ x-app-email: &app-email
 # compromised application container: with an ingest-only key, an attacker inside api or worker
 # can neither read the corpus back nor delete from it.
 #
+# AND IT BOUNDS EVEN THAT ONLY ONCE A SETTING NO ENVIRONMENT VARIABLE REACHES IS TURNED ON.
+# Measured 2026-08-11 against datalust/seq:2026.1: `RequireApiKeyForWritingEvents` defaults to
+# FALSE, and while it is false the ingestion endpoint accepts a write with a valid key, an empty
+# key, a wrong key and no key at all — 201 in all four cases, with authentication otherwise
+# enabled. With it true the last three answer 401. Two spellings of an environment variable for
+# it were measured silently ignored, so this file CANNOT ship it fail-closed; it is a step in
+# log-sink.md §3, and a step is something an operator can skip. The runbook's §4 carries the row
+# that measures it at the box, and until that row is dated the sentence above states an intent
+# rather than a control — which is the #1198 shape, one layer up.
+#
 # `${SEQ_ADMIN_PASSWORD:-}` USES `:-` AND NOT `:?`, AND THE DIFFERENCE IS THE WHOLE BOX. Every
 # other credential here is a hard `:?` because compose should refuse to start without it. Not
 # this one: `jobbliggaren-reconcile.sh` runs `compose up -d` hourly, and a `:?` on a value the
@@ -617,7 +627,7 @@ services:
     # unverified probe that fails would paint a permanent "unhealthy" on the box's surface,
     # which is the always-lit-alarm failure this stack has repaired twice elsewhere. Seq
     # exposes a health endpoint, but whether this image carries a client to call it was not
-    # measured. host-detection.md §7 carries the row that closes this.
+    # measured. log-sink.md §4 carries the row that closes this.
     security_opt:
       - no-new-privileges:true
     logging: *logging

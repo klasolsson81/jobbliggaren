@@ -127,14 +127,24 @@ required.","MustChangePassword":true}`. Supplying `NewPassword` in the same requ
 and signs in. Everything after this needs two things: the `Seq-Session` cookie and the `CsrfToken`
 from the response, sent back as `X-Seq-CsrfToken` on every non-GET.
 
+Neither password is typed at a prompt, and that is not convenience. **A `read` inside a pasteable
+block consumes the following lines as keystrokes** — the defect this file's §3 was rebuilt to
+remove — and a one-line fence containing only a `read` is worse, because the paste's own trailing
+newline answers the prompt with an empty string. The current value is already in `.env`; the new
+one is generated and printed once.
+
 ```bash
-read -rsp 'Current SEQ_ADMIN_PASSWORD: ' OLD_PW; echo
-read -rsp 'New admin password: ' NEW_PW; echo
+OLD_PW=$(sudo sed -n 's/^SEQ_ADMIN_PASSWORD=//p' /opt/jobbliggaren/deploy/.env | head -1)
+NEW_PW=$(openssl rand -base64 24)
 LOGIN=$(python3 -c 'import json,sys; print(json.dumps({"Username":"admin","Password":sys.argv[1],"NewPassword":sys.argv[2]}))' "$OLD_PW" "$NEW_PW" \
   | curl -s -c /tmp/seq.jar -H 'Content-Type: application/json' --data-binary @- "http://$SEQ_IP/api/users/login")
 CSRF=$(printf '%s' "$LOGIN" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("CsrfToken",""))')
-[ -n "$CSRF" ] && echo "signed in" || { echo "LOGIN FAILED: $LOGIN"; }
+[ -n "$CSRF" ] && printf 'signed in — STORE THIS ADMIN PASSWORD NOW: %s\n' "$NEW_PW" || printf 'LOGIN FAILED: %s\n' "$LOGIN"
 ```
+
+> **Put that password in the password manager before you continue.** From this point Seq's own
+> store is the source of truth and `.env`'s `SEQ_ADMIN_PASSWORD` is stale by design — it is read
+> only on a first run against an empty volume, so it will not let you back in.
 
 **5.** Turn on the ingestion gate **before** creating the key, because until it is on the key bounds
 nothing. Measured on a stock 2026.1 with authentication enabled: `RequireApiKeyForWritingEvents`

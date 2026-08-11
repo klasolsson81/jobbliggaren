@@ -27,13 +27,16 @@
 
 name: jobbliggaren-prod
 
-# Container logs are capped here rather than left to the daemon default. No production log
-# sink exists (#1175), so rotation is the only thing between this stack and a full disk —
-# and an uncapped log grows without bound. Note what this does NOT do: it caps VOLUME,
-# not AGE, so retention time stays undefined — a quiet container keeps its 30 MB for
-# months. That is a disk control, not a log sink (#1175). The box's daemon config sets the
-# same 10m x 3; this makes the artefact carry it too, for anyone running the stack
-# elsewhere.
+# Container logs are capped here rather than left to the daemon default, and since #1175 this
+# is the LAST-RESORT BUFFER of three layers rather than the store. The three, and what bounds
+# each: the seq service below (queryable, box-local, 30-day retention policy set inside Seq);
+# the `hostlogs/` prefix jobbliggaren-logship.service ships to (off-box, encrypted, bounded by
+# a lifecycle rule that is NOT yet created); and this — bounded by VOLUME and by nothing else.
+# A quiet container still keeps its 30 MB for months, so retention time here stays undefined.
+# That is what keeps #1170 open: demoting this layer is what finally makes a smaller max-size
+# defensible, but the number needs a write rate and there is no write rate until there are
+# users. The box's daemon config sets the same 10m x 3; this makes the artefact carry it too,
+# for anyone running the stack elsewhere.
 x-logging: &logging
   driver: json-file
   options:
@@ -152,6 +155,57 @@ x-app-email: &app-email
   Email__FromAddress: no-reply@jobbliggaren.se
   Email__BaseUrl: https://${SITE_HOST:?}
 
+# The structured log sink (#1175 (B)). Carried by api and worker — the two hosts that call
+# AddJobbliggarenLogging — and by nothing else.
+#
+# THE PORT IS 5341, NOT 80, AND THAT IS A SECURITY BOUNDARY RATHER THAN A DETAIL. Seq listens
+# for INGESTION on 5341 and serves its UI and query API on 80; the dev compose file maps both
+# and labels them (`"127.0.0.1:5341:80"` UI + API, `"127.0.0.1:5342:5341"` ingestion — the bind
+# address is quoted because in a comment whose whole subject is that the binding is the control,
+# eliding it is how #1198 happened). Pointing the app at 5341
+# keeps the query API out of the app's CONFIGURATION — and that is all it does.
+#
+# WHAT THIS IS NOT: network isolation. An earlier draft of this comment said a compromised api or
+# worker "cannot reach the query API over the network at all", and that is measured FALSE
+# (2026-08-11, Seq on its own bridge with no `ports:`): containers on a user-defined bridge reach
+# each other by default — inter-container communication is on, `stack` is not segmented — so a
+# sibling gets HTTP 200 from `seq:80`. What actually holds, measured in the same run: the query
+# API on 80 answers **401** without authentication, and 5341 carries **no** query API at all
+# (**404**). So the split is real and the defence is AUTHENTICATION, not topology. The 401 is the
+# control, it is the one with a verification row in log-sink.md §4, and describing a control that
+# needs measuring as one that does not is exactly the #1198 shape this file's header invokes.
+# `Seq:ServerUrl` is read by
+# LoggingBuilderExtensions, which attaches the provider ONLY when the value is non-empty, so
+# an unset value leaves both hosts console-only exactly as before.
+#
+# THE API KEY CARRIES `Ingest` AND NOTHING ELSE. It is not a root-survival control and must not
+# be described as one — root on this box reads the Seq volume directly. What it bounds is a
+# compromised application container: with an ingest-only key, an attacker inside api or worker
+# can neither read the corpus back nor delete from it.
+#
+# AND IT BOUNDS EVEN THAT ONLY ONCE A SETTING NO ENVIRONMENT VARIABLE REACHES IS TURNED ON.
+# Measured 2026-08-11 against datalust/seq:2026.1: `RequireApiKeyForWritingEvents` defaults to
+# FALSE, and while it is false the ingestion endpoint accepts a write with a valid key, an empty
+# key, a wrong key and no key at all — 201 in all four cases, with authentication otherwise
+# enabled. With it true the last three answer 401. Three spellings of an environment variable for
+# it were measured silently ignored, including SEQ_FIRSTRUN_REQUIREAPIKEYFORWRITINGEVENTS on the
+# prefix Seq does read, so this file CANNOT ship it fail-closed; it is a step in
+# log-sink.md §3, and a step is something an operator can skip. The runbook's §4 carries the row
+# that measures it at the box, and until that row is dated the sentence above states an intent
+# rather than a control — which is the #1198 shape, one layer up.
+#
+# `${SEQ_ADMIN_PASSWORD:-}` USES `:-` AND NOT `:?`, AND THE DIFFERENCE IS THE WHOLE BOX. Every
+# other credential here is a hard `:?` because compose should refuse to start without it. Not
+# this one: `jobbliggaren-reconcile.sh` runs `compose up -d` hourly, and a `:?` on a value the
+# box's `.env` does not yet carry makes compose refuse the ENTIRE apply — every service, every
+# hour, with `systemctl --failed` as the only signal. With `:-` the seq container alone fails,
+# and it fails with Seq's own diagnostic, which is greppable. The compose header makes the same
+# argument about hard requirements; this is that argument applied.
+x-app-seq: &app-seq
+  Seq__ServerUrl: ${SEQ_SERVER_URL:-}
+  Seq__ApiKey: ${SEQ_INGEST_API_KEY:-}
+  Seq__MinimumLevel: ${SEQ_MINIMUM_LEVEL:-Information}
+
 services:
 
   # ==============================================================
@@ -261,7 +315,7 @@ services:
     image: ghcr.io/klasolsson81/jobbliggaren-api:${IMAGE_TAG:-latest}
     container_name: jobbliggaren-api
     environment:
-      <<: [*app-secrets, *app-connections, *app-email]
+      <<: [*app-secrets, *app-connections, *app-email, *app-seq]
       ASPNETCORE_ENVIRONMENT: Production
       # Capacity condition 2 (ADR 0050 Amendment 2026-08-04 §2). Real behaviour change
       # here: Microsoft.NET.Sdk.Web sets ServerGarbageCollection=true, and Workstation GC
@@ -316,7 +370,7 @@ services:
     image: ghcr.io/klasolsson81/jobbliggaren-worker:${IMAGE_TAG:-latest}
     container_name: jobbliggaren-worker
     environment:
-      <<: [*app-secrets, *app-connections, *app-email]
+      <<: [*app-secrets, *app-connections, *app-email, *app-seq]
       # DOTNET_ENVIRONMENT, not ASPNETCORE_ENVIRONMENT, and the difference is load-bearing.
       # The Worker is a generic host (Host.CreateApplicationBuilder), which reads
       # DOTNET_ENVIRONMENT; ASPNETCORE_ENVIRONMENT is what a WebApplication reads, so on this
@@ -524,6 +578,73 @@ services:
     restart: unless-stopped
     networks: [stack]
 
+  # ==============================================================
+  # Structured log sink — #1175 (B). Reachable ONLY on the internal network.
+  # ==============================================================
+  seq:
+    # BUMPING THIS TAG ALSO REQUIRES an edit to UPSTREAM_ALLOWLIST in
+    # deploy/systemd/jobbliggaren-reconcile.sh — the reconcile wrapper verifies our own
+    # images and skips only the upstream tags named there, so an unlisted tag refuses the
+    # whole apply, hourly, with no reader.
+    image: datalust/seq:2026.1
+    container_name: jobbliggaren-seq
+    # NO `ports:` KEY, AND ITS ABSENCE IS THE CONTROL. Not `127.0.0.1:5341:80` — that is the
+    # DEV compose file's shape and it would FAIL the gate here:
+    # `.github/scripts/compose-edge-publish-guard.sh` clause 1 is "exactly one service
+    # publishes, and nothing else does", and caddy is that one service. The two guards give
+    # opposite verdicts on the same engine, which the edge guard's own header records.
+    #
+    # AND THERE IS NO SSH TUNNEL EITHER, which an earlier draft of this comment asserted.
+    # This box runs `AllowTcpForwarding no` (vps-base-hardening.md §4.2's drop-in; measured
+    # effective on the box 2026-08-11 with `sshd -T`), so `ssh -L` in ANY address form is
+    # refused with "administratively prohibited" — the address was never the defect. What
+    # reaches an unpublished container is the box's own curl against the container IP.
+    # docs/runbooks/log-sink.md §3 owns the procedure and the measurement; do not restate
+    # the command here, because the last time it lived in two homes the two disagreed.
+    #
+    # That is also why #1198 cannot recur in this shape: there is no listener on a host
+    # interface to leave unauthenticated.
+    environment:
+      ACCEPT_EULA: "Y"
+      # Seq 2026.1 REFUSES TO START without either a first-run admin password or an explicit
+      # no-authentication opt-out — measured on the box 2026-08-11, exit 1 with
+      # "No default admin password was supplied". That fail-closed default is the structural
+      # repair for #1198's class, where a Seq sat unauthenticated for months while the compose
+      # file's own comment vouched for it. Do not add SEQ_FIRSTRUN_NOAUTHENTICATION.
+      #
+      # Read ONLY on first run against an empty volume; later changes are made in Seq and this
+      # value stops being the source of truth. That is a real trap for the next operator and it
+      # is why the runbook says to change it in Seq rather than here.
+      SEQ_FIRSTRUN_ADMINPASSWORD: ${SEQ_ADMIN_PASSWORD:-}
+    volumes:
+      - seq_data:/data
+    # THE MEASURED CONFIGURATION, NOT A ROUNDED-UP ONE — and raising it is not the safe move
+    # it looks like. Seq sizes its own caches against what it measures as available memory,
+    # and under Docker the cgroup limit IS how it learns that, so a 1024m cap would be a
+    # DIFFERENT, UNMEASURED configuration in which the cache grows toward the higher target —
+    # a new unmeasured number rather than headroom. Datalust's published "3.5 GB for a light
+    # workload" is a recommendation and was falsified as a requirement by measuring instead.
+    # The figures and the command that regenerates them have ONE home, deliberately:
+    # docs/runbooks/log-sink.md §4. Repeating them here would mean a re-measurement under a
+    # different cap had to find this file too.
+    mem_limit: 512m
+    # memswap_limit == mem_limit here is CAPACITY HONESTY, NOT gate B-1. On api and worker the
+    # same line is partly a B-1 control, because those processes hold the master key in memory
+    # and zram is still RAM the key must not reach. Seq holds no key. Stated because a reader
+    # who generalises the api rationale to this service reasons from the wrong premise.
+    memswap_limit: 512m
+    # NO HEALTHCHECK, DELIBERATELY, AND THIS IS A GAP RATHER THAN A DECISION THAT IT NEEDS
+    # NONE. Nothing depends_on seq, so an unhealthy status blocks no start-up; and an
+    # unverified probe that fails would paint a permanent "unhealthy" on the box's surface,
+    # which is the always-lit-alarm failure this stack has repaired twice elsewhere. Seq
+    # exposes a health endpoint, but whether this image carries a client to call it was not
+    # measured. log-sink.md §4 carries the row that closes this.
+    security_opt:
+      - no-new-privileges:true
+    logging: *logging
+    restart: unless-stopped
+    networks: [stack]
+
 networks:
   stack:
     driver: bridge
@@ -542,3 +663,10 @@ volumes:
   caddy_config:
   postgres_data:
   redis_data:
+  # The sink's event store. It holds application events in PLAINTEXT on this box's disk —
+  # `UserId`, `CorrelationId`, IP addresses and whatever else a log statement carries — which
+  # is why it is enumerated in docs/runbooks/gdpr-processing-register.md alongside the
+  # json-file layer and the off-box hostlogs/ archive, and why Seq's own retention policy is
+  # the control that bounds its age. Deleting this volume destroys the searchable corpus and
+  # nothing else: the durable copy is the age-encrypted archive (#1175 (A)).
+  seq_data:

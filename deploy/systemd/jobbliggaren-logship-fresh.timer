@@ -1,0 +1,23 @@
+[Unit]
+# #1175 (A) — drives the staleness probe (see jobbliggaren-logship-fresh.service).
+Description=Jobbliggaren: periodic check that the off-box log archive is not stale
+Documentation=https://github.com/klasolsson81/jobbliggaren/blob/main/docs/runbooks/log-sink.md
+
+[Timer]
+# Twenty-five minutes after boot, then hourly. The boot offset is five minutes later than
+# jobbliggaren-backup-fresh's so the two probes do not report in the same minute; nothing depends
+# on the ordering.
+#
+# OnCalendar, NOT OnUnitActiveSec: OnUnitActiveSec= measures from the moment the triggered unit
+# became ACTIVE, and a Type=oneshot unit never is (systemd#21600) — the defect this repo already
+# repaired in jobbliggaren-secrets-present.timer. The wrong spelling would neither re-fire nor
+# clear.
+OnBootSec=25min
+OnCalendar=hourly
+
+# Deliberately NOT Persistent=true. "Is the archive stale right now" has no missed-run semantics,
+# and a catch-up firing would only duplicate the OnBootSec run.
+AccuracySec=1min
+
+[Install]
+WantedBy=timers.target

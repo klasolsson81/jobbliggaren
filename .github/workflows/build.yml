@@ -355,13 +355,14 @@ jobs:
         run: |
           # A GLOB THAT MATCHES NOTHING PASSES VACUOUSLY, so the count is checked first: a
           # renamed directory would otherwise turn this gate into a green no-op that reads as
-          # coverage. TEN scripts, measured 2026-08-10 with `git ls-files` (was eight until #1201
-          # added the heartbeat and its fixture suite); the floor is a floor and not an equality,
-          # so adding one does not fail the build for the wrong reason — but it is RAISED when
-          # scripts land, or the gate silently stops noticing that some went missing.
+          # coverage. TWELVE scripts, measured 2026-08-11 with `git ls-files` (was eight until
+          # #1201 added the heartbeat and its fixture suite, then ten until #1175 added logship
+          # and its own); the floor is a floor and not an equality, so adding one does not fail
+          # the build for the wrong reason — but it is RAISED when scripts land, or the gate
+          # silently stops noticing that some went missing.
           n=$(git ls-files 'deploy/systemd/*.sh' | wc -l)
-          if [ "$n" -lt 10 ]; then
-            echo "::error::found only $n scripts under deploy/systemd — expected at least 10."
+          if [ "$n" -lt 12 ]; then
+            echo "::error::found only $n scripts under deploy/systemd — expected at least 12."
             echo "If one was legitimately removed, lower the floor in this step deliberately."
             exit 1
           fi
@@ -464,6 +465,31 @@ jobs:
         run: bash deploy/systemd/jobbliggaren-heartbeat.test.sh
         env:
           JBL_REQUIRE_SCRATCH_PATH: "1"
+
+      # Off-box-arkivet (#1175 (A)). Sviten stubbar `journalctl`, `age`, `rclone` och `docker`
+      # på en PATH byggd från grunden — ingen root, ingen daemon, inget nätverk.
+      #
+      # Fyra egenskaper här kan inte observeras av en grön produktionskörning:
+      #
+      #   1. KORREKTHETSSPINEN. `journalctl --cursor-file` skriver markören som en SIDOEFFEKT av
+      #      att läsa, så den naiva formen förlorar ett fönster vid varje misslyckad uppladdning
+      #      utan fel någonstans. T6 fäller det, och T7 är kontrafaktumet som gör T6 icke-vakuöst
+      #      — T6 ensam passerar även mot ett skript som aldrig skriver någon markör alls.
+      #   2. AUDIT-ROTATION. Det finns ingen markör för auditd, så rotation upptäcks på inode.
+      #      Missas den blir fönstret mellan förra offseten och rotationen aldrig skeppat — ett
+      #      hål exakt där en angripares spår skulle ligga.
+      #   3. CREDENTIAL-LÄCKAN. Den avkodade rclone-konfigen får aldrig nå journalen (T10).
+      #   4. DRIFT MOT #197. T12 jämför de tre delade literalerna mot `jobbliggaren-backup.sh`.
+      #      Den finns uteslutande för att fånga drift som uppstår SENARE, i en annan lane.
+      #
+      # JBL_REQUIRE_SIBLING_SCRIPTS: T12 skippar sig själv om syskonskriptet inte finns, och en
+      # annonserad skip är inte en mätning — samma grind och samma skäl som
+      # `JBL_REQUIRE_SCRATCH_PATH` ovan. Utan raden vore drift-detektorn tyst inert precis när
+      # syskonet döps om, vilket är det enda tillfälle den behövs.
+      - name: jobbliggaren-logship (fixturer)
+        run: bash deploy/systemd/jobbliggaren-logship.test.sh
+        env:
+          JBL_REQUIRE_SIBLING_SCRIPTS: "1"
 
       # Diagnostik, INGEN grind — och till skillnad från `git --version` ovan är det
       # INTE gratis: `docker compose version` avslutar 1 när plugin:et saknas

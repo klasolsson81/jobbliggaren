@@ -24,8 +24,8 @@
 | Mapping | — (manuell) | — | Ingen mapping-bibliotek; explicit DTO-mappning per CLAUDE.md §5 (AutoMapper/Mapster avvisade över domängränsen) |
 | Background jobs | Hangfire | 1.8.x | Postgres-storage |
 | Smart enum | Ardalis.SmartEnum | 8.x | State machines i domänen |
-| Logging | Microsoft.Extensions.Logging | 10.x | `Microsoft.Extensions.Logging.Console` → stdout + persistent strukturerad sink via Seq (dev levererad under TD-104/STEG 6; prod-sinken är OBYGGD — [#1175](https://github.com/klasolsson81/jobbliggaren/issues/1175)) |
-| Log sink | Seq.Extensions.Logging | 9.0.0 | MEL-provider → Seq (datalust); config-gated på `Seq:ServerUrl`; net9-asset .NET 10-kompatibel (MEL `>= 9` unifieras uppåt); dev lokal Seq, dev-sinken levererad under TD-104; prod Seq self-hosted EU är OBYGGD — [#1175](https://github.com/klasolsson81/jobbliggaren/issues/1175) |
+| Logging | Microsoft.Extensions.Logging | 10.x | `Microsoft.Extensions.Logging.Console` → stdout + persistent strukturerad sink via Seq (dev levererad under TD-104/STEG 6; prod-sinken **levererad i repot, ej installerad på lådan** — [#1175](https://github.com/klasolsson81/jobbliggaren/issues/1175), ADR 0128) |
+| Log sink | Seq.Extensions.Logging | 9.0.0 | MEL-provider → Seq (datalust); config-gated på `Seq:ServerUrl`; net9-asset .NET 10-kompatibel (MEL `>= 9` unifieras uppåt); dev lokal Seq. **Prod-topologin är namngiven sedan ADR 0128 och var tidigare bara "self-hosted EU":** `datalust/seq:2026.1` som compose-tjänst på produktionslådan (EU, Netcup), **utan publicerad port** — appen postar mot ingest-lyssnaren `5341`, aldrig UI/query-porten `80`. **Operatörsåtkomst är INTE en SSH-tunnel** — lådan kör `AllowTcpForwarding no` (mätt 2026-08-11), så drift sker headless via lådans egen `curl` mot container-IP:n; `docs/runbooks/log-sink.md` §3 äger proceduren. Kvar: install på lådan + verifikationsrader |
 | Observability | OpenTelemetry | 1.15+ | Traces + metrics. **Beroende-kandidat, obyggd** (ingen dom fälld — till skillnad från Catalyst-raden) — ingen `PackageReference` i något `.csproj`, ingen användning i `src/`; exporter/backend definieras med observability-sinken (§14.2, [#1175](https://github.com/klasolsson81/jobbliggaren/issues/1175)). `Directory.Packages.props` innehåller `OpenTelemetry.Api` + `.Exporter.OpenTelemetryProtocol` som **transitiva CVE-pins för WireMock.Net** (posternas egen kommentar), inte som en observability-implementation |
 | PDF parsing | PdfPig | 0.1.14+ | Text extraction |
 | DOCX parsing | DocumentFormat.OpenXml | 3.x | Microsoft-underhåll |
@@ -145,7 +145,7 @@
 | Frontend | `pnpm dev` (localhost:3000) | Next.js `next start` co-tenant container på CAX31 (bakom Caddy) |
 | DNS / CDN / proxy | — | Cloudflare gratis-tier "Full (strict)" framför Caddy-origin på CAX31 |
 | Backup | — | Nattlig klient-side-krypterad `pg_dump` → **mål inte valt, ägs av [#197](https://github.com/klasolsson81/jobbliggaren/issues/197)** (kraven i §13.4) |
-| Logging / monitoring | console (MEL) + Seq (`Seq.Extensions.Logging`) | Persistent strukturerad sink via Seq self-hosted EU (obyggd) — [#1175](https://github.com/klasolsson81/jobbliggaren/issues/1175) |
+| Logging / monitoring | console (MEL) + Seq (`Seq.Extensions.Logging`) | **Två mekanismer, inte en** (ADR 0128): Seq self-hosted på produktionslådan för sökbarhet (30 d retention — en policy som sätts för hand inne i Seq, det finns ingen miljövariabel för den), plus `jobbliggaren-logship` — timrad, `age`-krypterad off-box-arkivering av journal, auditd och app-loggar till OVH `hostlogs/`. Levererat i repot, ej installerat. Åldersgränsen för `json-file`-lagret är fortfarande öppen — [#1170](https://github.com/klasolsson81/jobbliggaren/issues/1170) |
 | Errors | — | Sentry (EU) planerat |
 | CI | GitHub Actions (build + test + coverage, inga moln-anrop) | oförändrat |
 | IaC | `infra/terraform/` bevarad som reversibilitets-mekanik (ADR 0066 Beslut 1) | retireras via egen ADR vid Hetzner-cutover |
@@ -1415,7 +1415,25 @@ permanent infra aktiveras; listan nedan speglar **beslutad** uppsättning, ADR 0
 ### 14.1 Logging
 
 - `Microsoft.Extensions.Logging` — strukturerad loggning; console (stdout) + Seq-sink
-- Sinks: console (stdout) + persistent strukturerad **Seq**-sink via `Seq.Extensions.Logging` (MEL-provider, config-gated på `Seq:ServerUrl`); dev lokal Seq (`localhost:5341`), dev-sinken levererad under TD-104; prod Seq self-hosted EU är OBYGGD — [#1175](https://github.com/klasolsson81/jobbliggaren/issues/1175)
+- Sinks: console (stdout) + persistent strukturerad **Seq**-sink via `Seq.Extensions.Logging` (MEL-provider, config-gated på `Seq:ServerUrl`); dev lokal Seq (`localhost:5341`), dev-sinken levererad under TD-104
+- **Prod är TVÅ mekanismer med olika ändamål, och de får inte läsas som en** (ADR 0128):
+  - **Sökbarhet** — Seq som compose-tjänst på produktionslådan, `mem_limit: 512m` (den **mätta**
+    konfigurationen — Seq dimensionerar sin cache mot cgroup-gränsen, så ett högre tak är en annan,
+    omätt konfiguration och inte marginal. Talen och instrumentet som återskapar dem har **ett**
+    hem: `docs/runbooks/log-sink.md` §4).
+    Ingen publicerad port; `Seq:ServerUrl` pekar på ingest-lyssnaren `5341`, vilket håller
+    query-API:t utanför appens **konfiguration**. **Det är inte nätverksisolering** — mätt
+    2026-08-11 når en syskoncontainer `seq:80` (200), eftersom containrar på samma user-defined
+    bridge når varandra som default. Det som faktiskt håller är att query-API:t på 80 svarar
+    **401** utan autentisering och att 5341 bär **404** på query-vägen: försvaret är autentisering,
+    inte topologi. Retention: en policy, 30 dagar.
+  - **Varaktighet** — `jobbliggaren-logship`, timrad off-box-arkivering krypterad med `age` till en
+    mottagare lådan inte kan dekryptera. Bär journal + auditd + app-loggar. Detta, och inte Seq, är
+    kopian som är avsedd att överleva en root-angripare — **och den egenskapen är inte i kraft**
+    förrän verifikationsrad 27d:s `Deny s3:DeleteObject` är applicerad.
+- **Tre lager håller app-events, och bara två är åldersbundna:** Seq (30 d), off-box-arkivet
+  (lifecycle-regel), och Dockers `json-file` som är **volymbunden och åldersobunden**
+  — [#1170](https://github.com/klasolsson81/jobbliggaren/issues/1170) stängs inte av detta
 - Log levels:
   - `Trace`/`Debug`: dev only
   - `Information`: normala request-flows (start/slut av handlers)
@@ -1441,8 +1459,19 @@ permanent infra aktiveras; listan nedan speglar **beslutad** uppsättning, ADR 0
 
 ### 14.4 Alerting
 
-Alarms (plattform med observability-sinken, [#1175](https://github.com/klasolsson81/jobbliggaren/issues/1175); larmen själva parkerade i [#1172](https://github.com/klasolsson81/jobbliggaren/issues/1172); extern uptime-monitor
-UptimeRobot/BetterStack free ersätter ALB/CloudWatch-health per ADR 0050):
+Alarms (plattform med observability-sinken, [#1175](https://github.com/klasolsson81/jobbliggaren/issues/1175); larmen själva parkerade i [#1172](https://github.com/klasolsson81/jobbliggaren/issues/1172)).
+
+⚠ **Den externa uptime-monitorn är INTE UptimeRobot eller BetterStack.** Den här raden namngav
+båda fram till 2026-08-11, och **ADR 0126 avvisade båda på jurisdiktion** — de är US-registrerade,
+och att välja någondera vore en supersession av ADR 0122:s "US-part ur kedjan", inte ett
+leverantörsval. Det som faktiskt kör är **Healthchecks.io** (SIA Monkey See Monkey Do, Lettland;
+Hetzner, Tyskland), som dead-man plus `/fail`-verb, installerad på lådan 2026-08-10
+([#1201](https://github.com/klasolsson81/jobbliggaren/issues/1201)). **"Installerad" är lådsidan,
+och expecter-sidan är ett eget led:** `host-detection.md` §7:s rader för expectern bär ännu inga
+datum. Att pingen når fram, att `/fail` sidar och att larmet självläker mättes vid expectern
+2026-08-11 under en verklig incident och är protokollfört på #1201 — dead-man-armen (D5) och
+nyttolastraden är fortfarande omätta. Larmen nedan är fortfarande parkerade och ingenting nedan är
+byggt:
 - Backend 5xx rate > 1% över 5 min → email
 - JobTech sync misslyckas 3 gånger i rad → email
 - Databas CPU > 80% i 10 min → email

@@ -48,6 +48,7 @@ readonly OURS_PREFIX="ghcr.io/klasolsson81/jobbliggaren-"
 readonly -a UPSTREAM_ALLOWLIST=(
   "postgres:18.3"
   "redis:8.6-alpine"
+  "datalust/seq:2026.1"
 )
 
 log() { printf '%s\n' "$*"; }

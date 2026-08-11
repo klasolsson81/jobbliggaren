@@ -9,15 +9,16 @@ import type { Metadata } from "next";
 // referrer "no-referrer". The Referer leg exists because
 // Referrer-Policy: strict-origin-when-cross-origin strips path+query only cross-origin,
 // and the edge persists unredacted Referer on 5xx (Caddy http.log.error) even with no
-// `log` directive. Discovery is SHAPE-based (a `token?:` searchParams declaration in the
-// page source), so a fourth token-carrying route is enforced automatically — it cannot
-// ship without these metadata legs, and it never needs to be added here by name.
+// `log` directive. Discovery is SHAPE-based and reaches exactly: pages at ANY depth
+// under (auth)/ whose source declares a `token?:` searchParam. A token route added in
+// another route group, or reading a token in another shape, is OUTSIDE this reach and
+// must extend the glob/shape when added — the limit is recorded on #706.
 
 vi.mock("next-intl/server", () => ({
   getTranslations: async () => () => "",
 }));
 
-const pageImporters = import.meta.glob("./*/page.tsx");
+const pageImporters = import.meta.glob("./**/page.tsx");
 
 const authDir = path.dirname(fileURLToPath(import.meta.url));
 

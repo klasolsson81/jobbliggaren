@@ -1,0 +1,65 @@
+[Unit]
+# #1175 (A) — the hourly encrypted off-box log archive. senior-cto-advisor bind 2026-08-10.
+#
+# WHAT IT PRODUCES: one artefact per stream per run, under the `hostlogs/` prefix of the existing
+# backup container. The host journal (incremental by journald cursor) and the audit log
+# (incremental by byte offset, with rotation detected). Both are gzipped, then age-encrypted to a
+# public recipient this box cannot decrypt, then streamed to the target. Nothing plaintext ever
+# reaches persistent disk: the working directory is /dev/shm.
+#
+# WHY IT IS A HOST UNIT AND NOT A COMPOSE SERVICE — the same argument jobbliggaren-backup.service
+# makes, and it applies unchanged. A container able to do this needs journalctl against the host
+# journal, age and rclone in one image: either a third-party image, which
+# jobbliggaren-reconcile.sh's UPSTREAM_ALLOWLIST exists to refuse, or a sixth image of our own
+# through release-images.yml with Trivy and attestation. Neither is proportionate. It would also
+# require editing deploy/docker-compose.yml, which cannot reach this box until #198's cutover —
+# so the host-unit shape is additionally what keeps this issue off that dependency.
+#
+# NO CREDENTIAL REACHES A CONTAINER. The upload credential lives on
+# /run/jobbliggaren/host-secrets, which — unlike /run/jobbliggaren/secrets — is bind-mounted
+# nowhere. An RCE in the API cannot read it.
+Description=Jobbliggaren: hourly encrypted off-box archive of the host log streams
+Documentation=https://github.com/klasolsson81/jobbliggaren/blob/main/docs/runbooks/host-detection.md
+# `docker.service` is ordered but NOT required. The app leg needs it; the journal and audit legs
+# do not, and they are the two carrying the forensic obligation. A hard `Requires=` would make a
+# docker failure suppress the archive of the very journal that would explain the docker failure.
+# The script degrades per leg instead, and says which one it skipped.
+After=docker.service network-online.target
+# Without this `Wants=`, the `After=` above is inert: ordering against network-online.target does
+# nothing unless something pulls the target into the transaction, and this unit uploads.
+Wants=network-online.target
+
+# THE SAME LATCHING TRAP jobbliggaren-backup.service DOCUMENTS, AND THE SAME REPAIR. The upload
+# credential lives on tmpfs and is gone after every boot until an operator re-injects it — this
+# box's designed operating model, not an edge case. Without this condition every hourly run
+# between a reboot and an injection would fail, and the unit would sit LATCHED in
+# `systemctl --failed` while the box was otherwise healthy. An alarm that is always lit trains
+# its reader to stop reading, which is the doctrine jobbliggaren-secrets-present.timer records.
+#
+# A failed Condition makes systemd SKIP the unit — inactive, logged, not failed. Nothing is lost:
+# a missing credential is separately alarmed, and a genuinely stopped archive is caught by
+# --check's freshness threshold.
+ConditionPathExists=/run/jobbliggaren/host-secrets/Backup__RcloneConfigBase64
+
+[Service]
+Type=oneshot
+
+# One process for the whole run. The lock (flock inside the script) has to span every leg,
+# because the journal cursor and the audit offset are both read-modify-write state. An
+# ExecStartPre-held lock would be released before ExecStart began — the defect
+# jobbliggaren-reconcile.service already carries the note about.
+ExecStart=/opt/jobbliggaren/deploy/systemd/jobbliggaren-logship.sh
+
+# Sized against the upload, not the extract. Well under the hourly period so a slow run cannot
+# still be holding the lock when the next one fires — that would surface as a spurious "another
+# run holds the lock" rather than as the slow uplink it actually is.
+TimeoutStartSec=1200
+
+# A failed hour self-heals on the next one, and nothing is lost: neither the journal cursor nor
+# the audit offset advances unless the ship succeeded, so the next run re-ships the same window.
+# Retrying here would hold the lock and bury the first, most informative failure under repeats.
+Restart=no
+
+# NO [Install] SECTION — the timer carries the only one, the same discipline as
+# jobbliggaren-reconcile.service and jobbliggaren-backup.service. `WantedBy=multi-user.target`
+# here would additionally ship at every boot as a side effect of enabling.

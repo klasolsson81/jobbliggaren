@@ -1,0 +1,31 @@
+[Unit]
+# #1175 (A) — drives the hourly log archive (see jobbliggaren-logship.service).
+Description=Jobbliggaren: hourly encrypted off-box log archive
+Documentation=https://github.com/klasolsson81/jobbliggaren/blob/main/docs/runbooks/host-detection.md
+
+[Timer]
+# Hourly at :17. Deliberately clear of the three jobs already on this box's clock: the reconcile
+# at :47, the heartbeat at every :00/:15/:30/:45, and the backup at 02:15 UTC.
+#
+# HOURLY RATHER THAN DAILY, AND THE CADENCE IS THE SECURITY PROPERTY. A daily archive leaves a
+# ~24 h window in which an attacker who reaches the box erases the journal and the audit log
+# before anything leaves. Hourly bounds that window to an hour and costs a few hundred KB of gzip
+# per run at this box's measured write rate (journal ~3.7 MB/day, audit ~3.4 MB/day, 2026-08-11).
+# The cadence is therefore not tuning — lengthening it lengthens the erasable window by the same
+# amount, and the verification row that measures the archive's freshness is written against it.
+OnCalendar=*:17
+
+# A box that was off at :17 archives on boot rather than skipping the window. The opposite choice
+# from jobbliggaren-heartbeat.timer, and for the opposite reason: "is the box well right now" has
+# no missed-run semantics, while a missed archive is a window of forensic record that no later
+# run replaces — the journal cursor does not move, so the entries are still there, but they sit
+# on the box in the meantime, which is exactly the exposure this unit exists to end.
+Persistent=true
+
+# Jitter costs nothing at N=1 boxes and keeps the unit honest if that ever stops being true. Note
+# this is why --check's threshold is 150 min and not 60: a probe set to the period alarms on
+# ordinary jitter, which is the mistake jobbliggaren-backup-fresh's 26 h note records.
+RandomizedDelaySec=120
+
+[Install]
+WantedBy=timers.target

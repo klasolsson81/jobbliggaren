@@ -1,0 +1,340 @@
+#!/usr/bin/env bash
+#
+# Fixture tests for jobbliggaren-logship.sh — #1175 (A), the off-box log archive.
+#
+# Run:  bash deploy/systemd/jobbliggaren-logship.test.sh
+#
+# WHY THIS EXISTS. The unit needs root, a real journal, an age recipient and a real object store,
+# and that is a real reason not to test the orchestration. It is not a reason to leave the
+# decisions untested, and three of them carry the whole blast radius:
+#
+#   1. THE CURSOR IS ONLY ADVANCED IF THE SHIP SUCCEEDED. This is the correctness spine of the
+#      whole design. `journalctl --cursor-file` writes the cursor as a SIDE EFFECT OF READING, so
+#      the naive shape — point it straight at the real cursor file — silently loses a window on
+#      every failed upload, with no error anywhere and nothing on the alarm surface. The script
+#      reads against a COPY and promotes it only after the ship returns 0. T6 makes rclone fail
+#      and asserts the real cursor is byte-identical afterwards; T7 is its counterfactual.
+#      Without both, T6 would pass against a script that never wrote a cursor at all.
+#   2. AUDIT ROTATION. There is no cursor for auditd, so the script tracks (inode, offset). If
+#      rotation is missed, the window between the last offset and the rotation is never shipped —
+#      a hole exactly where an attacker's traces would be. T8/T9 drive both arms.
+#   3. THE CREDENTIAL AND THE PRIVATE-KEY REFUSAL. The decoded rclone config is a credential; it
+#      must never reach the journal. And `age.recipient` is a TRACKED file — a private key landing
+#      there would be committed, so the runtime arm refuses it (T5).
+#
+# journalctl, age and rclone are stubbed on a from-scratch PATH: no root, no daemon, no network.
+# The script's absolute paths are rewritten into the fixture tree, exactly as
+# jobbliggaren-heartbeat.test.sh and jobbliggaren-reconcile.test.sh do; the logic is untouched.
+
+set -uo pipefail
+
+script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+readonly SUT="$script_dir/jobbliggaren-logship.sh"
+[ -f "$SUT" ] || { echo "missing script under test: $SUT" >&2; exit 1; }
+
+TMPROOT=$(mktemp -d)
+readonly TMPROOT
+trap 'rm -rf "$TMPROOT"' EXIT
+readonly BIN="$TMPROOT/bin"
+mkdir -p "$BIN"
+
+pass=0
+fail=0
+# Real tools this run had to substitute. Reported in the summary: a green run that stubbed a real
+# dependency has measured less than a green run that did not, and the difference must be visible
+# rather than inferred from the platform.
+STUBBED_REAL_TOOLS=""
+
+# A credential distinctive enough that its appearance anywhere in the script's output is
+# unmistakable. T10 greps for this exact token.
+readonly TEST_SECRET_TOKEN="RCLONE-SECRET-CANARY-7b21"
+readonly TEST_RECIPIENT="age1canaryrecipient000000000000000000000000000000000000000000000"
+
+readonly FIXTURE_SUT="$TMPROOT/logship.sh"
+
+prepare_sut() {
+  # Rewrite every absolute path into the fixture tree. The mktemp line is rewritten too: the SUT
+  # materialises the decoded credential on /dev/shm deliberately (tmpfs, never persistent disk),
+  # and that property is asserted separately in T11 by grepping the SOURCE — rewriting it here
+  # would make T11 vacuous if it read the fixture instead.
+  sed -e "s#^readonly HOST_SECRETS_DIR=.*#readonly HOST_SECRETS_DIR=$TMPROOT/host-secrets#" \
+      -e "s#^readonly CREDENTIAL_FILE=.*#readonly CREDENTIAL_FILE=$TMPROOT/host-secrets/Backup__RcloneConfigBase64#" \
+      -e "s#^readonly RECIPIENT_FILE=.*#readonly RECIPIENT_FILE=$TMPROOT/age.recipient#" \
+      -e "s#^readonly STATE_DIR=.*#readonly STATE_DIR=$TMPROOT/state#" \
+      -e "s#^readonly STAMP_FILE=.*#readonly STAMP_FILE=\"$TMPROOT/state/last-successful-logship\"#" \
+      -e "s#^readonly JOURNAL_CURSOR_FILE=.*#readonly JOURNAL_CURSOR_FILE=\"$TMPROOT/state/logship.journal-cursor\"#" \
+      -e "s#^readonly AUDIT_STATE_FILE=.*#readonly AUDIT_STATE_FILE=\"$TMPROOT/state/logship.audit-offset\"#" \
+      -e "s#^readonly LOCK_FILE=.*#readonly LOCK_FILE=$TMPROOT/logship.lock#" \
+      -e "s#^readonly AUDIT_LOG=.*#readonly AUDIT_LOG=$TMPROOT/audit/audit.log#" \
+      -e "s#mktemp -d /dev/shm/logship.XXXXXX#mktemp -d $TMPROOT/work.XXXXXX#" \
+      "$SUT" >"$FIXTURE_SUT"
+  chmod +x "$FIXTURE_SUT"
+}
+
+reset_fixture() {
+  rm -rf "$TMPROOT/state" "$TMPROOT/host-secrets" "$TMPROOT/audit" "$TMPROOT/remote" \
+         "$TMPROOT/containers" "$TMPROOT/age.recipient" "$TMPROOT"/work.* \
+         "$TMPROOT/logship.lock" 2>/dev/null
+  mkdir -p "$TMPROOT/state" "$TMPROOT/host-secrets" "$TMPROOT/audit" "$TMPROOT/remote" \
+           "$TMPROOT/containers"
+  printf '%s\n' "$TEST_RECIPIENT" >"$TMPROOT/age.recipient"
+  # The credential is base64 of an rclone config, exactly as the real injection produces.
+  printf '[jbl-backup]\ntype = s3\nsecret_access_key = %s\n' "$TEST_SECRET_TOKEN" \
+    | base64 -w0 >"$TMPROOT/host-secrets/Backup__RcloneConfigBase64" 2>/dev/null \
+    || printf '[jbl-backup]\ntype = s3\nsecret_access_key = %s\n' "$TEST_SECRET_TOKEN" \
+       | base64 >"$TMPROOT/host-secrets/Backup__RcloneConfigBase64"
+  : >"$TMPROOT/journal-entries"
+  : >"$TMPROOT/rclone-fail"
+}
+
+# --- stubs -------------------------------------------------------------------------------------
+write_stubs() {
+  # journalctl honours --cursor-file the way the real one does: it reads the cursor, emits only
+  # what the fixture says is new, and WRITES THE NEW CURSOR AS A SIDE EFFECT OF READING. That
+  # side effect is the entire reason T6 exists, so a stub that skipped it would make the suite
+  # unable to observe the defect it is written to catch.
+  cat >"$BIN/journalctl" <<STUB
+#!/usr/bin/env bash
+cursor_file=""
+for a in "\$@"; do
+  case "\$a" in --cursor-file=*) cursor_file="\${a#--cursor-file=}" ;; esac
+done
+cat "$TMPROOT/journal-entries"
+[ -n "\$cursor_file" ] && printf 's=cursor-after-%s\n' "\$(date -u +%s%N)" >"\$cursor_file"
+exit 0
+STUB
+
+  cat >"$BIN/age" <<'STUB'
+#!/usr/bin/env bash
+# Pass-through with a marker, so the artefact reaching rclone is provably post-age.
+printf 'AGE-ENVELOPE-BEGIN\n'
+cat
+exit 0
+STUB
+
+  # rclone rcat writes the object into the fixture "remote" so a test can assert what arrived,
+  # and fails when the fixture flag file is non-empty so T6 can drive the failure arm.
+  cat >"$BIN/rclone" <<STUB
+#!/usr/bin/env bash
+if [ -s "$TMPROOT/rclone-fail" ]; then
+  echo "rclone: simulated upload failure" >&2
+  cat >/dev/null
+  exit 1
+fi
+object=""
+for a in "\$@"; do object="\$a"; done
+mkdir -p "$TMPROOT/remote"
+cat >"$TMPROOT/remote/\$(basename "\$object")"
+exit 0
+STUB
+
+  # docker: `inspect` decides whether a container is considered present, `logs` emits whatever the
+  # fixture put in the per-container file. Both read fixture files so a case sets state without
+  # rewriting the stub.
+  cat >"$BIN/docker" <<STUB
+#!/usr/bin/env bash
+verb="\$1"; shift
+case "\$verb" in
+  inspect)
+    [ -f "$TMPROOT/containers/\$1" ] && exit 0 || exit 1 ;;
+  logs)
+    name=""
+    for a in "\$@"; do name="\$a"; done
+    [ -f "$TMPROOT/containers/\$name" ] && cat "$TMPROOT/containers/\$name"
+    exit 0 ;;
+esac
+exit 0
+STUB
+
+  chmod +x "$BIN/journalctl" "$BIN/age" "$BIN/rclone" "$BIN/docker"
+
+  # `flock` IS SUBSTITUTED ONLY WHERE THE REAL ONE IS ABSENT, AND THE SUITE SAYS SO. On CI (and
+  # any Linux) the real flock is used and the lock is genuinely exercised; on a workstation
+  # without it — Git Bash on Windows has none, measured 2026-08-11 — a permissive stub stands in.
+  #
+  # This is written as a conditional rather than an unconditional stub because of what happened
+  # when it was not there: the script died at its own tool check, and T6 ("a failed ship leaves
+  # the cursor untouched") PASSED VACUOUSLY, because nothing ran at all. A suite that substitutes
+  # silently reports an unmeasured run as a pass. T16 pins the lock at the source so the stub can
+  # never hide its removal.
+  if ! command -v flock >/dev/null 2>&1; then
+    printf '#!/usr/bin/env bash\nexit 0\n' >"$BIN/flock"
+    chmod +x "$BIN/flock"
+    STUBBED_REAL_TOOLS="${STUBBED_REAL_TOOLS}${STUBBED_REAL_TOOLS:+, }flock"
+  fi
+}
+
+run_sut() {
+  # A from-scratch PATH: the stubs first, then the real coreutils the script legitimately uses.
+  PATH="$BIN:/usr/bin:/bin" "$FIXTURE_SUT" "$@" 2>&1
+}
+
+check() {
+  local name="$1" condition="$2"
+  if [ "$condition" = "0" ]; then
+    pass=$((pass + 1)); printf '  PASS  %s\n' "$name"
+  else
+    fail=$((fail + 1)); printf '  FAIL  %s\n' "$name"
+  fi
+}
+
+prepare_sut
+write_stubs
+
+echo "jobbliggaren-logship.test.sh"
+echo
+
+# --- T1..T4: the --check freshness probe --------------------------------------------------------
+reset_fixture
+out=$(run_sut --check); rc=$?
+check "T1  --check with no stamp fails and says so" \
+  "$([ "$rc" -ne 0 ] && echo "$out" | grep -q 'never succeeded' && echo 0 || echo 1)"
+
+reset_fixture
+printf 'x\n' >"$TMPROOT/state/last-successful-logship"
+out=$(run_sut --check); rc=$?
+check "T2  --check with a fresh stamp passes" "$([ "$rc" -eq 0 ] && echo 0 || echo 1)"
+
+reset_fixture
+printf 'x\n' >"$TMPROOT/state/last-successful-logship"
+touch -d '4 hours ago' "$TMPROOT/state/last-successful-logship" 2>/dev/null \
+  || touch -t "$(date -d '4 hours ago' +%Y%m%d%H%M 2>/dev/null)" "$TMPROOT/state/last-successful-logship"
+out=$(run_sut --check); rc=$?
+check "T3  --check with a stale stamp fails" \
+  "$([ "$rc" -ne 0 ] && echo "$out" | grep -q 'over the' && echo 0 || echo 1)"
+
+# CROSSES THE CONTROL: a naive `age > MAX` comparison passes a future stamp, because a negative
+# age is not greater than the threshold. Only the explicit negative arm catches it, and a broken
+# clock or a tampered stamp is exactly how a stopped archive would hide.
+reset_fixture
+printf 'x\n' >"$TMPROOT/state/last-successful-logship"
+touch -d '2 hours' "$TMPROOT/state/last-successful-logship" 2>/dev/null \
+  || touch -t "$(date -d '+2 hours' +%Y%m%d%H%M 2>/dev/null)" "$TMPROOT/state/last-successful-logship"
+out=$(run_sut --check); rc=$?
+check "T4  --check refuses a stamp dated in the FUTURE" \
+  "$([ "$rc" -ne 0 ] && echo "$out" | grep -q 'future' && echo 0 || echo 1)"
+
+# --- T5: the private-key refusal ----------------------------------------------------------------
+reset_fixture
+printf 'AGE-SECRET-KEY-1CANARYPRIVATEKEY0000000000000000000000000000000\n' >"$TMPROOT/age.recipient"
+out=$(run_sut); rc=$?
+check "T5  a PRIVATE key in the recipient file is refused" \
+  "$([ "$rc" -ne 0 ] && echo "$out" | grep -q 'PRIVATE key' && echo 0 || echo 1)"
+
+# --- T6/T7: the correctness spine ---------------------------------------------------------------
+reset_fixture
+printf 'entry-one\n' >"$TMPROOT/journal-entries"
+printf 's=cursor-ORIGINAL\n' >"$TMPROOT/state/logship.journal-cursor"
+printf 'x\n' >"$TMPROOT/rclone-fail"
+out=$(run_sut); rc=$?
+after=$(cat "$TMPROOT/state/logship.journal-cursor")
+check "T6  a FAILED ship leaves the journal cursor untouched" \
+  "$([ "$rc" -ne 0 ] && [ "$after" = "s=cursor-ORIGINAL" ] && echo 0 || echo 1)"
+
+# T6's counterfactual. Without it T6 would also pass against a script that never advanced the
+# cursor at all — an inert guarantee, which is the failure class this repo keeps measuring.
+reset_fixture
+printf 'entry-one\n' >"$TMPROOT/journal-entries"
+printf 's=cursor-ORIGINAL\n' >"$TMPROOT/state/logship.journal-cursor"
+out=$(run_sut); rc=$?
+after=$(cat "$TMPROOT/state/logship.journal-cursor")
+check "T7  a SUCCESSFUL ship DOES advance the journal cursor" \
+  "$([ "$rc" -eq 0 ] && [ "$after" != "s=cursor-ORIGINAL" ] && echo 0 || echo 1)"
+
+# --- T8/T9: audit rotation ----------------------------------------------------------------------
+# Rotation is signalled by a changed inode. The state names an inode that cannot be the current
+# one, so the script must ship from offset 0 rather than from the stale offset.
+reset_fixture
+printf 'audit-line-1\naudit-line-2\n' >"$TMPROOT/audit/audit.log"
+printf '999999999 5\n' >"$TMPROOT/state/logship.audit-offset"
+printf 'rotated-tail\n' >"$TMPROOT/audit/audit.log.1"
+out=$(run_sut); rc=$?
+check "T8  a changed inode is read as rotation and ships from offset 0" \
+  "$([ "$rc" -eq 0 ] && echo "$out" | grep -q 'rotation or first run' && echo 0 || echo 1)"
+
+check "T8b the just-rotated audit.log.1 is shipped too, not dropped" \
+  "$(ls "$TMPROOT/remote" 2>/dev/null | grep -q 'rotated' && echo 0 || echo 1)"
+
+# No new bytes: the script must not ship an empty artefact, but must still record state.
+reset_fixture
+printf 'audit-line-1\n' >"$TMPROOT/audit/audit.log"
+inode=$(stat -c '%i' "$TMPROOT/audit/audit.log")
+size=$(stat -c '%s' "$TMPROOT/audit/audit.log")
+printf '%s %s\n' "$inode" "$size" >"$TMPROOT/state/logship.audit-offset"
+out=$(run_sut); rc=$?
+check "T9  no new audit bytes ships no audit artefact" \
+  "$([ "$rc" -eq 0 ] && echo "$out" | grep -q 'no new bytes' && echo 0 || echo 1)"
+
+# --- T10: the credential must not reach the journal ---------------------------------------------
+reset_fixture
+printf 'entry-one\n' >"$TMPROOT/journal-entries"
+out=$(run_sut); rc=$?
+check "T10 the decoded credential never appears in the script's output" \
+  "$(echo "$out" | grep -q "$TEST_SECRET_TOKEN" && echo 1 || echo 0)"
+
+# --- T11: no plaintext credential on persistent disk --------------------------------------------
+# Asserted against the SOURCE, not the rewritten fixture — the fixture deliberately relocates the
+# working directory so the suite can run anywhere, which would make a fixture-side assertion
+# vacuous. This is the same reason the heartbeat suite pins its own paths at the source.
+check "T11 the working directory is on tmpfs (/dev/shm) in the SOURCE" \
+  "$(grep -q 'mktemp -d /dev/shm/logship' "$SUT" && echo 0 || echo 1)"
+
+# --- T12: the shared literals still match #197's -------------------------------------------------
+# The KEEP-IN-SYNC note in both files is prose; this is the instrument. If jobbliggaren-backup.sh
+# ever moves the credential path or the remote name, these two files diverge silently and this
+# archive stops shipping on a box where the backup still works.
+backup_sut="$script_dir/jobbliggaren-backup.sh"
+if [ -f "$backup_sut" ]; then
+  for literal in HOST_SECRETS_DIR CREDENTIAL_FILE RECIPIENT_FILE; do
+    a=$(grep -E "^readonly ${literal}=" "$SUT" | head -1 | sed 's/.*=//')
+    b=$(grep -E "^readonly ${literal}=" "$backup_sut" | head -1 | sed 's/.*=//')
+    check "T12 ${literal} matches jobbliggaren-backup.sh" \
+      "$([ -n "$a" ] && [ "$a" = "$b" ] && echo 0 || echo 1)"
+  done
+  a=$(grep -E "^readonly LOGSHIP_REMOTE=" "$SUT" | head -1 | sed 's/.*=//')
+  b=$(grep -E "^readonly BACKUP_REMOTE=" "$backup_sut" | head -1 | sed 's/.*=//')
+  check "T12 the remote matches jobbliggaren-backup.sh's" \
+    "$([ -n "$a" ] && [ "$a" = "$b" ] && echo 0 || echo 1)"
+else
+  echo "  SKIP  T12 jobbliggaren-backup.sh not found"
+fi
+
+# --- T13/T14: the app leg ------------------------------------------------------------------------
+reset_fixture
+printf 'api line one\n' >"$TMPROOT/containers/jobbliggaren-api"
+out=$(run_sut); rc=$?
+check "T13 container output is shipped as its own artefact" \
+  "$([ "$rc" -eq 0 ] && ls "$TMPROOT/remote" 2>/dev/null | grep -q '^app-' && echo 0 || echo 1)"
+
+# CROSSES THE CONTROL: the extract is never empty — the script writes a `===== name =====` header
+# per running container before reading any logs. A naive `[ -s "$file" ]` therefore ships a
+# header-only artefact every single hour, forever. Only the `grep -qv '^===== '` arm sees it.
+reset_fixture
+: >"$TMPROOT/containers/jobbliggaren-api"
+out=$(run_sut); rc=$?
+check "T14 a header-only app extract is NOT shipped" \
+  "$([ "$rc" -eq 0 ] && echo "$out" | grep -q 'no container output' \
+     && ! ls "$TMPROOT/remote" 2>/dev/null | grep -q '^app-' && echo 0 || echo 1)"
+
+# --- T15: the sunset condition is a WHERE, not an IF ----------------------------------------------
+# The original bind's sunset rule ("remove the app leg when (B) lands") was falsified on
+# 2026-08-11: if (B) is box-local, this leg is the only off-box copy and removing it deletes the
+# durable record. That correction lives in prose, so this is the instrument that stops a future
+# edit from quietly restoring the unconditional form.
+check "T15 the app leg's sunset condition is qualified by OFF-BOX, not by (B) existing" \
+  "$(grep -q 'ONLY IF (B) holds the app-log stream OFF-BOX' "$SUT" && echo 0 || echo 1)"
+
+# --- T16: the lock exists at the source -----------------------------------------------------------
+# The flock stub above is permissive where the real tool is absent, so a run on such a host cannot
+# observe the lock. This pin is what stops that substitution from hiding the lock's removal: it
+# reads the SOURCE, not the fixture, and it is the reason the stub is allowed to be permissive.
+check "T16 the script takes an exclusive lock spanning the whole run" \
+  "$(grep -q 'flock -n 9' "$SUT" && echo 0 || echo 1)"
+
+echo
+if [ -n "$STUBBED_REAL_TOOLS" ]; then
+  printf 'NOTE: this run SUBSTITUTED real tools: %s\n' "$STUBBED_REAL_TOOLS"
+  printf '      Those behaviours are NOT measured here. CI has them and does measure them.\n'
+fi
+printf '%d passed, %d failed\n' "$pass" "$fail"
+[ "$fail" -eq 0 ]

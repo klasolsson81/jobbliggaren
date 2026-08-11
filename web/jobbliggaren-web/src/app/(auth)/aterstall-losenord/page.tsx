@@ -15,8 +15,10 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
   // The URL's query carries the token, and Referrer-Policy: strict-origin-when-cross-origin strips
   // path+query only CROSS-origin — a same-origin navigation would send the whole URL, token included.
-  // Nothing persists it today (the Caddyfile declares no `log` and Caddy v2 logs no access by
-  // default), but "no-referrer" makes that a property of this page rather than of the edge config.
+  // The edge CAN persist it: no access log is configured, but Caddy's default http.log.error logger
+  // emits the request line with unredacted Referer on 5xx even with no `log` directive (measured
+  // 2026-08-11, PR #1313) — "no-referrer" makes the absence of the leak a property of this page
+  // rather than of the edge config.
   referrer: "no-referrer",
 };
 

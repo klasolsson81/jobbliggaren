@@ -558,11 +558,11 @@ dotnet build
 # Kör alla tester (kan vara fragilt på solution-nivå — kör test-projekt direkt vid behov)
 dotnet test
 
-# Specifika test-suiter
-dotnet test tests/Jobbliggaren.Domain.UnitTests
-dotnet test tests/Jobbliggaren.Application.UnitTests
-dotnet test tests/Jobbliggaren.Api.IntegrationTests
-dotnet test --filter "Category=Architecture"
+# Specifika test-suiter (sökvägen MÅSTE gå via --project, se noten under blocket)
+dotnet test --project tests/Jobbliggaren.Domain.UnitTests
+dotnet test --project tests/Jobbliggaren.Application.UnitTests
+dotnet test --project tests/Jobbliggaren.Api.IntegrationTests
+dotnet test --project tests/Jobbliggaren.Architecture.Tests
 
 # Coverage (reproducerbar in-repo-mekanism, ADR 0044)
 bash scripts/coverage.sh          # Windows: scripts/coverage.ps1
@@ -576,6 +576,16 @@ dotnet ef migrations add <Name> --project src/Jobbliggaren.Infrastructure --star
 # Applicera migrations
 dotnet ef database update --project src/Jobbliggaren.Infrastructure --startup-project src/Jobbliggaren.Api
 ```
+
+**Testsuiterna kör på Microsoft.Testing.Platform, inte VSTest — och skillnaden är tyst.** En
+sökväg som skickas positionellt (projekt, katalog eller solution) och de VSTest-formade
+flaggorna `--filter`/`--nologo` avvisas som okända optioner, och **noll tester körs**:
+filterformen exitar **5** ("Zero tests ran"), en positionell sökväg exitar **1**, och båda
+lämnar en utskrift som ser normal ut i stället för något en operatör läser som ett fel. Välj
+ett projekt med `--project`, alla projekt med `--solution`, och en enskild klass eller metod
+**inuti** ett projekt genom att köra projektets byggda EXE (`-class` / `-method` /
+`-namespace`). **Beviset för att en svit har kört är raden `total:`, aldrig exitkoden** — som
+efter en pipe mäter pipen och inte verktyget.
 
 ### Frontend
 

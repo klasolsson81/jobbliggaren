@@ -513,11 +513,24 @@ stable components; E2E updated when critical flows change. Test premises follow
 §5 `Tests:`.
 
 ```bash
-dotnet test                                  # backend
+dotnet test                                     # backend (every test project)
 cd web/jobbliggaren-web && pnpm test            # frontend
 cd web/jobbliggaren-web && pnpm playwright test # E2E
-dotnet test --filter "Category=Architecture" # architecture
+dotnet test --project tests/Jobbliggaren.Architecture.Tests  # architecture
 ```
+
+**These suites run on Microsoft.Testing.Platform, not VSTest, and the difference
+is silent.** A path passed positionally — project, directory, or solution — and
+the VSTest-shaped `--filter`/`--nologo` flags are rejected as unknown options,
+and **zero tests run**: the filter form exits **5** ("Zero tests ran"), a
+positional path exits **1**, and both print a normal-looking summary rather than
+anything an operator reads as an error. Select one project with `--project`,
+every project with `--solution`, and a single class or method **inside** a
+project by running its built EXE (`-class` / `-method` / `-namespace`).
+**The proof that a suite ran is the `total:` line, never the exit code** — which
+after a pipe measures the pipe, not the tool. That is what §8 point 3 rests on:
+"architecture tests green" is a non-zero `total:` with `failed: 0`, and a run
+that selected nothing satisfies it only in appearance.
 
 ## 8. Definition of Done
 

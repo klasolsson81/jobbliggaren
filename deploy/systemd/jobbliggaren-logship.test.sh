@@ -85,6 +85,7 @@ reset_fixture() {
        | base64 >"$TMPROOT/host-secrets/Backup__RcloneConfigBase64"
   : >"$TMPROOT/journal-entries"
   : >"$TMPROOT/rclone-fail"
+  : >"$TMPROOT/journal-fail"
 }
 
 # --- stubs -------------------------------------------------------------------------------------
@@ -99,6 +100,10 @@ cursor_file=""
 for a in "\$@"; do
   case "\$a" in --cursor-file=*) cursor_file="\${a#--cursor-file=}" ;; esac
 done
+if [ -s "$TMPROOT/journal-fail" ]; then
+  echo "journalctl: simulated read failure" >&2
+  exit 1
+fi
 cat "$TMPROOT/journal-entries"
 [ -n "\$cursor_file" ] && printf 's=cursor-after-%s\n' "\$(date -u +%s%N)" >"\$cursor_file"
 exit 0
@@ -269,8 +274,11 @@ check "T9  no new audit bytes ships no audit artefact" \
 reset_fixture
 printf 'entry-one\n' >"$TMPROOT/journal-entries"
 out=$(run_sut); rc=$?
-check "T10 the decoded credential never appears in the script's output" \
-  "$(echo "$out" | grep -q "$TEST_SECRET_TOKEN" && echo 1 || echo 0)"
+# The `rc -eq 0` half is not decoration: without it every EARLY death passes this test, because a
+# script that never decoded the credential trivially never printed it. That is the same vacuous
+# shape T6 was rescued from, one file over — and it was found by an auditor, not by this suite.
+check "T10 the run succeeds AND the decoded credential never appears in its output" \
+  "$([ "$rc" -eq 0 ] && ! echo "$out" | grep -q "$TEST_SECRET_TOKEN" && echo 0 || echo 1)"
 
 # --- T11: no plaintext credential on persistent disk --------------------------------------------
 # Asserted against the SOURCE, not the rewritten fixture — the fixture deliberately relocates the
@@ -295,6 +303,11 @@ if [ -f "$backup_sut" ]; then
   b=$(grep -E "^readonly BACKUP_REMOTE=" "$backup_sut" | head -1 | sed 's/.*=//')
   check "T12 the remote matches jobbliggaren-backup.sh's" \
     "$([ -n "$a" ] && [ "$a" = "$b" ] && echo 0 || echo 1)"
+elif [ -n "${JBL_REQUIRE_SIBLING_SCRIPTS:-}" ]; then
+  # An announced skip is not a measurement. T12 is the ONLY check binding this file to #197's,
+  # and the moment it matters is exactly the moment the sibling is renamed or moved — when a
+  # skip would go quiet instead of red. CI sets this; a workstation run may legitimately skip.
+  check "T12 jobbliggaren-backup.sh is present (JBL_REQUIRE_SIBLING_SCRIPTS)" 1
 else
   echo "  SKIP  T12 jobbliggaren-backup.sh not found"
 fi
@@ -342,6 +355,25 @@ check "T15c the file instructs against restoring the unconditional form" \
 # reads the SOURCE, not the fixture, and it is the reason the stub is allowed to be permissive.
 check "T16 the script takes an exclusive lock spanning the whole run" \
   "$(grep -q 'flock -n 9' "$SUT" && echo 0 || echo 1)"
+
+# --- T17: a FAILED journal read is not an empty window ------------------------------------------
+# Both leave the extract empty, and the empty-window branch promotes the cursor and writes the
+# stamp. If they converge, a permanently broken journal leg is indistinguishable from a quiet box
+# on every surface this mechanism feeds: the stamp is fresh, --check is green, systemctl --failed
+# is empty and the dead-man stays silent. All three assertions are needed — the exit code alone
+# would also pass against a script that died for some earlier reason.
+reset_fixture
+printf 'entry-one
+' >"$TMPROOT/journal-entries"
+printf 's=cursor-ORIGINAL
+' >"$TMPROOT/state/logship.journal-cursor"
+printf 'x
+' >"$TMPROOT/journal-fail"
+out=$(run_sut); rc=$?
+after=$(cat "$TMPROOT/state/logship.journal-cursor")
+check "T17 a failed journal read dies, keeps the cursor and writes no stamp"   "$([ "$rc" -ne 0 ] && [ "$after" = "s=cursor-ORIGINAL" ]      && [ ! -f "$TMPROOT/state/last-successful-logship" ] && echo 0 || echo 1)"
+
+check "T17b the failure names journalctl rather than reporting an empty window"   "$(echo "$out" | grep -q 'journalctl exited' && echo 0 || echo 1)"
 
 echo
 if [ -n "$STUBBED_REAL_TOOLS" ]; then

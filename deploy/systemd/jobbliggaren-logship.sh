@@ -141,6 +141,12 @@ flock -n 9 || die "another jobbliggaren-logship run holds ${LOCK_FILE}"
 
 run_stamp=$(date -u +%Y%m%dT%H%M%SZ)
 readonly run_stamp
+# The run's START, kept because the stamp's mtime is what the app leg anchors its next window on.
+# Stamping the finish time would open a hole the length of the upload: entries written while this
+# run was uploading fall after the previous read and before the recorded time, so no artefact
+# would ever carry them.
+run_epoch=$(date -u +%s)
+readonly run_epoch
 
 # Working state on tmpfs. The rclone config is a credential and must not touch persistent disk;
 # gate B-1 forbids a disk swap file for the same class of reason, so materialising a credential
@@ -175,11 +181,12 @@ ship() {
   local local_file="$1" remote_basename="$2" object rc
   object="${LOGSHIP_REMOTE}/${REMOTE_PREFIX}/${remote_basename}"
 
-  gzip -c "$local_file" \
+  # The pipeline runs inside `if !` so `errexit` does not fell the shell at the pipe itself —
+  # as a bare statement it would, and everything below here would be unreachable.
+  if ! { gzip -c "$local_file" \
     | age -r "$recipient" \
-    | rclone rcat "${RCLONE_FLAGS[@]}" "$object"
-  rc=("${PIPESTATUS[@]}")
-  if [[ "${rc[0]}" -ne 0 || "${rc[1]}" -ne 0 || "${rc[2]}" -ne 0 ]]; then
+    | rclone rcat "${RCLONE_FLAGS[@]}" "$object"; }; then
+    rc=("${PIPESTATUS[@]}")
     die "shipping ${remote_basename} failed (gzip=${rc[0]} age=${rc[1]} rclone=${rc[2]}).
 No stamp is written and no cursor is advanced, so the next run re-ships this window."
   fi
@@ -211,7 +218,15 @@ fi
 # `-o export` is the serialisation format journald itself defines for transfer: it preserves every
 # field, including the ones `-o short` drops. `--no-pager` because a pager under systemd would
 # hang the unit until TimeoutStartSec.
-journalctl --cursor-file="$journal_cursor_new" --no-pager -o export > "$journal_extract" || true
+# An empty window and a FAILED read must not converge on the same branch: both leave the extract
+# empty, and the empty-window branch promotes the cursor and writes the stamp. A permanently
+# broken journal leg would then be indistinguishable from a quiet box on every surface this
+# mechanism exists to feed.
+journal_rc=0
+journalctl --cursor-file="$journal_cursor_new" --no-pager -o export > "$journal_extract" \
+  || journal_rc=$?
+[[ "$journal_rc" -eq 0 ]] || die "journalctl exited ${journal_rc}. No cursor is promoted and no
+stamp is written, so the next run re-reads this window."
 
 if [[ -s "$journal_extract" ]]; then
   ship "$journal_extract" "journal-${run_stamp}.export.gz.age"
@@ -368,5 +383,8 @@ fi
 install -d -m 0755 "$STATE_DIR"
 printf '%s\n' "$run_stamp" > "$STAMP_FILE"
 chmod 0644 "$STAMP_FILE"
+# Backdate to the run's start — see run_epoch. `--check` stays correct because a start time is
+# conservative in the direction that matters: it can report stale early, never fresh late.
+touch -d "@${run_epoch}" "$STAMP_FILE"
 
 log "run ${run_stamp} complete; ${shipped} artefact(s) shipped to ${REMOTE_PREFIX}/"

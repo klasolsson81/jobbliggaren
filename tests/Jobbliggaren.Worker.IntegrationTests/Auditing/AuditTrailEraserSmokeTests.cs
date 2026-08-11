@@ -12,9 +12,6 @@ namespace Jobbliggaren.Worker.IntegrationTests.Auditing;
 /// End-to-end smoke-test för <see cref="IAuditTrailEraser"/> mot riktig
 /// Postgres (Testcontainers). Verifierar GDPR Art. 17-anonymiseringspolicyn
 /// per ADR 0022 + ADR 0024 D3.
-///
-/// Märkt <c>[Trait("Category", "SmokeTest")]</c> — körs INTE i default
-/// <c>dotnet test</c>. Kör explicit: <c>dotnet test --filter "Category=SmokeTest"</c>.
 /// </summary>
 [Collection("Worker")]
 [Trait("Category", "SmokeTest")]

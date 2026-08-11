@@ -29,8 +29,6 @@ namespace Jobbliggaren.Worker.IntegrationTests.Auth;
 /// Postgres + AspNet Identity (Testcontainers). Verifierar 3-stegs-algoritmen
 /// per ADR 0024 D6: orphan-cleanup → hämta mogna → cascade hard-delete +
 /// audit-anonymisering + Identity-DELETE.
-///
-/// Märkt <c>[Trait("Category", "SmokeTest")]</c>.
 /// </summary>
 [Collection("Worker")]
 [Trait("Category", "SmokeTest")]

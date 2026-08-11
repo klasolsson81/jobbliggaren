@@ -158,7 +158,9 @@ silently ignored — so it cannot be shipped fail-closed in compose and has to b
 curl -s -b /tmp/seq.jar -H 'Content-Type: application/json' -H "X-Seq-CsrfToken: $CSRF" -X PUT \
   -d '{"Name":"requireapikeyforwritingevents","Value":true,"Id":"setting-requireapikeyforwritingevents"}' \
   "http://$SEQ_IP/api/settings/setting-requireapikeyforwritingevents"
-# expect: "Value":true — a PUT carrying only Id+Value answers 500, the full object answers 200
+# expect: "Value":true. A PUT carrying only Id+Value answers 500 — measured, and measured to be a
+# no-op: the stored value is unchanged afterwards, so a 500 here means "not applied", never
+# "half applied". Name+Value+Id is the form that was run.
 ```
 
 **6.** Create the INGEST-ONLY key and keep the token: it is shown once.

@@ -607,6 +607,18 @@ URL + date in the STOPP report.
 and senior-cto-advisor decides when it is genuinely ambiguous. What changed
 2026-08-02 is the alternative: **there is no TD register to raise anything into.**
 
+**The list below answers "where does what is not fixed go" — never "what should
+happen to a finding."** The default disposal is the fix itself; a destination is
+for the remainder, and choosing one is the exception that needs a reason.
+Measured 2026-08-10: in the eight days after the register retired the backlog
+grew +62 net (4.3 filed per closed; 48 of 60 new were `area:infra`, one was
+user-facing) — not because the rule was wrong but because this sentence was read
+as a router. **A session therefore leaves the backlog no larger than it found
+it** — issues filed ≤ issues closed or fixed, per session — **except for genuine
+defects in delivered code**, which are always recorded. The cap binds filing,
+never closing: an issue closes only per Filing discipline below, never to buy
+filing room.
+
 **Severity belongs to the agent that reported the finding, and §9.6 does not define it.**
 Each mandatory agent grades in its own charter's scale — `code-reviewer` and
 `design-reviewer` and `security-auditor` each define Blocker/Major/Minor for their own

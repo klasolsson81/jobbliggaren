@@ -574,6 +574,7 @@ operativt av TD-102 (master-nyckel), TD-106 (stack/härdning), TD-107 (backup).
 | **M-7** | **Detektionsförmåga** — grinden ställs på **skyldighet, inte mekanism**. Rättslig grund (satt av security-auditor, som äger fyndet — en tidigare version av denna rad skrev om grunden och försvagade den): **Art. 32(1)(b) + Art. 33 läst med Recital 87**, som uttryckligen kräver åtgärder för att *"establish immediately whether a personal data breach has taken place"* — detektionsplikten läses alltså in i anmälningsregimen, Art. 33 är inte bara följden. **Art. 5(2)** (accountability) bär kravet att förmågan ska vara **visbar**. *(Art. 32(1)(d) gäller återkommande testning och utvärdering av åtgärderna — pentest och kontrollutvärdering — och är inte grunden för detektionsförmågan.)* Utan den är ADR 0123:s scope-gräns overkställbar (lokal ADR; `Amendment 2026-08-04` §6b bär skälet i sin helhet) | **Major** (satt av security-auditor 2026-08-04) — **blir Blocker om ADR 0123 fortfarande är obeviljad eller omitigerad vid första riktiga data**: acceptansens utgångsvillkor vilar då på en detektionsförmåga som inte finns | [#1201](https://github.com/klasolsson81/jobbliggaren/issues/1201) — **värd-detektion + alerting ägs av [#196](https://github.com/klasolsson81/jobbliggaren/issues/196), nyckelåtkomst-detektion av [#198](https://github.com/klasolsson81/jobbliggaren/issues/198)** |
 | M-1 | ADR 0050 KMS-blocker-prosa amenderad → TD-102-omframing | Major | **Åtgärdad denna amendment** |
 | M-2 | ADR 0049-amendment: self-managed master-nyckels prod-skyddsmodell + accepterad minne-restrisk + namngiven skala-trigger för extern KV/HSM | Major | [#198](https://github.com/klasolsson81/jobbliggaren/issues/198) (f.d. TD-102, ADR 0049-amendment-scope) |
+| *(ID sätts av security-auditor i PR-granskningen)* | **Access-loggning för token-bärande e-postlänk-rutter** (`/bekrafta-epost`, `/bekrafta-konto`, `/aterstall-losenord`): EU-residens + query-string-scrubbing + definierad retention, inkl. Referer-ledet — normativ spec i `Amendment 2026-08-11` | **Minor** (ärvd: security-auditor 2026-07-06, #679 FE-granskningen, eskalerad till Klas) — **blir Blocker om:** *"prod access-logging for this route captures AND retains the query-string in a non-EU or over-retention sink"* (#706, verbatim) | [#706](https://github.com/klasolsson81/jobbliggaren/issues/706) — **kvarstår ÖPPEN tills en accesslogg som uppfyller specen finns** (spec levererad = schemaläggning, inte stängbart faktum) |
 
 > **Daterad not 2026-08-10 — M-7:s `Hemvist`-cell ovan är superseded, och grindraden i övrigt
 > är orörd.** Raden delar mekanismen i en värd-halva hos #196 och en nyckelåtkomst-halva hos
@@ -590,6 +591,13 @@ operativt av TD-102 (master-nyckel), TD-106 (stack/härdning), TD-107 (backup).
 > security-auditors (§9.6). Mekanismen är bunden 2026-08-10 (senior-cto-advisor) och bor i
 > `docs/runbooks/host-detection.md`; skyldighetssvaret som grindens första AC kräver är skrivet
 > där. **Grinden stängs på den runbookens verifikationsrader, inte på att mekanismen mergade.**
+
+> **Daterad not 2026-08-11 — access-loggnings-raden ovan är tillagd av #706-spec-sessionen,
+> och dess rad-ID är avsiktligt inte satt.** Tabellens prefix bär graden (B- = Blocker,
+> M- = Major); fyndet är security-auditors Minor (2026-07-06, #679), och ett myntat "M-8"
+> hade omgraderat det via namngivningskonventionen. ID och severity-cell sätts/bekräftas av
+> security-auditor i PR:en som inför raden (§9.6 — severity tillhör rapportören). Grinden i
+> övrigt specificeras i `Amendment 2026-08-11` nedan.
 
 **Obligatorisk re-review:** en andra security-auditor-granskning av den faktiska
 prod-konfigurationen (master-nyckel-injektion, backup-kryptering, TLS-topologi,
@@ -1259,6 +1267,78 @@ skäl att aldrig be Netcup öppna 587.
 bara *offline*-snapshots är konsistenta — och **en enda exportabel snapshot återstår**
 (mätt 2026-08-03). Primär rollback är image-tag-rollback (sekunder); snapshotens rätta
 roll är **före migreringar**, som en image-rollback inte kan ångra.
+
+## Amendment 2026-08-11 — #706 Part 2: token-bärande e-postlänkar i access-loggens query-sträng
+
+**Proveniens.** Fyndet är security-auditors (Minor, 2026-07-06, #679 FE-granskningen,
+eskalerad till Klas); leveransformen — spec här, implementation hos kant-ägaren —
+adjudicerades av senior-cto-advisor 2026-08-11. DPIA Part 1 registrerades 2026-07-11 som
+lokal forskningsnot (`docs/research/`, ADR 0072); den noten föreskrev själv att regeln viks
+in i värd-ADR:n när värden är vald, vilket skedde i `Amendment 2026-08-04` §1 (Netcup,
+Nürnberg, EU). Rad-ID och severity i grindtabellen är security-auditors att sätta (§9.6).
+
+**Ytan — tre rutter, en namngiven icke-risk.** Tre FE-rutter bär mejlade hemligheter i
+query-strängen; alla tre sätter `robots: noindex`, ingen strippar queryn efter konsumtion:
+
+| Rutt | Query-params | Generator (metod i `EmailTemplates`) | Token-semantik |
+|---|---|---|---|
+| `/bekrafta-epost` | `uid`, `email`, `token` | `EmailChangeConfirmation` | engångs (stämpelrotation), 24 h |
+| `/bekrafta-konto` | `uid`, `token` | `EmailConfirmation` | EJ engångs (avsiktligt idempotent dubbelklick), 24 h |
+| `/aterstall-losenord` | `uid`, `token` | `PasswordReset` | engångs, 60 min |
+
+`email`-parametern på `/bekrafta-epost` är den enda plats i kodbasen där en e-postadress
+förekommer i en URL. **Namngiven icke-risk:** `/auth/verify-email` är en backend-POST
+(`AuthEndpoints`) med `{uid, token}` i request-KROPPEN — request-raden bär ingen hemlighet,
+så accesslogg-exponeringen är noll. Skälet skrivs ut så att ingen läsare härleder om
+exponeringen ur endpointnamnet (rättar #734 punkt 4, som listade den som query-exponering).
+
+**Nuläge, mätt 2026-08-11.** (a) Ingen accesslogg existerar: `deploy/caddy/Caddyfile` bär
+noll `log`-direktiv (regenerera: `grep -cE '^\s*log\b' deploy/caddy/Caddyfile`), och Caddy
+v2 emitterar ingen per-site-accesslogg utan ett explicit direktiv. (b) Containerloggarna går
+till Dockers `json-file`-driver, som är volym-cappad men ålders-obunden
+(`deploy/docker-compose.yml`, `x-logging`-ankaret säger detta själv) — en lågtrafikrad kan
+ligga kvar obegränsat. (c) Daterad observation 2026-08-11: #1175/PR #1312 skeppar
+container-stdout, inklusive `jobbliggaren-caddy`, per timme till OVH `hostlogs/` utan
+redaktionssteg. I dag flödar inget token-bärande genom den vägen — enbart därför att (a) är
+sant, och (a) är en frånvaro, inte en garanti.
+
+**Normativ spec — vad ett framtida `log`-direktiv måste uppfylla.** Innan ett
+`log`-direktiv som täcker de tre rutterna landar i Caddyfilen ska konfigurationen uppfylla:
+
+- **G1 — EU-residens:** accessloggens hela lagringskedja (lokal fil/driver, skeppning,
+  sänka, arkiv) är EU-resident. Netcup-boxen är EU per `Amendment 2026-08-04` §1;
+  OVH-arkivets EU-region är #1175:s att belägga.
+- **G2 — query-string-scrubbing:** `token` och `email` når aldrig den lagrade
+  request-raden för de tre rutterna. Mekanismen är fri — kravet är resultatet. Caddys
+  dokumenterade mekanism är `query`-filtret med `delete`/`replace`/`hash` på `request>uri`
+  (caddyserver.com/docs/caddyfile/directives/log, läst 2026-08-11).
+- **G3 — definierad retention:** en beslutad tidsgräns för accessloggen. Siffran är Klas
+  att sätta; jfr [#1170](https://github.com/klasolsson81/jobbliggaren/issues/1170) för
+  app-loggen — ingen siffra uppfinns här.
+- **Referer-ledet:** query-scrubbing av request-raden ensam stänger inte exponeringen.
+  Verifierat mot Caddys dokumentation (caddyserver.com/docs/caddyfile/directives/log +
+  /docs/logging, lästa 2026-08-11): den strukturerade accessloggen emitterar requestens
+  headers som en `headers`-map, och default-redaktionen (`log_credentials`-grinden) täcker
+  exakt `Cookie`/`Set-Cookie`/`Authorization`/`Proxy-Authorization` — **`Referer` är inte
+  en av dem**. En same-origin-navigering från en token-bärande sida sänder hela URL:en i
+  `Referer` (`Referrer-Policy: strict-origin-when-cross-origin` strippar path+query enbart
+  cross-origin). Stängs på två ben: **sid-sidan** — `referrer: "no-referrer"`-metadata på
+  alla tre rutterna (`/aterstall-losenord` bär den sedan #1171; de två syskonen åtgärdas av
+  #706-spec-sessionen, i egen PR eller in-block per security-auditors gradering);
+  **kant-sidan** — ett framtida `log`-direktiv loggar inte `Referer` för dessa rutter
+  (header-filtren `delete`/`replace`/`hash` är dokumenterade på samma sida), eller
+  utelämnar headern helt.
+
+**Namngiven uppföljning.** En enrads-kommentar i `deploy/caddy/Caddyfile` som pekar på
+denna grind ägs av **nästa session som rör `deploy/`** — inte av #706-spec-sessionen
+(`deploy/` är Klas-reserverad; PR #1312 höll hotspotten 2026-08-11). Synligheten till dess
+bärs av grindraden, #706 (öppen) och de daterade kommentarerna på PR #1312/#1175.
+
+**Vad denna amendment inte gör.** Inga `deploy/`-ändringar; `vps-deploy-stack.md` orörd;
+#706 stängs inte (spec levererad = schemaläggning, inte stängbart faktum — #734 punkt 4
+pekar på numret, och flip-till-Blocker-villkoret behöver ett öppet hem); DPIA-noten och
+ROPA-posten är lokala följeslagare (ADR 0072), där ROPA-posten uttryckligen är
+schemaläggning av en behandling som inte pågår.
 
 ## Relaterade beslut
 

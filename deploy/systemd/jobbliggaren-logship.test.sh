@@ -86,6 +86,7 @@ reset_fixture() {
   : >"$TMPROOT/journal-entries"
   : >"$TMPROOT/rclone-fail"
   : >"$TMPROOT/journal-fail"
+  : >"$TMPROOT/docker-fail"
 }
 
 # --- stubs -------------------------------------------------------------------------------------
@@ -156,6 +157,14 @@ case "\$verb" in
     name=""
     for a in "\$@"; do name="\$a"; done
     [ -f "$TMPROOT/containers/\$name" ] && cat "$TMPROOT/containers/\$name"
+    # A READ FAILURE, driven by a fixture file the way rclone-fail and journal-fail are. The real
+    # docker writes its diagnosis to stderr, which the script folds into the extract with 2>&1 —
+    # so the fixture emits one too, because a stub that failed SILENTLY would not reproduce the
+    # shape that makes this failure ship as if it were content.
+    if [ -s "$TMPROOT/docker-fail" ]; then
+      echo "Error response from daemon: simulated" >&2
+      exit 1
+    fi
     exit 0 ;;
 esac
 exit 0
@@ -411,6 +420,26 @@ after=$(cat "$TMPROOT/state/logship.journal-cursor")
 check "T17 a failed journal read dies, keeps the cursor and writes no stamp"   "$([ "$rc" -ne 0 ] && [ "$after" = "s=cursor-ORIGINAL" ]      && [ ! -f "$TMPROOT/state/last-successful-logship" ] && echo 0 || echo 1)"
 
 check "T17b the failure names journalctl rather than reporting an empty window"   "$(echo "$out" | grep -q 'journalctl exited' && echo 0 || echo 1)"
+
+# --- T19: a FAILED docker read must not be anchored past ----------------------------------------
+# The app leg has no cursor; its window is anchored on the stamp. So a failed read that still
+# writes the stamp loses the window between the previous stamp and this run, permanently and
+# silently — and it is louder than the journal case rather than quieter, because `2>&1` folds
+# docker's error text into the extract, where it clears the header check and SHIPS. The artefact
+# then looks like content. All three assertions are needed: the run must fail, the stamp must not
+# exist, and what was collected must still have shipped.
+reset_fixture
+printf 'api line one\n' >"$TMPROOT/containers/jobbliggaren-api"
+printf 'x\n' >"$TMPROOT/docker-fail"
+out=$(run_sut); rc=$?
+check "T19 a failed docker read fails the run and writes NO stamp" \
+  "$([ "$rc" -ne 0 ] && [ ! -f "$TMPROOT/state/last-successful-logship" ] && echo 0 || echo 1)"
+check "T19b the failure names docker rather than passing as an empty window" \
+  "$(echo "$out" | grep -q 'docker logs exited' && echo 0 || echo 1)"
+# CROSSES THE CONTROL: without this, T19 would also pass against a script that shipped nothing at
+# all — which would be a different defect (a hole) wearing the same exit code.
+check "T19c what WAS collected still shipped before the run failed" \
+  "$(ls "$TMPROOT/remote" 2>/dev/null | grep -q '^app-' && echo 0 || echo 1)"
 
 # --- T18: --check has a CONSUMER, and that is what makes it a control ----------------------------
 # T1-T4 measure the probe's behaviour and say nothing about whether anything calls it. It was

@@ -361,6 +361,19 @@ if command -v docker >/dev/null 2>&1; then
   app_extract="${WORKDIR}/app-${run_stamp}.log"
   : > "$app_extract"
 
+  # THE SAME ASYMMETRY THE JOURNAL LEG WAS REPAIRED FOR, AND THE REPAIR HAS TO BE DIFFERENT HERE.
+  # There a failed read and an empty window both produced an empty extract; here a failed read is
+  # worse than invisible, because `2>&1` puts docker's error text INSIDE the extract, it clears
+  # `grep -qv '^===== '`, the artefact ships, the stamp is written — and the next run anchors
+  # `--since` on THIS run's start. The window between the previous stamp and now is then never
+  # read again by anything. The one thing this leg has no cursor for is exactly what silently
+  # goes missing.
+  #
+  # The anchor IS the stamp, so the symmetric cure is to withhold the stamp: the next run re-reads
+  # this window, and duplicates in a forensic archive are benign while a hole is not (this file's
+  # own doctrine, stated twice). What has already been promoted stays promoted — the journal
+  # cursor and the audit offset are separate state and their windows did ship.
+  app_rc=0
   for container in "${APP_CONTAINERS[@]}"; do
     # A container that is not running is not an error: the migrate containers exit by design and
     # a service may be down for a reason this script does not own.
@@ -368,9 +381,9 @@ if command -v docker >/dev/null 2>&1; then
     {
       printf '===== %s =====\n' "$container"
       if [[ -n "$app_since" ]]; then
-        docker logs --timestamps --since "$app_since" "$container" 2>&1 || true
+        docker logs --timestamps --since "$app_since" "$container" 2>&1 || app_rc=$?
       else
-        docker logs --timestamps "$container" 2>&1 || true
+        docker logs --timestamps "$container" 2>&1 || app_rc=$?
       fi
     } >> "$app_extract"
   done
@@ -383,6 +396,12 @@ if command -v docker >/dev/null 2>&1; then
   else
     log "app: no container output in this window"
   fi
+
+  # Ship first, THEN fail. What was read is worth keeping even when part of the window is
+  # suspect — the die below only withholds the stamp, so the next run re-reads the same window
+  # against an archive that already holds whatever this one managed to collect.
+  [[ "$app_rc" -eq 0 ]] || die "docker logs exited ${app_rc} for at least one container. No stamp
+is written, so the next run re-reads this window rather than anchoring past it."
 else
   log "app: docker is not on PATH; skipping that leg"
 fi

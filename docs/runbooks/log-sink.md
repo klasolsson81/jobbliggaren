@@ -167,9 +167,13 @@ CSRF=$(printf '%s' "$LOGIN" | python3 -c 'import json,sys; print(json.load(sys.s
 [ -n "$CSRF" ] && printf 'signed in — STORE THIS ADMIN PASSWORD NOW: %s\n' "$NEW_PW" || printf 'LOGIN FAILED: %s\n' "$LOGIN"
 ```
 
-> **Put that password in the password manager before you continue.** From this point Seq's own
-> store is the source of truth and `.env`'s `SEQ_ADMIN_PASSWORD` is stale by design — it is read
-> only on a first run against an empty volume, so it will not let you back in.
+> **Put that password in the password manager before you continue, and write it into `.env` in
+> step 8's edit as well.** From this point Seq's own store is the source of truth and `.env`'s
+> value is stale for the *running* instance — it is read only on a first run against an empty
+> volume, so it will not let you back in. **But that is only half the fact:** lose `seq_data` and
+> the next start IS a first run, which reads `.env` again. A stale value there is the password to
+> a fresh Seq, and the one nobody will think to look for. `.env.example` carries the same warning
+> at the key itself.
 
 **5.** Turn on the ingestion gate **before** creating the key, because until it is on the key bounds
 nothing. Measured on a stock 2026.1 with authentication enabled: `RequireApiKeyForWritingEvents`
@@ -227,7 +231,7 @@ and proven by nothing. This fills §4's `The MEL provider actually posts to 5341
 
 ```bash
 curl -s -b /tmp/seq.jar -G --data-urlencode 'count=5' "http://$SEQ_IP/api/events" \
-  | python3 -c 'import json,sys; e=json.load(sys.stdin); print(len(e), "events"); [print(x["Timestamp"], x["Level"]) for x in e[:3]]'
+  | python3 -c 'import json,sys; e=json.load(sys.stdin); print(len(e), "events"); [print(x["Timestamp"], x.get("Level","Information")) for x in e[:3]]'
 rm -f /tmp/seq.jar
 ```
 
@@ -261,10 +265,10 @@ integration coverage from `ci`, and the install happens once.
 | **The corpus survives erasure on the box** | `journalctl --vacuum-time=1s` and truncate the audit log, then list the prefix | **Blocked by row 27d and must say so** — until the `Deny` policy is applied an attacker with the box's credential deletes the off-box copy too | |
 | **The lifecycle rule removes objects, measured as an EFFECT** | plain prefix listing after N+1 days, older artefacts gone | Row 27b's discipline: a rule is a claim; the disappearance is the measurement | |
 | **The journal cursor neither drops nor duplicates across a restart** | stop the timer, reboot, run once, compare the last entry of run *n* against the first of run *n+1* | | |
-| **The MEL provider actually posts to 5341, not 80** | `Seq:ServerUrl` set to the 5341 form, then confirm events arrive | If ingestion is measured unavailable on 5341, fall back to `:80` **and record that the split was measured unreachable** — never switch silently, because the split is the control that stops a compromised app container reading the corpus back | |
+| **The MEL provider actually posts to 5341, not 80** | `Seq:ServerUrl` set to the 5341 form, then confirm events arrive | If ingestion is measured unavailable on 5341, fall back to `:80` **and record that the split was measured unreachable** — never switch silently. **The reason is not the one an earlier draft of this row gave:** the split is NOT what stops a compromised container reading the corpus back (see the 401 row below — that claim was measured false on 2026-08-11). What a fallback costs is that the query API moves into the app's own configuration, where an ingest-only key still cannot read but a second mistake no longer has to clear a second hurdle | |
 | **An empty `.env` value counts as NOT SUPPLIED** | unset `SEQ_SERVER_URL`, confirm both hosts stay console-only | `Email__Provider` in the same file is a measured case where empty ≠ unset (`??` does not catch `""`), so this cannot be assumed from the `:-` default alone | |
 | **The one-time setup completes with NO change to sshd** | the §3 command sequence, end to end | **Measured against `datalust/seq:2026.1` (`sha256:91e93ff2…`), not against this box:** login-with-`NewPassword` 200, gate PUT 200, `POST /api/apikeys` 201 with `['Ingest']`, `POST /api/retentionpolicies` 201. The box-side run is what this row still owes; the mechanism is no longer an assumption | 2026-08-11 (image only) |
-| **The query API refuses an unauthenticated read FROM ANOTHER CONTAINER** | from any container on the stack network: `curl -o /dev/null -w '%{http_code}' http://seq/api/events?count=1` | **This is the read control, and the port split is not it.** Measured 2026-08-11 on a bridge with no `ports:`: a sibling container reaches `seq:80` (200 on `/`), because containers on a user-defined bridge reach each other by default and `stack` is unsegmented. What holds is that `/api/events` answers **401** unauthenticated there, and that 5341 carries no query API (**404**). Expect **401** here; a 200 means someone turned authentication off | |
+| **The query API refuses an unauthenticated read FROM ANOTHER CONTAINER** | from a SIBLING container — and the instrument has to exist there. Measured 2026-08-11: `aspnet:10.0-noble` (api, worker) and `postgres:18.3` carry **neither** `curl` nor `wget`; `redis:8.6-alpine` carries `wget`; `datalust/seq:2026.1` carries `curl` — **and seq is the one container that must not be the source**, since a run from inside seq against `http://seq` proves nothing about a sibling and still returns the expected 401. Use `sudo docker exec jobbliggaren-redis wget -S -O- 'http://seq/api/events?count=1'`, or an ephemeral `docker run --rm --network <stack> …` | **This is the read control, and the port split is not it.** Measured 2026-08-11 on a bridge with no `ports:`: a sibling container reaches `seq:80` (200 on `/`), because containers on a user-defined bridge reach each other by default and `stack` is unsegmented. What holds is that `/api/events` answers **401** unauthenticated there, and that 5341 carries no query API (**404**). Expect **401** here; a 200 means someone turned authentication off | |
 | **Ingestion REFUSES an unkeyed write at this box** | `curl -X POST "http://$SEQ_IP/api/events/raw?clef"` with no `X-Seq-ApiKey` | **This is the row that says whether the ingest key bounds anything.** Measured on a stock 2026.1: with `RequireApiKeyForWritingEvents=false` — the DEFAULT — no key, an empty key and a wrong key are all accepted (201). The gate is §3 step 5 and has no environment variable, so it is a step someone can skip; expect **401** here | |
 | **Seq's retention policy removes events, and the DISK follows later** | query for an event older than the window; separately, `du` on the volume | Retention makes events inaccessible; space returns via compaction, which runs at **7 days of file age** — bytes can persist past the 30-day mark, and the register says so | |
 | **The seq container has a healthcheck** | `docker inspect -f '{{.State.Health.Status}}'` | **Not shipped.** The compose file omits it deliberately rather than shipping an unverified probe that would paint a permanent "unhealthy"; whether this image carries a client to call Seq's health endpoint was not measured. This row closes that | |

@@ -187,7 +187,7 @@ x-app-email: &app-email
 # Measured 2026-08-11 against datalust/seq:2026.1: `RequireApiKeyForWritingEvents` defaults to
 # FALSE, and while it is false the ingestion endpoint accepts a write with a valid key, an empty
 # key, a wrong key and no key at all — 201 in all four cases, with authentication otherwise
-# enabled. With it true the last three answer 401. Two spellings of an environment variable for
+# enabled. With it true the last three answer 401. Three spellings of an environment variable for
 # it were measured silently ignored, including SEQ_FIRSTRUN_REQUIREAPIKEYFORWRITINGEVENTS on the
 # prefix Seq does read, so this file CANNOT ship it fail-closed; it is a step in
 # log-sink.md §3, and a step is something an operator can skip. The runbook's §4 carries the row

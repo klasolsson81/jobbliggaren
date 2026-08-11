@@ -117,6 +117,23 @@ internal sealed class RecordingEmailSender : IEmailSender
         _sent.Enqueue(new RecordedEmail(RecordedEmailKind.AccountExistsNotice, toEmail));
         return Task.CompletedTask;
     }
+
+    public Task SendPasswordResetAsync(
+        string toEmail,
+        PasswordResetEmail content,
+        CancellationToken cancellationToken)
+    {
+        _sent.Enqueue(new RecordedEmail(RecordedEmailKind.PasswordReset, toEmail));
+        return Task.CompletedTask;
+    }
+
+    public Task SendPasswordChangedNoticeAsync(
+        string toEmail,
+        CancellationToken cancellationToken)
+    {
+        _sent.Enqueue(new RecordedEmail(RecordedEmailKind.PasswordChangedNotice, toEmail));
+        return Task.CompletedTask;
+    }
 }
 
 /// <summary>Which <see cref="IEmailSender"/> method recorded the send.</summary>
@@ -128,6 +145,8 @@ internal enum RecordedEmailKind
     EmailChangedNotification,
     EmailConfirmation,
     AccountExistsNotice,
+    PasswordReset,
+    PasswordChangedNotice,
 }
 
 /// <summary>A single email queued through <see cref="RecordingEmailSender"/> (kind + recipient only).</summary>

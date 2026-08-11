@@ -142,6 +142,13 @@ public sealed class AdminRoleLazyResolutionCountTests : IDisposable
         public Task<AccountSummary?> GetAccountSummaryAsync(Guid userId, CancellationToken ct)
             => inner.GetAccountSummaryAsync(userId, ct);
 
+        public Task<PasswordResetDelivery?> TryPreparePasswordResetAsync(string email, CancellationToken ct)
+            => inner.TryPreparePasswordResetAsync(email, ct);
+
+        public Task<Result> ResetPasswordAsync(
+            Guid userId, string urlSafeToken, string newPassword, CancellationToken ct)
+            => inner.ResetPasswordAsync(userId, urlSafeToken, newPassword, ct);
+
         public Task<bool> IsEmailTakenAsync(string email, CancellationToken ct)
             => inner.IsEmailTakenAsync(email, ct);
 

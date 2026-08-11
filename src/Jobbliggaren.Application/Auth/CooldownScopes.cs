@@ -20,4 +20,15 @@ public static class CooldownScopes
 
     /// <summary>Per-USER (actor) throttle on the change-email request (#703; visible 409).</summary>
     public const string ChangeEmailUser = "change-email-user";
+
+    /// <summary>
+    /// Per-TARGET throttle on the forgot-password request (#1171). <b>SILENT no-op, never a visible
+    /// 409 — and that is not a copy of the resend scope's choice but the same requirement.</b> The
+    /// surface is unauthenticated and answers a uniform 202 for every well-formed address, so a
+    /// visible throttle would answer differently for an address someone had recently requested than
+    /// for one they had not, which is an enumeration oracle built out of the anti-abuse control. The
+    /// two visible <c>ChangeEmail*</c> scopes above are visible only because that surface is
+    /// authenticated and already discloses existence through <c>Auth.EmailTaken</c>.
+    /// </summary>
+    public const string PasswordReset = "password-reset";
 }

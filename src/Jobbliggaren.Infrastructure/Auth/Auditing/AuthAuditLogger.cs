@@ -41,6 +41,20 @@ public sealed partial class AuthAuditLogger(
         LogEmailConfirmationResent(logger, "email_confirmation_resent", userId, resolvedIp, resolvedAgent);
     }
 
+    public void PasswordResetRequested(Guid userId, string? ipAddress, string? userAgent)
+    {
+        // Carried, not extracted. ExtractRequestContext() would return the "unknown" label here because
+        // the caller is a background service with no HttpContext — see the port's overload docs. The
+        // fallbacks match what ExtractRequestContext produces, so the two overloads write the same
+        // shape and a reader cannot tell which path wrote a line by its format alone.
+        LogPasswordResetRequested(
+            logger,
+            "password_reset_requested",
+            userId,
+            ipAddress ?? IIpAnonymizer.UnknownLabel,
+            userAgent ?? string.Empty);
+    }
+
     // App-loggens IP/UA går genom samma anonymiserings-port som audit-tabellen
     // (ADR 0024 D7). Defense-in-depth: även om CloudWatch-retention (30d) failar
     // ska app-loggen inte bära unika IP-fingerprints.
@@ -81,5 +95,12 @@ public sealed partial class AuthAuditLogger(
     [LoggerMessage(1005, LogLevel.Information,
         "AuditEvent={AuditEvent} UserId={UserId} Ip={Ip} UserAgent={UserAgent}")]
     private static partial void LogEmailConfirmationResent(
+        ILogger logger, string auditEvent, Guid userId, string ip, string userAgent);
+
+    // #1171. UserId only — never the address and never the token. The token is a bearer credential for
+    // the account until it is used, and this level reaches a durable sink (CLAUDE.md §11, #1208).
+    [LoggerMessage(1006, LogLevel.Information,
+        "AuditEvent={AuditEvent} UserId={UserId} Ip={Ip} UserAgent={UserAgent}")]
+    private static partial void LogPasswordResetRequested(
         ILogger logger, string auditEvent, Guid userId, string ip, string userAgent);
 }

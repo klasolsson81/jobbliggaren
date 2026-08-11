@@ -204,8 +204,49 @@ public static class AuthErrorCodes
     /// of several conditions on the same trigger; condition (a) still expires only at a real
     /// <c>Email:Provider</c>, and (b) is untouched.
     /// </para>
+    /// <para>
+    /// <b>Generalised for #1171.</b> It read "…någon bekräftelselänk. Din adress är oförändrad." while
+    /// change-email was the only producer; the forgot-password request is the second, and there no
+    /// address was being changed, so that sentence would have been false. The code names an OPERATIONAL
+    /// condition — no configured sender can deliver — which is flow-independent, so the detail is too.
+    /// A second code for the same condition would have needed a second endpoint arm and a second
+    /// frontend whitelist entry to say the same thing. Neither client renders this string, so no user
+    /// copy changed.
+    /// </para>
     /// </summary>
     public const string EmailDeliveryUnavailableMessage =
-        "E-postutskick är inte aktiverat, så vi kan inte skicka någon bekräftelselänk. "
-        + "Din adress är oförändrad.";
+        "E-postutskick är inte aktiverat just nu, så vi kan inte skicka något e-postmeddelande. "
+        + "Ingenting har ändrats. Försök igen senare.";
+
+    /// <summary>
+    /// A password-reset token was rejected (#1171): unknown user, malformed, wrong, or expired. ONE code
+    /// for all four, deliberately — the reset endpoint is PUBLIC, and telling "no such account" apart
+    /// from "bad token" would make it an account-existence oracle. Rendered 400 through the central
+    /// kind-mapper; no endpoint-local arm.
+    /// <para>
+    /// <b>Password rejections do NOT collapse into this</b>, and that asymmetry is safe for a measured
+    /// reason rather than a stylistic one: Identity verifies the token BEFORE running the password
+    /// validators, so a password rejection is reachable only by someone already holding a valid token.
+    /// It discloses nothing that person does not have, and a real user needs to know which rule they
+    /// broke.
+    /// </para>
+    /// <para>
+    /// On the wire that means <c>Auth.PwnedPassword</c> and nothing else. A too-short password never
+    /// reaches <c>UserManager</c>: <c>ResetPasswordCommandValidator</c> carries the same 12-character
+    /// floor as <c>IdentityOptions.Password.RequiredLength</c>, so <c>ValidationBehavior</c> fells it
+    /// first and answers with the <c>{errors}</c> shape. <c>Auth.PasswordTooShort</c> IS producible by
+    /// <c>IUserAccountService.ResetPasswordAsync</c> if called directly — the port maps every Identity
+    /// error code — but no HTTP request can produce it here.
+    /// </para>
+    /// </summary>
+    public const string InvalidPasswordResetToken = "Auth.InvalidPasswordResetToken";
+
+    /// <summary>
+    /// The single user-facing detail for <see cref="InvalidPasswordResetToken"/> (§10: du-form,
+    /// informative, non-blaming, no exclamation mark). It names the recovery — request a new link —
+    /// because the state is not the user's fault and is one click from being fixed. As with the other
+    /// codes here, the browser renders its own localised copy and never this string.
+    /// </summary>
+    public const string InvalidPasswordResetTokenMessage =
+        "Länken är ogiltig eller har gått ut. Begär en ny återställningslänk och försök igen.";
 }

@@ -1338,8 +1338,9 @@ permanent infra aktiveras; listan nedan speglar **beslutad** uppsättning, ADR 0
   Resend, Inc. (USA), som är helt ute), **planerad, ännu inte
   aktiverad**: `Email:Provider` defaultar till `Console`, vilket i non-dev löser till
   `NullEmailSender`, så ingen e-post lämnar systemet. Gäller **all** utgående e-post, inte bara
-  notiser: `EmailTemplates` har sex sorter varav fyra är kontolivscykel (bekräfta e-post,
-  byta e-post, ändrad-e-post-avisering, konto-finns-redan). **Tredjelandsöverföring — den
+  notiser: `EmailTemplates` har åtta sorter varav sex är kontolivscykel (bekräfta e-post,
+  byta e-post, ändrad-e-post-avisering, konto-finns-redan, lösenordsåterställning,
+  ändrat-lösenord-avisering). **Tredjelandsöverföring — den
   redovisas trots EU-regionen, och det är en avgjord fråga sedan 2026-08-08, inte en öppen:**
   behandlingen sker i EU under en EU-avtalspart, men koncernmodern **Amazon Web Services, Inc.
   (USA)** kan nå uppgifterna, vilket i sig är en överföring (Schrems II / EDPB Rec. 01/2020).

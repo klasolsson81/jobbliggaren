@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text;
 using Jobbliggaren.Application.Common.Abstractions;
+using Jobbliggaren.Infrastructure.Identity;
 
 namespace Jobbliggaren.Infrastructure.Email;
 
@@ -90,7 +91,7 @@ internal static class EmailTemplates
     /// namnbärande påstående vore FALSKT så snart en andra bevakning filtrerar på en annan ort:
     /// "detta mejl visar bara annonser i Göteborg" ljuger för den som också följer ett bolag
     /// filtrerat på Malmö. Att bära ortsnamn
-    /// skulle dessutom skicka preferens-PII till en tredjepartsavsändare (Resend) utan nytta för
+    /// skulle dessutom skicka preferens-PII till en tredjepartsavsändare (Amazon SES, ADR 0124) utan nytta för
     /// användaren, för en detalj som ligger ett klick bort i appen (Art. 5(1)(c)). Utöka därför
     /// INTE kontraktet med ortsnamn.
     /// </para>
@@ -294,13 +295,20 @@ internal static class EmailTemplates
     /// only a factual notice + a login link built from <paramref name="baseUrl"/>. Because the HTTP
     /// response is an identical 202 for a taken or a fresh address, this mail is the ONLY differentiator
     /// and it reaches only the real owner's inbox, so it leaks no account existence to a requester who
-    /// does not own the address. Civic tone: no exclamation marks, no em-dash. No password-reset link -
-    /// that flow does not exist yet (#714 follow-up).
+    /// does not own the address. Civic tone: no exclamation marks, no em-dash.
+    /// <para>
+    /// #1171 added the password-reset link, which #714 wanted and could not have because the flow did
+    /// not exist. Someone trying to register an address they already own has most often forgotten their
+    /// password, so the login nudge alone sends them back to the wall they hit. The link carries no
+    /// token and grants nothing — it is the same public URL the login page links to — so it adds no
+    /// exposure to a mail that already reaches only the real owner.
+    /// </para>
     /// </summary>
     public static EmailContent AccountExistsNotice(string baseUrl)
     {
         var trimmed = baseUrl.TrimEnd('/');
         var loginLink = $"{trimmed}/logga-in";
+        var forgotLink = $"{trimmed}/glomt-losenord";
         var helpLink = $"{trimmed}/hjalpcenter";
 
         return new EmailContent(
@@ -312,8 +320,97 @@ internal static class EmailTemplates
                 Om det var du kan du logga in i stället:
                 {loginLink}
 
+                Har du glömt ditt lösenord kan du välja ett nytt här:
+                {forgotLink}
+
                 Om det inte var du behöver du inte göra något. Ditt konto är
                 oförändrat. Har du frågor når du oss via hjälpcentret:
+                {helpLink}
+
+                Vänliga hälsningar,
+                Jobbliggaren
+                """);
+    }
+
+    /// <summary>
+    /// #1171 — the password-reset link, sent to the address that requested it. Carries the userId and
+    /// an opaque token; the link is the only thing that can change the password. Civic tone
+    /// (1177/Digg): no exclamation marks, no em-dash.
+    /// <para>
+    /// The body states the lifespan by reading <see cref="PasswordResetTokenProviderOptions.LifespanMinutes"/>
+    /// rather than spelling a number, so the promise and the provider that enforces it cannot drift
+    /// apart. The two 24h templates hardcode theirs; this one deliberately does not.
+    /// </para>
+    /// <para>
+    /// The "if it was not you" paragraph is load-bearing rather than boilerplate: the request endpoint
+    /// answers a uniform 202 for every well-formed address, so anyone can cause this mail to be sent to
+    /// an address they do not own. It must say plainly that nothing has changed and that ignoring it is
+    /// safe.
+    /// </para>
+    /// </summary>
+    public static EmailContent PasswordReset(string baseUrl, PasswordResetEmail content)
+    {
+        var trimmed = baseUrl.TrimEnd('/');
+
+        // uid: dashed 'D' Guid — LOAD-BEARING, same as the two link templates above. /reset-password
+        // binds ResetPasswordRequest.Uid via System.Text.Json, whose Guid converter accepts ONLY the
+        // dashed form; a compact 'N' uid 400s every click (#981). token: already Base64Url, so it
+        // survives the query round-trip unescaped.
+        var resetLink =
+            $"{trimmed}/aterstall-losenord" +
+            $"?uid={content.UserId:D}" +
+            $"&token={content.UrlSafeToken}";
+
+        return new EmailContent(
+            Subject: "Återställ ditt lösenord",
+            PlainTextBody: $"""
+                Någon har begärt ett nytt lösenord för ditt konto på Jobbliggaren.
+
+                Öppna länken nedan för att välja ett nytt lösenord. Länken gäller i
+                {PasswordResetTokenProviderOptions.LifespanMinutes} minuter och kan
+                bara användas en gång.
+                {resetLink}
+
+                Om det inte var du behöver du inte göra något. Ditt lösenord är
+                oförändrat så länge du inte öppnar länken, och den slutar gälla av
+                sig själv.
+
+                Vänliga hälsningar,
+                Jobbliggaren
+                """);
+    }
+
+    /// <summary>
+    /// #1171 — the password-changed security notice, sent after a completed reset. No token, no link
+    /// that grants access: a factual notice plus the help-centre link, and the twin of
+    /// <see cref="EmailChangedNotification"/>. Civic tone: no exclamation marks, no em-dash.
+    /// <para>
+    /// This is the breach-detection control (OWASP ASVS V2.5, NIST SP 800-63B). A reset hands the
+    /// account to whoever holds the inbox, so this mail is the one moment a real owner can notice a
+    /// reset they did not perform while they could still act on it. That is why it says what to do
+    /// rather than merely what happened.
+    /// </para>
+    /// </summary>
+    public static EmailContent PasswordChangedNotice(string baseUrl)
+    {
+        var trimmed = baseUrl.TrimEnd('/');
+        var forgotLink = $"{trimmed}/glomt-losenord";
+        var helpLink = $"{trimmed}/hjalpcenter";
+
+        return new EmailContent(
+            Subject: "Ditt lösenord har ändrats",
+            PlainTextBody: $"""
+                Lösenordet för ditt konto på Jobbliggaren har ändrats via en
+                återställningslänk. Du har loggats ut på alla enheter.
+
+                Om det var du behöver du inte göra något. Logga in med ditt nya
+                lösenord.
+
+                Om det inte var du: begär ett nytt lösenord direkt, så slutar den
+                som ändrade det att komma åt kontot.
+                {forgotLink}
+
+                Kontakta oss sedan via hjälpcentret:
                 {helpLink}
 
                 Vänliga hälsningar,

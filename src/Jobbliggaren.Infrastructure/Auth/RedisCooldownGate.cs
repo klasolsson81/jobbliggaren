@@ -9,7 +9,8 @@ namespace Jobbliggaren.Infrastructure.Auth;
 /// Redis-backed <see cref="ICooldownGate"/> (generalised from the #733 resend primitive; #703).
 /// Form: a key with an absolute TTL via <see cref="IDistributedCache"/>. The key is
 /// <c>cd/{scope}/v1/{sha256(subject)}</c> — the subject (an
-/// email address or a user id) is normalised (<c>Trim()</c> + <c>ToLowerInvariant()</c>) and
+/// email address or a user id) is normalised the way Identity normalises a lookup key
+/// (<c>Trim()</c> + <c>Normalize()</c> + <c>ToUpperInvariant()</c>, see <c>Key</c> for why) and
 /// SHA-256-hashed, a one-way non-PII fingerprint
 /// (the raw value is never written to Redis); every call on the same <c>(scope, subject)</c> collapses to
 /// the same key, so the window is a pure per-subject throttle. Pure mechanism: the window is a caller
@@ -37,11 +38,33 @@ internal sealed class RedisCooldownGate(IDistributedCache cache) : ICooldownGate
         return true;
     }
 
-    // SHA-256 hex of the normalized subject (trim + lower-invariant) — one-way, non-reversible,
-    // never the raw value.
+    // SHA-256 hex of the normalized subject — one-way, non-reversible, never the raw value.
+    //
+    // The normalisation MUST be Identity's, not merely "a" normalisation (#1171, security-auditor
+    // 2026-08-10). Every subject here is an email address, and the throttle is only meaningful if two
+    // spellings that reach the SAME ACCOUNT land on the SAME KEY. Identity's lookup is
+    // UpperInvariantLookupNormalizer — `Normalize().ToUpperInvariant()`, i.e. NFC then upper — and the
+    // previous `ToLowerInvariant()` was not its inverse.
+    //
+    // U+017F LATIN SMALL LETTER LONG S (ſ) upper-cases to 'S' while lower-casing to itself, so a
+    // long-s spelling passes the validator, resolves to the SAME Identity account as its ASCII
+    // spelling, and used to get its OWN 60 s window: 2^k independent windows for an address with k
+    // such letters. NFC closes a second axis, where a decomposed (NFD) spelling of any accented
+    // address did the same.
+    //
+    // U+0131 DOTLESS I (ı) is NOT such a character and never was a bypass - .NET's invariant
+    // upper-casing leaves it alone. It is named here because a probe run in Python said otherwise and
+    // that claim reached a draft; the sweep in RedisCooldownGateTests measures the property in the
+    // runtime that SHIPS rather than trusting either list.
+    //
+    // This is a shared gate, so the fix covers all five scopes (resend-confirm, account-exists,
+    // change-email-target/user, password-reset), not only the one that surfaced it. Changing the derived
+    // key resets in-flight windows exactly once, which is harmless at a 60 s window. `ToUpperInvariant`
+    // rather than `ToLower` deliberately: it is what Identity does, and the Turkish-I hazard runs the
+    // other way (`ToLower` on the invariant culture is what people reach for and what was wrong here).
     private static string Key(string scope, string subject)
     {
-        var normalized = subject.Trim().ToLowerInvariant();
+        var normalized = subject.Trim().Normalize().ToUpperInvariant();
         var hex = Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(normalized)));
         return $"cd/{scope}/v1/{hex}";
     }

@@ -163,8 +163,18 @@ x-app-email: &app-email
 # and labels them (`"127.0.0.1:5341:80"` UI + API, `"127.0.0.1:5342:5341"` ingestion — the bind
 # address is quoted because in a comment whose whole subject is that the binding is the control,
 # eliding it is how #1198 happened). Pointing the app at 5341
-# means a compromised api or worker container cannot reach the query API over the network at
-# all — it can write events and not read them back. `Seq:ServerUrl` is read by
+# keeps the query API out of the app's CONFIGURATION — and that is all it does.
+#
+# WHAT THIS IS NOT: network isolation. An earlier draft of this comment said a compromised api or
+# worker "cannot reach the query API over the network at all", and that is measured FALSE
+# (2026-08-11, Seq on its own bridge with no `ports:`): containers on a user-defined bridge reach
+# each other by default — inter-container communication is on, `stack` is not segmented — so a
+# sibling gets HTTP 200 from `seq:80`. What actually holds, measured in the same run: the query
+# API on 80 answers **401** without authentication, and 5341 carries **no** query API at all
+# (**404**). So the split is real and the defence is AUTHENTICATION, not topology. The 401 is the
+# control, it is the one with a verification row in log-sink.md §4, and describing a control that
+# needs measuring as one that does not is exactly the #1198 shape this file's header invokes.
+# `Seq:ServerUrl` is read by
 # LoggingBuilderExtensions, which attaches the provider ONLY when the value is non-empty, so
 # an unset value leaves both hosts console-only exactly as before.
 #
@@ -178,7 +188,8 @@ x-app-email: &app-email
 # FALSE, and while it is false the ingestion endpoint accepts a write with a valid key, an empty
 # key, a wrong key and no key at all — 201 in all four cases, with authentication otherwise
 # enabled. With it true the last three answer 401. Two spellings of an environment variable for
-# it were measured silently ignored, so this file CANNOT ship it fail-closed; it is a step in
+# it were measured silently ignored, including SEQ_FIRSTRUN_REQUIREAPIKEYFORWRITINGEVENTS on the
+# prefix Seq does read, so this file CANNOT ship it fail-closed; it is a step in
 # log-sink.md §3, and a step is something an operator can skip. The runbook's §4 carries the row
 # that measures it at the box, and until that row is dated the sentence above states an intent
 # rather than a control — which is the #1198 shape, one layer up.

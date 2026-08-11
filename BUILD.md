@@ -1421,8 +1421,12 @@ permanent infra aktiveras; listan nedan speglar **beslutad** uppsättning, ADR 0
     konfigurationen — Seq dimensionerar sin cache mot cgroup-gränsen, så ett högre tak är en annan,
     omätt konfiguration och inte marginal. Talen och instrumentet som återskapar dem har **ett**
     hem: `docs/runbooks/log-sink.md` §4).
-    Ingen publicerad port; `Seq:ServerUrl` pekar på ingest-lyssnaren `5341`, så en komprometterad
-    api/worker kan skriva men inte läsa tillbaka. Retention: en policy, 30 dagar.
+    Ingen publicerad port; `Seq:ServerUrl` pekar på ingest-lyssnaren `5341`, vilket håller
+    query-API:t utanför appens **konfiguration**. **Det är inte nätverksisolering** — mätt
+    2026-08-11 når en syskoncontainer `seq:80` (200), eftersom containrar på samma user-defined
+    bridge når varandra som default. Det som faktiskt håller är att query-API:t på 80 svarar
+    **401** utan autentisering och att 5341 bär **404** på query-vägen: försvaret är autentisering,
+    inte topologi. Retention: en policy, 30 dagar.
   - **Varaktighet** — `jobbliggaren-logship`, timrad off-box-arkivering krypterad med `age` till en
     mottagare lådan inte kan dekryptera. Bär journal + auditd + app-loggar. Detta, och inte Seq, är
     kopian som är avsedd att överleva en root-angripare — **och den egenskapen är inte i kraft**

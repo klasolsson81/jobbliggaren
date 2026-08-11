@@ -91,6 +91,15 @@ archive is append-only with no age bound at all — i.e. it discharges the off-b
 extend `main/`'s rule to cover it, because the retention question for logs is a different question
 from the one K4 answered for database artefacts.
 
+**And that number is a legal parameter rather than a cost trade-off, which is easy to miss because
+the backup prefix's number is not.** A backup's answer to an erasure request is crypto-erasure —
+the DEK artefacts are per data subject, so one person can be struck out. **That mechanism cannot
+apply here:** a `hostlogs/` artefact is one hour of logs for *every* user inside a single `age`
+envelope this box cannot decrypt, so selective erasure is structurally impossible rather than
+merely awkward. The time limit therefore **is** the whole Art. 17 answer for this leg. The register
+carries the legal basis and this reasoning; ADR 0050 `Amendment 2026-08-11` gate **G3** carries the
+obligation.
+
 ---
 
 ## 3. Install — (B), Seq
@@ -167,8 +176,9 @@ nothing. Measured on a stock 2026.1 with authentication enabled: `RequireApiKeyF
 defaults to **`false`**, and with it false a `POST /api/events/raw?clef` is accepted with a valid
 key, an **empty** key, a **wrong** key and **no key at all** — 201 in all four cases. With it true:
 201 for the valid key, **401** for the other three. **No environment variable sets this** — both
-`SEQ_API_REQUIREAPIKEYFORWRITINGEVENTS` and `SEQ_REQUIREAPIKEYFORWRITINGEVENTS` were measured
-silently ignored — so it cannot be shipped fail-closed in compose and has to be a step here.
+`SEQ_API_REQUIREAPIKEYFORWRITINGEVENTS`, `SEQ_REQUIREAPIKEYFORWRITINGEVENTS` and
+`SEQ_FIRSTRUN_REQUIREAPIKEYFORWRITINGEVENTS` — the last using the prefix Seq actually does read —
+were all measured silently ignored — so it cannot be shipped fail-closed in compose and has to be a step here.
 
 ```bash
 curl -s -b /tmp/seq.jar -H 'Content-Type: application/json' -H "X-Seq-CsrfToken: $CSRF" -X PUT \
@@ -254,6 +264,7 @@ integration coverage from `ci`, and the install happens once.
 | **The MEL provider actually posts to 5341, not 80** | `Seq:ServerUrl` set to the 5341 form, then confirm events arrive | If ingestion is measured unavailable on 5341, fall back to `:80` **and record that the split was measured unreachable** — never switch silently, because the split is the control that stops a compromised app container reading the corpus back | |
 | **An empty `.env` value counts as NOT SUPPLIED** | unset `SEQ_SERVER_URL`, confirm both hosts stay console-only | `Email__Provider` in the same file is a measured case where empty ≠ unset (`??` does not catch `""`), so this cannot be assumed from the `:-` default alone | |
 | **The one-time setup completes with NO change to sshd** | the §3 command sequence, end to end | **Measured against `datalust/seq:2026.1` (`sha256:91e93ff2…`), not against this box:** login-with-`NewPassword` 200, gate PUT 200, `POST /api/apikeys` 201 with `['Ingest']`, `POST /api/retentionpolicies` 201. The box-side run is what this row still owes; the mechanism is no longer an assumption | 2026-08-11 (image only) |
+| **The query API refuses an unauthenticated read FROM ANOTHER CONTAINER** | from any container on the stack network: `curl -o /dev/null -w '%{http_code}' http://seq/api/events?count=1` | **This is the read control, and the port split is not it.** Measured 2026-08-11 on a bridge with no `ports:`: a sibling container reaches `seq:80` (200 on `/`), because containers on a user-defined bridge reach each other by default and `stack` is unsegmented. What holds is that `/api/events` answers **401** unauthenticated there, and that 5341 carries no query API (**404**). Expect **401** here; a 200 means someone turned authentication off | |
 | **Ingestion REFUSES an unkeyed write at this box** | `curl -X POST "http://$SEQ_IP/api/events/raw?clef"` with no `X-Seq-ApiKey` | **This is the row that says whether the ingest key bounds anything.** Measured on a stock 2026.1: with `RequireApiKeyForWritingEvents=false` — the DEFAULT — no key, an empty key and a wrong key are all accepted (201). The gate is §3 step 5 and has no environment variable, so it is a step someone can skip; expect **401** here | |
 | **Seq's retention policy removes events, and the DISK follows later** | query for an event older than the window; separately, `du` on the volume | Retention makes events inaccessible; space returns via compaction, which runs at **7 days of file age** — bytes can persist past the 30-day mark, and the register says so | |
 | **The seq container has a healthcheck** | `docker inspect -f '{{.State.Health.Status}}'` | **Not shipped.** The compose file omits it deliberately rather than shipping an unverified probe that would paint a permanent "unhealthy"; whether this image carries a client to call Seq's health endpoint was not measured. This row closes that | |

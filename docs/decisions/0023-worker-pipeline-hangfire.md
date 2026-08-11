@@ -348,3 +348,25 @@ Pre-prod-deploy-krav (TD-17) ska adresseras innan Fas 1 går till prod. ADR 0008
 > **Beslut:** `Program.cs` sätter explicit `builder.ConfigureContainer(new DefaultServiceProviderFactory(new ServiceProviderOptions { ValidateScopes = true, ValidateOnBuild = false }))`. `ValidateScopes` BEHÅLLS (captive-dependency-skydd är hög-värde i Hangfire-host:en där varje job kör i eget scope). Worker:s EGNA job-handler-deps valideras lazily vid Hangfire-invocation + av WorkerLayerTests + integ-tester — signal-förlusten är trippelt täckt och därmed motiverad (CLAUDE.md §2.5-analog).
 >
 > **Invarianten är opåverkad** — Variant A är det enda alternativet som INTE rör DI-ytan denna ADR fryser (Variant B "registrera de fyra i Worker" avvisades som ADR 0023-brott, paritet med Alt α). Den rena lösningen (split av Application-assemblyn för isolerad Worker-scan) är **TD-103** (Minor/Trigger).
+
+## Amendment 2026-08-11 — Delbeslut 9:s trait-exkludering har aldrig existerat (#1311)
+
+> **Amendment 2026-08-11** (PR #1315, issue [#1311](https://github.com/klasolsson81/jobbliggaren/issues/1311); `code-reviewer` Major M4, routad in-block av senior-cto-advisor — vars första bind gick åt andra hållet och föll på de två datum som redovisas nedan):
+>
+> Delbeslut 9 påstår två saker om `[Trait("Category", "SmokeTest")]` som **aldrig var sanna**. De decayade alltså inte — de var falska när de skrevs. Beslutet att skriva smoke-testerna och märka dem togs och verkställdes; det är den påstådda **verkan** som aldrig fanns. Delbeslut 9:s brödtext står orörd som protokoll över vad som beslutades.
+>
+> **(1) Traiten utesluter ingenting ur en default-körning.** Ingen mekanism i repot konfigurerar en sådan exkludering: ingen `.runsettings` har existerat i något commit i repots historia, och ingen av de spårade `xunit.runner.json` bär något filterfält — `Jobbliggaren.Worker.IntegrationTests` har ingen sådan fil alls. `SmokeTest`-märkta tester körs i varje `dotnet test`.
+>
+> **(2) Kommandot `dotnet test --filter "Category=SmokeTest"` väljer noll tester, och gjorde det redan innan denna ADR skrevs.** `global.json` har burit `"test": { "runner": "Microsoft.Testing.Platform" }` sedan `8a6ef854` (2026-04-19), den första solution-commiten — **nitton dagar före ADR:ns datum** (2026-05-08). Under MTP avvisas VSTest-flaggan `--filter` som ogiltigt kommandoradsargument: exit 5, noll tester. Kommandot har aldrig varit funktionellt i det här repot.
+>
+> **(3) Följden för läsaren.** Eftersom ingen exkluderingsmekanism någonsin har funnits var de sex `DetectGhostedApplicationsJobIntegrationTests`-fallen aldrig undantagna från en vanlig körning under sin livstid — `df01e992` (2026-05-08) till `7e87c357` (2026-07-05), då #670 avvecklade auto-ghost-jobbet och tog bort både jobbet och testerna. Delbeslut 9:s avsikt att köra dem separat levererades aldrig, och behövdes aldrig.
+>
+> **(4) Mätta selektionsformer har ett hem: `CLAUDE.md §7`.** Vill man ändå köra enbart de trait-märkta testerna är formen `dotnet test --project <projekt> -- --filter-trait "Category=SmokeTest"`. Att traiten inte exkluderar något regenereras så här — de två sista `total:` summerar till den första (mätt 2026-08-11):
+>
+> ```bash
+> dotnet test --project tests/Jobbliggaren.Worker.IntegrationTests
+> dotnet test --project tests/Jobbliggaren.Worker.IntegrationTests -- --filter-trait "Category=SmokeTest"
+> dotnet test --project tests/Jobbliggaren.Worker.IntegrationTests -- --filter-not-trait "Category=SmokeTest"
+> ```
+>
+> **Orört med avsikt:** varje `JobbPilot.*`-namn i denna ADR, inklusive `JobbPilot.Worker.IntegrationTests` i Delbeslut 9:s egen punktlista. De var sanna när de skrevs och föråldrades vid namnbytet (`18f5a0ed`, 2026-06-13, ADR 0069) — ett register över vad som kördes, och CLAUDE.md §11 förbjuder uttryckligen att reparera sådant mot dagens nyckel. Skillnaden mot (1) och (2) är inte filen eller dokumenttypen utan om meningen någonsin var sann.

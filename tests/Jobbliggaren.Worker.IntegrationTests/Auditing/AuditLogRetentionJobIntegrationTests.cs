@@ -20,9 +20,6 @@ namespace Jobbliggaren.Worker.IntegrationTests.Auditing;
 /// <item>End-to-end RunAsync gör båda operationerna i en körning</item>
 /// </list>
 ///
-/// Märkt <c>[Trait("Category", "SmokeTest")]</c> — körs INTE i default <c>dotnet test</c>.
-/// Kör explicit: <c>dotnet test --filter "Category=SmokeTest"</c>.
-///
 /// Tester använder unika partition-datum (1900-tal eller 2030-tal) för att inte
 /// kollidera med bootstrap-partitions från migrationen (real-now ± 7 dagar).
 /// </summary>

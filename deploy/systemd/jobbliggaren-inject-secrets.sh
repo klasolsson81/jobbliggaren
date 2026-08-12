@@ -275,9 +275,9 @@ if [[ "${1:-}" == "--check" ]]; then
 
   # The host-only directory is checked by the same loop rather than by a second predicate, so a
   # new entry in either array is covered the moment it is added — which is what makes "adding a
-  # secret here is the whole change on the host side" true of both destinations. Its absence is
-  # a different severity from a missing master key (the stack still serves; only the nightly
-  # backup stops), and the message says so instead of leaving an operator to infer it.
+  # secret here is the whole change on the host side" true of both destinations. What differs is
+  # the CONSEQUENCE, which is why these two branches set `host_missing`: nothing here is read by
+  # api or worker, so the summary must not reach for the crash-loop wording on their account.
   if [[ ! -d "$HOST_SECRETS_DIR" ]]; then
     log "MISSING: $HOST_SECRETS_DIR (directory does not exist)"
     host_missing=1

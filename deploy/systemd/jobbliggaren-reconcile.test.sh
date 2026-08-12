@@ -482,6 +482,11 @@ mv "$FIXTURE_IDS" "$FIXTURE_IDS.hidden"
 expect_exit 2 "a MISSING runtime-id helper is 'cannot answer' (2), not a refusal and not a pass"
 assert_not_applied "and nothing is applied"
 assert_ids_not_measured "and nothing was run"
+# BOUND TO THE GUARD'S OWN MESSAGE. Measured: with the guard deleted this case still exits 2,
+# because the absent helper then fails at the call site and lands in the measurement's own
+# `|| exit 2`. Two paths, one code — the exit-code assertion above passes either way, and only
+# this line says WHICH check answered.
+assert_output_contains "runtime-id helper missing" "and it is the PRECONDITION guard that answered"
 mv "$FIXTURE_IDS.hidden" "$FIXTURE_IDS"
 
 # A file the owner cannot read fails the gate's own CLAIM, which is readability and not ownership.

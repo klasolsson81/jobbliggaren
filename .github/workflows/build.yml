@@ -402,8 +402,20 @@ jobs:
       - name: verify-image-attestation (fixturer)
         run: bash deploy/systemd/verify-image-attestation.test.sh
 
-      # Wrapperns två rena predikat: klassificeraren (okänd image → REFUSE) och digest-regeln.
-      # Stubbar `docker` och `flock`, så varken daemon, registry eller root krävs. Notera att
+      # Mäthemmet för container-runtimens uid/gid (#1295), delat av injektionen som SÄTTER
+      # ägarskapet på /run/jobbliggaren/secrets och av reconcile som GRINDAR applyn på det.
+      # Sviten stubbar `docker` och mäter skriptets eget kontrakt: argumentavvisning,
+      # utdatavalidering, och att ingenting utom de två talen någonsin når stdout — båda
+      # anroparna fångar stdout i en variabel, så en diagnostik där ser inte ut som ett trasigt
+      # skript utan som ett id.
+      - name: jobbliggaren-runtime-ids (fixturer)
+        run: bash deploy/systemd/jobbliggaren-runtime-ids.test.sh
+
+      # Wrapperns tre rena predikat: klassificeraren (okänd image → REFUSE), digest-regeln, och
+      # sedan #1295 ägarskapsgrinden (den inkommande imagen måste kunna läsa de injicerade
+      # hemligheterna, annars appliceras ingenting). Stubbar `docker` och `flock`, så varken
+      # daemon, registry eller root krävs — ägarskapsfallen flyttar IMAGENS id:n via stubben i
+      # stället för katalogens ägare, vilket är det som gör dem mätbara utan root. Notera att
       # sviten SJÄLV kör båda dessa steg — men bara det här jobbet grindar dem, och en svit som
       # ingen grind kör kan inte falla, vilket är den defektklass preambeln ovan namnger.
       - name: jobbliggaren-reconcile (fixturer)

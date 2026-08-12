@@ -58,7 +58,7 @@ within two minutes — the box's only alarm surface, since no log sink exists (#
 
 | Path | What |
 |---|---|
-| `/run/jobbliggaren/secrets/` | tmpfs staging dir. **`0700 root:root` at boot** (`/etc/tmpfiles.d/jobbliggaren.conf`), **raised to `0710 root:<container-gid>` by the injection script**. Two actors, two states — and with the `:` prefix tmpfiles can never produce the second one, so a `WRONG MODE` from `--check` means the injection has not run |
+| `/run/jobbliggaren/secrets/` | tmpfs staging dir. **`0700 root:root` at boot** (`/etc/tmpfiles.d/jobbliggaren.conf`), **raised to `0710 root:<container-gid>` by the injection script**. Two actors, two states — and with the `:` prefix tmpfiles can never produce the second one, so a `WRONG MODE` from `--check` means the injection has not run. **A third actor reads it since #1295, and only reads:** `jobbliggaren-reconcile.service` re-asserts the ownership against the image it is about to apply, and refuses the apply rather than repairing anything |
 | `…/FieldEncryption__LocalMasterKeyBase64` | the master key, `0400` |
 | `…/FieldEncryption__LocalMasterKeyId` | key identity, not a secret — the rotation marker |
 | `…/AuditPseudonymization__PepperBase64` | pepper |
@@ -151,6 +151,28 @@ archive stale — correctly, but for a condition you just cleared. `Persistent=t
 this: the catch-up firing happened at boot, when there was still no credential. Without this line
 the alarm stays lit until the next `:17`, up to an hour, which is exactly the always-lit surface
 these units are written against.
+
+### If reconcile refuses because the ids moved — repair by re-owning, NEVER by re-injecting
+
+Since #1295, `jobbliggaren-reconcile.service` re-measures the api image's uid/gid before every
+apply and refuses when the injected secrets are not readable by the image it is about to run. The
+refusal names the axis and prints both ids. It means a base-image bump moved them; it does **not**
+mean the secrets are wrong.
+
+**Do not `rm` the files and re-inject.** Re-injection means re-entering the key from escrow, and
+it walks straight back into the identity trap above: after a rotation the box holds no record of
+which identity is in force, and pressing Enter at the prompt stamps `local-v1` onto v2 bytes. The
+values on tmpfs are correct — only their owner is stale. Change the owner:
+
+```bash
+# Both ids are in the refusal message; read them from there rather than re-deriving them.
+sudo chown -R <uid>:<gid> /run/jobbliggaren/secrets
+sudo chgrp <gid> /run/jobbliggaren/secrets
+sudo systemctl start jobbliggaren-reconcile.service   # apply now rather than waiting for :xx
+```
+
+The numbers are deliberately not written here. A live measured id in a tracked file decays within
+a commit or two; the command that prints today's is what keeps.
 
 ---
 
@@ -344,3 +366,16 @@ procedure here will help.
   closes it; that is a hypervisor-level residual and applies to every branch equally.
 - **Compose behaviour on v5.4.0.** The compose file's load-bearing behavioural notes were
   measured on 2.40.3; the box now runs v5.4.0.
+- **The ownership gate's real `docker run … 'id -u; id -g'` (#1295).** CI stubs docker, as it
+  stubs cosign, so what the fixtures pin is the comparison and never the production ownership
+  triple. Its proof is `vps-deploy-stack.md` row 32b, and that row runs after injection — so
+  until the cutover, the gate is measured only against a stub.
+- **A uid or gid divergence BETWEEN our three images (#1295).** The gate measures the api image,
+  because that is the image injection measured when it set the ownership. All three Dockerfiles
+  declare `USER app`, so a divergence would be a defect in the image pipeline with a build-time
+  gate — but nothing on this box would catch a worker or migrate image that drifted alone.
+- **Injection still runs an unattested image.** `jobbliggaren-inject-secrets.sh` measures the ids
+  from the operator's tag, resolved out of the compose file before anything has been verified.
+  After #1295, reconcile is clean on that axis and this is the only place left on the box that
+  executes an unattested image. Blast radius is an unprivileged container with no mounts and no
+  environment, with the operator at the keyboard.

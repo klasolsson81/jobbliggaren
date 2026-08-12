@@ -29,6 +29,10 @@ set -euo pipefail
 readonly SECRETS_DIR=/run/jobbliggaren/secrets
 readonly COMPOSE_FILE=/opt/jobbliggaren/deploy/docker-compose.yml
 
+# Read for exactly one question: is the mail provider Ses. That answer decides whether the two
+# SES credentials below are required, and nothing else in this script consults this file.
+readonly ENV_FILE=/opt/jobbliggaren/deploy/.env
+
 # A SECOND DIRECTORY, FOR SECRETS NO CONTAINER MAY SEE (#197). SECRETS_DIR is bind-mounted
 # read-only into api and worker; this one is mounted nowhere, stays 0700 root:root, and holds
 # what only a host-side root process reads — today the backup upload credential. See
@@ -50,6 +54,17 @@ readonly -a SECRET_KEYS=(
   "AuditPseudonymization__PepperBase64"
   "CompanyWatchPseudonymization__PepperBase64"
   "CvReviewFingerprintPseudonymization__PepperBase64"
+)
+
+# THE SES CREDENTIALS ARE CONDITIONALLY REQUIRED, WHICH IS WHY THEY ARE NOT IN SECRET_KEYS.
+# They are needed if and only if the provider is Ses. Listing them above would put a permanent
+# MISSING on jobbliggaren-secrets-present.service — the box's only alarm surface — for a state
+# that is correct: before the flip there is nothing to inject and the stack is healthy without
+# them. An alarm that is always on is an alarm nobody reads, so the condition is expressed
+# rather than the entry added. The predicate has one home: email_provider_is_ses below.
+readonly -a SES_SECRET_KEYS=(
+  "Email__Ses__AccessKeyId"
+  "Email__Ses__SecretAccessKey"
 )
 
 # The host-only secrets. Same one-row-per-secret contract as SECRET_KEYS above, different
@@ -90,6 +105,28 @@ has_usable_content() {
   [[ -n "$(tr -d '[:space:]' < "$path" 2>/dev/null)" ]]
 }
 
+# WHETHER THE SES CREDENTIALS ARE REQUIRED AT ALL. An absent file, an unset variable and the
+# literal Console all mean the same thing here as they do at boot: docker-compose.yml renders
+# `${EMAIL_PROVIDER:-Console}` and AddEmailSender falls back to "Console" on a null, so an
+# unreadable .env resolves to not-Ses rather than to an error.
+#
+# Compared CASE-INSENSITIVELY because AddEmailSender compares with OrdinalIgnoreCase
+# (DependencyInjection.cs). A guard stricter than the code it guards is the dangerous direction:
+# on `EMAIL_PROVIDER=ses` it would decline to prompt while the application accepted the value,
+# and the box would boot into AddEmailSender's fail-loud throw with the files absent — the exact
+# state --check exists to catch, missed by the detector itself.
+#
+# `sed -n` rather than grep on purpose: grep exits 1 when it matches nothing, which under
+# `set -euo pipefail` kills the script inside the command substitution instead of yielding the
+# empty value that means Console.
+email_provider_is_ses() {
+  [[ -r "$ENV_FILE" ]] || return 1
+  local value
+  value=$(sed -n 's/^[[:space:]]*EMAIL_PROVIDER[[:space:]]*=[[:space:]]*//p' "$ENV_FILE" 2>/dev/null \
+    | tail -n1 | tr -d "\"'" | tr -d '[:space:]')
+  [[ "${value,,}" == "ses" ]]
+}
+
 # --check is the absence detector, and it lives HERE rather than in the unit so the list of
 # file names has exactly one home. jobbliggaren-secrets-present.service runs it on a timer.
 # It must stat files and nothing else — it runs at boot, when dockerd may not be up, so it must
@@ -120,6 +157,20 @@ if [[ "${1:-}" == "--check" ]]; then
       missing=1
     fi
   done
+
+  # Checked only under the condition that makes them required, and the message says which
+  # condition — an operator who reads MISSING for a file they have never heard of needs to know
+  # it is the mail flip that started demanding it, not a new key class.
+  if email_provider_is_ses; then
+    for key in "${SES_SECRET_KEYS[@]}"; do
+      if ! has_usable_content "${SECRETS_DIR}/${key}"; then
+        log "MISSING: ${SECRETS_DIR}/${key} — EMAIL_PROVIDER=Ses in ${ENV_FILE}, so api and"
+        log "         worker refuse to START (AddEmailSender throws at registration, not at the"
+        log "         first send). Re-run this script without arguments to inject it."
+        missing=1
+      fi
+    done
+  fi
 
   # The host-only directory is checked by the same loop rather than by a second predicate, so a
   # new entry in either array is covered the moment it is added — which is what makes "adding a
@@ -265,6 +316,33 @@ complete one"
   write_secret "$SECRETS_DIR" "$uid" "$gid" "$key" "$value"
   unset value
 done
+
+# The SES credentials, prompted only under the condition that makes them required. Same
+# discipline as the loop above — terminal-only, never argv, skipped when already present — and
+# the same abort on an empty value: an operator who has flipped the provider and then pressed
+# Enter has produced precisely the state that stops the stack from booting, so it fails here,
+# at the keyboard, rather than on the next restart.
+if email_provider_is_ses; then
+  for key in "${SES_SECRET_KEYS[@]}"; do
+    if has_usable_content "${SECRETS_DIR}/${key}"; then
+      log "${key} already present — skipping (remove the file first to replace it)"
+      continue
+    fi
+
+    printf 'Value for %s: ' "$key" >&2
+    read -rs value
+    printf '\n' >&2
+    [[ -n "${value//[[:space:]]/}" ]] || die "${key} was empty or whitespace-only — nothing
+written, and the run is aborted so a partially injected directory is never mistaken for a
+complete one"
+
+    write_secret "$SECRETS_DIR" "$uid" "$gid" "$key" "$value"
+    unset value
+  done
+else
+  log "EMAIL_PROVIDER is not Ses in ${ENV_FILE} — SES credentials not prompted for. Nothing"
+  log "reads them until the flip, which release-checklist.md §2.5 owns."
+fi
 
 # ---------------------------------------------------------------------------------------------
 # The host-only secrets (#197). Same prompt discipline, different destination and a root owner:

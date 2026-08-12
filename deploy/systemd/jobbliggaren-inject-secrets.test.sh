@@ -34,6 +34,7 @@ trap 'rm -rf "$TMPROOT"' EXIT
 
 readonly SECRETS="$TMPROOT/run/jobbliggaren/secrets"
 readonly HOST_SECRETS="$TMPROOT/run/jobbliggaren/host-secrets"
+readonly ENV_FIXTURE="$TMPROOT/deploy.env"
 
 pass=0
 fail=0
@@ -57,6 +58,16 @@ readonly -a EXPECTED_FILES=(
 # structural property it exists to protect was gone.
 readonly -a EXPECTED_HOST_FILES=(
   "Backup__RcloneConfigBase64"
+)
+
+# The two files that are required ONLY when EMAIL_PROVIDER=Ses. Restated here for the same
+# reason as the lists above — a test deriving its expectation from the code under test cannot
+# detect the code dropping an entry — and they are deliberately NOT seeded by
+# seed_all_secrets(): the whole point of the cases below is that a stack without them is
+# healthy until the provider is flipped.
+readonly -a EXPECTED_SES_FILES=(
+  "Email__Ses__AccessKeyId"
+  "Email__Ses__SecretAccessKey"
 )
 
 # Whether this filesystem honours chmod at all. Git Bash on Windows does not — `chmod 0710`
@@ -102,6 +113,7 @@ make_sut_copy() {
   sed \
     -e "s#^readonly SECRETS_DIR=.*#readonly SECRETS_DIR=$SECRETS#" \
     -e "s#^readonly HOST_SECRETS_DIR=.*#readonly HOST_SECRETS_DIR=$HOST_SECRETS#" \
+    -e "s#^readonly ENV_FILE=.*#readonly ENV_FILE=$ENV_FIXTURE#" \
     "$SUT" > "$sut_copy"
   grep -qxF "readonly SECRETS_DIR=$SECRETS" "$sut_copy" || {
     echo "FIXTURE BROKEN: SECRETS_DIR redirect did not apply — the suite would measure the host" >&2
@@ -111,7 +123,29 @@ make_sut_copy() {
     echo "FIXTURE BROKEN: HOST_SECRETS_DIR redirect did not apply — the suite would measure the host" >&2
     exit 1
   }
+  # Same proof as the two above, and it earns its place for a sharper reason: the SES cases are
+  # the only ones whose EXPECTED result depends on a file's CONTENT rather than its presence. An
+  # unapplied redirect here would point at the real /opt/jobbliggaren/deploy/.env, which on a
+  # developer machine and on a CI runner alike does not exist — so email_provider_is_ses would
+  # return false, the provider-is-Ses cases would measure the not-Ses branch, and BOTH would
+  # still report the exit code they wanted. Green for the opposite reason.
+  grep -qxF "readonly ENV_FILE=$ENV_FIXTURE" "$sut_copy" || {
+    echo "FIXTURE BROKEN: ENV_FILE redirect did not apply — the suite would measure the host" >&2
+    exit 1
+  }
   printf '%s' "$sut_copy"
+}
+
+# The provider is written by the case that needs it, never left over from the previous one:
+# these cases differ ONLY in this file's content, so a stale value is a case measuring its
+# neighbour's condition.
+set_env_provider() {
+  local value="${1:-}"
+  if [ -z "$value" ]; then
+    rm -f "$ENV_FIXTURE"
+    return
+  fi
+  printf 'SITE_HOST=jobbliggaren.se\nEMAIL_PROVIDER=%s\n' "$value" > "$ENV_FIXTURE"
 }
 
 run_check() {
@@ -330,6 +364,80 @@ if [ "$got" -eq 1 ] && grep -qF "unknown argument" "$TMPROOT/out"; then
 else
   fail=$((fail + 1))
   echo "  FAIL an unknown argument was not refused (exit $got)" >&2
+  sed 's/^/       /' "$TMPROOT/out" >&2
+fi
+
+echo "-- the SES credentials are conditional on EMAIL_PROVIDER (#183)"
+#
+# EVERY CASE HERE IS BOUND TO THE FILE NAMES, NEVER TO THE EXIT CODE. Where chmod is
+# unavailable the directory-mode branch already sets missing=1, so an exit-code assertion would
+# report the wanted number without having measured this condition at all — and the two
+# provider-is-Ses cases would be indistinguishable from the two provider-is-Console ones.
+
+seed_all_secrets
+set_env_provider ""
+run_check || true
+if ! grep -qE "Email__Ses__(AccessKeyId|SecretAccessKey)" "$TMPROOT/out"; then
+  pass=$((pass + 1)); echo "  ok   no .env at all does not demand the SES credentials"
+else
+  fail=$((fail + 1)); echo "  FAIL an absent .env demanded the SES credentials" >&2
+  sed 's/^/       /' "$TMPROOT/out" >&2
+fi
+
+seed_all_secrets
+set_env_provider "Console"
+run_check || true
+if ! grep -qE "Email__Ses__(AccessKeyId|SecretAccessKey)" "$TMPROOT/out"; then
+  pass=$((pass + 1)); echo "  ok   EMAIL_PROVIDER=Console does not demand the SES credentials"
+else
+  fail=$((fail + 1)); echo "  FAIL EMAIL_PROVIDER=Console demanded the SES credentials" >&2
+  sed 's/^/       /' "$TMPROOT/out" >&2
+fi
+
+# One case per file rather than one representative, for the reason the suite already states
+# about its other lists: a loop that checked only the first name would report both as covered.
+# The OTHER file is seeded in each case, so a passing case measures this file alone.
+for missing_key in "${EXPECTED_SES_FILES[@]}"; do
+  seed_all_secrets
+  set_env_provider "Ses"
+  for k in "${EXPECTED_SES_FILES[@]}"; do
+    [ "$k" = "$missing_key" ] && continue
+    printf '%s' "seeded-value-for-$k" > "$SECRETS/$k"
+  done
+  run_check || true
+  if grep -qF "MISSING: $SECRETS/$missing_key" "$TMPROOT/out"; then
+    pass=$((pass + 1)); echo "  ok   EMAIL_PROVIDER=Ses demands $missing_key"
+  else
+    fail=$((fail + 1)); echo "  FAIL EMAIL_PROVIDER=Ses did not demand $missing_key" >&2
+    sed 's/^/       /' "$TMPROOT/out" >&2
+  fi
+done
+
+# CROSSES THE PREDICATE'S OWN THRESHOLD. AddEmailSender compares the provider with
+# OrdinalIgnoreCase, so `ses` IS Ses to the application. A name-exact guard would decline to
+# demand the files while the app accepted the value, and the box would boot into
+# AddEmailSender's registration-time throw with the credentials absent — precisely the state
+# --check exists to catch, missed by the detector itself.
+seed_all_secrets
+set_env_provider "ses"
+run_check || true
+if grep -qF "MISSING: $SECRETS/Email__Ses__AccessKeyId" "$TMPROOT/out"; then
+  pass=$((pass + 1)); echo "  ok   a lower-case ses is Ses, as it is to AddEmailSender"
+else
+  fail=$((fail + 1)); echo "  FAIL a lower-case ses did not demand the SES credentials" >&2
+  sed 's/^/       /' "$TMPROOT/out" >&2
+fi
+
+seed_all_secrets
+set_env_provider "Ses"
+for k in "${EXPECTED_SES_FILES[@]}"; do
+  printf '%s' "seeded-value-for-$k" > "$SECRETS/$k"
+done
+run_check || true
+if ! grep -qE "MISSING: .*Email__Ses__" "$TMPROOT/out"; then
+  pass=$((pass + 1)); echo "  ok   EMAIL_PROVIDER=Ses with both files present reports neither"
+else
+  fail=$((fail + 1)); echo "  FAIL a present SES credential was still reported missing" >&2
   sed 's/^/       /' "$TMPROOT/out" >&2
 fi
 

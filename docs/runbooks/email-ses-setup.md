@@ -483,7 +483,12 @@ the word "pass" is how that distinction gets missed.
   `security-auditor` rejected that framing on 2026-08-12 and the reasoning is short: a SES
   `Complaint` means the recipient marked the message as spam. For the notification mail, which
   runs on consent, that is an Art. 7(3) withdrawal and an Art. 21 objection arriving through a
-  channel nothing in `src/` reads. Measured: `NotificationConsentWithdrawnAt` is written only by
+  channel nothing in `src/` reads. **There are TWO consent pairs, not one**, and a feedback path
+  that updated only the first would leave the second asserting live consent for the same
+  objector: `NotificationConsentWithdrawnAt` (match notifications) and
+  `FollowedCompanyNotificationConsentWithdrawnAt` (followed-company notifications), kept separate
+  because collapsing them would be an Art. 7 granularity violation (ADR 0087 D5). Measured: both
+  are written only by
   `JobSeeker`'s own opt-out methods. The suppression list stops delivery but never reaches the
   register, so the consent record would go on asserting live consent for someone who has
   objected. That is a defect whether or not AWS ever asks.
@@ -491,7 +496,9 @@ the word "pass" is how that distinction gets missed.
   SNS event destination — would, because the retention entry's first leg is that no
   `ConfigurationSetName` is in play. But SES v2 `SendEmail` carries
   `FeedbackForwardingEmailAddress` as a **per-request** parameter, and email feedback forwarding
-  needs no configuration set at all. Build it that way.
+  needs no configuration set at all. Build it that way —
+  [#1323](https://github.com/klasolsson81/jobbliggaren/issues/1323) owns it, so this paragraph
+  points at work with an owner rather than at nothing.
 
 ---
 

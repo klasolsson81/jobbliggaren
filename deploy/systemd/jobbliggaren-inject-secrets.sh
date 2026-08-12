@@ -68,7 +68,9 @@ readonly -a SECRET_KEYS=(
 )
 
 # THE SES CREDENTIALS ARE CONDITIONALLY REQUIRED, WHICH IS WHY THEY ARE NOT IN SECRET_KEYS.
-# They are needed if and only if the provider is Ses. Listing them above would put a permanent
+# They are needed under EITHER of the two conditions ses_credentials_required enumerates below —
+# the provider being Ses is only one of them — and the injection half prompts under a third,
+# JBL_INJECT_SES=1. Listing them above would put a permanent
 # MISSING on jobbliggaren-secrets-present.service — the box's only alarm surface — for a state
 # that is correct: before the flip there is nothing to inject and the stack is healthy without
 # them. An alarm that is always on is an alarm nobody reads, so the condition is expressed
@@ -214,8 +216,10 @@ if [[ "${1:-}" == "--check" ]]; then
     fi
   done
 
-  # THE MAIL BRANCH REPORTS EVERY WAY THIS FILE CAN STOP THE STACK FROM STARTING, not only a
-  # missing secret. The unit exists because a crash-looping container does NOT appear in
+  # THE MAIL BRANCH REPORTS EVERY BOOT REFUSAL THIS FILE CAN SEE BY ABSENCE, not only a missing
+  # secret. It validates PRESENCE and never VALUE, so a misspelt pointer path or a region outside
+  # the EEA allow-list still reads as healthy here — that allow-list lives in
+  # SesClientRegistration.cs and a second spelling of it in bash would be worse than the gap. The unit exists because a crash-looping container does NOT appear in
   # `systemctl --failed`, so a boot refusal this file can see and does not report is a green
   # alarm over a dead box — the failure this whole script is built against.
   env_provider=$(email_provider)
@@ -431,7 +435,7 @@ done
 # With the override the order inverts and the window closes: inject, THEN edit, then restart.
 # Same shape as JBL_MASTER_KEY_ID below — an env var that answers a prompt the operator would
 # otherwise have to reach by changing production state first.
-if ses_credentials_required || [[ -n "${JBL_INJECT_SES:-}" ]]; then
+if ses_credentials_required || [[ "${JBL_INJECT_SES:-}" == "1" ]]; then
   for key in "${SES_SECRET_KEYS[@]}"; do
     if has_usable_content "${SECRETS_DIR}/${key}"; then
       log "${key} already present — skipping (remove the file first to replace it)"

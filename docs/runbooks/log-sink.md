@@ -113,9 +113,16 @@ rather than offered.** Enabling `jobbliggaren-secrets-present.timer` here would 
 but its `--check` demands `Backup__RcloneConfigBase64` — the very file whose absence *defines*
 this window, and the same one both `logship` units skip on. Enabled here it fails every fire and
 lights `systemctl --failed` permanently, trading a watched gap for an alarm surface nobody reads.
-So: **enable it the moment that credential is injected, and verify by hand until then** — that
-second half is the whole instruction while the window is open, not a fallback.
-`master-key-ops.md` §2 carries the ordering.
+So: **enable it the moment that credential is injected** — `master-key-ops.md` §3 repeats the
+command there — **and until then verify the credential by hand**, which is the whole instruction
+while the window is open, not a fallback:
+
+```bash
+sudo test -s /run/jobbliggaren/host-secrets/Backup__RcloneConfigBase64 && echo present
+```
+
+Not `--check`: on a box in this window it exits 1 whatever else is true, so it cannot tell you
+that this file arrived. `master-key-ops.md` §2 owns the ordering.
 
 **The lifecycle rules on the new prefixes are a separate, Klas-owned step**, and until they exist
 the archive is append-only with no age bound at all — i.e. it discharges the off-box obligation and

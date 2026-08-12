@@ -1212,8 +1212,20 @@ Netcup, not Hetzner.
   `jobbliggaren-secrets-present.timer` running `--check` at boot and every ten minutes,
   landing a missing key on `systemctl --failed`
   (`deploy/systemd/jobbliggaren-secrets-present.service:1-33`, `.timer:1-22`;
-  `docs/runbooks/master-key-ops.md:161-165`). Absence detection and access detection must not
+  `docs/runbooks/master-key-ops.md` §2-§3). Absence detection and access detection must not
   be read as one capability; they are not.
+
+  > **Amendment 2026-08-13 (#1329) — the delivered capability is conditional in operation, and
+  > the paragraph above states it unconditionally.** `--check` is one predicate over two
+  > directories: it demands #197's host-only `Backup__RcloneConfigBase64` alongside the crypto
+  > secrets, so a timer enabled before that credential exists fails on every fire and — through
+  > `jobbliggaren-heartbeat.sh`'s P1, which is `systemctl --failed` being clean — pages
+  > continuously while masking every other failed unit. `master-key-ops.md` §2 therefore makes
+  > `enable --now` conditional on the credential being injectable. **So the unit is shipped and
+  > the capability is real, but on a box where enabling was deferred there is no absence
+  > detection in operation, and no outbound page for a fail-closed outage, until #197's ops half
+  > lands.** The window's outer bound is unowned and is Klas's to set or to accept explicitly —
+  > it is named in §10 below rather than left in a PR body.
 
 ### 10. Unmeasured premises carried forward
 
@@ -1228,6 +1240,12 @@ has:
   secrets-loss event timestamps one in the journal. Until that series exists, the availability
   cost of the no-at-rest-copy model in §1 is bounded by nothing firmer than "reboots are
   manual today."
+  **Amended 2026-08-13 (#1329): the series starts at `enable`, not at install, and §9's
+  amendment makes that conditional on #197. A deferral extends this premise by exactly its own
+  length. HOW LONG THE WINDOW MAY RUN IS UNOWNED — nothing sets a date for #197's ops half and
+  nothing re-measures it. If it runs past first real data, ADR 0050's mandatory pre-launch
+  security review is where it must be closed or accepted; that is Klas's call, not a
+  session's.**
 - **Whether any host snapshot was taken since 2026-08-05**, and **whether the hosting
   provider's snapshot facility captures guest RAM at all**, are both unmeasured. Either would
   mean a copy of the plaintext key already exists outside this box's disk entirely — part of

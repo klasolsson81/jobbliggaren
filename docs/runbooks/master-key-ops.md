@@ -63,6 +63,12 @@ model, with `Automatic-Reboot "false"`.
 someone injects. `jobbliggaren-secrets-present.timer` puts that on `systemctl --failed`
 within two minutes — the box's only alarm surface, since no log sink exists (#1175).
 
+**That last sentence holds only once the timer is ENABLED, and §2 makes enabling conditional
+on #197's backup credential.** While it is deferred there is no path at all from a
+fail-closed outage to a human: a crash-looping container never reaches `systemctl --failed`
+on its own, and `jobbliggaren-heartbeat.sh`'s P1 — the box's only *outbound* channel — is
+precisely "that list is clean". The cost above is then the crash-loop **without** the alarm.
+
 ---
 
 ## 2. Files and units
@@ -76,8 +82,9 @@ within two minutes — the box's only alarm surface, since no log sink exists (#
 | `…/CompanyWatchPseudonymization__PepperBase64` | pepper |
 | `…/CvReviewFingerprintPseudonymization__PepperBase64` | pepper |
 | `/run/app-secrets` | the same directory as api and worker see it (read-only bind mount) |
+| `/run/jobbliggaren/host-secrets/Backup__RcloneConfigBase64` | **#197, and mounted into no container.** `0400 root:root` in a `0700 root:root` directory. Injected by the same script, in the same run — and demanded by the same `--check`, which is why it gates the timer below |
 | `jobbliggaren-inject-secrets.sh` | injection (interactive) and `--check` (the absence detector) |
-| `jobbliggaren-secrets-present.{service,timer}` | runs `--check` at boot + every 10 min |
+| `jobbliggaren-secrets-present.{service,timer}` | runs `--check` at boot + every 10 min — **once enabled; see below** |
 
 **File names are .NET configuration keys** with `__` as the section delimiter. That is the
 contract, not an implementation detail: it is what `AddKeyPerFile` expects, so the reader can
@@ -95,11 +102,16 @@ sudo systemctl daemon-reload
 ```
 
 **Enabling the timer is a separate step, and it belongs after §3's injection.** `--check` is one
-predicate over two directories: it demands #197's host-only `Backup__RcloneConfigBase64`
-alongside the crypto secrets. A timer enabled before that credential is in place therefore fails
-on **every** fire, for as long as it takes to provision it — a permanently lit
-`systemctl --failed`, which is the one command that would surface a real failure later, trained
-into noise. `jobbliggaren-heartbeat.sh` states the same sequencing for the same reason.
+predicate over two directories **and `deploy/.env`** — it demands #197's host-only
+`Backup__RcloneConfigBase64` alongside the crypto secrets, and it also fails on a wrong directory
+mode, an invalid `EMAIL_PROVIDER` and, under `Ses`, the SES credentials. A timer enabled before
+all of those hold fails on **every** fire, for as long as it takes to satisfy them.
+
+**And that is not merely an unread list.** Where `jobbliggaren-heartbeat.timer` is enabled, P1 in
+`jobbliggaren-heartbeat.sh` is `systemctl --failed` being *clean*, so a permanently failed unit
+fail-pages on every heartbeat run **and** makes M-7's P1 vacuous at the same time — it masks
+every other failed unit while it stands. `jobbliggaren-heartbeat.sh` records the same sequencing
+for the same reason.
 
 ```bash
 # After §3 has injected, Backup__RcloneConfigBase64 included:
@@ -109,10 +121,19 @@ sudo systemctl enable --now jobbliggaren-secrets-present.timer
 > **The condition is the rclone config in your hand, not #197 being finished.** §3's injection
 > prompts for `Backup__RcloneConfigBase64` in the same run as the crypto secrets, so if you hold
 > the config you inject and enable the same day and there is no wait at all. If you do not, stop
-> after `daemon-reload`: the unit files are installed and inert, and you enable them the day the
-> credential exists. **Until then the box has no absence alarm** — that is the cost of deferring,
-> it is real, and it is why this is a deliberate decision rather than a step to skip quietly. The
-> handover row lives in [`host-detection.md`](host-detection.md) §7.
+> after `daemon-reload`: the unit files are installed and inert (the service carries no
+> `[Install]` section — only the timer does), and you enable them the day the credential exists.
+>
+> **What deferring costs, in full, because a cost that is understated is not a decision:** the
+> box has **no** absence alarm and no outbound page for a fail-closed outage (§1); `--check`'s
+> other detections — wrong directory mode, invalid `EMAIL_PROVIDER`, SES boot refusal — are
+> unwatched with it; and §7's unplanned-reboot series does not begin, because this timer is its
+> instrument. Deferring is a decision, not a step to skip quietly.
+>
+> **You are reminded by §3, not by a table.** The enable step is repeated at the end of §3, where
+> an operator stands when the credential finally is injected. `host-detection.md` §7's floor-set
+> row is what must be **re-measured** once the timer is enabled — it is a dated measurement, not
+> an instruction, and nothing in it will prompt you.
 
 There is deliberately **no unit that starts the stack** and none that unseals anything — with
 no at-rest copy there is nothing to unseal, so the `Before=docker.service` ordering problem
@@ -138,8 +159,31 @@ What it does, in order:
 3. **Asks for the key identity first**, defaulting to `local-v1`, and writes it before the
    key bytes. Identity and bytes are one unit: a v2 key stamped `local-v1` makes the next
    rotation's compare-and-swap skip exactly the rows it must not skip.
-4. Prompts for each secret with `read -rs`, validates that the master key decodes to 32 bytes,
-   and creates each file `0400` owned by the measured uid.
+4. Prompts for each **crypto** secret with `read -rs`, validates that the master key decodes to
+   32 bytes, and creates each file `0400` owned by the measured uid. The SES credentials are
+   prompted for only under the condition the script states (provider `Ses`, a `_FILE` pointer,
+   or `JBL_INJECT_SES=1`).
+5. **Prompts for `Backup__RcloneConfigBase64` last, unconditionally, and to a different
+   destination** — `/run/jobbliggaren/host-secrets/`, `0400 root:root`, mounted into no
+   container (#197). It is validated for base64 *decodability*, not for a byte length: it is the
+   base64 **of** an rclone config file, produced with `base64 -w0 < rclone.conf`.
+
+> **IF YOU DO NOT HAVE THE RCLONE CONFIG YET, READ THIS BEFORE RUNNING §3.** That prompt is not
+> gated on anything, and an empty answer aborts the run: `REFUSING: Backup__RcloneConfigBase64
+> was empty or whitespace-only`, exit 1, and the closing `Injected.` line is never printed. **The
+> crypto secrets are already written at that point** — they are written first — so this is the
+> expected shape of a deferred injection and not a failed one. Verify it that way instead:
+>
+> ```bash
+> sudo /opt/jobbliggaren/deploy/systemd/jobbliggaren-inject-secrets.sh --check
+> # expect exit 1 with exactly one MISSING line, naming
+> #   /run/jobbliggaren/host-secrets/Backup__RcloneConfigBase64
+> # and the summary saying nothing api or worker reads is absent.
+> docker inspect -f '{{.State.Health.Status}}' jobbliggaren-api    # expect: healthy
+> ```
+>
+> Do **not** enable `jobbliggaren-secrets-present.timer` in this state — that is §2's condition,
+> and this is exactly the state it is about.
 
 > **NEVER ACCEPT THE IDENTITY DEFAULT BLINDLY ON A ROTATED BOX.** After a rotation the box
 > holds no record of which identity is in force — tmpfs was cleared by the reboot and `.env`
@@ -181,6 +225,18 @@ archive stale — correctly, but for a condition you just cleared. `Persistent=t
 this: the catch-up firing happened at boot, when there was still no credential. Without this line
 the alarm stays lit until the next `:17`, up to an hour, which is exactly the always-lit surface
 these units are written against.
+
+**And enable the absence detector, if §2's enable step was deferred** (#1329):
+
+```bash
+sudo systemctl enable --now jobbliggaren-secrets-present.timer
+systemctl is-active jobbliggaren-secrets-present.timer    # expect: active
+```
+
+This is the reminder §2 promised, and it is the only one there is: a deferral leaves no failed
+unit, no timer and no row that re-reads itself. Re-measure `host-detection.md` §7's floor-set row
+afterwards — the timer belongs in `jobbliggaren-heartbeat.sh`'s `FLOOR_TIMERS` from this moment,
+not from the moment its unit files were installed.
 
 ### If reconcile refuses because the ids moved — repair by re-owning, NEVER by re-injecting
 
@@ -356,7 +412,9 @@ the damage unrecoverable.
    > rather than restore the old key — and re-running reads `OLD_KEY`.
 
 10. `sudo systemctl start jobbliggaren-secrets-present.timer` if it was stopped, and re-arm the
-    reconcile timer.
+    reconcile timer. **Use `enable --now` instead if §2's enable step was deferred and never
+    taken** — `start` on a never-enabled timer leaves it disabled, so it dies at the next reboot,
+    silently, on the box's only alarm surface.
 
 ---
 
@@ -407,7 +465,9 @@ procedure here will help.
 - **Unplanned-reboot frequency.** `last reboot` returned no readable history on 2026-08-09.
   `jobbliggaren-secrets-present.timer` is the instrument that starts the series; until it has
   run for a while, the availability cost of the no-at-rest-copy model is bounded by nothing
-  but "reboots are manual today".
+  but "reboots are manual today". **The series does not begin at install but at `enable`**, and
+  §2 makes that conditional on #197 — so a deferral extends this unmeasured premise by exactly
+  as long as it lasts.
 - **Whether any Netcup snapshot has been taken since 2026-08-05.** If one exists it contains
   the old plaintext key — which is one of the reasons the cutover rotates rather than relocates.
 - **Whether Netcup's snapshot facility captures guest RAM.** If it does, no in-guest mechanism

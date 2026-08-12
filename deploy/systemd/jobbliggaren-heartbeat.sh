@@ -41,11 +41,15 @@ readonly AUDIT_RULES_FILE=/etc/audit/rules.d/zz-jobbliggaren.rules
 
 # The floor set: timers whose absence would make P1's emptiness meaningless.
 # KEEP IN SYNC AS UNITS LAND. #197's jobbliggaren-backup.timer and #198's
-# jobbliggaren-secrets-present.timer belong here the moment they are installed on the box, and
-# that handover is written in docs/runbooks/host-detection.md rather than left to memory.
-# Note that jobbliggaren-secrets-present.timer cannot be installed before #197's host-secrets are
-# provisioned: its --check exits non-zero on those keys too, so it would light the alarm surface
-# permanently. Sequencing, not a defect.
+# jobbliggaren-secrets-present.timer belong here the moment they are ENABLED on the box — the
+# state check_floor_timers actually measures — and that handover is written in
+# docs/runbooks/host-detection.md rather than left to memory.
+#
+# INSTALLED AND ENABLED ARE TWO MOMENTS FOR THIS ONE, AND THE GAP IS DELIBERATE (#1329).
+# jobbliggaren-secrets-present.timer may be installed at any time; it must not be ENABLED before
+# #197's host-secrets are provisioned, because its --check exits non-zero on those keys too and
+# would light the alarm surface permanently — which, through P1 below, is a continuous page.
+# master-key-ops.md §2 owns the ordering. Sequencing, not a defect.
 readonly FLOOR_TIMERS="jobbliggaren-reconcile.timer jobbliggaren-heartbeat.timer"
 
 # Free-space floor, in percent. This absorbs the DETECTION half of a disk-usage finding

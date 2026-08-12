@@ -69,15 +69,21 @@ refactor cannot quietly remove it (senior-cto-advisor bind 2026-08-09, D2).
 > "the escrow row" meant the master key's — `vps-deploy-stack.md` §5 **row 26**, which has
 > carried a measurement since 2026-08-12. Read literally, this callout now discharges itself
 > while the age key is missing entirely and the artefacts are exactly as unreadable as before.
-> **The condition hangs on row 32**, which is open: the identity was not found in four roots on
-> 2026-08-07, and generating a fresh one costs nothing until the first backup lands.
+> **The condition hangs on row 32**, which is open — **but no longer on the identity's existence.**
+> ~~The identity was not found in four roots on 2026-08-07, and generating a fresh one costs
+> nothing until the first backup lands.~~ **A fresh one was generated 2026-08-12** and its
+> recipient is what `deploy/backup/age.recipient` now carries. **Do not generate another** — that
+> instruction has been discharged, and a reader acting on the struck sentence would produce a
+> third identity and orphan the second.
 >
 > Klas owns it, and the *form* is settled — plaintext on his own devices, the same device as
 > `jobbpilot_vps_ed25519` permitted, over `security-auditor`'s objection and recorded as an
 > accepted risk in **ADR 0129** (gitignored per §6.5; if it is absent from your checkout, the
 > decision is summarised in `vps-deploy-stack.md` rows 26 and 32). Her reservation in §5 below —
-> that this choice is hers once real data exists — is **unspent**: the decision was taken
-> pre-data. When the identity exists, record the date here and fill in row 32.
+> that this choice is hers once real data exists — is **unspent**, and the rotation did not spend
+> it: the new private half sits on the same device, which is the same accepted risk and not a new
+> one. **What row 32 still waits for is Klas's confirmation that the identity is escrowed** — the
+> identity itself exists. Record the date there, not here; this callout no longer owns it.
 >
 > Backups may be *taken* meanwhile — encryption needs only the recipient — and taking them is
 > strictly better than not. What may not happen is anyone relying on them.
@@ -270,8 +276,12 @@ sudo systemd-tmpfiles --create
 stat -c '%a %U:%G' /run/jobbliggaren/host-secrets     # expect: 700 root:root
 
 # 3. The recipient. It is TRACKED in the repo (it is public), so it arrives with the deploy/
-#    clone. Klas generated the identity on his own machine 2026-08-09; the private half has
-#    never left it, which is what makes requirement (b) structural rather than a rule.
+#    clone. Klas generated the identity in force on his own machine 2026-08-12, and its private
+#    half has not left it. Requirement (b) is structural rather than a rule because the box holds
+#    only the public half - not because of any claim about where a private half has travelled.
+#    THE 2026-08-09 IDENTITY IS REVOKED AND MUST NEVER BE REINSTALLED: its private half was
+#    exposed in a chat transcript on 2026-08-12. It is still reachable from git history and is
+#    named in two gitignored documents, so "replaced" is not enough to say about it.
 #    chown, not just chmod: the file arrives from a clone and is owned by whoever cloned it, and
 #    0444 stops everyone EXCEPT the owner. Its integrity is the control - a swapped recipient
 #    costs every subsequent night, silently, and only the drill notices.

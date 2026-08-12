@@ -168,6 +168,24 @@ run_check() {
   PATH="/usr/bin:/bin" bash "$(make_sut_copy)" --check >"$TMPROOT/out" 2>&1
 }
 
+# The two summaries, by a substring unique to each. Bound to the SUMMARY and never to a per-line
+# message: which counter a branch set is invisible to every `MISSING:` assertion in this file.
+readonly BLOCKING_SUMMARY="crash-loop by design"
+readonly HOST_ONLY_SUMMARY="Nothing this check reads is absent for api and worker"
+
+# Asserts the blocking summary, and the ABSENCE of the host-only one. The negative half is what
+# makes it a pin: a branch moved to `host_missing` still prints its own MISSING line, still exits
+# 1, and still satisfies every other assertion in this suite.
+assert_blocking_summary() {
+  local desc="$1"
+  if grep -qF "$BLOCKING_SUMMARY" "$TMPROOT/out" && ! grep -qF "$HOST_ONLY_SUMMARY" "$TMPROOT/out"; then
+    pass=$((pass + 1)); echo "  ok   $desc summarises as blocking"
+  else
+    fail=$((fail + 1)); echo "  FAIL $desc did not summarise as blocking" >&2
+    sed 's/^/       /' "$TMPROOT/out" >&2
+  fi
+}
+
 expect_check() {
   local want="$1" desc="$2"
   local got=0
@@ -268,7 +286,7 @@ echo "-- the summary tells a box that is DOWN from one that is merely un-backed-
 #
 # THE EXIT CODE IS PINNED TOO, and it is the half that is easy to "fix" wrongly. Making the
 # host-only case exit 0 would read as an improvement and would silently delete an alarm:
-# backup-restore.md §5 states that a missing backup credential is unreported by nothing precisely
+# backup-restore.md §3 states that a missing backup credential is unreported by nothing precisely
 # because this unit covers it. The string was the defect; the exit code was not.
 #
 # Mode-gated like the cases above, and not incidentally: where chmod is unavailable the WRONG MODE
@@ -278,26 +296,59 @@ if [ "$MODE_ENFORCED" = "yes" ]; then
   seed_all_secrets
   rm -f "$HOST_SECRETS/Backup__RcloneConfigBase64"
   expect_check 1 "a missing host-only credential still lights the alarm"
-  if grep -qF "the stack serves and no key is missing" "$TMPROOT/out" \
-    && ! grep -qF "crash-loop by design" "$TMPROOT/out"; then
+  if grep -qF "$HOST_ONLY_SUMMARY" "$TMPROOT/out" \
+    && ! grep -qF "$BLOCKING_SUMMARY" "$TMPROOT/out"; then
     pass=$((pass + 1)); echo "  ok   the summary does not claim a crash-loop over a serving stack"
   else
     fail=$((fail + 1)); echo "  FAIL the summary claimed a crash-loop while only the host-only credential was absent" >&2
     sed 's/^/       /' "$TMPROOT/out" >&2
   fi
 
+  # EVERY BLOCKING BRANCH, ONE ISOLATED CASE EACH — not one representative. Measured 2026-08-13:
+  # moving the INVALID-provider branch alone from `missing` to `host_missing` left the ENTIRE
+  # suite green while --check told the operator the stack was serving over a box AddEmailSender
+  # refuses to start. Every other assertion here binds to a per-line string or to exit 1, and a
+  # miscounted branch changes neither. Each case below isolates ONE branch, so a pass measures
+  # that branch alone.
+  #
+  # The `-d` branch for SECRETS_DIR is deliberately absent, and named rather than faked: with no
+  # directory the five file branches fire too, so no fixture can isolate it. The file loop's own
+  # case below covers the counter it shares.
+  seed_all_secrets; rm -f "$SECRETS/FieldEncryption__LocalMasterKeyBase64"; run_check || true
+  assert_blocking_summary "a missing crypto file"
+
+  seed_all_secrets; chmod 0700 "$SECRETS"; run_check || true
+  assert_blocking_summary "a wrong directory mode"
+
+  seed_all_secrets; set_env_provider "Resend"; run_check || true
+  assert_blocking_summary "an invalid EMAIL_PROVIDER"
+
+  # SES files absent, all three .env variables set — so the variable branch stays quiet and the
+  # file branch is the only one firing.
+  seed_all_secrets
+  write_env "EMAIL_PROVIDER=Ses" "EMAIL_SES_ACCESS_KEY_ID_FILE=/x" \
+    "EMAIL_SES_SECRET_ACCESS_KEY_FILE=/y" "EMAIL_SES_REGION=eu-north-1"
+  run_check || true
+  assert_blocking_summary "a missing SES credential file"
+
+  # The mirror: files present, one variable unset.
+  seed_all_secrets
+  for k in "${EXPECTED_SES_FILES[@]}"; do printf '%s' "seeded-value-for-$k" > "$SECRETS/$k"; done
+  write_env "EMAIL_PROVIDER=Ses" "EMAIL_SES_ACCESS_KEY_ID_FILE=/x" \
+    "EMAIL_SES_SECRET_ACCESS_KEY_FILE=/y"
+  run_check || true
+  assert_blocking_summary "an unset EMAIL_SES_REGION"
+
+  # BOTH SETS ABSENT — the state the box is in after EVERY reboot, since /run is tmpfs, and the
+  # only one that pins the PRECEDENCE the fix relies on. Swap the two blocks and this is the case
+  # that fails; nothing else would.
   seed_all_secrets
   rm -f "$SECRETS/FieldEncryption__LocalMasterKeyBase64"
+  rm -f "$HOST_SECRETS/Backup__RcloneConfigBase64"
   run_check || true
-  if grep -qF "crash-loop by design" "$TMPROOT/out" \
-    && ! grep -qF "the stack serves and no key is missing" "$TMPROOT/out"; then
-    pass=$((pass + 1)); echo "  ok   a missing master key still summarises as a crash-loop"
-  else
-    fail=$((fail + 1)); echo "  FAIL a missing master key did not summarise as a crash-loop" >&2
-    sed 's/^/       /' "$TMPROOT/out" >&2
-  fi
+  assert_blocking_summary "both sets absent (the post-reboot state)"
 else
-  skipped=$((skipped + 3))
+  skipped=$((skipped + 8))
   echo "  SKIP summary cases: this filesystem does not honour chmod, so the mode branch sets the"
   echo "       blocking counter and the serving case cannot be measured. They RUN in CI."
 fi

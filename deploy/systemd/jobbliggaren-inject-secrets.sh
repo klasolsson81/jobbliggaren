@@ -191,14 +191,18 @@ ses_credentials_required() {
 # never touch docker.
 if [[ "${1:-}" == "--check" ]]; then
   # TWO COUNTERS, BECAUSE ONE SUMMARY CANNOT DESCRIBE TWO DISJOINT SETS (#1328). `missing` is
-  # everything api and worker read; `host_missing` is the host-only set, whose absence leaves the
-  # stack serving. Each branch below sets exactly ONE of them — never both — so the summary can
-  # tell "the box is down" from "the nightly backup is". The exit code does not distinguish them:
-  # backup-restore.md §5 leans on this unit alarming on the missing credential, and an exit 0
-  # would delete that alarm silently.
+  # everything api and worker read; `host_missing` is the host-only set. Each branch below sets
+  # exactly ONE, and `missing` is evaluated first and exits — so when both are set, which is the
+  # state after EVERY reboot, the blocking summary wins.
   #
-  # A NEW CHECK THAT PICKS THE WRONG COUNTER FAILS TOWARD `missing`, which is the louder half —
-  # a copy of any crypto branch above already carries it.
+  # THE INVARIANT IS ONE-DIRECTIONAL, and only one direction is dangerous: a check of something
+  # api or worker reads MUST set `missing`. The reverse costs volume and nothing else. A crypto
+  # check that picked `host_missing` would tell an operator the stack was serving over a box that
+  # is down, and no per-line assertion can see it — the summary cases in the test suite are what
+  # catch it.
+  #
+  # The exit code does not distinguish them, deliberately: backup-restore.md §3 leans on this
+  # unit alarming on the missing backup credential, and an exit 0 would delete that alarm.
   missing=0
   host_missing=0
 
@@ -280,8 +284,11 @@ if [[ "${1:-}" == "--check" ]]; then
   fi
   for key in "${HOST_SECRET_KEYS[@]}"; do
     if ! has_usable_content "${HOST_SECRETS_DIR}/${key}"; then
-      log "MISSING: ${HOST_SECRETS_DIR}/${key} — the stack still serves, but the nightly backup"
-      log "         cannot upload (#197). jobbliggaren-backup.service will refuse."
+      # Nothing about the STACK is asserted here. The old wording said "the stack still serves",
+      # which is false after a reboot, when this line prints above a correct crash-loop summary.
+      log "MISSING: ${HOST_SECRETS_DIR}/${key} — host-only, read by no container. The nightly"
+      log "         backup cannot upload (#197): jobbliggaren-backup.service SKIPS its scheduled"
+      log "         run on ConditionPathExists rather than failing, so this line is its alarm."
       host_missing=1
     fi
   done
@@ -295,11 +302,12 @@ if [[ "${1:-}" == "--check" ]]; then
   #
   # AND IT USED TO ASSERT A CRASH-LOOP FOR BOTH SETS, which made it FALSE in the state a cutover
   # leaves behind: crypto injected, #197's host-only credential not yet provisioned. Measured on
-  # the box 2026-08-13, immediately after #198's cutover succeeded, with api and web healthy. The
-  # summary then contradicted the very line above it, which already said the stack still serves —
-  # and it did so at the moment an operator is deciding whether the cutover worked. Believing it
-  # means re-running the injection, which re-rotates a master key against a live database for
-  # nothing.
+  # the box 2026-08-13, immediately after #198's cutover succeeded, with api and web healthy.
+  #
+  # THE HOST-ONLY SUMMARY CLAIMS ONLY WHAT THIS CHECK READ, and the narrower wording is the point:
+  # `--check` never reads the VALUE of the SES pointers or the region (see the mail branch above),
+  # so "the stack serves" would be a claim it cannot make — and would make it in the fail-OPEN
+  # direction, on the box's only alarm surface.
   if [[ $missing -ne 0 ]]; then
     log "Something above is missing or invalid, and api and worker will crash-loop by design"
     log "(fail-closed, never a fallback key). Read the individual lines: those naming a FILE are"
@@ -308,14 +316,14 @@ if [[ "${1:-}" == "--check" ]]; then
     exit 1
   fi
   if [[ $host_missing -ne 0 ]]; then
-    log "api and worker have everything they read: the stack serves and no key is missing. What"
-    log "is absent is host-only — the nightly backup cannot upload (#197), and"
-    log "jobbliggaren-backup.service refuses until it is injected. Same script, which prompts for"
-    log "it after the crypto secrets it is already holding:"
+    log "Nothing this check reads is absent for api and worker — no crypto file, no mail setting."
+    log "What is absent is host-only, and the lines above name it. The consequence is the nightly"
+    log "backup, not the stack. Same script, which prompts for it after the crypto secrets it is"
+    log "already holding:"
     log "  sudo /opt/jobbliggaren/deploy/systemd/jobbliggaren-inject-secrets.sh"
     exit 1
   fi
-  log "all secrets present in ${SECRETS_DIR}"
+  log "all secrets present in ${SECRETS_DIR} and ${HOST_SECRETS_DIR}"
   exit 0
 fi
 

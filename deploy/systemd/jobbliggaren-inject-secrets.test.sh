@@ -34,6 +34,7 @@ trap 'rm -rf "$TMPROOT"' EXIT
 
 readonly SECRETS="$TMPROOT/run/jobbliggaren/secrets"
 readonly HOST_SECRETS="$TMPROOT/run/jobbliggaren/host-secrets"
+readonly ENV_FIXTURE="$TMPROOT/deploy.env"
 
 pass=0
 fail=0
@@ -59,6 +60,16 @@ readonly -a EXPECTED_HOST_FILES=(
   "Backup__RcloneConfigBase64"
 )
 
+# The two files that are required ONLY when EMAIL_PROVIDER=Ses. Restated here for the same
+# reason as the lists above — a test deriving its expectation from the code under test cannot
+# detect the code dropping an entry — and they are deliberately NOT seeded by
+# seed_all_secrets(): the whole point of the cases below is that a stack without them is
+# healthy until the provider is flipped.
+readonly -a EXPECTED_SES_FILES=(
+  "Email__Ses__AccessKeyId"
+  "Email__Ses__SecretAccessKey"
+)
+
 # Whether this filesystem honours chmod at all. Git Bash on Windows does not — `chmod 0710`
 # returns 0 and the directory stays 0755 — so the directory-mode cases cannot be measured
 # there. They are SKIPPED LOUDLY rather than silently tolerated: a suite that quietly drops a
@@ -73,6 +84,11 @@ rm -rf "$probe"
 
 seed_all_secrets() {
   rm -rf "$TMPROOT/run"
+  # The .env fixture is reset HERE rather than by each case, so "no provider set" is the state a
+  # case starts from structurally instead of by being written before the block that sets one.
+  # It was order-dependent until 2026-08-12: nothing mismeasured, but the property held because
+  # of where the SES block sat in the file, which is not a property at all.
+  rm -f "$ENV_FIXTURE"
   mkdir -p "$SECRETS"
   # 0710 is the mode the running stack needs and the mode --check asserts: root owns the
   # directory, the container's group traverses it. The fixture must reproduce the production
@@ -102,6 +118,7 @@ make_sut_copy() {
   sed \
     -e "s#^readonly SECRETS_DIR=.*#readonly SECRETS_DIR=$SECRETS#" \
     -e "s#^readonly HOST_SECRETS_DIR=.*#readonly HOST_SECRETS_DIR=$HOST_SECRETS#" \
+    -e "s#^readonly ENV_FILE=.*#readonly ENV_FILE=$ENV_FIXTURE#" \
     "$SUT" > "$sut_copy"
   grep -qxF "readonly SECRETS_DIR=$SECRETS" "$sut_copy" || {
     echo "FIXTURE BROKEN: SECRETS_DIR redirect did not apply — the suite would measure the host" >&2
@@ -111,7 +128,40 @@ make_sut_copy() {
     echo "FIXTURE BROKEN: HOST_SECRETS_DIR redirect did not apply — the suite would measure the host" >&2
     exit 1
   }
+  # Same proof as the two above, and it earns its place for a sharper reason: the SES cases are
+  # the only ones whose EXPECTED result depends on a file's CONTENT rather than its presence. An
+  # unapplied redirect here would point at the real /opt/jobbliggaren/deploy/.env, which on a
+  # developer machine and on a CI runner alike does not exist — so email_provider would answer
+  # `console`, the provider-is-Ses cases would measure the not-Ses branch, and BOTH would still
+  # report the exit code they wanted. Green for the opposite reason.
+  grep -qxF "readonly ENV_FILE=$ENV_FIXTURE" "$sut_copy" || {
+    echo "FIXTURE BROKEN: ENV_FILE redirect did not apply — the suite would measure the host" >&2
+    exit 1
+  }
   printf '%s' "$sut_copy"
+}
+
+# The provider is written by the case that needs it, never left over from the previous one:
+# these cases differ ONLY in this file's content, so a stale value is a case measuring its
+# neighbour's condition.
+set_env_provider() {
+  local value="${1:-}"
+  if [ -z "$value" ]; then
+    rm -f "$ENV_FIXTURE"
+    return
+  fi
+  write_env "SITE_HOST=jobbliggaren.se" "EMAIL_PROVIDER=$value"
+}
+
+# Writes the fixture verbatim, one argument per line. The parser cases need RAW lines rather
+# than a value: every form that broke the first implementation is a property of the LINE — an
+# export prefix, a colon delimiter, a trailing comment — and a helper taking a value cannot
+# express any of them. Passing no arguments writes an .env that EXISTS and is EMPTY, which is a
+# distinct state from having no file at all.
+write_env() {
+  : > "$ENV_FIXTURE"
+  local line
+  for line in "$@"; do printf '%s\n' "$line" >> "$ENV_FIXTURE"; done
 }
 
 run_check() {
@@ -299,6 +349,11 @@ echo "-- --check never touches docker"
 # run would fail for the wrong reason and the alarm would mean something other than what it
 # says. Proven by putting a docker on PATH that fails loudly if invoked.
 seed_all_secrets
+# The probe must CROSS the branch it is testing. With no .env the mail branch is skipped
+# entirely, so this case would have proven docker-freedom only of the code path that existed
+# before the SES work — and the new branch, which is the one that reads a file, would be the
+# unproven one. Ses is set so the whole branch executes under the poisoned PATH.
+set_env_provider "Ses"
 mkdir -p "$TMPROOT/bin"
 cat >"$TMPROOT/bin/docker" <<'EOF'
 #!/usr/bin/env bash
@@ -332,6 +387,190 @@ else
   echo "  FAIL an unknown argument was not refused (exit $got)" >&2
   sed 's/^/       /' "$TMPROOT/out" >&2
 fi
+
+echo "-- the SES credentials are conditional on EMAIL_PROVIDER (#183)"
+#
+# EVERY CASE HERE IS BOUND TO THE FILE NAMES, NEVER TO THE EXIT CODE. Where chmod is
+# unavailable the directory-mode branch already sets missing=1, so an exit-code assertion would
+# report the wanted number without having measured this condition at all — and the two
+# provider-is-Ses cases would be indistinguishable from the two provider-is-Console ones.
+
+seed_all_secrets
+set_env_provider ""
+run_check || true
+if ! grep -qE "Email__Ses__(AccessKeyId|SecretAccessKey)|INVALID: EMAIL_PROVIDER" "$TMPROOT/out"; then
+  pass=$((pass + 1)); echo "  ok   no .env at all does not demand the SES credentials"
+else
+  fail=$((fail + 1)); echo "  FAIL an absent .env demanded the SES credentials" >&2
+  sed 's/^/       /' "$TMPROOT/out" >&2
+fi
+
+seed_all_secrets
+set_env_provider "Console"
+run_check || true
+if ! grep -qE "Email__Ses__(AccessKeyId|SecretAccessKey)|INVALID: EMAIL_PROVIDER" "$TMPROOT/out"; then
+  pass=$((pass + 1)); echo "  ok   EMAIL_PROVIDER=Console does not demand the SES credentials"
+else
+  fail=$((fail + 1)); echo "  FAIL EMAIL_PROVIDER=Console demanded the SES credentials" >&2
+  sed 's/^/       /' "$TMPROOT/out" >&2
+fi
+
+# One case per file rather than one representative, for the reason the suite already states
+# about its other lists: a loop that checked only the first name would report both as covered.
+# The OTHER file is seeded in each case, so a passing case measures this file alone.
+for missing_key in "${EXPECTED_SES_FILES[@]}"; do
+  seed_all_secrets
+  set_env_provider "Ses"
+  for k in "${EXPECTED_SES_FILES[@]}"; do
+    [ "$k" = "$missing_key" ] && continue
+    printf '%s' "seeded-value-for-$k" > "$SECRETS/$k"
+  done
+  run_check || true
+  if grep -qF "MISSING: $SECRETS/$missing_key" "$TMPROOT/out"; then
+    pass=$((pass + 1)); echo "  ok   EMAIL_PROVIDER=Ses demands $missing_key"
+  else
+    fail=$((fail + 1)); echo "  FAIL EMAIL_PROVIDER=Ses did not demand $missing_key" >&2
+    sed 's/^/       /' "$TMPROOT/out" >&2
+  fi
+done
+
+# CROSSES THE PREDICATE'S OWN THRESHOLD. AddEmailSender compares the provider with
+# OrdinalIgnoreCase, so `ses` IS Ses to the application. A name-exact guard would decline to
+# demand the files while the app accepted the value, and the box would boot into
+# AddEmailSender's registration-time throw with the credentials absent — precisely the state
+# --check exists to catch, missed by the detector itself.
+seed_all_secrets
+set_env_provider "ses"
+run_check || true
+if grep -qF "MISSING: $SECRETS/Email__Ses__AccessKeyId" "$TMPROOT/out"; then
+  pass=$((pass + 1)); echo "  ok   a lower-case ses is Ses, as it is to AddEmailSender"
+else
+  fail=$((fail + 1)); echo "  FAIL a lower-case ses did not demand the SES credentials" >&2
+  sed 's/^/       /' "$TMPROOT/out" >&2
+fi
+
+seed_all_secrets
+set_env_provider "Ses"
+for k in "${EXPECTED_SES_FILES[@]}"; do
+  printf '%s' "seeded-value-for-$k" > "$SECRETS/$k"
+done
+run_check || true
+if ! grep -qE "MISSING: .*Email__Ses__" "$TMPROOT/out"; then
+  pass=$((pass + 1)); echo "  ok   EMAIL_PROVIDER=Ses with both files present reports neither"
+else
+  fail=$((fail + 1)); echo "  FAIL a present SES credential was still reported missing" >&2
+  sed 's/^/       /' "$TMPROOT/out" >&2
+fi
+
+echo "-- the .env forms compose accepts, all of which mean Ses"
+#
+# THE FIRST IMPLEMENTATION READ ONLY THE FIRST OF THESE and answered not-Ses to the rest, which
+# is the fail-OPEN direction: compose renders Ses, AddEmailSender throws at registration, the
+# containers crash-loop, and --check exits 0 saying "all secrets present" over a dead box. All
+# three reviewing agents found it independently. Each line below was measured against Compose
+# v2.40.3 on 2026-08-12 to render `Ses`; they are the fixture BECAUSE compose accepts them, not
+# because a parser happens to.
+for env_line in \
+  'EMAIL_PROVIDER=Ses' \
+  'EMAIL_PROVIDER=Ses # flippat 2026-08-12' \
+  'export EMAIL_PROVIDER=Ses' \
+  'EMAIL_PROVIDER: Ses' \
+  'EMAIL_PROVIDER="Ses" # quoted plus comment' \
+  '  EMAIL_PROVIDER   =   ses   ' \
+  ; do
+  seed_all_secrets
+  write_env "SITE_HOST=jobbliggaren.se" "$env_line"
+  run_check || true
+  if grep -qF "MISSING: $SECRETS/Email__Ses__AccessKeyId" "$TMPROOT/out"; then
+    pass=$((pass + 1)); echo "  ok   [$env_line] is Ses"
+  else
+    fail=$((fail + 1)); echo "  FAIL [$env_line] was not read as Ses" >&2
+    sed 's/^/       /' "$TMPROOT/out" >&2
+  fi
+done
+
+echo "-- a quoted value KEEPS its hash, and compose treats that as a boot refusal"
+# The fix for the parser introduced this one and security-auditor measured it: compose renders
+# `Ses # x` for a single-quoted value, which AddEmailSender throws on, while a naive strip read
+# it as `Ses` and reported a box configured for SES that does not start. WIDER is fail-closed
+# everywhere except here, which is why the strip now stops at the closing quote.
+seed_all_secrets
+write_env "SITE_HOST=jobbliggaren.se" "EMAIL_PROVIDER='Ses # not really'"
+run_check || true
+if grep -qF "INVALID: EMAIL_PROVIDER=" "$TMPROOT/out"; then
+  pass=$((pass + 1)); echo "  ok   a quoted hash makes the value unknown, as it is to compose"
+else
+  fail=$((fail + 1)); echo "  FAIL a quoted hash was stripped and read as Ses" >&2
+  sed 's/^/       /' "$TMPROOT/out" >&2
+fi
+
+echo "-- an .env that exists without the key is the box's state today"
+# THE MUTATION THIS EXISTS FOR: `== "ses"` -> `!= "console"` survived the whole suite before
+# this case, and under it the box's own .env — which has no EMAIL_PROVIDER line at all — would
+# take a permanent MISSING. That is verbatim the outcome the design exists to avoid, and no
+# case could see it, because every fixture either had no file or had the key.
+seed_all_secrets
+write_env "SITE_HOST=jobbliggaren.se" "POSTGRES_APP_PASSWORD=x"
+run_check || true
+if ! grep -qE "Email__Ses__|EMAIL_SES_|INVALID: EMAIL_PROVIDER" "$TMPROOT/out"; then
+  pass=$((pass + 1)); echo "  ok   an .env with no EMAIL_PROVIDER line demands nothing"
+else
+  fail=$((fail + 1)); echo "  FAIL an .env with no EMAIL_PROVIDER line demanded SES config" >&2
+  sed 's/^/       /' "$TMPROOT/out" >&2
+fi
+
+echo "-- a value that is neither Console nor Ses is not a quieter Console"
+# AddEmailSender's switch ends in `else throw`, so the box does not boot on this value either.
+# A detector that answered "not Ses" would go green on a stack that cannot start.
+seed_all_secrets
+set_env_provider "Resend"
+run_check || true
+if grep -qF "INVALID: EMAIL_PROVIDER='Resend'" "$TMPROOT/out"; then
+  pass=$((pass + 1)); echo "  ok   an unknown provider is reported by name, not silently ignored"
+else
+  fail=$((fail + 1)); echo "  FAIL an unknown provider was treated as Console" >&2
+  sed 's/^/       /' "$TMPROOT/out" >&2
+fi
+
+echo "-- a _FILE pointer alone demands the credentials, whatever the provider says"
+# EnvFileSecretsConfiguration throws on a pointer naming a path it cannot read and never
+# consults Email:Provider, so this is a boot refusal with the provider back on Console — the
+# state reached by rolling the flip BACK and rebooting, which a provider-only predicate calls
+# healthy.
+seed_all_secrets
+write_env "EMAIL_PROVIDER=Console" \
+  "EMAIL_SES_ACCESS_KEY_ID_FILE=/run/app-secrets/Email__Ses__AccessKeyId"
+run_check || true
+if grep -qF "MISSING: $SECRETS/Email__Ses__AccessKeyId" "$TMPROOT/out"; then
+  pass=$((pass + 1)); echo "  ok   a set pointer demands the file even under Console"
+else
+  fail=$((fail + 1)); echo "  FAIL a set pointer under Console demanded nothing" >&2
+  sed 's/^/       /' "$TMPROOT/out" >&2
+fi
+
+echo "-- injected files do not make the flip complete"
+# The other half of the same boot refusal: files present, .env lines absent. One case per
+# variable, because a loop checking only the first would report all three as covered.
+for ses_var in EMAIL_SES_ACCESS_KEY_ID_FILE EMAIL_SES_SECRET_ACCESS_KEY_FILE EMAIL_SES_REGION; do
+  seed_all_secrets
+  for k in "${EXPECTED_SES_FILES[@]}"; do
+    printf '%s' "seeded-value-for-$k" > "$SECRETS/$k"
+  done
+  # Everything set EXCEPT the one under test, so a pass measures that variable alone.
+  lines=("EMAIL_PROVIDER=Ses")
+  for other in EMAIL_SES_ACCESS_KEY_ID_FILE EMAIL_SES_SECRET_ACCESS_KEY_FILE EMAIL_SES_REGION; do
+    [ "$other" = "$ses_var" ] && continue
+    lines+=("$other=set-for-fixture")
+  done
+  write_env "${lines[@]}"
+  run_check || true
+  if grep -qF "MISSING: ${ses_var} is unset" "$TMPROOT/out"; then
+    pass=$((pass + 1)); echo "  ok   EMAIL_PROVIDER=Ses demands ${ses_var}"
+  else
+    fail=$((fail + 1)); echo "  FAIL a missing ${ses_var} was not reported" >&2
+    sed 's/^/       /' "$TMPROOT/out" >&2
+  fi
+done
 
 echo
 echo "passed: $pass   failed: $fail   skipped: $skipped"

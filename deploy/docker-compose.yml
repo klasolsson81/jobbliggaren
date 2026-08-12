@@ -130,15 +130,18 @@ x-app-connections: &app-connections
 #
 # The two credential pointers use the `_FILE` seam and default EMPTY, which is also not a
 # style choice: EnvFileSecretsConfiguration THROWS when a `_FILE` variable names a path it
-# cannot read, so these cannot carry a literal path the way the master key's pointers do
-# until something actually writes those files. A blank pointer is "not configured" and is
-# inert. The paths lie under the x-app-secrets-mount volume, which any service carrying
+# cannot read, so these cannot carry a literal path the way the master key's pointers do —
+# the master key is injected on every boot, while these are injected only for the flip, so
+# a literal here would be a boot refusal on every box that has not flipped. A blank pointer
+# is "not configured" and is inert. The paths lie under the x-app-secrets-mount volume, which any service carrying
 # this anchor must also carry — without the mount, a set pointer is a boot refusal.
 #
-# NOTHING WRITES THOSE TWO FILES YET. jobbliggaren-inject-secrets.sh carries a fixed
-# SECRET_KEYS array and is fail-loud, so adding SES to it would demand the credentials at
-# every boot and take the box down today. Wiring the injection belongs to the flip —
-# email-ses-setup.md §8 owns that gap. Operator view: deploy/.env.example.
+# jobbliggaren-inject-secrets.sh WRITES those two files, and prompts for them when
+# EMAIL_PROVIDER is Ses, when either pointer is set, or under JBL_INJECT_SES=1 (#183).
+# Unconditional entries would demand the credentials at every boot and take the box down today;
+# no entry at all would leave the flip unable to place a secret. The condition is what makes
+# both survivable. Operator view, including the inject-before-you-edit order that keeps the flip
+# from being an outage: deploy/.env.example.
 #
 # Email__BaseUrl is set unconditionally because it is wrong unconditionally otherwise: it
 # is unset everywhere in the tree, so it falls back to EmailOptions' http://localhost:3000

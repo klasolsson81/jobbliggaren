@@ -39,6 +39,11 @@ readonly COMPOSE_FILE=/opt/jobbliggaren/deploy/docker-compose.yml
 # aborts before a single byte is written.
 readonly RUNTIME_IDS=/opt/jobbliggaren/deploy/systemd/jobbliggaren-runtime-ids.sh
 
+# Read for the mail configuration only — the provider, the two credential pointers and the
+# region. Those four answers decide whether the SES credentials are required and whether the
+# stack can start at all; nothing else in this script consults this file.
+readonly ENV_FILE=/opt/jobbliggaren/deploy/.env
+
 # A SECOND DIRECTORY, FOR SECRETS NO CONTAINER MAY SEE (#197). SECRETS_DIR is bind-mounted
 # read-only into api and worker; this one is mounted nowhere, stays 0700 root:root, and holds
 # what only a host-side root process reads — today the backup upload credential. See
@@ -60,6 +65,19 @@ readonly -a SECRET_KEYS=(
   "AuditPseudonymization__PepperBase64"
   "CompanyWatchPseudonymization__PepperBase64"
   "CvReviewFingerprintPseudonymization__PepperBase64"
+)
+
+# THE SES CREDENTIALS ARE CONDITIONALLY REQUIRED, WHICH IS WHY THEY ARE NOT IN SECRET_KEYS.
+# They are needed under EITHER of the two conditions ses_credentials_required enumerates below —
+# the provider being Ses is only one of them — and the injection half prompts under a third,
+# JBL_INJECT_SES=1. Listing them above would put a permanent
+# MISSING on jobbliggaren-secrets-present.service — the box's only alarm surface — for a state
+# that is correct: before the flip there is nothing to inject and the stack is healthy without
+# them. An alarm that is always on is an alarm nobody reads, so the condition is expressed
+# rather than the entry added. The condition has one home: ses_credentials_required below.
+readonly -a SES_SECRET_KEYS=(
+  "Email__Ses__AccessKeyId"
+  "Email__Ses__SecretAccessKey"
 )
 
 # The host-only secrets. Same one-row-per-secret contract as SECRET_KEYS above, different
@@ -100,6 +118,73 @@ has_usable_content() {
   [[ -n "$(tr -d '[:space:]' < "$path" 2>/dev/null)" ]]
 }
 
+# ONE NORMALISER FOR `.env`, because two spellings of one rule are two rules — the argument
+# RUNTIME_IDS above already makes about the uid measurement (#1295).
+#
+# It approximates compose's parser rather than reproducing it, and the approximation is
+# deliberately WIDER, never narrower. Reading the file with `docker compose config` would be
+# exact and is refused: --check runs at boot before dockerd, which an existing case pins.
+#
+# Measured against Compose v2.40.3 on 2026-08-12 — all five forms render the same value, and
+# the four beyond the first are why this function exists rather than a single `sed`:
+#
+#   EMAIL_PROVIDER=Ses              EMAIL_PROVIDER: Ses           (delimiter = or :)
+#   EMAIL_PROVIDER=Ses # flippat    EMAIL_PROVIDER="Ses" # q      (inline comment, quoted or not)
+#   export EMAIL_PROVIDER=Ses                                     (export prefix)
+#
+# `tail -n1` is compose's last-assignment-wins, measured.
+#
+# A QUOTED VALUE KEEPS ITS `#`, and a naive strip got that backwards in the fail-OPEN direction
+# (security-auditor, 2026-08-12). Measured: `EMAIL_PROVIDER='Ses # x'` renders `Ses # x`, a value
+# AddEmailSender throws on — so a reader that stripped it to `Ses` answered "configured for SES"
+# about a box that does not start. The two quote arms below consume everything after the closing
+# quote and branch out with `t`, so the unquoted strip can never run on what was inside them.
+env_value() {  # env_value <NAME> -> value on stdout; empty when unset, unreadable or absent
+  [[ -r "$ENV_FILE" ]] || return 0
+  sed -n -E "s/^[[:space:]]*(export[[:space:]]+)?$1[[:space:]]*[:=][[:space:]]*//p" \
+    "$ENV_FILE" 2>/dev/null \
+    | tail -n1 \
+    | sed -E -e 's/^"([^"]*)".*$/\1/;t' -e "s/^'([^']*)'.*\$/\1/;t" -e 's/[[:space:]]+#.*$//' \
+    | tr -d '[:space:]'
+}
+
+# THREE-VALUED ON PURPOSE. An absent file, an unset variable and the literal Console all mean
+# the same thing here as they do at boot: compose renders `${EMAIL_PROVIDER:-Console}` and
+# AddEmailSender falls back to "Console" on a null. But a value that is NEITHER is not a third
+# way of saying Console — AddEmailSender's switch ends in `else throw`, so the box does not boot
+# on it either, and a detector that answered "not Ses" would go green on a stack that cannot
+# start.
+#
+# Case-insensitive because AddEmailSender compares with OrdinalIgnoreCase
+# (DependencyInjection.cs). A guard stricter than the code it guards is the dangerous direction:
+# on `EMAIL_PROVIDER=ses` it would decline to prompt while the application accepted the value.
+#
+# Compose reads the shell environment BEFORE `.env` (precedence: shell > --env-file > .env), so
+# an exported variable would defeat this. Measured 2026-08-12: jobbliggaren-reconcile.service
+# carries neither `Environment=` nor `EnvironmentFile=`, so nothing in the deploy exports it and
+# `.env` is in practice the only source.
+email_provider() {
+  case "$(env_value EMAIL_PROVIDER | tr '[:upper:]' '[:lower:]')" in
+    "" | console) printf 'console' ;;
+    ses)          printf 'ses' ;;
+    *)            printf 'unknown' ;;
+  esac
+}
+
+# REQUIRED BY EITHER OF TWO INDEPENDENT CAUSES, and binding only to the first was a defect.
+#
+# (1) The provider is Ses: AddEmailSender throws at registration without the credentials.
+# (2) A `_FILE` pointer is set at all: EnvFileSecretsConfiguration throws on a pointer naming a
+#     path it cannot read, and it never consults Email:Provider. So a rollback of the flip that
+#     leaves the pointers behind is a boot refusal with a provider that is no longer Ses — the
+#     state a provider-only predicate reports as healthy.
+ses_credentials_required() {
+  [[ "$(email_provider)" == "ses" ]] && return 0
+  [[ -n "$(env_value EMAIL_SES_ACCESS_KEY_ID_FILE)" ]] && return 0
+  [[ -n "$(env_value EMAIL_SES_SECRET_ACCESS_KEY_FILE)" ]] && return 0
+  return 1
+}
+
 # --check is the absence detector, and it lives HERE rather than in the unit so the list of
 # file names has exactly one home. jobbliggaren-secrets-present.service runs it on a timer.
 # It must stat files and nothing else — it runs at boot, when dockerd may not be up, so it must
@@ -131,6 +216,49 @@ if [[ "${1:-}" == "--check" ]]; then
     fi
   done
 
+  # WHAT THE MAIL BRANCH SEES: every file and every .env line that is ABSENT, plus the one value
+  # it reads — EMAIL_PROVIDER's, through email_provider above. What it never reads is the VALUE
+  # of the pointers and the region, so a misspelt pointer path, or a region outside the EEA
+  # allow-list, still reads as healthy here. That allow-list lives in SesClientRegistration.cs
+  # and a second spelling of it in bash would be worse than the gap it leaves. The unit exists because a crash-looping container does NOT appear in
+  # `systemctl --failed`, so a boot refusal this file can see and does not report is a green
+  # alarm over a dead box — the failure this whole script is built against.
+  env_provider=$(email_provider)
+
+  if [[ "$env_provider" == "unknown" ]]; then
+    log "INVALID: EMAIL_PROVIDER='$(env_value EMAIL_PROVIDER)' in ${ENV_FILE} is neither Console"
+    log "         nor Ses. AddEmailSender's switch ends in a throw, so api and worker refuse to"
+    log "         START on this value — this is not a quieter way of saying Console."
+    missing=1
+  fi
+
+  if ses_credentials_required; then
+    for key in "${SES_SECRET_KEYS[@]}"; do
+      if ! has_usable_content "${SECRETS_DIR}/${key}"; then
+        log "MISSING: ${SECRETS_DIR}/${key} — required because ${ENV_FILE} has EMAIL_PROVIDER=Ses"
+        log "         or a Email__Ses__*_FILE pointer set. api and worker refuse to START"
+        log "         (AddEmailSender throws at registration, not at the first send). Re-run this"
+        log "         script without arguments to inject it."
+        missing=1
+      fi
+    done
+  fi
+
+  # The other half of the same boot refusal: the files can be present while the .env lines that
+  # deliver them are not. Checked only under Ses, because only then is each one required — and
+  # each is named separately, since "email is broken" costs an operator the hour that naming the
+  # variable saves.
+  if [[ "$env_provider" == "ses" ]]; then
+    for var in EMAIL_SES_ACCESS_KEY_ID_FILE EMAIL_SES_SECRET_ACCESS_KEY_FILE EMAIL_SES_REGION; do
+      if [[ -z "$(env_value "$var")" ]]; then
+        log "MISSING: ${var} is unset in ${ENV_FILE} while EMAIL_PROVIDER=Ses. The credential"
+        log "         files can be injected and api and worker will still refuse to START:"
+        log "         an unset pointer reads as 'not configured', which AddEmailSender throws on."
+        missing=1
+      fi
+    done
+  fi
+
   # The host-only directory is checked by the same loop rather than by a second predicate, so a
   # new entry in either array is covered the moment it is added — which is what makes "adding a
   # secret here is the whole change on the host side" true of both destinations. Its absence is
@@ -149,8 +277,15 @@ if [[ "${1:-}" == "--check" ]]; then
   done
 
   if [[ $missing -ne 0 ]]; then
-    log "The box has booted without usable crypto secrets. api and worker are crash-looping"
-    log "by design (fail-closed, never a fallback key). Inject with:"
+    # THIS SUMMARY USED TO PRESCRIBE THE ONE REMEDY, and it stopped being the one remedy when
+    # the mail branch above gained lines injection cannot fix — an INVALID provider value and an
+    # unset EMAIL_SES_* variable are edits to deploy/.env, not missing files. Telling an operator
+    # to re-run this script against those is a remedy that reports success and changes nothing,
+    # which is worse than no remedy at all. So the summary now points at the lines rather than
+    # replacing them.
+    log "Something above is missing or invalid, and api and worker will crash-loop by design"
+    log "(fail-closed, never a fallback key). Read the individual lines: those naming a FILE are"
+    log "fixed by injecting, those naming a variable are fixed by editing deploy/.env."
     log "  sudo /opt/jobbliggaren/deploy/systemd/jobbliggaren-inject-secrets.sh"
     exit 1
   fi
@@ -287,6 +422,43 @@ complete one"
   write_secret "$SECRETS_DIR" "$uid" "$gid" "$key" "$value"
   unset value
 done
+
+# The SES credentials. Same discipline as the loop above — terminal-only, never argv, skipped
+# when already present — and the same abort on an empty value: an operator who has flipped the
+# provider and then pressed Enter has produced precisely the state that stops the stack from
+# booting, so it fails here, at the keyboard, rather than on the next restart.
+#
+# JBL_INJECT_SES EXISTS TO REMOVE A DOWNTIME WINDOW, and without it the flip cannot be performed
+# without one. Both conditions that make the credentials required are also conditions that make
+# the stack refuse to start while the files are absent: setting EMAIL_PROVIDER=Ses throws at
+# registration, and setting a `_FILE` pointer throws on an unreadable path. So an operator
+# editing `.env` first has already taken the box down before this script would offer to prompt.
+# With the override the order inverts and the window closes: inject, THEN edit, then restart.
+# Same shape as JBL_MASTER_KEY_ID below — an env var that answers a prompt the operator would
+# otherwise have to reach by changing production state first.
+if ses_credentials_required || [[ "${JBL_INJECT_SES:-}" == "1" ]]; then
+  for key in "${SES_SECRET_KEYS[@]}"; do
+    if has_usable_content "${SECRETS_DIR}/${key}"; then
+      log "${key} already present — skipping (remove the file first to replace it)"
+      continue
+    fi
+
+    printf 'Value for %s: ' "$key" >&2
+    read -rs value
+    printf '\n' >&2
+    [[ -n "${value//[[:space:]]/}" ]] || die "${key} was empty or whitespace-only — nothing
+written, and the run is aborted so a partially injected directory is never mistaken for a
+complete one"
+
+    write_secret "$SECRETS_DIR" "$uid" "$gid" "$key" "$value"
+    unset value
+  done
+else
+  log "EMAIL_PROVIDER is not Ses in ${ENV_FILE} and no Email__Ses__*_FILE pointer is set — SES"
+  log "credentials not prompted for. To place them BEFORE the flip (which is the order that"
+  log "avoids downtime), re-run with JBL_INJECT_SES=1. The flip itself is release-checklist.md"
+  log "§2.5 and is never this script's."
+fi
 
 # ---------------------------------------------------------------------------------------------
 # The host-only secrets (#197). Same prompt discipline, different destination and a root owner:

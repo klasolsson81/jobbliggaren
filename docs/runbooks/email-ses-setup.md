@@ -12,8 +12,18 @@ prod-flip checklist).
 **Authority:** ADR 0124 and `release-checklist.md` §2.5. Where this runbook and an ADR disagree,
 the ADR wins and this file is wrong.
 
-> **THE DOMAIN IS VERIFIED AND CAN SIGN, AND NOTHING HAS EVER BEEN SENT.** §3 is now a report.
-> §7's real send is still a design — its configuration-set check is measured (row 35).
+> **THE DOMAIN IS VERIFIED AND CAN SIGN, AND MAIL HAS NOW BEEN SENT — TWICE, 2026-08-12, BOTH TO
+> THE VERIFIED TEST ADDRESS.** §3 is a report; §7 is no longer a design.
+>
+> Both were accepted with a `MessageId`, through the production key and its scoped policy, and
+> both landed in the **inbox** rather than the spam folder. The first arrived with every
+> non-ASCII character double encoded (`Bekräfta` as `BekrÃ¤fta`) and the cause is worth carrying
+> forward, because it will catch the next person testing from Windows: **the AWS CLI decoded the
+> `file://` payload with the host ANSI code page**, not UTF-8. The template was never involved —
+> its bytes and the test file's bytes were both measured correct UTF-8 (`c3 a4`) — and production
+> cannot reach this failure at all, since `SesEmailSender` hands the SDK a .NET string with
+> `Charset = "UTF-8"` and reads no file. **Write the CLI payload as pure ASCII with `\uXXXX`
+> escapes**; a JSON parser then reconstructs the same string on any host.
 >
 > Klas published the three CNAME records at STRATO on **2026-08-10**. SES moved
 > `DkimAttributes.Status` `PENDING` → **`SUCCESS`** and `VerifiedForSendingStatus` → **`true`** in
@@ -24,10 +34,13 @@ the ADR wins and this file is wrong.
 > is protocolled on
 > [#183](https://github.com/klasolsson81/jobbliggaren/issues/183#issuecomment-5240287056).
 >
-> **What does NOT follow from that, and is the whole reason this note survives rather than being
-> deleted:** no message has ever been sent, so §7's `Authentication-Results` reading is unmade and
-> row 37 is open. The account is still in the **sandbox** (its quotas are in §2 and its recipient
-> count in §3 step 6; neither is restated here) and
+> **What does NOT follow from a delivered message, and is the whole reason this note survives
+> rather than being deleted:** inbox placement is not an authentication reading. Row 37 stays
+> **open** until `Authentication-Results` is read out of the received message — arriving is
+> evidence about a filter's verdict, not about DKIM alignment under `p=reject`, and the two can
+> disagree in both directions. The account is still in the **sandbox** (its quotas are in §2 and
+> its recipient count in §3 step 6; neither is restated here), production access was applied for
+> and **denied** on 2026-08-12 with the support case live (§8), and
 > `Email:Provider` is still unset, so the product sends nothing. Being able to sign is not the
 > flip; the flip is [`release-checklist.md`](./release-checklist.md) §2.5 and is Klas's alone.
 
@@ -347,6 +360,28 @@ aws sts get-caller-identity --profile <the-prod-key-profile>
 about the key that lands in configuration, and a measurement made with a different principal
 answers a different question.
 
+**Created 2026-08-12, and the precondition is discharged.** IAM user `jobbliggaren-ses`, policy
+`jobbliggaren-ses-send`. Measured with the key itself, not the admin role:
+`arn:aws:iam::710427215829:user/jobbliggaren-ses`, `Account 710427215829`.
+
+**The narrow resource form does not work, and the reason is not obvious.** A policy whose
+`Resource` was the domain identity alone — the shape "scoped to `ses:SendEmail` only" invites —
+returns `AccessDenied` naming the **recipient**:
+
+```
+User `.../jobbliggaren-ses' is not authorized to perform `ses:SendEmail'
+on resource `arn:aws:ses:eu-north-1:710427215829:identity/klasolsson81@gmail.com'
+```
+
+SES authorises the call against the recipient identity as well as the sender. So the live policy
+(v2) uses `identity/*` with a `ses:FromAddress` condition on `no-reply@jobbliggaren.se`, and it is
+**the condition, not the resource, that constrains the key**: it cannot send as any other address.
+Read the resource wildcard as breadth over *recipients*, which is what sending requires.
+
+`ses:SendRawEmail` is deliberately **absent**. `SesEmailSender` builds `Simple` content, so
+production never needs it; a raw-MIME send attempted during testing was refused, which is the
+policy behaving correctly rather than a gap to fill.
+
 ### 6.3 The flip
 
 `Email:Provider=Ses` is not set by this runbook and never by CC. It is gated by
@@ -420,16 +455,50 @@ the word "pass" is how that distinction gets missed.
   [#183](https://github.com/klasolsson81/jobbliggaren/issues/183) and §2.5 point 1.
 - **`Email__*` delivery into the box's containers** — the operator view (variables, defaults,
   what setting each does) lives in `deploy/.env.example`, and the anchor itself in
-  `deploy/docker-compose.yml`. The two SES credential **files** the `_FILE` pointers name do
-  not exist yet and nothing writes them: `deploy/systemd/jobbliggaren-inject-secrets.sh`
-  carries a fixed fail-loud `SECRET_KEYS` array without the SES pair, so secrets *will* reach
-  the containers through that script only once it is extended — which is the flip's work, not
-  this runbook's. Both of §6.3's mechanical prerequisites resolve here.
-- **Leaving the SES sandbox.** It is an application, not a payment: AWS requires the applicant to
+  `deploy/docker-compose.yml`. `deploy/systemd/jobbliggaren-inject-secrets.sh` writes the two
+  SES credential **files** the `_FILE` pointers name, and prompts for them when
+  `EMAIL_PROVIDER=Ses`, when either pointer is set, **or** under `JBL_INJECT_SES=1` (#183). The
+  injection gap this entry used to record is closed.
+  **Inject before you edit, and the order is not cosmetic:** each of the first two conditions is
+  itself a boot refusal while the files are absent, so setting the variable first takes the box
+  down and the injection then runs under an outage. Run
+  `sudo JBL_INJECT_SES=1 …/jobbliggaren-inject-secrets.sh` first, then set `EMAIL_PROVIDER=Ses`,
+  the two pointers and `EMAIL_SES_REGION`, then restart. `--check` names any line still missing.
+- **Leaving the SES sandbox — APPLIED FOR 2026-08-12, and the position this entry held until
+  then did not survive contact with the application.** It read: AWS requires the applicant to
   *"confirm that you have a process in place for handling bounce and complaint notifications"*,
-  and no such process is built. Requesting production access before it exists would be attesting
-  to something untrue.
-- **Bounce and complaint handling itself** — no owner in code today.
+  no such process is built, so applying would attest to something untrue. What was actually
+  attested names only the account-level suppression list — enabled for `BOUNCE` and `COMPLAINT`,
+  measured 2026-08-12 — and states the volume it is proportionate to. It claims no
+  application-side handling, because there is none. **The application was submitted before this
+  entry was read**, which is the process failure worth recording: the runbook owned the
+  decision and was consulted after it. `ReviewDetails.Status` went `PENDING` → **`DENIED`**
+  within ten minutes, with AWS's correspondence asking for detail rather than closing the door;
+  the reply is the live path. Read the status from `aws sesv2 get-account`, never from the
+  support case — the Support API is unavailable on this account's Basic plan
+  (`SubscriptionRequiredException`, measured 2026-08-12).
+- **Bounce and complaint handling itself** — no owner in code today, and **the obligation does
+  not come from AWS.** An earlier version of this line called it the thing to build *if AWS asks
+  for more than the suppression list*, which put a GDPR duty behind a vendor's discretion.
+  `security-auditor` rejected that framing on 2026-08-12 and the reasoning is short: a SES
+  `Complaint` means the recipient marked the message as spam. For the notification mail, which
+  runs on consent, that is an Art. 7(3) withdrawal and an Art. 21 objection arriving through a
+  channel nothing in `src/` reads. **There are TWO consent pairs, not one**, and a feedback path
+  that updated only the first would leave the second asserting live consent for the same
+  objector: `NotificationConsentWithdrawnAt` (match notifications) and
+  `FollowedCompanyNotificationConsentWithdrawnAt` (followed-company notifications), kept separate
+  because collapsing them would be an Art. 7 granularity violation (ADR 0087 D5). Measured: both
+  are written only by
+  `JobSeeker`'s own opt-out methods. The suppression list stops delivery but never reaches the
+  register, so the consent record would go on asserting live consent for someone who has
+  objected. That is a defect whether or not AWS ever asks.
+  **The path does not cost the ROPA leg.** The obvious mechanism — a configuration set with an
+  SNS event destination — would, because the retention entry's first leg is that no
+  `ConfigurationSetName` is in play. But SES v2 `SendEmail` carries
+  `FeedbackForwardingEmailAddress` as a **per-request** parameter, and email feedback forwarding
+  needs no configuration set at all. Build it that way —
+  [#1323](https://github.com/klasolsson81/jobbliggaren/issues/1323) owns it, so this paragraph
+  points at work with an owner rather than at nothing.
 
 ---
 

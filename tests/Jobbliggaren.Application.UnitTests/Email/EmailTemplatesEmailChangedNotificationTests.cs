@@ -32,12 +32,17 @@ public class EmailTemplatesEmailChangedNotificationTests
         // The notice tells the previous owner the address changed — it must not leak the NEW address
         // and must carry no confirmation token or link.
         //
-        // This used to assert the body contained no '@' at all, which was a cheap and effective proxy
-        // while the mail named no address of any kind. Our own contact address now appears, so the
-        // proxy would have to be deleted or the fact weakened to a substring check. Neither: the
-        // property being defended is "no address OTHER than ours", so that is what is asserted, one
-        // '@'-bearing token at a time. It is strictly stronger than the old form, which would have
-        // passed for any body carrying zero addresses and said nothing about which.
+        // This used to assert the body contained no '@' at all, a cheap and effective proxy while the
+        // mail named no address of any kind. Our own contact address now appears, so the proxy had to
+        // go. What replaces it is the property itself — "no address OTHER than ours", one '@'-bearing
+        // token at a time.
+        //
+        // NOT "strictly stronger", which an earlier version of this comment claimed: the two forms are
+        // INCOMPARABLE. A body containing only our contact address passes the new form and fails the
+        // old one. And the new form is a LOOP, so it runs zero times if the body ever loses the
+        // address entirely — its liveness comes from the ShouldContainTheContactAddress fact above,
+        // and that dependency is named here rather than left to be discovered (code-reviewer Major 5,
+        // 2026-08-12).
         var rendered = EmailTemplates.EmailChangedNotification();
 
         foreach (var token in rendered.PlainTextBody.Split(
@@ -52,6 +57,16 @@ public class EmailTemplatesEmailChangedNotificationTests
 
         rendered.PlainTextBody.ShouldNotContain("token");
         rendered.PlainTextBody.ShouldNotContain("bekrafta-epost");
+
+        // The HTML part too. The mail has carried one since #1325, and a leak into either part is a
+        // leak — the sibling fact ShouldCarryNoSiteLink already reads both, so reading one here was an
+        // asymmetry rather than a decision (security-auditor Minor, 2026-08-12). Asserted as an
+        // absence of the address SHAPE rather than token-by-token, because the HTML part splits
+        // differently and the property is the same either way: no second address anywhere.
+        rendered.HtmlBody.Replace(EmailTemplates.ContactAddress, string.Empty, StringComparison.Ordinal)
+            .ShouldNotContain("@");
+        rendered.HtmlBody.ShouldNotContain("token");
+        rendered.HtmlBody.ShouldNotContain("bekrafta-epost");
     }
 
     [Fact]

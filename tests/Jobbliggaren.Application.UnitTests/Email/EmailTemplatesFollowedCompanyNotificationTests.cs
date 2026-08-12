@@ -192,15 +192,19 @@ public class EmailTemplatesFollowedCompanyNotificationTests
                 new FollowedCompanyFilterSummary(onlyMatched, locationFilter),
                 Item()));
 
-        email.PlainTextBody.ShouldContain(Disclosure);
-        email.PlainTextBody.ShouldContain(DisclosureFooter);
+        // BOTH parts, every assertion. The axis prohibition ran against the text part alone, so an
+        // axis name that leaked into the HTML part only would have passed — low risk, since both are
+        // built from one constant, but an unnecessary asymmetry in the very fact that exists to catch
+        // it (code-reviewer, 2026-08-12). The two parts must also speak and fall silent together: a
+        // disclosure carried by only one is one the recipient may never see.
+        foreach (var part in new[] { email.PlainTextBody, email.HtmlBody })
+        {
+            part.ShouldContain(Disclosure);
+            part.ShouldContain(DisclosureFooter);
 
-        email.PlainTextBody.ShouldNotContain(OnlyMatchedWording);
-        email.PlainTextBody.ShouldNotContain(LocationWording);
-
-        // And the two parts fall silent and speak together — a disclosure carried by only one part is
-        // one the recipient may never see.
-        email.HtmlBody.ShouldContain(Disclosure);
+            part.ShouldNotContain(OnlyMatchedWording);
+            part.ShouldNotContain(LocationWording);
+        }
     }
 
     [Fact]

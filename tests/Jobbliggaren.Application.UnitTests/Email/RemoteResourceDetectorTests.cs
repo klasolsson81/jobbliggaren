@@ -230,6 +230,32 @@ public class RemoteResourceDetectorTests
         FindRemoteResources($"""<img src = "{OnHost}">""").ShouldContain("fetching element: <img");
     }
 
+    [Theory]
+    [InlineData("javascript:alert(1)")]
+    [InlineData("data:text/html;base64,PHNjcmlwdD4=")]
+    [InlineData("file:///etc/passwd")]
+    [InlineData("/relativ-lank")]
+    public void FindRemoteResources_WhenAnHrefUsesAnUnlistedScheme_ReportsIt(string href)
+    {
+        // href cannot be a forbidden attribute — every mail carries anchors — so the SCHEME is the
+        // checkable boundary. mailto: was the first non-https scheme to reach LinkParagraph, and
+        // nothing in the repo would have caught these arriving the same way (security-auditor Minor,
+        // 2026-08-12). The relative form is included deliberately: it is harmless in a browser and
+        // meaningless in a mail, where there is no document base to resolve against.
+        FindRemoteResources($"""<a href="{href}">x</a>""")
+            .ShouldContain(f => f.StartsWith("href with a scheme", StringComparison.Ordinal));
+    }
+
+    [Theory]
+    [InlineData("https://jobbliggaren.se/jobb")]
+    [InlineData("mailto:kontakt@jobbliggaren.se")]
+    public void FindRemoteResources_ForTheTwoAllowedSchemes_ReportsNothing(string href)
+    {
+        // The control for the arm above: it must not be one that rejects every href. Both live forms
+        // are here, so the allow-list is proven to allow as well as to reject.
+        FindRemoteResources($"""<a href="{href}">x</a>""").ShouldBeEmpty();
+    }
+
     // ---------- controls: the detector must not reject everything ----------
 
     [Fact]

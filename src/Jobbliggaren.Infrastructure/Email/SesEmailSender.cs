@@ -148,6 +148,15 @@ public sealed partial class SesEmailSender(
             {
                 FromEmailAddress = $"{_options.FromName} <{_options.FromAddress}>",
 
+                // Reply-To is the contact address, not the From. The From is no-reply@ and stays
+                // that way, but three security notices now say "hör av dig till oss" — and for the
+                // stressed, less technical recipient those mails exist for, Reply is the natural
+                // action, not copying an address out of the body. Without this the reply reaches
+                // no-reply@, where it either bounces or is swallowed by whatever catch-all the
+                // mailbox host applies. A breach report that disappears silently is a security
+                // defect, not a cosmetic one (security-auditor Major 2, 2026-08-12).
+                ReplyToAddresses = [EmailTemplates.ContactAddress],
+
                 // AWS SDK v4 leaves request collections NULL by default (v4 migration guide), so these
                 // are ASSIGNED, never .Add()-ed onto an assumed-empty list. AWSConfigs.InitializeCollections
                 // is deliberately not set — it is process-global and buys nothing here.

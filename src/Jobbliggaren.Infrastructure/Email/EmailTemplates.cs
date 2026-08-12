@@ -146,8 +146,8 @@ internal static class EmailTemplates
     /// <para>
     /// <b>Filter-disclosure (bevakning F4a, RF-13=13B).</b> Är någon bevakning filtrerad saknas
     /// annonser i mejlet, och det MÅSTE sägas — tyst smalning avvisades på §5-grund. Disclosuren
-    /// renderas ur <see cref="FollowedCompanyFilterSummary"/>:s två booleans, en rad per aktiv axel,
-    /// efter listan och före CTA:n (den besvarar "varför kan något saknas", medan stycket längre ned
+    /// renderas ur <see cref="FollowedCompanyFilterSummary"/>:s två booleans som EN mening som inte
+    /// namnger någon axel (Klas-beslut 2026-08-12), efter listan och före CTA:n (den besvarar "varför kan något saknas", medan stycket längre ned
     /// besvarar "varför får jag detta alls" — två frågor, två platser, aldrig sammanslagna).
     /// </para>
     ///
@@ -258,7 +258,8 @@ internal static class EmailTemplates
     private const string FilterDisclosureAction = "Ändra filtren under Företag";
 
     /// <summary>
-    /// RF-13=13B — en rad per aktiv filter-axel, eller ingenting alls när inget filter bidrog.
+    /// RF-13=13B — EN mening när minst en filter-axel är aktiv, eller ingenting alls när inget
+    /// filter bidrog (formen ändrad från en rad per axel, Klas-beslut 2026-08-12).
     /// Formuleringen "ett eller flera av företagen du följer" är den enda som är sann under
     /// summaryns ANY-semantik; den avslutas med var filtren ändras, så disclosuren blir handlingsbar
     /// (raden på /foretag visar VILKA bevakningar som är filtrerade).
@@ -280,8 +281,10 @@ internal static class EmailTemplates
 
     /// <summary>
     /// The HTML twin of <see cref="BuildFilterDisclosure"/>. Same predicate, same ANY-semantic
-    /// wording, same one-line-per-active-axis shape, and the same empty result when no filter
-    /// contributed — the two must fall silent together, because a disclosure that appears in only
+    /// wording, and the same empty result when no filter contributed. <b>The SHAPE deliberately
+    /// differs in one respect</b> — see <see cref="FilterDisclosureAction"/>: the plain-text part puts
+    /// the action on its own line above a bare URL, because it cannot fold a label into one, while
+    /// this part folds it in as the link text. Wording identical, form not — the two must fall silent together, because a disclosure that appears in only
     /// one part of a <c>multipart/alternative</c> message is a disclosure the recipient may never
     /// see. The copy is NAME-FREE for the reason spelled out on
     /// <see cref="FollowedCompanyNotification"/>: the summary is an ANY over all the user's active
@@ -356,8 +359,9 @@ internal static class EmailTemplates
     /// <summary>
     /// #679 (CTO-bind #4) — "your email address was changed" security notice to the OLD address after
     /// a completed change. No token, no link to the new address, does not reveal the new address -
-    /// only a factual notice + the help-centre link built from <paramref name="baseUrl"/>. Civic tone:
-    /// no exclamation marks, no em-dash.
+    /// only a factual notice plus the contact address, and NO site link at all (see the port doc on
+    /// <c>IEmailSender.SendEmailChangedNotificationAsync</c> for why that is a property and not a
+    /// gap). Civic tone: no exclamation marks, no em-dash.
     /// </summary>
     public static EmailContent EmailChangedNotification()
     {
@@ -471,7 +475,6 @@ internal static class EmailTemplates
         var loginLink = $"{trimmed}/logga-in";
         var forgotLink = $"{trimmed}/glomt-losenord";
 
-
         return new EmailContent(
             Subject: "Du har redan ett konto hos Jobbliggaren",
             PlainTextBody: $"""
@@ -576,9 +579,13 @@ internal static class EmailTemplates
     }
 
     /// <summary>
-    /// #1171 — the password-changed security notice, sent after a completed reset. No token, no link
-    /// that grants access: a factual notice plus the help-centre link, and the twin of
-    /// <see cref="EmailChangedNotification"/>. Civic tone: no exclamation marks, no em-dash.
+    /// #1171 — the password-changed security notice, sent after a completed reset. No token and no
+    /// link that grants access on its own: a factual notice, the reset route, and the contact address.
+    /// <b>Not the twin of <see cref="EmailChangedNotification"/>, and the difference is the security
+    /// point:</b> there the address itself was repointed, so a reset link would deliver the reset to
+    /// the attacker and the mail therefore carries no site link at all. Here the address is unchanged,
+    /// so the reset route genuinely works for the rightful owner and is kept. Civic tone: no
+    /// exclamation marks, no em-dash.
     /// <para>
     /// This is the breach-detection control (OWASP ASVS V2.5, NIST SP 800-63B). A reset hands the
     /// account to whoever holds the inbox, so this mail is the one moment a real owner can notice a
@@ -591,7 +598,6 @@ internal static class EmailTemplates
         var trimmed = baseUrl.TrimEnd('/');
         var forgotLink = $"{trimmed}/glomt-losenord";
 
-
         return new EmailContent(
             Subject: "Ditt lösenord har ändrats",
             PlainTextBody: $"""
@@ -601,8 +607,8 @@ internal static class EmailTemplates
                 Om det var du behöver du inte göra något. Logga in med ditt nya
                 lösenord.
 
-                Om det inte var du: begär ett nytt lösenord direkt, så slutar den
-                som ändrade det att komma åt kontot.
+                Om det inte var du kommer den som ändrade lösenordet åt kontot tills
+                du väljer ett nytt. Gör det direkt:
                 {forgotLink}
 
                 Kontakta oss sedan på:
@@ -630,8 +636,8 @@ internal static class EmailTemplates
                     // case that needs it and lets the common case end on "du behöver inte göra
                     // något". This is the only template whose CTA is deliberately not a button.
                     + EmailHtml.LinkParagraph(
-                        "Om det inte var du: begär ett nytt lösenord direkt, så slutar den som "
-                        + "ändrade det att komma åt kontot.",
+                        "Om det inte var du kommer den som ändrade lösenordet åt kontot tills du "
+                        + "väljer ett nytt. Gör det direkt:",
                         forgotLink,
                         "Välj ett nytt lösenord")
                     + EmailHtml.LinkParagraph(

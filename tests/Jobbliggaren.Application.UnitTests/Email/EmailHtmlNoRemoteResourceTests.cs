@@ -284,10 +284,15 @@ public class EmailHtmlNoRemoteResourceTests
     {
         var content = Case("FollowedCompanyNotification/unfiltered");
 
+        // These two strings were the OLD per-axis copy, which this change deleted from production —
+        // so after it, the assertions could never fail and the fact was vacuously green while the
+        // positive sibling had already been updated. It is the one place in the repo that pins the
+        // HTML part's SILENCE when no filter contributed, and "the two parts must fall silent
+        // together" rested on it (design-reviewer Major 4 / code-reviewer Major 3, 2026-08-12).
         foreach (var part in new[] { content.PlainTextBody, content.HtmlBody })
         {
-            part.ShouldNotContain("visas inte här");
-            part.ShouldNotContain("Du ser och ändrar filtren");
+            part.ShouldNotContain("Några annonser kan saknas");
+            part.ShouldNotContain("Ändra filtren under Företag");
         }
     }
 

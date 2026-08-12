@@ -76,6 +76,22 @@ internal static class RemoteResourceDetector
     /// <summary>CSS that fetches from inside a <c>style</c> attribute.</summary>
     internal static readonly string[] FetchingCss = ["url("];
 
+    /// <summary>
+    /// The only schemes an <c>href</c> may use. <c>href=</c> cannot be a forbidden attribute — every
+    /// mail here carries anchors — so the scheme is the checkable boundary instead.
+    /// <para>
+    /// Added 2026-08-12 (security-auditor Minor): <c>mailto:</c> was the first non-<c>https</c> scheme
+    /// to reach <c>LinkParagraph</c>, and nothing in the repo would have caught a <c>javascript:</c> or
+    /// <c>data:</c> href arriving the same way. Harmless today — every href is a constant built from
+    /// <c>EmailOptions.BaseUrl</c> or the contact address, and all of them are encoded — which is
+    /// precisely when a rail is cheap to add.
+    /// </para>
+    /// </summary>
+    internal static readonly string[] AllowedHrefSchemes = ["https://", "mailto:"];
+
+    private static readonly Regex HrefValue = new(
+        @"href\s*=\s*""([^""]*)""", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+
     private static readonly Regex AbsoluteUrl = new(
         @"(?:https?:)?//[^\s""'<>()]+", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
 
@@ -160,6 +176,17 @@ internal static class RemoteResourceDetector
         {
             if (liveMarkup.Contains(css, StringComparison.OrdinalIgnoreCase))
                 findings.Add($"fetching CSS: {css}");
+        }
+
+        foreach (Match href in HrefValue.Matches(liveMarkup))
+        {
+            var value = href.Groups[1].Value;
+
+            if (!AllowedHrefSchemes.Any(
+                scheme => value.StartsWith(scheme, StringComparison.OrdinalIgnoreCase)))
+            {
+                findings.Add($"href with a scheme outside the allow-list: {value}");
+            }
         }
 
         var allowedHost = new Uri(baseUrl).Host;

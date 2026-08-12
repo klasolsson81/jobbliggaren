@@ -24,15 +24,33 @@ namespace Jobbliggaren.Application.UnitTests.Email;
 /// </para>
 ///
 /// <para>
-/// <b>Why the whole file rather than the one key.</b> <c>contact.email</c> is only one of five places
-/// the address appears per language: it is also inline in the controller-contact paragraph, the
-/// Art. 15-22 rights paragraph, the terms and the cookie policy. Asserting the key alone would pass
-/// while four prose passages still named the old address, which is the shape of every "fix that landed
-/// in one place out of N" this lane has produced.
+/// <b>Why the whole file rather than the one key.</b> <c>contact.email</c> is only one of FIVE places
+/// the address appears per language, and the other four are prose. Measured 2026-08-12 by walking the
+/// JSON: <c>privacy.sections[0]</c> (the controller contact), <c>terms.sections[0]</c>,
+/// <c>accessibility.sections[3]</c> (the accessibility statement) and
+/// <c>recruiterNotice.sections[3]</c> ("är du kontaktperson i en annons?", the Art. 17/21 route for
+/// people named in ad text). Asserting the key alone would pass while four prose passages still named
+/// the old address, which is the shape of every "fix that landed in one place out of N" this lane has
+/// produced.
+/// </para>
+///
+/// <para>
+/// <b>An earlier version of this list named the terms and the COOKIE POLICY.</b> The cookie policy
+/// carries no address at all, and the Art. 15-22 rights paragraph uses a RELATIVE reference
+/// ("e-postadressen ovan") rather than the address itself — which is good copy architecture, since it
+/// makes that route self-updating, and is exactly why it is not in the list. Two of four names were
+/// wrong, and both reviewers measured it independently.
 /// </para>
 /// </summary>
 public class ContactAddressMatchesPublishedContactTests
 {
+    /// <summary>
+    /// Characters that bound a token in this JSON. The quote and comma matter: an address sits inside
+    /// a quoted string and often ends a clause, so splitting on whitespace alone would leave
+    /// <c>"kontakt@jobbliggaren.se,</c> as one token and fail against itself.
+    /// </summary>
+    private static readonly char[] TokenSeparators = [' ', '\n', '\r', '\t', '"', ',', '(', ')'];
+
     [Theory]
     [InlineData("sv")]
     [InlineData("en")]
@@ -48,25 +66,32 @@ public class ContactAddressMatchesPublishedContactTests
             .GetString()
             .ShouldBe(EmailTemplates.ContactAddress);
 
-        // And every prose passage: no other address may survive anywhere in the file. `@` appears in
-        // no other form here, so a stray address cannot hide behind different wording.
-        foreach (var line in json.Split('\n'))
+        // And every prose passage: NO OTHER address may survive anywhere in the file. Asserted at
+        // TOKEN level, not line level. A line-level ShouldContain says "this line mentions our
+        // address", which a line carrying both ours and a stranger's satisfies — so the prose claimed
+        // the strong property while the code implemented the weak one (code-reviewer Major 4 /
+        // security-auditor Minor 1, 2026-08-12). The sibling fact in
+        // EmailTemplatesEmailChangedNotificationTests already used this form, and two strengths of one
+        // property inside one PR is exactly the drift to avoid.
+        foreach (var token in json.Split(TokenSeparators, StringSplitOptions.RemoveEmptyEntries))
         {
-            if (!line.Contains('@', StringComparison.Ordinal)) continue;
+            if (!token.Contains('@', StringComparison.Ordinal)) continue;
 
-            line.ShouldContain(
+            token.Trim('.', ':', ';').ShouldBe(
                 EmailTemplates.ContactAddress,
-                customMessage: $"{language}: a line names an address other than "
-                    + $"{EmailTemplates.ContactAddress}: {line.Trim()}");
+                $"{language}: the file names an address other than "
+                    + $"{EmailTemplates.ContactAddress}: {token}");
         }
     }
 
     [Fact]
     public void TheOracle_ActuallyReadsBothTranslationFiles()
     {
-        // Without this, a path that stopped resolving would surface as "the key is missing", which
-        // reads as a real finding and is not one — the failure mode the palette pin's own oracle fact
-        // caught the hard way.
+        // The path helper throws with the path in its message, so a lookup failure is already loud —
+        // this fact is not guarding that, and an earlier comment here claimed it was, describing a
+        // failure mode the code makes impossible (code-reviewer Major 4). What it DOES guard is the
+        // shape the theory above assumes: both files exist, parse, and actually contain an address, so
+        // a file emptied or restructured cannot make the token sweep pass by having nothing to sweep.
         foreach (var language in new[] { "sv", "en" })
         {
             var json = File.ReadAllText(ContentLegalPath(language));

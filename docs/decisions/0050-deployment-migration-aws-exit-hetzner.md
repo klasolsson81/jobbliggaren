@@ -1368,11 +1368,18 @@ räckvidden — ska konfigurationen uppfylla:
   har den defekten protokollförd en gång redan, i `journald-jobbliggaren-retention.conf`:
   *"wrong in the most expensive direction"*. Måttstocken är **dwell time**, inte Art. 33 —
   branschmedianen ligger under 90 dagar men spionagefall långt över, och **CIS Critical Security
-  Controls v8, Safeguard 8.10 ("Retain audit logs … a minimum of 90 days")**
-  (`cisecurity.org/controls/v8`, läst 2026-08-12) anger minst 90. Dwell-time-siffrorna kommer ur
-  Mandiant M-Trends 2026 (`mandiant.com/m-trends`, läst 2026-08-12). **Källorna citeras här och
-  inte bara i granskningsrapporten**, som är gitignorerad — ett tal som ska försvaras under
-  Art. 5(1)(e) får inte ha sin enda grund i en fil som inte finns i repot.
+  Controls v8.1, Safeguard 8.10:** *"Retain audit logs across enterprise assets for a minimum of
+  90 days."*
+  Källa som faktiskt lästes: `csf.tools/reference/critical-security-controls/v8-1/csc-8/csc-8-10/`
+  (senior-cto-advisor 2026-08-12); ordalydelsen ombekräftad via sökning 2026-08-12.
+  Dwell-time-siffrorna: Mandiant M-Trends 2026,
+  `cloud.google.com/blog/topics/threat-intelligence/m-trends-2026/` (samma läsning, samma datum).
+  **Två saker om formen, båda betalda i den här PR:en.** (1) Källorna citeras här och inte bara i
+  granskningsrapporten, som är gitignorerad — ett tal som ska försvaras under Art. 5(1)(e) får
+  inte ha sin enda grund i en fil som inte finns i repot. (2) Ett tidigare utkast bytte de här
+  två URL:erna mot snyggare landningssidor på `cisecurity.org` respektive `mandiant.com` **utan
+  att öppna dem**, och behöll läsdatumet — ett datum sant om en läshändelse och falskt om det det
+  fästes vid. Citera det som lästes, eller läs det du citerar.
   **Delningen inför inget nytt tal:** samma container bär redan `k4-main-artefacts-30-days`
   och `deks-outlive-main-90-days` (applicerade och återlästa 2026-08-09, rad 27c), så mängden
   är `{30, 90}` före och efter. Och Art. 5(1)(e) är **ändamålsindexerad** — "inte längre än

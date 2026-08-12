@@ -19,8 +19,18 @@ namespace Jobbliggaren.Infrastructure.Email;
 /// assemblies reached by <c>InternalsVisibleTo</c>. What holds is therefore a GREPPABLE convention
 /// with a small audit surface, not a compiler guarantee: <c>Markup</c> is constructed in exactly
 /// seven places, all in this file, and every interpolation in those seven passes through
-/// <see cref="EmailHtml.Encode"/>. Measured 2026-08-12: <c>grep "new Markup(" src/ tests/</c> returns
-/// zero hits outside this file.
+/// <see cref="EmailHtml.Encode"/>.
+/// <b>The audit surface is found by TYPE, never by constructor spelling.</b> All seven use
+/// target-typed <c>new(...)</c>, so a search for <c>new Markup(</c> matches none of them and would
+/// report a clean repo while missing every site it claims to cover — including the return route,
+/// <c>Document(t, p, body: new($"…"))</c>, which is target-typed too. The measurement that bears the
+/// claim is therefore "which files name the type at all":
+/// <c>grep -rl "Markup" src/ --include=*.cs</c>, measured 2026-08-12 = TWO files, this one and
+/// <c>EmailTemplates.cs</c>, which only composes primitives and never constructs a
+/// <see cref="Markup"/> itself. (Run it across <c>tests/</c> too and the count rises without meaning
+/// anything: those hits are prose about "live markup" in the detector, not the type.) A name-based
+/// command here was itself a claim wider than its measurement (code-reviewer, 2026-08-12), and the
+/// replacement was re-measured rather than copied from the finding.
 /// </para>
 /// <para>
 /// The history is the point. v1 had <c>Document</c> take a raw <see cref="string"/> body while the
@@ -88,9 +98,9 @@ internal readonly record struct Markup(string Value)
 /// real <c>padding</c> for every other client, and the cell carries <c>mso-padding-alt</c>, which
 /// only Word reads. Moving the padding to the cell for everyone was the first repair and it was
 /// wrong in a way worth recording — it fixed Word and shrank the CLICKABLE area to the label's own
-/// box in every client, so the affordance became ~2.3x the target on the primary action of all eight
-/// mails, and a mail is read mostly on a phone (design-reviewer, 2026-08-12, correcting her own
-/// prescription). <c>mso-padding-alt</c> is the accepted form and needs no VML.
+/// box in every client, so the affordance became ~2.3x the target on the primary action of SEVEN of
+/// the eight mails (<c>EmailChangedNotification</c> has no button; it ends in a link paragraph), and
+/// a mail is read mostly on a phone (design-reviewer, 2026-08-12, correcting her own prescription). <c>mso-padding-alt</c> is the accepted form and needs no VML.
 /// <c>border-radius</c> is ignored in Word too and buttons degrade to square, which is acceptable.
 /// </para>
 ///

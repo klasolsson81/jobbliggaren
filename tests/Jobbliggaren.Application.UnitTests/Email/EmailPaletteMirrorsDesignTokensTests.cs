@@ -10,7 +10,7 @@ namespace Jobbliggaren.Application.UnitTests.Email;
 ///
 /// <para>
 /// An email cannot read <c>--jp-*</c> custom properties, so <see cref="EmailHtml"/> holds hex
-/// literals. That is ratified in DESIGN.md § E-post. What was NOT handled is drift: the eight
+/// literals. That is ratified in DESIGN.md § E-post. What was NOT handled is drift: the seven
 /// literals were verified correct by hand on 2026-08-12, and nothing stopped them rotting the moment
 /// someone edited a token. The web CSS guard cannot reach C#, so a hand check was the only control,
 /// and a hand check is a measurement with an expiry date.
@@ -71,8 +71,8 @@ public class EmailPaletteMirrorsDesignTokensTests
     [Fact]
     public void EmailPalette_EveryColourConstant_IsCoveredByTheMirror()
     {
-        // Mirror() is a hand-written list, which closes drift in the values and NOT in the set: add a
-        // ninth colour constant to EmailHtml and every case above still passes while the new literal
+        // Mirror() is a hand-written list, which closes drift in the values and NOT in the set: add an
+        // eighth colour constant to EmailHtml and every case above still passes while the new literal
         // is unpinned. That is the same growth-blindness the template guard had (code-reviewer, and
         // the precedent this file cites — CvPaletteTests iterates CvPalette.Pairs precisely so a new
         // pair cannot be forgotten).

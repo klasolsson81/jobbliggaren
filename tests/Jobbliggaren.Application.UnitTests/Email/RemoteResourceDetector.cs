@@ -50,7 +50,7 @@ internal static class RemoteResourceDetector
     /// template cannot produce (security-auditor measured all three of these passing, 2026-08-12).
     /// </para>
     /// </summary>
-    private static readonly string[] FetchingElements =
+    internal static readonly string[] FetchingElements =
         ["<img", "<script", "<link", "<iframe", "<video", "<audio", "<source", "<object",
          "<embed", "<picture", "<track", "<input", "<svg"];
 
@@ -61,7 +61,7 @@ internal static class RemoteResourceDetector
     /// unreachable — a dead arm whose "counterfactual" is really felled by this one
     /// (code-reviewer Major 3, 2026-08-12).
     /// </summary>
-    private static readonly string[] ForbiddenElements = ["<style"];
+    internal static readonly string[] ForbiddenElements = ["<style"];
 
     /// <summary>
     /// Source attributes, checked inside live markup only. <c>href=</c> is deliberately ABSENT: an
@@ -70,11 +70,11 @@ internal static class RemoteResourceDetector
     /// <c>http-equiv=</c> is here because <c>&lt;meta http-equiv="refresh"&gt;</c> navigates without
     /// one; the shell's own <c>&lt;meta&gt;</c> tags carry <c>charset</c> and <c>name</c>, never this.
     /// </summary>
-    private static readonly string[] FetchingAttributes =
+    internal static readonly string[] FetchingAttributes =
         ["src=", "srcset=", "background=", "poster=", "http-equiv="];
 
     /// <summary>CSS that fetches from inside a <c>style</c> attribute.</summary>
-    private static readonly string[] FetchingCss = ["url("];
+    internal static readonly string[] FetchingCss = ["url("];
 
     private static readonly Regex AbsoluteUrl = new(
         @"(?:https?:)?//[^\s""'<>()]+", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
@@ -92,14 +92,36 @@ internal static class RemoteResourceDetector
     /// about the control.
     /// </para>
     /// <para>
-    /// <b>A known and declared limit remains:</b> quotes are paired positionally, so a tag with ODD
-    /// quote parity (a stray quote inside an unquoted attribute value, which the HTML5 tokenizer
-    /// tolerates) never reaches a <c>&gt;</c> outside a quoted run and falls out of live markup
-    /// entirely. The element arm is unaffected because it scans the whole document, so the
-    /// tracking-pixel vector stays covered. It is pinned as a limit in
-    /// <c>RemoteResourceDetectorTests.FindRemoteResources_WithOddQuoteParity_IsKnownNotToReport</c>
-    /// rather than chased: a regex never becomes a tokenizer, and trading one undeclared residual for
-    /// another is the round-multiplying move (security-auditor, 2026-08-12).
+    /// <b>TWO known and declared limits remain. Both are stated at full width, because the first
+    /// version of this paragraph understated the first one and that is the defect class this file
+    /// exists to catch (code-reviewer, 2026-08-12).</b>
+    /// </para>
+    /// <para>
+    /// <b>(1) Odd quote parity.</b> Quotes are paired positionally, so a tag carrying a stray quote
+    /// inside an unquoted attribute value — which the HTML5 tokenizer tolerates — never reaches a
+    /// <c>&gt;</c> outside a quoted run and falls out of live markup entirely. <b>All THREE
+    /// live-markup arms go blind on such a tag: attribute, CSS, and the off-host URL arm</b>, which
+    /// reads the same <c>liveMarkup</c> string. So it is not only a fetch that can hide there — an
+    /// off-host URL can too, which is register ground 2's SECOND sentence. What remains covered is
+    /// exactly the ELEMENT-BORNE fetch, because that arm scans the whole document: a
+    /// <c>&lt;img&gt;</c>, <c>&lt;script&gt;</c>, <c>&lt;iframe&gt;</c> or <c>&lt;svg&gt;</c> is caught
+    /// through the same evasion. Note what that does NOT say: "the tracking pixel is covered" would be
+    /// too broad, since a pixel is delivered just as well by <c>background=</c> or
+    /// <c>background-image:url(...)</c>, both of which are in the blinded set.
+    /// </para>
+    /// <para>
+    /// <b>(2) The attribute arm is NAME-based where the element arm is SHAPE-based.</b> It matches the
+    /// literal <c>http-equiv=</c>, while HTML5 permits <c>http-equiv = "refresh"</c> with spaces
+    /// around the equals sign; that spelling passes. The same holds for the other four attribute
+    /// literals.
+    /// </para>
+    /// <para>
+    /// Both are pinned as limits in <c>RemoteResourceDetectorTests</c> rather than chased: a regex
+    /// never becomes a tokenizer, and trading one undeclared residual for another is the
+    /// round-multiplying move (security-auditor, 2026-08-12). Nothing in this repo can produce either
+    /// shape — <c>Encode</c> turns <c>"</c> into <c>&amp;quot;</c> and <c>&lt;</c> into
+    /// <c>&amp;lt;</c> — so what these bound is the pin's reach against a hypothetical document, not
+    /// against ours. If they ever need closing, the answer is a parser, not a longer regex.
     /// </para>
     /// </summary>
     private static readonly Regex TagSpan = new(

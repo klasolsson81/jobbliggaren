@@ -8,9 +8,11 @@ namespace Jobbliggaren.Application.UnitTests.Email;
 /// detector is broken", and the Art. 30 retention entry's ground 2 rests on the difference.
 ///
 /// <para>
-/// <b>Coverage, stated exactly.</b> Every literal in every arm has a probe: thirteen fetching
-/// elements, one forbidden element, five fetching attributes, one fetching CSS construct, and the
-/// off-host URL arm. The attribute and CSS probes use ON-HOST URLs and assert the FINDING STRING, because an
+/// <b>Coverage, and it is STRUCTURAL rather than asserted.</b> The element and attribute theories are
+/// driven from <see cref="RemoteResourceDetector"/>'s own arrays through <c>MemberData</c>, so a
+/// literal added there gets a probe or fails the build — the claim cannot go quiet the way a
+/// transcribed list can. The remaining arms (the forbidden element, the CSS construct, the off-host
+/// URL) have one probe each and are single-literal today. The attribute and CSS probes use ON-HOST URLs and assert the FINDING STRING, because an
 /// off-host URL in the same fixture would let the URL arm satisfy the assertion on its own and the
 /// arm under test would never be measured. That was true of the previous version of this file, whose
 /// doc nonetheless claimed a counterfactual per arm — code-reviewer Major 3 measured six element
@@ -42,28 +44,29 @@ public class RemoteResourceDetectorTests
 
     // ---------- the element arm: one probe per literal ----------
 
+    public static TheoryData<string> FetchingElements()
+    {
+        // Driven FROM the detector's own array, never transcribed. A hand-written probe list makes
+        // "every literal has a probe" a claim that goes quiet the moment a literal is added — the
+        // same growth-blindness the template guard and the palette guard both had, and the third
+        // instance of it in this PR (code-reviewer, 2026-08-12).
+        var data = new TheoryData<string>();
+        foreach (var element in RemoteResourceDetector.FetchingElements)
+            data.Add(element);
+        return data;
+    }
+
     [Theory]
-    [InlineData("img")]
-    [InlineData("script")]
-    [InlineData("link")]
-    [InlineData("iframe")]
-    [InlineData("video")]
-    [InlineData("audio")]
-    [InlineData("source")]
-    [InlineData("object")]
-    [InlineData("embed")]
-    [InlineData("picture")]
-    [InlineData("track")]
-    [InlineData("input")]
-    [InlineData("svg")]
+    [MemberData(nameof(FetchingElements))]
     public void FindRemoteResources_ForEveryFetchingElement_ReportsThatElement(string element)
     {
         // Bare tag, no URL and no source attribute, so ONLY the element arm can produce a finding and
         // the assertion cannot be satisfied by another arm. Six of these had no probe at all before
         // (code-reviewer Major 3).
-        var findings = FindRemoteResources($"<{element}></{element}>");
+        var name = element.TrimStart('<');
 
-        findings.ShouldContain($"fetching element: <{element}");
+        FindRemoteResources($"<{name}></{name}>")
+            .ShouldContain($"fetching element: {element}");
     }
 
     [Fact]
@@ -82,21 +85,25 @@ public class RemoteResourceDetectorTests
 
     // ---------- the attribute and CSS arms, isolated with ON-HOST URLs ----------
 
+    public static TheoryData<string> FetchingAttributes()
+    {
+        var data = new TheoryData<string>();
+        foreach (var attribute in RemoteResourceDetector.FetchingAttributes)
+            data.Add(attribute);
+        return data;
+    }
+
     [Theory]
-    [InlineData("src")]
-    [InlineData("srcset")]
-    [InlineData("background")]
-    [InlineData("poster")]
-    [InlineData("http-equiv")]
+    [MemberData(nameof(FetchingAttributes))]
     public void FindRemoteResources_ForEveryFetchingAttribute_ReportsThatAttribute(string attribute)
     {
         // On a <td>, which is in no element list, and with an ON-HOST URL, so neither the element arm
         // nor the off-host URL arm can fire. The finding string is asserted rather than mere
         // non-emptiness: without both, this probe would measure the URL arm and report success about
         // an attribute arm it never exercised.
-        var findings = FindRemoteResources($"""<td {attribute}="{OnHost}">x</td>""");
+        var findings = FindRemoteResources($"""<td {attribute}"{OnHost}">x</td>""");
 
-        findings.ShouldContain($"fetching attribute: {attribute}=");
+        findings.ShouldContain($"fetching attribute: {attribute}");
     }
 
     [Fact]
@@ -164,14 +171,18 @@ public class RemoteResourceDetectorTests
         // tag with odd quote parity never reaches a `>` outside a quoted run and falls out of live
         // markup entirely. A browser fetches; the attribute and CSS arms do not see it.
         //
+        // ALL THREE live-markup arms go blind on such a tag — attribute, CSS, and the off-host URL arm,
+        // which reads the same liveMarkup string. So an off-host URL can hide there too, which is
+        // register ground 2's SECOND sentence, and the fixture below is itself an example of one.
+        // The first version of this comment named only two arms and bounded the risk with "the
+        // tracking pixel is covered", which is too broad: a pixel is delivered just as well by
+        // background= or background-image:url(...), both in the blinded set (code-reviewer).
+        //
+        // What IS covered, stated at exactly its width and asserted below rather than claimed: the
+        // ELEMENT-BORNE fetch, because that arm scans the whole document.
+        // And nothing in this repo can produce the shape at all: Encode turns " into &quot;.
         // It is declared rather than chased because a regex never becomes a tokenizer, and trading one
-        // undeclared residual for another is the round-multiplying move. What bounds the risk, and why
-        // this is a limit rather than a hole:
-        //   - the element arm scans the WHOLE document, so <img>, <script>, <link>, <iframe> and
-        //     <input> are caught regardless of quoting — the tracking pixel, the highest-value vector,
-        //     is untouched. Asserted below rather than claimed.
-        //   - nothing in this repo can produce it: Encode turns " into &quot; and ' into &#x27;.
-        // If this ever needs closing, the answer is a real parser, not a longer regex.
+        // undeclared residual for another is the round-multiplying move.
         FindRemoteResources("""<td x=a" background="https://evil.example/bg.png">x</td>""")
             .ShouldBeEmpty();
 
@@ -190,10 +201,12 @@ public class RemoteResourceDetectorTests
         // "no absolute URL names a host outside BaseUrl". A host-based wording could never close
         // these, because the property they violate is not host-dependent — and our own <a href>
         // links survive the first sentence precisely because a link is not a fetch.
-        FindRemoteResources($"""<svg><image href="{OnHost}"/></svg>""").ShouldNotBeEmpty();
-        FindRemoteResources($"""<svg><use href="{OnHost}#i"/></svg>""").ShouldNotBeEmpty();
+        FindRemoteResources($"""<svg><image href="{OnHost}"/></svg>""")
+            .ShouldContain("fetching element: <svg");
+        FindRemoteResources($"""<svg><use href="{OnHost}#i"/></svg>""")
+            .ShouldContain("fetching element: <svg");
         FindRemoteResources($"""<meta http-equiv="refresh" content="0;url={OnHost}">""")
-            .ShouldNotBeEmpty();
+            .ShouldContain("fetching attribute: http-equiv=");
     }
 
     // ---------- controls: the detector must not reject everything ----------

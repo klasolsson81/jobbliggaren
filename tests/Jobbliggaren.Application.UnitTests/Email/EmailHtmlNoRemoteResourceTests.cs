@@ -316,6 +316,34 @@ public class EmailHtmlNoRemoteResourceTests
     }
 
     [Fact]
+    public void EmailHtml_TheCallToAction_KeepsPaddingOnTheAnchorAndGivesWordItsOwn()
+    {
+        // The click target collapsed once already and NO test went red (design-reviewer, 2026-08-12).
+        // Round one moved the button's padding to the cell so Word would paint it; Word does honour
+        // cell padding, and the anchor then had padding nowhere, so the clickable box shrank to the
+        // label's own text box while the painted button stayed ~43px tall. Moving it back to the cell
+        // today would still pass CI green, which is precisely why this fact exists — the PR's own
+        // thesis is "a ground a test can hold", and it applies to the repair as much as to the rule.
+        //
+        // The invariant: each engine gets exactly ONE padding. The anchor carries real padding for
+        // every client; the cell carries mso-padding-alt, which only Word reads.
+        var html = Case("EmailConfirmation").HtmlBody;
+
+        html.ShouldContain(
+            "padding:12px 22px;mso-padding-alt:0",
+            customMessage: "the anchor lost its padding, so the clickable area is the label's text "
+                + "box while the painted button is ~43px tall");
+        html.ShouldContain(
+            "mso-padding-alt:12px 22px",
+            customMessage: "the cell lost its Word padding, so Outlook paints a fill with the label "
+                + "jammed against its edges");
+
+        // And the cell must NOT carry ordinary padding as well: two paddings in Word is the other
+        // failure mode, and it is invisible in every client that ignores mso-*.
+        html.ShouldNotContain("border-radius:6px;padding:");
+    }
+
+    [Fact]
     public void EmailHtml_WhenAValueWouldReachAnAttribute_EscapesTheQuote()
     {
         // Asserts the PRIMITIVE's transform, not a claim about any mail: no production path puts

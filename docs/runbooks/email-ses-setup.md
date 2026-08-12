@@ -473,11 +473,21 @@ the word "pass" is how that distinction gets missed.
   the reply is the live path. Read the status from `aws sesv2 get-account`, never from the
   support case — the Support API is unavailable on this account's Basic plan
   (`SubscriptionRequiredException`, measured 2026-08-12).
-- **Bounce and complaint handling itself** — no owner in code today. Unchanged by the above, and
-  the thing to build if AWS asks for more than the suppression list. Note that the obvious
-  mechanism, a configuration set with an SNS event destination, is **not** free here: the ROPA
-  retention entry's first leg is that no `ConfigurationSetName` is in play (`release-checklist.md`
-  §2.5 point 1, sign-off precondition 4), so building it is a GDPR change and not only a code one.
+- **Bounce and complaint handling itself** — no owner in code today, and **the obligation does
+  not come from AWS.** An earlier version of this line called it the thing to build *if AWS asks
+  for more than the suppression list*, which put a GDPR duty behind a vendor's discretion.
+  `security-auditor` rejected that framing on 2026-08-12 and the reasoning is short: a SES
+  `Complaint` means the recipient marked the message as spam. For the notification mail, which
+  runs on consent, that is an Art. 7(3) withdrawal and an Art. 21 objection arriving through a
+  channel nothing in `src/` reads. Measured: `NotificationConsentWithdrawnAt` is written only by
+  `JobSeeker`'s own opt-out methods. The suppression list stops delivery but never reaches the
+  register, so the consent record would go on asserting live consent for someone who has
+  objected. That is a defect whether or not AWS ever asks.
+  **The path does not cost the ROPA leg.** The obvious mechanism — a configuration set with an
+  SNS event destination — would, because the retention entry's first leg is that no
+  `ConfigurationSetName` is in play. But SES v2 `SendEmail` carries
+  `FeedbackForwardingEmailAddress` as a **per-request** parameter, and email feedback forwarding
+  needs no configuration set at all. Build it that way.
 
 ---
 

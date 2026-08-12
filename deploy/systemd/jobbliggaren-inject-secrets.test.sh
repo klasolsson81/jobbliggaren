@@ -126,9 +126,9 @@ make_sut_copy() {
   # Same proof as the two above, and it earns its place for a sharper reason: the SES cases are
   # the only ones whose EXPECTED result depends on a file's CONTENT rather than its presence. An
   # unapplied redirect here would point at the real /opt/jobbliggaren/deploy/.env, which on a
-  # developer machine and on a CI runner alike does not exist — so email_provider_is_ses would
-  # return false, the provider-is-Ses cases would measure the not-Ses branch, and BOTH would
-  # still report the exit code they wanted. Green for the opposite reason.
+  # developer machine and on a CI runner alike does not exist — so email_provider would answer
+  # `console`, the provider-is-Ses cases would measure the not-Ses branch, and BOTH would still
+  # report the exit code they wanted. Green for the opposite reason.
   grep -qxF "readonly ENV_FILE=$ENV_FIXTURE" "$sut_copy" || {
     echo "FIXTURE BROKEN: ENV_FILE redirect did not apply — the suite would measure the host" >&2
     exit 1
@@ -393,7 +393,7 @@ echo "-- the SES credentials are conditional on EMAIL_PROVIDER (#183)"
 seed_all_secrets
 set_env_provider ""
 run_check || true
-if ! grep -qE "Email__Ses__(AccessKeyId|SecretAccessKey)" "$TMPROOT/out"; then
+if ! grep -qE "Email__Ses__(AccessKeyId|SecretAccessKey)|INVALID: EMAIL_PROVIDER" "$TMPROOT/out"; then
   pass=$((pass + 1)); echo "  ok   no .env at all does not demand the SES credentials"
 else
   fail=$((fail + 1)); echo "  FAIL an absent .env demanded the SES credentials" >&2
@@ -403,7 +403,7 @@ fi
 seed_all_secrets
 set_env_provider "Console"
 run_check || true
-if ! grep -qE "Email__Ses__(AccessKeyId|SecretAccessKey)" "$TMPROOT/out"; then
+if ! grep -qE "Email__Ses__(AccessKeyId|SecretAccessKey)|INVALID: EMAIL_PROVIDER" "$TMPROOT/out"; then
   pass=$((pass + 1)); echo "  ok   EMAIL_PROVIDER=Console does not demand the SES credentials"
 else
   fail=$((fail + 1)); echo "  FAIL EMAIL_PROVIDER=Console demanded the SES credentials" >&2
@@ -492,7 +492,7 @@ echo "-- an .env that exists without the key is the box's state today"
 seed_all_secrets
 write_env "SITE_HOST=jobbliggaren.se" "POSTGRES_APP_PASSWORD=x"
 run_check || true
-if ! grep -qE "Email__Ses__|EMAIL_SES_" "$TMPROOT/out"; then
+if ! grep -qE "Email__Ses__|EMAIL_SES_|INVALID: EMAIL_PROVIDER" "$TMPROOT/out"; then
   pass=$((pass + 1)); echo "  ok   an .env with no EMAIL_PROVIDER line demands nothing"
 else
   fail=$((fail + 1)); echo "  FAIL an .env with no EMAIL_PROVIDER line demanded SES config" >&2

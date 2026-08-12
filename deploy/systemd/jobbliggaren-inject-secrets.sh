@@ -190,7 +190,17 @@ ses_credentials_required() {
 # It must stat files and nothing else — it runs at boot, when dockerd may not be up, so it must
 # never touch docker.
 if [[ "${1:-}" == "--check" ]]; then
+  # TWO COUNTERS, BECAUSE ONE SUMMARY CANNOT DESCRIBE TWO DISJOINT SETS (#1328). `missing` is
+  # everything api and worker read; `host_missing` is the host-only set, whose absence leaves the
+  # stack serving. Each branch below sets exactly ONE of them — never both — so the summary can
+  # tell "the box is down" from "the nightly backup is". The exit code does not distinguish them:
+  # backup-restore.md §5 leans on this unit alarming on the missing credential, and an exit 0
+  # would delete that alarm silently.
+  #
+  # A NEW CHECK THAT PICKS THE WRONG COUNTER FAILS TOWARD `missing`, which is the louder half —
+  # a copy of any crypto branch above already carries it.
   missing=0
+  host_missing=0
 
   # The DIRECTORY is checked too. Files present but the directory un-traversable by the
   # container's group is a real crash-loop state that a files-only sweep reports as healthy.
@@ -266,26 +276,42 @@ if [[ "${1:-}" == "--check" ]]; then
   # backup stops), and the message says so instead of leaving an operator to infer it.
   if [[ ! -d "$HOST_SECRETS_DIR" ]]; then
     log "MISSING: $HOST_SECRETS_DIR (directory does not exist)"
-    missing=1
+    host_missing=1
   fi
   for key in "${HOST_SECRET_KEYS[@]}"; do
     if ! has_usable_content "${HOST_SECRETS_DIR}/${key}"; then
       log "MISSING: ${HOST_SECRETS_DIR}/${key} — the stack still serves, but the nightly backup"
       log "         cannot upload (#197). jobbliggaren-backup.service will refuse."
-      missing=1
+      host_missing=1
     fi
   done
 
+  # THIS SUMMARY USED TO PRESCRIBE THE ONE REMEDY, and it stopped being the one remedy when
+  # the mail branch above gained lines injection cannot fix — an INVALID provider value and an
+  # unset EMAIL_SES_* variable are edits to deploy/.env, not missing files. Telling an operator
+  # to re-run this script against those is a remedy that reports success and changes nothing,
+  # which is worse than no remedy at all. So the summary points at the lines rather than
+  # replacing them.
+  #
+  # AND IT USED TO ASSERT A CRASH-LOOP FOR BOTH SETS, which made it FALSE in the state a cutover
+  # leaves behind: crypto injected, #197's host-only credential not yet provisioned. Measured on
+  # the box 2026-08-13, immediately after #198's cutover succeeded, with api and web healthy. The
+  # summary then contradicted the very line above it, which already said the stack still serves —
+  # and it did so at the moment an operator is deciding whether the cutover worked. Believing it
+  # means re-running the injection, which re-rotates a master key against a live database for
+  # nothing.
   if [[ $missing -ne 0 ]]; then
-    # THIS SUMMARY USED TO PRESCRIBE THE ONE REMEDY, and it stopped being the one remedy when
-    # the mail branch above gained lines injection cannot fix — an INVALID provider value and an
-    # unset EMAIL_SES_* variable are edits to deploy/.env, not missing files. Telling an operator
-    # to re-run this script against those is a remedy that reports success and changes nothing,
-    # which is worse than no remedy at all. So the summary now points at the lines rather than
-    # replacing them.
     log "Something above is missing or invalid, and api and worker will crash-loop by design"
     log "(fail-closed, never a fallback key). Read the individual lines: those naming a FILE are"
     log "fixed by injecting, those naming a variable are fixed by editing deploy/.env."
+    log "  sudo /opt/jobbliggaren/deploy/systemd/jobbliggaren-inject-secrets.sh"
+    exit 1
+  fi
+  if [[ $host_missing -ne 0 ]]; then
+    log "api and worker have everything they read: the stack serves and no key is missing. What"
+    log "is absent is host-only — the nightly backup cannot upload (#197), and"
+    log "jobbliggaren-backup.service refuses until it is injected. Same script, which prompts for"
+    log "it after the crypto secrets it is already holding:"
     log "  sudo /opt/jobbliggaren/deploy/systemd/jobbliggaren-inject-secrets.sh"
     exit 1
   fi

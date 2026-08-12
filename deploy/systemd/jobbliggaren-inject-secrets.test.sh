@@ -255,6 +255,53 @@ else
   sed 's/^/       /' "$TMPROOT/out" >&2
 fi
 
+echo "-- the summary tells a box that is DOWN from one that is merely un-backed-up (#1328)"
+# CROSSES THE THRESHOLD THE DEFECT LIVED ON. The state a cutover leaves behind is crypto present
+# and #197's host-only credential absent, and over exactly that the summary asserted "api and
+# worker will crash-loop by design" — contradicting the MISSING line four lines above it, which
+# already said the stack still serves. Measured on the box 2026-08-13. A suite covering only
+# all-present and all-absent stays green through it: in neither case is one set present while the
+# other is absent, which is the only shape that separates the two summaries.
+#
+# BOTH POLARITIES, because a one-sided assertion is worth little here: a summary hard-wired to the
+# host-only wording would pass the first case on its own.
+#
+# THE EXIT CODE IS PINNED TOO, and it is the half that is easy to "fix" wrongly. Making the
+# host-only case exit 0 would read as an improvement and would silently delete an alarm:
+# backup-restore.md §5 states that a missing backup credential is unreported by nothing precisely
+# because this unit covers it. The string was the defect; the exit code was not.
+#
+# Mode-gated like the cases above, and not incidentally: where chmod is unavailable the WRONG MODE
+# branch sets the blocking counter, so the serving case would measure the crash-loop summary and
+# fail for a reason that is not this one.
+if [ "$MODE_ENFORCED" = "yes" ]; then
+  seed_all_secrets
+  rm -f "$HOST_SECRETS/Backup__RcloneConfigBase64"
+  expect_check 1 "a missing host-only credential still lights the alarm"
+  if grep -qF "the stack serves and no key is missing" "$TMPROOT/out" \
+    && ! grep -qF "crash-loop by design" "$TMPROOT/out"; then
+    pass=$((pass + 1)); echo "  ok   the summary does not claim a crash-loop over a serving stack"
+  else
+    fail=$((fail + 1)); echo "  FAIL the summary claimed a crash-loop while only the host-only credential was absent" >&2
+    sed 's/^/       /' "$TMPROOT/out" >&2
+  fi
+
+  seed_all_secrets
+  rm -f "$SECRETS/FieldEncryption__LocalMasterKeyBase64"
+  run_check || true
+  if grep -qF "crash-loop by design" "$TMPROOT/out" \
+    && ! grep -qF "the stack serves and no key is missing" "$TMPROOT/out"; then
+    pass=$((pass + 1)); echo "  ok   a missing master key still summarises as a crash-loop"
+  else
+    fail=$((fail + 1)); echo "  FAIL a missing master key did not summarise as a crash-loop" >&2
+    sed 's/^/       /' "$TMPROOT/out" >&2
+  fi
+else
+  skipped=$((skipped + 3))
+  echo "  SKIP summary cases: this filesystem does not honour chmod, so the mode branch sets the"
+  echo "       blocking counter and the serving case cannot be measured. They RUN in CI."
+fi
+
 echo "-- a missing host-only DIRECTORY is the post-reboot state"
 seed_all_secrets
 rm -rf "$HOST_SECRETS"

@@ -85,10 +85,12 @@ refactor cannot quietly remove it (senior-cto-advisor bind 2026-08-09, D2).
 > one. **What row 32 still waits for is Klas's confirmation that the identity is escrowed** — the
 > identity itself exists. Record the date there, not here; this callout no longer owns it.
 >
-> **Where it is, measured 2026-08-12:** `%USERPROFILE%\.jbl-escrow\`, beside the four crypto
-> values. That is **outside the repository** — no `.gitignore` rule guards it and none should,
-> because a rule for a path that cannot occur is decoration that reads as protection. Named here
-> so the next reviewer measures the question once rather than re-opening it.
+> **Where it is, measured 2026-08-12: outside the repository, on Klas's own machine beside the
+> four crypto values (ADR 0129).** No `.gitignore` rule guards it and none should — a rule for a
+> path that cannot occur is decoration that reads as protection. The directory is deliberately
+> not named here: this PR exists because key material accumulated somewhere it should not have,
+> and writing the storage location into a tracked file that agents read and quote is the same
+> class one step removed. Named this far so the next reviewer measures the question once.
 >
 > Backups may be *taken* meanwhile — encryption needs only the recipient — and taking them is
 > strictly better than not. What may not happen is anyone relying on them.
@@ -315,8 +317,13 @@ grep -qx age17xdg97ppkkpv5cl0qlsfctmkrdy7dt6ps0klt79evwcwsnz0j35sn3skut /opt/job
 #     is exactly why the rotation of 2026-08-12 would otherwise have left the box holding the
 #     REVOKED recipient with nothing saying so. Run these three, in order, after the rotation
 #     commit has merged:
-git -C /opt/jobbliggaren fetch origin                 # read what the pull brings FIRST — on this
-git -C /opt/jobbliggaren log --oneline HEAD..origin/main -- deploy/   # box a pull is a DEPLOY
+#     sudo on ALL THREE, matching :218 and vps-deploy-stack.md's own pull. Mixing privilege
+#     mid-sequence makes which line fails depend on how the clone was created — root-owned and
+#     line 1 dies on dubious ownership, user-owned and the sudo pull writes root objects into a
+#     user .git/ — and an operator improvising mid-rotation is how the box stays on the revoked
+#     recipient, which is the thing 3b exists to prevent.
+sudo git -C /opt/jobbliggaren fetch origin            # read what the pull brings FIRST — on this
+sudo git -C /opt/jobbliggaren log --oneline HEAD..origin/main -- deploy/   # box a pull is a DEPLOY
 sudo git -C /opt/jobbliggaren pull --ff-only
 #     The pull RECREATES age.recipient, and git carries only the exec bit — so step 3's
 #     0444 root:root does not survive it. Re-apply the chown/chmod above, then re-run the

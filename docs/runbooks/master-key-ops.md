@@ -92,8 +92,27 @@ sudo systemd-tmpfiles --create /etc/tmpfiles.d/jobbliggaren.conf
 sudo install -m 0644 /opt/jobbliggaren/deploy/systemd/jobbliggaren-secrets-present.service \
   /opt/jobbliggaren/deploy/systemd/jobbliggaren-secrets-present.timer /etc/systemd/system/
 sudo systemctl daemon-reload
+```
+
+**Enabling the timer is a separate step, and it belongs after §3's injection.** `--check` is one
+predicate over two directories: it demands #197's host-only `Backup__RcloneConfigBase64`
+alongside the crypto secrets. A timer enabled before that credential is in place therefore fails
+on **every** fire, for as long as it takes to provision it — a permanently lit
+`systemctl --failed`, which is the one command that would surface a real failure later, trained
+into noise. `jobbliggaren-heartbeat.sh` states the same sequencing for the same reason.
+
+```bash
+# After §3 has injected, Backup__RcloneConfigBase64 included:
 sudo systemctl enable --now jobbliggaren-secrets-present.timer
 ```
+
+> **The condition is the rclone config in your hand, not #197 being finished.** §3's injection
+> prompts for `Backup__RcloneConfigBase64` in the same run as the crypto secrets, so if you hold
+> the config you inject and enable the same day and there is no wait at all. If you do not, stop
+> after `daemon-reload`: the unit files are installed and inert, and you enable them the day the
+> credential exists. **Until then the box has no absence alarm** — that is the cost of deferring,
+> it is real, and it is why this is a deliberate decision rather than a step to skip quietly. The
+> handover row lives in [`host-detection.md`](host-detection.md) §7.
 
 There is deliberately **no unit that starts the stack** and none that unseals anything — with
 no at-rest copy there is nothing to unseal, so the `Before=docker.service` ordering problem

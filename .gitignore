@@ -12,6 +12,16 @@
 .jbl-worktree.json*
 
 # Environment files (dev secrets)
+# `*.env` AND `.env` are both needed: `.env` matches a file NAMED .env and nothing else, so
+# `vpssecrets.env` was untracked-but-trackable in the root of a PUBLIC repo on 2026-08-12,
+# holding the box's four crypto values and its four database passwords. Measured then:
+# `git check-ignore` exited 1, and `git log --all` over both path and history found no commit,
+# so nothing leaked. The assumption that "it is a .env, therefore it is ignored" is one a human
+# will make again; this line makes it true. No tracked file ends in `.env` (measured), so the
+# rule costs nothing. It is defence in depth, not the control: a secrets file does not belong
+# inside the working tree at all, ignored or not, because `git add -f` and every tool that
+# walks the tree ignore this file.
+*.env
 .env
 .env.local
 .env.*.local

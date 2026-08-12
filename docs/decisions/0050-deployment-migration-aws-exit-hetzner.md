@@ -1345,9 +1345,23 @@ räckvidden — ska konfigurationen uppfylla:
   (`delete`/`replace`/`hash` på `request>uri`) för site-accessloggen, och ett **globalt
   `log`-block** — den enda konfigurationsyta som når `http.log.error` — för
   default-loggern. Mekanismen är i övrigt fri; kravet är resultatet.
-- **G3 — definierad retention:** en beslutad tidsgräns för accessloggen. Siffran är Klas
-  att sätta; jfr [#1170](https://github.com/klasolsson81/jobbliggaren/issues/1170) för
-  app-loggen — ingen siffra uppfinns här. Notera att kravet är **presens, inte framtid**:
+- **G3 — definierad retention: `30 dagar`. Klas-beslut 2026-08-12.** Gäller både det lokala
+  `json-file`-lagret och OVH-prefixet `hostlogs/`. **Talet är återanvänt, inte uppfunnet** —
+  det är samma 30 dagar som redan står på två ställen i repot: Seq:s egen retentionspolicy
+  (`log-sink.md` §3, `"RetentionTime":"30.00:00:00"`) och backup-/PITR-fönstret (K4,
+  `backup-restore.md`). Ett tal för hela systemet är lättare att skriva i integritetspolicyn
+  och att försvara under Art. 5(1)(e) än tre, och det ger drygt tio gånger Art. 33:s
+  72-timmarsfönster för incidentutredning.
+  **Vad talet väger, och varför det inte är lagringshygien:** en backups svar på en
+  raderingsbegäran är kryptoradering per registrerad, och den mekanismen kan inte gälla en
+  loggartefakt — en `hostlogs/`-objekt är en timmes loggar för ALLA användare i ett
+  `age`-kuvert lådan saknar nyckel till, så selektiv radering är strukturellt omöjlig. **För
+  det benet ÄR tidsgränsen hela Art. 17-svaret**, och 30 dagar är alltså hur länge en begäran
+  som mest står obesvarad — samma gräns som backup-benet redan har.
+  **Mäts som EFFEKT, aldrig som regel** (rad 27b:s disciplin): objekten ska vara borta vid en
+  listning efter N+1 dagar. En satt regel som inte verkar är ett osant påstående i registret.
+  Jfr [#1170](https://github.com/klasolsson81/jobbliggaren/issues/1170) för app-loggen.
+  Notera att kravet är **presens, inte framtid**:
   det lokala `json-file`-lagret saknar åldersgräns och `http.log.error` skriver redan i
   det (se Nuläge); OVH `hostlogs/` saknar likaså lifecycle-regel (mätt: containerns två
   regler täcker `main/` och `deks/`, ingen täcker `hostlogs/`) och blir ett andra

@@ -135,10 +135,10 @@ x-app-connections: &app-connections
 # inert. The paths lie under the x-app-secrets-mount volume, which any service carrying
 # this anchor must also carry — without the mount, a set pointer is a boot refusal.
 #
-# NOTHING WRITES THOSE TWO FILES YET. jobbliggaren-inject-secrets.sh carries a fixed
-# SECRET_KEYS array and is fail-loud, so adding SES to it would demand the credentials at
-# every boot and take the box down today. Wiring the injection belongs to the flip —
-# email-ses-setup.md §8 owns that gap. Operator view: deploy/.env.example.
+# jobbliggaren-inject-secrets.sh WRITES those two files, and prompts for them if and only if
+# EMAIL_PROVIDER is Ses (#183). Unconditional entries would demand the credentials at every
+# boot and take the box down today; no entry at all would leave the flip unable to place a
+# secret. The condition is what makes both survivable. Operator view: deploy/.env.example.
 #
 # Email__BaseUrl is set unconditionally because it is wrong unconditionally otherwise: it
 # is unset everywhere in the tree, so it falls back to EmailOptions' http://localhost:3000

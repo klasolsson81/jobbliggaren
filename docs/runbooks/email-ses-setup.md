@@ -420,16 +420,29 @@ the word "pass" is how that distinction gets missed.
   [#183](https://github.com/klasolsson81/jobbliggaren/issues/183) and §2.5 point 1.
 - **`Email__*` delivery into the box's containers** — the operator view (variables, defaults,
   what setting each does) lives in `deploy/.env.example`, and the anchor itself in
-  `deploy/docker-compose.yml`. The two SES credential **files** the `_FILE` pointers name do
-  not exist yet and nothing writes them: `deploy/systemd/jobbliggaren-inject-secrets.sh`
-  carries a fixed fail-loud `SECRET_KEYS` array without the SES pair, so secrets *will* reach
-  the containers through that script only once it is extended — which is the flip's work, not
-  this runbook's. Both of §6.3's mechanical prerequisites resolve here.
-- **Leaving the SES sandbox.** It is an application, not a payment: AWS requires the applicant to
+  `deploy/docker-compose.yml`. `deploy/systemd/jobbliggaren-inject-secrets.sh` writes the two
+  SES credential **files** the `_FILE` pointers name, and prompts for them if and only if
+  `EMAIL_PROVIDER=Ses` (#183). The injection gap this entry used to record is closed; what
+  remains of §6.3's mechanical prerequisites is the flip's own two steps — set the variable,
+  uncomment the pointers — after which the script asks for the values.
+- **Leaving the SES sandbox — APPLIED FOR 2026-08-12, and the position this entry held until
+  then did not survive contact with the application.** It read: AWS requires the applicant to
   *"confirm that you have a process in place for handling bounce and complaint notifications"*,
-  and no such process is built. Requesting production access before it exists would be attesting
-  to something untrue.
-- **Bounce and complaint handling itself** — no owner in code today.
+  no such process is built, so applying would attest to something untrue. What was actually
+  attested names only the account-level suppression list — enabled for `BOUNCE` and `COMPLAINT`,
+  measured 2026-08-12 — and states the volume it is proportionate to. It claims no
+  application-side handling, because there is none. **The application was submitted before this
+  entry was read**, which is the process failure worth recording: the runbook owned the
+  decision and was consulted after it. `ReviewDetails.Status` went `PENDING` → **`DENIED`**
+  within ten minutes, with AWS's correspondence asking for detail rather than closing the door;
+  the reply is the live path. Read the status from `aws sesv2 get-account`, never from the
+  support case — the Support API is unavailable on this account's Basic plan
+  (`SubscriptionRequiredException`, measured 2026-08-12).
+- **Bounce and complaint handling itself** — no owner in code today. Unchanged by the above, and
+  the thing to build if AWS asks for more than the suppression list. Note that the obvious
+  mechanism, a configuration set with an SNS event destination, is **not** free here: the ROPA
+  retention entry's first leg is that no `ConfigurationSetName` is in play (`release-checklist.md`
+  §2.5 point 1, sign-off precondition 4), so building it is a GDPR change and not only a code one.
 
 ---
 

@@ -12,8 +12,18 @@ prod-flip checklist).
 **Authority:** ADR 0124 and `release-checklist.md` §2.5. Where this runbook and an ADR disagree,
 the ADR wins and this file is wrong.
 
-> **THE DOMAIN IS VERIFIED AND CAN SIGN, AND NOTHING HAS EVER BEEN SENT.** §3 is now a report.
-> §7's real send is still a design — its configuration-set check is measured (row 35).
+> **THE DOMAIN IS VERIFIED AND CAN SIGN, AND MAIL HAS NOW BEEN SENT — TWICE, 2026-08-12, BOTH TO
+> THE VERIFIED TEST ADDRESS.** §3 is a report; §7 is no longer a design.
+>
+> Both were accepted with a `MessageId`, through the production key and its scoped policy, and
+> both landed in the **inbox** rather than the spam folder. The first arrived with every
+> non-ASCII character double encoded (`Bekräfta` as `BekrÃ¤fta`) and the cause is worth carrying
+> forward, because it will catch the next person testing from Windows: **the AWS CLI decoded the
+> `file://` payload with the host ANSI code page**, not UTF-8. The template was never involved —
+> its bytes and the test file's bytes were both measured correct UTF-8 (`c3 a4`) — and production
+> cannot reach this failure at all, since `SesEmailSender` hands the SDK a .NET string with
+> `Charset = "UTF-8"` and reads no file. **Write the CLI payload as pure ASCII with `\uXXXX`
+> escapes**; a JSON parser then reconstructs the same string on any host.
 >
 > Klas published the three CNAME records at STRATO on **2026-08-10**. SES moved
 > `DkimAttributes.Status` `PENDING` → **`SUCCESS`** and `VerifiedForSendingStatus` → **`true`** in
@@ -24,10 +34,13 @@ the ADR wins and this file is wrong.
 > is protocolled on
 > [#183](https://github.com/klasolsson81/jobbliggaren/issues/183#issuecomment-5240287056).
 >
-> **What does NOT follow from that, and is the whole reason this note survives rather than being
-> deleted:** no message has ever been sent, so §7's `Authentication-Results` reading is unmade and
-> row 37 is open. The account is still in the **sandbox** (its quotas are in §2 and its recipient
-> count in §3 step 6; neither is restated here) and
+> **What does NOT follow from a delivered message, and is the whole reason this note survives
+> rather than being deleted:** inbox placement is not an authentication reading. Row 37 stays
+> **open** until `Authentication-Results` is read out of the received message — arriving is
+> evidence about a filter's verdict, not about DKIM alignment under `p=reject`, and the two can
+> disagree in both directions. The account is still in the **sandbox** (its quotas are in §2 and
+> its recipient count in §3 step 6; neither is restated here), production access was applied for
+> and **denied** on 2026-08-12 with the support case live (§8), and
 > `Email:Provider` is still unset, so the product sends nothing. Being able to sign is not the
 > flip; the flip is [`release-checklist.md`](./release-checklist.md) §2.5 and is Klas's alone.
 
@@ -346,6 +359,28 @@ aws sts get-caller-identity --profile <the-prod-key-profile>
 **Running that with the SSO admin role does not discharge the precondition.** The requirement is
 about the key that lands in configuration, and a measurement made with a different principal
 answers a different question.
+
+**Created 2026-08-12, and the precondition is discharged.** IAM user `jobbliggaren-ses`, policy
+`jobbliggaren-ses-send`. Measured with the key itself, not the admin role:
+`arn:aws:iam::710427215829:user/jobbliggaren-ses`, `Account 710427215829`.
+
+**The narrow resource form does not work, and the reason is not obvious.** A policy whose
+`Resource` was the domain identity alone — the shape "scoped to `ses:SendEmail` only" invites —
+returns `AccessDenied` naming the **recipient**:
+
+```
+User `.../jobbliggaren-ses' is not authorized to perform `ses:SendEmail'
+on resource `arn:aws:ses:eu-north-1:710427215829:identity/klasolsson81@gmail.com'
+```
+
+SES authorises the call against the recipient identity as well as the sender. So the live policy
+(v2) uses `identity/*` with a `ses:FromAddress` condition on `no-reply@jobbliggaren.se`, and it is
+**the condition, not the resource, that constrains the key**: it cannot send as any other address.
+Read the resource wildcard as breadth over *recipients*, which is what sending requires.
+
+`ses:SendRawEmail` is deliberately **absent**. `SesEmailSender` builds `Simple` content, so
+production never needs it; a raw-MIME send attempted during testing was refused, which is the
+policy behaving correctly rather than a gap to fill.
 
 ### 6.3 The flip
 

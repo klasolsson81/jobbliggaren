@@ -533,8 +533,15 @@ else
   chgrp "$second_gid" "$SECRETS" 2>/dev/null || true
   chgrp "$second_gid" "$SECRETS"/* 2>/dev/null || true
   if [ "$(stat -c '%g' "$SECRETS")" != "$second_gid" ]; then
+    # THIS SKIP HONOURS THE FLAG TOO, and the first version of it did not — which would have made
+    # a green CI run mean "either the case ran, or chgrp silently failed", i.e. nothing. A skip
+    # that CI cannot turn into an error is a case that quietly stops existing.
     skipped=$((skipped + 1))
     echo "  SKIP chgrp to $second_gid did not take on this filesystem"
+    if [ "${JBL_REQUIRE_GROUP_CASES:-0}" = "1" ]; then
+      fail=$((fail + 1))
+      echo "  FAIL JBL_REQUIRE_GROUP_CASES=1 but chgrp to $second_gid did not take" >&2
+    fi
   else
     # dir group = second_gid, file owner = id -u. A gate reading %u of the directory would
     # compare $(id -u) against want_gid and refuse; a gate reading %g of a file would compare

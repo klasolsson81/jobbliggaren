@@ -108,9 +108,11 @@ internal static class RemoteResourceDetector
     /// about the control.
     /// </para>
     /// <para>
-    /// <b>TWO known and declared limits remain. Both are stated at full width, because the first
+    /// <b>THREE known and declared limits remain. Each is stated at full width, because the first
     /// version of this paragraph understated the first one and that is the defect class this file
-    /// exists to catch (code-reviewer, 2026-08-12).</b>
+    /// exists to catch (code-reviewer, 2026-08-12).</b> <i>The count moved from two to three when the
+    /// href scheme arm landed — a paragraph that enumerates is a paragraph that goes stale, and this
+    /// one had already done it once.</i>
     /// </para>
     /// <para>
     /// <b>(1) Odd quote parity.</b> Quotes are paired positionally, so a tag carrying a stray quote
@@ -132,7 +134,18 @@ internal static class RemoteResourceDetector
     /// literals.
     /// </para>
     /// <para>
-    /// Both are pinned as limits in <c>RemoteResourceDetectorTests</c> rather than chased: a regex
+    /// <b>(3) The href scheme arm reads only double-quoted values, and does not validate a
+    /// <c>mailto:</c> TARGET.</b> <c>TagSpan</c> deliberately admits single-quoted attributes, so
+    /// <c>href='javascript:…'</c> reaches live markup unread by that arm; and since
+    /// <c>AbsoluteUrl</c> requires <c>//</c>, a <c>mailto:</c> is the one scheme whose destination no
+    /// arm compares against anything — <c>LinkParagraph(lead, "mailto:angripare@evil.example",
+    /// ContactAddress)</c> would render our address as visible text against a foreign target and pass
+    /// every arm. That is the display/target divergence the https arm catches through host equality.
+    /// Measured harmless today: zero single-quoted attributes in <c>EmailHtml</c>, and all three
+    /// <c>mailto:</c> call sites are <c>$"mailto:{ContactAddress}"</c> (security-auditor, 2026-08-12).
+    /// </para>
+    /// <para>
+    /// All three are pinned or declared as limits in <c>RemoteResourceDetectorTests</c> rather than chased: a regex
     /// never becomes a tokenizer, and trading one undeclared residual for another is the
     /// round-multiplying move (security-auditor, 2026-08-12). Nothing in this repo can produce either
     /// shape — <c>Encode</c> turns <c>"</c> into <c>&amp;quot;</c> and <c>&lt;</c> into

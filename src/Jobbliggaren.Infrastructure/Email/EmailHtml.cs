@@ -262,8 +262,10 @@ internal static class EmailHtml
     /// ("secondary routes … must not compete with the button") no longer describes it: a SECONDARY
     /// route that must be reachable without competing with the call to action (settings, the contact
     /// address), OR the PRIMARY route where a button would be the wrong tone — in
-    /// <c>PasswordChangedNotice</c> it is the only action in a mail with no button at all, because a
-    /// button there shouts at everyone who performed the reset themselves. Underlined rather than
+    /// <c>PasswordChangedNotice</c> it is the only CALL TO ACTION in a mail with no button at all,
+    /// because a button there shouts at everyone who performed the reset themselves. (That mail
+    /// carries two of these — the reset route and the contact line — so "the only action" would
+    /// contradict this sentence's own taxonomy.) Underlined rather than
     /// colour-only, so the link is not identified by colour alone (WCAG 1.4.1). Both parts encoded.
     /// </summary>
     public static Markup LinkParagraph(string leadingText, string href, string linkText) =>

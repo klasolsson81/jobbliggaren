@@ -90,8 +90,10 @@ public class ContactAddressMatchesPublishedContactTests
         // The path helper throws with the path in its message, so a lookup failure is already loud —
         // this fact is not guarding that, and an earlier comment here claimed it was, describing a
         // failure mode the code makes impossible (code-reviewer Major 4). What it DOES guard is the
-        // shape the theory above assumes: both files exist, parse, and actually contain an address, so
-        // a file emptied or restructured cannot make the token sweep pass by having nothing to sweep.
+        // shape the theory above assumes: both files exist and actually contain an address, so a file
+        // emptied or restructured cannot make the token sweep pass by having nothing to sweep. (The
+        // parse itself lives in the theory, not here — an earlier version of this sentence claimed it
+        // as well, one word wider than the fact.)
         foreach (var language in new[] { "sv", "en" })
         {
             var json = File.ReadAllText(ContentLegalPath(language));

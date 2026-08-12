@@ -15,9 +15,9 @@ namespace Jobbliggaren.Application.UnitTests.Email;
 ///
 /// <para>
 /// <b>F4a adds the filter disclosure.</b> A filtered watch means ads are MISSING from this email, and
-/// silent narrowing was rejected on §5-grounds — so an active filter must disclose itself, one line
-/// per active axis, positioned where it answers "why might something be missing" (after the list,
-/// before the CTA). The disclosure is deliberately NAME-FREE: the summary has ANY-semantics ("at least
+/// silent narrowing was rejected on §5-grounds — so an active filter must disclose itself in ONE
+/// sentence covering both axes (Klas-beslut 2026-08-12; it was one line per active axis until then),
+/// positioned where it answers "why might something be missing" (after the list, before the CTA). The disclosure is deliberately NAME-FREE: the summary has ANY-semantics ("at least
 /// one contributing watch is filtered"), so any ort-bearing claim would be FALSE as soon as a second
 /// watch filters on a different ort — and it would leak preference-PII to a third-party sender for no
 /// user benefit. The tests below pin exactly that.

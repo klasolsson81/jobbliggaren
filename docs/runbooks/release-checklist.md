@@ -272,18 +272,6 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
         3. **Nyckelrotation för den statiska IAM-nyckeln** — ingen instance role finns, så nyckeln
            är långlivad per definition. Oförändrad sedan 2026-08-08, återregistrerad här så den
            inte tappas; ägs även av #198.
-        5. **Brevlådan `kontakt@jobbliggaren.se` finns, tar emot, och LÄSES.** Sedan 2026-08-12
-           (#1327) är adressen Art. 13(1)(b)-kontaktväg, Art. 15–22-väg, Art. 13(1)(f)-vägen till en
-           SCC-kopia, **och** rutten i tre säkerhetsnotiser. `EmailChangedNotification` har ingen
-           annan väg alls — adressen på kontot är just ompekad, så en återställningslänk hade
-           levererat återställningen till angriparen, och därför bär mejlet med flit noll sajtlänkar.
-           Verifiera med ett **skarpt utskick från en utomstående adress**, och verifiera att det
-           **inte** är en tyst catch-all som kastar. `Reply-To` på varje utskick är samma adress
-           (`SesEmailSender`, pinnat) — så ett svar på en notis landar där, inte på `no-reply@`.
-           ⚠ **DEN HÄR FÖRUTSÄTTNINGEN GRINDAR INTE HELA RISKEN, och det är fällan.** §2.5 gäller
-           enligt sin egen preambel **endast** en release som aktiverar `Email:Provider=Ses`. Den
-           **publicerade copyn** går live med **webb-deployen** — en annan händelse — och den bär
-           Art. 13(1)(b)-kontakten oavsett providerläge. Se §2.6 (security-auditor 2026-08-12).
         4. **Sändande identitet får inte bära ett default configuration set.** ROPA:ns retentionspost
            påstår som mätt faktum att SES mottagarnivå-metrik (60 dagar) inte uppstår, på två
            oberoende skäl. Det ena — att requesten inte namnger någon `ConfigurationSetName` — är
@@ -307,6 +295,18 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
            `get-email-identity` **vid** flippen: den mätning som gjordes 2026-08-12 var bevis för den
            dagen och inte en inlösen av förutsättningen.
 
+        5. **Brevlådan `kontakt@jobbliggaren.se` finns, tar emot, och LÄSES.** Sedan 2026-08-12
+           (#1327) är adressen Art. 13(1)(b)-kontaktväg, Art. 15–22-väg, Art. 13(1)(f)-vägen till en
+           SCC-kopia, **och** rutten i tre säkerhetsnotiser. `EmailChangedNotification` har ingen
+           annan väg alls — adressen på kontot är just ompekad, så en återställningslänk hade
+           levererat återställningen till angriparen, och därför bär mejlet med flit noll sajtlänkar.
+           Verifiera med ett **skarpt utskick från en utomstående adress**, och verifiera att det
+           **inte** är en tyst catch-all som kastar. `Reply-To` på varje utskick är samma adress
+           (`SesEmailSender`, pinnat) — så ett svar på en notis landar där, inte på `no-reply@`.
+           ⚠ **DEN HÄR FÖRUTSÄTTNINGEN GRINDAR INTE HELA RISKEN, och det är fällan.** §2.5 gäller
+           enligt sin egen preambel **endast** en release som aktiverar `Email:Provider=Ses`. Den
+           **publicerade copyn** går live med **webb-deployen** — en annan händelse — och den bär
+           Art. 13(1)(b)-kontakten oavsett providerläge. Se §2.6 (security-auditor 2026-08-12).
       **Kvarstående policy-residualer under denna punkt, inte under punkt 3.**
       **ORDNINGEN STÅR FÖRST, för att den styr posterna under sig:** upplös
       SCC/adekvans-disjunktionen **före** du skriver Art. 13(1)(f)-formuleringen —

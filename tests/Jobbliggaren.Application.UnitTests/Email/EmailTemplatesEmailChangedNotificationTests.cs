@@ -60,11 +60,33 @@ public class EmailTemplatesEmailChangedNotificationTests
 
         // The HTML part too. The mail has carried one since #1325, and a leak into either part is a
         // leak — the sibling fact ShouldCarryNoSiteLink already reads both, so reading one here was an
-        // asymmetry rather than a decision (security-auditor Minor, 2026-08-12). Asserted as an
-        // absence of the address SHAPE rather than token-by-token, because the HTML part splits
-        // differently and the property is the same either way: no second address anywhere.
-        rendered.HtmlBody.Replace(EmailTemplates.ContactAddress, string.Empty, StringComparison.Ordinal)
-            .ShouldNotContain("@");
+        // asymmetry rather than a decision (security-auditor Minor, 2026-08-12).
+        //
+        // The SAME token loop, not a masking shortcut. A first attempt stripped the contact address
+        // with Replace and then asserted no '@' remained, with a comment claiming the property was
+        // "the same either way". It was not: Replace removes the address as a SUBSTRING, so
+        // kontakt@jobbliggaren.security survives as "curity" — no '@', green — while the token form
+        // fails it. That is the identical mistake this file's own comment above documents, committed
+        // inside the fix for it (code-reviewer, 2026-08-12).
+        foreach (var token in rendered.HtmlBody.Split(
+            [' ', '\n', '\r', '\t', '"', '<', '>'], StringSplitOptions.RemoveEmptyEntries))
+        {
+            if (!token.Contains('@', StringComparison.Ordinal)) continue;
+
+            // The scheme is stripped, not the address: in the HTML part the address also appears as
+            // the href value `mailto:kontakt@…`, and a mailto TO our address is our address. Stripping
+            // the prefix cannot let a foreign one through — `mailto:angripare@evil.example` becomes
+            // `angripare@evil.example` and still fails the comparison below.
+            const string MailtoScheme = "mailto:";
+            var candidate = token.Trim('.', ',', ':', ')');
+            if (candidate.StartsWith(MailtoScheme, StringComparison.OrdinalIgnoreCase))
+                candidate = candidate[MailtoScheme.Length..];
+
+            candidate.ShouldBe(
+                EmailTemplates.ContactAddress,
+                $"the HTML part names an address other than the contact address: {token}");
+        }
+
         rendered.HtmlBody.ShouldNotContain("token");
         rendered.HtmlBody.ShouldNotContain("bekrafta-epost");
     }

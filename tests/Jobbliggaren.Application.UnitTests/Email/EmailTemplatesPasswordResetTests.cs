@@ -95,7 +95,7 @@ public class EmailTemplatesPasswordResetTests
         var rendered = EmailTemplates.PasswordChangedNotice(BaseUrl);
 
         rendered.PlainTextBody.ShouldContain($"{BaseUrl}/glomt-losenord");
-        rendered.PlainTextBody.ShouldContain($"{BaseUrl}/hjalpcenter");
+        rendered.PlainTextBody.ShouldContain(EmailTemplates.ContactAddress);
         rendered.PlainTextBody.ShouldNotContain("token=");
         rendered.PlainTextBody.ShouldNotContain("uid=");
     }

@@ -27,11 +27,19 @@ public class EmailTemplatesFollowedCompanyNotificationTests
 {
     private const string BaseUrl = "https://jobbliggaren.se";
 
-    // The two disclosure lines (RF-13=13B). Asserted as SUBSTRINGS of the rendered body so a copy
-    // reflow does not break the test, while the CLAIM each line makes stays pinned.
-    private const string OnlyMatchedDisclosure = "Du får bara matchande annonser";
-    private const string LocationDisclosure = "Du har ortsfilter";
-    private const string DisclosureFooter = "Du ser och ändrar filtren under Företag:";
+    // ONE disclosure sentence covering BOTH axes (Klas-beslut 2026-08-12). It was one line per active
+    // axis; in the case that matters — both axes on — that rendered three paragraphs plus a link
+    // around a single ad. Asserted as a SUBSTRING so a copy reflow does not break the test, while the
+    // CLAIM stays pinned.
+    private const string Disclosure = "Några annonser kan saknas";
+    private const string DisclosureFooter = "Ändra filtren under Företag";
+
+    // Neither axis may be NAMED in any branch. This is the successor to the old
+    // "renders only that line" facts, and it is stronger: those pinned that an inactive axis was not
+    // disclosed, while these pin that no axis is disclosed at all — so no branch can make a false
+    // statement about WHY ads are missing, which is the property the per-axis shape was protecting.
+    private const string OnlyMatchedWording = "matchande annonser";
+    private const string LocationWording = "ortsfilter";
     private const string OpenAdsCta = "Öppna annonserna";
 
     private static FollowedCompanyAdItem Item(
@@ -115,7 +123,7 @@ public class EmailTemplatesFollowedCompanyNotificationTests
                 Item(), Item("Frontend", "Beta AB")));
 
         // Guard: if the disclosure stopped rendering, the tone assertions below would pass vacuously.
-        email.PlainTextBody.ShouldContain(OnlyMatchedDisclosure);
+        email.PlainTextBody.ShouldContain(Disclosure);
         email.PlainTextBody.ShouldNotContain("!");
         email.PlainTextBody.ShouldNotContain("—"); // em-dash
         email.Subject.ShouldNotContain("!");
@@ -147,8 +155,7 @@ public class EmailTemplatesFollowedCompanyNotificationTests
         var email = EmailTemplates.FollowedCompanyNotification(
             BaseUrl, ContentWithSummary(summary: null, Item()));
 
-        email.PlainTextBody.ShouldNotContain(OnlyMatchedDisclosure);
-        email.PlainTextBody.ShouldNotContain(LocationDisclosure);
+        email.PlainTextBody.ShouldNotContain(Disclosure);
         email.PlainTextBody.ShouldNotContain(DisclosureFooter);
         email.PlainTextBody.ShouldNotContain($"{BaseUrl}/foretag");
     }
@@ -164,52 +171,36 @@ public class EmailTemplatesFollowedCompanyNotificationTests
                 new FollowedCompanyFilterSummary(OnlyMatchedActive: false, LocationFilterActive: false),
                 Item()));
 
-        email.PlainTextBody.ShouldNotContain(OnlyMatchedDisclosure);
-        email.PlainTextBody.ShouldNotContain(LocationDisclosure);
+        email.PlainTextBody.ShouldNotContain(Disclosure);
         email.PlainTextBody.ShouldNotContain(DisclosureFooter);
     }
 
-    [Fact]
-    public void FollowedCompanyNotification_OnlyMatchedActive_RendersOnlyThatLine()
+    [Theory]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
+    public void FollowedCompanyNotification_WhenEitherAxisIsActive_DisclosesOnceWithoutNamingTheAxis(
+        bool onlyMatched, bool locationFilter)
     {
-        // One line per ACTIVE axis: disclosing an ort filter the user does not have would be a false
-        // statement about why ads are missing.
+        // One sentence, whichever axis is active and however many. Naming the axis is what the
+        // collapse gave up, and the reason it is safe to give up: the summary is ANY-semantic over
+        // ALL the user's active watches, so "du har ortsfilter" would be false the moment a second
+        // watch narrows on the matched axis instead. "Filter" is true in all three branches.
         var email = EmailTemplates.FollowedCompanyNotification(
             BaseUrl,
             ContentWithSummary(
-                new FollowedCompanyFilterSummary(OnlyMatchedActive: true, LocationFilterActive: false),
+                new FollowedCompanyFilterSummary(onlyMatched, locationFilter),
                 Item()));
 
-        email.PlainTextBody.ShouldContain(OnlyMatchedDisclosure);
-        email.PlainTextBody.ShouldNotContain(LocationDisclosure);
+        email.PlainTextBody.ShouldContain(Disclosure);
         email.PlainTextBody.ShouldContain(DisclosureFooter);
-    }
 
-    [Fact]
-    public void FollowedCompanyNotification_LocationFilterActive_RendersOnlyThatLine()
-    {
-        var email = EmailTemplates.FollowedCompanyNotification(
-            BaseUrl,
-            ContentWithSummary(
-                new FollowedCompanyFilterSummary(OnlyMatchedActive: false, LocationFilterActive: true),
-                Item()));
+        email.PlainTextBody.ShouldNotContain(OnlyMatchedWording);
+        email.PlainTextBody.ShouldNotContain(LocationWording);
 
-        email.PlainTextBody.ShouldContain(LocationDisclosure);
-        email.PlainTextBody.ShouldNotContain(OnlyMatchedDisclosure);
-        email.PlainTextBody.ShouldContain(DisclosureFooter);
-    }
-
-    [Fact]
-    public void FollowedCompanyNotification_BothFiltersActive_RendersBothLines()
-    {
-        var email = EmailTemplates.FollowedCompanyNotification(
-            BaseUrl,
-            ContentWithSummary(
-                new FollowedCompanyFilterSummary(OnlyMatchedActive: true, LocationFilterActive: true),
-                Item()));
-
-        email.PlainTextBody.ShouldContain(OnlyMatchedDisclosure);
-        email.PlainTextBody.ShouldContain(LocationDisclosure);
+        // And the two parts fall silent and speak together — a disclosure carried by only one part is
+        // one the recipient may never see.
+        email.HtmlBody.ShouldContain(Disclosure);
     }
 
     [Fact]
@@ -228,15 +219,13 @@ public class EmailTemplatesFollowedCompanyNotificationTests
 
         var body = email.PlainTextBody;
         var lastItemIndex = body.IndexOf("Frontend, Beta AB", StringComparison.Ordinal);
-        var disclosureIndex = body.IndexOf(OnlyMatchedDisclosure, StringComparison.Ordinal);
-        var locationIndex = body.IndexOf(LocationDisclosure, StringComparison.Ordinal);
+        var disclosureIndex = body.IndexOf(Disclosure, StringComparison.Ordinal);
         var ctaIndex = body.IndexOf(OpenAdsCta, StringComparison.Ordinal);
 
         lastItemIndex.ShouldBeGreaterThan(-1);
         ctaIndex.ShouldBeGreaterThan(-1);
         disclosureIndex.ShouldBeGreaterThan(lastItemIndex, "disclosuren ligger EFTER annonslistan");
-        locationIndex.ShouldBeGreaterThan(disclosureIndex, "en rad per axel, i ordning");
-        ctaIndex.ShouldBeGreaterThan(locationIndex, "disclosuren ligger FÖRE Öppna annonserna-CTA:n");
+        ctaIndex.ShouldBeGreaterThan(disclosureIndex, "disclosuren ligger FÖRE Öppna annonserna-CTA:n");
     }
 
     [Fact]
@@ -261,7 +250,7 @@ public class EmailTemplatesFollowedCompanyNotificationTests
 
         var lastItem = body.IndexOf("DevOps, Gamma AB", StringComparison.Ordinal);
         var andMore = body.IndexOf("och 3 till", StringComparison.Ordinal);
-        var disclosure = body.IndexOf(OnlyMatchedDisclosure, StringComparison.Ordinal);
+        var disclosure = body.IndexOf(Disclosure, StringComparison.Ordinal);
         var cta = body.IndexOf(OpenAdsCta, StringComparison.Ordinal);
 
         andMore.ShouldBeGreaterThan(lastItem, "\"och N till\" hör till listan");
@@ -269,7 +258,7 @@ public class EmailTemplatesFollowedCompanyNotificationTests
         cta.ShouldBeGreaterThan(disclosure, "disclosuren ligger FÖRE CTA:n");
 
         // The disclosure must start on its own paragraph, not be glued to the andMore line.
-        body.ShouldContain("\n\n" + OnlyMatchedDisclosure);
+        body.ShouldContain("\n\n" + Disclosure);
     }
 
     [Fact]

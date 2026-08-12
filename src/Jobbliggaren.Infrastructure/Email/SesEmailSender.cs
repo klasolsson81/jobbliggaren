@@ -95,7 +95,7 @@ public sealed partial class SesEmailSender(
         string toEmail, CancellationToken cancellationToken) =>
         SendAsync(
             toEmail,
-            EmailTemplates.EmailChangedNotification(_options.BaseUrl),
+            EmailTemplates.EmailChangedNotification(),
             "email-changed-notification",
             cancellationToken);
 

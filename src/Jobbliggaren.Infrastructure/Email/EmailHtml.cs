@@ -102,9 +102,11 @@ internal readonly record struct Markup(string Value)
 /// real <c>padding</c> for every other client, and the cell carries <c>mso-padding-alt</c>, which
 /// only Word reads. Moving the padding to the cell for everyone was the first repair and it was
 /// wrong in a way worth recording — it fixed Word and shrank the CLICKABLE area to the label's own
-/// box in every client, so the affordance became ~2.3x the target on the primary action of SEVEN of
-/// the eight mails (<c>EmailChangedNotification</c> has no button; it ends in a link paragraph), and
-/// a mail is read mostly on a phone (design-reviewer, 2026-08-12, correcting her own prescription). <c>mso-padding-alt</c> is the accepted form and needs no VML.
+/// box in every client, so the affordance became ~2.3x the target on the primary action of SIX of the
+/// eight mails, and a mail is read mostly on a phone (design-reviewer, 2026-08-12, correcting her own
+/// prescription). <c>EmailChangedNotification</c> has never had a button, and
+/// <c>PasswordChangedNotice</c> lost its later the same day — its route is deliberately an inline
+/// link, since a button there shouts at everyone who performed the reset themselves. <c>mso-padding-alt</c> is the accepted form and needs no VML.
 /// <c>border-radius</c> is ignored in Word too and buttons degrade to square, which is acceptable.
 /// </para>
 ///

@@ -17,12 +17,15 @@ public class EmailTemplatesAccountExistsNoticeTests
     private const string BaseUrl = "https://jobbliggaren.se";
 
     [Fact]
-    public void AccountExistsNotice_ShouldLinkToLoginAndHelp()
+    public void AccountExistsNotice_ShouldLinkToLoginAndNameTheContactAddress()
     {
+        // The help-centre route became the contact address on 2026-08-12 (Klas-beslut): the help
+        // centre is a hub that links onward to /kontakt, and someone who cannot get into their
+        // account should not have to navigate one.
         var rendered = EmailTemplates.AccountExistsNotice(BaseUrl);
 
         rendered.PlainTextBody.ShouldContain($"{BaseUrl}/logga-in");
-        rendered.PlainTextBody.ShouldContain($"{BaseUrl}/hjalpcenter");
+        rendered.PlainTextBody.ShouldContain(EmailTemplates.ContactAddress);
     }
 
     [Fact]
@@ -62,6 +65,6 @@ public class EmailTemplatesAccountExistsNoticeTests
 
         rendered.PlainTextBody.ShouldContain("https://jobbliggaren.se/logga-in");
         rendered.PlainTextBody.ShouldNotContain("se//logga-in");
-        rendered.PlainTextBody.ShouldNotContain("se//hjalpcenter");
+        rendered.PlainTextBody.ShouldNotContain("se//glomt-losenord");
     }
 }

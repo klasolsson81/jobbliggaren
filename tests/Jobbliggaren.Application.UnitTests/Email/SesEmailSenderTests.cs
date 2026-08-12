@@ -421,7 +421,7 @@ public class SesEmailSenderTests
 
         var request = CapturedRequest();
         SubjectOf(request).ShouldBe("Din e-postadress har ändrats");
-        BodyOf(request).ShouldContain($"{_options.BaseUrl}/hjalpcenter");
+        BodyOf(request).ShouldContain(EmailTemplates.ContactAddress);
         // CTO-bind #4 (#679): the security notice to the OLD address carries no token and no link
         // that grants anything.
         BodyOf(request).ShouldNotContain(UrlSafeToken);

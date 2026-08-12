@@ -12,6 +12,23 @@
 .jbl-worktree.json*
 
 # Environment files (dev secrets)
+# `*.env` subsumes the bare `.env` below — gitignore's `*` matches the empty string — but the
+# `.local` lines do NOT follow from it and are still load-bearing. The bare `.env` is kept as
+# documentation of intent, not as a rule that does work.
+#
+# WHY `*.env` EXISTS: `vpssecrets.env` sat untracked-but-trackable in the root of a PUBLIC repo
+# on 2026-08-12 holding the box's crypto values and database passwords, because `.env` alone
+# matches a file NAMED .env. Nothing leaked. "It is a .env, therefore it is ignored" is an
+# assumption a human will make again; this makes it true.
+#
+# THE RULE IS NOT FREE, and the cost is the opposite of the one you would guess: a stray secrets
+# file used to announce itself as `?? vpssecrets.env` in `git status`, and now it is silent. That
+# trade is right in a public repo — silent beats committable — but it means the working tree no
+# longer tells you the file is there. Which is why this is defence in depth and not the control:
+# a secrets file does not belong inside the tree at all, ignored or not, since `git add -f` and
+# every tool that walks the tree ignore this file. (Verify the tracked set with
+# `git ls-files | grep '\.env$'` rather than trusting a count written here.)
+*.env
 .env
 .env.local
 .env.*.local
@@ -135,4 +152,5 @@ docs/runbooks/gdpr-processing-register.md
 loadtest-reports/
 
 # Gate M-7 (#1201): the heartbeat capability URL. Only the .example template is tracked.
-deploy/detection/detection.env
+# (`deploy/detection/detection.env` stood here and was struck 2026-08-12: `*.env` above already
+#  covers it, and a rule that does no work reads as though it does.)

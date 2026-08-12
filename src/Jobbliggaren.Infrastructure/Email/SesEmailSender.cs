@@ -157,7 +157,20 @@ public sealed partial class SesEmailSender(
                     Simple = new Message
                     {
                         Subject = new Content { Data = body.Subject, Charset = Utf8 },
-                        Body = new Body { Text = new Content { Data = body.PlainTextBody, Charset = Utf8 } },
+
+                        // Both parts, which SES sends as multipart/alternative: the client picks
+                        // Html and falls back to Text. Text is NOT vestigial and is not allowed to
+                        // rot — it is what a plain-text client, a screen reader in text mode and a
+                        // spam filter comparing the two parts actually read (#183).
+                        //
+                        // The charset is set per content field because SES defaults to 7-bit ASCII
+                        // and infers nothing; the HTML part carries åäö exactly as the text part
+                        // does, so omitting it here would mojibake real mail.
+                        Body = new Body
+                        {
+                            Text = new Content { Data = body.PlainTextBody, Charset = Utf8 },
+                            Html = new Content { Data = body.HtmlBody, Charset = Utf8 },
+                        },
                     },
                 },
             };

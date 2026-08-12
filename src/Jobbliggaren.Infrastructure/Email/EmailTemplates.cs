@@ -7,13 +7,40 @@ namespace Jobbliggaren.Infrastructure.Email;
 
 /// <summary>
 /// Svenska email-templates per civic-utility-ton (1177/Digg-stil — sakliga,
-/// inga utropstecken, ingen "hej och välkommen!"-ton). Plain text-utgåvor
-/// (HTML kan tilläggas senare via SES). Templates är immutable strings —
+/// inga utropstecken, ingen "hej och välkommen!"-ton). Templates är immutable strings —
 /// flytta till resource-filer först när vi har 5+ flerspråkiga templates.
+///
+/// <para>
+/// <b>Two parts of one message (#183, 2026-08-12).</b> Every template renders both halves of a
+/// <c>multipart/alternative</c> mail: <c>PlainTextBody</c> is unchanged from before this change and
+/// remains the fallback, and <c>HtmlBody</c> renders the SAME copy through
+/// <see cref="EmailHtml"/>. They live in the same method on purpose — a template whose two parts
+/// are edited in separate files drifts, and a divergence here is not cosmetic: the Art. 30 entry's
+/// Datakategori is written against the message content, so an HTML part carrying a data field the
+/// text part does not is a register change (security-auditor 2026-08-12).
+/// </para>
+///
+/// <para>
+/// <b>What the HTML part carries beyond the text part, exhaustively</b> — the list is kept complete
+/// because the Art. 30 Datakategori argument rests on it, and an earlier version of it was measured
+/// short by two reviewers: the <c>&lt;title&gt;</c>, the preheader, the visible <c>&lt;h1&gt;</c>,
+/// the wordmark set as text in the footer, and one footer line saying the service is free. The first
+/// three repeat the subject or a sentence already in the body; NONE of the five is a personal data
+/// field, which is the test that matters. Raw URLs become labelled links. The sign-off is rendered by
+/// <c>EmailHtml.SignOff</c> and keeps BOTH of the text part's lines ("Vänliga hälsningar," /
+/// "Jobbliggaren") in one paragraph — an earlier version dropped the second line on the theory that
+/// the footer wordmark replaced it, which left a comma-terminated line ending nothing on the far side
+/// of a visual divider (design-reviewer Major 2, 2026-08-12).
+/// </para>
+///
+/// <para>
+/// <b>Do not put a remote resource in either part.</b> The register's retention entry rests on this
+/// code emitting none; see <see cref="EmailHtml"/> for the full ground and the pin.
+/// </para>
 /// </summary>
 internal static class EmailTemplates
 {
-    public sealed record EmailContent(string Subject, string PlainTextBody);
+    public sealed record EmailContent(string Subject, string PlainTextBody, string HtmlBody);
 
     /// <summary>
     /// ADR 0080 Vag 4 PR-4 — bakgrundsmatchnings-notis. Icke-PII (jobbtitlar +
@@ -29,12 +56,14 @@ internal static class EmailTemplates
         var settingsLink = $"{trimmed}/installningar";
 
         var items = new StringBuilder();
+        var htmlItems = new List<string>();
         foreach (var item in content.Items)
         {
             // Komma-separator (INTE em-dash) — em-dash är förbjudet i svensk UI-copy
             // (feedback_no_em_dash_in_ui_copy; e-postkroppen är användarvänd copy).
             items.AppendLine(CultureInfo.InvariantCulture,
                 $"- {item.JobTitle}, {item.CompanyName} ({item.GradeLabel})");
+            htmlItems.Add($"{item.JobTitle}, {item.CompanyName} ({item.GradeLabel})");
         }
         var remaining = content.TotalCount - content.Items.Count;
         var andMore = remaining > 0
@@ -67,7 +96,23 @@ internal static class EmailTemplates
 
                 Vänliga hälsningar,
                 Jobbliggaren
-                """);
+                """,
+            HtmlBody: EmailHtml.Document(
+                title: subject,
+                // The intro carries the count, so the inbox preview answers "how many" before the
+                // mail is opened — Klas-krav "informationen först", applied one level earlier than
+                // the body.
+                preheader: intro,
+                body: EmailHtml.P(intro)
+                    + EmailHtml.List(htmlItems)
+                    + (remaining > 0 ? EmailHtml.P($"och {remaining} till.") : Markup.Empty)
+                    + EmailHtml.Button(matchesLink, "Öppna dina matchningar")
+                    + EmailHtml.LinkParagraph(
+                        "Du får detta för att du har slagit på matchningsnotiser. Du kan ändra hur "
+                        + "ofta du får dem, eller stänga av dem helt:",
+                        settingsLink,
+                        "Ändra dina inställningar")
+                    + EmailHtml.SignOff()));
     }
 
     /// <summary>
@@ -105,12 +150,14 @@ internal static class EmailTemplates
         var companiesLink = $"{trimmed}/foretag";
 
         var items = new StringBuilder();
+        var htmlItems = new List<string>();
         foreach (var item in content.Items)
         {
             // Komma-separator (INTE em-dash) — em-dash är förbjudet i svensk UI-copy
             // (feedback_no_em_dash_in_ui_copy; e-postkroppen är användarvänd copy).
             items.AppendLine(CultureInfo.InvariantCulture,
                 $"- {item.JobTitle}, {item.CompanyName}");
+            htmlItems.Add($"{item.JobTitle}, {item.CompanyName}");
         }
         var remaining = content.TotalCount - content.Items.Count;
         var andMore = remaining > 0
@@ -122,11 +169,12 @@ internal static class EmailTemplates
             : $"{content.TotalCount} nya annonser";
 
         var filterDisclosure = BuildFilterDisclosure(content.FilterSummary, companiesLink);
+        var intro = $"Företag du följer har publicerat {countPhrase} sedan sist:";
 
         return new EmailContent(
             Subject: "Nya annonser från företag du följer",
             PlainTextBody: $"""
-                Företag du följer har publicerat {countPhrase} sedan sist:
+                {intro}
 
                 {items.ToString().TrimEnd()}
                 {andMore}{filterDisclosure}
@@ -140,7 +188,24 @@ internal static class EmailTemplates
 
                 Vänliga hälsningar,
                 Jobbliggaren
-                """);
+                """,
+            HtmlBody: EmailHtml.Document(
+                title: "Nya annonser från företag du följer",
+                preheader: intro,
+                body: EmailHtml.P(intro)
+                    + EmailHtml.List(htmlItems)
+                    + (remaining > 0 ? EmailHtml.P($"och {remaining} till.") : Markup.Empty)
+                    // The filter disclosure sits between the list and the CTA in BOTH parts. It
+                    // answers "why might something be missing"; the paragraph below answers "why am
+                    // I getting this at all". Two questions, two places, never merged (RF-13=13B).
+                    + BuildFilterDisclosureHtml(content.FilterSummary, companiesLink)
+                    + EmailHtml.Button(jobsLink, "Öppna annonserna")
+                    + EmailHtml.LinkParagraph(
+                        "Du får detta för att du har slagit på notiser för företag du följer. Du "
+                        + "kan ändra hur ofta du får dem, eller stänga av dem helt:",
+                        settingsLink,
+                        "Ändra dina inställningar")
+                    + EmailHtml.SignOff()));
     }
 
     /// <summary>
@@ -177,6 +242,44 @@ internal static class EmailTemplates
         lines.AppendLine(companiesLink);
 
         return lines.ToString();
+    }
+
+    /// <summary>
+    /// The HTML twin of <see cref="BuildFilterDisclosure"/>. Same predicate, same ANY-semantic
+    /// wording, same one-line-per-active-axis shape, and the same empty result when no filter
+    /// contributed — the two must fall silent together, because a disclosure that appears in only
+    /// one part of a <c>multipart/alternative</c> message is a disclosure the recipient may never
+    /// see. The copy is NAME-FREE for the reason spelled out on
+    /// <see cref="FollowedCompanyNotification"/>: the summary is an ANY over all the user's active
+    /// watches, so any name-bearing sentence would be false the moment a second watch filters on
+    /// another location, and it would also send preference PII to a third-party sender.
+    /// </summary>
+    private static Markup BuildFilterDisclosureHtml(
+        FollowedCompanyFilterSummary? summary, string companiesLink)
+    {
+        if (summary is null || (!summary.OnlyMatchedActive && !summary.LocationFilterActive))
+            return Markup.Empty;
+
+        var html = Markup.Empty;
+
+        if (summary.OnlyMatchedActive)
+        {
+            html += EmailHtml.P(
+                "Du får bara matchande annonser för ett eller flera av företagen du följer, "
+                + "så annonser du inte matchar visas inte här.");
+        }
+
+        if (summary.LocationFilterActive)
+        {
+            html += EmailHtml.P(
+                "Du har ortsfilter på ett eller flera av företagen du följer, "
+                + "så annonser i andra orter visas inte här.");
+        }
+
+        html += EmailHtml.LinkParagraph(
+            "Du ser och ändrar filtren under Företag:", companiesLink, "Öppna Företag");
+
+        return html;
     }
 
     /// <summary>
@@ -217,7 +320,21 @@ internal static class EmailTemplates
 
                 Vänliga hälsningar,
                 Jobbliggaren
-                """);
+                """,
+            HtmlBody: EmailHtml.Document(
+                title: "Bekräfta din nya e-postadress",
+                preheader: "Adressen ändras inte förrän du har öppnat länken. Länken gäller i 24 timmar.",
+                body: EmailHtml.P(
+                        "Någon har begärt att byta e-postadress på ett Jobbliggaren-konto till "
+                        + "den här adressen.")
+                    + EmailHtml.P(
+                        "Om det var du, bekräfta att adressen är din genom att öppna länken nedan. "
+                        + "Länken gäller i 24 timmar.")
+                    + EmailHtml.Button(confirmLink, "Bekräfta din nya adress")
+                    + EmailHtml.P(
+                        "Adressen ändras inte förrän du har öppnat länken. Om du inte har begärt "
+                        + "ändringen kan du bortse från det här meddelandet.")
+                    + EmailHtml.SignOff()));
     }
 
     /// <summary>
@@ -245,7 +362,20 @@ internal static class EmailTemplates
 
                 Vänliga hälsningar,
                 Jobbliggaren
-                """);
+                """,
+            HtmlBody: EmailHtml.Document(
+                title: "Din e-postadress har ändrats",
+                preheader: "Om det var du som gjorde ändringen behöver du inte göra något.",
+                body: EmailHtml.P(
+                        "E-postadressen som är kopplad till ditt konto på Jobbliggaren har ändrats "
+                        + "till en annan adress.")
+                    + EmailHtml.P("Om det var du som gjorde ändringen behöver du inte göra något.")
+                    + EmailHtml.LinkParagraph(
+                        "Om du inte känner igen ändringen kan någon annan ha fått tillgång till "
+                        + "ditt konto. Hör av dig till oss så hjälper vi dig:",
+                        helpLink,
+                        "Öppna hjälpcentret")
+                    + EmailHtml.SignOff()));
     }
 
     /// <summary>
@@ -286,7 +416,21 @@ internal static class EmailTemplates
 
                 Vänliga hälsningar,
                 Jobbliggaren
-                """);
+                """,
+            HtmlBody: EmailHtml.Document(
+                title: "Bekräfta din e-postadress",
+                preheader: "Du kan logga in när adressen är bekräftad. Länken gäller i 24 timmar.",
+                body: EmailHtml.P("Tack för att du har skapat ett konto på Jobbliggaren.")
+                    + EmailHtml.P(
+                        "Bekräfta att adressen är din genom att öppna länken nedan. Du kan logga "
+                        + "in när adressen är bekräftad. Länken gäller i 24 timmar.")
+                    + EmailHtml.Button(confirmLink, "Bekräfta din e-postadress")
+                    // Klas-krav: the account mails carry a plain "if this was not you, do nothing"
+                    // further down. It is the text template's own closing sentence, in the same
+                    // position, so the two parts stay word-for-word.
+                    + EmailHtml.P(
+                        "Om du inte har skapat något konto kan du bortse från det här meddelandet.")
+                    + EmailHtml.SignOff()));
     }
 
     /// <summary>
@@ -329,7 +473,23 @@ internal static class EmailTemplates
 
                 Vänliga hälsningar,
                 Jobbliggaren
-                """);
+                """,
+            HtmlBody: EmailHtml.Document(
+                title: "Du har redan ett konto hos Jobbliggaren",
+                preheader: "Om det inte var du behöver du inte göra något. Ditt konto är oförändrat.",
+                body: EmailHtml.P(
+                        "Någon har försökt skapa ett konto med den här e-postadressen, men du har "
+                        + "redan ett konto hos Jobbliggaren.")
+                    + EmailHtml.P("Om det var du kan du logga in i stället:")
+                    + EmailHtml.Button(loginLink, "Logga in")
+                    + EmailHtml.LinkParagraph(
+                        "Har du glömt ditt lösenord kan du välja ett nytt här:",
+                        forgotLink,
+                        "Välj ett nytt lösenord")
+                    + EmailHtml.P("Om det inte var du behöver du inte göra något. Ditt konto är oförändrat.")
+                    + EmailHtml.LinkParagraph(
+                        "Har du frågor når du oss via hjälpcentret:", helpLink, "Öppna hjälpcentret")
+                    + EmailHtml.SignOff()));
     }
 
     /// <summary>
@@ -377,7 +537,25 @@ internal static class EmailTemplates
 
                 Vänliga hälsningar,
                 Jobbliggaren
-                """);
+                """,
+            HtmlBody: EmailHtml.Document(
+                title: "Återställ ditt lösenord",
+                preheader:
+                    $"Länken gäller i {PasswordResetTokenProviderOptions.LifespanMinutes} minuter "
+                    + "och kan bara användas en gång.",
+                body: EmailHtml.P(
+                        "Någon har begärt ett nytt lösenord för ditt konto på Jobbliggaren.")
+                    // Reads the provider's own constant for the same reason the text part does:
+                    // the promise and the lifespan that enforces it cannot drift apart.
+                    + EmailHtml.P(
+                        "Öppna länken nedan för att välja ett nytt lösenord. Länken gäller i "
+                        + $"{PasswordResetTokenProviderOptions.LifespanMinutes} minuter och kan "
+                        + "bara användas en gång.")
+                    + EmailHtml.Button(resetLink, "Välj ett nytt lösenord")
+                    + EmailHtml.P(
+                        "Om det inte var du behöver du inte göra något. Ditt lösenord är oförändrat "
+                        + "så länge du inte öppnar länken, och den slutar gälla av sig själv.")
+                    + EmailHtml.SignOff()));
     }
 
     /// <summary>
@@ -415,6 +593,24 @@ internal static class EmailTemplates
 
                 Vänliga hälsningar,
                 Jobbliggaren
-                """);
+                """,
+            HtmlBody: EmailHtml.Document(
+                title: "Ditt lösenord har ändrats",
+                preheader: "Du har loggats ut på alla enheter.",
+                body: EmailHtml.P(
+                        "Lösenordet för ditt konto på Jobbliggaren har ändrats via en "
+                        + "återställningslänk. Du har loggats ut på alla enheter.")
+                    + EmailHtml.P(
+                        "Om det var du behöver du inte göra något. Logga in med ditt nya lösenord.")
+                    // The breach-detection control (OWASP ASVS V2.5): this mail is the one moment a
+                    // real owner can notice a reset they did not perform while they can still act,
+                    // so the action comes before the help link in both parts.
+                    + EmailHtml.P(
+                        "Om det inte var du: begär ett nytt lösenord direkt, så slutar den som "
+                        + "ändrade det att komma åt kontot.")
+                    + EmailHtml.Button(forgotLink, "Välj ett nytt lösenord")
+                    + EmailHtml.LinkParagraph(
+                        "Kontakta oss sedan via hjälpcentret:", helpLink, "Öppna hjälpcentret")
+                    + EmailHtml.SignOff()));
     }
 }

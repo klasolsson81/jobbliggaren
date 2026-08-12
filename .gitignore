@@ -152,4 +152,5 @@ docs/runbooks/gdpr-processing-register.md
 loadtest-reports/
 
 # Gate M-7 (#1201): the heartbeat capability URL. Only the .example template is tracked.
-deploy/detection/detection.env
+# (`deploy/detection/detection.env` stood here and was struck 2026-08-12: `*.env` above already
+#  covers it, and a rule that does no work reads as though it does.)

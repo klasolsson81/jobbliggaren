@@ -1367,8 +1367,12 @@ räckvidden — ska konfigurationen uppfylla:
   M-7/#1175 byggdes för, och en 30-dagarsregel hade kapat bevisfönstret till 30 dagar. Repot
   har den defekten protokollförd en gång redan, i `journald-jobbliggaren-retention.conf`:
   *"wrong in the most expensive direction"*. Måttstocken är **dwell time**, inte Art. 33 —
-  branschmedianen ligger under 90 dagar men spionagefall långt över, och CIS v8 Safeguard 8.10
-  anger minst 90.
+  branschmedianen ligger under 90 dagar men spionagefall långt över, och **CIS Critical Security
+  Controls v8, Safeguard 8.10 ("Retain audit logs … a minimum of 90 days")**
+  (`cisecurity.org/controls/v8`, läst 2026-08-12) anger minst 90. Dwell-time-siffrorna kommer ur
+  Mandiant M-Trends 2026 (`mandiant.com/m-trends`, läst 2026-08-12). **Källorna citeras här och
+  inte bara i granskningsrapporten**, som är gitignorerad — ett tal som ska försvaras under
+  Art. 5(1)(e) får inte ha sin enda grund i en fil som inte finns i repot.
   **Delningen inför inget nytt tal:** samma container bär redan `k4-main-artefacts-30-days`
   och `deks-outlive-main-90-days` (applicerade och återlästa 2026-08-09, rad 27c), så mängden
   är `{30, 90}` före och efter. Och Art. 5(1)(e) är **ändamålsindexerad** — "inte längre än

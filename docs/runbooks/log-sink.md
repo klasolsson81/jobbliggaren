@@ -36,17 +36,29 @@ are provisioned**; installing the units before then is fine and is the intended 
 the service's `ConditionPathExists` skips the run rather than failing it.
 
 > **A SECOND PRECONDITION, AND THIS ONE IS ON THE SHIPPING AND NOT ON THE INSTALL (ADR 0050 G3,
-> decided 2026-08-12).** The archive now writes into **two** namespaces with different retention:
-> `hostlogs/app/` (30 days) and `hostlogs/host/` (90 days). **The object layout change and both
-> lifecycle rules must land before the first object is shipped.** The window in which that is free
-> is open exactly now, because the prefix is empty; afterwards it is a migration of `age` objects
-> nobody can read in order to sort them. The layout itself is a follow-up PR — this runbook
+> decided 2026-08-12).** The archive must write into **two** namespaces with different retention:
+> `hostlogs/app/` (30 days) and `hostlogs/host/` (90 days). `jobbliggaren-logship.sh` writes
+> **flat** today (`REMOTE_PREFIX=hostlogs`, basenames `app-`/`journal-`/`audit-`), so the two rules
+> match nothing until the script splits the namespace. **The layout change and both lifecycle
+> rules must land before the first object is shipped** — afterwards it is a migration of `age`
+> objects nobody can read in order to sort them. The layout itself is a follow-up PR; this runbook
 > records the constraint, not the mechanism.
 >
-> **And measure the local journal before applying the host rule:** journald is pinned at
-> `SystemMaxUse=4G`/`SystemKeepFree=2G` against a 251 G disk, and if the local window turns out to
-> exceed the off-box one, the root-*deletable* journal outlives the root-*surviving* copy — which
-> inverts the reason #1175 exists. `host-detection.md` §7 publishes the command.
+> The window in which that is free is open **provided the prefix is still empty**, which follows
+> from the timer not being installed but is not itself measured here — confirm with `rclone lsl`
+> on `hostlogs/` (§4 names the same instrument) before relying on it. If objects already exist
+> they are named `hostlogs/app-…`/`hostlogs/journal-…` and match **neither** new rule, i.e. no
+> lifecycle at all on exactly the artefacts N-1 is about, while the register says 30/90.
+>
+> **The local journal window is LONGER than the off-box one, and that is measured rather than
+> feared.** `host-detection.md` §7 (2026-08-10): journald is pinned at
+> `SystemMaxUse=4G`/`SystemKeepFree=2G` against a 251 G disk, nothing has rotated, and at the
+> then-current write rate the size limit implies a window **of order a thousand days** — the
+> binding constraint is the box's age and `journalctl --vacuum`, not journald. So the
+> root-*deletable* journal outlives the root-*surviving* copy by an order of magnitude, which is
+> the inversion #1175 exists against, and 90 days is what the off-box leg actually buys.
+> That row carries its own caveat — re-measure once auditd has run a week, since the direction is
+> not obvious — and this note inherits it rather than hardening the number.
 
 ```bash
 # The clone. NOT `git pull` blind — on this box a pull is a DEPLOY that
@@ -277,7 +289,7 @@ integration coverage from `ci`, and the install happens once.
 | **No service but caddy publishes a port** | `.github/scripts/compose-edge-publish-guard.sh` against the rendered model | `OK — caddy publishes 80 443 and nothing else publishes` | 2026-08-11 |
 | **The archive leaves the box AND ARRIVES** | `rclone lsl` on the `hostlogs/` prefix, **never the script's exit code** — `post()`-style "it left" is not "it landed", the same rule ADR 0126 wrote for the heartbeat | | |
 | **The archive is unreadable to the target** | download one artefact, confirm it is an `age` envelope, confirm the box holds no private key | | |
-| **The corpus survives erasure on the box** | `journalctl --vacuum-time=1s` and truncate the audit log, then list the prefix | **Still blocked by row 27d, but the decision is no longer what blocks it** — Klas gave GO on the user-policy `Deny` 2026-08-12; what remains is the apply and its counter-measurement (`put-object` OK, `delete-object` `AccessDenied`). Until then an attacker with the box's credential deletes the off-box copy too. **Apply it together with the G3 lifecycle rule:** after the `Deny` the box cannot remove its own old objects, so the provider-side rule becomes the only thing that does — which is exactly what makes the Art. 17 answer true | |
+| **The corpus survives erasure on the box** | `journalctl --vacuum-time=1s` and truncate the audit log, then list the prefix | **Still blocked by row 27d, but the decision is no longer what blocks it** — Klas gave GO on the user-policy `Deny` 2026-08-12; what remains is the apply and its counter-measurement (`put-object` OK, `delete-object` `AccessDenied`). Until then an attacker with the box's credential deletes the off-box copy too. **Apply it together with G3's TWO lifecycle rules — `hostlogs/app/` 30 days and `hostlogs/host/` 90 — and in this order**, which is the same order `vps-deploy-stack.md` row 27d carries and is repeated here because the person installing the log archive opens THIS file: (1) take the box measurement `sudo docker logs jobbliggaren-caddy 2>&1 \| grep -cE 'bekrafta-(epost\|konto)\|aterstall-losenord'`; (2) if > 0, clear it before anything ships, because that flips ADR 0050's N-1 to Blocker; (3) satisfy G2; (4) then the `Deny` and both rules. After the `Deny` the box cannot remove its own old objects, so the provider-side rules become the only thing that does — which is exactly what makes the Art. 17 answer true, and why an emergency purge afterwards needs Klas's own OVH console credential rather than the box's | |
 | **BOTH lifecycle rules remove objects, measured as an EFFECT** | plain prefix listing per prefix after N+1 days, older artefacts gone | **Not measured — the rules are not applied and nothing is shipped yet.** Two prefixes, two numbers (ADR 0050 gate G3; Klas set the number 2026-08-12, senior-cto-advisor set the scope the same day): **`hostlogs/app/` = 30 days** (`g3-hostlogs-app-30-days`) and **`hostlogs/host/` = 90 days** (`g3-hostlogs-host-90-days`). The split is not a complication — the container already carries `k4-main-artefacts-30-days` and `deks-outlive-main-90-days`, so the set of numbers is unchanged. **Why app is 30:** one object is an hour of logs for every user inside one `age` envelope this box holds no key to, so selective erasure is structurally impossible and **the time limit IS the whole Art. 17 answer for that leg**. **Why host is 90:** `journal-*`/`audit-*` are the root-surviving forensic corpus #1175 exists for, and 30 would cut the evidence window to 30 days — the defect `journald-jobbliggaren-retention.conf` already records making once. Row 27b's discipline: a rule is a claim; the disappearance is the measurement | |
 | **The journal cursor neither drops nor duplicates across a restart** | stop the timer, reboot, run once, compare the last entry of run *n* against the first of run *n+1* | | |
 | **The MEL provider actually posts to 5341, not 80** | `Seq:ServerUrl` set to the 5341 form, then confirm events arrive | If ingestion is measured unavailable on 5341, fall back to `:80` **and record that the split was measured unreachable** — never switch silently. **The reason is not the one an earlier draft of this row gave:** the split is NOT what stops a compromised container reading the corpus back (see the 401 row below — that claim was measured false on 2026-08-11). What a fallback costs is that the query API moves into the app's own configuration, where an ingest-only key still cannot read but a second mistake no longer has to clear a second hurdle | |

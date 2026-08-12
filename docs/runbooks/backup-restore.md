@@ -69,15 +69,28 @@ refactor cannot quietly remove it (senior-cto-advisor bind 2026-08-09, D2).
 > "the escrow row" meant the master key's — `vps-deploy-stack.md` §5 **row 26**, which has
 > carried a measurement since 2026-08-12. Read literally, this callout now discharges itself
 > while the age key is missing entirely and the artefacts are exactly as unreadable as before.
-> **The condition hangs on row 32**, which is open: the identity was not found in four roots on
-> 2026-08-07, and generating a fresh one costs nothing until the first backup lands.
+> **The condition hangs on row 32**, which is open — **but no longer on the identity's existence.**
+> ~~The identity was not found in four roots on 2026-08-07, and generating a fresh one costs
+> nothing until the first backup lands.~~ **A fresh one was generated 2026-08-12** and its
+> recipient is what `deploy/backup/age.recipient` now carries. **Do not generate another** — that
+> instruction has been discharged, and a reader acting on the struck sentence would produce a
+> third identity and orphan the second.
 >
 > Klas owns it, and the *form* is settled — plaintext on his own devices, the same device as
 > `jobbpilot_vps_ed25519` permitted, over `security-auditor`'s objection and recorded as an
 > accepted risk in **ADR 0129** (gitignored per §6.5; if it is absent from your checkout, the
 > decision is summarised in `vps-deploy-stack.md` rows 26 and 32). Her reservation in §5 below —
-> that this choice is hers once real data exists — is **unspent**: the decision was taken
-> pre-data. When the identity exists, record the date here and fill in row 32.
+> that this choice is hers once real data exists — is **unspent**, and the rotation did not spend
+> it: the new private half sits on the same device, which is the same accepted risk and not a new
+> one. **What row 32 still waits for is Klas's confirmation that the identity is escrowed** — the
+> identity itself exists. Record the date there, not here; this callout no longer owns it.
+>
+> **Where it is, measured 2026-08-12: outside the repository, on Klas's own machine beside the
+> four crypto values (ADR 0129).** No `.gitignore` rule guards it and none should — a rule for a
+> path that cannot occur is decoration that reads as protection. The directory is deliberately
+> not named here: this PR exists because key material accumulated somewhere it should not have,
+> and writing the storage location into a tracked file that agents read and quote is the same
+> class one step removed. Named this far so the next reviewer measures the question once.
 >
 > Backups may be *taken* meanwhile — encryption needs only the recipient — and taking them is
 > strictly better than not. What may not happen is anyone relying on them.
@@ -270,8 +283,15 @@ sudo systemd-tmpfiles --create
 stat -c '%a %U:%G' /run/jobbliggaren/host-secrets     # expect: 700 root:root
 
 # 3. The recipient. It is TRACKED in the repo (it is public), so it arrives with the deploy/
-#    clone. Klas generated the identity on his own machine 2026-08-09; the private half has
-#    never left it, which is what makes requirement (b) structural rather than a rule.
+#    clone. Klas generated the identity in force on his own machine 2026-08-12, and its private
+#    half has not left it. Requirement (b) is structural rather than a rule because the box holds
+#    only the public half - not because of any claim about where a private half has travelled.
+#    THE 2026-08-09 IDENTITY - recipient `age1vrkz…` - IS REVOKED AND MUST NEVER BE REINSTALLED:
+#    its private half was exposed in a chat transcript on 2026-08-12. It is still reachable from
+#    git history and named in two gitignored documents, so "replaced" is not enough to say about
+#    it. It is written truncated on purpose: BackupUnitFilePinTests matches age1 plus exactly 58
+#    characters, so a full retired recipient here would read as a second current one and the
+#    guard would demand the deletion of this provenance.
 #    chown, not just chmod: the file arrives from a clone and is owned by whoever cloned it, and
 #    0444 stops everyone EXCEPT the owner. Its integrity is the control - a swapped recipient
 #    costs every subsequent night, silently, and only the drill notices.
@@ -284,7 +304,39 @@ sudo chmod 0755      /opt/jobbliggaren/deploy/backup
 sudo chmod 0444      /opt/jobbliggaren/deploy/backup/age.recipient
 stat -c '%a %U:%G' /opt/jobbliggaren/deploy/backup /opt/jobbliggaren/deploy/backup/age.recipient
 #    expect: 755 root:root   then   444 root:root
-grep -qx age1vrkznkydenf372h8a5fs3hnkclxsq4ul903yg4e67knn7pvy74hqhckruz /opt/jobbliggaren/deploy/backup/age.recipient && echo RECIPIENT-OK || echo RECIPIENT-MISMATCH   # silence is not a result
+# The expected value is written out here ON PURPOSE, and it is kept honest by CI rather than by
+# anyone remembering to edit it: BackupUnitFilePinTests fails the build if this literal and
+# deploy/backup/age.recipient ever disagree. A reference that lives inside the clone — including
+# `git show HEAD:…` — is one the box itself controls, and the attacker this check exists for is
+# the one who already has the box. It is also blind to the likelier failure: no script in
+# deploy/systemd/ runs git at all (measured 2026-08-12), so the clone moves only on a manual
+# pull, and a box that has not pulled holds a stale recipient AND a stale HEAD.
+grep -qx age17xdg97ppkkpv5cl0qlsfctmkrdy7dt6ps0klt79evwcwsnz0j35sn3skut /opt/jobbliggaren/deploy/backup/age.recipient && echo RECIPIENT-OK || echo RECIPIENT-MISMATCH   # silence is not a result
+
+# 3b. AFTER A ROTATION, THE BOX IS A HOME TOO — and this block is titled "install (once)", which
+#     is exactly why the rotation of 2026-08-12 would otherwise have left the box holding the
+#     REVOKED recipient with nothing saying so. Run these three, in order, after the rotation
+#     commit has merged:
+#     sudo on ALL THREE, matching :218 and vps-deploy-stack.md's own pull. Mixing privilege
+#     mid-sequence makes which line fails depend on how the clone was created — root-owned and
+#     line 1 dies on dubious ownership, user-owned and the sudo pull writes root objects into a
+#     user .git/ — and an operator improvising mid-rotation is how the box stays on the revoked
+#     recipient, which is the thing 3b exists to prevent.
+sudo git -C /opt/jobbliggaren fetch origin            # read what the pull brings FIRST — on this
+sudo git -C /opt/jobbliggaren log --oneline HEAD..origin/main -- deploy/   # box a pull is a DEPLOY
+sudo git -C /opt/jobbliggaren pull --ff-only
+#     The pull RECREATES age.recipient, and git carries only the exec bit — so step 3's
+#     0444 root:root does not survive it. Re-apply the chown/chmod above, then re-run the
+#     RECIPIENT-OK line. A rotation that stops at the merge leaves the box one manual pull away
+#     from encrypting to a key nobody holds.
+#
+#     THE OTHER HOMES A ROTATION TOUCHES, because there is no separate rotation procedure and
+#     the first rotation missed one: deploy/backup/age.recipient (the value), this runbook's
+#     literal on the RECIPIENT-OK line (CI enforces the two agree — BackupUnitFilePinTests),
+#     age.recipient.example's provenance note, ADR 0125 and the Art. 30 register (both
+#     gitignored — mark the retired identity REVOKED there rather than merely replacing it,
+#     since the old value stays reachable from git history), the box per 3b, and
+#     vps-deploy-stack.md row 32.
 
 # 4. The units.
 sudo install -m 0644 /opt/jobbliggaren/deploy/systemd/jobbliggaren-backup*.{service,timer} \

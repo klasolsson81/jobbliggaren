@@ -240,6 +240,107 @@ public class BackupUnitFilePinTests
     }
 
     /// <summary>
+    /// The runbook's operator check quotes the recipient, and this keeps the quote true.
+    ///
+    /// <para>
+    /// <b>Why the runbook holds a literal at all, when a literal is the thing that goes stale.</b>
+    /// The check exists for an attacker who has already taken the box, and every reference that
+    /// lives inside the clone is one that attacker controls - including the obvious repair,
+    /// <c>git show HEAD:deploy/backup/age.recipient</c>, because <c>origin</c> is the box's own
+    /// config and the file is tracked in the very clone being checked. It also cannot see the
+    /// likelier failure: measured 2026-08-12, no script in <c>deploy/systemd/</c> runs git at all,
+    /// so the clone only moves on a manual pull, and a box that has not pulled holds a stale
+    /// recipient AND a stale HEAD - comparing one against the other reports OK. The value has to
+    /// be out-of-band, which means the operator's eye on this runbook.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>So the staleness is made structurally impossible instead.</b> A rotation that forgets
+    /// the runbook fails the build here rather than reporting RECIPIENT-MISMATCH on a correctly
+    /// configured box - which is what happened on 2026-08-12 and is why this test exists. A
+    /// procedure would not have done it: there was one implied and the first rotation missed it.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>The extractor is bound to shape, and the fixed length is load-bearing.</b> An age
+    /// recipient is <c>age1</c> plus 58 bech32 characters. Matching <c>+</c> instead would also
+    /// catch a retired recipient named in prose as provenance - this runbook carries one,
+    /// truncated with an ellipsis - and the guard would then demand its deletion, turning a
+    /// §1.6 provenance citation into a build failure.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>Scope is this ONE file, and widening it to <c>docs/runbooks/</c> would fail only on
+    /// Klas's machine.</b> Measured 2026-08-12: a sweep of that directory returns two full
+    /// recipients, and the second is the retired one, at full length, in
+    /// <c>gdpr-processing-register.md</c> - which is <b>gitignored</b> (ADR 0072). A maintainer
+    /// who widens the code to match a broader-sounding comment gets a green CI run, a green
+    /// fresh worktree, and a red main checkout. The bash fixtures' synthetic recipients are not
+    /// the reason: they live in <c>deploy/systemd/</c> and are outside either scope already.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>The call site is asserted, not merely the value's presence somewhere in the file.</b>
+    /// A prose mention of the current recipient anywhere in the runbook would satisfy a
+    /// presence-only check while step 3 had been quietly reverted to comparing the clone against
+    /// itself - which is not hypothetical, it is the line that stood there the day before this
+    /// test was written.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public void Runbook_QuotesTheRecipientThatIsActuallyCommitted()
+    {
+        var recipient = File.ReadAllLines(
+                Path.Combine(RepositoryRoot(), "deploy", "backup", "age.recipient"))
+            .Select(line => line.Trim())
+            .First(line => line.Length > 0);
+
+        var runbook = File.ReadAllText(Path.Combine(RepositoryRoot(), Runbook));
+
+        var quoted = System.Text.RegularExpressions.Regex
+            .Matches(runbook, @"\bage1[0-9a-z]{58}\b")
+            .Select(match => match.Value)
+            .Distinct()
+            .ToList();
+
+        // Three arms, in this order, and the order is the point. The first two cannot be
+        // satisfied by absence - which is the failure mode a bare equality check would have,
+        // since a runbook that quotes nothing would compare an empty set against nothing and
+        // have to be given a verdict.
+        quoted.Count.ShouldBeGreaterThan(0,
+            $"{Runbook} quotes no full age recipient at all. Step 3's operator check is the only " +
+            "out-of-band reference the box cannot rewrite; without it the check either compares " +
+            "the clone against itself or does not exist.");
+
+        quoted.Count.ShouldBe(1,
+            $"{Runbook} quotes {quoted.Count} different full recipients: {string.Join(", ", quoted)}. " +
+            "An operator following step 3 would have no way to know which is current, and a " +
+            "rotation that edited one occurrence and missed another produces exactly this.");
+
+        quoted[0].ShouldBe(recipient,
+            $"{Runbook} tells the operator to expect '{quoted[0]}' but deploy/backup/age.recipient " +
+            $"holds '{recipient}'. A correctly configured box would report RECIPIENT-MISMATCH — a " +
+            "false alarm on the one check that stands between a swapped recipient and losing every " +
+            "subsequent night silently. Update the runbook literal in the same commit as the " +
+            "rotation.");
+
+        // The fourth arm, and it is about WHERE the value sits rather than whether it is there.
+        // The three above are satisfied by a prose mention; the operator's check is a command,
+        // and a command that no longer names the recipient is the regression this whole test
+        // exists because of.
+        // Ordinal and via Contains rather than ShouldContain: on a string the latter resolves to
+        // the IEnumerable<char> overload and asks a different question entirely.
+        runbook.Contains(
+                $"grep -qx {recipient} /opt/jobbliggaren/deploy/backup/age.recipient",
+                StringComparison.Ordinal)
+            .ShouldBeTrue(
+                $"{Runbook} quotes the current recipient but step 3's check no longer compares " +
+                "against it. A reference that lives inside the clone — `git show HEAD:…`, or the " +
+                "file against itself — is one the box controls, and the attacker this check " +
+                "exists for is the one who already has the box.");
+    }
+
+    /// <summary>
     /// The unit file's directives, with comments and blank lines removed.
     ///
     /// <para>

@@ -246,31 +246,36 @@ public class SesEmailSenderTests
     }
 
     [Fact]
-    public async Task SesEmailSender_SendsAnEmailConfirmation_EmitsNoHtmlPartAndNoConfigurationSet()
+    public async Task SesEmailSender_SendsAnEmailConfirmation_EmitsNoConfigurationSet()
     {
         // GDPR pin, not a style pin (security-auditor Minor 3, 2026-08-09 / #1169). The Art. 30
         // entry "Utgående transaktionell e-post" states as MEASURED FACT that SES's 60-day,
-        // RECIPIENT-LEVEL open/click metrics do not arise for us. That claim rests on these two
-        // properties of the request:
+        // RECIPIENT-LEVEL open/click metrics do not arise for us. This is GROUND 1 of the two the
+        // register cites:
         //
-        //   ConfigurationSetName == null -> this request names no event destination.
-        //   Body.Html          == null -> open tracking needs a pixel and click tracking needs link
-        //                                 rewriting; AWS states both are HTML-only.
+        //   ConfigurationSetName == null -> this request names no event destination, and AWS's own
+        //                                   event-publishing docs say publishing requires that every
+        //                                   send name a configuration set.
         //
-        // They are INDEPENDENT: either alone suppresses the metrics, which is why the register cites
-        // two reasons rather than one. Adding an HTML template is a plausible product change, and it
-        // would silently falsify a retention statement written as measured — the half that must not
-        // be allowed to rot. Change either property and this test tells you the register needs
-        // re-measuring BEFORE the change ships.
+        // RENAMED 2026-08-12 (#183). This test also asserted `Body.Html == null`, which WAS ground 2
+        // ("no HTML part, and AWS states open tracking is HTML-only"). The mails now carry an HTML
+        // part, so that ground is STRUCK rather than weakened, and its replacement — the HTML part
+        // references no remote resource — is pinned over all eight templates in
+        // `EmailHtmlNoRemoteResourceTests`, plus at this seam by the test below. The replacement was
+        // built to have the same PROPERTY the struck ground had: unattackable from outside the repo,
+        // and pinned by a test rather than merely complied with. security-auditor 2026-08-12,
+        // condition 1, which also requires that THIS assertion is not weakened by the HTML change.
+        // It is not: the line below is unchanged.
         //
         // WHAT THIS TEST CANNOT REACH, said plainly rather than left to be assumed (code-reviewer
-        // Minor 3, 2026-08-09): reason 1 is not closed at request level. SES v2 lets a DEFAULT
+        // Minor 3, 2026-08-09): ground 1 is not closed at request level. SES v2 lets a DEFAULT
         // configuration set be attached to the sending IDENTITY
         // (`PutEmailIdentityConfigurationSetAttributes`), and it then applies even though the request
         // names none. That is AWS-side state no test in this repo can pin, so it is carried as a
-        // named precondition on `release-checklist.md` §2.5 leg (e) instead. Reason 2 is NOT
-        // defeasible that way and is fully pinned here, so the register's statement holds on it
-        // alone — which is exactly why the register cites two independent reasons.
+        // named precondition on `release-checklist.md` §2.5 förutsättning 4 instead, re-measured AT
+        // the flip. Ground 2 is NOT defeasible that way and is fully pinned, so the register's
+        // statement holds on it alone — which is exactly why the register cites two independent
+        // grounds.
         var sut = CreateSut();
 
         await sut.SendEmailConfirmationAsync(
@@ -278,7 +283,47 @@ public class SesEmailSenderTests
 
         var request = CapturedRequest();
         request.ConfigurationSetName.ShouldBeNull();
-        request.Content.Simple.Body.Html.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task SesEmailSender_SendsAnEmailConfirmation_PutsBothPartsInTheMessageWithUtf8()
+    {
+        // The multipart/alternative contract at the seam where the request is actually built: a
+        // client picks Html and falls back to Text, so BOTH must be present and both must declare
+        // UTF-8 (SES infers no charset and defaults to 7-bit ASCII). A regression that dropped the
+        // text part would be invisible in any HTML-capable mail client — which is every client a
+        // developer checks — and would only surface for the plain-text readers this repo cannot
+        // observe.
+        var sut = CreateSut();
+
+        await sut.SendEmailConfirmationAsync(
+            Recipient, SampleConfirmationContent(), CancellationToken.None);
+
+        var body = CapturedRequest().Content.Simple.Body;
+        body.Text.Data.ShouldNotBeNullOrWhiteSpace();
+        body.Text.Charset.ShouldBe("UTF-8");
+        body.Html.Data.ShouldNotBeNullOrWhiteSpace();
+        body.Html.Charset.ShouldBe("UTF-8");
+    }
+
+    [Fact]
+    public async Task SesEmailSender_SendsAnEmailConfirmation_PutsNoRemoteResourceInTheHtmlItSends()
+    {
+        // GROUND 2 of the register's retention claim, asserted against the bytes that actually leave
+        // this adapter rather than against a template rendered in isolation. The breadth of the
+        // ground (all eight templates, plus the counterfactuals that prove this detector can fail)
+        // lives in `EmailHtmlNoRemoteResourceTests` and `RemoteResourceDetectorTests`; this fact closes the seam, so a sender that
+        // wrapped, decorated or rewrote the HTML on its way into the request could not slip a remote
+        // resource past the template-level suite.
+        var sut = CreateSut();
+
+        await sut.SendEmailConfirmationAsync(
+            Recipient, SampleConfirmationContent(), CancellationToken.None);
+
+        var html = CapturedRequest().Content.Simple.Body.Html.Data;
+        RemoteResourceDetector
+            .FindRemoteResources(html, _options.BaseUrl)
+            .ShouldBeEmpty();
     }
 
     [Fact]

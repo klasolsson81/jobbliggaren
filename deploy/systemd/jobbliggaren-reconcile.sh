@@ -33,6 +33,14 @@ readonly VERIFIER=/opt/jobbliggaren/deploy/systemd/verify-image-attestation.sh
 readonly LOCK=/run/jobbliggaren-reconcile.lock
 readonly STAMP=/var/lib/jobbliggaren/last-successful-reconcile
 
+# The injected crypto secrets, and the shared measurement that says who may read them (#1295).
+# SECRETS_DIR is a second literal — jobbliggaren-inject-secrets.sh declares it too — and that is
+# named rather than hidden: COMPOSE_FILE already lives in both files, because these are
+# standalone executables with no shared config, and inventing one for two path constants would
+# cost more than it buys.
+readonly SECRETS_DIR=/run/jobbliggaren/secrets
+readonly RUNTIME_IDS=/opt/jobbliggaren/deploy/systemd/jobbliggaren-runtime-ids.sh
+
 # Images built by our workflow, and therefore attestable. Everything else the compose file
 # pulls must be on the allowlist below or this script refuses: an unknown image is the shape a
 # future service arrives in, and it must fail closed rather than slip past unverified.
@@ -81,6 +89,15 @@ fi
   exit 1
 }
 
+# EXIT 2, NOT 1, AND THE DIVERGENCE FROM THE GUARD ABOVE IS DELIBERATE. A missing helper is "the
+# check could not run", which is what 2 means in this script's own vocabulary (see the verifier
+# loop below). The neighbouring verifier guard's exit 1 predates #1295 and is not this delta's
+# to change.
+[ -x "$RUNTIME_IDS" ] || {
+  log "CANNOT ANSWER: runtime-id helper missing or not executable: $RUNTIME_IDS"
+  exit 2
+}
+
 # BY PATH, never COMPOSE_FILE — the compose guards are structurally blind to that channel
 # (#1217), so a green guard would vouch for a file the deploy does not run.
 compose() { /usr/bin/docker compose -f "$COMPOSE_FILE" "$@"; }
@@ -98,6 +115,9 @@ mapfile -t images < <(compose config --images | sort -u)
 
 verified=0
 skipped=0
+# Captured inside the loop and ONLY after this image has verified, so the secrets gate below can
+# never be the thing that executes an image the box just refused (#1295).
+api_digest=""
 for image in "${images[@]}"; do
   case "$image" in
   "$OURS_PREFIX"*) ;;
@@ -143,7 +163,99 @@ for image in "${images[@]}"; do
     exit "$verify_status"
   fi
   verified=$((verified + 1))
+
+  # The api image is the representative: it is the one jobbliggaren-inject-secrets.sh measured
+  # when it set the ownership, so it is the one the gate must compare against. A divergence
+  # BETWEEN our three images is a different defect with a build-time gate — all three Dockerfiles
+  # declare `USER app` — and measuring every OURS_ image here would refuse falsely the day one
+  # ships that mounts no secrets.
+  case "$image" in
+  "${OURS_PREFIX}api:"*) api_digest="${digests[0]}" ;;
+  esac
 done
+
+# ---------------------------------------------------------------------------------------------
+# THE SECRETS GATE (#1295). The injected secrets are owned by the ids of the image that was
+# current AT INJECTION TIME; this pull may have brought a different one. A base-image bump that
+# moves uid or gid makes the read-only mount unreadable — the directory is 0710 root:<gid> so
+# group traversal is the container's only way in, and the files are 0400 <uid> so the owner is
+# the only reader — and the app then reports a MISSING KEY rather than a permission problem.
+#
+# It sits here, after the verify loop and before the word "applying" is ever printed, for two
+# reasons that are not interchangeable: measuring the ids RUNS the image, so it must follow
+# attestation; and a refusal must not be preceded by a line announcing an apply.
+# ---------------------------------------------------------------------------------------------
+shopt -s nullglob
+secret_files=("$SECRETS_DIR"/*)
+shopt -u nullglob
+regular_secrets=()
+for f in "${secret_files[@]}"; do
+  # An explicit `if`, not `[ -f "$f" ] && …`: an AND-list whose test fails on the final iteration
+  # leaves the loop with a non-zero status, and under `set -e` that is a script that exits where
+  # it meant to continue.
+  if [ -f "$f" ]; then
+    regular_secrets+=("$f")
+  fi
+done
+
+if [ "${#regular_secrets[@]}" -eq 0 ]; then
+  # NOT A HOLE, AND IT NEEDS NO TIME BOUND. If nothing has been injected there is nothing an
+  # image bump can make unreadable, and whichever of inject and apply happens last establishes
+  # the coupling: a later injection measures the image this run is about to apply. A gate that
+  # refused here would be permanently red from the hour it shipped until cutover day, and
+  # `systemctl --failed` must mean something is wrong.
+  log "no injected secrets in $SECRETS_DIR — ownership gate skipped (nothing to be unreadable)"
+else
+  [ -n "$api_digest" ] || {
+    log "CANNOT ANSWER: secrets are injected in $SECRETS_DIR but no ${OURS_PREFIX}api image was"
+    log "  verified in this run, so the ids they must match cannot be determined. Nothing applied."
+    exit 2
+  }
+
+  ids_out=$("$RUNTIME_IDS" "$api_digest") || {
+    log "CANNOT ANSWER: could not measure the runtime ids from the verified api image."
+    log "  Nothing is applied; the running containers stay up."
+    exit 2
+  }
+  mapfile -t runtime_ids <<<"$ids_out"
+  want_uid="${runtime_ids[0]:-}"
+  want_gid="${runtime_ids[1]:-}"
+  # The helper already validates its own output. Re-validating here is not distrust of it but of
+  # the SEAM: it is a separate executable on the box, and a gate that compares against an empty
+  # string would refuse with a message naming no number at all.
+  if ! [[ "$want_uid" =~ ^[0-9]+$ && "$want_gid" =~ ^[0-9]+$ ]]; then
+    log "CANNOT ANSWER: $RUNTIME_IDS succeeded but did not return two numeric ids."
+    log "  Nothing is applied; the running containers stay up."
+    exit 2
+  fi
+
+  dir_gid=$(stat -c '%g' "$SECRETS_DIR")
+  if [ "$dir_gid" != "$want_gid" ]; then
+    log "REFUSING: the incoming api image cannot TRAVERSE $SECRETS_DIR."
+    log "  directory group is $dir_gid; the image runs as gid $want_gid. The directory is 0710,"
+    log "  so group traversal is the container's only way in — api and worker would report a"
+    log "  missing master key. Nothing is applied; the running containers stay up."
+    log "  Repair by re-owning, NEVER by re-injecting (master-key-ops.md §3):"
+    log "    sudo chgrp $want_gid $SECRETS_DIR && sudo chown -R $want_uid $SECRETS_DIR"
+    log "    sudo systemctl start jobbliggaren-reconcile.service"
+    exit 1
+  fi
+
+  for f in "${regular_secrets[@]}"; do
+    file_uid=$(stat -c '%u' "$f")
+    if [ "$file_uid" != "$want_uid" ]; then
+      log "REFUSING: the incoming api image cannot READ the injected secrets."
+      log "  $f is owned by uid $file_uid; the image runs as uid $want_uid. The files are 0400,"
+      log "  so the owner is the only reader. Nothing is applied; the running containers stay up."
+      log "  Repair by re-owning, NEVER by re-injecting (master-key-ops.md §3):"
+      log "    sudo chown -R $want_uid:$want_gid $SECRETS_DIR"
+      log "    sudo systemctl start jobbliggaren-reconcile.service"
+      exit 1
+    fi
+  done
+
+  log "injected secrets are readable by the incoming image (uid $want_uid, gid $want_gid)"
+fi
 
 log "verified $verified image(s), skipped $skipped upstream; applying"
 

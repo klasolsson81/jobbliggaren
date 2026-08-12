@@ -43,17 +43,59 @@ fail=0
 # paths point into the fixture tree. Rewriting the constants is what makes the predicates
 # reachable without root; the predicates themselves are untouched.
 readonly FIXTURE_SUT="$TMPROOT/reconcile.sh"
+readonly SECRETS="$TMPROOT/secrets"
+readonly FIXTURE_IDS="$TMPROOT/runtime-ids.sh"
 prepare_sut() {
   sed -e "s#^readonly COMPOSE_FILE=.*#readonly COMPOSE_FILE=$TMPROOT/docker-compose.yml#" \
     -e "s#^readonly ENV_FILE=.*#readonly ENV_FILE=$TMPROOT/.env#" \
     -e "s#^readonly VERIFIER=.*#readonly VERIFIER=$BIN/verifier.sh#" \
     -e "s#^readonly LOCK=.*#readonly LOCK=$TMPROOT/lock#" \
     -e "s#^readonly STAMP=.*#readonly STAMP=$TMPROOT/stamp#" \
+    -e "s#^readonly SECRETS_DIR=.*#readonly SECRETS_DIR=$SECRETS#" \
+    -e "s#^readonly RUNTIME_IDS=.*#readonly RUNTIME_IDS=$FIXTURE_IDS#" \
     -e "s#/usr/bin/docker#docker#g" \
     "$SUT" >"$FIXTURE_SUT"
+
+  # THE SECRETS_DIR REDIRECT IS PROVEN, AND THIS PROOF IS NOT OPTIONAL. Unproven, a spelling
+  # change leaves the copy pointing at the host's real /run/jobbliggaren/secrets — absent on the
+  # runner, which takes the gate's SKIP arm, which makes every case below pass for the wrong
+  # reason. That is a fail-OPEN rig, and this repo has paid for that class before.
+  grep -qxF "readonly SECRETS_DIR=$SECRETS" "$FIXTURE_SUT" || {
+    echo "FIXTURE BROKEN: SECRETS_DIR redirect did not apply — every gate case would take the skip arm" >&2
+    exit 1
+  }
+  grep -qxF "readonly RUNTIME_IDS=$FIXTURE_IDS" "$FIXTURE_SUT" || {
+    echo "FIXTURE BROKEN: RUNTIME_IDS redirect did not apply — the suite would run the real helper" >&2
+    exit 1
+  }
   chmod +x "$FIXTURE_SUT"
   : >"$TMPROOT/docker-compose.yml"
+
+  # The gate runs the REAL helper, not a stand-in for it: the two are wired together on the box
+  # and a stub here would leave that wiring unmeasured. Only its docker call is redirected onto
+  # the same stub everything else in this suite uses.
+  sed -e "s#/usr/bin/docker#docker#g" "$script_dir/jobbliggaren-runtime-ids.sh" >"$FIXTURE_IDS"
+  grep -qF -- "out=\$(docker run --rm --entrypoint sh" "$FIXTURE_IDS" || {
+    echo "FIXTURE BROKEN: the helper's docker redirect did not apply" >&2
+    exit 1
+  }
+  chmod +x "$FIXTURE_IDS"
 }
+
+# THE RIG MUST BE ABLE TO MEASURE WHAT IT CLAIMS, AND A DISAGREEMENT HERE IS AN ABORT, NOT A SKIP.
+# The gate compares the fixture directory's numeric owner against ids the docker stub returns, so
+# the suite needs `stat` and `id` to agree about who owns a directory this process just made.
+# Unlike the chmod cases elsewhere in this repo — where the platform genuinely cannot express the
+# property — a mismatch here means the instrument is wrong, and a skip would hide that.
+probe_dir=$(mktemp -d "$TMPROOT/idprobe.XXX")
+probe_owner=$(stat -c '%u %g' "$probe_dir")
+probe_expected="$(id -u) $(id -g)"
+rm -rf "$probe_dir"
+if [ "$probe_owner" != "$probe_expected" ]; then
+  echo "FIXTURE BROKEN: stat reports '$probe_owner' for a directory this process owns," >&2
+  echo "                but id reports '$probe_expected'. The ownership cases cannot be measured." >&2
+  exit 1
+fi
 
 # $1 = newline-separated image list `compose config --images` returns.
 # $2 = repo digests `docker image inspect` returns for ANY image (one per line).
@@ -62,10 +104,15 @@ stub_docker() {
   printf '%s\n' "$2" >"$TMPROOT/digests"
   cat >"$BIN/docker" <<EOF
 #!/usr/bin/env bash
-# `up -d` is matched BEFORE the bare pull arm, because the apply now carries \`--pull never\`
+# THE BACKTICKS BELOW ARE ESCAPED AND MUST STAY SO. This heredoc is unquoted (<<EOF), so an
+# unescaped pair is command substitution — the shell ran \`up -d\` every time this stub was
+# written and printed "up: command not found" to stderr, 12 times per suite run on the baseline.
+# Noise beside a fixture's own output is how a real failure goes unread.
+# \`up -d\` is matched BEFORE the bare pull arm, because the apply now carries \`--pull never\`
 # and would otherwise be swallowed by \`*pull*\` — which is how this stub first reported that
 # 'up -d' never ran when it had.
 case "\$*" in
+  *"id -u"*)           echo yes > "$TMPROOT/idmeasured" ; cat "$TMPROOT/ids-out" ; exit "\$(cat "$TMPROOT/ids-exit")" ;;
   *"config --images"*) cat "$TMPROOT/images" ;;
   *"image inspect"*)   cat "$TMPROOT/digests" ;;
   *"up -d"*)           echo "up: ok" ; echo "\$*" > "$TMPROOT/up-args" ;;
@@ -75,6 +122,16 @@ esac
 EOF
   chmod +x "$BIN/docker"
 }
+
+# What the image "reports" as its runtime ids. The MARKER the arm above writes is what makes the
+# arm's NON-invocation assertable — an ordering property cannot be pinned by observing the happy
+# path alone.
+# $1 = uid, $2 = gid, $3 = the exit code the measurement leaves with (default 0).
+stub_runtime_ids() {
+  printf '%s\n%s\n' "$1" "$2" >"$TMPROOT/ids-out"
+  printf '%s' "${3:-0}" >"$TMPROOT/ids-exit"
+}
+stub_runtime_ids "$(id -u)" "$(id -g)"
 
 stub_verifier() {
   cat >"$BIN/verifier.sh" <<EOF
@@ -97,7 +154,7 @@ fi
 
 run_sut() {
   : >"$TMPROOT/verified"
-  rm -f "$TMPROOT/up-args" "$TMPROOT/stamp"
+  rm -f "$TMPROOT/up-args" "$TMPROOT/stamp" "$TMPROOT/idmeasured"
   PATH="$BIN:/usr/bin:/bin" bash "$FIXTURE_SUT" >"$TMPROOT/out" 2>&1
 }
 
@@ -266,6 +323,114 @@ else
     echo "  ok   and it does not stamp success"
   fi
 fi
+
+echo "-- the secrets ownership gate (#1295)"
+# WHAT THIS SECTION MEASURES, AND WHY IT CAN. The gate compares the secrets directory's owner
+# against the ids of the image about to be applied. The fixture cannot `chown` — it is not root —
+# so it moves the OTHER side: the docker stub reports ids that do or do not match the directory
+# this unprivileged process owns. Both arms are therefore reachable without root, on Windows and
+# on the ubuntu runner alike.
+#
+# The production ownership triple itself (0710 root:<gid>, files 0400 <uid>) is NOT measured
+# here and cannot be; its proof is the cutover row in vps-deploy-stack.md.
+
+seed_secrets() {
+  rm -rf "$SECRETS"
+  mkdir -p "$SECRETS"
+  printf '%s' "seeded" >"$SECRETS/FieldEncryption__LocalMasterKeyBase64"
+  printf '%s' "seeded" >"$SECRETS/AuditPseudonymization__PepperBase64"
+}
+
+assert_output_contains() {
+  if grep -qF -- "$1" "$TMPROOT/out"; then
+    pass=$((pass + 1))
+    echo "  ok   $2"
+  else
+    fail=$((fail + 1))
+    echo "  FAIL $2 — the output did not name it:" >&2
+    sed 's/^/       /' "$TMPROOT/out" >&2
+  fi
+}
+
+assert_ids_measured() {
+  if [ -f "$TMPROOT/idmeasured" ]; then
+    pass=$((pass + 1))
+    echo "  ok   $1"
+  else
+    fail=$((fail + 1))
+    echo "  FAIL $1 — the image was never asked for its ids" >&2
+  fi
+}
+
+assert_ids_not_measured() {
+  if [ -f "$TMPROOT/idmeasured" ]; then
+    fail=$((fail + 1))
+    echo "  FAIL $1 — the box RAN an image it had just refused" >&2
+  else
+    pass=$((pass + 1))
+    echo "  ok   $1"
+  fi
+}
+
+seed_secrets
+stub_docker "$OURS:latest" "$DIGEST"
+stub_verifier 0
+stub_runtime_ids "$(id -u)" "$(id -g)"
+expect_exit 0 "ids agree → the apply proceeds"
+assert_applied "and 'up -d' ran"
+assert_ids_measured "and the image WAS measured (the gate did not silently skip)"
+
+# BOUND TO THE MESSAGE, NEVER TO THE EXIT CODE. Reconcile reaches exit 1 by many routes; an
+# exit-code-only assertion here stays green with either half of the comparison deleted.
+stub_runtime_ids "$(id -u)" "$(($(id -g) + 1))"
+expect_exit 1 "gid drift → refuses"
+assert_not_applied "and nothing is applied — stale but serving"
+assert_output_contains "cannot TRAVERSE" "and the refusal names the traversal axis"
+
+stub_runtime_ids "$(($(id -u) + 1))" "$(id -g)"
+expect_exit 1 "uid drift → refuses even though the group still traverses"
+assert_not_applied "and nothing is applied"
+assert_output_contains "cannot READ the injected secrets" "and the refusal names the owner axis"
+
+# THE ORDERING PROPERTY. Measuring the ids RUNS the image, so it must never happen for an image
+# attestation refused. Without this case a later refactor can hoist the gate above the verify
+# loop and every other case stays green.
+stub_runtime_ids "$(id -u)" "$(id -g)"
+stub_verifier 1
+expect_exit 1 "a refused image still refuses with secrets present"
+assert_ids_not_measured "and a REFUSED image is never run to read its ids"
+
+stub_verifier 0
+stub_runtime_ids "$(id -u)" "$(id -g)" 97
+expect_exit 2 "the measurement failing is 'cannot answer' (2), never 'refused' (1) and never 0"
+assert_not_applied "and nothing is applied"
+
+# The arm that never runs in production until it matters: secrets injected, but nothing in the
+# compose model is our api image, so the ids they must match cannot be determined.
+stub_runtime_ids "$(id -u)" "$(id -g)"
+stub_docker "postgres:18.3" "$DIGEST"
+stub_verifier 0
+expect_exit 2 "secrets present but no api image → cannot answer, not a wave-through"
+assert_not_applied "and nothing is applied"
+# BOUND TO THE MESSAGE for the same reason cases above are: with the emptiness check removed the
+# run still reaches exit 2, by way of the helper refusing an empty reference. Two paths, one code
+# — an exit-code-only assertion here would pass with the check deleted.
+assert_output_contains "api image was" "and it says WHICH question it could not answer"
+
+echo "-- and the gate is silent when there is nothing to protect"
+stub_docker "$OURS:latest" "$DIGEST"
+stub_verifier 0
+rm -rf "$SECRETS"
+mkdir -p "$SECRETS"
+expect_exit 0 "an EMPTY secrets directory skips the gate and applies"
+assert_applied "and 'up -d' ran"
+assert_ids_not_measured "and no docker run was spent measuring ids"
+assert_output_contains "ownership gate skipped" "and the skip is on the journal, not silent"
+
+rm -rf "$SECRETS"
+expect_exit 0 "a MISSING secrets directory skips the gate and applies"
+assert_applied "and 'up -d' ran"
+assert_ids_not_measured "and still no image is run"
 
 echo
 echo "passed: $pass   failed: $fail"

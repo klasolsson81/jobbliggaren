@@ -29,6 +29,11 @@ set -euo pipefail
 readonly SECRETS_DIR=/run/jobbliggaren/secrets
 readonly COMPOSE_FILE=/opt/jobbliggaren/deploy/docker-compose.yml
 
+# The measurement this script SETS the ownership from, and the one jobbliggaren-reconcile.sh
+# GATES the apply on, are the same measurement in one file (#1295). Two spellings of it would be
+# a rule with two normalisers, which is two rules.
+readonly RUNTIME_IDS=/opt/jobbliggaren/deploy/systemd/jobbliggaren-runtime-ids.sh
+
 # A SECOND DIRECTORY, FOR SECRETS NO CONTAINER MAY SEE (#197). SECRETS_DIR is bind-mounted
 # read-only into api and worker; this one is mounted nowhere, stays 0700 root:root, and holds
 # what only a host-side root process reads — today the backup upload credential. See
@@ -173,13 +178,25 @@ a missing required variable fails here)"
   # stderr is in that pipe, so a compose error line containing the substring would otherwise be
   # handed to `docker run` as an image name and fail for the wrong stated reason.
   [[ "$image" =~ ^[a-z0-9./_-]+:[A-Za-z0-9._-]+$ ]]     || die "resolved api image is not an image reference: '${image}' (compose likely errored)"
-  docker run --rm --entrypoint sh "$image" -c 'id -u; id -g' 2>/dev/null \
-    || die "could not read the runtime uid/gid from ${image} (is it pulled? is dockerd up?)"
+  # THE RESOLUTION STAYS HERE, THE MEASUREMENT DOES NOT. What the two callers resolve genuinely
+  # differs — this one resolves a TAG out of the compose file with a human driving and nothing
+  # verified yet, while reconcile passes the digest it has just attested — so sharing the
+  # resolution would be sharing the wrong thing. The helper's own diagnostics reach stderr from
+  # here, so this call adds no message of its own.
+  "$RUNTIME_IDS" "$image"
 }
 
-mapfile -t runtime_ids < <(resolve_runtime_ids)
+# COMMAND substitution, not process substitution, and the `|| die` is not decoration: a `die`
+# inside resolve_runtime_ids runs in the SUBSHELL and cannot stop this script. `< <(…)` would
+# have swallowed the failure and left the pair empty.
+ids_out=$(resolve_runtime_ids) || die "the container runtime ids could not be measured — nothing
+has been written, and the injection is aborted rather than guessing an owner"
+mapfile -t runtime_ids <<<"$ids_out"
 uid="${runtime_ids[0]:-}"
 gid="${runtime_ids[1]:-}"
+# The seam's guard, not a second copy of the helper's contract: an empty pair would otherwise
+# reach `install -o` and fail there, reporting a problem with install rather than with the
+# measurement.
 [[ "$uid" =~ ^[0-9]+$ ]] || die "measured uid is not numeric: '${uid}'"
 [[ "$gid" =~ ^[0-9]+$ ]] || die "measured gid is not numeric: '${gid}'"
 log "container runtime ids measured from the api image: uid=${uid} gid=${gid}"

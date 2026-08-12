@@ -130,14 +130,20 @@ has_usable_content() {
 #   EMAIL_PROVIDER=Ses # flippat    EMAIL_PROVIDER="Ses" # q      (inline comment, quoted or not)
 #   export EMAIL_PROVIDER=Ses                                     (export prefix)
 #
-# `tail -n1` is compose's last-assignment-wins, measured. The comment strip runs for quoted
-# values too, where compose keeps a `#` inside quotes — WIDER, and harmless here because no
-# legitimate value of the keys this reads contains one. Do not read it as exact parity.
+# `tail -n1` is compose's last-assignment-wins, measured.
+#
+# A QUOTED VALUE KEEPS ITS `#`, and a naive strip got that backwards in the fail-OPEN direction
+# (security-auditor, 2026-08-12). Measured: `EMAIL_PROVIDER='Ses # x'` renders `Ses # x`, a value
+# AddEmailSender throws on — so a reader that stripped it to `Ses` answered "configured for SES"
+# about a box that does not start. The two quote arms below consume everything after the closing
+# quote and branch out with `t`, so the unquoted strip can never run on what was inside them.
 env_value() {  # env_value <NAME> -> value on stdout; empty when unset, unreadable or absent
   [[ -r "$ENV_FILE" ]] || return 0
   sed -n -E "s/^[[:space:]]*(export[[:space:]]+)?$1[[:space:]]*[:=][[:space:]]*//p" \
     "$ENV_FILE" 2>/dev/null \
-    | tail -n1 | sed -E 's/[[:space:]]+#.*$//' | tr -d "\"'" | tr -d '[:space:]'
+    | tail -n1 \
+    | sed -E -e 's/^"([^"]*)".*$/\1/;t' -e "s/^'([^']*)'.*\$/\1/;t" -e 's/[[:space:]]+#.*$//' \
+    | tr -d '[:space:]'
 }
 
 # THREE-VALUED ON PURPOSE. An absent file, an unset variable and the literal Console all mean
@@ -266,8 +272,15 @@ if [[ "${1:-}" == "--check" ]]; then
   done
 
   if [[ $missing -ne 0 ]]; then
-    log "The box has booted without usable crypto secrets. api and worker are crash-looping"
-    log "by design (fail-closed, never a fallback key). Inject with:"
+    # THIS SUMMARY USED TO PRESCRIBE THE ONE REMEDY, and it stopped being the one remedy when
+    # the mail branch above gained lines injection cannot fix — an INVALID provider value and an
+    # unset EMAIL_SES_* variable are edits to deploy/.env, not missing files. Telling an operator
+    # to re-run this script against those is a remedy that reports success and changes nothing,
+    # which is worse than no remedy at all. So the summary now points at the lines rather than
+    # replacing them.
+    log "Something above is missing or invalid, and api and worker will crash-loop by design"
+    log "(fail-closed, never a fallback key). Read the individual lines: those naming a FILE are"
+    log "fixed by injecting, those naming a variable are fixed by editing deploy/.env."
     log "  sudo /opt/jobbliggaren/deploy/systemd/jobbliggaren-inject-secrets.sh"
     exit 1
   fi

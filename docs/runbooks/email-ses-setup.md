@@ -456,10 +456,14 @@ the word "pass" is how that distinction gets missed.
 - **`Email__*` delivery into the box's containers** — the operator view (variables, defaults,
   what setting each does) lives in `deploy/.env.example`, and the anchor itself in
   `deploy/docker-compose.yml`. `deploy/systemd/jobbliggaren-inject-secrets.sh` writes the two
-  SES credential **files** the `_FILE` pointers name, and prompts for them if and only if
-  `EMAIL_PROVIDER=Ses` (#183). The injection gap this entry used to record is closed; what
-  remains of §6.3's mechanical prerequisites is the flip's own two steps — set the variable,
-  uncomment the pointers — after which the script asks for the values.
+  SES credential **files** the `_FILE` pointers name, and prompts for them when
+  `EMAIL_PROVIDER=Ses`, when either pointer is set, **or** under `JBL_INJECT_SES=1` (#183). The
+  injection gap this entry used to record is closed.
+  **Inject before you edit, and the order is not cosmetic:** each of the first two conditions is
+  itself a boot refusal while the files are absent, so setting the variable first takes the box
+  down and the injection then runs under an outage. Run
+  `sudo JBL_INJECT_SES=1 …/jobbliggaren-inject-secrets.sh` first, then set `EMAIL_PROVIDER=Ses`,
+  the two pointers and `EMAIL_SES_REGION`, then restart. `--check` names any line still missing.
 - **Leaving the SES sandbox — APPLIED FOR 2026-08-12, and the position this entry held until
   then did not survive contact with the application.** It read: AWS requires the applicant to
   *"confirm that you have a process in place for handling bounce and complaint notifications"*,

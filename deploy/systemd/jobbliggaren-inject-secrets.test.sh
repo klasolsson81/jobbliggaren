@@ -84,6 +84,11 @@ rm -rf "$probe"
 
 seed_all_secrets() {
   rm -rf "$TMPROOT/run"
+  # The .env fixture is reset HERE rather than by each case, so "no provider set" is the state a
+  # case starts from structurally instead of by being written before the block that sets one.
+  # It was order-dependent until 2026-08-12: nothing mismeasured, but the property held because
+  # of where the SES block sat in the file, which is not a property at all.
+  rm -f "$ENV_FIXTURE"
   mkdir -p "$SECRETS"
   # 0710 is the mode the running stack needs and the mode --check asserts: root owns the
   # directory, the container's group traverses it. The fixture must reproduce the production
@@ -483,6 +488,21 @@ for env_line in \
     sed 's/^/       /' "$TMPROOT/out" >&2
   fi
 done
+
+echo "-- a quoted value KEEPS its hash, and compose treats that as a boot refusal"
+# The fix for the parser introduced this one and security-auditor measured it: compose renders
+# `Ses # x` for a single-quoted value, which AddEmailSender throws on, while a naive strip read
+# it as `Ses` and reported a box configured for SES that does not start. WIDER is fail-closed
+# everywhere except here, which is why the strip now stops at the closing quote.
+seed_all_secrets
+write_env "SITE_HOST=jobbliggaren.se" "EMAIL_PROVIDER='Ses # not really'"
+run_check || true
+if grep -qF "INVALID: EMAIL_PROVIDER=" "$TMPROOT/out"; then
+  pass=$((pass + 1)); echo "  ok   a quoted hash makes the value unknown, as it is to compose"
+else
+  fail=$((fail + 1)); echo "  FAIL a quoted hash was stripped and read as Ses" >&2
+  sed 's/^/       /' "$TMPROOT/out" >&2
+fi
 
 echo "-- an .env that exists without the key is the box's state today"
 # THE MUTATION THIS EXISTS FOR: `== "ses"` -> `!= "console"` survived the whole suite before

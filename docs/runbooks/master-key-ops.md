@@ -58,7 +58,7 @@ within two minutes — the box's only alarm surface, since no log sink exists (#
 
 | Path | What |
 |---|---|
-| `/run/jobbliggaren/secrets/` | tmpfs staging dir. **`0700 root:root` at boot** (`/etc/tmpfiles.d/jobbliggaren.conf`), **raised to `0710 root:<container-gid>` by the injection script**. Two actors, two states — and with the `:` prefix tmpfiles can never produce the second one, so a `WRONG MODE` from `--check` means the injection has not run |
+| `/run/jobbliggaren/secrets/` | tmpfs staging dir. **`0700 root:root` at boot** (`/etc/tmpfiles.d/jobbliggaren.conf`), **raised to `0710 root:<container-gid>` by the injection script**. Two actors, two states — and with the `:` prefix tmpfiles can never produce the second one, so a `WRONG MODE` from `--check` means the injection has not run. **A third actor reads it since #1295, and only reads:** `jobbliggaren-reconcile.service` re-asserts the ownership against the image it is about to apply, and refuses the apply rather than repairing anything |
 | `…/FieldEncryption__LocalMasterKeyBase64` | the master key, `0400` |
 | `…/FieldEncryption__LocalMasterKeyId` | key identity, not a secret — the rotation marker |
 | `…/AuditPseudonymization__PepperBase64` | pepper |
@@ -152,6 +152,40 @@ this: the catch-up firing happened at boot, when there was still no credential. 
 the alarm stays lit until the next `:17`, up to an hour, which is exactly the always-lit surface
 these units are written against.
 
+### If reconcile refuses because the ids moved — repair by re-owning, NEVER by re-injecting
+
+Since #1295, `jobbliggaren-reconcile.service` re-measures the api image's uid/gid before every
+apply and refuses when the injected secrets are not readable by the image it is about to run. The
+refusal names the axis and prints both ids. It means a base-image bump moved them; it does **not**
+mean the secrets are wrong.
+
+**Do not `rm` the files and re-inject.** Re-injection means re-entering the key from escrow, and
+it walks straight back into the identity trap above: after a rotation the box holds no record of
+which identity is in force, and pressing Enter at the prompt stamps `local-v1` onto v2 bytes. The
+values on tmpfs are correct — only their owner is stale. Change the owner:
+
+**`chown -R` from the directory is the wrong tool and it fails silently.** It chowns the operand
+itself, so `chown -R <uid>:<gid> /run/jobbliggaren/secrets` leaves the directory
+`0710 <uid>:<gid>` instead of `0710 root:<gid>` — the container's own uid becomes its **owner**
+and gains `rwx` on the directory holding the master key, where the design gives it `--x`. Nothing
+on this box would then say so: `--check` reads the directory's mode and never its owner, and the
+reconcile gate reads the directory's group and the files' owner. Both go green on the broken
+posture.
+
+```bash
+# Both ids are in the refusal message; read them from there rather than re-deriving them.
+sudo chown root:<gid> /run/jobbliggaren/secrets     # the directory: root keeps it
+sudo chown <uid>:<gid> /run/jobbliggaren/secrets/*  # the files, and only the files
+sudo systemctl start jobbliggaren-reconcile.service # apply now rather than waiting for :xx
+
+# Prove the posture, because neither gate above reads the axis you just moved:
+sudo stat -c '%n %U:%G %a' /run/jobbliggaren/secrets /run/jobbliggaren/secrets/*
+# expect: the directory root:<container-group> 710, every file <container-user>:<group> 400
+```
+
+The numbers are deliberately not written here. A live measured id in a tracked file decays within
+a commit or two; the command that prints today's is what keeps.
+
 ---
 
 ## 4. Rotation (gate M-3)
@@ -225,10 +259,13 @@ the damage unrecoverable.
    that ordering destroyed the input to its own next step.
 
    ```bash
-   # uid/gid measured from the image, the same way the injection script does it
-   ids=$(sudo docker run --rm --entrypoint sh \
+   # uid/gid THROUGH the shared measurement, not a third hand-rolled copy of it. This block used
+   # to inline its own `docker run`, described as "the same way the injection script does it" —
+   # true when written, false from #1295, and without the argument guards, the containment flags
+   # or the numeric validation the real one carries.
+   ids=$(sudo /opt/jobbliggaren/deploy/systemd/jobbliggaren-runtime-ids.sh \
      "$(sudo docker compose -f /opt/jobbliggaren/deploy/docker-compose.yml config --images \
-        | grep -m1 -F jobbliggaren-api)" -c 'id -u; id -g')
+        | grep -m1 -F jobbliggaren-api)")
    uid=$(echo "$ids" | head -1); gid=$(echo "$ids" | tail -1)
 
    sudo install -m 0400 -o "$uid" -g "$gid" \
@@ -344,3 +381,38 @@ procedure here will help.
   closes it; that is a hypervisor-level residual and applies to every branch equally.
 - **Compose behaviour on v5.4.0.** The compose file's load-bearing behavioural notes were
   measured on 2.40.3; the box now runs v5.4.0.
+- **The ownership gate's real `docker run … 'id -u; id -g'` (#1295).** CI stubs docker, as it
+  stubs cosign, so what the fixtures pin is the comparison and never the production ownership
+  triple. Its proof is `vps-deploy-stack.md` row 32b, and that row runs after injection — so
+  until the cutover, the gate is measured only against a stub.
+- **A uid or gid divergence BETWEEN our three images (#1295).** The gate measures the api image,
+  because that is the image injection measured when it set the ownership. All three Dockerfiles
+  declare `USER app` — but **no gate anywhere measures that they still agree**, in CI or on the
+  box (measured 2026-08-12: `release-images.yml` contains no `uid`/`gid` check). A worker or
+  migrate image that drifted alone would be caught by nothing.
+- **The directory's OWNER is read by nothing (#1295).** `--check` reads its mode, the reconcile
+  gate reads its group and the files' owner and mode. `install -d -o root` sets it once at
+  injection and `tmpfiles` is create-only, so a hand-`chown` — including the `chown -R` this
+  runbook now warns against — leaves `0710 <container-uid>:<gid>` with every gate green. The
+  cutover row (`vps-deploy-stack.md` 32b) is the only place that reads the axis, and it reads it
+  once. Owned by [#1319](https://github.com/klasolsson81/jobbliggaren/issues/1319).
+- **Injection still runs an unattested image.** `jobbliggaren-inject-secrets.sh` measures the ids
+  from the operator's tag, resolved out of the compose file before anything has been verified.
+  After #1295, reconcile is clean on that axis — it measures the digest attestation just cleared
+  — and this is the only place left on the box that executes an unattested image. Blast radius is
+  an unprivileged container with `--network none`, `--cap-drop ALL`, `no-new-privileges`, no
+  mounts and no environment, with the operator at the keyboard.
+- **The measurement needs `sh` and `id` inside the image (#1295).** A chiseled or distroless base
+  — the same event class the gate exists to catch — would make the helper exit non-zero, and the
+  gate would then refuse the apply hourly as "cannot answer" rather than as a bad base image.
+- **Three of the gate's own guards are unreachable by construction, and so unpinned (#1295).**
+  Reconcile's re-validation of the helper's numeric output, the
+  `@sha256:` digest assertion, and the mode arithmetic's failure branch. Each is a guard on a
+  SEAM — a separate executable, a directory another actor writes — rather than on a state any
+  path in `src/` or on this box produces today. They are deliberately not fixtured: a fixture
+  would have to manufacture a state nothing produces, which is the test-premise class CLAUDE.md
+  §5 rejects. Named here so a later change that makes one of them reachable knows it arrives
+  without a pin. **A fourth entry stood here and was struck as false:** the file loop past its
+  first element IS pinned wherever the mode case runs — measured, the fixture's glob order puts
+  the chmod'd file second, so the refusal happens on the second iteration and a `break` fails
+  the case. It is unpinned only where that case is skipped, which is not a repo-wide property.

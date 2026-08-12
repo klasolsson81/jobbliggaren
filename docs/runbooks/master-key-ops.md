@@ -107,11 +107,13 @@ predicate over two directories **and `deploy/.env`** — it demands #197's host-
 mode, an invalid `EMAIL_PROVIDER` and, under `Ses`, the SES credentials. A timer enabled before
 all of those hold fails on **every** fire, for as long as it takes to satisfy them.
 
-**And that is not merely an unread list.** Where `jobbliggaren-heartbeat.timer` is enabled, P1 in
-`jobbliggaren-heartbeat.sh` is `systemctl --failed` being *clean*, so a permanently failed unit
-fail-pages on every heartbeat run **and** makes M-7's P1 vacuous at the same time — it masks
-every other failed unit while it stands. `jobbliggaren-heartbeat.sh` records the same sequencing
-for the same reason.
+**And that is not merely an unread list.** Where `jobbliggaren-heartbeat.timer` is enabled and
+reaching its expecter, P1 in `jobbliggaren-heartbeat.sh` is `systemctl --failed` being *clean*, so
+a permanently failed unit fail-pages on every heartbeat run and makes M-7's P1 vacuous for as long
+as it stands. The other failed units are still *listed* — `check_failed_units` posts every name —
+but a predicate that is false continuously carries no information, which is the same argument
+`jobbliggaren-heartbeat.sh` makes for its own exit contract. It records the same sequencing for
+the same reason.
 
 ```bash
 # After §3 has injected, Backup__RcloneConfigBase64 included:
@@ -176,11 +178,15 @@ What it does, in order:
 >
 > ```bash
 > sudo /opt/jobbliggaren/deploy/systemd/jobbliggaren-inject-secrets.sh --check
-> # expect exit 1 with exactly one MISSING line, naming
+> # expect exit 1 and EXACTLY ONE MISSING line, naming
 > #   /run/jobbliggaren/host-secrets/Backup__RcloneConfigBase64
-> # and the summary saying nothing api or worker reads is absent.
 > docker inspect -f '{{.State.Health.Status}}' jobbliggaren-api    # expect: healthy
 > ```
+>
+> **Read the `MISSING:` lines, never the closing summary.** That summary is unconditional today
+> and says api and worker crash-loop by design — false in this state, as the `healthy` on the
+> line above shows. That is its own defect (#1328) and is not fixed here. One MISSING line naming
+> the host-only path, plus a healthy api, is the whole verification.
 >
 > Do **not** enable `jobbliggaren-secrets-present.timer` in this state — that is §2's condition,
 > and this is exactly the state it is about.

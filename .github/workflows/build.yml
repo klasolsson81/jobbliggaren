@@ -355,14 +355,15 @@ jobs:
         run: |
           # A GLOB THAT MATCHES NOTHING PASSES VACUOUSLY, so the count is checked first: a
           # renamed directory would otherwise turn this gate into a green no-op that reads as
-          # coverage. TWELVE scripts, measured 2026-08-11 with `git ls-files` (was eight until
+          # coverage. FOURTEEN scripts, measured 2026-08-12 with `git ls-files` (was eight until
           # #1201 added the heartbeat and its fixture suite, then ten until #1175 added logship
-          # and its own); the floor is a floor and not an equality, so adding one does not fail
-          # the build for the wrong reason — but it is RAISED when scripts land, or the gate
-          # silently stops noticing that some went missing.
+          # and its own, then twelve until #1295 added the runtime-id helper and its own); the
+          # floor is a floor and not an equality, so adding one does not fail the build for the
+          # wrong reason — but it is RAISED when scripts land, or the gate silently stops
+          # noticing that some went missing.
           n=$(git ls-files 'deploy/systemd/*.sh' | wc -l)
-          if [ "$n" -lt 12 ]; then
-            echo "::error::found only $n scripts under deploy/systemd — expected at least 12."
+          if [ "$n" -lt 14 ]; then
+            echo "::error::found only $n scripts under deploy/systemd — expected at least 14."
             echo "If one was legitimately removed, lower the floor in this step deliberately."
             exit 1
           fi
@@ -402,12 +403,33 @@ jobs:
       - name: verify-image-attestation (fixturer)
         run: bash deploy/systemd/verify-image-attestation.test.sh
 
-      # Wrapperns två rena predikat: klassificeraren (okänd image → REFUSE) och digest-regeln.
-      # Stubbar `docker` och `flock`, så varken daemon, registry eller root krävs. Notera att
+      # Mäthemmet för container-runtimens uid/gid (#1295), delat av injektionen som SÄTTER
+      # ägarskapet på /run/jobbliggaren/secrets och av reconcile som GRINDAR applyn på det.
+      # Sviten stubbar `docker` och mäter skriptets eget kontrakt: argumentavvisning,
+      # utdatavalidering, och att ingenting utom de två talen någonsin når stdout — båda
+      # anroparna fångar stdout i en variabel, så en diagnostik där ser inte ut som ett trasigt
+      # skript utan som ett id.
+      - name: jobbliggaren-runtime-ids (fixturer)
+        run: bash deploy/systemd/jobbliggaren-runtime-ids.test.sh
+
+      # Wrapperns tre rena predikat: klassificeraren (okänd image → REFUSE), digest-regeln, och
+      # sedan #1295 ägarskapsgrinden (den inkommande imagen måste kunna läsa de injicerade
+      # hemligheterna, annars appliceras ingenting). Stubbar `docker` och `flock`, så varken
+      # daemon, registry eller root krävs — ägarskapsfallen flyttar IMAGENS id:n via stubben i
+      # stället för katalogens ägare, vilket är det som gör dem mätbara utan root. Notera att
       # sviten SJÄLV kör båda dessa steg — men bara det här jobbet grindar dem, och en svit som
       # ingen grind kör kan inte falla, vilket är den defektklass preambeln ovan namnger.
+      # JBL_REQUIRE_*_CASES: ägarskapsgrindens två fall är plattformsberoende och skippas
+      # högljutt lokalt — mode-fallet behöver ett filsystem som hedrar chmod, gruppfallet behöver
+      # att kontot ligger i mer än en grupp (`chgrp` får bara sätta en grupp man är medlem i).
+      # Gruppfallet är det enda som skiljer katalogens GRUPP från dess ÄGARE: fixturens uid är
+      # dess gid, så utan det lämnar en `%g`→`%u`-swap hela sviten grön. På ubuntu ska ingetdera
+      # skippas, så här blir en skip ett fel — en annonserad skip är ingen mätning.
       - name: jobbliggaren-reconcile (fixturer)
         run: bash deploy/systemd/jobbliggaren-reconcile.test.sh
+        env:
+          JBL_REQUIRE_MODE_CASES: "1"
+          JBL_REQUIRE_GROUP_CASES: "1"
 
       # Frånvaro-detektorn för lådans kryptohemligheter (#198, grind B-1). `--check` är lådans
       # ENDA larm för en saknad masternyckel: en crash-loopande container syns aldrig i

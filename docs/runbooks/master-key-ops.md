@@ -395,7 +395,7 @@ procedure here will help.
   injection and `tmpfiles` is create-only, so a hand-`chown` — including the `chown -R` this
   runbook now warns against — leaves `0710 <container-uid>:<gid>` with every gate green. The
   cutover row (`vps-deploy-stack.md` 32b) is the only place that reads the axis, and it reads it
-  once. Owned by [#1318](https://github.com/klasolsson81/jobbliggaren/issues/1318).
+  once. Owned by [#1319](https://github.com/klasolsson81/jobbliggaren/issues/1319).
 - **Injection still runs an unattested image.** `jobbliggaren-inject-secrets.sh` measures the ids
   from the operator's tag, resolved out of the compose file before anything has been verified.
   After #1295, reconcile is clean on that axis — it measures the digest attestation just cleared

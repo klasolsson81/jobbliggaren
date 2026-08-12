@@ -405,3 +405,11 @@ procedure here will help.
 - **The measurement needs `sh` and `id` inside the image (#1295).** A chiseled or distroless base
   — the same event class the gate exists to catch — would make the helper exit non-zero, and the
   gate would then refuse the apply hourly as "cannot answer" rather than as a bad base image.
+- **Four of the gate's own guards are unreachable by construction, and so unpinned (#1295).** The
+  file loop past its first element, reconcile's re-validation of the helper's numeric output, the
+  `@sha256:` digest assertion, and the mode arithmetic's failure branch. Each is a guard on a
+  SEAM — a separate executable, a directory another actor writes — rather than on a state any
+  path in `src/` or on this box produces today. They are deliberately not fixtured: a fixture
+  would have to manufacture a state nothing produces, which is the test-premise class CLAUDE.md
+  §5 rejects. Named here so a later change that makes one of them reachable knows it arrives
+  without a pin.

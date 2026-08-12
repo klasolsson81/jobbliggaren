@@ -40,10 +40,17 @@ fail=0
 # docker: on a host that has none every case would pass for the wrong reason, and on a host that
 # has one the suite would start pulling images.
 readonly FIXTURE_SUT="$TMPROOT/runtime-ids.sh"
+# BOTH DIRECTIONS, AND THE FIRST ONE IS WHY. An absence check alone is fail-OPEN: it cannot tell
+# "the redirect applied" from "there was nothing to redirect", so a SUT that had lost its absolute
+# path would sail through it — measured, with both suites fully green. The presence assertion
+# before the sed is what makes the absence assertion after it mean something. (Presence is checked
+# in $SUT rather than by quoting the call shape, which would break the day the line is wrapped.)
+grep -qF -- "/usr/bin/docker" "$SUT" || {
+  echo "FIXTURE BROKEN: $SUT does not call docker by absolute path — the property this suite" >&2
+  echo "                claims to protect is gone, and the redirect proof below is vacuous" >&2
+  exit 1
+}
 sed -e "s#/usr/bin/docker#docker#g" "$SUT" >"$FIXTURE_SUT"
-# Proven by ABSENCE of the absolute path, not by the presence of a particular call shape: an
-# anchor quoting the invocation breaks the day someone wraps the line, which is a fixture that
-# fails for a reason unrelated to the property. This form cannot drift with formatting.
 grep -qF -- "/usr/bin/docker" "$FIXTURE_SUT" && {
   echo "FIXTURE BROKEN: the docker redirect did not apply — the suite would call the real docker" >&2
   exit 1

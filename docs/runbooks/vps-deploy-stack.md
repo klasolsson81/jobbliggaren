@@ -295,7 +295,11 @@ sudo ls -la /root/.sigstore/root/  # the cached root, proving it landed for the 
 
 cd /opt/jobbliggaren && sudo git pull --ff-only      # the wrapper and verifier live in deploy/
 sudo cp deploy/systemd/jobbliggaren-reconcile.{service,timer} /etc/systemd/system/
-sudo chmod 0755 deploy/systemd/jobbliggaren-reconcile.sh deploy/systemd/verify-image-attestation.sh
+# THREE scripts, not two: since #1295 the wrapper calls jobbliggaren-runtime-ids.sh, and a
+# non-executable helper stops the apply with exit 2 rather than failing loudly at install time.
+# (git carries 100755 and CI gates it, so this line is belt-and-braces on a clone that lost it.)
+sudo chmod 0755 deploy/systemd/jobbliggaren-reconcile.sh deploy/systemd/verify-image-attestation.sh \
+  deploy/systemd/jobbliggaren-runtime-ids.sh
 sudo systemctl daemon-reload
 sudo systemctl enable --now jobbliggaren-reconcile.timer
 systemctl list-timers jobbliggaren-reconcile            # Expected: one entry, next at :47

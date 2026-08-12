@@ -32,6 +32,11 @@ readonly COMPOSE_FILE=/opt/jobbliggaren/deploy/docker-compose.yml
 # The measurement this script SETS the ownership from, and the one jobbliggaren-reconcile.sh
 # GATES the apply on, are the same measurement in one file (#1295). Two spellings of it would be
 # a rule with two normalisers, which is two rules.
+#
+# NO `[ -x ]` PRECONDITION GUARD HERE, and the divergence from reconcile is deliberate: that one
+# runs unattended on a timer, where "helper missing" must be told apart from "ids disagree" on
+# `systemctl --failed`. This one runs with an operator watching, and the call site's own `|| die`
+# aborts before a single byte is written.
 readonly RUNTIME_IDS=/opt/jobbliggaren/deploy/systemd/jobbliggaren-runtime-ids.sh
 
 # A SECOND DIRECTORY, FOR SECRETS NO CONTAINER MAY SEE (#197). SECRETS_DIR is bind-mounted

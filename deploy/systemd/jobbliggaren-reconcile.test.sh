@@ -50,6 +50,19 @@ skipped=0
 readonly FIXTURE_SUT="$TMPROOT/reconcile.sh"
 readonly SECRETS="$TMPROOT/secrets"
 readonly FIXTURE_IDS="$TMPROOT/runtime-ids.sh"
+
+# THE ABSENCE PROOFS BELOW ARE FAIL-OPEN WITHOUT THESE. "No absolute docker path in the copy" is
+# satisfied just as well by a source that never had one, so a SUT that had lost the property
+# would pass every proof — measured, with the whole suite green. Presence first, absence after.
+assert_calls_docker_absolutely() {
+  grep -qF -- "/usr/bin/docker" "$1" || {
+    echo "FIXTURE BROKEN: $1 does not call docker by absolute path — the redirect proofs are vacuous" >&2
+    exit 1
+  }
+}
+assert_calls_docker_absolutely "$SUT"
+assert_calls_docker_absolutely "$script_dir/jobbliggaren-runtime-ids.sh"
+
 prepare_sut() {
   sed -e "s#^readonly COMPOSE_FILE=.*#readonly COMPOSE_FILE=$TMPROOT/docker-compose.yml#" \
     -e "s#^readonly ENV_FILE=.*#readonly ENV_FILE=$TMPROOT/.env#" \
@@ -80,7 +93,7 @@ prepare_sut() {
   # and a stub here would leave that wiring unmeasured. Only its docker call is redirected onto
   # the same stub everything else in this suite uses.
   sed -e "s#/usr/bin/docker#docker#g" "$script_dir/jobbliggaren-runtime-ids.sh" >"$FIXTURE_IDS"
-  # Proven by ABSENCE, so the proof does not break when the call is reformatted.
+  # Absence, and it means something because presence was asserted in the source above.
   grep -qF -- "/usr/bin/docker" "$FIXTURE_IDS" && {
     echo "FIXTURE BROKEN: the helper's docker redirect did not apply" >&2
     exit 1
@@ -416,6 +429,19 @@ stub_runtime_ids "$(id -u)" "$(($(id -g) + 1))"
 expect_exit 1 "gid drift → refuses"
 assert_not_applied "and nothing is applied — stale but serving"
 assert_output_contains "cannot TRAVERSE" "and the refusal names the traversal axis"
+
+# THE REPAIR STRING ITSELF, because the repair string WAS the critical finding of round 1: all
+# three published commands were `chown -R` from the directory, which chowns the operand too and
+# leaves the container's uid owning the directory root must own. Nothing else in this suite
+# reads the text an operator is told to run.
+assert_output_contains "chown root:" "and it tells the operator to keep root as the dir's owner"
+if grep -qF -- "chown -R" "$TMPROOT/out"; then
+  fail=$((fail + 1))
+  echo "  FAIL the refusal published 'chown -R' — that takes the directory root must own" >&2
+else
+  pass=$((pass + 1))
+  echo "  ok   and it never publishes a recursive chown from the directory"
+fi
 
 stub_runtime_ids "$(($(id -u) + 1))" "$(id -g)"
 expect_exit 1 "uid drift → refuses even though the group still traverses"

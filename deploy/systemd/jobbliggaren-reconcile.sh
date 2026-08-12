@@ -171,9 +171,12 @@ for image in "${images[@]}"; do
   # measuring every OURS_ image here would refuse falsely the day one ships that mounts no
   # secrets.
   #
-  # Both separators, because the classifier above is prefix-based and this selector is not: a
-  # digest-form entry in the compose model would otherwise leave api_digest empty and turn a
-  # healthy box into an hourly exit 2.
+  # Both separators, because the classifier above is prefix-based and this selector is not.
+  # MEASURED 2026-08-12: the `@` arm is unreachable today and this is belt-and-braces, not a
+  # repair — a digest-form entry would already fail in the digest rule above, whose
+  # `repo="${image%%:*}"` cuts at the colon INSIDE `@sha256:` and then matches no RepoDigest
+  # ("found 0", exit 1). It fails closed, before this line. The arm exists so that a future fix
+  # to that truncation does not silently leave api_digest empty.
   case "$image" in
   "${OURS_PREFIX}api:"* | "${OURS_PREFIX}api@"*) api_digest="${digests[0]}" ;;
   esac
@@ -262,8 +265,8 @@ else
     log "  directory group is $dir_gid; the image runs as gid $want_gid. The directory is 0710,"
     log "  so group traversal is the container's only way in — api and worker would report a"
     log "  missing master key. Nothing is applied; the running containers stay up."
-    log "  Repair by re-owning, NEVER by re-injecting (master-key-ops.md §3). NOT chown -R from"
-    log "  the directory: that chowns the operand too, and root must stay its owner."
+    log "  Repair by re-owning, NEVER by re-injecting (master-key-ops.md §3). Run exactly these"
+    log "  two: a RECURSIVE chown from the directory would take the directory too, and root owns it."
     log "    sudo chown root:$want_gid $SECRETS_DIR"
     log "    sudo chown $want_uid:$want_gid $SECRETS_DIR/*"
     log "    sudo systemctl start jobbliggaren-reconcile.service"
@@ -286,7 +289,7 @@ else
       log "  $f is owned by uid $file_uid; the image runs as uid $want_uid. The files are 0400,"
       log "  so the owner is the only reader. Nothing is applied; the running containers stay up."
       log "  Repair by re-owning, NEVER by re-injecting (master-key-ops.md §3). The directory is"
-      log "  NOT part of it — root owns that, and chown -R from the directory would take it too."
+      log "  NOT part of it — root owns that, and a recursive form from it would take it too."
       log "    sudo chown $want_uid:$want_gid $SECRETS_DIR/*"
       log "    sudo systemctl start jobbliggaren-reconcile.service"
       exit 1

@@ -12,10 +12,15 @@
 # gate measured differently from how the setter set, the gate would produce false refusals or
 # false passes for a reason neither file could show (#1295).
 #
-# The two callers legitimately resolve DIFFERENT references, and that stays with them: injection
-# resolves a tag out of the compose file (nothing is verified yet, a human is driving), reconcile
-# passes the digest it has just attested (the TOCTOU argument in its own header). Only the
-# measurement is shared; neither the resolution nor the comparison policy is.
+# Only the MEASUREMENT is shared. Each caller keeps its own resolution and its own comparison
+# policy, and the reason each resolves a different shape is written where that resolution lives.
+#
+# WHAT THE ARGUMENT CHECKS BELOW ARE, AND ARE NOT. They are a SYNTAX filter, not a trust
+# boundary. There is no registry allowlist here and there cannot be one: the two callers pass
+# references of different shapes, and deciding which registries are acceptable is a policy
+# neither of them delegates. Every security property of this script is therefore INHERITED from
+# its callers — reconcile has attested its digest, injection has an operator at the keyboard —
+# and a third caller would inherit none of it. Read that before adding one.
 #
 # EVERYTHING EXCEPT THE TWO NUMBERS GOES TO STDERR, and that is load-bearing rather than style —
 # the same reason jobbliggaren-inject-secrets.sh:68-71 gives. The caller captures stdout, so a

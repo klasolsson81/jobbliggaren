@@ -133,9 +133,11 @@ public interface IEmailSender
     /// Sends the "your email address was changed" SECURITY NOTICE (#679, CTO-bind #4) to the OLD
     /// address after a completed change, so the previous owner can detect an unauthorized change
     /// (OWASP ASVS V2.5 / NIST SP 800-63B). Carries NO token, NO link to the new address, and does NOT
-    /// reveal the new address - only a factual notice + a help-centre link built template-side from
-    /// <c>EmailOptions.BaseUrl</c>. Sent at most once per completed change by construction: the
-    /// change itself is the single trigger.
+    /// reveal the new address - only a factual notice plus the contact address. It carries NO site
+    /// link of any kind, which is a security property rather than an omission: the account's address
+    /// has just been repointed, so a reset link would deliver the reset to the ATTACKER's inbox, and
+    /// nothing on the site can help the rightful owner in that state. Sent at most once per completed
+    /// change by construction: the change itself is the single trigger.
     /// </summary>
     Task SendEmailChangedNotificationAsync(
         string toEmail,

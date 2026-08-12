@@ -134,7 +134,7 @@ public class EmailHtmlNoRemoteResourceTests
                 BaseUrl,
                 new EmailChangeConfirmationEmail(UserId, "ny.adress@example.com", UrlSafeToken))),
 
-        ("EmailChangedNotification", EmailTemplates.EmailChangedNotification(BaseUrl)),
+        ("EmailChangedNotification", EmailTemplates.EmailChangedNotification()),
 
         ("AccountExistsNotice", EmailTemplates.AccountExistsNotice(BaseUrl)),
 
@@ -199,8 +199,26 @@ public class EmailHtmlNoRemoteResourceTests
         var content = Case(name);
         var textLinks = TextUrl.Matches(content.PlainTextBody).Select(m => m.Value).ToList();
 
-        textLinks.ShouldNotBeEmpty($"{name}: the text part carries no link, so this fact would be "
-            + "vacuous — every template in this codebase carries at least one");
+        // A ROUTE is an https link OR the contact address — not only a URL. EmailChangedNotification
+        // carries no site link at all since 2026-08-12: its only route out is the contact address, by
+        // design, because it reaches an address that may no longer control the account and every link
+        // is a surface an attacker gets to place in front of the real owner. A URL-only oracle would
+        // have gone VACUOUS on exactly that template rather than failing, which is why the
+        // non-vacuity guard counts routes and not matches.
+        var routes = textLinks.Count
+            + (content.PlainTextBody.Contains(EmailTemplates.ContactAddress, StringComparison.Ordinal)
+                ? 1 : 0);
+
+        routes.ShouldBeGreaterThan(
+            0, $"{name}: the text part offers no way to reach us at all, so this fact would be vacuous");
+
+        if (content.PlainTextBody.Contains(EmailTemplates.ContactAddress, StringComparison.Ordinal))
+        {
+            content.HtmlBody.ShouldContain(
+                EmailTemplates.ContactAddress,
+                customMessage: $"{name}: the text part names the contact address and the HTML part "
+                    + "does not");
+        }
 
         foreach (var link in textLinks)
         {
@@ -254,8 +272,10 @@ public class EmailHtmlNoRemoteResourceTests
 
         foreach (var part in new[] { content.PlainTextBody, content.HtmlBody })
         {
-            part.ShouldContain("så annonser du inte matchar visas inte här");
-            part.ShouldContain("så annonser i andra orter visas inte här");
+            // ONE sentence covering both axes since 2026-08-12 (Klas-beslut). It names no axis, which
+            // is what makes it true under the summary's ANY-semantics over every active watch.
+            part.ShouldContain("Några annonser kan saknas");
+            part.ShouldContain("Ändra filtren under Företag");
         }
     }
 
@@ -264,10 +284,15 @@ public class EmailHtmlNoRemoteResourceTests
     {
         var content = Case("FollowedCompanyNotification/unfiltered");
 
+        // These two strings were the OLD per-axis copy, which this change deleted from production —
+        // so after it, the assertions could never fail and the fact was vacuously green while the
+        // positive sibling had already been updated. It is the one place in the repo that pins the
+        // HTML part's SILENCE when no filter contributed, and "the two parts must fall silent
+        // together" rested on it (design-reviewer Major 4 / code-reviewer Major 3, 2026-08-12).
         foreach (var part in new[] { content.PlainTextBody, content.HtmlBody })
         {
-            part.ShouldNotContain("visas inte här");
-            part.ShouldNotContain("Du ser och ändrar filtren");
+            part.ShouldNotContain("Några annonser kan saknas");
+            part.ShouldNotContain("Ändra filtren under Företag");
         }
     }
 

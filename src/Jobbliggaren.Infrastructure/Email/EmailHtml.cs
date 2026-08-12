@@ -102,9 +102,11 @@ internal readonly record struct Markup(string Value)
 /// real <c>padding</c> for every other client, and the cell carries <c>mso-padding-alt</c>, which
 /// only Word reads. Moving the padding to the cell for everyone was the first repair and it was
 /// wrong in a way worth recording — it fixed Word and shrank the CLICKABLE area to the label's own
-/// box in every client, so the affordance became ~2.3x the target on the primary action of SEVEN of
-/// the eight mails (<c>EmailChangedNotification</c> has no button; it ends in a link paragraph), and
-/// a mail is read mostly on a phone (design-reviewer, 2026-08-12, correcting her own prescription). <c>mso-padding-alt</c> is the accepted form and needs no VML.
+/// box in every client, so the affordance became ~2.3x the target on the primary action of SIX of the
+/// eight mails, and a mail is read mostly on a phone (design-reviewer, 2026-08-12, correcting her own
+/// prescription). <c>EmailChangedNotification</c> has never had a button, and
+/// <c>PasswordChangedNotice</c> lost its own later the same day: its route is deliberately an inline
+/// link, since a button there shouts at everyone who performed the reset themselves. <c>mso-padding-alt</c> is the accepted form and needs no VML.
 /// <c>border-radius</c> is ignored in Word too and buttons degrade to square, which is acceptable.
 /// </para>
 ///
@@ -256,9 +258,15 @@ internal static class EmailHtml
         """);
 
     /// <summary>
-    /// A paragraph ending in an inline link, for the secondary routes (settings, help centre) that
-    /// must be reachable but must not compete with the button. Underlined rather than colour-only,
-    /// so the link is not identified by colour alone (WCAG 1.4.1). Both parts are encoded.
+    /// A paragraph ending in an inline link. Two roles, and the second one is why the old wording
+    /// ("secondary routes … must not compete with the button") no longer describes it: a SECONDARY
+    /// route that must be reachable without competing with the call to action (settings, the contact
+    /// address), OR the PRIMARY route where a button would be the wrong tone — in
+    /// <c>PasswordChangedNotice</c> it is the only CALL TO ACTION in a mail with no button at all,
+    /// because a button there shouts at everyone who performed the reset themselves. (That mail
+    /// carries two of these — the reset route and the contact line — so "the only action" would
+    /// contradict this sentence's own taxonomy.) Underlined rather than
+    /// colour-only, so the link is not identified by colour alone (WCAG 1.4.1). Both parts encoded.
     /// </summary>
     public static Markup LinkParagraph(string leadingText, string href, string linkText) =>
         new($"""

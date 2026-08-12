@@ -295,6 +295,18 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
            `get-email-identity` **vid** flippen: den mätning som gjordes 2026-08-12 var bevis för den
            dagen och inte en inlösen av förutsättningen.
 
+        5. **Brevlådan `kontakt@jobbliggaren.se` finns, tar emot, och LÄSES.** Sedan 2026-08-12
+           (#1327) är adressen Art. 13(1)(b)-kontaktväg, Art. 15–22-väg, Art. 13(1)(f)-vägen till en
+           SCC-kopia, **och** rutten i tre säkerhetsnotiser. `EmailChangedNotification` har ingen
+           annan väg alls — adressen på kontot är just ompekad, så en återställningslänk hade
+           levererat återställningen till angriparen, och därför bär mejlet med flit noll sajtlänkar.
+           Verifiera med ett **skarpt utskick från en utomstående adress**, och verifiera att det
+           **inte** är en tyst catch-all som kastar. `Reply-To` på varje utskick är samma adress
+           (`SesEmailSender`, pinnat) — så ett svar på en notis landar där, inte på `no-reply@`.
+           ⚠ **DEN HÄR FÖRUTSÄTTNINGEN GRINDAR INTE HELA RISKEN, och det är fällan.** §2.5 gäller
+           enligt sin egen preambel **endast** en release som aktiverar `Email:Provider=Ses`. Den
+           **publicerade copyn** går live med **webb-deployen** — en annan händelse — och den bär
+           Art. 13(1)(b)-kontakten oavsett providerläge. Se §2.6 (security-auditor 2026-08-12).
       **Kvarstående policy-residualer under denna punkt, inte under punkt 3.**
       **ORDNINGEN STÅR FÖRST, för att den styr posterna under sig:** upplös
       SCC/adekvans-disjunktionen **före** du skriver Art. 13(1)(f)-formuleringen —
@@ -451,6 +463,28 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
 > aktiverar en behandling policyn ännu beskriver som planerad. Detta är en
 > **aktiverings**-händelse, inte en copy-händelse — därför bor den här och inte i
 > en PR.
+>
+> ⚠ **NY RAD 2026-08-12 (#1327): kontaktvägen måste fungera vid DEN HÄR händelsen, inte vid
+> flippen.** Policyn namnger sedan dess `kontakt@jobbliggaren.se` som personuppgiftsansvarigs
+> kontakt (Art. 13(1)(b)), som Art. 15–22-väg och som vägen till en SCC-kopia (Art. 13(1)(f)).
+> **Den copyn går live med webb-deployen och är inte grindad av `Email:Provider`** — så en rad
+> enbart i §2.5 hade inte fallit ut på den release som faktiskt publicerar kontaktuppgiften.
+> Verifiera därför här att brevlådan finns och tar emot innan copyn deployas. Art. 12(2) kräver
+> att den ansvarige *underlättar* utövandet av rättigheterna; en publicerad rättighetskanal som
+> studsar gör motsatsen. `security-auditor` 2026-08-12, som graderade det Major uttryckligen
+> **med** eskaleringsvillkoret "blir Blocker vid första prod-deploy av copyn ELLER vid flippen,
+> vilket som kommer först".
+>
+> ⚠ **OCH BREVLÅDAN GÖR STRATO TILL BITRÄDE I EN ANDRA FUNKTION.** Registrets bestämning
+> (`gdpr-processing-register.md`, lokal) säger att *DNS* hos STRATO inte är en biträdesrad,
+> eftersom en DNS-operatör *"tar inte emot registrerades uppgifter för vår räkning"*. En brevlåda
+> gör precis det. Grunden är sann om DNS och faller för post. Krävs innan brevlådan tas i bruk:
+> ROPA-amendment (Art. 30(1)(d)) + retentionsbeslut för inkommande korrespondens (Art. 5(1)(e),
+> saknas helt i dag) + `Mottagare`-stycke i policyn (Art. 13(1)(e)) + **AVV med STRATO (Art. 28),
+> som är Klas-åtgärd och aldrig CC:s**. *Förläget var sämre på varje axel — en privat Gmail
+> gjorde Google till de facto inbound-biträde, US-domicilierat, utan möjligt Art. 28-avtal på ett
+> konsumentkonto; STRATO AG är tyskt och tecknar AVV. Bytet förbättrar läget, det skapar inte
+> luckan.*
 >
 > **Läget idag är korrekt, inte trasigt.** Policyn beskriver ansökningshistorik/
 > företagsöversikt, SCB-uppslag och e-postleverantören som planerade. **Värdraden gör

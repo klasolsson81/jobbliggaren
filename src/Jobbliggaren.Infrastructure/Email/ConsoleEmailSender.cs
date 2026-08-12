@@ -73,7 +73,7 @@ public sealed partial class ConsoleEmailSender(
         string toEmail,
         CancellationToken cancellationToken)
     {
-        var body = EmailTemplates.EmailChangedNotification(_options.BaseUrl);
+        var body = EmailTemplates.EmailChangedNotification();
         LogEmail(toEmail, body.Subject, body.PlainTextBody);
         return Task.CompletedTask;
     }

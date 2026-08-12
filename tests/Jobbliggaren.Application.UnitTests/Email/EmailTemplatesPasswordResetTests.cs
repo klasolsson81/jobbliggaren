@@ -95,9 +95,30 @@ public class EmailTemplatesPasswordResetTests
         var rendered = EmailTemplates.PasswordChangedNotice(BaseUrl);
 
         rendered.PlainTextBody.ShouldContain($"{BaseUrl}/glomt-losenord");
-        rendered.PlainTextBody.ShouldContain($"{BaseUrl}/hjalpcenter");
+        rendered.PlainTextBody.ShouldContain(EmailTemplates.ContactAddress);
         rendered.PlainTextBody.ShouldNotContain("token=");
         rendered.PlainTextBody.ShouldNotContain("uid=");
+    }
+
+    [Fact]
+    public void PasswordChangedNotice_ShouldPutTheResetRouteBeforeTheContactLine()
+    {
+        // The template's own comment says the action comes before the contact line in both parts, and
+        // nothing pinned it (security-auditor Minor, 2026-08-12). It matters more since the reset
+        // route stopped being a button: with the visual weight gone, ORDER is the only thing left
+        // giving it precedence over "contact us", and someone whose account was just taken needs the
+        // action first and the conversation second.
+        var rendered = EmailTemplates.PasswordChangedNotice(BaseUrl);
+
+        foreach (var part in new[] { rendered.PlainTextBody, rendered.HtmlBody })
+        {
+            var reset = part.IndexOf("glomt-losenord", StringComparison.Ordinal);
+            var contact = part.IndexOf(EmailTemplates.ContactAddress, StringComparison.Ordinal);
+
+            reset.ShouldBeGreaterThan(-1);
+            contact.ShouldBeGreaterThan(-1);
+            reset.ShouldBeLessThan(contact, "återställningsvägen ligger FÖRE kontaktraden");
+        }
     }
 
     [Fact]

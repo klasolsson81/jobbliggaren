@@ -26,7 +26,7 @@ describe("/kontakt page (#262)", () => {
       screen.getByRole("heading", { level: 1, name: "Kontakta oss" })
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("link", { name: "klasolsson81@gmail.com" })
-    ).toHaveAttribute("href", "mailto:klasolsson81@gmail.com");
+      screen.getByRole("link", { name: "kontakt@jobbliggaren.se" })
+    ).toHaveAttribute("href", "mailto:kontakt@jobbliggaren.se");
   });
 });

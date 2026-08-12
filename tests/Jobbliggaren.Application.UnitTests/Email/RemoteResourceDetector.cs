@@ -76,6 +76,22 @@ internal static class RemoteResourceDetector
     /// <summary>CSS that fetches from inside a <c>style</c> attribute.</summary>
     internal static readonly string[] FetchingCss = ["url("];
 
+    /// <summary>
+    /// The only schemes an <c>href</c> may use. <c>href=</c> cannot be a forbidden attribute — every
+    /// mail here carries anchors — so the scheme is the checkable boundary instead.
+    /// <para>
+    /// Added 2026-08-12 (security-auditor Minor): <c>mailto:</c> was the first non-<c>https</c> scheme
+    /// to reach <c>LinkParagraph</c>, and nothing in the repo would have caught a <c>javascript:</c> or
+    /// <c>data:</c> href arriving the same way. Harmless today — every href is a constant built from
+    /// <c>EmailOptions.BaseUrl</c> or the contact address, and all of them are encoded — which is
+    /// precisely when a rail is cheap to add.
+    /// </para>
+    /// </summary>
+    internal static readonly string[] AllowedHrefSchemes = ["https://", "mailto:"];
+
+    private static readonly Regex HrefValue = new(
+        @"href\s*=\s*""([^""]*)""", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+
     private static readonly Regex AbsoluteUrl = new(
         @"(?:https?:)?//[^\s""'<>()]+", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
 
@@ -92,9 +108,11 @@ internal static class RemoteResourceDetector
     /// about the control.
     /// </para>
     /// <para>
-    /// <b>TWO known and declared limits remain. Both are stated at full width, because the first
+    /// <b>THREE known and declared limits remain. Each is stated at full width, because the first
     /// version of this paragraph understated the first one and that is the defect class this file
-    /// exists to catch (code-reviewer, 2026-08-12).</b>
+    /// exists to catch (code-reviewer, 2026-08-12).</b> <i>The count moved from two to three when the
+    /// href scheme arm landed — a paragraph that enumerates is a paragraph that goes stale, and this
+    /// one had already done it once.</i>
     /// </para>
     /// <para>
     /// <b>(1) Odd quote parity.</b> Quotes are paired positionally, so a tag carrying a stray quote
@@ -116,12 +134,30 @@ internal static class RemoteResourceDetector
     /// literals.
     /// </para>
     /// <para>
-    /// Both are pinned as limits in <c>RemoteResourceDetectorTests</c> rather than chased: a regex
-    /// never becomes a tokenizer, and trading one undeclared residual for another is the
-    /// round-multiplying move (security-auditor, 2026-08-12). Nothing in this repo can produce either
-    /// shape — <c>Encode</c> turns <c>"</c> into <c>&amp;quot;</c> and <c>&lt;</c> into
-    /// <c>&amp;lt;</c> — so what these bound is the pin's reach against a hypothetical document, not
-    /// against ours. If they ever need closing, the answer is a parser, not a longer regex.
+    /// <b>(3) The href scheme arm reads only double-quoted values, and does not validate a
+    /// <c>mailto:</c> TARGET.</b> <c>TagSpan</c> deliberately admits single-quoted attributes, so
+    /// <c>href='javascript:…'</c> reaches live markup unread by that arm; and since
+    /// <c>AbsoluteUrl</c> requires <c>//</c>, a <c>mailto:</c> is the one scheme whose destination no
+    /// arm compares against anything — <c>LinkParagraph(lead, "mailto:angripare@evil.example",
+    /// ContactAddress)</c> would render our address as visible text against a foreign target and pass
+    /// every arm. That is the display/target divergence the https arm catches through host equality.
+    /// Measured harmless today: zero single-quoted attributes in <c>EmailHtml</c>, and all three
+    /// <c>mailto:</c> call sites are <c>$"mailto:{ContactAddress}"</c> (security-auditor, 2026-08-12).
+    /// </para>
+    /// <para>
+    /// All three are pinned as <c>IsKnownNotToReport</c> facts in <c>RemoteResourceDetectorTests</c>
+    /// rather than chased: a regex never becomes a tokenizer, and trading one undeclared residual for
+    /// another is the round-multiplying move (security-auditor, 2026-08-12).
+    /// <b>What BINDS them differs, and flattening that was this paragraph's third over-claim in one
+    /// commit (code-reviewer, 2026-08-12).</b> Limits 1 and 2 are structurally unproducible by us —
+    /// <c>Encode</c> turns <c>"</c> into <c>&amp;quot;</c> and <c>&lt;</c> into <c>&amp;lt;</c>, so no
+    /// value can carry the shape into a document. <b>Limit 3 is not:</b> a single-quoted attribute in
+    /// <see cref="EmailHtml"/>, or a <c>LinkParagraph</c> whose <c>mailto:</c> points elsewhere, is one
+    /// ordinary call-site edit away. It is bound by a DATED measurement instead — zero single-quoted
+    /// attributes, and all three <c>mailto:</c> call sites <c>$"mailto:{ContactAddress}"</c>, measured
+    /// 2026-08-12 — which is a weaker guarantee and is written as one. If any of them ever needs
+    /// closing, the answer for 1 and 2 is a parser rather than a longer regex; for 3 it is a check at
+    /// the call site, since the shape is ours to emit.
     /// </para>
     /// </summary>
     private static readonly Regex TagSpan = new(
@@ -160,6 +196,17 @@ internal static class RemoteResourceDetector
         {
             if (liveMarkup.Contains(css, StringComparison.OrdinalIgnoreCase))
                 findings.Add($"fetching CSS: {css}");
+        }
+
+        foreach (Match href in HrefValue.Matches(liveMarkup))
+        {
+            var value = href.Groups[1].Value;
+
+            if (!AllowedHrefSchemes.Any(
+                scheme => value.StartsWith(scheme, StringComparison.OrdinalIgnoreCase)))
+            {
+                findings.Add($"href with a scheme outside the allow-list: {value}");
+            }
         }
 
         var allowedHost = new Uri(baseUrl).Host;

@@ -43,6 +43,28 @@ internal static class EmailTemplates
     public sealed record EmailContent(string Subject, string PlainTextBody, string HtmlBody);
 
     /// <summary>
+    /// The address the security notices tell people to write to. <b>Not <c>/hjalpcenter</c>, which is
+    /// where they pointed until 2026-08-12:</b> that page exists and stays, but it is a HUB that links
+    /// onward to <c>/kontakt</c>, and these three mails reach someone who may have just lost access to
+    /// the account. A hub is one step too many there, and a <c>mailto:</c> works from any client even
+    /// when the person cannot sign in (Klas-beslut 2026-08-12).
+    /// <para>
+    /// "kontakt" rather than "support": a support address promises a desk with response times that a
+    /// free one-person service does not have, and this same address answers the privacy policy's
+    /// controller-contact duty (Art. 13(1)(b)), where "support@" reads wrong. It is the word the site
+    /// already uses — the page is <c>/kontakt</c> and the footer link says Kontakt.
+    /// </para>
+    /// <para>
+    /// <b>The published copy carries the same address, and that is pinned.</b> The web app states it
+    /// in <c>messages/{sv,en}/content-legal.json</c>, so the address has two homes across the stack
+    /// and no way to keep them equal by construction;
+    /// <c>ContactAddressMatchesPublishedContactTests</c> asserts the mirror, the same move the palette
+    /// mirror makes for the colour literals.
+    /// </para>
+    /// </summary>
+    internal const string ContactAddress = "kontakt@jobbliggaren.se";
+
+    /// <summary>
     /// ADR 0080 Vag 4 PR-4 — bakgrundsmatchnings-notis. Icke-PII (jobbtitlar +
     /// företag + grad-LABELS, aldrig en siffra/procent). En OBLIGATORISK inställnings-/
     /// avregistreringslänk (GDPR Art. 7(3)) byggs ur <paramref name="baseUrl"/>. Ingen
@@ -124,8 +146,8 @@ internal static class EmailTemplates
     /// <para>
     /// <b>Filter-disclosure (bevakning F4a, RF-13=13B).</b> Är någon bevakning filtrerad saknas
     /// annonser i mejlet, och det MÅSTE sägas — tyst smalning avvisades på §5-grund. Disclosuren
-    /// renderas ur <see cref="FollowedCompanyFilterSummary"/>:s två booleans, en rad per aktiv axel,
-    /// efter listan och före CTA:n (den besvarar "varför kan något saknas", medan stycket längre ned
+    /// renderas ur <see cref="FollowedCompanyFilterSummary"/>:s två booleans som EN mening som inte
+    /// namnger någon axel (Klas-beslut 2026-08-12), efter listan och före CTA:n (den besvarar "varför kan något saknas", medan stycket längre ned
     /// besvarar "varför får jag detta alls" — två frågor, två platser, aldrig sammanslagna).
     /// </para>
     ///
@@ -209,7 +231,35 @@ internal static class EmailTemplates
     }
 
     /// <summary>
-    /// RF-13=13B — en rad per aktiv filter-axel, eller ingenting alls när inget filter bidrog.
+    /// The disclosure, in ONE sentence covering BOTH axes (Klas-beslut 2026-08-12).
+    /// <para>
+    /// It said one line per active axis until then, per the RF-13=13B sub-bind. In the case that
+    /// matters — a watch narrowed on both axes — that rendered three paragraphs plus a link around a
+    /// single ad, which is the "ingen luft" rule inverted. Collapsing loses which KIND of filter
+    /// applied and keeps the thing the disclosure exists for: that ads are missing and where to change
+    /// it. <b>The collapse is safe under the summary's ANY-semantics</b> for the same reason the copy
+    /// is name-free — "filter" is true whether the narrowing came from the matched-only axis, the
+    /// location axis, or both, whereas naming an axis would be false the moment a second watch
+    /// narrows on the other one.
+    /// </para>
+    /// <b>What did NOT change:</b> the disclosure still falls silent exactly when no filter
+    /// contributed, still sits between the list and the CTA, and is still rendered in BOTH parts.
+    /// Silently narrowing was rejected on §5 grounds and still is.
+    /// </summary>
+    private const string FilterDisclosureSentence =
+        "Några annonser kan saknas: du har filter på ett eller flera av företagen du följer.";
+
+    /// <summary>
+    /// Where to change it. The HTML part folds this into the sentence as the link text; the plain-text
+    /// part needs it on its own line, because a bare URL under a sentence tells the reader nothing
+    /// about where it goes. That is the one place the two parts differ in shape rather than wording,
+    /// and it is why the compression stopped at three lines of text instead of one.
+    /// </summary>
+    private const string FilterDisclosureAction = "Ändra filtren under Företag";
+
+    /// <summary>
+    /// RF-13=13B — EN mening när minst en filter-axel är aktiv, eller ingenting alls när inget
+    /// filter bidrog (formen ändrad från en rad per axel, Klas-beslut 2026-08-12).
     /// Formuleringen "ett eller flera av företagen du följer" är den enda som är sann under
     /// summaryns ANY-semantik; den avslutas med var filtren ändras, så disclosuren blir handlingsbar
     /// (raden på /foretag visar VILKA bevakningar som är filtrerade).
@@ -222,23 +272,8 @@ internal static class EmailTemplates
 
         var lines = new StringBuilder();
         lines.AppendLine();
-
-        if (summary.OnlyMatchedActive)
-        {
-            lines.AppendLine(
-                "Du får bara matchande annonser för ett eller flera av företagen du följer, "
-                + "så annonser du inte matchar visas inte här.");
-        }
-
-        if (summary.LocationFilterActive)
-        {
-            lines.AppendLine(
-                "Du har ortsfilter på ett eller flera av företagen du följer, "
-                + "så annonser i andra orter visas inte här.");
-        }
-
-        lines.AppendLine();
-        lines.AppendLine("Du ser och ändrar filtren under Företag:");
+        lines.AppendLine(FilterDisclosureSentence);
+        lines.AppendLine($"{FilterDisclosureAction}:");
         lines.AppendLine(companiesLink);
 
         return lines.ToString();
@@ -246,8 +281,10 @@ internal static class EmailTemplates
 
     /// <summary>
     /// The HTML twin of <see cref="BuildFilterDisclosure"/>. Same predicate, same ANY-semantic
-    /// wording, same one-line-per-active-axis shape, and the same empty result when no filter
-    /// contributed — the two must fall silent together, because a disclosure that appears in only
+    /// wording, and the same empty result when no filter contributed. <b>The SHAPE deliberately
+    /// differs in one respect</b> — see <see cref="FilterDisclosureAction"/>: the plain-text part puts
+    /// the action on its own line above a bare URL, because it cannot fold a label into one, while
+    /// this part folds it in as the link text. Wording identical, form not — the two must fall silent together, because a disclosure that appears in only
     /// one part of a <c>multipart/alternative</c> message is a disclosure the recipient may never
     /// see. The copy is NAME-FREE for the reason spelled out on
     /// <see cref="FollowedCompanyNotification"/>: the summary is an ANY over all the user's active
@@ -260,26 +297,8 @@ internal static class EmailTemplates
         if (summary is null || (!summary.OnlyMatchedActive && !summary.LocationFilterActive))
             return Markup.Empty;
 
-        var html = Markup.Empty;
-
-        if (summary.OnlyMatchedActive)
-        {
-            html += EmailHtml.P(
-                "Du får bara matchande annonser för ett eller flera av företagen du följer, "
-                + "så annonser du inte matchar visas inte här.");
-        }
-
-        if (summary.LocationFilterActive)
-        {
-            html += EmailHtml.P(
-                "Du har ortsfilter på ett eller flera av företagen du följer, "
-                + "så annonser i andra orter visas inte här.");
-        }
-
-        html += EmailHtml.LinkParagraph(
-            "Du ser och ändrar filtren under Företag:", companiesLink, "Öppna Företag");
-
-        return html;
+        return EmailHtml.LinkParagraph(
+            FilterDisclosureSentence, companiesLink, FilterDisclosureAction);
     }
 
     /// <summary>
@@ -340,14 +359,16 @@ internal static class EmailTemplates
     /// <summary>
     /// #679 (CTO-bind #4) — "your email address was changed" security notice to the OLD address after
     /// a completed change. No token, no link to the new address, does not reveal the new address -
-    /// only a factual notice + the help-centre link built from <paramref name="baseUrl"/>. Civic tone:
-    /// no exclamation marks, no em-dash.
+    /// only a factual notice plus the contact address, and NO site link at all (see the port doc on
+    /// <c>IEmailSender.SendEmailChangedNotificationAsync</c> for why that is a property and not a
+    /// gap). Civic tone: no exclamation marks, no em-dash.
     /// </summary>
-    public static EmailContent EmailChangedNotification(string baseUrl)
+    public static EmailContent EmailChangedNotification()
     {
-        var trimmed = baseUrl.TrimEnd('/');
-        var helpLink = $"{trimmed}/hjalpcenter";
-
+        // No baseUrl parameter, and that is the signature telling the truth rather than a
+        // simplification: this template stopped carrying a site link on 2026-08-12 when the help-centre
+        // route became the contact address, so a parameter kept "in case" would be dead weight that
+        // reads as a link the mail does not have.
         return new EmailContent(
             Subject: "Din e-postadress har ändrats",
             PlainTextBody: $"""
@@ -357,8 +378,8 @@ internal static class EmailTemplates
                 Om det var du som gjorde ändringen behöver du inte göra något.
 
                 Om du inte känner igen ändringen kan någon annan ha fått tillgång till ditt
-                konto. Hör av dig till oss via hjälpcentret så hjälper vi dig:
-                {helpLink}
+                konto. Hör av dig till oss så hjälper vi dig:
+                {ContactAddress}
 
                 Vänliga hälsningar,
                 Jobbliggaren
@@ -373,8 +394,8 @@ internal static class EmailTemplates
                     + EmailHtml.LinkParagraph(
                         "Om du inte känner igen ändringen kan någon annan ha fått tillgång till "
                         + "ditt konto. Hör av dig till oss så hjälper vi dig:",
-                        helpLink,
-                        "Öppna hjälpcentret")
+                        $"mailto:{ContactAddress}",
+                        ContactAddress)
                     + EmailHtml.SignOff()));
     }
 
@@ -453,7 +474,6 @@ internal static class EmailTemplates
         var trimmed = baseUrl.TrimEnd('/');
         var loginLink = $"{trimmed}/logga-in";
         var forgotLink = $"{trimmed}/glomt-losenord";
-        var helpLink = $"{trimmed}/hjalpcenter";
 
         return new EmailContent(
             Subject: "Du har redan ett konto hos Jobbliggaren",
@@ -468,8 +488,8 @@ internal static class EmailTemplates
                 {forgotLink}
 
                 Om det inte var du behöver du inte göra något. Ditt konto är
-                oförändrat. Har du frågor når du oss via hjälpcentret:
-                {helpLink}
+                oförändrat. Har du frågor når du oss på:
+                {ContactAddress}
 
                 Vänliga hälsningar,
                 Jobbliggaren
@@ -488,7 +508,7 @@ internal static class EmailTemplates
                         "Välj ett nytt lösenord")
                     + EmailHtml.P("Om det inte var du behöver du inte göra något. Ditt konto är oförändrat.")
                     + EmailHtml.LinkParagraph(
-                        "Har du frågor når du oss via hjälpcentret:", helpLink, "Öppna hjälpcentret")
+                        "Har du frågor når du oss på:", $"mailto:{ContactAddress}", ContactAddress)
                     + EmailHtml.SignOff()));
     }
 
@@ -559,9 +579,13 @@ internal static class EmailTemplates
     }
 
     /// <summary>
-    /// #1171 — the password-changed security notice, sent after a completed reset. No token, no link
-    /// that grants access: a factual notice plus the help-centre link, and the twin of
-    /// <see cref="EmailChangedNotification"/>. Civic tone: no exclamation marks, no em-dash.
+    /// #1171 — the password-changed security notice, sent after a completed reset. No token and no
+    /// link that grants access on its own: a factual notice, the reset route, and the contact address.
+    /// <b>Not the twin of <see cref="EmailChangedNotification"/>, and the difference is the security
+    /// point:</b> there the address itself was repointed, so a reset link would deliver the reset to
+    /// the attacker and the mail therefore carries no site link at all. Here the address is unchanged,
+    /// so the reset route genuinely works for the rightful owner and is kept. Civic tone: no
+    /// exclamation marks, no em-dash.
     /// <para>
     /// This is the breach-detection control (OWASP ASVS V2.5, NIST SP 800-63B). A reset hands the
     /// account to whoever holds the inbox, so this mail is the one moment a real owner can notice a
@@ -573,7 +597,6 @@ internal static class EmailTemplates
     {
         var trimmed = baseUrl.TrimEnd('/');
         var forgotLink = $"{trimmed}/glomt-losenord";
-        var helpLink = $"{trimmed}/hjalpcenter";
 
         return new EmailContent(
             Subject: "Ditt lösenord har ändrats",
@@ -584,12 +607,12 @@ internal static class EmailTemplates
                 Om det var du behöver du inte göra något. Logga in med ditt nya
                 lösenord.
 
-                Om det inte var du: begär ett nytt lösenord direkt, så slutar den
-                som ändrade det att komma åt kontot.
+                Om det inte var du kommer den som ändrade lösenordet åt kontot tills
+                du väljer ett nytt. Gör det direkt:
                 {forgotLink}
 
-                Kontakta oss sedan via hjälpcentret:
-                {helpLink}
+                Kontakta oss sedan på:
+                {ContactAddress}
 
                 Vänliga hälsningar,
                 Jobbliggaren
@@ -604,13 +627,21 @@ internal static class EmailTemplates
                         "Om det var du behöver du inte göra något. Logga in med ditt nya lösenord.")
                     // The breach-detection control (OWASP ASVS V2.5): this mail is the one moment a
                     // real owner can notice a reset they did not perform while they can still act,
-                    // so the action comes before the help link in both parts.
-                    + EmailHtml.P(
-                        "Om det inte var du: begär ett nytt lösenord direkt, så slutar den som "
-                        + "ändrade det att komma åt kontot.")
-                    + EmailHtml.Button(forgotLink, "Välj ett nytt lösenord")
+                    // so the action comes before the contact line in both parts.
+                    //
+                    // INLINE, not a button (Klas-beslut 2026-08-12). The route must stay — remove it
+                    // and the mail says "your password changed" with no way to act — but as the
+                    // primary call to action it shouts at the ~99% who performed the reset
+                    // themselves and are done reading. An inline link keeps the one click for the
+                    // case that needs it and lets the common case end on "du behöver inte göra
+                    // något". This is the only template whose CTA is deliberately not a button.
                     + EmailHtml.LinkParagraph(
-                        "Kontakta oss sedan via hjälpcentret:", helpLink, "Öppna hjälpcentret")
+                        "Om det inte var du kommer den som ändrade lösenordet åt kontot tills du "
+                        + "väljer ett nytt. Gör det direkt:",
+                        forgotLink,
+                        "Välj ett nytt lösenord")
+                    + EmailHtml.LinkParagraph(
+                        "Kontakta oss sedan på:", $"mailto:{ContactAddress}", ContactAddress)
                     + EmailHtml.SignOff()));
     }
 }

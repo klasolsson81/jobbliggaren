@@ -198,6 +198,24 @@ public class SesEmailSenderTests
     }
 
     [Fact]
+    public async Task SesEmailSender_SendsAnEmailConfirmation_RepliesToTheContactAddress()
+    {
+        // The From stays no-reply@; the REPLY path must reach a human. Three security notices tell
+        // people to get in touch, and Reply is what a recipient in that situation actually presses —
+        // so without this the reply lands on no-reply@ and is bounced or silently swallowed
+        // (security-auditor Major 2, 2026-08-12). Asserted on every send, not only the notices,
+        // because the address is set once on the request rather than per template.
+        var sut = CreateSut();
+
+        await sut.SendEmailConfirmationAsync(
+            Recipient, SampleConfirmationContent(), CancellationToken.None);
+
+        var request = CapturedRequest();
+        request.FromEmailAddress.ShouldContain(_options.FromAddress);
+        request.ReplyToAddresses.ShouldNotBeNull().ShouldBe([EmailTemplates.ContactAddress]);
+    }
+
+    [Fact]
     public async Task SesEmailSender_SendsAnEmailConfirmation_PutsExactlyOneRecipientInTheDestination()
     {
         var sut = CreateSut();
@@ -421,7 +439,7 @@ public class SesEmailSenderTests
 
         var request = CapturedRequest();
         SubjectOf(request).ShouldBe("Din e-postadress har ändrats");
-        BodyOf(request).ShouldContain($"{_options.BaseUrl}/hjalpcenter");
+        BodyOf(request).ShouldContain(EmailTemplates.ContactAddress);
         // CTO-bind #4 (#679): the security notice to the OLD address carries no token and no link
         // that grants anything.
         BodyOf(request).ShouldNotContain(UrlSafeToken);

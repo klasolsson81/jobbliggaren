@@ -16,15 +16,24 @@ The four crypto values live **only in RAM**: as files on `/run/jobbliggaren/secr
 on disk anywhere on this box**, and that is the decision rather than an omission. Every
 reboot destroys them and an operator must re-inject.
 
-> **ESCROW IS A HARD PREREQUISITE TO CUTOVER, AND IT IS UNDECIDED AS OF 2026-08-09.** With no
+> **ESCROW IS A HARD PREREQUISITE TO CUTOVER. ~~UNDECIDED AS OF 2026-08-09~~ — DECIDED BY KLAS
+> 2026-08-12, in a form this runbook did not anticipate.** With no
 > at-rest copy, an off-box escrow is the *only* recovery path: an operator who loses these
 > values destroys every encrypted field and every pseudonymised lookup irreversibly. The
 > senior-cto-advisor escalated the decision to Klas and bound it as a hard prerequisite — it is
 > a risk acceptance, which CLAUDE.md §9.6 makes Klas's to grant and never a session's to claim.
-> **Do not cut over until it is decided.** An earlier draft of this runbook stated the escrow as
-> delivered fact; it was not, and stating it that way would have let the cutover proceed past an
-> open gate. When it is decided, record the date here and fill in the escrow row in
-> `vps-deploy-stack.md` §5.
+>
+> **The form: two plaintext copies on Klas's own devices. No password manager, and there will
+> not be one for this.** Recorded in `vps-deploy-stack.md` row 26 with its ground and its
+> expiry, and the concession — including that the age private key may share the device holding
+> `jobbpilot_vps_ed25519`, over `security-auditor`'s objection — in **ADR 0129**. An earlier
+> draft of this runbook stated the escrow as delivered fact when it was not; this one states it
+> as decided, which it now is, and points at where the reasoning lives rather than restating it.
+>
+> **What is still owed before cutover is not the decision but the act:** the four crypto values
+> are held (row 26, dated), **the age private key is not** — row 32 is open, the identity was
+> not found in four roots on 2026-08-07, and generating a fresh one is free until the first
+> backup lands. **Do not cut over on an empty row 32.**
 >
 > **One measured input for that decision, because it is new:** `OLD_KEY` in step 3 lives on
 > tmpfs like everything else here. A reboot between step 4 and step 9 therefore destroys BOTH
@@ -253,7 +262,8 @@ the damage unrecoverable.
    api/worker in the middle of the rewrap.
 2. `docker stop jobbliggaren-api jobbliggaren-worker`.
 3. **PRESERVE THE RETIRING KEY FIRST. It exists nowhere else.** Step 5 needs it, and step 4
-   overwrites the only copy — with no at-rest copy on this box and escrow still undecided (§1),
+   overwrites the only copy — with no at-rest copy on this box, and an escrow (§1) that holds
+   whatever generation was last written to it and not this one,
    skipping this step means every DEK is permanently unopenable and every encrypted field
    permanently unreadable. An earlier draft of this runbook had steps 4 and 5 without this one;
    that ordering destroyed the input to its own next step.
@@ -337,9 +347,11 @@ stored organisation-number token, because the backfill destroyed the plaintext i
 CV-fingerprint pepper: every Ignored/Resolved finding decision reverts to Open. (The audit
 pepper is the exception — nothing reads back against it.)
 
-With no at-rest copy, an **off-box escrow is the only recovery path**, and per §1 it is a
-decision Klas has not yet made. Crypto-erasure is the design (ADR 0049 Beslut 2) — the same
-property that makes an account deletion final makes a lost key final.
+With no at-rest copy, an **off-box escrow is the only recovery path**, and per §1 it exists for
+the four crypto values since 2026-08-12 — **but for the generation in force when it was written,
+and not for the age private key, whose row is still open.** Crypto-erasure is the design
+(ADR 0049 Beslut 2) — the same property that makes an account deletion final makes a lost key
+final.
 
 If an escrow copy exists: inject it (§3). If it does not, there is nothing to recover and no
 procedure here will help.

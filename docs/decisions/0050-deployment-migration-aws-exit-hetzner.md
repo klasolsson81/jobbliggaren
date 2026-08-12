@@ -574,7 +574,7 @@ operativt av TD-102 (master-nyckel), TD-106 (stack/härdning), TD-107 (backup).
 | **M-7** | **Detektionsförmåga** — grinden ställs på **skyldighet, inte mekanism**. Rättslig grund (satt av security-auditor, som äger fyndet — en tidigare version av denna rad skrev om grunden och försvagade den): **Art. 32(1)(b) + Art. 33 läst med Recital 87**, som uttryckligen kräver åtgärder för att *"establish immediately whether a personal data breach has taken place"* — detektionsplikten läses alltså in i anmälningsregimen, Art. 33 är inte bara följden. **Art. 5(2)** (accountability) bär kravet att förmågan ska vara **visbar**. *(Art. 32(1)(d) gäller återkommande testning och utvärdering av åtgärderna — pentest och kontrollutvärdering — och är inte grunden för detektionsförmågan.)* Utan den är ADR 0123:s scope-gräns overkställbar (lokal ADR; `Amendment 2026-08-04` §6b bär skälet i sin helhet) | **Major** (satt av security-auditor 2026-08-04) — **blir Blocker om ADR 0123 fortfarande är obeviljad eller omitigerad vid första riktiga data**: acceptansens utgångsvillkor vilar då på en detektionsförmåga som inte finns | [#1201](https://github.com/klasolsson81/jobbliggaren/issues/1201) — **värd-detektion + alerting ägs av [#196](https://github.com/klasolsson81/jobbliggaren/issues/196), nyckelåtkomst-detektion av [#198](https://github.com/klasolsson81/jobbliggaren/issues/198)** |
 | M-1 | ADR 0050 KMS-blocker-prosa amenderad → TD-102-omframing | Major | **Åtgärdad denna amendment** |
 | M-2 | ADR 0049-amendment: self-managed master-nyckels prod-skyddsmodell + accepterad minne-restrisk + namngiven skala-trigger för extern KV/HSM | Major | [#198](https://github.com/klasolsson81/jobbliggaren/issues/198) (f.d. TD-102, ADR 0049-amendment-scope) |
-| **N-1** | **Access-loggning för token-bärande e-postlänk-rutter** (`/bekrafta-epost`, `/bekrafta-konto`, `/aterstall-losenord`): EU-residens + query-string-scrubbing + definierad retention, inkl. Referer-ledet — normativ spec i `Amendment 2026-08-11` | **Minor** (ärvd: security-auditor 2026-07-06, #679 FE-granskningen, eskalerad till Klas; **grunden korrigerad av security-auditor 2026-08-11** i PR #1313:s omkontroll) — **blir Blocker om:** *"prod access-logging for this route captures AND retains the query-string in a non-EU or over-retention sink"* (#706, verbatim). Sink-disjunktionen läses per led: **residens-disjunkten är mätt FALSK** (båda hoppen EU — Netcup Nürnberg per `Amendment 2026-08-04` §1; OVH `eu-west-par` per `vps-deploy-stack.md` rad 27c, mätt 2026-08-09), men **over-retention-disjunkten är INTE falsifierad** — det lokala `json-file`-lagret är åldersobundet och `http.log.error` skriver redan i det (OVH `hostlogs/` tillkommer som andra åldersobundna lager när #1312:s skeppning installeras), och en odefinierad gräns är ett Art. 5(1)(e)-fel i sig, så det benet räknas som UPPFYLLT. **Det som håller raden Minor i dag är frånvaron av verkligt datasubjekt i capture-och-retain-benen — inte residensen — och den premissen är obekräftad.** Två omgraderingsarmar: **(1)** raden flippar till Blocker OMEDELBART om eskaleringspunkt 1:s mätning på lådan (PR #1313) ger > 0 riktiga token-bärande rader — utan att invänta någon granskning; **(2)** obligatorisk omgradering vid den andra security-auditor-granskningen före första beta-data (M-5b-klausulen) | [#706](https://github.com/klasolsson81/jobbliggaren/issues/706) — **kvarstår ÖPPEN tills en accesslogg som uppfyller specen finns** (spec levererad = schemaläggning, inte stängbart faktum) |
+| **N-1** | **Access-loggning för token-bärande e-postlänk-rutter** (`/bekrafta-epost`, `/bekrafta-konto`, `/aterstall-losenord`): EU-residens + query-string-scrubbing + definierad retention, inkl. Referer-ledet — normativ spec i `Amendment 2026-08-11` | **Minor** (ärvd: security-auditor 2026-07-06, #679 FE-granskningen, eskalerad till Klas; **grunden korrigerad av security-auditor 2026-08-11** i PR #1313:s omkontroll) — **blir Blocker om:** *"prod access-logging for this route captures AND retains the query-string in a non-EU or over-retention sink"* (#706, verbatim). Sink-disjunktionen läses per led: **residens-disjunkten är mätt FALSK** (båda hoppen EU — Netcup Nürnberg per `Amendment 2026-08-04` §1; OVH `eu-west-par` per `vps-deploy-stack.md` rad 27c, mätt 2026-08-09), men **over-retention-disjunkten är INTE falsifierad** — det lokala `json-file`-lagret är åldersobundet och `http.log.error` skriver redan i det (OVH `hostlogs/` tillkommer som andra åldersobundna lager när #1312:s skeppning installeras), och en odefinierad gräns är ett Art. 5(1)(e)-fel i sig, så det benet räknas som UPPFYLLT. **(Andra grunden föll 2026-08-12 när G3 fick sina tal — men benet står kvar på den FÖRSTA: lagren är fortfarande åldersobundna, eftersom ingen regel är applicerad. En satt siffra är inte en verkande regel.)** **Det som håller raden Minor i dag är frånvaron av verkligt datasubjekt i capture-och-retain-benen — inte residensen — och den premissen är obekräftad.** Två omgraderingsarmar: **(1)** raden flippar till Blocker OMEDELBART om eskaleringspunkt 1:s mätning på lådan (PR #1313) ger > 0 riktiga token-bärande rader — utan att invänta någon granskning; **(2)** obligatorisk omgradering vid den andra security-auditor-granskningen före första beta-data (M-5b-klausulen) | [#706](https://github.com/klasolsson81/jobbliggaren/issues/706) — **kvarstår ÖPPEN tills en accesslogg som uppfyller specen finns** (spec levererad = schemaläggning, inte stängbart faktum) |
 
 > **ID-prefixet bär graden:** `B-` = Blocker, `M-` = Major, `N-` = Minor (miNor; `M-` var
 > upptaget). Graden i prefixet är den **vid gradering satta** — en rad som bär ett villkorat
@@ -1345,22 +1345,42 @@ räckvidden — ska konfigurationen uppfylla:
   (`delete`/`replace`/`hash` på `request>uri`) för site-accessloggen, och ett **globalt
   `log`-block** — den enda konfigurationsyta som når `http.log.error` — för
   default-loggern. Mekanismen är i övrigt fri; kravet är resultatet.
-- **G3 — definierad retention: `30 dagar`. Klas-beslut 2026-08-12.** Gäller både det lokala
-  `json-file`-lagret och OVH-prefixet `hostlogs/`. **Talet är återanvänt, inte uppfunnet** —
-  det är samma 30 dagar som redan står på två ställen i repot: Seq:s egen retentionspolicy
-  (`log-sink.md` §3, `"RetentionTime":"30.00:00:00"`) och backup-/PITR-fönstret (K4,
-  `backup-restore.md`). Ett tal för hela systemet är lättare att skriva i integritetspolicyn
-  och att försvara under Art. 5(1)(e) än tre, och det ger drygt tio gånger Art. 33:s
-  72-timmarsfönster för incidentutredning.
-  **Vad talet väger, och varför det inte är lagringshygien:** en backups svar på en
+- **G3 — definierad retention. Klas-beslut 2026-08-12 (talet), senior-cto-advisor 2026-08-12
+  (räckvidden).** Gäller OVH-prefixet `hostlogs/`, **delat i två namnrymder därför att
+  prefixet är enheten för en lifecycle-regel och ett prefix med två ändamål kan inte uttrycka
+  någotdera**:
+
+  | Prefix | Familj | Tal | Regelnamn |
+  |---|---|---|---|
+  | `hostlogs/app/` | containrarnas stdout | **30 dagar** | `g3-hostlogs-app-30-days` |
+  | `hostlogs/host/` | `journal-*`, `audit-*` | **90 dagar** | `g3-hostlogs-host-90-days` |
+
+  **Klas tal är inte överprövat — det är avgränsat till familjen det motiverades för.** Grunden
+  nedan är appströmmens och nådde aldrig journal/audit.
+  **Vad 30 väger på app-benet, och varför det inte är lagringshygien:** en backups svar på en
   raderingsbegäran är kryptoradering per registrerad, och den mekanismen kan inte gälla en
-  loggartefakt — en `hostlogs/`-objekt är en timmes loggar för ALLA användare i ett
+  loggartefakt — ett `hostlogs/app/`-objekt är en timmes loggar för ALLA användare i ett
   `age`-kuvert lådan saknar nyckel till, så selektiv radering är strukturellt omöjlig. **För
   det benet ÄR tidsgränsen hela Art. 17-svaret**, och 30 dagar är alltså hur länge en begäran
-  som mest står obesvarad — samma gräns som backup-benet redan har.
+  som mest står obesvarad — samma gräns som backup-benet redan har (K4).
+  **Varför 90 på värdbenet:** `journal-*`/`audit-*` är den root-överlevande forensiska korpus
+  M-7/#1175 byggdes för, och en 30-dagarsregel hade kapat bevisfönstret till 30 dagar. Repot
+  har den defekten protokollförd en gång redan, i `journald-jobbliggaren-retention.conf`:
+  *"wrong in the most expensive direction"*. Måttstocken är **dwell time**, inte Art. 33 —
+  branschmedianen ligger under 90 dagar men spionagefall långt över, och CIS v8 Safeguard 8.10
+  anger minst 90.
+  **Delningen inför inget nytt tal:** samma container bär redan `k4-main-artefacts-30-days`
+  och `deks-outlive-main-90-days` (applicerade och återlästa 2026-08-09, rad 27c), så mängden
+  är `{30, 90}` före och efter. Och Art. 5(1)(e) är **ändamålsindexerad** — "inte längre än
+  nödvändigt *för ändamålen*" — så en period för två ändamål betyder att minst ett är fel.
   **Mäts som EFFEKT, aldrig som regel** (rad 27b:s disciplin): objekten ska vara borta vid en
   listning efter N+1 dagar. En satt regel som inte verkar är ett osant påstående i registret.
-  Jfr [#1170](https://github.com/klasolsson81/jobbliggaren/issues/1170) för app-loggen.
+  **Det lokala `json-file`-lagret ligger UTANFÖR den här grinden och ägs av
+  [#1170](https://github.com/klasolsson81/jobbliggaren/issues/1170).** Ett tidigare utkast av
+  den här punkten tog in det; det var fel i mekanismen, eftersom `json-file`-drivern bara har
+  `max-size`/`max-file` och **ingen åldersoption alls** — en 30-dagarsgräns där kräver
+  logrotate, en purge-unit eller journald-drivern, och G3:s effektinstrument mäter bara
+  prefixet.
   Notera att kravet är **presens, inte framtid**:
   det lokala `json-file`-lagret saknar åldersgräns och `http.log.error` skriver redan i
   det (se Nuläge); OVH `hostlogs/` saknar likaså lifecycle-regel (mätt: containerns två

@@ -145,12 +145,19 @@ internal static class RemoteResourceDetector
     /// <c>mailto:</c> call sites are <c>$"mailto:{ContactAddress}"</c> (security-auditor, 2026-08-12).
     /// </para>
     /// <para>
-    /// All three are pinned or declared as limits in <c>RemoteResourceDetectorTests</c> rather than chased: a regex
-    /// never becomes a tokenizer, and trading one undeclared residual for another is the
-    /// round-multiplying move (security-auditor, 2026-08-12). Nothing in this repo can produce either
-    /// shape — <c>Encode</c> turns <c>"</c> into <c>&amp;quot;</c> and <c>&lt;</c> into
-    /// <c>&amp;lt;</c> — so what these bound is the pin's reach against a hypothetical document, not
-    /// against ours. If they ever need closing, the answer is a parser, not a longer regex.
+    /// All three are pinned as <c>IsKnownNotToReport</c> facts in <c>RemoteResourceDetectorTests</c>
+    /// rather than chased: a regex never becomes a tokenizer, and trading one undeclared residual for
+    /// another is the round-multiplying move (security-auditor, 2026-08-12).
+    /// <b>What BINDS them differs, and flattening that was this paragraph's third over-claim in one
+    /// commit (code-reviewer, 2026-08-12).</b> Limits 1 and 2 are structurally unproducible by us —
+    /// <c>Encode</c> turns <c>"</c> into <c>&amp;quot;</c> and <c>&lt;</c> into <c>&amp;lt;</c>, so no
+    /// value can carry the shape into a document. <b>Limit 3 is not:</b> a single-quoted attribute in
+    /// <see cref="EmailHtml"/>, or a <c>LinkParagraph</c> whose <c>mailto:</c> points elsewhere, is one
+    /// ordinary call-site edit away. It is bound by a DATED measurement instead — zero single-quoted
+    /// attributes, and all three <c>mailto:</c> call sites <c>$"mailto:{ContactAddress}"</c>, measured
+    /// 2026-08-12 — which is a weaker guarantee and is written as one. If any of them ever needs
+    /// closing, the answer for 1 and 2 is a parser rather than a longer regex; for 3 it is a check at
+    /// the call site, since the shape is ours to emit.
     /// </para>
     /// </summary>
     private static readonly Regex TagSpan = new(

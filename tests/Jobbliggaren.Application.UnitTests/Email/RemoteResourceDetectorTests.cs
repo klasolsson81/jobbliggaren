@@ -26,9 +26,17 @@ namespace Jobbliggaren.Application.UnitTests.Email;
 /// value; six constructed documents fetched and passed while every isolated probe stayed green
 /// (security-auditor Major 1). Nothing crossed the tag boundary, so
 /// <see cref="FindRemoteResources_WhenAnEarlierAttributeContainsAngleBracket_StillReportsIt"/> exists:
-/// a probe that never crosses the control it tests measures nothing about the control. And
-/// <see cref="FindRemoteResources_WithOddQuoteParity_IsKnownNotToReport"/> pins the remaining blind
-/// spot as a DECLARED limit rather than leaving it to be discovered.
+/// a probe that never crosses the control it tests measures nothing about the control.
+/// </para>
+///
+/// <para>
+/// <b>The blind spots that remain are DECLARED, each with its own <c>IsKnownNotToReport</c> fact</b>,
+/// rather than left to be discovered: odd quote parity, an attribute spaced from its value, a
+/// single-quoted <c>href</c>, and a <c>mailto:</c> pointing somewhere other than it displays. Each
+/// carries the bound that holds it, measured rather than asserted — and the bounds are NOT the same
+/// strength, which is the distinction <c>RemoteResourceDetector</c>'s own doc spells out: the first
+/// two are structurally unproducible here, the last two are held by a dated call-site measurement.
+/// Read the count from the facts, not from this sentence.
 /// </para>
 /// </summary>
 public class RemoteResourceDetectorTests
@@ -254,6 +262,47 @@ public class RemoteResourceDetectorTests
         // The control for the arm above: it must not be one that rejects every href. Both live forms
         // are here, so the allow-list is proven to allow as well as to reject.
         FindRemoteResources($"""<a href="{href}">x</a>""").ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void FindRemoteResources_WhenAnHrefIsSingleQuoted_IsKnownNotToReport()
+    {
+        // DECLARED limit 3a, pinned in the same form as limits 1 and 2. The scheme arm reads
+        // href="…" with DOUBLE quotes, while TagSpan deliberately admits single-quoted attributes —
+        // so a single-quoted href reaches live markup and the scheme arm never sees it.
+        //
+        // Unlike limits 1 and 2, this one is NOT structurally impossible for us: Encode does not
+        // bind it, because the quoting is ours to choose. What binds it is a DATED measurement —
+        // zero single-quoted attributes in EmailHtml, 2026-08-12 — and the two emitting primitives
+        // hardcoding double quotes. That is a weaker guarantee than the other two, and saying so is
+        // the point of pinning it (code-reviewer, 2026-08-12).
+        FindRemoteResources("<a href='javascript:alert(1)'>x</a>").ShouldBeEmpty();
+
+        // The bound, measured: the same scheme in the double-quoted form the templates actually emit
+        // is caught.
+        FindRemoteResources("""<a href="javascript:alert(1)">x</a>""")
+            .ShouldContain(f => f.StartsWith("href with a scheme", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void FindRemoteResources_WhenAMailtoPointsElsewhere_IsKnownNotToReport()
+    {
+        // DECLARED limit 3b. mailto: is the one allowed scheme whose TARGET no arm validates:
+        // AbsoluteUrl requires "//", so a mailto never reaches the host comparison that catches the
+        // same divergence for https. A link rendering our address as visible text against a foreign
+        // mailbox therefore passes every arm — the display/target divergence the https arm exists to
+        // catch (security-auditor, 2026-08-12).
+        //
+        // Bound the same dated way: all three mailto call sites are $"mailto:{ContactAddress}",
+        // measured 2026-08-12. Not by Encode, and not by the type system.
+        FindRemoteResources(
+            """<a href="mailto:angripare@evil.example">kontakt@jobbliggaren.se</a>""")
+            .ShouldBeEmpty();
+
+        // The bound: the same divergence over https IS caught, by host equality.
+        FindRemoteResources(
+            """<a href="https://evil.example/x">jobbliggaren.se</a>""")
+            .ShouldNotBeEmpty();
     }
 
     // ---------- controls: the detector must not reject everything ----------

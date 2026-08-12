@@ -279,9 +279,12 @@ stat -c '%a %U:%G' /run/jobbliggaren/host-secrets     # expect: 700 root:root
 #    clone. Klas generated the identity in force on his own machine 2026-08-12, and its private
 #    half has not left it. Requirement (b) is structural rather than a rule because the box holds
 #    only the public half - not because of any claim about where a private half has travelled.
-#    THE 2026-08-09 IDENTITY IS REVOKED AND MUST NEVER BE REINSTALLED: its private half was
-#    exposed in a chat transcript on 2026-08-12. It is still reachable from git history and is
-#    named in two gitignored documents, so "replaced" is not enough to say about it.
+#    THE 2026-08-09 IDENTITY - recipient `age1vrkz…` - IS REVOKED AND MUST NEVER BE REINSTALLED:
+#    its private half was exposed in a chat transcript on 2026-08-12. It is still reachable from
+#    git history and named in two gitignored documents, so "replaced" is not enough to say about
+#    it. It is written truncated on purpose: BackupUnitFilePinTests matches age1 plus exactly 58
+#    characters, so a full retired recipient here would read as a second current one and the
+#    guard would demand the deletion of this provenance.
 #    chown, not just chmod: the file arrives from a clone and is owned by whoever cloned it, and
 #    0444 stops everyone EXCEPT the owner. Its integrity is the control - a swapped recipient
 #    costs every subsequent night, silently, and only the drill notices.
@@ -294,13 +297,14 @@ sudo chmod 0755      /opt/jobbliggaren/deploy/backup
 sudo chmod 0444      /opt/jobbliggaren/deploy/backup/age.recipient
 stat -c '%a %U:%G' /opt/jobbliggaren/deploy/backup /opt/jobbliggaren/deploy/backup/age.recipient
 #    expect: 755 root:root   then   444 root:root
-# The recipient is compared against GIT, not against a value pasted here. An earlier revision
-# hard-coded the then-current `age1vrkz…` on this line, which meant the check had to be edited on
-# every rotation — and when the identity was rotated 2026-08-12 it was not, so a correctly
-# configured box would have reported RECIPIENT-MISMATCH. This form has no value to go stale and
-# catches what the check is actually for: a recipient swapped in the working tree, which costs
-# every subsequent night silently.
-git -C /opt/jobbliggaren show HEAD:deploy/backup/age.recipient | diff -q - /opt/jobbliggaren/deploy/backup/age.recipient >/dev/null && echo RECIPIENT-OK || echo RECIPIENT-MISMATCH   # silence is not a result
+# The expected value is written out here ON PURPOSE, and it is kept honest by CI rather than by
+# anyone remembering to edit it: BackupUnitFilePinTests fails the build if this literal and
+# deploy/backup/age.recipient ever disagree. A reference that lives inside the clone — including
+# `git show HEAD:…` — is one the box itself controls, and the attacker this check exists for is
+# the one who already has the box. It is also blind to the likelier failure: no script in
+# deploy/systemd/ runs git at all (measured 2026-08-12), so the clone moves only on a manual
+# pull, and a box that has not pulled holds a stale recipient AND a stale HEAD.
+grep -qx age17xdg97ppkkpv5cl0qlsfctmkrdy7dt6ps0klt79evwcwsnz0j35sn3skut /opt/jobbliggaren/deploy/backup/age.recipient && echo RECIPIENT-OK || echo RECIPIENT-MISMATCH   # silence is not a result
 
 # 4. The units.
 sudo install -m 0644 /opt/jobbliggaren/deploy/systemd/jobbliggaren-backup*.{service,timer} \

@@ -1225,7 +1225,9 @@ Netcup, not Hetzner.
   > conditional on the credential being injectable. **So the unit is shipped and the capability
   > is real, but on a box where enabling was deferred there is no absence detection in
   > operation.** Enabling restores the local surface; the outbound page additionally needs M-7's
-  > alerting half, which is #196's. The window's outer bound is unowned and is Klas's to set or
+  > alerting half, which is [#1201](https://github.com/klasolsson81/jobbliggaren/issues/1201)'s —
+  > re-homed there by Klas 2026-08-06 when #196 closed without delivering it (ADR 0050's dated
+  > note; pointing at the closing issue would have retired the obligation by accident). The window's outer bound is unowned and is Klas's to set or
   > to accept explicitly — it is named in §10 below rather than left in a PR body.
 
 ### 10. Unmeasured premises carried forward

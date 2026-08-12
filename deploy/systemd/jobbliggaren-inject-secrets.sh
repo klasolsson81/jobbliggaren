@@ -216,10 +216,11 @@ if [[ "${1:-}" == "--check" ]]; then
     fi
   done
 
-  # THE MAIL BRANCH REPORTS EVERY BOOT REFUSAL THIS FILE CAN SEE BY ABSENCE, not only a missing
-  # secret. It validates PRESENCE and never VALUE, so a misspelt pointer path or a region outside
-  # the EEA allow-list still reads as healthy here — that allow-list lives in
-  # SesClientRegistration.cs and a second spelling of it in bash would be worse than the gap. The unit exists because a crash-looping container does NOT appear in
+  # WHAT THE MAIL BRANCH SEES: every file and every .env line that is ABSENT, plus the one value
+  # it reads — EMAIL_PROVIDER's, through email_provider above. What it never reads is the VALUE
+  # of the pointers and the region, so a misspelt pointer path, or a region outside the EEA
+  # allow-list, still reads as healthy here. That allow-list lives in SesClientRegistration.cs
+  # and a second spelling of it in bash would be worse than the gap it leaves. The unit exists because a crash-looping container does NOT appear in
   # `systemctl --failed`, so a boot refusal this file can see and does not report is a green
   # alarm over a dead box — the failure this whole script is built against.
   env_provider=$(email_provider)

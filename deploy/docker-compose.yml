@@ -130,9 +130,10 @@ x-app-connections: &app-connections
 #
 # The two credential pointers use the `_FILE` seam and default EMPTY, which is also not a
 # style choice: EnvFileSecretsConfiguration THROWS when a `_FILE` variable names a path it
-# cannot read, so these cannot carry a literal path the way the master key's pointers do
-# until something actually writes those files. A blank pointer is "not configured" and is
-# inert. The paths lie under the x-app-secrets-mount volume, which any service carrying
+# cannot read, so these cannot carry a literal path the way the master key's pointers do —
+# the master key is injected on every boot, while these are injected only for the flip, so
+# a literal here would be a boot refusal on every box that has not flipped. A blank pointer
+# is "not configured" and is inert. The paths lie under the x-app-secrets-mount volume, which any service carrying
 # this anchor must also carry — without the mount, a set pointer is a boot refusal.
 #
 # jobbliggaren-inject-secrets.sh WRITES those two files, and prompts for them when

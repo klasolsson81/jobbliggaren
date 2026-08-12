@@ -1,7 +1,9 @@
-using System.Net;
 using System.Reflection;
+using System.Text.Encodings.Web;
 using System.Text.RegularExpressions;
+using System.Text.Unicode;
 using Jobbliggaren.Application.Common.Abstractions;
+using Jobbliggaren.Application.Matching.Jobs.DigestDispatch;
 using Jobbliggaren.Domain.JobSeekers;
 using Jobbliggaren.Infrastructure.Email;
 using Shouldly;
@@ -32,8 +34,10 @@ namespace Jobbliggaren.Application.UnitTests.Email;
 ///
 /// <para>
 /// <b>The four ways this suite could have passed vacuously, and what closes each.</b> (1) A broken
-/// detector — closed by counterfactuals per arm PLUS a control document that must produce NO finding,
-/// PLUS one that crosses a tag boundary, the case the first version of this file missed entirely.
+/// detector — closed in <c>RemoteResourceDetectorTests</c>, which carries a probe for every literal
+/// in every arm (isolated with on-host URLs and asserted on the finding STRING, so no probe can be
+/// satisfied by a different arm), two control documents that must produce NO finding, and probes that
+/// cross a tag boundary, the case the first version missed entirely.
 /// (2) A shrinking fixture list — closed by <see cref="EmailHtml_TheTemplateSet_CoversEveryTemplateMethod"/>,
 /// which compares against reflection over <see cref="EmailTemplates"/> rather than a hardcoded count,
 /// so it also catches a template ADDED without a fixture (the direction a hardcoded count is blind to,
@@ -53,13 +57,17 @@ public class EmailHtmlNoRemoteResourceTests
 
     private static readonly Guid UserId = new("6e6b1f3a-3c2d-4a8f-9b1e-7d0c5a2e4f11");
 
+    /// <summary>The encoder production uses, so the oracle normalises identically.</summary>
+    private static readonly HtmlEncoder Encoder = HtmlEncoder.Create(UnicodeRanges.All);
+
     /// <summary>
-    /// The cap both dispatch paths apply (<c>DigestDispatchOptions.MaxItemsPerDigest</c>, default 20).
-    /// It is why the "och N till" fixtures below carry exactly twenty items: a remainder can only
-    /// exist once the body is full, so a 2-items-of-5 fixture describes a mail production cannot
-    /// build (code-reviewer Major 4, 2026-08-12).
+    /// The cap both dispatch paths apply, READ from the options type rather than copied: a number
+    /// transcribed into a test is a live measurement in a tracked file and decays silently. It is why
+    /// the "och N till" fixtures below fill the body exactly — a remainder can only exist once the
+    /// body is full, so a 2-items-of-5 fixture describes a mail production cannot build
+    /// (code-reviewer Major 4 and Minor, 2026-08-12).
     /// </summary>
-    private const int MaxItemsPerDigest = 20;
+    private static readonly int MaxItemsPerDigest = new DigestDispatchOptions().MaxItemsPerDigest;
 
     /// <summary>Absolute links as the plain-text parts write them, one per line.</summary>
     private static readonly Regex TextUrl = new(
@@ -196,9 +204,13 @@ public class EmailHtmlNoRemoteResourceTests
 
         foreach (var link in textLinks)
         {
-            // Encoded, because the HTML part carries these in attribute context where `&` is `&amp;`.
+            // Encoded with the SAME encoder production uses. WebUtility.HtmlEncode agrees on every
+            // link this codebase can build (BaseUrl + Base64Url token + EscapeDataString values are
+            // pure ASCII), but the two normalisers differ on `'`, `+` and everything from U+00A0 up,
+            // and a rule with two normalisers is two rules (dotnet-architect + code-reviewer,
+            // 2026-08-12).
             content.HtmlBody.ShouldContain(
-                WebUtility.HtmlEncode(link),
+                Encoder.Encode(link),
                 customMessage: $"{name}: the text part links to {link} and the HTML part does not");
         }
     }
@@ -213,7 +225,10 @@ public class EmailHtmlNoRemoteResourceTests
         // PasswordChangedNotice reached production without an Art. 30 entry (dotnet-architect Viktigt 2
         // / code-reviewer Major 7, 2026-08-12).
         var templateMethods = typeof(EmailTemplates)
-            .GetMethods(BindingFlags.Public | BindingFlags.Static)
+            // NonPublic included: EmailTemplates is itself internal, so an internal template method
+            // is one access modifier away and would otherwise be invisible to this guard — the exact
+            // growth direction it exists to catch (dotnet-architect, 2026-08-12).
+            .GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static)
             .Where(m => m.ReturnType == typeof(EmailTemplates.EmailContent))
             .Select(m => m.Name)
             .ToHashSet(StringComparer.Ordinal);

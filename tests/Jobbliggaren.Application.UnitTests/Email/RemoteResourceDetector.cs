@@ -42,10 +42,17 @@ internal static class RemoteResourceDetector
     /// Elements that cause a network request, on their own or through their own source attributes.
     /// Shape-based, not name-based: the check is for the TAG OPENING, so attribute soup or an
     /// unusual attribute order cannot dodge it.
+    /// <para>
+    /// <c>&lt;svg</c> is on the list although the fetch is issued by its CHILDREN
+    /// (<c>&lt;image href&gt;</c>, <c>&lt;use href&gt;</c>): those use <c>href</c>, which cannot be a
+    /// blanket forbidden attribute since every mail here carries anchors, so the container is the
+    /// checkable boundary. No template uses SVG, and none can — an inline seal would be markup a
+    /// template cannot produce (security-auditor measured all three of these passing, 2026-08-12).
+    /// </para>
     /// </summary>
     private static readonly string[] FetchingElements =
         ["<img", "<script", "<link", "<iframe", "<video", "<audio", "<source", "<object",
-         "<embed", "<picture", "<track", "<input"];
+         "<embed", "<picture", "<track", "<input", "<svg"];
 
     /// <summary>
     /// Forbidden but unable to fetch on its own. <c>@import</c> deliberately has NO arm of its own:
@@ -56,9 +63,15 @@ internal static class RemoteResourceDetector
     /// </summary>
     private static readonly string[] ForbiddenElements = ["<style"];
 
-    /// <summary>Source attributes, checked inside live markup only.</summary>
+    /// <summary>
+    /// Source attributes, checked inside live markup only. <c>href=</c> is deliberately ABSENT: an
+    /// anchor's href is not a fetch, it is a user action, and every mail here carries anchors. The
+    /// distinction the whole arm turns on is FORM (a request issued while rendering) and not host.
+    /// <c>http-equiv=</c> is here because <c>&lt;meta http-equiv="refresh"&gt;</c> navigates without
+    /// one; the shell's own <c>&lt;meta&gt;</c> tags carry <c>charset</c> and <c>name</c>, never this.
+    /// </summary>
     private static readonly string[] FetchingAttributes =
-        ["src=", "srcset=", "background=", "poster="];
+        ["src=", "srcset=", "background=", "poster=", "http-equiv="];
 
     /// <summary>CSS that fetches from inside a <c>style</c> attribute.</summary>
     private static readonly string[] FetchingCss = ["url("];
@@ -74,9 +87,19 @@ internal static class RemoteResourceDetector
     /// (security-auditor Major 1, 2026-08-12).</b> It stops at the first <c>&gt;</c> even inside a
     /// quoted value, so <c>&lt;td title="a&gt;b" background="https://evil.example/bg.png"&gt;</c>
     /// leaves everything after <c>"a&gt;</c> outside live markup and the fetch goes unreported. She
-    /// constructed six such documents. Nothing in the previous counterfactual set crossed the tag
-    /// boundary, so every arm was proven able to fire in ISOLATION and none was proven to fire
-    /// across a whole document — a probe that never crosses the control it tests.
+    /// constructed six such documents while every probe then in the suite stayed green — none of them
+    /// crossed the tag boundary, and a probe that never crosses the control it tests measures nothing
+    /// about the control.
+    /// </para>
+    /// <para>
+    /// <b>A known and declared limit remains:</b> quotes are paired positionally, so a tag with ODD
+    /// quote parity (a stray quote inside an unquoted attribute value, which the HTML5 tokenizer
+    /// tolerates) never reaches a <c>&gt;</c> outside a quoted run and falls out of live markup
+    /// entirely. The element arm is unaffected because it scans the whole document, so the
+    /// tracking-pixel vector stays covered. It is pinned as a limit in
+    /// <c>RemoteResourceDetectorTests.FindRemoteResources_WithOddQuoteParity_IsKnownNotToReport</c>
+    /// rather than chased: a regex never becomes a tokenizer, and trading one undeclared residual for
+    /// another is the round-multiplying move (security-auditor, 2026-08-12).
     /// </para>
     /// </summary>
     private static readonly Regex TagSpan = new(

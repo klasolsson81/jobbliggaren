@@ -1,3 +1,4 @@
+using System.Reflection;
 using System.Text.RegularExpressions;
 using Jobbliggaren.Infrastructure.Email;
 using Shouldly;
@@ -65,6 +66,31 @@ public class EmailPaletteMirrorsDesignTokensTests
         literal.ShouldBe(
             match.Groups[1].Value,
             StringCompareShould.IgnoreCase);
+    }
+
+    [Fact]
+    public void EmailPalette_EveryColourConstant_IsCoveredByTheMirror()
+    {
+        // Mirror() is a hand-written list, which closes drift in the values and NOT in the set: add a
+        // ninth colour constant to EmailHtml and every case above still passes while the new literal
+        // is unpinned. That is the same growth-blindness the template guard had (code-reviewer, and
+        // the precedent this file cites — CvPaletteTests iterates CvPalette.Pairs precisely so a new
+        // pair cannot be forgotten).
+        var hex = new Regex("^#[0-9A-Fa-f]{6}$", RegexOptions.CultureInvariant);
+
+        var colourConstants = typeof(EmailHtml)
+            .GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static)
+            .Where(f => f.IsLiteral && f.FieldType == typeof(string))
+            .Select(f => (string?)f.GetRawConstantValue())
+            .Where(v => v is not null && hex.IsMatch(v))
+            .ToList();
+
+        colourConstants.ShouldNotBeEmpty("reflection found no colour constants, so this fact is vacuous");
+
+        colourConstants.Count.ShouldBe(
+            Mirror().Count,
+            "EmailHtml has a colour constant that Mirror() does not pin. Add it there with the token "
+            + "it mirrors, or the literal drifts from globals.css unnoticed.");
     }
 
     [Fact]

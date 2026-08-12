@@ -7,16 +7,28 @@ using System.Text.Unicode;
 namespace Jobbliggaren.Infrastructure.Email;
 
 /// <summary>
-/// Already-encoded markup. The type exists so that "every interpolated value is encoded" is true by
-/// CONSTRUCTION rather than by discipline: <see cref="EmailHtml.Encode"/> is the only conversion from
-/// <see cref="string"/> to <see cref="Markup"/>, and <see cref="EmailHtml.Document"/> accepts only
-/// <see cref="Markup"/> for its body.
+/// Already-encoded markup, so that a body cannot be assembled from raw strings by accident.
 /// <para>
-/// It replaces a doc-comment that CLAIMED the property while <c>Document</c> took a raw
-/// <see cref="string"/> body — a seam a caller reached by passing an argument, needing no overload
-/// (dotnet-architect Viktigt 1 / code-reviewer Major 1, 2026-08-12; both measured the claim false as
-/// written, and both measured that no call site actually violated it). The claim is now enforced by
-/// the compiler, so it cannot rot back into a claim.
+/// <b>What the compiler actually enforces, stated exactly — because the two previous versions of this
+/// paragraph both claimed more than they held.</b> <see cref="EmailHtml.Document"/> takes
+/// <see cref="Markup"/>, so no caller outside this file can hand it a <see cref="string"/>: THAT
+/// boundary — between <c>EmailTemplates</c> and <c>EmailHtml</c> — is closed by the type system, and
+/// it is the boundary that matters, since it is where template authors work. <b>Inside the assembly
+/// the type guarantees nothing</b>: a positional <c>record struct</c> has a public primary
+/// constructor, so <c>new Markup(rawHtml)</c> compiles anywhere in Infrastructure and in the test
+/// assemblies reached by <c>InternalsVisibleTo</c>. What holds is therefore a GREPPABLE convention
+/// with a small audit surface, not a compiler guarantee: <c>Markup</c> is constructed in exactly
+/// seven places, all in this file, and every interpolation in those seven passes through
+/// <see cref="EmailHtml.Encode"/>. Measured 2026-08-12: <c>grep "new Markup(" src/ tests/</c> returns
+/// zero hits outside this file.
+/// </para>
+/// <para>
+/// The history is the point. v1 had <c>Document</c> take a raw <see cref="string"/> body while the
+/// doc claimed nothing reached the buffer unencoded — a seam a caller opened by passing an argument,
+/// needing no overload (dotnet-architect Viktigt 1 / code-reviewer Major 1). v2 introduced this type
+/// and claimed the compiler now enforced it, which three reviewers independently measured false
+/// (code-reviewer Major 1 again, security-auditor Minor, dotnet-architect Nice-to-have). Both times
+/// the code was safe and the SENTENCE was not, which is the exact defect class this PR is about.
 /// </para>
 /// </summary>
 internal readonly record struct Markup(string Value)
@@ -40,7 +52,11 @@ internal readonly record struct Markup(string Value)
 /// open/click metrics do not arise for us. Until 2026-08-12 that rested partly on "the body is
 /// Body.Text with no HTML part", which this file falsifies. The replacement ground is this file's
 /// property: nothing here makes the recipient's client issue a network request, and no absolute URL
-/// names a host outside <c>EmailOptions.BaseUrl</c>. A remote resource here is a tracking capability
+/// IN LIVE MARKUP names a host outside <c>EmailOptions.BaseUrl</c>. The qualification is load-bearing
+/// and was missing here after it was added to the runbook — encoded ad text can legitimately contain
+/// an off-host URL as inert characters, which this file's own injection test asserts
+/// (<c>ShouldContain("evil.example")</c>), so the unqualified sentence is false of a document the
+/// suite deliberately produces. A remote resource here is a tracking capability
 /// regardless of provider — the recipient's client fetches it and the host learns an IP address and
 /// an open time, which under EDPB Guidelines 2/2023 on Art. 5(3) ePrivacy needs consent our copy
 /// never asks for. <b>The exact forbidden set is the detector's own arrays in
@@ -56,8 +72,9 @@ internal readonly record struct Markup(string Value)
 /// <c>PlatsbankenJobSource</c> puts <c>hit.Employer?.Name?.Trim()</c> straight into
 /// <c>CompanyName</c>, and the payload sanitizer never runs on it. Unencoded, a crafted company name
 /// would inject markup into a mail we sign with our own DKIM, including the very <c>&lt;img&gt;</c>
-/// the paragraph above forbids. <see cref="Encode"/> is the sole <see cref="string"/>-to-
-/// <see cref="Markup"/> conversion in the file, so no value reaches the document unencoded.
+/// the paragraph above forbids. Every interpolation in the seven <c>Markup</c> constructions below
+/// passes through <see cref="Encode"/>; those seven are the whole audit surface, and
+/// <see cref="Markup"/> explains why that is a convention rather than a compiler guarantee.
 /// </para>
 ///
 /// <para>
@@ -65,12 +82,16 @@ internal readonly record struct Markup(string Value)
 /// CSS only, 600px maximum, no flexbox and no grid, no <c>&lt;style&gt;</c> block at all — so nothing
 /// about the layout depends on CSS a client may strip. Outlook on Windows renders with the Word
 /// engine and is the binding constraint. Word honours <c>bgcolor</c> on a <c>&lt;td&gt;</c> but
-/// ignores BOTH <c>display:inline-block</c> and <c>padding</c> on an inline <c>&lt;a&gt;</c>, so the
-/// call to action puts its padding on the CELL: a one-cell table alone paints the fill and leaves the
-/// label jammed against its edges (design-reviewer Major 1, 2026-08-12 — the earlier note here said
-/// the one-cell table solved Word, which was half true and therefore wrong). The trade is that only
-/// the label is clickable rather than the whole padded area, which is the accepted form without VML.
-/// <c>border-radius</c> is ignored there too and buttons degrade to square, which is acceptable.
+/// ignores BOTH <c>display:inline-block</c> and <c>padding</c> on an inline <c>&lt;a&gt;</c>, so a
+/// one-cell table alone paints the fill and leaves the label jammed against its edges.
+/// <b>Each engine therefore gets exactly one padding, and neither gets two:</b> the anchor carries
+/// real <c>padding</c> for every other client, and the cell carries <c>mso-padding-alt</c>, which
+/// only Word reads. Moving the padding to the cell for everyone was the first repair and it was
+/// wrong in a way worth recording — it fixed Word and shrank the CLICKABLE area to the label's own
+/// box in every client, so the affordance became ~2.3x the target on the primary action of all eight
+/// mails, and a mail is read mostly on a phone (design-reviewer, 2026-08-12, correcting her own
+/// prescription). <c>mso-padding-alt</c> is the accepted form and needs no VML.
+/// <c>border-radius</c> is ignored in Word too and buttons degrade to square, which is acceptable.
 /// </para>
 ///
 /// <para>
@@ -211,8 +232,8 @@ internal static class EmailHtml
     public static Markup Button(string href, string label) =>
         new($"""
         <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 18px 0;"><tr>
-        <td bgcolor="{Accent}" style="background-color:{Accent};border-radius:6px;padding:12px 22px;">
-        <a href="{Encode(href)}" style="display:inline-block;font-family:{FontStack};font-size:16px;line-height:19px;font-weight:600;color:{Surface};text-decoration:none;">{Encode(label)}</a>
+        <td bgcolor="{Accent}" style="background-color:{Accent};border-radius:6px;mso-padding-alt:12px 22px;">
+        <a href="{Encode(href)}" style="display:inline-block;padding:12px 22px;mso-padding-alt:0;font-family:{FontStack};font-size:16px;line-height:19px;font-weight:600;color:{Surface};text-decoration:none;">{Encode(label)}</a>
         </td></tr></table>
         """);
 

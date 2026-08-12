@@ -22,8 +22,7 @@ namespace Jobbliggaren.Infrastructure.Email;
 /// <see cref="EmailHtml.Encode"/>.
 /// <b>The audit surface is found by TYPE, never by constructor spelling.</b> All seven use
 /// target-typed <c>new(...)</c>, so a search for <c>new Markup(</c> matches none of them and would
-/// report a clean repo while missing every site it claims to cover — including the return route,
-/// <c>Document(t, p, body: new($"…"))</c>, which is target-typed too. The measurement that bears the
+/// report a clean repo while missing every site it claims to cover. The measurement that bears the
 /// claim is a type-name search — <c>grep -rl "Markup" src/ --include=*.cs</c>, measured 2026-08-12 =
 /// TWO files, this one and <c>EmailTemplates.cs</c>, which reaches the list only through
 /// <c>Markup.Empty</c> and a helper return type and constructs nothing. (Across <c>tests/</c> the

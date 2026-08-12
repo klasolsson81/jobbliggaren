@@ -252,10 +252,19 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
            **prod-nyckeln** (den som hamnar i `Email:Ses:AccessKeyId`) och kräv
            `Account == 710427215829` — samma konto som avtalspartsmätningen i led (a) gjordes mot.
            Utan det är mätningen gjord på ett konto och nyckeln kan tillhöra ett annat.
-        2. **Kontolivscykel-mallarnas rättsliga grunder prövas.** ROPA:ns utkast är
-           Art. 6(1)(b) för `EmailConfirmation`/`EmailChangeConfirmation` och **Art. 6(1)(f)** för
-           `EmailChangedNotification`/`AccountExistsNotice`. **Står 6(1)(f) kvar efter prövningen
-           krävs en matchande Art. 13(1)(d)-post i policyn FÖRE flippen** — dagens
+        2. **Kontolivscykel-mallarnas rättsliga grunder prövas — SEX mallar, inte fyra.** ROPA:ns
+           utkast är Art. 6(1)(b) för `EmailConfirmation`, `EmailChangeConfirmation` och
+           **`PasswordReset`**, och **Art. 6(1)(f)** för `EmailChangedNotification`,
+           `AccountExistsNotice` och **`PasswordChangedNotice`**.
+           ⚠ **De två fetstilta lades till 2026-08-12 (#183) och är de yngsta och minst prövade.**
+           `PasswordReset`/`PasswordChangedNotice` (#1171) hade fram till dess **ingen Art. 30-post
+           alls** — de landade efter registrets omskrivning 2026-08-09 och togs aldrig upp. Den som
+           arbetar detta led före 2026-08-12 prövade fyra grunder och trodde sig klar; räkna sex.
+           `security-auditor` har dessutom rest en öppen fråga om `PasswordChangedNotice`: 6(1)(f)
+           mot registrets egen 6(1)(c)+Art. 32-konstruktion, vilket avgör om en Art. 21-invändning
+           måste kunna bemötas. **Står 6(1)(f) kvar efter prövningen
+           krävs en matchande Art. 13(1)(d)-post i policyn FÖRE flippen** — den träffar då **tre**
+           mallar, inte två. Dagens
            berättigat-intresse-avsnitt räknar upp fyra behandlingar och ingen av dem är e-post.
            Faller de i stället ut som 6(1)(b) täcks de av befintlig copy och luckan stänger sig
            själv. **En behandling som körs utan redovisad grund är en Blocker i det ögonblicket**,
@@ -273,9 +282,13 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
            (`aws sesv2 get-email-identity`). code-reviewer Minor 3, 2026-08-09.
            ⚠ **DET ANDRA SKÄLET ÄR BYTT 2026-08-12 (#183) — läs inte den gamla formuleringen.**
            Fram till dess var skäl 2 *"ingen HTML-del"*. Mejlen bär numera en HTML-del, så det skälet
-           är **struket**. Ersättningen är **ingen fjärresurs i HTML-delen** (noll `<img>`, noll
-           `<link>`/`<script>`/`<style>`/`@import`, ingen absolut URL utanför `EmailOptions.BaseUrl`),
-           pinnad över alla åtta mallarna i `EmailHtmlNoRemoteResourceTests`. Egenskapen som gör den
+           är **struket**. Ersättningen är **ingen fjärresurs i HTML-delen**, pinnad över alla åtta
+           mallarna i `EmailHtmlNoRemoteResourceTests`. **Den exakta förbjudna mängden är detektorns
+           egna arrayer i `RemoteResourceDetector`, inte den här raden** — en regel med tre prosa-hem
+           är tre hem att revidera. Den här raden räknade tidigare upp mängden utan den kvalifikation
+           detektorn faktiskt bär: attribut- och URL-armarna körs över **levande markup**, inte över
+           hela dokumentet, eftersom kodad annonstext bokstavligen innehåller `src=` och en URL utan
+           att kunna hämta något. Egenskapen som gör den
            dugbar är densamma som det gamla skälets: **oangripbar utifrån repot och pinnad med test**.
            Slutsatsen står alltså kvar oförändrad — posten håller på skäl 2 ensamt om skäl 1 faller —
            men **skriv aldrig om posten som om skäl 1 vore garanterat av testet**, och verifiera

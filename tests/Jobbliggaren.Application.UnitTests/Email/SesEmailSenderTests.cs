@@ -312,7 +312,7 @@ public class SesEmailSenderTests
         // GROUND 2 of the register's retention claim, asserted against the bytes that actually leave
         // this adapter rather than against a template rendered in isolation. The breadth of the
         // ground (all eight templates, plus the counterfactuals that prove this detector can fail)
-        // lives in `EmailHtmlNoRemoteResourceTests`; this fact closes the seam, so a sender that
+        // lives in `EmailHtmlNoRemoteResourceTests` and `RemoteResourceDetectorTests`; this fact closes the seam, so a sender that
         // wrapped, decorated or rewrote the HTML on its way into the request could not slip a remote
         // resource past the template-level suite.
         var sut = CreateSut();
@@ -321,7 +321,7 @@ public class SesEmailSenderTests
             Recipient, SampleConfirmationContent(), CancellationToken.None);
 
         var html = CapturedRequest().Content.Simple.Body.Html.Data;
-        EmailHtmlNoRemoteResourceTests
+        RemoteResourceDetector
             .FindRemoteResources(html, _options.BaseUrl)
             .ShouldBeEmpty();
     }

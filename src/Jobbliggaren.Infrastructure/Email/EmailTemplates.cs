@@ -21,11 +21,16 @@ namespace Jobbliggaren.Infrastructure.Email;
 /// </para>
 ///
 /// <para>
-/// <b>What the HTML part carries beyond the text part, exhaustively:</b> the wordmark "Jobbliggaren"
-/// set as text in the footer, and one footer line saying the service is free. Neither is a personal
-/// data field. Raw URLs become labelled links, and the text part's "Vänliga hälsningar, /
-/// Jobbliggaren" sign-off ends at "Vänliga hälsningar," because the footer wordmark IS the name that
-/// followed it — same words, set once.
+/// <b>What the HTML part carries beyond the text part, exhaustively</b> — the list is kept complete
+/// because the Art. 30 Datakategori argument rests on it, and an earlier version of it was measured
+/// short by two reviewers: the <c>&lt;title&gt;</c>, the preheader, the visible <c>&lt;h1&gt;</c>,
+/// the wordmark set as text in the footer, and one footer line saying the service is free. The first
+/// three repeat the subject or a sentence already in the body; NONE of the five is a personal data
+/// field, which is the test that matters. Raw URLs become labelled links. The sign-off is rendered by
+/// <c>EmailHtml.SignOff</c> and keeps BOTH of the text part's lines ("Vänliga hälsningar," /
+/// "Jobbliggaren") in one paragraph — an earlier version dropped the second line on the theory that
+/// the footer wordmark replaced it, which left a comma-terminated line ending nothing on the far side
+/// of a visual divider (design-reviewer Major 2, 2026-08-12).
 /// </para>
 ///
 /// <para>
@@ -100,14 +105,14 @@ internal static class EmailTemplates
                 preheader: intro,
                 body: EmailHtml.P(intro)
                     + EmailHtml.List(htmlItems)
-                    + (remaining > 0 ? EmailHtml.P($"och {remaining} till.") : string.Empty)
+                    + (remaining > 0 ? EmailHtml.P($"och {remaining} till.") : Markup.Empty)
                     + EmailHtml.Button(matchesLink, "Öppna dina matchningar")
                     + EmailHtml.LinkParagraph(
                         "Du får detta för att du har slagit på matchningsnotiser. Du kan ändra hur "
                         + "ofta du får dem, eller stänga av dem helt:",
                         settingsLink,
                         "Ändra dina inställningar")
-                    + EmailHtml.P("Vänliga hälsningar,")));
+                    + EmailHtml.SignOff()));
     }
 
     /// <summary>
@@ -189,7 +194,7 @@ internal static class EmailTemplates
                 preheader: intro,
                 body: EmailHtml.P(intro)
                     + EmailHtml.List(htmlItems)
-                    + (remaining > 0 ? EmailHtml.P($"och {remaining} till.") : string.Empty)
+                    + (remaining > 0 ? EmailHtml.P($"och {remaining} till.") : Markup.Empty)
                     // The filter disclosure sits between the list and the CTA in BOTH parts. It
                     // answers "why might something be missing"; the paragraph below answers "why am
                     // I getting this at all". Two questions, two places, never merged (RF-13=13B).
@@ -200,7 +205,7 @@ internal static class EmailTemplates
                         + "kan ändra hur ofta du får dem, eller stänga av dem helt:",
                         settingsLink,
                         "Ändra dina inställningar")
-                    + EmailHtml.P("Vänliga hälsningar,")));
+                    + EmailHtml.SignOff()));
     }
 
     /// <summary>
@@ -249,32 +254,32 @@ internal static class EmailTemplates
     /// watches, so any name-bearing sentence would be false the moment a second watch filters on
     /// another location, and it would also send preference PII to a third-party sender.
     /// </summary>
-    private static string BuildFilterDisclosureHtml(
+    private static Markup BuildFilterDisclosureHtml(
         FollowedCompanyFilterSummary? summary, string companiesLink)
     {
         if (summary is null || (!summary.OnlyMatchedActive && !summary.LocationFilterActive))
-            return string.Empty;
+            return Markup.Empty;
 
-        var html = new StringBuilder();
+        var html = Markup.Empty;
 
         if (summary.OnlyMatchedActive)
         {
-            html.Append(EmailHtml.P(
+            html += EmailHtml.P(
                 "Du får bara matchande annonser för ett eller flera av företagen du följer, "
-                + "så annonser du inte matchar visas inte här."));
+                + "så annonser du inte matchar visas inte här.");
         }
 
         if (summary.LocationFilterActive)
         {
-            html.Append(EmailHtml.P(
+            html += EmailHtml.P(
                 "Du har ortsfilter på ett eller flera av företagen du följer, "
-                + "så annonser i andra orter visas inte här."));
+                + "så annonser i andra orter visas inte här.");
         }
 
-        html.Append(EmailHtml.LinkParagraph(
-            "Du ser och ändrar filtren under Företag:", companiesLink, "Öppna Företag"));
+        html += EmailHtml.LinkParagraph(
+            "Du ser och ändrar filtren under Företag:", companiesLink, "Öppna Företag");
 
-        return html.ToString();
+        return html;
     }
 
     /// <summary>
@@ -329,7 +334,7 @@ internal static class EmailTemplates
                     + EmailHtml.P(
                         "Adressen ändras inte förrän du har öppnat länken. Om du inte har begärt "
                         + "ändringen kan du bortse från det här meddelandet.")
-                    + EmailHtml.P("Vänliga hälsningar,")));
+                    + EmailHtml.SignOff()));
     }
 
     /// <summary>
@@ -370,7 +375,7 @@ internal static class EmailTemplates
                         + "ditt konto. Hör av dig till oss så hjälper vi dig:",
                         helpLink,
                         "Öppna hjälpcentret")
-                    + EmailHtml.P("Vänliga hälsningar,")));
+                    + EmailHtml.SignOff()));
     }
 
     /// <summary>
@@ -425,7 +430,7 @@ internal static class EmailTemplates
                     // position, so the two parts stay word-for-word.
                     + EmailHtml.P(
                         "Om du inte har skapat något konto kan du bortse från det här meddelandet.")
-                    + EmailHtml.P("Vänliga hälsningar,")));
+                    + EmailHtml.SignOff()));
     }
 
     /// <summary>
@@ -484,7 +489,7 @@ internal static class EmailTemplates
                     + EmailHtml.P("Om det inte var du behöver du inte göra något. Ditt konto är oförändrat.")
                     + EmailHtml.LinkParagraph(
                         "Har du frågor når du oss via hjälpcentret:", helpLink, "Öppna hjälpcentret")
-                    + EmailHtml.P("Vänliga hälsningar,")));
+                    + EmailHtml.SignOff()));
     }
 
     /// <summary>
@@ -550,7 +555,7 @@ internal static class EmailTemplates
                     + EmailHtml.P(
                         "Om det inte var du behöver du inte göra något. Ditt lösenord är oförändrat "
                         + "så länge du inte öppnar länken, och den slutar gälla av sig själv.")
-                    + EmailHtml.P("Vänliga hälsningar,")));
+                    + EmailHtml.SignOff()));
     }
 
     /// <summary>
@@ -606,6 +611,6 @@ internal static class EmailTemplates
                     + EmailHtml.Button(forgotLink, "Välj ett nytt lösenord")
                     + EmailHtml.LinkParagraph(
                         "Kontakta oss sedan via hjälpcentret:", helpLink, "Öppna hjälpcentret")
-                    + EmailHtml.P("Vänliga hälsningar,")));
+                    + EmailHtml.SignOff()));
     }
 }

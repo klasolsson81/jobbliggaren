@@ -219,6 +219,41 @@ Krav (uppfyllda): SVG; fungerar på ljus och mörk bakgrund; monokrom fallback (
 
 ---
 
+## 11.5 E-post
+
+Transaktionell e-post är ett eget medium med egna begränsningar, och **tre av den här filens regler
+kan inte följas där**. Avstegen är ratificerade här i stället för att argumenteras i en kodkommentar,
+så att den som redigerar en token vet att kopior finns (#183, 2026-08-12, `design-reviewer`).
+
+**Enda implementation:** `src/Jobbliggaren.Infrastructure/Email/EmailHtml.cs` (skal + primitiver);
+copyn ligger i `EmailTemplates.cs` bredvid textdelen den speglar. Ingen annan yta får rendera e-post.
+
+1. **Färger är hex-literaler, inte `--jp-*`.** En e-postklient läser inga custom properties, så
+   literalen är den enda möjliga formen. Varje literal namnger sin källtoken på egen rad, och
+   `EmailPaletteMirrorsDesignTokensTests` assertar dem mot `globals.css` — kopian är gjord
+   kontrollerbar, inte bara deklarerad (samma disciplin som `CvPalette`/`CvPaletteTests`).
+   **Inga nya tokens definieras i e-postlagret**, och en färgändring är fortfarande en DESIGN.md-
+   ändring först.
+2. **Systemfonter, inte Source Sans 3.** En webbfont är en fjärresurs, och HTML-delen får referera
+   **noll** fjärresurser — det är en GDPR-kontroll (Art. 30-postens retentionsgrund, pinnad med test),
+   inte en preferens. Avsteget är verkligt och inte en teknikalitet: skill-regeln lyder "aldrig
+   Inter/Roboto/Arial/**system-ui** som primär", och `-apple-system` *är* system-ui. Stacken är
+   `-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif`; Outlooks Word-motor
+   hoppar över de två första och landar på Segoe UI.
+3. **Egen typskala, inte app-UI-rollerna i §4.** Ett mejl är inte app-chrome och renderas i en
+   främmande klient. Skalan är: rubrik **22px/700** i `--jp-navy-800`-värdet, brödtext **16px/1.55**,
+   sidfot **14px** (golvet, aldrig under). Ordmärket i sidfoten är **16px/700 utan negativ tracking** —
+   det får aldrig väga tyngre än brödtexten, eftersom "ingen grå text" tar bort färg som hierarki-axel
+   och då måste storlek och vikt bära den ensamma.
+
+**Dessutom, och utan avsteg:** tabellayout och inline-CSS (inget `<style>`-block alls), max 600px,
+ingen flexbox/grid, `color-scheme: light` — mejlet är avsiktligt ljust i båda teman, vilket är rätt
+e-postpraxis och det enda undantaget från "light-only är blockerat". **Guld (`--jp-gold`) hör till
+sigillet och får inte användas som fristående dekor i mejl** (ADR 0070). Brand-signalen är den gröna
+4px-regeln överst, och den ska vara den enda.
+
+---
+
 ## 12. Granskning
 
 Design-compliance verifieras av `design-reviewer`-agenten vid varje frontend-diff. Hennes auktoritet är denna fil + skills-detaljerna. Hon har veto-makt på design-frågor — ingen MVP-dispens, inget konsensus-override.

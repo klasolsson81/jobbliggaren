@@ -1,3 +1,5 @@
+using System.Net;
+using System.Reflection;
 using System.Text.RegularExpressions;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Domain.JobSeekers;
@@ -8,37 +10,37 @@ namespace Jobbliggaren.Application.UnitTests.Email;
 
 /// <summary>
 /// GROUND 2 of the Art. 30 retention claim for "Utgående transaktionell e-post", pinned over ALL
-/// EIGHT templates (#183, 2026-08-12 — security-auditor condition 1).
+/// EIGHT templates, plus the content facts that keep the absence assertion from being vacuous
+/// (#183, 2026-08-12 — security-auditor condition 1).
 ///
 /// <para>
-/// <b>What this file defends, and why it is not a style rule.</b> The register states as MEASURED
-/// FACT that SES's 60-day, RECIPIENT-LEVEL open/click metrics do not arise for us. Until 2026-08-12
-/// that rested partly on "the body is Body.Text with no HTML part" — a ground the HTML templates
-/// struck. The replacement is the property asserted here: the rendered HTML references no remote
-/// resource at all. It was chosen because it has the same shape as the ground it replaces —
-/// unattackable from outside this repo, and pinned rather than merely complied with — and it is
-/// STRONGER than the SES question it stands in for: a remote resource in an HTML mail is a tracking
-/// capability regardless of provider, because the recipient's client fetches it and the host learns
-/// an IP address and an open time. Under EDPB Guidelines 2/2023 on Art. 5(3) ePrivacy, tracking
-/// pixels in email are in scope and require consent, and this product's consent copy asks for
-/// notification delivery, never for open tracking.
+/// <b>What this file defends.</b> The register states as MEASURED FACT that SES's 60-day,
+/// RECIPIENT-LEVEL open/click metrics do not arise for us. Until 2026-08-12 that rested partly on
+/// "the body is Body.Text with no HTML part" — a ground the HTML templates struck. The replacement is
+/// the property asserted here: the rendered HTML references no remote resource. It was chosen because
+/// it has the same shape as the ground it replaces (unattackable from outside the repo, pinned rather
+/// than complied with) and it is STRONGER than the SES question it stands in for, since a remote
+/// resource in an HTML mail is a tracking capability regardless of provider (EDPB Guidelines 2/2023
+/// on Art. 5(3) ePrivacy). The forbidden set itself lives in <see cref="RemoteResourceDetector"/>.
 /// </para>
 ///
 /// <para>
 /// <b>A failure here is a register defect before it is a test failure.</b> If a template gains a
 /// remote resource, the fix is not to relax the detector: it is to re-measure the register's
-/// retention entry BEFORE that change ships, because the entry is written as measured fact and would
-/// otherwise rot silently.
+/// retention entry BEFORE that change ships.
 /// </para>
 ///
 /// <para>
-/// <b>The detector is proven to fail.</b> An "absence" assertion over a detector nobody has seen
-/// reject anything is fail-open: it cannot tell "there is no remote resource" from "the detector is
-/// broken". Every arm of <see cref="FindRemoteResources"/> therefore has a counterfactual below that
-/// feeds it a document carrying exactly that violation and requires a hit, plus one control document
-/// that must produce NO finding — without that control, every counterfactual would also pass against
-/// a detector hard-wired to reject everything. <see cref="EmailHtml_TheTemplateSet_CoversAllEightPortMethods"/>
-/// closes the third way this suite could pass vacuously: a fixture list that silently shrank.
+/// <b>The four ways this suite could have passed vacuously, and what closes each.</b> (1) A broken
+/// detector — closed by counterfactuals per arm PLUS a control document that must produce NO finding,
+/// PLUS one that crosses a tag boundary, the case the first version of this file missed entirely.
+/// (2) A shrinking fixture list — closed by <see cref="EmailHtml_TheTemplateSet_CoversEveryTemplateMethod"/>,
+/// which compares against reflection over <see cref="EmailTemplates"/> rather than a hardcoded count,
+/// so it also catches a template ADDED without a fixture (the direction a hardcoded count is blind to,
+/// and the direction that has historically happened). (3) An empty or link-less HTML body — closed by
+/// <see cref="EmailHtml_ForEveryTemplate_CarriesEveryLinkItsTextPartCarries"/>: an absence assertion
+/// gets GREENER as content disappears, so it needs a presence assertion in front of it. (4) A
+/// disclosure that appears in only one part — closed by the filter-parity facts.
 /// </para>
 /// </summary>
 public class EmailHtmlNoRemoteResourceTests
@@ -52,114 +54,32 @@ public class EmailHtmlNoRemoteResourceTests
     private static readonly Guid UserId = new("6e6b1f3a-3c2d-4a8f-9b1e-7d0c5a2e4f11");
 
     /// <summary>
-    /// Every element that can make a mail client issue a network request, plus the CSS forms that do
-    /// the same without an element. Shape-based, not name-based: the check is for the TAG OPENING, so
-    /// attribute soup or an unusual attribute order cannot dodge it.
+    /// The cap both dispatch paths apply (<c>DigestDispatchOptions.MaxItemsPerDigest</c>, default 20).
+    /// It is why the "och N till" fixtures below carry exactly twenty items: a remainder can only
+    /// exist once the body is full, so a 2-items-of-5 fixture describes a mail production cannot
+    /// build (code-reviewer Major 4, 2026-08-12).
     /// </summary>
-    private static readonly string[] FetchingElements =
-        ["<img", "<script", "<style", "<link", "<iframe", "<video", "<audio", "<source", "<object",
-         "<embed", "<picture", "<track", "<input"];
+    private const int MaxItemsPerDigest = 20;
 
-    /// <summary>
-    /// CSS and attribute forms that fetch without one of the elements above: <c>@import</c>, any
-    /// <c>url(...)</c> (background images), and the source attributes.
-    /// </summary>
-    private static readonly string[] FetchingConstructs =
-        ["@import", "url(", "src=", "srcset=", "background=", "poster="];
-
-    private static readonly Regex AbsoluteUrl = new(
-        @"(?:https?:)?//[^\s""'<>()]+", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
-
-    /// <summary>Every span that is live markup: <c>&lt;</c> through the next <c>&gt;</c>.</summary>
-    private static readonly Regex TagSpan = new(
-        @"<[^>]*>", RegexOptions.CultureInvariant);
-
-    /// <summary>
-    /// Returns one line per violation, empty when the document references nothing remote. Public and
-    /// static because <c>SesEmailSenderTests</c> runs the same detector against the HTML that
-    /// actually reaches the <c>SendEmailRequest</c>, so the seam and the templates are judged by one
-    /// definition rather than by two that can drift.
-    ///
-    /// <para>
-    /// <b>Element checks run over the whole document; attribute and URL checks run over LIVE MARKUP
-    /// ONLY, and that distinction is the detector's correctness rather than a loosening.</b> The
-    /// property being defended is "this document cannot make the recipient's client fetch anything,
-    /// and points nowhere off-host". A URL sitting in TEXT does neither: no client fetches it, and it
-    /// renders as characters. Ad text reaches these templates from JobTech and is HTML-encoded on the
-    /// way in, so a hostile <c>&lt;img src="…"&gt;</c> in a company name arrives as
-    /// <c>&amp;lt;img src=…</c> — which still contains the literal characters <c>src=</c> and a URL,
-    /// while being inert. Scanning the whole document for those two would report a finding about a
-    /// string that cannot fetch, and the first honest fixture carrying an injected payload would then
-    /// force whoever met it to weaken the detector to get green. That is how a GDPR pin turns into a
-    /// pin nobody trusts.
-    /// </para>
-    /// <para>
-    /// The element list stays whole-document because encoding already separates the cases for it: a
-    /// live tag opening is <c>&lt;img</c> and an encoded one is <c>&amp;lt;img</c>, so the literal
-    /// <c>&lt;img</c> appears if and only if the markup is live. Losing the encoding is therefore
-    /// caught by the element arm, and
-    /// <see cref="FindRemoteResources_WhenEncodingIsLost_ReportsIt"/> proves exactly that.
-    /// </para>
-    /// </summary>
-    /// <param name="html">The rendered document.</param>
-    /// <param name="baseUrl">The only host any absolute URL may name (<c>EmailOptions.BaseUrl</c>).</param>
-    public static IReadOnlyList<string> FindRemoteResources(string html, string baseUrl)
-    {
-        var findings = new List<string>();
-
-        foreach (var element in FetchingElements)
-        {
-            if (html.Contains(element, StringComparison.OrdinalIgnoreCase))
-                findings.Add($"fetching element: {element}");
-        }
-
-        var liveMarkup = string.Join(
-            "\n", TagSpan.Matches(html).Select(m => m.Value));
-
-        foreach (var construct in FetchingConstructs)
-        {
-            if (liveMarkup.Contains(construct, StringComparison.OrdinalIgnoreCase))
-                findings.Add($"fetching construct: {construct}");
-        }
-
-        var allowedHost = new Uri(baseUrl).Host;
-        foreach (Match match in AbsoluteUrl.Matches(liveMarkup))
-        {
-            var host = HostOf(match.Value);
-            if (!string.Equals(host, allowedHost, StringComparison.OrdinalIgnoreCase))
-                findings.Add($"absolute URL outside {allowedHost}: {match.Value}");
-        }
-
-        return findings;
-    }
-
-    /// <summary>
-    /// Host of a matched URL, handling the protocol-relative <c>//host/path</c> form as well as an
-    /// explicit scheme. Trims userinfo, port, path, query and fragment, so the comparison in
-    /// <see cref="FindRemoteResources"/> is against a bare host and can be an equality test.
-    /// </summary>
-    private static string HostOf(string url)
-    {
-        var afterScheme = url[(url.IndexOf("//", StringComparison.Ordinal) + 2)..];
-        var authority = afterScheme.Split('/', '?', '#')[0];
-        var hostAndPort = authority.Contains('@', StringComparison.Ordinal)
-            ? authority[(authority.LastIndexOf('@') + 1)..]
-            : authority;
-        return hostAndPort.Split(':')[0];
-    }
+    /// <summary>Absolute links as the plain-text parts write them, one per line.</summary>
+    private static readonly Regex TextUrl = new(
+        @"https://[^\s]+", RegexOptions.CultureInvariant);
 
     // ---------- fixtures: one per template, each mirroring a production call site ----------
 
     /// <summary>
-    /// All eight templates, rendered the way their production callers render them (the shapes are
+    /// All eight templates rendered the way their production callers render them. The shapes are
     /// <c>BackgroundMatchingJob</c>'s, <c>DigestDispatchJob</c>'s, <c>RegisterCommandHandler</c>'s,
-    /// <c>ChangeEmailCommandHandler</c>'s and the reset endpoints').
-    /// <c>MatchNotification</c> appears twice because its two Kind branches build different subjects,
-    /// intros and bodies, and the digest form is the only one that reaches the "och N till" tail;
-    /// <c>FollowedCompanyNotification</c> appears twice because the filter disclosure is a separate
-    /// rendering path that is absent when no filter is active.
+    /// <c>ChangeEmailCommandHandler</c>'s and the reset endpoints'. Grade labels come from
+    /// <c>NotifiableMatchGradeLabels</c> verbatim — "Stark match", never "Stark matchning", which no
+    /// production path emits.
+    /// <para>
+    /// Two templates contribute a second case because they have a second rendering path: the digest
+    /// branch of <c>MatchNotification</c> (different subject, intro and the "och N till" tail) and the
+    /// filtered branch of <c>FollowedCompanyNotification</c> (the disclosure block).
+    /// </para>
     /// </summary>
-    private static List<(string Name, string Html)> RenderAll() =>
+    private static List<(string Name, EmailTemplates.EmailContent Content)> RenderAll() =>
     [
         ("MatchNotification/direct",
             EmailTemplates.MatchNotification(
@@ -168,7 +88,7 @@ public class EmailHtmlNoRemoteResourceTests
                     MatchNotificationKind.Direct,
                     Cadence: null,
                     Items: [new MatchNotificationItem("Backend-utvecklare", "Acme AB", "Toppmatch")],
-                    TotalCount: 1)).HtmlBody),
+                    TotalCount: 1))),
 
         ("MatchNotification/digest",
             EmailTemplates.MatchNotification(
@@ -176,12 +96,8 @@ public class EmailHtmlNoRemoteResourceTests
                 new MatchNotificationEmail(
                     MatchNotificationKind.Digest,
                     DigestCadence.Weekly,
-                    Items:
-                    [
-                        new MatchNotificationItem("Backend-utvecklare", "Acme AB", "Stark matchning"),
-                        new MatchNotificationItem("Systemutvecklare", "Bolaget & Söner AB", "Stark matchning"),
-                    ],
-                    TotalCount: 5)).HtmlBody),
+                    Items: FullMatchPage(),
+                    TotalCount: MaxItemsPerDigest + 3))),
 
         ("FollowedCompanyNotification/unfiltered",
             EmailTemplates.FollowedCompanyNotification(
@@ -189,71 +105,167 @@ public class EmailHtmlNoRemoteResourceTests
                 new FollowedCompanyNotificationEmail(
                     DigestCadence.Weekly,
                     Items: [new FollowedCompanyAdItem("Backend-utvecklare", "Acme AB")],
-                    TotalCount: 1)).HtmlBody),
+                    TotalCount: 1))),
 
         ("FollowedCompanyNotification/filtered",
             EmailTemplates.FollowedCompanyNotification(
                 BaseUrl,
                 new FollowedCompanyNotificationEmail(
                     DigestCadence.Daily,
-                    Items: [new FollowedCompanyAdItem("Backend-utvecklare", "Acme AB")],
-                    TotalCount: 4,
+                    Items: FullFollowPage(),
+                    TotalCount: MaxItemsPerDigest + 2,
                     new FollowedCompanyFilterSummary(
-                        OnlyMatchedActive: true, LocationFilterActive: true))).HtmlBody),
+                        OnlyMatchedActive: true, LocationFilterActive: true)))),
 
         ("EmailConfirmation",
             EmailTemplates.EmailConfirmation(
-                BaseUrl, new EmailConfirmationEmail(UserId, UrlSafeToken)).HtmlBody),
+                BaseUrl, new EmailConfirmationEmail(UserId, UrlSafeToken))),
 
         ("EmailChangeConfirmation",
             EmailTemplates.EmailChangeConfirmation(
                 BaseUrl,
-                new EmailChangeConfirmationEmail(
-                    UserId, "ny.adress@example.com", UrlSafeToken)).HtmlBody),
+                new EmailChangeConfirmationEmail(UserId, "ny.adress@example.com", UrlSafeToken))),
 
-        ("EmailChangedNotification", EmailTemplates.EmailChangedNotification(BaseUrl).HtmlBody),
+        ("EmailChangedNotification", EmailTemplates.EmailChangedNotification(BaseUrl)),
 
-        ("AccountExistsNotice", EmailTemplates.AccountExistsNotice(BaseUrl).HtmlBody),
+        ("AccountExistsNotice", EmailTemplates.AccountExistsNotice(BaseUrl)),
 
         ("PasswordReset",
-            EmailTemplates.PasswordReset(
-                BaseUrl, new PasswordResetEmail(UserId, UrlSafeToken)).HtmlBody),
+            EmailTemplates.PasswordReset(BaseUrl, new PasswordResetEmail(UserId, UrlSafeToken))),
 
-        ("PasswordChangedNotice", EmailTemplates.PasswordChangedNotice(BaseUrl).HtmlBody),
+        ("PasswordChangedNotice", EmailTemplates.PasswordChangedNotice(BaseUrl)),
     ];
 
-    public static TheoryData<string, string> AllTemplates()
+    /// <summary>A body filled to the cap, which is the only state in which a remainder can exist.</summary>
+    private static List<MatchNotificationItem> FullMatchPage() =>
+        [.. Enumerable.Range(1, MaxItemsPerDigest)
+            .Select(i => new MatchNotificationItem($"Backend-utvecklare {i}", "Acme AB", "Stark match"))];
+
+    private static List<FollowedCompanyAdItem> FullFollowPage() =>
+        [.. Enumerable.Range(1, MaxItemsPerDigest)
+            .Select(i => new FollowedCompanyAdItem($"Utvecklare {i}", "Acme AB"))];
+
+    public static TheoryData<string> AllTemplateNames()
     {
-        var data = new TheoryData<string, string>();
-        foreach (var (name, html) in RenderAll())
-            data.Add(name, html);
+        // Carries the NAME only. Passing the rendered document made xUnit serialise ~4 kB of markup
+        // into each of ten test display names, which makes the `total:` line CLAUDE.md §7 rests on
+        // hard to read (dotnet-architect Nice-to-have 6, 2026-08-12).
+        var data = new TheoryData<string>();
+        foreach (var (name, _) in RenderAll())
+            data.Add(name);
         return data;
     }
+
+    private static EmailTemplates.EmailContent Case(string name) =>
+        RenderAll().Single(c => c.Name == name).Content;
 
     // ---------- the pin ----------
 
     [Theory]
-    [MemberData(nameof(AllTemplates))]
-    public void EmailHtml_ForEveryTemplate_ReferencesNoRemoteResource(string name, string html)
+    [MemberData(nameof(AllTemplateNames))]
+    public void EmailHtml_ForEveryTemplate_ReferencesNoRemoteResource(string name)
     {
+        var html = Case(name).HtmlBody;
         html.ShouldNotBeNullOrWhiteSpace($"{name} rendered an empty HTML part");
 
-        FindRemoteResources(html, BaseUrl)
+        RemoteResourceDetector.FindRemoteResources(html, BaseUrl)
             .ShouldBeEmpty($"{name} references a remote resource, which falsifies the Art. 30 "
                 + "retention entry's ground 2 — re-measure the register before shipping this");
     }
 
-    [Fact]
-    public void EmailHtml_TheTemplateSet_CoversAllEightPortMethods()
+    [Theory]
+    [MemberData(nameof(AllTemplateNames))]
+    public void EmailHtml_ForEveryTemplate_CarriesEveryLinkItsTextPartCarries(string name)
     {
-        // Guards the Theory above against shrinking silently: a Theory over a list that lost entries
-        // still passes, and would then report "no remote resources" about templates it never
-        // rendered. Eight port methods, ten cases (two templates contribute a second branch each).
-        var cases = RenderAll();
+        // The presence half, without which the absence assertion above is fail-open: a body that lost
+        // its Button, or a Document rendered with an empty body, satisfies "not whitespace" AND makes
+        // "no remote resources" MORE true. Nothing else in this PR would have noticed.
+        //
+        // It matters most for the Art. 7(3) unsubscribe route. The settings link is pinned in
+        // SesEmailSenderTests against the TEXT part; if the HTML part dropped it, a notification read
+        // in an HTML client — which is nearly every recipient — would carry no way to turn the mails
+        // off, with a green suite.
+        //
+        // The oracle is the text part rather than a hand-written list, so the two parts are compared
+        // against each other and a link added to one is required in the other.
+        var content = Case(name);
+        var textLinks = TextUrl.Matches(content.PlainTextBody).Select(m => m.Value).ToList();
 
-        cases.Count.ShouldBe(10);
-        cases.Select(c => c.Name.Split('/')[0]).Distinct().Count().ShouldBe(
-            8, "one case per IEmailSender.Send* method, and there are eight");
+        textLinks.ShouldNotBeEmpty($"{name}: the text part carries no link, so this fact would be "
+            + "vacuous — every template in this codebase carries at least one");
+
+        foreach (var link in textLinks)
+        {
+            // Encoded, because the HTML part carries these in attribute context where `&` is `&amp;`.
+            content.HtmlBody.ShouldContain(
+                WebUtility.HtmlEncode(link),
+                customMessage: $"{name}: the text part links to {link} and the HTML part does not");
+        }
+    }
+
+    [Fact]
+    public void EmailHtml_TheTemplateSet_CoversEveryTemplateMethod()
+    {
+        // Compared against REFLECTION, not against a hardcoded count. A count closes shrinkage only:
+        // add a ninth template with no fixture and a `ShouldBe(10)` stays green while the Theory above
+        // never renders it, so the register would claim a measured property over a template nothing
+        // measured. That is the direction that actually happened once already — PasswordReset and
+        // PasswordChangedNotice reached production without an Art. 30 entry (dotnet-architect Viktigt 2
+        // / code-reviewer Major 7, 2026-08-12).
+        var templateMethods = typeof(EmailTemplates)
+            .GetMethods(BindingFlags.Public | BindingFlags.Static)
+            .Where(m => m.ReturnType == typeof(EmailTemplates.EmailContent))
+            .Select(m => m.Name)
+            .ToHashSet(StringComparer.Ordinal);
+
+        templateMethods.ShouldNotBeEmpty("reflection found no templates, so this fact is vacuous");
+
+        RenderAll()
+            .Select(c => c.Name.Split('/')[0])
+            .ToHashSet(StringComparer.Ordinal)
+            .ShouldBe(templateMethods, ignoreOrder: true,
+                "every EmailTemplates method must have at least one fixture case here");
+    }
+
+    // ---------- the filter disclosure must appear in BOTH parts, or in neither ----------
+
+    [Fact]
+    public void EmailHtml_WhenAWatchIsFiltered_DisclosesItInBothParts()
+    {
+        // BuildFilterDisclosureHtml's doc says the two parts "must fall silent together", because a
+        // disclosure carried by only one part is one the recipient may never see. Nothing pinned that
+        // (code-reviewer Major 5, 2026-08-12).
+        var content = Case("FollowedCompanyNotification/filtered");
+
+        foreach (var part in new[] { content.PlainTextBody, content.HtmlBody })
+        {
+            part.ShouldContain("så annonser du inte matchar visas inte här");
+            part.ShouldContain("så annonser i andra orter visas inte här");
+        }
+    }
+
+    [Fact]
+    public void EmailHtml_WhenNoWatchIsFiltered_DisclosesNothingInEitherPart()
+    {
+        var content = Case("FollowedCompanyNotification/unfiltered");
+
+        foreach (var part in new[] { content.PlainTextBody, content.HtmlBody })
+        {
+            part.ShouldNotContain("visas inte här");
+            part.ShouldNotContain("Du ser och ändrar filtren");
+        }
+    }
+
+    [Theory]
+    [InlineData("EmailChangedNotification")]
+    [InlineData("AccountExistsNotice")]
+    [InlineData("PasswordChangedNotice")]
+    public void EmailHtml_ForTheTokenFreeNotices_CarriesNoToken(string name)
+    {
+        // The HTML counterpart of the text part's own no-token assertions. These three are security
+        // notices sent to an address that may not have requested anything, so a link that grants
+        // access must not appear in either part.
+        Case(name).HtmlBody.ShouldNotContain(UrlSafeToken);
     }
 
     // ---------- the injection case: third-party ad text cannot smuggle markup in ----------
@@ -261,11 +273,11 @@ public class EmailHtmlNoRemoteResourceTests
     [Fact]
     public void EmailHtml_WhenAdTextCarriesMarkup_EncodesItRatherThanEmittingIt()
     {
-        // Job titles and company names arrive from JobTech ad data, which this codebase does not
-        // author. Unencoded, a crafted company name injects markup into a mail we sign with our own
-        // DKIM — including the very <img> ground 2 forbids, which would turn our own send into the
-        // tracking capability the register says does not exist. This is the case that makes the
-        // encoding load-bearing rather than tidy.
+        // Job titles and company names arrive from JobTech, which this codebase does not author:
+        // PlatsbankenJobSource puts hit.Employer?.Name?.Trim() straight into CompanyName and the
+        // payload sanitizer never runs on it, so this premise is producible (code-reviewer measured
+        // that path, 2026-08-12). Unencoded, a crafted company name injects markup into a mail we sign
+        // with our own DKIM — including the very <img> ground 2 forbids.
         var hostile = """<img src="https://evil.example/pixel.gif" onerror="alert(1)">""";
 
         var html = EmailTemplates.MatchNotification(
@@ -276,87 +288,28 @@ public class EmailHtmlNoRemoteResourceTests
                 Items: [new MatchNotificationItem(hostile, $"Acme {hostile} AB", "Toppmatch")],
                 TotalCount: 1)).HtmlBody;
 
-        FindRemoteResources(html, BaseUrl).ShouldBeEmpty();
+        RemoteResourceDetector.FindRemoteResources(html, BaseUrl).ShouldBeEmpty();
 
-        // No LIVE tag: the payload cannot fetch. Asserted as the absence of the unencoded opening,
-        // which is the only form a client acts on.
+        // No LIVE tag: the payload cannot fetch. The unencoded opening is the only form a client acts on.
         html.ShouldNotContain("<img");
 
         // And present as inert TEXT, so the encoding is proven to have HAPPENED rather than the
         // payload having been dropped: a template that silently discarded the field would pass the
-        // two assertions above while proving nothing about encoding at all.
+        // two assertions above while proving nothing about encoding.
         html.ShouldContain("&lt;img");
         html.ShouldContain("evil.example");
     }
 
     [Fact]
-    public void FindRemoteResources_WhenEncodingIsLost_ReportsIt()
+    public void EmailHtml_WhenAValueWouldReachAnAttribute_EscapesTheQuote()
     {
-        // The counterfactual that makes the test above non-vacuous, and the single most important
-        // arm in this file. `EmailHtml.Encode` is what stands between third-party ad text and live
-        // markup in a mail we DKIM-sign. If it were ever removed, the same hostile company name
-        // would reach the document as a live <img> — exactly the tracking pixel the register says
-        // does not exist. This feeds the detector that un-encoded document and requires a finding,
-        // so "the injection test is green" can never mean "the detector cannot see an injection".
-        var hostile = """<img src="https://evil.example/pixel.gif">""";
+        // Asserts the PRIMITIVE's transform, not a claim about any mail: no production path puts
+        // third-party text into an attribute today (security-auditor read all 14 call sites,
+        // 2026-08-12). This is what keeps that safe if one ever does — an unescaped double quote
+        // would close the href and turn the rest of the value into attributes.
+        var markup = EmailHtml.Button($"{BaseUrl}/jobb\" onmouseover=\"alert(1)", "Öppna").ToString();
 
-        FindRemoteResources(Wrap($"<p>Acme {hostile} AB</p>"), BaseUrl).ShouldNotBeEmpty();
+        markup.ShouldNotContain("onmouseover=\"alert");
+        markup.ShouldContain("&quot;");
     }
-
-    // ---------- counterfactuals: every detector arm is proven able to fail ----------
-
-    [Theory]
-    [InlineData("""<p><img src="https://tracker.example/p.gif"></p>""")]
-    [InlineData("""<p><script src="https://cdn.example/a.js"></script></p>""")]
-    [InlineData("""<link rel="stylesheet" href="https://cdn.example/a.css">""")]
-    [InlineData("""<style>@import url("https://fonts.example/f.css");</style>""")]
-    [InlineData("""<td background="https://cdn.example/bg.png">x</td>""")]
-    [InlineData("""<div style="background-image:url('https://cdn.example/bg.png')">x</div>""")]
-    [InlineData("""<iframe src="https://evil.example/"></iframe>""")]
-    public void FindRemoteResources_WhenTheDocumentFetches_ReportsIt(string fragment)
-    {
-        FindRemoteResources(Wrap(fragment), BaseUrl).ShouldNotBeEmpty();
-    }
-
-    [Fact]
-    public void FindRemoteResources_WhenAnAnchorPointsOffHost_ReportsIt()
-    {
-        // A bare off-host link fetches nothing on its own, and is still a finding: it is how a click
-        // tracker or a redirector gets in, and "no absolute URL whose host lies outside BaseUrl" is
-        // the form security-auditor's condition 1 names. Both the explicit-scheme and the
-        // protocol-relative form must be caught, since the second is the one that looks like a path.
-        FindRemoteResources(Wrap("""<a href="https://sponsor.example/x">x</a>"""), BaseUrl)
-            .ShouldNotBeEmpty();
-        FindRemoteResources(Wrap("""<a href="//sponsor.example/x">x</a>"""), BaseUrl)
-            .ShouldNotBeEmpty();
-    }
-
-    [Fact]
-    public void FindRemoteResources_WhenAHostMerelyLooksLikeOurs_ReportsIt()
-    {
-        // The host comparison is exact, not a suffix or prefix test: `jobbliggaren.se.evil.example`
-        // and `evil-jobbliggaren.se` both contain the allowed host as a substring, and a detector
-        // built on Contains would wave both through. The third form hides the real host behind
-        // userinfo, which is the classic way a URL is read wrong by eye.
-        FindRemoteResources(Wrap("""<a href="https://jobbliggaren.se.evil.example/x">x</a>"""), BaseUrl)
-            .ShouldNotBeEmpty();
-        FindRemoteResources(Wrap("""<a href="https://evil-jobbliggaren.se/x">x</a>"""), BaseUrl)
-            .ShouldNotBeEmpty();
-        FindRemoteResources(Wrap("""<a href="https://jobbliggaren.se@evil.example/x">x</a>"""), BaseUrl)
-            .ShouldNotBeEmpty();
-    }
-
-    [Fact]
-    public void FindRemoteResources_WhenEverythingIsOnHost_ReportsNothing()
-    {
-        // The control that keeps the counterfactuals above honest: the detector must not be one that
-        // rejects every input. Without this, all nine arms would also "pass" against a detector
-        // hard-wired to report a finding.
-        FindRemoteResources(
-            Wrap("""<a href="https://jobbliggaren.se/jobb">Öppna annonserna</a>"""), BaseUrl)
-            .ShouldBeEmpty();
-    }
-
-    private static string Wrap(string fragment) =>
-        $"<!DOCTYPE html><html lang=\"sv\"><body>{fragment}</body></html>";
 }

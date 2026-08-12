@@ -119,6 +119,11 @@ public sealed partial class ConsoleEmailSender(
         return Task.CompletedTask;
     }
 
+    // Only PlainTextBody reaches this log, and the omission of HtmlBody is deliberate rather than an
+    // oversight to be "completed" later: this sink carries the WHOLE body, including confirmation and
+    // activation links (CLAUDE.md §11), and #1208 owns the gap that nothing re-measures whether it
+    // holds real-user PII. Logging the HTML part as well would widen that surface for no dev benefit,
+    // since the two parts say the same thing (#183, 2026-08-12).
     [LoggerMessage(3001, LogLevel.Information,
         "[ConsoleEmailSender] To={To} Subject={Subject}\n---\n{Body}\n---")]
     private partial void LogEmail(string to, string subject, string body);

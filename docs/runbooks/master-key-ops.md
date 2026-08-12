@@ -164,11 +164,23 @@ it walks straight back into the identity trap above: after a rotation the box ho
 which identity is in force, and pressing Enter at the prompt stamps `local-v1` onto v2 bytes. The
 values on tmpfs are correct — only their owner is stale. Change the owner:
 
+**`chown -R` from the directory is the wrong tool and it fails silently.** It chowns the operand
+itself, so `chown -R <uid>:<gid> /run/jobbliggaren/secrets` leaves the directory
+`0710 <uid>:<gid>` instead of `0710 root:<gid>` — the container's own uid becomes its **owner**
+and gains `rwx` on the directory holding the master key, where the design gives it `--x`. Nothing
+on this box would then say so: `--check` reads the directory's mode and never its owner, and the
+reconcile gate reads the directory's group and the files' owner. Both go green on the broken
+posture.
+
 ```bash
 # Both ids are in the refusal message; read them from there rather than re-deriving them.
-sudo chown -R <uid>:<gid> /run/jobbliggaren/secrets
-sudo chgrp <gid> /run/jobbliggaren/secrets
-sudo systemctl start jobbliggaren-reconcile.service   # apply now rather than waiting for :xx
+sudo chown root:<gid> /run/jobbliggaren/secrets     # the directory: root keeps it
+sudo chown <uid>:<gid> /run/jobbliggaren/secrets/*  # the files, and only the files
+sudo systemctl start jobbliggaren-reconcile.service # apply now rather than waiting for :xx
+
+# Prove the posture, because neither gate above reads the axis you just moved:
+sudo stat -c '%n %U:%G %a' /run/jobbliggaren/secrets /run/jobbliggaren/secrets/*
+# expect: the directory root:<container-group> 710, every file <container-user>:<group> 400
 ```
 
 The numbers are deliberately not written here. A live measured id in a tracked file decays within
@@ -247,10 +259,13 @@ the damage unrecoverable.
    that ordering destroyed the input to its own next step.
 
    ```bash
-   # uid/gid measured from the image, the same way the injection script does it
-   ids=$(sudo docker run --rm --entrypoint sh \
+   # uid/gid THROUGH the shared measurement, not a third hand-rolled copy of it. This block used
+   # to inline its own `docker run`, described as "the same way the injection script does it" —
+   # true when written, false from #1295, and without the argument guards, the containment flags
+   # or the numeric validation the real one carries.
+   ids=$(sudo /opt/jobbliggaren/deploy/systemd/jobbliggaren-runtime-ids.sh \
      "$(sudo docker compose -f /opt/jobbliggaren/deploy/docker-compose.yml config --images \
-        | grep -m1 -F jobbliggaren-api)" -c 'id -u; id -g')
+        | grep -m1 -F jobbliggaren-api)")
    uid=$(echo "$ids" | head -1); gid=$(echo "$ids" | tail -1)
 
    sudo install -m 0400 -o "$uid" -g "$gid" \
@@ -372,10 +387,21 @@ procedure here will help.
   until the cutover, the gate is measured only against a stub.
 - **A uid or gid divergence BETWEEN our three images (#1295).** The gate measures the api image,
   because that is the image injection measured when it set the ownership. All three Dockerfiles
-  declare `USER app`, so a divergence would be a defect in the image pipeline with a build-time
-  gate — but nothing on this box would catch a worker or migrate image that drifted alone.
+  declare `USER app` — but **no gate anywhere measures that they still agree**, in CI or on the
+  box (measured 2026-08-12: `release-images.yml` contains no `uid`/`gid` check). A worker or
+  migrate image that drifted alone would be caught by nothing.
+- **The directory's OWNER is read by nothing (#1295).** `--check` reads its mode, the reconcile
+  gate reads its group and the files' owner and mode. `install -d -o root` sets it once at
+  injection and `tmpfiles` is create-only, so a hand-`chown` — including the `chown -R` this
+  runbook now warns against — leaves `0710 <container-uid>:<gid>` with every gate green. The
+  cutover row (`vps-deploy-stack.md` 32b) is the only place that reads the axis, and it reads it
+  once. Owned by [#1318](https://github.com/klasolsson81/jobbliggaren/issues/1318).
 - **Injection still runs an unattested image.** `jobbliggaren-inject-secrets.sh` measures the ids
   from the operator's tag, resolved out of the compose file before anything has been verified.
-  After #1295, reconcile is clean on that axis and this is the only place left on the box that
-  executes an unattested image. Blast radius is an unprivileged container with no mounts and no
-  environment, with the operator at the keyboard.
+  After #1295, reconcile is clean on that axis — it measures the digest attestation just cleared
+  — and this is the only place left on the box that executes an unattested image. Blast radius is
+  an unprivileged container with `--network none`, `--cap-drop ALL`, `no-new-privileges`, no
+  mounts and no environment, with the operator at the keyboard.
+- **The measurement needs `sh` and `id` inside the image (#1295).** A chiseled or distroless base
+  — the same event class the gate exists to catch — would make the helper exit non-zero, and the
+  gate would then refuse the apply hourly as "cannot answer" rather than as a bad base image.

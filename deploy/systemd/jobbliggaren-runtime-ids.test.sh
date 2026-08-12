@@ -41,7 +41,10 @@ fail=0
 # has one the suite would start pulling images.
 readonly FIXTURE_SUT="$TMPROOT/runtime-ids.sh"
 sed -e "s#/usr/bin/docker#docker#g" "$SUT" >"$FIXTURE_SUT"
-grep -qF -- "out=\$(docker run --rm --entrypoint sh" "$FIXTURE_SUT" || {
+# Proven by ABSENCE of the absolute path, not by the presence of a particular call shape: an
+# anchor quoting the invocation breaks the day someone wraps the line, which is a fixture that
+# fails for a reason unrelated to the property. This form cannot drift with formatting.
+grep -qF -- "/usr/bin/docker" "$FIXTURE_SUT" && {
   echo "FIXTURE BROKEN: the docker redirect did not apply — the suite would call the real docker" >&2
   exit 1
 }
@@ -92,6 +95,21 @@ assert_stdout_empty() {
   fi
 }
 
+# EVERY REFUSAL IS BOUND TO ITS OWN MESSAGE, not to exit 1. This script refuses by four routes
+# and they overlap: the empty argument is also rejected by the charset regex, and the missing
+# argument is also caught further down by `set -u`. An exit-code-only case therefore stays green
+# with its own guard deleted — measured: removing the `-n` guard leaves the suite 20/0.
+assert_err_contains() {
+  if grep -qF -- "$1" "$TMPROOT/err"; then
+    pass=$((pass + 1))
+    echo "  ok   $2"
+  else
+    fail=$((fail + 1))
+    echo "  FAIL $2 — the refusal did not name it:" >&2
+    sed 's/^/       /' "$TMPROOT/err" >&2
+  fi
+}
+
 echo "jobbliggaren-runtime-ids.sh"
 
 echo "-- the argument contract"
@@ -99,18 +117,23 @@ stub_docker $'1654\n1654' 0
 
 expect_exit 1 "no argument at all refuses"
 assert_stdout_empty "and prints nothing to stdout"
+assert_err_contains "usage:" "and it is the ARITY guard that refused"
 
 expect_exit 1 "an empty argument refuses" ""
 assert_stdout_empty "and prints nothing to stdout"
+assert_err_contains "empty image reference" "and it is the EMPTINESS guard that refused"
 
 # THE ARM THAT PROTECTS A ROOT-RUN `docker run`: an argument that begins with a dash would reach
 # docker's FLAG parser rather than its image slot.
 expect_exit 1 "a leading dash refuses" "--privileged"
 assert_stdout_empty "and prints nothing to stdout"
+assert_err_contains "may not begin with" "and it is the DASH guard that refused, not the charset"
 
 expect_exit 1 "a reference with a shell metacharacter refuses" 'ghcr.io/x/y:$(whoami)'
+assert_err_contains "outside" "and it is the CHARSET guard that refused"
 expect_exit 1 "a reference with whitespace refuses" "ghcr.io/x/y latest"
 expect_exit 1 "two arguments refuse" "ghcr.io/x/y:latest" "extra"
+assert_err_contains "usage:" "and the arity guard names itself"
 
 # Uppercase is admitted deliberately — a tag may carry it, and the caller's own reference guard
 # already allows it. This case is what stops a later "tighten the charset" from reintroducing a
@@ -135,6 +158,15 @@ expect_exit 1 "a non-numeric gid refuses — validated SEPARATELY from the uid" 
 
 stub_docker "" 0
 expect_exit 1 "empty output refuses" "ghcr.io/x/y:latest"
+
+# MORE lines is a distinct failure from FEWER, and only one of them was pinned. Probed
+# 2026-08-12 against the pre-fix script: `1654\n1654\nEXTRA` exited 0 and reported the pair, so
+# root would have chowned the master key to the first two numeric lines of an image's output
+# while a later line went unread — and on the injection path that image is unattested.
+stub_docker $'1654\n1654\nEXTRA-LINE' 0
+expect_exit 1 "a THIRD line refuses — 'at least two' is not the contract" "ghcr.io/x/y:latest"
+assert_stdout_empty "and prints nothing to stdout"
+assert_err_contains "exactly two lines" "and the refusal names the arity of the OUTPUT"
 
 echo "-- the happy path, and the stdout discipline"
 stub_docker $'1654\n1655' 0

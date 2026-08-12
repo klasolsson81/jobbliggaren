@@ -166,11 +166,16 @@ for image in "${images[@]}"; do
 
   # The api image is the representative: it is the one jobbliggaren-inject-secrets.sh measured
   # when it set the ownership, so it is the one the gate must compare against. A divergence
-  # BETWEEN our three images is a different defect with a build-time gate — all three Dockerfiles
-  # declare `USER app` — and measuring every OURS_ image here would refuse falsely the day one
-  # ships that mounts no secrets.
+  # BETWEEN our three images is out of scope by decision — all three Dockerfiles declare
+  # `USER app`, and nothing on this box or in CI measures a drift between them today — while
+  # measuring every OURS_ image here would refuse falsely the day one ships that mounts no
+  # secrets.
+  #
+  # Both separators, because the classifier above is prefix-based and this selector is not: a
+  # digest-form entry in the compose model would otherwise leave api_digest empty and turn a
+  # healthy box into an hourly exit 2.
   case "$image" in
-  "${OURS_PREFIX}api:"*) api_digest="${digests[0]}" ;;
+  "${OURS_PREFIX}api:"* | "${OURS_PREFIX}api@"*) api_digest="${digests[0]}" ;;
   esac
 done
 
@@ -185,14 +190,15 @@ done
 # reasons that are not interchangeable: measuring the ids RUNS the image, so it must follow
 # attestation; and a refusal must not be preceded by a line announcing an apply.
 # ---------------------------------------------------------------------------------------------
-shopt -s nullglob
-secret_files=("$SECRETS_DIR"/*)
-shopt -u nullglob
+# No `shopt -s nullglob`: setting it here would leave the shell in a state this script did not
+# find it in, and the literal-pattern case it exists to avoid is one `-e` test.
 regular_secrets=()
-for f in "${secret_files[@]}"; do
-  # An explicit `if`, not `[ -f "$f" ] && …`: an AND-list whose test fails on the final iteration
-  # leaves the loop with a non-zero status, and under `set -e` that is a script that exits where
-  # it meant to continue.
+for f in "$SECRETS_DIR"/*; do
+  # An unmatched glob stays literal, and so does one against a directory that does not exist.
+  [ -e "$f" ] || continue
+  # REGULAR FILES ONLY. A directory or socket under $SECRETS_DIR is not something an image's uid
+  # has to own, and counting one would turn the skip arm into a permanent refusal on a box where
+  # nothing was ever injected.
   if [ -f "$f" ]; then
     regular_secrets+=("$f")
   fi
@@ -212,6 +218,21 @@ else
     exit 2
   }
 
+  # A DIGEST, AND THE SCRIPT SAYS SO RATHER THAN ASSUMING IT. What makes running this image safe
+  # is that its content is addressed by the hash the verifier just cleared; a tag would be a
+  # different artefact by the time it is run. The helper's charset admits both forms — it serves
+  # a caller that legitimately passes a tag — so the constraint belongs here, at the caller that
+  # has one.
+  case "$api_digest" in
+  *@sha256:*) ;;
+  *)
+    log "CANNOT ANSWER: the api reference to measure is not a digest ('$api_digest')."
+    log "  Measuring runs the image, and only a digest is the artefact attestation cleared."
+    log "  Nothing is applied; the running containers stay up."
+    exit 2
+    ;;
+  esac
+
   ids_out=$("$RUNTIME_IDS" "$api_digest") || {
     log "CANNOT ANSWER: could not measure the runtime ids from the verified api image."
     log "  Nothing is applied; the running containers stay up."
@@ -229,26 +250,55 @@ else
     exit 2
   fi
 
-  dir_gid=$(stat -c '%g' "$SECRETS_DIR")
+  # A FAILING `stat` IS "COULD NOT ANSWER", NOT A REFUSAL, and without this it would be neither:
+  # under `set -e` the assignment would exit 1 with no journal line at all, which reads on
+  # `systemctl --failed` as an ownership refusal that never named a number.
+  dir_gid=$(stat -c '%g' "$SECRETS_DIR") || {
+    log "CANNOT ANSWER: could not stat $SECRETS_DIR. Nothing is applied."
+    exit 2
+  }
   if [ "$dir_gid" != "$want_gid" ]; then
     log "REFUSING: the incoming api image cannot TRAVERSE $SECRETS_DIR."
     log "  directory group is $dir_gid; the image runs as gid $want_gid. The directory is 0710,"
     log "  so group traversal is the container's only way in — api and worker would report a"
     log "  missing master key. Nothing is applied; the running containers stay up."
-    log "  Repair by re-owning, NEVER by re-injecting (master-key-ops.md §3):"
-    log "    sudo chgrp $want_gid $SECRETS_DIR && sudo chown -R $want_uid $SECRETS_DIR"
+    log "  Repair by re-owning, NEVER by re-injecting (master-key-ops.md §3). NOT chown -R from"
+    log "  the directory: that chowns the operand too, and root must stay its owner."
+    log "    sudo chown root:$want_gid $SECRETS_DIR"
+    log "    sudo chown $want_uid:$want_gid $SECRETS_DIR/*"
     log "    sudo systemctl start jobbliggaren-reconcile.service"
     exit 1
   fi
 
   for f in "${regular_secrets[@]}"; do
-    file_uid=$(stat -c '%u' "$f")
+    # OWNER AND MODE IN ONE `stat`, because the claim this gate logs is READABILITY and the owner
+    # alone does not establish it: a file with the right owner and mode 0000 crash-loops the
+    # stack with the same "missing master key" this gate exists to prevent. Nothing else on the
+    # box reads the files' mode — `--check` reads the directory's.
+    file_meta=$(stat -c '%u %a' "$f") || {
+      log "CANNOT ANSWER: could not stat $f. Nothing is applied."
+      exit 2
+    }
+    file_uid="${file_meta% *}"
+    file_mode="${file_meta#* }"
     if [ "$file_uid" != "$want_uid" ]; then
       log "REFUSING: the incoming api image cannot READ the injected secrets."
       log "  $f is owned by uid $file_uid; the image runs as uid $want_uid. The files are 0400,"
       log "  so the owner is the only reader. Nothing is applied; the running containers stay up."
-      log "  Repair by re-owning, NEVER by re-injecting (master-key-ops.md §3):"
-      log "    sudo chown -R $want_uid:$want_gid $SECRETS_DIR"
+      log "  Repair by re-owning, NEVER by re-injecting (master-key-ops.md §3). The directory is"
+      log "  NOT part of it — root owns that, and chown -R from the directory would take it too."
+      log "    sudo chown $want_uid:$want_gid $SECRETS_DIR/*"
+      log "    sudo systemctl start jobbliggaren-reconcile.service"
+      exit 1
+    fi
+    # The owner's read bit, not the exact 0400: injection writes 0400, but refusing every other
+    # mode would make this gate an opinion about permissions rather than a statement about
+    # readability.
+    if (( (8#$file_mode & 0400) == 0 )); then
+      log "REFUSING: $f is owned by the right uid ($file_uid) but its mode is $file_mode —"
+      log "  the owner cannot read it, so api and worker would report a missing master key"
+      log "  anyway. Nothing is applied; the running containers stay up."
+      log "    sudo chmod 0400 $f"
       log "    sudo systemctl start jobbliggaren-reconcile.service"
       exit 1
     fi

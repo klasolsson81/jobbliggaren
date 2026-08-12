@@ -38,6 +38,11 @@ mkdir -p "$BIN"
 
 pass=0
 fail=0
+# The gate's ownership cases brought two platform-dependent skips with them (#1295): a mode case
+# that needs a filesystem honouring chmod, and a group case that needs this account to be in more
+# than one group. Both are announced, and CI turns each into an error via its own env flag — an
+# announced skip is not a measurement.
+skipped=0
 
 # The wrapper hard-codes /opt/jobbliggaren paths, so the suite runs it against a copy whose
 # paths point into the fixture tree. Rewriting the constants is what makes the predicates
@@ -75,7 +80,8 @@ prepare_sut() {
   # and a stub here would leave that wiring unmeasured. Only its docker call is redirected onto
   # the same stub everything else in this suite uses.
   sed -e "s#/usr/bin/docker#docker#g" "$script_dir/jobbliggaren-runtime-ids.sh" >"$FIXTURE_IDS"
-  grep -qF -- "out=\$(docker run --rm --entrypoint sh" "$FIXTURE_IDS" || {
+  # Proven by ABSENCE, so the proof does not break when the call is reformatted.
+  grep -qF -- "/usr/bin/docker" "$FIXTURE_IDS" && {
     echo "FIXTURE BROKEN: the helper's docker redirect did not apply" >&2
     exit 1
   }
@@ -112,7 +118,7 @@ stub_docker() {
 # and would otherwise be swallowed by \`*pull*\` — which is how this stub first reported that
 # 'up -d' never ran when it had.
 case "\$*" in
-  *"id -u"*)           echo yes > "$TMPROOT/idmeasured" ; cat "$TMPROOT/ids-out" ; exit "\$(cat "$TMPROOT/ids-exit")" ;;
+  *"id -u"*)           echo "\$*" > "$TMPROOT/idmeasured" ; cat "$TMPROOT/ids-out" ; exit "\$(cat "$TMPROOT/ids-exit")" ;;
   *"config --images"*) cat "$TMPROOT/images" ;;
   *"image inspect"*)   cat "$TMPROOT/digests" ;;
   *"up -d"*)           echo "up: ok" ; echo "\$*" > "$TMPROOT/up-args" ;;
@@ -380,6 +386,30 @@ expect_exit 0 "ids agree → the apply proceeds"
 assert_applied "and 'up -d' ran"
 assert_ids_measured "and the image WAS measured (the gate did not silently skip)"
 
+# WHAT REFERENCE REACHED THE MEASUREMENT, not merely that one did. Running the image is safe only
+# because its content is addressed by the digest attestation just cleared; with `api_digest`
+# assigned the TAG instead, every other case in this section still passes.
+if grep -qF -- "@sha256:" "$TMPROOT/idmeasured"; then
+  pass=$((pass + 1))
+  echo "  ok   and it was measured BY DIGEST, not by tag"
+else
+  fail=$((fail + 1))
+  echo "  FAIL the measurement ran against a non-digest reference:" >&2
+  sed 's/^/       /' "$TMPROOT/idmeasured" >&2
+fi
+
+# The containment flags are part of the mechanism, not of its style: one of the two callers runs
+# an unattested image. Bound here because this is where the real helper is exercised end to end.
+for flag in "--network none" "--cap-drop ALL" "--security-opt no-new-privileges"; do
+  if grep -qF -- "$flag" "$TMPROOT/idmeasured"; then
+    pass=$((pass + 1))
+    echo "  ok   the measurement runs contained ($flag)"
+  else
+    fail=$((fail + 1))
+    echo "  FAIL the measurement ran WITHOUT $flag" >&2
+  fi
+done
+
 # BOUND TO THE MESSAGE, NEVER TO THE EXIT CODE. Reconcile reaches exit 1 by many routes; an
 # exit-code-only assertion here stays green with either half of the comparison deleted.
 stub_runtime_ids "$(id -u)" "$(($(id -g) + 1))"
@@ -432,6 +462,87 @@ expect_exit 0 "a MISSING secrets directory skips the gate and applies"
 assert_applied "and 'up -d' ran"
 assert_ids_not_measured "and still no image is run"
 
+# THE -f FILTER. Without it a subdirectory counts as an injected secret, and the skip arm on an
+# uninjected box becomes a permanent refusal — the always-lit alarm this whole file family is
+# written against.
+rm -rf "$SECRETS"
+mkdir -p "$SECRETS/not-a-secret"
+expect_exit 0 "a NON-REGULAR entry does not count as an injected secret"
+assert_applied "and 'up -d' ran"
+assert_output_contains "ownership gate skipped" "and the gate still reports a skip"
+
+echo "-- the gate's own preconditions"
+# THE HELPER GUARD. Deleting `[ -x "$RUNTIME_IDS" ]` leaves every other case green, because every
+# other case has a working helper.
+seed_secrets
+stub_docker "$OURS:latest" "$DIGEST"
+stub_verifier 0
+stub_runtime_ids "$(id -u)" "$(id -g)"
+mv "$FIXTURE_IDS" "$FIXTURE_IDS.hidden"
+expect_exit 2 "a MISSING runtime-id helper is 'cannot answer' (2), not a refusal and not a pass"
+assert_not_applied "and nothing is applied"
+assert_ids_not_measured "and nothing was run"
+mv "$FIXTURE_IDS.hidden" "$FIXTURE_IDS"
+
+# A file the owner cannot read fails the gate's own CLAIM, which is readability and not ownership.
+seed_secrets
+chmod 0000 "$SECRETS/FieldEncryption__LocalMasterKeyBase64" 2>/dev/null || true
+if [ "$(stat -c '%a' "$SECRETS/FieldEncryption__LocalMasterKeyBase64")" = "0" ]; then
+  expect_exit 1 "right owner but mode 0000 → refuses; ownership alone is not readability"
+  assert_not_applied "and nothing is applied"
+  assert_output_contains "the owner cannot read it" "and the refusal names the mode, not the owner"
+else
+  skipped=$((skipped + 1))
+  echo "  SKIP mode 0000 case: this filesystem does not honour chmod (Git Bash/Windows)."
+  echo "       It RUNS in CI on ubuntu, where JBL_REQUIRE_MODE_CASES makes a skip an error."
+  if [ "${JBL_REQUIRE_MODE_CASES:-0}" = "1" ]; then
+    fail=$((fail + 1))
+    echo "  FAIL JBL_REQUIRE_MODE_CASES=1 but chmod is not honoured here" >&2
+  fi
+fi
+chmod 0400 "$SECRETS/FieldEncryption__LocalMasterKeyBase64" 2>/dev/null || true
+
+echo "-- the rig can tell a GROUP from an OWNER"
+# WITHOUT THIS THE TWO CENTRAL ASSERTIONS ARE INDISTINGUISHABLE. The fixture's uid equals its gid
+# (measured: both platforms in play), so swapping `stat -c '%g'` for `%u` on the directory — or
+# `%u` for `%g` on a file — leaves every other case in this section green. The only way to cross
+# it unprivileged is a directory whose group is a SECONDARY group of this user, which is a group
+# `chgrp` is permitted to set. Where no second group exists there is nothing to measure with, and
+# that is a skip rather than an abort: unlike the stat-vs-id probe, this is a property of the
+# host's account, not of the instrument.
+second_gid=""
+for g in $(id -G); do
+  if [ "$g" != "$(id -g)" ]; then second_gid="$g"; break; fi
+done
+
+if [ -z "$second_gid" ]; then
+  skipped=$((skipped + 1))
+  echo "  SKIP no secondary group on this host (id -G = $(id -G)); the %g-vs-%u swap cannot be"
+  echo "       distinguished here. It RUNS in CI, where JBL_REQUIRE_GROUP_CASES makes it an error."
+  if [ "${JBL_REQUIRE_GROUP_CASES:-0}" = "1" ]; then
+    fail=$((fail + 1))
+    echo "  FAIL JBL_REQUIRE_GROUP_CASES=1 but no secondary group was available" >&2
+  fi
+else
+  seed_secrets
+  chgrp "$second_gid" "$SECRETS" 2>/dev/null || true
+  chgrp "$second_gid" "$SECRETS"/* 2>/dev/null || true
+  if [ "$(stat -c '%g' "$SECRETS")" != "$second_gid" ]; then
+    skipped=$((skipped + 1))
+    echo "  SKIP chgrp to $second_gid did not take on this filesystem"
+  else
+    # dir group = second_gid, file owner = id -u. A gate reading %u of the directory would
+    # compare $(id -u) against want_gid and refuse; a gate reading %g of a file would compare
+    # $second_gid against want_uid and refuse. Only the correct pair passes.
+    stub_runtime_ids "$(id -u)" "$second_gid"
+    stub_docker "$OURS:latest" "$DIGEST"
+    stub_verifier 0
+    expect_exit 0 "dir group != file owner, and the gate reads the RIGHT one of each"
+    assert_applied "and 'up -d' ran"
+  fi
+  rm -rf "$SECRETS"
+fi
+
 echo
-echo "passed: $pass   failed: $fail"
+echo "passed: $pass   failed: $fail   skipped: $skipped"
 [ "$fail" -eq 0 ]

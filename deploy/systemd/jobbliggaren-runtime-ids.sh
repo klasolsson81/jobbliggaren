@@ -48,10 +48,24 @@ esac
 
 # Absolute path, as jobbliggaren-reconcile.sh already does for docker: PATH resolution in a
 # root-run gate lets anything earlier on PATH answer the question.
-out=$(/usr/bin/docker run --rm --entrypoint sh "$ref" -c 'id -u; id -g' 2>/dev/null) \
+#
+# CONTAINED, because one of the two callers runs an image nothing has attested. Reading two
+# numbers needs no network, no capabilities and no way to acquire more — and the compose file
+# already sets `no-new-privileges` on all nine services, so an uncontained `docker run` here
+# would be the loosest execution on the box. `--network none` also removes the default bridge
+# and `NET_RAW` with it.
+out=$(/usr/bin/docker run --rm --network none --cap-drop ALL \
+  --security-opt no-new-privileges --entrypoint sh "$ref" -c 'id -u; id -g' 2>/dev/null) \
   || die "could not read the runtime ids from '${ref}' (is it pulled? is dockerd up?)"
 
 mapfile -t ids <<<"$out"
+
+# EXACTLY two lines, not "at least two". A third line is not a malformed answer to ignore — on
+# the injection path the image is unattested, and root then chowns the master key to whatever
+# the first two numeric lines said while a later line went unread. Measured 2026-08-12: without
+# this, output of `1654\n1654\nEXTRA` exits 0 and reports the pair.
+[[ "${#ids[@]}" -eq 2 ]] || die "expected exactly two lines from '${ref}', got ${#ids[@]}"
+
 uid="${ids[0]:-}"
 gid="${ids[1]:-}"
 

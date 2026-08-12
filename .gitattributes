@@ -36,3 +36,13 @@ src/Jobbliggaren.Infrastructure/TextAnalysis/english.stop -text
 # tmpfiles.d `d` line is the same failure, and the argument for pinning scripts never had a
 # reason to stop at the file extension.
 deploy/systemd/* text eol=lf
+
+# deploy/backup/ for a related but distinct reason, found while adding the recipient guard
+# (#1324). age.recipient is read on the box by `grep -qx`, which would see a trailing `\r` as
+# part of the value — but the sharper reason is CI: BackupUnitFilePinTests now compares this
+# file's content against a literal quoted in a runbook, and a checkout that gave one of the two
+# CRLF would fail the build on a line-ending difference while reporting a recipient mismatch.
+# A guard whose failure message names the wrong cause is worse than the drift it catches.
+# (`git check-attr -a deploy/backup/age.recipient` returned nothing before this line; the repo
+# default is core.autocrlf=true, so the file was LF only by accident of how it was written.)
+deploy/backup/* text eol=lf

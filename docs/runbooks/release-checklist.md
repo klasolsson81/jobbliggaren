@@ -270,9 +270,17 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
            default configuration set hängas på sändande IDENTITET
            (`PutEmailIdentityConfigurationSetAttributes`), och då tillämpas det ändå. Det är
            AWS-sidigt tillstånd som **inget test i repot kan pinna**, så det verifieras här i stället
-           (`aws sesv2 get-email-identity`). Det andra skälet (ingen HTML-del) är inte defeasibelt så
-           och är fullt pinnat, så posten håller på det ensamt — men skriv aldrig om posten som om
-           skäl 1 vore garanterat av testet. code-reviewer Minor 3, 2026-08-09.
+           (`aws sesv2 get-email-identity`). code-reviewer Minor 3, 2026-08-09.
+           ⚠ **DET ANDRA SKÄLET ÄR BYTT 2026-08-12 (#183) — läs inte den gamla formuleringen.**
+           Fram till dess var skäl 2 *"ingen HTML-del"*. Mejlen bär numera en HTML-del, så det skälet
+           är **struket**. Ersättningen är **ingen fjärresurs i HTML-delen** (noll `<img>`, noll
+           `<link>`/`<script>`/`<style>`/`@import`, ingen absolut URL utanför `EmailOptions.BaseUrl`),
+           pinnad över alla åtta mallarna i `EmailHtmlNoRemoteResourceTests`. Egenskapen som gör den
+           dugbar är densamma som det gamla skälets: **oangripbar utifrån repot och pinnad med test**.
+           Slutsatsen står alltså kvar oförändrad — posten håller på skäl 2 ensamt om skäl 1 faller —
+           men **skriv aldrig om posten som om skäl 1 vore garanterat av testet**, och verifiera
+           `get-email-identity` **vid** flippen: den mätning som gjordes 2026-08-12 var bevis för den
+           dagen och inte en inlösen av förutsättningen.
 
       **Kvarstående policy-residualer under denna punkt, inte under punkt 3.**
       **ORDNINGEN STÅR FÖRST, för att den styr posterna under sig:** upplös

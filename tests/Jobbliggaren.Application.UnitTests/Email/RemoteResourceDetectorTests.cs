@@ -209,6 +209,27 @@ public class RemoteResourceDetectorTests
             .ShouldContain("fetching attribute: http-equiv=");
     }
 
+    [Fact]
+    public void FindRemoteResources_WhenAnAttributeIsSpacedFromItsValue_IsKnownNotToReport()
+    {
+        // DECLARED limit 2, pinned in the same form as limit 1 (code-reviewer, 2026-08-12: the
+        // detector's doc said "both are pinned" while only the first one was — a clause wider than
+        // its measurement, in the paragraph written to close exactly that).
+        //
+        // The attribute arm is NAME-based where the element arm is documented as SHAPE-based: it
+        // matches the literal `http-equiv=`, and HTML5 permits spaces around the equals sign. All
+        // five attribute literals carry the `=`, so all five have this shape.
+        //
+        // Bounded the same way limit 1 is: nothing in this repo can emit it (our own shell writes
+        // `charset` and `name`, never http-equiv, and no template builds attributes from data), and
+        // the element arm is unaffected — asserted below rather than claimed.
+        FindRemoteResources($"""<meta http-equiv = "refresh" content="0;url={OnHost}">""")
+            .ShouldBeEmpty();
+
+        // The bound, measured: the same spacing against a fetching ELEMENT is still caught.
+        FindRemoteResources($"""<img src = "{OnHost}">""").ShouldContain("fetching element: <img");
+    }
+
     // ---------- controls: the detector must not reject everything ----------
 
     [Fact]

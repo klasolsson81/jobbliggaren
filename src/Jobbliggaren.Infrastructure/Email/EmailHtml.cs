@@ -24,13 +24,18 @@ namespace Jobbliggaren.Infrastructure.Email;
 /// target-typed <c>new(...)</c>, so a search for <c>new Markup(</c> matches none of them and would
 /// report a clean repo while missing every site it claims to cover — including the return route,
 /// <c>Document(t, p, body: new($"…"))</c>, which is target-typed too. The measurement that bears the
-/// claim is therefore "which files name the type at all":
-/// <c>grep -rl "Markup" src/ --include=*.cs</c>, measured 2026-08-12 = TWO files, this one and
-/// <c>EmailTemplates.cs</c>, which only composes primitives and never constructs a
-/// <see cref="Markup"/> itself. (Run it across <c>tests/</c> too and the count rises without meaning
-/// anything: those hits are prose about "live markup" in the detector, not the type.) A name-based
-/// command here was itself a claim wider than its measurement (code-reviewer, 2026-08-12), and the
-/// replacement was re-measured rather than copied from the finding.
+/// claim is a type-name search — <c>grep -rl "Markup" src/ --include=*.cs</c>, measured 2026-08-12 =
+/// TWO files, this one and <c>EmailTemplates.cs</c>, which reaches the list only through
+/// <c>Markup.Empty</c> and a helper return type and constructs nothing. (Across <c>tests/</c> the
+/// count rises without meaning anything: those hits are the <c>liveMarkup</c> identifier and a test
+/// name, not the type.)
+/// <b>What that search does NOT close, named rather than left implied:</b> a target-typed
+/// <c>new(...)</c> passed straight into <c>Document</c> or <c>operator +</c> mentions no type at all,
+/// so a new file could construct a <see cref="Markup"/> without containing the word once. The search
+/// bounds which files NAME the type; it does not enumerate construction. Closing that would take a
+/// structural check over call sites rather than a command, and it is not written
+/// (code-reviewer, 2026-08-12 — the previous two versions of this passage each claimed a coverage
+/// their measurement did not have, and this one states its own reach instead).
 /// </para>
 /// <para>
 /// The history is the point. v1 had <c>Document</c> take a raw <see cref="string"/> body while the
@@ -234,8 +239,12 @@ internal static class EmailHtml
         new($"""<p style="{BodyStyle}">Vänliga hälsningar,<br>Jobbliggaren</p>""");
 
     /// <summary>
-    /// The call to action. Padding sits on the CELL, not on the anchor — see the type-level note on
-    /// the Word engine. <paramref name="href"/> is a same-origin URL built by the caller from
+    /// The call to action. The anchor carries the real <c>padding</c> and the cell carries
+    /// <c>mso-padding-alt</c>, so each engine gets exactly one — see the type-level note on the Word
+    /// engine. (This sentence said the opposite until 2026-08-12: it described the first repair,
+    /// which put padding on the cell for everyone and collapsed the click target. It is the third
+    /// home of the padding rule and the one that was left behind — code-reviewer raised it as an
+    /// ungraded observation because the delta had not touched the line.) <paramref name="href"/> is a same-origin URL built by the caller from
     /// <c>EmailOptions.BaseUrl</c>; encoding it for attribute context is what turns the query
     /// string's <c>&amp;</c> into <c>&amp;amp;</c>.
     /// </summary>

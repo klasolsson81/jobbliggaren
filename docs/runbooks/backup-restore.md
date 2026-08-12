@@ -58,7 +58,7 @@ The split dump is what makes it true, and ADR 0049's amendment now records the p
 refactor cannot quietly remove it (senior-cto-advisor bind 2026-08-09, D2).
 
 > **ESCROW OF THE AGE PRIVATE KEY IS A HARD PREREQUISITE. ~~UNDECIDED AS OF 2026-08-09~~ — THE
-> FORM WAS DECIDED 2026-08-12; THE ACT IS WHAT IS OPEN.**
+> FORM WAS DECIDED 2026-08-12 AND THE ACT FOLLOWED THE SAME DAY — ROW 32 IS CLOSED.**
 >
 > There is no copy of the private key on this box by design, so an off-box escrow is the only
 > path from ciphertext back to data. **A backup whose key is not escrowed is not a backup** — it
@@ -82,8 +82,9 @@ refactor cannot quietly remove it (senior-cto-advisor bind 2026-08-09, D2).
 > decision is summarised in `vps-deploy-stack.md` rows 26 and 32). Her reservation in §5 below —
 > that this choice is hers once real data exists — is **unspent**, and the rotation did not spend
 > it: the new private half sits on the same device, which is the same accepted risk and not a new
-> one. **What row 32 still waits for is Klas's confirmation that the identity is escrowed** — the
-> identity itself exists. Record the date there, not here; this callout no longer owns it.
+> one. **Row 32 is closed and dated 2026-08-12: the identity exists and Klas confirmed the escrow.**
+> Both escrow rows are now shut, which was the last thing blocking #198's cutover on this axis.
+> The date lives there, not here; this callout never owned it.
 >
 > **Where it is, measured 2026-08-12: outside the repository, on Klas's own machine beside the
 > four crypto values (ADR 0129).** No `.gitignore` rule guards it and none should — a rule for a

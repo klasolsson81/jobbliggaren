@@ -371,6 +371,20 @@ assert_output_contains() {
   fi
 }
 
+# EVERY refusal that publishes a repair command must clear this, not just the first one. Three
+# arms publish one — traversal, owner, mode — and the run buffer is overwritten by the next case,
+# so a single check after the first arm leaves the other two unguarded on exactly the axis this
+# PR has already got wrong twice. Reported independently by security-auditor and dotnet-architect.
+assert_no_recursive_chown() {
+  if grep -qF -- "chown -R" "$TMPROOT/out"; then
+    fail=$((fail + 1))
+    echo "  FAIL $1 — the refusal published a recursive chown; that takes the directory root owns" >&2
+  else
+    pass=$((pass + 1))
+    echo "  ok   $1"
+  fi
+}
+
 assert_ids_measured() {
   if [ -f "$TMPROOT/idmeasured" ]; then
     pass=$((pass + 1))
@@ -435,18 +449,13 @@ assert_output_contains "cannot TRAVERSE" "and the refusal names the traversal ax
 # leaves the container's uid owning the directory root must own. Nothing else in this suite
 # reads the text an operator is told to run.
 assert_output_contains "chown root:" "and it tells the operator to keep root as the dir's owner"
-if grep -qF -- "chown -R" "$TMPROOT/out"; then
-  fail=$((fail + 1))
-  echo "  FAIL the refusal published 'chown -R' — that takes the directory root must own" >&2
-else
-  pass=$((pass + 1))
-  echo "  ok   and it never publishes a recursive chown from the directory"
-fi
+assert_no_recursive_chown "and it never publishes a recursive chown from the directory"
 
 stub_runtime_ids "$(($(id -u) + 1))" "$(id -g)"
 expect_exit 1 "uid drift → refuses even though the group still traverses"
 assert_not_applied "and nothing is applied"
 assert_output_contains "cannot READ the injected secrets" "and the refusal names the owner axis"
+assert_no_recursive_chown "and the OWNER arm's repair is non-recursive too"
 
 # THE ORDERING PROPERTY. Measuring the ids RUNS the image, so it must never happen for an image
 # attestation refused. Without this case a later refactor can hoist the gate above the verify
@@ -522,6 +531,7 @@ if [ "$(stat -c '%a' "$SECRETS/FieldEncryption__LocalMasterKeyBase64")" = "0" ];
   expect_exit 1 "right owner but mode 0000 → refuses; ownership alone is not readability"
   assert_not_applied "and nothing is applied"
   assert_output_contains "the owner cannot read it" "and the refusal names the mode, not the owner"
+  assert_no_recursive_chown "and the MODE arm's repair is non-recursive too"
 else
   skipped=$((skipped + 1))
   echo "  SKIP mode 0000 case: this filesystem does not honour chmod (Git Bash/Windows)."

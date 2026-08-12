@@ -266,8 +266,25 @@ public class BackupUnitFilePinTests
     /// recipient is <c>age1</c> plus 58 bech32 characters. Matching <c>+</c> instead would also
     /// catch a retired recipient named in prose as provenance - this runbook carries one,
     /// truncated with an ellipsis - and the guard would then demand its deletion, turning a
-    /// §1.6 provenance citation into a build failure. Scope is <c>docs/runbooks/</c> for the same
-    /// reason: a repo-wide sweep collides with the synthetic recipients in the bash fixtures.
+    /// §1.6 provenance citation into a build failure.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>Scope is this ONE file, and widening it to <c>docs/runbooks/</c> would fail only on
+    /// Klas's machine.</b> Measured 2026-08-12: a sweep of that directory returns two full
+    /// recipients, and the second is the retired one, at full length, in
+    /// <c>gdpr-processing-register.md</c> - which is <b>gitignored</b> (ADR 0072). A maintainer
+    /// who widens the code to match a broader-sounding comment gets a green CI run, a green
+    /// fresh worktree, and a red main checkout. The bash fixtures' synthetic recipients are not
+    /// the reason: they live in <c>deploy/systemd/</c> and are outside either scope already.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>The call site is asserted, not merely the value's presence somewhere in the file.</b>
+    /// A prose mention of the current recipient anywhere in the runbook would satisfy a
+    /// presence-only check while step 3 had been quietly reverted to comparing the clone against
+    /// itself - which is not hypothetical, it is the line that stood there the day before this
+    /// test was written.
     /// </para>
     /// </summary>
     [Fact]
@@ -306,6 +323,21 @@ public class BackupUnitFilePinTests
             "false alarm on the one check that stands between a swapped recipient and losing every " +
             "subsequent night silently. Update the runbook literal in the same commit as the " +
             "rotation.");
+
+        // The fourth arm, and it is about WHERE the value sits rather than whether it is there.
+        // The three above are satisfied by a prose mention; the operator's check is a command,
+        // and a command that no longer names the recipient is the regression this whole test
+        // exists because of.
+        // Ordinal and via Contains rather than ShouldContain: on a string the latter resolves to
+        // the IEnumerable<char> overload and asks a different question entirely.
+        runbook.Contains(
+                $"grep -qx {recipient} /opt/jobbliggaren/deploy/backup/age.recipient",
+                StringComparison.Ordinal)
+            .ShouldBeTrue(
+                $"{Runbook} quotes the current recipient but step 3's check no longer compares " +
+                "against it. A reference that lives inside the clone — `git show HEAD:…`, or the " +
+                "file against itself — is one the box controls, and the attacker this check " +
+                "exists for is the one who already has the box.");
     }
 
     /// <summary>

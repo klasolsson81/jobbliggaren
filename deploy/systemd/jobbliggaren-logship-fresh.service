@@ -27,9 +27,11 @@ Documentation=https://github.com/klasolsson81/jobbliggaren/blob/main/docs/runboo
 # --check exits non-zero on it, so that unit FAILS rather than skips on exactly the state that
 # silences this one. The two probes cover each other; neither covers both states alone.
 #
-# WHEN INSTALLED, and it is not yet: jobbliggaren-secrets-present is #198's unit and the box does
-# not carry it (host-detection.md §7, measured 2026-08-10). Until it does, the cover above is a
-# property of the repo and not of the box, and log-sink.md §2 says so at the point of install.
+# WHEN ENABLED, and it is not yet: jobbliggaren-secrets-present is #198's unit and the box does
+# not carry it (host-detection.md §7, measured 2026-08-10). ENABLED, not installed — the two are
+# separate moments since #1329, and an installed-but-disabled timer fails nothing and therefore
+# covers nothing. Until it is enabled, the cover above is a property of the repo and not of the
+# box; master-key-ops.md §2-§3 owns the ordering and log-sink.md §2 says so at the point of use.
 ConditionPathExists=/run/jobbliggaren/host-secrets/Backup__RcloneConfigBase64
 
 [Service]

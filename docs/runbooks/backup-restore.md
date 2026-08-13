@@ -376,16 +376,35 @@ while the freshness probe simultaneously reported the backup fresh. An alarm tha
 condition that no longer exists trains an operator to stop reading the only alarm surface there
 is. A run started **by hand** with no credential still refuses loudly (exit 2), and a genuinely
 missing backup is caught by the 26-hour freshness threshold rather than by the scheduled run.
-Nothing is unreported: the missing credential itself is already alarmed by
-`jobbliggaren-secrets-present.service`, which covers it through the same `--check` loop as the
-crypto secrets.
+Nothing is unreported **once `jobbliggaren-host-secrets-present.timer` is enabled** — it runs
+`--check-host` hourly, and that predicate reads exactly this file.
 
-Verify:
+**That caveat is load-bearing, and an earlier wording dropped it (#1329).** The sentence named
+`jobbliggaren-secrets-present.service` until the split, and the objection to it was that on a box
+without this credential nobody could enable that unit. **The same is true of the host unit, by
+construction:** its enable is gated on exactly the file it alarms about (`master-key-ops.md` §2),
+so it can only be armed in a state where it has nothing to report. What it therefore covers is
+**loss after provisioning** — the credential existed, the box rebooted, nobody re-injected, which
+is precisely this section's scenario — and never **absence before provisioning**, which is the
+box's state today and which `log-sink.md` §2 owns as a named open window.
+
+**So what #1329 bought here is not this cover but its price.** In the reboot case the pre-split
+unit was already enabled and already alarming on the named file, so that half held before the
+split too. What did not hold was having to buy it by keeping the crypto alarm down: that alarm now
+arms independently of #197.
+
+Verify — and **`--check-host` is the line that answers for this section**, since the split is
+exactly what took the credential out of `--check`:
 
 ```bash
-sudo /opt/jobbliggaren/deploy/systemd/jobbliggaren-inject-secrets.sh --check
-sudo /opt/jobbliggaren/deploy/systemd/jobbliggaren-backup.sh --check
+sudo /opt/jobbliggaren/deploy/systemd/jobbliggaren-inject-secrets.sh --check-host  # the credential
+sudo /opt/jobbliggaren/deploy/systemd/jobbliggaren-inject-secrets.sh --check       # the box serves
+sudo /opt/jobbliggaren/deploy/systemd/jobbliggaren-backup.sh --check               # the freshness
 ```
+
+A green `--check` says nothing about the upload credential and never will again — that is the
+whole of #1329, and reading it as this section's verification is the mistake the split makes
+possible. `--check-host` is the only one of the three that reads the file you just injected.
 
 ---
 

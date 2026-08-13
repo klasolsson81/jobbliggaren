@@ -103,14 +103,22 @@ that is this box's whole deploy path, three lines above. The handover row lives 
 **The cross-cover the `-fresh` unit names is not installed yet, and the sequence has to say so.**
 Installing before #197's host secrets exist is fine and intended — both units then skip on the same
 `ConditionPathExists`, which is the designed state, not a fault. But `-fresh.service`'s residual
-paragraph leans on `jobbliggaren-secrets-present.service` alarming on a missing credential, and
-that unit is **#198's and is not on the box** (`host-detection.md` §7, measured 2026-08-10). In the
-window between installing these units and installing #198's, a credential-less archive that has
-never once succeeded is watched by nothing.
+paragraph leans on `jobbliggaren-host-secrets-present.service` alarming on a missing credential, and
+that unit is **#198's and is not on the box** (`host-detection.md` §7, measured 2026-08-10). Until
+it is watching, a credential-less archive that has never once succeeded is watched by nothing.
+
+**The window closes at `enable`, not at install, and an earlier wording here bounded it by the
+wrong event (#1329).** It read "between installing these units and installing #198's" — true while
+one predicate answered for both sets, because installing #198's units then came with a timer an
+operator could arm. It does not survive the split: `jobbliggaren-host-secrets-present.timer` can be
+installed and left disabled, and `check_floor_timers` measures `enable` precisely because an
+installed-but-disabled timer fails nothing and therefore covers nothing (`host-detection.md` §7
+carries that distinction). So the bound is the credential arriving, which is the same event the
+next paragraph turns on.
 
 **And the obvious first horn is not available inside that window, which is why it is spelled out
-rather than offered.** Enabling `jobbliggaren-secrets-present.timer` here would close the gap,
-but its `--check` demands `Backup__RcloneConfigBase64` — the very file whose absence *defines*
+rather than offered.** Enabling `jobbliggaren-host-secrets-present.timer` here would close the gap,
+but its `--check-host` demands `Backup__RcloneConfigBase64` — the very file whose absence *defines*
 this window, and the same one both `logship` units skip on. Enabled here it fails every fire and
 lights `systemctl --failed` permanently, trading a watched gap for an alarm surface nobody reads.
 So: **enable it the moment that credential is injected** — `master-key-ops.md` §3 repeats the
@@ -118,11 +126,21 @@ command there — **and until then verify the credential by hand**, which is the
 while the window is open, not a fallback:
 
 ```bash
-sudo test -s /run/jobbliggaren/host-secrets/Backup__RcloneConfigBase64 && echo present
+sudo /opt/jobbliggaren/deploy/systemd/jobbliggaren-inject-secrets.sh --check-host
 ```
 
-Not `--check`: on a box in this window it exits 1 whatever else is true, so it cannot tell you
-that this file arrived. `master-key-ops.md` §2 owns the ordering.
+**The instrument on that line changed at #1329, and the previous one was a hand-rolled
+`sudo test -s` on the path.** Until the split no predicate read this file and nothing else:
+`--check` answered for both sets at once, so in this window it exited 1 whatever else was true and
+could not tell you the file had arrived. `--check-host` reads exactly `HOST_SECRET_KEYS` — today
+that one file — and it is the stricter test of the two, since `test -s` passes on a file holding a
+single space that the reader treats as absent.
+
+**#1329 does not close this window, but it does stop the window from reaching the crypto half.**
+`--check-host` waits on the same credential the archive waits on, so the gap above is unchanged.
+What changed is that `jobbliggaren-secrets-present.timer` is now enabled at `master-key-ops.md` §2
+regardless of #197 — so what goes unwatched inside the window is the archive alone, and no longer
+the box. `master-key-ops.md` §2 owns the ordering.
 
 **The lifecycle rules on the new prefixes are a separate, Klas-owned step**, and until they exist
 the archive is append-only with no age bound at all — i.e. it discharges the off-box obligation and

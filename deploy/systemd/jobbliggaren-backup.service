@@ -37,8 +37,16 @@ Wants=network-online.target
 # than no alarm (jobbliggaren-secrets-present.timer).
 #
 # A failed Condition makes systemd SKIP the unit — inactive, logged, not failed. Nothing is lost:
-# a missing credential is already alarmed by jobbliggaren-secrets-present.service via its
-# HOST_SECRET_KEYS loop, and a genuinely missed backup is caught by the 26 h freshness threshold.
+# a missing credential is alarmed by jobbliggaren-host-secrets-present.service, whose --check-host
+# reads exactly the HOST_SECRET_KEYS this condition names, and a genuinely missed backup is caught
+# by the 26 h freshness threshold.
+#
+# THAT NAMED jobbliggaren-secrets-present.service UNTIL #1329. The rename makes the sentence name
+# a unit that reads this file and nothing else — but it does NOT make the cover unconditional, and
+# claiming so would repeat the error it repairs: the host unit's enable is gated on exactly the
+# file it alarms about, so it covers absence AFTER provisioning and never the initial window in
+# which the credential has never existed. log-sink.md §2 owns that window. What the split removed
+# is that arming this alarm used to require holding the crypto alarm down.
 ConditionPathExists=/run/jobbliggaren/host-secrets/Backup__RcloneConfigBase64
 
 [Service]

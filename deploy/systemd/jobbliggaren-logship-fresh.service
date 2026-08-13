@@ -23,15 +23,20 @@ Documentation=https://github.com/klasolsson81/jobbliggaren/blob/main/docs/runboo
 #
 # The residual, named rather than left implicit: removing the credential SILENCES this probe.
 # That absence is covered by a DIFFERENT unit — Backup__RcloneConfigBase64 is the sole entry in
-# jobbliggaren-inject-secrets.sh's HOST_SECRET_KEYS, and jobbliggaren-secrets-present.service's
-# --check exits non-zero on it, so that unit FAILS rather than skips on exactly the state that
-# silences this one. The two probes cover each other; neither covers both states alone.
+# jobbliggaren-inject-secrets.sh's HOST_SECRET_KEYS, and
+# jobbliggaren-host-secrets-present.service's --check-host exits non-zero on it, so that unit FAILS
+# rather than skips on exactly the state that silences this one. The two probes cover each other;
+# neither covers both states alone.
 #
-# WHEN ENABLED, and it is not yet: jobbliggaren-secrets-present is #198's unit and the box does
-# not carry it (host-detection.md §7, measured 2026-08-10). ENABLED, not installed — the two are
-# separate moments since #1329, and an installed-but-disabled timer fails nothing and therefore
-# covers nothing. Until it is enabled, the cover above is a property of the repo and not of the
-# box; master-key-ops.md §2-§3 owns the ordering and log-sink.md §2 says so at the point of use.
+# WHEN ENABLED, and it is not yet: that unit is #198's, split out of jobbliggaren-secrets-present
+# by #1329, and the box carries neither (host-detection.md §7, measured 2026-08-10). ENABLED, not
+# installed — an installed-but-disabled timer fails nothing and therefore covers nothing.
+#
+# AND THE SPLIT DID NOT CLOSE THIS GAP, IT ONLY SETTLED WHICH UNIT HOLDS IT. --check-host demands
+# the very file whose absence defines the state above, so this cover still arrives WITH the
+# credential and never before it — what #1329 bought is that the crypto alarm no longer waits for
+# the same file. Until then the cover is a property of the repo and not of the box;
+# master-key-ops.md §2-§3 owns the ordering and log-sink.md §2 says so at the point of use.
 ConditionPathExists=/run/jobbliggaren/host-secrets/Backup__RcloneConfigBase64
 
 [Service]

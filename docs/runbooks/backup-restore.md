@@ -376,9 +376,15 @@ while the freshness probe simultaneously reported the backup fresh. An alarm tha
 condition that no longer exists trains an operator to stop reading the only alarm surface there
 is. A run started **by hand** with no credential still refuses loudly (exit 2), and a genuinely
 missing backup is caught by the 26-hour freshness threshold rather than by the scheduled run.
-Nothing is unreported: the missing credential itself is already alarmed by
-`jobbliggaren-secrets-present.service`, which covers it through the same `--check` loop as the
-crypto secrets.
+Nothing is unreported: the missing credential itself is alarmed by
+`jobbliggaren-host-secrets-present.service`, which runs `--check-host` hourly.
+
+**That used to be `jobbliggaren-secrets-present.service`, and the change is why this sentence is
+now true rather than merely intended (#1329).** While one `--check` answered for both sets, that
+unit could not be enabled at all until this credential existed — its absence failed the whole
+predicate and put a permanent entry on `systemctl --failed`. So the sentence promised an alarm
+from a unit that, on a box without the credential, nobody could turn on. Split, the host-only
+unit alarms on exactly the condition it names, and the crypto unit arms independently of #197.
 
 Verify:
 

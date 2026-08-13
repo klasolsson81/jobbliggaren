@@ -168,20 +168,38 @@ run_check() {
   PATH="/usr/bin:/bin" bash "$(make_sut_copy)" --check >"$TMPROOT/out" 2>&1
 }
 
+# The host-only detector is a SEPARATE entry point since #1329, so it needs a separate runner.
+# Same fixture, same redirected copy — only the argument differs.
+run_check_host() {
+  PATH="/usr/bin:/bin" bash "$(make_sut_copy)" --check-host >"$TMPROOT/out" 2>&1
+}
+
 # The two summaries, by a substring unique to each. Bound to the SUMMARY and never to a per-line
-# message: which counter a branch set is invisible to every `MISSING:` assertion in this file.
+# message, because which entry point answered is invisible to every `MISSING:` assertion here.
 readonly BLOCKING_SUMMARY="crash-loop by design"
-readonly HOST_ONLY_SUMMARY="Nothing this check reads is absent for api and worker"
+readonly HOST_ONLY_SUMMARY="A host-only secret is absent"
 
 # Asserts the blocking summary, and the ABSENCE of the host-only one. The negative half is what
-# makes it a pin: a branch moved to `host_missing` still prints its own MISSING line, still exits
-# 1, and still satisfies every other assertion in this suite.
+# makes it a pin: a check moved to the wrong entry point still prints its own MISSING line, still
+# exits 1, and still satisfies every other assertion in this suite.
 assert_blocking_summary() {
   local desc="$1"
   if grep -qF "$BLOCKING_SUMMARY" "$TMPROOT/out" && ! grep -qF "$HOST_ONLY_SUMMARY" "$TMPROOT/out"; then
     pass=$((pass + 1)); echo "  ok   $desc summarises as blocking"
   else
     fail=$((fail + 1)); echo "  FAIL $desc did not summarise as blocking" >&2
+    sed 's/^/       /' "$TMPROOT/out" >&2
+  fi
+}
+
+expect_check_host() {
+  local want="$1" desc="$2"
+  local got=0
+  run_check_host || got=$?
+  if [ "$got" -eq "$want" ]; then
+    pass=$((pass + 1)); echo "  ok   $desc (exit $got)"
+  else
+    fail=$((fail + 1)); echo "  FAIL $desc — wanted exit $want, got $got" >&2
     sed 's/^/       /' "$TMPROOT/out" >&2
   fi
 }
@@ -243,13 +261,14 @@ for missing in "${EXPECTED_FILES[@]}"; do
   fi
 done
 
-echo "-- the host-only secrets are load-bearing too, and they live somewhere else"
+echo "-- the host-only secrets answer on their OWN entry point (#1329)"
 # Their absence has a different consequence from a missing master key — the stack keeps serving
-# and only the nightly backup stops — so the message is asserted, not just the exit code.
+# and only the nightly backup stops — so since the split they are a different check, a different
+# unit and a different alarm. The message is asserted, not just the exit code.
 for missing in "${EXPECTED_HOST_FILES[@]}"; do
   seed_all_secrets
   rm -f "$HOST_SECRETS/$missing"
-  expect_check 1 "missing $missing is detected"
+  expect_check_host 1 "missing $missing is detected by --check-host"
   if grep -qF "MISSING: ${HOST_SECRETS}/${missing}" "$TMPROOT/out"; then
     pass=$((pass + 1)); echo "  ok   the failure names $missing in the host-only directory"
   else
@@ -258,14 +277,35 @@ for missing in "${EXPECTED_HOST_FILES[@]}"; do
   fi
 done
 
+echo "-- THE WHOLE POINT OF THE SPLIT: --check is silent about the host-only set (#1329)"
+# THIS IS THE CASE THE SPLIT EXISTS FOR, and it is a counterfactual, not a tautology. Before it,
+# an absent rclone credential failed --check, so jobbliggaren-secrets-present.timer could not be
+# enabled until #197's ops half landed — and enabling it anyway put a permanent entry on
+# `systemctl --failed`, which is a continuous page through heartbeat P1. Measured on the box
+# 2026-08-13. Both halves are asserted: --check goes GREEN, --check-host goes RED, in one and the
+# same fixture state.
+#
+# Mode-gated because --check asserts the directory mode, which a chmod-less filesystem cannot
+# reproduce; the --check-host half needs no such gate and is asserted above regardless.
+if [ "$MODE_ENFORCED" = "yes" ]; then
+  seed_all_secrets
+  rm -f "$HOST_SECRETS/Backup__RcloneConfigBase64"
+  expect_check 0 "--check passes with the host-only credential absent"
+  expect_check_host 1 "--check-host fails in the very same state"
+else
+  skipped=$((skipped + 2))
+  echo "  SKIP the split's counterfactual: --check asserts directory mode and this filesystem"
+  echo "       does not honour chmod. It RUNS in CI."
+fi
+
 # THE DIRECTORIES MUST NOT BE INTERCHANGEABLE, and this is the case that says so. Seeding the
 # credential into the MOUNTED directory instead of the host-only one must still read as missing:
-# if --check accepted either location, the structural separation that keeps the credential away
-# from api and worker could be undone by an operator's typo and nothing would report it.
+# if --check-host accepted either location, the structural separation that keeps the credential
+# away from api and worker could be undone by an operator's typo and nothing would report it.
 seed_all_secrets
 rm -f "$HOST_SECRETS/Backup__RcloneConfigBase64"
 printf '%s' "seeded-in-the-wrong-place" > "$SECRETS/Backup__RcloneConfigBase64"
-run_check || true
+run_check_host || true
 if grep -qF "MISSING: ${HOST_SECRETS}/Backup__RcloneConfigBase64" "$TMPROOT/out"; then
   pass=$((pass + 1)); echo "  ok   the credential in the MOUNTED directory does not satisfy the check"
 else
@@ -273,37 +313,20 @@ else
   sed 's/^/       /' "$TMPROOT/out" >&2
 fi
 
-echo "-- the summary tells a box that is DOWN from one that is merely un-backed-up (#1328)"
-# CROSSES THE THRESHOLD THE DEFECT LIVED ON. The state a cutover leaves behind is crypto present
-# and #197's host-only credential absent, and over exactly that the summary asserted "api and
-# worker will crash-loop by design" — contradicting the MISSING line four lines above it, which
-# already said the stack still serves. Measured on the box 2026-08-13. A suite covering only
-# all-present and all-absent stays green through it: in neither case is one set present while the
-# other is absent, which is the only shape that separates the two summaries.
+echo "-- every branch of --check reaches the BLOCKING summary, and only those (#1328)"
+# WHAT THE SPLIT DID NOT REMOVE. --check now answers for one set, so its single summary is true
+# of every route that reaches it — but "every route" is still six branches, and which summary a
+# branch reaches is invisible to every per-line and exit-code assertion in this file. Measured
+# 2026-08-13 on the pre-split shape: moving the INVALID-provider branch alone to the host counter
+# left the ENTIRE suite green while --check told the operator the stack was serving over a box
+# AddEmailSender refuses to start. The same blindness would let a branch drift to --check-host.
 #
-# BOTH POLARITIES, because a one-sided assertion is worth little here: a summary hard-wired to the
-# host-only wording would pass the first case on its own.
+# The host-only summary is asserted ABSENT in each case, which is what makes these pins rather
+# than restatements of the exit code.
 #
-# THE EXIT CODE IS PINNED TOO, and it is the half that is easy to "fix" wrongly. Making the
-# host-only case exit 0 would read as an improvement and would silently delete an alarm:
-# backup-restore.md §3 states that a missing backup credential is unreported by nothing precisely
-# because this unit covers it. The string was the defect; the exit code was not.
-#
-# Mode-gated like the cases above, and not incidentally: where chmod is unavailable the WRONG MODE
-# branch sets the blocking counter, so the serving case would measure the crash-loop summary and
-# fail for a reason that is not this one.
+# Mode-gated, and not incidentally: where chmod is unavailable the WRONG MODE branch fires in
+# every case, so each would pass for a reason that is not its own.
 if [ "$MODE_ENFORCED" = "yes" ]; then
-  seed_all_secrets
-  rm -f "$HOST_SECRETS/Backup__RcloneConfigBase64"
-  expect_check 1 "a missing host-only credential still lights the alarm"
-  if grep -qF "$HOST_ONLY_SUMMARY" "$TMPROOT/out" \
-    && ! grep -qF "$BLOCKING_SUMMARY" "$TMPROOT/out"; then
-    pass=$((pass + 1)); echo "  ok   the summary does not claim a crash-loop over a serving stack"
-  else
-    fail=$((fail + 1)); echo "  FAIL the summary claimed a crash-loop while only the host-only credential was absent" >&2
-    sed 's/^/       /' "$TMPROOT/out" >&2
-  fi
-
   # EVERY BLOCKING BRANCH, ONE ISOLATED CASE EACH — not one representative. Measured 2026-08-13:
   # moving the INVALID-provider branch alone from `missing` to `host_missing` left the ENTIRE
   # suite green while --check told the operator the stack was serving over a box AddEmailSender
@@ -339,14 +362,24 @@ if [ "$MODE_ENFORCED" = "yes" ]; then
   run_check || true
   assert_blocking_summary "an unset EMAIL_SES_REGION"
 
-  # BOTH SETS ABSENT — the state the box is in after EVERY reboot, since /run is tmpfs, and the
-  # only one that pins the PRECEDENCE the fix relies on. Swap the two blocks and this is the case
-  # that fails; nothing else would.
+  # BOTH SETS ABSENT — the state the box is in after EVERY reboot, since /run is tmpfs. Since the
+  # split the two entry points answer independently, so this case pins that independence in the
+  # one state where a shared predicate would show: --check must still summarise as blocking, and
+  # must not borrow the host-only wording for a host-only file it no longer reads.
   seed_all_secrets
   rm -f "$SECRETS/FieldEncryption__LocalMasterKeyBase64"
   rm -f "$HOST_SECRETS/Backup__RcloneConfigBase64"
   run_check || true
   assert_blocking_summary "both sets absent (the post-reboot state)"
+
+  # And --check must not NAME the host-only file at all: it is no longer its business, and a
+  # MISSING line for a file this entry point does not own is how the two sets creep back together.
+  if ! grep -qF "$HOST_SECRETS" "$TMPROOT/out"; then
+    pass=$((pass + 1)); echo "  ok   --check does not mention the host-only directory"
+  else
+    fail=$((fail + 1)); echo "  FAIL --check still reports on the host-only set" >&2
+    sed 's/^/       /' "$TMPROOT/out" >&2
+  fi
 else
   skipped=$((skipped + 8))
   echo "  SKIP summary cases: this filesystem does not honour chmod, so the mode branch sets the"
@@ -356,7 +389,7 @@ fi
 echo "-- a missing host-only DIRECTORY is the post-reboot state"
 seed_all_secrets
 rm -rf "$HOST_SECRETS"
-run_check || true
+run_check_host || true
 if grep -qF "MISSING: $HOST_SECRETS (directory does not exist)" "$TMPROOT/out"; then
   pass=$((pass + 1)); echo "  ok   a missing host-only directory is reported as a missing DIRECTORY"
 else

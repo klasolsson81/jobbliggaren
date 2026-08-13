@@ -185,26 +185,28 @@ ses_credentials_required() {
   return 1
 }
 
-# --check is the absence detector, and it lives HERE rather than in the unit so the list of
-# file names has exactly one home. jobbliggaren-secrets-present.service runs it on a timer.
-# It must stat files and nothing else — it runs at boot, when dockerd may not be up, so it must
-# never touch docker.
+# THE ABSENCE DETECTORS, AND THERE ARE TWO OF THEM — ONE PER SET, ONE PER OWNER (#1329).
+#
+# `--check` answers for everything api and worker read: the crypto secrets, their directory, and
+# the mail configuration that decides whether the stack boots at all. `jobbliggaren-secrets-
+# present.service` runs it.
+#
+# `--check-host` answers for the host-only set — today #197's backup credential, read by no
+# container. `jobbliggaren-host-secrets-present.service` runs it.
+#
+# WHY THEY ARE SEPARATE, and it is not tidiness. One predicate over both sets meant one exit
+# code, one unit and one alarm for two sets with different owners (#198 and #197), different
+# severity (the box is down / the nightly backup is), and different provisioning lifecycles. The
+# cost was measured twice: the summary could not be true of both at once (#1328), and the timer
+# could not be enabled at all until the LOWER-severity set was provisioned, because its absence
+# failed the whole predicate (#1329). Split, the crypto alarm arms on the day the crypto secrets
+# exist and owes #197 nothing.
+#
+# NEITHER MAY TOUCH DOCKER. Both run at boot, when dockerd may not be up; they stat files and
+# read deploy/.env, and nothing else. The file-name arrays stay in this one file so that adding
+# a secret remains the whole change on the host side, for either destination.
 if [[ "${1:-}" == "--check" ]]; then
-  # TWO COUNTERS, BECAUSE ONE SUMMARY CANNOT DESCRIBE TWO DISJOINT SETS (#1328). `missing` is
-  # everything api and worker read; `host_missing` is the host-only set. Each branch below sets
-  # exactly ONE, and `missing` is evaluated first and exits — so when both are set, which is the
-  # state after EVERY reboot, the blocking summary wins.
-  #
-  # THE INVARIANT IS ONE-DIRECTIONAL, and only one direction is dangerous: a check of something
-  # api or worker reads MUST set `missing`. The reverse costs volume and nothing else. A crypto
-  # check that picked `host_missing` would tell an operator the stack was serving over a box that
-  # is down, and no per-line assertion can see it — the summary cases in the test suite are what
-  # catch it.
-  #
-  # The exit code does not distinguish them, deliberately: backup-restore.md §3 leans on this
-  # unit alarming on the missing backup credential, and an exit 0 would delete that alarm.
   missing=0
-  host_missing=0
 
   # The DIRECTORY is checked too. Files present but the directory un-traversable by the
   # container's group is a real crash-loop state that a files-only sweep reports as healthy.
@@ -273,26 +275,6 @@ if [[ "${1:-}" == "--check" ]]; then
     done
   fi
 
-  # The host-only directory is checked by the same loop rather than by a second predicate, so a
-  # new entry in either array is covered the moment it is added — which is what makes "adding a
-  # secret here is the whole change on the host side" true of both destinations. What differs is
-  # the CONSEQUENCE, which is why these two branches set `host_missing`: nothing here is read by
-  # api or worker, so the summary must not reach for the crash-loop wording on their account.
-  if [[ ! -d "$HOST_SECRETS_DIR" ]]; then
-    log "MISSING: $HOST_SECRETS_DIR (directory does not exist)"
-    host_missing=1
-  fi
-  for key in "${HOST_SECRET_KEYS[@]}"; do
-    if ! has_usable_content "${HOST_SECRETS_DIR}/${key}"; then
-      # Nothing about the STACK is asserted here. The old wording said "the stack still serves",
-      # which is false after a reboot, when this line prints above a correct crash-loop summary.
-      log "MISSING: ${HOST_SECRETS_DIR}/${key} — host-only, read by no container. The nightly"
-      log "         backup cannot upload (#197): jobbliggaren-backup.service SKIPS its scheduled"
-      log "         run on ConditionPathExists rather than failing, so this line is its alarm."
-      host_missing=1
-    fi
-  done
-
   # THIS SUMMARY USED TO PRESCRIBE THE ONE REMEDY, and it stopped being the one remedy when
   # the mail branch above gained lines injection cannot fix — an INVALID provider value and an
   # unset EMAIL_SES_* variable are edits to deploy/.env, not missing files. Telling an operator
@@ -300,14 +282,11 @@ if [[ "${1:-}" == "--check" ]]; then
   # which is worse than no remedy at all. So the summary points at the lines rather than
   # replacing them.
   #
-  # AND IT USED TO ASSERT A CRASH-LOOP FOR BOTH SETS, which made it FALSE in the state a cutover
-  # leaves behind: crypto injected, #197's host-only credential not yet provisioned. Measured on
-  # the box 2026-08-13, immediately after #198's cutover succeeded, with api and web healthy.
-  #
-  # THE HOST-ONLY SUMMARY CLAIMS ONLY WHAT THIS CHECK READ, and the narrower wording is the point:
-  # `--check` never reads the VALUE of the SES pointers or the region (see the mail branch above),
-  # so "the stack serves" would be a claim it cannot make — and would make it in the fail-OPEN
-  # direction, on the box's only alarm surface.
+  # IT IS NOW TRUE OF EVERY ROUTE THAT REACHES IT, which is what the split bought. While the
+  # host-only set shared this predicate the sentence was false whenever only that set was absent
+  # — the state #198's cutover left behind, measured on the box 2026-08-13 with api and web
+  # healthy (#1328). Every branch above stops api and worker from starting, so the crash-loop
+  # wording holds for all of them and needs no second summary to qualify it.
   if [[ $missing -ne 0 ]]; then
     log "Something above is missing or invalid, and api and worker will crash-loop by design"
     log "(fail-closed, never a fallback key). Read the individual lines: those naming a FILE are"
@@ -315,19 +294,45 @@ if [[ "${1:-}" == "--check" ]]; then
     log "  sudo /opt/jobbliggaren/deploy/systemd/jobbliggaren-inject-secrets.sh"
     exit 1
   fi
-  if [[ $host_missing -ne 0 ]]; then
-    log "Nothing this check reads is absent for api and worker — no crypto file, no mail setting."
-    log "What is absent is host-only, and the lines above name it. The consequence is the nightly"
-    log "backup, not the stack. Same script, which prompts for it after the crypto secrets it is"
-    log "already holding:"
-    log "  sudo /opt/jobbliggaren/deploy/systemd/jobbliggaren-inject-secrets.sh"
-    exit 1
-  fi
-  log "all secrets present in ${SECRETS_DIR} and ${HOST_SECRETS_DIR}"
+  log "all secrets present in ${SECRETS_DIR}"
   exit 0
 fi
 
-[[ $# -eq 0 ]] || die "unknown argument '$1' (use no arguments to inject, or --check)"
+# THE HOST-ONLY DETECTOR. Same file-name arrays, same has_usable_content predicate, same
+# no-docker rule — a different set, a different unit and a different severity.
+#
+# ITS ABSENCE IS NOT A BOOT FAILURE, and the wording says so without claiming anything about the
+# stack: this check reads nothing api or worker read, so it cannot know whether they are serving.
+# That claim, made from here, is what #1328 measured as false.
+if [[ "${1:-}" == "--check-host" ]]; then
+  host_missing=0
+
+  if [[ ! -d "$HOST_SECRETS_DIR" ]]; then
+    log "MISSING: $HOST_SECRETS_DIR (directory does not exist)"
+    host_missing=1
+  fi
+  for key in "${HOST_SECRET_KEYS[@]}"; do
+    if ! has_usable_content "${HOST_SECRETS_DIR}/${key}"; then
+      log "MISSING: ${HOST_SECRETS_DIR}/${key} — host-only, read by no container. The nightly"
+      log "         backup cannot upload (#197): jobbliggaren-backup.service SKIPS its scheduled"
+      log "         run on ConditionPathExists rather than failing, so this line is its alarm."
+      host_missing=1
+    fi
+  done
+
+  if [[ $host_missing -ne 0 ]]; then
+    log "A host-only secret is absent. This says nothing about api and worker — run --check for"
+    log "that. The consequence is the nightly backup (#197). Same script, which prompts for the"
+    log "host-only set after the crypto secrets it may already be holding:"
+    log "  sudo /opt/jobbliggaren/deploy/systemd/jobbliggaren-inject-secrets.sh"
+    exit 1
+  fi
+  log "all host-only secrets present in ${HOST_SECRETS_DIR}"
+  exit 0
+fi
+
+[[ $# -eq 0 ]] || die "unknown argument '$1' (no arguments to inject, --check for the secrets api
+and worker read, or --check-host for the host-only set)"
 
 [[ ${EUID} -eq 0 ]] || die "must run as root (writes to ${SECRETS_DIR} and chowns to the container uid)"
 

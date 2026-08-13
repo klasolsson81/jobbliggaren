@@ -246,13 +246,55 @@ static async Task<int> RunSchemaAsync(ILogger log, CancellationToken ct)
     MigrateLog.ModeSchema(log);
 
     var appCs = MigrateEnv.Required("MIGRATE_APP_CONNECTION_STRING");
+    // Raw on purpose — SchemaAheadGate is the ONE normalizer for this value (compose renders an
+    // unset `${MIGRATE_ALLOW_SCHEMA_AHEAD:-}` as an empty string, and the gate reads that as
+    // unset). Not MigrateEnv: the value is migration IDs, not a secret, so the `_FILE` seam
+    // would add a second normalizer and buy nothing.
+    var overrideRaw = Environment.GetEnvironmentVariable(SchemaAheadGate.OverrideVariableName);
 
     MigrateLog.PhaseEStart(log);
 
     await using var dbContext = new AppDbContext(
         MigrationsOptionsFactory.BuildAppOptions(appCs));
 
-    var pending = (await dbContext.Database.GetPendingMigrationsAsync(ct)).ToList();
+    // #1236 — the schema-ahead gate runs BEFORE any pending-count early return: a pure
+    // backwards pin IS "zero pending", so returning early on that count would skip the one
+    // state this gate exists for. Pending is derived client-side from the same two reads
+    // (the substrate test pins equivalence with EF's GetPendingMigrationsAsync).
+    var applied = await dbContext.Database.GetAppliedMigrationsAsync(ct);
+    var assembly = dbContext.Database.GetMigrations();
+    var decision = SchemaAheadGate.Decide([.. applied], [.. assembly], overrideRaw);
+
+    var unknownIds = string.Join(",", decision.Unknown);
+    switch (decision.Verdict)
+    {
+        case SchemaAheadVerdict.RefuseSchemaAhead:
+            MigrateLog.RefusedSchemaAhead(log, decision.Unknown.Count, unknownIds);
+            if (!string.IsNullOrWhiteSpace(overrideRaw))
+            {
+                MigrateLog.RefusedOverrideMismatch(log, overrideRaw, unknownIds);
+            }
+
+            return SchemaAheadGate.ExitRefusedSchemaAhead;
+
+        case SchemaAheadVerdict.RefuseDivergence:
+            MigrateLog.RefusedDivergence(
+                log,
+                decision.Unknown.Count, unknownIds,
+                decision.Pending.Count, string.Join(",", decision.Pending));
+            return SchemaAheadGate.ExitRefusedDivergence;
+
+        case SchemaAheadVerdict.OverriddenNoOp:
+            MigrateLog.OverrideConsumed(log, unknownIds);
+            return 0;
+    }
+
+    if (decision.OverridePresentButIdle)
+    {
+        MigrateLog.OverrideIdle(log);
+    }
+
+    var pending = decision.Pending;
     MigrateLog.PendingMigrationsCount(log, pending.Count);
 
     if (pending.Count == 0)
@@ -266,6 +308,8 @@ static async Task<int> RunSchemaAsync(ILogger log, CancellationToken ct)
         MigrateLog.PendingMigrationItem(log, migration);
     }
 
+    // A writer landing between the gate's read and this apply cannot cause a wrong apply:
+    // MigrateAsync recomputes applied/pending internally under EF's migration lock.
     await dbContext.Database.MigrateAsync(ct);
     MigrateLog.PhaseEComplete(log, pending.Count);
     return 0;

@@ -432,6 +432,17 @@ services:
       MIGRATE_MIGRATIONS_PASSWORD: ${POSTGRES_MIGRATIONS_PASSWORD:?}
       MIGRATE_APP_PASSWORD: ${POSTGRES_APP_PASSWORD:?}
       MIGRATE_WORKER_PASSWORD: ${POSTGRES_WORKER_PASSWORD:?}
+      # #1236 — the schema-ahead override, consumed by `schema` mode. When
+      # __EFMigrationsHistory holds migrations this image's assembly does not contain —
+      # a backwards-pinned IMAGE_TAG — migrate refuses (exit 3; exit 4 when histories
+      # diverged, never overridable) and its log prints the exact value to set here.
+      # The value is the refused migration-ID set itself, NEVER `1`: a leftover boolean
+      # would bless the next accidental pin months later, while an ID set self-expires
+      # when the pin changes. `:-` and not `:?` — the box must `up` with the key
+      # undefined (.env.example's contract: only uncommented keys are hard requirements).
+      # On this service and NOT in the x-migrate-app-connection anchor: migrate-rewrap
+      # shares that anchor and must never inherit a schema-judgment override.
+      MIGRATE_ALLOW_SCHEMA_AHEAD: ${MIGRATE_ALLOW_SCHEMA_AHEAD:-}
     mem_limit: 512m
     depends_on:
       postgres:

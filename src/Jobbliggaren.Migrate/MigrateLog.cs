@@ -67,6 +67,59 @@ internal static partial class MigrateLog
         Message = "Phase E: no pending migrations — schema is up-to-date")]
     public static partial void PhaseENoPending(ILogger logger);
 
+    // #1236 — the schema-ahead gate. Multi-line messages under the SingleLine console formatter
+    // are established practice here (ExplainSearchResult); the newlines keep the operator text
+    // readable in `docker logs jobbliggaren-migrate`, which is where this is read during an
+    // incident. Wording follows the reconcile wrapper's REFUSING template: what was measured,
+    // the diagnosis, the repair.
+    [LoggerMessage(EventId = 65, Level = LogLevel.Error,
+        Message = "REFUSING schema migration (exit 3): the database is AHEAD of this image.\n"
+                + "__EFMigrationsHistory holds {UnknownCount} migration(s) this assembly does not contain: {UnknownIds}.\n"
+                + "This is what a backwards-pinned IMAGE_TAG looks like — the tag rolled back CODE; the schema did not come with it.\n"
+                + "api and worker are held down by service_completed_successfully, deliberately (fail-closed, #1236).\n"
+                + "Exits, pick one:\n"
+                + "  (1) roll forward: restore IMAGE_TAG to a tag whose build contains these migrations, re-run the reconcile unit;\n"
+                + "  (2) treat it as a RESTORE problem, not a deploy problem: docs/runbooks/backup-restore.md;\n"
+                + "  (3) deliberately run old code against the newer schema: set\n"
+                + "      MIGRATE_ALLOW_SCHEMA_AHEAD={UnknownIds}\n"
+                + "      in deploy/.env and re-run the reconcile unit. No migrations will run; remove the key after the incident.\n"
+                + "Doctrine: docs/runbooks/vps-deploy-stack.md §3.")]
+    public static partial void RefusedSchemaAhead(ILogger logger, int unknownCount, string unknownIds);
+
+    [LoggerMessage(EventId = 66, Level = LogLevel.Error,
+        Message = "The override did not match. MIGRATE_ALLOW_SCHEMA_AHEAD must equal the exact "
+                + "unknown-ID set (comma-separated, order-insensitive) — never `1` or a partial list, "
+                + "so a leftover value cannot bless a LATER accidental pin.\n"
+                + "  provided: {Provided}\n"
+                + "  expected: {Expected}")]
+    public static partial void RefusedOverrideMismatch(ILogger logger, string provided, string expected);
+
+    // Exit 4's text names the squash case itself: an ADR is not in the journal, and #1329
+    // measured exactly that defect class — a prerequisite living where no deployer reads.
+    [LoggerMessage(EventId = 67, Level = LogLevel.Error,
+        Message = "REFUSING schema migration (exit 4): migration histories have DIVERGED.\n"
+                + "__EFMigrationsHistory holds {UnknownCount} migration(s) this assembly does not contain: {UnknownIds}\n"
+                + "AND the assembly holds {PendingCount} migration(s) the database has not applied: {PendingIds}.\n"
+                + "Neither side is a prefix of the other, so NO automatic apply is safe and no override applies.\n"
+                + "This shape arises when histories fork — a migration squash/re-baseline, or a branched migration set.\n"
+                + "Repair: deploy an image whose assembly contains BOTH sets, or perform a deliberate\n"
+                + "__EFMigrationsHistory reconciliation as an operator step (docs/runbooks/vps-deploy-stack.md §3).")]
+    public static partial void RefusedDivergence(
+        ILogger logger, int unknownCount, string unknownIds, int pendingCount, string pendingIds);
+
+    [LoggerMessage(EventId = 68, Level = LogLevel.Warning,
+        Message = "MIGRATE_ALLOW_SCHEMA_AHEAD matched the unknown set ({UnknownIds}) — skipping "
+                + "MigrateAsync entirely and exiting 0 so api/worker may start.\n"
+                + "This run certifies NOTHING about schema compatibility; that judgment was the operator's.\n"
+                + "Remove the key from deploy/.env once the incident is over.")]
+    public static partial void OverrideConsumed(ILogger logger, string unknownIds);
+
+    [LoggerMessage(EventId = 69, Level = LogLevel.Information,
+        Message = "MIGRATE_ALLOW_SCHEMA_AHEAD is set but the schema is not ahead of this image — "
+                + "remove it from deploy/.env. A stale override is the hazard the ID-set design "
+                + "exists for, not a convenience.")]
+    public static partial void OverrideIdle(ILogger logger);
+
     [LoggerMessage(EventId = 200, Level = LogLevel.Information,
         Message = "Mode: init (Phase A-C — idempotent DDL mot operatör-givna creds)")]
     public static partial void ModeInit(ILogger logger);

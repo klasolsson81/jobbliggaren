@@ -76,14 +76,16 @@ internal static partial class MigrateLog
         Message = "REFUSING schema migration (exit 3): the database is AHEAD of this image.\n"
                 + "__EFMigrationsHistory holds {UnknownCount} migration(s) this assembly does not contain: {UnknownIds}.\n"
                 + "This is what a backwards-pinned IMAGE_TAG looks like — the tag rolled back CODE; the schema did not come with it.\n"
-                + "api and worker are held down by service_completed_successfully, deliberately (fail-closed, #1236).\n"
+                + "api, worker AND web have already been stopped for recreation and are held down by\n"
+                + "service_completed_successfully — the public site answers 502/503 until an exit is taken.\n"
+                + "That outage is deliberate: fail-closed beats silent old-code-on-newer-schema (#1236).\n"
                 + "Exits, pick one:\n"
                 + "  (1) roll forward: restore IMAGE_TAG to a tag whose build contains these migrations, re-run the reconcile unit;\n"
                 + "  (2) treat it as a RESTORE problem, not a deploy problem: docs/runbooks/backup-restore.md;\n"
                 + "  (3) deliberately run old code against the newer schema: set\n"
                 + "      MIGRATE_ALLOW_SCHEMA_AHEAD={UnknownIds}\n"
                 + "      in deploy/.env and re-run the reconcile unit. No migrations will run; remove the key after the incident.\n"
-                + "Doctrine: docs/runbooks/vps-deploy-stack.md §3.")]
+                + "Doctrine: docs/runbooks/vps-deploy-stack.md §3a.")]
     public static partial void RefusedSchemaAhead(ILogger logger, int unknownCount, string unknownIds);
 
     [LoggerMessage(EventId = 66, Level = LogLevel.Error,
@@ -102,8 +104,9 @@ internal static partial class MigrateLog
                 + "AND the assembly holds {PendingCount} migration(s) the database has not applied: {PendingIds}.\n"
                 + "Neither side is a prefix of the other, so NO automatic apply is safe and no override applies.\n"
                 + "This shape arises when histories fork — a migration squash/re-baseline, or a branched migration set.\n"
-                + "Repair: deploy an image whose assembly contains BOTH sets, or perform a deliberate\n"
-                + "__EFMigrationsHistory reconciliation as an operator step (docs/runbooks/vps-deploy-stack.md §3).")]
+                + "If an image exists whose assembly contains BOTH sets, deploy it. Otherwise STOP and establish\n"
+                + "the cause; nothing may write to __EFMigrationsHistory before it is established\n"
+                + "(doctrine: docs/runbooks/vps-deploy-stack.md §3a).")]
     public static partial void RefusedDivergence(
         ILogger logger, int unknownCount, string unknownIds, int pendingCount, string pendingIds);
 
@@ -119,6 +122,17 @@ internal static partial class MigrateLog
                 + "remove it from deploy/.env. A stale override is the hazard the ID-set design "
                 + "exists for, not a convenience.")]
     public static partial void OverrideIdle(ILogger logger);
+
+    // The one operator path where exit 3's instruction (3) cannot work: the box's compose file
+    // predates #1236 and forwards no override key at all. Null-vs-empty is the discriminator —
+    // compose renders an unset `${VAR:-}` as an EMPTY string, so a truly absent variable means
+    // the running compose file has no passthrough line.
+    [LoggerMessage(EventId = 75, Level = LogLevel.Error,
+        Message = "MIGRATE_ALLOW_SCHEMA_AHEAD is absent from this container's environment entirely —\n"
+                + "the compose file running this stack predates #1236 and does not forward the key,\n"
+                + "so exit (3) CANNOT work yet: setting the value in deploy/.env changes nothing until\n"
+                + "`git pull` in /opt/jobbliggaren brings the passthrough line. Exits (1) and (2) work now.")]
+    public static partial void OverrideKeyNotForwarded(ILogger logger);
 
     [LoggerMessage(EventId = 200, Level = LogLevel.Information,
         Message = "Mode: init (Phase A-C — idempotent DDL mot operatör-givna creds)")]

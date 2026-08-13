@@ -73,6 +73,15 @@ public sealed class SchemaAheadSubstrateTests : IAsyncLifetime
         var assembly = db.Database.GetMigrations().ToList();
         assembly.Count.ShouldBeGreaterThan(1); // the journey needs a partial state to exist
 
+        // --- 0. True first boot: no history table exists yet. --------------------------------
+        // The state every fresh box hits, and the only one where swapping the runner's
+        // GetPendingMigrationsAsync for GetAppliedMigrationsAsync could behave differently:
+        // the applied read must come back empty, not throw, on a database never migrated.
+        var appliedOnFreshDb = (await db.Database.GetAppliedMigrationsAsync(ct)).ToList();
+        appliedOnFreshDb.ShouldBeEmpty();
+        SchemaAheadGate.Decide(appliedOnFreshDb, assembly, overrideValue: null)
+            .Verdict.ShouldBe(SchemaAheadVerdict.Proceed);
+
         // --- 1. Forward state: migrate to the FIRST migration only, as the app role. ---------
         await db.GetService<IMigrator>().MigrateAsync(assembly[0], ct);
 

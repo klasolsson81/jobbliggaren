@@ -42,6 +42,13 @@ public static class MigrationsOptionsFactory
     /// <c>MigrationsHistoryTable("__EFMigrationsHistory", "identity")</c> behövs eftersom
     /// Identity-context använder <c>HasDefaultSchema("identity")</c> + snake-case-konvention
     /// — utan explicit override skulle EF default-skapa tabellen utanför identity-schemat.
+    /// <para>
+    /// The separate history table is also a PRECONDITION of the #1236 schema-ahead gate:
+    /// `schema` mode reads AppDbContext's history against its own migration list (which EF's
+    /// <c>[DbContext]</c> attribute filter scopes per context, even inside one assembly), so
+    /// merging this table into <c>public</c> would make every applied identity migration
+    /// "unknown" to the gate and refuse every deploy, hourly.
+    /// </para>
     /// </summary>
     public static DbContextOptions<AppIdentityDbContext> BuildIdentityOptions(string connectionString) =>
         new DbContextOptionsBuilder<AppIdentityDbContext>()

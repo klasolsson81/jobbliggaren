@@ -61,6 +61,18 @@ public class SchemaAheadGateTests
         decision.OverridePresentButIdle.ShouldBeTrue();
     }
 
+    [Fact]
+    public void Decide_HealthyReconcileWithEmptyString_DoesNotNudge()
+    {
+        // Compose sets `MIGRATE_ALLOW_SCHEMA_AHEAD=""` on EVERY run (the rendered `${VAR:-}`),
+        // so this is every healthy hourly reconcile. The remove-the-key nudge (EventId 69)
+        // firing hourly would spam the box's only alarm-adjacent channel.
+        var decision = SchemaAheadGate.Decide([A, B], [A, B], overrideValue: "");
+
+        decision.Verdict.ShouldBe(SchemaAheadVerdict.Proceed);
+        decision.OverridePresentButIdle.ShouldBeFalse();
+    }
+
     // --- Pure backwards pin -------------------------------------------------
 
     [Fact]
@@ -119,6 +131,10 @@ public class SchemaAheadGateTests
 
         decision.Verdict.ShouldBe(SchemaAheadVerdict.RefuseSchemaAhead);
         decision.Unknown.ShouldBe([C, D]);
+        // Reported truthfully on the refusal arm too, so the caller can render
+        // expected-vs-provided without re-deriving "was an override supplied".
+        decision.OverrideProvided.ShouldBeTrue();
+        decision.OverrideKeyMissing.ShouldBeFalse();
     }
 
     [Fact]
@@ -153,6 +169,29 @@ public class SchemaAheadGateTests
         var decision = SchemaAheadGate.Decide([A, B, C], [A, B], overrideValue);
 
         decision.Verdict.ShouldBe(SchemaAheadVerdict.RefuseSchemaAhead);
+    }
+
+    [Fact]
+    public void Decide_NullOverride_MarksTheKeyAsNotForwarded()
+    {
+        // Null means the variable does not exist in the container environment AT ALL — the
+        // running compose file predates #1236 and has no passthrough line. Exit 3's own
+        // instruction (3) cannot work in that state, and the caller renders the diagnosis.
+        var decision = SchemaAheadGate.Decide([A, B, C], [A, B], overrideValue: null);
+
+        decision.Verdict.ShouldBe(SchemaAheadVerdict.RefuseSchemaAhead);
+        decision.OverrideKeyMissing.ShouldBeTrue();
+        decision.OverrideProvided.ShouldBeFalse();
+    }
+
+    [Fact]
+    public void Decide_EmptyStringOverride_IsForwardedButUnset()
+    {
+        var decision = SchemaAheadGate.Decide([A, B, C], [A, B], overrideValue: "");
+
+        decision.Verdict.ShouldBe(SchemaAheadVerdict.RefuseSchemaAhead);
+        decision.OverrideKeyMissing.ShouldBeFalse();
+        decision.OverrideProvided.ShouldBeFalse();
     }
 
     // --- True divergence ----------------------------------------------------

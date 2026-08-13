@@ -270,9 +270,13 @@ static async Task<int> RunSchemaAsync(ILogger log, CancellationToken ct)
     {
         case SchemaAheadVerdict.RefuseSchemaAhead:
             MigrateLog.RefusedSchemaAhead(log, decision.Unknown.Count, unknownIds);
-            if (!string.IsNullOrWhiteSpace(overrideRaw))
+            if (decision.OverrideKeyMissing)
             {
-                MigrateLog.RefusedOverrideMismatch(log, overrideRaw, unknownIds);
+                MigrateLog.OverrideKeyNotForwarded(log);
+            }
+            else if (decision.OverrideProvided)
+            {
+                MigrateLog.RefusedOverrideMismatch(log, overrideRaw!, unknownIds);
             }
 
             return SchemaAheadGate.ExitRefusedSchemaAhead;
@@ -287,6 +291,15 @@ static async Task<int> RunSchemaAsync(ILogger log, CancellationToken ct)
         case SchemaAheadVerdict.OverriddenNoOp:
             MigrateLog.OverrideConsumed(log, unknownIds);
             return 0;
+
+        case SchemaAheadVerdict.Proceed:
+            break;
+
+        default:
+            // A verdict added later must choose its behaviour explicitly — falling through to
+            // the apply would be the OPEN direction in a fail-closed control. The throw lands
+            // in the outer catch: migrate's existing exit-1 crash path.
+            throw new InvalidOperationException($"Unhandled schema-ahead verdict: {decision.Verdict}");
     }
 
     if (decision.OverridePresentButIdle)

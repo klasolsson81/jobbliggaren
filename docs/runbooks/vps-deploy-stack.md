@@ -228,6 +228,10 @@ echo "OK: both challenges live"
 #     Expected: no TLS error, and `Verify return code: 0 (ok)` against a public root.
 ```
 
+---
+
+## 3a. Rollback and the schema gate (#1236)
+
 **Rollback is an image tag — for CODE. It is not a rollback for SCHEMA, and since
 [#1236](https://github.com/klasolsson81/jobbliggaren/issues/1236) `migrate` refuses to pretend
 it is.** Pin `IMAGE_TAG=sha-<short>` in `.env` and re-run the reconcile unit, and the four
@@ -238,22 +242,38 @@ cases where the schema direction destroys data irreversibly (a computed column r
 ordinary one; a `DROP COLUMN` taking its indexes silently). So `schema` mode now reads
 `__EFMigrationsHistory` against its own assembly first and refuses before `MigrateAsync`:
 **exit 3** for a pure backwards pin (overridable, below), **exit 4** for a diverged history —
-the squash/re-baseline shape, never overridable.
+the squash/re-baseline shape, never overridable. **The refusal travels in the image you pin
+TO**, so it protects pins back to the first tag published after #1236 merged and no further —
+an older tag has no gate and applies silently, the same way the attestation window in §3b
+starts at #196's attest step.
 
-**What a refusal looks like on the box** (measured 2026-08-13, Docker Compose v2.40.3): pull
-and verification succeed, then `up -d` **stops and removes the running api and worker** (their
-image changed), leaves their replacements `Created` but never started, and fails the unit
-before the success stamp — while `caddy`, which gates on nothing, moves to the pinned tag and
-answers 503 on the api path. The journal carries compose's own line naming the code —
-`service "migrate" didn't complete successfully: exit 3` — and the full diagnosis lives in
-`docker logs jobbliggaren-migrate`: the unknown migration IDs and three exits. (1) Roll
+**What a refusal leaves behind** — measured 2026-08-13 with a minimal compose fixture on local
+Docker Compose v2.40.3; **the box runs v5.4.0** (§5's verification log), so re-verify the exact
+aftermath there before relying on it mid-incident. The mechanism, by construction: `api`,
+`worker` **and `web`** all carry `IMAGE_TAG`, so a tag-changing `up -d` has already **stopped
+and removed** all three when the migrate dependency fails, leaving their replacements `Created`
+but never started; `caddy` gates on nothing and moves to the pinned tag, and its only upstream
+is `web` — **the public site answers 502/503, not just an api path**. Services whose image did
+not change (postgres/redis/seq) are untouched, the failed oneshot's `docker logs` survive, and
+the unit fails before the success stamp. The journal carries compose's own line naming the
+code — `service "migrate" didn't complete successfully: exit 3` — and the full diagnosis lives
+in `docker logs jobbliggaren-migrate`: the unknown migration IDs and three exits. (1) Roll
 `IMAGE_TAG` forward to a build that contains those migrations. (2) Treat it as a **restore**
 problem — [`backup-restore.md`](./backup-restore.md) — never a deploy problem. (3) Deliberately
 run the old code against the newer schema: set `MIGRATE_ALLOW_SCHEMA_AHEAD=<the exact refused
 ID set>` in `deploy/.env` and re-run the unit — the refusal prints the exact line, the value is
 never `1`, and it stops matching the moment a different pin produces different IDs
-(`deploy/.env.example` documents the key). The pin stays in `.env`, so the unit re-refuses
-every hour until an exit is taken — that repetition is the alarm working, not a new fault.
+(`deploy/.env.example` documents the key). While the pin stands with no override, the unit
+re-refuses every hour — that repetition is the alarm working, not a new fault. **Once the
+override matches, the alarm goes quiet**: migrate exits 0 hourly and the box runs old code
+against the newer schema indefinitely, with one Warning line per run as the only trace and
+nothing in `systemctl --failed` — the ID set expires against the *next different* pin, not
+against this one persisting, so removing the key after the incident is the operator's step.
+
+**Exit 4 today means an unexplained fork.** No migration squash or re-baseline has ever been
+performed in this repo, so a diverged history has no innocent explanation: stop, establish the
+cause, and write **nothing** to `__EFMigrationsHistory` until it is established. A deliberate
+squash ships its own history-reconciliation procedure *before* it merges (ADR 0130, local).
 
 A Netcup snapshot is **not** deploy rollback either: snapshots are copy-on-write, need 50 %
 free disk, only *offline* ones are consistent, and one exportable snapshot remains. Their role
@@ -372,8 +392,8 @@ end to end. Owed, not delivered — [#1238](https://github.com/klasolsson81/jobb
 `deploy/.env` and run the unit: the pull resolves the pinned tag, every image is verified
 against it, and `up -d` recreates only what moved. Seconds, and it is the primary rollback path
 for the four long-running services. Across a **migration boundary** it is not a rollback at all
-— `migrate` refuses the apply (exit 3/4) instead of running an older assembly silently; §3's
-paragraph carries the refusal anatomy and the exits
+— `migrate` refuses the apply (exit 3/4) instead of running an older assembly silently; §3a
+carries the refusal anatomy and the exits
 ([#1236](https://github.com/klasolsson81/jobbliggaren/issues/1236)).
 A pinned tag must also be one that was published *with* an attestation, or the wrapper refuses
 it: images pushed before #196's attest step exist but cannot be verified, so the reachable

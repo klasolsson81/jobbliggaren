@@ -31,15 +31,22 @@ public enum SchemaAheadVerdict
 }
 
 /// <summary>
-/// The gate's full decision: verdict plus the two derived sets the caller logs.
+/// The gate's full decision: verdict plus the derived sets and override facts the caller logs.
 /// <c>Pending</c> preserves assembly order (what EF would apply, in order); <c>Unknown</c>
 /// preserves applied order (what the history holds that this assembly cannot name).
+/// <c>OverrideProvided</c> and <c>OverrideKeyMissing</c> are reported truthfully on EVERY arm,
+/// so no caller re-derives them: <c>OverrideKeyMissing</c> means the raw value was null — the
+/// running compose file does not forward the key at all (it predates #1236), which is a
+/// different operator situation from compose's rendered empty string for an unset
+/// <c>${MIGRATE_ALLOW_SCHEMA_AHEAD:-}</c>.
 /// </summary>
 public sealed record SchemaAheadDecision(
     SchemaAheadVerdict Verdict,
     IReadOnlyList<string> Pending,
     IReadOnlyList<string> Unknown,
-    bool OverridePresentButIdle);
+    bool OverridePresentButIdle,
+    bool OverrideProvided,
+    bool OverrideKeyMissing);
 
 /// <summary>
 /// The schema-ahead gate for `schema` mode (#1236): may this assembly run EF migrations
@@ -107,20 +114,25 @@ public static class SchemaAheadGate
         var pending = assemblyMigrations.Where(m => !appliedSet.Contains(m)).ToList();
 
         var overrideProvided = !string.IsNullOrWhiteSpace(overrideValue);
+        var overrideKeyMissing = overrideValue is null;
         var overrideIds = ParseOverride(overrideValue);
 
         if (unknown.Count == 0)
         {
             return new SchemaAheadDecision(
                 SchemaAheadVerdict.Proceed, pending, unknown,
-                OverridePresentButIdle: overrideProvided);
+                OverridePresentButIdle: overrideProvided,
+                OverrideProvided: overrideProvided,
+                OverrideKeyMissing: overrideKeyMissing);
         }
 
         if (pending.Count > 0)
         {
             return new SchemaAheadDecision(
                 SchemaAheadVerdict.RefuseDivergence, pending, unknown,
-                OverridePresentButIdle: false);
+                OverridePresentButIdle: false,
+                OverrideProvided: overrideProvided,
+                OverrideKeyMissing: overrideKeyMissing);
         }
 
         var overridden = overrideIds is not null
@@ -129,7 +141,9 @@ public static class SchemaAheadGate
         return new SchemaAheadDecision(
             overridden ? SchemaAheadVerdict.OverriddenNoOp : SchemaAheadVerdict.RefuseSchemaAhead,
             pending, unknown,
-            OverridePresentButIdle: false);
+            OverridePresentButIdle: false,
+            OverrideProvided: overrideProvided,
+            OverrideKeyMissing: overrideKeyMissing);
     }
 
     private static HashSet<string>? ParseOverride(string? overrideValue)

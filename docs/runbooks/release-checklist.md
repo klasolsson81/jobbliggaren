@@ -889,7 +889,7 @@ sessionen. dev/rc-tags är CC-tillåtna efter grön CI.
       ADR 0045-budgetar; manuell rök-test av kritiska flöden.
 - [ ] **Rollback känd** — pinna föregående image-tagg och kör reconcile-uniten
       (se §5); över en migrationsgräns vägrar `migrate` i stället (#1236,
-      `vps-deploy-stack.md` §3).
+      `vps-deploy-stack.md` §3a).
 
 ---
 
@@ -911,7 +911,7 @@ journalctl -u jobbliggaren-reconcile -n 40 --no-pager   # döm journalen, inte e
 - **Schema-grinden (#1236):** över en migrationsgräns är en bakåtpinne ingen
   rollback — `migrate` vägrar (exit 3/4) och api/worker hålls nere, fail-closed.
   Vägrans anatomi, de tre utvägarna och override-nyckelns semantik:
-  `vps-deploy-stack.md` §3.
+  `vps-deploy-stack.md` §3a.
 - **Attestationsfönstret:** en pinnad tagg måste vara publicerad MED attestation,
   annars vägrar wrappern hela applyn — fönstret ägs av `vps-deploy-stack.md` §3b.
 

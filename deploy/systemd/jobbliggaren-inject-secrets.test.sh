@@ -524,14 +524,23 @@ fi
 # matches neither branch and falls to the catch-all; a first argument that DID match never gets
 # there, so each branch needs its own guard and each guard needs its own case.
 #
-# SEEDED COMPLETE, AND THAT IS WHAT MAKES THESE COUNTERFACTUALS. Against an incomplete fixture
-# both entry points exit 1 anyway and the cases would pass without the guards existing. Measured
-# 2026-08-13 with the --check guard absent and the fixture complete: `--check --host` exited 0
-# with "all secrets present" — the operator asked about the host-only set, spelled it one
-# keystroke off, and was told the OTHER set was fine.
+# BOUND TO THE MESSAGE, NEVER TO THE EXIT CODE, AND THAT ALONE IS WHAT MAKES THESE
+# COUNTERFACTUALS. Exit 1 is shared with the catch-all above and with every absence in the suite,
+# so it cannot tell which refusal fired; the parenthetical can. Measured 2026-08-13: each
+# `(use <flag> on its own)` string has exactly ONE emitting source, its own guard, so deleting that
+# guard puts the string out of reach and the case fells the mutant whatever the fixture holds.
 #
-# BOUND TO THE MESSAGE, NEVER TO THE EXIT CODE. Exit 1 is shared with the catch-all above and with
-# every absence in the suite, so it cannot tell which refusal fired; the parenthetical can.
+# SEEDED COMPLETE FOR TWO OTHER REASONS, neither of them the counterfactual — an earlier revision
+# of this comment claimed the seed carried it, which is false in the direction that matters: it
+# would invite the next case to copy the seed and bind to the exit code alone.
+#   1. It reproduces PRODUCTION'S DAMAGE SHAPE. With the guard gone and the fixture complete,
+#      `--check --host` exits 0 saying "all secrets present" — the operator asked about the
+#      host-only set, spelled it one keystroke off, and was told the OTHER set was fine. Against an
+#      incomplete fixture the same mutant exits 1 with the wrong message, which fails the case for
+#      a reason an operator never meets.
+#   2. Independence from whatever the previous case left behind — the reason seed_all_secrets
+#      clears $TMPROOT/run and $ENV_FIXTURE at all (see its own note: order-dependence was
+#      removed 2026-08-12).
 for spec in "--check:--host" "--check-host:--host"; do
   flag=${spec%%:*}; extra=${spec#*:}
   seed_all_secrets

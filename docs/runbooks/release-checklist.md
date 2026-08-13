@@ -887,24 +887,33 @@ sessionen. dev/rc-tags är CC-tillåtna efter grön CI.
       Konkret alerting-konfig: #196 (box) + #1175 (sink).
 - [ ] **Frontend** (om i scope) — Lighthouse observe-signal mot
       ADR 0045-budgetar; manuell rök-test av kritiska flöden.
-- [ ] **Rollback känd** — återställ föregående byggda image-tag via Compose
-      (se §5); konkret procedur #196.
+- [ ] **Rollback känd** — pinna föregående image-tagg och kör reconcile-uniten
+      (se §5); över en migrationsgräns vägrar `migrate` i stället (#1236,
+      `vps-deploy-stack.md` §3a).
 
 ---
 
 ## 5. Rollback
 
-Vid fel efter prod-deploy (Hetzner-modell, ADR 0050 "Rollback" amenderat
-2026-06-08 — AWS-stacken är riven, ADR 0066):
+Vid fel efter deploy (Netcup-lådan, ADR 0050/0122): rollback är en image-tagg —
+**för kod, aldrig för schema** — och den går genom reconcile-uniten, **aldrig via
+handskriven `docker compose up -d`**. En hand-apply tar ingen lock och kör ingen
+attestationsverifiering; wrappern vaktar bara vägen genom uniten
+(`vps-deploy-stack.md` §3b, "Manual applies go through the unit").
 
 ```bash
-# På netcup-lådan: pinna image-taggen tillbaka till föregående release och
-# re-deploya Compose-stacken. Samma image-byggväg som prod (next build / dotnet
-# publish körs i CI → enbart den byggda imagen skickas till boxen), så den lokala
-# Docker-Compose-stacken är dev/prod-paritets-baselinen vid en misslyckad cutover.
-IMAGE_TAG=<föregående-release> docker compose up -d
-# Konkret tag-mekanism + service-namn finalize:ras med #196 (ADR 0050).
+# På Netcup-lådan: pinna föregående publicerade tagg och kör uniten.
+sudoedit /opt/jobbliggaren/deploy/.env        # sätt IMAGE_TAG=sha-<föregående>
+sudo systemctl start jobbliggaren-reconcile.service
+journalctl -u jobbliggaren-reconcile -n 40 --no-pager   # döm journalen, inte exit-koden
 ```
+
+- **Schema-grinden (#1236):** över en migrationsgräns är en bakåtpinne ingen
+  rollback — `migrate` vägrar (exit 3/4) och api/worker hålls nere, fail-closed.
+  Vägrans anatomi, de tre utvägarna och override-nyckelns semantik:
+  `vps-deploy-stack.md` §3a.
+- **Attestationsfönstret:** en pinnad tagg måste vara publicerad MED attestation,
+  annars vägrar wrappern hela applyn — fönstret ägs av `vps-deploy-stack.md` §3b.
 
 Notera incidenten i `docs/sessions/` + relevant runbook. Skapa ADR om
 rollback avslöjar ett arkitekturellt problem (CLAUDE.md §8 punkt 9).

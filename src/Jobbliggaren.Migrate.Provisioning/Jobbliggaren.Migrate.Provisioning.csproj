@@ -1,8 +1,11 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <!--
-    The Phase A privilege model (ADR 0034), as a library rather than as statements inside a
-    console Exe's top-level program.
+    Jobbliggaren.Migrate's testable decision surface, as a library rather than as statements
+    inside a console Exe's top-level program. The Phase A privilege model (ADR 0034) was the
+    first resident; the schema-ahead gate (#1236) is the second. What they share is the
+    extraction rule (#1232): logic that only exists as awaits in a top-level Program is
+    unreachable from every test assembly.
 
     WHY IT IS ITS OWN PROJECT AND NOT `InternalsVisibleTo` ON `Jobbliggaren.Migrate`.
     Four assemblies need this model: `Jobbliggaren.Migrate` executes it,
@@ -21,8 +24,9 @@
     `Migrate.UnitTests` does not reference Api, and `Architecture.Tests` references both but
     holds no IVT.
 
-    NO PACKAGE REFERENCES ON PURPOSE. These types emit SQL text; they never execute it. Npgsql
-    stays in `Jobbliggaren.Migrate`, which owns connections and logging.
+    NO PACKAGE REFERENCES ON PURPOSE. These types emit SQL text or decide over string sets;
+    they never execute anything. Npgsql and EF stay in `Jobbliggaren.Migrate`, which owns
+    connections and logging.
   -->
 
   <PropertyGroup>

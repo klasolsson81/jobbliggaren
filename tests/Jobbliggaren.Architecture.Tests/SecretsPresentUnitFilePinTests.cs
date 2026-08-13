@@ -33,14 +33,17 @@ namespace Jobbliggaren.Architecture.Tests;
 /// </para>
 ///
 /// <para>
-/// <b>Why the helpers below are a second copy rather than an extraction.</b> They are byte-alike
-/// with <see cref="BackupUnitFilePinTests"/>'s, whose own docstring argues that two spellings of
-/// one rule is how an assertion quietly keeps checking the one no longer in effect — so the
-/// duplication is a considered cost, not an oversight. Extracting them would refactor #197's
-/// pinned class inside a review round, which buys a shared helper at the price of a new reviewable
-/// claim (did the extraction preserve behaviour?) in the one place the fix delta must stay small.
-/// The extraction is the right follow-up; the risk it removes is divergence, and divergence here
-/// makes a case check the wrong text rather than pass falsely.
+/// <b>Why the helpers below are a second copy, and why that is a DECLINED extraction rather than a
+/// deferred one.</b> They are byte-alike with <see cref="BackupUnitFilePinTests"/>'s, whose own
+/// docstring argues that two spellings of one rule is how an assertion quietly keeps checking the
+/// one no longer in effect — so the duplication is a considered cost, not an oversight. It was
+/// declined on the ground that extracting would refactor #197's already-pinned class, buying a
+/// shared helper at the price of a new reviewable claim (did the extraction preserve behaviour?).
+/// <b>And the divergence it risks fails safe:</b> if one copy's <c>Directives</c> filter were
+/// tightened and the other's were not, <see cref="DirectiveOf"/>'s <c>ShouldBe</c> on the match
+/// count goes RED — the drift fells itself, which is a different class from the silent one
+/// <see cref="BackupUnitFilePinTests"/> warns about. This paragraph is the record of a decision,
+/// not a pointer at work someone owes: no follow-up is filed and none is implied.
 /// </para>
 /// </summary>
 public class SecretsPresentUnitFilePinTests

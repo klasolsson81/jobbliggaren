@@ -520,6 +520,33 @@ else
   sed 's/^/       /' "$TMPROOT/out" >&2
 fi
 
+# A TRAILING ARGUMENT AFTER A FLAG THAT MATCHED, WHICH THE CASE ABOVE CANNOT REACH. `--nonsense`
+# matches neither branch and falls to the catch-all; a first argument that DID match never gets
+# there, so each branch needs its own guard and each guard needs its own case.
+#
+# SEEDED COMPLETE, AND THAT IS WHAT MAKES THESE COUNTERFACTUALS. Against an incomplete fixture
+# both entry points exit 1 anyway and the cases would pass without the guards existing. Measured
+# 2026-08-13 with the --check guard absent and the fixture complete: `--check --host` exited 0
+# with "all secrets present" — the operator asked about the host-only set, spelled it one
+# keystroke off, and was told the OTHER set was fine.
+#
+# BOUND TO THE MESSAGE, NEVER TO THE EXIT CODE. Exit 1 is shared with the catch-all above and with
+# every absence in the suite, so it cannot tell which refusal fired; the parenthetical can.
+for spec in "--check:--host" "--check-host:--host"; do
+  flag=${spec%%:*}; extra=${spec#*:}
+  seed_all_secrets
+  got=0
+  PATH="/usr/bin:/bin" bash "$(make_sut_copy)" "$flag" "$extra" >"$TMPROOT/out" 2>&1 || got=$?
+  if [ "$got" -eq 1 ] && grep -qF "(use $flag on its own)" "$TMPROOT/out"; then
+    pass=$((pass + 1))
+    echo "  ok   $flag refuses a trailing argument rather than swallowing it"
+  else
+    fail=$((fail + 1))
+    echo "  FAIL $flag did not refuse '$extra' naming itself (exit $got)" >&2
+    sed 's/^/       /' "$TMPROOT/out" >&2
+  fi
+done
+
 echo "-- the SES credentials are conditional on EMAIL_PROVIDER (#183)"
 #
 # EVERY CASE HERE IS BOUND TO THE FILE NAMES, NEVER TO THE EXIT CODE. Where chmod is

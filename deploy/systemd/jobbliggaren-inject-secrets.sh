@@ -206,6 +206,15 @@ ses_credentials_required() {
 # read deploy/.env, and nothing else. The file-name arrays stay in this one file so that adding
 # a secret remains the whole change on the host side, for either destination.
 if [[ "${1:-}" == "--check" ]]; then
+  # Same guard, and the same spelling, as the --check-host branch below and as
+  # jobbliggaren-backup.sh's --check. Measured 2026-08-13 in debian:trixie-slim against the state
+  # #198's cutover left behind — crypto present, rclone credential absent — with this line absent:
+  # `--check --host` and `--check host` both matched HERE, swept the crypto set, ignored the rest
+  # and exited 0 saying "all secrets present". The operator asked about the host-only set and was
+  # given a green light for the other one, which is #1328's defect class — one answer covering two
+  # disjoint sets — pointing the other way. The closing `Verify with:` block prints both flags
+  # side by side, so the two spellings are one keystroke apart at exactly the moment they matter.
+  [[ $# -eq 1 ]] || die "unknown argument '$2' (use --check on its own)"
   missing=0
 
   # The DIRECTORY is checked too. Files present but the directory un-traversable by the

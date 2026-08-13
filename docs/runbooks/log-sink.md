@@ -104,9 +104,17 @@ that is this box's whole deploy path, three lines above. The handover row lives 
 Installing before #197's host secrets exist is fine and intended — both units then skip on the same
 `ConditionPathExists`, which is the designed state, not a fault. But `-fresh.service`'s residual
 paragraph leans on `jobbliggaren-host-secrets-present.service` alarming on a missing credential, and
-that unit is **#198's and is not on the box** (`host-detection.md` §7, measured 2026-08-10). In the
-window between installing these units and installing #198's, a credential-less archive that has
-never once succeeded is watched by nothing.
+that unit is **#198's and is not on the box** (`host-detection.md` §7, measured 2026-08-10). Until
+it is watching, a credential-less archive that has never once succeeded is watched by nothing.
+
+**The window closes at `enable`, not at install, and an earlier wording here bounded it by the
+wrong event (#1329).** It read "between installing these units and installing #198's" — true while
+one predicate answered for both sets, because installing #198's units then came with a timer an
+operator could arm. It does not survive the split: `jobbliggaren-host-secrets-present.timer` can be
+installed and left disabled, and `check_floor_timers` measures `enable` precisely because an
+installed-but-disabled timer fails nothing and therefore covers nothing (`host-detection.md` §7
+carries that distinction). So the bound is the credential arriving, which is the same event the
+next paragraph turns on.
 
 **And the obvious first horn is not available inside that window, which is why it is spelled out
 rather than offered.** Enabling `jobbliggaren-host-secrets-present.timer` here would close the gap,

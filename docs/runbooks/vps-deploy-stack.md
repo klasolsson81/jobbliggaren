@@ -228,19 +228,37 @@ echo "OK: both challenges live"
 #     Expected: no TLS error, and `Verify return code: 0 (ok)` against a public root.
 ```
 
-**Rollback is an image tag — for CODE. It is not a rollback for SCHEMA.** Pin
-`IMAGE_TAG=sha-<short>` in `.env` and re-run the reconcile unit, and the four long-running
-services are back on the old build in seconds. But `migrate` runs EF migrations before `api`
-and `worker` start, and pinning an older tag re-runs an older `migrate` against a database the
-newer one has already changed. EF has no down-migrations here, and this repo has measured
-cases where a schema change destroys data irreversibly (a computed column reverted to an
-ordinary one; a `DROP COLUMN` taking its indexes silently). So: **an image-tag rollback across
-a migration boundary is not a rollback, and nothing in this stack currently stops one** —
-[#1236](https://github.com/klasolsson81/jobbliggaren/issues/1236) owns that control. A Netcup
-snapshot is **not** deploy rollback either: snapshots are copy-on-write, need 50 % free disk,
-only *offline* ones are consistent, and one exportable snapshot remains. Their role is
-**before a migration**, once real user data exists — which is precisely the boundary the tag
-cannot cross.
+**Rollback is an image tag — for CODE. It is not a rollback for SCHEMA, and since
+[#1236](https://github.com/klasolsson81/jobbliggaren/issues/1236) `migrate` refuses to pretend
+it is.** Pin `IMAGE_TAG=sha-<short>` in `.env` and re-run the reconcile unit, and the four
+long-running services are back on the old build in seconds. But `migrate` runs EF migrations
+before `api` and `worker` start, and EF applies only *pending* (assembly minus applied) —
+history rows an older assembly cannot name would pass **silently**, and this repo has measured
+cases where the schema direction destroys data irreversibly (a computed column reverted to an
+ordinary one; a `DROP COLUMN` taking its indexes silently). So `schema` mode now reads
+`__EFMigrationsHistory` against its own assembly first and refuses before `MigrateAsync`:
+**exit 3** for a pure backwards pin (overridable, below), **exit 4** for a diverged history —
+the squash/re-baseline shape, never overridable.
+
+**What a refusal looks like on the box** (measured 2026-08-13, Docker Compose v2.40.3): pull
+and verification succeed, then `up -d` **stops and removes the running api and worker** (their
+image changed), leaves their replacements `Created` but never started, and fails the unit
+before the success stamp — while `caddy`, which gates on nothing, moves to the pinned tag and
+answers 503 on the api path. The journal carries compose's own line naming the code —
+`service "migrate" didn't complete successfully: exit 3` — and the full diagnosis lives in
+`docker logs jobbliggaren-migrate`: the unknown migration IDs and three exits. (1) Roll
+`IMAGE_TAG` forward to a build that contains those migrations. (2) Treat it as a **restore**
+problem — [`backup-restore.md`](./backup-restore.md) — never a deploy problem. (3) Deliberately
+run the old code against the newer schema: set `MIGRATE_ALLOW_SCHEMA_AHEAD=<the exact refused
+ID set>` in `deploy/.env` and re-run the unit — the refusal prints the exact line, the value is
+never `1`, and it stops matching the moment a different pin produces different IDs
+(`deploy/.env.example` documents the key). The pin stays in `.env`, so the unit re-refuses
+every hour until an exit is taken — that repetition is the alarm working, not a new fault.
+
+A Netcup snapshot is **not** deploy rollback either: snapshots are copy-on-write, need 50 %
+free disk, only *offline* ones are consistent, and one exportable snapshot remains. Their role
+is **before a migration**, once real user data exists — which is precisely the boundary the
+tag cannot cross.
 
 ---
 
@@ -350,11 +368,13 @@ cell allows 30 minutes, so a slow `:17` run can still be pushing at `:47`. Attes
 not close it either: it binds who built an image, never which tree, so a mixed set verifies
 end to end. Owed, not delivered — [#1238](https://github.com/klasolsson81/jobbliggaren/issues/1238).
 
-**Rollback stays an image tag, with the schema caveat above.** Pin `IMAGE_TAG=sha-<short>` in
+**Rollback stays an image tag, with the schema gate above.** Pin `IMAGE_TAG=sha-<short>` in
 `deploy/.env` and run the unit: the pull resolves the pinned tag, every image is verified
 against it, and `up -d` recreates only what moved. Seconds, and it is the primary rollback path
 for the four long-running services. Across a **migration boundary** it is not a rollback at all
-— see §3's paragraph and [#1236](https://github.com/klasolsson81/jobbliggaren/issues/1236).
+— `migrate` refuses the apply (exit 3/4) instead of running an older assembly silently; §3's
+paragraph carries the refusal anatomy and the exits
+([#1236](https://github.com/klasolsson81/jobbliggaren/issues/1236)).
 A pinned tag must also be one that was published *with* an attestation, or the wrapper refuses
 it: images pushed before #196's attest step exist but cannot be verified, so the reachable
 rollback window starts there.

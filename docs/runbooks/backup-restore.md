@@ -386,12 +386,18 @@ predicate and put a permanent entry on `systemctl --failed`. So the sentence pro
 from a unit that, on a box without the credential, nobody could turn on. Split, the host-only
 unit alarms on exactly the condition it names, and the crypto unit arms independently of #197.
 
-Verify:
+Verify — and **`--check-host` is the line that answers for this section**, since the split is
+exactly what took the credential out of `--check`:
 
 ```bash
-sudo /opt/jobbliggaren/deploy/systemd/jobbliggaren-inject-secrets.sh --check
-sudo /opt/jobbliggaren/deploy/systemd/jobbliggaren-backup.sh --check
+sudo /opt/jobbliggaren/deploy/systemd/jobbliggaren-inject-secrets.sh --check-host  # the credential
+sudo /opt/jobbliggaren/deploy/systemd/jobbliggaren-inject-secrets.sh --check       # the box serves
+sudo /opt/jobbliggaren/deploy/systemd/jobbliggaren-backup.sh --check               # the freshness
 ```
+
+A green `--check` says nothing about the upload credential and never will again — that is the
+whole of #1329, and reading it as this section's verification is the mistake the split makes
+possible. `--check-host` is the only one of the three that reads the file you just injected.
 
 ---
 

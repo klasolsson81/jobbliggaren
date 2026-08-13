@@ -1230,6 +1230,20 @@ Netcup, not Hetzner.
   > note; pointing at the closing issue would have retired the obligation by accident). The window's outer bound is unowned and is Klas's to set or
   > to accept explicitly — it is named in §10 below rather than left in a PR body.
 
+  > **Amendment 2026-08-13 (#1334) — the amendment above is SUPERSEDED IN ITS MECHANISM, and is
+  > kept because it is what the box measured on the day it was written.** `--check` no longer
+  > reads #197's `Backup__RcloneConfigBase64`: the predicate was split per set, and the host-only
+  > half moved to `--check-host` behind its own
+  > `jobbliggaren-host-secrets-present.{service,timer}`. So the conditionality the previous
+  > amendment records is gone — `master-key-ops.md` §2 now enables
+  > `jobbliggaren-secrets-present.timer` in the same visit as the install, and the crypto absence
+  > detection §9 claims is unconditional in operation from the moment the crypto secrets exist.
+  > **What is NOT restored by this is the outbound page**, which still needs M-7's alerting half
+  > (#1201) exactly as the previous amendment says; and a deferral is still possible for the
+  > host-only timer, where its cost is the nightly backup and not the box. §10's unmeasured
+  > premise below is unaffected in substance: the reboot series still begins at `enable`, but that
+  > moment no longer waits on #197.
+
 ### 10. Unmeasured premises carried forward
 
 Eight premises behind this amendment were checked against the tree rather than assumed; six

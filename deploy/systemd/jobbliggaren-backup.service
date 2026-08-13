@@ -37,8 +37,14 @@ Wants=network-online.target
 # than no alarm (jobbliggaren-secrets-present.timer).
 #
 # A failed Condition makes systemd SKIP the unit — inactive, logged, not failed. Nothing is lost:
-# a missing credential is already alarmed by jobbliggaren-secrets-present.service via its
-# HOST_SECRET_KEYS loop, and a genuinely missed backup is caught by the 26 h freshness threshold.
+# a missing credential is alarmed by jobbliggaren-host-secrets-present.service, whose --check-host
+# reads exactly the HOST_SECRET_KEYS this condition names, and a genuinely missed backup is caught
+# by the 26 h freshness threshold.
+#
+# THAT NAMED jobbliggaren-secrets-present.service UNTIL #1329, and the rename is why the sentence
+# is now true rather than merely intended: while one --check answered for both sets, that unit
+# could not be ENABLED on a box missing this very credential — its absence failed the whole
+# predicate — so the cover was promised by a unit nobody could turn on.
 ConditionPathExists=/run/jobbliggaren/host-secrets/Backup__RcloneConfigBase64
 
 [Service]

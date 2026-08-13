@@ -40,15 +40,17 @@ readonly ENV_FILE=/etc/jobbliggaren/detection.env
 readonly AUDIT_RULES_FILE=/etc/audit/rules.d/zz-jobbliggaren.rules
 
 # The floor set: timers whose absence would make P1's emptiness meaningless.
-# KEEP IN SYNC AS UNITS LAND. #197's jobbliggaren-backup.timer and #198's
-# jobbliggaren-secrets-present.timer belong here the moment they are ENABLED on the box — the
-# state check_floor_timers actually measures — and that handover is written in
-# docs/runbooks/host-detection.md rather than left to memory.
+# KEEP IN SYNC AS UNITS LAND. #197's jobbliggaren-backup.timer and #198's TWO absence timers —
+# jobbliggaren-secrets-present.timer and jobbliggaren-host-secrets-present.timer — belong here the
+# moment they are ENABLED on the box, the state check_floor_timers actually measures, and that
+# handover is written in docs/runbooks/host-detection.md rather than left to memory.
 #
-# INSTALLED AND ENABLED ARE TWO MOMENTS FOR THIS ONE, AND THE GAP IS DELIBERATE (#1329).
-# jobbliggaren-secrets-present.timer may be installed at any time; it must not be ENABLED before
-# #197's host-secrets are provisioned, because its --check exits non-zero on those keys too and
-# would light the alarm surface permanently — which, through P1 below, is a continuous page.
+# INSTALLED AND ENABLED ARE TWO MOMENTS, AND SINCE #1329 THEY DIVERGE FOR ONLY ONE OF THE TWO.
+# The absence detector split per set. jobbliggaren-secrets-present.timer runs --check over the
+# crypto secrets and is enabled in the same visit as its install, because that predicate stopped
+# reading #197's keys. jobbliggaren-host-secrets-present.timer runs --check-host over exactly those
+# keys, so it must not be ENABLED before they are provisioned: enabled early it fails every fire
+# and lights the alarm surface permanently — which, through P1 below, is a continuous page.
 # master-key-ops.md §2 owns the ordering. Sequencing, not a defect.
 readonly FLOOR_TIMERS="jobbliggaren-reconcile.timer jobbliggaren-heartbeat.timer"
 

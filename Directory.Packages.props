@@ -96,6 +96,17 @@
     <PackageVersion Include="Microsoft.Extensions.Caching.StackExchangeRedis" Version="10.0.10" />
     <!-- Test — Redis container -->
     <PackageVersion Include="Testcontainers.Redis" Version="4.13.0" />
+    <!-- Transitive CVE pin: Testcontainers 4.13.0 declares SSH.NET >= 2025.1.0 (measured in
+         its nuspec, all TFM groups), which is vulnerable to GHSA-q939-rpr3-3284 (HIGH —
+         ScpClient recursive download allows arbitrary file write via server-controlled SCP
+         filenames). Vulnerable range <= 2025.1.0; first patched 2026.0.0. We do not reference
+         SSH.NET directly and never call ScpClient — the pin applies only via
+         CentralPackageTransitivePinningEnabled (Directory.Build.props) to eliminate NU1903,
+         which otherwise fails restore REPO-WIDE under TreatWarningsAsErrors and blocks every
+         PR. 4.13.0 is the latest Testcontainers, so there is no bump to take instead; 2026.0.0
+         is above the declared floor → upward unification, no NU1605/downgrade, and it ships a
+         net10.0 group. Verified 2026-08-13 (GitHub Advisory Database, nuget.org). -->
+    <PackageVersion Include="SSH.NET" Version="2026.0.0" />
     <!-- Smart enum — state machines i domänen -->
     <PackageVersion Include="Ardalis.SmartEnum" Version="8.2.0" />
     <!-- Hangfire — schedulerade jobb i Worker (BUILD.md §16, ADR 0023) -->

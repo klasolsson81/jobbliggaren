@@ -190,7 +190,21 @@ ses_credentials_required() {
 # It must stat files and nothing else — it runs at boot, when dockerd may not be up, so it must
 # never touch docker.
 if [[ "${1:-}" == "--check" ]]; then
+  # TWO COUNTERS, BECAUSE ONE SUMMARY CANNOT DESCRIBE TWO DISJOINT SETS (#1328). `missing` is
+  # everything api and worker read; `host_missing` is the host-only set. Each branch below sets
+  # exactly ONE, and `missing` is evaluated first and exits — so when both are set, which is the
+  # state after EVERY reboot, the blocking summary wins.
+  #
+  # THE INVARIANT IS ONE-DIRECTIONAL, and only one direction is dangerous: a check of something
+  # api or worker reads MUST set `missing`. The reverse costs volume and nothing else. A crypto
+  # check that picked `host_missing` would tell an operator the stack was serving over a box that
+  # is down, and no per-line assertion can see it — the summary cases in the test suite are what
+  # catch it.
+  #
+  # The exit code does not distinguish them, deliberately: backup-restore.md §3 leans on this
+  # unit alarming on the missing backup credential, and an exit 0 would delete that alarm.
   missing=0
+  host_missing=0
 
   # The DIRECTORY is checked too. Files present but the directory un-traversable by the
   # container's group is a real crash-loop state that a files-only sweep reports as healthy.
@@ -261,35 +275,55 @@ if [[ "${1:-}" == "--check" ]]; then
 
   # The host-only directory is checked by the same loop rather than by a second predicate, so a
   # new entry in either array is covered the moment it is added — which is what makes "adding a
-  # secret here is the whole change on the host side" true of both destinations. Its absence is
-  # a different severity from a missing master key (the stack still serves; only the nightly
-  # backup stops), and the message says so instead of leaving an operator to infer it.
+  # secret here is the whole change on the host side" true of both destinations. What differs is
+  # the CONSEQUENCE, which is why these two branches set `host_missing`: nothing here is read by
+  # api or worker, so the summary must not reach for the crash-loop wording on their account.
   if [[ ! -d "$HOST_SECRETS_DIR" ]]; then
     log "MISSING: $HOST_SECRETS_DIR (directory does not exist)"
-    missing=1
+    host_missing=1
   fi
   for key in "${HOST_SECRET_KEYS[@]}"; do
     if ! has_usable_content "${HOST_SECRETS_DIR}/${key}"; then
-      log "MISSING: ${HOST_SECRETS_DIR}/${key} — the stack still serves, but the nightly backup"
-      log "         cannot upload (#197). jobbliggaren-backup.service will refuse."
-      missing=1
+      # Nothing about the STACK is asserted here. The old wording said "the stack still serves",
+      # which is false after a reboot, when this line prints above a correct crash-loop summary.
+      log "MISSING: ${HOST_SECRETS_DIR}/${key} — host-only, read by no container. The nightly"
+      log "         backup cannot upload (#197): jobbliggaren-backup.service SKIPS its scheduled"
+      log "         run on ConditionPathExists rather than failing, so this line is its alarm."
+      host_missing=1
     fi
   done
 
+  # THIS SUMMARY USED TO PRESCRIBE THE ONE REMEDY, and it stopped being the one remedy when
+  # the mail branch above gained lines injection cannot fix — an INVALID provider value and an
+  # unset EMAIL_SES_* variable are edits to deploy/.env, not missing files. Telling an operator
+  # to re-run this script against those is a remedy that reports success and changes nothing,
+  # which is worse than no remedy at all. So the summary points at the lines rather than
+  # replacing them.
+  #
+  # AND IT USED TO ASSERT A CRASH-LOOP FOR BOTH SETS, which made it FALSE in the state a cutover
+  # leaves behind: crypto injected, #197's host-only credential not yet provisioned. Measured on
+  # the box 2026-08-13, immediately after #198's cutover succeeded, with api and web healthy.
+  #
+  # THE HOST-ONLY SUMMARY CLAIMS ONLY WHAT THIS CHECK READ, and the narrower wording is the point:
+  # `--check` never reads the VALUE of the SES pointers or the region (see the mail branch above),
+  # so "the stack serves" would be a claim it cannot make — and would make it in the fail-OPEN
+  # direction, on the box's only alarm surface.
   if [[ $missing -ne 0 ]]; then
-    # THIS SUMMARY USED TO PRESCRIBE THE ONE REMEDY, and it stopped being the one remedy when
-    # the mail branch above gained lines injection cannot fix — an INVALID provider value and an
-    # unset EMAIL_SES_* variable are edits to deploy/.env, not missing files. Telling an operator
-    # to re-run this script against those is a remedy that reports success and changes nothing,
-    # which is worse than no remedy at all. So the summary now points at the lines rather than
-    # replacing them.
     log "Something above is missing or invalid, and api and worker will crash-loop by design"
     log "(fail-closed, never a fallback key). Read the individual lines: those naming a FILE are"
     log "fixed by injecting, those naming a variable are fixed by editing deploy/.env."
     log "  sudo /opt/jobbliggaren/deploy/systemd/jobbliggaren-inject-secrets.sh"
     exit 1
   fi
-  log "all secrets present in ${SECRETS_DIR}"
+  if [[ $host_missing -ne 0 ]]; then
+    log "Nothing this check reads is absent for api and worker — no crypto file, no mail setting."
+    log "What is absent is host-only, and the lines above name it. The consequence is the nightly"
+    log "backup, not the stack. Same script, which prompts for it after the crypto secrets it is"
+    log "already holding:"
+    log "  sudo /opt/jobbliggaren/deploy/systemd/jobbliggaren-inject-secrets.sh"
+    exit 1
+  fi
+  log "all secrets present in ${SECRETS_DIR} and ${HOST_SECRETS_DIR}"
   exit 0
 fi
 

@@ -381,9 +381,10 @@ if [ "$MODE_ENFORCED" = "yes" ]; then
     sed 's/^/       /' "$TMPROOT/out" >&2
   fi
 else
-  skipped=$((skipped + 8))
+  skipped=$((skipped + 7))
   echo "  SKIP summary cases: this filesystem does not honour chmod, so the mode branch sets the"
-  echo "       blocking counter and the serving case cannot be measured. They RUN in CI."
+  echo "       blocking counter in every case and each would pass for a reason that is not its"
+  echo "       own. Six branch cases plus the host-only-directory pin. They RUN in CI."
 fi
 
 echo "-- a missing host-only DIRECTORY is the post-reboot state"

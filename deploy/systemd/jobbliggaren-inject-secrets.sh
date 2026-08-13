@@ -305,8 +305,19 @@ fi
 # stack: this check reads nothing api or worker read, so it cannot know whether they are serving.
 # That claim, made from here, is what #1328 measured as false.
 if [[ "${1:-}" == "--check-host" ]]; then
+  # Same guard, and the same spelling, as jobbliggaren-backup.sh's --check branch: a first
+  # argument that matched never reaches the catch-all below, so a trailing argument would be
+  # swallowed here rather than refused.
+  [[ $# -eq 1 ]] || die "unknown argument '$2' (use --check-host on its own)"
   host_missing=0
 
+  # NO DIRECTORY-MODE ASSERTION HERE, and the asymmetry with --check is the tmpfiles file's, not
+  # an omission. jobbliggaren-tmpfiles.conf writes `d /run/jobbliggaren/secrets :0700 :root :root`
+  # — the `:` prefix makes mode and owner create-only, precisely so a later `systemd-tmpfiles
+  # --create` cannot revoke the 0710 grant the injection sets, which is why --check must measure
+  # that directory's mode. The host-only line carries NO `:` prefix, so tmpfiles re-asserts
+  # 0700 root:root on it at every boot instead. There is no drifted mode for this branch to catch
+  # that the box does not already repair.
   if [[ ! -d "$HOST_SECRETS_DIR" ]]; then
     log "MISSING: $HOST_SECRETS_DIR (directory does not exist)"
     host_missing=1
@@ -534,5 +545,9 @@ done
 log ""
 log "Injected. api and worker recover on their own restart backoff (restart: unless-stopped) —"
 log "no 'compose up' and no reconcile run is needed. Verify with:"
-log "  sudo $0 --check"
+# BOTH, because this run wrote to BOTH directories. --check stopped reading the host-only set at
+# the split, so on its own it is a green light over the very credential the prompt above just
+# took — the same mistake backup-restore.md §3 now warns about, one layer closer to the operator.
+log "  sudo $0 --check        # the secrets api and worker read"
+log "  sudo $0 --check-host   # the host-only set this run also wrote"
 log "  docker inspect -f '{{.State.Health.Status}}' jobbliggaren-api    # expect: healthy"

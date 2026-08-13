@@ -37,10 +37,11 @@ Wants=network-online.target
 # its reader to stop reading, which is the doctrine jobbliggaren-secrets-present.timer records.
 #
 # A failed Condition makes systemd SKIP the unit — inactive, logged, not failed. Nothing is lost:
-# a missing credential is separately alarmed by jobbliggaren-host-secrets-present.service (it was
-# jobbliggaren-secrets-present.service until #1329, a unit that on a credential-less box could not
-# be enabled at all), and a
-# genuinely stopped archive is caught by --check's freshness threshold, which
+# a missing credential is separately alarmed by jobbliggaren-host-secrets-present.service once
+# that unit is enabled (it named jobbliggaren-secrets-present.service until #1329; the split moved
+# the cover to a unit that reads this file and nothing else, but its enable is still gated on the
+# file itself, so it covers loss AFTER provisioning and never the initial window — log-sink.md §2
+# owns that gap), and a genuinely stopped archive is caught by --check's freshness threshold, which
 # jobbliggaren-logship-fresh.service is the unit that actually runs. Without that pair installed
 # this sentence would describe a probe nothing calls: the skip is not failed, so it is invisible
 # to every surface M-7 reads.

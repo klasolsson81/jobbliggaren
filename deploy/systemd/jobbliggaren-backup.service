@@ -41,10 +41,12 @@ Wants=network-online.target
 # reads exactly the HOST_SECRET_KEYS this condition names, and a genuinely missed backup is caught
 # by the 26 h freshness threshold.
 #
-# THAT NAMED jobbliggaren-secrets-present.service UNTIL #1329, and the rename is why the sentence
-# is now true rather than merely intended: while one --check answered for both sets, that unit
-# could not be ENABLED on a box missing this very credential — its absence failed the whole
-# predicate — so the cover was promised by a unit nobody could turn on.
+# THAT NAMED jobbliggaren-secrets-present.service UNTIL #1329. The rename makes the sentence name
+# a unit that reads this file and nothing else — but it does NOT make the cover unconditional, and
+# claiming so would repeat the error it repairs: the host unit's enable is gated on exactly the
+# file it alarms about, so it covers absence AFTER provisioning and never the initial window in
+# which the credential has never existed. log-sink.md §2 owns that window. What the split removed
+# is that arming this alarm used to require holding the crypto alarm down.
 ConditionPathExists=/run/jobbliggaren/host-secrets/Backup__RcloneConfigBase64
 
 [Service]

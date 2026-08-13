@@ -1211,7 +1211,7 @@ Netcup, not Hetzner.
   someone else's scope. **What #198 does deliver is ABSENCE detection** —
   `jobbliggaren-secrets-present.timer` running `--check` at boot and every ten minutes,
   landing a missing key on `systemctl --failed`
-  (`deploy/systemd/jobbliggaren-secrets-present.service:1-33`, `.timer:1-22`;
+  (`deploy/systemd/jobbliggaren-secrets-present.service:1-33`, `.timer:1-33`;
   `docs/runbooks/master-key-ops.md` §2-§3). Absence detection and access detection must not
   be read as one capability; they are not.
 
@@ -1230,19 +1230,24 @@ Netcup, not Hetzner.
   > note; pointing at the closing issue would have retired the obligation by accident). The window's outer bound is unowned and is Klas's to set or
   > to accept explicitly — it is named in §10 below rather than left in a PR body.
 
-  > **Amendment 2026-08-13 (#1334) — the amendment above is SUPERSEDED IN ITS MECHANISM, and is
-  > kept because it is what the box measured on the day it was written.** `--check` no longer
-  > reads #197's `Backup__RcloneConfigBase64`: the predicate was split per set, and the host-only
-  > half moved to `--check-host` behind its own
-  > `jobbliggaren-host-secrets-present.{service,timer}`. So the conditionality the previous
-  > amendment records is gone — `master-key-ops.md` §2 now enables
-  > `jobbliggaren-secrets-present.timer` in the same visit as the install, and the crypto absence
-  > detection §9 claims is unconditional in operation from the moment the crypto secrets exist.
+  > **Amendment 2026-08-13 (#1329, PR #1334) — the amendment above is SUPERSEDED IN ITS MECHANISM,
+  > and is kept because it is what the box measured on the day it was written.** `--check` no
+  > longer reads #197's `Backup__RcloneConfigBase64`: the predicate was split per set, and the
+  > host-only half moved to `--check-host` behind its own
+  > `jobbliggaren-host-secrets-present.{service,timer}`. **What is gone is the conditionality on
+  > #197, and that is all that is gone.** The previous amendment's distinction stands unchanged,
+  > and preserving it is why this one amends rather than replaces: the capability is **armed at
+  > `enable`**, never at ship, so a box carrying the unit files without having enabled them still
+  > has no absence detection in operation. What changed is only that `enable` no longer waits on an
+  > unrelated backup credential — `master-key-ops.md` §2 takes that step in the same visit as the
+  > install.
+  >
+  > **Nothing here claims the capability is in operation on any box.** Latest measurement,
+  > `host-detection.md` §7 (2026-08-10): neither unit pair is on the box at all, let alone enabled.
   > **What is NOT restored by this is the outbound page**, which still needs M-7's alerting half
   > (#1201) exactly as the previous amendment says; and a deferral is still possible for the
-  > host-only timer, where its cost is the nightly backup and not the box. §10's unmeasured
-  > premise below is unaffected in substance: the reboot series still begins at `enable`, but that
-  > moment no longer waits on #197.
+  > host-only timer, where its cost is the nightly backup and not the box. §10's amended premise
+  > below narrows with this: read it there rather than inferring it from here.
 
 ### 10. Unmeasured premises carried forward
 
@@ -1265,6 +1270,12 @@ has:
   closed or explicitly accepted there, not "if it runs past first real data", which would key the
   condition to fire after the forum that grades it. Substantively this is already M-7's, which
   escalates to Blocker at first real data. Klas's call, not a session's.**
+  **Amended 2026-08-13 (#1329, PR #1334): the mechanism above is superseded, and the escalation's
+  SCOPE narrows with it.** `--check` no longer reads #197's credential, so the crypto series'
+  `enable` moment waits on the cutover alone and this premise is no longer extended by a deferral
+  of #197's ops half. The unowned window survives for `jobbliggaren-host-secrets-present.timer`
+  alone, whose cost is the nightly upload and not the box — read the escalation clause above
+  against that narrower scope. It is still unowned, still undated, and still Klas's call.
 - **Whether any host snapshot was taken since 2026-08-05**, and **whether the hosting
   provider's snapshot facility captures guest RAM at all**, are both unmeasured. Either would
   mean a copy of the plaintext key already exists outside this box's disk entirely — part of

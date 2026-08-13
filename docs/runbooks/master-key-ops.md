@@ -183,10 +183,11 @@ What it does, in order:
 > docker inspect -f '{{.State.Health.Status}}' jobbliggaren-api    # expect: healthy
 > ```
 >
-> **Read the `MISSING:` lines, never the closing summary.** That summary is unconditional today
-> and says api and worker crash-loop by design — false in this state, as the `healthy` on the
-> line above shows. That is its own defect (#1328) and is not fixed here. One MISSING line naming
-> the host-only path, plus a healthy api, is the whole verification.
+> **Read the `MISSING:` line, not only the closing summary.** Since #1330 the summary is correct
+> here — it says that nothing api and worker read is absent and that the consequence is the
+> nightly backup — but it is the `MISSING:` line that names *which* file, and that is what tells
+> a deferred injection from a failed one. One MISSING line naming the host-only path, plus a
+> healthy api, is the whole verification.
 >
 > Do **not** enable `jobbliggaren-secrets-present.timer` in this state — that is §2's condition,
 > and this is exactly the state it is about.

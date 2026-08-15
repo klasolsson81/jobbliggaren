@@ -64,8 +64,10 @@ the service's `ConditionPathExists` skips the run rather than failing it.
 # The clone. NOT `git pull` blind — on this box a pull is a DEPLOY that
 # jobbliggaren-reconcile.timer applies within the hour, and one such pull cost a 13-minute
 # outage on 2026-08-10. Read what it would bring FIRST, then pull; the fetch+log is what makes
-# the pull deliberate, never a substitute for it. Read vps-deploy-stack.md §6 if
-# deploy/docker-compose.yml is involved.
+# the pull deliberate, never a substitute for it. If deploy/docker-compose.yml is involved, read
+# vps-deploy-stack.md §3a (the schema gate's refusal codes) and §3b (apply via the reconcile unit,
+# never a hand-written `up -d`). This said §6 until 2026-08-15; no such section has ever existed,
+# so the one pointer an operator was sent to before a compose-bearing pull resolved to nothing.
 git -C /opt/jobbliggaren fetch origin
 git -C /opt/jobbliggaren log --oneline HEAD..origin/main -- deploy/
 sudo git -C /opt/jobbliggaren pull --ff-only

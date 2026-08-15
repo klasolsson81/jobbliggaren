@@ -307,15 +307,25 @@ on this box would then say so: `--check` reads the directory's mode and never it
 reconcile gate reads the directory's group and the files' owner. Both go green on the broken
 posture.
 
+**A `sudo … /run/jobbliggaren/secrets/*` GLOB IS NOT RUNNABLE BY THE OPERATOR IT IS WRITTEN FOR,
+and the earlier form of this block was.** Your shell expands the glob *before* `sudo` elevates, and
+`0710 root:<gid>` denies an operator outside that group the read — so the pattern reaches the tool
+unexpanded and it fails with `No such file or directory`. Measured 2026-08-15 during row 32b's
+drill, on `jpadmin` (gids 1000, 27). `find` keeps the whole expansion inside the privileged
+process, and `-mindepth 1` excludes the directory structurally rather than by warning.
+
 ```bash
 # Both ids are in the refusal message; read them from there rather than re-deriving them.
 sudo chown root:<gid> /run/jobbliggaren/secrets     # the directory: root keeps it
-sudo chown <uid>:<gid> /run/jobbliggaren/secrets/*  # the files, and only the files
+sudo find /run/jobbliggaren/secrets -mindepth 1 -maxdepth 1 \
+  -exec chown <uid>:<gid> {} +                      # the files, and only the files
 sudo systemctl start jobbliggaren-reconcile.service # apply now rather than waiting for :xx
 
-# Prove the posture, because neither gate above reads the axis you just moved:
-sudo stat -c '%n %U:%G %a' /run/jobbliggaren/secrets /run/jobbliggaren/secrets/*
-# expect: the directory root:<container-group> 710, every file <container-user>:<group> 400
+# Prove the posture, because neither gate above reads the axis you just moved.
+# NUMERIC %u:%g, never %U:%G: the container's uid/gid have no passwd/group entry on the host,
+# so the name form prints UNKNOWN:UNKNOWN and the line cannot be read at all (measured same day).
+sudo find /run/jobbliggaren/secrets -maxdepth 1 -exec stat -c '%n %u:%g %a' {} +
+# expect: the directory 0:<gid> 710 — owner ROOT — and every file <uid>:<gid> 400
 ```
 
 The numbers are deliberately not written here. A live measured id in a tracked file decays within

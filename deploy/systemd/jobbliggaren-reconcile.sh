@@ -267,8 +267,10 @@ else
     log "  missing master key. Nothing is applied; the running containers stay up."
     log "  Repair by re-owning, NEVER by re-injecting (master-key-ops.md §3). Run exactly these"
     log "  two: a RECURSIVE chown from the directory would take the directory too, and root owns it."
+    log "  The files form is a find, not a glob — YOUR shell expands a glob before sudo elevates,"
+    log "  and 0710 denies you the read, so the glob would reach chown unexpanded."
     log "    sudo chown root:$want_gid $SECRETS_DIR"
-    log "    sudo chown $want_uid:$want_gid $SECRETS_DIR/*"
+    log "    sudo find $SECRETS_DIR -mindepth 1 -maxdepth 1 -exec chown $want_uid:$want_gid {} +"
     log "    sudo systemctl start jobbliggaren-reconcile.service"
     exit 1
   fi
@@ -289,8 +291,9 @@ else
       log "  $f is owned by uid $file_uid; the image runs as uid $want_uid. The files are 0400,"
       log "  so the owner is the only reader. Nothing is applied; the running containers stay up."
       log "  Repair by re-owning, NEVER by re-injecting (master-key-ops.md §3). The directory is"
-      log "  NOT part of it — root owns that, and a recursive form from it would take it too."
-      log "    sudo chown $want_uid:$want_gid $SECRETS_DIR/*"
+      log "  NOT part of it — root owns that, and -mindepth 1 is what keeps it out. A glob would"
+      log "  not do: YOUR shell expands it before sudo elevates, and 0710 denies you the read."
+      log "    sudo find $SECRETS_DIR -mindepth 1 -maxdepth 1 -exec chown $want_uid:$want_gid {} +"
       log "    sudo systemctl start jobbliggaren-reconcile.service"
       exit 1
     fi

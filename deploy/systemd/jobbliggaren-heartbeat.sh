@@ -40,10 +40,11 @@ readonly ENV_FILE=/etc/jobbliggaren/detection.env
 readonly AUDIT_RULES_FILE=/etc/audit/rules.d/zz-jobbliggaren.rules
 
 # The floor set: timers whose absence would make P1's emptiness meaningless.
-# KEEP IN SYNC AS UNITS LAND. #197's jobbliggaren-backup.timer and #198's TWO absence timers —
-# jobbliggaren-secrets-present.timer and jobbliggaren-host-secrets-present.timer — belong here the
-# moment they are ENABLED on the box, the state check_floor_timers actually measures, and that
-# handover is written in docs/runbooks/host-detection.md rather than left to memory.
+# KEEP IN SYNC AS UNITS LAND. #197's jobbliggaren-backup.timer and #198's
+# jobbliggaren-host-secrets-present.timer belong here the moment they are ENABLED on the box, the
+# state check_floor_timers actually measures, and that handover is written in
+# docs/runbooks/host-detection.md rather than left to memory. (#198's other absence timer,
+# jobbliggaren-secrets-present.timer, already joined — see the note below the constant.)
 #
 # INSTALLED AND ENABLED ARE TWO MOMENTS, AND SINCE #1329 THEY DIVERGE FOR ONLY ONE OF THE TWO.
 # The absence detector split per set. jobbliggaren-secrets-present.timer runs --check over the

@@ -126,8 +126,10 @@
 > Tabellerna nedan är den senare klassen och ägs av
 > [#1264](https://github.com/klasolsson81/jobbliggaren/issues/1264). **#1199 står kvar öppen på
 > biträdesavtalet**, som fortsatt grindar första riktiga datan (Klas, aldrig CC). E-postraden är också
-> upphävd, men av ett annat direktiv och med **vald** ersättare (AWS SES), ägd av #1169
-> och #183 — se §13.4. Faktisk
+> upphävd, men av ett annat direktiv och med **vald** ersättare — sedan 2026-08-15
+> **Scaleway Transactional Email i `fr-par`** (ADR 0131; AWS SES var ersättaren
+> 2026-08-08 till 2026-08-15 och föll när AWS permanent vägrade häva sandbox-läget),
+> ägd av #183 — se §13.4. Faktisk
 > provisionering är fortsatt framtida Klas-gatat arbete (ADR 0050 Sekvensering:
 > Hetzner sist, vid MVP före beta-testare). AWS-kolumnerna i ADR/sessions/
 > research bevaras som historik.
@@ -1290,14 +1292,18 @@ permanent infra aktiveras; listan nedan speglar **beslutad** uppsättning, ADR 0
   Tyskland — HRB 705547 Amtsgericht Mannheim), server i **Nürnberg, Tyskland** — inom EU/EES
   (ADR 0050 `Amendment 2026-08-04` / ADR 0122; ersätter Hetzner Cloud, Klas-beslut 2026-08-04).
   **Ingen Kap. V-överföring** införs av värdbenet: avtalsparten är tysk och behandlingen sker i
-  Tyskland, så AWS-postens krok — EU-avtalspart under **amerikansk** koncernmoder — saknas här
-  (`security-auditor` 2026-08-09). **Underbiträdeskedjan är OMÄTT och får inte påstås ligga inom
+  Tyskland, så den krok som fällde e-postposten i AWS-eran — EU-avtalspart under **amerikansk**
+  koncernmoder — saknas här (`security-auditor` 2026-08-09). *(Kontrasten är historisk sedan
+  2026-08-15: e-postposten saknar numera samma krok, av samma strukturella skäl — ADR 0131. Det
+  som frikänner värdbenet är oförändrat; det är jämförelseobjektet som bytts ut.)* **Underbiträdeskedjan är OMÄTT och får inte påstås ligga inom
   EU/EES:** netcup publicerar ingen lista (mätt 2026-08-09 mot DPA-sidan, AVV-sidan, Impressum och
   DC-sidan), den bor i AVV-bilagan och blir läsbar först när avtalet tecknas. Tystnad om kedjan är
   laglig (Art. 13(1)(e) kräver mottagare eller kategorier, inte biträdets egen lista); ett
   påstående om den är det inte. ⚠ **Inget Art. 28-avtal är tecknat** — netcups AVV gäller **inte**
   automatiskt utan sluts i Customer Control Panel, och den mätningen får aldrig generaliseras från
-  AWS GDPR-DPA:t. Grind: `release-checklist.md` §2.6 punkt 3 (**Klas**, aldrig CC).
+  e-postleverantörernas DPA:er: **både AWS-erans och Scaleways gäller automatiskt**, så netcup är
+  undantaget bland biträdena och inte regeln. Grind: `release-checklist.md` §2.6 punkt 3
+  (**Klas**, aldrig CC).
 - Backup: **mekanismen är byggd och målet är valt och mätt (2026-08-09); Art. 28-avtalet är INTE tecknat** — ägs av
   [#197](https://github.com/klasolsson81/jobbliggaren/issues/197) (Hetzner-EU Storage Box föll med
   värdbytet). **Det här är kravens enda hem.** Kraven består oförändrade: klient-side
@@ -1333,31 +1339,45 @@ permanent infra aktiveras; listan nedan speglar **beslutad** uppsättning, ADR 0
   zon och tar inte emot registrerades uppgifter för vår räkning (Art. 4(8)). Cloudflare hade blivit
   biträde i egenskap av **proxy/CDN som terminerar användartrafik** — den funktionen har ingen
   efterträdare, så posten stryks utan ersättare i stället för att pekas om.
-- Transaktionell e-post: **Amazon Web Services EMEA SARL (Luxemburg)** via Amazon SES i
-  **`eu-north-1` (Stockholm)** — beslutad (Klas-GO 2026-08-08; ADR 0124, #1237 — ersätter
-  Resend, Inc. (USA), som är helt ute), **planerad, ännu inte
+- Transaktionell e-post: **Scaleway S.A.S. (Paris, Frankrike — R.C.S. Paris 433 115 904)** via
+  **Scaleway Transactional Email** i **`fr-par` (Paris)** — beslutad (Klas-val 2026-08-14/15;
+  ADR 0131, #183 — ersätter Amazon SES, som föll när AWS permanent vägrade häva sandbox-läget,
+  vilket i sin tur ersatte Resend, Inc. (USA); båda är helt ute), **planerad, ännu inte
   aktiverad**: `Email:Provider` defaultar till `Console`, vilket i non-dev löser till
   `NullEmailSender`, så ingen e-post lämnar systemet. Gäller **all** utgående e-post, inte bara
   notiser: `EmailTemplates` har åtta sorter varav sex är kontolivscykel (bekräfta e-post,
   byta e-post, ändrad-e-post-avisering, konto-finns-redan, lösenordsåterställning,
-  ändrat-lösenord-avisering). **Tredjelandsöverföring — den
-  redovisas trots EU-regionen, och det är en avgjord fråga sedan 2026-08-08, inte en öppen:**
-  behandlingen sker i EU under en EU-avtalspart, men koncernmodern **Amazon Web Services, Inc.
-  (USA)** kan nå uppgifterna, vilket i sig är en överföring (Schrems II / EDPB Rec. 01/2020).
-  Skälet att redovisa den är att §15.1:s egen tillämpade standard avvisar Cloudflare R2 *"pga
-  CLOUD Act-tredjelandsöverföring"*, och att tillämpa den standarden selektivt bryter Art. 5(2).
-  **Grunden är SCC Art. 46(2)(c)** (juni 2021, i AWS GDPR-DPA:t) — **ingen adekvans, ingen DPF**
-  (fel instrument för en luxemburgsk avtalspart, oavsett listning). Överfört innehåll är
+  ändrat-lösenord-avisering). **Ingen tredjelandsöverföring — och det är en OMPRÖVAD fråga,
+  inte en ärvd:** avtalsparten är fransk, behandlingen sker i Frankrike, och den *krok* som
+  gjorde SES-posten till en Kap. V-fråga — en EU-avtalspart under en **amerikansk** koncernmoder
+  som kan nå uppgifterna (Schrems II / EDPB Rec. 01/2020) — saknas i en kedja som är fransk hela
+  vägen upp till Niel-familjens grupp (iliad Holdings årsredovisning 2024 §5.1–5.3).
+  **Kap. V är därmed EJ TILLÄMPLIG i stället för uppfylld:** ingen SCC-grund, ingen adekvans,
+  ingen DPF — inte för att de är avklarade, utan för att det inte finns någon överföring att
+  grunda. TEM har dessutom **inga underbiträden** (leverantörens egen TEM-FAQ), och `fr-par` är
+  produktens enda region; residensåtagandet vilar på **DPA Art. 11**, aldrig på DNS.
+  ⚠ **Två förbehåll som hör till bedömningen:** `Scaleway US Corporation` (Chicago) finns
+  **nedströms** i koncernen utan TEM-roll — påstå aldrig "ingen US-enhet i koncernen" — och
+  **var leverantörens support-/driftpersonal har åtkomst ifrån saknar AVTALSRANG**. Leverantören
+  påstår i sin TEM-FAQ att *"all data is hosted and processed entirely within the European
+  Union"* (`scaleway.com/en/docs/transactional-email/faq/`, läst 2026-08-15), och under Art. 4(2)
+  omfattar *processing* åtkomst, så meningen träffar frågan — men den
+  är dokumentation, inte avtalstext, och binder inte som DPA Art. 11 gör. **Det är den meningen som
+  ska bekräftas skriftligt** (schemalagd fråga, Klas), inte en lucka som ska fyllas från noll.
+  **Läsningen är `security-auditor`s skärpning 2026-08-15/16 och statusens hem är
+  `release-checklist.md` §2.5 punkt 1 led (b)** — den här posten refererar den, den avgör den inte. Överfört innehåll är
   mottagar-adressen och meddelandets innehåll (för notiserna
   **avslöjar** leveransen opt-in-faktumet, och `EmailTemplates` skriver det dessutom i klartext
   i själva kroppen — själva *flaggan* i vår DB överförs aldrig, men faktumet gör det).
-  **Avtalsparten är MÄTT 2026-08-09** ur två oberoende AWS-API:er (`taxsettings`
-  `accountMetaData.seller` och `invoicing` `Entity.InvoicingEntity`), inte antagen —
-  **dokumentantalet och den mätta perioden står i `release-checklist.md` §2.5 punkt 1 led (a)**,
-  som är det talets hem.
+  **Avtalsparten är HÄRLEDD ur avtalsvillkoren 2026-08-15** (GTS Art. 23 bestämmer entiteten ur
+  faktureringsadressen; svensk adress → Scaleway S.A.S.), **inte avläst ur vårt eget konto** —
+  en svagare mätform än SES-erans två API-svar, och skillnaden står utskriven i
+  `release-checklist.md` §2.5 punkt 1 led (a), som är det ledets hem.
   Kräver före flippen
   flera led — **antalet och uppräkningen bor på ett ställe, inte här**:
   `docs/runbooks/release-checklist.md` §2.5 punkt 1 (avtalsledet = Klas, aldrig CC).
+  **Karakteriseringen ovan är `security-auditor`s med Klas** — den ratificeras i led (b)/(e),
+  och statusen läses där.
 - **Ingen AI-subprocessor** (ADR 0071): produkten har ingen AI/LLM, så ingen CV-PII och
   ingen matchningsdata lämnar systemet till någon **AI-leverantör**, och det finns inget
   AI-relaterat tredjelands-transfer. CV-innehåll lämnar aldrig systemet alls. CV- och
@@ -1393,6 +1413,26 @@ permanent infra aktiveras; listan nedan speglar **beslutad** uppsättning, ADR 0
 > `/integritet` skrevs om i samma ändring, ROPA-posterna följde med, och `content-legal-parity.test.ts`
 > pinnar sedan dess att `netcup GmbH` är namngiven i båda språken **och** att raden inte bär
 > status-markören.
+>
+> **E-POSTLEVERANTÖREN ÄR BYTT IGEN 2026-08-15 (#183, ADR 0131), OCH DEN HÄR GÅNGEN ÄNDRAS
+> KAP. V-SVARET, INTE BARA PARTEN.** AWS vägrade 2026-08-14 permanent att häva sandbox-läget —
+> 200 mejl per dygn och enbart till verifierade mottagaridentiteter, vilket gör riktiga
+> testanvändare omöjliga — så SES-spåret avslutades och Klas valde **Scaleway Transactional
+> Email i `fr-par`**. Konsekvensen för lagren ovan: **SES-halvan av 2026-08-02-upphävandet är i
+> sin tur upphävd** (AWS-*infrastrukturen* förblir avvecklad, och nu är även AWS-e-posten det),
+> och **SCC-domen från 2026-08-08 är historik över en aldrig aktiverad överföring** — armen var
+> mörk hela sin livstid och ingen personuppgift nådde någonsin SES. ⚠ **Läs därför
+> värdpostens kontrast ovan som daterad:** *"till skillnad från e-postposten"* var sant
+> 2026-08-09 och är det inte längre — e-postposten saknar sedan ADR 0131 samma krok som värden
+> saknar, så de två är numera parallella i stället för motsatta. Den strukturella regel stycket
+> uttrycker — att Kap. V utlöses av **vem som kan nå uppgifterna**, inte av bytenas plats — är
+> oförändrad — och den friar värden, medan e-postposten står på ett **oratificerat utkast** mot
+> samma regel (led (b); rekvisitets andra led är öppet). §13.4:s e-postpost, `/integritet`-copyn sv+en
+> och ROPA-posten är omskrivna i samma ändring; `content-legal-parity.test.ts` är omriktad från
+> AWS-formen till `Scaleway SAS`. **Kvar hos `security-auditor` + Klas:** ratificeringen av att
+> Kap. V är **ej tillämplig** (inte "uppfylld") samt sign-off — se §2.5 punkt 1 led (b)/(e).
+> Release-checklistans §2.5 punkt 5 tvingar fortfarande denna sektion vid **e-postflippen**;
+> inte heller denna ändring var flippen.
 >
 > **Kvar hos Klas: biträdesavtalet.** #1199 står öppen på just det ledet — netcups AVV gäller
 > **inte** automatiskt (mätt förstahands 2026-08-09) och inget är tecknat, vilket grindar första
@@ -1533,8 +1573,9 @@ byggt:
 > förekomst. Inte bara under
 > omprövning: **värdvalet** (Hetzner ut; **och "svensk VPS" i sin tur återkallat
 > 2026-08-04 på pris/prestanda — ersättaren är VALD: Netcup RS 1000 G12, 8 GB, ingen CDN**,
-> bärs av ADR 0050 `Amendment 2026-08-04`) och **e-postleverantören** (Resend ut — **ersättaren
-> är vald: AWS SES i `eu-north-1`**, ADR 0124).
+> bärs av ADR 0050 `Amendment 2026-08-04`) och **e-postleverantören** (Resend ut; **och AWS SES i
+> sin tur ute 2026-08-15 sedan AWS permanent vägrat häva sandbox-läget — ersättaren är VALD:
+> Scaleway Transactional Email i `fr-par`**, ADR 0131, som supersederar ADR 0124).
 >
 > **E-POSTHALVAN ÄR SEDAN 2026-08-09 (#1169) INTE LÄNGRE EN ÖPPEN FRÅGA** — stycket som beskrev
 > den som öppen är struket ur meningen ovan. Frågan var: faller en US-**ägd** leverantör i EU-region under
@@ -1558,6 +1599,39 @@ byggt:
 > [#1264](https://github.com/klasolsson81/jobbliggaren/issues/1264). Skärlinjen är **substitution
 > mot beslut**: ett leverantörsnamn vars ersättare redan är ratificerad byts, ett tal som 8 GB mot
 > 16 GB ändrar gör det inte — det senare kräver siffror ADR 0122 äger.
+>
+> **E-POSTHALVANS SVAR ÄR I SIN TUR ÖVERSPELAT 2026-08-15 (#183, ADR 0131) — och det är
+> STANDARDENS UTFALL, inte ett undantag från den.** AWS SES föll när production access nekades
+> permanent; ersättaren är **Scaleway S.A.S.** via Transactional Email i `fr-par`. Frågan §15
+> ställde — faller en US-**ägd** leverantör i EU-region under R2-standarden? — når därmed inte
+> längre e-posten heller, av exakt samma skäl som den aldrig nådde netcup: avtalsparten är
+> **fransk**, behandlingen sker i **Paris**, och ägarkedjan är fransk hela vägen upp till
+> Niel-familjens grupp. **Rekvisitet är tvåledat — se §15.1 — och dess FÖRSTA led är negativt här:
+> ingen tredjelandsenhet kan rättsligt förmås att producera uppgifterna. Det ANDRA ledet, om någon
+> faktiskt kan nå dem, är OAVGJORT för Scaleway** (`security-auditor` delratificerade 2026-08-15/16;
+> `release-checklist.md` §2.5 punkt 1 led (b) är statusens hem) (⚠ `Scaleway US Corporation` finns
+> **nedströms** i koncernen utan TEM-roll. Det utlöser
+> inte rekvisitet: kontroll flödar nedåt, så en fransk moder kan inte föreläggas via ett
+> amerikanskt dotterbolag. Men påståendet "ingen US-enhet i koncernen" är mätt **falskt** och får
+> inte skrivas). **SCC-domen från 2026-08-08 står orörd som dom över sin
+> egen era och sin egen part** — den var korrekt, den redovisade en överföring som aldrig
+> aktiverades, och den ska inte städas bort. Vad som ändras är att e-postposten sedan 2026-08-15
+> är **tyst** om Kap. V i copyn, precis som värdposten och backup-posten är det. **En leverantör
+> prövad och friad, två tysta på oavgjord grund, och en historisk post som rekvisitet nådde
+> redovisade — det är vad icke-selektivitet SER UT SOM**, inte ett tecken på att standarden
+> slutat gälla. ⚠ **Tystnad i copyn är inte detsamma som en avgjord dom:** **netcup** är prövad och
+> friad (`security-auditor` 2026-08-09), medan **OVHcloud och Scaleway båda står på oavgjord grund** —
+> OVH:s **andra led är OPRÖVAT** — hon avstod uttryckligen från koncernstruktur, underbiträdeskedja
+> och supportåtkomst och lämnade slutsatsen **obelagd, inte falsk**. *(Diskriminatorn är avståendet,
+> inte kedjan: netcups kedja är också omätt och står ändå i den friade kolumnen — men där är den
+> **uppskjuten till AVV-bilagan med en namngiven omprövningsutlösare** (ett icke-EU-underbiträde
+> tvingar omprövning **före** korpusladdningen), medan hon för OVH avstod från hela andra ledet.
+> Vad hon förklarade oväsentligt för netcup-slutsatsen var **ägandet**, inte kedjan.)* Och Scaleway står på ett utkast
+> `security-auditor` **delratificerat**: strukturen avgjord, slutsatsen inte, i väntan på svar om
+> leverantörens support-geografi (`release-checklist.md` §2.5 punkt 1 led (b) är statusens hem).
+> Blanda aldrig ihop de tre lägena — §15.1 förbjuder uttryckligen att en oavgjord post skrivs som
+> frikänd.
+> Se §15.1, där rekvisitet är utskrivet och R2-meningens formulering omankrad i samma ändring.
 >
 > **Vad #1199 fortfarande bär: biträdesavtalet med netcup**, som är Klas att teckna och som grindar
 > första riktiga datan. Ingen supersessions-ADR blev skyldig — ADR 0050 `Amendment 2026-08-04`
@@ -1591,8 +1665,41 @@ värdbytet; ersättaren är bunden som **kravprofil**, inte som leverantör. **K
 här — de har ett enda hem, §13.4:s backup-post**, och en andra uppräkning hade blivit ett andra hem
 som ruttnar isär från det första. Backups ligger INTE på lådans disk. **Cloudflare R2 är fortsatt
 avvisat pga CLOUD Act-tredjelandsöverföring av icke-krypterad `pg_dump`-PII** — den meningen står
-kvar med avsikt: den är den tillämpade standard som gör §13.4:s AWS-SCC-redovisning icke-selektiv
-(Art. 5(2)), och en standard som tillämpas selektivt är ingen standard.
+kvar med avsikt: den är **den tillämpade standard som avgör NÄR en Kap. V-redovisning krävs**, och
+en standard som tillämpas selektivt är ingen standard (Art. 5(2)).
+**Omankrad 2026-08-15 (#183, ADR 0131), och skälet är att dess tidigare formulering pekade på en
+redovisning som inte längre finns:** meningen sa att standarden gjorde *§13.4:s AWS-SCC-redovisning*
+icke-selektiv, men e-postposten bär sedan providerbytet ingen SCC-redovisning alls — biträdet är
+franskt och ingen överföring uppstår. **Standarden är oförändrad; det är dess utfall som varierar,
+och det är precis vad som gör den till en standard.**
+**REKVISITET, utskrivet en gång så att nästa läsare kan tillämpa det i stället för att jämföra mot
+prejudikat** (`security-auditor` Major 3, 2026-08-15): **finns det en enhet i tredjeland som
+rättsligt kan förmås att producera uppgifterna, eller som faktiskt kan nå dem?** Ägarriktningen är
+ett **symptom** av det, inte regeln — det som gjorde AWS-moderns existens rättsligt relevant var att
+**kontroll flödar nedåt** (en amerikansk moder kan föreläggas producera vad dess EU-dotterbolag
+håller i *"possession, custody or control"*; ett amerikanskt dotterbolag kan inte föreläggas
+producera sin franska moders uppgifter). **Räckvidden är rekvisitet.** Utan den satsen är nästa
+koncernstruktur — en US-enhet **sidledes**, med delade drifttjänster — oavgörbar mot texten.
+Meritlistan, tillämpningar åt båda hållen: den **fällde** R2 (US-ägt mål för okrypterad PII) och
+e-postposten i AWS-eran (EU-part under amerikansk moder — redovisad med SCC 2026-08-08 till
+2026-08-15, se §13.4:s historiklager); den **friar** netcup (`security-auditor` 2026-08-09); och
+**två fall är oavgjorda och skrivs aldrig som frikända**: **OVHcloud** — `security-auditor`
+2026-08-09 avgjorde **första** ledet positivt (fransk avtalspart, ingen tredjelandsmoder,
+`eu-west-par` mätt) och **avstod uttryckligen** från koncernstruktur, underbiträdeskedja och
+supportåtkomst, alltså rekvisitets andra led; hennes egen rapport bär dessutom motbevisning
+(en kanadensisk koncernenhet i OVH:s underbiträdeslista — Kanada bär adekvansbeslut, så den enheten
+är inte i sig en krok; det är kedjans oprövade skick som är det — och OVH:s DPA beskriver sig som
+**dataexportör med SCC:er** mot dotterbolag utan adekvansbeslut). *Klientsidig kryptering
+frikänner inte — den är en **kompletterande åtgärd** i EDPB Rek. 01/2020:s mening och
+förutsätter att en överföring finns.* Och
+**Scaleway**, som står på ett **utkast som ännu inte är ratificerat** — `security-auditor`
+delratificerade 2026-08-15/16 den strukturella halvan men **inte** slutsatsen, som hänger på om
+leverantörens support-/driftpersonal har åtkomst från tredjeland (`release-checklist.md` §2.5 punkt 1
+led (b) är statusens hem). **Skriv det aldrig som ett frikännande innan ledet är stängt** — utan
+ordinal, med flit: ett ordningstal här måste räknas om vid varje ändring i meritlistan och är
+därmed sin egen driftgenerator.
+En standard är icke-selektiv när den prövas varje gång dess rekvisit kan föreligga — **inte när
+utfallet alltid blir detsamma**.
 
 **Single-box blast-radius** (API/Worker/Postgres/Redis delar OS + RAM + feldomän)
 är ett medvetet beta-skala-val (ADR 0050 Negativa konsekvenser); CAX31:s 16 GB +

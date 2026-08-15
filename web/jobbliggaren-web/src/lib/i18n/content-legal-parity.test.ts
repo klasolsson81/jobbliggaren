@@ -65,8 +65,19 @@ const EN_STATUS_MARKER = /not yet in operation/i;
  * divergera skulle kollisionskontrollen vakta en annan mängd än den som faktiskt kolliderar.
  * **Golvet i e-post-spärren använder AVSIKTLIGT inte den här** utan den snävare part-bärande
  * formen — resonemanget, och mätningen bakom det, står i den spärrens doc-kommentar.
+ *
+ * **OMRIKTAD 2026-08-15 (#183, ADR 0131) — och unionen behövde inte längre vara en alternation,
+ * vilket är en observation om NAMNEN och inte en försvagning av regeln.** Under AWS SES bar copyn
+ * två namnformer utan gemensam delsträng (bolaget respektive tjänsten), så unionen krävde ett
+ * `|`. Scaleways två former är `Scaleway SAS` (avtalsparten) och `Scaleway Transactional Email`
+ * (tjänsten), och **båda innehåller `Scaleway`** — ett prefix räcker därför för att iterera varje
+ * omnämnande. **EN TERM PER INVARIANT står kvar oförändrad:** det finns fortfarande två termer,
+ * unionen här och den part-bärande `Scaleway SAS` i golvet nedan, och de betecknar fortfarande
+ * olika mängder. Att kollapsa dem till en vore samma fel som förr — ett stycke som tappar
+ * avtalsparten men behåller tjänstenamnet ska falla på golvet, och gör det bara så länge golvet
+ * bär den snävare formen.
  */
-const EMAIL_PROVIDER_ANY = /Amazon Web Services|Amazon SES/;
+const EMAIL_PROVIDER_ANY = /Scaleway/;
 
 describe("content-legal i18n-paritet (sv ↔ en)", () => {
   it("sv och en har identisk nyckel-struktur", () => {
@@ -117,17 +128,29 @@ describe("content-legal i18n-paritet (sv ↔ en)", () => {
 
   /**
    * #186 / TD-116 — E-POSTLEVERANTÖRS-TRIPWIRE (senior-cto-advisor, bindande scope-bind
-   * 2026-07-26). **TERMEN RIKTADES OM 2026-08-09 (#1169)**: ADR 0124 bytte providern från
-   * Resend, Inc. (USA) till Amazon Web Services EMEA SARL (Luxemburg), så `/Resend/` hade blivit
-   * en spärr som vaktar en part vi inte längre har. Vad som INTE ändrades: golvet, path-pariteten
-   * och markör-halvan. Detta är inte prod-flippen — armen förblir mörk.
+   * 2026-07-26). **TERMEN HAR RIKTATS OM TVÅ GÅNGER.** 2026-08-09 (#1169): ADR 0124 bytte
+   * providern från Resend, Inc. (USA) till AWS SES, så `/Resend/` hade blivit en spärr som vaktar
+   * en part vi inte längre har. **2026-08-15 (#183, ADR 0131):** AWS vägrade permanent häva
+   * sandbox-läget, providern är Scaleway SAS (Frankrike, `fr-par`), och termen följde med igen.
+   * Vad som INTE ändrades någon av gångerna: path-pariteten och markör-halvan. Detta är inte
+   * prod-flippen — armen förblir mörk.
    *
-   * **Omriktningen är mätt icke-vakuös, i den ordning som är det enda beviset:** termen byttes
-   * FÖRST, med `content-legal.json` orörd, och testet föll på golvet
-   * (`AssertionError: expected 0 to be greater than or equal to 4`). Hade den mätningen gjorts
-   * efter copy-redigeringen hade den inte skilt en fungerande spärr från en som matchar vad som
-   * helst — jfr #1237, där `"Amazon"` → `"Amazon."` gav 10/10 grönt medan spärren asserterade
-   * ingenting.
+   * ⚠ **GOLVET ÄNDRADES DÄREMOT DEN HÄR GÅNGEN, 4 → 3, och det är HÄRLETT och inte sänkt tills
+   * grönt** (senior-cto-advisor, bindande 2026-08-15). Skälet är att Scaleway SAS är franskt och
+   * fransk-ägt: ingen tredjelandsöverföring uppstår, så tredjelandsavsnittets e-poststycke är
+   * **struket med sin grund** i stället för omskrivet — samma form som värdraden redan har, där
+   * copyn med flit är tyst om Kap. V när ingen överföring finns. Kvar är tre uppräknade platser
+   * (samtyckesavsnittet + två i Mottagare). **Golvet hölls medvetet INTE på 4 genom att skriva in
+   * ett fjärde omnämnande:** en test-assertion får inte forma publicerad juridisk copy, vilket är
+   * samma inversion som husets `DependencyInjection`-prejudikat förbjuder för composition roots.
+   *
+   * **Båda omriktningarna är mätta icke-vakuösa, i den ordning som är det enda beviset:** termen
+   * byttes FÖRST, med `content-legal.json` orörd, och testet föll på golvet — 2026-08-09 respektive
+   * 2026-08-15, båda gångerna med `AssertionError: expected 0 to be greater than or equal to 4`
+   * (golvet var 4 vid mättillfället och sänktes till 3 först när copyn skrevs). Hade mätningen
+   * gjorts efter copy-redigeringen hade den inte skilt en fungerande spärr från en som matchar vad
+   * som helst — jfr #1237, där leverantörsnamnet med en avslutande punkt gav 10/10 grönt medan
+   * spärren asserterade ingenting.
    *
    * Två invarianter i ett test, båda riktningarna av samma defekt:
    *
@@ -137,9 +160,10 @@ describe("content-legal i18n-paritet (sv ↔ en)", () => {
    *    OSYNLIG för varje token-grep: leverantörstoken hade noll träffar i hela katalogen, och tre
    *    nollträffs-scopingar i rad missade därför att stycket alls fanns. Ett räknat golv är
    *    det enda som fäller en tystnad.
-   * 2. **Varje omnämnande bär status-markören** tills `Email:Provider` flippas. SES är i dag
+   * 2. **Varje omnämnande bär status-markören** tills `Email:Provider` flippas. Armen är i dag
    *    dark i non-dev (`AddEmailSender` → `NullEmailSender`), så ett presens-påstående vore den
    *    motsatta osanningen — exakt den ansökningshistoriken-fällan som testet ovan finns för.
+   *    Egenskapen har överlevt tre providergenerationer och är därför skriven providerneutralt.
    *    Flippen är grindad av `release-checklist.md` §2.5 punkt 1 (FEM led — uppräkningen bor
    *    där, aldrig här), aldrig av en copy-ändring.
    *
@@ -148,7 +172,11 @@ describe("content-legal i18n-paritet (sv ↔ en)", () => {
    * disclosure-meningens egna participform mättar en bred assertion — "Notiserna **planeras** att
    * skickas", "All e-post **planeras** att levereras" / "are **planned** to be sent". Med
    * `/planerat|planerad|planeras/` respektive `/planned/` kunde markörmeningen strykas ur samtyckes-
-   * och mottagarstyckena med testet grönt, medan §2.6:s smala grep tyst föll 9+9 → 7+7. Mönstren nedan är därför
+   * och mottagarstyckena med testet grönt, medan §2.6:s smala grep tyst tappade två rader
+   * **utan att det breda greppet rörde sig** — det är formen på felmoden, och den överlever varje
+   * omräkning av mängden. *(Ett odaterat talpar stod här till 2026-08-15 och gick inte att
+   * reproducera mot någon era; §2.6 punkt 1 är talens hem och regenererar dem ur sitt eget grep.
+   * `code-reviewer`, ograderad observation.)* Mönstren nedan är därför
    * de RATIFIERADE markörformerna och inget bredare — och de binder hela MENINGEN
    * (`planerat och ännu inte i drift`), **avsiktligt smalare** än ansökningshistorik-tripwirens
    * `planerat`. Systern kan INTE följa med: retentionsposterna bär `(planerat)` utan markörmeningen, så
@@ -159,49 +187,62 @@ describe("content-legal i18n-paritet (sv ↔ en)", () => {
    * copyn — men BEHÅLL golvet OCH path-pariteten: leverantören måste vara namngiven efter flippen
    * också, och då hårdare än nu.
    */
-  it("e-postleverantören AWS är namngiven i policyn och varje omnämnande bär status-markören (#186/#1169)", () => {
-    // WHOLE catalogue, not just `privacy`: measured 0 mentions outside `privacy` today (4 of 4 leaves
+  it("e-postleverantören Scaleway är namngiven i policyn och varje omnämnande bär status-markören (#186/#1169/#183)", () => {
+    // WHOLE catalogue, not just `privacy`: measured 0 mentions outside `privacy` today (3 of 3 leaves
     // per språk ligger i `privacy`), so the widening is free and strictly increases coverage. A future
     // mention in `terms`/`cookies`/`recruiterNotice` would otherwise escape both the floor and the
     // marker requirement.
     //
-    // Termen är den PROCESSOR-BÄRANDE strängen, inte "Amazon" (för brett — #1237 mätte att
-    // `"Amazon."` gav 10/10 grönt medan spärren asserterade ingenting). `Amazon Web Services`
-    // matchar både avtalsparten (`... EMEA SARL`) och koncernmodern (`..., Inc.`), vilket är precis
-    // de två parter Kap. V-stycket måste namnge.
+    // Termen är den PART-BÄRANDE strängen `Scaleway SAS`, inte enbart `Scaleway` (för brett —
+    // #1237 mätte att ett leverantörsnamn med en avslutande punkt gav 10/10 grönt medan spärren
+    // asserterade ingenting). Den namnger avtalsparten, alltså den juridiska person Art. 13(1)(e)
+    // kräver att mottagaravsnittet pekar ut — samma precisionsstandard som `netcup GmbH` på
+    // värdraden.
     //
     // **EN TERM PER INVARIANT, och det är inte symmetri för symmetrins skull** (code-reviewer
-    // Minor 1 + dess omkontroll, 2026-08-09). Copyn bär sedan #1169 TVÅ namnformer: bolaget
-    // (`Amazon Web Services EMEA SARL`) och tjänsten (`Amazon SES`, mottagarsektionen). De två invarianterna
-    // vill ha OLIKA mängder, och att driva båda ur en union gör invariant 1 svagare i samma
-    // andetag som invariant 2 blir starkare:
+    // Minor 1 + dess omkontroll, 2026-08-09; formen överlever providerbytet 2026-08-15). Copyn bär
+    // TVÅ namnformer: bolaget (`Scaleway SAS`) och tjänsten (`Scaleway Transactional Email`,
+    // mottagarsektionen). De två invarianterna vill ha OLIKA mängder, och att driva båda ur en
+    // union gör invariant 1 svagare i samma andetag som invariant 2 blir starkare:
     //
-    //   Invariant 1 (golv + path-paritet) vill ha den PART-BÄRANDE formen. `count(union) >= 4`
-    //   uppfylls av strikt fler dokumenttillstånd än `count(bolaget) >= 4`. Mätt vittne: skriv om
-    //   Kap. V-stycket så att BÅDE avtalsparten och koncernmodern försvinner och bara `Amazon SES`
-    //   står kvar — unionen ger 4 och passerar, den part-bärande formen ger 3 och fäller. Termen
-    //   valdes för att den fångar precis de två parter det stycket måste namnge; en union hade
-    //   låtit stycket tappa båda utan att CI sa något.
+    //   Invariant 1 (golv + path-paritet) vill ha den PART-BÄRANDE formen. `count(union) >= 3`
+    //   uppfylls av strikt fler dokumenttillstånd än `count(bolaget) >= 3`. Mätt vittne: skriv om
+    //   ett mottagarstycke så att avtalsparten försvinner och bara tjänstenamnet står kvar —
+    //   unionen ger 3 och passerar, den part-bärande formen ger 2 och fäller. Termen valdes för att
+    //   den fångar den part mottagaravsnittet måste namnge; en union hade låtit stycket tappa den
+    //   utan att CI sa något.
     //
     //   Invariant 2 (markören) vill ha VARJE omnämnande, alltså unionen. Ett framtida stycke som
-    //   namnger leverantören enbart som `Amazon SES` (eller `AWS SES`, formen BUILD.md §3.1/§3.2
-    //   och release-checklistan använder) itereras inte av en bolagsbunden loop och kan bära ett
-    //   presens-påstående med testet grönt. Mätt: den formen ger gamla loopen GRÖN och den nya RÖD.
+    //   namnger leverantören enbart som `Scaleway Transactional Email` (eller `Scaleway TEM`)
+    //   itereras inte av en bolagsbunden loop och kan bära ett presens-påstående med testet grönt.
     //
     // **Mitt första kontrafaktum bevisade fel sats** och är värt att minnas: det visade att
     // union-grenen är NÅBAR, inte att den skärper spärren — i just det scenariot *släppte* unionen
     // igenom vad den smalare termen fällde. En probe måste korsa den kontroll den påstår sig testa.
-    const svNamed = matchingLeaves(svLegal, /Amazon Web Services/);
-    const enNamed = matchingLeaves(enLegal, /Amazon Web Services/);
+    // Partsformen tolererar BÅDA stavningarna av bolagssuffixet (`Scaleway SAS` och
+    // `Scaleway S.A.S.`) — copyn bär den första, BUILD.md och registret den andra, som är
+    // R.C.S.-formen. **Det är inte en uppmjukning mot unionen:** båda alternativen kräver
+    // fortfarande SUFFIXET, alltså avtalsparten, och ett löv som bara bär `Scaleway
+    // Transactional Email` faller precis som förut. Skälet är felriktningen: utan detta fäller
+    // en redigering som gör copyn *mer* juridiskt precis golvet 3 → 0 och rödar CI för en
+    // förbättring (`security-auditor` Minor 3, `dotnet-architect` N4, 2026-08-15 — mätt:
+    // `/Scaleway S\.A\.S\./` ger noll träffar i copyn i dag).
+    const EMAIL_PROVIDER_PARTY = /Scaleway S\.?A\.?S\.?/;
+    const svNamed = matchingLeaves(svLegal, EMAIL_PROVIDER_PARTY);
+    const enNamed = matchingLeaves(enLegal, EMAIL_PROVIDER_PARTY);
     const sv = matchingLeaves(svLegal, EMAIL_PROVIDER_ANY);
     const en = matchingLeaves(enLegal, EMAIL_PROVIDER_ANY);
 
-    // Vacuity guard, and simultaneously invariant 1: FOUR known sites today (consent section, TWO in
-    // "Mottagare av uppgifter" and one in "Överföring till tredje land"). A rename or deletion that
-    // drops the disclosure fails here instead of shipping silently. Golvet är OFÖRÄNDRAT 4 över
-    // providerbytet: samma fyra stycken bär namnet före och efter (#1169). Bunden till den
-    // PART-BÄRANDE formen, aldrig till unionen — se resonemanget ovan.
-    expect(svNamed.length).toBeGreaterThanOrEqual(4);
+    // Vacuity guard, and simultaneously invariant 1: THREE known sites today — samtyckesavsnittet
+    // och TVÅ i "Mottagare av uppgifter". A rename or deletion that drops the disclosure fails here
+    // instead of shipping silently.
+    // **Golvet var 4 till 2026-08-15 och är 3 sedan dess, HÄRLETT ur uppräkningen ovan** (#183,
+    // ADR 0131, senior-cto-advisor bindande): det fjärde stycket låg i "Överföring till tredje
+    // land" och är struket MED SIN GRUND — Scaleway SAS är franskt och fransk-ägt, ingen
+    // tredjelandsöverföring uppstår, och copyn ska då vara tyst om Kap. V precis som värdraden är.
+    // Golvet hölls medvetet inte kvar på 4 genom att skriva in ett fjärde omnämnande. Bunden till
+    // den PART-BÄRANDE formen, aldrig till unionen — se resonemanget ovan.
+    expect(svNamed.length).toBeGreaterThanOrEqual(3);
 
     // Parity by LOCATION, not count — see `matchingLeaves`.
     expect(enNamed.map(([path]) => path)).toEqual(svNamed.map(([path]) => path));
@@ -210,21 +251,21 @@ describe("content-legal i18n-paritet (sv ↔ en)", () => {
     // `EMAIL_PROVIDER_ANY` **ingen assertion som faller när den slutar matcha**: dess två läsare
     // — markör-loopen nedan och värd-spärrens snittkontroll — passerar BÅDA på tom mängd (noll
     // iterationer respektive tomt snitt), och golvet ovan använder den separata part-bärande
-    // formen. Mätt: `EMAIL_PROVIDER_ANY` ersatt med `/Amazon Web Servicez|Amazon SEZ/` gav HELA
-    // sviten grön med konstanten död och två spärrar tysta. Extraktionen gjorde den dessutom mer
-    // bärande, eftersom den nya läsaren är en tomhets-assertion — den vakuositetsbenägnaste form
-    // som finns.
+    // formen. Mätt: `EMAIL_PROVIDER_ANY` ersatt med en felstavad variant av leverantörsnamnet gav
+    // HELA sviten grön med konstanten död och två spärrar tysta. Extraktionen gjorde den dessutom
+    // mer bärande, eftersom den nya läsaren är en tomhets-assertion — den vakuositetsbenägnaste
+    // form som finns.
     //
     // Detta bryter INTE "en term per invariant": invariant 1:s golv ligger kvar på `svNamed`
     // (den part-bärande formen). Det här är ett tredje påstående med ren vakuositetsroll, samma
     // funktion som `sv.length >= 1` har i värd-spärren.
     //
-    // **Gränsen, utskriven:** unionsmängden är i dag IDENTISK med part-mängden (4 = 4, samma
-    // paths), så golvet bevisar att regexet lever — **inte** att `Amazon SES`-alternationen gör
-    // det. Ett strikt superset-påstående vore starkare; golvet är husets form och räcker mot den
-    // mätta felmoden.
-    expect(sv.length).toBeGreaterThanOrEqual(4);
-    expect(en.length).toBeGreaterThanOrEqual(4);
+    // **Gränsen, utskriven:** unionsmängden är i dag IDENTISK med part-mängden (3 = 3, samma
+    // paths), så golvet bevisar att regexet lever — **inte** att union-formen fångar ett stycke
+    // som bara bär tjänstenamnet. Ett strikt superset-påstående vore starkare; golvet är husets
+    // form och räcker mot den mätta felmoden.
+    expect(sv.length).toBeGreaterThanOrEqual(3);
+    expect(en.length).toBeGreaterThanOrEqual(3);
 
     // The RATIFIED SENTENCE, not a token. `/planerat/i` alone accepts a truncated marker ("Detta är
     // planerat.") that drops "ännu inte i drift" — the very clause that says NOT IN OPERATION — while
@@ -260,7 +301,8 @@ describe("content-legal i18n-paritet (sv ↔ en)", () => {
    * **Termen är den PART-BÄRANDE formen `netcup GmbH`**, inte `Netcup` och inte `netcup`:
    * avtalsparten är den juridiska personen (Impressum, läst 2026-08-09: `netcup GmbH`,
    * HRB 705547 Amtsgericht Mannheim), och det är den formen mottagarsektionen måste bära —
-   * samma precisionsstandard som `Amazon Web Services EMEA SARL` på e-postraden. **Vik den
+   * samma precisionsstandard som `Scaleway SAS` på e-postraden, och som dess två föregångare bar
+   * där före providerbytena 2026-08-09 och 2026-08-15. **Vik den
    * ALDRIG in i e-post-spärrens union** och **återanvänd inte dess markör-halva**; båda
    * fällorna är namngivna i security-auditors Major 3.
    *
@@ -280,7 +322,7 @@ describe("content-legal i18n-paritet (sv ↔ en)", () => {
    * 1. **Golvet.** Testet skrevs FÖRST, med `content-legal.json` orörd →
    *    `AssertionError: expected 0 to be greater than or equal to 1`. Hade mätningen gjorts efter
    *    copy-redigeringen hade den inte skilt en fungerande spärr från en som matchar vad som
-   *    helst — jfr #1237, där `"Amazon"` → `"Amazon."` gav 10/10 grönt medan spärren asserterade
+   *    helst — jfr #1237, där leverantörsnamnet med en avslutande punkt gav 10/10 grönt medan spärren asserterade
    *    ingenting.
    * 2. **Den svenska negativa pinnen.** Golv-kontrafaktumet ovan bevisade den INTE: `expect`
    *    kastar på golvet, så loop-raderna nedan **kördes aldrig** i den röda körningen, och i den
@@ -299,7 +341,9 @@ describe("content-legal i18n-paritet (sv ↔ en)", () => {
    *
    * ⚠ **En fälla den negativa loopen bygger in** (code-reviewer Minor 5, inte ett fel i dag):
    * loopen går över HELA katalogen. Namnger ett löv någon gång **både** `netcup GmbH` och
-   * `Amazon Web Services` blir sviten osatisfierbar — e-post-spärren kräver markören på det
+   * e-postleverantörens namn (`EMAIL_PROVIDER_ANY`, unionen — kollisionen binds till
+   * KONSTANTEN och inte till en literal, eftersom koden nedan gör det och de två annars kan
+   * divergera) blir sviten osatisfierbar — e-post-spärren kräver markören på det
    * lövet, den här förbjuder den — och enda utvägen vore att försvaga en av dem. Skopa i så fall
    * den här loopen till mottagarsektionen; försvaga aldrig någon av spärrarna.
    *

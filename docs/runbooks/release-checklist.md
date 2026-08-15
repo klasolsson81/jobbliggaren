@@ -122,7 +122,7 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
 
 ---
 
-## 2.5 HÅRD GRIND: e-post-prod-flip — Amazon SES `eu-north-1` (ADR 0080, provider bytt i ADR 0124)
+## 2.5 HÅRD GRIND: e-post-prod-flip (ADR 0080; provider bytt i ADR 0124, bytt igen i ADR 0131)
 
 > **ETT HEM PER TAL (regel, 2026-07-26).** Varje räknebart påstående i §2.5/§2.6 står på
 > **exakt ett** ställe, tillsammans med greppet som regenererar det. Alla andra omnämnanden är
@@ -141,9 +141,25 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
 > ställe är nästa tillagda punkt garanterad att producera nästa fynd. **Lägg aldrig till ett tal
 > på en andra plats** — skriv "antalet står i ‹hem›" i stället.
 
-> Gäller ENDAST en release som aktiverar `Email:Provider=Ses` i non-dev.
+> Gäller ENDAST en release som i non-dev aktiverar **en providerarm som når en extern
+> processor** — alltså varje `Email:Provider`-värde vars arm gör det. **Mängdens hem är
+> `AddEmailSender` i `src/Jobbliggaren.Infrastructure/DependencyInjection.cs`, inte den här
+> raden**; mätt 2026-08-15 är det enda sådana värdet `Scaleway`.
+> ⚠ **`IEmailSender.CanDeliver` är INTE predikatet** — den svarar `true` även för
+> `ConsoleEmailSender`, som loggar lokalt och inte når någon extern processor, och en läsare som
+> tar den för predikatet drar in Development i grinden (`dotnet-architect` N3). Läs armen, inte
+> förmågan.
 > Tills dess kör `NullEmailSender` — ingen
 > e-post skickas, och denna grind är inte relevant.
+>
+> ⚠ **PREDIKATET ÄR FORMBASERAT SEDAN 2026-08-15, OCH DET ÄR EN REPARATION AV EN MÄTT DEFEKT**
+> (senior-cto-advisor, bindande). Det löd tidigare *"aktiverar `Email:Provider=Ses`"* — ett
+> namn, inte en form. När E1 gjorde `Ses` till ett registreringsfel blev villkoret **omöjligt
+> att uppfylla**, och grinden läste därmed permanent "inte relevant" medan flippen som faktiskt
+> är på väg heter något annat. Felriktningen är det avgörande: ett formbaserat predikat
+> över-triggar på sin höjd (en läsning till), medan ett namnbaserat **under**-triggar och släpper
+> igenom en verklig processor tyst. Providernamnet står därför kvar som **daterad mätning**, aldrig
+> som rekvisit — samma skäl som `mvp`-etiketten och antalsraderna nedan bär sina datum.
 >
 > **PROVIDERN BYTTES 2026-08-08 (ADR 0124, #1237) OCH GRINDENS PREMISS ÖVERLEVER INTE BYTET
 > OFÖRÄNDRAD.** Sektionen skrevs mot Resend, Inc. — ett **amerikanskt** biträde. Motparten är nu
@@ -155,8 +171,21 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
 > **DEN ÅTERÖPPNINGEN ÄR DELVIS UPPHÄVD 2026-08-09 (#1169), och på återöppningens EGET villkor:**
 > villkoret var att bedömningen inte var gjord, och `security-auditor` gjorde den 2026-08-08.
 > Led (b) och (d) bär därför ingen KVAR-markering längre, och led (c) står **KVAR (delvis)**.
-> **Punkten är fortsatt inte grön** — led (a) och (e) bär KVAR, och läs statusen på leden
-> själva, aldrig ur den här preambeln.
+> **PROVIDERN BYTTES IGEN 2026-08-15 (ADR 0131, #183), OCH LEDEN ÅTERÖPPNADES PÅ DEN HÄR
+> PREAMBELNS EGEN DOKTRIN — andra gången, samma regel.** AWS vägrade 2026-08-14 permanent att
+> häva sandbox-läget (200 mejl/dygn, enbart till verifierade mottagaridentiteter), vilket gör
+> riktiga testanvändare omöjliga och avslutade SES-spåret; Klas valde **Scaleway Transactional
+> Email** i `fr-par`. Varje AWS-specifikt led återöppnades: *en grind får aldrig ärva ett grönt
+> led från en motpart som inte längre är part.* ⚠ **Led (d) var den farliga** — det bar ingen
+> KVAR-markering och hade därför läst grönt medan den publicerade policyn namngav Amazon Web
+> Services EMEA SARL, vilket är ordagrant den felmod styckena ovan dokumenterar från
+> Resend→AWS. **Samma ändring som återöppnade skrev också om:** led (b) är omprövat (Kap. V
+> **upphör att vara tillämplig** — en annan sak än att vara uppfylld), led (d) är levererat i
+> källan med live-verifiering kvar i §2.6, led (c) är ombundet till Scaleway. **En strykning
+> ärvs inte heller** — punkt 4:s strukna idempotens-led är ommätt mot Scaleway, se punkten.
+> **Punkten är fortsatt inte grön** — och **vilka** led som bär KVAR står i leden själva,
+> aldrig här. *(Uppräkningen stod här till 2026-08-15 och var ett andra hem som gick stale i
+> samma andetag som återöppningen ovan ändrade mängden. Läs statusen på leden.)*
 > Vad som INTE ändras av bytet: mottagar-adress **+ meddelandets innehåll** når en extern
 > processor oavsett jurisdiktion (för notiserna
 > **avslöjar** leveransen opt-in-faktumet, och `EmailTemplates` skriver det dessutom i klartext
@@ -198,46 +227,118 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
 - [ ] **1. Tredjelands-grund** — **fem** led, per behandling-status (ägare: **#183**).
       *Detta är talets hem: räkna om leden i punkten efter varje tillägg, och lägg det inte någon
       annanstans.*
-      - **biträdesavtal med AWS på fil** — **KVAR** (Klas, aldrig CC). Mätt 2026-08-08 mot
-        aws.amazon.com/compliance/gdpr-center: AWS GDPR-DPA:t inkorporerar EU-kommissionens
-        SCC:er från juni 2021 och *"will apply automatically"* — det finns alltså sannolikt
-        **inget dokument att signera**, till skillnad från Netcup (#1199) och Resend. Ledet är
+      - **biträdesavtal med Scaleway på fil** — **KVAR** (Klas, aldrig CC). Mätt 2026-08-15 mot
+        Scaleways egna avtalsdokument: DPA:n (gällande version daterad 2024-06-01; ingen senare
+        revision hittad) är avtalsdokument **nr 1** i GTS:ens prioritetsordning (version
+        07/04/2026, Art. 3) och säger om sig själv att den *"forms an integral part of the
+        contract"* — det
+        finns alltså **inget dokument att signera**, samma läge som AWS-DPA:t hade och till
+        skillnad från netcup (#1199). Ledet är
         ändå KVAR: att verifiera och skriva ned att avtalet gäller, och för vilken avtalspart,
         är inte samma sak som att anta det.
-        **AVTALSPARTEN ÄR MÄTT 2026-08-09 (#1169), och det ledets halva är därmed avklarad:**
-        två oberoende AWS-API:er mot konto `710427215829` ger båda **Amazon Web Services EMEA
-        SARL** — `taxsettings list-tax-registrations` (`accountMetaData.seller`, samma fält som
-        konsolens `Seller`-kolumn) och `invoicing list-invoice-summaries`
-        (`Entity.InvoicingEntity`, **5 av 5** dokument över faktureringsperioderna 2026-04 t.o.m.
-        2026-07, distinkt entitetsmängd av storlek ett). **Ledet är ändå KVAR i sin helhet:**
-        kvar är att bekräfta att DPA:t faktiskt gäller för den parten, vilket är den ärvda
-        mätningen ovan och inte omgjord. Vad som INTE längre behöver göras är
-        Tax-Settings-avläsningen;
-      - dokumenterad **Kap. V-grund** — **UPPLÖST 2026-08-08 av `security-auditor`, och
-        dokumentationen är levererad 2026-08-09 (#1169)** i policyns tredjelandsavsnitt, i
-        `BUILD.md` §13.4 och i ROPA-posten. Ledet bär därför ingen KVAR-markering; punkten är ändå
-        inte grön, eftersom (a), (c) och (e) gör det. Domen: överföringen **ska** redovisas trots
-        `eu-north-1`, eftersom `BUILD.md` §15.1:s egen tillämpade standard avvisar Cloudflare R2
-        *"pga CLOUD Act-tredjelandsöverföring"* och därmed behandlar ett US-ägt biträde som en
-        tredjelandsfråga **oavsett EU-region** — att tillämpa den standarden selektivt bryter
-        Art. 5(2). Grunden är **SCC Art. 46(2)(c)** (juni 2021, inkorporerade i AWS GDPR-DPA:t).
-        **Adekvans och DPF är strukna.** DPF är fel instrument oavsett listning: certifieringen
-        täcker överföringar till den **US-etablerade** enheten, och avtalsparten är luxemburgsk
-        (nu mätt, se ledet ovan). #1169:s ursprungliga påstående att AWS är DPF-listat förblir
-        **OMÄTT** och är dessutom irrelevant — skriv det inte;
+        ⚠ **AVTALSPARTEN ÄR HÄRLEDD, INTE AVLÄST — och det är en SVAGARE mätform än AWS-eran hade.**
+        GTS Art. 23 bestämmer entiteten ur kundens faktureringsadress (Frankrike → Scaleway S.A.S.;
+        Italien → Scaleway Italia S.R.L.; *"any other region"* → **Scaleway S.A.S.**, R.C.S. Paris
+        433 115 904, 8 rue de la Ville l'Évêque, 75008 Paris), och en svensk adress faller i den
+        tredje grenen. **Vad som INTE är gjort:** en avläsning av vårt EGET konto som visar vilken
+        entitet som faktiskt fakturerar oss. AWS-erans motsvarighet var två oberoende API-svar över
+        fem faktureringsperioder; här finns bara regeln, inte utfallet. **Den avläsningen är detta
+        leds kärna och är Klas.**
+        ⚠ **En kontroll till, som är vår och inte leverantörens:** DPA Art. 7.4 ger 30 dagars
+        förhandsnotis vid ändring i underbiträdeslistan **endast** *"providing that it has
+        previously subscribed to updates notifications"*. En ansvarig som inte prenumererar har
+        avstått invändningsrätten tyst. **Prenumerationen är inte gjord** (mätt 2026-08-15; endast
+        kontoinnehavaren kan göra den);
+      - dokumenterad **Kap. V-grund** — **KVAR (omprövning ligger i #183:s E3-PR)**. ⚠ **Den
+        tidigare statusen "UPPLÖST 2026-08-08" gällde AWS och ärvs INTE** — den domen sa att
+        överföringen **ska** redovisas trots `eu-north-1`, med grund **SCC Art. 46(2)(c)**,
+        eftersom `BUILD.md` §15.1:s tillämpade standard behandlar ett **US-ägt** biträde som en
+        tredjelandsfråga oavsett EU-region. Den domen står som dom över sin egen part och sin egen
+        era; ingen personuppgift nådde någonsin SES.
+        **UTKAST 2026-08-15 (#183, ADR 0131) — och utfallet är av ett ANNAT SLAG än förr: Kap. V
+        blir EJ TILLÄMPLIG, inte uppfylld.** Underlaget: avtalsparten är fransk (ledet ovan),
+        behandlingen sker i `fr-par` (residensen vilar på **DPA Art. 11.1/11.2.2**, som utfäster
+        EU-nivå — *inte* regionsnivå — i kombination med att `fr-par` är TEM:s enda region; armen
+        pinnar regionen i URL:ens path-segment, så DNS kan aldrig belägga den), TEM har **inga
+        underbiträden** (leverantörens TEM-FAQ, dokumentationsrang), och ägarkedjan är fransk hela
+        vägen upp (Scaleway S.A.S. ← iliad S.A. ← Holdco II ← iliad Holding ← Niel-familjens grupp;
+        iliad Holdings årsredovisning 2024 §5.1–5.3). **Kroken som fällde AWS-posten — en
+        koncernmoder i tredjeland som kan NÅ uppgifterna — saknas därmed**, och §15.1-standarden
+        slår inte. Ingen SCC, ingen adekvans, ingen DPF: inte för att de är avklarade, utan för att
+        det inte finns någon överföring att grunda.
+        ⚠ **TVÅ FÖRBEHÅLL, del av bedömningen och inte fotnoter:** (1) **`Scaleway US Corporation`
+        (Chicago) finns nedströms i koncernen** utan TEM-roll — det ändrar inte ägarriktningen, men
+        påståendet "ingen US-enhet i koncernen" är mätt falskt och får inte skrivas; (2) **var
+        leverantörens support-/driftpersonal har åtkomst ifrån SAKNAR AVTALSRANG.** ⚠ *Ledet sa
+        "ODOKUMENTERAT" till 2026-08-15/16, och det underdrev sitt eget underlag
+        (`security-auditor`): TEM-FAQ:ns TIA-svar säger verbatim* "all data is hosted and processed
+        entirely within the European Union"*, och under Art. 4(2) omfattar behandling **åtkomst** —
+        meningen träffar alltså frågan. Vad som saknas är dess **rang**: dokumentation binder inte
+        som DPA Art. 11 gör.* Åtgärden är därför att få **just den meningen bekräftad skriftligt**,
+        inte att fylla en lucka från noll — sökt utan avtalsrangigt stöd i TOM-dokumentet, DPA
+        Art. 6 och integritetspolicyn. Fjärråtkomst från tredjeland vore i sig en överföring, så
+        utkastet är **villkorat av bekräftelsen** (Klas-brevet i led (c)).
+        **KARAKTERISERINGEN ÄR `security-auditor`s MED KLAS, inte sessionens.** Ledet bär KVAR tills
+        hon ratificerat; hennes dom skrivs in HÄR och statusen läses här, aldrig ur preambeln.
+        **`security-auditor` 2026-08-15/16 — DELRATIFICERING. LEDET STÅR KVAR.**
+        **Ratificerat, och bär inte på brevet:** den strukturella analysen håller. Kroken som fällde
+        SES-posten — en EU-avtalspart under en tredjelandsmoder som kan nå uppgifterna — saknas här,
+        och `BUILD.md` §15.1-standarden slår därför inte. Det är oberoende av Klas-brevet och står
+        som avgjort.
+        **Ratificeras INTE ännu:** slutsatsen att Kap. V är **ej tillämplig**. Den är ett påstående
+        om ett **negativt faktum** — att inga personuppgifter görs tillgängliga för en mottagare i
+        tredjeland. Under EDPB Guidelines 05/2021 uppfylls transfer-rekvisit 2 redan av att uppgifter
+        *görs tillgängliga*, och fjärråtkomst räknas (Rec. 01/2020). **Var support- och driftpersonal
+        har åtkomst ifrån är därmed ett KONSTITUTIVT ELEMENT i slutsatsen, inte en fotnot** — och
+        förbehåll 2 säger själv att elementet saknar avtalsrang — leverantörens FAQ-mening träffar
+        frågan men binder inte, och ett negativt faktum som bär hela slutsatsen kan inte vila på
+        dokumentation **utan avtalsrang**. *(Kvalifikationen är hennes egen precisering: dokumentation
+        MED avtalsrang — en TOM-bilaga inkorporerad i DPA:t, en Art. 28(3)(a)-instruktion — skulle
+        stänga ledet, och utan de två orden kan meningen senare åberopas mot just den artefakt som
+        löser den.)* En slutsats villkorad av ett obesvarat
+        brev är ett utkast, inte en dom.
+        **Vad som stänger ledet, uttömmande:** ett skriftligt svar från Scaleway som säger att
+        support-/driftåtkomst till TEM-data sker uteslutande inifrån EU/EES — **i endera formen: ett
+        svar på brevet, eller en artefakt med avtalsrang som bär samma mening** (en TOM-bilaga
+        inkorporerad i DPA:t, en Art. 28(3)(a)-instruktion) — eller, om åtkomsten inte är
+        EU/EES-begränsad, en Kap. V-grund för just den åtkomsten. Ingenting mer krävs.
+        ⚠ **Frågans FORM är hennes, inte valfri:** *"sker support- och driftåtkomst till TEM-data
+        uteslutande inifrån EU/EES?"* — inte "var finns supporten", som besvaras med en kontorsadress
+        som inte binder;
       - **ROPA-posten** i `docs/runbooks/gdpr-processing-register.md` (lokal) — **KVAR (delvis)**,
-        omskriven 2026-08-09 (#1169): ombunden från notis-vägen till behandlingen *"Utgående
-        transaktionell e-post (Amazon SES, `eu-north-1`)"*, som täcker **samtliga e-postmallar**
-        (antalet står i blockquoten ovan), båda mottagarklasserna och Kap. V-grunden ovan.
+        omskriven 2026-08-15 (#183): ombunden till behandlingen *"Utgående
+        transaktionell e-post (Scaleway Transactional Email, `fr-par`)"*, som täcker **samtliga
+        e-postmallar** (antalet står i blockquoten ovan), båda mottagarklasserna och Kap. V-utkastet
+        ovan. **Tre saker är nya i den omskrivningen och har sitt hem DÄR, inte här:** (i)
+        **blocklists** — providern lagrar studsade mottagaradresser på eget initiativ, med en
+        egen retentionstrappa och en egen Art. 17-väg (**trappan står i ROPA:n; upprepa den aldrig
+        här**); (ii) **webhooks är opt-in och ingen är registrerad**, så event-payloadens `email_to`
+        aldrig uppstår — mätt med `git grep -in "webhook" -- src deploy web/jobbliggaren-web/src`;
+        (iii) **TEM:s content-/loggretention är EJ MÄTT** och står som schemaläggning, aldrig som
+        antagande.
+        ⚠ **ETT BREV STÄNGER TVÅ OMÄTTA FRÅGOR, OCH DET ÄR KLAS ATT SKICKA:** retentionen ovan och
+        support-geografin i led (b). Vägarna är *Specific Conditions Transactional Email*
+        (produktvillkoret finns listat på leverantörens avtalssida men kräver inloggat konto) eller
+        en skriftlig fråga till leverantörens integritetsfunktion. **Ingen flip innan båda är
+        besvarade.**
         Registret speglar och grindar inte
         (#1040), och **statusen på det här ledet sätts av sign-off-ledet nedan, inte av att
         posten finns** — kontolivscykel-mallarnas rättsliga grunder är CC:s utkast och
         har aldrig prövats av `security-auditor`;
-      - **integritetspolicy-post som namnger providern** — **omskriven 2026-08-09 (#1169)**:
-        fyra stycken × två språk namnger nu Amazon Web Services EMEA SARL (Luxemburg) med
-        behandling i `eu-north-1`, koncernmodern Amazon Web Services, Inc. (USA), SCC-grunden,
-        och den Art. 13(1)(f)-väg till en kopia av skyddsåtgärderna som saknades. Markörmeningen
-        står kvar i alla åtta strängarna — **detta var inte flippen**;
+      - **integritetspolicy-post som namnger providern** — **ÅTERÖPPNAD OCH OMSKRIVEN I KÄLLAN
+        2026-08-15 (#183)**. ⚠ **Detta led bar ingen KVAR-markering när providern byttes, och det
+        var grindens farligaste punkt:** hade E3 stängt de övriga leden mot Scaleway utan att röra
+        det här, hade grinden lästs grön medan den publicerade policyn namngav Amazon Web Services
+        EMEA SARL. Nu: **tre** stycken × två språk namnger Scaleway SAS (Frankrike) med behandling i
+        `fr-par`. **Det fjärde stycket är struket MED SIN GRUND** — tredjelandsavsnittets
+        e-poststycke, SCC-grunden och Art. 13(1)(f)-vägen till en kopia av skyddsåtgärderna
+        förutsatte alla en överföring som inte längre uppstår; copyn är därmed **tyst** om Kap. V för
+        e-posten, precis som den redan är för värden. Markörmeningen står kvar i alla strängarna —
+        **detta var inte flippen**.
+        ⚠ **KÄLLA ÄR INTE PUBLICERAD SAJT.** Ledet läses grönt för **källan**; den publicerade copyn
+        namnger den gamla providern tills närmast följande webb-deploy, som är en **annan händelse**
+        och grindas av **§2.6**, inte av `Email:Provider`. `content-legal-parity.test.ts` är
+        ompinnad till `Scaleway SAS` i samma ändring, så en halvflippad katalog kan inte bli grön;
       - **security-auditor-sign-off på prod-e-post-konfigen** — **KVAR**. Det gamla
         TD-116:s sign-off är PR-4:s, inte prod-konfigens; bocka aldrig punkten på den.
         (TD-116 stängdes 2026-07-26; residualen ägs av #183.)
@@ -247,11 +348,18 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
         sina och säger att övriga tal inte är hem. Den raden bar en numeral och en hem-deklaration
         till 2026-08-09; `dotnet-architect` mätte att den gjorde uppräkningen falsk i samma commit
         som skrev den — filens egen dokumenterade felmod.)*
-        1. **Kontobindning.** Avtalsparten är en egenskap hos ett KONTO, och hela SCC-argumentet
-           i den publicerade copyn hänger på vilken part. Kör `aws sts get-caller-identity` med
-           **prod-nyckeln** (den som hamnar i `Email:Ses:AccessKeyId`) och kräv
-           `Account == 710427215829` — samma konto som avtalspartsmätningen i led (a) gjordes mot.
-           Utan det är mätningen gjord på ett konto och nyckeln kan tillhöra ett annat.
+        1. **Organisations- och projektbindning.** Avtalsparten är en egenskap hos en
+           ORGANISATION — GTS Art. 23 bestämmer entiteten ur faktureringsadressen — och hela
+           ej-tillämplig-bedömningen i led (b) hänger på vilken part. **Mekanismen bytte med
+           providern 2026-08-15; skyldigheten gjorde det inte.** Kör med **prod-nyckeln** (den som
+           hamnar i `Email:Scaleway:SecretKey`) ett autentiserat anrop som returnerar nyckelns
+           organisation och projekt, och kräv **Organization == den organisation ledet (a):s
+           avtalsmätning gjordes mot** och **Project == `Email:Scaleway:ProjectId`**.
+           ⚠ **Den andra halvan är ny och lätt att missa:** `ProjectId` är konfigurationssidigt och
+           skickas i varje request-kropp, men **bindningen mellan NYCKELN och projektet följer inte
+           av konfigurationen** — den är ett tillstånd hos leverantören. Utan mätningen kan
+           avtalsmätningen vara gjord mot en organisation medan nyckeln tillhör en annan, vilket är
+           exakt fällan AWS-erans kontobindning fanns för.
         2. **Kontolivscykel-mallarnas rättsliga grunder prövas — SEX mallar, inte fyra.** ROPA:ns
            utkast är Art. 6(1)(b) för `EmailConfirmation`, `EmailChangeConfirmation` och
            **`PasswordReset`**, och **Art. 6(1)(f)** för `EmailChangedNotification`,
@@ -269,17 +377,36 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
            Faller de i stället ut som 6(1)(b) täcks de av befintlig copy och luckan stänger sig
            själv. **En behandling som körs utan redovisad grund är en Blocker i det ögonblicket**,
            inte en Minor.
-        3. **Nyckelrotation för den statiska IAM-nyckeln** — ingen instance role finns, så nyckeln
-           är långlivad per definition. Oförändrad sedan 2026-08-08, återregistrerad här så den
-           inte tappas; ägs även av #198.
-        4. **Sändande identitet får inte bära ett default configuration set.** ROPA:ns retentionspost
-           påstår som mätt faktum att SES mottagarnivå-metrik (60 dagar) inte uppstår, på två
-           oberoende skäl. Det ena — att requesten inte namnger någon `ConfigurationSetName` — är
-           pinnat i `SesEmailSenderTests`, men det är **inte slutet på request-nivå**: SES v2 låter ett
-           default configuration set hängas på sändande IDENTITET
-           (`PutEmailIdentityConfigurationSetAttributes`), och då tillämpas det ändå. Det är
-           AWS-sidigt tillstånd som **inget test i repot kan pinna**, så det verifieras här i stället
-           (`aws sesv2 get-email-identity`). code-reviewer Minor 3, 2026-08-09.
+        3. **Nyckelrotation för den statiska providernyckeln** — ingen instance role finns, så
+           nyckeln är långlivad per definition. Skyldigheten är oförändrad sedan 2026-08-08 och
+           återregistreras här så den inte tappas; ägs även av #198. **Sedan 2026-08-15 gäller den
+           `Email:Scaleway:SecretKey`.** ⚠ **`ProjectId` roterar INTE och ska inte behandlas som en
+           nyckel** — det är en identifierare, inte en hemlighet, men den injiceras som en egen fil
+           med egen livscykel (E2) och loggas aldrig. De två har alltså skilda regimer trots att de
+           levereras genom samma söm.
+        4. **Ingen mottagarnivå-spårning får uppstå på den sändande identiteten.** ⚠ **MEKANISMEN
+           DOG MED PROVIDERN 2026-08-15, EGENSKAPEN ÖVERLEVDE — och ledet får därför INTE strykas.**
+           Fram till dess löd det *"sändande identitet får inte bära ett default configuration
+           set"*, verifierat med `aws sesv2 get-email-identity`: `ConfigurationSetName` är ett
+           AWS-begrepp utan Scaleway-motsvarighet, så instrumentet är borta. Vad ledet finns för —
+           att ingen mottagarnivå-metrik ska uppstå hos processorn — är providerneutralt och står
+           kvar (`vps-deploy-stack.md` rad 35 bär samma bestämning).
+           **Scaleway-grunden är STARKARE än SES-grunden var, och det är en skillnad i art:** för
+           SES var frånvaron ett *tillstånd att underhålla* (requesten fick inte namnge ett
+           configuration set, och ett default kunde ändå hängas på identiteten utan att synas i
+           requesten). Scaleway TEM har **ingen öppnings- eller klickspårning alls** — inget fält i
+           send-API:t, ingen configuration-set-analog, och funktionen finns som en **öppen feature
+           request** hos leverantören (mätt 2026-08-15). Det finns alltså inget providersidigt
+           tillstånd att sätta fel.
+           ⚠ **Priset för den starkare grunden är att den inte kan pinnas:** det finns ingen
+           requestegenskap kvar att asserta, så `ScalewayEmailSenderTests` bär ingen motsvarighet
+           till den raderade `SesEmailSenderTests`-pinnen. **Verifieringen VID flippen är därför en
+           ommätning av frånvaron hos leverantören** — läs API-referensen och produktens
+           changelog och bekräfta att ingen spårningskonfiguration tillkommit. En feature request
+           kan skeppas mellan två mätningar; 2026-08-15 var bevis för den dagen och ingen inlösen.
+           ⚠ **Blocklists är den enda providersidiga lagringen av mottagaradresser som uppstår, och
+           den uppstår automatiskt.** Retentionstrappan och Art. 17-vägen har sitt hem i ROPA:n —
+           **upprepa dem inte här** (ETT HEM PER TAL). code-reviewer Minor 3, 2026-08-09.
            ⚠ **DET ANDRA SKÄLET ÄR BYTT 2026-08-12 (#183) — läs inte den gamla formuleringen.**
            Fram till dess var skäl 2 *"ingen HTML-del"*. Mejlen bär numera en HTML-del, så det skälet
            är **struket**. Ersättningen är **ingen fjärresurs i HTML-delen**, pinnad över alla åtta
@@ -302,30 +429,62 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
            levererat återställningen till angriparen, och därför bär mejlet med flit noll sajtlänkar.
            Verifiera med ett **skarpt utskick från en utomstående adress**, och verifiera att det
            **inte** är en tyst catch-all som kastar. `Reply-To` på varje utskick är samma adress
-           (`SesEmailSender`, pinnat) — så ett svar på en notis landar där, inte på `no-reply@`.
-           ⚠ **DEN HÄR FÖRUTSÄTTNINGEN GRINDAR INTE HELA RISKEN, och det är fällan.** §2.5 gäller
-           enligt sin egen preambel **endast** en release som aktiverar `Email:Provider=Ses`. Den
+           (`ScalewayEmailSender`, via `additional_headers`, pinnat) — så ett svar på en notis
+           landar där, inte på `no-reply@`.
+           ⚠ **MX-LÄGET ÄR MÄTT FALSKT 2026-08-15 och förutsättningen är därmed längre från
+           uppfylld än den var.** Apex-MX är `blackhole.tem.scaleway.com` (mätt mot 8.8.8.8), satt
+           av leverantörens domänverifiering, så `kontakt@jobbliggaren.se` **tar emot ingenting**.
+           Klas har skjutit upp reparationen i väntan på STRATO:s e-postpaket; `security-auditor`
+           graderar det till **Blocker vid första riktiga användare eller vid flippen, vilket som
+           kommer först**. Instrumentet är `vps-deploy-stack.md` rad 36 — återställ inte den gamla
+           förväntan som en "reparation", recorda vad som resolverar.
+           ⚠ **En av adressens roller upphörde 2026-08-15:** vägen till en kopia av
+           standardavtalsklausulerna (Art. 13(1)(f)) förutsatte en överföring som inte längre
+           uppstår. **De två andra rollerna står kvar** — Art. 13(1)(b)-kontakt och Art. 15–22-kanal
+           — och det är de som gör blackhole-läget allvarligt.
+           ⚠ **DEN HÄR FÖRUTSÄTTNINGEN GRINDAR INTE HELA RISKEN, och det är fällan.** §2.5:s
+           räckvidd bestäms av predikatet i preambeln — **läs det där, det upprepas inte här**. Den
            **publicerade copyn** går live med **webb-deployen** — en annan händelse — och den bär
            Art. 13(1)(b)-kontakten oavsett providerläge. Se §2.6 (security-auditor 2026-08-12).
       **Kvarstående policy-residualer under denna punkt, inte under punkt 3.**
       **ORDNINGEN STÅR FÖRST, för att den styr posterna under sig:** upplös
       SCC/adekvans-disjunktionen **före** du skriver Art. 13(1)(f)-formuleringen —
       kopia-formuleringen hänger på Art. 46/47-grunden, så tvärtom påstår du en SCC-grund
-      som kanske inte används. Alltså **(iii) → (ii)**, och listans första post — flytten in i `Mottagare`-listan —
-      när avtalet signeras.
-      (i) flytta **e-postleverantören** in i `Mottagare`-listan när biträdesavtalet är på plats —
-      prosaformen är vald just för att listrubriken påstår ett tecknat avtal, och det
-      förbudet **upphör när avtalet gäller**. *Sedan ADR 0124 är motparten AWS, och för AWS är
-      "på plats" sannolikt inte detsamma som "signerat" (DPA:t inkorporeras automatiskt, mätt
-      2026-08-08) — men villkoret för flytten är oförändrat: listan får bara namnge en part vars
-      avtal faktiskt gäller.* **(i) är den enda residual som kvarstår.**
+      som kanske inte används. Alltså **(iii) → (ii)**, och listans första post — strykningen av
+      e-poststyckets avtalsreservation — **när DPA:n är verifierad gällande för Scaleway S.A.S.**
+      *(Denna routing-rad sa till 2026-08-15 "flytten in i `Mottagare`-listan … när avtalet
+      **signeras**". Båda halvorna var fel: `list`-nyckeln finns inte, och (i):s egen kropp säger
+      att "på plats" inte är detsamma som "signerat".)*
+      (i) **e-postleverantörens stycke får stryka sin egen avtalsreservation när avtalet är på
+      plats.** ⚠ **Mekanismen är omskriven 2026-08-15 (`security-auditor` Major 2), för att den
+      skyddsmekanism residualen tidigare namngav inte finns.** Posten sa att *"prosaformen är vald
+      just för att listrubriken påstår ett tecknat avtal"* — men `privacy.sections[6]` har **ingen
+      `list`-nyckel** (mätt 2026-08-15: `heading` + sex `paragraphs`, noll `list`); nyckeln
+      försvann i #1199, och e-poststyckena ligger i exakt samma strukturella position som
+      netcup-stycket. **En residual vars angivna skydd inte existerar läses som uppfylld**, och den
+      här lurade sin egen granskare två gånger. Vad som faktiskt bär ärligheten i dag är styckets
+      **egen** mening — *"Innan vi börjar skicka säkerställer vi att personuppgiftsbiträdesavtalet
+      med Scaleway SAS gäller"* — och villkoret för att stryka den är att avtalet faktiskt gäller
+      för Scaleway S.A.S. *Sedan ADR 0131 är motparten Scaleway S.A.S., och
+      "på plats" är inte detsamma som "signerat": DPA:n gäller automatiskt (avtalsdokument nr 1 i
+      GTS Art. 3, mätt 2026-08-15) — precis som AWS-DPA:t gjorde. Villkoret är oförändrat genom
+      båda bytena, men det gäller **reservationen och inte en lista**: den får bara strykas för en
+      part vars avtal faktiskt gäller.*
+      **(i) är den enda residual som kvarstår.**
       (ii) **Art. 13(1)(f)** — "means to obtain a copy" av skyddsåtgärderna — **LEVERERAD
-      2026-08-09 (#1169)**: tredjelandsavsnittet hänvisar till kontaktvägen under
-      "Personuppgiftsansvarig och kontakt" för en kopia av standardavtalsklausulerna.
+      2026-08-09 (#1169)** och **UPPHÖRD 2026-08-15 (#183, ADR 0131)**: formuleringen hängde på att
+      en överföring fanns att skydda, och den grunden finns inte mot en fransk avtalspart utan
+      tredjelandsmoder. Stycket är struket ur copyn **med sin grund**, inte omskrivet. *Skulle
+      Kap. V återaktiveras — t.ex. om Klas-brevet visar att support har åtkomst från tredjeland —
+      återkommer både grunden och den här residualen.*
       (iii) SCC/adekvans-disjunktionen — **UPPLÖST** till SCC Art. 46(2)(c) och struken ur
-      copyn (`security-auditor` 2026-08-08; se Kap. V-ledet ovan).
+      copyn (`security-auditor` 2026-08-08; se Kap. V-ledet ovan). **Sedan 2026-08-15 är även den
+      upplösningen historik** — det finns ingen disjunktion kvar att upplösa när ingen överföring
+      uppstår.
       **Ordningskravet ovan hölls:** (iii) avgjordes i granskningen 2026-08-08, och (ii)
-      skrevs först därefter — kopia-formuleringen namnger den grund som faktiskt används.
+      skrevs först därefter — kopia-formuleringen namngav den grund som faktiskt användes.
+      **Ordningen är fortfarande styrande om Kap. V någonsin återaktiveras**, och därför står den
+      kvar i stället för att strykas med posterna den ordnar.
 - [ ] **2. TD-115** — legacy opt-OUT-default sanerad (#185 / PR #211 — **KLAR**).
 - [ ] **3. TD-116** — consent-/disclosure-copy avslöjar e-postleverans för
       användaren (**PR #182 — KLAR**; TD-116:s consent-copy-halva, fast-follow till #181,
@@ -355,14 +514,26 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
       låsning av hela prod-grinden. Vad ledet skyddade bär spinen redan: raden är Queued före
       utskicket och `StrandedMatchReaperJob` markerar en strandad rad Failed utan att skicka om.
       senior-cto-advisor-bind + ADR 0124, #1237.*
+      ⚠ **STRYKNINGEN ÄR OMMÄTT 2026-08-15 MOT SCALEWAY OCH ÄRVDES INTE.** Preambelns doktrin
+      gäller åt båda hållen: **en strykning får lika lite som ett grönt led ärvas från en motpart
+      som inte längre är part**, eftersom skälet — "SES v2 har ingen idempotensparameter" — är ett
+      påstående om en part vi inte har. Mätt i E1 (`b71c14de`): Scaleways `POST /emails` bär ingen
+      idempotensparameter heller. **Strykningen står — nu på en mätning mot den part vi faktiskt
+      har, i stället för en ärvd från en vi inte har.** *(Formuleringen "två oberoende mätningar"
+      stod här till 2026-08-15 och motsade styckets egen doktrin: de två är mätningar av två olika
+      parter, och SES-mätningen bidrar per den doktrinen med noll. `dotnet-architect` N5.)*
 - [ ] **5. `BUILD.md` flippas i SAMMA ändring** — den här checklistan räknade tidigare bara upp
       `content-legal.json` och ROPA:n, och nämnde **aldrig** `BUILD.md` som flip-yta. Vid flippen
       blir följande falska utan att något kräver att de rörs: **§13.4**:s e-postpost
       (*"planerad, ännu inte"* … *"ingen e-post lämnar systemet"* — det första citatet
-      radbryts i BUILD.md, så grep på den KORTA formen), **§3.1:s SES-rad**
+      radbryts i BUILD.md, så grep på den KORTA formen), **§3.1:s e-postrad**
       (*"prod-utskick grindat"*) och **§3.2:s Email-rad** (*"grindad"*).
-      *(Raderna namngav Resend till 2026-08-08; ADR 0124 bytte dem till SES och citaten ovan
-      är regenererade ur filen, inte översatta.)*
+      *(Raderna namngav Resend till 2026-08-08 och AWS SES till 2026-08-15; ADR 0124 respektive
+      ADR 0131 bytte dem, och citaten ovan är **regenererade ur filen efter Scaleway-omskrivningen**,
+      inte översatta — mätta 2026-08-15: `planerad, ännu inte` och `ingen e-post lämnar systemet`
+      ger vardera exakt en träff, `prod-utskick grindat` ligger i §3.1:s rad och `grindad` i §3.2:s
+      Email-rad. **§13.4:s e-postpost är omskriven i samma ändring som denna rad**, och de två
+      korta citaten bevarades ordagrant just för att den här punktens grep ska överleva bytet.)*
       **`provider_message_id`-kommentaren i §7:s `email_log`-schema** är provider-neutral
       och blir INTE falsk — kontrollera den, ändra sannolikt inget.
       *(Radnummer står medvetet inte här: punkten bar TRE, och två av dem föll när
@@ -377,7 +548,8 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
       Tillagt 2026-07-26 på dotnet-architects mätning — och just denna PR **ökade** ytan.
 
 Källa: ADR 0080 §"Prod-Resend-flip pre-condition checklist"; ROPA-behandlingen
-**"Utgående transaktionell e-post (Amazon SES, `eu-north-1`)"** — omdöpt och omskopad
+**"Utgående transaktionell e-post (Scaleway Transactional Email, `fr-par`)"** — omdöpt igen
+2026-08-15 (#183, ADR 0131) från *"… (Amazon SES, `eu-north-1`)"*, och dessförinnan omdöpt och omskopad
 2026-08-09 (#1169) från *"Bakgrundsmatchnings-notiser via e-post (Resend)"*, som täckte
 **endast** notis-vägen. Efter wideningen ovan gäller grinden all utgående e-post, och
 Art. 30-posten täcker sedan omskrivningen **de sex mallar som fanns 2026-08-09** — **men de fyra
@@ -514,9 +686,16 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
       grep -n "planerat\|planerad\|planeras" web/jobbliggaren-web/messages/sv/content-legal.json
       grep -n "planned"                      web/jobbliggaren-web/messages/en/content-legal.json
       ```
-      **Regenererad 2026-08-09 (#1199, värdbytet Hetzner → Netcup): 10 + 10** (rad 37, 49,
-      63, 73, 74, 75, 82, 96, 97, 132 — identiska i sv och en, alla äkta statuspåståenden,
-      ingen falsk träff med detta mönster). **Både talet och radmängden ändrades**, av tre
+      **Regenererad 2026-08-15 (#183, providerbytet AWS SES → Scaleway): 9 + 9** (rad 37, 49,
+      63, 73, 74, 75, 95, 96, 131 — identiska i sv och en, alla äkta statuspåståenden, ingen
+      falsk träff med detta mönster). **Talet sjönk med ETT och raderna under flyttade upp ett
+      steg**, av ett enda skäl: tredjelandsavsnittets e-poststycke (förra rad 82) är **struket med
+      sin grund** — Scaleway S.A.S. är franskt, ingen överföring uppstår, och copyn ska då vara
+      tyst om Kap. V precis som värdraden är (senior-cto-advisor bindande 2026-08-15). Nettot:
+      82 försvann, och 96/97/132 blev 95/96/131. Mängden är **körd ur greppen ovan, aldrig
+      framräknad ur den gamla** — se nästa stycke om varför det senare inte är en genväg.
+      *(Föregående regenerering, 2026-08-09 (#1199, värdbytet Hetzner → Netcup): 10 + 10 på rad
+      37, 49, 63, 73, 74, 75, 82, 96, 97, 132.)* **Både talet och radmängden ändrades även då**, av tre
       skilda skäl i samma ändring: Cloudflare-posten raderades, värdposten skrevs om **utan**
       markör, och värdposten flyttades sedan ur `sections.6.list` till `paragraphs[1]` varvid
       hela `list`-nyckeln försvann. Nettot: **två markörbärande rader blev noll**, värdstycket
@@ -530,11 +709,13 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
       markörmening. **Det är ett mätresultat, inte en förutsägelse:** en ändring som tar bort
       ett arrayelement eller delar ett stycke flyttar varje rad under sig, så greppet ska
       köras om även när en ändring "bara" byter ord.
-      **Grepa INTE bara på `"planerat och ännu inte i drift"`** — det ger 8 och
-      missar de TVÅ retentionsposterna på rad 96 och 97, som bär `(planerat)` utan
-      avslutningsmeningen. Rad 96 (organisationsnumret i en annons, #880) nämner
+      **Grepa INTE bara på `"planerat och ännu inte i drift"`** — det ger 7 (mätt
+      2026-08-15) och missar de TVÅ retentionsposterna, som bär `(planerat)` utan
+      avslutningsmeningen. Den första (organisationsnumret i en annons, #880) nämner
       ansökningshistoriken som ett ÄNDAMÅL med att arbetsgivarens identitet sparas;
-      rad 97 är ansökningshistorikens egen post. **Regenerera den här listan ur
+      den andra är ansökningshistorikens egen post. **Radnumren står medvetet inte här** —
+      de bor i punkt 1:s mängd ovan och flyttar varje gång ett stycke läggs till eller stryks;
+      den här PR:en flyttade dem två gånger på en dag. **Regenerera den här listan ur
       greppen ovan efter varje redigering av `privacy`-sektionerna** — inte bara
       retentionsavsnittet: #880 delade en
       punkt i två och flyttade fyra av åtta rader, och #186 rörde tre andra avsnitt
@@ -546,11 +727,17 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
       kategorilistan drift medan retentionsavsnittet säger planerat.
 - [ ] **2. Avgör vad releasen faktiskt aktiverar** — två olika klasser, blanda dem
       inte:
-      - **Kod-aktiverad:** ansökningshistorik/företagsöversikt (rad 37, 96, 97, 132).
+      - **Kod-aktiverad:** ansökningshistorik/företagsöversikt — kategorilistans
+        ansökningshistorik-punkt, BÅDA retentionsposterna och stycket i "Inga automatiserade
+        beslut". *(Identifieras med innehåll, inte radnummer: punkt 1:s mängd är hemmet, och
+        raderna flyttar vid varje styckeändring.)*
         Handlers + endpoints + FE är skeppade utan feature-flagga → aktiveras av
         att tjänsten alls går i drift.
-      - **Konfigurations-grindad:** SCB (rad 49, 73) **och e-postleverantören AWS SES
-        (rad 63, 74, 75, 82, #186 + #1169)**. **Aktiveras INTE av en
+      - **Konfigurations-grindad:** SCB (ändamålsavsnittets företagsuppslag + mottagarstycket)
+        **och e-postleverantören Scaleway** (samtyckesavsnittet + mottagaravsnittets TVÅ
+        e-poststycken; #186 + #1169 + #183). *(Innehållsbenämningar, inte radnummer — punkt 1 är
+        mängdens hem, och den här bulleten bar sin egen kopia av numren tills 2026-08-15.)*
+        **Aktiveras INTE av en
         `v*`-tagg.** Tre skilda mekanismer, alla mörka i prod: per-sökningens
         `ICompanyRegistry` (ADR 0088) får `NullCompanyRegistry` — valet styrs av
         `CompanyRegistry:Provider`, den riktiga adaptern siktar på SCB:s nya
@@ -561,12 +748,18 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
         användarskrivet org.nr. E-posten styrs av `Email:Provider`, som defaultar till
         `Console` och i non-dev löser till `NullEmailSender` — flippen är grindad av
         **§2.5 punkt 1** (uppräkningen bor DÄR, inte här — och därför står antalet inte heller här), inte av en
-        tagg, och gäller **all** utgående e-post (§2.5:s widening). **Flippa rad 49/73 (SCB) respektive 63/74/75/82 (e-post) först när respektive grind är
+        tagg, och gäller **all** utgående e-post (§2.5:s widening). **Flippa SCB-styckena
+        respektive e-poststyckena först när respektive grind är
         passerad** — inte när koden deployas.
         *Raderna 63/74/75/82 namngav Resend, Inc. (USA) till 2026-08-09; #1169 skrev om dem till
         Amazon Web Services EMEA SARL (Luxemburg) med behandling i `eu-north-1`. **Det var en
-        korrigering av en falsk motpartsuppgift, inte en flip** — markörmeningen står kvar i alla
-        fyra styckena i båda språken, och armen är fortfarande mörk.*
+        korrigering av en falsk motpartsuppgift, inte en flip** — markörmeningen stod kvar i alla
+        fyra styckena i båda språken, och armen var fortfarande mörk.*
+        ⚠ **2026-08-15 (#183, ADR 0131) skrevs de om igen, till Scaleway S.A.S. (Frankrike,
+        `fr-par`) — och den gången ändrades MÄNGDEN, inte bara namnet:** rad 82 (tredjelands-
+        stycket) är **struken med sin grund**, så e-posten bär nu **tre** markörbärande stycken per
+        språk, inte fyra. Också detta var en motpartskorrigering och **ingen flip** — markörmeningen
+        står kvar i alla tre styckena i båda språken, och armen är fortfarande mörk.
       Kvarstående planerat-meningar för behandlingar som fortfarande inte är i
       drift ska stå kvar. Släpper releasen ingen av dem är rätt utfall att **inte
       ändra något**.
@@ -587,7 +780,10 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
       Kravmängden:
       - **slutet personuppgiftsbiträdesavtal med `netcup GmbH`**, och **mekanismen är
         namngiven med flit**: netcups AVV gäller **inte** automatiskt (mätt förstahands
-        2026-08-09 — generalisera aldrig AWS-mätningen hit, där DPA:t uppges gälla av sig
+        2026-08-09 — generalisera aldrig e-postleverantörernas mätningar hit. **Två generationer i
+        rad har haft automatiskt gällande DPA** (AWS-erans och Scaleways, den senare mätt
+        2026-08-15 mot GTS Art. 3), vilket gör netcup till **undantaget bland biträdena och inte
+        regeln** — och det är precis därför generaliseringen är frestande. Hos AWS uppgavs DPA:t gälla av sig
         självt). Den sluts av kunden i **Customer Control Panel → Stammdaten / Master Data →
         Auftragsverarbeitung / Order Processing → Generate DPA**; elektronisk signatur räcker
         och den kostar inget. "Signera ett DPA" antyder ett motpartsflöde netcup inte har.
@@ -597,22 +793,32 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
         behandlingen. **Läs AVV-bilagans underbiträdeslista när den genereras** — netcup
         publicerar ingen (mätt: DPA-sidan, AVV-sidan, Impressum och DC-sidan bär noll), så
         bilagan är den enda mätningen av kedjan som finns. Namnger den ett icke-EU-underbiträde
-        ska rad 81 **och** värdraden omprövas **före** korpusladdningen.
-        Rad 70 påstår redan i presens *"Med dem har vi personuppgiftsbiträdesavtal"*; den
+        ska **tredjelandsavsnittets absoluta påstående** och värdraden omprövas **före**
+        korpusladdningen.
+        **Mottagaravsnittets ingress** påstår redan i presens *"Med dem har vi personuppgiftsbiträdesavtal"*; den
         meningen bärs i dag av att ingen listad part behandlar något, och den blir falsk
         vid (i) — inte vid (ii), och inte av mergen av #1199.
       - **inget Kap. V-led — det är raderat, inte ompekat.** Det gamla ledet krävde en
         dokumenterad grund för **Cloudflare** (US-domicilierat) och dog med parten
         (Klas-beslut K3). `security-auditor` 2026-08-09: netcup GmbH är tysk, behandlingen
-        sker i Nürnberg, och Kap. V engageras inte av värdbenet. Rad 83 är fortfarande ett
+        sker i Nürnberg, och Kap. V engageras inte av värdbenet. Tredjelandsavsnittets
+        **enda kvarvarande stycke** är fortfarande ett
         **absolut** påstående (*"I dagsläget sker inga överföringar av dina personuppgifter
         till länder utanför EU/EES"*), men dess antecedent — *"Anlitar vi en leverantör
         **utanför EU/EES**"* — täcker inte netcup alls, så värdbytet rör den inte.
-        **E-postflippen (§2.5) är fortfarande den händelse som gör rad 81 falsk**; #186 la
-        därför rad 82 **bredvid** den absoluta meningen i stället för att ersätta den, och
-        båda är sanna samtidigt så länge inget skickas. *(Raderna hette 84 och 85 till
-        2026-08-09; raderingen av Cloudflare-posten OCH flytten av värdraden ur `list` till
-        `paragraphs` flyttade dem två steg upp. Adekvans-disjunktionen ströks bara på det
+        ⚠ **OMSKRIVET 2026-08-15 (#183, ADR 0131) — meningen nedan påstod motsatsen till vad
+        den här PR:en fastställer.** Den sa att **e-postflippen** är den händelse som gör det
+        absoluta påståendet falskt, och att #186 därför la ett andra stycke *bredvid* det så att
+        båda var sanna samtidigt. **Båda halvorna är överspelade:** det andra stycket är struket
+        i den här ändringen, och med en fransk avtalspart utan tredjelandsmoder utlöser flippen
+        **ingen** överföring — vilket är hela poängen med led (b). Det absoluta påståendet
+        överlever alltså flippen i stället för att fällas av den, **under förutsättning att
+        `security-auditor`s ratificering faller ut så**; tills dess är detta utkastets läsning,
+        inte en dom. *(Historiken bevarad: #186 la ett e-poststycke **bredvid** det absoluta
+        i stället för att ersätta det, och båda var sanna samtidigt så länge inget skickades.
+        Styckena bytte radnummer två gånger — 2026-08-09 av att Cloudflare-posten raderades OCH
+        värdraden flyttades ur `list` till `paragraphs`, och 2026-08-15 av strykningen ovan;
+        radnumren skrivs därför inte längre ut här. Adekvans-disjunktionen ströks bara på det
         stycket — `security-auditor` 2026-08-08: EN
         grund, SCC Art. 46(2)(c).)*
       - **ROPA-posterna uppdaterade** + **security-auditor-sign-off**.
@@ -634,13 +840,17 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
 - [ ] **4. Paritet sv + en** — båda språken i samma ändring. Formuleringen bärs av
       elementen i `privacy.sections` som bär formuleringen — tillsammans **exakt den radmängd
       punkt 1 producerar** (antalet står där, med sitt grep; det står med flit inte här):
-      kategorilistan (rad 37), ändamåls-/SCB-avsnittet (49), samtyckesavsnittet
-      "Bevakningsnotiser i bakgrunden" (63, #186), mottagare + tredjeland
-      — mottagaravsnittet (73/**74/75**) och tredjelandsavsnittet (82) är TVÅ skilda
-      sections, inte ett — retentionslistan (96/97) och "Inga automatiserade beslut"
-      (132). Missa inte retentionsposten — och notera att **både** retentionslistan **och**
+      kategorilistan, ändamåls-/SCB-avsnittet, samtyckesavsnittet
+      "Bevakningsnotiser i bakgrunden" (#186), mottagaravsnittet (SCB + **två**
+      e-poststycken), retentionslistan och "Inga automatiserade beslut".
+      Missa inte retentionsposten — och notera att **både** retentionslistan **och**
       e-postprosan i mottagaravsnittet bär **två** rader var, inte en.
-      **Värdstycket (rad 71) står INTE i den här mängden**:
+      ⚠ **Tredjelandsavsnittet stod i den här mängden till 2026-08-15** och gör det inte
+      längre: dess e-poststycke är struket med sin grund (#183, ADR 0131). Att det var en egen
+      section, skild från mottagaravsnittet, är fortfarande sant om de två som finns kvar.
+      **Radnumren är borttagna ur den här uppräkningen med flit** — de bodde här och i punkt 1,
+      och en av de två gick stale varje gång ett stycke rördes. **Punkt 1 är hemmet.**
+      **Värdstycket står INTE i den här mängden**:
       värdraden bär sedan #1199 ingen markör och äger därför ingen flip. Den vaktas i stället
       av `content-legal-parity.test.ts`, som pinnar att `netcup GmbH` är namngiven i båda
       språken **och** att raden inte bär markörmeningen.
@@ -659,7 +869,7 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
       är nu falsk — **ingen** tagg öppnar registrering längre. Läst bokstavligt hade den gamla
       triggern aldrig fyrat, och de två villkoren nedan hade fallit ur tyst.)
       Den passerar **inte** §2.5: `Email:Provider` osatt (dokumenterad default) ger
-      `NullEmailSender`, och SES-flippen kan ligga månader senare. Villkoren upphör
+      `NullEmailSender`, och e-postflippen kan ligga månader senare. Villkoren upphör
       alltså **strikt före** §2.5 någonsin läses (security-auditor 2026-07-26).
       **Grinden bärs av #734, inte av den här sidan.** Efter ADR 0083 Amendment kan flippen inte
       ske utan `RequireEmailConfirmation=true` **och** en riktig `Email:Provider`, och båda
@@ -767,7 +977,7 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
         **Ingen release som öppnar registrering får ske innan de kvarvarande villkoren är gröna.**
         Copyn får INTE mjukas upp först — det falska påståendet är enda användarsynliga tecknet
         att flödet är trasigt. Art. 5(1)(a) + 12(1).
-        Ägare av residualen: **#734** (bär flippens förutsättningar) och **#183** (SES-prod-flippens
+        Ägare av residualen: **#734** (bär flippens förutsättningar) och **#183** (e-post-prod-flippens
         GDPR-grind), båda öppna och `mvp`. *(Raden namngav tidigare **#1087**, som stängs med
         den här ändringen, och **#196**, som är **STÄNGD** sedan tidigare — en stängd pekare i en
         merge-blockerande grind läses som utförd. Var env-konfigurationen faktiskt sätts efter att
@@ -787,7 +997,8 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
         D3 *"a new purpose section under 6(1)(b)"*, dvs. vidarebehandling för ett
         nytt ändamål av redan insamlade uppgifter → **Art. 13(3) kräver
         information "prior to that further processing"**, och policyns eget löfte
-        (rad 151) säger *"Vid mer betydande ändringar informerar vi dig på lämpligt
+        (policyns sista stycke, under rubriken "Ändringar i denna policy" — kvalifikatorn är
+        bärande, rubriken förekommer två gånger i katalogen) säger *"Vid mer betydande ändringar informerar vi dig på lämpligt
         sätt"*. Formulera som förhandsbesked (*"från och med &lt;datum&gt; behandlar vi
         även …"*), aldrig som påstående om pågående drift.
       Aldrig **efter** aktiveringen i något av fallen.
@@ -796,23 +1007,26 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
       Ansökningshistoriken nämns på fyra ställen (kategorilistan, retentionslistan,
       "Inga automatiserade beslut" och Art. 30-registret); SCB på tre
       (ändamålslistan, mottagarstycket — tredjelandsavsnittet nämner INTE SCB; uppräkningen
-      sa "tre" ända till 2026-07-26); **e-postleverantören på fyra** (samtyckesavsnittet, TVÅ
-      stycken i mottagaravsnittet, "Överföring till tredje land") —
+      sa "tre" ända till 2026-07-26); **e-postleverantören på tre** (samtyckesavsnittet och TVÅ
+      stycken i mottagaravsnittet — *"Överföring till tredje land" räknades med till 2026-08-15
+      och gör det inte längre; talet speglas av `content-legal-parity.test.ts`, vars golv står på
+      samma tre*) —
       och e-postflippen styrs av **§2.5**, inte av taggen, så den kan mycket väl
       inte höra till releasen alls medan de andra gör det. **En
       mottagare får aldrig stå som planerad medan behandlingen som skickar till
       den står som i drift, och omvänt.** Kör inventeringsgreppet igen efter
       flippen: antalet träffar ska minska med **exakt** antalet poster releasen
       aktiverar, aldrig med fler.
-      **Rad 132 kräver särskild kontroll — den är den enda rad greppet inte
-      självskyddar.** Dess inledning (`planerar` / `plans`) matchas INTE av
+      **Stycket i "Inga automatiserade beslut" kräver särskild kontroll — det är den enda rad
+      greppet inte självskyddar.** Dess inledning (`planerar` / `plans`) matchas INTE av
       inventeringsmönstret (verifierat: 0 träffar), så raden syns bara via sin
       avslutande mening. Tas bara den bort faller raden ur greppet helt, räkne-
       testet ovan säger "minskade med exakt 1 — korrekt", och policyn påstår
       fortfarande *"Jobbliggaren planerar en översikt av din egen
       ansökningshistorik"* — mitt i avsnittet **"Inga automatiserade beslut"**,
-      dvs. i Art. 22-negationen. Läs rad 132 i sin helhet: hela stycket skrivs om
-      till presens, aldrig trunkeras. (Varje **annan** rad ur punkt 1:s mängd bär `(planerat)`/
+      dvs. i Art. 22-negationen. Läs stycket i sin helhet: hela det skrivs om
+      till presens, aldrig trunkeras. *(Identifierat med sitt avsnitt och inte med ett radnummer:
+      det flyttade 2026-08-15 av en strykning två avsnitt ovanför.)* (Varje **annan** rad ur punkt 1:s mängd bär `(planerat)`/
       `planeras` i själva sakpåståendet och lämnar därför kvar en grepp-träff om
       flippen är ofullständig.)
 - [ ] **8. Art. 30-registret speglar flippen** —

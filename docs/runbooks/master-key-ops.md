@@ -113,7 +113,9 @@ sudo systemctl daemon-reload
 the whole of #1329.** Each timer is armed by the set its own detector reads, and neither can be
 enabled before that set exists: a timer enabled against an absent set fails on **every** fire.
 `--check` demands the crypto secrets, their directory mode, and `deploy/.env`'s mail configuration
-(an invalid `EMAIL_PROVIDER` and, under `Ses`, the SES credentials). `--check-host` demands #197's
+(an invalid `EMAIL_PROVIDER` — `Ses` and `Resend` among them, since both arms are gone and reach the
+same `else throw`; `Resend`'s went in `3ee3d85c` (#1237) and `Ses`'s in `b71c14de` (#183 E1) — and,
+under `Scaleway`, its two secrets **plus the region**, each named separately by the script). `--check-host` demands #197's
 `Backup__RcloneConfigBase64`, and nothing else — which is why an absent backup credential no longer
 holds the crypto alarm down.
 

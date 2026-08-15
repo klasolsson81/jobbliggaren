@@ -994,7 +994,7 @@ public static class DependencyInjection
     /// <c>DigestDispatchJob</c>). Binds <see cref="EmailOptions"/> and selects the sender per
     /// <c>Email:Provider</c>.
     /// <para>
-    /// Transaktionell mejlväg via Amazon SES v2 i eu-north-1 (ADR 0124, #1237) — HTTPS-API, aldrig
+    /// Transaktionell mejlväg via Scaleway Transactional Email i fr-par (#183) — HTTPS-API, aldrig
     /// SMTP. <see cref="ConsoleEmailSender"/> skriver mottagar-email + plaintext-token till ILogger
     /// (dev-providern) — registreras BARA i Development/Test (TD-104/STEG 6 security-auditor
     /// Major #1: en PERSISTENT logg-sink gör den raden durabel PII-lagring). I andra miljöer
@@ -1004,7 +1004,7 @@ public static class DependencyInjection
     /// <para>
     /// <b>Defaulten är oförändrad och det är avsiktligt.</b> <c>Email:Provider</c> är osatt i varje
     /// committad <c>appsettings*.json</c>, så <c>?? "Console"</c> gäller: Console i Dev/Test, Null
-    /// överallt annars. Att SES-armen finns ändrar ingenting förrän någon sätter nyckeln.
+    /// överallt annars. Att Scaleway-armen finns ändrar ingenting förrän någon sätter nyckeln.
     /// </para>
     /// </summary>
     public static IServiceCollection AddEmailSender(
@@ -1028,32 +1028,43 @@ public static class DependencyInjection
                 services.AddSingleton<IEmailSender, NullEmailSender>();
             }
         }
-        else if (string.Equals(emailProvider, "Ses", StringComparison.OrdinalIgnoreCase))
+        else if (string.Equals(emailProvider, "Scaleway", StringComparison.OrdinalIgnoreCase))
         {
             // Läses RÅTT ur IConfiguration, inte via IOptions, så att en felkonfiguration fäller
             // REGISTRERINGEN och inte första utskicket. Det är vad AddEmailSenderGateTests kan
             // asserta mot en naken ServiceCollection utan att boota en host — och det är därför
-            // kontrollen inte kan bo i SesEmailSenders konstruktor: AddSingleton<T,TImpl> är LAT,
-            // så prod hade bootat rent och fallit först på första mejlet.
-            var region = configuration[$"{SesEmailOptions.SectionName}:{nameof(SesEmailOptions.Region)}"];
-            var accessKeyId = configuration[$"{SesEmailOptions.SectionName}:{nameof(SesEmailOptions.AccessKeyId)}"];
-            var secretAccessKey = configuration[$"{SesEmailOptions.SectionName}:{nameof(SesEmailOptions.SecretAccessKey)}"];
+            // kontrollen inte kan bo i ScalewayEmailSenders konstruktor: AddSingleton<T,TImpl> är
+            // LAT, så prod hade bootat rent och fallit först på första mejlet.
+            var region = configuration[$"{ScalewayEmailOptions.SectionName}:{nameof(ScalewayEmailOptions.Region)}"];
+            var secretKey = configuration[$"{ScalewayEmailOptions.SectionName}:{nameof(ScalewayEmailOptions.SecretKey)}"];
+            var projectId = configuration[$"{ScalewayEmailOptions.SectionName}:{nameof(ScalewayEmailOptions.ProjectId)}"];
 
             if (string.IsNullOrWhiteSpace(region))
             {
                 throw new InvalidOperationException(
-                    "Email:Provider='Ses' kräver Email:Ses:Region (t.ex. eu-north-1). Regionen sätts "
-                    + "ALLTID explicit — SDK:ns default-regionkedja (AWS_REGION / ~/.aws/config / IMDS) "
-                    + "får aldrig avgöra vilken jurisdiktion e-post lämnar ifrån (#1169).");
+                    "Email:Provider='Scaleway' kräver Email:Scaleway:Region (fr-par). Regionen sätts "
+                    + "ALLTID explicit — den interpoleras rakt in i endpoint-URL:en och avgör "
+                    + "dessutom vilken jurisdiktion e-post lämnar ifrån (#1169).");
             }
 
-            if (string.IsNullOrWhiteSpace(accessKeyId) || string.IsNullOrWhiteSpace(secretAccessKey))
+            // TVÅ hemligheter, inte två halvor av samma: nyckeln autentiserar anroparen, project-id
+            // väljer projektet utskicket debiteras och attribueras till. Var och en krävs för sig,
+            // och felet namnger vilken som saknas — annars kostar en tom rad i secrets-filen en
+            // felsökningsrunda på fel värde.
+            if (string.IsNullOrWhiteSpace(secretKey))
             {
                 throw new InvalidOperationException(
-                    "Email:Provider='Ses' kräver Email:Ses:AccessKeyId + Email:Ses:SecretAccessKey "
-                    + "(gitignored appsettings.Local.json / managed secret). Det finns ingen instansroll "
-                    + "på VPS:en, och SDK:ns default-credential-kedja får aldrig tyst plocka upp en annan "
-                    + "identitet (ingen tyst no-op som ser ut att skicka).");
+                    "Email:Provider='Scaleway' kräver Email:Scaleway:SecretKey (gitignored "
+                    + "appsettings.Local.json / managed secret). Utan nyckel svarar API:t 401 och "
+                    + "ingenting levereras — det får aldrig upptäckas som tystnad i drift.");
+            }
+
+            if (string.IsNullOrWhiteSpace(projectId))
+            {
+                throw new InvalidOperationException(
+                    "Email:Provider='Scaleway' kräver Email:Scaleway:ProjectId (gitignored "
+                    + "appsettings.Local.json / managed secret). Project-id är en egen hemlighet med "
+                    + "egen livscykel, inte en del av SecretKey.");
             }
 
             // FromAddress grindas här och inte bara av EmailOptions default (security-auditor Minor 3).
@@ -1065,8 +1076,8 @@ public static class DependencyInjection
             if (string.IsNullOrWhiteSpace(fromAddress) || !fromAddress.Contains('@', StringComparison.Ordinal))
             {
                 throw new InvalidOperationException(
-                    $"Email:Provider='Ses' kräver en avsändaradress; Email:FromAddress='{fromAddress}' "
-                    + "är inte en adress. Den måste dessutom ligga under den SES-verifierade "
+                    $"Email:Provider='Scaleway' kräver en avsändaradress; Email:FromAddress='{fromAddress}' "
+                    + "är inte en adress. Den måste dessutom ligga under den hos Scaleway verifierade "
                     + "domän-identiteten — domänens DMARC står på p=reject utan rua=, så ett fel här "
                     + "syns inte som ett fel utan som tystnad.");
             }
@@ -1076,27 +1087,27 @@ public static class DependencyInjection
             // bär noll data-annotations (mätt), så det hade asserterat ingenting — och ett senare
             // [Required] hade gjort hela Email-sektionen till ett boot-villkor på DEFAULT-vägen,
             // som appsettings.Local.json.example och local-dev-setup.md §7 lovar mot.
-            services.AddOptions<SesEmailOptions>()
-                .Bind(configuration.GetSection(SesEmailOptions.SectionName))
+            services.AddOptions<ScalewayEmailOptions>()
+                .Bind(configuration.GetSection(ScalewayEmailOptions.SectionName))
                 .ValidateDataAnnotations()
                 .ValidateOnStart();
 
-            // Klient-konstruktionen bor i Email/SesClientRegistration så att den här filen — en
-            // §6.5-hotspot många sessioner redigerar — förblir textuellt Amazon-fri.
-            // NoAmazonReferenceTests allow-listar src/Jobbliggaren.Infrastructure/Email/ och inget
-            // annat; koden är formad efter regeln, regeln är inte vidgad efter koden.
-            services.AddSesClient(region, accessKeyId, secretAccessKey);
+            // Klient-registreringen + regionvakten bor i Email/ScalewayClientRegistration så att den
+            // här filen — en §6.5-hotspot många sessioner redigerar — bara bär switchen.
+            services.AddScalewayEmailClient(region);
 
             // Singleton, och registrerad som AddSingleton<TService, TImplementation> — INTE via en
-            // factory-lambda. Gate-testerna assertar på ServiceDescriptor.ImplementationType, som är
-            // null för en lambda; en lambda kompilerar, registrerar korrekt och fäller testet på ett
-            // sätt som ser ut som en DI-bugg.
-            services.AddSingleton<IEmailSender, SesEmailSender>();
+            // factory-lambda och INTE som typad HttpClient (som är transient bakom en lambda).
+            // Gate-testerna assertar på ServiceDescriptor.ImplementationType, som är null för båda;
+            // en lambda kompilerar, registrerar korrekt och fäller testet på ett sätt som ser ut som
+            // en DI-bugg. Avsändaren hämtar sin HttpClient per utskick via IHttpClientFactory, vilket
+            // är vad som håller handler-rotationen levande i en singleton.
+            services.AddSingleton<IEmailSender, ScalewayEmailSender>();
         }
         else
         {
             throw new InvalidOperationException(
-                $"Email:Provider='{emailProvider}' stöds inte. Använd 'Console' eller 'Ses'.");
+                $"Email:Provider='{emailProvider}' stöds inte. Använd 'Console' eller 'Scaleway'.");
         }
 
         return services;

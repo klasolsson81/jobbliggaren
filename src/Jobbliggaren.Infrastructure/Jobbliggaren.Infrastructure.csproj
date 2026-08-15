@@ -44,14 +44,12 @@
          to Infrastructure — the QuestPDF SDK types never cross the Application port surface
          (ICvRenderer is BCL-only; NetArchTest layer guard). -->
     <PackageReference Include="QuestPDF" />
-    <!-- ADR 0124 (BUILD §3.1, Klas-GO 2026-08-08, #1237) — transaktionell e-post via Amazon SES
-         v2 (eu-north-1), ersätter Resend. Version pinnad i Directory.Packages.props. SDK:n
-         (IAmazonSimpleEmailServiceV2/SendEmailRequest) är confined till Infrastructure — korsar
-         aldrig IEmailSender-porten (BCL-only), paritet Refit/PdfPig/QuestPDF. Apache-2.0.
-         Detta är den ENDA csproj som får deklarera ett AWSSDK-paket; NoAmazonReferenceTests
-         allow-listar exakt den här filen och Directory.Packages.props, och ett NetArchTest-
-         faktum pinnar att bara Jobbliggaren.Infrastructure.Email beror på Amazon.*. -->
-    <PackageReference Include="AWSSDK.SimpleEmailV2" />
+    <!-- Transaktionell e-post (#183) deklarerar INGET paket. Scaleway Transactional Email nås över
+         en handrullad HttpClient + System.Text.Json — det finns inget officiellt .NET-SDK (mätt
+         2026-08-15), och behövs inget: en POST med JSON-kropp. AddHttpClient kommer redan in via
+         Microsoft.Extensions.Http.Resilience/Refit.HttpClientFactory ovan, så armen adderar noll
+         referenser till den här filen. Det AWSSDK.SimpleEmailV2 som stod här togs bort i samma
+         ändring; NoAmazonReferenceTests är därefter ett totalförbud och ingen allow-list. -->
   </ItemGroup>
 
   <PropertyGroup>

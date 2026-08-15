@@ -43,25 +43,26 @@
     "//2": "and the DI switch both default to it), which selects ConsoleEmailSender in Development and",
     "//3": "Test: mail is written to the log, confirmation and activation links included, no key needed.",
     "//4": "Outside Development/Test the same value selects NullEmailSender, which sends nothing.",
-    "//5": "Set Provider=Ses + a real Email:Ses block to exercise the live e-mail path (ADR 0124).",
-    "//6": "DI fail-stops with a named error if the region or either credential is missing, so it is",
-    "//7": "never a silent no-op. Leave Provider=Console unless you are deliberately testing SES.",
+    "//5": "Set Provider=Scaleway + a real Email:Scaleway block to exercise the live e-mail path (#183).",
+    "//6": "DI fail-stops with a named error if the region or either secret is missing, so it is",
+    "//7": "never a silent no-op. Leave Provider=Console unless you are deliberately testing delivery.",
     "//8": "Keys land HERE and in local-dev-setup.md §2.4/§7 in the SAME PR (CLAUDE.md §11) — a",
     "//9": "template that lags the option fails the next stack-owner's boot one crash at a time",
     "//10": "(#544 org.nr-HMAC, #692 CV-fingerprint peppers both did).",
     "Provider": "Console",
     "FromAddress": "no-reply@localhost",
     "FromName": "Jobbliggaren (dev)",
-    "Ses": {
-      "//": "REQUIRED ONLY when Provider=Ses; ignored entirely otherwise. Amazon SES v2 over the",
-      "//1": "HTTPS API — never SMTP (Netcup drops 25/465/587; ADR 0050 §10). Region is ALWAYS",
-      "//2": "explicit: the SDK's own chain (AWS_REGION, ~/.aws/config, IMDS) must never decide which",
-      "//3": "jurisdiction mail leaves from (#1169). Credentials are a static IAM user scoped to",
-      "//4": "ses:SendEmail — there is no instance role on the VPS. NEVER commit real values; this",
-      "//5": "file's live twin is gitignored and gitleaks runs pre-push.",
-      "Region": "eu-north-1",
-      "AccessKeyId": "FILL IN: access key id for the send-only IAM user",
-      "SecretAccessKey": "FILL IN: secret for that same IAM user"
+    "Scaleway": {
+      "//": "REQUIRED ONLY when Provider=Scaleway; ignored entirely otherwise. Scaleway Transactional",
+      "//1": "Email over the HTTPS API — never SMTP (Netcup drops 25/465/587; ADR 0050 §10). Region is",
+      "//2": "ALWAYS explicit and fr-par is the only accepted value: it is interpolated into the endpoint",
+      "//3": "URL, and it decides which jurisdiction mail leaves from (#1169). TWO secrets, not two",
+      "//4": "halves of one — SecretKey authenticates, ProjectId selects the billed project, and each is",
+      "//5": "required on its own. NEVER commit real values; this file's live twin is gitignored and",
+      "//6": "gitleaks runs pre-push. Sending real mail also costs money and reaches real inboxes.",
+      "Region": "fr-par",
+      "SecretKey": "FILL IN: Scaleway API secret key (sent as the X-Auth-Token header)",
+      "ProjectId": "FILL IN: Scaleway project id the mail is billed to"
     }
   }
 }

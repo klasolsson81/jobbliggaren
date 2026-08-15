@@ -93,9 +93,9 @@ internal sealed class AuthOptionsValidator(IHostEnvironment environment, IEmailS
                 + $"{environment.EnvironmentName}; registrerad avsändare: "
                 + $"{emailSender.GetType().Name}). Utan leverans skapas kontot, inloggningen spärras "
                 + "på EmailConfirmed och aktiveringslänken når ingen — kontot blir permanent onåbart, "
-                + "och återsändningen är lika tyst. Sätt Email__Provider=Ses med Email__Ses-nycklarna "
-                + "(förutsättningarna ägs av #734, SES-flippens GDPR-grind av #183), eller lämna "
-                + "registreringen stängd.");
+                + "och återsändningen är lika tyst. Sätt Email__Provider=Scaleway med "
+                + "Email__Scaleway-nycklarna (förutsättningarna ägs av #734, prod-flippens "
+                + "GDPR-grind av #183), eller lämna registreringen stängd.");
         }
 
         return ValidateOptionsResult.Success;

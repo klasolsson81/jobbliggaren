@@ -4,28 +4,34 @@ namespace Jobbliggaren.Application.Common.Abstractions;
 /// Email-utskick för transactional flows (background-match notifications, ADR 0080 Vag 4).
 /// Impl: ConsoleEmailSender (Infrastructure) — loggar via ILogger (MEL → Seq-sink,
 /// TD-104) för lokal dev/MVP; Dev/Test-only (security-auditor Major #1, STEG 6),
-/// NullEmailSender i andra miljöer. Transaktionell mejlväg via Amazon SES v2 i eu-north-1
-/// (ADR 0124, #1237 — HTTPS-API, aldrig SMTP). Templates på svenska per civic-utility-design.
+/// NullEmailSender i andra miljöer. Transaktionell mejlväg via Scaleway Transactional Email i
+/// fr-par (#183 — HTTPS-API, aldrig SMTP). Templates på svenska per civic-utility-design.
 /// <para>
 /// <b>Ingen idempotensparameter, och det är ett beslut (ADR 0124, senior-cto-advisor
 /// 2026-08-08).</b> Porten bar tidigare en typad idempotensnyckel per metod. Den var en
 /// Resend-artefakt hela vägen ned i sin egen invariant (<c>"at most 256 chars (Resend limit)"</c>)
-/// och SES v2 <c>SendEmail</c> har ingen motsvarighet — inget <c>ClientToken</c>, ingen
-/// dedup-parameter (mätt mot API-referensen 2026-08-08). Att behålla den hade lämnat en
+/// och ingen av de leverantörer som följt har någon motsvarighet — varken SES v2 <c>SendEmail</c>
+/// (mätt 2026-08-08) eller Scaleways <c>POST /emails</c> (mätt 2026-08-15) bär en
+/// idempotens- eller dedup-parameter. Att behålla den hade lämnat en
 /// Application-ägd port som bär en avvecklad leverantörs trådformat, som ingen implementation
 /// kan konsumera (ISP). <b>Vad som faktiskt skyddade vad, efter mätning:</b> dedup ÖVER anrop
 /// ägs en nivå upp — av claim-then-send-spinen plus <c>StrandedMatchReaperJob</c> för
 /// notiserna, och av <c>ICooldownGate</c> för kontolivscykeln. ADR 0103 säger det uttryckligen
 /// om anti-email-bomb-kontrollen: den är <i>"provider-independent (works regardless of Resend's
 /// own idempotency-key dedup)"</i>. Kvar fanns bara transport-retry INOM en dispatch, och den
-/// stängs av <c>MaxErrorRetry = 0</c> på SES-klienten.
+/// finns inte: Scaleway-armen registrerar ingen resilience-handler alls, och
+/// <c>ScalewayClientRegistration</c> säger också varför ingen får läggas till. (Den mekanism som
+/// tidigare stod här — <c>MaxErrorRetry = 0</c> på SES-klienten — raderades med SES-armen i #183.
+/// Den som verifierar den här garantin ska läsa registreringen, inte leta efter en SDK-inställning
+/// som inte längre finns någonstans i repot.)
 /// </para>
 /// <para>
 /// <b>Undantagskontrakt (ADR 0124, senior-cto-advisor bind 4).</b> En implementation som
 /// misslyckas kastar <see cref="Exceptions.EmailDeliveryException"/>, som bär e-postens KIND och
 /// det underliggande undantagets TYPNAMN — ingenting annat, och med <c>InnerException</c>
-/// avsiktligt TOM. Leverantörens eget undantag får ALDRIG lämna adaptern: Amazon SES lägger
-/// mottagaradressen i sina felmeddelanden, många <c>[LoggerMessage]</c>-deklarationer
+/// avsiktligt TOM. Leverantörens eget undantag får ALDRIG lämna adaptern: ett avslag namnger den
+/// mottagare det gäller — hos SES i undantagets meddelande, hos Scaleway i felsvarets kropp, som
+/// <c>ScalewayEmailSender</c> därför aldrig läser — många <c>[LoggerMessage]</c>-deklarationer
 /// vidarebefordrar ett <see cref="Exception"/>-objekt till sänkan (antalet och dess grep bor i
 /// ADR 0124), och <c>Api/Program.cs</c> har ingen generisk <c>catch</c> som stoppar ett
 /// omatchat. Ett undantag ÄR
@@ -57,7 +63,7 @@ public interface IEmailSender
     /// <b>A constant per implementation, never a per-message question</b> (senior-cto-advisor Q3(b)
     /// 2026-07-26, dotnet-architect optionsset 2026-08-09). Delivery-dependence is a property of the
     /// CALLER, not of the sender: no implementation would answer differently per email kind — Null
-    /// drops every one, SES sends every one — so a <c>CanDeliver(kind)</c> overload would carry a
+    /// drops every one, the transactional arm sends every one — so a <c>CanDeliver(kind)</c> overload would carry a
     /// parameter that is dead by construction, and would invent a second enumeration of this port's
     /// send methods to keep in sync with them. The BCL precedent for one type plus capability queries
     /// over a lattice of interfaces is <see cref="System.IO.Stream.CanRead"/>/<c>CanSeek</c>/

@@ -123,15 +123,18 @@
          låg på 10.0.2 och Npgsql-pinnen på 10.0.3; bumpen i denna PR vidgade den, så den syncas här
          i stället för att bäras vidare.)* -->
     <PackageVersion Include="Npgsql" Version="10.0.3" />
-    <!-- AWSSDK-ytan är en ALLOW-LIST om exakt ett paket-id, inte ett förbud (ADR 0124, #1237).
-         Kvar borttagna och fortsatt bannade: SecretsManager (TD-105 / #199 / ADR 0050),
-         KeyManagementService + Core-som-krypteringsberoende (#802 — fält-krypteringen är
-         Local-only, ADR 0049/0050), S3, Bedrock och varje AWSSDK.Extensions.Logging.*.
-         SimpleEmailV2 raderades 2026-06-06 med hänvisning till ADR 0066 — och den
-         hänvisningen var härledd, inte skriven: ADR 0066 nämner aldrig SES (mätt 2026-08-08,
-         noll förekomster av "SES"/"SimpleEmail" i den filen). Den rev den DEPLOYADE
-         dev-stacken och bevarade uttryckligen kontonivå-ytan. Se ADR 0124 §"Gränsen".
-         NoAmazonReferenceTests håller allow-listan smal och bär två icke-vakuitetsankare. -->
+    <!-- AWSSDK-ytan är TOM och är återigen ett förbud, inte en allow-list (#183, 2026-08-15).
+         Bannade: SecretsManager (TD-105 / #199 / ADR 0050), KeyManagementService +
+         Core-som-krypteringsberoende (#802 — fält-krypteringen är Local-only, ADR 0049/0050),
+         S3, Bedrock, SimpleEmailV2 och varje AWSSDK.Extensions.Logging.* / AWS.Logger.*.
+         Historiken bakom raden, eftersom den förklarar varför förbudet en gång vidgades och
+         inte bör vidgas igen på lösa grunder: SimpleEmailV2 raderades 2026-06-06 med hänvisning
+         till ADR 0066 — och den hänvisningen var härledd, inte skriven: ADR 0066 nämner aldrig
+         SES (mätt 2026-08-08, noll förekomster av "SES"/"SimpleEmail" i den filen). Den rev den
+         DEPLOYADE dev-stacken och bevarade uttryckligen kontonivå-ytan. ADR 0124 tog därför
+         tillbaka paketet som en allow-list om exakt ett id; #183 flyttade e-posten till Scaleway,
+         vars arm inte behöver något paket alls, så allow-listan föll bort med sin enda medlem.
+         NoAmazonReferenceTests bär förbudet och sina icke-vakuitetsankare. -->
 
     <PackageVersion Include="Microsoft.Extensions.Logging.Console" Version="10.0.10" />
     <!-- TD-104 / Pre-4 STEG 6 — persistent strukturerad logg-sink (senior-cto-advisor
@@ -263,10 +266,13 @@
          but it does not carry the claim: nobody said ADR 0050 was a licence document. "non-copyleft
          vs ADR 0050" is this repo's idiom for "assessed against the server-side, non-distributed
          model ADR 0050 locks" - which is ADR 0071:170's own wording, not merely local shorthand.
-         Measured: THREE other comment blocks here assess copyleft against ADR 0050, covering five
-         packages (libstemmer+Hunspell, PdfPig+OpenXml, AWSSDK.SimpleEmailV2). Two use the shorthand; the Hunspell
-         block already writes it out. An earlier draft said "four other rows" - reachable only by
-         counting ADR 0050 MENTIONS, one of which is the AWSSDK removal and no licence claim at all.
+         Measured 2026-08-15: TWO other comment blocks here assess copyleft against ADR 0050, covering four
+         packages (libstemmer+Hunspell, PdfPig+OpenXml). One uses the shorthand; the Hunspell
+         block already writes it out. Both numbers dropped by one block / one package when the
+         AWSSDK.SimpleEmailV2 row was deleted with the SES arm (#183) — the Scaleway replacement adds
+         no package at all, so it adds no licence claim to count. An earlier draft said "four other rows"
+         - reachable only by counting ADR 0050 MENTIONS, one of which was a package REMOVAL and no
+         licence claim at all.
          MECHANISM WORTH KNOWING: v3.0 adds `## Applicable Version` (the Community License section's only new
          section). Document-wide the count is four added - `Choosing Between Professional and
          Enterprise`, `Renewal Pricing`, `Applicable Version`, `Application of This Version` - and one
@@ -275,21 +281,17 @@
          that release, so a NuGet bump CHANGES WHICH LICENCE VERSION GOVERNS - and nothing in this
          repo reads the licence at a bump. -->
     <PackageVersion Include="QuestPDF" Version="2026.7.2" />
-    <!-- ADR 0124 (BUILD §3.1, Klas-GO 2026-08-08, #1237) — transaktionell e-post via Amazon SES
-         v2 i eu-north-1. Ersätter Resend, som Klas tog ut helt samma dag; det är ett
-         LEVERANTÖRSBYTE, inte ett tillägg, så antalet IEmailSender-implementationer står kvar
-         på tre (Console/Null/Ses). Officiella .NET-SDK:n; PackageReference lever ENDAST i
-         Jobbliggaren.Infrastructure (Clean Arch — AmazonSimpleEmailServiceV2Client/SendEmailRequest
-         korsar aldrig IEmailSender-porten, paritet Refit/PdfPig/QuestPDF), och NetArchTest pinnar
-         att ingen typ utanför Jobbliggaren.Infrastructure.Email beror på Amazon.*.
-         License = Apache-2.0 (NON-COPYLEFT vs ADR 0050) — QuestPDF-blockets räkning ovan står
-         därmed kvar oförändrad: fortfarande TRE andra block, fortfarande FEM paket, fortfarande
-         TVÅ i kortform, eftersom den här raden ersätter Resend i alla tre talen.
-         TRANSPORT: HTTPS-API, ALDRIG SMTP — Netcup blockerar 25/465/587 och ADR 0050:1201
-         ratificerar redan valet. AWSSDK.Core pinnas INTE separat: SimpleEmailV2 4.0.102.1
-         deklarerar AWSSDK.Core [4.0.100.9, 5.0.0) och transitiv upplösning landar på 4.0.100.9,
-         vilket är senaste — en egen pin skulle bara frysa den. Läggs till om NuGetAudit fäller.
-         Web-verifierad 2026-08-08 (api.nuget.org flatcontainer): 4.0.102.1 = senaste stabila. -->
-    <PackageVersion Include="AWSSDK.SimpleEmailV2" Version="4.0.102.1" />
+    <!-- INGET e-postpaket, och det är resultatet av ett leverantörsbyte och inte ett glapp (#183).
+         AWSSDK.SimpleEmailV2 togs bort 2026-08-15 när transaktionell e-post flyttade från Amazon
+         SES v2 till Scaleway Transactional Email (fr-par). Scaleway publicerar officiella SDK:er
+         för Python, Go och JavaScript och ingen för .NET (mätt mot deras egen SDK-sida
+         2026-08-15), så armen är en handrullad HttpClient + System.Text.Json — båda BCL. Ersättaren
+         är alltså INGET paket, vilket är varför den här filen blev en rad kortare i stället för att
+         byta ett id mot ett annat.
+         Följden för vakten: NoAmazonReferenceTests är inte längre en allow-list utan ett
+         totalförbud — noll Amazon-paket i någon csproj/props/targets under src/, tests/ och perf/
+         plus rotens byggfiler, och noll Amazon-importer i någon .cs under samma rötter. Lägg inte tillbaka
+         ett AWSSDK-paket "bara för att"; kryptering är fortsatt Local-only (#802) och
+         SecretsManager/KeyManagementService/S3/Bedrock/AWS.Logger.* var bannade redan innan. -->
   </ItemGroup>
 </Project>

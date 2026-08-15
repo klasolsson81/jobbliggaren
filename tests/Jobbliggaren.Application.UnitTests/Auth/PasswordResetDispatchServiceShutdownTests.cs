@@ -18,12 +18,12 @@ namespace Jobbliggaren.Application.UnitTests.Auth;
 /// The override completes the writer first, and only then calls <c>base.StopAsync</c> — which cancels its
 /// own token source BEFORE awaiting the execute task. The cancellation therefore lands while the drain is
 /// still running. An earlier version
-/// passed that token down into the per-item work; <c>SesEmailSender</c> awaits the SDK call with it, and
-/// both catch filters exclude <c>OperationCanceledException</c> — so the OCE unwound straight out of the
+/// passed that token down into the per-item work; <c>ScalewayEmailSender</c> passes it to HttpClient, and
+/// both catch filters let a caller-requested cancellation through — so the OCE unwound straight out of the
 /// loop and took the rest of the queue with it.
 /// </para>
 /// <para>
-/// It failed ONLY under <c>Email:Provider=Ses</c>. <c>NullEmailSender</c> and <c>ConsoleEmailSender</c>
+/// It failed ONLY under <c>Email:Provider=Scaleway</c>. <c>NullEmailSender</c> and <c>ConsoleEmailSender</c>
 /// ignore the token entirely, so the drain looked healthy in Development and in the Testcontainers
 /// suites while production dropped everything queued. A fake that ignores cancellation reproduces that
 /// blindness exactly, which is why the one below observes the token instead.
@@ -32,9 +32,18 @@ namespace Jobbliggaren.Application.UnitTests.Auth;
 public sealed class PasswordResetDispatchServiceShutdownTests
 {
     /// <summary>
-    /// An <see cref="IEmailSender"/> that behaves like the real SES adapter with respect to
-    /// cancellation: it AWAITS on the token it is given, and it lets an
+    /// An <see cref="IEmailSender"/> that behaves like the real transactional adapter with respect
+    /// to cancellation: it AWAITS on the token it is given, and it lets an
     /// <see cref="OperationCanceledException"/> escape rather than swallowing it.
+    /// <para>
+    /// Stated precisely, because #183 narrowed the real rule: <c>ScalewayEmailSender</c> lets an
+    /// <see cref="OperationCanceledException"/> escape only when the CALLER'S token is cancelled,
+    /// and contains it as a send failure otherwise — <see cref="HttpClient"/> raises its own timeout
+    /// as a <see cref="TaskCanceledException"/>, so a filter on exception shape alone would swallow
+    /// every provider timeout as a shutdown. In THIS suite the caller's token is the one being
+    /// cancelled, so the fake is behaviourally faithful; it simply does not model the other branch,
+    /// which <c>ScalewayEmailSenderTests</c> owns.
+    /// </para>
     /// </summary>
     private sealed class TokenHonouringSender : IEmailSender
     {

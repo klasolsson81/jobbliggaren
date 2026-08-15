@@ -6,9 +6,12 @@ namespace Jobbliggaren.Application.Common.Exceptions;
 /// (ADR 0124; senior-cto-advisor bind 4, 2026-08-08, on a security-auditor Major).
 ///
 /// <para>
-/// <b>Why the provider's own exception must not escape the adapter.</b> Amazon SES embeds the
-/// recipient address in its error messages — in the sandbox every recipient must be verified, and
-/// the failure names the failing identity. Many <c>[LoggerMessage]</c> declarations across
+/// <b>Why the provider's own exception must not escape the adapter.</b> A rejection names the
+/// recipient it is about. Under SES that address sat in the exception MESSAGE; under Scaleway
+/// (#183) it sits in the error RESPONSE BODY, which is why <c>ScalewayEmailSender</c> never reads
+/// that body at all. The rule outlived the provider it was written against, and its evidence is now
+/// a test rather than a claim: the sender suite puts the address in a 4xx body and measures that it
+/// reaches neither the log nor this exception. Many <c>[LoggerMessage]</c> declarations across
 /// <c>src/</c> forward an <see cref="Exception"/> object to the sink (the count and its grep live
 /// in ADR 0124), and the sink is durable whenever <c>Seq:ServerUrl</c> is set. Patching those call
 /// sites was rejected as an enumeration that cannot be completed: <c>Api/Program.cs</c> has NO

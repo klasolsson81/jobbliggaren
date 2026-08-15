@@ -16,14 +16,17 @@ namespace Jobbliggaren.Application.UnitTests.Email;
 /// (#183, 2026-08-12 — security-auditor condition 1).
 ///
 /// <para>
-/// <b>What this file defends.</b> The register states as MEASURED FACT that SES's 60-day,
+/// <b>What this file defends.</b> The register states as MEASURED FACT that the processor's
 /// RECIPIENT-LEVEL open/click metrics do not arise for us. Until 2026-08-12 that rested partly on
 /// "the body is Body.Text with no HTML part" — a ground the HTML templates struck. The replacement is
 /// the property asserted here: the rendered HTML references no remote resource. It was chosen because
 /// it has the same shape as the ground it replaces (unattackable from outside the repo, pinned rather
-/// than complied with) and it is STRONGER than the SES question it stands in for, since a remote
-/// resource in an HTML mail is a tracking capability regardless of provider (EDPB Guidelines 2/2023
-/// on Art. 5(3) ePrivacy). The forbidden set itself lives in <see cref="RemoteResourceDetector"/>.
+/// than complied with) and it is STRONGER than the provider-specific question it stands in for, since
+/// a remote resource in an HTML mail is a tracking capability regardless of provider (EDPB Guidelines
+/// 2/2023 on Art. 5(3) ePrivacy). <b>That provider-independence is why this suite survived #183
+/// unchanged</b> when transactional mail moved from Amazon SES to Scaleway: the property asserted
+/// here is about OUR bytes, so the processor's identity and retention — which did change, and which
+/// the register owns — never entered it. The forbidden set lives in <see cref="RemoteResourceDetector"/>.
 /// </para>
 ///
 /// <para>
@@ -51,7 +54,7 @@ public class EmailHtmlNoRemoteResourceTests
 {
     private const string BaseUrl = "https://jobbliggaren.se";
 
-    // Same Base64Url shape ASP.NET Identity emits, and the same fixture SesEmailSenderTests uses.
+    // Same Base64Url shape ASP.NET Identity emits, and the same fixture ScalewayEmailSenderTests uses.
     // Not a real token: no account exists that it could activate. gitleaks:allow
     private const string UrlSafeToken = "CfDJ8Nr-9xQvT0pLm2Zq_aB3cD4eF5gH6iJ7kL8mN9oP0qR"; // gitleaks:allow
 
@@ -190,7 +193,7 @@ public class EmailHtmlNoRemoteResourceTests
         // "no remote resources" MORE true. Nothing else in this PR would have noticed.
         //
         // It matters most for the Art. 7(3) unsubscribe route. The settings link is pinned in
-        // SesEmailSenderTests against the TEXT part; if the HTML part dropped it, a notification read
+        // ScalewayEmailSenderTests against the TEXT part; if the HTML part dropped it, a notification read
         // in an HTML client — which is nearly every recipient — would carry no way to turn the mails
         // off, with a green suite.
         //

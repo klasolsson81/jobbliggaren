@@ -753,16 +753,23 @@ months. Batching, the delta command, the report-only prompt and the label checkl
   re-measures condition 2 on a cadence; [#1208](https://github.com/klasolsson81/jobbliggaren/issues/1208)
   owns that gap),
   `NullEmailSender` (what `Provider=Console` falls back to outside Dev/Test),
-  and `SesEmailSender` (`Provider=Ses` — Amazon SES v2 in `eu-north-1` over the
-  **HTTPS API, never SMTP**; fail-loud without `Email:Ses:Region` **and** both
-  `Email:Ses:AccessKeyId`/`SecretAccessKey`, ADR 0124, #1237). **The count is
-  still three because SES REPLACED Resend, which Klas removed entirely on
-  2026-08-08** — a `Resend` provider value now throws like any other unknown one.
-  The port lost its typed idempotency-key parameter in the same change: SES v2
-  `SendEmail` has no equivalent, and what actually prevented double delivery was
-  never the provider key but the claim-then-send spine (plus
+  and `ScalewayEmailSender` (`Provider=Scaleway` — Scaleway Transactional Email in
+  `fr-par` over the **HTTPS API, never SMTP**; fail-loud without
+  `Email:Scaleway:Region` **and** both `Email:Scaleway:SecretKey`/`ProjectId`, #183).
+  **The count is still three because each provider REPLACED the last** — Resend,
+  which Klas removed entirely on 2026-08-08; then SES, which AWS confined to
+  sandbox by refusing production access on 2026-08-14; now Scaleway. `Resend` and
+  `Ses` both now throw like any other unknown value, and `AddEmailSenderGateTests`
+  pins that. **There is no .NET SDK and no package** — the arm is `HttpClient` +
+  `System.Text.Json`, so `NoAmazonReferenceTests` went back to a total ban.
+  The port lost its typed idempotency-key parameter in the Resend removal, and no
+  provider since has had an equivalent to restore it for: neither SES v2
+  `SendEmail` nor Scaleway's `POST /emails` carries one. What actually prevented
+  double delivery was never the provider key but the claim-then-send spine (plus
   `StrandedMatchReaperJob`) and `ICooldownGate`, which ADR 0103 already states
-  works *"regardless of Resend's own idempotency-key dedup"*. Frontend `.env.local`; backend
+  works *"regardless of Resend's own idempotency-key dedup"*; the residual
+  transport retry is closed by the arm registering **no resilience handler at
+  all**. Frontend `.env.local`; backend
   `appsettings.Development.json` + gitignored `appsettings.Local.json`.
 - `ReverseProxyOptions`/`ReverseProxy:HttpsEnabled` (renamed from `AlbOptions`/`Alb:`
   2026-08-04) is **live** — it co-gates `UseHsts` and `UseHttpsRedirection` with the

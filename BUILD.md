@@ -36,7 +36,7 @@
 | Stavning | WeCantSpell.Hunspell | 7.x | Hunspell-port — tri-licens **MPL 1.1 / GPL 2.0 / LGPL 2.1**; licensval MPL 1.1 (LGPL 2.1 fallback), aldrig GPL; server-side + oförändrad binär → ingen copyleft på produkten (se §3.1-notis) |
 | Svensk ordlista | sv_SE Hunspell-ordlista (DSSO) | datafil | **LGPL-3.0** — oförändrad separat datafil, ej statiskt länkad/inbäddad/modifierad → copyleft smittar ej produkten (se §3.1-notis) |
 | HTTP | HttpClientFactory + Refit | 10.x | JobTech-klient |
-| Transaktionell e-post | AWSSDK.SimpleEmailV2 (Amazon SES v2, `eu-north-1`) | 4.0.x | Apache-2.0; officiella .NET-SDK:n, Infrastructure-confined (`IAmazonSimpleEmailServiceV2`/`SendEmailRequest` korsar aldrig IEmailSender-porten, paritet Refit/QuestPDF, pinnat av NetArchTest); **all** utgående e-post: notiser (ADR 0080 Vag 4 PR-4) + kontolivscykel (§13.4); **HTTPS-API, aldrig SMTP** (Netcup blockerar 25/465/587, ADR 0050 §10); `MaxErrorRetry = 0` eftersom SES v2 saknar idempotensparameter; prod-utskick grindat — se §13.4 + release-checklist.md §2.5. Klas-GO 2026-08-08, ADR 0124, [#1237](https://github.com/klasolsson81/jobbliggaren/issues/1237) |
+| Transaktionell e-post | **Inget paket** — handrullad `HttpClient` + `System.Text.Json` (Scaleway Transactional Email, `fr-par`) | — | Scaleway publicerar officiella SDK:er för Python, Go och JavaScript och **ingen för .NET** (mätt 2026-08-15), och behövs ingen: sändningen är en POST med JSON-kropp. `AWSSDK.SimpleEmailV2` togs bort i #183 utan ersättare, och `NoAmazonReferenceTests` är därefter ett **totalförbud** mot Amazon-paket och Amazon-importer, inte en allow-list. Infrastructure-confined (wire-payloaden är nästlad i avsändaren och korsar aldrig IEmailSender-porten, paritet Refit/QuestPDF); **all** utgående e-post: notiser (ADR 0080 Vag 4 PR-4) + kontolivscykel (§13.4); **HTTPS-API, aldrig SMTP** (Netcup blockerar 25/465/587, ADR 0050 §10); transport-retry stängs av att armen **inte registrerar någon resilience-handler** — se `ScalewayClientRegistration`, som också säger varför ingen får läggas till (sändnings-endpointen bär ingen idempotensparameter); prod-utskick grindat — se §13.4 + release-checklist.md §2.5. [#183](https://github.com/klasolsson81/jobbliggaren/issues/183) |
 | Database | PostgreSQL | 18.3 | lokal Docker Compose nu; co-tenant container på Hetzner CAX31 (ADR 0050, ingen separat managed-DB) |
 | Cache | Redis | 8.6 | lokal Docker Compose nu; co-tenant container på Hetzner CAX31 (ADR 0050) |
 | Test-assertions | Shouldly | 4.3.x | MIT, ersätter commercial FluentAssertions |
@@ -139,7 +139,7 @@
 | Cache | Redis 8.6 (Docker Compose) | Redis co-tenant container på CAX31 |
 | Object storage | lokal disk / ej aktiverat | TBD — roll/behov ej fastställt |
 | AI inferens | Ingen — produkten har ingen AI/LLM (ADR 0071) | Ingen (deterministiska motorer på BE/VPS) |
-| Email | `ConsoleEmailSender` (dev/test) / `NullEmailSender` (default annars) | Amazon SES v2 `eu-north-1`, grindad (§13.4, ADR 0124, [#183](https://github.com/klasolsson81/jobbliggaren/issues/183)) |
+| Email | `ConsoleEmailSender` (dev/test) / `NullEmailSender` (default annars) | Scaleway Transactional Email `fr-par`, grindad (§13.4, [#183](https://github.com/klasolsson81/jobbliggaren/issues/183)) |
 | Secrets | `appsettings.Local.json` (gitignored) | Self-managed på VPS (systemd-credentials / sops+age, [#196](https://github.com/klasolsson81/jobbliggaren/issues/196)) |
 | Encryption keys | `LocalDataKeyProvider` AES-256-GCM (ADR 0066) | Self-managed master-nyckelmodell + rotation ([#198](https://github.com/klasolsson81/jobbliggaren/issues/198)) |
 | Frontend | `pnpm dev` (localhost:3000) | Next.js `next start` co-tenant container på CAX31 (bakom Caddy) |
@@ -196,7 +196,7 @@ miljö-topologi är fastställd i ADR 0050; pipelinen byggs vid Hetzner-cutover.
 │  ├─ Identity                                        │
 │  ├─ JobSources.Platsbanken                          │
 │  ├─ CvEngines (parsing, lokal NLP, render — Fas 4)  │
-│  ├─ Email (Console/Null/Ses, ADR 0080/0124)         │
+│  ├─ Email (Console/Null/Scaleway, ADR 0080/#183)    │
 │  ├─ Security (Local/Kms DEK-provider, ADR 0066)     │
 │  ├─ CalendarIntegration.Google                      │
 │  ├─ GmailSync                                       │
@@ -780,7 +780,7 @@ email_log
   subject (text)
   template (text)
   sent_at (timestamptz)
-  provider_message_id (text null)   -- provider-neutralt (transaktionell väg = Amazon SES v2, ADR 0124/§13.4; SES:s MessageId skrivs medvetet INTE av avsändaren, se ADR 0124)
+  provider_message_id (text null)   -- provider-neutralt (transaktionell väg = Scaleway Transactional Email, #183/§13.4; providerns message-id skrivs medvetet INTE av avsändaren — beslutet är ADR 0124:s, och sedan #183 finns det dessutom inget att skriva: avsändaren läser aldrig svarskroppen, HttpCompletionOption.ResponseHeadersRead)
   status (text)
 
 -- Integrations

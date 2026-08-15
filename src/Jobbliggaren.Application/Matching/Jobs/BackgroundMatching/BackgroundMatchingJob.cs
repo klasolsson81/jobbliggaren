@@ -307,8 +307,9 @@ public sealed partial class BackgroundMatchingJob(
                 // No idempotency key is passed, and that is the design (ADR 0124): dedupe across calls
                 // is the claim-then-send spine's job — this row is already Queued before the send, and
                 // StrandedMatchReaperJob moves a stranded row to Failed rather than re-sending. The
-                // provider key only ever covered a transport retry WITHIN this one send, and the SES
-                // client is configured with MaxErrorRetry = 0 so that retry no longer happens.
+                // provider key only ever covered a transport retry WITHIN this one send, and no such
+                // retry exists: the Scaleway arm registers no resilience handler (#183, and
+                // ScalewayClientRegistration says why none may be added).
                 await emailSender.SendMatchNotificationEmailAsync(toEmail, content, ct);
 
                 match.MarkSent(clock);

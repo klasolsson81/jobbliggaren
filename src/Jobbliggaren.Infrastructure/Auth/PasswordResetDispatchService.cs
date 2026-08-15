@@ -36,13 +36,13 @@ internal sealed partial class PasswordResetDispatchService(
         // The order is: our StopAsync completes the writer, THEN base.StopAsync cancels its own token
         // source, and only then does it await this task. So the cancellation lands while this loop is
         // still draining, not before it starts. Passing that token down would abort the drain on the
-        // first awaited send: SesEmailSender awaits the SDK call with the token, and both catch filters
-        // here and there exclude OperationCanceledException, so the OCE would unwind straight out of
-        // this loop and take the rest of the queue with it.
+        // first awaited send: ScalewayEmailSender passes the token to HttpClient, and both catch
+        // filters here and there let a caller-requested cancellation through, so the OCE would unwind
+        // straight out of this loop and take the rest of the queue with it.
         //
         // Worse, it would fail ONLY in the configuration that matters. NullEmailSender and
         // ConsoleEmailSender ignore the token, so a drain looks healthy in Development and in
-        // Testcontainers while Provider=Ses drops everything queued (dotnet-architect 2026-08-10).
+        // Testcontainers while Provider=Scaleway drops everything queued (dotnet-architect 2026-08-10).
         //
         // What ends this loop is the writer being completed, which is exactly what StopAsync does
         // first. What BOUNDS it is base.StopAsync's own await on the host's shutdown token.

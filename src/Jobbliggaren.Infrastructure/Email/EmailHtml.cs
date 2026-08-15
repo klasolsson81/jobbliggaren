@@ -62,8 +62,14 @@ internal readonly record struct Markup(string Value)
 ///
 /// <para>
 /// <b>ZERO REMOTE RESOURCES, AND THAT IS A GDPR CONTROL RATHER THAN A STYLE CHOICE.</b> The Art. 30
-/// entry "Utgående transaktionell e-post" states as MEASURED FACT that SES's 60-day, recipient-level
-/// open/click metrics do not arise for us. Until 2026-08-12 that rested partly on "the body is
+/// entry "Utgående transaktionell e-post" states as MEASURED FACT that the processor's
+/// recipient-level open/click metrics do not arise for us. <b>Which processor, and what its
+/// retention is, lives in the register and NOT here</b> — this sentence named SES's 60-day
+/// recipient-level metrics until #183 moved transactional mail to Scaleway, and a mechanism comment
+/// that carries a processor's identity goes stale the moment the processor changes. The register is
+/// the one home for that fact; re-measuring it against Scaleway before any flip is E3's obligation
+/// (security-auditor condition 1, 2026-08-12), and nothing here may assert a Scaleway number nobody
+/// has measured. Until 2026-08-12 the ground rested partly on "the body is
 /// Body.Text with no HTML part", which this file falsifies. The replacement ground is this file's
 /// property: nothing here makes the recipient's client issue a network request, and no absolute URL
 /// IN LIVE MARKUP names a host outside <c>EmailOptions.BaseUrl</c>. The qualification is load-bearing

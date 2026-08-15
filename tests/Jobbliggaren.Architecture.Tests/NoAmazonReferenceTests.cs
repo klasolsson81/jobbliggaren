@@ -13,87 +13,94 @@ using Shouldly;
 namespace Jobbliggaren.Architecture.Tests;
 
 /// <summary>
-/// #802 / ADR 0066 / ADR 0124 — the AWS surface is an ALLOW-LIST of exactly one package id and
-/// exactly one namespace prefix, in exactly the places named below. It is not a blanket ban, and
-/// it was never quite the invariant the old message claimed.
+/// #802 / ADR 0066 / ADR 0124 / #183 — the AWS surface is ZERO, and there is no allow-list any
+/// more in either half. Three facts, and each one's REACH is stated rather than implied, because
+/// this file's previous revision claimed "anywhere" while scanning less than that (code-reviewer
+/// Major, PR #1339):
+/// <list type="number">
+///   <item><b>No package declaration</b> in any <c>.csproj</c>, <c>.props</c> or <c>.targets</c>
+///     under <c>src/</c>, <c>tests/</c> or <c>perf/</c>, plus the repo-root build files — which is
+///     every place a declaration can reach a project.</item>
+///   <item><b>No import</b>, in any C# form, in any <c>.cs</c> file under those same roots.</item>
+///   <item><b>No IL dependency</b> in the six PRODUCTION assemblies. Test assemblies are out of
+///     reach here and covered by (1) and (2) instead — see
+///     <see cref="NoProductionAssemblyDependsOnAnAmazonType"/> for why, rather than a claim that
+///     they are covered.</item>
+/// </list>
 ///
 /// <para>
-/// <b>What changed, and why the ratchet was narrowed rather than loosened (ADR 0124, #1237).</b>
-/// This file used to fail on ANY <c>AWSSDK.*</c>/<c>Amazon*</c> package element and ANY
-/// <c>using Amazon</c> in production code, citing "AWS-exiten är slutförd (#802 / ADR 0066)".
-/// Two corrections. First, the invariant #802 actually established is the one this file's own
-/// doc comment always stated: <b>field encryption is Local-only</b> (<c>LocalDataKeyProvider</c>);
-/// no KMS, no Secrets Manager. Second, <b>ADR 0066 never decided anything about SES</b> — measured
-/// 2026-08-08, it contains zero occurrences of "SES" or "SimpleEmail". It tore down the DEPLOYED
-/// dev stack (ECS/RDS/ALB/NAT/ECR) and explicitly PRESERVED the account-level surface. The SES
-/// package's 2026-06-06 deletion was a correct consequence of dead code under a Hetzner premise,
-/// not a rule; the rule was inferred afterwards and outgrew its warrant.
+/// <b>What changed, and why this is a RATCHET rather than a rewrite.</b> ADR 0124 narrowed a
+/// blanket ban into an allow-list of exactly one package id
+/// (<c>AWSSDK.SimpleEmailV2</c>) in exactly two files, plus one directory allowed to import
+/// <c>Amazon.*</c>, because transactional mail ran on Amazon SES v2. #183 moved transactional mail
+/// to Scaleway Transactional Email, whose arm is a hand-rolled <c>HttpClient</c> — Scaleway ships
+/// no .NET SDK, so the replacement adds no package. The allow-list's only member is gone, so the
+/// allow-list is gone with it. The invariant #802 established is untouched and still the reason
+/// this file exists: <b>field encryption is Local-only</b> (<c>LocalDataKeyProvider</c>) — no KMS,
+/// no Secrets Manager.
 /// </para>
 ///
 /// <para>
-/// <b>Both predicates are load-bearing, and only one of them is a FORM rule.</b> Location is a
-/// genuine form rule and carries the Clean-Architecture confinement (parity Refit/PdfPig/QuestPDF).
-/// Identity is irreducibly a NAME: nothing structural separates <c>AWSSDK.SimpleEmailV2</c> from
-/// <c>AWSSDK.KeyManagementService</c> — same publisher, same id shape — so inventing a "form" for
-/// that half would be manufacturing a distinction that does not exist. Say so rather than pretend.
+/// <b>The old file warned that an allow-list outliving its only member silently permits AWS
+/// forever.</b> That warning is being honoured here rather than quoted: this is the change it was
+/// written for.
 /// </para>
 ///
 /// <para>
-/// <b>Why there is now a NetArchTest fact, when the old comment said one was impossible.</b> That
-/// comment was right while zero Amazon packages existed: an absent type cannot be referenced, so
-/// there was no dependency to assert against. The moment <c>AWSSDK.Core</c> lands on the compile
-/// surface the premise dies — <c>Amazon.RegionEndpoint</c>, <c>Amazon.Runtime.BasicAWSCredentials</c>
-/// and <c>AWSConfigs</c> become referenceable FULLY QUALIFIED, with no <c>using</c> line at all,
-/// from every project that transitively sees Infrastructure. Both text scans below are structurally
-/// blind to that. This change opens that hole, so this change closes it.
-/// </para>
-///
-/// <para>
-/// <b>The anchors are not decoration.</b> Two facts assert the allow-list is non-vacuous. Without
-/// them, removing the SES arm later would leave an allow-list that silently permits AWS forever —
-/// the same quiet-death failure mode the i18n tripwires carry vacuity guards against.
+/// <b>What the IL fact can and cannot anchor now, said plainly.</b> While the SES arm existed, the
+/// IL fact's non-vacuity anchor was a POSITIVE match — the arm's own types provably depended on
+/// <c>Amazon</c>, so a search that had silently emptied could be detected. With zero Amazon
+/// anywhere, no positive match is constructible and that anchor is not merely weaker, it is
+/// unavailable: the one-character <c>"Amazon"</c> → <c>"Amazon."</c> edit measured in ADR 0124
+/// would now leave every fact here green whether or not it was made. What remains anchorable is
+/// the MECHANISM — that the type sets are non-empty, and that NetArchTest still matches on
+/// dot-delimited segments so a trailing dot still empties a search — and that is what
+/// <see cref="TheDependencySearchMechanismIsLiveAndSegmentMatched"/> pins, over a namespace that
+/// IS present. The real defence against a package returning is the text scan below, which needs no
+/// compiled reference to see a declaration.
 /// </para>
 /// </summary>
 public class NoAmazonReferenceTests
 {
-    private static readonly string[] ScannedRoots = ["src", "tests"];
+    /// <summary>
+    /// <c>perf</c> joined 2026-08-15: <c>perf/Jobbliggaren.LoadTests</c> is a tracked csproj with
+    /// live <c>PackageReference</c>s that sat outside the scan while this file's messages claimed
+    /// to adjudicate "anywhere" (code-reviewer Major, PR #1339).
+    /// </summary>
+    private static readonly string[] ScannedRoots = ["src", "tests", "perf"];
 
     /// <summary>
-    /// The ONLY Amazon package ids this repo may declare. <c>AWSSDK.Core</c> is listed even though
-    /// it currently resolves transitively (SimpleEmailV2 4.0.102.1 requires
-    /// <c>AWSSDK.Core [4.0.100.9, 5.0.0)</c>, and 4.0.100.9 is latest), so that a future CVE pin
-    /// does not require re-amending this guard under time pressure.
+    /// Every build-file shape that can declare a package. <c>.props</c>/<c>.targets</c> were absent
+    /// until 2026-08-15, and that was not theoretical: <c>tests/Directory.Build.props</c> ALREADY
+    /// carries a live <c>PackageReference</c> (the MTP coverage extension), so one line added there
+    /// would have handed the package to all seven test projects invisibly.
     /// </summary>
-    private static readonly HashSet<string> AllowedAmazonPackageIds =
-        new(StringComparer.Ordinal) { "AWSSDK.SimpleEmailV2", "AWSSDK.Core" };
+    private static readonly string[] BuildFilePatterns = ["*.csproj", "*.props", "*.targets"];
 
-    /// <summary>Repo-relative paths (forward slashes) allowed to declare an Amazon package.</summary>
-    private static readonly HashSet<string> FilesAllowedToDeclareAmazonPackages =
-        new(StringComparer.Ordinal)
-        {
-            "Directory.Packages.props",
-            "src/Jobbliggaren.Infrastructure/Jobbliggaren.Infrastructure.csproj",
-        };
-
-    /// <summary>The ONLY production directory allowed to import an Amazon namespace.</summary>
-    private const string AllowedAmazonImportDirectory = "src/Jobbliggaren.Infrastructure/Email/";
-
-    /// <summary>The namespace the SES arm lives in — everything else in Infrastructure is barred.</summary>
-    private const string SesNamespace = "Jobbliggaren.Infrastructure.Email";
+    /// <summary>
+    /// A namespace every scanned assembly genuinely depends on, used to prove the dependency search
+    /// still finds anything at all. Not an assertion about the BCL.
+    /// <para>
+    /// <b><c>Microsoft</c> was the obvious choice and is WRONG</b>, measured 2026-08-15:
+    /// <c>Jobbliggaren.Domain</c> depends on it nowhere, which is CLAUDE.md §2.1's whole point —
+    /// "Domain depends on nothing". <c>System</c> is the only namespace that survives that rule,
+    /// since every type in every assembly derives from <c>System.Object</c>.
+    /// </para>
+    /// </summary>
+    private const string ProbeNamespace = "System";
 
     /// <summary>
     /// Matches a package element and captures its <c>Include</c> id. Scans the WHOLE file text
-    /// rather than line-by-line: the previous form required the element name and the
+    /// rather than line-by-line: a line-scoped form required the element name and the
     /// <c>Include="…"</c> to sit on the SAME line, so an element whose attribute wrapped onto a
-    /// continuation line slipped through entirely. That is a genuine strengthening of this guard,
-    /// named here so it is not mistaken for refactoring.
+    /// continuation line slipped through entirely.
     /// </summary>
     private static readonly Regex PackageElement = new(
         @"<Package(?:Reference|Version)\b[^>]*?Include\s*=\s*""(?<id>[^""]+)""",
         RegexOptions.Compiled | RegexOptions.Singleline | RegexOptions.CultureInvariant);
 
     [Fact]
-    public void NoProjectDeclaresAnUnapprovedAmazonPackage()
+    public void NoProjectDeclaresAnAmazonPackage()
     {
         var repoRoot = FindRepoRoot();
         var offenders = new List<string>();
@@ -111,137 +118,199 @@ public class NoAmazonReferenceTests
                     continue;
                 }
 
-                if (AllowedAmazonPackageIds.Contains(id)
-                    && FilesAllowedToDeclareAmazonPackages.Contains(relative))
-                {
-                    continue;
-                }
-
                 var line = text.Take(match.Index).Count(c => c == '\n') + 1;
                 offenders.Add($"{relative}:{line} ({id})");
             }
         }
 
         offenders.ShouldBeEmpty(
-            "The AWS surface is an allow-list of exactly two package ids in exactly two files "
-            + "(ADR 0124 — SES v2 is the transactional mail provider, #1237). Field encryption stays "
-            + "Local-only (#802): KeyManagementService, SecretsManager, S3, Bedrock and every "
-            + "AWSSDK.Extensions.* — the logging adaptors especially — remain banned. Offenders: "
-            + string.Join(", ", offenders));
+            "No Amazon package may be declared anywhere (#183 — transactional mail is Scaleway over "
+            + "a hand-rolled HttpClient, and it adds no package). Field encryption stays Local-only "
+            + "(#802): KeyManagementService, SecretsManager, S3, Bedrock, SimpleEmailV2 and every "
+            + "AWSSDK.Extensions.* / AWS.Logger.* alike. Offenders: " + string.Join(", ", offenders));
+    }
+
+    /// <summary>
+    /// Non-vacuity for the package scan, and it replaces the retired allow-list anchor. Two ways
+    /// that scan can pass while asserting nothing: the file enumeration comes back empty (wrong
+    /// repo root, a moved directory), or the regex stops matching package elements at all. Both are
+    /// checked here against files that certainly exist and certainly declare packages.
+    /// </summary>
+    [Fact]
+    public void ThePackageScanActuallyReadsPackageDeclarations()
+    {
+        var repoRoot = FindRepoRoot();
+        var files = ProjectAndPropsFiles(repoRoot).ToArray();
+
+        files.ShouldNotBeEmpty("the package scan enumerated no files — it is asserting over nothing");
+
+        var scanned = files.Select(f => RelativeTo(repoRoot, f)).ToArray();
+
+        // Each of these is a place a package CAN be declared and reach real projects, and each was
+        // absent from the scan set before 2026-08-15 while this file's messages said "anywhere"
+        // (code-reviewer Major, PR #1339). A guard cannot see its own under-reach when every item it
+        // does scan passes, so the reach is asserted directly rather than inferred from a green run.
+        scanned.ShouldContain(
+            "Directory.Packages.props",
+            "the central package-version file is not scanned — under CPM every version lives there");
+        scanned.ShouldContain(
+            "Directory.Build.props",
+            "the repo-root build file is not scanned — an ItemGroup there reaches EVERY project");
+        scanned.ShouldContain(
+            "tests/Directory.Build.props",
+            "the test-tree build file is not scanned — it already carries a live PackageReference, "
+            + "so one line there reaches all seven test projects");
+        scanned.ShouldContain(
+            f => f.StartsWith("perf/", StringComparison.Ordinal) && f.EndsWith(".csproj", StringComparison.Ordinal),
+            "no perf project is scanned — perf/Jobbliggaren.LoadTests is tracked and declares packages");
+
+        var declaredIds = files
+            .SelectMany(f => PackageElement.Matches(File.ReadAllText(f)))
+            .Select(m => m.Groups["id"].Value)
+            .ToArray();
+
+        declaredIds.ShouldNotBeEmpty(
+            "the package-element regex matched nothing across the scanned build files. The guard "
+            + "above would pass vacuously in that state.");
+
+        // A concrete id the repo certainly declares, so "the regex matches something" cannot be
+        // satisfied by an accident of parsing.
+        declaredIds.ShouldContain("QuestPDF");
     }
 
     [Fact]
-    public void TheAmazonPackageAllowlistIsNotVacuous()
+    public void NoSourceFileImportsAnAmazonNamespace()
     {
         var repoRoot = FindRepoRoot();
 
-        foreach (var relative in FilesAllowedToDeclareAmazonPackages)
-        {
-            var text = File.ReadAllText(Path.Combine(repoRoot, relative));
-            PackageElement.Matches(text)
-                .Any(m => m.Groups["id"].Value == "AWSSDK.SimpleEmailV2")
-                .ShouldBeTrue(
-                    $"{relative} no longer declares AWSSDK.SimpleEmailV2. If the SES arm was removed, "
-                    + "REMOVE THIS ALLOW-LIST TOO — an allow-list that outlives its only member "
-                    + "silently permits every future AWS package (ADR 0124).");
-        }
-    }
-
-    [Fact]
-    public void NoProductionSourceOutsideTheSesArmImportsAnAmazonNamespace()
-    {
-        var repoRoot = FindRepoRoot();
-        var srcRoot = Path.Combine(repoRoot, "src");
-
-        var offenders = Directory
-            .EnumerateFiles(srcRoot, "*.cs", SearchOption.AllDirectories)
-            .Where(p => !IsUnderBinOrObj(p))
-            .Where(file => !RelativeTo(repoRoot, file)
-                .StartsWith(AllowedAmazonImportDirectory, StringComparison.Ordinal))
-            .Where(file => File.ReadLines(file).Any(line =>
-                line.TrimStart().StartsWith("using Amazon", StringComparison.Ordinal)))
+        var offenders = SourceFiles(repoRoot)
+            .Where(file => File.ReadLines(file).Any(ImportsAnAmazonNamespace))
             .Select(file => RelativeTo(repoRoot, file))
             .ToArray();
 
         offenders.ShouldBeEmpty(
-            $"Amazon namespaces may be imported only under {AllowedAmazonImportDirectory} "
-            + "(ADR 0124). In particular the DI composition root must stay textually Amazon-free — "
-            + "client construction belongs in Email/SesClientRegistration.cs. Offenders: "
+            "No source file may import an Amazon namespace (#183). The directory allow-list that "
+            + "existed for the SES arm was removed with the arm. Offenders: "
             + string.Join(", ", offenders));
     }
 
-    [Fact]
-    public void TheAmazonImportAllowlistIsNotVacuous()
-    {
-        var repoRoot = FindRepoRoot();
-        var allowedDirectory = Path.Combine(repoRoot, AllowedAmazonImportDirectory);
-
-        Directory.EnumerateFiles(allowedDirectory, "*.cs", SearchOption.AllDirectories)
-            .Any(file => File.ReadLines(file).Any(line =>
-                line.TrimStart().StartsWith("using Amazon.SimpleEmailV2", StringComparison.Ordinal)))
-            .ShouldBeTrue(
-                $"No file under {AllowedAmazonImportDirectory} imports Amazon.SimpleEmailV2. If the "
-                + "SES arm was removed, REMOVE THIS ALLOW-LIST TOO (ADR 0124).");
-    }
-
     /// <summary>
-    /// The fact the text scans cannot express. A fully-qualified <c>Amazon.RegionEndpoint</c> needs
-    /// no <c>using</c> line, so it is invisible above; this reads IL.
-    /// </summary>
-    [Fact]
-    public void NoInfrastructureTypeOutsideTheSesArmDependsOnAnAmazonType()
-    {
-        var result = Types.InAssembly(typeof(EmailOptions).Assembly)
-            .That().DoNotResideInNamespaceStartingWith(SesNamespace)
-            .Should().NotHaveDependencyOn("Amazon")
-            .GetResult();
-
-        (result.FailingTypeNames ?? []).ShouldBeEmpty(
-            $"Amazon SDK types are confined to {SesNamespace} (ADR 0124). This fact exists BECAUSE "
-            + "the package is back: with AWSSDK.Core on the compile surface a fully-qualified "
-            + "Amazon.* reference needs no using line and is invisible to the text scans above. "
-            + $"Offenders: {string.Join(", ", result.FailingTypeNames ?? [])}");
-    }
-
-    /// <summary>
-    /// Non-vacuity for the IL fact above, and it is the anchor the class most needed
-    /// (dotnet-architect, 2026-08-08). The IL fact was the ONLY one here without one, despite this
-    /// file's own claim that "the anchors are not decoration".
+    /// Non-vacuity for the import scan, in both halves: the enumeration reaches real files, and the
+    /// predicate itself still recognises the thing it bans.
     /// <para>
-    /// <b>Measured: changing the dependency string from <c>"Amazon"</c> to <c>"Amazon."</c> —
-    /// one character, and it reads as tidying — turns the whole class GREEN at 10/10 while
-    /// asserting nothing at all.</b> NetArchTest matches on dot-delimited namespace segments, so
-    /// the trailing dot matches no segment and the search set silently empties. This test fails in
-    /// that state, because the SES arm's two types MUST be found.
+    /// The predicate probe is the half that matters. A scan whose predicate has quietly stopped
+    /// matching passes over a repo full of violations and looks exactly like a clean repo — and the
+    /// file-count assertion alone cannot tell those apart, because it never crosses the control it
+    /// is testing.
     /// </para>
     /// </summary>
     [Fact]
-    public void TheAmazonDependencySearchIsNotVacuous()
+    public void TheImportScanReachesFilesAndItsPredicateStillMatches()
     {
-        var found = Types.InAssembly(typeof(EmailOptions).Assembly)
-            .That().ResideInNamespaceStartingWith(SesNamespace)
-            .Should().NotHaveDependencyOn("Amazon")
-            .GetResult();
+        var repoRoot = FindRepoRoot();
+        var files = SourceFiles(repoRoot).ToArray();
 
-        (found.FailingTypeNames ?? []).ShouldNotBeEmpty(
-            "The SES arm itself no longer registers as depending on Amazon. Either the arm was "
-            + "removed — in which case remove this whole guard's allow-list too — or the dependency "
-            + "string was altered and the IL fact above is now asserting over an EMPTY set and "
-            + "passing vacuously (ADR 0124).");
+        files.ShouldNotBeEmpty("the import scan enumerated no .cs files");
+        files.Length.ShouldBeGreaterThan(
+            100,
+            "the import scan reached suspiciously few files — check the roots and the bin/obj filter");
+        var scanned = files.Select(f => RelativeTo(repoRoot, f)).ToArray();
+        scanned.ShouldContain("src/Jobbliggaren.Infrastructure/Email/ScalewayEmailSender.cs");
+        // The tests/ tree is scanned too since 2026-08-15, and a GlobalUsings.cs is exactly where
+        // one line would hand a whole project the namespace — so its reach is asserted, not assumed.
+        scanned.ShouldContain("tests/Jobbliggaren.Application.UnitTests/GlobalUsings.cs");
+
+        // Crossing the control: every FORM that must be caught, and near misses that must not be,
+        // so the predicate cannot pass by matching everything either. The last three positives are
+        // the ones the old StartsWith predicate missed entirely (code-reviewer Major, PR #1339) —
+        // and `global using` is live house idiom here, not a hypothetical.
+        ImportsAnAmazonNamespace("using Amazon;").ShouldBeTrue();
+        ImportsAnAmazonNamespace("using Amazon.SimpleEmailV2;").ShouldBeTrue();
+        ImportsAnAmazonNamespace("    using Amazon.Runtime;").ShouldBeTrue();
+        ImportsAnAmazonNamespace("global using Amazon.SimpleEmailV2;").ShouldBeTrue();
+        ImportsAnAmazonNamespace("using static Amazon.RegionEndpoint;").ShouldBeTrue();
+        ImportsAnAmazonNamespace("using Ses = Amazon.SimpleEmailV2;").ShouldBeTrue();
+        ImportsAnAmazonNamespace("using global::Amazon;").ShouldBeTrue();
+        ImportsAnAmazonNamespace("using Ses = global::Amazon.SimpleEmailV2;").ShouldBeTrue();
+        // Whitespace around :: is legal C# too, and the doc above claims every form — so it is
+        // matched rather than the claim being softened (code-reviewer, PR #1339).
+        ImportsAnAmazonNamespace("using global :: Amazon;").ShouldBeTrue();
+
+        ImportsAnAmazonNamespace("// using Amazon.SimpleEmailV2;").ShouldBeFalse();
+        ImportsAnAmazonNamespace("using Jobbliggaren.Infrastructure.Email;").ShouldBeFalse();
+        // Segment boundary, stated as a decision rather than left to be discovered: a root namespace
+        // that merely begins with those letters belongs to somebody else. The package half still
+        // bans every id starting with "Amazon".
+        ImportsAnAmazonNamespace("using AmazonianRiver.Things;").ShouldBeFalse();
     }
 
+    /// <summary>
+    /// The fact the text scans cannot express: a fully-qualified <c>Amazon.RegionEndpoint</c> needs
+    /// no <c>using</c> line, so it is invisible above. This reads IL.
+    /// <para>
+    /// It covers Infrastructure too, which the ADR 0124 form had to exempt.
+    /// </para>
+    /// <para>
+    /// <b>PRODUCTION assemblies only, and that is a limit rather than an oversight.</b> This project
+    /// references the six <c>src/</c> projects and no test project, so no test assembly is reachable
+    /// here — and referencing sibling test projects to reach them would invert the dependency
+    /// direction between suites for a fact the text scans already cover: since 2026-08-15 those scan
+    /// <c>tests/</c> (and <c>perf/</c>) for both package declarations and imports, in every import
+    /// FORM. The message below therefore says what this fact adjudicates, not "no assembly anywhere".
+    /// </para>
+    /// </summary>
     [Theory]
     [MemberData(nameof(AssembliesThatMayNeverTouchAmazon))]
-    public void NoAssemblyOutsideInfrastructureDependsOnAnAmazonType(string name, Assembly assembly)
+    public void NoProductionAssemblyDependsOnAnAmazonType(string name, Assembly assembly)
     {
         var result = Types.InAssembly(assembly)
             .Should().NotHaveDependencyOn("Amazon")
             .GetResult();
 
         (result.FailingTypeNames ?? []).ShouldBeEmpty(
-            $"{name} must never depend on an Amazon SDK type — the SES arm is Infrastructure-only "
-            + $"and never crosses the IEmailSender port (ADR 0124). Offenders: "
-            + string.Join(", ", result.FailingTypeNames ?? []));
+            $"{name} must not depend on an Amazon SDK type — there is no Amazon SDK in this repo "
+            + $"(#183). Offenders: {string.Join(", ", result.FailingTypeNames ?? [])}");
+    }
+
+    /// <summary>
+    /// Non-vacuity for the IL facts, at the only level still anchorable — see the class comment for
+    /// why the ADR 0124 anchor (a positive Amazon match) cannot exist once the SDK is gone.
+    /// <list type="bullet">
+    ///   <item><b>The type sets are not empty</b>, so <c>NotHaveDependencyOn</c> is being asked
+    ///     about real types rather than passing over nothing.</item>
+    ///   <item><b>The search still finds a dependency that IS present</b> — every scanned assembly
+    ///     depends on <c>System</c>, so a search that had stopped matching would be caught.</item>
+    ///   <item><b>A trailing dot still empties the search</b>, which is the hazard that made the
+    ///     <c>"Amazon"</c> spelling load-bearing in the first place. Measured in ADR 0124 on the
+    ///     Amazon literal; pinned here on a literal that survives the SDK's removal, and it fails if
+    ///     NetArchTest ever changes that matching semantics under us.</item>
+    /// </list>
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(AssembliesThatMayNeverTouchAmazon))]
+    public void TheDependencySearchMechanismIsLiveAndSegmentMatched(string name, Assembly assembly)
+    {
+        Types.InAssembly(assembly).GetTypes().ShouldNotBeEmpty(
+            $"{name} presented no types at all, so the IL fact above asserts over an empty set");
+
+        var matched = Types.InAssembly(assembly)
+            .Should().NotHaveDependencyOn(ProbeNamespace)
+            .GetResult();
+
+        (matched.FailingTypeNames ?? []).ShouldNotBeEmpty(
+            $"{name} registered no dependency on '{ProbeNamespace}', which every assembly has by "
+            + "construction — every type derives from System.Object. The dependency search is not "
+            + "matching, so the Amazon facts above are passing vacuously.");
+
+        var trailingDot = Types.InAssembly(assembly)
+            .Should().NotHaveDependencyOn(ProbeNamespace + ".")
+            .GetResult();
+
+        (trailingDot.FailingTypeNames ?? []).ShouldBeEmpty(
+            $"'{ProbeNamespace}.' matched something. NetArchTest matched on dot-delimited segments "
+            + "when this was written, so a trailing dot matched no segment and silently emptied the "
+            + "search — that is why the Amazon literal above must never grow one. If this fails, the "
+            + "semantics changed and the hazard this file guards against has moved.");
     }
 
     public static TheoryData<string, Assembly> AssembliesThatMayNeverTouchAmazon() =>
@@ -249,6 +318,9 @@ public class NoAmazonReferenceTests
         {
             { "Jobbliggaren.Domain", typeof(Jobbliggaren.Domain.Common.AggregateRoot<>).Assembly },
             { "Jobbliggaren.Application", typeof(Jobbliggaren.Application.AssemblyMarker).Assembly },
+            // Infrastructure joins the list with #183: it held the ONLY exemption, for the SES arm's
+            // namespace, and that arm is gone.
+            { "Jobbliggaren.Infrastructure", typeof(EmailOptions).Assembly },
             { "Jobbliggaren.Api", typeof(AdminRoleRequirement).Assembly },
             { "Jobbliggaren.Worker", typeof(WorkerSystemUser).Assembly },
             // ConnectionStringFactory is Migrate's only public type — every other one is internal,
@@ -257,15 +329,13 @@ public class NoAmazonReferenceTests
         };
 
     /// <summary>
-    /// Which package ids this guard adjudicates at all.
+    /// Which package ids this guard adjudicates.
     /// <para>
     /// <b><c>AWS.Logger.*</c> is here because of what those packages DO</b>, not for tidiness
     /// (security-auditor Minor 2, 2026-08-08). <c>AWS.Logger.AspNetCore</c>, <c>AWS.Logger.Core</c>
     /// and <c>AWS.Logger.SeriLog</c> are MEL providers that ship the application log to CloudWatch:
     /// exactly the pair "PII in a log" plus "a region nobody chose". They match neither
-    /// <c>AWSSDK</c> nor <c>Amazon</c>, so the previous predicate — unchanged on <c>origin/main</c>,
-    /// so this is a repair and not a regression — would have let them in while the guard's own
-    /// message promised that <c>AWSSDK.Extensions.*</c> was barred.
+    /// <c>AWSSDK</c> nor <c>Amazon</c>.
     /// </para>
     /// </summary>
     private static bool IsAmazonPackageId(string id) =>
@@ -273,13 +343,66 @@ public class NoAmazonReferenceTests
         || id.StartsWith("Amazon", StringComparison.Ordinal)
         || id.StartsWith("AWS.", StringComparison.Ordinal);
 
+    /// <summary>
+    /// An Amazon import in every FORM C# offers, not just the one shape the old predicate knew.
+    /// <para>
+    /// <b><c>StartsWith("using Amazon")</c> was a NAME-based guard carrying a FORM-based ban</b>, and
+    /// it missed <c>global using</c>, <c>using static</c> and aliased <c>using X = Amazon…</c>
+    /// (code-reviewer Major, PR #1339). The first of those is not hypothetical: <c>global using</c>
+    /// is live house idiom in five files, so a single line in a <c>GlobalUsings.cs</c> would have
+    /// given a whole project the namespace with every fact here green.
+    /// </para>
+    /// <para>
+    /// <c>Amazon</c> must be a whole namespace SEGMENT — followed by <c>.</c>, <c>;</c>, whitespace
+    /// or end of line. That deliberately does NOT match <c>using AmazonFoo;</c>: a root namespace
+    /// merely beginning with those letters is somebody else's, and the package half of this guard
+    /// still bans any id starting with <c>Amazon</c>.
+    /// </para>
+    /// <para>
+    /// <c>global::</c> qualification is matched in BOTH positions (<c>using global::Amazon;</c> and
+    /// <c>using Ses = global::Amazon.SimpleEmailV2;</c>) — both are valid C# and neither was covered
+    /// when this doc first claimed "every FORM C# offers" (dotnet-architect, PR #1339). The IL fact
+    /// would catch them in <c>src/</c>, but <c>tests/</c> and <c>perf/</c> are adjudicated by the
+    /// text scans alone, which is exactly where the gap mattered.
+    /// </para>
+    /// </summary>
+    private static readonly Regex AmazonImport = new(
+        @"^\s*(?:global\s+)?using\s+(?:static\s+)?(?:[A-Za-z_]\w*\s*=\s*)?(?:global\s*::\s*)?Amazon(?:\s*[.;]|\s|$)",
+        RegexOptions.Compiled | RegexOptions.CultureInvariant);
+
+    private static bool ImportsAnAmazonNamespace(string line) => AmazonImport.IsMatch(line);
+
     private static IEnumerable<string> ProjectAndPropsFiles(string repoRoot) =>
         ScannedRoots
             .Select(sub => Path.Combine(repoRoot, sub))
             .Where(Directory.Exists)
-            .SelectMany(root => Directory.EnumerateFiles(root, "*.csproj", SearchOption.AllDirectories))
-            .Append(Path.Combine(repoRoot, "Directory.Packages.props"))
+            .SelectMany(root => BuildFilePatterns.SelectMany(
+                pattern => Directory.EnumerateFiles(root, pattern, SearchOption.AllDirectories)))
+            // Repo-root build files sit under NO scanned root and are the strongest place to declare
+            // a package: Directory.Packages.props holds every version under CPM, and a root
+            // Directory.Build.props ItemGroup reaches every project beneath it. Enumerated by
+            // PATTERN rather than by name, so a Directory.Build.targets added later is covered
+            // without anyone remembering to add it here.
+            .Concat(BuildFilePatterns.SelectMany(
+                pattern => Directory.EnumerateFiles(repoRoot, pattern, SearchOption.TopDirectoryOnly)))
             .Where(File.Exists)
+            .Where(p => !IsUnderBinOrObj(p));
+
+    /// <summary>
+    /// Every <c>.cs</c> file under every entry in <see cref="ScannedRoots"/>. Named as the array
+    /// rather than re-listed, so this doc cannot drift from it again the way it did when
+    /// <c>perf</c> was added — an earlier revision claimed exactly that while still enumerating the
+    /// roots underneath (dotnet-architect, PR #1339).
+    /// <para>
+    /// Non-production trees are scanned too since #183: under the allow-list only production code
+    /// was covered, which was defensible while a legitimate SDK existed and is not now.
+    /// </para>
+    /// </summary>
+    private static IEnumerable<string> SourceFiles(string repoRoot) =>
+        ScannedRoots
+            .Select(sub => Path.Combine(repoRoot, sub))
+            .Where(Directory.Exists)
+            .SelectMany(root => Directory.EnumerateFiles(root, "*.cs", SearchOption.AllDirectories))
             .Where(p => !IsUnderBinOrObj(p));
 
     private static bool IsUnderBinOrObj(string path) =>

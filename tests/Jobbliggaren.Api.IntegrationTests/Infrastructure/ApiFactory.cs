@@ -25,14 +25,14 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
     private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder("postgres:18").Build();
     private readonly RedisContainer _redis = new RedisBuilder("redis:8-alpine").Build();
 
-    // #241 — last-wins IEmailSender override so the host never composes the real SES provider.
+    // #241 — last-wins IEmailSender override so the host never composes the real transactional provider.
     // Held as a field (not just type-registered) so tests can read the recorded sends via Emails.
     private readonly RecordingEmailSender _emailSender = new();
 
     /// <summary>
     /// #241 — the recording <see cref="Jobbliggaren.Application.Common.Abstractions.IEmailSender"/>
     /// the host resolves. Lets a test positively assert an email side-effect (e.g. "a waitlist
-    /// confirmation was queued to X") without the network, and locks out the real SES provider.
+    /// confirmation was queued to X") without the network, and locks out the real provider.
     /// </summary>
     internal RecordingEmailSender Emails => _emailSender;
 
@@ -161,13 +161,13 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
             // Create/Unwrap i full Mediator-pipeline; round-trip +
             // per-användare-isolering bevaras end-to-end utan någon KMS-fake.
 
-            // #241 — replace the configured IEmailSender (Console/Null/Ses per Email:Provider)
+            // #241 — replace the configured IEmailSender (Console/Null/Scaleway per Email:Provider)
             // with a recording fake. Integration tests must never depend on a real external email
-            // provider: if a gitignored appsettings.Local.json carries Email:Provider=Ses + live IAM
-            // keys, the host would resolve SesEmailSender and attempt a real send on any
-            // email-success path. In the SES sandbox an @example.com recipient is unverified, so it
-            // fails — the same shape #220 measured against the previous provider, and green in CI,
-            // which has no Local.json. Forcing
+            // provider: if a gitignored appsettings.Local.json carries Email:Provider=Scaleway + live
+            // API keys, the host would resolve ScalewayEmailSender and attempt a real send on any
+            // email-success path — billed, delivered, or rejected against an @example.com recipient,
+            // and green in CI, which has no Local.json. The same shape #220 measured against an
+            // earlier provider. Forcing
             // Email__Provider=Console via env var does NOT win (Local.json is layered after env
             // vars); this last-wins singleton in ConfigureServices does. RemoveAll first so nothing
             // resolves the real sender even via GetServices<IEmailSender>().

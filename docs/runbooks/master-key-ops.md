@@ -283,6 +283,20 @@ api and worker recover on their own restart backoff (`restart: unless-stopped`).
 `docker compose up -d` takes no lock and runs no attestation
 (`jobbliggaren-reconcile.sh` header).
 
+> ⛔ **STOP — THIS IS THE FIRST RUN THAT SHIPS, AND THE JOURNAL IS NOT CLEAN (#1343).** The
+> injection you just performed created `Backup__RcloneConfigBase64`, which is the file
+> `jobbliggaren-logship.service`'s `ConditionPathExists` waits for. Every earlier firing was a
+> *skip*, so no cursor exists in `/var/lib/jobbliggaren` — and `jobbliggaren-logship.sh` reads the
+> journal from the beginning when there is none. **This command therefore ships the whole journal**,
+> which today carries the master key in plaintext, to an OVH object with no age bound at all
+> (`log-sink.md` §2 carries the mechanism and the numbers). Do not run it until the journal is
+> demonstrably free of plaintext key material. A **vacuum** produces that state; a **further
+> rotation** does not — it retires the generation and leaves its bytes where they are.
+>
+> This is repeated here rather than left in `log-sink.md` because §3 is where the operator is
+> standing when the condition actually comes due — the same reason the host-timer enable step is
+> repeated below.
+
 **Then start the archive by hand, once, if `jobbliggaren-logship.timer` is installed** (#1175):
 
 ```bash
@@ -560,7 +574,21 @@ procedure here will help.
 
 ## 7. Unmeasured, and named
 
-- **Unplanned-reboot frequency.** `last reboot` returned no readable history on 2026-08-09.
+- **Unplanned-reboot frequency. TRANSCRIBED 2026-08-15 BEFORE ANY JOURNAL VACUUM (#1343), because
+  the instrument is the journal and a vacuum resets it.** `journalctl --list-boots` on that date:
+  **2 boots** — `-1` spanning 2026-08-04 01:26 → 2026-08-15 21:02, and `0` from 2026-08-15 21:04.
+  The single transition is the row-24 drill, so **0 unplanned reboots observed** over ~11.8 days.
+  ⚠ Read that as the weaker measure it is: total reboots, planned and unplanned together — **not**
+  this premise's own instrument, which §2's timer starts at `enable` — a date this session did not
+  establish from the repo, so read that series as short rather than as any particular length. Journal at the same moment: 51.2 MB, oldest entry `2026-08-04T01:26:42`,
+  `Storage=persistent`, `SystemMaxUse=4G`, no `MaxRetentionSec`. ⚠ **The journal's start predates
+  nothing about the box** — the root filesystem was created **2026-07-30 14:22** and `/var/log/btmp`
+  dates from 08-02, so the box is **four and a half days** older than its journal (4 d 11 h).
+  A consequence worth stating rather than leaving to be re-derived: `--list-boots` cannot see
+  any boot before that start, so the count above is a floor, not a census. Two explanations fit and this
+  session could not separate them: the 2026-08-04 vacuum recorded in `vps-base-hardening.md`, or
+  persistence being enabled that same day during hardening. Original note: `last reboot` returned no
+  readable history on 2026-08-09.
   `jobbliggaren-secrets-present.timer` is the instrument that starts the series; until it has
   run for a while, the availability cost of the no-at-rest-copy model is bounded by nothing
   but "reboots are manual today". **The series does not begin at install but at `enable`** — §2

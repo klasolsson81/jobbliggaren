@@ -780,7 +780,7 @@ email_log
   subject (text)
   template (text)
   sent_at (timestamptz)
-  provider_message_id (text null)   -- provider-neutralt (transaktionell väg = Scaleway Transactional Email, #183/§13.4; providerns message-id skrivs medvetet INTE av avsändaren — det joinar till en mottagare i providerns konsoll)
+  provider_message_id (text null)   -- provider-neutralt (transaktionell väg = Scaleway Transactional Email, #183/§13.4; providerns message-id skrivs medvetet INTE av avsändaren — beslutet är ADR 0124:s, och sedan #183 finns det dessutom inget att skriva: avsändaren läser aldrig svarskroppen, HttpCompletionOption.ResponseHeadersRead)
   status (text)
 
 -- Integrations

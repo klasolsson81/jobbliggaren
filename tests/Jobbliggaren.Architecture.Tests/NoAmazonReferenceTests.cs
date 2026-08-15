@@ -389,11 +389,14 @@ public class NoAmazonReferenceTests
             .Where(p => !IsUnderBinOrObj(p));
 
     /// <summary>
-    /// Every <c>.cs</c> file under every entry in <see cref="ScannedRoots"/> — <c>src/</c>,
-    /// <c>tests/</c> and <c>perf/</c>. The test and perf trees are scanned too since #183: under the
-    /// allow-list only production code was covered, which was defensible while a legitimate SDK
-    /// existed and is not now. Stated as "the roots" rather than re-listing them, so this doc cannot
-    /// drift from the array again the way it did when <c>perf</c> was added.
+    /// Every <c>.cs</c> file under every entry in <see cref="ScannedRoots"/>. Named as the array
+    /// rather than re-listed, so this doc cannot drift from it again the way it did when
+    /// <c>perf</c> was added — an earlier revision claimed exactly that while still enumerating the
+    /// roots underneath (dotnet-architect, PR #1339).
+    /// <para>
+    /// Non-production trees are scanned too since #183: under the allow-list only production code
+    /// was covered, which was defensible while a legitimate SDK existed and is not now.
+    /// </para>
     /// </summary>
     private static IEnumerable<string> SourceFiles(string repoRoot) =>
         ScannedRoots

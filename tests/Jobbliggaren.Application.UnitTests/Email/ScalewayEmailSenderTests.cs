@@ -809,17 +809,18 @@ public sealed class ScalewayEmailSenderTests : IDisposable
         //
         // The message is the framework's, NOT the fixture's — so the armed exception never reached
         // HttpClient.HandleFailure's "massage the token" branch, which would have preserved it as
-        // InnerException (dotnet/runtime#84712). The replacement happens BEFORE that branch: the
-        // awaited operation observes the linked-token cancellation and produces its own bare
-        // TaskCanceledException, so the handler's exception is never the one HttpClient handles.
+        // InnerException (dotnet/runtime#84712).
         //
-        // WHAT THIS TEST DOES NOT DETERMINE, said plainly rather than guessed: exactly which layer
-        // performs that replacement. It pins the OUTCOME — the timeout marker does not survive at
-        // any depth — which is all the filter's design depends on. An earlier version of this
-        // comment attributed the loss to HandleFailure discarding the inner exception; that named a
-        // mechanism no branch of HandleFailure has (dotnet-architect, PR #1339), and the assertion
-        // below is what replaced the guess.
-        ex.Message.ShouldBe("A task was canceled.");
+        // WHAT THIS TEST DOES NOT DETERMINE, said plainly rather than guessed: where the marker is
+        // actually lost. It pins the OUTCOME — the timeout marker does not survive at any depth —
+        // which is all the filter's design depends on. TWO earlier versions of this comment named a
+        // mechanism instead, and both were wrong (dotnet-architect, PR #1339 rounds 3 and 4). The
+        // assertions are what replaced the guesses; do not add a third.
+        //
+        // Compared against the framework's own default rather than a literal: SR strings are
+        // localizable, and this encodes the claim ("the message is the framework's") instead of
+        // repeating a copy of it.
+        ex.Message.ShouldBe(new TaskCanceledException().Message);
 
         // And nothing is logged, because the sender read it as a cancellation. That is the cost of
         // the residual, stated so it cannot be mistaken for a send that merely failed loudly.

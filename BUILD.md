@@ -1426,7 +1426,8 @@ permanent infra aktiveras; listan nedan speglar **beslutad** uppsättning, ADR 0
 > 2026-08-09 och är det inte längre — e-postposten saknar sedan ADR 0131 samma krok som värden
 > saknar, så de två är numera parallella i stället för motsatta. Den strukturella regel stycket
 > uttrycker — att Kap. V utlöses av **vem som kan nå uppgifterna**, inte av bytenas plats — är
-> oförändrad och är precis det som frikänner båda. §13.4:s e-postpost, `/integritet`-copyn sv+en
+> oförändrad — och den friar värden, medan e-postposten står på ett **oratificerat utkast** mot
+> samma regel (led (b); rekvisitets andra led är öppet). §13.4:s e-postpost, `/integritet`-copyn sv+en
 > och ROPA-posten är omskrivna i samma ändring; `content-legal-parity.test.ts` är omriktad från
 > AWS-formen till `Scaleway SAS`. **Kvar hos `security-auditor` + Klas:** ratificeringen av att
 > Kap. V är **ej tillämplig** (inte "uppfylld") samt sign-off — se §2.5 punkt 1 led (b)/(e).
@@ -1618,10 +1619,13 @@ byggt:
 > är **tyst** om Kap. V i copyn, precis som värdposten och backup-posten är det. **En leverantör
 > prövad och friad, två tysta på oavgjord grund, och en historisk post som rekvisitet nådde
 > redovisade — det är vad icke-selektivitet SER UT SOM**, inte ett tecken på att standarden
-> slutat gälla. ⚠ **Tystnad i copyn är inte detsamma som en avgjord dom:** netcup och OVHcloud är
-> prövade och friade, medan Scaleway står på ett utkast `security-auditor` **delratificerat** —
-> strukturen avgjord, slutsatsen inte, i väntan på svar om leverantörens support-geografi
-> (`release-checklist.md` §2.5 punkt 1 led (b) är statusens hem). Blanda inte ihop de två.
+> slutat gälla. ⚠ **Tystnad i copyn är inte detsamma som en avgjord dom:** **netcup** är prövad och
+> friad (`security-auditor` 2026-08-09), medan **OVHcloud och Scaleway båda står på oavgjord grund** —
+> OVH:s underbiträdeskedja är **ogranskad** (ROPA:ns backup-post), och Scaleway står på ett utkast
+> `security-auditor` **delratificerat**: strukturen avgjord, slutsatsen inte, i väntan på svar om
+> leverantörens support-geografi (`release-checklist.md` §2.5 punkt 1 led (b) är statusens hem).
+> Blanda aldrig ihop de tre lägena — §15.1 förbjuder uttryckligen att en oavgjord post skrivs som
+> frikänd.
 > Se §15.1, där rekvisitet är utskrivet och R2-meningens formulering omankrad i samma ändring.
 >
 > **Vad #1199 fortfarande bär: biträdesavtalet med netcup**, som är Klas att teckna och som grindar
@@ -1674,13 +1678,20 @@ koncernstruktur — en US-enhet **sidledes**, med delade drifttjänster — oavg
 Meritlistan, tillämpningar åt båda hållen: den **fällde** R2 (US-ägt mål för okrypterad PII) och
 e-postposten i AWS-eran (EU-part under amerikansk moder — redovisad med SCC 2026-08-08 till
 2026-08-15, se §13.4:s historiklager); den **friar** netcup (`security-auditor` 2026-08-09); och
-**två fall är oavgjorda och skrivs aldrig som frikända**: **OVHcloud** (fransk part, men
-**underbiträdeskedjan är ogranskad** per ROPA:ns backup-post, och en ogranskad kedja är precis
-där rekvisitets andra led — *kan nå dem* — kan sitta; ingen domare, inget datum) och
+**två fall är oavgjorda och skrivs aldrig som frikända**: **OVHcloud** — `security-auditor`
+2026-08-09 avgjorde **första** ledet positivt (fransk avtalspart, ingen tredjelandsmoder,
+`eu-west-par` mätt) och **avstod uttryckligen** från koncernstruktur, underbiträdeskedja och
+supportåtkomst, alltså rekvisitets andra led; hennes egen rapport bär dessutom motbevisning
+(en kanadensisk koncernenhet i OVH:s underbiträdeslista, och OVH:s DPA beskriver sig som
+**dataexportör med SCC:er** mot dotterbolag utan adekvansbeslut). *Klientsidig kryptering
+frikänner inte — den är en **kompletterande åtgärd** i EDPB Rek. 01/2020:s mening och
+förutsätter att en överföring finns.* Och
 **Scaleway**, som står på ett **utkast som ännu inte är ratificerat** — `security-auditor`
 delratificerade 2026-08-15/16 den strukturella halvan men **inte** slutsatsen, som hänger på om
 leverantörens support-/driftpersonal har åtkomst från tredjeland (`release-checklist.md` §2.5 punkt 1
-led (b) är statusens hem). **Skriv det aldrig som ett fjärde frikännande innan ledet är stängt.**
+led (b) är statusens hem). **Skriv det aldrig som ett frikännande innan ledet är stängt** — utan
+ordinal, med flit: ett ordningstal här måste räknas om vid varje ändring i meritlistan och är
+därmed sin egen driftgenerator.
 En standard är icke-selektiv när den prövas varje gång dess rekvisit kan föreligga — **inte när
 utfallet alltid blir detsamma**.
 

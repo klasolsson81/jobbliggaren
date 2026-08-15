@@ -292,7 +292,10 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
         har åtkomst ifrån är därmed ett KONSTITUTIVT ELEMENT i slutsatsen, inte en fotnot** — och
         förbehåll 2 säger själv att elementet saknar avtalsrang — leverantörens FAQ-mening träffar
         frågan men binder inte, och ett negativt faktum som bär hela slutsatsen kan inte vila på
-        dokumentation. En slutsats villkorad av ett obesvarat
+        dokumentation **utan avtalsrang**. *(Kvalifikationen är hennes egen precisering: dokumentation
+        MED avtalsrang — en TOM-bilaga inkorporerad i DPA:t, en Art. 28(3)(a)-instruktion — skulle
+        stänga ledet, och utan de två orden kan meningen senare åberopas mot just den artefakt som
+        löser den.)* En slutsats villkorad av ett obesvarat
         brev är ett utkast, inte en dom.
         **Vad som stänger ledet, uttömmande:** ett skriftligt svar från Scaleway som säger att
         support-/driftåtkomst till TEM-data sker uteslutande inifrån EU/EES — eller, om den inte gör

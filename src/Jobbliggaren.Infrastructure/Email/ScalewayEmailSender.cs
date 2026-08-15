@@ -252,16 +252,23 @@ public sealed partial class ScalewayEmailSender(
         //
         // KNOWN RESIDUAL, MEASURED RATHER THAN ASSUMED (code-reviewer Minor 1, dotnet-architect
         // residual (ii), PR #1339): a provider timeout that COINCIDES with caller cancellation is
-        // classified as a cancellation and propagates. The obvious repair — a third disjunct
-        // `ex.InnerException is TimeoutException`, which is the marker HttpClient sets for its own
-        // timeout — was implemented and MEASURED NOT TO WORK on 2026-08-15. When the caller's token
-        // is cancelled, HttpClient does not surface the handler's exception at all: it throws its
-        // own TaskCanceledException linked to that token, and the inner TimeoutException is
-        // discarded. The disjunct is therefore unreachable in exactly the race it was meant to
-        // close, and shipping it would have been dead code behind a comment claiming a fix.
-        // `ScalewayEmailSenderTests` pins the real behaviour so the next reader finds the
-        // measurement instead of re-deriving it. Bounded to shutdown, and the cost is one reaped
-        // notification; closing it needs a different seam, not a wider filter here.
+        // classified as a cancellation and propagates.
+        //
+        // The obvious repair is a third disjunct `ex.InnerException is TimeoutException` — the
+        // marker HttpClient sets on its own timeout. It was implemented and MEASURED NOT TO WORK on
+        // 2026-08-15: the test asserting the REPAIRED behaviour (containment) failed, so the
+        // disjunct never fired. Measured outcome in that race: the exception reaching this catch is
+        // a TaskCanceledException with message "A task was canceled." and a NULL InnerException,
+        // even though the transport threw one carrying a TimeoutException. The marker does not
+        // survive, so the disjunct is unreachable and shipping it would have been dead code behind
+        // a comment claiming a fix.
+        //
+        // WHERE the marker is lost is deliberately NOT claimed here: it is not HandleFailure's
+        // "massage the token" branch, which would have preserved it — the surfaced message is the
+        // framework's own, not the transport's. `ScalewayEmailSenderTests` pins the outcome and the
+        // message; nobody has measured which layer performs the replacement, and the filter's design
+        // does not depend on knowing. Bounded to shutdown, and the cost is one reaped notification;
+        // closing it needs a different seam, not a wider filter here.
         catch (Exception ex)
             when (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
         {

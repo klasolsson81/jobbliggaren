@@ -799,18 +799,27 @@ public sealed class ScalewayEmailSenderTests : IDisposable
             "the transport never threw the timeout-shaped exception, so the assertions below "
             + "measure nothing about what happens to it");
 
-        // THE MEASUREMENT, taken 2026-08-15 by printing the chain: outer=TaskCanceledException,
-        // inner=null, base=TaskCanceledException. The handler threw a TaskCanceledException CARRYING
-        // a TimeoutException and what surfaced carries no trace of it at ANY depth — asserted
-        // POSITIVELY, because a negated form passes on null, on any other inner type, and on a
-        // fixture that never fired.
-        //
-        // This settles a real disagreement rather than restating a claim: reading
-        // HttpClient.HandleFailure suggests the "massage the token" branch preserves InnerException,
-        // which would make `ex.InnerException is TimeoutException` reachable and the two-disjunct
-        // filter wrong. It is not what happens here, and only the empirical chain could say so.
+        // THE MEASUREMENT (2026-08-15), asserted POSITIVELY because a negated form passes on null,
+        // on any other inner type, and on a fixture that never fired. The handler threw a
+        // TaskCanceledException CARRYING a TimeoutException; what surfaces carries no trace of it.
         ex.InnerException.ShouldBeNull();
         ex.GetBaseException().ShouldBeOfType<TaskCanceledException>();
+
+        // WHICH WORLD WE ARE IN, and this line exists because the obvious explanation is wrong.
+        //
+        // The message is the framework's, NOT the fixture's — so the armed exception never reached
+        // HttpClient.HandleFailure's "massage the token" branch, which would have preserved it as
+        // InnerException (dotnet/runtime#84712). The replacement happens BEFORE that branch: the
+        // awaited operation observes the linked-token cancellation and produces its own bare
+        // TaskCanceledException, so the handler's exception is never the one HttpClient handles.
+        //
+        // WHAT THIS TEST DOES NOT DETERMINE, said plainly rather than guessed: exactly which layer
+        // performs that replacement. It pins the OUTCOME — the timeout marker does not survive at
+        // any depth — which is all the filter's design depends on. An earlier version of this
+        // comment attributed the loss to HandleFailure discarding the inner exception; that named a
+        // mechanism no branch of HandleFailure has (dotnet-architect, PR #1339), and the assertion
+        // below is what replaced the guess.
+        ex.Message.ShouldBe("A task was canceled.");
 
         // And nothing is logged, because the sender read it as a cancellation. That is the cost of
         // the residual, stated so it cannot be mistaken for a send that merely failed loudly.

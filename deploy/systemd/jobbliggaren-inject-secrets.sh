@@ -40,7 +40,7 @@ readonly COMPOSE_FILE=/opt/jobbliggaren/deploy/docker-compose.yml
 readonly RUNTIME_IDS=/opt/jobbliggaren/deploy/systemd/jobbliggaren-runtime-ids.sh
 
 # Read for the mail configuration only — the provider, the two credential pointers and the
-# region. Those four answers decide whether the SES credentials are required and whether the
+# region. Those four answers decide whether the Scaleway credentials are required and whether the
 # stack can start at all; nothing else in this script consults this file.
 readonly ENV_FILE=/opt/jobbliggaren/deploy/.env
 
@@ -67,17 +67,24 @@ readonly -a SECRET_KEYS=(
   "CvReviewFingerprintPseudonymization__PepperBase64"
 )
 
-# THE SES CREDENTIALS ARE CONDITIONALLY REQUIRED, WHICH IS WHY THEY ARE NOT IN SECRET_KEYS.
-# They are needed under EITHER of the two conditions ses_credentials_required enumerates below —
-# the provider being Ses is only one of them — and the injection half prompts under a third,
-# JBL_INJECT_SES=1. Listing them above would put a permanent
+# THE SCALEWAY CREDENTIALS ARE CONDITIONALLY REQUIRED, WHICH IS WHY THEY ARE NOT IN SECRET_KEYS.
+# They are needed under EITHER of the two conditions scaleway_credentials_required enumerates
+# below — the provider being Scaleway is only one of them — and the injection half prompts under
+# a third, JBL_INJECT_SCALEWAY=1. Listing them above would put a permanent
 # MISSING on jobbliggaren-secrets-present.service — the box's only alarm surface — for a state
 # that is correct: before the flip there is nothing to inject and the stack is healthy without
 # them. An alarm that is always on is an alarm nobody reads, so the condition is expressed
-# rather than the entry added. The condition has one home: ses_credentials_required below.
-readonly -a SES_SECRET_KEYS=(
-  "Email__Ses__AccessKeyId"
-  "Email__Ses__SecretAccessKey"
+# rather than the entry added. The condition has one home: scaleway_credentials_required below.
+#
+# TWO SECRETS WITH SEPARATE LIFECYCLES, NOT TWO HALVES OF ONE (#183). SecretKey authenticates the
+# caller and is rotated at the Scaleway console; ProjectId selects the project the mail is billed
+# and attributed to and changes only if the project does. Neither is derivable from the other, so
+# AddEmailSender requires each independently and names which one is missing — and each therefore
+# gets its own file, its own `_FILE` pointer and its own row here. The retired SES arm's pair were
+# two halves of one IAM credential and could legitimately have shared a lifecycle; these cannot.
+readonly -a SCALEWAY_SECRET_KEYS=(
+  "Email__Scaleway__SecretKey"
+  "Email__Scaleway__ProjectId"
 )
 
 # The host-only secrets. Same one-row-per-secret contract as SECRET_KEYS above, different
@@ -125,18 +132,23 @@ has_usable_content() {
 # deliberately WIDER, never narrower. Reading the file with `docker compose config` would be
 # exact and is refused: --check runs at boot before dockerd, which an existing case pins.
 #
-# Measured against Compose v2.40.3 on 2026-08-12 — all five forms render the same value, and
-# the four beyond the first are why this function exists rather than a single `sed`:
+# WHAT WAS MEASURED IS THE FORM, NOT THE VALUE, and the distinction survives the provider swap
+# intact. Against Compose v2.40.3 on 2026-08-12 all five forms below rendered one and the same
+# value; delimiter, quoting, `export` and inline-comment handling are properties of compose's
+# parser and are blind to which provider name sits on the right-hand side. The literal is spelled
+# `Scaleway` here because that is the value a reader will actually meet (#183) — the 2026-08-12
+# date belongs to the parser behaviour, never to that string. The four forms beyond the first are
+# why this function exists rather than a single `sed`:
 #
-#   EMAIL_PROVIDER=Ses              EMAIL_PROVIDER: Ses           (delimiter = or :)
-#   EMAIL_PROVIDER=Ses # flippat    EMAIL_PROVIDER="Ses" # q      (inline comment, quoted or not)
-#   export EMAIL_PROVIDER=Ses                                     (export prefix)
+#   EMAIL_PROVIDER=Scaleway            EMAIL_PROVIDER: Scaleway     (delimiter = or :)
+#   EMAIL_PROVIDER=Scaleway # flippat  EMAIL_PROVIDER="Scaleway" #q (inline comment, quoted or not)
+#   export EMAIL_PROVIDER=Scaleway                                  (export prefix)
 #
 # `tail -n1` is compose's last-assignment-wins, measured.
 #
 # A QUOTED VALUE KEEPS ITS `#`, and a naive strip got that backwards in the fail-OPEN direction
-# (security-auditor, 2026-08-12). Measured: `EMAIL_PROVIDER='Ses # x'` renders `Ses # x`, a value
-# AddEmailSender throws on — so a reader that stripped it to `Ses` answered "configured for SES"
+# (security-auditor, 2026-08-12). Measured: `EMAIL_PROVIDER='Ses # x'` rendered `Ses # x`, a value
+# AddEmailSender throws on — so a reader that stripped it to `Ses` answered "configured for mail"
 # about a box that does not start. The two quote arms below consume everything after the closing
 # quote and branch out with `t`, so the unquoted strip can never run on what was inside them.
 env_value() {  # env_value <NAME> -> value on stdout; empty when unset, unreadable or absent
@@ -152,12 +164,24 @@ env_value() {  # env_value <NAME> -> value on stdout; empty when unset, unreadab
 # the same thing here as they do at boot: compose renders `${EMAIL_PROVIDER:-Console}` and
 # AddEmailSender falls back to "Console" on a null. But a value that is NEITHER is not a third
 # way of saying Console — AddEmailSender's switch ends in `else throw`, so the box does not boot
-# on it either, and a detector that answered "not Ses" would go green on a stack that cannot
+# on it either, and a detector that answered "not Scaleway" would go green on a stack that cannot
 # start.
+#
+# `Ses` IS SUCH A VALUE NOW, AND ITS ARM WAS DELETED RATHER THAN REPOINTED (#183, E1 landed as
+# b71c14de). While the SES arm existed this function answered `ses` and the box booted on it.
+# AddEmailSender's SES branch is gone: `Ses` reaches the same `else throw` as `Resend` before it,
+# pinned by AddEmailSenderGateTests. So `Ses` falls to the catch-all below and --check reports
+# INVALID — which is the truth about a box carrying that value, and is what makes this the
+# fail-CLOSED direction. Repointing `ses` at `console` would have been the opposite: a green
+# alarm over a stack that refuses to start, on the box's only alarm surface, and reachable by
+# exactly the operator most likely to type it — one following a stale instruction. It is
+# security-auditor's condition (a) from E1, and it is closed HERE rather than by anything the
+# flip does later, because the mitigation it had ("unreachable until E2 writes a provider value")
+# expires in the same commit that teaches this file to write one.
 #
 # Case-insensitive because AddEmailSender compares with OrdinalIgnoreCase
 # (DependencyInjection.cs). A guard stricter than the code it guards is the dangerous direction:
-# on `EMAIL_PROVIDER=ses` it would decline to prompt while the application accepted the value.
+# on `EMAIL_PROVIDER=scaleway` it would decline to prompt while the application accepted the value.
 #
 # Compose reads the shell environment BEFORE `.env` (precedence: shell > --env-file > .env), so
 # an exported variable would defeat this. Measured 2026-08-12: jobbliggaren-reconcile.service
@@ -166,22 +190,27 @@ env_value() {  # env_value <NAME> -> value on stdout; empty when unset, unreadab
 email_provider() {
   case "$(env_value EMAIL_PROVIDER | tr '[:upper:]' '[:lower:]')" in
     "" | console) printf 'console' ;;
-    ses)          printf 'ses' ;;
+    scaleway)     printf 'scaleway' ;;
     *)            printf 'unknown' ;;
   esac
 }
 
 # REQUIRED BY EITHER OF TWO INDEPENDENT CAUSES, and binding only to the first was a defect.
 #
-# (1) The provider is Ses: AddEmailSender throws at registration without the credentials.
+# (1) The provider is Scaleway: AddEmailSender throws at registration without the credentials.
 # (2) A `_FILE` pointer is set at all: EnvFileSecretsConfiguration throws on a pointer naming a
 #     path it cannot read, and it never consults Email:Provider. So a rollback of the flip that
-#     leaves the pointers behind is a boot refusal with a provider that is no longer Ses — the
-#     state a provider-only predicate reports as healthy.
-ses_credentials_required() {
-  [[ "$(email_provider)" == "ses" ]] && return 0
-  [[ -n "$(env_value EMAIL_SES_ACCESS_KEY_ID_FILE)" ]] && return 0
-  [[ -n "$(env_value EMAIL_SES_SECRET_ACCESS_KEY_FILE)" ]] && return 0
+#     leaves the pointers behind is a boot refusal with a provider that is no longer Scaleway —
+#     the state a provider-only predicate reports as healthy.
+#
+# BOTH POINTERS ARE READ, and that is cause (2)'s shape rather than a pair of spellings: the two
+# secrets have separate lifecycles (see SCALEWAY_SECRET_KEYS), so an operator can leave one behind
+# while removing the other, and either survivor alone is the boot refusal this predicate exists to
+# anticipate.
+scaleway_credentials_required() {
+  [[ "$(email_provider)" == "scaleway" ]] && return 0
+  [[ -n "$(env_value EMAIL_SCALEWAY_SECRET_KEY_FILE)" ]] && return 0
+  [[ -n "$(env_value EMAIL_SCALEWAY_PROJECT_ID_FILE)" ]] && return 0
   return 1
 }
 
@@ -243,42 +272,49 @@ if [[ "${1:-}" == "--check" ]]; then
 
   # WHAT THE MAIL BRANCH SEES: every file and every .env line that is ABSENT, plus the one value
   # it reads — EMAIL_PROVIDER's, through email_provider above. What it never reads is the VALUE
-  # of the pointers and the region, so a misspelt pointer path, or a region outside the EEA
-  # allow-list, still reads as healthy here. That allow-list lives in SesClientRegistration.cs
-  # and a second spelling of it in bash would be worse than the gap it leaves. The unit exists because a crash-looping container does NOT appear in
+  # of the pointers and the region, so a misspelt pointer path, or a region outside the
+  # allow-list, still reads as healthy here. That allow-list lives in ScalewayClientRegistration.cs
+  # and a second spelling of it in bash would be worse than the gap it leaves — a rule with two
+  # normalisers is two rules, the argument RUNTIME_IDS and env_value both make above. The unit
+  # exists because a crash-looping container does NOT appear in
   # `systemctl --failed`, so a boot refusal this file can see and does not report is a green
   # alarm over a dead box — the failure this whole script is built against.
   env_provider=$(email_provider)
 
   if [[ "$env_provider" == "unknown" ]]; then
     log "INVALID: EMAIL_PROVIDER='$(env_value EMAIL_PROVIDER)' in ${ENV_FILE} is neither Console"
-    log "         nor Ses. AddEmailSender's switch ends in a throw, so api and worker refuse to"
-    log "         START on this value — this is not a quieter way of saying Console."
+    log "         nor Scaleway. AddEmailSender's switch ends in a throw, so api and worker refuse"
+    log "         to START on this value — this is not a quieter way of saying Console. Note that"
+    log "         'Ses' and 'Resend' are in this class since #183: their arms were deleted, not"
+    log "         repointed, so a stale instruction naming either takes the box down."
     missing=1
   fi
 
-  if ses_credentials_required; then
-    for key in "${SES_SECRET_KEYS[@]}"; do
+  if scaleway_credentials_required; then
+    for key in "${SCALEWAY_SECRET_KEYS[@]}"; do
       if ! has_usable_content "${SECRETS_DIR}/${key}"; then
-        log "MISSING: ${SECRETS_DIR}/${key} — required because ${ENV_FILE} has EMAIL_PROVIDER=Ses"
-        log "         or a Email__Ses__*_FILE pointer set. api and worker refuse to START"
-        log "         (AddEmailSender throws at registration, not at the first send). Re-run this"
-        log "         script without arguments to inject it."
+        log "MISSING: ${SECRETS_DIR}/${key} — required because ${ENV_FILE} has"
+        log "         EMAIL_PROVIDER=Scaleway or a Email__Scaleway__*_FILE pointer set. api and"
+        log "         worker refuse to START (AddEmailSender throws at registration, not at the"
+        log "         first send). Re-run this script without arguments to inject it."
         missing=1
       fi
     done
   fi
 
   # The other half of the same boot refusal: the files can be present while the .env lines that
-  # deliver them are not. Checked only under Ses, because only then is each one required — and
-  # each is named separately, since "email is broken" costs an operator the hour that naming the
-  # variable saves.
-  if [[ "$env_provider" == "ses" ]]; then
-    for var in EMAIL_SES_ACCESS_KEY_ID_FILE EMAIL_SES_SECRET_ACCESS_KEY_FILE EMAIL_SES_REGION; do
+  # deliver them are not. Checked only under Scaleway, because only then is each one required —
+  # and each is named separately, since "email is broken" costs an operator the hour that naming
+  # the variable saves.
+  if [[ "$env_provider" == "scaleway" ]]; then
+    for var in EMAIL_SCALEWAY_SECRET_KEY_FILE EMAIL_SCALEWAY_PROJECT_ID_FILE EMAIL_SCALEWAY_REGION; do
       if [[ -z "$(env_value "$var")" ]]; then
-        log "MISSING: ${var} is unset in ${ENV_FILE} while EMAIL_PROVIDER=Ses. The credential"
-        log "         files can be injected and api and worker will still refuse to START:"
-        log "         an unset pointer reads as 'not configured', which AddEmailSender throws on."
+        log "MISSING: ${var} is unset in ${ENV_FILE} while EMAIL_PROVIDER=Scaleway. The"
+        log "         credential files can be injected and api and worker will still refuse to"
+        log "         START: an unset pointer reads as 'not configured', which AddEmailSender"
+        log "         throws on. EMAIL_SCALEWAY_REGION must be fr-par — the only region"
+        log "         ScalewayClientRegistration's allow-list admits, and the only one"
+        log "         Transactional Email runs in."
         missing=1
       fi
     done
@@ -286,7 +322,7 @@ if [[ "${1:-}" == "--check" ]]; then
 
   # THIS SUMMARY USED TO PRESCRIBE THE ONE REMEDY, and it stopped being the one remedy when
   # the mail branch above gained lines injection cannot fix — an INVALID provider value and an
-  # unset EMAIL_SES_* variable are edits to deploy/.env, not missing files. Telling an operator
+  # unset EMAIL_SCALEWAY_* variable are edits to deploy/.env, not missing files. Telling an operator
   # to re-run this script against those is a remedy that reports success and changes nothing,
   # which is worse than no remedy at all. So the summary points at the lines rather than
   # replacing them.
@@ -482,21 +518,21 @@ complete one"
   unset value
 done
 
-# The SES credentials. Same discipline as the loop above — terminal-only, never argv, skipped
-# when already present — and the same abort on an empty value: an operator who has flipped the
-# provider and then pressed Enter has produced precisely the state that stops the stack from
+# The Scaleway credentials. Same discipline as the loop above — terminal-only, never argv,
+# skipped when already present — and the same abort on an empty value: an operator who has flipped
+# the provider and then pressed Enter has produced precisely the state that stops the stack from
 # booting, so it fails here, at the keyboard, rather than on the next restart.
 #
-# JBL_INJECT_SES EXISTS TO REMOVE A DOWNTIME WINDOW, and without it the flip cannot be performed
-# without one. Both conditions that make the credentials required are also conditions that make
-# the stack refuse to start while the files are absent: setting EMAIL_PROVIDER=Ses throws at
-# registration, and setting a `_FILE` pointer throws on an unreadable path. So an operator
-# editing `.env` first has already taken the box down before this script would offer to prompt.
-# With the override the order inverts and the window closes: inject, THEN edit, then restart.
-# Same shape as JBL_MASTER_KEY_ID below — an env var that answers a prompt the operator would
-# otherwise have to reach by changing production state first.
-if ses_credentials_required || [[ "${JBL_INJECT_SES:-}" == "1" ]]; then
-  for key in "${SES_SECRET_KEYS[@]}"; do
+# JBL_INJECT_SCALEWAY EXISTS TO REMOVE A DOWNTIME WINDOW, and without it the flip cannot be
+# performed without one. Both conditions that make the credentials required are also conditions
+# that make the stack refuse to start while the files are absent: setting EMAIL_PROVIDER=Scaleway
+# throws at registration, and setting a `_FILE` pointer throws on an unreadable path. So an
+# operator editing `.env` first has already taken the box down before this script would offer to
+# prompt. With the override the order inverts and the window closes: inject, THEN edit, then
+# restart. Same shape as JBL_MASTER_KEY_ID below — an env var that answers a prompt the operator
+# would otherwise have to reach by changing production state first.
+if scaleway_credentials_required || [[ "${JBL_INJECT_SCALEWAY:-}" == "1" ]]; then
+  for key in "${SCALEWAY_SECRET_KEYS[@]}"; do
     if has_usable_content "${SECRETS_DIR}/${key}"; then
       log "${key} already present — skipping (remove the file first to replace it)"
       continue
@@ -513,10 +549,10 @@ complete one"
     unset value
   done
 else
-  log "EMAIL_PROVIDER is not Ses in ${ENV_FILE} and no Email__Ses__*_FILE pointer is set — SES"
-  log "credentials not prompted for. To place them BEFORE the flip (which is the order that"
-  log "avoids downtime), re-run with JBL_INJECT_SES=1. The flip itself is release-checklist.md"
-  log "§2.5 and is never this script's."
+  log "EMAIL_PROVIDER is not Scaleway in ${ENV_FILE} and no Email__Scaleway__*_FILE pointer is"
+  log "set — Scaleway credentials not prompted for. To place them BEFORE the flip (which is the"
+  log "order that avoids downtime), re-run with JBL_INJECT_SCALEWAY=1. The flip itself is"
+  log "release-checklist.md §2.5 and is never this script's."
 fi
 
 # ---------------------------------------------------------------------------------------------

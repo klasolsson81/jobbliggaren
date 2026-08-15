@@ -3,7 +3,9 @@
 **Scope:** the container half of #196 — bringing the Compose stack up on the Netcup
 RS 1000 G12, and the proofs that close ADR 0050's gates. The base host (SSH, nftables,
 edge firewall, zram, unattended-upgrades) is delivered and documented separately in
-[`vps-base-hardening.md`](./vps-base-hardening.md); nothing here repeats it.
+[`vps-base-hardening.md`](./vps-base-hardening.md); nothing here repeats it. Opening
+registration and creating the box's first accounts — the standing procedure that unblocks
+row 23's second half — is [`registration-gate.md`](./registration-gate.md).
 
 **Authority:** ADR 0050 and its `Amendment 2026-08-04` (host, capacity conditions, gates
 M-5a/M-5b/M-6/M-7, decisions K1–K4) and the `Amendment 2026-07-18` (Option B, six

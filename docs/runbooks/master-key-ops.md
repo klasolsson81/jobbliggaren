@@ -182,9 +182,11 @@ What it does, in order:
    key bytes. Identity and bytes are one unit: a v2 key stamped `local-v1` makes the next
    rotation's compare-and-swap skip exactly the rows it must not skip.
 4. Prompts for each **crypto** secret with `read -rs`, validates that the master key decodes to
-   32 bytes, and creates each file `0400` owned by the measured uid. The SES credentials are
-   prompted for only under the condition the script states (provider `Ses`, a `_FILE` pointer,
-   or `JBL_INJECT_SES=1`).
+   32 bytes, and creates each file `0400` owned by the measured uid. The Scaleway credentials are
+   prompted for only under the condition the script states (provider `Scaleway`, a `_FILE`
+   pointer, or `JBL_INJECT_SCALEWAY=1`), and they are **two** secrets with separate rotation
+   lifecycles — `Email__Scaleway__SecretKey` and `Email__Scaleway__ProjectId` — not two halves of
+   one credential (#183).
 5. **Prompts for `Backup__RcloneConfigBase64` last, unconditionally, and to a different
    destination** — `/run/jobbliggaren/host-secrets/`, `0400 root:root`, mounted into no
    container (#197). It is validated for base64 *decodability*, not for a byte length: it is the

@@ -1358,8 +1358,11 @@ permanent infra aktiveras; listan nedan speglar **beslutad** uppsättning, ADR 0
   produktens enda region; residensåtagandet vilar på **DPA Art. 11**, aldrig på DNS.
   ⚠ **Två förbehåll som hör till bedömningen:** `Scaleway US Corporation` (Chicago) finns
   **nedströms** i koncernen utan TEM-roll — påstå aldrig "ingen US-enhet i koncernen" — och
-  **var leverantörens support-/driftpersonal har åtkomst ifrån är odokumenterat** (schemalagd
-  skriftlig fråga, Klas). Överfört innehåll är
+  **var leverantörens support-/driftpersonal har åtkomst ifrån saknar AVTALSRANG**. Leverantören
+  påstår i sin TEM-FAQ att *"all data is hosted and processed entirely within the European
+  Union"*, och under Art. 4(2) omfattar *processing* åtkomst, så meningen träffar frågan — men den
+  är dokumentation, inte avtalstext, och binder inte som DPA Art. 11 gör. **Det är den meningen som
+  ska bekräftas skriftligt** (schemalagd fråga, Klas), inte en lucka som ska fyllas från noll. Överfört innehåll är
   mottagar-adressen och meddelandets innehåll (för notiserna
   **avslöjar** leveransen opt-in-faktumet, och `EmailTemplates` skriver det dessutom i klartext
   i själva kroppen — själva *flaggan* i vår DB överförs aldrig, men faktumet gör det).
@@ -1566,8 +1569,9 @@ byggt:
 > förekomst. Inte bara under
 > omprövning: **värdvalet** (Hetzner ut; **och "svensk VPS" i sin tur återkallat
 > 2026-08-04 på pris/prestanda — ersättaren är VALD: Netcup RS 1000 G12, 8 GB, ingen CDN**,
-> bärs av ADR 0050 `Amendment 2026-08-04`) och **e-postleverantören** (Resend ut — **ersättaren
-> är vald: AWS SES i `eu-north-1`**, ADR 0124).
+> bärs av ADR 0050 `Amendment 2026-08-04`) och **e-postleverantören** (Resend ut; **och AWS SES i
+> sin tur ute 2026-08-15 sedan AWS permanent vägrat häva sandbox-läget — ersättaren är VALD:
+> Scaleway Transactional Email i `fr-par`**, ADR 0131, som supersederar ADR 0124).
 >
 > **E-POSTHALVAN ÄR SEDAN 2026-08-09 (#1169) INTE LÄNGRE EN ÖPPEN FRÅGA** — stycket som beskrev
 > den som öppen är struket ur meningen ovan. Frågan var: faller en US-**ägd** leverantör i EU-region under
@@ -1598,15 +1602,21 @@ byggt:
 > ställde — faller en US-**ägd** leverantör i EU-region under R2-standarden? — når därmed inte
 > längre e-posten heller, av exakt samma skäl som den aldrig nådde netcup: avtalsparten är
 > **fransk**, behandlingen sker i **Paris**, och ägarkedjan är fransk hela vägen upp till
-> Niel-familjens grupp. Ingen amerikansk part är i kedjan (⚠ `Scaleway US Corporation` finns
-> **nedströms** i koncernen utan TEM-roll — det ändrar inte ägarriktningen, men gör påståendet
-> "ingen US-enhet i koncernen" falskt). **SCC-domen från 2026-08-08 står orörd som dom över sin
+> Niel-familjens grupp. **Ingen tredjelandsenhet kan nå uppgifterna** — vilket är rekvisitet, se
+> §15.1 (⚠ `Scaleway US Corporation` finns **nedströms** i koncernen utan TEM-roll. Det utlöser
+> inte rekvisitet: kontroll flödar nedåt, så en fransk moder kan inte föreläggas via ett
+> amerikanskt dotterbolag. Men påståendet "ingen US-enhet i koncernen" är mätt **falskt** och får
+> inte skrivas). **SCC-domen från 2026-08-08 står orörd som dom över sin
 > egen era och sin egen part** — den var korrekt, den redovisade en överföring som aldrig
 > aktiverades, och den ska inte städas bort. Vad som ändras är att e-postposten sedan 2026-08-15
-> är **tyst** om Kap. V, precis som värdposten och backup-posten är det. **Tre av tre
-> EU-leverantörer utan tredjelandskrok är därmed tysta, och en historisk post med krok
+> är **tyst** om Kap. V i copyn, precis som värdposten och backup-posten är det. **Tre
+> EU-leverantörer som rekvisitet inte når är därmed tysta, och en historisk post som det nådde
 > redovisade — det är vad icke-selektivitet SER UT SOM**, inte ett tecken på att standarden
-> slutat gälla. Se §15.1, där R2-meningens formulering är omankrad i samma ändring.
+> slutat gälla. ⚠ **Tystnad i copyn är inte detsamma som en avgjord dom:** netcup och OVHcloud är
+> prövade och friade, medan Scaleway står på ett utkast `security-auditor` **delratificerat** —
+> strukturen avgjord, slutsatsen inte, i väntan på svar om leverantörens support-geografi
+> (`release-checklist.md` §2.5 punkt 1 led (b) är statusens hem). Blanda inte ihop de två.
+> Se §15.1, där rekvisitet är utskrivet och R2-meningens formulering omankrad i samma ändring.
 >
 > **Vad #1199 fortfarande bär: biträdesavtalet med netcup**, som är Klas att teckna och som grindar
 > första riktiga datan. Ingen supersessions-ADR blev skyldig — ADR 0050 `Amendment 2026-08-04`
@@ -1646,10 +1656,23 @@ en standard som tillämpas selektivt är ingen standard (Art. 5(2)).
 redovisning som inte längre finns:** meningen sa att standarden gjorde *§13.4:s AWS-SCC-redovisning*
 icke-selektiv, men e-postposten bär sedan providerbytet ingen SCC-redovisning alls — biträdet är
 franskt och ingen överföring uppstår. **Standarden är oförändrad; det är dess utfall som varierar,
-och det är precis vad som gör den till en standard.** Meritlistan, fyra tillämpningar åt båda
-hållen: den **fällde** R2 (US-ägt mål för okrypterad PII) och e-postposten i AWS-eran (EU-part under
-amerikansk moder — redovisad med SCC 2026-08-08 till 2026-08-15, se §13.4:s historiklager), och den
-**friar** netcup (2026-08-09) och Scaleway (2026-08-15), vars kedjor saknar tredjelandskrok.
+och det är precis vad som gör den till en standard.**
+**REKVISITET, utskrivet en gång så att nästa läsare kan tillämpa det i stället för att jämföra mot
+prejudikat** (`security-auditor` Major 3, 2026-08-15): **finns det en enhet i tredjeland som
+rättsligt kan förmås att producera uppgifterna, eller som faktiskt kan nå dem?** Ägarriktningen är
+ett **symptom** av det, inte regeln — det som gjorde AWS-moderns existens rättsligt relevant var att
+**kontroll flödar nedåt** (en amerikansk moder kan föreläggas producera vad dess EU-dotterbolag
+håller i *"possession, custody or control"*; ett amerikanskt dotterbolag kan inte föreläggas
+producera sin franska moders uppgifter). **Räckvidden är rekvisitet.** Utan den satsen är nästa
+koncernstruktur — en US-enhet **sidledes**, med delade drifttjänster — oavgörbar mot texten.
+Meritlistan, tillämpningar åt båda hållen: den **fällde** R2 (US-ägt mål för okrypterad PII) och
+e-postposten i AWS-eran (EU-part under amerikansk moder — redovisad med SCC 2026-08-08 till
+2026-08-15, se §13.4:s historiklager); den **friar** netcup (`security-auditor` 2026-08-09) och
+**OVHcloud** (`eu-west-par`, fransk part, ingen tredjelandsmoder — backup-målet ovan); och för
+**Scaleway** står den på ett **utkast som ännu inte är ratificerat** — `security-auditor`
+delratificerade 2026-08-15/16 den strukturella halvan men **inte** slutsatsen, som hänger på om
+leverantörens support-/driftpersonal har åtkomst från tredjeland (`release-checklist.md` §2.5 punkt 1
+led (b) är statusens hem). **Skriv det aldrig som ett fjärde frikännande innan ledet är stängt.**
 En standard är icke-selektiv när den prövas varje gång dess rekvisit kan föreligga — **inte när
 utfallet alltid blir detsamma**.
 

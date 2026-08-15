@@ -145,6 +145,10 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
 > processor** — alltså varje `Email:Provider`-värde vars arm gör det. **Mängdens hem är
 > `AddEmailSender` i `src/Jobbliggaren.Infrastructure/DependencyInjection.cs`, inte den här
 > raden**; mätt 2026-08-15 är det enda sådana värdet `Scaleway`.
+> ⚠ **`IEmailSender.CanDeliver` är INTE predikatet** — den svarar `true` även för
+> `ConsoleEmailSender`, som loggar lokalt och inte når någon extern processor, och en läsare som
+> tar den för predikatet drar in Development i grinden (`dotnet-architect` N3). Läs armen, inte
+> förmågan.
 > Tills dess kör `NullEmailSender` — ingen
 > e-post skickas, och denna grind är inte relevant.
 >
@@ -179,8 +183,9 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
 > **upphör att vara tillämplig** — en annan sak än att vara uppfylld), led (d) är levererat i
 > källan med live-verifiering kvar i §2.6, led (c) är ombundet till Scaleway. **En strykning
 > ärvs inte heller** — punkt 4:s strukna idempotens-led är ommätt mot Scaleway, se punkten.
-> **Punkten är fortsatt inte grön** — led (a) och (e) bär KVAR, och läs statusen på leden
-> själva, aldrig ur den här preambeln.
+> **Punkten är fortsatt inte grön** — och **vilka** led som bär KVAR står i leden själva,
+> aldrig här. *(Uppräkningen stod här till 2026-08-15 och var ett andra hem som gick stale i
+> samma andetag som återöppningen ovan ändrade mängden. Läs statusen på leden.)*
 > Vad som INTE ändras av bytet: mottagar-adress **+ meddelandets innehåll** når en extern
 > processor oavsett jurisdiktion (för notiserna
 > **avslöjar** leveransen opt-in-faktumet, och `EmailTemplates` skriver det dessutom i klartext
@@ -268,7 +273,25 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
         TOM-dokumentet, DPA Art. 6, integritetspolicyn och TEM-FAQ:n) — fjärråtkomst från tredjeland
         vore i sig en överföring, så utkastet är **villkorat av svaret** på Klas-brevet i led (c).
         **KARAKTERISERINGEN ÄR `security-auditor`s MED KLAS, inte sessionens.** Ledet bär KVAR tills
-        hon ratificerat; hennes dom skrivs in HÄR och statusen läses här, aldrig ur preambeln;
+        hon ratificerat; hennes dom skrivs in HÄR och statusen läses här, aldrig ur preambeln.
+        **`security-auditor` 2026-08-15/16 — DELRATIFICERING. LEDET STÅR KVAR.**
+        **Ratificerat, och bär inte på brevet:** den strukturella analysen håller. Kroken som fällde
+        SES-posten — en EU-avtalspart under en tredjelandsmoder som kan nå uppgifterna — saknas här,
+        och `BUILD.md` §15.1-standarden slår därför inte. Det är oberoende av Klas-brevet och står
+        som avgjort.
+        **Ratificeras INTE ännu:** slutsatsen att Kap. V är **ej tillämplig**. Den är ett påstående
+        om ett **negativt faktum** — att inga personuppgifter görs tillgängliga för en mottagare i
+        tredjeland. Under EDPB Guidelines 05/2021 uppfylls transfer-rekvisit 2 redan av att uppgifter
+        *görs tillgängliga*, och fjärråtkomst räknas (Rec. 01/2020). **Var support- och driftpersonal
+        har åtkomst ifrån är därmed ett KONSTITUTIVT ELEMENT i slutsatsen, inte en fotnot** — och
+        förbehåll 2 säger själv att elementet är oetablerat. En slutsats villkorad av ett obesvarat
+        brev är ett utkast, inte en dom.
+        **Vad som stänger ledet, uttömmande:** ett skriftligt svar från Scaleway som säger att
+        support-/driftåtkomst till TEM-data sker uteslutande inifrån EU/EES — eller, om den inte gör
+        det, en Kap. V-grund för just den åtkomsten. Ingenting mer krävs.
+        ⚠ **Frågans FORM är hennes, inte valfri:** *"sker support- och driftåtkomst till TEM-data
+        uteslutande inifrån EU/EES?"* — inte "var finns supporten", som besvaras med en kontorsadress
+        som inte binder;
       - **ROPA-posten** i `docs/runbooks/gdpr-processing-register.md` (lokal) — **KVAR (delvis)**,
         omskriven 2026-08-15 (#183): ombunden till behandlingen *"Utgående
         transaktionell e-post (Scaleway Transactional Email, `fr-par`)"*, som täcker **samtliga
@@ -416,9 +439,17 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
       kopia-formuleringen hänger på Art. 46/47-grunden, så tvärtom påstår du en SCC-grund
       som kanske inte används. Alltså **(iii) → (ii)**, och listans första post — flytten in i `Mottagare`-listan —
       när avtalet signeras.
-      (i) flytta **e-postleverantören** in i `Mottagare`-listan när biträdesavtalet är på plats —
-      prosaformen är vald just för att listrubriken påstår ett tecknat avtal, och det
-      förbudet **upphör när avtalet gäller**. *Sedan ADR 0131 är motparten Scaleway S.A.S., och
+      (i) **e-postleverantörens stycke får stryka sin egen avtalsreservation när avtalet är på
+      plats.** ⚠ **Mekanismen är omskriven 2026-08-15 (`security-auditor` Major 2), för att den
+      skyddsmekanism residualen tidigare namngav inte finns.** Posten sa att *"prosaformen är vald
+      just för att listrubriken påstår ett tecknat avtal"* — men `privacy.sections[6]` har **ingen
+      `list`-nyckel** (mätt 2026-08-15: `heading` + sex `paragraphs`, noll `list`); nyckeln
+      försvann i #1199, och e-poststyckena ligger i exakt samma strukturella position som
+      netcup-stycket. **En residual vars angivna skydd inte existerar läses som uppfylld**, och den
+      här lurade sin egen granskare två gånger. Vad som faktiskt bär ärligheten i dag är styckets
+      **egen** mening — *"Innan vi börjar skicka säkerställer vi att personuppgiftsbiträdesavtalet
+      med Scaleway SAS gäller"* — och villkoret för att stryka den är att avtalet faktiskt gäller
+      för Scaleway S.A.S. *Sedan ADR 0131 är motparten Scaleway S.A.S., och
       "på plats" är inte detsamma som "signerat": DPA:n gäller automatiskt (avtalsdokument nr 1 i
       GTS Art. 3, mätt 2026-08-15) — precis som AWS-DPA:t gjorde. Villkoret för flytten är
       oförändrat genom båda bytena: listan får bara namnge en part vars avtal faktiskt gäller.*
@@ -470,8 +501,10 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
       gäller åt båda hållen: **en strykning får lika lite som ett grönt led ärvas från en motpart
       som inte längre är part**, eftersom skälet — "SES v2 har ingen idempotensparameter" — är ett
       påstående om en part vi inte har. Mätt i E1 (`b71c14de`): Scaleways `POST /emails` bär ingen
-      idempotensparameter heller. **Strykningen står, nu på två oberoende mätningar i stället för
-      en ärvd.**
+      idempotensparameter heller. **Strykningen står — nu på en mätning mot den part vi faktiskt
+      har, i stället för en ärvd från en vi inte har.** *(Formuleringen "två oberoende mätningar"
+      stod här till 2026-08-15 och motsade styckets egen doktrin: de två är mätningar av två olika
+      parter, och SES-mätningen bidrar per den doktrinen med noll. `dotnet-architect` N5.)*
 - [ ] **5. `BUILD.md` flippas i SAMMA ändring** — den här checklistan räknade tidigare bara upp
       `content-legal.json` och ROPA:n, och nämnde **aldrig** `BUILD.md` som flip-yta. Vid flippen
       blir följande falska utan att något kräver att de rörs: **§13.4**:s e-postpost
@@ -659,11 +692,13 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
       markörmening. **Det är ett mätresultat, inte en förutsägelse:** en ändring som tar bort
       ett arrayelement eller delar ett stycke flyttar varje rad under sig, så greppet ska
       köras om även när en ändring "bara" byter ord.
-      **Grepa INTE bara på `"planerat och ännu inte i drift"`** — det ger 8 och
-      missar de TVÅ retentionsposterna på rad 96 och 97, som bär `(planerat)` utan
-      avslutningsmeningen. Rad 96 (organisationsnumret i en annons, #880) nämner
+      **Grepa INTE bara på `"planerat och ännu inte i drift"`** — det ger 7 (mätt
+      2026-08-15) och missar de TVÅ retentionsposterna, som bär `(planerat)` utan
+      avslutningsmeningen. Den första (organisationsnumret i en annons, #880) nämner
       ansökningshistoriken som ett ÄNDAMÅL med att arbetsgivarens identitet sparas;
-      rad 97 är ansökningshistorikens egen post. **Regenerera den här listan ur
+      den andra är ansökningshistorikens egen post. **Radnumren står medvetet inte här** —
+      de bor i punkt 1:s mängd ovan och flyttar varje gång ett stycke läggs till eller stryks;
+      den här PR:en flyttade dem två gånger på en dag. **Regenerera den här listan ur
       greppen ovan efter varje redigering av `privacy`-sektionerna** — inte bara
       retentionsavsnittet: #880 delade en
       punkt i två och flyttade fyra av åtta rader, och #186 rörde tre andra avsnitt
@@ -675,11 +710,17 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
       kategorilistan drift medan retentionsavsnittet säger planerat.
 - [ ] **2. Avgör vad releasen faktiskt aktiverar** — två olika klasser, blanda dem
       inte:
-      - **Kod-aktiverad:** ansökningshistorik/företagsöversikt (rad 37, 96, 97, 132).
+      - **Kod-aktiverad:** ansökningshistorik/företagsöversikt — kategorilistans
+        ansökningshistorik-punkt, BÅDA retentionsposterna och stycket i "Inga automatiserade
+        beslut". *(Identifieras med innehåll, inte radnummer: punkt 1:s mängd är hemmet, och
+        raderna flyttar vid varje styckeändring.)*
         Handlers + endpoints + FE är skeppade utan feature-flagga → aktiveras av
         att tjänsten alls går i drift.
-      - **Konfigurations-grindad:** SCB (rad 49, 73) **och e-postleverantören Scaleway
-        (rad 63, 74, 75, #186 + #1169 + #183)**. **Aktiveras INTE av en
+      - **Konfigurations-grindad:** SCB (ändamålsavsnittets företagsuppslag + mottagarstycket)
+        **och e-postleverantören Scaleway** (samtyckesavsnittet + mottagaravsnittets TVÅ
+        e-poststycken; #186 + #1169 + #183). *(Innehållsbenämningar, inte radnummer — punkt 1 är
+        mängdens hem, och den här bulleten bar sin egen kopia av numren tills 2026-08-15.)*
+        **Aktiveras INTE av en
         `v*`-tagg.** Tre skilda mekanismer, alla mörka i prod: per-sökningens
         `ICompanyRegistry` (ADR 0088) får `NullCompanyRegistry` — valet styrs av
         `CompanyRegistry:Provider`, den riktiga adaptern siktar på SCB:s nya
@@ -690,7 +731,8 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
         användarskrivet org.nr. E-posten styrs av `Email:Provider`, som defaultar till
         `Console` och i non-dev löser till `NullEmailSender` — flippen är grindad av
         **§2.5 punkt 1** (uppräkningen bor DÄR, inte här — och därför står antalet inte heller här), inte av en
-        tagg, och gäller **all** utgående e-post (§2.5:s widening). **Flippa rad 49/73 (SCB) respektive 63/74/75 (e-post) först när respektive grind är
+        tagg, och gäller **all** utgående e-post (§2.5:s widening). **Flippa SCB-styckena
+        respektive e-poststyckena först när respektive grind är
         passerad** — inte när koden deployas.
         *Raderna 63/74/75/82 namngav Resend, Inc. (USA) till 2026-08-09; #1169 skrev om dem till
         Amazon Web Services EMEA SARL (Luxemburg) med behandling i `eu-north-1`. **Det var en
@@ -741,15 +783,24 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
       - **inget Kap. V-led — det är raderat, inte ompekat.** Det gamla ledet krävde en
         dokumenterad grund för **Cloudflare** (US-domicilierat) och dog med parten
         (Klas-beslut K3). `security-auditor` 2026-08-09: netcup GmbH är tysk, behandlingen
-        sker i Nürnberg, och Kap. V engageras inte av värdbenet. Rad 83 är fortfarande ett
+        sker i Nürnberg, och Kap. V engageras inte av värdbenet. Tredjelandsavsnittets
+        **enda kvarvarande stycke** är fortfarande ett
         **absolut** påstående (*"I dagsläget sker inga överföringar av dina personuppgifter
         till länder utanför EU/EES"*), men dess antecedent — *"Anlitar vi en leverantör
         **utanför EU/EES**"* — täcker inte netcup alls, så värdbytet rör den inte.
-        **E-postflippen (§2.5) är fortfarande den händelse som gör rad 81 falsk**; #186 la
-        därför rad 82 **bredvid** den absoluta meningen i stället för att ersätta den, och
-        båda är sanna samtidigt så länge inget skickas. *(Raderna hette 84 och 85 till
-        2026-08-09; raderingen av Cloudflare-posten OCH flytten av värdraden ur `list` till
-        `paragraphs` flyttade dem två steg upp. Adekvans-disjunktionen ströks bara på det
+        ⚠ **OMSKRIVET 2026-08-15 (#183, ADR 0131) — meningen nedan påstod motsatsen till vad
+        den här PR:en fastställer.** Den sa att **e-postflippen** är den händelse som gör det
+        absoluta påståendet falskt, och att #186 därför la ett andra stycke *bredvid* det så att
+        båda var sanna samtidigt. **Båda halvorna är överspelade:** det andra stycket är struket
+        i den här ändringen, och med en fransk avtalspart utan tredjelandsmoder utlöser flippen
+        **ingen** överföring — vilket är hela poängen med led (b). Det absoluta påståendet
+        överlever alltså flippen i stället för att fällas av den, **under förutsättning att
+        `security-auditor`s ratificering faller ut så**; tills dess är detta utkastets läsning,
+        inte en dom. *(Historiken bevarad: #186 la ett e-poststycke **bredvid** det absoluta
+        i stället för att ersätta det, och båda var sanna samtidigt så länge inget skickades.
+        Styckena bytte radnummer två gånger — 2026-08-09 av att Cloudflare-posten raderades OCH
+        värdraden flyttades ur `list` till `paragraphs`, och 2026-08-15 av strykningen ovan;
+        radnumren skrivs därför inte längre ut här. Adekvans-disjunktionen ströks bara på det
         stycket — `security-auditor` 2026-08-08: EN
         grund, SCC Art. 46(2)(c).)*
       - **ROPA-posterna uppdaterade** + **security-auditor-sign-off**.
@@ -771,13 +822,17 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
 - [ ] **4. Paritet sv + en** — båda språken i samma ändring. Formuleringen bärs av
       elementen i `privacy.sections` som bär formuleringen — tillsammans **exakt den radmängd
       punkt 1 producerar** (antalet står där, med sitt grep; det står med flit inte här):
-      kategorilistan (rad 37), ändamåls-/SCB-avsnittet (49), samtyckesavsnittet
-      "Bevakningsnotiser i bakgrunden" (63, #186), mottagare + tredjeland
-      — mottagaravsnittet (73/**74/75**) och tredjelandsavsnittet (82) är TVÅ skilda
-      sections, inte ett — retentionslistan (96/97) och "Inga automatiserade beslut"
-      (132). Missa inte retentionsposten — och notera att **både** retentionslistan **och**
+      kategorilistan, ändamåls-/SCB-avsnittet, samtyckesavsnittet
+      "Bevakningsnotiser i bakgrunden" (#186), mottagaravsnittet (SCB + **två**
+      e-poststycken), retentionslistan och "Inga automatiserade beslut".
+      Missa inte retentionsposten — och notera att **både** retentionslistan **och**
       e-postprosan i mottagaravsnittet bär **två** rader var, inte en.
-      **Värdstycket (rad 71) står INTE i den här mängden**:
+      ⚠ **Tredjelandsavsnittet stod i den här mängden till 2026-08-15** och gör det inte
+      längre: dess e-poststycke är struket med sin grund (#183, ADR 0131). Att det var en egen
+      section, skild från mottagaravsnittet, är fortfarande sant om de två som finns kvar.
+      **Radnumren är borttagna ur den här uppräkningen med flit** — de bodde här och i punkt 1,
+      och en av de två gick stale varje gång ett stycke rördes. **Punkt 1 är hemmet.**
+      **Värdstycket står INTE i den här mängden**:
       värdraden bär sedan #1199 ingen markör och äger därför ingen flip. Den vaktas i stället
       av `content-legal-parity.test.ts`, som pinnar att `netcup GmbH` är namngiven i båda
       språken **och** att raden inte bär markörmeningen.
@@ -924,7 +979,7 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
         D3 *"a new purpose section under 6(1)(b)"*, dvs. vidarebehandling för ett
         nytt ändamål av redan insamlade uppgifter → **Art. 13(3) kräver
         information "prior to that further processing"**, och policyns eget löfte
-        (rad 151) säger *"Vid mer betydande ändringar informerar vi dig på lämpligt
+        (policyns sista stycke, "Ändringar i policyn") säger *"Vid mer betydande ändringar informerar vi dig på lämpligt
         sätt"*. Formulera som förhandsbesked (*"från och med &lt;datum&gt; behandlar vi
         även …"*), aldrig som påstående om pågående drift.
       Aldrig **efter** aktiveringen i något av fallen.
@@ -933,23 +988,26 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
       Ansökningshistoriken nämns på fyra ställen (kategorilistan, retentionslistan,
       "Inga automatiserade beslut" och Art. 30-registret); SCB på tre
       (ändamålslistan, mottagarstycket — tredjelandsavsnittet nämner INTE SCB; uppräkningen
-      sa "tre" ända till 2026-07-26); **e-postleverantören på fyra** (samtyckesavsnittet, TVÅ
-      stycken i mottagaravsnittet, "Överföring till tredje land") —
+      sa "tre" ända till 2026-07-26); **e-postleverantören på tre** (samtyckesavsnittet och TVÅ
+      stycken i mottagaravsnittet — *"Överföring till tredje land" räknades med till 2026-08-15
+      och gör det inte längre; talet speglas av `content-legal-parity.test.ts`, vars golv står på
+      samma tre*) —
       och e-postflippen styrs av **§2.5**, inte av taggen, så den kan mycket väl
       inte höra till releasen alls medan de andra gör det. **En
       mottagare får aldrig stå som planerad medan behandlingen som skickar till
       den står som i drift, och omvänt.** Kör inventeringsgreppet igen efter
       flippen: antalet träffar ska minska med **exakt** antalet poster releasen
       aktiverar, aldrig med fler.
-      **Rad 132 kräver särskild kontroll — den är den enda rad greppet inte
-      självskyddar.** Dess inledning (`planerar` / `plans`) matchas INTE av
+      **Stycket i "Inga automatiserade beslut" kräver särskild kontroll — det är den enda rad
+      greppet inte självskyddar.** Dess inledning (`planerar` / `plans`) matchas INTE av
       inventeringsmönstret (verifierat: 0 träffar), så raden syns bara via sin
       avslutande mening. Tas bara den bort faller raden ur greppet helt, räkne-
       testet ovan säger "minskade med exakt 1 — korrekt", och policyn påstår
       fortfarande *"Jobbliggaren planerar en översikt av din egen
       ansökningshistorik"* — mitt i avsnittet **"Inga automatiserade beslut"**,
-      dvs. i Art. 22-negationen. Läs rad 132 i sin helhet: hela stycket skrivs om
-      till presens, aldrig trunkeras. (Varje **annan** rad ur punkt 1:s mängd bär `(planerat)`/
+      dvs. i Art. 22-negationen. Läs stycket i sin helhet: hela det skrivs om
+      till presens, aldrig trunkeras. *(Identifierat med sitt avsnitt och inte med ett radnummer:
+      det flyttade 2026-08-15 av en strykning två avsnitt ovanför.)* (Varje **annan** rad ur punkt 1:s mängd bär `(planerat)`/
       `planeras` i själva sakpåståendet och lämnar därför kvar en grepp-träff om
       flippen är ofullständig.)
 - [ ] **8. Art. 30-registret speglar flippen** —

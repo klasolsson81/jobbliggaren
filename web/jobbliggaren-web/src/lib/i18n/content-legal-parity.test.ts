@@ -172,7 +172,11 @@ describe("content-legal i18n-paritet (sv ↔ en)", () => {
    * disclosure-meningens egna participform mättar en bred assertion — "Notiserna **planeras** att
    * skickas", "All e-post **planeras** att levereras" / "are **planned** to be sent". Med
    * `/planerat|planerad|planeras/` respektive `/planned/` kunde markörmeningen strykas ur samtyckes-
-   * och mottagarstyckena med testet grönt, medan §2.6:s smala grep tyst föll 9+9 → 7+7. Mönstren nedan är därför
+   * och mottagarstyckena med testet grönt, medan §2.6:s smala grep tyst tappade två rader
+   * **utan att det breda greppet rörde sig** — det är formen på felmoden, och den överlever varje
+   * omräkning av mängden. *(Ett odaterat talpar stod här till 2026-08-15 och gick inte att
+   * reproducera mot någon era; §2.6 punkt 1 är talens hem och regenererar dem ur sitt eget grep.
+   * `code-reviewer`, ograderad observation.)* Mönstren nedan är därför
    * de RATIFIERADE markörformerna och inget bredare — och de binder hela MENINGEN
    * (`planerat och ännu inte i drift`), **avsiktligt smalare** än ansökningshistorik-tripwirens
    * `planerat`. Systern kan INTE följa med: retentionsposterna bär `(planerat)` utan markörmeningen, så
@@ -215,8 +219,17 @@ describe("content-legal i18n-paritet (sv ↔ en)", () => {
     // **Mitt första kontrafaktum bevisade fel sats** och är värt att minnas: det visade att
     // union-grenen är NÅBAR, inte att den skärper spärren — i just det scenariot *släppte* unionen
     // igenom vad den smalare termen fällde. En probe måste korsa den kontroll den påstår sig testa.
-    const svNamed = matchingLeaves(svLegal, /Scaleway SAS/);
-    const enNamed = matchingLeaves(enLegal, /Scaleway SAS/);
+    // Partsformen tolererar BÅDA stavningarna av bolagssuffixet (`Scaleway SAS` och
+    // `Scaleway S.A.S.`) — copyn bär den första, BUILD.md och registret den andra, som är
+    // R.C.S.-formen. **Det är inte en uppmjukning mot unionen:** båda alternativen kräver
+    // fortfarande SUFFIXET, alltså avtalsparten, och ett löv som bara bär `Scaleway
+    // Transactional Email` faller precis som förut. Skälet är felriktningen: utan detta fäller
+    // en redigering som gör copyn *mer* juridiskt precis golvet 3 → 0 och rödar CI för en
+    // förbättring (`security-auditor` Minor 3, `dotnet-architect` N4, 2026-08-15 — mätt:
+    // `/Scaleway S\.A\.S\./` ger noll träffar i copyn i dag).
+    const EMAIL_PROVIDER_PARTY = /Scaleway S\.?A\.?S\.?/;
+    const svNamed = matchingLeaves(svLegal, EMAIL_PROVIDER_PARTY);
+    const enNamed = matchingLeaves(enLegal, EMAIL_PROVIDER_PARTY);
     const sv = matchingLeaves(svLegal, EMAIL_PROVIDER_ANY);
     const en = matchingLeaves(enLegal, EMAIL_PROVIDER_ANY);
 
@@ -328,7 +341,9 @@ describe("content-legal i18n-paritet (sv ↔ en)", () => {
    *
    * ⚠ **En fälla den negativa loopen bygger in** (code-reviewer Minor 5, inte ett fel i dag):
    * loopen går över HELA katalogen. Namnger ett löv någon gång **både** `netcup GmbH` och
-   * `Scaleway SAS` blir sviten osatisfierbar — e-post-spärren kräver markören på det
+   * e-postleverantörens namn (`EMAIL_PROVIDER_ANY`, unionen — kollisionen binds till
+   * KONSTANTEN och inte till en literal, eftersom koden nedan gör det och de två annars kan
+   * divergera) blir sviten osatisfierbar — e-post-spärren kräver markören på det
    * lövet, den här förbjuder den — och enda utvägen vore att försvaga en av dem. Skopa i så fall
    * den här loopen till mottagarsektionen; försvaga aldrig någon av spärrarna.
    *

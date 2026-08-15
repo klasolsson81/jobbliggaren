@@ -25,14 +25,14 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
     private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder("postgres:18").Build();
     private readonly RedisContainer _redis = new RedisBuilder("redis:8-alpine").Build();
 
-    // #241 — last-wins IEmailSender override so the host never composes the real SES provider.
+    // #241 — last-wins IEmailSender override so the host never composes the real transactional provider.
     // Held as a field (not just type-registered) so tests can read the recorded sends via Emails.
     private readonly RecordingEmailSender _emailSender = new();
 
     /// <summary>
     /// #241 — the recording <see cref="Jobbliggaren.Application.Common.Abstractions.IEmailSender"/>
     /// the host resolves. Lets a test positively assert an email side-effect (e.g. "a waitlist
-    /// confirmation was queued to X") without the network, and locks out the real SES provider.
+    /// confirmation was queued to X") without the network, and locks out the real provider.
     /// </summary>
     internal RecordingEmailSender Emails => _emailSender;
 

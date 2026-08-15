@@ -16,14 +16,17 @@ namespace Jobbliggaren.Application.UnitTests.Email;
 /// (#183, 2026-08-12 — security-auditor condition 1).
 ///
 /// <para>
-/// <b>What this file defends.</b> The register states as MEASURED FACT that SES's 60-day,
+/// <b>What this file defends.</b> The register states as MEASURED FACT that the processor's
 /// RECIPIENT-LEVEL open/click metrics do not arise for us. Until 2026-08-12 that rested partly on
 /// "the body is Body.Text with no HTML part" — a ground the HTML templates struck. The replacement is
 /// the property asserted here: the rendered HTML references no remote resource. It was chosen because
 /// it has the same shape as the ground it replaces (unattackable from outside the repo, pinned rather
-/// than complied with) and it is STRONGER than the SES question it stands in for, since a remote
-/// resource in an HTML mail is a tracking capability regardless of provider (EDPB Guidelines 2/2023
-/// on Art. 5(3) ePrivacy). The forbidden set itself lives in <see cref="RemoteResourceDetector"/>.
+/// than complied with) and it is STRONGER than the provider-specific question it stands in for, since
+/// a remote resource in an HTML mail is a tracking capability regardless of provider (EDPB Guidelines
+/// 2/2023 on Art. 5(3) ePrivacy). <b>That provider-independence is why this suite survived #183
+/// unchanged</b> when transactional mail moved from Amazon SES to Scaleway: the property asserted
+/// here is about OUR bytes, so the processor's identity and retention — which did change, and which
+/// the register owns — never entered it. The forbidden set lives in <see cref="RemoteResourceDetector"/>.
 /// </para>
 ///
 /// <para>

@@ -86,8 +86,8 @@ builder.Services.AddMatchingEngine();
 // ADR 0080 Vag 4 PR-4b — IEmailSender för bakgrundsmatchnings-notiserna (Top-direkt-hook i
 // scannen + DigestDispatchJob). Worker drar INTE in AddInfrastructure (HTTP-fri, ADR 0023)
 // utan den extraherade provider-switchen → samma dev=Console, non-dev=Null-grindning som
-// Api, utan drift. Non-dev defaultar till NullEmailSender (vilande) tills Ses explicit
-// konfigureras (ADR 0124 — Resend borttaget 2026-08-08, värdet kastar numera vid boot).
+// Api, utan drift. Non-dev defaultar till NullEmailSender (vilande) tills Scaleway explicit
+// konfigureras (#183 — både "Resend" och "Ses" kastar numera vid boot, som varje annat okänt värde).
 // DI i samma commit som jobben (feedback_di_with_handlers_same_commit).
 builder.Services.AddEmailSender(builder.Configuration, builder.Environment);
 builder.Services.AddScoped<Jobbliggaren.Application.Matching.Jobs.BackgroundMatching.BackgroundMatchingJob>();

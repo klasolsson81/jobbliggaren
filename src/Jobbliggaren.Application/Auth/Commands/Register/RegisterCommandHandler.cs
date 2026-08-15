@@ -62,7 +62,8 @@ public sealed class RegisterCommandHandler(
                 // full stop (ADR 0103, ADR 0124). It used to be described as the provider-independent
                 // half of a pair whose other half was a provider idempotency-key — that key is gone
                 // with Resend, and it was never armed anyway (Email:Provider has never been set in any
-                // committed config), so nothing here got weaker. SES has no equivalent to inherit.
+                // committed config), so nothing here got weaker. No provider since has had an
+                // equivalent to inherit — neither SES v2 nor Scaleway offers one (#183).
                 if (await cooldown.TryBeginAsync(
                         CooldownScopes.AccountExists,
                         command.Email!,

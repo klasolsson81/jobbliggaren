@@ -258,17 +258,16 @@ public sealed partial class ScalewayEmailSender(
         // marker HttpClient sets on its own timeout. It was implemented and MEASURED NOT TO WORK on
         // 2026-08-15: the test asserting the REPAIRED behaviour (containment) failed, so the
         // disjunct never fired. Measured outcome in that race: the exception reaching this catch is
-        // a TaskCanceledException with message "A task was canceled." and a NULL InnerException,
-        // even though the transport threw one carrying a TimeoutException. The marker does not
-        // survive, so the disjunct is unreachable and shipping it would have been dead code behind
-        // a comment claiming a fix.
+        // a TaskCanceledException carrying the framework's default message and a NULL
+        // InnerException, even though the transport threw one carrying a TimeoutException. The
+        // marker does not survive, so the disjunct is unreachable and shipping it would have been
+        // dead code behind a comment claiming a fix.
         //
-        // WHERE the marker is lost is deliberately NOT claimed here: it is not HandleFailure's
-        // "massage the token" branch, which would have preserved it — the surfaced message is the
-        // framework's own, not the transport's. `ScalewayEmailSenderTests` pins the outcome and the
-        // message; nobody has measured which layer performs the replacement, and the filter's design
-        // does not depend on knowing. Bounded to shutdown, and the cost is one reaped notification;
-        // closing it needs a different seam, not a wider filter here.
+        // WHERE the marker is lost is deliberately NOT claimed here, and three attempts to name it
+        // were each wrong or unmeasured (PR #1339). `ScalewayEmailSenderTests` pins the outcome;
+        // nobody has measured which layer performs the replacement, and the filter's design does not
+        // depend on knowing. Bounded to shutdown, and the cost is one reaped notification; closing
+        // it needs a different seam, not a wider filter here.
         catch (Exception ex)
             when (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
         {

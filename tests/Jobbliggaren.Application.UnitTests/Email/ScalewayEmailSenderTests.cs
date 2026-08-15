@@ -753,14 +753,20 @@ public sealed class ScalewayEmailSenderTests : IDisposable
     /// <b>This test exists because the obvious repair does not work, and that was MEASURED
     /// 2026-08-15 rather than reasoned about.</b> The proposed fix was a third disjunct
     /// <c>ex.InnerException is TimeoutException</c> — the marker <see cref="HttpClient"/> sets on
-    /// its own timeout, and a shape this very suite constructs elsewhere. It was implemented and the
-    /// test below FAILED: when the caller's token is cancelled, <see cref="HttpClient"/> does not
-    /// surface the handler's exception at all. It throws its own
-    /// <see cref="TaskCanceledException"/> linked to that token, and the inner
-    /// <see cref="TimeoutException"/> is discarded — so the disjunct is unreachable in exactly the
-    /// race it was meant to close. The fixture below hands the transport a timeout-shaped exception
-    /// and what arrives is a bare cancellation; that is the measurement, and it is why the filter
-    /// has two disjuncts and not three.
+    /// its own timeout, and a shape this very suite constructs elsewhere. It was implemented, and
+    /// the test asserting the REPAIRED behaviour — containment as
+    /// <c>EmailDeliveryException</c> — FAILED, so the disjunct never fired. (That is the only form
+    /// of evidence that proves unreachability: a disjunct which never fires cannot turn a test red.)
+    /// The fixture below hands the transport a timeout-shaped exception, and what arrives carries no
+    /// trace of it. That is the measurement, and it is why the filter has two disjuncts and not three.
+    /// </para>
+    /// <para>
+    /// <b>WHY the marker is lost is NOT stated here, and that is deliberate.</b> Three attempts at
+    /// naming the mechanism were each measured wrong or unmeasured (dotnet-architect and
+    /// code-reviewer, PR #1339 rounds 3–5), and the last one survived in this summary after being
+    /// deleted from the method body — because the closing grep was built from the replacement's
+    /// wording instead of from the claim's substance. What is asserted below is the OUTCOME, which
+    /// is all the filter's design depends on. Do not add a fourth.
     /// </para>
     /// <para>
     /// The race cannot be built with a PRE-cancelled token — <see cref="HttpClient"/> short-circuits
@@ -805,20 +811,12 @@ public sealed class ScalewayEmailSenderTests : IDisposable
         ex.InnerException.ShouldBeNull();
         ex.GetBaseException().ShouldBeOfType<TaskCanceledException>();
 
-        // WHICH WORLD WE ARE IN, and this line exists because the obvious explanation is wrong.
-        //
-        // The message is the framework's, NOT the fixture's — so the armed exception never reached
-        // HttpClient.HandleFailure's "massage the token" branch, which would have preserved it as
-        // InnerException (dotnet/runtime#84712).
-        //
-        // WHAT THIS TEST DOES NOT DETERMINE, said plainly rather than guessed: where the marker is
-        // actually lost. It pins the OUTCOME — the timeout marker does not survive at any depth —
-        // which is all the filter's design depends on. TWO earlier versions of this comment named a
-        // mechanism instead, and both were wrong (dotnet-architect, PR #1339 rounds 3 and 4). The
-        // assertions are what replaced the guesses; do not add a third.
+        // The surfaced message is the framework's DEFAULT, not the one the transport threw. That is
+        // an observation, and this suite makes no claim about which layer produced it — see the
+        // summary for why no mechanism is named here.
         //
         // Compared against the framework's own default rather than a literal: SR strings are
-        // localizable, and this encodes the claim ("the message is the framework's") instead of
+        // localizable, and this encodes the claim ("the message is not the fixture's") instead of
         // repeating a copy of it.
         ex.Message.ShouldBe(new TaskCanceledException().Message);
 

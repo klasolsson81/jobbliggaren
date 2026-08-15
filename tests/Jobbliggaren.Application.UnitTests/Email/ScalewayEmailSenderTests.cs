@@ -755,10 +755,10 @@ public sealed class ScalewayEmailSenderTests : IDisposable
     /// <c>ex.InnerException is TimeoutException</c> — the marker <see cref="HttpClient"/> sets on
     /// its own timeout, and a shape this very suite constructs elsewhere. It was implemented, and
     /// the test asserting the REPAIRED behaviour — containment as
-    /// <c>EmailDeliveryException</c> — FAILED, so the disjunct never fired. (That is the only form
-    /// of evidence that proves unreachability: a disjunct which never fires cannot turn a test red.)
-    /// The fixture below hands the transport a timeout-shaped exception, and what arrives carries no
-    /// trace of it. That is the measurement, and it is why the filter has two disjuncts and not three.
+    /// <c>EmailDeliveryException</c> — FAILED, so the disjunct never fired. The assertion below on
+    /// <c>InnerException</c> measures the disjunct's own operand directly and settles it a second,
+    /// independent way. The fixture hands the transport a timeout-shaped exception, and what arrives
+    /// carries no trace of it. That is why the filter has two disjuncts and not three.
     /// </para>
     /// <para>
     /// <b>WHY the marker is lost is NOT stated here, and that is deliberate.</b> Three attempts at

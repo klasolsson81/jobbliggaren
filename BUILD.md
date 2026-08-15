@@ -1623,8 +1623,10 @@ byggt:
 > friad (`security-auditor` 2026-08-09), medan **OVHcloud och Scaleway båda står på oavgjord grund** —
 > OVH:s **andra led är OPRÖVAT** — hon avstod uttryckligen från koncernstruktur, underbiträdeskedja
 > och supportåtkomst och lämnade slutsatsen **obelagd, inte falsk**. *(Diskriminatorn är avståendet,
-> inte kedjan: netcups kedja är också omätt och står ändå i den friade kolumnen, eftersom hon där
-> avgjorde att kedjan är oväsentlig för slutsatsen.)* Och Scaleway står på ett utkast
+> inte kedjan: netcups kedja är också omätt och står ändå i den friade kolumnen — men där är den
+> **uppskjuten till AVV-bilagan med en namngiven omprövningsutlösare** (ett icke-EU-underbiträde
+> tvingar omprövning **före** korpusladdningen), medan hon för OVH avstod från hela andra ledet.
+> Vad hon förklarade oväsentligt för netcup-slutsatsen var **ägandet**, inte kedjan.)* Och Scaleway står på ett utkast
 > `security-auditor` **delratificerat**: strukturen avgjord, slutsatsen inte, i väntan på svar om
 > leverantörens support-geografi (`release-checklist.md` §2.5 punkt 1 led (b) är statusens hem).
 > Blanda aldrig ihop de tre lägena — §15.1 förbjuder uttryckligen att en oavgjord post skrivs som

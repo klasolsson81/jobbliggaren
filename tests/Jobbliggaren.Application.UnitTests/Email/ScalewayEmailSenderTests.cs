@@ -740,6 +740,64 @@ public sealed class ScalewayEmailSenderTests : IDisposable
         _logger.Records.ShouldBeEmpty();
     }
 
+    /// <summary>
+    /// The KNOWN RESIDUAL, pinned as measured behaviour rather than left as a claim (code-reviewer
+    /// Minor 1, dotnet-architect residual (ii), PR #1339).
+    /// <para>
+    /// A provider timeout that coincides with caller cancellation is classified as a cancellation
+    /// and propagates — so the dispatch jobs' own filters swallow it as a shutdown, and one user's
+    /// mail is lost silently. The filter answers "did the caller cancel?" at CATCH time, and the two
+    /// questions only differ when they do not race.
+    /// </para>
+    /// <para>
+    /// <b>This test exists because the obvious repair does not work, and that was MEASURED
+    /// 2026-08-15 rather than reasoned about.</b> The proposed fix was a third disjunct
+    /// <c>ex.InnerException is TimeoutException</c> — the marker <see cref="HttpClient"/> sets on
+    /// its own timeout, and a shape this very suite constructs elsewhere. It was implemented and the
+    /// test below FAILED: when the caller's token is cancelled, <see cref="HttpClient"/> does not
+    /// surface the handler's exception at all. It throws its own
+    /// <see cref="TaskCanceledException"/> linked to that token, and the inner
+    /// <see cref="TimeoutException"/> is discarded — so the disjunct is unreachable in exactly the
+    /// race it was meant to close. The fixture below hands the transport a timeout-shaped exception
+    /// and what arrives is a bare cancellation; that is the measurement, and it is why the filter
+    /// has two disjuncts and not three.
+    /// </para>
+    /// <para>
+    /// The race cannot be built with a PRE-cancelled token — <see cref="HttpClient"/> short-circuits
+    /// before the handler runs — so the handler enters, waits for the cancel, and only then raises
+    /// the timeout shape.
+    /// </para>
+    /// <para>
+    /// <b>If you are here to close this residual:</b> a wider filter at this seam cannot do it,
+    /// because the information is already gone by the time the catch runs. It needs a different
+    /// seam — e.g. the sender observing its own deadline separately from the caller's token.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public async Task ScalewayEmailSender_TimesOutWhileTheCallerIsAlsoCancelling_PropagatesAsCancellation()
+    {
+        using var cts = new CancellationTokenSource();
+        _handler.ThrowAfterCancellation(new TaskCanceledException(
+            "The request was canceled due to the configured HttpClient.Timeout elapsing.",
+            new TimeoutException()));
+        var sut = CreateSut();
+
+        var pending = sut.SendEmailConfirmationAsync(
+            Recipient, SampleConfirmationContent(), cts.Token);
+        await _handler.Entered.Task.WaitAsync(
+            TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+        await cts.CancelAsync();
+
+        var ex = await Should.ThrowAsync<TaskCanceledException>(async () => await pending);
+
+        // The marker the proposed fix would have keyed on is NOT here — this is the measurement.
+        ex.InnerException.ShouldNotBeOfType<TimeoutException>();
+
+        // And nothing is logged, because the sender read it as a cancellation. That is the cost of
+        // the residual, stated so it cannot be mistaken for a send that merely failed loudly.
+        _logger.Records.ShouldBeEmpty();
+    }
+
     [Fact]
     public async Task ScalewayEmailSender_ProviderRejectsTheMessage_PostsExactlyOnce()
     {
@@ -887,6 +945,7 @@ public sealed class ScalewayEmailSenderTests : IDisposable
         private string _responseBody = """{"message_id":"fake-id"}""";
         private Exception? _throwOnSend;
         private bool _blockUntilCancelled;
+        private Exception? _throwAfterCancellation;
 
         public List<CapturedRequest> Requests { get; } = [];
 
@@ -906,6 +965,18 @@ public sealed class ScalewayEmailSenderTests : IDisposable
         public void ThrowOnSend(Exception exception) => _throwOnSend = exception;
 
         public void BlockUntilCancelled() => _blockUntilCancelled = true;
+
+        /// <summary>
+        /// Enter, wait for the caller to cancel, then throw <paramref name="exception"/> instead of
+        /// the cancellation. Constructs the RACE — caller cancelled AND a provider timeout — which a
+        /// pre-cancelled token cannot reach, because <see cref="HttpClient"/> short-circuits before
+        /// the handler runs.
+        /// </summary>
+        public void ThrowAfterCancellation(Exception exception)
+        {
+            _blockUntilCancelled = true;
+            _throwAfterCancellation = exception;
+        }
 
         protected override async Task<HttpResponseMessage> SendAsync(
             HttpRequestMessage request, CancellationToken cancellationToken)
@@ -940,6 +1011,11 @@ public sealed class ScalewayEmailSenderTests : IDisposable
                 catch (OperationCanceledException)
                 {
                     ObservedCancellation = true;
+                    if (_throwAfterCancellation is not null)
+                    {
+                        throw _throwAfterCancellation;
+                    }
+
                     throw;
                 }
             }

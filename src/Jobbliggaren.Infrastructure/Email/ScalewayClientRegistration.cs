@@ -20,17 +20,29 @@ internal static class ScalewayClientRegistration
     /// <summary>
     /// The named <see cref="HttpClient"/> <see cref="ScalewayEmailSender"/> resolves per send.
     /// <para>
-    /// <b>A NAMED client, not a typed one, and the choice is load-bearing in two directions.</b>
-    /// <c>AddHttpClient&lt;TClient, TImplementation&gt;</c> registers the client TRANSIENT behind a
-    /// factory lambda, which would leave <c>ServiceDescriptor.ImplementationType</c> null — and the
-    /// gate suites assert on exactly that property, so a typed client fails every one of them in a
-    /// way that reads like a DI bug rather than a lifetime change. The sender is therefore a plain
-    /// <c>AddSingleton&lt;IEmailSender, ScalewayEmailSender&gt;</c> that takes
-    /// <see cref="IHttpClientFactory"/> and calls <see cref="IHttpClientFactory.CreateClient(string)"/>
-    /// per send. That is also the correct shape independently of the tests: a singleton that
-    /// captured one <see cref="HttpClient"/> for the process lifetime would freeze
-    /// <c>HttpMessageHandler</c> rotation, which is the precise reason the Resend arm's sender was
-    /// Transient. Creating the client per send costs a handler-pool lookup, not a socket.
+    /// <b>A NAMED client, not a typed one, and the reasons are production facts — not the test
+    /// suite.</b> <c>AddHttpClient&lt;TClient, TImplementation&gt;</c> registers the client TRANSIENT
+    /// behind a factory lambda. Two consequences, both measured 2026-08-15 (dotnet-architect,
+    /// PR #1339):
+    /// <list type="number">
+    ///   <item><b>Captive dependency, and it is the decisive one.</b>
+    ///     <c>AuthOptionsValidator</c> is registered
+    ///     <c>AddSingleton&lt;IValidateOptions&lt;AuthOptions&gt;, AuthOptionsValidator&gt;()</c>
+    ///     and takes <see cref="Jobbliggaren.Application.Common.Abstractions.IEmailSender"/> in its
+    ///     primary constructor. A TRANSIENT sender is therefore captured there for the process
+    ///     lifetime — freezing exactly the <c>HttpMessageHandler</c> rotation a typed client exists
+    ///     to preserve, and doing it invisibly: <c>ValidateScopes</c> catches scoped-in-singleton,
+    ///     never transient-in-singleton.</item>
+    ///   <item><b>Lifetime consistency.</b> <c>IEmailSender</c> is <c>AddSingleton</c> in all three
+    ///     arms; a typed client would make one Application-owned port transient in this arm alone.</item>
+    /// </list>
+    /// The sender is therefore a plain <c>AddSingleton&lt;IEmailSender, ScalewayEmailSender&gt;</c>
+    /// that takes <see cref="IHttpClientFactory"/> and calls
+    /// <see cref="IHttpClientFactory.CreateClient(string)"/> per send — which costs a handler-pool
+    /// lookup, not a socket. (A typed client would ALSO leave
+    /// <c>ServiceDescriptor.ImplementationType</c> null and fail every impl-type assertion in two
+    /// gate suites; that is a consequence worth knowing, not the reason. A test assertion must not
+    /// be what shapes a composition root.)
     /// </para>
     /// </summary>
     internal const string HttpClientName = "scaleway-transactional-email";

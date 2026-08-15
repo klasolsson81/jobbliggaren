@@ -36,10 +36,22 @@ public sealed class ScalewayEmailOptions
 
     /// <summary>
     /// Scaleway region for the Transactional Email endpoint — <c>fr-par</c> today, and the only
-    /// value the arm accepts (see <see cref="ScalewayClientRegistration"/>, which owns the
-    /// allow-list and builds the region into the client's base address). ALWAYS explicit: the
-    /// region is itself a data-protection fact (#1169), and it is also the one string that decides
-    /// whether the URL the sender POSTs to exists at all.
+    /// value the arm accepts. ALWAYS explicit: the region is itself a data-protection fact (#1169),
+    /// and it is also the one string that decides whether the URL the sender POSTs to exists at all.
+    /// <para>
+    /// <b>Consumed at REGISTRATION, and NOT read by the sender</b> (dotnet-architect, PR #1339).
+    /// <see cref="ScalewayClientRegistration"/> owns the allow-list and bakes the region into the
+    /// client's base address, so <c>ScalewayEmailSender</c> never touches this property — do not
+    /// read it there expecting it to be the region in force, and do not add a second normaliser.
+    /// The allow-list is the STRONGER rule; this <see cref="RequiredAttribute"/> only says
+    /// "non-empty", and both read the same configuration key, so they cannot disagree.
+    /// </para>
+    /// <para>
+    /// It is kept here rather than removed so the section's shape stays in one place and the DI
+    /// arm's raw reads keep their <c>nameof</c> coupling — dropping the property would put a bare
+    /// <c>"Region"</c> string in the composition root, which CLAUDE.md §5 bans. That is a deliberate
+    /// deviation from the reviewer's suggested form, taken for that reason.
+    /// </para>
     /// </summary>
     [Required]
     public string Region { get; init; } = string.Empty;

@@ -17,9 +17,10 @@ namespace Jobbliggaren.Infrastructure.Email;
 /// compromise.</b> Scaleway publishes official SDKs for Python, Go and JavaScript and none for
 /// .NET (measured against its own SDK index 2026-08-15), so there is no library to confine here.
 /// The wire format is one POST with a JSON body, so <see cref="HttpClient"/> plus
-/// <see cref="System.Text.Json"/> covers it with no dependency at all — the previous arm's whole
-/// package-confinement apparatus (an allow-listed SDK, a namespace guard, an IL fact) exists
-/// because that arm HAD a package, and it went away with it.
+/// <see cref="System.Text.Json"/> covers it with no dependency at all. The previous arm's
+/// package-confinement apparatus went with the package: the allow-listed SDK and the exempt
+/// namespace are gone. Its IL fact did NOT go — it was widened to cover Infrastructure, which the
+/// ADR 0124 form had to exempt (<c>NoAmazonReferenceTests</c> is stricter now, not looser).
 /// </para>
 /// <para>
 /// <b>HTTPS API, never SMTP.</b> Netcup drops outbound 25/465/587 (`Mail block`), and ADR 0050 §10
@@ -28,12 +29,21 @@ namespace Jobbliggaren.Infrastructure.Email;
 /// box and is not an option.
 /// </para>
 /// <para>
-/// <b>PII discipline (CLAUDE.md §5).</b> No recipient address, token, body, subject or credential
-/// is ever logged — only the email kind and, on failure, the exception TYPE name plus the HTTP
+/// <b>PII discipline (CLAUDE.md §5).</b> This class logs no recipient address, token, body, subject
+/// or credential — only the email kind and, on failure, the exception TYPE name plus the HTTP
 /// status. The response BODY is never read at all: an API error payload is exactly where a
 /// provider echoes the address it rejected, and reading it in order to log it is how that leak
 /// gets built. The status code carries the entire actionable difference between a 401 (bad key),
 /// a 403 (wrong project), a 429 (throttled) and a 5xx, and a status code is not PII.
+/// <para>
+/// <b>Scoped to THIS class's logger, deliberately</b> (code-reviewer Minor, PR #1339).
+/// <c>Microsoft.Extensions.Http</c> emits its own records per send naming the request URI and the
+/// status. Those carry no PII — the URI is <c>…/regions/fr-par/emails</c> with no query — but they
+/// exist, so this paragraph is a statement about what the adapter writes, not a claim that the
+/// process emits exactly one line per send. Header VALUES are redacted by that logger's default
+/// (measured against <c>Microsoft.Extensions.Http</c> 10.0.10, security-auditor 2026-08-15), which
+/// is why the auth token does not need a <c>RedactLoggedHeaders</c> call here.
+/// </para>
 /// </para>
 /// <para>
 /// <b>A note for whoever restores "missing" telemetry.</b> A historical SES sender deleted in
@@ -203,8 +213,12 @@ public sealed partial class ScalewayEmailSender(
 
             // Per-request rather than on the client's DefaultRequestHeaders, so every fact about
             // Scaleway's wire protocol lives in this one file and is reachable by a handler-level
-            // test. A missing or wrong token is a 401 — total, silent delivery loss — so its
-            // presence is pinned, never assumed.
+            // test — which is where the header's presence is pinned.
+            //
+            // The bool return is discarded deliberately: TryAddWithoutValidation can only fail here
+            // by rejecting the header NAME, which is a compile-time constant, and the failure is
+            // self-announcing anyway — no header means 401, which is contained and logged WITH its
+            // status rather than swallowed. Branching on it would add an unreachable arm.
             request.Headers.TryAddWithoutValidation(AuthHeaderName, _scaleway.SecretKey);
 
             // CreateClient per send, deliberately: this sender is a singleton, and one captured
@@ -212,16 +226,42 @@ public sealed partial class ScalewayEmailSender(
             // ScalewayClientRegistration.HttpClientName.
             var client = httpClientFactory.CreateClient(ScalewayClientRegistration.HttpClientName);
 
-            using var response = await client.SendAsync(request, cancellationToken);
+            // ResponseHeadersRead, so "the body is never read" is true at the TRANSPORT level and
+            // not merely of our own code (dotnet-architect, PR #1339). The default,
+            // ResponseContentRead, buffers the whole error payload into managed memory before
+            // EnsureSuccessStatusCode ever runs — and that payload is precisely where a provider
+            // echoes the address it rejected. Nothing logged it either way; this stops it being
+            // materialised at all. `using` disposes the response and with it the unread stream.
+            using var response = await client.SendAsync(
+                request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
 
-            // The response body is deliberately never read — not to log it, not to parse a message
-            // id. EnsureSuccessStatusCode's own message carries the status and reason phrase only,
-            // and it records the status on the thrown HttpRequestException, which is where the
-            // failure log below picks it up.
+            // The body is deliberately never read — not to log it, not to parse a message id.
+            // EnsureSuccessStatusCode's own message carries the status and reason phrase only, and
+            // it records the status on the thrown HttpRequestException, which is where the failure
+            // log below picks it up.
             response.EnsureSuccessStatusCode();
 
             LogSent(emailKind);
         }
+        // Contain everything EXCEPT a cancellation the caller actually asked for.
+        //
+        // The second disjunct is the whole point: HttpClient raises its OWN timeout as
+        // TaskCanceledException, which IS an OperationCanceledException, so the SES arm's filter
+        // (`ex is not OperationCanceledException`) would have let every provider timeout escape as a
+        // cancellation — where the callers' identical filters swallow it as a host shutdown.
+        //
+        // KNOWN RESIDUAL, MEASURED RATHER THAN ASSUMED (code-reviewer Minor 1, dotnet-architect
+        // residual (ii), PR #1339): a provider timeout that COINCIDES with caller cancellation is
+        // classified as a cancellation and propagates. The obvious repair — a third disjunct
+        // `ex.InnerException is TimeoutException`, which is the marker HttpClient sets for its own
+        // timeout — was implemented and MEASURED NOT TO WORK on 2026-08-15. When the caller's token
+        // is cancelled, HttpClient does not surface the handler's exception at all: it throws its
+        // own TaskCanceledException linked to that token, and the inner TimeoutException is
+        // discarded. The disjunct is therefore unreachable in exactly the race it was meant to
+        // close, and shipping it would have been dead code behind a comment claiming a fix.
+        // `ScalewayEmailSenderTests` pins the real behaviour so the next reader finds the
+        // measurement instead of re-deriving it. Bounded to shutdown, and the cost is one reaped
+        // notification; closing it needs a different seam, not a wider filter here.
         catch (Exception ex)
             when (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
         {

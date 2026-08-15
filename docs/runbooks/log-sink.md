@@ -78,7 +78,9 @@ the service's `ConditionPathExists` skips the run rather than failing it.
 > OVH — **with no age bound at all**, because `REMOTE_PREFIX` is flat `hostlogs/` and G3's two
 > rules target `hostlogs/app/` and `hostlogs/host/`, so they match nothing; and §4 records that the
 > rules are not applied in any case. The object is encrypted to an age recipient whose private key
-> ADR 0129 places on the same device as `jobbpilot_vps_ed25519`. One compromised workstation would
+> ADR 0129 places on the same device as `jobbpilot_vps_ed25519` — i.e. Klas's workstation,
+> which row 26 already records as holding root on this box. (Reproduced rather than cited:
+> ADR 0129 is gitignored per §6.5, and row 26 sets that convention for this same ADR.) One compromised workstation would
 > then yield root, the upload credential, the age key **and** the master key out of a retained
 > artefact, with the box not even running.
 >
@@ -92,7 +94,6 @@ the service's `ConditionPathExists` skips the run rather than failing it.
 # jobbliggaren-reconcile.timer applies within the hour, and one such pull cost a 13-minute
 # outage on 2026-08-10. Read what it would bring FIRST, then pull; the fetch+log is what makes
 # the pull deliberate, never a substitute for it. If deploy/docker-compose.yml is involved, read
-
 # vps-deploy-stack.md §3b — the apply goes through the reconcile unit, never a hand-typed
 # `up -d` — and §3a as well when the pull brings migrations or the box runs a pinned IMAGE_TAG,
 # which is what the schema gate's exits 3 and 4 answer for.

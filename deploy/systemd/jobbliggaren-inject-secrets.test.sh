@@ -60,14 +60,26 @@ readonly -a EXPECTED_HOST_FILES=(
   "Backup__RcloneConfigBase64"
 )
 
-# The two files that are required ONLY when EMAIL_PROVIDER=Ses. Restated here for the same
+# The two files that are required ONLY when EMAIL_PROVIDER=Scaleway. Restated here for the same
 # reason as the lists above — a test deriving its expectation from the code under test cannot
 # detect the code dropping an entry — and they are deliberately NOT seeded by
 # seed_all_secrets(): the whole point of the cases below is that a stack without them is
 # healthy until the provider is flipped.
-readonly -a EXPECTED_SES_FILES=(
-  "Email__Ses__AccessKeyId"
-  "Email__Ses__SecretAccessKey"
+#
+# Each gets its own case below rather than one representative, and here that is more than the
+# usual argument: the two rotate independently (#183), so "one placed, the other not" is a state
+# an operator reaches on an ordinary rotation rather than only by mistake.
+readonly -a EXPECTED_SCALEWAY_FILES=(
+  "Email__Scaleway__SecretKey"
+  "Email__Scaleway__ProjectId"
+)
+
+# The three .env lines the flip needs beside the files. Restated for the same reason, and kept as
+# a list so a case can hold every one but the variable under test.
+readonly -a EXPECTED_SCALEWAY_VARS=(
+  "EMAIL_SCALEWAY_SECRET_KEY_FILE"
+  "EMAIL_SCALEWAY_PROJECT_ID_FILE"
+  "EMAIL_SCALEWAY_REGION"
 )
 
 # Whether this filesystem honours chmod at all. Git Bash on Windows does not — `chmod 0710`
@@ -128,12 +140,12 @@ make_sut_copy() {
     echo "FIXTURE BROKEN: HOST_SECRETS_DIR redirect did not apply — the suite would measure the host" >&2
     exit 1
   }
-  # Same proof as the two above, and it earns its place for a sharper reason: the SES cases are
+  # Same proof as the two above, and it earns its place for a sharper reason: the mail cases are
   # the only ones whose EXPECTED result depends on a file's CONTENT rather than its presence. An
   # unapplied redirect here would point at the real /opt/jobbliggaren/deploy/.env, which on a
   # developer machine and on a CI runner alike does not exist — so email_provider would answer
-  # `console`, the provider-is-Ses cases would measure the not-Ses branch, and BOTH would still
-  # report the exit code they wanted. Green for the opposite reason.
+  # `console`, the provider-is-Scaleway cases would measure the not-Scaleway branch, and BOTH
+  # would still report the exit code they wanted. Green for the opposite reason.
   grep -qxF "readonly ENV_FILE=$ENV_FIXTURE" "$sut_copy" || {
     echo "FIXTURE BROKEN: ENV_FILE redirect did not apply — the suite would measure the host" >&2
     exit 1
@@ -346,21 +358,21 @@ if [ "$MODE_ENFORCED" = "yes" ]; then
   seed_all_secrets; set_env_provider "Resend"; run_check || true
   assert_blocking_summary "an invalid EMAIL_PROVIDER"
 
-  # SES files absent, all three .env variables set — so the variable branch stays quiet and the
-  # file branch is the only one firing.
+  # Scaleway files absent, all three .env variables set — so the variable branch stays quiet and
+  # the file branch is the only one firing.
   seed_all_secrets
-  write_env "EMAIL_PROVIDER=Ses" "EMAIL_SES_ACCESS_KEY_ID_FILE=/x" \
-    "EMAIL_SES_SECRET_ACCESS_KEY_FILE=/y" "EMAIL_SES_REGION=eu-north-1"
+  write_env "EMAIL_PROVIDER=Scaleway" "EMAIL_SCALEWAY_SECRET_KEY_FILE=/x" \
+    "EMAIL_SCALEWAY_PROJECT_ID_FILE=/y" "EMAIL_SCALEWAY_REGION=fr-par"
   run_check || true
-  assert_blocking_summary "a missing SES credential file"
+  assert_blocking_summary "a missing Scaleway credential file"
 
   # The mirror: files present, one variable unset.
   seed_all_secrets
-  for k in "${EXPECTED_SES_FILES[@]}"; do printf '%s' "seeded-value-for-$k" > "$SECRETS/$k"; done
-  write_env "EMAIL_PROVIDER=Ses" "EMAIL_SES_ACCESS_KEY_ID_FILE=/x" \
-    "EMAIL_SES_SECRET_ACCESS_KEY_FILE=/y"
+  for k in "${EXPECTED_SCALEWAY_FILES[@]}"; do printf '%s' "seeded-value-for-$k" > "$SECRETS/$k"; done
+  write_env "EMAIL_PROVIDER=Scaleway" "EMAIL_SCALEWAY_SECRET_KEY_FILE=/x" \
+    "EMAIL_SCALEWAY_PROJECT_ID_FILE=/y"
   run_check || true
-  assert_blocking_summary "an unset EMAIL_SES_REGION"
+  assert_blocking_summary "an unset EMAIL_SCALEWAY_REGION"
 
   # BOTH SETS ABSENT — the state the box is in after EVERY reboot, since /run is tmpfs. Since the
   # split the two entry points answer independently, so this case pins that independence in the
@@ -483,9 +495,9 @@ echo "-- --check never touches docker"
 seed_all_secrets
 # The probe must CROSS the branch it is testing. With no .env the mail branch is skipped
 # entirely, so this case would have proven docker-freedom only of the code path that existed
-# before the SES work — and the new branch, which is the one that reads a file, would be the
-# unproven one. Ses is set so the whole branch executes under the poisoned PATH.
-set_env_provider "Ses"
+# before the mail work — and that branch, which is the one that reads a file, would be the
+# unproven one. Scaleway is set so the whole branch executes under the poisoned PATH.
+set_env_provider "Scaleway"
 mkdir -p "$TMPROOT/bin"
 cat >"$TMPROOT/bin/docker" <<'EOF'
 #!/usr/bin/env bash
@@ -556,186 +568,243 @@ for spec in "--check:--host" "--check-host:--host"; do
   fi
 done
 
-echo "-- the SES credentials are conditional on EMAIL_PROVIDER (#183)"
+echo "-- the Scaleway credentials are conditional on EMAIL_PROVIDER (#183)"
 #
 # EVERY CASE HERE IS BOUND TO THE FILE NAMES, NEVER TO THE EXIT CODE. Where chmod is
 # unavailable the directory-mode branch already sets missing=1, so an exit-code assertion would
 # report the wanted number without having measured this condition at all — and the two
-# provider-is-Ses cases would be indistinguishable from the two provider-is-Console ones.
+# provider-is-Scaleway cases would be indistinguishable from the two provider-is-Console ones.
 
 seed_all_secrets
 set_env_provider ""
 run_check || true
-if ! grep -qE "Email__Ses__(AccessKeyId|SecretAccessKey)|INVALID: EMAIL_PROVIDER" "$TMPROOT/out"; then
-  pass=$((pass + 1)); echo "  ok   no .env at all does not demand the SES credentials"
+if ! grep -qE "Email__Scaleway__(SecretKey|ProjectId)|INVALID: EMAIL_PROVIDER" "$TMPROOT/out"; then
+  pass=$((pass + 1)); echo "  ok   no .env at all does not demand the Scaleway credentials"
 else
-  fail=$((fail + 1)); echo "  FAIL an absent .env demanded the SES credentials" >&2
+  fail=$((fail + 1)); echo "  FAIL an absent .env demanded the Scaleway credentials" >&2
   sed 's/^/       /' "$TMPROOT/out" >&2
 fi
 
 seed_all_secrets
 set_env_provider "Console"
 run_check || true
-if ! grep -qE "Email__Ses__(AccessKeyId|SecretAccessKey)|INVALID: EMAIL_PROVIDER" "$TMPROOT/out"; then
-  pass=$((pass + 1)); echo "  ok   EMAIL_PROVIDER=Console does not demand the SES credentials"
+if ! grep -qE "Email__Scaleway__(SecretKey|ProjectId)|INVALID: EMAIL_PROVIDER" "$TMPROOT/out"; then
+  pass=$((pass + 1)); echo "  ok   EMAIL_PROVIDER=Console does not demand the Scaleway credentials"
 else
-  fail=$((fail + 1)); echo "  FAIL EMAIL_PROVIDER=Console demanded the SES credentials" >&2
+  fail=$((fail + 1)); echo "  FAIL EMAIL_PROVIDER=Console demanded the Scaleway credentials" >&2
   sed 's/^/       /' "$TMPROOT/out" >&2
 fi
 
 # One case per file rather than one representative, for the reason the suite already states
 # about its other lists: a loop that checked only the first name would report both as covered.
-# The OTHER file is seeded in each case, so a passing case measures this file alone.
-for missing_key in "${EXPECTED_SES_FILES[@]}"; do
+# The OTHER file is seeded in each case, so a passing case measures this file alone. Here it is
+# load-bearing beyond that argument: the two secrets have separate rotation lifecycles, so
+# "SecretKey placed, ProjectId not yet" is a state an operator reaches on an ordinary rotation
+# rather than only by mistake.
+for missing_key in "${EXPECTED_SCALEWAY_FILES[@]}"; do
   seed_all_secrets
-  set_env_provider "Ses"
-  for k in "${EXPECTED_SES_FILES[@]}"; do
+  set_env_provider "Scaleway"
+  for k in "${EXPECTED_SCALEWAY_FILES[@]}"; do
     [ "$k" = "$missing_key" ] && continue
     printf '%s' "seeded-value-for-$k" > "$SECRETS/$k"
   done
   run_check || true
   if grep -qF "MISSING: $SECRETS/$missing_key" "$TMPROOT/out"; then
-    pass=$((pass + 1)); echo "  ok   EMAIL_PROVIDER=Ses demands $missing_key"
+    pass=$((pass + 1)); echo "  ok   EMAIL_PROVIDER=Scaleway demands $missing_key"
   else
-    fail=$((fail + 1)); echo "  FAIL EMAIL_PROVIDER=Ses did not demand $missing_key" >&2
+    fail=$((fail + 1)); echo "  FAIL EMAIL_PROVIDER=Scaleway did not demand $missing_key" >&2
     sed 's/^/       /' "$TMPROOT/out" >&2
   fi
 done
 
 # CROSSES THE PREDICATE'S OWN THRESHOLD. AddEmailSender compares the provider with
-# OrdinalIgnoreCase, so `ses` IS Ses to the application. A name-exact guard would decline to
-# demand the files while the app accepted the value, and the box would boot into
+# OrdinalIgnoreCase, so `scaleway` IS Scaleway to the application. A name-exact guard would
+# decline to demand the files while the app accepted the value, and the box would boot into
 # AddEmailSender's registration-time throw with the credentials absent — precisely the state
 # --check exists to catch, missed by the detector itself.
 seed_all_secrets
-set_env_provider "ses"
+set_env_provider "scaleway"
 run_check || true
-if grep -qF "MISSING: $SECRETS/Email__Ses__AccessKeyId" "$TMPROOT/out"; then
-  pass=$((pass + 1)); echo "  ok   a lower-case ses is Ses, as it is to AddEmailSender"
+if grep -qF "MISSING: $SECRETS/Email__Scaleway__SecretKey" "$TMPROOT/out"; then
+  pass=$((pass + 1)); echo "  ok   a lower-case scaleway is Scaleway, as it is to AddEmailSender"
 else
-  fail=$((fail + 1)); echo "  FAIL a lower-case ses did not demand the SES credentials" >&2
+  fail=$((fail + 1)); echo "  FAIL a lower-case scaleway did not demand the credentials" >&2
   sed 's/^/       /' "$TMPROOT/out" >&2
 fi
 
 seed_all_secrets
-set_env_provider "Ses"
-for k in "${EXPECTED_SES_FILES[@]}"; do
+set_env_provider "Scaleway"
+for k in "${EXPECTED_SCALEWAY_FILES[@]}"; do
   printf '%s' "seeded-value-for-$k" > "$SECRETS/$k"
 done
 run_check || true
-if ! grep -qE "MISSING: .*Email__Ses__" "$TMPROOT/out"; then
-  pass=$((pass + 1)); echo "  ok   EMAIL_PROVIDER=Ses with both files present reports neither"
+if ! grep -qE "MISSING: .*Email__Scaleway__" "$TMPROOT/out"; then
+  pass=$((pass + 1)); echo "  ok   EMAIL_PROVIDER=Scaleway with both files present reports neither"
 else
-  fail=$((fail + 1)); echo "  FAIL a present SES credential was still reported missing" >&2
+  fail=$((fail + 1)); echo "  FAIL a present Scaleway credential was still reported missing" >&2
   sed 's/^/       /' "$TMPROOT/out" >&2
 fi
 
-echo "-- the .env forms compose accepts, all of which mean Ses"
+echo "-- A RETIRED PROVIDER NAME IS A BOOT REFUSAL, NOT A QUIETER CONSOLE (#183, E1 b71c14de)"
 #
-# THE FIRST IMPLEMENTATION READ ONLY THE FIRST OF THESE and answered not-Ses to the rest, which
-# is the fail-OPEN direction: compose renders Ses, AddEmailSender throws at registration, the
-# containers crash-loop, and --check exits 0 saying "all secrets present" over a dead box. All
-# three reviewing agents found it independently. Each line below was measured against Compose
-# v2.40.3 on 2026-08-12 to render `Ses`; they are the fixture BECAUSE compose accepts them, not
-# because a parser happens to.
+# THIS IS security-auditor's MAJOR 1 FROM E1, AND IT IS THE CASE THAT CLOSES IT. While the
+# SES arm existed, `EMAIL_PROVIDER=Ses` was a value the box booted on and this detector answered
+# `ses` to. E1 DELETED that arm rather than repointing it: AddEmailSender's switch ends in
+# `else throw`, so `Ses` now reaches the same throw as `Resend`, pinned on the application side by
+# AddEmailSenderGateTests. A detector that still mapped `ses` to a bootable state — or, worse, to
+# `console` — would report "all secrets present" over a stack that refuses to start, on the box's
+# only alarm surface, and it would do so for exactly the operator most likely to type it: one
+# following a stale instruction, a stale runbook, or this repository's own history.
+#
+# The mitigation E1 shipped with was "unreachable until E2 itself writes a provider value onto the
+# box", and that expires in this very commit — deploy/.env.example now instructs an operator to
+# write EMAIL_PROVIDER. So the false-GREEN is closed here, before anything can write one.
+#
+# BOUND TO THE `INVALID:` LINE AND TO THE VALUE IT NAMES, never to the exit code: --check reaches
+# exit 1 by six branches, and on a chmod-less filesystem the mode branch reaches it first. Only
+# this string separates "reported the retired name" from "failed for some other reason".
+#
+# BOTH CASES ALSO ASSERT THAT NO CREDENTIAL IS DEMANDED. A mutant that kept a `ses)` arm alive
+# would print MISSING lines for the Scaleway files instead of INVALID, exit 1 all the same, and
+# satisfy any assertion that only read the exit code.
+for retired in "Ses" "ses" "Resend"; do
+  seed_all_secrets
+  set_env_provider "$retired"
+  run_check || true
+  if grep -qF "INVALID: EMAIL_PROVIDER='$retired'" "$TMPROOT/out" \
+    && ! grep -qE "MISSING: .*Email__Scaleway__" "$TMPROOT/out"; then
+    pass=$((pass + 1)); echo "  ok   EMAIL_PROVIDER=$retired is INVALID and demands no credential"
+  else
+    fail=$((fail + 1)); echo "  FAIL EMAIL_PROVIDER=$retired was not reported INVALID" >&2
+    sed 's/^/       /' "$TMPROOT/out" >&2
+  fi
+done
+
+# AND THE RETIRED POINTER NAMES ARE INERT. `EMAIL_SES_*` is not a spelling of the current
+# variables: nothing reads it, so a leftover line from the SES era must neither demand a file nor
+# satisfy a requirement. The fixture sets the provider to Console so the ONLY thing that could
+# fire is a surviving SES pointer arm — which is what this case exists to prove is gone.
+seed_all_secrets
+write_env "EMAIL_PROVIDER=Console" \
+  "EMAIL_SES_ACCESS_KEY_ID_FILE=/run/app-secrets/Email__Ses__AccessKeyId" \
+  "EMAIL_SES_SECRET_ACCESS_KEY_FILE=/run/app-secrets/Email__Ses__SecretAccessKey" \
+  "EMAIL_SES_REGION=eu-north-1"
+run_check || true
+if ! grep -qE "Email__Ses__|EMAIL_SES_|Email__Scaleway__|INVALID: EMAIL_PROVIDER" "$TMPROOT/out"; then
+  pass=$((pass + 1)); echo "  ok   leftover EMAIL_SES_* lines are read by nothing"
+else
+  fail=$((fail + 1)); echo "  FAIL a retired EMAIL_SES_* line still reached a branch" >&2
+  sed 's/^/       /' "$TMPROOT/out" >&2
+fi
+
+echo "-- the .env forms compose accepts, all of which mean Scaleway"
+#
+# THE FIRST IMPLEMENTATION READ ONLY THE FIRST OF THESE and answered not-configured to the rest,
+# which is the fail-OPEN direction: compose renders the value, AddEmailSender throws at
+# registration, the containers crash-loop, and --check exits 0 saying "all secrets present" over a
+# dead box. All three reviewing agents found it independently.
+#
+# WHAT COMPOSE v2.40.3 WAS MEASURED ON, 2026-08-12, IS THE FORM AND NOT THE VALUE — delimiter,
+# quoting, `export` and inline-comment handling are properties of its parser and are blind to the
+# provider name on the right-hand side. The literal changed with #183; the parser behaviour these
+# lines are the fixture for did not, and no line below claims a 2026-08-12 measurement of the
+# string `Scaleway`.
 for env_line in \
-  'EMAIL_PROVIDER=Ses' \
-  'EMAIL_PROVIDER=Ses # flippat 2026-08-12' \
-  'export EMAIL_PROVIDER=Ses' \
-  'EMAIL_PROVIDER: Ses' \
-  'EMAIL_PROVIDER="Ses" # quoted plus comment' \
-  '  EMAIL_PROVIDER   =   ses   ' \
+  'EMAIL_PROVIDER=Scaleway' \
+  'EMAIL_PROVIDER=Scaleway # flippat 2026-08-15' \
+  'export EMAIL_PROVIDER=Scaleway' \
+  'EMAIL_PROVIDER: Scaleway' \
+  'EMAIL_PROVIDER="Scaleway" # quoted plus comment' \
+  '  EMAIL_PROVIDER   =   scaleway   ' \
   ; do
   seed_all_secrets
   write_env "SITE_HOST=jobbliggaren.se" "$env_line"
   run_check || true
-  if grep -qF "MISSING: $SECRETS/Email__Ses__AccessKeyId" "$TMPROOT/out"; then
-    pass=$((pass + 1)); echo "  ok   [$env_line] is Ses"
+  if grep -qF "MISSING: $SECRETS/Email__Scaleway__SecretKey" "$TMPROOT/out"; then
+    pass=$((pass + 1)); echo "  ok   [$env_line] is Scaleway"
   else
-    fail=$((fail + 1)); echo "  FAIL [$env_line] was not read as Ses" >&2
+    fail=$((fail + 1)); echo "  FAIL [$env_line] was not read as Scaleway" >&2
     sed 's/^/       /' "$TMPROOT/out" >&2
   fi
 done
 
 echo "-- a quoted value KEEPS its hash, and compose treats that as a boot refusal"
 # The fix for the parser introduced this one and security-auditor measured it: compose renders
-# `Ses # x` for a single-quoted value, which AddEmailSender throws on, while a naive strip read
-# it as `Ses` and reported a box configured for SES that does not start. WIDER is fail-closed
-# everywhere except here, which is why the strip now stops at the closing quote.
+# `<value> # x` for a single-quoted value, which AddEmailSender throws on, while a naive strip
+# read it as the bare value and reported a box configured for mail that does not start. WIDER is
+# fail-closed everywhere except here, which is why the strip now stops at the closing quote.
 seed_all_secrets
-write_env "SITE_HOST=jobbliggaren.se" "EMAIL_PROVIDER='Ses # not really'"
+write_env "SITE_HOST=jobbliggaren.se" "EMAIL_PROVIDER='Scaleway # not really'"
 run_check || true
 if grep -qF "INVALID: EMAIL_PROVIDER=" "$TMPROOT/out"; then
   pass=$((pass + 1)); echo "  ok   a quoted hash makes the value unknown, as it is to compose"
 else
-  fail=$((fail + 1)); echo "  FAIL a quoted hash was stripped and read as Ses" >&2
+  fail=$((fail + 1)); echo "  FAIL a quoted hash was stripped and read as Scaleway" >&2
   sed 's/^/       /' "$TMPROOT/out" >&2
 fi
 
 echo "-- an .env that exists without the key is the box's state today"
-# THE MUTATION THIS EXISTS FOR: `== "ses"` -> `!= "console"` survived the whole suite before
+# THE MUTATION THIS EXISTS FOR: `== "scaleway"` -> `!= "console"` survived the whole suite before
 # this case, and under it the box's own .env — which has no EMAIL_PROVIDER line at all — would
 # take a permanent MISSING. That is verbatim the outcome the design exists to avoid, and no
 # case could see it, because every fixture either had no file or had the key.
 seed_all_secrets
 write_env "SITE_HOST=jobbliggaren.se" "POSTGRES_APP_PASSWORD=x"
 run_check || true
-if ! grep -qE "Email__Ses__|EMAIL_SES_|INVALID: EMAIL_PROVIDER" "$TMPROOT/out"; then
+if ! grep -qE "Email__Scaleway__|EMAIL_SCALEWAY_|INVALID: EMAIL_PROVIDER" "$TMPROOT/out"; then
   pass=$((pass + 1)); echo "  ok   an .env with no EMAIL_PROVIDER line demands nothing"
 else
-  fail=$((fail + 1)); echo "  FAIL an .env with no EMAIL_PROVIDER line demanded SES config" >&2
+  fail=$((fail + 1)); echo "  FAIL an .env with no EMAIL_PROVIDER line demanded mail config" >&2
   sed 's/^/       /' "$TMPROOT/out" >&2
 fi
 
-echo "-- a value that is neither Console nor Ses is not a quieter Console"
-# AddEmailSender's switch ends in `else throw`, so the box does not boot on this value either.
-# A detector that answered "not Ses" would go green on a stack that cannot start.
-seed_all_secrets
-set_env_provider "Resend"
-run_check || true
-if grep -qF "INVALID: EMAIL_PROVIDER='Resend'" "$TMPROOT/out"; then
-  pass=$((pass + 1)); echo "  ok   an unknown provider is reported by name, not silently ignored"
-else
-  fail=$((fail + 1)); echo "  FAIL an unknown provider was treated as Console" >&2
-  sed 's/^/       /' "$TMPROOT/out" >&2
-fi
+# (The "neither Console nor Scaleway is not a quieter Console" case is not repeated here: the
+# retired-provider loop above already asserts it for `Resend`, and asserts the stronger property
+# that no credential is demanded either. Two homes for one rule is two rules.)
 
 echo "-- a _FILE pointer alone demands the credentials, whatever the provider says"
 # EnvFileSecretsConfiguration throws on a pointer naming a path it cannot read and never
 # consults Email:Provider, so this is a boot refusal with the provider back on Console — the
 # state reached by rolling the flip BACK and rebooting, which a provider-only predicate calls
 # healthy.
-seed_all_secrets
-write_env "EMAIL_PROVIDER=Console" \
-  "EMAIL_SES_ACCESS_KEY_ID_FILE=/run/app-secrets/Email__Ses__AccessKeyId"
-run_check || true
-if grep -qF "MISSING: $SECRETS/Email__Ses__AccessKeyId" "$TMPROOT/out"; then
-  pass=$((pass + 1)); echo "  ok   a set pointer demands the file even under Console"
-else
-  fail=$((fail + 1)); echo "  FAIL a set pointer under Console demanded nothing" >&2
-  sed 's/^/       /' "$TMPROOT/out" >&2
-fi
+#
+# ONE CASE PER POINTER, not one representative, and here that is more than the usual argument:
+# the two secrets have separate rotation lifecycles, so a rollback can plausibly leave EITHER
+# pointer behind on its own, and a predicate reading only the first would call the other healthy.
+for spec in "EMAIL_SCALEWAY_SECRET_KEY_FILE:Email__Scaleway__SecretKey" \
+            "EMAIL_SCALEWAY_PROJECT_ID_FILE:Email__Scaleway__ProjectId"; do
+  pointer=${spec%%:*}; file=${spec#*:}
+  seed_all_secrets
+  write_env "EMAIL_PROVIDER=Console" "${pointer}=/run/app-secrets/${file}"
+  run_check || true
+  if grep -qF "MISSING: $SECRETS/$file" "$TMPROOT/out"; then
+    pass=$((pass + 1)); echo "  ok   ${pointer} alone demands the files even under Console"
+  else
+    fail=$((fail + 1)); echo "  FAIL ${pointer} under Console demanded nothing" >&2
+    sed 's/^/       /' "$TMPROOT/out" >&2
+  fi
+done
 
 echo "-- injected files do not make the flip complete"
 # The other half of the same boot refusal: files present, .env lines absent. One case per
 # variable, because a loop checking only the first would report all three as covered.
-for ses_var in EMAIL_SES_ACCESS_KEY_ID_FILE EMAIL_SES_SECRET_ACCESS_KEY_FILE EMAIL_SES_REGION; do
+for scw_var in "${EXPECTED_SCALEWAY_VARS[@]}"; do
   seed_all_secrets
-  for k in "${EXPECTED_SES_FILES[@]}"; do
+  for k in "${EXPECTED_SCALEWAY_FILES[@]}"; do
     printf '%s' "seeded-value-for-$k" > "$SECRETS/$k"
   done
   # Everything set EXCEPT the one under test, so a pass measures that variable alone.
-  lines=("EMAIL_PROVIDER=Ses")
-  for other in EMAIL_SES_ACCESS_KEY_ID_FILE EMAIL_SES_SECRET_ACCESS_KEY_FILE EMAIL_SES_REGION; do
-    [ "$other" = "$ses_var" ] && continue
+  lines=("EMAIL_PROVIDER=Scaleway")
+  for other in "${EXPECTED_SCALEWAY_VARS[@]}"; do
+    [ "$other" = "$scw_var" ] && continue
     lines+=("$other=set-for-fixture")
   done
   write_env "${lines[@]}"
   run_check || true
-  if grep -qF "MISSING: ${ses_var} is unset" "$TMPROOT/out"; then
-    pass=$((pass + 1)); echo "  ok   EMAIL_PROVIDER=Ses demands ${ses_var}"
+  if grep -qF "MISSING: ${scw_var} is unset" "$TMPROOT/out"; then
+    pass=$((pass + 1)); echo "  ok   EMAIL_PROVIDER=Scaleway demands ${scw_var}"
   else
-    fail=$((fail + 1)); echo "  FAIL a missing ${ses_var} was not reported" >&2
+    fail=$((fail + 1)); echo "  FAIL a missing ${scw_var} was not reported" >&2
     sed 's/^/       /' "$TMPROOT/out" >&2
   fi
 done

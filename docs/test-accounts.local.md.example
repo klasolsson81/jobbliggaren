@@ -1,0 +1,57 @@
+# Test accounts — dev.jobbliggaren.se
+
+**This is the tracked TEMPLATE. Copy it to `docs/test-accounts.local.md` and fill that
+copy — never this one.** The real file is gitignored because this repository is public,
+and it is deliberately **not** listed in `.worktreeinclude`: worktree sessions read it from
+the main checkout by absolute path (`C:\DOTNET-UTB\JobbPilot\docs\test-accounts.local.md`).
+`scripts/sync-worktree-docs.ps1` refuses to copy it even if someone lists it.
+
+Values are filled by Klas directly on his machine. They are not pasted into a chat, a PR,
+an issue or a session log — a credential in a transcript is a credential to rotate.
+
+How the accounts come into existence: [`runbooks/registration-gate.md`](runbooks/registration-gate.md).
+Writing one straight into the database is not the alternative; `AuthOptions` forbids it.
+
+---
+
+## K2 edge gate (Caddy basic-auth)
+
+Every request to the site is challenged before it reaches the app, so a CC session needs
+this before it can reach a login form at all.
+
+- user: `<fill>`
+- password: `<fill>`
+
+The bcrypt hash of this password lives in `deploy/.env` on the box as `BASIC_AUTH_HASH`;
+the plaintext exists only here.
+
+## Standing CC test account
+
+The account future CC sessions use to log in and verify behaviour on the deployed box.
+
+- email: `<fill — an external mailbox; @jobbliggaren.se receives nothing, MX is a blackhole>`
+- password: `<fill>`
+- created: `<date>`
+- role: none (ordinary job seeker)
+
+## Operator account (Klas)
+
+- email: `<fill>`
+- role: Admin, via `ADMIN_BOOTSTRAP_INITIAL_ADMIN_EMAIL` in `deploy/.env`
+- password: not recorded here — Klas's own, rotated in-app after first login
+
+---
+
+## Notes for future CC sessions
+
+- **Use the CC account, not the operator account.** The admin role changes what the app
+  does; verifying a job-seeker surface while signed in as an admin can measure the wrong
+  thing.
+- **This account owns no real PII.** It is safe to exercise profile and CV writes against
+  it, and its data is what verification row 23's second half was measured on.
+- **Do not register further accounts** without asking Klas. Each one is a real row on a
+  real box, and the gate may be closed again between visits — see the runbook's step 10.
+- **If login is refused with `403 EmailNotConfirmed`**, the confirmation link was never
+  followed. There is no self-service resend that reaches you; ask Klas.
+- **If registration answers `503`**, the gate is closed. That is a posture, not an
+  outage — do not "fix" it from a worktree.

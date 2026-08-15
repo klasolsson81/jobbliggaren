@@ -125,6 +125,9 @@ docs/current-work-archive.md
 docs/steg-tracker.md
 docs/tech-debt.md
 docs/tech-debt-archive.md
+# Dev-box account credentials (#734). The tracked template is
+# docs/test-accounts.local.md.example; only the filled copy is ignored.
+docs/test-accounts.local.md
 # Strategi-avslöjande ADR:er (go-to-market + interna riktningsbeslut)
 docs/decisions/0005-go-to-market-strategy.md
 docs/decisions/0071-*.md

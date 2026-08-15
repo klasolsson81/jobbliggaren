@@ -40,10 +40,11 @@ readonly ENV_FILE=/etc/jobbliggaren/detection.env
 readonly AUDIT_RULES_FILE=/etc/audit/rules.d/zz-jobbliggaren.rules
 
 # The floor set: timers whose absence would make P1's emptiness meaningless.
-# KEEP IN SYNC AS UNITS LAND. #197's jobbliggaren-backup.timer and #198's TWO absence timers —
-# jobbliggaren-secrets-present.timer and jobbliggaren-host-secrets-present.timer — belong here the
-# moment they are ENABLED on the box, the state check_floor_timers actually measures, and that
-# handover is written in docs/runbooks/host-detection.md rather than left to memory.
+# KEEP IN SYNC AS UNITS LAND. #197's jobbliggaren-backup.timer and #198's
+# jobbliggaren-host-secrets-present.timer belong here the moment they are ENABLED on the box, the
+# state check_floor_timers actually measures, and that handover is written in
+# docs/runbooks/host-detection.md rather than left to memory. (#198's other absence timer,
+# jobbliggaren-secrets-present.timer, already joined — see the note below the constant.)
 #
 # INSTALLED AND ENABLED ARE TWO MOMENTS, AND SINCE #1329 THEY DIVERGE FOR ONLY ONE OF THE TWO.
 # The absence detector split per set. jobbliggaren-secrets-present.timer runs --check over the
@@ -52,7 +53,13 @@ readonly AUDIT_RULES_FILE=/etc/audit/rules.d/zz-jobbliggaren.rules
 # keys, so it must not be ENABLED before they are provisioned: enabled early it fails every fire
 # and lights the alarm surface permanently — which, through P1 below, is a continuous page.
 # master-key-ops.md §2 owns the ordering. Sequencing, not a defect.
-readonly FLOOR_TIMERS="jobbliggaren-reconcile.timer jobbliggaren-heartbeat.timer"
+#
+# jobbliggaren-secrets-present.timer JOINED THE SET 2026-08-15, the day it was enabled on the box
+# (#198's cutover). It is here because `enable` happened, not because its files were installed —
+# that is the trigger this block and host-detection.md §7 both name, and check_floor_timers
+# measures is-enabled AND is-active, so an installed-but-disabled unit here would fail every fire.
+# The host-only timer stays out for exactly that reason until #197's credential exists.
+readonly FLOOR_TIMERS="jobbliggaren-reconcile.timer jobbliggaren-heartbeat.timer jobbliggaren-secrets-present.timer"
 
 # Free-space floor, in percent. This absorbs the DETECTION half of a disk-usage finding
 # security-auditor routed to #196, which closed without it. The QUOTA half is deliberately not

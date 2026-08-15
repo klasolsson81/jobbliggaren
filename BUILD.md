@@ -1609,8 +1609,8 @@ byggt:
 > inte skrivas). **SCC-domen från 2026-08-08 står orörd som dom över sin
 > egen era och sin egen part** — den var korrekt, den redovisade en överföring som aldrig
 > aktiverades, och den ska inte städas bort. Vad som ändras är att e-postposten sedan 2026-08-15
-> är **tyst** om Kap. V i copyn, precis som värdposten och backup-posten är det. **Tre
-> EU-leverantörer som rekvisitet inte når är därmed tysta, och en historisk post som det nådde
+> är **tyst** om Kap. V i copyn, precis som värdposten och backup-posten är det. **En leverantör
+> prövad och friad, två tysta på oavgjord grund, och en historisk post som rekvisitet nådde
 > redovisade — det är vad icke-selektivitet SER UT SOM**, inte ett tecken på att standarden
 > slutat gälla. ⚠ **Tystnad i copyn är inte detsamma som en avgjord dom:** netcup och OVHcloud är
 > prövade och friade, medan Scaleway står på ett utkast `security-auditor` **delratificerat** —
@@ -1667,9 +1667,11 @@ producera sin franska moders uppgifter). **Räckvidden är rekvisitet.** Utan de
 koncernstruktur — en US-enhet **sidledes**, med delade drifttjänster — oavgörbar mot texten.
 Meritlistan, tillämpningar åt båda hållen: den **fällde** R2 (US-ägt mål för okrypterad PII) och
 e-postposten i AWS-eran (EU-part under amerikansk moder — redovisad med SCC 2026-08-08 till
-2026-08-15, se §13.4:s historiklager); den **friar** netcup (`security-auditor` 2026-08-09) och
-**OVHcloud** (`eu-west-par`, fransk part, ingen tredjelandsmoder — backup-målet ovan); och för
-**Scaleway** står den på ett **utkast som ännu inte är ratificerat** — `security-auditor`
+2026-08-15, se §13.4:s historiklager); den **friar** netcup (`security-auditor` 2026-08-09); och
+**två fall är oavgjorda och skrivs aldrig som frikända**: **OVHcloud** (fransk part, men
+**underbiträdeskedjan är ogranskad** per ROPA:ns backup-post, och en ogranskad kedja är precis
+där rekvisitets andra led — *kan nå dem* — kan sitta; ingen domare, inget datum) och
+**Scaleway**, som står på ett **utkast som ännu inte är ratificerat** — `security-auditor`
 delratificerade 2026-08-15/16 den strukturella halvan men **inte** slutsatsen, som hänger på om
 leverantörens support-/driftpersonal har åtkomst från tredjeland (`release-checklist.md` §2.5 punkt 1
 led (b) är statusens hem). **Skriv det aldrig som ett fjärde frikännande innan ledet är stängt.**

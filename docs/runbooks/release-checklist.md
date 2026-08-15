@@ -269,9 +269,15 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
         ⚠ **TVÅ FÖRBEHÅLL, del av bedömningen och inte fotnoter:** (1) **`Scaleway US Corporation`
         (Chicago) finns nedströms i koncernen** utan TEM-roll — det ändrar inte ägarriktningen, men
         påståendet "ingen US-enhet i koncernen" är mätt falskt och får inte skrivas; (2) **var
-        leverantörens support-/driftpersonal har åtkomst ifrån är ODOKUMENTERAT** (sökt i
-        TOM-dokumentet, DPA Art. 6, integritetspolicyn och TEM-FAQ:n) — fjärråtkomst från tredjeland
-        vore i sig en överföring, så utkastet är **villkorat av svaret** på Klas-brevet i led (c).
+        leverantörens support-/driftpersonal har åtkomst ifrån SAKNAR AVTALSRANG.** ⚠ *Ledet sa
+        "ODOKUMENTERAT" till 2026-08-15/16, och det underdrev sitt eget underlag
+        (`security-auditor`): TEM-FAQ:ns TIA-svar säger verbatim* "all data is hosted and processed
+        entirely within the European Union"*, och under Art. 4(2) omfattar behandling **åtkomst** —
+        meningen träffar alltså frågan. Vad som saknas är dess **rang**: dokumentation binder inte
+        som DPA Art. 11 gör.* Åtgärden är därför att få **just den meningen bekräftad skriftligt**,
+        inte att fylla en lucka från noll — sökt utan avtalsrangigt stöd i TOM-dokumentet, DPA
+        Art. 6 och integritetspolicyn. Fjärråtkomst från tredjeland vore i sig en överföring, så
+        utkastet är **villkorat av bekräftelsen** (Klas-brevet i led (c)).
         **KARAKTERISERINGEN ÄR `security-auditor`s MED KLAS, inte sessionens.** Ledet bär KVAR tills
         hon ratificerat; hennes dom skrivs in HÄR och statusen läses här, aldrig ur preambeln.
         **`security-auditor` 2026-08-15/16 — DELRATIFICERING. LEDET STÅR KVAR.**
@@ -437,8 +443,11 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
       **ORDNINGEN STÅR FÖRST, för att den styr posterna under sig:** upplös
       SCC/adekvans-disjunktionen **före** du skriver Art. 13(1)(f)-formuleringen —
       kopia-formuleringen hänger på Art. 46/47-grunden, så tvärtom påstår du en SCC-grund
-      som kanske inte används. Alltså **(iii) → (ii)**, och listans första post — flytten in i `Mottagare`-listan —
-      när avtalet signeras.
+      som kanske inte används. Alltså **(iii) → (ii)**, och listans första post — strykningen av
+      e-poststyckets avtalsreservation — **när DPA:n är verifierad gällande för Scaleway S.A.S.**
+      *(Denna routing-rad sa till 2026-08-15 "flytten in i `Mottagare`-listan … när avtalet
+      **signeras**". Båda halvorna var fel: `list`-nyckeln finns inte, och (i):s egen kropp säger
+      att "på plats" inte är detsamma som "signerat".)*
       (i) **e-postleverantörens stycke får stryka sin egen avtalsreservation när avtalet är på
       plats.** ⚠ **Mekanismen är omskriven 2026-08-15 (`security-auditor` Major 2), för att den
       skyddsmekanism residualen tidigare namngav inte finns.** Posten sa att *"prosaformen är vald
@@ -451,8 +460,9 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
       med Scaleway SAS gäller"* — och villkoret för att stryka den är att avtalet faktiskt gäller
       för Scaleway S.A.S. *Sedan ADR 0131 är motparten Scaleway S.A.S., och
       "på plats" är inte detsamma som "signerat": DPA:n gäller automatiskt (avtalsdokument nr 1 i
-      GTS Art. 3, mätt 2026-08-15) — precis som AWS-DPA:t gjorde. Villkoret för flytten är
-      oförändrat genom båda bytena: listan får bara namnge en part vars avtal faktiskt gäller.*
+      GTS Art. 3, mätt 2026-08-15) — precis som AWS-DPA:t gjorde. Villkoret är oförändrat genom
+      båda bytena, men det gäller **reservationen och inte en lista**: den får bara strykas för en
+      part vars avtal faktiskt gäller.*
       **(i) är den enda residual som kvarstår.**
       (ii) **Art. 13(1)(f)** — "means to obtain a copy" av skyddsåtgärderna — **LEVERERAD
       2026-08-09 (#1169)** och **UPPHÖRD 2026-08-15 (#183, ADR 0131)**: formuleringen hängde på att
@@ -979,7 +989,8 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
         D3 *"a new purpose section under 6(1)(b)"*, dvs. vidarebehandling för ett
         nytt ändamål av redan insamlade uppgifter → **Art. 13(3) kräver
         information "prior to that further processing"**, och policyns eget löfte
-        (policyns sista stycke, "Ändringar i policyn") säger *"Vid mer betydande ändringar informerar vi dig på lämpligt
+        (policyns sista stycke, under rubriken "Ändringar i denna policy" — kvalifikatorn är
+        bärande, rubriken förekommer två gånger i katalogen) säger *"Vid mer betydande ändringar informerar vi dig på lämpligt
         sätt"*. Formulera som förhandsbesked (*"från och med &lt;datum&gt; behandlar vi
         även …"*), aldrig som påstående om pågående drift.
       Aldrig **efter** aktiveringen i något av fallen.

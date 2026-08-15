@@ -339,6 +339,21 @@ services:
       # fail-stops a Production boot on an empty value, which is why the committed
       # appsettings.Production.json leaves it empty and the value is injected here.
       ForwardedHeaders__KnownNetworks__0: "172.28.0.0/24"
+      # Registration gate (#734). Absent knob renders `false`, which is AuthOptions' own
+      # default and the posture the box has today: POST /auth/register answers 503 and no
+      # account can exist. Both flags are passed, not just the gate — AuthOptionsValidator
+      # refuses a Production boot on an open gate without email confirmation, and again on
+      # an open gate whose sender cannot deliver, so a half-flip is a boot refusal rather
+      # than an account bound to an address nobody proved they own. Do not fold either into
+      # a shared anchor: the validator's own doc rules that a condition the worker cannot
+      # exercise must not be able to take the worker down, and a shared env block is that
+      # hazard in env-file form. Operator view, flip order and failure modes: deploy/.env.example.
+      Auth__RegistrationsOpen: ${AUTH_REGISTRATIONS_OPEN:-false}
+      Auth__RequireEmailConfirmation: ${AUTH_REQUIRE_EMAIL_CONFIRMATION:-false}
+      # Read by IdempotentAdminRoleSeeder at every Api START, never at registration: an
+      # account created after this boot receives the role on the NEXT restart, and the boot
+      # in between logs "ingen matchande user hittades". Empty = no assignment at all.
+      AdminBootstrap__InitialAdminEmail: ${ADMIN_BOOTSTRAP_INITIAL_ADMIN_EMAIL:-}
     volumes: *app-secrets-mount
     mem_limit: 1024m
     # B-1 POSTURE, and do not remove this line. ADR 0050 Amendment 2026-08-04 §2

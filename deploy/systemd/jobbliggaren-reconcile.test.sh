@@ -595,8 +595,11 @@ if [ "$(stat -c '%a' "$SECRETS/FieldEncryption__LocalMasterKeyBase64")" = "0" ];
   assert_no_recursive_chown "and the MODE arm's repair is non-recursive too"
   assert_no_secrets_glob "and the MODE arm's repair is not a glob either"
   # NOT assert_repair_form_published / assert_bounded_find_repair: this arm publishes a chmod,
-  # not a find, so both would be structurally incapable of failing here. Its own presence proof
-  # instead — a green line that measures nothing is worse than no line (this suite's header).
+  # not a find. Both are useless here and their polarities are OPPOSITE — which is worth writing
+  # down, because one of them would look like a passing test: assert_bounded_find_repair can
+  # never fail (no find to be unbounded), and assert_repair_form_published can never pass (no
+  # find to match). Its own presence proof instead — a green line that measures nothing is worse
+  # than no line (this suite's header).
   assert_output_contains "sudo chmod 0400" "and the MODE arm publishes its own repair"
 else
   skipped=$((skipped + 1))

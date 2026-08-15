@@ -150,7 +150,8 @@ x-app-connections: &app-connections
 # from being an outage: deploy/.env.example.
 #
 # Two pointers because there are two secrets with independent rotation lifecycles, not two halves
-# of one credential — the reasoning has one home, ScalewayEmailOptions' own doc comment.
+# of one credential — the reasoning has one home on this side of the wire,
+# jobbliggaren-inject-secrets.sh's SCALEWAY_SECRET_KEYS.
 #
 # Email__BaseUrl is set unconditionally because it is wrong unconditionally otherwise: it
 # is unset everywhere in the tree, so it falls back to EmailOptions' http://localhost:3000

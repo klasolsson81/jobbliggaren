@@ -66,9 +66,9 @@ readonly -a EXPECTED_HOST_FILES=(
 # seed_all_secrets(): the whole point of the cases below is that a stack without them is
 # healthy until the provider is flipped.
 #
-# TWO SECRETS WITH SEPARATE LIFECYCLES (#183), which is why each gets its own case below rather
-# than one representative: SecretKey authenticates the caller, ProjectId selects the billing
-# project, and an operator can legitimately place or rotate one without the other.
+# Each gets its own case below rather than one representative, and here that is more than the
+# usual argument: the two rotate independently (#183), so "one placed, the other not" is a state
+# an operator reaches on an ordinary rotation rather than only by mistake.
 readonly -a EXPECTED_SCALEWAY_FILES=(
   "Email__Scaleway__SecretKey"
   "Email__Scaleway__ProjectId"
@@ -647,7 +647,7 @@ fi
 
 echo "-- A RETIRED PROVIDER NAME IS A BOOT REFUSAL, NOT A QUIETER CONSOLE (#183, E1 b71c14de)"
 #
-# THIS IS security-auditor's CONDITION (a) FROM E1, AND IT IS THE CASE THAT CLOSES IT. While the
+# THIS IS security-auditor's MAJOR 1 FROM E1, AND IT IS THE CASE THAT CLOSES IT. While the
 # SES arm existed, `EMAIL_PROVIDER=Ses` was a value the box booted on and this detector answered
 # `ses` to. E1 DELETED that arm rather than repointing it: AddEmailSender's switch ends in
 # `else throw`, so `Ses` now reaches the same throw as `Resend`, pinned on the application side by

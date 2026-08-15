@@ -175,9 +175,10 @@ env_value() {  # env_value <NAME> -> value on stdout; empty when unset, unreadab
 # fail-CLOSED direction. Repointing `ses` at `console` would have been the opposite: a green
 # alarm over a stack that refuses to start, on the box's only alarm surface, and reachable by
 # exactly the operator most likely to type it — one following a stale instruction. It is
-# security-auditor's condition (a) from E1, and it is closed HERE rather than by anything the
-# flip does later, because the mitigation it had ("unreachable until E2 writes a provider value")
-# expires in the same commit that teaches this file to write one.
+# security-auditor's Major 1 from E1 (`docs/reviews/2026-08-15-183-scaleway-arm-security-auditor.md`),
+# and it is closed HERE rather than by anything the flip does later, because the mitigation it had
+# ("unreachable until E2 writes a provider value") expires in the same commit that teaches this
+# file to write one.
 #
 # Case-insensitive because AddEmailSender compares with OrdinalIgnoreCase
 # (DependencyInjection.cs). A guard stricter than the code it guards is the dangerous direction:
@@ -271,22 +272,33 @@ if [[ "${1:-}" == "--check" ]]; then
   done
 
   # WHAT THE MAIL BRANCH SEES: every file and every .env line that is ABSENT, plus the one value
-  # it reads — EMAIL_PROVIDER's, through email_provider above. What it never reads is the VALUE
-  # of the pointers and the region, so a misspelt pointer path, or a region outside the
-  # allow-list, still reads as healthy here. That allow-list lives in ScalewayClientRegistration.cs
-  # and a second spelling of it in bash would be worse than the gap it leaves — a rule with two
-  # normalisers is two rules, the argument RUNTIME_IDS and env_value both make above. The unit
-  # exists because a crash-looping container does NOT appear in
-  # `systemctl --failed`, so a boot refusal this file can see and does not report is a green
-  # alarm over a dead box — the failure this whole script is built against.
+  # it reads — EMAIL_PROVIDER's, through email_provider above. What it never reads is the VALUE of
+  # the pointers and the region, so a misspelt pointer path, or a region outside the allow-list,
+  # still reads as healthy here.
+  #
+  # THE LINE IS PREDICATE vs REPORT, NOT "one normaliser per rule" (dotnet-architect, PR #1341).
+  # email_provider() is already a second spelling of AddEmailSender's switch and is kept, so that
+  # argument cannot be what separates the two cases. What separates them: this script NEEDS the
+  # provider to decide its own control flow — which files to demand, whether to prompt — while a
+  # region verdict would steer nothing here and be a pure report. And the drift directions differ.
+  # A list that GROWS (Scaleway adding a region) leaves a stale bash copy failing CLOSED: noise, an
+  # operator argues with it. The provider list SHRANK, which left the old copy failing OPEN — a
+  # green alarm over a box that cannot boot, which is the damage this PR repairs.
+  #
+  # A wrong region is therefore not undetected, only detected elsewhere: EnsureAllowedRegion runs
+  # inside AddScalewayEmailClient, so it is a REGISTRATION refusal like every other mail
+  # misconfiguration here, never a 404 on the first live send. The unit exists because a
+  # crash-looping container does NOT appear in `systemctl --failed`, so a boot refusal this file
+  # can see and does not report is a green alarm over a dead box — the failure this whole script
+  # is built against.
   env_provider=$(email_provider)
 
   if [[ "$env_provider" == "unknown" ]]; then
     log "INVALID: EMAIL_PROVIDER='$(env_value EMAIL_PROVIDER)' in ${ENV_FILE} is neither Console"
     log "         nor Scaleway. AddEmailSender's switch ends in a throw, so api and worker refuse"
     log "         to START on this value — this is not a quieter way of saying Console. Note that"
-    log "         'Ses' and 'Resend' are in this class since #183: their arms were deleted, not"
-    log "         repointed, so a stale instruction naming either takes the box down."
+    log "         'Ses' (#183) and 'Resend' (ADR 0124) are in this class: their arms were deleted,"
+    log "         not repointed, so a stale instruction naming either takes the box down."
     missing=1
   fi
 
@@ -312,9 +324,12 @@ if [[ "${1:-}" == "--check" ]]; then
         log "MISSING: ${var} is unset in ${ENV_FILE} while EMAIL_PROVIDER=Scaleway. The"
         log "         credential files can be injected and api and worker will still refuse to"
         log "         START: an unset pointer reads as 'not configured', which AddEmailSender"
-        log "         throws on. EMAIL_SCALEWAY_REGION must be fr-par — the only region"
-        log "         ScalewayClientRegistration's allow-list admits, and the only one"
-        log "         Transactional Email runs in."
+        log "         throws on."
+        if [[ "$var" == "EMAIL_SCALEWAY_REGION" ]]; then
+          log "         This one must be fr-par — the only region ScalewayClientRegistration's"
+          log "         allow-list admits. Its VALUE is not read here; a wrong one is refused at"
+          log "         registration, so the box says so on the next start rather than here."
+        fi
         missing=1
       fi
     done

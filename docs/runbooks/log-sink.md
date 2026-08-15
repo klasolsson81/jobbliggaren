@@ -60,6 +60,35 @@ the service's `ConditionPathExists` skips the run rather than failing it.
 > That row carries its own caveat — re-measure once auditd has run a week, since the direction is
 > not obvious — and this note inherits it rather than hardening the number.
 
+> ⛔ **A THIRD PRECONDITION, AND IT IS NOT DISCHARGED BY ARMING — ADDED 2026-08-15 (#1343,
+> `security-auditor` Major 2). THE FIRST RUN THAT ACTUALLY EXECUTES SHIPS THE WHOLE JOURNAL.**
+> `jobbliggaren-logship.sh` narrows its window only when a cursor file already exists
+> (`if [[ -f "$JOURNAL_CURSOR_FILE" ]]`); with no cursor, `journalctl` reads from the beginning.
+>
+> **The trigger is the first run with `Backup__RcloneConfigBase64` present on tmpfs — NOT the day
+> this pair is armed.** Arming early is harmless and is this section's intended order: the
+> service's `ConditionPathExists` makes a credential-less run a *skip*, the script never executes,
+> and `/var/lib/jobbliggaren`'s cursor is therefore never written. So an operator who has already
+> armed the pair has **not** passed this precondition — they have merely not reached it. It comes
+> due at `master-key-ops.md` §3's injection visit, which is where it is repeated.
+>
+> **Why it matters right now:** the master key is in this box's persistent journal in plaintext
+> (#1343 — row 22's own instruments put it there through `sudo`'s argv logging). A first run before
+> that is remediated writes the field-encryption key into `hostlogs/journal-*.export.gz.age` at
+> OVH — **with no age bound at all**, because `REMOTE_PREFIX` is flat `hostlogs/` and G3's two
+> rules target `hostlogs/app/` and `hostlogs/host/`, so they match nothing; and §4 records that the
+> rules are not applied in any case. The object is encrypted to an age recipient whose private key
+> ADR 0129 places on the same device as `jobbpilot_vps_ed25519` — i.e. Klas's workstation,
+> which row 26 already records as holding root on this box. (Reproduced rather than cited:
+> ADR 0129 is gitignored per §6.5, and row 26 sets that convention for this same ADR.) One compromised workstation would
+> then yield root, the upload credential, the age key **and** the master key out of a retained
+> artefact, with the box not even running.
+>
+> **Bind the condition to the state, not to the issue:** wait until the journal demonstrably
+> carries no plaintext key. #1343 offers two remedies and only one produces that — a **vacuum**
+> does; a **further rotation** retires the exposed generation but leaves its bytes in the journal,
+> so it does *not* discharge this precondition.
+
 ```bash
 # The clone. NOT `git pull` blind — on this box a pull is a DEPLOY that
 # jobbliggaren-reconcile.timer applies within the hour, and one such pull cost a 13-minute

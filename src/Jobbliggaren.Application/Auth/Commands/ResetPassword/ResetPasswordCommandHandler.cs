@@ -54,7 +54,7 @@ public sealed partial class ResetPasswordCommandHandler(
             }
             catch (Exception ex)
             {
-                // §5 parity with the sender boundary (SesEmailSender logs only the type): a transport
+                // §5 parity with the sender boundary (ScalewayEmailSender logs only the type): a transport
                 // exception can carry a host or status, never the recipient — so log the exception TYPE
                 // plus the opaque userId surrogate, never the exception object or the address.
                 LogPasswordChangedNoticeFailed(ex.GetType().Name, command.UserId);

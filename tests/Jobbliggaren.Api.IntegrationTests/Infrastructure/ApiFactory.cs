@@ -161,13 +161,13 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
             // Create/Unwrap i full Mediator-pipeline; round-trip +
             // per-användare-isolering bevaras end-to-end utan någon KMS-fake.
 
-            // #241 — replace the configured IEmailSender (Console/Null/Ses per Email:Provider)
+            // #241 — replace the configured IEmailSender (Console/Null/Scaleway per Email:Provider)
             // with a recording fake. Integration tests must never depend on a real external email
-            // provider: if a gitignored appsettings.Local.json carries Email:Provider=Ses + live IAM
-            // keys, the host would resolve SesEmailSender and attempt a real send on any
-            // email-success path. In the SES sandbox an @example.com recipient is unverified, so it
-            // fails — the same shape #220 measured against the previous provider, and green in CI,
-            // which has no Local.json. Forcing
+            // provider: if a gitignored appsettings.Local.json carries Email:Provider=Scaleway + live
+            // API keys, the host would resolve ScalewayEmailSender and attempt a real send on any
+            // email-success path — billed, delivered, or rejected against an @example.com recipient,
+            // and green in CI, which has no Local.json. The same shape #220 measured against an
+            // earlier provider. Forcing
             // Email__Provider=Console via env var does NOT win (Local.json is layered after env
             // vars); this last-wins singleton in ConfigureServices does. RemoveAll first so nothing
             // resolves the real sender even via GetServices<IEmailSender>().

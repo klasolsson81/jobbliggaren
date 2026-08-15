@@ -6,14 +6,14 @@ public sealed class EmailOptions
 
     /// <summary>
     /// Provider-val: "Console" (loggar email till applikationslogg, dev/MVP) eller
-    /// "Ses" (Amazon SES v2 över HTTPS-API:t, ADR 0124). Okänt värde fail-stoppas i DI.
+    /// "Scaleway" (Scaleway Transactional Email över HTTPS-API:t, #183). Okänt värde fail-stoppas i DI.
     /// Default "Console" — och den defaulten är oförändrad sedan ADR 0080.
     /// <para>
-    /// SES-armens egen konfiguration (region + IAM-nycklar) bor i <see cref="SesEmailOptions"/>
-    /// under <c>Email:Ses</c>, inte här: den här klassen konstrueras av VARJE avsändare och av
-    /// varje Console/Null-test, så en providers credentials på den hade gjort en SES-detalj
-    /// nåbar från armar som inte har någon (ISP). #220 tog bort ett dött
-    /// <c>EmailOptions.AwsRegion</c> av exakt det skälet.
+    /// Scaleway-armens egen konfiguration (region + nyckel + project-id) bor i
+    /// <see cref="ScalewayEmailOptions"/> under <c>Email:Scaleway</c>, inte här: den här klassen
+    /// konstrueras av VARJE avsändare och av varje Console/Null-test, så en providers credentials
+    /// på den hade gjort en provider-detalj nåbar från armar som inte har någon (ISP). #220 tog
+    /// bort ett dött <c>EmailOptions.AwsRegion</c> av exakt det skälet.
     /// </para>
     /// </summary>
     public string Provider { get; init; } = "Console";

@@ -75,7 +75,7 @@ internal sealed class RecordingLogger<T> : ILogger<T>
         // Holding that reference made Properties read as EMPTY for every Infrastructure logger —
         // silently, because an empty list fails no assertion that only reads names. No test had
         // ever asserted properties on an Infrastructure type, so nothing surfaced it until
-        // SesEmailSenderTests did.
+        // ScalewayEmailSenderTests did.
         var properties = state is IReadOnlyList<KeyValuePair<string, object?>> pairs
             ? pairs.ToArray()
             : [];

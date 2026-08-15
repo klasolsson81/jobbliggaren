@@ -5,7 +5,7 @@ namespace Jobbliggaren.Application.UnitTests.Email;
 /// <summary>
 /// The single definition of "this document references something remote", used by
 /// <see cref="EmailHtmlNoRemoteResourceTests"/> over every template and by
-/// <c>SesEmailSenderTests</c> against the HTML that actually reaches the <c>SendEmailRequest</c> — so
+/// <c>ScalewayEmailSenderTests</c> against the HTML that actually reaches the request body — so
 /// the templates and the send seam are judged by ONE definition rather than two that can drift.
 ///
 /// <para>

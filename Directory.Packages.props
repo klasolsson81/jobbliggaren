@@ -123,15 +123,18 @@
          låg på 10.0.2 och Npgsql-pinnen på 10.0.3; bumpen i denna PR vidgade den, så den syncas här
          i stället för att bäras vidare.)* -->
     <PackageVersion Include="Npgsql" Version="10.0.3" />
-    <!-- AWSSDK-ytan är en ALLOW-LIST om exakt ett paket-id, inte ett förbud (ADR 0124, #1237).
-         Kvar borttagna och fortsatt bannade: SecretsManager (TD-105 / #199 / ADR 0050),
-         KeyManagementService + Core-som-krypteringsberoende (#802 — fält-krypteringen är
-         Local-only, ADR 0049/0050), S3, Bedrock och varje AWSSDK.Extensions.Logging.*.
-         SimpleEmailV2 raderades 2026-06-06 med hänvisning till ADR 0066 — och den
-         hänvisningen var härledd, inte skriven: ADR 0066 nämner aldrig SES (mätt 2026-08-08,
-         noll förekomster av "SES"/"SimpleEmail" i den filen). Den rev den DEPLOYADE
-         dev-stacken och bevarade uttryckligen kontonivå-ytan. Se ADR 0124 §"Gränsen".
-         NoAmazonReferenceTests håller allow-listan smal och bär två icke-vakuitetsankare. -->
+    <!-- AWSSDK-ytan är TOM och är återigen ett förbud, inte en allow-list (#183, 2026-08-15).
+         Bannade: SecretsManager (TD-105 / #199 / ADR 0050), KeyManagementService +
+         Core-som-krypteringsberoende (#802 — fält-krypteringen är Local-only, ADR 0049/0050),
+         S3, Bedrock, SimpleEmailV2 och varje AWSSDK.Extensions.Logging.* / AWS.Logger.*.
+         Historiken bakom raden, eftersom den förklarar varför förbudet en gång vidgades och
+         inte bör vidgas igen på lösa grunder: SimpleEmailV2 raderades 2026-06-06 med hänvisning
+         till ADR 0066 — och den hänvisningen var härledd, inte skriven: ADR 0066 nämner aldrig
+         SES (mätt 2026-08-08, noll förekomster av "SES"/"SimpleEmail" i den filen). Den rev den
+         DEPLOYADE dev-stacken och bevarade uttryckligen kontonivå-ytan. ADR 0124 tog därför
+         tillbaka paketet som en allow-list om exakt ett id; #183 flyttade e-posten till Scaleway,
+         vars arm inte behöver något paket alls, så allow-listan föll bort med sin enda medlem.
+         NoAmazonReferenceTests bär förbudet och sina icke-vakuitetsankare. -->
 
     <PackageVersion Include="Microsoft.Extensions.Logging.Console" Version="10.0.10" />
     <!-- TD-104 / Pre-4 STEG 6 — persistent strukturerad logg-sink (senior-cto-advisor

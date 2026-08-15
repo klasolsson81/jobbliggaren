@@ -51,7 +51,7 @@ public class EmailHtmlNoRemoteResourceTests
 {
     private const string BaseUrl = "https://jobbliggaren.se";
 
-    // Same Base64Url shape ASP.NET Identity emits, and the same fixture SesEmailSenderTests uses.
+    // Same Base64Url shape ASP.NET Identity emits, and the same fixture ScalewayEmailSenderTests uses.
     // Not a real token: no account exists that it could activate. gitleaks:allow
     private const string UrlSafeToken = "CfDJ8Nr-9xQvT0pLm2Zq_aB3cD4eF5gH6iJ7kL8mN9oP0qR"; // gitleaks:allow
 
@@ -190,7 +190,7 @@ public class EmailHtmlNoRemoteResourceTests
         // "no remote resources" MORE true. Nothing else in this PR would have noticed.
         //
         // It matters most for the Art. 7(3) unsubscribe route. The settings link is pinned in
-        // SesEmailSenderTests against the TEXT part; if the HTML part dropped it, a notification read
+        // ScalewayEmailSenderTests against the TEXT part; if the HTML part dropped it, a notification read
         // in an HTML client — which is nearly every recipient — would carry no way to turn the mails
         // off, with a green suite.
         //

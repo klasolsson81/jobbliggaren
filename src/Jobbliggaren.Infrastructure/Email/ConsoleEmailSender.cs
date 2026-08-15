@@ -11,8 +11,8 @@ namespace Jobbliggaren.Infrastructure.Email;
 /// <see cref="NullEmailSender"/>.
 ///
 /// Den riktiga transaktionella mejlvägen ÄR byggd och lever bredvid den här:
-/// <see cref="SesEmailSender"/> bakom <c>Email:Provider=Ses</c> (Amazon SES v2 i
-/// eu-north-1, ADR 0124, #1207).
+/// <see cref="ScalewayEmailSender"/> bakom <c>Email:Provider=Scaleway</c> (Scaleway
+/// Transactional Email i fr-par, #183).
 ///
 /// Säkerhet: plaintext-tokens skrivs till logs här, vilket är acceptabelt för
 /// dev men ALDRIG i prod. Sedan 2026-08-04 är dev-Seq admin-autentiserad (#1198),

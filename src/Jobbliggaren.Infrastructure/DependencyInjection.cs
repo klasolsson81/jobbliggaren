@@ -1396,10 +1396,10 @@ public static class DependencyInjection
         // (t.ex. en kvarlämnad "Kms" i stale config) MÅSTE dö loud vid boot —
         // aldrig tyst falla till Local (det skulle maskera en felkonfiguration;
         // #802-footgunklassen). Den AWS-KMS-baserade providern + klienten är
-        // borttagna; ingen Amazon-SDK-instans registreras PÅ KRYPTERINGSVÄGEN. (Sedan ADR 0124
-        // finns exakt EN Amazon-klient i lösningen — SES-avsändarens, registrerad i
-        // AddEmailSender/AddSesClient. Den rör inte fält-krypteringen och kan inte: DEK-providern
-        // väljs av FieldEncryption:Provider, som bara accepterar Local.)
+        // borttagna; ingen Amazon-SDK-instans registreras PÅ KRYPTERINGSVÄGEN. (Sedan #183 finns
+        // INGEN Amazon-klient alls i lösningen — e-postarmen flyttade till Scaleway och tog
+        // AWSSDK-paketet med sig, så parentesens tidigare undantag för SES-avsändaren har inget
+        // kvar att undanta. NoAmazonReferenceTests pinnar det.)
         var fieldEncryptionProvider = configuration[
             $"{Security.FieldEncryptionOptions.SectionName}:Provider"];
         if (!string.IsNullOrWhiteSpace(fieldEncryptionProvider)

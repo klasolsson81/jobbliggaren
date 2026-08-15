@@ -42,8 +42,8 @@ public class AuthOptionsValidatorTests
     /// emit; otherwise a rule-1 assertion could pass for rule 2's reason. That the Dev/Test default
     /// answers <see langword="true"/> is pinned elsewhere and not restated here —
     /// <c>AddEmailSenderGateTests.AddEmailSender_InDevelopmentOrTest_CanDeliver</c> owns that one
-    /// clause; the Ses arm and the throwing arms have their own pins in the same file and in
-    /// <c>SesEmailProviderGateTests</c>.
+    /// clause; the Scaleway arm and the throwing arms have their own pins in the same file and in
+    /// <c>ScalewayEmailProviderGateTests</c>.
     /// </summary>
     private static IEmailSender DeliveringSender()
     {
@@ -108,7 +108,7 @@ public class AuthOptionsValidatorTests
         result.FailureMessage.ShouldContain(environmentName);
         result.FailureMessage.ShouldContain("#734");
         // The remedy an operator can act on, and the sender that was actually registered.
-        result.FailureMessage.ShouldContain("Email__Provider=Ses");
+        result.FailureMessage.ShouldContain("Email__Provider=Scaleway");
         result.FailureMessage.ShouldContain(nameof(NullEmailSender));
     }
 

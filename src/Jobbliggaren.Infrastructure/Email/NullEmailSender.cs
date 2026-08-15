@@ -10,8 +10,8 @@ namespace Jobbliggaren.Infrastructure.Email;
 /// <see cref="ConsoleEmailSender"/> writes the recipient email + notification body to
 /// <c>ILogger</c>, which becomes durable PII once the persistent Seq sink (TD-104) is
 /// attached, so it must never run in a sink-backed, real-recipient environment. A real
-/// transactional provider exists alongside it: SesEmailSender behind Email:Provider=Ses
-/// (Amazon SES v2, eu-north-1, ADR 0124). This sender is what an UNSET Email:Provider
+/// transactional provider exists alongside it: ScalewayEmailSender behind Email:Provider=Scaleway
+/// (Scaleway Transactional Email, fr-par, #183). This sender is what an UNSET Email:Provider
 /// resolves to outside Development/Test, which is the live default today.
 ///
 /// Suppression is logged WITHOUT any recipient/token, and the level is split by consequence:
@@ -68,10 +68,10 @@ namespace Jobbliggaren.Infrastructure.Email;
 /// host as a production start and gates it legally, which the technical guard does not; (4) the
 /// guard reads a CAPABILITY, not a delivery probe, so a sender answering
 /// <see cref="CanDeliver"/> <see langword="true"/> that is nonetheless rejected downstream produces
-/// the same stranded account — <c>SesEmailSender</c> answers <see langword="true"/>
+/// the same stranded account — <c>ScalewayEmailSender</c> answers <see langword="true"/>
 /// unconditionally, and the domain publishes DMARC <c>p=reject</c> without <c>rua=</c> (measured
-/// 2026-08-08, ADR 0124, cited in <c>AddEmailSender</c>'s SES arm), so a From address outside the
-/// verified identity fails silently. Case 4 is owned by #183/#734, never by this gate.</item>
+/// 2026-08-08, ADR 0124, cited in <c>AddEmailSender</c>'s Scaleway arm), so a From address outside
+/// the verified identity fails silently. Case 4 is owned by #183/#734, never by this gate.</item>
 /// <item><c>ResendEmailConfirmationCommandHandler</c> — same stranding, and it must keep returning
 /// a uniform 202 for anti-enumeration reasons, so it cannot signal the failure to the caller at
 /// all. It no longer writes a <c>User.EmailConfirmationResent</c> audit row for a link that reached

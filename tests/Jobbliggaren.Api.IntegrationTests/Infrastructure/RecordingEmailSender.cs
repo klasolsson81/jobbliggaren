@@ -7,10 +7,10 @@ namespace Jobbliggaren.Api.IntegrationTests.Infrastructure;
 /// #241 — deterministic recording fake for <see cref="IEmailSender"/> in Api integration.
 /// Registered last-wins in <see cref="ApiFactory"/> (parity with <see cref="RecordingBackgroundJobController"/>) so the
 /// integration host NEVER composes the real transactional provider. Without it, a gitignored
-/// <c>appsettings.Local.json</c> carrying <c>Email:Provider=Ses</c> + live IAM keys makes the host
-/// resolve <c>SesEmailSender</c> and an email-SUCCESS path would attempt a real send to an
-/// <c>@example.com</c> recipient — which in the SES sandbox is an unverified address, so it fails
-/// (the shape #220 measured against the previous provider). The override bypasses the config-order
+/// <c>appsettings.Local.json</c> carrying <c>Email:Provider=Scaleway</c> + live API keys makes the
+/// host resolve <c>ScalewayEmailSender</c> and an email-SUCCESS path would attempt a real send to an
+/// <c>@example.com</c> recipient — billed, delivered, or rejected, none of which a test may cause
+/// (the shape #220 measured against an earlier provider). The override bypasses the config-order
 /// problem entirely: a forced <c>Email__Provider=Console</c> env var does NOT win because
 /// <c>appsettings.Local.json</c> is layered AFTER environment variables (verified empirically), but a
 /// last-wins DI singleton in <c>ConfigureServices</c> runs after the whole host is composed.

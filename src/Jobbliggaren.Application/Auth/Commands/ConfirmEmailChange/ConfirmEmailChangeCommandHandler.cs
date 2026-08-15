@@ -48,7 +48,7 @@ public sealed partial class ConfirmEmailChangeCommandHandler(
             }
             catch (Exception ex)
             {
-                // §5 parity with the sender boundary (SesEmailSender logs only the type): a
+                // §5 parity with the sender boundary (ScalewayEmailSender logs only the type): a
                 // transport exception can carry a host/status, never the recipient/body/token — so log
                 // only the exception TYPE + the opaque userId surrogate, not the exception object.
                 LogOldAddressNotificationFailed(ex.GetType().Name, command.UserId);

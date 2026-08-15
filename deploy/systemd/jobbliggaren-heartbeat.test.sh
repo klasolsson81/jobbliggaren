@@ -143,8 +143,11 @@ healthy_state() {
   : >"$TMPROOT/failed-units"
   printf 'jobbliggaren-reconcile.timer enabled enabled\njobbliggaren-heartbeat.timer enabled enabled\n' \
     >"$TMPROOT/enabled-timers"
-  printf 'jobbliggaren-reconcile.timer\njobbliggaren-heartbeat.timer\n' >"$TMPROOT/active-timers"
-  printf 'jobbliggaren-reconcile.timer\njobbliggaren-heartbeat.timer\n' >"$TMPROOT/enabled-set"
+  # Mirrors FLOOR_TIMERS in the script under test. The coupling is real but implicit — this
+  # fixture stubs `systemctl is-enabled`/`is-active` by membership, so a timer added to the floor
+  # set and not added here fails every healthy-path assertion at once (measured: 3 of 39).
+  printf 'jobbliggaren-reconcile.timer\njobbliggaren-heartbeat.timer\njobbliggaren-secrets-present.timer\n' >"$TMPROOT/active-timers"
+  printf 'jobbliggaren-reconcile.timer\njobbliggaren-heartbeat.timer\njobbliggaren-secrets-present.timer\n' >"$TMPROOT/enabled-set"
   cat >"$TMPROOT/audit.rules" <<'RULES'
 -w /run/jobbliggaren -p rwa -k jbl-key-tmpfs
 -w /etc/sudoers -p wa -k jbl-sudoers

@@ -52,7 +52,13 @@ readonly AUDIT_RULES_FILE=/etc/audit/rules.d/zz-jobbliggaren.rules
 # keys, so it must not be ENABLED before they are provisioned: enabled early it fails every fire
 # and lights the alarm surface permanently — which, through P1 below, is a continuous page.
 # master-key-ops.md §2 owns the ordering. Sequencing, not a defect.
-readonly FLOOR_TIMERS="jobbliggaren-reconcile.timer jobbliggaren-heartbeat.timer"
+#
+# jobbliggaren-secrets-present.timer JOINED THE SET 2026-08-15, the day it was enabled on the box
+# (#198's cutover). It is here because `enable` happened, not because its files were installed —
+# that is the trigger this block and host-detection.md §7 both name, and check_floor_timers
+# measures is-enabled AND is-active, so an installed-but-disabled unit here would fail every fire.
+# The host-only timer stays out for exactly that reason until #197's credential exists.
+readonly FLOOR_TIMERS="jobbliggaren-reconcile.timer jobbliggaren-heartbeat.timer jobbliggaren-secrets-present.timer"
 
 # Free-space floor, in percent. This absorbs the DETECTION half of a disk-usage finding
 # security-auditor routed to #196, which closed without it. The QUOTA half is deliberately not

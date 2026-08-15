@@ -1360,9 +1360,12 @@ permanent infra aktiveras; listan nedan speglar **beslutad** uppsättning, ADR 0
   **nedströms** i koncernen utan TEM-roll — påstå aldrig "ingen US-enhet i koncernen" — och
   **var leverantörens support-/driftpersonal har åtkomst ifrån saknar AVTALSRANG**. Leverantören
   påstår i sin TEM-FAQ att *"all data is hosted and processed entirely within the European
-  Union"*, och under Art. 4(2) omfattar *processing* åtkomst, så meningen träffar frågan — men den
+  Union"* (`scaleway.com/en/docs/transactional-email/faq/`, läst 2026-08-15), och under Art. 4(2)
+  omfattar *processing* åtkomst, så meningen träffar frågan — men den
   är dokumentation, inte avtalstext, och binder inte som DPA Art. 11 gör. **Det är den meningen som
-  ska bekräftas skriftligt** (schemalagd fråga, Klas), inte en lucka som ska fyllas från noll. Överfört innehåll är
+  ska bekräftas skriftligt** (schemalagd fråga, Klas), inte en lucka som ska fyllas från noll.
+  **Läsningen är `security-auditor`s skärpning 2026-08-15/16 och statusens hem är
+  `release-checklist.md` §2.5 punkt 1 led (b)** — den här posten refererar den, den avgör den inte. Överfört innehåll är
   mottagar-adressen och meddelandets innehåll (för notiserna
   **avslöjar** leveransen opt-in-faktumet, och `EmailTemplates` skriver det dessutom i klartext
   i själva kroppen — själva *flaggan* i vår DB överförs aldrig, men faktumet gör det).
@@ -1602,8 +1605,11 @@ byggt:
 > ställde — faller en US-**ägd** leverantör i EU-region under R2-standarden? — når därmed inte
 > längre e-posten heller, av exakt samma skäl som den aldrig nådde netcup: avtalsparten är
 > **fransk**, behandlingen sker i **Paris**, och ägarkedjan är fransk hela vägen upp till
-> Niel-familjens grupp. **Ingen tredjelandsenhet kan nå uppgifterna** — vilket är rekvisitet, se
-> §15.1 (⚠ `Scaleway US Corporation` finns **nedströms** i koncernen utan TEM-roll. Det utlöser
+> Niel-familjens grupp. **Rekvisitet är tvåledat — se §15.1 — och dess FÖRSTA led är negativt här:
+> ingen tredjelandsenhet kan rättsligt förmås att producera uppgifterna. Det ANDRA ledet, om någon
+> faktiskt kan nå dem, är OAVGJORT för Scaleway** (`security-auditor` delratificerade 2026-08-15/16;
+> `release-checklist.md` §2.5 punkt 1 led (b) är statusens hem) (⚠ `Scaleway US Corporation` finns
+> **nedströms** i koncernen utan TEM-roll. Det utlöser
 > inte rekvisitet: kontroll flödar nedåt, så en fransk moder kan inte föreläggas via ett
 > amerikanskt dotterbolag. Men påståendet "ingen US-enhet i koncernen" är mätt **falskt** och får
 > inte skrivas). **SCC-domen från 2026-08-08 står orörd som dom över sin

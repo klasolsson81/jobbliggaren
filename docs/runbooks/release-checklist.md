@@ -290,7 +290,9 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
         tredjeland. Under EDPB Guidelines 05/2021 uppfylls transfer-rekvisit 2 redan av att uppgifter
         *görs tillgängliga*, och fjärråtkomst räknas (Rec. 01/2020). **Var support- och driftpersonal
         har åtkomst ifrån är därmed ett KONSTITUTIVT ELEMENT i slutsatsen, inte en fotnot** — och
-        förbehåll 2 säger själv att elementet är oetablerat. En slutsats villkorad av ett obesvarat
+        förbehåll 2 säger själv att elementet saknar avtalsrang — leverantörens FAQ-mening träffar
+        frågan men binder inte, och ett negativt faktum som bär hela slutsatsen kan inte vila på
+        dokumentation. En slutsats villkorad av ett obesvarat
         brev är ett utkast, inte en dom.
         **Vad som stänger ledet, uttömmande:** ett skriftligt svar från Scaleway som säger att
         support-/driftåtkomst till TEM-data sker uteslutande inifrån EU/EES — eller, om den inte gör
@@ -786,8 +788,9 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
         behandlingen. **Läs AVV-bilagans underbiträdeslista när den genereras** — netcup
         publicerar ingen (mätt: DPA-sidan, AVV-sidan, Impressum och DC-sidan bär noll), så
         bilagan är den enda mätningen av kedjan som finns. Namnger den ett icke-EU-underbiträde
-        ska rad 81 **och** värdraden omprövas **före** korpusladdningen.
-        Rad 70 påstår redan i presens *"Med dem har vi personuppgiftsbiträdesavtal"*; den
+        ska **tredjelandsavsnittets absoluta påstående** och värdraden omprövas **före**
+        korpusladdningen.
+        **Mottagaravsnittets ingress** påstår redan i presens *"Med dem har vi personuppgiftsbiträdesavtal"*; den
         meningen bärs i dag av att ingen listad part behandlar något, och den blir falsk
         vid (i) — inte vid (ii), och inte av mergen av #1199.
       - **inget Kap. V-led — det är raderat, inte ompekat.** Det gamla ledet krävde en

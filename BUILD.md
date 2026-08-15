@@ -196,7 +196,7 @@ miljö-topologi är fastställd i ADR 0050; pipelinen byggs vid Hetzner-cutover.
 │  ├─ Identity                                        │
 │  ├─ JobSources.Platsbanken                          │
 │  ├─ CvEngines (parsing, lokal NLP, render — Fas 4)  │
-│  ├─ Email (Console/Null/Ses, ADR 0080/0124)         │
+│  ├─ Email (Console/Null/Scaleway, ADR 0080/#183)    │
 │  ├─ Security (Local/Kms DEK-provider, ADR 0066)     │
 │  ├─ CalendarIntegration.Google                      │
 │  ├─ GmailSync                                       │
@@ -780,7 +780,7 @@ email_log
   subject (text)
   template (text)
   sent_at (timestamptz)
-  provider_message_id (text null)   -- provider-neutralt (transaktionell väg = Amazon SES v2, ADR 0124/§13.4; SES:s MessageId skrivs medvetet INTE av avsändaren, se ADR 0124)
+  provider_message_id (text null)   -- provider-neutralt (transaktionell väg = Scaleway Transactional Email, #183/§13.4; providerns message-id skrivs medvetet INTE av avsändaren — det joinar till en mottagare i providerns konsoll)
   status (text)
 
 -- Integrations

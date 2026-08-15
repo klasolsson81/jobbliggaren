@@ -232,6 +232,9 @@ public class NoAmazonReferenceTests
         ImportsAnAmazonNamespace("using Ses = Amazon.SimpleEmailV2;").ShouldBeTrue();
         ImportsAnAmazonNamespace("using global::Amazon;").ShouldBeTrue();
         ImportsAnAmazonNamespace("using Ses = global::Amazon.SimpleEmailV2;").ShouldBeTrue();
+        // Whitespace around :: is legal C# too, and the doc above claims every form — so it is
+        // matched rather than the claim being softened (code-reviewer, PR #1339).
+        ImportsAnAmazonNamespace("using global :: Amazon;").ShouldBeTrue();
 
         ImportsAnAmazonNamespace("// using Amazon.SimpleEmailV2;").ShouldBeFalse();
         ImportsAnAmazonNamespace("using Jobbliggaren.Infrastructure.Email;").ShouldBeFalse();
@@ -364,7 +367,7 @@ public class NoAmazonReferenceTests
     /// </para>
     /// </summary>
     private static readonly Regex AmazonImport = new(
-        @"^\s*(?:global\s+)?using\s+(?:static\s+)?(?:[A-Za-z_]\w*\s*=\s*)?(?:global::)?Amazon(?:\s*[.;]|\s|$)",
+        @"^\s*(?:global\s+)?using\s+(?:static\s+)?(?:[A-Za-z_]\w*\s*=\s*)?(?:global\s*::\s*)?Amazon(?:\s*[.;]|\s|$)",
         RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
     private static bool ImportsAnAmazonNamespace(string line) => AmazonImport.IsMatch(line);
@@ -386,9 +389,11 @@ public class NoAmazonReferenceTests
             .Where(p => !IsUnderBinOrObj(p));
 
     /// <summary>
-    /// Every <c>.cs</c> file under <c>src/</c> AND <c>tests/</c>. The test tree is scanned too since
-    /// #183 — under the allow-list only production code was covered, which was defensible while a
-    /// legitimate SDK existed and is not now.
+    /// Every <c>.cs</c> file under every entry in <see cref="ScannedRoots"/> — <c>src/</c>,
+    /// <c>tests/</c> and <c>perf/</c>. The test and perf trees are scanned too since #183: under the
+    /// allow-list only production code was covered, which was defensible while a legitimate SDK
+    /// existed and is not now. Stated as "the roots" rather than re-listing them, so this doc cannot
+    /// drift from the array again the way it did when <c>perf</c> was added.
     /// </summary>
     private static IEnumerable<string> SourceFiles(string repoRoot) =>
         ScannedRoots

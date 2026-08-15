@@ -72,8 +72,9 @@ internal static class ScalewayClientRegistration
         {
             // The TRAILING SLASH is not cosmetic: relative-URI resolution replaces the last segment
             // of a base address that lacks one, so without it "emails" would resolve against
-            // …/regions/ and drop the region entirely. Pinned by a request-URI assertion in
-            // ScalewayEmailSenderTests rather than left to review.
+            // …/regions/ and drop the region entirely. Pinned in ScalewayEmailProviderGateTests,
+            // which is the only suite that can see it — ScalewayEmailSenderTests supplies its own
+            // base address to the fake handler, so it would stay green against a slash-less one.
             client.BaseAddress = new Uri($"{ApiHost}/transactional-email/v1alpha1/regions/{region}/");
             client.Timeout = SendTimeout;
         });

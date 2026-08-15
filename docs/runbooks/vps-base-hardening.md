@@ -484,8 +484,8 @@ suggests, and each one has a failure mode attached:
   TCP 25/465/587 DROP) and `netcup Ping allow` (ICMP **and ICMPv6**, both directions). The
   second one is why this runbook writes no ICMP rules of its own — including NDP, which arrives
   as ICMPv6 and would otherwise need its own rule.
-- Transactional mail goes over the provider's HTTPS API — Amazon SES v2 in eu-north-1 since
-  ADR 0124 — never
+- Transactional mail goes over the provider's HTTPS API — Scaleway Transactional Email in
+  `fr-par` since #183 — never
   SMTP, so there is never a reason to ask Netcup to open 587.
 
 **A 2xx response does not mean the change landed.** A `PUT` assigning an inline `userPolicies`
@@ -1097,7 +1097,7 @@ rather than discovered:
   the capacity verdict. **Adding a disk swap file under memory pressure breaks B-1.** Add RAM
   instead.
 - **Outbound mail stays impossible** and must remain so: transactional mail goes over the
-  provider's HTTPS API — Amazon SES v2 in eu-north-1 (ADR 0124) — never SMTP.
+  provider's HTTPS API — Scaleway Transactional Email in `fr-par` (#183) — never SMTP.
 - The `_FILE` secret seam, the key-in-tmpfs work, and the mandatory second security audit of
   the actual production configuration are gates for the *first real user data*, not for this
   runbook. See ADR 0050's pre-beta-data gates.

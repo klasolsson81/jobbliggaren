@@ -375,10 +375,65 @@ assert_output_contains() {
 # arms publish one — traversal, owner, mode — and the run buffer is overwritten by the next case,
 # so a single check after the first arm leaves the other two unguarded on exactly the axis this
 # PR has already got wrong twice. Reported independently by security-auditor and dotnet-architect.
+#
+# THIS ONE COVERS ONE SPELLING OF RECURSION, NOT RECURSION. `chown -R` was the first defect's
+# spelling; since the repair became a `find`, recursion is spelled "-maxdepth 1 omitted" and this
+# helper cannot see it. assert_bounded_find_repair below closes that, and the two are separate
+# deliberately: a name-based guard is not a guard against the property.
 assert_no_recursive_chown() {
   if grep -qF -- "chown -R" "$TMPROOT/out"; then
     fail=$((fail + 1))
     echo "  FAIL $1 — the refusal published a recursive chown; that takes the directory root owns" >&2
+  else
+    pass=$((pass + 1))
+    echo "  ok   $1"
+  fi
+}
+
+# PRESENCE FIRST, ABSENCE AFTER — the rule this file states at the top and which the first
+# version of these guards broke. The two absence proofs below pass just as happily on output that
+# publishes NO repair at all, so neither can tell "the form is right" from "the line is gone".
+# This one pins the shape itself, `-mindepth 1` included: that flag is what keeps the directory —
+# root's, and the axis vps-deploy-stack.md row 32b exists to cross — out of the chown. Drop it and
+# every absence proof here still passes while the published repair chowns the directory to the
+# container's uid. Reported by dotnet-architect's scoped re-check; the earlier guards measured
+# half the property their own row claimed they measured.
+assert_repair_form_published() {
+  if grep -qE -- '^[[:space:]]*sudo find [^|]*-mindepth 1 -maxdepth 1 -exec chown ' "$TMPROOT/out"; then
+    pass=$((pass + 1))
+    echo "  ok   $1"
+  else
+    fail=$((fail + 1))
+    echo "  FAIL $1 — no bounded, directory-excluding find repair was published" >&2
+  fi
+}
+
+# THE GLOB, measured broken on the box 2026-08-15 (vps-deploy-stack.md row 32b's drill). A
+# published `sudo chown <ids> <dir>/*` cannot be run by the operator it addresses: the shell
+# expands the glob BEFORE sudo elevates, and 0710 denies the read to every non-root user, so the
+# pattern reaches the tool unexpanded. Bound to the shape — a `chown`, `chmod` or `stat` whose
+# operand ends in `/*` — and not to one path, because the defect is the expansion order and not
+# the directory. `chmod` is in the list because the MODE arm's repair is a chmod, and without it
+# that arm's copy of this guard would be structurally incapable of failing.
+assert_no_secrets_glob() {
+  if grep -qE -- '(chown|chmod|stat)[^|]*/\*' "$TMPROOT/out"; then
+    fail=$((fail + 1))
+    echo "  FAIL $1 — the refusal published a shell glob; the operator's shell cannot expand it" >&2
+  else
+    pass=$((pass + 1))
+    echo "  ok   $1"
+  fi
+}
+
+# Any published `find` must be depth-bounded, wherever it appears — a stray one beside a correct
+# repair is still `chown -R` by another spelling, which is the property assert_no_recursive_chown
+# names and can no longer see. `-maxdepth 1` must be followed by a space or end-of-line, or
+# `-maxdepth 10` would satisfy a substring match. Vacuous when no find is published, which is why
+# assert_repair_form_published runs beside it in the arms that publish one.
+assert_bounded_find_repair() {
+  if grep -E -- '^[[:space:]]*sudo find ' "$TMPROOT/out" | grep -qvE -- '-maxdepth 1( |$)'; then
+    fail=$((fail + 1))
+    echo "  FAIL $1 — the refusal published an unbounded find; that is chown -R by another name" >&2
   else
     pass=$((pass + 1))
     echo "  ok   $1"
@@ -450,12 +505,18 @@ assert_output_contains "cannot TRAVERSE" "and the refusal names the traversal ax
 # reads the text an operator is told to run.
 assert_output_contains "chown root:" "and it tells the operator to keep root as the dir's owner"
 assert_no_recursive_chown "and it never publishes a recursive chown from the directory"
+assert_no_secrets_glob "and the repair it publishes is not a shell glob"
+assert_repair_form_published "and the repair it publishes is a bounded, directory-excluding find"
+assert_bounded_find_repair "and the find it publishes is depth-bounded"
 
 stub_runtime_ids "$(($(id -u) + 1))" "$(id -g)"
 expect_exit 1 "uid drift → refuses even though the group still traverses"
 assert_not_applied "and nothing is applied"
 assert_output_contains "cannot READ the injected secrets" "and the refusal names the owner axis"
 assert_no_recursive_chown "and the OWNER arm's repair is non-recursive too"
+assert_no_secrets_glob "and the OWNER arm's repair is not a glob either"
+assert_repair_form_published "and the OWNER arm publishes the same bounded find form"
+assert_bounded_find_repair "and the OWNER arm's find is depth-bounded too"
 
 # THE ORDERING PROPERTY. Measuring the ids RUNS the image, so it must never happen for an image
 # attestation refused. Without this case a later refactor can hoist the gate above the verify
@@ -532,6 +593,14 @@ if [ "$(stat -c '%a' "$SECRETS/FieldEncryption__LocalMasterKeyBase64")" = "0" ];
   assert_not_applied "and nothing is applied"
   assert_output_contains "the owner cannot read it" "and the refusal names the mode, not the owner"
   assert_no_recursive_chown "and the MODE arm's repair is non-recursive too"
+  assert_no_secrets_glob "and the MODE arm's repair is not a glob either"
+  # NOT assert_repair_form_published / assert_bounded_find_repair: this arm publishes a chmod,
+  # not a find. Both are useless here and their polarities are OPPOSITE — which is worth writing
+  # down, because one of them would look like a passing test: assert_bounded_find_repair can
+  # never fail (no find to be unbounded), and assert_repair_form_published can never pass (no
+  # find to match). Its own presence proof instead — a green line that measures nothing is worse
+  # than no line (this suite's header).
+  assert_output_contains "sudo chmod 0400" "and the MODE arm publishes its own repair"
 else
   skipped=$((skipped + 1))
   echo "  SKIP mode 0000 case: this filesystem does not honour chmod (Git Bash/Windows)."

@@ -235,9 +235,33 @@ What it does, in order:
 > docker exec jobbliggaren-postgres psql -U postgres -d jobbliggaren -tAc 'SELECT DISTINCT cmk_key_id FROM user_data_keys'
 > ```
 >
-> An empty result means no DEK exists yet and the default is correct. Otherwise pass the value
-> it prints: `sudo JBL_MASTER_KEY_ID=<value> …inject-secrets.sh`. The identity is also part of
-> what escrow must hold — **the bytes AND the identity**, not just the bytes.
+> Otherwise pass the value it prints: `sudo JBL_MASTER_KEY_ID=<value> …inject-secrets.sh`. The
+> identity is also part of what escrow must hold — **the bytes AND the identity**, not just the
+> bytes.
+>
+> ⚠ **AN EMPTY RESULT DOES NOT MEAN THE DEFAULT IS CORRECT, AND SINCE 2026-08-15 THIS BOX IS THE
+> COUNTEREXAMPLE.** An earlier version of this line said it did. `user_data_keys` is empty
+> whenever no DEK has been minted yet — which is true both before the first rotation *and* after
+> a rotation performed while the table was empty. **This box has been rotated**, so the identity
+> in force is **`local-v2`** while the query returns nothing. (Stated by name and not as "the
+> second state": the table below has its own numbering, and its second row is the branch that
+> destroys data.) Accepting the default would stamp
+> `local-v1` onto v2 bytes — the path `jobbliggaren-inject-secrets.sh` calls, in the comment above
+> its identity block, *"a data-loss path, not an inconvenience"*: the next rotation's `cmk_key_id`
+> predicate would skip exactly the rows it must not.
+>
+> So read the query as answering one question only: *which identity do existing DEK rows name?*
+> **Empty means it cannot answer**, not that the default is safe. Then:
+>
+> | State | Identity to pass |
+> |---|---|
+> | Query returns a value | that value |
+> | Empty, and no rotation has ever been performed | the default (`local-v1`) |
+> | **Empty, and a rotation has been performed** | **read it from escrow — never the default** |
+>
+> The third row is why row 26 requires escrow to hold the identity alongside the bytes: after a
+> reboot the box keeps no record of which generation is in force, and the database cannot supply
+> it while the table is empty. Escrow is the only source.
 
 Then verify, and do not skip this — the whole point of the model is that a partial injection
 looks like a healthy box from the outside:
@@ -309,15 +333,34 @@ on this box would then say so: `--check` reads the directory's mode and never it
 reconcile gate reads the directory's group and the files' owner. Both go green on the broken
 posture.
 
+**A `sudo … /run/jobbliggaren/secrets/*` GLOB IS NOT RUNNABLE BY THE OPERATOR IT IS WRITTEN FOR,
+and the earlier form of this block was.** Your shell expands the glob *before* `sudo` elevates, and
+`0710` gives the group `--x` — traverse, not read — so **every non-root user** is denied the
+listing the glob needs, group members included. The pattern reaches the tool unexpanded and fails
+with `No such file or directory`. Measured 2026-08-15 during row 32b's drill. `find` keeps the
+whole expansion inside the privileged process, and `-mindepth 1` excludes the directory
+structurally rather than by warning.
+
+**Two forms, and they differ on purpose — do not "correct" one toward the other.** The *repair*
+is `-mindepth 1 -maxdepth 1`, because the directory is root's and must not be chowned. The
+*posture proof* below is `-maxdepth 1` alone, because the directory is exactly the operand it
+exists to show.
+
 ```bash
 # Both ids are in the refusal message; read them from there rather than re-deriving them.
 sudo chown root:<gid> /run/jobbliggaren/secrets     # the directory: root keeps it
-sudo chown <uid>:<gid> /run/jobbliggaren/secrets/*  # the files, and only the files
+sudo find /run/jobbliggaren/secrets -mindepth 1 -maxdepth 1 \
+  -exec chown <uid>:<gid> {} +                      # the files, and only the files
 sudo systemctl start jobbliggaren-reconcile.service # apply now rather than waiting for :xx
 
-# Prove the posture, because neither gate above reads the axis you just moved:
-sudo stat -c '%n %U:%G %a' /run/jobbliggaren/secrets /run/jobbliggaren/secrets/*
-# expect: the directory root:<container-group> 710, every file <container-user>:<group> 400
+# Prove the posture, because neither gate above reads the axis you just moved.
+# NUMERIC %u:%g, never %U:%G. The container's uid/gid have no passwd/group entry on the host, so
+# the name form renders them UNKNOWN — `root:UNKNOWN` on the directory, `UNKNOWN:UNKNOWN` on the
+# files. The owner axis does survive in the name form, but the group does not, and reading one
+# line in two vocabularies is how the axis gets missed. Measured same day.
+# -maxdepth 1 WITHOUT -mindepth: unlike the repair above, the directory is the point.
+sudo find /run/jobbliggaren/secrets -maxdepth 1 -exec stat -c '%n %u:%g %a' {} +
+# expect: the directory 0:<gid> 710 — owner ROOT — and every file <uid>:<gid> 400
 ```
 
 The numbers are deliberately not written here. A live measured id in a tracked file decays within
@@ -528,10 +571,16 @@ procedure here will help.
   closes it; that is a hypervisor-level residual and applies to every branch equally.
 - **Compose behaviour on v5.4.0.** The compose file's load-bearing behavioural notes were
   measured on 2.40.3; the box now runs v5.4.0.
-- **The ownership gate's real `docker run … 'id -u; id -g'` (#1295).** CI stubs docker, as it
-  stubs cosign, so what the fixtures pin is the comparison and never the production ownership
-  triple. Its proof is `vps-deploy-stack.md` row 32b, and that row runs after injection — so
-  until the cutover, the gate is measured only against a stub.
+- ~~**The ownership gate's real `docker run … 'id -u; id -g'` (#1295).**~~ **MEASURED 2026-08-15
+  — this entry is discharged and kept struck rather than deleted, so a reader who remembers it as
+  open can see what closed it.** CI stubs docker, as it stubs cosign, so the fixtures pin the
+  comparison and never the production ownership triple. `vps-deploy-stack.md` row 32b ran the
+  drill on the box after injection: the gate refused on a deliberately broken group, named the
+  traversal axis and both ids, left the running containers up, and cleared on the repair. The
+  production triple is recorded there. **One half is still owed and is named in that row rather
+  than here:** the repair's *files* line was never load-bearing in the drill — only the
+  directory's group was broken — so the `find` form that replaced the glob has not itself been
+  run on the box by a non-root operator.
 - **A uid or gid divergence BETWEEN our three images (#1295).** The gate measures the api image,
   because that is the image injection measured when it set the ownership. All three Dockerfiles
   declare `USER app` — but **no gate anywhere measures that they still agree**, in CI or on the

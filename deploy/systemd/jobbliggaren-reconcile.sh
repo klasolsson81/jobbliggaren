@@ -265,10 +265,14 @@ else
     log "  directory group is $dir_gid; the image runs as gid $want_gid. The directory is 0710,"
     log "  so group traversal is the container's only way in — api and worker would report a"
     log "  missing master key. Nothing is applied; the running containers stay up."
-    log "  Repair by re-owning, NEVER by re-injecting (master-key-ops.md §3). Run exactly these"
-    log "  two: a RECURSIVE chown from the directory would take the directory too, and root owns it."
+    log "  Repair by re-owning, NEVER by re-injecting (master-key-ops.md §3). Run the two"
+    log "  re-owning commands below, then start the unit. The files form is a find, not a glob:"
+    log "  0710 denies the read to every non-root user and YOUR shell expands a glob before"
+    log "  sudo elevates, so a glob reaches chown unexpanded. -mindepth 1 keeps the directory"
+    log "  out — root owns it, and a recursive chown would take it."
+    log "  These lines are long and journalctl's pager chops them; read with --no-pager."
     log "    sudo chown root:$want_gid $SECRETS_DIR"
-    log "    sudo chown $want_uid:$want_gid $SECRETS_DIR/*"
+    log "    sudo find $SECRETS_DIR -mindepth 1 -maxdepth 1 -exec chown $want_uid:$want_gid {} +"
     log "    sudo systemctl start jobbliggaren-reconcile.service"
     exit 1
   fi
@@ -289,8 +293,11 @@ else
       log "  $f is owned by uid $file_uid; the image runs as uid $want_uid. The files are 0400,"
       log "  so the owner is the only reader. Nothing is applied; the running containers stay up."
       log "  Repair by re-owning, NEVER by re-injecting (master-key-ops.md §3). The directory is"
-      log "  NOT part of it — root owns that, and a recursive form from it would take it too."
-      log "    sudo chown $want_uid:$want_gid $SECRETS_DIR/*"
+      log "  NOT part of it — root owns that, and -mindepth 1 is what keeps it out. A glob would"
+      log "  not do: 0710 denies the read to every non-root user and YOUR shell expands a glob"
+      log "  before sudo elevates, so it would reach chown unexpanded."
+      log "  These lines are long and journalctl's pager chops them; read with --no-pager."
+      log "    sudo find $SECRETS_DIR -mindepth 1 -maxdepth 1 -exec chown $want_uid:$want_gid {} +"
       log "    sudo systemctl start jobbliggaren-reconcile.service"
       exit 1
     fi

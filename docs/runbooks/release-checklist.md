@@ -298,8 +298,10 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
         löser den.)* En slutsats villkorad av ett obesvarat
         brev är ett utkast, inte en dom.
         **Vad som stänger ledet, uttömmande:** ett skriftligt svar från Scaleway som säger att
-        support-/driftåtkomst till TEM-data sker uteslutande inifrån EU/EES — eller, om den inte gör
-        det, en Kap. V-grund för just den åtkomsten. Ingenting mer krävs.
+        support-/driftåtkomst till TEM-data sker uteslutande inifrån EU/EES — **i endera formen: ett
+        svar på brevet, eller en artefakt med avtalsrang som bär samma mening** (en TOM-bilaga
+        inkorporerad i DPA:t, en Art. 28(3)(a)-instruktion) — eller, om åtkomsten inte är
+        EU/EES-begränsad, en Kap. V-grund för just den åtkomsten. Ingenting mer krävs.
         ⚠ **Frågans FORM är hennes, inte valfri:** *"sker support- och driftåtkomst till TEM-data
         uteslutande inifrån EU/EES?"* — inte "var finns supporten", som besvaras med en kontorsadress
         som inte binder;

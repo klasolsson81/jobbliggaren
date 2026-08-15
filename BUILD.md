@@ -1621,7 +1621,10 @@ byggt:
 > redovisade — det är vad icke-selektivitet SER UT SOM**, inte ett tecken på att standarden
 > slutat gälla. ⚠ **Tystnad i copyn är inte detsamma som en avgjord dom:** **netcup** är prövad och
 > friad (`security-auditor` 2026-08-09), medan **OVHcloud och Scaleway båda står på oavgjord grund** —
-> OVH:s underbiträdeskedja är **ogranskad** (ROPA:ns backup-post), och Scaleway står på ett utkast
+> OVH:s **andra led är OPRÖVAT** — hon avstod uttryckligen från koncernstruktur, underbiträdeskedja
+> och supportåtkomst och lämnade slutsatsen **obelagd, inte falsk**. *(Diskriminatorn är avståendet,
+> inte kedjan: netcups kedja är också omätt och står ändå i den friade kolumnen, eftersom hon där
+> avgjorde att kedjan är oväsentlig för slutsatsen.)* Och Scaleway står på ett utkast
 > `security-auditor` **delratificerat**: strukturen avgjord, slutsatsen inte, i väntan på svar om
 > leverantörens support-geografi (`release-checklist.md` §2.5 punkt 1 led (b) är statusens hem).
 > Blanda aldrig ihop de tre lägena — §15.1 förbjuder uttryckligen att en oavgjord post skrivs som
@@ -1682,7 +1685,8 @@ e-postposten i AWS-eran (EU-part under amerikansk moder — redovisad med SCC 20
 2026-08-09 avgjorde **första** ledet positivt (fransk avtalspart, ingen tredjelandsmoder,
 `eu-west-par` mätt) och **avstod uttryckligen** från koncernstruktur, underbiträdeskedja och
 supportåtkomst, alltså rekvisitets andra led; hennes egen rapport bär dessutom motbevisning
-(en kanadensisk koncernenhet i OVH:s underbiträdeslista, och OVH:s DPA beskriver sig som
+(en kanadensisk koncernenhet i OVH:s underbiträdeslista — Kanada bär adekvansbeslut, så den enheten
+är inte i sig en krok; det är kedjans oprövade skick som är det — och OVH:s DPA beskriver sig som
 **dataexportör med SCC:er** mot dotterbolag utan adekvansbeslut). *Klientsidig kryptering
 frikänner inte — den är en **kompletterande åtgärd** i EDPB Rek. 01/2020:s mening och
 förutsätter att en överföring finns.* Och

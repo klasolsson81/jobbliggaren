@@ -1098,10 +1098,10 @@ public static class DependencyInjection
 
             // Singleton, och registrerad som AddSingleton<TService, TImplementation> — INTE via en
             // factory-lambda och INTE som typad HttpClient (som är transient bakom en lambda).
-            // Gate-testerna assertar på ServiceDescriptor.ImplementationType, som är null för båda;
-            // en lambda kompilerar, registrerar korrekt och fäller testet på ett sätt som ser ut som
-            // en DI-bugg. Avsändaren hämtar sin HttpClient per utskick via IHttpClientFactory, vilket
-            // är vad som håller handler-rotationen levande i en singleton.
+            // SKÄLET bor i ScalewayClientRegistration.HttpClientName och står medvetet inte här:
+            // det är captive dependency + livstids-konsistens, inte att gate-testerna assertar på
+            // ImplementationType. En test-assertion får inte forma en composition root, och att
+            // upprepa den som skäl PÅ composition root:en var precis den inversionen (#1339).
             services.AddSingleton<IEmailSender, ScalewayEmailSender>();
         }
         else

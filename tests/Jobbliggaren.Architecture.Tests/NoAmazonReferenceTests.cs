@@ -230,6 +230,8 @@ public class NoAmazonReferenceTests
         ImportsAnAmazonNamespace("global using Amazon.SimpleEmailV2;").ShouldBeTrue();
         ImportsAnAmazonNamespace("using static Amazon.RegionEndpoint;").ShouldBeTrue();
         ImportsAnAmazonNamespace("using Ses = Amazon.SimpleEmailV2;").ShouldBeTrue();
+        ImportsAnAmazonNamespace("using global::Amazon;").ShouldBeTrue();
+        ImportsAnAmazonNamespace("using Ses = global::Amazon.SimpleEmailV2;").ShouldBeTrue();
 
         ImportsAnAmazonNamespace("// using Amazon.SimpleEmailV2;").ShouldBeFalse();
         ImportsAnAmazonNamespace("using Jobbliggaren.Infrastructure.Email;").ShouldBeFalse();
@@ -353,9 +355,16 @@ public class NoAmazonReferenceTests
     /// merely beginning with those letters is somebody else's, and the package half of this guard
     /// still bans any id starting with <c>Amazon</c>.
     /// </para>
+    /// <para>
+    /// <c>global::</c> qualification is matched in BOTH positions (<c>using global::Amazon;</c> and
+    /// <c>using Ses = global::Amazon.SimpleEmailV2;</c>) — both are valid C# and neither was covered
+    /// when this doc first claimed "every FORM C# offers" (dotnet-architect, PR #1339). The IL fact
+    /// would catch them in <c>src/</c>, but <c>tests/</c> and <c>perf/</c> are adjudicated by the
+    /// text scans alone, which is exactly where the gap mattered.
+    /// </para>
     /// </summary>
     private static readonly Regex AmazonImport = new(
-        @"^\s*(?:global\s+)?using\s+(?:static\s+)?(?:[A-Za-z_]\w*\s*=\s*)?Amazon(?:\s*[.;]|\s|$)",
+        @"^\s*(?:global\s+)?using\s+(?:static\s+)?(?:[A-Za-z_]\w*\s*=\s*)?(?:global::)?Amazon(?:\s*[.;]|\s|$)",
         RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
     private static bool ImportsAnAmazonNamespace(string line) => AmazonImport.IsMatch(line);

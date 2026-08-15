@@ -790,12 +790,60 @@ public sealed class ScalewayEmailSenderTests : IDisposable
 
         var ex = await Should.ThrowAsync<TaskCanceledException>(async () => await pending);
 
-        // The marker the proposed fix would have keyed on is NOT here — this is the measurement.
-        ex.InnerException.ShouldNotBeOfType<TimeoutException>();
+        // NON-VACUITY, and it is the whole reason this test can pin anything. What the fixture
+        // demonstrates is its own ERASURE, so the outcome is identical whether it fired or not —
+        // this flag is the only thing that distinguishes them. Remove the arming from the handler
+        // and this line fails; a negated assertion on InnerException did NOT (dotnet-architect
+        // Kritiskt / code-reviewer M1, PR #1339). Mutation-verified.
+        _handler.ThrewArmedException.ShouldBeTrue(
+            "the transport never threw the timeout-shaped exception, so the assertions below "
+            + "measure nothing about what happens to it");
+
+        // THE MEASUREMENT, taken 2026-08-15 by printing the chain: outer=TaskCanceledException,
+        // inner=null, base=TaskCanceledException. The handler threw a TaskCanceledException CARRYING
+        // a TimeoutException and what surfaced carries no trace of it at ANY depth — asserted
+        // POSITIVELY, because a negated form passes on null, on any other inner type, and on a
+        // fixture that never fired.
+        //
+        // This settles a real disagreement rather than restating a claim: reading
+        // HttpClient.HandleFailure suggests the "massage the token" branch preserves InnerException,
+        // which would make `ex.InnerException is TimeoutException` reachable and the two-disjunct
+        // filter wrong. It is not what happens here, and only the empirical chain could say so.
+        ex.InnerException.ShouldBeNull();
+        ex.GetBaseException().ShouldBeOfType<TaskCanceledException>();
 
         // And nothing is logged, because the sender read it as a cancellation. That is the cost of
         // the residual, stated so it cannot be mistaken for a send that merely failed loudly.
         _logger.Records.ShouldBeEmpty();
+    }
+
+    /// <summary>
+    /// The response body is never read — pinned by making reading it IMPOSSIBLE (code-reviewer m4,
+    /// PR #1339).
+    /// <para>
+    /// The sender passes <see cref="HttpCompletionOption.ResponseHeadersRead"/> so the claim holds
+    /// at the transport level and not merely as our own discipline. Nothing asserted that: the
+    /// sentinel test stays green under either completion option, because the sender never read the
+    /// body anyway — so a silent revert to the default would buffer the whole error payload again
+    /// while every test passed.
+    /// </para>
+    /// <para>
+    /// This response's content THROWS on read. If the transport buffers it — which is exactly what
+    /// <see cref="HttpCompletionOption.ResponseContentRead"/> does, before
+    /// <c>EnsureSuccessStatusCode</c> ever runs — the send fails. It succeeding is the proof that
+    /// the body was never fetched.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public async Task ScalewayEmailSender_SendSucceeds_NeverFetchesTheResponseBody()
+    {
+        _handler.RespondWithUnreadableBody();
+        var sut = CreateSut();
+
+        await sut.SendEmailConfirmationAsync(
+            Recipient, SampleConfirmationContent(), CancellationToken.None);
+
+        _logger.Latest.EventId.Id.ShouldBe(3005);
     }
 
     [Fact]
@@ -946,6 +994,7 @@ public sealed class ScalewayEmailSenderTests : IDisposable
         private Exception? _throwOnSend;
         private bool _blockUntilCancelled;
         private Exception? _throwAfterCancellation;
+        private bool _unreadableBody;
 
         public List<CapturedRequest> Requests { get; } = [];
 
@@ -956,6 +1005,17 @@ public sealed class ScalewayEmailSenderTests : IDisposable
         /// <summary>Whether the token the transport was handed actually reported cancellation.</summary>
         public bool ObservedCancellation { get; private set; }
 
+        /// <summary>
+        /// Whether the armed <see cref="ThrowAfterCancellation"/> exception was actually thrown.
+        /// <para>
+        /// Load-bearing: the exception it arms is ERASED by <see cref="HttpClient"/>, so the outcome
+        /// looks identical whether the fixture fired or not. Without this flag the residual test
+        /// would pass with the arming removed — i.e. it would pin nothing (dotnet-architect
+        /// Kritiskt, PR #1339).
+        /// </para>
+        /// </summary>
+        public bool ThrewArmedException { get; private set; }
+
         public void RespondWith(HttpStatusCode status, string body)
         {
             _status = status;
@@ -963,6 +1023,13 @@ public sealed class ScalewayEmailSenderTests : IDisposable
         }
 
         public void ThrowOnSend(Exception exception) => _throwOnSend = exception;
+
+        /// <summary>
+        /// Respond 200 with a body that throws the moment anything reads it. Buffering the response
+        /// — which <see cref="HttpCompletionOption.ResponseContentRead"/> does before the caller
+        /// sees it — therefore fails the send outright.
+        /// </summary>
+        public void RespondWithUnreadableBody() => _unreadableBody = true;
 
         public void BlockUntilCancelled() => _blockUntilCancelled = true;
 
@@ -1013,6 +1080,7 @@ public sealed class ScalewayEmailSenderTests : IDisposable
                     ObservedCancellation = true;
                     if (_throwAfterCancellation is not null)
                     {
+                        ThrewArmedException = true;
                         throw _throwAfterCancellation;
                     }
 
@@ -1022,8 +1090,51 @@ public sealed class ScalewayEmailSenderTests : IDisposable
 
             return new HttpResponseMessage(_status)
             {
-                Content = new StringContent(_responseBody),
+                Content = _unreadableBody
+                    ? new StreamContent(new ThrowOnReadStream())
+                    : new StringContent(_responseBody),
             };
+        }
+
+        /// <summary>A body that cannot be read. Any attempt to buffer or read it throws.</summary>
+        private sealed class ThrowOnReadStream : Stream
+        {
+            public override bool CanRead => true;
+
+            public override bool CanSeek => false;
+
+            public override bool CanWrite => false;
+
+            public override long Length => throw new NotSupportedException();
+
+            public override long Position
+            {
+                get => throw new NotSupportedException();
+                set => throw new NotSupportedException();
+            }
+
+            public override int Read(byte[] buffer, int offset, int count) =>
+                throw new IOException("the response body must never be read");
+
+            public override ValueTask<int> ReadAsync(
+                Memory<byte> buffer, CancellationToken cancellationToken = default) =>
+                throw new IOException("the response body must never be read");
+
+            public override Task<int> ReadAsync(
+                byte[] buffer, int offset, int count, CancellationToken cancellationToken) =>
+                throw new IOException("the response body must never be read");
+
+            public override void Flush()
+            {
+            }
+
+            public override long Seek(long offset, SeekOrigin origin) =>
+                throw new NotSupportedException();
+
+            public override void SetLength(long value) => throw new NotSupportedException();
+
+            public override void Write(byte[] buffer, int offset, int count) =>
+                throw new NotSupportedException();
         }
 
         internal sealed record CapturedRequest(

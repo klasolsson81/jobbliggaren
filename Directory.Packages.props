@@ -289,7 +289,8 @@
          är alltså INGET paket, vilket är varför den här filen blev en rad kortare i stället för att
          byta ett id mot ett annat.
          Följden för vakten: NoAmazonReferenceTests är inte längre en allow-list utan ett
-         totalförbud — noll Amazon-referenser var som helst i src/ och tests/. Lägg inte tillbaka
+         totalförbud — noll Amazon-paket i någon csproj/props/targets under src/, tests/ och perf/
+         plus rotens byggfiler, och noll Amazon-importer i någon .cs under samma rötter. Lägg inte tillbaka
          ett AWSSDK-paket "bara för att"; kryptering är fortsatt Local-only (#802) och
          SecretsManager/KeyManagementService/S3/Bedrock/AWS.Logger.* var bannade redan innan. -->
   </ItemGroup>

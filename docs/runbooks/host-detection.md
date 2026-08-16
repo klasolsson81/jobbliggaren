@@ -356,7 +356,9 @@ install happens once.
   open, and ⚠ **the grant covers only the state WITHOUT real user data while M-7 is evaluated AT
   it**, so arm 1 gives no coverage where the condition is read. `security-auditor` ruled
   2026-08-17 that **M-7 does convert**, and that building the mitigations is not enough without a
-  **new** grant covering that state plus #196/#198. This
+  **new** grant covering that state plus **both M-7 legs delivered and verified on this file's
+  verification rows** — the capability, never issue numbers (#196 closed 2026-08-08; both legs are
+  homed at #1201). This
   mechanism narrows what the acceptance rests on; it does not close it.
 - **Availability monitoring.** An external HTTP probe is a different obligation. Certificate
   RENEWAL is a real silent-death vector — Caddy attempts it with about a third of a 90-day

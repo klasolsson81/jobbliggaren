@@ -950,7 +950,9 @@ instrument under-reaches its own property reads as coverage it does not have.
   that file's own provisioning step still sets `jpadmin ALL=(ALL) NOPASSWD:ALL`.
   ⛔ **`security-auditor`'s ruling 2026-08-17: M-7 DOES convert at first real user data**, and
   **building the two mitigations is not sufficient** — that also requires a **new** grant covering
-  the state *with* real user data, plus #196 and #198. Hers to grade, not a later reader's to
+  the state *with* real user data, plus **both M-7 legs delivered and verified on
+  `host-detection.md`'s verification rows** — the CAPABILITY, never issue numbers (#196 has been
+  closed since 2026-08-08; both legs are homed at #1201). Hers to grade, not a later reader's to
   derive. Both of #1201's detection legs are still unticked
   (#196 and #198). ⚠ **Whether the second arm is discharged is `security-auditor`'s to say and
   never a later reader's to derive** — #1201 states that of this grading in as many words, and

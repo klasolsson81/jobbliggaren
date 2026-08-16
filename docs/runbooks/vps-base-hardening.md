@@ -1047,7 +1047,10 @@ rather than discovered:
   unmitigated*). ⚠ **And the grant covers only the state WITHOUT real user data** — M-7 is
   evaluated **at** real user data, so the acceptance lapses exactly where the condition is read.
   `security-auditor` ruled 2026-08-17 that **M-7 does convert**, and that building both
-  mitigations is **not** sufficient without a **new** grant covering that state, plus #196/#198.
+  mitigations is **not** sufficient without a **new** grant covering that state, plus **both M-7
+  legs delivered and verified on `host-detection.md`'s verification rows**. ⚠ **Condition on the
+  CAPABILITY, never on issue numbers** — this line said "#196/#198" until 2026-08-17 and #196 has
+  been closed since 2026-08-08; both legs are homed at **#1201** per ADR 0050's dated note.
 - **Root is rotated but deliberately not locked.** Beyond being the console rescue identity,
   there is a stronger reason: after the NOPASSWD decision, `jpadmin` at the console already
   grants unrestricted root. Locking root would remove a tested rescue identity while reducing

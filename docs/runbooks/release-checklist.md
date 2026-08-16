@@ -396,6 +396,22 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
            nyckel** — det är en identifierare, inte en hemlighet, men den injiceras som en egen fil
            med egen livscykel (E2) och loggas aldrig. De två har alltså skilda regimer trots att de
            levereras genom samma söm.
+           ⚠ **UTGÅNGSDATUMET SKRIVS IN I SAMMA `.env`-EDIT SOM SJÄLVA FLIPPEN, och det är inte
+           en ordningspreferens** (#183 E4, 2026-08-16). `EMAIL_SCALEWAY_KEY_EXPIRES_AT` är
+           **obligatorisk** under `EMAIL_PROVIDER=Scaleway`: sätts providern utan den exitar
+           `--check` non-zero var tionde minut på en låda vars stack är fullt frisk, och
+           `systemctl --failed` latchar — alltså precis det alltid-tända tillstånd hela
+           kontrollen finns för att undvika. **Stegordningen bor i `deploy/.env.example`:s
+           outbound-block, inte här**; den här raden säger bara att ledet inte är uppfyllt av en
+           injicerad nyckel ensam. Nyckeln utfärdad 2026-08-16 går ut **2027-08-16** (mätt i
+           konsolen samma dag); datumet och dess proveniens har sitt hem i `master-key-ops.md`
+           §2, och upprepas inte här.
+           ⚠ **Vad kontrollen INTE gör, så att ingen läser in en påminnelse som inte finns:**
+           den varnar i journalen inom sitt fönster men **exitar 0** där — en förvarning på en
+           latchande yta hade undertryckt den övergång varje annan heartbeat-predikat behöver för
+           att notifiera. Förvarningens leverans är en **kalenderförpliktelse** och ägs av
+           [#1267](https://github.com/klasolsson81/jobbliggaren/issues/1267), vars påminnarhalva
+           **inte är byggd**. Ingenting pagar någon före utgången.
         4. **Ingen mottagarnivå-spårning får uppstå på den sändande identiteten.** ⚠ **MEKANISMEN
            DOG MED PROVIDERN 2026-08-15, EGENSKAPEN ÖVERLEVDE — och ledet får därför INTE strykas.**
            Fram till dess löd det *"sändande identitet får inte bära ett default configuration

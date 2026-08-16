@@ -73,7 +73,7 @@ public sealed partial class SyncPlatsbankenStreamJob(
     {
         // Ingestion gate (JobSourceIngestOptions). Returns before the source is touched, so no
         // recruiter contact record can reach the database while the switch is off — see the
-        // options type for the B-1 sequencing this enforces. No audit row: a run that did not
+        // options type for the corpus-load sequencing this enforces. No audit row: a run that did not
         // happen has no Art. 30 processing to record (parity ScbCompanyRegisterRefresher).
         if (!ingestOptions.Value.IngestEnabled)
         {

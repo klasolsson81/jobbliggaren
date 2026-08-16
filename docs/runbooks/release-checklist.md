@@ -1199,31 +1199,61 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
         stycket) är **struken med sin grund**, så e-posten bär nu **tre** markörbärande stycken per
         språk, inte fyra. Också detta var en motpartskorrigering och **ingen flip** — markörmeningen
         står kvar i alla tre styckena i båda språken, och armen är fortfarande mörk.
-      ⚠ **"ARMEN ÄR FORTFARANDE MÖRK" ÄR FALSKT SEDAN 2026-08-16, OCH DE TRE STYCKENA ÄR DÄRMED
-      OSANNA I PRESENS** (`security-auditor` N-1, 2026-08-16). Armen aktiverades 2026-08-16 utan att
-      §2.5-grinden passerades, och copyn säger fortfarande *"planerat och ännu inte i drift"* om en
-      behandling som pågår — mätt samma dag: **åtta träffar på `planerat och ännu inte i drift` i
-      `sv`, åtta i `en`**, varav rad 75 kallar Scaleway *"planerad e-postleverantör"* och rad 76
-      talar om uppgifter som *"planeras att lämnas"*. **Rad 64 är SANN och får inte flippas.**
+      ⚠ **"ARMEN ÄR FORTFARANDE MÖRK" ÄR FALSKT SEDAN 2026-08-16, OCH DET ÄR INTE EN TEMPUSFRÅGA**
+      (`security-auditor` N-1, 2026-08-16). Armen aktiverades 2026-08-16 utan att §2.5-grinden
+      passerades, och den publicerade copyn bär **en affirmativ presensförnekelse av en utlämning som
+      har skett**: *"I dagsläget skickar Jobbliggaren ingen e-post, och inga uppgifter om dig lämnas
+      till någon e-postleverantör"* (`en`: *"currently does not send any email, and no data about you
+      is disclosed to any email provider"*), mot leverantörssidigt mätt `Processed 4 / Delivered 4`
+      samma dag. **Det är ett osant sakpåstående om mottagare — Art. 13(1)(e), Art. 5(1)(a),
+      Art. 12(1) — inte en föråldrad markör under Art. 13(3).** *(Den här posten kallade det
+      "tempus-avvikelse" till 2026-08-16; underskattningen ändrade vad Klas ombads acceptera, vilket
+      är hela skälet formuleringen rättas.)*
+      ⚠ **FEL-MÄNGDEN ÄGS INTE AV DEN HÄR POSTEN, OCH DEN STOD REDAN RÄTT I REPOT.**
+      `deploy/caddy/Caddyfile`:s `basic_auth`-direktiv bär den — trackat, landat i `74cf8a04`, alltså
+      före den här ändringen — och **den här punkten räknar inte om den.** *(Posten namngav till
+      2026-08-16 en egen, smalare mängd och skopade följd-PR:en efter den. Den utelämnade en rad som
+      #183:s egen `f09755b1` införde samma dygn med motiveringen "the arm is dark" — falsk när den
+      skrevs. Två trackade hemvister med olika mängd för samma faktum, och den felaktiga styrde
+      skopet: exakt det ETT HEM PER TAL finns för.)* **Rad 64 flippas INTE**, och de återstående planerat-meningarna — SCB-vägen och
+      ansökningshistoriken — är fortfarande sanna; en vidare läsning skulle göra sanna påståenden
+      falska, vilket är den dyra riktningen.
+      ⚠ **RAD 64:s SANNING ÄR OMÄTT, och det skrivs ut hellre än antas.** Varje annan siffra i det
+      här blocket bär datum och instrument; rad 64:s gör det inte. Grunden är rimlig — notis-e-post
+      kräver opt-in plus en matchningskörning, och `Processed 4` är leverantörssidigt **aggregat** som
+      inte identifierar mallar — men rimlig är inte mätt. **Vad som skulle fastställa den:** noll
+      notis-rader i `email_log` på lådan. Tills dess: skyddad från flip på en omätt grund, och det är
+      medvetet den försiktiga riktningen.
       ⚠ **Den här punktens egen instruktion är samtidigt OUPPFYLLBAR** — *"flippa styckena först när
       respektive grind är passerad"* kan inte utföras för en grind som redan kringgåtts. Läs den som
       överträdd, aldrig som en väntande ordning; det är samma form som §2.5:s strukna
       *"Ingen flip innan båda är besvarade"*.
       ⚠ **DETTA ÄR INTE BLOCKER I DAG, OCH SKÄLET ÄR EN BINDNING SOM INGEN ADR BÄR.** Enda
-      registrerade är personuppgiftsansvarig själv och copyn ligger bakom Basic auth. Men **ADR 0133
-      täcker led (b) och (c), ADR 0132 täcker registreringsgrinden, och tempus-avvikelsen i den
-      publicerade notisen ligger utanför båda** — den lever på deras bindning utan att vara skriven
-      någonstans. **Den eskalerar till Blocker automatiskt** när ADR 0132:s trigger (a), (b) eller
-      (c) fyrar, utan att någon behöver agera för att det ska ske (Art. 13(1)(e)/(3), Art. 12(1)).
+      registrerade är personuppgiftsansvarig själv, och copyn ligger bakom `basic_auth` i
+      `deploy/caddy/Caddyfile` — en bindning som är **mätt**, inte antagen. Men **ADR 0133 täcker led
+      (b) och (c), ADR 0132 täcker registreringsgrinden, och det publicerade läget ligger utanför
+      båda** — det lever på deras bindning utan att vara skrivet någonstans. **Det eskalerar till
+      Blocker automatiskt** när förutsättning 5:s eskaleringsschema fyrar. ⚠ **Triggermängden
+      räknas INTE här** — förutsättning 5 äger alla fyra definitionerna, och den skarpaste är **(d),
+      första utskick till annan mottagare än Klas**, eftersom uppgifter når providern vid ett
+      utskick. *(Posten räknade "(a), (b) eller (c)" till 2026-08-16. Tre fel i en mening: (a) hade
+      redan fyrat och återinför per förutsättning 5 inte Blockern, (d) saknades trots att samma delta
+      utpekar den som skarpast, och uppräkningen tillskrev mängden ADR 0132 när ägaren är
+      förutsättning 5 — vilket motsäger den här sessionens egen rättelse av ADR 0133:s `Related`.)*
+      ⚠ **VÄG B FÖRFALLER NÄR `basic_auth` TAS BORT**, och `Caddyfile`:s egen not är i dag den enda
+      hemvist som bär den kopplingen.
       ⚠ **ÅTAGANDE — FU-2b, och det står HÄR därför att sessionsloggen är gitignorerad och inte
       räknas som hemvist** (`senior-cto-advisor`-bind 2026-08-16): copy-halvan — `content-legal.json`
-      **sv + en**, raderna ovan, **utom rad 64** — plus den regenererade mängden i den här punkten
-      levereras i en **följd-PR** off uppdaterad `origin/main`, inte stackad, ägd av **#183:s
-      e-postlane**. Skälet den inte ligger i FU-2: den läses av den **registrerade** (Art. 13/14) och
-      kräver `design-reviewer` + paritetssviten, medan FU-2:s halva läses av varje CC-invokation.
-      **Klas äger vägvalet** — antingen flippas styckena, eller så recordas tempus-avvikelsen som ett
-      uttryckligen bundet accepterat läge i ADR 0133 på samma bindning som led (b)/(c). **Vad som
-      inte är tillgängligt är att lämna den obeslutad.**
+      **sv + en**, **den mängd `Caddyfile` namnger**, aldrig rad 64 — plus den regenererade mängden i
+      den här punkten levereras i en **följd-PR** off uppdaterad `origin/main`, inte stackad, ägd av
+      **#183:s e-postlane**. Skälet den inte ligger i FU-2: den läses av den **registrerade**
+      (Art. 13/14) och kräver `design-reviewer` + paritetssviten, medan FU-2:s halva läses av varje
+      CC-invokation. `security-auditor` går längre än CTO-bindet och kallar splitten **påtvingad**:
+      copy-ändringen kodar ett vägval Klas äger och får därför inte verkställas in-block.
+      **Klas äger vägvalet, och det ska ställas mot den skarpare karakteriseringen ovan:** antingen
+      flippas raderna, eller så recordas det publicerade läget som ett **uttryckligen bundet
+      accepterat läge** i ADR 0133 på samma bindning som led (b)/(c). **Vad som inte är tillgängligt
+      är att lämna det obeslutat.**
       Kvarstående planerat-meningar för behandlingar som fortfarande inte är i
       drift ska stå kvar. Släpper releasen ingen av dem är rätt utfall att **inte
       ändra något**.

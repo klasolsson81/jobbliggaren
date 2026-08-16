@@ -131,6 +131,56 @@ public class EmailTemplatesEmailChangeConfirmationTests
     [Theory]
     [InlineData("ny.adress@example.se")]
     [InlineData("kalle+jobb@example.se")]
+    public void EmailChangeConfirmation_ShouldCarryTheWholeArt14Notice_WordForWordInBothParts(
+        string newEmail)
+    {
+        // The four fragment pins below cover four sentences; the notice is eight, and it lives in
+        // TWO hand-maintained copies. Everything outside a pinned fragment could diverge between the
+        // parts with the suite green (code-reviewer Major 4) — and the sentences most exposed to that
+        // are the two nobody would notice going missing: the Art. 14(2)(a) retention sentence and the
+        // Art. 14(2)(e) supervisory-authority route.
+        //
+        // Pinned whole rather than as more fragments, because the failure mode is DRIFT and a
+        // fragment set can only ever catch the fragments someone thought to add. The third paragraph
+        // is deliberately excluded: it is the one place the two parts differ BY DESIGN — plain text
+        // puts the address on its own line, HTML folds it in as link text — and the existing contact
+        // pins cover it.
+        //
+        // The retention sentence must never claim where the address IS. ADR 0133 accepts the
+        // provider's own retention as unmeasured, so an exhaustive location claim would assert what
+        // the house has recorded it cannot measure.
+        var rendered = EmailTemplates.EmailChangeConfirmation(BaseUrl, Content(newEmail: newEmail));
+
+        const string source =
+            "Adressen har vi fått från en användare som angav den för bytet. Vi berättar inte vem "
+            + "det är, eftersom det skulle vara en uppgift om en annan person. Adressen används "
+            + "bara för att skicka det här meddelandet och för att kontrollera att den som äger "
+            + "adressen godkänner bytet. Grunden är berättigat intresse (artikel 6.1 f): en adress "
+            + "ska inte kunna kopplas till ett konto utan att den som äger den bekräftar det.";
+        const string recipientAndRetention =
+            "Bortser du från meddelandet ändras ingenting: adressen kopplas aldrig till kontot och "
+            + "vi lägger inte upp den hos oss. Länken slutar gälla efter 24 timmar. E-posten "
+            + "levereras av Scaleway SAS i Frankrike, som behandlar meddelandet för att kunna "
+            + "leverera det. Leverantören utfäster i personuppgiftsbiträdesavtalet att behandlingen "
+            + "sker inom EU.";
+
+        foreach (var part in BothPartsFlattened(rendered))
+        {
+            part.ShouldContain(source);
+            part.ShouldContain(recipientAndRetention);
+            // The rights sentence carries Art. 14(1)(a), 18 and (2)(e). Pinned as one span up to the
+            // address, which is where the two parts legitimately diverge.
+            part.ShouldContain(
+                "Personuppgiftsansvarig är Klas Olsson, privatperson, som driver Jobbliggaren. Du "
+                + "har rätt att invända mot behandlingen, att begära information, rättelse, "
+                + "radering eller begränsning, och att lämna klagomål till "
+                + "Integritetsskyddsmyndigheten (imy.se).");
+        }
+    }
+
+    [Theory]
+    [InlineData("ny.adress@example.se")]
+    [InlineData("kalle+jobb@example.se")]
     public void EmailChangeConfirmation_ShouldNameTheLegalGroundAndTheProcessor_InBothParts(
         string newEmail)
     {

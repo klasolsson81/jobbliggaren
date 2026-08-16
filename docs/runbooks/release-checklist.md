@@ -347,9 +347,20 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
         mätningen att leverantörens publika lista namnger **inget** TEM-underbiträde i dag; det säger
         att inget i avtalet hindrar att den ändras — vilket är precis varför Art. 7.4-kontrollen
         (ADR 0133 Amendment, led (d)) betyder något.
-        **Graderingen av vad de tre raderna gör med det här ledet är `security-auditor`s, inte
-        sessionens.** Transkriberingen är en mätning, ingen dom; statusen står oförändrad tills hon
-        skrivit in sin (samma disciplin som förutsättning 4:s daterade pekare nedan).
+        **`security-auditor` 2026-08-16 (FU-1) — KARAKTERISERINGEN RATIFICERAD ORDAGRANT, LEDET STÅR
+        KVAR.** De tre raderna ändrar inte statusen; de ändrar ledets **art**. Underlaget är inte
+        längre *"ett påstående utan rang"* utan **"ett påstående utan rang mot en klausul som har
+        rang"**. ⚠ **Bekräftelsen som skulle stänga ledet behövs därför nu MOT EN AVTALSRANGIG
+        ÅTKOMSTRÄTT** — inte för att lyfta en dokumentationsmening från noll. En lucka fylls av en
+        bekräftelse; en asymmetri måste **rättas**.
+        ⚠ **Art. 21.2 + DPA Art. 7.1 graderas INTE på nytt här:** ADR 0133:s Amendment äger den ytan
+        som led (d) (Art. 7.4-invändningsrätten, förverkad i brist på prenumerationsyta). Vidgningen
+        förstärker det redan graderade ledet och skapar inget nytt fynd; graden tillhör den som satte
+        den (§9.6).
+        ⚠ **ADR 0133:s Context underbeskriver ledet efter den här mätningen** och ska amendas —
+        acceptansen står, men en acceptans vars protokollförda grund underskattar motbevisningen
+        förnyas nästa gång på en premiss som inte längre gäller (`security-auditor` Major 4, eskalerad
+        till Klas).
         ⚠ **BREVET ÄR STRUKET 2026-08-16 (Klas-beslut) — ÅTGÄRDEN ÄR BORTA, INTE FYNDET.** Grunden
         ovan står oförändrad: meningen saknar fortfarande avtalsrang, och utkastet är fortfarande
         villkorat. Vad som ändrats är att ingen bekräftelse är på väg. **Beslutet, dess grund och
@@ -526,9 +537,16 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
         **Art. 14 gäller, och inget undantag i 14(5) är tillgängligt** — 14(5)(b) faller
         avgörande, eftersom vi redan komponerar och levererar ett meddelande till exakt den
         personen; informationen kostar ett stycke. **Tidpunkten är Art. 14(3)(b): senast vid
-        första kommunikationen, och den kommunikationen ÄR mejlet.** Mallen bär i dag varken
-        kontaktuppgift, rättslig grund, mottagare, lagringstid, rättigheter eller källa, och är
-        den enda kontolivscykel-mallen helt utan `ContactAddress`. **Informationen ska bäras i
+        första kommunikationen, och den kommunikationen ÄR mejlet.**
+        ⚠ **MENINGEN SOM STOD HÄR ÄR FALSK SEDAN 2026-08-16 (#183 FU-1, `code-reviewer` Major 1).**
+        Den löd: *"Mallen bär i dag varken kontaktuppgift, rättslig grund, mottagare, lagringstid,
+        rättigheter eller källa, och är den enda kontolivscykel-mallen helt utan `ContactAddress`."*
+        **Commit `5046cec7` gav mallen samtliga sex plus `ContactAddress`**, i båda delarna av
+        `multipart/alternative`. Förvärrande när den fick stå: `EmailTemplates.cs` pekar uttryckligen
+        hit för resonemanget, så en läsare som följde pekaren landade på påståendet att mallen inte
+        bär något av det hon just läst i koden ovanför. **Statusen på förutsättning 6 rörs inte av
+        den här rättelsen** — den är `security-auditor`s, och stängningslistan nedan räknar
+        Art. 14-stycket som ett av flera led. **Informationen ska bäras i
         VARJE utskick, inte villkorat:** vi kan inte vid sändningstillfället veta om mottagaren är
         innehavaren eller en främling, och det är hela skälet. Art. 14(2)(f) besvaras med en
         KATEGORI ("en användare som angav den här adressen") — att namnge användaren vore i sig
@@ -647,8 +665,22 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
               därefter levererade utskicken. En nyckel i en annan organisation som skickar mot det
               projektet hade fått 403. Leverans → nyckeln har behörighet på projektet.
               **Slutledningen är vår; 403-beteendet är mätt.**
+              ⚠ **ORGANISATIONSHALVAN BÄR SAMMA FÖRFALLOVILLKOR SOM PROJEKTHALVAN, och det stod
+              utskrivet bara för den senare** (`security-auditor` Minor 5, 2026-08-16). Likheten
+              binder organisationen **enbart därför att default-projektet ärver org-id:t**. Skapas
+              ett separat TEM-projekt bär `ProjectId` inte längre org-id:t, och då säger jämförelsen
+              ingenting om organisationen heller. **Läs inte organisationshalvan som ovillkorligt
+              stängd** — den är stängd så länge armen skickar in i default-projektet, vilket är
+              samma villkor som ovan och inte ett svagare.
            3. **Punkt (i) — faktureringsjurisdiktionen `SE`** — stod redan i domen ovan och räknas
               inte om här.
+           ⚠ **OMÄTT, OCH DET SKRIVS UT HELLRE ÄN BORT** (`security-auditor` Minor 6, 2026-08-16):
+           om GTS:en bär en **ensidig ändrings- eller notifieringsklausul** under vilken den publika
+           `v.09/06/26`-utgåvan slår igenom mot kontots validerade `07/04/2026` — och om Art. 23
+           lyder lika i de två utgåvorna. Slutsatsen *"dokumentet ligger under den validerade
+           raden"* är rätt test och håller, men den håller **bara så länge inget i avtalet gör en
+           senare utgåva bindande på notis**. Att etikettfrågan i övrigt är löst får inte läsas som
+           att den här är det.
            ⚠ **INGA ID:N I REPOT.** Repot är publikt, och ledet behöver **jämförelsen**, inte
            identifieraren. Varken org-id, projekt-id eller nyckel-id skrivs här eller någon
            annanstans i repot.
@@ -883,8 +915,14 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
       **ORDNINGEN STÅR FÖRST, för att den styr posterna under sig:** upplös
       SCC/adekvans-disjunktionen **före** du skriver Art. 13(1)(f)-formuleringen —
       kopia-formuleringen hänger på Art. 46/47-grunden, så tvärtom påstår du en SCC-grund
-      som kanske inte används. Alltså **(iii) → (ii)**, och listans första post — strykningen av
-      e-poststyckets avtalsreservation — **när DPA:n är verifierad gällande för Scaleway S.A.S.**
+      som kanske inte används. Alltså **(iii) → (ii)**. ~~Och listans första post — strykningen av
+      e-poststyckets avtalsreservation — när DPA:n är verifierad gällande för Scaleway S.A.S.~~
+      ⚠ **(i)-klausulen i den här raden är FÖRBRUKAD 2026-08-16 (#183 FU-2b, `code-reviewer`
+      Major 2) — struken som proveniens.** Den schemalade en strykning som samma PR redan utfört,
+      och på ett annat villkor än det som faktiskt utlöste den: reservationen ströks för att den
+      blivit **falsk**, inte för att avtalet verifierats. Se residual (i) nedan, som äger skälet.
+      **Ordningen `(iii) → (ii)` står kvar oförändrad** med sitt eget skäl — det gäller en Kap.
+      V-återaktivering och rör inte (i).
       *(Denna routing-rad sa till 2026-08-15 "flytten in i `Mottagare`-listan … när avtalet
       **signeras**". Båda halvorna var fel: `list`-nyckeln finns inte, och (i):s egen kropp säger
       att "på plats" inte är detsamma som "signerat".)*

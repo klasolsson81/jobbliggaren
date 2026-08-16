@@ -194,9 +194,16 @@ describe("content-legal i18n-paritet (sv ↔ en)", () => {
    *    notis har skickats. **Samma leverantör, två behandlingar, två olika sanningar.** En
    *    invariant som kräver markören överallt hade tvingat fram ett presens-påstående om notiserna
    *    — den ansökningshistorik-fälla systertestet ovan finns för — och en som förbjuder den
-   *    överallt hade släppt igenom förnekelsen av en levande behandling. Därför en **polaritet per
-   *    behandling**, avgjord av avsnittets RÄTTSLIGA GRUND och inte av dess index: ett omnämnande i
-   *    samtyckesavsnittet MÅSTE bära markören, varje annat får INTE göra det.
+   *    överallt hade släppt igenom förnekelsen av en levande behandling. Därför **en polaritet per
+   *    SEKTION**, avgjord av avsnittets RÄTTSLIGA GRUND: ett omnämnande i samtyckesavsnittet MÅSTE
+   *    bära markören, varje annat får INTE göra det.
+   *    ⚠ **Mekanismen är per SEKTION, inte per behandling, och skillnaden ska inte suddas**
+   *    (`security-auditor` Minor 7, 2026-08-16). Avsnitt 6 (`Mottagare av uppgifter`, levande
+   *    grenen) innehåller presensbeskrivningar av den MÖRKA bevakningsnotisen — *"Det gäller både
+   *    de notiser du själv slår på …"* och *"som för en bevakningsnotis innehåller …"*. Sakligt
+   *    håller det, eftersom båda är villkorssatser och notisens egen statusmening står en sektion
+   *    upp — men spärren kan inte det finare den skulle kunna påstås kunna, och en sektion som
+   *    någon gång blandar en mörk och en levande behandling får bara EN polaritet.
    *    ⚠ **Diskriminatorn är avsiktligt EGENSKAPSBASERAD.** Ett radnummer eller ett sektionsindex
    *    hade gått sönder vid nästa styckeflytt — §2.6 punkt 1 mätte att en enda ändring flyttade
    *    rader åt två håll — medan rubrikens egen grundangivelse är det som faktiskt avgör vilken
@@ -225,8 +232,10 @@ describe("content-legal i18n-paritet (sv ↔ en)", () => {
    * löd: *"Testet ska FALLA vid prod-flippen. Ta då bort markör-halvan i samma ändring som flippar
    * copyn — men BEHÅLL golvet OCH path-pariteten."* Det är precis vad som gjordes, med en enda
    * avvikelse värd att skriva ut: markör-halvan **togs inte bort utan omriktades**, eftersom
-   * flippen visade sig vara partiell — en av tre behandlingar under samma leverantör är fortfarande
-   * mörk. Instruktionen förutsatte en total flipp, och den förutsättningen höll inte.
+   * flippen visade sig vara partiell — en av två behandlingar under samma leverantör är fortfarande
+   * mörk. *(Raden sa "tre" till 2026-08-16 och räknade LÖV, inte behandlingar: tre omnämnanden, två
+   * behandlingar, eftersom mottagaravsnittets två stycken beskriver samma utlämnande.
+   * `code-reviewer` Major 3.)* Instruktionen förutsatte en total flipp, och den förutsättningen höll inte.
    *
    * **Nästa flipp är notisernas**, och då faller det här testet igen — på samtyckesgrenen. Det är
    * avsiktligt: §2.6 punkt 1 kräver att rad 64 ommäts mot lådan före varje flipp, och en grön svit

@@ -309,27 +309,25 @@ internal static class EmailTemplates
     /// opened; the link is valid for 24h (CTO-bind #1 TokenLifespan).
     ///
     /// <para>
-    /// <b>This is the only template that carries an Art. 14 notice, and it is UNCONDITIONAL.</b> It
-    /// goes to recipient class (3) — an address that by construction sits on no account, since
-    /// <c>ChangeEmailCommandHandler</c> verifies <c>IsEmailTakenAsync</c> is false before sending. A
-    /// mistyped address therefore delivers a message to someone who is neither a user nor the source
-    /// of the data, so Art. 14 applies and no Art. 14(5) exemption is available: 14(5)(b) fails
-    /// decisively because we are already composing a message to exactly that person. The timing is
-    /// Art. 14(3)(b) — this mail IS the first communication.
+    /// <b>Carries an Art. 14 notice, and it is UNCONDITIONAL.</b> This goes to recipient class (3) —
+    /// an address that by construction sits on no account, since <c>ChangeEmailCommandHandler</c>
+    /// verifies <c>IsEmailTakenAsync</c> is false before sending — so a mistyped address delivers a
+    /// message to someone who is neither a user nor the source of the data. The notice cannot be
+    /// conditioned on the recipient being a stranger, because at send time we cannot know whether it
+    /// is the holder or a third party; a branch would only ever be right by accident. Art. 14(2)(f)
+    /// is answered with a CATEGORY, since naming the account holder would be a disclosure in the
+    /// other direction. Both parts carry it — see <see cref="BuildFilterDisclosureHtml"/> for why.
     /// </para>
     /// <para>
-    /// <b>The notice cannot be conditioned on the recipient being a stranger</b>, because at send
-    /// time we cannot know whether it is the holder or a third party. That is the whole reason it is
-    /// unconditional rather than a branch. Art. 14(2)(f) is answered with a CATEGORY (*"a user who
-    /// entered this address"*): naming the account holder would be a disclosure in the other
-    /// direction. <b>Both the plain-text and the HTML part carry it</b> — a disclosure that appears
-    /// in only one part of a <c>multipart/alternative</c> message is one the recipient may never
-    /// see, the same rule <see cref="BuildFilterDisclosureHtml"/> states for the filter disclosure.
-    /// The retention sentence is measured, not assumed: the address reaches no table and no audit
-    /// projection (<c>ChangeEmailCommand</c>'s remarks), and the only derived artefact is the
-    /// cooldown gate's SHA-256 fingerprint with a 60 s TTL (<c>RedisCooldownGate</c>), which is not
-    /// a copy of the address. <c>release-checklist.md</c> §2.5 point 1 precondition 6 owns the
-    /// reasoning; this comment does not restate its grounds.
+    /// <b>The retention sentence says nothing about where the address IS</b>, and that is the
+    /// constraint rather than a phrasing choice (<c>security-auditor</c> Blocker, 2026-08-16): ADR
+    /// 0133 accepts Scaleway's own retention as UNMEASURED, so any exhaustive location claim would
+    /// assert what the house has recorded it cannot measure. What the copy may say is what our own
+    /// side does, which is measured: the address reaches no table and no audit projection
+    /// (<c>ChangeEmailCommand</c>'s remarks), and the only derived artefact is the cooldown gate's
+    /// SHA-256 fingerprint at a 60 s TTL (<c>RedisCooldownGate</c>), which is not a copy of it.
+    /// Residency is stated at the rank the contract gives it — DPA Art. 11 undertakes EU level, not
+    /// region level. <c>release-checklist.md</c> §2.5 point 1 precondition 6 owns the reasoning.
     /// </para>
     /// </summary>
     public static EmailContent EmailChangeConfirmation(
@@ -361,17 +359,23 @@ internal static class EmailTemplates
                 Adressen ändras inte förrän du har öppnat länken. Om du inte har begärt
                 ändringen kan du bortse från det här meddelandet.
 
-                Vi har fått din adress från en användare som angav den när adressen på ett
-                konto skulle ändras. Vi berättar inte vem det är. Adressen används bara för
-                att skicka det här meddelandet och för att kontrollera att den som äger
-                adressen godkänner bytet. Grunden är berättigat intresse (artikel 6.1 f):
-                en adress ska inte kunna kopplas till ett konto utan att den som äger den
-                bekräftar det. E-posten levereras av Scaleway SAS i Frankrike, som behandlar
-                den i Paris inom EU. Bekräftar du inte sparar vi ingen kopia av adressen:
-                den finns bara i länken ovan, som slutar gälla efter 24 timmar.
+                Adressen har vi fått från en användare som angav den för bytet. Vi berättar
+                inte vem det är, eftersom det skulle vara en uppgift om en annan person.
+                Adressen används bara för att skicka det här meddelandet och för att
+                kontrollera att den som äger adressen godkänner bytet. Grunden är berättigat
+                intresse (artikel 6.1 f): en adress ska inte kunna kopplas till ett konto
+                utan att den som äger den bekräftar det.
 
-                Du har rätt att invända mot behandlingen och att begära information,
-                rättelse eller radering. Skriv till oss:
+                Bortser du från meddelandet ändras ingenting: adressen kopplas aldrig till
+                kontot och vi lägger inte upp den hos oss. Länken slutar gälla efter
+                24 timmar. E-posten levereras av Scaleway SAS i Frankrike, som behandlar
+                meddelandet för att kunna leverera det. Leverantören utfäster i
+                personuppgiftsbiträdesavtalet att behandlingen sker inom EU.
+
+                Personuppgiftsansvarig är Klas Olsson, privatperson, som driver
+                Jobbliggaren. Du har rätt att invända mot behandlingen, att begära
+                information, rättelse, radering eller begränsning, och att lämna klagomål
+                till Integritetsskyddsmyndigheten (imy.se). Skriv till oss:
                 {ContactAddress}
 
                 Vänliga hälsningar,
@@ -391,18 +395,23 @@ internal static class EmailTemplates
                         "Adressen ändras inte förrän du har öppnat länken. Om du inte har begärt "
                         + "ändringen kan du bortse från det här meddelandet.")
                     + EmailHtml.P(
-                        "Vi har fått din adress från en användare som angav den när adressen på "
-                        + "ett konto skulle ändras. Vi berättar inte vem det är. Adressen används "
-                        + "bara för att skicka det här meddelandet och för att kontrollera att den "
-                        + "som äger adressen godkänner bytet. Grunden är berättigat intresse "
-                        + "(artikel 6.1 f): en adress ska inte kunna kopplas till ett konto utan "
-                        + "att den som äger den bekräftar det. E-posten levereras av Scaleway SAS "
-                        + "i Frankrike, som behandlar den i Paris inom EU. Bekräftar du inte "
-                        + "sparar vi ingen kopia av adressen: den finns bara i länken ovan, som "
-                        + "slutar gälla efter 24 timmar.")
+                        "Adressen har vi fått från en användare som angav den för bytet. Vi "
+                        + "berättar inte vem det är, eftersom det skulle vara en uppgift om en "
+                        + "annan person. Adressen används bara för att skicka det här meddelandet "
+                        + "och för att kontrollera att den som äger adressen godkänner bytet. "
+                        + "Grunden är berättigat intresse (artikel 6.1 f): en adress ska inte "
+                        + "kunna kopplas till ett konto utan att den som äger den bekräftar det.")
+                    + EmailHtml.P(
+                        "Bortser du från meddelandet ändras ingenting: adressen kopplas aldrig "
+                        + "till kontot och vi lägger inte upp den hos oss. Länken slutar gälla "
+                        + "efter 24 timmar. E-posten levereras av Scaleway SAS i Frankrike, som "
+                        + "behandlar meddelandet för att kunna leverera det. Leverantören "
+                        + "utfäster i personuppgiftsbiträdesavtalet att behandlingen sker inom EU.")
                     + EmailHtml.LinkParagraph(
-                        "Du har rätt att invända mot behandlingen och att begära information, "
-                        + "rättelse eller radering. Skriv till oss:",
+                        "Personuppgiftsansvarig är Klas Olsson, privatperson, som driver "
+                        + "Jobbliggaren. Du har rätt att invända mot behandlingen, att begära "
+                        + "information, rättelse, radering eller begränsning, och att lämna "
+                        + "klagomål till Integritetsskyddsmyndigheten (imy.se). Skriv till oss:",
                         $"mailto:{ContactAddress}",
                         ContactAddress)
                     + EmailHtml.SignOff()));

@@ -43,11 +43,13 @@ public sealed class GetCompanySearchMagnitudeQueryHandler(ICompanyRegisterSearch
         // (2026-08-01): the exact number if it is free, otherwise NO number, never the saturated one.
         //
         // It is not free. An exact count is an index-only scan over ix_company_register_status:
-        // 26 ms with the visibility map set, but 438 ms without it - and nothing sets that map
-        // automatically: the table is written by one periodic bulk job and the SCB refresher
-        // ANALYZEs but does not VACUUM. Read the map itself (pg_class.relallvisible against
-        // relpages), never autovacuum_count - that counter is resettable, and was measured
-        // reset on the dev database 2026-08-16, so a zero there cannot be read as "never ran".
+        // 26 ms with the visibility map set, but 438 ms without it - and NO APPLICATION PATH sets
+        // that map: the table is written by one periodic bulk job and the SCB refresher ANALYZEs
+        // but does not VACUUM. That is a claim about our code, NOT about the server - Postgres has
+        // an insert-driven vacuum trigger too, and whether it fires here is unmeasured (#1360).
+        // Read the map itself (pg_class.relallvisible against relpages), never autovacuum_count -
+        // that counter is resettable, and was measured reset on the dev database 2026-08-16, so a
+        // zero there cannot be read as "never ran".
         // The cheap case is not the case
         // that persists, so the expensive one would land on every unfiltered page load.
         //

@@ -263,7 +263,9 @@ SELECT status, count(*) FROM company_register GROUP BY status ORDER BY 2 DESC;
 --    [0-9] because it is the NARROWEST class: any deviation can then only flag
 --    more rows, never fewer. (The repo's ban on \d is a .NET rule — #865, \p{Nd}
 --    folds fullwidth. Asserting it of Postgres too did NOT reproduce: measured
---    2026-08-16 on PG 18.3/en_US.utf8, neither \d nor [[:digit:]] matched
+--    2026-08-16 on the dev container, PG 18.3/en_US.utf8 (SELECT version() --
+--    the container runs 18.3 even though compose declares 18.4), neither \d nor
+--    [[:digit:]] matched
 --    Arabic-Indic or fullwidth. The choice stands on fail-safe direction.)
 --    A subset of the guard cannot detect the guard's own failure, which is what
 --    this checks.
@@ -617,11 +619,22 @@ is the other thing a schema-bearing restore can silently move.
   belongs to that query; what generalises is the **mechanism** — every index-only
   path on the table pays the same toll.
 
-  **Autovacuum will not close it on the box, and the reason is structural rather
-  than statistical.** Its vacuum trigger is **dead-tuple** driven; the box writes
-  the register exactly once, in the restore, and never again; a `COPY` into an
-  empty table produces no dead tuples. So the trigger never arms and the map stays
-  exactly as the restore left it — empty, permanently. Read-only forever cuts both
+  **Run it as a GUARANTEE, not because autovacuum is proven absent.** This step
+  makes the map set **deterministically, before the box serves a single query**,
+  instead of leaving it to a background cycle whose behaviour here has never been
+  measured. ⚠ **Do not upgrade that into "nothing will ever vacuum it" — an
+  earlier draft did, twice, and the claim is not supported.** Postgres has an
+  **insert-driven** vacuum trigger beside the dead-tuple one, and it is armed on
+  this stack: measured 2026-08-16, `autovacuum = on`,
+  `autovacuum_vacuum_insert_threshold = 1000`,
+  `autovacuum_vacuum_insert_scale_factor = 0.2` — which at register scale is a few
+  hundred thousand inserts, well inside what a full restore does. Whether it fires
+  on this path is **unmeasured**, and anti-wraparound vacuum is a second
+  unmeasured route. Regenerate:
+  `SELECT name, setting FROM pg_settings WHERE name LIKE 'autovacuum%insert%';`
+  What *is* measured is narrower and enough: **no path in `src/` runs `VACUUM`**,
+  and the dev register's map was found **unset** on 2026-08-01 after four weeks of
+  life. Read-only forever cuts both
   ways: nothing repairs the map, so one `VACUUM` at load time is not a stopgap but
   the **permanent** fix. It also sets the per-page hint bits once under the
   operator's eye instead of charging them to whichever user query touches each page
@@ -638,15 +651,17 @@ is the other thing a schema-bearing restore can silently move.
   SELECT relpages, relallvisible FROM pg_class WHERE relname = 'company_register';
   ```
 
-  On dev that read **23830 of 23830 pages all-visible** — and the cause is
-  recorded eleven lines above rather than inferred: the **manual `VACUUM` of
-  2026-08-01** in #1149's own measurement, which found the map **unset** after
-  four weeks of register life and set it by hand. Nothing automatic maintains it.
-  No path in `src/` runs `VACUUM` at all — `ScbCompanyRegisterStore.AnalyzeAsync`
-  says *"never `VACUUM ANALYZE`"* in as many words — and the sync is not a weekly
-  automatic job on dev either: `ScbRegister:Enabled` is `false` in both its homes,
-  the run is cert-gated, takes ~11 h, and §0 calls it *"an operator action, never
-  automation"*. So dev is healthy today because a human vacuumed it a fortnight
+  On dev that read **23830 of 23830 pages all-visible** — and a cause is on record
+  rather than inferred: the **manual `VACUUM` of 2026-08-01** in #1149's own
+  measurement (reason 2's first bullet above), which found the map **unset** after
+  four weeks of register life and set it by hand. **No path in `src/` runs
+  `VACUUM`** — `ScbCompanyRegisterStore.AnalyzeAsync` says *"never `VACUUM
+  ANALYZE`"* in as many words — and the sync is not a weekly automatic job on dev
+  either: `ScbRegister:Enabled` is `false` in both its homes, the run is
+  cert-gated, takes ~11 h, and this runbook's preamble calls it *"an operator
+  action, never automation"*. ⚠ **That establishes no application path maintains
+  it; it does not establish that nothing does** — see the insert-driven trigger
+  named above. Dev is healthy today with a human's `VACUUM` on record a fortnight
   ago, and the box will have no such human unless this step is run.
 
   ⚠ **An earlier draft of this paragraph said the map was set "because the weekly
@@ -723,7 +738,8 @@ docker cp jobbliggaren-postgres-dev:/tmp/company_register.dump tmp/company_regis
 #    third character < '2'. [0-9] and not \d because it is the NARROWEST class,
 #    so any deviation can only flag more rows, never fewer. (The \d ban is a .NET
 #    rule — #865, \p{Nd} folds fullwidth. Asserting it of Postgres did NOT
-#    reproduce: 2026-08-16 on PG 18.3/en_US.utf8 neither \d nor [[:digit:]]
+#    reproduce: 2026-08-16 on the dev container (PG 18.3 per SELECT version(),
+#    though compose declares 18.4) neither \d nor [[:digit:]]
 #    matched Arabic-Indic or fullwidth.) A subset predicate could not detect the
 #    ingest filter's own failure, which is the only scenario this exists for.
 docker exec jobbliggaren-postgres-dev psql -U jobbliggaren -d jobbliggaren -c "SELECT count(*) AS rows, count(*) FILTER (WHERE organization_number !~ '^[0-9]{10}$' OR substring(organization_number from 3 for 1) < '2') AS pnr_shaped FROM public.company_register;"
@@ -810,8 +826,11 @@ WHERE lower(company_name) LIKE lower('volvo%') ESCAPE '\' LIMIT 20;
 ⚠ **Query (c) is a hand-typed lookalike and proves eligibility only — never read
 it as proof that the plan the app runs is correct.** Production emits a different
 shape: `CompanyRegisterSearchQuery.BuildItemsCommand` has **two branches** —
-`ShouldMaterialize` decides, and browse-all/broad prefixes take the
-unmaterialised one. On the materialised branch it wraps the predicate in a
+`ShouldMaterialize` decides. **Any name prefix short-circuits to the MATERIALISED
+branch**, broad ones included: the name clause is what rescues prefixes whose
+counts saturate. The unmaterialised branch is taken by the sparse axes —
+kommun-only, SNI-only, browse-all — **at saturation**. Query (c) above is a name
+prefix, so it is the materialised branch. On that branch it wraps the predicate in a
 `WITH … AS MATERIALIZED` CTE, and inside that CTE the index renders as
 `Bitmap Index Scan on ix_…`, not `using ix_…`. ⚠ **The CTE carries no `ORDER BY`
 and no `LIMIT`** — ordering and pagination live in the **outer** query only, and

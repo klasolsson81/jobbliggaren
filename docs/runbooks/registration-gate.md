@@ -1,0 +1,220 @@
+# Registration gate — opening it, and creating the first accounts
+
+**Scope:** `Auth:RegistrationsOpen` and `Auth:RequireEmailConfirmation` on the deployed
+box, and the only sanctioned way to bring an account into existence there. Owned by
+[#734](https://github.com/klasolsson81/jobbliggaren/issues/734).
+**Host:** Netcup RS 1000 G12, Debian 13 (trixie), Nuremberg — `dev.jobbliggaren.se`.
+**Related:** [`vps-deploy-stack.md`](vps-deploy-stack.md) (the stack, and verification row
+23) · [`master-key-ops.md`](master-key-ops.md) (the injection this depends on) ·
+`deploy/.env.example` (the keys themselves, with their defaults and failure modes).
+
+---
+
+## 1. The model, in one paragraph
+
+Registration is closed by default and the default is not an omission: the app becomes
+publicly reachable before its legal and security gates are green, so an unset value must
+fail closed. `AuthOptionsValidator` exempts Development and Test and applies everywhere else,
+where it refuses the boot on an open gate without email confirmation, and again on an open
+gate whose sender cannot deliver — so the two flags and the mail provider are one interlock,
+not three switches. **Writing an account straight into
+the database is not an alternative to this procedure**; `AuthOptions`' own documentation
+forbids it, and this file is the path it prescribes instead.
+
+## 2. Preconditions
+
+1. **The email flip is done.** `Email__Provider=Scaleway` with both credentials injected
+   and the region set, per `deploy/.env.example`'s outbound-email block — follow that
+   block's own inject-before-you-edit order; it is not restated here. Under `Console`
+   (today's default) the api resolves `NullEmailSender`, which cannot deliver, and opening
+   the gate is a boot refusal.
+2. **The Scaleway artifacts exist:** a Transactional Email API key (secret key) and the
+   project id, generated in the Scaleway console. Producing them is the operator's step and
+   belongs to [#183](https://github.com/klasolsson81/jobbliggaren/issues/183); this runbook
+   only needs them to already exist.
+3. **Two real, external mailboxes, and the second must be an alias of the first.** The
+   domain's MX is `blackhole.tem.scaleway.com` — `@jobbliggaren.se` receives nothing, so a
+   confirmation link sent there is unrecoverable. Use an ordinary external address for the
+   operator account, and a `+`-suffixed alias of that same inbox for the CC account. The
+   alias is required rather than merely convenient: `release-checklist.md`'s schedule exempts
+   a CC verification address under (b) but fires on any recipient other than Klas under (d),
+   and an alias is the one choice that satisfies both.
+4. **The K2 edge credentials** (`BASIC_AUTH_USER` / `BASIC_AUTH_HASH`), because every
+   request to the site — including the one the confirmation link makes — is challenged
+   first.
+5. **A rights channel that receives, or a recorded decision that it does not.**
+   `kontakt@jobbliggaren.se` is the published Art. 12 controller contact and the Art. 15–22
+   channel, and it is Reply-To on every message this procedure causes to be sent — while the
+   apex MX is a blackhole, so both replies and rights requests are discarded silently.
+   **`release-checklist.md` owns the escalation schedule and it was rewritten on 2026-08-16
+   against a measured operating state — read it there, not here.** Its trigger (a) is
+   `RegistrationsOpen=true` outside Development, which is what step 2 does, so this procedure
+   reaches it by design; its (b) deliberately exempts the operator's own address and a CC
+   verification address, which is what step 5 registers. **Its measurements expire: the
+   checklist says to re-measure (a) and (c) at the flip rather than inherit them**, so confirm
+   there that the schedule still reads as it did before setting the knob. Either the mailbox
+   receives, or the policy publishes a channel that does
+   ([#183](https://github.com/klasolsson81/jobbliggaren/issues/183) owns the mailbox) — or Klas
+   accepts the risk for this recipient set and records it, **which is his decision alone**.
+   Whichever applies, it is written down before the knob is set.
+   ⚠ **The K2 credential now carries a GDPR conclusion.** The checklist's re-grading rests in
+   part on the site answering `401` on every path; removing Basic auth for a demo makes the
+   blackhole blocking in the same moment, and nothing warns. Treat the credential in
+   `docs/test-accounts.local.md` accordingly.
+6. **Registration collects personal data before it explains itself.** `/registrera` carries
+   no Art. 13 first-layer notice and no link to the policy; the footer link is site chrome,
+   not a collection-point notice. While both accounts are Klas's own, controller and data
+   subject coincide and this is not a breach — **it becomes one at the first registrant who
+   is not Klas.** So the gate is opened for the operator's own two accounts only, and closed
+   again afterwards (step 10), until the notice ships.
+
+## 3. The visit
+
+Ordered, and the order is load-bearing at steps 0, 1 and 7.
+
+**0. Bring the box's clone up to date.**
+
+```bash
+cd /opt/jobbliggaren && sudo git pull --ff-only
+```
+
+Nothing does this for you. The hourly reconcile unit reconciles **images** from GHCR and
+applies the compose file it finds on disk; it runs no `git` at all. Until this pull, the
+compose file on the box has no `Auth__*` passthrough and the knobs below reach nothing —
+they would sit in `.env` looking set, and the gate would stay closed with no error.
+
+**1. Inject the mail credentials before editing `.env`.** Per the email block's order:
+setting `EMAIL_PROVIDER=Scaleway` while the files are absent is itself a boot refusal, so
+editing first takes the stack down and the injection then happens under an outage.
+
+**2. Edit `deploy/.env`** in one pass — the email lines per that block, then:
+
+```
+AUTH_REGISTRATIONS_OPEN=true
+AUTH_REQUIRE_EMAIL_CONFIRMATION=true
+ADMIN_BOOTSTRAP_INITIAL_ADMIN_EMAIL=<the operator's own address>
+```
+
+**3. Restart both app services.** Only `api` reads the three keys above; `worker` is
+restarted because step 2 also changed the `EMAIL_*` lines, which both hosts share through
+the `x-app-email` anchor.
+
+```bash
+cd /opt/jobbliggaren/deploy && sudo docker compose -f docker-compose.yml up -d api worker
+```
+
+**4. Read the gate's own line — do not infer the posture from a healthy container.**
+
+```bash
+docker logs jobbliggaren-api 2>&1 | grep 'Registration gate'
+```
+
+Expect, at **Warning** level:
+
+```
+Registration gate: OPEN outside Development; email confirmation: REQUIRED
+```
+
+`OPEN` with `NOT REQUIRED` is the one combination the validator refuses, so a container that
+came up at all is in one of the other three and this line says which. If the api is instead
+crash-looping, read the refusal: it names the offending key and the rule.
+
+Expect **also**, on this boot, a Warning from the admin seeder saying no matching user was
+found. That is correct: the address in `ADMIN_BOOTSTRAP_INITIAL_ADMIN_EMAIL` has no account
+yet. Step 7 is what resolves it.
+
+**5. Register both accounts** in a browser at `https://dev.jobbliggaren.se/registrera`,
+through the K2 challenge: the operator's own account first (the address from step 2), then
+the standing CC test account. Each returns `202` with no session — that is the
+email-confirmation-first flow, not a failure. The `202` is deliberately uniform: a fresh and
+an already-taken address are byte-identical on status and body, and only the mail differs.
+So expect a confirmation link; **an "account already exists" notice means the address was
+taken** — stop and find out by whom rather than retrying.
+
+**6. Confirm both, from the links in the two inboxes.** The link points at
+`https://dev.jobbliggaren.se`, so K2 challenges again — on whatever device opens the mail.
+That is the edge gate working, not a broken link. Until a link is followed, that account's
+login is refused with `403 EmailNotConfirmed`.
+
+**7. Restart the api once more, so the admin role is assigned.**
+
+```bash
+docker restart jobbliggaren-api
+```
+
+`IdempotentAdminRoleSeeder` runs at **startup** and only then: it assigns the Admin role to
+whichever account matches `ADMIN_BOOTSTRAP_INITIAL_ADMIN_EMAIL`, and at step 3 that account
+did not exist. Confirm in the log that it found one this time — the seeder logs the user id,
+never the address.
+
+**Then blank the knob and restart once more.** The seeder re-asserts on **every** start, so a
+standing value is not a bootstrap but a permanent grant: it silently re-grants the role after
+any in-app revocation, and it would hand Admin to a future holder of that address. The role
+is persisted in the database, so the knob has no further work once the log confirms the
+assignment. Blanking it also takes a real address back out of container environment, where
+`docker inspect` and the container's on-disk config both carry it.
+
+**8. Rotate the bootstrap password.** Log in and change it in the app. A password chosen
+before the account existed has been handled outside the app; the in-app change closes that.
+
+**9. Record the test account.** Fill `docs/test-accounts.local.md` in the main checkout from
+its tracked template (`docs/test-accounts.local.md.example`). It is gitignored and stays
+that way: this repo is public, and the file carries both the CC account's password and the
+K2 credential. It is deliberately **not** synced into worktrees.
+
+**10. Close the gate again.** Comment out `AUTH_REGISTRATIONS_OPEN` and restart —
+**leave `AUTH_REQUIRE_EMAIL_CONFIRMATION=true` set** (`.env.example` says why: with the gate
+closed a `false` there is accepted silently and disables the login gate). Accounts and logins
+survive a closed gate; closing it refuses new registrations only.
+
+Closed is the default rather than a preference, and preconditions 5 and 6 are the reason:
+until the rights channel receives and `/registrera` carries its Art. 13 notice, the gate is
+opened for a visit and not left open between them. Leaving it open is available, but it is a
+deliberate exception with K2 as the only thing in front of it — and K2's plaintext now sits in
+a file whose audience is every future CC session.
+
+## 4. Verification row 23's second half
+
+The reason this procedure exists on the critical path. Row 23 in
+[`vps-deploy-stack.md`](vps-deploy-stack.md) asks for one encrypted field read back through
+the app, and it has been blocked on the box having no users at all rather than deferred by
+choice.
+
+**Write it on a surface that actually crosses the DEK path.** The encrypted set is
+`Application.CoverLetter`, `ApplicationNote.Content`, `FollowUp.Note` and the CV fields
+(`ParsedResume.RawText`/`Content`, `ResumeVersion.Content`) — `EncryptedFieldRegistry` is the
+authority. **A profile field is not among them**: `JobSeeker` has no encrypted column, so
+writing a display name leaves `user_data_keys` at 0 and would either look like a broken DEK
+path or tick this row on nothing. Use a cover letter on `/ansokningar`, or a CV import on
+`/cv`.
+
+Then read it back on a fresh page load, and check that `user_data_keys` has gone from 0 to 1.
+Record what you ran and what it returned — the row is stamped from that, in its own change.
+
+Also verify before the flip, because it cannot be verified from a worktree: that the
+processing register (`docs/runbooks/gdpr-processing-register.md`, gitignored, main checkout
+only) already covers account registration. The published policy describes account processing
+under Art. 6(1)(b), so this most likely adds no new activity — but that is scheduling, not a
+measurement, and it has not been taken.
+
+## 5. Rollback
+
+Every *configuration* failure above is a boot refusal whose message names the key and the
+rule, so the recovery is one shape: revert the offending line in `deploy/.env` and restart. A
+refused boot creates nothing, and a **gate-closed** refusal (503) leaves no Identity user, no
+job seeker and no audit row — the gate is the handler's first statement, so that holds by
+construction.
+
+**Three failures above are not boot refusals, and one of them leaves state behind.**
+
+- **Step 0 skipped** — silent, and safe: the knobs reach nothing and the gate stays closed.
+- **Step 6 never completed** — `403 EmailNotConfirmed` on an account that exists. Follow the
+  link; there is nothing to revert.
+- **A Scaleway credential that is present but wrong**, or a From identity outside the
+  verified domain. This one is by design and it is the one to know: validation at boot checks
+  that the keys are *present*, and `ScalewayEmailSender` reports itself able to deliver
+  unconditionally, so the validator's sender rule passes and the boot succeeds. It surfaces at
+  step 5 as a 500 (Scaleway rejects the send) or as silence. **The registration then leaves an
+  orphaned Identity user** — the job seeker rolls back, the user does not, and it is collected
+  by the account-hard-delete job's orphan sweep after its grace window. Diagnose this in
+  Scaleway's own delivery log, never in the api's boot log, which will look clean.

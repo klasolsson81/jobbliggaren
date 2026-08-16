@@ -58,7 +58,16 @@ if ($dest -eq $repoRoot) { throw "Refusing to sync onto the main checkout itself
 # OpenSSH private keys are extension-less, so they are matched as NAME fragments: id_rsa
 # plus its modern siblings id_ed25519 / id_ecdsa (now more common than RSA) — #228
 # security-auditor consistency note.
-$secretNameFragments = @('appsettings.local', '.env.local', 'id_rsa', 'id_ed25519', 'id_ecdsa')
+# 'test-accounts.local' is the dev box's account file (#734): the standing CC test
+# account's password and the K2 edge credential. It is gitignored and deliberately absent
+# from .worktreeinclude, and listing it there is what this entry stops — a listed entry
+# throws here, and a file reached by recursing a listed directory is skipped with a warning.
+# The reason listing it would be the whole failure is downstream and NOT closed here: the
+# reaper derives its rescue pathspec from .worktreeinclude directly and never calls this
+# function, so a listed credential file would become one the reaper carries into the main
+# copy. This entry closes the seeding path; the absence from .worktreeinclude is what closes
+# the rescue path.
+$secretNameFragments = @('appsettings.local', '.env.local', 'test-accounts.local', 'id_rsa', 'id_ed25519', 'id_ecdsa')
 # Extensions cover the PKCS#12 / keystore / private-key bundle shapes (.pfx, .p12, .jks,
 # .keystore, .ppk) — each CAN carry a private key, so all are secret-bearing. PUBLIC cert
 # material (.crt/.cer) is deliberately EXCLUDED: a certificate is public by design, and

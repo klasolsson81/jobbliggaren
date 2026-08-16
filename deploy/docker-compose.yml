@@ -339,6 +339,24 @@ services:
       # fail-stops a Production boot on an empty value, which is why the committed
       # appsettings.Production.json leaves it empty and the value is injected here.
       ForwardedHeaders__KnownNetworks__0: "172.28.0.0/24"
+      # Registration gate (#734). Absent knob renders `false` — AuthOptions' own default, and
+      # the posture the box has today: POST /auth/register answers 503, so no NEW account can
+      # be created. Both flags are passed, not just the gate: AuthOptionsValidator is the single
+      # home of which combinations are legal, and passing only the gate would leave the operator
+      # unable to satisfy a rule the boot enforces. Inline rather than a shared anchor because the worker
+      # consumes no Auth__* at all — every host-specific key in this file is already inline,
+      # while x-app-email and x-app-seq are anchors precisely because both hosts read them.
+      # The default is pinned by DeployComposeRegistrationGateTests, since an open default
+      # would boot LEGALLY once the mail provider delivers. Operator view, flip order and
+      # failure modes: deploy/.env.example.
+      Auth__RegistrationsOpen: ${AUTH_REGISTRATIONS_OPEN:-false}
+      Auth__RequireEmailConfirmation: ${AUTH_REQUIRE_EMAIL_CONFIRMATION:-false}
+      # Read by IdempotentAdminRoleSeeder at every Api START, never at registration: an
+      # account created after this boot receives the role on the NEXT restart, and the boot
+      # in between logs "ingen matchande user hittades". It re-asserts on every start, so
+      # blank it once the role is assigned — the role persists in the database, and a
+      # standing value silently re-grants what an in-app revocation removed.
+      AdminBootstrap__InitialAdminEmail: ${ADMIN_BOOTSTRAP_INITIAL_ADMIN_EMAIL:-}
     volumes: *app-secrets-mount
     mem_limit: 1024m
     # B-1 POSTURE, and do not remove this line. ADR 0050 Amendment 2026-08-04 §2

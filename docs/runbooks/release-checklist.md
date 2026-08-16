@@ -304,7 +304,19 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
         EU/EES-begränsad, en Kap. V-grund för just den åtkomsten. Ingenting mer krävs.
         ⚠ **Frågans FORM är hennes, inte valfri:** *"sker support- och driftåtkomst till TEM-data
         uteslutande inifrån EU/EES?"* — inte "var finns supporten", som besvaras med en kontorsadress
-        som inte binder;
+        som inte binder.
+        ⚠ **DETTA LED GRINDAR INTE ETT UTSKICK DÄR ENDA MOTTAGAREN ÄR PERSONUPPGIFTSANSVARIG SJÄLV**
+        (`security-auditor` 2026-08-16, och skälet är ett ANNAT än förutsättning 5:s — slå inte ihop
+        dem). Ledet bär ett **negativt faktum**; faller det uppstår en överföring som behöver grund.
+        I det fönstret är den enda registrerade vars uppgifter når providern den ansvarige själv, och
+        då finns grunden oberoende: **Art. 49(1)(a)**, uttryckligt samtycke efter information om
+        risken — ovanligt oproblematiskt just här eftersom den registrerade och den som bedömer
+        risken är samma person. Det intresse Kap. V skyddar (en registrerad som varken kan veta eller
+        styra vart uppgifterna går) **saknar bärare** i fönstret.
+        **Det är en derogation, inte en rutingrund, och den skalar inte** — den bär denna
+        mottagarmängd och ingenting bortom den. Ledet grindar vid samma gräns som förutsättning 5:s
+        (b)/(d): när tredjepartsdata når providern. **Ledet är därmed INTE stängt** — brevet ska
+        fortfarande skickas, och *"Kap. V ej tillämplig"* är fortfarande ett utkast;
       - **ROPA-posten** i `docs/runbooks/gdpr-processing-register.md` (lokal) — **KVAR (delvis)**,
         omskriven 2026-08-15 (#183): ombunden till behandlingen *"Utgående
         transaktionell e-post (Scaleway Transactional Email, `fr-par`)"*, som täcker **samtliga
@@ -434,10 +446,26 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
            ⚠ **MX-LÄGET ÄR MÄTT FALSKT 2026-08-15 och förutsättningen är därmed längre från
            uppfylld än den var.** Apex-MX är `blackhole.tem.scaleway.com` (mätt mot 8.8.8.8), satt
            av leverantörens domänverifiering, så `kontakt@jobbliggaren.se` **tar emot ingenting**.
-           Klas har skjutit upp reparationen i väntan på STRATO:s e-postpaket; `security-auditor`
-           graderar det till **Blocker vid första riktiga användare eller vid flippen, vilket som
-           kommer först**. Instrumentet är `vps-deploy-stack.md` rad 36 — återställ inte den gamla
-           förväntan som en "reparation", recorda vad som resolverar.
+           Klas har skjutit upp reparationen i väntan på STRATO:s e-postpaket. Instrumentet är
+           `vps-deploy-stack.md` rad 36 — återställ inte den gamla förväntan som en "reparation",
+           recorda vad som resolverar.
+           ⚠ **OMGRADERAD 2026-08-16 (`security-auditor`) MOT MÄTT DRIFTLÄGE.** Graden är oförändrad
+           **Major**; eskaleringsschemat är omskrivet. Klausulen löd tidigare *"Blocker vid första
+           riktiga användare eller vid flippen, vilket som kommer först"*. **Flippen är INTE längre en
+           utlösande händelse:** mätt 2026-08-16 serverar apex ingenting (000), `dev.jobbliggaren.se`
+           svarar 401 Basic på varje väg (även `/integritetspolicy` och `/kontakt`),
+           `Auth:RegistrationsOpen` saknas i basfilen och i `deploy/` (prod-default false), och ingen
+           väg mailar en oregistrerad adress (`UserAccountService.TryPreparePasswordResetAsync`
+           skickar till kontots egen lagrade adress, aldrig den inskickade stavningen). Den
+           publicerade rättighetskanalen har därmed **ingen läsare**, och utskicket når endast
+           personuppgiftsansvarig själv.
+           **Blocker återinförs vid, vilket som kommer först:** (a) `RegistrationsOpen=true` utanför
+           Development; (b) första konto vars adress inte är Klas egen eller en CC-verifikationsadress;
+           (c) copyn blir publikt läsbar — borttagen Basic-auth, apex/www börjar serva, eller första
+           `v*` — **§2.6:s trigger, oförändrad**; (d) första utskick till annan mottagare än Klas.
+           ⚠ **Mätningarna förfaller: ommät (a) och (c) VID flippen, ärv dem inte ur den här raden.**
+           ⚠ **Basic-auth-credentialen på `dev` bär från och med nu en GDPR-slutsats** — tas den bort
+           för en demo blir blackholen Blocker i samma ögonblick, och ingenting varnar.
            ⚠ **En av adressens roller upphörde 2026-08-15:** vägen till en kopia av
            standardavtalsklausulerna (Art. 13(1)(f)) förutsatte en överföring som inte längre
            uppstår. **De två andra rollerna står kvar** — Art. 13(1)(b)-kontakt och Art. 15–22-kanal

@@ -330,6 +330,37 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
         Art. 6 och integritetspolicyn. Fjärråtkomst från tredjeland vore i sig en överföring, så
         utkastet är **villkorat av bekräftelsen** — och bekräftelsen skulle ha kommit via Klas-brevet
         i led (c), som är struket (nästa stycke).
+        ⚠ **MÄTNING 2026-08-16 (#183 FU-1) UR KONTOTS EGET AVTAL — OCH DEN GÖR LEDET SVÅRARE, INTE
+        LÄTTARE.** Underlaget är GTS:en under kontots egen `Validated`-rad i konsolens
+        `Settings → Organization contracts`, alltså inte en publik sida. **Art. 10** bär på
+        avtalsrang: *"for diagnosis and analysis purposes toward resolving the Technical Incident,
+        **Technical Support may be required to access the Client's resources** in compliance with the
+        confidentiality and security obligations incumbent upon it."* Supportens åtkomst är alltså
+        **avtalsmässigt förutsedd som en rättighet**, och avtalet säger fortfarande **ingenting om
+        varifrån**. **Asymmetrin ska läsas rakt: åtkomsten har rang, geografin har det inte.**
+        ⚠ **Formuleringen ovan — *"sökt … noll träffar"* — underdrev därmed sitt eget underlag.**
+        Det saknas inte en åtkomstklausul; det saknas en **ortsklausul till en åtkomstklausul som
+        finns**. Skillnaden är materiell: en lucka fylls, en asymmetri måste rättas.
+        ⚠ **Samma dokument vidgar dessutom underbiträdesytan:** GTS **Art. 21.2** — *"Scaleway may,
+        **without restriction**, use the services of service providers and/or sub-contractors"* —
+        parat med DPA **Art. 7.1**:s generella underbiträdesauktorisation. Det upphäver **inte**
+        mätningen att leverantörens publika lista namnger **inget** TEM-underbiträde i dag; det säger
+        att inget i avtalet hindrar att den ändras — vilket är precis varför Art. 7.4-kontrollen
+        (ADR 0133 Amendment, led (d)) betyder något.
+        **`security-auditor` 2026-08-16 (FU-1) — KARAKTERISERINGEN RATIFICERAD ORDAGRANT, LEDET STÅR
+        KVAR.** De tre raderna ändrar inte statusen; de ändrar ledets **art**. Underlaget är inte
+        längre *"ett påstående utan rang"* utan **"ett påstående utan rang mot en klausul som har
+        rang"**. ⚠ **Bekräftelsen som skulle stänga ledet behövs därför nu MOT EN AVTALSRANGIG
+        ÅTKOMSTRÄTT** — inte för att lyfta en dokumentationsmening från noll. En lucka fylls av en
+        bekräftelse; en asymmetri måste **rättas**.
+        ⚠ **Art. 21.2 + DPA Art. 7.1 graderas INTE på nytt här:** ADR 0133:s Amendment äger den ytan
+        som led (d) (Art. 7.4-invändningsrätten, förverkad i brist på prenumerationsyta). Vidgningen
+        förstärker det redan graderade ledet och skapar inget nytt fynd; graden tillhör den som satte
+        den (§9.6).
+        ⚠ **ADR 0133:s Context underbeskriver ledet efter den här mätningen** och ska amendas —
+        acceptansen står, men en acceptans vars protokollförda grund underskattar motbevisningen
+        förnyas nästa gång på en premiss som inte längre gäller (`security-auditor` Major 4, eskalerad
+        till Klas).
         ⚠ **BREVET ÄR STRUKET 2026-08-16 (Klas-beslut) — ÅTGÄRDEN ÄR BORTA, INTE FYNDET.** Grunden
         ovan står oförändrad: meningen saknar fortfarande avtalsrang, och utkastet är fortfarande
         villkorat. Vad som ändrats är att ingen bekräftelse är på väg. **Beslutet, dess grund och
@@ -506,9 +537,16 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
         **Art. 14 gäller, och inget undantag i 14(5) är tillgängligt** — 14(5)(b) faller
         avgörande, eftersom vi redan komponerar och levererar ett meddelande till exakt den
         personen; informationen kostar ett stycke. **Tidpunkten är Art. 14(3)(b): senast vid
-        första kommunikationen, och den kommunikationen ÄR mejlet.** Mallen bär i dag varken
-        kontaktuppgift, rättslig grund, mottagare, lagringstid, rättigheter eller källa, och är
-        den enda kontolivscykel-mallen helt utan `ContactAddress`. **Informationen ska bäras i
+        första kommunikationen, och den kommunikationen ÄR mejlet.**
+        ⚠ **MENINGEN SOM STOD HÄR ÄR FALSK SEDAN 2026-08-16 (#183 FU-1, `code-reviewer` Major 1).**
+        Den löd: *"Mallen bär i dag varken kontaktuppgift, rättslig grund, mottagare, lagringstid,
+        rättigheter eller källa, och är den enda kontolivscykel-mallen helt utan `ContactAddress`."*
+        **Commit `5046cec7` gav mallen samtliga sex plus `ContactAddress`**, i båda delarna av
+        `multipart/alternative`. Förvärrande när den fick stå: `EmailTemplates.cs` pekar uttryckligen
+        hit för resonemanget, så en läsare som följde pekaren landade på påståendet att mallen inte
+        bär något av det hon just läst i koden ovanför. **Statusen på förutsättning 6 rörs inte av
+        den här rättelsen** — den är `security-auditor`s, och stängningslistan nedan räknar
+        Art. 14-stycket som ett av flera led. **Informationen ska bäras i
         VARJE utskick, inte villkorat:** vi kan inte vid sändningstillfället veta om mottagaren är
         innehavaren eller en främling, och det är hela skälet. Art. 14(2)(f) besvaras med en
         KATEGORI ("en användare som angav den här adressen") — att namnge användaren vore i sig
@@ -592,6 +630,61 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
            > ned** — vilket är vad det här stycket gör — inte genom att vänta. **Ledet bär KVAR tills
            > den inloggade avläsningen är gjord.**
 
+           ⚠ **DEN INLOGGADE AVLÄSNINGEN ÄR GJORD 2026-08-16 (kväll, #183 FU-1). Domen ovan står
+           oförändrad som dom** — den är `security-auditor`s och stängs av henne, inte av att
+           underlaget ändrats. Det här är en **daterad transkribering av mätningarna**, ingen
+           omgradering; statusen på förutsättning 1 sätts i hennes nästa scopade omkontroll (samma
+           form som förutsättning 4:s pekare ovan). Tre mätningar:
+           1. **Punkt (ii) — den bindande GTS-versionen — är avläst, och ledets namngivna svaghet
+              är därmed stängd i sak.** Klas laddade ner GTS:en ur konsolens
+              `Settings → Organization contracts`, där raden står som **`Validated`**, och dokumentet
+              under den raden bär `Version of 07/04/2026` med Art. 23 i tre grenar. **Den Art. 23 vi
+              tillämpar står alltså i det dokument som ligger under kontots egen validerade rad, inte
+              på en publik sida.**
+              ⚠ **Versionsetiketterna är dock TRE och stämmer inte överens:** publika avtalssidan
+              `v.09/06/26` (mätt 2026-08-15), konsolraden **`05/2026`**, dokumentet `07/04/2026`.
+              *Att `05/2026` sannolikt är en valideringsstämpel på 07/04/2026-utgåvan —
+              nedladdningens filnamn bär "Mon May 18 2026" — är **vår slutledning, inte en
+              mätning**, och får inte skrivas som leverantörens utsaga.* Det som håller oavsett
+              etikett är meningen ovan: dokumentet ligger under den validerade raden.
+           2. **Punkt (iii) — ORGANISATIONSHALVAN ÄR STÄNGD, OCH STARKARE ÄN LEDET BAD OM.** Lådans
+              injicerade `Email__Scaleway__ProjectId` jämfördes mot det id konsolen visar; utfallet
+              var **lika**. De kontrakt som står `Validated` tillhör den organisationen, och armen
+              skickar med den organisationens id i varje request-kropp — alltså är avtalsmätningen
+              och den sändande armen samma organisation. Det var fällan ledet finns för.
+              ⚠ **PROJEKTHALVAN ÄR DÄREMOT ICKE-DISKRIMINERANDE BY DESIGN och får inte läsas som en
+              oberoende kontroll:** Scaleways **default-projekt ärver organisationens ID**, och den
+              statusen kan inte flyttas till ett annat projekt. Samma sträng är alltså både org-id
+              och projekt-id, så likheten kan inte skilja *"armen skickar in i det TEM-projekt
+              konsolen lästes på"* från *"armen skickar in i default-projektet, som råkar vara
+              samma"*. I dag sammanfaller de; **skapas någon gång ett separat TEM-projekt passerar
+              kontrollen fortfarande och mäter då ingenting.**
+              **Vad som faktiskt binder nyckeln till projektet är empiriskt, inte konfigurationellt:**
+              en Scaleway-nyckel är scopad, E4 mätte `403 permissions_denied` och
+              registreringsbesöket mätte 403 ända tills IAM-policyerna knöts till applikationen —
+              därefter levererade utskicken. En nyckel i en annan organisation som skickar mot det
+              projektet hade fått 403. Leverans → nyckeln har behörighet på projektet.
+              **Slutledningen är vår; 403-beteendet är mätt.**
+              ⚠ **ORGANISATIONSHALVAN BÄR SAMMA FÖRFALLOVILLKOR SOM PROJEKTHALVAN, och det stod
+              utskrivet bara för den senare** (`security-auditor` Minor 5, 2026-08-16). Likheten
+              binder organisationen **enbart därför att default-projektet ärver org-id:t**. Skapas
+              ett separat TEM-projekt bär `ProjectId` inte längre org-id:t, och då säger jämförelsen
+              ingenting om organisationen heller. **Läs inte organisationshalvan som ovillkorligt
+              stängd** — den är stängd så länge armen skickar in i default-projektet, vilket är
+              samma villkor som ovan och inte ett svagare.
+           3. **Punkt (i) — faktureringsjurisdiktionen `SE`** — stod redan i domen ovan och räknas
+              inte om här.
+           ⚠ **OMÄTT, OCH DET SKRIVS UT HELLRE ÄN BORT** (`security-auditor` Minor 6, 2026-08-16):
+           om GTS:en bär en **ensidig ändrings- eller notifieringsklausul** under vilken den publika
+           `v.09/06/26`-utgåvan slår igenom mot kontots validerade `07/04/2026` — och om Art. 23
+           lyder lika i de två utgåvorna. Slutsatsen *"dokumentet ligger under den validerade
+           raden"* är rätt test och håller, men den håller **bara så länge inget i avtalet gör en
+           senare utgåva bindande på notis**. Att etikettfrågan i övrigt är löst får inte läsas som
+           att den här är det.
+           ⚠ **INGA ID:N I REPOT.** Repot är publikt, och ledet behöver **jämförelsen**, inte
+           identifieraren. Varken org-id, projekt-id eller nyckel-id skrivs här eller någon
+           annanstans i repot.
+
            ⚠ **PII:** endast jurisdiktionen `SE` står i repot. Faktureringsadressens gata, postnummer
            och ort är den ansvariges bostad och recordas aldrig, lika lite som kortuppgifter,
            SMTP-användarnamn eller nyckel-id.
@@ -606,12 +699,23 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
            `security-auditor` har dessutom rest en öppen fråga om `PasswordChangedNotice`: 6(1)(f)
            mot registrets egen 6(1)(c)+Art. 32-konstruktion, vilket avgör om en Art. 21-invändning
            måste kunna bemötas. **Står 6(1)(f) kvar efter prövningen
-           krävs en matchande Art. 13(1)(d)-post i policyn FÖRE flippen** — den träffar då **tre**
-           mallar, inte två. Dagens
-           berättigat-intresse-avsnitt räknar upp fyra behandlingar och ingen av dem är e-post.
-           Faller de i stället ut som 6(1)(b) täcks de av befintlig copy och luckan stänger sig
-           själv. **En behandling som körs utan redovisad grund är en Blocker i det ögonblicket**,
-           inte en Minor.
+           krävs en matchande Art. 13(1)(d)-post i policyn FÖRE flippen.**
+           ⚠ **POSTEN FINNS SEDAN 2026-08-16 OCH MENINGEN SOM STOD HÄR ÄR FALSK SEDAN SAMMA DAG.**
+           Raden löd *"den träffar då tre mallar, inte två. Dagens berättigat-intresse-avsnitt
+           räknar upp fyra behandlingar och ingen av dem är e-post."* Den var sann när den skrevs
+           2026-08-09 (#1169) och föll i samma andetag som #183 E4 (`f09755b1`) lade in
+           Art. 13(1)(d)-posten som andra punkten i `privacy.sections[3].list`. **Mätt 2026-08-16
+           (#183 FU-1): fem poster, och post 2 ÄR e-post.** Regenerera mot
+           `privacy.sections[3].list`, räkna aldrig ur den här raden — det är samma decay-form som
+           §2.6 punkt 1:s radmängd, och skälet talet inte får bo på en andra plats.
+           **Mängden växte 3 → 4 i samma ändring som skriver den här raden** (#183 FU-1):
+           `EmailChangeConfirmation` mot **mottagarklass (3)** vilar på 6(1)(f), eftersom dess
+           6(1)(b) resonerar från kontoinnehavaren och klass (3) per konstruktion inte är part i
+           något avtal med oss (förutsättning 2:s E5-dom ovan). Posten är vidgad till den fjärde i
+           samma PR; **`security-auditor` graderar om vidgningen räcker, sessionen graderar inte.**
+           Faller grunderna i stället ut som 6(1)(b) täcks de av befintlig copy och luckan stänger
+           sig själv. **En behandling som körs utan redovisad grund är en Blocker i det
+           ögonblicket**, inte en Minor.
         3. **Nyckelrotation för den statiska providernyckeln** — ingen instance role finns, så
            nyckeln är långlivad per definition. Skyldigheten är oförändrad sedan 2026-08-08 och
            återregistreras här så den inte tappas; ägs även av #198. **Sedan 2026-08-15 gäller den
@@ -775,18 +879,29 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
            (c) copyn blir publikt läsbar — borttagen Basic-auth, apex/www börjar serva, eller första
            `v*` — **§2.6:s trigger, oförändrad**; (d) första utskick till annan mottagare än Klas.
            ⚠ **Mätningarna förfaller: ommät (a) och (c) VID flippen, ärv dem inte ur den här raden.**
-           ⚠ **Basic-auth-credentialen på `dev` bär TVÅ GDPR-slutsatser, och det här är hemmet
-           för GRADERINGEN av dem** (den andra tillkom 2026-08-16, #183 E5). (1) Tas den bort för
-           en demo blir blackholen Blocker i samma ögonblick, och ingenting varnar. (2)
-           Borttagningen **publicerar** dessutom de markörrader §2.6 punkt 1 namnger som falska,
-           om en levande behandling (ADR 0090 D3). **En handling, två slutsatser.**
+           ⚠ **Basic-auth-credentialen på `dev` bär EN GDPR-slutsats, och det här är hemmet för
+           GRADERINGEN av den.** (1) Tas den bort för en demo blir blackholen Blocker i samma
+           ögonblick, och ingenting varnar.
+           ⚠ ~~(2) Borttagningen **publicerar** dessutom de markörrader §2.6 punkt 1 namnger som
+           falska, om en levande behandling (ADR 0090 D3).~~ **SLUTSATS (2) ÄR UTSLÄCKT 2026-08-16
+           (#183 FU-2b) — struken som proveniens, inte raderad.** Den tillkom 2026-08-16 (#183 E5)
+           och upphörde samma dygn, av att raderna flippades i stället för att credentialen
+           behölls. Den står kvar därför att en läsare annars inte kan se att slutsatsen fanns:
+           **`basic_auth` bar under ett dygn en transparensrisk utöver åtkomstkontroll, och den
+           risken är åtgärdad vid källan.** ⚠ **Återuppstår den om en markörrad någon gång blir
+           falsk igen** — rad 64 är den enda kvarvarande kandidaten, och den är i dag sann.
+           **Slutsats (1) är oförändrad och är den som gäller.**
            ⚠ **TVÅ YTOR MED OLIKA UPPGIFTER, OCH DET ÄR AVSIKTLIGT — läs inte den ena som drift.**
            Den här raden bär graderingen och dess grund. `basic_auth`-direktivet i
-           `deploy/caddy/Caddyfile` bär **båda slutsatserna i sin helhet**, därför att det är där
+           `deploy/caddy/Caddyfile` bär **slutsatserna i sin helhet**, därför att det är där
            operatören står i det ögonblick handlingen utförs; en pekare där hade varit oläsbar för
-           den som är på väg att kommentera bort blocket. **Tillkommer en tredje slutsats ska BÅDA
-           ytorna ändras** — det är priset för att direktivet är operativt, och det är billigare än
-           en varning operatören aldrig möter. `registration-gate.md`, ADR 0132 och
+           den som är på väg att kommentera bort blocket. **Tillkommer — eller upphör — en slutsats
+           ska BÅDA ytorna ändras** — det är priset för att direktivet är operativt, och det är
+           billigare än en varning operatören aldrig möter. ⚠ **Kopplingen gäller i BÅDA
+           riktningarna, och det mättes 2026-08-16:** när slutsats (2) släcktes hade en fix på bara
+           den här ytan lämnat `Caddyfile` med en varning om tre falska rader som inte längre är
+           falska — en operatör hade då avstått från en handling på en grund som inte finns.
+           **En fix på en av två ytor är ingen fix**, oavsett riktning. `registration-gate.md`, ADR 0132 och
            `test-accounts.local.md` **pekar hit och räknar inte själva.**
            ⚠ **En av adressens roller upphörde 2026-08-15:** vägen till en kopia av
            standardavtalsklausulerna (Art. 13(1)(f)) förutsatte en överföring som inte längre
@@ -800,8 +915,14 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
       **ORDNINGEN STÅR FÖRST, för att den styr posterna under sig:** upplös
       SCC/adekvans-disjunktionen **före** du skriver Art. 13(1)(f)-formuleringen —
       kopia-formuleringen hänger på Art. 46/47-grunden, så tvärtom påstår du en SCC-grund
-      som kanske inte används. Alltså **(iii) → (ii)**, och listans första post — strykningen av
-      e-poststyckets avtalsreservation — **när DPA:n är verifierad gällande för Scaleway S.A.S.**
+      som kanske inte används. Alltså **(iii) → (ii)**. ~~Och listans första post — strykningen av
+      e-poststyckets avtalsreservation — när DPA:n är verifierad gällande för Scaleway S.A.S.~~
+      ⚠ **(i)-klausulen i den här raden är FÖRBRUKAD 2026-08-16 (#183 FU-2b, `code-reviewer`
+      Major 2) — struken som proveniens.** Den schemalade en strykning som samma PR redan utfört,
+      och på ett annat villkor än det som faktiskt utlöste den: reservationen ströks för att den
+      blivit **falsk**, inte för att avtalet verifierats. Se residual (i) nedan, som äger skälet.
+      **Ordningen `(iii) → (ii)` står kvar oförändrad** med sitt eget skäl — det gäller en Kap.
+      V-återaktivering och rör inte (i).
       *(Denna routing-rad sa till 2026-08-15 "flytten in i `Mottagare`-listan … när avtalet
       **signeras**". Båda halvorna var fel: `list`-nyckeln finns inte, och (i):s egen kropp säger
       att "på plats" inte är detsamma som "signerat".)*
@@ -812,15 +933,38 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
       `list`-nyckel** (mätt 2026-08-15: `heading` + sex `paragraphs`, noll `list`); nyckeln
       försvann i #1199, och e-poststyckena ligger i exakt samma strukturella position som
       netcup-stycket. **En residual vars angivna skydd inte existerar läses som uppfylld**, och den
-      här lurade sin egen granskare två gånger. Vad som faktiskt bär ärligheten i dag är styckets
-      **egen** mening — *"Innan vi börjar skicka säkerställer vi att personuppgiftsbiträdesavtalet
-      med Scaleway SAS gäller"* — och villkoret för att stryka den är att avtalet faktiskt gäller
+      här lurade sin egen granskare två gånger. Vad som bar ärligheten **till 2026-08-16** var
+      styckets **egen** mening — *"Innan vi börjar skicka säkerställer vi att
+      personuppgiftsbiträdesavtalet med Scaleway SAS gäller"* — och villkoret för att stryka den var
+      att avtalet faktiskt gäller
       för Scaleway S.A.S. *Sedan ADR 0131 är motparten Scaleway S.A.S., och
       "på plats" är inte detsamma som "signerat": DPA:n gäller automatiskt (avtalsdokument nr 1 i
       GTS Art. 3, mätt 2026-08-15) — precis som AWS-DPA:t gjorde. Villkoret är oförändrat genom
       båda bytena, men det gäller **reservationen och inte en lista**: den får bara strykas för en
       part vars avtal faktiskt gäller.*
-      **(i) är den enda residual som kvarstår.**
+      ⚠ **RESERVATIONEN ÄR STRUKEN 2026-08-16 (#183 FU-2b) — MEN INTE PÅ DEN HÄR RESIDUALENS
+      VILLKOR, och skillnaden ska inte suddas.** Villkoret ovan ger tillstånd att stryka meningen
+      **när avtalet är på plats**. Det är inte varför den ströks. Den ströks därför att den blivit
+      **falsk**: *"Innan vi börjar skicka säkerställer vi …"* är ett framtidspåstående om en
+      handling som redan har skett, och utskicken började 2026-08-16. En falsk mening får inte stå
+      kvar i väntan på att villkoret för att ta bort den ska uppfyllas.
+      **Vad som INTE följer av strykningen:** att led (a) skulle vara grönt. Det bär oförändrat
+      KVAR — faktureringsavläsningen är inte gjord, och avtalsparten är **härledd** ur GTS Art. 23
+      tillämpad på en mätt `SE`-jurisdiktion, inte avläst ur en faktura. Copyn påstår efter
+      strykningen **ingenting** om avtalet i det stycket, vilket är det enda läge som är sant
+      oavsett hur led (a) faller ut.
+      ⚠ **Residualen är därmed FÖRBRUKAD I SIN NUVARANDE FORM** — det finns ingen reservation kvar
+      att stryka. Skulle en avtalsmening någon gång skrivas in igen är villkoret ovan fortfarande
+      det som gäller för den.
+      ⚠ **DÄRMED BÄR MOTTAGARAVSNITTETS INGRESS AVTALSPÅSTÅENDET ENSAM** — *"Med dem har vi
+      personuppgiftsbiträdesavtal"* är efter strykningen den enda meningen i policyn som säger
+      något om biträdesavtal. **Den är redan omvärderad och står rätt** (§2.6 punkt 3, 2026-08-16:
+      netcups AVV tecknat 2026-08-03, Scaleways gäller automatiskt per GTS Art. 3), så den här
+      ändringen skapar ingen ny skyldighet där — men den flyttar hela vikten dit, och det som
+      punkt 3 skriver som *"kvar att bevaka"* blir därmed skarpare: **en ny biträdespart får aldrig
+      hinna in i uppräkningen före sitt avtal**, eftersom ingen reservationsmening längre fångar
+      henne. **Graderingen av om den härledda avtalsparten räcker för ingressens presens är
+      `security-auditor`s.**
       (ii) **Art. 13(1)(f)** — "means to obtain a copy" av skyddsåtgärderna — **LEVERERAD
       2026-08-09 (#1169)** och **UPPHÖRD 2026-08-15 (#183, ADR 0131)**: formuleringen hängde på att
       en överföring fanns att skydda, och den grunden finns inte mot en fransk avtalspart utan
@@ -1082,31 +1226,53 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
       grep -n "planerat\|planerad\|planeras" web/jobbliggaren-web/messages/sv/content-legal.json
       grep -n "planned"                      web/jobbliggaren-web/messages/en/content-legal.json
       ```
-      **Regenererad 2026-08-16 (#183 E4, Art. 13(1)(d)-posten): 10 + 10** (rad 37, 47, 50, 64,
-      74, 75, 76, 96, 97, 132 — identiska i sv och en, alla äkta statuspåståenden, ingen falsk
-      träff med detta mönster). **Talet steg med ETT och raderna under insättningen flyttade ner
-      ett steg**, av ett enda skäl: `security-auditor` Major 4 krävde en Art. 13(1)(d)-post för
-      de **tre** kontolivscykel-mallar som vilar på Art. 6(1)(f) (`EmailChangedNotification`,
-      `AccountExistsNotice`, `PasswordChangedNotice`), och den ligger nu som andra punkten i
-      `privacy.sections[3].list`. Posten bär markörmeningen därför att armen **var mörk när posten
-      skrevs** — ett presens-påstående hade varit ADR 0090 D3:s defekt. **Armen är inte längre
-      mörk, och rad 47 är därmed en av de rader stycket nedan namnger som redan falska.**
-      Nettot: **47 tillkom**, 37 stod
-      still, och 49/63/73/74/75/95/96/131 blev 50/64/74/75/76/96/97/132. Mängden är **körd ur
-      greppen ovan, aldrig framräknad ur den gamla** — se nästa stycke om varför det senare inte
-      är en genväg.
-      ⚠ **RAD 47, 75 OCH 76 ÄR REDAN FALSKA, OCH DET ÄR INTE ETT SCHEMALAGT TILLSTÅND**
-      (`security-auditor` 2026-08-16, #183 E5). Sektionens ordningsantagande — sajten går live
-      först, markörerna flippar då — är falsifierat: **e-posten gick live först** (CC1:s
+      **Regenererad 2026-08-16 (#183 FU-2b, EFTER flippen): 7 + 7** (rad 37, 50, 64, 74, 96, 97,
+      132 — identiska i sv och en, alla äkta statuspåståenden, ingen falsk träff med detta
+      mönster). **Talet sjönk med TRE och ingen rad flyttade**, av ett enda skäl: rad 47, 75 och 76
+      förlorade sina markörer i flippen nedan, och ingen rad lades till eller togs bort — en
+      redigering **inuti** en JSON-sträng flyttar ingenting under sig. Det är första gången i den
+      här postens historia som mängden krymper utan att radnumren rör sig, och det är värt att
+      skriva ut just därför att varje tidigare regenerering lärde ut motsatsen.
+      *(Föregående regenerering, 2026-08-16 (#183 E4, Art. 13(1)(d)-posten): 10 + 10 på rad 37, 47,
+      50, 64, 74, 75, 76, 96, 97, 132. Talet steg då med ETT — `security-auditor` Major 4 krävde en
+      Art. 13(1)(d)-post för de kontolivscykel-mallar som vilar på Art. 6(1)(f) — och raderna under
+      insättningen flyttade ner ett steg: 49/63/73/74/75/95/96/131 blev
+      50/64/74/75/76/96/97/132.)*
+      Mängden är **körd ur greppen ovan, aldrig framräknad ur den gamla** — se nästa stycke om
+      varför det senare inte är en genväg.
+      ⚠ **RAD 47, 75 OCH 76 VAR FALSKA OCH ÄR FLIPPADE 2026-08-16 (#183 FU-2b, Klas väg A).**
+      Karakteriseringen nedan är `security-auditor`s (#183 E5) och står kvar som **grunden för
+      åtgärden**, inte som ett öppet tillstånd. Sektionens ordningsantagande — sajten går live
+      först, markörerna flippar då — var falsifierat: **e-posten gick live först** (CC1:s
       registreringsbesök 2026-08-16, `Email:Provider=Scaleway`). Rad **47** (säkerhetsaviseringar
-      om kontot) är falsk därför att en `AccountExistsNotice` **faktiskt levererades** under
-      besöket; rad **75** påstår att tjänsten inte skickar någon e-post och att inga uppgifter
-      lämnas till någon e-postleverantör; rad **76** påstår dels att uppgifterna *planeras* lämnas,
-      dels att avtalet säkerställs *innan vi börjar skicka* — utskicken har börjat och led (a):s
-      verifiering bär KVAR. **Rad 64 är däremot SANN** och får inte flippas: bevakningsnotiserna är
-      samtyckesgrindade med opt-in default OFF och ingen notis har skickats. **Ommät rad 64 mot
-      lådan före varje flipp** — dess grind är en användarreglage, inte en operatörsgrind, så den
-      kan bli falsk utan att någon gör något på infrastruktursidan.
+      om kontot) var falsk därför att en `AccountExistsNotice` **faktiskt levererades** under
+      besöket; rad **75** påstod att tjänsten inte skickar någon e-post och att inga uppgifter
+      lämnas till någon e-postleverantör — en **affirmativ presensförnekelse**, Art. 13(1)(e),
+      5(1)(a) och 12(1), aldrig en föråldrad markör under Art. 13(3); rad **76** påstod dels att
+      uppgifterna *planeras* lämnas, dels att avtalet säkerställs *innan vi börjar skicka*.
+      **Vad flippen gjorde med var och en:** 47 och 75 fick sina markörer strukna och sina
+      påståenden satta i presens; 75:s förnekelsemening är **struken helt**, eftersom den inte har
+      någon sann presensform; 76 fick markören struken och **avtalsreservationen struken med den**
+      — se §2.5 punkt 1:s residual (i), som äger det ledet och är uppdaterad i samma ändring.
+      **Rad 64 är SANN och är INTE flippad:** bevakningsnotiserna är samtyckesgrindade med opt-in
+      default OFF och ingen notis har skickats.
+      ⚠ **RAD 64:s TEXT ÄR DÄREMOT RÄTTAD 2026-08-16 (#183 FU-1, `security-auditor` Major 3) — OCH
+      ATT RÄTTA ÄR INTE ATT FLIPPA.** Raden sa *"behandlar e-posten i Paris inom EU"*, vilket är en
+      finare kornighet än grunden ger: DPA Art. 11 utfäster **EU-nivå, inte regionsnivå**, och
+      "Paris" är härlett ur att `fr-par` är TEM:s enda region. **Markören botar tempus, inte
+      kornigheten** — en framtidsutsaga kan vara exakt lika över-precis som en presensutsaga, och
+      mot båda står GTS Art. 10:s avtalsrangiga åtkomsträtt utan ortsklausul. Raden bär nu
+      regionformen plus avtalets egen utfästelse, och **markörsatsen är ordagrant orörd**.
+      **Det skyddade i rad 64 är dess STATUSMARKÖR, inte varje ord i strängen.** Paritetssvitens
+      mörka gren binder `/planerat och ännu inte i drift/i`, som satsen fortfarande matchar; raden
+      står kvar i mängden ovan, och flippdisciplinen är oberörd. *(Sessionen lämnade först raden
+      orörd och läste den som en framtidsutsaga under sin markör. Graderingen föll åt andra hållet,
+      och det var rätt: en fix på en delmängd av N är ingen fix.)* **Ommät rad 64 mot lådan före varje flipp** — dess
+      grind är en användarreglage, inte en operatörsgrind, så den kan bli falsk utan att någon gör
+      något på infrastruktursidan. ⚠ **Rad 64 har sedan 2026-08-16 en MEKANISK läsare:**
+      `content-legal-parity.test.ts` kräver markören på samtyckesavsnittets omnämnanden och
+      **förbjuder** den på mottagaravsnittets. Sviten faller alltså vid notisernas flipp, precis som
+      den föll vid den här — men den ersätter inte ommätningen, den kräver den.
       **Varför "ingen läsare" inte är grunden att låta dem stå:** #1199 flippade värdraden
       2026-08-09, fyra dagar EFTER att Basic auth landade (`aef6a853`, 2026-08-05). Sajten hade
       alltså redan ingen läsare när huset valde att flippa, och commit-rubriken säger det ordagrant.
@@ -1178,7 +1344,12 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
         forma publicerad juridisk copy.** Konsekvensen är att **en flipp som tar de tre
         Scaleway-styckena men lämnar den här posten passerar CI grön** med en falsk
         planerat-mening kvar. Den luckan stängs av punkt 1:s grepp, som är markörernas hem och
-        fångar alla tio raderna oavsett vad de namnger — kör det, lita inte på sviten här.
+        fångar **hela** mängden oavsett vad raderna namnger — kör det, lita inte på sviten här.
+        *(Raden räknade mängden här till 2026-08-16 och gick stale i samma andetag som FU-2b:s
+        flipp ändrade den; talet bor i punkt 1, med sitt grep.)*
+        ⚠ **LUCKAN ÄR MÄTT, INTE HYPOTETISK: den fyrade i FU-2b.** Flippen tog rad 47 därför att
+        punkt 1:s grepp namnger den, inte därför att någon svit krävde det — sviten var grön med
+        rad 47 oflippad. Nästa flipp (notiserna) möter samma lucka.
         **Aktiveras INTE av en
         `v*`-tagg.** Tre skilda mekanismer, alla mörka i prod: per-sökningens
         `ICompanyRegistry` (ADR 0088) får `NullCompanyRegistry` — valet styrs av
@@ -1193,6 +1364,12 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
         tagg, och gäller **all** utgående e-post (§2.5:s widening). **Flippa SCB-styckena
         respektive e-poststyckena först när respektive grind är
         passerad** — inte när koden deployas.
+        ⚠ **E-POSTHALVAN AV DEN INSTRUKTIONEN ÄR FÖRBRUKAD SEDAN 2026-08-16 och kan inte utföras
+        igen.** Armen aktiverades utan att grinden passerades, och copyn är därefter flippad för att
+        stämma (#183 FU-2b) — **inte** för att grinden passerades. `Email:Provider` är alltså inte
+        längre `NullEmailSender` i drift, oavsett vad defaulten säger. **Läs bulleten som SCB-only
+        framåt**; e-postraderna har ingen kvarvarande flipp utom notisernas (rad 64), och den
+        grindas av ett användarreglage, inte av den här punkten.
         *Raderna 63/74/75/82 namngav Resend, Inc. (USA) till 2026-08-09; #1169 skrev om dem till
         Amazon Web Services EMEA SARL (Luxemburg) med behandling i `eu-north-1`. **Det var en
         korrigering av en falsk motpartsuppgift, inte en flip** — markörmeningen stod kvar i alla
@@ -1262,18 +1439,22 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
       förutsättning 5 — vilket motsäger den här sessionens egen rättelse av ADR 0133:s `Related`.)*
       ⚠ **VÄG B FÖRFALLER NÄR `basic_auth` TAS BORT**, och `Caddyfile`:s egen not är i dag den enda
       hemvist som bär den kopplingen.
-      ⚠ **ÅTAGANDE — FU-2b, och det står HÄR därför att sessionsloggen är gitignorerad och inte
-      räknas som hemvist** (`senior-cto-advisor`-bind 2026-08-16): copy-halvan — `content-legal.json`
-      **sv + en**, **den mängd `Caddyfile` namnger**, aldrig rad 64 — plus den regenererade mängden i
-      den här punkten levereras i en **följd-PR** off uppdaterad `origin/main`, inte stackad, ägd av
-      **#183:s e-postlane**. Skälet den inte ligger i FU-2: den läses av den **registrerade**
-      (Art. 13/14) och kräver `design-reviewer` + paritetssviten, medan FU-2:s halva läses av varje
-      CC-invokation. `security-auditor` går längre än CTO-bindet och kallar splitten **påtvingad**:
-      copy-ändringen kodar ett vägval Klas äger och får därför inte verkställas in-block.
-      **Klas äger vägvalet, och det ska ställas mot den skarpare karakteriseringen ovan:** antingen
-      flippas raderna, eller så recordas det publicerade läget som ett **uttryckligen bundet
-      accepterat läge** i ADR 0133 på samma bindning som led (b)/(c). **Vad som inte är tillgängligt
-      är att lämna det obeslutat.**
+      ⚠ **ÅTAGANDET ÄR INFRIAT 2026-08-16 (#183 FU-2b) OCH VÄGVALET ÄR STÄNGT — läs inte den här
+      posten som en öppen fråga.** Den löd: copy-halvan levereras i en **följd-PR**, och *"Klas
+      äger vägvalet: antingen flippas raderna, eller så recordas det publicerade läget som ett
+      uttryckligen bundet accepterat läge i ADR 0133."* **Klas valde väg A 2026-08-16:**
+      *"integritetspolicyn kan uppdateras så den stämmer korrekt."* Det är verkställt ovan.
+      ⚠ **Följd-PR-formen upphörde med sitt eget skäl, och det är en supersession — inte att någon
+      ändrade sig.** `senior-cto-advisor` band splitten på grunden *"copy-ändringen kodar ett vägval
+      Klas äger"*, och `security-auditor` gick längre och kallade den **påtvingad** — men **på
+      samma grund**, ordagrant: *"och därför inte får verkställas in-block."* Väg A-beslutet
+      uppfyller det villkoret. CTO:n ombands binda om frågan innan en rad skrevs och band **en PR**
+      (2026-08-16, FU-1): rad 47 är Art. 13(1)(d)-posten, så FU-1 vidgar dess kropp medan FU-2b
+      flippar dess slutmening — **samma sträng, och en delning hade lämnat rad 47 falsk i
+      mellanperioden i båda möjliga ordningar.** Ingen av granskarnas grund är omgraderad; den
+      villkorsklausul de själva skrev ut är uppfylld.
+      Kvarstår hos Klas: ingenting i den här punkten. **Publiceringen är en egen handling** och
+      grindas av §2.6, inte av att copyn är sann i källan.
       Kvarstående planerat-meningar för behandlingar som fortfarande inte är i
       drift ska stå kvar. Släpper releasen ingen av dem är rätt utfall att **inte
       ändra något**.

@@ -91,13 +91,24 @@
 		# with nothing to warn: the finding is filed against a state that stopped being true.
 		# The published channel gets a reader before this comes off, not after.
 		#
-		# AND A SECOND, INDEPENDENT GDPR CONCLUSION SINCE 2026-08-16 (#183 E5). The email arm
-		# went live before the site did, so content-legal.json rows 47, 75 and 76 now assert,
-		# in the present tense, that Jobbliggaren sends no email and discloses nothing to any
-		# email provider. Those statements are measured false. Removing this block does not
-		# only fire the dead-rights-channel finding above — it PUBLISHES three false
-		# transparency statements about a live processing (ADR 0090 D3). One act, two
-		# conclusions; the second had no home until this line.
+		# A SECOND GDPR CONCLUSION LIVED HERE FOR ONE DAY AND IS NOW SPENT (#183 E5 →
+		# FU-2b, both 2026-08-16). It read: the email arm went live before the site did, so
+		# content-legal.json rows 47, 75 and 76 assert in the present tense that Jobbliggaren
+		# sends no email and discloses nothing to any email provider, those statements are
+		# measured false, and removing this block would PUBLISH three false transparency
+		# statements about a live processing (ADR 0090 D3).
+		#
+		# Struck rather than deleted, because a reader must be able to see it existed: for one
+		# day this directive carried a transparency risk on top of access control. It is gone
+		# because the rows were FIXED, not because the risk was re-judged — Klas chose väg A
+		# and the copy was flipped to be true. Removing this block no longer publishes
+		# anything false.
+		#
+		# What survives is the row that was always true and must stay marked: row 64, the
+		# consent-gated watch notifications, which are still dark. If it ever goes false while
+		# this block is still here, the second conclusion comes back and BOTH surfaces get it
+		# again — this one and release-checklist.md §2.5 point 1 precondition 5, which owns the
+		# grading. A fix on one of the two is no fix, in either direction.
 		basic_auth {
 			{$BASIC_AUTH_USER} {$BASIC_AUTH_HASH}
 		}

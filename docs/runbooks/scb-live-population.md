@@ -260,9 +260,13 @@ SELECT status, count(*) FROM company_register GROUP BY status ORDER BY 2 DESC;
 --    THREE branches: not 10 chars, not all ASCII digits, or 3rd digit < '2'.
 --    The middle branch is the guard's fail-safe and is easy to drop: Arabic-Indic
 --    and fullwidth digits are 10 CHARACTERS and pass a naive length test. Use
---    [0-9], not \d — Postgres ARE's \d is [[:digit:]] and widens under a UTF-8
---    locale, which is the same widening the C# guard rejects \d for. A subset of
---    the guard cannot detect the guard's own failure, which is what this checks.
+--    [0-9] because it is the NARROWEST class: any deviation can then only flag
+--    more rows, never fewer. (The repo's ban on \d is a .NET rule — #865, \p{Nd}
+--    folds fullwidth. Asserting it of Postgres too did NOT reproduce: measured
+--    2026-08-16 on PG 18.3/en_US.utf8, neither \d nor [[:digit:]] matched
+--    Arabic-Indic or fullwidth. The choice stands on fail-safe direction.)
+--    A subset of the guard cannot detect the guard's own failure, which is what
+--    this checks.
 SELECT count(*) AS pnr_shaped
 FROM company_register
 WHERE organization_number !~ '^[0-9]{10}$' OR substring(organization_number, 3, 1) < '2';
@@ -525,10 +529,16 @@ WHERE schemaname = 'public' AND relname = 'company_register';
 ANALYZE public.company_register;
 ```
 
-A useful tell that the counters were reset rather than merely idle: **every**
+A useful tell that the counters were reset rather than merely idle: **nearly every**
 table in `pg_stat_user_tables` reads `n_live_tup = 0` with both timestamps NULL,
-including ones you know hold rows. `pg_stats` survives a reset (it is a catalog),
-so step 1 and step 2 answer different questions — run both.
+including ones you know hold rows. ⚠ **Not *every* — the earlier wording said so
+and is falsified by the first measurement anyone took against it:** 2026-08-16 on
+the dev database, **91 of 94** tables read zero while `company_register` alone
+held 1 066 938 rows. Any table written *after* the reset re-arms its own counters,
+so a handful reading non-zero is the normal shape of a reset, not evidence against
+one. Read the pattern across tables, never one table's counter. `pg_stats`
+survives a reset (it is a catalog), so step 1 and step 2 answer different
+questions — run both.
 
 ---
 
@@ -628,11 +638,24 @@ is the other thing a schema-bearing restore can silently move.
   SELECT relpages, relallvisible FROM pg_class WHERE relname = 'company_register';
   ```
 
-  On dev that read **23830 of 23830 pages all-visible** — the map is fully set
-  there, because the weekly sync **upserts** and an upsert of existing rows does
-  produce dead tuples, which arms the very trigger the box will never arm. Dev and
-  the box differ in kind, not in degree, and that difference is the whole reason
-  this step exists.
+  On dev that read **23830 of 23830 pages all-visible** — and the cause is
+  recorded eleven lines above rather than inferred: the **manual `VACUUM` of
+  2026-08-01** in #1149's own measurement, which found the map **unset** after
+  four weeks of register life and set it by hand. Nothing automatic maintains it.
+  No path in `src/` runs `VACUUM` at all — `ScbCompanyRegisterStore.AnalyzeAsync`
+  says *"never `VACUUM ANALYZE`"* in as many words — and the sync is not a weekly
+  automatic job on dev either: `ScbRegister:Enabled` is `false` in both its homes,
+  the run is cert-gated, takes ~11 h, and §0 calls it *"an operator action, never
+  automation"*. So dev is healthy today because a human vacuumed it a fortnight
+  ago, and the box will have no such human unless this step is run.
+
+  ⚠ **An earlier draft of this paragraph said the map was set "because the weekly
+  sync upserts and arms autovacuum". That was false on three counts** — the
+  measurement above, the absent `VACUUM` path, and the sync not running weekly on
+  dev at all. It is recorded because it is the same error one layer on: the draft
+  replaced an unsupported *statistical* claim with an unsupported *causal* one, in
+  the very paragraph warning against inferring cause from an instrument that
+  cannot separate two of them.
 - **`ANALYZE`, because the restore carries no statistics and nothing on the box
   will ever produce them.** `pg_dump` **omits** optimizer statistics unless
   `--statistics` (the table in §7 above), and the box never syncs — so the one
@@ -663,8 +686,8 @@ the first command.** Local is `POSTGRES_USER: jobbliggaren`; the box is
 `grep -n "POSTGRES_USER" docker-compose.yml deploy/docker-compose.yml`.
 
 ⚠ **Two shells, and the document says where the boundary is.** Steps **1-3** run in
-**PowerShell on Klas's machine** — step 3 *is* the crossing. Steps **4-8** run in
-**bash on the box**, after `ssh`. That is not cosmetic — `sudo`, `<`, `\`
+**PowerShell on Klas's machine** — step 3 *is* the crossing. Steps **4-8a** run in
+**bash on the box**, after `ssh`. **Step 8b crosses back** and is PowerShell again. That is not cosmetic — `sudo`, `<`, `\`
 line-continuation and `\"` escaping are all PowerShell parse or shim failures, so
 a box command pasted into PowerShell fails in a way that looks like the box being
 broken. **Every box command in this section, including the
@@ -697,10 +720,12 @@ docker cp jobbliggaren-postgres-dev:/tmp/company_register.dump tmp/company_regis
 #    MIRRORS OrganizationNumber.IsPersonnummerShaped() in all three of its
 #    branches: not 10 chars, not all ASCII digits (its fail-safe — Arabic-Indic
 #    and fullwidth digits are 10 CHARACTERS and pass a naive length test), or
-#    third character < '2'. [0-9] and not \d, because Postgres ARE's \d is
-#    [[:digit:]] and widens under a UTF-8 locale — the same widening the C# guard
-#    rejects \d for. A subset predicate could not detect the ingest filter's own
-#    failure, which is the only scenario this assertion exists for.
+#    third character < '2'. [0-9] and not \d because it is the NARROWEST class,
+#    so any deviation can only flag more rows, never fewer. (The \d ban is a .NET
+#    rule — #865, \p{Nd} folds fullwidth. Asserting it of Postgres did NOT
+#    reproduce: 2026-08-16 on PG 18.3/en_US.utf8 neither \d nor [[:digit:]]
+#    matched Arabic-Indic or fullwidth.) A subset predicate could not detect the
+#    ingest filter's own failure, which is the only scenario this exists for.
 docker exec jobbliggaren-postgres-dev psql -U jobbliggaren -d jobbliggaren -c "SELECT count(*) AS rows, count(*) FILTER (WHERE organization_number !~ '^[0-9]{10}$' OR substring(organization_number from 3 for 1) < '2') AS pnr_shaped FROM public.company_register;"
 
 # 3. Ship it, then cross to the box. Everything after this runs in bash.
@@ -708,8 +733,8 @@ scp tmp/company_register.dump jp-vps:/tmp/company_register.dump
 ssh jp-vps
 ```
 
-**Steps 4-8 — bash, on the box.** Note the different role (`postgres`, not
-`jobbliggaren`), and one command per block:
+**Steps 4-8a — bash, on the box** (step 8b crosses back to PowerShell). Note the
+different role (`postgres`, not `jobbliggaren`), and one command per block:
 
 ```bash
 # 4. The table must already exist and be EMPTY. It is created by the migrate
@@ -784,7 +809,9 @@ WHERE lower(company_name) LIKE lower('volvo%') ESCAPE '\' LIMIT 20;
 
 ⚠ **Query (c) is a hand-typed lookalike and proves eligibility only — never read
 it as proof that the plan the app runs is correct.** Production emits a different
-shape: `CompanyRegisterSearchQuery.BuildItemsCommand` wraps the predicate in a
+shape: `CompanyRegisterSearchQuery.BuildItemsCommand` has **two branches** —
+`ShouldMaterialize` decides, and browse-all/broad prefixes take the
+unmaterialised one. On the materialised branch it wraps the predicate in a
 `WITH … AS MATERIALIZED` CTE, and inside that CTE the index renders as
 `Bitmap Index Scan on ix_…`, not `using ix_…`. ⚠ **The CTE carries no `ORDER BY`
 and no `LIMIT`** — ordering and pagination live in the **outer** query only, and

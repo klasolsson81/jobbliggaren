@@ -136,10 +136,7 @@ docs/decisions/0073-*.md
 # Autonomt multi-session-flöde (2026-06-25, Klas-beslut): agent-review-rapporter
 # och nyare ADR:er hålls lokala by-default. Globerna nedan matchar ADR 0070–0199;
 # redan spårade ADR 0001–0073 + 234 reviews FÖRBLIR publika (gitignore avspårar
-# inte redan committade filer), så nettoeffekten är "nya ADR:er 0071+ blir lokala".
-# (Sa "0074+" till 2026-08-17. Mätt med `git check-ignore`: 0070 är den sista
-# trackade, och 0071/0072/0073 skapades EFTER att regeln landade och fångas av
-# globben. Talet stod i tre hem: här, CLAUDE.md §6.5 och .worktreeinclude.)
+# inte redan committade filer), så nettoeffekten är "nya ADR:er 0074+ blir lokala".
 # 01-globen tillagd 2026-07-10 när ADR 0100 blev verklighet (cv-v2 PR-9a);
 # vid ADR 0200+ måste nästa mönster läggas till.
 # Främja en lokal ADR/review till publikt via `git add -f`.

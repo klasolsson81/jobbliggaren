@@ -399,9 +399,7 @@ worktrees. The rules below keep parallel work collision-free; full playbook in
   against the shared dev DB.
 - **Local docs in worktrees.** Gitignored session state (`current-work.md`,
   `steg-tracker.md`, `sessions/`, local `reviews/` and ADRs
-  **0071+** (measured 2026-08-17 with `git check-ignore`: 0070 is the last
-  tracked one, and 0071/0072/0073 were created after the rule landed) is
-  absent from a fresh worktree. `.worktreeinclude` lists them; run
+  **0071+** is absent from a fresh worktree. `.worktreeinclude` lists them; run
   `scripts/sync-worktree-docs.ps1 <worktree-path>` after creating a worktree.
   Secrets (`appsettings.Local.json`, `.env.local`) are NEVER synced into a
   worktree — the stack-owner injects them at runtime via env override

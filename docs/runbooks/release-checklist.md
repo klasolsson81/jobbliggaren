@@ -207,10 +207,15 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
 > ett led kan bära **båda** markeringarna — ROPA-ledet är sedan 2026-08-09 **levererat för samtliga
 > e-postmallar** men **KVAR (delvis)**, eftersom kontolivscykel-mallarnas rättsliga grunder är
 > ett oprövat utkast — och "bär KLAR" hade då räknat det som grönt.) Rutorna i
-> hela den här filen är obockade (**38 av 38** vid 2026-08-04 — greppa **radinitialt**
-> (`^- \[ \]`); ett rått grep ger 40 och räknar prosacitaten av literalen längre ned.
-> **Regenerera siffran ur greppet efter varje tillagd punkt** — punkt 5.5 tillkom i samma
-> ändring som skrev "35", och punkt 5 i den som skrev "36" — båda gjordes falska i samma andetag) och bockas av den som **utför** releasen; statusen
+> hela den här filen är obockade **utom en**: **38 obockade + 1 bockad** vid 2026-08-16 (§2.6
+> punkt 3, **bockad på Klas uttryckliga beslut** — se punkten själv för varför undantaget
+> beviljades och att det gäller den punkten ensam). Greppa **radinitialt** — `^- \[ \]` och
+> `^- \[x\]` var för sig; ett rått grep ger 40 och räknar prosacitaten av literalen längre ned.
+> **Regenerera BÅDA siffrorna ur greppen efter varje tillagd ELLER bockad punkt** — punkt 5.5
+> tillkom i samma ändring som skrev "35", och punkt 5 i den som skrev "36", båda gjordes falska
+> i samma andetag; och 2026-08-16 gjorde den första bocken *"38 av 38"* falskt medan
+> regenereringsregeln bara var nycklad på **tillägg** och därför inte löste ut. En vakt mot
+> tillväxt ser inte en tillståndsändring) och bockas i övrigt av den som **utför** releasen; statusen
 > bärs av **KLAR**-markeringarna. Punkt 1:s led står uppräknade i punkten själv, och ett led kan
 > vara **delvis** KVAR
 > (ROPA-ledet är det i dag, av ett annat skäl än före 2026-08-09: då saknades hela
@@ -1458,14 +1463,18 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
       Kvarstående planerat-meningar för behandlingar som fortfarande inte är i
       drift ska stå kvar. Släpper releasen ingen av dem är rätt utfall att **inte
       ändra något**.
-- [ ] **3. Art. 28 innan personuppgifter når lådan** (speglar §2.5 punkt 1).
-      ⚠ **Rutan står OBOCKAD med flit, och det är INTE ett påstående om att villkoren är ouppfyllda.**
-      Filens konvention: rutan bockas av den som **utför** releasen, aldrig för att en förutsättning
-      är levererad (blockquoten ovan). **Samma fråga är redan avgjord en gång i den här filen** — se
-      §2.5-noten där rutan återställdes till `- [ ]` på `dotnet-architect`s och `code-reviewer`s grund,
-      **mot en CTO-bind som ordagrant sa *"Item 3 keeps `[x]`"***. Sakinnehållet är CTO:ns; idiomet är
-      granskarnas. **Vill Klas ha bocken är den hans att bevilja, och konventionsblocken ändras i samma
-      ändring.** *(Rutan bockades 2026-08-16 och återställdes samma dag — `code-reviewer` Blocker.)*
+- [x] **3. Art. 28 innan personuppgifter når lådan** — **BOCKAD 2026-08-16 PÅ KLAS BESLUT**
+      (speglar §2.5 punkt 1).
+      ⚠ **Bocken är beviljad av Klas, inte satt av en session.** Filens konvention är att rutan
+      bockas av den som **utför** releasen och aldrig för att en förutsättning är levererad
+      (blockquoten ovan, och §2.5-noten där en ruta återställdes till `- [ ]` på `dotnet-architect`s
+      och `code-reviewer`s grund mot en CTO-bind som sa *"Item 3 keeps `[x]`"*). **Klas övertrumfade
+      den konventionen uttryckligen 2026-08-16** med skälet att *"jag vill inte att nästa CC frågar
+      mig samma saker, om det redan är avklarat"* — bocken är alltså en **beständighetsmekanism**,
+      inte ett releaseutförande. Undantaget är hans att bevilja (§9.6) och gäller **den här punkten**;
+      konventionen står oförändrad för filens övriga rutor. *(Rutan bockades, återställdes och
+      bockades igen 2026-08-16 — den mellanliggande återställningen var `code-reviewer`s Blocker, som
+      var rätt om idiomet och ovetande om Klas beslut.)*
       **LEDEN, mätta 2026-08-16, var och ett med adjudikator:** AVV med netcup GmbH **tecknat
       2026-08-03** (Klas i Customer Control Panel; oberoende mätt mot det genererade dokumentet av
       `code-reviewer`) · *"circle of affected persons"* namnger **rekryterar-kontaktpersoner**
@@ -1473,16 +1482,20 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
       **samtliga inom EU** (Klagenfurt ×2 AT, Karlsruhe DE), så villkoret nedan om ett
       icke-EU-underbiträde **fyrade inte** (Klas läsning, recordad i ROPA:ns värdpost) ·
       ROPA-posterna uppdaterade + **`security-auditor`-sign-off 2026-08-16: SIGNED**, `recruiterNotice`
-      omprövad och **länkvägen intakt** (samma sign-off: CLOSED).
-      ⚠ **`ACME_EMAIL` står UT och är inte avklarat här.** Värdet bor bara på lådan, `deploy/.env.example`
-      säger uttryckligen att raden *föreskriver, den mäter inte*, och **ingen bekräftelserekord finns
-      någonstans i repot** (mätt 2026-08-16). Det är Klas att rapportera med datum; till dess har ledet
-      ingen adjudikator och får inte redovisas som uppfyllt.
-      ⚠ **Och även fullt urladdad släpper punkten INTE korpusladdningen.** Det som står framför
-      `JobTech__IngestEnabled=true` är **[#1240](https://github.com/klasolsson81/jobbliggaren/issues/1240)**,
-      som äger själva laddningen och namnger sina grindar — **#1201** (gate M-7; `security-auditor`s
-      Major konverterar till Blocker vid första riktiga data om **ADR 0123** inte beviljas, Klas beslut)
-      och **#1199**:s övriga led. De är **inte** villkor i den här punkten.
+      omprövad och **länkvägen intakt** (samma sign-off: CLOSED) ·
+      ✅ **`ACME_EMAIL` = `klasolsson81@gmail.com`, bekräftat av Klas mot lådan 2026-08-16**
+      (`sudo grep ACME_EMAIL /opt/jobbliggaren/deploy/.env`) — **personuppgiftsansvariges egen
+      adress**, alltså ingen biträdesrad skyldig och **ISRG (USA) blir inte mottagare av
+      användardata**. ⚠ **Fråga aldrig om detta igen:** värdet går inte att mäta ur repot
+      (`deploy/.env.example` föreskriver, den mäter inte), så ett svep hittar bara en tom
+      platshållare. Klas hade bekräftat det redan före 2026-08-16 och fick frågan igen — **det var
+      då bekräftelsen äntligen skrevs ner.** Ändras bedömningen bara om adressen delas, blir
+      funktionsbrevlåda eller vänds mot användare.
+      ⚠ **OCH BOCKEN SLÄPPER INTE KORPUSET.** Villkoret för att ladda är **Klas uttryckliga
+      skriftliga GO** — se punkt 3.5 nedan. Läs aldrig den här bocken, eller något annat urladdat
+      led, som tillstånd.
+      ⚠ **Och även fullt urladdad släpper punkten INTE korpusladdningen** — det gör punkt 3.5.
+      Vad som står framför `JobTech__IngestEnabled=true` bor **där**, inte här.
       **Triggern är INTE längre en flip, och den gamla "Deploy-aktiverad"-klassen i punkt 2
       är struken i samma ändring.** #1199 tog bort värdradens markör 2026-08-09, så det finns
       ingen värd-flip kvar att grinda — men skyldigheten består och fick en ny utlösare
@@ -1564,6 +1577,31 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
         formen "i dag finns inga uppgifter om dig hos leverantören" hade varit falsk om en
         rekryterare i samma sekund korpuset laddats.
       DPA-signering = **Klas**, aldrig CC.
+- [ ] **3.5 KORPUSLADDNINGEN — KLAS UTTRYCKLIGA SKRIFTLIGA GO, och ingenting annat.**
+      **Detta är hemmet för villkoret som grindar `JobTech__IngestEnabled=true`**, och de fem
+      vakterna i `src/`, `tests/` och runbookerna pekar hit.
+      **Villkoret är ett BESLUT, inte ett härledbart tillstånd** (Klas 2026-08-16, på
+      `code-reviewer`s förslag): *inga rekryterar-kontaktposter landar på lådan förrän Klas ger ett
+      uttryckligt skriftligt GO.* Ingen urladdad grind, ingen bockad ruta, ingen stängd issue och
+      ingen mätning uppfyller det.
+      ⚠ **Varför formen är ett beslut — fyra tillståndsformer föll öppna på en enda dag
+      (2026-08-16), var och en när sitt delvillkor laddades ur:**
+      *"until B-1 is closed"* föll när B-1 stängde · *"until the CORPUS GATE is ticked"* ärvde
+      defekten inom timmar när Art. 28-leden laddades ur · *"until the item authorises it"* var
+      falsk vid ankomst, för punkten har en binär och inget `authorises`-tillstånd · *"while #1240
+      is open"* faller om issuen stängs som duplicate, superseded eller av en grann-PR:s squash,
+      **utan att någon rättslig grind rört sig**. Ett beslut kan inte inferens-uppfyllas.
+      **Vad som ÄNDÅ måste vara sant när GO:t ges** — sammanhang, inte villkorsmängd, och det som
+      gör GO:t informerat snarare än formellt: Art. 28-punkten ovan (bockad) ·
+      [#1201](https://github.com/klasolsson81/jobbliggaren/issues/1201) gate M-7, vars M-7-koppling
+      till **ADR 0123** upphörde när Klas **beviljade** den ADR:n 2026-08-16 (Majorn konverterar
+      alltså inte till Blocker) · [#1199](https://github.com/klasolsson81/jobbliggaren/issues/1199):s
+      övriga led (policy-copy, ROPA, `BUILD.md`, paritetstestet) ·
+      [#1240](https://github.com/klasolsson81/jobbliggaren/issues/1240), som äger själva laddningen
+      och bär den mätta grindlistan i sin kropp.
+      **Rutan bockas när GO:t är givet, av den som utför laddningen.** En obockad ruta här betyder
+      *"GO ej givet"* och ingenting annat — till skillnad från filens övriga rutor, där en obockad
+      ruta inte får läsas som "inte levererat" (blockquoten ovan).
 - [ ] **4. Paritet sv + en** — båda språken i samma ändring. Formuleringen bärs av
       elementen i `privacy.sections` som bär formuleringen — tillsammans **exakt den radmängd
       punkt 1 producerar** (antalet står där, med sitt grep; det står med flit inte här):

@@ -93,8 +93,9 @@ Gate B-1 (master key never plaintext on disk) is **MET — verified GREEN 2026-0
 key existed; the key was then injected, rotated to `local-v3`, and the journal measured clean for
 all four secrets. §8 still closes the two mechanisms that would page it to disk. ⚠ **Closing B-1
 did not release the first real data**, and neither did discharging Art. 28: the corpus load is owned
-by **#1240**, which names its own gates; while that issue is open the load is not authorised.
-**No one discharged gate is permission.**
+by **Klas's explicit written GO** — a decision, not a derivable state
+(`release-checklist.md` §2.6 point 3.5); #1240 owns the load itself.
+**No discharged gate, ticked box or closed issue is permission.**
 
 ### Not in scope
 

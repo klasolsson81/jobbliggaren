@@ -949,15 +949,19 @@ instrument under-reaches its own property reads as coverage it does not have.
   paragraph and leaving this one stale.** **Klas confirmed the sequencing
   2026-08-05: the stack may be deployed and every cutover proof taken with the key as it was,
   because the box holds no user data — but the 51 347 recruiter contact records must not land
-  ~~until B-1 is closed~~ ~~until `release-checklist.md`'s CORPUS GATE is ticked~~ until **#1240**
-  is closed.** ⚠ **Corrected three times on 2026-08-16, each time by the previous correction's own
+  ~~until B-1 is closed~~ ~~until `release-checklist.md`'s CORPUS GATE is ticked~~ ~~until **#1240**
+  is closed~~ until **Klas gives an explicit written GO**.** ⚠ **Corrected FOUR times on 2026-08-16,
+  each time by the previous correction's own
   success.** First: B-1 closed and the corpus gate had not, so *"until B-1"* read as satisfied and
   would have permitted the very load it was written to prevent. Then the Art. 28 conditions were
   discharged the same day, and *"until the CORPUS GATE is ticked"* inherited the identical defect
   within hours. Then *"until the item authorises it"* inherited it again, because the item has one
-  binary and no `authorises` state to read. **The durable form points at the issue that OWNS the
-  load** — #1240 names its own gates, and its open/closed state means exactly the thing the guard
-  needs and nothing else. Nothing mechanical enforces it; this
+  binary and no `authorises` state to read. Then *"until #1240 is closed"* — better, because a
+  superset cannot be satisfied by one leg discharging, but still a **state**: an issue closes as
+  duplicate, superseded or by a sibling PR's squash without any legal gate moving.
+  **The durable form is not a state at all.** Klas's GO is a **decision**
+  (`release-checklist.md` §2.6 point 3.5, Klas 2026-08-16): no discharge, tick, closure or
+  measurement can satisfy it by inference. Nothing mechanical enforces it; this
   paragraph is the reader. Beside Art. 28 the corpus also waits on **#1199** — the policy/host
   row — whose fifth acceptance criterion **is** the signed Netcup DPA (blocking, Klas-owned; it has no issue of its own),
   and on **#1201**, whose M-7 grading converts to Blocker at first real data while ADR 0123

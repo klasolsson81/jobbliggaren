@@ -1138,11 +1138,10 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
       köras om även när en ändring "bara" byter ord.
       **Grepa INTE bara på `"planerat och ännu inte i drift"`** — det missar de TVÅ
       retentionsposterna, som bär `(planerat)` utan avslutningsmeningen. *(Raden bar talet **7**
-      "mätt 2026-08-15" till 2026-08-16. Det är sant om sitt datum och **falskt i dag**: `f09755b1`
-      lade till en markörbärande rad dygnet efter, så markörmeningen ger **8** per språk och
-      8+2 = de 10+10 som stycket ovan självt etablerar. Talet togs bort i stället för att räknas om,
-      eftersom det är precis den sortens siffra det här stycket säger ska **regenereras ur greppet**
-      och aldrig läsas ur filen.)* Den första (organisationsnumret i en annons, #880) nämner
+      "mätt 2026-08-15" till 2026-08-16, och `f09755b1` lade till en markörbärande rad dygnet efter.
+      Talet togs bort i stället för att räknas om — det är precis den sortens siffra det här stycket
+      säger ska **regenereras ur greppet** och aldrig läsas ur filen, så en ersättningssiffra hade
+      återinfört defekten en generation senare.)* Den första (organisationsnumret i en annons, #880) nämner
       ansökningshistoriken som ett ÄNDAMÅL med att arbetsgivarens identitet sparas;
       den andra är ansökningshistorikens egen post. **Radnumren står medvetet inte här** —
       de bor i punkt 1:s mängd ovan och flyttar varje gång ett stycke läggs till eller stryks;

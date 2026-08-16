@@ -691,9 +691,9 @@ order. (Praise is not a finding and routes nowhere.) Then:
   reading — and **none of them measures CONTENT**. A bearer none of the three reaches fails the
   condition all the same: a referee named inside a CV the controller himself uploaded, or an enskild
   firma's `organization_number` in `job_ads`, which for a sole trader **is the holder's personnummer**
-  (#841) — neither holds an account, received a send, or sits behind a public page. *(Do not reach for
-  `company_register` here: enskilda firmor are filtered out of it in two independent, tested layers
-  and never reach the table — ADR 0091 / #560.)*
+  (#841) — neither holds an account, received a send, or sits behind a public page. *(Not
+  `company_register` — it holds no enskilda firmor by design; the ROPA's SCB entry owns why.)*
+
   ⚠ **Read *affected* as strictly as the criterion writes it:** the bearer must be one **this finding
   reaches**. A content bearer it does not reach is not a bearer of this acceptance — otherwise the
   route is inert against any system that holds a third party's data at all, and neither delivered

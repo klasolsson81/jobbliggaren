@@ -87,6 +87,49 @@ readonly -a SCALEWAY_SECRET_KEYS=(
   "Email__Scaleway__ProjectId"
 )
 
+# THE EXPIRY LEAD TIME, AND WHY AN EXPIRY CHECK EXISTS AT ALL (#183 E4, security-auditor Major 3).
+# Scaleway caps an API key's life at one year and there is no instance-role equivalent, so the
+# SecretKey above is long-lived by construction and dies on a DATE. Nothing on this box would
+# notice: --check measures PRESENCE and an expired key is present; ScalewayEmailSender's
+# CanDeliver is an unconditional `true`, so AuthOptionsValidator's sender interlock passes; and
+# every send site fails per-message and silently by design. The stack stays green while mail
+# stops — and after the registration gate opens, a locked-out user's only recovery channel is the
+# mail that never comes, with kontakt@ a measured blackhole behind it.
+#
+# TWO HALVES, AND ONLY ONE OF THEM IS THIS FILE'S (senior-cto-advisor, binding 2026-08-16).
+#
+#   THE SILENCE — an expired key that nothing reports — is a FAULT, and faults belong on the fault
+#   surface. EXPIRED, unset and unparseable exit non-zero into systemctl --failed.
+#
+#   THE ADVANCE WARNING — "a human owes a console errand on a date" — is a CALENDAR OBLIGATION,
+#   not a fault, and it is #1267's class verbatim ("Detta är en kalenderförpliktelse, inte
+#   detektion"). The Scaleway key is that class's second instance; its date is registered in
+#   docs/runbooks/master-key-ops.md, which satisfies #1267 AC 1. AC 2 — the reminder's delivery —
+#   is not built, and this file says so rather than pretending to cover it.
+#
+# WHY THE WARNING MAY NOT EXIT NON-ZERO, AND THE REASON IS NOT ALARM FATIGUE. systemctl --failed
+# LATCHES, and jobbliggaren-heartbeat.sh notifies on the TRANSITION into failure: while the box is
+# already red a new, genuine fault changes only the body — which nobody reads, because no
+# transition announced it. A lead time on the fault surface therefore disables P1-P5's ability to
+# notify for the whole window. That is a detection regression bought for a maintenance reminder,
+# and it is SCALE-INVARIANT: 7 days or 1 day shrinks the window, not the class.
+#
+# 90 DAYS, AND THE NUMBER CHANGED MEANING WITH THE SURFACE. It is no longer an alarm lead time but
+# a JOURNAL VISIBILITY WINDOW: the notice costs nothing, so the only thing that matters is the
+# chance that some ATTENDED --check run (a flip, a key visit, a deploy) falls inside it. Attended
+# visits are irregular, so the window widens rather than narrows. The real lead time lives on
+# #1267, where it is a reminder and not a page.
+#
+# DELIBERATELY NOT AN IAM LOOKUP. Asking Scaleway for expires_at would need either IAM read on the
+# sending key — widening it past TEM-send, which is the boundary the org/project binding exists to
+# hold (release-checklist.md §2.5 punkt 1 forutsattning 1) — or a second credential with its own
+# lifecycle. A static date is weaker information and a stronger control: no network, no
+# credential, and it fails closed when unset.
+#
+# NAMED EXPIRY_NOTICE_DAYS, never *_WARN_DAYS: "warn" reads as an alarm lead time, and that is how
+# the semantics would drift back onto the fault surface.
+readonly EXPIRY_NOTICE_DAYS=90
+
 # The host-only secrets. Same one-row-per-secret contract as SECRET_KEYS above, different
 # destination — and the name is NOT a .NET configuration key, because no .NET process reads
 # these. jobbliggaren-backup.sh names the file it wants; the `__` spelling is kept only so the
@@ -246,6 +289,13 @@ if [[ "${1:-}" == "--check" ]]; then
   # side by side, so the two spellings are one keystroke apart at exactly the moment they matter.
   [[ $# -eq 1 ]] || die "unknown argument '$2' (use --check on its own)"
   missing=0
+  # A SECOND FLAG, NOT A SECOND USE OF `missing`, and the reason is a sentence rather than style.
+  # The `missing` summary below tells the operator api and worker crash-loop. That claim is true of
+  # every branch that sets it and FALSE of an expiring key: the stack serves perfectly while mail
+  # dies. Folding this into `missing` would print a false diagnosis at the one moment the operator
+  # most needs a true one — the same defect #1328 measured, where a shared predicate made the
+  # crash-loop sentence false for the host-only set.
+  expiring=0
 
   # The DIRECTORY is checked too. Files present but the directory un-traversable by the
   # container's group is a real crash-loop state that a files-only sweep reports as healthy.
@@ -271,10 +321,18 @@ if [[ "${1:-}" == "--check" ]]; then
     fi
   done
 
-  # WHAT THE MAIL BRANCH SEES: every file and every .env line that is ABSENT, plus the one value
-  # it reads — EMAIL_PROVIDER's, through email_provider above. What it never reads is the VALUE of
-  # the pointers and the region, so a misspelt pointer path, or a region outside the allow-list,
-  # still reads as healthy here.
+  # WHAT THE MAIL BRANCH SEES: every file and every .env line that is ABSENT, plus the TWO values
+  # it reads — EMAIL_PROVIDER's, through email_provider above, and EMAIL_SCALEWAY_KEY_EXPIRES_AT's,
+  # in the expiry branch below. What it never reads is the VALUE of the pointers and the region, so
+  # a misspelt pointer path, or a region outside the allow-list, still reads as healthy here.
+  #
+  # THE RULE IS "NO VALUE WITH A SECOND READER", NOT "NO VALUES" (amended 2026-08-16, #183 E4).
+  # That was always the reason: pointers and region are refused inside AddScalewayEmailClient at
+  # registration, so re-reading them here would only duplicate a check the stack already fails
+  # loudly on. An EXPIRED KEY IS REFUSED NOWHERE — CanDeliver is unconditionally true and every
+  # send fails per-message — so that value has no second reader and must be read here or nowhere.
+  # The count above is the rule's own tripwire: a third value added without a reason of this shape
+  # makes this sentence false.
   #
   # THE LINE IS PREDICATE vs REPORT, NOT "one normaliser per rule" (dotnet-architect, PR #1341).
   # email_provider() is already a second spelling of AddEmailSender's switch and is kept, so that
@@ -333,6 +391,59 @@ if [[ "${1:-}" == "--check" ]]; then
         missing=1
       fi
     done
+
+    # THE KEY'S DEATH DATE — the one place on this box that can see it coming (see
+    # EXPIRY_NOTICE_DAYS above for why it is a stored date and not an IAM lookup).
+    #
+    # THIS BRANCH READS A VALUE, which every other line in --check deliberately does not. That is
+    # not the rule being broken but the rule's reason not applying: the pointers and the region are
+    # refused at registration, so reading them here would duplicate a check the stack already
+    # fails loudly. An expired key is refused NOWHERE — that is the whole finding — so this value
+    # has no second reader and must be read here or nowhere.
+    expiry=$(env_value EMAIL_SCALEWAY_KEY_EXPIRES_AT)
+    if [[ -z "$expiry" ]]; then
+      log "MISSING: EMAIL_SCALEWAY_KEY_EXPIRES_AT is unset in ${ENV_FILE} while"
+      log "         EMAIL_PROVIDER=Scaleway. Read the date in the Scaleway console (IAM -> API"
+      log "         keys -> the key -> Expiration) and set it as YYYY-MM-DD. Unset fails closed"
+      log "         on purpose: the alternative is an alarm that cannot fire, which is the state"
+      log "         this check was added to end."
+      expiring=1
+    elif [[ ! "$expiry" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]] \
+      || ! expiry_epoch=$(date -u -d "$expiry" +%s 2>/dev/null); then
+      log "INVALID: EMAIL_SCALEWAY_KEY_EXPIRES_AT='${expiry}' in ${ENV_FILE} is not a calendar"
+      log "         date this script accepts. Use YYYY-MM-DD. A value it cannot read is treated"
+      log "         as a failure, never as 'no expiry' — an unreadable date must not read as safe."
+      # THE SHAPE GUARD RUNS FIRST, AND IT CLOSES A FAIL-OPEN THAT `date` ALONE LEAVES WIDE.
+      # `date -d` accepts relative forms: `nextyear`, `+1 year`, `tomorrow` all parse, and each
+      # resolves against the CURRENT clock, so the remaining days never shrink and the notice
+      # never fires — a value that is silently self-renewing. That is the one failure direction
+      # this check cannot afford, because it is indistinguishable from a healthy key.
+      expiring=1
+    else
+      remaining_days=$(( (expiry_epoch - $(date -u +%s)) / 86400 ))
+      # `<= 0` rather than `< 0`: integer division truncates toward zero, so a key that died
+      # earlier TODAY yields 0 and would otherwise be reported by the notice branch — a softer
+      # sentence for a harder state, for one day a year.
+      if (( remaining_days <= 0 )); then
+        log "EXPIRED: the Scaleway API key expired on ${expiry}."
+        log "         Outbound mail is failing SILENTLY right now — api and worker are healthy,"
+        log "         --check finds every file present, and each send fails per-message. If the"
+        log "         registration gate is open, account confirmation and password reset are both"
+        log "         dead and the published rights channel does not receive."
+        expiring=1
+      elif (( remaining_days <= EXPIRY_NOTICE_DAYS )); then
+        # NOTICE, NOT A FAULT — and it deliberately does NOT set `expiring`, so this run still
+        # exits 0. See EXPIRY_NOTICE_DAYS above: a lead time on a LATCHING surface suppresses the
+        # transition every other predicate needs in order to notify. The line says so itself,
+        # because an operator who reads a warning must not have to infer the exit code from it.
+        log "NOTICE: the Scaleway API key expires on ${expiry}, in ${remaining_days} day(s)."
+        log "        NOTHING IS FAILING — this run exits 0 and the box stays green. It is a"
+        log "        calendar obligation (#1267), not a fault. Generate a replacement in the"
+        log "        Scaleway console, re-run this script without arguments to inject it, update"
+        log "        EMAIL_SCALEWAY_KEY_EXPIRES_AT in the same pass, and restart api and worker."
+        log "        No page will chase you: the reminder half of #1267 is not built."
+      fi
+    fi
   fi
 
   # THIS SUMMARY USED TO PRESCRIBE THE ONE REMEDY, and it stopped being the one remedy when
@@ -352,6 +463,24 @@ if [[ "${1:-}" == "--check" ]]; then
     log "(fail-closed, never a fallback key). Read the individual lines: those naming a FILE are"
     log "fixed by injecting, those naming a variable are fixed by editing deploy/.env."
     log "  sudo /opt/jobbliggaren/deploy/systemd/jobbliggaren-inject-secrets.sh"
+  fi
+
+  # ITS OWN SENTENCE, AND THE DISTINCTION IS THE POINT: in this state the stack is HEALTHY. An
+  # operator who reads the crash-loop summary above and then finds api serving would conclude the
+  # alarm is wrong and learn to discount it — which is how a real one gets ignored later.
+  #
+  # ONLY EXPIRED / UNSET / UNREADABLE REACH THIS. The advance notice exits 0 and never gets here,
+  # by the latching argument in EXPIRY_NOTICE_DAYS — so every state that does reach it is one
+  # where mail is ALREADY dead, not one where it will be.
+  if [[ $expiring -ne 0 ]]; then
+    log "The key line above is NOT a crash-loop: api and worker serve normally and only outbound"
+    log "mail is affected. It exits non-zero because mail is dead NOW — an expired key, or a"
+    log "date this script cannot read and therefore cannot vouch for. systemctl --failed is this"
+    log "box's only fault surface, and a silent mail outage no surface carries is worse than a"
+    log "loud one an operator can triage."
+  fi
+
+  if [[ $missing -ne 0 || $expiring -ne 0 ]]; then
     exit 1
   fi
   log "all secrets present in ${SECRETS_DIR}"

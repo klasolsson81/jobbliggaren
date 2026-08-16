@@ -104,13 +104,13 @@ restarted because step 2 also changed the `EMAIL_*` lines, which both hosts shar
 the `x-app-email` anchor.
 
 ```bash
-cd /opt/jobbliggaren/deploy && sudo docker compose -f docker-compose.yml up -d api worker
+cd /opt/jobbliggaren/deploy && sudo docker compose -f docker-compose.yml up -d --pull never api worker
 ```
 
 **4. Read the gate's own line — do not infer the posture from a healthy container.**
 
 ```bash
-docker logs jobbliggaren-api 2>&1 | grep 'Registration gate'
+sudo docker logs jobbliggaren-api 2>&1 | grep 'Registration gate'
 ```
 
 Expect, at **Warning** level:
@@ -142,32 +142,177 @@ login is refused with `403 EmailNotConfirmed`.
 
 **7. Restart the api once more, so the admin role is assigned.**
 
+⚠ **`restart` is correct here ONLY if `ADMIN_BOOTSTRAP_INITIAL_ADMIN_EMAIL` has not changed since
+step 3's `up`. If it has, use the re-create form below instead.** A container's environment is
+fixed at creation, so a restart re-runs the seeder against the value the container already holds.
+Measured 2026-08-16: the address *had* been changed after step 3 — the plain one was burned by a
+failed registration and the account was re-created under a `+`-alias — so a `restart` would have
+assigned Admin to the wrong account, one that was itself scheduled for deletion. Check before you
+choose:
+
 ```bash
-docker restart jobbliggaren-api
+sudo docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' jobbliggaren-api \
+  | grep AdminBootstrap
 ```
+
+If that value is the account you registered, `restart` is enough:
+
+```bash
+sudo docker restart jobbliggaren-api
+```
+
+If it is not, re-create instead — same command as step 10:
+
+```bash
+cd /opt/jobbliggaren/deploy && sudo docker compose -f docker-compose.yml up -d --pull never api
+```
+
+This is the sanctioned exception to *"manual applies go through the unit"* —
+[`vps-deploy-stack.md`](vps-deploy-stack.md) §3b carries it, including the precondition it
+requires and why the reconcile unit is the wrong instrument here. Check the precondition first.
 
 `IdempotentAdminRoleSeeder` runs at **startup** and only then: it assigns the Admin role to
 whichever account matches `ADMIN_BOOTSTRAP_INITIAL_ADMIN_EMAIL`, and at step 3 that account
 did not exist. Confirm in the log that it found one this time — the seeder logs the user id,
 never the address.
 
-**Then blank the knob and restart once more.** The seeder re-asserts on **every** start, so a
+**Then blank the knob — and RE-CREATE, not restart.**
+
+```bash
+cd /opt/jobbliggaren/deploy && sudo docker compose -f docker-compose.yml up -d --pull never api
+```
+
+⚠ **`docker restart` cannot do this step and will report success.** A container's environment is
+fixed at creation, so `restart` re-runs the process against the value it already had: the address
+stays in container env, the seeder keeps re-asserting the role on every start, and the operator
+believes the knob is blanked because `.env` says so. Only a re-create re-reads `.env`. Measured
+2026-08-16, where the same asymmetry bit in the other direction first — the value had been
+*changed* after step 3's `up`, so the running container still carried the old address and a
+`restart` would have granted Admin to the wrong account.
+
+The seeder re-asserts on **every** start, so a
 standing value is not a bootstrap but a permanent grant: it silently re-grants the role after
 any in-app revocation, and it would hand Admin to a future holder of that address. The role
 is persisted in the database, so the knob has no further work once the log confirms the
 assignment. Blanking it also takes a real address back out of container environment, where
-`docker inspect` and the container's on-disk config both carry it.
+`docker inspect` and the container's on-disk config both carry it. Verify with
+`sudo docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' jobbliggaren-api | grep AdminBootstrap`
+— expect the key with an empty value. ⚠ **Read the key, never a count over the whole inspect
+output.** A `grep -c` for the address's **local part** still matches the image reference
+(`ghcr.io/<owner>/…` carries the GitHub account), so it returns non-zero on a correctly blanked
+knob and reads as "the address is still there". Measured 2026-08-16, where it did exactly that.
+The full address does **not** match — the image carries no `@domain` — so the trap is specific to
+grepping the local part, which is the natural thing to reach for.
 
-**8. Rotate the bootstrap password.** Log in and change it in the app. A password chosen
-before the account existed has been handled outside the app; the in-app change closes that.
+**8. Rotate the bootstrap password — only if one was handled outside the app.** Log in and change
+it there. ⚠ **Under this procedure that is normally not the case, and the step is then a no-op.**
+It is inherited from the hand-seeded model §1 forbids, where an operator sets a password before
+the account exists. Step 5 registers in a browser, so the password was chosen *in* the app and has
+never been outside it. Rotate anyway if it was pasted from somewhere durable; otherwise skip, and
+do not read the skip as an outstanding action.
 
 **9. Record the test account.** Fill `docs/test-accounts.local.md` in the main checkout from
 its tracked template (`docs/test-accounts.local.md.example`). It is gitignored and stays
 that way: this repo is public, and the file carries both the CC account's password and the
 K2 credential. It is deliberately **not** synced into worktrees.
 
-**10. Close the gate again.** Comment out `AUTH_REGISTRATIONS_OPEN` and restart —
-**leave `AUTH_REQUIRE_EMAIL_CONFIRMATION=true` set** (`.env.example` says why: with the gate
+**10. Close the gate again — and RE-CREATE, exactly as in step 7.** Comment out
+`AUTH_REGISTRATIONS_OPEN`, then:
+
+```bash
+cd /opt/jobbliggaren/deploy && sudo docker compose -f docker-compose.yml up -d --pull never api
+```
+
+⚠ **`docker restart` cannot close the gate and will report success.** Same mechanism as step 7 and
+higher stakes: compose substitutes `Auth__RegistrationsOpen: ${AUTH_REGISTRATIONS_OPEN:-false}` at
+container *creation*, so a restart re-runs the process against the env it already has. Step 7's
+second half re-created the container **while the gate line was still set**, so at this point the
+live container definitely carries `true` — there is no rescuing re-create between the two steps.
+Commenting the line out and restarting leaves the gate **open** while `.env` says closed and the
+operator believes it is closed.
+
+**Then read the gate's own line, exactly as step 4 does. This step is not done until it says
+`CLOSED`:**
+
+```bash
+sudo docker logs jobbliggaren-api 2>&1 | grep 'Registration gate'
+```
+
+Expect `Registration gate: CLOSED; email confirmation: REQUIRED` — EventId 4300 at Information,
+not 4301 at Warning.
+
+**Then make the gate answer for itself. This step is not done until it does.** The log line states
+the posture the process **booted with**; this measures the posture the endpoint **enforces**, and
+ADR 0132 Leg 2 is bounded by the second. A `POST` to `/api/v1/auth/register` **must** answer
+`503 Auth.RegistrationsClosed` and leave no row behind — the gate is the handler's first
+statement.
+
+**Use this form. The naive one cannot answer 503 and its failure looks like the thing you are
+testing for.** `RegisterCommand` is a complex type, so it is body-bound and model binding runs
+*before* the handler: a bare `curl -X POST` returns **415** and malformed JSON returns **400**,
+neither of which ever reaches the gate. From inside the project network, where K2 does not apply:
+
+**Take the baseline first**, or the second half of this check has nothing to compare against:
+
+```bash
+sudo docker exec jobbliggaren-postgres psql -U postgres -d jobbliggaren -tAc \
+  'select (select count(*) from identity."AspNetUsers"), (select count(*) from public.job_seekers);'
+```
+
+Then probe, **with a body that passes validation**:
+
+```bash
+printf '{"email":"probe@example.com","password":"%s","displayName":"probe"}' \
+  "$(openssl rand -base64 18)" \
+  | sudo docker exec -i jobbliggaren-caddy curl -sS -X POST \
+      http://api:8080/api/v1/auth/register -H 'Content-Type: application/json' \
+      -d @- -w '\nHTTP %{http_code}\n'
+```
+
+**The body is built on the host and piped in, and both halves of that are deliberate.** `openssl`
+exists on the box and **not** in the caddy image (measured — the same command inline returns
+`sh: openssl: not found`, then `400` for a zero-length password), so the generation has to happen
+outside the container. And piping through `-d @-` keeps the value out of `sudo`'s argv, which is
+where #1343's whole defect class lives; a literal in this file would be worse still — a
+password-shaped string in a public repo, which `gitleaks` flags, correctly. Nothing consumes it
+either way: the gate refuses before `CreateUserAsync`. It only has to clear
+`RegisterCommandValidator`'s 12-character minimum, which `openssl rand -base64 18` does by
+construction.
+
+Expect `HTTP 503` with `"title":"Auth.RegistrationsClosed"`.
+
+⚠ **An empty `{}` does NOT work, and its failure is indistinguishable from the thing you are
+testing for.** The gate is the handler's first statement — but `ValidationBehavior` is a *pipeline
+behavior wrapping the handler*, so `RegisterCommandValidator` runs first and an empty object comes
+back **400** with `'Email' must not be empty`, never reaching the gate at all. Measured both ways
+on 2026-08-16. "Before validation" was never the claim; `RegisterCommandHandler`'s own comment says
+what first means — *"FIRST statement, before `CreateUserAsync`"*, i.e. before the account is
+created, not before the pipeline. The address above is deliberately `example.com`, reserved by
+RFC 2606 and belonging to nobody.
+
+⚠ **A `429` is a fifth non-503 answer**:
+`/register` runs under `AuthWritePolicy`, and you have just registered accounts through it. Wait
+out the window rather than reading the throttle as a closed gate.
+
+**Then re-run the baseline query — "leaves no row behind" is a claim, not an observation.** Both
+counts must be **identical** to the ones taken before the probe. That is what makes the 503
+meaningful: a validating body reaches the gate, and the gate refuses before `CreateUserAsync`, so
+a refusal that left a row would be a defect rather than a posture. After a two-account visit the
+pair reads `2 | 2`, but compare against your own baseline rather than that number — a burned
+address or an earlier orphan moves it.
+
+⚠ **It is mandatory rather than a nicety because every failure mode in this step looks identical
+from the outside.** A `restart` that changed nothing, a reconcile whose lock branch exited 0
+having applied nothing, a refused image, the right log line read at the wrong moment — all of them
+present as "the gate is still open", and this is the only check in the procedure that does not
+depend on which command applied the change.
+
+This command is the sanctioned exception to *"manual applies go through the unit"* —
+[`vps-deploy-stack.md`](vps-deploy-stack.md) §3b carries it, including the precondition it
+requires and why the reconcile unit is the wrong instrument here. **Check that precondition before
+running it.**
+
+**Leave `AUTH_REQUIRE_EMAIL_CONFIRMATION=true` set** (`.env.example` says why: with the gate
 closed a `false` there is accepted silently and disables the login gate). Accounts and logins
 survive a closed gate; closing it refuses new registrations only.
 
@@ -181,8 +326,14 @@ a file whose audience is every future CC session.
 
 The reason this procedure exists on the critical path. Row 23 in
 [`vps-deploy-stack.md`](vps-deploy-stack.md) asks for one encrypted field read back through
-the app, and it has been blocked on the box having no users at all rather than deferred by
-choice.
+the app. ✅ **DONE 2026-08-16 — this section is a standing procedure for future visits now, not
+an outstanding task.** It ~~has been~~ **was** blocked on the box having no users at all rather
+than deferred by choice; the first visit created the accounts and row 23 carries both halves.
+⚠ **Read that row's cell for what the measurement does and does not establish.** It evidences
+encrypt-on-write and decrypt-on-read under the live generation; it does **not** reach the
+fresh-DEK re-wrap case the row's Instrument column names, which needs a field written under one
+master-key generation and read under the next. That is still owed, and the next rotation over a
+non-empty `user_data_keys` is what will make it testable.
 
 **Write it on a surface that actually crosses the DEK path.** The encrypted set is
 `Application.CoverLetter`, `ApplicationNote.Content`, `FollowUp.Note` and the CV fields
@@ -193,7 +344,10 @@ path or tick this row on nothing. Use a cover letter on `/ansokningar`, or a CV 
 `/cv`.
 
 Then read it back on a fresh page load, and check that `user_data_keys` has gone from 0 to 1.
-Record what you ran and what it returned — the row is stamped from that, in its own change.
+Record what you ran and what it returned — the row is stamped from that. ⚠ **A page load and an
+API call are not the same instrument**, and 2026-08-16 measured the API half only (curl inside
+the project network) with the browser half operator-attested. If you take the API route, say so
+in the cell rather than letting "through the app" cover both.
 
 Also verify before the flip, because it cannot be verified from a worktree: that the
 processing register (`docs/runbooks/gdpr-processing-register.md`, gitignored, main checkout

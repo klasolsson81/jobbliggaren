@@ -286,7 +286,18 @@ api and worker recover on their own restart backoff (`restart: unless-stopped`).
 `docker compose up -d` takes no lock and runs no attestation
 (`jobbliggaren-reconcile.sh` header).
 
-> ⛔ **STOP — THIS IS THE FIRST RUN THAT SHIPS, AND THE JOURNAL IS NOT CLEAN (#1343).** The
+> ✅ **THE PRECONDITION THIS STOP DEMANDS WAS MET 2026-08-16 — read the rest for the mechanism,
+> not as an outstanding blocker.** [#1343](https://github.com/klasolsson81/jobbliggaren/issues/1343)
+> is discharged: the journal was vacuumed and then re-measured against **all four** secrets — the
+> master key and each of the three peppers, every one with its own positive control — at **0**.
+> That is exactly the *"demonstrably free of plaintext key material"* this block asks for, and it
+> is the discharge rather than a promise of one. **The stop still binds in one respect and it is
+> not the same respect:** the condition expires the moment anything writes key material to the
+> journal again, so re-measure before shipping rather than inheriting this line.
+> ⚠ `docs/runbooks/log-sink.md` §2 carries the same precondition and is **outside this PR's
+> change-reason**; it still reads as unmet and must not be allowed to drift from this one.
+>
+> ~~⛔ **STOP — THIS IS THE FIRST RUN THAT SHIPS, AND THE JOURNAL IS NOT CLEAN (#1343).**~~ The
 > injection you just performed created `Backup__RcloneConfigBase64`, which is the file
 > `jobbliggaren-logship.service`'s `ConditionPathExists` waits for. Every earlier firing was a
 > *skip*, so no cursor exists in `/var/lib/jobbliggaren` — and `jobbliggaren-logship.sh` reads the
@@ -485,9 +496,48 @@ the damage unrecoverable.
    sudo JBL_MASTER_KEY_ID=local-v2 \
      /opt/jobbliggaren/deploy/systemd/jobbliggaren-inject-secrets.sh
    ```
+   ⚠ **This run also prompts for #197's `Backup__RcloneConfigBase64`, and answering it may be
+   forbidden at that moment.** The script walks its host-only set after the crypto set, and prompts
+   for any file that is absent — so a rotation performed while the backup credential has never been
+   injected ends at a prompt this step never mentions. **Ctrl-C there is safe and is usually the
+   right answer:** the master key and identity are already written by the time that prompt appears
+   (verify with `--check`), and everything after the host loop is log output naming the verification
+   commands. The credential is #197's to place, and `current-work.md` has held it back behind
+   [#1343](https://github.com/klasolsson81/jobbliggaren/issues/1343) — shipping the journal before
+   that was resolved would have landed the master key offsite. Measured 2026-08-16, where exactly
+   this prompt appeared mid-rotation and was declined.
+
    Escrow **the new bytes and the new identity** in the same step (§1 — Klas's decision, and
    a prerequisite). The identity is not a secret, but losing track of it costs the next
-   rotation its marker.
+   rotation its marker. ⚠ **Escrow all FOUR values, not only the one that changed.** The script
+   skips files that already exist, so a master-key rotation leaves the three peppers untouched;
+   an escrow written from this run alone would drop them. Carry them across from the outgoing
+   escrow, and keep that outgoing copy until step 7 succeeds — §1 requires the escrow to
+   span the rotation window, both generations. **Destroy the outgoing copy once step 7 has
+   succeeded**, not before and not never: an escrow of a retired generation is worse than none,
+   because its holder believes they have the live one.
+
+   ⚠ **Do not carry a pepper forward "verbatim" on the escrow's own authority — the box is the
+   authority.** Row 26 records that the escrow↔box link is still operator-attested at both ends,
+   so a value carried forward from an unverified escrow propagates the error through every future
+   rotation, silently, and the peppers are irrecoverable: the company-watch pepper owns every
+   org.nr token whose plaintext was destroyed in place, the CV-fingerprint pepper every
+   Ignored/Resolved decision. Compare without exposing anything, and without breaking the argv
+   discipline this section just established:
+
+   ```bash
+   sudo sha256sum /run/jobbliggaren/secrets/AuditPseudonymization__PepperBase64 \
+                  /run/jobbliggaren/secrets/CompanyWatchPseudonymization__PepperBase64 \
+                  /run/jobbliggaren/secrets/CvReviewFingerprintPseudonymization__PepperBase64
+   ```
+
+   Hash the escrowed values off-box **with `printf '%s' "$value" | sha256sum`, never
+   `echo "$value" | …`**. The injection script writes with `printf '%s'` and says so — *"no
+   trailing newline is written at all"* — so the file holds the bare base64 string. `echo` appends
+   a `\n` and produces a different digest, which would report a **false mismatch on a correct
+   escrow**. The failure direction is safe (it stops on a good escrow rather than passing a bad
+   one), but the instruction below turns it into a halted rotation, so get the form right. A real
+   mismatch means the escrow is not what the box runs, and that is a stop rather than a note.
 5. Rewrap old → new, using `OLD_KEY` from step 3 (the command above). **Skip entirely when
    `user_data_keys` is empty** — there is nothing to re-wrap and the new bytes are already in
    force; the tool would report a no-op anyway.

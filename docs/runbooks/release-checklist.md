@@ -330,6 +330,26 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
         Art. 6 och integritetspolicyn. Fjärråtkomst från tredjeland vore i sig en överföring, så
         utkastet är **villkorat av bekräftelsen** — och bekräftelsen skulle ha kommit via Klas-brevet
         i led (c), som är struket (nästa stycke).
+        ⚠ **MÄTNING 2026-08-16 (#183 FU-1) UR KONTOTS EGET AVTAL — OCH DEN GÖR LEDET SVÅRARE, INTE
+        LÄTTARE.** Underlaget är GTS:en under kontots egen `Validated`-rad i konsolens
+        `Settings → Organization contracts`, alltså inte en publik sida. **Art. 10** bär på
+        avtalsrang: *"for diagnosis and analysis purposes toward resolving the Technical Incident,
+        **Technical Support may be required to access the Client's resources** in compliance with the
+        confidentiality and security obligations incumbent upon it."* Supportens åtkomst är alltså
+        **avtalsmässigt förutsedd som en rättighet**, och avtalet säger fortfarande **ingenting om
+        varifrån**. **Asymmetrin ska läsas rakt: åtkomsten har rang, geografin har det inte.**
+        ⚠ **Formuleringen ovan — *"sökt … noll träffar"* — underdrev därmed sitt eget underlag.**
+        Det saknas inte en åtkomstklausul; det saknas en **ortsklausul till en åtkomstklausul som
+        finns**. Skillnaden är materiell: en lucka fylls, en asymmetri måste rättas.
+        ⚠ **Samma dokument vidgar dessutom underbiträdesytan:** GTS **Art. 21.2** — *"Scaleway may,
+        **without restriction**, use the services of service providers and/or sub-contractors"* —
+        parat med DPA **Art. 7.1**:s generella underbiträdesauktorisation. Det upphäver **inte**
+        mätningen att leverantörens publika lista namnger **inget** TEM-underbiträde i dag; det säger
+        att inget i avtalet hindrar att den ändras — vilket är precis varför Art. 7.4-kontrollen
+        (ADR 0133 Amendment, led (d)) betyder något.
+        **Graderingen av vad de tre raderna gör med det här ledet är `security-auditor`s, inte
+        sessionens.** Transkriberingen är en mätning, ingen dom; statusen står oförändrad tills hon
+        skrivit in sin (samma disciplin som förutsättning 4:s daterade pekare nedan).
         ⚠ **BREVET ÄR STRUKET 2026-08-16 (Klas-beslut) — ÅTGÄRDEN ÄR BORTA, INTE FYNDET.** Grunden
         ovan står oförändrad: meningen saknar fortfarande avtalsrang, och utkastet är fortfarande
         villkorat. Vad som ändrats är att ingen bekräftelse är på väg. **Beslutet, dess grund och
@@ -591,6 +611,47 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
            > kan uppfyllas genom att vänta uppfylls genom att härledningen och dess gräns skrivs
            > ned** — vilket är vad det här stycket gör — inte genom att vänta. **Ledet bär KVAR tills
            > den inloggade avläsningen är gjord.**
+
+           ⚠ **DEN INLOGGADE AVLÄSNINGEN ÄR GJORD 2026-08-16 (kväll, #183 FU-1). Domen ovan står
+           oförändrad som dom** — den är `security-auditor`s och stängs av henne, inte av att
+           underlaget ändrats. Det här är en **daterad transkribering av mätningarna**, ingen
+           omgradering; statusen på förutsättning 1 sätts i hennes nästa scopade omkontroll (samma
+           form som förutsättning 4:s pekare ovan). Tre mätningar:
+           1. **Punkt (ii) — den bindande GTS-versionen — är avläst, och ledets namngivna svaghet
+              är därmed stängd i sak.** Klas laddade ner GTS:en ur konsolens
+              `Settings → Organization contracts`, där raden står som **`Validated`**, och dokumentet
+              under den raden bär `Version of 07/04/2026` med Art. 23 i tre grenar. **Den Art. 23 vi
+              tillämpar står alltså i det dokument som ligger under kontots egen validerade rad, inte
+              på en publik sida.**
+              ⚠ **Versionsetiketterna är dock TRE och stämmer inte överens:** publika avtalssidan
+              `v.09/06/26` (mätt 2026-08-15), konsolraden **`05/2026`**, dokumentet `07/04/2026`.
+              *Att `05/2026` sannolikt är en valideringsstämpel på 07/04/2026-utgåvan —
+              nedladdningens filnamn bär "Mon May 18 2026" — är **vår slutledning, inte en
+              mätning**, och får inte skrivas som leverantörens utsaga.* Det som håller oavsett
+              etikett är meningen ovan: dokumentet ligger under den validerade raden.
+           2. **Punkt (iii) — ORGANISATIONSHALVAN ÄR STÄNGD, OCH STARKARE ÄN LEDET BAD OM.** Lådans
+              injicerade `Email__Scaleway__ProjectId` jämfördes mot det id konsolen visar; utfallet
+              var **lika**. De kontrakt som står `Validated` tillhör den organisationen, och armen
+              skickar med den organisationens id i varje request-kropp — alltså är avtalsmätningen
+              och den sändande armen samma organisation. Det var fällan ledet finns för.
+              ⚠ **PROJEKTHALVAN ÄR DÄREMOT ICKE-DISKRIMINERANDE BY DESIGN och får inte läsas som en
+              oberoende kontroll:** Scaleways **default-projekt ärver organisationens ID**, och den
+              statusen kan inte flyttas till ett annat projekt. Samma sträng är alltså både org-id
+              och projekt-id, så likheten kan inte skilja *"armen skickar in i det TEM-projekt
+              konsolen lästes på"* från *"armen skickar in i default-projektet, som råkar vara
+              samma"*. I dag sammanfaller de; **skapas någon gång ett separat TEM-projekt passerar
+              kontrollen fortfarande och mäter då ingenting.**
+              **Vad som faktiskt binder nyckeln till projektet är empiriskt, inte konfigurationellt:**
+              en Scaleway-nyckel är scopad, E4 mätte `403 permissions_denied` och
+              registreringsbesöket mätte 403 ända tills IAM-policyerna knöts till applikationen —
+              därefter levererade utskicken. En nyckel i en annan organisation som skickar mot det
+              projektet hade fått 403. Leverans → nyckeln har behörighet på projektet.
+              **Slutledningen är vår; 403-beteendet är mätt.**
+           3. **Punkt (i) — faktureringsjurisdiktionen `SE`** — stod redan i domen ovan och räknas
+              inte om här.
+           ⚠ **INGA ID:N I REPOT.** Repot är publikt, och ledet behöver **jämförelsen**, inte
+           identifieraren. Varken org-id, projekt-id eller nyckel-id skrivs här eller någon
+           annanstans i repot.
 
            ⚠ **PII:** endast jurisdiktionen `SE` står i repot. Faktureringsadressens gata, postnummer
            och ort är den ansvariges bostad och recordas aldrig, lika lite som kortuppgifter,

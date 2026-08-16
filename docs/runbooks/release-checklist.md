@@ -403,9 +403,8 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
            `systemctl --failed` latchar — alltså precis det alltid-tända tillstånd hela
            kontrollen finns för att undvika. **Stegordningen bor i `deploy/.env.example`:s
            outbound-block, inte här**; den här raden säger bara att ledet inte är uppfyllt av en
-           injicerad nyckel ensam. Nyckeln utfärdad 2026-08-16 går ut **2027-08-16** (mätt i
-           konsolen samma dag); datumet och dess proveniens har sitt hem i `master-key-ops.md`
-           §2, och upprepas inte här.
+           injicerad nyckel ensam. **Nyckelns utgångsdatum och dess proveniens har sitt hem i
+           `master-key-ops.md` §2** — läs det där.
            ⚠ **Vad kontrollen INTE gör, så att ingen läser in en påminnelse som inte finns:**
            den varnar i journalen inom sitt fönster men **exitar 0** där — en förvarning på en
            latchande yta hade undertryckt den övergång varje annan heartbeat-predikat behöver för

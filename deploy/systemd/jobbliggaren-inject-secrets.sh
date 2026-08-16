@@ -420,8 +420,6 @@ if [[ "${1:-}" == "--check" ]]; then
       # this check cannot afford, because it is indistinguishable from a healthy key.
       expiring=1
     else
-      # Integer division truncates toward zero, so a key expiring later today yields 0 and trips
-      # the <= branch. That is the wanted direction: the boundary rounds toward warning.
       remaining_days=$(( (expiry_epoch - $(date -u +%s)) / 86400 ))
       # `<= 0` rather than `< 0`: integer division truncates toward zero, so a key that died
       # earlier TODAY yields 0 and would otherwise be reported by the notice branch — a softer

@@ -685,12 +685,21 @@ is the other thing a schema-bearing restore can silently move.
   replaced an unsupported *statistical* claim with an unsupported *causal* one, in
   the very paragraph warning against inferring cause from an instrument that
   cannot separate two of them.
-- **`ANALYZE`, because the restore carries no statistics and nothing on the box
-  will ever produce them.** `pg_dump` **omits** optimizer statistics unless
+- **`ANALYZE`, because the restore carries no statistics and no application path
+  on the box will produce them.** `pg_dump` **omits** optimizer statistics unless
   `--statistics` (the table in §7 above), and the box never syncs — so the one
   step that would otherwise refresh them (`ScbCompanyRegisterStore.AnalyzeAsync`,
   #560) never runs there. Without it the planner has no statistics for the table
   at all and the functional index above may not be chosen even though it exists.
+  ⚠ **That is a claim about the GUARANTEE, not about the server** — the same
+  distinction `ScbCompanyRegisterStore`'s docblock draws in as many words, and the
+  same one the `VACUUM` bullet above took four rounds to get right. **Autoanalyze
+  may well run here:** the docblock's own re-arm threshold is
+  `50 + 0.1 × reltuples`, and the restore is subsequent DML into a table step 4
+  confirms is **empty** — so `reltuples = 0`, the threshold is 50, and ~1.07M
+  inserts clear it by five orders of magnitude. Whether it fires is **unmeasured**,
+  exactly as for the insert-driven vacuum trigger above. The step is justified by
+  determinism, not by autoanalyze's absence.
 
 Neither instrument is memory-hungry here. `VACUUM` sizes its dead-TID store to the
 dead tuples it finds, and a freshly restored table has none, so the box's

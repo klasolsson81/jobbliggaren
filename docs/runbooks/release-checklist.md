@@ -213,7 +213,7 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
 > "ett rått grep" var tvetydigt och blev läst på båda sätten** — `code-reviewer` gav 41 i en
 > rond och 42 i nästa, av samma text. Talen, med det grep som producerar dem:
 > `grep -cE '^- \[ \]'` = **38** · `grep -cE '^- \[x\]'` = **1** ·
-> `grep -oE -- '- \[[ x]\]' \| wc -l` = **42** (**båda** literalerna, oavsett indrag) ·
+> `grep -oE -- '- \[[ x]\]' | wc -l` = **42** (**båda** literalerna, oavsett indrag) ·
 > prosacitat = `42 − (38+1)` = **3**, samtliga av den obockade literalen.
 > ⚠ **Regenerera ALLA FYRA siffrorna ur greppen efter varje ändring som greppen kan räkna** —
 > de tre ovan plus prosacitat-antalet, som är `rått − radinitialt` och alltså inte överlever att

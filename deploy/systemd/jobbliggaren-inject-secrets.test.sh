@@ -325,7 +325,13 @@ else
   sed 's/^/       /' "$TMPROOT/out" >&2
 fi
 
-echo "-- every branch of --check reaches the BLOCKING summary, and only those (#1328)"
+echo "-- every CRASH-LOOP branch of --check reaches the BLOCKING summary, and only those (#1328)"
+# ⚠ AMENDED 2026-08-16 (#183 E4): the claim was "every branch", and that stopped being true when
+# --check gained the key-expiry branches. Those reach a DIFFERENT summary on purpose — an expired
+# key is not a crash-loop, and the advance notice is not a fault at all. They are pinned in their
+# own block below, which asserts the blocking summary ABSENT. Do not add them here: this block's
+# invariant is about the branches that DO crash-loop, and widening it would erase the distinction
+# the expiry work exists to draw.
 # WHAT THE SPLIT DID NOT REMOVE. --check now answers for one set, so its single summary is true
 # of every route that reaches it — but "every route" is still six branches, and which summary a
 # branch reaches is invisible to every per-line and exit-code assertion in this file. Measured
@@ -397,6 +403,99 @@ else
   echo "  SKIP summary cases: this filesystem does not honour chmod, so the mode branch sets the"
   echo "       blocking counter in every case and each would pass for a reason that is not its"
   echo "       own. Six branch cases plus the host-only-directory pin. They RUN in CI."
+fi
+
+echo "-- the key's expiry date: which branch, which summary, which exit (#183 E4)"
+# THE ONE BRANCH SET IN --check THAT IS NOT A CRASH-LOOP, and the distinction is the whole point:
+# an EXPIRED key exits non-zero onto the fault surface, while the advance NOTICE exits 0 and must
+# NOT reach the blocking summary. Folding the notice back into `missing` — which is exactly what
+# a later edit would do if nothing pinned it — leaves every other assertion in this file green
+# while a healthy box latches systemctl --failed for the whole notice window, suppressing the
+# transition every heartbeat predicate needs in order to notify. That is #1328's defect in a new
+# branch, so it gets #1328's treatment: one isolated case each, bound to MESSAGES.
+#
+# EVERY FIXTURE DATE IS COMPUTED FROM `date`, never written as a literal. A hardcoded 2027-08-16
+# passes today and silently becomes an EXPIRED test in August 2027 — a case that still reports
+# green while measuring the opposite branch.
+seed_scaleway_flip() {   # seed_scaleway_flip <expiry-line...> — provider + files + pointers set
+  seed_all_secrets
+  local k
+  for k in "${EXPECTED_SCALEWAY_FILES[@]}"; do printf '%s' "seeded-value-for-$k" > "$SECRETS/$k"; done
+  write_env "EMAIL_PROVIDER=Scaleway" "EMAIL_SCALEWAY_SECRET_KEY_FILE=/x" \
+    "EMAIL_SCALEWAY_PROJECT_ID_FILE=/y" "EMAIL_SCALEWAY_REGION=fr-par" "$@"
+}
+
+# want_exit · a substring that must appear ("" = assert nothing) · whether the BLOCKING summary
+# must be present · description. The blocking half is the pin; exit code alone cannot say which
+# summary an operator was shown.
+expect_expiry() {
+  local want_exit="$1" want_line="$2" want_blocking="$3" desc="$4"
+  local got=0 ok=1
+  run_check || got=$?
+  [ "$got" -eq "$want_exit" ] || ok=0
+  if [ -n "$want_line" ] && ! grep -qF "$want_line" "$TMPROOT/out"; then ok=0; fi
+  if grep -qF "$BLOCKING_SUMMARY" "$TMPROOT/out"; then
+    [ "$want_blocking" = "yes" ] || ok=0
+  else
+    [ "$want_blocking" = "no" ] || ok=0
+  fi
+  if [ "$ok" -eq 1 ]; then
+    pass=$((pass + 1)); echo "  ok   $desc (exit $got)"
+  else
+    fail=$((fail + 1)); echo "  FAIL $desc — wanted exit $want_exit, got $got" >&2
+    sed 's/^/       /' "$TMPROOT/out" >&2
+  fi
+}
+
+# MODE-GATED FOR THE SAME REASON AS THE #1328 BLOCK, and here it bites harder: where chmod is
+# unavailable the WRONG MODE branch sets `missing` in EVERY case, so the exit-0 cases can never
+# reach 0 and the exit-1 cases reach it through the wrong branch, carrying the blocking summary
+# this block exists to assert ABSENT. Measured while writing these: all seven failed on a Windows
+# filesystem with the expiry logic entirely correct. They RUN in CI (build.yml sets
+# JBL_REQUIRE_MODE_CASES=1 on ubuntu, where a skip is an error).
+if [ "$MODE_ENFORCED" = "yes" ]; then
+seed_scaleway_flip "EMAIL_SCALEWAY_KEY_EXPIRES_AT=$(date -u -d '+5 days' +%F)"
+expect_expiry 0 "NOTICE: the Scaleway API key expires" no \
+  "a key inside the notice window is a journal line, not a fault"
+
+# THE COUNTERFACTUAL, and without it the case above passes for the wrong reason: a check that
+# never fires at all would also exit 0 and print no blocking summary. This one proves the notice
+# window has an outside edge.
+seed_scaleway_flip "EMAIL_SCALEWAY_KEY_EXPIRES_AT=$(date -u -d '+400 days' +%F)"
+expect_expiry 0 "all secrets present" no \
+  "a key far outside the notice window is silent"
+
+seed_scaleway_flip "EMAIL_SCALEWAY_KEY_EXPIRES_AT=$(date -u -d '-1 day' +%F)"
+expect_expiry 1 "EXPIRED: the Scaleway API key expired" no \
+  "an expired key exits non-zero WITHOUT the crash-loop summary"
+
+seed_scaleway_flip
+expect_expiry 1 "MISSING: EMAIL_SCALEWAY_KEY_EXPIRES_AT" no \
+  "an unset expiry date under Scaleway fails closed"
+
+seed_scaleway_flip "EMAIL_SCALEWAY_KEY_EXPIRES_AT=not-a-date"
+expect_expiry 1 "INVALID: EMAIL_SCALEWAY_KEY_EXPIRES_AT" no \
+  "an unreadable expiry date is a failure, never 'no expiry'"
+
+# THE FAIL-OPEN `date` ALONE LEAVES: relative forms parse, and they re-resolve against the clock
+# every run, so the remaining days never shrink and the notice can never fire. Indistinguishable
+# from a healthy key, which is the one direction this check cannot afford.
+seed_scaleway_flip "EMAIL_SCALEWAY_KEY_EXPIRES_AT=nextyear"
+expect_expiry 1 "INVALID: EMAIL_SCALEWAY_KEY_EXPIRES_AT" no \
+  "a self-renewing relative date is rejected by the shape guard"
+
+# PROVIDER-GATED: before the flip the branch must be inert, or every Console box on an old date
+# would light up for a key it does not use.
+seed_all_secrets
+write_env "EMAIL_PROVIDER=Console" "EMAIL_SCALEWAY_KEY_EXPIRES_AT=$(date -u -d '-1 day' +%F)"
+expect_expiry 0 "all secrets present" no \
+  "an expired date is inert while the provider is Console"
+else
+  skipped=$((skipped + 7))
+  echo "  SKIP expiry cases: this filesystem does not honour chmod, so the mode branch sets the"
+  echo "       blocking counter in every case — the exit-0 cases can never reach 0, and the"
+  echo "       exit-1 cases reach it through the wrong branch carrying the summary these pins"
+  echo "       assert ABSENT. Seven cases. They RUN in CI."
 fi
 
 echo "-- a missing host-only DIRECTORY is the post-reboot state"

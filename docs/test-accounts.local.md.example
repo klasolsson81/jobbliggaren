@@ -6,8 +6,13 @@ and it is deliberately **not** listed in `.worktreeinclude`: worktree sessions r
 the main checkout by absolute path (`C:\DOTNET-UTB\JobbPilot\docs\test-accounts.local.md`).
 `scripts/sync-worktree-docs.ps1` refuses to copy it even if someone lists it.
 
-Values are filled by Klas directly on his machine. They are not pasted into a chat, a PR,
-an issue or a session log — a credential in a transcript is a credential to rotate.
+Values are filled by Klas directly on his machine. They never go into anything durable and
+public: not a commit, not a PR body, not an issue, not a committed session log.
+
+A CC session that reads this file necessarily holds these values in its transcript — that is
+the access path, not a leak to be forbidden, and a prohibition its own readers cannot obey
+would be prose pretending to be a control. Treat it as a rotation trigger instead: when the
+box stops being a private dev box, rotate both credentials.
 
 How the accounts come into existence: [`runbooks/registration-gate.md`](runbooks/registration-gate.md).
 Writing one straight into the database is not the alternative; `AuthOptions` forbids it.
@@ -47,8 +52,11 @@ The account future CC sessions use to log in and verify behaviour on the deploye
 - **Use the CC account, not the operator account.** The admin role changes what the app
   does; verifying a job-seeker surface while signed in as an admin can measure the wrong
   thing.
-- **This account owns no real PII.** It is safe to exercise profile and CV writes against
-  it, and its data is what verification row 23's second half was measured on.
+- **This account belongs to no third party.** Its address is a real inbox (an alias of
+  Klas's), so it is not PII-free — it is PII nobody else has a claim on, which is why it is
+  safe to exercise cover-letter and CV writes against it. Those writes are the ones that
+  cross the DEK path, and they are what verification row 23's second half is measured on
+  once the visit happens.
 - **Do not register further accounts** without asking Klas. Each one is a real row on a
   real box, and the gate may be closed again between visits — see the runbook's step 10.
 - **If login is refused with `403 EmailNotConfirmed`**, the confirmation link was never

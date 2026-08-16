@@ -32,10 +32,13 @@ forbids it, and this file is the path it prescribes instead.
    project id, generated in the Scaleway console. Producing them is the operator's step and
    belongs to [#183](https://github.com/klasolsson81/jobbliggaren/issues/183); this runbook
    only needs them to already exist.
-3. **Two real, external mailboxes.** The domain's MX is `blackhole.tem.scaleway.com` —
-   `@jobbliggaren.se` receives nothing, so a confirmation link sent there is unrecoverable.
-   Use ordinary external addresses; a `+`-suffixed alias of an existing inbox works for the
-   second account.
+3. **Two real, external mailboxes, and the second must be an alias of the first.** The
+   domain's MX is `blackhole.tem.scaleway.com` — `@jobbliggaren.se` receives nothing, so a
+   confirmation link sent there is unrecoverable. Use an ordinary external address for the
+   operator account, and a `+`-suffixed alias of that same inbox for the CC account. The
+   alias is required rather than merely convenient: `release-checklist.md`'s schedule exempts
+   a CC verification address under (b) but fires on any recipient other than Klas under (d),
+   and an alias is the one choice that satisfies both.
 4. **The K2 edge credentials** (`BASIC_AUTH_USER` / `BASIC_AUTH_HASH`), because every
    request to the site — including the one the confirmation link makes — is challenged
    first.

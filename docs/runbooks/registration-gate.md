@@ -36,9 +36,10 @@ forbids it, and this file is the path it prescribes instead.
    domain's MX is `blackhole.tem.scaleway.com` — `@jobbliggaren.se` receives nothing, so a
    confirmation link sent there is unrecoverable. Use an ordinary external address for the
    operator account, and a `+`-suffixed alias of that same inbox for the CC account. The
-   alias is required rather than merely convenient: `release-checklist.md`'s schedule exempts
-   a CC verification address under (b) but fires on any recipient other than Klas under (d),
-   and an alias is the one choice that satisfies both.
+   alias is required rather than merely convenient: `release-checklist.md`'s reinstatement
+   schedule turns on **an address the controller himself holds**, so a `+`-suffixed alias of the
+   operator's own inbox satisfies (b) and (d) by one property rather than by two clauses that
+   happen to intersect. A separate mailbox satisfies neither, whatever it is called.
 4. **The K2 edge credentials** (`BASIC_AUTH_USER` / `BASIC_AUTH_HASH`), because every
    request to the site — including the one the confirmation link makes — is challenged
    first.
@@ -57,7 +58,10 @@ forbids it, and this file is the path it prescribes instead.
    ([#183](https://github.com/klasolsson81/jobbliggaren/issues/183) owns the mailbox) — or Klas
    accepts the risk for this recipient set and records it, **which is his decision alone**.
    Whichever applies, it is written down before the knob is set.
-   ⚠ **The K2 credential now carries a GDPR conclusion.** The checklist's re-grading rests in
+   ⚠ **The K2 credential carries TWO GDPR conclusions, and this file counts neither** — their
+   only home is `release-checklist.md` §2.5 point 1 leg (e) precondition 5, and the operator
+   meets both on the `basic_auth` directive itself in `deploy/caddy/Caddyfile`. Read them there.
+   The second was added 2026-08-16 (#183 E5) and is not the one below. The checklist's re-grading rests in
    part on the site answering `401` on every path; removing Basic auth for a demo makes the
    blackhole blocking in the same moment, and nothing warns. Treat the credential in
    `docs/test-accounts.local.md` accordingly.

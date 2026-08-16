@@ -655,8 +655,8 @@ order. (Praise is not a finding and routes nowhere.) Then:
 - **Blocker or Major** → **in-block**, or a **follow-up PR** if it is a genuinely
   separate change-reason. Never an issue: §6 and §12 make an unresolved agent
   Blocker/Major merge-blocking, so filing one would convert a stop into a backlog row.
-  **Two exceptions in this paragraph, and both are the reporting charter's to
-  declare, never the session's to claim.** (1) A **Major** its own charter marks non-blocking because it
+  **Three exceptions in this paragraph, and none of them is the session's to claim** —
+  (1) and (2) are the reporting charter's to declare, (3) is Klas's to grant.** (1) A **Major** its own charter marks non-blocking because it
   grades **repo state the diff did not create** — `security-auditor` area 8, whose Major
   row escalates to Klas and lets the PR through — has neither an in-block home nor a
   change-reason of its own, so it is **filed as an issue with the escalation named in
@@ -666,9 +666,39 @@ order. (Praise is not a finding and routes nowhere.) Then:
   escalate to Klas and let that charter's owner resolve it, because an exception is the
   reporting charter's to declare. (2) A security Major **without GDPR implication** may become a documented
   **accepted-risk ADR** — `security-auditor`'s own edge case, and **Klas owns that
-  decision**. A GDPR Blocker is never in either category. In both cases the concession
+  decision**.
+
+  (3) **A GDPR-implicated security Major may become an accepted-risk ADR when the BOUND holds**
+  (Klas-direktiv 2026-08-16). **The route is keyed on who bears the risk, never on the absence of a
+  GDPR implication** — which is exactly why (2) could not reach these cases and why two ADRs had to
+  derive the ground on their own. The bound, both conditions required: **(a) bearer-absence** — the
+  only data subject whose Art. 5, Art. 12–22 or Chapter V position is affected is the **controller
+  himself**, measured and not assumed; and **(b) Art. 24(1) proportionality** — the measures scale to
+  the nature, scope and context of the processing, and are being weighed against a processing that
+  has the size it actually has.
+
+  **What the route requires, and it is not less than what was already done twice:** Klas grants it ·
+  it is recorded in an **ADR or a CLAUDE.md update, never a PR body** · it carries a **written lapse
+  trigger** · and it **lapses at the first personal data reaching the processor that is not the
+  controller's**. `security-auditor` still grades the finding and still signs or refuses the
+  acceptance; **the route lets a session propose one, never declare one.**
+
+  ⚠ **This is not a lowered bar, and reading it as one is the failure mode to avoid.** It writes down
+  the bar **ADR 0132 Leg 1 and ADR 0133 both applied independently** — each deriving the same ground
+  because the spec had none — so a third instance **cites this paragraph instead of reinventing it**.
+  That duplication was the measured cost, not the standard. **The bar itself is unchanged: neither
+  ground survives a widening.** Bearer-absence ends the moment there is a bearer, and Art. 24(1)
+  scales the measures **up** as the processing grows; together they license one acceptance, at one
+  size, until the size changes. **An acceptance widened by a single non-controller data subject is an
+  acceptance of a third party's rights, which this route does not grant and `security-auditor` does
+  not sign.**
+
+  **A GDPR Blocker is never in any of these three categories**, and neither is a Major whose bound
+  cannot be measured. In all three cases the concession
   is granted by Klas and recorded in an ADR or a CLAUDE.md update, never by the session
-  in a PR body.
+  in a PR body. *(This closes `code-reviewer`'s standing escalation — raised twice, on ADR 0132 and
+  again on ADR 0133 — that §9.6 offered no positive route here. §13 says the boundary belongs in this
+  file rather than in each ADR.)*
 - **The finding does not hold** — its premise is false or revoked → say so plainly, with
   the measurement. Neither a fix nor an issue. This is a real outcome, not a way out.
 - **Minor / nice-to-have** → a **GitHub issue**, and a line in a PR

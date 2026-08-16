@@ -396,6 +396,15 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
         oberoende av beslutet** — en artefakt med avtalsrang som bär samma mening stänger ledet på
         egna meriter, och en Kap. V-grund stänger det i den andra riktningen. Ledet är alltså inte
         ostängbart; det är obemannat.
+        ⚠ **OCH BREVET ÄR SEDAN 2026-08-16 (kväll) AVFÖRT SOM REMEDIE FÖR DET HÄR LEDET, inte bara
+        för det här fönstret** (Klas-beslut, ADR 0133 Amendment). Efter Art. 10-mätningen är brevet
+        fel instrument på egna meriter: det var skopat att lyfta **en FAQ-mening** från dokumentation
+        till avtalsrang, vilket är rätt remedie för en **lucka**. Ledet bär ingen lucka — det bär en
+        **åtkomstklausul med rang som saknar ortsklausul**, och en skriftlig bekräftelse av FAQ-
+        meningen hade lagt sig **bredvid** GTS Art. 10 utan att binda den. Asymmetrin hade överlevt
+        sin egen åtgärd. **Vid lapse blir därför en artefakt med avtalsrang owed, inte brevet** — de
+        två kvarvarande formerna i uppräkningen ovan är alltså inte bara det som råkar återstå, utan
+        det som faktiskt kan stänga ledet.
         ⚠ **Frågans FORM är hennes, inte valfri:** *"sker support- och driftåtkomst till TEM-data
         uteslutande inifrån EU/EES?"* — inte "var finns supporten", som besvaras med en kontorsadress
         som inte binder. **Formen överlever strykningen:** skulle frågan någonsin ställas igen — av

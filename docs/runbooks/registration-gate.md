@@ -100,7 +100,7 @@ restarted because step 2 also changed the `EMAIL_*` lines, which both hosts shar
 the `x-app-email` anchor.
 
 ```bash
-cd /opt/jobbliggaren/deploy && sudo docker compose -f docker-compose.yml up -d api worker
+cd /opt/jobbliggaren/deploy && sudo docker compose -f docker-compose.yml up -d --pull never api worker
 ```
 
 **4. Read the gate's own line — do not infer the posture from a healthy container.**
@@ -160,8 +160,12 @@ sudo docker restart jobbliggaren-api
 If it is not, re-create instead — same command as step 10:
 
 ```bash
-cd /opt/jobbliggaren/deploy && sudo docker compose -f docker-compose.yml up -d api
+cd /opt/jobbliggaren/deploy && sudo docker compose -f docker-compose.yml up -d --pull never api
 ```
+
+This is the sanctioned exception to *"manual applies go through the unit"* —
+[`vps-deploy-stack.md`](vps-deploy-stack.md) §3b carries it, including the precondition it
+requires and why the reconcile unit is the wrong instrument here. Check the precondition first.
 
 `IdempotentAdminRoleSeeder` runs at **startup** and only then: it assigns the Admin role to
 whichever account matches `ADMIN_BOOTSTRAP_INITIAL_ADMIN_EMAIL`, and at step 3 that account
@@ -171,7 +175,7 @@ never the address.
 **Then blank the knob — and RE-CREATE, not restart.**
 
 ```bash
-cd /opt/jobbliggaren/deploy && sudo docker compose -f docker-compose.yml up -d api
+cd /opt/jobbliggaren/deploy && sudo docker compose -f docker-compose.yml up -d --pull never api
 ```
 
 ⚠ **`docker restart` cannot do this step and will report success.** A container's environment is
@@ -212,7 +216,7 @@ K2 credential. It is deliberately **not** synced into worktrees.
 `AUTH_REGISTRATIONS_OPEN`, then:
 
 ```bash
-cd /opt/jobbliggaren/deploy && sudo docker compose -f docker-compose.yml up -d api
+cd /opt/jobbliggaren/deploy && sudo docker compose -f docker-compose.yml up -d --pull never api
 ```
 
 ⚠ **`docker restart` cannot close the gate and will report success.** Same mechanism as step 7 and
@@ -231,9 +235,24 @@ sudo docker logs jobbliggaren-api 2>&1 | grep 'Registration gate'
 ```
 
 Expect `Registration gate: CLOSED; email confirmation: REQUIRED` — EventId 4300 at Information,
-not 4301 at Warning. A behavioural check is available and costs nothing: a `POST` to
-`/api/v1/auth/register` should answer `503 Auth.RegistrationsClosed` and leave no row behind, the
-gate being the handler's first statement.
+not 4301 at Warning.
+
+**Then make the gate answer for itself. This step is not done until it does.** The log line states
+the posture the process **booted with**; this measures the posture the endpoint **enforces**, and
+ADR 0132 Leg 2 is bounded by the second. A `POST` to `/api/v1/auth/register` **must** answer
+`503 Auth.RegistrationsClosed` and leave no row behind — the gate is the handler's first
+statement.
+
+⚠ **It is mandatory rather than a nicety because every failure mode in this step looks identical
+from the outside.** A `restart` that changed nothing, a reconcile whose lock branch exited 0
+having applied nothing, a refused image, the right log line read at the wrong moment — all of them
+present as "the gate is still open", and this is the only check in the procedure that does not
+depend on which command applied the change.
+
+This command is the sanctioned exception to *"manual applies go through the unit"* —
+[`vps-deploy-stack.md`](vps-deploy-stack.md) §3b carries it, including the precondition it
+requires and why the reconcile unit is the wrong instrument here. **Check that precondition before
+running it.**
 
 **Leave `AUTH_REQUIRE_EMAIL_CONFIRMATION=true` set** (`.env.example` says why: with the gate
 closed a `false` there is accepted silently and disables the login gate). Accounts and logins

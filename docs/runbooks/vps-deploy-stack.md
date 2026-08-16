@@ -384,6 +384,48 @@ never a hand-typed `docker compose up -d`. The wrapper guards the path that goes
 a manual apply takes no lock and runs no verification, and after a refused run the local
 `latest` tag already points at the image that was just refused.
 
+**The one exception is a re-create that applies a `deploy/.env` change to a service whose image
+is not moving** — `registration-gate.md` step 3 (opening the gate), step 7 (blanking the admin
+knob) and step 10 (closing it). A container's environment is fixed at creation, so `.env` is
+re-read only by a re-create; and the reconcile unit is the wrong instrument for it, because
+`compose pull` is its **first** action and is unconditional. That makes the blast radius of a
+one-variable config change depend on what GHCR holds at that second — including the mixed set
+below, which nothing closes — and its lock branch reports success having applied nothing. So
+these steps run:
+
+```bash
+cd /opt/jobbliggaren/deploy && sudo docker compose -f docker-compose.yml up -d --pull never api
+```
+
+`--pull never` is not decoration. Compose's default is `missing`, which is an assumption about a
+version rather than a guarantee — the wrapper states that same argument at its own `up`.
+
+**What the exception costs, in full:**
+
+- **It re-creates from whatever the local `latest` points at, and after a refused reconcile that
+  is the refused image.** This is the real residual, which is why the exception carries a
+  precondition rather than a warning. Before running it:
+
+  ```bash
+  stat -c %y /var/lib/jobbliggaren/last-successful-reconcile
+  sudo journalctl -u jobbliggaren-reconcile --no-pager | grep -n 'REFUSING\|CANNOT ANSWER' | tail -5
+  ```
+
+  The stamp must be **more recent than the last refusal**. If it is not, repair the reconcile
+  first: a gate is not closed by deploying an image the box just refused.
+- **It takes no lock**, the case the wrapper's own header names. The timer fires at `:47` plus up
+  to 180 s of jitter and may run for up to 900 s. Do not run this inside that window; if you must,
+  re-read the gate's own log line afterwards, because a concurrent reconcile can re-create the
+  container underneath you.
+- **It does not run #1295's secrets-ownership gate — and here there is nothing for that gate to
+  catch.** It compares the *incoming* image's uid and gid against the injected secrets' ownership,
+  against a base-image bump that moves them. These steps re-create from the image already running
+  and already reading those secrets, so the comparison holds by construction. Recorded rather than
+  omitted, so the exception is not read as wider than it is.
+
+**Anything that moves an image is not this exception** — a rollback pin, a new publish, a
+`postgres`/`redis`/`seq` tag bump — and goes through the unit.
+
 **The timer fires at :47, offset from the publish run's :17 — and the hazard is cross-image
 skew, not a half-published single image.** The publish job is a five-cell matrix with no
 fan-in, so between the first cell's push and the last one's, `latest` resolves to the new

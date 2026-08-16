@@ -23,7 +23,7 @@ namespace Jobbliggaren.Application.JobAds.Abstractions;
 /// That item is <b>multi-condition</b>: no one discharged condition is permission, and its
 /// state is read there rather than restated here. Klas
 /// confirmed the sequencing 2026-08-05: the stack may be deployed and every cutover proof taken,
-/// but recruiter contact records must not land until that gate is ticked. A deployed Worker registers
+/// but recruiter contact records must not land until the corpus load is authorised there. A deployed Worker registers
 /// <c>sync-platsbanken-stream</c> on a ten-minute cron, so without this switch the first ingest
 /// runs within ten minutes of the first <c>up -d</c>.
 /// </para>

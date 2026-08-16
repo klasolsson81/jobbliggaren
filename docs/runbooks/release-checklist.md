@@ -980,7 +980,21 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
       Kvarstående planerat-meningar för behandlingar som fortfarande inte är i
       drift ska stå kvar. Släpper releasen ingen av dem är rätt utfall att **inte
       ändra något**.
-- [ ] **3. Art. 28 innan personuppgifter når lådan** (speglar §2.5 punkt 1).
+- [x] **3. Art. 28 innan personuppgifter når lådan** — **BOCKAD 2026-08-16** (speglar §2.5 punkt 1).
+      **Vad som bockade den, led för led, med adjudikator:** AVV med netcup GmbH **tecknat
+      2026-08-03** (Klas i Customer Control Panel; oberoende mätt mot det genererade dokumentet av
+      `code-reviewer` 2026-08-16) · *"circle of affected persons"* namnger **rekryterar-kontaktpersoner**
+      ordagrant (Klas) · AVV-bilagans underbiträdeslista **läst**: ANNEX 2 namnger tre underbiträden,
+      **samtliga inom EU** (Klagenfurt ×2 AT, Karlsruhe DE), så villkoret nedan om ett
+      icke-EU-underbiträde **fyrade inte** (Klas läsning, recordad i ROPA:ns värdpost) ·
+      ROPA-posterna uppdaterade + **`security-auditor`-sign-off 2026-08-16: SIGNED** ·
+      `recruiterNotice` omprövad, **länkvägen intakt** (samma sign-off: CLOSED) · `ACME_EMAIL`
+      ⚠ **lådsidigt värde som inte går att mäta ur repot — taget som rapporterat, inte verifierat
+      härifrån**.
+      ⚠ **Bocken släpper INTE korpusladdningen ensam.** Kvar framför `JobTech__IngestEnabled=true`
+      står **#1201** (gate M-7, `security-auditor`s Major-gradering konverterar till Blocker vid
+      första riktiga data om **ADR 0123** inte beviljas — Klas beslut) och **#1199**:s övriga led.
+      Läs aldrig den här bocken som "korpuset får laddas".
       **Triggern är INTE längre en flip, och den gamla "Deploy-aktiverad"-klassen i punkt 2
       är struken i samma ändring.** #1199 tog bort värdradens markör 2026-08-09, så det finns
       ingen värd-flip kvar att grinda — men skyldigheten består och fick en ny utlösare

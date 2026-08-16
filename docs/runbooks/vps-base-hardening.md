@@ -92,8 +92,9 @@ Gate B-1 (master key never plaintext on disk) is **MET — verified GREEN 2026-0
 `vps-deploy-stack.md` rows 21–25 carry the measurements). ~~*prepared*, not met~~ — true while no
 key existed; the key was then injected, rotated to `local-v3`, and the journal measured clean for
 all four secrets. §8 still closes the two mechanisms that would page it to disk. ⚠ **Closing B-1
-did not release the first real data:** the Art. 28 processing agreement bites at the corpus load
-and that gate is unticked.
+did not release the first real data**, and neither did ticking Art. 28: the corpus load is gated at
+`release-checklist.md`'s corpus item, whose state is read there and is not restated here. **No one
+discharged condition is permission.**
 
 ### Not in scope
 

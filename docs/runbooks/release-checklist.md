@@ -1589,7 +1589,7 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
         rekryterare i samma sekund korpuset laddats.
       DPA-signering = **Klas**, aldrig CC.
 - [ ] **3.5 KORPUSLADDNINGEN — KLAS UTTRYCKLIGA SKRIFTLIGA GO, och ingenting annat.**
-      **Detta är hemmet för villkoret som grindar `JobTech__IngestEnabled=true`**, och de fem
+      **Detta är hemmet för villkoret som grindar `JobTech__IngestEnabled=true`**, och
       vakterna i `src/`, `tests/` och runbookerna pekar hit.
       **Villkoret är ett BESLUT, inte ett härledbart tillstånd** (Klas 2026-08-16, på
       `code-reviewer`s förslag): *inga rekryterar-kontaktposter landar på lådan förrän Klas ger ett
@@ -1645,7 +1645,7 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
       övriga rutor, där en obockad ruta inte får läsas som "inte levererat" (blockquoten ovan).
       ⚠ **Och en bockad ruta här är inte heller tillstånd i sig** — den är ett **record av** GO:t.
       Vakternas absolut gäller även den här rutan, **i punktens egen vidaste form** — den står
-      41 rader upp: *ingen urladdad grind, ingen bockad ruta, ingen stängd issue och ingen mätning
+      i punktens beslutsmening ovan: *ingen urladdad grind, ingen bockad ruta, ingen stängd issue och ingen mätning
       uppfyller GO:t.* Det som auktoriserar är GO:t; rutan registrerar bara att det gavs.
       ⚠ **CITERA ALDRIG ABSOLUTET SMALARE ÄN SÅ — och gör inga påståenden om vakternas antal
       eller inbördes likhet här.** Den här raden har smalnat av absolutet två gånger, och båda

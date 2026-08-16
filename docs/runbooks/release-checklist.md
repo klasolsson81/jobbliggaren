@@ -1622,15 +1622,16 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
       2026-08-16**, så bokstavligt är `ungranted` urladdad, men funktionellt täcker beviljandet
       inte det tillstånd som bedöms. *(Datum och adjudikator står här med flit: ADR 0123 är
       gitignorerad och alltså oläsbar för en granskare utan lokala docs, och den här punktens egen
-      konvention kräver adjudikator och datum.)* (3) **#196 och
-      #198 är obockade**, så scope-gränsens utgångsvillkor går inte att verifiera.
+      konvention kräver adjudikator och datum.)* (3) **båda M-7-benen är
+      overifierade på `host-detection.md`:s verifikationsrader**, så scope-gränsens utgångsvillkor
+      går inte att verifiera.
       ⚠ **ATT BYGGA DE TVÅ MITIGERINGARNA RÄCKER INTE.** Hennes gradering av vad som krävs, och
       den är inte en senare läsares att härleda: **båda mitigeringarna byggda**, **OCH ett NYTT
       uttryckligt Klas-beviljande som täcker tillståndet MED riktig användardata** (det nuvarande
       upphör av egen kraft), **OCH båda M-7-benen levererade OCH verifierade på
       `host-detection.md`:s verifikationsrader**. ⚠ **Villkoret ställs på FÖRMÅGAN, aldrig på
       issue-nummer:** raden sa till 2026-08-17 *"#196 + #198 levererade"*, och **#196 är stängd
-      sedan 2026-08-08** — ett av två led läste alltså som uppfyllt vid inspektion, tolv rader från
+      sedan 2026-08-08** — ett av två led läste alltså som uppfyllt vid inspektion, i samma punkt som
       absolutet som säger att ingen stängd issue uppfyller något. ADR 0050:s daterade not
       2026-08-10 hemmar dessutom **båda** benen hos **#1201**, på Klas-beslut 2026-08-06 med skälet
       utskrivet: *"att lämna pekaren mot en stängande issue hade pensionerat skyldigheten av

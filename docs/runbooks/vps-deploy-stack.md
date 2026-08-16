@@ -953,8 +953,8 @@ instrument under-reaches its own property reads as coverage it does not have.
   the state *with* real user data, plus **both M-7 legs delivered and verified on
   `host-detection.md`'s verification rows** — the CAPABILITY, never issue numbers (#196 has been
   closed since 2026-08-08; both legs are homed at #1201). Hers to grade, not a later reader's to
-  derive. Both of #1201's detection legs are still unticked
-  (#196 and #198). ⚠ **Whether the second arm is discharged is `security-auditor`'s to say and
+  derive. Both of #1201's detection legs are still unverified on
+  `host-detection.md`'s verification rows. ⚠ **Whether the second arm is discharged is `security-auditor`'s to say and
   never a later reader's to derive** — #1201 states that of this grading in as many words, and
   CLAUDE.md §9.6 puts severity with the reporting agent. Do not read the grant as closing M-7.
 

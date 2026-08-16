@@ -607,8 +607,8 @@ is the other thing a schema-bearing restore can silently move.
 
 **2. `VACUUM ANALYZE` afterwards — and it is two instruments, not one.**
 
-- **`VACUUM`, because only `VACUUM` sets the visibility map, and on this box
-  nothing else ever will.** The pagination count runs on **every** search
+- **`VACUUM`, because only `VACUUM` sets the visibility map, and this step is the
+  only one that sets it deterministically.** The pagination count runs on **every** search
   (`CompanyRegisterSearchQuery.BuildCountCommand` → `SELECT count(*) FROM
   (SELECT 1 … LIMIT @count_cap) t`), and selecting no heap column is exactly the
   shape an index-only scan serves — but the planner skips the heap only for pages
@@ -619,24 +619,38 @@ is the other thing a schema-bearing restore can silently move.
   belongs to that query; what generalises is the **mechanism** — every index-only
   path on the table pays the same toll.
 
-  **Run it as a GUARANTEE, not because autovacuum is proven absent.** This step
-  makes the map set **deterministically, before the box serves a single query**,
-  instead of leaving it to a background cycle whose behaviour here has never been
-  measured. ⚠ **Do not upgrade that into "nothing will ever vacuum it" — an
-  earlier draft did, twice, and the claim is not supported.** Postgres has an
-  **insert-driven** vacuum trigger beside the dead-tuple one, and it is armed on
-  this stack: measured 2026-08-16, `autovacuum = on`,
+  **Run it as a GUARANTEE, not because autovacuum is proven absent.** It puts the
+  map in a known state at a known moment, under the operator's eye, instead of
+  leaving it to a background cycle whose behaviour on this path has never been
+  measured.
+
+  ⚠ **Do NOT upgrade that into "nothing will ever vacuum it".** Four drafts of
+  this bullet said some version of it and the claim is **not supported** — three
+  separate rounds of review killed three separate formulations of the same
+  over-reach, and the fourth survived in this bullet's own heading while the
+  paragraph beneath it retracted the claim. **Autovacuum is expected to run on the
+  box.** `deploy/docker-compose.yml` budgets for it explicitly — it caps
+  `autovacuum_work_mem` precisely because three workers inherit
+  `maintenance_work_mem` per cycle — and no compose file in this repo disables
+  autovacuum. Postgres also has an **insert-driven** vacuum trigger beside the
+  dead-tuple one: measured on the dev container 2026-08-16, `autovacuum = on`,
   `autovacuum_vacuum_insert_threshold = 1000`,
-  `autovacuum_vacuum_insert_scale_factor = 0.2` — which at register scale is a few
-  hundred thousand inserts, well inside what a full restore does. Whether it fires
-  on this path is **unmeasured**, and anti-wraparound vacuum is a second
+  `autovacuum_vacuum_insert_scale_factor = 0.2`, which at register scale is a few
+  hundred thousand inserts — well inside what a full restore does. Whether it
+  fires on this path is **unmeasured**, and anti-wraparound vacuum is a second
   unmeasured route. Regenerate:
-  `SELECT name, setting FROM pg_settings WHERE name LIKE 'autovacuum%insert%';`
-  What *is* measured is narrower and enough: **no path in `src/` runs `VACUUM`**,
-  and the dev register's map was found **unset** on 2026-08-01 after four weeks of
-  life. Read-only forever cuts both
-  ways: nothing repairs the map, so one `VACUUM` at load time is not a stopgap but
-  the **permanent** fix. It also sets the per-page hint bits once under the
+  `SELECT name, setting FROM pg_settings WHERE name LIKE 'autovacuum%';`
+
+  **What is actually measured is narrower, and it is enough to justify the step:**
+  **no path in `src/` runs `VACUUM`**, and the dev register's map was found
+  **unset** on 2026-08-01 after four weeks of life. So the map's state is not
+  something this project controls or observes — which is why the operator sets it
+  here rather than assuming it. ⚠ **This step does not gate traffic:** the restore
+  populates the table at step 5 and the `VACUUM` runs at step 7, so a query
+  arriving between them meets a populated, unvacuumed table. Ordering the two is
+  the operator's job, not the procedure's guarantee.
+
+  It also sets the per-page hint bits once under the
   operator's eye instead of charging them to whichever user query touches each page
   first — a smaller effect, and the one that would self-heal on its own.
 

@@ -396,6 +396,21 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
            nyckel** — det är en identifierare, inte en hemlighet, men den injiceras som en egen fil
            med egen livscykel (E2) och loggas aldrig. De två har alltså skilda regimer trots att de
            levereras genom samma söm.
+           ⚠ **UTGÅNGSDATUMET SKRIVS IN I SAMMA `.env`-EDIT SOM SJÄLVA FLIPPEN, och det är inte
+           en ordningspreferens** (#183 E4, 2026-08-16). `EMAIL_SCALEWAY_KEY_EXPIRES_AT` är
+           **obligatorisk** under `EMAIL_PROVIDER=Scaleway`: sätts providern utan den exitar
+           `--check` non-zero var tionde minut på en låda vars stack är fullt frisk, och
+           `systemctl --failed` latchar — alltså precis det alltid-tända tillstånd hela
+           kontrollen finns för att undvika. **Stegordningen bor i `deploy/.env.example`:s
+           outbound-block, inte här**; den här raden säger bara att ledet inte är uppfyllt av en
+           injicerad nyckel ensam. **Nyckelns utgångsdatum och dess proveniens har sitt hem i
+           `master-key-ops.md` §2** — läs det där.
+           ⚠ **Vad kontrollen INTE gör, så att ingen läser in en påminnelse som inte finns:**
+           den varnar i journalen inom sitt fönster men **exitar 0** där — en förvarning på en
+           latchande yta hade undertryckt den övergång varje annan heartbeat-predikat behöver för
+           att notifiera. Förvarningens leverans är en **kalenderförpliktelse** och ägs av
+           [#1267](https://github.com/klasolsson81/jobbliggaren/issues/1267), vars påminnarhalva
+           **inte är byggd**. Ingenting pagar någon före utgången.
         4. **Ingen mottagarnivå-spårning får uppstå på den sändande identiteten.** ⚠ **MEKANISMEN
            DOG MED PROVIDERN 2026-08-15, EGENSKAPEN ÖVERLEVDE — och ledet får därför INTE strykas.**
            Fram till dess löd det *"sändande identitet får inte bära ett default configuration
@@ -714,14 +729,22 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
       grep -n "planerat\|planerad\|planeras" web/jobbliggaren-web/messages/sv/content-legal.json
       grep -n "planned"                      web/jobbliggaren-web/messages/en/content-legal.json
       ```
-      **Regenererad 2026-08-15 (#183, providerbytet AWS SES → Scaleway): 9 + 9** (rad 37, 49,
-      63, 73, 74, 75, 95, 96, 131 — identiska i sv och en, alla äkta statuspåståenden, ingen
-      falsk träff med detta mönster). **Talet sjönk med ETT och raderna under flyttade upp ett
-      steg**, av ett enda skäl: tredjelandsavsnittets e-poststycke (förra rad 82) är **struket med
-      sin grund** — Scaleway S.A.S. är franskt, ingen överföring uppstår, och copyn ska då vara
-      tyst om Kap. V precis som värdraden är (senior-cto-advisor bindande 2026-08-15). Nettot:
-      82 försvann, och 96/97/132 blev 95/96/131. Mängden är **körd ur greppen ovan, aldrig
-      framräknad ur den gamla** — se nästa stycke om varför det senare inte är en genväg.
+      **Regenererad 2026-08-16 (#183 E4, Art. 13(1)(d)-posten): 10 + 10** (rad 37, 47, 50, 64,
+      74, 75, 76, 96, 97, 132 — identiska i sv och en, alla äkta statuspåståenden, ingen falsk
+      träff med detta mönster). **Talet steg med ETT och raderna under insättningen flyttade ner
+      ett steg**, av ett enda skäl: `security-auditor` Major 4 krävde en Art. 13(1)(d)-post för
+      de **tre** kontolivscykel-mallar som vilar på Art. 6(1)(f) (`EmailChangedNotification`,
+      `AccountExistsNotice`, `PasswordChangedNotice`), och den ligger nu som andra punkten i
+      `privacy.sections[3].list`. Posten bär markörmeningen därför att armen fortfarande är mörk —
+      ett presens-påstående hade varit ADR 0090 D3:s defekt. Nettot: **47 tillkom**, 37 stod
+      still, och 49/63/73/74/75/95/96/131 blev 50/64/74/75/76/96/97/132. Mängden är **körd ur
+      greppen ovan, aldrig framräknad ur den gamla** — se nästa stycke om varför det senare inte
+      är en genväg.
+      *(Föregående regenerering, 2026-08-15 (#183, providerbytet AWS SES → Scaleway): 9 + 9 på
+      rad 37, 49, 63, 73, 74, 75, 95, 96, 131. Talet sjönk då med ETT, av ett enda skäl:
+      tredjelandsavsnittets e-poststycke (förra rad 82) är **struket med sin grund** — Scaleway
+      S.A.S. är franskt, ingen överföring uppstår, och copyn ska då vara tyst om Kap. V precis som
+      värdraden är (senior-cto-advisor bindande 2026-08-15).)*
       *(Föregående regenerering, 2026-08-09 (#1199, värdbytet Hetzner → Netcup): 10 + 10 på rad
       37, 49, 63, 73, 74, 75, 82, 96, 97, 132.)* **Både talet och radmängden ändrades även då**, av tre
       skilda skäl i samma ändring: Cloudflare-posten raderades, värdposten skrevs om **utan**
@@ -763,8 +786,20 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
         att tjänsten alls går i drift.
       - **Konfigurations-grindad:** SCB (ändamålsavsnittets företagsuppslag + mottagarstycket)
         **och e-postleverantören Scaleway** (samtyckesavsnittet + mottagaravsnittets TVÅ
-        e-poststycken; #186 + #1169 + #183). *(Innehållsbenämningar, inte radnummer — punkt 1 är
-        mängdens hem, och den här bulleten bar sin egen kopia av numren tills 2026-08-15.)*
+        e-poststycken; #186 + #1169 + #183) **samt, sedan 2026-08-16, Art. 13(1)(d)-posten om
+        säkerhetsaviseringar** i "Säkerhet, drift och produktfunktioner" (#183 E4). *(Innehålls-
+        benämningar, inte radnummer — punkt 1 är mängdens hem, och den här bulleten bar sin egen
+        kopia av numren tills 2026-08-15.)*
+        ⚠ **DEN FJÄRDE YTAN BÄR MARKÖREN MEN VAKTAS INTE AV E-POST-TRIPWIREN, och det är
+        avsiktligt i båda leden.** `content-legal-parity.test.ts` itererar `/Scaleway/` över
+        katalogen; Art. 13(1)(d)-posten namnger **ingen leverantör** — den redovisar det
+        berättigade intresset, vilket är vad artikeln kräver — och faller därför utanför den
+        loopen. Att skriva in leverantörsnamnet enbart för att fångas av spärren vore samma
+        inversion som golv-resonemanget i den testfilen förbjuder: **en test-assertion får inte
+        forma publicerad juridisk copy.** Konsekvensen är att **en flipp som tar de tre
+        Scaleway-styckena men lämnar den här posten passerar CI grön** med en falsk
+        planerat-mening kvar. Den luckan stängs av punkt 1:s grepp, som är markörernas hem och
+        fångar alla tio raderna oavsett vad de namnger — kör det, lita inte på sviten här.
         **Aktiveras INTE av en
         `v*`-tagg.** Tre skilda mekanismer, alla mörka i prod: per-sökningens
         `ICompanyRegistry` (ADR 0088) får `NullCompanyRegistry` — valet styrs av

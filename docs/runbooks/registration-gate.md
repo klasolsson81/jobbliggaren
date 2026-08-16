@@ -147,15 +147,37 @@ whichever account matches `ADMIN_BOOTSTRAP_INITIAL_ADMIN_EMAIL`, and at step 3 t
 did not exist. Confirm in the log that it found one this time — the seeder logs the user id,
 never the address.
 
-**Then blank the knob and restart once more.** The seeder re-asserts on **every** start, so a
+**Then blank the knob — and RE-CREATE, not restart.**
+
+```bash
+cd /opt/jobbliggaren/deploy && sudo docker compose -f docker-compose.yml up -d api
+```
+
+⚠ **`docker restart` cannot do this step and will report success.** A container's environment is
+fixed at creation, so `restart` re-runs the process against the value it already had: the address
+stays in container env, the seeder keeps re-asserting the role on every start, and the operator
+believes the knob is blanked because `.env` says so. Only a re-create re-reads `.env`. Measured
+2026-08-16, where the same asymmetry bit in the other direction first — the value had been
+*changed* after step 3's `up`, so the running container still carried the old address and a
+`restart` would have granted Admin to the wrong account.
+
+The seeder re-asserts on **every** start, so a
 standing value is not a bootstrap but a permanent grant: it silently re-grants the role after
 any in-app revocation, and it would hand Admin to a future holder of that address. The role
 is persisted in the database, so the knob has no further work once the log confirms the
 assignment. Blanking it also takes a real address back out of container environment, where
-`docker inspect` and the container's on-disk config both carry it.
+`docker inspect` and the container's on-disk config both carry it. Verify with
+`docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' jobbliggaren-api | grep AdminBootstrap`
+— expect the key with an empty value. A repo-wide `grep` for the address itself will still match
+the **image name** (`ghcr.io/<owner>/…` carries the GitHub account, not the mailbox); read the key,
+not a count.
 
-**8. Rotate the bootstrap password.** Log in and change it in the app. A password chosen
-before the account existed has been handled outside the app; the in-app change closes that.
+**8. Rotate the bootstrap password — only if one was handled outside the app.** Log in and change
+it there. ⚠ **Under this procedure that is normally not the case, and the step is then a no-op.**
+It is inherited from the hand-seeded model §1 forbids, where an operator sets a password before
+the account exists. Step 5 registers in a browser, so the password was chosen *in* the app and has
+never been outside it. Rotate anyway if it was pasted from somewhere durable; otherwise skip, and
+do not read the skip as an outstanding action.
 
 **9. Record the test account.** Fill `docs/test-accounts.local.md` in the main checkout from
 its tracked template (`docs/test-accounts.local.md.example`). It is gitignored and stays

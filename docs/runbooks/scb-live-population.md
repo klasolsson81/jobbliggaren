@@ -519,3 +519,170 @@ A useful tell that the counters were reset rather than merely idle: **every**
 table in `pg_stat_user_tables` reads `n_live_tup = 0` with both timestamps NULL,
 including ones you know hold rows. `pg_stats` survives a reset (it is a catalog),
 so step 1 and step 2 answer different questions — run both.
+
+---
+
+## 8. Moving the register to the box (one-time copy, no sync there)
+
+**Decision: option B** (`senior-cto-advisor`, 2026-08-16) — copy the populated
+replica from the local dev database to the box **once**, and run **no sync on the
+box**. This section is the procedure; §§0–7 remain the procedure for the local
+run that produces the thing being copied.
+
+### Why the box does not sync — measured, not preferred
+
+Three independent facts, and each alone is sufficient:
+
+- **`ScbRegister` appears nowhere under `deploy/`.** Regenerate:
+  `grep -rn "ScbRegister" deploy/`. So the box takes the shipped configuration.
+- **`Enabled` is `false` in both homes** — `src/Jobbliggaren.Worker/appsettings.json`
+  and the C# property default on `ScbRegisterOptions`. Removing the key restores
+  `false`. ⚠ **Do not generalise this polarity to the other ingest gate.**
+  `JobSourceIngestOptions.IngestEnabled` defaults **`true`** and is held off only
+  by the Worker's Production overlay — the two gates fail in opposite directions,
+  and reasoning about one from the other is how a corpus lands unasked.
+- **The client certificate is not on the box and nothing puts it there.**
+  `ScbClientCertificateProvider` loads it from the OS certificate store
+  (`X509Store(StoreName.My, …)`, `CurrentUser` by default) and it exists only on
+  Klas's machine. The box could not authenticate to SCB with the flag on.
+
+### The three things that are easy to get wrong
+
+**1. Dump `--data-only`. The box's schema is EF's, and one index is invisible to
+EF.**
+
+`ix_company_register_company_name_lower` is a functional btree over
+`lower(company_name) text_pattern_ops`, created by **raw SQL** in migration
+`20260718191128_AddCompanyRegisterNameSearchIndex`. EF cannot model an expression
+index, so **the model snapshot does not know it exists** — the migration says so
+itself: *"no scaffolded migration will ever restore it."*
+
+The consequence is specific. The migration is already stamped in
+`__EFMigrationsHistory` on the box, so **a later `database update` will not
+rebuild that index** — there is nothing left for it to replay. Drop or replace
+the table by any route other than replaying that exact migration and the index is
+simply gone, while every migration reports applied and the app starts clean. The
+register search then falls back to a sequential scan over the whole table.
+
+`CompanyRegisterSearchQueryPlanTests` pins the plan **by index name** — but it
+runs on an ephemeral Testcontainers database (`WorkerTestFixture`,
+`[Collection("Worker")]`), so **it cannot see the box**. Nothing in CI will tell
+you this happened.
+
+`--data-only` sidesteps the whole class: the schema on the box is never dropped,
+replaced or re-derived. It also keeps the ICU `swedish` collation on
+`company_name` (#884) exactly as the box's own Postgres image produced it, which
+is the other thing a schema-bearing restore can silently move.
+
+**2. `VACUUM ANALYZE` afterwards — and it is two instruments, not one.**
+
+- **`ANALYZE`, because the restore carries no statistics and nothing on the box
+  will ever produce them.** `pg_dump` **omits** optimizer statistics unless
+  `--statistics` (the table in §7 above), and the box never syncs — so the one
+  step that would otherwise refresh them (`ScbCompanyRegisterStore.AnalyzeAsync`,
+  #560) never runs there. Autovacuum does not cover the gap either: its analyze
+  trigger is change-driven and the register is read-only between runs, so nothing
+  re-arms it. Without this the planner has no statistics for the table at all and
+  the index above may not be chosen even though it exists.
+- **`VACUUM`, because a `COPY`-based restore leaves every page unhinted and the
+  visibility map empty.** Vacuuming sets the hint bits and the all-visible bits
+  once, under the operator's eye, instead of charging them to whichever user
+  query touches each page first. It also refreshes `relpages`/`reltuples`.
+
+⚠ **This does not contradict §7's "plain `ANALYZE` only — vacuuming is
+autovacuum's business."** That advice governs the **post-sync** case: an upsert
+against a live table whose autovacuum counters are moving. A **fresh restore** is
+the other case, and it is the one PostgreSQL's own docs single out. Read the two
+by which one you are in, not by which sentence you found first.
+
+**3. Record the snapshot date. The copy's vintage is frozen from the moment it
+lands.**
+
+With no sync on the box the register never advances again — it is a point-in-time
+extract, not a replica. Record, in the session log: **the dump date**, the row
+count on both sides, and the `LogCompleted` summary of the local run the data came
+from. An undated register cannot be told from a current one by looking at it, and
+the next operator has no way to recover the vintage after the fact.
+
+### Procedure
+
+⚠ **The two databases do not run the same role, and getting this wrong fails at
+the first command.** Local is `POSTGRES_USER: jobbliggaren`; the box is
+`POSTGRES_USER: postgres` (both `POSTGRES_DB: jobbliggaren`). Regenerate:
+`grep -n "POSTGRES_USER" docker-compose.yml deploy/docker-compose.yml`.
+
+Both sides go through `docker exec`, so neither depends on a client installed on
+the host. `--data-only` and `--table=company_register` are both load-bearing;
+`-Fc` keeps the archive compressed.
+
+```bash
+# 1. Dump data only, single table, from the local dev DB. Run locally.
+docker exec jobbliggaren-postgres-dev \
+  pg_dump -U jobbliggaren -d jobbliggaren \
+  --data-only --table=public.company_register -Fc \
+  > company_register_$(date +%F).dump
+
+# 2. Row count on the source, for the record and for step 5.
+docker exec jobbliggaren-postgres-dev \
+  psql -U jobbliggaren -d jobbliggaren \
+  -c "SELECT count(*) FROM public.company_register;"
+```
+
+Copy the file to the box, then, **on the box** — note the different role:
+
+```bash
+# 3. The table must already exist and be EMPTY. It is created by the migrate
+#    container; confirm rather than assume, and never DROP it (reason 1 above).
+sudo docker exec jobbliggaren-postgres \
+  psql -U postgres -d jobbliggaren \
+  -c "SELECT count(*) FROM public.company_register;"
+
+# 4. Restore. --data-only again on the restore side, and no --clean/--create.
+sudo docker exec -i jobbliggaren-postgres \
+  pg_restore -U postgres -d jobbliggaren --data-only --no-owner \
+  < company_register_YYYY-MM-DD.dump
+
+# 5. Verify the count matches step 2 BEFORE step 6 — a partial restore that is
+#    then vacuumed and analyzed looks healthy.
+sudo docker exec jobbliggaren-postgres \
+  psql -U postgres -d jobbliggaren \
+  -c "SELECT count(*) FROM public.company_register;"
+
+# 6. Both instruments, in this order (reason 2 above).
+sudo docker exec jobbliggaren-postgres \
+  psql -U postgres -d jobbliggaren \
+  -c "VACUUM ANALYZE public.company_register;"
+```
+
+*The images differ in **minor** version — local `postgres:18.4`, box
+`postgres:18.3` (regenerate: `grep -n "image: postgres" docker-compose.yml
+deploy/docker-compose.yml`). For a `--data-only` archive that is a non-issue: the
+payload is `COPY` data and the archive format does not change within a major
+version. It would stop being a non-issue across a **major** divergence, where the
+dump must be taken with the older server's client.*
+
+### Verify, and verify the index specifically
+
+The count matching is necessary and not sufficient — the index is the thing that
+fails silently.
+
+```sql
+-- a. The functional index exists and is VALID. indisvalid = false is the
+--    aborted-CONCURRENTLY signature the migration documents.
+SELECT i.relname, x.indisvalid, pg_get_indexdef(x.indexrelid)
+FROM pg_index x JOIN pg_class i ON i.oid = x.indexrelid
+WHERE i.relname = 'ix_company_register_company_name_lower';
+
+-- b. Statistics exist. Zero rows here means step 6 did not happen.
+SELECT count(*) FROM pg_stats
+WHERE schemaname = 'public' AND tablename = 'company_register';
+
+-- c. The planner actually chooses it. Expect an index scan naming the index
+--    above, never a Seq Scan.
+EXPLAIN SELECT organization_number, company_name FROM public.company_register
+WHERE lower(company_name) LIKE lower('volvo%') ESCAPE '\' LIMIT 20;
+```
+
+Query (a) is the one worth keeping: it is the only check that distinguishes "the
+data arrived" from "the search still works", and those two are exactly what
+`--data-only` decouples.

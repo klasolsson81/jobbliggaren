@@ -563,8 +563,9 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
            publicerade rättighetskanalen har därmed **ingen läsare**, och utskicket når endast
            personuppgiftsansvarig själv.
            **Blocker återinförs vid, vilket som kommer först:** (a) `RegistrationsOpen=true` utanför
-           Development; (b) **första konto vars adress Klas inte själv innehar** — alltså en adress
-           vars inkorg han kan läsa och som inte tillhör någon annan fysisk person. **Egenskapen,
+           Development; (b) **första konto vars adress Klas inte själv innehar** — "innehar"
+           betyder här: en adress vars inkorg han kan läsa och som inte tillhör någon annan
+           fysisk person. **Egenskapen,
            inte rollen:** en CC-verifikationsadress är undantagen **endast** när den är ett
            `+`-alias av hans egen inkorg, aldrig i kraft av att kallas verifikationsadress.
            *(Formuleringen löd till 2026-08-16 "inte är Klas egen eller en CC-verifikationsadress" —
@@ -572,19 +573,24 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
            preambeln fäller: en verifikationsadress han inte innehar hade undantagits tyst, och det
            är den bärare hela Major-graderingen vilar på inte finns. Redan namngiven som skip i
            registreringsgrind-PR:en med baskvalificeraren routad hit; stängd av `security-auditor`
-           2026-08-16, E5-omkontroll.)* **Detta är den konverterande händelsens enda hem — §2.5:s
-           statusblock, §2.6 och `registration-gate.md` pekar hit och upprepar inte definitionen**;
+           2026-08-16, E5-omkontroll.)* **Detta är den konverterande händelsens enda hem, och §2.5:s
+           statusblock, §2.6 och `registration-gate.md` pekar hit**;
            (c) copyn blir publikt läsbar — borttagen Basic-auth, apex/www börjar serva, eller första
            `v*` — **§2.6:s trigger, oförändrad**; (d) första utskick till annan mottagare än Klas.
            ⚠ **Mätningarna förfaller: ommät (a) och (c) VID flippen, ärv dem inte ur den här raden.**
-           ⚠ **Basic-auth-credentialen på `dev` bär TVÅ GDPR-slutsatser, och det här är deras enda
-           hem** (den andra tillkom 2026-08-16, #183 E5). (1) Tas den bort för en demo blir
-           blackholen Blocker i samma ögonblick, och ingenting varnar. (2) Borttagningen
-           **publicerar** dessutom §2.6:s tre falska markörrader om en levande behandling
-           (ADR 0090 D3). **En handling, två slutsatser.** Operatören möter dem på
-           `basic_auth`-direktivet självt i `deploy/caddy/Caddyfile`, som bär samma två;
-           `registration-gate.md`, ADR 0132 och `test-accounts.local.md` **pekar hit och räknar
-           inte själva**.
+           ⚠ **Basic-auth-credentialen på `dev` bär TVÅ GDPR-slutsatser, och det här är hemmet
+           för GRADERINGEN av dem** (den andra tillkom 2026-08-16, #183 E5). (1) Tas den bort för
+           en demo blir blackholen Blocker i samma ögonblick, och ingenting varnar. (2)
+           Borttagningen **publicerar** dessutom de markörrader §2.6 punkt 1 namnger som falska,
+           om en levande behandling (ADR 0090 D3). **En handling, två slutsatser.**
+           ⚠ **TVÅ YTOR MED OLIKA UPPGIFTER, OCH DET ÄR AVSIKTLIGT — läs inte den ena som drift.**
+           Den här raden bär graderingen och dess grund. `basic_auth`-direktivet i
+           `deploy/caddy/Caddyfile` bär **båda slutsatserna i sin helhet**, därför att det är där
+           operatören står i det ögonblick handlingen utförs; en pekare där hade varit oläsbar för
+           den som är på väg att kommentera bort blocket. **Tillkommer en tredje slutsats ska BÅDA
+           ytorna ändras** — det är priset för att direktivet är operativt, och det är billigare än
+           en varning operatören aldrig möter. `registration-gate.md`, ADR 0132 och
+           `test-accounts.local.md` **pekar hit och räknar inte själva.**
            ⚠ **En av adressens roller upphörde 2026-08-15:** vägen till en kopia av
            standardavtalsklausulerna (Art. 13(1)(f)) förutsatte en överföring som inte längre
            uppstår. **De två andra rollerna står kvar** — Art. 13(1)(b)-kontakt och Art. 15–22-kanal
@@ -818,11 +824,13 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
 >
 > **Läget idag är korrekt för de rader som fortfarande beskriver något planerat, och
 > trasigt för dem som inte gör det.** Policyn beskriver ansökningshistorik/
-> företagsöversikt och SCB-uppslag som planerade, vilket de är. **E-postleverantörsraderna
-> gör det INTE längre:** armen aktiverades 2026-08-16 medan §2.5 punkt 1 bar KVAR — punkt 1
-> nedan är hemmet för vilka rader som är falska och varför, och den enda som räknar dem.
-> **Värdraden gör
-> det INTE heller:** #1199 tog bort dess markör 2026-08-09, eftersom lådan kör
+> företagsöversikt och SCB-uppslag som planerade, vilket de är.
+> ⚠ **E-postleverantörsraderna beskriver INTE längre något planerat OCH bär fortfarande sin
+> markör — de är alltså falska, och skyldigheten är öppen:** armen aktiverades 2026-08-16 medan
+> §2.5 punkt 1 bar KVAR. Punkt 1 nedan är hemmet för vilka rader det gäller och varför, och den
+> enda som räknar dem.
+> ⚠ **Värdraden är den MOTSATTA sortens fall och är AVKLARAD, inte trasig — blanda inte ihop
+> dem:** #1199 tog bort dess markör 2026-08-09, eftersom lådan kör
 > (`dev.jobbliggaren.se` sedan 2026-08-05) och en markör där hade förnekat en pågående
 > drift — samma defekt som en förtidig flip, i spegelvänd form. Koden är
 > skeppad till dev, men det finns ingen prod-deploy och inga registrerade som når

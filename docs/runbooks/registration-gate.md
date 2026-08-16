@@ -59,10 +59,10 @@ forbids it, and this file is the path it prescribes instead.
    ([#183](https://github.com/klasolsson81/jobbliggaren/issues/183) owns the mailbox) — or Klas
    accepts the risk for this recipient set and records it, **which is his decision alone**.
    Whichever applies, it is written down before the knob is set.
-   ⚠ **The K2 credential carries TWO GDPR conclusions, and this file counts neither** — their
-   only home is `release-checklist.md` §2.5 point 1 leg (e) precondition 5, and the operator
-   meets both on the `basic_auth` directive itself in `deploy/caddy/Caddyfile`. Read them there.
-   The second was added 2026-08-16 (#183 E5) and is not the one below. The checklist's re-grading rests in
+   ⚠ **The K2 credential carries more than one GDPR conclusion, and this file counts none of
+   them** — the grading and its ground live in `release-checklist.md` §2.5 point 1 leg (e)
+   precondition 5, and the operator meets them in full on the `basic_auth` directive itself in
+   `deploy/caddy/Caddyfile`. Read them there. The checklist's re-grading rests in
    part on the site answering `401` on every path; removing Basic auth for a demo makes the
    blackhole blocking in the same moment, and nothing warns. Treat the credential in
    `docs/test-accounts.local.md` accordingly.

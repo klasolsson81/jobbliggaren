@@ -256,11 +256,16 @@ SELECT count(*) FROM company_register;
 -- 2. Lifecycle breakdown — Active dominates; Deregistered only if the sweep ran.
 SELECT status, count(*) FROM company_register GROUP BY status ORDER BY 2 DESC;
 
--- 3. Personnummer spot-check — MUST be 0. Mirrors IsPersonnummerShaped
---    (a legal-entity org.nr is 10 digits with its 3rd digit >= '2').
+-- 3. Personnummer spot-check — MUST be 0. Mirrors IsPersonnummerShaped in ALL
+--    THREE branches: not 10 chars, not all ASCII digits, or 3rd digit < '2'.
+--    The middle branch is the guard's fail-safe and is easy to drop: Arabic-Indic
+--    and fullwidth digits are 10 CHARACTERS and pass a naive length test. Use
+--    [0-9], not \d — Postgres ARE's \d is [[:digit:]] and widens under a UTF-8
+--    locale, which is the same widening the C# guard rejects \d for. A subset of
+--    the guard cannot detect the guard's own failure, which is what this checks.
 SELECT count(*) AS pnr_shaped
 FROM company_register
-WHERE length(organization_number) <> 10 OR substring(organization_number, 3, 1) < '2';
+WHERE organization_number !~ '^[0-9]{10}$' OR substring(organization_number, 3, 1) < '2';
 
 -- 4. Durable audit row (payload carries fetched/upserted/deregistered/
 --    excludedPnr/sweepApplied). audit_log is day-partitioned (ADR 0024).
@@ -511,10 +516,12 @@ WHERE schemaname = 'public' AND relname = 'company_register';
 -- 3. Fix. ~871 ms at 1 066 938 rows. Takes SHARE UPDATE EXCLUSIVE: it blocks
 --    neither reads nor writes, but it DOES conflict with a concurrent
 --    VACUUM/ANALYZE and with DDL — so do not run it against a sync in flight.
---    ANALYZE does NOT set the visibility map — only VACUUM does, and autovacuum
---    has never run on this table (regenerate: SELECT autovacuum_count FROM
---    pg_stat_user_tables WHERE relname = 'company_register'). After a restore
---    into a database that will not sync, run VACUUM too — §8 step 7.
+--    ANALYZE does NOT set the visibility map — only VACUUM does. Read the map
+--    itself, never autovacuum_count (a resettable counter, and measured reset on
+--    this database 2026-08-16): SELECT relpages, relallvisible FROM pg_class
+--    WHERE relname = 'company_register'. If relallvisible is far below relpages,
+--    run VACUUM too. After a restore into a database that will NEVER be synced
+--    again, it is mandatory rather than conditional — §8 step 7 and its reason 2.
 ANALYZE public.company_register;
 ```
 
@@ -563,8 +570,14 @@ itself: *"no scaffolded migration will ever restore it."*
 The consequence is specific. Once the migration is stamped in
 `__EFMigrationsHistory` on the box, **a later `database update` will not rebuild
 that index** — there is nothing left for it to replay. Confirm rather than assume
-(the conclusion holds either way; this is the measurement, not a premise):
-`sudo docker exec jobbliggaren-postgres psql -U postgres -d jobbliggaren -c "SELECT \"MigrationId\" FROM \"__EFMigrationsHistory\" WHERE \"MigrationId\" LIKE '20260718191128%';"`
+(the conclusion holds either way; this is the measurement, not a premise) — ⚠ **on
+the box, in bash, never pasted into PowerShell**, because the `\"` escaping below
+is a PowerShell parse error:
+
+```bash
+sudo docker exec jobbliggaren-postgres psql -U postgres -d jobbliggaren -c "SELECT \"MigrationId\" FROM \"__EFMigrationsHistory\" WHERE \"MigrationId\" LIKE '20260718191128%';"
+```
+
 Drop or replace
 the table by any route other than replaying that exact migration and the index is
 simply gone, while every migration reports applied and the app starts clean. The
@@ -592,13 +605,34 @@ is the other thing a schema-bearing restore can silently move.
   count `SELECT count(*) WHERE status = 'Active'`: **438 ms with the map unset
   against 26 ms after a plain `VACUUM`**, 169 321 heap fetches to 0. That number
   belongs to that query; what generalises is the **mechanism** — every index-only
-  path on the table pays the same toll. Autovacuum will not close it: its vacuum
-  trigger is dead-tuple driven, the box never writes the register, and
-  `autovacuum_count` has been 0 for the table's whole life. Read-only forever cuts
-  both ways — nothing repairs the map, so one `VACUUM` at load time is not a
-  stopgap but the **permanent** fix. It also sets the per-page hint bits once under
-  the operator's eye instead of charging them to whichever user query touches each
-  page first — a smaller effect, and the one that would self-heal on its own.
+  path on the table pays the same toll.
+
+  **Autovacuum will not close it on the box, and the reason is structural rather
+  than statistical.** Its vacuum trigger is **dead-tuple** driven; the box writes
+  the register exactly once, in the restore, and never again; a `COPY` into an
+  empty table produces no dead tuples. So the trigger never arms and the map stays
+  exactly as the restore left it — empty, permanently. Read-only forever cuts both
+  ways: nothing repairs the map, so one `VACUUM` at load time is not a stopgap but
+  the **permanent** fix. It also sets the per-page hint bits once under the
+  operator's eye instead of charging them to whichever user query touches each page
+  first — a smaller effect, and the one that would self-heal on its own.
+
+  ⚠ **Do not reason about this from `autovacuum_count`, and do not carry the dev
+  database's behaviour across.** Two measurements, both 2026-08-16 on the dev
+  register: `autovacuum_count = 0` **but** 91 of 94 tables read `n_live_tup = 0`
+  while holding rows, so the cumulative counters had simply been reset — the
+  counter cannot tell "never vacuumed" from "counters reset" and is the wrong
+  instrument. The right one is not resettable:
+
+  ```sql
+  SELECT relpages, relallvisible FROM pg_class WHERE relname = 'company_register';
+  ```
+
+  On dev that read **23830 of 23830 pages all-visible** — the map is fully set
+  there, because the weekly sync **upserts** and an upsert of existing rows does
+  produce dead tuples, which arms the very trigger the box will never arm. Dev and
+  the box differ in kind, not in degree, and that difference is the whole reason
+  this step exists.
 - **`ANALYZE`, because the restore carries no statistics and nothing on the box
   will ever produce them.** `pg_dump` **omits** optimizer statistics unless
   `--statistics` (the table in §7 above), and the box never syncs — so the one
@@ -628,25 +662,28 @@ the first command.** Local is `POSTGRES_USER: jobbliggaren`; the box is
 `POSTGRES_USER: postgres` (both `POSTGRES_DB: jobbliggaren`). Regenerate:
 `grep -n "POSTGRES_USER" docker-compose.yml deploy/docker-compose.yml`.
 
-⚠ **Two shells, and the document says where the boundary is.** Steps 1-2 run in
-**PowerShell on Klas's machine**; steps 3-6 run in **bash on the box, after
-`ssh`**. That is not cosmetic — `sudo`, `<` and `\` line-continuation are all
-PowerShell parse or shim failures, so a box command pasted into PowerShell fails
-in a way that looks like the box being broken.
+⚠ **Two shells, and the document says where the boundary is.** Steps **1-3** run in
+**PowerShell on Klas's machine** — step 3 *is* the crossing. Steps **4-8** run in
+**bash on the box**, after `ssh`. That is not cosmetic — `sudo`, `<`, `\`
+line-continuation and `\"` escaping are all PowerShell parse or shim failures, so
+a box command pasted into PowerShell fails in a way that looks like the box being
+broken. **Every box command in this section, including the
+`__EFMigrationsHistory` probe under reason 1, belongs on the bash side of that
+line.**
 
 ⚠ **Never redirect a `-Fc` archive through PowerShell's `>`.** Measured: native
 stdout through `>` gets a UTF-16LE BOM and every byte widened
 (`0x0A` → `0D 00 0A 00`), which destroys the archive. The failure is **silent at
 dump time** — the file exists and looks plausibly sized — and only surfaces at
-step 4, after it has been copied to the box. Write the file **inside** the
-container with `-f`, then `docker cp` it out.
+**step 5**, the restore, after it has been copied to the box. Write the file
+**inside** the container with `-f`, then `docker cp` it out.
 
 `tmp/` is the destination on purpose: this repo is **public**, and `tmp/` is
 gitignored (`.gitignore:64`, "aldrig in i prod-bundle eller git-historik"). The
 extract is held under Klas's signed SCB terms, so committing it would breach
 those terms — a one-word slip that a history rewrite cannot fully undo.
 
-**Steps 1-2 — PowerShell, on Klas's machine:**
+**Steps 1-3 — PowerShell, on Klas's machine:**
 
 ```powershell
 # 1. Dump data only, single table. -f writes INSIDE the container, so no
@@ -656,15 +693,22 @@ docker cp jobbliggaren-postgres-dev:/tmp/company_register.dump tmp/company_regis
 
 # 2. Source row count, plus the invariant that makes this dataset safe to move.
 #    Expect pnr_shaped = 0 — the legal-entities-only guard, re-measured on the
-#    artefact being moved rather than inherited from the last run.
-docker exec jobbliggaren-postgres-dev psql -U jobbliggaren -d jobbliggaren -c "SELECT count(*) AS rows, count(*) FILTER (WHERE length(organization_number) <> 10 OR substring(organization_number from 3 for 1) < '2') AS pnr_shaped FROM public.company_register;"
+#    artefact being moved rather than inherited from the last run. The predicate
+#    MIRRORS OrganizationNumber.IsPersonnummerShaped() in all three of its
+#    branches: not 10 chars, not all ASCII digits (its fail-safe — Arabic-Indic
+#    and fullwidth digits are 10 CHARACTERS and pass a naive length test), or
+#    third character < '2'. [0-9] and not \d, because Postgres ARE's \d is
+#    [[:digit:]] and widens under a UTF-8 locale — the same widening the C# guard
+#    rejects \d for. A subset predicate could not detect the ingest filter's own
+#    failure, which is the only scenario this assertion exists for.
+docker exec jobbliggaren-postgres-dev psql -U jobbliggaren -d jobbliggaren -c "SELECT count(*) AS rows, count(*) FILTER (WHERE organization_number !~ '^[0-9]{10}$' OR substring(organization_number from 3 for 1) < '2') AS pnr_shaped FROM public.company_register;"
 
 # 3. Ship it, then cross to the box. Everything after this runs in bash.
 scp tmp/company_register.dump jp-vps:/tmp/company_register.dump
 ssh jp-vps
 ```
 
-**Steps 4-6 — bash, on the box.** Note the different role (`postgres`, not
+**Steps 4-8 — bash, on the box.** Note the different role (`postgres`, not
 `jobbliggaren`), and one command per block:
 
 ```bash
@@ -674,15 +718,17 @@ sudo docker exec jobbliggaren-postgres psql -U postgres -d jobbliggaren -c "SELE
 ```
 
 ```bash
-# 5. Restore. --single-transaction is load-bearing: without it a failure leaves
-#    the table PARTIALLY filled, which breaks step 4's precondition for a retry
-#    and tempts the one action reason 1 forbids (DROP). With it, a failure rolls
-#    back to empty and the retry is simply step 5 again.
+# 5. Restore. --single-transaction is kept for its --exit-on-error implication:
+#    the default is to continue past errors and report them at the end, which is
+#    the wrong posture when step 6 is a count. It is NOT here to prevent a
+#    partial fill: --data-only --table on a non-partitioned table with a text PK
+#    and no sequence yields ONE TABLE DATA entry = one COPY, and a COPY is
+#    already atomic, so the partial branch cannot arise for this archive.
 sudo docker exec -i jobbliggaren-postgres pg_restore -U postgres -d jobbliggaren --data-only --no-owner --single-transaction < /tmp/company_register.dump
 ```
 
 ```bash
-# 6. Verify the count matches step 2 BEFORE step 7 — a partial restore that is
+# 6. Verify the count matches step 2 BEFORE step 7 — a short restore that is
 #    then vacuumed and analyzed looks healthy.
 sudo docker exec jobbliggaren-postgres psql -U postgres -d jobbliggaren -c "SELECT count(*) FROM public.company_register;"
 ```
@@ -694,9 +740,17 @@ sudo docker exec jobbliggaren-postgres psql -U postgres -d jobbliggaren -c "VACU
 ```
 
 ```bash
-# 8. Remove the artefact from both machines. It is an SCB extract under Klas's
-#    terms and has no reason to persist once the rows are in.
+# 8a. Remove the box's copy. Still bash, still on the box.
 rm /tmp/company_register.dump
+```
+
+**Step 8b — back in PowerShell.** The procedure creates the artefact in **three**
+places, and step 8a removes one. It is an SCB extract held under Klas's terms and
+has no reason to persist once the rows are in, so clear the other two:
+
+```powershell
+docker exec jobbliggaren-postgres-dev rm -f /tmp/company_register.dump
+Remove-Item tmp/company_register.dump
 ```
 
 *The images differ in **minor** version — local `postgres:18.4`, box
@@ -731,9 +785,11 @@ WHERE lower(company_name) LIKE lower('volvo%') ESCAPE '\' LIMIT 20;
 ⚠ **Query (c) is a hand-typed lookalike and proves eligibility only — never read
 it as proof that the plan the app runs is correct.** Production emits a different
 shape: `CompanyRegisterSearchQuery.BuildItemsCommand` wraps the predicate in a
-`WITH … AS MATERIALIZED` CTE with an `ORDER BY` and a parameterised
-`LIMIT`/`OFFSET`, and inside that CTE the index renders as `Bitmap Index Scan on
-ix_…`, not `using ix_…`. That method is `internal` precisely so
+`WITH … AS MATERIALIZED` CTE, and inside that CTE the index renders as
+`Bitmap Index Scan on ix_…`, not `using ix_…`. ⚠ **The CTE carries no `ORDER BY`
+and no `LIMIT`** — ordering and pagination live in the **outer** query only, and
+an inner `LIMIT` would take an arbitrary subset and then order it, which
+`CompanyRegisterSearchQueryCompositionTests` pins as the **broken** variant. That method is `internal` precisely so
 `CompanyRegisterSearchQueryPlanTests` can EXPLAIN **the real command** rather
 than a retyped one — a re-typed query is not an oracle. Plan **choice** is owned
 by those tests and by `CompanyRegisterSearchPlanChoiceTests` (ADR 0119); this

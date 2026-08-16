@@ -243,6 +243,31 @@ ADR 0132 Leg 2 is bounded by the second. A `POST` to `/api/v1/auth/register` **m
 `503 Auth.RegistrationsClosed` and leave no row behind — the gate is the handler's first
 statement.
 
+**Use this form. The naive one cannot answer 503 and its failure looks like the thing you are
+testing for.** `RegisterCommand` is a complex type, so it is body-bound and model binding runs
+*before* the handler: a bare `curl -X POST` returns **415** and malformed JSON returns **400**,
+neither of which ever reaches the gate. From inside the project network, where K2 does not apply:
+
+```bash
+sudo docker exec -i jobbliggaren-caddy curl -sS -X POST \
+  http://api:8080/api/v1/auth/register \
+  -H 'Content-Type: application/json' -d '{}' -w '\nHTTP %{http_code}\n'
+```
+
+Expect `HTTP 503` with `"title":"Auth.RegistrationsClosed"`. An empty object is enough — the gate
+refuses before validation, so no credentials are involved. ⚠ **A `429` is a fifth non-503 answer**:
+`/register` runs under `AuthWritePolicy`, and you have just registered accounts through it. Wait
+out the window rather than reading the throttle as a closed gate.
+
+**Then measure the other half — "leaves no row behind" is a claim, not an observation:**
+
+```bash
+sudo docker exec jobbliggaren-postgres psql -U postgres -d jobbliggaren -tAc \
+  'select (select count(*) from identity."AspNetUsers"), (select count(*) from public.job_seekers);'
+```
+
+Both counts must be unchanged from before the probe.
+
 ⚠ **It is mandatory rather than a nicety because every failure mode in this step looks identical
 from the outside.** A `restart` that changed nothing, a reconcile whose lock branch exited 0
 having applied nothing, a refused image, the right log line read at the wrong moment — all of them

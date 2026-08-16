@@ -134,17 +134,18 @@ public class EmailTemplatesEmailChangeConfirmationTests
     public void EmailChangeConfirmation_ShouldCarryTheWholeArt14Notice_WordForWordInBothParts(
         string newEmail)
     {
-        // The four fragment pins below cover four sentences; the notice is eight, and it lives in
-        // TWO hand-maintained copies. Everything outside a pinned fragment could diverge between the
-        // parts with the suite green (code-reviewer Major 4) — and the sentences most exposed to that
-        // are the two nobody would notice going missing: the Art. 14(2)(a) retention sentence and the
-        // Art. 14(2)(e) supervisory-authority route.
+        // The four fragment pins below cover four sentences; the notice is eleven, across five
+        // paragraphs, and it lives in TWO hand-maintained copies. Everything outside a pinned
+        // fragment could diverge between the parts with the suite green (code-reviewer Major 4) — and
+        // the sentences most exposed to that are the two nobody would notice going missing: the
+        // Art. 14(2)(a) retention sentence and the Art. 14(2)(e) supervisory-authority route.
         //
         // Pinned whole rather than as more fragments, because the failure mode is DRIFT and a
-        // fragment set can only ever catch the fragments someone thought to add. The third paragraph
-        // is deliberately excluded: it is the one place the two parts differ BY DESIGN — plain text
-        // puts the address on its own line, HTML folds it in as link text — and the existing contact
-        // pins cover it.
+        // fragment set can only ever catch the fragments someone thought to add. **The rights
+        // paragraph's ADDRESS TAIL is the only exclusion** — that is the one place the parts differ
+        // BY DESIGN, since plain text puts the address on its own line while HTML folds it in as
+        // link text, and the existing contact pins cover it. The paragraph itself is pinned up to
+        // the tail, and every other paragraph is pinned whole.
         //
         // The retention sentence must never claim where the address IS. ADR 0133 accepts the
         // provider's own retention as unmeasured, so an exhaustive location claim would assert what
@@ -159,22 +160,28 @@ public class EmailTemplatesEmailChangeConfirmationTests
             + "ska inte kunna kopplas till ett konto utan att den som äger den bekräftar det.";
         const string recipientAndRetention =
             "Bortser du från meddelandet ändras ingenting: adressen kopplas aldrig till kontot och "
-            + "vi lägger inte upp den hos oss. Länken slutar gälla efter 24 timmar. E-posten "
-            + "levereras av Scaleway SAS i Frankrike, som behandlar meddelandet för att kunna "
-            + "leverera det. Leverantören utfäster i personuppgiftsbiträdesavtalet att behandlingen "
-            + "sker inom EU.";
+            + "vi sparar den inte hos oss. Länken slutar gälla efter 24 timmar. E-posten levereras "
+            + "av Scaleway SAS i Frankrike, som behandlar meddelandet för att kunna leverera det. "
+            + "I personuppgiftsbiträdesavtalet har leverantören åtagit sig att behandlingen sker "
+            + "inom EU.";
 
         foreach (var part in BothPartsFlattened(rendered))
         {
             part.ShouldContain(source);
             part.ShouldContain(recipientAndRetention);
-            // The rights sentence carries Art. 14(1)(a), 18 and (2)(e). Pinned as one span up to the
-            // address, which is where the two parts legitimately diverge.
+            // Art. 14(1)(a) — the controller is a PERSON, not the service name.
             part.ShouldContain(
-                "Personuppgiftsansvarig är Klas Olsson, privatperson, som driver Jobbliggaren. Du "
-                + "har rätt att invända mot behandlingen, att begära information, rättelse, "
-                + "radering eller begränsning, och att lämna klagomål till "
-                + "Integritetsskyddsmyndigheten (imy.se).");
+                "Personuppgiftsansvarig är Klas Olsson, privatperson, som driver Jobbliggaren.");
+            // Art. 14(2)(c) including Art. 18. Pinned up to the address tail, which is the one place
+            // the parts legitimately diverge.
+            part.ShouldContain(
+                "Du har rätt att invända mot behandlingen och att begära information, rättelse, "
+                + "radering eller begränsning. Skriv till oss:");
+            // Art. 14(2)(e) — a route the recipient walks herself, so it is its own paragraph and
+            // must not be folded back into the sentence that ends in OUR address.
+            part.ShouldContain(
+                "Är du inte nöjd med hur vi behandlar dina uppgifter kan du lämna klagomål till "
+                + "Integritetsskyddsmyndigheten, imy.se.");
         }
     }
 

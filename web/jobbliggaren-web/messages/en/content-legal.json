@@ -61,7 +61,7 @@
         "heading": "Background watch notifications (legal basis: consent)",
         "paragraphs": [
           "If you want, you can turn on notifications about new jobs that match your preferences. That processing only takes place if you actively turn it on yourself. The legal basis is your consent (Article 6(1)(a)). The feature is off by default. If you turn it on, we store a record that you gave your consent and when, so that we can demonstrate that the processing is lawful.",
-          "The notifications are planned to be sent by email to the address on your account, and will then be delivered by Scaleway SAS in France, which processes the email in Paris within the EU. What that means for your data is described in the section Recipients of data below. This is planned and not yet in operation.",
+          "The notifications are planned to be sent by email to the address on your account, and will then be delivered by Scaleway SAS in France, which processes the email in the provider's fr-par region. The provider undertakes in the data processing agreement that the processing takes place within the EU. What that means for your data is described in the section Recipients of data below. This is planned and not yet in operation.",
           "You can withdraw your consent at any time by turning off the notifications in your settings. We then stop sending them. Withdrawing your consent does not affect the fact that the processing was lawful before you withdrew it."
         ]
       },

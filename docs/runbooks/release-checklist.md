@@ -1255,7 +1255,19 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
       någon sann presensform; 76 fick markören struken och **avtalsreservationen struken med den**
       — se §2.5 punkt 1:s residual (i), som äger det ledet och är uppdaterad i samma ändring.
       **Rad 64 är SANN och är INTE flippad:** bevakningsnotiserna är samtyckesgrindade med opt-in
-      default OFF och ingen notis har skickats. **Ommät rad 64 mot lådan före varje flipp** — dess
+      default OFF och ingen notis har skickats.
+      ⚠ **RAD 64:s TEXT ÄR DÄREMOT RÄTTAD 2026-08-16 (#183 FU-1, `security-auditor` Major 3) — OCH
+      ATT RÄTTA ÄR INTE ATT FLIPPA.** Raden sa *"behandlar e-posten i Paris inom EU"*, vilket är en
+      finare kornighet än grunden ger: DPA Art. 11 utfäster **EU-nivå, inte regionsnivå**, och
+      "Paris" är härlett ur att `fr-par` är TEM:s enda region. **Markören botar tempus, inte
+      kornigheten** — en framtidsutsaga kan vara exakt lika över-precis som en presensutsaga, och
+      mot båda står GTS Art. 10:s avtalsrangiga åtkomsträtt utan ortsklausul. Raden bär nu
+      regionformen plus avtalets egen utfästelse, och **markörsatsen är ordagrant orörd**.
+      **Det skyddade i rad 64 är dess STATUSMARKÖR, inte varje ord i strängen.** Paritetssvitens
+      mörka gren binder `/planerat och ännu inte i drift/i`, som satsen fortfarande matchar; raden
+      står kvar i mängden ovan, och flippdisciplinen är oberörd. *(Sessionen lämnade först raden
+      orörd och läste den som en framtidsutsaga under sin markör. Graderingen föll åt andra hållet,
+      och det var rätt: en fix på en delmängd av N är ingen fix.)* **Ommät rad 64 mot lådan före varje flipp** — dess
       grind är en användarreglage, inte en operatörsgrind, så den kan bli falsk utan att någon gör
       något på infrastruktursidan. ⚠ **Rad 64 har sedan 2026-08-16 en MEKANISK läsare:**
       `content-legal-parity.test.ts` kräver markören på samtyckesavsnittets omnämnanden och

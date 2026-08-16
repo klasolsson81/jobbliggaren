@@ -61,7 +61,7 @@
         "heading": "Bevakningsnotiser i bakgrunden (laglig grund: samtycke)",
         "paragraphs": [
           "Om du vill kan du slå på notiser om nya jobb som matchar dina önskemål. Den behandlingen sker bara om du själv aktivt slår på den. Den rättsliga grunden är ditt samtycke (artikel 6.1 a). Funktionen är avstängd som standard. Slår du på den sparar vi en uppgift om att och när du lämnade ditt samtycke, så att vi kan visa att behandlingen är laglig.",
-          "Notiserna planeras att skickas med e-post till adressen du har på ditt konto, och levereras då av Scaleway SAS i Frankrike, som behandlar e-posten i Paris inom EU. Vad det innebär för dina uppgifter står i avsnittet Mottagare av uppgifter nedan. Detta är planerat och ännu inte i drift.",
+          "Notiserna planeras att skickas med e-post till adressen du har på ditt konto, och levereras då av Scaleway SAS i Frankrike, som behandlar e-posten i leverantörens region fr-par. Leverantören utfäster i personuppgiftsbiträdesavtalet att behandlingen sker inom EU. Vad det innebär för dina uppgifter står i avsnittet Mottagare av uppgifter nedan. Detta är planerat och ännu inte i drift.",
           "Du kan när som helst återkalla ditt samtycke genom att stänga av notiserna i dina inställningar. Då upphör vi att skicka dem. Att du återkallar samtycket påverkar inte att behandlingen var laglig innan du återkallade det."
         ]
       },

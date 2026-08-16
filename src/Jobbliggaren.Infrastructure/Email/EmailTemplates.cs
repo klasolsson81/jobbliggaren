@@ -367,16 +367,20 @@ internal static class EmailTemplates
                 utan att den som äger den bekräftar det.
 
                 Bortser du från meddelandet ändras ingenting: adressen kopplas aldrig till
-                kontot och vi lägger inte upp den hos oss. Länken slutar gälla efter
-                24 timmar. E-posten levereras av Scaleway SAS i Frankrike, som behandlar
-                meddelandet för att kunna leverera det. Leverantören utfäster i
-                personuppgiftsbiträdesavtalet att behandlingen sker inom EU.
+                kontot och vi sparar den inte hos oss. Länken slutar gälla efter 24 timmar.
+                E-posten levereras av Scaleway SAS i Frankrike, som behandlar meddelandet
+                för att kunna leverera det. I personuppgiftsbiträdesavtalet har
+                leverantören åtagit sig att behandlingen sker inom EU.
 
                 Personuppgiftsansvarig är Klas Olsson, privatperson, som driver
-                Jobbliggaren. Du har rätt att invända mot behandlingen, att begära
-                information, rättelse, radering eller begränsning, och att lämna klagomål
-                till Integritetsskyddsmyndigheten (imy.se). Skriv till oss:
+                Jobbliggaren.
+
+                Du har rätt att invända mot behandlingen och att begära information,
+                rättelse, radering eller begränsning. Skriv till oss:
                 {ContactAddress}
+
+                Är du inte nöjd med hur vi behandlar dina uppgifter kan du lämna klagomål
+                till Integritetsskyddsmyndigheten, imy.se.
 
                 Vänliga hälsningar,
                 Jobbliggaren
@@ -403,17 +407,22 @@ internal static class EmailTemplates
                         + "kunna kopplas till ett konto utan att den som äger den bekräftar det.")
                     + EmailHtml.P(
                         "Bortser du från meddelandet ändras ingenting: adressen kopplas aldrig "
-                        + "till kontot och vi lägger inte upp den hos oss. Länken slutar gälla "
-                        + "efter 24 timmar. E-posten levereras av Scaleway SAS i Frankrike, som "
-                        + "behandlar meddelandet för att kunna leverera det. Leverantören "
-                        + "utfäster i personuppgiftsbiträdesavtalet att behandlingen sker inom EU.")
-                    + EmailHtml.LinkParagraph(
+                        + "till kontot och vi sparar den inte hos oss. Länken slutar gälla efter "
+                        + "24 timmar. E-posten levereras av Scaleway SAS i Frankrike, som "
+                        + "behandlar meddelandet för att kunna leverera det. I "
+                        + "personuppgiftsbiträdesavtalet har leverantören åtagit sig att "
+                        + "behandlingen sker inom EU.")
+                    + EmailHtml.P(
                         "Personuppgiftsansvarig är Klas Olsson, privatperson, som driver "
-                        + "Jobbliggaren. Du har rätt att invända mot behandlingen, att begära "
-                        + "information, rättelse, radering eller begränsning, och att lämna "
-                        + "klagomål till Integritetsskyddsmyndigheten (imy.se). Skriv till oss:",
+                        + "Jobbliggaren.")
+                    + EmailHtml.LinkParagraph(
+                        "Du har rätt att invända mot behandlingen och att begära information, "
+                        + "rättelse, radering eller begränsning. Skriv till oss:",
                         $"mailto:{ContactAddress}",
                         ContactAddress)
+                    + EmailHtml.P(
+                        "Är du inte nöjd med hur vi behandlar dina uppgifter kan du lämna "
+                        + "klagomål till Integritetsskyddsmyndigheten, imy.se.")
                     + EmailHtml.SignOff()));
     }
 

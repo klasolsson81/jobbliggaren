@@ -2,9 +2,10 @@
 
 **This is the tracked TEMPLATE. Copy it to `docs/test-accounts.local.md` and fill that
 copy — never this one.** The real file is gitignored because this repository is public,
-and it is deliberately **not** listed in `.worktreeinclude`: worktree sessions read it from
-the main checkout by absolute path (`C:\DOTNET-UTB\JobbPilot\docs\test-accounts.local.md`).
-`scripts/sync-worktree-docs.ps1` refuses to copy it even if someone lists it.
+and it is deliberately **not** listed in `.worktreeinclude`, so it exists only in the main
+checkout: a worktree session reads it at `docs/test-accounts.local.md` relative to the main
+checkout's root, not its own. `scripts/sync-worktree-docs.ps1` refuses to copy it even if
+someone lists it.
 
 Values are filled by Klas directly on his machine. They never go into anything durable and
 public: not a commit, not a PR body, not an issue, not a committed session log.
@@ -29,6 +30,11 @@ this before it can reach a login form at all.
 
 The bcrypt hash of this password lives in `deploy/.env` on the box as `BASIC_AUTH_HASH`;
 the plaintext exists only here.
+
+⚠ **This credential carries a GDPR conclusion, not just access.** `release-checklist.md`'s
+re-grading of the dead rights channel rests in part on the site answering `401` on every
+path — so removing Basic auth, even briefly for a demo, makes that finding blocking in the
+same moment, and nothing warns. Removing it is a decision, not a convenience.
 
 ## Standing CC test account
 

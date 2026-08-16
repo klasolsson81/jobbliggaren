@@ -71,17 +71,37 @@ public class DeployComposeRegistrationGateTests
     [Fact]
     public void TheAuthFlags_ReachTheApiOnly_AndNeverTheWorker()
     {
-        // The worker consumes no Auth__* and registers no validator for it, so an anchor or a
-        // stray copy under worker: would be a dependency with no client. LineContaining
-        // already throws when a key appears more than once, which is the actual guard here —
-        // this test states the property that makes that throw meaningful.
+        // Counting occurrences is NOT this property. Move all three keys into a shared anchor
+        // and each still appears once, the whole-line pins above still match, and the worker
+        // silently gains config it has no consumer for — the exact arrangement the compose
+        // comment says it avoids. So assert WHERE they sit: after the `api:` service header and
+        // before the next top-level service begins.
         var lines = ComposeText.Split('\n');
+        var apiStart = Array.FindIndex(lines, l => l.StartsWith("  api:", StringComparison.Ordinal));
+        apiStart.ShouldBeGreaterThan(-1, "the compose file no longer declares an `api` service");
 
-        lines.Count(l => l.Contains("Auth__RegistrationsOpen:", StringComparison.Ordinal))
-            .ShouldBe(1);
-        lines.Count(l => l.Contains("Auth__RequireEmailConfirmation:", StringComparison.Ordinal))
-            .ShouldBe(1);
-        lines.Count(l => l.Contains("AdminBootstrap__InitialAdminEmail:", StringComparison.Ordinal))
-            .ShouldBe(1);
+        var apiEnd = Array.FindIndex(
+            lines, apiStart + 1,
+            l => l.Length > 2 && l.StartsWith("  ", StringComparison.Ordinal)
+                 && l[2] != ' ' && l.TrimEnd().EndsWith(':'));
+        if (apiEnd < 0) apiEnd = lines.Length;
+
+        foreach (var key in new[]
+                 {
+                     "Auth__RegistrationsOpen:",
+                     "Auth__RequireEmailConfirmation:",
+                     "AdminBootstrap__InitialAdminEmail:",
+                 })
+        {
+            var at = Array.FindIndex(lines, l => l.Contains(key, StringComparison.Ordinal));
+            at.ShouldBeInRange(apiStart, apiEnd - 1,
+                $"'{key}' must sit inside the api service block. Outside it — in an anchor, or " +
+                "under worker — it reaches a host that consumes no Auth__* and registers no " +
+                "validator for it.");
+
+            lines.Count(l => l.Contains(key, StringComparison.Ordinal)).ShouldBe(1,
+                $"'{key}' must be declared exactly once; a second declaration is a second home " +
+                "that can drift from this one.");
+        }
     }
 }

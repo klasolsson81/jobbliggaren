@@ -14,9 +14,10 @@ box, and the only sanctioned way to bring an account into existence there. Owned
 
 Registration is closed by default and the default is not an omission: the app becomes
 publicly reachable before its legal and security gates are green, so an unset value must
-fail closed. `AuthOptionsValidator` refuses a Production boot on an open gate without email
-confirmation, and again on an open gate whose sender cannot deliver — so the two flags and
-the mail provider are one interlock, not three switches. **Writing an account straight into
+fail closed. `AuthOptionsValidator` exempts Development and Test and applies everywhere else,
+where it refuses the boot on an open gate without email confirmation, and again on an open
+gate whose sender cannot deliver — so the two flags and the mail provider are one interlock,
+not three switches. **Writing an account straight into
 the database is not an alternative to this procedure**; `AuthOptions`' own documentation
 forbids it, and this file is the path it prescribes instead.
 
@@ -41,14 +42,22 @@ forbids it, and this file is the path it prescribes instead.
 5. **A rights channel that receives, or a recorded decision that it does not.**
    `kontakt@jobbliggaren.se` is the published Art. 12 controller contact and the Art. 15–22
    channel, and it is Reply-To on every message this procedure causes to be sent — while the
-   apex MX is a blackhole, so both replies and rights requests are discarded silently. A
-   prior security-auditor grading set this as blocking **at the first real user or at the
-   flip, whichever comes first**, and this procedure is the flip. Before
-   `AUTH_REGISTRATIONS_OPEN=true`: either the mailbox receives, or the policy publishes a
-   channel that does ([#183](https://github.com/klasolsson81/jobbliggaren/issues/183) owns
-   the mailbox). **If Klas instead accepts the risk for his own two accounts only, that
-   decision belongs in an ADR and is his alone to take** — record which of the two applies
-   before proceeding, and keep the gate closed between visits until it is.
+   apex MX is a blackhole, so both replies and rights requests are discarded silently.
+   **`release-checklist.md` owns the escalation schedule and it was rewritten on 2026-08-16
+   against a measured operating state — read it there, not here.** Its trigger (a) is
+   `RegistrationsOpen=true` outside Development, which is what step 2 does, so this procedure
+   reaches it by design; its (b) deliberately exempts the operator's own address and a CC
+   verification address, which is what step 5 registers. **Its measurements expire: the
+   checklist says to re-measure (a) and (c) at the flip rather than inherit them**, so confirm
+   there that the schedule still reads as it did before setting the knob. Either the mailbox
+   receives, or the policy publishes a channel that does
+   ([#183](https://github.com/klasolsson81/jobbliggaren/issues/183) owns the mailbox) — or Klas
+   accepts the risk for this recipient set and records it, **which is his decision alone**.
+   Whichever applies, it is written down before the knob is set.
+   ⚠ **The K2 credential now carries a GDPR conclusion.** The checklist's re-grading rests in
+   part on the site answering `401` on every path; removing Basic auth for a demo makes the
+   blackhole blocking in the same moment, and nothing warns. Treat the credential in
+   `docs/test-accounts.local.md` accordingly.
 6. **Registration collects personal data before it explains itself.** `/registrera` carries
    no Art. 13 first-layer notice and no link to the policy; the footer link is site chrome,
    not a collection-point notice. While both accounts are Klas's own, controller and data

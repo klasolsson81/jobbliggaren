@@ -399,22 +399,21 @@ worktrees. The rules below keep parallel work collision-free; full playbook in
   against the shared dev DB.
 - **Local docs in worktrees.** Gitignored session state (`current-work.md`,
   `steg-tracker.md`, `sessions/`, local `reviews/` and ADRs
-  0074+) is absent from a fresh worktree. `.worktreeinclude` lists them; run
+  **0071+** (measured 2026-08-17 with `git check-ignore`: 0070 is the last
+  tracked one, and 0071/0072/0073 were created after the rule landed) is
+  absent from a fresh worktree. `.worktreeinclude` lists them; run
   `scripts/sync-worktree-docs.ps1 <worktree-path>` after creating a worktree.
   Secrets (`appsettings.Local.json`, `.env.local`) are NEVER synced into a
   worktree — the stack-owner injects them at runtime via env override
   (`ConnectionStrings__Postgres` from `.env`) so its worktree runs the real
   stack without committing or copying secrets.
-  ⚠ **Gitignoring those docs exerts an UPWARD PRESSURE on the tracked spec, and it has a cost worth
-  knowing before anyone widens the ignore list.** A reasoning that belongs in an ADR has to be
-  written out **in `BUILD.md`/`CLAUDE.md` instead**, because a session in a fresh worktree cannot
-  open the ADR that holds it — so the spec grows to stay self-contained. **Measured 2026-08-16
-  (#1363): §9.6 (3) points at THREE gitignored files** — **ADR 0132** and **ADR 0133**, whose
-  derivation it therefore writes out itself (*"Both ADRs are gitignored, so this paragraph is
-  written to stand alone"*, its own words), and the **ROPA**, whose `company_register` reason it
-  cannot cite, so only the instruction stays inline. **§9.6 (3) could shrink by roughly 15 lines the day those files are
-  readable from a worktree** — that is the measurement, not a proposal to change the ignore list.
-  Nothing here relaxes ADR 0072; it names the trade so the next person weighing it has the number.
+  ⚠ **That sync is a MANUAL copy from the main copy**, so a pointer into those
+  docs is dead for anyone who did not run it — a skipped step, a fresh clone,
+  GitHub's web view, a sub-agent. **The cost is spelling out, not placement:**
+  §9.6 (3) carries its derivation inline rather than citing ADR 0132/0133, and
+  would live in the spec either way on its own §13 ground. ADR 0072 Decision 2
+  owns the other side and this does not reopen it — and is itself gitignored,
+  which is this note's own case.
 - **Backlog = GitHub Issues** (`area:`/`hotspot:`/**`mvp`**/`P0`–`P3`/lane `BE`·`FE`·
   `BE+FE`/`wip`·`blocked` labels; `next-up` is on zero open issues as of 2026-08-02 and
   `mvp` replaced it in practice); `steg-tracker.md` is the strategic

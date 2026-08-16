@@ -16,7 +16,7 @@ Klas kör Auto mode. Se [docs/runbooks/claude-code-setup.md](../docs/runbooks/cl
 
 | Katalog | Innehåll |
 |---|---|
-| `auto-memory/` | Automatisk minne mellan sessioner |
+| ~~`auto-memory/`~~ | Retired 2026-08-16 — `autoMemoryDirectory` was dropped from `settings.json`; memory now lives outside the repo tree |
 | `logs/` | Session-loggar från hooks |
 | `backups/` | Pre-compact snapshots |
 | `tasks/` | Aktiva uppgiftslistor |

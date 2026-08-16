@@ -1627,8 +1627,13 @@ byggt:
 > **uppskjuten till AVV-bilagan med en namngiven omprövningsutlösare** (ett icke-EU-underbiträde
 > tvingar omprövning **före** korpusladdningen), medan hon för OVH avstod från hela andra ledet.
 > Vad hon förklarade oväsentligt för netcup-slutsatsen var **ägandet**, inte kedjan.)* Och Scaleway står på ett utkast
-> `security-auditor` **delratificerat**: strukturen avgjord, slutsatsen inte, i väntan på svar om
-> leverantörens support-geografi (`release-checklist.md` §2.5 punkt 1 led (b) är statusens hem).
+> `security-auditor` **delratificerat**: strukturen avgjord, slutsatsen inte, eftersom
+> leverantörens support-geografi saknar avtalsrang (`release-checklist.md` §2.5 punkt 1 led (b) är
+> statusens hem). ⚠ **Raden sa "i väntan på svar" till 2026-08-16, och det svaret kommer inte:**
+> brevet som skulle begära det är struket och risken accepterad (ADR 0133). **Posten är därmed
+> oavgjord utan en åtgärd som väntar** — vilket gör den här paragrafens varning skarpare, inte
+> mildare: en oavgjord post utan pågående utredning är exakt den sortens rad som med tiden läses
+> som frikänd.
 > Blanda aldrig ihop de tre lägena — §15.1 förbjuder uttryckligen att en oavgjord post skrivs som
 > frikänd.
 > Se §15.1, där rekvisitet är utskrivet och R2-meningens formulering omankrad i samma ändring.

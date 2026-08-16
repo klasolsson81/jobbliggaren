@@ -1150,7 +1150,8 @@ root**, och root på en körande låda betyder fält-krypteringens masternyckel 
 processminnet så snart en sådan finns. Den är **inte** en fail2ban-fråga och får inte
 läsas in i raden ovan.
 
-- **Rationalen och hela hotmodellen: ADR 0123** (lokal ADR, `Proposed`) — den hålls lokal
+- **Rationalen och hela hotmodellen: ADR 0123** (lokal ADR; **beviljad av Klas 2026-08-16** —
+  läs statusen där, inte här) — den hålls lokal
   därför att den är en levande hotmodell för en produktionsvärd, samma disciplin som
   håller operatörens adress utanför den publika runbooken.
 - **Status: `Proposed`. Ratificering väntar på Klas GO**, precis som fail2ban-klausulen.

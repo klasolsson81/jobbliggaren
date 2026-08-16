@@ -1039,10 +1039,12 @@ rather than discovered:
   `restrict,command=,from=` so the passphrase-less key stops being a general shell, and narrowing
   NOPASSWD to a `Cmnd_Alias` once the deploy automation's real command set is known.
   Non-interactive operation requires *no prompt*, not *unlimited root* — conflating those two is
-  what this trade-off actually is. **Now written up as ADR 0123** (local, `Proposed`), which
+  what this trade-off actually is. **Now written up as ADR 0123** (local), which
   carries this reasoning, a scope limit (accepted only while the box holds no real user data)
-  and both unclosed mitigations. **Accepting it is Klas's call and it is not granted yet** —
-  0123 flips to `Accepted` only on his recorded GO.
+  and both unclosed mitigations. ⚠ **Klas GRANTED it 2026-08-16** — read the status in the ADR,
+  not here. **That closes the acceptance, not the mitigations:** the two named above are still
+  open, which is why #1201's M-7 escalation can still fire (its condition is *ungranted **or**
+  unmitigated*).
 - **Root is rotated but deliberately not locked.** Beyond being the console rescue identity,
   there is a stronger reason: after the NOPASSWD decision, `jpadmin` at the console already
   grants unrestricted root. Locking root would remove a tested rescue identity while reducing
@@ -1112,6 +1114,6 @@ rather than discovered:
 ## 13. References
 
 - [`docs/decisions/0050-deployment-migration-aws-exit-hetzner.md`](../decisions/0050-deployment-migration-aws-exit-hetzner.md) — **start here.** Gates B-1 (master key never plaintext on disk), M-5a/M-5b, M-6 (hardening baseline) and M-7. Its `Amendment 2026-08-04` is **authoritative for the gates and written to be read alone**; its Hetzner/Cloudflare text is **superseded, not deleted**, and the banner at the top carries the precise boundary
-- **ADR 0122** — the host, the sizing and the capacity *rationale*. **Local (gitignored)** per ADR 0072 docs-privacy; `.worktreeinclude` syncs it, but a worktree that skipped the docs-sync will not have it. **If it is absent, ADR 0050's amendment is sufficient and you are missing no gate.** ADR **0123** (local, `Proposed`) carries the `NOPASSWD` risk acceptance
+- **ADR 0122** — the host, the sizing and the capacity *rationale*. **Local (gitignored)** per ADR 0072 docs-privacy; `.worktreeinclude` syncs it, but a worktree that skipped the docs-sync will not have it. **If it is absent, ADR 0050's amendment is sufficient and you are missing no gate.** ADR **0123** (local; **granted by Klas 2026-08-16** — read its status there, never here) carries the `NOPASSWD` risk acceptance
 - [#196](https://github.com/klasolsson81/jobbliggaren/issues/196) — deploy stack; owns everything in §12
 - [`CLAUDE.md`](../../CLAUDE.md) §11 — tooling and the dev-boot config contract

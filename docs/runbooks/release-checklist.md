@@ -210,8 +210,15 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
 > hela den här filen är obockade **utom en**: **38 obockade + 1 bockad** vid 2026-08-16 (§2.6
 > punkt 3, **bockad på Klas uttryckliga beslut** — se punkten själv för varför undantaget
 > beviljades och att det gäller den punkten ensam). Greppa **radinitialt** — `^- \[ \]` och
-> `^- \[x\]` var för sig; ett rått grep ger 40 och räknar prosacitaten av literalen längre ned.
-> **Regenerera BÅDA siffrorna ur greppen efter varje tillagd ELLER bockad punkt** — punkt 5.5
+> `^- \[x\]` var för sig; ett rått grep ger **41** och räknar med **tre** prosacitat av literalen
+> längre ned.
+> ⚠ **Regenerera ALLA tre siffrorna ur greppen efter varje ändring som greppen kan räkna** — inte
+> efter "varje tillagd punkt", vilket var den gamla regeln och som är för smal på två axlar.
+> **Bockning** är den ena (2026-08-16 gjorde första bocken *"38 av 38"* falskt utan att regeln löste
+> ut — en vakt mot tillväxt ser ingen tillståndsändring), och **ett tillkommande prosacitat av
+> literalen** är den andra: 40:an var sann när den skrevs 2026-08-04 med två citat, och ruttnade
+> tyst när ett tredje tillkom. Räkna alltså **rader greppen träffar**, aldrig punkter. Avbockning
+> och borttagen punkt hör till samma mängd — punkt 5.5
 > tillkom i samma ändring som skrev "35", och punkt 5 i den som skrev "36", båda gjordes falska
 > i samma andetag; och 2026-08-16 gjorde den första bocken *"38 av 38"* falskt medan
 > regenereringsregeln bara var nycklad på **tillägg** och därför inte löste ut. En vakt mot
@@ -1001,8 +1008,10 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
       **Divergens att inte tillskriva CTO:n:** dess bind sa ordagrant *"Item 3 keeps `[x]`"*.
       Rutan är återställd till `- [ ]` på dotnet-architects och code-reviewers grund i stället
       — filens konvention är **obockade** rutor (antalet står i blockquoten ovan, med sitt grep;
-      det står med flit inte här), och boxen bockas av den som **utför** releasen,
-      inte av den som levererar en förutsättning. Sakinnehållet (förutsättningen ÄR uppfylld)
+      det står med flit inte här), och boxen bockas **i övrigt** av den som **utför** releasen,
+      inte av den som levererar en förutsättning. *(⚠ "I övrigt": §2.6 punkt 3 bär sedan
+      2026-08-16 ett **Klas-beviljat undantag**, skopat till den punkten. Konventionen här är
+      alltså regeln, inte en undantagslös utsaga — se punkten själv.)* Sakinnehållet (förutsättningen ÄR uppfylld)
       är CTO:ns; idiomet är granskarnas.
       Den consent-copyn ska **aldrig** bära en `planerat`-markör: samtyckestext måste
       beskriva den behandling samtycket auktoriserar, i auktorisationens tempus — en
@@ -1593,15 +1602,31 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
       **utan att någon rättslig grind rört sig**. Ett beslut kan inte inferens-uppfyllas.
       **Vad som ÄNDÅ måste vara sant när GO:t ges** — sammanhang, inte villkorsmängd, och det som
       gör GO:t informerat snarare än formellt: Art. 28-punkten ovan (bockad) ·
-      [#1201](https://github.com/klasolsson81/jobbliggaren/issues/1201) gate M-7, vars M-7-koppling
-      till **ADR 0123** upphörde när Klas **beviljade** den ADR:n 2026-08-16 (Majorn konverterar
-      alltså inte till Blocker) · [#1199](https://github.com/klasolsson81/jobbliggaren/issues/1199):s
+      [#1201](https://github.com/klasolsson81/jobbliggaren/issues/1201) gate M-7 ·
+      [#1199](https://github.com/klasolsson81/jobbliggaren/issues/1199):s
       övriga led (policy-copy, ROPA, `BUILD.md`, paritetstestet) ·
       [#1240](https://github.com/klasolsson81/jobbliggaren/issues/1240), som äger själva laddningen
       och bär den mätta grindlistan i sin kropp.
-      **Rutan bockas när GO:t är givet, av den som utför laddningen.** En obockad ruta här betyder
-      *"GO ej givet"* och ingenting annat — till skillnad från filens övriga rutor, där en obockad
-      ruta inte får läsas som "inte levererat" (blockquoten ovan).
+      ⚠ **OM M-7, och den här raden påstod motsatsen till 2026-08-17.** #1201:s eskalering är en
+      **disjunktion med två armar**, ordagrant: *"M-7 becomes a `Blocker` if ADR 0123 is still
+      **ungranted OR unmitigated** at first real user data"*. Klas beviljande 2026-08-16 laddar ur
+      **`ungranted`**. **`unmitigated` är mätt ÖPPEN** (`vps-base-hardening.md`: *"Still open, and
+      not mitigated by anything built so far"* — egen automationsnyckel och `Cmnd_Alias`-avgränsningen,
+      ADR 0123:s egna *"two unclosed mitigations"*). **M-7 kan alltså fortfarande konvertera.** Att
+      härleda motsatsen ur att en arm är urladdad **är en omgradering av `security-auditor`s fynd**,
+      och #1201 säger uttryckligen att graderingen *"is not a later reader's to re-grade"* (§9.6).
+      **Andra armen ägs av `security-auditor`; Klas har sista ordet.**
+
+      **GO:T RECORDAS HÄR NÄR DET GES — med adjudikator, datum och var det gavs**, samma form som
+      punkt 3:s led. En bock utan upphovsman visar ingenting, och Art. 5(2) kräver att efterlevnad
+      är *visbar*; att det inte är teoretiskt mäter den här filen själv — punkt 3:s ruta bockades,
+      återställdes och bockades igen under ett dygn.
+      > **GO givet av:** _(ej givet)_ · **Datum:** — · **Var:** —
+      En obockad ruta här betyder *"GO ej givet"* och ingenting annat — till skillnad från filens
+      övriga rutor, där en obockad ruta inte får läsas som "inte levererat" (blockquoten ovan).
+      ⚠ **Och en bockad ruta här är inte heller tillstånd i sig** — den är ett **record av** GO:t.
+      Vakternas absoluta *"NO TICKED BOX IS PERMISSION"* står kvar och gäller även den här rutan:
+      det som auktoriserar är GO:t, rutan bara registrerar att det gavs.
 - [ ] **4. Paritet sv + en** — båda språken i samma ändring. Formuleringen bärs av
       elementen i `privacy.sections` som bär formuleringen — tillsammans **exakt den radmängd
       punkt 1 producerar** (antalet står där, med sitt grep; det står med flit inte här):

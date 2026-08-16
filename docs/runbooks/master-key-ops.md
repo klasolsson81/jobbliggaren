@@ -622,8 +622,9 @@ procedure here will help.
   `deploy/.env`. They are **not** B-1 subjects, and moving them is deliberately out of scope
   here — a named non-goal, not an oversight.
 - **Granting the risk acceptances.** The key is plaintext in process memory and root reads it;
-  ADR 0123 carries that threat model and is still `Proposed` and ungranted. Klas grants,
-  never a session (CLAUDE.md §9.6).
+  ADR 0123 carries that threat model. ⚠ **Klas granted it 2026-08-16** — do not ask him again;
+  read the status in the ADR, never here. Granting closes the acceptance, not the two mitigations
+  the ADR names as unclosed.
 
 ## 7. Unmeasured, and named
 

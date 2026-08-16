@@ -90,8 +90,8 @@ What `memswap_limit == mem_limit` delivers is a **stronger B-1 posture**, which 
 gate and it is not what closed it now — but it stays load-bearing for the half that remains:
 the key is plaintext in api/worker process memory for the process lifetime, and without
 `memswap_limit` a container at its ceiling would page that memory into zram. That residual is
-described in ADR 0049 `Amendment 2026-08-09` and its acceptance lives in ADR 0123, which is
-still `Proposed`.
+described in ADR 0049 `Amendment 2026-08-09` and its acceptance lives in ADR 0123, **granted by
+Klas 2026-08-16**. Read its status there, not here.
 
 ---
 
@@ -722,9 +722,12 @@ the home's own list was a different six (it counts `ACME_EMAIL`; this one counte
 separately). Two enumerations agreeing on a total by coincidence is worse than one, so the number is
 gone from here per `release-checklist.md`'s own ETT HEM PER TAL rule.
 `release-checklist.md`'s corpus gate is the home — read it there, it is not restated here — and it
-names every leg with its adjudicator. ⚠ **Discharging its legs is not release:** #1201 (gate M-7,
-conditional on ADR 0123) and #1199's remaining legs still stand in front of
-`JobTech__IngestEnabled=true`, and they are not conditions of that item. In outline, so a reader knows what they opened: **a signed data-processing
+names every leg with its adjudicator. ⚠ **Discharging its legs is not release, and neither is
+discharging everything else.** What stands in front of `JobTech__IngestEnabled=true` is **Klas's
+explicit written GO** — a decision, not a derivable state, whose home is that file's §2.6
+**point 3.5**. #1201 and #1199 are context for an informed GO, **not a condition set that can be
+exhausted**: enumerating them here as the things "still standing in front" is precisely the
+state-shaped form that failed open four times on 2026-08-16. In outline, so a reader knows what they opened: **a signed data-processing
 agreement with netcup**, which ⚠ **does NOT apply automatically** (measured first-hand
 2026-08-09 — it is the exception among this stack's processors, so never generalise from Scaleway's
 or the AWS era's); the generator's *"circle of affected persons"* naming **recruiter contact
@@ -733,8 +736,12 @@ than the processing; the annex's **sub-processor list read before the load**, be
 publishes none and the annex is the only measurement of that chain; updated ROPA entries; the
 `recruiterNotice` re-examined as the Art. 14 notice for the population the load creates; and a
 **security-auditor sign-off — given 2026-08-16 (SIGNED), covering the ROPA leg and closing the
-`recruiterNotice` leg**. The one leg still standing out is `ACME_EMAIL`, whose value lives only on
-the box and for which the repo holds no confirmation record.
+`recruiterNotice` leg**. ✅ **`ACME_EMAIL` is confirmed too** — `klasolsson81@gmail.com`, read off
+the box by Klas 2026-08-16; it is the controller's own address, so no processor row is owed. ⚠ **Do
+not re-derive that from this file:** the value cannot be measured from the repo, so a sweep finds
+only an empty placeholder in `deploy/.env.example` and concludes wrongly. The record lives in
+`release-checklist.md`'s point 3 leg list with its adjudicator and date. **This sentence claimed
+the opposite until 2026-08-17, and it was made false by the very commit that created the record.**
 
 Two further gates are open beside it: **#1199** and **#1201**, whose detection mechanism is
 installed but whose **heartbeat is not** — it needs a Healthchecks check that is Klas's to create,
@@ -930,11 +937,18 @@ instrument under-reaches its own property reads as coverage it does not have.
 
   ⚠ **#1201 is not an equal third at this moment, and that is a grading, not an opinion.** It is
   gate **M-7**, graded `Major` by `security-auditor` 2026-08-04 with a conditional escalation
-  written into the issue: *"M-7 becomes a `Blocker` if ADR 0123 is still ungranted or unmitigated at
-  first real user data."* ADR 0123 is **`Proposed`** and accepts its risk expressly only *"while the
+  written into the issue: *"M-7 becomes a `Blocker` if ADR 0123 is still ungranted **or
+  unmitigated** at first real user data."* ⚠ **That is a disjunction of two arms, and only the
+  first is discharged.** Klas **granted ADR 0123 on 2026-08-16**, which closes `ungranted`.
+  `unmitigated` is measured **OPEN** — `vps-base-hardening.md` still reads *"Still open, and not
+  mitigated by anything built so far"* for the separate automation key and the `Cmnd_Alias`
+  narrowing, which are the "two unclosed mitigations" the ADR names itself. **So M-7 can still
+  convert.** The ADR also accepts its risk expressly only *"while the
   box carries no real user data"* — so that acceptance lapses by its own terms at the corpus load,
   which is the very act this paragraph governs. Both of #1201's detection legs are still unticked
-  (#196 and #198). **M-7 converts to Blocker there unless Klas grants ADR 0123 first.**
+  (#196 and #198). ⚠ **Whether the second arm is discharged is `security-auditor`'s to say and
+  never a later reader's to derive** — #1201 states that of this grading in as many words, and
+  CLAUDE.md §9.6 puts severity with the reporting agent. Do not read the grant as closing M-7.
 
   This paragraph is the reader for all of that: **if it and the rows ever disagree, the
   disagreement is the defect.**
@@ -964,8 +978,9 @@ instrument under-reaches its own property reads as coverage it does not have.
   measurement can satisfy it by inference. Nothing mechanical enforces it; this
   paragraph is the reader. Beside Art. 28 the corpus also waits on **#1199** — the policy/host
   row — whose fifth acceptance criterion **is** the signed Netcup DPA (blocking, Klas-owned; it has no issue of its own),
-  and on **#1201**, whose M-7 grading converts to Blocker at first real data while ADR 0123
-  stands `Proposed` (see the rows 21–27 paragraph, which carries that reasoning).
+  and on **#1201**, whose M-7 grading can still convert to Blocker at first real data: Klas
+  granted ADR 0123 on 2026-08-16, but that escalation is **two-armed** and the mitigation arm is
+  open (see the rows 21–27 paragraph, which carries that reasoning and is its single home).
 - **The edge binary is ours, not upstream's, and the scanned image must be the published
   one.** `deploy/caddy/Dockerfile` compiles caddy rather than taking it from the published
   tag, so "we run stock caddy 2.11.4" is no longer true when reading an upstream bug report.

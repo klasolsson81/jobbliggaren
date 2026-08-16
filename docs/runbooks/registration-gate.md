@@ -50,8 +50,9 @@ forbids it, and this file is the path it prescribes instead.
    **`release-checklist.md` owns the escalation schedule and it was rewritten on 2026-08-16
    against a measured operating state — read it there, not here.** Its trigger (a) is
    `RegistrationsOpen=true` outside Development, which is what step 2 does, so this procedure
-   reaches it by design; its (b) deliberately exempts the operator's own address and a CC
-   verification address, which is what step 5 registers. **Its measurements expire: the
+   reaches it by design; its (b) turns on **an address the controller himself holds**, which is
+   what precondition 3's `+`-alias requirement guarantees and what step 5 registers — a role
+   label such as "CC verification address" earns no exemption on its own. **Its measurements expire: the
    checklist says to re-measure (a) and (c) at the flip rather than inherit them**, so confirm
    there that the schedule still reads as it did before setting the knob. Either the mailbox
    receives, or the policy publishes a channel that does

@@ -721,10 +721,10 @@ clause**: api's own log names the refusal, so nothing rests on correlation any m
 the home's own list was a different six (it counts `ACME_EMAIL`; this one counted the sign-off
 separately). Two enumerations agreeing on a total by coincidence is worse than one, so the number is
 gone from here per `release-checklist.md`'s own ETT HEM PER TAL rule.
-`release-checklist.md`'s corpus gate is the home — read it there, it is not restated here — and its
-box was **ticked 2026-08-16**, every leg named there with its adjudicator. ⚠ **Ticked is not
-released:** #1201 (gate M-7, conditional on ADR 0123) and #1199's remaining legs still stand in
-front of `JobTech__IngestEnabled=true`. In outline, so a reader knows what they opened: **a signed data-processing
+`release-checklist.md`'s corpus gate is the home — read it there, it is not restated here — and it
+names every leg with its adjudicator. ⚠ **Discharging its legs is not release:** #1201 (gate M-7,
+conditional on ADR 0123) and #1199's remaining legs still stand in front of
+`JobTech__IngestEnabled=true`, and they are not conditions of that item. In outline, so a reader knows what they opened: **a signed data-processing
 agreement with netcup**, which ⚠ **does NOT apply automatically** (measured first-hand
 2026-08-09 — it is the exception among this stack's processors, so never generalise from Scaleway's
 or the AWS era's); the generator's *"circle of affected persons"* naming **recruiter contact
@@ -914,8 +914,8 @@ instrument under-reaches its own property reads as coverage it does not have.
 
   ⛔ **That discharges B-1 and releases nothing on its own**, and
   `JobTech__IngestEnabled=true` is **not** authorised by it. The gate that bites at the corpus load
-  is **Art. 28** — `release-checklist.md`'s corpus gate is its single home, and it was **ticked
-  2026-08-16**; read the state there, never here. ⚠ **That tick releases nothing on its own** — the
+  is **Art. 28** — `release-checklist.md`'s corpus gate is its single home; read the state there,
+  never here. ⚠ **Discharging it releases nothing on its own** — the
   same misreading this paragraph exists to prevent applies to it exactly as it applied to B-1. **#1199** and **#1201** are open beside it. ⚠ **#1199 is where the Netcup DPA lives** — it is
   that issue's fifth acceptance criterion, the blocking Klas-owned one, and the DPA has **no
   separate issue**. #1199 is *broader* than the DPA (policy copy, ROPA, `BUILD.md`, the parity

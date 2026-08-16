@@ -368,7 +368,7 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
         STRATO-parkeringssida utan en rad Jobbliggaren-copy — ADR 0132:s mätning, reproducerad).
         Bärarfrånvaro, samma struktur som led (b):s Art. 49(1)(a)-fönster och förutsättning 5.
         ⚠ **DEN HÄR DOMEN VILAR PÅ KONTOTABELLEN OCH INGENTING ANNAT.** Se förutsättning 5:s
-        trigger (b) — den konverterande händelsens enda hem.
+        trigger (b) — den konverterande händelsens hem.
         **Förutsättning 1 — SIGNERAS INTE.** Projekthalvan är stängd av Klas konsolavläsning.
         Organisationshalvan är inte omätt utan **odefinierad**: ledet kräver match mot den
         organisation led (a):s avtalsmätning gjordes mot, och led (a) mätte en REGEL (GTS Art. 23),
@@ -427,7 +427,7 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
         KATEGORI ("en användare som angav den här adressen") — att namnge användaren vore i sig
         ett röjande åt andra hållet.
         **EN ENDA HÄNDELSE KONVERTERAR HELA GRINDEN, och den ska läsas som en:** **första
-        icke-Klas-konto**, definierat i förutsättning 5:s trigger (b) — **definitionens enda hem,
+        icke-Klas-konto**, definierat i förutsättning 5:s trigger (b) — **definitionens hem,
         upprepa den inte här**. Då eskalerar förutsättning 6, förutsättning 2:s klass-(3)-grund,
         förutsättning 5:s trigger (b) och §2.6:s falska rader **samtidigt**. Det är inte fyra
         risker med fyra odds; det är en händelse.
@@ -573,8 +573,12 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
            preambeln fäller: en verifikationsadress han inte innehar hade undantagits tyst, och det
            är den bärare hela Major-graderingen vilar på inte finns. Redan namngiven som skip i
            registreringsgrind-PR:en med baskvalificeraren routad hit; stängd av `security-auditor`
-           2026-08-16, E5-omkontroll.)* **Detta är den konverterande händelsens enda hem, och §2.5:s
-           statusblock, §2.6 och `registration-gate.md` pekar hit**;
+           2026-08-16, E5-omkontroll.)* **Den här raden äger DEFINITIONEN, och §2.5:s statusblock
+           och §2.6 pekar hit utan att återge den.** ⚠ **`registration-gate.md` TILLÄMPAR den och
+           skriver ut egenskapen två gånger** (precondition 3 och 5), därför att det är där
+           operatören väljer adresserna och en pekare hade varit oläsbar i det ögonblicket —
+           samma avvägning som credentialens två ytor nedan. **Förfinas egenskapen här ska BÅDA
+           ställena i den filen ändras**; ingenting länkar dem;
            (c) copyn blir publikt läsbar — borttagen Basic-auth, apex/www börjar serva, eller första
            `v*` — **§2.6:s trigger, oförändrad**; (d) första utskick till annan mottagare än Klas.
            ⚠ **Mätningarna förfaller: ommät (a) och (c) VID flippen, ärv dem inte ur den här raden.**

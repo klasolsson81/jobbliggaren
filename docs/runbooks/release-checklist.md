@@ -1634,13 +1634,17 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
       En obockad ruta här betyder *"GO ej givet"* och ingenting annat — till skillnad från filens
       övriga rutor, där en obockad ruta inte får läsas som "inte levererat" (blockquoten ovan).
       ⚠ **Och en bockad ruta här är inte heller tillstånd i sig** — den är ett **record av** GO:t.
-      Vakternas absolut — *"**No discharged gate, ticked box or closed issue is permission**"*,
-      identiskt i alla fem hem — står kvar och gäller även den här rutan. ⚠ **Citera det
-      TREMEDLEMMAT.** Den här raden bar till 2026-08-17 en avsmalnad form (*"NO TICKED BOX IS
-      PERMISSION"*) som fanns i noll vakter, och de två medlemmar den tappade — **urladdad grind**
-      och **stängd issue** — är precis de två felmoder som havererade öppna ovan. Att smalna av
-      absolutet i vakternas eget deklarerade hem är samma defekt en nivå upp:
-      det som auktoriserar är GO:t, rutan bara registrerar att det gavs.
+      Vakternas absolut gäller även den här rutan, **i punktens egen vidaste form** — den står
+      41 rader upp: *ingen urladdad grind, ingen bockad ruta, ingen stängd issue och ingen mätning
+      uppfyller GO:t.* Det som auktoriserar är GO:t; rutan registrerar bara att det gavs.
+      ⚠ **CITERA ALDRIG ABSOLUTET SMALARE ÄN SÅ — och gör inga påståenden om vakternas antal
+      eller inbördes likhet här.** Den här raden har smalnat av absolutet två gånger, och båda
+      gångerna följde felet samma mekanik: omskrivningen tillfogade ett nytt **kvantifierat
+      påstående om vakterna**, och det var påståendet som fallerade — aldrig absolutet självt.
+      Först en form som saknade två av medlemmarna, sedan ett uniformitetspåstående som mättes
+      falskt. **Kvantifiera därför ingenting här.** Absolutet i sin vidaste form står ovan; hur
+      många vakter som finns och hur de formulerar sig räknas **där de bor**, inte i den här
+      punkten. En rad som beskriver vakterna är en rad som ruttnar när en vakt ändras.
 - [ ] **4. Paritet sv + en** — båda språken i samma ändring. Formuleringen bärs av
       elementen i `privacy.sections` som bär formuleringen — tillsammans **exakt den radmängd
       punkt 1 producerar** (antalet står där, med sitt grep; det står med flit inte här):

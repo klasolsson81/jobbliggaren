@@ -732,8 +732,12 @@ Two further gates are open beside it: **#1199** and **#1201**, whose detection m
 installed but whose **heartbeat is not** — it needs a Healthchecks check that is Klas's to create,
 and that issue's AC 4 does not close before it exists.
 
-`appsettings.Production.json` says the flip *"belongs to the same change that closes B-1"* — that
-names **which change carries the flip**, not that discharging B-1 permits it. An earlier draft of
+`appsettings.Production.json` **said**, until the sentence was removed on 2026-08-16, that the flip
+*"belongs to the same change that closes B-1"*. It named **which change would carry the flip**
+while B-1 was the live gate; it never meant that discharging B-1 permits it, and once B-1 closed
+it could only be read the wrong way — so it was deleted at its source rather than glossed here.
+This paragraph keeps the quotation as history because the misreading is the thing worth
+remembering, not the sentence. An earlier draft of
 this paragraph read it the second way and wrote *"and therefore `JobTech__IngestEnabled=true` …
 and nothing else"*, which inverted the only control this document provides over 51 347 recruiter
 contact records. Corrected 2026-08-16; recorded because the failure was to turn a gate's discharge
@@ -903,8 +907,12 @@ instrument under-reaches its own property reads as coverage it does not have.
   ⛔ **That discharges B-1 and releases nothing on its own**, and
   `JobTech__IngestEnabled=true` is **not** authorised by it. The gate that bites at the corpus load
   is **Art. 28** — `release-checklist.md`'s corpus gate is its single home and is unticked; read it
-  there. **#1199** and **#1201** are open beside it, and they are separate items: #1199 is the
-  policy/host row, and the **Netcup DPA is Klas's signature**, not #1199's content.
+  there. **#1199** and **#1201** are open beside it. ⚠ **#1199 is where the Netcup DPA lives** — it is
+  that issue's fifth acceptance criterion, the blocking Klas-owned one, and the DPA has **no
+  separate issue**. #1199 is *broader* than the DPA (policy copy, ROPA, `BUILD.md`, the parity
+  test), which is the trap: it can close on those and leave the blocking leg untracked if a reader
+  assumes the DPA is filed somewhere of its own. An earlier draft of this paragraph said exactly
+  that, and it was measured false.
 
   ⚠ **#1201 is not an equal third at this moment, and that is a grading, not an opinion.** It is
   gate **M-7**, graded `Major` by `security-auditor` 2026-08-04 with a conditional escalation
@@ -931,7 +939,7 @@ instrument under-reaches its own property reads as coverage it does not have.
   2026-08-16: B-1 closed and that gate did not, so the old wording now reads as satisfied and
   would permit the very load it was written to prevent.** Nothing mechanical enforces it; this
   paragraph is the reader. Beside Art. 28 the corpus also waits on **#1199** — the policy/host
-  row — and on the **Netcup DPA**, which is Klas's signature and a *separate* item from #1199,
+  row — whose fifth acceptance criterion **is** the signed Netcup DPA (blocking, Klas-owned; it has no issue of its own),
   and on **#1201**, whose M-7 grading converts to Blocker at first real data while ADR 0123
   stands `Proposed` (see the rows 21–27 paragraph, which carries that reasoning).
 - **The edge binary is ours, not upstream's, and the scanned image must be the published

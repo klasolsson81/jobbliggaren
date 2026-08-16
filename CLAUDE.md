@@ -405,6 +405,16 @@ worktrees. The rules below keep parallel work collision-free; full playbook in
   worktree — the stack-owner injects them at runtime via env override
   (`ConnectionStrings__Postgres` from `.env`) so its worktree runs the real
   stack without committing or copying secrets.
+  ⚠ **Gitignoring those docs exerts an UPWARD PRESSURE on the tracked spec, and it has a cost worth
+  knowing before anyone widens the ignore list.** A reasoning that belongs in an ADR has to be
+  written out **in `BUILD.md`/`CLAUDE.md` instead**, because a session in a fresh worktree cannot
+  open the ADR that holds it — so the spec grows to stay self-contained. **Measured 2026-08-16
+  (#1363): §9.6 (3) points at THREE gitignored files** — **ADR 0132** and **ADR 0133**, whose
+  derivation it therefore writes out itself (*"Both ADRs are gitignored, so this paragraph is
+  written to stand alone"*, its own words), and the **ROPA**, whose `company_register` reason it
+  cannot cite, so only the instruction stays inline. **§9.6 (3) could shrink by roughly 15 lines the day those files are
+  readable from a worktree** — that is the measurement, not a proposal to change the ignore list.
+  Nothing here relaxes ADR 0072; it names the trade so the next person weighing it has the number.
 - **Backlog = GitHub Issues** (`area:`/`hotspot:`/**`mvp`**/`P0`–`P3`/lane `BE`·`FE`·
   `BE+FE`/`wip`·`blocked` labels; `next-up` is on zero open issues as of 2026-08-02 and
   `mvp` replaced it in practice); `steg-tracker.md` is the strategic

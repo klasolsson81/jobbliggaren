@@ -1044,7 +1044,10 @@ rather than discovered:
   and both unclosed mitigations. ⚠ **Klas GRANTED it 2026-08-16** — read the status in the ADR,
   not here. **That closes the acceptance, not the mitigations:** the two named above are still
   open, which is why #1201's M-7 escalation can still fire (its condition is *ungranted **or**
-  unmitigated*).
+  unmitigated*). ⚠ **And the grant covers only the state WITHOUT real user data** — M-7 is
+  evaluated **at** real user data, so the acceptance lapses exactly where the condition is read.
+  `security-auditor` ruled 2026-08-17 that **M-7 does convert**, and that building both
+  mitigations is **not** sufficient without a **new** grant covering that state, plus #196/#198.
 - **Root is rotated but deliberately not locked.** Beyond being the console rescue identity,
   there is a stronger reason: after the NOPASSWD decision, `jpadmin` at the console already
   grants unrestricted root. Locking root would remove a tested rescue identity while reducing

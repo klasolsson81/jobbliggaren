@@ -1154,7 +1154,10 @@ läsas in i raden ovan.
   läs statusen där, inte här) — den hålls lokal
   därför att den är en levande hotmodell för en produktionsvärd, samma disciplin som
   håller operatörens adress utanför den publika runbooken.
-- **Status: `Proposed`. Ratificering väntar på Klas GO**, precis som fail2ban-klausulen.
+- **Status: BEVILJAD av Klas 2026-08-16** (raden ovan är hemvisten; den här upprepade den och
+  stod kvar som `Proposed` i fyra rader under beviljandet till 2026-08-17). ⚠ **Beviljandet
+  täcker uttryckligen bara tillståndet *utan* riktig användardata** — se M-7-raden i gate-tabellen
+  för vad som därmed INTE är urladdat.
 - **Kompenserande kontroll i dag:** källrestriktion i två lager. Dess två mätta gränser:
   bakom NAT — och särskilt bakom **CGNAT**, där tusentals abonnenter delar adress —
   uppfyller varje enhet på nätet den; och på konsumentlina är adressen dynamisk, så en

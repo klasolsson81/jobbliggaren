@@ -939,13 +939,19 @@ instrument under-reaches its own property reads as coverage it does not have.
   gate **M-7**, graded `Major` by `security-auditor` 2026-08-04 with a conditional escalation
   written into the issue: *"M-7 becomes a `Blocker` if ADR 0123 is still ungranted **or
   unmitigated** at first real user data."* ⚠ **That is a disjunction of two arms, and only the
-  first is discharged.** Klas **granted ADR 0123 on 2026-08-16**, which closes `ungranted`.
-  `unmitigated` is measured **OPEN** — `vps-base-hardening.md` still reads *"Still open, and not
-  mitigated by anything built so far"* for the separate automation key and the `Cmnd_Alias`
-  narrowing, which are the "two unclosed mitigations" the ADR names itself. **So M-7 can still
-  convert.** The ADR also accepts its risk expressly only *"while the
-  box carries no real user data"* — so that acceptance lapses by its own terms at the corpus load,
-  which is the very act this paragraph governs. Both of #1201's detection legs are still unticked
+  first is discharged — and discharging it buys less than it looks.** Klas **granted ADR 0123 on
+  2026-08-16**, which closes `ungranted` **literally**. ⚠ **Functionally it gives no coverage at
+  the moment M-7 is evaluated:** the acceptance holds expressly only *"while the box carries no
+  real user data"*, and M-7 is evaluated **at** first real user data — so it lapses by its own
+  terms exactly where the condition is read, which is the act this paragraph governs.
+  `unmitigated` is measured **OPEN** besides — `vps-base-hardening.md` still reads *"Still open,
+  and not mitigated by anything built so far"* for the separate automation key and the
+  `Cmnd_Alias` narrowing, which are the "two unclosed mitigations" the ADR names itself, while
+  that file's own provisioning step still sets `jpadmin ALL=(ALL) NOPASSWD:ALL`.
+  ⛔ **`security-auditor`'s ruling 2026-08-17: M-7 DOES convert at first real user data**, and
+  **building the two mitigations is not sufficient** — that also requires a **new** grant covering
+  the state *with* real user data, plus #196 and #198. Hers to grade, not a later reader's to
+  derive. Both of #1201's detection legs are still unticked
   (#196 and #198). ⚠ **Whether the second arm is discharged is `security-auditor`'s to say and
   never a later reader's to derive** — #1201 states that of this grading in as many words, and
   CLAUDE.md §9.6 puts severity with the reporting agent. Do not read the grant as closing M-7.

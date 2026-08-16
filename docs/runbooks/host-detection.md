@@ -352,7 +352,11 @@ install happens once.
   rule set and `auditd` with it — but M-7 does not own it, and §5 verifies rather than re-runs it.
 - **Granting the risk acceptance.** ⚠ **Klas granted ADR 0123 on 2026-08-16** — do not ask him
   again; read the status in the ADR, never here. That closes the escalation's **`ungranted`** arm
-  only: its condition is *ungranted **or** unmitigated*, and the mitigations are open. This
+  **literally and only** — its condition is *ungranted **or** unmitigated*, the mitigations are
+  open, and ⚠ **the grant covers only the state WITHOUT real user data while M-7 is evaluated AT
+  it**, so arm 1 gives no coverage where the condition is read. `security-auditor` ruled
+  2026-08-17 that **M-7 does convert**, and that building the mitigations is not enough without a
+  **new** grant covering that state plus #196/#198. This
   mechanism narrows what the acceptance rests on; it does not close it.
 - **Availability monitoring.** An external HTTP probe is a different obligation. Certificate
   RENEWAL is a real silent-death vector — Caddy attempts it with about a third of a 90-day

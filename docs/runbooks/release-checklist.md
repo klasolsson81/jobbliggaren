@@ -212,7 +212,9 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
 > beviljades och att det gäller den punkten ensam). Greppa **radinitialt** — `^- \[ \]` och
 > `^- \[x\]` var för sig; ett rått grep ger **41** och räknar med **tre** prosacitat av literalen
 > längre ned.
-> ⚠ **Regenerera ALLA tre siffrorna ur greppen efter varje ändring som greppen kan räkna** — inte
+> ⚠ **Regenerera ALLA FYRA siffrorna ur greppen efter varje ändring som greppen kan räkna** —
+> de tre ovan plus prosacitat-antalet, som är `rått − radinitialt` och alltså inte överlever att
+> någon av de två regenereras utan att det räknas om. Inte
 > efter "varje tillagd punkt", vilket var den gamla regeln och som är för smal på två axlar.
 > **Bockning** är den ena (2026-08-16 gjorde första bocken *"38 av 38"* falskt utan att regeln löste
 > ut — en vakt mot tillväxt ser ingen tillståndsändring), och **ett tillkommande prosacitat av
@@ -1607,15 +1609,22 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
       övriga led (policy-copy, ROPA, `BUILD.md`, paritetstestet) ·
       [#1240](https://github.com/klasolsson81/jobbliggaren/issues/1240), som äger själva laddningen
       och bär den mätta grindlistan i sin kropp.
-      ⚠ **OM M-7, och den här raden påstod motsatsen till 2026-08-17.** #1201:s eskalering är en
-      **disjunktion med två armar**, ordagrant: *"M-7 becomes a `Blocker` if ADR 0123 is still
-      **ungranted OR unmitigated** at first real user data"*. Klas beviljande 2026-08-16 laddar ur
-      **`ungranted`**. **`unmitigated` är mätt ÖPPEN** (`vps-base-hardening.md`: *"Still open, and
-      not mitigated by anything built so far"* — egen automationsnyckel och `Cmnd_Alias`-avgränsningen,
-      ADR 0123:s egna *"two unclosed mitigations"*). **M-7 kan alltså fortfarande konvertera.** Att
-      härleda motsatsen ur att en arm är urladdad **är en omgradering av `security-auditor`s fynd**,
-      och #1201 säger uttryckligen att graderingen *"is not a later reader's to re-grade"* (§9.6).
-      **Andra armen ägs av `security-auditor`; Klas har sista ordet.**
+      ⛔ **M-7 KONVERTERAR TILL `Blocker` VID FÖRSTA RIKTIGA ANVÄNDARDATA — `security-auditor`s dom
+      2026-08-17, och den är hennes att sätta.** Den här raden påstod motsatsen till dess.
+      #1201:s eskalering är en **disjunktion med två armar**: *"M-7 becomes a `Blocker` if ADR 0123
+      is still **ungranted OR unmitigated** at first real user data"*. Hennes tre grunder, var och
+      en tillräcklig: (1) **`unmitigated` är mätt SANN** — de två mitigeringarna (egen
+      automationsnyckel med `restrict,command=,from=`; `Cmnd_Alias`-avgränsning) finns bara som
+      prosa som beskriver dem som obyggda, medan `vps-base-hardening.md`:s provisioneringssteg
+      alltjämt sätter `jpadmin ALL=(ALL) NOPASSWD:ALL`. (2) ⚠ **Beviljandet ger ingen täckning vid
+      utvärderingsögonblicket:** acceptansen gäller uttryckligen bara *"while the box carries no
+      real user data"*, och M-7 utvärderas **vid** riktig användardata — bokstavligt är
+      `ungranted` urladdad, funktionellt täcker den inte det tillstånd som bedöms. (3) **#196 och
+      #198 är obockade**, så scope-gränsens utgångsvillkor går inte att verifiera.
+      ⚠ **ATT BYGGA DE TVÅ MITIGERINGARNA RÄCKER INTE.** Hennes gradering av vad som krävs, och
+      den är inte en senare läsares att härleda: **båda mitigeringarna byggda**, **OCH ett NYTT
+      uttryckligt Klas-beviljande som täcker tillståndet MED riktig användardata** (det nuvarande
+      upphör av egen kraft), **OCH #196 + #198 levererade**. Detta hör till det informerade GO:t.
 
       **GO:T RECORDAS HÄR NÄR DET GES — med adjudikator, datum och var det gavs**, samma form som
       punkt 3:s led. En bock utan upphovsman visar ingenting, och Art. 5(2) kräver att efterlevnad
@@ -1625,7 +1634,12 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
       En obockad ruta här betyder *"GO ej givet"* och ingenting annat — till skillnad från filens
       övriga rutor, där en obockad ruta inte får läsas som "inte levererat" (blockquoten ovan).
       ⚠ **Och en bockad ruta här är inte heller tillstånd i sig** — den är ett **record av** GO:t.
-      Vakternas absoluta *"NO TICKED BOX IS PERMISSION"* står kvar och gäller även den här rutan:
+      Vakternas absolut — *"**No discharged gate, ticked box or closed issue is permission**"*,
+      identiskt i alla fem hem — står kvar och gäller även den här rutan. ⚠ **Citera det
+      TREMEDLEMMAT.** Den här raden bar till 2026-08-17 en avsmalnad form (*"NO TICKED BOX IS
+      PERMISSION"*) som fanns i noll vakter, och de två medlemmar den tappade — **urladdad grind**
+      och **stängd issue** — är precis de två felmoder som havererade öppna ovan. Att smalna av
+      absolutet i vakternas eget deklarerade hem är samma defekt en nivå upp:
       det som auktoriserar är GO:t, rutan bara registrerar att det gavs.
 - [ ] **4. Paritet sv + en** — båda språken i samma ändring. Formuleringen bärs av
       elementen i `privacy.sections` som bär formuleringen — tillsammans **exakt den radmängd

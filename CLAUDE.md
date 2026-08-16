@@ -686,14 +686,21 @@ order. (Praise is not a finding and routes nowhere.) Then:
   processing breaches Art. 5(1)(a)/12(1) with **no registered data subject at all**, so (i) can
   hold — vacuously — while (iii) fails. Both delivered instances rested on all three.
 
-  ⚠ **The three parts measure the criterion; they do not replace it.** They are the registers where a
-  bearer has arisen so far — account, send, public reading — and **none of them measures CONTENT**. A
-  bearer none of the three reaches fails the condition all the same: a referee named inside a CV the
-  controller himself uploaded, or a sole trader in `company_register` whose company name is a
-  person's name, holds no account, received no send, and sits behind no public page. **Read the
-  criterion first and the parts as its instruments** — the opposite of the lapse clause below, where
-  the general sentence under-triggers and the enumeration governs. The two are not the same shape,
-  and applying one's lesson to the other gets it exactly backwards.
+  ⚠ **The three parts measure the criterion; they do not replace it — they are necessary, not
+  sufficient.** They are the registers where a bearer has arisen so far — account, send, public
+  reading — and **none of them measures CONTENT**. A bearer none of the three reaches fails the
+  condition all the same: a referee named inside a CV the controller himself uploaded, or an enskild
+  firma's `organization_number` in `job_ads`, which for a sole trader **is the holder's personnummer**
+  (#841) — neither holds an account, received a send, or sits behind a public page. *(Do not reach for
+  `company_register` here: enskilda firmor are filtered out of it in two independent, tested layers
+  and never reach the table — ADR 0091 / #560.)*
+  ⚠ **Read *affected* as strictly as the criterion writes it:** the bearer must be one **this finding
+  reaches**. A content bearer it does not reach is not a bearer of this acceptance — otherwise the
+  route is inert against any system that holds a third party's data at all, and neither delivered
+  instance could have been signed. **Read the criterion first and the parts as its instruments** — the
+  opposite of the lapse clause below, where the general sentence under-triggers and the enumeration
+  governs. The two are not the same shape, and applying one's lesson to the other gets it exactly
+  backwards.
 
   **The measurement names its artefact, its date and its home.** It is recorded in the same ADR or
   CLAUDE.md update as the acceptance — never a PR body, never chat. **It expires**: a bearer-absence
@@ -715,9 +722,9 @@ order. (Praise is not a finding and routes nowhere.) Then:
   **withdraws the remedy only — never the finding, never its grade, never the record of what is
   unknown**. An accepted risk does not become measured by being accepted and must never be written as
   though it had. **The route lets a session propose an acceptance, never declare one.** The finding
-  is then **resolved by acceptance** — which is what §12 means by *unresolved*; its *0 Blocker /
-  0 Major* wording describes the ordinary case, not a signed acceptance — so the PR rides the normal
-  flow. **Every other applicable §12 class must still clear independently**, and a §5 `Security:`
+  is then **resolved by acceptance** — which is **not** what §12 means by *unresolved*; its
+  *0 Blocker / 0 Major* wording describes the ordinary case, not a signed acceptance — so the PR
+  rides the normal flow. **Every other applicable §12 class must still clear independently**, and a §5 `Security:`
   class clears through Klas, not through this route. *(Measured against both delivered instances:
   neither hit §5 `Security:` at all. That list is CODE anti-patterns; a GDPR-implicated Major is
   typically a legal-posture finding with no code form — so a reader who goes looking for a §5 class

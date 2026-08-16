@@ -731,15 +731,20 @@ och **stärks** av rättelsen: värdbenet är EU-resident, så **ingen Kap. V-ö
 värdbytet, och stadens källa är en förstapartsuppgift om just vår server i stället för en
 geoIP-gissning. *(Var precis om bevisstyrkan: `country:` och `netname:` är registreringsattribut
 som LIR:en själv sätter och bevisar inte fysisk DC-placering — slutsatsen bärs av netcup GmbH som
-tyskt bolag plus vald lokation. Netcups underbiträdeskedja är fortfarande **omätt** och ägs av
-#1199:s DPA-arbete; den publiceras ingenstans och blir läsbar först när AVV:t tecknas.)*
+tyskt bolag plus vald lokation. Netcups underbiträdeskedja var **omätt** när detta skrevs och
+publiceras ingenstans; den blev läsbar när AVV:t tecknades **2026-08-03** — ANNEX 2 namnger tre
+underbiträden, samtliga inom EU. Uppgiften bor i ROPA:ns värdpost.)*
 *(Attributionen rättad 2026-08-09 i #1199 — `security-auditor` Minor 2. Skälet är inte pedanteri:
 sedan samma dag namnger den **publicerade** integritetspolicyn den här lådans stad, så den som
 kontrollerar provenienskedjan mot RIPE hade hittat Karlsruhe och dragit slutsatsen att copyn är
 fel.)*
-Detta **fullgör inte Art. 28**: ett biträdesavtal med **netcup GmbH** måste finnas före första
-riktiga användardata, det är **Klas att teckna, aldrig CC**, och det är fortfarande otecknat — det
-ägs av [#1199](https://github.com/klasolsson81/jobbliggaren/issues/1199) och grindar första datan.
+Detta **fullgör inte Art. 28 i sig**: ett biträdesavtal med **netcup GmbH** måste finnas före
+första riktiga användardata, och det är **Klas att teckna, aldrig CC**. ✅ **Tecknat 2026-08-03**
+— det var femte acceptanskriteriet på
+[#1199](https://github.com/klasolsson81/jobbliggaren/issues/1199), som står kvar öppen på sina
+övriga led. *(Den här meningen sa "fortfarande otecknat" till 2026-08-16. Statusen var aldrig mätt
+— den inferrerades ur att ingen hade bockat av något, och avtalet var vid det laget tretton dagar
+gammalt. Frånvaro av en markering mäter ingenting.)*
 *Mekaniken är mätt 2026-08-09 och skiljer sig från AWS: netcups AVV gäller **inte** automatiskt
 utan sluts av kunden i Customer Control Panel; generalisera aldrig AWS-DPA:t hit.*
 **Den publicerade policyn namngav Hetzner till 2026-08-09**, då #1199 skrev om den till netcup GmbH

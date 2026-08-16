@@ -36,7 +36,7 @@
 | Stavning | WeCantSpell.Hunspell | 7.x | Hunspell-port — tri-licens **MPL 1.1 / GPL 2.0 / LGPL 2.1**; licensval MPL 1.1 (LGPL 2.1 fallback), aldrig GPL; server-side + oförändrad binär → ingen copyleft på produkten (se §3.1-notis) |
 | Svensk ordlista | sv_SE Hunspell-ordlista (DSSO) | datafil | **LGPL-3.0** — oförändrad separat datafil, ej statiskt länkad/inbäddad/modifierad → copyleft smittar ej produkten (se §3.1-notis) |
 | HTTP | HttpClientFactory + Refit | 10.x | JobTech-klient |
-| Transaktionell e-post | **Inget paket** — handrullad `HttpClient` + `System.Text.Json` (Scaleway Transactional Email, `fr-par`) | — | Scaleway publicerar officiella SDK:er för Python, Go och JavaScript och **ingen för .NET** (mätt 2026-08-15), och behövs ingen: sändningen är en POST med JSON-kropp. `AWSSDK.SimpleEmailV2` togs bort i #183 utan ersättare, och `NoAmazonReferenceTests` är därefter ett **totalförbud** mot Amazon-paket och Amazon-importer, inte en allow-list. Infrastructure-confined (wire-payloaden är nästlad i avsändaren och korsar aldrig IEmailSender-porten, paritet Refit/QuestPDF); **all** utgående e-post: notiser (ADR 0080 Vag 4 PR-4) + kontolivscykel (§13.4); **HTTPS-API, aldrig SMTP** (Netcup blockerar 25/465/587, ADR 0050 §10); transport-retry stängs av att armen **inte registrerar någon resilience-handler** — se `ScalewayClientRegistration`, som också säger varför ingen får läggas till (sändnings-endpointen bär ingen idempotensparameter); prod-utskick grindat — se §13.4 + release-checklist.md §2.5. [#183](https://github.com/klasolsson81/jobbliggaren/issues/183) |
+| Transaktionell e-post | **Inget paket** — handrullad `HttpClient` + `System.Text.Json` (Scaleway Transactional Email, `fr-par`) | — | Scaleway publicerar officiella SDK:er för Python, Go och JavaScript och **ingen för .NET** (mätt 2026-08-15), och behövs ingen: sändningen är en POST med JSON-kropp. `AWSSDK.SimpleEmailV2` togs bort i #183 utan ersättare, och `NoAmazonReferenceTests` är därefter ett **totalförbud** mot Amazon-paket och Amazon-importer, inte en allow-list. Infrastructure-confined (wire-payloaden är nästlad i avsändaren och korsar aldrig IEmailSender-porten, paritet Refit/QuestPDF); **all** utgående e-post: notiser (ADR 0080 Vag 4 PR-4) + kontolivscykel (§13.4); **HTTPS-API, aldrig SMTP** (Netcup blockerar 25/465/587, ADR 0050 §10); transport-retry stängs av att armen **inte registrerar någon resilience-handler** — se `ScalewayClientRegistration`, som också säger varför ingen får läggas till (sändnings-endpointen bär ingen idempotensparameter); **prod-utskick aktiverat 2026-08-16 utan att §2.5-grinden passerades** (raden sa "grindat" till dess) — se §13.4 + release-checklist.md §2.5, som bär grindens oförändrade KVAR-status. [#183](https://github.com/klasolsson81/jobbliggaren/issues/183) |
 | Database | PostgreSQL | 18.3 | lokal Docker Compose nu; co-tenant container på Hetzner CAX31 (ADR 0050, ingen separat managed-DB) |
 | Cache | Redis | 8.6 | lokal Docker Compose nu; co-tenant container på Hetzner CAX31 (ADR 0050) |
 | Test-assertions | Shouldly | 4.3.x | MIT, ersätter commercial FluentAssertions |
@@ -141,7 +141,7 @@
 | Cache | Redis 8.6 (Docker Compose) | Redis co-tenant container på CAX31 |
 | Object storage | lokal disk / ej aktiverat | TBD — roll/behov ej fastställt |
 | AI inferens | Ingen — produkten har ingen AI/LLM (ADR 0071) | Ingen (deterministiska motorer på BE/VPS) |
-| Email | `ConsoleEmailSender` (dev/test) / `NullEmailSender` (default annars) | Scaleway Transactional Email `fr-par`, grindad (§13.4, [#183](https://github.com/klasolsson81/jobbliggaren/issues/183)) |
+| Email | `ConsoleEmailSender` (dev/test) / `NullEmailSender` (default annars) | Scaleway Transactional Email `fr-par` — **aktiverad 2026-08-16 utan att §2.5-grinden passerades**, armen skickar skarpt (§13.4, [#183](https://github.com/klasolsson81/jobbliggaren/issues/183)) |
 | Secrets | `appsettings.Local.json` (gitignored) | Self-managed på VPS (systemd-credentials / sops+age, [#196](https://github.com/klasolsson81/jobbliggaren/issues/196)) |
 | Encryption keys | `LocalDataKeyProvider` AES-256-GCM (ADR 0066) | Self-managed master-nyckelmodell + rotation ([#198](https://github.com/klasolsson81/jobbliggaren/issues/198)) |
 | Frontend | `pnpm dev` (localhost:3000) | Next.js `next start` co-tenant container på CAX31 (bakom Caddy) |
@@ -850,8 +850,12 @@ Alla FK-kolumner har index. Utöver det:
 > credit/BYOK-systemet och `AiProviderKind` byggs **aldrig**. Jobbliggaren är
 > gratis utan abonnemang; kostnaden för även ett magert LLM-lager (API-spend,
 > DPIA/SCC/TIA-compliance, opt-in-UX, credits) är oförenlig med
-> gratis-produkt-taket. Inget **AI-relaterat** tredjelands-PII-transfer kvarstår (e-postvägen är en separat,
-> grindad överföring — §13.4) — ingen
+> gratis-produkt-taket. Inget **AI-relaterat** tredjelands-PII-transfer kvarstår (e-postvägen är en
+> separat behandling och **aktiverad 2026-08-16 utan att §2.5-grinden passerades** — §13.4 säger vad
+> som körs, `release-checklist.md` §2.5 om det fick köras. ⚠ **Kalla den aldrig en
+> tredjelandsöverföring:** avtalsparten är fransk och Kap. V-bedömningen är *ej tillämplig* — ett
+> utkast, inte en dom, och led (b) är dess hem. Raden sa "grindad överföring" till 2026-08-16 och
+> var då fel på båda orden) — ingen
 > CV-PII skickas till någon AI-provider, så ADR 0051:s fem GDPR-villkor
 > upplöses. Allt nedan är **deterministiskt**: regex, list-lookup,
 > datum-aritmetik, taxonomi-lookup och lokal NLP på VPS:en. En intern kriterie-analys
@@ -1295,15 +1299,21 @@ permanent infra aktiveras; listan nedan speglar **beslutad** uppsättning, ADR 0
   Tyskland, så den krok som fällde e-postposten i AWS-eran — EU-avtalspart under **amerikansk**
   koncernmoder — saknas här (`security-auditor` 2026-08-09). *(Kontrasten är historisk sedan
   2026-08-15: e-postposten saknar numera samma krok, av samma strukturella skäl — ADR 0131. Det
-  som frikänner värdbenet är oförändrat; det är jämförelseobjektet som bytts ut.)* **Underbiträdeskedjan är OMÄTT och får inte påstås ligga inom
-  EU/EES:** netcup publicerar ingen lista (mätt 2026-08-09 mot DPA-sidan, AVV-sidan, Impressum och
-  DC-sidan), den bor i AVV-bilagan och blir läsbar först när avtalet tecknas. Tystnad om kedjan är
-  laglig (Art. 13(1)(e) kräver mottagare eller kategorier, inte biträdets egen lista); ett
-  påstående om den är det inte. ⚠ **Inget Art. 28-avtal är tecknat** — netcups AVV gäller **inte**
-  automatiskt utan sluts i Customer Control Panel, och den mätningen får aldrig generaliseras från
-  e-postleverantörernas DPA:er: **både AWS-erans och Scaleways gäller automatiskt**, så netcup är
-  undantaget bland biträdena och inte regeln. Grind: `release-checklist.md` §2.6 punkt 3
-  (**Klas**, aldrig CC).
+  som frikänner värdbenet är oförändrat; det är jämförelseobjektet som bytts ut.)* **Underbiträdeskedjan var OMÄTT till 2026-08-16 och är det inte längre.**
+  netcup publicerar ingen lista (mätt 2026-08-09 mot DPA-sidan, AVV-sidan, Impressum och
+  DC-sidan) — den bor i AVV-bilagan och blev läsbar när avtalet tecknades. **ANNEX 2 namnger tre
+  underbiträden, samtliga inom EU** (två Klagenfurt AT, ett Karlsruhe DE), så kedjan **får** nu
+  påstås ligga inom EU/EES. ⚠ **Med en namngiven gräns:** kollokations-datacentren är
+  **onamngivna** i avtalet, på netcups eget ställningstagande att de inte är biträden — det är en
+  gräns för mätningen, inte ett mätresultat, och skriv aldrig om detta till "kedjan är fullständigt
+  kartlagd". Tystnad om kedjan vore laglig ändå (Art. 13(1)(e) kräver mottagare eller kategorier,
+  inte biträdets egen lista); ett **falskt** påstående om den vore det inte.
+  ✅ **AVV:t är tecknat 2026-08-03.** Mekaniken står kvar som beskrivning och är fortfarande sann
+  om **hur** avtalet sluts: netcups AVV gäller **inte** automatiskt utan sluts i Customer Control
+  Panel, och den mätningen får aldrig generaliseras från e-postleverantörernas DPA:er — **både
+  AWS-erans och Scaleways gäller automatiskt**, så netcup var undantaget bland biträdena och inte
+  regeln. Grind: `release-checklist.md` §2.6 punkt 3, som är **flervillkorad** — signaturen är ett
+  led av flera, och bockstatus läses där.
 - Backup: **mekanismen är byggd och målet är valt och mätt (2026-08-09); Art. 28-avtalet är INTE tecknat** — ägs av
   [#197](https://github.com/klasolsson81/jobbliggaren/issues/197) (Hetzner-EU Storage Box föll med
   värdbytet). **Det här är kravens enda hem.** Kraven består oförändrade: klient-side
@@ -1342,9 +1352,16 @@ permanent infra aktiveras; listan nedan speglar **beslutad** uppsättning, ADR 0
 - Transaktionell e-post: **Scaleway S.A.S. (Paris, Frankrike — R.C.S. Paris 433 115 904)** via
   **Scaleway Transactional Email** i **`fr-par` (Paris)** — beslutad (Klas-val 2026-08-14/15;
   ADR 0131, #183 — ersätter Amazon SES, som föll när AWS permanent vägrade häva sandbox-läget,
-  vilket i sin tur ersatte Resend, Inc. (USA); båda är helt ute), **planerad, ännu inte
-  aktiverad**: `Email:Provider` defaultar till `Console`, vilket i non-dev löser till
-  `NullEmailSender`, så ingen e-post lämnar systemet. Gäller **all** utgående e-post, inte bara
+  vilket i sin tur ersatte Resend, Inc. (USA); båda är helt ute), och **AKTIVERAD 2026-08-16 UTAN
+  ATT §2.5-GRINDEN PASSERADES**: `Email:Provider` sattes till `Scaleway` på lådan medan led (a),
+  (b), (c) och (e) alla bar KVAR. **Armen skickar skarpt** — mätt leverantörssidigt samma dag,
+  `Processed 4 / Delivered 4`. Personuppgifter HAR alltså nått biträdet.
+  *(Posten sa "planerad, ännu inte aktiverad … så ingen e-post lämnar systemet" till 2026-08-16 —
+  `Email:Provider` defaultar fortfarande till `Console`, som i non-dev löser till `NullEmailSender`,
+  men lådans `.env` sätter den och defaulten beskriver därför inte längre driften. Läs aldrig
+  defaulten som ett driftläge.)* **Statusen på grinden själv står i `release-checklist.md` §2.5
+  punkt 1 och är oförändrat KVAR** — den här raden säger vad som körs, aldrig om det fick köras.
+  Gäller **all** utgående e-post, inte bara
   notiser: `EmailTemplates` har åtta sorter varav sex är kontolivscykel (bekräfta e-post,
   byta e-post, ändrad-e-post-avisering, konto-finns-redan, lösenordsåterställning,
   ändrat-lösenord-avisering). **Ingen tredjelandsöverföring — och det är en OMPRÖVAD fråga,
@@ -1362,8 +1379,11 @@ permanent infra aktiveras; listan nedan speglar **beslutad** uppsättning, ADR 0
   påstår i sin TEM-FAQ att *"all data is hosted and processed entirely within the European
   Union"* (`scaleway.com/en/docs/transactional-email/faq/`, läst 2026-08-15), och under Art. 4(2)
   omfattar *processing* åtkomst, så meningen träffar frågan — men den
-  är dokumentation, inte avtalstext, och binder inte som DPA Art. 11 gör. **Det är den meningen som
-  ska bekräftas skriftligt** (schemalagd fråga, Klas), inte en lucka som ska fyllas från noll.
+  är dokumentation, inte avtalstext, och binder inte som DPA Art. 11 gör. **Det var den meningen som
+  skulle bekräftas skriftligt**, inte en lucka som ska fyllas från noll. ⚠ **Frågan är INTE längre
+  schemalagd: brevet är struket och risken accepterad 2026-08-16 (ADR 0133).** Rangbristen står
+  oförändrad — det som försvann är åtgärden. En artefakt **med avtalsrang** som bär samma mening
+  stänger posten på egna meriter och kräver inget brev.
   **Läsningen är `security-auditor`s skärpning 2026-08-15/16 och statusens hem är
   `release-checklist.md` §2.5 punkt 1 led (b)** — den här posten refererar den, den avgör den inte. Överfört innehåll är
   mottagar-adressen och meddelandets innehåll (för notiserna
@@ -1434,9 +1454,10 @@ permanent infra aktiveras; listan nedan speglar **beslutad** uppsättning, ADR 0
 > Release-checklistans §2.5 punkt 5 tvingar fortfarande denna sektion vid **e-postflippen**;
 > inte heller denna ändring var flippen.
 >
-> **Kvar hos Klas: biträdesavtalet.** #1199 står öppen på just det ledet — netcups AVV gäller
-> **inte** automatiskt (mätt förstahands 2026-08-09) och inget är tecknat, vilket grindar första
-> riktiga datan via `release-checklist.md` §2.6 punkt 3. Se §15:s not.
+> **Biträdesavtalet är tecknat 2026-08-03** (uppgiften bor i ROPA:ns värdpost). #1199 står kvar
+> öppen på sina **övriga** led — netcups AVV gäller **inte** automatiskt (mätt förstahands
+> 2026-08-09), vilket var skälet att den inte gällde av sig själv. Första riktiga datan grindas
+> fortfarande av `release-checklist.md` §2.6 punkt 3, som är flervillkorad. Se §15:s not.
 
 ### 13.5 Säkerhetshygien
 
@@ -1623,18 +1644,29 @@ byggt:
 > friad (`security-auditor` 2026-08-09), medan **OVHcloud och Scaleway båda står på oavgjord grund** —
 > OVH:s **andra led är OPRÖVAT** — hon avstod uttryckligen från koncernstruktur, underbiträdeskedja
 > och supportåtkomst och lämnade slutsatsen **obelagd, inte falsk**. *(Diskriminatorn är avståendet,
-> inte kedjan: netcups kedja är också omätt och står ändå i den friade kolumnen — men där är den
-> **uppskjuten till AVV-bilagan med en namngiven omprövningsutlösare** (ett icke-EU-underbiträde
-> tvingar omprövning **före** korpusladdningen), medan hon för OVH avstod från hela andra ledet.
+> inte kedjan: netcups kedja var också omätt när detta skrevs och stod ändå i den friade kolumnen,
+> **uppskjuten till AVV-bilagan med en namngiven omprövningsutlösare** — ett icke-EU-underbiträde
+> hade tvingat omprövning **före** korpusladdningen. ⚠ **Bilagan är läst sedan 2026-08-16 och
+> utlösaren fyrade inte:** ANNEX 2 namnger tre underbiträden, samtliga inom EU, så netcups kedja är
+> inte längre omätt (§13.4 bär uppgiften med sin gräns). OVH:s andra led är fortfarande oprövat —
+> hon avstod från hela ledet.
 > Vad hon förklarade oväsentligt för netcup-slutsatsen var **ägandet**, inte kedjan.)* Och Scaleway står på ett utkast
-> `security-auditor` **delratificerat**: strukturen avgjord, slutsatsen inte, i väntan på svar om
-> leverantörens support-geografi (`release-checklist.md` §2.5 punkt 1 led (b) är statusens hem).
+> `security-auditor` **delratificerat**: strukturen avgjord, slutsatsen inte, eftersom
+> den FAQ-mening som besvarar frågan om leverantörens support-geografi saknar avtalsrang
+> (`release-checklist.md` §2.5 punkt 1 led (b) är
+> statusens hem). ⚠ **Raden sa "i väntan på svar" till 2026-08-16, och det svaret kommer inte:**
+> brevet som skulle begära det är struket och risken accepterad (ADR 0133). **Posten är därmed
+> oavgjord utan en åtgärd som väntar** — vilket gör den här paragrafens varning skarpare, inte
+> mildare: en oavgjord post utan pågående utredning är exakt den sortens rad som med tiden läses
+> som frikänd.
 > Blanda aldrig ihop de tre lägena — §15.1 förbjuder uttryckligen att en oavgjord post skrivs som
 > frikänd.
 > Se §15.1, där rekvisitet är utskrivet och R2-meningens formulering omankrad i samma ändring.
 >
-> **Vad #1199 fortfarande bär: biträdesavtalet med netcup**, som är Klas att teckna och som grindar
-> första riktiga datan. Ingen supersessions-ADR blev skyldig — ADR 0050 `Amendment 2026-08-04`
+> **Vad #1199 bar: biträdesavtalet med netcup — tecknat 2026-08-03.** Det var issuens femte
+> acceptanskriterium, det blockerande och Klas-ägda, och DPA:t har ingen egen issue. #1199 är
+> **bredare** än avtalet (policy-copy, ROPA, `BUILD.md`, paritetstestet) och står kvar öppen på
+> dem. Ingen supersessions-ADR blev skyldig — ADR 0050 `Amendment 2026-08-04`
 > hade redan landat och bär värdbeslutet.
 
 ### 15.1 Deploy-layout (ADR 0050, Accepted)

@@ -88,9 +88,13 @@ for "M-6 is done":
 | PG/Redis not public | **open** — no such service exists yet; today held by `forward policy drop` + the edge default-deny | #196, §12 |
 | Swap / core-dump hygiene | met, measured (including no zram writeback device) | §8, §9.1 |
 
-Gate B-1 (master key never plaintext on disk) is *prepared*, not met: §8 closes the two
-mechanisms that would page it to disk, but no key exists yet. B-1 itself is a first-real-data
-gate.
+Gate B-1 (master key never plaintext on disk) is **MET — verified GREEN 2026-08-16** (#198;
+`vps-deploy-stack.md` rows 21–25 carry the measurements). ~~*prepared*, not met~~ — true while no
+key existed; the key was then injected, rotated to `local-v3`, and the journal measured clean for
+all four secrets. §8 still closes the two mechanisms that would page it to disk. ⚠ **Closing B-1
+did not release the first real data**, and neither did discharging Art. 28: the corpus load is owned
+by **#1240**, which names its own gates; while that issue is open the load is not authorised.
+**No one discharged gate is permission.**
 
 ### Not in scope
 

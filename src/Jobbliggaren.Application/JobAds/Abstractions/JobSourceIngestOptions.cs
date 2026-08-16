@@ -19,8 +19,9 @@ namespace Jobbliggaren.Application.JobAds.Abstractions;
 /// and the switch stays off anyway</b>, because B-1 was never the only gate: the master key is no
 /// longer plaintext on disk (tmpfs, rotated to <c>local-v3</c>, measured in
 /// <c>vps-deploy-stack.md</c> rows 21-25), but the gate that bites at the corpus load is
-/// <b>Art. 28</b> — a signed processing agreement with the host, which is
-/// <c>release-checklist.md</c>'s corpus gate and is unticked. Klas
+/// <b>Art. 28</b>, whose single home is <c>release-checklist.md</c>'s corpus checklist item.
+/// That item is <b>multi-condition</b>: no one discharged condition is permission, and its
+/// state is read there rather than restated here. Klas
 /// confirmed the sequencing 2026-08-05: the stack may be deployed and every cutover proof taken,
 /// but recruiter contact records must not land until that gate is ticked. A deployed Worker registers
 /// <c>sync-platsbanken-stream</c> on a ten-minute cron, so without this switch the first ingest

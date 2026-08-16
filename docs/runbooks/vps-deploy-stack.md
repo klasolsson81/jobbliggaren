@@ -716,9 +716,15 @@ clause**: api's own log names the refusal, so nothing rests on correlation any m
 ⛔ **CLOSING B-1 DISCHARGES B-1. IT DOES NOT RELEASE THE CORPUS, AND IT DOES NOT AUTHORISE
 `JobTech__IngestEnabled=true`.**
 
-**The gate that bites at the corpus load is Art. 28, and it is not one condition but six.**
-`release-checklist.md`'s corpus gate is the home — read it there, it is not restated here — and its
-box is unticked. In outline, so a reader knows what they are opening: **a signed data-processing
+**The gate that bites at the corpus load is Art. 28, and it is not one condition but a SET.**
+⚠ **The count and the membership live at the home, not here** — this outline once carried "six" while
+the home's own list was a different six (it counts `ACME_EMAIL`; this one counted the sign-off
+separately). Two enumerations agreeing on a total by coincidence is worse than one, so the number is
+gone from here per `release-checklist.md`'s own ETT HEM PER TAL rule.
+`release-checklist.md`'s corpus gate is the home — read it there, it is not restated here — and it
+names every leg with its adjudicator. ⚠ **Discharging its legs is not release:** #1201 (gate M-7,
+conditional on ADR 0123) and #1199's remaining legs still stand in front of
+`JobTech__IngestEnabled=true`, and they are not conditions of that item. In outline, so a reader knows what they opened: **a signed data-processing
 agreement with netcup**, which ⚠ **does NOT apply automatically** (measured first-hand
 2026-08-09 — it is the exception among this stack's processors, so never generalise from Scaleway's
 or the AWS era's); the generator's *"circle of affected persons"* naming **recruiter contact
@@ -726,7 +732,9 @@ persons**, since they are Art. 14 non-users and a narrower declaration makes the
 than the processing; the annex's **sub-processor list read before the load**, because netcup
 publishes none and the annex is the only measurement of that chain; updated ROPA entries; the
 `recruiterNotice` re-examined as the Art. 14 notice for the population the load creates; and a
-**security-auditor sign-off that has not been given**.
+**security-auditor sign-off — given 2026-08-16 (SIGNED), covering the ROPA leg and closing the
+`recruiterNotice` leg**. The one leg still standing out is `ACME_EMAIL`, whose value lives only on
+the box and for which the repo holds no confirmation record.
 
 Two further gates are open beside it: **#1199** and **#1201**, whose detection mechanism is
 installed but whose **heartbeat is not** — it needs a Healthchecks check that is Klas's to create,
@@ -911,8 +919,9 @@ instrument under-reaches its own property reads as coverage it does not have.
 
   ⛔ **That discharges B-1 and releases nothing on its own**, and
   `JobTech__IngestEnabled=true` is **not** authorised by it. The gate that bites at the corpus load
-  is **Art. 28** — `release-checklist.md`'s corpus gate is its single home and is unticked; read it
-  there. **#1199** and **#1201** are open beside it. ⚠ **#1199 is where the Netcup DPA lives** — it is
+  is **Art. 28** — `release-checklist.md`'s corpus gate is its single home; read the state there,
+  never here. ⚠ **Discharging it releases nothing on its own** — the
+  same misreading this paragraph exists to prevent applies to it exactly as it applied to B-1. **#1199** and **#1201** are open beside it. ⚠ **#1199 is where the Netcup DPA lives** — it is
   that issue's fifth acceptance criterion, the blocking Klas-owned one, and the DPA has **no
   separate issue**. #1199 is *broader* than the DPA (policy copy, ROPA, `BUILD.md`, the parity
   test), which is the trap: it can close on those and leave the blocking leg untracked if a reader
@@ -940,9 +949,15 @@ instrument under-reaches its own property reads as coverage it does not have.
   paragraph and leaving this one stale.** **Klas confirmed the sequencing
   2026-08-05: the stack may be deployed and every cutover proof taken with the key as it was,
   because the box holds no user data — but the 51 347 recruiter contact records must not land
-  ~~until B-1 is closed~~ until `release-checklist.md`'s CORPUS GATE is ticked.** ⚠ **Corrected
-  2026-08-16: B-1 closed and that gate did not, so the old wording now reads as satisfied and
-  would permit the very load it was written to prevent.** Nothing mechanical enforces it; this
+  ~~until B-1 is closed~~ ~~until `release-checklist.md`'s CORPUS GATE is ticked~~ until **#1240**
+  is closed.** ⚠ **Corrected three times on 2026-08-16, each time by the previous correction's own
+  success.** First: B-1 closed and the corpus gate had not, so *"until B-1"* read as satisfied and
+  would have permitted the very load it was written to prevent. Then the Art. 28 conditions were
+  discharged the same day, and *"until the CORPUS GATE is ticked"* inherited the identical defect
+  within hours. Then *"until the item authorises it"* inherited it again, because the item has one
+  binary and no `authorises` state to read. **The durable form points at the issue that OWNS the
+  load** — #1240 names its own gates, and its open/closed state means exactly the thing the guard
+  needs and nothing else. Nothing mechanical enforces it; this
   paragraph is the reader. Beside Art. 28 the corpus also waits on **#1199** — the policy/host
   row — whose fifth acceptance criterion **is** the signed Netcup DPA (blocking, Klas-owned; it has no issue of its own),
   and on **#1201**, whose M-7 grading converts to Blocker at first real data while ADR 0123

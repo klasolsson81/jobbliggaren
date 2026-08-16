@@ -12,9 +12,10 @@ namespace Jobbliggaren.Architecture.Tests;
 ///
 /// <para>
 /// Platsbanken ingestion writes recruiter contact records, which ADR 0050's pre-beta-data gate
-/// B-1 covers. B-1 CLOSED 2026-08-16 and this guard stays, because B-1 was never the only gate:
-/// the Art. 28 processing agreement bites at the corpus load and release-checklist.md's corpus
-/// gate is unticked, so the deployed box must not ingest until THAT is ticked. The unit tests
+/// B-1 covers. B-1 CLOSED 2026-08-16 and this guard stays, because B-1 was never the only gate.
+/// The load itself is owned by issue #1240, which names its own gates; while it is open the load
+/// is not authorised. NO ONE DISCHARGED GATE IS PERMISSION — read #1240, never a single condition,
+/// and never this comment for state. The unit tests
 /// beside the two jobs prove the jobs OBEY the flag; they cannot prove the flag is off, because
 /// they construct the options themselves. This file pins the two seams that actually decide it
 /// on a running box, and both of them fail SILENTLY OPEN if they break:
@@ -58,9 +59,10 @@ public class JobSourceIngestGateConfigurationTests
         BuildFrom(ShippedProductionOverlay).GetSection(JobTechSection).Bind(options);
 
         options.IngestEnabled.ShouldBeFalse(
-            "the deployed Worker must not ingest recruiter contact records until " +
-            "release-checklist.md's Art. 28 corpus gate is ticked. Do NOT read a closed B-1 as " +
-            "permission — B-1 closed 2026-08-16 and this guard was never about it alone. " +
+            "the deployed Worker must not ingest recruiter contact records while issue #1240 — " +
+            "which owns the corpus load and names its own gates — is open. Do NOT read ANY single " +
+            "discharged gate as permission: this guard was never about any one of them alone, " +
+            "and several have already been discharged without authorising the load. " +
             "Removing the key restores the code default, which is true.");
     }
 

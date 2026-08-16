@@ -1299,15 +1299,21 @@ permanent infra aktiveras; listan nedan speglar **beslutad** uppsättning, ADR 0
   Tyskland, så den krok som fällde e-postposten i AWS-eran — EU-avtalspart under **amerikansk**
   koncernmoder — saknas här (`security-auditor` 2026-08-09). *(Kontrasten är historisk sedan
   2026-08-15: e-postposten saknar numera samma krok, av samma strukturella skäl — ADR 0131. Det
-  som frikänner värdbenet är oförändrat; det är jämförelseobjektet som bytts ut.)* **Underbiträdeskedjan är OMÄTT och får inte påstås ligga inom
-  EU/EES:** netcup publicerar ingen lista (mätt 2026-08-09 mot DPA-sidan, AVV-sidan, Impressum och
-  DC-sidan), den bor i AVV-bilagan och blir läsbar först när avtalet tecknas. Tystnad om kedjan är
-  laglig (Art. 13(1)(e) kräver mottagare eller kategorier, inte biträdets egen lista); ett
-  påstående om den är det inte. ⚠ **Inget Art. 28-avtal är tecknat** — netcups AVV gäller **inte**
-  automatiskt utan sluts i Customer Control Panel, och den mätningen får aldrig generaliseras från
-  e-postleverantörernas DPA:er: **både AWS-erans och Scaleways gäller automatiskt**, så netcup är
-  undantaget bland biträdena och inte regeln. Grind: `release-checklist.md` §2.6 punkt 3
-  (**Klas**, aldrig CC).
+  som frikänner värdbenet är oförändrat; det är jämförelseobjektet som bytts ut.)* **Underbiträdeskedjan var OMÄTT till 2026-08-16 och är det inte längre.**
+  netcup publicerar ingen lista (mätt 2026-08-09 mot DPA-sidan, AVV-sidan, Impressum och
+  DC-sidan) — den bor i AVV-bilagan och blev läsbar när avtalet tecknades. **ANNEX 2 namnger tre
+  underbiträden, samtliga inom EU** (två Klagenfurt AT, ett Karlsruhe DE), så kedjan **får** nu
+  påstås ligga inom EU/EES. ⚠ **Med en namngiven gräns:** kollokations-datacentren är
+  **onamngivna** i avtalet, på netcups eget ställningstagande att de inte är biträden — det är en
+  gräns för mätningen, inte ett mätresultat, och skriv aldrig om detta till "kedjan är fullständigt
+  kartlagd". Tystnad om kedjan vore laglig ändå (Art. 13(1)(e) kräver mottagare eller kategorier,
+  inte biträdets egen lista); ett **falskt** påstående om den vore det inte.
+  ✅ **AVV:t är tecknat 2026-08-03.** Mekaniken står kvar som beskrivning och är fortfarande sann
+  om **hur** avtalet sluts: netcups AVV gäller **inte** automatiskt utan sluts i Customer Control
+  Panel, och den mätningen får aldrig generaliseras från e-postleverantörernas DPA:er — **både
+  AWS-erans och Scaleways gäller automatiskt**, så netcup var undantaget bland biträdena och inte
+  regeln. Grind: `release-checklist.md` §2.6 punkt 3, som är **flervillkorad** — signaturen är ett
+  led av flera, och bockstatus läses där.
 - Backup: **mekanismen är byggd och målet är valt och mätt (2026-08-09); Art. 28-avtalet är INTE tecknat** — ägs av
   [#197](https://github.com/klasolsson81/jobbliggaren/issues/197) (Hetzner-EU Storage Box föll med
   värdbytet). **Det här är kravens enda hem.** Kraven består oförändrade: klient-side
@@ -1448,9 +1454,10 @@ permanent infra aktiveras; listan nedan speglar **beslutad** uppsättning, ADR 0
 > Release-checklistans §2.5 punkt 5 tvingar fortfarande denna sektion vid **e-postflippen**;
 > inte heller denna ändring var flippen.
 >
-> **Kvar hos Klas: biträdesavtalet.** #1199 står öppen på just det ledet — netcups AVV gäller
-> **inte** automatiskt (mätt förstahands 2026-08-09) och inget är tecknat, vilket grindar första
-> riktiga datan via `release-checklist.md` §2.6 punkt 3. Se §15:s not.
+> **Biträdesavtalet är tecknat 2026-08-03** (uppgiften bor i ROPA:ns värdpost). #1199 står kvar
+> öppen på sina **övriga** led — netcups AVV gäller **inte** automatiskt (mätt förstahands
+> 2026-08-09), vilket var skälet att den inte gällde av sig själv. Första riktiga datan grindas
+> fortfarande av `release-checklist.md` §2.6 punkt 3, som är flervillkorad. Se §15:s not.
 
 ### 13.5 Säkerhetshygien
 
@@ -1637,9 +1644,12 @@ byggt:
 > friad (`security-auditor` 2026-08-09), medan **OVHcloud och Scaleway båda står på oavgjord grund** —
 > OVH:s **andra led är OPRÖVAT** — hon avstod uttryckligen från koncernstruktur, underbiträdeskedja
 > och supportåtkomst och lämnade slutsatsen **obelagd, inte falsk**. *(Diskriminatorn är avståendet,
-> inte kedjan: netcups kedja är också omätt och står ändå i den friade kolumnen — men där är den
-> **uppskjuten till AVV-bilagan med en namngiven omprövningsutlösare** (ett icke-EU-underbiträde
-> tvingar omprövning **före** korpusladdningen), medan hon för OVH avstod från hela andra ledet.
+> inte kedjan: netcups kedja var också omätt när detta skrevs och stod ändå i den friade kolumnen,
+> **uppskjuten till AVV-bilagan med en namngiven omprövningsutlösare** — ett icke-EU-underbiträde
+> hade tvingat omprövning **före** korpusladdningen. ⚠ **Bilagan är läst sedan 2026-08-16 och
+> utlösaren fyrade inte:** ANNEX 2 namnger tre underbiträden, samtliga inom EU, så netcups kedja är
+> inte längre omätt (§13.4 bär uppgiften med sin gräns). OVH:s andra led är fortfarande oprövat —
+> hon avstod från hela ledet.
 > Vad hon förklarade oväsentligt för netcup-slutsatsen var **ägandet**, inte kedjan.)* Och Scaleway står på ett utkast
 > `security-auditor` **delratificerat**: strukturen avgjord, slutsatsen inte, eftersom
 > den FAQ-mening som besvarar frågan om leverantörens support-geografi saknar avtalsrang
@@ -1653,8 +1663,10 @@ byggt:
 > frikänd.
 > Se §15.1, där rekvisitet är utskrivet och R2-meningens formulering omankrad i samma ändring.
 >
-> **Vad #1199 fortfarande bär: biträdesavtalet med netcup**, som är Klas att teckna och som grindar
-> första riktiga datan. Ingen supersessions-ADR blev skyldig — ADR 0050 `Amendment 2026-08-04`
+> **Vad #1199 bar: biträdesavtalet med netcup — tecknat 2026-08-03.** Det var issuens femte
+> acceptanskriterium, det blockerande och Klas-ägda, och DPA:t har ingen egen issue. #1199 är
+> **bredare** än avtalet (policy-copy, ROPA, `BUILD.md`, paritetstestet) och står kvar öppen på
+> dem. Ingen supersessions-ADR blev skyldig — ADR 0050 `Amendment 2026-08-04`
 > hade redan landat och bär värdbeslutet.
 
 ### 15.1 Deploy-layout (ADR 0050, Accepted)

@@ -184,8 +184,34 @@ its tracked template (`docs/test-accounts.local.md.example`). It is gitignored a
 that way: this repo is public, and the file carries both the CC account's password and the
 K2 credential. It is deliberately **not** synced into worktrees.
 
-**10. Close the gate again.** Comment out `AUTH_REGISTRATIONS_OPEN` and restart —
-**leave `AUTH_REQUIRE_EMAIL_CONFIRMATION=true` set** (`.env.example` says why: with the gate
+**10. Close the gate again — and RE-CREATE, exactly as in step 7.** Comment out
+`AUTH_REGISTRATIONS_OPEN`, then:
+
+```bash
+cd /opt/jobbliggaren/deploy && sudo docker compose -f docker-compose.yml up -d api
+```
+
+⚠ **`docker restart` cannot close the gate and will report success.** Same mechanism as step 7 and
+higher stakes: compose substitutes `Auth__RegistrationsOpen: ${AUTH_REGISTRATIONS_OPEN:-false}` at
+container *creation*, so a restart re-runs the process against the env it already has. Step 7's
+second half re-created the container **while the gate line was still set**, so at this point the
+live container definitely carries `true` — there is no rescuing re-create between the two steps.
+Commenting the line out and restarting leaves the gate **open** while `.env` says closed and the
+operator believes it is closed.
+
+**Then read the gate's own line, exactly as step 4 does. This step is not done until it says
+`CLOSED`:**
+
+```bash
+docker logs jobbliggaren-api 2>&1 | grep 'Registration gate'
+```
+
+Expect `Registration gate: CLOSED; email confirmation: REQUIRED` — EventId 4300 at Information,
+not 4301 at Warning. A behavioural check is available and costs nothing: a `POST` to
+`/api/v1/auth/register` should answer `503 Auth.RegistrationsClosed` and leave no row behind, the
+gate being the handler's first statement.
+
+**Leave `AUTH_REQUIRE_EMAIL_CONFIRMATION=true` set** (`.env.example` says why: with the gate
 closed a `false` there is accepted silently and disables the login gate). Accounts and logins
 survive a closed gate; closing it refuses new registrations only.
 

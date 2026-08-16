@@ -499,8 +499,27 @@ the damage unrecoverable.
    rotation its marker. ⚠ **Escrow all FOUR values, not only the one that changed.** The script
    skips files that already exist, so a master-key rotation leaves the three peppers untouched;
    an escrow written from this run alone would drop them. Carry them across from the outgoing
-   escrow verbatim, and keep that outgoing copy until step 7 succeeds — §1 requires the escrow to
-   span the rotation window, both generations.
+   escrow, and keep that outgoing copy until step 7 succeeds — §1 requires the escrow to
+   span the rotation window, both generations. **Destroy the outgoing copy once step 7 has
+   succeeded**, not before and not never: an escrow of a retired generation is worse than none,
+   because its holder believes they have the live one.
+
+   ⚠ **Do not carry a pepper forward "verbatim" on the escrow's own authority — the box is the
+   authority.** Row 26 records that the escrow↔box link is still operator-attested at both ends,
+   so a value carried forward from an unverified escrow propagates the error through every future
+   rotation, silently, and the peppers are irrecoverable: the company-watch pepper owns every
+   org.nr token whose plaintext was destroyed in place, the CV-fingerprint pepper every
+   Ignored/Resolved decision. Compare without exposing anything, and without breaking the argv
+   discipline this section just established:
+
+   ```bash
+   sudo sha256sum /run/jobbliggaren/secrets/AuditPseudonymization__PepperBase64 \
+                  /run/jobbliggaren/secrets/CompanyWatchPseudonymization__PepperBase64 \
+                  /run/jobbliggaren/secrets/CvReviewFingerprintPseudonymization__PepperBase64
+   ```
+
+   Hash the escrowed values the same way off-box and compare digests. A mismatch means the escrow
+   is not what the box runs, and that is a stop rather than a note.
 5. Rewrap old → new, using `OLD_KEY` from step 3 (the command above). **Skip entirely when
    `user_data_keys` is empty** — there is nothing to re-wrap and the new bytes are already in
    force; the tool would report a no-op anyway.

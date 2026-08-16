@@ -1136,9 +1136,13 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
       markörmening. **Det är ett mätresultat, inte en förutsägelse:** en ändring som tar bort
       ett arrayelement eller delar ett stycke flyttar varje rad under sig, så greppet ska
       köras om även när en ändring "bara" byter ord.
-      **Grepa INTE bara på `"planerat och ännu inte i drift"`** — det ger 7 (mätt
-      2026-08-15) och missar de TVÅ retentionsposterna, som bär `(planerat)` utan
-      avslutningsmeningen. Den första (organisationsnumret i en annons, #880) nämner
+      **Grepa INTE bara på `"planerat och ännu inte i drift"`** — det missar de TVÅ
+      retentionsposterna, som bär `(planerat)` utan avslutningsmeningen. *(Raden bar talet **7**
+      "mätt 2026-08-15" till 2026-08-16. Det är sant om sitt datum och **falskt i dag**: `f09755b1`
+      lade till en markörbärande rad dygnet efter, så markörmeningen ger **8** per språk och
+      8+2 = de 10+10 som stycket ovan självt etablerar. Talet togs bort i stället för att räknas om,
+      eftersom det är precis den sortens siffra det här stycket säger ska **regenereras ur greppet**
+      och aldrig läsas ur filen.)* Den första (organisationsnumret i en annons, #880) nämner
       ansökningshistoriken som ett ÄNDAMÅL med att arbetsgivarens identitet sparas;
       den andra är ansökningshistorikens egen post. **Radnumren står medvetet inte här** —
       de bor i punkt 1:s mängd ovan och flyttar varje gång ett stycke läggs till eller stryks;
@@ -1221,9 +1225,26 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
       ⚠ **RAD 64:s SANNING ÄR OMÄTT, och det skrivs ut hellre än antas.** Varje annan siffra i det
       här blocket bär datum och instrument; rad 64:s gör det inte. Grunden är rimlig — notis-e-post
       kräver opt-in plus en matchningskörning, och `Processed 4` är leverantörssidigt **aggregat** som
-      inte identifierar mallar — men rimlig är inte mätt. **Vad som skulle fastställa den:** noll
-      notis-rader i `email_log` på lådan. Tills dess: skyddad från flip på en omätt grund, och det är
-      medvetet den försiktiga riktningen.
+      inte identifierar mallar — men rimlig är inte mätt.
+      **Vad som skulle fastställa den, och det är två tabeller och inte en:** att **ingen rad någonsin
+      lämnat `Pending`** i `user_job_ad_matches` respektive `followed_company_ad_hits` — de två
+      tabellerna som ÄR notis-armen. ⚠ **Formen är `Pending`, aldrig `sent_at IS NULL`:** i
+      claim-then-send-spinen sätts `MarkQueued` **före** utskicket, så en `Queued`-rad kan ha
+      genererat ett utskick vars commit föll — det är vad `StrandedMatchReaperJob` finns för. Att
+      läsa `sent_at` ensamt mäter alltså i den farliga riktningen.
+      *(Raden namngav till 2026-08-16 `email_log`. **Den tabellen finns inte** — noll träffar i
+      `src/` och `tests/`, ingen migration; den är ett planerat schema i `BUILD.md` §7 och inget mer,
+      så frågan hade returnerat `relation does not exist`. Det är PR:ens och husets egen defektklass:
+      commiten omedelbart före den här PR:en heter *"two of its own instruments cannot be run"*, och
+      det här stycket lade till ett tredje — värre än den utelämnade mätningen det ersatte, eftersom
+      stycket gör en poäng av att varje annan siffra bär instrument och raden därför **läser som
+      körbar**. `security-auditor` + `code-reviewer`, oberoende, samma dag.)*
+      Tills mätningen är gjord: skyddad från flip på en omätt grund, och det är medvetet den
+      försiktiga riktningen.
+      ⚠ **Statusordet är `security-auditor`s, inte den här postens.** §2.6:s E5-dom skriver rad 64 som
+      **SANN**; det här blocket skriver dess **grund** som omätt, och hon ratificerade den skärpningen
+      i FU-2:s fjärde omkontroll. De konvergerar operativt — raden flippas inte — men **domen ägs av
+      henne**, och en läsare som vill ändra status går till henne, inte hit.
       ⚠ **Den här punktens egen instruktion är samtidigt OUPPFYLLBAR** — *"flippa styckena först när
       respektive grind är passerad"* kan inte utföras för en grind som redan kringgåtts. Läs den som
       överträdd, aldrig som en väntande ordning; det är samma form som §2.5:s strukna

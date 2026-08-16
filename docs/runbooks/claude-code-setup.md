@@ -64,7 +64,7 @@ Klassificeraren pausar Auto mode och ber om bekräftelse om den bedömer en åtg
 
 ### `settings.json` (committad)
 
-Team-delad konfiguration. Innehåller allow/deny/ask-listor, modell (`claude-sonnet-4-6` som default), `effortLevel: high`, och `autoMemoryDirectory`.
+Team-delad konfiguration. Innehåller allow/deny/ask-listor, modell och `effortLevel`. ⚠ ~~`autoMemoryDirectory`~~ **togs bort 2026-08-16** — minnet ligger inte längre under repo-trädet. Modell- och effort-värdena ovan var dessutom stale mot filen; läs dem i `settings.json` i stället för här, eftersom ett värde återgivet på två ställen bara driver isär.
 
 **Viktigt:** `settings.json` är committad och påverkar alla som klonar repot. Ändringar kräver PR-diskussion.
 

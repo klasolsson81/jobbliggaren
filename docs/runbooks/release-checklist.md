@@ -149,8 +149,17 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
 > `ConsoleEmailSender`, som loggar lokalt och inte når någon extern processor, och en läsare som
 > tar den för predikatet drar in Development i grinden (`dotnet-architect` N3). Läs armen, inte
 > förmågan.
-> Tills dess kör `NullEmailSender` — ingen
-> e-post skickas, och denna grind är inte relevant.
+> ⚠ **GRINDEN ÄR RELEVANT SEDAN 2026-08-16, OCH DEN HAR ALDRIG PASSERATS.** `Email:Provider` sattes
+> till `Scaleway` på lådan medan led (a), (b), (c) och (e) alla bar KVAR, och utskicken är mätta
+> leverantörssidigt samma dag. *(Meningen som stod här — "Tills dess kör `NullEmailSender` — ingen
+> e-post skickas, och denna grind är inte relevant" — var den här grindens egen
+> **tillämplighetsmening**, och den sa från 2026-08-16 att grinden inte gäller. Alla tre
+> påståendena var falska: providern är satt, e-post skickas, och grinden är relevant. Det är exakt
+> den felriktning stycket **nedanför** fäller för Resend→SES-bytet — *"grinden läste därmed
+> permanent 'inte relevant'"* — samma mening, ny orsak, och den här gången i den riktning som
+> avväpnar en merge-blockerande grind i stället för att över-trigga den.)*
+> **Defaulten är fortfarande `Console`→`NullEmailSender` i non-dev — läs den aldrig som ett
+> driftläge**, eftersom lådans `.env` sätter providern.
 >
 > ⚠ **PREDIKATET ÄR FORMBASERAT SEDAN 2026-08-15, OCH DET ÄR EN REPARATION AV EN MÄTT DEFEKT**
 > (senior-cto-advisor, bindande). Det löd tidigare *"aktiverar `Email:Provider=Ses`"* — ett
@@ -324,12 +333,9 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
         ⚠ **BREVET ÄR STRUKET 2026-08-16 (Klas-beslut) — ÅTGÄRDEN ÄR BORTA, INTE FYNDET.** Grunden
         ovan står oförändrad: meningen saknar fortfarande avtalsrang, och utkastet är fortfarande
         villkorat. Vad som ändrats är att ingen bekräftelse är på väg. **Beslutet, dess grund och
-        dess lapse-klausul har sitt hem i ADR 0133** — läs det där; den här raden citerar det och
-        bär det inte. Kort: acceptansen vilar på **bindningen** (enda registrerade vars uppgifter
-        nått providern är den ansvarige själv) plus **Art. 24(1)**:s proportionalitet, aldrig på
-        CLAUDE.md §9.6:s accepterad-risk-väg, som gäller en Major *utan* GDPR-implikation. **Statusen
-        på det här ledet sätts fortfarande av `security-auditor`, inte av beslutet** — ett struket
-        brev ratificerar ingenting.
+        dess lapse-klausul har sitt hem i ADR 0133** — läs det där; den här raden citerar och räknar
+        inte. **Statusen på det här ledet sätts fortfarande av `security-auditor`, inte av
+        beslutet** — ett struket brev ratificerar ingenting.
         **KARAKTERISERINGEN ÄR `security-auditor`s MED KLAS, inte sessionens.** Ledet bär KVAR tills
         hon ratificerat; hennes dom skrivs in HÄR och statusen läses här, aldrig ur preambeln.
         **`security-auditor` 2026-08-15/16 — DELRATIFICERING. LEDET STÅR KVAR.**
@@ -904,8 +910,17 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
       hemvister**, och den fjärde — **§8:s ADR 0071-preambel**, *"e-postvägen är en separat, grindad
       överföring"* — står **inte** i uppräkningen. Den bar dessutom ordet *överföring*, som är fel
       på egna meriter: avtalsparten är fransk och Kap. V-bedömningen är *ej tillämplig*.
-      **Bevisformen är noll träffar mot söksträngarna, aldrig antalet redigerade rader**
-      (`senior-cto-advisor`-bind 2026-08-16). Kör regeln, inte den här listan.
+      **Bevisformen är noll träffar mot söksträngarna UTANFÖR CITERAD PROVENIENS, aldrig antalet
+      redigerade rader** (`senior-cto-advisor`-bind 2026-08-16, kvalifikationen `security-auditor`s
+      N-3 samma dag). ⚠ **Kvalifikationen är inte en uppmjukning — utan den är bevisformen
+      ouppfyllbar:** reparationen av en falsk rad recordar den pensionerade lydelsen (*"Posten sa
+      …"*), så söksträngarna träffar permanent sina egna citat. Mätt 2026-08-16 mot `BUILD.md`:
+      **tre kvarvarande träffar, alla inne i daterade citat.** En operatör som jagar noll når det
+      aldrig, och tre kända träffar blir en brusbaslinje där en fjärde och äkta försvinner. Läs
+      varje träff och avgör om den är **levande eller citerad**; det är den avgörningen som är
+      beviset. **Kör regeln, inte den här listan** — regeln är dessutom själv en uppräkning en nivå
+      ned, och den missade §2.5:s egen tillämplighetsmening (*"ingen e-post skickas"*), som ingen
+      av de fyra söksträngarna kan träffa.
       ⚠ **Ersättningstextens form är bunden:** skriv *"aktiverad utan att §2.5-grinden passerades"*,
       aldrig bara *"aktiverad"* — den kortare formen läser som att grinden gav grönt. Och importera
       **inte** den här punktens ord *tredjelandsöverföring* till de flippade raderna; det byter en
@@ -1184,6 +1199,31 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
         stycket) är **struken med sin grund**, så e-posten bär nu **tre** markörbärande stycken per
         språk, inte fyra. Också detta var en motpartskorrigering och **ingen flip** — markörmeningen
         står kvar i alla tre styckena i båda språken, och armen är fortfarande mörk.
+      ⚠ **"ARMEN ÄR FORTFARANDE MÖRK" ÄR FALSKT SEDAN 2026-08-16, OCH DE TRE STYCKENA ÄR DÄRMED
+      OSANNA I PRESENS** (`security-auditor` N-1, 2026-08-16). Armen aktiverades 2026-08-16 utan att
+      §2.5-grinden passerades, och copyn säger fortfarande *"planerat och ännu inte i drift"* om en
+      behandling som pågår — mätt samma dag: **åtta träffar på `planerat och ännu inte i drift` i
+      `sv`, åtta i `en`**, varav rad 75 kallar Scaleway *"planerad e-postleverantör"* och rad 76
+      talar om uppgifter som *"planeras att lämnas"*. **Rad 64 är SANN och får inte flippas.**
+      ⚠ **Den här punktens egen instruktion är samtidigt OUPPFYLLBAR** — *"flippa styckena först när
+      respektive grind är passerad"* kan inte utföras för en grind som redan kringgåtts. Läs den som
+      överträdd, aldrig som en väntande ordning; det är samma form som §2.5:s strukna
+      *"Ingen flip innan båda är besvarade"*.
+      ⚠ **DETTA ÄR INTE BLOCKER I DAG, OCH SKÄLET ÄR EN BINDNING SOM INGEN ADR BÄR.** Enda
+      registrerade är personuppgiftsansvarig själv och copyn ligger bakom Basic auth. Men **ADR 0133
+      täcker led (b) och (c), ADR 0132 täcker registreringsgrinden, och tempus-avvikelsen i den
+      publicerade notisen ligger utanför båda** — den lever på deras bindning utan att vara skriven
+      någonstans. **Den eskalerar till Blocker automatiskt** när ADR 0132:s trigger (a), (b) eller
+      (c) fyrar, utan att någon behöver agera för att det ska ske (Art. 13(1)(e)/(3), Art. 12(1)).
+      ⚠ **ÅTAGANDE — FU-2b, och det står HÄR därför att sessionsloggen är gitignorerad och inte
+      räknas som hemvist** (`senior-cto-advisor`-bind 2026-08-16): copy-halvan — `content-legal.json`
+      **sv + en**, raderna ovan, **utom rad 64** — plus den regenererade mängden i den här punkten
+      levereras i en **följd-PR** off uppdaterad `origin/main`, inte stackad, ägd av **#183:s
+      e-postlane**. Skälet den inte ligger i FU-2: den läses av den **registrerade** (Art. 13/14) och
+      kräver `design-reviewer` + paritetssviten, medan FU-2:s halva läses av varje CC-invokation.
+      **Klas äger vägvalet** — antingen flippas styckena, eller så recordas tempus-avvikelsen som ett
+      uttryckligen bundet accepterat läge i ADR 0133 på samma bindning som led (b)/(c). **Vad som
+      inte är tillgängligt är att lämna den obeslutad.**
       Kvarstående planerat-meningar för behandlingar som fortfarande inte är i
       drift ska stå kvar. Släpper releasen ingen av dem är rätt utfall att **inte
       ändra något**.

@@ -686,6 +686,15 @@ order. (Praise is not a finding and routes nowhere.) Then:
   processing breaches Art. 5(1)(a)/12(1) with **no registered data subject at all**, so (i) can
   hold — vacuously — while (iii) fails. Both delivered instances rested on all three.
 
+  ⚠ **The three parts measure the criterion; they do not replace it.** They are the registers where a
+  bearer has arisen so far — account, send, public reading — and **none of them measures CONTENT**. A
+  bearer none of the three reaches fails the condition all the same: a referee named inside a CV the
+  controller himself uploaded, or a sole trader in `company_register` whose company name is a
+  person's name, holds no account, received no send, and sits behind no public page. **Read the
+  criterion first and the parts as its instruments** — the opposite of the lapse clause below, where
+  the general sentence under-triggers and the enumeration governs. The two are not the same shape,
+  and applying one's lesson to the other gets it exactly backwards.
+
   **The measurement names its artefact, its date and its home.** It is recorded in the same ADR or
   CLAUDE.md update as the acceptance — never a PR body, never chat. **It expires**: a bearer-absence
   reading is never inherited from an earlier row, and is re-taken at the decision and at every lapse
@@ -706,8 +715,22 @@ order. (Praise is not a finding and routes nowhere.) Then:
   **withdraws the remedy only — never the finding, never its grade, never the record of what is
   unknown**. An accepted risk does not become measured by being accepted and must never be written as
   though it had. **The route lets a session propose an acceptance, never declare one.** The finding
-  is then **resolved**, so the PR rides the normal flow — but every other applicable §12 class must
-  still clear independently, and a §5 `Security:` class clears through Klas, not through this route.
+  is then **resolved by acceptance** — which is what §12 means by *unresolved*; its *0 Blocker /
+  0 Major* wording describes the ordinary case, not a signed acceptance — so the PR rides the normal
+  flow. **Every other applicable §12 class must still clear independently**, and a §5 `Security:`
+  class clears through Klas, not through this route. *(Measured against both delivered instances:
+  neither hit §5 `Security:` at all. That list is CODE anti-patterns; a GDPR-implicated Major is
+  typically a legal-posture finding with no code form — so a reader who goes looking for a §5 class
+  and finds none has not found a problem.)*
+
+  ⚠ **This is not a lowered bar, and reading it as one is the failure mode to avoid.** It writes down
+  the bound that was already applied, so a third instance cites it instead of reinventing it — the
+  duplication was the measured cost, not the standard. **Neither ground survives a widening.**
+  Bearer-absence ends the moment there is a bearer — any of the three parts, or a bearer none of them
+  reaches — and Art. 24(1) scales the measures **up** as the processing grows; together they license
+  one acceptance, at one size, until the size changes. **An acceptance widened by a single
+  non-controller data subject is an acceptance of a third party's rights, which this route does not
+  grant and `security-auditor` does not sign.**
 
   **The lapse fires on ANY trigger the acceptance names, and one sentence is not a trigger set.**
   *"The first personal data reaching the processor that is not the controller's"* is the **ground**,
@@ -717,8 +740,9 @@ order. (Praise is not a finding and routes nowhere.) Then:
   becoming publicly readable, fires with no personal data reaching any processor at all.**
 
   **A GDPR Blocker is never in any of these three categories**, and neither is a Major whose bound
-  cannot be measured. **(2) and (3) are granted by Klas and recorded in an ADR or a CLAUDE.md update,
-  never by the session in a PR body. (1) is not a Klas grant at all** — per its own text above it is
+  cannot be measured. **(2) and (3) are granted by Klas — (3) also signed by `security-auditor` —
+  and recorded in an ADR or a CLAUDE.md update, never by the session in a PR body. (1) is not a Klas
+  grant at all** — per its own text above it is
   filed as an issue with the escalation named in it, and the PR proceeds. *(This closes
   `code-reviewer`'s standing escalation, raised on ADR 0132 and again on ADR 0133 (both 2026-08-16),
   that §9.6 offered no positive route here. §13 is why it lands in this file: the boundary is a CC

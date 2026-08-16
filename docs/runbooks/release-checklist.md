@@ -667,12 +667,23 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
            `security-auditor` har dessutom rest en öppen fråga om `PasswordChangedNotice`: 6(1)(f)
            mot registrets egen 6(1)(c)+Art. 32-konstruktion, vilket avgör om en Art. 21-invändning
            måste kunna bemötas. **Står 6(1)(f) kvar efter prövningen
-           krävs en matchande Art. 13(1)(d)-post i policyn FÖRE flippen** — den träffar då **tre**
-           mallar, inte två. Dagens
-           berättigat-intresse-avsnitt räknar upp fyra behandlingar och ingen av dem är e-post.
-           Faller de i stället ut som 6(1)(b) täcks de av befintlig copy och luckan stänger sig
-           själv. **En behandling som körs utan redovisad grund är en Blocker i det ögonblicket**,
-           inte en Minor.
+           krävs en matchande Art. 13(1)(d)-post i policyn FÖRE flippen.**
+           ⚠ **POSTEN FINNS SEDAN 2026-08-16 OCH MENINGEN SOM STOD HÄR ÄR FALSK SEDAN SAMMA DAG.**
+           Raden löd *"den träffar då tre mallar, inte två. Dagens berättigat-intresse-avsnitt
+           räknar upp fyra behandlingar och ingen av dem är e-post."* Den var sann när den skrevs
+           2026-08-09 (#1169) och föll i samma andetag som #183 E4 (`f09755b1`) lade in
+           Art. 13(1)(d)-posten som andra punkten i `privacy.sections[3].list`. **Mätt 2026-08-16
+           (#183 FU-1): fem poster, och post 2 ÄR e-post.** Regenerera mot
+           `privacy.sections[3].list`, räkna aldrig ur den här raden — det är samma decay-form som
+           §2.6 punkt 1:s radmängd, och skälet talet inte får bo på en andra plats.
+           **Mängden växte 3 → 4 i samma ändring som skriver den här raden** (#183 FU-1):
+           `EmailChangeConfirmation` mot **mottagarklass (3)** vilar på 6(1)(f), eftersom dess
+           6(1)(b) resonerar från kontoinnehavaren och klass (3) per konstruktion inte är part i
+           något avtal med oss (förutsättning 2:s E5-dom ovan). Posten är vidgad till den fjärde i
+           samma PR; **`security-auditor` graderar om vidgningen räcker, sessionen graderar inte.**
+           Faller grunderna i stället ut som 6(1)(b) täcks de av befintlig copy och luckan stänger
+           sig själv. **En behandling som körs utan redovisad grund är en Blocker i det
+           ögonblicket**, inte en Minor.
         3. **Nyckelrotation för den statiska providernyckeln** — ingen instance role finns, så
            nyckeln är långlivad per definition. Skyldigheten är oförändrad sedan 2026-08-08 och
            återregistreras här så den inte tappas; ägs även av #198. **Sedan 2026-08-15 gäller den

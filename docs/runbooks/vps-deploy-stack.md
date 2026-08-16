@@ -900,12 +900,21 @@ instrument under-reaches its own property reads as coverage it does not have.
 
   **B-1 IS CLOSED (Klas, 2026-08-16).** All five rows carry measurements and the Properties hold.
 
-  ⛔ **That discharges B-1 and releases nothing on its own.** B-1 is one of at least **three** gates
-  on the first real data, and the other two are open: **#1199**, the **Netcup DPA** (Klas's
-  signature), and **#1201**, whose detection mechanism is installed but whose **heartbeat is not** —
-  it needs a Healthchecks check Klas must create, and AC 4 does not close before it.
-  `JobTech__IngestEnabled=true` is therefore **not** authorised by this closure. This paragraph is
-  the reader for that, so it says it here as well as at the rows: **if the two ever disagree, the
+  ⛔ **That discharges B-1 and releases nothing on its own**, and
+  `JobTech__IngestEnabled=true` is **not** authorised by it. The gate that bites at the corpus load
+  is **Art. 28** — `release-checklist.md`'s corpus gate is its single home and is unticked; read it
+  there. **#1199** and **#1201** are open beside it, and they are separate items: #1199 is the
+  policy/host row, and the **Netcup DPA is Klas's signature**, not #1199's content.
+
+  ⚠ **#1201 is not an equal third at this moment, and that is a grading, not an opinion.** It is
+  gate **M-7**, graded `Major` by `security-auditor` 2026-08-04 with a conditional escalation
+  written into the issue: *"M-7 becomes a `Blocker` if ADR 0123 is still ungranted or unmitigated at
+  first real user data."* ADR 0123 is **`Proposed`** and accepts its risk expressly only *"while the
+  box carries no real user data"* — so that acceptance lapses by its own terms at the corpus load,
+  which is the very act this paragraph governs. Both of #1201's detection legs are still unticked
+  (#196 and #198). **M-7 converts to Blocker there unless Klas grants ADR 0123 first.**
+
+  This paragraph is the reader for all of that: **if it and the rows ever disagree, the
   disagreement is the defect.**
 
   ⚠ `company_register` is a separate question and this closure says nothing about it either: it has
@@ -918,9 +927,13 @@ instrument under-reaches its own property reads as coverage it does not have.
   paragraph and leaving this one stale.** **Klas confirmed the sequencing
   2026-08-05: the stack may be deployed and every cutover proof taken with the key as it was,
   because the box holds no user data — but the 51 347 recruiter contact records must not land
-  until B-1 is closed.** Nothing mechanical enforces that; this paragraph is the reader. The
-  corpus additionally waits on #1199 (the Netcup DPA), which is Klas's signature and not
-  affected by any of this.
+  ~~until B-1 is closed~~ until `release-checklist.md`'s CORPUS GATE is ticked.** ⚠ **Corrected
+  2026-08-16: B-1 closed and that gate did not, so the old wording now reads as satisfied and
+  would permit the very load it was written to prevent.** Nothing mechanical enforces it; this
+  paragraph is the reader. Beside Art. 28 the corpus also waits on **#1199** — the policy/host
+  row — and on the **Netcup DPA**, which is Klas's signature and a *separate* item from #1199,
+  and on **#1201**, whose M-7 grading converts to Blocker at first real data while ADR 0123
+  stands `Proposed` (see the rows 21–27 paragraph, which carries that reasoning).
 - **The edge binary is ours, not upstream's, and the scanned image must be the published
   one.** `deploy/caddy/Dockerfile` compiles caddy rather than taking it from the published
   tag, so "we run stock caddy 2.11.4" is no longer true when reading an upstream bug report.

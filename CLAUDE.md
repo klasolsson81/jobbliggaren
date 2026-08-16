@@ -655,50 +655,75 @@ order. (Praise is not a finding and routes nowhere.) Then:
 - **Blocker or Major** → **in-block**, or a **follow-up PR** if it is a genuinely
   separate change-reason. Never an issue: §6 and §12 make an unresolved agent
   Blocker/Major merge-blocking, so filing one would convert a stop into a backlog row.
-  **Three exceptions in this paragraph, and none of them is the session's to claim** —
-  (1) and (2) are the reporting charter's to declare, (3) is Klas's to grant.** (1) A **Major** its own charter marks non-blocking because it
+  **Three exceptions in this paragraph, and none of them is the session's to claim** — (1) and (2)
+  are the reporting charter's to declare, and (3) is granted by Klas **and signed by
+  `security-auditor`; neither of them alone grants it.**
+  (1) A **Major** its own charter marks non-blocking because it
   grades **repo state the diff did not create** — `security-auditor` area 8, whose Major
   row escalates to Klas and lets the PR through — has neither an in-block home nor a
   change-reason of its own, so it is **filed as an issue with the escalation named in
   it**. That is the **Major row only**: the same charter does not unambiguously say it
   of an area-8 **Blocker**, whose classes are auth bypass, PII/secret exposure and RCE.
   **Where a charter is ambiguous about its own outcome, §9.6 does not pick a side** —
-  escalate to Klas and let that charter's owner resolve it, because an exception is the
-  reporting charter's to declare. (2) A security Major **without GDPR implication** may become a documented
+  escalate to Klas and let that charter's owner resolve it, because **exceptions (1) and (2) are the
+  reporting charter's to declare**. (2) A security Major **without GDPR implication** may become a documented
   **accepted-risk ADR** — `security-auditor`'s own edge case, and **Klas owns that
   decision**.
 
   (3) **A GDPR-implicated security Major may become an accepted-risk ADR when the BOUND holds**
   (Klas-direktiv 2026-08-16). **The route is keyed on who bears the risk, never on the absence of a
-  GDPR implication** — which is exactly why (2) could not reach these cases and why two ADRs had to
-  derive the ground on their own. The bound, both conditions required: **(a) bearer-absence** — the
-  only data subject whose Art. 5, Art. 12–22 or Chapter V position is affected is the **controller
-  himself**, measured and not assumed; and **(b) Art. 24(1) proportionality** — the measures scale to
-  the nature, scope and context of the processing, and are being weighed against a processing that
-  has the size it actually has.
+  GDPR implication** — which is why (2) could not reach these cases. ADR 0132's Amendment §1 derived
+  the ground and ADR 0133 followed it: **one derivation, two homes**, which is the duplication this
+  paragraph ends. Both ADRs are gitignored, so this paragraph is written to stand alone.
+
+  **The bound is ONE condition, measured, in three parts — all three required.** The only data
+  subject whose Art. 5, Art. 12–22 or Chapter V position is affected is the **controller himself**,
+  or there is none at all: **(i) no registered bearer** — every account is one the controller himself
+  holds, measured against the account table; **(ii) no reached bearer** — every send has reached him,
+  measured against the send log; **(iii) no reader** — the copy carrying the affected statement is
+  not publicly readable, measured against the live surfaces. **(iii) is not an instance of (i)**, and
+  writing it out is the whole point: publishing a false transparency statement about a live
+  processing breaches Art. 5(1)(a)/12(1) with **no registered data subject at all**, so (i) can
+  hold — vacuously — while (iii) fails. Both delivered instances rested on all three.
+
+  **The measurement names its artefact, its date and its home.** It is recorded in the same ADR or
+  CLAUDE.md update as the acceptance — never a PR body, never chat. **It expires**: a bearer-absence
+  reading is never inherited from an earlier row, and is re-taken at the decision and at every lapse
+  check.
+
+  **Art. 24(1) is the ground, not a second condition.** Measures scale to *"the nature, scope,
+  context and purposes of processing as well as the risks … for the rights and freedoms of natural
+  persons"* — which is bearer-absence in the law's own vocabulary. It therefore **cannot
+  independently gate anything and can never rescue a bound that failed**: Art. 24(1) scales
+  *measures*, it does not scale away an obligation owed to a data subject (Art. 12(2) is absolute).
+  **Cited alone it grants nothing**, and it is the arguable half beside three measurable ones —
+  which is the direction a widening comes from.
 
   **What the route requires, and it is not less than what was already done twice:** Klas grants it ·
-  it is recorded in an **ADR or a CLAUDE.md update, never a PR body** · it carries a **written lapse
-  trigger** · and it **lapses at the first personal data reaching the processor that is not the
-  controller's**. `security-auditor` still grades the finding and still signs or refuses the
-  acceptance; **the route lets a session propose one, never declare one.**
+  **`security-auditor` signs it — an acceptance without her signature is not one** · it is recorded
+  in an **ADR or a CLAUDE.md update, never a PR body** · it carries a **written lapse trigger with a
+  single named home and a named human reader**, since nothing detects a lapse automatically · and it
+  **withdraws the remedy only — never the finding, never its grade, never the record of what is
+  unknown**. An accepted risk does not become measured by being accepted and must never be written as
+  though it had. **The route lets a session propose an acceptance, never declare one.** The finding
+  is then **resolved**, so the PR rides the normal flow — but every other applicable §12 class must
+  still clear independently, and a §5 `Security:` class clears through Klas, not through this route.
 
-  ⚠ **This is not a lowered bar, and reading it as one is the failure mode to avoid.** It writes down
-  the bar **ADR 0132 Leg 1 and ADR 0133 both applied independently** — each deriving the same ground
-  because the spec had none — so a third instance **cites this paragraph instead of reinventing it**.
-  That duplication was the measured cost, not the standard. **The bar itself is unchanged: neither
-  ground survives a widening.** Bearer-absence ends the moment there is a bearer, and Art. 24(1)
-  scales the measures **up** as the processing grows; together they license one acceptance, at one
-  size, until the size changes. **An acceptance widened by a single non-controller data subject is an
-  acceptance of a third party's rights, which this route does not grant and `security-auditor` does
-  not sign.**
+  **The lapse fires on ANY trigger the acceptance names, and one sentence is not a trigger set.**
+  *"The first personal data reaching the processor that is not the controller's"* is the **ground**,
+  not the operative form: a draft carrying it alone was graded **under-triggering**
+  (`security-auditor` M-1, ADR 0133). The operative set is the acceptance's own, enumerated in one
+  home and counted nowhere else. The delivered pair carries four — and one of them, **the copy
+  becoming publicly readable, fires with no personal data reaching any processor at all.**
 
   **A GDPR Blocker is never in any of these three categories**, and neither is a Major whose bound
-  cannot be measured. In all three cases the concession
-  is granted by Klas and recorded in an ADR or a CLAUDE.md update, never by the session
-  in a PR body. *(This closes `code-reviewer`'s standing escalation — raised twice, on ADR 0132 and
-  again on ADR 0133 — that §9.6 offered no positive route here. §13 says the boundary belongs in this
-  file rather than in each ADR.)*
+  cannot be measured. **(2) and (3) are granted by Klas and recorded in an ADR or a CLAUDE.md update,
+  never by the session in a PR body. (1) is not a Klas grant at all** — per its own text above it is
+  filed as an issue with the escalation named in it, and the PR proceeds. *(This closes
+  `code-reviewer`'s standing escalation, raised on ADR 0132 and again on ADR 0133 (both 2026-08-16),
+  that §9.6 offered no positive route here. §13 is why it lands in this file: the boundary is a CC
+  boundary. That it belongs here **rather than in each ADR** is ADR 0133's own preamble — an ADR
+  decides one processor's case, not a standing rule.)*
 - **The finding does not hold** — its premise is false or revoked → say so plainly, with
   the measurement. Neither a fix nor an issue. This is a real outcome, not a way out.
 - **Minor / nice-to-have** → a **GitHub issue**, and a line in a PR

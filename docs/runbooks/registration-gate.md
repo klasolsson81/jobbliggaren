@@ -106,7 +106,7 @@ cd /opt/jobbliggaren/deploy && sudo docker compose -f docker-compose.yml up -d a
 **4. Read the gate's own line — do not infer the posture from a healthy container.**
 
 ```bash
-docker logs jobbliggaren-api 2>&1 | grep 'Registration gate'
+sudo docker logs jobbliggaren-api 2>&1 | grep 'Registration gate'
 ```
 
 Expect, at **Warning** level:
@@ -138,8 +138,29 @@ login is refused with `403 EmailNotConfirmed`.
 
 **7. Restart the api once more, so the admin role is assigned.**
 
+⚠ **`restart` is correct here ONLY if `ADMIN_BOOTSTRAP_INITIAL_ADMIN_EMAIL` has not changed since
+step 3's `up`. If it has, use the re-create form below instead.** A container's environment is
+fixed at creation, so a restart re-runs the seeder against the value the container already holds.
+Measured 2026-08-16: the address *had* been changed after step 3 — the plain one was burned by a
+failed registration and the account was re-created under a `+`-alias — so a `restart` would have
+assigned Admin to the wrong account, one that was itself scheduled for deletion. Check before you
+choose:
+
 ```bash
-docker restart jobbliggaren-api
+sudo docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' jobbliggaren-api \
+  | grep AdminBootstrap
+```
+
+If that value is the account you registered, `restart` is enough:
+
+```bash
+sudo docker restart jobbliggaren-api
+```
+
+If it is not, re-create instead — same command as step 10:
+
+```bash
+cd /opt/jobbliggaren/deploy && sudo docker compose -f docker-compose.yml up -d api
 ```
 
 `IdempotentAdminRoleSeeder` runs at **startup** and only then: it assigns the Admin role to
@@ -167,10 +188,13 @@ any in-app revocation, and it would hand Admin to a future holder of that addres
 is persisted in the database, so the knob has no further work once the log confirms the
 assignment. Blanking it also takes a real address back out of container environment, where
 `docker inspect` and the container's on-disk config both carry it. Verify with
-`docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' jobbliggaren-api | grep AdminBootstrap`
-— expect the key with an empty value. A repo-wide `grep` for the address itself will still match
-the **image name** (`ghcr.io/<owner>/…` carries the GitHub account, not the mailbox); read the key,
-not a count.
+`sudo docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' jobbliggaren-api | grep AdminBootstrap`
+— expect the key with an empty value. ⚠ **Read the key, never a count over the whole inspect
+output.** A `grep -c` for the address's **local part** still matches the image reference
+(`ghcr.io/<owner>/…` carries the GitHub account), so it returns non-zero on a correctly blanked
+knob and reads as "the address is still there". Measured 2026-08-16, where it did exactly that.
+The full address does **not** match — the image carries no `@domain` — so the trap is specific to
+grepping the local part, which is the natural thing to reach for.
 
 **8. Rotate the bootstrap password — only if one was handled outside the app.** Log in and change
 it there. ⚠ **Under this procedure that is normally not the case, and the step is then a no-op.**
@@ -203,7 +227,7 @@ operator believes it is closed.
 `CLOSED`:**
 
 ```bash
-docker logs jobbliggaren-api 2>&1 | grep 'Registration gate'
+sudo docker logs jobbliggaren-api 2>&1 | grep 'Registration gate'
 ```
 
 Expect `Registration gate: CLOSED; email confirmation: REQUIRED` — EventId 4300 at Information,
@@ -225,8 +249,14 @@ a file whose audience is every future CC session.
 
 The reason this procedure exists on the critical path. Row 23 in
 [`vps-deploy-stack.md`](vps-deploy-stack.md) asks for one encrypted field read back through
-the app, and it has been blocked on the box having no users at all rather than deferred by
-choice.
+the app. ✅ **DONE 2026-08-16 — this section is a standing procedure for future visits now, not
+an outstanding task.** It ~~has been~~ **was** blocked on the box having no users at all rather
+than deferred by choice; the first visit created the accounts and row 23 carries both halves.
+⚠ **Read that row's cell for what the measurement does and does not establish.** It evidences
+encrypt-on-write and decrypt-on-read under the live generation; it does **not** reach the
+fresh-DEK re-wrap case the row's Instrument column names, which needs a field written under one
+master-key generation and read under the next. That is still owed, and the next rotation over a
+non-empty `user_data_keys` is what will make it testable.
 
 **Write it on a surface that actually crosses the DEK path.** The encrypted set is
 `Application.CoverLetter`, `ApplicationNote.Content`, `FollowUp.Note` and the CV fields
@@ -237,7 +267,10 @@ path or tick this row on nothing. Use a cover letter on `/ansokningar`, or a CV 
 `/cv`.
 
 Then read it back on a fresh page load, and check that `user_data_keys` has gone from 0 to 1.
-Record what you ran and what it returned — the row is stamped from that, in its own change.
+Record what you ran and what it returned — the row is stamped from that. ⚠ **A page load and an
+API call are not the same instrument**, and 2026-08-16 measured the API half only (curl inside
+the project network) with the browser half operator-attested. If you take the API route, say so
+in the cell rather than letting "through the app" cover both.
 
 Also verify before the flip, because it cannot be verified from a worktree: that the
 processing register (`docs/runbooks/gdpr-processing-register.md`, gitignored, main checkout

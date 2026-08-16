@@ -284,7 +284,18 @@ api and worker recover on their own restart backoff (`restart: unless-stopped`).
 `docker compose up -d` takes no lock and runs no attestation
 (`jobbliggaren-reconcile.sh` header).
 
-> ⛔ **STOP — THIS IS THE FIRST RUN THAT SHIPS, AND THE JOURNAL IS NOT CLEAN (#1343).** The
+> ✅ **THE PRECONDITION THIS STOP DEMANDS WAS MET 2026-08-16 — read the rest for the mechanism,
+> not as an outstanding blocker.** [#1343](https://github.com/klasolsson81/jobbliggaren/issues/1343)
+> is discharged: the journal was vacuumed and then re-measured against **all four** secrets — the
+> master key and each of the three peppers, every one with its own positive control — at **0**.
+> That is exactly the *"demonstrably free of plaintext key material"* this block asks for, and it
+> is the discharge rather than a promise of one. **The stop still binds in one respect and it is
+> not the same respect:** the condition expires the moment anything writes key material to the
+> journal again, so re-measure before shipping rather than inheriting this line.
+> ⚠ `docs/runbooks/log-sink.md` §2 carries the same precondition and is **outside this PR's
+> change-reason**; it still reads as unmet and must not be allowed to drift from this one.
+>
+> ~~⛔ **STOP — THIS IS THE FIRST RUN THAT SHIPS, AND THE JOURNAL IS NOT CLEAN (#1343).**~~ The
 > injection you just performed created `Backup__RcloneConfigBase64`, which is the file
 > `jobbliggaren-logship.service`'s `ConditionPathExists` waits for. Every earlier firing was a
 > *skip*, so no cursor exists in `/var/lib/jobbliggaren` — and `jobbliggaren-logship.sh` reads the
@@ -518,8 +529,13 @@ the damage unrecoverable.
                   /run/jobbliggaren/secrets/CvReviewFingerprintPseudonymization__PepperBase64
    ```
 
-   Hash the escrowed values the same way off-box and compare digests. A mismatch means the escrow
-   is not what the box runs, and that is a stop rather than a note.
+   Hash the escrowed values off-box **with `printf '%s' "$value" | sha256sum`, never
+   `echo "$value" | …`**. The injection script writes with `printf '%s'` and says so — *"no
+   trailing newline is written at all"* — so the file holds the bare base64 string. `echo` appends
+   a `\n` and produces a different digest, which would report a **false mismatch on a correct
+   escrow**. The failure direction is safe (it stops on a good escrow rather than passing a bad
+   one), but the instruction below turns it into a halted rotation, so get the form right. A real
+   mismatch means the escrow is not what the box runs, and that is a stop rather than a note.
 5. Rewrap old → new, using `OLD_KEY` from step 3 (the command above). **Skip entirely when
    `user_data_keys` is empty** — there is nothing to re-wrap and the new bytes are already in
    force; the tool would report a no-op anyway.

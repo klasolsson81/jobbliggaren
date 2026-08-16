@@ -980,21 +980,31 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
       Kvarstående planerat-meningar för behandlingar som fortfarande inte är i
       drift ska stå kvar. Släpper releasen ingen av dem är rätt utfall att **inte
       ändra något**.
-- [x] **3. Art. 28 innan personuppgifter når lådan** — **BOCKAD 2026-08-16** (speglar §2.5 punkt 1).
-      **Vad som bockade den, led för led, med adjudikator:** AVV med netcup GmbH **tecknat
+- [ ] **3. Art. 28 innan personuppgifter når lådan** (speglar §2.5 punkt 1).
+      ⚠ **Rutan står OBOCKAD med flit, och det är INTE ett påstående om att villkoren är ouppfyllda.**
+      Filens konvention: rutan bockas av den som **utför** releasen, aldrig för att en förutsättning
+      är levererad (blockquoten ovan). **Samma fråga är redan avgjord en gång i den här filen** — se
+      §2.5-noten där rutan återställdes till `- [ ]` på `dotnet-architect`s och `code-reviewer`s grund,
+      **mot en CTO-bind som ordagrant sa *"Item 3 keeps `[x]`"***. Sakinnehållet är CTO:ns; idiomet är
+      granskarnas. **Vill Klas ha bocken är den hans att bevilja, och konventionsblocken ändras i samma
+      ändring.** *(Rutan bockades 2026-08-16 och återställdes samma dag — `code-reviewer` Blocker.)*
+      **LEDEN, mätta 2026-08-16, var och ett med adjudikator:** AVV med netcup GmbH **tecknat
       2026-08-03** (Klas i Customer Control Panel; oberoende mätt mot det genererade dokumentet av
-      `code-reviewer` 2026-08-16) · *"circle of affected persons"* namnger **rekryterar-kontaktpersoner**
+      `code-reviewer`) · *"circle of affected persons"* namnger **rekryterar-kontaktpersoner**
       ordagrant (Klas) · AVV-bilagans underbiträdeslista **läst**: ANNEX 2 namnger tre underbiträden,
       **samtliga inom EU** (Klagenfurt ×2 AT, Karlsruhe DE), så villkoret nedan om ett
       icke-EU-underbiträde **fyrade inte** (Klas läsning, recordad i ROPA:ns värdpost) ·
-      ROPA-posterna uppdaterade + **`security-auditor`-sign-off 2026-08-16: SIGNED** ·
-      `recruiterNotice` omprövad, **länkvägen intakt** (samma sign-off: CLOSED) · `ACME_EMAIL`
-      ⚠ **lådsidigt värde som inte går att mäta ur repot — taget som rapporterat, inte verifierat
-      härifrån**.
-      ⚠ **Bocken släpper INTE korpusladdningen ensam.** Kvar framför `JobTech__IngestEnabled=true`
-      står **#1201** (gate M-7, `security-auditor`s Major-gradering konverterar till Blocker vid
-      första riktiga data om **ADR 0123** inte beviljas — Klas beslut) och **#1199**:s övriga led.
-      Läs aldrig den här bocken som "korpuset får laddas".
+      ROPA-posterna uppdaterade + **`security-auditor`-sign-off 2026-08-16: SIGNED**, `recruiterNotice`
+      omprövad och **länkvägen intakt** (samma sign-off: CLOSED).
+      ⚠ **`ACME_EMAIL` står UT och är inte avklarat här.** Värdet bor bara på lådan, `deploy/.env.example`
+      säger uttryckligen att raden *föreskriver, den mäter inte*, och **ingen bekräftelserekord finns
+      någonstans i repot** (mätt 2026-08-16). Det är Klas att rapportera med datum; till dess har ledet
+      ingen adjudikator och får inte redovisas som uppfyllt.
+      ⚠ **Och även fullt urladdad släpper punkten INTE korpusladdningen.** Det som står framför
+      `JobTech__IngestEnabled=true` är **[#1240](https://github.com/klasolsson81/jobbliggaren/issues/1240)**,
+      som äger själva laddningen och namnger sina grindar — **#1201** (gate M-7; `security-auditor`s
+      Major konverterar till Blocker vid första riktiga data om **ADR 0123** inte beviljas, Klas beslut)
+      och **#1199**:s övriga led. De är **inte** villkor i den här punkten.
       **Triggern är INTE längre en flip, och den gamla "Deploy-aktiverad"-klassen i punkt 2
       är struken i samma ändring.** #1199 tog bort värdradens markör 2026-08-09, så det finns
       ingen värd-flip kvar att grinda — men skyldigheten består och fick en ny utlösare
@@ -1025,10 +1035,18 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
         publicerar ingen (mätt: DPA-sidan, AVV-sidan, Impressum och DC-sidan bär noll), så
         bilagan är den enda mätningen av kedjan som finns. Namnger den ett icke-EU-underbiträde
         ska **tredjelandsavsnittets absoluta påstående** och värdraden omprövas **före**
-        korpusladdningen.
-        **Mottagaravsnittets ingress** påstår redan i presens *"Med dem har vi personuppgiftsbiträdesavtal"*; den
-        meningen bärs i dag av att ingen listad part behandlar något, och den blir falsk
-        vid (i) — inte vid (ii), och inte av mergen av #1199.
+        korpusladdningen. ✅ **LÄST 2026-08-16: ANNEX 2 namnger tre underbiträden, samtliga inom EU**
+        (Klagenfurt ×2 AT, Karlsruhe DE) — utlösaren fyrade **inte**, och det absoluta påståendet
+        står kvar på en läst bilaga i stället för på tystnad.
+        ⚠ **Mottagaravsnittets ingress — den här raden är omvärderad 2026-08-16 och sa tidigare
+        motsatsen.** Den påstår i presens *"Med dem har vi personuppgiftsbiträdesavtal"*, och raden
+        sa att meningen *"bärs i dag av att ingen listad part behandlar något"* och **blir falsk vid
+        (i)**. Båda halvorna är överspelade: de listade **biträdena** är netcup GmbH och Scaleway SAS
+        — SCB är i copyn uttryckligen deklarerad som självständigt personuppgiftsansvarig och JobTech
+        som källa, inte mottagare. netcups AVV är **tecknat 2026-08-03** och Scaleways gäller
+        automatiskt (GTS Art. 3, mätt 2026-08-15). **Meningen är alltså SANN i dag, och blir det inte
+        först vid (i) — den bärs numera av avtal i stället för av tomhet.** Kvar att bevaka: att en
+        *ny* biträdespart aldrig hinner in i uppräkningen före sitt avtal.
       - **inget Kap. V-led — det är raderat, inte ompekat.** Det gamla ledet krävde en
         dokumenterad grund för **Cloudflare** (US-domicilierat) och dog med parten
         (Klas-beslut K3). `security-auditor` 2026-08-09: netcup GmbH är tysk, behandlingen

@@ -403,16 +403,26 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
         stänga ledet, och utan de två orden kan meningen senare åberopas mot just den artefakt som
         löser den.)* En slutsats villkorad av ett obesvarat
         brev är ett utkast, inte en dom.
-        **Vad som stänger ledet, uttömmande:** ett skriftligt svar från Scaleway som säger att
-        support-/driftåtkomst till TEM-data sker uteslutande inifrån EU/EES — **i endera formen: ett
-        svar på brevet, eller en artefakt med avtalsrang som bär samma mening** (en TOM-bilaga
-        inkorporerad i DPA:t, en Art. 28(3)(a)-instruktion) — eller, om åtkomsten inte är
-        EU/EES-begränsad, en Kap. V-grund för just den åtkomsten. Ingenting mer krävs.
-        ⚠ **Uppräkningen är oförändrad och EN av dess tre former är avförd 2026-08-16:** ett svar på
-        brevet kommer inte, eftersom brevet är struket (ADR 0133). **De två andra står kvar och är
-        oberoende av beslutet** — en artefakt med avtalsrang som bär samma mening stänger ledet på
-        egna meriter, och en Kap. V-grund stänger det i den andra riktningen. Ledet är alltså inte
-        ostängbart; det är obemannat.
+        **Vad som stänger ledet, uttömmande:** **en artefakt med avtalsrang** som säger att support-
+        och driftåtkomst till TEM-data sker uteslutande inifrån EU/EES — en TOM-bilaga inkorporerad i
+        DPA:t eller en Art. 28(3)(a)-instruktion — eller, om åtkomsten inte är EU/EES-begränsad, en
+        Kap. V-grund för just den åtkomsten. ⚠ **Ett skriftligt svar UTAN avtalsrang stänger inte
+        ledet** (2026-08-16 kväll, ADR 0133 Amendment): ledet bär en **asymmetri**, inte en lucka, och
+        en utfästelse lägger sig bredvid GTS Art. 10 utan att binda den. Ingenting mer krävs.
+        ⚠ **UPPRÄKNINGEN GICK FRÅN TRE FORMER TILL TVÅ, OCH DET ÄR EN REVIDERING PÅ PLATS — INTE ETT
+        TILLÄGG.** Den räknade till 2026-08-16 morgon *"ett svar på brevet"* som en egen stängande
+        form, och en not sa att **uppräkningen var oförändrad** och att formen bara var *obemannad*
+        (brevet struket, alltså inget svar på väg). **Båda halvorna är överspelade av kvällens
+        beslut:** brevet är inte otillgängligt utan **fel instrument** — det var skopat att lyfta en
+        FAQ-mening från dokumentation till avtalsrang, vilket är rätt remedie för en **lucka**, medan
+        ledet bär en **åtkomstklausul med rang som saknar ortsklausul**. Asymmetrin hade överlevt sin
+        egen åtgärd. **Vid lapse blir därför en artefakt med avtalsrang owed, aldrig brevet.**
+        ⚠ **Det här är ett LEVANDE kriterium och revideras därför på plats**, till skillnad från en
+        **record**-sektion som behåller sin ordalydelse och rättas av ett tillägg (ADR 0132
+        Amendment §3:s princip). Att lägga ett fjärde ⚠-lager ovanpå en uppräkning som fem rader
+        ovanför förklarades oförändrad hade lämnat **två levande svar på ett stängningskriterium** —
+        kom ett Scaleway-svar in hade den ena raden sagt att ledet stänger och den andra att det inte
+        gör det. *(`security-auditor` Major 6 + `dotnet-architect`, 2026-08-16.)*
         ⚠ **Frågans FORM är hennes, inte valfri:** *"sker support- och driftåtkomst till TEM-data
         uteslutande inifrån EU/EES?"* — inte "var finns supporten", som besvaras med en kontorsadress
         som inte binder. **Formen överlever strykningen:** skulle frågan någonsin ställas igen — av
@@ -548,6 +558,14 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
         är den ansvarige själv. **Bindningen bär hela beslutet.** Vidgas den med ett enda konto
         blir det en acceptans av tredje mans rättigheter, vilket §9.6 inte medger och jag inte
         signerar.
+        ⚠ **CITATET AV §9.6 OVAN ÄR TVÅUNDANTAGSFORMEN OCH ÄR DATERAT 2026-08-16 (morgon).** §9.6
+        bär sedan samma dag (kväll) en **TREDJE** väg, keyed på **bindningen** — härledd ur bland
+        annat den här domen. **Domens utfall är oförändrat** och dess omgradering är hennes; det som
+        ändrats är att en senare instans inte längre behöver härleda grunden igen. **Den här raden är
+        en daterad pekare, ingen omgradering** (samma form som förutsättning 4:s pekare ovan).
+        ⚠ Domens sista mening — *"vilket §9.6 inte medger och jag inte signerar"* — är sedan
+        2026-08-16 **ordagrant kodifierad i CLAUDE.md §9.6 (3)**. Det är alltså inte två oberoende
+        hem: spec:t bär regeln i rapportörens egna ord, och den här domen är instansen den kom ur.
         **Förutsättning 6 (NY, 2026-08-16) — Art. 14 för mottagarklass (3).** `EmailChangeConfirmation`
         går till en adress som per konstruktion står på inget konto. En felstavad adress levererar
         meddelande och adress till någon som varken är användare eller lämnat uppgiften själv.

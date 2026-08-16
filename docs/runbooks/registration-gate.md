@@ -36,9 +36,10 @@ forbids it, and this file is the path it prescribes instead.
    domain's MX is `blackhole.tem.scaleway.com` — `@jobbliggaren.se` receives nothing, so a
    confirmation link sent there is unrecoverable. Use an ordinary external address for the
    operator account, and a `+`-suffixed alias of that same inbox for the CC account. The
-   alias is required rather than merely convenient: `release-checklist.md`'s schedule exempts
-   a CC verification address under (b) but fires on any recipient other than Klas under (d),
-   and an alias is the one choice that satisfies both.
+   alias is required rather than merely convenient: `release-checklist.md`'s reinstatement
+   schedule turns on **an address the controller himself holds**, so a `+`-suffixed alias of the
+   operator's own inbox satisfies (b) and (d) by one property rather than by two clauses that
+   happen to intersect. A separate mailbox satisfies neither, whatever it is called.
 4. **The K2 edge credentials** (`BASIC_AUTH_USER` / `BASIC_AUTH_HASH`), because every
    request to the site — including the one the confirmation link makes — is challenged
    first.
@@ -49,15 +50,19 @@ forbids it, and this file is the path it prescribes instead.
    **`release-checklist.md` owns the escalation schedule and it was rewritten on 2026-08-16
    against a measured operating state — read it there, not here.** Its trigger (a) is
    `RegistrationsOpen=true` outside Development, which is what step 2 does, so this procedure
-   reaches it by design; its (b) deliberately exempts the operator's own address and a CC
-   verification address, which is what step 5 registers. **Its measurements expire: the
+   reaches it by design; its (b) turns on **an address the controller himself holds**, which is
+   what precondition 3's `+`-alias requirement guarantees and what step 5 registers — a role
+   label such as "CC verification address" earns no exemption on its own. **Its measurements expire: the
    checklist says to re-measure (a) and (c) at the flip rather than inherit them**, so confirm
    there that the schedule still reads as it did before setting the knob. Either the mailbox
    receives, or the policy publishes a channel that does
    ([#183](https://github.com/klasolsson81/jobbliggaren/issues/183) owns the mailbox) — or Klas
    accepts the risk for this recipient set and records it, **which is his decision alone**.
    Whichever applies, it is written down before the knob is set.
-   ⚠ **The K2 credential now carries a GDPR conclusion.** The checklist's re-grading rests in
+   ⚠ **The K2 credential carries more than one GDPR conclusion, and this file counts none of
+   them** — the grading and its ground live in `release-checklist.md` §2.5 point 1 leg (e)
+   precondition 5, and the operator meets them in full on the `basic_auth` directive itself in
+   `deploy/caddy/Caddyfile`. Read them there. The checklist's re-grading rests in
    part on the site answering `401` on every path; removing Basic auth for a demo makes the
    blackhole blocking in the same moment, and nothing warns. Treat the credential in
    `docs/test-accounts.local.md` accordingly.

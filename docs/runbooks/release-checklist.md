@@ -354,6 +354,89 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
       - **security-auditor-sign-off på prod-e-post-konfigen** — **KVAR**. Det gamla
         TD-116:s sign-off är PR-4:s, inte prod-konfigens; bocka aldrig punkten på den.
         (TD-116 stängdes 2026-07-26; residualen ägs av #183.)
+        ⚠ **LEDET ÄR RETROAKTIVT SEDAN 2026-08-16 OCH DET ÄR EN ANNAN SORTS LED NU.**
+        CC1-lanen flippade `Email:Provider` till Scaleway under registreringsbesöket, med Klas
+        vid terminalen, medan led (a), (b), (c) och (e) alla bar KVAR — vilket preambelns
+        *"VARJE numrerad punkt MÅSTE vara grön"* inte medger. Armen skickar skarpt. Ledet grindar
+        alltså inte längre en flipp som ska ske; det avgör en konfiguration som redan kör.
+        Statusen står oförändrad KVAR, och det är avsiktligt: en grind som bockas av att den
+        kringgicks är ingen grind.
+        **`security-auditor` 2026-08-16 (E5) — DELRATIFICERING. LEDET STÅR KVAR.**
+        **INGEN Blocker.** Hela mottagarmängden är personuppgiftsansvarig själv: båda kontona är
+        Klas egna `+`-alias, samtliga utskick nådde honom, och den publicerade copyn är oläsbar
+        (mätt 2026-08-16: `dev` 401 på varje väg, apex/www 000 över HTTPS, apex över HTTP en
+        STRATO-parkeringssida utan en rad Jobbliggaren-copy — ADR 0132:s mätning, reproducerad).
+        Bärarfrånvaro, samma struktur som led (b):s Art. 49(1)(a)-fönster och förutsättning 5.
+        ⚠ **DEN HÄR DOMEN VILAR PÅ KONTOTABELLEN OCH INGENTING ANNAT.** Se förutsättning 5:s
+        trigger (b) — den konverterande händelsens hem.
+        **Förutsättning 1 — SIGNERAS INTE.** Projekthalvan är stängd av Klas konsolavläsning.
+        Organisationshalvan är inte omätt utan **odefinierad**: ledet kräver match mot den
+        organisation led (a):s avtalsmätning gjordes mot, och led (a) mätte en REGEL (GTS Art. 23),
+        inte ett UTFALL. Högerledet finns inte. **Förutsättning 1 är därmed beroende av led (a)
+        och transitivt Klas ensam**, trots att den står skriven som ett CC-körbart kommando.
+        Kommandoformen stryks: en nyckel som kan utföra den är per definition bredare än ledet
+        kräver (403 `permissions_denied` är rätt svar), och konsolen är den utförbara formen.
+        ⚠ **Vad gapet INTE är:** en Kap. V-risk. Samtliga tre grenar i GTS Art. 23 landar i en
+        EU-entitet, och DPA:n gäller oavsett gren. Residualen är **Art. 5(2) ansvarsskyldighet**.
+        **Förutsättning 2 — SIGNERAS DELVIS.** Fem av sex grunder ratificeras som prövade i E4,
+        `PasswordChangedNotice` inräknad (6(1)(f) på Art. 6(3); min öppna fråga är stängd).
+        **`EmailChangeConfirmation` ratificeras INTE:** dess grund 6(1)(b) resonerar från
+        KONTOINNEHAVAREN, och mottagarklass (3) är per konstruktion inte part i något avtal med
+        oss. Grunden måste delas — 6(1)(b) mot innehavaren, **6(1)(f) mot klass (3)** — varvid
+        (f)-mängden växer från tre mallar till fyra och Art. 13(1)(d)-posten måste följa med.
+        **En behandling som körs utan redovisad grund är en Blocker i det ögonblicket:** ledet
+        blir Blocker vid första utskick där mottagaren inte är kontoinnehavaren.
+        **Förutsättning 3 — SIGNERAS DELVIS.** Utgångsdatum registrerat med proveniens,
+        obligatoriskt under Scaleway, frånvaro fail-loud. Delningen tystnad/förvarning ratificeras.
+        **Rotationsförfarandet finns inte** — `master-key-ops.md` §4 är masternyckeln, en annan
+        livscykel. Ett registrerat datum plus en närvarokontroll är en **inventering, inte en
+        rotationsstrategi**. #198 äger förfarandet, #1267 AC 2 påminnaren; ingendera är byggd.
+        **Förutsättning 4 — SIGNERAS DELVIS.** API-referenshalvan ratificeras och är oberoende
+        verifierad i vår ände: armen sänder en fast nyttolast utan spårningsfält
+        (`ScalewayEmailSender.cs:311-318`). **Changeloghalvan är inte redundant och är omätt** —
+        API-referensen visar att spårning inte kan sättas I REQUESTEN, medan changeloggen finns
+        för precis det den inte kan täcka: providersidigt tillstånd satt utanför requesten, alltså
+        den felmod ledet ärvde från SES. **Stäng den inte med en bättre changelog-läsning:**
+        konsolen är den auktoritativa läsaren av providersidigt tillstånd och är strikt bättre än
+        release notes, som är en slutledning om funktioner. **Den avläsningen är Klas**, samma
+        upplösning som förutsättning 1.
+        **Förutsättning 5 — SIGNERAS INTE. Graden är oförändrad Major.** Trigger (a) fyrade under
+        besöket och rullades tillbaka. **Det återinför INTE Blockern** — inte för att en fyrad
+        trigger av-fyras av en återställning (det gör den inte), utan för att **Klas avgjorde
+        frågan i förväg**: ADR 0132, skriven före besöket, accepterar uttryckligen trigger (a)
+        bunden till besökets två konton och lapsar i samma stund någon annan trigger fyrar.
+        Ingen annan fyrade — (b) och (d) är stängda av `+`-aliaskravet, (c) är mätt falsk.
+        ⚠ **ADR 0132:s UTFALL ÄR RÄTT OCH DESS ÅBEROPADE GRUND ÄR FEL.** Den anger CLAUDE.md
+        §9.6:s accepterad-risk-väg, som gäller *"a security Major **without GDPR implication**"*;
+        förutsättning 5:s Major vilar på Art. 12(2). Det som gör beslutet lagligt är **bindningen,
+        inte vägen**: båda kontona är Klas egna, så den enda vars Art. 12(2)/15-22-läge försämras
+        är den ansvarige själv. **Bindningen bär hela beslutet.** Vidgas den med ett enda konto
+        blir det en acceptans av tredje mans rättigheter, vilket §9.6 inte medger och jag inte
+        signerar.
+        **Förutsättning 6 (NY, 2026-08-16) — Art. 14 för mottagarklass (3).** `EmailChangeConfirmation`
+        går till en adress som per konstruktion står på inget konto. En felstavad adress levererar
+        meddelande och adress till någon som varken är användare eller lämnat uppgiften själv.
+        **Art. 14 gäller, och inget undantag i 14(5) är tillgängligt** — 14(5)(b) faller
+        avgörande, eftersom vi redan komponerar och levererar ett meddelande till exakt den
+        personen; informationen kostar ett stycke. **Tidpunkten är Art. 14(3)(b): senast vid
+        första kommunikationen, och den kommunikationen ÄR mejlet.** Mallen bär i dag varken
+        kontaktuppgift, rättslig grund, mottagare, lagringstid, rättigheter eller källa, och är
+        den enda kontolivscykel-mallen helt utan `ContactAddress`. **Informationen ska bäras i
+        VARJE utskick, inte villkorat:** vi kan inte vid sändningstillfället veta om mottagaren är
+        innehavaren eller en främling, och det är hela skälet. Art. 14(2)(f) besvaras med en
+        KATEGORI ("en användare som angav den här adressen") — att namnge användaren vore i sig
+        ett röjande åt andra hållet.
+        **EN ENDA HÄNDELSE KONVERTERAR HELA GRINDEN, och den ska läsas som en:** **första
+        icke-Klas-konto**, definierat i förutsättning 5:s trigger (b) — **definitionens hem,
+        upprepa den inte här**. Då eskalerar förutsättning 6, förutsättning 2:s klass-(3)-grund,
+        förutsättning 5:s trigger (b) och §2.6:s falska rader **samtidigt**. Det är inte fyra
+        risker med fyra odds; det är en händelse.
+        **Vad som stänger ledet, uttömmande:** led (a):s faktureringsavläsning · en konsolavläsning
+        av att ingen spårningsyta finns i TEM-projektet · den delade grunden för
+        `EmailChangeConfirmation` i ROPA:n med matchande Art. 13(1)(d)-copy · Art. 14-stycket i
+        mallen · och antingen en levererande `kontakt@`-brevlåda eller en publicerad kanal som
+        levererar. Rotationsförfarandet (#198) och påminnaren (#1267 AC 2) grindar inte ledet men
+        står kvar som skyldigheter. Ingenting mer krävs.
         **Namngivna förutsättningar för sign-off (security-auditor + code-reviewer
         2026-08-09, #1169) — hon signerar inte utan dem.** *(Medvetet utan numeral: listan räknar
         sig själv, och ett tal här hade blivit ytterligare ett hem medan blockquoten ovan räknar upp
@@ -363,10 +446,10 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
         1. **Organisations- och projektbindning.** Avtalsparten är en egenskap hos en
            ORGANISATION — GTS Art. 23 bestämmer entiteten ur faktureringsadressen — och hela
            ej-tillämplig-bedömningen i led (b) hänger på vilken part. **Mekanismen bytte med
-           providern 2026-08-15; skyldigheten gjorde det inte.** Kör med **prod-nyckeln** (den som
-           hamnar i `Email:Scaleway:SecretKey`) ett autentiserat anrop som returnerar nyckelns
-           organisation och projekt, och kräv **Organization == den organisation ledet (a):s
-           avtalsmätning gjordes mot** och **Project == `Email:Scaleway:ProjectId`**.
+           providern 2026-08-15; skyldigheten gjorde det inte.** **Mekanismen har sitt hem i
+           E5-domen ovan och står inte här** (`security-auditor` 2026-08-16). Kravet självt är
+           oförändrat: **Organization == den organisation ledet (a):s avtalsmätning gjordes mot**
+           och **Project == `Email:Scaleway:ProjectId`**.
            ⚠ **Den andra halvan är ny och lätt att missa:** `ProjectId` är konfigurationssidigt och
            skickas i varje request-kropp, men **bindningen mellan NYCKELN och projektet följer inte
            av konfigurationen** — den är ett tillstånd hos leverantören. Utan mätningen kan
@@ -445,8 +528,13 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
            att kunna hämta något. Egenskapen som gör den
            dugbar är densamma som det gamla skälets: **oangripbar utifrån repot och pinnad med test**.
            Slutsatsen står alltså kvar oförändrad — posten håller på skäl 2 ensamt om skäl 1 faller —
-           men **skriv aldrig om posten som om skäl 1 vore garanterat av testet**, och verifiera
-           `get-email-identity` **vid** flippen: den mätning som gjordes 2026-08-12 var bevis för den
+           men **skriv aldrig om posten som om skäl 1 vore garanterat av testet**,
+           och ommät **frånvaron av spårningsyta i leverantörens konsol** vid flippen —
+           `get-email-identity` är struket som instrument här: raden ovan säger själv att det är
+           ett AWS-begrepp utan Scaleway-motsvarighet, och två meningar i samma led som beordrar
+           respektive omöjliggör samma kommando skickar flippoperatören till ett kommando som
+           inte kan finnas (`security-auditor` 2026-08-16). Den mätning som gjordes 2026-08-12 var
+           bevis för den
            dagen och inte en inlösen av förutsättningen.
 
         5. **Brevlådan `kontakt@jobbliggaren.se` finns, tar emot, och LÄSES.** Sedan 2026-08-12
@@ -475,12 +563,38 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
            publicerade rättighetskanalen har därmed **ingen läsare**, och utskicket når endast
            personuppgiftsansvarig själv.
            **Blocker återinförs vid, vilket som kommer först:** (a) `RegistrationsOpen=true` utanför
-           Development; (b) första konto vars adress inte är Klas egen eller en CC-verifikationsadress;
+           Development; (b) **första konto vars adress Klas inte själv innehar** — "innehar"
+           betyder här: en adress vars inkorg han kan läsa och som inte tillhör någon annan
+           fysisk person. **Egenskapen,
+           inte rollen:** en CC-verifikationsadress är undantagen **endast** när den är ett
+           `+`-alias av hans egen inkorg, aldrig i kraft av att kallas verifikationsadress.
+           *(Formuleringen löd till 2026-08-16 "inte är Klas egen eller en CC-verifikationsadress" —
+           ett NAMN på en roll där grunden är en EGENSKAP, alltså namnbaserat i exakt den riktning
+           preambeln fäller: en verifikationsadress han inte innehar hade undantagits tyst, och det
+           är den bärare hela Major-graderingen vilar på inte finns. Redan namngiven som skip i
+           registreringsgrind-PR:en med baskvalificeraren routad hit; stängd av `security-auditor`
+           2026-08-16, E5-omkontroll.)* **Den här raden äger DEFINITIONEN, och §2.5:s statusblock
+           och §2.6 pekar hit utan att återge den.** ⚠ **`registration-gate.md` TILLÄMPAR den och
+           skriver ut egenskapen två gånger** (precondition 3 och 5), därför att det är där
+           operatören väljer adresserna och en pekare hade varit oläsbar i det ögonblicket —
+           samma avvägning som credentialens två ytor nedan. **Förfinas egenskapen här ska BÅDA
+           ställena i den filen ändras**; ingenting länkar dem;
            (c) copyn blir publikt läsbar — borttagen Basic-auth, apex/www börjar serva, eller första
            `v*` — **§2.6:s trigger, oförändrad**; (d) första utskick till annan mottagare än Klas.
            ⚠ **Mätningarna förfaller: ommät (a) och (c) VID flippen, ärv dem inte ur den här raden.**
-           ⚠ **Basic-auth-credentialen på `dev` bär från och med nu en GDPR-slutsats** — tas den bort
-           för en demo blir blackholen Blocker i samma ögonblick, och ingenting varnar.
+           ⚠ **Basic-auth-credentialen på `dev` bär TVÅ GDPR-slutsatser, och det här är hemmet
+           för GRADERINGEN av dem** (den andra tillkom 2026-08-16, #183 E5). (1) Tas den bort för
+           en demo blir blackholen Blocker i samma ögonblick, och ingenting varnar. (2)
+           Borttagningen **publicerar** dessutom de markörrader §2.6 punkt 1 namnger som falska,
+           om en levande behandling (ADR 0090 D3). **En handling, två slutsatser.**
+           ⚠ **TVÅ YTOR MED OLIKA UPPGIFTER, OCH DET ÄR AVSIKTLIGT — läs inte den ena som drift.**
+           Den här raden bär graderingen och dess grund. `basic_auth`-direktivet i
+           `deploy/caddy/Caddyfile` bär **båda slutsatserna i sin helhet**, därför att det är där
+           operatören står i det ögonblick handlingen utförs; en pekare där hade varit oläsbar för
+           den som är på väg att kommentera bort blocket. **Tillkommer en tredje slutsats ska BÅDA
+           ytorna ändras** — det är priset för att direktivet är operativt, och det är billigare än
+           en varning operatören aldrig möter. `registration-gate.md`, ADR 0132 och
+           `test-accounts.local.md` **pekar hit och räknar inte själva.**
            ⚠ **En av adressens roller upphörde 2026-08-15:** vägen till en kopia av
            standardavtalsklausulerna (Art. 13(1)(f)) förutsatte en överföring som inte längre
            uppstår. **De två andra rollerna står kvar** — Art. 13(1)(b)-kontakt och Art. 15–22-kanal
@@ -655,10 +769,17 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
 > Den mänskliga grinden får inte vara det enda instrumentet i det ögonblick den
 > först bär verklig risk. Att dokumentera ett gap skapar en skyldighet att stänga
 > det: ett känt gap som överlever sin egen relevans är sämre än ett odokumenterat,
-> eftersom det bevisar kännedom (Art. 5(2)/24(1)). Exponeringsfönstret är tomt i
-> dag — grinden kan inte behövas före en prod-deploy, och #1034:s mekanism rider
-> samma prod-pipeline — men den sammanfallande tidplanen är en tillfällighet tills
-> den skrivs ut, vilket den härmed är.
+> eftersom det bevisar kännedom (Art. 5(2)/24(1)).
+> ⚠ **EXPONERINGSFÖNSTRET ÄR INTE LÄNGRE TOMT, OCH DET ÄR TVÅ SKYLDIGHETER SOM INTE
+> LÖSER UT VARANDRA** (2026-08-16, #183 E5). Den **mekaniska** grinden behövs alltjämt
+> inte före en prod-deploy, och #1034:s mekanism rider samma prod-pipeline — den
+> halvan av det som stod här är oförändrad, och tidplanen är fortfarande en
+> tillfällighet tills den skrivs ut, vilket den härmed är. Men **markörernas
+> sanningshalt är en egen skyldighet som redan har fallit ut:** e-postarmen
+> aktiverades 2026-08-16 medan §2.5 punkt 1 bar KVAR, och punkt 1 nedan namnger
+> vilka rader som därmed är falska i dag och vilken som inte är det. **Läs den
+> skyldigheten där; den räknas inte här.** Att copyn saknar läsare är uttryckligen
+> **inte** grunden att låta dem stå — punkt 1 mäter varför.
 >
 > **Grinden bär redan sitt eget maskinläsbara predikat:** punkt 2:s
 > inventeringsgrepp ÄR assertionen. Bygg dock INTE den naiva formen "fäll taggen
@@ -689,6 +810,10 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
 > studsar gör motsatsen. `security-auditor` 2026-08-12, som graderade det Major uttryckligen
 > **med** eskaleringsvillkoret "blir Blocker vid första prod-deploy av copyn ELLER vid flippen,
 > vilket som kommer först".
+> ⚠ **DEN ANDRA HALVAN AV DET VILLKORET ÄR FÖRBRUKAD** (`security-auditor` 2026-08-16, #183 E5):
+> **flippen är inte längre en utlösande händelse** — den skedde 2026-08-16 och domen är INGEN
+> Blocker. Prod-deploy-halvan står oförändrad och är §2.6:s egen trigger. **Schemat har ett enda
+> hem — §2.5 punkt 1 led (e) förutsättning 5 — och den här raden citerar det, den bär det inte.**
 >
 > ⚠ **OCH BREVLÅDAN GÖR STRATO TILL BITRÄDE I EN ANDRA FUNKTION.** Registrets bestämning
 > (`gdpr-processing-register.md`, lokal) säger att *DNS* hos STRATO inte är en biträdesrad,
@@ -701,9 +826,15 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
 > konsumentkonto; STRATO AG är tyskt och tecknar AVV. Bytet förbättrar läget, det skapar inte
 > luckan.*
 >
-> **Läget idag är korrekt, inte trasigt.** Policyn beskriver ansökningshistorik/
-> företagsöversikt, SCB-uppslag och e-postleverantören som planerade. **Värdraden gör
-> det INTE längre:** #1199 tog bort dess markör 2026-08-09, eftersom lådan kör
+> **Läget idag är korrekt för de rader som fortfarande beskriver något planerat, och
+> trasigt för dem som inte gör det.** Policyn beskriver ansökningshistorik/
+> företagsöversikt och SCB-uppslag som planerade, vilket de är.
+> ⚠ **E-postleverantörsraderna beskriver INTE längre något planerat OCH bär fortfarande sin
+> markör — de är alltså falska, och skyldigheten är öppen:** armen aktiverades 2026-08-16 medan
+> §2.5 punkt 1 bar KVAR. Punkt 1 nedan är hemmet för vilka rader det gäller och varför, och den
+> enda som räknar dem.
+> ⚠ **Värdraden är den MOTSATTA sortens fall och är AVKLARAD, inte trasig — blanda inte ihop
+> dem:** #1199 tog bort dess markör 2026-08-09, eftersom lådan kör
 > (`dev.jobbliggaren.se` sedan 2026-08-05) och en markör där hade förnekat en pågående
 > drift — samma defekt som en förtidig flip, i spegelvänd form. Koden är
 > skeppad till dev, men det finns ingen prod-deploy och inga registrerade som når
@@ -735,11 +866,34 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
       ett steg**, av ett enda skäl: `security-auditor` Major 4 krävde en Art. 13(1)(d)-post för
       de **tre** kontolivscykel-mallar som vilar på Art. 6(1)(f) (`EmailChangedNotification`,
       `AccountExistsNotice`, `PasswordChangedNotice`), och den ligger nu som andra punkten i
-      `privacy.sections[3].list`. Posten bär markörmeningen därför att armen fortfarande är mörk —
-      ett presens-påstående hade varit ADR 0090 D3:s defekt. Nettot: **47 tillkom**, 37 stod
+      `privacy.sections[3].list`. Posten bär markörmeningen därför att armen **var mörk när posten
+      skrevs** — ett presens-påstående hade varit ADR 0090 D3:s defekt. **Armen är inte längre
+      mörk, och rad 47 är därmed en av de rader stycket nedan namnger som redan falska.**
+      Nettot: **47 tillkom**, 37 stod
       still, och 49/63/73/74/75/95/96/131 blev 50/64/74/75/76/96/97/132. Mängden är **körd ur
       greppen ovan, aldrig framräknad ur den gamla** — se nästa stycke om varför det senare inte
       är en genväg.
+      ⚠ **RAD 47, 75 OCH 76 ÄR REDAN FALSKA, OCH DET ÄR INTE ETT SCHEMALAGT TILLSTÅND**
+      (`security-auditor` 2026-08-16, #183 E5). Sektionens ordningsantagande — sajten går live
+      först, markörerna flippar då — är falsifierat: **e-posten gick live först** (CC1:s
+      registreringsbesök 2026-08-16, `Email:Provider=Scaleway`). Rad **47** (säkerhetsaviseringar
+      om kontot) är falsk därför att en `AccountExistsNotice` **faktiskt levererades** under
+      besöket; rad **75** påstår att tjänsten inte skickar någon e-post och att inga uppgifter
+      lämnas till någon e-postleverantör; rad **76** påstår dels att uppgifterna *planeras* lämnas,
+      dels att avtalet säkerställs *innan vi börjar skicka* — utskicken har börjat och led (a):s
+      verifiering bär KVAR. **Rad 64 är däremot SANN** och får inte flippas: bevakningsnotiserna är
+      samtyckesgrindade med opt-in default OFF och ingen notis har skickats. **Ommät rad 64 mot
+      lådan före varje flipp** — dess grind är en användarreglage, inte en operatörsgrind, så den
+      kan bli falsk utan att någon gör något på infrastruktursidan.
+      **Varför "ingen läsare" inte är grunden att låta dem stå:** #1199 flippade värdraden
+      2026-08-09, fyra dagar EFTER att Basic auth landade (`aef6a853`, 2026-08-05). Sajten hade
+      alltså redan ingen läsare när huset valde att flippa, och commit-rubriken säger det ordagrant.
+      Läsarfrånvaro friade inte värdraden och friar inte de här. ADR 0090 D3 är standarden, och
+      dess ordning — policyn ärlig FÖRE aktiveringen — är den som inverterades här.
+      **Detta är en Major, inte en Blocker:** varje registrerad vars uppgifter nått providern är
+      personuppgiftsansvarig själv, och copyn är oläsbar. Graden ändras vid §2.5 punkt 1 led (e):s
+      konverterande händelse — **första icke-Klas-konto**, definierat i §2.5 punkt 1
+      förutsättning 5:s trigger (b).
       *(Föregående regenerering, 2026-08-15 (#183, providerbytet AWS SES → Scaleway): 9 + 9 på
       rad 37, 49, 63, 73, 74, 75, 95, 96, 131. Talet sjönk då med ETT, av ett enda skäl:
       tredjelandsavsnittets e-poststycke (förra rad 82) är **struket med sin grund** — Scaleway

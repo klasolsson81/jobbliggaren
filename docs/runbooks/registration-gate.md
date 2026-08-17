@@ -370,7 +370,7 @@ refused boot creates nothing, and a **gate-closed** refusal (503) leaves no Iden
 job seeker and no audit row — the gate is the handler's first statement, so that holds by
 construction.
 
-**Three failures above are not boot refusals, and one of them leaves state behind.**
+**Three failures above are not boot refusals, and none of them leaves an account behind.**
 
 - **Step 0 skipped** — silent, and safe: the knobs reach nothing and the gate stays closed.
 - **Step 6 never completed** — `403 EmailNotConfirmed` on an account that exists. Follow the
@@ -378,8 +378,32 @@ construction.
 - **A Scaleway credential that is present but wrong**, or a From identity outside the
   verified domain. This one is by design and it is the one to know: validation at boot checks
   that the keys are *present*, and `ScalewayEmailSender` reports itself able to deliver
-  unconditionally, so the validator's sender rule passes and the boot succeeds. It surfaces at
-  step 5 as a 500 (Scaleway rejects the send) or as silence. **The registration then leaves an
-  orphaned Identity user** — the job seeker rolls back, the user does not, and it is collected
-  by the account-hard-delete job's orphan sweep after its grace window. Diagnose this in
-  Scaleway's own delivery log, never in the api's boot log, which will look clean.
+  unconditionally, so the validator's sender rule passes and the boot succeeds.
+
+  **It is silent at step 5.** The registration answers the same **202** as a working send and
+  the account is created in full — never a 500, and never the boot log, which will look clean.
+
+  **The api's runtime log carries two lines, and the first is the one to read:**
+
+  1. `[ScalewayEmailSender] {EmailKind} email FAILED ({ErrorType}, HTTP {HttpStatus})` —
+     **Error**, EventId 3006, written just before the adapter wraps the fault. `HttpStatus` is
+     the diagnostic: it separates a wrong key (401) from a wrong project (403) from a From
+     identity outside the verified domain. That is the discriminator for the two causes this
+     bullet opens with, so read it before reaching for Scaleway's console.
+  2. `RegisterCommand: confirmation send failed …` — **Warning**, naming `#1349`. It records
+     that the account stands and the link did not go out; it carries no status.
+
+  Neither line carries a recipient or a body (ADR 0124). Confirm the delivery attempt itself in
+  Scaleway's own delivery log.
+
+  **Recovery is the user's own:** the activation mail never arrived, so they press
+  **"Skicka en ny bekräftelselänk"** — mounted on both the login and the registration screen.
+  It is a link, not a code. The account is real, so the resend works.
+
+  ⚠ **This bullet described the opposite until #1349 (2026-08-17)**, and the difference matters
+  if you are diagnosing an older incident: the send used to be the handler's final *unguarded*
+  action, so the fault surfaced as a 500 and rolled the not-yet-committed job seeker back while
+  the Identity user — committed in its own boundary — survived. That orphan was then swept by
+  the account-hard-delete job hours later. The send is now swallowed and the job seeker commits,
+  so **this path produces no orphan.** Registration still passes through that state transiently
+  on every call, and other producers remain; `OrphanedIdentityActivationTests` enumerates them.

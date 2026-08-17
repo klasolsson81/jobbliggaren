@@ -22,11 +22,20 @@ namespace Jobbliggaren.Application.UnitTests.Auth;
 ///   through (wrong-password / locked), checked BEFORE the soft-delete gate so a wrong password never
 ///   reveals or acts on soft-delete state (M8 timing/response oracle-avoidance)</item>
 /// <item>TOCTOU: resolved UserId ≠ session UserId → InvalidCredentials</item>
-/// <item>Layer-1 soft-delete gate: <c>DeletedAt != null</c> → best-effort session self-heal
+/// <item>Layer-1 profile gate, TWO grounds one outcome: <c>DeletedAt != null</c> (soft-deleted) OR no
+///   <c>JobSeeker</c> row at all (#1349) → best-effort session self-heal
 ///   (<see cref="ISessionStore.InvalidateAllForUserAsync"/>) + InvalidCredentials; a Redis failure in
 ///   the self-heal must NOT change the reject outcome</item>
-/// <item>else → Success (a missing seeker row is Success — no-row parity with LoginCommandHandler)</item>
+/// <item>else → Success</item>
 /// </list>
+/// <para>
+/// Point 5's no-row ground is #1349 and it INVERTED an earlier rule. This class used to specify
+/// "a missing seeker row is Success — no-row parity with LoginCommandHandler", and the parity was
+/// real: both gates passed an orphan. The behaviour it mirrored was the defect, so both gates now
+/// refuse and the parity holds again with the opposite outcome. The projection had to change for the
+/// gate to see the case at all — <c>Select(js =&gt; (DateTimeOffset?)js.DeletedAt)</c> made
+/// <c>FirstOrDefaultAsync</c> answer null for "no row" and "a live row" alike.
+/// </para>
 /// The gate keys <c>userId → JobSeeker.UserId</c> via <c>IgnoreQueryFilters()</c> (the global
 /// DeletedAt==null filter would otherwise hide the soft-deleted row).
 /// </summary>
@@ -246,18 +255,58 @@ public class ReauthenticationServiceTests
     }
 
     [Fact]
-    public async Task VerifyCurrentUserPassword_WhenNoSeekerRow_ReturnsSuccess()
+    public async Task VerifyCurrentUserPassword_WhenNoSeekerRow_ReturnsInvalidCredentials()
     {
+        // #1349 — INVERTED, and the old version is worth reading before this one. It asserted success
+        // and justified it as "Parity with LoginCommandHandler: a user without a seeker row is not
+        // blocked by the gate". The parity was real; the behaviour it mirrored was the defect. Both
+        // gates now refuse, so the sentence is true again with the opposite outcome.
+        //
+        // The gate could not even SEE this case before: Select(js => (DateTimeOffset?)js.DeletedAt)
+        // made FirstOrDefaultAsync answer null for "no row" and for "a live row" alike. An orphan
+        // holding a live session therefore passed re-auth, changed its password, and was handed a
+        // FRESH session by the /change-password re-issue — renewing the capability indefinitely
+        // without ever crossing the login guard (security-auditor M-1).
+        //
+        // WHO PRODUCES THE PREMISE (CLAUDE.md §5 Tests:): AccountHardDeleter step 2h
+        // (AccountHardDeleter.cs:302-309) commits the domain transaction before the Identity DELETE,
+        // so a failure there leaves exactly this row — and the transient window every registration
+        // passes through (AccountHardDeleter.cs:74-78, "presumed mid-registration") produces it too.
+        // The actor's own predicate is pinned against the real AccountHardDeleter in
+        // HardDeleteAccountsJobIntegrationTests.CleanupIdentityOrphans_DoesNotSweepIdentityUserWithinGraceWindow.
         var ct = TestContext.Current.CancellationToken;
         var userId = Guid.NewGuid();
         AuthenticatedWithValidCredentials(userId);
-        // No seeker seeded — FirstOrDefaultAsync yields default(DateTimeOffset?) = null → gate passes.
-        // Parity with LoginCommandHandler: a user without a seeker row is not blocked by the gate.
+        // No seeker seeded — that IS the orphan.
 
         var result = await CreateSut().VerifyCurrentUserPasswordAsync(TestPassword, ct);
 
-        result.IsSuccess.ShouldBeTrue();
-        await _sessionStore.DidNotReceive().InvalidateAllForUserAsync(
-            Arg.Any<Guid>(), Arg.Any<CancellationToken>());
+        result.IsFailure.ShouldBeTrue(
+            "re-auth must not grant a sensitive operation to an account that owns no profile");
+        result.Error.Code.ShouldBe(AuthErrorCodes.InvalidCredentials,
+            "uniform with the soft-delete arm and with login — a distinct code would be an "
+            + "account-status oracle on an authenticated but hostile-reachable surface");
+    }
+
+    [Fact]
+    public async Task VerifyCurrentUserPassword_NoSeekerRowAndSoftDeletedAnswerIdentically()
+    {
+        // The two refusal grounds must be indistinguishable to the caller, stated directly rather than
+        // inferred from two tests passing. Same discipline as the login-side sibling.
+        var ct = TestContext.Current.CancellationToken;
+
+        var orphanUserId = Guid.NewGuid();
+        AuthenticatedWithValidCredentials(orphanUserId);
+        var orphan = await CreateSut().VerifyCurrentUserPasswordAsync(TestPassword, ct);
+
+        var deletedUserId = Guid.NewGuid();
+        AuthenticatedWithValidCredentials(deletedUserId);
+        await SeedSeekerAsync(deletedUserId, softDeleted: true, ct);
+        var deleted = await CreateSut().VerifyCurrentUserPasswordAsync(TestPassword, ct);
+
+        orphan.IsFailure.ShouldBeTrue();
+        deleted.IsFailure.ShouldBeTrue();
+        orphan.Error.Code.ShouldBe(deleted.Error.Code);
+        orphan.Error.Message.ShouldBe(deleted.Error.Message);
     }
 }

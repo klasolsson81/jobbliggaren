@@ -134,9 +134,21 @@ docs/decisions/0071-*.md
 docs/decisions/0072-*.md
 docs/decisions/0073-*.md
 # Autonomt multi-session-flöde (2026-06-25, Klas-beslut): agent-review-rapporter
-# och nyare ADR:er hålls lokala by-default. Globerna nedan matchar ADR 0070–0199;
-# redan spårade ADR 0001–0073 + 234 reviews FÖRBLIR publika (gitignore avspårar
-# inte redan committade filer), så nettoeffekten är "nya ADR:er 0074+ blir lokala".
+# och nyare ADR:er hålls lokala by-default.
+#
+# GRÄNSEN, UTSKRIVEN — det är TVÅ tal och de svarar på olika frågor. Regenerera
+# underlaget med `git ls-files docs/decisions/ docs/reviews/`.
+#   1. Gitignorerad ADR-mängd = ADR 0005 + allt från 0071 och uppåt (0005 och
+#      0071–0073 explicit ovan, 0074–0199 via globerna nedan). Den SAMMANHÄNGANDE
+#      gränsen är därmed 0071+, och det är talet satellitfilerna bär när de säger
+#      "från och med N är varje ADR lokal". 0005 är enda medlemmen utanför den
+#      gränsen och står därför på egen rad ovan, aldrig i ett tal.
+#   2. Globernas MARGINALEFFEKT = 0074+: de matchar 0070–0199, men 0070 är redan
+#      spårad (gitignore avspårar inte committade filer) och 0071–0073 står redan
+#      explicit ovan. Det talet är sant BARA här och ska inte kopieras vidare.
+#   3. Spårade, FÖRBLIR publika: ADR 0001–0070 utom 0005, plus de reviews som
+#      redan var committade.
+# Härledningen bor här och ingen annanstans; satellitfilerna bär bara talet.
 # 01-globen tillagd 2026-07-10 när ADR 0100 blev verklighet (cv-v2 PR-9a);
 # vid ADR 0200+ måste nästa mönster läggas till.
 # Främja en lokal ADR/review till publikt via `git add -f`.

@@ -1788,9 +1788,10 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
       både (2) och (3) för en GDPR-Blocker) står kvar oförändrad i blockquoten ovan, på raden som
       börjar `Konverteringen har` — **den citeras vid sin text och inte med ett radavstånd**,
       eftersom ett sådant tal ruttnar vid varje redigering och redan mätts fel en gång i den här
-      punkten. ⚠ **Ankaret är avsiktligt kort:** fortsättningen lyder `ingen acceptansväg` med
-      fetstilsmarkörer i källan, så ett svep på hela meningen träffar bara det här citatet och aldrig
-      målraden. De två påståendena motsäger inte varandra just för att det här inte är en
+      punkten. ⚠ **Ankaret är avsiktligt kort, och skälet är mätt:** målraden lyder
+      `Konverteringen har **ingen acceptansväg**` med fetstilsmarkörer mitt i meningen, så ett
+      markup-fritt svep på hela meningen ger **noll** träffar. Den markup-fria prefixen är därför
+      det enda ankare som faktiskt löser ut till målraden. De två påståendena motsäger inte varandra just för att det här inte är en
       acceptans; risken är en senare redigering som skiljer dem åt och låter recordet läsas som om det
       täckte konverteringen också (`security-auditor` 2026-08-17).
       **Om Klas vill att beslutet ska stå som en formell §9.6-acceptans krävs ADR + hennes signatur —

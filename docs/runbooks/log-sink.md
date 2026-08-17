@@ -50,15 +50,15 @@ the service's `ConditionPathExists` skips the run rather than failing it.
 > they are named `hostlogs/app-…`/`hostlogs/journal-…` and match **neither** new rule, i.e. no
 > lifecycle at all on exactly the artefacts N-1 is about, while the register says 30/90.
 >
-> **The local journal window is LONGER than the off-box one, and that is measured rather than
-> feared.** `host-detection.md` §7 (2026-08-10): journald is pinned at
-> `SystemMaxUse=4G`/`SystemKeepFree=2G` against a 251 G disk, nothing has rotated, and at the
-> then-current write rate the size limit implies a window **of order a thousand days** — the
-> binding constraint is the box's age and `journalctl --vacuum`, not journald. So the
-> root-*deletable* journal outlives the root-*surviving* copy by an order of magnitude, which is
-> the inversion #1175 exists against, and 90 days is what the off-box leg actually buys.
-> That row carries its own caveat — re-measure once auditd has run a week, since the direction is
-> not obvious — and this note inherits it rather than hardening the number.
+> ⛔ **Which of the two windows is longer is a MEASUREMENT, not a standing fact — read it in
+> `host-detection.md` §7 before relying on either, and do not restate it here.** An earlier form of
+> this block asserted the local journal was longer by an order of magnitude and concluded that the
+> off-box leg's 90 days was the constraint. **Measured 2026-08-17 that is inverted:** the local
+> journal restarted at the 2026-08-16 vacuum, so 90 days is now the *longer* of the two — while
+> the off-box leg transports nothing until its timer is installed, so today neither leg carries the
+> backlog. The binding constraint was never journald's ceiling; it is `journalctl --vacuum`, which
+> is exactly what fired.
+> **Read this as raising the urgency of shipping, never as slack to defer it.**
 
 > ⛔ **A THIRD PRECONDITION, AND IT IS NOT DISCHARGED BY ARMING — ADDED 2026-08-15 (#1343,
 > `security-auditor` Major 2). THE FIRST RUN THAT ACTUALLY EXECUTES SHIPS THE WHOLE JOURNAL.**

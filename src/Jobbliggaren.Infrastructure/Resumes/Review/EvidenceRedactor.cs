@@ -58,8 +58,13 @@ internal static class EvidenceRedactor
                     var redactedNote = textSpan.Note is null ? null : PersonnummerRedactor.Redact(textSpan.Note);
 
                     // Fork 3B: a span that quoted a personnummer keeps no offset into RawText.
+                    // IsExcerpt is carried ACROSS the fork on purpose (#1062 B2): redaction removes
+                    // a personnummer, it does not lengthen the citation, so a shortened quote is
+                    // still shortened afterwards. Dropping the flag here would make the masked
+                    // citation render as if it were the user's complete sentence — the same implied
+                    // claim B2 exists to remove, reappearing only on CVs that carry a personnummer.
                     var span = quoteHadPnr
-                        ? new TextSpan(0, 0, redactedQuote)
+                        ? new TextSpan(0, 0, redactedQuote, textSpan.Span.IsExcerpt)
                         : textSpan.Span with { Quote = redactedQuote };
 
                     return new TextSpanEvidence(span, redactedNote);

@@ -13,6 +13,17 @@ namespace Jobbliggaren.Infrastructure.Resumes.Review.Rules;
 internal static class ReviewText
 {
     /// <summary>
+    /// The character cap a cited quote is shortened to before it is flagged as an excerpt
+    /// (#1062 B2). <b>Not a rubric threshold</b> and must not be moved into the rubric asset:
+    /// it changes no verdict — every rule evaluates the FULL text and only the CITATION is
+    /// shortened — so CLAUDE.md §5's "no hardcoded rubric thresholds in C#" does not reach it.
+    /// Putting a presentation length into versioned assessment data would misfile it as
+    /// something a rubric bump could re-decide. Carried over unchanged from the four
+    /// <c>text[..80]</c> call sites this constant replaced.
+    /// </summary>
+    public const int ExcerptMaxChars = 80;
+
+    /// <summary>
     /// The scored description bullets across all experience entries — the DESCRIPTION lines,
     /// NOT the whole entry block. A1/A2/A6 must read the description, so on the staging arm
     /// (where <c>Text</c> is the segmenter's verbatim block: header line, period line, then
@@ -356,6 +367,72 @@ internal static class ReviewText
             : source.IndexOf(quote, StringComparison.Ordinal);
         return new TextSpanEvidence(
             new TextSpan(index >= 0 ? index : TextSpan.NotLocated, quote.Length, quote), note);
+    }
+
+    /// <summary>
+    /// The longest prefix of <paramref name="text"/> that fits <see cref="ExcerptMaxChars"/> and
+    /// ends on a WORD boundary, plus whether shortening actually happened (#1062 B2). Pre-fix the
+    /// four A8 call sites each did <c>text[..80]</c> and cited "Jag ä" — the engine reporting a
+    /// fragment it invented as the user's own words, on the Pass path too.
+    /// <para>The result is always a PREFIX of <paramref name="text"/> (a cut plus a
+    /// <c>TrimEnd</c>), so it stays a verbatim substring of whatever source that text came from
+    /// and the located-offset invariant survives. No "…" is appended — see
+    /// <see cref="TextSpan.IsExcerpt"/> for why the glyph is the client's.</para>
+    /// <para>An unbroken run longer than the cap (no whitespace to cut at) falls back to the hard
+    /// cut. That is the one case where a mid-word end is the honest outcome: there is no word
+    /// boundary to find, and the alternative — sending the whole run — is the unbounded
+    /// PII-bearing quote the cap exists to prevent.</para>
+    /// </summary>
+    public static (string Quote, bool IsExcerpt) Excerpt(string text)
+    {
+        if (text.Length <= ExcerptMaxChars)
+        {
+            return (text, false);
+        }
+
+        var head = text[..ExcerptMaxChars];
+
+        // The character the cap fell ON decides whether `head` already ends a word: if it is
+        // whitespace, the cut sits exactly at a boundary and nothing needs backing off.
+        var cut = char.IsWhiteSpace(text[ExcerptMaxChars])
+            ? head
+            : head[..(LastWhitespace(head) is var i and >= 0 ? i : ExcerptMaxChars)];
+
+        var trimmed = cut.TrimEnd();
+
+        // All-whitespace head (or a boundary at index 0): TrimEnd would leave nothing to cite,
+        // so keep the hard cut rather than emit an empty quote.
+        return (trimmed.Length > 0 ? trimmed : head, true);
+    }
+
+    private static int LastWhitespace(string text)
+    {
+        for (var i = text.Length - 1; i >= 0; i--)
+        {
+            if (char.IsWhiteSpace(text[i]))
+            {
+                return i;
+            }
+        }
+
+        return -1;
+    }
+
+    /// <summary>
+    /// A text-span citation whose quote is shortened to an excerpt when the cited text exceeds
+    /// <see cref="ExcerptMaxChars"/> (#1062 B2) — the ONE home for review-side citation
+    /// shortening. Offset resolution is <see cref="Span"/>'s, unchanged: the excerpt is a prefix
+    /// of the cited text and therefore still locatable in <paramref name="source"/>.
+    /// </summary>
+    public static TextSpanEvidence SpanExcerpt(string source, string text, string? note = null)
+    {
+        var (quote, isExcerpt) = Excerpt(text);
+        var index = string.IsNullOrEmpty(quote)
+            ? -1
+            : source.IndexOf(quote, StringComparison.Ordinal);
+        return new TextSpanEvidence(
+            new TextSpan(index >= 0 ? index : TextSpan.NotLocated, quote.Length, quote, isExcerpt),
+            note);
     }
 
     /// <summary>A text-span citation for the first WORD-BOUNDED occurrence of

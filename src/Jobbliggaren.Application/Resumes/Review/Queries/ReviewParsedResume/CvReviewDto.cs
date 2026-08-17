@@ -18,14 +18,19 @@ public sealed record CvReviewDto(
     int AssessedCount,
     int TotalCount);
 
-/// <summary>Per-category verdict counts (primary) + the data-derived band (secondary).</summary>
+/// <summary>
+/// Per-category verdict counts (primary) + the data-derived band (secondary).
+/// <para><see cref="Band"/> is <c>null</c> when the category has no assessed criterion —
+/// the UNBANDED state (#1062 B1). See <see cref="CvCategoryResult"/> for why absence, and
+/// not a fifth label, is the representation; the client renders no band pill.</para>
+/// </summary>
 public sealed record CvReviewCategoryDto(
     string Category,
     int PassCount,
     int WarnCount,
     int FailCount,
     int NotAssessedCount,
-    string Band);
+    string? Band);
 
 /// <summary>
 /// One criterion's verdict with its cited evidence, projected for transport.
@@ -68,6 +73,11 @@ public sealed record CvCriterionVerdictDto(
 /// Tagged transport form of <see cref="CitedEvidence"/>: <c>Kind</c> is "TextSpan" or
 /// "Structural". For "TextSpan" the span fields are set; for "Structural" only
 /// <c>Observation</c> is set.
+/// <para><see cref="IsExcerpt"/> (#1062 B2) says the <see cref="Quote"/> is a SHORTENED view
+/// of a longer run of CV text, so the client can mark it as one. The quote itself stays the
+/// verbatim substring — the "…" belongs to the client, never to the wire (see
+/// <see cref="TextSpan.IsExcerpt"/>). Always false on "Structural". Additive with a
+/// <c>false</c> default: a client that ignores it renders exactly what it renders today.</para>
 /// </summary>
 public sealed record CitedEvidenceDto(
     string Kind,
@@ -75,4 +85,5 @@ public sealed record CitedEvidenceDto(
     int? Length,
     string? Quote,
     string? Note,
-    string? Observation);
+    string? Observation,
+    bool IsExcerpt = false);

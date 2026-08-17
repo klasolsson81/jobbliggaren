@@ -45,7 +45,7 @@ public class CvReviewEvidenceRedactionTests
 
     /// <summary>
     /// A CV that deliberately carries the personnummer where the present-text rules quote it:
-    /// in the profile (A8 cites <c>Truncate(profile)</c>) and in an experience rawText
+    /// in the profile (A8 cites the profile via <c>ReviewText.SpanExcerpt</c>) and in an experience rawText
     /// (A1/A6 cite the offending/quantified bullet). B4 sees it via the PII-safe scan outcome.
     /// </summary>
     private static ParsedResume ResumeWithPnr() =>

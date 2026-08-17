@@ -42,7 +42,9 @@ internal static class CvReviewDtoMapper
             WarnCount: category.WarnCount,
             FailCount: category.FailCount,
             NotAssessedCount: category.NotAssessedCount,
-            Band: category.Band.ToString());
+            // Null band (no assessed criterion) stays null on the wire — never the floor
+            // label's name, which would put the §5 breach back on the client (#1062 B1).
+            Band: category.Band?.ToString());
 
     private static CvCriterionVerdictDto ToDto(
         CvCriterionVerdict verdict,
@@ -77,14 +79,16 @@ internal static class CvReviewDtoMapper
             Length: span.Span.Length,
             Quote: span.Span.Quote,
             Note: span.Note,
-            Observation: null),
+            Observation: null,
+            IsExcerpt: span.Span.IsExcerpt),
         StructuralEvidence structural => new CitedEvidenceDto(
             Kind: "Structural",
             Start: null,
             Length: null,
             Quote: null,
             Note: null,
-            Observation: structural.Observation),
+            Observation: structural.Observation,
+            IsExcerpt: false),
         _ => throw new ArgumentOutOfRangeException(
             nameof(evidence), evidence.GetType().Name, "Unknown CitedEvidence kind."),
     };

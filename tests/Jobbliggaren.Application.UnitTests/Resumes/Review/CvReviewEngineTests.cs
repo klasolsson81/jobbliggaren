@@ -1752,12 +1752,29 @@ public class CvReviewEngineTests
     public async Task ReviewAsync_ShouldMapCategoryBandToRubricBands_WhenCalled()
     {
         // The category Band must be one of the rubric's data-driven ScoreBandLabels — the
-        // engine never invents a band; it maps the category score onto rubric.Bands.
+        // engine never invents a band; it maps the category score onto rubric.Bands. A null
+        // band is not an invented one: it is the ABSENCE of a claim for a category with no
+        // assessed criterion (#1062 B1), so it is admitted here and pinned to its own
+        // precondition below rather than being waved through by a null-tolerant set test.
         var bandLabels = RealRubric().Bands.Select(b => b.Label).ToHashSet();
 
         var result = await ReviewAsync(Resume(), RenderProfile.Ats);
 
-        result.Categories.Select(c => c.Band).ShouldAllBe(b => bandLabels.Contains(b));
+        foreach (var category in result.Categories)
+        {
+            var assessed = category.PassCount + category.WarnCount + category.FailCount;
+            if (category.Band is null)
+            {
+                assessed.ShouldBe(0,
+                    $"{category.Category} is unbanded, so it must have no assessed criterion.");
+            }
+            else
+            {
+                bandLabels.ShouldContain(category.Band.Value);
+                assessed.ShouldBeGreaterThan(0,
+                    $"{category.Category} carries band {category.Band}, so something was assessed.");
+            }
+        }
     }
 
     [Fact]
@@ -1773,10 +1790,16 @@ public class CvReviewEngineTests
         var strongContent = ContentBand(await ReviewAsync(strong));
         var weakContent = ContentBand(await ReviewAsync(weak));
 
-        ((int)strongContent).ShouldBeGreaterThanOrEqualTo((int)weakContent,
+        // Both fixtures carry Content prose, so both categories are assessed and both bands are
+        // stated. Asserted rather than assumed: since #1062 B1 a band can be absent, and two
+        // nulls would compare "equal" and pass this test without measuring anything.
+        strongContent.ShouldNotBeNull();
+        weakContent.ShouldNotBeNull();
+
+        ((int)strongContent.Value).ShouldBeGreaterThanOrEqualTo((int)weakContent.Value,
             "Ett starkt CV ska inte banda lägre än ett svagt på Innehåll.");
 
-        static ScoreBandLabel ContentBand(CvReviewResult r) =>
+        static ScoreBandLabel? ContentBand(CvReviewResult r) =>
             r.Categories.Single(c => c.Category == RubricCategory.Content).Band;
     }
 

@@ -8,9 +8,9 @@
 
   <ItemGroup>
     <Content Include="xunit.runner.json" CopyToOutputDirectory="PreserveNewest" />
-    <!-- The deploy stack's compose file, so DeployComposeRoleTests can read the connection
-         strings it hands the migrate service. The roles those strings name are decided by the
-         GRANTs in this project's Program.cs, and nothing else couples the two files. -->
+    <!-- The deploy stack's compose file. Every DeployCompose* class in this project reads it.
+         It landed here for DeployComposeRoleTests, whose connection strings ARE this project's
+         subject, and the later compose pins followed the copy rather than adding a second one. -->
     <Content Include="..\..\deploy\docker-compose.yml"
              Link="deploy\docker-compose.yml" CopyToOutputDirectory="PreserveNewest" />
     <!-- #1232 - PooledConnectionResetTests parses every ConnectionStrings__Postgres the repo

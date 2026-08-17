@@ -29,8 +29,20 @@ namespace Jobbliggaren.Architecture.Tests;
 /// assertion passes trivially once its pattern stops matching: reword the placeholder and
 /// <c>ShouldNotContain</c> would go green on an absent literal, silently and permanently. The
 /// drift vector is measured, not hypothetical — the line below the record already spells the same
-/// words in a different emphasis style. Only the unticked property crosses the threshold in the
-/// resting state, which is the state this repo is actually in.
+/// words in a different emphasis style.
+/// </para>
+///
+/// <para>
+/// ⚠ <b>The box was ticked 2026-08-17, and that put the second property to sleep — which is the
+/// day this class's own warning above was written for.</b> The ticked test names all three
+/// literals, but only inside <c>ShouldNotContain</c>, and a negated assertion is exactly what the
+/// paragraph above says cannot hold them. What survives is narrower than the whole literal and
+/// wider than nothing: the <b>label halves</b> of two of the three are still asserted positively,
+/// by the third test, which has no early return and runs in either state. Rewrite
+/// <c>**Datum:**</c> in the checklist and it reddens today. <b>Unanchored while the box stays
+/// ticked: the em-dash suffixes, and all of the adjudicator placeholder</b> — the checklist holds
+/// no legitimate occurrence of one, so no file-reading assertion can demand it. The gap degrades
+/// in the safe direction: an untick sends the second test RED, not silently green.
 /// </para>
 ///
 /// <para>
@@ -102,11 +114,17 @@ public class CorpusLoadGoRecordTests
     }
 
     /// <summary>
-    /// The complementary property, and the one that actually executes today. It pins the
-    /// placeholders as PRESENT while the box is unticked, so the discriminator the ticked test
-    /// negates cannot drift out of existence unnoticed. Without this, rewording the placeholder
-    /// would leave both tests green and kill the guard permanently — and the record's own
-    /// surrounding prose already spells the same words a different way one line below.
+    /// The complementary property. It pins the placeholders as PRESENT while the box is
+    /// unticked, so the discriminator the ticked test negates cannot drift out of existence
+    /// unnoticed — and the record's own surrounding prose already spells the same words a
+    /// different way one line below.
+    ///
+    /// <para>
+    /// <b>Dormant since the box was ticked 2026-08-17</b>, and deliberately kept: an untick is
+    /// one edit away, and the day it happens this is the only test that reads the record at all.
+    /// A dormant branch is not a dead one, but it is also not the class's live guard any more —
+    /// that is the ticked test, whose <c>ShouldNotContain</c> names the same three literals.
+    /// </para>
     /// </summary>
     [Fact]
     public void CorpusGate_WhenPointIsUnticked_RecordStillReadsItsPlaceholders()
@@ -183,6 +201,27 @@ public class CorpusLoadGoRecordTests
     {
         IsTicked(line).ShouldBe(ticked);
         IsUnticked(line).ShouldBe(unticked);
+    }
+
+    /// <summary>
+    /// Ties the two placeholder constants to the labels the third test asserts against the live
+    /// file, and it is the only thing standing between them and a silent test-side drift.
+    ///
+    /// <para>
+    /// The direction matters. A rewrite of the CHECKLIST's label already reddens, because the
+    /// third test reads it. A rewrite of the CONSTANT here does not — while the box is ticked
+    /// nothing compares these against the file at all. This assertion closes that half without
+    /// reading anything: the constant must remain an extension of the live-anchored label, so a
+    /// constant edited away from the file's spelling fails HERE. The adjudicator placeholder has
+    /// no label to hang from and stays unanchored, which the class docstring says plainly rather
+    /// than papering over.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public void PlaceholderConstants_ExtendTheLabelsTheGuardAsserts_SoTestSideDriftCannotBeSilent()
+    {
+        NoDatePlaceholder.ShouldStartWith(DateLabel, Case.Sensitive);
+        NoPlacePlaceholder.ShouldStartWith(PlaceLabel, Case.Sensitive);
     }
 
     /// <summary>

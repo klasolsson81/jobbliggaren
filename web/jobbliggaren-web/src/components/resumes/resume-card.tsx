@@ -101,13 +101,21 @@ export function ResumeCard({ resume }: ResumeCardProps) {
             <StatusPill tone="neutral">{t("card.originTemplate")}</StatusPill>
           )}
           {/* Länkad granskningsstatus (PR-8.4): pillen behåller sitt utseende,
-              länken bär fokusring + hover-affordans. */}
-          <Link
-            href={`/cv/${resume.id}/granska`}
-            className="jp-cv__badge-link"
-          >
+              länken bär fokusring + hover-affordans. Vid `null` är pillen OLÄNKAD:
+              den säger då bara "Granska", samma ord och samma mål som radens egen
+              knapp, och bär noll extra information — två identiska länkar till
+              samma URL. Med ett antal (`N`/`0`) bär den däremot siffran, som
+              knappen inte gör, och förblir en länk. */}
+          {resume.openFindingCount === null ? (
             <StatusPill tone={findingBadge.tone}>{findingBadge.label}</StatusPill>
-          </Link>
+          ) : (
+            <Link
+              href={`/cv/${resume.id}/granska`}
+              className="jp-cv__badge-link"
+            >
+              <StatusPill tone={findingBadge.tone}>{findingBadge.label}</StatusPill>
+            </Link>
+          )}
         </div>
       </div>
 
@@ -132,42 +140,32 @@ export function ResumeCard({ resume }: ResumeCardProps) {
         )}
       </div>
 
-      {/* #1373: raden bar tidigare Förhandsgranska + "Redigera" → /cv/[id]. Redigeringen
-          är pausad (Klas-direktiv 2026-08-17) och routen 404:ar, så länken är BORTTAGEN,
-          inte inaktiverad — ett `disabled` tar kontrollen ur tab-ordningen och en "kommer
-          senare"-etikett hade påstått ett återkomstdatum ingenting bär (#1061 avgjorde
-          samma fråga).
+      {/* #1373 — hela motiveringen (varför redigeringen pausades, varför radering och
+          namnbyte flyttade hit i stället för att stranda, och Art. 7(3)-grunden) bor i
+          EN fil: doc-kommentaren på den grindade routen, `app/(app)/cv/[id]/page.tsx`.
+          Här står bara det som är sant om just den här raden.
 
-          Två konsekvenser hanteras här, båda medvetna:
-          (1) Utan Redigera hade raden blivit en ensam förhandsgransknings-knapp, medan
-              produktens centrala verb — granska — bara nåtts via statuspillen i
-              badge-klustret. Granska är därför nu radens PRIMÄRA kontroll. Pillen
-              behålls: den bär anmärkningsANTALET, vilket knappen inte gör.
-          (2) Radera och Byt namn låg på den grindade routen och hade strandat med den.
-              Radering är inte redigering, och den är dessutom enda kvarvarande vägen att
-              återkalla personnummer-samtycket för ett sparat CV (GDPR Art. 7(3) kräver
-              att återkallelse är lika lätt som samtycket var att ge). De ligger nu här,
-              på egna meriter: radering är en biblioteks-operation vars objekt ÄR kortet,
-              och hubben bär redan samma mönster för det andra CV-artefakten
-              (`DiscardDraftButton` på åtgärdskortet). Namnbytet behölls på Klas beslut
-              2026-08-17 — namnet är plaintext-etikett, inte DEK-krypterat innehåll.
+          Ordningen bär hierarkin: Granska är radens betonade kontroll (produktens
+          centrala verb, som annars bara nåtts via statuspillen), och de två
+          hanterings-kontrollerna är grupperade sist så den destruktiva aldrig är radens
+          mest framträdande element. Betoningen är `--emphasis`, INTE `--primary`:
+          kortet renderas en gång per CV, och en solid fyllning per kort ger N primärer
+          i samma grid, vilket DESIGN.md §6 förbjuder uttryckligen (CTO-bind #788).
 
-          Hanterings-kontrollerna är grupperade och högerskjutna så den destruktiva
-          kontrollen aldrig är radens mest framträdande element; Granska (fylld primär)
-          är det.
-
-          `flex-wrap` är INTE kosmetik utan en buggfix, mätt live 2026-08-17 på 1280px:
-          `.jp-cv__actions` är `nowrap` med `overflow: visible`, och fyra kontroller kräver
-          456px i en griddcell som är 345px. Utan wrap sträckte sig hanteringsgruppen 111px
-          UTANFÖR kortets högerkant (kort slutar x=440, gruppen slutade x=551) och hamnade
-          under grannkortet i griden, som därmed avlyssnade klicket — raderingsknappen gick
-          inte att träffa, för Playwright och lika lite för en människa. Wrap sätts här och
-          inte på den delade `.jp-cv__actions`-klassen i globals.css: `ResumeCard` är dess
-          enda konsument, men den snävare ändringen kan inte överraska en framtida andra. */}
+          `flex-wrap` är en buggfix, inte kosmetik: raden är `nowrap` som default och
+          fyra kontroller ryms inte i griddcellen, så hanteringsgruppen hamnade utanför
+          kortet och under grannkortet, som avlyssnade klicket. Regenerera geometrin med
+          E2E-sonden i commit-meddelandet. Wrap sätts på elementet och inte i regeln,
+          per DESIGN.md rad 141: `.jp-cv__actions` deklarerar aldrig `flex-wrap`, så
+          utilityn biter — men den blir tyst verkningslös om någon senare lägger
+          `flex-wrap` i själva regeln. Klassen har TVÅ konsumenter, och skelettet
+          (`app/(app)/cv/loading.tsx`) fick samma ändring; ändras raden här ska den
+          ändras där. */}
       <div className="jp-cv__actions flex-wrap">
         <Link
           href={`/cv/${resume.id}/granska`}
-          className="jp-btn jp-btn--primary jp-btn--sm"
+          className="jp-btn jp-btn--emphasis jp-btn--sm"
+          aria-label={t("card.reviewCtaAria", { name: resume.name })}
         >
           <FileText size={14} aria-hidden="true" />
           <span>{t("card.reviewCta")}</span>
@@ -178,10 +176,21 @@ export function ResumeCard({ resume }: ResumeCardProps) {
           initialProfile="Ats"
           triggerClassName="jp-btn jp-btn--secondary jp-btn--sm"
           triggerIconSize={14}
+          triggerAriaLabel={t("preview.triggerAria", { name: resume.name })}
         />
-        <div className="ms-auto flex gap-2">
-          <RenameResumeForm resumeId={resume.id} currentName={resume.name} />
-          <DeleteResumeDialog resumeId={resume.id} resumeName={resume.name} />
+        <div className="ms-auto flex flex-wrap gap-2">
+          <RenameResumeForm
+            resumeId={resume.id}
+            currentName={resume.name}
+            triggerClassName="jp-btn jp-btn--secondary jp-btn--sm"
+            triggerAriaLabel={t("rename.triggerAria", { name: resume.name })}
+          />
+          <DeleteResumeDialog
+            resumeId={resume.id}
+            resumeName={resume.name}
+            triggerClassName="jp-btn jp-btn--danger jp-btn--sm"
+            triggerAriaLabel={t("delete.triggerAria", { name: resume.name })}
+          />
         </div>
       </div>
     </article>

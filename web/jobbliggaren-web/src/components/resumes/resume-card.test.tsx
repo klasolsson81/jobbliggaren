@@ -96,7 +96,31 @@ describe("ResumeCard (F6 P3a v3)", () => {
     expect(cta).toHaveAttribute("href", "/cv/resume-1/granska");
     // Prominensen bärs av klassen, inte av ordningen i DOM:en — den destruktiva
     // kontrollen får aldrig vara radens mest framträdande element (CTO-bind #1373).
-    expect(cta.className).toContain("jp-btn--primary");
+    // Nivån är `--emphasis` och INTE `--primary`: kortet renderas en gång per CV,
+    // så en solid fyllning här ger N primärer i samma grid, vilket DESIGN.md §6
+    // förbjuder uttryckligen (CTO-bind #788). Båda leden pinnas — utan negationen
+    // hade en återgång till solid fyllning passerat.
+    expect(cta.className).toContain("jp-btn--emphasis");
+    expect(cta.className).not.toContain("jp-btn--primary");
+  });
+
+  // Kontrollerna upprepas en gång per CV på /cv, så ett tillgängligt namn utan
+  // objektet lämnar N identiska poster i en skärmläsares knapp-rotor.
+  it("ger varje kontroll ett objekt-specifikt tillgängligt namn", () => {
+    render(<ResumeCard resume={baseResume} />);
+    const cv = "Backend & molnplattform";
+    expect(
+      screen.getByRole("link", { name: `Granska CV: ${cv}` }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: `Förhandsgranska ${cv}` }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: `Byt namn på ${cv}` }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: `Radera CV: ${cv}` }),
+    ).toBeInTheDocument();
   });
 
   it("renderar Förhandsgranska-knapp (render-by-Resume-id levererad, TD-112)", () => {

@@ -1898,6 +1898,35 @@ a.jp-adminnav__link[aria-current="page"]::after {
 .jp-btn--secondary:hover {
   background: var(--jp-surface-3);
 }
+/* Betonad radhandling på .jp-btn-chassit — SPEGLAR .jp-rowbtn--emphasis (samma
+   tokens, samma nivå), för ytor som bär .jp-btn i stället för .jp-rowbtn.
+   Det är en UNDERORDNAD nivå under den solida en-per-skärm-primären, inte en
+   andra primär: DESIGN.md §6 förbjuder solid fyllning per rad ("N rader = N
+   knappar"), och eskalering sker inom den icke-solida nivån, aldrig till solid
+   fyllning (CTO-bind 2026-07-12, #788). Inför inga nya tokens. */
+.jp-btn--emphasis {
+  background: var(--jp-accent-50);
+  color: var(--jp-accent-700);
+  border-color: var(--jp-accent-700);
+  font-weight: var(--jp-fw-bold);
+}
+.jp-btn--emphasis:hover {
+  background: var(--jp-accent-100);
+}
+/* Destruktiv kontroll på samma chassi. Finns för att en actions-rad inte ska bära
+   TVÅ knappfamiljer: shadcn `outline` bär `--jp-border` (1,52:1 mot vit yta) medan
+   `.jp-btn--secondary` bär `--jp-border-input` (3,50:1), och 8px isär läser den
+   skillnaden som ett fel i stället för som en nivå (#1373). Tintad, aldrig solid —
+   destruktivt ska vara igenkännbart utan att konkurrera med sidans betoning. */
+.jp-btn--danger {
+  background: var(--jp-danger-50);
+  color: var(--jp-danger-700);
+  border-color: var(--jp-danger-700);
+}
+.jp-btn--danger:hover {
+  background: var(--jp-danger-100, var(--jp-danger-50));
+  border-color: var(--jp-danger-700);
+}
 /* #1000 (V1) — /jobb modal-footer: en STATE-toggle-knapp bär sin tillstånds-färg
    när ON (matchar list-taggarna) så modalen läses lika tydligt som listan. LIVE
    client-state (aria-pressed) → ingen stale-risk (därför släpptes header-snapshot-

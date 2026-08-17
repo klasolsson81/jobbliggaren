@@ -64,9 +64,16 @@ interface CvPreviewProps {
   triggerClassName?: string;
   /**
    * Ikonstorlek (px) i trigger-knappen, så den matchar grann-knappens ikon (t.ex.
-   * 14 på ResumeCard:s `--sm`-rad intill Redigera-ikonen). Default = 16 (full-storlek).
+   * 14 på ResumeCard:s `--sm`-rad intill Granska CV-knappens ikon). Default = 16
+   * (full-storlek).
    */
   triggerIconSize?: number;
+  /**
+   * Tillgängligt namn på triggern, när ytan renderar flera. `/cv` ger ett kort per
+   * CV, så utan detta blir N identiska "Förhandsgranska" i en skärmläsares
+   * knapp-rotor (#1373). Utelämnad => knappens egen text bär namnet.
+   */
+  triggerAriaLabel?: string;
 }
 
 /** Den aktiva fliken: en PDF-profil eller ATS-textvyn. `RenderProfile` vidgas
@@ -112,6 +119,7 @@ export function CvPreview({
   initialProfile,
   triggerClassName = "jp-btn jp-btn--secondary",
   triggerIconSize = 16,
+  triggerAriaLabel,
 }: CvPreviewProps) {
   const t = useTranslations("resumes.preview");
   const [open, setOpen] = useState(false);
@@ -309,6 +317,7 @@ export function CvPreview({
         ref={triggerRef}
         type="button"
         className={triggerClassName}
+        aria-label={triggerAriaLabel}
         onClick={() => setOpen(true)}
       >
         <Eye size={triggerIconSize} aria-hidden="true" />

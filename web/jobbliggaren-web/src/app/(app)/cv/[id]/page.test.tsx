@@ -43,6 +43,15 @@ vi.mock("next/navigation", () => ({
 
 const params = Promise.resolve({ id: "11111111-1111-1111-1111-111111111111" });
 
+/**
+ * A thenable whose `then` is a spy, so the test can assert the route never awaits it.
+ * A plain Promise cannot carry that assertion — awaiting it is invisible.
+ */
+function spiedParams() {
+  const then = vi.fn();
+  return { params: { then } as unknown as Promise<{ id: string }>, then };
+}
+
 describe("/cv/[id] — the edit path is paused, and unreachable by a guessed URL (#1373)", () => {
   beforeEach(() => {
     redirect.mockReset();
@@ -68,5 +77,19 @@ describe("/cv/[id] — the edit path is paused, and unreachable by a guessed URL
 
     expect(redirect).toHaveBeenCalledWith("/logga-in");
     expect(notFound).not.toHaveBeenCalled();
+  });
+
+  // The doc comment claims the gate fires without resolving `params`. Without this the
+  // claim is prose: a route that awaited the id would still 404, and every assertion
+  // above would stay green. Hardening, not a defect — `_props` is untouched today.
+  it("never resolves params — the 404 costs no work on the paused route's behalf", async () => {
+    getServerSession.mockResolvedValue({ email: "a@b.se", roles: [] });
+    const { params: spied, then } = spiedParams();
+
+    await expect(CvDetailPage({ params: spied })).rejects.toThrow(
+      "NEXT_NOT_FOUND",
+    );
+
+    expect(then).not.toHaveBeenCalled();
   });
 });

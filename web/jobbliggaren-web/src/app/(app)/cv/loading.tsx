@@ -42,9 +42,18 @@ export default function Loading() {
               <div className="jp-cv__meta">
                 <span className="jp-skeleton block h-3 w-40 max-w-full" />
               </div>
-              <div className="jp-cv__actions">
-                <span className="jp-skeleton block h-9 w-24" />
+              {/* #1373: fyra kontroller, inte två, och de wrappar till två rader i
+                  griddcellen. Skelettet måste reservera samma höjd som kortet landar
+                  på (36 + 8 gap + 36 = 80px), annars hoppar varje grid-rad ≥44px när
+                  RSC-strömmen kommer — och att förhindra just det är skelettets enda
+                  uppgift (ADR 0045, CLS-budget). Bredderna speglar de renderade
+                  etiketterna. Andra konsumenten av `.jp-cv__actions`; den första är
+                  `components/resumes/resume-card.tsx`. */}
+              <div className="jp-cv__actions flex-wrap">
                 <span className="jp-skeleton block h-9 w-28" />
+                <span className="jp-skeleton block h-9 w-32" />
+                <span className="jp-skeleton block h-9 w-20" />
+                <span className="jp-skeleton block h-9 w-24" />
               </div>
             </article>
           ))}

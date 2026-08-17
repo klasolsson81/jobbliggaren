@@ -1,8 +1,10 @@
 import Link from "next/link";
 import { useFormatter, useTranslations } from "next-intl";
-import { Edit } from "lucide-react";
+import { FileText } from "lucide-react";
 import { formatDate } from "@/lib/i18n/format";
 import { CvPreview } from "@/components/resumes/cv-preview";
+import { RenameResumeForm } from "@/components/resumes/rename-resume-form";
+import { DeleteResumeDialog } from "@/components/resumes/delete-resume-dialog";
 import { StatusPill, type PillTone } from "@/components/ui/status-pill";
 import type { ResumeListItemDto } from "@/lib/types/resumes";
 
@@ -32,7 +34,9 @@ function isKnownTemplate(value: string): value is KnownTemplate {
  *    den info; vi kan inte rendera "+N" utan content-fetch — utelämnas medvetet)
  *  - jp-cv__meta: "N sektioner" (NORMAL font) + språkkod "SV"/"EN" (MONO)
  *    + "Uppd. YYYY-MM-DD" (MONO) — per HANDOVER §3 (mono endast för data)
- *  - jp-cv__actions: Redigera → /cv/{id} (existing route)
+ *  - jp-cv__actions: Granska → /cv/{id}/granska (primär) + Förhandsgranska,
+ *    och högerskjutet Byt namn + Radera. Redigera-länken till /cv/{id} är
+ *    borttagen (#1373) — se kommentaren vid raden.
  *
  * Förhandsgranska-knapp (TD-112 / #202): den befordrade Resume-griden saknar ett
  * parsedId, men konsumerar nu render-by-Resume-id-vägen
@@ -125,7 +129,37 @@ export function ResumeCard({ resume }: ResumeCardProps) {
         )}
       </div>
 
+      {/* #1373: raden bar tidigare Förhandsgranska + "Redigera" → /cv/[id]. Redigeringen
+          är pausad (Klas-direktiv 2026-08-17) och routen 404:ar, så länken är BORTTAGEN,
+          inte inaktiverad — ett `disabled` tar kontrollen ur tab-ordningen och en "kommer
+          senare"-etikett hade påstått ett återkomstdatum ingenting bär (#1061 avgjorde
+          samma fråga).
+
+          Två konsekvenser hanteras här, båda medvetna:
+          (1) Utan Redigera hade raden blivit en ensam förhandsgransknings-knapp, medan
+              produktens centrala verb — granska — bara nåtts via statuspillen i
+              badge-klustret. Granska är därför nu radens PRIMÄRA kontroll. Pillen
+              behålls: den bär anmärkningsANTALET, vilket knappen inte gör.
+          (2) Radera och Byt namn låg på den grindade routen och hade strandat med den.
+              Radering är inte redigering, och den är dessutom enda kvarvarande vägen att
+              återkalla personnummer-samtycket för ett sparat CV (GDPR Art. 7(3) kräver
+              att återkallelse är lika lätt som samtycket var att ge). De ligger nu här,
+              på egna meriter: radering är en biblioteks-operation vars objekt ÄR kortet,
+              och hubben bär redan samma mönster för det andra CV-artefakten
+              (`DiscardDraftButton` på åtgärdskortet). Namnbytet behölls på Klas beslut
+              2026-08-17 — namnet är plaintext-etikett, inte DEK-krypterat innehåll.
+
+          Hanterings-kontrollerna är grupperade och högerskjutna så den destruktiva
+          kontrollen aldrig är radens mest framträdande element; Granska (fylld primär)
+          är det. */}
       <div className="jp-cv__actions">
+        <Link
+          href={`/cv/${resume.id}/granska`}
+          className="jp-btn jp-btn--primary jp-btn--sm"
+        >
+          <FileText size={14} aria-hidden="true" />
+          <span>{t("card.reviewCta")}</span>
+        </Link>
         <CvPreview
           previewUrl={`/api/cv/${resume.id}/preview`}
           atsTextUrl={`/api/cv/${resume.id}/ats-text`}
@@ -133,13 +167,10 @@ export function ResumeCard({ resume }: ResumeCardProps) {
           triggerClassName="jp-btn jp-btn--secondary jp-btn--sm"
           triggerIconSize={14}
         />
-        <Link
-          href={`/cv/${resume.id}`}
-          className="jp-btn jp-btn--secondary jp-btn--sm"
-        >
-          <Edit size={14} aria-hidden="true" />
-          <span>{t("card.edit")}</span>
-        </Link>
+        <div className="ms-auto flex gap-2">
+          <RenameResumeForm resumeId={resume.id} currentName={resume.name} />
+          <DeleteResumeDialog resumeId={resume.id} resumeName={resume.name} />
+        </div>
       </div>
     </article>
   );

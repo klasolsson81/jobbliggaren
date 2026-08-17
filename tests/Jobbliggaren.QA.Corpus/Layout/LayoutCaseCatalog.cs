@@ -296,6 +296,12 @@ public static class LayoutCaseCatalog
         // call would leave the entire report byte-identical -- which is precisely the regression
         // the personnummer cases exist to catch. The account display name is the one text the
         // composed DTO adds over the import-scanned superset, and the handler says so itself.
+        //
+        // Since #1117 this name is a LEGACY-ROW state, not a registrable one: JobSeeker.Register
+        // refuses a personnummer-shaped display name, so the probe writes the column directly
+        // (CvChainProbe names the actor). The rung it exercises is unchanged -- DQ6 is kept
+        // precisely because rows written before that invariant still exist -- so this case now
+        // measures the guard over the population that can still reach it.
         new("pdf-clean-body-pnr-in-account-name",
             "a CLEAN CV body whose ACCOUNT display name carries a synthetic personnummer",
             "gate axis — the only route to the DQ6 rung on the composed DTO",

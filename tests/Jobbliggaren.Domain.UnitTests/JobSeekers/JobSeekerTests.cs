@@ -222,4 +222,129 @@ public class JobSeekerTests
         seeker.UpdatedAt.ShouldBe(initialUpdatedAt);
         seeker.DomainEvents.ShouldBeEmpty();
     }
+
+    // ---------------------------------------------------------------
+    // #1117 (CLAUDE.md §5 — the highest-priority PII rule): the aggregate REFUSES a
+    // personnummer-shaped display name on BOTH write paths (Register / UpdateDisplayName).
+    // DisplayName is a plaintext, unencrypted column that surfaces on screen, in the profile
+    // DTO, and — via PersonalInfo.FullName on the promote path — in the PDF header the user
+    // sends to employers. Same invariant, same flag chain (Normalize -> Scan) and same
+    // date+Luhn authority as Resume.ValidateName, whose written justification applies
+    // verbatim here. This is also the pin the seams that seed a legacy display name name:
+    // the CURRENT writers cannot produce the shape, so a fixture carrying one is asserting
+    // about rows written before this invariant landed.
+    // Non-ASCII gap points as \uXXXX escapes (project rule: ASCII source).
+    // ---------------------------------------------------------------
+
+    [Theory]
+    [InlineData("811218-9876")] // valid 10-digit personnummer
+    [InlineData("8112189876")] // contiguous, no separator
+    [InlineData("811278-9873")] // samordningsnummer (day 18+60=78)
+    [InlineData("811218\u00A09876")] // NBSP-gapped: proves Normalize runs before Scan
+    [InlineData("Anna 811218-9876")] // embedded in an otherwise ordinary name
+    public void Register_WithPersonnummerShapedDisplayName_ReturnsFailure(string pnrName)
+    {
+        var result = JobSeeker.Register(ValidUserId, pnrName, Clock);
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe("JobSeeker.DisplayNamePersonnummerMustBeRemoved");
+    }
+
+    [Fact]
+    public void Register_WithPersonnummerLookalikeFailingLuhn_IsAllowed_NoOverFlag()
+    {
+        // "811218-9875" has the personnummer SHAPE but a wrong Luhn check digit, so it is NOT
+        // a personnummer. The date+Luhn authority governs the guard, so it must NOT over-flag
+        // — over-flagging refuses a legitimate name, which is the direction that harms a real
+        // user. Parity with ResumeTests.Create_WithPersonnummerLookalikeFailingLuhn_IsAllowed_NoOverFlag.
+        var result = JobSeeker.Register(ValidUserId, "811218-9875", Clock);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.DisplayName.ShouldBe("811218-9875");
+    }
+
+    [Fact]
+    public void Register_WithPersonnummerShapedDisplayName_RaisesNoDomainEvent()
+    {
+        // The refusal precedes construction, so the registered event — which carries the
+        // display name in its payload — is never raised with a personnummer in it.
+        var result = JobSeeker.Register(ValidUserId, "Anna 811218-9876", Clock);
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe("JobSeeker.DisplayNamePersonnummerMustBeRemoved");
+    }
+
+    [Theory]
+    [InlineData("811218-9876")]
+    [InlineData("8112189876")]
+    [InlineData("811278-9873")] // samordningsnummer
+    [InlineData("811218\u00A09876")] // NBSP-gapped: proves Normalize runs before Scan
+    [InlineData("Anna 811218-9876")]
+    public void UpdateDisplayName_WithPersonnummerShapedDisplayName_ReturnsFailure(string pnrName)
+    {
+        var seeker = JobSeeker.Register(ValidUserId, "Klas Olsson", Clock).Value;
+        var before = seeker.DisplayName;
+        var beforeUpdatedAt = seeker.UpdatedAt;
+        var laterClock = FakeDateTimeProvider.At(Clock.UtcNow.AddHours(1));
+
+        var result = seeker.UpdateDisplayName(pnrName, laterClock);
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe("JobSeeker.DisplayNamePersonnummerMustBeRemoved");
+        seeker.DisplayName.ShouldBe(before); // refused -> DisplayName is not mutated
+        seeker.UpdatedAt.ShouldBe(beforeUpdatedAt); // and the row is not stamped
+    }
+
+    [Fact]
+    public void UpdateDisplayName_WithPersonnummerLookalikeFailingLuhn_IsAllowed_NoOverFlag()
+    {
+        var seeker = JobSeeker.Register(ValidUserId, "Klas Olsson", Clock).Value;
+        var laterClock = FakeDateTimeProvider.At(Clock.UtcNow.AddHours(1));
+
+        var result = seeker.UpdateDisplayName("811218-9875", laterClock);
+
+        result.IsSuccess.ShouldBeTrue();
+        seeker.DisplayName.ShouldBe("811218-9875");
+    }
+
+    // The two length/blank rules UpdateDisplayName has always carried had no test at all
+    // before #1117 (measured: zero UpdateDisplayName tests). They are pinned here because
+    // the guard moves them into a shared validator, and an unpinned rule that moves is a
+    // rule that can silently stop running.
+
+    [Fact]
+    public void UpdateDisplayName_WithBlankDisplayName_Fails()
+    {
+        var seeker = JobSeeker.Register(ValidUserId, "Klas Olsson", Clock).Value;
+
+        var result = seeker.UpdateDisplayName("   ", Clock);
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe("JobSeeker.DisplayNameRequired");
+    }
+
+    [Fact]
+    public void UpdateDisplayName_WithTooLongDisplayName_Fails()
+    {
+        var seeker = JobSeeker.Register(ValidUserId, "Klas Olsson", Clock).Value;
+        var tooLong = new string('A', JobSeeker.MaxDisplayNameLength + 1);
+
+        var result = seeker.UpdateDisplayName(tooLong, Clock);
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe("JobSeeker.DisplayNameTooLong");
+    }
+
+    [Fact]
+    public void UpdateDisplayName_TrimsDisplayName()
+    {
+        var seeker = JobSeeker.Register(ValidUserId, "Klas Olsson", Clock).Value;
+        var laterClock = FakeDateTimeProvider.At(Clock.UtcNow.AddHours(1));
+
+        var result = seeker.UpdateDisplayName("  Anna  ", laterClock);
+
+        result.IsSuccess.ShouldBeTrue();
+        seeker.DisplayName.ShouldBe("Anna");
+        seeker.UpdatedAt.ShouldBe(laterClock.UtcNow);
+    }
 }

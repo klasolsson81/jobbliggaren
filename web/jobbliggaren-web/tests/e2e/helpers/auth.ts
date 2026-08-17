@@ -114,3 +114,53 @@ export async function ensureConfirmedTestUser(baseURL: string, runId: number): P
   await ensureTestUser(baseURL, runId);
   await confirmTestUser(baseURL, runId);
 }
+
+/**
+ * Seeds a saved CV straight through the backend API and returns its id.
+ *
+ * Why this exists (#1061): the edit specs used to seed by driving `/cv/ny`. That route is now
+ * a session-gated 404 — create-from-scratch is deferred from the MVP — so the UI can no longer
+ * produce the precondition those specs need. `/cv/[id]` itself is still live, so the coverage
+ * is kept and only the seeding path moves.
+ *
+ * ⚠ This helper calls `POST /api/v1/resumes`, which #1371 is slated to REMOVE as an
+ * unreachable authenticated endpoint. When that lands, this helper must be re-seeded too —
+ * it is named as a consumer in that issue. Do not read its existence as a sign the endpoint
+ * is meant to stay.
+ *
+ * The API takes the session id as a Bearer token (ADR 0018 — the backend is cookie-agnostic;
+ * the Next proxy owns the cookie), so this logs in against the backend directly rather than
+ * borrowing the browser context's cookie.
+ */
+export async function seedResumeViaApi(
+  baseURL: string,
+  runId: number,
+  name: string,
+  fullName: string,
+): Promise<string> {
+  assertSafeBaseURL(baseURL);
+
+  const login = await fetch(`${baseURL}/api/v1/auth/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email: testEmail(runId), password: TEST_PASSWORD }),
+  });
+  if (!login.ok) {
+    throw new Error(`Failed to log in test user for seeding: ${login.status}`);
+  }
+  const { sessionId } = (await login.json()) as { sessionId: string };
+
+  const created = await fetch(`${baseURL}/api/v1/resumes`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${sessionId}`,
+    },
+    body: JSON.stringify({ name, fullName }),
+  });
+  if (!created.ok) {
+    throw new Error(`Failed to seed resume "${name}": ${created.status}`);
+  }
+  const { id } = (await created.json()) as { id: string };
+  return id;
+}

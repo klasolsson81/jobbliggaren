@@ -66,12 +66,12 @@
   },
   "cv": {
     "title": "CV",
-    "lede": "Hantera dina CV-varianter. Importera ett befintligt CV för en granskning, eller skapa ett nytt från grunden. Du behåller alltid kontrollen.",
+    "lede": "Hantera dina CV-varianter. Importera ett befintligt CV för en granskning. Du behåller alltid kontrollen.",
     "importCv": "Importera CV",
     "newCv": "Nytt CV",
     "loadErrorTitle": "Kunde inte ladda CV",
     "emptyTitle": "Inga CV ännu",
-    "emptyBody": "Skapa ditt första CV för att komma igång. Du kan ha flera varianter (t.ex. en för ledarskap och en för teknisk roll) och välja rätt CV per ansökan.",
+    "emptyBody": "Importera ditt första CV för att komma igång. Du kan ha flera varianter (t.ex. en för ledarskap och en för teknisk roll) och välja rätt CV per ansökan.",
     "emptyCreateFirst": "Skapa första CV",
     "backLink": "Tillbaka till CV",
     "pending": {

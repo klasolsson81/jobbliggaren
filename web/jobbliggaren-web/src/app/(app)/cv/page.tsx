@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getFormatter, getTranslations } from "next-intl/server";
-import { FileText, Plus, Upload } from "lucide-react";
+import { FileText, Upload } from "lucide-react";
 import { getServerSession } from "@/lib/auth/session";
 import { getLatestPendingParsedResume, getResumes } from "@/lib/api/resumes";
 import { assertNever } from "@/lib/dto/_helpers";
@@ -22,6 +22,16 @@ import { StatusPill } from "@/components/ui/status-pill";
  * AnpassaCvBanner är BORTTAGEN (Fas 4 STEG B-2): den marknadsförde CvTailor /
  * annons-skräddarsöm, en LLM-funktion som ADR 0071 garanterar aldrig byggs.
  * Förbättra-CV-flödet (deterministiskt, F4-10) lever i stället på granska-vyn.
+ *
+ * #1061: de två CTA:erna in i skapa-från-grunden ("Nytt CV" i plattan, "Skapa
+ * första CV" i tomt-tillståndet) är BORTTAGNA, inte inaktiverade. Vägen är
+ * deferrad utan återkomstdatum, och en "kommer senare"-etikett hade påstått ett
+ * schema ingenting bär — samma klass av obelagt påstående som ADR 0112 valde
+ * 404 framför 308 för att undvika. Huset har avgjort samma fråga två gånger
+ * (mallbyggaren, Förbättra-lagret) och tog bort ingången båda gångerna.
+ * Import är hubbens enda ingång i MVP:n. `cv.lede` och `cv.emptyBody` är
+ * omskrivna i samma ändring: de lovade skapande i prosa. Nycklarna `cv.newCv`
+ * och `cv.emptyCreateFirst` ligger kvar inerta (ADR 0112 §Mechanism 1).
  */
 export default async function CvListPage() {
   const user = await getServerSession();
@@ -106,14 +116,12 @@ export default async function CvListPage() {
           </div>
           <div className="jp-pagehero__aside">
             {/* G3 (Klas-fynd 2026-06-10): vit knapp i plattan, konsekvent
-                med /jobb-bannerns vita kontroller. */}
+                med /jobb-bannerns vita kontroller. Import är sedan #1061 den
+                enda vägen in — skapa-från-grunden är deferrad (se
+                cv/ny/page.tsx). */}
             <Link href="/cv/importera" className="jp-btn jp-btn--secondary">
               <Upload size={16} aria-hidden="true" />
               <span>{t("cv.importCv")}</span>
-            </Link>
-            <Link href="/cv/ny" className="jp-btn jp-btn--primary">
-              <Plus size={16} aria-hidden="true" />
-              <span>{t("cv.newCv")}</span>
             </Link>
           </div>
         </div>
@@ -170,10 +178,7 @@ export default async function CvListPage() {
             <div className="jp-empty__title">{t("cv.emptyTitle")}</div>
             <p className="jp-empty__body">{t("cv.emptyBody")}</p>
             <div className="jp-empty__actions">
-              <Link href="/cv/ny" className="jp-btn jp-btn--primary">
-                <Plus size={14} aria-hidden="true" /> {t("cv.emptyCreateFirst")}
-              </Link>
-              <Link href="/cv/importera" className="jp-btn jp-btn--secondary">
+              <Link href="/cv/importera" className="jp-btn jp-btn--primary">
                 <Upload size={14} aria-hidden="true" /> {t("cv.importCv")}
               </Link>
             </div>

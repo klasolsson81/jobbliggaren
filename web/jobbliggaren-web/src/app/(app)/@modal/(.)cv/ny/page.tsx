@@ -1,38 +1,29 @@
-import { redirect } from "next/navigation";
-import { getTranslations } from "next-intl/server";
+import { notFound, redirect } from "next/navigation";
 import { getServerSession } from "@/lib/auth/session";
-import { CreateResumeForm } from "@/components/resumes/create-resume-form";
-import { RouteModalShell } from "@/components/modals/route-modal-shell";
 
 /**
- * Intercepting Route för @modal-slotten. `(.)cv/ny` matchar samma segment-
- * nivå som slot-monteringspunkten `(app)` — `@modal` är en slot, INTE ett
- * route-segment (Next-docs Intercepting Routes §Convention + §Modals,
- * verifierat node_modules/next/dist/docs Next 16.2.x).
+ * Intercepting Route för @modal-slotten, `(.)cv/ny` — RETIRED tillsammans med
+ * fullsidan (#1061). Den visade `CreateResumeForm` som modal vid soft-nav från
+ * /cv; skapa-från-grunden är deferrad, så det finns ingenting kvar att fånga.
  *
- * Soft-nav (Link /cv/ny från /cv) fångas här → modal. Hard-nav / refresh /
- * delad länk träffar `(app)/cv/ny/page.tsx` (fullsida). Samma
- * `CreateResumeForm` i båda (ADR 0053, DRY).
+ * Grindad, inte raderad, av två skäl. (1) En URL ska ha ETT beteende: om bara
+ * fullsidan grindades skulle /cv/ny svara 404 vid hard-nav men rendera ett
+ * fungerande formulär vid soft-nav. (2) Intercepten är i dag onåbar — den
+ * fyrar bara på klient-navigering, och båda `<Link href="/cv/ny">` är borta —
+ * men den skulle åter-armeras tyst i samma sekund någon lägger till en länk
+ * eller ett `router.push`. En grind här gör den fällan omöjlig.
  *
- * RSC: auth-grind på servern; endast modal-chromet (RouteModalShell) och
- * CreateResumeForm är "use client". Skapa-flödet är oförändrat: server-
- * actionen redirectar till /cv/{id} vid 201 — en full navigation som ersätter
- * modalen med det nya CV:t. Stäng (ESC/scrim/X/Avbryt) → router.back() → /cv.
+ * Samma mekanism som fullsidan: session-grind FÖRST, sedan notFound(), aldrig
+ * permanentRedirect. Motiveringen i sin helhet står i `(app)/cv/ny/page.tsx`,
+ * som är den route en gissad URL faktiskt träffar. Hela ändringen är ett
+ * `git revert`-mål om skapa-vägen återvänder (ADR 0112 §Mechanism 1 — därför
+ * ingen feature-flagga).
+ *
+ * `RouteModalShell` och `CreateResumeForm` ligger kvar orörda i trädet.
  */
 export default async function InterceptedCvNyModal() {
   const user = await getServerSession();
   if (!user) redirect("/logga-in");
 
-  const t = await getTranslations("pages");
-
-  return (
-    <RouteModalShell
-      title={t("cv.new.title")}
-      description={t("cv.new.modalDescription")}
-    >
-      <div className="jp-modal__body">
-        <CreateResumeForm />
-      </div>
-    </RouteModalShell>
-  );
+  notFound();
 }

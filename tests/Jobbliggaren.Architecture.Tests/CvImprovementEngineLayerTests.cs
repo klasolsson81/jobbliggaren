@@ -363,22 +363,53 @@ public class CvImprovementEngineLayerTests
         //
         // The remedy when this goes red is NOT to delete the guard: give cv-proposed-change.tsx
         // the marker first, then the flag may travel. The DTO already carries it honestly.
+        //
+        // THREE arms, one per reachable form, because the flag is reachable without the method and
+        // the LAST form is reachable without either NAME. IsExcerpt is a defaulted POSITIONAL
+        // parameter on TextSpan, so all three of these set it:
+        //   (a) ReviewText.SpanExcerpt(...)          — names the method
+        //   (b) span with { IsExcerpt = true }       — names the property
+        //   (c) new TextSpan(a, b, quote, true)      — names NEITHER
+        // and each is one token from a line that already exists here: five transforms call
+        // ReviewText.Span, ImprovementEvidenceRedactor already uses `with`, and
+        // AtsSanitizationTransform already builds a three-argument positional TextSpan.
+        //
+        // (c) is why the arity arm exists, and it was found by MEASURING rather than reasoning:
+        // a two-name sweep was written first, and the positional mutation walked straight past it.
+        // A guard that pins a call-graph claim by reading identifiers guarantees strictly less than
+        // its own comment claims — form over name. The arity regex assumes a flat argument list,
+        // which every TextSpan construction in the tree has; a nested call inside the arguments
+        // would evade it, and that residual is deliberate and named rather than papered over.
+        // Measured: the improve tree carries zero occurrences of any of the three today.
         var offenders = Directory
             .EnumerateFiles(
                 SourcePath("src/Jobbliggaren.Infrastructure/Resumes/Improvement"),
                 "*.cs",
                 SearchOption.AllDirectories)
-            .Where(file => StripComments(File.ReadAllText(file))
-                .Contains("SpanExcerpt", StringComparison.Ordinal))
-            .Select(file => Path.GetFileName(file))
+            .Where(file => StripComments(File.ReadAllText(file)) is var code
+                && (code.Contains("SpanExcerpt", StringComparison.Ordinal)
+                    || code.Contains("IsExcerpt", StringComparison.Ordinal)
+                    || FourArgumentTextSpan().IsMatch(code)))
+            .Select(Path.GetFileName)
             .ToList();
 
         offenders.ShouldBeEmpty(
             "an improve-side excerpt needs the marker on cv-proposed-change.tsx first.");
     }
 
-    // Counter-guard: without it, a SourcePath that stopped resolving (a moved project, a renamed
-    // directory) would enumerate nothing and the assertion above would pass vacuously forever.
+    // A TextSpan constructed with FOUR arguments — the positional form of IsExcerpt, which names
+    // neither `SpanExcerpt` nor `IsExcerpt`. Three arguments (the legitimate shape) does not match.
+    private static Regex FourArgumentTextSpan() =>
+        new(@"new\s+TextSpan\s*\([^()]*,[^()]*,[^()]*,[^()]*\)");
+
+    // Counter-guard for the sweep above. Note what it does NOT guard: a moved or renamed directory
+    // makes EnumerateFiles THROW, so that case already fails loudly. What it catches is the root
+    // still resolving while the content moved out from under it — a rename one level down, a
+    // transform tree split in two — where the sweep would enumerate nothing and pass forever.
+    //
+    // It anchors on an IDENTITY rather than a count. A threshold would encode today's inventory
+    // into a test that is not about the inventory, and would then fail on a legitimate removal for
+    // a reason it has nothing to say about.
     [Fact]
     public void Improvement_transform_sources_are_reachable_from_the_test_bin()
     {
@@ -387,8 +418,9 @@ public class CvImprovementEngineLayerTests
             "*.cs",
             SearchOption.AllDirectories).ToList();
 
-        sources.Count.ShouldBeGreaterThan(9,
-            "the engine alone wires nine transforms — a smaller set means the sweep lost its root.");
+        sources.ShouldContain(
+            f => f.EndsWith("CvImprovementEngine.cs", StringComparison.Ordinal),
+            "the sweep lost its root — no engine file under the improvement tree.");
     }
 
     private static string SourcePath(string repoRelative)

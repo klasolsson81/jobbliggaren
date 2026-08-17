@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Text.RegularExpressions;
 using NetArchTest.Rules;
 using Shouldly;
 
@@ -344,4 +345,68 @@ public class CvImprovementEngineLayerTests
                 $"{typeName} ska vara internal (Infrastructure-detalj).");
         }
     }
+
+    [Fact]
+    public void Improvement_transforms_do_not_produce_excerpt_citations()
+    {
+        // #1062 B2. ReviewText.SpanExcerpt is the REVIEW side's one excerpt home, and the improve
+        // surface renders no excerpt marker (cv-proposed-change.tsx puts evidence.quote in a bare
+        // blockquote). A producer here would therefore ship a shortened fragment as if it were the
+        // user's complete text — the §5 CV-engine class #1062 B2 exists to remove.
+        //
+        // This pins a CALL-GRAPH claim, and it is here rather than in a behavioural test on
+        // purpose: CvImprovementEngine wires NINE transforms, so a fixture-driven assertion
+        // measures the changes that fixture happened to produce, not the producer set. Five
+        // transforms already call ReviewText.Span or ReviewText.WordSpans, and SpanExcerpt is one
+        // identifier away in the same internal static class — so the reachable regression is a
+        // one-word edit that a behavioural pin would sail past (dotnet-architect, #1388 re-check).
+        //
+        // The remedy when this goes red is NOT to delete the guard: give cv-proposed-change.tsx
+        // the marker first, then the flag may travel. The DTO already carries it honestly.
+        var offenders = Directory
+            .EnumerateFiles(
+                SourcePath("src/Jobbliggaren.Infrastructure/Resumes/Improvement"),
+                "*.cs",
+                SearchOption.AllDirectories)
+            .Where(file => StripComments(File.ReadAllText(file))
+                .Contains("SpanExcerpt", StringComparison.Ordinal))
+            .Select(file => Path.GetFileName(file))
+            .ToList();
+
+        offenders.ShouldBeEmpty(
+            "an improve-side excerpt needs the marker on cv-proposed-change.tsx first.");
+    }
+
+    // Counter-guard: without it, a SourcePath that stopped resolving (a moved project, a renamed
+    // directory) would enumerate nothing and the assertion above would pass vacuously forever.
+    [Fact]
+    public void Improvement_transform_sources_are_reachable_from_the_test_bin()
+    {
+        var sources = Directory.EnumerateFiles(
+            SourcePath("src/Jobbliggaren.Infrastructure/Resumes/Improvement"),
+            "*.cs",
+            SearchOption.AllDirectories).ToList();
+
+        sources.Count.ShouldBeGreaterThan(9,
+            "the engine alone wires nine transforms — a smaller set means the sweep lost its root.");
+    }
+
+    private static string SourcePath(string repoRelative)
+    {
+        // Walk up from the test bin directory to the repo root (the directory holding the .sln).
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "Jobbliggaren.sln")))
+            dir = dir.Parent;
+
+        dir.ShouldNotBeNull("could not locate the repo root from the test bin directory");
+        return Path.Combine(dir.FullName, repoRelative.Replace('/', Path.DirectorySeparatorChar));
+    }
+
+    // Remove line, block and XML-doc comments while leaving string literals intact — so a comment
+    // that merely NAMES SpanExcerpt (this file's own remedy note, for instance) is not an offender.
+    private static string StripComments(string source) =>
+        Regex.Replace(
+            source,
+            @"(?<comment>//[^\n]*|/\*[\s\S]*?\*/)|(?<keep>@?""(?:[^""\\\n]|\\.|"""")*""|""""""[\s\S]*?"""""")",
+            m => m.Groups["keep"].Success ? m.Groups["keep"].Value : " ");
 }

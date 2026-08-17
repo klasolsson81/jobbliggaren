@@ -2,6 +2,7 @@ using System.Text;
 using Jobbliggaren.Application.Common.Abstractions.TextAnalysis;
 using Jobbliggaren.Application.KnowledgeBank.Abstractions;
 using Jobbliggaren.Application.Resumes.Improvement.Abstractions;
+using Jobbliggaren.Application.Resumes.Improvement.Queries.SuggestCvImprovements;
 using Jobbliggaren.Application.Resumes.Review.Abstractions;
 using Jobbliggaren.Domain.Privacy;
 using Jobbliggaren.Domain.Resumes;
@@ -275,6 +276,33 @@ public class CvImprovementEngineTests
         spans.ShouldNotBeEmpty("fixture guard: with no TextSpan at all the loop below measures nothing.");
         spans.ShouldAllBe(s => s.Span.IsExcerpt == false,
             "the improve side has no excerpt producer — the flag must not arise here by accident.");
+    }
+
+    [Fact]
+    public async Task ToDto_ShouldNeverFlagStructuralEvidenceAsAnExcerpt_OnTheImproveSurface()
+    {
+        // Parity with CvReviewDtoMapper_ShouldNeverFlagStructuralEvidenceAsAnExcerpt. A structural
+        // observation is a fact the engine states, not a quote it shortened — it has no "rest of
+        // the sentence" for a marker to point at, on EITHER surface.
+        //
+        // This is the fourth of `CitedEvidenceDto`'s construction sites, and the only one that had
+        // no pin. Unlike its TextSpan neighbour — which is legitimately unpinnable, since no
+        // improve-side excerpt producer exists — this one IS producible: PersonnummerStripTransform
+        // emits StructuralEvidence today. `IsExcerpt: false` → `true` there survived every suite.
+        // The asymmetry mattered because it undercut the stated reason for making the shared record
+        // compiler-forced in the first place: that the two surfaces drift (#1062 B2).
+        var flagged = PersonnummerScanOutcome.FromMatches(
+            PersonnummerScanner.Scan("Personnummer 811218-9876 i CV."));
+
+        var dto = (await SuggestAsync(Resume(personnummer: flagged))).ToDto();
+
+        var structural = dto.Changes
+            .Select(c => c.Evidence)
+            .Where(e => e.Kind == "Structural")
+            .ToList();
+        structural.ShouldNotBeEmpty(
+            "fixture guard: with no structural change the loop below measures nothing.");
+        structural.ShouldAllBe(e => e.IsExcerpt == false);
     }
 
     [Fact]

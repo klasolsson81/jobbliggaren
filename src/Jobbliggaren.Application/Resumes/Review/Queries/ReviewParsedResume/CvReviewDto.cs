@@ -76,10 +76,9 @@ public sealed record CvCriterionVerdictDto(
 /// <para><see cref="IsExcerpt"/> is <see cref="TextSpan.IsExcerpt"/> on the wire; always false
 /// on "Structural", which is a fact the engine states rather than a quote it shortened.</para>
 /// <para>It carries <b>no default</b>, deliberately. This record is the SHARED transport form
-/// for the review and improve surfaces, and it is built with named arguments in both mappers —
-/// a defaulted parameter is invisible at exactly the seam that would drop the fact. The first
-/// version of this change did default it, and the improve mapper silently omitted it. The
-/// compiler is the only thing that reliably catches that, so it is given the job.</para>
+/// for the review and improve surfaces, and both mappers build it with named arguments — where a
+/// defaulted parameter is invisible at exactly the seam that would drop the fact. The compiler
+/// is the only reliable reader of that seam, so it is given the job.</para>
 /// </summary>
 public sealed record CitedEvidenceDto(
     string Kind,

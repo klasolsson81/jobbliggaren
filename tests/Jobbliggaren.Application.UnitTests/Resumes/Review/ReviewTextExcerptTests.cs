@@ -269,18 +269,24 @@ public class ReviewTextExcerptTests
     private const string AdjectiveListProfile =
         "Social, noggrann, stresstålig, flexibel, passionerad, ansvarstagande, prestigelös.";
 
-    public static TheoryData<string, string, CriterionVerdict> A8Branches() => new()
+    // The fourth column is each call site's own note fragment. The verdict alone cannot tell the
+    // three Fail branches apart, and the routing between them rests on rubric DATA (A8 orders
+    // length → "Objective" prefix → adjective list): a bump lowering `maxWords` below 14 would
+    // quietly route ObjectiveProfile into the length branch and leave call site 376 untested with
+    // this theory still green. That is the same decay M-2 was about.
+    public static TheoryData<string, string, CriterionVerdict, string> A8Branches() => new()
     {
-        { "length-Fail", string.Join(" ", Enumerable.Repeat("erfarenhet", 101)), CriterionVerdict.Fail },
-        { "Objective-Fail", ObjectiveProfile, CriterionVerdict.Fail },
-        { "adjective-list-Fail", AdjectiveListProfile, CriterionVerdict.Fail },
-        { "Pass", MidWordAtCap, CriterionVerdict.Pass },
+        { "length-Fail", string.Join(" ", Enumerable.Repeat("erfarenhet", 101)),
+            CriterionVerdict.Fail, "för lång" },
+        { "Objective-Fail", ObjectiveProfile, CriterionVerdict.Fail, "Objective" },
+        { "adjective-list-Fail", AdjectiveListProfile, CriterionVerdict.Fail, "adjektivlista" },
+        { "Pass", MidWordAtCap, CriterionVerdict.Pass, "rimlig längd" },
     };
 
     [Theory]
     [MemberData(nameof(A8Branches))]
     public async Task ReviewAsync_ShouldCiteNoMoreThanTheCap_OnEveryA8Branch(
-        string branch, string profile, CriterionVerdict expected)
+        string branch, string profile, CriterionVerdict expected, string noteMarker)
     {
         // All FOUR A8 call sites moved to SpanExcerpt, but only the Pass path was run
         // end-to-end. The length-Fail branch is the one that cites a profile failing FOR BEING
@@ -293,11 +299,15 @@ public class ReviewTextExcerptTests
         var result = await ReviewAsync(Resume(profile: profile, rawText: $"Anna Andersson\n{profile}"));
 
         var a8 = Verdict(result, "A8");
-        a8.Verdict.ShouldBe(expected,
-            $"branch guard: {branch} must actually be the branch taken, or the lines below "
-            + "measure the wrong call site.");
+        a8.Verdict.ShouldBe(expected);
 
-        var span = a8.Evidence.ShouldHaveSingleItem().ShouldBeOfType<TextSpanEvidence>().Span;
+        var evidence = a8.Evidence.ShouldHaveSingleItem().ShouldBeOfType<TextSpanEvidence>();
+        evidence.Note.ShouldNotBeNull();
+        evidence.Note!.Contains(noteMarker, StringComparison.Ordinal).ShouldBeTrue(
+            $"branch guard: {branch} must be the CALL SITE that ran — the verdict alone cannot "
+            + "tell three Fail branches apart, and the routing between them rests on rubric data.");
+
+        var span = evidence.Span;
         span.Quote.Length.ShouldBeLessThanOrEqualTo(ReviewText.ExcerptMaxChars,
             $"{branch}: the citation is BOUNDED on every branch, not only on the Pass path.");
         span.IsExcerpt.ShouldBeTrue(
@@ -309,11 +319,12 @@ public class ReviewTextExcerptTests
     [Fact]
     public void EvidenceRedactor_ShouldKeepTheExcerptFlag_WhenTheQuoteCarriedAPersonnummer()
     {
-        // Fork 3B rebuilds the span POSITIONALLY (new TextSpan(0, 0, redactedQuote)) — the one
-        // shape that can drop an additive field silently. Redaction masks a personnummer; it does
+        // Fork 3B zeroes the offset on a masked quote. Redaction masks a personnummer; it does
         // not lengthen the citation, so a shortened quote is still shortened afterwards. Losing
         // the flag here would restore the implied "this is your whole sentence" claim on exactly
-        // the CVs that carry a personnummer.
+        // the CVs that carry a personnummer — which is why this asserts the OUTCOME and not the
+        // rebuild SHAPE: the redactor was positional when this was written and is a `with`
+        // expression now, and the test did not have to change.
         const string pnr = "811218-9876";
         const string mask = "******-****";
         var profile = $"Erfaren systemutvecklare inom betalsystem, pnr {pnr}, med lång erfarenhet av integrationer.";

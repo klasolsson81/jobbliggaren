@@ -33,7 +33,7 @@ namespace Jobbliggaren.Architecture.Tests;
 ///
 /// RED until the F4-10 Application contract + the Infrastructure impls ship.
 /// </summary>
-public class CvImprovementEngineLayerTests
+public partial class CvImprovementEngineLayerTests
 {
     private const string EngineNamespace = "Jobbliggaren.Infrastructure.Resumes.Improvement";
     private const string RenderingNamespace = "Jobbliggaren.Infrastructure.Resumes.Rendering";
@@ -364,8 +364,8 @@ public class CvImprovementEngineLayerTests
         // The remedy when this goes red is NOT to delete the guard: give cv-proposed-change.tsx
         // the marker first, then the flag may travel. The DTO already carries it honestly.
         //
-        // THREE arms, one per reachable form, because the flag is reachable without the method and
-        // the LAST form is reachable without either NAME. IsExcerpt is a defaulted POSITIONAL
+        // THREE arms, covering every way this tree can CONSTRUCT the flag — which is narrower than
+        // every way it can carry one, see the residuals below. IsExcerpt is a defaulted POSITIONAL
         // parameter on TextSpan, so all three of these set it:
         //   (a) ReviewText.SpanExcerpt(...)          — names the method
         //   (b) span with { IsExcerpt = true }       — names the property
@@ -377,10 +377,20 @@ public class CvImprovementEngineLayerTests
         // (c) is why the arity arm exists, and it was found by MEASURING rather than reasoning:
         // a two-name sweep was written first, and the positional mutation walked straight past it.
         // A guard that pins a call-graph claim by reading identifiers guarantees strictly less than
-        // its own comment claims — form over name. The arity regex assumes a flat argument list,
-        // which every TextSpan construction in the tree has; a nested call inside the arguments
-        // would evade it, and that residual is deliberate and named rather than papered over.
-        // Measured: the improve tree carries zero occurrences of any of the three today.
+        // its own comment claims — form over name. Measured: the improve tree carries zero
+        // occurrences of any of the three today.
+        //
+        // TWO RESIDUALS, named rather than papered over, because a closed enumeration that is
+        // wrong is worse than an open one that is honest:
+        //   - a nested call inside the argument list evades the arity regex, which assumes the
+        //     flat form every TextSpan construction in this tree currently has;
+        //   - and the flag can be INHERITED instead of constructed. CvImprovementContext.Review
+        //     carries the review's own verdicts, whose evidence a transform could pass straight
+        //     through to ProposedChange.From — naming neither identifier and constructing no span.
+        //     A source sweep cannot see that; only a behavioural test over a non-null review can,
+        //     and today no transform reads Review for evidence and no fixture supplies one. That
+        //     cross-link is CTO Q2 scope, and it is where this guard must be re-thought rather
+        //     than extended (dotnet-architect, #1388 third re-check).
         var offenders = Directory
             .EnumerateFiles(
                 SourcePath("src/Jobbliggaren.Infrastructure/Resumes/Improvement"),
@@ -399,8 +409,9 @@ public class CvImprovementEngineLayerTests
 
     // A TextSpan constructed with FOUR arguments — the positional form of IsExcerpt, which names
     // neither `SpanExcerpt` nor `IsExcerpt`. Three arguments (the legitimate shape) does not match.
-    private static Regex FourArgumentTextSpan() =>
-        new(@"new\s+TextSpan\s*\([^()]*,[^()]*,[^()]*,[^()]*\)");
+    [GeneratedRegex(@"new\s+TextSpan\s*\([^()]*,[^()]*,[^()]*,[^()]*\)",
+        RegexOptions.CultureInvariant)]
+    private static partial Regex FourArgumentTextSpan();
 
     // Counter-guard for the sweep above. Note what it does NOT guard: a moved or renamed directory
     // makes EnumerateFiles THROW, so that case already fails loudly. What it catches is the root

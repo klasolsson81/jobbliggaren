@@ -76,10 +76,17 @@ internal sealed class RecordingEmailSender : IEmailSender
     /// <para>
     /// <b>Distinct from <see cref="Incapable"/>, and the difference is the whole point.</b> That scope
     /// models a sender that reports itself unable to deliver and is consulted BEFORE the send;
-    /// this one models a sender that claims it can, is called, and then fails. Only the second
-    /// produces the orphaned Identity row (#508 / #1349): <c>RegisterCommandHandler</c> commits the
-    /// Identity user in its own boundary and sends as its FINAL action, so a throwing send rolls the
-    /// not-yet-committed <c>JobSeeker</c> back and leaves the user behind.
+    /// this one models a sender that claims it can, is called, and then fails. Only the second reached
+    /// the fault that produced the orphaned Identity row (#508 / #1349): <c>RegisterCommandHandler</c>
+    /// commits the Identity user in its own boundary and used to send as its final UNGUARDED action, so
+    /// a throwing send rolled the not-yet-committed <c>JobSeeker</c> back and left the user behind.
+    /// </para>
+    /// <para>
+    /// <b>That arm is closed as of #1349 — the send is now swallowed and the <c>JobSeeker</c> commits.</b>
+    /// This scope is therefore no longer a way to MAKE an orphan; it is how the tests prove the fault no
+    /// longer makes one. Registration still passes through the orphan state transiently on every call
+    /// (<c>UnitOfWorkBehavior</c> saves after the handler returns), and other producers remain — the
+    /// fixtures in <c>OrphanedIdentityActivationTests</c> enumerate all four.
     /// </para>
     /// <para>
     /// Scope-shaped for the same structural reason as <see cref="Incapable"/>: this instance is a

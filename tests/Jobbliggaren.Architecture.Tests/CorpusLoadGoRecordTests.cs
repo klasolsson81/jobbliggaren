@@ -144,17 +144,19 @@ public class CorpusLoadGoRecordTests
         var (checkboxLine, recordLine) = ReadPointMarkers();
 
         checkboxLine.TrimStart().StartsWith("- [", StringComparison.Ordinal).ShouldBeTrue(
-            $"the line carrying \"{PointHeading}\" in {Checklist} is no longer a markdown " +
-            "checkbox item. Both tests above branch on its ticked state, so they would return " +
+            $"the line carrying \"{PointHeading}\" in {Checklist} is no longer a `- [ ]`-shaped " +
+            "checkbox item (other GFM bullets and indents are items too; this guard accepts one spelling, deliberately). Both tests above branch on its ticked state, so they would return " +
             "early on every run and guard nothing at all.");
 
         (IsTicked(checkboxLine) ^ IsUnticked(checkboxLine)).ShouldBeTrue(
             $"point 3.5's checkbox reads \"{checkboxLine.Trim()}\", which is neither ticked nor " +
             "unticked by this class's own predicates, so the two tests above cannot route it. " +
-            "This XOR is ALSO what stops IsTicked being narrowed back to an ordinal comparison: " +
-            "under Ordinal a \"- [X]\" box satisfies NEITHER predicate and this goes red. A " +
-            "hand-copied character whitelist cannot do that - it admits 'X' either way, and was " +
-            "MEASURED green on exactly that regression before this replaced it.");
+            "This XOR does NOT prevent IsTicked being narrowed to an ordinal comparison: on the " +
+            "resting \"- [ ]\" line the two comparisons are indistinguishable and the suite " +
+            "stays green. What it does is make that narrowing HARMLESS - under Ordinal a " +
+            "\"- [X]\" box satisfies neither predicate and reddens HERE rather than passing " +
+            "silently. The pin that stops the narrowing in every state is the predicate theory " +
+            "below, which does not read the checklist at all.");
 
         // The adjudicator slot is pinned by the BINDING (ExactlyOneLineContaining searches for it),
         // so asserting it here would test this class's own search predicate. These two are not the
@@ -171,6 +173,26 @@ public class CorpusLoadGoRecordTests
     /// still there) and satisfy the vacuity guard, which is three greens on the one combination
     /// this class exists to catch.
     /// </summary>
+    /// <summary>
+    /// The state-INDEPENDENT pin for the two predicates, and the only one that crosses the
+    /// threshold in the resting state. The XOR guard cannot carry this: on a <c>- [ ]</c> line an
+    /// ordinal comparison and an ordinal-ignore-case one return the same answer, so narrowing
+    /// <see cref="IsTicked"/> changes nothing measurable until the day the box is ticked with an
+    /// uppercase X — the worst possible moment to discover it. This test reads no file.
+    /// </summary>
+    [Theory]
+    [InlineData("- [x]", true, false)]
+    [InlineData("- [X]", true, false)]   // GFM renders this CHECKED; red under Ordinal
+    [InlineData("- [ ]", false, true)]
+    [InlineData("- [xx]", false, false)] // index 4 is the discriminator
+    [InlineData("- [ x]", false, false)]
+    public void CheckboxPredicates_ClassifyTheMarkerSpace_IndependentlyOfTheChecklistsState(
+        string line, bool ticked, bool unticked)
+    {
+        IsTicked(line).ShouldBe(ticked);
+        IsUnticked(line).ShouldBe(unticked);
+    }
+
     private static bool IsTicked(string checkboxLine) =>
         checkboxLine.TrimStart().StartsWith("- [x]", StringComparison.OrdinalIgnoreCase);
 

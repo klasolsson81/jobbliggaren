@@ -14,14 +14,16 @@
     "description": "Namnet visas i din CV-lista.",
     "nameLabel": "Namn",
     "cancel": "Avbryt",
-    "save": "Spara"
+    "save": "Spara",
+    "triggerAria": "Byt namn på {name}"
   },
   "delete": {
     "trigger": "Radera CV",
     "title": "Radera CV?",
     "description": "Du är på väg att radera <name>{name}</name> permanent, inklusive en eventuell sparad originalfil. Det går inte att ångra.",
     "cancel": "Avbryt",
-    "confirm": "Bekräfta radering"
+    "confirm": "Bekräfta radering",
+    "triggerAria": "Radera CV: {name}"
   },
   "card": {
     "primary": "Standard",
@@ -39,7 +41,8 @@
     "reviewCta": "Granska CV",
     "findingsReview": "Granska",
     "findingsNone": "Inga åtgärder",
-    "findingsCount": "{count} att åtgärda"
+    "findingsCount": "{count} att åtgärda",
+    "reviewCtaAria": "Granska CV: {name}"
   },
   "upload": {
     "pendingLabel": "Laddar upp och granskar ditt CV",
@@ -70,9 +73,9 @@
   "parse": {
     "title": "Så tolkades ditt CV",
     "overallConfident": "Vi kunde läsa ditt CV och dela upp det i tydliga avsnitt. Granska gärna att allt stämmer.",
-    "overallDegraded": "Vi kunde läsa ditt CV men en del avsnitt blev ofullständiga. Du kan komplettera dem i nästa steg.",
-    "overallFailed": "Vi kunde inte läsa någon användbar text ur filen. Du kan fylla i uppgifterna för hand i stället.",
-    "manualReviewNote": "Några avsnitt behöver kompletteras innan ditt CV är klart. Det gör du i nästa steg."
+    "overallDegraded": "Vi kunde läsa ditt CV men en del avsnitt blev ofullständiga. Rätta filen och ladda upp den på nytt.",
+    "overallFailed": "Vi kunde inte läsa någon användbar text ur filen. Spara om den som PDF eller Word och ladda upp den på nytt.",
+    "manualReviewNote": "Några avsnitt blev ofullständiga. Du kan ladda upp en rättad fil när du vill."
   },
   "review": {
     "title": "Granskning",
@@ -153,7 +156,8 @@
     "atsTextLoading": "Hämtar textversion…",
     "atsTextNotFound": "Textversionen är inte tillgänglig ännu.",
     "atsTextError": "Kunde inte hämta textversionen. Försök igen om en stund.",
-    "atsTextRegionLabel": "Textversion för ATS"
+    "atsTextRegionLabel": "Textversion för ATS",
+    "triggerAria": "Förhandsgranska {name}"
   },
   "match": {
     "triggerUpdate": "Uppdatera matchning",

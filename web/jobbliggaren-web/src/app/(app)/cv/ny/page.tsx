@@ -36,9 +36,12 @@ import { getServerSession } from "@/lib/auth/session";
  * och retireras i en EGEN PR (annan change-reason, annan lane, andra
  * obligatoriska agenter): #1371.
  *
- * ORÖRT: /cv/granska (granskaren är produkten efter pivoten, ADR 0112) och
- * /cv/[id] (redigering av ett redan sparat CV) — den senare är en öppen fråga
- * hos Klas, inte ett förbiseende.
+ * ORÖRT: /cv/granska (granskaren är produkten efter pivoten, ADR 0112).
+ * /cv/[id] (redigering av ett sparat CV) var en öppen fråga hos Klas när denna
+ * fil skrevs; han svarade 2026-08-17 att även redigeringen pausas, och routen är
+ * grindad med samma mekanism av #1373. Radering och namnbyte låg på den sidan och
+ * flyttade till CV-kortet i stället för att strandas — se den routens
+ * doc-kommentar för Art. 7(3)-grunden.
  */
 export default async function NyCvPage() {
   const user = await getServerSession();

@@ -40,15 +40,20 @@ describe("CvBlockReason", () => {
   });
 
   it("explains a failed extraction as an ACTION, leaving the statement to ParseSummary", () => {
-    // ParseSummary already renders `parse.overallFailed` on this same page, and it ends "Du kan
-    // fylla i uppgifterna för hand i stället." Two instructions that exclude each other is the
-    // ADR 0047 class, so this block carries the action and reconciles rather than contradicts.
+    // ParseSummary renders `parse.overallFailed` on this same page, and the two must reconcile
+    // rather than contradict (ADR 0047). Until #1373 both ended on "fylla i uppgifterna för
+    // hand" — an instruction that pointed at /cv/ny, which has 404'd since #1061. Both now end
+    // on the one path the MVP actually has: correct the file and upload it again.
     render(<CvBlockReason reason="ParseNotConfident" />);
 
     expect(screen.getByText(/text som går att markera/i)).toBeInTheDocument();
     // Covers the password-protected case, which "save it as a PDF" alone does not.
     expect(screen.getByText(/lösenordsskyddat/i)).toBeInTheDocument();
-    expect(screen.getByText(/fylla i uppgifterna för hand/i)).toBeInTheDocument();
+    expect(screen.getByText(/laddar upp igen/i)).toBeInTheDocument();
+    // The dead promise stays dead: this route is paused, so no surface may offer it.
+    expect(
+      screen.queryByText(/fylla i uppgifterna för hand/i),
+    ).not.toBeInTheDocument();
   });
 
   it("describes incomplete content across the whole validation set, not two branches of it", () => {

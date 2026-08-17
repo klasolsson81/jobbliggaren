@@ -117,7 +117,7 @@
       "loading": "Läser in granskningen…",
       "blockReason": {
         "title": "Därför är filen inte sparad som CV",
-        "ParseNotConfident": "Filen behöver innehålla text som går att markera. Är den en bild, ett skannat eller lösenordsskyddat dokument sparar du om den som PDF eller Word och laddar upp igen. Du kan också fylla i uppgifterna för hand.",
+        "ParseNotConfident": "Filen behöver innehålla text som går att markera. Är den en bild, ett skannat eller lösenordsskyddat dokument sparar du om den som PDF eller Word och laddar upp igen.",
         "IncompleteContent": "En eller flera poster i filen är ofullständiga. Kontrollera att varje anställning har arbetsgivare och titel, och varje utbildning har lärosäte och examen. Komplettera dem och ladda upp filen igen.",
         "PersonnummerPresent": "Filen innehåller ett personnummer. Ta bort det ur filen och ladda upp den igen.",
         "PersonnummerInAccountName": "Namnet på ditt konto innehåller ett personnummer. Filen är däremot ren. Ändra det under Inställningar och ladda upp filen igen.",

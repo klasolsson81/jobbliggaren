@@ -47,8 +47,11 @@ interface Props {
  * Kvar i trädet, inert och orört (billig återgång slår städning — samma
  * precedens som mallbyggaren och skapa-vägen): `resume-content-form.tsx` med
  * sitt enhetstest, `lib/forms/resume-path-routing.ts`,
- * `lib/actions/resumes.ts:updateMasterContentAction` och i18n-nyckeln
- * `resumes.card.edit`. Backend-ytan `PUT /api/v1/resumes/{id}/master` →
+ * `lib/actions/resumes.ts:updateMasterContentAction` och i18n-nycklarna
+ * `resumes.card.edit` samt `pages.cv.detail.*` (`updatedAt`, `loadErrorTitle`,
+ * `errorBody` — verifierat konsumentlösa efter denna ändring; övriga
+ * `detail.`-träffar i `src/` tillhör ansökningar, jobbannonser och gästytan).
+ * Backend-ytan `PUT /api/v1/resumes/{id}/master` →
  * `UpdateMasterContentCommand` blir onåbar av denna ändring; den retireras
  * tillsammans med `POST /api/v1/resumes` i #1371 (samma fil, samma skäl, samma
  * testfixturer — `ResumesEndpointsTests` övar båda i ETT test). Endast

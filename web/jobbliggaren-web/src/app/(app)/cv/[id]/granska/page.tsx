@@ -28,13 +28,16 @@ interface Props {
  *
  * Hämtar Resume-detaljen (PRIMÄR — styr 404/namn/header) + granskningen (SEKUNDÄR
  * — degraderas civilt till `null`; sidan 404:ar aldrig på ett granskningsfel)
- * parallellt. Resultatet speglar `/cv/[id]`-detaljvyns auth/fel-form. CV-PII läses
- * bara server-side; evidensen är redan personnummer-redigerad vid motorns choke
- * point innan den når klienten.
+ * parallellt. Auth-/fel-formen är den som `/cv/[id]`-detaljvyn bar innan #1373
+ * grindade den routen; formen ärvdes därifrån och står nu på egna ben.
+ * CV-PII läses bara server-side; evidensen är redan personnummer-redigerad vid
+ * motorns choke point innan den når klienten.
  *
- * Skal-val (CCP): hela CV-underträdet (`/cv/[id]`, `/cv/granska/[parsedId]`)
+ * Skal-val (CCP): CV-granskningsytorna (den här och `/cv/granska/[parsedId]`)
  * använder h1 + tillbaka-länk-skalet, inte `jp-pagehero` — koherens inom familjen
- * väger tyngre här. (Design-reviewer: flagga om du vill ha pagehero i stället.)
+ * väger tyngre här. (`/cv/[id]` bar samma skal tills #1373 pausade redigeringen;
+ * den renderar inget skal alls längre.) (Design-reviewer: flagga om du vill ha
+ * pagehero i stället.)
  */
 export default async function CanonicalCvReviewPage({
   params,

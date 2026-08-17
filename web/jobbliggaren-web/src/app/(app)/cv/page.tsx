@@ -116,10 +116,13 @@ export default async function CvListPage() {
           </div>
           <div className="jp-pagehero__aside">
             {/* G3 (Klas-fynd 2026-06-10): vit knapp i plattan, konsekvent
-                med /jobb-bannerns vita kontroller. Import är sedan #1061 den
-                enda vägen in — skapa-från-grunden är deferrad (se
-                cv/ny/page.tsx). */}
-            <Link href="/cv/importera" className="jp-btn jp-btn--secondary">
+                med /jobb-bannerns vita kontroller. `--primary` ÄR den vita
+                fyllda formen här (`.jp-pagehero .jp-btn--primary`); den
+                outline-formade `--secondary` är genomskinlig med vit kant och
+                var underordnad den vita primären som stod bredvid. #1061 tog
+                bort den primären, så outline-formen blev plattans ENDA
+                kontroll och föll till 1.4.11-kontrast mot gradienten. */}
+            <Link href="/cv/importera" className="jp-btn jp-btn--primary">
               <Upload size={16} aria-hidden="true" />
               <span>{t("cv.importCv")}</span>
             </Link>

@@ -66,7 +66,7 @@
   },
   "cv": {
     "title": "CV",
-    "lede": "Manage your CV variants. Import an existing CV for a review. You always stay in control.",
+    "lede": "Manage your CV variants. Import an existing CV for review. You always stay in control.",
     "importCv": "Import CV",
     "newCv": "New CV",
     "loadErrorTitle": "Could not load CV",

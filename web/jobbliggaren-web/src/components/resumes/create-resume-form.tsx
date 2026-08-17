@@ -1,7 +1,7 @@
 // "use client": useActionState (React 19 form-state-hook) kräver en klient-ö.
-// Formuläret är medvetet rubrik-löst — fullsidan (`/cv/ny`) och modalen
-// (@modal/(.)cv/ny) renderar var sin egen titel (page-h1 resp. shell-header),
-// så samma form återanvänds i båda utan dubbel rubrik (DRY, ADR 0053).
+// Formuläret är medvetet rubrik-löst: det hade två värdar som renderade var sin
+// egen titel (`/cv/ny` en page-h1, @modal/(.)cv/ny en shell-header), så samma
+// form kunde återanvändas i båda utan dubbel rubrik (DRY, ADR 0053).
 "use client";
 
 import Link from "next/link";
@@ -13,11 +13,17 @@ import { Label } from "@/components/ui/label";
 import { createResumeAction } from "@/lib/actions/resumes";
 
 /**
- * CreateResumeForm — fälten för att skapa ett nytt CV. Server-actionen
- * `createResumeAction` redirectar till /cv/{id} vid 201 — en full navigation
- * som ersätter modalen med det nya CV:t (fungerar identiskt från fullsida och
- * modal). Inga placeholder-exempel i fälten (Klas hård regel) — hjälptexten
- * under labeln bär instruktionen.
+ * CreateResumeForm — fälten för att skapa ett nytt CV.
+ *
+ * ⚠ MOTHBALLAD sedan #1061: skapa-från-grunden är deferrad ur MVP:n, och båda
+ * värdarna (`/cv/ny` och @modal/(.)cv/ny) är grindade till 404. Komponenten har
+ * ingen nåbar renderare kvar och ligger kvar orörd med flit — ADR 0112
+ * §Mechanism 1, billig återgång framför städning. Motiveringen i sin helhet
+ * står i `app/(app)/cv/ny/page.tsx`.
+ *
+ * `createResumeAction` redirectade till /cv/{id} vid 201. Inga
+ * placeholder-exempel i fälten (Klas hård regel) — hjälptexten under labeln
+ * bär instruktionen.
  */
 export function CreateResumeForm() {
   const t = useTranslations("resumes");

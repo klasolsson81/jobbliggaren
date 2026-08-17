@@ -43,6 +43,11 @@ test.describe("Skapa CV (/cv/ny) — deferrad (#1061)", () => {
   test("en gissad /cv/ny-URL når inte skapa-formuläret", async ({ page }) => {
     await page.goto("/cv/ny");
 
+    // Positiv assertion först: enbart negationer skulle vara gröna även om sidan
+    // svarade 500, eller renderade en tom vit yta.
+    await expect(
+      page.getByRole("heading", { name: "Sidan finns inte" }),
+    ).toBeVisible();
     await expect(page.getByLabel("Namn på CV")).toHaveCount(0);
     await expect(page.getByRole("button", { name: "Skapa CV" })).toHaveCount(0);
     await expect(page).not.toHaveURL(/\/logga-in/);

@@ -132,14 +132,15 @@ export async function ensureConfirmedTestUser(baseURL: string, runId: number): P
  * the Next proxy owns the cookie), so this logs in against the backend directly rather than
  * borrowing the browser context's cookie.
  */
-export async function seedResumeViaApi(
-  baseURL: string,
-  runId: number,
-  name: string,
-  fullName: string,
-): Promise<string> {
-  assertSafeBaseURL(baseURL);
+// One backend session per run, reused across seeds. NOT a micro-optimisation:
+// `/auth/login` sits behind the AuthWrite rate-limit policy (20 per 60s per IP),
+// and every `loginAs` in every spec shares that budget from the same IP. Logging
+// in once per seed would add one write per seeded CV on top of the per-test UI
+// logins — a rate-limit flake this helper would have introduced.
+let cachedSessionId: string | null = null;
 
+async function seedSession(baseURL: string, runId: number): Promise<string> {
+  if (cachedSessionId) return cachedSessionId;
   const login = await fetch(`${baseURL}/api/v1/auth/login`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -149,6 +150,19 @@ export async function seedResumeViaApi(
     throw new Error(`Failed to log in test user for seeding: ${login.status}`);
   }
   const { sessionId } = (await login.json()) as { sessionId: string };
+  cachedSessionId = sessionId;
+  return sessionId;
+}
+
+export async function seedResumeViaApi(
+  baseURL: string,
+  runId: number,
+  name: string,
+  fullName: string,
+): Promise<string> {
+  assertSafeBaseURL(baseURL);
+
+  const sessionId = await seedSession(baseURL, runId);
 
   const created = await fetch(`${baseURL}/api/v1/resumes`, {
     method: "POST",

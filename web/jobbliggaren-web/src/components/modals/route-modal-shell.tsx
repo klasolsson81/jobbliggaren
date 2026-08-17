@@ -15,7 +15,8 @@ import { X } from "lucide-react";
  * a11y (role=dialog / aria-modal / aria-labelledby / focus-trap / ESC /
  * focus-return / scrim-klick stänger). Skillnaden mellan de två tidigare
  * shellsen låg ENBART i header-props (title/company resp. title+subtitle+id).
- * Med en tredje/fjärde modal-kontext (CV: Importera + Nytt) passeras Fowlers
+ * Med en tredje/fjärde modal-kontext (CV: Importera + Nytt, den senare grindad
+ * sedan #1061) passeras Fowlers
  * "rule of three" — `ApplicationModalShell` flaggade själv detta som den
  * opportunistiska DRY-touchen. Denna shell är den generaliseringen; de två
  * äldre shellsen lämnas orörda (deras tester förblir gröna — låg risk).

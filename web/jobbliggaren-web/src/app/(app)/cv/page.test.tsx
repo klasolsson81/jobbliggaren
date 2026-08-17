@@ -246,13 +246,18 @@ describe("/cv — the create-from-scratch affordances are gone (#1061)", () => {
     expect(screen.queryByText("Skapa första CV")).not.toBeInTheDocument();
 
     // Two import links render in this state — the page-hero's and the empty state's own.
-    // Both are asserted rather than reaching for `.first()`: the empty block's action is the
-    // one a user with no CVs actually meets, and a scope slip that dropped it would still
-    // pass a first-match check thanks to the hero's.
+    // A count, not `.first()`: a first-match check would still pass if the empty block's
+    // action were dropped, because the hero's would satisfy it. The count cannot say WHICH
+    // two rendered, so the empty block's own action is asserted separately below.
     const toImport = screen
       .getAllByRole("link")
       .filter((a) => a.getAttribute("href") === "/cv/importera");
     expect(toImport).toHaveLength(2);
+    // The empty state's action specifically — scoped by its own class, so this fails if the
+    // hero's link is the only survivor.
+    expect(
+      document.querySelector('.jp-empty__actions a[href="/cv/importera"]'),
+    ).not.toBeNull();
   });
 
   it("promises creation in NO prose either, in the lede or the empty body", async () => {

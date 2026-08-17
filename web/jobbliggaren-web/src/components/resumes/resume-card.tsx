@@ -42,7 +42,10 @@ function isKnownTemplate(value: string): value is KnownTemplate {
  * parsedId, men konsumerar nu render-by-Resume-id-vägen
  * `/api/cv/{id}/preview` (BFF → `GET /api/v1/resumes/{id}/render`) via samma
  * `CvPreview`-modal som de parsade ytorna (`/cv/granska/[parsedId]`-familjen).
- * Trigger-storleken matchas till Redigera-knappens `--sm` (design-koherens).
+ * Trigger-storleken är `--sm` för att matcha resten av actions-raden
+ * (design-koherens). Den matchades tidigare mot Redigera-knappen, som #1373 tog
+ * bort; `jp-btn--sm` och shadcn-knapparnas `size="sm"` är båda 36px höga, så
+ * raden står jämn trots två knappfamiljer.
  *
  * FAS-DEFERRAL (ADR 0058 amend):
  *  - "+N"-skill-chip när content.skills.length > 5: kräver content-fetch,
@@ -151,8 +154,17 @@ export function ResumeCard({ resume }: ResumeCardProps) {
 
           Hanterings-kontrollerna är grupperade och högerskjutna så den destruktiva
           kontrollen aldrig är radens mest framträdande element; Granska (fylld primär)
-          är det. */}
-      <div className="jp-cv__actions">
+          är det.
+
+          `flex-wrap` är INTE kosmetik utan en buggfix, mätt live 2026-08-17 på 1280px:
+          `.jp-cv__actions` är `nowrap` med `overflow: visible`, och fyra kontroller kräver
+          456px i en griddcell som är 345px. Utan wrap sträckte sig hanteringsgruppen 111px
+          UTANFÖR kortets högerkant (kort slutar x=440, gruppen slutade x=551) och hamnade
+          under grannkortet i griden, som därmed avlyssnade klicket — raderingsknappen gick
+          inte att träffa, för Playwright och lika lite för en människa. Wrap sätts här och
+          inte på den delade `.jp-cv__actions`-klassen i globals.css: `ResumeCard` är dess
+          enda konsument, men den snävare ändringen kan inte överraska en framtida andra. */}
+      <div className="jp-cv__actions flex-wrap">
         <Link
           href={`/cv/${resume.id}/granska`}
           className="jp-btn jp-btn--primary jp-btn--sm"

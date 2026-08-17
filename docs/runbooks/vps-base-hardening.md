@@ -1057,6 +1057,26 @@ rather than discovered:
   under another name, and a control that **reads** as a privilege boundary while not being one is
   worse than the honest `NOPASSWD:ALL` it would replace.
 
+  ⚠ **And the exclusion is on the CLASS, not on this measured set — a curated subset is not a
+  way round it.** The census above is dated and mutable, so a reader who narrows the set and
+  re-measures will find fewer root-equivalent members and read that as progress. It is not, for
+  two reasons that do not depend on the census:
+  **1. Every operable subset keeps at least one root-equivalent member.** Operating this box
+  means starting and stopping units and applying reconciles, so any subset that still lets the
+  operator do that retains `systemctl` and `docker` — and `docker` alone is root by
+  construction (`-v /:/host`, `--pid=host`, a read of `/proc/<pid>/mem`). Remove them and the
+  operator can no longer run the box; keep them and the alias grants root under another name.
+  **2. The axis is wrong.** A `sudo` command restriction bounds what may be **changed** — an
+  integrity boundary. The risk this ADR names is **disclosure**: root reads the master key out
+  of process memory, and out of a `0400 root:root` file on tmpfs. A control on the integrity
+  axis cannot reduce a confidentiality risk unless it also removes every read path, and the
+  only subset that removes them is read-only.
+  So the sole subset that would be a boundary is **read-only, which is not operable** — a
+  different operating model, not mitigation 2, and it would need its own ADR with a measurement
+  and `security-auditor`'s signature. **`security-auditor` 2026-08-17: the exclusion in
+  `release-checklist.md` §2.6 point 3.5 clause (1) stands on this class argument, not on the
+  census above.**
+
   **What replaces them: nothing yet**, and the roadmap must not be dressed up. The exit at the
   pre-real-data boundary is therefore **re-grant**, not **close**; the only real candidates are
   the ones the ADR's own Alternatives already carry. `restrict,pty,from=` on the operator key is

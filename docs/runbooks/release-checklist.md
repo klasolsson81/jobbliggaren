@@ -1714,12 +1714,24 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
       > **Ingen mekanism namnges här, avsiktligt.** Kravet är ställt på egenskapen så att det inte
       > kan bockas av att en kontroll byggs som inte bär den; vilken mekanism som helst som bär
       > egenskapen räknas.
-      > ⛔ **Två mekanismer är uttryckligen UTESLUTNA och får inte byggas för att bocka den här
-      > punkten:** en `Cmnd_Alias` över operatörens faktiska sudo-mängd (mätt rot-ekvivalent — §11
-      > bär kommandot som regenererar mätningen) och en separat automationsnyckel (ingen aktör att
-      > ge den till). Att bygga någon av dem uppfyller inte kravet och gör posturen **sämre**: en
-      > kontroll som *läser* som en privilegiegräns utan att vara en är värre än det ärliga
-      > `NOPASSWD:ALL` den ersätter.
+      > ⛔ **Två mekanismklasser är uttryckligen UTESLUTNA och får inte byggas för att bocka den
+      > här punkten — uteslutningen gäller KLASSEN, aldrig en mätt mängd.** En kurerad delmängd
+      > faller utanför en mängdmätning, men inte utanför det här.
+      > **(a) En `Cmnd_Alias` över någon delmängd som lämnar lådan driftbar.** Grunden är inte att
+      > operatörens *nuvarande* sudo-mängd är rot-ekvivalent — det är den, mätt 2026-08-17, och §11
+      > bär kommandot som regenererar mätningen — utan att **varje driftbar delmängd behåller minst
+      > en rot-ekvivalent medlem**, och att `sudo`-kommandobegränsning bygger en gräns på
+      > **integritetsaxeln** (vad som får ändras) medan risken ADR 0123 namnger ligger på
+      > **konfidentialitetsaxeln** (root läser masternyckeln ur processminnet och ur en
+      > `0400 root:root`-fil på tmpfs). Derivationen har **ett** hem —
+      > `vps-base-hardening.md` §11 — och återges inte här.
+      > **(b) En separat automationsnyckel** — ingen aktör att ge den till.
+      > Att bygga någon av dem uppfyller inte kravet och gör posturen **sämre**: en kontroll som
+      > *läser* som en privilegiegräns utan att vara en är värre än det ärliga `NOPASSWD:ALL` den
+      > ersätter.
+      > ⚠ **Den enda delmängd som vore en gräns är read-only, och den är inte driftbar.** En sådan
+      > vore därför inte mitigering 2 utan en ny driftmodell — ett ADR-beslut med mätning och min
+      > signatur, aldrig en bockad punkt här.
       > **Hur punkten laddas ur:** en mätning på lådan av att egenskapen håller — instrument,
       > datum, adjudikator, `host-detection.md` §7:s form — **plus `security-auditor`s signatur**.
       > Ingen byggd artefakt, ingen stängd issue och ingen bockad ruta laddar ur den.

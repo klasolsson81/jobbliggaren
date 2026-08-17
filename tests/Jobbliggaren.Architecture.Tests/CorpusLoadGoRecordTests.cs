@@ -18,7 +18,7 @@ namespace Jobbliggaren.Architecture.Tests;
 /// an author demonstrates nothing. A prose convention cannot stop a session flipping the box to
 /// <c>[x]</c> and leaving the record on its placeholder — and the checklist measures that such
 /// things happen here: <b>point 3's</b> box was ticked, reverted and ticked again inside one day
-/// (2026-08-16). Point 3.5's own box has never been ticked; the evidence is a sibling's, which is
+/// (2026-08-16). Point 3.5's own box had never been ticked when this guard was written (2026-08-17); the evidence is a sibling's, which is
 /// why it is attributed rather than borrowed.
 /// </para>
 ///
@@ -148,12 +148,13 @@ public class CorpusLoadGoRecordTests
             "checkbox item. Both tests above branch on its ticked state, so they would return " +
             "early on every run and guard nothing at all.");
 
-        var trimmed = checkboxLine.TrimStart();
-        trimmed.Length.ShouldBeGreaterThan(4, "the checkbox item is truncated");
-        (trimmed[3] is ' ' or 'x' or 'X').ShouldBeTrue(
-            $"point 3.5's checkbox state character is '{trimmed[3]}', which IsTicked cannot read. " +
-            "Both tests above branch on it, so an unreadable state character routes every run to " +
-            "the wrong branch silently.");
+        (IsTicked(checkboxLine) ^ IsUnticked(checkboxLine)).ShouldBeTrue(
+            $"point 3.5's checkbox reads \"{checkboxLine.Trim()}\", which is neither ticked nor " +
+            "unticked by this class's own predicates, so the two tests above cannot route it. " +
+            "This XOR is ALSO what stops IsTicked being narrowed back to an ordinal comparison: " +
+            "under Ordinal a \"- [X]\" box satisfies NEITHER predicate and this goes red. A " +
+            "hand-copied character whitelist cannot do that - it admits 'X' either way, and was " +
+            "MEASURED green on exactly that regression before this replaced it.");
 
         // The adjudicator slot is pinned by the BINDING (ExactlyOneLineContaining searches for it),
         // so asserting it here would test this class's own search predicate. These two are not the
@@ -172,6 +173,16 @@ public class CorpusLoadGoRecordTests
     /// </summary>
     private static bool IsTicked(string checkboxLine) =>
         checkboxLine.TrimStart().StartsWith("- [x]", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// The complement as its own predicate rather than <c>!IsTicked</c>, so the vacuity guard can
+    /// assert that exactly one of the two holds. That XOR is what makes the pin cross the
+    /// threshold of the property it pins: narrowing either comparison drops a real state out of
+    /// BOTH predicates and reddens the suite. GFM's unticked marker is any whitespace character;
+    /// requiring a literal space here fails CLOSED on an exotic one.
+    /// </summary>
+    private static bool IsUnticked(string checkboxLine) =>
+        checkboxLine.TrimStart().StartsWith("- [ ]", StringComparison.Ordinal);
 
     private static (string CheckboxLine, string RecordLine) ReadPointMarkers()
     {

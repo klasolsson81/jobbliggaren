@@ -3,11 +3,12 @@ using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.JobSeekers;
 using Mediator;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace Jobbliggaren.Application.Auth.Commands.Register;
 
-public sealed class RegisterCommandHandler(
+public sealed partial class RegisterCommandHandler(
     IAppDbContext db,
     IUserAccountService userAccountService,
     ISessionStore sessionStore,
@@ -16,7 +17,8 @@ public sealed class RegisterCommandHandler(
     ICooldownGate cooldown,
     IOptions<AuthOptions> authOptions,
     IOptions<AuthEmailCooldownOptions> cooldownOptions,
-    IDateTimeProvider clock)
+    IDateTimeProvider clock,
+    ILogger<RegisterCommandHandler> logger)
     : ICommandHandler<RegisterCommand, Result<RegisterOutcome>>
 {
     public async ValueTask<Result<RegisterOutcome>> Handle(
@@ -70,9 +72,19 @@ public sealed class RegisterCommandHandler(
                         TimeSpan.FromSeconds(cooldownOptions.Value.AccountExistsNoticeWindowSeconds),
                         cancellationToken))
                 {
-                    await emailSender.SendAccountExistsNoticeAsync(
-                        command.Email!,
-                        cancellationToken);
+                    // #1349 — swallowed symmetrically with the confirmation send below, and the
+                    // symmetry is load-bearing: one-armed, a transport outage answers 202 for a fresh
+                    // address and 500 for a taken one — the status oracle #714 exists to close.
+                    try
+                    {
+                        await emailSender.SendAccountExistsNoticeAsync(
+                            command.Email!,
+                            cancellationToken);
+                    }
+                    catch (Exception ex) when (ex is not OperationCanceledException)
+                    {
+                        LogAccountExistsNoticeSendFailed(logger, ex);
+                    }
                 }
 
                 return Result.Success(new RegisterOutcome(Session: null));
@@ -96,20 +108,31 @@ public sealed class RegisterCommandHandler(
         {
             // #714: email-confirmation-first — do NOT mint a session and do NOT emit a LoginSucceeded
             // audit (no login happened). Mint the opaque confirmation token and email the activation
-            // link, then return a 202 outcome (Session = null). The send is the FINAL action: a
-            // transport failure surfaces as a 500 and the not-yet-committed JobSeeker rolls back (the
-            // Identity user is left for the #508 orphan-sweep's 1h grace), mirroring the legacy
-            // session-mint's before-commit side-effect ordering below (CTO-bind D).
+            // link, then return a 202 outcome (Session = null).
+            //
+            // #1349 — the send is GUARDED, reversing CTO-bind D (senior-cto-advisor 2026-08-17).
+            // Unguarded it rolled the not-yet-committed JobSeeker back on a transport fault and left an
+            // orphaned Identity user; the bind's written ground was parity with the legacy session-mint
+            // below, which AuthOptionsValidator makes unreachable outside Dev/Test. No cross-context
+            // transaction is introduced, so the separate prohibition at AccountHardDeleter.cs:74-78 is
+            // untouched. Parity with ResendEmailConfirmationCommandHandler, which swallows identically.
             var tokenResult = await userAccountService.GenerateEmailConfirmationTokenAsync(
                 userId, cancellationToken);
             if (tokenResult.IsFailure)
                 return Result.Failure<RegisterOutcome>(tokenResult.Error);
 
             var urlSafeToken = tokenResult.Value;
-            await emailSender.SendEmailConfirmationAsync(
-                command.Email!,
-                new EmailConfirmationEmail(userId, urlSafeToken),
-                cancellationToken);
+            try
+            {
+                await emailSender.SendEmailConfirmationAsync(
+                    command.Email!,
+                    new EmailConfirmationEmail(userId, urlSafeToken),
+                    cancellationToken);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                LogConfirmationSendFailed(logger, ex);
+            }
 
             return Result.Success(new RegisterOutcome(Session: null));
         }
@@ -125,4 +148,19 @@ public sealed class RegisterCommandHandler(
 
         return Result.Success(new RegisterOutcome(new SessionDto(session.Id.Reveal())));
     }
+
+    // Logging the exception OBJECT is safe here by the adapter's own contract: IEmailSender
+    // implementations wrap every provider fault in EmailDeliveryException, which carries the email kind
+    // and the underlying TYPE NAME only and deliberately holds no InnerException, precisely so that
+    // exception formatting cannot walk back to a message naming the recipient (ADR 0124). Parity with
+    // ResendEmailConfirmationCommandHandler.LogResendFailed.
+    [LoggerMessage(Level = LogLevel.Warning,
+        Message = "RegisterCommand: confirmation send failed — the account was created and committed, "
+            + "the activation link was not delivered; the user can resend it (#1349)")]
+    private static partial void LogConfirmationSendFailed(ILogger logger, Exception ex);
+
+    [LoggerMessage(Level = LogLevel.Warning,
+        Message = "RegisterCommand: account-exists notice send failed — the uniform 202 is returned "
+            + "regardless, so the duplicate branch stays indistinguishable from a fresh one (#1349)")]
+    private static partial void LogAccountExistsNoticeSendFailed(ILogger logger, Exception ex);
 }

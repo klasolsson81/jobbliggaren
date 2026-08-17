@@ -5,6 +5,7 @@ using Jobbliggaren.Application.UnitTests.Common;
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.JobSeekers;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using NSubstitute;
 using Shouldly;
@@ -60,7 +61,7 @@ public class RegisterCommandHandlerTests
 
         return new RegisterCommandHandler(
             db, userAccountService, sessionStore, auditLogger, emailSender, cooldown, options, cooldownOptions,
-            FakeDateTimeProvider.Default);
+            FakeDateTimeProvider.Default, NullLogger<RegisterCommandHandler>.Instance);
     }
 
     private static IUserAccountService UserAccountServiceCreating(Guid userId)
@@ -379,8 +380,16 @@ public class RegisterCommandHandlerTests
     // process-wide ManyServiceProvidersCreatedWarning across the shared integration [Collection]).
 
     [Fact]
-    public async Task Handle_FlagOn_WhenConfirmationSendThrows_PropagatesUncaught()
+    public async Task Handle_FlagOn_WhenConfirmationSendThrows_SwallowsAndKeepsTheAccount()
     {
+        // #1349 — INVERTED from …PropagatesUncaught (senior-cto-advisor 2026-08-17). Propagating was the
+        // defect's producer, not a safety property: UnitOfWorkBehavior calls SaveChangesAsync
+        // unconditionally after the handler returns, so a throw meant the tracked JobSeeker was never
+        // committed while the Identity user — created in its own boundary — survived. That orphan is
+        // then activatable and is swept at 04:00 UTC with no notice.
+        //
+        // Swallowing keeps the account whole. The user loses the mail, not the account, and the recovery
+        // for exactly that is the #733 resend already mounted on the screen they are looking at.
         var userId = Guid.NewGuid();
         var userAccountService = UserAccountServiceCreating(userId);
         userAccountService.GenerateEmailConfirmationTokenAsync(userId, Arg.Any<CancellationToken>())
@@ -391,17 +400,36 @@ public class RegisterCommandHandlerTests
                 Arg.Any<CancellationToken>())
             .Returns(Task.FromException(new InvalidOperationException("send failed")));
 
-        var handler = CreateHandler(
-            userAccountService: userAccountService, emailSender: emailSender, requireEmailConfirmation: true);
+        var db = Substitute.For<IAppDbContext>();
+        var jobSeekers = Substitute.For<DbSet<JobSeeker>>();
+        db.JobSeekers.Returns(jobSeekers);
 
-        await Should.ThrowAsync<InvalidOperationException>(
-            () => handler.Handle(ValidCommand(), CancellationToken.None).AsTask());
+        var handler = CreateHandler(
+            db: db, userAccountService: userAccountService, emailSender: emailSender,
+            requireEmailConfirmation: true);
+
+        var result = await handler.Handle(ValidCommand(), CancellationToken.None);
+
+        result.IsSuccess.ShouldBeTrue("a transport fault must not fell a registration that succeeded");
+        result.Value.Session.ShouldBeNull("email-confirmation-first still mints no session");
+        // The JobSeeker is still tracked, so UnitOfWorkBehavior commits it — no orphan is produced.
+        jobSeekers.Received(1).Add(Arg.Any<JobSeeker>());
+        // The account is NOT compensated away: deleting a correctly created account because a third
+        // party's transport blinked is the alternative the CTO rejected (its own failure mode is another
+        // orphan when the delete fails in the same outage).
+        await userAccountService.DidNotReceive().DeleteUserAsync(
+            Arg.Any<Guid>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public async Task Handle_FlagOn_WhenNoticeSendThrows_PropagatesUncaught()
+    public async Task Handle_FlagOn_WhenNoticeSendThrows_SwallowsToTheSameUniformOutcome()
     {
-        // Duplicate-swallow branch: the same fault class must propagate the same way (symmetry).
+        // #1349 — INVERTED alongside its sibling, and the symmetry is the load-bearing part. The two arms
+        // must agree on the fault policy or the fix itself becomes an enumeration oracle: swallow only
+        // the confirmation send and, during a transport outage, a FRESH address answers 202 while a TAKEN
+        // one answers 500 — the exact 200-vs-400 channel #714 was built to close, re-opened by a change
+        // whose stated purpose was to fix a defect. The parity assertion lives in
+        // Handle_FlagOn_SendFaultIsIndistinguishableBetweenFreshAndTakenAddresses below.
         var userAccountService = Substitute.For<IUserAccountService>();
         userAccountService.CreateUserAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(Result.Failure<Guid>(
@@ -414,8 +442,49 @@ public class RegisterCommandHandlerTests
         var handler = CreateHandler(
             userAccountService: userAccountService, emailSender: emailSender, requireEmailConfirmation: true);
 
-        await Should.ThrowAsync<InvalidOperationException>(
-            () => handler.Handle(ValidCommand(), CancellationToken.None).AsTask());
+        var result = await handler.Handle(ValidCommand(), CancellationToken.None);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.Session.ShouldBeNull("the duplicate branch has always answered the uniform 202");
+    }
+
+    [Fact]
+    public async Task Handle_FlagOn_SendFaultIsIndistinguishableBetweenFreshAndTakenAddresses()
+    {
+        // #1349 — the anti-enumeration invariant stated DIRECTLY over the two arms, rather than inferred
+        // from the two tests above passing separately. Under one transport outage, a fresh and a taken
+        // address must produce the same outcome. This is the assertion that fails if a later change
+        // repairs one arm and forgets the other.
+        var userId = Guid.NewGuid();
+
+        var freshAccounts = UserAccountServiceCreating(userId);
+        freshAccounts.GenerateEmailConfirmationTokenAsync(userId, Arg.Any<CancellationToken>())
+            .Returns(Result.Success("tok"));
+
+        var takenAccounts = Substitute.For<IUserAccountService>();
+        takenAccounts.CreateUserAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(Result.Failure<Guid>(
+                DomainError.Validation(AuthErrorCodes.DuplicateAccount, AuthErrorCodes.DuplicateAccountMessage)));
+
+        // ONE sender whose every send fails — the shape a provider outage actually has (it does not
+        // discriminate by email kind).
+        var outage = Substitute.For<IEmailSender>();
+        outage.SendEmailConfirmationAsync(
+                Arg.Any<string>(), Arg.Any<EmailConfirmationEmail>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromException(new InvalidOperationException("outage")));
+        outage.SendAccountExistsNoticeAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromException(new InvalidOperationException("outage")));
+
+        var fresh = await CreateHandler(
+                userAccountService: freshAccounts, emailSender: outage, requireEmailConfirmation: true)
+            .Handle(ValidCommand(), CancellationToken.None);
+        var taken = await CreateHandler(
+                userAccountService: takenAccounts, emailSender: outage, requireEmailConfirmation: true)
+            .Handle(ValidCommand(), CancellationToken.None);
+
+        fresh.IsSuccess.ShouldBe(taken.IsSuccess, "a send fault must not split the two branches");
+        fresh.IsSuccess.ShouldBeTrue();
+        fresh.Value.Session.ShouldBe(taken.Value.Session, "both answer the same session-less 202");
     }
 
     // ---------- Public-registration kill-switch (ADR 0083 Amendment 2026-08-03) ----------
@@ -537,7 +606,8 @@ public class RegisterCommandHandlerTests
             Substitute.For<ICooldownGate>(),
             Options.Create(new AuthOptions()),
             Options.Create(new AuthEmailCooldownOptions()),
-            FakeDateTimeProvider.Default);
+            FakeDateTimeProvider.Default,
+            NullLogger<RegisterCommandHandler>.Instance);
 
         var result = await handler.Handle(ValidCommand(), CancellationToken.None);
 

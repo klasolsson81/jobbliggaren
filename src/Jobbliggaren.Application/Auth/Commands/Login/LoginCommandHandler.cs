@@ -53,16 +53,25 @@ public sealed class LoginCommandHandler(
         // engineering). Användaren kontaktar support out-of-band om de vill
         // återställa kontot.
         //
-        // Konto utan JobSeeker-rad (omöjligt scenario i normalt flöde — Register
-        // skapar båda atomiskt) tolkas konservativt som "fortsätt" — vi låter
-        // session skapas och låter felet manifesteras nedströms hellre än att
-        // flagga som blockerat.
+        // #1349 — an account with NO JobSeeker row is refused too. This branch used to continue, on the
+        // premise "Register skapar båda atomiskt" — false: registration is deliberately non-atomic
+        // across two boundaries (ADR 0024 D6, AccountHardDeleter.cs:19-28).
+        //
+        // The guard sits here because login is the CAPABILITY seam: the only unauthenticated place a
+        // profile-less row can be granted anything (the other ISessionStore.CreateAsync call site is
+        // RegisterCommandHandler's legacy branch, unreachable outside Dev/Test per
+        // AuthOptionsValidator). That makes every delivery route and both activation seams —
+        // /verify-email and the #1303 reset write — inert, instead of enumerating them.
         var jobSeeker = await db.JobSeekers
             .IgnoreQueryFilters()
             .AsNoTracking()
             .FirstOrDefaultAsync(js => js.UserId == userId, cancellationToken);
 
-        if (jobSeeker?.DeletedAt is not null)
+        // Two grounds, one outcome: a soft-deleted profile (ADR 0024 D5) and no profile at all (#1349).
+        // The uniform InvalidCredentials is the ratified answer for the first (security-auditor STEG 10b
+        // Major-1) and is kept for the second rather than inventing a distinct code — the fix must not
+        // open the account-status oracle two lines above it closes.
+        if (jobSeeker is null || jobSeeker.DeletedAt is not null)
         {
             auditLogger.LoginFailed(HashEmail(command.Email!));
             return Result.Failure<SessionDto>(

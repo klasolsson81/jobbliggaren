@@ -3,7 +3,6 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text;
 using Jobbliggaren.Api.IntegrationTests.Infrastructure;
-using Jobbliggaren.Application.Common.Exceptions;
 using Jobbliggaren.Infrastructure.Identity;
 using Jobbliggaren.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Identity;
@@ -14,20 +13,18 @@ using Shouldly;
 namespace Jobbliggaren.Api.IntegrationTests.Auth;
 
 /// <summary>
-/// #1349 — a registration whose confirmation send fails leaves an ORPHANED Identity row (Identity user
-/// committed, <c>JobSeeker</c> rolled back), and the account can then be ACTIVATED: every screen reports
-/// success, the user is told the account is active, and the #508 orphan sweep deletes it hours later with
-/// no notice. Walked end to end on dev 2026-08-16 (<c>users=1, confirmed=1, job_seekers=0</c>, same id).
+/// #1349 — an ORPHANED Identity row (an account with no <c>JobSeeker</c>) must never become
+/// login-capable. Measured live on dev 2026-08-16: a registration whose confirmation send failed left
+/// such a row, the resend then activated it, every screen reported success, and the #508 sweep deleted
+/// the account at 04:00 UTC with no notice to anyone.
 /// <para>
-/// <b>The premise is produced by production, never seeded.</b> The orphan here comes out of the real
-/// <c>POST /auth/register</c> against a sender whose send THROWS — the shape a provider outage emits
-/// (<c>ScalewayEmailSender</c> wraps every transport and 4xx/5xx fault in
-/// <see cref="EmailDeliveryException"/> and lets it escape). <c>RegisterCommandHandler</c> commits the
-/// Identity user in its own boundary and sends as its FINAL action, so the throw rolls the
-/// not-yet-committed <c>JobSeeker</c> back. That is the documented design
-/// (<c>RegisterCommandHandler.cs:99-102</c>, <c>registration-gate.md</c> §5), which is exactly why the
-/// state is reachable rather than hypothetical — and why CLAUDE.md §5 <c>Tests:</c> is satisfied without
-/// a hand-seeded row.
+/// <b>Two halves, and neither is correct alone</b> (senior-cto-advisor 2026-08-17). The first pins that
+/// registration no longer PRODUCES the row: the send is swallowed, so the <c>JobSeeker</c> commits and
+/// the account is whole. The second pins that a row which exists anyway — <c>AccountHardDeleter</c>
+/// step 2h still produces one, and rows written before this change exist — is refused at the CAPABILITY
+/// seam. Guarding login rather than each route into it is why <c>/verify-email</c>, the resend and the
+/// #1303 password-reset write all need no change: <c>EmailConfirmed</c> on a profile-less row grants
+/// nothing.
 /// </para>
 /// </summary>
 [Collection("Api")]
@@ -53,28 +50,12 @@ public class OrphanedIdentityActivationTests(ApiFactory factory)
     private Task<HttpResponseMessage> LoginAsync(string email, CancellationToken ct)
         => _client.PostAsJsonAsync("/api/v1/auth/login", new { email, password = StrongPassword }, ct);
 
-    /// <summary>
-    /// Drives the REAL registration path against a throwing sender and returns the orphaned user's id.
-    /// The <see cref="EmailDeliveryException"/> is answered as a 500 rather than surfaced to the caller:
-    /// <c>Program.cs</c>'s own middleware matches named exception types only and does not match this one,
-    /// so the request falls through to the developer exception page the test host composes. Production
-    /// answers the same 500 by a different route (no dev page, unhandled → Kestrel), and either way the
-    /// row left behind is identical — which is what this models.
-    /// </summary>
-    private async Task<Guid> RegisterWithFailingSendAsync(string email, CancellationToken ct)
+    private async Task<Guid> GetUserIdAsync(string email)
     {
-        using (_factory.Emails.FailingSends())
-        {
-            var refused = await RegisterAsync(email, ct);
-            refused.StatusCode.ShouldBe(
-                HttpStatusCode.InternalServerError,
-                "the send throws as the handler's final action, so the request fails");
-        }
-
         using var scope = _factory.Services.CreateScope();
         var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
         var user = await userManager.FindByEmailAsync(email);
-        user.ShouldNotBeNull("the Identity user is committed in its own boundary before the send");
+        user.ShouldNotBeNull();
         return user.Id;
     }
 
@@ -82,26 +63,16 @@ public class OrphanedIdentityActivationTests(ApiFactory factory)
     {
         using var scope = _factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        // IgnoreQueryFilters so a soft-deleted profile still counts as present — the question here is
-        // whether the account owns a profile row at all, not whether it is active.
+        // IgnoreQueryFilters so a soft-deleted profile still counts as present — the question is whether
+        // the account owns a profile row at all, not whether it is active.
         return await db.JobSeekers
             .IgnoreQueryFilters()
             .AsNoTracking()
             .AnyAsync(js => js.UserId == userId, ct);
     }
 
-    private async Task<bool> IsEmailConfirmedAsync(Guid userId)
-    {
-        using var scope = _factory.Services.CreateScope();
-        var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
-        var user = await userManager.FindByIdAsync(userId.ToString());
-        user.ShouldNotBeNull();
-        return user.EmailConfirmed;
-    }
-
-    // A real confirmation token for the user, minted exactly as the production wrapper does
-    // (UserAccountService.GenerateEmailConfirmationTokenAsync). Same seam VerifyEmailTests uses: the
-    // token is generated through the host UserManager, never parsed out of the recording sender.
+    // A real confirmation token, minted exactly as the production wrapper does
+    // (UserAccountService.GenerateEmailConfirmationTokenAsync). Same seam VerifyEmailTests uses.
     private async Task<string> MintUrlSafeTokenAsync(Guid userId)
     {
         using var scope = _factory.Services.CreateScope();
@@ -113,70 +84,116 @@ public class OrphanedIdentityActivationTests(ApiFactory factory)
     }
 
     [Fact]
-    public async Task Registration_whose_confirmation_send_throws_leaves_an_Identity_row_with_no_job_seeker()
+    public async Task Registration_whose_confirmation_send_fails_still_commits_the_job_seeker()
     {
-        // THE PREMISE, measured rather than assumed. Every other assertion in this class rests on this
-        // state being reachable from src/, so it is pinned on its own: if registration ever becomes
-        // atomic across the two boundaries (or commits before it sends), this test fails and the rest
-        // of the file is describing a state production can no longer produce.
+        // HALF ONE — the producer is closed. The send THROWS EmailDeliveryException, which is the shape
+        // a provider outage emits (ScalewayEmailSender wraps every transport and 4xx/5xx fault in that
+        // type and lets it escape the adapter); this is the exact fault that produced the dev orphan.
+        //
+        // Before this change the throw escaped the handler, UnitOfWorkBehavior never reached its
+        // SaveChangesAsync, and the tracked JobSeeker was dropped while the Identity user — committed in
+        // its own boundary by UserManager — survived. Now the fault is swallowed: the request answers
+        // the same uniform 202 as a successful send and the account is whole.
         var ct = TestContext.Current.CancellationToken;
-        var email = $"orphan-premise-{Guid.NewGuid()}@example.com";
+        var email = $"orphan-producer-{Guid.NewGuid()}@example.com";
 
-        var userId = await RegisterWithFailingSendAsync(email, ct);
+        using (_factory.Emails.FailingSends())
+        {
+            var response = await RegisterAsync(email, ct);
+            response.StatusCode.ShouldBe(
+                HttpStatusCode.Accepted,
+                "a transport fault must not fell a registration that otherwise succeeded");
+        }
 
-        (await HasJobSeekerAsync(userId, ct)).ShouldBeFalse(
-            "the JobSeeker was never committed — the send is the handler's final action and it threw");
-        (await IsEmailConfirmedAsync(userId)).ShouldBeFalse(
-            "no confirmation link was ever delivered");
+        var userId = await GetUserIdAsync(email);
+        (await HasJobSeekerAsync(userId, ct)).ShouldBeTrue(
+            "the JobSeeker commits even though the activation mail was never delivered — no orphan (#1349)");
+
+        // The user lost the mail, not the account, and the recovery for exactly that is the #733 resend
+        // already mounted on the screen they are looking at. It works because the account is real.
+        (await ResendAsync(email, ct)).StatusCode.ShouldBe(HttpStatusCode.Accepted);
+        _factory.Emails.Sent.ShouldContain(e =>
+            e.ToEmail == email && e.Kind == RecordedEmailKind.EmailConfirmation);
     }
 
     [Fact]
-    public async Task An_orphaned_account_never_becomes_login_capable()
+    public async Task Registration_send_fault_answers_identically_for_a_fresh_and_a_taken_address()
     {
-        // THE DEFECT (#1349). The user's own instinct completes the trap: retry the registration, read
-        // "you already have an account", follow "Logga in", hit "skicka ny kod", confirm, and stop —
-        // believing they are done. They are not: the account owns no profile, cannot be deleted through
-        // DeleteAccountCommandHandler (it answers NotFound), and is swept at 04:00 UTC.
-        //
-        // The invariant is stated on the END STATE, but read what it actually pins: the token below is
-        // minted through the host UserManager, so a fix that only refuses the RESEND does not turn this
-        // green. That is not a flaw in the test — holding a valid token for an orphaned row is a
-        // production leg of its own (registration mints and sends BEFORE the JobSeeker commits, so a
-        // send that succeeds against a commit that fails delivers exactly such a link). What this pins
-        // is the property, not one delivery route into it.
+        // The anti-enumeration invariant over the SAME outage. Swallowing only the confirmation send
+        // would mean a fresh address answers 202 while a taken one answers 500 — the status oracle #714
+        // was built to close, re-opened by the fix itself. Both arms are swallowed, so both answer 202.
         var ct = TestContext.Current.CancellationToken;
-        var email = $"orphan-activation-{Guid.NewGuid()}@example.com";
+        var taken = $"orphan-parity-taken-{Guid.NewGuid()}@example.com";
+        var fresh = $"orphan-parity-fresh-{Guid.NewGuid()}@example.com";
 
-        var userId = await RegisterWithFailingSendAsync(email, ct);
+        // Make `taken` exist first, with delivery working.
+        (await RegisterAsync(taken, ct)).StatusCode.ShouldBe(HttpStatusCode.Accepted);
+
+        using (_factory.Emails.FailingSends())
+        {
+            // `taken` now goes down the duplicate branch (account-exists notice); `fresh` down the
+            // confirmation branch. One outage, two arms.
+            var takenResponse = await RegisterAsync(taken, ct);
+            var freshResponse = await RegisterAsync(fresh, ct);
+
+            takenResponse.StatusCode.ShouldBe(HttpStatusCode.Accepted);
+            freshResponse.StatusCode.ShouldBe(
+                takenResponse.StatusCode,
+                "a send fault must not split the duplicate branch from the fresh one");
+
+            var takenBody = await takenResponse.Content.ReadAsStringAsync(ct);
+            var freshBody = await freshResponse.Content.ReadAsStringAsync(ct);
+            takenBody.ShouldBe(freshBody);
+            takenBody.ShouldBeNullOrEmpty();
+        }
+    }
+
+    [Fact]
+    public async Task An_orphaned_account_is_refused_at_login_even_after_the_link_is_followed()
+    {
+        // HALF TWO — the capability seam. This walks the trap the issue measured: the user retries and
+        // is told the account exists, follows "Logga in", hits "skicka ny kod", confirms, and believes
+        // they are done. Every step still reports success, because none of them is where the defect
+        // lived; login is, and it now refuses.
+        //
+        // WHO PRODUCES THE PREMISE (CLAUDE.md §5 Tests:). After half one, registration does not — so the
+        // row is seeded here and the actor is named rather than implied:
+        //   1. AccountHardDeleter step 2h (AccountHardDeleter.cs:302-309), whose own comment admits the
+        //      state in writing: the domain transaction commits first, the Identity DELETE is a separate
+        //      boundary after it, and "Om denna failer plockas raden upp av Steg 0 ... i nästa körning"
+        //      — i.e. the row is live until the next daily run. NOT retired by this PR.
+        //   2. Rows written before this change, when the confirmation send threw.
+        // The pin that producer 2 is closed is the test above, in this same file.
+        var ct = TestContext.Current.CancellationToken;
+        var email = $"orphan-capability-{Guid.NewGuid()}@example.com";
+
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+            var user = new ApplicationUser { UserName = email, Email = email };
+            (await userManager.CreateAsync(user, StrongPassword)).Succeeded.ShouldBeTrue();
+        }
+
+        var userId = await GetUserIdAsync(email);
         (await HasJobSeekerAsync(userId, ct)).ShouldBeFalse("premise: the row is orphaned");
 
-        // Step 1 — the account-exists notice tells the user to log in. (Sends normally now: the
-        // FailingSends scope closed with the registration above.)
-        (await RegisterAsync(email, ct)).StatusCode.ShouldBe(HttpStatusCode.Accepted);
-
-        // Step 2 — login is refused on EmailNotConfirmed, and that surface offers "skicka ny kod".
-        (await LoginAsync(email, ct)).StatusCode.ShouldBe(HttpStatusCode.Forbidden);
-
-        // Step 3 — the resend.
+        // The resend still delivers — deliberately. It is not the seam that grants anything, and making
+        // it existence-dependent would put an account-status oracle on a public endpoint.
         (await ResendAsync(email, ct)).StatusCode.ShouldBe(HttpStatusCode.Accepted);
 
-        // Step 4 — following the delivered link.
-        var token = await MintUrlSafeTokenAsync(userId);
-        await VerifyAsync(userId, token, ct);
+        // The link still activates the row. Also deliberate: EmailConfirmed is a fact about the address,
+        // and refusing here would answer "your link is invalid or expired", which is untrue.
+        (await VerifyAsync(userId, await MintUrlSafeTokenAsync(userId), ct))
+            .StatusCode.ShouldBe(HttpStatusCode.NoContent);
 
-        // THE ASSERTION. An account that can log in must own a profile; an account that owns no profile
-        // must not be able to log in. Either half satisfies it — what must never happen is the pair.
-        //
-        // Stated TOTALLY rather than as an `if` around the second measurement, deliberately: a branch on
-        // the login status is fail-open, because any third status (a 500 from an unrelated regression)
-        // would skip the assertion and report green. Both values are measured unconditionally and both
-        // are named in the failure message.
-        var loginStatus = (await LoginAsync(email, ct)).StatusCode;
-        var hasJobSeeker = await HasJobSeekerAsync(userId, ct);
+        // THE ASSERTION. Confirmed, correct password, and still refused — the activation grants nothing.
+        var login = await LoginAsync(email, ct);
+        login.StatusCode.ShouldBe(
+            HttpStatusCode.Unauthorized,
+            "an account that owns no profile must not be able to log in — otherwise the user is told it "
+            + "is active while owning nothing, and the #508 sweep deletes it at 04:00 UTC (#1349)");
 
-        (hasJobSeeker || loginStatus != HttpStatusCode.OK).ShouldBeTrue(
-            $"a login-capable account must own a job seeker — measured login={loginStatus}, "
-            + $"jobSeeker={hasJobSeeker}. Otherwise the user is told the account is active while owning "
-            + "nothing, and the #508 sweep deletes it at 04:00 UTC with no notice (#1349)");
+        (await HasJobSeekerAsync(userId, ct)).ShouldBeFalse(
+            "the guard REFUSES the login; it does not quietly provision a profile to let it through");
     }
 }

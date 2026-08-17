@@ -3,12 +3,14 @@ using Shouldly;
 namespace Jobbliggaren.Migrate.UnitTests;
 
 /// <summary>
-/// Pins that the deploy stack's job-ad ingestion gate defaults to OFF.
+/// Pins that the deploy stack's job-ad ingestion gate defaults to OFF, and that it sits on the
+/// service that runs the jobs.
 ///
 /// <para>
-/// Same shape and same reason as <see cref="DeployComposeRegistrationGateTests"/>, one gate
-/// over, and the reason it is a separate class is that this one is not the registration gate —
-/// a shared class would need a doc comment that is false about half its rows.
+/// Both tests use <see cref="DeployComposeRegistrationGateTests"/>' forward-scanning form:
+/// anchor on the service key, assert the anchor unconditionally, then assert position and count
+/// inside that service's block. A backward scan from the environment key was tried first and
+/// measured to fail OPEN — see the second test's own remarks.
 /// </para>
 ///
 /// <para>
@@ -16,10 +18,10 @@ namespace Jobbliggaren.Migrate.UnitTests;
 /// <see langword="true"/>, and <c>JobSourceIngestGateConfigurationTests</c> pins that the
 /// shipped Production overlay carries <c>false</c>. Neither of them sees the value the box
 /// actually feeds the container. Flip <c>${JOBTECH_INGEST_ENABLED:-false}</c> to <c>:-true</c>
-/// and nothing goes red: the overlay's <c>false</c> is overridden by the environment, which
-/// wins in the configuration order, and the box starts writing recruiter contact records with
-/// no operator having set anything. The two jobs would not even log their refusal, because
-/// they only log when the gate is off.
+/// and nothing goes red: environment wins over JSON in the configuration order, so the
+/// overlay's <c>false</c> is overridden and the box starts writing recruiter contact records
+/// with no operator having set anything. The two cron jobs would not even log their refusal,
+/// because they only log when the gate is off.
 /// </para>
 ///
 /// <para>
@@ -36,55 +38,75 @@ namespace Jobbliggaren.Migrate.UnitTests;
 /// </summary>
 public class DeployComposeIngestGateTests
 {
-    private static string ComposeText =>
-        File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "deploy", "docker-compose.yml"));
+    private const string GateKey = "JobTech__IngestEnabled:";
 
-    private static string LineContaining(string key) =>
-        ComposeText.Split('\n').SingleOrDefault(l => l.Contains(key, StringComparison.Ordinal))
-        ?? throw new InvalidOperationException(
-            $"deploy/docker-compose.yml has no single line containing '{key}'. If the file was " +
-            "restructured, this pin must be rewritten rather than deleted.");
+    private static string[] ComposeLines =>
+        File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "deploy", "docker-compose.yml"))
+            .Split('\n');
+
+    /// <summary>True for a top-level service key: exactly two spaces of indent, ending in a colon.</summary>
+    private static bool IsServiceKey(string line) =>
+        line.Length > 2
+        && line.StartsWith("  ", StringComparison.Ordinal)
+        && line[2] != ' '
+        && line.TrimEnd().EndsWith(':');
 
     [Fact]
     public void IngestGate_DefaultsToOff_WhenTheBoxSetsNothing()
     {
+        var matches = ComposeLines.Where(l => l.Contains(GateKey, StringComparison.Ordinal)).ToList();
+
+        matches.Count.ShouldBe(1,
+            "deploy/docker-compose.yml must carry exactly one ingestion-gate line. If the file " +
+            "was restructured, this pin must be rewritten rather than deleted.");
+
         // The whole line, so a renamed variable fails the same way an opened default does: a
-        // rename that leaves deploy/.env.example behind reads as configured and ingests anyway.
-        LineContaining("JobTech__IngestEnabled:").Trim()
-            .ShouldBe("JobTech__IngestEnabled: ${JOBTECH_INGEST_ENABLED:-false}",
-                customMessage:
-                "The ingestion gate must default OFF. An open default lands recruiter contact " +
-                "records within ten minutes of the first `up -d`, and nothing refuses it: the " +
-                "code default is true, so an absent key does not fail, it ingests.");
+        // rename that leaves deploy/.env.example behind is the same defect as an open default,
+        // just slower to find.
+        matches[0].Trim().ShouldBe($"{GateKey} ${{JOBTECH_INGEST_ENABLED:-false}}",
+            customMessage:
+            "The ingestion gate must default OFF. An open default lands recruiter contact " +
+            "records within ten minutes of the first `up -d`, and nothing refuses it: the " +
+            "code default is true, so an absent key does not fail, it ingests.");
     }
 
     /// <summary>
-    /// The vacuity guard. If the compose file stopped being copied into this project's output,
-    /// <see cref="LineContaining"/> would throw rather than pass — but a future restructure
-    /// could leave the file present and the worker service gone, and then the assertion above
-    /// would fail for a reason nobody would read correctly. This pins that the gate sits on the
-    /// service that runs the jobs.
+    /// The gate must sit inside the <c>worker</c> service's own block.
+    ///
+    /// <para>
+    /// This scans FORWARD from the service key rather than backward from the gate, and the
+    /// difference was measured rather than assumed. A backward scan returns
+    /// <see langword="null"/> when the gate is hoisted OUT of <c>services:</c> — into one of the
+    /// file's seven top-level <c>x-*</c> anchors, which is this file's own established refactor
+    /// idiom — and both agents measured that arrangement passing GREEN while the worker carried
+    /// no gate key at all. Forward-scanning cannot: the anchor assertion below fires first.
+    /// </para>
+    ///
+    /// <para>
+    /// Why the worker and not the api: both hosts bind <c>JobSourceIngestOptions</c>, because
+    /// <c>AddJobSources</c> is the one Infrastructure module both pass. What differs is that
+    /// only the Worker registers the three consumers, all of them Hangfire jobs. So a gate on
+    /// <c>api</c> would read as present, bind successfully, and gate nothing the Worker runs.
+    /// </para>
     /// </summary>
     [Fact]
-    public void IngestGate_SitsOnTheWorkerService_WhichIsWhereTheJobsRun()
+    public void IngestGate_SitsInsideTheWorkerServiceBlock_WhereTheJobsAreRegistered()
     {
-        var lines = ComposeText.Split('\n');
-        var gateIndex = Array.FindIndex(lines, l =>
-            l.Contains("JobTech__IngestEnabled:", StringComparison.Ordinal));
+        var lines = ComposeLines;
 
-        gateIndex.ShouldBeGreaterThan(-1, "the gate line is gone entirely");
+        var workerStart = Array.FindIndex(lines, l => l.StartsWith("  worker:", StringComparison.Ordinal));
+        workerStart.ShouldBeGreaterThan(-1, "the compose file no longer declares a `worker` service");
 
-        // Walk back to the nearest two-space service key. The api service consumes no JobTech
-        // options at all, so the gate landing there would be inert AND silent.
-        var owner = lines.Take(gateIndex)
-            .LastOrDefault(l => l.Length > 2 && l.StartsWith("  ", StringComparison.Ordinal)
-                                && !l.StartsWith("   ", StringComparison.Ordinal)
-                                && l.TrimEnd().EndsWith(':'));
+        var workerEnd = Array.FindIndex(lines, workerStart + 1, IsServiceKey);
+        if (workerEnd < 0) workerEnd = lines.Length;
 
-        owner?.Trim().ShouldBe("worker:",
-            customMessage:
-            "The Platsbanken jobs are registered by the Worker host. On any other service this " +
-            "environment key binds nothing, fails nothing, and logs nothing — the gate would " +
-            "read as present while the Worker inherits the code default, which is true.");
+        var gateIndex = Array.FindIndex(lines, l => l.Contains(GateKey, StringComparison.Ordinal));
+        gateIndex.ShouldBeGreaterThan(-1, "the ingestion-gate line is gone entirely");
+
+        gateIndex.ShouldBeInRange(workerStart + 1, workerEnd - 1,
+            "the ingestion gate must sit inside the `worker` service's own block. Hoisted into " +
+            "a shared anchor or moved to another service it still parses, still binds, and " +
+            "still reads as configured - while the Worker inherits JobSourceIngestOptions' code " +
+            "default, which is true.");
     }
 }

@@ -416,14 +416,18 @@ services:
       # That overlay keeps IngestEnabled=false and JobSourceIngestGateConfigurationTests pins it,
       # so an image that reaches any box ingests nothing until an operator says otherwise HERE.
       # The default is false for the same reason the Auth gates above default closed: an absent
-      # key must mean OFF, never the code default (which is true).
+      # key must mean OFF here rather than fall through. What it falls through TO is two layers,
+      # not one - the Production overlay's own false (loaded because DOTNET_ENVIRONMENT is set
+      # above), and only if that vanishes too, the code default, which is true. The lower layer
+      # has already gone silently absent once: see the DOTNET_ENVIRONMENT note above.
       # Klas gave the written GO 2026-08-17 (release-checklist.md 2.6 point 3.5, which records the
       # adjudicator, the date and where it was given). The GO is what authorises setting this;
       # this line is not itself permission.
       # THE GO IS NOT SUFFICIENT ON ITS OWN, and that is security-auditor's ruling of the same
       # date, not this file's opinion: setting this to true is BLOCKED until the two ADR 0123
-      # mitigations are built, M-7's paging chain is verified on host-detection.md, and a NEW
-      # grant covers the state WITH real data. Point 3.5 carries the ruling and its grounds.
+      # mitigations are built, both M-7 legs are verified on host-detection.md (the unmeasured
+      # half is the wake-and-page chain), and a NEW grant covers the state WITH real data.
+      # Point 3.5 carries the ruling and its grounds.
       JobTech__IngestEnabled: ${JOBTECH_INGEST_ENABLED:-false}
     volumes: *app-secrets-mount
     mem_limit: 1024m

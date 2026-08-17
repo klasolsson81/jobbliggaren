@@ -29,8 +29,11 @@ namespace Jobbliggaren.Architecture.Tests;
 /// assertion passes trivially once its pattern stops matching: reword the placeholder and
 /// <c>ShouldNotContain</c> would go green on an absent literal, silently and permanently. The
 /// drift vector is measured, not hypothetical — the line below the record already spells the same
-/// words in a different emphasis style. Only the unticked property crosses the threshold in the
-/// resting state, which is the state this repo is actually in.
+/// words in a different emphasis style. <b>The box was ticked 2026-08-17</b>, so the ticked
+/// property is now the executing one and the unticked branch returns early. That does not leave
+/// the literals unguarded: the ticked assertion names all three in its <c>ShouldNotContain</c>,
+/// so a reworded placeholder still changes what this class reads. What sleeps is the
+/// <i>routing</i> half, not the literals.
 /// </para>
 ///
 /// <para>
@@ -102,11 +105,17 @@ public class CorpusLoadGoRecordTests
     }
 
     /// <summary>
-    /// The complementary property, and the one that actually executes today. It pins the
-    /// placeholders as PRESENT while the box is unticked, so the discriminator the ticked test
-    /// negates cannot drift out of existence unnoticed. Without this, rewording the placeholder
-    /// would leave both tests green and kill the guard permanently — and the record's own
-    /// surrounding prose already spells the same words a different way one line below.
+    /// The complementary property. It pins the placeholders as PRESENT while the box is
+    /// unticked, so the discriminator the ticked test negates cannot drift out of existence
+    /// unnoticed — and the record's own surrounding prose already spells the same words a
+    /// different way one line below.
+    ///
+    /// <para>
+    /// <b>Dormant since the box was ticked 2026-08-17</b>, and deliberately kept: an untick is
+    /// one edit away, and the day it happens this is the only test that reads the record at all.
+    /// A dormant branch is not a dead one, but it is also not the class's live guard any more —
+    /// that is the ticked test, whose <c>ShouldNotContain</c> names the same three literals.
+    /// </para>
     /// </summary>
     [Fact]
     public void CorpusGate_WhenPointIsUnticked_RecordStillReadsItsPlaceholders()

@@ -27,7 +27,7 @@ reboot destroys them and an operator must re-inject.
 > not be one for this.** Recorded in `vps-deploy-stack.md` row 26 with its ground and its
 > expiry, and the concession — including that the age private key may share the device holding
 > `jobbpilot_vps_ed25519`, over `security-auditor`'s objection — in **ADR 0129** (gitignored per
-> §6.5, like every ADR from 0074; if it is absent from your checkout the decision and its ground
+> §6.5, like every ADR from 0071; if it is absent from your checkout the decision and its ground
 > are summarised in `vps-deploy-stack.md` rows 26 and 32, which are tracked). An earlier
 > draft of this runbook stated the escrow as delivered fact when it was not; this one states it
 > as decided, which it now is, and points at where the reasoning lives rather than restating it.

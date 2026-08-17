@@ -64,12 +64,37 @@ describe("stripComments — the container guard's oracle", () => {
     expect(stripComments(`${prefix}\n${NAMED_IN_A_DOCBLOCK}`)).not.toContain("jp-container");
   });
 
+  // ── The URL branch, both directions ───────────────────────────────────────
+  // This is the only KEEP branch in the function, so it is the only one whose mistakes are
+  // fail-OPEN. The first revision pinned only that URLs survive and never that comments still
+  // die, and a whitespace-walking colon check then passed that half while reintroducing M1 on
+  // six shapes (#1062, code-reviewer M-1). Both directions are pinned now.
+
   it("does not mistake a URL's slashes for a line comment", () => {
-    // The one thing quote tracking bought. The `:` guard buys it without the failure mode.
     const source = `<a href="https://jobbliggaren.se/cv" className="jp-container">`;
     const out = stripComments(source);
     expect(out).toContain("jp-container");
     expect(out).toContain("https://jobbliggaren.se/cv");
+  });
+
+  it.each([
+    ["a switch case label", `case "a": // jp-container`],
+    ["a default label", `default: // jp-container`],
+    ["an object literal key", `const o = { shell: // jp-container`],
+    ["a ternary else", `const v = a ? b : // jp-container`],
+    ["a type annotation", `const x: // jp-container`],
+    ["a loop label", `outer: // jp-container`],
+  ])("still strips a line comment that follows %s", (_shape, source) => {
+    // All six were measured FAIL-OPEN under the walk-back version: the colon before the `//`
+    // made it read as a URL scheme and the whole comment survived.
+    expect(stripComments(source)).not.toContain("jp-container");
+  });
+
+  it("has one known residual, pinned so it is a decision and not a surprise", () => {
+    // A label colon ABUTTING the slashes is indistinguishable from a scheme by look-back alone.
+    // No such shape exists in the corpus and nobody writes one — but a guard that hides its own
+    // reach is worse than a narrow one, so the hole is asserted rather than described.
+    expect(stripComments(`default:// jp-container`)).toContain("jp-container");
   });
 
   it("biases fail-closed: a shape it mis-reads drops text rather than keeping it", () => {

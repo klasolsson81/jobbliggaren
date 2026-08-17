@@ -21,11 +21,21 @@ export default function Loading() {
         {t("navLoading.cv")}
       </span>
 
-      {/* ledeLines={2}: this hub's real lede wraps to two lines (49.6px), and reserving one
-          left the band 38px short (#1062, design-reviewer). The mechanism was added for
-          /cv/granska/[parsedId] and this is the second home of the same property — landing it
-          on one of two would have been the failure this PR spent its guard on. */}
-      <PageHeroSkeleton ledeLines={2} />
+      {/* This is a SHARED App Router boundary: it is the loading state for the whole /cv
+          subtree except /cv/granska/[parsedId]/*, because no other /cv route has a loading.tsx.
+          Its consumers do not agree — the hub's lede wraps to two lines from ~600px up, while
+          /cv/importera, /cv/[id]/granska and the hub itself at ≤414px all wrap to three.
+
+          3 is chosen against the WORST consumer rather than the file's namesake (CTO bind
+          2026-08-17). It makes the hub over-reserve at wide widths by under half a text line,
+          and that is the direction to err: an over-reserving band shrinks on swap, while an
+          under-reserving one pushes content the reader has already aimed at.
+
+          It closes the band nowhere, at any value — the skeleton's rung and the paragraph's
+          line box differ, and the title bar's own mismatch changes at ≤720px where the hero
+          title drops a size. #1385 owns that residual, and the fact that this file paints the
+          hub's card grid to routes that are not the hub. */}
+      <PageHeroSkeleton ledeLines={3} />
 
       <div className="jp-container jp-page" aria-hidden="true">
         <div className="jp-cvgrid">

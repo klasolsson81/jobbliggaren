@@ -948,7 +948,7 @@ instrument under-reaches its own property reads as coverage it does not have.
   `Cmnd_Alias` narrowing is built, and that file's own provisioning step still sets
   `jpadmin ALL=(ALL) NOPASSWD:ALL`. ⚠ **And it cannot be closed by building them:** both are void
   as written, measured 2026-08-17. The derivation has one home —
-  `vps-base-hardening.md` §11 — and this paragraph deliberately does not restate it.
+  `vps-base-hardening.md` §11.
   ⛔ **`security-auditor`'s ruling 2026-08-17: M-7 DOES convert at first real user data**, and
   **building the two mitigations is not sufficient** — that also requires a **new** grant covering
   the state *with* real user data, plus **both M-7 legs delivered and verified on

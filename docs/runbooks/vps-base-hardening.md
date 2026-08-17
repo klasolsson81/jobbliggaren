@@ -1014,7 +1014,7 @@ rather than discovered:
   cannot amend an Accepted ADR. **Klas's GO is still outstanding**, so that row reads "deviation
   recorded, ratification pending", never "accepted".
 - **`NOPASSWD` sudo for `jpadmin` combined with a passphrase-less operator key.** Non-interactive
-  automation cannot answer a sudo prompt, and SSH-agent plumbing under Git Bash is unreliable for
+  invocations cannot answer a sudo prompt, and SSH-agent plumbing under Git Bash is unreliable for
   background work — but together these mean **key theft equals root**, and root means the master
   key out of process memory once it exists.
 
@@ -1035,16 +1035,17 @@ rather than discovered:
   lower-privilege second identity — it is root. §2's "two console identities" is redundancy for
   availability, not a privilege boundary.
 
-  **Both named mitigations are VOID AS WRITTEN, measured 2026-08-17, and this section is their
-  one home** — the ADR that named them is gitignored, so the derivation is written here to stand
-  alone. They were: a separate key for automation with `restrict,command=,from=`, and narrowing
-  NOPASSWD to a `Cmnd_Alias` once the deploy automation's real command set was known. Both assume
-  an **inbound automation actor**. The delivered architecture is reconcile-pull — the timer runs
-  on this box, as root, under systemd, and nothing SSHes in. Regenerate with
+  **Both named mitigations are VOID AS WRITTEN, measured 2026-08-17** — the ADR that named them is
+  gitignored, so the derivation is written here to stand alone. They were: a separate key for
+  automation with `restrict,command=,from=`, and narrowing NOPASSWD to a `Cmnd_Alias` once the
+  deploy automation's real command set was known. Both assume an **inbound automation actor**. The
+  delivered architecture is reconcile-pull — the timer runs on this box, as root, under systemd,
+  and no workflow SSHes in. Regenerate with
   `grep -rniE 'jpadmin|ssh -i|ssh-action|appleboy|SSH_PRIVATE' .github/workflows/` (expect no
   output), read against `jobbliggaren-reconcile.service`'s header, which states the model in its
-  own words. So mitigation 1 has no actor to hand a restricted key to, and mitigation 2's command
-  set is the **operator's** — which an operator key cannot carry a `command=` for.
+  own words. **The single SSH principal is the operator — Klas interactively, CC over
+  `BatchMode`** (§4.1), whose command set is unbounded, so `command=` cannot bind it. So mitigation
+  1 has no actor to hand a restricted key to, and mitigation 2's command set is the **operator's**.
 
   ⚠ **Mitigation 2 as written now instructs the next reader to build a boundary that is not one.**
   Its blocking clause was *"not known until #196 exists"*; #196 closed 2026-08-08, so the clause
@@ -1058,10 +1059,10 @@ rather than discovered:
 
   **What replaces them: nothing yet**, and the roadmap must not be dressed up. The exit at the
   pre-real-data boundary is therefore **re-grant**, not **close**; the only real candidates are
-  the ones the ADR's own Alternatives already carry. `restrict,pty,from=` on the operator key
-  (§4.0) is **hygiene, not mitigation 1** — it closes agent forwarding and `~/.ssh/rc`, which the
-  server-wide drop-in does not, but an attacker holding the key and satisfying `from=` still
-  reaches root in one `sudo -n`.
+  the ones the ADR's own Alternatives already carry. `restrict,pty,from=` on the operator key is
+  **hygiene, not mitigation 1** — it closes agent forwarding and `~/.ssh/rc`, which the server-wide
+  drop-in does not, but an attacker holding the key and satisfying `from=` still reaches root in one
+  `sudo -n`. ⚠ **It is not applied — that is PR 2**; §4.0 provisions the key with `from=` alone.
 
   Non-interactive operation requires *no prompt*, not *unlimited root* — conflating those two is
   what this trade-off actually is. **Written up as ADR 0123** (local), which

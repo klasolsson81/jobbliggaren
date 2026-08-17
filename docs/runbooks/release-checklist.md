@@ -1647,7 +1647,8 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
       overifierade på `host-detection.md`:s verifikationsrader**, så scope-gränsens utgångsvillkor
       går inte att verifiera.
       ⚠ **ATT BYGGA DE TVÅ MITIGERINGARNA RÄCKER INTE.** Hennes gradering av vad som krävs, och
-      den är inte en senare läsares att härleda: **båda mitigeringarna byggda**, **OCH ett NYTT
+      den är inte en senare läsares att härleda: **risken i ADR 0123 mätbart reducerad** (egenskapen
+      — se omformulerat krav (1) nedan, `security-auditor` 2026-08-17), **OCH ett NYTT
       uttryckligt Klas-beviljande som täcker tillståndet MED riktig användardata** (det nuvarande
       upphör av egen kraft), **OCH båda M-7-benen levererade OCH verifierade på
       `host-detection.md`:s verifikationsrader**. ⚠ **Villkoret ställs på FÖRMÅGAN, aldrig på
@@ -1657,14 +1658,10 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
       2026-08-10 hemmar dessutom **båda** benen hos **#1201**, på Klas-beslut 2026-08-06 med skälet
       utskrivet: *"att lämna pekaren mot en stängande issue hade pensionerat skyldigheten av
       misstag"*. Behövs ett nummer är det **#1201**. Detta hör till det informerade GO:t.
-      ⛔ **OCH KRAV (1) ÄR INTE UPPFYLLBART SOM FORMULERAT — mätt 2026-08-17.** Båda mitigeringarna
-      är **void as written**: de vilar på en inkommande automationsaktör, och den levererade
-      arkitekturen är reconcile-pull utan någon sådan. Derivationen har **ett** hem —
-      `vps-base-hardening.md` §11 — och den återges medvetet inte här.
-      ⚠ **Att skriva om krav (1) är `security-auditor`s, aldrig en sessions och aldrig den här
-      filens** (§9.6: severity och dess grund tillhör den rapporterande agenten). Grinden står
-      därför **stängd och oförändrad**; krav (2) och (3) är orörda. Det som skickas till henne är
-      mätningen, inte ett förslag på ny formulering.
+      ⛔ **KRAV (1) VAR INTE UPPFYLLBART SOM TIDIGARE FORMULERAT — mätt 2026-08-17.** Båda
+      mitigeringarna är **void as written**. Derivationen har **ett** hem —
+      `vps-base-hardening.md` §11. **`security-auditor` omformulerade kravet 2026-08-17**; den
+      gällande formen står i blockquotens led (1) nedan, och den är hennes text (§9.6).
 
       **GO:T RECORDAS HÄR NÄR DET GES — med adjudikator, datum och var det gavs**, samma form som
       punkt 3:s led. En bock utan upphovsman visar ingenting, och Art. 5(2) kräver att efterlevnad
@@ -1705,14 +1702,39 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
       > personnummer för en enskild firma**. Varianten utan rekryterarkontakter hade utlöst samma
       > klausul.
       > **Tre kumulativa krav före flippen**, alla mätta 2026-08-17 och ingen av dem uppfylld:
-      > (1) **båda ADR 0123-mitigeringarna byggda** — egen automationsnyckel med
-      > `restrict,command=,from=`, och `Cmnd_Alias`-avgränsning av `jpadmin`:s NOPASSWD;
-      > `vps-base-hardening.md` §11 (Deviation log) äger båda mitigeringarna; **provisioneringen
-      > bor i §4.0 Bootstrap** och sätter alltjämt `jpadmin ALL=(ALL) NOPASSWD:ALL`. Två avsnitt,
-      > och det är därför inget av dem ensamt visar att kravet är öppet.
+      > (1) **RISKEN I ADR 0123 ÄR MÄTBART REDUCERAD — egenskapen, aldrig en namngiven kontroll.**
+      > ⚠ **Omformulerat av `security-auditor` 2026-08-17.** Den tidigare formen (*"båda ADR
+      > 0123-mitigeringarna byggda — egen automationsnyckel med `restrict,command=,from=`, och
+      > `Cmnd_Alias`-avgränsning av `jpadmin`:s NOPASSWD"*) namnger två kontroller som är **void as
+      > written**: de vilar på en inkommande automationsaktör som inte finns. Derivationen har
+      > **ett** hem — `vps-base-hardening.md` §11 — och återges inte här.
+      > **Egenskapen som ska hålla:** *stöld av den enda SSH-nyckeln ger inte i sig root på lådan.*
+      > I ADR 0123:s egna ord: *icke-interaktiv drift kräver **ingen prompt**, inte **obegränsad
+      > root*** — och de två får inte längre vara samma sak.
+      > **Ingen mekanism namnges här, avsiktligt.** Kravet är ställt på egenskapen så att det inte
+      > kan bockas av att en kontroll byggs som inte bär den; vilken mekanism som helst som bär
+      > egenskapen räknas.
+      > ⛔ **Två mekanismer är uttryckligen UTESLUTNA och får inte byggas för att bocka den här
+      > punkten:** en `Cmnd_Alias` över operatörens faktiska sudo-mängd (mätt rot-ekvivalent — §11
+      > bär kommandot som regenererar mätningen) och en separat automationsnyckel (ingen aktör att
+      > ge den till). Att bygga någon av dem uppfyller inte kravet och gör posturen **sämre**: en
+      > kontroll som *läser* som en privilegiegräns utan att vara en är värre än det ärliga
+      > `NOPASSWD:ALL` den ersätter.
+      > **Hur punkten laddas ur:** en mätning på lådan av att egenskapen håller — instrument,
+      > datum, adjudikator, `host-detection.md` §7:s form — **plus `security-auditor`s signatur**.
+      > Ingen byggd artefakt, ingen stängd issue och ingen bockad ruta laddar ur den.
+      > **Status 2026-08-17: OUPPFYLLD, och ingen kandidatmekanism är namngiven.**
+      > `restrict,pty,from=` är hygien och inte den här egenskapen (§11).
       > (2) **ett NYTT Klas-beviljande som täcker tillståndet MED riktig data** — det nuvarande
       > upphör av egen kraft vid gränsen, eftersom det gäller *"while the box carries no real user
       > data"*. **Den frågan ställs när (1) och (3) är klara, inte före.**
+      > ⚠ **OCH (2) KAN INTE ERSÄTTA (1) — `security-auditor` 2026-08-17.** Ett nytt beviljande är
+      > fortfarande **krävt**, men det är inte mätt **tillgängligt**: ADR 0123 restes som en Major
+      > *utan* GDPR-implikation och gick §9.6 (2). I tillståndet MED riktig data har samma fynd en
+      > direkt Art. 32(1)(b)-implikation (root läser masternyckeln, masternyckeln packar upp varje
+      > DEK), så vägen blir §9.6 (3) — som kräver bäraravsaknad. Med korpuset laddat finns bärare
+      > fyndet **når** (rekryterarkontakter; `job_ads.organization_number` för enskild firma), så
+      > bindningen faller. **Följd: risken ska REPARERAS före riktig data, inte accepteras igen.**
       > (3) **båda M-7-benen verifierade på `host-detection.md` §7** — insamlingen är i stort
       > verifierad, men **hela väcknings- och paging-kedjan är omätt**, och det är just den som gör
       > Art. 33:s frist datbar. En auditd-regel som skriver till en logg ingen läser producerar

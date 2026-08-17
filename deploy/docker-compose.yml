@@ -424,14 +424,11 @@ services:
       # adjudicator, the date and where it was given). The GO is what authorises setting this;
       # this line is not itself permission.
       # THE GO IS NOT SUFFICIENT ON ITS OWN, and that is security-auditor's ruling of the same
-      # date, not this file's opinion: setting this to true is BLOCKED until the two ADR 0123
-      # mitigations are built, both M-7 legs are verified on host-detection.md (the unmeasured
-      # half is the wake-and-page chain), and a NEW grant covers the state WITH real data.
-      # Point 3.5 carries the ruling and its grounds.
-      # ⚠ AND ITS FIRST REQUIREMENT IS NOT SATISFIABLE AS WRITTEN. Both mitigations are void as
-      # written, measured 2026-08-17 — derivation in vps-base-hardening.md §11, restated nowhere.
-      # Restating that requirement is security-auditor's, not this file's and not a session's, so
-      # the gate stays closed and unchanged here. Requirements 2 and 3 are untouched.
+      # date, not this file's opinion: setting this to true is BLOCKED until the risk ADR 0123
+      # records is measurably reduced (requirement (1), restated by security-auditor 2026-08-17 —
+      # a property, not a named control), both M-7 legs are verified on host-detection.md (the
+      # unmeasured half is the wake-and-page chain), and a NEW grant covers the state WITH real
+      # data. Point 3.5 carries the ruling and its grounds.
       JobTech__IngestEnabled: ${JOBTECH_INGEST_ENABLED:-false}
     volumes: *app-secrets-mount
     mem_limit: 1024m

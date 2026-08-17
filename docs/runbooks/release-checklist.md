@@ -1785,10 +1785,12 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
       utförde** — inte att bevilja den efterhand.
       ⚠ **ACCEPTANSEN TÄCKER FLIPPEN, ALDRIG M-7:s KONVERTERING — och de två meningarna hör ihop, så
       glesa aldrig ut dem.** Satsen som säger att konverteringen **saknar acceptansväg** (§9.6 stänger
-      både (2) och (3) för en GDPR-Blocker) står kvar oförändrad i blockquoten ovan, i stycket som
-      börjar *"Konverteringen har ingen acceptansväg"* — **den citeras vid sin text och inte med ett
-      radavstånd**, eftersom ett sådant tal ruttnar vid varje redigering och redan mätts fel en gång
-      i den här punkten. De två påståendena motsäger inte varandra just för att det här inte är en
+      både (2) och (3) för en GDPR-Blocker) står kvar oförändrad i blockquoten ovan, på raden som
+      börjar `Konverteringen har` — **den citeras vid sin text och inte med ett radavstånd**,
+      eftersom ett sådant tal ruttnar vid varje redigering och redan mätts fel en gång i den här
+      punkten. ⚠ **Ankaret är avsiktligt kort:** fortsättningen lyder `ingen acceptansväg` med
+      fetstilsmarkörer i källan, så ett svep på hela meningen träffar bara det här citatet och aldrig
+      målraden. De två påståendena motsäger inte varandra just för att det här inte är en
       acceptans; risken är en senare redigering som skiljer dem åt och låter recordet läsas som om det
       täckte konverteringen också (`security-auditor` 2026-08-17).
       **Om Klas vill att beslutet ska stå som en formell §9.6-acceptans krävs ADR + hennes signatur —
@@ -1906,8 +1908,15 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
       `DependencyInjection.cs`s registreringsgren):
       - `Enabled=false` → tidig `return services;`, inget kast. **Lådans nuläge.**
       - `Enabled=true` **utan** thumbprint → kastet ligger som **rak kod i registreringsmetoden**, så
-        det fyrar när `AddInfrastructure(...)` anropas, alltså **före `builder.Build()`**. Hosten
-        startar aldrig, och `ValidateOnBuild` är irrelevant eftersom `Build()` aldrig nås.
+        det fyrar när **`AddScbCompanyRegister(...)`** anropas, alltså **före `builder.Build()`**.
+        Hosten startar aldrig, och `ValidateOnBuild` är irrelevant eftersom `Build()` aldrig nås.
+        ⚠ **Grinden heter INTE `AddInfrastructure` — och skillnaden är operativ, inte namnpetig.**
+        Modulen är Worker-only och dess egen doc säger *"deliberately NOT part of
+        `AddInfrastructure`"*; Workern drar över huvud taget inte in `AddInfrastructure`
+        (`Worker/Program.cs`: *"Worker drar INTE in AddInfrastructure (HTTP-fri, ADR 0023)"*), och
+        enda anropsplatsen i `src/` är Api:ts `Program.cs`. **Alltså dör bara Workern av en felaktig
+        flipp — aldrig Api:t**, vilket är precis den skillnad en operatör läser stycket för att
+        bedöma.
         ⚠ **Det är den realistiska olyckan här:** lådan bär noll SCB-nycklar, så ett blankt
         `ScbRegister__Enabled=true` har ingen thumbprint.
       - `Enabled=true` **med** thumbprint men utan cert → registreringen går igenom och `Load()`

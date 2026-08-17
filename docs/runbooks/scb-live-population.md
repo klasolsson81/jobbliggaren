@@ -769,13 +769,21 @@ retired (Klas 2026-08-17).**
 
   ⚠ **Scope, and it is narrower than "the box is healthy".** Those figures cover
   the shapes named above and nothing else — read the list, do not count it.
-  **Browse-all and `BuildMagnitudeCommand` are not measured here.** ⚠ **The two
-  gaps are not equal, and do not read them as such:** browse-all is the *least*
-  statistics-sensitive shape on the surface — ~743k of 1,07M rows match
-  `status='Active'`, so the 20th hit sits a couple of dozen index entries in
-  whatever the planner estimates — and its branch choice is already pinned in CI
-  by `CompanyRegisterSearchPlanChoiceTests`, whose fixture deliberately ANALYZEs
-  and therefore runs **in the box's own regime**.
+  **Three things are NOT measured here — browse-all, `BuildMagnitudeCommand`, and
+  the sibling `CompanyWatchBrowseQuery` — and the three gaps are not equal.**
+
+  **Browse-all is the quiet one.** It is the *least* statistics-sensitive shape on
+  the surface — ~743k of 1,07M rows match `status='Active'`, so the 20th hit sits
+  a couple of dozen index entries in whatever the planner estimates — and its
+  branch choice is already pinned in CI by `CompanyRegisterSearchPlanChoiceTests`,
+  whose fixture deliberately ANALYZEs and therefore runs **in the box's own
+  regime**.
+
+  **`BuildMagnitudeCommand` is the quiet one too, and by construction.** It is the
+  same statement as the measured `BuildCountCommand` **modulo the cap** (2 000
+  against 10 000 — `GetCompanySearchMagnitudeQueryHandler`), so the measurement
+  above carries it up to that factor; and in the unfiltered case it does not run
+  at all, because the handler returns early on `IsUnfiltered`.
 
   **The sibling is the open one.** `CompanyWatchBrowseQuery` reads the
   SAME table, has **no materialization rule at all** (`ItemsSql` is a `const`, set

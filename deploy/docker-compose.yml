@@ -420,6 +420,10 @@ services:
       # Klas gave the written GO 2026-08-17 (release-checklist.md 2.6 point 3.5, which records the
       # adjudicator, the date and where it was given). The GO is what authorises setting this;
       # this line is not itself permission.
+      # THE GO IS NOT SUFFICIENT ON ITS OWN, and that is security-auditor's ruling of the same
+      # date, not this file's opinion: setting this to true is BLOCKED until the two ADR 0123
+      # mitigations are built, M-7's paging chain is verified on host-detection.md, and a NEW
+      # grant covers the state WITH real data. Point 3.5 carries the ruling and its grounds.
       JobTech__IngestEnabled: ${JOBTECH_INGEST_ENABLED:-false}
     volumes: *app-secrets-mount
     mem_limit: 1024m

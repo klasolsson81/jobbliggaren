@@ -1677,8 +1677,32 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
       > och det är därför Art. 14-notisen levererades 2026-08-16 i stället för att avfärdas; den
       > punkten är bockad ovan och tas inte upp igen.
       > ⚠ **Vad GO:t INTE avgör:** om M-7:s konvertering får accepteras eller måste byggas bort
-      > först. `security-auditor` äger den graderingen och den frågan är ställd till henne, inte
-      > till Klas en gång till. Utfallet skrivs in här när det finns.
+      > först. `security-auditor` äger den graderingen och den frågan ställdes till henne, inte
+      > till Klas en gång till.
+      > ⛔ **HENNES SVAR 2026-08-17: `JobTech__IngestEnabled=true` FÅR INTE SÄTTAS ÄNNU.** GO:t står
+      > kvar som giltigt affärsbeslut; det som är blockerat är **lådhandlingen**, inte GO:t, inte
+      > den här punkten och inte dokumentarbetet.
+      > **Klausulen utlöses av rekryterarkontakter.** Art. 33 löper på *personuppgiftsincident*
+      > (Art. 4(12)) definierad över *personuppgifter* (Art. 4(1)) — aldrig över kontoinnehavare.
+      > Ordet *user* i #1201:s AC saknas i tre av villkorets fyra hem, och ADR 0050 §6b skriver
+      > acceptansens scope som *"användardata"* och triggern som *"riktig data"* i angränsande
+      > meningar. Konverteringen har **ingen acceptansväg**: §9.6 stänger både (2) och (3) för en
+      > GDPR-Blocker, och M-7:s grund är Art. 32(1)(b)/33/5(2).
+      > ⚠ **Ads-only var ingen väg runt.** Tier A strippar e-post och telefon ur annonstexten men
+      > når inte namn (ingen NER, ADR 0106 D5), och `job_ads.organization_number` **är ett
+      > personnummer för en enskild firma**. Varianten utan rekryterarkontakter hade utlöst samma
+      > klausul.
+      > **Tre kumulativa krav före flippen**, alla mätta 2026-08-17 och ingen av dem uppfylld:
+      > (1) **båda ADR 0123-mitigeringarna byggda** — egen automationsnyckel med
+      > `restrict,command=,from=`, och `Cmnd_Alias`-avgränsning av `jpadmin`:s NOPASSWD;
+      > `vps-base-hardening.md:194` provisionerar alltjämt `jpadmin ALL=(ALL) NOPASSWD:ALL`.
+      > (2) **ett NYTT Klas-beviljande som täcker tillståndet MED riktig data** — det nuvarande
+      > upphör av egen kraft vid gränsen, eftersom det gäller *"while the box carries no real user
+      > data"*. **Den frågan ställs när (1) och (3) är klara, inte före.**
+      > (3) **båda M-7-benen verifierade på `host-detection.md` §7** — insamlingen är i stort
+      > verifierad, men **hela väcknings- och paging-kedjan är omätt**, och det är just den som gör
+      > Art. 33:s frist datbar. En auditd-regel som skriver till en logg ingen läser producerar
+      > ingen medvetenhet.
       En obockad ruta här betyder *"GO ej givet"* och ingenting annat — till skillnad från filens
       övriga rutor, där en obockad ruta inte får läsas som "inte levererat" (blockquoten ovan).
       ⚠ **Och en bockad ruta här är inte heller tillstånd i sig** — den är ett **record av** GO:t.

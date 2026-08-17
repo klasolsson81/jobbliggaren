@@ -99,9 +99,8 @@ test.describe("Redigering pausad (/cv/[id]) — #1373", () => {
 });
 
 test.describe("CV-hantering från hubben (#1373)", () => {
-  // Radering och namnbyte flyttade hit när /cv/[id] grindades. Raderingen bär GDPR-vikt:
-  // den är enda kvarvarande vägen att återkalla personnummer-samtycket för ett sparat CV
-  // (Art. 7(3) — återkallelse ska vara lika lätt som samtycket var att ge).
+  // Radering och namnbyte flyttade hit när /cv/[id] grindades; grunden bor i den
+  // routens doc-kommentar (`app/(app)/cv/[id]/page.tsx`).
   test("kan radera CV via bekräftelsedialog på kortet", async ({ page }) => {
     await seedResumeViaApi(BACKEND_URL, RUN_ID, "CV att radera", "Doris Dahl");
     await page.goto("/cv");

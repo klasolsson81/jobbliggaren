@@ -132,10 +132,8 @@ describe("ResumeCard (F6 P3a v3)", () => {
     ).toBeInTheDocument();
   });
 
-  // #1373: radering och namnbyte låg på den route som nu 404:ar. De strandade INTE med
-  // den. Raderingen bär dessutom GDPR-vikt: den är enda kvarvarande vägen att återkalla
-  // personnummer-samtycket för ett sparat CV (Art. 7(3) — återkallelse ska vara lika lätt
-  // som samtycket var att ge), så den här pinnen är en rättighetsgaranti, inte layout.
+  // #1373: dessa två pinnar är rättighetsgarantier, inte layout. Grunden bor i den
+  // grindade routens doc-kommentar (`app/(app)/cv/[id]/page.tsx`).
   it("bär raderingskontrollen — den finkorniga Art. 17/7(3)-vägen överlever grinden", () => {
     render(<ResumeCard resume={baseResume} />);
     expect(

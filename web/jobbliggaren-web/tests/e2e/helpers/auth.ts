@@ -114,3 +114,72 @@ export async function ensureConfirmedTestUser(baseURL: string, runId: number): P
   await ensureTestUser(baseURL, runId);
   await confirmTestUser(baseURL, runId);
 }
+
+/**
+ * Seeds a saved CV straight through the backend API and returns its id.
+ *
+ * Why this exists (#1061): the edit specs used to seed by driving `/cv/ny`. That route is now
+ * a session-gated 404 — create-from-scratch is deferred from the MVP — so the UI can no longer
+ * produce the precondition those specs need. `/cv/[id]` itself is still live, so the coverage
+ * is kept and only the seeding path moves.
+ *
+ * ⚠ This helper calls `POST /api/v1/resumes`, which #1371 is slated to REMOVE as an
+ * unreachable authenticated endpoint. When that lands, this helper must be re-seeded too —
+ * it is named as a consumer in that issue. Do not read its existence as a sign the endpoint
+ * is meant to stay.
+ *
+ * The API takes the session id as a Bearer token (ADR 0018 — the backend is cookie-agnostic;
+ * the Next proxy owns the cookie), so this logs in against the backend directly rather than
+ * borrowing the browser context's cookie.
+ */
+// One backend session per run, reused across seeds. NOT a micro-optimisation:
+// `/auth/login` sits behind the AuthWrite rate-limit policy (20 per 60s per IP),
+// and every `loginAs` in every spec shares that budget from the same IP. Logging
+// in once per seed would add one write per seeded CV on top of the per-test UI
+// logins — a rate-limit flake this helper would have introduced.
+// Keyed on runId + baseURL, not a bare string: `auth.ts` is shared across lanes, and a
+// second caller with a different runId would otherwise silently receive the first user's
+// session. One caller today; the key costs nothing and removes the trap.
+const cachedSessions = new Map<string, string>();
+
+async function seedSession(baseURL: string, runId: number): Promise<string> {
+  const key = `${baseURL}|${runId}`;
+  const cachedSessionId = cachedSessions.get(key);
+  if (cachedSessionId) return cachedSessionId;
+  const login = await fetch(`${baseURL}/api/v1/auth/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email: testEmail(runId), password: TEST_PASSWORD }),
+  });
+  if (!login.ok) {
+    throw new Error(`Failed to log in test user for seeding: ${login.status}`);
+  }
+  const { sessionId } = (await login.json()) as { sessionId: string };
+  cachedSessions.set(key, sessionId);
+  return sessionId;
+}
+
+export async function seedResumeViaApi(
+  baseURL: string,
+  runId: number,
+  name: string,
+  fullName: string,
+): Promise<string> {
+  assertSafeBaseURL(baseURL);
+
+  const sessionId = await seedSession(baseURL, runId);
+
+  const created = await fetch(`${baseURL}/api/v1/resumes`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${sessionId}`,
+    },
+    body: JSON.stringify({ name, fullName }),
+  });
+  if (!created.ok) {
+    throw new Error(`Failed to seed resume "${name}": ${created.status}`);
+  }
+  const { id } = (await created.json()) as { id: string };
+  return id;
+}

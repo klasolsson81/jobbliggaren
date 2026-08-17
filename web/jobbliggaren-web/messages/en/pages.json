@@ -66,12 +66,12 @@
   },
   "cv": {
     "title": "CV",
-    "lede": "Manage your CV variants. Import an existing CV for a review, or create a new one from scratch. You always stay in control.",
+    "lede": "Manage your CV variants. Import an existing CV for review. You always stay in control.",
     "importCv": "Import CV",
     "newCv": "New CV",
     "loadErrorTitle": "Could not load CV",
     "emptyTitle": "No CVs yet",
-    "emptyBody": "Create your first CV to get started. You can have several variants (for example one for leadership and one for a technical role) and choose the right CV for each application.",
+    "emptyBody": "Import your first CV to get started. You can have several variants (for example one for leadership and one for a technical role) and choose the right CV for each application.",
     "emptyCreateFirst": "Create first CV",
     "backLink": "Back to CV",
     "pending": {

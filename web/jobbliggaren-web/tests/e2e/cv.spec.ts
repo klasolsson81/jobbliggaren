@@ -1,5 +1,9 @@
 import { test, expect } from "@playwright/test";
-import { loginAs, ensureConfirmedTestUser } from "./helpers/auth";
+import {
+  loginAs,
+  ensureConfirmedTestUser,
+  seedResumeViaApi,
+} from "./helpers/auth";
 
 const BACKEND_URL = process.env.BACKEND_URL ?? "http://localhost:5049";
 // Unique run ID ensures each test run starts with a fresh user (no leftover CVs).
@@ -14,40 +18,55 @@ test.beforeEach(async ({ page }) => {
 });
 
 test.describe("CV-lista (/cv)", () => {
-  test("visar tom-tillstånd när inga CV finns", async ({ page }) => {
+  test("visar tom-tillstånd när inga CV finns, med import som enda ingång", async ({
+    page,
+  }) => {
     await page.goto("/cv");
     await expect(page.getByRole("heading", { name: "CV" })).toBeVisible();
     await expect(page.getByText("Inga CV ännu")).toBeVisible();
-    await expect(page.getByRole("link", { name: "Nytt CV" })).toBeVisible();
-  });
-});
 
-test.describe("Skapa CV (/cv/ny)", () => {
-  test("skapar ett CV och redirectar till detaljvy", async ({ page }) => {
-    await page.goto("/cv/ny");
-    await expect(page.getByRole("heading", { name: "Nytt CV" })).toBeVisible();
-
-    await page.getByLabel("Namn på CV").fill("Mitt master-CV");
-    await page.getByLabel("Fullständigt namn").fill("Anna Andersson");
-    await page.getByRole("button", { name: "Skapa CV" }).click();
-
-    await page.waitForURL(/\/cv\/[0-9a-f-]{36}/);
+    // #1061: skapa-från-grunden är deferrad. Hubben får inte erbjuda den i vare sig
+    // plattan eller tomt-tillståndet, och import är kvar som enda ingång.
+    await expect(page.getByRole("link", { name: "Nytt CV" })).toHaveCount(0);
+    await expect(page.getByRole("link", { name: "Skapa första CV" })).toHaveCount(0);
+    await expect(page.locator('a[href="/cv/ny"]')).toHaveCount(0);
     await expect(
-      page.getByRole("heading", { name: "Mitt master-CV" })
+      page.getByRole("link", { name: "Importera CV" }).first(),
     ).toBeVisible();
   });
 });
 
+test.describe("Skapa CV (/cv/ny) — deferrad (#1061)", () => {
+  // Det gamla blocket körde hela skapa-flödet. Flödet finns inte längre; det som pinnas nu
+  // är att en GISSAD URL inte når det. Testet körs som inloggad med flit — en utloggad
+  // besökare hade redirectats av session-grinden och aldrig mätt deferralen.
+  test("en gissad /cv/ny-URL når inte skapa-formuläret", async ({ page }) => {
+    await page.goto("/cv/ny");
+
+    // Positiv assertion först: enbart negationer skulle vara gröna även om sidan
+    // svarade 500, eller renderade en tom vit yta.
+    await expect(
+      page.getByRole("heading", { name: "Sidan finns inte" }),
+    ).toBeVisible();
+    await expect(page.getByLabel("Namn på CV")).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Skapa CV" })).toHaveCount(0);
+    await expect(page).not.toHaveURL(/\/logga-in/);
+  });
+});
+
 test.describe("Detaljvy och redigering (/cv/[id])", () => {
+  // Seedas via API sedan #1061 stängde /cv/ny. Sidan själv är oförändrad och fortfarande
+  // live — det är bara vägen till precondition som flyttat.
   test("kan fylla i sammanfattning och lägga till en erfarenhet", async ({
     page,
   }) => {
-    // Skapa ett nytt CV
-    await page.goto("/cv/ny");
-    await page.getByLabel("Namn på CV").fill("CV för redigering");
-    await page.getByLabel("Fullständigt namn").fill("Bertil Berg");
-    await page.getByRole("button", { name: "Skapa CV" }).click();
-    await page.waitForURL(/\/cv\/[0-9a-f-]{36}/);
+    const id = await seedResumeViaApi(
+      BACKEND_URL,
+      RUN_ID,
+      "CV för redigering",
+      "Bertil Berg",
+    );
+    await page.goto(`/cv/${id}`);
 
     // Fyll i sammanfattning
     await page
@@ -76,11 +95,13 @@ test.describe("Detaljvy och redigering (/cv/[id])", () => {
   });
 
   test("validerar att skill-år ej kan vara över 70", async ({ page }) => {
-    await page.goto("/cv/ny");
-    await page.getByLabel("Namn på CV").fill("CV med skill-fel");
-    await page.getByLabel("Fullständigt namn").fill("Cecilia Carlsson");
-    await page.getByRole("button", { name: "Skapa CV" }).click();
-    await page.waitForURL(/\/cv\/[0-9a-f-]{36}/);
+    const id = await seedResumeViaApi(
+      BACKEND_URL,
+      RUN_ID,
+      "CV med skill-fel",
+      "Cecilia Carlsson",
+    );
+    await page.goto(`/cv/${id}`);
 
     await page.getByRole("button", { name: "Lägg till färdighet" }).click();
     await page.getByLabel("Namn", { exact: true }).fill("C#");
@@ -91,12 +112,13 @@ test.describe("Detaljvy och redigering (/cv/[id])", () => {
   });
 
   test("kan radera CV via bekräftelsedialog", async ({ page }) => {
-    // Skapa ett CV att radera
-    await page.goto("/cv/ny");
-    await page.getByLabel("Namn på CV").fill("CV att radera");
-    await page.getByLabel("Fullständigt namn").fill("Doris Dahl");
-    await page.getByRole("button", { name: "Skapa CV" }).click();
-    await page.waitForURL(/\/cv\/[0-9a-f-]{36}/);
+    const id = await seedResumeViaApi(
+      BACKEND_URL,
+      RUN_ID,
+      "CV att radera",
+      "Doris Dahl",
+    );
+    await page.goto(`/cv/${id}`);
 
     await page.getByRole("button", { name: "Radera CV" }).click();
     await expect(page.getByRole("dialog")).toBeVisible();
@@ -110,11 +132,13 @@ test.describe("Detaljvy och redigering (/cv/[id])", () => {
   });
 
   test("kan byta namn på CV", async ({ page }) => {
-    await page.goto("/cv/ny");
-    await page.getByLabel("Namn på CV").fill("Gammalt namn");
-    await page.getByLabel("Fullständigt namn").fill("Erik Eriksson");
-    await page.getByRole("button", { name: "Skapa CV" }).click();
-    await page.waitForURL(/\/cv\/[0-9a-f-]{36}/);
+    const id = await seedResumeViaApi(
+      BACKEND_URL,
+      RUN_ID,
+      "Gammalt namn",
+      "Erik Eriksson",
+    );
+    await page.goto(`/cv/${id}`);
 
     await page.getByRole("button", { name: "Byt namn" }).click();
     await expect(page.getByRole("dialog")).toBeVisible();

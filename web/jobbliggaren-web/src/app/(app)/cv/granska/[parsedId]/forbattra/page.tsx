@@ -14,7 +14,8 @@ interface Props {
  * This route is kept and returns 404 at the route level — deliberately
  * notFound(), NOT permanentRedirect: the layer is deferred, not superseded,
  * so a 308 would assert a move that never happened AND be cached permanently
- * by browsers (parity mall/page.tsx, contrast komplettera/page.tsx). The
+ * by browsers (parity mall/page.tsx; komplettera/page.tsx contrasts in REASON
+ * only — it was genuinely superseded, but it answers with notFound() too). The
  * read-only review at /cv/granska/[parsedId] stays live. `CvImprovePanel`,
  * `getCvImprovements`, their DTO exports and the `cv.improve` i18n namespace
  * stay in the tree (untouched) but have no consumer here anymore. The session

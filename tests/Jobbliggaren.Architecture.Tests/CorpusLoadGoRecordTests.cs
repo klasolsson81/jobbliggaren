@@ -16,14 +16,16 @@ namespace Jobbliggaren.Architecture.Tests;
 /// <b>Why a test and not a convention.</b> Point 3.5 records the GO with an adjudicator, a date
 /// and a place, because Art. 5(2) requires compliance to be <i>demonstrable</i> and a tick without
 /// an author demonstrates nothing. A prose convention cannot stop a session flipping the box to
-/// <c>[x]</c> and leaving the record on its placeholder — and this file measures that such things
-/// happen here: that same box was ticked, reverted and ticked again inside one day (2026-08-16).
+/// <c>[x]</c> and leaving the record on its placeholder — and the checklist measures that such
+/// things happen here: <b>point 3's</b> box was ticked, reverted and ticked again inside one day
+/// (2026-08-16). Point 3.5's own box has never been ticked; the evidence is a sibling's, which is
+/// why it is attributed rather than borrowed.
 /// </para>
 ///
 /// <para>
 /// <b>Two complementary properties, and the second is what keeps the first alive.</b>
-/// Ticked ⇒ the record carries no placeholder. Unticked ⇒ the record carries <em>the</em>
-/// placeholder. The second exists because the first is a <b>negated</b> assertion, and a negated
+/// Ticked ⇒ the record carries none of its placeholders. Unticked ⇒ it carries all three
+/// verbatim (<c>_(ej givet)_</c>, <c>**Datum:** —</c>, <c>**Var:** —</c>). The second exists because the first is a <b>negated</b> assertion, and a negated
 /// assertion passes trivially once its pattern stops matching: reword the placeholder and
 /// <c>ShouldNotContain</c> would go green on an absent literal, silently and permanently. The
 /// drift vector is measured, not hypothetical — the line below the record already spells the same
@@ -36,6 +38,14 @@ namespace Jobbliggaren.Architecture.Tests;
 /// that is Klas's alone — nor about the other legs of the gate. A ticked box with a filled record
 /// passes even if the GO were unwise. The guard is against an <i>unattributable</i> tick, not an
 /// unwise one, and against the record's own decay.
+/// </para>
+///
+/// <para>
+/// <b>Coherence runs both ways, and that is delivered rather than incidental.</b> An unticked box
+/// with a filled-in record also fails — the checklist says an unticked box here means "GO not
+/// given" and nothing else, so a filled record behind one is the file contradicting itself. The
+/// cost is that noting the adjudicator <em>before</em> ticking is not a legal intermediate state:
+/// fill the record and tick in the same edit.
 /// </para>
 ///
 /// <para>
@@ -78,7 +88,10 @@ public class CorpusLoadGoRecordTests
         {
             recordLine.ShouldNotContain(
                 placeholder,
-                Case.Sensitive,
+                // Insensitive here is the fail-CLOSED direction: a NEGATED assertion should catch
+                // more spellings, not fewer. The positive assertion below is Sensitive for the
+                // mirror reason — it pins one exact literal.
+                Case.Insensitive,
                 $"{Checklist} §2.6 point 3.5 is TICKED while its GO record still carries the " +
                 $"placeholder \"{placeholder}\". The tick is a RECORD of Klas's explicit written " +
                 "GO, never the authorisation itself — so a ticked box without adjudicator, date " +
@@ -126,7 +139,7 @@ public class CorpusLoadGoRecordTests
     /// tautology and can never fail.
     /// </summary>
     [Fact]
-    public void CorpusGate_PointIsStillACheckboxItemWithAThreeSlotRecord()
+    public void CorpusGate_WhateverTheTickState_PointIsACheckboxWithAThreeSlotRecord()
     {
         var (checkboxLine, recordLine) = ReadPointMarkers();
 
@@ -135,13 +148,30 @@ public class CorpusLoadGoRecordTests
             "checkbox item. Both tests above branch on its ticked state, so they would return " +
             "early on every run and guard nothing at all.");
 
-        recordLine.ShouldContain(RecordLabel, Case.Sensitive, "the GO record needs its adjudicator slot");
+        var trimmed = checkboxLine.TrimStart();
+        trimmed.Length.ShouldBeGreaterThan(4, "the checkbox item is truncated");
+        (trimmed[3] is ' ' or 'x' or 'X').ShouldBeTrue(
+            $"point 3.5's checkbox state character is '{trimmed[3]}', which IsTicked cannot read. " +
+            "Both tests above branch on it, so an unreadable state character routes every run to " +
+            "the wrong branch silently.");
+
+        // The adjudicator slot is pinned by the BINDING (ExactlyOneLineContaining searches for it),
+        // so asserting it here would test this class's own search predicate. These two are not the
+        // binding marker, so they genuinely pin that all three slots share one line.
         recordLine.ShouldContain(DateLabel, Case.Sensitive, "an undated GO cannot be told from one that has decayed");
         recordLine.ShouldContain(PlaceLabel, Case.Sensitive, "the place is what makes the GO re-readable");
     }
 
+    /// <summary>
+    /// Case-INSENSITIVE by GFM: the task-list state character is "either a whitespace character
+    /// or the letter x in either lowercase or uppercase", so <c>- [X]</c> renders as checked. An
+    /// ordinal comparison here fails OPEN — <c>- [X]</c> with a placeholder record would send the
+    /// ticked test down its early return, leave the unticked test passing (the placeholders are
+    /// still there) and satisfy the vacuity guard, which is three greens on the one combination
+    /// this class exists to catch.
+    /// </summary>
     private static bool IsTicked(string checkboxLine) =>
-        checkboxLine.TrimStart().StartsWith("- [x]", StringComparison.Ordinal);
+        checkboxLine.TrimStart().StartsWith("- [x]", StringComparison.OrdinalIgnoreCase);
 
     private static (string CheckboxLine, string RecordLine) ReadPointMarkers()
     {

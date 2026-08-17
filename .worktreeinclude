@@ -31,7 +31,7 @@ docs/steg-tracker.md
 # already reads. The backlog is GitHub Issues; parked entries are in #1172.
 
 # Per-session logs + local agent reviews + local ADRs for context.
-# (Globs match ADR 0070–0199; already-tracked 0070–0073 are already present in
+# (Globs match ADR 0070–0199; already-tracked 0070 is already present in
 # the worktree, so re-copying them is redundant but harmless. The 01-glob was
 # added 2026-07-10 with ADR 0100, parity with .gitignore.)
 docs/sessions/

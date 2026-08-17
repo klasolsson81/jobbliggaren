@@ -15,24 +15,27 @@ namespace Jobbliggaren.Architecture.Tests;
 /// <para>
 /// <b>Why a test and not a convention.</b> Point 3.5 records the GO with an adjudicator, a date
 /// and a place, because Art. 5(2) requires compliance to be <i>demonstrable</i> and a tick without
-/// an author demonstrates nothing. But a prose convention cannot stop a session from flipping the
-/// box to <c>[x]</c> and leaving the record on its placeholder — and this file measures that such
-/// things happen here: that same box was ticked, reverted and ticked again inside one day
-/// (2026-08-16). Klas asked for the convention to be mechanically enforced rather than trusted.
+/// an author demonstrates nothing. A prose convention cannot stop a session flipping the box to
+/// <c>[x]</c> and leaving the record on its placeholder — and this file measures that such things
+/// happen here: that same box was ticked, reverted and ticked again inside one day (2026-08-16).
 /// </para>
 ///
 /// <para>
-/// <b>The property, and only it:</b> if point 3.5's box is ticked, its GO record must not still
-/// carry the placeholder. The test says nothing about whether a GO <i>should</i> be given — that
-/// is Klas's alone — nor about the other legs. A ticked box with a filled record passes even if
-/// the GO were unwise; the guard is against an <i>unattributable</i> tick, not an unwise one.
+/// <b>Two complementary properties, and the second is what keeps the first alive.</b>
+/// Ticked ⇒ the record carries no placeholder. Unticked ⇒ the record carries <em>the</em>
+/// placeholder. The second exists because the first is a <b>negated</b> assertion, and a negated
+/// assertion passes trivially once its pattern stops matching: reword the placeholder and
+/// <c>ShouldNotContain</c> would go green on an absent literal, silently and permanently. The
+/// drift vector is measured, not hypothetical — the line below the record already spells the same
+/// words in a different emphasis style. Only the unticked property crosses the threshold in the
+/// resting state, which is the state this repo is actually in.
 /// </para>
 ///
 /// <para>
-/// <b>Failure direction.</b> Every way this test can break is loud: a moved marker, a renamed
-/// point or a deleted record line all fail rather than pass silently. That is deliberate — a
-/// guard on a 51 347-record legal gate must not be able to go vacuously green, which is the
-/// defect class <see cref="JobSourceIngestGateConfigurationTests"/> exists for on the config side.
+/// <b>Scope, and only it:</b> the tests say nothing about whether a GO <i>should</i> be given —
+/// that is Klas's alone — nor about the other legs of the gate. A ticked box with a filled record
+/// passes even if the GO were unwise. The guard is against an <i>unattributable</i> tick, not an
+/// unwise one, and against the record's own decay.
 /// </para>
 ///
 /// <para>
@@ -47,50 +50,98 @@ public class CorpusLoadGoRecordTests
     /// this file went stale four times in two days.</summary>
     private const string PointHeading = "3.5 KORPUSLADDNINGEN";
 
-    /// <summary>The record line's label, and the placeholder that means "no GO given".</summary>
     private const string RecordLabel = "**GO givet av:**";
-    private const string NotGivenPlaceholder = "_(ej givet)_";
+    private const string DateLabel = "**Datum:**";
+    private const string PlaceLabel = "**Var:**";
+
+    /// <summary>The three placeholders that together mean "no GO given". Held alive by
+    /// <see cref="CorpusGate_WhenPointIsUnticked_RecordStillReadsItsPlaceholders"/>.</summary>
+    private const string NoAdjudicatorPlaceholder = "_(ej givet)_";
+    private const string NoDatePlaceholder = "**Datum:** —";
+    private const string NoPlacePlaceholder = "**Var:** —";
+
+    private static readonly string[] Placeholders =
+        [NoAdjudicatorPlaceholder, NoDatePlaceholder, NoPlacePlaceholder];
 
     [Fact]
     public void CorpusGate_WhenPointIsTicked_CarriesAnAdjudicatedGoRecord()
     {
         var (checkboxLine, recordLine) = ReadPointMarkers();
 
-        if (!checkboxLine.TrimStart().StartsWith("- [x]", StringComparison.OrdinalIgnoreCase))
+        if (!IsTicked(checkboxLine))
         {
-            // Unticked is the resting state and asserts nothing here: point 3.5 says an unticked
-            // box means "GO not given" and nothing else. The record's own placeholder is then the
-            // correct content, so there is nothing to check.
+            // Unticked is the resting state; the complementary test below owns it.
             return;
         }
 
-        recordLine.ShouldNotContain(
-            NotGivenPlaceholder,
-            Case.Sensitive,
-            $"{Checklist} §2.6 point 3.5 is TICKED while its GO record still reads " +
-            $"\"{NotGivenPlaceholder}\". The tick is a RECORD of Klas's explicit written GO, never " +
-            "the authorisation itself — so a ticked box with no adjudicator, date and place " +
-            "demonstrates nothing, and Art. 5(2) requires compliance to be demonstrable. Either " +
-            "fill in who gave the GO, when and where, or untick the box. This gate stands in " +
-            "front of 51 347 recruiter contact records.");
+        foreach (var placeholder in Placeholders)
+        {
+            recordLine.ShouldNotContain(
+                placeholder,
+                Case.Sensitive,
+                $"{Checklist} §2.6 point 3.5 is TICKED while its GO record still carries the " +
+                $"placeholder \"{placeholder}\". The tick is a RECORD of Klas's explicit written " +
+                "GO, never the authorisation itself — so a ticked box without adjudicator, date " +
+                "and place demonstrates nothing, and Art. 5(2) requires compliance to be " +
+                "demonstrable. Either fill in who gave the GO, when and where, or untick the " +
+                "box. This gate stands in front of 51 347 recruiter contact records.");
+        }
     }
 
     /// <summary>
-    /// Vacuity guard. The test above returns early on an unticked box, so every marker it depends
-    /// on must be proven present independently — otherwise a renamed point or a deleted record
-    /// line would make it pass by finding nothing to assert against, which is exactly how a guard
-    /// on a legal gate goes silently green.
+    /// The complementary property, and the one that actually executes today. It pins the
+    /// placeholders as PRESENT while the box is unticked, so the discriminator the ticked test
+    /// negates cannot drift out of existence unnoticed. Without this, rewording the placeholder
+    /// would leave both tests green and kill the guard permanently — and the record's own
+    /// surrounding prose already spells the same words a different way one line below.
     /// </summary>
     [Fact]
-    public void CorpusGate_MarkersAreActuallyPresent()
+    public void CorpusGate_WhenPointIsUnticked_RecordStillReadsItsPlaceholders()
     {
         var (checkboxLine, recordLine) = ReadPointMarkers();
 
-        checkboxLine.ShouldContain(PointHeading);
-        recordLine.ShouldContain(RecordLabel);
-        recordLine.ShouldContain("**Datum:**");
-        recordLine.ShouldContain("**Var:**");
+        if (IsTicked(checkboxLine))
+        {
+            // A GO has been given and recorded; the ticked test owns that state.
+            return;
+        }
+
+        foreach (var placeholder in Placeholders)
+        {
+            recordLine.ShouldContain(
+                placeholder,
+                Case.Sensitive,
+                $"{Checklist} §2.6 point 3.5 is UNTICKED, so its GO record must still read " +
+                $"\"{placeholder}\" verbatim. This assertion exists to keep that literal alive: " +
+                "the ticked-state test NEGATES it, and a negated assertion passes trivially once " +
+                "its pattern stops matching. Reword the placeholder without updating this file " +
+                "and the whole guard goes silently green on the day the box is ticked. If the " +
+                "wording must change, change it here in the same commit — do not delete this.");
+        }
     }
+
+    /// <summary>
+    /// Vacuity guard. It pins the FORM the two tests above depend on, not the strings that found
+    /// the lines — asserting that a line found by a substring contains that substring is a
+    /// tautology and can never fail.
+    /// </summary>
+    [Fact]
+    public void CorpusGate_PointIsStillACheckboxItemWithAThreeSlotRecord()
+    {
+        var (checkboxLine, recordLine) = ReadPointMarkers();
+
+        checkboxLine.TrimStart().StartsWith("- [", StringComparison.Ordinal).ShouldBeTrue(
+            $"the line carrying \"{PointHeading}\" in {Checklist} is no longer a markdown " +
+            "checkbox item. Both tests above branch on its ticked state, so they would return " +
+            "early on every run and guard nothing at all.");
+
+        recordLine.ShouldContain(RecordLabel, Case.Sensitive, "the GO record needs its adjudicator slot");
+        recordLine.ShouldContain(DateLabel, Case.Sensitive, "an undated GO cannot be told from one that has decayed");
+        recordLine.ShouldContain(PlaceLabel, Case.Sensitive, "the place is what makes the GO re-readable");
+    }
+
+    private static bool IsTicked(string checkboxLine) =>
+        checkboxLine.TrimStart().StartsWith("- [x]", StringComparison.Ordinal);
 
     private static (string CheckboxLine, string RecordLine) ReadPointMarkers()
     {
@@ -99,24 +150,33 @@ public class CorpusLoadGoRecordTests
 
         var lines = File.ReadAllLines(path);
 
-        var headingIndex = Array.FindIndex(lines, l => l.Contains(PointHeading, StringComparison.Ordinal));
-        headingIndex.ShouldBeGreaterThanOrEqualTo(
-            0,
-            $"could not find \"{PointHeading}\" in {Checklist}. If the point was renamed, this " +
-            "guard must be repointed in the same change — do not delete it: it is the only " +
-            "mechanical check that a ticked corpus gate carries an attributable GO.");
+        var checkboxLine = ExactlyOneLineContaining(lines, PointHeading);
+        var recordLine = ExactlyOneLineContaining(lines, RecordLabel);
 
-        var recordIndex = Array.FindIndex(
-            lines,
-            headingIndex,
-            l => l.Contains(RecordLabel, StringComparison.Ordinal));
-        recordIndex.ShouldBeGreaterThanOrEqualTo(
-            0,
-            $"point 3.5 in {Checklist} no longer carries its \"{RecordLabel}\" record line. That " +
-            "line is what makes a tick demonstrable under Art. 5(2); removing it silently " +
-            "converts the gate back into an unattributable checkbox.");
+        return (checkboxLine, recordLine);
+    }
 
-        return (lines[headingIndex], lines[recordIndex]);
+    /// <summary>
+    /// Binds a marker only when it is unique. First-match binding is how a guard quietly rebinds
+    /// to a cross-reference or a table-of-contents entry and keeps passing against the wrong line
+    /// — the same reason <c>BackupUnitFilePinTests</c> requires uniqueness for its directives.
+    /// </summary>
+    private static string ExactlyOneLineContaining(string[] lines, string marker)
+    {
+        var matches = lines
+            .Where(line => line.Contains(marker, StringComparison.Ordinal))
+            .ToList();
+
+        matches.Count.ShouldBe(
+            1,
+            $"expected exactly one line containing \"{marker}\" in {Checklist}, found " +
+            $"{matches.Count}. Zero means the marker was renamed or deleted — repoint this guard " +
+            "in the same change rather than removing it, because it is the only mechanical check " +
+            "that a ticked corpus gate carries an attributable GO. More than one means a prose " +
+            "cross-reference now shadows the real marker, and binding the first match would let " +
+            "this guard assert against a line that is not the point at all.");
+
+        return matches[0];
     }
 
     private static string RepositoryRoot()

@@ -130,10 +130,10 @@ export default async function CvReviewPage({ params, searchParams }: Props) {
         {/* The file name stays in the container, not in the hero: the hero carries the page's
             IDENTITY (title + lede), while this line says which document is under review —
             content, not identity.
-            NOT for want of a contrast decision on the plate: `.jp-pagehero__kicker` is exactly
-            a mono overline there and measures 5.07–12.12:1 across the gradient stops. The
-            reason that actually holds is that the kicker sets `text-transform: uppercase`,
-            which would render `cv.docx` as `CV.DOCX`. */}
+            NOT for want of a contrast decision on the plate — `.jp-pagehero__kicker` is exactly
+            a mono overline there, so that decision is already made. What rules it out is that
+            the kicker sets `text-transform: uppercase`, which would render `cv.docx` as
+            `CV.DOCX`. */}
         <p className="jp-cv-meta">
           <span className="jp-cv-meta__file">{parsed.sourceFileName}</span>
         </p>

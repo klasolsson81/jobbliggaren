@@ -13,13 +13,18 @@ import type { ReactNode } from "react";
  * (gradient plate, padding, flex) matches automatically.
  *
  * ⚠ **It does not follow that the swap never shifts, and this docblock used to claim it
- * did.** The claim was measured false (#1062, design-reviewer M-A): the lede is one 16px
- * bar here, and a lede that wraps to three lines renders 74px, so the band grew 168 → 231px
- * on `/cv/granska/[parsedId]` and 38px on `/cv`. Measured CLS stayed **0** — a route swap
- * replaces nodes rather than moving them, so this was visible jumpiness and not an ADR 0045
- * regression — but "matches the envelope" is the honest claim, not "does not shift".
- * `ledeLines` is what closes the remaining gap: pass the number of lines the real lede wraps
- * to at the narrowest viewport it is measured on.
+ * did.** The claim was measured false (#1062, design-reviewer M-A): the lede was one 16px bar
+ * here, and a lede that wraps to three lines renders 74.4px, so the band grew 168 → 231px on
+ * `/cv/granska/[parsedId]` and 38px on `/cv`. Measured CLS stayed **0** — a route swap replaces
+ * nodes rather than moving them, so this was visible jumpiness and not an ADR 0045 regression —
+ * but "matches the envelope" is the honest claim, not "does not shift".
+ *
+ * `ledeLines` closes most of it: pass the number of lines the real lede wraps to at the
+ * narrowest viewport it is measured on. What remains on a 3-line lede is **14.8px**, and the
+ * decomposition matters because the obvious guess is wrong — only 4.4px is the title bar
+ * (`h-11` = 44px against a rendered 48.4px); **10.4px is these lede bars**, whose
+ * `16px + 8px` rungs do not sum to the paragraph's `8px + 3 × 24.8px`. Closing it means
+ * matching the real line box, not raising the title default.
  *
  * Flat neutral grey `.jp-skeleton` blocks sized with Tailwind utilities, no
  * pulse/shimmer/glow (civic-utility, mirrors JobAdListSkeleton/AuthCardSkeleton).

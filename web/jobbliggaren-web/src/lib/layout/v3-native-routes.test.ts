@@ -3,6 +3,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { V3_NATIVE_ROUTES, isV3Native } from "./v3-native-routes";
+import { stripComments } from "./strip-comments";
 
 /**
  * Freezes the obligation `V3_NATIVE_ROUTES` creates (#1062). What that obligation is, and the
@@ -20,51 +21,6 @@ const SRC = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 
 /** A page owns its width when it renders either shell. Both are defined in globals.css. */
 const CONTAINER_CLASSES = ["jp-pagehero", "jp-container"];
-
-/**
- * Source with comments removed, string literals preserved.
- *
- * ⚠ **This is the load-bearing part of the guard, and its absence made the first revision
- * fail-open on the very file this PR rebuilt.** `cv/[id]/granska/page.tsx` gained a docblock naming
- * `jp-pagehero` and `jp-container jp-page` in prose, so a plain `source.includes()` was satisfied by
- * the comment: with every container class deleted from its markup, the guard still reported green.
- * The mutation proof missed it because it had picked `/cv/importera`, whose docblock happens not to
- * name the classes — a proof that passed while the hole stood open two files away.
- *
- * Reading `className="…"` attributes instead was tried and rejected: it cannot see
- * `className={wrapperClass}`, which is how `PlainHeaderSkeleton` (the delegate behind
- * `/ny-ansokan/loading.tsx`) genuinely owns its container. That form is real and correct, so an
- * extractor that cannot read it produces false failures rather than safety.
- *
- * The scanner tracks quotes so a `//` inside `href="https://…"` is not mistaken for a comment —
- * which would truncate the rest of the line and could drop a real class.
- */
-function stripComments(source: string): string {
-  let out = "";
-  let quote: string | null = null;
-  for (let i = 0; i < source.length; i++) {
-    const c = source[i]!;
-    if (quote) {
-      if (c === "\\") { out += c + (source[i + 1] ?? ""); i++; continue; }
-      if (c === quote) quote = null;
-      out += c;
-      continue;
-    }
-    if (c === '"' || c === "'" || c === "`") { quote = c; out += c; continue; }
-    if (c === "/" && source[i + 1] === "*") {
-      const end = source.indexOf("*/", i + 2);
-      i = end === -1 ? source.length : end + 1;
-      continue;
-    }
-    if (c === "/" && source[i + 1] === "/") {
-      const end = source.indexOf("\n", i);
-      i = end === -1 ? source.length : end - 1;
-      continue;
-    }
-    out += c;
-  }
-  return out;
-}
 
 type RouteFile = { file: string; url: string; source: string };
 

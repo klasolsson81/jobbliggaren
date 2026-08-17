@@ -21,7 +21,11 @@ export default function Loading() {
         {t("navLoading.cv")}
       </span>
 
-      <PageHeroSkeleton />
+      {/* ledeLines={2}: this hub's real lede wraps to two lines (49.6px), and reserving one
+          left the band 38px short (#1062, design-reviewer). The mechanism was added for
+          /cv/granska/[parsedId] and this is the second home of the same property — landing it
+          on one of two would have been the failure this PR spent its guard on. */}
+      <PageHeroSkeleton ledeLines={2} />
 
       <div className="jp-container jp-page" aria-hidden="true">
         <div className="jp-cvgrid">

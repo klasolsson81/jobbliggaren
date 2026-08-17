@@ -1609,7 +1609,7 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
         formen "i dag finns inga uppgifter om dig hos leverantören" hade varit falsk om en
         rekryterare i samma sekund korpuset laddats.
       DPA-signering = **Klas**, aldrig CC.
-- [ ] **3.5 KORPUSLADDNINGEN — KLAS UTTRYCKLIGA SKRIFTLIGA GO, och ingenting annat.**
+- [x] **3.5 KORPUSLADDNINGEN — KLAS UTTRYCKLIGA SKRIFTLIGA GO, och ingenting annat.**
       **Detta är hemmet för villkoret som grindar `JobTech__IngestEnabled=true`**, och
       vakterna i `src/`, `tests/` och runbookerna pekar hit.
       **Villkoret är ett BESLUT, inte ett härledbart tillstånd** (Klas 2026-08-16, på
@@ -1662,7 +1662,53 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
       punkt 3:s led. En bock utan upphovsman visar ingenting, och Art. 5(2) kräver att efterlevnad
       är *visbar*; att det inte är teoretiskt mäter den här filen själv — punkt 3:s ruta bockades,
       återställdes och bockades igen under ett dygn.
-      > **GO givet av:** _(ej givet)_ · **Datum:** — · **Var:** —
+      > **GO givet av:** Klas Olsson · **Datum:** 2026-08-17 · **Var:** Claude Code-session, i svar
+      > på en `AskUserQuestion` som ställde valet mellan full ingest, en variant utan
+      > rekryterarkontakter, och att bara verifiera bakgrundsjobben först. Klas valde full ingest.
+      > **Vad GO:t uttryckligen omfattar:** `JobTech__IngestEnabled=true` på lådan, alltså både
+      > jobbannonser och **deklarerade rekryterarkontakter** (`application_contacts` →
+      > `AdContact`), på den registrerade tio-minuterskadensen.
+      > **M-7 var namngiven i frågan och är därmed del av det informerade GO:t.** Klas tillägg i
+      > samma tur, som faktapremiss och inte som grindavgörande: rekryterarkontakter bär aldrig
+      > personnummer utan namn, roll, e-post och telefon, och uppgifterna är redan publicerade på
+      > Platsbanken. Premissen är mätt mot koden — `PlatsbankenJobSource.MapContacts` anropar
+      > `AdContact.TryCreate(name, role, email, phone, Declared)` och har inget
+      > personnummerfält. **Att uppgifterna är publika gör dem inte till icke-personuppgifter**,
+      > och det är därför Art. 14-notisen levererades 2026-08-16 i stället för att avfärdas; den
+      > punkten är bockad ovan och tas inte upp igen.
+      > ⚠ **Vad GO:t INTE avgör:** om M-7:s konvertering får accepteras eller måste byggas bort
+      > först. `security-auditor` äger den graderingen och den frågan ställdes till henne, inte
+      > till Klas en gång till.
+      > ⛔ **HENNES SVAR 2026-08-17: `JobTech__IngestEnabled=true` FÅR INTE SÄTTAS ÄNNU.** GO:t står
+      > kvar som giltigt affärsbeslut; det som är blockerat är **lådhandlingen**, inte GO:t, inte
+      > den här punkten och inte dokumentarbetet.
+      > **Klausulen utlöses av rekryterarkontakter.** Art. 33 löper på *personuppgiftsincident*
+      > (Art. 4(12)) definierad över *personuppgifter* (Art. 4(1)) — aldrig över kontoinnehavare.
+      > Skillnaden ligger i **triggerformuleringen**, inte i dokumenten: grindraden, §6b och
+      > `security-auditor`s charter säger alla *"riktig data"* där de anger vad som utlöser, medan
+      > ordet *user* står i #1201:s AC. Att samma dokument på andra ställen talar om
+      > *användardata* är just poängen — §6b skriver acceptansens scope som *"användardata"* och
+      > triggern som *"riktig data"* i samma avsnitt, och säger uttryckligen att triggern är samma
+      > text som grindraden. Räkna inte hemmen här; det talet underräknade redan en gång.
+      > Konverteringen har **ingen acceptansväg**: §9.6 stänger både (2) och (3) för en
+      > GDPR-Blocker, och M-7:s grund är Art. 32(1)(b)/33/5(2).
+      > ⚠ **Ads-only var ingen väg runt.** Tier A strippar e-post och telefon ur annonstexten men
+      > når inte namn (ingen NER, ADR 0106 D5), och `job_ads.organization_number` **är ett
+      > personnummer för en enskild firma**. Varianten utan rekryterarkontakter hade utlöst samma
+      > klausul.
+      > **Tre kumulativa krav före flippen**, alla mätta 2026-08-17 och ingen av dem uppfylld:
+      > (1) **båda ADR 0123-mitigeringarna byggda** — egen automationsnyckel med
+      > `restrict,command=,from=`, och `Cmnd_Alias`-avgränsning av `jpadmin`:s NOPASSWD;
+      > `vps-base-hardening.md` §11 (Deviation log) äger båda mitigeringarna; **provisioneringen
+      > bor i §4.0 Bootstrap** och sätter alltjämt `jpadmin ALL=(ALL) NOPASSWD:ALL`. Två avsnitt,
+      > och det är därför inget av dem ensamt visar att kravet är öppet.
+      > (2) **ett NYTT Klas-beviljande som täcker tillståndet MED riktig data** — det nuvarande
+      > upphör av egen kraft vid gränsen, eftersom det gäller *"while the box carries no real user
+      > data"*. **Den frågan ställs när (1) och (3) är klara, inte före.**
+      > (3) **båda M-7-benen verifierade på `host-detection.md` §7** — insamlingen är i stort
+      > verifierad, men **hela väcknings- och paging-kedjan är omätt**, och det är just den som gör
+      > Art. 33:s frist datbar. En auditd-regel som skriver till en logg ingen läser producerar
+      > ingen medvetenhet.
       En obockad ruta här betyder *"GO ej givet"* och ingenting annat — till skillnad från filens
       övriga rutor, där en obockad ruta inte får läsas som "inte levererat" (blockquoten ovan).
       ⚠ **Och en bockad ruta här är inte heller tillstånd i sig** — den är ett **record av** GO:t.

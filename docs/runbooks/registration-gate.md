@@ -23,11 +23,14 @@ forbids it, and this file is the path it prescribes instead.
 
 ## 2. Preconditions
 
-1. **The email flip is done.** `Email__Provider=Scaleway` with both credentials injected
-   and the region set, per `deploy/.env.example`'s outbound-email block — follow that
-   block's own inject-before-you-edit order; it is not restated here. Under `Console`
-   (today's default) the api resolves `NullEmailSender`, which cannot deliver, and opening
-   the gate is a boot refusal.
+1. **The email flip is done — and taking it is not this runbook's step.**
+   `Email__Provider=Scaleway` with both credentials injected and the region set, per
+   `deploy/.env.example`'s outbound-email block, whose inject-before-you-edit order is not
+   restated here. **Setting that value IS the prod flip:** `release-checklist.md` §2.5 is the
+   gate on it and Klas is the only one who may take it, never CC — so this precondition is
+   not CC-satisfiable, and nothing below discharges it. Read §2.5 itself for where that gate
+   stands; no status is summarised here. Under `Console` the api resolves `NullEmailSender`,
+   which cannot deliver, and opening the gate is a boot refusal.
 2. **The Scaleway artifacts exist:** a Transactional Email API key (secret key) and the
    project id, generated in the Scaleway console. Producing them is the operator's step and
    belongs to [#183](https://github.com/klasolsson81/jobbliggaren/issues/183); this runbook
@@ -88,11 +91,14 @@ applies the compose file it finds on disk; it runs no `git` at all. Until this p
 compose file on the box has no `Auth__*` passthrough and the knobs below reach nothing —
 they would sit in `.env` looking set, and the gate would stay closed with no error.
 
-**1. Inject the mail credentials before editing `.env`.** Per the email block's order:
-setting `EMAIL_PROVIDER=Scaleway` while the files are absent is itself a boot refusal, so
-editing first takes the stack down and the injection then happens under an outage.
+**1. Inject the mail credentials before editing `.env` — Klas's step, and only where
+precondition 1 is being discharged in this visit.** Per the email block's order: setting
+`EMAIL_PROVIDER=Scaleway` while the files are absent is itself a boot refusal, so editing
+first takes the stack down and the injection then happens under an outage. Where the flip
+already happened, this step and step 2's email lines are done; skip them rather than
+re-running them. A later visit reaches these two steps with nothing left for them to do.
 
-**2. Edit `deploy/.env`** in one pass — the email lines per that block, then:
+**2. Edit `deploy/.env`** in one pass — the email lines where step 1 applied, then:
 
 ```
 AUTH_REGISTRATIONS_OPEN=true

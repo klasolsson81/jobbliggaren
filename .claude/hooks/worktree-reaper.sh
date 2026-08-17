@@ -159,7 +159,7 @@ for i in "${!WT_PATHS[@]}"; do
   # comment below knew half of this ("the marker is gitignored, so it does not block the
   # removal") and did not follow the implication: nothing else gitignored blocks it
   # either. Those files are the ONLY copy — agent reviews, CTO verdicts, session logs and
-  # every ADR from 0074 on live nowhere else.
+  # every ADR from 0071 on live nowhere else.
   #
   # The pathspec is DERIVED from .worktreeinclude, never re-typed here: that file is the
   # SSOT for "gitignored local docs a worktree carries" (§6.5), and a second hand-kept

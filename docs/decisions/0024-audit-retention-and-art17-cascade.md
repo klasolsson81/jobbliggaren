@@ -720,6 +720,6 @@ The general "Fas 6 retro-fit" of failed-attempt audit (`AuditBehavior.cs:36`) is
 
 Additive amendment. The original text and all prior amendments stand unaltered; the 2026-05-13 cross-ref section is **retained as the record of what was believed and why it failed**, with a superseded banner rather than a rewrite. The corrected cascade is §2 of this amendment.
 
-Docs-sync ships in the same PR as scope (ADR 0065) — no docs-only PR. **This ADR does not restate ADR 0106; it points to it.** ADR 0106 is the decision record for the two-tier contract and is **local/gitignored per ADR 0072** (0074+), which is why its substance is summarised here in the tracked registry rather than linked as a tracked file.
+Docs-sync ships in the same PR as scope (ADR 0065) — no docs-only PR. **This ADR does not restate ADR 0106; it points to it.** ADR 0106 is the decision record for the two-tier contract and is **local/gitignored per ADR 0072** (0071+), which is why its substance is summarised here in the tracked registry rather than linked as a tracked file.
 
 **Referenser:** #842, #843, #845, #824, #841, #821, #805-3, ADR 0032 (§8 + amendments A2/A3), ADR 0049, ADR 0071, ADR 0072, ADR 0086, ADR 0087 D8(a), ADR 0090 D5, ADR 0106, CTO ruling 2026-07-13, evidence pack 2026-07-13, GDPR Art. 5(1)(c)/5(2), 12(3), 17(1)/17(3)(e), 19, 25(2), 30, CJEU C-131/12 (*Google Spain*), CLAUDE.md §2.2/§3/§5/§6.5/§9.2/§12.

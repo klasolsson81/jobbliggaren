@@ -50,6 +50,9 @@
 -w /run/jobbliggaren -p rwa -k jbl-key-tmpfs
 
 # --- The two controls ADR 0123's open mitigations name ---------------------------------------
+# Those mitigations are void as written (measured 2026-08-17; vps-base-hardening.md §11). These
+# watches are unaffected: they detect writes to the two controls, which is worth having whether or
+# not either control is ever narrowed. Do not read the void as retiring the watches.
 # -p wa, not rwa: a read watch on sudoers would fire on every single `sudo` invocation, which is
 # alarm fatigue as a mechanism. The attack is the WRITE.
 #

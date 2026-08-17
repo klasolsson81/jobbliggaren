@@ -202,3 +202,76 @@ describe("/cv — the pending card and the empty state are mutually exclusive", 
     expect(screen.queryByText(/vad som saknas/)).not.toBeInTheDocument();
   });
 });
+
+describe("/cv — the create-from-scratch affordances are gone (#1061)", () => {
+  // The deferral is only real if NO navigation reaches the create form. These pins are the
+  // /cv half; `cv/ny/page.test.tsx` pins the route half. Splitting them matters: a guard that
+  // only checks the links would stay green against a bookmarked URL, which is the exact
+  // "dold nav" outcome the issue exists to prevent.
+
+  it("renders no link to /cv/ny in the page-hero when the user HAS CVs", async () => {
+    getResumes.mockResolvedValue(listWith("Mitt CV"));
+    getLatestPendingParsedResume.mockResolvedValue({ kind: "ok", data: null });
+
+    render(await CvListPage());
+
+    // Asserted on the href, not the label: renaming the button would slip past a name-based
+    // check while still routing into the deferred feature.
+    const toCreate = screen
+      .getAllByRole("link")
+      .filter((a) => a.getAttribute("href") === "/cv/ny");
+    expect(toCreate).toHaveLength(0);
+    expect(screen.queryByText("Nytt CV")).not.toBeInTheDocument();
+
+    // Import survives as the hub's only entrance, and it must not be deleted along with them.
+    expect(screen.getByRole("link", { name: /Importera CV/ })).toHaveAttribute(
+      "href",
+      "/cv/importera",
+    );
+  });
+
+  it("renders no link to /cv/ny in the EMPTY state, which still offers import", async () => {
+    // The empty state is the second, independent home. A fix that landed in one of the two is
+    // not a fix, and this is the arm a user with no CVs actually meets.
+    getResumes.mockResolvedValue(emptyList());
+    getLatestPendingParsedResume.mockResolvedValue({ kind: "ok", data: null });
+
+    render(await CvListPage());
+
+    expect(screen.getByText("Inga CV ännu")).toBeInTheDocument();
+    const toCreate = screen
+      .getAllByRole("link")
+      .filter((a) => a.getAttribute("href") === "/cv/ny");
+    expect(toCreate).toHaveLength(0);
+    expect(screen.queryByText("Skapa första CV")).not.toBeInTheDocument();
+
+    // Two import links render in this state — the page-hero's and the empty state's own.
+    // A count, not `.first()`: a first-match check would still pass if the empty block's
+    // action were dropped, because the hero's would satisfy it. The count cannot say WHICH
+    // two rendered, so the empty block's own action is asserted separately below.
+    const toImport = screen
+      .getAllByRole("link")
+      .filter((a) => a.getAttribute("href") === "/cv/importera");
+    expect(toImport).toHaveLength(2);
+    // The empty state's action specifically — scoped by its own class, so this fails if the
+    // hero's link is the only survivor.
+    expect(
+      document.querySelector('.jp-empty__actions a[href="/cv/importera"]'),
+    ).not.toBeNull();
+  });
+
+  it("promises creation in NO prose either, in the lede or the empty body", async () => {
+    // Chrome and copy are two different homes for the same false promise. Deleting the buttons
+    // while the lede still advertises "eller skapa ett nytt från grunden" ships a page that
+    // says in prose what the same commit removed in chrome.
+    getResumes.mockResolvedValue(emptyList());
+    getLatestPendingParsedResume.mockResolvedValue({ kind: "ok", data: null });
+
+    render(await CvListPage());
+
+    expect(screen.queryByText(/skapa ett nytt från grunden/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Skapa ditt första CV/i)).not.toBeInTheDocument();
+    // …and the replacement is present and true: import is how you get your first CV in.
+    expect(screen.getByText(/Importera ditt första CV/i)).toBeInTheDocument();
+  });
+});

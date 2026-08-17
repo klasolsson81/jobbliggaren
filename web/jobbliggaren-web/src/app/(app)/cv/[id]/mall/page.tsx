@@ -13,8 +13,9 @@ interface Props {
  * is deferred rather than superseded — nothing at /cv/[id] takes over its
  * function, so a 308 would assert a move that never happened AND be cached
  * permanently by browsers, locking visitors out of the URL if the builder
- * returns (contrast komplettera/page.tsx, where the Slutför guide genuinely
- * replaced the route). `TemplateBuilder`, `template-schematic`, the
+ * returns. Contrast komplettera/page.tsx in REASON, not mechanism — the Slutför
+ * guide genuinely replaced that route, but it too answers with notFound(), not
+ * a 308. `TemplateBuilder`, `template-schematic`, the
  * `jp-mallbuilder` CSS block and the `pages.cv.mall` i18n namespace stay in the
  * tree (untouched) but have no consumer here anymore. The session gate runs
  * BEFORE the 404 so an unauthenticated visitor still lands on /logga-in —

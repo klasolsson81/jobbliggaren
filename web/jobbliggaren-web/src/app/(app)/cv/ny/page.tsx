@@ -1,41 +1,48 @@
-import Link from "next/link";
-import { redirect } from "next/navigation";
-import { getTranslations } from "next-intl/server";
-import { ChevronLeft } from "lucide-react";
+import { notFound, redirect } from "next/navigation";
 import { getServerSession } from "@/lib/auth/session";
-import { CreateResumeForm } from "@/components/resumes/create-resume-form";
 
 /**
- * /cv/ny — skapa ett nytt CV, fullsida. RSC: auth-grind + civic page-hero,
- * sedan den interaktiva `<CreateResumeForm />` (klient-ö för useActionState).
- * Detta är hard-load- / no-JS- / delbar-länk-fallbacken; soft-nav från /cv
- * fångas i stället av @modal/(.)cv/ny och visas som modal (ADR 0053). Samma
- * `CreateResumeForm` i båda (DRY).
+ * /cv/ny — skapa ett CV från grunden, RETIRED (deferrad, inte raderad — #1061,
+ * Klas live-verifiering 2026-07-25: "Detta är funktioner som inte ska vara med
+ * i MVP"). Denna route behålls och returnerar 404 på route-nivå, så en gissad,
+ * bokmärkt eller autocompletead URL inte kan nå ett fungerande skapa-formulär.
+ *
+ * Medvetet notFound(), INTE permanentRedirect: skapa-vägen är deferrad, inte
+ * ersatt — ingenting tar över dess funktion, så en 308 hade påstått en flytt
+ * som aldrig skett OCH cachats permanent av webbläsare, vilket låst ute
+ * besökare även efter att vägen återvänder. Samma mekanism och samma skäl som
+ * `cv/[id]/mall/page.tsx` (mallbyggaren) och
+ * `cv/granska/[parsedId]/forbattra/page.tsx` (åtgärda-lagret).
+ * `cv/granska/[parsedId]/komplettera/page.tsx` använder också `notFound()`.
+ * Den skiljer sig i SKÄL, inte i mekanism: Slutför-guiden ersatte den genuint,
+ * och 308:an avvisades även där eftersom målet självt är en 404.
+ *
+ * Session-grinden körs FÖRE 404:n: en utloggad besökare landar på /logga-in,
+ * aldrig på en 404 som avslöjar att routen finns. Route-existens är ingen
+ * auth-orakel åt något håll.
+ *
+ * VIKTIGT om scope: detta är INTE ADR 0112 verkställd konsekvent. ADR 0112
+ * retirerade MALLbyggaren, ACT-lagret och Fas C, och nämner varken /cv/ny eller
+ * CreateResumeCommand (mätt 2026-08-17: noll träffar). #1061 UTVIDGAR alltså
+ * deferralen till skapa-från-grunden — ett nytt scope-beslut, recordat som ett
+ * amendment till ADR 0112. ADR:n är gitignorerad (0071+), så denna kommentar är
+ * den beständiga, spårade posten och är skriven för att stå själv.
+ *
+ * Kvar i trädet, inert och orört (ADR 0112 §Mechanism 1 — billig återgång slår
+ * städning): `components/resumes/create-resume-form.tsx` med sitt enhetstest,
+ * `lib/actions/resumes.ts:createResumeAction`, i18n-nycklarna `pages.cv.new.*`,
+ * `pages.cv.newCv` och `pages.cv.emptyCreateFirst`. Backend-ytan
+ * (`POST /api/v1/resumes` → `CreateResumeCommand`) blir onåbar av denna ändring
+ * och retireras i en EGEN PR (annan change-reason, annan lane, andra
+ * obligatoriska agenter): #1371.
+ *
+ * ORÖRT: /cv/granska (granskaren är produkten efter pivoten, ADR 0112) och
+ * /cv/[id] (redigering av ett redan sparat CV) — den senare är en öppen fråga
+ * hos Klas, inte ett förbiseende.
  */
 export default async function NyCvPage() {
   const user = await getServerSession();
   if (!user) redirect("/logga-in");
 
-  const t = await getTranslations("pages");
-
-  return (
-    <div className="flex flex-col gap-6">
-      <Link
-        href="/cv"
-        className="inline-flex items-center gap-1 text-body-sm text-text-primary hover:underline self-start"
-      >
-        <ChevronLeft size={16} aria-hidden="true" />
-        <span>{t("cv.backLink")}</span>
-      </Link>
-
-      <header className="flex flex-col gap-2">
-        <h1 className="jp-h1">{t("cv.new.title")}</h1>
-        <p className="jp-lede">{t("cv.new.lede")}</p>
-      </header>
-
-      <div className="max-w-lg">
-        <CreateResumeForm />
-      </div>
-    </div>
-  );
+  notFound();
 }

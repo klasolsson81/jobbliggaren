@@ -54,6 +54,21 @@ export async function updateMyProfileAction(
       body: JSON.stringify(parsed.data),
     });
 
+    if (res.status === 400) {
+      // #1117 — the personnummer refusal is an AGGREGATE invariant, so the Zod schema above
+      // (length only) can never catch it, and mapActionError discriminates on status alone and
+      // would render the generic "could not update" for a refusal the user can act on. Same
+      // exact-whitelist discipline as the Auth.PwnedPassword arm: the machine code is compared,
+      // never rendered, and the backend `detail` is not read.
+      const title = await readProblemTitle(res);
+      return {
+        success: false,
+        error:
+          title === "JobSeeker.DisplayNamePersonnummerMustBeRemoved"
+            ? ts("account.errors.displayNamePersonnummer")
+            : ts("account.errors.invalidInput"),
+      };
+    }
     if (!res.ok) {
       return {
         success: false,

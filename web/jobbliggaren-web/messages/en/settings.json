@@ -231,6 +231,7 @@
     "errors": {
       "notLoggedIn": "You are not logged in.",
       "invalidInput": "Invalid details.",
+      "displayNamePersonnummer": "The name cannot contain a personal identity number. Remove it and save again.",
       "updateFailed": "Could not update the profile.",
       "network": "Could not reach the server. Check your network connection.",
       "emailMismatch": "The email address does not match your account.",

@@ -160,6 +160,14 @@ export async function registerAction(
         if (errorBody.title === "Auth.PwnedPassword") {
           return { error: t("auth.actions.passwordBreached") };
         }
+        // #1117 — the display-name personnummer refusal is an aggregate invariant, so it
+        // arrives as a ProblemDetails `title` and NOT in the FluentValidation `errors` dict the
+        // fallthrough below reads. Without this arm the user gets the generic "registration
+        // failed" for a refusal that names exactly what to change. Same exact-whitelist rule as
+        // the arm above: compared, never rendered.
+        if (errorBody.title === "JobSeeker.DisplayNamePersonnummerMustBeRemoved") {
+          return { error: t("auth.actions.displayNamePersonnummer") };
+        }
         const firstError = errorBody.errors
           ? Object.values(errorBody.errors).flat()[0]
           : null;

@@ -142,6 +142,19 @@ describe("registerAction 400 handling (#616 — breached password reaches the us
 
     expect(result).toEqual({ error: "auth.actions.registrationFailed" });
   });
+
+  it("maps the #1117 display-name refusal to copy that names what to change", async () => {
+    // The aggregate invariant answers with a ProblemDetails title, NOT the FluentValidation
+    // errors-dictionary, so without its own arm this refusal reads as "registration failed"
+    // and the user is told nothing about the name they typed.
+    parseResponseMock.mockResolvedValue({
+      title: "JobSeeker.DisplayNamePersonnummerMustBeRemoved",
+    });
+
+    const result = await registerAction(null, form());
+
+    expect(result).toEqual({ error: "auth.actions.displayNamePersonnummer" });
+  });
 });
 
 describe("registerAction 503 handling (ADR 0083 Amendment 2026-08-03 — registration gate)", () => {

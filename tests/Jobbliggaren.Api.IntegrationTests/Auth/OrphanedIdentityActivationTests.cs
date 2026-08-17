@@ -18,13 +18,24 @@ namespace Jobbliggaren.Api.IntegrationTests.Auth;
 /// such a row, the resend then activated it, every screen reported success, and the #508 sweep deleted
 /// the account at 04:00 UTC with no notice to anyone.
 /// <para>
-/// <b>Two halves, and neither is correct alone</b> (senior-cto-advisor 2026-08-17). The first pins that
-/// registration no longer PRODUCES the row: the send is swallowed, so the <c>JobSeeker</c> commits and
-/// the account is whole. The second pins that a row which exists anyway — <c>AccountHardDeleter</c>
-/// step 2h still produces one, and rows written before this change exist — is refused at the CAPABILITY
-/// seam. Guarding login rather than each route into it is why <c>/verify-email</c>, the resend and the
-/// #1303 password-reset write all need no change: <c>EmailConfirmed</c> on a profile-less row grants
-/// nothing.
+/// <b>Two halves, and neither is correct alone</b> (senior-cto-advisor 2026-08-17).
+/// </para>
+/// <para>
+/// The first pins that registration no longer produces the row <b>via a delivery fault</b> — the send
+/// is swallowed, so the <c>JobSeeker</c> commits. Read that scope precisely: it closes the trigger
+/// measured on dev, not the class. Registration passes through the orphan state on EVERY call by
+/// construction, which is why <c>AccountHardDeleter.cs:74-78</c> gives its sweep a grace window at
+/// all — "a younger one is presumed mid-registration (Identity committed, JobSeeker not yet)". Four
+/// producers remain, enumerated at the fixtures: a cancelled request (<c>UnitOfWorkBehavior</c> takes
+/// the request token), <c>AccountHardDeleter</c> step 2h, the compensating <c>DeleteUserAsync</c> that
+/// discards its <c>IdentityResult</c>, and rows written before this change — the last being the only
+/// one this PR retires.
+/// </para>
+/// <para>
+/// The second pins that such a row is refused at the CAPABILITY seam, in BOTH its homes: login and
+/// re-auth. Guarding the grant rather than each route into it is why <c>/verify-email</c>, the resend
+/// and the #1303 password-reset write all need no change: <c>EmailConfirmed</c> on a profile-less row
+/// grants nothing.
 /// </para>
 /// </summary>
 [Collection("Api")]
@@ -181,8 +192,11 @@ public class OrphanedIdentityActivationTests(ApiFactory factory)
         //      — i.e. the row is live until the next daily run. That actor's own predicate is pinned
         //      against the REAL AccountHardDeleter in HardDeleteAccountsJobIntegrationTests
         //      .CleanupIdentityOrphans_DoesNotSweepIdentityUserWithinGraceWindow.
-        //   3. Rows written before this change, when the confirmation send threw — retired by
-        //      Registration_whose_confirmation_send_fails_still_commits_the_job_seeker, in this file.
+        //   3. The compensating delete in RegisterCommandHandler's JobSeeker.Register failure arm: it
+        //      calls DeleteUserAsync, which discards its IdentityResult (UserAccountService.cs:76-81),
+        //      so a failed compensation leaves the row and says nothing.
+        //   4. Rows written before this change, when the confirmation send threw — the only one retired
+        //      here, by Registration_whose_confirmation_send_fails_still_commits_the_job_seeker.
         //
         // The account is created through the same shape production uses (UserAccountService.cs:23-27
         // builds the identical `new ApplicationUser { UserName = email, Email = email }`), so the

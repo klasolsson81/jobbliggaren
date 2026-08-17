@@ -22,11 +22,20 @@ namespace Jobbliggaren.Application.UnitTests.Auth;
 ///   through (wrong-password / locked), checked BEFORE the soft-delete gate so a wrong password never
 ///   reveals or acts on soft-delete state (M8 timing/response oracle-avoidance)</item>
 /// <item>TOCTOU: resolved UserId ≠ session UserId → InvalidCredentials</item>
-/// <item>Layer-1 soft-delete gate: <c>DeletedAt != null</c> → best-effort session self-heal
+/// <item>Layer-1 profile gate, TWO grounds one outcome: <c>DeletedAt != null</c> (soft-deleted) OR no
+///   <c>JobSeeker</c> row at all (#1349) → best-effort session self-heal
 ///   (<see cref="ISessionStore.InvalidateAllForUserAsync"/>) + InvalidCredentials; a Redis failure in
 ///   the self-heal must NOT change the reject outcome</item>
-/// <item>else → Success (a missing seeker row is Success — no-row parity with LoginCommandHandler)</item>
+/// <item>else → Success</item>
 /// </list>
+/// <para>
+/// Point 5's no-row ground is #1349 and it INVERTED an earlier rule. This class used to specify
+/// "a missing seeker row is Success — no-row parity with LoginCommandHandler", and the parity was
+/// real: both gates passed an orphan. The behaviour it mirrored was the defect, so both gates now
+/// refuse and the parity holds again with the opposite outcome. The projection had to change for the
+/// gate to see the case at all — <c>Select(js =&gt; (DateTimeOffset?)js.DeletedAt)</c> made
+/// <c>FirstOrDefaultAsync</c> answer null for "no row" and "a live row" alike.
+/// </para>
 /// The gate keys <c>userId → JobSeeker.UserId</c> via <c>IgnoreQueryFilters()</c> (the global
 /// DeletedAt==null filter would otherwise hide the soft-deleted row).
 /// </summary>

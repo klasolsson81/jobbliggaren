@@ -1723,15 +1723,22 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
       > en rot-ekvivalent medlem**, och att `sudo`-kommandobegränsning bygger en gräns på
       > **integritetsaxeln** (vad som får ändras) medan risken ADR 0123 namnger ligger på
       > **konfidentialitetsaxeln** (root läser masternyckeln ur processminnet och ur en
-      > `0400 root:root`-fil på tmpfs). Derivationen har **ett** hem —
+      > `0400`-fil på tmpfs). Derivationen har **ett** hem —
       > `vps-base-hardening.md` §11 — och återges inte här.
       > **(b) En separat automationsnyckel** — ingen aktör att ge den till.
       > Att bygga någon av dem uppfyller inte kravet och gör posturen **sämre**: en kontroll som
       > *läser* som en privilegiegräns utan att vara en är värre än det ärliga `NOPASSWD:ALL` den
       > ersätter.
-      > ⚠ **Den enda delmängd som vore en gräns är read-only, och den är inte driftbar.** En sådan
-      > vore därför inte mitigering 2 utan en ny driftmodell — ett ADR-beslut med mätning och min
-      > signatur, aldrig en bockad punkt här.
+      > ⚠ **En read-only-delmängd är INTE en gräns här — den är det värsta fallet.** Den tar bort
+      > varje skrivväg och inte en enda läsväg, och en läsning är precis så nyckeln lämnar lådan
+      > (`host-detection.md` §5:s D1-drill läser den filen med `sudo dd`). På
+      > konfidentialitetsaxeln finns ingen gräns att bygga så länge lådan är driftbar; det som
+      > vore kvar är inte en avgränsning av `NOPASSWD` utan att operatörens sudo tas bort.
+      > Derivationen står i §11.
+      > **Det som faktiskt skulle reducera risken är en modell där root inte håller en läsbar
+      > masternyckel** — ett ADR-beslut med mätning och min signatur, aldrig en bockad punkt här.
+      > Båda mekanismerna som vägts för det är mätt uttömda på den här värden 2026-08-09
+      > (`master-key-ops.md`).
       > **Hur punkten laddas ur:** en mätning på lådan av att egenskapen håller — instrument,
       > datum, adjudikator, `host-detection.md` §7:s form — **plus `security-auditor`s signatur**.
       > Ingen byggd artefakt, ingen stängd issue och ingen bockad ruta laddar ur den.

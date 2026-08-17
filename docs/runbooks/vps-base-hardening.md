@@ -1066,14 +1066,27 @@ rather than discovered:
   operator do that retains `systemctl` and `docker` — and `docker` alone is root by
   construction (`-v /:/host`, `--pid=host`, a read of `/proc/<pid>/mem`). Remove them and the
   operator can no longer run the box; keep them and the alias grants root under another name.
-  **2. The axis is wrong.** A `sudo` command restriction bounds what may be **changed** — an
-  integrity boundary. The risk this ADR names is **disclosure**: root reads the master key out
-  of process memory, and out of a `0400 root:root` file on tmpfs. A control on the integrity
-  axis cannot reduce a confidentiality risk unless it also removes every read path, and the
-  only subset that removes them is read-only.
-  So the sole subset that would be a boundary is **read-only, which is not operable** — a
-  different operating model, not mitigation 2, and it would need its own ADR with a measurement
-  and `security-auditor`'s signature. **`security-auditor` 2026-08-17: the exclusion in
+  **2. The axis is wrong, and on the axis that matters no subset is a boundary at all.** A
+  `sudo` command restriction bounds what may be **changed** — an integrity boundary. The risk
+  this ADR names is **disclosure**: root reads the master key out of process memory, and out of
+  a `0400` file on tmpfs. ⚠ **So a read-only subset is the WORST case here, not the boundary
+  case** — it removes every write path and not one read path, and a read is exactly how the key
+  leaves the box. That is not hypothetical: `host-detection.md` §5's D1 drill reads that file
+  with `sudo dd`.
+  A boundary subset would have to contain **neither** primitive — nothing that can read an
+  arbitrary root-readable file, which discloses the key directly, and nothing that can write a
+  file or execute code, which discloses it through root one unit or one container later. Read
+  the census above against that test: `tee`/`sed -i`/`install`/`cp`/`chmod` write,
+  `apt-get`/`find -exec`/`sh`/`systemd-run` execute, and `docker` does both. Nothing that starts
+  a unit, applies a reconcile or installs a file survives the test — so for an operable box the
+  boundary does not exist, and what would survive is not a NARROWING of `NOPASSWD` but the
+  removal of operator sudo.
+  **What would actually reduce this risk is a model where root holds no readable master key** —
+  and the two mechanisms this repo has weighed for that were measured **exhausted on this host
+  2026-08-09** (`master-key-ops.md`, *"Why not a sealed blob on disk"*: no TPM, `sops` absent
+  from trixie), neither of which would touch the process-memory path named above. It is an
+  ADR-level decision with a measurement and `security-auditor`'s signature.
+  **`security-auditor` 2026-08-17: the exclusion in
   `release-checklist.md` §2.6 point 3.5 clause (1) stands on this class argument, not on the
   census above.**
 

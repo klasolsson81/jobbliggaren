@@ -58,7 +58,7 @@ import type { CriterionReference } from "@/lib/dto/company-criteria";
  * (org.nr logic folded in verbatim) and `ForetagSokFilters` (deleted).
  *
  * Submit dispatch (SECURITY-CRITICAL, preserved exactly — the pnr guard runs BEFORE either branch):
- * - a value that normalises to 10 digits → the ORG.NR branch. A personnummer-shaped value renders the
+ * - a value that normalises to an org.nr → the ORG.NR branch. A personnummer-shaped value renders the
  *   refuse state LOCALLY and is never POSTed anywhere (data minimisation; the backend stays the enforcing
  *   authority). Otherwise it POSTs to `/api/foretag/sok` and renders the 0/1 register hit in client state
  *   — the org.nr term NEVER enters the URL (ADR 0087 D8(c): a sole-prop org.nr can equal a personnummer,
@@ -562,7 +562,7 @@ export function ForetagSokSearchbar({
 
     const orgNr = normalizeOrgNrInput(value);
     if (orgNr !== null) {
-      // org.nr branch (10 digits) — client POST (pnr refused inside), never the URL. The filter axes are
+      // org.nr branch — client POST (pnr refused inside), never the URL. The filter axes are
       // irrelevant to an org.nr lookup and deliberately ignored.
       void onOrgNrSubmit(orgNr);
       return;

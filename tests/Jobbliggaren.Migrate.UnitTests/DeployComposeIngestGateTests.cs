@@ -44,8 +44,13 @@ public class DeployComposeIngestGateTests
         File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "deploy", "docker-compose.yml"))
             .Split('\n');
 
-    /// <summary>True for a top-level service key: exactly two spaces of indent, ending in a colon.</summary>
-    private static bool IsServiceKey(string line) =>
+    /// <summary>
+    /// Two spaces of indent, ending in a colon. That matches every service key — and also the
+    /// volume names and one anchor child, which is why it is only ever used to find where the
+    /// worker's block ENDS, scanning forward from the worker key itself. It is a SHAPE test,
+    /// not a service test, and must not be used as one.
+    /// </summary>
+    private static bool IsTwoSpaceKey(string line) =>
         line.Length > 2
         && line.StartsWith("  ", StringComparison.Ordinal)
         && line[2] != ' '
@@ -83,21 +88,24 @@ public class DeployComposeIngestGateTests
     /// </para>
     ///
     /// <para>
-    /// Why the worker and not the api: both hosts bind <c>JobSourceIngestOptions</c>, because
-    /// <c>AddJobSources</c> is the one Infrastructure module both pass. What differs is that
-    /// only the Worker registers the three consumers, all of them Hangfire jobs. So a gate on
-    /// <c>api</c> would read as present, bind successfully, and gate nothing the Worker runs.
+    /// Why the worker and not the api: <b>both</b> hosts bind the options AND register the three
+    /// consumers, because <c>AddJobSources</c> is the one Infrastructure module both pass. What
+    /// differs is EXECUTION — only the Worker registers the Hangfire wrappers and the recurring
+    /// jobs, and only the Worker runs a Hangfire server. So a gate on <c>api</c> would read as
+    /// present, bind successfully, and gate nothing that ever runs.
+    /// (The third consumer is not a job at all but a shared runner four backfill jobs take a
+    /// dependency on — admin-triggered, never on a cron.)
     /// </para>
     /// </summary>
     [Fact]
-    public void IngestGate_SitsInsideTheWorkerServiceBlock_WhereTheJobsAreRegistered()
+    public void IngestGate_SitsInsideTheWorkerServiceBlock_WhereTheJobsAreExecuted()
     {
         var lines = ComposeLines;
 
         var workerStart = Array.FindIndex(lines, l => l.StartsWith("  worker:", StringComparison.Ordinal));
         workerStart.ShouldBeGreaterThan(-1, "the compose file no longer declares a `worker` service");
 
-        var workerEnd = Array.FindIndex(lines, workerStart + 1, IsServiceKey);
+        var workerEnd = Array.FindIndex(lines, workerStart + 1, IsTwoSpaceKey);
         if (workerEnd < 0) workerEnd = lines.Length;
 
         var gateIndex = Array.FindIndex(lines, l => l.Contains(GateKey, StringComparison.Ordinal));

@@ -29,11 +29,19 @@ namespace Jobbliggaren.Architecture.Tests;
 /// assertion passes trivially once its pattern stops matching: reword the placeholder and
 /// <c>ShouldNotContain</c> would go green on an absent literal, silently and permanently. The
 /// drift vector is measured, not hypothetical — the line below the record already spells the same
-/// words in a different emphasis style. <b>The box was ticked 2026-08-17</b>, so the ticked
-/// property is now the executing one and the unticked branch returns early. That does not leave
-/// the literals unguarded: the ticked assertion names all three in its <c>ShouldNotContain</c>,
-/// so a reworded placeholder still changes what this class reads. What sleeps is the
-/// <i>routing</i> half, not the literals.
+/// words in a different emphasis style.
+/// </para>
+///
+/// <para>
+/// ⚠ <b>The box was ticked 2026-08-17, and that put the second property to sleep — which is the
+/// day this class's own warning above was written for.</b> The ticked test names all three
+/// literals, but only inside <c>ShouldNotContain</c>, and a negated assertion is exactly what the
+/// paragraph above says cannot hold them. <b>So while the box stays ticked the literals have no
+/// positive anchor anywhere in <c>tests/</c>.</b> This is stated rather than repaired, because
+/// the repair a reader would reach for does not exist: with the box ticked there is nothing in
+/// the checklist that may legitimately contain a placeholder, so no assertion can demand one.
+/// The gap degrades in the safe direction — reword a placeholder now and nothing fails, but the
+/// day the box is unticked the second test goes RED rather than silently green.
 /// </para>
 ///
 /// <para>

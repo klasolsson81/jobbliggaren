@@ -1684,11 +1684,12 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
       > den här punkten och inte dokumentarbetet.
       > **Klausulen utlöses av rekryterarkontakter.** Art. 33 löper på *personuppgiftsincident*
       > (Art. 4(12)) definierad över *personuppgifter* (Art. 4(1)) — aldrig över kontoinnehavare.
-      > Ordet *user* står i #1201:s AC men saknas i grindraden, i §6b och i `security-auditor`s
-      > charter, som alla säger *"riktig data"* — räkna inte hemmen här, det talet underräknade
-      > redan en gång. ADR 0050 §6b skriver acceptansens scope som *"användardata"* och triggern
-      > som *"riktig data"* i samma avsnitt, och säger uttryckligen att triggern är samma text som
-      > grindraden. Konverteringen har **ingen acceptansväg**: §9.6 stänger både (2) och (3) för en
+      > Skillnaden ligger i **triggerformuleringen**, inte i dokumenten: grindraden, §6b och
+      > `security-auditor`s charter säger alla *"riktig data"* där de anger vad som utlöser, medan
+      > ordet *user* står i #1201:s AC. Att samma dokument på andra ställen talar om
+      > *användardata* är just poängen — §6b skriver acceptansens scope som *"användardata"* och
+      > triggern som *"riktig data"* i samma avsnitt, och säger uttryckligen att triggern är samma
+      > text som grindraden. Räkna inte hemmen här; det talet underräknade redan en gång. Konverteringen har **ingen acceptansväg**: §9.6 stänger både (2) och (3) för en
       > GDPR-Blocker, och M-7:s grund är Art. 32(1)(b)/33/5(2).
       > ⚠ **Ads-only var ingen väg runt.** Tier A strippar e-post och telefon ur annonstexten men
       > når inte namn (ingen NER, ADR 0106 D5), och `job_ads.organization_number` **är ett
@@ -1697,8 +1698,9 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
       > **Tre kumulativa krav före flippen**, alla mätta 2026-08-17 och ingen av dem uppfylld:
       > (1) **båda ADR 0123-mitigeringarna byggda** — egen automationsnyckel med
       > `restrict,command=,from=`, och `Cmnd_Alias`-avgränsning av `jpadmin`:s NOPASSWD;
-      > `vps-base-hardening.md` §11 äger båda, och dess provisioneringssteg sätter alltjämt
-      > `jpadmin ALL=(ALL) NOPASSWD:ALL`.
+      > `vps-base-hardening.md` §11 (Deviation log) äger båda mitigeringarna; **provisioneringen
+      > bor i §4.0 Bootstrap** och sätter alltjämt `jpadmin ALL=(ALL) NOPASSWD:ALL`. Två avsnitt,
+      > och det är därför inget av dem ensamt visar att kravet är öppet.
       > (2) **ett NYTT Klas-beviljande som täcker tillståndet MED riktig data** — det nuvarande
       > upphör av egen kraft vid gränsen, eftersom det gäller *"while the box carries no real user
       > data"*. **Den frågan ställs när (1) och (3) är klara, inte före.**

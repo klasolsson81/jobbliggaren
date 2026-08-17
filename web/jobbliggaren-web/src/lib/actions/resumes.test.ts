@@ -46,6 +46,7 @@ vi.mock("next/navigation", () => ({
 import {
   promoteParsedResumeAction,
   promoteParsedResumeFromGuideAction,
+  deleteResumeAction,
   discardParsedResumeAction,
   setFindingStatusAction,
   updateTemplateOptionsAction,
@@ -240,6 +241,67 @@ describe("promoteParsedResumeFromGuideAction", () => {
 // Hubbens åtgärdskort "Ta bort utkastet" (Fas 4b PR-8, CTO-bind Q6). POST /discard
 // (soft-delete state-transition), ingen redirect — `revalidatePath("/cv")` tar bort
 // kortet. `isValidId`-grinden speglar `deleteResumeAction`.
+// #1373 flyttade raderingskontrollen till hubbens CV-kort och tog bort action:ens
+// redirect. Kontraktet ändrades alltså — "returnerar success" i stället för "återvänder
+// aldrig" — och pinnas därför här; tidigare täcktes den här action:en inte alls.
+describe("deleteResumeAction", () => {
+  const originalFetch = global.fetch;
+
+  beforeEach(() => {
+    getSessionIdMock.mockResolvedValue("sess-1");
+  });
+  afterEach(() => {
+    global.fetch = originalFetch;
+    vi.restoreAllMocks();
+    getSessionIdMock.mockReset();
+    revalidatePathMock.mockReset();
+    redirectMock.mockClear();
+  });
+
+  it("204 → DELETE:ar CV:t, success:true, revaliderar /cv och redirectar ALDRIG", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(new Response(null, { status: 204 }));
+    global.fetch = fetchMock;
+
+    const result = await deleteResumeAction(VALID_ID);
+
+    expect(result).toEqual({ success: true });
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe(`http://test-backend/api/v1/resumes/${VALID_ID}`);
+    expect(init.method).toBe("DELETE");
+    expect(revalidatePathMock).toHaveBeenCalledWith("/cv");
+    // Den bärande delen: en redirect till samma route hade nollställt scrollen för
+    // den som raderar ett kort långt ner i hubbens lista.
+    expect(redirectMock).not.toHaveBeenCalled();
+  });
+
+  it("avvisar ogiltigt GUID med invalidResumeId-meddelande — backend nås aldrig", async () => {
+    const fetchMock = vi.fn();
+    global.fetch = fetchMock;
+
+    const result = await deleteResumeAction("inte-en-guid");
+
+    expect(result).toEqual({ success: false, error: "Ogiltigt CV-ID." });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("backend-fel (500) → success:false och kortet revalideras inte bort", async () => {
+    global.fetch = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ detail: "boom" }), {
+        status: 500,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+
+    const result = await deleteResumeAction(VALID_ID);
+
+    expect(result.success).toBe(false);
+    expect(revalidatePathMock).not.toHaveBeenCalled();
+    expect(redirectMock).not.toHaveBeenCalled();
+  });
+});
+
 describe("discardParsedResumeAction", () => {
   const originalFetch = global.fetch;
 

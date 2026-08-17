@@ -1898,6 +1898,59 @@ a.jp-adminnav__link[aria-current="page"]::after {
 .jp-btn--secondary:hover {
   background: var(--jp-surface-3);
 }
+/* Betonad radhandling på .jp-btn-chassit — SPEGLAR .jp-rowbtn--emphasis (samma
+   tokens, samma nivå), för ytor som bär .jp-btn i stället för .jp-rowbtn.
+   Det är en UNDERORDNAD nivå under den solida en-per-skärm-primären, inte en
+   andra primär: DESIGN.md §6 förbjuder solid fyllning per rad ("N rader = N
+   knappar"), och eskalering sker inom den icke-solida nivån, aldrig till solid
+   fyllning (CTO-bind 2026-07-12, #788). Inför inga nya tokens. */
+.jp-btn--emphasis {
+  background: var(--jp-accent-50);
+  color: var(--jp-accent-700);
+  border-color: var(--jp-accent-700);
+  font-weight: var(--jp-fw-bold);
+}
+.jp-btn--emphasis:hover {
+  background: var(--jp-accent-100);
+}
+/* Destruktiv kontroll på samma chassi. Finns för att en actions-rad inte ska bära
+   TVÅ knappfamiljer: shadcn `outline` bär `--jp-border` (1,52:1 mot vit yta) medan
+   `.jp-btn--secondary` bär `--jp-border-input` (3,50:1), och 8px isär läser den
+   skillnaden som ett fel i stället för som en nivå (#1373). Tintad, aldrig solid —
+   destruktivt ska vara igenkännbart utan att konkurrera med sidans betoning. */
+.jp-btn--danger {
+  background: var(--jp-danger-50);
+  color: var(--jp-danger-700);
+  border-color: var(--jp-danger-700);
+}
+/* MEDVETET UTAN :hover, och de två vägar dit är mätta och uteslutna — skriv inte
+   tillbaka en. Detta är inte samma sak som den no-op som stod här först
+   (`var(--jp-danger-100, var(--jp-danger-50))`, en token som inte finns i något
+   :root-block): den PÅSTOD ett tillståndsbyte utan att göra ett. Frånvaron nedan
+   påstår ingenting.
+
+   (1) SOLID FYLLNING går inte. `--jp-danger-700` aliasar `--jp-danger`, som ÄR
+   dark-skiftad (#BE1B1B ljust, #FB8989 mörkt), medan `--jp-on-fill` inte
+   omdefinieras — vit text på fyllningen ger 2,32:1 i mörkt läge. Danger-rampen
+   saknar den icke-dark-skiftade tvilling som gör `--jp-accent-800` till en laglig
+   fyllning, så det finns ingen laglig danger-fyllning i tokensystemet. Det är
+   dessutom precis vad knapp-kontraktet förbjuder — kommentaren som inleder
+   `[data-theme="dark"]`-tokenblocket säger "aldrig 'ljusblå knapp med mörk text'"
+   (ADR 0052).
+
+   (2) DJUPARE TINT är inte omöjlig men inte värd sin token, och den skillnaden är
+   mätt: det ljusa VILOläget ligger redan på 5,01:1 (#BE1B1B på #FBE0E0), alltså
+   0,51 över AA-golvet, medan accent har 2,12. Ett lagligt `--jp-danger-100`
+   EXISTERAR — #F8D5D5 ger 4,60 — men hela det tillgängliga bandet är ΔL 0,069,
+   vilket är 64 % av husets grundaste hover (emphasis, 0,108) och 44 % av den
+   djupaste (secondary, 0,157). Att spendera en token i en låst ramp på en hover
+   svagare än de två den ska stå bredvid, och stå på AA-golvet för att göra det,
+   på en DESTRUKTIV kontroll, är en dålig affär.
+
+   Kontrollen är alltjämt urskiljbar: global fokusring (`*:focus-visible`), och en
+   irreversibel handling bekräftas i en dialog som namnger CV:t. Att ge den
+   destruktiva kontrollen en hover kräver att danger-rampen först får den tvilling
+   accent har — en tokenändring med DESIGN.md-behandling, inte en regel här. */
 /* #1000 (V1) — /jobb modal-footer: en STATE-toggle-knapp bär sin tillstånds-färg
    när ON (matchar list-taggarna) så modalen läses lika tydligt som listan. LIVE
    client-state (aria-pressed) → ingen stale-risk (därför släpptes header-snapshot-

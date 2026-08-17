@@ -1,120 +1,73 @@
-import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { getFormatter, getTranslations } from "next-intl/server";
-import { ChevronLeft } from "lucide-react";
 import { getServerSession } from "@/lib/auth/session";
-import { formatDate } from "@/lib/i18n/format";
-import { getResumeById } from "@/lib/api/resumes";
-import { assertNever } from "@/lib/dto/_helpers";
-import { findMasterVersion, emptyContent } from "@/lib/resumes/content-utils";
-import { Button } from "@/components/ui/button";
-import { ResumeContentForm } from "@/components/resumes/resume-content-form";
-import { RenameResumeForm } from "@/components/resumes/rename-resume-form";
-import { DeleteResumeDialog } from "@/components/resumes/delete-resume-dialog";
 
 interface Props {
   params: Promise<{ id: string }>;
 }
 
 /**
- * /cv/[id]-detaljvy (F6 P3a, CTO 2026-05-20 Val 6D + ADR 0058 Beslut 3).
+ * /cv/[id] — WYSIWYG-redigering av ett SPARAT CV, RETIRED (pausad, inte raderad
+ * — #1373, Klas-direktiv 2026-08-17 ordagrant: "även redigeringen ska vara
+ * 'pausad' under MVP. Det enda som ska funka är att ladda upp CV och granska CV
+ * (få förslag) men inte skapa nytt CV och inte heller kunna redigera uppladdat
+ * CV, varken som funktion eller vid granskning."). MVP:ns CV-yta är därmed
+ * exakt två saker: LADDA UPP och GRANSKA.
  *
- * **Val 6D: behåll existerande WYSIWYG `<ResumeContentForm />` + lägg
- * v3-cosmetic-shell.** Disclosure-Sektioner-kort-paradigm från Klas-
- * prompt §H **rendras INTE** denna prompt — Klas-prompt §I säger att
- * "Redigera"-knappen per sektion ska vara no-op, vilket gör disclosure-
- * paradigmen funktionellt värdelös. Två paradigm i samma route bryter
- * CCP (Martin 2017). När disclosure-edit-flödet faktiskt byggs (framtida
- * prompt) ersätter det WYSIWYG-formen.
+ * Routen behålls och returnerar 404 på route-nivå, så en gissad, bokmärkt eller
+ * autocompletead URL inte kan nå ett fungerande redigeringsformulär.
  *
- * v3-cosmetic-shell-uppdateringar denna prompt:
- *  - `jp-h1`-typografi (ersätter v2 `text-h1 font-medium`)
- *  - Tillbaka-länk med ChevronLeft → `/cv`
- *  - `jp-lede` på Senast-uppdaterad-meta
- *  - Inga inline-edit-stubs (no-mock)
+ * Medvetet notFound(), INTE permanentRedirect: redigeringen är pausad, inte
+ * ersatt — ingenting tar över dess funktion, så en 308 hade påstått en flytt som
+ * aldrig skett OCH cachats permanent av webbläsare, vilket låst ute besökare
+ * även efter att redigeringen återvänder. Samma mekanism och samma skäl som
+ * `cv/ny/page.tsx` (skapa-vägen, #1061), `cv/[id]/mall/page.tsx`
+ * (mallbyggaren) och `cv/granska/[parsedId]/forbattra/page.tsx` (åtgärda-lagret).
+ *
+ * Session-grinden körs FÖRE 404:n: en utloggad besökare landar på /logga-in,
+ * aldrig på en 404 som avslöjar att routen finns. Route-existens är ingen
+ * auth-orakel åt något håll.
+ *
+ * ⚠ RADERING OCH NAMNBYTE FÖLJDE INTE MED I PAUSEN, och det är den viktigaste
+ * posten här. `DeleteResumeDialog` och `RenameResumeForm` låg på den här sidan.
+ * Radering är INTE redigering: att grinda routen utan att flytta dem hade
+ * strandat användarens enda finkorniga raderingsväg, och därmed också den enda
+ * kvarvarande vägen att ÅTERKALLA personnummer-samtycket för ett redan sparat
+ * CV (originalfilen lagras på samtycke — se `Domain/Resumes/Files/ResumeFile.cs`).
+ * GDPR Art. 7(3) kräver att en återkallelse är LIKA LÄTT som samtycket var att
+ * ge; kontoradering (lösenord + 30 dagars väntan) uppfyller inte det, och en
+ * e-postadress gör det inte heller för just samtycken. Båda kontrollerna ligger
+ * därför nu på CV-kortet i hubben (`components/resumes/resume-card.tsx`), där de
+ * hör hemma på egna meriter: radering är en BIBLIOTEKS-operation, och hubben bär
+ * redan samma mönster för det andra CV-artefakten (`DiscardDraftButton`).
+ * Namnbytet behölls på Klas beslut 2026-08-17 — namnet är etikett-metadata
+ * (`resumes.name`, plaintext) och inte CV-innehåll (DEK-krypterat), och utan det
+ * går två CV importerade samma dag inte att skilja åt (den genererade etiketten
+ * är "Importerat CV <ÅÅÅÅ-MM-DD>", bara datum, ingen tid).
+ *
+ * Kvar i trädet, inert och orört (billig återgång slår städning — samma
+ * precedens som mallbyggaren och skapa-vägen): `resume-content-form.tsx` med
+ * sitt enhetstest, `lib/forms/resume-path-routing.ts`,
+ * `lib/actions/resumes.ts:updateMasterContentAction` och i18n-nycklarna
+ * `resumes.card.edit` samt `pages.cv.detail.*` (`updatedAt`, `loadErrorTitle`,
+ * `errorBody` — verifierat konsumentlösa efter denna ändring; övriga
+ * `detail.`-träffar i `src/` tillhör ansökningar, jobbannonser och gästytan).
+ * Backend-ytan `PUT /api/v1/resumes/{id}/master` →
+ * `UpdateMasterContentCommand` blir onåbar av denna ändring; den retireras
+ * tillsammans med `POST /api/v1/resumes` i #1371 (samma fil, samma skäl, samma
+ * testfixturer — `ResumesEndpointsTests` övar båda i ETT test). Endast
+ * Api-mappningen: handlern stannar, för #650:s personnummer-tripwire bygger sin
+ * subject-set över Application-assemblyn och namnger handlern i hårdkodade
+ * ankare.
+ *
+ * ORÖRT: /cv/granska/* och /cv/[id]/granska — granskaren ÄR produkten efter
+ * CV-pivoten, och den är läs-bara av konstruktion. Mätt 2026-08-17: de bär noll
+ * CV-innehållsredigerare. Den enda skrivningen där är anmärkningsstatus
+ * (Öppen/Löst/Ignorerad), som är granskarens egen ledger och inte rör
+ * `ResumeContent`.
  */
-export default async function CvDetailPage({ params }: Props) {
+export default async function CvDetailPage(_props: Props) {
   const user = await getServerSession();
   if (!user) redirect("/logga-in");
 
-  const t = await getTranslations("pages");
-  const format = await getFormatter();
-  const { id } = await params;
-  const result = await getResumeById(id);
-  switch (result.kind) {
-    case "ok":
-      break;
-    case "unauthorized":
-      redirect("/logga-in");
-    case "notFound":
-      notFound();
-    case "rateLimited":
-      return (
-        <div className="jp-container jp-page flex flex-col gap-4">
-          <h1 className="jp-h1">{t("common.rateLimitedTitle")}</h1>
-          <p className="jp-lede">
-            {t("common.rateLimitedBody", {
-              seconds: result.retryAfterSeconds,
-            })}
-          </p>
-          <div>
-            <Button asChild variant="outline">
-              <Link href="/cv">{t("cv.backLink")}</Link>
-            </Button>
-          </div>
-        </div>
-      );
-    case "forbidden":
-    case "error":
-      return (
-        <div className="jp-container jp-page flex flex-col gap-4">
-          <h1 className="jp-h1">{t("cv.detail.loadErrorTitle")}</h1>
-          <p className="jp-lede">{t("cv.detail.errorBody")}</p>
-          <div>
-            <Button asChild variant="outline">
-              <Link href="/cv">{t("cv.backLink")}</Link>
-            </Button>
-          </div>
-        </div>
-      );
-    default:
-      return assertNever(result);
-  }
-
-  const resume = result.data;
-  const updatedAt = formatDate(format, resume.updatedAt) ?? "";
-  const master = findMasterVersion(resume);
-  const initialContent = master?.content ?? emptyContent();
-
-  return (
-    // jp-container jp-page: CV-familjens breddcontainer (#812). Utan den renderas sidan
-    // edge-to-edge — på en ultrawide (3440px) sträcks fälten till 1000+ px och innehållet
-    // klistras mot skärmkanterna. Klasserna sätter bara boxmodell (max-width/marginal/
-    // padding), så de kombineras direkt med flex-roten. Samma wrap som /cv/[id]/granska.
-    <div className="jp-container jp-page flex flex-col gap-6">
-      <Link
-        href="/cv"
-        className="inline-flex items-center gap-1 text-body-sm text-text-primary hover:underline self-start"
-      >
-        <ChevronLeft size={16} aria-hidden="true" />
-        <span>{t("cv.backLink")}</span>
-      </Link>
-
-      <header className="flex items-start justify-between gap-4 flex-wrap">
-        <div className="flex flex-col gap-2">
-          <h1 className="jp-h1">{resume.name}</h1>
-          <p className="jp-lede">
-            {t("cv.detail.updatedAt")}{" "}
-            <span className="font-mono">{updatedAt}</span>
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <RenameResumeForm resumeId={id} currentName={resume.name} />
-          <DeleteResumeDialog resumeId={id} resumeName={resume.name} />
-        </div>
-      </header>
-
-      <ResumeContentForm resumeId={id} initialContent={initialContent} />
-    </div>
-  );
+  notFound();
 }

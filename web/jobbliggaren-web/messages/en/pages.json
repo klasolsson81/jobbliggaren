@@ -93,7 +93,7 @@
     },
     "import": {
       "title": "Import CV",
-      "lede": "Upload your existing CV as a PDF or Word file. We read the contents and show a deterministic review with cited evidence. You stay in control. Nothing is changed in your CV until you save it yourself.",
+      "lede": "Upload your existing CV as a PDF or Word file. We read the contents and show a deterministic review with cited evidence. You stay in control. Your CV is not changed.",
       "modalDescription": "Upload your existing CV as a PDF or Word file. We read the contents and show a review. Your CV is not changed."
     },
     "new": {
@@ -117,7 +117,7 @@
       "loading": "Loading the review…",
       "blockReason": {
         "title": "Why the file is not saved as a CV",
-        "ParseNotConfident": "The file needs to contain text that can be selected. If it is an image, a scan or a password-protected document, save it again as PDF or Word and upload it. You can also fill in the details by hand.",
+        "ParseNotConfident": "The file needs to contain text that can be selected. If it is an image, a scan or a password-protected document, save it again as PDF or Word and upload it.",
         "IncompleteContent": "One or more entries in the file are incomplete. Check that every job has an employer and a job title, and every education has an institution and a degree. Complete them and upload the file again.",
         "PersonnummerPresent": "The file contains a personal identity number. Remove it from the file and upload it again.",
         "PersonnummerInAccountName": "Your account name contains a personal identity number. The file itself is clean. Change it under Settings and upload the file again.",

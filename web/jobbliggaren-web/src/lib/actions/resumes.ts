@@ -109,8 +109,11 @@ export async function renameResumeAction(
     return { success: false, error: tr("serverUnreachable") };
   }
 
+  // `/cv/${resumeId}` revalideras inte längre (#1373): den routen 404:ar sedan
+  // redigeringen pausades. Namnet visas i CV-listan och i granskningens header,
+  // som är de två ytor som faktiskt kan bli inaktuella.
   revalidatePath("/cv");
-  revalidatePath(`/cv/${resumeId}`);
+  revalidatePath(`/cv/${resumeId}/granska`);
   return { success: true };
 }
 
@@ -260,8 +263,13 @@ export async function deleteResumeAction(
     return { success: false, error: tr("serverUnreachable") };
   }
 
+  // Ingen redirect (#1373): kontrollen sitter numera på hubbens CV-kort, inte på en
+  // detaljsida som måste lämnas. `revalidatePath` tar bort kortet där användaren
+  // står. En navigering till samma route hade nollställt scrollen, så den som
+  // raderar ett kort långt ner i listan kastas till toppen. Detta är syskonmönstret
+  // `discardParsedResumeAction` redan bär, av samma skäl.
   revalidatePath("/cv");
-  redirect("/cv");
+  return { success: true };
 }
 
 /**

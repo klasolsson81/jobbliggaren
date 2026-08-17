@@ -16,11 +16,26 @@ import { deleteResumeAction } from "@/lib/actions/resumes";
 interface DeleteResumeDialogProps {
   resumeId: string;
   resumeName: string;
+  /**
+   * Triggerns klasser. Speglar `CvPreview`s levererade prop-mönster, och finns av
+   * samma skäl: kontrollen sitter numera i `ResumeCard`s actions-rad bredvid
+   * `.jp-btn`-kontroller, och två knappfamiljer i samma rad skiljde 2,3x i
+   * kantkontrast (#1373). Default är kvar för varje framtida yta utan `.jp-btn`-grannar.
+   */
+  triggerClassName?: string;
+  /**
+   * Tillgängligt namn på triggern. `/cv` renderar ett kort per CV, så utan detta
+   * far en skärmläsaranvändare N identiska "Radera CV" i knapp-rotorn utan att
+   * kunna skilja dem åt. Mönstret är `criterion-row.tsx`s.
+   */
+  triggerAriaLabel?: string;
 }
 
 export function DeleteResumeDialog({
   resumeId,
   resumeName,
+  triggerClassName,
+  triggerAriaLabel,
 }: DeleteResumeDialogProps) {
   const t = useTranslations("resumes");
   const [open, setOpen] = useState(false);
@@ -31,8 +46,12 @@ export function DeleteResumeDialog({
     setError(null);
     startTransition(async () => {
       const result = await deleteResumeAction(resumeId);
-      // deleteResumeAction redirects on success, so we only get here on failure.
-      if (!result.success) {
+      // Sedan #1373 redirectar action:en inte längre — kontrollen sitter på hubben,
+      // och `revalidatePath("/cv")` tar bort kortet där användaren står. Stäng
+      // dialogen själva vid framgång; håll den öppen med felet vid misslyckande.
+      if (result.success) {
+        setOpen(false);
+      } else {
         setError(result.error);
       }
     });
@@ -40,14 +59,26 @@ export function DeleteResumeDialog({
 
   return (
     <>
-      <Button
-        type="button"
-        variant="destructive"
-        size="sm"
-        onClick={() => setOpen(true)}
-      >
-        {t("delete.trigger")}
-      </Button>
+      {triggerClassName ? (
+        <button
+          type="button"
+          className={triggerClassName}
+          aria-label={triggerAriaLabel}
+          onClick={() => setOpen(true)}
+        >
+          {t("delete.trigger")}
+        </button>
+      ) : (
+        <Button
+          type="button"
+          variant="destructive"
+          size="sm"
+          aria-label={triggerAriaLabel}
+          onClick={() => setOpen(true)}
+        >
+          {t("delete.trigger")}
+        </Button>
+      )}
       <Dialog open={open} onOpenChange={(o) => { if (!isPending) setOpen(o); }}>
         <DialogContent>
           <DialogHeader>

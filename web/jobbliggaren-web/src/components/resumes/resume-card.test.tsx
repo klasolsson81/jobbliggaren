@@ -75,22 +75,76 @@ describe("ResumeCard (F6 P3a v3)", () => {
     expect(screen.queryByText("Backend-utvecklare")).not.toBeInTheDocument();
   });
 
-  it("Redigera-länk pekar mot /cv/[id]", () => {
+  // #1373 inverterar den tidigare pinnen ("Redigera-länk pekar mot /cv/[id]"). Assertionen
+  // är på HREF:en och inte på etiketten "Redigera": nyckeln `card.edit` ligger kvar inert i
+  // trädet, så en etikett-baserad negation hade kunnat bli grön av att texten byttes medan
+  // länken stod kvar. Det är målet som är pausat, inte ordet.
+  it("renderar INGEN länk till redigeringsvyn /cv/[id] (pausad, #1373)", () => {
     render(<ResumeCard resume={baseResume} />);
-    const link = screen.getByRole("link", { name: /Redigera/ });
-    expect(link).toHaveAttribute("href", "/cv/resume-1");
+    const hrefs = screen
+      .getAllByRole("link")
+      .map((a) => a.getAttribute("href"));
+    expect(hrefs).not.toContain("/cv/resume-1");
+    // Positiv motpol: sonden ser faktiskt kortets länkar. Utan den vore testet grönt
+    // även om kortet slutat rendera länkar helt.
+    expect(hrefs).toContain("/cv/resume-1/granska");
   });
 
-  it("renderar Förhandsgranska-knapp bredvid Redigera (render-by-Resume-id levererad, TD-112)", () => {
+  it("Granska är actions-radens primära kontroll och pekar mot granskningen", () => {
     render(<ResumeCard resume={baseResume} />);
-    // Preview-triggern (CvPreview) finns nu på det befordrade kortet — render-by-Resume-id-
+    const cta = screen.getByRole("link", { name: /Granska CV/ });
+    expect(cta).toHaveAttribute("href", "/cv/resume-1/granska");
+    // Prominensen bärs av klassen, inte av ordningen i DOM:en — den destruktiva
+    // kontrollen får aldrig vara radens mest framträdande element (CTO-bind #1373).
+    // Nivån är `--emphasis` och INTE `--primary`: kortet renderas en gång per CV,
+    // så en solid fyllning här ger N primärer i samma grid, vilket DESIGN.md §6
+    // förbjuder uttryckligen (CTO-bind #788). Båda leden pinnas — utan negationen
+    // hade en återgång till solid fyllning passerat.
+    expect(cta.className).toContain("jp-btn--emphasis");
+    expect(cta.className).not.toContain("jp-btn--primary");
+  });
+
+  // Kontrollerna upprepas en gång per CV på /cv, så ett tillgängligt namn utan
+  // objektet lämnar N identiska poster i en skärmläsares knapp-rotor.
+  it("ger varje kontroll ett objekt-specifikt tillgängligt namn", () => {
+    render(<ResumeCard resume={baseResume} />);
+    const cv = "Backend & molnplattform";
+    expect(
+      screen.getByRole("link", { name: `Granska CV: ${cv}` }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: `Förhandsgranska ${cv}` }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: `Byt namn på ${cv}` }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: `Radera CV: ${cv}` }),
+    ).toBeInTheDocument();
+  });
+
+  it("renderar Förhandsgranska-knapp (render-by-Resume-id levererad, TD-112)", () => {
+    render(<ResumeCard resume={baseResume} />);
+    // Preview-triggern (CvPreview) finns på det befordrade kortet — render-by-Resume-id-
     // vägen (/api/cv/{id}/preview) ersatte den tidigare borttagna stuben (#202).
     expect(
       screen.getByRole("button", { name: /Förhandsgranska/ }),
     ).toBeInTheDocument();
-    // Redigera-länken finns kvar bredvid preview-knappen i actions-raden.
+  });
+
+  // #1373: dessa två pinnar är rättighetsgarantier, inte layout. Grunden bor i den
+  // grindade routens doc-kommentar (`app/(app)/cv/[id]/page.tsx`).
+  it("bär raderingskontrollen — den finkorniga Art. 17/7(3)-vägen överlever grinden", () => {
+    render(<ResumeCard resume={baseResume} />);
     expect(
-      screen.getByRole("link", { name: /Redigera/ }),
+      screen.getByRole("button", { name: /Radera CV/ }),
+    ).toBeInTheDocument();
+  });
+
+  it("bär namnbyteskontrollen (Klas-beslut 2026-08-17: namnet är etikett, inte innehåll)", () => {
+    render(<ResumeCard resume={baseResume} />);
+    expect(
+      screen.getByRole("button", { name: /Byt namn/ }),
     ).toBeInTheDocument();
   });
 });

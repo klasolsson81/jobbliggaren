@@ -19,11 +19,17 @@ import type { ActionResult } from "@/lib/actions/_action-result";
 interface RenameResumeFormProps {
   resumeId: string;
   currentName: string;
+  /** Se `DeleteResumeDialog` — samma skäl, samma levererade `CvPreview`-mönster (#1373). */
+  triggerClassName?: string;
+  /** Se `DeleteResumeDialog` — `/cv` renderar en trigger per CV (#1373). */
+  triggerAriaLabel?: string;
 }
 
 export function RenameResumeForm({
   resumeId,
   currentName,
+  triggerClassName,
+  triggerAriaLabel,
 }: RenameResumeFormProps) {
   const t = useTranslations("resumes");
   const [open, setOpen] = useState(false);
@@ -40,14 +46,26 @@ export function RenameResumeForm({
 
   return (
     <>
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        onClick={() => setOpen(true)}
-      >
-        {t("rename.trigger")}
-      </Button>
+      {triggerClassName ? (
+        <button
+          type="button"
+          className={triggerClassName}
+          aria-label={triggerAriaLabel}
+          onClick={() => setOpen(true)}
+        >
+          {t("rename.trigger")}
+        </button>
+      ) : (
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          aria-label={triggerAriaLabel}
+          onClick={() => setOpen(true)}
+        >
+          {t("rename.trigger")}
+        </Button>
+      )}
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>
           <DialogHeader>

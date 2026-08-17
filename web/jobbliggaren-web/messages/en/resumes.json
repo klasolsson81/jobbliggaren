@@ -11,17 +11,19 @@
   "rename": {
     "trigger": "Rename",
     "title": "Rename CV",
-    "description": "The name appears in your CV list and in tailored versions.",
+    "description": "The name appears in your CV list.",
     "nameLabel": "Name",
     "cancel": "Cancel",
-    "save": "Save"
+    "save": "Save",
+    "triggerAria": "Rename {name}"
   },
   "delete": {
     "trigger": "Delete CV",
     "title": "Delete CV?",
     "description": "You are about to permanently delete <name>{name}</name>, including any saved original file. This cannot be undone.",
     "cancel": "Cancel",
-    "confirm": "Confirm deletion"
+    "confirm": "Confirm deletion",
+    "triggerAria": "Delete CV: {name}"
   },
   "card": {
     "primary": "Default",
@@ -36,9 +38,11 @@
       "Accentlinje": "Accent line",
       "MorkPanel": "Dark panel"
     },
+    "reviewCta": "Review CV",
     "findingsReview": "Review",
     "findingsNone": "No actions",
-    "findingsCount": "{count} to fix"
+    "findingsCount": "{count} to fix",
+    "reviewCtaAria": "Review CV: {name}"
   },
   "upload": {
     "pendingLabel": "Uploading and reviewing your CV",
@@ -48,7 +52,7 @@
     "namePersonnummer": "Remove the personal identity number from the CV name.",
     "dropText": "Choose a file to upload",
     "dropHint": "PDF or Word (DOCX)",
-    "help": "Upload a PDF or Word file (DOCX) of at most 10 MB. We read the contents and create a CV you can review and edit.",
+    "help": "Upload a PDF or Word file (DOCX) of at most 10 MB. We read the contents and create a CV you can review.",
     "submit": "Upload and review CV",
     "errorWrongType": "Choose a PDF or Word file (DOCX).",
     "errorTooLarge": "The file is too large. The maximum size is 10 MB.",
@@ -69,9 +73,9 @@
   "parse": {
     "title": "How your CV was read",
     "overallConfident": "We were able to read your CV and split it into clear sections. Please review that everything is correct.",
-    "overallDegraded": "We were able to read your CV, but some sections came out incomplete. You can fill them in during the next step.",
-    "overallFailed": "We could not read any usable text from the file. You can fill in the details by hand instead.",
-    "manualReviewNote": "Some sections need to be filled in before your CV is ready. You do that in the next step."
+    "overallDegraded": "We were able to read your CV, but some sections came out incomplete. Correct the file and upload it again.",
+    "overallFailed": "We could not read any usable text from the file. Save it again as PDF or Word and upload it again.",
+    "manualReviewNote": "Some sections came out incomplete. You can upload a corrected file whenever you like."
   },
   "review": {
     "title": "Review",
@@ -152,7 +156,8 @@
     "atsTextLoading": "Fetching text version…",
     "atsTextNotFound": "The text version is not available yet.",
     "atsTextError": "Could not fetch the text version. Try again in a moment.",
-    "atsTextRegionLabel": "Text version for ATS"
+    "atsTextRegionLabel": "Text version for ATS",
+    "triggerAria": "Preview {name}"
   },
   "match": {
     "triggerUpdate": "Update matching",

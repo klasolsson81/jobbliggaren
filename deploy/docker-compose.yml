@@ -412,6 +412,15 @@ services:
       # ASPNETCORE_ENVIRONMENT because it IS a WebApplication.
       DOTNET_ENVIRONMENT: Production
       DOTNET_gcServer: "0"
+      # The ingestion gate, and it is deliberately NOT flipped in the shipped Production overlay.
+      # That overlay keeps IngestEnabled=false and JobSourceIngestGateConfigurationTests pins it,
+      # so an image that reaches any box ingests nothing until an operator says otherwise HERE.
+      # The default is false for the same reason the Auth gates above default closed: an absent
+      # key must mean OFF, never the code default (which is true).
+      # Klas gave the written GO 2026-08-17 (release-checklist.md 2.6 point 3.5, which records the
+      # adjudicator, the date and where it was given). The GO is what authorises setting this;
+      # this line is not itself permission.
+      JobTech__IngestEnabled: ${JOBTECH_INGEST_ENABLED:-false}
     volumes: *app-secrets-mount
     mem_limit: 1024m
     memswap_limit: 1024m

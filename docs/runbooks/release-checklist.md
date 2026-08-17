@@ -1609,7 +1609,7 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
         formen "i dag finns inga uppgifter om dig hos leverantören" hade varit falsk om en
         rekryterare i samma sekund korpuset laddats.
       DPA-signering = **Klas**, aldrig CC.
-- [ ] **3.5 KORPUSLADDNINGEN — KLAS UTTRYCKLIGA SKRIFTLIGA GO, och ingenting annat.**
+- [x] **3.5 KORPUSLADDNINGEN — KLAS UTTRYCKLIGA SKRIFTLIGA GO, och ingenting annat.**
       **Detta är hemmet för villkoret som grindar `JobTech__IngestEnabled=true`**, och
       vakterna i `src/`, `tests/` och runbookerna pekar hit.
       **Villkoret är ett BESLUT, inte ett härledbart tillstånd** (Klas 2026-08-16, på
@@ -1662,7 +1662,23 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
       punkt 3:s led. En bock utan upphovsman visar ingenting, och Art. 5(2) kräver att efterlevnad
       är *visbar*; att det inte är teoretiskt mäter den här filen själv — punkt 3:s ruta bockades,
       återställdes och bockades igen under ett dygn.
-      > **GO givet av:** _(ej givet)_ · **Datum:** — · **Var:** —
+      > **GO givet av:** Klas Olsson · **Datum:** 2026-08-17 · **Var:** Claude Code-session, i svar
+      > på en `AskUserQuestion` som ställde valet mellan full ingest, en variant utan
+      > rekryterarkontakter, och att bara verifiera bakgrundsjobben först. Klas valde full ingest.
+      > **Vad GO:t uttryckligen omfattar:** `JobTech__IngestEnabled=true` på lådan, alltså både
+      > jobbannonser och **deklarerade rekryterarkontakter** (`application_contacts` →
+      > `AdContact`), på den registrerade tio-minuterskadensen.
+      > **M-7 var namngiven i frågan och är därmed del av det informerade GO:t.** Klas tillägg i
+      > samma tur, som faktapremiss och inte som grindavgörande: rekryterarkontakter bär aldrig
+      > personnummer utan namn, roll, e-post och telefon, och uppgifterna är redan publicerade på
+      > Platsbanken. Premissen är mätt mot koden — `PlatsbankenJobSource.MapContacts` anropar
+      > `AdContact.TryCreate(name, role, email, telephone, Declared)` och har inget
+      > personnummerfält. **Att uppgifterna är publika gör dem inte till icke-personuppgifter**,
+      > och det är därför Art. 14-notisen levererades 2026-08-16 i stället för att avfärdas; den
+      > punkten är bockad ovan och tas inte upp igen.
+      > ⚠ **Vad GO:t INTE avgör:** om M-7:s konvertering får accepteras eller måste byggas bort
+      > först. `security-auditor` äger den graderingen och den frågan är ställd till henne, inte
+      > till Klas en gång till. Utfallet skrivs in här när det finns.
       En obockad ruta här betyder *"GO ej givet"* och ingenting annat — till skillnad från filens
       övriga rutor, där en obockad ruta inte får läsas som "inte levererat" (blockquoten ovan).
       ⚠ **Och en bockad ruta här är inte heller tillstånd i sig** — den är ett **record av** GO:t.

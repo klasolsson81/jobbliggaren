@@ -1,10 +1,13 @@
 using Jobbliggaren.Application.Auth;
 using Jobbliggaren.Application.Auth.Commands.Register;
 using Jobbliggaren.Application.Common.Abstractions;
+using Jobbliggaren.Application.Common.Exceptions;
 using Jobbliggaren.Application.UnitTests.Common;
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.JobSeekers;
+using Jobbliggaren.TestSupport;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using NSubstitute;
@@ -27,6 +30,7 @@ public class RegisterCommandHandlerTests
         IEmailSender? emailSender = null,
         ICooldownGate? cooldown = null,
         AuthEmailCooldownOptions? emailCooldownOptions = null,
+        ILogger<RegisterCommandHandler>? logger = null,
         bool requireEmailConfirmation = false,
         // ADR 0083 Amendment 2026-08-03. Production default is CLOSED; this helper defaults it OPEN so
         // every pre-existing test in this file still exercises the path it was written for. Only the
@@ -61,7 +65,7 @@ public class RegisterCommandHandlerTests
 
         return new RegisterCommandHandler(
             db, userAccountService, sessionStore, auditLogger, emailSender, cooldown, options, cooldownOptions,
-            FakeDateTimeProvider.Default, NullLogger<RegisterCommandHandler>.Instance);
+            FakeDateTimeProvider.Default, logger ?? NullLogger<RegisterCommandHandler>.Instance);
     }
 
     private static IUserAccountService UserAccountServiceCreating(Guid userId)
@@ -395,30 +399,52 @@ public class RegisterCommandHandlerTests
         userAccountService.GenerateEmailConfirmationTokenAsync(userId, Arg.Any<CancellationToken>())
             .Returns(Result.Success("tok"));
         var emailSender = Substitute.For<IEmailSender>();
+        // EmailDeliveryException, not an arbitrary type: that is what every IEmailSender adapter
+        // actually emits for a provider fault (ScalewayEmailSender wraps transport and 4xx/5xx alike),
+        // so the test runs the shape production emits rather than one it never sees.
         emailSender.SendEmailConfirmationAsync(
                 Arg.Any<string>(), Arg.Any<EmailConfirmationEmail>(),
                 Arg.Any<CancellationToken>())
-            .Returns(Task.FromException(new InvalidOperationException("send failed")));
+            .Returns(Task.FromException(
+                new EmailDeliveryException("email-confirmation", nameof(HttpRequestException))));
 
         var db = Substitute.For<IAppDbContext>();
         var jobSeekers = Substitute.For<DbSet<JobSeeker>>();
         db.JobSeekers.Returns(jobSeekers);
+        var logger = new RecordingLogger<RegisterCommandHandler>();
 
         var handler = CreateHandler(
             db: db, userAccountService: userAccountService, emailSender: emailSender,
-            requireEmailConfirmation: true);
+            logger: logger, requireEmailConfirmation: true);
 
         var result = await handler.Handle(ValidCommand(), CancellationToken.None);
 
         result.IsSuccess.ShouldBeTrue("a transport fault must not fell a registration that succeeded");
         result.Value.Session.ShouldBeNull("email-confirmation-first still mints no session");
-        // The JobSeeker is still tracked, so UnitOfWorkBehavior commits it — no orphan is produced.
+
+        // The send was actually REACHED. Without this the test passes vacuously if a future guard
+        // (e.g. an `if (emailSender.CanDeliver)` arm — NSubstitute answers that false by default)
+        // skips the send entirely: nothing throws, so the swallow is never exercised.
+        await emailSender.Received(1).SendEmailConfirmationAsync(
+            "klas@example.com", Arg.Any<EmailConfirmationEmail>(), Arg.Any<CancellationToken>());
+
+        // The JobSeeker is still tracked, so UnitOfWorkBehavior commits it — no orphan from THIS arm.
         jobSeekers.Received(1).Add(Arg.Any<JobSeeker>());
+
         // The account is NOT compensated away: deleting a correctly created account because a third
         // party's transport blinked is the alternative the CTO rejected (its own failure mode is another
         // orphan when the delete fails in the same outage).
         await userAccountService.DidNotReceive().DeleteUserAsync(
             Arg.Any<Guid>(), Arg.Any<CancellationToken>());
+
+        // The Warning IS the swallow's only observable in production, so it is pinned rather than
+        // assumed — and RecordingLogger is used because NullLogger.IsEnabled is false, which means the
+        // [LoggerMessage] body never runs and an assertion over it could not fail.
+        var warning = logger.Records.ShouldHaveSingleItem();
+        warning.Level.ShouldBe(LogLevel.Warning);
+        warning.Message.ShouldContain("#1349");
+        warning.Message.ShouldNotContain("klas@example.com", Case.Insensitive,
+            "the address must never reach the sink (CLAUDE.md §5, ADR 0124)");
     }
 
     [Fact]
@@ -437,15 +463,27 @@ public class RegisterCommandHandlerTests
         var emailSender = Substitute.For<IEmailSender>();
         emailSender.SendAccountExistsNoticeAsync(
                 Arg.Any<string>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromException(new InvalidOperationException("send failed")));
+            .Returns(Task.FromException(
+                new EmailDeliveryException("account-exists-notice", nameof(HttpRequestException))));
 
+        var logger = new RecordingLogger<RegisterCommandHandler>();
         var handler = CreateHandler(
-            userAccountService: userAccountService, emailSender: emailSender, requireEmailConfirmation: true);
+            userAccountService: userAccountService, emailSender: emailSender, logger: logger,
+            requireEmailConfirmation: true);
 
         var result = await handler.Handle(ValidCommand(), CancellationToken.None);
 
         result.IsSuccess.ShouldBeTrue();
         result.Value.Session.ShouldBeNull("the duplicate branch has always answered the uniform 202");
+
+        // Reached, not skipped — this arm sits inside the #703 cooldown gate, so a flipped cooldown
+        // default would otherwise make the whole assertion vacuous.
+        await emailSender.Received(1).SendAccountExistsNoticeAsync(
+            "klas@example.com", Arg.Any<CancellationToken>());
+
+        var warning = logger.Records.ShouldHaveSingleItem();
+        warning.Level.ShouldBe(LogLevel.Warning);
+        warning.Message.ShouldNotContain("klas@example.com", Case.Insensitive);
     }
 
     [Fact]
@@ -471,9 +509,11 @@ public class RegisterCommandHandlerTests
         var outage = Substitute.For<IEmailSender>();
         outage.SendEmailConfirmationAsync(
                 Arg.Any<string>(), Arg.Any<EmailConfirmationEmail>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromException(new InvalidOperationException("outage")));
+            .Returns(Task.FromException(
+                new EmailDeliveryException("email-confirmation", nameof(HttpRequestException))));
         outage.SendAccountExistsNoticeAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromException(new InvalidOperationException("outage")));
+            .Returns(Task.FromException(
+                new EmailDeliveryException("account-exists-notice", nameof(HttpRequestException))));
 
         var fresh = await CreateHandler(
                 userAccountService: freshAccounts, emailSender: outage, requireEmailConfirmation: true)
@@ -482,9 +522,82 @@ public class RegisterCommandHandlerTests
                 userAccountService: takenAccounts, emailSender: outage, requireEmailConfirmation: true)
             .Handle(ValidCommand(), CancellationToken.None);
 
-        fresh.IsSuccess.ShouldBe(taken.IsSuccess, "a send fault must not split the two branches");
-        fresh.IsSuccess.ShouldBeTrue();
-        fresh.Value.Session.ShouldBe(taken.Value.Session, "both answer the same session-less 202");
+        // Both arms were REACHED — otherwise "identical outcome" is satisfied by two branches that
+        // both skipped their send, which is the asymmetry this test exists to catch.
+        await outage.Received(1).SendEmailConfirmationAsync(
+            Arg.Any<string>(), Arg.Any<EmailConfirmationEmail>(), Arg.Any<CancellationToken>());
+        await outage.Received(1).SendAccountExistsNoticeAsync(
+            Arg.Any<string>(), Arg.Any<CancellationToken>());
+
+        // Absolute, not relational: `fresh.Session.ShouldBe(taken.Session)` also passes when BOTH
+        // carry a session, which would be a different defect answering the same equality.
+        fresh.IsSuccess.ShouldBeTrue("a send fault must not fell either branch");
+        taken.IsSuccess.ShouldBeTrue();
+        fresh.Value.Session.ShouldBeNull("both answer the same session-less 202");
+        taken.Value.Session.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task Handle_FlagOn_WhenConfirmationSendIsCancelled_PropagatesRatherThanSwallowing()
+    {
+        // The swallow's filter is `when (ex is not OperationCanceledException)`, so a cancellation the
+        // CALLER asked for still propagates — parity with ResendEmailConfirmationCommandHandler, whose
+        // sibling pin is Handle_WhenSendCancelled_Propagates.
+        //
+        // ⚠ This is the arm that keeps the producer NARROWED rather than closed, and it is pinned so
+        // the boundary is visible rather than incidental: a client that aborts mid-request still leaves
+        // an Identity row with no JobSeeker, because UnitOfWorkBehavior's SaveChangesAsync takes the
+        // same token. The login guard is what makes that row harmless — see
+        // OrphanedIdentityActivationTests.
+        //
+        // The premise is the shape the adapter emits: ScalewayEmailSender rethrows an OCE UNWRAPPED
+        // exactly when the caller's token is cancelled (everything else, provider timeouts included,
+        // arrives as EmailDeliveryException). So the token is cancelled, not CancellationToken.None.
+        var userId = Guid.NewGuid();
+        var userAccountService = UserAccountServiceCreating(userId);
+        userAccountService.GenerateEmailConfirmationTokenAsync(userId, Arg.Any<CancellationToken>())
+            .Returns(Result.Success("tok"));
+
+        using var cts = new CancellationTokenSource();
+        await cts.CancelAsync();
+
+        var emailSender = Substitute.For<IEmailSender>();
+        emailSender.SendEmailConfirmationAsync(
+                Arg.Any<string>(), Arg.Any<EmailConfirmationEmail>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromException(new OperationCanceledException(cts.Token)));
+
+        var handler = CreateHandler(
+            userAccountService: userAccountService, emailSender: emailSender,
+            requireEmailConfirmation: true);
+
+        await Should.ThrowAsync<OperationCanceledException>(
+            () => handler.Handle(ValidCommand(), cts.Token).AsTask());
+    }
+
+    [Fact]
+    public async Task Handle_FlagOn_WhenNoticeSendIsCancelled_PropagatesRatherThanSwallowing()
+    {
+        // Symmetry again: the duplicate arm carries the identical filter and must behave identically
+        // under cancellation, or the two arms diverge on a fault class after being made to agree on
+        // the other.
+        var userAccountService = Substitute.For<IUserAccountService>();
+        userAccountService.CreateUserAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(Result.Failure<Guid>(
+                DomainError.Validation(AuthErrorCodes.DuplicateAccount, AuthErrorCodes.DuplicateAccountMessage)));
+
+        using var cts = new CancellationTokenSource();
+        await cts.CancelAsync();
+
+        var emailSender = Substitute.For<IEmailSender>();
+        emailSender.SendAccountExistsNoticeAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromException(new OperationCanceledException(cts.Token)));
+
+        var handler = CreateHandler(
+            userAccountService: userAccountService, emailSender: emailSender,
+            requireEmailConfirmation: true);
+
+        await Should.ThrowAsync<OperationCanceledException>(
+            () => handler.Handle(ValidCommand(), cts.Token).AsTask());
     }
 
     // ---------- Public-registration kill-switch (ADR 0083 Amendment 2026-08-03) ----------

@@ -86,14 +86,19 @@ public class OrphanedIdentityActivationTests(ApiFactory factory)
     [Fact]
     public async Task Registration_whose_confirmation_send_fails_still_commits_the_job_seeker()
     {
-        // HALF ONE — the producer is closed. The send THROWS EmailDeliveryException, which is the shape
-        // a provider outage emits (ScalewayEmailSender wraps every transport and 4xx/5xx fault in that
-        // type and lets it escape the adapter); this is the exact fault that produced the dev orphan.
+        // HALF ONE — the DELIVERY-FAULT producer is closed. Read that scope precisely: this closes the
+        // trigger #1349 measured on dev, not the class. Registration passes through the orphan state on
+        // EVERY call by construction (Identity committed in its own boundary, JobSeeker only saved by
+        // UnitOfWorkBehavior after the handler returns), which is why AccountHardDeleter.cs:74-78 gives
+        // its sweep a grace window at all. A cancelled request still lands there, pinned at
+        // RegisterCommandHandlerTests.Handle_FlagOn_WhenConfirmationSendIsCancelled_*. That residue is
+        // exactly what half two makes harmless.
         //
+        // The send THROWS EmailDeliveryException, the shape a provider outage emits (ScalewayEmailSender
+        // wraps every transport and 4xx/5xx fault in that type and lets it escape the adapter).
         // Before this change the throw escaped the handler, UnitOfWorkBehavior never reached its
-        // SaveChangesAsync, and the tracked JobSeeker was dropped while the Identity user — committed in
-        // its own boundary by UserManager — survived. Now the fault is swallowed: the request answers
-        // the same uniform 202 as a successful send and the account is whole.
+        // SaveChangesAsync, and the tracked JobSeeker was dropped while the Identity user survived. Now
+        // the fault is swallowed: the request answers the same uniform 202 and the account is whole.
         var ct = TestContext.Current.CancellationToken;
         var email = $"orphan-producer-{Guid.NewGuid()}@example.com";
 
@@ -129,6 +134,8 @@ public class OrphanedIdentityActivationTests(ApiFactory factory)
         // Make `taken` exist first, with delivery working.
         (await RegisterAsync(taken, ct)).StatusCode.ShouldBe(HttpStatusCode.Accepted);
 
+        var sentBefore = _factory.Emails.Sent.Count;
+
         using (_factory.Emails.FailingSends())
         {
             // `taken` now goes down the duplicate branch (account-exists notice); `fresh` down the
@@ -145,6 +152,12 @@ public class OrphanedIdentityActivationTests(ApiFactory factory)
             var freshBody = await freshResponse.Content.ReadAsStringAsync(ct);
             takenBody.ShouldBe(freshBody);
             takenBody.ShouldBeNullOrEmpty();
+
+            // COUNTERFACTUAL. Two 202s are also what a BROKEN FailingSends() produces — both sends
+            // succeeding quietly — so equality alone cannot tell a working outage from no outage at
+            // all. Nothing may have been recorded while the scope was open.
+            _factory.Emails.Sent.Count.ShouldBe(
+                sentBefore, "the outage is real: neither arm's send reached the recorder");
         }
     }
 
@@ -156,14 +169,24 @@ public class OrphanedIdentityActivationTests(ApiFactory factory)
         // they are done. Every step still reports success, because none of them is where the defect
         // lived; login is, and it now refuses.
         //
-        // WHO PRODUCES THE PREMISE (CLAUDE.md §5 Tests:). After half one, registration does not — so the
-        // row is seeded here and the actor is named rather than implied:
-        //   1. AccountHardDeleter step 2h (AccountHardDeleter.cs:302-309), whose own comment admits the
+        // WHO PRODUCES THE PREMISE (CLAUDE.md §5 Tests:). Half one closes the delivery-fault trigger, not
+        // the class, so the row is still producible and the actors are named rather than implied:
+        //   1. A cancelled request. Registration passes through this state on every call by
+        //      construction, and UnitOfWorkBehavior takes the request token, so a client that aborts
+        //      mid-request drops the JobSeeker and keeps the Identity user. Pinned at
+        //      RegisterCommandHandlerTests.Handle_FlagOn_WhenConfirmationSendIsCancelled_*.
+        //   2. AccountHardDeleter step 2h (AccountHardDeleter.cs:302-309), whose own comment admits the
         //      state in writing: the domain transaction commits first, the Identity DELETE is a separate
         //      boundary after it, and "Om denna failer plockas raden upp av Steg 0 ... i nästa körning"
-        //      — i.e. the row is live until the next daily run. NOT retired by this PR.
-        //   2. Rows written before this change, when the confirmation send threw.
-        // The pin that producer 2 is closed is the test above, in this same file.
+        //      — i.e. the row is live until the next daily run. That actor's own predicate is pinned
+        //      against the REAL AccountHardDeleter in HardDeleteAccountsJobIntegrationTests
+        //      .CleanupIdentityOrphans_DoesNotSweepIdentityUserWithinGraceWindow.
+        //   3. Rows written before this change, when the confirmation send threw — retired by
+        //      Registration_whose_confirmation_send_fails_still_commits_the_job_seeker, in this file.
+        //
+        // The account is created through the same shape production uses (UserAccountService.cs:23-27
+        // builds the identical `new ApplicationUser { UserName = email, Email = email }`), so the
+        // fixture is not a hand-built argument the real writer never emits.
         var ct = TestContext.Current.CancellationToken;
         var email = $"orphan-capability-{Guid.NewGuid()}@example.com";
 

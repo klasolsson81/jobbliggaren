@@ -57,11 +57,18 @@ public sealed class LoginCommandHandler(
         // premise "Register skapar båda atomiskt" — false: registration is deliberately non-atomic
         // across two boundaries (ADR 0024 D6, AccountHardDeleter.cs:19-28).
         //
-        // The guard sits here because login is the CAPABILITY seam: the only unauthenticated place a
-        // profile-less row can be granted anything (the other ISessionStore.CreateAsync call site is
-        // RegisterCommandHandler's legacy branch, unreachable outside Dev/Test per
-        // AuthOptionsValidator). That makes every delivery route and both activation seams —
-        // /verify-email and the #1303 reset write — inert, instead of enumerating them.
+        // The guard sits here because login is the CAPABILITY seam: the only UNAUTHENTICATED place a
+        // profile-less row can be granted anything. The other two ISessionStore.CreateAsync call sites
+        // are AuthEndpoints' post-password-change re-issue, which is .RequireAuthorization(), and
+        // RegisterCommandHandler's legacy instant-login branch, which is unreachable in production by
+        // TWO separate checks depending on configuration: AuthOptionsValidator refuses to boot
+        // RegistrationsOpen without RequireEmailConfirmation, and with RegistrationsOpen=false (the
+        // default) the kill-switch at the top of that handler returns before the branch.
+        //
+        // Guarding the capability rather than the routes is what makes every delivery route and both
+        // activation seams — /verify-email and the #1303 reset write — inert, instead of enumerating
+        // them. It governs the GRANT, not what was already granted: an existing session is not
+        // re-checked here (#1349 review, security-auditor M-1).
         var jobSeeker = await db.JobSeekers
             .IgnoreQueryFilters()
             .AsNoTracking()

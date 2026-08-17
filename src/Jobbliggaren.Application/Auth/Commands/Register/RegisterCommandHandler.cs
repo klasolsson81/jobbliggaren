@@ -155,8 +155,8 @@ public sealed partial class RegisterCommandHandler(
     // exception formatting cannot walk back to a message naming the recipient (ADR 0124). Parity with
     // ResendEmailConfirmationCommandHandler.LogResendFailed.
     [LoggerMessage(Level = LogLevel.Warning,
-        Message = "RegisterCommand: confirmation send failed — the account was created and committed, "
-            + "the activation link was not delivered; the user can resend it (#1349)")]
+        Message = "RegisterCommand: confirmation send failed — the account stands, the activation link "
+            + "was not delivered; the user can resend it (#1349)")]
     private static partial void LogConfirmationSendFailed(ILogger logger, Exception ex);
 
     [LoggerMessage(Level = LogLevel.Warning,

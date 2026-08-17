@@ -291,23 +291,37 @@ public class LoginCommandHandlerTests
     [Fact]
     public async Task Handle_WithNoJobSeekerRow_ReturnsInvalidCredentials_AndCreatesNoSession()
     {
-        // WHO PRODUCES THIS STATE (CLAUDE.md §5 Tests: — the premise is not produced by any src/ path
-        // that this test can drive, so the actor is named rather than implied):
+        // WHO PRODUCES THIS STATE (CLAUDE.md §5 Tests: — the actor is named rather than implied).
+        // Registration produces it TRANSIENTLY on every single call, and that is not an accident:
+        // RegisterCommandHandler commits the Identity user in its own boundary and adds the JobSeeker
+        // to the change tracker, which UnitOfWorkBehavior saves only after the handler returns.
+        // AccountHardDeleter.cs:74-78 names exactly this window as the reason its sweep has a grace
+        // period — "a younger one is presumed mid-registration (Identity committed, JobSeeker not yet)".
+        // Anything that stops the handler inside that window leaves the row behind:
         //
-        //   1. AccountHardDeleter.HardDeleteAccountAsync step 2h (AccountHardDeleter.cs:302-309). The
-        //      domain transaction commits FIRST and the Identity DELETE is a separate boundary after it,
-        //      so a failure there leaves an Identity row whose JobSeeker is already gone — and that row
-        //      is EmailConfirmed with a working password. The actor's own code admits the state in
-        //      writing: "Om denna failer plockas raden upp av Steg 0 (CleanupIdentityOrphansAsync) i
-        //      nästa körning." Step 0 reaps it on the NEXT daily run, so the row is live until then.
-        //   2. Rows written before this change — registration used to leave one on every failed
-        //      confirmation send (#1349's measured reproduction on dev, 2026-08-16).
+        //   1. A cancelled request (the client closes the tab). UnitOfWorkBehavior passes the request
+        //      token to SaveChangesAsync, so the JobSeeker is dropped while the Identity user stands.
+        //      Pinned at RegisterCommandHandlerTests
+        //      .Handle_FlagOn_WhenConfirmationSendIsCancelled_PropagatesRatherThanSwallowing.
+        //   2. AccountHardDeleter step 2h (AccountHardDeleter.cs:302-309) — the domain transaction
+        //      commits FIRST and the Identity DELETE is a separate boundary after it, so a failure
+        //      there leaves a row that is EmailConfirmed with a working password. The actor's own code
+        //      admits the state in writing: "Om denna failer plockas raden upp av Steg 0
+        //      (CleanupIdentityOrphansAsync) i nästa körning" — i.e. live until the next daily run.
+        //      That predicate is pinned against the REAL AccountHardDeleter in
+        //      HardDeleteAccountsJobIntegrationTests
+        //      .CleanupIdentityOrphans_DoesNotSweepIdentityUserWithinGraceWindow (admits the state) and
+        //      ..._RemovesOrphanIdentityRowsWithoutMatchingJobSeeker (the other polarity).
+        //   3. The compensating delete in RegisterCommandHandler's JobSeeker.Register failure arm.
+        //      It calls DeleteUserAsync, which discards its IdentityResult
+        //      (UserAccountService.cs:76-81), so a failed compensation leaves the row and says nothing.
+        //   4. Rows written before this change, when a failed confirmation send left one on every
+        //      attempt (#1349's measured reproduction on dev, 2026-08-16).
         //
-        // Producer 2 is RETIRED by this same PR, and per §5 the pin that the current writer no longer
-        // emits the shape lives elsewhere: RegisterCommandHandlerTests
-        // .Handle_FlagOn_WhenConfirmationSendThrows_SwallowsAndKeepsTheAccount, and end to end in
-        // OrphanedIdentityActivationTests. Producer 1 is not retired and is why this guard is permanent
-        // rather than a migration.
+        // Producer 4 is retired by this PR — pinned in RegisterCommandHandlerTests
+        // .Handle_FlagOn_WhenConfirmationSendThrows_SwallowsAndKeepsTheAccount and end to end in
+        // OrphanedIdentityActivationTests. Producers 1-3 are NOT retired, which is why this guard is
+        // permanent rather than a migration.
         //
         // The account is deliberately NOT soft-deleted here — that is the sibling D5 case two tests up,
         // and reading this one as a variant of it misses the point: there is no profile row at all.
@@ -337,6 +351,10 @@ public class LoginCommandHandlerTests
         await sessionStore.DidNotReceive().CreateAsync(
             Arg.Any<Guid>(), Arg.Any<SessionLifetime>(), Arg.Any<CancellationToken>());
         auditLogger.DidNotReceive().LoginSucceeded(Arg.Any<Guid>(), Arg.Any<string>());
+
+        // The refusal IS audited, identically to the soft-delete arm. Not merely symmetry: without it
+        // the brute-force signal would go quiet for a population whose credentials are valid.
+        auditLogger.Received(1).LoginFailed(Arg.Any<string>());
     }
 
     [Fact]

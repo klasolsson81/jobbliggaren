@@ -1754,10 +1754,177 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
       > DEK), så vägen blir §9.6 (3) — som kräver bäraravsaknad. Med korpuset laddat finns bärare
       > fyndet **når** (rekryterarkontakter; `job_ads.organization_number` för enskild firma), så
       > bindningen faller. **Följd: risken ska REPARERAS före riktig data, inte accepteras igen.**
-      > (3) **båda M-7-benen verifierade på `host-detection.md` §7** — insamlingen är i stort
-      > verifierad, men **hela väcknings- och paging-kedjan är omätt**, och det är just den som gör
-      > Art. 33:s frist datbar. En auditd-regel som skriver till en logg ingen läser producerar
-      > ingen medvetenhet.
+      > (3) **båda M-7-benen verifierade på `host-detection.md` §7** — insamlingen är verifierad,
+      > och **väcknings- och paging-kedjan är sedan 2026-08-17 mätt ända fram** (PR
+      > [#1374](https://github.com/klasolsson81/jobbliggaren/pull/1374): **fyra** §7-rader urladdade
+      > mot Klas läsning hos expectern, korroborerad mot lådans journal; D5 demonstrerade
+      > **tystnadsarmen**, som aldrig hade visats). ⚠ **Fyra, inte fem** — den femte
+      > `Discharged 2026-08-17`-raden i §7 är key-tmpfs-raden och kom i **PR #1370**
+      > (`5462f8d9`), en låd-sidig `sudo dd`-drill och ingen expecter-läsning. #1374:s egen
+      > commit-text säger *"four M-7 rows discharge at the expecter"*. Femman stod i
+      > sessionsstaten och ärvdes hit omätt. Det är den kedjan som gör Art. 33:s frist datbar — en auditd-regel som
+      > skriver till en logg ingen läser producerar ingen medvetenhet. ⚠ **Kravet är ändå INTE urladdat:**
+      > två §7-rader står kvar, **reboot-överlevnad** (Klas att auktorisera — kräver omstart av
+      > produktionslådan) och **baseline-noise**.
+
+      ⛔ **FLIPPEN ÄR UTFÖRD 2026-08-17, OCH DEN UTFÖRDES MOT BLOCKERINGEN OVAN.** Raden ovan säger
+      att inget av de tre kraven är uppfyllt; det står kvar för att det var sant när det skrevs och
+      är sant än. Det som ändrades är inte kravbilden utan **vem som bär risken**.
+      **Flippen utförd av:** Klas Olsson som **personuppgiftsansvarig** · **Utförd:** 2026-08-17 ·
+      **Plats:** `/opt/jobbliggaren/deploy/.env` (`JOBTECH_INGEST_ENABLED=true`), med skälet skrivet
+      **inline i samma fil** — den är lådans, inte repots, och därför är den citerad och inte pekad på.
+      ⚠ **`security-auditor`s M-7-gradering står oförändrad och är HENNES** (§9.6: severity tillhör
+      den agent som rapporterade fyndet, och en senare läsare omgraderar den inte). Acceptansen är
+      **personuppgiftsansvariges** — den går alltså varken via §9.6 (2) eller (3), och åberopar ingen
+      bäraravsaknad. **Läs därför inte hennes gradering som en öppen grind, och stäng inte ingesten
+      igen** på den grunden.
+      ⛔ **OCH LÄS INTE DEN HÄR PUNKTEN SOM EN §9.6-ACCEPTANS — den är det inte, och skillnaden är
+      inte kosmetisk.** §9.6 (3) kräver Klas beviljande **plus `security-auditor`s signatur**, ett hem
+      i **ADR eller CLAUDE.md-uppdatering**, och en skriven lapse-trigger. **Ingen signatur finns, och
+      det här är en runbook.** Vad punkten gör är att **recorda en handling som personuppgiftsansvarig
+      utförde** — inte att bevilja den efterhand.
+      ⚠ **ACCEPTANSEN TÄCKER FLIPPEN, ALDRIG M-7:s KONVERTERING — och de två meningarna hör ihop, så
+      glesa aldrig ut dem.** Satsen som säger att konverteringen **saknar acceptansväg** (§9.6 stänger
+      både (2) och (3) för en GDPR-Blocker) står kvar oförändrad i blockquoten ovan, på raden som
+      börjar `Konverteringen har` — **den citeras vid sin text och inte med ett radavstånd**,
+      eftersom ett sådant tal ruttnar vid varje redigering och redan mätts fel en gång i den här
+      punkten. ⚠ **Ankaret är avsiktligt ett fragment, och skälet är mätt:** målraden bär
+      fetstilsmarkörer mitt i meningen, så ett markup-fritt svep på **hela** meningen ger noll
+      träffar. Ankaret är därför ett fragment som undviker markörerna.
+      De två påståendena motsäger inte varandra just för att det här inte är en acceptans; risken är
+      en senare redigering som skiljer dem åt och låter recordet läsas som om det täckte
+      konverteringen också (`security-auditor` 2026-08-17).
+      **Om Klas vill att beslutet ska stå som en formell §9.6-acceptans krävs ADR + hennes signatur —
+      den frågan är eskalerad till honom, inte avgjord här** (`code-reviewer` 2026-08-17; §9.2 hindrar
+      varje subagent från att fråga honom). ⚠ **`security-auditor`s eget svar, givet i omkontrollen
+      2026-08-17: nej — signera inte, och be henne inte signera.** §9.6 (2)/(3) är vägar för en
+      *session* att disponera ett *agentfynd*; det som skedde här är att personuppgiftsansvarig fattade
+      ett beslut om sin egen behandling (Art. 24(1)) — annan aktör, annan handling. En formell
+      §9.6 (3)-acceptans vore dessutom **otillgänglig**: bindningen kräver bäraravsaknad, och den
+      faller på de 532 rekryterarna. **Nuvarande inramning — ett record av en ansvarshandling — är den
+      korrekta.**
+
+      ⛔ **ART. 14(3)(a)-KLOCKAN GÅR SEDAN 2026-08-17, OCH FRISTEN ÄR `2026-09-17`**
+      (`security-auditor` 2026-08-17, M1). Recordet ovan säger uttömmande vad som **ligger** på lådan
+      och ingenting om vad som är **skyldigt** — det är den lucka den här raden stänger. Tre led,
+      och de hänger ihop:
+      - **Fristen:** en månad från första registreringen av personuppgifterna, alltså **2026-09-17**
+        för de 532 deklarerade rekryterarkontakterna.
+      - **Art. 14(5)(b):s mitigering kräver att notisen är *allmänt tillgänglig*** — och §2.5:s egen
+        mätning 2026-08-16 säger att den **inte** är det (apex svarar `000`, dev `401 Basic` på varje
+        väg). En blackholad `recruiterNotice` bär alltså inte undantaget.
+      - **§2.5 förutsättning 5:s Blocker-triggrar (a)–(d) är uteslutande ANVÄNDARnycklade**, så
+        **ingen av dem fyrar på 532 rekryterare.** Premissen *"den publicerade rättighetskanalen har
+        därmed ingen läsare"* skrevs 2026-08-16 och ändrades dagen efter.
+      **Klas väljer väg** — direkt tillhandahållande, 14(5)(b) med notisen gjord allmänt tillgänglig
+      före fristen, eller ett dokumenterat beslut på annan grund. **Beslutet är hans; datumet är
+      förordningens.** Konverterar till Blocker **2026-09-17**, eller tidigare om copyn blir publik
+      medan brevlådan är blackholad.
+      **RESIDUALEN — MÄTT PÅ LÅDAN 2026-08-17 ~16:00Z, OCH DEN ÄR INTE NOLL.** En tidigare läsning
+      samma dag gav noll deklarerade kontaktposter; den togs **innan strömmen hunnit köra** och är
+      överspelad. Mätt efter ~50 minuters ström (`*/10`), alltså **före** den första fullbackfillen
+      02:00 UTC: **822 kontaktposter över 462 av 668 annonser — 532 `Declared`, samtliga med namn,
+      och 290 `ExtractedFromBody`, ingen med namn.** Att exakt de deklarerade bär namn är väntat och
+      inte ett fynd: Tier A når e-post och telefon men aldrig namn (ingen NER, ADR 0106 D5).
+      Talen är daterade och avser **beslutsögonblicket**; de växer med varje ingest. Regenerera:
+
+      ```bash
+      sudo docker exec jobbliggaren-postgres psql -U postgres -d jobbliggaren -c "
+      WITH e AS (SELECT a.id, c FROM job_ads a CROSS JOIN LATERAL jsonb_array_elements(a.contacts) AS c)
+      SELECT count(*) AS entries, count(DISTINCT id) AS ads_with_entries,
+             (SELECT count(*) FROM job_ads) AS ads_total,
+             count(*) FILTER (WHERE c->>'Origin' = 'Declared') AS declared,
+             count(*) FILTER (WHERE c->>'Name' IS NOT NULL) AS with_name,
+             count(*) FILTER (WHERE c->>'Origin' = 'Declared' AND c->>'Name' IS NOT NULL)
+               AS declared_with_name FROM e;"
+      ```
+
+      ⚠ **`declared_with_name` är med av en anledning:** meningen ovan är en **korstabell**, och tre
+      marginaler belägger den inte — 500 + 32 ger samma `with_name`. Instrumentet returnerar bara
+      heltal och skriver aldrig ut ett namn, en adress eller ett telefonnummer.
+
+      **`job_ads.organization_number` är ett SEPARAT fält och namnges som ett** — inte som en broms.
+      Det **är** personnummer-format för en enskild firma (#841), och den formen försvinner inte av
+      att den mäts. Mätt ~17:10Z mot **råvärdet**: **687** annonser bär org.nr, **noll
+      personnummer-formade** — och noll som ens avviker från tio rena siffror. Nollan är en egenskap
+      hos **den population som låg där då**, aldrig en strukturell garanti, och den ska mätas om och
+      inte ärvas. Antalet växer med varje ingest: **652 (~16:00Z) → 676 (~16:50Z) → 687 (~17:10Z)**,
+      egenskapen oförändrad. Paret står kvar med flit — det **visar** att talet förfaller medan
+      egenskapen håller, i stället för att påstå det.
+      ⚠ **DE TVÅ FÖRSTA TALEN TOGS MED ETT FAIL-OPET INSTRUMENT, och det står här i stället för att
+      städas bort** (`security-auditor` M2a + `code-reviewer` Major B, oberoende, 2026-08-17). Den
+      förra queryn normaliserade med `regexp_replace(… '[^0-9]' …)` **före** mätningen och dödade
+      därmed metodens **fail-safe-ben**: `556012-5790` ger `IsPersonnummerShaped() == true` i
+      produktion men blev tio rena siffror med trean `6` och räknades som org.nr-formad. Att svaret
+      ändå var rätt beror på populationen, inte på instrumentet — **`not_ten_raw_digits = 0`**, mätt
+      samtidigt. Ett fail-opet instrument som råkar ha rätt är fortfarande ett fail-opet instrument.
+      ⛔ **Regenerera med DEN HÄR queryn, aldrig med en egenhändigt skriven** — kolumnen **är** ett
+      personnummer för en enskild firma, och den naturliga formen (`SELECT organization_number …`)
+      skriver ut personnummer i en terminal på lådan. Den här returnerar tre heltal och rör aldrig ett
+      värde. Den testar **råvärdet**, eftersom kolumnen bär JobTechs sträng orörd
+      (`JobAdFacets.Normalize` är `value.Trim()`, aldrig `OrganizationNumber.Create`) och
+      produktionens egen visningsgräns läser just den strängen
+      (`DisambiguateEmployersQueryHandler` → `FromTrusted(...).IsPersonnummerShaped()`). Predikatet
+      speglar **alla tre** benen i `OrganizationNumber.IsPersonnummerShaped()` — inte längd, inte
+      rena ASCII-siffror, eller tredje tecknet `< '2'` — och `[0-9]` är den smalaste klassen, så varje
+      avvikelse kan bara flagga **fler** rader, aldrig färre. Ingen `::int`-cast: en missformad rad
+      skulle kasta `invalid input syntax` och ge noll svar i stället för en rapport.
+
+      ```bash
+      sudo docker exec jobbliggaren-postgres psql -U postgres -d jobbliggaren -c "
+      SELECT count(*) AS orgnr_rows,
+             count(*) FILTER (WHERE organization_number ~ '^[0-9]{10}\$'
+                                AND substring(organization_number,3,1) >= '2') AS shape_orgnr,
+             count(*) FILTER (WHERE organization_number !~ '^[0-9]{10}\$'
+                                OR substring(organization_number,3,1) < '2')  AS shape_personnummer
+      FROM job_ads WHERE organization_number IS NOT NULL;"
+      ```
+
+      ⚠ **KLAS-BESLUT 2026-08-17 — SCB-SYNKEN PAUSAS PÅ LÅDAN, OCH LÅDAN SKA INTE HA NÅGOT
+      CERTIFIKAT.** **Beslut av:** Klas Olsson · **Datum:** 2026-08-17 · **Plats:** CC-session,
+      recordat här.
+      **Skälet är att arbetet är kastat:** SCB byter självt till API om 1–2 månader, så cert-infra
+      på lådan hinner aldrig löna sig. **Marginalen som avstås är namngiven och accepterad:** de
+      allra nyaste företagen, och de som avregistrerats sedan extraktet. Synken kan i stället köras
+      live i CC-chatten en lördag om behovet uppstår.
+      ⛔ **DETTA ÄR REDAN ÖNSKAT TILLSTÅND — BYGG INTE CERTVÄGEN OCH "LAGA" INTE DET SAKNADE
+      CERTET.** Mätt 2026-08-17, fyra oberoende led: `ScbRegister:Enabled` är `false` i båda hemmen
+      (`src/Jobbliggaren.Worker/appsettings.json` och C#-defaulten på `ScbRegisterOptions`) ·
+      **noll** `ScbRegister`-nycklar under `deploy/` (regenerera: `grep -rn "ScbRegister" deploy/`,
+      förvänta exit 1) · **noll** SCB-nycklar i lådans `.env` (regenerera:
+      `sudo grep -ci scb /opt/jobbliggaren/deploy/.env`) · **inget certifikat på lådan**
+      (`ScbClientCertificateProvider` läser OS-certarkivet, som bara finns på Klas maskin).
+      Jobbet är alltjämt registrerat på `0 6 * * 6` och **no-op:ar** när `Enabled=false`
+      (`ScbCompanyRegisterRefresher`s tidiga retur — *"ingen SCB-anrop, inget cert"*), så schemat
+      håller sig drift-fritt mot `RecurringJobIds`-allowlisten utan att någonting körs.
+      ⚠ **Varför en felaktig flipp är dyrare än den ser ut** (`security-auditor` 2026-08-17, m2).
+      Utan cert kan `ScbRegister:Enabled=true` inte lyckas — `ScbClientCertificateProvider` är
+      fail-loud på `CertThumbprint`. **Och Workern bär en GDPR-retentionkontroll som inte har med
+      SCB att göra:** `JobAd.Archive()` sätter `Contacts = null`, och `ExpireJobAdsJob` rensar samma
+      kolumn via `ExecuteUpdateAsync` — det är Art. 5(1)(e)-vägen som gör att en arkiverad annons
+      inte behåller rekryterarkontakter (**mätt i koden 2026-08-17**, båda skrivarna). Slutar
+      Workern fungera stannar den sweepen **tyst**, och med korpuset live är det just den population
+      som växer.
+      **Felläget är mätt, och det beror på INPUT** (`security-auditor` 2026-08-17, i
+      `DependencyInjection.cs`s registreringsgren):
+      - `Enabled=false` → tidig `return services;`, inget kast. **Lådans nuläge.**
+      - `Enabled=true` **utan** thumbprint → kastet ligger som **rak kod i registreringsmetoden**, så
+        det fyrar när **`AddScbCompanyRegister(...)`** anropas, alltså **före `builder.Build()`**.
+        Hosten startar aldrig, och `ValidateOnBuild` är irrelevant eftersom `Build()` aldrig nås.
+        ⚠ **Grinden heter INTE `AddInfrastructure` — och skillnaden är operativ, inte namnpetig.**
+        Modulen är Worker-only och dess egen doc säger *"deliberately NOT part of
+        `AddInfrastructure`"*; Workern drar över huvud taget inte in `AddInfrastructure`
+        (`Worker/Program.cs`: *"Worker drar INTE in AddInfrastructure (HTTP-fri, ADR 0023)"*), och
+        enda anropsplatsen i `src/` är Api:ts `Program.cs`. **Alltså dör bara Workern av en felaktig
+        flipp — aldrig Api:t**, vilket är precis den skillnad en operatör läser stycket för att
+        bedöma.
+        ⚠ **Det är den realistiska olyckan här:** lådan bär noll SCB-nycklar, så ett blankt
+        `ScbRegister__Enabled=true` har ingen thumbprint.
+      - `Enabled=true` **med** thumbprint men utan cert → registreringen går igenom och `Load()`
+        kastar först när den typade klienten resolvas, alltså vid jobbinvokation. Det är det fall
+        `Program.cs`s `ValidateOnBuild=false`-not beskriver.
+      *(En tidigare version av den här raden hävdade att felläget var oprövat, och en ännu tidigare att
+      det alltid var DI-registreringen. Båda var fel; det här är mätningen.)*
       En obockad ruta här betyder *"GO ej givet"* och ingenting annat — till skillnad från filens
       övriga rutor, där en obockad ruta inte får läsas som "inte levererat" (blockquoten ovan).
       ⚠ **Och en bockad ruta här är inte heller tillstånd i sig** — den är ett **record av** GO:t.

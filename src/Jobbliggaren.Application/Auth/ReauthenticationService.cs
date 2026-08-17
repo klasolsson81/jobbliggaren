@@ -67,13 +67,22 @@ public sealed class ReauthenticationService(
         // — the global DeletedAt==null filter would hide the row; keyed userId -> JobSeeker.UserId
         // (as LoginCommandHandler). Runs AFTER the password check so a wrong password never reveals
         // soft-delete state.
-        var deletedAt = await db.JobSeekers
+        // #1349 — projected to a ROW, not to a nullable value, and that is the whole repair. The
+        // previous `Select(js => (DateTimeOffset?)js.DeletedAt)` made FirstOrDefaultAsync answer null
+        // for BOTH "no row at all" and "a live row", so this gate could not see an account with no
+        // JobSeeker and let it through. An orphan holding a live session then passed re-auth, changed
+        // its password, and was handed a FRESH session by the /change-password re-issue — renewing the
+        // capability without ever crossing the login guard (security-auditor M-1).
+        //
+        // The predicate is deliberately byte-for-byte the same rule as LoginCommandHandler's: two
+        // grants, one sentence — "a row with no JobSeeker is granted nothing". Read them together.
+        var profile = await db.JobSeekers
             .IgnoreQueryFilters()
             .Where(js => js.UserId == userId)
-            .Select(js => (DateTimeOffset?)js.DeletedAt)
+            .Select(js => new { js.DeletedAt })
             .FirstOrDefaultAsync(ct);
 
-        if (deletedAt is not null)
+        if (profile is null || profile.DeletedAt is not null)
         {
             try
             {

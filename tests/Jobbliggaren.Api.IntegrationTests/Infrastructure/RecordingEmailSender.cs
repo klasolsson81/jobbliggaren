@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using Jobbliggaren.Application.Common.Abstractions;
+using Jobbliggaren.Application.Common.Exceptions;
 
 namespace Jobbliggaren.Api.IntegrationTests.Infrastructure;
 
@@ -66,11 +67,59 @@ internal sealed class RecordingEmailSender : IEmailSender
         public void Dispose() => owner._canDeliver = true;
     }
 
+    private volatile bool _sendsThrow;
+
+    /// <summary>
+    /// #1349 — makes every send THROW <see cref="EmailDeliveryException"/> for the duration of the
+    /// returned scope, which is the shape a real provider outage emits: <c>ScalewayEmailSender</c>
+    /// wraps every transport and 4xx/5xx failure in exactly this type and lets it escape the adapter.
+    /// <para>
+    /// <b>Distinct from <see cref="Incapable"/>, and the difference is the whole point.</b> That scope
+    /// models a sender that reports itself unable to deliver and is consulted BEFORE the send;
+    /// this one models a sender that claims it can, is called, and then fails. Only the second reached
+    /// the fault that produced the orphaned Identity row (#508 / #1349): <c>RegisterCommandHandler</c>
+    /// commits the Identity user in its own boundary and used to send as its final UNGUARDED action, so
+    /// a throwing send rolled the not-yet-committed <c>JobSeeker</c> back and left the user behind.
+    /// </para>
+    /// <para>
+    /// <b>That arm is closed as of #1349 — the send is now swallowed and the <c>JobSeeker</c> commits.</b>
+    /// This scope is therefore no longer a way to MAKE an orphan; it is how the tests prove the fault no
+    /// longer makes one. Registration still passes through the orphan state transiently on every call
+    /// (<c>UnitOfWorkBehavior</c> saves after the handler returns), and other producers remain — the
+    /// fixtures in <c>OrphanedIdentityActivationTests</c> enumerate all four.
+    /// </para>
+    /// <para>
+    /// Scope-shaped for the same structural reason as <see cref="Incapable"/>: this instance is a
+    /// singleton shared by every host <see cref="ApiFactory"/> builds, so a leaked <see langword="true"/>
+    /// would convert unrelated later tests in the <c>Api</c> collection into send-failure tests.
+    /// <c>[Collection("Api")]</c> serialises every class that shares the fixture.
+    /// </para>
+    /// </summary>
+    internal IDisposable FailingSends()
+    {
+        _sendsThrow = true;
+        return new FailingSendScope(this);
+    }
+
+    private sealed class FailingSendScope(RecordingEmailSender owner) : IDisposable
+    {
+        public void Dispose() => owner._sendsThrow = false;
+    }
+
+    // Throws BEFORE recording, mirroring the adapter: a send that failed queued nothing. The kind is
+    // the caller's, the underlying type name is HttpRequestException — what a provider 403 produces.
+    private void ThrowIfFailing(string emailKind)
+    {
+        if (_sendsThrow)
+            throw new EmailDeliveryException(emailKind, nameof(HttpRequestException));
+    }
+
     public Task SendMatchNotificationEmailAsync(
         string toEmail,
         MatchNotificationEmail content,
         CancellationToken cancellationToken)
     {
+        ThrowIfFailing("match-notification");
         _sent.Enqueue(new RecordedEmail(RecordedEmailKind.MatchNotification, toEmail));
         return Task.CompletedTask;
     }
@@ -80,6 +129,7 @@ internal sealed class RecordingEmailSender : IEmailSender
         FollowedCompanyNotificationEmail content,
         CancellationToken cancellationToken)
     {
+        ThrowIfFailing("followed-company-notification");
         _sent.Enqueue(new RecordedEmail(RecordedEmailKind.FollowedCompanyNotification, toEmail));
         return Task.CompletedTask;
     }
@@ -89,6 +139,7 @@ internal sealed class RecordingEmailSender : IEmailSender
         EmailChangeConfirmationEmail content,
         CancellationToken cancellationToken)
     {
+        ThrowIfFailing("email-change-confirmation");
         _sent.Enqueue(new RecordedEmail(RecordedEmailKind.EmailChangeConfirmation, toEmail));
         return Task.CompletedTask;
     }
@@ -97,6 +148,7 @@ internal sealed class RecordingEmailSender : IEmailSender
         string toEmail,
         CancellationToken cancellationToken)
     {
+        ThrowIfFailing("email-changed-notification");
         _sent.Enqueue(new RecordedEmail(RecordedEmailKind.EmailChangedNotification, toEmail));
         return Task.CompletedTask;
     }
@@ -106,6 +158,7 @@ internal sealed class RecordingEmailSender : IEmailSender
         EmailConfirmationEmail content,
         CancellationToken cancellationToken)
     {
+        ThrowIfFailing("email-confirmation");
         _sent.Enqueue(new RecordedEmail(RecordedEmailKind.EmailConfirmation, toEmail));
         return Task.CompletedTask;
     }
@@ -114,6 +167,7 @@ internal sealed class RecordingEmailSender : IEmailSender
         string toEmail,
         CancellationToken cancellationToken)
     {
+        ThrowIfFailing("account-exists-notice");
         _sent.Enqueue(new RecordedEmail(RecordedEmailKind.AccountExistsNotice, toEmail));
         return Task.CompletedTask;
     }
@@ -123,6 +177,7 @@ internal sealed class RecordingEmailSender : IEmailSender
         PasswordResetEmail content,
         CancellationToken cancellationToken)
     {
+        ThrowIfFailing("password-reset");
         _sent.Enqueue(new RecordedEmail(RecordedEmailKind.PasswordReset, toEmail));
         return Task.CompletedTask;
     }
@@ -131,6 +186,7 @@ internal sealed class RecordingEmailSender : IEmailSender
         string toEmail,
         CancellationToken cancellationToken)
     {
+        ThrowIfFailing("password-changed-notice");
         _sent.Enqueue(new RecordedEmail(RecordedEmailKind.PasswordChangedNotice, toEmail));
         return Task.CompletedTask;
     }

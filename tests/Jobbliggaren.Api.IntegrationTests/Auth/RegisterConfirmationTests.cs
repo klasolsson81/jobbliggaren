@@ -127,8 +127,12 @@ public class RegisterConfirmationTests(ApiFactory factory)
 
     // NOTE: send-failure symmetry (CTO-bind Risk 1 — a transport fault must yield the same response for
     // the fresh and taken branches) is pinned at the UNIT level in
-    // RegisterCommandHandlerTests.Handle_FlagOn_SendFailure_*: both branches send as their final action
-    // and propagate the exception uncaught, so both surface as an identical 500. That is asserted
-    // without an extra WebApplicationFactory host (which would spin another EF service provider and trip
-    // the process-wide ManyServiceProvidersCreatedWarning across the shared [Collection("Api")]).
+    // RegisterCommandHandlerTests.Handle_FlagOn_SendFaultIsIndistinguishableBetweenFreshAndTakenAddresses,
+    // and end to end in OrphanedIdentityActivationTests
+    // .Registration_send_fault_answers_identically_for_a_fresh_and_a_taken_address. Both branches now
+    // SWALLOW the fault and answer an identical 202 — #1349 reversed the previous "propagate uncaught,
+    // identical 500" shape, because propagating rolled the JobSeeker back and left an orphaned Identity
+    // row. Neither needs an extra WebApplicationFactory host (which would spin another EF service
+    // provider and trip the process-wide ManyServiceProvidersCreatedWarning across the shared
+    // [Collection("Api")]) — the integration half reuses this factory's own flag-ON host.
 }

@@ -53,16 +53,32 @@ public sealed class LoginCommandHandler(
         // engineering). Användaren kontaktar support out-of-band om de vill
         // återställa kontot.
         //
-        // Konto utan JobSeeker-rad (omöjligt scenario i normalt flöde — Register
-        // skapar båda atomiskt) tolkas konservativt som "fortsätt" — vi låter
-        // session skapas och låter felet manifesteras nedströms hellre än att
-        // flagga som blockerat.
+        // #1349 — an account with NO JobSeeker row is refused too. This branch used to continue, on the
+        // premise "Register skapar båda atomiskt" — false: registration is deliberately non-atomic
+        // across two boundaries (ADR 0024 D6, AccountHardDeleter.cs:19-28).
+        //
+        // The guard sits here because login is the CAPABILITY seam: the only UNAUTHENTICATED place a
+        // profile-less row can be granted anything. The other two ISessionStore.CreateAsync call sites
+        // are AuthEndpoints' post-password-change re-issue, which is .RequireAuthorization(), and
+        // RegisterCommandHandler's legacy instant-login branch, which is unreachable in production by
+        // TWO separate checks depending on configuration: AuthOptionsValidator refuses to boot
+        // RegistrationsOpen without RequireEmailConfirmation, and with RegistrationsOpen=false (the
+        // default) the kill-switch at the top of that handler returns before the branch.
+        //
+        // Guarding the capability rather than the routes is what makes every delivery route and both
+        // activation seams — /verify-email and the #1303 reset write — inert, instead of enumerating
+        // them. It governs the GRANT, not what was already granted: an existing session is not
+        // re-checked here (#1349 review, security-auditor M-1).
         var jobSeeker = await db.JobSeekers
             .IgnoreQueryFilters()
             .AsNoTracking()
             .FirstOrDefaultAsync(js => js.UserId == userId, cancellationToken);
 
-        if (jobSeeker?.DeletedAt is not null)
+        // Two grounds, one outcome: a soft-deleted profile (ADR 0024 D5) and no profile at all (#1349).
+        // The uniform InvalidCredentials is the ratified answer for the first (security-auditor STEG 10b
+        // Major-1) and is kept for the second rather than inventing a distinct code — the fix must not
+        // open the account-status oracle two lines above it closes.
+        if (jobSeeker is null || jobSeeker.DeletedAt is not null)
         {
             auditLogger.LoginFailed(HashEmail(command.Email!));
             return Result.Failure<SessionDto>(

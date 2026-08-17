@@ -1066,7 +1066,7 @@ rather than discovered:
   operator do that retains `systemctl` and `docker` — and `docker` alone is root by
   construction (`-v /:/host`, `--pid=host`, a read of `/proc/<pid>/mem`). Remove them and the
   operator can no longer run the box; keep them and the alias grants root under another name.
-  **2. The axis is wrong, and on the axis that matters no subset is a boundary at all.** A
+  **2. The axis is wrong, and on the axis that matters no operable subset is a boundary.** A
   `sudo` command restriction bounds what may be **changed** — an integrity boundary. The risk
   this ADR names is **disclosure**: root reads the master key out of process memory, and out of
   a `0400` file on tmpfs. ⚠ **So a read-only subset is the WORST case here, not the boundary

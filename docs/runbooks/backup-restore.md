@@ -692,10 +692,20 @@ SQL
 
 psql -U postgres -d jobbliggaren_restore -c 'DROP TABLE _dek_restore;'
 
-# 6. ANALYZE. A restore carries no planner statistics — pg_dump omits them unless --statistics is
-#    passed, and this one does not pass it. Without this the first queries against the restored
-#    database plan against nothing, which is how `company_register` sat at a million rows with
-#    zero statistics (#560). This is a step, not a footnote.
+# 6. ANALYZE. A pg_dump restore carries no optimizer statistics (omitted unless --statistics, and
+#    this one does not pass it), so at t=0 the first queries plan against nothing. This is a step,
+#    not a footnote — step 7 boots the application immediately, so there is no window to wait in.
+#
+#    ⚠ Autoanalyze DOES re-arm on the restore's own DML — measured ~60 s for one 1,07M-row table
+#    (scb-live-population.md §8 reason 2). That is why this step survives HERE (a throwaway drill
+#    database, booted at once, and a DATABASE-WIDE ANALYZE, which a one-table measurement cannot
+#    stand in for) and is deliberately NOT reflexive on the box, where §8 reason 2 retired it.
+#
+#    ⚠ Do NOT attribute #560 to a restore. That zero-statistics state came from an ~11 h POPULATION
+#    run, and the canonical home refuses the mechanism outright: ScbCompanyRegisterStore.AnalyzeAsync
+#    records "why autoanalyze never fired through the ~11 h population is NOT established" and calls
+#    the emptiness "an observation, not evidence". An earlier version of this comment said the
+#    restore case "is how" #560 happened, which imported a causal claim nobody has established.
 psql -U postgres -d jobbliggaren_restore -c 'ANALYZE;'
 
 # 7. Boot the application against the restored database and READ AN ENCRYPTED FIELD through it.

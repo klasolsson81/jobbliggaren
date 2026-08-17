@@ -156,7 +156,8 @@ export function ResumeCard({ resume }: ResumeCardProps) {
           fyra kontroller ryms inte i griddcellen, så hanteringsgruppen hamnade utanför
           kortet och under grannkortet, som avlyssnade klicket. Regenerera geometrin med
           E2E-sonden i commit-meddelandet. Wrap sätts på elementet och inte i regeln,
-          per DESIGN.md rad 141: `.jp-cv__actions` deklarerar aldrig `flex-wrap`, så
+          per DESIGN.md §6:s "`.jp-*` är OLAGRAT"-punkt: `.jp-cv__actions` deklarerar
+          aldrig `flex-wrap`, så
           utilityn biter — men den blir tyst verkningslös om någon senare lägger
           `flex-wrap` i själva regeln. Klassen har TVÅ konsumenter, och skelettet
           (`app/(app)/cv/loading.tsx`) fick samma ändring; ändras raden här ska den

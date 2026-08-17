@@ -1923,18 +1923,29 @@ a.jp-adminnav__link[aria-current="page"]::after {
   color: var(--jp-danger-700);
   border-color: var(--jp-danger-700);
 }
-/* Hovern fyller solitt och vänder texten. Den föregående formen läste
-   `var(--jp-danger-100, ...)` — en token som INTE finns i något :root-block, så
-   regeln resolverade till viloläget och var en ren no-op, samtidigt som den
-   ersatte en shadcn-hover som fungerade. Exakt den tysta formen DESIGN.md rad 141
-   varnar för. Solid fyllning här bryter inte §6:s "aldrig solid fyllning per rad":
-   den regeln gäller VILOläget (N rader = N fyllningar); en hover träffar en
-   kontroll i taget. Inga nya tokens. */
-.jp-btn--danger:hover {
-  background: var(--jp-danger-700);
-  color: var(--jp-on-fill);
-  border-color: var(--jp-danger-700);
-}
+/* MEDVETET UTAN :hover, och de två vägar dit är mätta och uteslutna — skriv inte
+   tillbaka en. Detta är inte samma sak som den no-op som stod här först
+   (`var(--jp-danger-100, var(--jp-danger-50))`, en token som inte finns i något
+   :root-block): den PÅSTOD ett tillståndsbyte utan att göra ett. Frånvaron nedan
+   påstår ingenting.
+
+   (1) SOLID FYLLNING går inte. `--jp-danger-700` aliasar `--jp-danger`, som ÄR
+   dark-skiftad (#BE1B1B ljust, #FB8989 mörkt), medan `--jp-on-fill` inte
+   omdefinieras — vit text på fyllningen ger 2,32:1 i mörkt läge. Danger-rampen
+   saknar den icke-dark-skiftade tvilling som gör `--jp-accent-800` till en laglig
+   fyllning, så det finns ingen laglig danger-fyllning i tokensystemet. Det är
+   dessutom precis vad knapp-kontraktet förbjuder — kommentaren som inleder
+   dark-blocket nedan säger "aldrig 'ljusblå knapp med mörk text'" (ADR 0052).
+
+   (2) DJUPARE TINT går inte heller, och det är den mindre uppenbara halvan: det
+   ljusa VILOläget ligger redan på 5,01:1 (#BE1B1B på #FBE0E0), alltså strax över
+   AA-golvet. Ett `--jp-danger-100` djupt nog att synas faller under 4,5 —
+   #F7D2D2 ger 4,49. Accent-rampen har utrymmet (6,62 → 5,85); danger har det inte.
+
+   Kontrollen är alltjämt urskiljbar: global fokusring (`*:focus-visible`), och en
+   irreversibel handling bekräftas i en dialog som namnger CV:t. Att ge den
+   destruktiva kontrollen en hover kräver att danger-rampen först får den tvilling
+   accent har — en tokenändring med DESIGN.md-behandling, inte en regel här. */
 /* #1000 (V1) — /jobb modal-footer: en STATE-toggle-knapp bär sin tillstånds-färg
    när ON (matchar list-taggarna) så modalen läses lika tydligt som listan. LIVE
    client-state (aria-pressed) → ingen stale-risk (därför släpptes header-snapshot-

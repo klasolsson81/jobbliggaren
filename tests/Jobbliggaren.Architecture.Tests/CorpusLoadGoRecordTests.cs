@@ -145,7 +145,7 @@ public class CorpusLoadGoRecordTests
 
         checkboxLine.TrimStart().StartsWith("- [", StringComparison.Ordinal).ShouldBeTrue(
             $"the line carrying \"{PointHeading}\" in {Checklist} is no longer a `- [ ]`-shaped " +
-            "checkbox item (other GFM bullets and indents are items too; this guard accepts one spelling, deliberately). Both tests above branch on its ticked state, so they would return " +
+            "checkbox item (other GFM bullets are items too; this guard accepts one spelling, deliberately). Both tests above branch on its ticked state, so they would return " +
             "early on every run and guard nothing at all.");
 
         (IsTicked(checkboxLine) ^ IsUnticked(checkboxLine)).ShouldBeTrue(
@@ -166,14 +166,6 @@ public class CorpusLoadGoRecordTests
     }
 
     /// <summary>
-    /// Case-INSENSITIVE by GFM: the task-list state character is "either a whitespace character
-    /// or the letter x in either lowercase or uppercase", so <c>- [X]</c> renders as checked. An
-    /// ordinal comparison here fails OPEN — <c>- [X]</c> with a placeholder record would send the
-    /// ticked test down its early return, leave the unticked test passing (the placeholders are
-    /// still there) and satisfy the vacuity guard, which is three greens on the one combination
-    /// this class exists to catch.
-    /// </summary>
-    /// <summary>
     /// The state-INDEPENDENT pin for the two predicates, and the only one that crosses the
     /// threshold in the resting state. The XOR guard cannot carry this: on a <c>- [ ]</c> line an
     /// ordinal comparison and an ordinal-ignore-case one return the same answer, so narrowing
@@ -193,6 +185,14 @@ public class CorpusLoadGoRecordTests
         IsUnticked(line).ShouldBe(unticked);
     }
 
+    /// <summary>
+    /// Case-INSENSITIVE by GFM: the task-list state character is "either a whitespace character
+    /// or the letter x in either lowercase or uppercase", so <c>- [X]</c> renders as checked. An
+    /// ordinal comparison here fails OPEN — <c>- [X]</c> with a placeholder record would send the
+    /// ticked test down its early return, leave the unticked test passing (the placeholders are
+    /// still there) and satisfy the vacuity guard, which is three greens on the one combination
+    /// this class exists to catch.
+    /// </summary>
     private static bool IsTicked(string checkboxLine) =>
         checkboxLine.TrimStart().StartsWith("- [x]", StringComparison.OrdinalIgnoreCase);
 

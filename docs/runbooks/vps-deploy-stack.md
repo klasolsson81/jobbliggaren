@@ -949,11 +949,12 @@ instrument under-reaches its own property reads as coverage it does not have.
   `jpadmin ALL=(ALL) NOPASSWD:ALL`. ⚠ **And it cannot be closed by building them:** both are void
   as written, measured 2026-08-17. The derivation has one home —
   `vps-base-hardening.md` §11.
-  ⛔ **`security-auditor`'s ruling 2026-08-17: M-7 DOES convert at first real user data**, and
-  **building the two mitigations is not sufficient** — that also requires a **new** grant covering
-  the state *with* real user data, plus **both M-7 legs delivered and verified on
-  `host-detection.md`'s verification rows** — the CAPABILITY, never issue numbers (#196 has been
-  closed since 2026-08-08; both legs are homed at #1201). Hers to grade, not a later reader's to
+  ⛔ **`security-auditor`'s ruling 2026-08-17: M-7 DOES convert at first real user data**; see
+  `release-checklist.md` §2.6 point 3.5 for what would actually discharge it. ⚠ **Do not enumerate
+  it here** — she restated requirement (1) the same day, and the earlier enumeration named as
+  necessary work the two mechanisms she now expressly excludes. The condition rests on the
+  CAPABILITY, never issue numbers (#196 has been closed since 2026-08-08; both legs are homed at
+  #1201). Hers to grade, not a later reader's to
   derive. Both of #1201's detection legs are still unverified on
   `host-detection.md`'s verification rows. ⚠ **Whether the second arm is discharged is `security-auditor`'s to say and
   never a later reader's to derive** — #1201 states that of this grading in as many words, and

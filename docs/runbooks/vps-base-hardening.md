@@ -1062,7 +1062,8 @@ rather than discovered:
   the ones the ADR's own Alternatives already carry. `restrict,pty,from=` on the operator key is
   **hygiene, not mitigation 1** — it closes agent forwarding and `~/.ssh/rc`, which the server-wide
   drop-in does not, but an attacker holding the key and satisfying `from=` still reaches root in one
-  `sudo -n`. ⚠ **It is not applied — that is PR 2**; §4.0 provisions the key with `from=` alone.
+  `sudo -n`. ⚠ **And it is not applied** — §4.0 provisions the key with `from=` alone, and `restrict`
+  appears nowhere as an applied control.
 
   Non-interactive operation requires *no prompt*, not *unlimited root* — conflating those two is
   what this trade-off actually is. **Written up as ADR 0123** (local), which
@@ -1072,9 +1073,10 @@ rather than discovered:
   open, which is why #1201's M-7 escalation can still fire (its condition is *ungranted **or**
   unmitigated*). ⚠ **And the grant covers only the state WITHOUT real user data** — M-7 is
   evaluated **at** real user data, so the acceptance lapses exactly where the condition is read.
-  `security-auditor` ruled 2026-08-17 that **M-7 does convert**, and that building both
-  mitigations is **not** sufficient without a **new** grant covering that state, plus **both M-7
-  legs delivered and verified on `host-detection.md`'s verification rows**. ⚠ **Condition on the
+  `security-auditor` ruled 2026-08-17 that **M-7 does convert**; see `release-checklist.md` §2.6
+  point 3.5 for what would actually discharge it. ⚠ **Do not enumerate it here** — she restated
+  requirement (1) the same day, and the earlier enumeration named as necessary work the two
+  mechanisms she now expressly excludes. ⚠ **Condition on the
   CAPABILITY, never on issue numbers** — this line said "#196/#198" until 2026-08-17 and #196 has
   been closed since 2026-08-08; both legs are homed at **#1201** per ADR 0050's dated note.
 - **Root is rotated but deliberately not locked.** Beyond being the console rescue identity,

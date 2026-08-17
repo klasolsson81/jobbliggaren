@@ -13,10 +13,9 @@ import { getServerSession } from "@/lib/auth/session";
  * besökare även efter att vägen återvänder. Samma mekanism och samma skäl som
  * `cv/[id]/mall/page.tsx` (mallbyggaren) och
  * `cv/granska/[parsedId]/forbattra/page.tsx` (åtgärda-lagret).
- * `cv/granska/[parsedId]/komplettera/page.tsx` använder också `notFound()` —
- * alla fyra CV-stubbar gör det. Den skiljer sig i SKÄL, inte i mekanism:
- * Slutför-guiden ersatte den genuint, och 308:an avvisades även där eftersom
- * målet självt är en 404.
+ * `cv/granska/[parsedId]/komplettera/page.tsx` använder också `notFound()`.
+ * Den skiljer sig i SKÄL, inte i mekanism: Slutför-guiden ersatte den genuint,
+ * och 308:an avvisades även där eftersom målet självt är en 404.
  *
  * Session-grinden körs FÖRE 404:n: en utloggad besökare landar på /logga-in,
  * aldrig på en 404 som avslöjar att routen finns. Route-existens är ingen

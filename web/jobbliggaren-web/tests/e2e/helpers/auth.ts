@@ -137,9 +137,14 @@ export async function ensureConfirmedTestUser(baseURL: string, runId: number): P
 // and every `loginAs` in every spec shares that budget from the same IP. Logging
 // in once per seed would add one write per seeded CV on top of the per-test UI
 // logins — a rate-limit flake this helper would have introduced.
-let cachedSessionId: string | null = null;
+// Keyed on runId + baseURL, not a bare string: `auth.ts` is shared across lanes, and a
+// second caller with a different runId would otherwise silently receive the first user's
+// session. One caller today; the key costs nothing and removes the trap.
+const cachedSessions = new Map<string, string>();
 
 async function seedSession(baseURL: string, runId: number): Promise<string> {
+  const key = `${baseURL}|${runId}`;
+  const cachedSessionId = cachedSessions.get(key);
   if (cachedSessionId) return cachedSessionId;
   const login = await fetch(`${baseURL}/api/v1/auth/login`, {
     method: "POST",
@@ -150,7 +155,7 @@ async function seedSession(baseURL: string, runId: number): Promise<string> {
     throw new Error(`Failed to log in test user for seeding: ${login.status}`);
   }
   const { sessionId } = (await login.json()) as { sessionId: string };
-  cachedSessionId = sessionId;
+  cachedSessions.set(key, sessionId);
   return sessionId;
 }
 

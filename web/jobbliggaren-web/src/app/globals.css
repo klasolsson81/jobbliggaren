@@ -4061,6 +4061,18 @@ a.jp-adminnav__link[aria-current="page"]::after {
   text-decoration: none;
   border-radius: var(--jp-r-pill);
 }
+/* Touch-golv (#1062) — tredje hemmet för samma regel som .jp-btn--sm och
+   .jp-segment__opt. Mätt vid 768 med hasTouch: 26px hög, och den är en LÄNK
+   (navigerar till granskningen), alltså en träffyta som alla andra. align-items
+   centrerar pillen i den högre raden, så det som VISAS är oförändrat medan det som
+   går att träffa når golvet. Utan den här raden hade fem av hubbens sex kvarvarande
+   under-44-kontroller lämnats — en fix på ett hem av N. */
+@media (max-width: 768px) {
+  .jp-cv__badge-link {
+    align-items: center;
+    min-height: 44px;
+  }
+}
 .jp-cv__badge-link:hover .jp-pill {
   text-decoration: underline;
   text-underline-offset: 2px;

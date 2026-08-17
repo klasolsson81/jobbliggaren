@@ -123,6 +123,57 @@ describe("POST /api/foretag/sok (org.nr search BFF)", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  /**
+   * #1075 — the route guards on the SAME normalised form the island dispatches on, so the twelve-digit
+   * century form is refused here too. Before the widening it fell out of `normalizeOrgNrInput` and got
+   * the malformed-400 instead, i.e. the guard's posture depended on how the value was written.
+   */
+  it.each(["195601257901", "19560125-7901", "191010101010"])(
+    "400 { reason: 'protected' } on the twelve-digit century form %s — NOT forwarded",
+    async (written) => {
+      const fetchMock = vi.fn();
+      global.fetch = fetchMock;
+
+      const res = await POST(makeRequest({ organizationNumber: written }));
+
+      expect(res.status).toBe(400);
+      expect(await res.json()).toEqual({ reason: "protected" });
+      expect(fetchMock).not.toHaveBeenCalled();
+    },
+  );
+
+  it("forwards the STRIPPED ten digits when a century form is a legal entity", async () => {
+    const fetchMock = routeFetch({ search: companyResponse(FOUND_COMPANY) });
+    global.fetch = fetchMock;
+
+    const res = await POST(makeRequest({ organizationNumber: "205560125790" }));
+
+    expect(res.status).toBe(200);
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    // The century is presentation; what crosses the wire is the stored form, exactly as the domain
+    // and the backend validator derive it.
+    expect(JSON.parse(init.body as string)).toMatchObject({
+      organizationNumber: VALID_ORGNR,
+    });
+  });
+
+  it.each(["55601257901", "189001011234"])(
+    "400 with an `error` code (not `reason`) on %s — outside the written-form contract",
+    async (malformed) => {
+      const fetchMock = vi.fn();
+      global.fetch = fetchMock;
+
+      const res = await POST(makeRequest({ organizationNumber: malformed }));
+
+      expect(res.status).toBe(400);
+      // A machine code, never Swedish prose: nothing renders this body (the island maps every
+      // non-ok response to its own localised copy), and a hardcoded string here would be a second
+      // home for a message the backend owns.
+      expect(await res.json()).toEqual({ error: "invalid" });
+      expect(fetchMock).not.toHaveBeenCalled();
+    },
+  );
+
   it("401 without a session — backend never touched", async () => {
     withSession(undefined);
     const fetchMock = vi.fn();

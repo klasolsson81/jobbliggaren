@@ -62,6 +62,11 @@ const REFERENCE: CriterionReference = {
 
 const VALID_ORGNR = "5560125790"; // 3rd digit 6 >= 2 → legal entity
 const PNR_SHAPED = "1010101010"; // 3rd digit 1 < 2 → personnummer-shaped → must be refused locally
+// #1075 — the century-prefixed written forms. Both strip to a fixture above, which is the point:
+// the century is presentation, and what the dispatch decides on is the derived ten digits.
+const PNR_SHAPED_12 = "191010101010"; // → PNR_SHAPED
+const PNR_SHAPED_12_HYPHEN = "19101010-1010"; // → PNR_SHAPED
+const VALID_ORGNR_12 = "205560125790"; // → VALID_ORGNR
 
 const FOUND_COMPANY = {
   organizationNumber: VALID_ORGNR,
@@ -535,6 +540,28 @@ describe("ForetagSokSearchbar — round-2 guarantees, pinned", () => {
   });
 
   /**
+   * #1075 — the unapplied line is gated on the NAME branch (`!isOrgNrValue`), so widening the
+   * normaliser also widens what suppresses it. A twelve-digit draft now describes the field with the
+   * hint alone, exactly as a ten-digit one already did: the filter axes are meaningless on the org.nr
+   * path, so promising that Sök företag will apply them would be false.
+   */
+  it("does not describe the field with the unapplied line for a twelve-digit draft", async () => {
+    renderBar();
+    const user = userEvent.setup();
+    const field = screen.getByLabelText("Företagsnamn eller organisationsnummer");
+    const hintOnly = field.getAttribute("aria-describedby");
+
+    await user.type(field, PNR_SHAPED_12);
+
+    expect(field.getAttribute("aria-describedby")).toBe(hintOnly);
+    expect(
+      screen.queryByText(
+        "Ändringen i namnfältet tillämpas när du väljer Sök företag.",
+      ),
+    ).not.toBeInTheDocument();
+  });
+
+  /**
    * The two decisions that meet at the org.nr lookup's `focus()` call: the answer SURVIVES a filter
    * commit (so the fetch is neither cancelled nor discarded), and a filter commit PLACES focus. Both
    * are right; the late `focus()` is only right if it checks that nothing else has claimed focus
@@ -897,6 +924,75 @@ describe("ForetagSokSearchbar — unified name/org.nr field", () => {
     expect(fetchMock).not.toHaveBeenCalled();
     expect(push).not.toHaveBeenCalled();
   });
+
+  /**
+   * #1075 — the money test. Before the widening a twelve-digit personnummer form failed the org.nr
+   * test and took the NAME branch, so `router.push` put it in `?namn=`: the address bar, history, a
+   * re-shared link and the access log. ADR 0087 D8(c); CLAUDE.md §5 ranks this guard highest.
+   */
+  it.each([PNR_SHAPED_12, PNR_SHAPED_12_HYPHEN])(
+    "REFUSES the twelve-digit personnummer form %s LOCALLY: never fetches, never navigates",
+    async (written) => {
+      const fetchMock = vi.fn();
+      global.fetch = fetchMock;
+      renderBar();
+      const user = userEvent.setup();
+
+      await user.type(
+        screen.getByLabelText("Företagsnamn eller organisationsnummer"),
+        written,
+      );
+      await user.click(screen.getByRole("button", { name: "Sök företag" }));
+
+      expect(
+        await screen.findByText(/Det ser ut som ett personnummer/i),
+      ).toBeInTheDocument();
+      expect(fetchMock).not.toHaveBeenCalled();
+      expect(push).not.toHaveBeenCalled();
+    },
+  );
+
+  it("routes a twelve-digit LEGAL-ENTITY form to the org.nr branch, POSTing the stripped ten", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(orgNrResponse({ company: FOUND_COMPANY, companyWatchId: null }));
+    global.fetch = fetchMock;
+    renderBar();
+    const user = userEvent.setup();
+
+    await user.type(
+      screen.getByLabelText("Företagsnamn eller organisationsnummer"),
+      VALID_ORGNR_12,
+    );
+    await user.click(screen.getByRole("button", { name: "Sök företag" }));
+
+    expect(await screen.findByText("Volvo AB")).toBeInTheDocument();
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    // The raw string never crosses the wire — only the value the domain would derive.
+    expect(JSON.parse(init.body as string)).toEqual({ organizationNumber: VALID_ORGNR });
+    expect(push).not.toHaveBeenCalled();
+  });
+
+  it.each(["55601257901", "189001011234"])(
+    "leaves %s on the NAME branch — outside the written-form contract on both sides",
+    async (outside) => {
+      const fetchMock = vi.fn();
+      global.fetch = fetchMock;
+      renderBar();
+      const user = userEvent.setup();
+
+      await user.type(
+        screen.getByLabelText("Företagsnamn eller organisationsnummer"),
+        outside,
+      );
+      await user.click(screen.getByRole("button", { name: "Sök företag" }));
+
+      expect(push).toHaveBeenCalledWith(
+        buildForetagSokHref({ namn: outside, sni: [], kommun: [] }),
+      );
+      expect(fetchMock).not.toHaveBeenCalled();
+    },
+  );
 
   it("routes a 10-digit value to the ORG.NR branch: POSTs, never the URL", async () => {
     const fetchMock = vi

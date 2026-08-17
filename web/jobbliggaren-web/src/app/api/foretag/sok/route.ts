@@ -38,10 +38,10 @@ export async function POST(request: NextRequest) {
 
   const orgNr = normalizeOrgNrInput(raw);
   if (!orgNr) {
-    return NextResponse.json(
-      { error: "Organisationsnumret måste vara 10 siffror." },
-      { status: 400 },
-    );
+    // A machine code like every sibling branch below: nothing renders this body — the island maps
+    // each non-ok response to its own localised copy — and prose here would be a second home, in a
+    // second language surface, for a message the backend validator owns.
+    return NextResponse.json({ error: "invalid" }, { status: 400 });
   }
   if (isPersonnummerShapedOrgNr(orgNr)) {
     return NextResponse.json({ reason: "protected" }, { status: 400 });

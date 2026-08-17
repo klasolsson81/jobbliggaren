@@ -36,12 +36,13 @@ namespace Jobbliggaren.Architecture.Tests;
 /// ⚠ <b>The box was ticked 2026-08-17, and that put the second property to sleep — which is the
 /// day this class's own warning above was written for.</b> The ticked test names all three
 /// literals, but only inside <c>ShouldNotContain</c>, and a negated assertion is exactly what the
-/// paragraph above says cannot hold them. <b>So while the box stays ticked the literals have no
-/// positive anchor anywhere in <c>tests/</c>.</b> This is stated rather than repaired, because
-/// the repair a reader would reach for does not exist: with the box ticked there is nothing in
-/// the checklist that may legitimately contain a placeholder, so no assertion can demand one.
-/// The gap degrades in the safe direction — reword a placeholder now and nothing fails, but the
-/// day the box is unticked the second test goes RED rather than silently green.
+/// paragraph above says cannot hold them. What survives is narrower than the whole literal and
+/// wider than nothing: the <b>label halves</b> of two of the three are still asserted positively,
+/// by the third test, which has no early return and runs in either state. Rewrite
+/// <c>**Datum:**</c> in the checklist and it reddens today. <b>Unanchored while the box stays
+/// ticked: the em-dash suffixes, and all of the adjudicator placeholder</b> — the checklist holds
+/// no legitimate occurrence of one, so no file-reading assertion can demand it. The gap degrades
+/// in the safe direction: an untick sends the second test RED, not silently green.
 /// </para>
 ///
 /// <para>
@@ -200,6 +201,27 @@ public class CorpusLoadGoRecordTests
     {
         IsTicked(line).ShouldBe(ticked);
         IsUnticked(line).ShouldBe(unticked);
+    }
+
+    /// <summary>
+    /// Ties the two placeholder constants to the labels the third test asserts against the live
+    /// file, and it is the only thing standing between them and a silent test-side drift.
+    ///
+    /// <para>
+    /// The direction matters. A rewrite of the CHECKLIST's label already reddens, because the
+    /// third test reads it. A rewrite of the CONSTANT here does not — while the box is ticked
+    /// nothing compares these against the file at all. This assertion closes that half without
+    /// reading anything: the constant must remain an extension of the live-anchored label, so a
+    /// constant edited away from the file's spelling fails HERE. The adjudicator placeholder has
+    /// no label to hang from and stays unanchored, which the class docstring says plainly rather
+    /// than papering over.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public void PlaceholderConstants_ExtendTheLabelsTheGuardAsserts_SoTestSideDriftCannotBeSilent()
+    {
+        NoDatePlaceholder.ShouldStartWith(DateLabel, Case.Sensitive);
+        NoPlacePlaceholder.ShouldStartWith(PlaceLabel, Case.Sensitive);
     }
 
     /// <summary>

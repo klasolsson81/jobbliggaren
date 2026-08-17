@@ -1689,7 +1689,8 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
       > ordet *user* står i #1201:s AC. Att samma dokument på andra ställen talar om
       > *användardata* är just poängen — §6b skriver acceptansens scope som *"användardata"* och
       > triggern som *"riktig data"* i samma avsnitt, och säger uttryckligen att triggern är samma
-      > text som grindraden. Räkna inte hemmen här; det talet underräknade redan en gång. Konverteringen har **ingen acceptansväg**: §9.6 stänger både (2) och (3) för en
+      > text som grindraden. Räkna inte hemmen här; det talet underräknade redan en gång.
+      > Konverteringen har **ingen acceptansväg**: §9.6 stänger både (2) och (3) för en
       > GDPR-Blocker, och M-7:s grund är Art. 32(1)(b)/33/5(2).
       > ⚠ **Ads-only var ingen väg runt.** Tier A strippar e-post och telefon ur annonstexten men
       > når inte namn (ingen NER, ADR 0106 D5), och `job_ads.organization_number` **är ett

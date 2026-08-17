@@ -46,9 +46,17 @@ public class DeployComposeIngestGateTests
 
     /// <summary>
     /// Two spaces of indent, ending in a colon. That matches every service key — and also the
-    /// volume names and one anchor child, which is why it is only ever used to find where the
-    /// worker's block ENDS, scanning forward from the worker key itself. It is a SHAPE test,
-    /// not a service test, and must not be used as one.
+    /// volume names, the network name and one anchor child, which is why it is only ever used to
+    /// find where the worker's block ENDS, scanning forward from the worker key itself. It is a
+    /// SHAPE test, not a service test, and must not be used as one.
+    ///
+    /// <para>
+    /// The over-match is bounded rather than merely harmless, and the network name is what
+    /// bounds it: were <c>worker</c> ever the last service, the forward scan would stop at the
+    /// network name rather than running to the end of the file. The range would gain a block
+    /// header that cannot carry an environment key, and the assertion it feeds has an upper
+    /// bound — a range too wide only weakens, it never fails the wrong way.
+    /// </para>
     /// </summary>
     private static bool IsTwoSpaceKey(string line) =>
         line.Length > 2
@@ -93,8 +101,9 @@ public class DeployComposeIngestGateTests
     /// differs is EXECUTION — only the Worker registers the Hangfire wrappers and the recurring
     /// jobs, and only the Worker runs a Hangfire server. So a gate on <c>api</c> would read as
     /// present, bind successfully, and gate nothing that ever runs.
-    /// (The third consumer is not a job at all but a shared runner four backfill jobs take a
-    /// dependency on — admin-triggered, never on a cron.)
+    /// (The third consumer is not a job at all but a shared runner three backfill jobs take a
+    /// dependency on — admin-triggered, never on a cron. A fourth backfill job in the same
+    /// namespace deliberately does not use it, and says so in its own docstring.)
     /// </para>
     /// </summary>
     [Fact]

@@ -1923,8 +1923,16 @@ a.jp-adminnav__link[aria-current="page"]::after {
   color: var(--jp-danger-700);
   border-color: var(--jp-danger-700);
 }
+/* Hovern fyller solitt och vänder texten. Den föregående formen läste
+   `var(--jp-danger-100, ...)` — en token som INTE finns i något :root-block, så
+   regeln resolverade till viloläget och var en ren no-op, samtidigt som den
+   ersatte en shadcn-hover som fungerade. Exakt den tysta formen DESIGN.md rad 141
+   varnar för. Solid fyllning här bryter inte §6:s "aldrig solid fyllning per rad":
+   den regeln gäller VILOläget (N rader = N fyllningar); en hover träffar en
+   kontroll i taget. Inga nya tokens. */
 .jp-btn--danger:hover {
-  background: var(--jp-danger-100, var(--jp-danger-50));
+  background: var(--jp-danger-700);
+  color: var(--jp-on-fill);
   border-color: var(--jp-danger-700);
 }
 /* #1000 (V1) — /jobb modal-footer: en STATE-toggle-knapp bär sin tillstånds-färg

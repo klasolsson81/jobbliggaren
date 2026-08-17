@@ -350,8 +350,16 @@ install happens once.
   `jobbliggaren-tmpfiles.conf`, installed by [`master-key-ops.md`](master-key-ops.md) §2. M-7
   depends on it — watch rule 1 does not load without it, and an unloadable rule 1 takes the whole
   rule set and `auditd` with it — but M-7 does not own it, and §5 verifies rather than re-runs it.
-- **Granting the risk acceptance.** ADR 0123 is `Proposed` and Klas grants, never a session
-  (§9.6). This mechanism narrows what that acceptance rests on; it does not close it.
+- **Granting the risk acceptance.** ⚠ **Klas granted ADR 0123 on 2026-08-16** — do not ask him
+  again; read the status in the ADR, never here. That closes the escalation's **`ungranted`** arm
+  **literally and only** — its condition is *ungranted **or** unmitigated*, the mitigations are
+  open, and ⚠ **the grant covers only the state WITHOUT real user data while M-7 is evaluated AT
+  it**, so arm 1 gives no coverage where the condition is read. `security-auditor` ruled
+  2026-08-17 that **M-7 does convert**, and that building the mitigations is not enough without a
+  **new** grant covering that state plus **both M-7 legs delivered and verified on this file's
+  verification rows** — the capability, never issue numbers (#196 closed 2026-08-08; both legs are
+  homed at #1201). This
+  mechanism narrows what the acceptance rests on; it does not close it.
 - **Availability monitoring.** An external HTTP probe is a different obligation. Certificate
   RENEWAL is a real silent-death vector — Caddy attempts it with about a third of a 90-day
   certificate left, so a renewal that silently stops surfaces as an outage roughly a month later,

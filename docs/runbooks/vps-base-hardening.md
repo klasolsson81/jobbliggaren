@@ -93,8 +93,9 @@ Gate B-1 (master key never plaintext on disk) is **MET — verified GREEN 2026-0
 key existed; the key was then injected, rotated to `local-v3`, and the journal measured clean for
 all four secrets. §8 still closes the two mechanisms that would page it to disk. ⚠ **Closing B-1
 did not release the first real data**, and neither did discharging Art. 28: the corpus load is owned
-by **#1240**, which names its own gates; while that issue is open the load is not authorised.
-**No one discharged gate is permission.**
+by **Klas's explicit written GO** — a decision, not a derivable state
+(`release-checklist.md` §2.6 point 3.5); #1240 owns the load itself.
+**No discharged gate, ticked box or closed issue is permission.**
 
 ### Not in scope
 
@@ -1038,10 +1039,18 @@ rather than discovered:
   `restrict,command=,from=` so the passphrase-less key stops being a general shell, and narrowing
   NOPASSWD to a `Cmnd_Alias` once the deploy automation's real command set is known.
   Non-interactive operation requires *no prompt*, not *unlimited root* — conflating those two is
-  what this trade-off actually is. **Now written up as ADR 0123** (local, `Proposed`), which
+  what this trade-off actually is. **Now written up as ADR 0123** (local), which
   carries this reasoning, a scope limit (accepted only while the box holds no real user data)
-  and both unclosed mitigations. **Accepting it is Klas's call and it is not granted yet** —
-  0123 flips to `Accepted` only on his recorded GO.
+  and both unclosed mitigations. ⚠ **Klas GRANTED it 2026-08-16** — read the status in the ADR,
+  not here. **That closes the acceptance, not the mitigations:** the two named above are still
+  open, which is why #1201's M-7 escalation can still fire (its condition is *ungranted **or**
+  unmitigated*). ⚠ **And the grant covers only the state WITHOUT real user data** — M-7 is
+  evaluated **at** real user data, so the acceptance lapses exactly where the condition is read.
+  `security-auditor` ruled 2026-08-17 that **M-7 does convert**, and that building both
+  mitigations is **not** sufficient without a **new** grant covering that state, plus **both M-7
+  legs delivered and verified on `host-detection.md`'s verification rows**. ⚠ **Condition on the
+  CAPABILITY, never on issue numbers** — this line said "#196/#198" until 2026-08-17 and #196 has
+  been closed since 2026-08-08; both legs are homed at **#1201** per ADR 0050's dated note.
 - **Root is rotated but deliberately not locked.** Beyond being the console rescue identity,
   there is a stronger reason: after the NOPASSWD decision, `jpadmin` at the console already
   grants unrestricted root. Locking root would remove a tested rescue identity while reducing
@@ -1111,6 +1120,6 @@ rather than discovered:
 ## 13. References
 
 - [`docs/decisions/0050-deployment-migration-aws-exit-hetzner.md`](../decisions/0050-deployment-migration-aws-exit-hetzner.md) — **start here.** Gates B-1 (master key never plaintext on disk), M-5a/M-5b, M-6 (hardening baseline) and M-7. Its `Amendment 2026-08-04` is **authoritative for the gates and written to be read alone**; its Hetzner/Cloudflare text is **superseded, not deleted**, and the banner at the top carries the precise boundary
-- **ADR 0122** — the host, the sizing and the capacity *rationale*. **Local (gitignored)** per ADR 0072 docs-privacy; `.worktreeinclude` syncs it, but a worktree that skipped the docs-sync will not have it. **If it is absent, ADR 0050's amendment is sufficient and you are missing no gate.** ADR **0123** (local, `Proposed`) carries the `NOPASSWD` risk acceptance
+- **ADR 0122** — the host, the sizing and the capacity *rationale*. **Local (gitignored)** per ADR 0072 docs-privacy; `.worktreeinclude` syncs it, but a worktree that skipped the docs-sync will not have it. **If it is absent, ADR 0050's amendment is sufficient and you are missing no gate.** ADR **0123** (local; **granted by Klas 2026-08-16** — read its status there, never here) carries the `NOPASSWD` risk acceptance
 - [#196](https://github.com/klasolsson81/jobbliggaren/issues/196) — deploy stack; owns everything in §12
 - [`CLAUDE.md`](../../CLAUDE.md) §11 — tooling and the dev-boot config contract

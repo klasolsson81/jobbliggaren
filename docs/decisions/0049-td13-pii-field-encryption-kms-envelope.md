@@ -998,9 +998,11 @@ operator key together mean whoever holds the operator key has unrestricted root 
 nothing.** ADR 0123's own status line is explicit: *"this is a risk acceptance, and CLAUDE.md
 §9.6 makes that Klas's to grant, never a session's to claim"*
 (`docs/decisions/0123-nopasswd-sudo-with-a-passphrase-less-operator-key-means-key-theft-is-root.md:3`),
-and as of this writing **ADR 0123 is `Proposed`, not `Accepted`** (same file, line 1). A
-reader who cites ADR 0123 as closed authority for the in-memory residual is reading a document
-ahead of its own status line. This amendment does not create a second, competing acceptance of
+and when this was written **ADR 0123 stood `Proposed`** — ⚠ **Klas granted it 2026-08-16**, so
+read its status line rather than this sentence. The warning it carried survives the grant in a
+narrower form: granting closes the acceptance, **not** the two mitigations 0123 names as
+unclosed, so a reader who cites 0123 as closed authority for the in-memory residual is still
+reading past what it settles. This amendment does not create a second, competing acceptance of
 the same risk — the memory-residual risk named in ADR 0050's gate M-2 and ADR 0123's
 root-theft risk are the **same risk**, and it has exactly one place to be granted.
 

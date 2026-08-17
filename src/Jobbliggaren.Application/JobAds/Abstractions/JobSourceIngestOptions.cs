@@ -19,12 +19,13 @@ namespace Jobbliggaren.Application.JobAds.Abstractions;
 /// and the switch stays off anyway</b>, because B-1 was never the only gate: the master key is no
 /// longer plaintext on disk (tmpfs, rotated to <c>local-v3</c>, measured in
 /// <c>vps-deploy-stack.md</c> rows 21-25), but the gate that bites at the corpus load is
-/// <b>Art. 28</b>, and it is one gate of several. <b>The load itself is owned by issue #1240</b>,
-/// which names its own gates; while that issue is open the load is not authorised.
-/// <b>No one discharged gate is permission</b> — read #1240, never a single condition, and never
-/// this comment for state. Klas
+/// <b>Art. 28</b>, and it is one gate of several. <b>The condition for loading is Klas's explicit
+/// written GO</b> — a DECISION, not a derivable state, and deliberately so: four state-shaped
+/// conditions each failed open on 2026-08-16 as their sub-condition discharged. Its home is
+/// <c>release-checklist.md</c> §2.6 point 3.5; #1240 owns the load itself.
+/// <b>No discharged gate, ticked box or closed issue is permission.</b> Klas
 /// confirmed the sequencing 2026-08-05: the stack may be deployed and every cutover proof taken,
-/// but recruiter contact records must not land until #1240 is closed. A deployed Worker registers
+/// but recruiter contact records must not land until that GO is given. A deployed Worker registers
 /// <c>sync-platsbanken-stream</c> on a ten-minute cron, so without this switch the first ingest
 /// runs within ten minutes of the first <c>up -d</c>.
 /// </para>

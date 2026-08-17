@@ -23,11 +23,16 @@ forbids it, and this file is the path it prescribes instead.
 
 ## 2. Preconditions
 
-1. **The email flip is done.** `Email__Provider=Scaleway` with both credentials injected
-   and the region set, per `deploy/.env.example`'s outbound-email block — follow that
-   block's own inject-before-you-edit order; it is not restated here. Under `Console`
-   (today's default) the api resolves `NullEmailSender`, which cannot deliver, and opening
-   the gate is a boot refusal.
+1. **The email flip is done — and taking it is not this runbook's step.**
+   `EMAIL_PROVIDER=Scaleway` with both credentials injected and the region set, per
+   `deploy/.env.example`'s outbound-email block, whose inject-before-you-edit order is not
+   restated here. **Setting that value IS the prod flip:** `release-checklist.md` §2.5 is the
+   gate on it and Klas is the only one who may take it, never CC — so this precondition is
+   not CC-satisfiable, and nothing below discharges it. Taking the flip belongs to
+   [#183](https://github.com/klasolsson81/jobbliggaren/issues/183); this runbook only needs it
+   to already be done. Read §2.5 itself for where that gate stands. Unsatisfied — including a
+   flip taken outside that gate — this procedure does not start. Under `Console` the api
+   resolves `NullEmailSender`, which cannot deliver, and opening the gate is a boot refusal.
 2. **The Scaleway artifacts exist:** a Transactional Email API key (secret key) and the
    project id, generated in the Scaleway console. Producing them is the operator's step and
    belongs to [#183](https://github.com/klasolsson81/jobbliggaren/issues/183); this runbook
@@ -75,7 +80,7 @@ forbids it, and this file is the path it prescribes instead.
 
 ## 3. The visit
 
-Ordered, and the order is load-bearing at steps 0, 1 and 7.
+Ordered, and the order is load-bearing at steps 0 and 7.
 
 **0. Bring the box's clone up to date.**
 
@@ -88,11 +93,12 @@ applies the compose file it finds on disk; it runs no `git` at all. Until this p
 compose file on the box has no `Auth__*` passthrough and the knobs below reach nothing —
 they would sit in `.env` looking set, and the gate would stay closed with no error.
 
-**1. Inject the mail credentials before editing `.env`.** Per the email block's order:
-setting `EMAIL_PROVIDER=Scaleway` while the files are absent is itself a boot refusal, so
-editing first takes the stack down and the injection then happens under an outage.
+**1. The mail credentials and the provider value are already in place — precondition 1, and
+nothing this procedure runs.** The injection order, the flip and its gate belong to
+`deploy/.env.example`'s outbound-email block; the sequence against step 2's two `AUTH_` keys
+is fixed in that file's **registration-gate** block, which is where to read it.
 
-**2. Edit `deploy/.env`** in one pass — the email lines per that block, then:
+**2. Edit `deploy/.env`** — these three keys, and no `EMAIL_*` line:
 
 ```
 AUTH_REGISTRATIONS_OPEN=true
@@ -100,12 +106,12 @@ AUTH_REQUIRE_EMAIL_CONFIRMATION=true
 ADMIN_BOOTSTRAP_INITIAL_ADMIN_EMAIL=<the operator's own address>
 ```
 
-**3. Restart both app services.** Only `api` reads the three keys above; `worker` is
-restarted because step 2 also changed the `EMAIL_*` lines, which both hosts share through
-the `x-app-email` anchor.
+**3. Restart the api.** Only `api` reads the three keys above, and step 2 changes no `EMAIL_*`
+line, so `worker` — which shares those through the `x-app-email` anchor and consumes no
+`Auth__*` at all — has no cause to restart here.
 
 ```bash
-cd /opt/jobbliggaren/deploy && sudo docker compose -f docker-compose.yml up -d --pull never api worker
+cd /opt/jobbliggaren/deploy && sudo docker compose -f docker-compose.yml up -d --pull never api
 ```
 
 **4. Read the gate's own line — do not infer the posture from a healthy container.**

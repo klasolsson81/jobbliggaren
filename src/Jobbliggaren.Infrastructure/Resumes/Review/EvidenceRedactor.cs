@@ -58,13 +58,11 @@ internal static class EvidenceRedactor
                     var redactedNote = textSpan.Note is null ? null : PersonnummerRedactor.Redact(textSpan.Note);
 
                     // Fork 3B: a span that quoted a personnummer keeps no offset into RawText.
-                    // IsExcerpt is carried ACROSS the fork on purpose (#1062 B2): redaction removes
-                    // a personnummer, it does not lengthen the citation, so a shortened quote is
-                    // still shortened afterwards. Dropping the flag here would make the masked
-                    // citation render as if it were the user's complete sentence — the same implied
-                    // claim B2 exists to remove, reappearing only on CVs that carry a personnummer.
+                    // Written as `with` on BOTH arms so the next additive field survives without a
+                    // hand-carry: a positional rebuild here would silently drop it, and only on CVs
+                    // that carry a personnummer — the narrowest place a defect can hide (#1062 B2).
                     var span = quoteHadPnr
-                        ? new TextSpan(0, 0, redactedQuote, textSpan.Span.IsExcerpt)
+                        ? textSpan.Span with { Start = 0, Length = 0, Quote = redactedQuote }
                         : textSpan.Span with { Quote = redactedQuote };
 
                     return new TextSpanEvidence(span, redactedNote);

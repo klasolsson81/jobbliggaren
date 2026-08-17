@@ -6211,8 +6211,11 @@ a.jp-adminnav__link[aria-current="page"]::after {
      aldrig skrivit, vilket motsäger att citatet är verbatimt underlag. `pre-line`
      och inte `pre-wrap`: motorn trimmar redan citatets kanter, och `pre-wrap` hade
      dessutom bevarat indrag ur PDF-extraktionen som inte är användarens formatering.
-     Delas med förbättringsytans diffar (se .jp-improve__changes), som citerar samma
-     CV-text och har samma skäl. */
+     Klassen har TRE konsumentfiler, inte två: granskningen, förbättringsytans diffar
+     (se .jp-improve__changes — samma CV-text, samma skäl) och den PUBLIKA sidan
+     /cv-granskning. Den sistnämnda citerar ur i18n-katalogerna, och noll strängar där
+     bär en radbrytning, så pre-line ändrar ingenting på den. Mät om med en sökning
+     efter radbrytningar i messages/ innan någon drar en annan slutsats. */
   white-space: pre-line;
 }
 /* #1062 B2: markören för att citatet är ett UTDRAG. Ellipsen ritas här därför att

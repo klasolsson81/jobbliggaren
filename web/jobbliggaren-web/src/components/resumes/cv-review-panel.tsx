@@ -64,9 +64,9 @@ const SEVERITY_RANK: Record<"Fail" | "Warn", number> = { Fail: 0, Warn: 1 };
  * ett svagt och ett rent CV. Bandet renderas därför aldrig utan sin täckning bredvid
  * sig, i samma block, så en skärmläsare läser dem i följd.
  *
- * `band === null` är inte "lägsta graden" utan INGEN grad: kategorin har noll bedömda
- * kriterier. Frånvaron skrivs ut i klartext i stället för att förmedlas genom att en
- * pill saknas — samma lärdom som M4:s "Öppen"-tillstånd.
+ * `band === null` är inte "lägsta graden" utan INGEN grad. Frånvaron skrivs ut i
+ * klartext i stället för att förmedlas genom att en pill saknas — samma lärdom som
+ * M4:s "Öppen"-tillstånd.
  *
  * ⚠ Tröskeln för att hålla tillbaka ett band ÖVER noll är ett Klas-/rubrikbeslut
  * (ADR 0071: trösklar hör i rubrikdatan, inte i C# och inte här). Noll är §5-
@@ -86,10 +86,22 @@ function CategoryBand({
   const total = assessed + category.notAssessedCount;
 
   if (category.band === null) {
-    return (
+    // Meningen PÅSTÅR att inget kriterium kunde bedömas, så den grindas på DET och
+    // inte på `band === null`. Backend håller de två ekvivalenta idag, men bara
+    // därför att rubrikens vikter alla är > 0; en rubrikbump med en nollviktad nivå
+    // ger `weightSum === 0` med bedömda kriterier kvar, och då hade sidan skrivit ut
+    // ett påstående som de tre räknarna på raden under motbevisar. Ett band vi inte
+    // fick, med bedömda kriterier bakom sig, visar sin täckning utan pill.
+    return assessed === 0 ? (
       <p className="jp-cvreview__band-unassessed">
         {t("review.band.unassessed", { count: total })}
       </p>
+    ) : (
+      <div className="jp-cvreview__band">
+        <span className="jp-cvreview__band-coverage">
+          {t("review.band.coverage", { assessed, total })}
+        </span>
+      </div>
     );
   }
 

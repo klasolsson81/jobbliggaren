@@ -20,6 +20,14 @@ internal static class ReviewText
     /// Putting a presentation length into versioned assessment data would misfile it as
     /// something a rubric bump could re-decide. Carried over unchanged from the four
     /// <c>text[..80]</c> call sites this constant replaced.
+    /// <para>
+    /// ⚠ It IS input to FINDING IDENTITY, and that is the axis "changes no verdict" does not
+    /// cover. The quote is <c>FindingTargetFingerprint.BuildCanonicalPayload</c>'s payload, so
+    /// changing this cap re-keys every finding cited through <see cref="SpanExcerpt"/> — at an
+    /// UNCHANGED rubric version, i.e. with nothing versioning the re-keying. The ledger row
+    /// survives (it is keyed on criterionId), but a Resolved row already stamped
+    /// <c>StaleAt</c> loses its overlay and the finding returns as actionable.
+    /// </para>
     /// </summary>
     public const int ExcerptMaxChars = 80;
 
@@ -381,7 +389,12 @@ internal static class ReviewText
     /// <para>An unbroken run longer than the cap (no whitespace to cut at) falls back to the hard
     /// cut. That is the one case where a mid-word end is the honest outcome: there is no word
     /// boundary to find, and the alternative — sending the whole run — is the unbounded
-    /// PII-bearing quote the cap exists to prevent.</para>
+    /// PII-bearing quote the cap exists to prevent. That hard cut steps back off a lone
+    /// surrogate, for the reason <c>PreambleResidue.Truncate</c> already wrote down: half an
+    /// astral character is not text, and this quote reaches
+    /// <c>FindingTargetFingerprint.Normalize</c>, whose <c>string.Normalize(FormC)</c> throws on
+    /// invalid Unicode. The word-boundary branch cannot split a pair — it always cuts AT a
+    /// whitespace index — so the guard is only ever needed here.</para>
     /// </summary>
     public static (string Quote, bool IsExcerpt) Excerpt(string text)
     {
@@ -390,19 +403,25 @@ internal static class ReviewText
             return (text, false);
         }
 
-        var head = text[..ExcerptMaxChars];
+        var head = HardCut(text);
 
         // The character the cap fell ON decides whether `head` already ends a word: if it is
         // whitespace, the cut sits exactly at a boundary and nothing needs backing off.
         var cut = char.IsWhiteSpace(text[ExcerptMaxChars])
             ? head
-            : head[..(LastWhitespace(head) is var i and >= 0 ? i : ExcerptMaxChars)];
+            : head[..(LastWhitespace(head) is var i and >= 0 ? i : head.Length)];
 
         var trimmed = cut.TrimEnd();
 
         // All-whitespace head (or a boundary at index 0): TrimEnd would leave nothing to cite,
         // so keep the hard cut rather than emit an empty quote.
         return (trimmed.Length > 0 ? trimmed : head, true);
+    }
+
+    private static string HardCut(string text)
+    {
+        var head = text[..ExcerptMaxChars];
+        return char.IsHighSurrogate(head[^1]) ? head[..^1] : head;
     }
 
     private static int LastWhitespace(string text)
@@ -422,7 +441,9 @@ internal static class ReviewText
     /// A text-span citation whose quote is shortened to an excerpt when the cited text exceeds
     /// <see cref="ExcerptMaxChars"/> (#1062 B2) — the ONE home for review-side citation
     /// shortening. Offset resolution is <see cref="Span"/>'s, unchanged: the excerpt is a prefix
-    /// of the cited text and therefore still locatable in <paramref name="source"/>.
+    /// of the cited text and therefore still locatable in <paramref name="source"/> — locatable,
+    /// not unique. The offset is the FIRST occurrence, exactly as <see cref="Span"/>'s is, and a
+    /// shorter needle does not make it more unique.
     /// </summary>
     public static TextSpanEvidence SpanExcerpt(string source, string text, string? note = null)
     {

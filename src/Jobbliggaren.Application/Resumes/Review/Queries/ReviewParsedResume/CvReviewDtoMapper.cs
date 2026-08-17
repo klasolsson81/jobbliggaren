@@ -42,8 +42,6 @@ internal static class CvReviewDtoMapper
             WarnCount: category.WarnCount,
             FailCount: category.FailCount,
             NotAssessedCount: category.NotAssessedCount,
-            // Null band (no assessed criterion) stays null on the wire — never the floor
-            // label's name, which would put the §5 breach back on the client (#1062 B1).
             Band: category.Band?.ToString());
 
     private static CvCriterionVerdictDto ToDto(

@@ -247,6 +247,37 @@ public class CvImprovementEngineTests
     }
 
     [Fact]
+    public async Task SuggestAsync_ShouldNeverFlagCitedEvidenceAsAnExcerpt_OnAnyProposedChange()
+    {
+        // #1062 B2 carried TextSpan.IsExcerpt across ImprovementEvidenceRedactor's fork 3B in
+        // parity with the review side, and that carry is LATENT: no improve-side producer sets
+        // the flag — ReviewText.SpanExcerpt is its only home and this engine never calls it.
+        //
+        // CLAUDE.md §5 `Tests:` therefore forbids the obvious test. "The redactor preserves the
+        // flag" would be a production fact asserted off a state no path in src/ produces, with
+        // no actor to name. What §5 prescribes instead, for a shape production does not emit,
+        // is a pin that the CURRENT writer does not emit it. This is that pin — and it is what
+        // makes the carried flag honest rather than untestable: the day an improve-side excerpt
+        // producer lands, this goes red and the parity assertion becomes writable on a
+        // producible premise.
+        var mapping = RealVerbMapping().WeakVerbs[0];
+        var resume = Resume(experience:
+        [
+            Experience(bullets: [$"{Capitalize(mapping.Weak)} ett område utan tydligt resultat."]),
+        ]);
+
+        var result = await SuggestAsync(resume);
+
+        var spans = result.Changes
+            .Select(c => c.Evidence)
+            .OfType<TextSpanEvidence>()
+            .ToList();
+        spans.ShouldNotBeEmpty("fixture guard: with no TextSpan at all the loop below measures nothing.");
+        spans.ShouldAllBe(s => s.Span.IsExcerpt == false,
+            "the improve side has no excerpt producer — the flag must not arise here by accident.");
+    }
+
+    [Fact]
     public async Task SuggestAsync_ShouldNotProposeWeakVerbUpgrade_WhenBulletStartsWithAStrongVerb()
     {
         var strong = RealVerbMapping().StrongVerbGroups[0].Verbs[0]; // "ledde"

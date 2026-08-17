@@ -231,6 +231,40 @@ describe("CvReviewPanel — Att åtgärda (aggregering + sortering)", () => {
     );
     expect(container.textContent ?? "").not.toMatch(/kunde inte bedömas/);
   });
+
+  it("noll bedömda kriterier: meningen påstår inget om CV:t, bara om underlaget", () => {
+    // ICU-grenen `=0`. Ett CV där ingenting kunde bedömas får INTE läsa "inget kräver
+    // åtgärd" — det vore ett utlåtande om ett CV granskningen aldrig läste. Samma
+    // §5-familj som B1, och fullt producerbar (en degraderad parse).
+    const nothingAssessed = makeReview({
+      verdicts: [verdict("A8", "Profiltext", "Content", "NotAssessed")],
+      criticalFails: [],
+      categories: [
+        category(
+          "Content",
+          { passCount: 0, warnCount: 0, failCount: 0, notAssessedCount: 1 },
+          null,
+        ),
+      ],
+      assessedCount: 0,
+      totalCount: 1,
+    });
+    render(
+      <CvReviewPanel
+        review={nothingAssessed}
+        target={{ kind: "parsed", parsedId: PARSED_ID }}
+        profile="Ats"
+      />,
+    );
+
+    expect(
+      screen.getByText(
+        /Inget kriterium kunde bedömas, så granskningen pekar inte ut något/,
+      ),
+    ).toBeInTheDocument();
+    // singularis-grenen av todoEmptyUnassessed: "1 kriterium", aldrig "1 kriterier".
+    expect(screen.getByText(/1 kriterium kunde inte bedömas\./)).toBeInTheDocument();
+  });
 });
 
 describe("CvReviewPanel — kategori-kort visar enbart Godkänt", () => {
@@ -324,6 +358,39 @@ describe("CvReviewPanel — bandet står aldrig utan sitt underlag (#1062 B1/M1/
     );
   });
 
+  it("frånvaromeningen grindas på att inget bedömdes, inte på att bandet saknas", () => {
+    // Meningen PÅSTÅR "inget av de N kriterierna kunde bedömas". Backend håller
+    // band===null och assessed===0 ekvivalenta idag — men bara därför att rubrikens
+    // vikter alla är > 0. En rubrikbump med en nollviktad nivå ger weightSum===0 med
+    // bedömda kriterier kvar, och då hade sidan skrivit ut ett påstående som räknarna
+    // på raden under motbevisar: B1:s felklass, inverterad.
+    const zeroWeighted = makeReview({
+      verdicts: [verdict("E1", "Layout", "VisualQuality", "Pass")],
+      criticalFails: [],
+      categories: [
+        category(
+          "VisualQuality",
+          { passCount: 3, warnCount: 0, failCount: 0, notAssessedCount: 5 },
+          null,
+        ),
+      ],
+    });
+    render(
+      <CvReviewPanel
+        review={zeroWeighted}
+        target={{ kind: "parsed", parsedId: PARSED_ID }}
+        profile="Visual"
+      />,
+    );
+
+    const card = bandCard("Visuell kvalitet");
+    const text = card.textContent ?? "";
+    expect(text).not.toMatch(/Ingen bedömning/);
+    expect(text).toMatch(/3 av 8 kriterier bedömda/);
+    // …och fortfarande ingen pill: bandet fick vi inte, så vi påstår det inte.
+    expect(text).not.toMatch(/Ej redo|Behöver omarbetning|Konkurrenskraftigt|Toppskikt/);
+  });
+
   it("bär täckningen i SAMMA block som pillen, inte någon annanstans på kortet", () => {
     // Kontrafaktum: utan detta hade täckningen kunnat renderas var som helst i
     // kortet och testet ovan hade ändå passerat på card.textContent.
@@ -387,11 +454,16 @@ describe("CvReviewPanel — citerat utdrag markeras (#1062 B2)", () => {
 
     const mark = container.querySelector(".jp-criterion__quote-excerpt");
     expect(mark).not.toBeNull();
-    // Ellipsen är dekorativ; faktumet finns i klartext för skärmläsare.
+    // Ellipsen är dekorativ och MÅSTE vara dold — annars annonseras utdraget två gånger.
     expect(mark?.textContent ?? "").toMatch(/…/);
-    expect(mark?.querySelector(".sr-only")?.textContent).toMatch(
-      /Utdrag, citatet fortsätter i ditt CV\./,
-    );
+    expect(mark?.getAttribute("aria-hidden")).toBe("true");
+
+    // …och den talade meningen ligger UTANFÖR blockquote:n. Inne i den hade en
+    // skärmläsare hört motorns egen upplysning som en del av användarens citat —
+    // precis den klass av påstående den här PR:en stänger.
+    const spoken = container.querySelector(".sr-only");
+    expect(spoken?.textContent).toMatch(/Utdrag, citatet fortsätter i ditt CV\./);
+    expect(spoken?.closest("blockquote")).toBeNull();
   });
 });
 
@@ -442,7 +514,7 @@ describe("CvReviewPanel — Ej bedömt (kollapsad, men aldrig dold)", () => {
 // Fas 4b PR-8.4 (CTO-bind Q3/Q4): den kanoniska granskningen (befordrad Resume) bär
 // statusledgern och renderar därför en per-anmärkning statuskontroll i FOTEN på varje
 // ÅTGÄRDBART verdikt. Den parsade stagingen har ingen ledger → inga kontroller. Kontrollens
-// grupp-aria-label ("Vad vill du göra med den här anmärkningen") är den stabila markören.
+// grupp-aria-label ("Status för anmärkningen") är den stabila markören.
 const CANONICAL_ID = "22222222-2222-4222-8222-222222222222";
 const STATUS_GROUP = "Status för anmärkningen";
 

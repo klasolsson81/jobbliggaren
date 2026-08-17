@@ -30,21 +30,26 @@ function EvidenceItem({
   if (evidence.kind === "TextSpan") {
     return (
       <li className="jp-criterion__evidence-item">
+        {/* #1062 B2: motorn kapar långa citat på ordgräns och flaggar dem som utdrag,
+            men skriver ALDRIG in "…" i citatet — det måste förbli ett verbatimt
+            substräng av CV-texten (två pinnade backend-invarianter). Markören ritas
+            därför här, och den är DELAD över blockquote-gränsen med flit: ellipsen
+            hör visuellt till den kapade texten men är dekorativ, medan meningen som
+            SÄGER att det är ett utdrag är motorns ord om citatet, inte användarens.
+            Låg man den inuti citatet hörde en skärmläsare den som en del av det
+            citerade — precis den klass av påstående den här PR:en stänger. */}
         {evidence.quote !== null && (
           <blockquote className="jp-criterion__quote">
             {evidence.quote}
-            {/* #1062 B2: motorn kapar långa citat på ordgräns och flaggar dem som
-                utdrag, men skriver ALDRIG in "…" i citatet — det måste förbli ett
-                verbatimt substräng av CV-texten (två pinnade backend-invarianter).
-                Markören ritas därför här. Ellipsen är dekorativ för en skärmläsare,
-                så faktumet skrivs också ut i klartext. */}
             {evidence.isExcerpt && (
-              <span className="jp-criterion__quote-excerpt">
-                <span aria-hidden="true">…</span>
-                <span className="sr-only">{t("review.evidence.excerpt")}</span>
+              <span className="jp-criterion__quote-excerpt" aria-hidden="true">
+                …
               </span>
             )}
           </blockquote>
+        )}
+        {evidence.quote !== null && evidence.isExcerpt && (
+          <p className="sr-only">{t("review.evidence.excerpt")}</p>
         )}
         {evidence.note !== null && (
           <p className="jp-criterion__note">{evidence.note}</p>

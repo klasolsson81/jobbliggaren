@@ -61,16 +61,10 @@ export function CvFindingStatusControl({
 
   const isResolved = userStatus === "Resolved";
   const isIgnored = userStatus === "Ignored";
-  // #1062 M4: "Öppen" är ett av ADR 0097/0112:s TRE skyddade ledger-tillstånd, men
-  // förmedlades enbart genom FRÅNVARON av en pill plus NÄRVARON av en knapp — status
-  // läst ur sitt eget åtgärdserbjudande. Alla tre tillstånd bär nu en indikator, så
-  // knappen blir enbart en åtgärd.
-  //
-  // Öppen skrivs POSITIVT (null = inget beslut registrerat, eller det uttalade "Open")
-  // och inte som `!isResolved && !isIgnored`. Skillnaden gäller bara ett okänt värde
-  // vid deploy-skew: negationen hade etiketterat det "Öppen", alltså ett PÅSTÅENDE om
-  // ett tillstånd vi inte känner. Det renderas hellre utan pill, precis som idag —
-  // zod-schemat höll medvetet statusmängden öppen av samma skäl.
+  // Öppen skrivs POSITIVT och inte som `!isResolved && !isIgnored`. Skillnaden gäller
+  // bara ett okänt värde vid deploy-skew: negationen hade etiketterat det "Öppen",
+  // alltså ett PÅSTÅENDE om ett tillstånd vi inte känner. Det renderas hellre utan pill
+  // — zod-schemat höll medvetet statusmängden öppen av samma skäl (#1062 M4).
   const isOpen = userStatus === null || userStatus === "Open";
 
   function label(status: FindingStatusValue, resting: string): string {

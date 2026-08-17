@@ -94,14 +94,12 @@ internal static class ImprovementEvidenceRedactor
                         return evidence;
 
                     // Fork 3B: a span that quoted a personnummer keeps no offset back into RawText.
-                    // IsExcerpt carried across the fork in parity with the review-side redactor
-                    // (#1062 B2). No improve-side producer sets the flag today — the excerpt home
-                    // is ReviewText.SpanExcerpt, which this engine does not call — so this changes
-                    // no current output. It is here because the rebuild is POSITIONAL on a shared
-                    // record: the first improve-side excerpt would otherwise lose the flag at a
-                    // seam nobody would think to look at.
+                    // Written as `with` on both arms, in parity with the review-side redactor: a
+                    // positional rebuild drops additive fields silently, and on a record shared by
+                    // two surfaces that is a defect waiting for whichever surface grows the field
+                    // second (#1062 B2).
                     var span = quoteHadPnr
-                        ? new TextSpan(0, 0, redactedQuote, textSpan.Span.IsExcerpt)
+                        ? textSpan.Span with { Start = 0, Length = 0, Quote = redactedQuote }
                         : textSpan.Span with { Quote = redactedQuote };
 
                     return new TextSpanEvidence(span, redactedNote);

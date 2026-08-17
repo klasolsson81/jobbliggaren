@@ -9,6 +9,8 @@ import {
   parsedResumeDetailDtoSchema,
   autoPromoteBlockReasonSchema,
   pendingParsedResumeSummarySchema,
+  cvReviewCategoryDtoSchema,
+  citedEvidenceDtoSchema,
   type ParsedGapSummary,
   type ProposedChangeDto,
 } from "./parsed-resume";
@@ -511,3 +513,66 @@ describe("parsedResumeDetailDtoSchema.blockReason (#1060)", () => {
   });
 });
 
+
+describe("cvReviewCategoryDtoSchema.band (#1062 B1 — obandat, inte lågt)", () => {
+  const base = {
+    category: "VisualQuality",
+    passCount: 0,
+    warnCount: 0,
+    failCount: 0,
+    notAssessedCount: 8,
+  };
+
+  it("accepterar band: null — formen backend faktiskt skickar för en obedömd kategori", () => {
+    // Backend sätter ingen DefaultIgnoreCondition, så "band": null skrivs ut på tråden.
+    // Utan .nullish() hade schemat fällt HELA granskningen på varje Visual-profil.
+    expect(cvReviewCategoryDtoSchema.parse({ ...base, band: null }).band).toBeNull();
+  });
+
+  it("normaliserar en saknad nyckel till null i stället för att fälla granskningen", () => {
+    expect(cvReviewCategoryDtoSchema.parse(base).band).toBeNull();
+  });
+
+  it("behåller ett uttalat band", () => {
+    // Kontrafaktum: utan detta hade ett schema som mappade allt till null passerat ovan
+    // och tyst släckt bandet för varje bedömd kategori.
+    expect(cvReviewCategoryDtoSchema.parse({ ...base, band: "TopTier" }).band).toBe(
+      "TopTier",
+    );
+  });
+
+  it("avvisar en etikett utanför den låsta mängden", () => {
+    // Mängden är 1:1 med rubrikassetens bands[]. `null` är frånvaro av ett påstående;
+    // ett OKÄNT band vore ett påstående vi inte kan rendera.
+    expect(() =>
+      cvReviewCategoryDtoSchema.parse({ ...base, band: "Perfekt" }),
+    ).toThrow();
+  });
+});
+
+describe("citedEvidenceDtoSchema.isExcerpt (#1062 B2 — fail-closed)", () => {
+  const base = {
+    kind: "TextSpan",
+    start: 0,
+    length: 5,
+    quote: "Ledde",
+    note: null,
+    observation: null,
+  };
+
+  it("saknad nyckel → false (en äldre backend visar citatet omarkerat)", () => {
+    expect(citedEvidenceDtoSchema.parse(base).isExcerpt).toBe(false);
+  });
+
+  it("null → false", () => {
+    expect(citedEvidenceDtoSchema.parse({ ...base, isExcerpt: null }).isExcerpt).toBe(
+      false,
+    );
+  });
+
+  it("true bevaras — annars kan klienten aldrig rita markören", () => {
+    expect(citedEvidenceDtoSchema.parse({ ...base, isExcerpt: true }).isExcerpt).toBe(
+      true,
+    );
+  });
+});

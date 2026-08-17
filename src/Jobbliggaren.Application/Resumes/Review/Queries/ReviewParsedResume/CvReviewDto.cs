@@ -73,11 +73,13 @@ public sealed record CvCriterionVerdictDto(
 /// Tagged transport form of <see cref="CitedEvidence"/>: <c>Kind</c> is "TextSpan" or
 /// "Structural". For "TextSpan" the span fields are set; for "Structural" only
 /// <c>Observation</c> is set.
-/// <para><see cref="IsExcerpt"/> (#1062 B2) says the <see cref="Quote"/> is a SHORTENED view
-/// of a longer run of CV text, so the client can mark it as one. The quote itself stays the
-/// verbatim substring — the "…" belongs to the client, never to the wire (see
-/// <see cref="TextSpan.IsExcerpt"/>). Always false on "Structural". Additive with a
-/// <c>false</c> default: a client that ignores it renders exactly what it renders today.</para>
+/// <para><see cref="IsExcerpt"/> is <see cref="TextSpan.IsExcerpt"/> on the wire; always false
+/// on "Structural", which is a fact the engine states rather than a quote it shortened.</para>
+/// <para>It carries <b>no default</b>, deliberately. This record is the SHARED transport form
+/// for the review and improve surfaces, and it is built with named arguments in both mappers —
+/// a defaulted parameter is invisible at exactly the seam that would drop the fact. The first
+/// version of this change did default it, and the improve mapper silently omitted it. The
+/// compiler is the only thing that reliably catches that, so it is given the job.</para>
 /// </summary>
 public sealed record CitedEvidenceDto(
     string Kind,
@@ -86,4 +88,4 @@ public sealed record CitedEvidenceDto(
     string? Quote,
     string? Note,
     string? Observation,
-    bool IsExcerpt = false);
+    bool IsExcerpt);

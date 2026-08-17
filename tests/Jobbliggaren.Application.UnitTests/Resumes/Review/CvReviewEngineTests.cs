@@ -1279,6 +1279,17 @@ public class CvReviewEngineTests
         var visual = result.Verdicts.Where(v => v.Category == RubricCategory.VisualQuality).ToList();
         visual.ShouldNotBeEmpty();
         visual.ShouldAllBe(v => v.Verdict == CriterionVerdict.NotAssessed);
+
+        // #1062 B1, and this is the MEASURED case, not a synthetic one: it is what a user gets
+        // when she clicks "Visuell profil" on a text-extracted CV — including a flawless one.
+        // Before the fix the category carried the rubric's BOTTOM label ("Ej redo") over an
+        // empty card. Empty denominator means NO band, never the lowest.
+        var visualCategory = result.Categories.Single(c => c.Category == RubricCategory.VisualQuality);
+        visualCategory.Band.ShouldBeNull(
+            "a category without a single assessed criterion carries no band — 'Ej bedömt' may "
+            + "be demoted but never rendered as a low grade (CLAUDE.md §5).");
+        visualCategory.NotAssessedCount.ShouldBe(visual.Count,
+            "and the counter carries the whole coverage the band refuses to claim anything about.");
     }
 
     // ===============================================================

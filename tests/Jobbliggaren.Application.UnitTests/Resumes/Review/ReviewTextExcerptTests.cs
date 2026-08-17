@@ -1,3 +1,4 @@
+using System.Text;
 using Jobbliggaren.Application.KnowledgeBank.Abstractions;
 using Jobbliggaren.Application.Resumes.Review.Abstractions;
 using Jobbliggaren.Application.Resumes.Review.Queries.ReviewParsedResume;
@@ -82,6 +83,15 @@ public class ReviewTextExcerptTests
         char.IsWhiteSpace(MidWordAtCap[quote.Length]).ShouldBeTrue(
             "the character the excerpt stops before is whitespace — i.e. it ended a whole word.");
         quote.ShouldBe(quote.TrimEnd(), "no dangling separator before the client's ellipsis.");
+
+        // …and it is the LONGEST word-bounded prefix within the cap, not merely ONE of them.
+        // Without this line an implementation that backs off one word too far (measured: 63
+        // chars instead of 78 on this fixture) satisfies every assertion above, because
+        // MidWordAtCap[63] is whitespace too. It also catches a LastWhitespace →
+        // FirstWhitespace regression deliberately, rather than by accident of where the
+        // MultiLine fixture happens to put its newline.
+        MidWordAtCap.IndexOf(' ', quote.Length + 1).ShouldBeGreaterThan(ReviewText.ExcerptMaxChars,
+            "the next word must cross the cap — otherwise the excerpt threw one away for nothing.");
     }
 
     [Fact]
@@ -125,6 +135,52 @@ public class ReviewTextExcerptTests
         Unbroken.ShouldStartWith(quote);
     }
 
+    [Fact]
+    public void Excerpt_ShouldNotSplitASurrogatePair_WhenTheHardCutLandsInsideAnAstralCharacter()
+    {
+        // The repo already adjudicated this operation, in this subsystem, with its ground
+        // written down: PreambleResidue.Truncate steps back off a lone surrogate because half
+        // an astral character is not text. This quote goes on to FindingTargetFingerprint's
+        // string.Normalize(FormC), which throws on invalid Unicode, on a path whose own
+        // comments say a fault there is a server bug. Only the hard-cut branch can reach it —
+        // the word-boundary branch always cuts AT a whitespace index, which never splits a pair.
+        //
+        // 🧑‍🚀 (U+1F9D1 U+200D U+1F680) is one grapheme over five UTF-16 units. Measured, not
+        // reasoned: with 79 filler chars the HIGH half lands on index 79 and the low half on
+        // index 80, so text[..80] ends on the high half alone. 78 fillers puts a COMPLETE pair
+        // at 78-79 and would have tested nothing — which is what the guard below caught.
+        var unbrokenWithAstral = new string('A', 79) + "🧑‍🚀" + new string('A', 20);
+        char.IsHighSurrogate(unbrokenWithAstral[ReviewText.ExcerptMaxChars - 1]).ShouldBeTrue(
+            "fixture guard: the cap must land on the HIGH half of a pair, or nothing is tested.");
+
+        var (quote, isExcerpt) = ReviewText.Excerpt(unbrokenWithAstral);
+
+        isExcerpt.ShouldBeTrue();
+        char.IsHighSurrogate(quote[^1]).ShouldBeFalse("a lone surrogate is not valid text.");
+        Should.NotThrow(() => quote.Normalize(NormalizationForm.FormC),
+            "the citation reaches FindingTargetFingerprint.Normalize, which throws on invalid Unicode.");
+        quote.ShouldBe(unbrokenWithAstral[..quote.Length], "still a prefix, so still locatable.");
+    }
+
+    [Fact]
+    public void Excerpt_ShouldNeverReturnAnEmptyQuote_EvenWhenTheWholeWindowIsWhitespace()
+    {
+        // DECLARED UNREACHABLE (CLAUDE.md §5 `Tests:`). No path in src/ feeds a profile with
+        // leading whitespace: HeadingDrivenResumeSegmenter trims every section block before
+        // Profile is set, and the canonical arm is fed from that same trimmed parse. This test
+        // therefore asserts NOTHING about what the engine produces — only that the helper
+        // degrades safely if that invariant is ever broken, since an empty quote would be
+        // evidence with no text in it.
+        var leadingWhitespace = new string(' ', 40) + new string('A', 60);
+
+        var (quote, isExcerpt) = ReviewText.Excerpt(leadingWhitespace);
+
+        quote.ShouldNotBeEmpty("an empty citation is not evidence.");
+        quote.ShouldBe(leadingWhitespace[..quote.Length],
+            "the excerpt stays a prefix, so it stays locatable.");
+        isExcerpt.ShouldBeTrue();
+    }
+
     [Theory]
     [InlineData(MidWordAtCap)]
     [InlineData(SpaceAtCap)]
@@ -135,9 +191,16 @@ public class ReviewTextExcerptTests
         // THE trap this whole design routes around: an ellipsis in the quote is not in the source,
         // so the span would stop resolving and every truncated citation would degrade to
         // NotLocated. The marker is the client's job; the flag is how it learns to draw it.
+        //
+        // The fixture guard reads the INPUT. An earlier form asserted isExcerpt and called that a
+        // fixture property — a guard that cannot fail for the reason it states, since an Excerpt
+        // returning true unconditionally would have satisfied it with no fixture over the cap.
+        text.Length.ShouldBeGreaterThan(ReviewText.ExcerptMaxChars,
+            "fixture guard: every fixture here must exceed the cap.");
+
         var (quote, isExcerpt) = ReviewText.Excerpt(text);
 
-        isExcerpt.ShouldBeTrue("fixture guard: all four fixtures are longer than the cap.");
+        isExcerpt.ShouldBeTrue();
         quote.ShouldNotContain("…");
         quote.ShouldNotEndWith("...");
     }
@@ -196,6 +259,49 @@ public class ReviewTextExcerptTests
             "the cited excerpt ends a whole word of the user's own text.");
         resume.RawText.Substring(span.Start, span.Length).ShouldBe(span.Quote,
             "the excerpt still resolves against the CV's raw text end-to-end.");
+    }
+
+    /// <summary>Opens with "Objective" AND exceeds the cap — A8's Objective-Fail branch.</summary>
+    private const string ObjectiveProfile =
+        "Objective: To obtain a challenging position in software engineering where I can grow professionally.";
+
+    /// <summary>Curated SoftSkill phrases, no digits — A8's bare-adjective-list Fail branch.</summary>
+    private const string AdjectiveListProfile =
+        "Social, noggrann, stresstålig, flexibel, passionerad, ansvarstagande, prestigelös.";
+
+    public static TheoryData<string, string, CriterionVerdict> A8Branches() => new()
+    {
+        { "length-Fail", string.Join(" ", Enumerable.Repeat("erfarenhet", 101)), CriterionVerdict.Fail },
+        { "Objective-Fail", ObjectiveProfile, CriterionVerdict.Fail },
+        { "adjective-list-Fail", AdjectiveListProfile, CriterionVerdict.Fail },
+        { "Pass", MidWordAtCap, CriterionVerdict.Pass },
+    };
+
+    [Theory]
+    [MemberData(nameof(A8Branches))]
+    public async Task ReviewAsync_ShouldCiteNoMoreThanTheCap_OnEveryA8Branch(
+        string branch, string profile, CriterionVerdict expected)
+    {
+        // All FOUR A8 call sites moved to SpanExcerpt, but only the Pass path was run
+        // end-to-end. The length-Fail branch is the one that cites a profile failing FOR BEING
+        // TOO LONG, with no upper bound — that is the CTO bind's second ground for rejecting
+        // "send the whole span, clip in CSS": unbounded PII-bearing text on the wire. Reverting
+        // that one call site to ReviewText.Span passed all 532 tests before this theory existed.
+        profile.Length.ShouldBeGreaterThan(ReviewText.ExcerptMaxChars,
+            $"fixture guard ({branch}): a profile within the cap exercises no shortening at all.");
+
+        var result = await ReviewAsync(Resume(profile: profile, rawText: $"Anna Andersson\n{profile}"));
+
+        var a8 = Verdict(result, "A8");
+        a8.Verdict.ShouldBe(expected,
+            $"branch guard: {branch} must actually be the branch taken, or the lines below "
+            + "measure the wrong call site.");
+
+        var span = a8.Evidence.ShouldHaveSingleItem().ShouldBeOfType<TextSpanEvidence>().Span;
+        span.Quote.Length.ShouldBeLessThanOrEqualTo(ReviewText.ExcerptMaxChars,
+            $"{branch}: the citation is BOUNDED on every branch, not only on the Pass path.");
+        span.IsExcerpt.ShouldBeTrue(
+            $"{branch}: the text exceeds the cap, so the citation is an excerpt and must say so.");
     }
 
     // ── The excerpt fact must survive the seams downstream ──────────────

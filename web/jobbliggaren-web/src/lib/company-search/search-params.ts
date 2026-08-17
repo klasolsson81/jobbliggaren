@@ -36,8 +36,8 @@
  *
  * {@link parseNamn} now returns a discriminated union so the refusal cannot be forgotten at the
  * call site — the compiler pins it, rather than a second `isOrgNrShaped…` predicate a caller may
- * simply never call. The gate fires on the class {@link normalizeOrgNrInput} accepts (the EXACT
- * ten-digit class), not on the narrower personnummer heuristic: the JS path already routes every
+ * simply never call. The gate fires on the class {@link normalizeOrgNrInput} accepts (every written
+ * org.nr form), not on the narrower personnummer heuristic: the JS path already routes every
  * such value away from the name branch, and gating the two paths on different predicates would
  * make one rule into two. It is deliberately fail-safe in this direction and must not later be
  * narrowed to "pnr-shaped only" — that inverts the posture.
@@ -235,11 +235,11 @@ export type ParsedNamn =
  * range scan.
  *
  * The org.nr gate runs FIRST, on the untruncated trimmed value, and on the SAME predicate the search
- * island uses to route a value to the org.nr branch ({@link normalizeOrgNrInput}: strip spaces and
- * hyphens, then require exactly ten digits). One knowledge piece, one place — the two paths agree by
- * construction instead of by two normalisers that can drift. Nothing is lost: a company whose name
- * normalises to exactly ten digits is not a Swedish name class, and with JS on that input already
- * takes the org.nr branch, so the gate removes an inconsistency rather than adding a restriction.
+ * island uses to route a value to the org.nr branch ({@link normalizeOrgNrInput}: strip separators,
+ * then accept the domain's written-form contract). One knowledge piece, one place — the two paths agree
+ * by construction instead of by two normalisers that can drift. Nothing is lost: a company whose name
+ * normalises to an org.nr is not a Swedish name class, and with JS on that input already takes the
+ * org.nr branch, so the gate removes an inconsistency rather than adding a restriction.
  */
 export function parseNamn(raw: string | string[] | undefined): ParsedNamn {
   const values = raw === undefined ? [] : Array.isArray(raw) ? raw : [raw];
@@ -256,7 +256,7 @@ export function parseNamn(raw: string | string[] | undefined): ParsedNamn {
 }
 
 /**
- * Build the wash target for a refused ten-digit `?namn=`: the filter axes WITHOUT the name, plus the
+ * Build the wash target for a refused org.nr `?namn=`: the filter axes WITHOUT the name, plus the
  * PII-free refusal flag. It shares {@link appendFilterAxes} with both commit builders deliberately —
  * concatenating a flag suffix onto `buildForetagSokHref(...)` at the redirect site would create a
  * second serialisation site for this route, the exact drift that helper exists to prevent.

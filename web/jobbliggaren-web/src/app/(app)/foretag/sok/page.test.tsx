@@ -103,6 +103,29 @@ describe("/foretag/sok — the org.nr gate on the URL axis", () => {
     expect(target).not.toContain("namn");
   });
 
+  /**
+   * #1075 — the backstop gate reads the same rule, so the twelve-digit century form washes here too
+   * if a request ever bypasses the proxy.
+   */
+  it("washes the twelve-digit century form out of the URL (#1075)", async () => {
+    await expect(renderPage({ namn: "19560125-7901" })).rejects.toThrow(
+      "NEXT_REDIRECT",
+    );
+
+    const target = redirect.mock.calls[0]?.[0] as string;
+    expect(target).toBe("/foretag/sok?avvisat=orgnr");
+    expect(target).not.toContain("19560125");
+    expect(target).not.toContain("5601257901");
+    expect(getCriterionReference).not.toHaveBeenCalled();
+  });
+
+  it("does not redirect on an 18xx century form — value-axis parity, a named residual", async () => {
+    // Neither side accepts 18xx as a century (a birth year before 1900), so this stays a name on
+    // both. Pinned so the residual is a decision on the record rather than an untested gap.
+    await renderPage({ namn: "189001011234" });
+    expect(redirect).not.toHaveBeenCalled();
+  });
+
   it("does not redirect on an ordinary name prefix", async () => {
     await renderPage({ namn: "Volvo" });
     expect(redirect).not.toHaveBeenCalled();
@@ -150,7 +173,7 @@ describe("/foretag/sok — the refusal is explained on the wash target", () => {
     const body = screen.getByText(/Organisationsnummer hamnar aldrig i webbadressen/);
     expect(body).toBeInTheDocument();
     // Binding copy constraint: never accuse the user of typing a personnummer — the gate covers the
-    // whole ten-digit class, so the word would be wrong for a legitimate company number and would
+    // whole org.nr class, so the word would be wrong for a legitimate company number and would
     // advertise the heuristic. (The "never echo the value" constraint is NOT assertable here and a
     // check for it would be vacuous by construction: the page redirects, so a refused value and this
     // panel can never occupy the same request. The real pin for that is the redirect target itself,

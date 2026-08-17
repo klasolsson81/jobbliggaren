@@ -224,12 +224,12 @@ describe("parseNamn", () => {
 });
 
 /**
- * ADR 0087 D8(c) — the `namn` axis must refuse the whole ten-digit class, not merely the
- * personnummer-shaped subclass. The gate fires on the SAME predicate the search island uses to route
+ * ADR 0087 D8(c) — the `namn` axis must refuse the whole org.nr class, in every written form, not
+ * merely the personnummer-shaped subclass. The gate fires on the SAME predicate the island uses to route
  * a value to the org.nr branch, so the two paths cannot drift into two rules.
  */
 describe("parseNamn — the org.nr gate", () => {
-  it("refuses the ten-digit class in every form the org.nr normaliser accepts", () => {
+  it("refuses the ten-digit class in every separator form the normaliser accepts", () => {
     // Personnummer-shaped (3rd digit < 2) — the highest-priority case.
     expect(parseNamn("1010101010")).toEqual({ kind: "orgNrShaped" });
     // A legitimate legal-entity org.nr is refused on this axis too: it is an org.nr, and org.nr
@@ -258,10 +258,37 @@ describe("parseNamn — the org.nr gate", () => {
     expect(parseNamn(["volvo", "saab"])).toEqual({ kind: "name", value: "volvo" });
   });
 
+  /**
+   * #1075 — the class the gate fires on is whatever {@link normalizeOrgNrInput} accepts, so widening
+   * the normaliser to the domain's written-form contract widens THIS gate by construction. Before
+   * the widening every form below parsed as a name and reached `?namn=`.
+   */
+  it("refuses the twelve-digit century form in every written variant (#1075)", () => {
+    expect(parseNamn("191010101010")).toEqual({ kind: "orgNrShaped" });
+    expect(parseNamn("19101010-1010")).toEqual({ kind: "orgNrShaped" });
+    expect(parseNamn("195601257901")).toEqual({ kind: "orgNrShaped" });
+    expect(parseNamn("19560125-7901")).toEqual({ kind: "orgNrShaped" });
+    expect(parseNamn("19 560125-7901")).toEqual({ kind: "orgNrShaped" });
+    // A century form whose stripped third digit is >= 2 is an org.nr, and org.nr never enters a URL.
+    expect(parseNamn("205560125790")).toEqual({ kind: "orgNrShaped" });
+    // The separator class the house already names for personnummer written forms (#497).
+    expect(parseNamn("101010–1010")).toEqual({ kind: "orgNrShaped" });
+    expect(parseNamn("101010+1010")).toEqual({ kind: "orgNrShaped" });
+  });
+
+  it("refuses a twelve-digit value in ANY repeated position too (#1075)", () => {
+    expect(parseNamn(["volvo", "191010101010"])).toEqual({ kind: "orgNrShaped" });
+    expect(parseNamn(["", "19560125-7901"])).toEqual({ kind: "orgNrShaped" });
+  });
+
   it("leaves real name prefixes alone — the gate is exact, not a digit heuristic", () => {
     expect(parseNamn("volvo")).toEqual({ kind: "name", value: "volvo" });
     expect(parseNamn("101010101")).toEqual({ kind: "name", value: "101010101" }); // 9
     expect(parseNamn("10101010101")).toEqual({ kind: "name", value: "10101010101" }); // 11
+    // 18xx is not an accepted century on either side of the boundary (#1075), so a twelve-digit
+    // value carrying one stays a name here — deliberate value-axis parity with the domain, and a
+    // named residual rather than an oversight.
+    expect(parseNamn("189001011234")).toEqual({ kind: "name", value: "189001011234" });
     expect(parseNamn("1010101010ab")).toEqual({ kind: "name", value: "1010101010ab" });
     expect(parseNamn("Bolag 1010101010")).toEqual({
       kind: "name",

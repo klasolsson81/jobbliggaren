@@ -256,7 +256,7 @@ export function parseNamn(raw: string | string[] | undefined): ParsedNamn {
 }
 
 /**
- * Build the wash target for a refused ten-digit `?namn=`: the filter axes WITHOUT the name, plus the
+ * Build the wash target for a refused org.nr `?namn=`: the filter axes WITHOUT the name, plus the
  * PII-free refusal flag. It shares {@link appendFilterAxes} with both commit builders deliberately —
  * concatenating a flag suffix onto `buildForetagSokHref(...)` at the redirect site would create a
  * second serialisation site for this route, the exact drift that helper exists to prevent.

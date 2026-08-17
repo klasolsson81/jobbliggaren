@@ -74,6 +74,16 @@ describe("normalizeOrgNrInput — den tolvsiffriga sekelformen (#1075)", () => {
     expect(normalizeOrgNrInput("19 900101 1234")).toBe("9001011234");
   });
 
+  it("en TIOSIFFRIG org.nr som börjar på 19/20 är inte en sekelform", () => {
+    // Swedish public-sector org.nr begin 20xxxx / 21xxxx, so the century prefixes are also legal
+    // opening digits of a stored form. The length is what separates the two readings: a century form
+    // is twelve digits, never ten. Found by mutation — dropping `\d{10}` from the century test left
+    // every other pin green while turning these into null.
+    expect(normalizeOrgNrInput("2021005208")).toBe("2021005208");
+    expect(normalizeOrgNrInput("202100-5208")).toBe("2021005208");
+    expect(normalizeOrgNrInput("1922334455")).toBe("1922334455");
+  });
+
   it("null för allt utanför värdekontraktet — breddningens gräns", () => {
     expect(normalizeOrgNrInput("189001011234")).toBeNull(); // 18xx is not an accepted century
     expect(normalizeOrgNrInput("219001011234")).toBeNull(); // nor is 21xx

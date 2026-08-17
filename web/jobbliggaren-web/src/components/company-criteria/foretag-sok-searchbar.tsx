@@ -67,9 +67,10 @@ import type { CriterionReference } from "@/lib/dto/company-criteria";
  * - anything else → the NAME + FILTER branch: `router.push(buildForetagSokHref({ namn, sni, kommun }))`
  *   commits the shareable URL, carrying the selected bransch (as its leaf codes) and orter together.
  *
- * The invariant: a pnr-shaped 10-digit value can NEVER reach `?namn=` and NEVER POST — only a NON-10-digit
- * value takes the name branch. No-JS degrades to a native GET name search (`namn` + hidden `sni`/`kommun`
- * from the applied URL); the org.nr branch and both filter popovers require JS.
+ * The invariant: a pnr-shaped value can NEVER reach `?namn=` and NEVER POST — only a value that does
+ * not normalise to an org.nr at all takes the name branch. No-JS degrades to a native GET name
+ * search (`namn` + hidden `sni`/`kommun` from the applied URL); the org.nr branch and both filter
+ * popovers require JS.
  *
  * HYDRATION SPLIT (2026-07-26, the `/jobb` mirror — `jobb-hero-search.tsx:545-568`, `:641-643`).
  * Once hydrated the visible input is NAMELESS and a hidden input carries the APPLIED name (the

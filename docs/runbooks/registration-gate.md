@@ -30,9 +30,9 @@ forbids it, and this file is the path it prescribes instead.
    gate on it and Klas is the only one who may take it, never CC — so this precondition is
    not CC-satisfiable, and nothing below discharges it. Taking the flip belongs to
    [#183](https://github.com/klasolsson81/jobbliggaren/issues/183); this runbook only needs it
-   to already be done. Read §2.5 itself for where that gate stands. Unsatisfied, this
-   procedure does not start. Under `Console` the api resolves `NullEmailSender`, which cannot
-   deliver, and opening the gate is a boot refusal.
+   to already be done. Read §2.5 itself for where that gate stands. Unsatisfied — including a
+   flip taken outside that gate — this procedure does not start. Under `Console` the api
+   resolves `NullEmailSender`, which cannot deliver, and opening the gate is a boot refusal.
 2. **The Scaleway artifacts exist:** a Transactional Email API key (secret key) and the
    project id, generated in the Scaleway console. Producing them is the operator's step and
    belongs to [#183](https://github.com/klasolsson81/jobbliggaren/issues/183); this runbook
@@ -80,7 +80,7 @@ forbids it, and this file is the path it prescribes instead.
 
 ## 3. The visit
 
-Ordered, and the order is load-bearing at steps 0, 1 and 7.
+Ordered, and the order is load-bearing at steps 0 and 7.
 
 **0. Bring the box's clone up to date.**
 
@@ -94,9 +94,9 @@ compose file on the box has no `Auth__*` passthrough and the knobs below reach n
 they would sit in `.env` looking set, and the gate would stay closed with no error.
 
 **1. The mail credentials and the provider value are already in place — precondition 1, and
-nothing this procedure runs.** The injection order, the flip and its gate all belong to
-`deploy/.env.example`'s outbound-email block, which also fixes the sequence: the email flip
-comes first, and only then the keys in step 2.
+nothing this procedure runs.** The injection order, the flip and its gate belong to
+`deploy/.env.example`'s outbound-email block; the sequence against step 2's two `AUTH_` keys
+is fixed in that file's **registration-gate** block, which is where to read it.
 
 **2. Edit `deploy/.env`** — these three keys, and no `EMAIL_*` line:
 

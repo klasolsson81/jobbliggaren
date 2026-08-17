@@ -944,10 +944,11 @@ instrument under-reaches its own property reads as coverage it does not have.
   the moment M-7 is evaluated:** the acceptance holds expressly only *"while the box carries no
   real user data"*, and M-7 is evaluated **at** first real user data — so it lapses by its own
   terms exactly where the condition is read, which is the act this paragraph governs.
-  `unmitigated` is measured **OPEN** besides — `vps-base-hardening.md` still reads *"Still open,
-  and not mitigated by anything built so far"* for the separate automation key and the
-  `Cmnd_Alias` narrowing, which are the "two unclosed mitigations" the ADR names itself, while
-  that file's own provisioning step still sets `jpadmin ALL=(ALL) NOPASSWD:ALL`.
+  `unmitigated` is measured **OPEN** besides — neither the separate automation key nor the
+  `Cmnd_Alias` narrowing is built, and that file's own provisioning step still sets
+  `jpadmin ALL=(ALL) NOPASSWD:ALL`. ⚠ **And it cannot be closed by building them:** both are void
+  as written, measured 2026-08-17. The derivation has one home —
+  `vps-base-hardening.md` §11 — and this paragraph deliberately does not restate it.
   ⛔ **`security-auditor`'s ruling 2026-08-17: M-7 DOES convert at first real user data**, and
   **building the two mitigations is not sufficient** — that also requires a **new** grant covering
   the state *with* real user data, plus **both M-7 legs delivered and verified on

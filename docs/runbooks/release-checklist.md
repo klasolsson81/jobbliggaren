@@ -1657,6 +1657,14 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
       2026-08-10 hemmar dessutom **båda** benen hos **#1201**, på Klas-beslut 2026-08-06 med skälet
       utskrivet: *"att lämna pekaren mot en stängande issue hade pensionerat skyldigheten av
       misstag"*. Behövs ett nummer är det **#1201**. Detta hör till det informerade GO:t.
+      ⛔ **OCH KRAV (1) ÄR INTE UPPFYLLBART SOM FORMULERAT — mätt 2026-08-17.** Båda mitigeringarna
+      är **void as written**: de vilar på en inkommande automationsaktör, och den levererade
+      arkitekturen är reconcile-pull utan någon sådan. Derivationen har **ett** hem —
+      `vps-base-hardening.md` §11 — och den återges medvetet inte här.
+      ⚠ **Att skriva om krav (1) är `security-auditor`s, aldrig en sessions och aldrig den här
+      filens** (§9.6: severity och dess grund tillhör den rapporterande agenten). Grinden står
+      därför **stängd och oförändrad**; krav (2) och (3) är orörda. Det som skickas till henne är
+      mätningen, inte ett förslag på ny formulering.
 
       **GO:T RECORDAS HÄR NÄR DET GES — med adjudikator, datum och var det gavs**, samma form som
       punkt 3:s led. En bock utan upphovsman visar ingenting, och Art. 5(2) kräver att efterlevnad

@@ -428,6 +428,10 @@ services:
       # mitigations are built, both M-7 legs are verified on host-detection.md (the unmeasured
       # half is the wake-and-page chain), and a NEW grant covers the state WITH real data.
       # Point 3.5 carries the ruling and its grounds.
+      # ⚠ AND ITS FIRST REQUIREMENT IS NOT SATISFIABLE AS WRITTEN. Both mitigations are void as
+      # written, measured 2026-08-17 — derivation in vps-base-hardening.md §11, restated nowhere.
+      # Restating that requirement is security-auditor's, not this file's and not a session's, so
+      # the gate stays closed and unchanged here. Requirements 2 and 3 are untouched.
       JobTech__IngestEnabled: ${JOBTECH_INGEST_ENABLED:-false}
     volumes: *app-secrets-mount
     mem_limit: 1024m

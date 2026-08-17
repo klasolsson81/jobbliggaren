@@ -33,16 +33,12 @@ interface Props {
  * CV-PII läses bara server-side; evidensen är redan personnummer-redigerad vid
  * motorns choke point innan den når klienten.
  *
- * Skal-val (CCP): båda CV-granskningsytorna använder `jp-pagehero` + `jp-container
- * jp-page` — `(app)`-standarden. Det invitet till design-reviewer som stod här är
- * besvarat (#1062): hon rulade pagehero, för h1 hoppade i två axlar på den enda vägen
- * in (hubben 112/149, granskningen 72/175). Tillbaka-länken ligger i containern, inte
- * i heron: `.jp-pagehero .jp-btn--secondary` är genomskinlig med 32 % vit kant och
- * mäter 2,36:1 mot `--jp-hero-bg` — under 1.4.11 — och den formen är redan
- * kringgången två gånger (#805 Klas live-review 2026-07-12, #1061/#1375). Att i
- * stället göra den solid primär hade brutit ADR 0038:s en-primär-regel och gjort
- * "tillbaka" till plattans mest framträdande handling. Formen är de tre levererade
- * `(app)`-precedenterna: aktivitetsrapport, smarta-bevakningar/[id], statistik.
+ * Shell (CCP): both review surfaces use `jp-pagehero` + `jp-container jp-page`, the `(app)`
+ * standard. The invitation to design-reviewer that used to sit here is answered — she ruled
+ * pagehero (#1062). The back-link sits in the container and NOT in the hero, which is the
+ * non-obvious half: `.jp-pagehero .jp-btn--secondary` fails 1.4.11 on the plate, and a solid
+ * primary would breach ADR 0038's one-primary rule. Numbers and the rejected alternatives are
+ * in the commit message.
  */
 export default async function CanonicalCvReviewPage({
   params,
@@ -130,8 +126,8 @@ export default async function CanonicalCvReviewPage({
           <span>{t("cv.backLink")}</span>
         </Link>
 
-        {/* CV:ts namn stannar i containern, av samma skäl som filnamnet på
-            stagingytan: heron bär sidans identitet, den här raden säger vilket CV. */}
+        {/* The CV's name stays in the container for the same reason as the staging surface's
+            file name: the hero carries the page's identity, this line says which CV. */}
         <p className="jp-cv-meta">
           <span className="jp-cv-meta__file">{resume.name}</span>
         </p>

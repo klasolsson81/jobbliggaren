@@ -27,6 +27,15 @@ interface Props {
 /**
  * /cv/granska/[parsedId] — CV-import, steg 2–3 (Fas 4 STEG B, F1). RSC.
  *
+ * Shell choice on the ERROR branches (#1062, design-reviewer minor 6), written down rather
+ * than left as silence — silence is how the container drift this PR fixes got in. The
+ * `rateLimited` and `error` branches render `jp-container jp-page` WITHOUT the hero plate:
+ * the plate carries the page's identity ("Granska importerat CV"), and neither branch has a
+ * review to be the identity of. The cost is real and accepted — the fallback paints the plate
+ * and an error branch then replaces it, so the plate flashes in and out on that path. The
+ * alternative, a plate reading "Kunde inte ladda granskningen", gives a failure the page's
+ * most prominent treatment.
+ *
  * Hämtar parse-artefakten (primär) + granskningen (sekundär) parallellt.
  * Parse-resultatet styr sidans utfall (ok → rendera; notFound → 404; auth →
  * redirect; övrigt → civic fel-block). Granskningen degraderas civilt: om den
@@ -72,9 +81,7 @@ export default async function CvReviewPage({ params, searchParams }: Props) {
               seconds: parsedResult.retryAfterSeconds,
             })}
           </p>
-          {/* #1062: den här grenen hade ingen väg tillbaka alls. /cv är v3-native, så
-              en besökare som mötte den stod utan både container och länk. Paritet med
-              error-grenen nedan och med den kanoniska ytan. */}
+          {/* #1062: this branch had no way back at all — parity with `error` below. */}
           <div>
             <Link href="/cv" className="jp-btn jp-btn--secondary">
               {t("cv.backLink")}
@@ -120,11 +127,13 @@ export default async function CvReviewPage({ params, searchParams }: Props) {
           <span>{t("cv.backLink")}</span>
         </Link>
 
-        {/* Filnamnet stannar i containern och inte i heron: heron bär sidans
-            IDENTITET (titel + lede), filnamnet säger vilket dokument granskningen
-            gäller — innehåll, inte identitet. Det håller också .jp-cv-meta__file på
-            den vita ytan dess ink-2 är avvägd mot; gradientplattan hade krävt ett
-            eget kontrastbeslut för en mono-rad. */}
+        {/* The file name stays in the container, not in the hero: the hero carries the page's
+            IDENTITY (title + lede), while this line says which document is under review —
+            content, not identity.
+            NOT for want of a contrast decision on the plate: `.jp-pagehero__kicker` is exactly
+            a mono overline there and measures 5.07–12.12:1 across the gradient stops. The
+            reason that actually holds is that the kicker sets `text-transform: uppercase`,
+            which would render `cv.docx` as `CV.DOCX`. */}
         <p className="jp-cv-meta">
           <span className="jp-cv-meta__file">{parsed.sourceFileName}</span>
         </p>

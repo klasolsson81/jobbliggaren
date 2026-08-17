@@ -11,11 +11,8 @@ import { CvUploadForm } from "@/components/resumes/cv-upload-form";
  * filväljaren). Inget CV-PII rör servern här — bytesen strömmar via BFF:en
  * (`/api/cv/import`) direkt till backend.
  *
- * Heron var en tom utfästelse fram till #1062: den här raden lovade den, men sidan
- * renderade `flex flex-col gap-6` utan vare sig hero eller container. `/cv` är
- * v3-native (prefix-match), så sidan opt:ade ut ur skalets transitional-container och
- * fick ingen egen — mätt kant-till-kant på varje viewport, h1 på x=0. Samma defekt som
- * granskningsytorna, samma fix.
+ * The hero above was an empty promise until #1062 — this docblock claimed it while the page
+ * rendered no hero and no container, edge-to-edge at every viewport.
  */
 export default async function CvImportPage() {
   const user = await getServerSession();

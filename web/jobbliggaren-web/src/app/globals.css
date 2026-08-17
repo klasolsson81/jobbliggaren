@@ -657,10 +657,12 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
    un-refaktorerade (app)-sidor i denna container så de inte renderar
    edge-to-edge (branch-by-abstraction, samma doktrin som F1a v2-alias /
    F1b v2-shim). v3-native routes (CTO D1, Variant B 2026-05-19) opt-out:ar
-   redan via app-shell V3_NATIVE_ROUTES-listan så heron går edge-to-edge.
+   redan via V3_NATIVE_ROUTES-listan (src/lib/layout/v3-native-routes.ts) så heron
+   går edge-to-edge.
    BORTTAGNINGS-TRIGGER: när F3/F5/F6 gett alla (app)-sidor egna
    .jp-container/.jp-page tas denna .jp-shell-transitional-container OCH
-   app-shell V3_NATIVE_ROUTES-listan bort tillsammans (ADR 0052-trail). */
+   V3_NATIVE_ROUTES-listan (src/lib/layout/v3-native-routes.ts, flyttad dit ur
+   app-shell i #1062) bort tillsammans (ADR 0052-trail). */
 .jp-shell-transitional-container {
   max-width: 1200px;
   margin-inline: auto;
@@ -699,29 +701,27 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   margin: 8px 0 0;
   max-width: 60ch;
 }
-/* Sidans tillbaka-länk (#1062). Kunskapen "så här ser en tillbaka-länk ut" hade
-   FEM inline-hem och inget auktoritativt, så den hade drivit isär: gap 1 vs 1.5,
-   text-body-sm vs ärvd storlek. Fem kopior av en regel är varför en 22px-kontroll
-   kunde skeppas mot en spec som kräver 44 på touch.
-   Klassen bär länkens IDENTITET; spacing mot omgivningen (mb-4 / self-start) hör
-   till anropsplatsen och stannar där.
-   Formen är den levererade textlänken i .jp-container-toppen — INTE
-   /ansokningar/[id]:s ghost-knapp, som är en annan kontrollform och når golvet
-   nedan via .jp-btn--sm. */
+/* The page back-link (#1062). "What a back-link looks like" had five inline homes and no
+   authority, so it had drifted: gap 4px vs 6px, text-body-sm vs inherited. Five copies of
+   one rule is how a 22px control shipped against a spec that mandates 44 on touch.
+   The class owns the link's IDENTITY; spacing against its surroundings (mb-4 / self-start)
+   belongs to the call site and stays there.
+   Colour is deliberately absent: `a:not(.jp-btn)` (globals.css, "G3 rotfix") is (0,1,1) and
+   beats a bare class (0,1,0), so a `color` here would be inert — the a-qualified idiom
+   `a.jp-adminnav__link` documents that trap. The rendered accent-700 is correct anyway.
+   Floors, both of them: 32px is the in-app minimum (jobbpilot-design-a11y §9) and 44px the
+   touch minimum (DESIGN.md §5, same breakpoint and pattern as .jp-criterionrow). Inline-flex
+   honours min-height, so the row grows without moving the text. */
 .jp-backlink {
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  min-height: 32px;
   font-size: var(--text-body-sm);
-  color: var(--jp-ink-1);
 }
 .jp-backlink:hover {
   text-decoration: underline;
 }
-/* Touch-golv (DESIGN.md §5, jobbpilot-design-a11y §9, WCAG 2.5.5) — samma
-   brytpunkt och samma mönster som .jp-criterionrow ovan. Mätt före fixen på
-   /cv/[id]/granska och /cv/granska/[parsedId]: 22px hög träffyta.
-   Inline-flex tar min-height, så raden växer utan att texten flyttar. */
 @media (max-width: 768px) {
   .jp-backlink { min-height: 44px; }
 }
@@ -2018,17 +2018,15 @@ a.jp-adminnav__link[aria-current="page"]::after {
   padding: 0 var(--jp-btn-px);
   font-size: var(--text-body-sm);
 }
-/* Touch-golv (#1062). DESIGN.md §5 säger redan "touch (≤768px) bumpar hit-targets
-   till 44px"; specen fanns, implementationen gjorde det inte. Mätt vid 768 med
-   hasTouch FÖRE fixen: 26 av 28 interaktiva element på /cv låg under 44px — varje
-   Granska CV (36×121), Förhandsgranska (36×155), Byt namn (36×87), Radera CV (36×90)
-   per kort, plus båda statusknapparna i granskningen.
-   Golvet ligger på den DELADE klassen, inte scopat till granskningsytan: 21
-   anropsplatser i 13 filer delar den, och ett lokalt undantag hade satt en 44px-
-   kontroll ett klick från en 36px-kontroll i samma flöde.
-   min-height slår height när den är större (CSS 2.1 §10.7), så raden växer till 44
-   utan att 36:an behöver ändras — och inget över 768px rör sig.
-   --jp-btn-px och --flush är horisontella och berörs inte. */
+/* Touch floor (#1062). DESIGN.md §5 already says "touch (≤768px) bumpar hit-targets till
+   44px"; the spec existed, the implementation did not. Measured at 768 with hasTouch before
+   the fix: 26 of 28 interactive elements on /cv were under 44px.
+   The floor sits on the SHARED class rather than scoped to the review surface — count the
+   call sites with `grep -rn "jp-btn--sm" src/ --include=*.tsx` — because a local exception
+   would put a 44px control one click from a 36px one in the same flow.
+   min-height wins over height when it is larger (CSS 2.1 §10.7), so the row grows to 44
+   without touching the 36, and nothing above 768px moves.
+   --jp-btn-px and --flush are horizontal and are unaffected. */
 @media (max-width: 768px) {
   .jp-btn--sm { min-height: 44px; }
 }
@@ -3275,10 +3273,10 @@ a.jp-adminnav__link[aria-current="page"]::after {
   cursor: pointer;
   transition: background 80ms, color 80ms;
 }
-/* Touch-golv (#1062) — samma spec-rad och samma brytpunkt som .jp-btn--sm ovan.
-   Mätt före fixen: 38px (8px padding + 14px text + 8px), alltså under golvet på
-   granskningens profil-växel ("ATS-profil" / "Visuell profil"). Klassen sätter ingen
-   height alls, så min-height är det enda som behövs. */
+/* Touch floor (#1062) — same spec line and breakpoint as .jp-btn--sm. Measured 38px before
+   the fix on the review's profile toggle ("ATS-profil" / "Visuell profil"), i.e. under the
+   floor: 8px padding + a 14px line at the body line-height + 8px. The class sets no height
+   at all, so min-height is all that is needed. */
 @media (max-width: 768px) {
   .jp-segment__opt { min-height: 44px; }
 }
@@ -4061,12 +4059,11 @@ a.jp-adminnav__link[aria-current="page"]::after {
   text-decoration: none;
   border-radius: var(--jp-r-pill);
 }
-/* Touch-golv (#1062) — tredje hemmet för samma regel som .jp-btn--sm och
-   .jp-segment__opt. Mätt vid 768 med hasTouch: 26px hög, och den är en LÄNK
-   (navigerar till granskningen), alltså en träffyta som alla andra. align-items
-   centrerar pillen i den högre raden, så det som VISAS är oförändrat medan det som
-   går att träffa når golvet. Utan den här raden hade fem av hubbens sex kvarvarande
-   under-44-kontroller lämnats — en fix på ett hem av N. */
+/* Touch floor (#1062) — the third home of the same rule as .jp-btn--sm and .jp-segment__opt.
+   Measured 26px at 768 with hasTouch, and it is a LINK (it navigates to the review), so it is
+   a hit target like any other. align-items centres the pill in the taller row, so what is
+   SHOWN is unchanged while what can be HIT reaches the floor. Without this rule five of the
+   hub's six remaining sub-44 controls would have been left behind — a fix at one home of N. */
 @media (max-width: 768px) {
   .jp-cv__badge-link {
     align-items: center;

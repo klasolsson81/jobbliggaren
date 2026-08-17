@@ -9,9 +9,17 @@ import type { ReactNode } from "react";
  *
  * There is no shared PageHero React component — the `.jp-pagehero` markup is
  * inlined per page — so this skeleton re-uses the SAME structural classes
- * (`jp-pagehero`/`__inner`/`__main`/`__aside`) as the real pages. The layout
- * (gradient plate, padding, flex) therefore matches automatically and the swap
- * to real content does not shift (CLS).
+ * (`jp-pagehero`/`__inner`/`__main`/`__aside`) as the real pages, and the layout
+ * (gradient plate, padding, flex) matches automatically.
+ *
+ * ⚠ **It does not follow that the swap never shifts, and this docblock used to claim it
+ * did.** The claim was measured false (#1062, design-reviewer M-A): the lede is one 16px
+ * bar here, and a lede that wraps to three lines renders 74px, so the band grew 168 → 231px
+ * on `/cv/granska/[parsedId]` and 38px on `/cv`. Measured CLS stayed **0** — a route swap
+ * replaces nodes rather than moving them, so this was visible jumpiness and not an ADR 0045
+ * regression — but "matches the envelope" is the honest claim, not "does not shift".
+ * `ledeLines` is what closes the remaining gap: pass the number of lines the real lede wraps
+ * to at the narrowest viewport it is measured on.
  *
  * Flat neutral grey `.jp-skeleton` blocks sized with Tailwind utilities, no
  * pulse/shimmer/glow (civic-utility, mirrors JobAdListSkeleton/AuthCardSkeleton).
@@ -29,9 +37,12 @@ import type { ReactNode } from "react";
 export function PageHeroSkeleton({
   aside,
   kicker = false,
+  ledeLines = 1,
 }: {
   aside?: ReactNode;
   kicker?: boolean;
+  /** How many lines the real lede wraps to. Default 1 preserves every existing call site. */
+  ledeLines?: 1 | 2 | 3;
 }) {
   return (
     <section className="jp-pagehero" aria-hidden="true">
@@ -39,7 +50,16 @@ export function PageHeroSkeleton({
         <div className="jp-pagehero__main">
           {kicker && <span className="jp-skeleton mb-2 block h-3 w-24" />}
           <span className="jp-skeleton block h-11 w-64 max-w-full" />
-          <span className="jp-skeleton mt-2 block h-4 w-96 max-w-full" />
+          {Array.from({ length: ledeLines }, (_, line) => (
+            <span
+              key={line}
+              // The last line of a wrapped paragraph is short; matching that keeps the
+              // shape honest without changing the reserved height.
+              className={`jp-skeleton mt-2 block h-4 max-w-full ${
+                line === ledeLines - 1 && ledeLines > 1 ? "w-64" : "w-96"
+              }`}
+            />
+          ))}
         </div>
         <div className="jp-pagehero__aside">
           {aside ?? (

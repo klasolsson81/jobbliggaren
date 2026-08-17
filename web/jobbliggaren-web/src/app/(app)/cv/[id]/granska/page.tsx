@@ -33,11 +33,16 @@ interface Props {
  * CV-PII läses bara server-side; evidensen är redan personnummer-redigerad vid
  * motorns choke point innan den når klienten.
  *
- * Skal-val (CCP): CV-granskningsytorna (den här och `/cv/granska/[parsedId]`)
- * använder h1 + tillbaka-länk-skalet, inte `jp-pagehero` — koherens inom familjen
- * väger tyngre här. (`/cv/[id]` bar samma skal tills #1373 pausade redigeringen;
- * den renderar inget skal alls längre.) (Design-reviewer: flagga om du vill ha
- * pagehero i stället.)
+ * Skal-val (CCP): båda CV-granskningsytorna använder `jp-pagehero` + `jp-container
+ * jp-page` — `(app)`-standarden. Det invitet till design-reviewer som stod här är
+ * besvarat (#1062): hon rulade pagehero, för h1 hoppade i två axlar på den enda vägen
+ * in (hubben 112/149, granskningen 72/175). Tillbaka-länken ligger i containern, inte
+ * i heron: `.jp-pagehero .jp-btn--secondary` är genomskinlig med 32 % vit kant och
+ * mäter 2,36:1 mot `--jp-hero-bg` — under 1.4.11 — och den formen är redan
+ * kringgången två gånger (#805 Klas live-review 2026-07-12, #1061/#1375). Att i
+ * stället göra den solid primär hade brutit ADR 0038:s en-primär-regel och gjort
+ * "tillbaka" till plattans mest framträdande handling. Formen är de tre levererade
+ * `(app)`-precedenterna: aktivitetsrapport, smarta-bevakningar/[id], statistik.
  */
 export default async function CanonicalCvReviewPage({
   params,
@@ -109,37 +114,43 @@ export default async function CanonicalCvReviewPage({
     reviewResult.kind === "ok" ? reviewResult.data : null;
 
   return (
-    <div className="jp-container jp-page flex flex-col gap-6">
-      <Link
-        href="/cv"
-        className="inline-flex items-center gap-1 text-body-sm text-text-primary hover:underline self-start"
-      >
-        <ChevronLeft size={16} aria-hidden="true" />
-        <span>{t("cv.granska.backLink")}</span>
-      </Link>
+    <>
+      <section className="jp-pagehero">
+        <div className="jp-pagehero__inner">
+          <div className="jp-pagehero__main">
+            <h1 className="jp-pagehero__title">{t("cv.granska.title")}</h1>
+            <p className="jp-pagehero__lede">{t("cv.granska.lede")}</p>
+          </div>
+        </div>
+      </section>
 
-      <header className="flex flex-col gap-2">
-        <h1 className="jp-h1">{t("cv.granska.title")}</h1>
+      <div className="jp-container jp-page flex flex-col gap-6">
+        <Link href="/cv" className="jp-backlink self-start">
+          <ChevronLeft size={16} aria-hidden="true" />
+          <span>{t("cv.backLink")}</span>
+        </Link>
+
+        {/* CV:ts namn stannar i containern, av samma skäl som filnamnet på
+            stagingytan: heron bär sidans identitet, den här raden säger vilket CV. */}
         <p className="jp-cv-meta">
           <span className="jp-cv-meta__file">{resume.name}</span>
         </p>
-        <p className="jp-lede">{t("cv.granska.lede")}</p>
-      </header>
 
-      {/* #1060 — samma neutrala, visnings-bara affordance som stagingvyn, nu på det
-          SPARADE CV:t. Texten kommer från innehållet sidan redan hämtar (ingen extra
-          request); den bärs på ResumeContent.Preamble sedan importen och är därmed
-          garanterat personnummer-fri vid SKRIVGRINDEN (ResumeContentPersonnummerGuard),
-          inte via en redigerare på läsvägen — se ResumeContentDto för varför de två
-          armarna inte delar kontroll. Renderas server-side, aldrig i en klient-ö.
-          Null för mall-skapade CV, så komponenten renderar ingenting där. */}
-      <CvPreamble preamble={findMasterVersion(resume)?.content.preamble ?? null} />
+        {/* #1060 — samma neutrala, visnings-bara affordance som stagingvyn, nu på det
+            SPARADE CV:t. Texten kommer från innehållet sidan redan hämtar (ingen extra
+            request); den bärs på ResumeContent.Preamble sedan importen och är därmed
+            garanterat personnummer-fri vid SKRIVGRINDEN (ResumeContentPersonnummerGuard),
+            inte via en redigerare på läsvägen — se ResumeContentDto för varför de två
+            armarna inte delar kontroll. Renderas server-side, aldrig i en klient-ö.
+            Null för mall-skapade CV, så komponenten renderar ingenting där. */}
+        <CvPreamble preamble={findMasterVersion(resume)?.content.preamble ?? null} />
 
-      <CvReviewPanel
-        review={review}
-        target={{ kind: "canonical", resumeId: id }}
-        profile={profile}
-      />
-    </div>
+        <CvReviewPanel
+          review={review}
+          target={{ kind: "canonical", resumeId: id }}
+          profile={profile}
+        />
+      </div>
+    </>
   );
 }

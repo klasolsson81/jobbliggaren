@@ -699,6 +699,32 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   margin: 8px 0 0;
   max-width: 60ch;
 }
+/* Sidans tillbaka-länk (#1062). Kunskapen "så här ser en tillbaka-länk ut" hade
+   FEM inline-hem och inget auktoritativt, så den hade drivit isär: gap 1 vs 1.5,
+   text-body-sm vs ärvd storlek. Fem kopior av en regel är varför en 22px-kontroll
+   kunde skeppas mot en spec som kräver 44 på touch.
+   Klassen bär länkens IDENTITET; spacing mot omgivningen (mb-4 / self-start) hör
+   till anropsplatsen och stannar där.
+   Formen är den levererade textlänken i .jp-container-toppen — INTE
+   /ansokningar/[id]:s ghost-knapp, som är en annan kontrollform och når golvet
+   nedan via .jp-btn--sm. */
+.jp-backlink {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--text-body-sm);
+  color: var(--jp-ink-1);
+}
+.jp-backlink:hover {
+  text-decoration: underline;
+}
+/* Touch-golv (DESIGN.md §5, jobbpilot-design-a11y §9, WCAG 2.5.5) — samma
+   brytpunkt och samma mönster som .jp-criterionrow ovan. Mätt före fixen på
+   /cv/[id]/granska och /cv/granska/[parsedId]: 22px hög träffyta.
+   Inline-flex tar min-height, så raden växer utan att texten flyttar. */
+@media (max-width: 768px) {
+  .jp-backlink { min-height: 44px; }
+}
 
 /* ── Header ──────────────────────────────────────── */
 .jp-header {
@@ -1992,6 +2018,20 @@ a.jp-adminnav__link[aria-current="page"]::after {
   padding: 0 var(--jp-btn-px);
   font-size: var(--text-body-sm);
 }
+/* Touch-golv (#1062). DESIGN.md §5 säger redan "touch (≤768px) bumpar hit-targets
+   till 44px"; specen fanns, implementationen gjorde det inte. Mätt vid 768 med
+   hasTouch FÖRE fixen: 26 av 28 interaktiva element på /cv låg under 44px — varje
+   Granska CV (36×121), Förhandsgranska (36×155), Byt namn (36×87), Radera CV (36×90)
+   per kort, plus båda statusknapparna i granskningen.
+   Golvet ligger på den DELADE klassen, inte scopat till granskningsytan: 21
+   anropsplatser i 13 filer delar den, och ett lokalt undantag hade satt en 44px-
+   kontroll ett klick från en 36px-kontroll i samma flöde.
+   min-height slår height när den är större (CSS 2.1 §10.7), så raden växer till 44
+   utan att 36:an behöver ändras — och inget över 768px rör sig.
+   --jp-btn-px och --flush är horisontella och berörs inte. */
+@media (max-width: 768px) {
+  .jp-btn--sm { min-height: 44px; }
+}
 /* A ghost button whose TEXT has to sit on the rail, not 18px inside it (#1090). Measured on
    /foretag/sok before the fix: the field labels start at x=72 and "Rensa sökningen" reads at x=90,
    which is invisible while the button ends a chip row and obvious once it stands alone.
@@ -3234,6 +3274,13 @@ a.jp-adminnav__link[aria-current="page"]::after {
   border: 0;
   cursor: pointer;
   transition: background 80ms, color 80ms;
+}
+/* Touch-golv (#1062) — samma spec-rad och samma brytpunkt som .jp-btn--sm ovan.
+   Mätt före fixen: 38px (8px padding + 14px text + 8px), alltså under golvet på
+   granskningens profil-växel ("ATS-profil" / "Visuell profil"). Klassen sätter ingen
+   height alls, så min-height är det enda som behövs. */
+@media (max-width: 768px) {
+  .jp-segment__opt { min-height: 44px; }
 }
 .jp-segment__opt + .jp-segment__opt {
   border-left: 1px solid var(--jp-border-input);

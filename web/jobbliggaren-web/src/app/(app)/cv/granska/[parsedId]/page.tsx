@@ -65,19 +65,27 @@ export default async function CvReviewPage({ params, searchParams }: Props) {
       notFound();
     case "rateLimited":
       return (
-        <div className="flex flex-col gap-4">
+        <div className="jp-container jp-page flex flex-col gap-4">
           <h1 className="jp-h1">{t("common.rateLimitedTitle")}</h1>
           <p className="jp-lede">
             {t("common.rateLimitedBody", {
               seconds: parsedResult.retryAfterSeconds,
             })}
           </p>
+          {/* #1062: den här grenen hade ingen väg tillbaka alls. /cv är v3-native, så
+              en besökare som mötte den stod utan både container och länk. Paritet med
+              error-grenen nedan och med den kanoniska ytan. */}
+          <div>
+            <Link href="/cv" className="jp-btn jp-btn--secondary">
+              {t("cv.backLink")}
+            </Link>
+          </div>
         </div>
       );
     case "forbidden":
     case "error":
       return (
-        <div className="flex flex-col gap-4">
+        <div className="jp-container jp-page flex flex-col gap-4">
           <h1 className="jp-h1">{t("cv.review.loadErrorTitle")}</h1>
           <p className="jp-lede">{t("cv.review.errorBody")}</p>
           <div>
@@ -96,76 +104,85 @@ export default async function CvReviewPage({ params, searchParams }: Props) {
     reviewResult.kind === "ok" ? reviewResult.data : null;
 
   return (
-    <div className="flex flex-col gap-6">
-      <Link
-        href="/cv"
-        className="inline-flex items-center gap-1 text-body-sm text-text-primary hover:underline self-start"
-      >
-        <ChevronLeft size={16} aria-hidden="true" />
-        <span>{t("cv.backLink")}</span>
-      </Link>
+    <>
+      <section className="jp-pagehero">
+        <div className="jp-pagehero__inner">
+          <div className="jp-pagehero__main">
+            <h1 className="jp-pagehero__title">{t("cv.review.title")}</h1>
+            <p className="jp-pagehero__lede">{t("cv.review.lede")}</p>
+          </div>
+        </div>
+      </section>
 
-      <header className="flex flex-col gap-2">
-        <h1 className="jp-h1">{t("cv.review.title")}</h1>
+      <div className="jp-container jp-page flex flex-col gap-6">
+        <Link href="/cv" className="jp-backlink self-start">
+          <ChevronLeft size={16} aria-hidden="true" />
+          <span>{t("cv.backLink")}</span>
+        </Link>
+
+        {/* Filnamnet stannar i containern och inte i heron: heron bär sidans
+            IDENTITET (titel + lede), filnamnet säger vilket dokument granskningen
+            gäller — innehåll, inte identitet. Det håller också .jp-cv-meta__file på
+            den vita ytan dess ink-2 är avvägd mot; gradientplattan hade krävt ett
+            eget kontrastbeslut för en mono-rad. */}
         <p className="jp-cv-meta">
           <span className="jp-cv-meta__file">{parsed.sourceFileName}</span>
         </p>
-        <p className="jp-lede">{t("cv.review.lede")}</p>
-      </header>
 
-      {/* #1060: varför filen inte är sparad som CV. Först på sidan, för det är frågan
-          användaren kom hit med — hubbens åtgärdskort kunde bara säga ATT något
-          behövde åtgärdas, aldrig VAD. Orsaken härleds server-side av samma grind som
-          auto-promote kör; den lagras aldrig. */}
-      <CvBlockReason reason={parsed.blockReason} className="jp-cvaction--flush" />
+        {/* #1060: varför filen inte är sparad som CV. Först på sidan, för det är frågan
+            användaren kom hit med — hubbens åtgärdskort kunde bara säga ATT något
+            behövde åtgärdas, aldrig VAD. Orsaken härleds server-side av samma grind som
+            auto-promote kör; den lagras aldrig. */}
+        <CvBlockReason reason={parsed.blockReason} className="jp-cvaction--flush" />
 
-      <div className="jp-cv-preview-actions">
-        <CvPreview previewUrl={`/api/cv/parsed/${parsedId}/preview`} initialProfile={profile} />
-      </div>
-
-      {/* Kompletterar blocket ovan, upprepar det inte: det säger VILKEN grind som föll,
-          den här säger hur många förekomster scannern hittade. */}
-      <PersonnummerWarning personnummer={parsed.personnummer} />
-
-      <ParseSummary confidence={parsed.confidence} />
-
-      <OccupationProposals proposals={parsed.occupationProposals} />
-
-      {/* Neutral, display-only preamble affordance (#844, ADR 0109). CV-PII rendered
-          server-side only — parsed.content.preamble is already pnr-redacted at the mapper
-          egress and never crosses to a client island (page invariant, lines above). */}
-      <CvPreamble preamble={parsed.content.preamble} />
-
-      <CvReviewPanel
-        review={review}
-        target={{ kind: "parsed", parsedId }}
-        profile={profile}
-      />
-
-      {/* Next-step row (design-m4, ADR 0047 "what do I do now?"). The review is read-only
-          (ADR 0112): the Förbättra + Fortsätt-spara CTAs were retired (komplettera + slutfor
-          404), so a user who deep-links straight here would otherwise dead-end. The way to a
-          canonical CV is to fix the FILE and re-import (auto-promote, 5b B3). Low-key, and it
-          never implies a write on the review — it navigates to a fresh import. */}
-      <section
-        aria-labelledby="cv-nextstep-title"
-        className="flex flex-col gap-2 border-t border-border pt-6"
-      >
-        <h2
-          id="cv-nextstep-title"
-          className="text-h3 font-medium text-text-primary"
-        >
-          {t("cv.review.nextStepTitle")}
-        </h2>
-        <p className="max-w-[68ch] text-body-sm text-text-primary">
-          {t("cv.review.nextStepBody")}
-        </p>
-        <div>
-          <Link href="/cv/importera" className="jp-btn jp-btn--secondary">
-            {t("cv.review.nextStepCta")}
-          </Link>
+        <div className="jp-cv-preview-actions">
+          <CvPreview previewUrl={`/api/cv/parsed/${parsedId}/preview`} initialProfile={profile} />
         </div>
-      </section>
-    </div>
+
+        {/* Kompletterar blocket ovan, upprepar det inte: det säger VILKEN grind som föll,
+            den här säger hur många förekomster scannern hittade. */}
+        <PersonnummerWarning personnummer={parsed.personnummer} />
+
+        <ParseSummary confidence={parsed.confidence} />
+
+        <OccupationProposals proposals={parsed.occupationProposals} />
+
+        {/* Neutral, display-only preamble affordance (#844, ADR 0109). CV-PII rendered
+            server-side only — parsed.content.preamble is already pnr-redacted at the mapper
+            egress and never crosses to a client island (page invariant, lines above). */}
+        <CvPreamble preamble={parsed.content.preamble} />
+
+        <CvReviewPanel
+          review={review}
+          target={{ kind: "parsed", parsedId }}
+          profile={profile}
+        />
+
+        {/* Next-step row (design-m4, ADR 0047 "what do I do now?"). The review is read-only
+            (ADR 0112): the Förbättra + Fortsätt-spara CTAs were retired (komplettera + slutfor
+            404), so a user who deep-links straight here would otherwise dead-end. The way to a
+            canonical CV is to fix the FILE and re-import (auto-promote, 5b B3). Low-key, and it
+            never implies a write on the review — it navigates to a fresh import. */}
+        <section
+          aria-labelledby="cv-nextstep-title"
+          className="flex flex-col gap-2 border-t border-border pt-6"
+        >
+          <h2
+            id="cv-nextstep-title"
+            className="text-h3 font-medium text-text-primary"
+          >
+            {t("cv.review.nextStepTitle")}
+          </h2>
+          <p className="max-w-[68ch] text-body-sm text-text-primary">
+            {t("cv.review.nextStepBody")}
+          </p>
+          <div>
+            <Link href="/cv/importera" className="jp-btn jp-btn--secondary">
+              {t("cv.review.nextStepCta")}
+            </Link>
+          </div>
+        </section>
+      </div>
+    </>
   );
 }

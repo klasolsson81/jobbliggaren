@@ -21,6 +21,7 @@ import {
   X,
 } from "lucide-react";
 import { logoutAction } from "@/lib/auth/actions";
+import { isV3Native } from "@/lib/layout/v3-native-routes";
 import { useDismissable } from "@/lib/hooks/use-dismissable";
 import { HeaderStats } from "@/components/shell/header-stats";
 import { HeaderStrip } from "@/components/site/header-strip";
@@ -65,38 +66,11 @@ function isActive(pathname: string, href: string): boolean {
   return pathname === href || pathname.startsWith(href + "/");
 }
 
-/**
- * v3-native routes (CTO D1, Variant B 2026-05-19): sidor som äger sin egen
- * bredd-layout (edge-to-edge hero + egen .jp-container, ELLER — som
- * /ansokningar efter F5 — egen .jp-container/.jp-page utan hero). Prefix-
- * match, samma idiom som aktiv-route-logiken ovan. För dessa routes
- * renderas children DIREKT i .jp-content utan .jp-shell-transitional-
- * container — annars constrainas heron (edge-to-edge bryts) eller dubbleras
- * .jp-container (dubbel max-width/padding på sidor som äger sin egen).
- * BORTTAGNINGS-TRIGGER: när alla (app)-sidor refaktorerats till egna
- * .jp-container/.jp-page tas denna lista + .jp-shell-transitional-
- * container bort tillsammans (se globals.css-trail, ADR 0052).
- */
-const V3_NATIVE_ROUTES = [
-  "/jobb",
-  "/ansokningar",
-  "/oversikt",
-  "/cv",
-  // Own their own .jp-container; top-level (not /ansokningar/[id] siblings, so
-  // the application-detail modal intercept can't catch them on soft-nav — #316,
-  // #332, #313).
-  "/aktivitetsrapport",
-  "/statistik",
-  "/ny-ansokan",
-  // #515 — /foretag aligned to the jp-pagehero standard (was legacy /sparade-style by mistake).
-  "/foretag",
-];
-
-function isV3Native(pathname: string): boolean {
-  return V3_NATIVE_ROUTES.some(
-    (r) => pathname === r || pathname.startsWith(r + "/")
-  );
-}
+// V3_NATIVE_ROUTES + isV3Native moved to @/lib/layout/v3-native-routes (#1062) so the
+// list has ONE home a test can read. The obligation the list creates — every page under
+// one of these prefixes must own a width container, because these routes opt out of
+// .jp-shell-transitional-container — is now held by v3-native-routes.test.ts. It was
+// undetectable while the list lived in this client component, and two pages had drifted.
 
 function initials(email: string): string {
   const local = email.split("@")[0] ?? email;

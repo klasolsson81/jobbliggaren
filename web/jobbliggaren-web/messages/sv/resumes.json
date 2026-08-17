@@ -11,7 +11,7 @@
   "rename": {
     "trigger": "Byt namn",
     "title": "Byt namn på CV",
-    "description": "Namnet visas i din CV-lista och i tailored versioner.",
+    "description": "Namnet visas i din CV-lista.",
     "nameLabel": "Namn",
     "cancel": "Avbryt",
     "save": "Spara"
@@ -36,6 +36,7 @@
       "Accentlinje": "Accentlinje",
       "MorkPanel": "Mörk panel"
     },
+    "reviewCta": "Granska CV",
     "findingsReview": "Granska",
     "findingsNone": "Inga åtgärder",
     "findingsCount": "{count} att åtgärda"
@@ -48,7 +49,7 @@
     "namePersonnummer": "Ta bort personnummer ur CV-namnet.",
     "dropText": "Välj en fil att ladda upp",
     "dropHint": "PDF eller Word (DOCX)",
-    "help": "Ladda upp en PDF- eller Word-fil (DOCX) på högst 10 MB. Vi tolkar innehållet och skapar ett CV du kan granska och redigera.",
+    "help": "Ladda upp en PDF- eller Word-fil (DOCX) på högst 10 MB. Vi tolkar innehållet och skapar ett CV du kan granska.",
     "submit": "Ladda upp och granska CV",
     "errorWrongType": "Välj en PDF- eller Word-fil (DOCX).",
     "errorTooLarge": "Filen är för stor. Maxstorlek är 10 MB.",

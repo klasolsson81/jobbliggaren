@@ -93,7 +93,7 @@
     },
     "import": {
       "title": "Importera CV",
-      "lede": "Ladda upp ditt befintliga CV som PDF eller Word-fil. Vi tolkar innehållet och visar en deterministisk granskning med citerad evidens. Du behåller kontrollen. Inget ändras i ditt CV förrän du själv sparar.",
+      "lede": "Ladda upp ditt befintliga CV som PDF eller Word-fil. Vi tolkar innehållet och visar en deterministisk granskning med citerad evidens. Du behåller kontrollen. Ditt CV ändras inte.",
       "modalDescription": "Ladda upp ditt befintliga CV som PDF eller Word-fil. Vi tolkar innehållet och visar en granskning. Ditt CV ändras inte."
     },
     "new": {

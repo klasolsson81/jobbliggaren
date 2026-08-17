@@ -11,7 +11,7 @@
   "rename": {
     "trigger": "Rename",
     "title": "Rename CV",
-    "description": "The name appears in your CV list and in tailored versions.",
+    "description": "The name appears in your CV list.",
     "nameLabel": "Name",
     "cancel": "Cancel",
     "save": "Save"
@@ -36,6 +36,7 @@
       "Accentlinje": "Accent line",
       "MorkPanel": "Dark panel"
     },
+    "reviewCta": "Review CV",
     "findingsReview": "Review",
     "findingsNone": "No actions",
     "findingsCount": "{count} to fix"
@@ -48,7 +49,7 @@
     "namePersonnummer": "Remove the personal identity number from the CV name.",
     "dropText": "Choose a file to upload",
     "dropHint": "PDF or Word (DOCX)",
-    "help": "Upload a PDF or Word file (DOCX) of at most 10 MB. We read the contents and create a CV you can review and edit.",
+    "help": "Upload a PDF or Word file (DOCX) of at most 10 MB. We read the contents and create a CV you can review.",
     "submit": "Upload and review CV",
     "errorWrongType": "Choose a PDF or Word file (DOCX).",
     "errorTooLarge": "The file is too large. The maximum size is 10 MB.",

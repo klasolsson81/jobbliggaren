@@ -93,7 +93,7 @@
     },
     "import": {
       "title": "Import CV",
-      "lede": "Upload your existing CV as a PDF or Word file. We read the contents and show a deterministic review with cited evidence. You stay in control. Nothing is changed in your CV until you save it yourself.",
+      "lede": "Upload your existing CV as a PDF or Word file. We read the contents and show a deterministic review with cited evidence. You stay in control. Your CV is not changed.",
       "modalDescription": "Upload your existing CV as a PDF or Word file. We read the contents and show a review. Your CV is not changed."
     },
     "new": {

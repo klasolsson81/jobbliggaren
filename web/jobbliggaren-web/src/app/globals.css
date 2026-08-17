@@ -657,10 +657,12 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
    un-refaktorerade (app)-sidor i denna container så de inte renderar
    edge-to-edge (branch-by-abstraction, samma doktrin som F1a v2-alias /
    F1b v2-shim). v3-native routes (CTO D1, Variant B 2026-05-19) opt-out:ar
-   redan via app-shell V3_NATIVE_ROUTES-listan så heron går edge-to-edge.
+   redan via V3_NATIVE_ROUTES-listan (src/lib/layout/v3-native-routes.ts) så heron
+   går edge-to-edge.
    BORTTAGNINGS-TRIGGER: när F3/F5/F6 gett alla (app)-sidor egna
    .jp-container/.jp-page tas denna .jp-shell-transitional-container OCH
-   app-shell V3_NATIVE_ROUTES-listan bort tillsammans (ADR 0052-trail). */
+   V3_NATIVE_ROUTES-listan (src/lib/layout/v3-native-routes.ts, flyttad dit ur
+   app-shell i #1062) bort tillsammans (ADR 0052-trail). */
 .jp-shell-transitional-container {
   max-width: 1200px;
   margin-inline: auto;
@@ -698,6 +700,30 @@ a:not(.jp-btn):hover { color: var(--jp-accent-600); }
   color: var(--jp-ink-1);
   margin: 8px 0 0;
   max-width: 60ch;
+}
+/* The page back-link (#1062). "What a back-link looks like" had five inline homes and no
+   authority, so it had drifted: gap 4px vs 6px, text-body-sm vs inherited. Five copies of
+   one rule is how a 22px control shipped against a spec that mandates 44 on touch.
+   The class owns the link's IDENTITY; spacing against its surroundings (mb-4 / self-start)
+   belongs to the call site and stays there.
+   Colour is deliberately absent: `a:not(.jp-btn)` (globals.css, "G3 rotfix") is (0,1,1) and
+   beats a bare class (0,1,0), so a `color` here would be inert — the a-qualified idiom
+   `a.jp-adminnav__link` documents that trap. The rendered accent-700 is correct anyway.
+   Floors, both of them: 32px is the in-app minimum (jobbpilot-design-a11y §9) and 44px the
+   touch minimum (DESIGN.md §5, same breakpoint and pattern as .jp-criterionrow). Inline-flex
+   honours min-height, so the row grows without moving the text. */
+.jp-backlink {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  font-size: var(--text-body-sm);
+}
+.jp-backlink:hover {
+  text-decoration: underline;
+}
+@media (max-width: 768px) {
+  .jp-backlink { min-height: 44px; }
 }
 
 /* ── Header ──────────────────────────────────────── */
@@ -1992,6 +2018,18 @@ a.jp-adminnav__link[aria-current="page"]::after {
   padding: 0 var(--jp-btn-px);
   font-size: var(--text-body-sm);
 }
+/* Touch floor (#1062). DESIGN.md §5 already says "touch (≤768px) bumpar hit-targets till
+   44px"; the spec existed, the implementation did not. Measured at 768 with hasTouch before
+   the fix: 26 of 28 interactive elements on /cv were under 44px.
+   The floor sits on the SHARED class rather than scoped to the review surface — count the
+   call sites with `grep -rn "jp-btn--sm" src/ --include=*.tsx` — because a local exception
+   would put a 44px control one click from a 36px one in the same flow.
+   min-height wins over height when it is larger (CSS 2.1 §10.7), so the row grows to 44
+   without touching the 36, and nothing above 768px moves.
+   --jp-btn-px and --flush are horizontal and are unaffected. */
+@media (max-width: 768px) {
+  .jp-btn--sm { min-height: 44px; }
+}
 /* A ghost button whose TEXT has to sit on the rail, not 18px inside it (#1090). Measured on
    /foretag/sok before the fix: the field labels start at x=72 and "Rensa sökningen" reads at x=90,
    which is invisible while the button ends a chip row and obvious once it stands alone.
@@ -3235,6 +3273,13 @@ a.jp-adminnav__link[aria-current="page"]::after {
   cursor: pointer;
   transition: background 80ms, color 80ms;
 }
+/* Touch floor (#1062) — same spec line and breakpoint as .jp-btn--sm. Measured 38px before
+   the fix on the review's profile toggle ("ATS-profil" / "Visuell profil"), i.e. under the
+   floor: 8px padding + a 14px line at the body line-height + 8px. The class sets no height
+   at all, so min-height is all that is needed. */
+@media (max-width: 768px) {
+  .jp-segment__opt { min-height: 44px; }
+}
 .jp-segment__opt + .jp-segment__opt {
   border-left: 1px solid var(--jp-border-input);
 }
@@ -4013,6 +4058,17 @@ a.jp-adminnav__link[aria-current="page"]::after {
   display: inline-flex;
   text-decoration: none;
   border-radius: var(--jp-r-pill);
+}
+/* Touch floor (#1062) — the third home of the same rule as .jp-btn--sm and .jp-segment__opt.
+   Measured 26px at 768 with hasTouch, and it is a LINK (it navigates to the review), so it is
+   a hit target like any other. align-items centres the pill in the taller row, so what is
+   SHOWN is unchanged while what can be HIT reaches the floor. Without this rule five of the
+   hub's six remaining sub-44 controls would have been left behind — a fix at one home of N. */
+@media (max-width: 768px) {
+  .jp-cv__badge-link {
+    align-items: center;
+    min-height: 44px;
+  }
 }
 .jp-cv__badge-link:hover .jp-pill {
   text-decoration: underline;

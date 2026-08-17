@@ -7,8 +7,13 @@ import { PageHeroSkeleton } from "@/components/skeletons/page-hero-skeleton";
  * grid shape immediately on navigation.
  *
  * Re-uses `jp-pagehero` + `jp-cvgrid` + `jp-cv` structural classes so the grid
- * matches on swap; the default two-action aside mirrors "Importera" + "Nytt CV".
- * sr-only `role="status"` announces; visuals decorative. Sync RSC.
+ * matches on swap. sr-only `role="status"` announces; visuals decorative. Sync RSC.
+ *
+ * ⚠ The aside is still the skeleton's DEFAULT two blocks, and this line used to say they
+ * mirror "Importera" + "Nytt CV". They no longer do: #1061 removed "Nytt CV" and the hub has
+ * rendered a single control since `a8e6068a`, so the fallback paints a button that never
+ * arrives. Passing a one-block `aside` is the fix and it belongs with #1385 — it is also the
+ * 4px that makes the band's miss additive at 375, where the aside wraps below `__main`.
  */
 const CARDS = [0, 1, 2];
 const SKILL_CHIPS = [0, 1, 2, 3];
@@ -21,7 +26,28 @@ export default function Loading() {
         {t("navLoading.cv")}
       </span>
 
-      <PageHeroSkeleton />
+      {/* This is a SHARED App Router boundary: it is the loading state for the whole /cv
+          subtree except /cv/granska/[parsedId]/*, because no other /cv route has a loading.tsx.
+
+          Its consumers do not agree, and none of them tops out at three: measured 2026-08-17,
+          the hub wraps to 2 lines at ≥500px, 3 at 414/375 and 4 at 320, while /cv/importera and
+          /cv/[id]/granska run 3 / 4 / 5 / 6 across the same widths. The lede is capped at
+          `max-width: 60ch`, so above ~500px the count stops moving with the viewport.
+
+          3 is the worst consumer the `1 | 2 | 3` union can EXPRESS, not the worst consumer
+          (CTO bind 2026-08-17). It lowers the miss at both ends rather than trading one for the
+          other, and where it over-reserves that is the direction to err: an over-reserving band
+          shrinks on swap, while an under-reserving one pushes content the reader has aimed at.
+
+          It closes the band nowhere, at any value. The title bar's mismatch is a constant +4.4px
+          at every width (`h-11` = 44px against a rendered 48.4px) and does NOT vary by viewport:
+          globals.css tries to drop `.jp-pagehero__title` below 720px, but the base rule comes
+          later and wins, so the step never applies — a dead token step, filed as #1386. What
+          varies is the lede's line count and whether the aside wraps below `__main`; at 375 it
+          does, which turns the skeleton's `h-10` aside against the real 44px control into a
+          further +4px. #1385 owns the residual and the fact that this file paints the hub's card
+          grid to routes that are not the hub. */}
+      <PageHeroSkeleton ledeLines={3} />
 
       <div className="jp-container jp-page" aria-hidden="true">
         <div className="jp-cvgrid">

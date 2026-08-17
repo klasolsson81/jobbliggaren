@@ -54,7 +54,7 @@ export default async function StatistikPage() {
       <div className="jp-container jp-page">
         <Link
           href="/ansokningar"
-          className="mb-4 inline-flex items-center gap-1.5 text-text-primary hover:underline"
+          className="jp-backlink mb-4"
         >
           <ArrowLeft size={16} aria-hidden="true" />
           {t("back")}

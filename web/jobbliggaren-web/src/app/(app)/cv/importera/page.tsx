@@ -10,6 +10,9 @@ import { CvUploadForm } from "@/components/resumes/cv-upload-form";
  * civic page-hero, sedan den interaktiva `<CvUploadForm />` (klient-ö som äger
  * filväljaren). Inget CV-PII rör servern här — bytesen strömmar via BFF:en
  * (`/api/cv/import`) direkt till backend.
+ *
+ * The hero above was an empty promise until #1062 — this docblock claimed it while the page
+ * rendered no hero and no container, edge-to-edge at every viewport.
  */
 export default async function CvImportPage() {
   const user = await getServerSession();
@@ -23,21 +26,24 @@ export default async function CvImportPage() {
   // Ingen profil-hämtning behövs längre; personnamnet i CV:t sätts alltid från kontot
   // på serversidan.
   return (
-    <div className="flex flex-col gap-6">
-      <Link
-        href="/cv"
-        className="inline-flex items-center gap-1 text-body-sm text-text-primary hover:underline self-start"
-      >
-        <ChevronLeft size={16} aria-hidden="true" />
-        <span>{t("cv.backLink")}</span>
-      </Link>
+    <>
+      <section className="jp-pagehero">
+        <div className="jp-pagehero__inner">
+          <div className="jp-pagehero__main">
+            <h1 className="jp-pagehero__title">{t("cv.import.title")}</h1>
+            <p className="jp-pagehero__lede">{t("cv.import.lede")}</p>
+          </div>
+        </div>
+      </section>
 
-      <header className="flex flex-col gap-2">
-        <h1 className="jp-h1">{t("cv.import.title")}</h1>
-        <p className="jp-lede">{t("cv.import.lede")}</p>
-      </header>
+      <div className="jp-container jp-page flex flex-col gap-6">
+        <Link href="/cv" className="jp-backlink self-start">
+          <ChevronLeft size={16} aria-hidden="true" />
+          <span>{t("cv.backLink")}</span>
+        </Link>
 
-      <CvUploadForm />
-    </div>
+        <CvUploadForm />
+      </div>
+    </>
   );
 }

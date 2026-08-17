@@ -313,6 +313,35 @@ describe("proxy — the org.nr wash on /foretag/sok (D8(c))", () => {
     expect(location).not.toContain("namn");
   });
 
+  /**
+   * #1075 — the twelve-digit century form. Assert on the BARE digit runs, both the written value and
+   * the century-stripped one: `URLSearchParams` leaves digits unencoded, so an assertion against an
+   * encoded form would pass vacuously and prove nothing.
+   */
+  it("washes the twelve-digit century form at the primary gate, no-store, value gone", async () => {
+    const res = await proxy(
+      makeRequest("/foretag/sok?namn=195601257901", authed),
+    );
+
+    expect(res.status).toBe(307);
+    const location = res.headers.get("location") ?? "";
+    expect(location).toContain("/foretag/sok?avvisat=orgnr");
+    expect(location).not.toContain("195601257901");
+    expect(location).not.toContain("5601257901");
+    expect(res.headers.get("cache-control")).toBe("no-store");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("washes a hyphenated century form in a repeated, non-first position", async () => {
+    const res = await proxy(
+      makeRequest("/foretag/sok?namn=volvo&namn=19560125-7901", authed),
+    );
+    expect(res.status).toBe(307);
+    const location = res.headers.get("location") ?? "";
+    expect(location).not.toContain("7901");
+    expect(location).not.toContain("namn");
+  });
+
   it("washes a speculative PREFETCH too — it carries the value like any other request", async () => {
     const res = await proxy(
       makeRequest("/foretag/sok?namn=1010101010", {

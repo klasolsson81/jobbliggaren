@@ -39,7 +39,7 @@ interface PageProps {
  * name prefix, the org.nr lookup, and the bransch/ort filters share ONE island
  * (`ForetagSokSearchbar`, #997). The bransch/ort filters COMMIT LIVE (#1125) — a chip applies the
  * filter immediately — while the NAME field keeps an explicit submit, because it is the axis whose
- * value must pass the org.nr gate before it may reach a URL. A field value that normalises to 10 digits is an org.nr
+ * value must pass the org.nr gate before it may reach a URL. A field value that normalises to an org.nr
  * (client POST, refuse pnr locally, NEVER the URL — D8(c)); anything else is a name prefix + bransch + ort
  * committed to the URL together. Empty filters browse the whole register (Klas bind: browse-all default).
  *
@@ -145,7 +145,7 @@ export default async function ForetagSokPage({ searchParams }: PageProps) {
             "your search matched everything", and it is the same silent-drop class the search island
             was built to eliminate (its own docblock records that Blocker).
             Deliberately: it never echoes the value (echoing it back into the DOM would defeat the
-            wash), and it never says "personnummer" — the gate fires on the whole ten-digit class, so
+            wash), and it never says "personnummer" — the gate fires on the whole org.nr class, so
             that word would be factually wrong for a legitimate company org.nr and would advertise
             the heuristic besides. Server-rendered on a fresh document, so no aria-live and no
             role="alert": nothing failed dangerously, and it is ordinary content in reading order. */}

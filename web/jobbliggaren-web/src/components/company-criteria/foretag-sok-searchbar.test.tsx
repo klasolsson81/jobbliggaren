@@ -62,7 +62,7 @@ const REFERENCE: CriterionReference = {
 
 const VALID_ORGNR = "5560125790"; // 3rd digit 6 >= 2 → legal entity
 const PNR_SHAPED = "1010101010"; // 3rd digit 1 < 2 → personnummer-shaped → must be refused locally
-// #1075 — the century-prefixed written forms. Both strip to a fixture above, which is the point:
+// #1075 — the century-prefixed written forms. Each strips to a fixture above, which is the point:
 // the century is presentation, and what the dispatch decides on is the derived ten digits.
 const PNR_SHAPED_12 = "191010101010"; // → PNR_SHAPED
 const PNR_SHAPED_12_HYPHEN = "19101010-1010"; // → PNR_SHAPED

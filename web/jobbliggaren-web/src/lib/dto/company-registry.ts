@@ -12,8 +12,13 @@
  * SIGN, and any `\p{Pd}` (ASCII `-`, U+2013 EN DASH, U+2011 NON-BREAKING HYPHEN — the paste path, since
  * word processors autocorrect and PDFs carry the non-breaking form). That class is the house's own,
  * `Personnummer.IsSeparator` (#497), cited rather than reinvented; whitespace is this side's own
- * long-standing addition and is not part of it. Written with escapes to keep the source ASCII-only,
- * mirroring the C# original.
+ * long-standing addition and is not part of it. What travels with that citation is the character
+ * repertoire and nothing else — `Personnummer.TryParse` also caps the count at one separator, which
+ * this does not, in the same direction as dropping the domain's one-hyphen-at-`Length-5` position
+ * rule: more raw strings reduce to the same value, so the guard fires more often. The reverse case
+ * exists and is a named residual, not a claim of strict superset: .NET's `Trim` treats U+0085 as
+ * whitespace where JS does not, so a value carrying one is recognised there and not here. Written
+ * with escapes to keep the source ASCII-only, mirroring the C# original.
  */
 const SEPARATORS = /[\s\p{Pd}+\u2212]/gu;
 
@@ -23,7 +28,7 @@ const SEPARATORS = /[\s\p{Pd}+\u2212]/gu;
  * normalised ten-digit value or null. Mirrors `OrganizationNumber.TryFromWrittenForm`.
  *
  * Parity with the domain is owed on the VALUE axis and not on the PRESENTATION axis (#1075): this
- * derives exactly the value the domain would, and deliberately accepts a wider set of raw strings that
+ * derives exactly the value the domain would, and deliberately accepts further raw strings that
  * reduce to it. The raw string never crosses the wire — callers transmit the derived value — so a wider
  * strip class cannot manufacture a disagreement, while a narrower one would let a written personnummer
  * reach `?namn=`, and with it the address bar, history and the access log (ADR 0087 D8(c); CLAUDE.md §5

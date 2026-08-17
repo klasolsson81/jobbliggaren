@@ -22,7 +22,7 @@ describe("normalizeOrgNrInput (#454)", () => {
 /**
  * #1075 — the written-form contract. The accept pairs below are the SAME fixtures as
  * `tests/Jobbliggaren.Domain.UnitTests/CompanyWatches/OrganizationNumberTests.cs`
- * (`TryFromWrittenForm_ForWrittenForms_NormalisesToStoredForm`), so the two sides agree
+ * (`TryFromWrittenForm_ForWrittenOrgNrForms_NormalisesToStoredForm`), so the two sides agree
  * literally rather than coincidentally. Drift on the VALUE axis, in either direction, is
  * the defect; the separator repertoire is deliberately wider here (see the module docblock).
  */
@@ -77,8 +77,8 @@ describe("normalizeOrgNrInput — den tolvsiffriga sekelformen (#1075)", () => {
   it("en TIOSIFFRIG org.nr som börjar på 19/20 är inte en sekelform", () => {
     // Swedish public-sector org.nr begin 20xxxx / 21xxxx, so the century prefixes are also legal
     // opening digits of a stored form. The length is what separates the two readings: a century form
-    // is twelve digits, never ten. Found by mutation — dropping `\d{10}` from the century test left
-    // every other pin green while turning these into null.
+    // is twelve digits, never ten. Found by mutation: relaxing the century test to the bare prefix
+    // `/^(?:19|20)/` left every other pin green while turning these into null.
     expect(normalizeOrgNrInput("2021005208")).toBe("2021005208");
     expect(normalizeOrgNrInput("202100-5208")).toBe("2021005208");
     expect(normalizeOrgNrInput("1922334455")).toBe("1922334455");
@@ -89,8 +89,12 @@ describe("normalizeOrgNrInput — den tolvsiffriga sekelformen (#1075)", () => {
     expect(normalizeOrgNrInput("219001011234")).toBeNull(); // nor is 21xx
     expect(normalizeOrgNrInput("1990010112345")).toBeNull(); // 13 digits
     expect(normalizeOrgNrInput("19556012579a")).toBeNull(); // 12 chars, 19-prefix, non-digit tail
-    // No Unicode-digit folding: the backend's `[0-9]{10}` default-deny (#865) would reject the
-    // value this would derive, which WOULD be a value-axis divergence.
+    // No Unicode-digit folding — DEFERRED, not forbidden, and the distinction matters because a
+    // fullwidth form still reaches `?namn=`. Folding would derive ASCII, which the backend accepts,
+    // so it would widen the PRESENTATION axis, exactly as the separator class does; the house
+    // already folds `\p{Nd}` in `Personnummer.TryParse` (#667) on the same paste-path reasoning.
+    // What it must NOT become is a `\p{Nd}` in the final check: that would derive a value the
+    // backend's `[0-9]{10}` default-deny rejects (#865), and THAT would be a value-axis divergence.
     expect(normalizeOrgNrInput("５５６０１２５７９０")).toBeNull();
   });
 });

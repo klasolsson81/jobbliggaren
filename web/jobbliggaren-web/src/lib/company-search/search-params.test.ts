@@ -229,7 +229,7 @@ describe("parseNamn", () => {
  * a value to the org.nr branch, so the two paths cannot drift into two rules.
  */
 describe("parseNamn — the org.nr gate", () => {
-  it("refuses the ten-digit class in every form the org.nr normaliser accepts", () => {
+  it("refuses the ten-digit class in every separator form the normaliser accepts", () => {
     // Personnummer-shaped (3rd digit < 2) — the highest-priority case.
     expect(parseNamn("1010101010")).toEqual({ kind: "orgNrShaped" });
     // A legitimate legal-entity org.nr is refused on this axis too: it is an org.nr, and org.nr

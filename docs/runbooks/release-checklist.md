@@ -1754,10 +1754,65 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
       > DEK), så vägen blir §9.6 (3) — som kräver bäraravsaknad. Med korpuset laddat finns bärare
       > fyndet **når** (rekryterarkontakter; `job_ads.organization_number` för enskild firma), så
       > bindningen faller. **Följd: risken ska REPARERAS före riktig data, inte accepteras igen.**
-      > (3) **båda M-7-benen verifierade på `host-detection.md` §7** — insamlingen är i stort
-      > verifierad, men **hela väcknings- och paging-kedjan är omätt**, och det är just den som gör
-      > Art. 33:s frist datbar. En auditd-regel som skriver till en logg ingen läser producerar
-      > ingen medvetenhet.
+      > (3) **båda M-7-benen verifierade på `host-detection.md` §7** — insamlingen är verifierad,
+      > och **väcknings- och paging-kedjan är sedan 2026-08-17 mätt ända fram** (PR
+      > [#1374](https://github.com/klasolsson81/jobbliggaren/pull/1374): fem §7-rader urladdade mot
+      > Klas läsning hos expectern, korroborerad mot lådans journal; D5 demonstrerade **tystnadsarmen**,
+      > som aldrig hade visats). Det är den kedjan som gör Art. 33:s frist datbar — en auditd-regel som
+      > skriver till en logg ingen läser producerar ingen medvetenhet. ⚠ **Kravet är ändå INTE urladdat:**
+      > två §7-rader står kvar, **reboot-överlevnad** (Klas att auktorisera — kräver omstart av
+      > produktionslådan) och **baseline-noise**.
+
+      ⛔ **FLIPPEN ÄR UTFÖRD 2026-08-17, OCH DEN UTFÖRDES MOT BLOCKERINGEN OVAN.** Raden ovan säger
+      att inget av de tre kraven är uppfyllt; det står kvar för att det var sant när det skrevs och
+      är sant än. Det som ändrades är inte kravbilden utan **vem som bär risken**.
+      **Flippen utförd av:** Klas Olsson som **personuppgiftsansvarig** · **Utförd:** 2026-08-17 ·
+      **Plats:** `/opt/jobbliggaren/deploy/.env` (`JOBTECH_INGEST_ENABLED=true`), med skälet skrivet
+      **inline i samma fil** — den är lådans, inte repots, och därför är den citerad och inte pekad på.
+      ⚠ **`security-auditor`s M-7-gradering står oförändrad och är HENNES** (§9.6: severity tillhör
+      den agent som rapporterade fyndet, och en senare läsare omgraderar den inte). Acceptansen är
+      **personuppgiftsansvariges** — den går alltså varken via §9.6 (2) eller (3), och åberopar ingen
+      bäraravsaknad. **Läs därför inte hennes gradering som en öppen grind, och stäng inte ingesten
+      igen** på den grunden.
+      **RESIDUALEN — MÄTT PÅ LÅDAN 2026-08-17 ~16:00Z, OCH DEN ÄR INTE NOLL.** En tidigare läsning
+      samma dag gav noll deklarerade kontaktposter; den togs **innan strömmen hunnit köra** och är
+      överspelad. Mätt efter ~50 minuters ström (`*/10`), alltså **före** den första fullbackfillen
+      02:00 UTC: **822 kontaktposter över 462 av 668 annonser — 532 `Declared`, samtliga med namn,
+      och 290 `ExtractedFromBody`, ingen med namn.** Att exakt de deklarerade bär namn är väntat och
+      inte ett fynd: Tier A når e-post och telefon men aldrig namn (ingen NER, ADR 0106 D5).
+      Talen är daterade och avser **beslutsögonblicket**; de växer med varje ingest. Regenerera:
+
+      ```bash
+      sudo docker exec jobbliggaren-postgres psql -U postgres -d jobbliggaren -c "
+      WITH e AS (SELECT c FROM job_ads a CROSS JOIN LATERAL jsonb_array_elements(a.contacts) AS c)
+      SELECT count(*) AS entries, count(*) FILTER (WHERE c->>'Origin' = 'Declared') AS declared,
+             count(*) FILTER (WHERE c->>'Name' IS NOT NULL) AS with_name FROM e;"
+      ```
+
+      **`job_ads.organization_number` är ett SEPARAT fält och namnges som ett** — inte som en broms.
+      Det **är** personnummer-format för en enskild firma (#841), och den formen försvinner inte av
+      att den mäts. Mätt vid samma tillfälle: 652 annonser bär org.nr, samtliga tio siffror med
+      månadsparet ≥ 20, alltså **noll personnummer-formade** — en egenskap hos **den population som
+      låg där då**, aldrig en strukturell garanti, och den ska mätas om och inte ärvas.
+      Regenerera: samma `psql`, predikatet i `OrganizationNumber.IsPersonnummerShaped()`.
+
+      ⚠ **KLAS-BESLUT 2026-08-17 — SCB-SYNKEN PAUSAS PÅ LÅDAN, OCH LÅDAN SKA INTE HA NÅGOT
+      CERTIFIKAT.** **Beslut av:** Klas Olsson · **Datum:** 2026-08-17 · **Plats:** CC-session,
+      recordat här.
+      **Skälet är att arbetet är kastat:** SCB byter självt till API om 1–2 månader, så cert-infra
+      på lådan hinner aldrig löna sig. **Marginalen som avstås är namngiven och accepterad:** de
+      allra nyaste företagen, och de som avregistrerats sedan extraktet. Synken kan i stället köras
+      live i CC-chatten en lördag om behovet uppstår.
+      ⛔ **DETTA ÄR REDAN ÖNSKAT TILLSTÅND — BYGG INTE CERTVÄGEN OCH "LAGA" INTE DET SAKNADE
+      CERTET.** Mätt 2026-08-17, fyra oberoende led: `ScbRegister:Enabled` är `false` i båda hemmen
+      (`src/Jobbliggaren.Worker/appsettings.json` och C#-defaulten på `ScbRegisterOptions`) ·
+      **noll** `ScbRegister`-nycklar under `deploy/` (regenerera: `grep -rn "ScbRegister" deploy/`,
+      förvänta exit 1) · **noll** SCB-nycklar i lådans `.env` (regenerera:
+      `sudo grep -ci scb /opt/jobbliggaren/deploy/.env`) · **inget certifikat på lådan**
+      (`ScbClientCertificateProvider` läser OS-certarkivet, som bara finns på Klas maskin).
+      Jobbet är alltjämt registrerat på `0 6 * * 6` och **no-op:ar** när `Enabled=false`
+      (`ScbCompanyRegisterRefresher`s tidiga retur — *"ingen SCB-anrop, inget cert"*), så schemat
+      håller sig drift-fritt mot `RecurringJobIds`-allowlisten utan att någonting körs.
       En obockad ruta här betyder *"GO ej givet"* och ingenting annat — till skillnad från filens
       övriga rutor, där en obockad ruta inte får läsas som "inte levererat" (blockquoten ovan).
       ⚠ **Och en bockad ruta här är inte heller tillstånd i sig** — den är ett **record av** GO:t.

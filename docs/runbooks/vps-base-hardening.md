@@ -1035,11 +1035,36 @@ rather than discovered:
   lower-privilege second identity — it is root. §2's "two console identities" is redundancy for
   availability, not a privilege boundary.
 
-  **Still open, and not mitigated by anything built so far:** a separate key for automation with
-  `restrict,command=,from=` so the passphrase-less key stops being a general shell, and narrowing
-  NOPASSWD to a `Cmnd_Alias` once the deploy automation's real command set is known.
+  **Both named mitigations are VOID AS WRITTEN, measured 2026-08-17, and this section is their
+  one home** — the ADR that named them is gitignored, so the derivation is written here to stand
+  alone. They were: a separate key for automation with `restrict,command=,from=`, and narrowing
+  NOPASSWD to a `Cmnd_Alias` once the deploy automation's real command set was known. Both assume
+  an **inbound automation actor**. The delivered architecture is reconcile-pull — the timer runs
+  on this box, as root, under systemd, and nothing SSHes in. Regenerate with
+  `grep -rniE 'jpadmin|ssh -i|ssh-action|appleboy|SSH_PRIVATE' .github/workflows/` (expect no
+  output), read against `jobbliggaren-reconcile.service`'s header, which states the model in its
+  own words. So mitigation 1 has no actor to hand a restricted key to, and mitigation 2's command
+  set is the **operator's** — which an operator key cannot carry a `command=` for.
+
+  ⚠ **Mitigation 2 as written now instructs the next reader to build a boundary that is not one.**
+  Its blocking clause was *"not known until #196 exists"*; #196 closed 2026-08-08, so the clause
+  reads satisfied today. Regenerate what a reader would write the alias over:
+  `grep -rhoE 'sudo +(-[a-zA-Z]+ +)*[/a-zA-Z0-9_.-]+' docs/runbooks/*.md deploy/ | sed -E 's/.*sudo +//; s/^-[a-zA-Z]+ +//' | sort | uniq -c | sort -rn`.
+  Several entries are individually root-equivalent — `docker` mounts `/` in a container,
+  `tee`/`sed -i`/`install`/`cp` write any file, `chmod` sets setuid, `apt-get` runs a maintainer
+  script, and `find -exec`/`sh`/`systemd-run` execute anything. An alias over that set grants root
+  under another name, and a control that **reads** as a privilege boundary while not being one is
+  worse than the honest `NOPASSWD:ALL` it would replace.
+
+  **What replaces them: nothing yet**, and the roadmap must not be dressed up. The exit at the
+  pre-real-data boundary is therefore **re-grant**, not **close**; the only real candidates are
+  the ones the ADR's own Alternatives already carry. `restrict,pty,from=` on the operator key
+  (§4.0) is **hygiene, not mitigation 1** — it closes agent forwarding and `~/.ssh/rc`, which the
+  server-wide drop-in does not, but an attacker holding the key and satisfying `from=` still
+  reaches root in one `sudo -n`.
+
   Non-interactive operation requires *no prompt*, not *unlimited root* — conflating those two is
-  what this trade-off actually is. **Now written up as ADR 0123** (local), which
+  what this trade-off actually is. **Written up as ADR 0123** (local), which
   carries this reasoning, a scope limit (accepted only while the box holds no real user data)
   and both unclosed mitigations. ⚠ **Klas GRANTED it 2026-08-16** — read the status in the ADR,
   not here. **That closes the acceptance, not the mitigations:** the two named above are still

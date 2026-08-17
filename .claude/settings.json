@@ -45,7 +45,7 @@
           {
             "type": "command",
             "command": "bash .claude/hooks/guard-bash.sh",
-            "timeout": 15
+            "timeout": 5
           }
         ]
       }

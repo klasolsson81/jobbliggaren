@@ -466,7 +466,7 @@ open an issue before re-running.
   closed. The sweep then keeps the replica in step week to week.
 - Record the `LogCompleted` summary + query results in the session log.
 
-### Planner statistics — automatic after a sync, manual after a restore
+### Planner statistics — automatic after a sync, and after a restore VERIFY before acting
 
 A completed sync now runs `ANALYZE company_register` itself, as its last step
 (#560, ADR 0119 — CLAUDE.md §3.6). It follows the 5712 run summary and is the
@@ -768,8 +768,16 @@ retired (Klas 2026-08-17).**
   does not (ADR 0119), so 65 ms is a warm-cache floor, not a refutation.
 
   ⚠ **Scope, and it is narrower than "the box is healthy".** Those figures cover
-  the six shapes named above. **Browse-all and `BuildMagnitudeCommand` are not
-  measured here**, and neither is the sibling: `CompanyWatchBrowseQuery` reads the
+  the shapes named above and nothing else — read the list, do not count it.
+  **Browse-all and `BuildMagnitudeCommand` are not measured here.** ⚠ **The two
+  gaps are not equal, and do not read them as such:** browse-all is the *least*
+  statistics-sensitive shape on the surface — ~743k of 1,07M rows match
+  `status='Active'`, so the 20th hit sits a couple of dozen index entries in
+  whatever the planner estimates — and its branch choice is already pinned in CI
+  by `CompanyRegisterSearchPlanChoiceTests`, whose fixture deliberately ANALYZEs
+  and therefore runs **in the box's own regime**.
+
+  **The sibling is the open one.** `CompanyWatchBrowseQuery` reads the
   SAME table, has **no materialization rule at all** (`ItemsSql` is a `const`, set
   unconditionally), and is always double-filtered on kommun AND SNI — the sparse
   regime, where smaller match sets mean DEEPER walks. ADR 0119 §Växtväg leaves

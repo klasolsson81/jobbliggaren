@@ -1782,11 +1782,24 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
       inte kosmetisk.** §9.6 (3) kräver Klas beviljande **plus `security-auditor`s signatur**, ett hem
       i **ADR eller CLAUDE.md-uppdatering**, och en skriven lapse-trigger. **Ingen signatur finns, och
       det här är en runbook.** Vad punkten gör är att **recorda en handling som personuppgiftsansvarig
-      utförde** — inte att bevilja den efterhand. Tolv rader upp står, korrekt och oförändrat, att
-      konverteringen **saknar acceptansväg**; de två meningarna motsäger inte varandra just för att
-      den här inte är en acceptans. **Om Klas vill att beslutet ska stå som en formell §9.6-acceptans
-      krävs ADR + hennes signatur — den frågan är eskalerad till honom, inte avgjord här**
-      (`code-reviewer` 2026-08-17; §9.2 hindrar varje subagent från att fråga honom).
+      utförde** — inte att bevilja den efterhand.
+      ⚠ **ACCEPTANSEN TÄCKER FLIPPEN, ALDRIG M-7:s KONVERTERING — och de två meningarna hör ihop, så
+      glesa aldrig ut dem.** Satsen som säger att konverteringen **saknar acceptansväg** (§9.6 stänger
+      både (2) och (3) för en GDPR-Blocker) står kvar oförändrad i blockquoten ovan, i stycket som
+      börjar *"Konverteringen har ingen acceptansväg"* — **den citeras vid sin text och inte med ett
+      radavstånd**, eftersom ett sådant tal ruttnar vid varje redigering och redan mätts fel en gång
+      i den här punkten. De två påståendena motsäger inte varandra just för att det här inte är en
+      acceptans; risken är en senare redigering som skiljer dem åt och låter recordet läsas som om det
+      täckte konverteringen också (`security-auditor` 2026-08-17).
+      **Om Klas vill att beslutet ska stå som en formell §9.6-acceptans krävs ADR + hennes signatur —
+      den frågan är eskalerad till honom, inte avgjord här** (`code-reviewer` 2026-08-17; §9.2 hindrar
+      varje subagent från att fråga honom). ⚠ **`security-auditor`s eget svar, givet i omkontrollen
+      2026-08-17: nej — signera inte, och be henne inte signera.** §9.6 (2)/(3) är vägar för en
+      *session* att disponera ett *agentfynd*; det som skedde här är att personuppgiftsansvarig fattade
+      ett beslut om sin egen behandling (Art. 24(1)) — annan aktör, annan handling. En formell
+      §9.6 (3)-acceptans vore dessutom **otillgänglig**: bindningen kräver bäraravsaknad, och den
+      faller på de 532 rekryterarna. **Nuvarande inramning — ett record av en ansvarshandling — är den
+      korrekta.**
 
       ⛔ **ART. 14(3)(a)-KLOCKAN GÅR SEDAN 2026-08-17, OCH FRISTEN ÄR `2026-09-17`**
       (`security-auditor` 2026-08-17, M1). Recordet ovan säger uttömmande vad som **ligger** på lådan
@@ -1829,24 +1842,39 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
 
       **`job_ads.organization_number` är ett SEPARAT fält och namnges som ett** — inte som en broms.
       Det **är** personnummer-format för en enskild firma (#841), och den formen försvinner inte av
-      att den mäts. Mätt ~16:00Z: **652** annonser bär org.nr, samtliga tio siffror med månadsparet
-      ≥ 20, alltså **noll personnummer-formade**. Ommätt ~16:50Z med predikatet nedan: **676** rader,
-      **fortfarande noll**. Paret står kvar med flit — det **visar** att antalet förfaller medan
-      egenskapen håller, i stället för att påstå det. Nollan är alltså en egenskap hos **den
-      population som låg där då**, aldrig en strukturell garanti, och den ska mätas om och inte ärvas.
+      att den mäts. Mätt ~17:10Z mot **råvärdet**: **687** annonser bär org.nr, **noll
+      personnummer-formade** — och noll som ens avviker från tio rena siffror. Nollan är en egenskap
+      hos **den population som låg där då**, aldrig en strukturell garanti, och den ska mätas om och
+      inte ärvas. Antalet växer med varje ingest: **652 (~16:00Z) → 676 (~16:50Z) → 687 (~17:10Z)**,
+      egenskapen oförändrad. Paret står kvar med flit — det **visar** att talet förfaller medan
+      egenskapen håller, i stället för att påstå det.
+      ⚠ **DE TVÅ FÖRSTA TALEN TOGS MED ETT FAIL-OPET INSTRUMENT, och det står här i stället för att
+      städas bort** (`security-auditor` M2a + `code-reviewer` Major B, oberoende, 2026-08-17). Den
+      förra queryn normaliserade med `regexp_replace(… '[^0-9]' …)` **före** mätningen och dödade
+      därmed metodens **fail-safe-ben**: `556012-5790` ger `IsPersonnummerShaped() == true` i
+      produktion men blev tio rena siffror med trean `6` och räknades som org.nr-formad. Att svaret
+      ändå var rätt beror på populationen, inte på instrumentet — **`not_ten_raw_digits = 0`**, mätt
+      samtidigt. Ett fail-opet instrument som råkar ha rätt är fortfarande ett fail-opet instrument.
       ⛔ **Regenerera med DEN HÄR queryn, aldrig med en egenhändigt skriven** — kolumnen **är** ett
       personnummer för en enskild firma, och den naturliga formen (`SELECT organization_number …`)
-      skriver ut personnummer i en terminal på lådan. Den här returnerar fyra heltal och rör aldrig
-      ett värde. Predikatet speglar båda benen i `OrganizationNumber.IsPersonnummerShaped()`:
+      skriver ut personnummer i en terminal på lådan. Den här returnerar tre heltal och rör aldrig ett
+      värde. Den testar **råvärdet**, eftersom kolumnen bär JobTechs sträng orörd
+      (`JobAdFacets.Normalize` är `value.Trim()`, aldrig `OrganizationNumber.Create`) och
+      produktionens egen visningsgräns läser just den strängen
+      (`DisambiguateEmployersQueryHandler` → `FromTrusted(...).IsPersonnummerShaped()`). Predikatet
+      speglar **alla tre** benen i `OrganizationNumber.IsPersonnummerShaped()` — inte längd, inte
+      rena ASCII-siffror, eller tredje tecknet `< '2'` — och `[0-9]` är den smalaste klassen, så varje
+      avvikelse kan bara flagga **fler** rader, aldrig färre. Ingen `::int`-cast: en missformad rad
+      skulle kasta `invalid input syntax` och ge noll svar i stället för en rapport.
 
       ```bash
       sudo docker exec jobbliggaren-postgres psql -U postgres -d jobbliggaren -c "
-      WITH n AS (SELECT regexp_replace(organization_number, '[^0-9]', '', 'g') AS d
-                 FROM job_ads WHERE organization_number IS NOT NULL)
-      SELECT count(*) AS orgnr_rows, count(*) FILTER (WHERE length(d) = 10) AS len10,
-             count(*) FILTER (WHERE length(d) = 10 AND substring(d,3,2)::int >= 20) AS shape_orgnr,
-             count(*) FILTER (WHERE length(d) <> 10 OR substring(d,3,1) < '2')
-               AS shape_personnummer FROM n;"
+      SELECT count(*) AS orgnr_rows,
+             count(*) FILTER (WHERE organization_number ~ '^[0-9]{10}\$'
+                                AND substring(organization_number,3,1) >= '2') AS shape_orgnr,
+             count(*) FILTER (WHERE organization_number !~ '^[0-9]{10}\$'
+                                OR substring(organization_number,3,1) < '2')  AS shape_personnummer
+      FROM job_ads WHERE organization_number IS NOT NULL;"
       ```
 
       ⚠ **KLAS-BESLUT 2026-08-17 — SCB-SYNKEN PAUSAS PÅ LÅDAN, OCH LÅDAN SKA INTE HA NÅGOT
@@ -1873,10 +1901,20 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
       kolumn via `ExecuteUpdateAsync` — det är Art. 5(1)(e)-vägen som gör att en arkiverad annons
       inte behåller rekryterarkontakter (**mätt i koden 2026-08-17**, båda skrivarna). Slutar
       Workern fungera stannar den sweepen **tyst**, och med korpuset live är det just den population
-      som växer. ⚠ **Exakt felläge är INTE mätt:** `Program.cs` noterar att Workern kör
-      `ValidateOnBuild=false`, så en saknad dep failar först vid Hangfire-invokation snarare än vid
-      start — om en kastande cert-provider fäller hosten vid boot eller bara jobbet på lördagen är
-      alltså **oprövat**. Konsekvensen ovan är skäl nog att inte flippa den på måfå.
+      som växer.
+      **Felläget är mätt, och det beror på INPUT** (`security-auditor` 2026-08-17, i
+      `DependencyInjection.cs`s registreringsgren):
+      - `Enabled=false` → tidig `return services;`, inget kast. **Lådans nuläge.**
+      - `Enabled=true` **utan** thumbprint → kastet ligger som **rak kod i registreringsmetoden**, så
+        det fyrar när `AddInfrastructure(...)` anropas, alltså **före `builder.Build()`**. Hosten
+        startar aldrig, och `ValidateOnBuild` är irrelevant eftersom `Build()` aldrig nås.
+        ⚠ **Det är den realistiska olyckan här:** lådan bär noll SCB-nycklar, så ett blankt
+        `ScbRegister__Enabled=true` har ingen thumbprint.
+      - `Enabled=true` **med** thumbprint men utan cert → registreringen går igenom och `Load()`
+        kastar först när den typade klienten resolvas, alltså vid jobbinvokation. Det är det fall
+        `Program.cs`s `ValidateOnBuild=false`-not beskriver.
+      *(En tidigare version av den här raden hävdade att felläget var oprövat, och en ännu tidigare att
+      det alltid var DI-registreringen. Båda var fel; det här är mätningen.)*
       En obockad ruta här betyder *"GO ej givet"* och ingenting annat — till skillnad från filens
       övriga rutor, där en obockad ruta inte får läsas som "inte levererat" (blockquoten ovan).
       ⚠ **Och en bockad ruta här är inte heller tillstånd i sig** — den är ett **record av** GO:t.

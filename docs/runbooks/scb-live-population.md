@@ -483,12 +483,21 @@ re-trigger the sync: the upsert is idempotent, but a re-run costs ~11 h and the
 full metered SCB call budget — which is why the worker carries
 `AutomaticRetry(Attempts = 0)` (#688).
 
-**Do not rely on autovacuum to cover the gaps.** Its analyze trigger is
-change-driven, and its counters are discarded on an unclean shutdown and carried
-by neither `pg_upgrade` nor `pg_dump`. The register is written by one periodic
-job and read-only in between, so nothing re-arms that trigger until the next
-sync. Full argument: `ScbCompanyRegisterStore.AnalyzeAsync` — it is the
-canonical home and is not restated here.
+**Do not rely on autovacuum to cover the gaps — in the STEADY state.** Its
+analyze trigger is change-driven, and its counters are discarded on an unclean
+shutdown and carried by neither `pg_upgrade` nor `pg_dump`. The register is
+written by one periodic job and read-only in between, so nothing re-arms that
+trigger until the next sync. Full argument:
+`ScbCompanyRegisterStore.AnalyzeAsync` — it is the canonical home and is not
+restated here.
+
+⚠ **A RESTORE IS NOT THE STEADY STATE, and that distinction is measured rather
+than argued.** The trigger is change-driven, and a restore is the largest change
+this table ever sees — so it re-arms the very trigger the paragraph above says
+nothing re-arms. Measured on the box 2026-08-17: **autoanalyze fired ~60 s after
+a 1,07M-row restore, unprompted**, leaving 10 rows in `pg_stats`. The steady-state
+warning stands; do not carry it into the restore case, and do not carry the
+restore measurement back into the steady state either.
 
 **Know which statistics you are missing before you act** (verified against the
 local PostgreSQL 18.3 binaries 2026-07-25 — an earlier draft of this section had
@@ -504,7 +513,11 @@ the optimizer statistics over (`--no-statistics` opts out). What it does not
 carry is extended statistics (`CREATE STATISTICS`), and
 `vacuumdb --analyze-in-stages --missing-stats-only` is the right instrument
 there. A `pg_dump` restore and a statistics reset are the cases that genuinely
-leave the planner without statistics.
+leave the planner without statistics — ⚠ **but a restore leaves it blind only
+until autoanalyze catches up, because the restore is itself the DML that re-arms
+the trigger** (measured on the box 2026-08-17, ~60 s). A statistics reset writes
+nothing and therefore re-arms nothing: **that one stays blind until somebody
+acts.** The two cases sit in this sentence together and behave oppositely.
 
 **Run this after a `pg_dump` restore or a statistics reset**, and any time the
 register search is unexpectedly slow:
@@ -526,8 +539,15 @@ WHERE schemaname = 'public' AND relname = 'company_register';
 --    itself, never autovacuum_count (a resettable counter, and measured reset on
 --    this database 2026-08-16): SELECT relpages, relallvisible FROM pg_class
 --    WHERE relname = 'company_register'. If relallvisible is far below relpages,
---    run VACUUM too. After a restore into a database that will NEVER be synced
---    again, it is mandatory rather than conditional — §8 step 7 and its reason 2.
+--    run VACUUM too.
+--
+--    ⚠ AFTER A RESTORE, THIS IS NOT MANDATORY AND NOT REFLEXIVE — the opposite of
+--    what this comment said until 2026-08-17. §8 reason 2 (Klas 2026-08-17)
+--    retires it for the box's restore pass, on a measurement taken there:
+--    autoanalyze fired ~60 s after the restore on its own. So run steps 1 and 2
+--    FIRST. Non-empty pg_stats plus a stamped last_autoanalyze means the server
+--    has already done it and this is a no-op; run the ANALYZE below only when
+--    step 1 returns ZERO.
 ANALYZE public.company_register;
 ```
 
@@ -612,7 +632,8 @@ replaced or re-derived. It also keeps the ICU `swedish` collation on
 `company_name` (#884) exactly as the box's own Postgres image produced it, which
 is the other thing a schema-bearing restore can silently move.
 
-**2. `VACUUM ANALYZE` afterwards — and it is two instruments, not one.**
+**2. `VACUUM` afterwards — and deliberately NOT `ANALYZE`. Two instruments, one
+retired (Klas 2026-08-17).**
 
 - **`VACUUM`, because only `VACUUM` sets the visibility map, and this step is the
   only one that sets it deterministically.** The pagination count runs on **every** search
@@ -705,11 +726,13 @@ is the other thing a schema-bearing restore can silently move.
 - ⛔ **`ANALYZE` is NOT run here, and that is a decision — Klas, 2026-08-17.**
   Earlier text prescribed `VACUUM ANALYZE` on the reasoning that *"the restore
   carries no statistics and no application path on the box will produce them"*.
-  **Both halves are measured false on the box.** `pg_dump` does omit optimizer
-  statistics without `--statistics`, and the box never syncs — but **autoanalyze
-  runs anyway**: measured 2026-08-17, `last_autoanalyze` stamped **one second
-  after** `last_autovacuum` and ~60 s after the restore, leaving 10 rows in
-  `pg_stats` and `reltuples = 1 066 938`. The predicted re-arm threshold is
+  ⚠ **Both halves of that premise are TRUE; the conclusion drawn from them is
+  what fails.** `pg_dump` does omit optimizer statistics without `--statistics`,
+  and no application path on the box produces them — the sync never runs there.
+  **But autoanalyze is not an application path, and it runs anyway**: measured
+  2026-08-17, `last_autoanalyze` stamped **one second after** `last_autovacuum`
+  and ~60 s after the restore, leaving 10 rows in `pg_stats` and
+  `reltuples = 1 066 938`. The predicted re-arm threshold is
   exactly what fired — `50 + 0.1 × reltuples` against a table step 4 confirms is
   **empty**, so the threshold is 50 and ~1.07M inserts clear it by five orders of
   magnitude. So the choice is never "statistics or none"; it is only whether the
@@ -724,25 +747,56 @@ is the other thing a schema-bearing restore can silently move.
   carried its own sequencing rule: **the query fix must land before an ANALYZE
   fix.**
 
-  ✅ **That sequencing rule is now satisfied, which is why the box is healthy
-  rather than lucky.** ADR 0119's `ShouldMaterialize` routes a small kommun to the
-  MATERIALIZED branch (its count does not saturate `MaxServableRows`), so the walk
-  that regressed is no longer the branch production takes for it. Measured on the
-  box 2026-08-17, warm, with statistics present and the shapes
-  `CompanyRegisterSearchQuery` actually emits: small kommun materialized
-  **0,15 ms** · big kommun walk **0,21 ms** · name prefix materialized **0,03 ms**
-  on `ix_company_register_company_name_lower` · `BuildCountCommand` **0,16 ms**
-  with `Heap Fetches: 0`. The unmaterialized small-kommun walk still measures
-  **65 ms** — recorded because it is the branch the 16× finding was about, and
-  production no longer routes there.
+  ✅ **That sequencing rule is satisfied for `CompanyRegisterSearchQuery`**, which
+  is why that surface is healthy rather than lucky. ADR 0119's `ShouldMaterialize`
+  routes a small kommun to the MATERIALIZED branch (its count does not saturate
+  `MaxServableRows`), so the walk that regressed is no longer the branch
+  production takes for it. **Stronger than it first looks: ADR 0119's whole
+  measurement table was taken POST-ANALYZE**, so the rule was designed and
+  validated in exactly the statistics regime the box now sits in — not merely
+  compatible with it.
+
+  Measured on the box 2026-08-17, warm, with statistics present, running the
+  shapes `CompanyRegisterSearchQuery` emits: small kommun materialized **0,15 ms**
+  · big kommun walk **0,21 ms** · name prefix materialized **0,03 ms** on
+  `ix_company_register_company_name_lower` · `BuildCountCommand` **0,16 ms** with
+  `Heap Fetches: 0` · kommun+SNI **10,6 ms** (saturates, so production keeps the
+  walk). The unmaterialized small-kommun walk still measures **65 ms** — recorded
+  because it is the branch the 16× finding was about, and production no longer
+  routes there. ⚠ **65 ms against dev's 3 966 ms is not a contradiction:** per-row
+  walk cost is ~1,3 µs while the walk fits in `shared_buffers` and ~38 µs when it
+  does not (ADR 0119), so 65 ms is a warm-cache floor, not a refutation.
+
+  ⚠ **Scope, and it is narrower than "the box is healthy".** Those figures cover
+  the six shapes named above. **Browse-all and `BuildMagnitudeCommand` are not
+  measured here**, and neither is the sibling: `CompanyWatchBrowseQuery` reads the
+  SAME table, has **no materialization rule at all** (`ItemsSql` is a `const`, set
+  unconditionally), and is always double-filtered on kommun AND SNI — the sparse
+  regime, where smaller match sets mean DEEPER walks. ADR 0119 §Växtväg leaves
+  that question explicitly open. It serves the **smart watches**, which are MVP
+  surface (CLAUDE.md §6.5), and the freeze makes the box's statistics regime
+  permanent. **That is not a reason to run ANALYZE** — the statistics are already
+  there — but it is not covered by the measurements above, and whether the sibling
+  should take ADR 0119's rule is its own change-reason.
 
   ⚠ **Do not read this as "ANALYZE is forbidden on principle."** It is redundant
   here (the server did it) and it is the instrument a measured regression was
-  attributed to, so the operator does not re-run it as housekeeping. CLAUDE.md
-  §3.6's bulk-load ANALYZE rule is written for a table **whose loader owns it**;
-  this table's loader does not run on the box at all.
+  attributed to, so the operator does not re-run it as housekeeping.
 
-Neither instrument is memory-hungry here. `VACUUM` sizes its dead-TID store to the
+  **And CLAUDE.md §3.6's bulk-load ANALYZE rule does not reach this case — check
+  it against the rule's own precondition rather than by interpretation.** §3.6
+  binds a table *"written by one periodic job or startup seeder"*, places the call
+  *"in the job, once per completed run"*, and names both its homes as code homes
+  (*"fail-loud in a retry-bounded job, typed-catch-and-log at host startup"*). An
+  operator's one-off `pg_restore` is none of those; the rule has no operator home
+  at all. The path it actually governs is `ScbCompanyRegisterRefresher`'s
+  uncaught `AnalyzeAsync` call — and that job no-ops on the box.
+
+  ⚠ Note also that §3.6 names **this table** when it says *"check
+  `last_autoanalyze`, never assume"*. Step 7b does exactly that, which is why the
+  decision below is a measured no-op rather than an inherited belief.
+
+`VACUUM` is not memory-hungry here. It sizes its dead-TID store to the
 dead tuples it finds, and a freshly restored table has none, so the box's
 `maintenance_work_mem` is a ceiling it never approaches; the scan reads through
 VACUUM's own ring buffer rather than evicting `shared_buffers`. Regenerate:
@@ -772,7 +826,17 @@ says what that means or that it will never move again.
 | `pnr_shaped` invariant | **0** on both sides, re-measured on the artefact moved |
 | Archive | 20 974 989 B, `sha256 5881294e…67c6f` identical on both ends |
 | **Register vintage** | **2026-07-11** — `synced_at` spans 2026-07-04 16:26Z → **2026-07-11 06:30Z**, the last completed local sync |
-| Frozen | Yes. `ScbRegister:Enabled=false` on the box by decision (`release-checklist.md` §2.6 point 3.5) |
+| Frozen | Yes. `ScbRegister:Enabled=false` on the box by decision — recorded in `release-checklist.md` §2.6 point 3.5, in the block headed *"KLAS-BESLUT 2026-08-17 — SCB-SYNKEN PAUSAS"* (that point's heading is about the corpus GO; the SCB decision is a separate change-reason living inside it) |
+| **Re-examine when** | SCB's own API lands (expected ~2026-10), **or** the extract passes 3 months — whichever is first. Home: this table. Reader: **Klas.** Nothing detects this automatically |
+
+⚠ **The two halves of the accepted margin are NOT symmetric, and only one of them
+is mere absence.** A company registered after 2026-07-11 is simply missing — the
+user sees nothing and infers nothing. A company **deregistered** after 2026-07-11
+stays `Active` **forever**: `ComposeFromWhere` always binds `status = @status` with
+`Active`, and the deregister sweep (`DeregisterMissingAsync`) only runs inside a
+sync that never runs here. So a user can put a smart watch on a dead company and
+get no explanation. Measured in the same pass: `synced_at` is **not** exposed in
+any UI, so nothing on screen reveals the vintage either.
 
 **So the data was already ~5 weeks old the day it landed, and it ages from there.**
 That staleness is not a defect to fix — it *is* the margin Klas's 2026-08-17
@@ -860,17 +924,40 @@ sudo docker exec -i jobbliggaren-postgres pg_restore -U postgres -d jobbliggaren
 
 ```bash
 # 6. Verify the count matches step 2 BEFORE step 7 — a short restore that is
-#    then vacuumed and analyzed looks healthy.
+#    then vacuumed looks healthy.
 sudo docker exec jobbliggaren-postgres psql -U postgres -d jobbliggaren -c "SELECT count(*) FROM public.company_register;"
 ```
 
 ```bash
 # 7. PLAIN VACUUM, never VACUUM ANALYZE (reason 2 above — Klas 2026-08-17).
 #    VACUUM cannot run inside a transaction block, which is why this is psql -c
-#    and not part of step 5. Plain VACUUM does not touch pg_stats, so it cannot
-#    reach the regression ANALYZE was measured to cause on this table.
+#    and not part of step 5. It does not touch pg_statistic (only reltuples and
+#    relpages, which autoanalyze has already set correctly on this table), so it
+#    cannot reach the regression ANALYZE was measured to cause here.
+#    Independent of that story, the canonical home already forbids the combined
+#    form: ScbCompanyRegisterStore.AnalyzeAsync says "never VACUUM ANALYZE
+#    (vacuuming is autovacuum's concern and a different change-reason)".
 sudo docker exec jobbliggaren-postgres psql -U postgres -d jobbliggaren -c "VACUUM public.company_register;"
 ```
+
+```bash
+# 7b. VERIFY the assumption step 7 rests on. Reason 2 replaces a GUARANTEE (the
+#     operator ran ANALYZE) with an OBSERVATION (the server already did), and the
+#     ~60 s measured on 2026-08-17 is autovacuum_naptime — a race, not a property.
+#     An operator faster than the naptime, or a box with it raised, sees a
+#     different state. So measure instead of inheriting:
+#       stat_rows > 0 AND last_autoanalyze stamped -> done, this step is a no-op.
+#       stat_rows = 0 OR last_autoanalyze NULL     -> run ANALYZE public.company_register;
+#     which is SAFE post-ADR 0119 (reason 2 explains why) and is the one case the
+#     decision does not cover.
+sudo docker exec jobbliggaren-postgres psql -U postgres -d jobbliggaren -c "SELECT (SELECT count(*) FROM pg_stats WHERE schemaname='public' AND tablename='company_register') AS stat_rows, last_autoanalyze, n_live_tup FROM pg_stat_user_tables WHERE schemaname='public' AND relname='company_register';"
+```
+
+⚠ **Scope of the decision, so the next operator does not over-read it.** Reason 2
+retires ANALYZE for **the operator's restore pass on the box**. It is not a ban on
+ANALYZE for this table: if `ScbRegister:Enabled` is ever flipped true somewhere,
+`ScbCompanyRegisterRefresher` calls `AnalyzeAsync` and **that is correct**
+post-ADR 0119.
 
 ```bash
 # 8a. Remove the box's copy. Still bash, still on the box.

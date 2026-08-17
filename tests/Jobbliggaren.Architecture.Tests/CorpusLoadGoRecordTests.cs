@@ -187,11 +187,7 @@ public class CorpusLoadGoRecordTests
 
     /// <summary>
     /// Case-INSENSITIVE by GFM: the task-list state character is "either a whitespace character
-    /// or the letter x in either lowercase or uppercase", so <c>- [X]</c> renders as checked. An
-    /// ordinal comparison here fails OPEN — <c>- [X]</c> with a placeholder record would send the
-    /// ticked test down its early return, leave the unticked test passing (the placeholders are
-    /// still there) and satisfy the vacuity guard, which is three greens on the one combination
-    /// this class exists to catch.
+    /// or the letter x in either lowercase or uppercase", so <c>- [X]</c> renders as checked.
     /// </summary>
     private static bool IsTicked(string checkboxLine) =>
         checkboxLine.TrimStart().StartsWith("- [x]", StringComparison.OrdinalIgnoreCase);

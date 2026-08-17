@@ -1791,7 +1791,7 @@ Källa: #852 · ADR 0090 D3 · ADR 0088 D3/D4 (SCB per-sökning, hård grind) ·
 ADR 0091 (SCB bulk-populering) · #824 PR 4 (som kvalificerade golv-semantiken i
 samma stycken men medvetet inte flippade dem).
 
-> **OBS om ADR-referenserna ovan:** ADR 0074+ är **gitignorerade** (CLAUDE.md
+> **OBS om ADR-referenserna ovan:** ADR 0071+ är **gitignorerade** (CLAUDE.md
 > §6.5) och finns bara i huvudkopian — alltså osynliga för CI, för en
 > PR-granskare och för en parallell CC-session, precis som ROPA-filen i punkt 8.
 > Därför är de lastbärande citaten **inlinade ordagrant** i punkterna ovan

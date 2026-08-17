@@ -31,20 +31,20 @@ docs/steg-tracker.md
 # already reads. The backlog is GitHub Issues; parked entries are in #1172.
 
 # Per-session logs + local agent reviews + local ADRs for context.
-# (Globs match ADR 0070–0199; already-tracked 0070 is already present in
-# the worktree, so re-copying them is redundant but harmless. The 01-glob was
-# added 2026-07-10 with ADR 0100, parity with .gitignore.)
+# (The ADR globs mirror .gitignore's — the derivation lives there, in one place.
+# The 01-glob was added 2026-07-10 with ADR 0100.)
 docs/sessions/
 docs/reviews/
 docs/decisions/00[789][0-9]-*.md
 docs/decisions/01[0-9][0-9]-*.md
-# ADR 0005 is gitignored (strategy ADR) but matched by NEITHER glob, so it reached no
-# worktree at all. It is cited from tracked files — ADR 0050 and ADR 0032 among them,
-# plus the budget_actions Terraform module; regenerate the set with
-#   git ls-files -z | xargs -0 grep -l "ADR 0005"
-# That is the load-bearing shape the handoff-oversikt entry below names: a reviewer
-# greps, finds nothing, and re-derives "drift" (#1095). Listed on that measurement
-# (2026-08-17); keeping it out of worktrees instead is Klas's call to state.
+# ADR 0005 is gitignored but matched by NEITHER glob above, so it reached no worktree at
+# all. It is cited from PRODUCTION code — JobAdsEndpoints.cs, SavedSearchesEndpoints.cs
+# and Program.cs all cite it for the auth-gating decision — as well as from nine tracked
+# ADRs and the budget_actions Terraform module. Regenerate the set with
+#   git ls-files -z ':!.gitignore' ':!.worktreeinclude' | xargs -0 grep -l "ADR 0005"
+# (the two exclusions stop the command counting the comments that describe it).
+# That is the load-bearing shape the handoff-oversikt entry below names. Listed on that
+# measurement (2026-08-17); keeping it out of worktrees instead is Klas's call to state.
 docs/decisions/0005-*.md
 
 # GDPR Art. 30 processing-register (ROPA) — local-only (ADR 0072 / #183), internal

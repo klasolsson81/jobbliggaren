@@ -107,7 +107,7 @@ Branch name encodes the context: `feat/matching-…`, `fix/jobads-cv-…`,
 
 A fresh worktree has the **tracked** files only (incl. this playbook). The
 session-state docs — `current-work.md`, `steg-tracker.md` (§2.1 = the roadmap
-SSOT), `sessions/`, local `reviews/` and ADRs 0071+ — are
+SSOT), `sessions/`, local `reviews/`, ADR 0005 and ADRs 0071+ — are
 gitignored (ADR 0072) and absent.
 
 - **Path A (same machine): no sync needed.** All tabs share one disk, so read

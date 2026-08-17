@@ -378,8 +378,17 @@ public class RegisterCommandHandlerTests
 
     // ---------- Send-failure symmetry (CTO-bind Risk 1) ----------
     // Both the fresh branch (SendEmailConfirmationAsync) and the duplicate-swallow branch
-    // (SendAccountExistsNoticeAsync) send as their FINAL action and propagate the exception uncaught, so
-    // a transport fault surfaces identically (an unhandled exception → the same 500 at the endpoint).
+    // (SendAccountExistsNoticeAsync) send as their FINAL action, so a transport fault must surface
+    // identically on both — that symmetry is the invariant, and it is what CTO-bind Risk 1 named.
+    //
+    // #1349 CHANGED WHAT "identically" MEANS HERE. Until then both arms propagated the exception
+    // uncaught and the fault surfaced as the same 500. Propagating turned out to be the defect's
+    // producer, not a safety property: UnitOfWorkBehavior saves after the handler returns, so a throw
+    // dropped the tracked JobSeeker while the Identity user — committed in its own boundary — survived.
+    // Both arms now SWALLOW and both answer the same 202. The symmetry is unchanged and load-bearing:
+    // one-armed, an outage would answer 202 for a fresh address and 500 for a taken one, which is the
+    // status oracle #714 exists to close.
+    //
     // Pinned here (unit) rather than via an extra WebApplicationFactory host (which would trip EF's
     // process-wide ManyServiceProvidersCreatedWarning across the shared integration [Collection]).
 

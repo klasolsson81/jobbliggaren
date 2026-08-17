@@ -22,11 +22,13 @@ import type {
  * tre lager top-down (REVIEW-IA-REDESIGN B):
  *   1. "Att åtgärda" — alla åtgärdbara verdikt (Underkänt/Delvis) över ALLA
  *      kategorier, severitets-sorterade (Underkänt före Delvis, kritiska först).
- *   2. Per kategori — band + räknare + de Godkända verdikten (det som redan är bra).
+ *   2. Per kategori — band med sin täckning + räknare + de Godkända verdikten.
  *   3. "Ej bedömt" — en kollapsad, lågprioriterad disclosure längst ned.
  * Ingen opak totalpoäng (Goodhart, §5/ADR 0074) — band + räknare per dimension =
  * förklarbart. Honesty-invarianten (ADR 0074): "Ej bedömt" får demoteras men
- * ALDRIG döljas eller om-etiketteras som bedömt. När `review` är null (granskningen
+ * ALDRIG döljas eller om-etiketteras som bedömt — och sedan #1062 B1 inte heller
+ * renderas som en LÅG grad: en kategori utan bedömda kriterier bär inget band alls
+ * (se `CategoryBand`). När `review` är null (granskningen
  * kunde inte laddas) degraderas vyn civilt — parse-vyn står kvar, granskningen
  * ersätts av en notis (sidan 404:ar aldrig på detta).
  */
@@ -51,6 +53,56 @@ function toggleBasePath(target: CvReviewTarget): string {
 /** Severitets-rang för "Att åtgärda"-sorteringen: Underkänt (Fail) före Delvis
  * (Warn). Endast åtgärdbara verdikt sorteras här. */
 const SEVERITY_RANK: Record<"Fail" | "Warn", number> = { Fail: 0, Warn: 1 };
+
+/**
+ * Bandet med sin TÄCKNING, eller den uttalade frånvaron av ett band (#1062 B1/M1/M2).
+ *
+ * Bandet är en VIKTAD poäng och räknarna under det en OVIKTAD tally, så `Toppskikt`
+ * kunde stå rakt ovanför sin egen `Delvis = 2` utan att något markerade att de två
+ * mäter olika saker (M1). Och utan nämnare var `Toppskikt` av 2 bedömda kriterier
+ * typografiskt identiskt med `Toppskikt` av 10 (M2) — mätt: 3 av 4 band var lika på
+ * ett svagt och ett rent CV. Bandet renderas därför aldrig utan sin täckning bredvid
+ * sig, i samma block, så en skärmläsare läser dem i följd.
+ *
+ * `band === null` är inte "lägsta graden" utan INGEN grad: kategorin har noll bedömda
+ * kriterier. Frånvaron skrivs ut i klartext i stället för att förmedlas genom att en
+ * pill saknas — samma lärdom som M4:s "Öppen"-tillstånd.
+ *
+ * ⚠ Tröskeln för att hålla tillbaka ett band ÖVER noll är ett Klas-/rubrikbeslut
+ * (ADR 0071: trösklar hör i rubrikdatan, inte i C# och inte här). Noll är §5-
+ * invarianten och kräver honom inte.
+ */
+function CategoryBand({
+  category,
+  t,
+  tEnum,
+}: {
+  category: CvReviewCategoryDto;
+  t: ReturnType<typeof useTranslations<"resumes">>;
+  tEnum: ReturnType<typeof useTranslations<"resumes.enums">>;
+}) {
+  const assessed =
+    category.passCount + category.warnCount + category.failCount;
+  const total = assessed + category.notAssessedCount;
+
+  if (category.band === null) {
+    return (
+      <p className="jp-cvreview__band-unassessed">
+        {t("review.band.unassessed", { count: total })}
+      </p>
+    );
+  }
+
+  const band = bandLabel(tEnum, category.band);
+  return (
+    <div className="jp-cvreview__band">
+      <StatusPill tone={band.tone}>{band.label}</StatusPill>
+      <span className="jp-cvreview__band-coverage">
+        {t("review.band.coverage", { assessed, total })}
+      </span>
+    </div>
+  );
+}
 
 /** Räknar-rad: visar alltid etikett + siffra (status aldrig enbart färg, WCAG
  * 1.4.1). Toner speglar verdict-tonerna för visuell koppling. */
@@ -170,7 +222,19 @@ export function CvReviewPanel({
           {t("review.todoTitle", { count: actionable.length })}
         </h3>
         {actionable.length === 0 ? (
-          <p className="jp-cvreview__todo-empty">{t("review.todoEmpty")}</p>
+          // #1062 minor 3: "Inget kräver åtgärd just nu." stod ensamt medan 18 av 35
+          // kriterier aldrig bedömdes — en mening som läses som ett utlåtande om HELA
+          // CV:t men bara bär de bedömda. Påståendet knyts nu till sitt underlag.
+          // ⚠ Vilket NÄSTA STEG som är rätt på ett rent, sparat CV är ett Klas-
+          // produktbeslut (CTO Klas-carry 2), så här lagas bara den falska halvan:
+          // ingen CTA läggs till.
+          <p className="jp-cvreview__todo-empty">
+            {t("review.todoEmpty", { assessedCount: review.assessedCount })}{" "}
+            {review.totalCount > review.assessedCount &&
+              t("review.todoEmptyUnassessed", {
+                count: review.totalCount - review.assessedCount,
+              })}
+          </p>
         ) : (
           <div className="jp-cvreview__verdicts">
             {actionable.map((verdict) => (
@@ -200,7 +264,6 @@ export function CvReviewPanel({
       {/* Lager 2 — Per kategori (band + räknare + det som redan är godkänt) */}
       <div className="jp-cvreview__categories">
         {review.categories.map((category) => {
-          const band = bandLabel(tEnum, category.band);
           const passVerdicts = review.verdicts.filter(
             (verdict) =>
               verdict.category === category.category &&
@@ -212,9 +275,7 @@ export function CvReviewPanel({
                 <CardTitle asChild>
                   <h3>{categoryLabel(tEnum, category.category)}</h3>
                 </CardTitle>
-                <div className="jp-cvreview__band">
-                  <StatusPill tone={band.tone}>{band.label}</StatusPill>
-                </div>
+                <CategoryBand category={category} t={t} tEnum={tEnum} />
               </CardHeader>
               <CardContent>
                 <CategoryCounts category={category} t={t} />

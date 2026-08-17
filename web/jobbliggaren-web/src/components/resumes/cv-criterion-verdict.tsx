@@ -20,13 +20,30 @@ import type {
  * kategori-kort (t.ex. i "Att åtgärda"-aggregatet).
  */
 
-function EvidenceItem({ evidence }: { evidence: CitedEvidenceDto }) {
+function EvidenceItem({
+  evidence,
+  t,
+}: {
+  evidence: CitedEvidenceDto;
+  t: ReturnType<typeof useTranslations<"resumes">>;
+}) {
   if (evidence.kind === "TextSpan") {
     return (
       <li className="jp-criterion__evidence-item">
         {evidence.quote !== null && (
           <blockquote className="jp-criterion__quote">
             {evidence.quote}
+            {/* #1062 B2: motorn kapar långa citat på ordgräns och flaggar dem som
+                utdrag, men skriver ALDRIG in "…" i citatet — det måste förbli ett
+                verbatimt substräng av CV-texten (två pinnade backend-invarianter).
+                Markören ritas därför här. Ellipsen är dekorativ för en skärmläsare,
+                så faktumet skrivs också ut i klartext. */}
+            {evidence.isExcerpt && (
+              <span className="jp-criterion__quote-excerpt">
+                <span aria-hidden="true">…</span>
+                <span className="sr-only">{t("review.evidence.excerpt")}</span>
+              </span>
+            )}
           </blockquote>
         )}
         {evidence.note !== null && (
@@ -60,6 +77,7 @@ export function CvCriterionVerdict({
    * den parsade vyn utelämnar den (ingen statusledger). */
   footer?: React.ReactNode;
 }) {
+  const t = useTranslations("resumes");
   const tEnum = useTranslations("resumes.enums");
   const { label, tone } = verdictLabel(tEnum, verdict.verdict);
   const hasEvidence = verdict.evidence.length > 0;
@@ -82,7 +100,7 @@ export function CvCriterionVerdict({
       {hasEvidence && (
         <ul className="jp-criterion__evidence">
           {verdict.evidence.map((item, index) => (
-            <EvidenceItem key={`${item.kind}-${index}`} evidence={item} />
+            <EvidenceItem key={`${item.kind}-${index}`} evidence={item} t={t} />
           ))}
         </ul>
       )}

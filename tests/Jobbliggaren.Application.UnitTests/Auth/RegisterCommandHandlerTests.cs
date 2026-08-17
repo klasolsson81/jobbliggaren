@@ -446,9 +446,15 @@ public class RegisterCommandHandlerTests
         await userAccountService.DidNotReceive().DeleteUserAsync(
             Arg.Any<Guid>(), Arg.Any<CancellationToken>());
 
-        // The Warning IS the swallow's only observable in production, so it is pinned rather than
+        // The Warning is the swallow's only observable THIS HANDLER emits, so it is pinned rather than
         // assumed — and RecordingLogger is used because NullLogger.IsEnabled is false, which means the
         // [LoggerMessage] body never runs and an assertion over it could not fail.
+        //
+        // Scoped to this handler deliberately: ShouldHaveSingleItem() is a claim about
+        // ILogger<RegisterCommandHandler>, NOT about the process. A real send failure also writes
+        // ScalewayEmailSender's Error 3006 (with HTTP status) before the adapter wraps it, so reading
+        // this as "one line per failed registration" is false — that widening reached
+        // registration-gate.md §5 once and was corrected there.
         var warning = logger.Records.ShouldHaveSingleItem();
         warning.Level.ShouldBe(LogLevel.Warning);
         warning.Message.ShouldContain("#1349");

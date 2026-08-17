@@ -176,7 +176,8 @@ public class OrphanedIdentityActivationTests(ApiFactory factory)
     public async Task An_orphaned_account_is_refused_at_login_even_after_the_link_is_followed()
     {
         // HALF TWO — the capability seam. This walks the trap the issue measured: the user retries and
-        // is told the account exists, follows "Logga in", hits "skicka ny kod", confirms, and believes
+        // is told the account exists, follows "Logga in", presses "Skicka en ny bekräftelselänk"
+        // (messages/sv/pages.json — it delivers a LINK, not a code), confirms, and believes
         // they are done. Every step still reports success, because none of them is where the defect
         // lived; login is, and it now refuses.
         //

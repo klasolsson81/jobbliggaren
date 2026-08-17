@@ -380,13 +380,25 @@ construction.
   that the keys are *present*, and `ScalewayEmailSender` reports itself able to deliver
   unconditionally, so the validator's sender rule passes and the boot succeeds.
 
-  **It is silent at step 5.** The registration answers the same **202** as a working send, the
-  account is created in full, and the only trace is a **Warning in the api's runtime log**
-  naming `#1349` — never the boot log, which will look clean, and never a 500. Confirm the
-  delivery failure itself in Scaleway's own delivery log.
+  **It is silent at step 5.** The registration answers the same **202** as a working send and
+  the account is created in full — never a 500, and never the boot log, which will look clean.
 
-  **Recovery is the user's own:** the activation mail never arrived, so they use *"skicka ny
-  kod"* on the login screen. The account is real, so the resend works.
+  **The api's runtime log carries two lines, and the first is the one to read:**
+
+  1. `[ScalewayEmailSender] {EmailKind} email FAILED ({ErrorType}, HTTP {HttpStatus})` —
+     **Error**, EventId 3006, written just before the adapter wraps the fault. `HttpStatus` is
+     the diagnostic: it separates a wrong key (401) from a wrong project (403) from a From
+     identity outside the verified domain. That is the discriminator for the two causes this
+     bullet opens with, so read it before reaching for Scaleway's console.
+  2. `RegisterCommand: confirmation send failed …` — **Warning**, naming `#1349`. It records
+     that the account stands and the link did not go out; it carries no status.
+
+  Neither line carries a recipient or a body (ADR 0124). Confirm the delivery attempt itself in
+  Scaleway's own delivery log.
+
+  **Recovery is the user's own:** the activation mail never arrived, so they press
+  **"Skicka en ny bekräftelselänk"** — mounted on both the login and the registration screen.
+  It is a link, not a code. The account is real, so the resend works.
 
   ⚠ **This bullet described the opposite until #1349 (2026-08-17)**, and the difference matters
   if you are diagnosing an older incident: the send used to be the handler's final *unguarded*

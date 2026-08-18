@@ -67,7 +67,9 @@ readonly AUDIT_LOG=/var/log/audit/audit.log
 
 # Freshness threshold for --check. The timer runs hourly; 150 min tolerates one entirely missed
 # run plus jitter before the box's alarm surface lights — jobbliggaren-logship-fresh.timer is
-# what lights it, and until that pair is enabled this threshold is a number nothing reads. Set to
+# what lights it. The pair was enabled 2026-08-18, but this threshold is still UNREAD: the probe
+# SKIPS on its ConditionPathExists until #197's credential exists, so enable was necessary rather
+# than sufficient. Same wording as jobbliggaren-logship.timer's, deliberately. Set to
 # the period it would alarm on ordinary lateness, which is the mistake
 # jobbliggaren-backup-fresh.timer's 26 h note records.
 readonly MAX_AGE_SECONDS=9000

@@ -169,6 +169,45 @@ does not exist here.
 
 ## 3. After every reboot — inject
 
+⛔ **BEFORE YOU RUN THAT COMMAND — since 2026-08-18 the injection IS the firing of the log archive,
+and there is no second gate after it.** Shipping used to take TWO acts: inject the credential **and**
+arm the archive timers, the second performed by someone reading `log-sink.md` §2's precondition. Both
+timers are armed now, so it takes ONE. The injection creates `Backup__RcloneConfigBase64`, both
+services' `ConditionPathExists` starts passing, and `jobbliggaren-logship.timer` (`OnCalendar=*:17`,
+`Persistent=true`) fires within the hour with no cursor — the whole-journal run.
+**Re-measure the journal here.** The discharge recorded later in this section is dated and is never
+inherited.
+
+If it cannot be re-measured in this visit, disarm **both** timers before injecting:
+
+```bash
+sudo systemctl disable --now jobbliggaren-logship.timer jobbliggaren-logship-fresh.timer
+# … measure the journal, then — ONLY IF IT MEASURES CLEAN — re-arm BOTH. A vacuum produces that
+# state; a further rotation does not. The re-arm is a duty, not a courtesy:
+sudo systemctl enable --now jobbliggaren-logship.timer jobbliggaren-logship-fresh.timer
+```
+
+⚠ **The re-arm is owed precisely BECAUSE the disarm is invisible.** It takes down the archive and
+`-fresh`, its only staleness probe, in one command — and until the box pulls the `FLOOR_TIMERS`
+edit, no `floor-timer-down=` fires to remind anyone the archive is off. ADR 0126's "What this
+decision does NOT do" names journal erasure among what local detection cannot see; the off-box
+archive is that mitigation.
+
+⚠ **Disarming the shipping timer alone is the trap, and it fails in the more dangerous direction.**
+`-fresh` carries the same `ConditionPathExists`, so its shield lifts at the same injection; `--check`
+then dies on the absent stamp (`shipping has never succeeded`) and lands in `systemctl --failed`,
+i.e. M-7's **P1**, which the heartbeat puts into `/fail` every 15 minutes — the heartbeat's cadence,
+not the probe's, since `-fresh` itself runs hourly. ⚠ A POST cadence, not a page cadence:
+`systemctl --failed` **latches**, so the expecter notifies on the transition and a second genuine
+fault inside the window changes only a body nobody reads. It stays latched because the hand-start that would clear it is not
+available to you: mechanically it runs fine with the timer disabled, but it would ship the very
+journal you disarmed for.
+
+⚠ **The floor cost of a disarm is repo-side until the box pulls.** `FLOOR_TIMERS` names both timers
+in the repo since 2026-08-18, but `/opt/jobbliggaren`'s copy — which is what
+`jobbliggaren-heartbeat.service` actually runs — carries them only after the next `git pull --ff-only`.
+Before that pull a disarm lights no `floor-timer-down=` at all.
+
 ```bash
 sudo /opt/jobbliggaren/deploy/systemd/jobbliggaren-inject-secrets.sh
 ```
@@ -294,15 +333,19 @@ api and worker recover on their own restart backoff (`restart: unless-stopped`).
 > is the discharge rather than a promise of one. **The stop still binds in one respect and it is
 > not the same respect:** the condition expires the moment anything writes key material to the
 > journal again, so re-measure before shipping rather than inheriting this line.
-> ⚠ `docs/runbooks/log-sink.md` §2 carries the same precondition and is **outside this PR's
-> change-reason**; it still reads as unmet and must not be allowed to drift from this one.
+> ⚠ `docs/runbooks/log-sink.md` §2 carried the same precondition and had drifted from this one for
+> two days; **corrected 2026-08-18** — it now cites this discharge rather than asserting the plaintext
+> key as a present fact.
+>
+> The re-measurement this discharge demands is owed **before** the injection, not here — it is
+> stated at the top of this section, where the operator is standing when it can still be acted on.
 >
 > ~~⛔ **STOP — THIS IS THE FIRST RUN THAT SHIPS, AND THE JOURNAL IS NOT CLEAN (#1343).**~~ The
 > injection you just performed created `Backup__RcloneConfigBase64`, which is the file
 > `jobbliggaren-logship.service`'s `ConditionPathExists` waits for. Every earlier firing was a
 > *skip*, so no cursor exists in `/var/lib/jobbliggaren` — and `jobbliggaren-logship.sh` reads the
 > journal from the beginning when there is none. **This command therefore ships the whole journal**,
-> which today carries the master key in plaintext, to an OVH object with no age bound at all
+> which at the time carried the master key in plaintext (discharged 2026-08-16, see above), to an OVH object with no age bound at all
 > (`log-sink.md` §2 carries the mechanism and the numbers). Do not run it until the journal is
 > demonstrably free of plaintext key material. A **vacuum** produces that state; a **further
 > rotation** does not — it retires the generation and leaves its bytes where they are.
@@ -311,7 +354,8 @@ api and worker recover on their own restart backoff (`restart: unless-stopped`).
 > standing when the condition actually comes due — the same reason the host-timer enable step is
 > repeated below.
 
-**Then start the archive by hand, once, if `jobbliggaren-logship.timer` is installed** (#1175):
+**Then start the archive by hand, once — MANDATORY, not tidiness, whenever
+`jobbliggaren-logship.timer` is ENABLED** (#1175; it has been since 2026-08-18):
 
 ```bash
 sudo systemctl start jobbliggaren-logship.service
@@ -323,6 +367,13 @@ archive stale — correctly, but for a condition you just cleared. `Persistent=t
 this: the catch-up firing happened at boot, when there was still no credential. Without this line
 the alarm stays lit until the next `:17`, up to an hour, which is exactly the always-lit surface
 these units are written against.
+
+**And since 2026-08-18 that alarm is a PAGE rather than a lit lamp**, because both logship timers are
+now ENABLED — before that `-fresh` never fired at all. The surface is **P1** (failed units), not the
+floor: `check_floor_timers` reads `is-enabled`/`is-active` on TIMERS and is unmoved by a failed
+service. `--check` dies on the absent stamp (`shipping has never succeeded`), `-fresh` fires
+at `:00` **before** the shipping timer's `*:17`, and a failed unit puts M-7's P1 into /fail every 15
+minutes until the first successful ship. This line is what closes that window.
 
 **And enable the HOST absence detector, which is the one §2 lets you defer** (#1329):
 

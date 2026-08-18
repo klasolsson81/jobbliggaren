@@ -8,9 +8,10 @@
 # its ConditionPathExists makes a run without the upload credential SKIP — inactive, logged,
 # explicitly not failed. So an archive that never once succeeds is invisible to every surface
 # M-7 reads: P1 lists failed units and this one is not failed, P2 lists enabled timers that are
-# inactive and this one is enabled and active, P3's FLOOR_TIMERS does not name it. The stamp is
-# the only thing that separates "shipping" from "skipping every hour", and this unit is what
-# reads it.
+# inactive and this one is enabled and active, and P3's FLOOR_TIMERS -- which names this timer
+# since 2026-08-18 -- measures only that the TIMER is armed, never that a run shipped. All three
+# surfaces are satisfied by a pair that skips every hour forever. The stamp is the only thing that
+# separates "shipping" from "skipping every hour", and this unit is what reads it.
 Description=Jobbliggaren: verify the off-box log archive is not stale
 Documentation=https://github.com/klasolsson81/jobbliggaren/blob/main/docs/runbooks/log-sink.md
 

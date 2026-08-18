@@ -30,8 +30,10 @@ Persistent=true
 # Jitter costs nothing at N=1 boxes and keeps the unit honest if that ever stops being true. Note
 # this is why --check's threshold is 150 min and not 60: a probe set to the period alarms on
 # ordinary jitter, which is the mistake jobbliggaren-backup-fresh's 26 h note records. The probe
-# runs from jobbliggaren-logship-fresh.timer — this threshold is only a number until that pair is
-# enabled too, which is one step in log-sink.md §2 and not a separate decision.
+# runs from jobbliggaren-logship-fresh.timer, enabled 2026-08-18 — but the threshold is still
+# UNREAD, and enable was necessary rather than sufficient: that timer's service carries the same
+# ConditionPathExists as the shipping unit, so it SKIPS until #197's Backup__RcloneConfigBase64 is
+# injected. The first read is the first non-skipped --check (master-key-ops.md §3).
 RandomizedDelaySec=120
 
 [Install]

@@ -66,16 +66,69 @@ the service's `ConditionPathExists` skips the run rather than failing it.
 > (`if [[ -f "$JOURNAL_CURSOR_FILE" ]]`); with no cursor, `journalctl` reads from the beginning.
 >
 > **The trigger is the first run with `Backup__RcloneConfigBase64` present on tmpfs — NOT the day
-> this pair is armed.** Arming early is harmless and is this section's intended order: the
+> this pair is armed.** Arming early ships nothing and is this section's intended order: the
 > service's `ConditionPathExists` makes a credential-less run a *skip*, the script never executes,
 > and `/var/lib/jobbliggaren`'s cursor is therefore never written. So an operator who has already
 > armed the pair has **not** passed this precondition — they have merely not reached it. It comes
 > due at `master-key-ops.md` §3's injection visit, which is where it is repeated.
 >
-> **Why it matters right now:** the master key is in this box's persistent journal in plaintext
-> (#1343 — row 22's own instruments put it there through `sudo`'s argv logging). A first run before
-> that is remediated writes the field-encryption key into `hostlogs/journal-*.export.gz.age` at
-> OVH — **with no age bound at all**, because `REMOTE_PREFIX` is flat `hostlogs/` and G3's two
+> ⛔ **BUT ARMING IS NOT WITHOUT CONSEQUENCE, AND AN EARLIER WORDING HERE SAID IT WAS
+> ("harmless"). It moves the gate rather than removing a risk, and after 2026-08-18 the gate is
+> gone.** Before the pair was armed, shipping took TWO acts — inject the credential **and** arm —
+> and the second was performed by someone reading this block. Armed, it takes ONE: the injection
+> alone. `OnCalendar=*:17` with `Persistent=true` then fires within the hour, with no cursor, i.e.
+> the whole-journal run this precondition governs — **without anyone having read this precondition
+> at all.** `master-key-ops.md` §3 says *"up to an hour"* about the same firing, but says it about
+> a stale freshness alarm rather than about this.
+>
+> **So the precondition is owed AT THE INJECTION, by the person performing it, and it is now the
+> only thing standing between the credential and the archive.** If it cannot be measured in that
+> same visit, disarm **both** timers before injecting — and re-arm both **only once the journal
+> measures clean** (a vacuum produces that state; a further rotation does not):
+>
+> ```bash
+> sudo systemctl disable --now jobbliggaren-logship.timer jobbliggaren-logship-fresh.timer
+> # … measure the journal, then — ONLY IF IT MEASURES CLEAN — re-arm BOTH. A vacuum produces that
+> # state; a further rotation does not:
+> sudo systemctl enable --now jobbliggaren-logship.timer jobbliggaren-logship-fresh.timer
+> ```
+>
+> ⚠ **Disarming the shipping timer alone is the trap.** `-fresh` carries the same
+> `ConditionPathExists`, so its shield lifts at the same injection; `--check` then dies on the
+> absent stamp and lands in `systemctl --failed`, i.e. M-7's **P1**, which the heartbeat puts into
+> `/fail` every 15 minutes (the heartbeat's cadence, not the probe's — `-fresh` itself runs hourly).
+> ⚠ That is a POST cadence, not a page cadence: `systemctl --failed` **latches**, so the expecter
+> notifies on the transition and a second genuine fault inside the window changes only a body nobody
+> reads. Read it as one alarm and then silence, never as a repeating siren.
+> And the hand-start that would clear **that latched P1** is not available to you here:
+> mechanically it runs fine with the timer disabled, but it would ship the very journal you
+> disarmed for.
+> ⚠ **That deafness is scale-invariant — the CORRECT full disarm carries it too.** Once the box has
+> pulled the `FLOOR_TIMERS` edit, P3 lights `floor-timer-down=` for both timers, one notification
+> goes, and the box is deaf to P1–P5 for the rest of the window. The path this section *instructs*
+> has the same property as the trap it warns against, which is why the re-arm is a duty. **A
+> hand-start does not clear P3 either** — that predicate wants the TIMER enabled and active, not a
+> service run.
+> ⚠ **The re-arm is a duty precisely BECAUSE the disarm is invisible.** It removes the archive and
+> its only staleness probe together, and until the box pulls the `FLOOR_TIMERS` edit it lights no
+> `floor-timer-down=` to remind anyone it is off.
+>
+> **Why it mattered, and what changed — the RULE survives, its GROUND does not.** #1343 put the
+> master key in this box's persistent journal in plaintext (row 22's own instruments, through
+> `sudo`'s argv logging). ✅ **That is discharged as of 2026-08-16:** the journal was vacuumed and
+> re-measured against **all four** secrets — master key and each of the three peppers, each with
+> its own positive control — at **0** (`master-key-ops.md` §3 carries the measurement and is the
+> one home for it). **Do not read this paragraph as a live finding; it is why the rule exists.**
+>
+> **The rule still binds, on a condition rather than on a standing fact:** the discharge expires
+> the moment anything writes key material to the journal again, so the state is **re-measured
+> before shipping and never inherited from the line above.** That is the whole of what the two
+> runbooks must keep saying together — an earlier revision of this block asserted the plaintext key
+> as a present fact for two days after it stopped being one, while `master-key-ops.md` had already
+> recorded the discharge and warned, in as many words, that this block must not drift from it.
+>
+> Concretely, what a first run before a fresh measurement writes: the field-encryption key into
+> `hostlogs/journal-*.export.gz.age` at OVH — **with no age bound at all**, because `REMOTE_PREFIX` is flat `hostlogs/` and G3's two
 > rules target `hostlogs/app/` and `hostlogs/host/`, so they match nothing; and §4 records that the
 > rules are not applied in any case. The object is encrypted to an age recipient whose private key
 > ADR 0129 places on the same device as `jobbpilot_vps_ed25519` — i.e. Klas's workstation,
@@ -122,14 +175,41 @@ systemctl show -p ConditionResult -p Result jobbliggaren-logship.service
 **Both timers join `FLOOR_TIMERS` in `jobbliggaren-heartbeat.sh` at this point, and not before** —
 that list is the non-vacuity floor for M-7's P3, a timer named there must be enabled and active or
 the box pages, and the file's own `KEEP IN SYNC AS UNITS LAND` note binds at the moment of
-installation. Until the edit lands, P3 is vacuous for these two: a disabled `logship.timer` is on
-no surface at all, which is the hole the `-fresh` pair exists to close, one level up.
+**`enable`, never of install** — `check_floor_timers` measures `is-enabled` AND `is-active`, so a
+named-but-disabled timer fails every fire, i.e. holds that surface red — one page at the
+transition, then silence, not a repeating one. (An earlier wording here said
+*installation*, alone among the four homes that carry this rule.) That edit landed 2026-08-18; until it did, P3 was vacuous for these two, because a disabled
+`logship.timer` is on no surface at all, which is the hole the `-fresh` pair exists to close, one level up.
 
 **Make that edit IN THE REPO, as its own PR, and pull it down here — never in the clone.**
 `jobbliggaren-heartbeat.service` runs the script straight out of `/opt/jobbliggaren`, and the file
 is git-tracked, so editing it on the box makes every later `git pull --ff-only` fail — the pull
 that is this box's whole deploy path, three lines above. The handover row lives in
 [`host-detection.md`](host-detection.md) §7, which is where the heartbeat script says to look.
+
+> **DONE 2026-08-18 (#1175). Both timers are armed on the box and both are named in the floor.**
+> The install half had been half-done since 2026-08-15 and nothing said so: all four unit files
+> sat in `/etc/systemd/system` bit-identical to the clone's, `daemon-reload`/`enable` had never
+> run, and `systemctl list-units` — which lists LOADED units — reported nothing at all, so the
+> state read as "not installed" on the axis most people measure. **Read `list-unit-files` when the
+> question is the disk and `is-enabled` when the question is the floor; `list-units` answers
+> neither.**
+>
+> **No `git pull` was performed and none was needed**, which is why this visit was not a deploy:
+> all four units were verified `sha256`-identical across the repo, `/opt/jobbliggaren/deploy/systemd/`
+> and `/etc/systemd/system/` before arming, so the step above reduces to `daemon-reload` +
+> `enable --now`. The `FLOOR_TIMERS` edit is the one thing here that does travel through the clone,
+> and it rides the normal PR path as this section requires.
+>
+> Verified at the arming, not inferred: both timers `enabled`/`active`; `systemctl --failed` empty;
+> and — **the primary evidence that nothing shipped** — both services ran and **skipped**:
+> `Result=success`, `ConditionResult=no`, journal `unmet condition check
+> ConditionPathExists=…/host-secrets/Backup__RcloneConfigBase64`. The condition is what proves it,
+> because a skip means the script never executed at all.
+> `/var/lib/jobbliggaren/` also carries **no cursor file**, and that corroborates rather than
+> proves: the cursor is promoted only after a *successful upload*, so once the credential exists a
+> run can fail mid-upload and leave no cursor while bytes have already left the box. Absence of a
+> cursor stops meaning "nothing shipped" on the day the condition starts passing.
 
 **The cross-cover the `-fresh` unit names is not installed yet, and the sequence has to say so.**
 Installing before #197's host secrets exist is fine and intended — both units then skip on the same
@@ -365,7 +445,8 @@ integration coverage from `ci`, and the install happens once.
 | **Ingestion REFUSES an unkeyed write at this box** | `curl -X POST "http://$SEQ_IP/api/events/raw?clef"` with no `X-Seq-ApiKey` | **This is the row that says whether the ingest key bounds anything.** Measured on a stock 2026.1: with `RequireApiKeyForWritingEvents=false` — the DEFAULT — no key, an empty key and a wrong key are all accepted (201). The gate is §3 step 5 and has no environment variable, so it is a step someone can skip; expect **401** here | |
 | **Seq's retention policy removes events, and the DISK follows later** | query for an event older than the window; separately, `du` on the volume | Retention makes events inaccessible; space returns via compaction, which runs at **7 days of file age** — bytes can persist past the 30-day mark, and the register says so | |
 | **The seq container has a healthcheck** | `docker inspect -f '{{.State.Health.Status}}'` | **Not shipped.** The compose file omits it deliberately rather than shipping an unverified probe that would paint a permanent "unhealthy"; whether this image carries a client to call Seq's health endpoint was not measured. This row closes that | |
-| **`logship` runs, and its cost is bounded** | `systemd-analyze` on the unit; artefact size per run | | |
+| **`logship` runs, and its cost is bounded** | `systemd-analyze` on the unit; artefact size per run | **Half of this row is measured and the other half cannot be yet, and they are not the same claim.** *Runs:* both services were started by hand at the arming and both reached their condition and **skipped** — `Result=success`, `ExecMainStatus=0`, `ConditionResult=no`, journal `unmet condition check ConditionPathExists=…/host-secrets/Backup__RcloneConfigBase64`, `systemctl --failed` empty. *Cost:* **not measured and not measurable here** — a skipped run executes no script, ships no artefact and writes no cursor, so there is no size and no duration to bound. This cell is owed again at the first run with #197's credential present, which is also the run the third precondition in §2 governs | 2026-08-18 (runs only) |
+| **The pair is armed AND on an alarm surface** | `systemctl is-enabled` + `is-active` on both timers; then that both names appear in `FLOOR_TIMERS` | **Two halves on two axes, and only one of them is a box measurement.** *Armed:* both `enabled`/`active` on the box 2026-08-18. *On the surface:* **repo-side only as of 2026-08-18** — `jobbliggaren-heartbeat.service` runs the script straight out of `/opt/jobbliggaren`, so the floor row reaches the box at the next `git pull --ff-only`, which §2 owns and which is itself a deploy. Measured that day: the box's copy still carried the three-timer constant. **Owed:** re-measure `FLOOR_TIMERS` in `/opt/jobbliggaren` after that pull. ⚠ **And arming was safe for a reason that EXPIRES.** `jobbliggaren-logship-fresh.service` carries the same `ConditionPathExists` as the shipping unit and therefore skips; `jobbliggaren-backup-fresh.service` carries none — measured 2026-08-18, and that difference is the whole asymmetry with the pair `host-detection.md` §7 declines to arm. The shield lifts the moment #197's credential is injected: `--check` then dies on the absent stamp (`shipping has never succeeded`) and latches until the first successful ship, with `-fresh` firing at `:00` **before** the shipping timer's `*:17`. `master-key-ops.md` §3's `systemctl start jobbliggaren-logship.service` is what bounds that window and is MANDATORY at injection, not tidiness. **Arming without the floor row would have been the weaker half of a pair, not a smaller version of the whole:** the shipping service SKIPS without the upload credential, and a skip is inactive rather than failed, so an armed-but-unnamed timer that later stopped would still have been on no surface. `check_floor_timers` measures `is-enabled` AND `is-active`, which is why the repo edit follows the `enable` and never the install | 2026-08-18 |
 
 ---
 

@@ -100,13 +100,15 @@ the service's `ConditionPathExists` skips the run rather than failing it.
 > ⚠ That is a POST cadence, not a page cadence: `systemctl --failed` **latches**, so the expecter
 > notifies on the transition and a second genuine fault inside the window changes only a body nobody
 > reads. Read it as one alarm and then silence, never as a repeating siren.
+> And the hand-start that would clear **that latched P1** is not available to you here:
+> mechanically it runs fine with the timer disabled, but it would ship the very journal you
+> disarmed for.
 > ⚠ **That deafness is scale-invariant — the CORRECT full disarm carries it too.** Once the box has
 > pulled the `FLOOR_TIMERS` edit, P3 lights `floor-timer-down=` for both timers, one notification
 > goes, and the box is deaf to P1–P5 for the rest of the window. The path this section *instructs*
-> has the same property as the trap it warns against, which is why the re-arm is a duty.
-> And the hand-start that
-> would clear it is not available to you here: mechanically it runs fine with the timer disabled,
-> but it would ship the very journal you disarmed for.
+> has the same property as the trap it warns against, which is why the re-arm is a duty. **A
+> hand-start does not clear P3 either** — that predicate wants the TIMER enabled and active, not a
+> service run.
 > ⚠ **The re-arm is a duty precisely BECAUSE the disarm is invisible.** It removes the archive and
 > its only staleness probe together, and until the box pulls the `FLOOR_TIMERS` edit it lights no
 > `floor-timer-down=` to remind anyone it is off.

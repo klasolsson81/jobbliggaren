@@ -196,8 +196,10 @@ archive is that mitigation.
 ⚠ **Disarming the shipping timer alone is the trap, and it fails in the more dangerous direction.**
 `-fresh` carries the same `ConditionPathExists`, so its shield lifts at the same injection; `--check`
 then dies on the absent stamp (`shipping has never succeeded`) and lands in `systemctl --failed`,
-i.e. M-7's **P1**, which pages every 15 minutes — the heartbeat's cadence, not the probe's, since
-`-fresh` itself runs hourly. It stays latched because the hand-start that would clear it is not
+i.e. M-7's **P1**, which the heartbeat puts into `/fail` every 15 minutes — the heartbeat's cadence,
+not the probe's, since `-fresh` itself runs hourly. ⚠ A POST cadence, not a page cadence:
+`systemctl --failed` **latches**, so the expecter notifies on the transition and a second genuine
+fault inside the window changes only a body nobody reads. It stays latched because the hand-start that would clear it is not
 available to you: mechanically it runs fine with the timer disabled, but it would ship the very
 journal you disarmed for.
 

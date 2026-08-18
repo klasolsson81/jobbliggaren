@@ -88,14 +88,18 @@ the service's `ConditionPathExists` skips the run rather than failing it.
 >
 > ```bash
 > sudo systemctl disable --now jobbliggaren-logship.timer jobbliggaren-logship-fresh.timer
-> # … measure the journal, then:
+> # … measure the journal, then — ONLY IF IT MEASURES CLEAN — re-arm BOTH. A vacuum produces that
+> # state; a further rotation does not:
 > sudo systemctl enable --now jobbliggaren-logship.timer jobbliggaren-logship-fresh.timer
 > ```
 >
 > ⚠ **Disarming the shipping timer alone is the trap.** `-fresh` carries the same
 > `ConditionPathExists`, so its shield lifts at the same injection; `--check` then dies on the
-> absent stamp and lands in `systemctl --failed`, i.e. M-7's **P1**, which pages every 15 minutes
-> (the heartbeat's cadence, not the probe's — `-fresh` itself runs hourly). And the hand-start that
+> absent stamp and lands in `systemctl --failed`, i.e. M-7's **P1**, which the heartbeat puts into
+> `/fail` every 15 minutes (the heartbeat's cadence, not the probe's — `-fresh` itself runs hourly).
+> ⚠ That is a POST cadence, not a page cadence: `systemctl --failed` **latches**, so the expecter
+> notifies on the transition and a second genuine fault inside the window changes only a body nobody
+> reads. Read it as one alarm and then silence, never as a repeating siren. And the hand-start that
 > would clear it is not available to you here: mechanically it runs fine with the timer disabled,
 > but it would ship the very journal you disarmed for.
 > ⚠ **The re-arm is a duty precisely BECAUSE the disarm is invisible.** It removes the archive and

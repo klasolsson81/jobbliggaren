@@ -139,8 +139,10 @@ public class RegisterConfirmationTests(ApiFactory factory)
         // Evaluated there, one and the same request answers 202 for a taken address and 400 for a
         // fresh one: an existence-dependent status oracle, attacker-controlled, needing no valid
         // credential. The handler therefore runs the aggregate's own ValidateDisplayName BEFORE
-        // CreateUserAsync. This pins the property, not the placement: any future reordering that
-        // puts an input refusal after the duplicate branch fails here.
+        // CreateUserAsync. This pins the property for the DISPLAY-NAME refusal specifically: move
+        // that evaluation back after the duplicate branch and this test fails. It does not cover a
+        // future input rule of some other kind placed there — such a rule needs its own pin, and
+        // reading this one as general coverage is how the next person skips writing it.
         //
         // The parity test above uses a CLEAN display name, so it is green either way — which is
         // why this needed its own case rather than a stronger assertion there.
@@ -166,9 +168,17 @@ public class RegisterConfirmationTests(ApiFactory factory)
             .GetProperty("title").GetString();
         title.ShouldBe("JobSeeker.DisplayNamePersonnummerMustBeRemoved");
 
-        // And the refusal left nothing behind: the fresh address is still registrable, which it
-        // would not be if an Identity user had been created and then compensated away.
+        // And the refusal left nothing behind for the #508 orphan sweep: registering the same fresh
+        // address afterwards takes the FRESH path, not the duplicate one. The STATUS cannot say
+        // that — under this flag #714 makes both answers 202, so a status assertion here would hold
+        // whether nothing was created, or a user was created and compensated away, or a user was
+        // created and stranded. The email KIND is the instrument that separates them, which is why
+        // the two cases at the top of this file discriminate the same way.
         (await RegisterAsync(freshEmail, StrongPassword, ct)).StatusCode.ShouldBe(HttpStatusCode.Accepted);
+        _factory.Emails.Sent.ShouldContain(e =>
+            e.ToEmail == freshEmail && e.Kind == RecordedEmailKind.EmailConfirmation);
+        _factory.Emails.Sent.ShouldNotContain(e =>
+            e.ToEmail == freshEmail && e.Kind == RecordedEmailKind.AccountExistsNotice);
     }
 
     // NOTE: send-failure symmetry (CTO-bind Risk 1 — a transport fault must yield the same response for

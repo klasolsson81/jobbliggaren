@@ -102,25 +102,21 @@ export function SettingsForm({
     initialProfile.followedCompanyNotificationsEnabled,
   );
 
-  // ONLY the fields the caller is changing. Sending the unchanged ones is not free: since #1117
-  // the display name carries a server-side invariant that is re-evaluated on every write, so a
-  // profile row written before that invariant landed would have its LANGUAGE change refused on
-  // the strength of a name the user never touched — and the refusal would render in the personal-
-  // info card, which is not even the card she is standing in. The command is a partial update
-  // (the handler applies each field only when non-null), so this sends exactly what changed.
-  function buildPayload(
-    overrides: Partial<UpdateMyProfileInput> = {},
-  ): UpdateMyProfileInput {
-    return { ...overrides };
-  }
-
+  // `changed` is the WHOLE payload: only the fields this caller is changing. Sending the
+  // unchanged ones is not free — since #1117 the display name carries a server-side invariant
+  // re-evaluated on every write, so a profile row written before that invariant landed would
+  // have its LANGUAGE change refused on the strength of a name the user never touched. The
+  // command is a partial update (the handler applies each field only when non-null), so what
+  // goes over the wire is exactly what changed. There is deliberately no buildPayload() wrapper
+  // between the two: after the fix it was an identity function whose default argument no call
+  // site used, and an accidental no-argument call would have PATCHed nothing while still
+  // stamping "Sparat".
   async function applyChange(
-    overrides: Partial<UpdateMyProfileInput>,
+    changed: Partial<UpdateMyProfileInput>,
     revert: () => void,
     onSuccess?: () => void | Promise<void>,
   ) {
-    const payload = buildPayload(overrides);
-    const parsed = schema.safeParse(payload);
+    const parsed = schema.safeParse(changed);
     if (!parsed.success) {
       const first = parsed.error.issues[0];
       setError(first?.message ?? ts("account.invalidInput"));

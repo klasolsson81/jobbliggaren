@@ -84,7 +84,15 @@ export function makeUpdateMyProfileSchema(t: ValidationTranslator) {
       })
       .optional(),
     // TD-115: legacy emailNotifications/weeklySummary retired (gated no email path).
-  });
+  })
+    // Optional does not mean "all optional at once". An empty payload is a save that changes
+    // nothing: the server no-ops it with a 200 and the card then stamps "Sparat" for a change
+    // that never happened. Closing it in the contract rather than trusting every call site to
+    // pass a field means a future control cannot reintroduce that silently.
+    .refine(
+      (v) => v.displayName !== undefined || v.language !== undefined,
+      { message: t("profile.nothingToUpdate") },
+    );
 }
 
 export type UpdateMyProfileInput = z.infer<

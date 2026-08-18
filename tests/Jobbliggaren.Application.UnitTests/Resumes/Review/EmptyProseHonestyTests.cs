@@ -129,17 +129,29 @@ public class EmptyProseHonestyTests
     }
 
     [Fact]
-    public async Task ContentFreeCv_BandsContentStructureLanguageAtTheFloor()
+    public async Task ContentFreeCv_BandsTheEarnedFloor_ButLeavesTheUnmeasuredCategoryUnbanded()
     {
         var result = await ReviewAsync(ContentFreeCv);
 
+        // Content and Structure DID get assessed (the earned Fails pinned above), so their floor
+        // band is a measurement and stays exactly as it was. The assessed-count assertion is the
+        // load-bearing half: without it "NotReady" here would not tell an earned floor apart from
+        // the unmeasured one this test now forbids.
+        AssessedCounts(result, RubricCategory.Content).ShouldNotBe((0, 0, 0));
         Band(result, RubricCategory.Content).ShouldBe(ScoreBandLabel.NotReady);
+        AssessedCounts(result, RubricCategory.Structure).ShouldNotBe((0, 0, 0));
         Band(result, RubricCategory.Structure).ShouldBe(ScoreBandLabel.NotReady);
 
-        // Before this fix the LANGUAGE category banded TopTier (five vacuous Passes at 100 %
-        // credit) on a CV with no language in it. All seven withdrawn → the category has no
-        // assessed criterion left → the engine's existing all-NotAssessed rule bands the floor.
-        Band(result, RubricCategory.Language).ShouldBe(ScoreBandLabel.NotReady);
+        // LANGUAGE is the category this test was written for, and it has now moved TWICE.
+        // (1) It once banded TopTier — five vacuous Passes at 100 % credit on a CV with no
+        // language in it: an OVER-claim. (2) Withdrawing all seven left it with no assessed
+        // criterion, and the floor rule then banded it NotReady: an UNDER-claim, and the same
+        // §5 breach seen from the other side — "Ej bedömt" rendered as the lowest grade.
+        // (3) #1062 B1 gives absence its own representation, so the category now states
+        // nothing. Pinning null instead of the floor is strictly stronger: the floor was
+        // reachable by an unassessed category and by an assessed-and-failing one alike.
+        AssessedCounts(result, RubricCategory.Language).ShouldBe((0, 0, 0));
+        Band(result, RubricCategory.Language).ShouldBeNull();
     }
 
     [Fact]
@@ -227,6 +239,13 @@ public class EmptyProseHonestyTests
         VerdictOf(result, criterionId).ShouldNotBe(CriterionVerdict.NotAssessed);
     }
 
-    private static ScoreBandLabel Band(CvReviewResult result, RubricCategory category) =>
+    private static ScoreBandLabel? Band(CvReviewResult result, RubricCategory category) =>
         result.Categories.Single(c => c.Category == category).Band;
+
+    private static (int Pass, int Warn, int Fail) AssessedCounts(
+        CvReviewResult result, RubricCategory category)
+    {
+        var c = result.Categories.Single(x => x.Category == category);
+        return (c.PassCount, c.WarnCount, c.FailCount);
+    }
 }

@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Text.RegularExpressions;
 using NetArchTest.Rules;
 using Shouldly;
 
@@ -32,7 +33,7 @@ namespace Jobbliggaren.Architecture.Tests;
 ///
 /// RED until the F4-10 Application contract + the Infrastructure impls ship.
 /// </summary>
-public class CvImprovementEngineLayerTests
+public partial class CvImprovementEngineLayerTests
 {
     private const string EngineNamespace = "Jobbliggaren.Infrastructure.Resumes.Improvement";
     private const string RenderingNamespace = "Jobbliggaren.Infrastructure.Resumes.Rendering";
@@ -344,4 +345,111 @@ public class CvImprovementEngineLayerTests
                 $"{typeName} ska vara internal (Infrastructure-detalj).");
         }
     }
+
+    [Fact]
+    public void Improvement_transforms_do_not_produce_excerpt_citations()
+    {
+        // #1062 B2. ReviewText.SpanExcerpt is the REVIEW side's one excerpt home, and the improve
+        // surface renders no excerpt marker (cv-proposed-change.tsx puts evidence.quote in a bare
+        // blockquote). A producer here would therefore ship a shortened fragment as if it were the
+        // user's complete text — the §5 CV-engine class #1062 B2 exists to remove.
+        //
+        // This pins a CALL-GRAPH claim, and it is here rather than in a behavioural test on
+        // purpose: CvImprovementEngine wires NINE transforms, so a fixture-driven assertion
+        // measures the changes that fixture happened to produce, not the producer set. Five
+        // transforms already call ReviewText.Span or ReviewText.WordSpans, and SpanExcerpt is one
+        // identifier away in the same internal static class — so the reachable regression is a
+        // one-word edit that a behavioural pin would sail past (dotnet-architect, #1388 re-check).
+        //
+        // The remedy when this goes red is NOT to delete the guard: give cv-proposed-change.tsx
+        // the marker first, then the flag may travel. The DTO already carries it honestly.
+        //
+        // THREE arms, covering every way this tree can CONSTRUCT the flag — which is narrower than
+        // every way it can carry one, see the residuals below. IsExcerpt is a defaulted POSITIONAL
+        // parameter on TextSpan, so all three of these set it:
+        //   (a) ReviewText.SpanExcerpt(...)          — names the method
+        //   (b) span with { IsExcerpt = true }       — names the property
+        //   (c) new TextSpan(a, b, quote, true)      — names NEITHER
+        // and each is one token from a line that already exists here: five transforms call
+        // ReviewText.Span, ImprovementEvidenceRedactor already uses `with`, and
+        // AtsSanitizationTransform already builds a three-argument positional TextSpan.
+        //
+        // (c) is why the arity arm exists, and it was found by MEASURING rather than reasoning:
+        // a two-name sweep was written first, and the positional mutation walked straight past it.
+        // A guard that pins a call-graph claim by reading identifiers guarantees strictly less than
+        // its own comment claims — form over name. Measured: the improve tree carries zero
+        // occurrences of any of the three today.
+        //
+        // TWO RESIDUALS, named rather than papered over, because a closed enumeration that is
+        // wrong is worse than an open one that is honest:
+        //   - a nested call inside the argument list evades the arity regex, which assumes the
+        //     flat form every TextSpan construction in this tree currently has;
+        //   - and the flag can be INHERITED instead of constructed. CvImprovementContext.Review
+        //     carries the review's own verdicts, whose evidence a transform could pass straight
+        //     through to ProposedChange.From — naming neither identifier and constructing no span.
+        //     A source sweep cannot see that; only a behavioural test over a non-null review can,
+        //     and today no transform reads Review for evidence and no fixture supplies one. That
+        //     cross-link is CTO Q2 scope, and it is where this guard must be re-thought rather
+        //     than extended (dotnet-architect, #1388 third re-check).
+        var offenders = Directory
+            .EnumerateFiles(
+                SourcePath("src/Jobbliggaren.Infrastructure/Resumes/Improvement"),
+                "*.cs",
+                SearchOption.AllDirectories)
+            .Where(file => StripComments(File.ReadAllText(file)) is var code
+                && (code.Contains("SpanExcerpt", StringComparison.Ordinal)
+                    || code.Contains("IsExcerpt", StringComparison.Ordinal)
+                    || FourArgumentTextSpan().IsMatch(code)))
+            .Select(Path.GetFileName)
+            .ToList();
+
+        offenders.ShouldBeEmpty(
+            "an improve-side excerpt needs the marker on cv-proposed-change.tsx first.");
+    }
+
+    // A TextSpan constructed with FOUR arguments — the positional form of IsExcerpt, which names
+    // neither `SpanExcerpt` nor `IsExcerpt`. Three arguments (the legitimate shape) does not match.
+    [GeneratedRegex(@"new\s+TextSpan\s*\([^()]*,[^()]*,[^()]*,[^()]*\)",
+        RegexOptions.CultureInvariant)]
+    private static partial Regex FourArgumentTextSpan();
+
+    // Counter-guard for the sweep above. Note what it does NOT guard: a moved or renamed directory
+    // makes EnumerateFiles THROW, so that case already fails loudly. What it catches is the root
+    // still resolving while the content moved out from under it — a rename one level down, a
+    // transform tree split in two — where the sweep would enumerate nothing and pass forever.
+    //
+    // It anchors on an IDENTITY rather than a count. A threshold would encode today's inventory
+    // into a test that is not about the inventory, and would then fail on a legitimate removal for
+    // a reason it has nothing to say about.
+    [Fact]
+    public void Improvement_transform_sources_are_reachable_from_the_test_bin()
+    {
+        var sources = Directory.EnumerateFiles(
+            SourcePath("src/Jobbliggaren.Infrastructure/Resumes/Improvement"),
+            "*.cs",
+            SearchOption.AllDirectories).ToList();
+
+        sources.ShouldContain(
+            f => f.EndsWith("CvImprovementEngine.cs", StringComparison.Ordinal),
+            "the sweep lost its root — no engine file under the improvement tree.");
+    }
+
+    private static string SourcePath(string repoRelative)
+    {
+        // Walk up from the test bin directory to the repo root (the directory holding the .sln).
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "Jobbliggaren.sln")))
+            dir = dir.Parent;
+
+        dir.ShouldNotBeNull("could not locate the repo root from the test bin directory");
+        return Path.Combine(dir.FullName, repoRelative.Replace('/', Path.DirectorySeparatorChar));
+    }
+
+    // Remove line, block and XML-doc comments while leaving string literals intact — so a comment
+    // that merely NAMES SpanExcerpt (this file's own remedy note, for instance) is not an offender.
+    private static string StripComments(string source) =>
+        Regex.Replace(
+            source,
+            @"(?<comment>//[^\n]*|/\*[\s\S]*?\*/)|(?<keep>@?""(?:[^""\\\n]|\\.|"""")*""|""""""[\s\S]*?"""""")",
+            m => m.Groups["keep"].Success ? m.Groups["keep"].Value : " ");
 }

@@ -33,6 +33,7 @@ function makeChange(
       quote: "lagspelare",
       note: null,
       observation: null,
+      isExcerpt: false,
     },
     replacement: { before: "lagspelare", after: "ledde teamet" },
     operation: null,

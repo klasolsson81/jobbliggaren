@@ -6031,8 +6031,29 @@ a.jp-adminnav__link[aria-current="page"]::after {
   flex-direction: column;
   gap: 14px;
 }
+/* #1062 M1/M2: bandet står aldrig utan sin täckning. Bandet är en VIKTAD poäng och
+   räknarna under det en OVIKTAD tally, så pillen ensam kunde läsa "Toppskikt" ovanför
+   sin egen "Delvis = 2" — och "Toppskikt" av 2 bedömda kriterier såg identiskt ut med
+   "Toppskikt" av 10. `align-items: baseline` sätter täckningens text på pillens
+   textlinje så de två läser som en enhet. */
 .jp-cvreview__band {
   display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.jp-cvreview__band-coverage {
+  font-size: var(--text-caption);
+  color: var(--jp-ink-2);
+}
+/* #1062 B1: kategorin har noll bedömda kriterier, alltså ingen grad — inte den lägsta.
+   Frånvaron skrivs ut i klartext i stället för att förmedlas genom en pill som saknas. */
+.jp-cvreview__band-unassessed {
+  margin: 0;
+  font-size: var(--text-body-sm);
+  color: var(--jp-ink-1);
+  line-height: 1.5;
+  max-width: 68ch;
 }
 .jp-cvreview__counts {
   display: flex;
@@ -6185,6 +6206,24 @@ a.jp-adminnav__link[aria-current="page"]::after {
   font-size: var(--text-body-sm);
   color: var(--jp-ink-1);
   line-height: 1.5;
+  /* #1062 B2b: ett citerat spann kan bära CV:ts egna radbrytningar (en profiltext
+     över två rader). Utan detta kollapsar HTML dem till EN mening som användaren
+     aldrig skrivit, vilket motsäger att citatet är verbatimt underlag. `pre-line`
+     och inte `pre-wrap`: motorn trimmar redan citatets kanter, och `pre-wrap` hade
+     dessutom bevarat indrag ur PDF-extraktionen som inte är användarens formatering.
+     Klassen har TRE konsumentfiler, inte två: granskningen, förbättringsytans diffar
+     (se .jp-improve__changes — samma CV-text, samma skäl) och den PUBLIKA sidan
+     /cv-granskning. Den sistnämnda citerar ur i18n-katalogerna, och noll strängar där
+     bär en radbrytning, så pre-line ändrar ingenting på den. Mät om med en sökning
+     efter radbrytningar i messages/ innan någon drar en annan slutsats. */
+  white-space: pre-line;
+}
+/* #1062 B2: markören för att citatet är ett UTDRAG. Ellipsen ritas här därför att
+   motorn inte får skriva in den i citatet (två pinnade backend-invarianter kräver att
+   quote förblir ett verbatimt substräng). Dämpad — den är en upplysning om citatet,
+   inte en del av användarens text. */
+.jp-criterion__quote-excerpt {
+  color: var(--jp-ink-2);
 }
 .jp-criterion__note {
   margin: 0;

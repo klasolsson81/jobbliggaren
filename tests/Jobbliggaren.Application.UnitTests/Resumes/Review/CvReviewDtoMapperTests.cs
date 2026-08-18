@@ -93,4 +93,56 @@ public class CvReviewDtoMapperTests
 
         dto.Verdicts.Single().IsIgnorable.ShouldBeFalse();
     }
+
+    // ── #1062 B1: the band crosses the Application boundary as ABSENCE ──
+    // Every other test in this file passes Categories: [], so the category projection had no
+    // coverage at all. That matters here specifically: this mapper line is the ONE seam where
+    // B1's §5 breach can be put back with the whole engine suite still green — `?? "NotReady"`,
+    // or the property made non-nullable again, moves the floor label to the client and nothing
+    // else turns red.
+
+    [Fact]
+    public void ToDto_ShouldKeepAnUnbandedCategoryNullOnTheWire_WhenNoCriterionWasAssessed()
+    {
+        // The state is the engine's own: BuildCategories emits Band = null for a category whose
+        // assessed weight sum is zero, which is what a text-extracted CV produces for
+        // VisualQuality under the Visual profile (pinned at the engine altitude in
+        // CvReviewEngineTests.ReviewAsync_ShouldReportEveryVisualCriterionAsNotAssessed_…).
+        var e3 = CvCriterionVerdict.NotAssessed(
+            "E3", RubricCategory.VisualQuality, "Bedöms inte i en textbaserad tolkning.");
+        var unbanded = new CvCategoryResult(
+            RubricCategory.VisualQuality,
+            PassCount: 0, WarnCount: 0, FailCount: 0, NotAssessedCount: 8,
+            Band: null, Verdicts: [e3]);
+        var result = new CvReviewResult(
+            Version, RenderProfile.Visual, [unbanded], [e3],
+            CriticalFails: [], AssessedCount: 0, TotalCount: 8);
+
+        var dto = result.ToDto(Names("E3"));
+
+        var category = dto.Categories.ShouldHaveSingleItem();
+        category.Band.ShouldBeNull(
+            "an unbanded state must not acquire a label at the transport boundary.");
+        category.NotAssessedCount.ShouldBe(8,
+            "the counters still carry the coverage the band refuses to claim anything about.");
+    }
+
+    [Fact]
+    public void ToDto_ShouldProjectTheBandName_WhenTheCategoryWasAssessed()
+    {
+        // Counterfactual to the test above: without it, a mapper returning null for EVERY
+        // category would pass, and the band would vanish for every client.
+        var a7 = Fail("A7");
+        var banded = new CvCategoryResult(
+            RubricCategory.Content,
+            PassCount: 0, WarnCount: 0, FailCount: 1, NotAssessedCount: 0,
+            Band: ScoreBandLabel.NeedsRework, Verdicts: [a7]);
+        var result = new CvReviewResult(
+            Version, RenderProfile.Ats, [banded], [a7],
+            CriticalFails: [], AssessedCount: 1, TotalCount: 1);
+
+        var dto = result.ToDto(Names("A7"));
+
+        dto.Categories.ShouldHaveSingleItem().Band.ShouldBe("NeedsRework");
+    }
 }

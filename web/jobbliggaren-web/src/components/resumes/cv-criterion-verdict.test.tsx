@@ -26,6 +26,7 @@ function makeVerdict(
         quote: "ansvarade för budget",
         note: "saknar mätbart utfall",
         observation: null,
+        isExcerpt: false,
       },
     ],
     notAssessedReason: null,

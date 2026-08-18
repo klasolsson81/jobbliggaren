@@ -1222,7 +1222,8 @@ Netcup, not Hetzner.
   > the crypto directory: it demands #197's host-only `Backup__RcloneConfigBase64` too, so a
   > timer enabled before that credential exists fails on every fire — and **where
   > `jobbliggaren-heartbeat.timer` is armed and reaching its expecter**, that makes P1
-  > (`systemctl --failed` is clean) continuously false, so it pages every run and carries no
+  > (`systemctl --failed` is clean) continuously false, so it pages once at the transition and then
+  > carries no
   > information for as long as it stands. `master-key-ops.md` §2 therefore makes `enable --now`
   > conditional on the credential being injectable. **So the unit is shipped and the capability
   > is real, but on a box where enabling was deferred there is no absence detection in

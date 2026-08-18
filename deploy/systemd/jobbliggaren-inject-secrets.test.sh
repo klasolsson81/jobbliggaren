@@ -293,8 +293,10 @@ echo "-- THE WHOLE POINT OF THE SPLIT: --check is silent about the host-only set
 # THIS IS THE CASE THE SPLIT EXISTS FOR, and it is a counterfactual, not a tautology. Before it,
 # an absent rclone credential failed --check, so jobbliggaren-secrets-present.timer could not be
 # enabled until #197's ops half landed — and enabling it anyway put a permanent entry on
-# `systemctl --failed`, which is a continuous page through heartbeat P1. Measured on the box
-# 2026-08-13. Both halves are asserted: --check goes GREEN, --check-host goes RED, in one and the
+# `systemctl --failed`. Measured on the box 2026-08-13. That entry holds heartbeat P1 red:
+# one page, then a surface deaf to the next fault (host-detection.md §7, expecter
+# side, 2026-08-17). Both halves are asserted: --check goes GREEN, --check-host goes RED,
+# in one and the
 # same fixture state.
 #
 # Mode-gated because --check asserts the directory mode, which a chmod-less filesystem cannot

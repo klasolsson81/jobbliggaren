@@ -231,6 +231,7 @@
     "errors": {
       "notLoggedIn": "Du är inte inloggad.",
       "invalidInput": "Ogiltiga uppgifter.",
+      "displayNamePersonnummer": "Namnet får inte innehålla ett personnummer. Ändringen sparades inte. Skriv namnet utan personnummer och spara igen.",
       "updateFailed": "Kunde inte uppdatera profilen.",
       "network": "Kunde inte nå servern. Kontrollera din nätverksanslutning.",
       "emailMismatch": "E-postadressen matchar inte ditt konto.",

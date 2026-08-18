@@ -152,11 +152,12 @@ internal static class AutoPromoteGate
         // name — a personnummer riding in it is caught HERE, and the disposition is the same
         // honest "pending, review" (it is a personnummer presence, whichever field carries it).
         //
-        // WHY this arm can fire at all: JobSeeker.Register/UpdateDisplayName validate only
-        // non-empty and length, so a personnummer goes into that plaintext column unrefused —
-        // the invariant Resume.ValidateName carries one aggregate over, for a stated reason
-        // that applies verbatim there. Tracked as #1117 (P1). Until it lands, this guard is
-        // the only control standing on that channel.
+        // WHY this arm can still fire: since #1117, JobSeeker.Register/UpdateDisplayName run
+        // the same personnummer invariant Resume.ValidateName carries, so no CURRENT write
+        // path can put one in that column. The invariant is forward-only — EF materializes an
+        // existing row past the aggregate's factory methods — so what reaches this guard is a
+        // row written BEFORE that invariant landed. This arm is the control standing on those
+        // rows, and it is kept as defense-in-depth rather than retired with the write path.
         var guard = ResumeContentPersonnummerGuard.Check(dto);
         if (guard.IsFailure)
         {

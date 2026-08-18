@@ -1,10 +1,15 @@
-import { describe, it, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { SettingsForm } from "./settings-form";
 import type { JobSeekerProfileDto } from "@/lib/types/me";
 
+const { updateMyProfileActionMock } = vi.hoisted(() => ({
+  updateMyProfileActionMock: vi.fn(),
+}));
+
 vi.mock("@/lib/actions/me", () => ({
-  updateMyProfileAction: vi.fn().mockResolvedValue({ success: true }),
+  updateMyProfileAction: updateMyProfileActionMock,
   // ADR 0080 Vag 4 PR-6: BackgroundMatchCard:s egen action.
   updateNotificationConsentAction: vi.fn().mockResolvedValue({ success: true }),
 }));
@@ -205,5 +210,94 @@ describe("SettingsForm — F6 Prompt 2 smoke", () => {
     expect(
       screen.getByRole("button", { name: /Logga ut/ }),
     ).toBeInTheDocument();
+  });
+});
+
+// #1117 — the payload became PARTIAL: a control sends only what it changed. The reason is not
+// tidiness. The display name now carries a server-side invariant re-evaluated on every write, so
+// a row written before that invariant landed would have its LANGUAGE change refused on the
+// strength of a name the user never touched. Pinned at the CALL SITE, because the schema alone
+// cannot see it: with both fields optional, a regression that re-adds the untouched field parses
+// perfectly and fails only against a real legacy row.
+describe("SettingsForm — partial payload and the field-scoped error seam (#1117)", () => {
+  beforeEach(() => {
+    updateMyProfileActionMock.mockReset();
+    updateMyProfileActionMock.mockResolvedValue({ success: true });
+  });
+
+  function renderForm() {
+    render(
+      <SettingsForm
+        initialProfile={baseProfile}
+        userEmail="klas@example.se"
+        taxonomy={null}
+        initialSkillGroups={[]}
+      />,
+    );
+  }
+
+  it("sends ONLY the language when the language changes", async () => {
+    const user = userEvent.setup();
+    renderForm();
+
+    await user.click(screen.getByRole("radio", { name: "English" }));
+
+    await waitFor(() => expect(updateMyProfileActionMock).toHaveBeenCalledTimes(1));
+    // Exact, not toMatchObject: the whole point is that displayName is ABSENT.
+    expect(updateMyProfileActionMock.mock.calls[0]![0]).toEqual({ language: "en" });
+  });
+
+  it("sends ONLY the display name when the name is saved", async () => {
+    const user = userEvent.setup();
+    renderForm();
+
+    const nameInput = screen.getByLabelText("Namn");
+    await user.clear(nameInput);
+    await user.type(nameInput, "Anna Andersson");
+    await user.click(screen.getByRole("button", { name: /Spara/ }));
+
+    await waitFor(() => expect(updateMyProfileActionMock).toHaveBeenCalledTimes(1));
+    expect(updateMyProfileActionMock.mock.calls[0]![0]).toEqual({
+      displayName: "Anna Andersson",
+    });
+  });
+
+  it("carries the action's field discriminator through to the input it names", async () => {
+    // The seam between the action result and the card. Both ends are pinned in isolation
+    // elsewhere; this is the wire between them, and replacing it with a constant null survives
+    // every one of those isolated tests.
+    updateMyProfileActionMock.mockResolvedValue({
+      success: false,
+      error: "Namnet far inte innehalla ett personnummer.",
+      field: "displayName",
+    });
+    const user = userEvent.setup();
+    renderForm();
+
+    const nameInput = screen.getByLabelText("Namn");
+    await user.clear(nameInput);
+    await user.type(nameInput, "Anna 811218-9876");
+    await user.click(screen.getByRole("button", { name: /Spara/ }));
+
+    await waitFor(() => expect(nameInput).toHaveAttribute("aria-invalid", "true"));
+    const alert = screen.getByRole("alert");
+    expect(nameInput.getAttribute("aria-describedby")).toBe(alert.id);
+  });
+
+  it("leaves the input unmarked when the failure names no field", async () => {
+    updateMyProfileActionMock.mockResolvedValue({
+      success: false,
+      error: "Kunde inte na servern.",
+    });
+    const user = userEvent.setup();
+    renderForm();
+
+    const nameInput = screen.getByLabelText("Namn");
+    await user.clear(nameInput);
+    await user.type(nameInput, "Anna Andersson");
+    await user.click(screen.getByRole("button", { name: /Spara/ }));
+
+    await waitFor(() => expect(screen.getByRole("alert")).toBeInTheDocument());
+    expect(nameInput).not.toHaveAttribute("aria-invalid");
   });
 });

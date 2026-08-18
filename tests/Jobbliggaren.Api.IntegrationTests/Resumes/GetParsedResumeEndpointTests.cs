@@ -8,6 +8,11 @@ using DocumentFormat.OpenXml.Wordprocessing;
 using Jobbliggaren.Api.IntegrationTests.Helpers;
 using Jobbliggaren.Api.IntegrationTests.Infrastructure;
 using Jobbliggaren.Application.Resumes.Common;
+using Jobbliggaren.Infrastructure.Identity;
+using Jobbliggaren.Infrastructure.Persistence;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
 
 namespace Jobbliggaren.Api.IntegrationTests.Resumes;
@@ -261,21 +266,44 @@ public class GetParsedResumeEndpointTests(ApiFactory factory)
         // `owner.DisplayName` with string.Empty survived every other test in this file, because
         // no other fixture's verdict changes when the person name changes.
         //
-        // Every part of the premise is produced by src/: JobSeeker.Register validates only
-        // non-empty and length — which is itself the defect tracked as #1117 (P1), and this
-        // fixture is the evidence for it — so a display name carrying a personnummer goes in
-        // through the real /auth/register endpoint, and the DOCX below is a clean CV the parser reads fine.
-        // The parse itself is therefore NOT flagged — the composed content is, at DQ6, which is
-        // exactly the population the import scan cannot cover (the display name is the one text
-        // the composition adds over the raw superset the import already scanned).
+        // THE ACTOR THAT PRODUCED THIS STATE: rows written before the #1117 invariant landed.
+        // No current path in src/ can produce it — JobSeeker.Register and UpdateDisplayName now
+        // refuse a personnummer-shaped display name, and that refusal is pinned one project over
+        // in Jobbliggaren.Domain.UnitTests (JobSeekerTests, the
+        // Register/UpdateDisplayName_WithPersonnummerShapedDisplayName_ReturnsFailure theories).
+        // So the account is registered through the real endpoint with a CLEAN name, and the
+        // column is then written directly, exactly as a pre-invariant row sits in the database
+        // today: the invariant is forward-only, because EF materializes an existing row through
+        // the private constructor and past the factory methods. That population is precisely
+        // what the DQ6 arm still stands on, which is why the arm was kept rather than retired
+        // with the write path.
+        //
+        // The DOCX below is a clean CV the parser reads fine, so the parse itself is NOT flagged
+        // — the composed content is, at DQ6, which is exactly the population the import scan
+        // cannot cover (the display name is the one text the composition adds over the raw
+        // superset the import already scanned).
         var ct = TestContext.Current.CancellationToken;
         var client = _factory.CreateClient();
+        var email = $"parsed-{Guid.NewGuid():N}@jobbliggaren.test";
         var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(
             client,
-            email: $"parsed-{Guid.NewGuid():N}@jobbliggaren.test",
-            displayName: $"Anna {ValidPersonnummer}",
+            email: email,
+            displayName: "Anna Andersson",
             ct: ct);
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", sessionId);
+
+        await using (var scope = _factory.Services.CreateAsyncScope())
+        {
+            var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+            var user = await userManager.FindByEmailAsync(email)
+                ?? throw new InvalidOperationException("Registered user not found.");
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            // Keyed on THIS account's user id, never on the display name: the fixture shares a
+            // collection, so a name-matched lookup could bind another test's seeker.
+            var seeker = await db.JobSeekers.SingleAsync(js => js.UserId == user.Id, ct);
+            db.Entry(seeker).Property(js => js.DisplayName).CurrentValue = $"Anna {ValidPersonnummer}";
+            await db.SaveChangesAsync(ct);
+        }
 
         var docx = BuildDocx(
             "Anna Andersson", "anna@example.com",

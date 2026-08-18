@@ -356,8 +356,25 @@ public class RegisterCommandHandlerTests
     // ---------- Shared: JobSeeker creation failure (both paths) ----------
 
     [Fact]
-    public async Task Handle_FlagOn_WhenJobSeekerCreationFails_DeletesUserAndSendsNoEmail()
+    public async Task Handle_FlagOn_RefusesADisplayNameBeforeCreatingAnyUser()
     {
+        // #1117 REPLACED THIS TEST'S PREMISE, and the replacement is the point. It used to drive a
+        // BLANK display name and assert the compensation: the user is created, JobSeeker.Register
+        // fails, DeleteUserAsync cleans up. That path is gone — every display-name rule is now
+        // evaluated BEFORE CreateUserAsync, because evaluating it after made the response vary with
+        // whether the address already existed (the #714 status oracle; pinned end to end by
+        // RegisterConfirmationTests.POST_register_personnummer_display_name_returns_identical_400
+        // _for_fresh_and_taken).
+        //
+        // So the property worth pinning inverted: a refused display name must now leave NOTHING
+        // behind — no Identity user to compensate away, and therefore no orphan for the #508 sweep
+        // to collect. Nothing created is strictly stronger than created-then-deleted.
+        //
+        // The compensation arm still stands in the handler as defense-in-depth for a future
+        // JobSeeker.Register failure mode, and it is deliberately NOT pinned here: after this
+        // change its only remaining trigger is an empty userId, which the real Identity adapter
+        // never returns, so a test would have to hand-build a premise production cannot produce
+        // (CLAUDE.md §5 `Tests:`).
         var userId = Guid.NewGuid();
         var userAccountService = UserAccountServiceCreating(userId);
         var emailSender = Substitute.For<IEmailSender>();
@@ -365,12 +382,16 @@ public class RegisterCommandHandlerTests
         var handler = CreateHandler(
             userAccountService: userAccountService, emailSender: emailSender, requireEmailConfirmation: true);
 
-        // Blank display name → JobSeeker.Register fails AFTER the user is created but BEFORE any email.
         var result = await handler.Handle(
-            new RegisterCommand("klas@example.com", "S3kret!pass", "   "), CancellationToken.None);
+            new RegisterCommand("klas@example.com", "S3kret!pass", "Anna 811218-9876"),
+            CancellationToken.None);
 
         result.IsFailure.ShouldBeTrue();
-        await userAccountService.Received(1).DeleteUserAsync(userId, Arg.Any<CancellationToken>());
+        result.Error.Code.ShouldBe("JobSeeker.DisplayNamePersonnummerMustBeRemoved");
+        await userAccountService.DidNotReceive().CreateUserAsync(
+            Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+        await userAccountService.DidNotReceive().DeleteUserAsync(
+            Arg.Any<Guid>(), Arg.Any<CancellationToken>());
         await emailSender.DidNotReceive().SendEmailConfirmationAsync(
             Arg.Any<string>(), Arg.Any<EmailConfirmationEmail>(),
             Arg.Any<CancellationToken>());

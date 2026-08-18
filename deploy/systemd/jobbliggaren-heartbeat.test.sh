@@ -148,12 +148,12 @@ healthy_state() {
   # is how two of the three drifted apart once already. A timer that is is-enabled must appear in
   # list-unit-files too — the box emits exactly that, measured 2026-08-15:
   #   systemctl list-unit-files 'jobbliggaren*' --state=enabled
-  #   -> jobbliggaren-heartbeat.timer / jobbliggaren-reconcile.timer / jobbliggaren-secrets-present.timer
   # Regenerate that command against the box rather than trusting this list to have kept up.
-  printf 'jobbliggaren-reconcile.timer enabled enabled\njobbliggaren-heartbeat.timer enabled enabled\njobbliggaren-secrets-present.timer enabled enabled\n' \
+  # Last regenerated 2026-08-18, when #1175's logship pair was enabled: the box returns FIVE names.
+  printf 'jobbliggaren-reconcile.timer enabled enabled\njobbliggaren-heartbeat.timer enabled enabled\njobbliggaren-secrets-present.timer enabled enabled\njobbliggaren-logship.timer enabled enabled\njobbliggaren-logship-fresh.timer enabled enabled\n' \
     >"$TMPROOT/enabled-timers"
-  printf 'jobbliggaren-reconcile.timer\njobbliggaren-heartbeat.timer\njobbliggaren-secrets-present.timer\n' >"$TMPROOT/active-timers"
-  printf 'jobbliggaren-reconcile.timer\njobbliggaren-heartbeat.timer\njobbliggaren-secrets-present.timer\n' >"$TMPROOT/enabled-set"
+  printf 'jobbliggaren-reconcile.timer\njobbliggaren-heartbeat.timer\njobbliggaren-secrets-present.timer\njobbliggaren-logship.timer\njobbliggaren-logship-fresh.timer\n' >"$TMPROOT/active-timers"
+  printf 'jobbliggaren-reconcile.timer\njobbliggaren-heartbeat.timer\njobbliggaren-secrets-present.timer\njobbliggaren-logship.timer\njobbliggaren-logship-fresh.timer\n' >"$TMPROOT/enabled-set"
   cat >"$TMPROOT/audit.rules" <<'RULES'
 -w /run/jobbliggaren -p rwa -k jbl-key-tmpfs
 -w /etc/sudoers -p wa -k jbl-sudoers

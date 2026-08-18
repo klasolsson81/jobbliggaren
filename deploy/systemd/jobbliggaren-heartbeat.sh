@@ -59,7 +59,13 @@ readonly AUDIT_RULES_FILE=/etc/audit/rules.d/zz-jobbliggaren.rules
 # that is the trigger this block and host-detection.md §7 both name, and check_floor_timers
 # measures is-enabled AND is-active, so an installed-but-disabled unit here would fail every fire.
 # The host-only timer stays out for exactly that reason until #197's credential exists.
-readonly FLOOR_TIMERS="jobbliggaren-reconcile.timer jobbliggaren-heartbeat.timer jobbliggaren-secrets-present.timer"
+#
+# THE LOGSHIP PAIR JOINED 2026-08-18, the day it was enabled on the box (#1175), on the same
+# trigger and not on its install — the files had sat in /etc/systemd/system since 2026-08-15.
+# Arming it is what makes a floor row possible AND what makes one necessary: the shipping
+# service SKIPS without #197's upload credential, and a skip is inactive rather than failed, so
+# a disabled logship timer is on no alarm surface at all. That is the hole the pair closes here.
+readonly FLOOR_TIMERS="jobbliggaren-reconcile.timer jobbliggaren-heartbeat.timer jobbliggaren-secrets-present.timer jobbliggaren-logship.timer jobbliggaren-logship-fresh.timer"
 
 # Free-space floor, in percent. This absorbs the DETECTION half of a disk-usage finding
 # security-auditor routed to #196, which closed without it. The QUOTA half is deliberately not

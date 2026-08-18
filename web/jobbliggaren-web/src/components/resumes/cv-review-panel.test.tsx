@@ -122,8 +122,11 @@ function makeReview(overrides: Partial<CvReviewDto> = {}): CvReviewDto {
 /** Kategorins rad i lager 2. Raderna ersatte korten i #1062 Q1; rubriken är den
  * stabila ankaren i båda formerna. */
 function dimensionRow(cat: string): HTMLElement {
+  // Medvetet UTAN `level`: rangen skiljer sig mellan ytorna (design-M2) och pinnas av
+  // rubriktestet nedan. En locator som band rangen hade gjort varje annat test till ett
+  // andra, tyst rangtest.
   return screen
-    .getByRole("heading", { name: cat, level: 3 })
+    .getByRole("heading", { name: cat })
     .closest(".jp-cvreview__dimension") as HTMLElement;
 }
 
@@ -328,10 +331,9 @@ describe("CvReviewPanel — Att åtgärda (aggregering + sortering)", () => {
   });
 });
 
-// #1062 Q1: lagren har rätt ORDNING och hade fel VIKT. Mätt på levererad kod:
-// kategorikorten tog 2059px av 3577px docH (58 %) på ett svagt CV och 2225px av 3396px
-// (66 %) på ett rent, och de 15 raderna i dem var 15 `Godkänt` — verdikt som redan är
-// avklarade — medan de två åtgärdbara fynden fick ~450px.
+// #1062 Q1: lagren har rätt ORDNING och hade fel VIKT — kategorikorten tog merparten av
+// sidan för att visa verdikt som redan var avklarade. Massmätningen bakom beslutet står i
+// `cv-review-panel.tsx`s docblock; den hör inte hemma i tre filer.
 describe("CvReviewPanel — lager 2 är rader, inte kort (#1062 Q1)", () => {
   function renderDefault() {
     return render(
@@ -345,11 +347,17 @@ describe("CvReviewPanel — lager 2 är rader, inte kort (#1062 Q1)", () => {
     expect(container.querySelectorAll(".jp-cvreview__dimension")).toHaveLength(3);
   });
 
-  it("lager 1 och lager 2 bär var sin h2 — jämlikar under sidans h1", () => {
-    // Före fixen ägde panelen en h2 som upprepade sidans h1, vilket sköt ned "Att
-    // åtgärda" till h3 — samma nivå som kategorikortens rubriker. Rangen bar alltså
-    // peer-läsningen som Q1 river, inte bara typografin.
-    renderDefault();
+  it("kanonisk yta: lagren äger h2, och panelen har ingen egen rubrik", () => {
+    // Där säger sidans h1 "Granskning av ditt CV" — panelen ÄR sidan. Före fixen ägde
+    // panelen en h2 som upprepade den h1:an, vilket sköt ned "Att åtgärda" till h3, samma
+    // nivå som kategorirubrikerna. Rangen bar peer-läsningen, inte bara typografin.
+    render(
+      <CvReviewPanel
+        review={makeReview()}
+        target={{ kind: "canonical", resumeId: CANONICAL_ID }}
+        profile="Ats"
+      />,
+    );
     expect(
       screen.getByRole("heading", { name: "Att åtgärda (4)", level: 2 }),
     ).toBeInTheDocument();
@@ -359,10 +367,33 @@ describe("CvReviewPanel — lager 2 är rader, inte kort (#1062 Q1)", () => {
     expect(
       screen.getByRole("heading", { name: "Innehåll", level: 3 }),
     ).toBeInTheDocument();
-    // …och panelens gamla h2 finns inte kvar som en fjärde rubrik ovanför dem.
     expect(
       screen.queryByRole("heading", { name: "Granskning per kriterium" }),
     ).toBeNull();
+    // Regionen namnges ändå — utan synlig rubrik är aria-label det enda namnet den har.
+    expect(
+      screen.getByRole("region", { name: "Granskning per kriterium" }),
+    ).toBeInTheDocument();
+  });
+
+  it("staging: panelen bär en egen h2 och lagren går ned ett steg (design-M2)", () => {
+    // Där handlar sidans h1 om den importerade FILEN, och granskningen är ett block bland
+    // parse-artefakter. Utan egen rubrik står lagren som jämlikar med artefakterna, och
+    // "Att åtgärda (4)" blir tvetydig om sitt objekt på just den sida som handlar om en
+    // fil. Ett landmark-namn räcker inte: det bär bara till AT.
+    renderDefault();
+    expect(
+      screen.getByRole("heading", { name: "Granskning per kriterium", level: 2 }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Att åtgärda (4)", level: 3 }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Bedömning per dimension", level: 3 }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Innehåll", level: 4 }),
+    ).toBeInTheDocument();
   });
 
   it("håller de Godkända bakom en STÄNGD disclosure — demoterade, aldrig dolda", () => {
@@ -374,7 +405,7 @@ describe("CvReviewPanel — lager 2 är rader, inte kort (#1062 Q1)", () => {
     expect(details.open).toBe(false);
     // Innehåll har ETT Godkänt (A2). Det står i DOM:en även stängt — samma gräns som
     // honesty-invarianten drar för "Ej bedömt".
-    expect(within(details).getByText("1 godkänt kriterium")).toBeInTheDocument();
+    expect(within(details).getByText("Godkänt kriterium")).toBeInTheDocument();
     expect(within(details).getByText("Kontaktuppgifter")).toBeInTheDocument();
   });
 
@@ -383,6 +414,34 @@ describe("CvReviewPanel — lager 2 är rader, inte kort (#1062 Q1)", () => {
     const scope = within(dimensionRow("Innehåll"));
     expect(scope.queryByText("Mätbara resultat")).toBeNull(); // A1 Fail → lager 1
     expect(scope.queryByText("Karriärutveckling")).toBeNull(); // A3 NotAssessed → lager 3
+  });
+
+  it("ger VARJE dimension sin räknarrad, inte bara den första", () => {
+    // Mätt av test-writer: en `CategoryTally` som returnerade null för Språk och Struktur
+    // passerade hela Q2-blocket, därför att varje fixtur DÄR bär en enda kategori.
+    // Kontrafaktumet hör alltså hemma på den flerdimensionella fixturen, inte hos Q2.
+    renderDefault();
+    for (const cat of ["Innehåll", "Språk", "Struktur"]) {
+      expect(tallyOf(dimensionRow(cat))).not.toBeNull();
+    }
+  });
+
+  it("böjer disclosurens etikett i BÅDA pluralgrenarna", () => {
+    // `passSummary` är en ny ICU-pluralnyckel, och `todoEmptyUnassessed` i den här filen
+    // har båda grenarna pinnade. En ny nyckel får inte ha lägre krav än den befintliga.
+    // Scopat till EN rad: singularis-grenen renderas av två dimensioner i den här
+    // fixturen (Innehåll och Struktur bär ett Godkänt var), så en sökning utan scope mäter
+    // hur många kategorier som råkar ha exakt ett Godkänt, inte vilken gren som valdes.
+    const { unmount } = renderDefault();
+    expect(
+      within(dimensionRow("Innehåll")).getByText("Godkänt kriterium"),
+    ).toBeInTheDocument();
+    unmount();
+
+    renderTally(ALL_NONZERO);
+    expect(
+      within(dimensionRow("Innehåll")).getByText("Godkända kriterier"),
+    ).toBeInTheDocument();
   });
 
   it("renderar INGEN disclosure på en dimension utan Godkänt", () => {
@@ -397,7 +456,7 @@ describe("CvReviewPanel — lager 2 är rader, inte kort (#1062 Q1)", () => {
     const { container } = renderDefault();
     expect(
       container.querySelector(".jp-cvreview__coverage")?.textContent,
-    ).toBe("6 av 42 kriterier bedöms.");
+    ).toBe("6 av 42 kriterier är bedömda.");
     expect(
       container.querySelector(".jp-cvreview__coverage-note")?.textContent ?? "",
     ).toMatch(/räknas som ej bedömda och sänker inte omdömet\./);
@@ -457,8 +516,9 @@ describe("CvReviewPanel — räknarna per dimension (#1062 Q2)", () => {
 
   it("utelämnar hela raden på den obandade dimensionen, där meningen ovanför bär talet", () => {
     // Den enda platsen där raden bara skulle upprepa en mening ordagrant: CategoryBand
-    // skriver redan "Inget av de 8 kriterierna kunde bedömas". Villkoret är DEN
-    // meningens villkor (band===null && assessed===0), inte assessed===0 ensamt.
+    // skriver redan "Inget av de 8 kriterierna kunde bedömas". Grinden är DEN meningens
+    // egen. Att dess första konjunkt är redundant mot dagens motor står i CategoryTally:s
+    // docblock — testet mäter beteendet, inte grindens form.
     const unmeasured = makeReview({
       verdicts: [verdict("E1", "Layout", "VisualQuality", "NotAssessed")],
       criticalFails: [],
@@ -568,7 +628,13 @@ describe("CvReviewPanel — bandet står aldrig utan sitt underlag (#1062 B1/M1/
   it("frånvaromeningen grindas på att inget bedömdes, inte på att bandet saknas", () => {
     // Meningen PÅSTÅR "inget av de N kriterierna kunde bedömas". Backend håller
     // band===null och assessed===0 ekvivalenta idag — men bara därför att rubrikens
-    // vikter alla är > 0. En rubrikbump med en nollviktad nivå ger weightSum===0 med
+    // vikter alla är > 0. ⚠ Mätt 2026-08-18: `rubric.v2.3.0.json` bär vikterna 3/2/1/0.5,
+    // så INGEN väg i `src/` producerar det här tillståndet just nu. Aktören som skulle
+    // göra det är en ren rubrik-databump: `RubricLoader.MapToContract` mappar
+    // `file.Weights` rakt igenom och validerar id-prefix, critical-fail-ids, style-only,
+    // profilsignaler och trösklar — men har ingen viktpositivitets-validering alls.
+    // Assertionen är därför §5:s tillåtna form: läs-sidan degraderar säkert, aldrig ett
+    // påstående om vad producenten gör. En rubrikbump med en nollviktad nivå ger weightSum===0 med
     // bedömda kriterier kvar, och då hade sidan skrivit ut ett påstående som räknarna
     // på raden under motbevisar: B1:s felklass, inverterad.
     const zeroWeighted = makeReview({
@@ -771,12 +837,14 @@ describe("CvReviewPanel — statuskontroller (kanonisk vs parsad target)", () =>
 });
 
 describe("CvReviewPanel — copy + invarianter", () => {
-  it("summary säger 'bedöms.' utan versions-token 'v1' (C)", () => {
+  it("summary står utan versions-token 'v1' (C), i samma böjning som täckningen", () => {
+    // design-m4: "bedöms" och "bedömda" stod intill varandra om samma faktum. Partikip-
+    // formen vann — den förekommer fyra gånger per sida i band-täckningen mot summaryns en.
     render(
       <CvReviewPanel review={makeReview()} target={{ kind: "parsed", parsedId: PARSED_ID }} profile="Ats" />,
     );
     expect(
-      screen.getByText(/6 av 42 kriterier bedöms\./),
+      screen.getByText(/6 av 42 kriterier är bedömda\./),
     ).toBeInTheDocument();
     // Rubrik-versionstaggen står kvar, men ingen "v1"-jargong i prosan.
     expect(screen.getByText("Rubrik 1.0.0")).toBeInTheDocument();
@@ -792,11 +860,11 @@ describe("CvReviewPanel — copy + invarianter", () => {
 
   it("degraderar civilt när review är null (role=status, sid-skalet kvar)", () => {
     render(<CvReviewPanel review={null} target={{ kind: "parsed", parsedId: PARSED_ID }} profile="Ats" />);
-    // Panelen bär inget eget innehålls-h2 sedan #1062 Q1 — regionen NAMNGES i stället,
-    // så den står kvar som en landmark på en sida full av parse-artefakter utan att
-    // upprepa sidans h1.
+    // Frånvaro-grenen bär ALLTID rubriken, på båda ytorna: den har inga lager och alltså
+    // ingen rangkonflikt, och utan den stod notisen i en region utan synligt namn
+    // (design-M2, det skarpaste fallet).
     expect(
-      screen.getByRole("region", { name: "Granskning per kriterium" }),
+      screen.getByRole("heading", { name: "Granskning per kriterium", level: 2 }),
     ).toBeInTheDocument();
     expect(screen.getByRole("status")).toHaveTextContent(
       /Granskningen kunde inte laddas just nu/,

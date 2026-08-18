@@ -87,7 +87,7 @@
     "todoEmpty": "{assessedCount, plural, =0 {No criterion could be assessed, so the review points out nothing to fix.} one {The only criterion that could be assessed needs no action.} other {None of the # assessed criteria need action.}}",
     "todoEmptyUnassessed": "{count, plural, one {# criterion could not be assessed.} other {# criteria could not be assessed.}}",
     "categoriesTitle": "Verdict by dimension",
-    "passSummary": "{count, plural, one {# passed criterion} other {# passed criteria}}",
+    "passSummary": "{count, plural, one {Passed criterion} other {Passed criteria}}",
     "unassessedSummary": "Not assessed ({count})",
     "band": {
       "coverage": "{assessed} of {total} criteria assessed",

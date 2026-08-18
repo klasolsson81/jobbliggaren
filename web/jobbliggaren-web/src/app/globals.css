@@ -5991,6 +5991,24 @@ a.jp-adminnav__link[aria-current="page"]::after {
   line-height: 1.5;
   max-width: 68ch;
 }
+/* #1062 design-M1: gränsen mellan två SEKTIONER måste mäta mer än gränsen mellan två
+   syskon inuti en sektion, och efter Q1:s kollaps gjorde den inte det — mätt på den
+   renderade ytan låg de två gränserna mellan olika saker lika högt som eller lägre än
+   gränsen mellan två likadana. `.jp-cvreview`s gap kalibrerades när lagren var lådor med
+   egen ram; kollapsen tog bort behållaren men flyttade aldrig behållarens uppgift.
+   Sektionerna får därför sin egen marginal ovanpå panelens gap, och täckningsparet buntas
+   ihop så att lyftet inte drar isär en mening från sin egen stödrad. Talen står i
+   PR-kroppen: de mäter renderad geometri och skulle dö här vid nästa spacing-ändring. */
+.jp-cvreview__todo,
+.jp-cvreview__dimensions,
+.jp-cvreview__unassessed {
+  margin-top: 16px;
+}
+.jp-cvreview__coverage-block {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
 /* Hederlighetsklausulen och rubrikversionen är villkoren täckningen läses under, inte
    påståendet — de stöder från raden under den. */
 .jp-cvreview__coverage-note {
@@ -6073,13 +6091,13 @@ a.jp-adminnav__link[aria-current="page"]::after {
   line-height: 1.5;
   max-width: 68ch;
 }
-/* Lager 2 — "Bedömning per dimension" (#1062 Q1 punkt 2). Fyra RADER i stället för
-   fyra kort: korten mätte 2059px av 3577px docH (58 %) på ett svagt CV och 2225px av
-   3396px (66 %) på ett rent, och de 15 raderna i dem var 15 `Godkänt`. Referensmaterial
-   ska inte äga sidans mitt.
-   Egen klass och inte `.jp-cvreview__categories`: den delas med förbättringsytan
-   (`cv-improve-panel.tsx`), som fortfarande renderar kort och behöver deras mellanrum.
-   Varje rad bär en topplinje, även den första — då blir linjen under h2:an sektionens
+/* Lager 2 — "Bedömning per dimension" (#1062 Q1 punkt 2). Fyra RADER i stället för fyra
+   kort, därför att avklarade verdikt inte ska äga sidans mitt; massmätningen som bar det
+   beslutet står i `cv-review-panel.tsx`s docblock och i PR #1393.
+   Egen klass och inte `.jp-cvreview__categories`: den klassen renderar kort, och sedan
+   det här deltat är förbättringsytan (`cv-improve-panel.tsx`) dess enda konsument — att
+   peka om den hade ändrat en yta som inte är med i den här ändringen.
+   Varje rad bär en topplinje, även den första — då blir linjen under rubriken sektionens
    egen rubriklinje i stället för ett specialfall. */
 .jp-cvreview__dimensions {
   display: flex;
@@ -6126,8 +6144,11 @@ a.jp-adminnav__link[aria-current="page"]::after {
   align-items: baseline;
   gap: 4px;
 }
+/* Separatorn är dekor, inte innehåll. `content` exponeras i a11y-trädet, så mätt på den
+   levererade sidan lade den 12 lösa "·"-noder i uppläsningen; alt-formen `"·" / ""` ger
+   den ett tomt tillgängligt namn utan att ändra något visuellt (#1062 design-m3). */
 .jp-cvreview__tally-item + .jp-cvreview__tally-item::before {
-  content: "·";
+  content: "·" / "";
   color: var(--jp-ink-3);
 }
 .jp-cvreview__tally-value {
@@ -6139,8 +6160,10 @@ a.jp-adminnav__link[aria-current="page"]::after {
 /* De Godkända bakom varsin disclosure: de är avklarade verdikt och därmed
    referensmaterial. Demotering, aldrig döljande — raderna står i DOM:en och är
    tangentbordsnåbara, vilket är samma gräns honesty-invarianten drar för "Ej bedömt".
-   Träffytan följer DESIGN.md §5: 32px i appen, 44px på touch (samma mönster och samma
-   brytpunkt som `.jp-backlink` och `.jp-criterionrow`). */
+   Träffytan har TVÅ golv ur två källor, och de blandas inte ihop: 44px på touch är
+   DESIGN.md §5, 32px i appen är `jobbpilot-design-a11y` §9. Bara touch-golvet DEKLARERAS
+   här — 32px nås av arv (radhöjd + padding), precis som `.jp-criterionrow`, medan
+   `.jp-backlink` deklarerar sitt. Brytpunkten är densamma som bådas. */
 .jp-cvreview__pass-summary {
   padding: 8px 0;
   font-size: var(--text-caption);
@@ -6188,7 +6211,11 @@ a.jp-adminnav__link[aria-current="page"]::after {
 }
 .jp-cvreview__unassessed-summary::before,
 .jp-cvreview__pass-summary::before {
-  content: "▸";
+  /* Samma alt-form som tally-separatorn: markören är dekor och hörde aldrig hemma i
+     disclosurens tillgängliga NAMN — `<details>` annonserar sitt öppet/stängt-tillstånd
+     självt. Deltat multiplicerade markören 1 -> 5, och att den redan hade EN hemvist är
+     varför fixen är en rad (#1062 design-m3). */
+  content: "▸" / "";
   display: inline-block;
   margin-right: 8px;
   color: var(--jp-ink-3);

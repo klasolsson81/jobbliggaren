@@ -108,13 +108,18 @@ export default async function CvGranskningPage() {
               ) : null}
               {item.quote !== null ? (
                 <ul className="jp-criterion__evidence">
+                  {/* Same order as CvCriterionVerdict's EvidenceItem (#1062 minor 6):
+                      the diagnosis leads, the quote supports. This page hand-rolls the
+                      markup instead of reusing the component, so the inversion does not
+                      reach it on its own — and a marketing page that shows a hierarchy
+                      the product no longer produces is a mirror that lies. */}
                   <li className="jp-criterion__evidence-item">
-                    <blockquote className="jp-criterion__quote">
-                      {item.quote}
-                    </blockquote>
                     {item.note !== null ? (
                       <p className="jp-criterion__note">{item.note}</p>
                     ) : null}
+                    <blockquote className="jp-criterion__quote">
+                      {item.quote}
+                    </blockquote>
                   </li>
                 </ul>
               ) : null}

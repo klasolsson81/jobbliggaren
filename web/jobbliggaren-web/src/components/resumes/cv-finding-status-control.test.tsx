@@ -154,15 +154,18 @@ describe("CvFindingStatusControl — pill + hjälptext per status", () => {
 
   it("de tre andra tillstånden behåller sin hjälptext", () => {
     // Kontrafaktum: utan det hade en borttagen hint-rendering i ALLA tillstånd
-    // passerat testet ovan.
-    const { container, unmount } = renderControl({ userStatus: "Resolved" });
-    expect(container.querySelectorAll(".jp-cvreview__status-hint")).toHaveLength(1);
-    unmount();
-
-    const ignored = renderControl({ userStatus: "Ignored", isIgnorable: true });
-    expect(
-      ignored.container.querySelectorAll(".jp-cvreview__status-hint"),
-    ).toHaveLength(1);
+    // passerat testet ovan. Alla tre mäts — namnet lovade tre och kroppen bar två.
+    for (const props of [
+      { userStatus: "Resolved", userStatusStaleAt: null },
+      { userStatus: "Resolved", userStatusStaleAt: "2026-07-10T08:00:00Z" },
+      { userStatus: "Ignored", isIgnorable: true },
+    ]) {
+      const { container, unmount } = renderControl(props);
+      expect(
+        container.querySelectorAll(".jp-cvreview__status-hint"),
+      ).toHaveLength(1);
+      unmount();
+    }
   });
 
   it("uttalat Open: samma representation som ett oregistrerat beslut", () => {

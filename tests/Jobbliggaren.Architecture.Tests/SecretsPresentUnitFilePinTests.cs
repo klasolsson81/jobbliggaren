@@ -112,10 +112,16 @@ public class SecretsPresentUnitFilePinTests
     /// A unit that fires before the operator has finished injecting sits on
     /// <c>systemctl --failed</c> until its next run. For the crypto timer that is at most ten
     /// minutes; for an hourly timer a 2-minute offset would leave a stale failure lit for nearly
-    /// an hour, and <c>jobbliggaren-heartbeat.timer</c> fail-pages on every name in that list every
-    /// fifteen minutes. An alarm lit for a condition that no longer exists trains an operator to
-    /// stop reading the only alarm surface there is — which is the doctrine these units are
-    /// written against, so reproducing it here would be self-defeating.
+    /// an hour, and <c>jobbliggaren-heartbeat.timer</c> would page once at the transition and then
+    /// leave that surface deaf to the next fault for the rest of it. <b>The cost is the deafness,
+    /// not a burst of pages</b> — <c>systemctl --failed</c> latches and the expecter notifies on
+    /// the transition (#1397, measured 2026-08-17). What derives 20 is not a window-length
+    /// optimum: the assertion's own reason cites the house value
+    /// with two hourly siblings on DIFFERENT offsets (backup-fresh 20min, logship-fresh 25min), and
+    /// a window-length optimum could not make both correct. What this offset buys is room to inject
+    /// before the first fire. An alarm lit for a condition that no longer exists also
+    /// trains an operator to stop reading the only alarm surface there is — which is the doctrine
+    /// these units are written against, so reproducing it here would be self-defeating.
     /// </para>
     /// </summary>
     [Fact]

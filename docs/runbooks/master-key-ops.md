@@ -123,8 +123,9 @@ holds the crypto alarm down.
 
 **And a permanently failed unit is not merely an unread list.** Where `jobbliggaren-heartbeat.timer`
 is enabled and reaching its expecter, P1 in `jobbliggaren-heartbeat.sh` is `systemctl --failed`
-being *clean*, so a permanently failed unit fail-pages on every heartbeat run and makes M-7's P1
-vacuous for as long as it stands. The other failed units are still *listed* — `check_failed_units`
+being *clean*, so a permanently failed unit holds that surface red and makes M-7's P1 vacuous for
+as long as it stands — one page at the transition, then silence, never a page per run
+(`jobbliggaren-heartbeat.sh` carries the grounding). The other failed units are still *listed* — `check_failed_units`
 posts every name — but a predicate that is false continuously carries no information, which is the
 same argument `jobbliggaren-heartbeat.sh` makes for its own exit contract. It records the same
 sequencing for the same reason.

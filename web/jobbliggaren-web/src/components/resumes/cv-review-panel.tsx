@@ -1,11 +1,5 @@
 import { useTranslations } from "next-intl";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { StatusPill, type PillTone } from "@/components/ui/status-pill";
+import { StatusPill } from "@/components/ui/status-pill";
 import { CvProfileToggle } from "@/components/resumes/cv-profile-toggle";
 import { CvCriterionVerdict } from "@/components/resumes/cv-criterion-verdict";
 import { CvFindingStatusControl } from "@/components/resumes/cv-finding-status-control";
@@ -18,19 +12,30 @@ import type {
 } from "@/lib/dto/parsed-resume";
 
 /**
- * CV-granskningspanel (F4-9). RSC. Surfacerar den deterministiska granskningen i
- * tre lager top-down (REVIEW-IA-REDESIGN B):
+ * CV-granskningspanel (F4-9). RSC. Tre lager top-down — rätt ORDNING sedan
+ * REVIEW-IA-REDESIGN B, rätt VIKT sedan #1062 Q1:
  *   1. "Att åtgärda" — alla åtgärdbara verdikt (Underkänt/Delvis) över ALLA
- *      kategorier, severitets-sorterade (Underkänt före Delvis, kritiska först).
- *   2. Per kategori — band med sin täckning + räknare + de Godkända verdikten.
+ *      kategorier, severitets-sorterade. Sidans huvudinnehåll: egen h2, full
+ *      bredd, inget kort-krom.
+ *   2. "Bedömning per dimension" — EN rad per kategori (band med sin täckning +
+ *      en demoterad räknarrad), med de Godkända bakom en disclosure.
  *   3. "Ej bedömt" — en kollapsad, lågprioriterad disclosure längst ned.
+ *
+ * Vikten mättes: kategorikorten tog 2059px av 3577px (58 %) på ett svagt CV och
+ * 2225px av 3396px (66 %) på ett rent, och de 15 raderna i dem var 15 `Godkänt`
+ * — verdikt som redan är avklarade — medan de två åtgärdbara fynden fick ~450px.
+ * Formen byggdes när granskaren var ett av flera CV-verktyg; efter ADR 0112 ÄR
+ * den produkten, och då är referensmaterialet det som ska kollapsa.
+ *
  * Ingen opak totalpoäng (Goodhart, §5/ADR 0074) — band + räknare per dimension =
  * förklarbart. Honesty-invarianten (ADR 0074): "Ej bedömt" får demoteras men
  * ALDRIG döljas eller om-etiketteras som bedömt — och sedan #1062 B1 inte heller
  * renderas som en LÅG grad: en kategori utan bedömda kriterier bär inget band alls
- * (se `CategoryBand`). När `review` är null (granskningen
- * kunde inte laddas) degraderas vyn civilt — parse-vyn står kvar, granskningen
- * ersätts av en notis (sidan 404:ar aldrig på detta).
+ * (se `CategoryBand`). Kollapsen ändrar inget i den invarianten: ett `<details>`
+ * är demotering, inte döljande — innehållet står i DOM:en och är tangentbords-
+ * nåbart. När `review` är null (granskningen kunde inte laddas) degraderas vyn
+ * civilt — parse-vyn står kvar, granskningen ersätts av en notis (sidan 404:ar
+ * aldrig på detta).
  */
 
 /**
@@ -54,6 +59,11 @@ function toggleBasePath(target: CvReviewTarget): string {
  * (Warn). Endast åtgärdbara verdikt sorteras här. */
 const SEVERITY_RANK: Record<"Fail" | "Warn", number> = { Fail: 0, Warn: 1 };
 
+/** Antalet kriterier i kategorin som faktiskt fick ett verdikt. */
+function assessedIn(category: CvReviewCategoryDto): number {
+  return category.passCount + category.warnCount + category.failCount;
+}
+
 /**
  * Bandet med sin TÄCKNING, eller den uttalade frånvaron av ett band (#1062 B1/M1/M2).
  *
@@ -63,6 +73,11 @@ const SEVERITY_RANK: Record<"Fail" | "Warn", number> = { Fail: 0, Warn: 1 };
  * typografiskt identiskt med `Toppskikt` av 10 (M2) — mätt: 3 av 4 band var lika på
  * ett svagt och ett rent CV. Bandet renderas därför aldrig utan sin täckning bredvid
  * sig, i samma block, så en skärmläsare läser dem i följd.
+ *
+ * M1:s residual — att pillen och räknarna inte var typografiskt åtskilda — stängs av
+ * Q2, som tar räknarna ur `--text-h3`/bold/tonfärg och ned i brödtext: pillen är
+ * verdiktet, raden under den är dess sammansättning, och de läser inte längre som
+ * jämlikar.
  *
  * `band === null` är inte "lägsta graden" utan INGEN grad. Frånvaron skrivs ut i
  * klartext i stället för att förmedlas genom att en pill saknas — samma lärdom som
@@ -81,8 +96,7 @@ function CategoryBand({
   t: ReturnType<typeof useTranslations<"resumes">>;
   tEnum: ReturnType<typeof useTranslations<"resumes.enums">>;
 }) {
-  const assessed =
-    category.passCount + category.warnCount + category.failCount;
+  const assessed = assessedIn(category);
   const total = assessed + category.notAssessedCount;
 
   if (category.band === null) {
@@ -90,8 +104,8 @@ function CategoryBand({
     // inte på `band === null`. Backend håller de två ekvivalenta idag, men bara
     // därför att rubrikens vikter alla är > 0; en rubrikbump med en nollviktad nivå
     // ger `weightSum === 0` med bedömda kriterier kvar, och då hade sidan skrivit ut
-    // ett påstående som de tre räknarna på raden under motbevisar. Ett band vi inte
-    // fick, med bedömda kriterier bakom sig, visar sin täckning utan pill.
+    // ett påstående som räknarraden under motbevisar. Ett band vi inte fick, med
+    // bedömda kriterier bakom sig, visar sin täckning utan pill.
     return assessed === 0 ? (
       <p className="jp-cvreview__band-unassessed">
         {t("review.band.unassessed", { count: total })}
@@ -116,38 +130,108 @@ function CategoryBand({
   );
 }
 
-/** Räknar-rad: visar alltid etikett + siffra (status aldrig enbart färg, WCAG
- * 1.4.1). Toner speglar verdict-tonerna för visuell koppling. */
-function CategoryCounts({
+/**
+ * Räknarna per kategori (#1062 Q2). Etikett + siffra, alltid båda — status aldrig
+ * enbart färg (WCAG 1.4.1) — men MEDIET är bytt, inte informationen: fyra boxade tal
+ * i `--text-h3`/bold/tonfärg är nu en rad i brödtext. Mätt: de tog den starkaste
+ * typografiska positionen i varje kort medan varje siffra räknade rader sidan redan
+ * visade (`rowsInCard === Godkänt` på 12 av 12 kategori/yta-par). Efter Q1:s kollaps
+ * ligger de Godkända bakom en stängd disclosure, så raden räknar numera något som
+ * inte står synligt bredvid den.
+ *
+ * Nollor undertrycks: på ett rent CV var 8 av 16 celler `0`, och en nolla är inget
+ * fynd. Varje räknare som INTE är noll renderas.
+ *
+ * Hela raden utelämnas i det ena fallet där den bara skulle upprepa en mening ordagrant
+ * ovanför sig: den obandade kategorin, där `CategoryBand` redan skriver ut "Inget av de
+ * N kriterierna kunde bedömas" — samma tal, i ord. Villkoret är därför exakt det villkor
+ * DEN meningen grindas på, inte `assessed === 0` ensamt, så en framtida rubrikbump som
+ * skiljer de två åt inte tystar raden.
+ */
+function CategoryTally({
   category,
   t,
 }: {
   category: CvReviewCategoryDto;
   t: ReturnType<typeof useTranslations<"resumes">>;
 }) {
-  const counts: ReadonlyArray<{ label: string; value: number; tone: PillTone }> = [
-    { label: t("review.counts.pass"), value: category.passCount, tone: "success" },
-    { label: t("review.counts.warn"), value: category.warnCount, tone: "warning" },
-    { label: t("review.counts.fail"), value: category.failCount, tone: "danger" },
+  const assessed = assessedIn(category);
+  if (category.band === null && assessed === 0) return null;
+
+  const counts: ReadonlyArray<{ key: string; label: string; value: number }> = [
+    { key: "pass", label: t("review.counts.pass"), value: category.passCount },
+    { key: "warn", label: t("review.counts.warn"), value: category.warnCount },
+    { key: "fail", label: t("review.counts.fail"), value: category.failCount },
     {
+      key: "notAssessed",
       label: t("review.counts.notAssessed"),
       value: category.notAssessedCount,
-      tone: "neutral",
     },
   ];
+  const present = counts.filter((count) => count.value > 0);
+  if (present.length === 0) return null;
+
   return (
-    <dl className="jp-cvreview__counts">
-      {counts.map((count) => (
-        <div
-          key={count.label}
-          className="jp-cvreview__count"
-          data-tone={count.tone}
-        >
-          <dt className="jp-cvreview__count-label">{count.label}</dt>
-          <dd className="jp-cvreview__count-value">{count.value}</dd>
+    <dl className="jp-cvreview__tally">
+      {present.map((count) => (
+        <div key={count.key} className="jp-cvreview__tally-item">
+          <dt>{count.label}</dt>
+          <dd className="jp-cvreview__tally-value">{count.value}</dd>
         </div>
       ))}
     </dl>
+  );
+}
+
+/**
+ * Lager 2, en kategori = EN rad (#1062 Q1 punkt 2). Namn + band-med-täckning +
+ * räknarrad; de Godkända verdikten ligger bakom en disclosure, för de är
+ * referensmaterial och inte produkten.
+ *
+ * Disclosuren renderas bara när det FINNS Godkänt att visa — en `<summary>` som
+ * öppnar tomrum är en affordans som ljuger. Raden i sig är samma element i båda
+ * fallen, så en kategori utan Godkänt läser som en kategori och inte som ett fel.
+ *
+ * Den stänger också en lucka design-reviewer mätte men inte graderade: mellan sista
+ * statusknappen och "Ej bedömt"-disclosuren låg 2159px utan ett enda tab-stopp, så en
+ * tangentbordsanvändare hade ingen väg att röra sig mellan kategorierna. Nu har varje
+ * kategori ett.
+ */
+function CategoryRow({
+  category,
+  passVerdicts,
+  t,
+  tEnum,
+}: {
+  category: CvReviewCategoryDto;
+  passVerdicts: ReadonlyArray<CvCriterionVerdictDto>;
+  t: ReturnType<typeof useTranslations<"resumes">>;
+  tEnum: ReturnType<typeof useTranslations<"resumes.enums">>;
+}) {
+  return (
+    <div className="jp-cvreview__dimension">
+      <div className="jp-cvreview__dimension-head">
+        <h3 className="jp-cvreview__dimension-name">
+          {categoryLabel(tEnum, category.category)}
+        </h3>
+        <CategoryBand category={category} t={t} tEnum={tEnum} />
+      </div>
+
+      <CategoryTally category={category} t={t} />
+
+      {passVerdicts.length > 0 && (
+        <details className="jp-cvreview__pass">
+          <summary className="jp-cvreview__pass-summary">
+            {t("review.passSummary", { count: passVerdicts.length })}
+          </summary>
+          <div className="jp-cvreview__verdicts">
+            {passVerdicts.map((verdict) => (
+              <CvCriterionVerdict key={verdict.criterionId} verdict={verdict} />
+            ))}
+          </div>
+        </details>
+      )}
+    </div>
   );
 }
 
@@ -164,12 +248,14 @@ export function CvReviewPanel({
   const tEnum = useTranslations("resumes.enums");
   const basePath = toggleBasePath(target);
 
+  // Panelen bär inget eget innehålls-h2 längre (#1062 Q1 + minor 1). Sidans h1 säger
+  // redan "Granskning av ditt CV", och en h2 som upprepade den sköt ned varje lager ett
+  // steg — "Att åtgärda" hamnade på h3, jämsides med kategorikortens rubriker, vilket
+  // är precis den peer-läsning Q1 river. Lagren äger nu h2, och regionen får sitt namn
+  // via aria-label i stället för via en synlig rubrik som inte bär information.
   if (review === null) {
     return (
-      <section className="jp-cvreview" aria-labelledby="cvreview-title">
-        <h2 id="cvreview-title" className="jp-cvreview__title">
-          {t("review.title")}
-        </h2>
+      <section className="jp-cvreview" aria-label={t("review.title")}>
         <div className="jp-cvreview__profile">
           <CvProfileToggle basePath={basePath} profile={profile} />
         </div>
@@ -205,34 +291,40 @@ export function CvReviewPanel({
   );
 
   return (
-    <section className="jp-cvreview" aria-labelledby="cvreview-title">
-      <h2 id="cvreview-title" className="jp-cvreview__title">
-        {t("review.title")}
-      </h2>
-
+    <section className="jp-cvreview" aria-label={t("review.title")}>
       <div className="jp-cvreview__profile">
         <CvProfileToggle basePath={basePath} profile={profile} />
       </div>
 
-      <p className="jp-cvreview__summary">
+      {/* Täckningsberättelsen lyft (#1062 Q1 punkt 3): "17 av 35 kriterier bedöms" är
+          sidans mest bärande mening — den säger hur mycket av CV:t som faktiskt blev
+          granskat — och stod på samma `--text-body-sm` som brödtexten runt den, med de
+          18 obedömda 3051px längre ned. Den leder nu; hederlighetsklausulen och
+          rubrikversionen stöder från raden under. */}
+      <p className="jp-cvreview__coverage">
         {t("review.summary", {
           assessedCount: review.assessedCount,
           totalCount: review.totalCount,
-        })}{" "}
+        })}
+      </p>
+      <p className="jp-cvreview__coverage-note">
+        {t("review.summaryNote")}{" "}
         <span className="jp-cvreview__rubric">
           {t("review.rubric", { version: review.rubricVersion })}
         </span>
       </p>
 
-      {/* Lager 1 — Att åtgärda */}
-      <div
+      {/* Lager 1 — Att åtgärda. Sidans huvudinnehåll: egen h2, full bredd, inget
+          kort-krom. Före #1062 Q1 bar det samma vita kort-krom som de fyra
+          kategorikorten, skilt bara av `--jp-border-strong` mot deras `--jp-border`
+          — vid 1px nära osynligt — så det läste som en låda bland lådor. */}
+      <section
         className="jp-cvreview__todo"
-        role="region"
         aria-labelledby="cvreview-todo-title"
       >
-        <h3 id="cvreview-todo-title" className="jp-cvreview__todo-title">
+        <h2 id="cvreview-todo-title" className="jp-cvreview__todo-title">
           {t("review.todoTitle", { count: actionable.length })}
-        </h3>
+        </h2>
         {actionable.length === 0 ? (
           // #1062 minor 3: "Inget kräver åtgärd just nu." stod ensamt medan 18 av 35
           // kriterier aldrig bedömdes — en mening som läses som ett utlåtande om HELA
@@ -271,41 +363,35 @@ export function CvReviewPanel({
             ))}
           </div>
         )}
-      </div>
+      </section>
 
-      {/* Lager 2 — Per kategori (band + räknare + det som redan är godkänt) */}
-      <div className="jp-cvreview__categories">
-        {review.categories.map((category) => {
-          const passVerdicts = review.verdicts.filter(
-            (verdict) =>
-              verdict.category === category.category &&
-              verdict.verdict === "Pass",
-          );
-          return (
-            <Card key={category.category}>
-              <CardHeader>
-                <CardTitle asChild>
-                  <h3>{categoryLabel(tEnum, category.category)}</h3>
-                </CardTitle>
-                <CategoryBand category={category} t={t} tEnum={tEnum} />
-              </CardHeader>
-              <CardContent>
-                <CategoryCounts category={category} t={t} />
-                {passVerdicts.length > 0 && (
-                  <div className="jp-cvreview__verdicts">
-                    {passVerdicts.map((verdict) => (
-                      <CvCriterionVerdict
-                        key={verdict.criterionId}
-                        verdict={verdict}
-                      />
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          );
-        })}
-      </div>
+      {/* Lager 2 — Bedömning per dimension. En rad per kategori; de Godkända bakom
+          varsin disclosure. Rubriken bär information i stället för att upprepa h1:an
+          (minor 1: h1 "Granskning av ditt CV" → h2 "Granskning"). */}
+      <section
+        className="jp-cvreview__dimensions"
+        aria-labelledby="cvreview-dimensions-title"
+      >
+        <h2
+          id="cvreview-dimensions-title"
+          className="jp-cvreview__dimensions-title"
+        >
+          {t("review.categoriesTitle")}
+        </h2>
+        {review.categories.map((category) => (
+          <CategoryRow
+            key={category.category}
+            category={category}
+            passVerdicts={review.verdicts.filter(
+              (verdict) =>
+                verdict.category === category.category &&
+                verdict.verdict === "Pass",
+            )}
+            t={t}
+            tEnum={tEnum}
+          />
+        ))}
+      </section>
 
       {/* Lager 3 — Ej bedömt (kollapsad, lågprioriterad, men aldrig dold) */}
       {notAssessed.length > 0 && (

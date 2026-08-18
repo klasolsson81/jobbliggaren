@@ -5978,10 +5978,25 @@ a.jp-adminnav__link[aria-current="page"]::after {
 .jp-cvreview__profile {
   display: flex;
 }
-.jp-cvreview__summary {
+/* #1062 Q1: täckningsberättelsen leder. "17 av 35 kriterier bedöms" svarar på den ena
+   av de två frågor en förstagångsanvändare kommer med — hur mycket av mitt CV blev
+   faktiskt granskat — och stod på samma storlek som brödtexten runt sig, medan de 18
+   obedömda låg 3051px längre ned. Ett steg upp i skalan, aldrig ett tal i en box:
+   §5 förbjuder en OPAK poäng, och en mening med sina två tal i sig är motsatsen. */
+.jp-cvreview__coverage {
+  margin: 0;
+  font-size: var(--text-body);
+  font-weight: var(--jp-fw-semibold);
+  color: var(--jp-ink-1);
+  line-height: 1.5;
+  max-width: 68ch;
+}
+/* Hederlighetsklausulen och rubrikversionen är villkoren täckningen läses under, inte
+   påståendet — de stöder från raden under den. */
+.jp-cvreview__coverage-note {
   margin: 0;
   font-size: var(--text-body-sm);
-  color: var(--jp-ink-1);
+  color: var(--jp-ink-2);
   line-height: 1.55;
   max-width: 68ch;
 }
@@ -6001,23 +6016,26 @@ a.jp-adminnav__link[aria-current="page"]::after {
   line-height: 1.55;
   max-width: 68ch;
 }
-/* Lager 1 — "Att åtgärda" (åtgärdbara verdikt, severitets-sorterade). Avgränsas
-   med en hairline-ram (border-strong är informationsbärande, WCAG 1.4.11), ingen
-   färgad larm-platta — severiteten bärs av varje rads verdict-pill (1.4.1). */
+/* Lager 1 — "Att åtgärda", sidans huvudinnehåll (#1062 Q1 punkt 1). Kort-kromet är
+   borta: ramen skilde sig från kategorikortens bara på `--jp-border-strong` mot deras
+   `--jp-border`, vilket vid 1px är nära osynligt, så lagret läste som en låda bland
+   lådor i stället för som sidans svar på "vad ska jag laga?". Ingen färgad larm-platta
+   nu heller — severiteten bärs av varje rads verdict-pill (WCAG 1.4.1). */
 .jp-cvreview__todo {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  padding: 16px 18px;
-  background: var(--jp-surface);
-  border: 1px solid var(--jp-border-strong);
-  border-radius: var(--jp-r-md);
 }
-.jp-cvreview__todo-title {
+/* Lagerrubrikerna är jämlikar och ser likadana ut, för de ÄR jämlikar: h2 båda två,
+   under sidans h1. Vikten mellan dem bärs av innehållsmassa, vilket är hela Q1:s
+   poäng — ordningen var aldrig fel, bara vikten. */
+.jp-cvreview__todo-title,
+.jp-cvreview__dimensions-title {
   margin: 0;
-  font-size: var(--text-h4);
+  font-size: var(--text-h3);
   font-weight: var(--jp-fw-bold);
-  color: var(--jp-ink-1);
+  color: var(--jp-heading-2);
+  letter-spacing: -0.01em;
 }
 .jp-cvreview__todo-empty {
   margin: 0;
@@ -6055,38 +6073,90 @@ a.jp-adminnav__link[aria-current="page"]::after {
   line-height: 1.5;
   max-width: 68ch;
 }
-.jp-cvreview__counts {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin: 0 0 14px;
-}
-.jp-cvreview__count {
+/* Lager 2 — "Bedömning per dimension" (#1062 Q1 punkt 2). Fyra RADER i stället för
+   fyra kort: korten mätte 2059px av 3577px docH (58 %) på ett svagt CV och 2225px av
+   3396px (66 %) på ett rent, och de 15 raderna i dem var 15 `Godkänt`. Referensmaterial
+   ska inte äga sidans mitt.
+   Egen klass och inte `.jp-cvreview__categories`: den delas med förbättringsytan
+   (`cv-improve-panel.tsx`), som fortfarande renderar kort och behöver deras mellanrum.
+   Varje rad bär en topplinje, även den första — då blir linjen under h2:an sektionens
+   egen rubriklinje i stället för ett specialfall. */
+.jp-cvreview__dimensions {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 2px;
-  min-width: 76px;
-  padding: 8px 12px;
-  background: var(--jp-surface-2);
-  border: 1px solid var(--jp-border-soft);
-  border-radius: var(--jp-r-sm);
+  gap: 10px;
 }
-.jp-cvreview__count-label {
-  font-size: var(--text-micro);
-  color: var(--jp-ink-2);
+.jp-cvreview__dimension {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 10px;
+  border-top: 1px solid var(--jp-border-soft);
 }
-.jp-cvreview__count-value {
+.jp-cvreview__dimension-head {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.jp-cvreview__dimension-name {
   margin: 0;
-  font-family: var(--jp-font-sans);
-  font-variant-numeric: tabular-nums;
-  font-size: var(--text-h3);
+  font-size: var(--text-ui);
   font-weight: var(--jp-fw-bold);
   color: var(--jp-ink-1);
+  line-height: 1.4;
 }
-.jp-cvreview__count[data-tone="success"] .jp-cvreview__count-value { color: var(--jp-success); }
-.jp-cvreview__count[data-tone="warning"] .jp-cvreview__count-value { color: var(--jp-warning); }
-.jp-cvreview__count[data-tone="danger"]  .jp-cvreview__count-value { color: var(--jp-danger); }
+/* #1062 Q2: räknarna byter MEDIUM, inte information. Fyra boxade tal i `--text-h3`,
+   bold och tonfärg tog den starkaste typografiska positionen i varje kort; de är nu en
+   rad i brödtext. Etikett + siffra står kvar båda två (status aldrig enbart färg, WCAG
+   1.4.1), och tonfärgerna är borta med boxarna — statusen bärs av verdict-pillarna på
+   raderna, inte av en sammanräkning. Det stänger också M1:s residual: pillen ovanför är
+   en VIKTAD poäng och den här raden en OVIKTAD tally, och de läser inte längre som
+   jämlikar. */
+.jp-cvreview__tally {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 0;
+  font-size: var(--text-caption);
+  color: var(--jp-ink-2);
+}
+.jp-cvreview__tally-item {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+}
+.jp-cvreview__tally-item + .jp-cvreview__tally-item::before {
+  content: "·";
+  color: var(--jp-ink-3);
+}
+.jp-cvreview__tally-value {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--jp-fw-semibold);
+  color: var(--jp-ink-1);
+}
+/* De Godkända bakom varsin disclosure: de är avklarade verdikt och därmed
+   referensmaterial. Demotering, aldrig döljande — raderna står i DOM:en och är
+   tangentbordsnåbara, vilket är samma gräns honesty-invarianten drar för "Ej bedömt".
+   Träffytan följer DESIGN.md §5: 32px i appen, 44px på touch (samma mönster och samma
+   brytpunkt som `.jp-backlink` och `.jp-criterionrow`). */
+.jp-cvreview__pass-summary {
+  padding: 8px 0;
+  font-size: var(--text-caption);
+  color: var(--jp-ink-2);
+  cursor: pointer;
+  list-style: none;
+}
+.jp-cvreview__pass .jp-cvreview__verdicts {
+  padding-left: 20px;
+}
+@media (max-width: 768px) {
+  .jp-cvreview__pass-summary,
+  .jp-cvreview__unassessed-summary {
+    min-height: 44px;
+  }
+}
 .jp-cvreview__verdicts {
   display: flex;
   flex-direction: column;
@@ -6108,17 +6178,24 @@ a.jp-adminnav__link[aria-current="page"]::after {
   cursor: pointer;
   list-style: none;
 }
-.jp-cvreview__unassessed-summary::-webkit-details-marker {
+/* Disclosure-markören har EN hemvist sedan #1062 gav granskningen en andra disclosure.
+   `list-style: none` och `::-webkit-details-marker` behövs båda — WebKit läser bara den
+   senare. Bara markören är delad; typografin är varje summarys egen. Barnkombinatorn
+   hindrar att en yttre öppen disclosure roterar en inre stängd markör. */
+.jp-cvreview__unassessed-summary::-webkit-details-marker,
+.jp-cvreview__pass-summary::-webkit-details-marker {
   display: none;
 }
-.jp-cvreview__unassessed-summary::before {
+.jp-cvreview__unassessed-summary::before,
+.jp-cvreview__pass-summary::before {
   content: "▸";
   display: inline-block;
   margin-right: 8px;
   color: var(--jp-ink-3);
   transition: transform 150ms linear;
 }
-.jp-cvreview__unassessed[open] .jp-cvreview__unassessed-summary::before {
+.jp-cvreview__unassessed[open] > .jp-cvreview__unassessed-summary::before,
+.jp-cvreview__pass[open] > .jp-cvreview__pass-summary::before {
   transform: rotate(90deg);
 }
 .jp-cvreview__unassessed .jp-cvreview__verdicts {

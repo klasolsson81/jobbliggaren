@@ -219,6 +219,7 @@
   "jobb": {
     "title": "Search jobs",
     "lede": "Search among active listings from Platsbanken. Filter and compare without losing a single listing.",
+    "resultsHeading": "Available jobs",
     "loading": "The job listing is loading…",
     "detail": {
       "loadErrorTitle": "Could not load the listing"

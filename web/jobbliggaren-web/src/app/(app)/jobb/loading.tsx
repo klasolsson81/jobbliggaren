@@ -51,6 +51,20 @@ export default function Loading() {
       </section>
 
       <div className="jp-container jp-page">
+        {/* #1395 gave the loaded page a section heading above the results. This file is a
+            SEPARATE route-segment component — it does not render page.tsx — so the band it
+            paints has to be reserved by hand, or every result row jumps on swap. (The in-page
+            `<Suspense>` fallback needs no counterpart: the real heading sits OUTSIDE that
+            boundary and is never swapped out.)
+            The height is the heading's line box, derived from committed tokens rather than a
+            measurement that decays: `--text-h2` 20px x the `body` line-height 1.55 = 31px. The
+            `.jp-results-toolbar` inside the skeleton keeps its own top margin, exactly as it
+            does under the real heading, so the delta is the box and nothing else. A grey bar,
+            not a live `<h2>`: this whole shell is decorative, and JobAdListSkeleton's
+            `role="status"` owns the one announced sentence. */}
+        <div className="flex h-[31px] items-center" aria-hidden="true">
+          <span className="jp-skeleton block h-5 w-32 max-w-full" />
+        </div>
         <JobAdListSkeleton />
       </div>
     </>

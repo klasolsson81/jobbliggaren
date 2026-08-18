@@ -4,8 +4,10 @@ import { JobAdList } from "./job-ad-list";
 import type { JobAdDto } from "@/lib/dto/job-ads";
 import type { MatchGrade } from "@/lib/dto/job-ad-match";
 
-// publishedAt > 7 dygn så freshness-tagg INTE renderas (skulle annars läggas
-// till h3:s accessible name och bryta `getByRole("heading", { name })`).
+// Rubrikens accessible name är titeln och inget annat, vilket `getByRole("heading", { name })`
+// nedan hänger på: utan overlay-props returnerar `JobTags` null och ingen `MatchChip` renderas.
+// `publishedAt` är inert här — den renderas i `.jp-job__meta`, utanför h3:n. (Färskhets-taggen
+// som gjorde datumet bärande TOGS BORT 2026-07-21, #1000-review.)
 const sampleAd = (id: string, title: string): JobAdDto => ({
   id,
   title,

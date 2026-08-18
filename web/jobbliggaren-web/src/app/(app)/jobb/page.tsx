@@ -329,34 +329,51 @@ export default async function JobbPage({ searchParams }: PageProps) {
       </section>
 
       <div className="jp-container jp-page">
-        {/* Resultat-ytan streamas: <Suspense> visar JobAdListSkeleton
+        {/* #1395 — the results region's label. Three things bind it HERE, outside the
+            Suspense boundary, and each breaks silently if it moves inside:
+              - `loading.tsx` reserves a band the height of this heading. Inside the boundary
+                the in-page fallback would need one too.
+              - the section wraps JobbResults' error and rateLimited branches, so those stay
+                labelled. `foretag-sok-results.tsx` suppresses its own h2 in the empty state
+                and loses the region's name exactly where structure helps most; this cannot.
+              - the heading takes no data, which is what lets it render with the hero at all.
+                A count is data-bound — hence the invariance rule this inherits from
+                `foretag-sok-results.tsx`, which here is structural and not only editorial.
+            `jp-h2` and not `text-h2` for the reason written at that same file. */}
+        <section aria-labelledby="jobb-results-title">
+          <h2 id="jobb-results-title" className="jp-h2">
+            {t("jobb.resultsHeading")}
+          </h2>
+
+          {/* Resultat-ytan streamas: <Suspense> visar JobAdListSkeleton
             medan JobbResults await:ar getJobAds(). Hero ovan är redan
             renderad och förblir synlig. `key` byts per sökning så
             skeleton:en visas även vid /jobb→/jobb-navigering (F6 P4 B1). */}
-        <Suspense
-          key={`${resultsKey}|${occupationGroupKey}|${regionKey}|${municipalityKey}|${employmentTypeKey}|${worktimeExtentKey}|${matchGradesKey}|${matchningKey}|${relateradeKey}|${statusKey}|${onlyMatchedKey}|${employerKey}`}
-          fallback={<JobAdListSkeleton />}
-        >
-          <JobbResults
-            page={page}
-            pageSize={pageSize}
-            sortBy={sortBy}
-            occupationGroup={occupationGroup}
-            region={region}
-            municipality={municipality}
-            employmentType={employmentType}
-            worktimeExtent={worktimeExtent}
-            matchGrades={matchGrades}
-            matchningOff={matchningOff}
-            includeRelated={includeRelated}
-            hideApplied={hideApplied}
-            onlyMatched={onlyMatched}
-            employer={employer}
-            q={q ?? ""}
-            commit={commit}
-            rawParams={params}
-          />
-        </Suspense>
+          <Suspense
+            key={`${resultsKey}|${occupationGroupKey}|${regionKey}|${municipalityKey}|${employmentTypeKey}|${worktimeExtentKey}|${matchGradesKey}|${matchningKey}|${relateradeKey}|${statusKey}|${onlyMatchedKey}|${employerKey}`}
+            fallback={<JobAdListSkeleton />}
+          >
+            <JobbResults
+              page={page}
+              pageSize={pageSize}
+              sortBy={sortBy}
+              occupationGroup={occupationGroup}
+              region={region}
+              municipality={municipality}
+              employmentType={employmentType}
+              worktimeExtent={worktimeExtent}
+              matchGrades={matchGrades}
+              matchningOff={matchningOff}
+              includeRelated={includeRelated}
+              hideApplied={hideApplied}
+              onlyMatched={onlyMatched}
+              employer={employer}
+              q={q ?? ""}
+              commit={commit}
+              rawParams={params}
+            />
+          </Suspense>
+        </section>
       </div>
     </>
   );

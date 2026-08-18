@@ -28,11 +28,15 @@ import {
   type UpdateFollowedCompanyNotificationConsentInput,
 } from "./me-schemas";
 import { mapActionError } from "./_action-error";
-import type { ActionResult, RefusableActionResult } from "./_action-result";
+import type {
+  ActionResult,
+  FieldScopedActionResult,
+  RefusableActionResult,
+} from "./_action-result";
 
 export async function updateMyProfileAction(
   input: UpdateMyProfileInput
-): Promise<ActionResult> {
+): Promise<FieldScopedActionResult> {
   const ts = await getTranslations("settings");
   const te = await getTranslations("errors");
   const sessionId = await getSessionId();
@@ -61,13 +65,16 @@ export async function updateMyProfileAction(
       // exact-whitelist discipline as the Auth.PwnedPassword arm: the machine code is compared,
       // never rendered, and the backend `detail` is not read.
       const title = await readProblemTitle(res);
-      return {
-        success: false,
-        error:
-          title === "JobSeeker.DisplayNamePersonnummerMustBeRemoved"
-            ? ts("account.errors.displayNamePersonnummer")
-            : ts("account.errors.invalidInput"),
-      };
+      return title === "JobSeeker.DisplayNamePersonnummerMustBeRemoved"
+        ? {
+            success: false,
+            error: ts("account.errors.displayNamePersonnummer"),
+            // Names the ONE input this belongs to so the card can mark it invalid and move
+            // focus there. Absent on every other failure, which is what "not a field error"
+            // means to the consumer.
+            field: "displayName" as const,
+          }
+        : { success: false, error: ts("account.errors.invalidInput") };
     }
     if (!res.ok) {
       return {

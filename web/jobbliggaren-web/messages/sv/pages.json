@@ -474,7 +474,7 @@
       "unexpectedError": "Ett oväntat fel uppstod. Försök igen.",
       "serverUnreachable": "Kunde inte nå servern. Försök igen.",
       "registrationFailed": "Registreringen misslyckades.",
-      "displayNamePersonnummer": "Namnet kan inte innehålla ett personnummer. Ta bort det och försök igen.",
+      "displayNamePersonnummer": "Namnet får inte innehålla ett personnummer. Skriv namnet utan personnummer och försök igen.",
       "registrationsClosed": "Registreringen är inte öppen ännu. Försök igen senare.",
       "passwordBreached": "Lösenordet har förekommit i kända dataläckor. Välj ett annat lösenord.",
       "emailNotConfirmed": "Bekräfta din e-postadress för att logga in. Vi har skickat en länk till din inkorg.",

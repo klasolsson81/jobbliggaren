@@ -64,16 +64,25 @@ export type ChangeEmailInput = z.infer<
   ReturnType<typeof makeChangeEmailSchema>
 >;
 
+// Both fields are OPTIONAL because the command is a partial update: the handler applies each
+// only when it is non-null. Sending an unchanged field is not free — since #1117 the display
+// name carries an invariant the server re-evaluates on every write, so a profile row written
+// before that invariant landed would have its LANGUAGE change refused on the strength of a name
+// the user never touched. A field that is not being changed is therefore not sent at all.
+// Present-but-invalid is still rejected: the min/max below apply whenever the key is there.
 export function makeUpdateMyProfileSchema(t: ValidationTranslator) {
   return z.object({
     displayName: z
       .string()
       .trim()
       .min(1, t("profile.displayNameRequired"))
-      .max(200, t("profile.displayNameMax")),
-    language: z.enum(["sv", "en"], {
-      message: t("profile.languageInvalid"),
-    }),
+      .max(200, t("profile.displayNameMax"))
+      .optional(),
+    language: z
+      .enum(["sv", "en"], {
+        message: t("profile.languageInvalid"),
+      })
+      .optional(),
     // TD-115: legacy emailNotifications/weeklySummary retired (gated no email path).
   });
 }

@@ -240,6 +240,8 @@ public class JobSeekerTests
     [InlineData("811218-9876")] // valid 10-digit personnummer
     [InlineData("8112189876")] // contiguous, no separator
     [InlineData("811278-9873")] // samordningsnummer (day 18+60=78)
+    [InlineData("19811218-9876")] // 12-digit century form
+    [InlineData("198112189876")] // 12-digit century form, contiguous
     [InlineData("811218\u00A09876")] // NBSP-gapped: proves Normalize runs before Scan
     [InlineData("Anna 811218-9876")] // embedded in an otherwise ordinary name
     public void Register_WithPersonnummerShapedDisplayName_ReturnsFailure(string pnrName)
@@ -264,20 +266,39 @@ public class JobSeekerTests
     }
 
     [Fact]
-    public void Register_WithPersonnummerShapedDisplayName_RaisesNoDomainEvent()
+    public void Register_RaisesTheEventWithTheValidatedName_NotTheRawInput()
     {
-        // The refusal precedes construction, so the registered event — which carries the
-        // display name in its payload — is never raised with a personnummer in it.
-        var result = JobSeeker.Register(ValidUserId, "Anna 811218-9876", Clock);
+        // The event carries the display name in its payload, so it must carry the value the
+        // validator returned rather than the caller's string. Pinned because Register composes
+        // the aggregate and the event from one canonical value; regressing to the raw argument
+        // would put an untrimmed name on the wire the day a dispatcher exists.
+        var result = JobSeeker.Register(ValidUserId, "  Anna Andersson  ", Clock);
 
-        result.IsFailure.ShouldBeTrue();
-        result.Error.Code.ShouldBe("JobSeeker.DisplayNamePersonnummerMustBeRemoved");
+        result.IsSuccess.ShouldBeTrue();
+        var evt = result.Value.DomainEvents.ShouldHaveSingleItem()
+            .ShouldBeOfType<JobSeekerRegisteredDomainEvent>();
+        evt.DisplayName.ShouldBe("Anna Andersson");
+        evt.DisplayName.ShouldBe(result.Value.DisplayName);
+    }
+
+    [Fact]
+    public void Register_WithExactlyMaxLengthDisplayName_IsAllowed()
+    {
+        // The boundary itself: a name of exactly the limit is VALID. Without this, relaxing the
+        // comparison to >= survives every other length test.
+        var exactly200 = new string('A', 200);
+
+        var result = JobSeeker.Register(ValidUserId, exactly200, Clock);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.DisplayName.Length.ShouldBe(200);
     }
 
     [Theory]
     [InlineData("811218-9876")]
     [InlineData("8112189876")]
     [InlineData("811278-9873")] // samordningsnummer
+    [InlineData("19811218-9876")] // 12-digit century form
     [InlineData("811218\u00A09876")] // NBSP-gapped: proves Normalize runs before Scan
     [InlineData("Anna 811218-9876")]
     public void UpdateDisplayName_WithPersonnummerShapedDisplayName_ReturnsFailure(string pnrName)
@@ -327,7 +348,9 @@ public class JobSeekerTests
     public void UpdateDisplayName_WithTooLongDisplayName_Fails()
     {
         var seeker = JobSeeker.Register(ValidUserId, "Klas Olsson", Clock).Value;
-        var tooLong = new string('A', JobSeeker.MaxDisplayNameLength + 1);
+        // Literal, deliberately NOT MaxDisplayNameLength + 1: a derived length follows a
+        // mutated constant and would stop killing that mutant (parity with Register's case).
+        var tooLong = new string('A', 201);
 
         var result = seeker.UpdateDisplayName(tooLong, Clock);
 

@@ -85,6 +85,8 @@ export function SettingsForm({
   const [isPending, startTransition] = useTransition();
   const [savedAt, setSavedAt] = useState<Date | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // #1117: which input the current error belongs to, or null for a non-field failure.
+  const [errorField, setErrorField] = useState<"displayName" | null>(null);
 
   /**
    * Bevakning F4 (#803): de två notis-kortens DELADE tillstånd bor här, inte i
@@ -100,14 +102,16 @@ export function SettingsForm({
     initialProfile.followedCompanyNotificationsEnabled,
   );
 
+  // ONLY the fields the caller is changing. Sending the unchanged ones is not free: since #1117
+  // the display name carries a server-side invariant that is re-evaluated on every write, so a
+  // profile row written before that invariant landed would have its LANGUAGE change refused on
+  // the strength of a name the user never touched — and the refusal would render in the personal-
+  // info card, which is not even the card she is standing in. The command is a partial update
+  // (the handler applies each field only when non-null), so this sends exactly what changed.
   function buildPayload(
     overrides: Partial<UpdateMyProfileInput> = {},
   ): UpdateMyProfileInput {
-    return {
-      displayName,
-      language,
-      ...overrides,
-    };
+    return { ...overrides };
   }
 
   async function applyChange(
@@ -120,14 +124,17 @@ export function SettingsForm({
     if (!parsed.success) {
       const first = parsed.error.issues[0];
       setError(first?.message ?? ts("account.invalidInput"));
+      setErrorField(first?.path[0] === "displayName" ? "displayName" : null);
       revert();
       return;
     }
     setError(null);
+    setErrorField(null);
     startTransition(async () => {
       const result = await updateMyProfileAction(parsed.data);
       if (!result.success) {
         setError(result.error);
+        setErrorField(result.field ?? null);
         revert();
       } else {
         setSavedAt(new Date());
@@ -166,6 +173,7 @@ export function SettingsForm({
           email={userEmail}
           isPending={isPending}
           error={error}
+          errorField={errorField}
           savedAt={savedAt}
           onDisplayNameChange={setDisplayName}
           onSubmit={onSavePersonalInfo}

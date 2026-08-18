@@ -98,15 +98,23 @@ public sealed class JobSeeker : AggregateRoot<JobSeekerId>
     // constructor, bypassing this method, so a row written before it landed still loads. That
     // is deliberate — the DQ6 guard on the promote path (AutoPromoteGate) remains the control
     // standing on those rows.
-    private static Result<string> ValidateDisplayName(string? displayName)
+    //
+    // PUBLIC so a caller that must refuse BEFORE it can construct the aggregate can run the same
+    // rule from its one home — not a second home for it. RegisterCommandHandler is that caller:
+    // it creates the Identity user first, so evaluating the refusal only at Register() would make
+    // the response vary with whether the address already exists (#714's status oracle). Calling
+    // this earlier is an ORDERING requirement, not a duplicated invariant — Register() still runs
+    // it, so the aggregate stays fail-closed for every other caller.
+    public static Result<string> ValidateDisplayName(string? displayName)
     {
         if (string.IsNullOrWhiteSpace(displayName))
             return Result.Failure<string>(
                 DomainError.Validation("JobSeeker.DisplayNameRequired", "Visningsnamn är obligatoriskt."));
 
         if (displayName.Length > MaxDisplayNameLength)
-            return Result.Failure<string>(
-                DomainError.Validation("JobSeeker.DisplayNameTooLong", "Visningsnamn får vara max 200 tecken."));
+            return Result.Failure<string>(DomainError.Validation(
+                "JobSeeker.DisplayNameTooLong",
+                $"Visningsnamn får vara max {MaxDisplayNameLength} tecken."));
 
         if (PersonnummerScanner.Scan(PersonnummerTextNormalizer.Normalize(displayName)).Count > 0)
             return Result.Failure<string>(DomainError.Validation(

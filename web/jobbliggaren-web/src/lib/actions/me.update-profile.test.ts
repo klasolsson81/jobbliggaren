@@ -56,6 +56,8 @@ describe("updateMyProfileAction 400 handling", () => {
     expect(result).toEqual({
       success: false,
       error: "account.errors.displayNamePersonnummer",
+      // Names the input, so the card can mark exactly that control invalid and focus it.
+      field: "displayName",
     });
   });
 
@@ -81,6 +83,32 @@ describe("updateMyProfileAction 400 handling", () => {
     const result = await updateMyProfileAction({ displayName: "Anna Andersson", language: "sv" });
 
     expect(result).toEqual({ success: false, error: "account.errors.invalidInput" });
+  });
+
+  it("does NOT name a field on a non-field failure", async () => {
+    // The discriminator is only meaningful if its absence is pinned too: without this, stamping
+    // every failure would pass the positive test above while marking the name input invalid for
+    // a network fault the user cannot fix by editing it.
+    authedFetchMock.mockRejectedValue(new Error("network down"));
+
+    const result = await updateMyProfileAction({
+      displayName: "Anna Andersson",
+      language: "sv",
+    });
+
+    expect(result).toEqual({ success: false, error: "account.errors.network" });
+    expect(result).not.toHaveProperty("field");
+  });
+
+  it("does NOT name a field for an unknown 400 title", async () => {
+    authedFetchMock.mockResolvedValue(fakeResponse(400, { title: "JobSeeker.SomethingElse" }));
+
+    const result = await updateMyProfileAction({
+      displayName: "Anna Andersson",
+      language: "sv",
+    });
+
+    expect(result).not.toHaveProperty("field");
   });
 
   it("passes a successful update through unchanged", async () => {

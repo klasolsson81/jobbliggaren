@@ -182,20 +182,24 @@ If it cannot be re-measured in this visit, disarm **both** timers before injecti
 
 ```bash
 sudo systemctl disable --now jobbliggaren-logship.timer jobbliggaren-logship-fresh.timer
-# … measure the journal, then re-arm BOTH — this step is a duty, not a courtesy:
+# … measure the journal, then — ONLY IF IT MEASURES CLEAN — re-arm BOTH. A vacuum produces that
+# state; a further rotation does not. The re-arm is a duty, not a courtesy:
 sudo systemctl enable --now jobbliggaren-logship.timer jobbliggaren-logship-fresh.timer
 ```
 
 ⚠ **The re-arm is owed precisely BECAUSE the disarm is invisible.** It takes down the archive and
 `-fresh`, its only staleness probe, in one command — and until the box pulls the `FLOOR_TIMERS`
-edit, no `floor-timer-down=` fires to remind anyone the archive is off. ADR 0126 §4's threat model
-names journal deletion as what local detection cannot see; the off-box archive is that mitigation.
+edit, no `floor-timer-down=` fires to remind anyone the archive is off. ADR 0126's "What this
+decision does NOT do" names journal erasure among what local detection cannot see; the off-box
+archive is that mitigation.
 
 ⚠ **Disarming the shipping timer alone is the trap, and it fails in the more dangerous direction.**
 `-fresh` carries the same `ConditionPathExists`, so its shield lifts at the same injection; `--check`
 then dies on the absent stamp (`shipping has never succeeded`) and lands in `systemctl --failed`,
-i.e. M-7's **P1**, every 15 minutes — latched, because the hand-start that would clear it is
-conditional on the shipping timer being enabled, which you just turned off.
+i.e. M-7's **P1**, which pages every 15 minutes — the heartbeat's cadence, not the probe's, since
+`-fresh` itself runs hourly. It stays latched because the hand-start that would clear it is not
+available to you: mechanically it runs fine with the timer disabled, but it would ship the very
+journal you disarmed for.
 
 ⚠ **The floor cost of a disarm is repo-side until the box pulls.** `FLOOR_TIMERS` names both timers
 in the repo since 2026-08-18, but `/opt/jobbliggaren`'s copy — which is what

@@ -83,7 +83,8 @@ the service's `ConditionPathExists` skips the run rather than failing it.
 >
 > **So the precondition is owed AT THE INJECTION, by the person performing it, and it is now the
 > only thing standing between the credential and the archive.** If it cannot be measured in that
-> same visit, disarm **both** timers before injecting — and re-arm both once the journal is clean:
+> same visit, disarm **both** timers before injecting — and re-arm both **only once the journal
+> measures clean** (a vacuum produces that state; a further rotation does not):
 >
 > ```bash
 > sudo systemctl disable --now jobbliggaren-logship.timer jobbliggaren-logship-fresh.timer
@@ -93,8 +94,10 @@ the service's `ConditionPathExists` skips the run rather than failing it.
 >
 > ⚠ **Disarming the shipping timer alone is the trap.** `-fresh` carries the same
 > `ConditionPathExists`, so its shield lifts at the same injection; `--check` then dies on the
-> absent stamp and latches P1 every 15 minutes, and the hand-start that would clear it is
-> conditional on the timer just turned off.
+> absent stamp and lands in `systemctl --failed`, i.e. M-7's **P1**, which pages every 15 minutes
+> (the heartbeat's cadence, not the probe's — `-fresh` itself runs hourly). And the hand-start that
+> would clear it is not available to you here: mechanically it runs fine with the timer disabled,
+> but it would ship the very journal you disarmed for.
 > ⚠ **The re-arm is a duty precisely BECAUSE the disarm is invisible.** It removes the archive and
 > its only staleness probe together, and until the box pulls the `FLOOR_TIMERS` edit it lights no
 > `floor-timer-down=` to remind anyone it is off.

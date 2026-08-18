@@ -27,13 +27,37 @@ namespace Jobbliggaren.Domain.CompanyWatches;
 /// </para>
 ///
 /// <para>
-/// <b>The two geo axes are a UNION, not a hierarchy (F4a, CTO 2026-07-12 Q3=B).</b> A whole-län
-/// selection is stored as the LÄN concept-id, never expanded into its municipalities — because
-/// an ad may be tagged at län granularity with NO municipality at all. Materialising "Hela Skåne"
-/// into 33 kommun-ids would silently drop every län-only Skåne ad from the user's notifications:
-/// a silent miss in a never-miss product. <see cref="AdmitsLocation"/> therefore mirrors the
-/// house-canonical predicate (<c>JobAdSearchComposition</c>): municipality-hit OR region-hit.
-/// One geo semantics across /jobb, match-setup and the watch filter.
+/// <b>The two geo axes are a UNION, not a hierarchy (F4a, CTO 2026-07-12 Q3=B).</b> Picking a whole
+/// län stores the LÄN concept-id and never expands it into that län's municipalities.
+/// <see cref="AdmitsLocation"/> mirrors the house-canonical predicate
+/// (<c>JobAdSearchComposition</c>): municipality-hit OR region-hit. One geo semantics across /jobb,
+/// match-setup and the watch filter.
+/// </para>
+///
+/// <para>
+/// <b>ONE path materialises, deliberately (#839, CTO 2026-08-19).</b> Deselecting a single kommun
+/// from a whole-län pick ("hela länet minus Göteborg") drops the län id and writes the län's OTHER
+/// municipalities — <c>toggleMunicipalityInRegion</c> in
+/// <c>web/jobbliggaren-web/src/lib/job-ads/ort-selection.ts</c>. This paragraph previously read as
+/// a repo-wide invariant, which that path has always broken. It is not drift: under the union
+/// above, län-id ∪ kommun-ids ≡ the whole län, so KEEPING the län id would silently re-admit the
+/// very kommun the user just clicked away. Neither encoding is free, and the selection is not
+/// expressible at all without a third, exclusion-shaped axis (priced at 200 files and a
+/// <c>recent_job_searches</c> migration; rejected 2026-08-19).
+///
+/// What materialising costs is an ad tagged at LÄN granularity with no municipality: it matches the
+/// län id and none of the kommun ids. That shape has never been ingested — measured 2026-08-19 over
+/// all 106 071 rows of the dev corpus, the two columns are null together or set together on EVERY
+/// row, so the class is empty and so is its mirror image. Only half of that is structural:
+/// <c>PlatsbankenJobSource.MapFacets</c> reads both through one <c>hit.WorkplaceAddress?.</c>
+/// parent, so both-null follows from an absent address block — but an address block PRESENT with
+/// only one of the two inner ids set is unguarded, the columns are plain
+/// (<c>is_generated = NEVER</c>), and AF's AdFields marks neither required. So re-measure rather
+/// than inherit; a non-zero first row is the trigger to revisit the third axis:
+/// <code>
+/// SELECT (region_concept_id IS NULL) = (municipality_concept_id IS NULL), count(*)
+/// FROM job_ads GROUP BY 1;
+/// </code>
 /// </para>
 ///
 /// <para>

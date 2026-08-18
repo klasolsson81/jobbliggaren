@@ -146,10 +146,10 @@ healthy_state() {
   # `is-enabled` and active-timers stubs `is-active` (P1/P3's). FLOOR_TIMERS is a SUBSET of what
   # a box has enabled, so updating this fixture against the constant rather than against the box
   # is how two of the three drifted apart once already. A timer that is is-enabled must appear in
-  # list-unit-files too — the box emits exactly that, measured 2026-08-15:
+  # list-unit-files too — a property of systemd this box was checked against, not a count:
   #   systemctl list-unit-files 'jobbliggaren*' --state=enabled
   # Regenerate that command against the box rather than trusting this list to have kept up.
-  # Last regenerated 2026-08-18, when #1175's logship pair was enabled: the box returns FIVE names.
+  # Last regenerated 2026-08-18, when #1175's logship pair was enabled.
   printf 'jobbliggaren-reconcile.timer enabled enabled\njobbliggaren-heartbeat.timer enabled enabled\njobbliggaren-secrets-present.timer enabled enabled\njobbliggaren-logship.timer enabled enabled\njobbliggaren-logship-fresh.timer enabled enabled\n' \
     >"$TMPROOT/enabled-timers"
   printf 'jobbliggaren-reconcile.timer\njobbliggaren-heartbeat.timer\njobbliggaren-secrets-present.timer\njobbliggaren-logship.timer\njobbliggaren-logship-fresh.timer\n' >"$TMPROOT/active-timers"

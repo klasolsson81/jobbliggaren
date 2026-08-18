@@ -40,8 +40,8 @@ readonly ENV_FILE=/etc/jobbliggaren/detection.env
 readonly AUDIT_RULES_FILE=/etc/audit/rules.d/zz-jobbliggaren.rules
 
 # The floor set: timers whose absence would make P1's emptiness meaningless.
-# KEEP IN SYNC AS UNITS LAND. #197's jobbliggaren-backup.timer and #198's
-# jobbliggaren-host-secrets-present.timer belong here the moment they are ENABLED on the box, the
+# KEEP IN SYNC AS UNITS LAND. #197's jobbliggaren-backup.timer and -backup-fresh.timer, and
+# #198's jobbliggaren-host-secrets-present.timer, belong here the moment they are ENABLED on the box, the
 # state check_floor_timers actually measures, and that handover is written in
 # docs/runbooks/host-detection.md rather than left to memory. (Already joined, and each on its own
 # enable day: #198's other absence timer jobbliggaren-secrets-present.timer, and #1175's logship
@@ -63,9 +63,12 @@ readonly AUDIT_RULES_FILE=/etc/audit/rules.d/zz-jobbliggaren.rules
 #
 # THE LOGSHIP PAIR JOINED 2026-08-18, the day it was enabled on the box (#1175), on the same
 # trigger and not on its install — the files had sat in /etc/systemd/system since 2026-08-15.
-# Arming it is what makes a floor row possible AND what makes one necessary: the shipping
-# service SKIPS without #197's upload credential, and a skip is inactive rather than failed, so
-# a disabled logship timer is on no alarm surface at all. That is the hole the pair closes here.
+# The floor is the ONLY surface that catches a disabled logship timer: P1 sees no failure (the
+# service skips) and P2 never considers it (a disabled timer is absent from its input).
+#
+# The cost is that a DELIBERATE disarm alarms too, and there is one — if the journal is found
+# contaminated while #197's credential exists, `systemctl disable --now jobbliggaren-logship.timer`
+# is the correct emergency act. log-sink.md §2 names it where an operator would reach for it.
 readonly FLOOR_TIMERS="jobbliggaren-reconcile.timer jobbliggaren-heartbeat.timer jobbliggaren-secrets-present.timer jobbliggaren-logship.timer jobbliggaren-logship-fresh.timer"
 
 # Free-space floor, in percent. This absorbs the DETECTION half of a disk-usage finding

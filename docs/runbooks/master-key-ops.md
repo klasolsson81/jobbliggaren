@@ -294,8 +294,18 @@ api and worker recover on their own restart backoff (`restart: unless-stopped`).
 > is the discharge rather than a promise of one. **The stop still binds in one respect and it is
 > not the same respect:** the condition expires the moment anything writes key material to the
 > journal again, so re-measure before shipping rather than inheriting this line.
-> ⚠ `docs/runbooks/log-sink.md` §2 carries the same precondition and is **outside this PR's
-> change-reason**; it still reads as unmet and must not be allowed to drift from this one.
+> ⚠ `docs/runbooks/log-sink.md` §2 carried the same precondition and had drifted from this one for
+> two days; **corrected 2026-08-18** — it now cites this discharge rather than asserting the plaintext
+> key as a present fact.
+>
+> ⛔ **AND THE RE-MEASUREMENT IS NOW OWED HERE, BEFORE THE INJECTION BELOW — NOT AFTER IT.**
+> Until 2026-08-18 shipping took TWO acts: inject the credential **and** arm the timer, and the second
+> was performed by someone reading `log-sink.md` §2's precondition. The pair is armed since then, so it
+> takes ONE: `OnCalendar=*:17` with `Persistent=true` fires within the hour of the injection, with no
+> cursor, i.e. the whole-journal run. **The injection IS the firing.** If the journal cannot be
+> re-measured in this same visit, run `sudo systemctl disable --now jobbliggaren-logship.timer`
+> **before** injecting — knowing it lights `floor-timer-down=` until re-armed, which is the intended
+> cost of that trade.
 >
 > ~~⛔ **STOP — THIS IS THE FIRST RUN THAT SHIPS, AND THE JOURNAL IS NOT CLEAN (#1343).**~~ The
 > injection you just performed created `Backup__RcloneConfigBase64`, which is the file
@@ -311,7 +321,8 @@ api and worker recover on their own restart backoff (`restart: unless-stopped`).
 > standing when the condition actually comes due — the same reason the host-timer enable step is
 > repeated below.
 
-**Then start the archive by hand, once, if `jobbliggaren-logship.timer` is installed** (#1175):
+**Then start the archive by hand, once — MANDATORY, not tidiness, whenever
+`jobbliggaren-logship.timer` is ENABLED** (#1175; it has been since 2026-08-18):
 
 ```bash
 sudo systemctl start jobbliggaren-logship.service
@@ -323,6 +334,11 @@ archive stale — correctly, but for a condition you just cleared. `Persistent=t
 this: the catch-up firing happened at boot, when there was still no credential. Without this line
 the alarm stays lit until the next `:17`, up to an hour, which is exactly the always-lit surface
 these units are written against.
+
+**And since 2026-08-18 that alarm is a PAGE rather than a lit lamp**, because both logship timers are
+in `FLOOR_TIMERS`: `--check` dies on the absent stamp (`shipping has never succeeded`), `-fresh` fires
+at `:00` **before** the shipping timer's `*:17`, and a failed unit puts M-7's P1 into /fail every 15
+minutes until the first successful ship. This line is what closes that window.
 
 **And enable the HOST absence detector, which is the one §2 lets you defer** (#1329):
 

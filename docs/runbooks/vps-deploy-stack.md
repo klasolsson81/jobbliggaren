@@ -115,7 +115,8 @@ Prerequisite: Docker installed, `/etc/docker/daemon.json` written, and the nftab
 >   condition on the box's only alarm surface. Since #1329 its `--check` reads the crypto set
 >   alone, so nothing about #197 holds it back. `jobbliggaren-host-secrets-present.timer` is the
 >   one that waits: its `--check-host` demands `Backup__RcloneConfigBase64`, so enabling it before
->   that credential exists fails every fire and turns that surface into a continuous page.
+>   that credential exists fails every fire and holds that surface red — one page at the transition,
+>   then silence, since `systemctl --failed` latches and the expecter notifies on the change.
 >   `master-key-ops.md` §2 owns the ordering, the full grounding and what deferring costs; do not
 >   restate them here.
 >

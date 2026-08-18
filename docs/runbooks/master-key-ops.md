@@ -182,7 +182,14 @@ If it cannot be re-measured in this visit, disarm **both** timers before injecti
 
 ```bash
 sudo systemctl disable --now jobbliggaren-logship.timer jobbliggaren-logship-fresh.timer
+# … measure the journal, then re-arm BOTH — this step is a duty, not a courtesy:
+sudo systemctl enable --now jobbliggaren-logship.timer jobbliggaren-logship-fresh.timer
 ```
+
+⚠ **The re-arm is owed precisely BECAUSE the disarm is invisible.** It takes down the archive and
+`-fresh`, its only staleness probe, in one command — and until the box pulls the `FLOOR_TIMERS`
+edit, no `floor-timer-down=` fires to remind anyone the archive is off. ADR 0126 §4's threat model
+names journal deletion as what local detection cannot see; the off-box archive is that mitigation.
 
 ⚠ **Disarming the shipping timer alone is the trap, and it fails in the more dangerous direction.**
 `-fresh` carries the same `ConditionPathExists`, so its shield lifts at the same injection; `--check`

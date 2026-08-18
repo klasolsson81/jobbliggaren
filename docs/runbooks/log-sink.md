@@ -83,9 +83,21 @@ the service's `ConditionPathExists` skips the run rather than failing it.
 >
 > **So the precondition is owed AT THE INJECTION, by the person performing it, and it is now the
 > only thing standing between the credential and the archive.** If it cannot be measured in that
-> same visit, the correct order is `sudo systemctl disable --now jobbliggaren-logship.timer`
-> BEFORE injecting — deliberately, and knowing it lights `floor-timer-down=` until re-armed
-> (`jobbliggaren-heartbeat.sh`'s `FLOOR_TIMERS`, which is the intended cost of that trade).
+> same visit, disarm **both** timers before injecting — and re-arm both once the journal is clean:
+>
+> ```bash
+> sudo systemctl disable --now jobbliggaren-logship.timer jobbliggaren-logship-fresh.timer
+> # … measure the journal, then:
+> sudo systemctl enable --now jobbliggaren-logship.timer jobbliggaren-logship-fresh.timer
+> ```
+>
+> ⚠ **Disarming the shipping timer alone is the trap.** `-fresh` carries the same
+> `ConditionPathExists`, so its shield lifts at the same injection; `--check` then dies on the
+> absent stamp and latches P1 every 15 minutes, and the hand-start that would clear it is
+> conditional on the timer just turned off.
+> ⚠ **The re-arm is a duty precisely BECAUSE the disarm is invisible.** It removes the archive and
+> its only staleness probe together, and until the box pulls the `FLOOR_TIMERS` edit it lights no
+> `floor-timer-down=` to remind anyone it is off.
 >
 > **Why it mattered, and what changed — the RULE survives, its GROUND does not.** #1343 put the
 > master key in this box's persistent journal in plaintext (row 22's own instruments, through

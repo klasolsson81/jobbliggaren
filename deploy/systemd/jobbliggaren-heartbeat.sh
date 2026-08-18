@@ -67,8 +67,10 @@ readonly AUDIT_RULES_FILE=/etc/audit/rules.d/zz-jobbliggaren.rules
 # service skips) and P2 never considers it (a disabled timer is absent from its input).
 #
 # The cost is that a DELIBERATE disarm alarms too, and there is one — if the journal is found
-# contaminated while #197's credential exists, `systemctl disable --now jobbliggaren-logship.timer`
-# is the correct emergency act. log-sink.md §2 names it where an operator would reach for it.
+# contaminated while #197's credential exists, disarming is the correct emergency act. It takes
+# BOTH timers (`-fresh` skips on the same condition and latches P1 alone if left armed) and it
+# carries a re-arm duty, because the disarm removes the archive and its only probe together.
+# log-sink.md §2 carries the commands where an operator would reach for them.
 readonly FLOOR_TIMERS="jobbliggaren-reconcile.timer jobbliggaren-heartbeat.timer jobbliggaren-secrets-present.timer jobbliggaren-logship.timer jobbliggaren-logship-fresh.timer"
 
 # Free-space floor, in percent. This absorbs the DETECTION half of a disk-usage finding

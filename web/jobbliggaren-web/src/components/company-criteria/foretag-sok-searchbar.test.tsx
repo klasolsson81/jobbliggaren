@@ -67,6 +67,11 @@ const PNR_SHAPED = "1010101010"; // 3rd digit 1 < 2 → personnummer-shaped → 
 const PNR_SHAPED_12 = "191010101010"; // → PNR_SHAPED
 const PNR_SHAPED_12_HYPHEN = "19101010-1010"; // → PNR_SHAPED
 const VALID_ORGNR_12 = "205560125790"; // → VALID_ORGNR
+// #1029 — the allabolag paste. The hyphen already appears above, but only on the REFUSAL path
+// (PNR_SHAPED_12_HYPHEN), so nothing pinned that a hyphenated LEGAL-ENTITY org.nr reaches the org.nr
+// branch at all. Both strip to VALID_ORGNR, which is the point: separators are presentation.
+const VALID_ORGNR_HYPHEN = "556012-5790"; // → VALID_ORGNR
+const VALID_ORGNR_SPACED = " 556012 5790 "; // → VALID_ORGNR
 
 const FOUND_COMPANY = {
   organizationNumber: VALID_ORGNR,
@@ -991,6 +996,37 @@ describe("ForetagSokSearchbar — unified name/org.nr field", () => {
         buildForetagSokHref({ namn: outside, sni: [], kommun: [] }),
       );
       expect(fetchMock).not.toHaveBeenCalled();
+    },
+  );
+
+  /**
+   * #1029 — most users copy the number from allabolag.se, where it carries the hyphen. The
+   * normaliser is unit-tested (`lib/dto/company-registry.test.ts`), but the searchbar is where the
+   * raw field value meets it, and that junction is the primary lookup path the issue's acceptance
+   * names. Asserting the POSTED body, not just that a company rendered: the raw string must never
+   * cross the wire, same contract as the twelve-digit test above.
+   */
+  it.each([VALID_ORGNR_HYPHEN, VALID_ORGNR_SPACED])(
+    "routes the written form %j to the org.nr branch, POSTing the stripped ten",
+    async (written) => {
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValue(orgNrResponse({ company: FOUND_COMPANY, companyWatchId: null }));
+      global.fetch = fetchMock;
+      renderBar();
+      const user = userEvent.setup();
+
+      await user.type(
+        screen.getByLabelText("Företagsnamn eller organisationsnummer"),
+        written,
+      );
+      await user.click(screen.getByRole("button", { name: "Sök företag" }));
+
+      expect(await screen.findByText("Volvo AB")).toBeInTheDocument();
+      const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+      expect(url).toBe("/api/foretag/sok");
+      expect(JSON.parse(init.body as string)).toEqual({ organizationNumber: VALID_ORGNR });
+      expect(push).not.toHaveBeenCalled();
     },
   );
 

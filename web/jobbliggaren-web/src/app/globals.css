@@ -6148,6 +6148,9 @@ a.jp-adminnav__link[aria-current="page"]::after {
    levererade sidan lade den 12 lösa "·"-noder i uppläsningen; alt-formen `"·" / ""` ger
    den ett tomt tillgängligt namn utan att ändra något visuellt (#1062 design-m3). */
 .jp-cvreview__tally-item + .jp-cvreview__tally-item::before {
+  /* Reservdeklaration först: `/ alt` gör HELA `content`-deklarationen ogiltig i en browser
+     som inte parsar formen, så utan den här raden försvinner separatorn helt där. */
+  content: "·";
   content: "·" / "";
   color: var(--jp-ink-3);
 }
@@ -6215,6 +6218,12 @@ a.jp-adminnav__link[aria-current="page"]::after {
      disclosurens tillgängliga NAMN — `<details>` annonserar sitt öppet/stängt-tillstånd
      självt. Deltat multiplicerade markören 1 -> 5, och att den redan hade EN hemvist är
      varför fixen är en rad (#1062 design-m3). */
+  /* Reservdeklaration först, och den är bärande här: `list-style: none` plus den släckta
+     `::-webkit-details-marker` gör den här glyfen till disclosurens ENDA visuella signal,
+     så en ogiltig `content` hade tagit bort affordansen och inte bara dess uppläsning.
+     Mätt 2026-08-18: alt-formen stöds av 93,6 % globalt (Chrome 77+, Edge 79+,
+     Safari 17.4+, Firefox 128+) — resten får glyfen och hör den, precis som före #1062. */
+  content: "▸";
   content: "▸" / "";
   display: inline-block;
   margin-right: 8px;

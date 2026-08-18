@@ -206,8 +206,8 @@ function CategoryTally({
  * tangentbordsanvändare hade ingen väg att röra sig mellan kategorierna.
  *
  * ⚠ Den STÄNGS inte, och villkoret är samma villkor som två rader upp: en dimension utan
- * Godkänt får ingen disclosure och därmed inget tab-stopp. Efter fixen mätte den största
- * luckan 173px på de levererade ytorna, men det talet gäller det CV:t — ett CV vars
+ * Godkänt får ingen disclosure och därmed inget tab-stopp. Mätt 2026-08-18 efter fixen:
+ * största luckan 173px på de levererade ytorna — men det talet gäller det CV:t, och ett vars
  * dimensioner saknar Godkänt lämnar luckan öppen, och den parsade ytan är värst utsatt
  * eftersom den inte heller har statuskontroller i lager 1.
  */
@@ -275,8 +275,8 @@ export function CvReviewPanel({
   // Lagren äger därför h2 där, och regionen namnges via aria-label.
   //
   // På stagingytan handlar h1 om den importerade FILEN, och granskningen är ett block
-  // bland parse-artefakter — mätt 1295px av 3635 (36 %) utan namn i sidans outline, med
-  // sina lager som jämlikar till artefakterna omkring. Där behöver panelen en egen synlig
+  // bland parse-artefakter — mätt 2026-08-18 till 1295px av 3635 (36 %) utan namn i sidans
+  // outline, med sina lager som jämlikar till artefakterna omkring. Där behöver panelen en egen synlig
   // h2, och lagren går ned på h3. Ett landmark-namn räcker inte: det bär bara till AT, och
   // en seende användare får ingenting.
   //
@@ -344,7 +344,7 @@ export function CvReviewPanel({
         <CvProfileToggle basePath={basePath} profile={profile} />
       </div>
 
-      {/* Täckningsberättelsen lyft (#1062 Q1 punkt 3): "17 av 35 kriterier bedöms" är
+      {/* Täckningsberättelsen lyft (#1062 Q1 punkt 3): "17 av 35 kriterier är bedömda" är
           sidans mest bärande mening — den säger hur mycket av CV:t som faktiskt blev
           granskat — och stod på samma `--text-body-sm` som brödtexten runt den, med de
           18 obedömda 3051px längre ned. Den leder nu; hederlighetsklausulen och

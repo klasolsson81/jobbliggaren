@@ -81,7 +81,7 @@
     "title": "Granskning per kriterium",
     "unavailable": "Granskningen kunde inte laddas just nu. Tolkningen av ditt CV ovan påverkas inte. Försök ladda om sidan om en stund.",
     "summary": "{assessedCount} av {totalCount} kriterier är bedömda.",
-    "summaryNote": "Kriterier som inte kan bedömas räknas som ej bedömda och sänker inte omdömet.",
+    "summaryNote": "Kriterier som inte kan bedömas räknas som ej bedömda och sänker inte omdömet. Omdömet per dimension väger kriterierna efter hur viktiga de är, så det följer inte alltid antalet godkända.",
     "rubric": "Rubrik {version}",
     "todoTitle": "Att åtgärda ({count})",
     "todoEmpty": "{assessedCount, plural, =0 {Inget kriterium kunde bedömas, så granskningen pekar inte ut något att åtgärda.} one {Det enda kriterium som kunde bedömas kräver ingen åtgärd.} other {Inget av de # bedömda kriterierna kräver åtgärd.}}",

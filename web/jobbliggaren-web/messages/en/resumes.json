@@ -81,7 +81,7 @@
     "title": "Review by criterion",
     "unavailable": "The review could not be loaded right now. How your CV was read above is not affected. Try reloading the page in a moment.",
     "summary": "{assessedCount} of {totalCount} criteria are assessed.",
-    "summaryNote": "Criteria that cannot be assessed are counted as not assessed and do not lower the verdict.",
+    "summaryNote": "Criteria that cannot be assessed are counted as not assessed and do not lower the verdict. The verdict for each dimension weights criteria by how important they are, so it does not always follow the number of passes.",
     "rubric": "Rubric {version}",
     "todoTitle": "To fix ({count})",
     "todoEmpty": "{assessedCount, plural, =0 {No criterion could be assessed, so the review points out nothing to fix.} one {The only criterion that could be assessed needs no action.} other {None of the # assessed criteria need action.}}",

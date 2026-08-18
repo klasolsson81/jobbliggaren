@@ -131,6 +131,26 @@ is git-tracked, so editing it on the box makes every later `git pull --ff-only` 
 that is this box's whole deploy path, three lines above. The handover row lives in
 [`host-detection.md`](host-detection.md) §7, which is where the heartbeat script says to look.
 
+> **DONE 2026-08-18 (#1175). Both timers are armed on the box and both are named in the floor.**
+> The install half had been half-done since 2026-08-15 and nothing said so: all four unit files
+> sat in `/etc/systemd/system` bit-identical to the clone's, `daemon-reload`/`enable` had never
+> run, and `systemctl list-units` — which lists LOADED units — reported nothing at all, so the
+> state read as "not installed" on the axis most people measure. **Read `list-unit-files` when the
+> question is the disk and `is-enabled` when the question is the floor; `list-units` answers
+> neither.**
+>
+> **No `git pull` was performed and none was needed**, which is why this visit was not a deploy:
+> all four units were verified `sha256`-identical across the repo, `/opt/jobbliggaren/deploy/systemd/`
+> and `/etc/systemd/system/` before arming, so the step above reduces to `daemon-reload` +
+> `enable --now`. The `FLOOR_TIMERS` edit is the one thing here that does travel through the clone,
+> and it rides the normal PR path as this section requires.
+>
+> Verified at the arming, not inferred: both timers `enabled`/`active`; both services run and
+> **skip** (`Result=success`, `ConditionResult=no`, journal `unmet condition check
+> ConditionPathExists=…/host-secrets/Backup__RcloneConfigBase64`); `systemctl --failed` empty; and
+> `/var/lib/jobbliggaren/` still carries **no cursor file**, which is the measurement that says the
+> third precondition below was not reached — nothing was shipped and no journal left the box.
+
 **The cross-cover the `-fresh` unit names is not installed yet, and the sequence has to say so.**
 Installing before #197's host secrets exist is fine and intended — both units then skip on the same
 `ConditionPathExists`, which is the designed state, not a fault. But `-fresh.service`'s residual
@@ -365,7 +385,8 @@ integration coverage from `ci`, and the install happens once.
 | **Ingestion REFUSES an unkeyed write at this box** | `curl -X POST "http://$SEQ_IP/api/events/raw?clef"` with no `X-Seq-ApiKey` | **This is the row that says whether the ingest key bounds anything.** Measured on a stock 2026.1: with `RequireApiKeyForWritingEvents=false` — the DEFAULT — no key, an empty key and a wrong key are all accepted (201). The gate is §3 step 5 and has no environment variable, so it is a step someone can skip; expect **401** here | |
 | **Seq's retention policy removes events, and the DISK follows later** | query for an event older than the window; separately, `du` on the volume | Retention makes events inaccessible; space returns via compaction, which runs at **7 days of file age** — bytes can persist past the 30-day mark, and the register says so | |
 | **The seq container has a healthcheck** | `docker inspect -f '{{.State.Health.Status}}'` | **Not shipped.** The compose file omits it deliberately rather than shipping an unverified probe that would paint a permanent "unhealthy"; whether this image carries a client to call Seq's health endpoint was not measured. This row closes that | |
-| **`logship` runs, and its cost is bounded** | `systemd-analyze` on the unit; artefact size per run | | |
+| **`logship` runs, and its cost is bounded** | `systemd-analyze` on the unit; artefact size per run | **Half of this row is measured and the other half cannot be yet, and they are not the same claim.** *Runs:* both services were started by hand at the arming and both reached their condition and **skipped** — `Result=success`, `ExecMainStatus=0`, `ConditionResult=no`, journal `unmet condition check ConditionPathExists=…/host-secrets/Backup__RcloneConfigBase64`, `systemctl --failed` empty. *Cost:* **not measured and not measurable here** — a skipped run executes no script, ships no artefact and writes no cursor, so there is no size and no duration to bound. This cell is owed again at the first run with #197's credential present, which is also the run the third precondition in §2 governs | 2026-08-18 (runs only) |
+| **The pair is armed AND on an alarm surface** | `systemctl is-enabled` + `is-active` on both timers; then that both names appear in `FLOOR_TIMERS` | Both `enabled`/`active` on the box 2026-08-18, and both named in the floor the same day. **Arming without the floor row would have been the weaker half of a pair, not a smaller version of the whole:** the shipping service SKIPS without the upload credential, and a skip is inactive rather than failed, so an armed-but-unnamed timer that later stopped would still have been on no surface. `check_floor_timers` measures `is-enabled` AND `is-active`, which is why the repo edit follows the `enable` and never the install | 2026-08-18 |
 
 ---
 

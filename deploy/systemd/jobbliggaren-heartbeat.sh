@@ -43,8 +43,9 @@ readonly AUDIT_RULES_FILE=/etc/audit/rules.d/zz-jobbliggaren.rules
 # KEEP IN SYNC AS UNITS LAND. #197's jobbliggaren-backup.timer and #198's
 # jobbliggaren-host-secrets-present.timer belong here the moment they are ENABLED on the box, the
 # state check_floor_timers actually measures, and that handover is written in
-# docs/runbooks/host-detection.md rather than left to memory. (#198's other absence timer,
-# jobbliggaren-secrets-present.timer, already joined — see the note below the constant.)
+# docs/runbooks/host-detection.md rather than left to memory. (Already joined, and each on its own
+# enable day: #198's other absence timer jobbliggaren-secrets-present.timer, and #1175's logship
+# pair — see the notes below the constant.)
 #
 # INSTALLED AND ENABLED ARE TWO MOMENTS, AND SINCE #1329 THEY DIVERGE FOR ONLY ONE OF THE TWO.
 # The absence detector split per set. jobbliggaren-secrets-present.timer runs --check over the

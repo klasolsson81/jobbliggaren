@@ -329,34 +329,59 @@ export default async function JobbPage({ searchParams }: PageProps) {
       </section>
 
       <div className="jp-container jp-page">
-        {/* Resultat-ytan streamas: <Suspense> visar JobAdListSkeleton
+        {/* #1395: the results area was an unlabelled region, so the next heading after the
+            hero's h1 was whatever the first card happened to be titled — h1 -> h3, a skipped
+            level (WCAG 1.3.1). The fix is the missing h2, never promoting `.jp-job__title`:
+            a card is contained BY this region, not a peer of it, and promoting it closes the
+            numeric gap while leaving the region itself unnamed.
+
+            The heading is INVARIANT and reports no number, which is
+            `components/company-criteria/foretag-sok-results.tsx`'s written rule — and here that
+            rule is also what makes this placement possible. The count is data-bound and must
+            stay inside the boundary; an invariant label needs no data, so it renders with the
+            hero and is painted identically in the streamed and the loaded state. There is no
+            band for the in-page fallback to reserve because the heading never leaves the page.
+            (`loading.tsx` is a separate route-segment component and reserves its own.)
+
+            Copy names what the region HOLDS rather than restating the h1 ("Sök jobb"), the same
+            distinction `pages.cv.listHeading` draws. Not "Sökresultat": an unfiltered /jobb
+            browses every active ad, and the sibling surface already measured that calling a
+            browse-all a search result misnames it. `jp-h2` and not `text-h2` for the reason
+            written at `foretag-sok-results.tsx`. */}
+        <section aria-labelledby="jobb-results-title">
+          <h2 id="jobb-results-title" className="jp-h2">
+            {t("jobb.resultsHeading")}
+          </h2>
+
+          {/* Resultat-ytan streamas: <Suspense> visar JobAdListSkeleton
             medan JobbResults await:ar getJobAds(). Hero ovan är redan
             renderad och förblir synlig. `key` byts per sökning så
             skeleton:en visas även vid /jobb→/jobb-navigering (F6 P4 B1). */}
-        <Suspense
-          key={`${resultsKey}|${occupationGroupKey}|${regionKey}|${municipalityKey}|${employmentTypeKey}|${worktimeExtentKey}|${matchGradesKey}|${matchningKey}|${relateradeKey}|${statusKey}|${onlyMatchedKey}|${employerKey}`}
-          fallback={<JobAdListSkeleton />}
-        >
-          <JobbResults
-            page={page}
-            pageSize={pageSize}
-            sortBy={sortBy}
-            occupationGroup={occupationGroup}
-            region={region}
-            municipality={municipality}
-            employmentType={employmentType}
-            worktimeExtent={worktimeExtent}
-            matchGrades={matchGrades}
-            matchningOff={matchningOff}
-            includeRelated={includeRelated}
-            hideApplied={hideApplied}
-            onlyMatched={onlyMatched}
-            employer={employer}
-            q={q ?? ""}
-            commit={commit}
-            rawParams={params}
-          />
-        </Suspense>
+          <Suspense
+            key={`${resultsKey}|${occupationGroupKey}|${regionKey}|${municipalityKey}|${employmentTypeKey}|${worktimeExtentKey}|${matchGradesKey}|${matchningKey}|${relateradeKey}|${statusKey}|${onlyMatchedKey}|${employerKey}`}
+            fallback={<JobAdListSkeleton />}
+          >
+            <JobbResults
+              page={page}
+              pageSize={pageSize}
+              sortBy={sortBy}
+              occupationGroup={occupationGroup}
+              region={region}
+              municipality={municipality}
+              employmentType={employmentType}
+              worktimeExtent={worktimeExtent}
+              matchGrades={matchGrades}
+              matchningOff={matchningOff}
+              includeRelated={includeRelated}
+              hideApplied={hideApplied}
+              onlyMatched={onlyMatched}
+              employer={employer}
+              q={q ?? ""}
+              commit={commit}
+              rawParams={params}
+            />
+          </Suspense>
+        </section>
       </div>
     </>
   );

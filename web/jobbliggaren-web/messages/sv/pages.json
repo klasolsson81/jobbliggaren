@@ -219,6 +219,7 @@
   "jobb": {
     "title": "Sök jobb",
     "lede": "Sök bland aktiva annonser från Platsbanken. Filtrera och jämför utan att tappa en enda annons.",
+    "resultsHeading": "Lediga jobb",
     "loading": "Jobbannonsen läses in…",
     "detail": {
       "loadErrorTitle": "Kunde inte ladda annonsen"

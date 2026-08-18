@@ -59,13 +59,19 @@ describe("globals.css — the global link colour rule (#1352)", () => {
     }
   });
 
-  it("keeps the exemption free of an id, which would raise the rule the same way", () => {
+  it("keeps the selector free of an id, which would raise the rule the same way", () => {
     for (const rule of LINK_RULES) {
-      const args = rule.slice(rule.indexOf(":not(") + 5, rule.indexOf(")"));
+      // The whole selector, not the `:not()` argument slice. Slicing to the first `)` ends at the
+      // wrong paren the moment the list contains one of its own — `:is()`, `:where()`, `:has()`, or
+      // a quoted attribute value carrying `)` — and an id after it then survives (measured,
+      // `code-reviewer` re-check on PR #1400). No `#` can legitimately appear anywhere in a rule
+      // this guard collects, so the wider assertion is also the simpler one, and it additionally
+      // catches an id appended OUTSIDE the `:not()`.
+      const selector = rule.slice(0, rule.indexOf("{"));
       expect(
-        args,
-        `${rule.slice(0, rule.indexOf("{")).trim()} — an id inside the :not() satisfies the ` +
-          `one-selector-list form but lifts the rule to (1,0,1), which beats both surfaces anyway.`,
+        selector,
+        `${selector.trim()} — an id lifts the rule to (1,0,1), which beats both protected ` +
+          `surfaces whatever the :not() looks like.`,
       ).not.toContain("#");
     }
   });

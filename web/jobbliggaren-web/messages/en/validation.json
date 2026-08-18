@@ -27,7 +27,8 @@
     "newPasswordTooShort": "New password must be at least 12 characters.",
     "displayNameRequired": "Display name is required.",
     "displayNameMax": "Display name may be at most 200 characters.",
-    "languageInvalid": "Choose a valid language."
+    "languageInvalid": "Choose a valid language.",
+    "nothingToUpdate": "Nothing to save. Change something first."
   },
   "resume": {
     "dateInvalid": "Invalid date (yyyy-MM-dd).",

@@ -46,7 +46,14 @@ public enum AutoPromoteBlockReason
     /// which is a mis-reported verdict (CLAUDE.md §5) and a loop she cannot exit.</para>
     ///
     /// <para><b>Not a new PII surface:</b> like every other member this is a gate identity, not
-    /// evidence. It says which control fired, never what it saw.</para></summary>
+    /// evidence. It says which control fired, never what it saw.</para>
+    ///
+    /// <para><b>Reachable only from a legacy row since #1117.</b> The display-name channel is now
+    /// closed at the source: <c>JobSeeker.Register</c>/<c>UpdateDisplayName</c> refuse a
+    /// personnummer, so no current write path can produce this state. The invariant is
+    /// forward-only (EF materializes existing rows past the factory methods), so this member
+    /// still fires on a row written before it landed, and the user action it names is
+    /// unchanged.</para></summary>
     PersonnummerInAccountName,
 
     /// <summary>Extraction produced nothing usable — <c>ParseConfidence.Overall</c> is

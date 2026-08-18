@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useRef } from "react";
+import { useActionState, useEffect, useId, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
@@ -18,6 +18,17 @@ export function RegisterForm() {
     null
   );
   const pendingRef = useRef<HTMLDivElement>(null);
+  const displayNameRef = useRef<HTMLInputElement>(null);
+  const errorId = useId();
+  // #1117: the error belongs to a named field only when the action says so. Absent `field`
+  // means a non-field failure (network, kill-switch), which must not mark an input invalid.
+  const displayNameInvalid = state?.error !== undefined && state.field === "displayName";
+
+  // Focus goes to the field the user has to correct, the same move ForgotPasswordForm makes.
+  // Without it the message is announced but the caret is nowhere near the input it names.
+  useEffect(() => {
+    if (displayNameInvalid) displayNameRef.current?.focus();
+  }, [displayNameInvalid, state]);
 
   // Focus management (not data fetching): when registration flips to the pending-confirmation state,
   // move focus to the status panel so keyboard users land on it and screen readers announce it.
@@ -97,13 +108,17 @@ export function RegisterForm() {
           {t("auth.register.nameLabel")}
         </label>
         <Input
+          ref={displayNameRef}
           id="displayName"
           name="displayName"
           type="text"
           autoComplete="name"
           required
           aria-required="true"
-          aria-describedby="name-hint"
+          aria-invalid={displayNameInvalid ? true : undefined}
+          aria-describedby={
+            displayNameInvalid ? `name-hint ${errorId}` : "name-hint"
+          }
         />
         <p id="name-hint" className="text-body-sm text-text-primary">
           {t("auth.register.nameHint")}
@@ -151,7 +166,7 @@ export function RegisterForm() {
       />
 
       {state?.error && (
-        <p role="alert" className="text-body-sm leading-5 text-danger-600">
+        <p id={errorId} role="alert" className="text-body-sm leading-5 text-danger-600">
           {state.error}
         </p>
       )}

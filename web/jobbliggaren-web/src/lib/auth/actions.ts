@@ -55,6 +55,12 @@ export type AuthActionState = {
   // form, and the login-403 gate keeps the form mounted but React 19 resets its live input (#791).
   // Lives only in the returned action state; never logged.
   email?: string;
+  // #1117: names the ONE input an error belongs to, so the form can wire aria-invalid and
+  // aria-describedby to that field and move focus there. Opt-in and absent by default — absent
+  // means "not a field error" (network, server unreachable, the kill-switch), exactly the
+  // semantics ForgotPasswordForm already reads off `!state.refused`. Existing errors are left
+  // unstamped deliberately: stamping them would change behaviour outside this change-reason.
+  field?: "displayName";
 } | null;
 
 export async function loginAction(
@@ -159,6 +165,17 @@ export async function registerAction(
         // comparison only; ProblemDetails text is never rendered.
         if (errorBody.title === "Auth.PwnedPassword") {
           return { error: t("auth.actions.passwordBreached") };
+        }
+        // #1117 — the display-name personnummer refusal is an aggregate invariant, so it
+        // arrives as a ProblemDetails `title` and NOT in the FluentValidation `errors` dict the
+        // fallthrough below reads. Without this arm the user gets the generic "registration
+        // failed" for a refusal that names exactly what to change. Same exact-whitelist rule as
+        // the arm above: compared, never rendered.
+        if (errorBody.title === "JobSeeker.DisplayNamePersonnummerMustBeRemoved") {
+          return {
+            error: t("auth.actions.displayNamePersonnummer"),
+            field: "displayName",
+          };
         }
         const firstError = errorBody.errors
           ? Object.values(errorBody.errors).flat()[0]

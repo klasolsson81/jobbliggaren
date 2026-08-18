@@ -1,5 +1,6 @@
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.JobSeekers.Events;
+using Jobbliggaren.Domain.Privacy;
 using Jobbliggaren.Domain.Resumes;
 
 namespace Jobbliggaren.Domain.JobSeekers;
@@ -73,6 +74,56 @@ public sealed class JobSeeker : AggregateRoot<JobSeekerId>
         CreatedAt = createdAt;
     }
 
+    /// <summary>The display name's length limit. Exposed so a caller that validates the
+    /// name at a boundary caps against the aggregate's own number, not a copy of it.</summary>
+    public const int MaxDisplayNameLength = 200;
+
+    // #1117 (CLAUDE.md §5 — the highest-priority PII rule): the shared name-invariant enforced
+    // on EVERY DisplayName-write path (Register / UpdateDisplayName). DisplayName is a
+    // PLAINTEXT, UNENCRYPTED column that surfaces on screen and in the profile DTO, and which
+    // the promote path composes into PersonalInfo.FullName — the header of the PDF the user
+    // sends to employers. So a personnummer typed into the ACCOUNT NAME must be refused. This
+    // is a structural AGGREGATE invariant (DDD §2.2), not a boundary guard: enforcing it here
+    // closes the channel for every caller by construction, fail-closed, so a future write path
+    // (an external-identity login populating a name, say) cannot silently forget it.
+    //
+    // Detection = the FLAG-path chain (Normalize -> Scan), the same PersonnummerScanner
+    // authority Resume.ValidateName runs one aggregate over, whose written justification
+    // applies verbatim here. The name is REFUSED, never redacted — a name is user intent, not
+    // free-text evidence to strip in place. The unchanged date+Luhn authority
+    // (Personnummer.TryParse) still governs, so an ordinary name is never over-flagged.
+    // Returns the trimmed, validated name so both callers use ONE canonical value.
+    //
+    // The invariant is FORWARD-ONLY: EF materializes an existing row through the private
+    // constructor, bypassing this method, so a row written before it landed still loads. That
+    // is deliberate — the DQ6 guard on the promote path (AutoPromoteGate) remains the control
+    // standing on those rows.
+    //
+    // PUBLIC so a caller that must refuse BEFORE it can construct the aggregate can run the same
+    // rule from its one home — not a second home for it. RegisterCommandHandler is that caller:
+    // it creates the Identity user first, so evaluating the refusal only at Register() would make
+    // the response vary with whether the address already exists (#714's status oracle). Calling
+    // this earlier is an ORDERING requirement, not a duplicated invariant — Register() still runs
+    // it, so the aggregate stays fail-closed for every other caller.
+    public static Result<string> ValidateDisplayName(string? displayName)
+    {
+        if (string.IsNullOrWhiteSpace(displayName))
+            return Result.Failure<string>(
+                DomainError.Validation("JobSeeker.DisplayNameRequired", "Visningsnamn är obligatoriskt."));
+
+        if (displayName.Length > MaxDisplayNameLength)
+            return Result.Failure<string>(DomainError.Validation(
+                "JobSeeker.DisplayNameTooLong",
+                $"Visningsnamn får vara max {MaxDisplayNameLength} tecken."));
+
+        if (PersonnummerScanner.Scan(PersonnummerTextNormalizer.Normalize(displayName)).Count > 0)
+            return Result.Failure<string>(DomainError.Validation(
+                "JobSeeker.DisplayNamePersonnummerMustBeRemoved",
+                "Ta bort personnummer ur visningsnamnet."));
+
+        return Result.Success(displayName.Trim());
+    }
+
     public static Result<JobSeeker> Register(
         Guid userId,
         string? displayName,
@@ -82,34 +133,27 @@ public sealed class JobSeeker : AggregateRoot<JobSeekerId>
             return Result.Failure<JobSeeker>(
                 DomainError.Validation("JobSeeker.UserIdRequired", "UserId krävs."));
 
-        if (string.IsNullOrWhiteSpace(displayName))
-            return Result.Failure<JobSeeker>(
-                DomainError.Validation("JobSeeker.DisplayNameRequired", "Visningsnamn är obligatoriskt."));
+        var nameResult = ValidateDisplayName(displayName);
+        if (nameResult.IsFailure)
+            return Result.Failure<JobSeeker>(nameResult.Error);
 
-        if (displayName.Length > 200)
-            return Result.Failure<JobSeeker>(
-                DomainError.Validation("JobSeeker.DisplayNameTooLong", "Visningsnamn får vara max 200 tecken."));
-
+        var validatedName = nameResult.Value;
         var now = clock.UtcNow;
         var id = JobSeekerId.New();
-        var jobSeeker = new JobSeeker(id, userId, displayName.Trim(), new Preferences(), now);
+        var jobSeeker = new JobSeeker(id, userId, validatedName, new Preferences(), now);
         jobSeeker.RaiseDomainEvent(
-            new JobSeekerRegisteredDomainEvent(id, userId, displayName.Trim(), now));
+            new JobSeekerRegisteredDomainEvent(id, userId, validatedName, now));
 
         return Result.Success(jobSeeker);
     }
 
     public Result UpdateDisplayName(string? displayName, IDateTimeProvider clock)
     {
-        if (string.IsNullOrWhiteSpace(displayName))
-            return Result.Failure(
-                DomainError.Validation("JobSeeker.DisplayNameRequired", "Visningsnamn är obligatoriskt."));
+        var nameResult = ValidateDisplayName(displayName);
+        if (nameResult.IsFailure)
+            return Result.Failure(nameResult.Error);
 
-        if (displayName.Length > 200)
-            return Result.Failure(
-                DomainError.Validation("JobSeeker.DisplayNameTooLong", "Visningsnamn får vara max 200 tecken."));
-
-        DisplayName = displayName.Trim();
+        DisplayName = nameResult.Value;
         UpdatedAt = clock.UtcNow;
         return Result.Success();
     }

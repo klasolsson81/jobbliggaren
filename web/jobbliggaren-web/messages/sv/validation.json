@@ -27,7 +27,8 @@
     "newPasswordTooShort": "Nytt lösenord måste vara minst 12 tecken.",
     "displayNameRequired": "Visningsnamn krävs.",
     "displayNameMax": "Visningsnamn får vara max 200 tecken.",
-    "languageInvalid": "Välj ett giltigt språk."
+    "languageInvalid": "Välj ett giltigt språk.",
+    "nothingToUpdate": "Ingenting att spara. Ändra något först."
   },
   "resume": {
     "dateInvalid": "Ogiltigt datum (yyyy-MM-dd).",

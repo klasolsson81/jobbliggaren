@@ -125,8 +125,16 @@ public class AutoPromoteParsedResumeCommandHandlerTests
         string displayName = AccountName,
         string sourceFileName = "anna-cv.pdf")
     {
-        var seeker = JobSeeker.Register(userId, displayName, FakeDateTimeProvider.Default).Value;
+        // Registered with a placeholder, then the column is written directly. Since #1117
+        // JobSeeker.Register refuses a personnummer-shaped display name (pinned in
+        // Jobbliggaren.Domain.UnitTests, JobSeekerTests), so the one case that needs such a name
+        // is asserting about a row written BEFORE that invariant landed — the invariant is
+        // forward-only, since EF materializes an existing row past the factory methods, and that
+        // legacy population is exactly what the DQ6 arm still stands on. The seam is uniform so
+        // there is one path to read rather than a branch on the caller's argument.
+        var seeker = JobSeeker.Register(userId, "Seeded Owner", FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(seeker);
+        db.Entry(seeker).Property(js => js.DisplayName).CurrentValue = displayName;
         var parsed = BuildParsed(seeker.Id, content, confidence, pnr, sourceFileName);
         db.ParsedResumes.Add(parsed);
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);

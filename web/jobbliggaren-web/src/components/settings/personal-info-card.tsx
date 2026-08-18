@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useId, useRef } from "react";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,6 +11,8 @@ interface PersonalInfoCardProps {
   email: string;
   isPending: boolean;
   error: string | null;
+  /** #1117: which input `error` belongs to, or null when it is not a field error. */
+  errorField: "displayName" | null;
   savedAt: Date | null;
   onDisplayNameChange: (next: string) => void;
   onSubmit: (e: React.FormEvent<HTMLFormElement>) => void;
@@ -26,11 +29,21 @@ export function PersonalInfoCard({
   email,
   isPending,
   error,
+  errorField,
   savedAt,
   onDisplayNameChange,
   onSubmit,
 }: PersonalInfoCardProps) {
   const t = useTranslations("settings");
+  const errorId = useId();
+  const nameRef = useRef<HTMLInputElement>(null);
+  const nameInvalid = error !== null && errorField === "displayName";
+
+  // Focus the input the message names, so a keyboard or screen-reader user lands on the
+  // control to correct rather than only hearing that something is wrong.
+  useEffect(() => {
+    if (nameInvalid) nameRef.current?.focus();
+  }, [nameInvalid, error]);
   return (
     <section className="jp-card">
       <h2 className="jp-card__title">{t("personalInfo.title")}</h2>
@@ -38,6 +51,7 @@ export function PersonalInfoCard({
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="settings-name">{t("personalInfo.nameLabel")}</Label>
           <Input
+            ref={nameRef}
             id="settings-name"
             type="text"
             value={displayName}
@@ -46,6 +60,8 @@ export function PersonalInfoCard({
             required
             disabled={isPending}
             autoComplete="name"
+            aria-invalid={nameInvalid ? true : undefined}
+            aria-describedby={nameInvalid ? errorId : undefined}
           />
         </div>
         <div className="flex flex-col gap-1.5">
@@ -65,7 +81,7 @@ export function PersonalInfoCard({
           </p>
         </div>
         {error && (
-          <p role="alert" className="text-body-sm text-danger-600">
+          <p id={errorId} role="alert" className="text-body-sm text-danger-600">
             {error}
           </p>
         )}

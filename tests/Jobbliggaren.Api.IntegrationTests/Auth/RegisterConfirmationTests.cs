@@ -21,10 +21,11 @@ public class RegisterConfirmationTests(ApiFactory factory)
 
     private const string StrongPassword = "T3stlosen123456";
 
-    private Task<HttpResponseMessage> RegisterAsync(string email, string password, CancellationToken ct)
+    private Task<HttpResponseMessage> RegisterAsync(
+        string email, string password, CancellationToken ct, string displayName = "Test User")
         => _client.PostAsJsonAsync(
             "/api/v1/auth/register",
-            new { email, password, displayName = "Test User" },
+            new { email, password, displayName },
             ct);
 
     [Fact]
@@ -95,11 +96,15 @@ public class RegisterConfirmationTests(ApiFactory factory)
     [Fact]
     public async Task POST_register_breached_password_returns_identical_400_for_fresh_and_taken()
     {
-        // CTO-bind Risk 1 (breached-vs-duplicate ordering): the only register 400 that remains under the
-        // flag is a breached password, and it is credential-dependent, NOT existence-dependent —
-        // Identity validates the password BEFORE uniqueness, so a taken and a fresh address BOTH get the
-        // same Auth.PwnedPassword 400 for a breached password. This pins that no breached-vs-duplicate
-        // status oracle exists.
+        // CTO-bind Risk 1 (breached-vs-duplicate ordering): a breached password is
+        // credential-dependent, NOT existence-dependent — Identity validates the password BEFORE
+        // uniqueness, so a taken and a fresh address BOTH get the same Auth.PwnedPassword 400. This
+        // pins that no breached-vs-duplicate status oracle exists.
+        //
+        // It is no longer the ONLY register 400 under the flag: #1117 added the display-name
+        // personnummer refusal, which is input-dependent and existence-independent for the same
+        // reason class, and is pinned by its own parity test below. The invariant this file defends
+        // is not "exactly one 400 exists" but "every reachable 400 is existence-INDEPENDENT".
         var ct = TestContext.Current.CancellationToken;
         var breachedPassword = $"Breached-{Guid.NewGuid():N}";
         _factory.BreachChecks.SetVerdict(breachedPassword, BreachCheckVerdict.Breached);
@@ -123,6 +128,57 @@ public class RegisterConfirmationTests(ApiFactory factory)
 
         takenTitle.ShouldBe("Auth.PwnedPassword");
         freshTitle.ShouldBe(takenTitle, "a breached password is identical for a taken and a fresh address");
+    }
+
+    [Fact]
+    public async Task POST_register_personnummer_display_name_returns_identical_400_for_fresh_and_taken()
+    {
+        // #1117, and the reason this test exists is a defect the invariant itself introduced. The
+        // refusal lives in the JobSeeker aggregate, which the handler can only reach AFTER
+        // CreateUserAsync — and the duplicate-address branch returns the uniform 202 before that.
+        // Evaluated there, one and the same request answers 202 for a taken address and 400 for a
+        // fresh one: an existence-dependent status oracle, attacker-controlled, needing no valid
+        // credential. The handler therefore runs the aggregate's own ValidateDisplayName BEFORE
+        // CreateUserAsync. This pins the property for the DISPLAY-NAME refusal specifically: move
+        // that evaluation back after the duplicate branch and this test fails. It does not cover a
+        // future input rule of some other kind placed there — such a rule needs its own pin, and
+        // reading this one as general coverage is how the next person skips writing it.
+        //
+        // The parity test above uses a CLEAN display name, so it is green either way — which is
+        // why this needed its own case rather than a stronger assertion there.
+        var ct = TestContext.Current.CancellationToken;
+        var pnrDisplayName = "Anna 811218-9876";
+
+        var takenEmail = $"regconf-pnr-taken-{Guid.NewGuid()}@example.com";
+        (await RegisterAsync(takenEmail, StrongPassword, ct)).StatusCode.ShouldBe(HttpStatusCode.Accepted);
+
+        var freshEmail = $"regconf-pnr-fresh-{Guid.NewGuid()}@example.com";
+
+        var taken = await RegisterAsync(takenEmail, StrongPassword, ct, pnrDisplayName);
+        var fresh = await RegisterAsync(freshEmail, StrongPassword, ct, pnrDisplayName);
+
+        taken.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+        fresh.StatusCode.ShouldBe(taken.StatusCode, "a refused display name must not reveal whether the address exists");
+
+        var takenBody = await taken.Content.ReadAsStringAsync(ct);
+        var freshBody = await fresh.Content.ReadAsStringAsync(ct);
+        takenBody.ShouldBe(freshBody, "status AND body must be identical for a taken and a fresh address");
+
+        var title = (await fresh.Content.ReadFromJsonAsync<System.Text.Json.JsonElement>(ct))
+            .GetProperty("title").GetString();
+        title.ShouldBe("JobSeeker.DisplayNamePersonnummerMustBeRemoved");
+
+        // And the refusal left nothing behind for the #508 orphan sweep: registering the same fresh
+        // address afterwards takes the FRESH path, not the duplicate one. The STATUS cannot say
+        // that — under this flag #714 makes both answers 202, so a status assertion here would hold
+        // whether nothing was created, or a user was created and compensated away, or a user was
+        // created and stranded. The email KIND is the instrument that separates them, which is why
+        // the two cases at the top of this file discriminate the same way.
+        (await RegisterAsync(freshEmail, StrongPassword, ct)).StatusCode.ShouldBe(HttpStatusCode.Accepted);
+        _factory.Emails.Sent.ShouldContain(e =>
+            e.ToEmail == freshEmail && e.Kind == RecordedEmailKind.EmailConfirmation);
+        _factory.Emails.Sent.ShouldNotContain(e =>
+            e.ToEmail == freshEmail && e.Kind == RecordedEmailKind.AccountExistsNotice);
     }
 
     // NOTE: send-failure symmetry (CTO-bind Risk 1 — a transport fault must yield the same response for

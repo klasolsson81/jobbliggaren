@@ -15,6 +15,7 @@ type AuthActionState = {
   pendingConfirmation?: boolean;
   registrationsClosed?: boolean;
   email?: string;
+  field?: "displayName";
 } | null;
 const registerActionMock =
   vi.fn<
@@ -144,5 +145,50 @@ describe("RegisterForm", () => {
     expect(
       await screen.findByRole("button", { name: "Skicka en ny bekräftelselänk" })
     ).toBeInTheDocument();
+  });
+
+  // #1117 — the refusal names one input with one fix, so it must be wired to that input and
+  // not merely rendered near it. Both polarities: the discriminator is only meaningful if its
+  // ABSENCE is pinned too, otherwise stamping every failure would pass the positive case while
+  // telling a screen-reader user her name is wrong when the network dropped.
+  it("wires aria-invalid, aria-describedby and focus when the action names the field", async () => {
+    registerActionMock.mockResolvedValue({
+      error: "Namnet far inte innehalla ett personnummer.",
+      field: "displayName",
+    });
+
+    const user = userEvent.setup();
+    render(<RegisterForm />);
+
+    await user.type(screen.getByLabelText("Namn"), "Anna 811218-9876");
+    await user.type(screen.getByLabelText("E-postadress"), "anna@example.se");
+    await user.type(screen.getByLabelText("Lösenord"), "password1");
+    await user.click(screen.getByRole("button", { name: "Skapa konto" }));
+
+    const alert = await screen.findByRole("alert");
+    const nameInput = screen.getByLabelText("Namn");
+
+    expect(nameInput).toHaveAttribute("aria-invalid", "true");
+    expect(alert.id).not.toBe("");
+    expect(nameInput.getAttribute("aria-describedby")).toContain(alert.id);
+    await waitFor(() => expect(nameInput).toHaveFocus());
+  });
+
+  it("leaves the name input unmarked for a failure that is not about the field", async () => {
+    registerActionMock.mockResolvedValue({ error: "Kunde inte na servern." });
+
+    const user = userEvent.setup();
+    render(<RegisterForm />);
+
+    await user.type(screen.getByLabelText("Namn"), "Anna Andersson");
+    await user.type(screen.getByLabelText("E-postadress"), "anna@example.se");
+    await user.type(screen.getByLabelText("Lösenord"), "password1");
+    await user.click(screen.getByRole("button", { name: "Skapa konto" }));
+
+    await screen.findByRole("alert");
+    const nameInput = screen.getByLabelText("Namn");
+
+    expect(nameInput).not.toHaveAttribute("aria-invalid");
+    expect(nameInput.getAttribute("aria-describedby")).toBe("name-hint");
   });
 });

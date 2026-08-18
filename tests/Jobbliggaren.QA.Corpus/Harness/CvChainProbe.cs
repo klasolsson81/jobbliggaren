@@ -133,12 +133,22 @@ internal static class CvChainProbe
 
         // The account display name is a CASE input, not a fixed constant. The auto-promote
         // handler feeds it into the composed DTO, so it is the ONLY text the DQ6 guard sees that
-        // the import scan did not already cover. One case therefore authors a personnummer HERE
+        // the import scan did not already cover. One case therefore carries a personnummer HERE
         // rather than in the CV body: that is the only route to the DQ6 rung which a parse-level
         // personnummer does not pre-empt, and without it, deleting the guard call would leave the
         // whole report byte-identical.
-        var seeker = JobSeeker.Register(userId, accountDisplayName, clock).Value;
+        //
+        // Since #1117 that name cannot be REGISTERED: JobSeeker.Register refuses a
+        // personnummer-shaped display name (pinned in Jobbliggaren.Domain.UnitTests,
+        // JobSeekerTests). The probe therefore registers a placeholder and writes the case's own
+        // name straight to the column, which is the state a row written BEFORE that invariant
+        // has — the invariant is forward-only, since EF materializes an existing row past the
+        // factory methods. That legacy population is exactly what the DQ6 arm still stands on,
+        // so the case keeps measuring the rung it was built for; what changed is which actor
+        // produced its premise, not what it proves.
+        var seeker = JobSeeker.Register(userId, "Korpus Testkonto", clock).Value;
         db.JobSeekers.Add(seeker);
+        db.Entry(seeker).Property(js => js.DisplayName).CurrentValue = accountDisplayName;
         await db.SaveChangesAsync(ct);
 
         var currentUser = Substitute.For<ICurrentUser>();

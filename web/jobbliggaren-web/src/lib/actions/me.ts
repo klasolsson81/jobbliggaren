@@ -28,11 +28,15 @@ import {
   type UpdateFollowedCompanyNotificationConsentInput,
 } from "./me-schemas";
 import { mapActionError } from "./_action-error";
-import type { ActionResult, RefusableActionResult } from "./_action-result";
+import type {
+  ActionResult,
+  FieldScopedActionResult,
+  RefusableActionResult,
+} from "./_action-result";
 
 export async function updateMyProfileAction(
   input: UpdateMyProfileInput
-): Promise<ActionResult> {
+): Promise<FieldScopedActionResult> {
   const ts = await getTranslations("settings");
   const te = await getTranslations("errors");
   const sessionId = await getSessionId();
@@ -54,6 +58,24 @@ export async function updateMyProfileAction(
       body: JSON.stringify(parsed.data),
     });
 
+    if (res.status === 400) {
+      // #1117 — the personnummer refusal is an AGGREGATE invariant, so the Zod schema above
+      // (length only) can never catch it, and mapActionError discriminates on status alone and
+      // would render the generic "could not update" for a refusal the user can act on. Same
+      // exact-whitelist discipline as the Auth.PwnedPassword arm: the machine code is compared,
+      // never rendered, and the backend `detail` is not read.
+      const title = await readProblemTitle(res);
+      return title === "JobSeeker.DisplayNamePersonnummerMustBeRemoved"
+        ? {
+            success: false,
+            error: ts("account.errors.displayNamePersonnummer"),
+            // Names the ONE input this belongs to so the card can mark it invalid and move
+            // focus there. Absent on every other failure, which is what "not a field error"
+            // means to the consumer.
+            field: "displayName" as const,
+          }
+        : { success: false, error: ts("account.errors.invalidInput") };
+    }
     if (!res.ok) {
       return {
         success: false,

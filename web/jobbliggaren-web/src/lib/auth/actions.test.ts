@@ -105,7 +105,7 @@ describe("registerAction (#541 — DisplayName must reach the backend)", () => {
   });
 });
 
-describe("registerAction 400 handling (#616 — breached password reaches the user)", () => {
+describe("registerAction 400 handling (#616 breached password, #1117 display-name refusal)", () => {
   const form = () =>
     formOf({ displayName: "Anna Andersson", email: "anna@example.se", password: "password1" });
 
@@ -141,6 +141,33 @@ describe("registerAction 400 handling (#616 — breached password reaches the us
     const result = await registerAction(null, form());
 
     expect(result).toEqual({ error: "auth.actions.registrationFailed" });
+  });
+
+  it("maps the #1117 display-name refusal to copy that names what to change", async () => {
+    // The aggregate invariant answers with a ProblemDetails title, NOT the FluentValidation
+    // errors-dictionary, so without its own arm this refusal reads as "registration failed"
+    // and the user is told nothing about the name they typed.
+    parseResponseMock.mockResolvedValue({
+      title: "JobSeeker.DisplayNamePersonnummerMustBeRemoved",
+    });
+
+    const result = await registerAction(null, form());
+
+    expect(result).toEqual({
+      error: "auth.actions.displayNamePersonnummer",
+      // Names the input so RegisterForm can mark it invalid and move focus there.
+      field: "displayName",
+    });
+  });
+
+  it("does NOT name a field for an unknown ProblemDetails title", async () => {
+    // The absence is the half that matters: stamping every failure would mark the name input
+    // invalid for causes the user cannot fix by editing the name.
+    parseResponseMock.mockResolvedValue({ title: "Auth.SomethingElse" });
+
+    const result = await registerAction(null, form());
+
+    expect(result).not.toHaveProperty("field");
   });
 });
 

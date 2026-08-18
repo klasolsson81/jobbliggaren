@@ -111,7 +111,6 @@
       "resolvedLabel": "Åtgärdad",
       "ignoredLabel": "Ignorerad",
       "openLabel": "Öppen",
-      "openHint": "Du har inte tagit ställning till den här anmärkningen än.",
       "resolvedHint": "Du har markerat den här som åtgärdad. Den ligger kvar i granskningen tills anmärkningen är borta ur ditt CV.",
       "ignoredHint": "Du har valt att ignorera den här stilregeln. Den räknas inte längre som en åtgärd.",
       "staleHint": "Du markerade den här som åtgärdad, men anmärkningen finns fortfarande kvar i ditt CV. Återställ om du vill åtgärda den på nytt."

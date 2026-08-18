@@ -111,7 +111,6 @@
       "resolvedLabel": "Fixed",
       "ignoredLabel": "Ignored",
       "openLabel": "Open",
-      "openHint": "You have not decided on this finding yet.",
       "resolvedHint": "You have marked this as fixed. It stays in the review until the finding is gone from your CV.",
       "ignoredHint": "You have chosen to ignore this style rule. It no longer counts as something to fix.",
       "staleHint": "You marked this as fixed, but the finding is still present in your CV. Reset it if you want to fix it again."

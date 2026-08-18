@@ -138,12 +138,31 @@ describe("CvFindingStatusControl — pill + hjälptext per status", () => {
   // NÄRVARON av en knapp, så användaren fick läsa systemets STATUS ur dess
   // ÅTGÄRDSERBJUDANDE. Mätt på ytan: {"pills":[],"hint":null,"buttons":["Markera som
   // åtgärdad"]}.
-  it("inget beslut registrerat: Öppen-pill + hjälptext som säger vad det betyder", () => {
-    renderControl({ userStatus: null });
+  // Hjälptexten togs bort i #1062 Q1-rundan (design-reviewers minor 2, buren ur PR 2):
+  // de tre andra hintarna förklarar en KONSEKVENS av ett val användaren gjort, medan
+  // "Du har inte tagit ställning …" bara omformulerade pillen bredvid sig — en gång per
+  // anmärkning, i det lager Q1 gör till sidans huvudinnehåll. M4:s fynd gällde PILLEN,
+  // och den är kvar; båda halvorna mäts här så att en framtida borttagning av pillen
+  // inte kan passera som "hinten är ju borttagen".
+  it("inget beslut registrerat: Öppen-pill, och ingen hjälptext som upprepar den", () => {
+    const { container } = renderControl({ userStatus: null });
     expect(screen.getByText("Öppen")).toBeInTheDocument();
     expect(
-      screen.getByText(/inte tagit ställning till den här anmärkningen än/),
-    ).toBeInTheDocument();
+      container.querySelectorAll(".jp-cvreview__status-hint"),
+    ).toHaveLength(0);
+  });
+
+  it("de tre andra tillstånden behåller sin hjälptext", () => {
+    // Kontrafaktum: utan det hade en borttagen hint-rendering i ALLA tillstånd
+    // passerat testet ovan.
+    const { container, unmount } = renderControl({ userStatus: "Resolved" });
+    expect(container.querySelectorAll(".jp-cvreview__status-hint")).toHaveLength(1);
+    unmount();
+
+    const ignored = renderControl({ userStatus: "Ignored", isIgnorable: true });
+    expect(
+      ignored.container.querySelectorAll(".jp-cvreview__status-hint"),
+    ).toHaveLength(1);
   });
 
   it("uttalat Open: samma representation som ett oregistrerat beslut", () => {

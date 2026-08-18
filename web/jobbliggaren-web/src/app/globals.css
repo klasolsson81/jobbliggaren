@@ -6274,14 +6274,20 @@ a.jp-adminnav__link[aria-current="page"]::after {
   gap: 4px;
 }
 /* Citerad text ur användarens eget CV (redan pnr-redigerad vid choke point). */
+/* #1062 minor 5: plattan var i praktiken osynlig — egen fyllning 1,08:1 mot det vita
+   kortet, vänsterregeln 1,52:1 (light) / 2,05:1 (dark). `--jp-surface-2` är gjord för att
+   ligga mot SIDBAKGRUNDEN, inte inuti en vit yta. Fyllningen (och radien, som utan
+   fyllning inte ritar något) är därför borta och regeln uppgraderad till
+   `--jp-border-strong` (3,5:1 mot vitt). Mindre krom, mer civic — och citatet blir det
+   STÖDJANDE ledet: diagnosen leder på ink-1, citatet står på ink-2 bakom sin regel
+   (minor 6). `.jp-improve__diff-before/after` skriver bara över regelns FÄRG och rör
+   varken fyllningen eller hierarkin. */
 .jp-criterion__quote {
   margin: 0;
-  padding: 8px 12px;
-  background: var(--jp-surface-2);
-  border-left: 3px solid var(--jp-border);
-  border-radius: var(--jp-r-sm);
+  padding: 2px 0 2px 12px;
+  border-left: 3px solid var(--jp-border-strong);
   font-size: var(--text-body-sm);
-  color: var(--jp-ink-1);
+  color: var(--jp-ink-2);
   line-height: 1.5;
   /* #1062 B2b: ett citerat spann kan bära CV:ts egna radbrytningar (en profiltext
      över två rader). Utan detta kollapsar HTML dem till EN mening som användaren
@@ -6302,9 +6308,14 @@ a.jp-adminnav__link[aria-current="page"]::after {
 .jp-criterion__quote-excerpt {
   color: var(--jp-ink-2);
 }
+/* #1062 minor 6: diagnosen är det användaren behöver först på ett Underkänt, och stod
+   både sist och minst — `--text-caption` (13px) under ett utdrag på `--text-body-sm`.
+   Den leder nu, på brödtextens storlek och ink-1. Klassen har tre konsumentfiler
+   (granskningen, förbättringsytan och den publika /cv-granskning) och alla tre renderar
+   samma sak: motorns egen diagnos om ett kriterium. */
 .jp-criterion__note {
   margin: 0;
-  font-size: var(--text-caption);
+  font-size: var(--text-body-sm);
   color: var(--jp-ink-1);
   line-height: 1.5;
   max-width: 68ch;

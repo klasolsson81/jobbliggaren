@@ -63,6 +63,53 @@ describe("CvCriterionVerdict — rubrik leder, kod demoteras (B.3)", () => {
     expect(screen.getByText("ansvarade för budget")).toBeInTheDocument();
     expect(screen.getByText("saknar mätbart utfall")).toBeInTheDocument();
   });
+
+  it("låter diagnosen LEDA och citatet stödja (#1062 minor 6)", () => {
+    // Mätt före fixen: noten stod UNDER utdraget och på --text-caption (13px) medan
+    // utdraget låg på --text-body-sm på en fylld platta — på ett Underkänt låg alltså
+    // det användaren behöver först både sist och minst. Ordningen mäts på DOM-ordningen
+    // inom evidens-punkten; att båda finns var redan sant före fixen och skiljer inte
+    // de två formerna åt.
+    const { container } = render(<CvCriterionVerdict verdict={makeVerdict()} />);
+    const item = container.querySelector(
+      ".jp-criterion__evidence-item",
+    ) as HTMLElement;
+    expect(Array.from(item.children).map((n) => n.className)).toEqual([
+      "jp-criterion__note",
+      "jp-criterion__quote",
+    ]);
+  });
+
+  it("håller utdrags-meningen kvar EFTER citatet när evidensen är kapad", () => {
+    // Inversionen får inte flytta motorns egen upplysning om utdraget in i citatet —
+    // den är motorns ord om användarens text, inte användarens (#1062 B2).
+    const { container } = render(
+      <CvCriterionVerdict
+        verdict={makeVerdict({
+          evidence: [
+            {
+              kind: "TextSpan",
+              start: 0,
+              length: 8,
+              quote: "ansvarade för budget",
+              note: "saknar mätbart utfall",
+              observation: null,
+              isExcerpt: true,
+            },
+          ],
+        })}
+      />,
+    );
+    const item = container.querySelector(
+      ".jp-criterion__evidence-item",
+    ) as HTMLElement;
+    expect(Array.from(item.children).map((n) => n.className)).toEqual([
+      "jp-criterion__note",
+      "jp-criterion__quote",
+      "sr-only",
+    ]);
+    expect(container.querySelector(".sr-only")?.closest("blockquote")).toBeNull();
+  });
 });
 
 describe("CvCriterionVerdict — kategori-kontext (utlyfta rader)", () => {

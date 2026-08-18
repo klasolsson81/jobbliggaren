@@ -78,13 +78,21 @@
     "manualReviewNote": "Some sections came out incomplete. You can upload a corrected file whenever you like."
   },
   "review": {
-    "title": "Review",
+    "title": "Review by criterion",
     "unavailable": "The review could not be loaded right now. How your CV was read above is not affected. Try reloading the page in a moment.",
-    "summary": "{assessedCount} of {totalCount} criteria are assessed. Criteria that cannot be assessed are honestly counted as not assessed and never lower the review.",
+    "summary": "{assessedCount} of {totalCount} criteria are assessed. Criteria that cannot be assessed are counted as not assessed and do not lower the verdict.",
     "rubric": "Rubric {version}",
     "todoTitle": "To fix ({count})",
-    "todoEmpty": "Nothing needs fixing right now.",
+    "todoEmpty": "{assessedCount, plural, =0 {No criterion could be assessed, so the review points out nothing to fix.} one {The only criterion that could be assessed needs no action.} other {None of the # assessed criteria need action.}}",
+    "todoEmptyUnassessed": "{count, plural, one {# criterion could not be assessed.} other {# criteria could not be assessed.}}",
     "unassessedSummary": "Not assessed ({count})",
+    "band": {
+      "coverage": "{assessed} of {total} criteria assessed",
+      "unassessed": "{count, plural, one {No verdict. The criterion could not be assessed.} other {No verdict. None of the # criteria could be assessed.}}"
+    },
+    "evidence": {
+      "excerpt": "Excerpt, the quote continues in your CV."
+    },
     "counts": {
       "pass": "Pass",
       "warn": "Partial",
@@ -92,13 +100,15 @@
       "notAssessed": "Not assessed"
     },
     "status": {
-      "groupLabel": "What do you want to do with this finding",
+      "groupLabel": "Status of the finding",
       "markResolved": "Mark as fixed",
       "ignoreRule": "Ignore the rule (style choice)",
       "revert": "Reset",
       "updating": "Updating…",
       "resolvedLabel": "Fixed",
       "ignoredLabel": "Ignored",
+      "openLabel": "Open",
+      "openHint": "You have not decided on this finding yet.",
       "resolvedHint": "You have marked this as fixed. It stays in the review until the finding is gone from your CV.",
       "ignoredHint": "You have chosen to ignore this style rule. It no longer counts as something to fix.",
       "staleHint": "You marked this as fixed, but the finding is still present in your CV. Reset it if you want to fix it again."

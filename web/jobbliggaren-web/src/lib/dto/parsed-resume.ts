@@ -310,6 +310,16 @@ export const citedEvidenceDtoSchema = z.object({
   quote: z.string().nullable(),
   note: z.string().nullable(),
   observation: z.string().nullable(),
+  /** `quote` är ett UTDRAG ur en längre textmassa, inte hela den citerade texten
+   * (#1062 B2). Motorn skriver ALDRIG in "…" i citatet — två pinnade invarianter
+   * backend-sidan kräver att citatet förblir ett verbatimt substräng av CV-texten —
+   * så markören ritas här. `false` som default (fail-closed) när nyckeln saknas: en
+   * äldre backend (deploy-skew) får hellre visa citatet omarkerat än att en klient
+   * påstår att ett komplett citat är ett utdrag. */
+  isExcerpt: z
+    .boolean()
+    .nullish()
+    .transform((v) => v ?? false),
 });
 export type CitedEvidenceDto = z.infer<typeof citedEvidenceDtoSchema>;
 
@@ -358,7 +368,15 @@ export const cvReviewCategoryDtoSchema = z.object({
   warnCount: z.number().int().nonnegative(),
   failCount: z.number().int().nonnegative(),
   notAssessedCount: z.number().int().nonnegative(),
-  band: scoreBandLabelSchema,
+  /** `null` när kategorin inte har ETT ENDA bedömt kriterium (#1062 B1) — ett
+   * OBANDAT tillstånd, inte ett lågt. Nämnaren är tom, så varje etikett rubriken
+   * erbjuder vore ett påstående om en mätning som aldrig gjordes, och bottenetiketten
+   * läses dessutom som lägsta graden — precis det CLAUDE.md §5 förbjuder. `nullish` +
+   * transform: en äldre backend utelämnar aldrig nyckeln, men en som gör det
+   * normaliseras till "ingen bedömning" i stället för att fälla hela granskningen. */
+  band: scoreBandLabelSchema
+    .nullish()
+    .transform((v) => v ?? null),
 });
 export type CvReviewCategoryDto = z.infer<typeof cvReviewCategoryDtoSchema>;
 

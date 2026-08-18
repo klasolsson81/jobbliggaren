@@ -20,14 +20,36 @@ import type {
  * kategori-kort (t.ex. i "Att åtgärda"-aggregatet).
  */
 
-function EvidenceItem({ evidence }: { evidence: CitedEvidenceDto }) {
+function EvidenceItem({
+  evidence,
+  t,
+}: {
+  evidence: CitedEvidenceDto;
+  t: ReturnType<typeof useTranslations<"resumes">>;
+}) {
   if (evidence.kind === "TextSpan") {
     return (
       <li className="jp-criterion__evidence-item">
+        {/* #1062 B2: motorn kapar långa citat på ordgräns och flaggar dem som utdrag,
+            men skriver ALDRIG in "…" i citatet — det måste förbli ett verbatimt
+            substräng av CV-texten (två pinnade backend-invarianter). Markören ritas
+            därför här, och den är DELAD över blockquote-gränsen med flit: ellipsen
+            hör visuellt till den kapade texten men är dekorativ, medan meningen som
+            SÄGER att det är ett utdrag är motorns ord om citatet, inte användarens.
+            Låg man den inuti citatet hörde en skärmläsare den som en del av det
+            citerade — precis den klass av påstående den här PR:en stänger. */}
         {evidence.quote !== null && (
           <blockquote className="jp-criterion__quote">
             {evidence.quote}
+            {evidence.isExcerpt && (
+              <span className="jp-criterion__quote-excerpt" aria-hidden="true">
+                …
+              </span>
+            )}
           </blockquote>
+        )}
+        {evidence.quote !== null && evidence.isExcerpt && (
+          <p className="sr-only">{t("review.evidence.excerpt")}</p>
         )}
         {evidence.note !== null && (
           <p className="jp-criterion__note">{evidence.note}</p>
@@ -60,6 +82,7 @@ export function CvCriterionVerdict({
    * den parsade vyn utelämnar den (ingen statusledger). */
   footer?: React.ReactNode;
 }) {
+  const t = useTranslations("resumes");
   const tEnum = useTranslations("resumes.enums");
   const { label, tone } = verdictLabel(tEnum, verdict.verdict);
   const hasEvidence = verdict.evidence.length > 0;
@@ -82,7 +105,7 @@ export function CvCriterionVerdict({
       {hasEvidence && (
         <ul className="jp-criterion__evidence">
           {verdict.evidence.map((item, index) => (
-            <EvidenceItem key={`${item.kind}-${index}`} evidence={item} />
+            <EvidenceItem key={`${item.kind}-${index}`} evidence={item} t={t} />
           ))}
         </ul>
       )}

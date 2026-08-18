@@ -78,13 +78,21 @@
     "manualReviewNote": "Några avsnitt blev ofullständiga. Du kan ladda upp en rättad fil när du vill."
   },
   "review": {
-    "title": "Granskning",
+    "title": "Granskning per kriterium",
     "unavailable": "Granskningen kunde inte laddas just nu. Tolkningen av ditt CV ovan påverkas inte. Försök ladda om sidan om en stund.",
-    "summary": "{assessedCount} av {totalCount} kriterier bedöms. Kriterier som inte kan bedömas räknas ärligt som ej bedömda och drar aldrig ner granskningen.",
+    "summary": "{assessedCount} av {totalCount} kriterier bedöms. Kriterier som inte kan bedömas räknas som ej bedömda och sänker inte omdömet.",
     "rubric": "Rubrik {version}",
     "todoTitle": "Att åtgärda ({count})",
-    "todoEmpty": "Inget kräver åtgärd just nu.",
+    "todoEmpty": "{assessedCount, plural, =0 {Inget kriterium kunde bedömas, så granskningen pekar inte ut något att åtgärda.} one {Det enda kriterium som kunde bedömas kräver ingen åtgärd.} other {Inget av de # bedömda kriterierna kräver åtgärd.}}",
+    "todoEmptyUnassessed": "{count, plural, one {# kriterium kunde inte bedömas.} other {# kriterier kunde inte bedömas.}}",
     "unassessedSummary": "Ej bedömt ({count})",
+    "band": {
+      "coverage": "{assessed} av {total} kriterier bedömda",
+      "unassessed": "{count, plural, one {Ingen bedömning. Kriteriet kunde inte bedömas.} other {Ingen bedömning. Inget av de # kriterierna kunde bedömas.}}"
+    },
+    "evidence": {
+      "excerpt": "Utdrag, citatet fortsätter i ditt CV."
+    },
     "counts": {
       "pass": "Godkänt",
       "warn": "Delvis",
@@ -92,13 +100,15 @@
       "notAssessed": "Ej bedömt"
     },
     "status": {
-      "groupLabel": "Vad vill du göra med den här anmärkningen",
+      "groupLabel": "Status för anmärkningen",
       "markResolved": "Markera som åtgärdad",
       "ignoreRule": "Ignorera regeln (stilfråga)",
       "revert": "Återställ",
       "updating": "Uppdaterar…",
       "resolvedLabel": "Åtgärdad",
       "ignoredLabel": "Ignorerad",
+      "openLabel": "Öppen",
+      "openHint": "Du har inte tagit ställning till den här anmärkningen än.",
       "resolvedHint": "Du har markerat den här som åtgärdad. Den ligger kvar i granskningen tills anmärkningen är borta ur ditt CV.",
       "ignoredHint": "Du har valt att ignorera den här stilregeln. Den räknas inte längre som en åtgärd.",
       "staleHint": "Du markerade den här som åtgärdad, men anmärkningen finns fortfarande kvar i ditt CV. Återställ om du vill åtgärda den på nytt."

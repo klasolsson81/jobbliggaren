@@ -363,8 +363,8 @@ internal sealed class A8ProfileRule : ICriterionRule
         if (words > maxWords)
         {
             return CvCriterionVerdict.Assessed("A8", category, CriterionVerdict.Fail,
-                ReviewText.Cite(ReviewText.Span(
-                    context.RawText, Truncate(profile), $"profiltext är för lång ({words} ord, gränsen är {maxWords:0})")));
+                ReviewText.Cite(ReviewText.SpanExcerpt(
+                    context.RawText, profile, $"profiltext är för lång ({words} ord, gränsen är {maxWords:0})")));
         }
 
         // #489: the rubric's "Objective: To obtain..."-USA-style clause. A Swedish CV profile opening
@@ -373,8 +373,8 @@ internal sealed class A8ProfileRule : ICriterionRule
         if (profile.TrimStart().StartsWith("Objective", StringComparison.OrdinalIgnoreCase))
         {
             return CvCriterionVerdict.Assessed("A8", category, CriterionVerdict.Fail,
-                ReviewText.Cite(ReviewText.Span(
-                    context.RawText, Truncate(profile), "profiltext i \"Objective\"-USA-stil, skriv en kort svensk sammanfattning")));
+                ReviewText.Cite(ReviewText.SpanExcerpt(
+                    context.RawText, profile, "profiltext i \"Objective\"-USA-stil, skriv en kort svensk sammanfattning")));
         }
 
         // #489: "ren adjektivlista" is a rubric Fail. Detect a bare list DOMINATED by curated
@@ -391,15 +391,13 @@ internal sealed class A8ProfileRule : ICriterionRule
         if (softAdjectives >= 2 && softAdjectives * 2 >= words && !ReviewText.ContainsMeasurableDigit(profile))
         {
             return CvCriterionVerdict.Assessed("A8", category, CriterionVerdict.Fail,
-                ReviewText.Cite(ReviewText.Span(
-                    context.RawText, Truncate(profile), "profiltext är en ren adjektivlista utan konkret innehåll")));
+                ReviewText.Cite(ReviewText.SpanExcerpt(
+                    context.RawText, profile, "profiltext är en ren adjektivlista utan konkret innehåll")));
         }
 
         return CvCriterionVerdict.Assessed("A8", category, CriterionVerdict.Pass,
-            ReviewText.Cite(ReviewText.Span(context.RawText, Truncate(profile), "profiltext finns i rimlig längd")));
+            ReviewText.Cite(ReviewText.SpanExcerpt(context.RawText, profile, "profiltext finns i rimlig längd")));
     }
-
-    private static string Truncate(string text) => text.Length <= 80 ? text : text[..80];
 }
 
 /// <summary>A9 Soft skills underbyggda (Low) — soft phrases backed by a concrete example.</summary>

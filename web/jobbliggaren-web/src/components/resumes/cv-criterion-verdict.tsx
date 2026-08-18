@@ -30,6 +30,14 @@ function EvidenceItem({
   if (evidence.kind === "TextSpan") {
     return (
       <li className="jp-criterion__evidence-item">
+        {/* #1062 minor 6: diagnosen LEDER, citatet stöder. Före den här ordningen stod
+            noten UNDER utdraget och på `--text-caption` (13px) medan utdraget låg på
+            `--text-body-sm` på en fylld platta — så på ett Underkänt låg det användaren
+            behöver först både sist och minst. Ordningen och typografin bär samma
+            hierarki; se `.jp-criterion__note`/`__quote` i globals.css. */}
+        {evidence.note !== null && (
+          <p className="jp-criterion__note">{evidence.note}</p>
+        )}
         {/* #1062 B2: motorn kapar långa citat på ordgräns och flaggar dem som utdrag,
             men skriver ALDRIG in "…" i citatet — det måste förbli ett verbatimt
             substräng av CV-texten (två pinnade backend-invarianter). Markören ritas
@@ -50,9 +58,6 @@ function EvidenceItem({
         )}
         {evidence.quote !== null && evidence.isExcerpt && (
           <p className="sr-only">{t("review.evidence.excerpt")}</p>
-        )}
-        {evidence.note !== null && (
-          <p className="jp-criterion__note">{evidence.note}</p>
         )}
       </li>
     );

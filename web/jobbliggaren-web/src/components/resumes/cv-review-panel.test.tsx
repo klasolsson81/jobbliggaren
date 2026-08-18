@@ -10,11 +10,12 @@ import type {
 } from "@/lib/dto/parsed-resume";
 
 /**
- * IA-redesign (B.1–B.4). Tre lager top-down:
+ * IA-redesign (B.1–B.4), omviktad i #1062 Q1. Tre lager top-down:
  *   1. "Att åtgärda" — alla Underkänt/Delvis över ALLA kategorier, severitets-
  *      sorterade (Underkänt före Delvis), kritiska först (criticalFails = intern
- *      sortnyckel, inte en separat region).
- *   2. Per kategori — band + räknare + ENBART Godkänt-verdikten.
+ *      sortnyckel, inte en separat region). Sidans huvudinnehåll: h2, inget kort.
+ *   2. "Bedömning per dimension" — EN rad per kategori: band med sin täckning + en
+ *      demoterad räknarrad, med Godkänt-verdikten bakom en disclosure.
  *   3. "Ej bedömt" — kollapsad disclosure längst ned (demoterad, aldrig dold —
  *      honesty-invarianten ADR 0074).
  * Ingen opak totalpoäng (Goodhart, §5). Summary utan "v1" (C).
@@ -116,6 +117,69 @@ function makeReview(overrides: Partial<CvReviewDto> = {}): CvReviewDto {
     totalCount: 42,
     ...overrides,
   };
+}
+
+/** Kategorins rad i lager 2. Raderna ersatte korten i #1062 Q1; rubriken är den
+ * stabila ankaren i båda formerna. */
+function dimensionRow(cat: string): HTMLElement {
+  // Medvetet UTAN `level`: rangen skiljer sig mellan ytorna (design-M2) och pinnas av
+  // rubriktestet nedan. En locator som band rangen hade gjort varje annat test till ett
+  // andra, tyst rangtest.
+  return screen
+    .getByRole("heading", { name: cat })
+    .closest(".jp-cvreview__dimension") as HTMLElement;
+}
+
+type DimensionCounts = Pick<
+  CvReviewCategoryDto,
+  "passCount" | "warnCount" | "failCount" | "notAssessedCount"
+>;
+
+/** Alla fyra räknarna nollskilda SAMTIDIGT. `makeReview`s Innehåll bär `warnCount: 0`,
+ * så en regel som aldrig renderade "Delvis" hade passerat mot den fixturen. */
+const ALL_NONZERO: DimensionCounts = {
+  passCount: 5,
+  warnCount: 2,
+  failCount: 1,
+  notAssessedCount: 3,
+};
+
+/** En granskning med EN kategori vars räknare är `counts` OCH vars verdikt-lista
+ * summerar till dem. Räknarna kommer ur `categories` och raderna ur `verdicts`, så en
+ * fixtur som lät dem gå isär hade mätt räknarraden mot ett underlag motorn aldrig
+ * producerar. */
+function makeTallyReview(counts: DimensionCounts): CvReviewDto {
+  const rows = (n: number, prefix: string, v: CriterionVerdict) =>
+    Array.from({ length: n }, (_, i) =>
+      verdict(`${prefix}${i + 1}`, `${prefix}-kriterium ${i + 1}`, "Content", v),
+    );
+  const assessed = counts.passCount + counts.warnCount + counts.failCount;
+  return makeReview({
+    verdicts: [
+      ...rows(counts.passCount, "P", "Pass"),
+      ...rows(counts.warnCount, "W", "Warn"),
+      ...rows(counts.failCount, "F", "Fail"),
+      ...rows(counts.notAssessedCount, "N", "NotAssessed"),
+    ],
+    criticalFails: [],
+    categories: [category("Content", counts)],
+    assessedCount: assessed,
+    totalCount: assessed + counts.notAssessedCount,
+  });
+}
+
+function tallyOf(row: HTMLElement): HTMLElement {
+  return row.querySelector(".jp-cvreview__tally") as HTMLElement;
+}
+
+function renderTally(counts: DimensionCounts) {
+  return render(
+    <CvReviewPanel
+      review={makeTallyReview(counts)}
+      target={{ kind: "parsed", parsedId: PARSED_ID }}
+      profile="Ats"
+    />,
+  );
 }
 
 describe("CvReviewPanel — Att åtgärda (aggregering + sortering)", () => {
@@ -267,47 +331,250 @@ describe("CvReviewPanel — Att åtgärda (aggregering + sortering)", () => {
   });
 });
 
-describe("CvReviewPanel — kategori-kort visar enbart Godkänt", () => {
-  it("renderar bara Pass-verdikten inne i kategori-korten (åtgärdbara är utlyfta)", () => {
-    render(
+// #1062 Q1: lagren har rätt ORDNING och hade fel VIKT — kategorikorten tog merparten av
+// sidan för att visa verdikt som redan var avklarade. Massmätningen bakom beslutet står i
+// `cv-review-panel.tsx`s docblock; den hör inte hemma i tre filer.
+describe("CvReviewPanel — lager 2 är rader, inte kort (#1062 Q1)", () => {
+  function renderDefault() {
+    return render(
       <CvReviewPanel review={makeReview()} target={{ kind: "parsed", parsedId: PARSED_ID }} profile="Ats" />,
     );
+  }
 
-    const contentCard = screen
-      .getByRole("heading", { name: "Innehåll", level: 3 })
-      .closest("[data-slot='card']") as HTMLElement;
-    const scope = within(contentCard);
-
-    // Godkänt-verdiktet visas i kortet …
-    expect(scope.getByText("Kontaktuppgifter")).toBeInTheDocument();
-    // … men det åtgärdbara (A1 Fail) och Ej bedömt (A3) gör det INTE.
-    expect(scope.queryByText("Mätbara resultat")).toBeNull();
-    expect(scope.queryByText("Karriärutveckling")).toBeNull();
+  it("renderar en rad per kategori och inget Card alls", () => {
+    const { container } = renderDefault();
+    expect(container.querySelectorAll("[data-slot='card']")).toHaveLength(0);
+    expect(container.querySelectorAll(".jp-cvreview__dimension")).toHaveLength(3);
   });
 
-  it("behåller alla fyra räknarna i kategori-kortet (information är design)", () => {
+  it("kanonisk yta: lagren äger h2, och panelen har ingen egen rubrik", () => {
+    // Där säger sidans h1 "Granskning av ditt CV" — panelen ÄR sidan. Före fixen ägde
+    // panelen en h2 som upprepade den h1:an, vilket sköt ned "Att åtgärda" till h3, samma
+    // nivå som kategorirubrikerna. Rangen bar peer-läsningen, inte bara typografin.
     render(
-      <CvReviewPanel review={makeReview()} target={{ kind: "parsed", parsedId: PARSED_ID }} profile="Ats" />,
+      <CvReviewPanel
+        review={makeReview()}
+        target={{ kind: "canonical", resumeId: CANONICAL_ID }}
+        profile="Ats"
+      />,
     );
-    const contentCard = screen
-      .getByRole("heading", { name: "Innehåll", level: 3 })
-      .closest("[data-slot='card']") as HTMLElement;
-    // Räknar-etiketterna sitter i <dt class="jp-cvreview__count-label"> — scope
-    // dit så att Pall-verdiktets pill-etikett "Godkänt" inte ger en dubbelmatch.
+    expect(
+      screen.getByRole("heading", { name: "Att åtgärda (4)", level: 2 }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Bedömning per dimension", level: 2 }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Innehåll", level: 3 }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: "Granskning per kriterium" }),
+    ).toBeNull();
+    // Regionen namnges ändå — utan synlig rubrik är aria-label det enda namnet den har.
+    expect(
+      screen.getByRole("region", { name: "Granskning per kriterium" }),
+    ).toBeInTheDocument();
+  });
+
+  it("staging: panelen bär en egen h2 och lagren går ned ett steg (design-M2)", () => {
+    // Där handlar sidans h1 om den importerade FILEN, och granskningen är ett block bland
+    // parse-artefakter. Utan egen rubrik står lagren som jämlikar med artefakterna, och
+    // "Att åtgärda (4)" blir tvetydig om sitt objekt på just den sida som handlar om en
+    // fil. Ett landmark-namn räcker inte: det bär bara till AT.
+    renderDefault();
+    expect(
+      screen.getByRole("heading", { name: "Granskning per kriterium", level: 2 }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Att åtgärda (4)", level: 3 }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Bedömning per dimension", level: 3 }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Innehåll", level: 4 }),
+    ).toBeInTheDocument();
+  });
+
+  it("håller de Godkända bakom en STÄNGD disclosure — demoterade, aldrig dolda", () => {
+    renderDefault();
+    const details = dimensionRow("Innehåll").querySelector(
+      "details.jp-cvreview__pass",
+    ) as HTMLDetailsElement;
+    expect(details).not.toBeNull();
+    expect(details.open).toBe(false);
+    // Innehåll har ETT Godkänt (A2). Det står i DOM:en även stängt — samma gräns som
+    // honesty-invarianten drar för "Ej bedömt".
+    expect(within(details).getByText("Godkänt kriterium")).toBeInTheDocument();
+    expect(within(details).getByText("Kontaktuppgifter")).toBeInTheDocument();
+  });
+
+  it("lyfter fortfarande ut det åtgärdbara och det ej bedömda ur dimensionen", () => {
+    renderDefault();
+    const scope = within(dimensionRow("Innehåll"));
+    expect(scope.queryByText("Mätbara resultat")).toBeNull(); // A1 Fail → lager 1
+    expect(scope.queryByText("Karriärutveckling")).toBeNull(); // A3 NotAssessed → lager 3
+  });
+
+  it("ger VARJE dimension sin räknarrad, inte bara den första", () => {
+    // Mätt av test-writer: en `CategoryTally` som returnerade null för Språk och Struktur
+    // passerade hela Q2-blocket, därför att varje fixtur DÄR bär en enda kategori.
+    // Kontrafaktumet hör alltså hemma på den flerdimensionella fixturen, inte hos Q2.
+    renderDefault();
+    for (const cat of ["Innehåll", "Språk", "Struktur"]) {
+      expect(tallyOf(dimensionRow(cat))).not.toBeNull();
+    }
+  });
+
+  it("böjer disclosurens etikett i BÅDA pluralgrenarna", () => {
+    // `passSummary` är en ny ICU-pluralnyckel, och `todoEmptyUnassessed` i den här filen
+    // har båda grenarna pinnade. En ny nyckel får inte ha lägre krav än den befintliga.
+    // Scopat till EN rad: singularis-grenen renderas av två dimensioner i den här
+    // fixturen (Innehåll och Struktur bär ett Godkänt var), så en sökning utan scope mäter
+    // hur många kategorier som råkar ha exakt ett Godkänt, inte vilken gren som valdes.
+    const { unmount } = renderDefault();
+    expect(
+      within(dimensionRow("Innehåll")).getByText("Godkänt kriterium"),
+    ).toBeInTheDocument();
+    unmount();
+
+    renderTally(ALL_NONZERO);
+    expect(
+      within(dimensionRow("Innehåll")).getByText("Godkända kriterier"),
+    ).toBeInTheDocument();
+  });
+
+  it("renderar INGEN disclosure på en dimension utan Godkänt", () => {
+    // Språk: 0 Pass. En <summary> som öppnar tomrum är en affordans som ljuger.
+    renderDefault();
+    expect(
+      dimensionRow("Språk").querySelector("details.jp-cvreview__pass"),
+    ).toBeNull();
+  });
+
+  it("täckningsberättelsen leder i eget element, skild från hederlighetsklausulen", () => {
+    const { container } = renderDefault();
+    expect(
+      container.querySelector(".jp-cvreview__coverage")?.textContent,
+    ).toBe("6 av 42 kriterier är bedömda.");
+    expect(
+      container.querySelector(".jp-cvreview__coverage-note")?.textContent ?? "",
+    ).toMatch(/räknas som ej bedömda och sänker inte omdömet\./);
+  });
+});
+
+// #1062 Q2 — räknarnas MEDIUM byter, informationen gör det inte. Det pinnade beslutet
+// ("information är design": fyra räknare, aldrig en enda sammanfattande siffra) står
+// kvar; det som ändrades är att de fyra boxade talen i --text-h3/bold/tonfärg blev en
+// rad i brödtext, och att NOLLOR undertrycks — 8 av 16 celler var `0` på ett rent CV.
+// Varje räknare mäts i BÅDA riktningarna: den renderas med sitt tal när den är
+// nollskild, och den finns inte alls när den är noll. Ett ensidigt test kan inte skilja
+// "undertrycker nollor" från "renderar aldrig".
+describe("CvReviewPanel — räknarna per dimension (#1062 Q2)", () => {
+  const COUNTERS = [
+    { label: "Godkänt", value: ALL_NONZERO.passCount, zero: { ...ALL_NONZERO, passCount: 0 } },
+    { label: "Delvis", value: ALL_NONZERO.warnCount, zero: { ...ALL_NONZERO, warnCount: 0 } },
+    { label: "Underkänt", value: ALL_NONZERO.failCount, zero: { ...ALL_NONZERO, failCount: 0 } },
+    {
+      label: "Ej bedömt",
+      value: ALL_NONZERO.notAssessedCount,
+      zero: { ...ALL_NONZERO, notAssessedCount: 0 },
+    },
+  ];
+
+  it.each(COUNTERS)("renderar $label med sitt tal när räknaren är nollskild", ({ label, value }) => {
+    renderTally(ALL_NONZERO);
+    const item = within(tallyOf(dimensionRow("Innehåll")))
+      .getByText(label)
+      .closest(".jp-cvreview__tally-item") as HTMLElement;
+    expect(item.textContent).toBe(`${label}${value}`);
+  });
+
+  it.each(COUNTERS)("utelämnar $label helt när räknaren är noll", ({ label, zero }) => {
+    renderTally(zero);
+    const tally = tallyOf(dimensionRow("Innehåll"));
+    expect(within(tally).queryByText(label)).toBeNull();
+    // …och de tre andra står kvar: undertryckningen är per räknare, inte per rad.
+    expect(tally.querySelectorAll(".jp-cvreview__tally-item")).toHaveLength(3);
+  });
+
+  it("renderar alla fyra samtidigt när alla fyra är nollskilda", () => {
+    renderTally(ALL_NONZERO);
     const labels = Array.from(
-      contentCard.querySelectorAll(".jp-cvreview__count-label"),
+      tallyOf(dimensionRow("Innehåll")).querySelectorAll("dt"),
     ).map((n) => n.textContent);
     expect(labels).toEqual(["Godkänt", "Delvis", "Underkänt", "Ej bedömt"]);
+  });
+
+  it("skriver aldrig ut en nolla i raden", () => {
+    renderTally({ ...ALL_NONZERO, warnCount: 0, failCount: 0 });
+    const values = Array.from(
+      tallyOf(dimensionRow("Innehåll")).querySelectorAll("dd"),
+    ).map((n) => n.textContent);
+    expect(values).toEqual(["5", "3"]);
+  });
+
+  it("utelämnar hela raden på den obandade dimensionen, där meningen ovanför bär talet", () => {
+    // Den enda platsen där raden bara skulle upprepa en mening ordagrant: CategoryBand
+    // skriver redan "Inget av de 8 kriterierna kunde bedömas". Grinden är DEN meningens
+    // egen. Att dess första konjunkt är redundant mot dagens motor står i CategoryTally:s
+    // docblock — testet mäter beteendet, inte grindens form.
+    const unmeasured = makeReview({
+      verdicts: [verdict("E1", "Layout", "VisualQuality", "NotAssessed")],
+      criticalFails: [],
+      categories: [
+        category(
+          "VisualQuality",
+          { passCount: 0, warnCount: 0, failCount: 0, notAssessedCount: 8 },
+          null,
+        ),
+      ],
+    });
+    render(
+      <CvReviewPanel
+        review={unmeasured}
+        target={{ kind: "parsed", parsedId: PARSED_ID }}
+        profile="Visual"
+      />,
+    );
+    const row = dimensionRow("Visuell kvalitet");
+    expect(row.querySelector(".jp-cvreview__tally")).toBeNull();
+    expect(row.textContent ?? "").toMatch(
+      /Inget av de 8 kriterierna kunde bedömas\./,
+    );
+  });
+
+  it("behåller raden på en obandad dimension som ändå har bedömda kriterier", () => {
+    // Kontrafaktum till testet ovan: undertryckningen får inte bita på `band === null`
+    // ensamt. En rubrikbump med en nollviktad nivå ger weightSum===0 med bedömda
+    // kriterier kvar, och då är räknarna det enda som säger hur de föll.
+    const zeroWeighted = makeReview({
+      verdicts: [verdict("E1", "Layout", "VisualQuality", "Pass")],
+      criticalFails: [],
+      categories: [
+        category(
+          "VisualQuality",
+          { passCount: 3, warnCount: 0, failCount: 0, notAssessedCount: 5 },
+          null,
+        ),
+      ],
+    });
+    render(
+      <CvReviewPanel
+        review={zeroWeighted}
+        target={{ kind: "parsed", parsedId: PARSED_ID }}
+        profile="Visual"
+      />,
+    );
+    const tally = tallyOf(dimensionRow("Visuell kvalitet"));
+    expect(tally).not.toBeNull();
+    expect(
+      Array.from(tally.querySelectorAll("dt")).map((n) => n.textContent),
+    ).toEqual(["Godkänt", "Ej bedömt"]);
   });
 });
 
 describe("CvReviewPanel — bandet står aldrig utan sitt underlag (#1062 B1/M1/M2)", () => {
-  function bandCard(cat: string): HTMLElement {
-    return screen
-      .getByRole("heading", { name: cat, level: 3 })
-      .closest("[data-slot='card']") as HTMLElement;
-  }
-
   it("renderar INGEN bandpill när kategorin saknar bedömda kriterier", () => {
     // B1, mätt på levererad kod: ?profile=Visual gav ett FELFRITT CV
     // "VisualQuality band=NotReady pass=0 warn=0 fail=0 na=8" — alltså rubrikens
@@ -333,7 +600,7 @@ describe("CvReviewPanel — bandet står aldrig utan sitt underlag (#1062 B1/M1/
       />,
     );
 
-    const card = bandCard("Visuell kvalitet");
+    const card = dimensionRow("Visuell kvalitet");
     const text = card.textContent ?? "";
     expect(text).not.toMatch(/Ej redo|Behöver omarbetning|Konkurrenskraftigt|Toppskikt/);
     // Frånvaron skrivs ut i klartext — den förmedlas inte genom att en pill saknas.
@@ -349,7 +616,7 @@ describe("CvReviewPanel — bandet står aldrig utan sitt underlag (#1062 B1/M1/
       <CvReviewPanel review={makeReview()} target={{ kind: "parsed", parsedId: PARSED_ID }} profile="Ats" />,
     );
 
-    const card = bandCard("Innehåll");
+    const card = dimensionRow("Innehåll");
     const band = card.querySelector(".jp-cvreview__band") as HTMLElement;
     expect(band).not.toBeNull();
     // Content: pass 1 + warn 0 + fail 1 = 2 bedömda, notAssessed 1 → 3 totalt.
@@ -361,7 +628,13 @@ describe("CvReviewPanel — bandet står aldrig utan sitt underlag (#1062 B1/M1/
   it("frånvaromeningen grindas på att inget bedömdes, inte på att bandet saknas", () => {
     // Meningen PÅSTÅR "inget av de N kriterierna kunde bedömas". Backend håller
     // band===null och assessed===0 ekvivalenta idag — men bara därför att rubrikens
-    // vikter alla är > 0. En rubrikbump med en nollviktad nivå ger weightSum===0 med
+    // vikter alla är > 0. ⚠ Mätt 2026-08-18: `rubric.v2.3.0.json` bär vikterna 3/2/1/0.5,
+    // så INGEN väg i `src/` producerar det här tillståndet just nu. Aktören som skulle
+    // göra det är en ren rubrik-databump: `RubricLoader.MapToContract` mappar
+    // `file.Weights` rakt igenom och validerar id-prefix, critical-fail-ids, style-only,
+    // profilsignaler och trösklar — men har ingen viktpositivitets-validering alls.
+    // Assertionen är därför §5:s tillåtna form: läs-sidan degraderar säkert, aldrig ett
+    // påstående om vad producenten gör. En rubrikbump med en nollviktad nivå ger weightSum===0 med
     // bedömda kriterier kvar, och då hade sidan skrivit ut ett påstående som räknarna
     // på raden under motbevisar: B1:s felklass, inverterad.
     const zeroWeighted = makeReview({
@@ -383,7 +656,7 @@ describe("CvReviewPanel — bandet står aldrig utan sitt underlag (#1062 B1/M1/
       />,
     );
 
-    const card = bandCard("Visuell kvalitet");
+    const card = dimensionRow("Visuell kvalitet");
     const text = card.textContent ?? "";
     expect(text).not.toMatch(/Ingen bedömning/);
     expect(text).toMatch(/3 av 8 kriterier bedömda/);
@@ -391,14 +664,14 @@ describe("CvReviewPanel — bandet står aldrig utan sitt underlag (#1062 B1/M1/
     expect(text).not.toMatch(/Ej redo|Behöver omarbetning|Konkurrenskraftigt|Toppskikt/);
   });
 
-  it("bär täckningen i SAMMA block som pillen, inte någon annanstans på kortet", () => {
-    // Kontrafaktum: utan detta hade täckningen kunnat renderas var som helst i
-    // kortet och testet ovan hade ändå passerat på card.textContent.
+  it("bär täckningen i SAMMA block som pillen, inte någon annanstans på raden", () => {
+    // Kontrafaktum: utan detta hade täckningen kunnat renderas var som helst på
+    // raden och testet ovan hade ändå passerat på card.textContent.
     render(
       <CvReviewPanel review={makeReview()} target={{ kind: "parsed", parsedId: PARSED_ID }} profile="Ats" />,
     );
 
-    const band = bandCard("Språk").querySelector(
+    const band = dimensionRow("Språk").querySelector(
       ".jp-cvreview__band",
     ) as HTMLElement;
     expect(band.querySelector(".jp-cvreview__band-coverage")).not.toBeNull();
@@ -564,12 +837,14 @@ describe("CvReviewPanel — statuskontroller (kanonisk vs parsad target)", () =>
 });
 
 describe("CvReviewPanel — copy + invarianter", () => {
-  it("summary säger 'bedöms.' utan versions-token 'v1' (C)", () => {
+  it("summary står utan versions-token 'v1' (C), i samma böjning som täckningen", () => {
+    // design-m4: "bedöms" och "bedömda" stod intill varandra om samma faktum. Partikip-
+    // formen vann — den förekommer fyra gånger per sida i band-täckningen mot summaryns en.
     render(
       <CvReviewPanel review={makeReview()} target={{ kind: "parsed", parsedId: PARSED_ID }} profile="Ats" />,
     );
     expect(
-      screen.getByText(/6 av 42 kriterier bedöms\./),
+      screen.getByText(/6 av 42 kriterier är bedömda\./),
     ).toBeInTheDocument();
     // Rubrik-versionstaggen står kvar, men ingen "v1"-jargong i prosan.
     expect(screen.getByText("Rubrik 1.0.0")).toBeInTheDocument();
@@ -585,8 +860,11 @@ describe("CvReviewPanel — copy + invarianter", () => {
 
   it("degraderar civilt när review är null (role=status, sid-skalet kvar)", () => {
     render(<CvReviewPanel review={null} target={{ kind: "parsed", parsedId: PARSED_ID }} profile="Ats" />);
+    // Frånvaro-grenen bär ALLTID rubriken, på båda ytorna: den har inga lager och alltså
+    // ingen rangkonflikt, och utan den stod notisen i en region utan synligt namn
+    // (design-M2, det skarpaste fallet).
     expect(
-      screen.getByRole("heading", { name: "Granskning per kriterium" }),
+      screen.getByRole("heading", { name: "Granskning per kriterium", level: 2 }),
     ).toBeInTheDocument();
     expect(screen.getByRole("status")).toHaveTextContent(
       /Granskningen kunde inte laddas just nu/,

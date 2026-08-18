@@ -93,10 +93,16 @@ export function CvFindingStatusControl({
         </div>
       )}
 
+      {/* Öppen bär ingen hint (#1062). De tre andra hintarna förklarar en KONSEKVENS
+          av ett val användaren gjort — att en åtgärdad anmärkning ligger kvar tills den
+          är borta ur CV:t, att en ignorerad inte längre räknas, att en åtgärdad ändå
+          finns kvar. "Du har inte tagit ställning till den här anmärkningen än" förklarar
+          ingen konsekvens; den omformulerade pillen bredvid sig, en gång per anmärkning,
+          i det lager Q1 gör till sidans huvudinnehåll. M4:s fynd står kvar orört: det
+          gällde att Öppen förmedlades genom FRÅNVARO av pill, och pillen är kvar. */}
       {isOpen && (
         <div className="jp-cvreview__status-indicator">
           <StatusPill tone="neutral">{t("openLabel")}</StatusPill>
-          <p className="jp-cvreview__status-hint">{t("openHint")}</p>
         </div>
       )}
 

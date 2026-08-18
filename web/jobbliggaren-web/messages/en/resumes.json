@@ -80,11 +80,14 @@
   "review": {
     "title": "Review by criterion",
     "unavailable": "The review could not be loaded right now. How your CV was read above is not affected. Try reloading the page in a moment.",
-    "summary": "{assessedCount} of {totalCount} criteria are assessed. Criteria that cannot be assessed are counted as not assessed and do not lower the verdict.",
+    "summary": "{assessedCount} of {totalCount} criteria are assessed.",
+    "summaryNote": "Criteria that cannot be assessed are counted as not assessed and do not lower the verdict. The verdict for each dimension weights criteria by how important they are, so it does not always follow the number of passes.",
     "rubric": "Rubric {version}",
     "todoTitle": "To fix ({count})",
     "todoEmpty": "{assessedCount, plural, =0 {No criterion could be assessed, so the review points out nothing to fix.} one {The only criterion that could be assessed needs no action.} other {None of the # assessed criteria need action.}}",
     "todoEmptyUnassessed": "{count, plural, one {# criterion could not be assessed.} other {# criteria could not be assessed.}}",
+    "categoriesTitle": "Verdict by dimension",
+    "passSummary": "{count, plural, one {Passed criterion} other {Passed criteria}}",
     "unassessedSummary": "Not assessed ({count})",
     "band": {
       "coverage": "{assessed} of {total} criteria assessed",
@@ -108,7 +111,6 @@
       "resolvedLabel": "Fixed",
       "ignoredLabel": "Ignored",
       "openLabel": "Open",
-      "openHint": "You have not decided on this finding yet.",
       "resolvedHint": "You have marked this as fixed. It stays in the review until the finding is gone from your CV.",
       "ignoredHint": "You have chosen to ignore this style rule. It no longer counts as something to fix.",
       "staleHint": "You marked this as fixed, but the finding is still present in your CV. Reset it if you want to fix it again."

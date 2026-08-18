@@ -115,13 +115,11 @@ public class SecretsPresentUnitFilePinTests
     /// an hour, and <c>jobbliggaren-heartbeat.timer</c> would page once at the transition and then
     /// leave that surface deaf to the next fault for the rest of it. <b>The cost is the deafness,
     /// not a burst of pages</b> — <c>systemctl --failed</c> latches and the expecter notifies on
-    /// the transition (#1397, measured 2026-08-17). What sizes this constant is the first sentence
-    /// above — room to inject before the first fire, i.e. a lower chance that a false failure is
-    /// opened at all — together with the house value the assertion itself cites. It is NOT the length
-    /// of the deaf window: this timer carries OnBootSec AND OnCalendar=hourly, so the window is set
-    /// by the hourly tick and the offset only shifts phase. Booting at :50, a 2min offset gives an
-    /// 8-minute window and 20min gives 60 — the reverse of the intuition. An alarm lit for a
-    /// condition that no longer exists also
+    /// the transition (#1397, measured 2026-08-17). A longer offset does shorten that window on
+    /// average, but that is NOT what derives 20: the assertion's own reason cites the house value
+    /// with two hourly siblings on DIFFERENT offsets (backup-fresh 20min, logship-fresh 25min), and
+    /// a window-length optimum could not make both correct. What this offset buys is room to inject
+    /// before the first fire. An alarm lit for a condition that no longer exists also
     /// trains an operator to stop reading the only alarm surface there is — which is the doctrine
     /// these units are written against, so reproducing it here would be self-defeating.
     /// </para>

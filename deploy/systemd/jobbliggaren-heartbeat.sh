@@ -52,7 +52,10 @@ readonly AUDIT_RULES_FILE=/etc/audit/rules.d/zz-jobbliggaren.rules
 # crypto secrets and is enabled in the same visit as its install, because that predicate stopped
 # reading #197's keys. jobbliggaren-host-secrets-present.timer runs --check-host over exactly those
 # keys, so it must not be ENABLED before they are provisioned: enabled early it fails every fire
-# and lights the alarm surface permanently — which, through P1 below, is a continuous page.
+# and lights the alarm surface permanently — which, through P1 below, holds that surface red. That
+# is ONE page at the transition and then silence, not a repeating one: systemctl --failed latches
+# and the expecter notifies on the transition, so a second genuine fault inside the window changes
+# only a body no notification announces.
 # master-key-ops.md §2 owns the ordering. Sequencing, not a defect.
 #
 # jobbliggaren-secrets-present.timer JOINED THE SET 2026-08-15, the day it was enabled on the box

@@ -99,7 +99,12 @@ the service's `ConditionPathExists` skips the run rather than failing it.
 > `/fail` every 15 minutes (the heartbeat's cadence, not the probe's — `-fresh` itself runs hourly).
 > ⚠ That is a POST cadence, not a page cadence: `systemctl --failed` **latches**, so the expecter
 > notifies on the transition and a second genuine fault inside the window changes only a body nobody
-> reads. Read it as one alarm and then silence, never as a repeating siren. And the hand-start that
+> reads. Read it as one alarm and then silence, never as a repeating siren.
+> ⚠ **That deafness is scale-invariant — the CORRECT full disarm carries it too.** Once the box has
+> pulled the `FLOOR_TIMERS` edit, P3 lights `floor-timer-down=` for both timers, one notification
+> goes, and the box is deaf to P1–P5 for the rest of the window. The path this section *instructs*
+> has the same property as the trap it warns against, which is why the re-arm is a duty.
+> And the hand-start that
 > would clear it is not available to you here: mechanically it runs fine with the timer disabled,
 > but it would ship the very journal you disarmed for.
 > ⚠ **The re-arm is a duty precisely BECAUSE the disarm is invisible.** It removes the archive and
@@ -169,7 +174,8 @@ systemctl show -p ConditionResult -p Result jobbliggaren-logship.service
 that list is the non-vacuity floor for M-7's P3, a timer named there must be enabled and active or
 the box pages, and the file's own `KEEP IN SYNC AS UNITS LAND` note binds at the moment of
 **`enable`, never of install** — `check_floor_timers` measures `is-enabled` AND `is-active`, so a
-named-but-disabled timer fails every fire, i.e. pages continuously. (An earlier wording here said
+named-but-disabled timer fails every fire, i.e. holds that surface red — one page at the
+transition, then silence, not a repeating one. (An earlier wording here said
 *installation*, alone among the four homes that carry this rule.) That edit landed 2026-08-18; until it did, P3 was vacuous for these two, because a disabled
 `logship.timer` is on no surface at all, which is the hole the `-fresh` pair exists to close, one level up.
 

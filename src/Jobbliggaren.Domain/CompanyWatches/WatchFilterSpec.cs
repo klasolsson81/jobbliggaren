@@ -21,7 +21,7 @@ namespace Jobbliggaren.Domain.CompanyWatches;
 /// <para>
 /// <b><see cref="Municipalities"/> and <see cref="Regions"/> are JobTech concept-ids in two
 /// DISJOINT namespaces (RF-4=4A)</b> — the ones job ads carry (<c>municipality_concept_id</c>
-/// and <c>region_concept_id</c> STORED columns) and the match-setup picker already emits.
+/// and <c>region_concept_id</c>, plain columns) and the match-setup picker already emits.
 /// Deliberately NOT the SCB 4-digit seat-kommun codes of the criteria rail ("annonsens ort"
 /// vs "säteskommun" — two different concepts, kept apart in copy).
 /// </para>
@@ -35,28 +35,35 @@ namespace Jobbliggaren.Domain.CompanyWatches;
 /// </para>
 ///
 /// <para>
-/// <b>ONE path materialises, deliberately (#839, CTO 2026-08-19).</b> Deselecting a single kommun
-/// from a whole-län pick ("hela länet minus Göteborg") drops the län id and writes the län's OTHER
-/// municipalities — <c>toggleMunicipalityInRegion</c> in
-/// <c>web/jobbliggaren-web/src/lib/job-ads/ort-selection.ts</c>. This paragraph previously read as
-/// a repo-wide invariant, which that path has always broken. It is not drift: under the union
-/// above, län-id ∪ kommun-ids ≡ the whole län, so KEEPING the län id would silently re-admit the
-/// very kommun the user just clicked away. Neither encoding is free, and the selection is not
-/// expressible at all without a third, exclusion-shaped axis (priced at 200 files and a
-/// <c>recent_job_searches</c> migration; rejected 2026-08-19).
+/// <b>ONE normaliser materialises, deliberately (#839, decided 2026-08-19).</b> This VO cannot tell
+/// a materialised län from a hand-picked kommun list, and one caller MAY hand it the former: the
+/// ort picker's <c>toggleMunicipalityInRegion</c> answers "hela länet minus Göteborg" by dropping
+/// the län id and writing the län's OTHER municipalities. This paragraph previously read as a
+/// repo-wide invariant, which that path has always broken.
+/// </para>
 ///
+/// <para>
+/// It is not drift. Under the union above, län-id ∪ kommun-ids ≡ the whole län, so KEEPING the
+/// län id would silently re-admit the very kommun the user just clicked away. Expressing the
+/// selection faithfully needs a third disjunct reading the län's residual
+/// (<c>muni IN (…) OR (region = X AND municipality IS NULL)</c>) — an ADDED branch, not an
+/// exclusion axis — which #839 rejected as provably inert, not as too expensive.
+/// </para>
+///
+/// <para>
 /// What materialising costs is an ad tagged at LÄN granularity with no municipality: it matches the
-/// län id and none of the kommun ids. That shape has never been ingested — measured 2026-08-19 over
-/// all 106 071 rows of the dev corpus, the two columns are null together or set together on EVERY
-/// row, so the class is empty and so is its mirror image. Only half of that is structural:
+/// län id and none of the kommun ids. That shape has never been ingested. Measured 2026-08-19
+/// against the dev corpus (<c>jobbliggaren-postgres-dev</c>, port 5435): all 106 071 rows carry the
+/// two columns null together or set together. Only half of that is structural —
 /// <c>PlatsbankenJobSource.MapFacets</c> reads both through one <c>hit.WorkplaceAddress?.</c>
-/// parent, so both-null follows from an absent address block — but an address block PRESENT with
+/// parent, so both-null follows from an absent address block, but an address block PRESENT with
 /// only one of the two inner ids set is unguarded, the columns are plain
-/// (<c>is_generated = NEVER</c>), and AF's AdFields marks neither required. So re-measure rather
-/// than inherit; a non-zero first row is the trigger to revisit the third axis:
+/// (<c>JobAdConfiguration</c> owns that fact and pins it), and AF's AdFields marks neither
+/// required. So re-measure rather than inherit. The query returns ONE row while the correlation
+/// holds; ANY <c>f</c> row is the trigger to revisit the third disjunct.
 /// <code>
-/// SELECT (region_concept_id IS NULL) = (municipality_concept_id IS NULL), count(*)
-/// FROM job_ads GROUP BY 1;
+/// SELECT (region_concept_id IS NULL) = (municipality_concept_id IS NULL) AS correlated, count(*)
+/// FROM job_ads GROUP BY 1 ORDER BY 1;
 /// </code>
 /// </para>
 ///

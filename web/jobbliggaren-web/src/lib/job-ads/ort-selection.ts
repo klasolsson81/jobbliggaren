@@ -19,6 +19,13 @@
  *   kommunen": region-id:t tas bort och länets ÖVRIGA kommuner
  *   materialiseras (bounded ≤48 ids/län — Klas-direktiv E2f preciserar
  *   CTO VAL 1:s aldrig-materialisera-regel till att gälla PÅ-toggling).
+ *   ⚠ Detta är den ENDA väg som materialiserar, och den bryter mot hur
+ *   `WatchFilterSpec` beskriver lagringen ("a whole-län selection is never
+ *   expanded"). Avsiktligt, avgjort i #839 2026-08-19: backends geo-predikat
+ *   är en inkluderande UNION, så län-id ∪ kommun-ids ≡ hela länet — att
+ *   behålla läns-id:t hade tyst släppt in just den kommun användaren klickade
+ *   bort. Priset (en läns-taggad annons utan kommun nås aldrig) mättes till
+ *   noll rader; `WatchFilterSpec`s docblock bär mätningen och triggern.
  * - Kommun-klick som kompletterar länets ALLA kommuner → kollapsar till
  *   region-id:t (URL minimal, "Hela länet" återmarkerad).
  * - Vanlig avmarkering tar bara bort det egna id:t.

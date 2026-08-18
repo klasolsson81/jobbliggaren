@@ -25,7 +25,9 @@
  *   är en inkluderande UNION, så län-id ∪ kommun-ids ≡ hela länet — att
  *   behålla läns-id:t hade tyst släppt in just den kommun användaren klickade
  *   bort. Priset (en läns-taggad annons utan kommun nås aldrig) mättes till
- *   noll rader; `WatchFilterSpec`s docblock bär mätningen och triggern.
+ *   noll rader; `WatchFilterSpec` beskriver varför materialiseringen är
+ *   tillåten, och `JobAdConfiguration` äger mätningen, frågan som regenererar
+ *   den och triggern för att ompröva.
  * - Kommun-klick som kompletterar länets ALLA kommuner → kollapsar till
  *   region-id:t (URL minimal, "Hela länet" återmarkerad).
  * - Vanlig avmarkering tar bara bort det egna id:t.

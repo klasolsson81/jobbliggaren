@@ -132,6 +132,47 @@ describe("CvFindingStatusControl — pill + hjälptext per status", () => {
       screen.getByText(/räknas inte längre som en åtgärd/),
     ).toBeInTheDocument();
   });
+
+  // #1062 M4: "Öppen" är ett av ADR 0097/0112:s TRE skyddade ledger-tillstånd, men
+  // hade ingen representation alls — det förmedlades genom FRÅNVARON av en pill plus
+  // NÄRVARON av en knapp, så användaren fick läsa systemets STATUS ur dess
+  // ÅTGÄRDSERBJUDANDE. Mätt på ytan: {"pills":[],"hint":null,"buttons":["Markera som
+  // åtgärdad"]}.
+  it("inget beslut registrerat: Öppen-pill + hjälptext som säger vad det betyder", () => {
+    renderControl({ userStatus: null });
+    expect(screen.getByText("Öppen")).toBeInTheDocument();
+    expect(
+      screen.getByText(/inte tagit ställning till den här anmärkningen än/),
+    ).toBeInTheDocument();
+  });
+
+  it("uttalat Open: samma representation som ett oregistrerat beslut", () => {
+    renderControl({ userStatus: "Open" });
+    expect(screen.getByText("Öppen")).toBeInTheDocument();
+  });
+
+  it("Resolved och Ignored bär ALDRIG Öppen-pillen samtidigt", () => {
+    // Kontrafaktum till de två testen ovan: en indikator som renderades
+    // ovillkorligt hade passerat dem och gjort pillen informationslös.
+    const { unmount } = renderControl({ userStatus: "Resolved" });
+    expect(screen.queryByText("Öppen")).not.toBeInTheDocument();
+    unmount();
+
+    renderControl({ userStatus: "Ignored", isIgnorable: true });
+    expect(screen.queryByText("Öppen")).not.toBeInTheDocument();
+  });
+
+  it("okänt statusvärde renderar INGEN pill — det är ett tillstånd vi inte känner", () => {
+    // Deploy-skew: zod-schemat håller medvetet statusmängden öppen hellre än att
+    // fälla hela granskningen. Att då etikettera värdet "Öppen" vore ett PÅSTÅENDE
+    // om ett tillstånd vi inte känner — samma klass av fel som M4 stänger, bara i
+    // motsatt riktning. Därför skrivs Öppen positivt (null | "Open") och inte som
+    // negationen av de andra två.
+    renderControl({ userStatus: "SomethingNewFromANewerBackend" });
+    expect(screen.queryByText("Öppen")).not.toBeInTheDocument();
+    expect(screen.queryByText("Åtgärdad")).not.toBeInTheDocument();
+    expect(screen.queryByText("Ignorerad")).not.toBeInTheDocument();
+  });
 });
 
 describe("CvFindingStatusControl — anropar setFindingStatusAction", () => {

@@ -151,7 +151,7 @@
     },
     "granska": {
       "title": "Granskning av ditt CV",
-      "lede": "Det här är en deterministisk granskning av ditt sparade CV, med citerad evidens ur din egen text. Markera det du har åtgärdat själv, eller ignorera rena stilregler. Inget ändras i ditt CV automatiskt.",
+      "lede": "Det här är en deterministisk granskning av ditt sparade CV, med citerad evidens ur din egen text. Inget ändras i ditt CV automatiskt.",
       "loadErrorTitle": "Kunde inte ladda granskningen",
       "errorBody": "Ett tekniskt fel uppstod. Försök ladda om sidan eller gå tillbaka till CV-sidan.",
       "loading": "Läser in granskningen…"

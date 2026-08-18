@@ -41,8 +41,19 @@ public sealed record StructuralEvidence(string Observation) : CitedEvidence;
 /// in its source — an honest "position unknown", never a fabricated offset 0 (#478 Low). The
 /// <paramref name="Quote"/> is always the verbatim ground truth; the UI highlights by text, so
 /// a NotLocated span still renders correctly.</para>
+/// <para>
+/// <paramref name="IsExcerpt"/> is true when the quote is a SHORTENED view of a longer run of
+/// CV text (#1062 B2). It exists so the "excerpt" fact can be STATED rather than implied by a
+/// glyph the engine smuggled into the quote: the trailing "…" is rendered by the client, never
+/// stored here. That is not a style preference but the only form the two pinned invariants
+/// admit — <c>source.Substring(Start, Length) == Quote</c> (ReviewTextSpanTests) and
+/// <c>Span.Length == Quote.Length</c> (CvReviewEvidenceRedactionTests). An ellipsis is not in
+/// the source, so a quote carrying one would resolve to <see cref="NotLocated"/> and silently
+/// degrade every truncated citation. Additive with a <c>false</c> default, so every existing
+/// positional construction keeps its meaning: a span nobody shortened claims nothing.
+/// </para>
 /// </summary>
-public sealed record TextSpan(int Start, int Length, string Quote)
+public sealed record TextSpan(int Start, int Length, string Quote, bool IsExcerpt = false)
 {
     /// <summary>Sentinel <see cref="Start"/> for a quote that could not be located in its
     /// source string. The evidence still carries the verbatim <see cref="Quote"/>, but no

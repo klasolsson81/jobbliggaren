@@ -44,14 +44,21 @@ internal static class CvImprovementDtoMapper
             Length: span.Span.Length,
             Quote: span.Span.Quote,
             Note: span.Note,
-            Observation: null),
+            Observation: null,
+            // No improve-side producer sets this today — ReviewText.SpanExcerpt is the flag's
+            // only home and this engine never calls it, pinned by
+            // SuggestAsync_ShouldNeverFlagCitedEvidenceAsAnExcerpt_OnAnyProposedChange. It is
+            // carried rather than hardcoded false so the day one lands, the DTO is already
+            // honest and only the FE marker is owed (#1062 B2).
+            IsExcerpt: span.Span.IsExcerpt),
         StructuralEvidence structural => new CitedEvidenceDto(
             Kind: "Structural",
             Start: null,
             Length: null,
             Quote: null,
             Note: null,
-            Observation: structural.Observation),
+            Observation: structural.Observation,
+            IsExcerpt: false),
         _ => throw new ArgumentOutOfRangeException(
             nameof(evidence), evidence.GetType().Name, "Unknown CitedEvidence kind."),
     };

@@ -94,8 +94,12 @@ internal static class ImprovementEvidenceRedactor
                         return evidence;
 
                     // Fork 3B: a span that quoted a personnummer keeps no offset back into RawText.
+                    // Written as `with` on both arms, in parity with the review-side redactor: a
+                    // positional rebuild drops additive fields silently, and on a record shared by
+                    // two surfaces that is a defect waiting for whichever surface grows the field
+                    // second (#1062 B2).
                     var span = quoteHadPnr
-                        ? new TextSpan(0, 0, redactedQuote)
+                        ? textSpan.Span with { Start = 0, Length = 0, Quote = redactedQuote }
                         : textSpan.Span with { Quote = redactedQuote };
 
                     return new TextSpanEvidence(span, redactedNote);

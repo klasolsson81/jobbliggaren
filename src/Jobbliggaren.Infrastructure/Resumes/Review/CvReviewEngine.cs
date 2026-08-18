@@ -259,10 +259,13 @@ internal sealed class CvReviewEngine : ICvReviewEngine
             }
 
             // NotAssessed criteria are excluded from the denominator — the determinism never
-            // penalises what it cannot assess. A fully-NotAssessed category bands at the floor.
-            var band = weightSum > 0
+            // penalises what it cannot assess. A fully-NotAssessed category is therefore
+            // UNBANDED (null), not floored: with an empty denominator there is no measurement
+            // to map, and the floor band renders as the lowest grade — "NotAssessed shown as a
+            // low grade", which CLAUDE.md §5 forbids outright (#1062 B1).
+            ScoreBandLabel? band = weightSum > 0
                 ? MapBand(rubric, creditSum / weightSum * 100.0)
-                : LowestBand(rubric);
+                : null;
 
             categories.Add(new CvCategoryResult(category, pass, warn, fail, notAssessed, band, categoryVerdicts));
         }

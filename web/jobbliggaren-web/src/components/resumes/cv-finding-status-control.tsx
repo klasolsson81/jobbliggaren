@@ -61,6 +61,11 @@ export function CvFindingStatusControl({
 
   const isResolved = userStatus === "Resolved";
   const isIgnored = userStatus === "Ignored";
+  // Öppen skrivs POSITIVT och inte som `!isResolved && !isIgnored`. Skillnaden gäller
+  // bara ett okänt värde vid deploy-skew: negationen hade etiketterat det "Öppen",
+  // alltså ett PÅSTÅENDE om ett tillstånd vi inte känner. Det renderas hellre utan pill
+  // — zod-schemat höll medvetet statusmängden öppen av samma skäl (#1062 M4).
+  const isOpen = userStatus === null || userStatus === "Open";
 
   function label(status: FindingStatusValue, resting: string): string {
     return isPending && pending === status ? t("updating") : resting;
@@ -85,6 +90,13 @@ export function CvFindingStatusControl({
         <div className="jp-cvreview__status-indicator">
           <StatusPill tone="neutral">{t("ignoredLabel")}</StatusPill>
           <p className="jp-cvreview__status-hint">{t("ignoredHint")}</p>
+        </div>
+      )}
+
+      {isOpen && (
+        <div className="jp-cvreview__status-indicator">
+          <StatusPill tone="neutral">{t("openLabel")}</StatusPill>
+          <p className="jp-cvreview__status-hint">{t("openHint")}</p>
         </div>
       )}
 

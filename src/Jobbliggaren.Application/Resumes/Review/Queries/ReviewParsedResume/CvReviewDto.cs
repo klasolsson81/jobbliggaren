@@ -18,14 +18,19 @@ public sealed record CvReviewDto(
     int AssessedCount,
     int TotalCount);
 
-/// <summary>Per-category verdict counts (primary) + the data-derived band (secondary).</summary>
+/// <summary>
+/// Per-category verdict counts (primary) + the data-derived band (secondary).
+/// <para><see cref="Band"/> is <c>null</c> when the category has no assessed criterion —
+/// the UNBANDED state (#1062 B1). See <see cref="CvCategoryResult"/> for why absence, and
+/// not a fifth label, is the representation; the client renders no band pill.</para>
+/// </summary>
 public sealed record CvReviewCategoryDto(
     string Category,
     int PassCount,
     int WarnCount,
     int FailCount,
     int NotAssessedCount,
-    string Band);
+    string? Band);
 
 /// <summary>
 /// One criterion's verdict with its cited evidence, projected for transport.
@@ -68,6 +73,12 @@ public sealed record CvCriterionVerdictDto(
 /// Tagged transport form of <see cref="CitedEvidence"/>: <c>Kind</c> is "TextSpan" or
 /// "Structural". For "TextSpan" the span fields are set; for "Structural" only
 /// <c>Observation</c> is set.
+/// <para><see cref="IsExcerpt"/> is <see cref="TextSpan.IsExcerpt"/> on the wire; always false
+/// on "Structural", which is a fact the engine states rather than a quote it shortened.</para>
+/// <para>It carries <b>no default</b>, deliberately. This record is the SHARED transport form
+/// for the review and improve surfaces, and both mappers build it with named arguments — where a
+/// defaulted parameter is invisible at exactly the seam that would drop the fact. The compiler
+/// is the only reliable reader of that seam, so it is given the job.</para>
 /// </summary>
 public sealed record CitedEvidenceDto(
     string Kind,
@@ -75,4 +86,5 @@ public sealed record CitedEvidenceDto(
     int? Length,
     string? Quote,
     string? Note,
-    string? Observation);
+    string? Observation,
+    bool IsExcerpt);

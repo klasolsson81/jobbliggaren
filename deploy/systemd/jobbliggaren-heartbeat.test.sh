@@ -143,7 +143,7 @@ healthy_state() {
   : >"$TMPROOT/failed-units"
   # THESE THREE FILES MODEL ONE BOX, NOT ONE CONSTANT, and that is the distinction to keep:
   # enabled-timers stubs `list-unit-files --state=enabled` (P2's input), enabled-set stubs
-  # `is-enabled` and active-timers stubs `is-active` (P1/P3's). FLOOR_TIMERS is a SUBSET of what
+  # `is-enabled` and active-timers stubs `is-active` (P2/P3's). FLOOR_TIMERS is a SUBSET of what
   # a box has enabled, so updating this fixture against the constant rather than against the box
   # is how two of the three drifted apart once already. A timer that is is-enabled must appear in
   # list-unit-files too — a property of systemd this box was checked against, not a count:

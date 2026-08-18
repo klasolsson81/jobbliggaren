@@ -18,9 +18,11 @@ import JobbPage from "./page";
  * `JobbResults` is an async Server Component: React refuses to render one into a client root,
  * so the page cannot be mounted with it in the tree. It is replaced here by a sync component
  * rendering the REAL `JobAdList` with real `JobAdDto`s — the same component production renders
- * inside that same section, from `getJobAds`'s items. The seam moves WHERE the list is
- * rendered from, never WHAT is rendered, so the h3 levels below are the production card's own
- * and the wrong-fix mutation (promoting `.jp-job__title` to h2) is caught by the very
+ * inside that same section, from `getJobAds`'s items. The seam does drop two of that branch's
+ * children, `JobbResultsToolbar` and `JobAdPagination`; what makes it faithful on the axis
+ * measured here is that neither emits a heading, so `JobAdCard` is the whole results subtree's
+ * only heading producer either way. The h3 levels below are therefore the production card's
+ * own, and the wrong-fix mutation (promoting `.jp-job__title` to h2) is caught by the very
  * assertions that catch the missing h2.
  *
  * The hero islands are mocked because they are `"use client"` and need router context that
@@ -90,9 +92,12 @@ vi.mock("@/components/job-ads/jobb-results", () => ({
   JobbResults: () => <JobAdList jobAds={ads} />,
 }));
 
-// publishedAt > 7 days back so the freshness tag does NOT render — it would otherwise join
-// the h3's accessible name and break `getByRole("heading", { name })` (job-ad-list.test.tsx
-// carries the same note for the same reason).
+// The h3's accessible name is the title and nothing else, which is what `getByRole("heading",
+// { name })` below depends on: `JobAdList` is rendered with no `newIdSet`/`savedIdSet`/
+// `appliedIdSet`/`followedIdSet`/`matchGradeById`, so `JobTags` returns null outright and no
+// `MatchChip` renders. `publishedAt` is inert here — it renders in `.jp-job__meta`, outside the
+// h3. (The freshness tag that used to make the date load-bearing was removed 2026-07-21,
+// #1000-review; `job-ad-list.test.tsx` carried the same stale note and is corrected with this.)
 const sampleAd = (id: string, title: string): JobAdDto => ({
   id,
   title,

@@ -58,8 +58,8 @@ export default function Loading() {
             boundary and is never swapped out.)
             The height is the heading's line box, derived from committed tokens rather than a
             measurement that decays: `--text-h2` 20px x the `body` line-height 1.55 = 31px. The
-            `.jp-results-toolbar` inside the skeleton keeps its own 24px top margin, exactly as
-            it does under the real heading, so the delta is the box and nothing else. A grey bar,
+            `.jp-results-toolbar` inside the skeleton keeps its own top margin, exactly as it
+            does under the real heading, so the delta is the box and nothing else. A grey bar,
             not a live `<h2>`: this whole shell is decorative, and JobAdListSkeleton's
             `role="status"` owns the one announced sentence. */}
         <div className="flex h-[31px] items-center" aria-hidden="true">

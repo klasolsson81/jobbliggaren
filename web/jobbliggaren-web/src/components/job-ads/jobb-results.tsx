@@ -437,9 +437,15 @@ export async function JobbResults({
       redirect("/logga-in");
     case "rateLimited":
       return (
+        // #1395 — `mt-6` matches `.jp-results-toolbar`'s own top margin, so this branch sits
+        // where the results would. Without it the card butts against the section heading added
+        // above the boundary and reads as that heading's own box. The margin lives HERE and not
+        // on the `.jp-h2`: `.jp-*` is unlayered and beats `@layer utilities`, so an `mb-*` on
+        // the heading computes to 0 (globals.css:1731 names the same trap). Same placement as
+        // `foretag-sok-results.tsx`'s ErrorShell, which carries its own margin for this reason.
         <div
           role="alert"
-          className="rounded-md border border-warning-700/30 bg-warning-50 px-6 py-4"
+          className="mt-6 rounded-md border border-warning-700/30 bg-warning-50 px-6 py-4"
         >
           <p className="text-body font-medium text-warning-700">
             {t("results.rateLimitedTitle")}
@@ -459,7 +465,7 @@ export async function JobbResults({
     case "forbidden":
     case "error":
       return (
-        <div className="rounded-md border border-danger-600/30 bg-danger-50 px-6 py-4 text-danger-700">
+        <div className="mt-6 rounded-md border border-danger-600/30 bg-danger-50 px-6 py-4 text-danger-700">
           <p className="text-body font-medium">{t("results.errorTitle")}</p>
           <p className="mt-1 text-body-sm">{t("results.errorBody")}</p>
         </div>

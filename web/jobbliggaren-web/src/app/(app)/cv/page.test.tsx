@@ -275,3 +275,101 @@ describe("/cv — the create-from-scratch affordances are gone (#1061)", () => {
     expect(screen.getByText(/Importera ditt första CV/i)).toBeInTheDocument();
   });
 });
+
+
+/**
+ * #1383 — the hub's heading outline.
+ *
+ * The defect was h1 -> h3: the CV grid was an unlabelled region, so the next heading after
+ * the page title was a card title. `heading-order` is an axe BEST-PRACTICE rule, not
+ * `wcag2a`/`wcag2aa`, so the axe runs on this surface reported 0 violations while the skip
+ * was live. An axe report is not a pin for this property; this is.
+ *
+ * What is pinned is the PROPERTY (no level is skipped), not the presence of one heading:
+ * a presence check still passes if a later change promotes a card to h2 or drops an h4 in.
+ */
+function outline(): number[] {
+  // getAllByRole returns document order, which is the order the property is defined over.
+  return screen.getAllByRole("heading").map((el) => Number(el.tagName.slice(1)));
+}
+
+/** The first skipped level, as a readable string — or null when the outline is sound.
+ *  Written as a fold rather than an index walk: `noUncheckedIndexedAccess` types `levels[i]`
+ *  as possibly undefined, and the obvious repair (skip the pair when either side is
+ *  undefined) would be fail-open — the one shape a guard must never have. */
+function firstSkip(levels: number[]): string | null {
+  const [first, ...rest] = levels;
+  if (first === undefined) return null;
+  let prev = first;
+  for (const [i, here] of rest.entries()) {
+    if (here > prev + 1) return `h${prev} -> h${here} at position ${i + 1}`;
+    prev = here;
+  }
+  return null;
+}
+
+describe("/cv — the heading outline skips no level (WCAG 1.3.1, #1383)", () => {
+  it("goes h1 -> h2 -> h3 when the grid renders, and the h2 is the list's own", async () => {
+    getResumes.mockResolvedValue(listWith("Mitt CV"));
+    getLatestPendingParsedResume.mockResolvedValue({ kind: "ok", data: null });
+
+    render(await CvListPage());
+
+    // Positive first: a negated assertion alone cannot fail its own pattern, so the exact
+    // outline is asserted as well as the absence of a skip.
+    expect(outline()).toEqual([1, 2, 3]);
+    expect(firstSkip(outline())).toBeNull();
+    expect(
+      screen.getByRole("heading", { level: 2, name: "Sparade CV" }),
+    ).toBeInTheDocument();
+    // The card title stays at h3 — the fix introduces the missing level, it does not promote
+    // the card. Promoting it would make every card a peer of the section that contains it.
+    expect(
+      screen.getByRole("heading", { level: 3, name: "Mitt CV" }),
+    ).toBeInTheDocument();
+  });
+
+  it("keeps both sections labelled when the pending card and the grid render together", async () => {
+    // The pending card is a SIBLING of the list, above it. Labelling only the grid would put
+    // the page's most action-bearing block outside the outline entirely: a reader navigating
+    // by heading would go from "CV" straight to the list and never meet "Kräver åtgärd".
+    getResumes.mockResolvedValue(listWith("Mitt CV"));
+    getLatestPendingParsedResume.mockResolvedValue({ kind: "ok", data: PENDING });
+
+    render(await CvListPage());
+
+    expect(outline()).toEqual([1, 2, 2, 3]);
+    expect(firstSkip(outline())).toBeNull();
+    expect(
+      screen.getByRole("heading", { level: 2, name: "Ditt CV är inläst" }),
+    ).toBeInTheDocument();
+    // Both regions are named by their own heading, so neither is anonymous to an
+    // assistive technology enumerating regions.
+    expect(
+      document.querySelector('section[aria-labelledby="cv-pending-title"]'),
+    ).not.toBeNull();
+    expect(
+      document.querySelector('section[aria-labelledby="cv-list-title"]'),
+    ).not.toBeNull();
+  });
+
+  it("skips no level in the two states that render no grid", async () => {
+    // Pending only: the list heading must not render without a list to head.
+    getResumes.mockResolvedValue(emptyList());
+    getLatestPendingParsedResume.mockResolvedValue({ kind: "ok", data: PENDING });
+
+    const { unmount } = render(await CvListPage());
+    expect(outline()).toEqual([1, 2]);
+    expect(screen.queryByText("Sparade CV")).not.toBeInTheDocument();
+    unmount();
+
+    // Empty state: h1 alone. `.jp-empty__title` is a div on fourteen surfaces and stays one —
+    // it heads nothing that follows it, and an h1-only outline skips nothing.
+    getResumes.mockResolvedValue(emptyList());
+    getLatestPendingParsedResume.mockResolvedValue({ kind: "ok", data: null });
+
+    render(await CvListPage());
+    expect(outline()).toEqual([1]);
+    expect(firstSkip(outline())).toBeNull();
+  });
+});

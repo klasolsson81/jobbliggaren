@@ -136,9 +136,13 @@ export default async function CvListPage() {
             + StatusPill-kicker signalerar "kräver åtgärd" utan att vara ett fel —
             informationen bärs av text + struktur + pill, aldrig av färg allena
             (WCAG 1.4.1). Copyn påstår ALDRIG att CV:t är sparat — bara inläst.
-            Discard-kontrollen är en klient-ö (bekräfta-dialog); resten är RSC. */}
+            Discard-kontrollen är en klient-ö (bekräfta-dialog); resten är RSC.
+
+            #1383: kortet är en sektion i jämnhöjd med CV-listan, inte en inledning till den,
+            så rubriken är en h2. `components/resumes/cv-block-reason.tsx` renderar redan
+            samma `.jp-cvaction`-block med exakt den formen. */}
         {pendingCv !== null && (
-          <div className="jp-cvaction">
+          <section aria-labelledby="cv-pending-title" className="jp-cvaction">
             <StatusPill tone="warning">{t("cv.pending.kicker")}</StatusPill>
             <p className="jp-cvaction__source">
               {pendingCv.sourceFileName}
@@ -147,7 +151,9 @@ export default async function CvListPage() {
               )}
             </p>
             <div className="jp-cvaction__lead">
-              <p className="jp-cvaction__heading">{t("cv.pending.heading")}</p>
+              <h2 id="cv-pending-title" className="jp-cvaction__heading">
+                {t("cv.pending.heading")}
+              </h2>
               <p className="jp-cvaction__body">{t("cv.pending.body")}</p>
             </div>
             <div className="jp-cvaction__actions">
@@ -160,7 +166,7 @@ export default async function CvListPage() {
               </Link>
               <DiscardDraftButton parsedId={pendingCv.id} />
             </div>
-          </div>
+          </section>
         )}
 
         {/* #815 (Klas): the match-setup card used to live here. It is gone. Matching is
@@ -187,11 +193,22 @@ export default async function CvListPage() {
             </div>
           </div>
         ) : sorted.length === 0 ? null : (
-          <div className="jp-cvgrid">
-            {sorted.map((resume) => (
-              <ResumeCard key={resume.id} resume={resume} />
-            ))}
-          </div>
+          /* #1383: the grid was an unlabelled region, so the next heading after the page's
+             h1 was a card title — h1 -> h3, a skipped level (WCAG 1.3.1). The heading names
+             what the grid HOLDS rather than repeating the page title: these CVs are saved,
+             which is the distinction the pending card above draws in prose.
+             `jp-h2` and not `text-h2` for the reason written at
+             `components/company-criteria/foretag-sok-results.tsx`. */
+          <section aria-labelledby="cv-list-title">
+            <h2 id="cv-list-title" className="jp-h2">
+              {t("cv.listHeading")}
+            </h2>
+            <div className="jp-cvgrid mt-4">
+              {sorted.map((resume) => (
+                <ResumeCard key={resume.id} resume={resume} />
+              ))}
+            </div>
+          </section>
         )}
       </div>
     </>

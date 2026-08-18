@@ -74,6 +74,7 @@
     "emptyBody": "Import your first CV to get started. You can have several variants (for example one for leadership and one for a technical role) and choose the right CV for each application.",
     "emptyCreateFirst": "Create first CV",
     "backLink": "Back to CV",
+    "listHeading": "Saved CVs",
     "pending": {
       "kicker": "Needs action",
       "imported": "Imported {when}",

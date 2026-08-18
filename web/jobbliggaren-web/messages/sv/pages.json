@@ -74,6 +74,7 @@
     "emptyBody": "Importera ditt första CV för att komma igång. Du kan ha flera varianter (t.ex. en för ledarskap och en för teknisk roll) och välja rätt CV per ansökan.",
     "emptyCreateFirst": "Skapa första CV",
     "backLink": "Tillbaka till CV",
+    "listHeading": "Sparade CV",
     "pending": {
       "kicker": "Kräver åtgärd",
       "imported": "Importerad {when}",

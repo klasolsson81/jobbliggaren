@@ -36,9 +36,10 @@ namespace Jobbliggaren.Domain.CompanyWatches;
 ///
 /// <para>
 /// <b>ONE normaliser materialises, deliberately (#839, decided 2026-08-19).</b> This VO cannot tell
-/// a materialised län from a hand-picked kommun list, and one caller MAY hand it the former: the
-/// ort picker's <c>toggleMunicipalityInRegion</c> answers "hela länet minus Göteborg" by dropping
-/// the län id and writing the län's OTHER municipalities. This paragraph previously read as a
+/// a materialised län from a hand-picked kommun list, and one caller DOES hand it the former: the
+/// watch dialog's own ort cascade calls <c>toggleMunicipalityInRegion</c>, which answers "hela länet
+/// minus Göteborg" by dropping the län id and writing the län's OTHER municipalities. (The
+/// normaliser's other call site writes /jobb's URL and never reaches this type.) This paragraph previously read as a
 /// repo-wide invariant, which that path has always broken.
 /// </para>
 ///
@@ -52,19 +53,10 @@ namespace Jobbliggaren.Domain.CompanyWatches;
 ///
 /// <para>
 /// What materialising costs is an ad tagged at LÄN granularity with no municipality: it matches the
-/// län id and none of the kommun ids. That shape has never been ingested. Measured 2026-08-19
-/// against the dev corpus (<c>jobbliggaren-postgres-dev</c>, port 5435): all 106 071 rows carry the
-/// two columns null together or set together. Only half of that is structural —
-/// <c>PlatsbankenJobSource.MapFacets</c> reads both through one <c>hit.WorkplaceAddress?.</c>
-/// parent, so both-null follows from an absent address block, but an address block PRESENT with
-/// only one of the two inner ids set is unguarded, the columns are plain
-/// (<c>JobAdConfiguration</c> owns that fact and pins it), and AF's AdFields marks neither
-/// required. So re-measure rather than inherit. The query returns ONE row while the correlation
-/// holds; ANY <c>f</c> row is the trigger to revisit the third disjunct.
-/// <code>
-/// SELECT (region_concept_id IS NULL) = (municipality_concept_id IS NULL) AS correlated, count(*)
-/// FROM job_ads GROUP BY 1 ORDER BY 1;
-/// </code>
+/// län id and none of the kommun ids. That class is measured EMPTY, and it is re-measured rather
+/// than inherited — <c>JobAdConfiguration</c> owns the measurement, the query that regenerates it,
+/// and the trigger to revisit the third disjunct. It lives there because the branch that would
+/// break the correlation is in the ingest, not in this value object.
 /// </para>
 ///
 /// <para>

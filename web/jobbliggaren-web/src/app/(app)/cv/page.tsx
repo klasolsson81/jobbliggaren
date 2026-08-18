@@ -138,9 +138,11 @@ export default async function CvListPage() {
             (WCAG 1.4.1). Copyn påstår ALDRIG att CV:t är sparat — bara inläst.
             Discard-kontrollen är en klient-ö (bekräfta-dialog); resten är RSC.
 
-            #1383: kortet är en sektion i jämnhöjd med CV-listan, inte en inledning till den,
-            så rubriken är en h2. `components/resumes/cv-block-reason.tsx` renderar redan
-            samma `.jp-cvaction`-block med exakt den formen. */}
+            #1383: the card is a section level with the CV list, not a preamble to it, so its
+            heading is an h2. `components/resumes/cv-block-reason.tsx` already renders a
+            `.jp-cvaction` block as a `<section aria-labelledby>` with an
+            `<h2 className="jp-cvaction__heading">`; the two differ in content, not in that
+            shape. */}
         {pendingCv !== null && (
           <section aria-labelledby="cv-pending-title" className="jp-cvaction">
             <StatusPill tone="warning">{t("cv.pending.kicker")}</StatusPill>
@@ -199,7 +201,16 @@ export default async function CvListPage() {
              which is the distinction the pending card above draws in prose.
              `jp-h2` and not `text-h2` for the reason written at
              `components/company-criteria/foretag-sok-results.tsx`. */
-          <section aria-labelledby="cv-list-title">
+          <section
+            aria-labelledby="cv-list-title"
+            /* Only when the action card sits above: the heading otherwise binds almost as
+               strongly upward to that card as downward to the list it names. It has to EXCEED
+               the card's own bottom margin to move anything at all — `.jp-page` is a plain
+               block container, so adjacent sibling margins collapse and any smaller value is
+               silently inert. Alone under the hero the spacing is the container's padding and
+               is already right, which is why this stays conditional. */
+            className={pendingCv !== null ? "mt-8" : undefined}
+          >
             <h2 id="cv-list-title" className="jp-h2">
               {t("cv.listHeading")}
             </h2>

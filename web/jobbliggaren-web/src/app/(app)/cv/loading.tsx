@@ -50,7 +50,17 @@ export default function Loading() {
       <PageHeroSkeleton ledeLines={3} />
 
       <div className="jp-container jp-page" aria-hidden="true">
-        <div className="jp-cvgrid">
+        {/* #1383 gave the loaded hub a section heading above the grid. Without the same
+            reservation here every grid row jumps on swap, which is the one thing this file
+            exists to prevent (see the actions note below, and ADR 0045's CLS budget).
+            The height is the heading's line box, derived from committed tokens rather than
+            from a measurement that decays: `--text-h2` 20px x the `body` line-height 1.55 =
+            31px, plus the grid's own `mt-4`. The bar inside is deliberately shorter than the
+            box: the box reserves, the bar depicts. */}
+        <div className="flex h-[31px] items-center">
+          <span className="jp-skeleton block h-5 w-40 max-w-full" />
+        </div>
+        <div className="jp-cvgrid mt-4">
           {CARDS.map((card) => (
             <article key={card} className="jp-cv">
               <div className="jp-cv__head">

@@ -65,7 +65,7 @@ export function ResetPassword({ uid, token }: { uid: string; token: string }) {
           <h1
             ref={doneRef}
             tabIndex={-1}
-            className="text-h1 font-bold text-heading-1 focus:outline-none"
+            className="text-h1 font-bold text-heading-1"
           >
             {t("auth.resetPassword.successTitle")}
           </h1>
@@ -93,7 +93,7 @@ export function ResetPassword({ uid, token }: { uid: string; token: string }) {
           tabIndex={-1}
           role="status"
           aria-live="polite"
-          className="flex flex-col gap-1 focus:outline-none"
+          className="flex flex-col gap-1"
         >
           <h1 className="text-h1 font-bold text-heading-1">
             {t("auth.resetPassword.invalidTitle")}

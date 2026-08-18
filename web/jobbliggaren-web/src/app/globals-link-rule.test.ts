@@ -11,24 +11,34 @@ import { fileURLToPath } from "node:url";
  * specificity of its most specific argument and keeps the rule at (0,1,1). Chaining two `:not()`s
  * makes it (0,2,1), which then outranks `.jp-foot__links a` (0,1,1) and
  * `.jp-land-hero--plate .jp-land-hero__guestlink` (0,2,0) — both written to beat exactly this rule.
- * Both surfaces then render green on green. The chained form is a plausible tidy-up, it compiles,
- * and nothing else in the repo would notice.
+ * Measured on the chained form: the footer link falls to 2.04:1 and its hover to 2.39:1, both hard
+ * WCAG 1.4.3 failures. The chained form is a plausible tidy-up, it compiles, and nothing else in the
+ * repo would notice.
  *
- * Fail-closed: a rule this cannot find fails rather than passes.
+ * Fail-closed on three axes, each of which was a live fail-open in the first revision (`code-reviewer`,
+ * PR #1400): the collector takes ANY trailing pseudo-class rather than only `:hover`, so a third rule
+ * added as `a:not(...):focus-visible` is seen instead of silently ignored; block comments are stripped
+ * first, so rule text left behind in a comment cannot stand in for a deleted rule; and the exemption is
+ * checked for an id, since `#x` inside the one `:not()` satisfies the syntactic form while lifting the
+ * rule to (1,0,1) and beating both surfaces anyway.
  */
 const CSS = readFileSync(
   resolve(dirname(fileURLToPath(import.meta.url)), "globals.css"),
   "utf-8",
-);
+).replace(/\/\*[\s\S]*?\*\//g, "");
 
-/** The two link-colour rules, matched by their declaration rather than by a line number. */
-const LINK_RULES = CSS.split("\n").filter((line) =>
-  /^a:not\(.*\)\s*(:hover\s*)?\{/.test(line.trim()),
-);
+/** The link-colour rules, matched by their declaration rather than by a line number. */
+const LINK_RULES = CSS.split("\n")
+  .map((line) => line.trim())
+  .filter((line) => /^a:not\(/.test(line) && line.includes("{"));
 
 describe("globals.css — the global link colour rule (#1352)", () => {
   it("has exactly the two rules this guard is about", () => {
-    expect(LINK_RULES).toHaveLength(2);
+    expect(
+      LINK_RULES,
+      `Expected the base rule and its :hover twin. A third rule here is not a failure of the ` +
+        `code — it is this guard telling you it has not been taught about the new one.`,
+    ).toHaveLength(2);
     expect(LINK_RULES.filter((r) => r.includes(":hover"))).toHaveLength(1);
   });
 
@@ -46,6 +56,17 @@ describe("globals.css — the global link colour rule (#1352)", () => {
         `${selector.trim()} — a chained :not() raises the rule from (0,1,1) to (0,2,1) and turns ` +
           `the footer links and the hero guest link green. Keep both exemptions in one selector list.`,
       ).toHaveLength(1);
+    }
+  });
+
+  it("keeps the exemption free of an id, which would raise the rule the same way", () => {
+    for (const rule of LINK_RULES) {
+      const args = rule.slice(rule.indexOf(":not(") + 5, rule.indexOf(")"));
+      expect(
+        args,
+        `${rule.slice(0, rule.indexOf("{")).trim()} — an id inside the :not() satisfies the ` +
+          `one-selector-list form but lifts the rule to (1,0,1), which beats both surfaces anyway.`,
+      ).not.toContain("#");
     }
   });
 });

@@ -275,3 +275,107 @@ describe("/cv — the create-from-scratch affordances are gone (#1061)", () => {
     expect(screen.getByText(/Importera ditt första CV/i)).toBeInTheDocument();
   });
 });
+
+
+/**
+ * #1383 — the hub's heading outline.
+ *
+ * `heading-order` is an axe BEST-PRACTICE rule, not `wcag2a`/`wcag2aa`, so a WCAG-tagged run
+ * cannot fail on it and reported 0 violations the whole time the skip was live.
+ *
+ * ⚠ SCOPE: `render()` mounts the page WITHOUT the app shell, so this is the page's outline,
+ * not the document's. The live document also carries the site footer's h2 AFTER the cards;
+ * a jump back up is never a skip, which is why the two readings agree. The document-level
+ * property is verified by an axe `best-practice` run, not here.
+ */
+function outline(): number[] {
+  return screen.getAllByRole("heading").map((el) => {
+    // Tag-derived, so an ARIA-only heading would yield NaN and pass every comparison in
+    // firstSkip silently. Fail loud instead: this helper may not quietly measure nothing.
+    const level = Number(el.tagName.slice(1));
+    if (!Number.isInteger(level)) {
+      throw new Error(`outline(): <${el.tagName}> has no tag-derived heading level`);
+    }
+    return level;
+  });
+}
+
+/** The first skipped level, as a readable string — or null when the outline is sound.
+ *  A fold, not an index walk: `noUncheckedIndexedAccess` types `levels[i]` as possibly
+ *  undefined, so an index walk needs a per-pair guard, and the obvious one skips the
+ *  comparison rather than making it. A fold has no index to be unsure about. */
+function firstSkip(levels: number[]): string | null {
+  const [first, ...rest] = levels;
+  if (first === undefined) return null;
+  let prev = first;
+  for (const [i, here] of rest.entries()) {
+    if (here > prev + 1) return `h${prev} -> h${here} at position ${i + 1}`;
+    prev = here;
+  }
+  return null;
+}
+
+describe("/cv — the heading outline skips no level (WCAG 1.3.1, #1383)", () => {
+  it("goes h1 -> h2 -> h3 when the grid renders, and the h2 is the list's own", async () => {
+    getResumes.mockResolvedValue(listWith("Mitt CV"));
+    getLatestPendingParsedResume.mockResolvedValue({ kind: "ok", data: null });
+
+    render(await CvListPage());
+
+    expect(firstSkip(outline())).toBeNull();
+    // The levels are NAMED, not merely counted. A bare skip check also passes the wrong fix,
+    // where the card is promoted to h2 and the outline reads [1,2,2] with no skip in it.
+    expect(
+      screen.getByRole("heading", { level: 2, name: "Sparade CV" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { level: 3, name: "Mitt CV" }),
+    ).toBeInTheDocument();
+  });
+
+  it("keeps both sections labelled when the pending card and the grid render together", async () => {
+    getResumes.mockResolvedValue(listWith("Mitt CV"));
+    getLatestPendingParsedResume.mockResolvedValue({ kind: "ok", data: PENDING });
+
+    render(await CvListPage());
+
+    expect(firstSkip(outline())).toBeNull();
+    expect(
+      screen.getByRole("heading", { level: 2, name: "Ditt CV är inläst" }),
+    ).toBeInTheDocument();
+    // By ROLE AND NAME, never by the attribute: a selector for `[aria-labelledby="x"]` passes
+    // even when the id it points at is gone — and that is exactly the state where the region
+    // loses its name and stops being a landmark, which is what these two lines exist to pin.
+    expect(screen.getByRole("region", { name: "Ditt CV är inläst" })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Sparade CV" })).toBeInTheDocument();
+  });
+
+  it("skips no level in the two states that render no grid", async () => {
+    // Pending only: the list heading must not render without a list to head.
+    getResumes.mockResolvedValue(emptyList());
+    getLatestPendingParsedResume.mockResolvedValue({ kind: "ok", data: PENDING });
+
+    const { unmount } = render(await CvListPage());
+    expect(firstSkip(outline())).toBeNull();
+    // Positive first: `firstSkip([])` is null, so the two negations below would also pass a
+    // page that rendered no headings at all.
+    expect(
+      screen.getByRole("heading", { level: 2, name: "Ditt CV är inläst" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Sparade CV")).not.toBeInTheDocument();
+    unmount();
+
+    // `.jp-empty__title` stays a div. It is visually a heading and carries a 1.3.1 exposure of
+    // its own, but the class is shared by every empty state in the tree, so promoting it here
+    // would be a fix in one place out of N. Out of scope: this state skips nothing. Count the
+    // homes with (the filter is load-bearing — without it this file, which names the class
+    // in this very comment, counts itself):
+    //   grep -rl 'jp-empty__title' web/jobbliggaren-web/src --include=*.tsx | grep -v '\.test\.'
+    getResumes.mockResolvedValue(emptyList());
+    getLatestPendingParsedResume.mockResolvedValue({ kind: "ok", data: null });
+
+    render(await CvListPage());
+    expect(firstSkip(outline())).toBeNull();
+    expect(screen.getByRole("heading", { level: 1, name: "CV" })).toBeInTheDocument();
+  });
+});

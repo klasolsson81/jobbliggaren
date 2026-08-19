@@ -8,6 +8,7 @@
 import dynamic from "next/dynamic";
 import { useMemo, useRef, useState, useTransition } from "react";
 import { useFormatter, useTranslations } from "next-intl";
+import { DISTANS_CHIP_ID } from "@/lib/job-ads/ort-selection";
 import { formatTime } from "@/lib/i18n/format";
 import type {
   TaxonomyOccupationField,
@@ -70,6 +71,8 @@ interface MatchPreferencesCardProps {
   readonly initialRegions: ReadonlyArray<string>;
   /** Spår 3 PR-D: kommun-axeln (sparade kommun-concept-id från profilen). */
   readonly initialMunicipalities: ReadonlyArray<string>;
+  /** #551 punkt 4: distans-axeln (pre-fill, full-replace page-wipe-vakt). */
+  readonly initialRemote: boolean;
   readonly initialEmploymentTypes: ReadonlyArray<string>;
   /** STEG 3 / ADR 0079: kompetens-axeln + erfarenhet (sparade från profilen). */
   readonly initialSkills: ReadonlyArray<string>;
@@ -109,6 +112,7 @@ export function MatchPreferencesCard({
   initialOccupationGroups,
   initialRegions,
   initialMunicipalities,
+  initialRemote,
   initialEmploymentTypes,
   initialSkills,
   initialSkillGroups,
@@ -160,6 +164,7 @@ export function MatchPreferencesCard({
     useState<ReadonlyArray<string>>(initialRegions);
   const [selectedMunicipalities, setSelectedMunicipalities] =
     useState<ReadonlyArray<string>>(initialMunicipalities);
+  const [selectedRemote, setSelectedRemote] = useState<boolean>(initialRemote);
   const [selectedEmployment, setSelectedEmployment] = useState<
     ReadonlyArray<string>
   >(initialEmploymentTypes);
@@ -205,6 +210,7 @@ export function MatchPreferencesCard({
     occupations: ReadonlyArray<string>;
     regions: ReadonlyArray<string>;
     municipalities: ReadonlyArray<string>;
+    remote: boolean;
     employment: ReadonlyArray<string>;
     skills: ReadonlyArray<string>;
   }
@@ -213,6 +219,7 @@ export function MatchPreferencesCard({
     occupations: occupationGroups,
     regions: selectedRegions,
     municipalities: selectedMunicipalities,
+    remote: selectedRemote,
     employment: selectedEmployment,
     skills: selectedSkills,
   });
@@ -235,6 +242,7 @@ export function MatchPreferencesCard({
         preferredOccupationGroups: [...next.occupations],
         preferredRegions: [...next.regions],
         preferredMunicipalities: [...next.municipalities],
+        preferredRemote: next.remote,
         preferredEmploymentTypes: [...next.employment],
         preferredSkills: [...next.skills],
         experienceYears,
@@ -280,6 +288,42 @@ export function MatchPreferencesCard({
     memberConceptIds: ReadonlyArray<string> = [conceptId]
   ) {
     const prev = currentSets();
+
+    // Grannen att flytta fokus till (CHIP-ordning, inte rå member-lista): nästa
+    // kvarvarande chip, annars föregående, annars "Lägg till". Beräknas FÖRE
+    // borttagningen mot den renderade chip-listan — så ett twin-grupp-chip (vars
+    // member-id ej är egna chips) får en korrekt chip-granne med en ref.
+    //
+    // Ligger ovanför distans-grenen MED FLIT: varje borttagningsväg måste
+    // återställa fokus (WCAG 2.4.3), och en väg som returnerar tidigt tappar det
+    // till <body>. Det var precis vad distans-grenen gjorde i sin första form.
+    const chipIds = facetData[facet].map((c) => c.conceptId);
+    const chipIndex = chipIds.indexOf(conceptId);
+    const neighbourConceptId =
+      chipIds[chipIndex + 1] ?? chipIds[chipIndex - 1] ?? null;
+    function restoreFocus() {
+      if (!keyboard) return;
+      queueMicrotask(() => {
+        const target =
+          neighbourConceptId !== null
+            ? removeRefs.current.get(refKey(facet, neighbourConceptId))
+            : null;
+        if (target) target.focus();
+        else addButtonRef.current?.focus();
+      });
+    }
+
+    // #551 punkt 4 — distans är en BOOLEAN, inte ett id i en lista, så den kan
+    // aldrig gå genom list-maskineriet nedan. Utan denna gren klassar ortAxisOf
+    // sentinel-id:t som en kommun (allt som inte finns i selectedRegions) och
+    // borttagningen blir en tyst no-op.
+    if (conceptId === DISTANS_CHIP_ID) {
+      const next: PrefSets = { ...prev, remote: false };
+      setSelectedRemote(false);
+      restoreFocus();
+      persist(next, () => setSelectedRemote(prev.remote));
+      return;
+    }
     const axisFor: keyof PrefSets =
       facet === "occupations"
         ? "occupations"
@@ -295,28 +339,8 @@ export function MatchPreferencesCard({
     const nextList = list.filter((v) => !drop.has(v));
     const next: PrefSets = { ...prev, [axisFor]: nextList };
 
-    // Bestäm grannen att flytta fokus till (CHIP-ordning, inte rå member-lista):
-    // nästa kvarvarande chip, annars föregående, annars "Lägg till". Beräknas FÖRE
-    // borttagningen mot den renderade chip-listan — så ett twin-grupp-chip (vars
-    // member-id ej är egna chips) får en korrekt chip-granne med en ref. (Skills
-    // = canonical-keyade grupp-chips; övriga facetter = 1:1, samma beteende.)
-    const chipIds = facetData[facet].map((c) => c.conceptId);
-    const chipIndex = chipIds.indexOf(conceptId);
-    const neighbourConceptId =
-      chipIds[chipIndex + 1] ?? chipIds[chipIndex - 1] ?? null;
-
     applyAxis(axisFor, nextList);
-
-    if (keyboard) {
-      queueMicrotask(() => {
-        const target =
-          neighbourConceptId !== null
-            ? removeRefs.current.get(refKey(facet, neighbourConceptId))
-            : null;
-        if (target) target.focus();
-        else addButtonRef.current?.focus();
-      });
-    }
+    restoreFocus();
 
     persist(next, () => applyAxis(axisFor, prev[axisFor]));
   }
@@ -334,6 +358,7 @@ export function MatchPreferencesCard({
     occupations: ReadonlyArray<string>;
     regions: ReadonlyArray<string>;
     municipalities: ReadonlyArray<string>;
+    remote: boolean;
     employment: ReadonlyArray<string>;
     skills: ReadonlyArray<string>;
     experienceYears: number | null;
@@ -346,6 +371,7 @@ export function MatchPreferencesCard({
     setOccupationGroups(saved.occupations);
     setSelectedRegions(saved.regions);
     setSelectedMunicipalities(saved.municipalities);
+    setSelectedRemote(saved.remote);
     setSelectedEmployment(saved.employment);
     setSelectedSkills(saved.skills);
     setExperienceYears(saved.experienceYears);
@@ -386,7 +412,12 @@ export function MatchPreferencesCard({
     // storen; saknade faller tillbaka på id (ingen träd-uppslagning för skills).
     skills: groupsForSelected(selectedSkills, skillGroups),
     // Ort-facetten: valda län FÖRST (helläns-axeln), sedan enskilda kommuner.
+    // #551 punkt 4 — distans först (bredaste ort-valet), annars visar kortet
+    // "Hela landet (ingen ort vald)" för en sparad Distans-preferens.
     orter: asChips([
+      ...(selectedRemote
+        ? [{ conceptId: DISTANS_CHIP_ID, label: t("matchPrefs.cascade.distans") }]
+        : []),
       ...labelsForSelected(selectedRegions, regionOptions),
       ...labelsForSelected(selectedMunicipalities, municipalityOptions),
     ]),
@@ -521,6 +552,7 @@ export function MatchPreferencesCard({
           persistedOccupationGroups={occupationGroups}
           persistedRegions={selectedRegions}
           persistedMunicipalities={selectedMunicipalities}
+          persistedRemote={selectedRemote}
           persistedEmploymentTypes={selectedEmployment}
           persistedSkills={selectedSkills}
           persistedExperienceYears={experienceYears}

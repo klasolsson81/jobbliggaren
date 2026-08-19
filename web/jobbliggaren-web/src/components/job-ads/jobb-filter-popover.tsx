@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import { useFormatter, useTranslations } from "next-intl";
 import { Check, ChevronRight } from "lucide-react";
 import { formatNumber } from "@/lib/i18n/format";
@@ -94,6 +94,21 @@ interface JobbFilterPopoverProps {
     onToggleItem: (itemConceptId: string, groupConceptId: string) => void;
   };
   /**
+   * #551 punkt 4 — en BOOLESK rad ovanför de två kolumnerna (Ort: "Distans").
+   * Samma parameterisering-med-data som `groupAxis` ovan, inte en flagga:
+   * utelämnad (Yrke, Klass 2) → popovern renderar exakt som förut, byte för
+   * byte. Raden ligger utanför kolumnerna därför att distans inte HAR någon
+   * län→kommun-hierarki att navigera — backend unionerar den vid sidan av de
+   * två id-axlarna (kommun ∨ län ∨ remote).
+   */
+  booleanAxis?: {
+    label: string;
+    /** Hjälptext under raden — förklarar att axeln BREDDAR, inte skär. */
+    hint?: string;
+    checked: boolean;
+    onToggle: () => void;
+  };
+  /**
    * Fas E2c (ADR 0067 Beslut 4) — per-option-counts för höger-kolumnens
    * item-rader (concept-id → count; saknad nyckel = 0). `null`/utelämnad =
    * counts ej laddade/degraderade → inga tal visas (popovern fullt
@@ -175,10 +190,18 @@ function CheckRow({
   isAll,
   count,
   indeterminate,
+  describedBy,
 }: {
   label: string;
   checked: boolean;
   onToggle: () => void;
+  /** id på en hjälptext som skärmläsaren ska läsa efter namnet. */
+  describedBy?: string;
+  /**
+   * Avdelande rad-stil (jp-checkitem--all: underkant + semibold). Bärs av
+   * "Välj alla"-raden och av den booleska axel-raden (#551) — den styr
+   * UTSEENDE, inte semantik.
+   */
   isAll?: boolean;
   /** Per-option-count (E2c) — undefined = counts ej laddade, inget tal. */
   count?: number;
@@ -195,6 +218,7 @@ function CheckRow({
       className={isAll ? "jp-checkitem jp-checkitem--all" : "jp-checkitem"}
       role="checkbox"
       aria-checked={indeterminate ? "mixed" : checked}
+      aria-describedby={describedBy}
       tabIndex={0}
       onClick={onToggle}
       onKeyDown={(e) => {
@@ -232,11 +256,13 @@ export function JobbFilterPopover({
   emptyText,
   rightEmptyText,
   groupAxis,
+  booleanAxis,
   counts,
   groupCounts,
   footer,
 }: JobbFilterPopoverProps) {
   const t = useTranslations("jobads.ui");
+  const boolHintId = `jp-popover-boolaxis-hint-${useId()}`;
   const ref = useDismissable<HTMLDivElement>(open, onClose, triggerRef);
   const pos = usePopoverPosition(open, triggerRef);
 
@@ -277,7 +303,9 @@ export function JobbFilterPopover({
   // Tri-state (E2d-Minor): partiellt val = något valt men inte allt → "mixed".
   const selectAllMixed = !selectAllChecked && rightAnySelected;
   const anySelectedAnywhere =
-    selected.length > 0 || (groupAxis?.selected.length ?? 0) > 0;
+    selected.length > 0 ||
+    (groupAxis?.selected.length ?? 0) > 0 ||
+    booleanAxis?.checked === true;
 
   return (
     <div
@@ -287,6 +315,36 @@ export function JobbFilterPopover({
       aria-label={dialogLabel ?? leftTitle}
       style={style}
     >
+      {/* Utanför __body: distans har ingen län→kommun-hierarki att navigera.
+          Raden och dess hjälptext är EN grupp, och avdelaren sitter på gruppen —
+          den skiljer axeln från Län/Kommun-kolumnerna, inte kryssrutan från sin
+          egen förklaring. `.jp-popover__boolaxis` ligger i `(app)/app.css` och är
+          den ENDA `.jp-popover__*`-regeln utanför `globals.css`, där resten bor.
+          Den hör hemma hos sina syskon och kan flyttas dit när någon ändå rör dem.
+          `isAll` blir därmed false för varje konsument som skickar en hint (alla
+          i dag) och är kvar bara för en framtida hint-lös rad, som behöver
+          avdelaren på själva raden. Att raden då också tappar `--all`:s semibold
+          är AVSIKTLIGT: "Distans räknas som egen ort" (designhandoffen), alltså
+          ett ort-val bland andra — inte en kategorirubrik. */}
+      {booleanAxis && (
+        <div className="jp-popover__boolaxis">
+          <CheckRow
+            label={booleanAxis.label}
+            checked={booleanAxis.checked}
+            onToggle={booleanAxis.onToggle}
+            describedBy={booleanAxis.hint ? boolHintId : undefined}
+            isAll={!booleanAxis.hint}
+          />
+          {booleanAxis.hint && (
+            <p
+              id={boolHintId}
+              className="text-body-sm text-text-primary px-4 pt-2 pb-2"
+            >
+              {booleanAxis.hint}
+            </p>
+          )}
+        </div>
+      )}
       <div className="jp-popover__body">
         {/* maxHeight/overflowY på själva kolumnen (ej enbart grid-
             förälderns max-height) — grid-barn får ingen användbar höjd att

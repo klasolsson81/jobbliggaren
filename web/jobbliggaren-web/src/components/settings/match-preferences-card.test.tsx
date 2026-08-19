@@ -79,6 +79,7 @@ function renderCard(
       initialOccupationGroups={[]}
       initialRegions={[]}
       initialMunicipalities={[]}
+      initialRemote={false}
       initialEmploymentTypes={[]}
       initialSkills={[]}
       initialSkillGroups={[]}
@@ -278,6 +279,7 @@ describe("MatchPreferencesCard — optimistisk borttagning + auto-save", () => {
       preferredOccupationGroups: ["grp_frontend"],
       preferredRegions: ["region_sthlm"],
       preferredMunicipalities: [],
+      preferredRemote: false,
       preferredEmploymentTypes: ["et_fast"],
       preferredSkills: [],
       experienceYears: null,
@@ -301,6 +303,7 @@ describe("MatchPreferencesCard — optimistisk borttagning + auto-save", () => {
       preferredOccupationGroups: [],
       preferredRegions: ["region_sthlm"],
       preferredMunicipalities: ["mun_b"],
+      preferredRemote: false,
       preferredEmploymentTypes: [],
       preferredSkills: [],
       experienceYears: null,
@@ -405,5 +408,53 @@ describe("fokus-retur när matchnings-dialogen stängs (#748, WCAG 2.4.3)", () =
       expect(screen.getByRole("button", { name: "Lägg till" })).toHaveFocus()
     );
     expect(document.body).not.toHaveFocus();
+  });
+});
+
+describe("Distans-chippen (#551 punkt 4)", () => {
+  // WCAG 2.4.3, och den enda anledningen till att detta har ett eget block:
+  // distans-borttagningen går INTE genom listmaskineriet (den är en boolean), så
+  // den var ett ögonblick den enda borttagbara chippen i kortet som gick förbi
+  // husets fokusåterställning och tappade fokus till <body>.
+  it("Backspace på Distans flyttar fokus till grannen, aldrig till body", async () => {
+    const user = userEvent.setup();
+    renderCard({ initialRemote: true, initialRegions: ["region_sthlm"] });
+
+    const distans = screen.getByRole("button", { name: "Ta bort Distans" });
+    distans.focus();
+    await user.keyboard("{Backspace}");
+
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "Ta bort Stockholms län" })
+      ).toHaveFocus()
+    );
+    expect(document.body).not.toHaveFocus();
+  });
+
+  it("Distans som ENDA ort-val flyttar fokus till 'Lägg till'", async () => {
+    const user = userEvent.setup();
+    renderCard({ initialRemote: true });
+
+    const distans = screen.getByRole("button", { name: "Ta bort Distans" });
+    distans.focus();
+    await user.keyboard("{Backspace}");
+
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Lägg till" })).toHaveFocus()
+    );
+    expect(document.body).not.toHaveFocus();
+  });
+
+  it("borttagning persisterar preferredRemote: false (ingen klient-lokal no-op)", async () => {
+    const user = userEvent.setup();
+    renderCard({ initialRemote: true });
+
+    await user.click(screen.getByRole("button", { name: "Ta bort Distans" }));
+
+    await waitFor(() => expect(updateMock).toHaveBeenCalled());
+    expect(updateMock.mock.calls.at(-1)![0]).toMatchObject({
+      preferredRemote: false,
+    });
   });
 });

@@ -62,7 +62,8 @@
     "restore": "Återställ förslagen"
   },
   "orter": {
-    "intro": "Välj de län eller kommuner du vill arbeta i. Lämna tomt för hela landet.",
+    "intro": "Välj de län eller kommuner du vill arbeta i, eller kryssa Distans. Lämna allt tomt för hela landet.",
+    "distans": "Distans",
     "selected": "VALDA ORTER ({count})",
     "empty": "<b>Inga orter valda.</b> Vi matchar i hela landet."
   },

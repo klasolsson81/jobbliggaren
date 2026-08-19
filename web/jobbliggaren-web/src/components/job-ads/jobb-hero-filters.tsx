@@ -56,6 +56,11 @@ interface JobbHeroFiltersProps {
   initialOccupationGroup: ReadonlyArray<string>;
   initialRegion: ReadonlyArray<string>;
   initialMunicipality: ReadonlyArray<string>;
+  /**
+   * #551 punkt 4 — Distans (`?distans=on`). Ort-dimensionens tredje granularitet:
+   * backend unionerar kommun ∨ län ∨ remote, så den BREDDAR ort-valet.
+   */
+  initialRemote: boolean;
   // Klass 2 (2026-06-13) — anställningsform (checkbox-multi) + omfattning
   // (radio-single). Driver "Filter"-pillen + Klass-2-panelen.
   initialEmploymentType: ReadonlyArray<string>;
@@ -117,6 +122,10 @@ interface FilterSelection {
   occupationGroup: string[];
   region: string[];
   municipality: string[];
+  // #551 punkt 4 — Distans. Samma ORT-dimension som region/municipality (backend
+  // unionerar: kommun ∨ län ∨ remote), i samma optimistiska overlay så
+  // Ort-pillen svarar omedelbart under transitionen.
+  remote: boolean;
   // Klass 2 — anställningsform + omfattning bärs i samma optimistiska overlay
   // så pill-count + panel-markeringar svarar omedelbart under transitionen.
   employmentType: string[];
@@ -139,6 +148,7 @@ export function JobbHeroFilters({
   initialOccupationGroup,
   initialRegion,
   initialMunicipality,
+  initialRemote,
   initialEmploymentType,
   initialWorktimeExtent,
   initialMatchGrades,
@@ -172,6 +182,7 @@ export function JobbHeroFilters({
       occupationGroup: [...initialOccupationGroup],
       region: [...initialRegion],
       municipality: [...initialMunicipality],
+      remote: initialRemote,
       employmentType: [...initialEmploymentType],
       worktimeExtent: [...initialWorktimeExtent],
       matchGrades: [...initialMatchGrades],
@@ -184,6 +195,7 @@ export function JobbHeroFilters({
       initialOccupationGroup,
       initialRegion,
       initialMunicipality,
+      initialRemote,
       initialEmploymentType,
       initialWorktimeExtent,
       initialMatchGrades,
@@ -261,6 +273,7 @@ export function JobbHeroFilters({
           occupationGroup: next.occupationGroup,
           region: next.region,
           municipality: next.municipality,
+          remote: next.remote,
           employmentType: next.employmentType,
           worktimeExtent: next.worktimeExtent,
           matchGrades: next.matchGrades,
@@ -287,6 +300,11 @@ export function JobbHeroFilters({
       region: [...next.region],
       municipality: [...next.municipality],
     });
+  }
+  // Distans togglas fristående från de två id-axlarna — den har ingen
+  // län→kommun-hierarki att normalisera, så den går aldrig via ort-selection.ts.
+  function toggleRemote() {
+    commit({ ...selection, remote: !selection.remote });
   }
   // Klass 2 — anställningsform (checkbox-multi) + omfattning (radio-single).
   // Speglar changeOccupationGroup: byt EN axel, bevara resten via spread.
@@ -395,7 +413,13 @@ export function JobbHeroFilters({
     });
   }
 
-  const ortCount = ort.region.length + ort.municipality.length;
+  // #551 punkt 4 — distans räknas MED. Ort-pillens räknare är inte en chip utan
+  // ort-dimensionens statusvisning, och distans är samma dimension i en tredje
+  // granularitet. Utan detta blir pillen helt omarkerad medan listan är smalnad,
+  // och (eftersom Distans medvetet saknar chip) syns filtret ingenstans alls i
+  // stängt läge.
+  const ortCount =
+    ort.region.length + ort.municipality.length + (selection.remote ? 1 : 0);
   // Klass 2 — "Filter"-pillens count = summan av aktiva anställningsform-
   // + omfattning-val (omfattning bär 0–1, anställningsform 0–8).
   const filterCount =
@@ -414,6 +438,11 @@ export function JobbHeroFilters({
     // anställningsform/omfattning OCH vice versa (backend exkluderar egen dim).
     employmentType: selection.employmentType,
     worktimeExtent: selection.worktimeExtent,
+    // #551 punkt 4 — samma regel som Klass 2 ovan. Ort-facetterna påverkas inte
+    // (backend exkluderar hela ort-dimensionen), men Yrke- och Klass-2-facetterna
+    // räknar annars mot ett ANNAT geo-predikat än listan: med bara Distans valt
+    // försvinner geo-filtret helt och counten blir hela korpusen.
+    remote: selection.remote,
     q,
   };
   const municipalityCounts = useFacetCounts(
@@ -594,11 +623,19 @@ export function JobbHeroFilters({
           onClearColumn: clearOrtColumn,
           onToggleItem: toggleMunicipality,
         }}
+        booleanAxis={{
+          label: t("heroFilters.ortDistans"),
+          hint: t("heroFilters.ortDistansHint"),
+          checked: selection.remote,
+          onToggle: toggleRemote,
+        }}
         counts={municipalityCounts}
         groupCounts={regionCounts}
         footer={showResultsFooter}
         onClose={() => setOpenPop(null)}
-        onClearAll={() => commitOrt({ region: [], municipality: [] })}
+        onClearAll={() =>
+          commit({ ...selection, region: [], municipality: [], remote: false })
+        }
         triggerRef={ortBtnRef}
       />
 

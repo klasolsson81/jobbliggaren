@@ -207,6 +207,11 @@ export function OversiktPage({
       occupationGroup: [...profile.data.preferredOccupationGroups],
       region: [...profile.data.preferredRegions],
       municipality: [...profile.data.preferredMunicipalities],
+      // #551 punkt 4 — H2-invarianten ovan: GetMyMatchCountQueryHandler
+      // hård-filtrerar på den persisterade PreferredRemote, så länken måste bära
+      // samma axel. Utan den säger notisen N medan listan visar ett annat tal så
+      // snart användaren sparat Distans.
+      remote: profile.data.preferredRemote,
       employmentType: [...profile.data.preferredEmploymentTypes],
       worktimeExtent: [],
       matchGrades: [],

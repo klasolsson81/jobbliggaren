@@ -81,6 +81,7 @@ function renderCard() {
       initialOccupationGroups={[]}
       initialRegions={[]}
       initialMunicipalities={[]}
+      initialRemote={false}
       initialEmploymentTypes={[]}
       initialSkills={[]}
       initialSkillGroups={[]}

@@ -44,6 +44,12 @@ export function makeSetMatchPreferencesSchema(_t: ValidationTranslator) {
     // den lyfts atomiskt med `preferredRegions` i ETT full-replace-PUT så ett
     // spar av regioner aldrig nollar angivna kommuner (CTO/architect NOTE-1).
     preferredMunicipalities: conceptIdList,
+    // #551 punkt 4: distans-axeln. En BOOLEAN, inte en concept-id-lista —
+    // backend unionerar den in i geo-predikatet (kommun ∨ län ∨ remote,
+    // JobAdSearchComposition.ApplyFilter) och lagrar den som
+    // MatchPreferences.PreferredRemote. Default false = distans inte begärd,
+    // vilket är domänens egen default och håller full-replace-PUT:en additiv.
+    preferredRemote: z.boolean().default(false),
     preferredEmploymentTypes: conceptIdList,
     // STEG 3 / ADR 0079 (Beslut 1): CV-seeded, editable, trusted skill chips.
     // A list of skill concept-ids (same conceptId format as the other axes;

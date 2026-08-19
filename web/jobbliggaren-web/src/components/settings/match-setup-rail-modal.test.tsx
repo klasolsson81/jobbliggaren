@@ -82,6 +82,7 @@ const modalProps = {
   persistedOccupationGroups: [],
   persistedRegions: [],
   persistedMunicipalities: [],
+  persistedRemote: false,
   persistedEmploymentTypes: [],
   persistedSkills: [],
   persistedOccupationExperience: [],
@@ -261,5 +262,58 @@ describe("MatchSetupRailModal — räknarens tal följer aktiv locale", () => {
     expect(
       statuses.every((s) => !s.textContent?.includes("1\u00A0234")),
     ).toBe(true);
+  });
+});
+
+describe("#551 punkt 4 — Distans-valet överlever till MatchPreferences.PreferredRemote", () => {
+  // Acceptanskriteriet för wizard-halvan: det användaren kryssar i Orter-steget
+  // måste nå den persisterade axeln. Utan den här pinnen kan hela kedjan
+  // (kaskad → draft → full-replace-PUT) gå sönder i vilken led som helst utan
+  // att något test märker det — en av dem tappades faktiskt tyst under bygget.
+  it("en PÅ-slagen Distans-ruta skickas som preferredRemote: true i full-replace-PUT:en", async () => {
+    updateMock.mockResolvedValue({ success: true });
+    const user = userEvent.setup();
+    // STEP_ORTER = 3 (wizardens Orter-steg; modalen öppnar annars på START).
+    renderModal({
+      persistedOccupationGroups: ["grp_backend"],
+      persistedRemote: false,
+      initialStep: 3,
+    });
+
+    await user.click(screen.getByRole("button", { name: "Lägg till orter" }));
+    await user.click(screen.getByRole("checkbox", { name: "Distans" }));
+
+    const granskaRail = screen
+      .getAllByRole("button")
+      .find((b) => b.textContent?.includes("Granska"));
+    await user.click(granskaRail!);
+    await user.click(screen.getByRole("button", { name: "Spara matchning" }));
+
+    await waitFor(() => expect(updateMock).toHaveBeenCalledTimes(1));
+    expect(updateMock.mock.calls[0]![0]).toMatchObject({
+      preferredRemote: true,
+    });
+  });
+
+  it("en orörd wizard bär den PERSISTERADE axeln vidare, aldrig en nolla", async () => {
+    // Page-wipe-vakten för den nya axeln: att spara någon ANNAN dimension får
+    // aldrig tyst släcka ett distans-val användaren gjort tidigare.
+    updateMock.mockResolvedValue({ success: true });
+    const user = userEvent.setup();
+    renderModal({
+      persistedOccupationGroups: ["grp_backend"],
+      persistedRemote: true,
+    });
+
+    const granskaRail = screen
+      .getAllByRole("button")
+      .find((b) => b.textContent?.includes("Granska"));
+    await user.click(granskaRail!);
+    await user.click(screen.getByRole("button", { name: "Spara matchning" }));
+
+    await waitFor(() => expect(updateMock).toHaveBeenCalledTimes(1));
+    expect(updateMock.mock.calls[0]![0]).toMatchObject({
+      preferredRemote: true,
+    });
   });
 });

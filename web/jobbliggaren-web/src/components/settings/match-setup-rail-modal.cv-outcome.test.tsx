@@ -130,6 +130,7 @@ function renderModal() {
       persistedOccupationGroups={[]}
       persistedRegions={[]}
       persistedMunicipalities={[]}
+      persistedRemote={false}
       persistedEmploymentTypes={[]}
       persistedSkills={[]}
       persistedOccupationExperience={[]}

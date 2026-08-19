@@ -16,6 +16,7 @@ function draft(over: Partial<DraftMatchCountRequest> = {}): DraftMatchCountReque
     regions: [],
     municipalities: [],
     employmentTypes: [],
+    remote: false,
     ...over,
   };
 }

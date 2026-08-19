@@ -12,6 +12,7 @@ import {
   parseQParam,
   MATCHNING_OFF_VALUE,
   RELATERADE_ON_VALUE,
+  DISTANS_ON_VALUE,
   STATUS_ON_VALUE,
   parseEmployerParam,
   toStringList,
@@ -40,6 +41,9 @@ type JobbSearchParams = {
   occupationGroup?: string | string[];
   region?: string | string[];
   municipality?: string | string[];
+  // #551 punkt 4 — Distans (`?distans=on`). Endast on-värdet parsas (paritet
+  // relaterade/doljAnsokta); frånvaro = av.
+  distans?: string;
   // Klass 2 (2026-06-13) — anställningsform + omfattning, upprepade params.
   employmentType?: string | string[];
   worktimeExtent?: string | string[];
@@ -142,6 +146,11 @@ export default async function JobbPage({ searchParams }: PageProps) {
   // doljAnsokta/relaterade). Trådas vidare till hero-filterraden (kontrollen, gatad på
   // matchnings-axeln) + JobbResults (gatad på matchActive där, paritet includeRelated).
   const onlyMatched = params.baraMatchade === STATUS_ON_VALUE;
+  // #551 punkt 4 — Distans. Parsa BARA on-värdet → boolean (paritet ovan). Till
+  // skillnad från flaggorna ovan är detta INGEN runtime-view-state: den är en
+  // ORT-facett som når backend, och trådas därför både till hero-filterraden och
+  // till listanropet. FE:ns svenska `?distans=on` blir API:ts `remote: true`.
+  const remote = params.distans === DISTANS_ON_VALUE;
   // #454 PR-0 — arbetsgivar-filtret. SPOT-parsern (search-params.ts) gatar
   // på exakt 10 siffror med tyst drop (drop-unknown-disciplinen, paritet
   // matchGrades); buildPageHref använder SAMMA parser så page-parse och
@@ -236,6 +245,9 @@ export default async function JobbPage({ searchParams }: PageProps) {
   // #419 pt1 — "Visa bara matchade" ingår i Suspense-keyn så listan re-renderas (visar
   // skeleton) när toggle:n flippas (samma princip som status/matchnings-axeln).
   const onlyMatchedKey = onlyMatched ? "m" : "";
+  // #551 punkt 4 — Distans i Suspense-nyckeln. Utan den byter inte resultat-ytan
+  // identitet när facetten togglas, och skeleton:en uteblir vid /jobb→/jobb.
+  const remoteKey = remote ? "d" : "";
   // #454 PR-0 — arbetsgivar-filtret ingår i Suspense-keyn så listan re-renderas
   // (visar skeleton) när filtret sätts/tas bort (samma princip som dimensionerna).
   const employerKey = employer ?? "";
@@ -290,6 +302,7 @@ export default async function JobbPage({ searchParams }: PageProps) {
                 occupationGroup={occupationGroup}
                 region={region}
                 municipality={municipality}
+                remote={remote}
                 employmentType={employmentType}
                 worktimeExtent={worktimeExtent}
                 matchGrades={matchGrades}
@@ -309,6 +322,7 @@ export default async function JobbPage({ searchParams }: PageProps) {
                 initialOccupationGroup={occupationGroup}
                 initialRegion={region}
                 initialMunicipality={municipality}
+                initialRemote={remote}
                 initialEmploymentType={employmentType}
                 initialWorktimeExtent={worktimeExtent}
                 initialMatchGrades={matchGrades}
@@ -350,7 +364,7 @@ export default async function JobbPage({ searchParams }: PageProps) {
             renderad och förblir synlig. `key` byts per sökning så
             skeleton:en visas även vid /jobb→/jobb-navigering (F6 P4 B1). */}
           <Suspense
-            key={`${resultsKey}|${occupationGroupKey}|${regionKey}|${municipalityKey}|${employmentTypeKey}|${worktimeExtentKey}|${matchGradesKey}|${matchningKey}|${relateradeKey}|${statusKey}|${onlyMatchedKey}|${employerKey}`}
+            key={`${resultsKey}|${occupationGroupKey}|${regionKey}|${municipalityKey}|${employmentTypeKey}|${worktimeExtentKey}|${matchGradesKey}|${matchningKey}|${relateradeKey}|${statusKey}|${onlyMatchedKey}|${remoteKey}|${employerKey}`}
             fallback={<JobAdListSkeleton />}
           >
             <JobbResults
@@ -360,6 +374,7 @@ export default async function JobbPage({ searchParams }: PageProps) {
               occupationGroup={occupationGroup}
               region={region}
               municipality={municipality}
+              remote={remote}
               employmentType={employmentType}
               worktimeExtent={worktimeExtent}
               matchGrades={matchGrades}

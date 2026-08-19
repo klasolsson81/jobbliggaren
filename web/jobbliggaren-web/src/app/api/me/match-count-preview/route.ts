@@ -26,6 +26,9 @@ const bodySchema = z.object({
   regions: conceptList,
   municipalities: conceptList,
   employmentTypes: conceptList,
+  // #551 punkt 4 — distans. Boolean, inte concept-id-lista. Default false
+  // håller äldre klienter (som inte skickar fältet) byte-identiska.
+  remote: z.boolean().default(false),
 });
 
 export async function POST(request: NextRequest) {

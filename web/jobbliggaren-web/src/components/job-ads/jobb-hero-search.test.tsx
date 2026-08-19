@@ -46,6 +46,7 @@ function setup(extra?: Partial<Parameters<typeof JobbHeroSearch>[0]>) {
       occupationGroup={[]}
       region={[]}
       municipality={[]}
+      remote={false}
       employmentType={[]}
       worktimeExtent={[]}
       matchGrades={[]}
@@ -292,6 +293,7 @@ describe("JobbHeroSearch — fältet SPEGLAR söket (E2i, CTO VAL 1 = C′)", ()
         occupationGroup={[]}
         region={[]}
         municipality={["PVZL_BQT_XtL"]}
+        remote={false}
         employmentType={[]}
         worktimeExtent={[]}
         matchGrades={[]}
@@ -350,6 +352,7 @@ describe("JobbHeroSearch — roundtrip-race (CTO-addendum BESLUT 1)", () => {
         occupationGroup={[]}
         region={[]}
         municipality={["PVZL_BQT_XtL"]}
+        remote={false}
         employmentType={[]}
         worktimeExtent={[]}
         matchGrades={[]}
@@ -368,6 +371,7 @@ describe("JobbHeroSearch — roundtrip-race (CTO-addendum BESLUT 1)", () => {
         occupationGroup={[]}
         region={[]}
         municipality={["PVZL_BQT_XtL"]}
+        remote={false}
         employmentType={[]}
         worktimeExtent={[]}
         matchGrades={[]}
@@ -391,6 +395,7 @@ describe("JobbHeroSearch — extern divergens (C′ regel 2/3)", () => {
         occupationGroup={[]}
         region={["CifL_Rzy_Mku"]}
         municipality={[]}
+        remote={false}
         employmentType={[]}
         worktimeExtent={[]}
         matchGrades={[]}
@@ -419,6 +424,7 @@ describe("JobbHeroSearch — extern divergens (C′ regel 2/3)", () => {
         occupationGroup={[]}
         region={[]}
         municipality={[]}
+        remote={false}
         employmentType={[]}
         worktimeExtent={[]}
         matchGrades={[]}
@@ -441,6 +447,7 @@ describe("JobbHeroSearch — extern divergens (C′ regel 2/3)", () => {
         occupationGroup={[]}
         region={[]}
         municipality={[]}
+        remote={false}
         employmentType={[]}
         worktimeExtent={[]}
         matchGrades={[]}
@@ -608,6 +615,7 @@ describe("JobbHeroSearch — degraderad taxonomi", () => {
         occupationGroup={[]}
         region={[]}
         municipality={[]}
+        remote={false}
         employmentType={[]}
         worktimeExtent={[]}
         matchGrades={[]}
@@ -692,6 +700,7 @@ describe("JobbHeroSearch — 'Spara sökningen'-länk (#419 pt6)", () => {
       occupationGroup: [] as string[],
       region: [] as string[],
       municipality: [] as string[],
+      remote: false,
       employmentType: [] as string[],
       worktimeExtent: [] as string[],
       matchGrades: [] as string[],
@@ -711,6 +720,7 @@ describe("JobbHeroSearch — 'Spara sökningen'-länk (#419 pt6)", () => {
         occupationGroup={[]}
         region={[]}
         municipality={[]}
+        remote={false}
         employmentType={[]}
         worktimeExtent={[]}
         matchGrades={[]}
@@ -719,5 +729,23 @@ describe("JobbHeroSearch — 'Spara sökningen'-länk (#419 pt6)", () => {
     expect(
       screen.queryByRole("button", { name: "Spara sökningen" }),
     ).toBeNull();
+  });
+});
+
+describe("JobbHeroSearch — no-JS bär Distans (#551 punkt 4)", () => {
+  // Den TREDJE producenten av dessa params, och den enda som inte kan anropa en
+  // URL-byggare: en native GET ersätter hela query-strängen. Den konstruerar
+  // heller ingen JobbUrlState, så required-fältet på typen kunde inte fånga
+  // den — därför denna pin.
+  it("committad distans blir en hidden input, så en native GET inte raderar den", () => {
+    const { container } = setup({ q: "volvo", remote: true });
+    const input = container.querySelector('input[name="distans"]');
+    expect(input).not.toBeNull();
+    expect(input).toHaveAttribute("value", "on");
+  });
+
+  it("utan distans skrivs INGEN input (frånvaro = av, ren URL)", () => {
+    const { container } = setup({ q: "volvo", remote: false });
+    expect(container.querySelector('input[name="distans"]')).toBeNull();
   });
 });

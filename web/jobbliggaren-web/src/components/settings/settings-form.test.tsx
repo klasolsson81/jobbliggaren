@@ -48,6 +48,7 @@ const baseProfile: JobSeekerProfileDto = {
   preferredOccupationGroups: [],
   preferredRegions: [],
   preferredMunicipalities: [],
+  preferredRemote: false,
   preferredEmploymentTypes: [],
   preferredSkills: [],
   experienceYears: null,

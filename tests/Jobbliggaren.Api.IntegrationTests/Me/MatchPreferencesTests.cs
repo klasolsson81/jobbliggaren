@@ -36,7 +36,8 @@ public class MatchPreferencesTests(ApiFactory factory)
         string[]? employmentTypes = null,
         string[]? skills = null,
         int? experienceYears = null,
-        object[]? occupationExperience = null) => new
+        object[]? occupationExperience = null,
+        bool remote = false) => new
         {
             preferredOccupationGroups = occupationGroups,
             preferredRegions = regions,
@@ -44,6 +45,7 @@ public class MatchPreferencesTests(ApiFactory factory)
             preferredSkills = skills,
             experienceYears,
             preferredOccupationExperience = occupationExperience,
+            preferredRemote = remote,
         };
 
     private async Task<JsonElement> GetProfileAsync(CancellationToken ct)
@@ -67,6 +69,53 @@ public class MatchPreferencesTests(ApiFactory factory)
             ct);
 
         response.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
+    }
+
+    // #551 punkt 4 — the WIRE contract for the distans axis, and this pin exists
+    // because its absence shipped a defect. The FE profile schema was made to require
+    // `preferredRemote` on the strength of a comment asserting the backend projected
+    // it. It did not. Every unit suite stayed green — the FE fixtures had been updated
+    // to match the assumption, which is a production fact asserted off a premise
+    // production could not produce (§5 `Tests:`) — and only the observe-only Playwright
+    // job, which blocks nothing, caught the parse failure.
+    //
+    // The axis is on the profile DTO for the same page-wipe reason as the lists: the
+    // write is a full-replace PUT, so without the round-trip, saving any other
+    // dimension sends preferredRemote: false and silently switches the user's Distans
+    // preference off.
+    [Fact]
+    public async Task PUT_match_preferences_round_trips_preferredRemote_through_the_profile()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await AuthenticateAsync(ct);
+
+        var response = await _client.PutAsJsonAsync(
+            "/api/v1/me/match-preferences",
+            Body(occupationGroups: ["grp_12345"], remote: true),
+            ct);
+        response.StatusCode.ShouldBe(HttpStatusCode.NoContent);
+
+        var profile = await GetProfileAsync(ct);
+        profile.TryGetProperty("preferredRemote", out var remote)
+            .ShouldBeTrue("profil-DTO:n MÅSTE bära preferredRemote — FE:s schema kräver en bool, "
+                + "och ett saknat fält får varje profilläsning att fela i parsningen");
+        remote.GetBoolean().ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task Profile_carries_preferredRemote_false_for_a_user_who_never_set_it()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await AuthenticateAsync(ct);
+
+        // Ingen PUT alls: default-fallet är det som varje ny användare möter, och det
+        // är där ett utelämnat fält hade slagit hårdast.
+        var profile = await GetProfileAsync(ct);
+        profile.TryGetProperty("preferredRemote", out var remote)
+            .ShouldBeTrue("profil-DTO:n MÅSTE bära preferredRemote även för en användare som "
+                + "aldrig satt den — FE:s schema kräver en bool, och default-fallet är det varje "
+                + "NY användare möter, alltså där ett saknat fält slår bredast");
+        remote.GetBoolean().ShouldBeFalse();
     }
 
     [Fact]

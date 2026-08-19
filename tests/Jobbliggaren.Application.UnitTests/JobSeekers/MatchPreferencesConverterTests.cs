@@ -1,3 +1,4 @@
+using System.Reflection;
 using System.Text.Json;
 using Jobbliggaren.Domain.JobSeekers;
 using Jobbliggaren.Infrastructure.Persistence.Configurations;
@@ -18,6 +19,65 @@ public class MatchPreferencesConverterTests
 
     private static MatchPreferences FromJson(string json) =>
         (MatchPreferences)MatchPreferencesConversion.Converter.ConvertFromProvider(json)!;
+
+    /// <summary>
+    /// #551 — every stated dimension must be WRITTEN, not merely writable. The sibling guard
+    /// (<c>MatchPreferencesContractParityTests</c>) binds the VO to the read projection and the
+    /// write command, so a new dimension can no longer skip those. This one closes the fourth
+    /// home, and it is the one with the worst failure mode: <c>Write</c> is a method body rather
+    /// than a type surface, so a missing <c>WritePropertyName</c> line compiles. The value is then
+    /// accepted, validated, saved with 204 — and read back as the type default, because
+    /// <c>Read</c> is deliberately tolerant of a missing key (legacy rows). Silent data loss under
+    /// a success status.
+    ///
+    /// <para>
+    /// <c>Empty</c> is a sufficient probe, and a populated fixture would be WORSE. A new dimension
+    /// is APPENDED to <c>Create</c> as an optional parameter — <c>preferredRemote = false</c> is the
+    /// delivered case — so a hand-written call keeps compiling and silently stops covering it. (Not
+    /// every parameter has a default: the first three are required positional. It is the appended
+    /// ones that make a fixture rot quietly.) <c>Write</c> emits every key unconditionally in
+    /// canonical form, so the empty VO exercises the full key set.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>KNOWN RESIDUAL: this binds <c>Write</c>, not <c>Read</c>.</b> Add
+    /// <c>writer.WriteBoolean("X", …)</c> without the matching <c>case "X":</c> and the value falls
+    /// through <c>Read</c>'s <c>default: reader.Skip()</c> — the same silent loss, and nothing here
+    /// fails. That half stays covered dimension-by-dimension rather than as a class, deliberately: a
+    /// Read probe needs a POPULATED fixture, the shape this paragraph argues against, so closing it
+    /// that way would trade a known gap for a silent one. It also pins key PRESENCE, not value
+    /// fidelity — a <c>Write</c> hardcoding <c>false</c> would pass here and fail the round-trip
+    /// tests, which is where fidelity belongs. Named rather than closed.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public void Write_EmitsEveryStatedDimension_SoNoneCanBeSilentlyDropped()
+    {
+        using var doc = JsonDocument.Parse(ToJson(MatchPreferences.Empty));
+        var written = doc.RootElement
+            .EnumerateObject()
+            .Select(p => p.Name)
+            .ToHashSet(StringComparer.Ordinal);
+
+        var dimensions = typeof(MatchPreferences)
+            .GetProperties(BindingFlags.Public | BindingFlags.Instance)
+            .Select(p => p.Name)
+            .ToArray();
+
+        dimensions.ShouldNotBeEmpty(
+            "the guard measures nothing if the VO exposes no public instance properties");
+
+        var missing = dimensions
+            .Where(name => !written.Contains(name))
+            .OrderBy(name => name, StringComparer.Ordinal)
+            .ToArray();
+
+        missing.ShouldBeEmpty(
+            $"every stated MatchPreferences dimension must be written to the jsonb payload. "
+            + $"Missing: {string.Join(", ", missing)}. A dimension Write omits is accepted, "
+            + "validated and saved with 204, then read back as the type default — silent data "
+            + "loss under a success status.");
+    }
 
     [Fact]
     public void RoundTrip_PreservesOccupationExperienceOverlay()

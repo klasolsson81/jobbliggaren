@@ -63,6 +63,7 @@ function renderDialog(
       persistedOccupationGroups={[]}
       persistedRegions={[]}
       persistedMunicipalities={[]}
+      persistedRemote={false}
       persistedEmploymentTypes={[]}
       persistedSkills={[]}
       persistedExperienceYears={null}
@@ -155,6 +156,7 @@ describe("MatchPreferencesDialog — shell + draft", () => {
       preferredOccupationGroups: ["grp_backend"],
       preferredRegions: ["region_sthlm"],
       preferredMunicipalities: [],
+      preferredRemote: false,
       preferredEmploymentTypes: [],
       preferredSkills: [],
       experienceYears: null,
@@ -168,6 +170,7 @@ describe("MatchPreferencesDialog — shell + draft", () => {
       employment: [],
       skills: [],
       experienceYears: null,
+      remote: false,
       occupationExperience: [],
       skillGroups: [],
     });
@@ -189,6 +192,7 @@ describe("MatchPreferencesDialog — shell + draft", () => {
       preferredOccupationGroups: [],
       preferredRegions: ["region_sthlm"],
       preferredMunicipalities: ["mun_a", "mun_b"],
+      preferredRemote: false,
       preferredEmploymentTypes: [],
       preferredSkills: [],
       experienceYears: null,
@@ -201,6 +205,7 @@ describe("MatchPreferencesDialog — shell + draft", () => {
       employment: [],
       skills: [],
       experienceYears: null,
+      remote: false,
       occupationExperience: [],
       skillGroups: [],
     });
@@ -224,6 +229,7 @@ describe("MatchPreferencesDialog — shell + draft", () => {
       preferredOccupationGroups: [],
       preferredRegions: [],
       preferredMunicipalities: [],
+      preferredRemote: false,
       preferredEmploymentTypes: [],
       preferredSkills: ["skill_react"],
       experienceYears: 7,

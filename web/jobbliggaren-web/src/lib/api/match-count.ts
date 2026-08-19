@@ -64,6 +64,11 @@ export async function getDraftMatchCount(
           occupationGroups: body.occupationGroups,
           regions: body.regions,
           municipalities: body.municipalities,
+          // #551 punkt 4 — utan denna rad räknas wizardens live-siffra mot ett
+          // ANNAT WHERE än det som sparas (GetMatchCountPreviewQuery.Remote
+          // defaultar false), och "samma siffra"-harmonin bryts i exakt det
+          // ögonblick användaren kryssar i Distans.
+          remote: body.remote,
           employmentTypes: body.employmentTypes,
         }),
       }

@@ -26,6 +26,8 @@ interface MatchSetupLauncherProps {
   readonly persistedOccupationGroups: ReadonlyArray<string>;
   readonly persistedRegions: ReadonlyArray<string>;
   readonly persistedMunicipalities: ReadonlyArray<string>;
+  /** #551 punkt 4: distans-axeln (pre-fill). */
+  readonly persistedRemote: boolean;
   readonly persistedEmploymentTypes: ReadonlyArray<string>;
   readonly persistedSkills: ReadonlyArray<string>;
   readonly persistedOccupationExperience: ReadonlyArray<{
@@ -49,6 +51,7 @@ export function MatchSetupLauncher({
   persistedOccupationGroups,
   persistedRegions,
   persistedMunicipalities,
+  persistedRemote,
   persistedEmploymentTypes,
   persistedSkills,
   persistedOccupationExperience,
@@ -83,6 +86,7 @@ export function MatchSetupLauncher({
       persistedOccupationGroups={persistedOccupationGroups}
       persistedRegions={persistedRegions}
       persistedMunicipalities={persistedMunicipalities}
+      persistedRemote={persistedRemote}
       persistedEmploymentTypes={persistedEmploymentTypes}
       persistedSkills={persistedSkills}
       persistedOccupationExperience={persistedOccupationExperience}

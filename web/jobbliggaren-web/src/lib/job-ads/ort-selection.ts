@@ -161,3 +161,35 @@ export function clearRegionColumn(
     ),
   };
 }
+
+/**
+ * Distans-axelns UI-nyckel. Medvetet OGRAMMATISK som JobTech-concept-id
+ * (`SearchCriteria.ConceptIdPattern` = `^[A-Za-z0-9_-]{1,32}\z`; kolon ligger
+ * utanför teckenmängden), så den kan aldrig kollidera med ett riktigt id — och
+ * skulle den någonsin läcka till wire:n avvisar backend-validatorn den högljutt
+ * i stället för att tyst filtrera på ett påhittat id. Den passerar aldrig
+ * nätverket: distans är en egen boolean på båda kontrakten
+ * (`MatchPreferences.PreferredRemote`, `WatchFilterSpec.Remote`), aldrig ett
+ * concept-id i kommun-/läns-listorna.
+ */
+export const DISTANS_CHIP_ID = "distans:remote";
+
+/**
+ * Ort-valet som en YTA äger det: normaliserarens två id-axlar plus distans.
+ *
+ * Distans ligger UTANFÖR {@link OrtSelection} med flit. Normaliseraren ovan
+ * äger län⊃kommun-hierarkin — kollaps, materialisering, per-län-semantik — och
+ * distans har ingen sådan struktur att normalisera: det är en ren boolean som
+ * backend unionerar in vid sidan av de två id-axlarna (kommun ∨ län ∨ remote,
+ * `JobAdSearchComposition.ApplyFilter` / `WatchFilterSpec.AdmitsLocation`).
+ * Läge den INNE i `OrtSelection` skulle varje normaliserar-retur behöva bära
+ * den vidare, och den som glömde det skulle tyst släcka användarens distans-val
+ * — ett fel typsystemet inte fångar eftersom fälten är oberoende.
+ *
+ * `remote: undefined` betyder att ytan inte bär någon distans-axel alls (inte
+ * "distans av"). Det är skillnaden mellan en yta som saknar kontrollen och en
+ * där användaren stängt av den.
+ */
+export interface OrtChoice extends OrtSelection {
+  readonly remote?: boolean;
+}

@@ -40,6 +40,10 @@ export function useDraftMatchCount(
     r: [...draft.regions].sort(),
     m: [...draft.municipalities].sort(),
     e: [...draft.employmentTypes].sort(),
+    // #551 punkt 4: distans ingår i nyckeln. Utan den fyrar ingen refetch
+    // när användaren kryssar i Distans, och den visade siffran blir den för
+    // ett annat filter — tyst fel, inte ett synligt.
+    d: draft.remote,
   });
 
   useEffect(() => {
@@ -47,11 +51,12 @@ export function useDraftMatchCount(
     // förfrågan; behåll `null` tills den öppnas (parity use-facet-counts).
     if (!enabled) return;
 
-    const { o, r, m, e } = JSON.parse(key) as {
+    const { o, r, m, e, d } = JSON.parse(key) as {
       o: string[];
       r: string[];
       m: string[];
       e: string[];
+      d: boolean;
     };
     const controller = new AbortController();
 
@@ -69,6 +74,7 @@ export function useDraftMatchCount(
               regions: r,
               municipalities: m,
               employmentTypes: e,
+              remote: d,
             }),
             signal: controller.signal,
           });

@@ -60,6 +60,7 @@ describe("jobSeekerProfileSchema", () => {
     preferredRegions: [],
     // Spår 3 PR-D — kommun-axeln (required, ej optional).
     preferredMunicipalities: [],
+    preferredRemote: false,
     preferredEmploymentTypes: [],
     // STEG 3 / ADR 0079 — kompetens-axeln + erfarenhet (required; nullable int).
     preferredSkills: [],

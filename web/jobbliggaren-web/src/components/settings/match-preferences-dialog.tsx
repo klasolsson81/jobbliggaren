@@ -31,7 +31,7 @@ import { SkillSection } from "./skill-section";
 import { ExperienceField } from "./experience-field";
 import { FacetSection } from "./facet-section";
 import { RegionMunicipalityCascade } from "./region-municipality-cascade";
-import type { OrtSelection } from "@/lib/job-ads/ort-selection";
+import type { OrtChoice } from "@/lib/job-ads/ort-selection";
 
 interface MatchPreferencesDialogProps {
   readonly open: boolean;
@@ -44,6 +44,12 @@ interface MatchPreferencesDialogProps {
   readonly persistedRegions: ReadonlyArray<string>;
   /** Spår 3 PR-D: kommun-axeln (pre-fill för ort-kaskaden). */
   readonly persistedMunicipalities: ReadonlyArray<string>;
+  /**
+   * #551 punkt 4: distans-axeln (pre-fill). Obligatorisk med flit — ett
+   * valfritt fält hade låtit en glömd wiring tyst bli `false`, alltså "användaren
+   * vill inte ha distans", vilket är ett annat påstående än "ingen frågade".
+   */
+  readonly persistedRemote: boolean;
   readonly persistedEmploymentTypes: ReadonlyArray<string>;
   /** STEG 3 / ADR 0079: kompetens-axeln + (profil-nivå) erfarenhet (pre-fill).
    *  exp-per-occ (ADR 0079-amendment PR-4): den profil-nivå ExperienceField är
@@ -72,6 +78,7 @@ interface MatchPreferencesDialogProps {
     employment: ReadonlyArray<string>;
     skills: ReadonlyArray<string>;
     experienceYears: number | null;
+    remote: boolean;
     // exp-per-occ (ADR 0079-amendment PR-4): den sparade per-yrke-overlayn
     // (scopad till valda yrken), så kortet kan adoptera den lokalt.
     occupationExperience: ReadonlyArray<{
@@ -102,6 +109,7 @@ export function MatchPreferencesDialog({
   employmentTypes,
   persistedOccupationGroups,
   persistedRegions,
+  persistedRemote,
   persistedMunicipalities,
   persistedEmploymentTypes,
   persistedSkills,
@@ -131,6 +139,7 @@ export function MatchPreferencesDialog({
   const [draftMunicipalities, setDraftMunicipalities] = useState<
     ReadonlyArray<string>
   >(persistedMunicipalities);
+  const [draftRemote, setDraftRemote] = useState<boolean>(persistedRemote);
   const [draftEmployment, setDraftEmployment] = useState<ReadonlyArray<string>>(
     persistedEmploymentTypes
   );
@@ -163,6 +172,7 @@ export function MatchPreferencesDialog({
     setDraftOccupations(persistedOccupationGroups);
     setDraftRegions(persistedRegions);
     setDraftMunicipalities(persistedMunicipalities);
+    setDraftRemote(persistedRemote);
     setDraftEmployment(persistedEmploymentTypes);
     setDraftSkills(persistedSkills);
     setDraftExperience(persistedExperienceYears);
@@ -200,9 +210,12 @@ export function MatchPreferencesDialog({
 
   // Ort-kaskaden emitterar HELA ort-paret (region + kommun) i ett anrop —
   // dialogen speglar det i två draft-states men submittar dem atomiskt (NOTE-1).
-  function onOrtChange(next: OrtSelection) {
+  function onOrtChange(next: OrtChoice) {
     setDraftRegions(next.region);
     setDraftMunicipalities(next.municipality);
+    // Kaskaden bär distans-axeln bara när ytan skickat in den; `?? draftRemote`
+    // håller värdet oförändrat i stället för att läsa ett utelämnat fält som av.
+    setDraftRemote(next.remote ?? draftRemote);
   }
 
   function onSave() {
@@ -220,6 +233,7 @@ export function MatchPreferencesDialog({
         // Region + kommun submittas atomiskt i samma full-replace-PUT (NOTE-1).
         preferredRegions: [...draftRegions],
         preferredMunicipalities: [...draftMunicipalities],
+        preferredRemote: draftRemote,
         preferredEmploymentTypes: [...draftEmployment],
         // STEG 3 / ADR 0079: kompetens + (profil-nivå) erfarenhet i SAMMA PUT
         // (page-wipe-guard). exp-per-occ PR-4: + per-yrke-overlayn.
@@ -232,6 +246,7 @@ export function MatchPreferencesDialog({
           occupations: draftOccupations,
           regions: draftRegions,
           municipalities: draftMunicipalities,
+          remote: draftRemote,
           employment: draftEmployment,
           skills: draftSkills,
           experienceYears: draftExperience,
@@ -319,6 +334,7 @@ export function MatchPreferencesDialog({
               regions={regions}
               selectedRegions={draftRegions}
               selectedMunicipalities={draftMunicipalities}
+              remote={draftRemote}
               onChange={onOrtChange}
               headingId="match-dialog-region-head"
               idPrefix="match-dialog-ort"

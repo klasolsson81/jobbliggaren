@@ -165,3 +165,101 @@ describe("RegionMunicipalityCascade — dual-axis (Spår 3 PR-D)", () => {
     ).toBeInTheDocument();
   });
 });
+
+describe("#551 punkt 4 — Distans som eget ort-val", () => {
+  it("raden renderas INTE när ytan saknar distans-axeln (remote utelämnad)", async () => {
+    const user = userEvent.setup();
+    renderCascade();
+    await user.click(screen.getByRole("button", { name: "Lägg till orter" }));
+    expect(screen.queryByRole("checkbox", { name: "Distans" })).toBeNull();
+  });
+
+  it("raden renderas när ytan bär axeln, även när den är av", async () => {
+    const user = userEvent.setup();
+    renderCascade({ remote: false });
+    await user.click(screen.getByRole("button", { name: "Lägg till orter" }));
+    expect(
+      screen.getByRole("checkbox", { name: "Distans" })
+    ).toHaveAttribute("aria-checked", "false");
+  });
+
+  it("klick slår PÅ distans utan att röra de två id-axlarna", async () => {
+    const user = userEvent.setup();
+    const { onChange } = renderCascade({
+      remote: false,
+      selectedRegions: ["r_vg"],
+      selectedMunicipalities: ["m_solna"],
+    });
+    await user.click(screen.getByRole("button", { name: "Lägg till orter" }));
+    await user.click(screen.getByRole("checkbox", { name: "Distans" }));
+    expect(onChange).toHaveBeenCalledWith({
+      region: ["r_vg"],
+      municipality: ["m_solna"],
+      remote: true,
+    });
+  });
+
+  // DEN här är hela skälet till att distans ligger UTANFÖR OrtSelection och bärs
+  // av en commit-wrapper: en normaliserar-retur bär bara {region, municipality},
+  // så utan wrappern hade varje kommun-klick tyst släckt användarens distans-val
+  // — ett fel typsystemet inte kan se, eftersom fälten är oberoende.
+  it("ett kommun-klick BÄR distans-valet vidare oförändrat", async () => {
+    const user = userEvent.setup();
+    const { onChange } = renderCascade({ remote: true });
+    await user.click(screen.getByRole("button", { name: "Lägg till orter" }));
+    await user.click(screen.getByRole("button", { name: "Stockholms län" }));
+    await user.click(screen.getByRole("checkbox", { name: "Solna" }));
+    expect(onChange).toHaveBeenCalledWith(
+      expect.objectContaining({ municipality: ["m_solna"], remote: true })
+    );
+  });
+
+  it("ett helläns-klick BÄR distans-valet vidare oförändrat", async () => {
+    const user = userEvent.setup();
+    const { onChange } = renderCascade({ remote: true });
+    await user.click(screen.getByRole("button", { name: "Lägg till orter" }));
+    await user.click(screen.getByRole("button", { name: "Stockholms län" }));
+    await user.click(
+      screen.getByRole("checkbox", { name: "Hela Stockholms län" })
+    );
+    expect(onChange).toHaveBeenCalledWith(
+      expect.objectContaining({ region: ["r_sthlm"], remote: true })
+    );
+  });
+
+  it("Distans visas som en chip och kan tas bort därifrån", async () => {
+    const user = userEvent.setup();
+    const { onChange } = renderCascade({ remote: true });
+    const chips = screen.getByLabelText("Valda orter");
+    expect(within(chips).getByText("Distans")).toBeInTheDocument();
+    await user.click(within(chips).getByRole("button"));
+    expect(onChange).toHaveBeenCalledWith(
+      expect.objectContaining({ remote: false })
+    );
+  });
+
+  it("Rensa nollar distans tillsammans med de två id-axlarna", async () => {
+    const user = userEvent.setup();
+    const { onChange } = renderCascade({
+      remote: true,
+      selectedRegions: ["r_vg"],
+    });
+    await user.click(screen.getByRole("button", { name: "Rensa" }));
+    expect(onChange).toHaveBeenCalledWith({
+      region: [],
+      municipality: [],
+      remote: false,
+    });
+  });
+
+  it("en yta UTAN axeln får aldrig ett remote-fält i sin commit", async () => {
+    const user = userEvent.setup();
+    const { onChange } = renderCascade();
+    await user.click(screen.getByRole("button", { name: "Lägg till orter" }));
+    await user.click(screen.getByRole("button", { name: "Stockholms län" }));
+    await user.click(screen.getByRole("checkbox", { name: "Solna" }));
+    const arg = onChange.mock.calls[0]?.[0];
+    expect(arg).toBeDefined();
+    expect(Object.hasOwn(arg!, "remote")).toBe(false);
+  });
+});

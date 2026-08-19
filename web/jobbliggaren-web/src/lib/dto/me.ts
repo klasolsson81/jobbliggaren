@@ -80,6 +80,12 @@ export const jobSeekerProfileSchema = z.object({
   // null) → required (ej optional), `.readonly()` speglar kontraktet. Läses
   // tillbaka för pre-fill så region + kommun submittas atomiskt (NOTE-1).
   preferredMunicipalities: z.array(z.string()).readonly(),
+  // #551 punkt 4: distans-axeln. Backend projicerar alltid en bool (aldrig
+  // null) → required, INTE optional: ett utelämnat fält hade maskerat
+  // kontraktsdrift som "användaren vill inte ha distans". Läses tillbaka för
+  // pre-fill så ett spar av någon annan dimension aldrig nollar den
+  // (samma full-replace page-wipe-vakt som region/kommun).
+  preferredRemote: z.boolean(),
   preferredEmploymentTypes: z.array(z.string()).readonly(),
   // STEG 3 / ADR 0079 (Beslut 1): the CV-seeded, editable, trusted skill chips
   // and the single profile-level experience-years field. Backend always

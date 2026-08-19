@@ -47,4 +47,12 @@ export interface DraftMatchCountRequest {
   readonly regions: ReadonlyArray<string>;
   readonly municipalities: ReadonlyArray<string>;
   readonly employmentTypes: ReadonlyArray<string>;
+  /**
+   * #551 punkt 4 — distans. Bärs av GetMatchCountPreviewQuery som ett RIKTIGT
+   * filter, så förhandsräkningen och den sparade notis-counten
+   * (GetMyMatchCount → persisterad PreferredRemote) filtrerar på samma axel.
+   * Utan den divergerar "samma siffra"-harmonin (ADR 0089/0079 H2) i exakt
+   * det ögonblick användaren kryssar i Distans.
+   */
+  readonly remote: boolean;
 }

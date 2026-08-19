@@ -101,6 +101,8 @@
       "municipalityColumn": "Kommuner",
       "chooseRegion": "Välj ett län till vänster.",
       "municipalitiesUnavailable": "Inga kommuner kunde läsas in för det här länet.",
+      "distans": "Distans",
+      "distansHint": "Räknas som en egen ort. Distansjobb tas med oavsett vilka län eller kommuner du valt.",
       "wholeRegion": "Hela {label}"
     },
     "dialog": {

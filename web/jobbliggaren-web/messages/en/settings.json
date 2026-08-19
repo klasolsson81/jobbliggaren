@@ -101,6 +101,8 @@
       "municipalityColumn": "Municipalities",
       "chooseRegion": "Choose a region on the left.",
       "municipalitiesUnavailable": "No municipalities could be loaded for this region.",
+      "distans": "Remote",
+      "distansHint": "Counts as a location of its own. Remote jobs are included regardless of which counties or municipalities you pick.",
       "wholeRegion": "All of {label}"
     },
     "dialog": {

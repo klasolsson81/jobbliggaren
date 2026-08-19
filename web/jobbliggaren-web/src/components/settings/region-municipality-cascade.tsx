@@ -24,7 +24,9 @@ import {
   toggleWholeRegion,
   toggleMunicipalityInRegion,
   clearRegionColumn,
+  DISTANS_CHIP_ID,
   type OrtSelection,
+  type OrtChoice,
 } from "@/lib/job-ads/ort-selection";
 import { CheckItem, PinnedChips } from "./section-helpers";
 import { filterOptions, labelsForSelected, type Option } from "./match-preferences-shared";
@@ -37,11 +39,18 @@ interface RegionMunicipalityCascadeProps {
   /** Valda kommun-concept-id (kommun-axeln, draft). */
   readonly selectedMunicipalities: ReadonlyArray<string>;
   /**
+   * Distans-axeln (draft). `undefined` = ytan bär INGEN distans-axel — raden
+   * renderas inte och `onChange` lämnar `remote` oskrivet. Det är skillnaden
+   * mellan en yta som saknar kontrollen och en där användaren stängt av den
+   * (#551 punkt 4).
+   */
+  readonly remote?: boolean;
+  /**
    * Commit av HELA ort-paret (region + kommun) i ett anrop. Föräldern äger
    * draft-state och submittar båda atomiskt (NOTE-1) — därför EN callback med
    * båda axlarna, aldrig två separata setters som kan glida isär.
    */
-  readonly onChange: (next: OrtSelection) => void;
+  readonly onChange: (next: OrtChoice) => void;
   /**
    * Visa sektionens egna "Orter"-rubrik. Default true (dialogen). Wizarden
    * sätter false: där bär steg-rubriken ("Orter") rubriken, och en andra
@@ -69,6 +78,7 @@ export function RegionMunicipalityCascade({
   regions,
   selectedRegions,
   selectedMunicipalities,
+  remote,
   onChange,
   showHeading = true,
   headingId,
@@ -83,6 +93,7 @@ export function RegionMunicipalityCascade({
   const panelId = `${idPrefix}-ort-picker-${reactId}`;
   const filterId = `${idPrefix}-ort-filter`;
   const filterHelpId = `${idPrefix}-ort-filter-help`;
+  const distansHelpId = `${idPrefix}-ort-distans-help`;
 
   // Lookups för dual-axis-normaliseringen (ort-selection.ts). Speglar
   // jobb-hero-filters.tsx: kommun→län-förälder + länets kommun-id-lista.
@@ -106,8 +117,19 @@ export function RegionMunicipalityCascade({
     region: selectedRegions,
     municipality: selectedMunicipalities,
   };
+  const hasDistansAxis = remote !== undefined;
+
+  // Commit av HELA ort-valet i ETT anrop (NOTE-1). Distans-axeln bärs vidare
+  // oförändrad genom varje län/kommun-ändring; utan det hade en kommun-klick
+  // tyst släckt användarens distans-val. Saknar ytan axeln lämnas `remote`
+  // oskrivet — aldrig `false`, som hade betytt "användaren stängde av den".
+  const commit = (next: OrtSelection, nextRemote: boolean | undefined = remote) =>
+    onChange(hasDistansAxis ? { ...next, remote: nextRemote } : next);
+
   const hasAnySelected =
-    selectedRegions.length > 0 || selectedMunicipalities.length > 0;
+    selectedRegions.length > 0 ||
+    selectedMunicipalities.length > 0 ||
+    remote === true;
 
   // Pinnade chips: valda län FÖRST (helläns-axeln), sedan enskilda kommuner.
   // Båda visar svenska namn ur taxonomin; okänt id → id-strängen (aldrig tom).
@@ -128,6 +150,9 @@ export function RegionMunicipalityCascade({
     municipalityLabelOptions,
   );
   const pinnedChips: ReadonlyArray<Option> = [
+    ...(remote === true
+      ? [{ conceptId: DISTANS_CHIP_ID, label: t("matchPrefs.cascade.distans") }]
+      : []),
     ...regionChips,
     ...municipalityChips,
   ];
@@ -153,9 +178,13 @@ export function RegionMunicipalityCascade({
 
   /** En chip (län eller kommun) togglas av via kryss-ikonen. */
   function removeChip(conceptId: string) {
+    if (conceptId === DISTANS_CHIP_ID) {
+      commit(current, false);
+      return;
+    }
     if (selectedRegions.includes(conceptId)) {
       // En läns-chip: rensa hela länets kolumn (region-id + ev. kommun-rester).
-      onChange(
+      commit(
         clearRegionColumn(
           current,
           conceptId,
@@ -166,7 +195,7 @@ export function RegionMunicipalityCascade({
     }
     // En kommun-chip: toggla av kommunen via per-län-semantiken.
     const parent = regionOfMunicipality.get(conceptId);
-    onChange(
+    commit(
       toggleMunicipalityInRegion(
         current,
         conceptId,
@@ -177,7 +206,7 @@ export function RegionMunicipalityCascade({
   }
 
   function toggleRegion(regionConceptId: string) {
-    onChange(
+    commit(
       toggleWholeRegion(
         current,
         regionConceptId,
@@ -189,7 +218,7 @@ export function RegionMunicipalityCascade({
     municipalityConceptId: string,
     regionConceptId: string,
   ) {
-    onChange(
+    commit(
       toggleMunicipalityInRegion(
         current,
         municipalityConceptId,
@@ -210,7 +239,7 @@ export function RegionMunicipalityCascade({
             <button
               type="button"
               className="jp-clearlink"
-              onClick={() => onChange({ region: [], municipality: [] })}
+              onClick={() => commit({ region: [], municipality: [] }, false)}
             >
               {t("matchPrefs.cascade.clear")}
             </button>
@@ -222,7 +251,7 @@ export function RegionMunicipalityCascade({
             <button
               type="button"
               className="jp-clearlink"
-              onClick={() => onChange({ region: [], municipality: [] })}
+              onClick={() => commit({ region: [], municipality: [] }, false)}
             >
               {t("matchPrefs.cascade.clear")}
             </button>
@@ -271,6 +300,23 @@ export function RegionMunicipalityCascade({
                 {t("matchPrefs.cascade.filterHint")}
               </p>
             </div>
+
+            {hasDistansAxis && (
+              <div className="jp-matchdialog__list jp-matchdialog__list--distans">
+                <CheckItem
+                  label={t("matchPrefs.cascade.distans")}
+                  checked={remote === true}
+                  onToggle={() => commit(current, remote !== true)}
+                  describedBy={distansHelpId}
+                />
+                <p
+                  id={distansHelpId}
+                  className="text-body-sm text-text-primary px-4 pb-2"
+                >
+                  {t("matchPrefs.cascade.distansHint")}
+                </p>
+              </div>
+            )}
 
             {isFiltering ? (
               <div className="jp-matchdialog__list">

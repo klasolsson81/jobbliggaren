@@ -28,6 +28,14 @@ export interface ListJobAdsQuery {
   occupationGroup?: ReadonlyArray<string>;
   region?: ReadonlyArray<string>;
   municipality?: ReadonlyArray<string>;
+  /**
+   * #551 punkt 4 — distans. Tredje granulariteten i SAMMA ort-dimension:
+   * backend unionerar kommun ∨ län ∨ remote (ApplyFilter D5), så true BREDDAR
+   * urvalet i stället för att skära i det. Rutt-flaggan är svensk
+   * (`?distans=on`); wire-namnet är engelskt och wire-VÄRDET är `true`, för
+   * endpointen binder en `bool` och skulle inte binda "on".
+   */
+  remote?: boolean;
   // Klass 2 (2026-06-13) — anställningsform + omfattning. Upprepad query-
   // string (?employmentType=a&employmentType=b), string[]-bindning backend
   // (B2/#60). worktimeExtent bär 0–1 element (radio-single i panelen).
@@ -84,6 +92,10 @@ function buildQuery(query: ListJobAdsQuery): string {
   // STEG 5 — matchningsgrad (enum-namn), upprepad nyckel per element. Tom
   // lista = inget param = "Matchning av" (backend returnerar hela listan).
   for (const v of query.matchGrades ?? []) params.append("matchGrades", v);
+  // #551 punkt 4 — distans. Skrivs BARA ut när true (frånvaro = backendens
+  // default false), och som "true": endpointen binder en C#-bool, och ASP.NET
+  // binder INTE rutt-flaggans sentinel-ord "on". Två namn OCH två värden.
+  if (query.remote) params.append("remote", "true");
   // #454 PR-0 — arbetsgivar-filtret (singel-org.nr → ett string[]-element
   // backend-sidigt). Skrivs BARA ut när satt.
   if (query.employer) params.append("employer", query.employer);

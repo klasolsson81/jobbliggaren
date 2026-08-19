@@ -156,6 +156,7 @@ export default async function OversiktRoute({
           persistedOccupationGroups={profile.data.preferredOccupationGroups}
           persistedRegions={profile.data.preferredRegions}
           persistedMunicipalities={profile.data.preferredMunicipalities}
+          persistedRemote={profile.data.preferredRemote}
           persistedEmploymentTypes={profile.data.preferredEmploymentTypes}
           persistedSkills={profile.data.preferredSkills}
           persistedOccupationExperience={profile.data.preferredOccupationExperience}

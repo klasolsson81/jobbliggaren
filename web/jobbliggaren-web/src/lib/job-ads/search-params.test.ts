@@ -561,3 +561,57 @@ describe("the separator against the grammar the backend enforces", () => {
     expect(CONCEPT_ID_CHARSET.test("-")).toBe(true);
   });
 });
+
+describe("#551 punkt 4 — Distans som ort-axel i URL:en", () => {
+  const params: JobbRawSearchParams = {};
+
+  it("remote=true emitterar ?distans=on — svenskt namn, sentinel-värde", () => {
+    expect(buildJobbHref({ ...empty, remote: true })).toBe("/jobb?distans=on");
+  });
+
+  it("remote=false emitterar INTET param (default AV = frånvaro, ren URL)", () => {
+    expect(buildJobbHref({ ...empty, remote: false })).toBe("/jobb");
+  });
+
+  it("remote utelämnad är byte-identisk med remote=false", () => {
+    expect(buildJobbHref(empty)).toBe(buildJobbHref({ ...empty, remote: false }));
+  });
+
+  // Distans BREDDAR ort-dimensionen (backend unionerar kommun ∨ län ∨ remote),
+  // den ersätter den inte — så de två id-axlarna måste överleva i samma URL.
+  it("distans reser BREDVID kommun/län, aldrig i stället för dem", () => {
+    const href = buildJobbHref({
+      ...empty,
+      region: ["CifL_Rzy_Mku"],
+      municipality: ["AvNB_uwa_6n6"],
+      remote: true,
+    });
+    expect(href).toContain("region=CifL_Rzy_Mku");
+    expect(href).toContain("municipality=AvNB_uwa_6n6");
+    expect(href).toContain("distans=on");
+  });
+
+  // DEN här är fällan filen själv dokumenterar för varje boolesk axel före den:
+  // utan bevarandet i buildPageHref tappar sida-2-klicket facetten TYST, och
+  // användaren får sida 2 av ett annat filter än det hon står i.
+  it("sida-2-länken BEVARAR distans (samma felklass som relaterade/baraMatchade)", () => {
+    expect(buildPageHref({ ...params, distans: "on" }, 2, 20)).toContain(
+      "distans=on",
+    );
+  });
+
+  it("sida-2-länken bär INTE distans när facetten är av", () => {
+    expect(buildPageHref(params, 2, 20)).not.toContain("distans");
+  });
+
+  // Endast on-värdet parsas — samma drop-unknown-disciplin som page-validatorn,
+  // så en handredigerad URL aldrig smyger in ett annat sanningsvärde.
+  it("ett annat värde än 'on' bevaras INTE (drop-unknown)", () => {
+    expect(buildPageHref({ ...params, distans: "true" }, 2, 20)).not.toContain(
+      "distans",
+    );
+    expect(buildPageHref({ ...params, distans: "1" }, 2, 20)).not.toContain(
+      "distans",
+    );
+  });
+});

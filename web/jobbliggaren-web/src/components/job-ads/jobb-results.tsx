@@ -58,6 +58,9 @@ interface JobbResultsProps {
   occupationGroup: string[];
   region: string[];
   municipality: string[];
+  // #551 punkt 4 — Distans. En riktig ORT-facett (unionas med kommun/län i
+  // ApplyFilter), inte runtime-view-state: den når listanropet.
+  remote: boolean;
   // Klass 2 (2026-06-13) — anställningsform + omfattning.
   employmentType: string[];
   worktimeExtent: string[];
@@ -124,6 +127,7 @@ export async function JobbResults({
   occupationGroup,
   region,
   municipality,
+  remote,
   employmentType,
   worktimeExtent,
   matchGrades,
@@ -220,6 +224,7 @@ export async function JobbResults({
     occupationGroup,
     region,
     municipality,
+    remote,
     employmentType,
     worktimeExtent,
     matchGrades,
@@ -257,6 +262,9 @@ export async function JobbResults({
       occupationGroup,
       region,
       municipality,
+      // FE:ns svenska rutt-flagga `?distans=on` blir API-kontraktets engelska
+      // `remote` (endpointen binder en bool → wire-formen är ?remote=true).
+      remote,
       employmentType,
       worktimeExtent,
       matchGrades,
@@ -395,6 +403,7 @@ export async function JobbResults({
             occupationGroup={occupationGroup}
             region={region}
             municipality={municipality}
+            remote={remote}
             employmentType={employmentType}
             worktimeExtent={worktimeExtent}
             matchGrades={matchGrades}

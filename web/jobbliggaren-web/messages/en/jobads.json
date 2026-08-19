@@ -321,6 +321,7 @@
       "ortLeftTitle": "Region",
       "ortRightTitle": "Municipalities",
       "ortSelectAll": "All of {label}",
+      "ortDistans": "Remote",
       "ortEmpty": "Regions could not be loaded right now. You can search by search terms anyway.",
       "ortRightEmpty": "Select a region on the left.",
       "yrkeLeftTitle": "Occupational area",

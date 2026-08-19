@@ -70,6 +70,8 @@ interface MatchPreferencesCardProps {
   readonly initialRegions: ReadonlyArray<string>;
   /** Spår 3 PR-D: kommun-axeln (sparade kommun-concept-id från profilen). */
   readonly initialMunicipalities: ReadonlyArray<string>;
+  /** #551 punkt 4: distans-axeln (pre-fill, full-replace page-wipe-vakt). */
+  readonly initialRemote: boolean;
   readonly initialEmploymentTypes: ReadonlyArray<string>;
   /** STEG 3 / ADR 0079: kompetens-axeln + erfarenhet (sparade från profilen). */
   readonly initialSkills: ReadonlyArray<string>;
@@ -109,6 +111,7 @@ export function MatchPreferencesCard({
   initialOccupationGroups,
   initialRegions,
   initialMunicipalities,
+  initialRemote,
   initialEmploymentTypes,
   initialSkills,
   initialSkillGroups,
@@ -160,6 +163,7 @@ export function MatchPreferencesCard({
     useState<ReadonlyArray<string>>(initialRegions);
   const [selectedMunicipalities, setSelectedMunicipalities] =
     useState<ReadonlyArray<string>>(initialMunicipalities);
+  const [selectedRemote, setSelectedRemote] = useState<boolean>(initialRemote);
   const [selectedEmployment, setSelectedEmployment] = useState<
     ReadonlyArray<string>
   >(initialEmploymentTypes);
@@ -205,6 +209,7 @@ export function MatchPreferencesCard({
     occupations: ReadonlyArray<string>;
     regions: ReadonlyArray<string>;
     municipalities: ReadonlyArray<string>;
+    remote: boolean;
     employment: ReadonlyArray<string>;
     skills: ReadonlyArray<string>;
   }
@@ -213,6 +218,7 @@ export function MatchPreferencesCard({
     occupations: occupationGroups,
     regions: selectedRegions,
     municipalities: selectedMunicipalities,
+    remote: selectedRemote,
     employment: selectedEmployment,
     skills: selectedSkills,
   });
@@ -235,6 +241,7 @@ export function MatchPreferencesCard({
         preferredOccupationGroups: [...next.occupations],
         preferredRegions: [...next.regions],
         preferredMunicipalities: [...next.municipalities],
+        preferredRemote: next.remote,
         preferredEmploymentTypes: [...next.employment],
         preferredSkills: [...next.skills],
         experienceYears,
@@ -334,6 +341,7 @@ export function MatchPreferencesCard({
     occupations: ReadonlyArray<string>;
     regions: ReadonlyArray<string>;
     municipalities: ReadonlyArray<string>;
+    remote: boolean;
     employment: ReadonlyArray<string>;
     skills: ReadonlyArray<string>;
     experienceYears: number | null;
@@ -346,6 +354,7 @@ export function MatchPreferencesCard({
     setOccupationGroups(saved.occupations);
     setSelectedRegions(saved.regions);
     setSelectedMunicipalities(saved.municipalities);
+    setSelectedRemote(saved.remote);
     setSelectedEmployment(saved.employment);
     setSelectedSkills(saved.skills);
     setExperienceYears(saved.experienceYears);
@@ -521,6 +530,7 @@ export function MatchPreferencesCard({
           persistedOccupationGroups={occupationGroups}
           persistedRegions={selectedRegions}
           persistedMunicipalities={selectedMunicipalities}
+          persistedRemote={selectedRemote}
           persistedEmploymentTypes={selectedEmployment}
           persistedSkills={selectedSkills}
           persistedExperienceYears={experienceYears}

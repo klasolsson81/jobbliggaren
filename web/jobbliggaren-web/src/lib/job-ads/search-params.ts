@@ -26,6 +26,13 @@ export interface JobbUrlState {
   occupationGroup: ReadonlyArray<string>;
   region: ReadonlyArray<string>;
   municipality: ReadonlyArray<string>;
+  // #551 punkt 4 — distans. Samma ORT-dimension som region/municipality, inte en
+  // egen ortogonal axel: backend unionerar den in i geo-predikatet (kommun ∨ län ∨
+  // remote, JobAdSearchComposition.ApplyFilter D5), så Distans BREDDAR ort-valet i
+  // stället för att skära i det. En BOOLEAN, därför inte en joinad lista.
+  // Optional som sina boolean-syskon (matchningOff/includeRelated): en byggare
+  // utan ort-axel utelämnar den, och frånvaro ≡ av ≡ ingen param i URL:en.
+  remote?: boolean;
   // Klass 2 (ADR 0067 Fas E, 2026-06-13) — Klass-2-filterpanelens dimensioner.
   // `employmentType` = anställningsform (JobTech `employment-type`, ~8,
   // checkbox-multi). `worktimeExtent` = omfattning (JobTech `worktime-extent`,
@@ -134,6 +141,21 @@ export const STATUS_ON_VALUE = "on";
  * till API-kontraktets engelska flagga `onlyMatched`.
  */
 export const BARA_MATCHADE_PARAM = "baraMatchade";
+
+/**
+ * #551 punkt 4 — Distans-facettens URL-param. Svenskt namn (paritet rutterna
+ * /jobb /ansokningar + `matchning`/`relaterade`/`doljAnsokta`); värdet `on` är ett
+ * stabilt sentinel-ord (inte i18n, samma regel som de övriga). Endast `on` skrivs
+ * ut — AV-läget är paramens FRÅNVARO så default-URL:en förblir ren.
+ *
+ * FE mappar den till API-kontraktets ENGELSKA flagga `remote`, och gör det med ett
+ * annat VÄRDE: endpointen binder en `bool` (`JobAdsEndpoints`, `bool remote = false`),
+ * så wire-formen är `?remote=true`. ASP.NET binder INTE "on" till en bool — hade vi
+ * skickat vidare sentinel-ordet rakt av hade facetten tystnat i stället för att
+ * filtrera. Två namn OCH två värden, en översättning: `?distans=on` → `?remote=true`.
+ */
+export const DISTANS_PARAM = "distans";
+export const DISTANS_ON_VALUE = "on";
 
 export const DEFAULT_SORT_BY: JobAdSortBy = "PublishedAtDesc";
 
@@ -362,6 +384,8 @@ export function buildJobbHref(state: JobbUrlState): string {
   // #419 pt1 — "Visa bara matchade". Skriv BARA ut när på (AV = paramens frånvaro, ren
   // URL). Placeras efter "Dölj ansökta", före q (stabil URL-form, intill status-paramen).
   if (state.onlyMatched) params.set(BARA_MATCHADE_PARAM, STATUS_ON_VALUE);
+  // #551 punkt 4 — Distans. Skriv BARA ut när på (AV = paramens frånvaro, ren URL).
+  if (state.remote) params.set(DISTANS_PARAM, DISTANS_ON_VALUE);
   const q = state.q.trim();
   if (q.length > 0) params.set("q", q);
   if (state.sortBy !== DEFAULT_SORT_BY) params.set("sortBy", state.sortBy);
@@ -413,6 +437,9 @@ export interface JobbRawSearchParams {
   // #419 pt1 — bärs i paginerings-href:en så sida-2-klicket inte tappar "Visa bara
   // matchade" (samma felklass som doljAnsokta/relaterade).
   baraMatchade?: string;
+  // #551 punkt 4 — bärs i paginerings-href:en så sida-2-klicket inte tappar
+  // Distans-facetten (samma felklass som ovan).
+  distans?: string;
   // #454 PR-0 — bärs i paginerings-href:en så sida-2-klicket inte tappar
   // arbetsgivar-filtret (samma felklass som ovan).
   employer?: string | string[];
@@ -519,6 +546,10 @@ export function buildPageHref(
   // som doljAnsokta ovan). Bevaras BARA när on (paritet buildJobbHref).
   if (params.baraMatchade === STATUS_ON_VALUE)
     url.set(BARA_MATCHADE_PARAM, STATUS_ON_VALUE);
+  // #551 punkt 4 — utan denna rad tappar sida-2-klicket Distans-facetten (samma
+  // felklass som baraMatchade ovan). Bevaras BARA när on (paritet buildJobbHref).
+  if (params.distans === DISTANS_ON_VALUE)
+    url.set(DISTANS_PARAM, DISTANS_ON_VALUE);
   // #454 PR-0 — utan denna rad tappar sida-2-klicket arbetsgivar-filtret
   // (samma felklass som ovan; buildPageHref är en andra URL-builder vid sidan
   // av buildJobbHref). SPOT-gaten (parseEmployerParam) delas med page-parsern.

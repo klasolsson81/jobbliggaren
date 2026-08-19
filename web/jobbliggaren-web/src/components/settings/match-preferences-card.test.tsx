@@ -79,6 +79,7 @@ function renderCard(
       initialOccupationGroups={[]}
       initialRegions={[]}
       initialMunicipalities={[]}
+      initialRemote={false}
       initialEmploymentTypes={[]}
       initialSkills={[]}
       initialSkillGroups={[]}
@@ -278,6 +279,7 @@ describe("MatchPreferencesCard — optimistisk borttagning + auto-save", () => {
       preferredOccupationGroups: ["grp_frontend"],
       preferredRegions: ["region_sthlm"],
       preferredMunicipalities: [],
+      preferredRemote: false,
       preferredEmploymentTypes: ["et_fast"],
       preferredSkills: [],
       experienceYears: null,
@@ -301,6 +303,7 @@ describe("MatchPreferencesCard — optimistisk borttagning + auto-save", () => {
       preferredOccupationGroups: [],
       preferredRegions: ["region_sthlm"],
       preferredMunicipalities: ["mun_b"],
+      preferredRemote: false,
       preferredEmploymentTypes: [],
       preferredSkills: [],
       experienceYears: null,

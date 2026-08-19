@@ -74,6 +74,13 @@ interface JobbResultsToolbarProps {
   occupationGroup: ReadonlyArray<string>;
   region: ReadonlyArray<string>;
   municipality: ReadonlyArray<string>;
+  /**
+   * #551 punkt 4 — Distans. Toolbaren REDIGERAR den aldrig (kontrollen bor i
+   * Ort-popovern), men måste bära den vidare i varje href-bygge så ett
+   * chip-× eller en sort-ändring inte raderar facetten (param-bevarande,
+   * ADR 0042 Beslut B).
+   */
+  remote: boolean;
   // Klass 2 (2026-06-13) — anställningsform + omfattning. Renderas som
   // borttagbara chips i samma rad (server-resolverade labels via
   // /taxonomy/labels, kind-agnostisk sedan PR-1).
@@ -191,6 +198,7 @@ export function JobbResultsToolbar({
   occupationGroup,
   region,
   municipality,
+  remote,
   employmentType,
   worktimeExtent,
   matchGrades,
@@ -234,6 +242,7 @@ export function JobbResultsToolbar({
       occupationGroup: [...occupationGroup],
       region: [...region],
       municipality: [...municipality],
+      remote,
       employmentType: [...employmentType],
       worktimeExtent: [...worktimeExtent],
       matchGrades: [...matchGrades],
@@ -260,6 +269,7 @@ export function JobbResultsToolbar({
       occupationGroup,
       region,
       municipality,
+      remote,
       employmentType,
       worktimeExtent,
       matchGrades,
@@ -365,6 +375,11 @@ export function JobbResultsToolbar({
       occupationGroup: [],
       region: [],
       municipality: [],
+      // #551 punkt 4 — Distans nollas med de övriga ort-axlarna. Den har INGEN
+      // chip med × (husets linje för booleska filter — jfr "Status-chips
+      // borttagna" nedan); kontrollen är kryssrutan i Ort-popovern. "Rensa
+      // sökord och filter" ska ändå tömma hela ort-dimensionen, inte två av tre.
+      remote: false,
       // Klass 2 — "Rensa sökord och filter" nollar ALLA axlar inkl.
       // anställningsform/omfattning (least surprise — allt med × försvinner).
       employmentType: [],

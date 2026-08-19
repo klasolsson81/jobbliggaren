@@ -28,6 +28,7 @@ function renderToolbar(over: ToolbarOverrides = {}) {
       totalCount={5}
       occupationGroup={[]}
       region={[]}
+      remote={false}
       municipality={[]}
       employmentType={[]}
       worktimeExtent={[]}

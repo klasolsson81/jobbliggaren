@@ -55,7 +55,7 @@ import type {
   TaxonomyRegion,
 } from "@/lib/dto/taxonomy";
 import type { SkillGroup } from "@/lib/dto/skills";
-import type { OrtSelection } from "@/lib/job-ads/ort-selection";
+import type { OrtChoice } from "@/lib/job-ads/ort-selection";
 
 // Steg-index (0..6). 0 Start, 1 Yrken, 2 Kompetenser, 3 Orter, 4 Anställningsform,
 // 5 Granska, 6 Klart-läget (efter Spara). De sex sökbara/synliga stegen (0..5)
@@ -91,6 +91,12 @@ interface MatchSetupRailModalProps {
   readonly persistedOccupationGroups: ReadonlyArray<string>;
   readonly persistedRegions: ReadonlyArray<string>;
   readonly persistedMunicipalities: ReadonlyArray<string>;
+  /**
+   * #551 punkt 4: distans-axeln (pre-fill). Obligatorisk med flit — se
+   * match-preferences-dialog för motiveringen (ett utelämnat fält som tyst blir
+   * `false` påstår något annat än att ingen frågade).
+   */
+  readonly persistedRemote: boolean;
   readonly persistedEmploymentTypes: ReadonlyArray<string>;
   readonly persistedSkills: ReadonlyArray<string>;
   /**
@@ -116,6 +122,7 @@ interface MatchSetupRailModalProps {
     occupations: ReadonlyArray<string>;
     regions: ReadonlyArray<string>;
     municipalities: ReadonlyArray<string>;
+    remote: boolean;
     employment: ReadonlyArray<string>;
     skills: ReadonlyArray<string>;
     occupationExperience: ReadonlyArray<{
@@ -148,6 +155,7 @@ export function MatchSetupRailModal({
   persistedOccupationGroups,
   persistedRegions,
   persistedMunicipalities,
+  persistedRemote,
   persistedEmploymentTypes,
   persistedSkills,
   persistedSkillGroups = [],
@@ -187,6 +195,7 @@ export function MatchSetupRailModal({
     useState<ReadonlyArray<string>>(persistedRegions);
   const [draftMunicipalities, setDraftMunicipalities] =
     useState<ReadonlyArray<string>>(persistedMunicipalities);
+  const [draftRemote, setDraftRemote] = useState<boolean>(persistedRemote);
   const [draftEmployment, setDraftEmployment] =
     useState<ReadonlyArray<string>>(persistedEmploymentTypes);
   const [draftSkills, setDraftSkills] =
@@ -248,6 +257,7 @@ export function MatchSetupRailModal({
     setDraftOccupations(persistedOccupationGroups);
     setDraftRegions(persistedRegions);
     setDraftMunicipalities(persistedMunicipalities);
+    setDraftRemote(persistedRemote);
     setDraftEmployment(persistedEmploymentTypes);
     setDraftSkills(persistedSkills);
     setDraftOccupationExperience(
@@ -274,6 +284,11 @@ export function MatchSetupRailModal({
       regions: draftRegions,
       municipalities: draftMunicipalities,
       employmentTypes: draftEmployment,
+      // #551 punkt 4: distans MÅSTE med i preview-draften. GetMatchCountPreview
+      // bär redan Remote och GetMyMatchCount läser den persisterade
+      // PreferredRemote, så "samma siffra"-harmonin (ADR 0089/0079 H2) håller
+      // bara om förhandsräkningen filtrerar på samma axel som den sparade.
+      remote: draftRemote,
     },
     // Only while the modal is open — no background polling against the
     // rate-limited endpoint otherwise. (Its single mount point is /oversikt via
@@ -316,9 +331,10 @@ export function MatchSetupRailModal({
   }
 
   // Ort-kaskaden emitterar HELA ort-paret (region + kommun) i ett anrop.
-  function onOrtChange(next: OrtSelection) {
+  function onOrtChange(next: OrtChoice) {
     setDraftRegions(next.region);
     setDraftMunicipalities(next.municipality);
+    setDraftRemote(next.remote ?? draftRemote);
   }
 
   // exp-per-occ: användaren ändrade ett yrkes år (null = tomt fält).
@@ -366,6 +382,7 @@ export function MatchSetupRailModal({
         preferredOccupationGroups: [...draftOccupations],
         preferredRegions: [...draftRegions],
         preferredMunicipalities: [...draftMunicipalities],
+        preferredRemote: draftRemote,
         preferredEmploymentTypes: [...draftEmployment],
         preferredSkills: [...draftSkills],
         preferredOccupationExperience: [...occupationExperience],
@@ -375,6 +392,7 @@ export function MatchSetupRailModal({
           occupations: draftOccupations,
           regions: draftRegions,
           municipalities: draftMunicipalities,
+          remote: draftRemote,
           employment: draftEmployment,
           skills: draftSkills,
           occupationExperience,
@@ -859,6 +877,7 @@ export function MatchSetupRailModal({
                         regions={regions}
                         selectedRegions={draftRegions}
                         selectedMunicipalities={draftMunicipalities}
+                        remote={draftRemote}
                         onChange={onOrtChange}
                         showHeading={false}
                         idPrefix="match-rail-ort"

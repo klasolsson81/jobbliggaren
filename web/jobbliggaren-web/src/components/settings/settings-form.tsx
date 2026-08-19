@@ -185,6 +185,7 @@ export function SettingsForm({
           initialOccupationGroups={initialProfile.preferredOccupationGroups}
           initialRegions={initialProfile.preferredRegions}
           initialMunicipalities={initialProfile.preferredMunicipalities}
+          initialRemote={initialProfile.preferredRemote}
           initialEmploymentTypes={initialProfile.preferredEmploymentTypes}
           initialSkills={initialProfile.preferredSkills}
           initialSkillGroups={initialSkillGroups}

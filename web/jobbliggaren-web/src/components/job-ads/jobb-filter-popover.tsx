@@ -94,6 +94,21 @@ interface JobbFilterPopoverProps {
     onToggleItem: (itemConceptId: string, groupConceptId: string) => void;
   };
   /**
+   * #551 punkt 4 — en BOOLESK rad ovanför de två kolumnerna (Ort: "Distans").
+   * Samma parameterisering-med-data som `groupAxis` ovan, inte en flagga:
+   * utelämnad (Yrke, Klass 2) → popovern renderar exakt som förut, byte för
+   * byte. Raden ligger utanför kolumnerna därför att distans inte HAR någon
+   * län→kommun-hierarki att navigera — backend unionerar den vid sidan av de
+   * två id-axlarna (kommun ∨ län ∨ remote).
+   */
+  booleanAxis?: {
+    label: string;
+    checked: boolean;
+    onToggle: () => void;
+    /** Facett-hint (GET /job-ads/remote-count). Utelämnad = inget tal alls. */
+    count?: number;
+  };
+  /**
    * Fas E2c (ADR 0067 Beslut 4) — per-option-counts för höger-kolumnens
    * item-rader (concept-id → count; saknad nyckel = 0). `null`/utelämnad =
    * counts ej laddade/degraderade → inga tal visas (popovern fullt
@@ -179,6 +194,11 @@ function CheckRow({
   label: string;
   checked: boolean;
   onToggle: () => void;
+  /**
+   * Avdelande rad-stil (jp-checkitem--all: underkant + semibold). Bärs av
+   * "Välj alla"-raden och av den booleska axel-raden (#551) — den styr
+   * UTSEENDE, inte semantik.
+   */
   isAll?: boolean;
   /** Per-option-count (E2c) — undefined = counts ej laddade, inget tal. */
   count?: number;
@@ -232,6 +252,7 @@ export function JobbFilterPopover({
   emptyText,
   rightEmptyText,
   groupAxis,
+  booleanAxis,
   counts,
   groupCounts,
   footer,
@@ -277,7 +298,9 @@ export function JobbFilterPopover({
   // Tri-state (E2d-Minor): partiellt val = något valt men inte allt → "mixed".
   const selectAllMixed = !selectAllChecked && rightAnySelected;
   const anySelectedAnywhere =
-    selected.length > 0 || (groupAxis?.selected.length ?? 0) > 0;
+    selected.length > 0 ||
+    (groupAxis?.selected.length ?? 0) > 0 ||
+    booleanAxis?.checked === true;
 
   return (
     <div
@@ -287,6 +310,19 @@ export function JobbFilterPopover({
       aria-label={dialogLabel ?? leftTitle}
       style={style}
     >
+      {/* Utanför __body: distans har ingen län→kommun-hierarki att navigera.
+          `isAll` väljs för sin STIL (jp-checkitem--all = avdelande underkant +
+          semibold), inte för sin "Välj alla"-semantik — propen styr bara
+          utseendet. Ingen ny klass: globals.css ägs av en parallell session. */}
+      {booleanAxis && (
+        <CheckRow
+          label={booleanAxis.label}
+          checked={booleanAxis.checked}
+          count={booleanAxis.count}
+          onToggle={booleanAxis.onToggle}
+          isAll
+        />
+      )}
       <div className="jp-popover__body">
         {/* maxHeight/overflowY på själva kolumnen (ej enbart grid-
             förälderns max-height) — grid-barn får ingen användbar höjd att

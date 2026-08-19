@@ -68,7 +68,7 @@ public class RecentJobSearchDtoContractTests
         t.GetProperty("SsykLabels").ShouldBeNull();
     }
 
-    // #1407 (security-auditor M-1). Ordningspinnen nedan läser ctor.GetParameters()
+    // #1407 (security-auditor M-1). ShouldKeepCanonicalPositionalOrder läser ctor.GetParameters()
     // och ser därför BARA positionella parametrar. En body-deklarerad
     // `public string[] Whatever { get; init; }` är osynlig för den och serialiseras
     // ändå till wire:n av System.Text.Json — mätt. Namnbaserad frånvaro-assertion
@@ -98,8 +98,10 @@ public class RecentJobSearchDtoContractTests
         actual.ShouldBe(
             [.. SurfacedProperties.OrderBy(n => n, StringComparer.Ordinal)],
             "varje public instans-property på RecentJobSearchDto når HTTP-svaret. "
-            + "Lägg inte till en här utan att först klassa dimensionen i "
-            + "RecentJobSearchProjectionParityTests.");
+            + "Är den nya propertyn en SÖKDIMENSION — en axel filtret bär — klassa den "
+            + "först i RecentJobSearchProjectionParityTests. Är den presentation eller "
+            + "räknare (Label, CurrentCount, NewCount, LastViewedAt, Id) hör den inte "
+            + "hemma där, och den här listan är hela grinden.");
     }
 
     [Fact]

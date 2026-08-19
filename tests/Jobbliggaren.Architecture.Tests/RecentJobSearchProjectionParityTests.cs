@@ -31,8 +31,9 @@ namespace Jobbliggaren.Architecture.Tests;
 ///
 /// <para>
 /// This is the ONE home for "which dimensions reach the projection, and why one does not".
-/// <see cref="RecentJobSearchDtoContractTests"/> pins the exact property SET; this pins what that
-/// set must contain. A comment repeating either elsewhere is drift waiting to happen.
+/// <c>RecentJobSearchDtoContractTests</c> (Application.UnitTests — named, not cref'd, because this
+/// assembly does not reference it) pins the exact property SET; this pins what that set must
+/// contain, and what it must NOT. A comment repeating either elsewhere is drift waiting to happen.
 /// </para>
 /// </summary>
 public class RecentJobSearchProjectionParityTests
@@ -91,6 +92,37 @@ public class RecentJobSearchProjectionParityTests
             + $"classified in NotSurfaced with its ground. Missing: {string.Join(", ", missing)}. "
             + "A dimension the projection omits cannot be replayed, so the row's count and the "
             + "list its link produces stop resting on the same criterion (#1407).");
+    }
+
+    [Fact]
+    public void NotSurfaced_DimensionsAreActuallyAbsentFromTheProjection()
+    {
+        // The allow-list must FORBID, not merely excuse. Without this, an entry only lifts
+        // the requirement to project, and the leak has a fully green path: add EmployerList
+        // to the DTO plus RecentJobSearchDtoContractTests.SurfacedProperties, leave the
+        // entry, ship.
+        //
+        // What this closes, measured: that path now fails here. What it does NOT close,
+        // also measured: DELETING the entry as "now false" leaves every test in this file
+        // green. No assertion can outlive its own deletion. What the pair buys is that the
+        // only way through is to remove a documented PII ground from the diff — a visible
+        // human act a reviewer can see — instead of a property addition that reads as
+        // tidying up. That is the whole claim; it is not a deadlock.
+        var projected = typeof(RecentJobSearchDto)
+            .GetProperties(BindingFlags.Public | BindingFlags.Instance)
+            .Select(p => p.Name)
+            .ToHashSet(StringComparer.Ordinal);
+
+        var surfacedAnyway = NotSurfaced.Keys
+            .Where(name => projected.Contains(name) || projected.Contains(name + "List"))
+            .OrderBy(name => name, StringComparer.Ordinal)
+            .ToArray();
+
+        surfacedAnyway.ShouldBeEmpty(
+            "a dimension classified NotSurfaced must be absent from RecentJobSearchDto, "
+            + $"under both spellings. Surfaced anyway: {string.Join(", ", surfacedAnyway)}. "
+            + "Removing the entry instead of the property inverts the guard into a "
+            + "rubber stamp.");
     }
 
     [Fact]

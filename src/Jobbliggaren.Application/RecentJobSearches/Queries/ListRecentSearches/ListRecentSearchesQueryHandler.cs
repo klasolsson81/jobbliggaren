@@ -79,18 +79,18 @@ public sealed class ListRecentSearchesQueryHandler(
             // Per-row COUNT är sekventiell (CTO Variant A 2026-05-20 — cap=20
             // N+1). När `IncludeCount=false` skippar vi COUNT.
             //
-            // 2026-06-13: ALLA FE-konsumenter (/oversikt, /sokningar, /jobb
-            // hero-chip) hämtar i praktiken med IncludeCount=false — den slow
-            // N+1-COUNT:en (TD-94, ej löst utan stängd-som-obsolet vid AWS-
-            // teardown; empiriskt återöppnad) återskapar annars 8s-timeouten
-            // (Npgsql 57014). currentCount/newCount är därför 0 och den synliga
-            // per-sökning-träffräknaren är TILLFÄLLIGT borttagen i UI:t (CTO-
-            // beslut 2026-06-13: hellre ingen siffra än falsk "(0)"). Den lata
-            // klient-hämtningen (B, useFacetCounts-mönstret) ÄR sedan dess levererad —
-            // use-recent-search-counts.ts mot /api/me/recent-searches/counts, som
-            // anropar getRecentSearches(true) — så siffran visas igen, via den vägen
-            // och aldrig via currentCount/newCount härifrån. Rotorsaken (slow
-            // ListJobAds COUNT) står kvar.
+            // 2026-06-13: SIDLADDNINGEN hämtar med IncludeCount=false (/oversikt,
+            // /sokningar, /jobb hero-chip) — den slow N+1-COUNT:en återskapar annars
+            // 8s-timeouten (Npgsql 57014) på kritisk väg. currentCount/newCount är
+            // därför 0 i den listan, och en falsk "(0)" renderas aldrig (CTO-beslut
+            // 2026-06-13: hellre ingen siffra).
+            //
+            // Talet visas ändå, och det kommer från GRENEN NEDAN: den lata
+            // klient-hämtningen (B, useFacetCounts-mönstret) är levererad —
+            // use-recent-search-counts.ts → /api/me/recent-searches/counts →
+            // getRecentSearches(true) → hit med IncludeCount=true, off-critical-path.
+            // Ta alltså inte bort grenen som död kod; den är den enda producenten av
+            // siffran. Rotorsaken (slow ListJobAds COUNT) står kvar.
             int currentCount = 0;
             if (query.IncludeCount)
             {

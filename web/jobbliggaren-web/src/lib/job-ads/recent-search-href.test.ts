@@ -51,7 +51,8 @@ describe("buildRecentSearchHref (#294 — shared replay href)", () => {
   });
 
   it("omits distans when the captured search did not have it", () => {
-    // Both polarities, because a hardcoded `remote: true` would pass the test above.
+    // Both polarities, because a hardcoded `remote: true` would pass the test that
+    // asserts the axis IS carried.
     const href = buildRecentSearchHref(makeRecent({ remote: false }));
     expect(href).not.toContain("distans");
   });

@@ -1502,21 +1502,14 @@ public static class DependencyInjection
     /// at all and this must be testable without either (CLAUDE.md §2.4).
     ///
     /// <para>
-    /// Nothing called <c>AddDataProtection</c> before this, so the keyring sat at the framework
-    /// default inside the container's writable layer, mounted nowhere: every recreate minted a fresh
-    /// one and silently invalidated every outstanding activation, password-reset and change-email
-    /// link. The trigger is routine rather than exceptional — a <c>git pull</c> on the box IS a
-    /// deploy, and the hourly reconcile recreates services on any image-digest change — and the user
-    /// meets a response indistinguishable from an expired or tampered token.
-    /// </para>
-    ///
-    /// <para>
     /// <b>Api only.</b> <c>AddCoreIdentityForWorker</c> deliberately registers no
-    /// <c>IDataProtectionProvider</c>, and the sole consumer in <c>src/</c> is
-    /// <c>PasswordResetTokenProvider</c>'s constructor. Sharing a keyring with the Worker would hand
-    /// it cryptographic reach over tokens it never mints or validates, and re-open the cross-process
-    /// coupling the 2026-07-10 ruling rejected. There is no antiforgery to consider either —
-    /// measured: zero references in <c>src/</c>.
+    /// <c>IDataProtectionProvider</c>, and the only consumer is <c>PasswordResetTokenProvider</c>'s
+    /// constructor. Sharing a keyring with the Worker would hand it cryptographic reach over tokens
+    /// it never mints or validates, and re-open the cross-process coupling the 2026-07-10 ruling
+    /// rejected. This codebase has no antiforgery, so the keyring's blast radius is the three
+    /// <c>DataProtectorTokenProvider</c>s and nothing else; regenerate with
+    /// <c>git grep -in antiforgery -- src/</c> and read the result as a property, not a count — a
+    /// comment naming it will match.
     /// </para>
     /// </summary>
     public static IServiceCollection AddApiDataProtection(
@@ -1530,18 +1523,14 @@ public static class DependencyInjection
             // dying on the next recreate.
             .SetApplicationName(DataProtectionApplicationName);
 
-        // Optional by design, following the ratified Seq:ServerUrl shape: set → persist, unset →
-        // framework default. A fresh dev boot sets nothing and is unchanged, so this adds no
-        // fail-fast key and no CLAUDE.md §11 dev-boot obligation.
+        // Optional by design, in the ratified Seq:ServerUrl shape: set → persist, unset → framework
+        // default, so a dev boot is unchanged and CLAUDE.md §11's dev-boot contract is not engaged.
         //
-        // A Production-gated fail-loud WAS available — ForwardedHeadersConfig does exactly that on
-        // an empty KnownNetworks, and compose sets ASPNETCORE_ENVIRONMENT: Production — and it is
-        // declined on two measurements rather than on "it would break dev". First, the value in
-        // compose is a literal and not a ${...} interpolation, and the compose file in the repo IS
-        // the one that runs on the box, so DeployComposeDataProtectionTests closes the repo side
-        // more cheaply and in CI. Second, a boot refusal only covers "the key is missing"; it says
-        // nothing about "the directory is unwritable", which is the more expensive failure and the
-        // one that shipped past five green mutation axes.
+        // A Production-gated fail-loud was available (ForwardedHeadersConfig does exactly that on an
+        // empty KnownNetworks) and was declined for a reason worth keeping: a boot refusal only
+        // covers "the key is missing" and says nothing about "the directory is unwritable", which is
+        // the more expensive failure and the one that shipped past five green mutation axes.
+        // DeployComposeDataProtectionTests covers both, in CI.
         var keyPath = configuration[DataProtectionKeyPathConfigKey];
         if (!string.IsNullOrWhiteSpace(keyPath))
             dataProtection.PersistKeysToFileSystem(new DirectoryInfo(keyPath));

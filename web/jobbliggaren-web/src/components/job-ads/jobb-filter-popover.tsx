@@ -318,11 +318,9 @@ export function JobbFilterPopover({
       {/* Utanför __body: distans har ingen län→kommun-hierarki att navigera.
           Raden och dess hjälptext är EN grupp, och avdelaren sitter på gruppen —
           den skiljer axeln från Län/Kommun-kolumnerna, inte kryssrutan från sin
-          egen förklaring. `.jp-popover__boolaxis` hamnade i `(app)/app.css` därför
-          att `globals.css` var en parallell sessions hotspot när regeln skrevs
-          (#1352, mergad 2026-08-19 04:52Z — 35 min innan denna rad). Det är
-          historik, inte ett skäl att låta den ligga kvar: den hör hemma bland
-          sina `.jp-popover__*`-syskon och kan flyttas dit när någon ändå rör dem.
+          egen förklaring. `.jp-popover__boolaxis` ligger i `(app)/app.css` och är
+          den ENDA `.jp-popover__*`-regeln utanför `globals.css`, där resten bor.
+          Den hör hemma hos sina syskon och kan flyttas dit när någon ändå rör dem.
           `isAll` blir därmed false för varje konsument som skickar en hint (alla
           i dag) och är kvar bara för en framtida hint-lös rad, som behöver
           avdelaren på själva raden. Att raden då också tappar `--all`:s semibold

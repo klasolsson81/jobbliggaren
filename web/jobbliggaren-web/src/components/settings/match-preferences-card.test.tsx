@@ -440,7 +440,10 @@ describe("Distans-chippen (#551 punkt 4)", () => {
     distans.focus();
     await user.keyboard("{Backspace}");
 
-    await waitFor(() => expect(document.body).not.toHaveFocus());
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Lägg till" })).toHaveFocus()
+    );
+    expect(document.body).not.toHaveFocus();
   });
 
   it("borttagning persisterar preferredRemote: false (ingen klient-lokal no-op)", async () => {

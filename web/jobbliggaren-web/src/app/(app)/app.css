@@ -268,18 +268,18 @@
    två 1px-ramar på 0px: dubbel hårfin linje och två rundade hörnpar som kysser
    varandra i båda kanterna. 8px = husets 4px-rutnät. Höjdtaket ovan gäller inte
    en enradig lista, så det scrollar aldrig. */
-/* #551 punkt 4 — den booleska axel-raden i /jobb:s popover, raden PLUS dess
-   hjälptext som EN grupp. Avdelaren ligger på gruppen, inte på raden: den skiljer
-   axeln från Län/Kommun-kolumnerna, inte kryssrutan från sin egen förklaring.
-   Därför bär CheckRow inte .jp-checkitem--all när en hint finns. */
-.jp-popover__boolaxis {
-  border-bottom: 1px solid var(--jp-border-soft);
-}
-
 .jp-matchdialog__list--distans {
   max-height: none;
   overflow-y: visible;
   margin-bottom: 8px;
+}
+
+/* #551 punkt 4 — den booleska axel-raden i /jobb:s popover: raden PLUS dess
+   hjälptext som EN grupp. Avdelaren ligger på gruppen, inte på raden — den skiljer
+   axeln från Län/Kommun-kolumnerna, inte kryssrutan från sin egen förklaring.
+   Därför bär CheckRow inte .jp-checkitem--all när en hint finns. */
+.jp-popover__boolaxis {
+  border-bottom: 1px solid var(--jp-border-soft);
 }
 /* Synlig fokus-ring för .jp-checkitem i dialog-kontext (samma om-scoping som
    .jp-matchprefs — den befintliga regeln är scoped till .jp-panel). */

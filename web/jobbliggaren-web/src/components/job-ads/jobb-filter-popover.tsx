@@ -316,9 +316,15 @@ export function JobbFilterPopover({
       style={style}
     >
       {/* Utanför __body: distans har ingen län→kommun-hierarki att navigera.
-          `isAll` väljs för sin STIL (jp-checkitem--all = avdelande underkant +
-          semibold), inte för sin "Välj alla"-semantik — propen styr bara
-          utseendet. Ingen ny klass: globals.css ägs av en parallell session. */}
+          Raden och dess hjälptext är EN grupp, och avdelaren sitter på gruppen —
+          den skiljer axeln från Län/Kommun-kolumnerna, inte kryssrutan från sin
+          egen förklaring. `.jp-popover__boolaxis` bor i `(app)/app.css` därför att
+          `globals.css` ägs av en parallell session (#1352).
+          `isAll` blir därmed false för varje konsument som skickar en hint (alla
+          i dag) och är kvar bara för en framtida hint-lös rad, som behöver
+          avdelaren på själva raden. Att raden då också tappar `--all`:s semibold
+          är AVSIKTLIGT: "Distans räknas som egen ort" (designhandoffen), alltså
+          ett ort-val bland andra — inte en kategorirubrik. */}
       {booleanAxis && (
         <div className="jp-popover__boolaxis">
           <CheckRow

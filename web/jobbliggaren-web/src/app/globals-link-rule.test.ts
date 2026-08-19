@@ -70,8 +70,8 @@ describe("globals.css — the global link colour rule (#1352)", () => {
       const selector = rule.slice(0, rule.indexOf("{"));
       expect(
         selector,
-        `${selector.trim()} — an id lifts the rule to (1,0,1), which beats both protected ` +
-          `surfaces whatever the :not() looks like.`,
+        `${selector.trim()} — an id makes this rule outrank both protected surfaces wherever it ` +
+          `sits: (1,0,1) inside the :not() list, (1,1,1) appended after it.`,
       ).not.toContain("#");
     }
   });

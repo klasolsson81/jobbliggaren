@@ -19,6 +19,7 @@ using Jobbliggaren.Infrastructure.JobSources;
 using Jobbliggaren.Infrastructure.JobSources.Platsbanken;
 using Jobbliggaren.Infrastructure.Persistence;
 using Jobbliggaren.Infrastructure.Security.BreachCheck;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -1461,6 +1462,86 @@ public static class DependencyInjection
     }
 
     /// <summary>
+    /// #1350 — the Data-Protection key discriminator. Api-scoped on purpose: the Worker mints and
+    /// validates no DataProtector tokens, so it must not share this keyring.
+    ///
+    /// <para>
+    /// The value is deliberately NOT the assembly name. NetArchTest's <c>HaveDependencyOnAny</c>
+    /// searches <b>const string fields</b> as well as IL references —
+    /// <c>DependencySearch.FindTypes(..., serachForDependencyInFieldConstant: true)</c> reaches
+    /// <c>TypeDefinitionCheckingContext.CheckFields</c>, which feeds every constant string field's
+    /// VALUE to the dependency check. A <c>const string</c> holding <c>Jobbliggaren.Api</c> therefore
+    /// counts as a dependency on the Api assembly and fails
+    /// <c>DomainLayerTests.Infrastructure_should_not_depend_on_Api_or_Worker</c> — measured
+    /// 2026-08-19, and the only difference between a red and a green run.
+    ///
+    /// The rule is therefore "not in a const field", NOT "not in a string": an inline literal in a
+    /// method body passes, because the IL scan only looks at type, method and field REFERENCES.
+    /// Inlining it would be worse anyway — a magic string per CLAUDE.md §5, whose silence would then
+    /// be an accident of the tool rather than a decision.
+    /// </para>
+    ///
+    /// <para>
+    /// Whatever it is, it must never change again: it is the key discriminator, and a new value
+    /// stops the persisted keyring resolving every token minted under the old one.
+    /// </para>
+    /// </summary>
+    public const string DataProtectionApplicationName = "jobbliggaren-api";
+
+    /// <summary>
+    /// #1350 — configuration key for the directory the keyring is persisted to. Unset means the
+    /// framework default (dev); the deployed host sets it and mounts a writable volume there.
+    /// <c>DeployComposeDataProtectionTests</c> reads this constant, so a rename here fails that test
+    /// rather than silently un-persisting the keys.
+    /// </summary>
+    public const string DataProtectionKeyPathConfigKey = "DataProtection:KeyPath";
+
+    /// <summary>
+    /// #1350 — the Api's Data-Protection keyring. Its own method rather than four lines inside
+    /// <see cref="AddIdentityAndSessions"/>, because that one needs Postgres and Redis to register
+    /// at all and this must be testable without either (CLAUDE.md §2.4).
+    ///
+    /// <para>
+    /// <b>Api only.</b> <c>AddCoreIdentityForWorker</c> deliberately registers no
+    /// <c>IDataProtectionProvider</c>, and the only consumer is <c>PasswordResetTokenProvider</c>'s
+    /// constructor. Sharing a keyring with the Worker would hand it cryptographic reach over tokens
+    /// it never mints or validates, and re-open the cross-process coupling the 2026-07-10 ruling
+    /// rejected. This codebase has no antiforgery, so the keyring's blast radius is the three
+    /// token KINDS those providers mint - activation, password reset, change email - and
+    /// nothing else. (Two <c>DataProtectorTokenProvider</c>s, not three: of the four
+    /// <c>AddDefaultTokenProviders</c> registers only Default is DataProtector-based, the other
+    /// three being TOTP, plus the named password-reset provider.) Regenerate with
+    /// <c>git grep -in antiforgery -- src/</c> and read the result as a property, not a count — a
+    /// comment naming it will match.
+    /// </para>
+    /// </summary>
+    public static IServiceCollection AddApiDataProtection(
+        this IServiceCollection services, IConfiguration configuration)
+    {
+        var dataProtection = services.AddDataProtection()
+            // Pinned rather than derived. Without this the key discriminator comes from
+            // IHostEnvironment.ContentRootPath, so an image-layout change would silently stop the
+            // PERSISTED keyring from resolving older tokens — the same defect, reintroduced after
+            // the fix and harder to see. Setting it now invalidates nothing that was not already
+            // dying on the next recreate.
+            .SetApplicationName(DataProtectionApplicationName);
+
+        // Optional by design, in the ratified Seq:ServerUrl shape: set → persist, unset → framework
+        // default, so a dev boot is unchanged and CLAUDE.md §11's dev-boot contract is not engaged.
+        //
+        // A Production-gated fail-loud was available (ForwardedHeadersConfig does exactly that on an
+        // empty KnownNetworks) and was declined for a reason worth keeping: a boot refusal only
+        // covers "the key is missing" and says nothing about "the directory is unwritable", which is
+        // the more expensive failure and the one that shipped past five green mutation axes.
+        // DeployComposeDataProtectionTests covers both, in CI.
+        var keyPath = configuration[DataProtectionKeyPathConfigKey];
+        if (!string.IsNullOrWhiteSpace(keyPath))
+            dataProtection.PersistKeysToFileSystem(new DirectoryInfo(keyPath));
+
+        return services;
+    }
+
+    /// <summary>
     /// Identity, sessions, Redis, HTTP-baserad <see cref="ICurrentUser"/>,
     /// auth audit logger. HTTP-only. Worker laddar inte denna modul.
     /// (#827: "JWT-rester" stod här tills de resterna faktiskt raderades.)
@@ -1476,6 +1557,8 @@ public static class DependencyInjection
         var redisConnectionString = configuration.GetConnectionString("Redis")
             ?? throw new InvalidOperationException(
                 "ConnectionStrings:Redis saknas i konfiguration.");
+
+        services.AddApiDataProtection(configuration);
 
         services.AddDbContext<AppIdentityDbContext>(options =>
             options

@@ -237,11 +237,11 @@ public class RecentJobSearchCaptureBehaviorTests
 
     // ---- The ?q= axis stops persisting a personnummer (Klas-beslut 2026-08-19) ----
     //
-    // Same class as the employer block above, different detector. `q` is free text with no
-    // format gate at all - ListJobAdsQueryValidator constrains only MaximumLength - so it
-    // carries hyphenated, 12-digit and space-gapped forms the ten-digit employer axis
-    // structurally cannot. Detection is therefore the validating flag chain
-    // (Normalize -> Scan -> Personnummer.TryParse date+Luhn), not a shape predicate.
+    // Same class as the employer block above, different detector. `q` has no FORMAT gate -
+    // ListJobAdsQueryValidator bounds its length and requires it non-empty when sorting by
+    // relevance, and nothing else - so it carries hyphenated, 12-digit and space-gapped forms
+    // the ten-digit employer axis structurally cannot. Detection is therefore the validating
+    // flag chain (Normalize -> Scan -> Personnummer.TryParse date+Luhn), not a shape predicate.
     //
     // Every vector below is production-producible: the /jobb free-text box feeds ?q= end to
     // end, so none of these needs the declared-unreachable framing the employer block uses.
@@ -258,12 +258,13 @@ public class RecentJobSearchCaptureBehaviorTests
     [InlineData("811218 9876")]      // single-space gapped - bridged by the normalizer
     public async Task Handle_PersonnummerShapedQ_RunsTheSearchButCapturesNothing(string q)
     {
-        var response = await HandleAsync(new FakeSearchQuery(
+        await HandleAsync(new FakeSearchQuery(
             Q: q, OccupationGroup: null, Municipality: null, Region: null));
 
         // The SEARCH ran - only the persistence is skipped. Refusing the search would be a
-        // behaviour change on a surface that has nothing to do with the leak.
-        response.TotalCount.ShouldBe(7);
+        // behaviour change on a surface that has nothing to do with the leak. Asserting on the
+        // returned TotalCount would not pin that: Handle awaits next(...) before every guard, so
+        // the fake's response comes back on every path and the assertion could never fail.
         await _capturer.DidNotReceive().CaptureAsync(
             Arg.Any<Guid>(), Arg.Any<SearchCriteria>(), Arg.Any<int>(), Arg.Any<CancellationToken>());
     }

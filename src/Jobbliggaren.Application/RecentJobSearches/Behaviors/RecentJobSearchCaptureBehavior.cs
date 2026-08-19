@@ -163,19 +163,22 @@ public sealed partial class RecentJobSearchCaptureBehavior<TMessage, TResponse>(
             return response;
 
         // Same sink and the same skip-reason as the employer guard above, so that block governs
-        // here too. What differs is the detector: `q` is free text with no format gate (only a
-        // MaximumLength), so it carries hyphenated, 12-digit and gapped forms the ten-digit
-        // employer axis structurally cannot, and the employer helper's unparseable arm - fail-safe
-        // on a format axis - would refuse every ordinary search string here. This is instead the
-        // house's single-sourced flag path (JobSeeker.ValidateDisplayName, Resume.ValidateName,
-        // AutoPromoteGate run the identical one-liner), whose accepted gap residual is
-        // PersonnummerTextNormalizer's to own (#427 V3) rather than re-derived per call site
-        // (#844: a rule with two normalisers is two rules).
+        // here too - with one widening. There the bearer is NECESSARILY a third party, since the
+        // value is by construction someone else's org.nr. A free-text box can carry the user's own
+        // number, a third party's, or a sole trader's org.nr typed here instead of into the
+        // employer facet, so the bearer is POSSIBLY a third party - which closes the same
+        // acceptance route just as firmly (§9.6(3) requires the controller to be the only affected
+        // data subject), and this axis additionally re-renders a captured q verbatim as the
+        // "Senaste sokningar" row label (ListRecentSearchesQueryHandler.DeriveLabel).
         //
-        // Placement is load-bearing twice over: inside the try below, the best-effort catch would
-        // swallow the skip into a no-op; and a captured q is re-rendered verbatim as the "Senaste
-        // sokningar" row label (ListRecentSearchesQueryHandler.DeriveLabel), so this axis has a
-        // display surface the employer axis does not.
+        // What differs is the detector: `q` is free text with no format gate, so it carries
+        // hyphenated, 12-digit and gapped forms the ten-digit employer axis structurally cannot,
+        // and the employer helper's unparseable arm - fail-safe on a format axis - would refuse
+        // every ordinary search string here. This is instead the house's single-sourced flag path
+        // (JobSeeker.ValidateDisplayName, Resume.ValidateName, AutoPromoteGate run the identical
+        // one-liner), whose accepted gap residual is PersonnummerTextNormalizer's to own (#427 V3)
+        // rather than re-derived per call site (#844: a rule with two normalisers is two rules).
+        // #1415 re-adjudicates that residual now that it governs a hand-typed, user-rendered axis.
         if (effectiveQ is not null
             && PersonnummerScanner.Scan(PersonnummerTextNormalizer.Normalize(effectiveQ)).Count > 0)
             return response;

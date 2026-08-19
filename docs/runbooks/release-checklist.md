@@ -1271,12 +1271,16 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
       samma PR: sökhistorik-sektionen på `privacy.sections[4]` (18 rader) och dess retentionsrad i
       `Hur länge vi sparar uppgifter` (1 rad, hamnade på rad 113). Rad 37 och 50 ligger ovanför
       båda och står stilla; 64 och 74 ligger emellan och flyttade **+18**; 96, 97 och 132 ligger
-      under båda och flyttade **+19**. ⚠ **Notisraden flyttade 64 → 82, och den har ELVA egna hem i
-      den här runbooken** — presens-påståenden och en körinstruktion, inte historik. Alla elva är
-      ommätta i samma PR (`grep -n "Notiserna planeras att skickas med e-post"`, båda locales → 82),
-      och `code-reviewer` fann dem eftersom den här posten regenererades korrekt medan de elva stod
-      kvar åtta rader nedanför: **egenskapen är "levande radnummer-pekare in i `content-legal.json`",
-      och §2.6-mängden är bara ett av tolv hem.** En enda offset applicerad på hela den gamla mängden hade
+      under båda och flyttade **+19**. ⚠ **Notisraden flyttade 64 → 82, och den har TOLV egna hem** —
+      elva i den här runbooken och ett i paritetssvitens egen docblock
+      (`content-legal-parity.test.ts`), samtliga presens-påståenden eller körinstruktioner, inte
+      historik. Alla tolv är ommätta i samma PR (`grep -n "Notiserna planeras att skickas med
+      e-post"`, båda locales → 82). **Egenskapen är "levande radnummer-pekare in i
+      `content-legal.json`", och §2.6-mängden är bara ett av tretton hem.** ⚠ Den här noten fick
+      räknas om en gång: första sveget täckte bara runbooken, och `code-reviewer` mätte
+      filsystemsvitt och hittade det tolfte — **i just den fil §2.6 utpekar som radens mekaniska
+      läsare**, så runbooken sa 82 medan dess egen citerade läsare sa 64. Svep på egenskapen, inte
+      på filen du råkar ha öppen. En enda offset applicerad på hela den gamla mängden hade
       alltså gett tre fel rader. Sökhistorik-sektionen bär avsiktligt **ingen** markör:
       behandlingen är i drift, och en markör där hade förnekat en levande behandling.
       *(Föregående regenerering, 2026-08-16 (#183 FU-2b, EFTER flippen): 7 + 7 på rad 37, 50, 64,

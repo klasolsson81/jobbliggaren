@@ -238,7 +238,7 @@ describe("content-legal i18n-paritet (sv ↔ en)", () => {
    * `code-reviewer` Major 3.)* Instruktionen förutsatte en total flipp, och den förutsättningen höll inte.
    *
    * **Nästa flipp är notisernas**, och då faller det här testet igen — på samtyckesgrenen. Det är
-   * avsiktligt: §2.6 punkt 1 kräver att rad 64 ommäts mot lådan före varje flipp, och en grön svit
+   * avsiktligt: §2.6 punkt 1 kräver att rad 82 ommäts mot lådan före varje flipp, och en grön svit
    * hade tagit ifrån den mätningen dess enda mekaniska läsare. Ta då bort samtyckesgrenen, behåll
    * golvet, och lämna den negativa grenen som den enda kvarvarande — samma sluttillstånd som
    * värd-spärren nedan redan står i.

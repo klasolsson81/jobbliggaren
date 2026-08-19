@@ -90,7 +90,8 @@ public sealed partial class AccountHardDeleter(
         // #508 reverse-orphan detector (defense-in-depth, log-only). A JobSeeker whose
         // UserId has no Identity user is the mirror of the same TOCTOU race — the account is
         // locked out and can never exercise Art. 17. We SURFACE it (Warning) for remediation
-        // but never delete it here (a separate concern, #524). Count only — no name/email/CV
+        // but never delete it here (a separate concern, #1409 — #524 was closed and was about
+        // sentinel-colliding plaintext rows, not this). Count only — no name/email/CV
         // PII is logged (CLAUDE.md §5); the runbook §3.3 reverse-orphan query surfaces the
         // UserId set to ops on demand.
         var identityUserIds = identityUsers.Select(u => u.Id).ToHashSet();
@@ -107,7 +108,25 @@ public sealed partial class AccountHardDeleter(
             if (user is null) continue; // Race: Identity redan rensad mellan SELECT och DELETE
 
             var result = await userManager.DeleteAsync(user);
-            if (result.Succeeded) cleaned++;
+            if (result.Succeeded)
+            {
+                cleaned++;
+            }
+            else
+            {
+                // #1349 - the second discarded IdentityResult, found by the same sweep that
+                // found the first. The job reports only `cleaned`, so N systematically failed
+                // deletions surfaced as "rensade 0 Identity-orphans" - indistinguishable from
+                // "found none", which is the state an operator is actively hoping for.
+                //
+                // Not the same as the discard at the ROW-erasure site further down: that one
+                // carries a written compensating path (the row is picked up by step 0 on the
+                // next run). This one carried nothing.
+                //
+                // Codes, never Descriptions - same discipline as UserAccountService.
+                LogOrphanDeleteFailed(
+                    logger, orphanId, string.Join(", ", result.Errors.Select(e => e.Code)));
+            }
         }
 
         return cleaned;
@@ -315,6 +334,17 @@ public sealed partial class AccountHardDeleter(
     // per områdets konvention (jfr HardDeleteAccountsJob + runbook account-deletion.md §3.2).
     [LoggerMessage(EventId = 2503, Level = LogLevel.Warning,
         Message = "CleanupIdentityOrphansAsync: {Count} reverse-orphan JobSeeker(s) saknar Identity-user "
-            + "(utelåst konto, kan ej utöva Art. 17) — loggas för utredning, raderas ej här (#508/#524)")]
+            + "(utelåst konto, kan ej utöva Art. 17) — loggas för utredning, raderas ej här (#1409)")]
     private static partial void LogReverseOrphansDetected(ILogger logger, int count);
+
+    // #1349 - the orphan sweep's own DeleteAsync used to discard its IdentityResult, so N failed
+    // deletions surfaced as "rensade 0 Identity-orphans": indistinguishable from "found none",
+    // which is the state an operator is hoping for. Unlike 2503 above this one is NOT count-only -
+    // it carries {OrphanId}, a Guid surrogate key, because a bare count says THAT N rows failed
+    // and not WHICH, and the runbook's remediation is keyed on the id. Codes, never Descriptions.
+    [LoggerMessage(EventId = 2504, Level = LogLevel.Warning,
+        Message = "AccountHardDeleter: kunde inte radera Identity-orphan {OrphanId} " +
+                  "({ErrorCodes}) - raden ligger kvar och ingår inte i 'cleaned'-talet")]
+    private static partial void LogOrphanDeleteFailed(
+        ILogger logger, Guid orphanId, string errorCodes);
 }

@@ -108,6 +108,11 @@ internal static class JobAdSearchComposition
         // byte-identisk men kräver LinqKit (utanför BUILD.md §3.1). Därför: den befintliga
         // muni/län-stegen ORÖRD i else-grenen (Remote=false ⇒ byte-identisk SQL, strukturellt
         // garanterat), och en 4-fallsswitch (parity q-grens-switchen nedan) för remote=true.
+        //
+        // #1413 — termerna som UNIONERAS här är klassificerade i GeoUnionLabelParityTests.GeoUnion.
+        // Lägger du till en term här utan att flytta den dit beskriver recent-sökningens etikett en
+        // strikt delmängd av vad klicket returnerar; vakten mäter klassificeringen, inte den här
+        // grenen, så den kan inte se ändringen.
         if (criteria.Remote)
         {
             var municipalityValues = criteria.Municipality;

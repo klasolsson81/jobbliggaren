@@ -36,8 +36,7 @@ public class GeoUnionLabelParityTests
 
     // Axes AND-ed against the geo predicate. They narrow rather than widen, so a label that
     // omits them still describes a superset of what the click returns — never a subset.
-    // ADR 0067 Beslut 6 wired these as separate dimensions; #1418 owns whether a row carrying
-    // only one of them deserves a label of its own.
+    // #1418 owns whether a row carrying only one of them deserves a label of its own.
     private static readonly HashSet<string> Orthogonal = new(StringComparer.Ordinal)
     {
         "OccupationGroup", "EmploymentType", "WorktimeExtent", "Employer", "Q",
@@ -51,6 +50,12 @@ public class GeoUnionLabelParityTests
             .Where(p => p.Name != "EqualityContract")
             .Select(p => p.Name)
             .ToArray();
+
+        // Floor against a broken source set: an inclusion spec cannot detect that it is measuring
+        // nothing. If the reflection ever comes back empty — record restructured, members no longer
+        // public — `unclassified` is empty too and this passes green and silent.
+        members.ShouldNotBeEmpty(
+            "the guard measures nothing if JobAdFilterCriteria exposes no members");
 
         var unclassified = members
             .Where(name => !GeoUnion.Contains(name) && !Orthogonal.Contains(name))
@@ -101,6 +106,10 @@ public class GeoUnionLabelParityTests
     {
         var ortLabel = typeof(ListRecentSearchesQueryHandler)
             .GetMethod("DeriveOrtLabel", BindingFlags.NonPublic | BindingFlags.Static);
+
+        ortLabel.ShouldNotBeNull(
+            "DeriveOrtLabel is the ort label's only producer; if it was renamed or inlined this "
+            + "guard stops measuring anything and must be re-pointed, not deleted.");
 
         var covered = ortLabel!
             .GetParameters()

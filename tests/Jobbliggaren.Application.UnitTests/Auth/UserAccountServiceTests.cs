@@ -213,4 +213,106 @@ public class UserAccountServiceTests
         summary!.Email.ShouldBeNull();
         summary.Roles.ShouldContain("User");
     }
+
+    // ---- #1349: the compensating delete stops failing silently ----------------------------------
+
+    /// <summary>
+    /// Records what was logged. The assertion is about a log line, so a substitute that only proves
+    /// <c>Log</c> was reached would pin the call and not the content — and the content is the whole
+    /// point: the codes must be there and the Descriptions must not.
+    /// </summary>
+    private sealed class RecordingLogger<T> : ILogger<T>
+    {
+        public List<(LogLevel Level, string Message)> Entries { get; } = [];
+        IDisposable? ILogger.BeginScope<TState>(TState state) => null;
+        public bool IsEnabled(LogLevel logLevel) => true;
+        public void Log<TState>(
+            LogLevel logLevel, EventId eventId, TState state, Exception? exception,
+            Func<TState, Exception?, string> formatter)
+            => Entries.Add((logLevel, formatter(state, exception)));
+    }
+
+    private const string FailureDescription = "Optimistic concurrency failure, object has been modified.";
+
+    private (UserAccountService Sut, RecordingLogger<UserAccountService> Logger, Guid UserId, ApplicationUser User)
+        ArrangeDelete(IdentityResult deleteResult)
+    {
+        var logger = new RecordingLogger<UserAccountService>();
+        var sut = new UserAccountService(
+            _userManager, _equalizer, Options.Create(new AuthOptions()), logger);
+        var userId = Guid.NewGuid();
+        var user = new ApplicationUser { Id = userId, Email = "gone@example.com" };
+        _userManager.FindByIdAsync(userId.ToString()).Returns(user);
+        _userManager.DeleteAsync(user).Returns(deleteResult);
+        return (sut, logger, userId, user);
+    }
+
+    [Fact]
+    public async Task DeleteUserAsync_ShouldLogTheCodes_WhenTheCompensatingDeleteFails()
+    {
+        // This is RegisterCommandHandler's JobSeeker.Register failure arm. A failure here leaves
+        // exactly the orphaned Identity row that arm exists to prevent, and before #1349 it said
+        // nothing at all — the row stayed invisible until the daily sweep found it.
+        var ct = TestContext.Current.CancellationToken;
+        var (sut, logger, userId, _) = ArrangeDelete(IdentityResult.Failed(
+            new IdentityError { Code = "ConcurrencyFailure", Description = FailureDescription }));
+
+        await sut.DeleteUserAsync(userId, ct);
+
+        var entry = logger.Entries.ShouldHaveSingleItem();
+        entry.Level.ShouldBe(LogLevel.Warning);
+        entry.Message.ShouldContain("ConcurrencyFailure");
+        entry.Message.ShouldContain(userId.ToString());
+        // Codes, never Descriptions: a Description is user-facing prose that can carry the value
+        // that failed. Same discipline as LogEmailConfirmedPersistFailed in the same file.
+        entry.Message.ShouldNotContain(FailureDescription);
+    }
+
+    [Fact]
+    public async Task DeleteUserAsync_ShouldLogEveryCode_WhenIdentityReturnsSeveral()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var (sut, logger, userId, _) = ArrangeDelete(IdentityResult.Failed(
+            new IdentityError { Code = "ConcurrencyFailure", Description = "a" },
+            new IdentityError { Code = "DefaultError", Description = "b" }));
+
+        await sut.DeleteUserAsync(userId, ct);
+
+        // Identity returns a LIST. Logging only the first would name one cause and hide the rest,
+        // which is the same silence one level down.
+        var entry = logger.Entries.ShouldHaveSingleItem();
+        entry.Message.ShouldContain("ConcurrencyFailure");
+        entry.Message.ShouldContain("DefaultError");
+    }
+
+    [Fact]
+    public async Task DeleteUserAsync_ShouldLogNothing_WhenTheCompensatingDeleteSucceeds()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var (sut, logger, userId, user) = ArrangeDelete(IdentityResult.Success);
+
+        await sut.DeleteUserAsync(userId, ct);
+
+        await _userManager.Received(1).DeleteAsync(user);
+        logger.Entries.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task DeleteUserAsync_ShouldLogNothingAndNotDelete_WhenTheRowIsAlreadyGone()
+    {
+        // The race branch: Identity was already cleaned between the lookup and here. Nothing failed,
+        // so nothing is reported — a Warning on an absent row would be noise the operator learns to
+        // ignore, which is what would make the real one invisible.
+        var ct = TestContext.Current.CancellationToken;
+        var logger = new RecordingLogger<UserAccountService>();
+        var sut = new UserAccountService(
+            _userManager, _equalizer, Options.Create(new AuthOptions()), logger);
+        var userId = Guid.NewGuid();
+        _userManager.FindByIdAsync(userId.ToString()).Returns((ApplicationUser?)null);
+
+        await sut.DeleteUserAsync(userId, ct);
+
+        await _userManager.DidNotReceive().DeleteAsync(Arg.Any<ApplicationUser>());
+        logger.Entries.ShouldBeEmpty();
+    }
 }

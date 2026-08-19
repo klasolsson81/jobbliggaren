@@ -90,7 +90,8 @@ public sealed partial class AccountHardDeleter(
         // #508 reverse-orphan detector (defense-in-depth, log-only). A JobSeeker whose
         // UserId has no Identity user is the mirror of the same TOCTOU race — the account is
         // locked out and can never exercise Art. 17. We SURFACE it (Warning) for remediation
-        // but never delete it here (a separate concern, #524). Count only — no name/email/CV
+        // but never delete it here (a separate concern, #1409 — #524 was closed and was about
+        // sentinel-colliding plaintext rows, not this). Count only — no name/email/CV
         // PII is logged (CLAUDE.md §5); the runbook §3.3 reverse-orphan query surfaces the
         // UserId set to ops on demand.
         var identityUserIds = identityUsers.Select(u => u.Id).ToHashSet();
@@ -315,6 +316,6 @@ public sealed partial class AccountHardDeleter(
     // per områdets konvention (jfr HardDeleteAccountsJob + runbook account-deletion.md §3.2).
     [LoggerMessage(EventId = 2503, Level = LogLevel.Warning,
         Message = "CleanupIdentityOrphansAsync: {Count} reverse-orphan JobSeeker(s) saknar Identity-user "
-            + "(utelåst konto, kan ej utöva Art. 17) — loggas för utredning, raderas ej här (#508/#524)")]
+            + "(utelåst konto, kan ej utöva Art. 17) — loggas för utredning, raderas ej här (#1409)")]
     private static partial void LogReverseOrphansDetected(ILogger logger, int count);
 }

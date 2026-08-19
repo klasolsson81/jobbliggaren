@@ -347,10 +347,19 @@ export function JobbResultsToolbar({
     commit(removeChipFromState(urlState, chip));
   }
 
-  // #454 PR-0 — arbetsgivar-chipens ×. Navigering UTAN commit-intent (samma
-  // väg som grad-chipsen): employer är runtime-view-state satt av företags-
-  // kortets länk, inte en avsiktlig sökning som ska auto-capturas till
-  // Senaste sökningar (recent-search-href kan inte återskapa den).
+  // #454 PR-0 — arbetsgivar-chipens ×. Navigering UTAN commit-intent, samma väg som
+  // grad-chipsen — och av samma skäl: en fångad arbetsgivarsökning går inte att köra igen.
+  // `RecentJobSearchDto` bär inget employer-fält alls, och `recent-search-href.ts` utelämnar
+  // det, så raden i Senaste sökningar skulle länka till en BREDARE sökning än den utger sig
+  // för att vara.
+  //
+  // ⚠ Detta är andra omskrivningen. Båda de tidigare skälen var falska, mätta 2026-08-19.
+  // Det första sa att employer är "runtime-view-state satt av företagskortets länk" — den
+  // länken finns inte sedan `aca39970` (#997/#1030). Det andra sa att en committad sökning
+  // inte ska auto-capturas — men `commit()`:s egen docblock i den här filen säger
+  // motsatsen som ett Klas-val (E2j, 2026-06-12): ta bort chip / Rensa / byt sort ÄR
+  // avsiktliga sökningar som fångas, och `removeChip` anropar `commit`. För varje chip utom
+  // detta. Formen har varit rätt hela tiden; det är skälet som har varit fel två gånger.
   function removeEmployer() {
     navigate({ ...urlState, employer: undefined });
   }

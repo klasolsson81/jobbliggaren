@@ -1,3 +1,4 @@
+using System.Reflection;
 using Jobbliggaren.Application.JobAds.Queries.GetTaxonomyTree;
 using Jobbliggaren.Application.RecentJobSearches.Queries;
 using Jobbliggaren.Domain.JobAds;
@@ -35,6 +36,9 @@ public class RecentJobSearchDtoContractTests
             .PropertyType.ShouldBe(typeof(IReadOnlyList<string>));
         t.GetProperty(nameof(RecentJobSearchDto.WorktimeExtentList))!
             .PropertyType.ShouldBe(typeof(IReadOnlyList<string>));
+        // #1407 — distans-axeln (skalär, ingen label-dimension).
+        t.GetProperty(nameof(RecentJobSearchDto.Remote))!
+            .PropertyType.ShouldBe(typeof(bool));
         t.GetProperty(nameof(RecentJobSearchDto.OccupationGroupLabels))!
             .PropertyType.ShouldBe(typeof(IReadOnlyList<TaxonomyLabelDto>));
         t.GetProperty(nameof(RecentJobSearchDto.MunicipalityLabels))!
@@ -64,6 +68,43 @@ public class RecentJobSearchDtoContractTests
         t.GetProperty("SsykLabels").ShouldBeNull();
     }
 
+    // #1407 (security-auditor M-1). ShouldKeepCanonicalPositionalOrder läser ctor.GetParameters()
+    // och ser därför BARA positionella parametrar. En body-deklarerad
+    // `public string[] Whatever { get; init; }` är osynlig för den och serialiseras
+    // ändå till wire:n av System.Text.Json — mätt. Namnbaserad frånvaro-assertion
+    // stänger inte det hålet heller: den matchar stavningar, inte formen.
+    //
+    // Mängden är därför uttömmande och EXAKT. Vilken ny property som helst, oavsett
+    // namn och deklarationsform, faller ut här. Vilka dimensioner som FÅR vara med
+    // och varför en utelämnas ägs av RecentJobSearchProjectionParityTests.
+    private static readonly string[] SurfacedProperties =
+    [
+        "Id", "Q",
+        "OccupationGroupList", "MunicipalityList", "RegionList",
+        "EmploymentTypeList", "WorktimeExtentList", "Remote",
+        "OccupationGroupLabels", "MunicipalityLabels", "RegionLabels",
+        "SortBy", "Label", "CurrentCount", "NewCount", "LastViewedAt",
+    ];
+
+    [Fact]
+    public void RecentJobSearchDto_ShouldSurfaceExactlyTheseProperties()
+    {
+        var actual = typeof(RecentJobSearchDto)
+            .GetProperties(BindingFlags.Public | BindingFlags.Instance)
+            .Select(p => p.Name)
+            .OrderBy(n => n, StringComparer.Ordinal)
+            .ToArray();
+
+        actual.ShouldBe(
+            [.. SurfacedProperties.OrderBy(n => n, StringComparer.Ordinal)],
+            "varje public instans-property på RecentJobSearchDto når HTTP-svaret. "
+            + "Är den nya propertyn en SÖKDIMENSION — en axel filtret bär — klassa den "
+            + "först i RecentJobSearchProjectionParityTests. Är den presentation eller "
+            + "räknare (Label, CurrentCount, NewCount) eller ett bokföringsfält som "
+            + "redan står i den filens NotSearchDimensions (Id, LastViewedAt), är den "
+            + "här listan hela grinden.");
+    }
+
     [Fact]
     public void RecentJobSearchDto_ShouldKeepCanonicalPositionalOrder()
     {
@@ -76,13 +117,9 @@ public class RecentJobSearchDtoContractTests
 
         // ADR 0067 Beslut 6 (Fas B2): EmploymentTypeList/WorktimeExtentList efter
         // RegionList (kanonisk dimensionsordning), labels-blocket fortsatt sist.
-        names.ShouldBe(
-        [
-            "Id", "Q",
-            "OccupationGroupList", "MunicipalityList", "RegionList",
-            "EmploymentTypeList", "WorktimeExtentList",
-            "OccupationGroupLabels", "MunicipalityLabels", "RegionLabels",
-            "SortBy", "Label", "CurrentCount", "NewCount", "LastViewedAt",
-        ]);
+        // #1407: Remote sist i råa-dimensions-blocket — samma position den har
+        // RELATIVT de råa dimensionslistorna i JobAdFilterCriteria (där Q ligger
+        // sist och här på index 1; de två ordningarna divergerade före #1407).
+        names.ShouldBe(SurfacedProperties);
     }
 }

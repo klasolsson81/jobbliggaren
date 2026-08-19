@@ -10,22 +10,25 @@ import { isValidId } from "@/lib/validation/guid";
 
 /**
  * Klient-side timeout för list-anropet. ADR 0060 Beslut 4 accepterar N+1
- * COUNT-projektion under cap=20. Default-timeout är pragmatic band tills
- * TD-94 löser rotorsaken (ListJobAds COUNT-perf p50 1.2s/max 6.7s).
+ * COUNT-projektion under cap=20, och det är den fan-out:en bandet finns för.
+ * TD-94:s per-count-rotorsak är FIXAD (ADR 0062 Amendment 2026-06-13); talen
+ * p50 1.2s/max 6.7s är avläsningar från FÖRE den fixen och bevaras som daterad
+ * historik, inte som nuläge.
  *
  * <p>Konsumenter som anropar med <code>includeCount=false</code> behöver ingen
- * slow COUNT-loop → kortare default-timeout. <b>2026-06-13: INGEN konsument
- * anropar med <code>true</code> idag</b> (/oversikt, /sokningar, /jobb hero-chip
- * hämtar alla med <code>false</code>). <code>LIST_TIMEOUT_WITH_COUNT_MS</code>
- * är reserverad för den framtida lat-count-vägen (B) — den långa timeouten
- * skulle annars åter-exponera worst-case cap=20×1.5s.</p>
+ * slow COUNT-loop → kortare default-timeout. Sidladdningarna (/oversikt,
+ * /sokningar, /jobb hero-chip) gör det. <code>LIST_TIMEOUT_WITH_COUNT_MS</code>
+ * bärs av lat-count-vägen (B), som ÄR levererad: <code>useRecentSearchCounts</code>
+ * via <code>/api/me/recent-searches/counts</code> är den ende konsumenten som
+ * anropar med <code>true</code>. Den långa timeouten hör dit och ingen annanstans —
+ * på sidladdningen skulle den åter-exponera worst-case cap=20×1.5s.</p>
  *
  * <p>F6 P5 P4 svans-PR5 (2026-05-24, Klas-feedback /sokningar + /jobb-hero-chip
  * "Inga senaste sökningar än"): tidigare statiskt 8s blockerade /sokningar +
  * hero-chip när Klas hade flera RecentSearches.</p>
  */
 const LIST_TIMEOUT_COMPACT_MS = 8_000;
-// Reserverad för framtida lat-count-väg (B) — ingen konsument når true-grenen idag.
+// Lat-count-vägen (B): /api/me/recent-searches/counts är den enda true-konsumenten.
 const LIST_TIMEOUT_WITH_COUNT_MS = 25_000;
 
 /**
@@ -41,16 +44,15 @@ const LIST_TIMEOUT_WITH_COUNT_MS = 25_000;
  * Min PR5-fix 25s räcker inte; /sokningar + hero-chip 500-failade i Klas-
  * session, cascade-fel drog även hero-chip till tom-state.</p>
  *
- * <p><b>Förlust:</b> hero-chip + /sokningar visar nu bara namn utan per-sökning-
+ * <p><b>Vad sidladdningen tappar:</b> hero-chip + /sokningar renderar namn utan
  * träffräknare. Den (tidigare felaktigt renderade "(0)") siffran togs bort i UI:t
- * 2026-06-13 (CTO-beslut: hellre ingen siffra än falsk "(0)") och återinförs via
- * lat klient-hämtning (B, useFacetCounts-mönstret) — oberoende av TD-94:s rotfix.
- * Civic-utility acceptabelt: namn + klickbar rad ger fortfarande funktionell
- * "kör om sökning"-yta.</p>
+ * 2026-06-13 (CTO-beslut: hellre ingen siffra än falsk "(0)") och är sedan dess
+ * återinförd via lat klient-hämtning (B, useFacetCounts-mönstret) — oberoende av
+ * TD-94:s rotfix.</p>
  *
- * <p>Konsumenter som explicit behöver counts kan sätta <code>true</code> — de
- * tar då 15-25s slow load + risk för timeout. Inte rekommenderat för någon
- * konsument idag.</p>
+ * <p><code>true</code> betalar fan-out:en cap=20, som är OMÄTT — inget perf-scenario
+ * träffar endpointen. Vägen hör därför hemma ENBART off-critical-path; anropa den
+ * inte från en sidladdning.</p>
  */
 export async function getRecentSearches(
   includeCount: boolean = false,

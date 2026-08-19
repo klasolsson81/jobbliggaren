@@ -63,14 +63,15 @@ public class ListRecentSearchesQueryHandlerTests
         JobSeekerId seekerId,
         string? q,
         DateTimeOffset viewedAt,
-        int lastSeenCount = 0)
+        int lastSeenCount = 0,
+        bool remote = false)
     {
         var criteria = SearchCriteria.Create(
             occupationGroup: ["grp_12345"],
             municipality: ["sthlm_kn"],
             region: ["stockholm"],
             employmentType: null,
-            worktimeExtent: null, employer: null, remote: false,
+            worktimeExtent: null, employer: null, remote: remote,
             q: q,
             sortBy: JobAdSortBy.PublishedAtDesc).Value;
         return RecentJobSearch.Capture(seekerId, criteria, lastSeenCount, viewedAt);
@@ -232,6 +233,29 @@ public class ListRecentSearchesQueryHandlerTests
 
         captured.ShouldNotBeNull();
         captured!.Remote.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task Handle_ProjectsRowRemoteIntoDto_InBothPolarities()
+    {
+        // #1407: distans nådde count-filtret (Handle_ThreadsRowRemoteIntoCountFilter) men
+        // inte projektionen, så "Kör igen" byggde en href UTAN distans för en rad vars
+        // count räknats MED den. Båda polariteterna i EN körning: en konstant `Remote:
+        // true` i projektionen består ett ensidigt test.
+        var db = TestAppDbContextFactory.Create();
+        var seeker = await SeedSeekerAsync(db);
+        var now = FakeDateTimeProvider.Default.UtcNow;
+
+        db.RecentJobSearches.Add(CaptureRow(seeker.Id, "distansjobb", now, remote: true));
+        db.RecentJobSearches.Add(CaptureRow(seeker.Id, "kontorsjobb", now.AddHours(-1)));
+        await db.SaveChangesAsync(CancellationToken.None);
+
+        var handler = new ListRecentSearchesQueryHandler(db, _currentUser, _taxonomy, _search);
+        var result = await handler.Handle(new ListRecentSearchesQuery(), CancellationToken.None);
+
+        result.Count.ShouldBe(2);
+        result.Single(d => d.Q == "distansjobb").Remote.ShouldBeTrue();
+        result.Single(d => d.Q == "kontorsjobb").Remote.ShouldBeFalse();
     }
 
     // ---------------------------------------------------------------

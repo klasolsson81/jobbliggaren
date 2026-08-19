@@ -14,6 +14,7 @@ function makeRecent(
     regionList: [],
     employmentTypeList: [],
     worktimeExtentList: [],
+    remote: false,
     occupationGroupLabels: [],
     municipalityLabels: [],
     regionLabels: [],
@@ -42,6 +43,18 @@ describe("buildRecentSearchHref (#294 — shared replay href)", () => {
     );
     expect(href).toContain("employmentType=gro4_cWF_6D7");
     expect(href).toContain("worktimeExtent=6YE1_gAC_R2G");
+  });
+
+  it("carries the distans axis so the replay reproduces what the count counted (#1407)", () => {
+    const href = buildRecentSearchHref(makeRecent({ remote: true }));
+    expect(href).toContain("distans=on");
+  });
+
+  it("omits distans when the captured search did not have it", () => {
+    // Both polarities, because a hardcoded `remote: true` would pass the test that
+    // asserts the axis IS carried.
+    const href = buildRecentSearchHref(makeRecent({ remote: false }));
+    expect(href).not.toContain("distans");
   });
 
   it("never carries a grade filter (matchGrades is runtime view-state, not a saved-search concern)", () => {

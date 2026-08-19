@@ -11,8 +11,8 @@ namespace Jobbliggaren.Application.RecentJobSearches.Queries.ListRecentSearches;
 /// Avsiktlig N+1 i CurrentCount-loopen (CTO 2026-05-20 Variant A): cap=20
 /// (<c>RecentJobSearch.MaxPerSeeker</c>) håller fan-out hanterbart; varje
 /// träffräkning går via <see cref="IJobAdSearchQuery.CountAsync"/> (ADR 0062 —
-/// samma filter-SPOT som ListJobAds, q-FTS-accelererad). Fitness function
-/// (ADR 0045) övervakar p95 och triggar Hangfire-cache-evolution om budget bryts.
+/// samma filter-SPOT som ListJobAds, q-FTS-accelererad). ADR 0060 Beslut 4 förutsåg en
+/// ADR 0045 fitness function på endpointen; den är inte byggd — se kommentaren i loopen.
 ///
 /// <para>Label server-härleds (Q → yrkesgrupp med hel-områdes-kollaps /
 /// "+N till" → kommun → region → fallback; E2g 2026-06-11) så FE inte
@@ -79,15 +79,23 @@ public sealed class ListRecentSearchesQueryHandler(
             // Per-row COUNT är sekventiell (CTO Variant A 2026-05-20 — cap=20
             // N+1). När `IncludeCount=false` skippar vi COUNT.
             //
-            // 2026-06-13: ALLA FE-konsumenter (/oversikt, /sokningar, /jobb
-            // hero-chip) hämtar i praktiken med IncludeCount=false — den slow
-            // N+1-COUNT:en (TD-94, ej löst utan stängd-som-obsolet vid AWS-
-            // teardown; empiriskt återöppnad) återskapar annars 8s-timeouten
-            // (Npgsql 57014). currentCount/newCount är därför 0 och den synliga
-            // per-sökning-träffräknaren är TILLFÄLLIGT borttagen i UI:t (CTO-
-            // beslut 2026-06-13: hellre ingen siffra än falsk "(0)"). Återinförs
-            // via lat klient-hämtning (B, useFacetCounts-mönstret). Rotorsaken
-            // (slow ListJobAds COUNT) fixas i TD-94.
+            // 2026-06-13: SIDLADDNINGEN hämtar med IncludeCount=false (/oversikt,
+            // /sokningar, /jobb hero-chip) — den slow N+1-COUNT:en återskapar annars
+            // 8s-timeouten (Npgsql 57014) på kritisk väg. currentCount/newCount är
+            // därför 0 i den listan, och en falsk "(0)" renderas aldrig (CTO-beslut
+            // 2026-06-13: hellre ingen siffra).
+            //
+            // Talet visas ändå, och det kommer från GRENEN NEDAN: den lata
+            // klient-hämtningen (B, useFacetCounts-mönstret) är levererad —
+            // use-recent-search-counts.ts → /api/me/recent-searches/counts →
+            // getRecentSearches(true) → hit med IncludeCount=true, off-critical-path.
+            // Ta alltså inte bort grenen som död kod; den är den enda producenten av
+            // siffran.
+            //
+            // Vad som kostar är FAN-OUT, inte per-count: TD-94:s per-count-rot är fixad
+            // (ADR 0062 Amendment 2026-06-13). Fan-out:en cap=20 är accepterad i ADR 0060
+            // Beslut 4 och OMÄTT — inget perf-scenario träffar den här endpointen. Det som
+            // håller den borta från kritisk väg är IncludeCount=false ovan, inget annat.
             int currentCount = 0;
             if (query.IncludeCount)
             {
@@ -127,6 +135,7 @@ public sealed class ListRecentSearchesQueryHandler(
                 // ADR 0067 Beslut 6 (Fas B2) — råa Klass 2-listor (inga labels, Fas E).
                 EmploymentTypeList: r.EmploymentType,
                 WorktimeExtentList: r.WorktimeExtent,
+                Remote: r.Remote,
                 OccupationGroupLabels: occupationGroupLabels,
                 MunicipalityLabels: municipalityLabels,
                 RegionLabels: regionLabels,

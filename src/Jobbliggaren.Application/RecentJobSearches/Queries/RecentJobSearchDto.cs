@@ -24,6 +24,10 @@ namespace Jobbliggaren.Application.RecentJobSearches.Queries;
 // anställningsform/omfattning är förfinings-filter (Fas E presentations-concern).
 // De råa listorna säkerställer att CountAsync filtrerar på exakt samma kriterium
 // som sökningen och att en framtida re-run reproducerar Klass 2.
+//
+// #1407: Remote surfas, Employer surfas inte. Vilka dimensioner som når projektionen,
+// och varför en utelämnas, ägs av RecentJobSearchProjectionParityTests — ett hem, som
+// fäller testet i stället för att bara beskriva.
 public sealed record RecentJobSearchDto(
     Guid Id,
     string? Q,
@@ -32,6 +36,7 @@ public sealed record RecentJobSearchDto(
     IReadOnlyList<string> RegionList,
     IReadOnlyList<string> EmploymentTypeList,
     IReadOnlyList<string> WorktimeExtentList,
+    bool Remote,
     IReadOnlyList<TaxonomyLabelDto> OccupationGroupLabels,
     IReadOnlyList<TaxonomyLabelDto> MunicipalityLabels,
     IReadOnlyList<TaxonomyLabelDto> RegionLabels,

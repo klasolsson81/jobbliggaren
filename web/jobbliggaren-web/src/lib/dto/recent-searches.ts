@@ -49,6 +49,18 @@ export const recentJobSearchDtoSchema = z.object({
   // bär Klass 2-filtret. Backend `RecentJobSearchDto` bär dem sedan B2/#60.
   employmentTypeList: z.array(z.string()),
   worktimeExtentList: z.array(z.string()),
+  // #1407 (#551 punkt 4) — distans-axeln. OBLIGATORISK, inte `.default(false)`, av
+  // två skäl som båda är husets egna: varje RÅTT dimensionsfält här är required (bara
+  // de tre `*Labels` defaultar), och högljutt-före-tyst-fel är ratificerat (ADR 0067
+  // rad 41; CTO 2026-06-13 "hellre ingen siffra än falsk (0)"). En default hade gjort
+  // ett saknat wire-fält oskiljbart från ett falskt — det här felet, ett lager ut.
+  //
+  // Det ger ett verkligt skew-fönster, och det är #1238: publiceringen är en
+  // fem-cells-matris utan fan-in, så `IMAGE_TAG`-defaulten `latest` kan resolva till
+  // nytt `web` mot gammalt `api` (`deploy/systemd/jobbliggaren-reconcile.timer` bär
+  // härledningen). Kostnaden är mätt och avgränsad: `responseToResult` fångar
+  // parse-felet, ytan degraderar till `{kind:"error"}`, och nästa reconcile läker det.
+  remote: z.boolean(),
   occupationGroupLabels: z.array(taxonomyLabelSchema).default([]),
   municipalityLabels: z.array(taxonomyLabelSchema).default([]),
   regionLabels: z.array(taxonomyLabelSchema).default([]),

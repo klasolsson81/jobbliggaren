@@ -84,6 +84,7 @@ function makeRecent(
     regionList: [],
     employmentTypeList: [],
     worktimeExtentList: [],
+    remote: false,
     occupationGroupLabels: [],
     municipalityLabels: [],
     regionLabels: [],

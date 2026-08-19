@@ -80,11 +80,19 @@ export const jobSeekerProfileSchema = z.object({
   // null) → required (ej optional), `.readonly()` speglar kontraktet. Läses
   // tillbaka för pre-fill så region + kommun submittas atomiskt (NOTE-1).
   preferredMunicipalities: z.array(z.string()).readonly(),
-  // #551 punkt 4: distans-axeln. Backend projicerar alltid en bool (aldrig
-  // null) → required, INTE optional: ett utelämnat fält hade maskerat
-  // kontraktsdrift som "användaren vill inte ha distans". Läses tillbaka för
-  // pre-fill så ett spar av någon annan dimension aldrig nollar den
-  // (samma full-replace page-wipe-vakt som region/kommun).
+  // #551 punkt 4: distans-axeln. Required, INTE optional: ett utelämnat fält hade
+  // maskerat kontraktsdrift som "användaren vill inte ha distans". Läses tillbaka
+  // för pre-fill så ett spar av någon annan dimension aldrig nollar den (samma
+  // full-replace page-wipe-vakt som region/kommun).
+  //
+  // ⚠ Det som gör `required` SANT är inte den här kommentaren utan en pin på andra
+  // sidan wire:t: `MatchPreferencesTests.PUT_match_preferences_round_trips_
+  // preferredRemote_through_the_profile` plus default-fallet bredvid den, och
+  // `MatchPreferencesContractParityTests`, som fäller varje dimension som inte når
+  // läsprojektionen. Den ordningen är inte akademisk: det här fältet gjordes
+  // required på styrkan av ett PÅSTÅENDE om backend som var falskt, och varje
+  // enhetstest förblev grönt eftersom fixturerna uppdaterats till att matcha
+  // antagandet. En required-nyckel utan pin på wire:t är en obevisad hypotes.
   preferredRemote: z.boolean(),
   preferredEmploymentTypes: z.array(z.string()).readonly(),
   // STEG 3 / ADR 0079 (Beslut 1): the CV-seeded, editable, trusted skill chips

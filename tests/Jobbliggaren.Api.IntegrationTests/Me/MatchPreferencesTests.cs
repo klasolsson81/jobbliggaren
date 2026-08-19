@@ -111,7 +111,10 @@ public class MatchPreferencesTests(ApiFactory factory)
         // Ingen PUT alls: default-fallet är det som varje ny användare möter, och det
         // är där ett utelämnat fält hade slagit hårdast.
         var profile = await GetProfileAsync(ct);
-        profile.TryGetProperty("preferredRemote", out var remote).ShouldBeTrue();
+        profile.TryGetProperty("preferredRemote", out var remote)
+            .ShouldBeTrue("profil-DTO:n MÅSTE bära preferredRemote även för en användare som "
+                + "aldrig satt den — FE:s schema kräver en bool, och default-fallet är det varje "
+                + "NY användare möter, alltså där ett saknat fält slår bredast");
         remote.GetBoolean().ShouldBeFalse();
     }
 

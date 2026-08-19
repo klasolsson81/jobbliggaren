@@ -76,8 +76,25 @@ public sealed partial class UserAccountService(
     public async Task DeleteUserAsync(Guid userId, CancellationToken ct)
     {
         var user = await userManager.FindByIdAsync(userId.ToString());
-        if (user is not null)
-            await userManager.DeleteAsync(user);
+        if (user is null)
+            return;
+
+        // #1349 — the IdentityResult was discarded. This is the COMPENSATING delete in
+        // RegisterCommandHandler's JobSeeker.Register failure arm, so a failure here leaves exactly
+        // the orphaned Identity row that flow exists to prevent — and said nothing about it. The
+        // row is then invisible until HardDeleteAccountsJob sweeps it a day later, or until someone
+        // reads the reverse of that sweep's counter.
+        //
+        // Codes, never Descriptions: the same discipline as LogEmailConfirmedPersistFailed below.
+        // A Description is user-facing prose that can carry the value that failed; a code cannot.
+        //
+        // Logged rather than thrown, deliberately. The caller is already returning a failure to the
+        // user and a throw here would replace a truthful validation error with a 500 — the
+        // compensation failing is an operator problem, not the registrant's.
+        var result = await userManager.DeleteAsync(user);
+        if (!result.Succeeded)
+            LogCompensatingDeleteFailed(
+                userId, string.Join(", ", result.Errors.Select(e => e.Code)));
     }
 
     public async Task<Result<UserCredentials>> ValidateCredentialsAsync(
@@ -449,4 +466,9 @@ public sealed partial class UserAccountService(
         "[UserAccountService] Password reset: persisting EmailConfirmed failed for user {UserId} " +
         "({ErrorCodes}) (the reset itself succeeded; the login 403 still offers a confirmation resend)")]
     private partial void LogEmailConfirmedPersistFailed(Guid userId, string errorCodes);
+
+    [LoggerMessage(4007, LogLevel.Warning,
+        "[UserAccountService] Compensating delete failed for user {UserId} ({ErrorCodes}) — an " +
+        "orphaned Identity row remains and is swept by HardDeleteAccountsJob, not before")]
+    private partial void LogCompensatingDeleteFailed(Guid userId, string errorCodes);
 }

@@ -318,8 +318,10 @@ public class ListCompanyWatchesQueryHandlerTests
     public async Task Handle_WhenWatchHasFilter_ProjectsBothGeoAxesAndOnlyMatched()
     {
         // The two axes are DISJOINT JobTech namespaces. A whole-län pick lives in Regions as ONE län
-        // concept-id and must reach the DTO unexpanded and un-swapped — expanding it into the län's
-        // kommuner (or crossing the axes) would produce a filter that matches nothing.
+        // concept-id and must reach the DTO unexpanded and un-swapped. The two failures differ:
+        // CROSSING the axes matches nothing at all (disjoint namespaces), while EXPANDING would
+        // drop only län-only ads — a class measured empty (#839), which is why the picker's
+        // "hela länet minus X" may materialise while this read path may not.
         var ct = TestContext.Current.CancellationToken;
         var db = TestAppDbContextFactory.Create();
         var watch = CompanyWatch.Follow(

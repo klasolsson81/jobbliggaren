@@ -142,6 +142,22 @@ describe("POST /api/foretag/sok (org.nr search BFF)", () => {
     },
   );
 
+  it.each(["556012-5790", " 556012 5790 "])(
+    "forwards the stripped ten digits for the written form %j",
+    async (written) => {
+      const fetchMock = routeFetch({ search: companyResponse(FOUND_COMPANY) });
+      global.fetch = fetchMock;
+
+      const res = await POST(makeRequest({ organizationNumber: written }));
+
+      expect(res.status).toBe(200);
+      const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+      expect(JSON.parse(init.body as string)).toMatchObject({
+        organizationNumber: VALID_ORGNR,
+      });
+    },
+  );
+
   it("forwards the STRIPPED ten digits when a century form is a legal entity", async () => {
     const fetchMock = routeFetch({ search: companyResponse(FOUND_COMPANY) });
     global.fetch = fetchMock;

@@ -55,7 +55,7 @@ export function ConfirmAccount({ uid, token }: ConfirmAccountProps) {
           <h1
             ref={doneHeadingRef}
             tabIndex={-1}
-            className="text-h1 font-bold text-heading-1 focus:outline-none"
+            className="text-h1 font-bold text-heading-1"
           >
             {t("auth.confirmAccount.successTitle")}
           </h1>

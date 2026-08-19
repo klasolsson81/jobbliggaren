@@ -59,7 +59,7 @@ export function RegisterForm() {
           tabIndex={-1}
           role="status"
           aria-live="polite"
-          className="flex flex-col gap-1 focus:outline-none"
+          className="flex flex-col gap-1"
         >
           {/* h2 (not a second h1 — the page already owns the h1): keeps the panel in the heading
               outline / reachable via heading navigation, while role=status + aria-live announce it. */}
@@ -90,7 +90,6 @@ export function RegisterForm() {
         tabIndex={-1}
         role="status"
         aria-live="polite"
-        className="focus:outline-none"
       >
         <p className="text-body text-text-primary">
           {t("auth.actions.registrationsClosed")}

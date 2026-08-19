@@ -20,6 +20,8 @@ import type { TaxonomyTree } from "@/lib/dto/taxonomy";
 import {
   buildJobbHref,
   DEFAULT_SORT_BY,
+  DISTANS_ON_VALUE,
+  DISTANS_PARAM,
   serializeJobbAxis,
   withCommitFlag,
   type JobbUrlState,
@@ -692,6 +694,13 @@ export function JobbHeroSearch({
           sökning utan JS inte tappar det (paritet med dimensionerna ovan). */}
       {lastCommitted.employer && (
         <input type="hidden" name="employer" value={lastCommitted.employer} />
+      )}
+      {/* #551 punkt 4 — no-JS-submit bär Distans (paritet employer ovan). Ligger
+          UTANFÖR axisInputs: den är en boolean med ett sentinel-värde, inte en
+          joinad id-lista. Utan raden raderar en native GET före hydrering
+          ?distans=on tyst — precis den felklass kommentaren ovan varnar för. */}
+      {lastCommitted.remote && (
+        <input type="hidden" name={DISTANS_PARAM} value={DISTANS_ON_VALUE} />
       )}
       {sortBy !== DEFAULT_SORT_BY && (
         <input type="hidden" name="sortBy" value={sortBy} />

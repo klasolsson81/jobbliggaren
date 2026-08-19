@@ -320,23 +320,23 @@ export function JobbFilterPopover({
           semibold), inte för sin "Välj alla"-semantik — propen styr bara
           utseendet. Ingen ny klass: globals.css ägs av en parallell session. */}
       {booleanAxis && (
-        <>
+        <div className="jp-popover__boolaxis">
           <CheckRow
             label={booleanAxis.label}
             checked={booleanAxis.checked}
             onToggle={booleanAxis.onToggle}
             describedBy={booleanAxis.hint ? boolHintId : undefined}
-            isAll
+            isAll={!booleanAxis.hint}
           />
           {booleanAxis.hint && (
             <p
               id={boolHintId}
-              className="text-body-sm text-text-primary px-4 pb-2"
+              className="text-body-sm text-text-primary px-4 pt-2 pb-2"
             >
               {booleanAxis.hint}
             </p>
           )}
-        </>
+        </div>
       )}
       <div className="jp-popover__body">
         {/* maxHeight/overflowY på själva kolumnen (ej enbart grid-

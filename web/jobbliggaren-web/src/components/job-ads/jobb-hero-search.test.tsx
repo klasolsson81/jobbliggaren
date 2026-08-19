@@ -731,3 +731,21 @@ describe("JobbHeroSearch — 'Spara sökningen'-länk (#419 pt6)", () => {
     ).toBeNull();
   });
 });
+
+describe("JobbHeroSearch — no-JS bär Distans (#551 punkt 4)", () => {
+  // Den TREDJE producenten av dessa params, och den enda som inte kan anropa en
+  // URL-byggare: en native GET ersätter hela query-strängen. Den konstruerar
+  // heller ingen JobbUrlState, så required-fältet på typen kunde inte fånga
+  // den — därför denna pin.
+  it("committad distans blir en hidden input, så en native GET inte raderar den", () => {
+    const { container } = setup({ q: "volvo", remote: true });
+    const input = container.querySelector('input[name="distans"]');
+    expect(input).not.toBeNull();
+    expect(input).toHaveAttribute("value", "on");
+  });
+
+  it("utan distans skrivs INGEN input (frånvaro = av, ren URL)", () => {
+    const { container } = setup({ q: "volvo", remote: false });
+    expect(container.querySelector('input[name="distans"]')).toBeNull();
+  });
+});

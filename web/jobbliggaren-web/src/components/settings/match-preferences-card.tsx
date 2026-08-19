@@ -288,6 +288,31 @@ export function MatchPreferencesCard({
     memberConceptIds: ReadonlyArray<string> = [conceptId]
   ) {
     const prev = currentSets();
+
+    // Grannen att flytta fokus till (CHIP-ordning, inte rå member-lista): nästa
+    // kvarvarande chip, annars föregående, annars "Lägg till". Beräknas FÖRE
+    // borttagningen mot den renderade chip-listan — så ett twin-grupp-chip (vars
+    // member-id ej är egna chips) får en korrekt chip-granne med en ref.
+    //
+    // Ligger ovanför distans-grenen MED FLIT: varje borttagningsväg måste
+    // återställa fokus (WCAG 2.4.3), och en väg som returnerar tidigt tappar det
+    // till <body>. Det var precis vad distans-grenen gjorde i sin första form.
+    const chipIds = facetData[facet].map((c) => c.conceptId);
+    const chipIndex = chipIds.indexOf(conceptId);
+    const neighbourConceptId =
+      chipIds[chipIndex + 1] ?? chipIds[chipIndex - 1] ?? null;
+    function restoreFocus() {
+      if (!keyboard) return;
+      queueMicrotask(() => {
+        const target =
+          neighbourConceptId !== null
+            ? removeRefs.current.get(refKey(facet, neighbourConceptId))
+            : null;
+        if (target) target.focus();
+        else addButtonRef.current?.focus();
+      });
+    }
+
     // #551 punkt 4 — distans är en BOOLEAN, inte ett id i en lista, så den kan
     // aldrig gå genom list-maskineriet nedan. Utan denna gren klassar ortAxisOf
     // sentinel-id:t som en kommun (allt som inte finns i selectedRegions) och
@@ -295,6 +320,7 @@ export function MatchPreferencesCard({
     if (conceptId === DISTANS_CHIP_ID) {
       const next: PrefSets = { ...prev, remote: false };
       setSelectedRemote(false);
+      restoreFocus();
       persist(next, () => setSelectedRemote(prev.remote));
       return;
     }
@@ -313,28 +339,8 @@ export function MatchPreferencesCard({
     const nextList = list.filter((v) => !drop.has(v));
     const next: PrefSets = { ...prev, [axisFor]: nextList };
 
-    // Bestäm grannen att flytta fokus till (CHIP-ordning, inte rå member-lista):
-    // nästa kvarvarande chip, annars föregående, annars "Lägg till". Beräknas FÖRE
-    // borttagningen mot den renderade chip-listan — så ett twin-grupp-chip (vars
-    // member-id ej är egna chips) får en korrekt chip-granne med en ref. (Skills
-    // = canonical-keyade grupp-chips; övriga facetter = 1:1, samma beteende.)
-    const chipIds = facetData[facet].map((c) => c.conceptId);
-    const chipIndex = chipIds.indexOf(conceptId);
-    const neighbourConceptId =
-      chipIds[chipIndex + 1] ?? chipIds[chipIndex - 1] ?? null;
-
     applyAxis(axisFor, nextList);
-
-    if (keyboard) {
-      queueMicrotask(() => {
-        const target =
-          neighbourConceptId !== null
-            ? removeRefs.current.get(refKey(facet, neighbourConceptId))
-            : null;
-        if (target) target.focus();
-        else addButtonRef.current?.focus();
-      });
-    }
+    restoreFocus();
 
     persist(next, () => applyAxis(axisFor, prev[axisFor]));
   }

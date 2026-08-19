@@ -35,11 +35,17 @@ export interface JobbUrlState {
   // runtime-view-state som vissa byggare medvetet inte bär, och deras frånvaro är
   // ofarlig. Distans är en FACETT som når backend — utelämnad tappas den tyst ur
   // varje href den byggaren producerar. Ett obligatoriskt fält gör det till ett
-  // kompileringsfel i stället för ett granskningsfynd; mätt på denna PR blev det
-  // sju Major på den kedja där fältet var optional och noll på den där det inte
-  // var det. (`OrtChoice.remote` är optional och betyder något ANNAT där: att
-  // ytan saknar axeln. Två optionaliteter som ser lika ut på anropsplatsen är
-  // precis hur den här buggen uppstod.)
+  // kompileringsfel för varje byggare som KONSTRUERAR en JobbUrlState.
+  //
+  // Det greppet är inte heltäckande, och att tro det är farligt: en producent som
+  // inte konstruerar typen — no-JS-formulärets råa hidden inputs i
+  // jobb-hero-search — når kompilatorn inte, och den tappade axeln i just den
+  // vägen tills en granskare läste den. Required-fältet stänger konstruktions-
+  // platserna; resten kräver ett svep på egenskapen.
+  //
+  // (`OrtChoice.remote` är optional och betyder något ANNAT: att ytan saknar
+  // axeln. Två optionaliteter som ser lika ut på anropsplatsen är precis hur den
+  // här buggen uppstod.)
   remote: boolean;
   // Klass 2 (ADR 0067 Fas E, 2026-06-13) — Klass-2-filterpanelens dimensioner.
   // `employmentType` = anställningsform (JobTech `employment-type`, ~8,

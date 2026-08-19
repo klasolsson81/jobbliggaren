@@ -2,6 +2,7 @@ using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.JobAds.Abstractions;
 using Jobbliggaren.Application.RecentJobSearches.Abstractions;
 using Jobbliggaren.Application.RecentJobSearches.Common;
+using Jobbliggaren.Domain.CompanyWatches;
 using Jobbliggaren.Domain.JobAds;
 using Jobbliggaren.Domain.SavedSearches;
 using Mediator;
@@ -136,6 +137,35 @@ public sealed partial class RecentJobSearchCaptureBehavior<TMessage, TResponse>(
             return response;
         }
 
+        // A2 (Klas-beslut 2026-08-19, security-auditor Major) - the ?employer= axis is a
+        // FORMAT gate (^[0-9]{10}\z), never a personnummer discriminator, because a 10-digit
+        // personnummer is format-identical to an org.nr. It also has ZERO producers: the only
+        // code that ever built such a link was company-lookup.tsx, deleted in aca39970
+        // (#997/#1030). So the two protections the parser's docblock names both fail - the
+        // producer guard vacuously, and the backend masking because it does not reach here -
+        // and every live value in that param comes from a hand-typed URL or an old bookmark.
+        //
+        // Without this, a committed search on a hand-typed pnr-shaped value persists it in
+        // PLAINTEXT to recent_job_searches.employer_list: no encryption (ADR 0049's envelope
+        // scope is four CV columns), no time-based retention (only an LRU cap of 20 per seeker),
+        // and no hit gate - a value matching zero ads is stored exactly as reliably as one that
+        // matches. For an enskild firma that value IS the holder's personnummer (#841), and the
+        // bearer is a THIRD PARTY, so no acceptance route was available: this is fixed, not
+        // accepted.
+        //
+        // SKIP the capture rather than filter the value out of the list. A filtered row would
+        // no longer reproduce the search it claims to be, which is what Senaste sokningar is
+        // for. The SEARCH still runs - refusing it would break a legitimate filter on a sole
+        // trader's ads, which are real ads.
+        //
+        // OrganizationNumber.IsPersonnummerShaped is the house's single-sourced discriminator
+        // (LookupCompanyQueryHandler and ICompanyRegisterSearchQuery both refuse on it); this
+        // axis was the one surface that did not consult it. Create() failing counts as shaped:
+        // the detector is fail-safe in the wide direction by design, and a value this axis
+        // cannot even parse is not one to persist.
+        if ((capt.Employer ?? []).Any(IsPersonnummerShaped))
+            return response;
+
         try
         {
             var criteriaResult = SearchCriteria.Create(
@@ -190,4 +220,15 @@ public sealed partial class RecentJobSearchCaptureBehavior<TMessage, TResponse>(
         Level = LogLevel.Warning,
         Message = "RecentJobSearch auto-capture misslyckades för {MessageType} (best-effort, query orörd). ExceptionType={ExceptionType}")]
     private static partial void LogCaptureFailed(ILogger logger, string exceptionType, string messageType);
+
+    /// <summary>
+    /// #841 / ADR 0087 D8(c) - true when the value is, or cannot be shown not to be, a
+    /// personnummer. Delegates to the domain's own detector rather than re-deriving the rule, so
+    /// this axis and every other org.nr surface refuse on exactly the same predicate.
+    /// </summary>
+    private static bool IsPersonnummerShaped(string employer)
+    {
+        var orgNr = OrganizationNumber.Create(employer);
+        return orgNr.IsFailure || orgNr.Value.IsPersonnummerShaped();
+    }
 }

@@ -150,6 +150,74 @@ public class RecentJobSearchCaptureBehaviorTests
             _userId, Arg.Any<SearchCriteria>(), 7, Arg.Any<CancellationToken>());
     }
 
+    // ---- A2: the ?employer= axis stops persisting a personnummer (Klas-beslut 2026-08-19) ----
+
+    // Third digit < '2' is the house discriminator: a legal entity's org.nr always has >= 2 there,
+    // a personnummer has 0 or 1. These are the two forms a hand-typed URL can carry, since the
+    // format gate accepts any ten digits and has no discriminator of its own.
+    [Theory]
+    [InlineData("1010101010")]   // pnr-shaped, third digit 1
+    [InlineData("0001010101")]   // pnr-shaped, third digit 0
+    public async Task Handle_PersonnummerShapedEmployer_RunsTheSearchButCapturesNothing(string employer)
+    {
+        // Not a hypothetical premise: `?employer=` is a FORMAT gate with zero producers left
+        // (company-lookup.tsx was deleted in aca39970), so every live value in it comes from a
+        // hand-typed URL or an old bookmark - exactly what this argument is.
+        await HandleAsync(new FakeSearchQuery(
+            Q: null, OccupationGroup: null, Municipality: null, Region: null,
+            Employer: [employer]));
+
+        // The SEARCH ran (HandleAsync returns the handler's response); only the persistence is
+        // skipped. Refusing the search would break a legitimate filter on a sole trader's ads.
+        await _capturer.DidNotReceive().CaptureAsync(
+            Arg.Any<Guid>(), Arg.Any<SearchCriteria>(), Arg.Any<int>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Handle_PersonnummerShapedEmployerBesideOtherFilters_CapturesNothingAtAll()
+    {
+        // Skip, never filter. A row with the employer stripped out would no longer reproduce the
+        // search it claims to be, which is the whole point of Senaste sokningar - and it would put
+        // a misleading row in front of the user instead of no row.
+        await HandleAsync(new FakeSearchQuery(
+            Q: "backend", OccupationGroup: ["1234"], Municipality: null, Region: null,
+            Employer: ["1010101010"]));
+
+        await _capturer.DidNotReceive().CaptureAsync(
+            Arg.Any<Guid>(), Arg.Any<SearchCriteria>(), Arg.Any<int>(), Arg.Any<CancellationToken>());
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("55660101")]        // too short
+    [InlineData("55660101011")]     // too long
+    [InlineData("556601010a")]      // not all digits
+    public async Task Handle_UnparseableEmployer_CapturesNothing(string employer)
+    {
+        // Fail-safe in the wide direction, matching OrganizationNumber.IsPersonnummerShaped's own
+        // posture: a value this axis cannot even parse is not one to persist. These cannot reach
+        // the handler through parseEmployerParam today - it drops anything but ten digits - but the
+        // guard must not depend on a gate one layer up staying exactly as narrow as it is now.
+        await HandleAsync(new FakeSearchQuery(
+            Q: null, OccupationGroup: null, Municipality: null, Region: null,
+            Employer: [employer]));
+
+        await _capturer.DidNotReceive().CaptureAsync(
+            Arg.Any<Guid>(), Arg.Any<SearchCriteria>(), Arg.Any<int>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Handle_OneShapedEmployerAmongMany_CapturesNothing()
+    {
+        // Any, not All: one personnummer in the list is one personnummer persisted.
+        await HandleAsync(new FakeSearchQuery(
+            Q: null, OccupationGroup: null, Municipality: null, Region: null,
+            Employer: ["5566010101", "1010101010"]));
+
+        await _capturer.DidNotReceive().CaptureAsync(
+            Arg.Any<Guid>(), Arg.Any<SearchCriteria>(), Arg.Any<int>(), Arg.Any<CancellationToken>());
+    }
+
     [Fact]
     public async Task Handle_EmployerOnly_CapturesSearch_WithOrgNr()
     {

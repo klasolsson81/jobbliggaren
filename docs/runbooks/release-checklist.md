@@ -1274,8 +1274,11 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
       under båda och flyttade **+19**. ⚠ **Notisraden flyttade 64 → 82, och den har TOLV egna hem** —
       elva i den här runbooken och ett i paritetssvitens egen docblock
       (`content-legal-parity.test.ts`), samtliga presens-påståenden eller körinstruktioner, inte
-      historik. Alla tolv är ommätta i samma PR (`grep -n "Notiserna planeras att skickas med
-      e-post"`, båda locales → 82). **Egenskapen är "levande radnummer-pekare in i
+      historik. Alla tolv är ommätta i samma PR, **ett kommando per locale eftersom strängen skiljer
+      sig** — `grep -n "Notiserna planeras att skickas med e-post" …/sv/content-legal.json` och
+      `grep -n "The notifications are planned to be sent by email" …/en/content-legal.json`, båda →
+      **82**. (Ett enda svenskt kommando med slutsatsen "båda locales" ger noll på den engelska
+      filen: samma halvmätning som §2.6 finns för att förbjuda.) **Egenskapen är "levande radnummer-pekare in i
       `content-legal.json`", och §2.6-mängden är bara ett av tretton hem.** ⚠ Den här noten fick
       räknas om en gång: första sveget täckte bara runbooken, och `code-reviewer` mätte
       filsystemsvitt och hittade det tolfte — **i just den fil §2.6 utpekar som radens mekaniska

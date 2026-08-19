@@ -73,8 +73,9 @@ public class WatchFilterSpecTests
     [Fact]
     public void Create_RegionsAlone_Succeeds()
     {
-        // A whole-län selection is a COMPLETE filter on its own — it is never expanded into
-        // kommun-ids (that expansion is exactly the silent-miss bug F4a exists to prevent).
+        // A whole-län selection is a COMPLETE filter on its own — the WRITE path never expands it
+        // into kommun-ids. (The ort picker's "hela länet minus X" DOES materialise, deliberately and
+        // measured inert — #839; see WatchFilterSpec. Do not read this pin as forbidding that.)
         var result = WatchFilterSpec.Create(municipalities: null, ["CifL_Rzy_Mku"], onlyMatched: false);
 
         result.IsSuccess.ShouldBeTrue();

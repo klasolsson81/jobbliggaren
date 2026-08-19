@@ -21,19 +21,42 @@ namespace Jobbliggaren.Domain.CompanyWatches;
 /// <para>
 /// <b><see cref="Municipalities"/> and <see cref="Regions"/> are JobTech concept-ids in two
 /// DISJOINT namespaces (RF-4=4A)</b> — the ones job ads carry (<c>municipality_concept_id</c>
-/// and <c>region_concept_id</c> STORED columns) and the match-setup picker already emits.
+/// and <c>region_concept_id</c>, plain columns) and the match-setup picker already emits.
 /// Deliberately NOT the SCB 4-digit seat-kommun codes of the criteria rail ("annonsens ort"
 /// vs "säteskommun" — two different concepts, kept apart in copy).
 /// </para>
 ///
 /// <para>
-/// <b>The two geo axes are a UNION, not a hierarchy (F4a, CTO 2026-07-12 Q3=B).</b> A whole-län
-/// selection is stored as the LÄN concept-id, never expanded into its municipalities — because
-/// an ad may be tagged at län granularity with NO municipality at all. Materialising "Hela Skåne"
-/// into 33 kommun-ids would silently drop every län-only Skåne ad from the user's notifications:
-/// a silent miss in a never-miss product. <see cref="AdmitsLocation"/> therefore mirrors the
-/// house-canonical predicate (<c>JobAdSearchComposition</c>): municipality-hit OR region-hit.
-/// One geo semantics across /jobb, match-setup and the watch filter.
+/// <b>The two geo axes are a UNION, not a hierarchy (F4a, CTO 2026-07-12 Q3=B).</b> Picking a whole
+/// län stores the LÄN concept-id and never expands it into that län's municipalities.
+/// <see cref="AdmitsLocation"/> mirrors the house-canonical predicate
+/// (<c>JobAdSearchComposition</c>): municipality-hit OR region-hit. One geo semantics across /jobb,
+/// match-setup and the watch filter.
+/// </para>
+///
+/// <para>
+/// <b>ONE normaliser materialises, deliberately (#839, decided 2026-08-19).</b> This VO cannot tell
+/// a materialised län from a hand-picked kommun list, and one caller DOES hand it the former: the
+/// watch dialog's own ort cascade calls <c>toggleMunicipalityInRegion</c>, which answers "hela länet
+/// minus Göteborg" by dropping the län id and writing the län's OTHER municipalities. (The
+/// normaliser's other call site writes /jobb's URL and never reaches this type.) This paragraph previously read as a
+/// repo-wide invariant, which that path has always broken.
+/// </para>
+///
+/// <para>
+/// It is not drift. Under the union above, län-id ∪ kommun-ids ≡ the whole län, so KEEPING the
+/// län id would silently re-admit the very kommun the user just clicked away. Expressing the
+/// selection faithfully needs a third disjunct reading the län's residual
+/// (<c>muni IN (…) OR (region = X AND municipality IS NULL)</c>) — an ADDED branch, not an
+/// exclusion axis — which #839 rejected as provably inert, not as too expensive.
+/// </para>
+///
+/// <para>
+/// What materialising costs is an ad tagged at LÄN granularity with no municipality: it matches the
+/// län id and none of the kommun ids. That class is measured EMPTY, and it is re-measured rather
+/// than inherited — <c>JobAdConfiguration</c> owns the measurement, the query that regenerates it,
+/// and the trigger to revisit the third disjunct. It lives there because the branch that would
+/// break the correlation is in the ingest, not in this value object.
 /// </para>
 ///
 /// <para>

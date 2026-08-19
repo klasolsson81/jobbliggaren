@@ -886,8 +886,9 @@ public class DigestDispatchJobTests
     [Fact]
     public async Task RunAsync_RegionOnlyFilteredWatch_PopulatesFilterSummary_LocationFilterActive()
     {
-        // F4a REGRESSION PIN. A whole-län watch carries its selection on the REGION axis (a län pick is
-        // never expanded into kommun-ids — that expansion is the silent-miss bug F4a removes). Its
+        // F4a REGRESSION PIN. A whole-län watch carries its selection on the REGION axis (a whole-län
+        // pick is never expanded into kommun-ids; the picker's "minus X" path is a different selection
+        // and DOES materialise, deliberately — #839). Its
         // Municipalities list is therefore EMPTY, and a disclosure rule that only looks at
         // Municipalities.Count reports "no location filter" for a mail that WAS narrowed by location:
         // the user is silently told nothing about the ads the scan suppressed. Location is disclosed

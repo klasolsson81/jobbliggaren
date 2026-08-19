@@ -90,7 +90,12 @@ public sealed class ListRecentSearchesQueryHandler(
             // use-recent-search-counts.ts → /api/me/recent-searches/counts →
             // getRecentSearches(true) → hit med IncludeCount=true, off-critical-path.
             // Ta alltså inte bort grenen som död kod; den är den enda producenten av
-            // siffran. Rotorsaken (slow ListJobAds COUNT) står kvar.
+            // siffran.
+            //
+            // Vad som kostar är FAN-OUT, inte per-count. TD-94:s rotorsak är fixad (ADR 0062
+            // Amendment 2026-06-13, "closed by this amendment"); kvar är cap=20 sekventiella
+            // counts, var och en med egen transaktion — accepterat i ADR 0060 Beslut 4 och
+            // gatat av en fitness function, inte en olöst regression.
             int currentCount = 0;
             if (query.IncludeCount)
             {

@@ -10,8 +10,10 @@ import { isValidId } from "@/lib/validation/guid";
 
 /**
  * Klient-side timeout för list-anropet. ADR 0060 Beslut 4 accepterar N+1
- * COUNT-projektion under cap=20. Default-timeout är pragmatic band tills
- * TD-94 löser rotorsaken (ListJobAds COUNT-perf p50 1.2s/max 6.7s).
+ * COUNT-projektion under cap=20, och det är den fan-out:en bandet finns för.
+ * TD-94:s per-count-rotorsak är FIXAD (ADR 0062 Amendment 2026-06-13); talen
+ * p50 1.2s/max 6.7s är avläsningar från FÖRE den fixen och bevaras som daterad
+ * historik, inte som nuläge.
  *
  * <p>Konsumenter som anropar med <code>includeCount=false</code> behöver ingen
  * slow COUNT-loop → kortare default-timeout. Sidladdningarna (/oversikt,
@@ -48,8 +50,10 @@ const LIST_TIMEOUT_WITH_COUNT_MS = 25_000;
  * återinförd via lat klient-hämtning (B, useFacetCounts-mönstret) — oberoende av
  * TD-94:s rotfix.</p>
  *
- * <p><code>true</code> tar 15-25s slow load + risk för timeout, och hör därför
- * hemma ENBART off-critical-path. Anropa den inte från en sidladdning.</p>
+ * <p><code>true</code> mättes till 15-25s slow load 2026-05-24, före ADR 0062:s
+ * rotfix; kvarvarande kostnad är fan-out:en cap=20, som är omätt och därför
+ * gatad. Vägen hör hemma ENBART off-critical-path — anropa den inte från en
+ * sidladdning.</p>
  */
 export async function getRecentSearches(
   includeCount: boolean = false,

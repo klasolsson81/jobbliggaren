@@ -168,7 +168,15 @@ public class RecentSearchesTests(ApiFactory factory)
         var listResponse = await _client.GetAsync("/api/v1/me/recent-searches", ct);
         var items = await listResponse.Content.ReadFromJsonAsync<JsonElement>(ct);
         items.GetArrayLength().ShouldBe(1);
-        // ...but the org.nr is NOT on the wire (no employer/employerList field — D8(c) surfacing guard).
+        // ...but the org.nr is NOT on the wire. Asserted on the VALUE, not on two spellings:
+        // every guard upstream of here (RecentJobSearchProjectionParityTests.NotSurfaced,
+        // RecentJobSearchDtoContractTests.SurfacedProperties) reasons about property NAMES, so a
+        // projection called `Employers` or `EmployerOrgNumbers` carrying r.Employer passes all of
+        // them. This is the one layer where the value itself is observable, so this is where the
+        // spelling axis closes. Shape over name — same form as JobAdPublicSurfaceGuardTests.
+        items[0].GetRawText().Contains(orgNr, StringComparison.Ordinal).ShouldBeFalse(
+            "no recent-search projection may carry the employer org.nr to the wire under ANY "
+            + "property name — for an enskild firma the value is the holder's personnummer (#841).");
         items[0].TryGetProperty("employer", out _).ShouldBeFalse();
         items[0].TryGetProperty("employerList", out _).ShouldBeFalse();
 

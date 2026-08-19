@@ -67,11 +67,7 @@ public class RecentJobSearchProjectionParityTests
     [Fact]
     public void EverySearchDimension_ReachesTheReadProjection()
     {
-        var projected = typeof(RecentJobSearchDto)
-            .GetProperties(BindingFlags.Public | BindingFlags.Instance)
-            .Select(p => p.Name)
-            .ToHashSet(StringComparer.Ordinal);
-
+        var projected = ProjectedProperties();
         var dimensions = SearchDimensions().ToArray();
 
         // Floor against a broken source set: an inclusion spec can never detect that it is
@@ -102,16 +98,19 @@ public class RecentJobSearchProjectionParityTests
         // to the DTO plus RecentJobSearchDtoContractTests.SurfacedProperties, leave the
         // entry, ship.
         //
-        // What this closes, measured: that path now fails here. What it does NOT close,
-        // also measured: DELETING the entry as "now false" leaves every test in this file
-        // green. No assertion can outlive its own deletion. What the pair buys is that the
-        // only way through is to remove a documented PII ground from the diff — a visible
-        // human act a reviewer can see — instead of a property addition that reads as
-        // tidying up. That is the whole claim; it is not a deadlock.
-        var projected = typeof(RecentJobSearchDto)
-            .GetProperties(BindingFlags.Public | BindingFlags.Instance)
-            .Select(p => p.Name)
-            .ToHashSet(StringComparer.Ordinal);
+        // What this closes, measured: that path now fails here.
+        //
+        // TWO routes stay open, and naming them is the point — this guard reasons about
+        // property NAMES, like its sibling. (1) DELETING the entry as "now false" leaves
+        // every test in this file green; no assertion outlives its own deletion. (2) A
+        // projection under some OTHER spelling — `Employers`, `EmployerOrgNumbers` — is not
+        // a key this dictionary checks, so it passes here with the entry intact.
+        //
+        // Route 2 is closed one layer out, on the value rather than the name:
+        // RecentSearchesTests asserts the org.nr appears nowhere in the response text. What
+        // THIS pair buys is narrower: an entry can no longer be a rubber stamp while the
+        // property it excuses sits on the DTO under the house spelling.
+        var projected = ProjectedProperties();
 
         var surfacedAnyway = NotSurfaced.Keys
             .Where(name => projected.Contains(name) || projected.Contains(name + "List"))
@@ -140,6 +139,15 @@ public class RecentJobSearchProjectionParityTests
         stale.ShouldBeEmpty(
             $"NotSurfaced names dimensions RecentJobSearch no longer has: {string.Join(", ", stale)}");
     }
+
+    // Shared so the two complementary predicates cannot drift apart: one asserts a
+    // dimension IS in this set, the other that a NotSurfaced key is NOT. A diverging
+    // BindingFlags would silently stop them measuring the same surface.
+    private static HashSet<string> ProjectedProperties() =>
+        typeof(RecentJobSearchDto)
+            .GetProperties(BindingFlags.Public | BindingFlags.Instance)
+            .Select(p => p.Name)
+            .ToHashSet(StringComparer.Ordinal);
 
     private static IEnumerable<string> SearchDimensions() =>
         typeof(RecentJobSearch)

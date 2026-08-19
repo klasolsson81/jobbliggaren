@@ -69,9 +69,10 @@ public class MatchPreferencesContractParityTests
 
         var dimensions = StatedDimensions().ToArray();
 
-        // Golv mot en trasig källmängd: en inclusion-spec kan aldrig upptäcka att den mäter
-        // ingenting. Töms StatedDimensions() — allow-listan breddad, properties som slutar vara
-        // publika, VO:t omstrukturerat — blir `missing` tom och båda fakta går gröna och TYSTA.
+        // Floor against a broken source set: an inclusion spec can never detect that it is
+        // measuring nothing. If StatedDimensions() ever comes back empty — allow-list widened,
+        // properties no longer public, the VO restructured — `missing` is empty too and BOTH
+        // facts pass green and silent.
         dimensions.ShouldNotBeEmpty(
             "the guard measures nothing if MatchPreferences exposes no stated dimensions");
 

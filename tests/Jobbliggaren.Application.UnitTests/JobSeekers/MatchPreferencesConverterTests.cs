@@ -31,10 +31,23 @@ public class MatchPreferencesConverterTests
     /// a success status.
     ///
     /// <para>
-    /// <c>Empty</c> is a sufficient probe, and a populated fixture would be WORSE: every dimension
-    /// on <c>Create</c> has a default parameter, so a hand-written call keeps compiling when a
-    /// dimension is added, and the probe would silently stop covering it. <c>Write</c> emits every
-    /// key unconditionally in canonical form, so the empty VO exercises the full key set.
+    /// <c>Empty</c> is a sufficient probe, and a populated fixture would be WORSE. A new dimension
+    /// is APPENDED to <c>Create</c> as an optional parameter — <c>preferredRemote = false</c> is the
+    /// delivered case — so a hand-written call keeps compiling and silently stops covering it. (Not
+    /// every parameter has a default: the first three are required positional. It is the appended
+    /// ones that make a fixture rot quietly.) <c>Write</c> emits every key unconditionally in
+    /// canonical form, so the empty VO exercises the full key set.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>KNOWN RESIDUAL: this binds <c>Write</c>, not <c>Read</c>.</b> Add
+    /// <c>writer.WriteBoolean("X", …)</c> without the matching <c>case "X":</c> and the value falls
+    /// through <c>Read</c>'s <c>default: reader.Skip()</c> — the same silent loss, and nothing here
+    /// fails. That half stays covered dimension-by-dimension rather than as a class, deliberately: a
+    /// Read probe needs a POPULATED fixture, the shape this paragraph argues against, so closing it
+    /// that way would trade a known gap for a silent one. It also pins key PRESENCE, not value
+    /// fidelity — a <c>Write</c> hardcoding <c>false</c> would pass here and fail the round-trip
+    /// tests, which is where fidelity belongs. Named rather than closed.
     /// </para>
     /// </summary>
     [Fact]

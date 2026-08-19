@@ -296,7 +296,8 @@ export function withCommitFlag(href: string): string {
  * `aca39970` (#997/#1030) — grinden vaktar en tom mängd. Det finns fortfarande noll
  * ORIGINATORER av ett employer-värde, men `buildJobbHref`, `buildPageHref` och toolbarens
  * `commit()` round-trippar värdet ur URL:en, så en handskriven param återkommitteras vid
- * varje sortbyte och varje chip-×. Backend-maskningen (ADR 0087 D8(c)) når inte hit heller.
+ * varje sortbyte och varje chip-× UTOM arbetsgivarens eget (`removeEmployer` navigerar utan
+ * commit, just av det skälet). Backend-maskningen (ADR 0087 D8(c)) når inte hit heller.
  *
  * Det som FAKTISKT skyddar sedan 2026-08-19 är persistens-grinden i
  * `RecentJobSearchCaptureBehavior` (A2, Klas-beslut): en pnr-formad employer capturas

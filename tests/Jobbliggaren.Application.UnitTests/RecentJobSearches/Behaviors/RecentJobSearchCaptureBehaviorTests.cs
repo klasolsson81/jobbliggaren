@@ -194,10 +194,18 @@ public class RecentJobSearchCaptureBehaviorTests
     [InlineData("556601010a")]      // not all digits
     public async Task Handle_UnparseableEmployer_CapturesNothing(string employer)
     {
-        // Fail-safe in the wide direction, matching OrganizationNumber.IsPersonnummerShaped's own
-        // posture: a value this axis cannot even parse is not one to persist. These cannot reach
-        // the handler through parseEmployerParam today - it drops anything but ten digits - but the
-        // guard must not depend on a gate one layer up staying exactly as narrow as it is now.
+        // DECLARED UNREACHABLE (CLAUDE.md section 5, Tests:), so this asserts only that the
+        // persistence path degrades safely - never what production does with such a value.
+        //
+        // The gate that actually stops them is ListJobAdsQueryValidator's
+        // RuleForEach(q => q.Employer).Matches(OrganizationNumberPattern), which runs in
+        // ValidationBehavior BEFORE this behaviour and 400s all four. `parseEmployerParam` is a
+        // second, narrower gate on the FE and is NOT what makes them unreachable - naming it alone
+        // would put the declaration on the wrong gate (code-reviewer, PR #1411).
+        //
+        // Kept as defence in depth: fail-safe in the wide direction, matching
+        // OrganizationNumber.IsPersonnummerShaped's own posture, so the guard does not depend on a
+        // gate one layer up staying exactly as narrow as it is now.
         await HandleAsync(new FakeSearchQuery(
             Q: null, OccupationGroup: null, Municipality: null, Region: null,
             Employer: [employer]));
@@ -209,7 +217,16 @@ public class RecentJobSearchCaptureBehaviorTests
     [Fact]
     public async Task Handle_OneShapedEmployerAmongMany_CapturesNothing()
     {
-        // Any, not All: one personnummer in the list is one personnummer persisted.
+        // DECLARED UNREACHABLE, same as the four unparseable forms above and for the same reason
+        // it must be said out loud: no live path delivers arity > 1. `parseEmployerParam` takes
+        // `raw[0]`, and `lib/api/job-ads.ts` appends `employer` once from a `string | undefined`;
+        // under Option B the API is never edge-exposed, so nothing else can supply a second
+        // element. So this asserts only that the persistence path degrades safely, never what
+        // production does (security-auditor, PR #1411).
+        //
+        // Kept because the wire type IS a list: `ListJobAdsQuery.Employer` binds `string[]`, so
+        // `Any` and not `All` is the correct predicate the day a second element becomes possible.
+        // One personnummer in the list is one personnummer persisted.
         await HandleAsync(new FakeSearchQuery(
             Q: null, OccupationGroup: null, Municipality: null, Region: null,
             Employer: ["5566010101", "1010101010"]));

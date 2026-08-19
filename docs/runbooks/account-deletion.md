@@ -67,7 +67,7 @@ Hangfire-jobb kör 04:00 UTC daily. Tre steg:
 - Plockar upp Identity-rader som hängde kvar från tidigare körning där Steg 2 h failade
 - **Reverse-orphan-detektor (defense-in-depth, log-only):** en `JobSeeker` vars `UserId` saknar
   Identity-user (spegelbilden av samma race — ett utelåst konto som ej kan utöva Art. 17) LOGGAS
-  (Warning, count-only) men RADERAS ALDRIG här. Remediation (åter-länkning/radering) ägs av #524.
+  (Warning, count-only) men RADERAS ALDRIG här. Remediation (åter-länkning/radering) ägs av #1409. (#524 stängdes 2026-07-10 och handlade om sentinel-kolliderande klartextrader från #500-fixen — en annan sak; pekaren var död, mätt 2026-08-19.)
 
 **Steg 1 — Hämta mogna konton:**
 - `JobSeeker WHERE deleted_at < (UTC.Now - 30 days)` (`IgnoreQueryFilters`)
@@ -109,7 +109,7 @@ Vid reverse-orphan (defense-in-depth, `AccountHardDeleter`, EventId 2503, Warnin
 
 ```
 CleanupIdentityOrphansAsync: {N} reverse-orphan JobSeeker(s) saknar Identity-user (utelåst
-konto, kan ej utöva Art. 17) — loggas för utredning, raderas ej här (#508/#524)
+konto, kan ej utöva Art. 17) — loggas för utredning, raderas ej här (#1409)
 ```
 
 ### 3.3 Verifiera flöde-state
@@ -142,7 +142,7 @@ WHERE js.id IS NULL
 -- Motsvarar Warning-loggens count (EventId 2503). En LITEN count kan vara TRANSIENT: en
 -- samtidig registrering som racear sweepens två snapshot-läsningar ger en spurios rad utan
 -- att något är fel → UTRED, behandla inte som incident. En ihållande/växande count = en
--- verklig lucka (#524).
+-- verklig lucka (#1409).
 SELECT js.id, js.user_id
 FROM public.job_seekers js
 LEFT JOIN identity.asp_net_users u ON u.id = js.user_id

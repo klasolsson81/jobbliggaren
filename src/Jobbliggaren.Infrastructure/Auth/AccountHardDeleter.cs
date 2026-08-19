@@ -108,7 +108,25 @@ public sealed partial class AccountHardDeleter(
             if (user is null) continue; // Race: Identity redan rensad mellan SELECT och DELETE
 
             var result = await userManager.DeleteAsync(user);
-            if (result.Succeeded) cleaned++;
+            if (result.Succeeded)
+            {
+                cleaned++;
+            }
+            else
+            {
+                // #1349 - the second discarded IdentityResult, found by the same sweep that
+                // found the first. The job reports only `cleaned`, so N systematically failed
+                // deletions surfaced as "rensade 0 Identity-orphans" - indistinguishable from
+                // "found none", which is the state an operator is actively hoping for.
+                //
+                // Not the same as the discard at the ROW-erasure site further down: that one
+                // carries a written compensating path (the row is picked up by step 0 on the
+                // next run). This one carried nothing.
+                //
+                // Codes, never Descriptions - same discipline as UserAccountService.
+                LogOrphanDeleteFailed(
+                    logger, orphanId, string.Join(", ", result.Errors.Select(e => e.Code)));
+            }
         }
 
         return cleaned;
@@ -314,6 +332,12 @@ public sealed partial class AccountHardDeleter(
     // kan utöva Art. 17. Warning-nivå (alertbar signal), count-only (ingen PII i loggen,
     // CLAUDE.md §5). EventId i HardDeleteAccounts-serien (25xx). Driftmeddelande på svenska
     // per områdets konvention (jfr HardDeleteAccountsJob + runbook account-deletion.md §3.2).
+    [LoggerMessage(EventId = 2504, Level = LogLevel.Warning,
+        Message = "AccountHardDeleter: kunde inte radera Identity-orphan {OrphanId} " +
+                  "({ErrorCodes}) - raden ligger kvar och ingar inte i 'cleaned'-talet")]
+    private static partial void LogOrphanDeleteFailed(
+        ILogger logger, Guid orphanId, string errorCodes);
+
     [LoggerMessage(EventId = 2503, Level = LogLevel.Warning,
         Message = "CleanupIdentityOrphansAsync: {Count} reverse-orphan JobSeeker(s) saknar Identity-user "
             + "(utelåst konto, kan ej utöva Art. 17) — loggas för utredning, raderas ej här (#1409)")]

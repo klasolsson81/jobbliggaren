@@ -1,6 +1,7 @@
 using Jobbliggaren.Application.Auth;
 using Jobbliggaren.Infrastructure.Auth;
 using Jobbliggaren.Infrastructure.Identity;
+using Jobbliggaren.TestSupport;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -216,27 +217,17 @@ public class UserAccountServiceTests
 
     // ---- #1349: the compensating delete stops failing silently ----------------------------------
 
-    /// <summary>
-    /// Records what was logged. The assertion is about a log line, so a substitute that only proves
-    /// <c>Log</c> was reached would pin the call and not the content — and the content is the whole
-    /// point: the codes must be there and the Descriptions must not.
-    /// </summary>
-    private sealed class RecordingLogger<T> : ILogger<T>
-    {
-        public List<(LogLevel Level, string Message)> Entries { get; } = [];
-        IDisposable? ILogger.BeginScope<TState>(TState state) => null;
-        public bool IsEnabled(LogLevel logLevel) => true;
-        public void Log<TState>(
-            LogLevel logLevel, EventId eventId, TState state, Exception? exception,
-            Func<TState, Exception?, string> formatter)
-            => Entries.Add((logLevel, formatter(state, exception)));
-    }
-
     private const string FailureDescription = "Optimistic concurrency failure, object has been modified.";
 
     private (UserAccountService Sut, RecordingLogger<UserAccountService> Logger, Guid UserId, ApplicationUser User)
         ArrangeDelete(IdentityResult deleteResult)
     {
+        // The SHARED recorder (tests/Shared/RecordingLogger.cs, already Compile-linked into this
+        // project). It records EventId and the structured properties, not only the formatted
+        // string, and it SNAPSHOTS them - which matters here because UserAccountService lives in
+        // Infrastructure, compiled against the R9 generator, whose pooled thread-local
+        // LoggerMessageState is cleared the moment the generated method returns. A hand-rolled
+        // recorder that keeps the state rather than snapshotting it reads back empty (#1237).
         var logger = new RecordingLogger<UserAccountService>();
         var sut = new UserAccountService(
             _userManager, _equalizer, Options.Create(new AuthOptions()), logger);
@@ -248,29 +239,48 @@ public class UserAccountServiceTests
     }
 
     [Fact]
-    public async Task DeleteUserAsync_ShouldLogTheCodes_WhenTheCompensatingDeleteFails()
+    public async Task DeleteUserAsync_ShouldLogTheCode_WhenTheCompensatingDeleteFails()
     {
-        // This is RegisterCommandHandler's JobSeeker.Register failure arm. A failure here leaves
-        // exactly the orphaned Identity row that arm exists to prevent, and before #1349 it said
-        // nothing at all — the row stayed invisible until the daily sweep found it.
+        // The compensating delete in RegisterCommandHandler's JobSeeker.Register failure arm. A
+        // failure here leaves exactly the orphaned Identity row that arm exists to prevent, and
+        // before #1349 it said nothing at all.
+        //
+        // The fixture is what production emits, not a plausible-looking stand-in:
+        // UserManager.DeleteAsync is a passthrough to the EF store, which returns Success or
+        // exactly one ConcurrencyFailure, and this Description is IdentityErrorDescriber's own
+        // string.
         var ct = TestContext.Current.CancellationToken;
         var (sut, logger, userId, _) = ArrangeDelete(IdentityResult.Failed(
             new IdentityError { Code = "ConcurrencyFailure", Description = FailureDescription }));
 
         await sut.DeleteUserAsync(userId, ct);
 
-        var entry = logger.Entries.ShouldHaveSingleItem();
+        var entry = logger.Records.ShouldHaveSingleItem();
         entry.Level.ShouldBe(LogLevel.Warning);
+        entry.EventId.Id.ShouldBe(4007);
         entry.Message.ShouldContain("ConcurrencyFailure");
         entry.Message.ShouldContain(userId.ToString());
         // Codes, never Descriptions: a Description is user-facing prose that can carry the value
-        // that failed. Same discipline as LogEmailConfirmedPersistFailed in the same file.
+        // that failed.
         entry.Message.ShouldNotContain(FailureDescription);
     }
 
     [Fact]
-    public async Task DeleteUserAsync_ShouldLogEveryCode_WhenIdentityReturnsSeveral()
+    public async Task DeleteUserAsync_ShouldNotTruncate_WhenGivenAnUnreachableMultiErrorResult()
     {
+        // DECLARED UNREACHABLE (CLAUDE.md section 5, Tests:). No path in src/ produces a
+        // multi-error result here: UserManager.DeleteAsync is a passthrough to
+        // IUserStore.DeleteAsync with NO validator pass, and the stock EF store returns Success or
+        // exactly one ConcurrencyFailure. Nothing overrides it - measured: no custom IUserStore,
+        // no IdentityErrorDescriber override, no UserManager subclass.
+        //
+        // Seam parity with LogEmailConfirmedPersistFailed does NOT license the plural: that one
+        // wraps UpdateAsync, which DOES run validators, which is why its own comment can say
+        // "four of the five reachable ones". Parity with a legitimate seam is not provenance.
+        //
+        // So this asserts only that the READ SIDE degrades safely if that invariant ever breaks -
+        // the join names every code rather than the first - and asserts nothing about what
+        // production does.
         var ct = TestContext.Current.CancellationToken;
         var (sut, logger, userId, _) = ArrangeDelete(IdentityResult.Failed(
             new IdentityError { Code = "ConcurrencyFailure", Description = "a" },
@@ -278,9 +288,7 @@ public class UserAccountServiceTests
 
         await sut.DeleteUserAsync(userId, ct);
 
-        // Identity returns a LIST. Logging only the first would name one cause and hide the rest,
-        // which is the same silence one level down.
-        var entry = logger.Entries.ShouldHaveSingleItem();
+        var entry = logger.Records.ShouldHaveSingleItem();
         entry.Message.ShouldContain("ConcurrencyFailure");
         entry.Message.ShouldContain("DefaultError");
     }
@@ -294,15 +302,15 @@ public class UserAccountServiceTests
         await sut.DeleteUserAsync(userId, ct);
 
         await _userManager.Received(1).DeleteAsync(user);
-        logger.Entries.ShouldBeEmpty();
+        logger.Records.ShouldBeEmpty();
     }
 
     [Fact]
     public async Task DeleteUserAsync_ShouldLogNothingAndNotDelete_WhenTheRowIsAlreadyGone()
     {
-        // The race branch: Identity was already cleaned between the lookup and here. Nothing failed,
-        // so nothing is reported — a Warning on an absent row would be noise the operator learns to
-        // ignore, which is what would make the real one invisible.
+        // The race branch: Identity was already cleaned between the lookup and here. Nothing
+        // failed, so nothing is reported - a Warning on an absent row would be noise the operator
+        // learns to ignore, which is what would make the real one invisible.
         var ct = TestContext.Current.CancellationToken;
         var logger = new RecordingLogger<UserAccountService>();
         var sut = new UserAccountService(
@@ -313,6 +321,6 @@ public class UserAccountServiceTests
         await sut.DeleteUserAsync(userId, ct);
 
         await _userManager.DidNotReceive().DeleteAsync(Arg.Any<ApplicationUser>());
-        logger.Entries.ShouldBeEmpty();
+        logger.Records.ShouldBeEmpty();
     }
 }

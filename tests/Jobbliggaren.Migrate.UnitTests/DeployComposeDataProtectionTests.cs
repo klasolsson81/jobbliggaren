@@ -139,6 +139,17 @@ public class DeployComposeDataProtectionTests
         dropsPrivilege.ShouldBeGreaterThan(-1);
         lines.IndexOf(chown).ShouldBeLessThan(dropsPrivilege,
             customMessage: "The chown must run before the image drops to the non-root user.");
+
+        // The fourth axis, and the one the first version of this pin left open: path and
+        // order were bound, the PRINCIPAL was not. `chown nobody:nobody /keys` before
+        // `USER app` passes both assertions above and is broken in exactly the way this
+        // whole PR is about (dotnet-architect, PR #1408 re-check).
+        var owner = chown.Split("chown ", 2)[1].TrimStart().Split(' ', 2)[0].Split(':')[0];
+        var runsAs = lines[dropsPrivilege]["USER ".Length..].Trim();
+        owner.ShouldBe(runsAs,
+            customMessage:
+            $"The image chowns {path} to '{owner}' but runs as '{runsAs}'. Ownership by any " +
+            "other principal fails at the first key generation, not at boot.");
     }
 
     [Fact]

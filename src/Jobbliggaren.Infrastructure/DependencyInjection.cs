@@ -1507,7 +1507,10 @@ public static class DependencyInjection
     /// constructor. Sharing a keyring with the Worker would hand it cryptographic reach over tokens
     /// it never mints or validates, and re-open the cross-process coupling the 2026-07-10 ruling
     /// rejected. This codebase has no antiforgery, so the keyring's blast radius is the three
-    /// <c>DataProtectorTokenProvider</c>s and nothing else; regenerate with
+    /// token KINDS those providers mint - activation, password reset, change email - and
+    /// nothing else. (Two <c>DataProtectorTokenProvider</c>s, not three: of the four
+    /// <c>AddDefaultTokenProviders</c> registers only Default is DataProtector-based, the other
+    /// three being TOTP, plus the named password-reset provider.) Regenerate with
     /// <c>git grep -in antiforgery -- src/</c> and read the result as a property, not a count — a
     /// comment naming it will match.
     /// </para>

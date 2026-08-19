@@ -4,6 +4,7 @@ using Jobbliggaren.Application.RecentJobSearches.Abstractions;
 using Jobbliggaren.Application.RecentJobSearches.Common;
 using Jobbliggaren.Domain.CompanyWatches;
 using Jobbliggaren.Domain.JobAds;
+using Jobbliggaren.Domain.Privacy;
 using Jobbliggaren.Domain.SavedSearches;
 using Mediator;
 using Microsoft.Extensions.Logging;
@@ -159,6 +160,24 @@ public sealed partial class RecentJobSearchCaptureBehavior<TMessage, TResponse>(
         // OrganizationNumber.IsPersonnummerShaped is the house's single-sourced discriminator,
         // and this was the one PERSISTENCE SINK that never consulted it.
         if ((capt.Employer ?? []).Any(IsPersonnummerShapedOrUnparseable))
+            return response;
+
+        // Same sink and the same skip-reason as the employer guard above, so that block governs
+        // here too. What differs is the detector: `q` is free text with no format gate (only a
+        // MaximumLength), so it carries hyphenated, 12-digit and gapped forms the ten-digit
+        // employer axis structurally cannot, and the employer helper's unparseable arm - fail-safe
+        // on a format axis - would refuse every ordinary search string here. This is instead the
+        // house's single-sourced flag path (JobSeeker.ValidateDisplayName, Resume.ValidateName,
+        // AutoPromoteGate run the identical one-liner), whose accepted gap residual is
+        // PersonnummerTextNormalizer's to own (#427 V3) rather than re-derived per call site
+        // (#844: a rule with two normalisers is two rules).
+        //
+        // Placement is load-bearing twice over: inside the try below, the best-effort catch would
+        // swallow the skip into a no-op; and a captured q is re-rendered verbatim as the "Senaste
+        // sokningar" row label (ListRecentSearchesQueryHandler.DeriveLabel), so this axis has a
+        // display surface the employer axis does not.
+        if (effectiveQ is not null
+            && PersonnummerScanner.Scan(PersonnummerTextNormalizer.Normalize(effectiveQ)).Count > 0)
             return response;
 
         try

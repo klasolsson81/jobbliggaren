@@ -477,9 +477,10 @@ describe("setWatchFilter (Bevakning F4b #803) — PUT {id}/filter", () => {
 
   it("PUTs to {BASE}/{id}/filter with Bearer + a body carrying BOTH axes unexpanded", async () => {
     // The single most important wire pin. `regions` must carry the län concept-id AS PICKED —
-    // never expanded into the län's ~49 kommuner, never swapped into the municipality axis. A crossed
-    // or expanded id would be stored and then match nothing: a filter that silently suppresses every
-    // notification, which the user cannot see and cannot debug.
+    // never expanded into the län's ~49 kommuner, never swapped into the municipality axis. The two
+    // failures are NOT the same: a CROSSED id matches nothing at all (disjoint namespaces), silently
+    // suppressing every notification; an EXPANDED one would drop only län-only ads, a class measured
+    // empty (#839). This pin holds the wire form for both.
     const fetchMock = vi.fn().mockResolvedValue(emptyResponse(204));
     global.fetch = fetchMock;
 

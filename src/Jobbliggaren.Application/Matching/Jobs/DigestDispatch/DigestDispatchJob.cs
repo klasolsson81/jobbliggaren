@@ -573,8 +573,8 @@ public sealed partial class DigestDispatchJob(
                 onlyMatched = true;
 
             // BOTH geo axes count as an active ort filter (F4a). A whole-län watch carries its
-            // selection on the REGION axis and leaves Municipalities EMPTY (län is never expanded
-            // into kommun-ids — see WatchFilterSpec). Reading only the kommun axis here would make
+            // selection on the REGION axis and leaves Municipalities EMPTY (a whole-län pick is
+            // never expanded into kommun-ids — see WatchFilterSpec). Reading only the kommun axis here would make
             // a "Hela Skåne"-watch look unfiltered: the scan would still suppress hits (8A) while
             // the email disclosed nothing — exactly the silent narrowing RF-13 rejected.
             if (filter.Municipalities.Count > 0 || filter.Regions.Count > 0)

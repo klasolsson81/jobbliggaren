@@ -114,6 +114,33 @@ public sealed class JobAdConfiguration : IEntityTypeConfiguration<JobAd>
         // The flag stays because it says the requirement out loud in the model, and it is what the
         // model test asserts on. It is defence-in-depth and documentation — not the lock.
         //
+        // ── #839 — THE GEO PAIR'S CORRELATION, AND WHY ANYONE CARES. ───────────────────
+        //
+        // region_concept_id and municipality_concept_id have never disagreed about being set.
+        // Measured 2026-08-19 against the dev corpus (container jobbliggaren-postgres-dev, port
+        // 5435): all 106 071 rows carry the two null together or set together.
+        //
+        // Half of that is structural and half is not, which is the whole point. MapFacets reads
+        // BOTH ids through one hit.WorkplaceAddress?. parent, so both-null follows from an absent
+        // address block. But an address block PRESENT with only one of the two inner ids set is
+        // unguarded: nothing in the mapping couples them, the columns are plain (see above — no
+        // HasComputedColumnSql, so no database-level invariant either), and AF's AdFields marks
+        // neither field required. The zero is empirical, undocumented and unenforced.
+        //
+        // WHO DEPENDS ON IT. WatchFilterSpec's ort picker answers "hela länet minus Göteborg" by
+        // materialising the län's other kommuner and dropping the län id (#839). A LÄN-only ad
+        // would match neither, so it would silently miss a notification. That cost is exactly the
+        // empty class above — which is why the picker may materialise, and why this correlation is
+        // load-bearing rather than trivia.
+        //
+        // RE-MEASURE, DO NOT INHERIT. While the correlation holds the query returns exactly ONE
+        // row (GROUP BY emits no empty groups, and the boolean is never NULL), so a non-zero count
+        // proves nothing. ANY f row is the trigger to revisit the third disjunct:
+        //
+        //   SELECT (region_concept_id IS NULL) = (municipality_concept_id IS NULL) AS correlated,
+        //          count(*)
+        //   FROM job_ads GROUP BY 1 ORDER BY 1;
+        //
         // No HasMaxLength (they are `text`; varchar(n) would force a table rewrite) and no
         // HasIndex: the seven partial `WHERE … IS NOT NULL` indexes are raw-SQL/migration-owned
         // and EF's model snapshot is blind to them (the fluent API cannot express a partial

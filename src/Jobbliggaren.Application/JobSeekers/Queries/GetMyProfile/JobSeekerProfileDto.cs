@@ -40,6 +40,12 @@ public sealed record JobSeekerProfileDto(
     IReadOnlyList<string> PreferredRegions,
     IReadOnlyList<string> PreferredEmploymentTypes,
     IReadOnlyList<string> PreferredMunicipalities,
+    // #551 punkt 4 — the distans axis, and it is on this record for exactly the
+    // page-wipe reason the paragraph above gives for municipalities. The write is a
+    // full-replace PUT, so without round-tripping this flag, saving ANY other
+    // dimension would send preferredRemote: false and silently switch off a user's
+    // stated Distans preference. The FE also cannot pre-fill the picker without it.
+    bool PreferredRemote,
     // ADR 0079 STEG 3 — the confirmed skill concept-ids + stated years of experience,
     // projected so the settings/wizard skill section pre-fills the user's current set.
     // Required for the same full-replace-PUT page-wipe reason as the lists above: without
@@ -66,6 +72,7 @@ public sealed record JobSeekerProfileDto(
         js.MatchPreferences.PreferredRegions,
         js.MatchPreferences.PreferredEmploymentTypes,
         js.MatchPreferences.PreferredMunicipalities,
+        js.MatchPreferences.PreferredRemote,
         js.MatchPreferences.PreferredSkills,
         js.MatchPreferences.ExperienceYears,
         [.. js.MatchPreferences.PreferredOccupationExperience

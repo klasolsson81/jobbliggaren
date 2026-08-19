@@ -227,7 +227,7 @@
   },
   "sokningar": {
     "title": "Senaste sökningar",
-    "lede": "Sökningar du gjort under Jobb. Klicka för att köra om en sökning, eller ta bort den du inte behöver.",
+    "lede": "Sökningar du gjort under Jobb. Klicka för att köra om en sökning, eller ta bort den du inte behöver. Vi sparar dina 20 senaste sökningar, inklusive söktexten du skrev. Du kan läsa mer i integritetspolicyn.",
     "loadErrorTitle": "Kunde inte ladda senaste sökningar"
   },
   "sparade": {

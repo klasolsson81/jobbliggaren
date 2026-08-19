@@ -94,7 +94,7 @@
     "hitsWithNew": "<b>{currentCount, number}</b> hits, of which <b>{newCount, number}</b> new",
     "hits": "<b>{currentCount, number}</b> hits",
     "runAgain": "Run again",
-    "removeSearch": "Remove search {label}",
+    "removeSearch": "Remove the search: {label}",
     "chip": {
       "label": "Recent searches",
       "empty": "No recent searches yet. Search under Jobs and they are saved here.",

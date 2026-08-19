@@ -427,8 +427,6 @@ public class ListRecentSearchesQueryHandlerTests
         result.ShouldHaveSingleItem().Label.ShouldBe("Label-gbg_kn eller distans");
     }
 
-    // Tre delar fogas "A, B eller C" — och distans är gemen i sammansättning,
-    // versal bara när den står ensam (jämför distans-only-testet ovan).
     [Fact]
     public async Task Handle_JoinsAllThreeOrtGranularities_WithCommaBeforeFinalEller()
     {
@@ -454,8 +452,6 @@ public class ListRecentSearchesQueryHandlerTests
             .ShouldBe("Label-gbg_kn, Label-goteborg eller distans");
     }
 
-    // "+N till" räknar samma enhet som namnet före det, så suffixet sätts PER
-    // granularitet före fogningen — inte över en hopslagen lista.
     [Fact]
     public async Task Handle_AppliesPlusNPerGranularity_NotAcrossTheJoinedOrtLabel()
     {
@@ -481,10 +477,8 @@ public class ListRecentSearchesQueryHandlerTests
     }
 
     // Karakteriseringstest, INTE en ratificering: en rad vars enda dimension är
-    // ett förfinings-filter faller alltjämt till "Alla annonser". ADR 0067
-    // Beslut 6 lämnade Klass 2 utanför labeln under premissen att labeln bär en
-    // primär dimension — den premissen är void för rader som saknar en.
-    // Testet ska ÄNDRAS när #1418 lagas; att det står här är dess enda spärr.
+    // ett förfinings-filter faller alltjämt till "Alla annonser". Ändra testet
+    // när #1418 lagas.
     [Fact]
     public async Task Handle_StillFallsBackToAllaAnnonser_WhenOnlyEmploymentTypeIsSet()
     {

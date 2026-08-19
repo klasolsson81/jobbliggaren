@@ -64,7 +64,7 @@
     "interviewText": "<b>{company}</b> has confirmed an interview time.",
     "interviewCta": "Open case",
     "savedSearchLabel": "Latest search",
-    "savedSearchText": "<b>{name}</b> has <b>{count, plural, one {# new hit} other {# new hits}}</b> since your last run.",
+    "savedSearchText": "The search <b>{name}</b> has <b>{count, plural, one {# new hit} other {# new hits}}</b> since your last run.",
     "savedSearchTextNoCount": "Your latest search: <b>{name}</b>.",
     "savedSearchCta": "Run search",
     "companiesLabel": "Watch",

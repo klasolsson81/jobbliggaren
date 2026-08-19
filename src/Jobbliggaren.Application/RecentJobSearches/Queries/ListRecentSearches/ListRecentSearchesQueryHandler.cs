@@ -183,21 +183,19 @@ public sealed class ListRecentSearchesQueryHandler(
         return "Alla annonser";
     }
 
-    // Ort är EN dimension i tre granulariteter — län ⊃ kommun, plus distans som
-    // boolesk sub-axel — och geo-predikatet UNIONERAR dem (kommun ∨ län ∨ distans,
-    // JobAdSearchComposition #551 PR-B D5). Labeln räknar därför upp varje satt
-    // granularitet i stället för att namna den första: en rad med kommun+distans
-    // som heter "Stockholm" namnger en strikt delmängd av vad klicket kör.
-    // Fogning (Klas-beslut 2026-08-19): två delar → "A eller B", tre → "A, B eller C".
-    // Anropas bara när minst en granularitet är satt (samma call-site-invariant som
-    // WithMoreSuffix, vars labels[0] likaså förutsätter en icke-tom lista).
+    // Ort är EN dimension: län ⊃ kommun, plus distans som boolesk sub-axel. Geo-
+    // predikatet UNIONERAR dem (kommun ∨ län ∨ distans, JobAdSearchComposition
+    // #551 PR-B D5), så labeln räknar upp varje satt del i stället för att namna
+    // den första: en rad med kommun+distans som heter "Stockholm" namnger en
+    // strikt delmängd av vad klicket kör. Fogningsformen är ett Klas-beslut
+    // 2026-08-19. Anropas bara när minst en del är satt — samma call-site-
+    // invariant som WithMoreSuffix.
     private static string DeriveOrtLabel(
         IReadOnlyList<TaxonomyLabelDto> municipalityLabels,
         IReadOnlyList<TaxonomyLabelDto> regionLabels,
         bool remote)
     {
-        // WithMoreSuffix PER granularitet, före fogningen: "+N" räknar samma enhet
-        // som första namnet anger, och en hopslagen lista bryter den invarianten.
+        // Per del, före fogningen — en hopslagen lista bryter "+N":s enhet.
         var parts = new List<string>(3);
         if (municipalityLabels.Count > 0)
             parts.Add(WithMoreSuffix(municipalityLabels));

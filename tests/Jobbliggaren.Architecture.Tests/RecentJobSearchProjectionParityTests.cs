@@ -100,16 +100,17 @@ public class RecentJobSearchProjectionParityTests
         //
         // What this closes, measured: that path now fails here.
         //
-        // TWO routes stay open, and naming them is the point — this guard reasons about
-        // property NAMES, like its sibling. (1) DELETING the entry as "now false" leaves
-        // every test in this file green; no assertion outlives its own deletion. (2) A
-        // projection under some OTHER spelling — `Employers`, `EmployerOrgNumbers` — is not
-        // a key this dictionary checks, so it passes here with the entry intact.
+        // The interlock is two-way, and each half is measured: deleting the entry ALONE
+        // turns EverySearchDimension_ReachesTheReadProjection red (Employer is a dimension
+        // again, and unprojected), and adding the property alone turns THIS one red. Only
+        // the combination is green, so the leak costs a reviewable deletion of a stated PII
+        // ground rather than a property addition that reads as tidying up.
         //
-        // Route 2 is closed one layer out, on the value rather than the name:
-        // RecentSearchesTests asserts the org.nr appears nowhere in the response text. What
-        // THIS pair buys is narrower: an entry can no longer be a rubber stamp while the
-        // property it excuses sits on the DTO under the house spelling.
+        // What the pair does NOT close: it reasons about property NAMES, like its sibling,
+        // so a projection under another spelling — `Employers`, `EmployerOrgNumbers` — is
+        // not a key this dictionary checks and passes with the entry intact. That axis is
+        // closed one layer out, on the value: RecentSearchesTests asserts the org.nr appears
+        // nowhere in the response text.
         var projected = ProjectedProperties();
 
         var surfacedAnyway = NotSurfaced.Keys

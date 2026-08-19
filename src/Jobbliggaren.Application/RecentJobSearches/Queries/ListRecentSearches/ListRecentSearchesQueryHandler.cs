@@ -11,8 +11,8 @@ namespace Jobbliggaren.Application.RecentJobSearches.Queries.ListRecentSearches;
 /// Avsiktlig N+1 i CurrentCount-loopen (CTO 2026-05-20 Variant A): cap=20
 /// (<c>RecentJobSearch.MaxPerSeeker</c>) håller fan-out hanterbart; varje
 /// träffräkning går via <see cref="IJobAdSearchQuery.CountAsync"/> (ADR 0062 —
-/// samma filter-SPOT som ListJobAds, q-FTS-accelererad). Fitness function
-/// (ADR 0045) övervakar p95 och triggar Hangfire-cache-evolution om budget bryts.
+/// samma filter-SPOT som ListJobAds, q-FTS-accelererad). ADR 0060 Beslut 4 förutsåg en
+/// ADR 0045 fitness function på endpointen; den är inte byggd — se kommentaren i loopen.
 ///
 /// <para>Label server-härleds (Q → yrkesgrupp med hel-områdes-kollaps /
 /// "+N till" → kommun → region → fallback; E2g 2026-06-11) så FE inte
@@ -92,10 +92,10 @@ public sealed class ListRecentSearchesQueryHandler(
             // Ta alltså inte bort grenen som död kod; den är den enda producenten av
             // siffran.
             //
-            // Vad som kostar är FAN-OUT, inte per-count. TD-94:s rotorsak är fixad (ADR 0062
-            // Amendment 2026-06-13, "closed by this amendment"); kvar är cap=20 sekventiella
-            // counts, var och en med egen transaktion — accepterat i ADR 0060 Beslut 4 och
-            // gatat av en fitness function, inte en olöst regression.
+            // Vad som kostar är FAN-OUT, inte per-count: TD-94:s per-count-rot är fixad
+            // (ADR 0062 Amendment 2026-06-13). Fan-out:en cap=20 är accepterad i ADR 0060
+            // Beslut 4 och OMÄTT — inget perf-scenario träffar den här endpointen. Det som
+            // håller den borta från kritisk väg är IncludeCount=false ovan, inget annat.
             int currentCount = 0;
             if (query.IncludeCount)
             {

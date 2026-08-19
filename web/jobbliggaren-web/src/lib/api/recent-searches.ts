@@ -50,10 +50,9 @@ const LIST_TIMEOUT_WITH_COUNT_MS = 25_000;
  * återinförd via lat klient-hämtning (B, useFacetCounts-mönstret) — oberoende av
  * TD-94:s rotfix.</p>
  *
- * <p><code>true</code> mättes till 15-25s slow load 2026-05-24, före ADR 0062:s
- * rotfix; kvarvarande kostnad är fan-out:en cap=20, som är omätt och därför
- * gatad. Vägen hör hemma ENBART off-critical-path — anropa den inte från en
- * sidladdning.</p>
+ * <p><code>true</code> betalar fan-out:en cap=20, som är OMÄTT — inget perf-scenario
+ * träffar endpointen. Vägen hör därför hemma ENBART off-critical-path; anropa den
+ * inte från en sidladdning.</p>
  */
 export async function getRecentSearches(
   includeCount: boolean = false,

@@ -100,9 +100,9 @@ public class RecentJobSearchDtoContractTests
             "varje public instans-property på RecentJobSearchDto når HTTP-svaret. "
             + "Är den nya propertyn en SÖKDIMENSION — en axel filtret bär — klassa den "
             + "först i RecentJobSearchProjectionParityTests. Är den presentation eller "
-            + "räknare — härledd här och utan motsvarighet på entiteten, som Label, "
-            + "CurrentCount, NewCount — hör den inte hemma där, och den här listan är "
-            + "hela grinden.");
+            + "räknare (Label, CurrentCount, NewCount) eller ett bokföringsfält som "
+            + "redan står i den filens NotSearchDimensions (Id, LastViewedAt), är den "
+            + "här listan hela grinden.");
     }
 
     [Fact]

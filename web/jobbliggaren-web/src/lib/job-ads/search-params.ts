@@ -108,8 +108,13 @@ export interface JobbUrlState {
   // backend binder string[] — FE skickar ett element). Frånvaro = inget
   // arbetsgivar-filter (ren URL). Aldrig text-representabelt i hero-fältet
   // (som popover-dimensionerna, CTO VAL 4a); syns som avtagbar chip i
-  // toolbaren. FE emitterar ALDRIG en pnr-shaped employer-param (länk-
-  // producenten gatar på IsProtectedIdentity — ADR 0087 D8(c)).
+  // toolbaren.
+  //
+  // ⚠ Här stod "FE emitterar ALDRIG en pnr-shaped employer-param (länk-producenten gatar
+  // på IsProtectedIdentity — ADR 0087 D8(c))". Grinden vaktar en tom mängd: producenten
+  // var `company-lookup.tsx`, raderad i `aca39970` (#997/#1030). Mätt 2026-08-19. Det som
+  // faktiskt skyddar är persistens-grinden i `RecentJobSearchCaptureBehavior` (A2); se
+  // `parseEmployerParam` nedan för hela mätningen.
   employer?: string;
   sortBy: JobAdSortBy;
   pageSize?: string;
@@ -319,9 +324,24 @@ export function withCommitFlag(href: string): string {
  * en manipulerad URL aldrig 400:ar list-queryn (drop-unknown-disciplinen,
  * paritet matchGrades). Singel-värde v1: string[] → första elementet. OBS:
  * detta är en FORMAT-gate, ingen pnr-diskriminator — ett 10-siffrigt
- * personnummer är formatidentiskt med org.nr; det lastbärande skyddet är att
- * FE-producenterna aldrig emitterar en pnr-shaped länk (IsProtectedIdentity-
- * gaten) och backend-maskningen (ADR 0087 D8(c)).
+ * personnummer är formatidentiskt med org.nr.
+ *
+ * ⚠ SKYDDET SOM STOD HÄR ÄR BORTA, mätt 2026-08-19. Det löd: "det lastbärande skyddet
+ * är att FE-producenterna aldrig emitterar en pnr-shaped länk (IsProtectedIdentity-gaten)
+ * och backend-maskningen". Den producenten var `company-lookup.tsx:204/:210`, raderad i
+ * `aca39970` (#997/#1030) — grinden vaktar en tom mängd. Det finns fortfarande noll
+ * ORIGINATORER av ett employer-värde, men `buildJobbHref`, `buildPageHref` och toolbarens
+ * `commit()` round-trippar värdet ur URL:en, så en handskriven param återkommitteras av varje
+ * toolbar-handling som bär commit-intent. Vilka de är avgörs av `commit()` mot `navigate()` i
+ * `jobb-results-toolbar.tsx`, inte av en lista här — i skrivande stund navigerar arbetsgivarens
+ * eget × och grad-chipsen, allt annat committar. Backend-maskningen (ADR 0087 D8(c)) når inte
+ * hit heller.
+ *
+ * Det som FAKTISKT skyddar sedan 2026-08-19 är persistens-grinden i
+ * `RecentJobSearchCaptureBehavior` (A2, Klas-beslut): en pnr-formad employer capturas
+ * aldrig till `recent_job_searches`. Format-gaten här är med flit INTE vidgad — en
+ * pnr-diskriminator i läsvägen hade brutit ett legitimt filter på en enskild firmas
+ * annonser, som är riktiga annonser.
  */
 export function parseEmployerParam(
   raw: string | string[] | undefined

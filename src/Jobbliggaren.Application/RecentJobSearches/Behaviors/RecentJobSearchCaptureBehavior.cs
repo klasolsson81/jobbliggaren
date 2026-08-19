@@ -2,6 +2,7 @@ using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.JobAds.Abstractions;
 using Jobbliggaren.Application.RecentJobSearches.Abstractions;
 using Jobbliggaren.Application.RecentJobSearches.Common;
+using Jobbliggaren.Domain.CompanyWatches;
 using Jobbliggaren.Domain.JobAds;
 using Jobbliggaren.Domain.SavedSearches;
 using Mediator;
@@ -136,6 +137,30 @@ public sealed partial class RecentJobSearchCaptureBehavior<TMessage, TResponse>(
             return response;
         }
 
+        // A2 (Klas-beslut 2026-08-19, security-auditor Major). ?employer= is a FORMAT gate
+        // (^[0-9]{10}\z) and never a personnummer discriminator, because a 10-digit personnummer
+        // is format-identical to an org.nr. Without this guard a committed search on a hand-typed
+        // pnr-shaped value persists it in PLAINTEXT to recent_job_searches.employer_list: no
+        // encryption (ADR 0049's envelope scope is four user-owned PII columns - cover letter,
+        // application notes, follow-up notes, resume content - and never this one), no
+        // time-based retention (an LRU cap of 20 per seeker), and no hit gate, so a value
+        // matching zero ads is stored exactly as reliably as one that matches. For an enskild
+        // firma that value IS the holder's personnummer (#841); the bearer is a THIRD PARTY, so
+        // no acceptance route existed and this is fixed rather than accepted.
+        //
+        // SKIP rather than filter the value out of the list, and the reason is FilterHash, not
+        // replayability: a criteria with employer stripped hashes IDENTICALLY to a genuine
+        // employer-less search on the same other dimensions, so filtering would find that row
+        // and Bump() it - silently corrupting LastSeenCount and LastViewedAt on a DIFFERENT,
+        // real search (code-reviewer). Skip also stores strictly less and stays correct if the
+        // replay path is ever completed (security-auditor). The SEARCH still runs: refusing it
+        // would break a legitimate filter on a sole trader's ads, which are real ads.
+        //
+        // OrganizationNumber.IsPersonnummerShaped is the house's single-sourced discriminator,
+        // and this was the one PERSISTENCE SINK that never consulted it.
+        if ((capt.Employer ?? []).Any(IsPersonnummerShapedOrUnparseable))
+            return response;
+
         try
         {
             var criteriaResult = SearchCriteria.Create(
@@ -190,4 +215,18 @@ public sealed partial class RecentJobSearchCaptureBehavior<TMessage, TResponse>(
         Level = LogLevel.Warning,
         Message = "RecentJobSearch auto-capture misslyckades för {MessageType} (best-effort, query orörd). ExceptionType={ExceptionType}")]
     private static partial void LogCaptureFailed(ILogger logger, string exceptionType, string messageType);
+
+    /// <summary>
+    /// #841 / ADR 0087 D8(c) - true when the value is a personnummer, OR cannot be parsed at all.
+    /// Both are in the name because they are two facts: the house keeps them apart where it counts
+    /// them (ScbLegalEntityFilter buckets invalid and pnr-shaped separately), and fusing them
+    /// silently is what makes a call site read as narrower than it is. Delegates to the domain's
+    /// own detector rather than re-deriving the rule, so this axis and every other org.nr surface
+    /// refuse on exactly the same predicate (#844: a rule with two normalisers is two rules).
+    /// </summary>
+    private static bool IsPersonnummerShapedOrUnparseable(string employer)
+    {
+        var orgNr = OrganizationNumber.Create(employer);
+        return orgNr.IsFailure || orgNr.Value.IsPersonnummerShaped();
+    }
 }

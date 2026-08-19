@@ -67,7 +67,7 @@ Hangfire-jobb kör 04:00 UTC daily. Tre steg:
 - Plockar upp Identity-rader som hängde kvar från tidigare körning där Steg 2 h failade
 - **Reverse-orphan-detektor (defense-in-depth, log-only):** en `JobSeeker` vars `UserId` saknar
   Identity-user (spegelbilden av samma race — ett utelåst konto som ej kan utöva Art. 17) LOGGAS
-  (Warning, count-only) men RADERAS ALDRIG här. Remediation (åter-länkning/radering) ägs av #524.
+  (Warning, count-only) men RADERAS ALDRIG här. Remediation (åter-länkning/radering) ägs av #1409. (#524 stängdes 2026-07-10 och handlade om sentinel-kolliderande klartextrader från #500-fixen — en annan sak; pekaren var död, mätt 2026-08-19.)
 
 **Steg 1 — Hämta mogna konton:**
 - `JobSeeker WHERE deleted_at < (UTC.Now - 30 days)` (`IgnoreQueryFilters`)
@@ -109,8 +109,33 @@ Vid reverse-orphan (defense-in-depth, `AccountHardDeleter`, EventId 2503, Warnin
 
 ```
 CleanupIdentityOrphansAsync: {N} reverse-orphan JobSeeker(s) saknar Identity-user (utelåst
-konto, kan ej utöva Art. 17) — loggas för utredning, raderas ej här (#508/#524)
+konto, kan ej utöva Art. 17) — loggas för utredning, raderas ej här (#1409)
 ```
+
+Vid misslyckad orphan-radering (`AccountHardDeleter`, EventId 2504, Warning):
+
+```
+AccountHardDeleter: kunde inte radera Identity-orphan {OrphanId} ({ErrorCodes}) - raden ligger
+kvar och ingår inte i 'cleaned'-talet
+```
+
+Raden fanns inte före #1349: sveptets `DeleteAsync` kastade sitt `IdentityResult`, så N
+systematiskt misslyckade raderingar syntes som "rensade 0 Identity-orphans" — omöjligt att
+skilja från "hittade inga". Till skillnad från 2503 är denna **inte** count-only; den bär
+`{OrphanId}` just för att remedieringen är nycklad på id:t.
+
+⚠ **En av de två populationerna bakom raden är en ofullbordad Art. 17-radering.** Domän-erasure
+och DEK-destruktion committas i en transaktion, Identity-raden raderas på en separat boundary,
+och faller den plockas raden upp av Steg 0 nästa körning. Ser du 2504 för samma `{OrphanId}` två
+körningar i rad har den retryn också fallit, och **raderingen enligt Art. 17(1) är då inte
+fullbordad**. Art. 12(3):s månadsfrist räknas från BEGÄRAN (soft-delete), inte från den här
+loggraden, och är efter 30-dagarsfönstret i normalfallet redan förbrukad — eskalera direkt,
+förläng inte tyst.
+
+⚠ Kör §3.3:s **Identity-orphan-query**, inte reverse-orphan-queryn. 2504 fyrar på `orphanIds`,
+alltså en `ApplicationUser` UTAN `JobSeeker` — reverse-orphan-queryn selekterar spegel-
+populationen (2503:s) och kan per konstruktion inte innehålla raden. En operatör som kör fel
+query hittar inte id:t och riskerar att stänga ärendet som "raden är borta".
 
 ### 3.3 Verifiera flöde-state
 
@@ -142,7 +167,7 @@ WHERE js.id IS NULL
 -- Motsvarar Warning-loggens count (EventId 2503). En LITEN count kan vara TRANSIENT: en
 -- samtidig registrering som racear sweepens två snapshot-läsningar ger en spurios rad utan
 -- att något är fel → UTRED, behandla inte som incident. En ihållande/växande count = en
--- verklig lucka (#524).
+-- verklig lucka (#1409).
 SELECT js.id, js.user_id
 FROM public.job_seekers js
 LEFT JOIN identity.asp_net_users u ON u.id = js.user_id

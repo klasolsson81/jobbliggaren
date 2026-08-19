@@ -90,7 +90,9 @@ x-app-secrets: &app-secrets
 # (docs/runbooks/vps-deploy-stack.md §3), not an optional extra, and
 # `jobbliggaren-inject-secrets.sh --check` asserts the directory's mode for the same reason.
 x-app-secrets-mount: &app-secrets-mount
-  - /run/jobbliggaren/secrets:/run/app-secrets:ro
+  # Item-level anchor too, so a service that needs an ADDITIONAL mount can extend the list
+  # without restating the path. YAML merges maps, never sequences, so `<<:` cannot do this.
+  - &app-secrets-entry /run/jobbliggaren/secrets:/run/app-secrets:ro
 
 # ONE definition, two consumers: `migrate` (schema, every `up`) and `migrate-rewrap` (the
 # master-key rotation, ops profile only). Duplicating the string would let host, port, database,
@@ -357,7 +359,19 @@ services:
       # blank it once the role is assigned — the role persists in the database, and a
       # standing value silently re-grants what an in-app revocation removed.
       AdminBootstrap__InitialAdminEmail: ${ADMIN_BOOTSTRAP_INITIAL_ADMIN_EMAIL:-}
-    volumes: *app-secrets-mount
+      # #1350 — where the Data-Protection keyring is persisted, matched by the writable volume
+      # below. Unset means the framework default, i.e. the container's writable layer, which is
+      # the defect: every recreate mints a fresh keyring and silently invalidates every
+      # outstanding activation, password-reset and change-email link. The Api reads the key name
+      # from DependencyInjection.DataProtectionKeyPathConfigKey; DeployComposeDataProtectionTests
+      # pins that this value and the mount destination stay the same path.
+      # NOT passed to `worker`: it mints and validates no DataProtector tokens and must not
+      # share this keyring.
+      DataProtection__KeyPath: /keys
+    volumes:
+      - *app-secrets-entry
+      # Writable, unlike the secrets mount: the keyring is written by the app, not injected.
+      - dataprotection_keys:/keys
     mem_limit: 1024m
     # B-1 POSTURE, and do not remove this line. ADR 0050 Amendment 2026-08-04 §2
     # condition 4 attributes it explicitly: `mem_limit` binds only the memory axis, so a
@@ -721,6 +735,13 @@ volumes:
   caddy_config:
   postgres_data:
   redis_data:
+  # #1350 — the Api's Data-Protection keyring. A named volume rather than a bind under
+  # /run/jobbliggaren/, which is RAM-backed (ADR 0050 B-1) and would lose the keys on every
+  # reboot while looking repaired; and rather than a database-backed store, which would put the
+  # keys into the pg_dump artefact the backup ships off-box (jobbliggaren-backup.sh dumps
+  # Postgres and no Docker volume). Deleting this volume invalidates outstanding activation,
+  # reset and change-email links and nothing else — they are 24h or shorter and re-requestable.
+  dataprotection_keys:
   # The sink's event store. It holds application events in PLAINTEXT on this box's disk —
   # `UserId`, `CorrelationId`, IP addresses and whatever else a log statement carries — which
   # is why it is enumerated in docs/runbooks/gdpr-processing-register.md alongside the

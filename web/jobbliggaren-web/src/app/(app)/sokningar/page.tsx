@@ -11,9 +11,11 @@ type PagesTranslator = Awaited<ReturnType<typeof getTranslations<"pages">>>;
  * ADR 0060 — Senaste sökningar (auto-fångade). Tidigare SavedSearch-listrender
  * (ADR 0039) ersatt här; backend-domänen behålls dolt per amendment 2026-05-20.
  *
- * GDPR Art. 13-information om data-insamling och retention är dokumenterad
- * i privacy-policy (Klas-uppgift per ADR 0060 Mekanik-not 6). Tom-tillstånd
- * ger kort kontext om var datan kommer ifrån.
+ * GDPR Art. 13-information om insamling och retention står i integritetspolicyn
+ * (`privacy.sections[4]`), levererad 2026-08-19 mot ADR 0060 Mekanik-not 6 rad 152 —
+ * inte längre en öppen Klas-uppgift. Notens andra punkt, inline-disclosuren, bärs av
+ * SIDANS LEDE och inte av tom-tillståndet: tom-tillståndet renderas bara för den som
+ * saknar historik, vilket är just den grupp upplysningen minst handlar om.
  */
 export default async function SokningarPage() {
   const user = await getServerSession();

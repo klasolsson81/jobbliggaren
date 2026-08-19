@@ -295,9 +295,11 @@ export function withCommitFlag(href: string): string {
  * och backend-maskningen". Den producenten var `company-lookup.tsx:204/:210`, raderad i
  * `aca39970` (#997/#1030) — grinden vaktar en tom mängd. Det finns fortfarande noll
  * ORIGINATORER av ett employer-värde, men `buildJobbHref`, `buildPageHref` och toolbarens
- * `commit()` round-trippar värdet ur URL:en, så en handskriven param återkommitteras vid
- * varje sortbyte och varje chip-× UTOM arbetsgivarens eget (`removeEmployer` navigerar utan
- * commit, just av det skälet). Backend-maskningen (ADR 0087 D8(c)) når inte hit heller.
+ * `commit()` round-trippar värdet ur URL:en, så en handskriven param återkommitteras av varje
+ * toolbar-handling som bär commit-intent. Vilka de är avgörs av `commit()` mot `navigate()` i
+ * `jobb-results-toolbar.tsx`, inte av en lista här — i skrivande stund navigerar arbetsgivarens
+ * eget × och grad-chipsen, allt annat committar. Backend-maskningen (ADR 0087 D8(c)) når inte
+ * hit heller.
  *
  * Det som FAKTISKT skyddar sedan 2026-08-19 är persistens-grinden i
  * `RecentJobSearchCaptureBehavior` (A2, Klas-beslut): en pnr-formad employer capturas

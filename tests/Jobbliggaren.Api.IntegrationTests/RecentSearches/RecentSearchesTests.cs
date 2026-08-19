@@ -138,6 +138,10 @@ public class RecentSearchesTests(ApiFactory factory)
             .Select(e => e.GetString())
             .ShouldContain(municipality);
         row.TryGetProperty("ssykList", out _).ShouldBeFalse();
+        // #1407: the false polarity of the distans axis must SERIALISE, not vanish — the
+        // remote-only test above pins true, and a field that is emitted only when true
+        // would pass that one while leaving the FE schema without a value to read.
+        row.GetProperty("remote").GetBoolean().ShouldBeFalse();
     }
 
     [Fact]
@@ -177,13 +181,14 @@ public class RecentSearchesTests(ApiFactory factory)
     }
 
     [Fact]
-    public async Task Searching_jobs_with_remote_only_persists_the_remote_flag_to_the_column()
+    public async Task Searching_jobs_with_remote_only_persists_the_remote_flag_and_surfaces_it()
     {
         // #551 PR-D (ADR 0087 D6-paritet): a committed ?remote=true search captures a RecentJobSearch
         // AND persists the distans-axis into the remote bool column — the DB-level proof of the scalar-
-        // column round-trip end-to-end (the ListRecentSearches unit tests use EF In-Memory). Remote is
-        // deliberately NOT surfaced on the wire (RecentJobSearchDto has no remote field — PR-D scope),
-        // so the round-trip is verified by reading the column directly. Mirrors the employer-only test.
+        // column round-trip end-to-end (the ListRecentSearches unit tests use EF In-Memory).
+        // #1407: the axis now ALSO reaches the wire, so the replay href can carry it. That is the whole
+        // round-trip a user sees — column write, projection, wire — and it is asserted on both legs.
+        // Contrast the employer-only test above: that axis stays off the wire on purpose (D8(c)).
         var ct = TestContext.Current.CancellationToken;
         await AuthenticateAsync(ct);
         var me = await _client.GetFromJsonAsync<JsonElement>("/api/v1/me", ct);
@@ -198,8 +203,8 @@ public class RecentSearchesTests(ApiFactory factory)
         var listResponse = await _client.GetAsync("/api/v1/me/recent-searches", ct);
         var items = await listResponse.Content.ReadFromJsonAsync<JsonElement>(ct);
         items.GetArrayLength().ShouldBe(1);
-        // ...but remote is NOT on the wire (RecentJobSearchDto has no remote field — PR-D scope).
-        items[0].TryGetProperty("remote", out _).ShouldBeFalse();
+        // ...and remote IS on the wire, true (#1407 — the replay reproduces what the count counted).
+        items[0].GetProperty("remote").GetBoolean().ShouldBeTrue();
 
         // The remote bool column round-trips through real Postgres: read this user's row.
         using var scope = factory.Services.CreateScope();

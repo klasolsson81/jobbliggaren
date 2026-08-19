@@ -127,6 +127,10 @@ public sealed class ListRecentSearchesQueryHandler(
                 // ADR 0067 Beslut 6 (Fas B2) — råa Klass 2-listor (inga labels, Fas E).
                 EmploymentTypeList: r.EmploymentType,
                 WorktimeExtentList: r.WorktimeExtent,
+                // #1407: distans-axeln nådde count-filtret ovan men inte projektionen,
+                // så FE:s replay körde om sökningen UTAN distans medan raden räknades
+                // MED den. Samma klass som ADR 0067 B2 stängde för Klass 2.
+                Remote: r.Remote,
                 OccupationGroupLabels: occupationGroupLabels,
                 MunicipalityLabels: municipalityLabels,
                 RegionLabels: regionLabels,

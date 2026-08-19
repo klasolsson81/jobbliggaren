@@ -35,6 +35,9 @@ public class RecentJobSearchDtoContractTests
             .PropertyType.ShouldBe(typeof(IReadOnlyList<string>));
         t.GetProperty(nameof(RecentJobSearchDto.WorktimeExtentList))!
             .PropertyType.ShouldBe(typeof(IReadOnlyList<string>));
+        // #1407 — distans-axeln (skalär, ingen label-dimension).
+        t.GetProperty(nameof(RecentJobSearchDto.Remote))!
+            .PropertyType.ShouldBe(typeof(bool));
         t.GetProperty(nameof(RecentJobSearchDto.OccupationGroupLabels))!
             .PropertyType.ShouldBe(typeof(IReadOnlyList<TaxonomyLabelDto>));
         t.GetProperty(nameof(RecentJobSearchDto.MunicipalityLabels))!
@@ -65,6 +68,21 @@ public class RecentJobSearchDtoContractTests
     }
 
     [Fact]
+    public void RecentJobSearchDto_ShouldNotSurfaceTheEmployerAxis()
+    {
+        // ADR 0087 D8(c). Sedan #1407 bär DTO:n Remote men INTE Employer, trots att
+        // handlern trådar in båda i CountAsync — en asymmetri som ser ut som en
+        // inkonsekvens att städa bort. Den är det inte: för en enskild firma ÄR
+        // org.nr innehavarens personnummer (#841), så axeln får inte nå wire:n ens
+        // till priset av att en arbetsgivarsökning inte kan köras igen. Utan denna
+        // pinne kostar "gör det konsekvent" en PII-läcka.
+        var t = typeof(RecentJobSearchDto);
+
+        t.GetProperty("Employer").ShouldBeNull();
+        t.GetProperty("EmployerList").ShouldBeNull();
+    }
+
+    [Fact]
     public void RecentJobSearchDto_ShouldKeepCanonicalPositionalOrder()
     {
         var ctor = typeof(RecentJobSearchDto)
@@ -76,11 +94,13 @@ public class RecentJobSearchDtoContractTests
 
         // ADR 0067 Beslut 6 (Fas B2): EmploymentTypeList/WorktimeExtentList efter
         // RegionList (kanonisk dimensionsordning), labels-blocket fortsatt sist.
+        // #1407: Remote sist i råa-dimensions-blocket — samma plats den har i
+        // JobAdFilterCriteria, minus den Employer DTO:n aldrig bär (nedan).
         names.ShouldBe(
         [
             "Id", "Q",
             "OccupationGroupList", "MunicipalityList", "RegionList",
-            "EmploymentTypeList", "WorktimeExtentList",
+            "EmploymentTypeList", "WorktimeExtentList", "Remote",
             "OccupationGroupLabels", "MunicipalityLabels", "RegionLabels",
             "SortBy", "Label", "CurrentCount", "NewCount", "LastViewedAt",
         ]);

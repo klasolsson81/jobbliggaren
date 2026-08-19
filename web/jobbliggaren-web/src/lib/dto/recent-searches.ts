@@ -49,6 +49,13 @@ export const recentJobSearchDtoSchema = z.object({
   // bär Klass 2-filtret. Backend `RecentJobSearchDto` bär dem sedan B2/#60.
   employmentTypeList: z.array(z.string()),
   worktimeExtentList: z.array(z.string()),
+  // #1407 (#551 punkt 4) — distans-axeln. OBLIGATORISK, inte `.default(false)`:
+  // en default hade tystat exakt det fel fältet finns för att stänga (replay utan
+  // distans medan raden räknades med den) genom att göra ett saknat wire-fält
+  // oskiljbart från ett falskt. Backend `RecentJobSearchDto` bär `Remote` sedan
+  // samma PR, och de kan inte glida isär: `deploy/docker-compose.yml` ger `web`
+  // och `api` samma `IMAGE_TAG` och reconcilen tar upp dem i ETT `compose up -d`.
+  remote: z.boolean(),
   occupationGroupLabels: z.array(taxonomyLabelSchema).default([]),
   municipalityLabels: z.array(taxonomyLabelSchema).default([]),
   regionLabels: z.array(taxonomyLabelSchema).default([]),

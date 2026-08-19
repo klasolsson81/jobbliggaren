@@ -8,9 +8,16 @@ import type { RecentJobSearchDto } from "@/lib/dto/recent-searches";
  * "recent search → /jobb URL".
  *
  * Klass 2 (ADR 0067 B2): replay carries employmentType + worktimeExtent so the
- * re-run does not silently drop those filters. matchGrades is runtime view-state,
+ * re-run does not silently drop those filters. #1407 closed the same gap on the
+ * distans axis — `remote` now rides along, so the row's count and the list its
+ * link produces rest on the same criterion. matchGrades is runtime view-state,
  * NOT a saved-search concern (Klas) — a replay therefore never carries a grade
  * filter (empty list).
+ *
+ * The employer axis is the one filter the replay still cannot carry: the DTO does
+ * not surface it at all (ADR 0087 D8(c) — for an enskild firma the org.nr is the
+ * holder's personnummer, #841), so a captured employer search replays broader than
+ * it was. That is a deliberate privacy trade, not a second #1407.
  */
 export function buildRecentSearchHref(item: RecentJobSearchDto): string {
   return buildJobbHref({
@@ -21,12 +28,7 @@ export function buildRecentSearchHref(item: RecentJobSearchDto): string {
     employmentType: item.employmentTypeList,
     worktimeExtent: item.worktimeExtentList,
     matchGrades: [],
-    // #551 punkt 4 — ALLTID false, och det är en LUCKA, inte ett val:
-    // SearchCriteria.Remote persisteras och ingår i filter-hashen, men
-    // RecentJobSearchDto exponerar inget Remote-fält, så replayen KAN inte bära
-    // det. En distans-sökning körs alltså om utan distans medan dess count
-    // räknades med den. Backend-lucka som denna PR gör NÅBAR, inte skapar: #1407.
-    remote: false,
+    remote: item.remote,
     sortBy: item.sortBy,
   });
 }

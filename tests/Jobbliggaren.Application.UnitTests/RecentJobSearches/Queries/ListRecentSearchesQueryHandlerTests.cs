@@ -234,6 +234,44 @@ public class ListRecentSearchesQueryHandlerTests
         captured!.Remote.ShouldBeTrue();
     }
 
+    [Fact]
+    public async Task Handle_ProjectsRowRemoteIntoDto_InBothPolarities()
+    {
+        // #1407: distans nådde count-filtret (testet ovan) men inte projektionen, så
+        // FE:s "Kör igen" byggde en href UTAN distans för en rad vars count räknats
+        // MED den. Båda polariteterna pinnas i EN körning: en konstant `Remote: true`
+        // i projektionen består ett ensidigt test.
+        var db = TestAppDbContextFactory.Create();
+        var seeker = await SeedSeekerAsync(db);
+        var now = FakeDateTimeProvider.Default.UtcNow;
+
+        // Skilda kriterier → skilda filter-hashar → två rader (ingen dedup-kollaps).
+        db.RecentJobSearches.Add(RecentJobSearch.Capture(
+            seeker.Id,
+            SearchCriteria.Create(
+                occupationGroup: null, municipality: null, region: null,
+                employmentType: null, worktimeExtent: null, employer: null,
+                remote: true, q: "distansjobb",
+                sortBy: JobAdSortBy.PublishedAtDesc).Value,
+            0, now));
+        db.RecentJobSearches.Add(RecentJobSearch.Capture(
+            seeker.Id,
+            SearchCriteria.Create(
+                occupationGroup: null, municipality: null, region: null,
+                employmentType: null, worktimeExtent: null, employer: null,
+                remote: false, q: "kontorsjobb",
+                sortBy: JobAdSortBy.PublishedAtDesc).Value,
+            0, now.AddHours(-1)));
+        await db.SaveChangesAsync(CancellationToken.None);
+
+        var handler = new ListRecentSearchesQueryHandler(db, _currentUser, _taxonomy, _search);
+        var result = await handler.Handle(new ListRecentSearchesQuery(), CancellationToken.None);
+
+        result.Count.ShouldBe(2);
+        result.Single(d => d.Q == "distansjobb").Remote.ShouldBeTrue();
+        result.Single(d => d.Q == "kontorsjobb").Remote.ShouldBeFalse();
+    }
+
     // ---------------------------------------------------------------
     // DTO-projektion — slutgiltig E2b-form (C2-shimmet SsykList/SsykLabels
     // borttaget; vakthund i RecentJobSearchDtoContractTests).

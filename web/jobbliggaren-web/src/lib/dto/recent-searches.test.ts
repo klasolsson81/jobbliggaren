@@ -12,6 +12,7 @@ const wireBase = {
   regionList: ["CifL_Rzy_Mku"],
   employmentTypeList: ["gro4_cWF_6D7"],
   worktimeExtentList: ["6YE1_gAC_R2G"],
+  remote: false,
   occupationGroupLabels: [
     { conceptId: "MVqp_eS8_kDZ", label: "Mjukvaruutveckling" },
   ],
@@ -44,6 +45,24 @@ describe("recentJobSearchDtoSchema", () => {
     const parsed = recentJobSearchDtoSchema.parse(rest);
     expect(parsed.occupationGroupLabels).toEqual([]);
     expect(parsed.regionLabels).toEqual([]);
+  });
+
+  it("carries remote from the wire in both polarities (#1407)", () => {
+    expect(recentJobSearchDtoSchema.parse({ ...wireBase, remote: true }).remote).toBe(
+      true,
+    );
+    expect(recentJobSearchDtoSchema.parse({ ...wireBase, remote: false }).remote).toBe(
+      false,
+    );
+  });
+
+  it("rejects a payload with no remote field rather than defaulting it to false", () => {
+    // The neighbouring *Labels fields DO default. remote deliberately does not:
+    // defaulting it would make "the API stopped sending the axis" indistinguishable
+    // from "the user did not pick distans" — which is #1407's own failure mode, just
+    // moved one layer out.
+    const { remote: _omitted, ...withoutRemote } = wireBase;
+    expect(() => recentJobSearchDtoSchema.parse(withoutRemote)).toThrow();
   });
 
   it("parses Relevance numeric sortBy index 4", () => {

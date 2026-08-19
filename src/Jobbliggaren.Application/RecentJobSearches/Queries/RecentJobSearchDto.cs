@@ -24,6 +24,13 @@ namespace Jobbliggaren.Application.RecentJobSearches.Queries;
 // anställningsform/omfattning är förfinings-filter (Fas E presentations-concern).
 // De råa listorna säkerställer att CountAsync filtrerar på exakt samma kriterium
 // som sökningen och att en framtida re-run reproducerar Klass 2.
+//
+// #1407 (#551 punkt 4): Remote surfas, Employer surfas INTE — och asymmetrin är
+// inte en inkonsekvens. Båda axlarna trådas in i CountAsync, men bara en av dem
+// får nå wire:n: Employer bär för en enskild firma innehavarens personnummer
+// (#841), så ADR 0087 D8(c) håller den ur projektionen och accepterar att en
+// arbetsgivarsökning inte går att köra igen. Remote är en boolesk filteraxel utan
+// bärare, så replayen kan reproducera exakt det kriterium räknaren räknade.
 public sealed record RecentJobSearchDto(
     Guid Id,
     string? Q,
@@ -32,6 +39,7 @@ public sealed record RecentJobSearchDto(
     IReadOnlyList<string> RegionList,
     IReadOnlyList<string> EmploymentTypeList,
     IReadOnlyList<string> WorktimeExtentList,
+    bool Remote,
     IReadOnlyList<TaxonomyLabelDto> OccupationGroupLabels,
     IReadOnlyList<TaxonomyLabelDto> MunicipalityLabels,
     IReadOnlyList<TaxonomyLabelDto> RegionLabels,

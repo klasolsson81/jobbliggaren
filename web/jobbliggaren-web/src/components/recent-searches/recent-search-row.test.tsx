@@ -24,6 +24,7 @@ function makeDto(extra?: Partial<RecentJobSearchDto>): RecentJobSearchDto {
     regionList: ["CifL_Rzy_Mku"],
     employmentTypeList: ["gro4_cWF_6D7"],
     worktimeExtentList: ["6YE1_gAC_R2G"],
+    remote: false,
     occupationGroupLabels: [
       { conceptId: "MVqp_eS8_kDZ", label: "Mjukvaruutveckling" },
     ],

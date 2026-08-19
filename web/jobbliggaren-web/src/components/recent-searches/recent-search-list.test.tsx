@@ -31,6 +31,7 @@ function makeDto(id: string, label: string, newCount = 0): RecentJobSearchDto {
     regionList: [],
     employmentTypeList: [],
     worktimeExtentList: [],
+    remote: false,
     occupationGroupLabels: [],
     municipalityLabels: [],
     regionLabels: [],

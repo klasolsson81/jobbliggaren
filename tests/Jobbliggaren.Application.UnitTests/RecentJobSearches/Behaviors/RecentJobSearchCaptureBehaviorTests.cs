@@ -235,6 +235,100 @@ public class RecentJobSearchCaptureBehaviorTests
             Arg.Any<Guid>(), Arg.Any<SearchCriteria>(), Arg.Any<int>(), Arg.Any<CancellationToken>());
     }
 
+    // ---- The ?q= axis stops persisting a personnummer (Klas-beslut 2026-08-19) ----
+    //
+    // Same class as the employer block above, different detector. `q` has no FORMAT gate -
+    // ListJobAdsQueryValidator bounds its length and requires it non-empty when sorting by
+    // relevance, and nothing else - so it carries hyphenated, 12-digit and space-gapped forms
+    // the ten-digit employer axis structurally cannot. Detection is therefore the validating
+    // flag chain (Normalize -> Scan -> Personnummer.TryParse date+Luhn), not a shape predicate.
+    //
+    // Every vector below is production-producible: the /jobb free-text box feeds ?q= end to
+    // end, so none of these needs the declared-unreachable framing the employer block uses.
+    // Vectors are ASCII by design - the fullwidth/Unicode-dash folding is pinned in the
+    // Domain privacy suites, and these tests call the REAL scanner, so repeating that
+    // coverage here would duplicate it rather than add any.
+
+    [Theory]
+    [InlineData("811218-9876")]      // 10-digit, hyphenated
+    [InlineData("8112189876")]       // 10-digit, contiguous
+    [InlineData("19811218-9876")]    // 12-digit, hyphenated
+    [InlineData("198112189876")]     // 12-digit, contiguous
+    [InlineData("811278-9873")]      // samordningsnummer (day 78 = 18 + 60)
+    [InlineData("811218 9876")]      // single-space gapped - bridged by the normalizer
+    public async Task Handle_PersonnummerShapedQ_RunsTheSearchButCapturesNothing(string q)
+    {
+        await HandleAsync(new FakeSearchQuery(
+            Q: q, OccupationGroup: null, Municipality: null, Region: null));
+
+        // The SEARCH ran - only the persistence is skipped. Refusing the search would be a
+        // behaviour change on a surface that has nothing to do with the leak. Asserting on the
+        // returned TotalCount would not pin that: Handle awaits next(...) before every guard, so
+        // the fake's response comes back on every path and the assertion could never fail.
+        await _capturer.DidNotReceive().CaptureAsync(
+            Arg.Any<Guid>(), Arg.Any<SearchCriteria>(), Arg.Any<int>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Handle_QWithPersonnummerInsideFreeText_CapturesNothing()
+    {
+        // The carrier form the employer axis cannot have: a personnummer as one token among
+        // ordinary search words. The scanner's candidate regex is delimiter-aware, so it finds
+        // the token without the whole string having to look like a number.
+        await HandleAsync(new FakeSearchQuery(
+            Q: "backend 811218-9876 stockholm", OccupationGroup: null, Municipality: null,
+            Region: null));
+
+        await _capturer.DidNotReceive().CaptureAsync(
+            Arg.Any<Guid>(), Arg.Any<SearchCriteria>(), Arg.Any<int>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Handle_PersonnummerShapedQBesideOtherFilters_CapturesNothingAtAll()
+    {
+        // Skip, never null q out, and this is the ONLY test that can tell the two apart: on a
+        // q-only query Create's own Empty invariant would drop the capture anyway, so a
+        // null-out would look identical there. With a dimension beside it the criteria stays
+        // valid and a null-out WOULD capture - as a row whose FilterHash equals that of a
+        // genuine q-less search on the same dimension, which CaptureAsync would then find and
+        // Bump(), corrupting LastSeenCount and LastViewedAt on a different, real search.
+        await HandleAsync(new FakeSearchQuery(
+            Q: "811218-9876", OccupationGroup: ["grp1"], Municipality: null, Region: null));
+
+        await _capturer.DidNotReceive().CaptureAsync(
+            Arg.Any<Guid>(), Arg.Any<SearchCriteria>(), Arg.Any<int>(), Arg.Any<CancellationToken>());
+    }
+
+    [Theory]
+    [InlineData("811218-9875")]        // personnummer shape, Luhn check digit wrong
+    [InlineData("5592804784")]         // a real org.nr - Luhn-VALID, rejected on the date gate
+    [InlineData("javautvecklare 2026")] // digits, no candidate shape at all
+    public async Task Handle_DigitBearingQThatIsNoPersonnummer_CapturesRawQ(string q)
+    {
+        // The counterfactual that keeps the guard honest: it is a VALIDATING detector, not a
+        // digit filter. Ordinary searches that merely contain digits - a company number, a
+        // year, a near-miss - still capture, and the stored q is byte-identical to the input.
+        //
+        // The org.nr vector is deliberately the Luhn-VALID fixture from
+        // ListJobAdsQueryValidator's own doc (5592804784, Luhn sum 50). A Luhn-invalid org.nr
+        // would pass this test for the wrong reason - the check digit, not the discriminator
+        // under test. What actually rejects it is the date gate reached first: significant[2..4]
+        // is "92", and a Swedish org.nr always carries >= 20 in the month position.
+        SearchCriteria? captured = null;
+        _capturer.CaptureAsync(
+                _userId, Arg.Do<SearchCriteria>(c => captured = c), 7,
+                Arg.Any<CancellationToken>())
+            .Returns(Task.CompletedTask);
+
+        await HandleAsync(new FakeSearchQuery(
+            Q: q, OccupationGroup: null, Municipality: null, Region: null));
+
+        await _capturer.Received(1).CaptureAsync(
+            _userId, Arg.Any<SearchCriteria>(), 7, Arg.Any<CancellationToken>());
+        captured.ShouldNotBeNull();
+        captured!.Q.ShouldBe(q);
+    }
+
     [Fact]
     public async Task Handle_EmployerOnly_CapturesSearch_WithOrgNr()
     {

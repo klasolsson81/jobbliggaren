@@ -4,6 +4,7 @@ using Jobbliggaren.Application.RecentJobSearches.Abstractions;
 using Jobbliggaren.Application.RecentJobSearches.Common;
 using Jobbliggaren.Domain.CompanyWatches;
 using Jobbliggaren.Domain.JobAds;
+using Jobbliggaren.Domain.Privacy;
 using Jobbliggaren.Domain.SavedSearches;
 using Mediator;
 using Microsoft.Extensions.Logging;
@@ -159,6 +160,27 @@ public sealed partial class RecentJobSearchCaptureBehavior<TMessage, TResponse>(
         // OrganizationNumber.IsPersonnummerShaped is the house's single-sourced discriminator,
         // and this was the one PERSISTENCE SINK that never consulted it.
         if ((capt.Employer ?? []).Any(IsPersonnummerShapedOrUnparseable))
+            return response;
+
+        // Same sink and the same skip-reason as the employer guard above, so that block governs
+        // here too - with one widening. There the bearer is NECESSARILY a third party, since the
+        // value is by construction someone else's org.nr. A free-text box can carry the user's own
+        // number, a third party's, or a sole trader's org.nr typed here instead of into the
+        // employer facet, so the bearer is POSSIBLY a third party - which closes the same
+        // acceptance route just as firmly (§9.6(3) requires the controller to be the only affected
+        // data subject), and this axis additionally re-renders a captured q verbatim as the
+        // "Senaste sokningar" row label (ListRecentSearchesQueryHandler.DeriveLabel).
+        //
+        // What differs is the detector: `q` is free text with no format gate, so it carries
+        // hyphenated, 12-digit and gapped forms the ten-digit employer axis structurally cannot,
+        // and the employer helper's unparseable arm - fail-safe on a format axis - would refuse
+        // every ordinary search string here. This is instead the house's single-sourced flag path
+        // (JobSeeker.ValidateDisplayName, Resume.ValidateName, AutoPromoteGate run the identical
+        // one-liner), whose accepted gap residual is PersonnummerTextNormalizer's to own (#427 V3)
+        // rather than re-derived per call site (#844: a rule with two normalisers is two rules).
+        // #1415 re-adjudicates that residual now that it governs a hand-typed, user-rendered axis.
+        if (effectiveQ is not null
+            && PersonnummerScanner.Scan(PersonnummerTextNormalizer.Normalize(effectiveQ)).Count > 0)
             return response;
 
         try

@@ -138,9 +138,10 @@ public class RecentSearchesTests(ApiFactory factory)
             .Select(e => e.GetString())
             .ShouldContain(municipality);
         row.TryGetProperty("ssykList", out _).ShouldBeFalse();
-        // #1407: the false polarity of the distans axis must SERIALISE, not vanish — the
-        // remote-only test above pins true, and a field that is emitted only when true
-        // would pass that one while leaving the FE schema without a value to read.
+        // #1407: the false polarity of the distans axis must SERIALISE, not vanish.
+        // Searching_jobs_with_remote_only_persists_the_remote_flag_and_surfaces_it pins
+        // true; a field emitted only when true would pass that one while leaving the FE
+        // schema without a value to read.
         row.GetProperty("remote").GetBoolean().ShouldBeFalse();
     }
 
@@ -188,7 +189,8 @@ public class RecentSearchesTests(ApiFactory factory)
         // column round-trip end-to-end (the ListRecentSearches unit tests use EF In-Memory).
         // #1407: the axis now ALSO reaches the wire, so the replay href can carry it. That is the whole
         // round-trip a user sees — column write, projection, wire — and it is asserted on both legs.
-        // Contrast the employer-only test above: that axis stays off the wire on purpose (D8(c)).
+        // Contrast Searching_jobs_with_employer_only_persists_org_nr_to_column_without_surfacing_it:
+        // that axis stays off the wire on purpose (RecentJobSearchProjectionParityTests owns why).
         var ct = TestContext.Current.CancellationToken;
         await AuthenticateAsync(ct);
         var me = await _client.GetFromJsonAsync<JsonElement>("/api/v1/me", ct);

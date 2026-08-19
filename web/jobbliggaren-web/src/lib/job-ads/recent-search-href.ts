@@ -14,10 +14,8 @@ import type { RecentJobSearchDto } from "@/lib/dto/recent-searches";
  * NOT a saved-search concern (Klas) — a replay therefore never carries a grade
  * filter (empty list).
  *
- * The employer axis is the one filter the replay still cannot carry: the DTO does
- * not surface it at all (ADR 0087 D8(c) — for an enskild firma the org.nr is the
- * holder's personnummer, #841), so a captured employer search replays broader than
- * it was. That is a deliberate privacy trade, not a second #1407.
+ * The employer axis is the one filter the replay cannot carry, deliberately;
+ * `RecentJobSearchProjectionParityTests` owns which dimensions reach the DTO and why.
  */
 export function buildRecentSearchHref(item: RecentJobSearchDto): string {
   return buildJobbHref({

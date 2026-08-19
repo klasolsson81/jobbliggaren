@@ -85,9 +85,12 @@ public sealed class ListRecentSearchesQueryHandler(
             // teardown; empiriskt återöppnad) återskapar annars 8s-timeouten
             // (Npgsql 57014). currentCount/newCount är därför 0 och den synliga
             // per-sökning-träffräknaren är TILLFÄLLIGT borttagen i UI:t (CTO-
-            // beslut 2026-06-13: hellre ingen siffra än falsk "(0)"). Återinförs
-            // via lat klient-hämtning (B, useFacetCounts-mönstret). Rotorsaken
-            // (slow ListJobAds COUNT) fixas i TD-94.
+            // beslut 2026-06-13: hellre ingen siffra än falsk "(0)"). Den lata
+            // klient-hämtningen (B, useFacetCounts-mönstret) ÄR sedan dess levererad —
+            // use-recent-search-counts.ts mot /api/me/recent-searches/counts, som
+            // anropar getRecentSearches(true) — så siffran visas igen, via den vägen
+            // och aldrig via currentCount/newCount härifrån. Rotorsaken (slow
+            // ListJobAds COUNT) står kvar.
             int currentCount = 0;
             if (query.IncludeCount)
             {
@@ -127,9 +130,6 @@ public sealed class ListRecentSearchesQueryHandler(
                 // ADR 0067 Beslut 6 (Fas B2) — råa Klass 2-listor (inga labels, Fas E).
                 EmploymentTypeList: r.EmploymentType,
                 WorktimeExtentList: r.WorktimeExtent,
-                // #1407: distans-axeln nådde count-filtret ovan men inte projektionen,
-                // så FE:s replay körde om sökningen UTAN distans medan raden räknades
-                // MED den. Samma klass som ADR 0067 B2 stängde för Klass 2.
                 Remote: r.Remote,
                 OccupationGroupLabels: occupationGroupLabels,
                 MunicipalityLabels: municipalityLabels,

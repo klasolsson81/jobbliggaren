@@ -25,12 +25,9 @@ namespace Jobbliggaren.Application.RecentJobSearches.Queries;
 // De råa listorna säkerställer att CountAsync filtrerar på exakt samma kriterium
 // som sökningen och att en framtida re-run reproducerar Klass 2.
 //
-// #1407 (#551 punkt 4): Remote surfas, Employer surfas INTE — och asymmetrin är
-// inte en inkonsekvens. Båda axlarna trådas in i CountAsync, men bara en av dem
-// får nå wire:n: Employer bär för en enskild firma innehavarens personnummer
-// (#841), så ADR 0087 D8(c) håller den ur projektionen och accepterar att en
-// arbetsgivarsökning inte går att köra igen. Remote är en boolesk filteraxel utan
-// bärare, så replayen kan reproducera exakt det kriterium räknaren räknade.
+// #1407: Remote surfas, Employer surfas inte. Vilka dimensioner som når projektionen,
+// och varför en utelämnas, ägs av RecentJobSearchProjectionParityTests — ett hem, som
+// fäller testet i stället för att bara beskriva.
 public sealed record RecentJobSearchDto(
     Guid Id,
     string? Q,

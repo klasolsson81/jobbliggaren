@@ -1,3 +1,4 @@
+using System.Reflection;
 using Jobbliggaren.Application.JobAds.Queries.GetTaxonomyTree;
 using Jobbliggaren.Application.RecentJobSearches.Queries;
 using Jobbliggaren.Domain.JobAds;
@@ -67,19 +68,38 @@ public class RecentJobSearchDtoContractTests
         t.GetProperty("SsykLabels").ShouldBeNull();
     }
 
-    [Fact]
-    public void RecentJobSearchDto_ShouldNotSurfaceTheEmployerAxis()
-    {
-        // ADR 0087 D8(c). Sedan #1407 bär DTO:n Remote men INTE Employer, trots att
-        // handlern trådar in båda i CountAsync — en asymmetri som ser ut som en
-        // inkonsekvens att städa bort. Den är det inte: för en enskild firma ÄR
-        // org.nr innehavarens personnummer (#841), så axeln får inte nå wire:n ens
-        // till priset av att en arbetsgivarsökning inte kan köras igen. Utan denna
-        // pinne kostar "gör det konsekvent" en PII-läcka.
-        var t = typeof(RecentJobSearchDto);
+    // #1407 (security-auditor M-1). Ordningspinnen nedan läser ctor.GetParameters()
+    // och ser därför BARA positionella parametrar. En body-deklarerad
+    // `public string[] Whatever { get; init; }` är osynlig för den och serialiseras
+    // ändå till wire:n av System.Text.Json — mätt. Namnbaserad frånvaro-assertion
+    // stänger inte det hålet heller: den matchar stavningar, inte formen.
+    //
+    // Mängden är därför uttömmande och EXAKT. Vilken ny property som helst, oavsett
+    // namn och deklarationsform, faller ut här. Vilka dimensioner som FÅR vara med
+    // och varför en utelämnas ägs av RecentJobSearchProjectionParityTests.
+    private static readonly string[] SurfacedProperties =
+    [
+        "Id", "Q",
+        "OccupationGroupList", "MunicipalityList", "RegionList",
+        "EmploymentTypeList", "WorktimeExtentList", "Remote",
+        "OccupationGroupLabels", "MunicipalityLabels", "RegionLabels",
+        "SortBy", "Label", "CurrentCount", "NewCount", "LastViewedAt",
+    ];
 
-        t.GetProperty("Employer").ShouldBeNull();
-        t.GetProperty("EmployerList").ShouldBeNull();
+    [Fact]
+    public void RecentJobSearchDto_ShouldSurfaceExactlyTheseProperties()
+    {
+        var actual = typeof(RecentJobSearchDto)
+            .GetProperties(BindingFlags.Public | BindingFlags.Instance)
+            .Select(p => p.Name)
+            .OrderBy(n => n, StringComparer.Ordinal)
+            .ToArray();
+
+        actual.ShouldBe(
+            [.. SurfacedProperties.OrderBy(n => n, StringComparer.Ordinal)],
+            "varje public instans-property på RecentJobSearchDto når HTTP-svaret. "
+            + "Lägg inte till en här utan att först klassa dimensionen i "
+            + "RecentJobSearchProjectionParityTests.");
     }
 
     [Fact]
@@ -94,15 +114,9 @@ public class RecentJobSearchDtoContractTests
 
         // ADR 0067 Beslut 6 (Fas B2): EmploymentTypeList/WorktimeExtentList efter
         // RegionList (kanonisk dimensionsordning), labels-blocket fortsatt sist.
-        // #1407: Remote sist i råa-dimensions-blocket — samma plats den har i
-        // JobAdFilterCriteria, minus den Employer DTO:n aldrig bär (nedan).
-        names.ShouldBe(
-        [
-            "Id", "Q",
-            "OccupationGroupList", "MunicipalityList", "RegionList",
-            "EmploymentTypeList", "WorktimeExtentList", "Remote",
-            "OccupationGroupLabels", "MunicipalityLabels", "RegionLabels",
-            "SortBy", "Label", "CurrentCount", "NewCount", "LastViewedAt",
-        ]);
+        // #1407: Remote sist i råa-dimensions-blocket — samma position den har
+        // RELATIVT de råa dimensionslistorna i JobAdFilterCriteria (där Q ligger
+        // sist och här på index 1; de två ordningarna divergerade före #1407).
+        names.ShouldBe(SurfacedProperties);
     }
 }

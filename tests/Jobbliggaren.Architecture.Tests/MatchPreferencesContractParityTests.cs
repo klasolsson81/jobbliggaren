@@ -42,15 +42,14 @@ namespace Jobbliggaren.Architecture.Tests;
 /// </summary>
 public class MatchPreferencesContractParityTests
 {
-    // The VO carries members that are NOT user-stated dimensions and therefore have no place on
-    // either contract. Kept as an explicit allow-list rather than a filter on shape: a new member
-    // must be classified by a human, and the default — silence — fails the test rather than
-    // passing it.
+    // Members that are NOT user-stated dimensions and therefore have no place on either contract.
+    // An explicit allow-list rather than a filter on shape, so the default — silence — FAILS the
+    // test rather than passing it.
+    //
     // EMPTY today, and measured so: every public instance property on the VO is a stated
-    // dimension (eight of them). It exists as the seam for a future member that genuinely is not
-    // one — plumbing, a derived flag — so such a member is classified by a human rather than
-    // quietly widening the guard. Equals/GetHashCode are methods, not properties, and never
-    // reach GetProperties.
+    // dimension. It exists as the seam for a future member that genuinely is not one — plumbing,
+    // a derived flag — so such a member is classified by a human rather than quietly widening the
+    // guard. Equals/GetHashCode are methods, not properties, and never reach GetProperties.
     private static readonly HashSet<string> NotUserStatedDimensions = new(StringComparer.Ordinal);
 
     [Fact]
@@ -68,7 +67,15 @@ public class MatchPreferencesContractParityTests
             .Select(p => p.Name)
             .ToHashSet(StringComparer.Ordinal);
 
-        var missing = StatedDimensions()
+        var dimensions = StatedDimensions().ToArray();
+
+        // Golv mot en trasig källmängd: en inclusion-spec kan aldrig upptäcka att den mäter
+        // ingenting. Töms StatedDimensions() — allow-listan breddad, properties som slutar vara
+        // publika, VO:t omstrukturerat — blir `missing` tom och båda fakta går gröna och TYSTA.
+        dimensions.ShouldNotBeEmpty(
+            "the guard measures nothing if MatchPreferences exposes no stated dimensions");
+
+        var missing = dimensions
             .Where(name => !contractMembers.Contains(name))
             .OrderBy(name => name, StringComparer.Ordinal)
             .ToArray();

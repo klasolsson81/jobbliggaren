@@ -1,3 +1,4 @@
+using System.Reflection;
 using System.Text.Json;
 using Jobbliggaren.Domain.JobSeekers;
 using Jobbliggaren.Infrastructure.Persistence.Configurations;
@@ -18,6 +19,52 @@ public class MatchPreferencesConverterTests
 
     private static MatchPreferences FromJson(string json) =>
         (MatchPreferences)MatchPreferencesConversion.Converter.ConvertFromProvider(json)!;
+
+    /// <summary>
+    /// #551 — every stated dimension must be WRITTEN, not merely writable. The sibling guard
+    /// (<c>MatchPreferencesContractParityTests</c>) binds the VO to the read projection and the
+    /// write command, so a new dimension can no longer skip those. This one closes the fourth
+    /// home, and it is the one with the worst failure mode: <c>Write</c> is a method body rather
+    /// than a type surface, so a missing <c>WritePropertyName</c> line compiles. The value is then
+    /// accepted, validated, saved with 204 — and read back as the type default, because
+    /// <c>Read</c> is deliberately tolerant of a missing key (legacy rows). Silent data loss under
+    /// a success status.
+    ///
+    /// <para>
+    /// <c>Empty</c> is a sufficient probe, and a populated fixture would be WORSE: every dimension
+    /// on <c>Create</c> has a default parameter, so a hand-written call keeps compiling when a
+    /// dimension is added, and the probe would silently stop covering it. <c>Write</c> emits every
+    /// key unconditionally in canonical form, so the empty VO exercises the full key set.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public void Write_EmitsEveryStatedDimension_SoNoneCanBeSilentlyDropped()
+    {
+        using var doc = JsonDocument.Parse(ToJson(MatchPreferences.Empty));
+        var written = doc.RootElement
+            .EnumerateObject()
+            .Select(p => p.Name)
+            .ToHashSet(StringComparer.Ordinal);
+
+        var dimensions = typeof(MatchPreferences)
+            .GetProperties(BindingFlags.Public | BindingFlags.Instance)
+            .Select(p => p.Name)
+            .ToArray();
+
+        dimensions.ShouldNotBeEmpty(
+            "the guard measures nothing if the VO exposes no public instance properties");
+
+        var missing = dimensions
+            .Where(name => !written.Contains(name))
+            .OrderBy(name => name, StringComparer.Ordinal)
+            .ToArray();
+
+        missing.ShouldBeEmpty(
+            $"every stated MatchPreferences dimension must be written to the jsonb payload. "
+            + $"Missing: {string.Join(", ", missing)}. A dimension Write omits is accepted, "
+            + "validated and saved with 204, then read back as the type default — silent data "
+            + "loss under a success status.");
+    }
 
     [Fact]
     public void RoundTrip_PreservesOccupationExperienceOverlay()

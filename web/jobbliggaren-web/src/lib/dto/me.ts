@@ -85,11 +85,12 @@ export const jobSeekerProfileSchema = z.object({
   // för pre-fill så ett spar av någon annan dimension aldrig nollar den (samma
   // full-replace page-wipe-vakt som region/kommun).
   //
-  // ⚠ Det som gör `required` SANT är inte den här kommentaren utan en pin på andra
-  // sidan wire:t: `MatchPreferencesTests.PUT_match_preferences_round_trips_
-  // preferredRemote_through_the_profile` plus default-fallet bredvid den, och
-  // `MatchPreferencesContractParityTests`, som fäller varje dimension som inte når
-  // läsprojektionen. Den ordningen är inte akademisk: det här fältet gjordes
+  // ⚠ Det som gör `required` SANT är inte den här kommentaren utan pinnar på andra
+  // sidan wire:t. Namnen står OBRUTNA så ett svep hittar dem:
+  //   MatchPreferencesTests.PUT_match_preferences_round_trips_preferredRemote_through_the_profile
+  //   MatchPreferencesTests.Profile_carries_preferredRemote_false_for_a_user_who_never_set_it
+  //   MatchPreferencesContractParityTests — fäller varje dimension som inte når
+  //   läsprojektionen ELLER skrivkontraktet. Den ordningen är inte akademisk: det här fältet gjordes
   // required på styrkan av ett PÅSTÅENDE om backend som var falskt, och varje
   // enhetstest förblev grönt eftersom fixturerna uppdaterats till att matcha
   // antagandet. En required-nyckel utan pin på wire:t är en obevisad hypotes.

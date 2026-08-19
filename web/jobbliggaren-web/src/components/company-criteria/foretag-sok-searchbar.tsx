@@ -1027,9 +1027,7 @@ export function ForetagSokSearchbar({
         aria-live="polite"
         aria-labelledby={hasOrgNrResult ? orgNrLabelId : undefined}
         className={
-          hasOrgNrResult
-            ? "mt-1 border-t border-border pt-6 outline-none"
-            : "outline-none"
+          hasOrgNrResult ? "mt-1 border-t border-border pt-6" : undefined
         }
       >
         {hasOrgNrResult && (

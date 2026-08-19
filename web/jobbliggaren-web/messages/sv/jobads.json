@@ -322,6 +322,7 @@
       "ortRightTitle": "Kommuner",
       "ortSelectAll": "Hela {label}",
       "ortDistans": "Distans",
+      "ortDistansHint": "Räknas som en egen ort. Distansjobb tas med oavsett vilka län eller kommuner du valt.",
       "ortEmpty": "Län kunde inte laddas just nu. Du kan söka på sökord ändå.",
       "ortRightEmpty": "Välj ett län till vänster.",
       "yrkeLeftTitle": "Yrkesområde",

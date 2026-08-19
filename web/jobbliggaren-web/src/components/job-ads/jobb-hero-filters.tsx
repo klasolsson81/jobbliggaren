@@ -413,7 +413,13 @@ export function JobbHeroFilters({
     });
   }
 
-  const ortCount = ort.region.length + ort.municipality.length;
+  // #551 punkt 4 — distans räknas MED. Ort-pillens räknare är inte en chip utan
+  // ort-dimensionens statusvisning, och distans är samma dimension i en tredje
+  // granularitet. Utan detta blir pillen helt omarkerad medan listan är smalnad,
+  // och (eftersom Distans medvetet saknar chip) syns filtret ingenstans alls i
+  // stängt läge.
+  const ortCount =
+    ort.region.length + ort.municipality.length + (selection.remote ? 1 : 0);
   // Klass 2 — "Filter"-pillens count = summan av aktiva anställningsform-
   // + omfattning-val (omfattning bär 0–1, anställningsform 0–8).
   const filterCount =
@@ -432,6 +438,11 @@ export function JobbHeroFilters({
     // anställningsform/omfattning OCH vice versa (backend exkluderar egen dim).
     employmentType: selection.employmentType,
     worktimeExtent: selection.worktimeExtent,
+    // #551 punkt 4 — samma regel som Klass 2 ovan. Ort-facetterna påverkas inte
+    // (backend exkluderar hela ort-dimensionen), men Yrke- och Klass-2-facetterna
+    // räknar annars mot ett ANNAT geo-predikat än listan: med bara Distans valt
+    // försvinner geo-filtret helt och counten blir hela korpusen.
+    remote: selection.remote,
     q,
   };
   const municipalityCounts = useFacetCounts(
@@ -614,6 +625,7 @@ export function JobbHeroFilters({
         }}
         booleanAxis={{
           label: t("heroFilters.ortDistans"),
+          hint: t("heroFilters.ortDistansHint"),
           checked: selection.remote,
           onToggle: toggleRemote,
         }}

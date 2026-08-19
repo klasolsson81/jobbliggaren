@@ -8,6 +8,7 @@
 import dynamic from "next/dynamic";
 import { useMemo, useRef, useState, useTransition } from "react";
 import { useFormatter, useTranslations } from "next-intl";
+import { DISTANS_CHIP_ID } from "@/lib/job-ads/ort-selection";
 import { formatTime } from "@/lib/i18n/format";
 import type {
   TaxonomyOccupationField,
@@ -287,6 +288,16 @@ export function MatchPreferencesCard({
     memberConceptIds: ReadonlyArray<string> = [conceptId]
   ) {
     const prev = currentSets();
+    // #551 punkt 4 — distans är en BOOLEAN, inte ett id i en lista, så den kan
+    // aldrig gå genom list-maskineriet nedan. Utan denna gren klassar ortAxisOf
+    // sentinel-id:t som en kommun (allt som inte finns i selectedRegions) och
+    // borttagningen blir en tyst no-op.
+    if (conceptId === DISTANS_CHIP_ID) {
+      const next: PrefSets = { ...prev, remote: false };
+      setSelectedRemote(false);
+      persist(next, () => setSelectedRemote(prev.remote));
+      return;
+    }
     const axisFor: keyof PrefSets =
       facet === "occupations"
         ? "occupations"
@@ -395,7 +406,12 @@ export function MatchPreferencesCard({
     // storen; saknade faller tillbaka på id (ingen träd-uppslagning för skills).
     skills: groupsForSelected(selectedSkills, skillGroups),
     // Ort-facetten: valda län FÖRST (helläns-axeln), sedan enskilda kommuner.
+    // #551 punkt 4 — distans först (bredaste ort-valet), annars visar kortet
+    // "Hela landet (ingen ort vald)" för en sparad Distans-preferens.
     orter: asChips([
+      ...(selectedRemote
+        ? [{ conceptId: DISTANS_CHIP_ID, label: t("matchPrefs.cascade.distans") }]
+        : []),
       ...labelsForSelected(selectedRegions, regionOptions),
       ...labelsForSelected(selectedMunicipalities, municipalityOptions),
     ]),

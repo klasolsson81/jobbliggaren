@@ -21,6 +21,12 @@ export function buildRecentSearchHref(item: RecentJobSearchDto): string {
     employmentType: item.employmentTypeList,
     worktimeExtent: item.worktimeExtentList,
     matchGrades: [],
+    // #551 punkt 4 — ALLTID false, och det är en LUCKA, inte ett val:
+    // SearchCriteria.Remote persisteras och ingår i filter-hashen, men
+    // RecentJobSearchDto exponerar inget Remote-fält, så replayen KAN inte bära
+    // det. En distans-sökning körs alltså om utan distans medan dess count
+    // räknades med den. Backend-lucka som denna PR gör NÅBAR, inte skapar: #1407.
+    remote: false,
     sortBy: item.sortBy,
   });
 }

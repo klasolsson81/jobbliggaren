@@ -430,7 +430,13 @@ export function JobbResultsToolbar({
   // aktivt arbetsgivar-filter (#454 PR-0). Status-chips borttagna (Dölj
   // ansökta syns på sin egen hero-toggle, inte som chip).
   const hasAnyToolbarChips =
-    chips.length > 0 || matchGradeChips.length > 0 || Boolean(urlState.employer);
+    chips.length > 0 ||
+    matchGradeChips.length > 0 ||
+    Boolean(urlState.employer) ||
+    // #551 punkt 4 — clearAllFilters nollar distans, så grinden måste kunna SE
+    // den. Utan detta är "Rensa sökord och filter" osynlig för ett rent
+    // Distans-filter, alltså en funktion vars grind inte ser vad den rensar.
+    urlState.remote;
 
   return (
     <>

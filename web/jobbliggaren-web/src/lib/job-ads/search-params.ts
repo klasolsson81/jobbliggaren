@@ -30,9 +30,17 @@ export interface JobbUrlState {
   // egen ortogonal axel: backend unionerar den in i geo-predikatet (kommun ∨ län ∨
   // remote, JobAdSearchComposition.ApplyFilter D5), så Distans BREDDAR ort-valet i
   // stället för att skära i det. En BOOLEAN, därför inte en joinad lista.
-  // Optional som sina boolean-syskon (matchningOff/includeRelated): en byggare
-  // utan ort-axel utelämnar den, och frånvaro ≡ av ≡ ingen param i URL:en.
-  remote?: boolean;
+  //
+  // REQUIRED, till skillnad från matchningOff/includeRelated/hideApplied. De är
+  // runtime-view-state som vissa byggare medvetet inte bär, och deras frånvaro är
+  // ofarlig. Distans är en FACETT som når backend — utelämnad tappas den tyst ur
+  // varje href den byggaren producerar. Ett obligatoriskt fält gör det till ett
+  // kompileringsfel i stället för ett granskningsfynd; mätt på denna PR blev det
+  // sju Major på den kedja där fältet var optional och noll på den där det inte
+  // var det. (`OrtChoice.remote` är optional och betyder något ANNAT där: att
+  // ytan saknar axeln. Två optionaliteter som ser lika ut på anropsplatsen är
+  // precis hur den här buggen uppstod.)
+  remote: boolean;
   // Klass 2 (ADR 0067 Fas E, 2026-06-13) — Klass-2-filterpanelens dimensioner.
   // `employmentType` = anställningsform (JobTech `employment-type`, ~8,
   // checkbox-multi). `worktimeExtent` = omfattning (JobTech `worktime-extent`,
@@ -384,7 +392,6 @@ export function buildJobbHref(state: JobbUrlState): string {
   // #419 pt1 — "Visa bara matchade". Skriv BARA ut när på (AV = paramens frånvaro, ren
   // URL). Placeras efter "Dölj ansökta", före q (stabil URL-form, intill status-paramen).
   if (state.onlyMatched) params.set(BARA_MATCHADE_PARAM, STATUS_ON_VALUE);
-  // #551 punkt 4 — Distans. Skriv BARA ut när på (AV = paramens frånvaro, ren URL).
   if (state.remote) params.set(DISTANS_PARAM, DISTANS_ON_VALUE);
   const q = state.q.trim();
   if (q.length > 0) params.set("q", q);

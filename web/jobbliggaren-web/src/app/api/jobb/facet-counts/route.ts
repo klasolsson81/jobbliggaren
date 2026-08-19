@@ -48,6 +48,9 @@ export async function GET(request: NextRequest) {
     region: params.getAll("region"),
     employmentType: params.getAll("employmentType"),
     worktimeExtent: params.getAll("worktimeExtent"),
+    // #551 punkt 4 — endast "true" räknas som på (klienten skriver bara den
+    // formen); allt annat är av. Drop-unknown, paritet med dimensionslistorna.
+    remote: params.get("remote") === "true",
     q: params.get("q") ?? undefined,
   });
 

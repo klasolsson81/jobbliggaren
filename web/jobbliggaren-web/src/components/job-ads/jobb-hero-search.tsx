@@ -76,6 +76,12 @@ interface JobbHeroSearchProps {
   occupationGroup: ReadonlyArray<string>;
   region: ReadonlyArray<string>;
   municipality: ReadonlyArray<string>;
+  // #551 punkt 4 — Distans. Aldrig text-representabel i fältet, precis som
+  // Klass 2 nedan, och bärs därför genom delta-/commit-vägen. UTAN denna tråd
+  // bygger fältets commit en href som tappar `?distans=on` — och den vägen
+  // träffas av Enter, Sök-knappen, förslags-val, ×-clear OCH live-deltat per
+  // tangenttryck, alltså tystast tänkbara radering av ett aktivt filter.
+  remote: boolean;
   // Klass 2 (2026-06-13) — panel-valda anställningsform/omfattning. Aldrig
   // text-representabla i fältet (som popover-dimensionerna, CTO VAL 4a) —
   // de bärs bara genom delta-/commit-vägen så en sökord-ändring inte raderar
@@ -122,6 +128,7 @@ export function JobbHeroSearch({
   occupationGroup,
   region,
   municipality,
+  remote,
   employmentType,
   worktimeExtent,
   matchGrades,
@@ -154,6 +161,7 @@ export function JobbHeroSearch({
       occupationGroup: [...occupationGroup],
       region: [...region],
       municipality: [...municipality],
+      remote,
       employmentType: [...employmentType],
       worktimeExtent: [...worktimeExtent],
       matchGrades: [...matchGrades],
@@ -168,6 +176,7 @@ export function JobbHeroSearch({
       occupationGroup,
       region,
       municipality,
+      remote,
       employmentType,
       worktimeExtent,
       matchGrades,
@@ -530,6 +539,9 @@ export function JobbHeroSearch({
     lastCommitted.occupationGroup.length > 0 ||
     lastCommitted.region.length > 0 ||
     lastCommitted.municipality.length > 0 ||
+    // #551 punkt 4 — ICapturesRecentSearch bär Remote sedan #551 PR-D, så ett
+    // rent Distans-sök ÄR sparbart backend-sidigt. Samma knowledge piece.
+    lastCommitted.remote ||
     lastCommitted.employmentType.length > 0 ||
     lastCommitted.worktimeExtent.length > 0;
 

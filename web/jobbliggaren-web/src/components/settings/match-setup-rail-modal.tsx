@@ -55,7 +55,10 @@ import type {
   TaxonomyRegion,
 } from "@/lib/dto/taxonomy";
 import type { SkillGroup } from "@/lib/dto/skills";
-import type { OrtChoice } from "@/lib/job-ads/ort-selection";
+import {
+  DISTANS_CHIP_ID,
+  type OrtChoice,
+} from "@/lib/job-ads/ort-selection";
 
 // Steg-index (0..6). 0 Start, 1 Yrken, 2 Kompetenser, 3 Orter, 4 Anställningsform,
 // 5 Granska, 6 Klart-läget (efter Spara). De sex sökbara/synliga stegen (0..5)
@@ -303,7 +306,14 @@ export function MatchSetupRailModal({
     draftSkills,
     allSkillGroups
   );
+  // #551 punkt 4 — distans FÖRST, samma ordning som kaskadens pinnade chips
+  // (bredaste ort-valet först). Utan denna post läser rail-metan, steg 3:s
+  // tom-notis OCH Granska-steget ett rent Distans-val som "inga orter valda /
+  // hela landet" — medan PUT:en skickar preferredRemote: true.
   const ortChips: ReadonlyArray<Option> = [
+    ...(draftRemote
+      ? [{ conceptId: DISTANS_CHIP_ID, label: t("orter.distans") }]
+      : []),
     ...labelsForSelected(draftRegions, regionOptions),
     ...labelsForSelected(draftMunicipalities, municipalityOptions),
   ];

@@ -229,7 +229,7 @@ describe("JobbHeroFilters — Ort tvåkolumns Län→Kommun (ADR 0067 Fas E2b)",
         initialOccupationGroup={[]}
         initialRegion={["CifL_Rzy_Mku"]}
         initialMunicipality={[]}
-      initialRemote={false}
+        initialRemote={false}
         initialEmploymentType={[]}
         initialWorktimeExtent={[]}
         initialMatchGrades={[]}
@@ -256,7 +256,7 @@ describe("JobbHeroFilters — Ort tvåkolumns Län→Kommun (ADR 0067 Fas E2b)",
         initialOccupationGroup={[]}
         initialRegion={[]}
         initialMunicipality={[]}
-      initialRemote={false}
+        initialRemote={false}
         initialEmploymentType={[]}
         initialWorktimeExtent={[]}
         initialMatchGrades={[]}
@@ -459,7 +459,7 @@ describe("JobbHeroFilters — degraderad taxonomi", () => {
         initialOccupationGroup={[]}
         initialRegion={[]}
         initialMunicipality={[]}
-      initialRemote={false}
+        initialRemote={false}
         initialEmploymentType={[]}
         initialWorktimeExtent={[]}
         initialMatchGrades={[]}
@@ -579,5 +579,57 @@ describe("JobbHeroFilters — Dölj ansökta (hero-toggle)", () => {
     setup({ hasSeeker: true, initialHideApplied: true });
     await user.click(screen.getByRole("button", { name: "Dölj ansökta" }));
     expect(pushMock).toHaveBeenCalledWith("/jobb");
+  });
+});
+
+// #551 punkt 4 — Distans som ort-val på /jobb. Husets form för de två befintliga
+// booleska axlarna (matchning=off, doljAnsokta=on): pinna den EMITTERADE URL:en,
+// inte bara byggaren. buildJobbHref-pinnarna i search-params.test.ts täcker
+// byggaren; kedjan popover → commit → push är den led där denna PR:s första
+// defekt faktiskt dog (wire-emissionen tappades tyst i en avbruten patch).
+describe("Distans i ort-popovern (#551 punkt 4)", () => {
+  it("klick (av → på) navigerar med ?distans=on", async () => {
+    const user = userEvent.setup();
+    setup();
+    await user.click(screen.getByRole("button", { name: /^Ort/ }));
+    await user.click(screen.getByRole("checkbox", { name: "Distans" }));
+    expect(pushMock).toHaveBeenCalledWith("/jobb?distans=on");
+  });
+
+  it("klick (på → av) navigerar till ren /jobb", async () => {
+    const user = userEvent.setup();
+    setup({ initialRemote: true });
+    await user.click(screen.getByRole("button", { name: /^Ort/ }));
+    await user.click(screen.getByRole("checkbox", { name: "Distans" }));
+    expect(pushMock).toHaveBeenCalledWith("/jobb");
+  });
+
+  it("distans reser BREDVID ett kommun-val, aldrig i stället för det", async () => {
+    const user = userEvent.setup();
+    setup({ initialMunicipality: ["zHxw_uJZ_NNh"] });
+    await user.click(screen.getByRole("button", { name: /^Ort/ }));
+    await user.click(screen.getByRole("checkbox", { name: "Distans" }));
+    const href = pushMock.mock.calls.at(-1)![0] as string;
+    expect(href).toContain("municipality=zHxw_uJZ_NNh");
+    expect(href).toContain("distans=on");
+  });
+
+  it("popoverns Rensa nollar distans tillsammans med de två id-axlarna", async () => {
+    const user = userEvent.setup();
+    setup({ initialRemote: true, initialRegion: ["i46j_HmG_v64"] });
+    await user.click(screen.getByRole("button", { name: /^Ort/ }));
+    const dialog = screen.getByRole("dialog", { name: "Ort" });
+    await user.click(within(dialog).getByRole("button", { name: /Rensa/ }));
+    expect(pushMock).toHaveBeenCalledWith("/jobb");
+  });
+
+  // Ort-pillens räknare är ort-dimensionens statusvisning. Utan distans i den
+  // blir ett aktivt Distans-filter helt osynligt i stängt läge — och eftersom
+  // Distans medvetet saknar chip finns då INGEN affordans alls.
+  it("Ort-pillen räknar distans, så filtret syns utan att popovern öppnas", () => {
+    setup({ initialRemote: true });
+    expect(
+      screen.getByRole("button", { name: /^Ort/ }),
+    ).toHaveAttribute("data-active", "true");
   });
 });

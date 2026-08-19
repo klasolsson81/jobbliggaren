@@ -29,6 +29,8 @@ export interface FacetCountsFilterState {
   // reflekterar de andra (backend exkluderar den facetterade dimensionen själv).
   employmentType: ReadonlyArray<string>;
   worktimeExtent: ReadonlyArray<string>;
+  // #551 punkt 4 — distans i samma filterkontext, av samma skäl som Klass 2.
+  remote: boolean;
   q: string;
 }
 
@@ -49,6 +51,7 @@ export function useFacetCounts(
     filter.region,
     filter.employmentType,
     filter.worktimeExtent,
+    filter.remote,
     filter.q,
   ]);
   const filterRef = useRef(filter);
@@ -78,6 +81,8 @@ export function useFacetCounts(
         params.append("occupationGroup", v);
       for (const v of current.municipality) params.append("municipality", v);
       for (const v of current.region) params.append("region", v);
+      // Wire-formen är ?remote=true (bool-bindning), aldrig rutt-flaggans "on".
+      if (current.remote) params.append("remote", "true");
       for (const v of current.employmentType)
         params.append("employmentType", v);
       for (const v of current.worktimeExtent)

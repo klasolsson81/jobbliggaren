@@ -228,6 +228,10 @@ export interface FacetCountsFilter {
   // den facetterade dimensionen själv ur WHERE).
   employmentType?: ReadonlyArray<string>;
   worktimeExtent?: ReadonlyArray<string>;
+  // #551 punkt 4 — distans ingår i facett-filterkontexten av samma skäl som
+  // Klass 2: utan den räknar Yrke-/Klass-2-facetterna mot ett annat geo-predikat
+  // än listan.
+  remote?: boolean;
   q?: string;
 }
 
@@ -258,6 +262,8 @@ export async function getFacetCounts(
     params.append("employmentType", v);
   for (const v of filter.worktimeExtent ?? [])
     params.append("worktimeExtent", v);
+  // #551 punkt 4 — bool-bindning backend-sidigt (JobAdsEndpoints), alltså "true".
+  if (filter.remote) params.append("remote", "true");
   if (filter.q) params.set("q", filter.q);
 
   try {

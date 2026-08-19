@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import { useFormatter, useTranslations } from "next-intl";
 import { Check, ChevronRight } from "lucide-react";
 import { formatNumber } from "@/lib/i18n/format";
@@ -103,10 +103,10 @@ interface JobbFilterPopoverProps {
    */
   booleanAxis?: {
     label: string;
+    /** Hjälptext under raden — förklarar att axeln BREDDAR, inte skär. */
+    hint?: string;
     checked: boolean;
     onToggle: () => void;
-    /** Facett-hint (GET /job-ads/remote-count). Utelämnad = inget tal alls. */
-    count?: number;
   };
   /**
    * Fas E2c (ADR 0067 Beslut 4) — per-option-counts för höger-kolumnens
@@ -190,10 +190,13 @@ function CheckRow({
   isAll,
   count,
   indeterminate,
+  describedBy,
 }: {
   label: string;
   checked: boolean;
   onToggle: () => void;
+  /** id på en hjälptext som skärmläsaren ska läsa efter namnet. */
+  describedBy?: string;
   /**
    * Avdelande rad-stil (jp-checkitem--all: underkant + semibold). Bärs av
    * "Välj alla"-raden och av den booleska axel-raden (#551) — den styr
@@ -215,6 +218,7 @@ function CheckRow({
       className={isAll ? "jp-checkitem jp-checkitem--all" : "jp-checkitem"}
       role="checkbox"
       aria-checked={indeterminate ? "mixed" : checked}
+      aria-describedby={describedBy}
       tabIndex={0}
       onClick={onToggle}
       onKeyDown={(e) => {
@@ -258,6 +262,7 @@ export function JobbFilterPopover({
   footer,
 }: JobbFilterPopoverProps) {
   const t = useTranslations("jobads.ui");
+  const boolHintId = `jp-popover-boolaxis-hint-${useId()}`;
   const ref = useDismissable<HTMLDivElement>(open, onClose, triggerRef);
   const pos = usePopoverPosition(open, triggerRef);
 
@@ -315,13 +320,23 @@ export function JobbFilterPopover({
           semibold), inte för sin "Välj alla"-semantik — propen styr bara
           utseendet. Ingen ny klass: globals.css ägs av en parallell session. */}
       {booleanAxis && (
-        <CheckRow
-          label={booleanAxis.label}
-          checked={booleanAxis.checked}
-          count={booleanAxis.count}
-          onToggle={booleanAxis.onToggle}
-          isAll
-        />
+        <>
+          <CheckRow
+            label={booleanAxis.label}
+            checked={booleanAxis.checked}
+            onToggle={booleanAxis.onToggle}
+            describedBy={booleanAxis.hint ? boolHintId : undefined}
+            isAll
+          />
+          {booleanAxis.hint && (
+            <p
+              id={boolHintId}
+              className="text-body-sm text-text-primary px-4 pb-2"
+            >
+              {booleanAxis.hint}
+            </p>
+          )}
+        </>
       )}
       <div className="jp-popover__body">
         {/* maxHeight/overflowY på själva kolumnen (ej enbart grid-

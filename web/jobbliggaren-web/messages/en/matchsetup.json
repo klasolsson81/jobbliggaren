@@ -62,7 +62,8 @@
     "restore": "Restore suggestions"
   },
   "orter": {
-    "intro": "Choose the counties or municipalities where you want to work. Leave empty for the whole country.",
+    "intro": "Choose the counties or municipalities where you want to work, or tick Remote. Leave everything empty for the whole country.",
+    "distans": "Remote",
     "selected": "SELECTED LOCATIONS ({count})",
     "empty": "<b>No locations selected.</b> We match across the whole country."
   },

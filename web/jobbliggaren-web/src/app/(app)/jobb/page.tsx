@@ -302,6 +302,7 @@ export default async function JobbPage({ searchParams }: PageProps) {
                 occupationGroup={occupationGroup}
                 region={region}
                 municipality={municipality}
+                remote={remote}
                 employmentType={employmentType}
                 worktimeExtent={worktimeExtent}
                 matchGrades={matchGrades}

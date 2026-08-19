@@ -120,7 +120,7 @@ public class PersonnummerGuardPathEquivalenceTests
                             // The pinned direction only: flag fired => redaction happened.
                             // An UNFLAGGED combination is skipped, never failed — asserting
                             // the reverse would forbid the redactor's wider coverage.
-                            if (PersonnummerScanner.Scan(PersonnummerTextNormalizer.Normalize(text)).Count == 0)
+                            if (PersonnummerScanner.Scan(PersonnummerTextNormalizer.Normalize(text, PersonnummerGapProfile.ExtractedDocumentText)).Count == 0)
                                 continue;
 
                             flagged++;
@@ -174,7 +174,7 @@ public class PersonnummerGuardPathEquivalenceTests
         foreach (var (lead, tail, label) in Bases)
         {
             var text = $"{lead}-{tail}";
-            PersonnummerScanner.Scan(PersonnummerTextNormalizer.Normalize(text))
+            PersonnummerScanner.Scan(PersonnummerTextNormalizer.Normalize(text, PersonnummerGapProfile.ExtractedDocumentText))
                 .ShouldNotBeEmpty($"base vector must be flaggable in its plain form: {label} ({text})");
         }
     }
@@ -219,7 +219,7 @@ public class PersonnummerGuardPathEquivalenceTests
                 var text = wrap(token);
 
                 // These are the newly-closed forms: the flag path MUST detect each.
-                if (PersonnummerScanner.Scan(PersonnummerTextNormalizer.Normalize(text)).Count == 0)
+                if (PersonnummerScanner.Scan(PersonnummerTextNormalizer.Normalize(text, PersonnummerGapProfile.ExtractedDocumentText)).Count == 0)
                 {
                     failures.Add($"NOT FLAGGED: {label} | context={contextLabel} | text=\"{Escape(text)}\"");
                     continue;

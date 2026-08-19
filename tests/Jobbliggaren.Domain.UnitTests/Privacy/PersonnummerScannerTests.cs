@@ -221,7 +221,10 @@ public class PersonnummerScannerTests
     [Fact]
     public void ScanWithGaps_ThreeVisibleColumnGap_NotBridged_NotFlagged()
     {
-        // #427 V3 accepted residual: a 3+ visible-column gap is deliberately not bridged.
+        // #427 V3 accepted residual: a 3+ visible-column gap is deliberately not bridged on
+        // the redaction path. Re-affirmed on measured ground in ADR 0134 (#1415) — every
+        // Redact call site is a CV/resume surface, so the wider SingleLineUserInput flag
+        // profile has nothing to be a superset of here.
         const string text = "Pnr 811218   9876 i CV.";
 
         PersonnummerScanner.ScanWithGaps(text).ShouldBeEmpty();
@@ -353,11 +356,21 @@ public class PersonnummerScannerTests
     }
 
     [Fact]
-    public void ScanWithGaps_SeparatorFlankedByTwoSpaces_NotBridged_V3BoundHolds()
+    public void ScanWithGaps_SeparatorFlankedBySpaces_NotBridged_TheGrammarAdmitsNoMidGapSeparator()
     {
-        // A '-'/'+' flanked by a space on BOTH sides ("811218 - 9876") is a 3-visible-column
-        // gap: the widening did not open it (the {0,2} space bound governs each side), so the
-        // V3 accepted residual still holds and the form is not flagged.
+        // "811218 - 9876" is not bridged, and the REASON is the grammar, not the width bound.
+        // Both bridging regexes are `sep? gap-run sep?`, so a separator is admitted only
+        // DIGIT-ADJACENT: the gap run stops at the '-', the trailing sep? consumes it, and
+        // \d{4} is then required at a position holding a space. The form therefore stays
+        // unbridged at ANY bound: the argument is structural, and both bounds that exist in
+        // production corroborate it — ExtractedDocumentText at {0,2} and SingleLineUserInput
+        // at {0,8} each leave this form unflagged (measured 2026-08-20, #1415).
+        //
+        // The previous name (..._V3BoundHolds) and its comment ("the {0,2} space bound governs
+        // each side") both attributed this to the bound. That is wrong in a way that would have
+        // decayed silently rather than loudly: a later widening leaves this test GREEN, and a
+        // reader would then take its name as evidence that the bound had held when the bound
+        // had in fact moved. Naming the real mechanism is what keeps the pin honest.
         const string text = "Pnr 811218 - 9876 i CV.";
 
         PersonnummerScanner.ScanWithGaps(text).ShouldBeEmpty();

@@ -38,12 +38,12 @@ public static partial class PersonnummerTextNormalizer
     // would otherwise NEVER be bridged, the scanner would miss it, and the import guard
     // would store it flagged as "no personnummer found" (a PII leak). \p{Zs} subsumes the
     // ASCII space (U+0020) so this only widens, never narrows, the prior bridge. The width
-    // stays bounded at {0,2}: the defect is the character class, not the gap length, and a
-    // wider window would needlessly raise the chance of bridging two unrelated numbers.
-    // A 3+ visible-column gap is therefore deliberately NOT bridged — a reviewed, accepted
-    // residual (#427 V3, senior-cto-advisor). This bound governs only the VISIBLE \p{Zs}\t
-    // separators; invisible zero-width \p{Cf} noise is handled separately below (stripped,
-    // unbounded), so the {0,2} bound is unaffected by that widening.
+    // stays bounded at {0,2} ON THIS PROFILE, and #1415 re-adjudicated that bound rather than
+    // letting it be inherited: a 3+ visible-column gap is still deliberately NOT bridged in
+    // extracted document text (#427 V3, re-affirmed by senior-cto-advisor in ADR 0134 — now on
+    // MEASURED ground, see PersonnummerGapProfile). This bound governs only the VISIBLE
+    // \p{Zs}\t separators; invisible zero-width \p{Cf} noise is handled separately below
+    // (stripped, unbounded), so the {0,2} bound is unaffected by that widening.
     //
     // #427 (2nd CTO ruling, R2) + #497: an optional separator is now tolerated ADJACENT to the
     // {0,2} space run on either side ((?:[-+\p{Pd}...])? before AND after), where the separator
@@ -66,6 +66,31 @@ public static partial class PersonnummerTextNormalizer
     [GeneratedRegex(@"(?<!\d)(\d{8}|\d{6})(?:[-+\p{Pd}\u2212])?[\p{Zs}\t]{0,2}(?:[-+\p{Pd}\u2212])?(\d{4})(?!\d)", RegexOptions.CultureInvariant)]
     private static partial Regex SpacedCandidateRegex();
 
+    // #1415 / ADR 0134 — the SingleLineUserInput profile. Same grammar as above, two
+    // deliberate differences, and each is keyed to a property of the input rather than to a
+    // wish for more detection:
+    //
+    // 1. GAP CLASS [\s\p{Cc}]. Written as ONE character class, never an alternation: the
+    //    ReDoS linearity argument below rests on the alternatives being pairwise disjoint,
+    //    and \s overlaps \p{Cc} on \t\n\r\v\f, so an alternation would make that argument
+    //    quietly false. .NET's \s is [\p{Zs}\p{Zl}\p{Zp}\f\n\r\t\v\x85] — note \p{Zl}, which
+    //    is what carries U+2028 LINE SEPARATOR. Neither \p{Zs} nor \p{Cc} contains it, so the
+    //    otherwise-natural [\p{Zs}\p{Cc}] would have left U+2028 as an UNDOCUMENTED residual
+    //    (measured 2026-08-20 against the shipped chain, alongside U+000B and U+000C).
+    //
+    // 2. BOUND {0,8}. A line break is a field boundary in extracted document text and the
+    //    bound there exists to keep a bridge from crossing one. A hand-typed search box has
+    //    no line structure for a break to bound: whatever separates the digit runs is
+    //    stuffing, not layout. The number is a risk level rather than a corpus size — {0,4}
+    //    would cover every vector measured on this issue and still miss a five-space gap,
+    //    which is fitting the bound to the test set instead of to the threat.
+    //
+    // \p{Cf} is NOT folded into this class. It is stripped globally below, and it must stay
+    // stripped rather than bridged: treating it as a gap character would re-open the
+    // "811218 9876<U+0001>5" counterexample the #1414 measurement turned on.
+    [GeneratedRegex(@"(?<!\d)(\d{8}|\d{6})(?:[-+\p{Pd}\u2212])?[\s\p{Cc}]{0,8}(?:[-+\p{Pd}\u2212])?(\d{4})(?!\d)", RegexOptions.CultureInvariant)]
+    private static partial Regex SingleLineGapCandidateRegex();
+
     // #427 V2 (ADR 0074 Invariant 1): zero-width FORMAT characters (\p{Cf} — U+200B
     // ZERO WIDTH SPACE, U+FEFF ZERO WIDTH NO-BREAK SPACE, U+200C/D, ...) are NOT in the
     // \p{Zs} space-separator class, so a personnummer gapped by one (e.g. "19811218<ZWSP>9876"
@@ -80,22 +105,34 @@ public static partial class PersonnummerTextNormalizer
 
     /// <summary>
     /// Returns a scan-copy of <paramref name="text"/> with personnummer-shaped
-    /// space/OCR gaps bridged. Zero-width format characters (\p{Cf}) are stripped first
-    /// (#427 V2) so a zero-width-gapped personnummer is bridged too. Idempotent (a joined
-    /// token has no gap left to bridge, and a stripped copy has no zero-width char left)
-    /// and deterministic (single left-to-right pass, culture-invariant).
+    /// space/OCR gaps bridged under <paramref name="profile"/>. Zero-width format characters
+    /// (\p{Cf}) are stripped first (#427 V2) so a zero-width-gapped personnummer is bridged
+    /// too. Idempotent (a joined token has no gap left to bridge, and a stripped copy has no
+    /// zero-width char left) and deterministic (single left-to-right pass, culture-invariant).
+    ///
+    /// <para>The profile is REQUIRED and has no default (#1415, ADR 0134). The two policies
+    /// are not orderable by strength — the wider one is unsafe on extracted document text,
+    /// where a bridged line break collides at ~1 in 10, and the narrower one is unsafe on a
+    /// hand-typed box, where it misses thirteen gap classes that persist in plaintext and
+    /// render verbatim. A default would silently pick one of those wrongs for whichever call
+    /// site was written next.</para>
     /// </summary>
-    public static string Normalize(string text)
+    public static string Normalize(string text, PersonnummerGapProfile profile)
     {
         if (string.IsNullOrEmpty(text))
         {
             return text ?? string.Empty;
         }
 
-        // Strip invisible zero-width noise first (#427 V2), then bridge the visible
-        // \p{Zs}\t gap. Order matters: a "digits<ZWSP><NBSP>digits" form is only bridged
-        // once the zero-width char no longer sits inside the {0,2} space window.
+        // Strip invisible zero-width noise first (#427 V2), then bridge the profile's gap.
+        // Order matters: a "digits<ZWSP><NBSP>digits" form is only bridged once the
+        // zero-width char no longer sits inside the space window.
         var stripped = ZeroWidthFormatRegex().Replace(text, string.Empty);
-        return SpacedCandidateRegex().Replace(stripped, "$1$2");
+        var bridge = profile switch
+        {
+            PersonnummerGapProfile.SingleLineUserInput => SingleLineGapCandidateRegex(),
+            _ => SpacedCandidateRegex(),
+        };
+        return bridge.Replace(stripped, "$1$2");
     }
 }

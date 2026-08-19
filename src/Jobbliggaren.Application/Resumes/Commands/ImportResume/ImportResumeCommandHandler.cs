@@ -79,7 +79,7 @@ public sealed class ImportResumeCommandHandler(
         // 2. Personnummer guard on the RAW text BEFORE persist (Invariant 1). The
         //    normalizer bridges spaced/OCR-gapped forms on a transient scan-copy only;
         //    the persisted raw text is the original, un-normalized extraction.
-        var scanCopy = PersonnummerTextNormalizer.Normalize(extraction.RawText);
+        var scanCopy = PersonnummerTextNormalizer.Normalize(extraction.RawText, PersonnummerGapProfile.ExtractedDocumentText);
         var personnummerMatches = PersonnummerScanner.Scan(scanCopy);
 
         // 2a. Defense-in-depth (#426, ADR 0074 Invariant 1): the CV FILENAME is a second
@@ -92,7 +92,7 @@ public sealed class ImportResumeCommandHandler(
         //     filename-only hit does NOT block promotion (the filename never reaches the
         //     canonical Resume); B4 surfaces it as a Warn prompting a rename. The filename is
         //     never logged and the outcome stays PII-safe (count + kinds + a location bool).
-        var fileNameScanCopy = PersonnummerTextNormalizer.Normalize(command.FileName);
+        var fileNameScanCopy = PersonnummerTextNormalizer.Normalize(command.FileName, PersonnummerGapProfile.ExtractedDocumentText);
         var foundInFileName = PersonnummerScanner.Scan(fileNameScanCopy).Count > 0;
 
         var personnummer = PersonnummerScanOutcome.FromMatches(personnummerMatches, foundInFileName);

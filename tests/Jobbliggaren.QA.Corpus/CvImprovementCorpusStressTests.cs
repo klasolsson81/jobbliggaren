@@ -209,7 +209,7 @@ public class CvImprovementCorpusStressTests
 
         var rawText = $"{original.Cv.RawText}\n{pnrPeriod}";
         var personnummer = PersonnummerScanOutcome.FromMatches(
-            PersonnummerScanner.Scan(PersonnummerTextNormalizer.Normalize($"{pnr} {pnr}")));
+            PersonnummerScanner.Scan(PersonnummerTextNormalizer.Normalize($"{pnr} {pnr}", PersonnummerGapProfile.ExtractedDocumentText)));
 
         var created = ParsedResume.Create(
             original.Cv.JobSeekerId,

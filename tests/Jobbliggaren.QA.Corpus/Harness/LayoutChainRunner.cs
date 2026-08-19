@@ -212,7 +212,7 @@ internal static partial class LayoutChainRunner
         // label rung is resolved by observation rather than by inference.
         var label = ResumeLabelResolver.Resolve(null, FixedClock.Default);
         var pnrInLabel = PersonnummerScanner
-            .Scan(PersonnummerTextNormalizer.Normalize(label)).Count > 0;
+            .Scan(PersonnummerTextNormalizer.Normalize(label, PersonnummerGapProfile.ExtractedDocumentText)).Count > 0;
 
         var gates = GateLadder.From(
             o.BlockReason, o.Promoted, faulted,

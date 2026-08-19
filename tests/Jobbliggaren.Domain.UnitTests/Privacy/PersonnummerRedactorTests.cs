@@ -278,7 +278,8 @@ public class PersonnummerRedactorTests
     // ===============================================================
     // #427 V1/V3 — no over-redaction: the wider gap-aware shape is still gated by the
     // UNCHANGED date+Luhn authority, and the 3+ visible-column gap is deliberately not
-    // bridged (accepted residual). Both forms are left untouched by the redactor.
+    // bridged (accepted residual, re-affirmed for this path in ADR 0134). Both forms are
+    // left untouched by the redactor.
     // ===============================================================
 
     [Fact]
@@ -296,9 +297,23 @@ public class PersonnummerRedactorTests
     [Fact]
     public void Redact_ThreeVisibleColumnGap_NotBridged_LeftUnchanged()
     {
-        // A 3-visible-space gap is deliberately NOT bridged (#427 V3 accepted residual —
-        // a wider window would risk bridging two unrelated numbers). The import-time guard
-        // still flags the CV; here the redactor leaves the form as-is.
+        // A 3-visible-column gap is deliberately NOT bridged on the redaction path, nor on
+        // the ExtractedDocumentText flag profile the CV surfaces run (#427 V3, re-affirmed on
+        // measured ground in ADR 0134: a bridged line break in extracted text collides at
+        // ~1 in 10 against ~1 in 133 for arbitrary digits — see
+        // PersonnummerBridgeCollisionRateTests).
+        //
+        // An earlier revision of this comment said "the import-time guard still flags the CV".
+        // That was FALSE and load-bearing: it was the one sentence a reader would use to
+        // conclude this residual was covered somewhere else. The import guard is the same
+        // Scan(Normalize(x)) chain on the same profile, and
+        // Normalize_ThreeVisibleColumnGap_NotBridged pins that scan EMPTY for this very
+        // string. NO guard flags this form in a CV (#1415).
+        //
+        // The ?q= axis is the one surface that does flag it, because it runs the
+        // SingleLineUserInput profile — a different policy for a different kind of text, not
+        // a stronger one. Redaction is correctly unaffected either way: every Redact call
+        // site is a CV/resume surface and none of them redacts a search query.
         const string text = "Pnr 811218   9876 i CV.";
 
         var redacted = PersonnummerRedactor.Redact(text);
@@ -430,7 +445,7 @@ public class PersonnummerRedactorTests
     {
         // Precondition: the #426 import-flag path detects a personnummer in this form. If a
         // vector ever stops satisfying this, the corpus (not the invariant) is stale; fix here.
-        var flagged = PersonnummerScanner.Scan(PersonnummerTextNormalizer.Normalize(form)).Count > 0;
+        var flagged = PersonnummerScanner.Scan(PersonnummerTextNormalizer.Normalize(form, PersonnummerGapProfile.ExtractedDocumentText)).Count > 0;
         flagged.ShouldBeTrue(
             $"corpus vector should be detectable by the #426 flag path: {form}");
 

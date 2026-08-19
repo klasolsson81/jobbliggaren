@@ -18,6 +18,12 @@
          its own value rather than reading the compose file. -->
     <Content Include="..\..\.github\workflows\e2e.yml"
              Link=".github\workflows\e2e.yml" CopyToOutputDirectory="PreserveNewest" />
+    <!-- #1350 - the Api image. DeployComposeDataProtectionTests binds the compose mount and this
+         Dockerfile to the same path: a named volume mounted over a path the image lacks is created
+         root-owned, and the container's non-root user cannot then write a key. Boot stays green and
+         the failure lands on the first token mint, so nothing else in the repo would catch it. -->
+    <Content Include="..\..\src\Jobbliggaren.Api\Dockerfile"
+             Link="src\Jobbliggaren.Api\Dockerfile" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>

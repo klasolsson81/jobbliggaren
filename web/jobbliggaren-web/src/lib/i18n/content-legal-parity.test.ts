@@ -442,7 +442,8 @@ describe("content-legal i18n-paritet (sv ↔ en)", () => {
     const en = matchingLeaves(enLegal, /netcup GmbH/);
 
     // Vacuity guard + invariant 1. ETT känt löv i dag: mottagarsektionens värdstycke
-    // (`privacy.sections.6.paragraphs.1`). Det låg i sektionens `list` till 2026-08-09;
+    // (`privacy.sections.7.paragraphs.1` — index 6 till 2026-08-19, då sökhistorik-sektionen
+    // sköt in på 4). Det låg i sektionens `list` till 2026-08-09;
     // design-reviewer mätte att en enelements-`list` var ensam i hela katalogen och att
     // sektionens egen praxis är ett stycke per mottagare, så behållaren finns inte längre.
     // Spärren bryr sig inte: den binder sv↔en, aldrig sv↔behållare.

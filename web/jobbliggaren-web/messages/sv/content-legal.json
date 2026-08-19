@@ -5,7 +5,7 @@
       "description": "Hur Jobbliggaren behandlar dina personuppgifter: ändamål, laglig grund, lagringstid, dina rättigheter och säkerhet. Ingen spårning och ingen AI."
     },
     "title": "Integritetspolicy",
-    "updated": "Senast uppdaterad: 2026-08-16",
+    "updated": "Senast uppdaterad: 2026-08-19",
     "intro": "Den här integritetspolicyn beskriver hur Jobbliggaren behandlar dina personuppgifter, varför, med vilken laglig grund och hur länge. Här finns också dina rättigheter och hur du använder dem. Jobbliggaren är en kostnadsfri tjänst som hjälper dig att hitta och hålla ordning på dina jobbansökningar, byggd på öppna data om lediga jobb från Arbetsförmedlingens JobTech (Platsbanken).",
     "sections": [
       {
@@ -51,6 +51,24 @@
         ]
       },
       {
+        "heading": "Dina senaste sökningar (laglig grund: berättigat intresse)",
+        "paragraphs": [
+          "När du söker jobb under Jobb sparar vi automatiskt sökningen, så att du snabbt kan köra om den och se om den har gett nya träffar sedan sist. Den rättsliga grunden är berättigat intresse (artikel 6.1 f), och avvägningen är den som beskrivs i avsnittet Säkerhet, drift och produktfunktioner ovan. Vårt berättigade intresse är att du ska slippa skriva in samma sökning på nytt och kunna följa samma sökning över tid.",
+          "Dina sparade sökningar visas för dig i listan Senaste sökningar, i rutan Senaste sökningar under Jobb och som en påminnelse under Översikt. De delas inte med andra användare och inte med arbetsgivare. Begär någon som förekommer i en sökning radering av sina egna uppgifter behöver vi däremot söka igenom sparade sökningar för att hitta och ta bort det som rör personen, och då kan söktexten läsas av oss.",
+          "En sökning sparas när du aktivt kör den, till exempel när du trycker Sök eller Enter eller väljer ett förslag i sökrutan. Det du skriver innan du söker sparas inte, och att bara bocka i ett filter räcker inte. En sökning helt utan sökord och utan filter sparas inte alls. Kör du samma sökning igen läggs ingen ny till: vi uppdaterar bara när du senast körde den och hur många träffar den gav.",
+          "Vi sparar dina 20 senaste sökningar. De har ingen bestämd lagringstid och rensas inte bort automatiskt med tiden. Gör du en ny sökning när du redan har 20 sparade tas den du körde längst tillbaka bort för att ge plats åt den nya. Slutar du göra nya sökningar ligger de du har kvar.",
+          "Du kan när som helst ta bort en enskild sökning i listan Senaste sökningar. Raderar du ditt konto tas alla dina sökningar bort tillsammans med dina övriga uppgifter, se avsnittet om hur länge vi sparar uppgifter. Det går inte att stänga av att sökningar sparas, men du har rätt att invända mot behandling som grundas på berättigat intresse, se avsnittet om dina rättigheter.",
+          "Söktexten sparas som vanlig text, exakt som du skrev den, och visas tillbaka som sökningens namn i listorna. Vi rensar inte bort något ur den, och den omfattas inte av den kryptering fält för fält som beskrivs i avsnittet om säkerhet. Skriv därför inte in något i sökrutan som du inte vill att vi sparar, till exempel ett personnummer. Skriver du in ett ändå sparas sökningen inte, men den körs som vanligt. Det här sparar vi om varje sökning:"
+        ],
+        "list": [
+          "Söktexten du skrev, upp till 100 tecken.",
+          "Vilka filter du valde: yrkesgrupp, kommun, län, anställningsform, omfattning, arbetsgivare och om du filtrerade på distansarbete.",
+          "Vilken sortering sökningen kördes i.",
+          "Hur många träffar sökningen gav senast, så att vi kan visa om den har gett nya träffar sedan dess.",
+          "När sökningen sparades första gången och när du senast körde den."
+        ]
+      },
+      {
         "heading": "Kontaktuppgifter i jobbannonser (laglig grund: berättigat intresse)",
         "paragraphs": [
           "Jobbannonser från Platsbanken kan innehålla uppgifter om en kontaktperson hos arbetsgivaren, till exempel namn, e-postadress och telefonnummer för arbetet. Innan en annons sparas tar vi automatiskt bort e-postadresser och telefonnummer ur annonstexten. Kontaktpersonens uppgifter sparas i stället strukturerat och avskilt, utanför fritextsökningen, så att du kan följa upp en ansökan med rätt person. Borttagningen ur texten är regelbaserad och kan missa uppgifter som skrivits på ovanliga sätt eller som ligger i en bild.",
@@ -92,6 +110,7 @@
           "Din uppladdade originalfil av cv:t. Originalfilen hör ihop med det cv eller utkast du importerade den till. Tar du bort utkastet eller raderar cv:t raderas även originalfilen direkt, och raderar du hela ditt konto tas den bort tillsammans med dina övriga uppgifter. Påbörjar du en import utan att slutföra den rensas filen automatiskt efter som mest 90 dagar.",
           "När du raderar ditt konto tas uppgifterna bort och de krypterade uppgifterna görs permanent oläsbara, se avsnittet om säkerhet. Efter att du begärt radering finns en period på 30 dagar då ett konto kan återställas, innan det raderas slutgiltigt.",
           "Säkerhets- och händelseloggen sparas i 90 dagar och rensas därefter automatiskt. När ditt konto raderas slutgiltigt avidentifieras de uppgifter i loggen som kan kopplas till dig.",
+          "Dina senaste sökningar. Vi sparar de 20 senaste sökningar du har gjort under Jobb. De sparas tills vidare, utan bestämd lagringstid: en sökning tas inte bort automatiskt med tiden, utan när den faller ur dina 20 senaste och en ny sökning tar dess plats. Du kan ta bort en sökning när du vill i listan Senaste sökningar, och när du raderar ditt konto tas alla dina sökningar bort enligt punkterna ovan.",
           "Jobbannonser och arbetsgivarens identitet. Annonserna sparas tills vidare, utan bestämd lagringstid. En annons tas inte bort automatiskt. När den inte längre går att söka i tjänsten arkiveras den och kontaktuppgifterna raderas, men annonsen och organisationsnumret finns kvar.",
           "Organisationsnumret i en annons. Det är det enda tillförlitliga sättet att identifiera en arbetsgivare, och det behövs för att du ska kunna filtrera sökningar på arbetsgivare, följa företag och se din egen ansökningshistorik (planerat). För en enskild firma är organisationsnumret innehavarens personnummer. Vi behandlar organisationsnumret med stöd av berättigat intresse (artikel 6.1 f) och 3 kap. 10 § dataskyddslagen. Står ditt eget personnummer som organisationsnummer, eller förekommer du i annonsen, till exempel som kontaktperson, kan du begära radering. Då raderar vi hela vår kopia av annonsen, även organisationsnumret. Se avsnittet Kontaktuppgifter i jobbannonser ovan.",
           "Ansökningshistorik (planerat). Dina ansökningar, inklusive uppgift om i vilket steg en ansökan avslutades, sparas så länge ditt konto finns och tas bort när kontot raderas enligt punkterna ovan. Kopplingen mellan en ansökan och en arbetsgivare omfattas däremot inte av den garantin: den finns bara där vi har arbetsgivarens identitet från annonsen. Sammanställningen per arbetsgivare kan därför förlora poster permanent."

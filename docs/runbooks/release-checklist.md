@@ -964,8 +964,9 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
       (i) **e-postleverantörens stycke får stryka sin egen avtalsreservation när avtalet är på
       plats.** ⚠ **Mekanismen är omskriven 2026-08-15 (`security-auditor` Major 2), för att den
       skyddsmekanism residualen tidigare namngav inte finns.** Posten sa att *"prosaformen är vald
-      just för att listrubriken påstår ett tecknat avtal"* — men `privacy.sections[6]` har **ingen
-      `list`-nyckel** (mätt 2026-08-15: `heading` + sex `paragraphs`, noll `list`); nyckeln
+      just för att listrubriken påstår ett tecknat avtal"* — men `privacy.sections[7]` har **ingen
+      `list`-nyckel** (mätt 2026-08-15 på dåvarande index 6, ommätt 2026-08-19 på index 7 sedan
+      sökhistorik-sektionen sköt in på 4: `heading` + sex `paragraphs`, noll `list`); nyckeln
       försvann i #1199, och e-poststyckena ligger i exakt samma strukturella position som
       netcup-stycket. **En residual vars angivna skydd inte existerar läses som uppfylld**, och den
       här lurade sin egen granskare två gånger. Vad som bar ärligheten **till 2026-08-16** var
@@ -1263,14 +1264,22 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
       grep -n "planerat\|planerad\|planeras" web/jobbliggaren-web/messages/sv/content-legal.json
       grep -n "planned"                      web/jobbliggaren-web/messages/en/content-legal.json
       ```
-      **Regenererad 2026-08-16 (#183 FU-2b, EFTER flippen): 7 + 7** (rad 37, 50, 64, 74, 96, 97,
-      132 — identiska i sv och en, alla äkta statuspåståenden, ingen falsk träff med detta
-      mönster). **Talet sjönk med TRE och ingen rad flyttade**, av ett enda skäl: rad 47, 75 och 76
-      förlorade sina markörer i flippen nedan, och ingen rad lades till eller togs bort — en
-      redigering **inuti** en JSON-sträng flyttar ingenting under sig. Det är första gången i den
-      här postens historia som mängden krymper utan att radnumren rör sig, och det är värt att
-      skriva ut just därför att varje tidigare regenerering lärde ut motsatsen.
-      *(Föregående regenerering, 2026-08-16 (#183 E4, Art. 13(1)(d)-posten): 10 + 10 på rad 37, 47,
+      **Regenererad 2026-08-19 (sökhistorik-disclosuren, ADR 0060 rad 152): 7 + 7** (rad 37, 50,
+      82, 92, 115, 116, 151 — identiska i sv och en, alla äkta statuspåståenden, ingen falsk träff).
+      **Mängden är oförändrad och varje rad flyttade**, spegelbilden av föregående regenerering: en
+      **mängden är oförändrad medan fem av sju rader flyttade, med TVÅ OLIKA förskjutningar** —
+      och det är den detalj som gör att mängden inte får framräknas. Två insättningar skedde i
+      samma PR: sökhistorik-sektionen på `privacy.sections[4]` (18 rader) och dess retentionsrad i
+      `Hur länge vi sparar uppgifter` (1 rad, hamnade på rad 113). Rad 37 och 50 ligger ovanför
+      båda och står stilla; 64 och 74 ligger emellan och flyttade **+18**; 96, 97 och 132 ligger
+      under båda och flyttade **+19**. En enda offset applicerad på hela den gamla mängden hade
+      alltså gett tre fel rader. Sökhistorik-sektionen bär avsiktligt **ingen** markör:
+      behandlingen är i drift, och en markör där hade förnekat en levande behandling.
+      *(Föregående regenerering, 2026-08-16 (#183 FU-2b, EFTER flippen): 7 + 7 på rad 37, 50, 64,
+      74, 96, 97, 132. Talet sjönk då med TRE och ingen rad flyttade, av ett enda skäl: rad 47, 75
+      och 76 förlorade sina markörer i flippen, och ingen rad lades till eller togs bort — en
+      redigering **inuti** en JSON-sträng flyttar ingenting under sig.)*
+      *(Dessförinnan, 2026-08-16 (#183 E4, Art. 13(1)(d)-posten): 10 + 10 på rad 37, 47,
       50, 64, 74, 75, 76, 96, 97, 132. Talet steg då med ETT — `security-auditor` Major 4 krävde en
       Art. 13(1)(d)-post för de kontolivscykel-mallar som vilar på Art. 6(1)(f) — och raderna under
       insättningen flyttade ner ett steg: 49/63/73/74/75/95/96/131 blev

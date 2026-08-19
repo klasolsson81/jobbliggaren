@@ -5,7 +5,7 @@
       "description": "How Jobbliggaren processes your personal data: purposes, legal basis, retention periods, your rights and security. No tracking and no AI."
     },
     "title": "Privacy policy",
-    "updated": "Last updated: 2026-08-16",
+    "updated": "Last updated: 2026-08-19",
     "intro": "This privacy policy describes how Jobbliggaren processes your personal data, why, on what legal basis and for how long. It also covers your rights and how to exercise them. Jobbliggaren is a free service that helps you find and keep track of your job applications, built on open data about job openings from Arbetsförmedlingen JobTech (Platsbanken).",
     "sections": [
       {
@@ -51,6 +51,24 @@
         ]
       },
       {
+        "heading": "Your recent searches (legal basis: legitimate interest)",
+        "paragraphs": [
+          "When you search for jobs under Jobs, we automatically save the search, so that you can quickly run it again and see whether it has produced new hits since last time. The legal basis is legitimate interest (Article 6(1)(f)), and the balancing test is the one described in the section Security, operations and product features above. Our legitimate interest is that you should not have to type the same search again and should be able to follow the same search over time.",
+          "Your saved searches are shown to you in the Recent searches list, in the Recent searches panel under Jobs and as a reminder under Overview. They are not shared with other users and not with employers. If someone who appears in a search requests erasure of their own data, we do need to search through saved searches to find and remove what concerns that person, and the search term may then be read by us.",
+          "A search is saved when you actively run it, for example when you press Search or Enter or pick a suggestion in the search box. What you type before you search is not saved, and ticking a filter on its own is not enough. A search with no search term and no filters at all is not saved. If you run the same search again, no new one is added: we only update when you last ran it and how many hits it produced.",
+          "We keep your 20 most recent searches. They have no fixed retention period and are not cleared automatically over time. If you run a new search when you already have 20 saved, the one you ran longest ago is removed to make room for the new one. If you stop running new searches, the ones you have remain.",
+          "You can remove an individual search at any time in the Recent searches list. If you delete your account, all your searches are removed together with your other data, see the section on how long we keep data. There is no way to turn off the saving of searches, but you have the right to object to processing based on legitimate interest, see the section on your rights.",
+          "The search term is stored as ordinary text, exactly as you typed it, and is shown back to you as the name of the search in the lists. We do not strip anything out of it, and it is not covered by the field by field encryption described in the section on security. So do not type anything into the search box that you do not want us to store, for example a personal identity number. If you do type one, the search is not saved, but it runs as usual. This is what we store about each search:"
+        ],
+        "list": [
+          "The search term you typed, up to 100 characters.",
+          "Which filters you chose: occupational group, municipality, region, type of employment, extent, employer, and whether you filtered on remote work.",
+          "Which sort order the search ran in.",
+          "How many hits the search produced most recently, so that we can show whether it has produced new hits since then.",
+          "When the search was first saved and when you last ran it."
+        ]
+      },
+      {
         "heading": "Contact details in job ads (legal basis: legitimate interest)",
         "paragraphs": [
           "Job ads from Platsbanken can contain details of a contact person at the employer, for example a name, a work email address and a work phone number. Before an ad is stored, we automatically remove email addresses and phone numbers from the ad text. The contact person's details are instead stored in a structured, separate field outside the free-text search, so that you can follow up an application with the right person. The removal from the text is rule-based and can miss details written in unusual ways or embedded in an image.",
@@ -92,6 +110,7 @@
           "Your uploaded original CV file. The original file belongs to the CV or draft you imported it into. If you remove the draft or delete the CV, the original file is deleted immediately too, and if you delete your entire account it is removed together with your other data. If you start an import without completing it, the file is cleaned up automatically after at most 90 days.",
           "When you delete your account, the data is removed and the encrypted data is made permanently unreadable, see the section on security. After you have requested deletion, there is a 30-day period during which an account can be restored, before it is deleted permanently.",
           "The security and event log is kept for 90 days and is then cleared automatically. When your account is deleted permanently, the data in the log that can be linked to you is de-identified.",
+          "Your recent searches. We keep the 20 most recent searches you have run under Jobs. They are kept until further notice, with no fixed retention period: a search is not removed automatically over time, but when it falls out of your 20 most recent and a new search takes its place. You can remove a search whenever you like in the Recent searches list, and when you delete your account all your searches are removed in accordance with the points above.",
           "Job ads and the employer's identity. Ads are kept indefinitely, with no fixed retention period. An ad is not deleted automatically. Once it can no longer be found in the service it is archived and the contact details are deleted, but the ad and the organisation number remain.",
           "The organisation number in an ad. It is the only reliable way to identify an employer, and it is needed so that you can filter searches by employer, follow companies and see your own application history (planned). For a sole trader, the organisation number is the owner's personal identity number. We process the organisation number on the basis of legitimate interest (Article 6(1)(f)) and Chapter 3, Section 10 of the Swedish Data Protection Act. If your own personal identity number is the organisation number on an ad, or if you appear in the ad, for example as a contact person, you can request erasure. We then delete our entire copy of the ad, including the organisation number. See the section Contact details in job ads above.",
           "Application history (planned). Your applications, including the stage at which an application ended, are kept while your account exists and are removed when the account is deleted per the points above. The link between an application and an employer is not covered by that guarantee: it exists only where we have the employer's identity from the ad. The per-employer compilation can therefore lose entries permanently."

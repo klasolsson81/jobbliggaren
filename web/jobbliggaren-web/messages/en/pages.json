@@ -227,7 +227,7 @@
   },
   "sokningar": {
     "title": "Recent searches",
-    "lede": "Searches you made under Jobs. Click to run a search again, or remove one you no longer need.",
+    "lede": "Searches you have run under Jobs. Click to run a search again, or remove one you do not need. We keep your 20 most recent searches, including the search term you typed. You can read more in the privacy policy.",
     "loadErrorTitle": "Could not load recent searches"
   },
   "sparade": {

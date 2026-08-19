@@ -1,3 +1,4 @@
+using Jobbliggaren.Infrastructure;
 using Shouldly;
 
 namespace Jobbliggaren.Migrate.UnitTests;
@@ -29,17 +30,31 @@ namespace Jobbliggaren.Migrate.UnitTests;
 /// </summary>
 public class DeployComposeDataProtectionTests
 {
-    private const string KeyPathVariable = "DataProtection__KeyPath";
+    /// <summary>
+    /// Derived from the constant the Api reads, not restated. `Jobbliggaren.Migrate` references
+    /// `Jobbliggaren.Infrastructure`, so this project already has the constant on its compile
+    /// surface — and a third hand-written copy of the string is exactly what would let a rename
+    /// pass both halves of the pin while un-persisting the keyring. ASP.NET Core's environment
+    /// variable provider maps `__` to `:`.
+    /// </summary>
+    private static readonly string KeyPathVariable =
+        DependencyInjection.DataProtectionKeyPathConfigKey.Replace(":", "__");
 
     private static string[] ComposeLines =>
         File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "deploy", "docker-compose.yml"))
             .Split('\n');
 
-    private static string SingleLineContaining(string needle) =>
-        ComposeLines.SingleOrDefault(l => l.Contains(needle, StringComparison.Ordinal))
-        ?? throw new InvalidOperationException(
-            $"deploy/docker-compose.yml has no single line containing '{needle}'. If the file was " +
-            "restructured, this pin must be rewritten rather than deleted.");
+    private static string SingleLineContaining(string needle)
+    {
+        // Not SingleOrDefault: it returns null on zero and THROWS on two or more, so the multi-match
+        // case would surface LINQ's own message while this one claims "has no single line".
+        var matches = ComposeLines.Where(l => l.Contains(needle, StringComparison.Ordinal)).ToList();
+        if (matches.Count != 1)
+            throw new InvalidOperationException(
+                $"deploy/docker-compose.yml has {matches.Count} lines containing '{needle}', expected " +
+                "exactly 1. If the file was restructured, this pin must be rewritten rather than deleted.");
+        return matches[0];
+    }
 
     /// <summary>The value the Api is told to persist its keyring to.</summary>
     private static string DeclaredKeyPath =>
@@ -85,6 +100,40 @@ public class DeployComposeDataProtectionTests
             "A host bind path here reintroduces a first-boot precondition nothing enforces, and " +
             "under /run/ it would be RAM-backed and lost on reboot.");
         SingleLineContaining($"  {source}:").ShouldNotBeNullOrWhiteSpace();
+    }
+
+    [Fact]
+    public void ApiImage_OwnsTheMountPoint_SoTheNonRootUserCanWriteAKey()
+    {
+        // The failure mode that survives every other pin in this file. A named volume mounted over
+        // a path the image does not have is created root:root 0755 — Docker only copies and chowns
+        // when the image has content at the destination — and the Api runs as a non-root user.
+        // Measured 2026-08-19 against a fresh empty volume: without the chown, `drwxr-xr-x root
+        // root` and `Permission denied`; with it, `drwxr-xr-x app app` and a successful write.
+        //
+        // It is invisible where anyone would look: FileSystemXmlRepository's constructor only calls
+        // Directory.Create(), a no-op on an existing directory, so boot and /api/ready are green and
+        // the UnauthorizedAccessException lands on the FIRST key generation — the first registration
+        // or password reset. Both mandatory reviewers found this independently on PR #1408.
+        var lines = File.ReadAllLines(
+            Path.Combine(AppContext.BaseDirectory, "src", "Jobbliggaren.Api", "Dockerfile"))
+            .Select(l => l.Trim()).ToList();
+
+        var chown = lines.SingleOrDefault(
+            l => l.StartsWith("RUN ", StringComparison.Ordinal)
+                 && l.Contains("chown", StringComparison.Ordinal)
+                 && l.Contains(DeclaredKeyPath, StringComparison.Ordinal))
+            ?? throw new InvalidOperationException(
+                $"src/Jobbliggaren.Api/Dockerfile does not chown {DeclaredKeyPath}. The compose file " +
+                "mounts a writable volume there and the container is non-root, so the keyring cannot " +
+                "be written — silently, until the first token mint.");
+
+        // Before USER, or it runs unprivileged and cannot chown.
+        var userLine = lines.FindIndex(l => l.StartsWith("USER ", StringComparison.Ordinal)
+                                            && !l.Contains("root", StringComparison.Ordinal));
+        userLine.ShouldBeGreaterThan(-1);
+        lines.IndexOf(chown).ShouldBeLessThan(userLine,
+            customMessage: "The chown must run before the image drops to the non-root user.");
     }
 
     [Fact]

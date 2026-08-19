@@ -1462,19 +1462,23 @@ public static class DependencyInjection
     }
 
     /// <summary>
-    /// Identity, sessions, Redis, HTTP-baserad <see cref="ICurrentUser"/>,
-    /// auth audit logger. HTTP-only. Worker laddar inte denna modul.
-    /// (#827: "JWT-rester" stod här tills de resterna faktiskt raderades.)
-    /// </summary>
-    /// <summary>
     /// #1350 — the Data-Protection key discriminator. Api-scoped on purpose: the Worker mints and
     /// validates no DataProtector tokens, so it must not share this keyring.
     ///
     /// <para>
-    /// The value is deliberately NOT the assembly name. NetArchTest's dependency search reads
-    /// <c>ldstr</c> operands, so a string constant spelling <c>Jobbliggaren.Api</c> registers as a
-    /// dependency and fails <c>DomainLayerTests.Infrastructure_should_not_depend_on_Api_or_Worker</c>
-    /// — measured 2026-08-19, and the only difference between a red and a green run.
+    /// The value is deliberately NOT the assembly name. NetArchTest's <c>HaveDependencyOnAny</c>
+    /// searches <b>const string fields</b> as well as IL references —
+    /// <c>DependencySearch.FindTypes(..., serachForDependencyInFieldConstant: true)</c> reaches
+    /// <c>TypeDefinitionCheckingContext.CheckFields</c>, which feeds every constant string field's
+    /// VALUE to the dependency check. A <c>const string</c> holding <c>Jobbliggaren.Api</c> therefore
+    /// counts as a dependency on the Api assembly and fails
+    /// <c>DomainLayerTests.Infrastructure_should_not_depend_on_Api_or_Worker</c> — measured
+    /// 2026-08-19, and the only difference between a red and a green run.
+    ///
+    /// The rule is therefore "not in a const field", NOT "not in a string": an inline literal in a
+    /// method body passes, because the IL scan only looks at type, method and field REFERENCES.
+    /// Inlining it would be worse anyway — a magic string per CLAUDE.md §5, whose silence would then
+    /// be an accident of the tool rather than a decision.
     /// </para>
     ///
     /// <para>
@@ -1528,10 +1532,16 @@ public static class DependencyInjection
 
         // Optional by design, following the ratified Seq:ServerUrl shape: set → persist, unset →
         // framework default. A fresh dev boot sets nothing and is unchanged, so this adds no
-        // fail-fast key and no CLAUDE.md §11 dev-boot obligation. The cost is that a deployment
-        // which forgets the value fails open and silently — closed by
-        // DeployComposeDataProtectionTests against the compose file, not by a boot refusal, which
-        // would break every dev machine to protect one host.
+        // fail-fast key and no CLAUDE.md §11 dev-boot obligation.
+        //
+        // A Production-gated fail-loud WAS available — ForwardedHeadersConfig does exactly that on
+        // an empty KnownNetworks, and compose sets ASPNETCORE_ENVIRONMENT: Production — and it is
+        // declined on two measurements rather than on "it would break dev". First, the value in
+        // compose is a literal and not a ${...} interpolation, and the compose file in the repo IS
+        // the one that runs on the box, so DeployComposeDataProtectionTests closes the repo side
+        // more cheaply and in CI. Second, a boot refusal only covers "the key is missing"; it says
+        // nothing about "the directory is unwritable", which is the more expensive failure and the
+        // one that shipped past five green mutation axes.
         var keyPath = configuration[DataProtectionKeyPathConfigKey];
         if (!string.IsNullOrWhiteSpace(keyPath))
             dataProtection.PersistKeysToFileSystem(new DirectoryInfo(keyPath));
@@ -1539,6 +1549,11 @@ public static class DependencyInjection
         return services;
     }
 
+    /// <summary>
+    /// Identity, sessions, Redis, HTTP-baserad <see cref="ICurrentUser"/>,
+    /// auth audit logger. HTTP-only. Worker laddar inte denna modul.
+    /// (#827: "JWT-rester" stod här tills de resterna faktiskt raderades.)
+    /// </summary>
     public static IServiceCollection AddIdentityAndSessions(
         this IServiceCollection services,
         IConfiguration configuration)

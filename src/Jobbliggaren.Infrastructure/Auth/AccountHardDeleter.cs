@@ -332,14 +332,19 @@ public sealed partial class AccountHardDeleter(
     // kan utöva Art. 17. Warning-nivå (alertbar signal), count-only (ingen PII i loggen,
     // CLAUDE.md §5). EventId i HardDeleteAccounts-serien (25xx). Driftmeddelande på svenska
     // per områdets konvention (jfr HardDeleteAccountsJob + runbook account-deletion.md §3.2).
-    [LoggerMessage(EventId = 2504, Level = LogLevel.Warning,
-        Message = "AccountHardDeleter: kunde inte radera Identity-orphan {OrphanId} " +
-                  "({ErrorCodes}) - raden ligger kvar och ingar inte i 'cleaned'-talet")]
-    private static partial void LogOrphanDeleteFailed(
-        ILogger logger, Guid orphanId, string errorCodes);
-
     [LoggerMessage(EventId = 2503, Level = LogLevel.Warning,
         Message = "CleanupIdentityOrphansAsync: {Count} reverse-orphan JobSeeker(s) saknar Identity-user "
             + "(utelåst konto, kan ej utöva Art. 17) — loggas för utredning, raderas ej här (#1409)")]
     private static partial void LogReverseOrphansDetected(ILogger logger, int count);
+
+    // #1349 - the orphan sweep's own DeleteAsync used to discard its IdentityResult, so N failed
+    // deletions surfaced as "rensade 0 Identity-orphans": indistinguishable from "found none",
+    // which is the state an operator is hoping for. Unlike 2503 above this one is NOT count-only -
+    // it carries {OrphanId}, a Guid surrogate key, because a bare count says THAT N rows failed
+    // and not WHICH, and the runbook's remediation is keyed on the id. Codes, never Descriptions.
+    [LoggerMessage(EventId = 2504, Level = LogLevel.Warning,
+        Message = "AccountHardDeleter: kunde inte radera Identity-orphan {OrphanId} " +
+                  "({ErrorCodes}) - raden ligger kvar och ingår inte i 'cleaned'-talet")]
+    private static partial void LogOrphanDeleteFailed(
+        ILogger logger, Guid orphanId, string errorCodes);
 }

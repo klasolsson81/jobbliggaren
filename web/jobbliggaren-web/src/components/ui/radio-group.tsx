@@ -46,7 +46,7 @@ function RadioGroupItem({
         data-slot="radio-group-item"
         className={cn(
           "flex size-4 shrink-0 items-center justify-center rounded-pill border border-border-strong",
-          "bg-surface-primary outline-none",
+          "bg-surface-primary",
           "data-[state=checked]:border-brand-600",
           "disabled:cursor-not-allowed"
         )}

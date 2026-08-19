@@ -19,9 +19,8 @@ namespace Jobbliggaren.Application.UnitTests.RecentJobSearches.Queries;
 //
 // C2 (ADR 0067, CTO-dom (d)/(e) + architect F5/F6): handlern mappar
 // r.OccupationGroup/r.Municipality/r.Region/r.Q in i JobAdFilterCriteria
-// (täpper C1:s tomma listor), resolvar occupationGroupLabels +
-// municipalityLabels, och DeriveLabel-fallback är q → yrkesgrupp → kommun →
-// region → "Alla annonser". E2b: C2-shimmet (SsykList/SsykLabels) borttaget
+// (täpper C1:s tomma listor) och resolvar occupationGroupLabels +
+// municipalityLabels. E2b: C2-shimmet (SsykList/SsykLabels) borttaget
 // ur DTO:n — vakthund i RecentJobSearchDtoContractTests.
 public class ListRecentSearchesQueryHandlerTests
 {
@@ -285,8 +284,7 @@ public class ListRecentSearchesQueryHandlerTests
     }
 
     // ---------------------------------------------------------------
-    // DeriveLabel — fallback-ordning q → yrkesgrupp → kommun → region →
-    // "Alla annonser" (architect F6)
+    // DeriveLabel
     // ---------------------------------------------------------------
 
     [Fact]
@@ -328,8 +326,11 @@ public class ListRecentSearchesQueryHandlerTests
         result.ShouldHaveSingleItem().Label.ShouldBe("Label-grp_77777");
     }
 
+    // Kommun och län är samma dimension i två granulariteter och unioneras i
+    // geo-predikatet, så en rad med båda får båda i labeln. Att namna enbart
+    // kommunen beskrev en strikt delmängd av vad klicket kör.
     [Fact]
-    public async Task Handle_DerivesLabelFromFirstMunicipalityLabel_WhenQAndOccupationGroupMissing()
+    public async Task Handle_JoinsMunicipalityAndRegion_WhenBothPresent()
     {
         var db = TestAppDbContextFactory.Create();
         var seeker = await SeedSeekerAsync(db);
@@ -349,7 +350,163 @@ public class ListRecentSearchesQueryHandlerTests
         var handler = new ListRecentSearchesQueryHandler(db, _currentUser, _taxonomy, _search);
         var result = await handler.Handle(new ListRecentSearchesQuery(), CancellationToken.None);
 
+        result.ShouldHaveSingleItem().Label.ShouldBe("Label-gbg_kn eller Label-goteborg");
+    }
+
+    [Fact]
+    public async Task Handle_DerivesLabelFromMunicipality_WhenOnlyMunicipalityPresent()
+    {
+        var db = TestAppDbContextFactory.Create();
+        var seeker = await SeedSeekerAsync(db);
+
+        var criteria = SearchCriteria.Create(
+            occupationGroup: null,
+            municipality: ["gbg_kn"],
+            region: null,
+            employmentType: null,
+            worktimeExtent: null, employer: null, remote: false,
+            q: null,
+            sortBy: JobAdSortBy.PublishedAtDesc).Value;
+        db.RecentJobSearches.Add(
+            RecentJobSearch.Capture(seeker.Id, criteria, 0, FakeDateTimeProvider.Default.UtcNow));
+        await db.SaveChangesAsync(CancellationToken.None);
+
+        var handler = new ListRecentSearchesQueryHandler(db, _currentUser, _taxonomy, _search);
+        var result = await handler.Handle(new ListRecentSearchesQuery(), CancellationToken.None);
+
         result.ShouldHaveSingleItem().Label.ShouldBe("Label-gbg_kn");
+    }
+
+    // #1413 — distans ensam bar tidigare fallbacken "Alla annonser", som är
+    // falsk: raden är inte alla annonser, den är distansannonser.
+    [Fact]
+    public async Task Handle_DerivesDistansLabel_WhenRemoteIsTheOnlyCriterion()
+    {
+        var db = TestAppDbContextFactory.Create();
+        var seeker = await SeedSeekerAsync(db);
+
+        var criteria = SearchCriteria.Create(
+            occupationGroup: null,
+            municipality: null,
+            region: null,
+            employmentType: null,
+            worktimeExtent: null, employer: null, remote: true,
+            q: null,
+            sortBy: JobAdSortBy.PublishedAtDesc).Value;
+        db.RecentJobSearches.Add(
+            RecentJobSearch.Capture(seeker.Id, criteria, 0, FakeDateTimeProvider.Default.UtcNow));
+        await db.SaveChangesAsync(CancellationToken.None);
+
+        var handler = new ListRecentSearchesQueryHandler(db, _currentUser, _taxonomy, _search);
+        var result = await handler.Handle(new ListRecentSearchesQuery(), CancellationToken.None);
+
+        result.ShouldHaveSingleItem().Label.ShouldBe("Distans");
+    }
+
+    [Fact]
+    public async Task Handle_JoinsMunicipalityAndRemote_WhenBothPresent()
+    {
+        var db = TestAppDbContextFactory.Create();
+        var seeker = await SeedSeekerAsync(db);
+
+        var criteria = SearchCriteria.Create(
+            occupationGroup: null,
+            municipality: ["gbg_kn"],
+            region: null,
+            employmentType: null,
+            worktimeExtent: null, employer: null, remote: true,
+            q: null,
+            sortBy: JobAdSortBy.PublishedAtDesc).Value;
+        db.RecentJobSearches.Add(
+            RecentJobSearch.Capture(seeker.Id, criteria, 0, FakeDateTimeProvider.Default.UtcNow));
+        await db.SaveChangesAsync(CancellationToken.None);
+
+        var handler = new ListRecentSearchesQueryHandler(db, _currentUser, _taxonomy, _search);
+        var result = await handler.Handle(new ListRecentSearchesQuery(), CancellationToken.None);
+
+        result.ShouldHaveSingleItem().Label.ShouldBe("Label-gbg_kn eller distans");
+    }
+
+    // Tre delar fogas "A, B eller C" — och distans är gemen i sammansättning,
+    // versal bara när den står ensam (jämför distans-only-testet ovan).
+    [Fact]
+    public async Task Handle_JoinsAllThreeOrtGranularities_WithCommaBeforeFinalEller()
+    {
+        var db = TestAppDbContextFactory.Create();
+        var seeker = await SeedSeekerAsync(db);
+
+        var criteria = SearchCriteria.Create(
+            occupationGroup: null,
+            municipality: ["gbg_kn"],
+            region: ["goteborg"],
+            employmentType: null,
+            worktimeExtent: null, employer: null, remote: true,
+            q: null,
+            sortBy: JobAdSortBy.PublishedAtDesc).Value;
+        db.RecentJobSearches.Add(
+            RecentJobSearch.Capture(seeker.Id, criteria, 0, FakeDateTimeProvider.Default.UtcNow));
+        await db.SaveChangesAsync(CancellationToken.None);
+
+        var handler = new ListRecentSearchesQueryHandler(db, _currentUser, _taxonomy, _search);
+        var result = await handler.Handle(new ListRecentSearchesQuery(), CancellationToken.None);
+
+        result.ShouldHaveSingleItem().Label
+            .ShouldBe("Label-gbg_kn, Label-goteborg eller distans");
+    }
+
+    // "+N till" räknar samma enhet som namnet före det, så suffixet sätts PER
+    // granularitet före fogningen — inte över en hopslagen lista.
+    [Fact]
+    public async Task Handle_AppliesPlusNPerGranularity_NotAcrossTheJoinedOrtLabel()
+    {
+        var db = TestAppDbContextFactory.Create();
+        var seeker = await SeedSeekerAsync(db);
+
+        var criteria = SearchCriteria.Create(
+            occupationGroup: null,
+            municipality: ["gbg_kn", "sthlm_kn"],
+            region: null,
+            employmentType: null,
+            worktimeExtent: null, employer: null, remote: true,
+            q: null,
+            sortBy: JobAdSortBy.PublishedAtDesc).Value;
+        db.RecentJobSearches.Add(
+            RecentJobSearch.Capture(seeker.Id, criteria, 0, FakeDateTimeProvider.Default.UtcNow));
+        await db.SaveChangesAsync(CancellationToken.None);
+
+        var handler = new ListRecentSearchesQueryHandler(db, _currentUser, _taxonomy, _search);
+        var result = await handler.Handle(new ListRecentSearchesQuery(), CancellationToken.None);
+
+        result.ShouldHaveSingleItem().Label.ShouldBe("Label-gbg_kn +1 till eller distans");
+    }
+
+    // Karakteriseringstest, INTE en ratificering: en rad vars enda dimension är
+    // ett förfinings-filter faller alltjämt till "Alla annonser". ADR 0067
+    // Beslut 6 lämnade Klass 2 utanför labeln under premissen att labeln bär en
+    // primär dimension — den premissen är void för rader som saknar en.
+    // Testet ska ÄNDRAS när #1418 lagas; att det står här är dess enda spärr.
+    [Fact]
+    public async Task Handle_StillFallsBackToAllaAnnonser_WhenOnlyEmploymentTypeIsSet()
+    {
+        var db = TestAppDbContextFactory.Create();
+        var seeker = await SeedSeekerAsync(db);
+
+        var criteria = SearchCriteria.Create(
+            occupationGroup: null,
+            municipality: null,
+            region: null,
+            employmentType: ["heltid"],
+            worktimeExtent: null, employer: null, remote: false,
+            q: null,
+            sortBy: JobAdSortBy.PublishedAtDesc).Value;
+        db.RecentJobSearches.Add(
+            RecentJobSearch.Capture(seeker.Id, criteria, 0, FakeDateTimeProvider.Default.UtcNow));
+        await db.SaveChangesAsync(CancellationToken.None);
+
+        var handler = new ListRecentSearchesQueryHandler(db, _currentUser, _taxonomy, _search);
+        var result = await handler.Handle(new ListRecentSearchesQuery(), CancellationToken.None);
+
+        result.ShouldHaveSingleItem().Label.ShouldBe("Alla annonser");
     }
 
     [Fact]

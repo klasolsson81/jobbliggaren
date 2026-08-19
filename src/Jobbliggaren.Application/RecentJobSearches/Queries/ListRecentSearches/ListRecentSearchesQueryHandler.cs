@@ -14,11 +14,8 @@ namespace Jobbliggaren.Application.RecentJobSearches.Queries.ListRecentSearches;
 /// samma filter-SPOT som ListJobAds, q-FTS-accelererad). ADR 0060 Beslut 4 förutsåg en
 /// ADR 0045 fitness function på endpointen; den är inte byggd — se kommentaren i loopen.
 ///
-/// <para>Label server-härleds (Q → yrkesgrupp med hel-områdes-kollaps /
-/// "+N till" → kommun → region → fallback; E2g 2026-06-11) så FE inte
-/// behöver konstruera presentation. Defensive fallback "Alla annonser" är dead
-/// code så länge SearchCriteria.Empty-invarianten håller, men behålls för
-/// robusthet.</para>
+/// <para>Label server-härleds så FE inte behöver konstruera presentation
+/// (ADR 0060; E2g 2026-06-11).</para>
 ///
 /// <para><b>Fas C2 (ADR 0067):</b> entiteten bär OccupationGroup + Municipality
 /// (occupation-name/Ssyk utgick) — mappas in i filter-SPOT:en (täpper C1:s
@@ -124,7 +121,7 @@ public sealed class ListRecentSearchesQueryHandler(
             var newCount = Math.Max(0, currentCount - r.LastSeenCount);
             var label = DeriveLabel(
                 r.Q, r.OccupationGroup, occupationGroupLabels,
-                municipalityLabels, regionLabels, occupationFields);
+                municipalityLabels, regionLabels, r.Remote, occupationFields);
 
             dtos.Add(new RecentJobSearchDto(
                 r.Id.Value,
@@ -149,9 +146,6 @@ public sealed class ListRecentSearchesQueryHandler(
         return dtos;
     }
 
-    // Fallback-kedja per architect F6: q → yrkesgrupp → kommun → region →
-    // "Alla annonser" (defensive dead code så länge Empty-invarianten håller).
-    //
     // E2g (Klas-direktiv 2026-06-11, CTO-bekräftad mekanik): "första labeln"
     // var missvisande vid multi-val ("Drifttekniker, IT" när hela Data/IT
     // valts). Ny regel per dimension: (i) selektion = EXAKT alla grupper i
@@ -166,6 +160,7 @@ public sealed class ListRecentSearchesQueryHandler(
         IReadOnlyList<TaxonomyLabelDto> occupationGroupLabels,
         IReadOnlyList<TaxonomyLabelDto> municipalityLabels,
         IReadOnlyList<TaxonomyLabelDto> regionLabels,
+        bool remote,
         IReadOnlyList<TaxonomyOccupationFieldDto>? occupationFields)
     {
         if (!string.IsNullOrWhiteSpace(q))
@@ -183,11 +178,40 @@ public sealed class ListRecentSearchesQueryHandler(
             }
             return WithMoreSuffix(occupationGroupLabels);
         }
-        if (municipalityLabels.Count > 0)
-            return WithMoreSuffix(municipalityLabels);
-        if (regionLabels.Count > 0)
-            return WithMoreSuffix(regionLabels);
+        if (municipalityLabels.Count > 0 || regionLabels.Count > 0 || remote)
+            return DeriveOrtLabel(municipalityLabels, regionLabels, remote);
         return "Alla annonser";
+    }
+
+    // Ort är EN dimension i tre granulariteter — län ⊃ kommun, plus distans som
+    // boolesk sub-axel — och geo-predikatet UNIONERAR dem (kommun ∨ län ∨ distans,
+    // JobAdSearchComposition #551 PR-B D5). Labeln räknar därför upp varje satt
+    // granularitet i stället för att namna den första: en rad med kommun+distans
+    // som heter "Stockholm" namnger en strikt delmängd av vad klicket kör.
+    // Fogning (Klas-beslut 2026-08-19): två delar → "A eller B", tre → "A, B eller C".
+    // Anropas bara när minst en granularitet är satt (samma call-site-invariant som
+    // WithMoreSuffix, vars labels[0] likaså förutsätter en icke-tom lista).
+    private static string DeriveOrtLabel(
+        IReadOnlyList<TaxonomyLabelDto> municipalityLabels,
+        IReadOnlyList<TaxonomyLabelDto> regionLabels,
+        bool remote)
+    {
+        // WithMoreSuffix PER granularitet, före fogningen: "+N" räknar samma enhet
+        // som första namnet anger, och en hopslagen lista bryter den invarianten.
+        var parts = new List<string>(3);
+        if (municipalityLabels.Count > 0)
+            parts.Add(WithMoreSuffix(municipalityLabels));
+        if (regionLabels.Count > 0)
+            parts.Add(WithMoreSuffix(regionLabels));
+        if (remote)
+            parts.Add(parts.Count == 0 ? "Distans" : "distans");
+
+        return parts.Count switch
+        {
+            1 => parts[0],
+            2 => $"{parts[0]} eller {parts[1]}",
+            _ => $"{string.Join(", ", parts[..^1])} eller {parts[^1]}",
+        };
     }
 
     // "{första} +{N−1} till" — +N räknar samma enhet som första namnet anger.

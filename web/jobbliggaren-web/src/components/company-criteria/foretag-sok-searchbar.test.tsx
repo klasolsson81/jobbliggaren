@@ -67,6 +67,9 @@ const PNR_SHAPED = "1010101010"; // 3rd digit 1 < 2 → personnummer-shaped → 
 const PNR_SHAPED_12 = "191010101010"; // → PNR_SHAPED
 const PNR_SHAPED_12_HYPHEN = "19101010-1010"; // → PNR_SHAPED
 const VALID_ORGNR_12 = "205560125790"; // → VALID_ORGNR
+// #1029 — the allabolag paste, and a space-padded form.
+const VALID_ORGNR_HYPHEN = "556012-5790"; // → VALID_ORGNR
+const VALID_ORGNR_SPACED = " 556012 5790 "; // → VALID_ORGNR
 
 const FOUND_COMPANY = {
   organizationNumber: VALID_ORGNR,
@@ -991,6 +994,34 @@ describe("ForetagSokSearchbar — unified name/org.nr field", () => {
         buildForetagSokHref({ namn: outside, sni: [], kommun: [] }),
       );
       expect(fetchMock).not.toHaveBeenCalled();
+    },
+  );
+
+  /**
+   * #1029 — the searchbar is where the raw field value meets `normalizeOrgNrInput`. Asserting the
+   * POSTED body rather than that a company rendered: the raw string must never cross the wire.
+   */
+  it.each([VALID_ORGNR_HYPHEN, VALID_ORGNR_SPACED])(
+    "routes the written form %j to the org.nr branch, POSTing the stripped ten",
+    async (written) => {
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValue(orgNrResponse({ company: FOUND_COMPANY, companyWatchId: null }));
+      global.fetch = fetchMock;
+      renderBar();
+      const user = userEvent.setup();
+
+      await user.type(
+        screen.getByLabelText("Företagsnamn eller organisationsnummer"),
+        written,
+      );
+      await user.click(screen.getByRole("button", { name: "Sök företag" }));
+
+      expect(await screen.findByText("Volvo AB")).toBeInTheDocument();
+      const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+      expect(url).toBe("/api/foretag/sok");
+      expect(JSON.parse(init.body as string)).toEqual({ organizationNumber: VALID_ORGNR });
+      expect(push).not.toHaveBeenCalled();
     },
   );
 

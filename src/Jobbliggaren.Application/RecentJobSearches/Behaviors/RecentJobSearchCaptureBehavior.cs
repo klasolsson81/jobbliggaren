@@ -180,7 +180,7 @@ public sealed partial class RecentJobSearchCaptureBehavior<TMessage, TResponse>(
         // rather than re-derived per call site (#844: a rule with two normalisers is two rules).
         // #1415 re-adjudicates that residual now that it governs a hand-typed, user-rendered axis.
         if (effectiveQ is not null
-            && PersonnummerScanner.Scan(PersonnummerTextNormalizer.Normalize(effectiveQ)).Count > 0)
+            && PersonnummerScanner.Scan(PersonnummerTextNormalizer.Normalize(effectiveQ, PersonnummerGapProfile.SingleLineUserInput)).Count > 0)
             return response;
 
         try

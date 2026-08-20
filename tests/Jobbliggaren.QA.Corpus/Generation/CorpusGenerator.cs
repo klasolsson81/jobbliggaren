@@ -184,7 +184,7 @@ public sealed class CorpusGenerator(CorpusConfig? config = null)
         // Run the real personnummer guard over the assembled free text — exactly as
         // ImportResumeCommandHandler does (Normalize → Scan → FromMatches). The outcome is
         // PII-safe (Found/Count/Kinds only; never the raw value).
-        var scanCopy = PersonnummerTextNormalizer.Normalize(CollectFreeText(content, rawText));
+        var scanCopy = PersonnummerTextNormalizer.Normalize(CollectFreeText(content, rawText), PersonnummerGapProfile.ExtractedDocumentText);
         var personnummer = PersonnummerScanOutcome.FromMatches(PersonnummerScanner.Scan(scanCopy));
 
         var confidence = ConfidenceFor(stratum, content);

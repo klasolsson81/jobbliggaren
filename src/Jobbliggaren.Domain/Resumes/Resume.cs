@@ -137,7 +137,7 @@ public sealed class Resume : AggregateRoot<ResumeId>
             return Result.Failure<string>(
                 DomainError.Validation("Resume.NameTooLong", "Namn får vara max 200 tecken."));
 
-        if (PersonnummerScanner.Scan(PersonnummerTextNormalizer.Normalize(name)).Count > 0)
+        if (PersonnummerScanner.Scan(PersonnummerTextNormalizer.Normalize(name, PersonnummerGapProfile.ExtractedDocumentText)).Count > 0)
             return Result.Failure<string>(DomainError.Validation(
                 "Resume.NamePersonnummerMustBeRemoved",
                 "Ta bort personnummer ur CV-namnet."));

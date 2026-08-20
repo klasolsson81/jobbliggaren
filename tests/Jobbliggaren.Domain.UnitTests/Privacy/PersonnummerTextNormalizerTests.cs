@@ -43,7 +43,7 @@ public class PersonnummerTextNormalizerTests
         PersonnummerScanner.Scan(text).ShouldBeEmpty();
 
         // After Normalize bridges the gap, the SAME unchanged scanner flags it.
-        var normalized = PersonnummerTextNormalizer.Normalize(text);
+        var normalized = PersonnummerTextNormalizer.Normalize(text, PersonnummerGapProfile.ExtractedDocumentText);
         var matches = PersonnummerScanner.Scan(normalized);
 
         var match = matches.ShouldHaveSingleItem();
@@ -59,7 +59,7 @@ public class PersonnummerTextNormalizerTests
 
         PersonnummerScanner.Scan(text).ShouldBeEmpty();
 
-        var matches = PersonnummerScanner.Scan(PersonnummerTextNormalizer.Normalize(text));
+        var matches = PersonnummerScanner.Scan(PersonnummerTextNormalizer.Normalize(text, PersonnummerGapProfile.ExtractedDocumentText));
 
         var match = matches.ShouldHaveSingleItem();
         match.Kind.ShouldBe(PersonnummerKind.Samordningsnummer);
@@ -74,7 +74,7 @@ public class PersonnummerTextNormalizerTests
 
         PersonnummerScanner.Scan(text).ShouldBeEmpty();
 
-        PersonnummerScanner.Scan(PersonnummerTextNormalizer.Normalize(text))
+        PersonnummerScanner.Scan(PersonnummerTextNormalizer.Normalize(text, PersonnummerGapProfile.ExtractedDocumentText))
             .ShouldHaveSingleItem()
             .Kind.ShouldBe(PersonnummerKind.Personnummer);
     }
@@ -104,7 +104,7 @@ public class PersonnummerTextNormalizerTests
         PersonnummerScanner.Scan(text).ShouldBeEmpty();
 
         // After Normalize joins the digits, the SAME unchanged scanner flags it.
-        PersonnummerScanner.Scan(PersonnummerTextNormalizer.Normalize(text))
+        PersonnummerScanner.Scan(PersonnummerTextNormalizer.Normalize(text, PersonnummerGapProfile.ExtractedDocumentText))
             .ShouldHaveSingleItem()
             .Kind.ShouldBe(PersonnummerKind.Personnummer);
     }
@@ -117,7 +117,7 @@ public class PersonnummerTextNormalizerTests
 
         PersonnummerScanner.Scan(text).ShouldBeEmpty();
 
-        PersonnummerScanner.Scan(PersonnummerTextNormalizer.Normalize(text))
+        PersonnummerScanner.Scan(PersonnummerTextNormalizer.Normalize(text, PersonnummerGapProfile.ExtractedDocumentText))
             .ShouldHaveSingleItem()
             .Kind.ShouldBe(PersonnummerKind.Personnummer);
     }
@@ -129,7 +129,7 @@ public class PersonnummerTextNormalizerTests
         // bound and is bridged (digit-group separator immediately before a stray space).
         const string text = "Pnr 811218\u00A0 9876.";
 
-        PersonnummerScanner.Scan(PersonnummerTextNormalizer.Normalize(text))
+        PersonnummerScanner.Scan(PersonnummerTextNormalizer.Normalize(text, PersonnummerGapProfile.ExtractedDocumentText))
             .ShouldHaveSingleItem()
             .Kind.ShouldBe(PersonnummerKind.Personnummer);
     }
@@ -149,7 +149,7 @@ public class PersonnummerTextNormalizerTests
         // which candidate the scanner sees; the validation gate stays the law.
         const string text = "Referens 12345678 0000 i systemet.";
 
-        var normalized = PersonnummerTextNormalizer.Normalize(text);
+        var normalized = PersonnummerTextNormalizer.Normalize(text, PersonnummerGapProfile.ExtractedDocumentText);
 
         // The gap is bridged (candidate shaping) ...
         normalized.ShouldContain("123456780000");
@@ -165,7 +165,7 @@ public class PersonnummerTextNormalizerTests
         // gate rejects it exactly as for the ASCII-space case.
         const string text = "Referens 12345678\u00A00000 i systemet.";
 
-        var normalized = PersonnummerTextNormalizer.Normalize(text);
+        var normalized = PersonnummerTextNormalizer.Normalize(text, PersonnummerGapProfile.ExtractedDocumentText);
 
         normalized.ShouldContain("123456780000");
         PersonnummerScanner.Scan(normalized).ShouldBeEmpty();
@@ -178,7 +178,7 @@ public class PersonnummerTextNormalizerTests
         // the normalizer does not bridge it — and nothing is flagged.
         const string text = "Mobil 0701 234567 dagtid.";
 
-        var normalized = PersonnummerTextNormalizer.Normalize(text);
+        var normalized = PersonnummerTextNormalizer.Normalize(text, PersonnummerGapProfile.ExtractedDocumentText);
 
         PersonnummerScanner.Scan(normalized).ShouldBeEmpty();
     }
@@ -194,7 +194,7 @@ public class PersonnummerTextNormalizerTests
     {
         var text = $"Kontakt\n{spaced}\nslut";
 
-        var normalized = PersonnummerTextNormalizer.Normalize(text);
+        var normalized = PersonnummerTextNormalizer.Normalize(text, PersonnummerGapProfile.ExtractedDocumentText);
 
         // The digit runs stay separated by the newline — never joined.
         normalized.ShouldNotContain("8112189876");
@@ -212,8 +212,8 @@ public class PersonnummerTextNormalizerTests
     [InlineData("Ingen siffra alls i denna text.")] // nothing to bridge
     public void Normalize_IsIdempotent(string text)
     {
-        var once = PersonnummerTextNormalizer.Normalize(text);
-        var twice = PersonnummerTextNormalizer.Normalize(once);
+        var once = PersonnummerTextNormalizer.Normalize(text, PersonnummerGapProfile.ExtractedDocumentText);
+        var twice = PersonnummerTextNormalizer.Normalize(once, PersonnummerGapProfile.ExtractedDocumentText);
 
         twice.ShouldBe(once);
     }
@@ -223,8 +223,8 @@ public class PersonnummerTextNormalizerTests
     {
         const string text = "Pnr 19811218 9876 och samordning 811278 9873 i CV.";
 
-        var first = PersonnummerTextNormalizer.Normalize(text);
-        var second = PersonnummerTextNormalizer.Normalize(text);
+        var first = PersonnummerTextNormalizer.Normalize(text, PersonnummerGapProfile.ExtractedDocumentText);
+        var second = PersonnummerTextNormalizer.Normalize(text, PersonnummerGapProfile.ExtractedDocumentText);
 
         second.ShouldBe(first);
     }
@@ -235,7 +235,7 @@ public class PersonnummerTextNormalizerTests
     [InlineData("Bara prosa utan personnummer.")]
     public void Normalize_TextWithoutBridgeableGap_ReturnsTextUnchanged(string text)
     {
-        PersonnummerTextNormalizer.Normalize(text).ShouldBe(text);
+        PersonnummerTextNormalizer.Normalize(text, PersonnummerGapProfile.ExtractedDocumentText).ShouldBe(text);
     }
 
     // Guards against future regressions of the reused constants (keeps the
@@ -272,7 +272,7 @@ public class PersonnummerTextNormalizerTests
         PersonnummerScanner.Scan(text).ShouldBeEmpty();
 
         // After Normalize strips the zero-width char, the SAME unchanged scanner flags it.
-        PersonnummerScanner.Scan(PersonnummerTextNormalizer.Normalize(text))
+        PersonnummerScanner.Scan(PersonnummerTextNormalizer.Normalize(text, PersonnummerGapProfile.ExtractedDocumentText))
             .ShouldHaveSingleItem()
             .Kind.ShouldBe(PersonnummerKind.Personnummer);
     }
@@ -285,7 +285,7 @@ public class PersonnummerTextNormalizerTests
 
         PersonnummerScanner.Scan(text).ShouldBeEmpty();
 
-        PersonnummerScanner.Scan(PersonnummerTextNormalizer.Normalize(text))
+        PersonnummerScanner.Scan(PersonnummerTextNormalizer.Normalize(text, PersonnummerGapProfile.ExtractedDocumentText))
             .ShouldHaveSingleItem()
             .Kind.ShouldBe(PersonnummerKind.Personnummer);
     }
@@ -297,7 +297,7 @@ public class PersonnummerTextNormalizerTests
         // then the {0,2} \p{Zs} bridge joins the digits.
         const string text = "Pnr 811218\u200B\u00A09876.";
 
-        PersonnummerScanner.Scan(PersonnummerTextNormalizer.Normalize(text))
+        PersonnummerScanner.Scan(PersonnummerTextNormalizer.Normalize(text, PersonnummerGapProfile.ExtractedDocumentText))
             .ShouldHaveSingleItem()
             .Kind.ShouldBe(PersonnummerKind.Personnummer);
     }
@@ -310,7 +310,7 @@ public class PersonnummerTextNormalizerTests
         // gate rejects it — the widening is candidate SHAPING only.
         const string text = "Referens 12345678\u200B0000 i systemet.";
 
-        var normalized = PersonnummerTextNormalizer.Normalize(text);
+        var normalized = PersonnummerTextNormalizer.Normalize(text, PersonnummerGapProfile.ExtractedDocumentText);
 
         normalized.ShouldContain("123456780000");
         PersonnummerScanner.Scan(normalized).ShouldBeEmpty();
@@ -321,23 +321,148 @@ public class PersonnummerTextNormalizerTests
     {
         const string text = "Personnummer 811218\u200B9876 i CV.";
 
-        var once = PersonnummerTextNormalizer.Normalize(text);
-        var twice = PersonnummerTextNormalizer.Normalize(once);
+        var once = PersonnummerTextNormalizer.Normalize(text, PersonnummerGapProfile.ExtractedDocumentText);
+        var twice = PersonnummerTextNormalizer.Normalize(once, PersonnummerGapProfile.ExtractedDocumentText);
 
         twice.ShouldBe(once);
     }
 
-    // #427 V3 (accepted residual): a 3+ VISIBLE-column gap is deliberately NOT bridged
-    // (a wider window would risk bridging two unrelated numbers). The zero-width strip
-    // does not change this — the {0,2} bound governs the visible \p{Zs}\t separators only.
+    // #427 V3 (accepted residual): a 3+ VISIBLE-column gap is deliberately NOT bridged in
+    // EXTRACTED DOCUMENT TEXT. Re-adjudicated rather than inherited in #1415 and re-affirmed
+    // on measured ground (ADR 0134): PersonnummerBridgeCollisionRateTests measures how much
+    // likelier a bridged date column is to collide than arbitrary digits are. The
+    // zero-width strip does not change this — the {0,2} bound governs the visible \p{Zs}\t
+    // separators only.
     [Fact]
     public void Normalize_ThreeVisibleColumnGap_NotBridged()
     {
         const string text = "Pnr 811218   9876 slut.";
 
-        var normalized = PersonnummerTextNormalizer.Normalize(text);
+        var normalized = PersonnummerTextNormalizer.Normalize(text, PersonnummerGapProfile.ExtractedDocumentText);
 
         normalized.ShouldNotContain("8112189876");
+        PersonnummerScanner.Scan(normalized).ShouldBeEmpty();
+    }
+
+    // ===============================================================
+    // #1415 / ADR 0134 — the SingleLineUserInput profile.
+    //
+    // The residual above is a property of EXTRACTED DOCUMENT TEXT, where a line break is a
+    // field boundary and a date column above four digits is a real layout. A hand-typed
+    // search box has neither, and its value persists in plaintext outside ADR 0049's envelope
+    // and re-renders verbatim as the /sokningar row label — so the same gap forms that are an
+    // acceptable residual in a CV are a PII leak there.
+    //
+    // These are the TWELVE gap classes measured unflagged across the whole product on
+    // 2026-08-20 (#1415). The last three were not in the issue's own list and were found by
+    // re-measuring rather than by inheriting it. A three-space gap in free text is NOT a
+    // separate row: it is the same gap and measures identically.
+    // ===============================================================
+
+    [Theory]
+    [InlineData("Pnr 811218   9876 slut.", "three spaces")]
+    [InlineData("Pnr 811218    9876 slut.", "four spaces")]
+    [InlineData("Pnr 811218     9876 slut.", "five spaces")]
+    [InlineData("Pnr 811218\t\t\t9876 slut.", "three tabs")]
+    [InlineData("Pnr 811218\n9876 slut.", "U+000A LINE FEED")]
+    [InlineData("Pnr 811218\r\n9876 slut.", "CRLF")]
+    [InlineData("Pnr 811218\r9876 slut.", "U+000D CARRIAGE RETURN")]
+    [InlineData("Pnr 811218\u00019876 slut.", "U+0001 Cc control")]
+    [InlineData("Pnr 811218 \u0001 9876 slut.", "space Cc space")]
+    [InlineData("Pnr 811218\u20289876 slut.", "U+2028 LINE SEPARATOR")]
+    [InlineData("Pnr 811218\u000B9876 slut.", "U+000B LINE TABULATION")]
+    [InlineData("Pnr 811218\u000C9876 slut.", "U+000C FORM FEED")]
+    public void Normalize_SingleLineUserInput_BridgesWiderGaps_AndFlags(string text, string label)
+    {
+        var normalized = PersonnummerTextNormalizer.Normalize(text, PersonnummerGapProfile.SingleLineUserInput);
+
+        normalized.ShouldContain(
+            "8112189876",
+            customMessage: $"the {label} gap must be bridged on this profile");
+        PersonnummerScanner.Scan(normalized).ShouldHaveSingleItem();
+    }
+
+    // U+2028 is why the gap class is [\s\p{Cc}] and not the otherwise-natural
+    // [\p{Zs}\p{Cc}]: LINE SEPARATOR lives in \p{Zl}, which is in NEITHER of those two
+    // categories but IS in .NET's \s. Written as its own test because a class that silently
+    // dropped \s for \p{Zs} would leave the theory above passing on eleven of twelve rows,
+    // and eleven-of-twelve is exactly the shape a reviewer reads as green.
+    [Fact]
+    public void Normalize_SingleLineUserInput_LineSeparatorIsInTheGapClass_NotOnlyZsAndCc()
+    {
+        const char lineSeparator = '\u2028';
+        char.GetUnicodeCategory(lineSeparator).ShouldBe(System.Globalization.UnicodeCategory.LineSeparator);
+
+        var normalized = PersonnummerTextNormalizer.Normalize(
+            $"Pnr 811218{lineSeparator}9876 slut.", PersonnummerGapProfile.SingleLineUserInput);
+
+        PersonnummerScanner.Scan(normalized).ShouldHaveSingleItem();
+    }
+
+    // ADR 0134 R3: the {0,8} bound is the ONE number this profile introduces, and a bound that
+    // nothing crosses is indistinguishable from an unbounded quantifier. Both sides, so the
+    // residual above it is pinned as a residual and not merely unmentioned.
+    [Fact]
+    public void Normalize_SingleLineUserInput_BoundIsEightNotUnbounded()
+    {
+        var eight = PersonnummerTextNormalizer.Normalize(
+            "Pnr 811218" + new string(' ', 8) + "9876 slut.", PersonnummerGapProfile.SingleLineUserInput);
+        PersonnummerScanner.Scan(eight).ShouldHaveSingleItem();
+
+        var nine = PersonnummerTextNormalizer.Normalize(
+            "Pnr 811218" + new string(' ', 9) + "9876 slut.", PersonnummerGapProfile.SingleLineUserInput);
+        PersonnummerScanner.Scan(nine).ShouldBeEmpty(
+            "a gap wider than eight is ADR 0134 R3 — a declared residual, not an oversight");
+    }
+
+    // The counterexample that decided #1414's raw-vs-residual question, kept as a POSITIVE.
+    // It pins that \p{Cc} must never move to the \p{Cf} strip: stripping the control character
+    // would glue the trailing digit onto the candidate and the (?!\d) boundary would then
+    // reject the whole form. It does NOT pin \p{Cc}'s membership of the gap class — the control
+    // character here sits OUTSIDE the match, retained as the boundary rather than bridged, so
+    // this test stays green even with \p{Cc} removed from that class. The theory's U+0001 and
+    // space-Cc-space rows are what pin the membership.
+    [Fact]
+    public void Normalize_ControlCharThenTrailingDigit_StaysFlagged_OnBothProfiles()
+    {
+        const string text = "Pnr 811218 9876\u00015 slut.";
+
+        PersonnummerScanner.Scan(
+            PersonnummerTextNormalizer.Normalize(text, PersonnummerGapProfile.ExtractedDocumentText))
+            .ShouldHaveSingleItem();
+        PersonnummerScanner.Scan(
+            PersonnummerTextNormalizer.Normalize(text, PersonnummerGapProfile.SingleLineUserInput))
+            .ShouldHaveSingleItem();
+    }
+
+    // The two profiles are NOT orderable by strength, and this is the pair that proves it —
+    // the same string, two answers, each correct for the kind of text it names. Without this
+    // a reader could take SingleLineUserInput for "the strict one" and "helpfully" apply it
+    // to CV text, which is precisely the widening ADR 0134 measured as dangerous.
+    [Fact]
+    public void Normalize_TheSameGapAnswersDifferentlyPerProfile_ByDesign()
+    {
+        const string text = "Pnr 811218   9876 slut.";
+
+        PersonnummerScanner.Scan(
+            PersonnummerTextNormalizer.Normalize(text, PersonnummerGapProfile.ExtractedDocumentText))
+            .ShouldBeEmpty();
+        PersonnummerScanner.Scan(
+            PersonnummerTextNormalizer.Normalize(text, PersonnummerGapProfile.SingleLineUserInput))
+            .ShouldHaveSingleItem();
+    }
+
+    // The wider profile must not become a way to manufacture a personnummer out of two
+    // unrelated numbers: the UNCHANGED date+Luhn gate is still the only authority, on both
+    // profiles. "12345678" gapped onto "0000" bridges and is then rejected on month "34".
+    [Theory]
+    [InlineData("Referens 12345678   0000 i systemet.")]
+    [InlineData("Referens 12345678\n0000 i systemet.")]
+    [InlineData("Tel 0701 2345 slut.")]
+    public void Normalize_SingleLineUserInput_StillCannotManufactureAValidPersonnummer(string text)
+    {
+        var normalized = PersonnummerTextNormalizer.Normalize(text, PersonnummerGapProfile.SingleLineUserInput);
+
         PersonnummerScanner.Scan(normalized).ShouldBeEmpty();
     }
 
@@ -360,7 +485,7 @@ public class PersonnummerTextNormalizerTests
         PersonnummerScanner.Scan(text).ShouldBeEmpty();
 
         // After Normalize joins the digits, the SAME unchanged scanner flags it.
-        PersonnummerScanner.Scan(PersonnummerTextNormalizer.Normalize(text))
+        PersonnummerScanner.Scan(PersonnummerTextNormalizer.Normalize(text, PersonnummerGapProfile.ExtractedDocumentText))
             .ShouldHaveSingleItem()
             .Kind.ShouldBe(PersonnummerKind.Personnummer);
     }
@@ -372,7 +497,7 @@ public class PersonnummerTextNormalizerTests
     {
         // The widened separator-adjacent-space bridge must NOT manufacture a valid pnr:
         // "12345678- 0000" joins to 123456780000 whose month "34" fails date sanity.
-        PersonnummerScanner.Scan(PersonnummerTextNormalizer.Normalize(text)).ShouldBeEmpty();
+        PersonnummerScanner.Scan(PersonnummerTextNormalizer.Normalize(text, PersonnummerGapProfile.ExtractedDocumentText)).ShouldBeEmpty();
     }
 
     // ===============================================================
@@ -395,7 +520,7 @@ public class PersonnummerTextNormalizerTests
         PersonnummerScanner.Scan(text).ShouldBeEmpty();
 
         // After Normalize bridges the digits, the SAME unchanged scanner flags it.
-        PersonnummerScanner.Scan(PersonnummerTextNormalizer.Normalize(text))
+        PersonnummerScanner.Scan(PersonnummerTextNormalizer.Normalize(text, PersonnummerGapProfile.ExtractedDocumentText))
             .ShouldHaveSingleItem()
             .Kind.ShouldBe(PersonnummerKind.Personnummer);
     }
@@ -439,7 +564,7 @@ public class PersonnummerTextNormalizerTests
         PersonnummerScanner.Scan(text).ShouldBeEmpty();
 
         // After Normalize joins the digits (dropping BOTH separators), the SAME scanner flags it.
-        PersonnummerScanner.Scan(PersonnummerTextNormalizer.Normalize(text))
+        PersonnummerScanner.Scan(PersonnummerTextNormalizer.Normalize(text, PersonnummerGapProfile.ExtractedDocumentText))
             .ShouldHaveSingleItem()
             .Kind.ShouldBe(kind);
     }
@@ -452,7 +577,7 @@ public class PersonnummerTextNormalizerTests
         // {0,2} widening is candidate SHAPING only.
         const string text = "Referens 12345678--0000 i systemet.";
 
-        PersonnummerScanner.Scan(PersonnummerTextNormalizer.Normalize(text)).ShouldBeEmpty();
+        PersonnummerScanner.Scan(PersonnummerTextNormalizer.Normalize(text, PersonnummerGapProfile.ExtractedDocumentText)).ShouldBeEmpty();
     }
 
     [Fact]
@@ -460,8 +585,8 @@ public class PersonnummerTextNormalizerTests
     {
         const string text = "Personnummer 811218--9876 i CV.";
 
-        var once = PersonnummerTextNormalizer.Normalize(text);
-        var twice = PersonnummerTextNormalizer.Normalize(once);
+        var once = PersonnummerTextNormalizer.Normalize(text, PersonnummerGapProfile.ExtractedDocumentText);
+        var twice = PersonnummerTextNormalizer.Normalize(once, PersonnummerGapProfile.ExtractedDocumentText);
 
         twice.ShouldBe(once);
     }
@@ -475,12 +600,12 @@ public class PersonnummerTextNormalizerTests
         // nor changes the outcome, and stays idempotent.
         const string text = "Personnummer 811218-9876 i CV.";
 
-        var normalized = PersonnummerTextNormalizer.Normalize(text);
+        var normalized = PersonnummerTextNormalizer.Normalize(text, PersonnummerGapProfile.ExtractedDocumentText);
         normalized.ShouldContain("8112189876");
         PersonnummerScanner.Scan(normalized)
             .ShouldHaveSingleItem()
             .Kind.ShouldBe(PersonnummerKind.Personnummer);
-        PersonnummerTextNormalizer.Normalize(normalized).ShouldBe(normalized);
+        PersonnummerTextNormalizer.Normalize(normalized, PersonnummerGapProfile.ExtractedDocumentText).ShouldBe(normalized);
     }
 
     // ===============================================================
@@ -500,7 +625,7 @@ public class PersonnummerTextNormalizerTests
         PersonnummerScanner.Scan(text).ShouldBeEmpty();
 
         // After Normalize joins the fullwidth digits, the SAME scanner flags the folded token.
-        PersonnummerScanner.Scan(PersonnummerTextNormalizer.Normalize(text))
+        PersonnummerScanner.Scan(PersonnummerTextNormalizer.Normalize(text, PersonnummerGapProfile.ExtractedDocumentText))
             .ShouldHaveSingleItem()
             .Kind.ShouldBe(PersonnummerKind.Personnummer);
     }

@@ -221,7 +221,10 @@ public class PersonnummerScannerTests
     [Fact]
     public void ScanWithGaps_ThreeVisibleColumnGap_NotBridged_NotFlagged()
     {
-        // #427 V3 accepted residual: a 3+ visible-column gap is deliberately not bridged.
+        // #427 V3 accepted residual: a 3+ visible-column gap is deliberately not bridged on
+        // the redaction path. Re-affirmed on measured ground in ADR 0134 (#1415) — every
+        // Redact call site is a CV/resume surface, so the wider SingleLineUserInput flag
+        // profile has nothing to be a superset of here.
         const string text = "Pnr 811218   9876 i CV.";
 
         PersonnummerScanner.ScanWithGaps(text).ShouldBeEmpty();
@@ -353,14 +356,24 @@ public class PersonnummerScannerTests
     }
 
     [Fact]
-    public void ScanWithGaps_SeparatorFlankedByTwoSpaces_NotBridged_V3BoundHolds()
+    public void ScanWithGaps_SeparatorFlankedBySpaces_NotBridged_TheGrammarAdmitsNoMidGapSeparator()
     {
-        // A '-'/'+' flanked by a space on BOTH sides ("811218 - 9876") is a 3-visible-column
-        // gap: the widening did not open it (the {0,2} space bound governs each side), so the
-        // V3 accepted residual still holds and the form is not flagged.
+        // "811218 - 9876" is not bridged, and the REASON is the grammar, not the width bound.
+        // Both bridging regexes are `sep? gap-run sep?`, so a separator is admitted only
+        // DIGIT-ADJACENT: the gap run stops at the '-', the trailing sep? consumes it, and
+        // \d{4} is then required at a position holding a space. The form therefore stays
+        // unbridged at ANY bound: the argument is structural, and this test asserts it across
+        // BOTH bounds that exist in production rather than asserting it in prose (ADR 0134 R2).
         const string text = "Pnr 811218 - 9876 i CV.";
 
         PersonnummerScanner.ScanWithGaps(text).ShouldBeEmpty();
+
+        PersonnummerScanner.Scan(
+            PersonnummerTextNormalizer.Normalize(text, PersonnummerGapProfile.ExtractedDocumentText))
+            .ShouldBeEmpty();
+        PersonnummerScanner.Scan(
+            PersonnummerTextNormalizer.Normalize(text, PersonnummerGapProfile.SingleLineUserInput))
+            .ShouldBeEmpty("a {0,8} bound does not reach a separator the grammar admits only digit-adjacent");
     }
 
     // ===============================================================

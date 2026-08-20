@@ -44,7 +44,7 @@ internal static class ResumeContentPersonnummerGuard
     /// </summary>
     public static Result Check(ResumeContentDto content)
     {
-        var scanCopy = PersonnummerTextNormalizer.Normalize(CollectFreeText(content));
+        var scanCopy = PersonnummerTextNormalizer.Normalize(CollectFreeText(content), PersonnummerGapProfile.ExtractedDocumentText);
         var outcome = PersonnummerScanOutcome.FromMatches(PersonnummerScanner.Scan(scanCopy));
 
         return outcome.Found

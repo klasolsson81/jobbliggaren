@@ -116,7 +116,7 @@ public sealed class JobSeeker : AggregateRoot<JobSeekerId>
                 "JobSeeker.DisplayNameTooLong",
                 $"Visningsnamn får vara max {MaxDisplayNameLength} tecken."));
 
-        if (PersonnummerScanner.Scan(PersonnummerTextNormalizer.Normalize(displayName)).Count > 0)
+        if (PersonnummerScanner.Scan(PersonnummerTextNormalizer.Normalize(displayName, PersonnummerGapProfile.ExtractedDocumentText)).Count > 0)
             return Result.Failure<string>(DomainError.Validation(
                 "JobSeeker.DisplayNamePersonnummerMustBeRemoved",
                 "Ta bort personnummer ur visningsnamnet."));

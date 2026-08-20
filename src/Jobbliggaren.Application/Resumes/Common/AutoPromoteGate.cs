@@ -129,7 +129,7 @@ internal static class AutoPromoteGate
         // A personnummer in the LABEL is a personnummer presence, not "incomplete content" —
         // `Resume.ValidateName` would refuse it too, but as a buildability failure, which
         // would mis-report the reason (§5: never mis-report a verdict).
-        if (PersonnummerScanner.Scan(PersonnummerTextNormalizer.Normalize(label)).Count > 0)
+        if (PersonnummerScanner.Scan(PersonnummerTextNormalizer.Normalize(label, PersonnummerGapProfile.ExtractedDocumentText)).Count > 0)
         {
             // Null for a STRONGER reason than the two above, and it is the same reason this rung
             // exists at all: a Domain code IS obtainable here — `Resume.ValidateName` returns

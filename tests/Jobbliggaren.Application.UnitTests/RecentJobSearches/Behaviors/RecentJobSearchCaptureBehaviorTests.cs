@@ -283,6 +283,75 @@ public class RecentJobSearchCaptureBehaviorTests
             Arg.Any<Guid>(), Arg.Any<SearchCriteria>(), Arg.Any<int>(), Arg.Any<CancellationToken>());
     }
 
+    // ---- #1415 / ADR 0134: the residual class this axis used to inherit ----
+    //
+    // Until #1415 this guard ran the same bridging policy as CV import, so a personnummer
+    // typed with a wider gap persisted in plaintext AND re-rendered verbatim as the
+    // /sokningar row label (DeriveLabel). The fix is not a wider policy everywhere - it is
+    // the RIGHT policy here: ?q= is a single-line hand-typed value, so it runs
+    // PersonnummerGapProfile.SingleLineUserInput, while extracted document text keeps the
+    // narrow bridge because a line break there is a field boundary whose accidental joining
+    // collides far more often (PersonnummerBridgeCollisionRateTests measures both rates).
+    //
+    // These vectors reach ?q= end to end: percent-encoding carries every one of them through
+    // the wire, ListJobAdsQueryValidator constrains q only by MaximumLength and a NotEmpty that
+    // applies when sorting by relevance (neither reached here - every vector is non-empty and
+    // none sorts by relevance), and SearchCriteria's NormalizeString only trims - so each of
+    // these persisted verbatim before this change.
+    [Theory]
+    [InlineData("811218   9876")]        // three spaces
+    [InlineData("811218    9876")]       // four spaces
+    [InlineData("811218     9876")]      // five spaces
+    [InlineData("811218\t\t\t9876")]     // three tabs
+    [InlineData("811218\n9876")]         // U+000A - the form measured reachable on #1414
+    [InlineData("811218\r\n9876")]       // CRLF
+    [InlineData("811218\r9876")]         // U+000D
+    [InlineData("811218\u00019876")]     // U+0001 Cc control
+    [InlineData("811218 \u0001 9876")]   // space, Cc, space
+    [InlineData("811218\u20289876")]     // U+2028 LINE SEPARATOR (\p{Zl} - in neither Zs nor Cc)
+    [InlineData("811218\u000B9876")]     // U+000B LINE TABULATION
+    [InlineData("811218\u000C9876")]     // U+000C FORM FEED
+    public async Task Handle_WidelyGappedPersonnummerQ_CapturesNothing(string q)
+    {
+        await HandleAsync(new FakeSearchQuery(
+            Q: q, OccupationGroup: null, Municipality: null, Region: null));
+
+        await _capturer.DidNotReceive().CaptureAsync(
+            Arg.Any<Guid>(), Arg.Any<SearchCriteria>(), Arg.Any<int>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Handle_WidelyGappedPersonnummerQBesideOtherFilters_CapturesNothingAtAll()
+    {
+        // The skip-versus-null-out distinction from the block below, restated for the widened
+        // class: on a q-only query Create's Empty invariant hides a null-out, so only a query
+        // carrying a dimension beside the q can tell the two apart. Without this row the whole
+        // widened theory above would stay green against a guard that nulled q instead of
+        // skipping - and that guard would Bump() a different, real search.
+        await HandleAsync(new FakeSearchQuery(
+            Q: "811218\n9876", OccupationGroup: ["grp1"], Municipality: null, Region: null));
+
+        await _capturer.DidNotReceive().CaptureAsync(
+            Arg.Any<Guid>(), Arg.Any<SearchCriteria>(), Arg.Any<int>(), Arg.Any<CancellationToken>());
+    }
+
+    [Theory]
+    [InlineData("referens 12345678   0000")]  // bridges, then fails the month gate
+    [InlineData("referens 12345678\n0000")]   // same, across a line break
+    [InlineData("811218 - 9876")]             // separator mid-gap: the grammar admits none
+    public async Task Handle_WidelyGappedDigitsThatAreNoPersonnummer_StillCaptures(string q)
+    {
+        // The widened profile must not become a digit filter. The date+Luhn authority is
+        // UNCHANGED, so ordinary searches carrying wide digit gaps still capture. The third
+        // row is the deliberate residual ADR 0134 keeps and names: it is unbridged because a
+        // separator is admitted only digit-adjacent, at any bound - not because of the width.
+        await HandleAsync(new FakeSearchQuery(
+            Q: q, OccupationGroup: null, Municipality: null, Region: null));
+
+        await _capturer.Received(1).CaptureAsync(
+            _userId, Arg.Any<SearchCriteria>(), Arg.Any<int>(), Arg.Any<CancellationToken>());
+    }
+
     [Fact]
     public async Task Handle_PersonnummerShapedQBesideOtherFilters_CapturesNothingAtAll()
     {

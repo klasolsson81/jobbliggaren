@@ -115,9 +115,12 @@ public class PersonnummerGapProfileCallSiteTests
             $"{anyCalls - withProfile} call site(s) reach Normalize without a " +
             "PersonnummerGapProfile argument the scan can see");
         withProfile.ShouldBe(
-            7,
-            "six files, seven invocations (ImportResumeCommandHandler guards both the CV body " +
-            "and the file name). A drop means a guarded surface lost its guard.");
+            8,
+            "six files, eight invocations: ImportResumeCommandHandler guards both the CV body and " +
+            "the file name, and RecentJobSearchCaptureBehavior guards both ?q= and the five " +
+            "taxonomy axes (#1419). A drop means a guarded surface lost its guard; a rise means a " +
+            "new one arrived and someone chose its profile — read ADR 0134 D2 before changing " +
+            "this number, because that choice is the thing this file exists to make visible.");
     }
 
     // ADR 0134 D7's vacuity claim, pinned rather than asserted. The `/Resumes/` segment is a

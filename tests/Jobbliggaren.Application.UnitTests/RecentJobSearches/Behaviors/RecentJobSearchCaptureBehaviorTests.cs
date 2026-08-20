@@ -428,9 +428,9 @@ public class RecentJobSearchCaptureBehaviorTests
     public async Task Handle_DigitBearingConceptIdThatIsNoPersonnummer_StillCaptures(string conceptId)
     {
         // The counterfactual: a VALIDATING detector, not a digit filter. The reason is
-        // single-sourcing (#844) rather than false positives — security-auditor measured that the
-        // shipped corpus carries no bare digit string at all, and at most seven digits in any id,
-        // so a shape-only rule would have cost nothing there. What this pins is the DECLARED
+        // single-sourcing (#844) rather than false positives — measured 2026-08-20 by
+        // security-auditor on the corpus shipped at that commit: no bare digit string at all, at
+        // most seven digits in any id, so a shape-only rule would have cost nothing there. What this pins is the DECLARED
         // consequence of using the house chain: a Luhn-invalid ten-digit value is skipped on the
         // employer axis and captured here, because that axis runs a deliberately over-inclusive
         // shape predicate and this one runs the date+Luhn authority.
@@ -909,8 +909,15 @@ public class RecentJobSearchCaptureBehaviorTests
     [Fact]
     public void ICapturesRecentSearch_HasExactlyTheseMembers_SoANewDimensionCannotArriveUnguarded()
     {
+        // GetProperties() on an interface does NOT walk base interfaces (measured with a probe:
+        // an IDerived : IBase reports only IDerived's own). ICapturesRecentSearch has no base
+        // today, so without this the hole would be closed by absence rather than by construction
+        // — and "inclusion cannot see growth" is the exact failure this gate exists to close, so
+        // leaving it one level up would be the same defect wearing a hat.
         var actual = typeof(ICapturesRecentSearch).GetProperties()
+            .Concat(typeof(ICapturesRecentSearch).GetInterfaces().SelectMany(i => i.GetProperties()))
             .Select(p => p.Name)
+            .Distinct(StringComparer.Ordinal)
             .OrderBy(n => n, StringComparer.Ordinal)
             .ToList();
 

@@ -32,10 +32,10 @@ public static partial class PersonnummerTextNormalizer
     // (three homes for one literal) and must stay in lockstep with them.
     //
     // The two directions are NOT equally guarded, and the unguarded one is the dangerous one.
-    // NARROWING is caught: dropping \p{Pd} fails four Domain tests, the equivalence suite among
-    // them. WIDENING is not: adding a character outside the equivalence corpus' closed
-    // separator repertoire leaves the whole Domain suite green, because that corpus only ever
-    // generates the nine separators it already lists. So a widening here — which lets the flag
+    // NARROWING is caught: dropping \p{Pd} fails the equivalence suite on its own anti-vacuity
+    // floor, plus the Unicode-dash pins. WIDENING is not: adding a character outside the
+    // equivalence corpus' closed separator repertoire leaves the whole Domain suite green,
+    // because that corpus only ever generates the nine separators it already lists. So a widening here — which lets the flag
     // path bridge a form the unchanged redaction path cannot mask — reaches
     // flagged-but-unmasked with nothing failing. Widen the redaction path in the same commit,
     // or do not widen this.

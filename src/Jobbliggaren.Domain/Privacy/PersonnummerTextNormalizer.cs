@@ -28,10 +28,17 @@ public static partial class PersonnummerTextNormalizer
     // nothing else, and that is now structural rather than a convention anyone has to keep.
     // ADR 0134 owns the policy; this block owns the shape.
     private const string Lead = @"(?<!\d)(\d{8}|\d{6})";
-    // This class is duplicated in PersonnummerScanner's two GeneratedRegex patterns and must
-    // stay in lockstep with them. Widening it here is caught by
-    // PersonnummerGuardPathEquivalenceTests (flag must imply redact); NARROWING it is not —
-    // that is the false-negative direction, and nothing fails.
+    // This class is duplicated verbatim in PersonnummerScanner's two GeneratedRegex patterns
+    // (three homes for one literal) and must stay in lockstep with them.
+    //
+    // The two directions are NOT equally guarded, and the unguarded one is the dangerous one.
+    // NARROWING is caught: dropping \p{Pd} fails four Domain tests, the equivalence suite among
+    // them. WIDENING is not: adding a character outside the equivalence corpus' closed
+    // separator repertoire leaves the whole Domain suite green, because that corpus only ever
+    // generates the nine separators it already lists. So a widening here — which lets the flag
+    // path bridge a form the unchanged redaction path cannot mask — reaches
+    // flagged-but-unmasked with nothing failing. Widen the redaction path in the same commit,
+    // or do not widen this.
     private const string Sep = @"(?:[-+\p{Pd}\u2212])?";
     private const string Tail = @"(\d{4})(?!\d)";
 

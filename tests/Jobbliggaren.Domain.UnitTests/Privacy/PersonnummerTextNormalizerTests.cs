@@ -416,9 +416,12 @@ public class PersonnummerTextNormalizerTests
     }
 
     // The counterexample that decided #1414's raw-vs-residual question, kept as a POSITIVE.
-    // It is why \p{Cc} sits in the gap class and must never move to the \p{Cf} strip: stripping
-    // the control character would glue the trailing digit onto the candidate and the (?!\d)
-    // boundary would then reject the whole form.
+    // It pins that \p{Cc} must never move to the \p{Cf} strip: stripping the control character
+    // would glue the trailing digit onto the candidate and the (?!\d) boundary would then
+    // reject the whole form. It does NOT pin \p{Cc}'s membership of the gap class — the control
+    // character here sits OUTSIDE the match, retained as the boundary rather than bridged, so
+    // this test stays green even with \p{Cc} removed from that class. The theory's U+0001 and
+    // space-Cc-space rows are what pin the membership.
     [Fact]
     public void Normalize_ControlCharThenTrailingDigit_StaysFlagged_OnBothProfiles()
     {

@@ -362,18 +362,18 @@ public class PersonnummerScannerTests
         // Both bridging regexes are `sep? gap-run sep?`, so a separator is admitted only
         // DIGIT-ADJACENT: the gap run stops at the '-', the trailing sep? consumes it, and
         // \d{4} is then required at a position holding a space. The form therefore stays
-        // unbridged at ANY bound: the argument is structural, and both bounds that exist in
-        // production corroborate it — ExtractedDocumentText at {0,2} and SingleLineUserInput
-        // at {0,8} each leave this form unflagged (measured 2026-08-20, #1415).
-        //
-        // The previous name (..._V3BoundHolds) and its comment ("the {0,2} space bound governs
-        // each side") both attributed this to the bound. That is wrong in a way that would have
-        // decayed silently rather than loudly: a later widening leaves this test GREEN, and a
-        // reader would then take its name as evidence that the bound had held when the bound
-        // had in fact moved. Naming the real mechanism is what keeps the pin honest.
+        // unbridged at ANY bound: the argument is structural, and this test asserts it across
+        // BOTH bounds that exist in production rather than asserting it in prose (ADR 0134 R2).
         const string text = "Pnr 811218 - 9876 i CV.";
 
         PersonnummerScanner.ScanWithGaps(text).ShouldBeEmpty();
+
+        PersonnummerScanner.Scan(
+            PersonnummerTextNormalizer.Normalize(text, PersonnummerGapProfile.ExtractedDocumentText))
+            .ShouldBeEmpty();
+        PersonnummerScanner.Scan(
+            PersonnummerTextNormalizer.Normalize(text, PersonnummerGapProfile.SingleLineUserInput))
+            .ShouldBeEmpty("a {0,8} bound does not reach a separator the grammar admits only digit-adjacent");
     }
 
     // ===============================================================

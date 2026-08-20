@@ -8,23 +8,19 @@ namespace Jobbliggaren.Architecture.Tests;
 /// Pins WHICH gap-bridging profile each production call site passes to
 /// <c>PersonnummerTextNormalizer.Normalize</c> (#1415, ADR 0134).
 ///
-/// <para><b>Why a fitness function and not just the compiler.</b> Making the profile a
-/// required parameter forces a call site to CHOOSE; it cannot force the choice to be right,
-/// and the two profiles are not orderable by strength. Widening a CV surface to
-/// <c>SingleLineUserInput</c> would look like a strengthening in review — more forms
-/// detected — while actually opening the ~1-in-10 date-column collision that
-/// <c>PersonnummerBridgeCollisionRateTests</c> measures. Narrowing <c>?q=</c> the other way
-/// would silently restore the leak #1415 was filed for. Neither shows up as a failing test
-/// anywhere else, because each profile is internally consistent.</para>
+/// <para><b>Why a fitness function and not just the compiler.</b> Making the profile a required
+/// parameter forces a call site to CHOOSE; it cannot force the choice to be right, and the two
+/// profiles are not orderable by strength. Either direction reads as reasonable in review and
+/// neither shows up as a failing test anywhere else — measured on this PR: flipping a CV surface
+/// to the wide profile leaves all 1675 Domain tests green. See ADR 0134 D8 for why the CV file
+/// name in particular stays narrow.</para>
 ///
-/// <para><b>The file-name surface is the subtle one.</b> A CV file name is a single line a
-/// human typed, so it reads like a <c>SingleLineUserInput</c> case — but it is REDACTED
-/// downstream (<c>BackfillParsedResumeSourceFileNameMaskJob</c>,
-/// <c>ParsedResume</c>/<c>ResumeFile</c>), and the redaction path deliberately keeps the
-/// narrow bridge. Flagging it on a wider profile than the redactor can mask would produce
-/// flagged-but-unmasked, which is exactly the flag ⊆ redaction superset break that #465 and
-/// #498 each had to close. It stays on <c>ExtractedDocumentText</c> and that is a decision,
-/// not an oversight.</para>
+/// <para><b>What this register does NOT measure.</b> It measures ADOPTION — which profile an
+/// EXISTING call site passes — and not COVERAGE. A surface that persists single-line user input
+/// with no personnummer guard at all never calls <c>Normalize</c>, so it is structurally
+/// invisible here and an all-green run says nothing about it (`dotnet-architect` + `security-auditor`,
+/// PR #1421; the SavedSearch write paths are the measured instance). Mechanising coverage would
+/// need a definition of "every single-line user-input sink" that does not exist.</para>
 /// </summary>
 public class PersonnummerGapProfileCallSiteTests
 {
@@ -59,6 +55,10 @@ public class PersonnummerGapProfileCallSiteTests
     [Fact]
     public void Every_production_call_site_passes_the_profile_its_text_kind_requires()
     {
+        // src/ only. tests/Jobbliggaren.QA.Corpus carries its own Normalize calls and is the
+        // standing instrument for ADR 0134's reopening trigger; its profile choices are not
+        // pinned here, so a harness that drifted to the other profile would measure something
+        // production does not do, silently (the corpus is observe-only).
         var srcRoot = Path.Combine(RepoRoot(), "src");
         Directory.Exists(srcRoot).ShouldBeTrue($"Hittade inte src-roten: {srcRoot}");
 
@@ -120,12 +120,10 @@ public class PersonnummerGapProfileCallSiteTests
             "and the file name). A drop means a guarded surface lost its guard.");
     }
 
-    // ADR 0134 D7: the flag-subset-of-redaction invariant survives the wider SingleLineUserInput
-    // profile ONLY because nothing redacts a search query — the wider flag path has nothing on
-    // the redaction path to be a superset of. That is a property of where Redact is called, and
-    // it is exactly the kind of claim that rots silently: the day someone redacts a q value,
-    // D7 becomes false and PersonnummerGuardPathEquivalenceTests still passes, because its
-    // corpus is generated from the CV repertoire and would not contain the widened forms.
+    // ADR 0134 D7's vacuity claim, pinned rather than asserted. The `/Resumes/` segment is a
+    // PROXY for "this text is not single-line user input", not that property itself: a Redact of
+    // a q value inside a file under Resumes/ would pass here. It is a tripwire on the event that
+    // would actually make D7 false, not a proof of D7.
     [Fact]
     public void Every_redaction_call_site_is_a_resume_surface_so_D7s_vacuity_holds()
     {

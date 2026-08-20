@@ -303,17 +303,10 @@ public class PersonnummerRedactorTests
         // ~1 in 10 against ~1 in 133 for arbitrary digits — see
         // PersonnummerBridgeCollisionRateTests).
         //
-        // An earlier revision of this comment said "the import-time guard still flags the CV".
-        // That was FALSE and load-bearing: it was the one sentence a reader would use to
-        // conclude this residual was covered somewhere else. The import guard is the same
-        // Scan(Normalize(x)) chain on the same profile, and
-        // Normalize_ThreeVisibleColumnGap_NotBridged pins that scan EMPTY for this very
-        // string. NO guard flags this form in a CV (#1415).
-        //
-        // The ?q= axis is the one surface that does flag it, because it runs the
-        // SingleLineUserInput profile — a different policy for a different kind of text, not
-        // a stronger one. Redaction is correctly unaffected either way: every Redact call
-        // site is a CV/resume surface and none of them redacts a search query.
+        // NO guard flags this form in a CV: the import guard runs the same Scan(Normalize(x))
+        // chain on the same profile, and Normalize_ThreeVisibleColumnGap_NotBridged pins that
+        // scan EMPTY for this very string. The ?q= axis flags it, on the SingleLineUserInput
+        // profile — a different policy for a different kind of text, not a stronger one.
         const string text = "Pnr 811218   9876 i CV.";
 
         var redacted = PersonnummerRedactor.Redact(text);

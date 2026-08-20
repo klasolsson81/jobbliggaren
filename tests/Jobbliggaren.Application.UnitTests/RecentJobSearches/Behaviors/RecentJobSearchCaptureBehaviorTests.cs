@@ -291,11 +291,13 @@ public class RecentJobSearchCaptureBehaviorTests
     // the RIGHT policy here: ?q= is a single-line hand-typed value, so it runs
     // PersonnummerGapProfile.SingleLineUserInput, while extracted document text keeps the
     // narrow bridge because a line break there is a field boundary whose accidental joining
-    // collides at ~1 in 10 (PersonnummerBridgeCollisionRateTests).
+    // collides far more often (PersonnummerBridgeCollisionRateTests measures both rates).
     //
     // These vectors reach ?q= end to end: percent-encoding carries every one of them through
-    // the wire, ListJobAdsQueryValidator only bounds q's length, and SearchCriteria's
-    // NormalizeString only trims - so each of these persisted verbatim before this change.
+    // the wire, ListJobAdsQueryValidator constrains q only by MaximumLength and a NotEmpty that
+    // applies when sorting by relevance (neither reached here - every vector is non-empty and
+    // none sorts by relevance), and SearchCriteria's NormalizeString only trims - so each of
+    // these persisted verbatim before this change.
     [Theory]
     [InlineData("811218   9876")]        // three spaces
     [InlineData("811218    9876")]       // four spaces

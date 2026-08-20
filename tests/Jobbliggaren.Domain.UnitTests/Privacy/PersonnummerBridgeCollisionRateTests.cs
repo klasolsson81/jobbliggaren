@@ -4,26 +4,14 @@ using Shouldly;
 namespace Jobbliggaren.Domain.UnitTests.Privacy;
 
 /// <summary>
-/// The measured ground for keeping <see cref="PersonnummerGapProfile.ExtractedDocumentText"/>
-/// narrow while <see cref="PersonnummerGapProfile.SingleLineUserInput"/> is wide (#1415,
-/// ADR 0134).
+/// The measured ground for ADR 0134's profile split: how often a bridged gap yields a VALID
+/// personnummer, for two shapes that differ only in whether the leading run is a real date.
+/// ADR 0134 owns why that matters; this file is the instrument that keeps its numbers
+/// regenerable instead of decaying in prose.
 ///
-/// <para><b>Why this test exists.</b> From F4-8 until #1415 the {0,2} bound rested on a
-/// sentence — "a wider window would needlessly raise the chance of bridging two unrelated
-/// numbers" — and on an architect's estimate that such a collision is "a ~1-in-hundreds
-/// coincidence". The estimate was right about the case it named and silently wrong about the
-/// case a line-break widening actually opens, because it averaged over ARBITRARY leading
-/// digits. Extracted document text does not stack arbitrary digits above a 4-digit run: it
-/// stacks DATE COLUMNS, where the date-sanity half of the gate is satisfied with certainty
-/// and only Luhn remains. This test measures both, so the bound stops being an assertion.</para>
-///
-/// <para><b>Why it is a test and not a number in a comment.</b> A measured number in a tracked
-/// file decays; a seeded deterministic measurement does not, because anyone can re-run it and
-/// get the same answer. Nothing here samples the clock or an unseeded RNG.</para>
-///
-/// <para>The assertions are PROPERTIES with headroom, not the raw counts: the exact rates are
-/// a function of the corpus of valid dates and of Luhn, and pinning them to the digit would
-/// make an unrelated change to either read as a failure here.</para>
+/// <para>The assertions are PROPERTIES with headroom, not the raw counts: the exact rates are a
+/// function of the corpus of valid dates and of Luhn, and pinning them to the digit would make
+/// an unrelated change to either read as a failure here.</para>
 /// </summary>
 public sealed class PersonnummerBridgeCollisionRateTests
 {

@@ -353,9 +353,10 @@ public class PersonnummerTextNormalizerTests
     // and re-renders verbatim as the /sokningar row label — so the same gap forms that are an
     // acceptable residual in a CV are a PII leak there.
     //
-    // These are the thirteen gap classes measured unflagged across the whole product on
+    // These are the TWELVE gap classes measured unflagged across the whole product on
     // 2026-08-20 (#1415). The last three were not in the issue's own list and were found by
-    // re-measuring rather than by inheriting it.
+    // re-measuring rather than by inheriting it. A three-space gap in free text is NOT a
+    // separate row: it is the same gap and measures identically.
     // ===============================================================
 
     [Theory]
@@ -396,6 +397,39 @@ public class PersonnummerTextNormalizerTests
             $"Pnr 811218{lineSeparator}9876 slut.", PersonnummerGapProfile.SingleLineUserInput);
 
         PersonnummerScanner.Scan(normalized).ShouldHaveSingleItem();
+    }
+
+    // ADR 0134 R3: the {0,8} bound is the ONE number this profile introduces, and a bound that
+    // nothing crosses is indistinguishable from an unbounded quantifier. Both sides, so the
+    // residual above it is pinned as a residual and not merely unmentioned.
+    [Fact]
+    public void Normalize_SingleLineUserInput_BoundIsEightNotUnbounded()
+    {
+        var eight = PersonnummerTextNormalizer.Normalize(
+            "Pnr 811218" + new string(' ', 8) + "9876 slut.", PersonnummerGapProfile.SingleLineUserInput);
+        PersonnummerScanner.Scan(eight).ShouldHaveSingleItem();
+
+        var nine = PersonnummerTextNormalizer.Normalize(
+            "Pnr 811218" + new string(' ', 9) + "9876 slut.", PersonnummerGapProfile.SingleLineUserInput);
+        PersonnummerScanner.Scan(nine).ShouldBeEmpty(
+            "a gap wider than eight is ADR 0134 R3 — a declared residual, not an oversight");
+    }
+
+    // The counterexample that decided #1414's raw-vs-residual question, kept as a POSITIVE.
+    // It is why \p{Cc} sits in the gap class and must never move to the \p{Cf} strip: stripping
+    // the control character would glue the trailing digit onto the candidate and the (?!\d)
+    // boundary would then reject the whole form.
+    [Fact]
+    public void Normalize_ControlCharThenTrailingDigit_StaysFlagged_OnBothProfiles()
+    {
+        const string text = "Pnr 811218 9876\u00015 slut.";
+
+        PersonnummerScanner.Scan(
+            PersonnummerTextNormalizer.Normalize(text, PersonnummerGapProfile.ExtractedDocumentText))
+            .ShouldHaveSingleItem();
+        PersonnummerScanner.Scan(
+            PersonnummerTextNormalizer.Normalize(text, PersonnummerGapProfile.SingleLineUserInput))
+            .ShouldHaveSingleItem();
     }
 
     // The two profiles are NOT orderable by strength, and this is the pair that proves it —

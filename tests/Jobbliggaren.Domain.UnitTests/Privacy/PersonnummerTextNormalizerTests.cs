@@ -329,8 +329,8 @@ public class PersonnummerTextNormalizerTests
 
     // #427 V3 (accepted residual): a 3+ VISIBLE-column gap is deliberately NOT bridged in
     // EXTRACTED DOCUMENT TEXT. Re-adjudicated rather than inherited in #1415 and re-affirmed
-    // on measured ground (ADR 0134): see PersonnummerBridgeCollisionRateTests, where a
-    // bridged date column collides at ~1 in 10 against ~1 in 133 for arbitrary digits. The
+    // on measured ground (ADR 0134): PersonnummerBridgeCollisionRateTests measures how much
+    // likelier a bridged date column is to collide than arbitrary digits are. The
     // zero-width strip does not change this — the {0,2} bound governs the visible \p{Zs}\t
     // separators only.
     [Fact]

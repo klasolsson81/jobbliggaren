@@ -28,6 +28,10 @@ public static partial class PersonnummerTextNormalizer
     // nothing else, and that is now structural rather than a convention anyone has to keep.
     // ADR 0134 owns the policy; this block owns the shape.
     private const string Lead = @"(?<!\d)(\d{8}|\d{6})";
+    // This class is duplicated in PersonnummerScanner's two GeneratedRegex patterns and must
+    // stay in lockstep with them. Widening it here is caught by
+    // PersonnummerGuardPathEquivalenceTests (flag must imply redact); NARROWING it is not —
+    // that is the false-negative direction, and nothing fails.
     private const string Sep = @"(?:[-+\p{Pd}\u2212])?";
     private const string Tail = @"(\d{4})(?!\d)";
 
@@ -67,10 +71,14 @@ public static partial class PersonnummerTextNormalizer
     //    number is a risk level, not a corpus size. What sits ABOVE it is a declared residual —
     //    ADR 0134 R3, pinned by Normalize_SingleLineUserInput_BoundIsEightNotUnbounded.
     //
-    // \p{Cc} belongs in THIS class and must never move to the \p{Cf} strip below. Stripping it
-    // would glue the following character onto the candidate, so "811218 9876<U+0001>5" would
-    // become "811218 98765" and the trailing digit would defeat Tail's (?!\d) — the form is
-    // flagged today precisely because the control character is bridged rather than removed.
+    // \p{Cc} must never move to the \p{Cf} strip below. Stripping it would glue the following
+    // character onto the candidate, so "811218 9876<U+0001>5" would become "811218 98765" and
+    // the trailing digit would defeat Tail's (?!\d). The load-bearing property there is
+    // NON-MEMBERSHIP IN THE STRIP CLASS, not membership in this gap class: the match is
+    // "811218 9876" and the control character sits OUTSIDE it, RETAINED as the non-digit
+    // boundary that satisfies (?!\d). What earns \p{Cc} its place in the gap class is the
+    // separate case of a personnummer gapped BY a control character, which the theory's
+    // U+0001 and space-Cc-space rows pin.
     [GeneratedRegex(Lead + Sep + @"[\s\p{Cc}]{0,8}" + Sep + Tail, RegexOptions.CultureInvariant)]
     private static partial Regex SingleLineGapCandidateRegex();
 

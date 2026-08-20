@@ -19,10 +19,10 @@ public enum PersonnummerGapProfile
     /// PersonnummerBridgeCollisionRateTests regenerates both rates.</para>
     ///
     /// <para>Used by CV import (body and file name), resume content, the auto-promote gate,
-    /// <c>JobSeeker.DisplayName</c> and <c>Resume.Name</c> — six surfaces, seven invocations,
-    /// pinned by <c>PersonnummerGapProfileCallSiteTests</c>. The last two are single-line
-    /// values and are candidates for the other profile; that is a follow-up with its own bearer
-    /// analysis, not an oversight (ADR 0134). The file name is NOT a candidate: it is redacted
+    /// <c>JobSeeker.DisplayName</c> and <c>Resume.Name</c>. The exact set is pinned by
+    /// <c>PersonnummerGapProfileCallSiteTests</c>, which is where to read it — a count repeated
+    /// here would decay the next time a surface moves. ADR 0134 names which of these are
+    /// candidates for the other profile; the file name is NOT one, because it is redacted
     /// downstream on a path that keeps the narrow bridge, so flagging it wider would produce
     /// flagged-but-unmasked (ADR 0134 D8).</para>
     /// </summary>

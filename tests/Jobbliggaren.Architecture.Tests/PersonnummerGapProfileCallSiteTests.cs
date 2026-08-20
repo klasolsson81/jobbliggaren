@@ -12,7 +12,7 @@ namespace Jobbliggaren.Architecture.Tests;
 /// parameter forces a call site to CHOOSE; it cannot force the choice to be right, and the two
 /// profiles are not orderable by strength. Either direction reads as reasonable in review and
 /// neither shows up as a failing test anywhere else — measured on this PR: flipping a CV surface
-/// to the wide profile leaves all 1675 Domain tests green. See ADR 0134 D8 for why the CV file
+/// to the wide profile leaves the entire Domain suite green. See ADR 0134 D8 for why the CV file
 /// name in particular stays narrow.</para>
 ///
 /// <para><b>What this register does NOT measure.</b> It measures ADOPTION — which profile an
@@ -83,8 +83,8 @@ public class PersonnummerGapProfileCallSiteTests
             expectedSet,
             "the personnummer gap profile at a call site is a decision about what KIND of text " +
             "that call site holds, and the two profiles are not orderable by strength. Widening a " +
-            "CV surface to SingleLineUserInput opens the ~1-in-10 date-column collision measured " +
-            "in PersonnummerBridgeCollisionRateTests; narrowing ?q= restores the plaintext leak of " +
+            "CV surface to SingleLineUserInput opens the date-column collision measured in " +
+            "PersonnummerBridgeCollisionRateTests; narrowing ?q= restores the plaintext leak of " +
             "#1415. If this list is genuinely changing, change ADR 0134 in the same commit.");
     }
 

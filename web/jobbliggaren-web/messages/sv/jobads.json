@@ -94,7 +94,7 @@
     "hitsWithNew": "<b>{currentCount, number}</b> träffar, varav <b>{newCount, number}</b> nya",
     "hits": "<b>{currentCount, number}</b> träffar",
     "runAgain": "Kör igen",
-    "removeSearch": "Ta bort sökning {label}",
+    "removeSearch": "Ta bort sökningen: {label}",
     "chip": {
       "label": "Senaste sökningar",
       "empty": "Inga senaste sökningar än. Sök under Jobb så sparas de här.",

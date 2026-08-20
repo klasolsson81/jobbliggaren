@@ -64,7 +64,7 @@
     "interviewText": "<b>{company}</b> har bekräftat intervjutid.",
     "interviewCta": "Öppna ärende",
     "savedSearchLabel": "Senaste sökning",
-    "savedSearchText": "<b>{name}</b> har <b>{count, plural, one {# ny träff} other {# nya träffar}}</b> sedan din senaste körning.",
+    "savedSearchText": "Sökningen <b>{name}</b> har <b>{count, plural, one {# ny träff} other {# nya träffar}}</b> sedan din senaste körning.",
     "savedSearchTextNoCount": "Din senaste sökning: <b>{name}</b>.",
     "savedSearchCta": "Kör sökning",
     "companiesLabel": "Bevakning",

@@ -181,30 +181,26 @@ public sealed partial class RecentJobSearchCaptureBehavior<TMessage, TResponse>(
         // per kind of text, and a hand-typed box takes SingleLineUserInput (ADR 0134 D2). The CV
         // surfaces keep the narrow one, which is not a weaker choice but a different one - a line
         // break means something in extracted text and nothing here.
-        if (effectiveQ is not null
-            && PersonnummerScanner.Scan(PersonnummerTextNormalizer.Normalize(effectiveQ, PersonnummerGapProfile.SingleLineUserInput)).Count > 0)
+        if (effectiveQ is not null && BearsPersonnummer(effectiveQ))
             return response;
 
-        // Klas-beslut 2026-08-20 (#1419), taking security-auditor's offered re-grade to #1411
-        // parity. The five taxonomy dimensions are validated on SHAPE ONLY - ListJobAdsQueryValidator
-        // and SearchCriteria both apply ^[A-Za-z0-9_-]{1,32}\z and neither consults the taxonomy - so
-        // /jobb?occupationGroup=8112189876&commit=true persisted a personnummer in plaintext past
-        // every guard above, and the read side renders an unresolved id back verbatim as
-        // "Okand kod (8112189876)" in the row label (TaxonomyLabels.Unknown), which recent-search-href
-        // then replays into the URL. Same sink, same skip-reason, same bearer analysis as the two
-        // guards above.
+        // Klas-beslut 2026-08-20 (#1419). Same sink, same skip-reason and same bearer analysis
+        // as the two guards above - these five dimensions are validated on shape only and never
+        // against the taxonomy, so a hand-edited URL reached the sink past both of them.
         //
-        // The PROFILE choice is behaviourally inert here and that is worth knowing rather than
-        // guessing: the conceptId grammar admits no whitespace and no control character at all, so
-        // no gapped form can reach this axis and both profiles answer identically. It is written as
-        // SingleLineUserInput because that is what the text IS - a single line out of a hand-editable
-        // URL - so the day the grammar relaxes, the policy is already the right one rather than
-        // silently the CV one. TaxonomyAxisProfileIsInertTests pins the inertness, so a relaxation
-        // shows up as a failing test instead of a quiet change of reach.
+        // Runs SingleLineUserInput because that is what the value IS - a single line out of a
+        // hand-editable URL. The choice is behaviourally inert while the conceptId grammar admits
+        // no whitespace or control character, and it is the right one on the day that relaxes.
+        // TaxonomyAxisProfileIsInertTests drives the production validator, so a relaxation fails
+        // there rather than changing this guard's reach quietly.
         //
-        // Measured 2026-08-20 over the shipped taxonomy corpus: 0 of 23 968 conceptIds are flagged
-        // by this chain, with a canary proving the probe can see a hit. Regenerate with the probe
-        // described in the PR body; the corpus itself is pinned by TaxonomyConceptIdGrammarTests.
+        // The detector is the house's single-sourced flag chain rather than the employer axis's
+        // shape predicate (#844), and that is a DECLARED difference in reach, not an oversight:
+        // IsPersonnummerShaped is deliberately over-inclusive with no Luhn and no date gate, so a
+        // Luhn-invalid ten-digit value is skipped there and captured here. What rides on that
+        // residual is not personal data - a Luhn-invalid number is no personnummer, and a legal
+        // person's org.nr is not personal data, while a sole trader's IS a valid personnummer and
+        // is caught.
         if (BearsPersonnummer(capt.OccupationGroup) || BearsPersonnummer(capt.Municipality)
             || BearsPersonnummer(capt.Region) || BearsPersonnummer(capt.EmploymentType)
             || BearsPersonnummer(capt.WorktimeExtent))
@@ -273,18 +269,19 @@ public sealed partial class RecentJobSearchCaptureBehavior<TMessage, TResponse>(
     /// own detector rather than re-deriving the rule, so this axis and every other org.nr surface
     /// refuse on exactly the same predicate (#844: a rule with two normalisers is two rules).
     /// </summary>
-    // One list, the house's single-sourced flag chain (#1419). Skips the whole capture rather
-    // than filtering the offending value out, for the FilterHash reason the employer guard
-    // records above: a criteria with one dimension stripped hashes identically to a genuine
-    // search without it, so filtering would Bump() a different, real row.
-    private static bool BearsPersonnummer(IReadOnlyList<string>? values) =>
-        values is not null
-        && values.Any(v => PersonnummerScanner.Scan(
-            PersonnummerTextNormalizer.Normalize(v, PersonnummerGapProfile.SingleLineUserInput)).Count > 0);
-
     private static bool IsPersonnummerShapedOrUnparseable(string employer)
     {
         var orgNr = OrganizationNumber.Create(employer);
         return orgNr.IsFailure || orgNr.Value.IsPersonnummerShaped();
     }
+
+    // The single-line flag predicate, in ONE home. Both string-bearing guards below the employer
+    // one call it, so this file no longer carries the same expression twice while citing #844
+    // against exactly that.
+    private static bool BearsPersonnummer(string value) =>
+        PersonnummerScanner.Scan(
+            PersonnummerTextNormalizer.Normalize(value, PersonnummerGapProfile.SingleLineUserInput)).Count > 0;
+
+    private static bool BearsPersonnummer(IReadOnlyList<string>? values) =>
+        values is not null && values.Any(BearsPersonnummer);
 }

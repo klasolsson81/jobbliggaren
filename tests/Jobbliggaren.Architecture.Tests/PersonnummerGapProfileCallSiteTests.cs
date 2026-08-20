@@ -115,11 +115,14 @@ public class PersonnummerGapProfileCallSiteTests
             $"{anyCalls - withProfile} call site(s) reach Normalize without a " +
             "PersonnummerGapProfile argument the scan can see");
         withProfile.ShouldBe(
-            8,
-            "six files, eight invocations: ImportResumeCommandHandler guards both the CV body and " +
-            "the file name, and RecentJobSearchCaptureBehavior guards both ?q= and the five " +
-            "taxonomy axes (#1419). A drop means a guarded surface lost its guard; a rise means a " +
-            "new one arrived and someone chose its profile — read ADR 0134 D2 before changing " +
+            7,
+            "six files, seven invocations: ImportResumeCommandHandler guards the CV body and the " +
+            "file name separately, and RecentJobSearchCaptureBehavior reaches Normalize ONCE — " +
+            "through the single BearsPersonnummer predicate that both ?q= and the five taxonomy " +
+            "axes (#1419) call. It went 7 -> 8 -> 7 across those two PRs, and the way back down " +
+            "was giving one predicate one home (#844), not removing a guard. A drop means a " +
+            "guarded surface lost its guard OR a predicate was consolidated; a rise means a new " +
+            "surface arrived and someone chose its profile — read ADR 0134 D2 before changing " +
             "this number, because that choice is the thing this file exists to make visible.");
     }
 

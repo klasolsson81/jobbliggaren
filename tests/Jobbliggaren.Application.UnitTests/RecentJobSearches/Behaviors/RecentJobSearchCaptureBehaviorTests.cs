@@ -427,9 +427,13 @@ public class RecentJobSearchCaptureBehaviorTests
     [InlineData("2512")]        // four digits, no candidate shape
     public async Task Handle_DigitBearingConceptIdThatIsNoPersonnummer_StillCaptures(string conceptId)
     {
-        // The counterfactual: a VALIDATING detector, not a digit filter. Real taxonomy ids are
-        // digit strings (SSYK codes, municipality codes), so a shape-only guard here would have
-        // silently stopped capturing ordinary searches.
+        // The counterfactual: a VALIDATING detector, not a digit filter. The reason is
+        // single-sourcing (#844) rather than false positives — security-auditor measured that the
+        // shipped corpus carries no bare digit string at all, and at most seven digits in any id,
+        // so a shape-only rule would have cost nothing there. What this pins is the DECLARED
+        // consequence of using the house chain: a Luhn-invalid ten-digit value is skipped on the
+        // employer axis and captured here, because that axis runs a deliberately over-inclusive
+        // shape predicate and this one runs the date+Luhn authority.
         SearchCriteria? captured = null;
         _capturer.CaptureAsync(_userId, Arg.Do<SearchCriteria>(c => captured = c), 7, Arg.Any<CancellationToken>())
             .Returns(Task.CompletedTask);
@@ -439,7 +443,8 @@ public class RecentJobSearchCaptureBehaviorTests
 
         await _capturer.Received(1).CaptureAsync(
             _userId, Arg.Any<SearchCriteria>(), Arg.Any<int>(), Arg.Any<CancellationToken>());
-        captured!.OccupationGroup.ShouldContain(conceptId);
+        captured.ShouldNotBeNull();
+        captured.OccupationGroup.ShouldContain(conceptId);
     }
 
     [Fact]
@@ -890,5 +895,32 @@ public class RecentJobSearchCaptureBehaviorTests
         // B2 (ADR 0067 Beslut 6/7): de två nya filter-dimensionerna.
         typeof(ICapturesRecentSearch).GetProperty("EmploymentType").ShouldNotBeNull();
         typeof(ICapturesRecentSearch).GetProperty("WorktimeExtent").ShouldNotBeNull();
+    }
+
+    // #1419: EXHAUSTIVE, because the block above is inclusion-only and inclusion cannot see
+    // GROWTH. This interface has grown twice — Employer (#311 PR-2b) and Remote (#551 PR-D) —
+    // and both times a dimension reached the sink while a guard did not follow. That is the
+    // defect class #1419 itself closes, so leaving the shape gate unable to detect the next one
+    // would be closing an instance and leaving the mechanism.
+    //
+    // Every string-bearing member must be read by a personnummer guard before capture: Q and
+    // Employer by their own, the five taxonomy axes by BearsPersonnummer. Remote, SortBy and
+    // Commit are bool/enum and carry no text.
+    [Fact]
+    public void ICapturesRecentSearch_HasExactlyTheseMembers_SoANewDimensionCannotArriveUnguarded()
+    {
+        var actual = typeof(ICapturesRecentSearch).GetProperties()
+            .Select(p => p.Name)
+            .OrderBy(n => n, StringComparer.Ordinal)
+            .ToList();
+
+        actual.ShouldBe(
+            ["Commit", "Employer", "EmploymentType", "Municipality", "OccupationGroup", "Q",
+             "Region", "Remote", "SortBy", "WorktimeExtent"],
+            "a member arrived on or left ICapturesRecentSearch. If it is a NEW string-bearing " +
+            "dimension it reaches recent_job_searches in plaintext, and it must be added to the " +
+            "BearsPersonnummer chain in RecentJobSearchCaptureBehavior AND to the default-browse " +
+            "guard — neither of which fails on its own when a dimension is merely missing. " +
+            "Update this list in the same commit as the guard, never before it.");
     }
 }

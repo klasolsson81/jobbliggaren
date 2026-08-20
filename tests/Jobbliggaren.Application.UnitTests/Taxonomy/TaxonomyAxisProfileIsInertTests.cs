@@ -1,4 +1,4 @@
-using System.Text.RegularExpressions;
+using Jobbliggaren.Application.JobAds.Queries.ListJobAds;
 using Jobbliggaren.Domain.Privacy;
 using Shouldly;
 
@@ -21,13 +21,18 @@ namespace Jobbliggaren.Application.UnitTests.Taxonomy;
 /// single line out of a hand-editable URL, so <c>SingleLineUserInput</c> is the correct policy
 /// on the day the grammar relaxes. Inert today, right tomorrow.</para>
 /// </summary>
-public class TaxonomyAxisProfileIsInertTests
+public sealed class TaxonomyAxisProfileIsInertTests
 {
-    // The grammar both gates apply, character for character (ListJobAdsQueryValidator and
-    // SearchCriteria carry it as independent literals; TaxonomyConceptIdGrammarTests owns the
-    // claim that the shipped corpus satisfies it).
-    private static readonly Regex ConceptIdGrammar =
-        new(@"^[A-Za-z0-9_-]{1,32}\z", RegexOptions.Compiled | RegexOptions.CultureInvariant);
+    // Drives the PRODUCTION gate rather than a copy of its pattern. An earlier revision of this
+    // file carried its own compiled literal, which made the whole point of the file undeliverable:
+    // relax the production grammar and every row here stays green, because the local copy still
+    // rejects the same things. TaxonomyConceptIdGrammarTests already solved this one directory
+    // over, by validating instead of copying (ConceptIdPattern is a private const, so validating
+    // IS the route).
+    private static bool GrammarAdmits(string conceptId) =>
+        new ListJobAdsQueryValidator()
+            .Validate(new ListJobAdsQuery(OccupationGroup: [conceptId]))
+            .IsValid;
 
     [Theory]
     [InlineData("8112189876")]      // contiguous personnummer — flagged by both
@@ -41,7 +46,7 @@ public class TaxonomyAxisProfileIsInertTests
     [InlineData("abcdefghijklmnopqrstuvwxyz012345")] // 32 chars, the cap
     public void BothProfilesAnswerIdentically_ForEveryValueTheGrammarAdmits(string conceptId)
     {
-        ConceptIdGrammar.IsMatch(conceptId).ShouldBeTrue(
+        GrammarAdmits(conceptId).ShouldBeTrue(
             $"the vector must be grammar-admissible, else it measures a value this axis cannot carry: {conceptId}");
 
         var narrow = PersonnummerScanner.Scan(
@@ -51,10 +56,10 @@ public class TaxonomyAxisProfileIsInertTests
 
         wide.ShouldBe(
             narrow,
-            "the profile choice on the taxonomy axes is inert only while the conceptId grammar " +
-            "excludes whitespace and control characters. If this diverges, the grammar has been " +
-            "relaxed and the guard's reach changed with it — read #1419 and ADR 0134 D2 before " +
-            $"adjusting anything. Vector: {conceptId}");
+            "the two profiles differ ONLY in their gap term, and both gap classes are disjoint " +
+            "from the conceptId charset, so on any grammar-admissible value they are equivalent. " +
+            "A divergence here therefore means a profile or the normalizer changed, NOT that the " +
+            $"grammar relaxed — that shows up on the GrammarAdmits assertions. Vector: {conceptId}");
     }
 
     [Fact]
@@ -64,7 +69,9 @@ public class TaxonomyAxisProfileIsInertTests
         // anything this axis can carry. Without this row the theory above would keep passing if
         // both profiles collapsed into one, which is a real regression it must not hide.
         const string gapped = "811218   9876";
-        ConceptIdGrammar.IsMatch(gapped).ShouldBeFalse("the grammar is what keeps this form off the axis");
+        GrammarAdmits(gapped).ShouldBeFalse(
+            "the production validator is what keeps this form off the axis; if it starts admitting " +
+            "a gapped value, the profile choice below stops being inert and this guard's reach changes");
 
         PersonnummerScanner.Scan(
             PersonnummerTextNormalizer.Normalize(gapped, PersonnummerGapProfile.ExtractedDocumentText))

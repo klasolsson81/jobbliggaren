@@ -37,8 +37,10 @@ public enum PersonnummerGapProfile
     /// persists in plaintext and renders back verbatim, while an over-flag costs one silently
     /// uncaptured search — an asymmetry ADR 0134 D2 states and this profile is chosen against.</para>
     ///
-    /// <para>Used by the <c>?q=</c> job-search axis alone. Gaps above eight characters are a
-    /// declared residual (ADR 0134 R3), not an oversight.</para>
+    /// <para>The exact set of call sites is pinned by
+    /// <c>PersonnummerGapProfileCallSiteTests</c>, which is where to read it — an enumeration
+    /// repeated here would decay the next time a surface moves, and it did. Gaps above eight
+    /// characters are a declared residual (ADR 0134 R3), not an oversight.</para>
     /// </summary>
     SingleLineUserInput,
 }

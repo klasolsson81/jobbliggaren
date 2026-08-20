@@ -352,6 +352,101 @@ public class RecentJobSearchCaptureBehaviorTests
             _userId, Arg.Any<SearchCriteria>(), Arg.Any<int>(), Arg.Any<CancellationToken>());
     }
 
+    // ---- #1419: the five taxonomy axes stop persisting a personnummer ----
+    //
+    // Klas bound #1411 parity on 2026-08-20. These axes are validated on SHAPE ONLY, so a
+    // hand-edited /jobb?occupationGroup=8112189876&commit=true reached the sink past every
+    // other guard, and the read side renders an unresolved id back verbatim in the row label.
+    //
+    // Every dimension gets its own row rather than one representative: the guard is five
+    // separate list reads, and a single missed list is exactly the defect that would survive a
+    // one-vector test.
+
+    [Theory]
+    [InlineData("occupationGroup")]
+    [InlineData("municipality")]
+    [InlineData("region")]
+    [InlineData("employmentType")]
+    [InlineData("worktimeExtent")]
+    public async Task Handle_PersonnummerInAnyTaxonomyAxis_RunsTheSearchButCapturesNothing(string axis)
+    {
+        const string pnr = "8112189876";
+        await HandleAsync(new FakeSearchQuery(
+            Q: null,
+            OccupationGroup: axis == "occupationGroup" ? [pnr] : null,
+            Municipality: axis == "municipality" ? [pnr] : null,
+            Region: axis == "region" ? [pnr] : null,
+            EmploymentType: axis == "employmentType" ? [pnr] : null,
+            WorktimeExtent: axis == "worktimeExtent" ? [pnr] : null));
+
+        await _capturer.DidNotReceive().CaptureAsync(
+            Arg.Any<Guid>(), Arg.Any<SearchCriteria>(), Arg.Any<int>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Handle_HyphenatedPersonnummerInTaxonomyAxis_CapturesNothing()
+    {
+        // The conceptId grammar admits '-', so the hyphenated form reaches this axis too. It is
+        // the shape a human actually types, and the contiguous-only scanner would miss it
+        // without the shared chain's separator handling.
+        await HandleAsync(new FakeSearchQuery(
+            Q: null, OccupationGroup: ["811218-9876"], Municipality: null, Region: null));
+
+        await _capturer.DidNotReceive().CaptureAsync(
+            Arg.Any<Guid>(), Arg.Any<SearchCriteria>(), Arg.Any<int>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Handle_PersonnummerAmongValidConceptIdsInOneAxis_CapturesNothing()
+    {
+        // Any element, not just the first: the guard reads the whole list.
+        await HandleAsync(new FakeSearchQuery(
+            Q: null, OccupationGroup: ["grp1", "grp2", "8112189876"], Municipality: null, Region: null));
+
+        await _capturer.DidNotReceive().CaptureAsync(
+            Arg.Any<Guid>(), Arg.Any<SearchCriteria>(), Arg.Any<int>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Handle_PersonnummerInTaxonomyAxisBesideOtherFilters_CapturesNothingAtAll()
+    {
+        // Skip, never filter the value out. On a single-axis query Create's Empty invariant
+        // would hide a filter-out; with a second dimension beside it the criteria stays valid
+        // and a filter-out WOULD capture - as a row whose FilterHash equals a genuine search on
+        // the remaining dimension, which CaptureAsync would then find and Bump().
+        await HandleAsync(new FakeSearchQuery(
+            Q: null, OccupationGroup: ["8112189876"], Municipality: ["sthlm"], Region: null));
+
+        await _capturer.DidNotReceive().CaptureAsync(
+            Arg.Any<Guid>(), Arg.Any<SearchCriteria>(), Arg.Any<int>(), Arg.Any<CancellationToken>());
+    }
+
+    [Theory]
+    [InlineData("8112189875")]  // personnummer shape, Luhn check digit wrong
+    [InlineData("5592804784")]  // a real org.nr - Luhn-VALID, rejected on the date gate
+    [InlineData("2512")]        // four digits, no candidate shape
+    public async Task Handle_DigitBearingConceptIdThatIsNoPersonnummer_StillCaptures(string conceptId)
+    {
+        // The counterfactual: a VALIDATING detector, not a digit filter. The reason is
+        // single-sourcing (#844) rather than false positives — measured 2026-08-20 by
+        // security-auditor on the corpus shipped at that commit: no bare digit string at all, at
+        // most seven digits in any id, so a shape-only rule would have cost nothing there. What this pins is the DECLARED
+        // consequence of using the house chain: a Luhn-invalid ten-digit value is skipped on the
+        // employer axis and captured here, because that axis runs a deliberately over-inclusive
+        // shape predicate and this one runs the date+Luhn authority.
+        SearchCriteria? captured = null;
+        _capturer.CaptureAsync(_userId, Arg.Do<SearchCriteria>(c => captured = c), 7, Arg.Any<CancellationToken>())
+            .Returns(Task.CompletedTask);
+
+        await HandleAsync(new FakeSearchQuery(
+            Q: null, OccupationGroup: [conceptId], Municipality: null, Region: null));
+
+        await _capturer.Received(1).CaptureAsync(
+            _userId, Arg.Any<SearchCriteria>(), Arg.Any<int>(), Arg.Any<CancellationToken>());
+        captured.ShouldNotBeNull();
+        captured.OccupationGroup.ShouldContain(conceptId);
+    }
+
     [Fact]
     public async Task Handle_PersonnummerShapedQBesideOtherFilters_CapturesNothingAtAll()
     {
@@ -800,5 +895,39 @@ public class RecentJobSearchCaptureBehaviorTests
         // B2 (ADR 0067 Beslut 6/7): de två nya filter-dimensionerna.
         typeof(ICapturesRecentSearch).GetProperty("EmploymentType").ShouldNotBeNull();
         typeof(ICapturesRecentSearch).GetProperty("WorktimeExtent").ShouldNotBeNull();
+    }
+
+    // #1419: EXHAUSTIVE, because the block above is inclusion-only and inclusion cannot see
+    // GROWTH. This interface has grown twice — Employer (#311 PR-2b) and Remote (#551 PR-D) —
+    // and both times a dimension reached the sink while a guard did not follow. That is the
+    // defect class #1419 itself closes, so leaving the shape gate unable to detect the next one
+    // would be closing an instance and leaving the mechanism.
+    //
+    // Every string-bearing member must be read by a personnummer guard before capture: Q and
+    // Employer by their own, the five taxonomy axes by BearsPersonnummer. Remote, SortBy and
+    // Commit are bool/enum and carry no text.
+    [Fact]
+    public void ICapturesRecentSearch_HasExactlyTheseMembers_SoANewDimensionCannotArriveUnguarded()
+    {
+        // GetProperties() on an interface does NOT walk base interfaces (measured with a probe:
+        // an IDerived : IBase reports only IDerived's own). ICapturesRecentSearch has no base
+        // today, so without this the hole would be closed by absence rather than by construction
+        // — and "inclusion cannot see growth" is the exact failure this gate exists to close, so
+        // leaving it one level up would be the same defect wearing a hat.
+        var actual = typeof(ICapturesRecentSearch).GetProperties()
+            .Concat(typeof(ICapturesRecentSearch).GetInterfaces().SelectMany(i => i.GetProperties()))
+            .Select(p => p.Name)
+            .Distinct(StringComparer.Ordinal)
+            .OrderBy(n => n, StringComparer.Ordinal)
+            .ToList();
+
+        actual.ShouldBe(
+            ["Commit", "Employer", "EmploymentType", "Municipality", "OccupationGroup", "Q",
+             "Region", "Remote", "SortBy", "WorktimeExtent"],
+            "a member arrived on or left ICapturesRecentSearch. If it is a NEW string-bearing " +
+            "dimension it reaches recent_job_searches in plaintext, and it must be added to the " +
+            "BearsPersonnummer chain in RecentJobSearchCaptureBehavior AND to the default-browse " +
+            "guard — neither of which fails on its own when a dimension is merely missing. " +
+            "Update this list in the same commit as the guard, never before it.");
     }
 }

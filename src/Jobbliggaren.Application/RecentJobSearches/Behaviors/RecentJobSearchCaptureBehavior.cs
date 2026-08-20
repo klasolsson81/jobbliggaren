@@ -176,11 +176,34 @@ public sealed partial class RecentJobSearchCaptureBehavior<TMessage, TResponse>(
         // and the employer helper's unparseable arm - fail-safe on a format axis - would refuse
         // every ordinary search string here. This is instead the house's single-sourced flag path
         // (JobSeeker.ValidateDisplayName, Resume.ValidateName, AutoPromoteGate run the identical
-        // one-liner), whose accepted gap residual is PersonnummerTextNormalizer's to own (#427 V3)
-        // rather than re-derived per call site (#844: a rule with two normalisers is two rules).
-        // #1415 re-adjudicates that residual now that it governs a hand-typed, user-rendered axis.
-        if (effectiveQ is not null
-            && PersonnummerScanner.Scan(PersonnummerTextNormalizer.Normalize(effectiveQ, PersonnummerGapProfile.SingleLineUserInput)).Count > 0)
+        // one-liner) rather than a predicate re-derived per call site (#844: a rule with two
+        // normalisers is two rules). What this axis DOES choose is the gap POLICY: #1415 split it
+        // per kind of text, and a hand-typed box takes SingleLineUserInput (ADR 0134 D2). The CV
+        // surfaces keep the narrow one, which is not a weaker choice but a different one - a line
+        // break means something in extracted text and nothing here.
+        if (effectiveQ is not null && BearsPersonnummer(effectiveQ))
+            return response;
+
+        // Klas-beslut 2026-08-20 (#1419). Same sink, same skip-reason and same bearer analysis
+        // as the two guards above - these five dimensions are validated on shape only and never
+        // against the taxonomy, so a hand-edited URL reached the sink past both of them.
+        //
+        // Runs SingleLineUserInput because that is what the value IS - a single line out of a
+        // hand-editable URL. The choice is behaviourally inert while the conceptId grammar admits
+        // no whitespace or control character, and it is the right one on the day that relaxes.
+        // TaxonomyAxisProfileIsInertTests drives the production validator, so a relaxation fails
+        // there rather than changing this guard's reach quietly.
+        //
+        // The detector is the house's single-sourced flag chain rather than the employer axis's
+        // shape predicate (#844), and that is a DECLARED difference in reach, not an oversight:
+        // IsPersonnummerShaped is deliberately over-inclusive with no Luhn and no date gate, so a
+        // Luhn-invalid ten-digit value is skipped there and captured here. What rides on that
+        // residual is not personal data - a Luhn-invalid number is no personnummer, and a legal
+        // person's org.nr is not personal data, while a sole trader's IS a valid personnummer and
+        // is caught.
+        if (BearsPersonnummer(capt.OccupationGroup) || BearsPersonnummer(capt.Municipality)
+            || BearsPersonnummer(capt.Region) || BearsPersonnummer(capt.EmploymentType)
+            || BearsPersonnummer(capt.WorktimeExtent))
             return response;
 
         try
@@ -251,4 +274,14 @@ public sealed partial class RecentJobSearchCaptureBehavior<TMessage, TResponse>(
         var orgNr = OrganizationNumber.Create(employer);
         return orgNr.IsFailure || orgNr.Value.IsPersonnummerShaped();
     }
+
+    // The single-line flag predicate, in ONE home. Both string-bearing guards below the employer
+    // one call it, so this file no longer carries the same expression twice while citing #844
+    // against exactly that.
+    private static bool BearsPersonnummer(string value) =>
+        PersonnummerScanner.Scan(
+            PersonnummerTextNormalizer.Normalize(value, PersonnummerGapProfile.SingleLineUserInput)).Count > 0;
+
+    private static bool BearsPersonnummer(IReadOnlyList<string>? values) =>
+        values is not null && values.Any(BearsPersonnummer);
 }

@@ -1,6 +1,5 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { Bookmark } from "lucide-react";
 import type { SavedJobAdDto } from "@/lib/dto/saved-job-ads";
@@ -17,7 +16,6 @@ interface SavedJobAdsHeroChipProps {
  * Tom-text guidar till modal-footer-toggle.
  */
 export function SavedJobAdsHeroChip({ items }: SavedJobAdsHeroChipProps) {
-  const router = useRouter();
   const t = useTranslations("jobads.saved");
 
   return (
@@ -27,41 +25,25 @@ export function SavedJobAdsHeroChip({ items }: SavedJobAdsHeroChipProps) {
       count={items.length > 0 ? items.length : null}
       items={items}
       getKey={(it) => it.id}
+      getHref={(it) => `/jobb/${it.jobAdId}`}
+      getLabel={(it) => it.jobAd?.title ?? t("removed")}
+      // ADR 0048 Beslut c: annonsen är soft-deletad, raden står kvar dämpad.
+      isMuted={(it) => !it.jobAd}
       emptyText={t("chip.empty")}
       footerHref="/sparade"
       footerLabel={t("chip.footer")}
-      renderItem={(item, onClose) => {
-        const title = item.jobAd?.title ?? t("removed");
-        const company = item.jobAd?.company;
-        const href = `/jobb/${item.jobAdId}`;
-        return (
-          <button
-            type="button"
-            onClick={() => {
-              onClose();
-              router.push(href);
+      renderTrailing={(it) =>
+        it.jobAd?.company ? (
+          <span
+            className="text-micro text-text-primary shrink-0 truncate"
+            style={{
+              maxWidth: 140,
             }}
-            className="jp-popover__rowbtn"
           >
-            <span
-              className="jp-popover__rowlabel"
-              style={{ opacity: item.jobAd ? 1 : 0.6 }}
-            >
-              {title}
-            </span>
-            {company && (
-              <span
-                className="text-micro text-text-primary shrink-0 truncate"
-                style={{
-                  maxWidth: 140,
-                }}
-              >
-                {company}
-              </span>
-            )}
-          </button>
-        );
-      }}
+            {it.jobAd.company}
+          </span>
+        ) : null
+      }
     />
   );
 }

@@ -6661,8 +6661,9 @@ a.jp-adminnav__link[aria-current="page"]::after {
   font-size: var(--text-body-sm);
 }
 
-/* Popover-radknapp (recent-searches- + saved-job-ads-hero-chip). JS-hovern
-   (onMouseOver/-Out mot surface-3) ersatt av :hover — samma visuella effekt. */
+/* Popover-radknapp — emitteras av HeroChip (hero-chip.tsx), aldrig av en
+   konsument. JS-hovern (onMouseOver/-Out mot surface-3) ersatt av :hover —
+   samma visuella effekt. */
 .jp-popover__rowbtn {
   display: flex;
   align-items: flex-start;

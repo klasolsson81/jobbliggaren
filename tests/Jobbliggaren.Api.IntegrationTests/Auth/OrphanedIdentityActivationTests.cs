@@ -24,12 +24,13 @@ namespace Jobbliggaren.Api.IntegrationTests.Auth;
 /// The first pins that registration no longer produces the row <b>via a delivery fault</b> — the send
 /// is swallowed, so the <c>JobSeeker</c> commits. Read that scope precisely: it closes the trigger
 /// measured on dev, not the class. Registration passes through the orphan state on EVERY call by
-/// construction, which is why <c>AccountHardDeleter.cs:74-78</c> gives its sweep a grace window at
-/// all — "a younger one is presumed mid-registration (Identity committed, JobSeeker not yet)". Four
-/// producers remain, enumerated at the fixtures: a cancelled request (<c>UnitOfWorkBehavior</c> takes
-/// the request token), <c>AccountHardDeleter</c> step 2h, the compensating <c>DeleteUserAsync</c> that
-/// discards its <c>IdentityResult</c>, and rows written before this change — the last being the only
-/// one this PR retires.
+/// construction, which is why <c>AccountHardDeleter</c>'s #508 grace filter exists at all — "a
+/// younger one is presumed mid-registration (Identity committed, JobSeeker not yet)". What
+/// remains, enumerated at the fixtures: a failed <c>JobSeeker</c> commit,
+/// <c>AccountHardDeleter</c> step 2h, and rows written before this change — the last
+/// being the only one this PR retires. The <c>JobSeeker.Register</c> failure arm is not among them:
+/// #1117 left it no trigger the real Identity adapter produces, as
+/// <c>RegisterCommandHandlerTests.Handle_FlagOn_RefusesADisplayNameBeforeCreatingAnyUser</c> records.
 /// </para>
 /// <para>
 /// The second pins that such a row is refused at the CAPABILITY seam, in BOTH its homes: login and
@@ -100,8 +101,8 @@ public class OrphanedIdentityActivationTests(ApiFactory factory)
         // HALF ONE — the DELIVERY-FAULT producer is closed. Read that scope precisely: this closes the
         // trigger #1349 measured on dev, not the class. Registration passes through the orphan state on
         // EVERY call by construction (Identity committed in its own boundary, JobSeeker only saved by
-        // UnitOfWorkBehavior after the handler returns), which is why AccountHardDeleter.cs:74-78 gives
-        // its sweep a grace window at all. A cancelled request still lands there, pinned at
+        // UnitOfWorkBehavior after the handler returns), which is why AccountHardDeleter's #508
+        // grace filter exists at all. A cancelled request still lands there, pinned at
         // RegisterCommandHandlerTests.Handle_FlagOn_WhenConfirmationSendIsCancelled_*. That residue is
         // exactly what half two makes harmless.
         //
@@ -183,19 +184,24 @@ public class OrphanedIdentityActivationTests(ApiFactory factory)
         //
         // WHO PRODUCES THE PREMISE (CLAUDE.md §5 Tests:). Half one closes the delivery-fault trigger, not
         // the class, so the row is still producible and the actors are named rather than implied:
-        //   1. A cancelled request. Registration passes through this state on every call by
-        //      construction, and UnitOfWorkBehavior takes the request token, so a client that aborts
-        //      mid-request drops the JobSeeker and keeps the Identity user. Pinned at
+        //   1. A failed JobSeeker commit. Registration passes through this state on every call by
+        //      construction: UnitOfWorkBehavior saves unconditionally after the handler returns, so
+        //      anything that fails that save — a cancelled request token, a DbUpdateException, a
+        //      connection fault — drops the JobSeeker and keeps the Identity user. Pinned at
         //      RegisterCommandHandlerTests.Handle_FlagOn_WhenConfirmationSendIsCancelled_*.
-        //   2. AccountHardDeleter step 2h (AccountHardDeleter.cs:302-309), whose own comment admits the
+        //   2. AccountHardDeleter step 2h, whose own comment admits the
         //      state in writing: the domain transaction commits first, the Identity DELETE is a separate
         //      boundary after it, and "Om denna failer plockas raden upp av Steg 0 ... i nästa körning"
         //      — i.e. the row is live until the next daily run. That actor's own predicate is pinned
         //      against the REAL AccountHardDeleter in HardDeleteAccountsJobIntegrationTests
         //      .CleanupIdentityOrphans_DoesNotSweepIdentityUserWithinGraceWindow.
-        //   3. The compensating delete in RegisterCommandHandler's JobSeeker.Register failure arm: it
-        //      calls DeleteUserAsync, which discards its IdentityResult (UserAccountService.cs:76-81),
-        //      so a failed compensation leaves the row and says nothing.
+        //   3. NOT the compensating delete in RegisterCommandHandler's JobSeeker.Register failure arm.
+        //      #1117 moved every display-name rule ahead of CreateUserAsync, so that arm's only
+        //      remaining trigger is an empty userId the real Identity adapter never returns — the same
+        //      reading recorded at
+        //      RegisterCommandHandlerTests.Handle_FlagOn_RefusesADisplayNameBeforeCreatingAnyUser. It
+        //      stands as defense-in-depth, and since #1410 DeleteUserAsync reports a failed delete
+        //      rather than discarding it.
         //   4. Rows written before this change, when the confirmation send threw — the only one retired
         //      here, by Registration_whose_confirmation_send_fails_still_commits_the_job_seeker.
         //

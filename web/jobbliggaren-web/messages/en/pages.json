@@ -497,12 +497,12 @@
       "networkError": "Could not reach the server. Try again in a moment."
     },
     "confirmAccount": {
-      "title": "Activate your account",
-      "intro": "Click the button to confirm your email address and activate your account. Then you can log in.",
-      "confirm": "Activate account",
-      "pending": "Activating…",
-      "successTitle": "Your account is activated",
-      "successBody": "Your email address is confirmed. Log in to get started.",
+      "title": "Confirm your email address",
+      "intro": "The address is not confirmed until you click the button below.",
+      "confirm": "Confirm email address",
+      "pending": "Confirming…",
+      "successTitle": "Your email address is confirmed",
+      "successBody": "Log in to get started.",
       "loginLink": "Log in",
       "invalidTitle": "The link cannot be used",
       "invalidBody": "The link is invalid or has expired. Register again to get a new link.",

@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { ChevronDown } from "lucide-react";
 import { useDismissable } from "@/lib/hooks/use-dismissable";
@@ -21,7 +20,7 @@ interface HeroChipProps<T> {
   items: ReadonlyArray<T>;
   /** Funktion som returnerar id (för React-nyckel). */
   getKey: (item: T) => string;
-  /** Where the row navigates on click. The host closes the panel first. */
+  /** Where the row navigates. The host renders it as the row's `href`. */
   getHref: (item: T) => string;
   /**
    * The row's primary label text. The host owns the span and its clamp. Keep
@@ -53,10 +52,15 @@ interface HeroChipProps<T> {
 }
 
 /**
- * The host owns the row shell: the row `<button>`, its primary label span and
+ * The host owns the row shell: the row `<Link>`, its primary label span and
  * the navigation. A consumer supplies data accessors and, at most, a trailing
  * slot — it has no row markup to get wrong, so the clamp contract is pinned
  * once here instead of once per consumer.
+ *
+ * The row navigates, so it is an `<a href>` and not a `<button>` + `router.push`
+ * (jobbpilot-design-a11y §1). That is what gives back ctrl-/middle-click, "open
+ * in new tab", the status-bar URL preview and the "link" role a screen reader
+ * announces — none of which a click handler can emulate.
  */
 export function HeroChip<T>({
   label,
@@ -75,7 +79,6 @@ export function HeroChip<T>({
   onOpenChange,
 }: HeroChipProps<T>) {
   const t = useTranslations("jobads.ui");
-  const router = useRouter();
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const panelRef = useDismissable<HTMLDivElement, HTMLButtonElement>(
@@ -134,13 +137,10 @@ export function HeroChip<T>({
               </div>
             ) : (
               visible.map((item) => (
-                <button
+                <Link
                   key={getKey(item)}
-                  type="button"
-                  onClick={() => {
-                    close();
-                    router.push(getHref(item));
-                  }}
+                  href={getHref(item)}
+                  onClick={close}
                   className="jp-popover__rowbtn"
                 >
                   <span
@@ -153,7 +153,7 @@ export function HeroChip<T>({
                     {getLabel(item)}
                   </span>
                   {renderTrailing?.(item)}
-                </button>
+                </Link>
               ))
             )}
           </div>

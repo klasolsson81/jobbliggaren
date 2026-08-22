@@ -4,14 +4,9 @@ import userEvent from "@testing-library/user-event";
 import { RecentSearchesHeroChip } from "./recent-searches-hero-chip";
 import type { RecentJobSearchDto } from "@/lib/dto/recent-searches";
 
-const pushMock = vi.fn();
 const countsMock = vi.fn<() => ReadonlyMap<string, { currentCount: number; newCount: number }> | null>(
   () => null,
 );
-
-vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: pushMock }),
-}));
 
 vi.mock("@/lib/hooks/use-recent-search-counts", () => ({
   useRecentSearchCounts: () => countsMock(),
@@ -40,7 +35,6 @@ function makeDto(extra: Partial<RecentJobSearchDto>): RecentJobSearchDto {
 }
 
 beforeEach(() => {
-  pushMock.mockClear();
   countsMock.mockReset();
   countsMock.mockReturnValue(null);
 });
@@ -115,7 +109,7 @@ describe("RecentSearchesHeroChip", () => {
     expect(screen.queryByText(/^NY$/)).not.toBeInTheDocument();
   });
 
-  it("klick på rad → router.push med /jobb-URL byggd från filter, dropdown stänger", async () => {
+  it("radens href är /jobb-URL:en byggd från filter, och klick stänger dropdownen", async () => {
     const user = userEvent.setup();
     render(
       <RecentSearchesHeroChip
@@ -130,12 +124,14 @@ describe("RecentSearchesHeroChip", () => {
       />,
     );
     await user.click(screen.getByRole("button", { name: /Senaste sökningar/ }));
-    await user.click(screen.getByText("backend"));
-    expect(pushMock).toHaveBeenCalledTimes(1);
-    const url = pushMock.mock.calls[0]?.[0] as string;
+    // By role, not by class: what this consumer owns is the URL, and a URL the
+    // user cannot ctrl-click is the defect the row stopped being a button for.
+    const row = screen.getByRole("link", { name: /backend/ });
+    const url = row.getAttribute("href") ?? "";
     expect(url).toMatch(/^\/jobb\?/);
     expect(url).toContain("q=backend");
     expect(url).toContain("occupationGroup=MVqp_eS8_kDZ");
+    await user.click(row);
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 

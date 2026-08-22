@@ -275,16 +275,27 @@ racear sweepens två snapshot-läsningar) — utred före du raderar.
 -- oåterkallelig radering av en felidentifierad rad.
 -- AND deleted_at IS NULL: §3.3:s query varken filtrerar eller selekterar deleted_at, så raden kan
 -- redan ha en löpande klocka. Utan villkoret nollställs den och Art. 17 fördröjs 30 dagar till.
--- NOLL rader = klockan går redan. Läs av den innan du gör något mer:
---   SELECT deleted_at FROM job_seekers WHERE id = '<jobSeekerId>'::uuid;
+-- NOT EXISTS: rubriken "reverse-orphan" är dokumentation, inte en grind. Utan den skulle ett
+-- felklistrat id kunna soft-deleta ett LEVANDE konto. Villkoret är §3.3:s egen definition,
+-- körbar. NOLL rader betyder ANTINGEN att klockan redan går, ATT raden inte är en
+-- reverse-orphan, ELLER att id:t är fel. Det är inget misslyckande, och den backdaterade
+-- satsen nedan är inte botemedlet. Läs av vilket det är:
+--   SELECT deleted_at, user_id FROM job_seekers WHERE id = '<jobSeekerId>'::uuid;
+--   (ingen rad = fel id · deleted_at satt = klockan går · annars: kör §3.3 igen)
 UPDATE job_seekers SET deleted_at = NOW()
-WHERE id = '<jobSeekerId>'::uuid AND deleted_at IS NULL;
+WHERE id = '<jobSeekerId>'::uuid AND deleted_at IS NULL
+  AND NOT EXISTS (SELECT 1 FROM identity.asp_net_users u WHERE u.id = job_seekers.user_id);
 ```
 
 ```sql
 -- Vid VERIFIERAD Art. 17-begäran: backdatera förbi cutoff så raderingen körs nästa pass
 -- (Art. 17.1, "utan onödigt dröjsmål" — annars väntar den registrerade 30 dagar i onödan).
-UPDATE job_seekers SET deleted_at = NOW() - INTERVAL '31 days' WHERE id = '<jobSeekerId>'::uuid;
+-- Samma grind: satsen KORTAR ett restore-fönster, så ett felklistrat id skulle kunna korta ett
+-- vanligt soft-deletat kontos fönster till nästa pass, utan begäran bakom sig. Inget
+-- deleted_at IS NULL här: en verifierad Art. 17-begäran ska kunna korta en redan löpande klocka.
+UPDATE job_seekers SET deleted_at = NOW() - INTERVAL '31 days'
+WHERE id = '<jobSeekerId>'::uuid
+  AND NOT EXISTS (SELECT 1 FROM identity.asp_net_users u WHERE u.id = job_seekers.user_id);
 ```
 
 ⚠ **"Verifierad" har en högre tröskel här än i §4.1, och §4.1:s båda metoder är otillgängliga.** Det
@@ -312,8 +323,7 @@ står i §2.3.
   §2.3 kräver ett `deleted_at` som är äldre än fönstret. Att trigga jobbet manuellt gör därför
   ingenting före dess. Under fönstret ligger raden kvar i §3.3:s query och **EventId 2503 fortsätter
   fyra varje natt**. Det är förväntat, inte ett fel.
-  ⚠ Warningen är count-only, så en **ny** reverse-orphan i samma fönster är osynlig i signalen
-  (1 → 2 går inte att skilja). Anteckna raden du armerat så nästa läsare kan räkna bort den.
+  ⚠ Anteckna raden du armerat så nästa läsare kan räkna bort den.
 - **Backdaterade varianten:** raden raderas vid nästa pass, och en manuell körning via
   Hangfire-dashboarden (§3.1) är meningsfull.
 

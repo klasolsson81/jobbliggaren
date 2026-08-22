@@ -479,7 +479,7 @@
       "displayNamePersonnummer": "Namnet får inte innehålla ett personnummer. Skriv namnet utan personnummer och försök igen.",
       "registrationsClosed": "Registreringen är inte öppen ännu. Försök igen senare.",
       "passwordBreached": "Lösenordet har förekommit i kända dataläckor. Välj ett annat lösenord.",
-      "emailNotConfirmed": "Bekräfta din e-postadress för att logga in. Vi har skickat en länk till din inkorg.",
+      "emailNotConfirmed": "Din e-postadress är inte bekräftad än. Kontrollera din inkorg.",
       "passwordResetEmailRequired": "Skriv in din e-postadress.",
       "passwordResetFailed": "Det gick inte att skicka någon återställningslänk just nu. Försök igen om en stund.",
       "emailDeliveryUnavailable": "E-postutskick är inte aktiverat just nu, så vi kan inte skicka någon återställningslänk. Ditt lösenord är oförändrat. Försök igen senare."

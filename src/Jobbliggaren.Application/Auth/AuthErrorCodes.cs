@@ -72,9 +72,20 @@ public static class AuthErrorCodes
     /// <summary>
     /// The single user-facing detail for the <see cref="EmailNotConfirmed"/> 403. Actionable (§10):
     /// tells a legitimate unconfirmed user how to proceed instead of a misleading wrong-password 401.
+    /// <para>
+    /// #1349 — it states what the gate establishes and nothing more. It used to say confirming was
+    /// enough to log in; for a profile-less row it is not, and that row reaches THIS surface rather
+    /// than the uniform 401, because ValidateCredentialsAsync returns EmailNotConfirmed before the
+    /// JobSeeker guard runs. The second sentence became an instruction for the same reason: the gate
+    /// establishes EmailConfirmed=false and knows nothing about whether a send succeeded.
+    /// </para>
+    /// <para>
+    /// Keep it a <c>const</c>. Making it state-dependent is the executable form of the prohibition on
+    /// letting an unauthenticated surface read account state (senior-cto-advisor 2026-08-22).
+    /// </para>
     /// </summary>
     public const string EmailNotConfirmedMessage =
-        "Bekräfta din e-postadress för att logga in. Vi har skickat en länk till din inkorg.";
+        "Din e-postadress är inte bekräftad än. Kontrollera din inkorg.";
 
     /// <summary>
     /// #714 — uniform failure for EVERY rejection on the PUBLIC registration-confirm endpoint

@@ -1,7 +1,7 @@
 # JobbPilot — Full Token Reference (v3 + G1 grön accent)
 
 > **Kanonisk mot `globals.css` (G1, ADR 0068).** Odaterad med avsikt — se
-> `references/contrast-table.md` för kommandot som härleder om varje värde.
+> `references/contrast-table.md` för de två kommandon som härleder om värdena.
 >
 > All CSS custom
 > properties defined in `web/jobbliggaren-web/src/app/globals.css`. The canonical

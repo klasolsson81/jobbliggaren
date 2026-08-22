@@ -1,7 +1,7 @@
 # JobbPilot — v3/G1 Token + @theme Structure (globals.css)
 
 > **Kanonisk mot `globals.css` (G1, ADR 0068).** Odaterad med avsikt — se
-> `references/contrast-table.md` för kommandot som härleder om varje värde.
+> `references/contrast-table.md` för de två kommandon som härleder om värdena.
 
 This is the **implemented** structure in
 `web/jobbliggaren-web/src/app/globals.css` — that file is canonical. The pattern:
@@ -169,7 +169,7 @@ names, not class sets.
 @theme {
   --shadow-sm: 0 1px 2px rgba(0,0,0,0.04);
   --shadow-md: 0 2px 4px rgba(0,0,0,0.06);
-  --text-display:56px; --text-h1:28px; --text-h2:20px; --text-h3:18px;
+  --text-display:56px; --text-h1:32px; --text-h2:20px; --text-h3:18px;
   --text-h4:16px; --text-body-lg:17px; --text-body:16px; --text-body-sm:14px;
   --text-caption:13px; --text-label:14px; --text-mono:13px;
 }

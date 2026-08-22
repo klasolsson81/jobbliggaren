@@ -31,12 +31,34 @@
 > Read its output, do not count it: `#B4540B` (provenance, `mörkad från …`) and
 > `#020617` (a negative citation, `INTE #020617`) are the expected hits.
 >
-> **Neither check is sufficient alone, and that is measured, not theoretical.**
+> **Blind to a stale value that still appears in `globals.css` for any other
+> reason at all** — as a `guard-allow` literal (`#97A4B8`, `#2C8A3F`), or inside
+> a comment while its token has zero declarations (`#FFCD00`, `globals.css:266`).
+> Read those as instances, not as the set.
+>
+> **3. Size check — the same question on the px axis.**
+>
+> ```bash
+> G=web/jobbliggaren-web/src/app/globals.css
+> grep -rhoE -- '--[a-z0-9-]+ *: *[0-9]+px' .claude/skills/ | tr -d ' ' | sort -u \
+>   | while IFS=: read -r tok val; do
+>       real=$(grep -oE -- "$tok: *[0-9]+px" "$G" | grep -oE '[0-9]+px' | sort -u)
+>       [ -n "$real" ] && ! printf '%s\n' $real | grep -qx "$val" \
+>         && echo "stale: $tok = $val (globals.css: $real)"
+>     done
+> ```
+>
+> Expect **no rows**. Checks 1 and 2 match hex only, so a size token is invisible
+> to both — `--text-h1` sat at `28px` here while `globals.css:434` had said
+> `32px` since #549, and neither check could see it (PR #1447). Values that are
+> neither hex nor px are still unmeasured; read those against `globals.css` by
+> hand.
+>
+> **No check is sufficient alone, and that is measured, not theoretical.**
 > In PR #1447 three tokens were stale and check 2 reported *the same two hits on
-> the broken tree as on the fixed one* — because `#97A4B8` and `#2C8A3F` do exist
-> in `globals.css`, as `guard-allow` literals on the gradient plate. Check 1
-> caught all three. Check 2 earns its place only for the table cells check 1
-> cannot see.
+> the broken tree as on the fixed one*. Check 1, run against the same broken
+> tree, reported four — the three plus one nobody had named. Check 2 earns its
+> place only for the table cells check 1 cannot see.
 
 WCAG 2.1 AA requirements:
 - Body text (< 18.66px bold, < 24px regular): **4.5:1 minimum**
@@ -117,7 +139,7 @@ Verify new combinations at https://webaim.org/resources/contrastchecker
 Gradienten är tema-stabil (samma i light + dark). Fokusringen i
 gradient-scope är **VIT** (`--jp-focus: #FFFFFF`) — grön ring syns inte
 mot grönt. **Undantag: ytor inne i plattan som inte själva är gradient** vänder
-tillbaka till en tema-följande ring, eftersom vitt är osynligt mot dem.
+tillbaka till en ring, eftersom vitt är osynligt mot dem.
 
 | Text | Background | Ratio | WCAG | Notes |
 |---|---|---|---|---|

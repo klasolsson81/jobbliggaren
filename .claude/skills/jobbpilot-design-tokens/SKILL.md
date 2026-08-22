@@ -11,9 +11,10 @@ description: >
 
 # JobbPilot Design Tokens
 
-> **Kanonisk mot `globals.css` (G1, ADR 0068 grön accent — odaterad med avsikt;
-> `references/contrast-table.md` bär kommandona som härleder om värdena — supersedar
-> både v2-blå och navy-mellanfasen).** Källa = `web/jobbliggaren-web/src/app/globals.css`
+> **Kanonisk mot `globals.css` (G1, ADR 0068 grön accent — supersedar både
+> v2-blå och navy-mellanfasen).** Odaterad med avsikt;
+> `references/contrast-table.md` bär de två kommandon som härleder om värdena.
+> Källa = `web/jobbliggaren-web/src/app/globals.css`
 > (`:root` + `[data-theme="dark"]` + `@theme`-blocken). Vid avvikelse mellan
 > denna skill och globals.css vinner globals.css alltid.
 >
@@ -202,7 +203,7 @@ globals.css). Tailwind `@theme`-skala (on-disk):
 | `text-overline` | 11px | Mono-caps-labels: kickers, kolumnhuvuden (#549 WS2) |
 
 **Dokumenterat undantag (ADR 0068):** hero-plattans display-rubrik är
-44px/800 — inte H1-token-skalan (28px).
+44px/800 — inte H1-token-skalan.
 
 Mono caps-labels (kickers, kolumnhuvuden, uppercase + letter-spacing
 0.08em) och mono inline-data ligger på `--jp-ink-2` eller `--jp-ink-1` —

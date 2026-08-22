@@ -1,8 +1,8 @@
 # JobbPilot — Dark Mode (v3/G1: SUPPORTED)
 
-> **Status: SUPPORTED.** Kanonisk mot `globals.css` (G1, ADR 0068 — odaterad med
-> avsikt; `references/contrast-table.md` bär kommandona som härleder om värdena
-> grön accent — supersedar både v2-blå och navy-mellanfasen).
+> **Status: SUPPORTED.** Kanonisk mot `globals.css` (G1, ADR 0068 grön accent —
+> supersedar både v2-blå och navy-mellanfasen). Odaterad med avsikt;
+> `references/contrast-table.md` bär de två kommandon som härleder om värdena.
 >
 > Dark mode återinfördes i designsystem v2 (Klas-GO 2026-05-16) efter
 > Fas 0-borttagningen (som berodde på shadcn nova-presetens oklch

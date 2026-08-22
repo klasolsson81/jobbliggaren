@@ -6679,6 +6679,17 @@ a.jp-adminnav__link[aria-current="page"]::after {
 }
 .jp-popover__rowbtn:hover { background: var(--jp-surface-3); }
 
+/* Radens primära label: tvårads clamp, samma form som .jp-board-card__role.
+   De fyra deklarationerna är EN enhet — utan -webkit-box-orient eller overflow
+   blir clampen inert och raden faller tyst tillbaka till en rad.
+   Pinnad av globals-popover-clamp.test.ts. */
+.jp-popover__rowlabel {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
 /* Popover-fotlänk (hero-chip-popoverns "visa alla"). */
 .jp-popover__footlink {
   display: block;

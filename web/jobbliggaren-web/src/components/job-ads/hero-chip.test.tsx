@@ -1,15 +1,9 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect } from "vitest";
 import type { ReactNode } from "react";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Clock } from "lucide-react";
 import { HeroChip } from "./hero-chip";
-
-// The host owns the row's navigation, so it needs a router. What it pushes is
-// pinned through the two consumers, which own the href accessor.
-vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: vi.fn() }),
-}));
 
 type Row = { id: string; label: string };
 
@@ -134,8 +128,12 @@ describe("HeroChip", () => {
     // the markup emitted by the host, no consumer has row markup to get wrong.
     // jsdom resolves no CSS, so this states what the markup asks for;
     // globals-popover-clamp.test.ts owns what the rule then does.
-    const rows = container.querySelectorAll("button.jp-popover__rowbtn");
-    expect(rows, "the row button is the host's, one per visible item").toHaveLength(2);
+    const rows = container.querySelectorAll("a.jp-popover__rowbtn");
+    expect(rows, "the row link is the host's, one per visible item").toHaveLength(2);
+    // The element type is the property, not a detail of the selector above: a
+    // `<button>` + `router.push` renders identically and passes every other
+    // assertion here while losing ctrl-/middle-click and the link role.
+    expect(rows[0]).toHaveAttribute("href", "/jobb?q=backend");
 
     const labelSpan = screen.getByText("backend");
     expect(labelSpan.parentElement).toBe(rows[0]);

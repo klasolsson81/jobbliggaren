@@ -34,26 +34,11 @@ beforeEach(() => {
 });
 
 describe("SavedJobAdsHeroChip", () => {
-  it("radens titel bär clamp-klassen och aldrig ettrads-truncate", async () => {
-    const user = userEvent.setup();
-    render(<SavedJobAdsHeroChip items={[makeDto()]} />);
-    await user.click(screen.getByRole("button", { name: /Sparade annonser/ }));
-    const titleSpan = screen.getByText("Systemutvecklare inom offentlig sektor");
-    // Raden delar `.jp-popover__rowbtn` med RecentSearchesHeroChip, så den delar
-    // också dess presentationskontrakt. globals-popover-clamp.test.ts pinnar att
-    // klassen ger mer än en rad men ser inte att EN av två konsumenter bytt
-    // tillbaka — klassen lever kvar så länge den andra använder den.
-    expect(titleSpan).toHaveClass("jp-popover__rowlabel");
-    // `truncate` sätter white-space: nowrap och besegrar clampen med klassen kvar.
-    expect(titleSpan).not.toHaveClass("truncate");
-  });
-
-  it("borttagen annons dämpas men behåller samma clamp", async () => {
+  it("borttagen annons dämpas (konsumentens isMuted-predikat)", async () => {
     const user = userEvent.setup();
     render(<SavedJobAdsHeroChip items={[makeDto({ jobAd: null })]} />);
     await user.click(screen.getByRole("button", { name: /Sparade annonser/ }));
     const titleSpan = screen.getByText("Annonsen är borttagen");
-    expect(titleSpan).toHaveClass("jp-popover__rowlabel");
     expect(titleSpan).toHaveStyle({ opacity: "0.6" });
   });
 

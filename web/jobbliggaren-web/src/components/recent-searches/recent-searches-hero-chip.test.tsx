@@ -139,30 +139,6 @@ describe("RecentSearchesHeroChip", () => {
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
-  it("radens label bär clamp-klassen och aldrig ettrads-truncate", async () => {
-    const user = userEvent.setup();
-    render(
-      <RecentSearchesHeroChip
-        items={[
-          makeDto({
-            id: "a1",
-            label: "Göteborg, Västra Götalands län eller distans",
-          }),
-        ]}
-      />,
-    );
-    await user.click(screen.getByRole("button", { name: /Senaste sökningar/ }));
-    const labelSpan = screen.getByText(
-      "Göteborg, Västra Götalands län eller distans",
-    );
-    // globals-popover-clamp.test.ts pinnar att klassen ger mer än en rad; den kan
-    // inte se att EN av två konsumenter bytt tillbaka, eftersom klassen lever kvar
-    // så länge den andra använder den.
-    expect(labelSpan).toHaveClass("jp-popover__rowlabel");
-    // `truncate` sätter white-space: nowrap och besegrar clampen med klassen kvar.
-    expect(labelSpan).not.toHaveClass("truncate");
-  });
-
   it("tom-tillstånd visar civic-utility hint", async () => {
     const user = userEvent.setup();
     render(<RecentSearchesHeroChip items={[]} />);

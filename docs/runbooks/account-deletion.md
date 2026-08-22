@@ -176,7 +176,9 @@ WHERE u.id IS NULL;
 
 ---
 
-## 4. Manuell restore inom 30-dagars-fönstret
+## 4. Manuella åtgärder utanför appen
+
+### 4.1 Restore inom 30-dagars-fönstret
 
 **Fas 6 admin-yta saknas tills vidare** — restore sker manuellt via SQL.
 
@@ -247,6 +249,67 @@ framtida `AccountRestored`-command (Fas 6) MÅSTE anropa motsvarande rensning.
 
 **Audit-trail:** restore-händelsen skrivs INTE automatiskt (saknas
 `AccountRestored`-command i Fas 1). Logga manuellt i ops-channel.
+
+---
+
+### 4.2 Radera en reverse-orphan (#1409)
+
+En **reverse-orphan** är en `JobSeeker` vars `UserId` saknar Identity-user. Den upptäcks av Steg 0:s
+detektor (EventId 2503, Warning, count-only) och **raderas aldrig av något jobb** — den får aldrig
+`deleted_at` satt, så 30-dagarsfönstret startar aldrig och `HardDeleteAccountsJob` plockar aldrig upp
+den. Utan proceduren nedan besvaras en Art. 17-begäran med ad-hoc-SQL.
+
+⚠ **Skriv INTE en egen raderingskaskad i SQL.** `HardDeleteAccountAsync` raderar varje användarägt
+aggregat plus DEK:erna plus audit-anonymiseringen, och att listan är komplett maskinkontrolleras
+av
+`AccountHardDeleteCascadeFitnessTests`. En SQL-avskrift här vore ett andra hem för den kunskapen utan
+vakt: nästa aggregat som läggs till uppdaterar koden och testet, och lämnar tyst runbooken raderande
+allt utom just det nya. Proceduren **återinträder i den vaktade vägen** i stället.
+
+**Steg 1 — identifiera raden.** Använd reverse-orphan-queryn i §3.3. Den ger `js.id`, som är det
+`jobSeekerId` stegen nedan tar. ⚠ En LITEN count kan vara transient (en samtidig registrering som
+racear sweepens två snapshot-läsningar) — utred före du raderar.
+
+**Steg 2 — sätt raderingstriggern.** Det är hela ingreppet; jobbet gör resten.
+
+```sql
+-- Utan Art. 17-begäran (Art. 5.1 e, lagringsminimering): NOW().
+-- 30-dagarsfönstret kostar ingenting här (ingenting är återställbart ändå) och ger en
+-- gratis ångra-möjlighet om raden var felidentifierad.
+UPDATE job_seekers SET deleted_at = NOW() WHERE id = '<jobSeekerId>'::uuid;
+```
+
+```sql
+-- Vid VERIFIERAD Art. 17-begäran: backdatera förbi cutoff så raderingen körs nästa pass
+-- (Art. 17.1, "utan onödigt dröjsmål" — annars väntar den registrerade 30 dagar i onödan).
+UPDATE job_seekers SET deleted_at = NOW() - INTERVAL '31 days' WHERE id = '<jobSeekerId>'::uuid;
+```
+
+⚠ **Det backdaterade `deleted_at` är en operativ trigger, inte ett sant faktum om när raderingen
+begärdes.** Logga det **verkliga** begäransdatumet i ops-kanalen, samma krav som §4.1 ställer på
+restore-händelsen.
+
+**Steg 3 — vänta in jobbet och verifiera.** `HardDeleteAccountsJob` kör 04:00 UTC; trigga annars
+manuellt via Hangfire-dashboarden (§3.1). Verifiera sedan att §3.3:s reverse-orphan-query inte längre
+returnerar raden.
+
+**Redis-tombsten: normalt INGEN åtgärd — men läs villkoret, det är inte ovillkorligt.** Till skillnad
+från §4.1, som **kräver** att tombsten rensas, behöver den här proceduren normalt ingen alls: varje
+producent av en reverse-orphan som finns i `src/` uppstår **innan registreringen slutförts** (den enda
+är klockskevhets-racet i Steg 0, där sweepen tar en mid-registrerings-rad vars `JobSeeker` sedan
+commit:as), så ingen inloggning har någonsin skett och ingen session kan finnas.
+
+⚠ **Det gäller producenterna i koden, inte en Identity-rad som raderats ur banden.** `GetAsync`
+kontrollerar tombsten och **läser aldrig Identity-raden**, och tombsten planteras av exakt ett ställe
+(`DELETE /me`) — `AccountHardDeleter` planterar ingen. En reverse-orphan som uppstått genom att någon
+raderat Identity-raden manuellt kan därför ha en **levande session kvar**. Vet du inte hur raden
+uppstod, plantera tombsten före Steg 2 — den är idempotent och självdör. TTL:en ska matcha
+`SessionStoreOptions.DeletionTombstoneTtl`, som är sanningskällan (30 dagar som standard, alltså
+`2592000` sekunder):
+
+```
+SET jobbliggaren:user:<userId>:deleted 1 EX 2592000
+```
 
 ---
 

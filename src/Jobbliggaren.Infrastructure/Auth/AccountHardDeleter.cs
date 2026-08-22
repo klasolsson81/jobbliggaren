@@ -93,7 +93,7 @@ public sealed partial class AccountHardDeleter(
         // but never delete it here (a separate concern, #1409 — #524 was closed and was about
         // sentinel-colliding plaintext rows, not this). Count only — no name/email/CV
         // PII is logged (CLAUDE.md §5); the runbook §3.3 reverse-orphan query surfaces the
-        // UserId set to ops on demand.
+        // UserId set to ops on demand, and §4.2 is the erasure procedure for one.
         var identityUserIds = identityUsers.Select(u => u.Id).ToHashSet();
         var reverseOrphanCount = domainUserIds.Count(id => !identityUserIds.Contains(id));
         if (reverseOrphanCount > 0)

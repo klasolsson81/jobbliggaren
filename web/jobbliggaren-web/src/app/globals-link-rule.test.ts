@@ -42,9 +42,15 @@ describe("globals.css — the global link colour rule (#1352)", () => {
     expect(LINK_RULES.filter((r) => r.includes(":hover"))).toHaveLength(1);
   });
 
-  it("exempts the button primitive by its own slot attribute", () => {
+  it("exempts the button primitive and the popover row by their own selectors", () => {
     for (const rule of LINK_RULES) {
       expect(rule).toContain('[data-slot="button"]');
+      expect(
+        rule,
+        `${rule.slice(0, rule.indexOf("{")).trim()} — the popover row is an <a> that ` +
+          `carries its own ink at (0,1,0). Drop it from this list and this rule's (0,1,1) ` +
+          `repaints the row accent-green, with every other assertion in this file green.`,
+      ).toContain(".jp-popover__rowbtn");
     }
   });
 

@@ -6668,9 +6668,8 @@ a.jp-adminnav__link[aria-current="page"]::after {
 
 /* Popover-raden — emitteras av HeroChip (hero-chip.tsx), aldrig av en
    konsument. JS-hovern (onMouseOver/-Out mot surface-3) ersatt av :hover —
-   samma visuella effekt. Elementet är ett <a> (raden navigerar), så det behöver
-   `text-decoration: none` precis som .jp-popover__footlink, och det är undantaget
-   i `a:not(...)`-regeln som äger den globala länkfärgen. */
+   samma visuella effekt. Elementet är ett <a> (raden navigerar), och det är
+   undantaget i `a:not(...)`-regeln som äger den globala länkfärgen. */
 .jp-popover__rowbtn {
   display: flex;
   align-items: flex-start;

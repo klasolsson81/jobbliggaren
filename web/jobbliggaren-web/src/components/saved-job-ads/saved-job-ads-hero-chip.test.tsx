@@ -1,14 +1,8 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { SavedJobAdsHeroChip } from "./saved-job-ads-hero-chip";
 import type { SavedJobAdDto } from "@/lib/dto/saved-job-ads";
-
-const pushMock = vi.fn();
-
-vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: pushMock }),
-}));
 
 function makeDto(extra: Partial<SavedJobAdDto> = {}): SavedJobAdDto {
   return {
@@ -29,10 +23,6 @@ function makeDto(extra: Partial<SavedJobAdDto> = {}): SavedJobAdDto {
   };
 }
 
-beforeEach(() => {
-  pushMock.mockClear();
-});
-
 describe("SavedJobAdsHeroChip", () => {
   it("borttagen annons dämpas, kvarvarande gör det inte (konsumentens isMuted-predikat)", async () => {
     const user = userEvent.setup();
@@ -52,12 +42,15 @@ describe("SavedJobAdsHeroChip", () => {
     ).not.toHaveClass("jp-popover__rowlabel--muted");
   });
 
-  it("klick på rad → router.push till annonsen, dropdown stänger", async () => {
+  it("radens href pekar på annonsen, och klick stänger dropdownen", async () => {
     const user = userEvent.setup();
     render(<SavedJobAdsHeroChip items={[makeDto()]} />);
     await user.click(screen.getByRole("button", { name: /Sparade annonser/ }));
-    await user.click(screen.getByText("Systemutvecklare inom offentlig sektor"));
-    expect(pushMock).toHaveBeenCalledWith("/jobb/ad-1");
+    const row = screen.getByRole("link", {
+      name: /Systemutvecklare inom offentlig sektor/,
+    });
+    expect(row).toHaveAttribute("href", "/jobb/ad-1");
+    await user.click(row);
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 });

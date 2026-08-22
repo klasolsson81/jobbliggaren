@@ -129,7 +129,7 @@ public sealed partial class RegisterCommandHandler(
             // Unguarded it rolled the not-yet-committed JobSeeker back on a transport fault and left an
             // orphaned Identity user; the bind's written ground was parity with the legacy session-mint
             // below, which AuthOptionsValidator makes unreachable outside Dev/Test. No cross-context
-            // transaction is introduced, so the separate prohibition at AccountHardDeleter.cs:74-78 is
+            // transaction is introduced, so the separate prohibition in AccountHardDeleter's #508 grace filter is
             // untouched. Parity with ResendEmailConfirmationCommandHandler, which swallows identically.
             var tokenResult = await userAccountService.GenerateEmailConfirmationTokenAsync(
                 userId, cancellationToken);

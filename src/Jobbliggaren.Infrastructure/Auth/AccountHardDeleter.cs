@@ -29,9 +29,8 @@ namespace Jobbliggaren.Infrastructure.Auth;
 ///
 /// Why the ORDER runs this way in both directions — registration writes Identity first, deletion
 /// erases the domain side first — is that the half surviving a partial failure is then always the
-/// credential: content-free, and erasable without identifying anyone, unlike the mirror survivor,
-/// which carries every DEK and no address at all (Art. 25(1) applied to failure modes, Art. 5(1)(c);
-/// #1349, #1409).
+/// credential, which is the smaller data footprint of the two (Art. 25(1) applied to failure
+/// modes, Art. 5(1)(c); #1349, #1409).
 /// </summary>
 public sealed partial class AccountHardDeleter(
     AppDbContext db,

@@ -498,7 +498,7 @@
     },
     "confirmAccount": {
       "title": "Bekräfta din e-postadress",
-      "intro": "Klicka på knappen för att bekräfta din e-postadress.",
+      "intro": "Adressen bekräftas först när du klickar på knappen nedan.",
       "confirm": "Bekräfta e-postadressen",
       "pending": "Bekräftar…",
       "successTitle": "Din e-postadress är bekräftad",

@@ -295,7 +295,7 @@ public class LoginCommandHandlerTests
         // Registration produces it TRANSIENTLY on every single call, and that is not an accident:
         // RegisterCommandHandler commits the Identity user in its own boundary and adds the JobSeeker
         // to the change tracker, which UnitOfWorkBehavior saves only after the handler returns.
-        // AccountHardDeleter.cs:74-78 names exactly this window as the reason its sweep has a grace
+        // AccountHardDeleter's #508 grace filter names exactly this window as the reason its sweep has a grace
         // period — "a younger one is presumed mid-registration (Identity committed, JobSeeker not yet)".
         // Anything that stops the handler inside that window leaves the row behind:
         //
@@ -303,7 +303,7 @@ public class LoginCommandHandlerTests
         //      token to SaveChangesAsync, so the JobSeeker is dropped while the Identity user stands.
         //      Pinned at RegisterCommandHandlerTests
         //      .Handle_FlagOn_WhenConfirmationSendIsCancelled_PropagatesRatherThanSwallowing.
-        //   2. AccountHardDeleter step 2h (AccountHardDeleter.cs:302-309) — the domain transaction
+        //   2. AccountHardDeleter step 2h — the domain transaction
         //      commits FIRST and the Identity DELETE is a separate boundary after it, so a failure
         //      there leaves a row that is EmailConfirmed with a working password. The actor's own code
         //      admits the state in writing: "Om denna failer plockas raden upp av Steg 0

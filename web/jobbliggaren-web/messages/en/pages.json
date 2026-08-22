@@ -498,7 +498,7 @@
     },
     "confirmAccount": {
       "title": "Confirm your email address",
-      "intro": "Click the button to confirm your email address.",
+      "intro": "The address is not confirmed until you click the button below.",
       "confirm": "Confirm email address",
       "pending": "Confirming…",
       "successTitle": "Your email address is confirmed",

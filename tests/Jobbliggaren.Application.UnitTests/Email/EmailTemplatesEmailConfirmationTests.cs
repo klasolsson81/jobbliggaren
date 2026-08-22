@@ -80,7 +80,7 @@ public class EmailTemplatesEmailConfirmationTests
     }
 
     [Fact]
-    public void EmailConfirmation_ShouldPromiseNeitherAnAccountNorASuccessfulLogin_InBothRenderings()
+    public void EmailConfirmation_ShouldNotCarryTheStruckAccountOrLoginClaims_InBothRenderings()
     {
         // #1349 — the mail may assert neither that an account exists nor that confirming the address is
         // enough to log in. Both are false for a profile-less Identity row, and the resend path delivers
@@ -94,13 +94,17 @@ public class EmailTemplatesEmailConfirmationTests
 
         foreach (var body in new[] { rendered.PlainTextBody, rendered.HtmlBody })
         {
-            // COUNTERFACTUAL. The two negatives below also pass against an empty body or the wrong
-            // template, so pin first that this IS the confirmation mail. Pinning it on the sentence that
-            // replaced the struck one makes this the renderings-agree check at the same time.
+            // COUNTERFACTUAL. The negatives below also pass against an empty body or the wrong
+            // template, so pin first that this IS the confirmation mail.
             body.ShouldContain("Tack för att du har registrerat dig på Jobbliggaren.");
             body.ShouldContain("Bekräfta att adressen är din genom att öppna länken nedan.");
 
+            // Literal substrings, not a form-based guard: a REWORDED promise would pass. Two
+            // literals rather than one widens the net (the second also catches "du har ett konto
+            // på Jobbliggaren"); neither collides with the Klas-required closing line, which says
+            // "skapat NÅGOT konto" and names no service.
             body.ShouldNotContain("skapat ett konto");
+            body.ShouldNotContain("konto på Jobbliggaren");
             body.ShouldNotContain("logga in när adressen är bekräftad");
         }
     }

@@ -474,9 +474,8 @@ internal static class EmailTemplates
     /// the activation link from <paramref name="baseUrl"/> + the URL-safe token; the token is already
     /// Base64Url (only [A-Za-z0-9_-]) so it survives the query round-trip unescaped, and the uid is the
     /// dashed 'D' Guid the confirm endpoint binds (STJ's Guid converter accepts only 'D'; #981). No email
-    /// in the link (the address is unchanged). Civic tone (1177/
-    /// Digg): no exclamation marks, no em-dash. The link is valid for 24h
-    /// (EmailConfirmationTokenProvider TokenLifespan).
+    /// in the link (the address is unchanged). Civic tone (1177/Digg): no exclamation marks, no
+    /// em-dash. The link is valid for 24h (EmailConfirmationTokenProvider TokenLifespan).
     /// </summary>
     public static EmailContent EmailConfirmation(
         string baseUrl, EmailConfirmationEmail content)

@@ -192,6 +192,16 @@ public static class ErasureCascadeRegistry
             [
                 "recent_job_searches.q",
                 "recent_job_searches.employer_list",
+
+                // #1425 - the five concept-id axes. NOT a new surface: same rows, same disposition
+                // (Erased, hard-delete), same remedy (one RemoveRange in the handler), so one count
+                // over one row set. Splitting would count a row that matched on both q and an axis
+                // TWICE in Matched.Total, which drives the outcome word. See the port for the arms.
+                "recent_job_searches.occupation_group_list",
+                "recent_job_searches.municipality_list",
+                "recent_job_searches.region_list",
+                "recent_job_searches.employment_type_list",
+                "recent_job_searches.worktime_extent_list",
             ],
             nameof(Abstractions.IRecruiterErasureMatchQuery.FindRecentJobSearchesAsync)),
 
@@ -290,11 +300,15 @@ public static class ErasureCascadeRegistry
                 + "argument, one storage form over. Follows extracted_terms to [] on Erase().",
 
             ["recent_job_searches.filter_hash"] =
-                "DERIVATION: filter_hash is derived from the criteria (q + employer_list + the "
-                + "closed-domain concept-id lists) by RecentJobSearch.Capture and 'får aldrig "
-                + "divergera' from them. Both free-text carriers in the derivation (q, "
-                + "employer_list) are searched channels; a hash is one-way and cannot be searched "
-                + "for an identifier. The row is hard-deleted when either carrier matches.",
+                "DERIVATION: filter_hash is SHA-256 over the WHOLE criteria - q, the five "
+                + "concept-id lists, employer_list, remote and sort_by (FilterHashCalculator) - "
+                + "computed by RecentJobSearch.Capture, and it 'får aldrig divergera' from them. "
+                + "EVERY input to that derivation which can carry her identifier is a SEARCHED "
+                + "column of the RecentJobSearches channel: q, employer_list, and the five "
+                + "concept-id lists, which are shape-validated and never taxonomy-resolved "
+                + "(#1425). remote is a bool and sort_by an enum. A hash is one-way and cannot be "
+                + "searched for an identifier; the row is hard-deleted when any searched input "
+                + "matches.",
         };
 
     /// <summary>
@@ -360,12 +374,27 @@ public static class ErasureCascadeRegistry
             // Derived from the criteria; hard-deleted with the row (see ErasedWithoutSearchChannel).
             ["recent_job_searches.filter_hash"] = ErasureColumnDisposition.Erased,
 
-            // The other five list columns are Arbetsförmedlingen taxonomy concept ids.
-            ["recent_job_searches.occupation_group_list"] = ErasureColumnDisposition.NotRecruiterData,
-            ["recent_job_searches.municipality_list"] = ErasureColumnDisposition.NotRecruiterData,
-            ["recent_job_searches.region_list"] = ErasureColumnDisposition.NotRecruiterData,
-            ["recent_job_searches.employment_type_list"] = ErasureColumnDisposition.NotRecruiterData,
-            ["recent_job_searches.worktime_extent_list"] = ErasureColumnDisposition.NotRecruiterData,
+            // The other five list columns are SHAPE-VALIDATED, never TAXONOMY-RESOLVED, and that
+            // difference is the whole of #1425. The write path is SearchCriteria.ValidateConceptList
+            // against ^[A-Za-z0-9_-]{1,32}\z and nothing else; no lookup against taxonomy_concepts
+            // exists on any path into these columns. `Karlsson`, `Anna-Karlsson` and a ten-digit
+            // org.nr all pass, and a hand-edited /jobb?occupationGroup=<anything>&commit=true
+            // persists them. The ground that stood here was written against the columns' PURPOSE
+            // and not against their MAPPING - the same error as resumes, one table over.
+            //
+            // #1419 closed the PERSONNUMMER case AT CAPTURE TIME and closed nothing else: it is
+            // forward-only (rows written before it stand, and this table has no TTL), it declares
+            // its own Luhn-invalid residual, and it never looks at names, emails or phone numbers.
+            // A guard over one value class does not make a column a closed domain.
+            //
+            // Erased with the row (ADR 0106 A4: hard-delete; nulling is unavailable because each of
+            // these five is an INPUT to FilterHash, which IS the row's identity) and SEARCHED by the
+            // RecentJobSearches channel. Not MatchedHumanErases: no human settles these rows.
+            ["recent_job_searches.occupation_group_list"] = ErasureColumnDisposition.Erased,
+            ["recent_job_searches.municipality_list"] = ErasureColumnDisposition.Erased,
+            ["recent_job_searches.region_list"] = ErasureColumnDisposition.Erased,
+            ["recent_job_searches.employment_type_list"] = ErasureColumnDisposition.Erased,
+            ["recent_job_searches.worktime_extent_list"] = ErasureColumnDisposition.Erased,
 
             ["company_watch_criteria.sni_codes"] = ErasureColumnDisposition.NotRecruiterData,
             ["company_watch_criteria.kommun_codes"] = ErasureColumnDisposition.NotRecruiterData,
@@ -827,9 +856,10 @@ public static class ErasureCascadeRegistry
 
             ["audit_log:NotRecruiterData"] =
                 "Closed domain: event_type and aggregate_type are constants minted by the command "
-                + "that raised the row; ip_address and user_agent are the OPERATOR'S request "
-                + "metadata (our admin), never the data subject's. No recruiter free text can reach "
-                + "them - the one field that could is payload, which is Pseudonymised (HMAC).",
+                + "that raised the row; ip_address and user_agent are the REQUESTING user's "
+                + "request metadata, and a recruiter has no account here - no write path can "
+                + "stamp hers. The one field that could carry her free text is payload, which is "
+                + "Pseudonymised (HMAC).",
 
             ["company_register:NotRecruiterData"] =
                 "Closed domain: sate_kommun_code / sate_kommun_name / scb_status_raw are SCB "
@@ -859,13 +889,6 @@ public static class ErasureCascadeRegistry
                 + "path is gone AND somebody counted. `kind` is closed-domain under shape (1): the "
                 + "ResumeVersionKind SmartEnum stored by name - the version-lineage vocabulary, no "
                 + "user write path.",
-
-            ["recent_job_searches:NotRecruiterData"] =
-                "Closed domain: occupation_group_list / municipality_list / region_list / "
-                + "employment_type_list / worktime_extent_list hold Arbetsförmedlingen taxonomy "
-                + "CONCEPT IDS, captured from the search filter's code values, never from free "
-                + "text. The two columns that CAN hold her identifier - `q` and `employer_list` - "
-                + "are Erased with the row and searched by the RecentJobSearches channel.",
 
             ["company_watch_criteria:NotRecruiterData"] =
                 "Closed domain: sni_codes and kommun_codes are SCB/SNI industry codes and kommun "

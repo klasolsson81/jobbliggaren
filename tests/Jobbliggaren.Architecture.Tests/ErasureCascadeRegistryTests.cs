@@ -536,6 +536,32 @@ public class ErasureCascadeRegistryTests
             ErasureCascadeRegistry.WrittenGrounds[key].Length.ShouldBeGreaterThan(60,
                 $"{key}'s ground is too thin to be a ground.");
         }
+
+        // The INVERSE, and it had NO guard at all until #1425 needed one. A ground whose
+        // (table, disposition) bucket no longer holds a single column is dead prose that still
+        // reads as a live verdict — and the one this check was written against SAID the five
+        // recent_job_searches concept-id lists were closed-domain, which is exactly what #1425
+        // falsified. ErasedWithoutSearchChannel has carried its inverse since round 5
+        // (Every_Erased_column_is_channel_searched_or_carries_a_derivation_ground); WrittenGrounds
+        // never did, so a bucket could empty out and its ground survive with a green suite. That
+        // asymmetry is the MECHANISM by which a false ground outlives the columns it described.
+        //
+        // Keyed on the PAIR and not on `owed`: SeparateProcessing is a real disposition that owes
+        // no ground, so company_register:SeparateProcessing is a legitimate key `owed` never
+        // contains. The predicate is "some column in Columns has this table AND this disposition".
+        var live = ErasureCascadeRegistry.Columns
+            .Select(kv => $"{kv.Key.Split('.')[0]}:{kv.Value}")
+            .ToHashSet(StringComparer.Ordinal);
+
+        ErasureCascadeRegistry.WrittenGrounds.Keys
+            .Where(k => !live.Contains(k))
+            .Order(StringComparer.Ordinal)
+            .ToList()
+            .ShouldBeEmpty(
+                "these written grounds describe a (table, disposition) bucket that holds no "
+                + "column. A ground IS the re-derivation, so a ground with nothing to derive is a "
+                + "claim about the database that nothing in the database answers to. Delete it — "
+                + "do not park it. Orphans:");
     }
 
     /// <summary>

@@ -101,8 +101,8 @@ Use `:focus-visible` not `:focus` — mouse clicks won't show ring, keyboard
 navigation will. This is the correct modern pattern.
 
 Minimum focus indicator contrast: 3:1 against adjacent colors (WCAG 2.4.11).
-`--jp-focus` is `#0B5CAD` on white (light) = 6.1:1, and `#60A5FA` on `#020617`
-(dark) ≈ 7.0:1 — both verified. The ring is validated in both themes.
+The ring's own values are in the CSS block above; measured ratios live in
+`references/contrast-table.md` in `jobbpilot-design-tokens`.
 
 ---
 
@@ -119,23 +119,9 @@ Minimum ratios (WCAG 1.4.3 + 1.4.11):
 | Placeholder text | 4.5:1 | Same as body text |
 | Disabled elements | Exempt | But don't rely on color alone |
 
-**JobbPilot-verified pairs (light):**
-
-| Pair | Ratio | Level |
-|---|---|---|
-| text-primary (#0F172A) on surface-primary (#FFFFFF) | ~17.9:1 | AAA |
-| text-secondary (#475569) on surface-primary | ~7.4:1 | AA |
-| brand-600 (#0B5CAD) on surface-primary | 6.1:1 | AA |
-| danger-600 (#DC2626) on surface-primary | ~4.6:1 | AA |
-| success-700 (#047857) on success-50 (#ECFDF5) | ~5.3:1 | AA |
-
-**JobbPilot-verified pairs (dark):**
-
-| Pair | Ratio | Level |
-|---|---|---|
-| text-primary (#F8FAFC) on surface-primary (#020617) | ~18.1:1 | AAA |
-| text-secondary (#94A3B8) on surface-primary (#020617) | ~6.5:1 | AA |
-| brand-600 (#60A5FA) on surface-primary (#020617) | ~7.0:1 | AA |
+**Verified pairs are not transcribed here.** Token values and their measured
+ratios have one home — `references/contrast-table.md` in
+`jobbpilot-design-tokens`, canonical against `globals.css`. Read them there.
 
 **Dark mode is validated separately.** A pair passing in light is not assumed
 to pass in dark — recompute and check contrast in both `:root` and
@@ -151,12 +137,12 @@ dimmed dates), no longer body-text-blocked. Placeholders still use
 
 ### Hairline / divider contrast
 
-- `--jp-border` (slate-200 `#E2E8F0`) is for **decorative** separators only —
-  it does not meet 3:1 and is exempt because it carries no information.
-- `--jp-border-strong` (slate-300 `#CBD5E1`) is for **information-bearing**
-  dividers (kanban column borders, table headers) — it meets ~3:1 vs the white
-  canvas (WCAG 1.4.11 for meaningful UI boundaries). Always use `border-strong`
-  when the divider communicates structure, not `border`.
+- `--jp-border` is for **decorative** separators only — it does not meet 3:1
+  and is exempt because it carries no information.
+- `--jp-border-strong` is for **information-bearing** dividers (kanban column
+  borders, table headers) — it clears the WCAG 1.4.11 UI floor for meaningful
+  boundaries. Always use `border-strong` when the divider communicates
+  structure, not `border`.
 
 ### Status never by color alone
 

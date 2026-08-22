@@ -61,7 +61,7 @@ or does it add cognitive load?**
 | ✅ Ja | ❌ Nej |
 |-------|--------|
 | Ljus default + dark mode stöds (auto via `prefers-color-scheme` + manuell toggle) | Forcerad dark utan användarval |
-| Mörkgrön accent (`--jp-accent`, ADR 0068) | Neon, purple, cyan accents |
+| Mörkgrön accent (`--jp-accent-700`, ADR 0068) | Neon, purple, cyan accents |
 | Direct Swedish copy | Emojis, exclamation marks, "Let's go!" |
 | Tables and lists | Card layouts everywhere |
 | `border-radius: 4px` | 16px+ rounded corners |
@@ -122,7 +122,7 @@ JetBrains Mono används för ID:n/referenser (`S-1042`, `A-2841`), datum
 
 ### 5. En accentfärg
 
-Mörkgrön (`--jp-accent`, `#15603F` light / `#6EE7A8` dark — ADR 0068, ersätter
+Mörkgrön (`--jp-accent-700`, `#15603F` light / `#6EE7A8` dark — ADR 0068, ersätter
 tidigare blå/navy) är produktens enda dekorativa färg, reserverad för primär
 åtgärd, aktiv selektion (rader/flikar/navigation), länkar och "idag"-markering.
 Knapp-kontrakt: fill = `--jp-accent-800` (`#15603F`, EJ dark-skiftad) + vit

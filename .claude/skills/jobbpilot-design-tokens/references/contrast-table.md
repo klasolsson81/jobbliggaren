@@ -1,6 +1,64 @@
 # JobbPilot — Contrast Ratio Table (v3 + G1 grön accent)
 
-> **Synkad mot `globals.css` 2026-06-10 (G1, ADR 0068).**
+> **Canonical against `globals.css` (G1, ADR 0068).** Deliberately undated — a
+> sync date decays silently and cannot be told from one that is still true.
+> Re-derive with **both** checks below. Run them over `.claude/skills/`, not just
+> this skill: a value transcribed into a consumer skill is the same defect.
+>
+> **1. Pair check — does each token still hold the value stated?**
+>
+> ```bash
+> G=web/jobbliggaren-web/src/app/globals.css
+> grep -rhoE -- '--jp-[a-z0-9-]+ *: *#[0-9A-Fa-f]{6}' .claude/skills/ \
+>   | tr -d ' ' | sort -u \
+>   | while IFS=: read -r tok val; do
+>       grep -qiE -- "$tok *: *$val *;" "$G" || echo "stale or orphan: $tok = $val"
+>     done
+> ```
+>
+> Expect **no rows**. Blind to any line that does not write `--token: #hex` — a
+> table cell such as `| Warning | #A34A06 / #FBC267 |` names no token and is
+> invisible here.
+>
+> **2. Orphan check — does each hex exist in `globals.css` at all?**
+>
+> ```bash
+> G=web/jobbliggaren-web/src/app/globals.css
+> grep -rhoiE '#[0-9A-F]{6}' .claude/skills/ | tr 'a-f' 'A-F' | sort -u \
+>   | while read -r h; do [ "$(grep -ic "$h" "$G")" = 0 ] && echo "not in globals.css: $h"; done
+> ```
+>
+> Read its output, do not count it: `#B4540B` (provenance, `mörkad från …`) and
+> `#020617` (a negative citation, `INTE #020617`) are the expected hits.
+>
+> **Blind to a stale value that still appears in `globals.css` for any other
+> reason at all** — as a `guard-allow` literal (`#97A4B8`, `#2C8A3F`), or inside
+> a comment while its token has zero declarations (`#FFCD00`, `globals.css:266`).
+> Read those as instances, not as the set.
+>
+> **3. Size check — the same question on the px axis.**
+>
+> ```bash
+> G=web/jobbliggaren-web/src/app/globals.css
+> grep -rhoE -- '--[a-z0-9-]+ *: *[0-9]+px' .claude/skills/ | tr -d ' ' | sort -u \
+>   | while IFS=: read -r tok val; do
+>       real=$(grep -oE -- "$tok: *[0-9]+px" "$G" | grep -oE '[0-9]+px' | sort -u)
+>       [ -n "$real" ] && ! printf '%s\n' $real | grep -qx "$val" \
+>         && echo "stale: $tok = $val (globals.css: $real)"
+>     done
+> ```
+>
+> Expect **no rows**. Checks 1 and 2 match hex only, so a size token is invisible
+> to both — `--text-h1` sat at `28px` here while `globals.css:434` had said
+> `32px` since #549, and neither check could see it (PR #1447). Values that are
+> neither hex nor px are still unmeasured; read those against `globals.css` by
+> hand.
+>
+> **No check is sufficient alone, and that is measured, not theoretical.**
+> In PR #1447 three tokens were stale and check 2 reported *the same two hits on
+> the broken tree as on the fixed one*. Check 1, run against the same broken
+> tree, reported four — the three plus one nobody had named. Check 2 earns its
+> place only for the table cells check 1 cannot see.
 
 WCAG 2.1 AA requirements:
 - Body text (< 18.66px bold, < 24px regular): **4.5:1 minimum**
@@ -80,7 +138,8 @@ Verify new combinations at https://webaim.org/resources/contrastchecker
 
 Gradienten är tema-stabil (samma i light + dark). Fokusringen i
 gradient-scope är **VIT** (`--jp-focus: #FFFFFF`) — grön ring syns inte
-mot grönt.
+mot grönt. **Undantag: ytor inne i plattan som inte själva är gradient** vänder
+tillbaka till en ring, eftersom vitt är osynligt mot dem.
 
 | Text | Background | Ratio | WCAG | Notes |
 |---|---|---|---|---|
@@ -89,6 +148,7 @@ mot grönt.
 | vit (#FFFFFF) | `hero-to` (#1E6B4C) | ~6.4:1 | AA ✓ | Gradient-slut — sämsta stoppet, fortfarande AA |
 | `hero-pill-ink` (#0C1A2E) | `hero-pill-bg` (#FFFFFF) | ~17.5:1 | AAA ✓ | Tema-stabila vita kontroller i plattan |
 | vit (#FFFFFF) | `hero-sok-bg` (#0C1A2E) | ~17.5:1 | AAA ✓ | Sök-knapp (ink, INTE grön) |
+| `--jp-focus` = `accent-800` (#15603F) | `accent-50` (#E9F2ED) | ~6.6:1 | AA ✓ | **Femte fokus-scopet** (`.jp-pagehero__helpedctl`). Pillen hålls ljus i BÅDA teman av `.jp-pagehero__inner`s tema-pin — utan den är `accent-50` i dark `#0E2A1E` och ringen faller till ~2.0:1, så pinnen är bärande för den här raden. Plattans VITA ring är osynlig mot en ljus pill. `accent-800` dark-skiftas aldrig ⇒ håller i båda teman. `accent-700` får **inte** användas här: dess dark-värde `#6EE7A8` mot samma pill = ~1.35:1, WCAG 2.4.7-fail |
 
 ---
 

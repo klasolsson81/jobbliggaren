@@ -4,7 +4,7 @@
 > jobbansökningshanterare byggd som civic utility. Täcker teknikstack,
 > systemarkitektur, domänmodell, API, datamodell, deterministiska CV-/matchnings-
 > motorer, säkerhet och infrastruktur. Systemdokument:
-> [`CLAUDE.md`](./CLAUDE.md), [`DESIGN.md`](./DESIGN.md)
+> [`AGENTS.md`](./AGENTS.md), [`CLAUDE.md`](./CLAUDE.md), [`DESIGN.md`](./DESIGN.md)
 
 ---
 
@@ -1925,4 +1925,4 @@ nummer hämtas ur indexet.
 
 ---
 
-**Slut på BUILD.md.** Nästa läsning: [`CLAUDE.md`](./CLAUDE.md) för kodningsstandarder och [`DESIGN.md`](./DESIGN.md) för design-specifikation.
+**Slut på BUILD.md.** Nästa läsning: [`AGENTS.md`](./AGENTS.md) för kodningsstandarder och [`DESIGN.md`](./DESIGN.md) för design-specifikation.

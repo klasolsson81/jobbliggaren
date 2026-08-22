@@ -91,7 +91,7 @@ Never `outline: none` without a replacement — that is a WCAG 2.4.7 violation.
 ```css
 /* From globals.css — do not override without design-reviewer approval */
 *:focus-visible {
-  outline: 2px solid var(--jp-focus);  /* #15603F light / #6EE7A8 dark (ADR 0068); VIT i gradient-ytor */
+  outline: 2px solid var(--jp-focus);
   outline-offset: 2px;
   border-radius: var(--jp-r-sm);
 }
@@ -101,7 +101,7 @@ Use `:focus-visible` not `:focus` — mouse clicks won't show ring, keyboard
 navigation will. This is the correct modern pattern.
 
 Minimum focus indicator contrast: 3:1 against adjacent colors (WCAG 2.4.11).
-The ring's own values are in the CSS block above; measured ratios live in
+`--jp-focus` is re-scoped on some surfaces. Values and measured ratios live in
 `references/contrast-table.md` in `jobbpilot-design-tokens`.
 
 ---
@@ -120,7 +120,7 @@ Minimum ratios (WCAG 1.4.3 + 1.4.11):
 | Disabled elements | Exempt | But don't rely on color alone |
 
 **Verified pairs are not transcribed here.** Token values and their measured
-ratios have one home — `references/contrast-table.md` in
+ratios have their canonical home — `references/contrast-table.md` in
 `jobbpilot-design-tokens`, canonical against `globals.css`. Read them there.
 
 **Dark mode is validated separately.** A pair passing in light is not assumed

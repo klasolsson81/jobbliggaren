@@ -75,11 +75,13 @@ Content reflows at 320 CSS pixels width (equivalent to 400% zoom on 1280px).
 
 **1.4.11 Non-text Contrast (AA)**
 UI components and graphical objects: 3:1 against adjacent color.
-- Input border (`--jp-border` slate-200 #E2E8F0 on white) ≈ 1.2:1 — marginal,
-  decorative. Compensated by focus ring (6.1:1 light / ~7.0:1 dark) and error
-  state (danger-600 border).
-- Use `--jp-border-strong` (slate-300 #CBD5E1, ≈ 3:1 vs white) in contexts
-  where the border is information-bearing and must meet 3:1 independently.
+- `--jp-border` is decorative only — it does not meet 3:1 and is exempt because
+  it carries no information. Form controls use `--jp-border-input`, not
+  `--jp-border`.
+- Use `--jp-border-strong` in contexts where the border is information-bearing
+  and must meet 3:1 independently.
+- Values and measured ratios: `references/contrast-table.md` in
+  `jobbpilot-design-tokens`. Not transcribed here.
 - Validate non-text contrast in both light and dark (validated separately).
 
 **1.4.12 Text Spacing (AA)**

@@ -6710,7 +6710,9 @@ a.jp-adminnav__link[aria-current="page"]::after {
   font-size: var(--text-micro);
   color: var(--jp-ink-1);
   flex-shrink: 0;
-  line-height: 1.3;
+  /* Labelns radbox, inte sin egen font-size: under flex-start toppjusteras
+     BOXARNA, så counten linjerar med rad 1 bara när boxhöjderna är lika. */
+  line-height: calc(var(--text-ui) * 1.3);
 }
 
 /* Neutral ikon-platta på rad (Bookmark/Clock) — var 3 inline-kopior

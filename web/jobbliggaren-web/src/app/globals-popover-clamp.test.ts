@@ -78,6 +78,13 @@ describe("globals.css — the popover row label is clamped to more than one line
     ).toBeGreaterThanOrEqual(2);
   });
 
+  it("declares its own line-height instead of inheriting the body's", () => {
+    // Form, not value: the row height that keeps five rows inside the scroll container is a
+    // relation over five inputs (maxHeight, the container's padding, --text-ui, the row's
+    // padding, maxItems), so a solved threshold here would be green after any of them moved.
+    expect(CLAMP_RULES[0]!.body).toMatch(/line-height\s*:/);
+  });
+
   it("does not re-introduce nowrap, which defeats the clamp while every declaration above survives", () => {
     const { body } = CLAMP_RULES[0]!;
     expect(body).not.toMatch(/white-space\s*:\s*nowrap/);

@@ -29,16 +29,12 @@ description: >
 
 ## Why this exists
 
-Measured, not asserted. Across PRs #1412–#1422 (127 findings, 21 rounds, measured
-2026-08-22): **65 % of everything reviewers flagged sat in prose**, 72,7 % of
-round-≥2 findings sat in prose an earlier fix added, and 61 of 98 closures were
-made by writing new claim-prose — every round-1 fix wave (27–122 added
-claim-lines) drew new findings on all five PRs, and **no substantive
-deletion-only or code-only fix delta was ever submitted for re-review**: the
-remedy this skill now mandates had never been tried. The 2026-08-04/05 rules did
-not hold because this skill's Step 2 permitted reformulation — a reformulation
-is a new claim. Ledger + regeneration commands:
-`docs/reviews/2026-08-22-review-loop-root-cause.md`.
+Measured, not asserted — across PRs #1412–#1422: 72,7 % of round-≥2 findings sat
+in prose an earlier fix added, and **no substantive deletion-only or code-only
+fix delta was ever submitted for re-review**: the remedy this skill now mandates
+had never been tried. The 2026-08-04/05 rules did not hold because this skill's
+Step 2 permitted reformulation — a reformulation is a new claim. Numbers and
+regeneration: `docs/spec-rationale.md` §9.6.
 
 The mechanism is arithmetic, not bad luck: **every fix that carries prose adds
 new reviewable claims, so round N's explanations become round N+1's findings.**
@@ -75,7 +71,7 @@ the hook exits silently.
 | Publish the **command that regenerates** a number | Publish a live number in a tracked file (§5 `Comments:`) |
 | Run the fix's comments against §5 `Comments:` before you commit | Prose restating the next line, or re-arguing an ADR |
 | Measure the fix **the way the defect was measured**, before push | Report a fix as landed because the edit succeeded |
-| Close a prose finding by **deleting the claim-sentence** — verify `grep -F '<old string>'` = 0 | Reformulating the sentence — a reformulation is a new claim |
+| Close a prose finding by **deleting the claim-sentence** — mechanical closure per §9.6's three conditions | Reformulating the sentence — a reformulation is a new claim |
 | Fix delta adds **zero claim-sentences** — read the diff's added lines before commit | An added sentence explaining why the fix is right |
 
 Deletion is the only fix form that cannot introduce a new finding.
@@ -130,7 +126,7 @@ grades as a Blocker, or any class your charter defines repo-wide rather than
 per-diff. Those you always report, wherever you see them. A defect the delta
 itself introduces is reported and marked "new in delta".
 
-Report findings only — max 25 lines per finding, max 3 lines praise; no Q&A
+Report findings only, within your own charter's Output-format cap; no Q&A
 sections, no methodology narration.
 
 Do not edit any file. An edit is a content push, and a content push strips
@@ -156,8 +152,8 @@ merging**. Before setting it:
 
 1. Every mandatory agent (§9.2) has reported, or closed its findings via its own
    scoped re-check — **including any new-in-delta finding that re-check raised** —
-   or the finding closed mechanically (deleted sentence, old string greps to
-   zero) or via §9.6's capped overflow route.
+   or the finding closed mechanically per §9.6's three conditions, or via §9.6's
+   capped overflow route.
 2. The PR-body verdict table + verbatim escalations are appended, in ONE edit.
 3. No unresolved Blocker/Major, and no §12 merge-blocking condition.
 4. `git log --oneline -1` still matches the SHA the **last re-check** answered —

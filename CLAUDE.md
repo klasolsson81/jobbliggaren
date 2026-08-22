@@ -389,11 +389,10 @@ worktrees. The rules below keep parallel work collision-free; full playbook in
   stack without committing or copying secrets.
   ⚠ **That sync is a MANUAL copy from the main copy**, so a pointer into those
   docs is dead for anyone who did not run it — a skipped step, a fresh clone,
-  GitHub's web view, a sub-agent. A rule therefore never lives only in a
-  gitignored home: §9.6 (3)'s operative bound stays in the spec on its own §13
-  ground, and since 2026-08-22 its derivation lives tracked in
-  `docs/spec-rationale.md` §9.6, not only in the gitignored ADRs 0132/0133.
-  ADR 0072 Decision 2 owns the other side and this does not reopen it.
+  GitHub's web view, a sub-agent. §9.6 (3)'s operative bound stays in the spec
+  on its own §13 ground, and its derivation history is tracked in
+  `docs/spec-rationale.md` §9.6. ADR 0072 Decision 2 owns the other side and
+  this does not reopen it.
 - **Backlog = GitHub Issues** (`area:`/`hotspot:`/**`mvp`**/`P0`–`P3`/lane `BE`·`FE`·
   `BE+FE`/`wip`·`blocked` labels); `steg-tracker.md` is the strategic map.
 
@@ -442,12 +441,13 @@ worktrees. The rules below keep parallel work collision-free; full playbook in
   #836: the `arm` job itself failed** (head moved, `UNKNOWN` exhausted, or a real
   API error) — the PR carries both labels and was never armed. `label-automerge`
   is not a required check, so nothing surfaces it; read the job log before
-  assuming either of the other two.
+  assuming either of the other two. A FOURTH: the `blocked` label = a §9.6
+  STOPP to Klas, not a stuck PR.
   **The dead-REMOTE-branch half is mechanised since #725** —
   `.github/workflows/delete-merged-branches.yml` deletes remote branches whose PR
   has merged, daily or on `workflow_dispatch`. Do not re-file it, and do not read
   a surviving branch as a *new* defect before checking the sweep's last run.
-  **Your LOCAL branches are still yours**, as is the `wip`/issue-close half.
+  **Your LOCAL branches are still yours.**
 - **Never reap a worktree you did not create — and never one whose PR has not
   merged.** The general case belongs to the SessionStart reaper: a PR usually
   merges *after* its session has ended, so "clean up when it merges" is not a
@@ -531,10 +531,10 @@ never autonomous); start a new session phase without explicit Klas GO.
 
 **Mandatory agent invocation** (before the STOPP report; skipping counts as a
 discipline miss; reports go to `docs/reviews/<date>-<phase>-<agent>.md` — header +
-findings, max 25 lines per finding and 3 lines of praise, + escalations verbatim; the
-cap binds the session's transcription too. The PR body carries the verdict table and
-escalations only, never a report; a report Klas must read on GitHub is promoted with
-`git add -f`, the `.gitignore` exception):
+findings + escalations verbatim, capped per the agent's own charter's Output format; the
+cap binds the session's transcription too. The PR body carries the verdict table,
+escalations and §9.6's named skips, never a report; a report Klas must read on GitHub is
+promoted with `git add -f`, the `.gitignore` exception):
 
 | Agent | When |
 |---|---|
@@ -727,25 +727,26 @@ written as scheduling ("not MVP scope, not verified"), never as fact ("still app
 "no longer relevant").
 
 **Closing a Blocker/Major — the scoped re-check.** **A fix that closes a finding deletes
-text or changes code — it never adds a claim-sentence** (measured 2026-08-22 across PRs
-#1412–#1422: 24 of 33 round-≥2 findings sat in prose an earlier fix added; 61 of 98
-closures added new claim-prose). A finding only closable by added prose is closed by
-deleting the sentence that carried the claim. A fix landing after an agent's verdict goes
-back to **the agent that issued it** — only the issuer can say its own finding is closed
-— except a finding that closes **mechanically**: the flagged sentence is deleted, the old
-string greps to zero **and the closing hunk adds no replacement claim** (7 of 61 verified
-closures failed exactly that third check), recorded as one row in the verdict table, no
-re-check owed. A fresh reviewer re-reviews the whole PR. The re-check is
+text or changes code — it never adds a claim-sentence.** A finding only closable by added
+prose is closed by deleting the sentence that carried the claim. A fix landing after an
+agent's verdict goes back to **the agent that issued it** — only the issuer can say its
+own finding is closed — except a finding that closes **mechanically**: the flagged
+sentence is deleted, the old string greps to zero and the closing hunk adds zero lines
+to the file (`git show --numstat`: added = 0), recorded as one row in the verdict table,
+no re-check owed. A fresh reviewer re-reviews the whole PR. The re-check is
 **report-only** and scoped to the **fix delta**; it grades that delta only — **no phrasing
 findings, and no new findings on lines the delta did not touch, except a finding the
 re-checking charter itself grades as a Blocker or defines repo-wide rather than
 per-diff**, which is always reported. That carve-out is not optional: an unconditional gag
 would silence a GDPR or a11y veto the charter holds, and §9.6 does not overrule a
 charter's own exceptions. **The cycle is capped: one batched review round, then at most
-ONE scoped re-check per issuing agent.** A new-in-delta Blocker/Major raised by that
+ONE scoped re-check per issuing agent.** The cap counts finding-closing re-checks;
+re-verifying a moved head with no open findings is not a round. A new-in-delta
+Blocker/Major raised by that
 re-check is fixed by deletion or a code-only change and closed mechanically — its own
 measurement re-run; for a deleted sentence, grep = 0; a deletion cannot introduce a claim.
-A finding that survives the cap and genuinely needs new prose → **STOPP to Klas**: §6 and
+A finding that survives the cap and genuinely needs new prose → **STOPP to Klas**, and
+the session sets the `blocked` label: §6 and
 §12 keep it merge-blocking, so the choice is delete, fix in code, or stop — never explain.
 Nothing is fixed in-block *during* a re-check: each in-block fix invalidates the check
 just run. Verify HEAD is unchanged immediately before setting `agents-done`. **Charters
@@ -785,9 +786,9 @@ command, the report-only prompt, the verdict-table format and the label checklis
   real recipients, not sink durability, since dev's Seq does persist that line.
   **That sink is accepted on two conditions, and the second is a condition to
   re-measure, never a standing fact.** (1) It is loopback-bound **and
-  admin-authenticated** (#1198). (2) It holds no real-user PII — true only until
-  the next dev registration, because `ConsoleEmailSender` still logs the whole
-  body. Nothing re-measures condition 2 on a cadence;
+  admin-authenticated** (#1198). (2) It holds no real-user PII —
+  `ConsoleEmailSender` still logs the whole body, so the next dev registration
+  re-breaks it. Nothing re-measures condition 2 on a cadence;
   [#1208](https://github.com/klasolsson81/jobbliggaren/issues/1208)
   owns that gap),
   `NullEmailSender` (what `Provider=Console` falls back to outside Dev/Test),

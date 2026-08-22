@@ -4,8 +4,11 @@
 > shared spec file it names). This file carries the derivations, incident history and
 > dated measurements those rules used to carry inline — moved out verbatim 2026-08-22
 > (issue #1427) because the spec is loaded into every session and ~15 subagents per
-> session, and 79 % of it was derivation. The § numbers below are CLAUDE.md's namespace;
-> this file defines none of its own. Disclosure boundary: content here is limited to what
+> session, and 79 % of it was derivation. The § numbers below are the spec's shared
+> namespace (CLAUDE.md today; CLAUDE.md + AGENTS.md after the interop split); this file
+> defines none of its own. An entry is struck in the same PR as the rule it grounds —
+> this file carries no entry whose rule no longer lives in the spec.
+> Disclosure boundary: content here is limited to what
 > CLAUDE.md itself already published (ADR 0072's curated façade) — never import
 > gitignored-ADR content beyond what the spec already quoted. New entries arrive only as
 > verbatim moves out of the spec, or as the dated ground of a rule landing in the same PR.
@@ -96,7 +99,7 @@ told.
 
 **The 2026-07-14 hygiene pass** (all measured): 44 dead local + 44 dead remote
 branches; #800/#801 shipped and still `wip` two days on; 9 `wip` claims against 4
-running CCs. The `wip`/issue-close half of that measurement is still manual.
+running CCs.
 
 **Why `delete-merged-branches.yml` is a scheduled sweep and not a merge-event
 handler** (measured): events triggered by `GITHUB_TOKEN` do not start workflow runs, so
@@ -152,8 +155,12 @@ issues filed in the last week were `area:infra`, one of them user-facing — not
 the rule was wrong but because "fix in-block" was read as a router.
 
 **The 2026-08-22 root-cause measurement behind the deletion-only fix rule and the
-re-check cap** (PRs #1412–#1422, 127 findings, 21 rounds; full ledger + regeneration
-commands in `docs/reviews/2026-08-22-review-loop-root-cause.md`, gitignored): 65 % of
+re-check cap** (PRs #1412–#1422, 127 findings, 21 rounds; full ledger in
+`docs/reviews/2026-08-22-review-loop-root-cause.md`, gitignored and local. Regenerate
+from surviving sources: the five PRs' round-1 reports under `docs/reviews/` dated
+2026-08-19/20, `gh pr view/diff` for the commit partitions, `git log -S'<flagged
+string>'` per finding for provenance, and the sessions' subagent JSONL for round-≥2
+findings): 65 % of
 all flagged findings sat in prose; 72,7 % of round-≥2 findings sat in prose an earlier
 fix added; 61 of 98 closures added new claim-prose; every round-1 fix wave (27–122
 added claim-lines) drew new findings on all five PRs; no substantive deletion-only or

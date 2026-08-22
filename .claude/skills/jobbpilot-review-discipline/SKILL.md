@@ -29,12 +29,9 @@ description: >
 
 ## Why this exists
 
-Measured, not asserted — across PRs #1412–#1422: 72,7 % of round-≥2 findings sat
-in prose an earlier fix added, and **no substantive deletion-only or code-only
-fix delta was ever submitted for re-review**: the remedy this skill now mandates
-had never been tried. The 2026-08-04/05 rules did not hold because this skill's
-Step 2 permitted reformulation — a reformulation is a new claim. Numbers and
-regeneration: `docs/spec-rationale.md` §9.6.
+Measured, not asserted — the numbers and their regeneration live in
+`docs/spec-rationale.md` §9.6. The 2026-08-04/05 rules did not hold because this
+skill's Step 2 permitted reformulation — a reformulation is a new claim.
 
 The mechanism is arithmetic, not bad luck: **every fix that carries prose adds
 new reviewable claims, so round N's explanations become round N+1's findings.**
@@ -136,7 +133,8 @@ agents-done (CLAUDE.md §6) — it tears down the gate you were invoked to close
 What the re-check raises is routed by §9.6, including its cap, its rule for a
 new-in-delta Blocker/Major and its rule on in-block fixes during a re-check.
 
-The PR-body verdict table — appended in ONE body edit, escalations verbatim below it:
+The PR-body verdict table — appended in ONE body edit, escalations verbatim and
+§9.6's named skips below it:
 
 ```
 | Agent | Verdict | B/M/m | HEAD granskad | Rapport |
@@ -154,7 +152,8 @@ merging**. Before setting it:
    scoped re-check — **including any new-in-delta finding that re-check raised** —
    or the finding closed mechanically per §9.6's three conditions, or via §9.6's
    capped overflow route.
-2. The PR-body verdict table + verbatim escalations are appended, in ONE edit.
+2. The PR-body verdict table + verbatim escalations + §9.6's named skips are
+   appended, in ONE edit.
 3. No unresolved Blocker/Major, and no §12 merge-blocking condition.
 4. `git log --oneline -1` still matches the SHA the **last re-check** answered —
    check it immediately before setting the label, not before the final fixes.

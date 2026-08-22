@@ -516,7 +516,7 @@ mandatory agents, wait in ALL of them, resolve every Blocker/Major** — batched
 closed by scoped re-checks (§9.6; the procedure is the `jobbpilot-review-discipline`
 skill) — **and only then set `agents-done`** (§6). The PR body is written twice, never
 more: at creation (what changes and why), and ONE edit after the last verdict appending
-the verdict table and every escalation verbatim (§9.2).
+the verdict table, every escalation verbatim and §9.6's named skips (§9.2).
 
 **9.2 Boundaries.** CC writes code, tests, migrations, CI config, docs;
 proposes refactorings; creates ADRs for its architecture decisions. **CC MAY edit
@@ -531,7 +531,7 @@ never autonomous); start a new session phase without explicit Klas GO.
 
 **Mandatory agent invocation** (before the STOPP report; skipping counts as a
 discipline miss; reports go to `docs/reviews/<date>-<phase>-<agent>.md` — header +
-findings + escalations verbatim, capped per the agent's own charter's Output format; the
+findings + escalations verbatim, capped per the reviewing agent's charter's Output format; the
 cap binds the session's transcription too. The PR body carries the verdict table,
 escalations and §9.6's named skips, never a report; a report Klas must read on GitHub is
 promoted with `git add -f`, the `.gitignore` exception):
@@ -731,9 +731,9 @@ text or changes code — it never adds a claim-sentence.** A finding only closab
 prose is closed by deleting the sentence that carried the claim. A fix landing after an
 agent's verdict goes back to **the agent that issued it** — only the issuer can say its
 own finding is closed — except a finding that closes **mechanically**: the flagged
-sentence is deleted, the old string greps to zero and the closing hunk adds zero lines
-to the file (`git show --numstat`: added = 0), recorded as one row in the verdict table,
-no re-check owed. A fresh reviewer re-reviews the whole PR. The re-check is
+sentence is deleted, the old string greps to zero and the closing diff for that file
+adds zero lines (no `+` lines beyond the header), recorded as one row in the verdict
+table, no re-check owed. A fresh reviewer re-reviews the whole PR. The re-check is
 **report-only** and scoped to the **fix delta**; it grades that delta only — **no phrasing
 findings, and no new findings on lines the delta did not touch, except a finding the
 re-checking charter itself grades as a Blocker or defines repo-wide rather than
@@ -742,9 +742,9 @@ would silence a GDPR or a11y veto the charter holds, and §9.6 does not overrule
 charter's own exceptions. **The cycle is capped: one batched review round, then at most
 ONE scoped re-check per issuing agent.** The cap counts finding-closing re-checks;
 re-verifying a moved head with no open findings is not a round. A new-in-delta
-Blocker/Major raised by that
-re-check is fixed by deletion or a code-only change and closed mechanically — its own
-measurement re-run; for a deleted sentence, grep = 0; a deletion cannot introduce a claim.
+Blocker/Major raised by that re-check is fixed by deletion (closed mechanically — a
+deletion cannot introduce a claim) or by a code-only change closed by re-running the
+finding's own measurement, each recorded in the verdict table.
 A finding that survives the cap and genuinely needs new prose → **STOPP to Klas**, and
 the session sets the `blocked` label: §6 and
 §12 keep it merge-blocking, so the choice is delete, fix in code, or stop — never explain.

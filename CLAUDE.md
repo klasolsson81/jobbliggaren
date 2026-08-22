@@ -194,7 +194,7 @@ promoted with `git add -f`, the `.gitignore` exception):
 
 | Agent | When |
 |---|---|
-| `senior-cto-advisor` | Multi-approach choices, finding triage (in-block vs follow-up PR vs issue). Routes a finding; never re-grades one — severity belongs to the agent that reported it (§9.6). Decision-maker — CC gives no own recommendation. Unambiguous CTO verdicts execute without extra Klas GO. |
+| `senior-cto-advisor` | Multi-approach choices, finding triage (in-block vs follow-up PR vs issue). Routes a finding; never re-grades one — severity belongs to the agent that reported it (§9.6). Decision-maker — the driving session gives no own recommendation. Unambiguous CTO verdicts execute without extra Klas GO. |
 | `security-auditor` | PII, auth, secrets, external integrations; **accepting a vulnerability rather than repairing it** — growing `pnpm.auditConfig.ignoreGhsas`, lowering `--audit-level`, or suppressing `NuGetAudit`/NU1901-NU1904 (ADR 0065 Amendment 2026-07-28 Beslut 4). Reducing exposure is not a trigger. Also every exposure-*increasing* change to the suppression surface itself: an `overrides` entry removed or its target lowered, a new override key **in open form**, a gated key becoming open, a removal from `ignoredBuiltDependencies`, and `pnpm/action-setup` raised **past 9** — that last is a migration, not a bump, since pnpm 11 reads none of this configuration, so every repair and the single acceptance go dead while the gate still reports clean. Full enumeration in her Triggers section, keyed to audit area 8. She is that area's **named consumer** of `.github/scripts/audit-suppression-guard.sh`: the blocking gate audits with the ignore list *applied* and so cannot see an accepted advisory that has begun reaching production. |
 | `code-reviewer` + `dotnet-architect` | Larger changes (>5 files or architectural choices) |
 | `dotnet-architect` (mandatory) | All Terraform/IaC scope (ADR 0036 precedent) |
@@ -240,7 +240,8 @@ patterns → discovery report ("read/map X, report Y, no changes") with raw
 full-file output, no truncation. After `str_replace`/paste: prove file state
 with grep/diff output. Long pastes (>20 lines): pre-flight the target + new
 content, wait for GO. Verbatim text (ADR sections, doc content) is produced by
-web-Claude; CC applies. Missing source text after compaction → STOPP and ask.
+web-Claude; the CC session applies (a CC-specific pipeline). Missing source
+text after compaction → STOPP and ask.
 
 **9.5 Web search for external facts.** Present-tense questions about
 external systems (deploy providers, .NET/Next.js versions, AI models/pricing,
@@ -370,7 +371,7 @@ order. (Praise is not a finding and routes nowhere.) Then:
   the measurement. Neither a fix nor an issue. This is a real outcome, not a way out.
 - **Minor / nice-to-have** → a **GitHub issue**, and a line in a PR
   body is not disposal because it has no reader. The reason is **visibility between
-  parallel CCs**, not issue inflation, so an issue no other CC would need to see may be
+  parallel lanes**, not issue inflation, so an issue no other lane would need to see may be
   skipped — but the skip is **named in the PR body**, one line, with what makes it
   invisible to a peer lane. An unnamed skip is not an exception; it is an omission.
   **Label it as you file it** — `area:`, a `P0`–`P3`, a lane, and **`mvp` if a real

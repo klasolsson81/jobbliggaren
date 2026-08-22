@@ -557,6 +557,12 @@ public class ErasureCascadeRegistryTests
         // Keyed on the PAIR and not on `owed`: SeparateProcessing is a real disposition that owes
         // no ground, so company_register:SeparateProcessing is a legitimate key `owed` never
         // contains. The predicate is "some column in Columns has this table AND this disposition".
+        // Anti-vacuity: splitting this out of its sibling took its ShouldNotBeEmpty with it, and
+        // ShouldBeEmpty over an empty dictionary passes for the wrong reason.
+        ErasureCascadeRegistry.WrittenGrounds.ShouldNotBeEmpty(
+            "the registry declares no written grounds at all — this test would then pass "
+            + "vacuously, which is the failure mode it exists to prevent.");
+
         var live = ErasureCascadeRegistry.Columns
             .Select(kv => $"{kv.Key.Split('.')[0]}:{kv.Value}")
             .ToHashSet(StringComparer.Ordinal);

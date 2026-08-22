@@ -2307,7 +2307,7 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
     /// <para>
     /// The pattern is built from the identifier AS SUPPLIED, so the hyphenated written form
     /// <c>550928-1234</c> yields a regex that can never match the stored <c>5509281234</c>. Delete
-    /// the <c>axis = {orgNr}</c> sub-arm and this goes red while every arm of the sibling test
+    /// the <c>axis = ANY({writtenForms})</c> sub-arm and this goes red while every arm of the sibling
     /// stays green.
     /// </para>
     /// </remarks>
@@ -2317,11 +2317,18 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
         var ct = TestContext.Current.CancellationToken;
         await IngestThroughProductionPathAsync(ct);
 
-        PersonnummerScanner.Scan(PersonnummerTextNormalizer.Normalize(
-                "5509281234", PersonnummerGapProfile.SingleLineUserInput))
-            .ShouldBeEmpty("#1419's capture guard must ADMIT this value, or the seed below is a "
-                + "state src/ cannot produce and the whole test is a fiction. It is admitted "
-                + "because the guard is Luhn-gated and 5509281234 is Luhn-invalid.");
+        // EVERY seeded value, not just the first: the seed grew to four and a provenance claim
+        // that covers a quarter of it is a claim about a different test. `5509281234_x` matters
+        // most -- the assertion built on it is a claim about PROTECTING another user's row, and if
+        // the guard refused that form the protection claim would be about nothing.
+        foreach (var seeded in new[] { "5509281234", "550928-1234", "19550928-1234", "5509281234_x" })
+        {
+            PersonnummerScanner.Scan(PersonnummerTextNormalizer.Normalize(
+                    seeded, PersonnummerGapProfile.SingleLineUserInput))
+                .ShouldBeEmpty($"#1419's capture guard must ADMIT `{seeded}`, or the seed below is "
+                    + "a state src/ cannot produce and the whole test is a fiction. It is admitted "
+                    + "because the guard is Luhn-gated and this value is Luhn-invalid.");
+        }
 
         // Four rows: the bare form, the two WRITTEN forms the axes admit and store literally,
         // and a looseness control. Measured before the fix: a request for the normalised form

@@ -148,16 +148,27 @@ public sealed record OrganizationNumber
     /// matched string on the mandatory dry run. The <c>+</c> century separator stays unhandled here
     /// for the same reason it is unhandled above.
     /// </para>
+    /// <para>
+    /// <b>The 10-digit guard is the same fail-safe <see cref="IsPersonnummerShaped"/> carries three
+    /// lines down, on the same condition.</b> <see cref="Value"/> is EITHER ten digits OR a keyed
+    /// HMAC token (64 hex characters) for a personnummer-shaped org.nr — see this type's header.
+    /// Slicing a token at 6 does not throw; it yields six silent nonsense forms, which fed to an
+    /// exact-match arm would match NOTHING forever, the cardinal sin this type's own header names.
+    /// A token has no written forms but itself.
+    /// </para>
     /// </remarks>
     public IReadOnlyList<string> WrittenForms() =>
-    [
-        Value,
-        $"{Value[..6]}-{Value[6..]}",
-        $"19{Value}",
-        $"19{Value[..6]}-{Value[6..]}",
-        $"20{Value}",
-        $"20{Value[..6]}-{Value[6..]}",
-    ];
+        Value.Length != 10 || !Value.All(char.IsAsciiDigit)
+            ? [Value]
+            :
+            [
+                Value,
+                $"{Value[..6]}-{Value[6..]}",
+                $"19{Value}",
+                $"19{Value[..6]}-{Value[6..]}",
+                $"20{Value}",
+                $"20{Value[..6]}-{Value[6..]}",
+            ];
 
     /// <summary>
     /// True when this 10-digit value is shaped like a Swedish personnummer (i.e. a potential

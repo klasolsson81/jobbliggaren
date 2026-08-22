@@ -183,4 +183,52 @@ public class OrganizationNumberTests
         result.ShouldNotBeNull();
         result.Value.ShouldBe("0730429030");
     }
+
+    /// <summary>
+    /// #1425 — <c>WrittenForms()</c> is the INVERSE of <c>TryFromWrittenForm</c>, and this is what
+    /// makes that a property rather than a promise. Two hand-written implementations of one rule
+    /// are two rules (#844) unless something measures the round trip.
+    /// </summary>
+    /// <remarks>
+    /// Without this, four of the six emitted elements could be deleted with the whole suite green:
+    /// the erasure integration test seeds three forms, and one of those is reached by the
+    /// word-boundary arm rather than by the exact arm. A stored <c>20550928-1234</c> would then be
+    /// unreachable in a column the Art. 17 channel certifies erased, silently.
+    /// </remarks>
+    [Fact]
+    public void WrittenForms_EveryEmittedForm_NormalisesBackToThisValue()
+    {
+        var orgNr = OrganizationNumber.Create("5509281234").Value;
+
+        var forms = orgNr.WrittenForms();
+
+        forms.Count.ShouldBe(6, "ten digits yield the bare form, the hyphenated form, and both "
+            + "century prefixes in both of those shapes. The stored form carries no century, so "
+            + "neither 19 nor 20 can be excluded.");
+        forms.ShouldBeUnique();
+
+        foreach (var form in forms)
+        {
+            OrganizationNumber.TryFromWrittenForm(form)?.Value.ShouldBe(orgNr.Value,
+                $"`{form}` is emitted as a written form of {orgNr.Value}, so the normaliser must "
+                + "take it back. If it does not, the pair has drifted and the erasure channel "
+                + "under-matches on an Art. 17 path without anything going red.");
+        }
+    }
+
+    /// <summary>
+    /// #1425 — a value that is NOT ten digits has no written forms but itself. The HMAC token an
+    /// enskild firma's org.nr is stored as (this type's header, ADR 0090 D5) is 64 hex characters:
+    /// slicing it at 6 does not throw, it yields six silent nonsense strings, and an exact-match
+    /// arm fed those matches NOTHING forever.
+    /// </summary>
+    [Fact]
+    public void WrittenForms_ForStoredHmacToken_IsTheTokenAlone()
+    {
+        var token = new string('a', 64);
+
+        var forms = OrganizationNumber.FromTrusted(token).WrittenForms();
+
+        forms.ShouldBe([token]);
+    }
 }

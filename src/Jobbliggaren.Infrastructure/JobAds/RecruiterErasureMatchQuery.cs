@@ -434,12 +434,8 @@ internal sealed class RecruiterErasureMatchQuery(AppDbContext db) : IRecruiterEr
     /// </summary>
     /// <remarks>
     /// <b>The predicate here is deliberately WIDER than the SQL's, and it runs ONLY on rows the
-    /// SQL returned.</b> Two properties follow and both are load-bearing. (1) It cannot come up
-    /// empty on a taxonomy-matched row: whole-word match implies Contains and exact equality
-    /// implies Contains, and an empty result would build an <c>ErasureRecentSearchMatch</c> with
-    /// all three slots null — which THROWS, i.e. an Art. 17 request would 500. (2) It cannot
-    /// attribute a taxonomy match to a row that had none, because the caller gates on the SQL's
-    /// own row set.
+    /// SQL returned</b>, so it cannot attribute a taxonomy match to a row that had none — the
+    /// caller gates on the SQL's own row set.
     /// <para>
     /// <b>Why not re-derive the ARE exactly in C#.</b> That is the detector-is-not-the-matcher
     /// trap this class already warns about twice: Postgres's <c>[:alnum:]</c> under the server

@@ -514,9 +514,14 @@ body {
    specificity of its most specific argument, so this stays (0,1,1). Chaining
    makes it (0,2,1), which then beats `.jp-foot__links a` (0,1,1) and
    `.jp-land-hero--plate .jp-land-hero__guestlink` (0,2,0) — both written to beat
-   exactly this rule — turning the footer and the hero guest link green. */
-a:not(.jp-btn, [data-slot="button"]) { color: var(--jp-accent-700); }
-a:not(.jp-btn, [data-slot="button"]):hover { color: var(--jp-accent-600); }
+   exactly this rule — turning the footer and the hero guest link green.
+   `.jp-popover__rowbtn` is the same exemption a third time: the popover row is
+   an <a> because it navigates, but it is row chrome and carries its own ink, and
+   at (0,1,0) its `color` loses to this rule's (0,1,1). Exempting it here keeps
+   that declaration true instead of answering with a louder one, and covers the
+   :hover twin — which the row has no color rule of its own to answer at all. */
+a:not(.jp-btn, [data-slot="button"], .jp-popover__rowbtn) { color: var(--jp-accent-700); }
+a:not(.jp-btn, [data-slot="button"], .jp-popover__rowbtn):hover { color: var(--jp-accent-600); }
 [data-theme="dark"] a.text-brand-600 { color: var(--jp-accent-700); }
 [data-theme="dark"] a.text-brand-600:hover { color: var(--jp-accent-600); }
 
@@ -6661,9 +6666,10 @@ a.jp-adminnav__link[aria-current="page"]::after {
   font-size: var(--text-body-sm);
 }
 
-/* Popover-radknapp — emitteras av HeroChip (hero-chip.tsx), aldrig av en
+/* Popover-raden — emitteras av HeroChip (hero-chip.tsx), aldrig av en
    konsument. JS-hovern (onMouseOver/-Out mot surface-3) ersatt av :hover —
-   samma visuella effekt. */
+   samma visuella effekt. Elementet är ett <a> (raden navigerar), och det är
+   undantaget i `a:not(...)`-regeln som äger den globala länkfärgen. */
 .jp-popover__rowbtn {
   display: flex;
   align-items: flex-start;
@@ -6673,6 +6679,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
   background: transparent;
   border: none;
   text-align: left;
+  text-decoration: none;
   cursor: pointer;
   color: var(--jp-ink-1);
   font-size: var(--text-ui);

@@ -17,6 +17,34 @@ public class EmailTemplatesAccountExistsNoticeTests
     private const string BaseUrl = "https://jobbliggaren.se";
 
     [Fact]
+    public void AccountExistsNotice_ShouldHaveNothingToBranchOn_AndTheUnconfirmedDetailShouldStayAConstant()
+    {
+        // #1349 — the EXECUTABLE form of "this surface must never vary with account state". The copy
+        // in both places now says only what its own trigger establishes, but copy can be rewritten;
+        // what actually holds the property is that neither place has anything to branch ON.
+        // AccountExistsNotice is handed a base URL and nothing else — not even a userId — and the 403
+        // detail is a compile-time constant. Growing either is the change worth catching, and it is
+        // catchable, where "do not be state-dependent" is not (senior-cto-advisor 2026-08-22).
+        //
+        // Branching there is not a style question: the duplicate-registration branch is reachable by
+        // anyone who submits an address, so state-dependent copy on it is an account-existence oracle.
+        var parameters = typeof(EmailTemplates)
+            .GetMethod(nameof(EmailTemplates.AccountExistsNotice))!
+            .GetParameters();
+
+        parameters.Length.ShouldBe(1, "a second parameter is how account state would get in");
+        parameters[0].ParameterType.ShouldBe(typeof(string));
+        parameters[0].Name.ShouldBe("baseUrl");
+
+        var detail = typeof(Jobbliggaren.Application.Auth.AuthErrorCodes)
+            .GetField(nameof(Jobbliggaren.Application.Auth.AuthErrorCodes.EmailNotConfirmedMessage));
+
+        detail.ShouldNotBeNull();
+        detail.IsLiteral.ShouldBeTrue("a const cannot be computed from account state");
+        detail.IsInitOnly.ShouldBeFalse("a static readonly could be assigned a computed value");
+    }
+
+    [Fact]
     public void AccountExistsNotice_ShouldLinkToLoginAndNameTheContactAddress()
     {
         // The help-centre route became the contact address on 2026-08-12 (Klas-beslut): the help
@@ -43,7 +71,7 @@ public class EmailTemplatesAccountExistsNoticeTests
     [Fact]
     public void AccountExistsNotice_ShouldUseAccountExistsSubject()
         => EmailTemplates.AccountExistsNotice(BaseUrl)
-            .Subject.ShouldBe("Du har redan ett konto hos Jobbliggaren");
+            .Subject.ShouldBe("Adressen är redan registrerad hos Jobbliggaren");
 
     [Fact]
     public void AccountExistsNotice_ShouldNotContainExclamationOrEmDash()

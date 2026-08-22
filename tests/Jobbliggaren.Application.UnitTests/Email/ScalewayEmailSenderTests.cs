@@ -516,7 +516,7 @@ public sealed class ScalewayEmailSenderTests : IDisposable
 
         await sut.SendAccountExistsNoticeAsync(Recipient, CancellationToken.None);
 
-        SubjectSent().ShouldBe("Du har redan ett konto hos Jobbliggaren");
+        SubjectSent().ShouldBe("Adressen är redan registrerad hos Jobbliggaren");
         TextSent().ShouldContain($"{_options.BaseUrl}/logga-in");
         // #714: the out-of-band notice to a TAKEN address grants nothing — no token, no reset link.
         TextSent().ShouldNotContain(UrlSafeToken);

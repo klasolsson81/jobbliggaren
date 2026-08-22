@@ -6665,7 +6665,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
    (onMouseOver/-Out mot surface-3) ersatt av :hover — samma visuella effekt. */
 .jp-popover__rowbtn {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   width: 100%;
   padding: 10px 16px;
@@ -6680,14 +6680,14 @@ a.jp-adminnav__link[aria-current="page"]::after {
 .jp-popover__rowbtn:hover { background: var(--jp-surface-3); }
 
 /* Radens primära label: tvårads clamp, samma form som .jp-board-card__role.
-   De fyra deklarationerna är EN enhet — utan -webkit-box-orient eller overflow
-   blir clampen inert och raden faller tyst tillbaka till en rad.
-   Pinnad av globals-popover-clamp.test.ts. */
+   Utan -webkit-box-orient blir clampen inert och raden faller tyst tillbaka
+   till en rad. Pinnad av globals-popover-clamp.test.ts. */
 .jp-popover__rowlabel {
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+  line-height: 1.3;
 }
 
 /* Popover-fotlänk (hero-chip-popoverns "visa alla"). */
@@ -6710,6 +6710,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
   font-size: var(--text-micro);
   color: var(--jp-ink-1);
   flex-shrink: 0;
+  line-height: 1.3;
 }
 
 /* Neutral ikon-platta på rad (Bookmark/Clock) — var 3 inline-kopior

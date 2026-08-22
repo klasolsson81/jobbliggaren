@@ -9,9 +9,9 @@ import { fileURLToPath } from "node:url";
  * Reads source text; it does not render. jsdom computes no layout, so no rendered test can state
  * this property at all — and the property is invisible to type-checking, lint and every other gate.
  *
- * What makes a guard worth its lines here is the SHAPE of the regression. The four declarations are
- * one unit: drop `-webkit-box-orient` or `overflow` and the clamp goes inert, the label falls back to
- * a single line, and nothing anywhere reports it. `-webkit-box-orient: vertical` in particular reads
+ * What makes a guard worth its lines here is the SHAPE of the regression. Drop `-webkit-box-orient`
+ * and the clamp goes inert, the label falls back to a single line, and nothing anywhere reports it.
+ * `-webkit-box-orient: vertical` in particular reads
  * as a removable legacy prefix, so deleting it is a plausible tidy-up that compiles and renders
  * without error.
  *
@@ -48,6 +48,7 @@ describe("globals.css — the popover row label is clamped to more than one line
         `the clamp — that is not a failure of the code, it is this guard telling you it has not ` +
         `been taught about the new one.`,
     ).toHaveLength(1);
+    expect(CLAMP_RULES[0]!.selector).toBe(".jp-popover__rowlabel");
   });
 
   it("carries all four declarations the clamp needs to work at all", () => {

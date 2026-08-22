@@ -381,7 +381,13 @@ public class OrgNrRecordLoggingGuardTests
             (typeof(EmployerAdGroup),
                 new EmployerAdGroup(Sentinel, "Region Stockholm", 3).ToString(), "Region Stockholm"),
             (typeof(ErasureRecentSearchMatch),
-                new ErasureRecentSearchMatch(KnownId, null, Sentinel).ToString(), KnownId.ToString()),
+                new ErasureRecentSearchMatch(KnownId, null, Sentinel, null).ToString(), KnownId.ToString()),
+            // #1425 — the SAME type, sentinel in the NEW slot. Without this row the guard covers
+            // MatchedTaxonomyValue vacuously: the redaction would still pass while a member added
+            // later leaked. The exact arm can put a ten-digit org.nr in this slot, and the
+            // word-boundary arm puts arbitrary user text in it.
+            (typeof(ErasureRecentSearchMatch),
+                new ErasureRecentSearchMatch(KnownId, null, null, Sentinel).ToString(), KnownId.ToString()),
             (typeof(CompanyLookupDto),
                 new CompanyLookupDto("found", Sentinel, false, "Region Stockholm", 2, 1, null).ToString(),
                 "Region Stockholm"),

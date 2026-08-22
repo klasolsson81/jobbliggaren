@@ -130,6 +130,47 @@ public sealed record OrganizationNumber
     }
 
     /// <summary>
+    /// Every written form that <see cref="TryFromWrittenForm"/> normalises back to this value —
+    /// its INVERSE, and single-sourced with it so the pair cannot drift (#844: a rule with two
+    /// normalisers is two rules).
+    /// </summary>
+    /// <remarks>
+    /// <b>Why this exists.</b> A column whose write path normalises (<c>job_ads.organization_number</c>,
+    /// <c>recent_job_searches.employer_list</c>) stores the 10-digit form, so normalising the REQUEST
+    /// is enough to match it. A column validated on SHAPE ONLY stores whatever was typed — and the
+    /// five <c>recent_job_searches</c> concept-id axes admit every form below under
+    /// <c>^[A-Za-z0-9_-]{1,32}\z</c>. Against those, comparing a normalised request to an
+    /// unnormalised store reaches only the one form that happens to coincide (#1425).
+    /// <para>
+    /// The century arm yields BOTH <c>19</c> and <c>20</c> because the stored 10-digit form does not
+    /// carry the century and neither can be excluded. Over-matching here is exact-string
+    /// over-matching, not a widened regex: each element is a full value, and the operator sees every
+    /// matched string on the mandatory dry run. The <c>+</c> century separator stays unhandled here
+    /// for the same reason it is unhandled above.
+    /// </para>
+    /// <para>
+    /// <b>The 10-digit guard is the same fail-safe <see cref="IsPersonnummerShaped"/> carries three
+    /// lines down, on the same condition.</b> <see cref="Value"/> is EITHER ten digits OR a keyed
+    /// HMAC token (64 hex characters) for a personnummer-shaped org.nr — see this type's header.
+    /// Slicing a token at 6 does not throw; it yields six silent nonsense forms, which fed to an
+    /// exact-match arm would match NOTHING forever, the cardinal sin this type's own header names.
+    /// A token has no written forms but itself.
+    /// </para>
+    /// </remarks>
+    public IReadOnlyList<string> WrittenForms() =>
+        Value.Length != 10 || !Value.All(char.IsAsciiDigit)
+            ? [Value]
+            :
+            [
+                Value,
+                $"{Value[..6]}-{Value[6..]}",
+                $"19{Value}",
+                $"19{Value[..6]}-{Value[6..]}",
+                $"20{Value}",
+                $"20{Value[..6]}-{Value[6..]}",
+            ];
+
+    /// <summary>
     /// True when this 10-digit value is shaped like a Swedish personnummer (i.e. a potential
     /// enskild-firma org.nr that equals the owner's national identity number) and MUST be
     /// flagged/masked at any surfacing/log boundary (ADR 0087 D8(c)). Also the single-sourced

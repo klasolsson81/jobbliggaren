@@ -133,19 +133,32 @@ public sealed record ErasureRecentSearchMatch
 
     public string? MatchedEmployerOrgNr { get; }
 
-    public ErasureRecentSearchMatch(Guid id, string? q, string? matchedEmployerOrgNr)
+    /// <summary>
+    /// The matched ELEMENT of one of the five concept-id axes (#1425) - the whole stored value,
+    /// not the identifier, exactly as <see cref="Q"/> is the whole search term: a request for
+    /// <c>Karlsson</c> that hits <c>Anna-Karlsson</c> shows the operator <c>Anna-Karlsson</c>,
+    /// because what he is authorising is the deletion of THAT string. The exact arm can put a
+    /// ten-digit org.nr here, so whatever surfaces it must flag a personnummer-shaped value
+    /// (ADR 0087 D8(c) reaches the operator's screen too).
+    /// </summary>
+    public string? MatchedTaxonomyValue { get; }
+
+    public ErasureRecentSearchMatch(
+        Guid id, string? q, string? matchedEmployerOrgNr, string? matchedTaxonomyValue)
     {
-        if (q is null && matchedEmployerOrgNr is null)
+        if (q is null && matchedEmployerOrgNr is null && matchedTaxonomyValue is null)
         {
             throw new ArgumentException(
-                "A recent-search match must carry its evidence: q or the matched org.nr. A row "
-                + "with neither matched on nothing and must not exist.",
-                nameof(q));
+                "A recent-search match must carry its evidence: q, the matched org.nr, or the "
+                + "matched concept-id axis value. A row with none of the three matched on nothing "
+                + "and must not exist.",
+                nameof(matchedTaxonomyValue));
         }
 
         Id = id;
         Q = q;
         MatchedEmployerOrgNr = matchedEmployerOrgNr;
+        MatchedTaxonomyValue = matchedTaxonomyValue;
     }
 
     /// <summary>
@@ -154,7 +167,10 @@ public sealed record ErasureRecentSearchMatch
     /// own org.nr — a possible personnummer, ADR 0087 D8(c); CLAUDE.md §5) and the free-text
     /// <see cref="Q"/> into a log. The flag-not-mask decision for <see cref="MatchedEmployerOrgNr"/> is a
     /// SURFACING decision (the operator's review screen) and does NOT transfer to logging — a log is not
-    /// that screen. Only <see cref="Id"/> survives here; pinned by <c>OrgNrRecordLoggingGuardTests</c>.
+    /// that screen. <see cref="MatchedTaxonomyValue"/> is in the redaction on its own ground and not by
+    /// inheriting the override: the exact arm can put a ten-digit org.nr in it (#1425), and the
+    /// word-boundary arm puts arbitrary user text in it. Only <see cref="Id"/> survives here; pinned
+    /// by <c>OrgNrRecordLoggingGuardTests</c>.
     /// </summary>
     public override string ToString() => $"ErasureRecentSearchMatch(Id={Id}, redacted)";
 }
@@ -266,10 +282,12 @@ public sealed record UnsearchableSurfaces
 /// </param>
 /// <param name="Matches">The ads themselves — <b>what the operator reviews</b>. Populated on a dry run.</param>
 /// <param name="MatchedRecentSearchTerms">
-/// The distinct match EVIDENCE, one line per matched row's reason, WITHOUT user ids: the <c>q</c>
-/// term for a word-boundary hit, or <c>arbetsgivarfilter: &lt;org.nr&gt;</c> for an employer-only
-/// hit (suffixed <c>(personnummer-format)</c> when the org.nr is personnummer-shaped — ADR 0087
-/// D8(c), never surfaced un-flagged). These rows are hard-deleted with no per-id confirmation
+/// The distinct match EVIDENCE, one line per DISTINCT reason, WITHOUT user ids — a row that matched
+/// on several arms contributes several, because the review must see every arm it is authorising.
+/// Three forms: the <c>q</c> term for a word-boundary hit, <c>arbetsgivarfilter: &lt;org.nr&gt;</c>
+/// for an employer hit, and <c>sökfilter: &lt;value&gt;</c> for a concept-id axis hit (#1425). The
+/// latter two are suffixed <c>(personnummer-format)</c> when personnummer-shaped — ADR 0087 D8(c),
+/// never surfaced un-flagged. These rows are hard-deleted with no per-id confirmation
 /// ceremony (they are an auto-captured, self-rebuilding cache — cap 20, evict oldest), so the
 /// operator must at least SEE what will go, and WHY it matched. <b>A count cannot be reviewed</b> —
 /// this PR's own doctrine, applied to the one surface where it had been forgotten.

@@ -540,7 +540,8 @@ jobbliggaren/
 │   └── runbooks/                     # Operativa procedurer
 │
 ├── .claude/                          # Claude Code agent-configs + skills + hooks
-├── CLAUDE.md                         # Coding conventions för AI-assisterad utveckling
+├── AGENTS.md                         # Delad spec-kärna (alla kodagenter; §-index i CLAUDE.md)
+├── CLAUDE.md                         # Claude-Code-specifika konventioner + @AGENTS.md-import
 ├── DESIGN.md                         # Design-system-index (specs i .claude/skills/)
 └── docker-compose.yml                # Lokal Postgres + Valkey + Seq
 ```
@@ -659,7 +660,8 @@ Dev-miljön är avvecklad under en infra-paus (ADR 0066) — all utveckling kör
 
 | Fil | Syfte |
 |-----|-------|
-| [`CLAUDE.md`](CLAUDE.md) | Coding conventions, anti-patterns, agent-orkestrerings-workflow |
+| [`AGENTS.md`](AGENTS.md) | Delad spec-kärna — coding conventions, anti-patterns (ett §-namespace med CLAUDE.md) |
+| [`CLAUDE.md`](CLAUDE.md) | Claude-Code-specifikt: sessionsprotokoll, parallella sessioner, agent-orkestrering + §-index |
 | [`DESIGN.md`](DESIGN.md) | Design-system-index — civic-utility-tone, design tokens, komponenter |
 | [`docs/decisions/`](docs/decisions/) | Architecture Decision Records (ADRs) — index i [`README`](docs/decisions/README.md) |
 | [`docs/reviews/`](docs/reviews/) | Agent-reviews |
@@ -688,4 +690,4 @@ Detta repo är publikt synligt för portfölj-syfte. Källkoden får läsas, stu
 
 ---
 
-> _"Skriv som om varje commit ska kunna försvaras i en kodgranskning på Mastercard-nivå."_ — utdrag ur [`CLAUDE.md`](CLAUDE.md)
+> _"Skriv som om varje commit ska kunna försvaras i en kodgranskning på Mastercard-nivå."_ — utdrag ur [`AGENTS.md`](AGENTS.md)

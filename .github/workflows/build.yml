@@ -376,6 +376,11 @@ jobs:
           fi
           echo "alla $(git ls-files 'deploy/systemd/*.sh' | wc -l) skript är 100755"
 
+      # AGENTS.md-budgeten är blockerande: Codex trunkerar TYST över sitt kombinerade
+      # tak, så överskridande måste falla här (ADR 0135 Decision 2).
+      - name: AGENTS.md byte budget (blocking, ADR 0135)
+        run: bash .github/scripts/agents-md-budget-guard.sh
+
       # Diagnostik, INGEN grind — `git --version` avslutar alltid 0. Predikatets
       # golv (git >= 2.38, för `merge-tree --write-tree`) grindas av fixtur 1:
       # på en äldre git returnerar den `git-too-old` i stället för

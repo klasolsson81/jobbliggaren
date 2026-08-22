@@ -1,8 +1,7 @@
-# AGENTS.md — Jobbliggaren shared spec core
+# AGENTS.md — Jobbliggaren shared core
 
 > One §-namespace across this file and `CLAUDE.md`, which holds the §-index,
-> §§1.5/6.5/9/11/13, and the `@AGENTS.md` import. Byte budget is CI-guarded:
-> Codex silently truncates combined project docs past its cap.
+> §§1.5/6.5/9/11/13 and the `@AGENTS.md` import. Budget: CI-guarded (ADR 0135).
 
 ## 1. Identity
 
@@ -29,7 +28,7 @@ Existing Swedish docs are not mass-translated.
 | `docs/runbooks/` | Operational procedures |
 | `docs/research/` (+`issues/`) | Findings, planning, open questions |
 | `docs/reviews/` | Agent review reports |
-| `docs/spec-rationale.md` | Non-normative derivations, incidents and dated measurements moved out of the spec, §-keyed |
+| `docs/spec-rationale.md` | Non-normative derivations and dated measurements, §-keyed |
 
 **The backlog is GitHub Issues, and nothing else** (Klas-direktiv 2026-08-02). The
 TD register — `docs/tech-debt.md`, its archive, and the `jobbpilot-td-lifecycle`
@@ -287,14 +286,14 @@ show the thing itself, and nowhere else. **A factually wrong comment — wrong n
   (`ci` aggregate green; observe-only jobs don't block) → pre-commit gates
   (`dotnet format`, web ESLint + `tsc`) + pre-push gitleaks secret scan.
 - **Automerge (ADR 0065 Amendment 2026-06-07; autonomous flow 2026-06-25; two-label
-  split #836, 2026-07-27):** the driving agent — CC and Codex alike, same flow and same
-  labels (Klas-direktiv 2026-08-22, ADR 0135) — creates PRs and pushes without asking. **Two labels,
+  split #836, 2026-07-27):** the driving agent — CC and Codex alike (Klas-direktiv
+  2026-08-22, ADR 0135) — creates PRs and pushes without asking. **Two labels,
   two meanings, and they are not interchangeable:**
   - **`automerge` = INTENT** — *"this PR should merge when it is ready."* True at
     `gh pr create`; set it then. The driving agent sets it; the PR-babysitter may set it too.
   - **`agents-done` = PERMISSION** — *"the mandatory agents (§9.2) have reported and
-    no Blocker/Major is unresolved."* **Only the owning session — whichever tool drives
-    the PR — sets this**; an unreviewed PR waits gated the same regardless of tool. And only
+    no Blocker/Major is unresolved."* **Only the owning session — whichever tool
+    drives the PR — sets this**; an unreviewed PR waits gated regardless of tool. And only
     after actually waiting them in. Never the babysitter.
 
   `label-automerge.yml` arms auto-merge only when **both** are present; merge on

@@ -351,6 +351,11 @@ jobs:
       #
       # Indexet är mätobjektet, inte arbetsträdet: `File.GetUnixFileMode` och `test -x` mäter
       # utcheckningen, som på Windows ljuger. Därför bash här och inte en C#-pin.
+      # AGENTS.md-budgeten är blockerande: Codex trunkerar TYST över sitt kombinerade
+      # tak, så överskridande måste falla här (ADR 0135 Decision 2).
+      - name: AGENTS.md byte budget (blocking, ADR 0135)
+        run: bash .github/scripts/agents-md-budget-guard.sh
+
       - name: deploy/systemd/*.sh är exekverbara i indexet
         run: |
           # A GLOB THAT MATCHES NOTHING PASSES VACUOUSLY, so the count is checked first: a

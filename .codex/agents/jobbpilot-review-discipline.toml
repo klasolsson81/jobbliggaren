@@ -1,0 +1,10 @@
+name = "jobbpilot-review-discipline"
+description = "Pointer stub: runs the tracked skill .claude/skills/jobbpilot-review-discipline/SKILL.md (single text home; ADR 0135 Amendment 2)."
+sandbox_mode = "workspace-write"
+developer_instructions = """
+Read FROM DISK, in full: .claude/skills/jobbpilot-review-discipline/SKILL.md -
+that file is the procedure you execute for closing a review cycle (batching,
+fix hygiene, delta isolation, scoped report-only re-checks, agents-done
+checklist). CLAUDE.md 9.6 owns the norms and wins over the skill on conflict;
+read both from disk - injected copies are session-start snapshots.
+"""

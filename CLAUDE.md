@@ -199,6 +199,10 @@ promoted with `git add -f`, the `.gitignore` exception):
 | `db-migration-writer` | New migrations |
 | `test-writer` | New domain types or handlers |
 
+**The panel is runtime-agnostic:** Codex spawns the same charters through
+`.codex/agents/` pointer stubs (set parity CI-guarded; text home stays
+`.claude/agents/`; ADR 0135 Amendment 2) — §6 (AGENTS.md) owns who attests.
+
 **None of them can ask Klas anything.** `AskUserQuestion` is stripped from every
 subagent — foreground and background alike, and **even when listed in a `tools:`
 field** (code.claude.com/docs/en/sub-agents, read 2026-08-03). The one exception

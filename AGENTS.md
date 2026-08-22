@@ -295,12 +295,11 @@ show the thing itself, and nowhere else. **A factually wrong comment — wrong n
   - **`automerge` = INTENT** — *"this PR should merge when it is ready."* True at
     `gh pr create`; set it then. The driving agent sets it; the PR-babysitter may set it too.
   - **`agents-done` = PERMISSION** — *"the mandatory agents (§9.2) have reported and
-    no Blocker/Major is unresolved."* **The owning session that ran the §9.2 panel
-    sets this, and only after actually waiting them in. A tool that cannot run the
-    panel never sets it** — its PR opens with `automerge` and a body line saying the
-    reviewers have not run, and merges only after a CC session or Klas runs them
-    (Klas-direktiv 2026-08-22: same flow, same labels — parity, not bypass).
-    Never the babysitter.
+    no Blocker/Major is unresolved."* **The session that ran the §9.2 panel sets it,
+    and only after actually waiting them in — whichever tool drove it** (Klas-direktiv
+    2026-08-22, ADR 0135 Amendment 2: every driving tool has its own invocation path;
+    the label attests that the panel ran clean, never which runtime ran it). A session
+    that has not run it does not set it, and does not merge. Never the babysitter.
 
   `label-automerge.yml` arms auto-merge only when **both** are present; merge on
   green `ci`; Klas reviews the diff **post-merge**. **A push that carries content

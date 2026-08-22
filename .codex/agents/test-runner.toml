@@ -1,0 +1,12 @@
+name = "test-runner"
+description = "Pointer stub: runs the tracked charter .claude/agents/test-runner.md (single text home; ADR 0135 Amendment 2)."
+sandbox_mode = "workspace-write"
+developer_instructions = """
+You are test-runner. Before anything else, read FROM DISK, in full:
+.claude/agents/test-runner.md - that file IS your charter and governs everything,
+including your Output format and its caps. Injected spec copies are
+session-start snapshots: read CLAUDE.md, AGENTS.md and any file the charter
+points to (docs/spec-rationale.md, runbooks) from disk. You cannot prompt the
+user - record escalations in your report, never paraphrase them away.
+Report in Swedish.
+"""

@@ -44,7 +44,7 @@ forward pointer into nothing, and **it shall be converted** to the issue that ow
 that work the next time anyone touches that file. Some remain unconverted — this is a
 standing requirement, not a claim that the sweep was exhaustive.
 
-Top-level `BUILD.md`/`CLAUDE.md`/`DESIGN.md` may be edited autonomously via the
+Top-level `BUILD.md`/`CLAUDE.md`/`AGENTS.md`/`DESIGN.md` may be edited autonomously via the
 normal feature-branch → PR → automerge flow (§9.2/§6); Klas reviews the diff
 post-merge. Mandatory spec-edit agents apply (dotnet-architect + code-reviewer;
 design-reviewer for DESIGN.md design-token changes). Agents place new docs per
@@ -287,12 +287,14 @@ show the thing itself, and nowhere else. **A factually wrong comment — wrong n
   (`ci` aggregate green; observe-only jobs don't block) → pre-commit gates
   (`dotnet format`, web ESLint + `tsc`) + pre-push gitleaks secret scan.
 - **Automerge (ADR 0065 Amendment 2026-06-07; autonomous flow 2026-06-25; two-label
-  split #836, 2026-07-27):** CC creates PRs and pushes without asking. **Two labels,
+  split #836, 2026-07-27):** the driving agent — CC and Codex alike, same flow and same
+  labels (Klas-direktiv 2026-08-22, ADR 0135) — creates PRs and pushes without asking. **Two labels,
   two meanings, and they are not interchangeable:**
   - **`automerge` = INTENT** — *"this PR should merge when it is ready."* True at
-    `gh pr create`; set it then. CC sets it; the PR-babysitter may set it too.
+    `gh pr create`; set it then. The driving agent sets it; the PR-babysitter may set it too.
   - **`agents-done` = PERMISSION** — *"the mandatory agents (§9.2) have reported and
-    no Blocker/Major is unresolved."* **Only the owning session sets this**, and only
+    no Blocker/Major is unresolved."* **Only the owning session — whichever tool drives
+    the PR — sets this**; an unreviewed PR waits gated the same regardless of tool. And only
     after actually waiting them in. Never the babysitter.
 
   `label-automerge.yml` arms auto-merge only when **both** are present; merge on
@@ -304,7 +306,7 @@ show the thing itself, and nowhere else. **A factually wrong comment — wrong n
   tears down the gate it was invoked to close. **Bringing the branch up to base does not**
   (`.github/scripts/is-pure-base-merge.sh`, fail-closed: every error and every
   shape it cannot vouch for disarms).
-  Spec-edits to BUILD/CLAUDE/DESIGN no longer require pre-approval (§9.2) —
+  Spec-edits to BUILD/CLAUDE/AGENTS/DESIGN no longer require pre-approval (§9.2) —
   they ride the same flow. Exception (STOPP instead): an unresolved agent
   Blocker/Major, **or any §12 merge-blocking condition** (a §5 anti-pattern,
   Clean-Architecture boundary violation, non-BUILD.md library, design-token change

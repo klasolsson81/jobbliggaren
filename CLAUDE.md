@@ -174,7 +174,7 @@ the verdict table, every escalation verbatim and §9.6's named skips (§9.2).
 
 **9.2 Boundaries.** CC writes code, tests, migrations, CI config, docs;
 proposes refactorings; creates ADRs for its architecture decisions. **CC MAY edit
-`BUILD.md`/`CLAUDE.md`/`DESIGN.md` autonomously** via the normal feature-branch
+`BUILD.md`/`CLAUDE.md`/`AGENTS.md`/`DESIGN.md` autonomously** via the normal feature-branch
 → PR → automerge flow (autonomous multi-session flow, 2026-06-25 — the prior
 spec-edit pre-approval gate is lifted); Klas reviews the diff post-merge.
 Mandatory spec-edit agents still apply (dotnet-architect + code-reviewer; plus
@@ -487,11 +487,13 @@ command, the report-only prompt, the verdict-table format and the label checklis
 
 ## 13. Update process
 
-This file changes when a new anti-pattern, standard, or CC boundary is needed.
-CC may propose **and apply** changes autonomously via PR + automerge (§9.2;
-mandatory dotnet-architect + code-reviewer); Klas may also propose. Never
-silently — always via a visible PR diff, which Klas reviews (post-merge under
-automerge). Rules land here; derivations, incident history and dated
+This file — and `AGENTS.md`, the shared core — changes when a new anti-pattern,
+standard, or CC boundary is needed, under the same process and the same
+mandatory agents; a § moving between the two files updates the §-index in the
+same PR. CC may propose **and apply** changes autonomously via PR + automerge
+(§9.2; mandatory dotnet-architect + code-reviewer); Klas may also propose.
+Never silently — always via a visible PR diff, which Klas reviews (post-merge
+under automerge). Rules land here; derivations, incident history and dated
 measurements land in `docs/spec-rationale.md` (§-keyed, same PR). A spec edit
 that adds a derivation paragraph to this file is the regrowth that split
 exists to prevent.

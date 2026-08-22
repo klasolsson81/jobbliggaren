@@ -53,14 +53,13 @@ Details and formats: `docs/runbooks/session-protocol.md`.
 | `docs/runbooks/` | Operational procedures |
 | `docs/research/` (+`issues/`) | Findings, planning, open questions |
 | `docs/reviews/` | Agent review reports |
+| `docs/spec-rationale.md` | Non-normative derivations, incidents and dated measurements moved out of the spec, §-keyed |
 
 **The backlog is GitHub Issues, and nothing else** (Klas-direktiv 2026-08-02). The
 TD register — `docs/tech-debt.md`, its archive, and the `jobbpilot-td-lifecycle`
-skill — is **retired**; see §9.6. Its 44 live entries were disposed of in the same
-pass, and the breakdown lives in **one** place —
-[#1172](https://github.com/klasolsson81/jobbliggaren/issues/1172) — which also carries
-every parked entry **inline**, because both register files were gitignored and
-"archived" would have meant deleted.
+skill — is **retired**; see §9.6, and read
+[#1172](https://github.com/klasolsson81/jobbliggaren/issues/1172) before concluding the
+register is missing anything.
 **A `TD-NNN` marker surviving in a tracked doc, ADR, runbook, workflow, or code
 comment is a historical provenance citation**, like a commit hash: it records why
 something exists and is not a pointer into a register you can still open. Where a
@@ -88,20 +87,17 @@ external clients). Api/Worker compose DI only.
 **1. Package.** **Domain = zero EF Core, no exceptions.** **Application MAY
 reference the `Microsoft.EntityFrameworkCore` package** — §3.6 puts
 `IAppDbContext` directly in handlers with no repository layer, and that is
-impossible without it. ADR 0009 accepts the coupling knowingly; its
-Konsekvenser/Negativt records "Handlers är direkt beroende av EF Core-interfaces
-(via `IAppDbContext`)". Ratified trade-off, not drift. **Application must NEVER
+impossible without it. ADR 0009 accepts the coupling knowingly. **Application must NEVER
 reference a provider, relational, or EF-Identity package** — `Npgsql`,
 `Npgsql.EntityFrameworkCore.PostgreSQL`, `Microsoft.EntityFrameworkCore.Relational`,
 `.SqlServer`, `.Sqlite`, `Microsoft.AspNetCore.Identity.EntityFrameworkCore`.
-`DomainLayerTests` fails the build on any of these Application actually uses
-(NetArchTest reads type references in IL, not `PackageReference` entries). The
+`DomainLayerTests` fails the build on any of these Application actually uses. The
 list here is a snapshot — the test file is authoritative.
 
 **2. Port.** Application reaches the database only through `IAppDbContext`,
 which exposes `DbSet<T>` per aggregate root and `SaveChangesAsync` — and
 deliberately not `ChangeTracker` or `Database` (ADR 0009 §Beslut) — plus
-`Detach`, added later for the ADR 0032 §5 upsert-retry. Ordinary
+`Detach`. Ordinary
 core EF Core over those `DbSet<T>`s is in bounds and needs no justification:
 `AsNoTracking` (§3.6 default), `Include`, `IgnoreQueryFilters`, `ToListAsync`,
 `ExecuteUpdate`/`ExecuteDelete`, `EF.Property`, `DbUpdateException`.
@@ -110,8 +106,7 @@ core EF Core over those `DbSet<T>`s is in bounds and needs no justification:
 behind core-looking names are provider extensions: `EF.Functions.Like` is core,
 but `EF.Functions.JsonExists`/`ILike` ship in the Npgsql package, and
 `AsSplitQuery` is relational-only. When a query needs one, it goes behind an
-Application-owned port implemented in Infrastructure
-(`IJobAdRequirementBackfillFilter` — its doc comment cites this rule back) —
+Application-owned port implemented in Infrastructure —
 **never** by adding the package to `Jobbliggaren.Application.csproj`. Contrast
 `EF.Property`: shadow-column reads ARE core and belong inline, no port.
 
@@ -119,6 +114,8 @@ So the line to stop at is the **provider** boundary, not the EF Core boundary.
 If you are importing EF Core in **Domain** — stop. If you are reaching for
 `Npgsql` or anything `.Relational` in **Application** — stop; the query belongs
 behind a port.
+
+*Derivations and worked instances: `docs/spec-rationale.md` §2.*
 
 **2.2 DDD.** Aggregates protect invariants in constructors/methods, not
 handlers. No public setters (private set + EF mappings where forced). Changes
@@ -178,12 +175,9 @@ signal available is a discipline miss.
   job or startup seeder, is read-only between runs, **and** has some column
   reaching a `WHERE`, join, `ORDER BY`, `GROUP BY` or `DISTINCT`. Those are the
   clauses whose estimates statistics inform; where no column reaches one, no
-  *column* statistic can change the plan (verified 2026-07-25: the only **`src`**
-  readers of `taxonomy_concepts`/`taxonomy_relations` are two predicate-free
-  `ToListAsync` calls in `TaxonomyReadModel.LoadAsync`). Continuous DML excuses
+  *column* statistic can change the plan. Continuous DML excuses
   the table only where autovacuum **demonstrably** re-arms — check
-  `last_autoanalyze`, never assume: `company_register` held zero statistics at a
-  million rows. Place the call where its failure is survivable: fail-loud in a
+  `last_autoanalyze`, never assume. Place the call where its failure is survivable: fail-loud in a
   retry-bounded job, typed-catch-and-log at host startup (a typed catch that
   logs is not the §5 catch-all ban). Why:
   `ScbCompanyRegisterStore.AnalyzeAsync` (#560).
@@ -217,10 +211,8 @@ signal available is a discipline miss.
   fetch — those are the two bullets above.
 - Forms: React Hook Form + Zod — never loose `useState` for large forms.
 - **Do not reach for TanStack Query.** It is not in `package.json` and never was,
-  so adding it is an undiscussed dependency add (§9.2) — and on the read-suggest
-  surface specifically, a reversal of ADR 0042 Beslut C, which is a Klas-GO
-  supersession rather than a library choice. BUILD.md §3.1 records the delivered
-  mechanisms above.
+  so adding it is an undiscussed dependency add (§9.2). BUILD.md §3.1 records the
+  delivered mechanisms above.
 - Naming: routes = Swedish nouns (`/ansokningar`, `/jobb`); components =
   English PascalCase; UI copy Swedish, code English.
 
@@ -252,8 +244,7 @@ stubbed port return whose value the real adapter never emits. The obligation
 attaches to the **assertion, not to the seam**: a stub, a `db.X.Add`, or a direct
 `UPDATE` carries none when the state it creates is one `src/` does produce —
 convenience is not the offence — and going *through* a production entry point is
-no exemption when the argument is not (a hand-built `rawPayload` carrying the key
-the ingest sanitizer strips is the measured case). Read the trigger against **the
+no exemption when the argument is not. Read the trigger against **the
 state the assertion actually rests on**, neither a generalisation of it nor an
 incidental detail beside it: a soft-deleted `ResumeVersion` is producible where a
 soft-deleted **Master** is not, while a plan guard rests on a table's statistics
@@ -271,8 +262,7 @@ unreachable state is permitted **only when declared unreachable**, and then may
 assert only that the read side degrades safely if the invariant breaks — never
 what production does.
 **"No domain method exists" is a reject, not a disclosure**, and seam parity with
-another test is not provenance: #843's fiction was authorised by explicit parity
-with a legitimate seam whose SQL was identical.
+another test is not provenance.
 
 **CV & matching engines (deterministic, no AI/LLM — ADR 0071):** any
 LLM/AI inference call in the product (no `IAiProvider`, no Anthropic/BYOK/credit
@@ -302,8 +292,7 @@ message, which is not reviewed as code) · **a live** measured number in a track
 file — it decays within a commit or two, so publish the command that regenerates
 it; a *dated historical* measurement of a finished event ("PR #1206 took 11
 rounds") is §1.6 provenance and does not decay. Comment where the code cannot
-show the thing itself, and nowhere else: comment mass is what turned review into
-rounds. **A factually wrong comment — wrong number, wrong gate name, stale
+show the thing itself, and nowhere else. **A factually wrong comment — wrong number, wrong gate name, stale
 §-reference — is a defect and is fixed. Imperfect phrasing is not** ("en kommentar
 är ingen bugg"); it is graded in `code-reviewer`'s charter and routed by §9.6.
 **Unlike every other list in §5, this block is not a §12 STOPP class** — see §12.
@@ -336,11 +325,9 @@ rounds. **A factually wrong comment — wrong number, wrong gate name, stale
   answered against a diff that is no longer the one merging; wait them in against
   the new head and set it again. That is also why a re-check after a verdict is
   **report-only** (§9.6): a reviewer that applies its own fix pushes content, and
-  tears down the gate it was invoked to close. **Bringing the branch up to base does not** —
-  `.github/scripts/is-pure-base-merge.sh` compares the pushed tree against the
-  tree an automatic merge would produce and leaves the gate alone when they are
-  identical, which is what `gh pr update-branch` produces. It is fail-closed:
-  every error and every shape it cannot vouch for disarms.
+  tears down the gate it was invoked to close. **Bringing the branch up to base does not**
+  (`.github/scripts/is-pure-base-merge.sh`, fail-closed: every error and every
+  shape it cannot vouch for disarms).
   Spec-edits to BUILD/CLAUDE/DESIGN no longer require pre-approval (§9.2) —
   they ride the same flow. Exception (STOPP instead): an unresolved agent
   Blocker/Major, **or any §12 merge-blocking condition** (a §5 anti-pattern,
@@ -364,15 +351,12 @@ worktrees. The rules below keep parallel work collision-free; full playbook in
 - **Worktree-per-task (NO exception — the stack-lane too).** Every session
   works in its own `c:/tmp` worktree off `origin/main`; **NEVER the shared main
   working copy.** Two sessions in one copy share one HEAD/index → either's
-  `git checkout` silently reverts the other's working tree (real incident
-  2026-06-28: a parallel checkout yanked an active branch mid-session; the
-  commit survived only because it was already pushed). **Session-start
+  `git checkout` silently reverts the other's working tree. **Session-start
   pre-flight, before any work:** `git worktree list` (see active sessions +
   their branches) → confirm the issue is not already claimed (`gh issue view
   <N>` + open PRs) → create + enter your worktree (**Path A, recommended:** the
-  `EnterWorktree` tool → `.claude/worktrees/<name>`, zero-setup; **or Path B:**
-  raw `git worktree add c:/tmp/jbl-<slug> origin/main -b <type>/<slug>` +
-  `pwsh scripts/sync-worktree-docs.ps1 <path>` — see the playbook) → `cd` in →
+  `EnterWorktree` tool; **or Path B:** raw worktree + docs-sync — commands in
+  the playbook §3) → `cd` in →
   claim the issue visibly if it has one (`gh issue edit <N> --add-assignee
   @me`). **ABORT if launched in the main copy on a non-main branch** — another
   session owns it; never
@@ -390,11 +374,9 @@ worktrees. The rules below keep parallel work collision-free; full playbook in
 - **Shared-Postgres rule.** Only ONE "stack-owner" session runs the local dev
   Postgres (port 5435) + Api/Worker (single-owner: the shared dev DB + port
   5435; the running stack bin-locks only its OWN worktree's `bin/`) — **from its
-  own worktree** (Model 1), passing secrets via a `ConnectionStrings__Postgres`
-  env
-  override built from `.env`'s `POSTGRES_PASSWORD_DEV` (NOT by copying
-  `appsettings.Local.json`; the dev `appsettings` uses a `${...}` placeholder
-  the launch must expand, else `28P01`). Every other session runs code + unit +
+  own worktree** (Model 1), passing secrets via the env override in
+  `docs/runbooks/local-dev-setup.md` §Fällor (NOT by copying
+  `appsettings.Local.json`). Every other session runs code + unit +
   architecture + **Testcontainers** (ephemeral DB, parallel-safe) — never
   against the shared dev DB.
 - **Local docs in worktrees.** Gitignored session state (`current-work.md`,
@@ -407,43 +389,28 @@ worktrees. The rules below keep parallel work collision-free; full playbook in
   stack without committing or copying secrets.
   ⚠ **That sync is a MANUAL copy from the main copy**, so a pointer into those
   docs is dead for anyone who did not run it — a skipped step, a fresh clone,
-  GitHub's web view, a sub-agent. **The cost is spelling out, not placement:**
-  §9.6 (3) carries its derivation inline rather than citing ADR 0132/0133, and
-  would live in the spec either way on its own §13 ground. ADR 0072 Decision 2
-  owns the other side and this does not reopen it — and is itself gitignored,
-  which is this note's own case.
+  GitHub's web view, a sub-agent. §9.6 (3)'s operative bound stays in the spec
+  on its own §13 ground, and its derivation history is tracked in
+  `docs/spec-rationale.md` §9.6. ADR 0072 Decision 2 owns the other side and
+  this does not reopen it.
 - **Backlog = GitHub Issues** (`area:`/`hotspot:`/**`mvp`**/`P0`–`P3`/lane `BE`·`FE`·
-  `BE+FE`/`wip`·`blocked` labels; `next-up` is on zero open issues as of 2026-08-02 and
-  `mvp` replaced it in practice); `steg-tracker.md` is the strategic
-  map.
+  `BE+FE`/`wip`·`blocked` labels); `steg-tracker.md` is the strategic map.
 
   **`mvp` is the label you pick work from, and it is a second axis, not a fourth
   priority.** Klas-direktiv 2026-08-02: a couple of real test users on
   `jobbliggaren.se` **within a month of that date**. An issue earns `mvp` when **a real
   test user meets it, or it blocks going live** — that is the criterion, and **the second
-  clause is doing real work**: measured 2026-08-02, 11 of 21 labelled issues carry
-  `area:infra`/`area:auth` and no product-surface `area:` — the deploy stack (#196),
-  backup (#197), key rotation (#198), the log sink (#1175). *(Area is a **proxy** for
-  which clause applies, not an adjudicator: #1171 is `area:auth` and is a clause-1 case —
-  a user meets a missing password reset — while #853 and #1033 are `area:docs` and are
-  clause-2.)* Ties resolve toward labelling: a mis-labelled issue costs one backlog row,
+  clause is doing real work**. Ties resolve toward labelling: a mis-labelled issue costs one backlog row,
   a mis-skipped user-facing defect ships.
 
   On the product side, *"a real test user meets it"* resolves to the **core features**
   Klas named: `/jobb` · `/ansokningar` · `/foretag` · the **smart watches** (industry +
   municipality) on the company page · `/cv/granska`. *(The CV **builder** is paused, so
-  builder FEATURES are not MVP — but a builder-adjacent defect a user still meets is,
-  e.g. #1061, where `/cv` offers entry points into the paused builder.)*
+  builder FEATURES are not MVP — but a builder-adjacent defect a user still meets is.)*
 
   **`P0`–`P3` grades severity and urgency; `mvp` says whether the item is in scope for
-  reaching real users.** They are different questions and they cross — measured
-  2026-08-02: three `mvp` issues are `P3` and eight non-`mvp` issues are `P2`. An
-  ordinal scale cannot carry two orthogonal axes, and overloading `P0` to mean MVP
-  would destroy the severity information on nearly every open issue (55 of 58 carry a
-  `P`, measured 2026-08-02). *(Klas put it
-  both as "kärnfunktion slår prio-siffra" and "MVP-kritiskt = hög prio"; these agree in
-  practice — no non-`mvp` issue carries `P0`/`P1` — but the two-axis split is how the
-  spec resolves them, not a quote.)*
+  reaching real users.** They are different questions and they cross; an ordinal
+  scale cannot carry two orthogonal axes.
 
   **Read it as: `mvp` = in scope now; no `mvp` = skippable.** In scope is not the same
   as unblocked — `mvp` may coexist with `blocked`, and §9's hotspot/migration rules
@@ -460,8 +427,7 @@ worktrees. The rules below keep parallel work collision-free; full playbook in
   babysitter running before it). Playbook §9 carries who said what, when. Side-track
   PRs you own are shepherded to green before new scope.
 - **A pushed PR is not a merged PR, and a merged PR is not a closed issue.**
-  Automerge does **not** rebase: when a sibling lands, yours goes `BEHIND` and
-  then sits there forever with green `ci` and automerge on, and nobody is told.
+  Automerge does **not** rebase.
   Squash drops `Closes #N` → the issue keeps its `wip` claim. **Watch your own
   PRs to MERGE, then close out** (`gh issue close`, drop `wip`, unassign).
   Mechanics and all four `mergeStateStatus` states: playbook §8.1 — read it, it
@@ -475,41 +441,31 @@ worktrees. The rules below keep parallel work collision-free; full playbook in
   #836: the `arm` job itself failed** (head moved, `UNKNOWN` exhausted, or a real
   API error) — the PR carries both labels and was never armed. `label-automerge`
   is not a required check, so nothing surfaces it; read the job log before
-  assuming either of the other two. *(2026-07-14 hygiene pass,
-  all measured: 44 dead local + 44 dead remote branches; #800/#801 shipped and
-  still `wip` two days on; 9 `wip` claims against 4 running CCs.)*
+  assuming either of the other two. A FOURTH: the `blocked` label = a §9.6
+  STOPP to Klas, not a stuck PR.
   **The dead-REMOTE-branch half is mechanised since #725** —
   `.github/workflows/delete-merged-branches.yml` deletes remote branches whose PR
   has merged, daily or on `workflow_dispatch`. Do not re-file it, and do not read
-  a surviving branch as a *new* defect before checking the sweep's last run. It is
-  a **scheduled** sweep and not a merge-event handler for a measured reason:
-  events triggered by `GITHUB_TOKEN` do not start workflow runs, so the merges
-  that leave branches behind — every app-merge — are exactly the ones whose
-  `pull_request: closed` event never fires. **Two mechanisms, one cause — don't
-  collapse them:** that suppressed *workflow run* is also why CodeQL stopped
-  running on main, whereas `delete_branch_on_merge` is a repo *setting* that
-  never travels through the workflow engine at all — it simply follows the
-  merging identity, and the app is not it. Same actor, different machinery; a fix
-  aimed at the wrong one of the two does nothing. **Your LOCAL branches are still
-  yours**, as is the `wip`/issue-close half of that measurement.
+  a surviving branch as a *new* defect before checking the sweep's last run.
+  **Your LOCAL branches are still yours.**
 - **Never reap a worktree you did not create — and never one whose PR has not
   merged.** The general case belongs to the SessionStart reaper: a PR usually
   merges *after* its session has ended, so "clean up when it merges" is not a
   same-session action (ADR 0094). But that reaper only ever touches trees
   carrying a close-stamped marker, and a tree made with a raw `git worktree add`
-  has none — measured 2026-07-14: **0 markers across 13 worktrees, 1121
-  "no-marker" skips, one reap in the hook's entire history**. So it will not
-  collect yours. The tree **you** made this session, whose PR **you** watched
+  has none. So it will not collect yours. The tree **you** made this session, whose PR **you** watched
   merge, you may remove yourself (rescue its gitignored docs first). Anyone
   else's: never, for any reason.
   **Liveness is the boolean the OWNER sets** (`.jbl-worktree.json` → `closed_at`),
-  never an inference *you* make about someone else — ADR 0094 rejected age/pid
-  liveness proxies outright: doubt resolves to skip, never to "probably fine".
+  never an inference *you* make about someone else (ADR 0094): doubt resolves
+  to skip, never to "probably fine".
   "I created it" is knowledge; "its lock looks stale" is a guess that yanks a
   live tree.
   And **land your `current-work.md` / `steg-tracker.md` edits in
   the main copy before you stop** — the rescue saves gitignored files the main
   copy does *not* have; it cannot save your edits to ones it already does.
+
+*Derivations, incidents and dated measurements: `docs/spec-rationale.md` §6.5.*
 
 ## 7. Testing
 
@@ -539,9 +495,7 @@ wildcards; a selector that matches nothing runs to completion and exits **8**. A
 tests run in it. **The proof that a suite ran is the `total:` line, never the
 exit code** — which after a pipe measures the pipe, and which exit 1 never prints
 at all. §8 point 3 rests on that: "architecture tests green" is a non-zero
-`total:` with `failed: 0`. #1311 was not a quiet failure — every form above says
-`Zero tests ran` or names the right flag. It survived because nobody read the
-line.
+`total:` with `failed: 0`.
 
 ## 8. Definition of Done
 
@@ -557,10 +511,12 @@ decisions · 10. code review done.
 **9.1 On any task:** read the relevant BUILD.md section → check existing
 patterns (reuse, don't invent) → identify the layer → test-first for new
 domain logic → implement minimally → `dotnet test` + lint → conventional
-commit → push branch, `gh pr create` with agent reports inline, set the
-`automerge` label → **run the mandatory agents, wait in ALL of them, resolve every
-Blocker/Major** — batched, and closed by scoped re-checks (§9.6; the procedure is
-the `jobbpilot-review-discipline` skill) — **and only then set `agents-done`** (§6).
+commit → push branch, `gh pr create`, set the `automerge` label → **run the
+mandatory agents, wait in ALL of them, resolve every Blocker/Major** — batched, and
+closed by scoped re-checks (§9.6; the procedure is the `jobbpilot-review-discipline`
+skill) — **and only then set `agents-done`** (§6). The PR body is written twice, never
+more: at creation (what changes and why), and ONE edit after the last verdict appending
+the verdict table, every escalation verbatim and §9.6's named skips (§9.2).
 
 **9.2 Boundaries.** CC writes code, tests, migrations, CI config, docs;
 proposes refactorings; creates ADRs for its architecture decisions. **CC MAY edit
@@ -574,12 +530,16 @@ outside BUILD.md §3.1 without discussion; violate §5 (a §5 anti-pattern is
 never autonomous); start a new session phase without explicit Klas GO.
 
 **Mandatory agent invocation** (before the STOPP report; skipping counts as a
-discipline miss; reports go to `docs/reviews/<date>-<phase>-<agent>.md`):
+discipline miss; reports go to `docs/reviews/<date>-<phase>-<agent>.md` — header +
+findings + escalations verbatim, capped per the reviewing agent's charter's Output format; the
+cap binds the session's transcription too. The PR body carries the verdict table,
+escalations and §9.6's named skips, never a report; a report Klas must read on GitHub is
+promoted with `git add -f`, the `.gitignore` exception):
 
 | Agent | When |
 |---|---|
 | `senior-cto-advisor` | Multi-approach choices, finding triage (in-block vs follow-up PR vs issue). Routes a finding; never re-grades one — severity belongs to the agent that reported it (§9.6). Decision-maker — CC gives no own recommendation. Unambiguous CTO verdicts execute without extra Klas GO. |
-| `security-auditor` | PII, auth, secrets, external integrations; **accepting a vulnerability rather than repairing it** — growing `pnpm.auditConfig.ignoreGhsas`, lowering `--audit-level`, or suppressing `NuGetAudit`/NU1901-NU1904 (ADR 0065 Amendment 2026-07-28 Beslut 4). Reducing exposure is not a trigger. Also every exposure-*increasing* change to the suppression surface itself: an `overrides` entry removed or its target lowered, a new override key **in open form**, a gated key becoming open, a removal from `ignoredBuiltDependencies`, and `pnpm/action-setup` raised **past 9** — that last is a migration, not a bump, since pnpm 11 reads none of this configuration, so every repair and the single acceptance go dead while the gate still reports clean. Full enumeration in her Triggers section, keyed to audit area 8 — it is written there, but a trigger only reachable from inside the file it triggers has no invocation path, so the class belongs here. She is that area's **named consumer** of `.github/scripts/audit-suppression-guard.sh`: the blocking gate audits with the ignore list *applied* and so cannot see an accepted advisory that has begun reaching production. The guard also runs in observe-only `audit` on every PR — but Dependabot PRs auto-merge without invoking any agent, and no cadence consults the measurement, so on the auto-merged patch/minor Dependabot PRs — the bulk of what drives that drift — **there is no reader at all**. Nor is there an obligation to read it on the manually reviewed remainder: the guard's `::warning::` does surface, in the Checks view, but `audit` is `continue-on-error` and absent from `ci`'s `needs`, so a finding changes nothing in the merge signal. The readerless set is therefore *larger* than the auto-merged one, not equal to it. That gap is named in ADR 0065's amendment and triaged there as a follow-up PR rather than a TD; **no owner is assigned**, and it is not closed. |
+| `security-auditor` | PII, auth, secrets, external integrations; **accepting a vulnerability rather than repairing it** — growing `pnpm.auditConfig.ignoreGhsas`, lowering `--audit-level`, or suppressing `NuGetAudit`/NU1901-NU1904 (ADR 0065 Amendment 2026-07-28 Beslut 4). Reducing exposure is not a trigger. Also every exposure-*increasing* change to the suppression surface itself: an `overrides` entry removed or its target lowered, a new override key **in open form**, a gated key becoming open, a removal from `ignoredBuiltDependencies`, and `pnpm/action-setup` raised **past 9** — that last is a migration, not a bump, since pnpm 11 reads none of this configuration, so every repair and the single acceptance go dead while the gate still reports clean. Full enumeration in her Triggers section, keyed to audit area 8. She is that area's **named consumer** of `.github/scripts/audit-suppression-guard.sh`: the blocking gate audits with the ignore list *applied* and so cannot see an accepted advisory that has begun reaching production. |
 | `code-reviewer` + `dotnet-architect` | Larger changes (>5 files or architectural choices) |
 | `dotnet-architect` (mandatory) | All Terraform/IaC scope (ADR 0036 precedent) |
 | `db-migration-writer` | New migrations |
@@ -598,10 +558,8 @@ area-8 Majors), in a labelled issue, since `Bash` survives both filters and `gh`
 with it. What no subagent can do is **prompt** Klas. Carrying it further is the
 invoking session's duty, and an escalation the session paraphrases away has been
 dropped, not delivered. Background is additionally the **default** for subagents
-(v2.1.198+), and a background subagent keeps only a fixed built-in set — `Read`,
-`Grep`, `Glob`, `Bash`, `PowerShell`, `Edit`, `Write`, `NotebookEdit`,
-`WebFetch`, `WebSearch`, `TodoWrite`, `Skill`, `ToolSearch`, `EnterWorktree`,
-`ExitWorktree`, `Monitor`, `TaskStop`, `SendMessage`, `Artifact` — with
+(v2.1.198+), and a background subagent keeps only a fixed built-in set (the
+list, with its read-date: `docs/spec-rationale.md` §9.2) — with
 everything else removed whether inherited or listed, so **the same definition
 resolves to different tools in the foreground and the background**. `Agent` and
 `ExitPlanMode` are the exceptions: they follow the first filter wherever the
@@ -610,6 +568,7 @@ Delegation sections are live, not dead text. That removal
 "reports no error" unless it empties the list entirely: a charter section whose
 tool never arrived comes back thin rather than failed, which is the shape to
 suspect before believing a short report.
+*Derivations and the dated tool list: `docs/spec-rationale.md` §9.2.*
 
 **9.3 When unsure:** read first (repo, BUILD.md, existing patterns) → ask
 concrete questions → never guess whether a feature should exist.
@@ -634,11 +593,7 @@ and senior-cto-advisor decides when it is genuinely ambiguous. What changed
 **The list below answers "where does what is not fixed go" — never "what should
 happen to a finding."** The default disposal is the fix itself; a destination is
 for the remainder, and choosing one is the exception that needs a reason.
-Measured 2026-08-10: the backlog grew +62 net in the eight days after the
-register retired (4.3 filed per closed), and 48 of the 60 issues filed in the
-last week were `area:infra`, one of them user-facing — not because the rule was
-wrong but because "fix in-block" above was read as a router. **A session
-therefore leaves the backlog no larger than it found it** — issues filed ≤
+**A session leaves the backlog no larger than it found it** — issues filed ≤
 issues closed or fixed, per session — **except for genuine defects in delivered
 code, which are always filed**, and except for a filing a charter itself
 mandates (security-auditor's area-8 Major): a charter-declared outcome is never
@@ -679,9 +634,8 @@ order. (Praise is not a finding and routes nowhere.) Then:
 
   (3) **A GDPR-implicated security Major may become an accepted-risk ADR when the BOUND holds**
   (Klas-direktiv 2026-08-16). **The route is keyed on who bears the risk, never on the absence of a
-  GDPR implication** — which is why (2) could not reach these cases. ADR 0132's Amendment §1 derived
-  the ground and ADR 0133 followed it: **one derivation, two homes**, which is the duplication this
-  paragraph ends. Both ADRs are gitignored, so this paragraph is written to stand alone.
+  GDPR implication** — which is why (2) could not reach these cases. The deriving ADRs
+  0132/0133 are gitignored, so this paragraph is written to stand alone.
 
   **The bound is ONE condition, measured, in three parts — all three required.** The only data
   subject whose Art. 5, Art. 12–22 or Chapter V position is affected is the **controller himself**,
@@ -691,23 +645,20 @@ order. (Praise is not a finding and routes nowhere.) Then:
   not publicly readable, measured against the live surfaces. **(iii) is not an instance of (i)**, and
   writing it out is the whole point: publishing a false transparency statement about a live
   processing breaches Art. 5(1)(a)/12(1) with **no registered data subject at all**, so (i) can
-  hold — vacuously — while (iii) fails. Both delivered instances rested on all three.
+  hold — vacuously — while (iii) fails.
 
   ⚠ **The three parts measure the criterion; they do not replace it — they are necessary, not
   sufficient.** They are the registers where a bearer has arisen so far — account, send, public
   reading — and **none of them measures CONTENT**. A bearer none of the three reaches fails the
   condition all the same: a referee named inside a CV the controller himself uploaded, or an enskild
   firma's `organization_number` in `job_ads`, which for a sole trader **is the holder's personnummer**
-  (#841) — neither holds an account, received a send, or sits behind a public page. *(Not
-  `company_register` — it holds no enskilda firmor by design; the ROPA's SCB entry owns why.)*
+  (#841) — neither holds an account, received a send, or sits behind a public page.
 
   ⚠ **Read *affected* as strictly as the criterion writes it:** the bearer must be one **this finding
   reaches**. A content bearer it does not reach is not a bearer of this acceptance — otherwise the
   route is inert against any system that holds a third party's data at all, and neither delivered
-  instance could have been signed. **Read the criterion first and the parts as its instruments** — the
-  opposite of the lapse clause below, where the general sentence under-triggers and the enumeration
-  governs. The two are not the same shape, and applying one's lesson to the other gets it exactly
-  backwards.
+  instance could have been signed. **Read the criterion first and the parts as its
+  instruments.**
 
   **The measurement names its artefact, its date and its home.** It is recorded in the same ADR or
   CLAUDE.md update as the acceptance — never a PR body, never chat. **It expires**: a bearer-absence
@@ -732,14 +683,10 @@ order. (Praise is not a finding and routes nowhere.) Then:
   is then **resolved by acceptance** — which is **not** what §12 means by *unresolved*; its
   *0 Blocker / 0 Major* wording describes the ordinary case, not a signed acceptance — so the PR
   rides the normal flow. **Every other applicable §12 class must still clear independently**, and a §5 `Security:`
-  class clears through Klas, not through this route. *(Measured against both delivered instances:
-  neither hit §5 `Security:` at all. That list is CODE anti-patterns; a GDPR-implicated Major is
-  typically a legal-posture finding with no code form — so a reader who goes looking for a §5 class
-  and finds none has not found a problem.)*
+  class clears through Klas, not through this route.
 
-  ⚠ **This is not a lowered bar, and reading it as one is the failure mode to avoid.** It writes down
-  the bound that was already applied, so a third instance cites it instead of reinventing it — the
-  duplication was the measured cost, not the standard. **Neither ground survives a widening.**
+  ⚠ **This is not a lowered bar, and reading it as one is the failure mode to avoid.**
+  **Neither ground survives a widening.**
   Bearer-absence ends the moment there is a bearer — any of the three parts, or a bearer none of them
   reaches — and Art. 24(1) scales the measures **up** as the processing grows; together they license
   one acceptance, at one size, until the size changes. **An acceptance widened by a single
@@ -748,8 +695,7 @@ order. (Praise is not a finding and routes nowhere.) Then:
 
   **The lapse fires on ANY trigger the acceptance names, and one sentence is not a trigger set.**
   *"The first personal data reaching the processor that is not the controller's"* is the **ground**,
-  not the operative form: a draft carrying it alone was graded **under-triggering**
-  (`security-auditor` M-1, ADR 0133). The operative set is the acceptance's own, enumerated in one
+  not the operative form. The operative set is the acceptance's own, enumerated in one
   home and counted nowhere else. The delivered pair carries four — and one of them, **the copy
   becoming publicly readable, fires with no personal data reaching any processor at all.**
 
@@ -757,11 +703,7 @@ order. (Praise is not a finding and routes nowhere.) Then:
   cannot be measured. **(2) and (3) are granted by Klas — (3) also signed by `security-auditor` —
   and recorded in an ADR or a CLAUDE.md update, never by the session in a PR body. (1) is not a Klas
   grant at all** — per its own text above it is
-  filed as an issue with the escalation named in it, and the PR proceeds. *(This closes
-  `code-reviewer`'s standing escalation, raised on ADR 0132 and again on ADR 0133 (both 2026-08-16),
-  that §9.6 offered no positive route here. §13 is why it lands in this file: the boundary is a CC
-  boundary. That it belongs here **rather than in each ADR** is ADR 0133's own preamble — an ADR
-  decides one processor's case, not a standing rule.)*
+  filed as an issue with the escalation named in it, and the PR proceeds.
 - **The finding does not hold** — its premise is false or revoked → say so plainly, with
   the measurement. Neither a fix nor an issue. This is a real outcome, not a way out.
 - **Minor / nice-to-have** → a **GitHub issue**, and a line in a PR
@@ -779,32 +721,40 @@ order. (Praise is not a finding and routes nowhere.) Then:
 
 **Filing discipline.** An issue asserting that live code does something **measures it
 first**, and records **what adjudicated it and on what date** — a claim with no date
-cannot be told from a claim that has decayed. Six of the retired register's entries
-turned out already fixed the moment anyone measured them: they were true when written
-and rotted in place, because nothing in that register's lifecycle ever required
-re-measuring an entry, and an issue is re-read by no one on its own. A parked or
+cannot be told from a claim that has decayed. A parked or
 deferred item makes **no** truth claim and needs no measurement — but it must then be
 written as scheduling ("not MVP scope, not verified"), never as fact ("still applies",
 "no longer relevant").
 
-**Closing a Blocker/Major — the scoped re-check** (measured 2026-08-09, PRs #1249/#1254:
-0 blocking findings in under three minutes, against full rounds of twenty that generated
-fresh sentences to defend). A fix landing after an agent's verdict goes back to **the agent
-that issued it** — only the issuer can say its own finding is closed, and a fresh reviewer
-re-reviews the whole PR. The re-check is **report-only** and scoped to the **fix delta**;
-it grades that delta only — **no phrasing findings, and no new findings on lines the delta
-did not touch, except a finding the re-checking charter itself grades as a Blocker or
-defines repo-wide rather than per-diff**, which is always reported. That carve-out is not
-optional: an unconditional gag would silence a GDPR or a11y veto the charter holds, and
-§9.6 does not overrule a charter's own exceptions. What the re-check raises is routed by
-this section as any finding is — a **new-in-delta Blocker/Major** is fixed and then
-re-checked against the new delta, since §6 and §12 keep it merge-blocking. Nothing is fixed
-in-block *during* a re-check: each in-block fix invalidates the check just run. Verify HEAD
-is unchanged immediately before setting `agents-done`. **Charters and the skill carry
-pointers here, never restatements** — a restatement that survives an edit to this section is
-the drift #1173 measured, where a retired rule lived on in a satellite file for three
-months. Batching, the delta command, the report-only prompt and the label checklist are the
+**Closing a Blocker/Major — the scoped re-check.** **A fix that closes a finding deletes
+text or changes code — it never adds a claim-sentence.** A finding only closable by added
+prose is closed by deleting the sentence that carried the claim. A fix landing after an
+agent's verdict goes back to **the agent that issued it** — only the issuer can say its
+own finding is closed — except a finding that closes **mechanically**: the flagged
+sentence is deleted, the old string greps to zero and the closing diff for that file
+adds zero lines (no `+` lines beyond the header), recorded as one row in the verdict
+table, no re-check owed. A fresh reviewer re-reviews the whole PR. The re-check is
+**report-only** and scoped to the **fix delta**; it grades that delta only — **no phrasing
+findings, and no new findings on lines the delta did not touch, except a finding the
+re-checking charter itself grades as a Blocker or defines repo-wide rather than
+per-diff**, which is always reported. That carve-out is not optional: an unconditional gag
+would silence a GDPR or a11y veto the charter holds, and §9.6 does not overrule a
+charter's own exceptions. **The cycle is capped: one batched review round, then at most
+ONE scoped re-check per issuing agent.** The cap counts finding-closing re-checks;
+re-verifying a moved head with no open findings is not a round. A new-in-delta
+Blocker/Major raised by that re-check is fixed by deletion (closed mechanically — a
+deletion cannot introduce a claim) or by a code-only change closed by re-running the
+finding's own measurement, each recorded in the verdict table.
+A finding that survives the cap and genuinely needs new prose → **STOPP to Klas**, and
+the session sets the `blocked` label: §6 and
+§12 keep it merge-blocking, so the choice is delete, fix in code, or stop — never explain.
+Nothing is fixed in-block *during* a re-check: each in-block fix invalidates the check
+just run. Verify HEAD is unchanged immediately before setting `agents-done`. **Charters
+and the skill carry pointers here, never restatements** (#1173). Batching, the delta
+command, the report-only prompt, the verdict-table format and the label checklist are the
 `jobbpilot-review-discipline` skill's, and **§12 gains no new class here.**
+
+*Derivations, incidents and dated measurements: `docs/spec-rationale.md` §9.6.*
 
 ## 10. Swedish UI rules
 
@@ -836,31 +786,22 @@ months. Batching, the delta command, the report-only prompt and the label checkl
   real recipients, not sink durability, since dev's Seq does persist that line.
   **That sink is accepted on two conditions, and the second is a condition to
   re-measure, never a standing fact.** (1) It is loopback-bound **and
-  admin-authenticated** — auth was added 2026-08-04 (#1198) precisely because
-  the binding alone had been *measured wrong for months* while the compose
-  file's own comment vouched for it. (2) It holds no real-user PII — which was
-  **measured FALSE on 2026-08-04**: 41 activation/confirmation links in
-  plaintext plus one real address. That sink was discarded in the same PR — enabling auth
-  required an empty volume — so the count is zero right now and **refills at the next dev
-  registration**, because `ConsoleEmailSender` still logs the whole body. Nothing
-  re-measures condition 2 on a cadence; [#1208](https://github.com/klasolsson81/jobbliggaren/issues/1208)
+  admin-authenticated** (#1198). (2) It holds no real-user PII —
+  `ConsoleEmailSender` still logs the whole body, so the next dev registration
+  re-breaks it. Nothing re-measures condition 2 on a cadence;
+  [#1208](https://github.com/klasolsson81/jobbliggaren/issues/1208)
   owns that gap),
   `NullEmailSender` (what `Provider=Console` falls back to outside Dev/Test),
   and `ScalewayEmailSender` (`Provider=Scaleway` — Scaleway Transactional Email in
   `fr-par` over the **HTTPS API, never SMTP**; fail-loud without
   `Email:Scaleway:Region` **and** both `Email:Scaleway:SecretKey`/`ProjectId`, #183).
-  **The count is still three because each provider REPLACED the last** — Resend,
-  which Klas removed entirely on 2026-08-08; then SES, which AWS confined to
-  sandbox by refusing production access on 2026-08-14; now Scaleway. `Resend` and
+  **The count is still three because each provider REPLACED the last.** `Resend` and
   `Ses` both now throw like any other unknown value, and `AddEmailSenderGateTests`
   pins that. **There is no .NET SDK and no package** — the arm is `HttpClient` +
   `System.Text.Json`, so `NoAmazonReferenceTests` went back to a total ban.
-  The port lost its typed idempotency-key parameter in the Resend removal, and no
-  provider since has had an equivalent to restore it for: neither SES v2
-  `SendEmail` nor Scaleway's `POST /emails` carries one. What actually prevented
+  What actually prevented
   double delivery was never the provider key but the claim-then-send spine (plus
-  `StrandedMatchReaperJob`) and `ICooldownGate`, which ADR 0103 already states
-  works *"regardless of Resend's own idempotency-key dedup"*; the residual
+  `StrandedMatchReaperJob`) and `ICooldownGate` (ADR 0103); the residual
   transport retry is closed by the arm registering **no resilience handler at
   all**. Frontend `.env.local`; backend
   `appsettings.Development.json` + gitignored `appsettings.Local.json`.
@@ -873,9 +814,7 @@ months. Batching, the delta command, the report-only prompt and the label checkl
   consumer set. That absence is a **documented intent, not an executable guarantee**:
   the pin covers the constant, not the composition root, so a fallback bind added in
   `Program.cs` would still pass. A fourth `WebApplicationFactory` would pin it properly
-  and was declined deliberately — the Api suite sits **one `WebApplicationFactory` below**
-  EF's process-global `ManyServiceProvidersCreatedWarning` ceiling, and the next host
-  fells whichever collection fixture initialises after it
+  and was declined deliberately
   ([#1190](https://github.com/klasolsson81/jobbliggaren/issues/1190)).
   **`HttpsEnabled` must stay `false` under Option B, and that is a decision, not an
   unfinished flip:** Next reaches the API over plain internal HTTP, so `true` would 307
@@ -887,11 +826,7 @@ months. Batching, the delta command, the report-only prompt and the label checkl
   ADR 0066 destroyed the *deployed* AWS dev stack and deliberately
   **preserved** `infra/terraform/`, which still carries the **old `Alb__HttpsEnabled`**
   injection — deliberately, as a **record of what ran**, not as live config. Do not
-  "repair" it toward the current key: measured 2026-08-04, the same block injects two
-  `FieldEncryption__*` options #802 removed, injects no master key (so a re-apply
-  hard-fails at startup), and names `src/JobbPilot.*` Dockerfile paths that do not
-  exist. Renaming one string buys one-of-N consistency and makes a record read as
-  maintained. Retirement — and restoration — is a cutover ADR, never a cleanup sweep
+  "repair" it toward the current key. Retirement — and restoration — is a cutover ADR, never a cleanup sweep
   (BUILD.md §15); [#196](https://github.com/klasolsson81/jobbliggaren/issues/196)
   owns the deploy stack and the `ForwardedHeaders:KnownNetworks` CIDR, which A1
   deliberately left empty — no compose file in the repo declares a network, so the
@@ -902,8 +837,9 @@ months. Batching, the delta command, the report-only prompt and the label checkl
   `src/Jobbliggaren.Api/appsettings.Local.json.example` (the required-keys SSOT) **and**
   `docs/runbooks/local-dev-setup.md` (§2.4 + §7) in the **same PR** as the option, by the
   introducing CC. A gitignored `appsettings.Local.json` predates the new key, so an
-  out-of-sync template fails the next stack-owner's boot one crash at a time (`#544`
-  org.nr-HMAC + `#692` CV-fingerprint peppers both did — measured 2026-07-19).
+  out-of-sync template fails the next stack-owner's boot one crash at a time.
+
+*Derivations, incidents and dated measurements: `docs/spec-rationale.md` §11.*
 
 ## 12. When something looks wrong
 
@@ -916,7 +852,7 @@ autonomous flow.
 
 **One §5 block is carved out: `Comments:`.** It is graded in `code-reviewer`'s
 charter and routed by §9.6 — never a STOPP. A talkative comment that blocks a
-merge costs more than it saves, which is what 2026-08-04/05 measured. Every
+merge costs more than it saves. Every
 other §5 list stays fully STOPP-blocking.
 
 **Scope clarification (Klas-direktiv 2026-07-16):** the security clause gates
@@ -927,8 +863,7 @@ security-critical change **with** tests and a security-auditor **APPROVE
 automerge flow (§6); Klas reviews the diff post-merge and verifies FE surfaces
 live (the FAS-DEFERRAL pattern). The earlier practice of holding tested,
 auditor-approved security PRs for a manual pre-merge ("§12-gated — Klas
-mergar") is retired: a gate that is always pressed through adds latency, not
-review. This clarification touches only the security clause — the other §12
+mergar") is retired. This clarification touches only the security clause — the other §12
 classes (§5 anti-patterns, Clean Architecture boundaries, non-BUILD.md
 libraries, design tokens) remain fully STOPP-blocking, and every applicable
 class must clear independently. Migration-bearing PRs are likewise untouched —
@@ -941,7 +876,10 @@ This file changes when a new anti-pattern, standard, or CC boundary is needed.
 CC may propose **and apply** changes autonomously via PR + automerge (§9.2;
 mandatory dotnet-architect + code-reviewer); Klas may also propose. Never
 silently — always via a visible PR diff, which Klas reviews (post-merge under
-automerge).
+automerge). Rules land here; derivations, incident history and dated
+measurements land in `docs/spec-rationale.md` (§-keyed, same PR). A spec edit
+that adds a derivation paragraph to this file is the regrowth that split
+exists to prevent.
 
 ---
 

@@ -29,14 +29,9 @@ description: >
 
 ## Why this exists
 
-Measured, not asserted. **PR #1206 (2026-08-04) took 11 review rounds and zero
-of its ~16 findings were code defects.** PR #1220/#1221 (2026-08-05) carried
-~11 real defects against ~20 findings that were only sentences. Comment mass is
-the visible symptom: `.github/scripts/compose-loopback-guard.sh` reached
-**70,7 % comment** (472 of 668 lines, measured 2026-08-09) across two rewrites
-in that stretch. These are dated observations of finished events — §1.6
-provenance, not live measurements; regenerate with
-`grep -cE '^\s*#' <file>` and `wc -l <file>`.
+Measured, not asserted — the numbers and their regeneration live in
+`docs/spec-rationale.md` §9.6. The 2026-08-04/05 rules did not hold because this
+skill's Step 2 permitted reformulation — a reformulation is a new claim.
 
 The mechanism is arithmetic, not bad luck: **every fix that carries prose adds
 new reviewable claims, so round N's explanations become round N+1's findings.**
@@ -73,6 +68,10 @@ the hook exits silently.
 | Publish the **command that regenerates** a number | Publish a live number in a tracked file (§5 `Comments:`) |
 | Run the fix's comments against §5 `Comments:` before you commit | Prose restating the next line, or re-arguing an ADR |
 | Measure the fix **the way the defect was measured**, before push | Report a fix as landed because the edit succeeded |
+| Close a prose finding by **deleting the claim-sentence** — mechanical closure per §9.6's three conditions | Reformulating the sentence — a reformulation is a new claim |
+| Fix delta adds **zero claim-sentences** — read the diff's added lines before commit | An added sentence explaining why the fix is right |
+
+Deletion is the only fix form that cannot introduce a new finding.
 
 Three of #1206's rounds existed only because a fix was reported as landed with
 no counter-check — one of them a PR body that was empty.
@@ -106,7 +105,9 @@ as current as the local `origin/main` ref.
 ## Step 4 — Scoped re-check, one per issuing agent
 
 Send it to **the agent that issued the verdict** — `dotnet-architect` for its own
-Kritiskt/Viktigt, `code-reviewer` for its own Majors (§9.6).
+Kritiskt/Viktigt, `code-reviewer` for its own Majors (§9.6). **At most ONE scoped
+re-check per issuing agent per PR** — overflow routing is §9.6's: deletion/code-only
+fix closed mechanically, or STOPP to Klas.
 
 Prompt template — the report-only clause is load-bearing:
 
@@ -122,12 +123,23 @@ grades as a Blocker, or any class your charter defines repo-wide rather than
 per-diff. Those you always report, wherever you see them. A defect the delta
 itself introduces is reported and marked "new in delta".
 
+Report findings only, within your own charter's Output-format cap; no Q&A
+sections, no methodology narration.
+
 Do not edit any file. An edit is a content push, and a content push strips
 agents-done (CLAUDE.md §6) — it tears down the gate you were invoked to close.
 ```
 
-What the re-check raises is routed by §9.6, including its rule for a new-in-delta
-Blocker/Major and its rule on in-block fixes during a re-check.
+What the re-check raises is routed by §9.6, including its cap, its rule for a
+new-in-delta Blocker/Major and its rule on in-block fixes during a re-check.
+
+The PR-body verdict table — appended in ONE body edit, escalations verbatim and
+§9.6's named skips below it:
+
+```
+| Agent | Verdict | B/M/m | HEAD granskad | Rapport |
+|---|---|---|---|---|
+```
 
 ---
 
@@ -137,20 +149,24 @@ Blocker/Major and its rule on in-block fixes during a re-check.
 merging**. Before setting it:
 
 1. Every mandatory agent (§9.2) has reported, or closed its findings via its own
-   scoped re-check — **including any new-in-delta finding that re-check raised**.
-2. No unresolved Blocker/Major, and no §12 merge-blocking condition.
-3. `git log --oneline -1` still matches the SHA the **last re-check** answered —
+   scoped re-check — **including any new-in-delta finding that re-check raised** —
+   or the finding closed mechanically per §9.6's three conditions, or via §9.6's
+   capped overflow route.
+2. The PR-body verdict table + verbatim escalations + §9.6's named skips are
+   appended, in ONE edit.
+3. No unresolved Blocker/Major, and no §12 merge-blocking condition.
+4. `git log --oneline -1` still matches the SHA the **last re-check** answered —
    check it immediately before setting the label, not before the final fixes.
-4. After the label, confirm it actually armed:
+5. After the label, confirm it actually armed:
    `gh pr view <N> --json autoMergeRequest,mergeStateStatus`. The arm job re-reads
    the head and **no-ops with a `::notice::` if it moved since the label was set**
    (`label-automerge.yml`) — a green skip nothing surfaces, and `label-automerge`
    is not a required check. Head moved? Remove and re-add `agents-done` so the
    event re-fires against the current SHA.
-5. Push nothing afterwards. `BEHIND` may be cleared with `gh pr update-branch` at
+6. Push nothing afterwards. `BEHIND` may be cleared with `gh pr update-branch` at
    any point — there is deliberately **no ordering rule** against the label
    (`docs/runbooks/parallel-sessions.md` §8.1), because a pure base merge does not
-   disarm the gate. It does move the head, so step 4 applies afterwards.
+   disarm the gate. It does move the head, so step 5 applies afterwards.
 
 ---
 

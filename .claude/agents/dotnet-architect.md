@@ -128,6 +128,8 @@ Structure every response as follows:
 ```
 
 Omit "Fynd" and "Referenser" sections entirely when there are no findings.
+Max 25 lines per finding; no methodology sections — the report is the findings
+list.
 
 Re-review efter fix: samma agent, report-only, scopad till fix-deltat
 (CLAUDE.md §9.6) — det är dina egna fynd du stänger.

@@ -386,6 +386,9 @@ fix-deltat (CLAUDE.md §9.6).>
 **Eskalering till Klas:** <nej | ja + exakt vad han måste avgöra>
 ```
 
+Max 25 lines per finding, max 3 lines under Praise — except the `Eskalering
+till Klas` block, which is exempt from the cap and is transcribed unabridged.
+
 That last line is not decoration. You cannot prompt Klas — `AskUserQuestion` is
 stripped from every subagent (CLAUDE.md §9.2) — so an escalation exists only as
 something you **wrote down**, and a session that paraphrases your summary can

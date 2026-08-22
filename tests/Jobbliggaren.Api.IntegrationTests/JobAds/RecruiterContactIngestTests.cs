@@ -117,7 +117,7 @@ public sealed class RecruiterContactIngestTests : IAsyncLifetime
                 npgsql => npgsql.MigrationsAssembly(typeof(AppDbContext).Assembly.FullName))
             .UseSnakeCaseNamingConvention());
         services.AddScoped<IAppDbContext>(sp => sp.GetRequiredService<AppDbContext>());
-        services.AddScoped<IRecruiterErasureMatchQuery, RecruiterErasureMatchQuery>();
+        services.AddRecruiterErasureMatchQuery();
 
         services.AddSingleton<IDateTimeProvider>(new FixedClock());
         services.AddSingleton<IOptions<JobTechOptions>>(Options.Create(new JobTechOptions

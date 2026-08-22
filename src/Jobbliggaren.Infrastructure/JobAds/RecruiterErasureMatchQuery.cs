@@ -600,18 +600,40 @@ internal sealed class RecruiterErasureMatchQuery(
             """, cancellationToken);
     }
 
+    /// <summary>
+    /// The LIKE patterns to compare a jsonb value against: every WRITTEN form of the identifier when
+    /// it is an org.nr, and the identifier as supplied when it is not.
+    /// </summary>
+    /// <remarks>
+    /// A column validated on SHAPE ONLY stores whatever was typed, so comparing one normalised
+    /// request against an unnormalised store reaches only the form that happens to coincide (#1425).
+    /// The five <c>recent_job_searches</c> axes close that with <c>= ANY(writtenForms)</c> because
+    /// they are <c>text[]</c>; a jsonb document needs the same set as LIKE patterns instead.
+    /// <b>This does NOT apply to a normalising column</b> — <c>company_watches.organization_number</c>
+    /// is written through <c>OrganizationNumber.Create</c>, so the ten-digit form is the only stored
+    /// plaintext form and its arm stays an exact two-operand probe.
+    /// </remarks>
+    private static string[] WrittenFormPatterns(string identifier)
+    {
+        var orgNr = Domain.CompanyWatches.OrganizationNumber.TryFromWrittenForm(identifier);
+
+        return orgNr is null
+            ? [LikePattern(identifier)]
+            : [.. orgNr.WrittenForms().Select(LikePattern)];
+    }
+
     public async Task<int> CountCompanyWatchFollowsAsync(
         string identifier, CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(identifier);
 
-        var pattern = LikePattern(identifier);
+        var patterns = WrittenFormPatterns(identifier);
         var orgNr = Domain.CompanyWatches.OrganizationNumber.TryFromWrittenForm(identifier);
 
         // The AT-REST form, decided by the SAME discriminator the WRITE path uses
         // (CompanyWatchFollowExecutor): a pnr-shaped org.nr is stored as a keyed HMAC token, an AB
         // org.nr verbatim — in which case storedKey and plain are the same string and the two
-        // operands below collapse, exactly as they do in the executor's probe. Both are NULL for a
+        // operands collapse, exactly as they do in the executor's probe. Both are NULL for a
         // non-org.nr identifier, and `column = NULL` is never true, so both arms switch themselves
         // off and a name falls through to the filter arm alone.
         var plain = orgNr?.Value;
@@ -628,16 +650,22 @@ internal sealed class RecruiterErasureMatchQuery(
         //   reach a soft-deleted row BY CONSTRUCTION. A deleted_at predicate would be inert here
         //   while being wrong one line up.
         //
-        // The filter arm is a substring over the WHOLE document, never a keyed unnest: naming the
-        // spec's properties in SQL would put the jsonb-key contract in a second home and go blind on
-        // the next additive key. It also matches the jsonb KEY NAMES — a disclosed over-match, and
-        // over-match is the affordable direction of error on a rights request.
+        // The filter arm walks the document's VALUES ($.** then jsonb_typeof = 'string'), never its
+        // raw text. A `filter::text LIKE` also matches the jsonb KEY NAMES, and `Regions` or
+        // `Remote` as an identifier would then match every row that has a filter at all. Walking
+        // values keeps the property the key-name form was chosen for — no property is named in SQL,
+        // so an additive key is covered the day it lands — and drops the over-match with it.
         return await CountAsync($"""
             SELECT count(*)::int AS "Value"
             FROM company_watches
             WHERE organization_number = {storedKey}
                OR organization_number = {plain}
-               OR lower(coalesce(filter::text, '')) LIKE {pattern} ESCAPE {LikeEscapeSql}
+               OR EXISTS (
+                    SELECT 1
+                    FROM jsonb_path_query(filter, '$.**') AS v,
+                         unnest({patterns}) AS p
+                    WHERE jsonb_typeof(v) = 'string'
+                      AND lower(btrim(v::text, '"')) LIKE p ESCAPE {LikeEscapeSql})
             """, cancellationToken);
     }
 
@@ -646,22 +674,40 @@ internal sealed class RecruiterErasureMatchQuery(
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(identifier);
 
-        var pattern = LikePattern(identifier);
+        var patterns = WrittenFormPatterns(identifier);
 
         // Three columns, four registry keys: `preferences` is the OwnsOne(...).ToJson() container
-        // and `Language` is a JSON property inside it, so the third disjunct searches both.
+        // and `Language` is a JSON property inside it, so the third arm searches both.
         //
-        // No lifecycle predicate: job_seekers has a deleted_at, but the account flow HARD-deletes
-        // the row (AccountHardDeleter), so a soft-deleted profile is not a state this query has to
-        // argue past. Counting the physical table is what an erasure disclosure owes either way.
+        // No lifecycle predicate. A soft-deleted profile IS a reachable state — account deletion
+        // soft-deletes and AccountHardDeleter only reaps rows past a 30-day window — and we hold the
+        // row for that whole window, so an erasure disclosure owes it. Raw SQL bypasses the
+        // aggregate's query filter, which is what makes counting the physical table possible here.
         //
-        // lower(jsonb) does not exist in PostgreSQL — hence the ::text cast, as on saved_searches.
+        // Both jsonb arms walk VALUES, never the document text: `preferences` is NOT NULL and always
+        // serialised with its full key set, so a `preferences::text LIKE` would match `Language` in
+        // EVERY row. An identifier of four characters is legal (the validator's floor) and `Lang` is
+        // a surname, so that form turns a genuine no-match into a whole-table match — and
+        // Matched.Total is a zero-test, so the reply flips from "we found nothing" to a claim that
+        // her data sits in a user's profile. Walking values excludes key names by construction.
         return await CountAsync($"""
             SELECT count(*)::int AS "Value"
             FROM job_seekers
-            WHERE lower(coalesce(display_name, ''))            LIKE {pattern} ESCAPE {LikeEscapeSql}
-               OR lower(coalesce(match_preferences::text, '')) LIKE {pattern} ESCAPE {LikeEscapeSql}
-               OR lower(coalesce(preferences::text, ''))       LIKE {pattern} ESCAPE {LikeEscapeSql}
+            WHERE EXISTS (
+                    SELECT 1 FROM unnest({patterns}) AS p
+                    WHERE lower(display_name) LIKE p ESCAPE {LikeEscapeSql})
+               OR EXISTS (
+                    SELECT 1
+                    FROM jsonb_path_query(match_preferences, '$.**') AS v,
+                         unnest({patterns}) AS p
+                    WHERE jsonb_typeof(v) = 'string'
+                      AND lower(btrim(v::text, '"')) LIKE p ESCAPE {LikeEscapeSql})
+               OR EXISTS (
+                    SELECT 1
+                    FROM jsonb_path_query(preferences, '$.**') AS v,
+                         unnest({patterns}) AS p
+                    WHERE jsonb_typeof(v) = 'string'
+                      AND lower(btrim(v::text, '"')) LIKE p ESCAPE {LikeEscapeSql})
             """, cancellationToken);
     }
 

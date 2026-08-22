@@ -306,6 +306,16 @@ public class ErasureCascadeRegistryTests
                 + "only .ToJson() mapping in the model, and the sweep skipped its table",
         };
 
+        // The wholesale-exclusion guard reads TextColumnsByTable() UNFILTERED, and it is the only
+        // caller that does — every sentinel above lives in a table that is NOT excluded. Restore the
+        // exclusion filter into the shared helper and all of them stay green while that guard skips
+        // every table it exists to check: this file's own vacuity, one level up.
+        var byTable = TextColumnsByTable();
+        byTable.ShouldContainKey("user_data_keys",
+            "the shared enumeration must still carry the EXCLUDED tables; the wholesale-exclusion "
+            + "guard is vacuous the moment it does not.");
+        byTable["user_data_keys"].ShouldContain("user_data_keys.wrapped_dek");
+
         foreach (var (column, form) in sentinels)
         {
             swept.ShouldContain(column,
@@ -951,21 +961,6 @@ public class ErasureCascadeRegistryTests
     }
 
     /// <summary>
-    /// Every table excluded WHOLESALE from the column sweep carries a written ground naming its
-    /// write-path guarantee.
-    /// </summary>
-    /// <remarks>
-    /// <b>This is the cheapest false verdict in the system, and it produced a Blocker.</b>
-    /// <c>NotRecruiterData</c> costs a line per column; a wholesale exclusion costs ONE STRING and an
-    /// entire table vanishes — every column in it, present and future. <c>parsed_resumes</c> and
-    /// <c>resume_files</c> sat on that list, and with them went the raw CV text, the CV file, and two
-    /// plaintext filenames.
-    /// <para>
-    /// The ground IS the re-derivation: you cannot write <i>"every column here is closed-domain"</i>
-    /// about a table without noticing when it is not.
-    /// </para>
-    /// </remarks>
-    /// <summary>
     /// <b>A wholesale exclusion must NAME every text-bearing column it hides.</b> The exact analogue
     /// of <see cref="Every_grounded_columns_ground_actually_names_the_column"/>, one level up — where
     /// it is worth more, because a per-column verdict costs a line and a wholesale one costs a single
@@ -1019,6 +1014,21 @@ public class ErasureCascadeRegistryTests
             + "column.\n\nUnnamed:\n  " + string.Join("\n  ", unnamed));
     }
 
+    /// <summary>
+    /// Every table excluded WHOLESALE from the column sweep carries a written ground naming its
+    /// write-path guarantee.
+    /// </summary>
+    /// <remarks>
+    /// <b>This is the cheapest false verdict in the system, and it produced a Blocker.</b>
+    /// <c>NotRecruiterData</c> costs a line per column; a wholesale exclusion costs ONE STRING and an
+    /// entire table vanishes — every column in it, present and future. <c>parsed_resumes</c> and
+    /// <c>resume_files</c> sat on that list, and with them went the raw CV text, the CV file, and two
+    /// plaintext filenames.
+    /// <para>
+    /// The ground IS the re-derivation: you cannot write <i>"every column here is closed-domain"</i>
+    /// about a table without noticing when it is not.
+    /// </para>
+    /// </remarks>
     [Fact]
     public void Every_wholesale_excluded_table_carries_a_written_ground()
     {

@@ -214,16 +214,17 @@ public interface IRecruiterErasureMatchQuery
     /// both its tokenised and its plaintext form. The plaintext operand is not redundant — the
     /// plaintext→token backfill is a one-off, manually enqueued job, so nothing in the system
     /// guarantees it has run to completion. A structured key gets structured matching; there is no
-    /// regex over it, and <c>WrittenForms()</c> is deliberately absent because both write paths
-    /// normalise through <c>OrganizationNumber.Create</c> and the ten-digit form is the only stored
-    /// plaintext form.
+    /// regex over it, and <c>WrittenForms()</c> is absent from THIS arm because both paths that
+    /// write the key normalise through <c>OrganizationNumber.Create</c>, so the ten-digit form is
+    /// the only stored plaintext form.
     /// <para>
-    /// <b>The filter arm is a substring over the whole jsonb document, never a keyed unnest.</b>
-    /// Naming <c>Municipalities</c>/<c>Regions</c> in SQL would put the jsonb-key contract in a
-    /// second home and go silently blind on the next additive key — which is #1425's failure mode
-    /// reproduced inside its own fix. <c>::text</c> is total by construction, at the disclosed cost
-    /// of also matching the jsonb key names themselves: an over-match, which on an Art. 17 path is
-    /// the affordable direction of error.
+    /// <b>The filter arm walks the document's VALUES, and compares every WRITTEN form.</b> Both
+    /// halves are load-bearing and neither is the other. Walking values (rather than matching the
+    /// document's text) keeps the property a keyed unnest was rejected for — no property name
+    /// appears in SQL, so an additive key is covered the day it lands — while excluding the jsonb
+    /// KEY names, which a text match hits in every row that has a filter at all. Comparing written
+    /// forms is #1425's rule: a column validated on SHAPE ONLY stores what was typed, so one
+    /// normalised request reaches only the form that happens to coincide.
     /// </para>
     /// </remarks>
     Task<int> CountCompanyWatchFollowsAsync(
@@ -236,16 +237,20 @@ public interface IRecruiterErasureMatchQuery
     /// bytes). <b>Counted and REPORTED; a human erases it, with the account holder in the loop.</b>
     /// </summary>
     /// <remarks>
-    /// All three write paths are shape gates, never content gates: <c>ValidateDisplayName</c>
+    /// Every gate on the way in is a shape gate, never a content gate: <c>ValidateDisplayName</c>
     /// refuses only empty, over-length and a personnummer; <c>match_preferences</c> admits six lists
     /// of <c>^[A-Za-z0-9_-]{1,32}</c> tokens with no taxonomy lookup on any path; and
-    /// <c>Language</c> has no server-side validation at all. <b>The remedy here is the least free in
-    /// the registry</b> — the display-name invariant refuses empty, so there is no
-    /// <c>UpdateLabel(null)</c> analogue and a system does not rename a person.
+    /// <c>Language</c> has no server-side validation at all. So the two jsonb arms walk VALUES and
+    /// compare every WRITTEN form, for the same two reasons as the watch filter above.
+    /// <b>No remedy here is constructible without the account holder</b> — the display-name
+    /// invariant refuses empty, so there is no <c>UpdateLabel(null)</c> analogue and a system does
+    /// not rename a person.
     /// <para>
-    /// This surface WILL over-match on a common name: a user who merely shares the requester's name
-    /// is counted. The count names nobody, and the human resolves it in one step — but the reply
-    /// must not be written as though a match here were a finding about her.
+    /// This surface WILL match on a shared name: a user who merely happens to be called what the
+    /// requester is called is counted, because a display name IS that user's own name. The count
+    /// names nobody, and a human resolves it — but the reply must never be written as though a match
+    /// here were a finding about her, which is why this surface has its OWN reply template (B5) and
+    /// is deliberately NOT a trigger for B2.
     /// </para>
     /// </remarks>
     Task<int> CountJobSeekerProfilesAsync(

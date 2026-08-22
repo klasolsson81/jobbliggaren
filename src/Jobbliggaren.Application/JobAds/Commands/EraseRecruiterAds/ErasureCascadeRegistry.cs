@@ -247,12 +247,16 @@ public static class ErasureCascadeRegistry
             ],
             nameof(Abstractions.IRecruiterErasureMatchQuery.CountCompanyWatchCriteriaAsync)),
 
-        // #1435 - ONE channel per TABLE, not per remedy. A single row can match on
-        // organization_number AND on filter for the same identifier (a ten-digit org.nr is a legal
-        // WatchFilterSpec element under the shape-only grammar), so two channels would count that
-        // row twice in Matched.Total - which drives the outcome word. Not folded into
-        // CompanyWatchCriteria either: that surface's runbook row promises UpdateLabel(null) is
-        // always constructible and lossless, and neither column here can keep that promise.
+        // #1435 - ONE surface per DISPOSITION, which is the axis ADR 0106 writes ("one entry per
+        // reported surface") and the axis ApplicationSnapshotContacts was split on - on the SAME
+        // table as ApplicationSnapshots, because its disposition differed. Both columns here are
+        // MatchedHumanErases, so Matched-Erased keeps one honest meaning and one surface is right.
+        // Splitting them would report a row twice, since a ten-digit org.nr is a legal
+        // WatchFilterSpec element and one row can match both arms; the inflated number would reach
+        // the Art. 15/17 reply and the audit record. It could NOT flip the outcome word - both
+        // readers of Matched.Total are zero-tests. Not folded into CompanyWatchCriteria either:
+        // that surface's runbook row promises UpdateLabel(null) is always constructible and
+        // lossless, and neither column here can keep that promise.
         new("CompanyWatchFollows",
             [
                 "company_watches.organization_number",

@@ -267,12 +267,11 @@ public sealed partial class EraseRecruiterAdsCommandHandler(
             RecentJobSearches: recentSearches.Count,
             ApplicationSnapshotContacts: erasedSnapshotContactsCount,
 
-            // Zero, and NOT because we forgot. Every one of these is matched, reported, and left
+            // Zero, and NOT because we forgot. Every zero below is matched, reported, and left
             // standing on a written ground the registry carries (ErasureCascadeRegistry.
-            // WrittenGrounds) — saved searches, manual entries, company-watch follows and the
-            // job-seeker profile because a HUMAN settles them with the affected user in the loop,
-            // snapshots because of Art. 17(3)(e), and the referencing applications because the
-            // count is a disclosure, not a deletion list.
+            // WrittenGrounds): a HUMAN settles the user-authored surfaces with the affected user in
+            // the loop, snapshots are retained under Art. 17(3)(e), and the referencing-application
+            // count is a disclosure rather than a deletion list.
             //
             // The gap between Matched and these zeroes IS the disclosure the reply template carries.
             SavedSearches: 0,

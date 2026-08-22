@@ -369,9 +369,12 @@ claim to have erased what we have not erased. That is #842, applied to ourselves
 | Backups / WAL / PITR | ⚠️ **Unstated** | An `UPDATE` does not remove the old row version from disk until `VACUUM`, and copies remain in WAL and backups. **Do not make any statement to the data subject about backups.** The retention window is not yet decided (**STOPP-4**). Do not invent one. |
 
 **If `matched.savedSearches > 0`, `matched.companyWatchCriteria > 0`,
-`matched.companyWatchFollows > 0`, `matched.jobSeekerProfiles > 0`,
-`matched.manualAdEntries > 0` OR `matched.resumeMetadata > 0`, the reply must
-disclose it — template B2. If `matched.applicationSnapshots > 0`, the reply must
+`matched.companyWatchFollows > 0`, `matched.manualAdEntries > 0` OR
+`matched.resumeMetadata > 0`, the reply must disclose it — template B2.
+`matched.jobSeekerProfiles > 0` has its OWN template (B5) and must never be sent
+as B2: that surface is a user's own profile, so a hit is most often another
+person with a similar name, and B2 would both call it hers and promise an
+erasure the display-name invariant makes impossible. If `matched.applicationSnapshots > 0`, the reply must
 disclose the Art. 17(3)(e) retention — template B3.** A matched surface the reply
 never mentions is a search whose result never reached her; the gate lists every
 human-handled surface, and `resumeMetadata` was dropped on the floor here for one
@@ -421,12 +424,11 @@ outcome, so every reply names what we could not look at):
 **B2. Addition — any human-handled surface matched
 (`matched.savedSearches > 0` OR `matched.manualAdEntries > 0` OR
 `matched.companyWatchCriteria > 0` OR `matched.companyWatchFollows > 0` OR
-`matched.jobSeekerProfiles > 0` OR `matched.resumeMetadata > 0`).** Append:
+`matched.resumeMetadata > 0`).** Append:
 
 > Dina uppgifter förekommer också i innehåll som användare själva har skrivit
 > eller valt, till exempel en sparad sökning, en bevakning av ett företag, en
-> egen anteckning om en ansökan, uppgifter i en användares egen profil eller ett
-> CV:s namn eller filnamn. Din rätt till radering gäller även där. De uppgifterna
+> egen anteckning om en ansökan eller ett CV:s namn eller filnamn. Din rätt till radering gäller även där. De uppgifterna
 > tas bort manuellt, tillsammans med den användare det gäller, inom en månad från
 > det att din begäran kom in. Vi hör av oss när det är klart.
 
@@ -455,12 +457,26 @@ bound by T2 CTO 2026-07-16, wording rides Klas).** Append:
 > användarnas kopior behåller vi med stöd av artikel 17.3 e i
 > dataskyddsförordningen, som en del av deras eget underlag.
 
+**B5. Addition — `matched.jobSeekerProfiles > 0`.** This surface is a user's OWN
+profile row (display name, stated match preferences, locale). A hit is most often
+**another person with a similar name**, not her data, and the remedy is not
+constructible without that user: `ValidateDisplayName` refuses an empty name, so
+there is no null-it analogue, and a system does not rename a person. **Never send
+B2 for this** — it would call the hit hers and promise a removal we have written
+down that we cannot perform (Art. 12(4)). Append:
+
+> Det du har uppgett förekommer också i en eller flera användares egna
+> profiluppgifter, till exempel ett visningsnamn. Oftast är det en annan person
+> med ett liknande namn, och då rör det inte dig. Vi går igenom träffarna
+> manuellt tillsammans med berörda användare, och hör av oss om något av det
+> visar sig gälla dig.
+
 **C. `NoMatchInSearchableSurfaces`.** Says what we searched — and never claims
 we searched what we cannot read (the mandatory closing carries that half):
 
 > Vi har sökt igenom annonserna, användarnas senaste och sparade sökningar,
-> bevakningar av företag, användarnas egna profiluppgifter, egna annonsuppgifter
-> och CV-uppgifter som inte är krypterade. Vi hittade inga uppgifter som matchar
+> bevakningar av företag, bevakningskriterier, användarnas egna profiluppgifter,
+> egna annonsuppgifter och CV-uppgifter som inte är krypterade. Vi hittade inga uppgifter som matchar
 > det du har uppgett.
 
 **D. `CascadeErasedOnly`** — no ad matched, but cascade rows were erased. *"Vi

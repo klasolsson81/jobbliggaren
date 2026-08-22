@@ -475,8 +475,8 @@ internal static class EmailTemplates
     /// Base64Url (only [A-Za-z0-9_-]) so it survives the query round-trip unescaped, and the uid is the
     /// dashed 'D' Guid the confirm endpoint binds (STJ's Guid converter accepts only 'D'; #981). No email
     /// in the link (the address is unchanged). Civic tone (1177/
-    /// Digg): no exclamation marks, no em-dash. The account cannot log in until the link is opened; the
-    /// link is valid for 24h (EmailConfirmationTokenProvider TokenLifespan).
+    /// Digg): no exclamation marks, no em-dash. The link is valid for 24h
+    /// (EmailConfirmationTokenProvider TokenLifespan).
     /// </summary>
     public static EmailContent EmailConfirmation(
         string baseUrl, EmailConfirmationEmail content)
@@ -496,10 +496,10 @@ internal static class EmailTemplates
         return new EmailContent(
             Subject: "Bekräfta din e-postadress",
             PlainTextBody: $"""
-                Tack för att du har skapat ett konto på Jobbliggaren.
+                Tack för att du har registrerat dig på Jobbliggaren.
 
-                Bekräfta att adressen är din genom att öppna länken nedan. Du kan
-                logga in när adressen är bekräftad. Länken gäller i 24 timmar.
+                Bekräfta att adressen är din genom att öppna länken nedan.
+                Länken gäller i 24 timmar.
                 {confirmLink}
 
                 Om du inte har skapat något konto kan du bortse från det här
@@ -510,11 +510,11 @@ internal static class EmailTemplates
                 """,
             HtmlBody: EmailHtml.Document(
                 title: "Bekräfta din e-postadress",
-                preheader: "Du kan logga in när adressen är bekräftad. Länken gäller i 24 timmar.",
-                body: EmailHtml.P("Tack för att du har skapat ett konto på Jobbliggaren.")
+                preheader: "Länken gäller i 24 timmar.",
+                body: EmailHtml.P("Tack för att du har registrerat dig på Jobbliggaren.")
                     + EmailHtml.P(
-                        "Bekräfta att adressen är din genom att öppna länken nedan. Du kan logga "
-                        + "in när adressen är bekräftad. Länken gäller i 24 timmar.")
+                        "Bekräfta att adressen är din genom att öppna länken nedan. Länken gäller "
+                        + "i 24 timmar.")
                     + EmailHtml.Button(confirmLink, "Bekräfta din e-postadress")
                     // Klas-krav: the account mails carry a plain "if this was not you, do nothing"
                     // further down. It is the text template's own closing sentence, in the same

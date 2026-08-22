@@ -79,6 +79,32 @@ public class EmailTemplatesEmailConfirmationTests
         rendered.PlainTextBody.ShouldNotContain("—"); // em-dash
     }
 
+    [Fact]
+    public void EmailConfirmation_ShouldPromiseNeitherAnAccountNorASuccessfulLogin_InBothRenderings()
+    {
+        // #1349 — the mail may assert neither that an account exists nor that confirming the address is
+        // enough to log in. Both are false for a profile-less Identity row, and the resend path delivers
+        // this same mail to one: /resend-confirmation is deliberately existence-independent, so an orphan
+        // holder receives it. "Du kan logga in när adressen är bekräftad" said confirmation was
+        // SUFFICIENT; LoginCommandHandler refuses such a row (OrphanedIdentityActivationTests).
+        //
+        // BOTH renderings, because they are held word-for-word alike BY HAND and every other assertion in
+        // this class reads PlainTextBody only — so a half-strike would pass the suite unseen.
+        var rendered = EmailTemplates.EmailConfirmation(BaseUrl, Content());
+
+        foreach (var body in new[] { rendered.PlainTextBody, rendered.HtmlBody })
+        {
+            // COUNTERFACTUAL. The two negatives below also pass against an empty body or the wrong
+            // template, so pin first that this IS the confirmation mail. Pinning it on the sentence that
+            // replaced the struck one makes this the renderings-agree check at the same time.
+            body.ShouldContain("Tack för att du har registrerat dig på Jobbliggaren.");
+            body.ShouldContain("Bekräfta att adressen är din genom att öppna länken nedan.");
+
+            body.ShouldNotContain("skapat ett konto");
+            body.ShouldNotContain("logga in när adressen är bekräftad");
+        }
+    }
+
     [Theory]
     [InlineData("https://jobbliggaren.se/")]
     [InlineData("https://jobbliggaren.se")]

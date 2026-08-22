@@ -281,8 +281,20 @@ internal sealed class RecruiterErasureMatchQuery(AppDbContext db) : IRecruiterEr
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(identifier);
 
+        var needle = identifier.Trim();
         var pattern = WordBoundaryPattern(identifier);
         var orgNr = NormalizedOrgNr(identifier);
+
+        // The exact arm must meet the STORE's form, not the request's. employer_list normalises
+        // on write (ValidateEmployerList -> OrganizationNumber.Create), so the 10-digit form is
+        // the only one there. The five axes validate on SHAPE ONLY and store whatever was typed,
+        // so `550928-1234`, `195509281234` and `19550928-1234` all sit there unreached by a
+        // normalised comparison. OrganizationNumber owns the rendering as the inverse of
+        // TryFromWrittenForm, so the pair cannot drift (#844). Empty for a non-org.nr
+        // identifier, and `= ANY('{}')` is never true, so the arm switches itself off.
+        string[] writtenForms = orgNr is null
+            ? []
+            : [.. Domain.CompanyWatches.OrganizationNumber.FromTrusted(orgNr).WrittenForms()];
 
         // `~*` = case-insensitive ARE match. `q` is a plain varchar(100), so no cast is needed.
         //
@@ -293,12 +305,33 @@ internal sealed class RecruiterErasureMatchQuery(AppDbContext db) : IRecruiterEr
         // is never true, so the arm switches itself off. (Round 5 ran the word-boundary REGEX
         // over this column on the ground that it held employer NAMES — a name never matches a
         // ten-digit string, and the zero was certified as a search result.)
+        //
+        // #1425 — THE FIVE CONCEPT-ID AXES. They are shape-validated (^[A-Za-z0-9_-]{1,32}) and
+        // never taxonomy-resolved, so a hand-edited ?occupationGroup= persists a name or a
+        // ten-digit org.nr. `unnest` is not style: a regex against the ARRAY compares against its
+        // literal text form and would match on the punctuation between elements
+        // (CountResumeMetadataAsync says the same about top_skills).
+        //
+        // BOTH sub-arms are needed, and neither is redundant. The word-boundary pattern is built
+        // from the identifier AS SUPPLIED, so a request for `550928-1234` yields a pattern that
+        // can never match a stored `5509281234`; only the exact normalised-org.nr arm reaches it.
+        // And the exact arm alone would never reach a NAME. Drop either and an enskild firma's
+        // personnummer sits unreachable in a column we certify erased.
         var ids = await db.Database
             .SqlQuery<Guid>($"""
                 SELECT id AS "Value"
                 FROM recent_job_searches
                 WHERE (q IS NOT NULL AND q ~* {pattern})
                    OR {orgNr} = ANY(coalesce(employer_list, ARRAY[]::text[]))
+                   OR EXISTS (
+                        SELECT 1 FROM unnest(
+                             coalesce(occupation_group_list, ARRAY[]::text[])
+                          || coalesce(municipality_list,     ARRAY[]::text[])
+                          || coalesce(region_list,           ARRAY[]::text[])
+                          || coalesce(employment_type_list,  ARRAY[]::text[])
+                          || coalesce(worktime_extent_list,  ARRAY[]::text[])
+                        ) AS axis
+                        WHERE axis ~* {pattern} OR axis = ANY({writtenForms}))
                 """)
             .ToListAsync(cancellationToken);
 
@@ -318,13 +351,62 @@ internal sealed class RecruiterErasureMatchQuery(AppDbContext db) : IRecruiterEr
                     """)
                 .ToListAsync(cancellationToken);
 
+        // Same shape, one arm over: WHICH rows matched on a concept-id axis. Scalar ids and not
+        // (id, value) pairs because Database.SqlQuery<T> is SCALAR-ONLY (see FindJobAdsAsync), so
+        // the matched VALUE is recovered from the projection below rather than from SQL.
+        var taxonomyMatched = await db.Database
+            .SqlQuery<Guid>($"""
+                SELECT id AS "Value"
+                FROM recent_job_searches
+                WHERE EXISTS (
+                        SELECT 1 FROM unnest(
+                             coalesce(occupation_group_list, ARRAY[]::text[])
+                          || coalesce(municipality_list,     ARRAY[]::text[])
+                          || coalesce(region_list,           ARRAY[]::text[])
+                          || coalesce(employment_type_list,  ARRAY[]::text[])
+                          || coalesce(worktime_extent_list,  ARRAY[]::text[])
+                        ) AS axis
+                        WHERE axis ~* {pattern} OR axis = ANY({writtenForms}))
+                """)
+            .ToListAsync(cancellationToken);
+
+        // The q arm gets its own row set for the same reason the other two have one: the evidence
+        // slot must be conditioned on the arm that MATCHED, not on the column being non-null. A row
+        // that matched only on employer_list or on an axis, but happens to carry a q, would
+        // otherwise emit that q as its evidence line -- a string that does not contain the
+        // identifier, on the surface whose review is the ONLY gate before an irreversible
+        // hard-delete. That was already true of the employer arm before #1425 and is fixed here.
+        var qMatched = await db.Database
+            .SqlQuery<Guid>($"""
+                SELECT id AS "Value"
+                FROM recent_job_searches
+                WHERE q IS NOT NULL AND q ~* {pattern}
+                """)
+            .ToListAsync(cancellationToken);
+
+        var qSet = qMatched.ToHashSet();
         var employerSet = employerMatched.ToHashSet();
+        var taxonomySet = taxonomyMatched.ToHashSet();
         var typedIds = ids.Select(id => new RecentJobSearchId(id)).ToList();
 
+        // EF.Property, never r.OccupationGroup: the public IReadOnlyList getters are
+        // builder.Ignore()d (RecentJobSearchConfiguration), so EF cannot translate them and falls
+        // back to client evaluation. The backing fields are the mapped properties. Shadow/backing
+        // reads via EF.Property are core EF and belong inline (AGENTS.md §2.1); the house pattern
+        // is GetParsedResumeOccupationsQueryHandler.
         var rows = await db.RecentJobSearches
             .AsNoTracking()
             .Where(r => typedIds.Contains(r.Id))
-            .Select(r => new { Id = r.Id.Value, r.Q })
+            .Select(r => new
+            {
+                Id = r.Id.Value,
+                r.Q,
+                OccupationGroup = EF.Property<List<string>>(r, "_occupationGroup"),
+                Municipality = EF.Property<List<string>>(r, "_municipality"),
+                Region = EF.Property<List<string>>(r, "_region"),
+                EmploymentType = EF.Property<List<string>>(r, "_employmentType"),
+                WorktimeExtent = EF.Property<List<string>>(r, "_worktimeExtent"),
+            })
             .ToListAsync(cancellationToken);
 
         // EVERY SQL-matched row is returned — the deletion runs on these ids. Round 5 filtered
@@ -335,9 +417,75 @@ internal sealed class RecruiterErasureMatchQuery(AppDbContext db) : IRecruiterEr
         [
             .. rows.Select(r => new ErasureRecentSearchMatch(
                 r.Id,
-                r.Q,
-                employerSet.Contains(r.Id) ? orgNr : null)),
+                qSet.Contains(r.Id) ? r.Q : null,
+                employerSet.Contains(r.Id) ? orgNr : null,
+                taxonomySet.Contains(r.Id)
+                    ? FirstMatchedAxisValue(r.OccupationGroup, r.Municipality, r.Region,
+                        r.EmploymentType, r.WorktimeExtent, needle, writtenForms)
+                    : null)),
         ];
+    }
+
+    /// <summary>
+    /// The concept-id axis element to show the operator for a row the SQL already matched on the
+    /// taxonomy arm — the STORED value, not the identifier, because what he is authorising is the
+    /// deletion of that string (a request for <c>Karlsson</c> against a stored
+    /// <c>Anna-Karlsson</c> must show <c>Anna-Karlsson</c>).
+    /// </summary>
+    /// <remarks>
+    /// <b>The predicate here is deliberately WIDER than the SQL's, and it runs ONLY on rows the
+    /// SQL returned</b>, so it cannot attribute a taxonomy match to a row that had none — the
+    /// caller gates on the SQL's own row set.
+    /// <para>
+    /// <b>Why not re-derive the ARE exactly in C#.</b> That is the detector-is-not-the-matcher
+    /// trap this class already warns about twice: Postgres's <c>[:alnum:]</c> under the server
+    /// locale, ARE's escape rule (which is NOT <c>Regex.Escape</c>) and <c>~*</c>'s case folding
+    /// are three places a re-derivation drifts, and every drift is either a throw or a false
+    /// evidence line. One rule with two normalisers is two rules (#844).
+    /// </para>
+    /// <para>
+    /// <b>RESIDUAL, named rather than certified away:</b> on a row that ALSO holds an element
+    /// which merely CONTAINS the identifier without a word boundary, that element can be the one
+    /// shown. It over-discloses to the operator, never under-discloses, on a row already destined
+    /// for deletion — the same posture as the ad channels' deliberate over-match. Likewise only
+    /// the FIRST matching element is shown; the row is hard-deleted whole either way.
+    /// </para>
+    /// </remarks>
+    private static string? FirstMatchedAxisValue(
+        List<string> occupationGroup, List<string> municipality, List<string> region,
+        List<string> employmentType, List<string> worktimeExtent, string needle,
+        IReadOnlyList<string> writtenForms)
+    {
+        List<string>[] axes = [occupationGroup, municipality, region, employmentType, worktimeExtent];
+
+        foreach (var axis in axes)
+        {
+            foreach (var value in axis)
+            {
+                if (value.Contains(needle, StringComparison.OrdinalIgnoreCase)
+                    || writtenForms.Contains(value, StringComparer.Ordinal))
+                {
+                    return value;
+                }
+            }
+        }
+
+        // TOTAL, deliberately. The SQL is the authority on WHETHER the row matched; this method
+        // only chooses WHICH element to show. Returning null on a row the SQL returned would build
+        // an ErasureRecentSearchMatch with all three slots null -- which throws, i.e. an Art. 17 dry
+        // run 500s. The C# predicate is a superset of the SQL's for ASCII, which the write grammar
+        // guarantees, but the NEEDLE is the operator's and need not be: a character Postgres's ctype
+        // folds to ASCII while .NET's ordinal casing does not (U+212A KELVIN, U+017F LONG S) would
+        // match in SQL and miss here. Falling back to the first non-empty element over-discloses one
+        // string to the operator on a row already destined for deletion -- the posture this channel
+        // already takes -- instead of failing a rights request.
+        foreach (var axis in axes)
+        {
+            if (axis.Count > 0)
+                return axis[0];
+        }
+
+        return null;
     }
 
     public async Task<int> CountSavedSearchesAsync(

@@ -60,9 +60,12 @@ public interface IRecruiterErasureMatchQuery
 
     /// <summary>
     /// Recent-search rows whose <c>q</c> contains <paramref name="identifier"/> <b>as a whole
-    /// word</b>, OR whose <c>employer_list</c> contains it as an <b>exact normalised org.nr</b>.
-    /// Returns the rows with their match evidence (the term, or the matched org.nr), because they
-    /// are HARD-DELETED and the operator must see what will go.
+    /// word</b>; whose <c>employer_list</c> contains it as an <b>exact normalised org.nr</b>; or
+    /// whose FIVE concept-id axes (<c>occupation_group_list</c>, <c>municipality_list</c>,
+    /// <c>region_list</c>, <c>employment_type_list</c>, <c>worktime_extent_list</c>) hold an
+    /// element matching it as a whole word <b>OR</b> equal to the normalised org.nr exactly.
+    /// Returns the rows with their match evidence — the term, the matched org.nr, or the matched
+    /// axis value — because they are HARD-DELETED and the operator must see what will go.
     /// </summary>
     /// <remarks>
     /// <b>The looseness of a match must be inversely proportional to the strength of its review
@@ -77,6 +80,44 @@ public interface IRecruiterErasureMatchQuery
     /// An employer-only search has <c>q = NULL</c> — the domain's canonical form — and its row is
     /// returned and deleted like any other; round 5 threw exactly that row away after the SQL had
     /// found it.
+    /// <para>
+    /// <b>THE FIVE CONCEPT-ID AXES ARE SEARCHED, and the ground that said otherwise was written
+    /// against the columns' PURPOSE (#1425).</b> They are shape-validated
+    /// (<c>^[A-Za-z0-9_-]{1,32}\z</c>) and never taxonomy-resolved, so a hand-edited
+    /// <c>?occupationGroup=…&amp;commit=true</c> persists a single-token name or a ten-digit org.nr.
+    /// The grammar admits no space, <c>@</c> or <c>.</c>, so an email, a postal address and a
+    /// two-word name cannot be stored there — <c>Karlsson</c> and <c>Anna-Karlsson</c> can.
+    /// #1419 closed the personnummer case AT CAPTURE TIME, forward-only, with a declared
+    /// Luhn-invalid residual — it does not make the column a closed domain.
+    /// </para>
+    /// <para>
+    /// <b>BOTH arms run over the five axes, and neither is redundant.</b> The word-boundary
+    /// pattern is built from the identifier AS SUPPLIED, so a request for <c>550928-1234</c>
+    /// yields a pattern that can never match a stored <c>5509281234</c>; only the exact arm
+    /// reaches it. And the exact arm alone would never reach a NAME. Drop either and an enskild
+    /// firma's personnummer sits unreachable in a column we certify erased.
+    /// </para>
+    /// <para>
+    /// <b>The exact arm binds every WRITTEN form, not the normalised one</b>
+    /// (<c>OrganizationNumber.WrittenForms</c>, the inverse of <c>TryFromWrittenForm</c>).
+    /// <c>employer_list</c> normalises on write, so matching its 10-digit form is complete there.
+    /// These five validate on SHAPE ONLY and store what was typed, so a normalised comparison
+    /// reaches only the form that happens to coincide: measured against the live catalog, a request
+    /// for <c>5509281234</c> reached a stored <c>5509281234</c> and NONE of <c>550928-1234</c>,
+    /// <c>195509281234</c> or <c>19550928-1234</c>.
+    /// </para>
+    /// <para>
+    /// ⚠ <b>KNOWN RESIDUAL, disclosed rather than certified away.</b> Postgres counts <c>_</c> as a
+    /// word character, so <c>(?&lt;![[:alnum:]_])</c> refuses the boundary next to it: a stored
+    /// <c>Karlsson_x</c> does NOT match a request for <c>Karlsson</c>, while <c>Anna-Karlsson</c>
+    /// does. That asymmetry bites harder here than on <c>q</c>, because <c>_</c> is part of the
+    /// concept-id grammar and appears in every real Arbetsförmedlingen id (<c>DJh5_yyF_hEM</c>).
+    /// The alternative boundary class <c>(?&lt;![[:alnum:]])…</c> would close it, but it is not a
+    /// free win: it would also make every underscore-delimited segment of a LEGITIMATE concept-id
+    /// matchable (a request for <c>yyF</c> would reach <c>DJh5_yyF_hEM</c>) and hard-delete another
+    /// user's row without a per-id gate, and it would widen the <c>q</c> arm on the same rows. Both
+    /// directions are tracked in #1436, never taken silently here.
+    /// </para>
     /// </remarks>
     Task<IReadOnlyList<ErasureRecentSearchMatch>> FindRecentJobSearchesAsync(
         string identifier, CancellationToken cancellationToken);

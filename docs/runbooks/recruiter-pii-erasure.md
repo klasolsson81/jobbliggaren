@@ -116,7 +116,10 @@ her name — **and, for an enskild firma, her organisationsnummer**.
 form `19560125-7901` all normalise to the stored 10-digit form
 (`OrganizationNumber.TryFromWrittenForm`) and run as exact equality against
 `job_ads.organization_number` and `recent_job_searches.employer_list` — a
-structured key gets structured matching, never a regex over prose. Anything not
+structured key gets structured matching, never a regex over prose. The five
+`recent_job_searches` concept-id axes are matched per array element against every WRITTEN
+form instead (#1425): they validate on shape only, so they store what was typed and have no
+normalised form to compare against. Anything not
 org.nr-shaped falls back to the free-text channels; nothing is guessed.
 
 The ads are matched on **four channels**, and each exists because the others
@@ -142,7 +145,10 @@ miss something:
 
 The **cascade surfaces** are matched separately and reported per surface:
 `recent_job_searches.q` (word boundary — see below) + `employer_list` (exact
-org.nr), `saved_searches.criteria` + `saved_searches.name`,
+org.nr) + the five concept-id axes `occupation_group_list` / `municipality_list` /
+`region_list` / `employment_type_list` / `worktime_extent_list` (word boundary OR
+exact org.nr, per array element — shape-validated, never taxonomy-resolved, #1425),
+`saved_searches.criteria` + `saved_searches.name`,
 `applications.snapshot_company` / `snapshot_title` / `snapshot_description` /
 `snapshot_url` (retained, Art. 17(3)(e)), `applications.manual_company` /
 `manual_title` / `manual_url`, `company_watch_criteria.label`, the CV's
@@ -161,6 +167,16 @@ a false negative costs a false confirmation to a named person.
 > proportional to the strength of its review gate.** Erasing `anna` must not delete
 > another user's search for `marianna`. You still see every matched string in the
 > dry run before anything goes.
+>
+> **The same word boundary now runs over the five concept-id axes (#1425)**, plus an
+> exact-org.nr arm that matches every WRITTEN form of her org.nr, not just the normalised
+> one — those five columns validate on shape and store what was typed, so `550928-1234`
+> and `19550928-1234` sit there literally. **A known miss, and you should know it:**
+> Postgres treats `_` as a word character, so a stored `Karlsson_x` does **not** match a
+> request for `Karlsson` — while `Anna-Karlsson` does. `_` is part of the concept-id
+> grammar, so this is the likeliest shape of a miss on this surface (#1436). If a subject
+> tells you her name is in a search filter and the dry run reports zero, run it again with
+> the underscored form as a second identifier.
 
 > ⛔ **SEVEN COLUMNS ARE NOT SEARCHED, AND YOU MUST SAY SO.**
 > `applications.cover_letter`, `application_notes.content`, `follow_ups.note`,
@@ -224,8 +240,10 @@ stale:
     // normalised org.nr as the excerpt — suffixed "(personnummer-format)" when
     // personnummer-shaped. That is HER OWN submitted identifier echoed back.
   ],
-  // The hard-deleted rows' evidence: the q term, or "arbetsgivarfilter: <org.nr>"
-  // for an employer-only search (q = null) — flagged when personnummer-shaped.
+  // The hard-deleted rows' evidence, one line per DISTINCT reason — a row that matched on
+  // several arms contributes several. Three forms: the q term, "arbetsgivarfilter: <org.nr>",
+  // and "sökfilter: <value>" for a conceptId-axis hit. The latter two are flagged when
+  // personnummer-shaped.
   "matchedRecentSearchTerms": ["magnus fagerberg"],
   "erasedExternalIds": []
 }
@@ -331,7 +349,7 @@ claim to have erased what we have not erased. That is #842, applied to ourselves
 | Surface | Erased? | Why |
 |---|---|---|
 | `job_ads` (the ad, all of it) | ✅ **Yes** | Whole-record removal. Provable. |
-| `recent_job_searches` (saved search history) | ✅ **Yes**, hard-deleted | If a user searched the recruiter's name — or filtered on her org.nr in the employer filter (`employer_list`; an employer-only search has `q = NULL` and is matched exactly on the normalised org.nr) — that identifier is sitting in her search history. Auto-capture rows have no audit-trail dignity, the cap-20 list rebuilds on her next search, so the user loses nothing. |
+| `recent_job_searches` (saved search history) | ✅ **Yes**, hard-deleted | If a user searched the recruiter's name — or filtered on her org.nr in the employer filter (`employer_list`; an employer-only search has `q = NULL` and is matched exactly on the normalised org.nr) — that identifier is sitting in her search history. **Since #1425 this also reaches her name or org.nr sitting in one of the five concept-id filter axes** (`occupation_group_list` / `municipality_list` / `region_list` / `employment_type_list` / `worktime_extent_list`): those columns are validated on SHAPE ONLY and never against the taxonomy, so a hand-edited URL puts arbitrary text in them. They were classified "closed domain" for one release. Same row, same delete, same zero user cost. Auto-capture rows have no audit-trail dignity, the cap-20 list rebuilds on her next search, so the user loses nothing. |
 | `saved_searches.criteria` (user's saved filters) | ⚠️ **Not automatically — a HUMAN erases it, inside the Art. 12(3) month** | **HER RIGHT APPLIES. Do not tell her otherwise.** One row carries two data subjects under two bases: the user's own criteria rest on Art. 6(1)(b) (our contract with *her*), but **the recruiter's name sitting inside those criteria does not** — 6(1)(b) requires the data subject to be a **party** to the contract, and the recruiter is party to nothing. That processing rests on **Art. 6(1)(f)**, which **Art. 21(1) reaches**. So her objection fires and Art. 17(1)(c) is available. We do not attempt the "compelling legitimate grounds" override: keeping her name in another user's filter is a convenience, and a saved search is recreatable in seconds. **We owe her erasure and we honour it in full** — we simply do not AUTOMATE it, because `SoftDelete()` would leave `criteria` in the row (it hides, it does not erase) and stripping the term is not always constructible. **A human does it, with the affected user in the loop. That is a mechanism choice, never a refusal.** |
 | `applications.manual_company`, `manual_title`, `manual_url` (manually tracked applications) | ⚠️ **Not automatically — a HUMAN erases it** | A user may have pasted or typed a recruiter's name/contact into these fields when tracking an application she found outside Platsbanken. That is the recruiter's personal data, and her right reaches it (6(1)(f) → Art. 21(1)) — but a system does not silently rewrite a person's private record of her own job hunt. Reported; a human handles it with that user. *(URL can carry a name: `linkedin.com/in/magnus-fagerberg`, company contact page, etc.)* |
 | `company_watch_criteria.label` (nickname for a watch predicate) | ⚠️ **Not automatically — a HUMAN erases it, inside the Art. 12(3) month** | A user might name a watch *"IT jobb med Magnus"*. Unlike `saved_searches`, the label is **optional and nullable** — the criterion is its codes (industry + municipality), and the label is just a UI nickname. **`UpdateLabel(null)` is always constructible and lossless.** We report the count; a human nulls the label with zero complexity. Same mechanism as `saved_searches`: report, human decides. *(This column was found by enforcing the cascade registry at the EF model level; it is why the guard breaks the build.)*  |

@@ -545,31 +545,33 @@ internal static class EmailTemplates
         var forgotLink = $"{trimmed}/glomt-losenord";
 
         return new EmailContent(
-            Subject: "Adressen är redan registrerad hos Jobbliggaren",
+            Subject: "Din e-postadress är redan registrerad hos Jobbliggaren",
             PlainTextBody: $"""
-                Någon har försökt registrera den här e-postadressen, men den är
-                redan registrerad hos Jobbliggaren.
+                Någon har försökt skapa ett konto med den här e-postadressen, men
+                adressen är redan registrerad hos Jobbliggaren.
 
-                Om det var du:
+                Om det var du, logga in här:
                 {loginLink}
 
                 Har du glömt ditt lösenord kan du välja ett nytt här:
                 {forgotLink}
 
                 Om det inte var du behöver du inte göra något. Ingenting har
-                ändrats. Kommer du inte in, eller stämmer något inte, hör av dig:
+                ändrats.
+
+                Kommer du inte in, eller stämmer något inte, hör av dig:
                 {ContactAddress}
 
                 Vänliga hälsningar,
                 Jobbliggaren
                 """,
             HtmlBody: EmailHtml.Document(
-                title: "Adressen är redan registrerad hos Jobbliggaren",
+                title: "Din e-postadress är redan registrerad hos Jobbliggaren",
                 preheader: "Om det inte var du behöver du inte göra något. Ingenting har ändrats.",
                 body: EmailHtml.P(
-                        "Någon har försökt registrera den här e-postadressen, men den är redan "
-                        + "registrerad hos Jobbliggaren.")
-                    + EmailHtml.P("Om det var du:")
+                        "Någon har försökt skapa ett konto med den här e-postadressen, men adressen "
+                        + "är redan registrerad hos Jobbliggaren.")
+                    + EmailHtml.P("Om det var du, logga in här:")
                     + EmailHtml.Button(loginLink, "Logga in")
                     + EmailHtml.LinkParagraph(
                         "Har du glömt ditt lösenord kan du välja ett nytt här:",

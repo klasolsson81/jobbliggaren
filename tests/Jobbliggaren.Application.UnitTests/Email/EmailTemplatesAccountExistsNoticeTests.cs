@@ -25,9 +25,6 @@ public class EmailTemplatesAccountExistsNoticeTests
         // AccountExistsNotice is handed a base URL and nothing else — not even a userId — and the 403
         // detail is a compile-time constant. Growing either is the change worth catching, and it is
         // catchable, where "do not be state-dependent" is not (senior-cto-advisor 2026-08-22).
-        //
-        // Branching there is not a style question: the duplicate-registration branch is reachable by
-        // anyone who submits an address, so state-dependent copy on it is an account-existence oracle.
         var parameters = typeof(EmailTemplates)
             .GetMethod(nameof(EmailTemplates.AccountExistsNotice))!
             .GetParameters();
@@ -40,8 +37,8 @@ public class EmailTemplatesAccountExistsNoticeTests
             .GetField(nameof(Jobbliggaren.Application.Auth.AuthErrorCodes.EmailNotConfirmedMessage));
 
         detail.ShouldNotBeNull();
-        detail.IsLiteral.ShouldBeTrue("a const cannot be computed from account state");
-        detail.IsInitOnly.ShouldBeFalse("a static readonly could be assigned a computed value");
+        detail.IsLiteral.ShouldBeTrue(
+            "a const cannot be computed from account state, and a static readonly is not literal");
     }
 
     [Fact]
@@ -62,16 +59,26 @@ public class EmailTemplatesAccountExistsNoticeTests
         // The notice grants NO access: no token, and no /bekrafta-konto activation link. Its only job is
         // a login-nudge to the real owner (Klas decision) while leaking no account existence to a
         // non-owner (the HTTP response stays an identical 202).
+        //
+        // BOTH renderings. Every other assertion in this class reads PlainTextBody only, and the two
+        // halves are held word-for-word alike BY HAND — so the load-bearing negative was guarded on one
+        // of two. The property held when measured; this closes the guard, not an exposure (#1349).
         var rendered = EmailTemplates.AccountExistsNotice(BaseUrl);
 
-        rendered.PlainTextBody.ShouldNotContain("token=");
-        rendered.PlainTextBody.ShouldNotContain("bekrafta-konto");
+        foreach (var body in new[] { rendered.PlainTextBody, rendered.HtmlBody })
+        {
+            // COUNTERFACTUAL first: two ShouldNotContains also pass against an empty body.
+            body.ShouldContain("/logga-in");
+
+            body.ShouldNotContain("token=");
+            body.ShouldNotContain("bekrafta-konto");
+        }
     }
 
     [Fact]
     public void AccountExistsNotice_ShouldUseAccountExistsSubject()
         => EmailTemplates.AccountExistsNotice(BaseUrl)
-            .Subject.ShouldBe("Adressen är redan registrerad hos Jobbliggaren");
+            .Subject.ShouldBe("Din e-postadress är redan registrerad hos Jobbliggaren");
 
     [Fact]
     public void AccountExistsNotice_ShouldNotContainExclamationOrEmDash()

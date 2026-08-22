@@ -124,7 +124,7 @@ describe("LoginForm", () => {
   it("#733 — shows the resend-confirmation button when the action returns emailNotConfirmed", async () => {
     loginActionMock.mockResolvedValueOnce({
       error:
-        "Din e-postadress är inte bekräftad än. Kontrollera din inkorg.",
+        "Din e-postadress är inte bekräftad ännu. Kontrollera inkorgen och skräpposten.",
       emailNotConfirmed: true,
     });
 
@@ -144,7 +144,7 @@ describe("LoginForm", () => {
     vi.mocked(resendConfirmationAction).mockClear();
     loginActionMock.mockResolvedValueOnce({
       error:
-        "Din e-postadress är inte bekräftad än. Kontrollera din inkorg.",
+        "Din e-postadress är inte bekräftad ännu. Kontrollera inkorgen och skräpposten.",
       emailNotConfirmed: true,
       email: "submitted@example.se",
     });

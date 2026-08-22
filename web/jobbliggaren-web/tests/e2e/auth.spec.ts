@@ -22,8 +22,11 @@ const BACKEND_URL = process.env.BACKEND_URL ?? "http://localhost:5049";
 const RESEND_BUTTON = "Skicka en ny bekräftelselänk";
 const RESEND_SENT =
   "Om adressen behöver bekräftas har vi skickat en ny länk. Kontrollera inkorgen och skräpposten.";
+// Duplicated from messages/sv/pages.json `auth.actions.emailNotConfirmed`. This job is
+// observe-only (e2e.yml), so a stale copy here breaks #791's regression silently — it was
+// missed once (#1442) precisely because nothing goes red.
 const LOGIN_403_COPY =
-  "Bekräfta din e-postadress för att logga in. Vi har skickat en länk till din inkorg.";
+  "Din e-postadress är inte bekräftad ännu. Kontrollera inkorgen och skräpposten.";
 
 test.describe("auth email-confirmation resend (flag ON)", () => {
   test("register-202 shows the check-inbox panel with a working resend button", async ({

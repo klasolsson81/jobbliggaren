@@ -479,7 +479,7 @@
       "displayNamePersonnummer": "Your name cannot contain a personal identity number. Enter the name without it and try again.",
       "registrationsClosed": "Registration is not open yet. Try again later.",
       "passwordBreached": "This password has appeared in known data breaches. Choose a different password.",
-      "emailNotConfirmed": "Your email address is not confirmed yet. Check your inbox.",
+      "emailNotConfirmed": "Your email address is not confirmed yet. Check your inbox and your spam folder.",
       "passwordResetEmailRequired": "Enter your email address.",
       "passwordResetFailed": "We could not send a reset link right now. Try again in a moment.",
       "emailDeliveryUnavailable": "Email delivery is not enabled right now, so we cannot send a reset link. Your password is unchanged. Try again later."

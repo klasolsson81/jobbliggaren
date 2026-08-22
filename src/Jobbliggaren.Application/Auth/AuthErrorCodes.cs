@@ -79,13 +79,9 @@ public static class AuthErrorCodes
     /// JobSeeker guard runs. The second sentence became an instruction for the same reason: the gate
     /// establishes EmailConfirmed=false and knows nothing about whether a send succeeded.
     /// </para>
-    /// <para>
-    /// Keep it a <c>const</c>. Making it state-dependent is the executable form of the prohibition on
-    /// letting an unauthenticated surface read account state (senior-cto-advisor 2026-08-22).
-    /// </para>
     /// </summary>
     public const string EmailNotConfirmedMessage =
-        "Din e-postadress är inte bekräftad än. Kontrollera din inkorg.";
+        "Din e-postadress är inte bekräftad ännu. Kontrollera inkorgen och skräpposten.";
 
     /// <summary>
     /// #714 — uniform failure for EVERY rejection on the PUBLIC registration-confirm endpoint

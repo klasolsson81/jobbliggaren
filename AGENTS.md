@@ -1,7 +1,11 @@
 # AGENTS.md — Jobbliggaren shared core
 
 > One §-namespace across this file and `CLAUDE.md`, which holds the §-index,
-> §§1.5/6.5/9/11/13 and the `@AGENTS.md` import. Budget: CI-guarded (ADR 0135).
+> §§1.5/6.5/9/11/13 and the `@AGENTS.md` import. Main spec: `BUILD.md` · design:
+> `DESIGN.md`. Budget: CI-guarded (ADR 0135). An agent touching dev tooling,
+> pre-commit gates, the compose stack or a fail-fast config option reads
+> `CLAUDE.md` §11 first — it sits there for budget reasons, not because it is
+> CC-specific.
 
 ## 1. Identity
 
@@ -28,7 +32,7 @@ Existing Swedish docs are not mass-translated.
 | `docs/runbooks/` | Operational procedures |
 | `docs/research/` (+`issues/`) | Findings, planning, open questions |
 | `docs/reviews/` | Agent review reports |
-| `docs/spec-rationale.md` | Non-normative derivations and dated measurements, §-keyed |
+| `docs/spec-rationale.md` | Non-normative derivations, incidents and dated measurements, §-keyed |
 
 **The backlog is GitHub Issues, and nothing else** (Klas-direktiv 2026-08-02). The
 TD register — `docs/tech-debt.md`, its archive, and the `jobbpilot-td-lifecycle`
@@ -45,9 +49,8 @@ standing requirement, not a claim that the sweep was exhaustive.
 
 Top-level `BUILD.md`/`CLAUDE.md`/`AGENTS.md`/`DESIGN.md` may be edited autonomously via the
 normal feature-branch → PR → automerge flow (§9.2/§6); Klas reviews the diff
-post-merge. Mandatory spec-edit agents apply (dotnet-architect + code-reviewer;
-design-reviewer for DESIGN.md design-token changes). Agents place new docs per
-this map; when unsure, ask.
+post-merge. Mandatory spec-edit agents per §9.2 (CLAUDE.md). Agents place new
+docs per this map; when unsure, ask.
 
 ## 2. Core principles
 
@@ -292,9 +295,12 @@ show the thing itself, and nowhere else. **A factually wrong comment — wrong n
   - **`automerge` = INTENT** — *"this PR should merge when it is ready."* True at
     `gh pr create`; set it then. The driving agent sets it; the PR-babysitter may set it too.
   - **`agents-done` = PERMISSION** — *"the mandatory agents (§9.2) have reported and
-    no Blocker/Major is unresolved."* **Only the owning session — whichever tool
-    drives the PR — sets this**; an unreviewed PR waits gated regardless of tool. And only
-    after actually waiting them in. Never the babysitter.
+    no Blocker/Major is unresolved."* **The owning session that ran the §9.2 panel
+    sets this, and only after actually waiting them in. A tool that cannot run the
+    panel never sets it** — its PR opens with `automerge` and a body line saying the
+    reviewers have not run, and merges only after a CC session or Klas runs them
+    (Klas-direktiv 2026-08-22: same flow, same labels — parity, not bypass).
+    Never the babysitter.
 
   `label-automerge.yml` arms auto-merge only when **both** are present; merge on
   green `ci`; Klas reviews the diff **post-merge**. **A push that carries content
@@ -305,8 +311,8 @@ show the thing itself, and nowhere else. **A factually wrong comment — wrong n
   tears down the gate it was invoked to close. **Bringing the branch up to base does not**
   (`.github/scripts/is-pure-base-merge.sh`, fail-closed: every error and every
   shape it cannot vouch for disarms).
-  Spec-edits to BUILD/CLAUDE/AGENTS/DESIGN no longer require pre-approval (§9.2) —
-  they ride the same flow. Exception (STOPP instead): an unresolved agent
+  Spec-edits no longer require pre-approval — they ride the same flow (§9.2,
+  CLAUDE.md). Exception (STOPP instead): an unresolved agent
   Blocker/Major, **or any §12 merge-blocking condition** (a §5 anti-pattern,
   Clean-Architecture boundary violation, non-BUILD.md library, design-token change
   outside DESIGN.md, or security-critical change without tests). Docs-sync lives in

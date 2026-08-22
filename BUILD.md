@@ -1925,4 +1925,4 @@ nummer hämtas ur indexet.
 
 ---
 
-**Slut på BUILD.md.** Nästa läsning: [`AGENTS.md`](./AGENTS.md) för kodningsstandarder och [`DESIGN.md`](./DESIGN.md) för design-specifikation.
+**Slut på BUILD.md.** Nästa läsning: [`AGENTS.md`](./AGENTS.md) för kodningsstandarder, [`CLAUDE.md`](./CLAUDE.md) för Claude-Code-flödet och [`DESIGN.md`](./DESIGN.md) för design-specifikation.

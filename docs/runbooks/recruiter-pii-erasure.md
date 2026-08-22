@@ -115,9 +115,11 @@ her name — **and, for an enskild firma, her organisationsnummer**.
 2026-07-14): `556012-5790`, `5560125790` and the century-prefixed personnummer
 form `19560125-7901` all normalise to the stored 10-digit form
 (`OrganizationNumber.TryFromWrittenForm`) and run as exact equality against
-`job_ads.organization_number`, `recent_job_searches.employer_list` and, per array
-element, the five `recent_job_searches` concept-id axes (#1425) — a
-structured key gets structured matching, never a regex over prose. Anything not
+`job_ads.organization_number` and `recent_job_searches.employer_list` — a
+structured key gets structured matching, never a regex over prose. The five
+`recent_job_searches` concept-id axes are matched per array element against every WRITTEN
+form instead (#1425): they validate on shape only, so they store what was typed and have no
+normalised form to compare against. Anything not
 org.nr-shaped falls back to the free-text channels; nothing is guessed.
 
 The ads are matched on **four channels**, and each exists because the others
@@ -167,13 +169,14 @@ a false negative costs a false confirmation to a named person.
 > dry run before anything goes.
 >
 > **The same word boundary now runs over the five concept-id axes (#1425)**, plus an
-> exact-org.nr arm for the case a boundary regex can never reach: a request for
-> `550928-1234` against a stored `5509281234`. **One known miss, and you should know
-> it:** Postgres treats `_` as a word character, so a stored `Karlsson_x` does **not**
-> match a request for `Karlsson` — while `Anna-Karlsson` does. `_` is part of the
-> concept-id grammar, so this is the likeliest shape of a miss on this surface. If a
-> subject tells you her name is in a search filter and the dry run reports zero, run it
-> again with the underscored form as a second identifier.
+> exact-org.nr arm that matches every WRITTEN form of her org.nr, not just the normalised
+> one — those five columns validate on shape and store what was typed, so `550928-1234`
+> and `19550928-1234` sit there literally. **A known miss, and you should know it:**
+> Postgres treats `_` as a word character, so a stored `Karlsson_x` does **not** match a
+> request for `Karlsson` — while `Anna-Karlsson` does. `_` is part of the concept-id
+> grammar, so this is the likeliest shape of a miss on this surface (#1436). If a subject
+> tells you her name is in a search filter and the dry run reports zero, run it again with
+> the underscored form as a second identifier.
 
 > ⛔ **SEVEN COLUMNS ARE NOT SEARCHED, AND YOU MUST SAY SO.**
 > `applications.cover_letter`, `application_notes.content`, `follow_ups.note`,
@@ -237,8 +240,10 @@ stale:
     // normalised org.nr as the excerpt — suffixed "(personnummer-format)" when
     // personnummer-shaped. That is HER OWN submitted identifier echoed back.
   ],
-  // The hard-deleted rows' evidence: the q term, or "arbetsgivarfilter: <org.nr>"
-  // for an employer-only search (q = null) — flagged when personnummer-shaped.
+  // The hard-deleted rows' evidence, one line per DISTINCT reason — a row that matched on
+  // several arms contributes several. Three forms: the q term, "arbetsgivarfilter: <org.nr>",
+  // and "sökfilter: <value>" for a conceptId-axis hit. The latter two are flagged when
+  // personnummer-shaped.
   "matchedRecentSearchTerms": ["magnus fagerberg"],
   "erasedExternalIds": []
 }

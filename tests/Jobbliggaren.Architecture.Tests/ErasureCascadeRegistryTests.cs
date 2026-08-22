@@ -536,8 +536,16 @@ public class ErasureCascadeRegistryTests
             ErasureCascadeRegistry.WrittenGrounds[key].Length.ShouldBeGreaterThan(60,
                 $"{key}'s ground is too thin to be a ground.");
         }
+    }
 
-        // The INVERSE, and it had NO guard at all until #1425 needed one. A ground whose
+    /// <summary>
+    /// The INVERSE of the fact above, in its OWN fact: a red run must report under a name that
+    /// describes the property that broke, and the loop above short-circuits the whole block.
+    /// </summary>
+    [Fact]
+    public void Every_written_ground_describes_a_bucket_that_still_holds_a_column()
+    {
+        // It had NO guard at all until #1425 needed one. A ground whose
         // (table, disposition) bucket no longer holds a single column is dead prose that still
         // reads as a live verdict — and the one this check was written against SAID the five
         // recent_job_searches concept-id lists were closed-domain, which is exactly what #1425

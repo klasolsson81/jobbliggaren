@@ -856,9 +856,10 @@ public static class ErasureCascadeRegistry
 
             ["audit_log:NotRecruiterData"] =
                 "Closed domain: event_type and aggregate_type are constants minted by the command "
-                + "that raised the row; ip_address and user_agent are request "
-                + "metadata, never the data subject's. No recruiter free text can reach "
-                + "them - the one field that could is payload, which is Pseudonymised (HMAC).",
+                + "that raised the row; ip_address and user_agent are the REQUESTING user's "
+                + "request metadata, and a recruiter has no account here - no write path can "
+                + "stamp hers. The one field that could carry her free text is payload, which is "
+                + "Pseudonymised (HMAC).",
 
             ["company_register:NotRecruiterData"] =
                 "Closed domain: sate_kommun_code / sate_kommun_name / scb_status_raw are SCB "

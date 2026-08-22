@@ -1134,8 +1134,8 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
     /// </summary>
     /// <remarks>
     /// <c>JobAdSortBy.PublishedAtDesc</c>, not <c>Relevance</c>: <c>SearchCriteria</c>'s
-    /// <c>RelevanceRequiresQ</c> invariant refuses Relevance without a <c>q</c>. Five distinct
-    /// criteria give five distinct FilterHashes, so one seeker carries all rows without tripping
+    /// <c>RelevanceRequiresQ</c> invariant refuses Relevance without a <c>q</c>. Distinct criteria
+    /// give distinct FilterHashes, so one seeker carries every row without tripping
     /// UNIQUE(job_seeker_id, filter_hash).
     /// </remarks>
     private async Task<JobSeekerId> SeedTaxonomyAxisSearchesAsync(
@@ -2246,7 +2246,7 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
     /// The seventh asserts the personnummer flag does NOT fire on ordinary names.
     /// <c>OrganizationNumber.IsPersonnummerShaped()</c> fails SAFE — it returns true for anything
     /// that is not ten ASCII digits — so a taxonomy evidence builder that skipped the
-    /// <c>Create</c> gate would suffix "(personnummer-format)" onto every name it surfaced, and
+    /// recogniser gate would suffix "(personnummer-format)" onto every name it surfaced, and
     /// the ADR 0087 D8(c) control would degrade into decoration.
     /// </para>
     /// </remarks>
@@ -2281,12 +2281,14 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
                 + "have no per-id review gate, so the looseness must stay inversely proportional "
                 + "to it.");
 
+        // The POSITIVE form, not ShouldNotContain: a negative predicate passes on an EMPTY list,
+        // so it would have been vacuous on its own. This anchors the list and pins the exact
+        // evidence line in one assertion.
         var names = await EraseAsync("Vilhelmina-Roos", ct, dryRun: true);
-        names.MatchedRecentSearchTerms.ShouldNotContain(
-            t => t.Contains("personnummer-format", StringComparison.Ordinal),
+        names.MatchedRecentSearchTerms.ShouldBe(["sökfilter: Vilhelmina-Roos"],
             "an ordinary name must NOT be flagged as personnummer-shaped. IsPersonnummerShaped "
             + "fails safe (true for anything that is not ten ASCII digits), so the evidence "
-            + "builder must gate on OrganizationNumber.Create succeeding first.");
+            + "builder must run the written-form recogniser, which refuses ordinary text.");
     }
 
     /// <summary>
@@ -2321,21 +2323,37 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
                 + "state src/ cannot produce and the whole test is a fiction. It is admitted "
                 + "because the guard is Luhn-gated and 5509281234 is Luhn-invalid.");
 
-        await SeedTaxonomyAxisSearchesAsync(ct, (0, "5509281234"));
+        // Four rows: the bare form, the two WRITTEN forms the axes admit and store literally,
+        // and a looseness control. Measured before the fix: a request for the normalised form
+        // reached ONLY the bare one; `550928-1234`, `195509281234` and `19550928-1234` were all
+        // unreachable, on a column now certified Erased.
+        await SeedTaxonomyAxisSearchesAsync(ct,
+            (0, "5509281234"),
+            (1, "550928-1234"),
+            (2, "19550928-1234"),
+            (3, "5509281234_x"));
 
         var probe = await EraseAsync("550928-1234", ct, dryRun: true);
 
-        probe.Matched.RecentJobSearches.ShouldBe(1,
-            "the hyphenated written form must reach the stored ten-digit value through the EXACT "
-            + "normalised-org.nr arm. The word-boundary pattern is built from the identifier as "
-            + "supplied and can never match it.");
+        probe.Matched.RecentJobSearches.ShouldBe(3,
+            "all THREE written forms must be reached. The word-boundary pattern is built from the "
+            + "identifier as supplied, so it reaches `550928-1234` and neither of the others; the "
+            + "exact arm must therefore bind every written form (OrganizationNumber.WrittenForms), "
+            + "not the normalised one. And `5509281234_x` must NOT be taken: the exact arm is exact, "
+            + "and a substring form would hard-delete another user's row with no per-id gate.");
 
         probe.MatchedRecentSearchTerms.ShouldContain("sökfilter: 5509281234 (personnummer-format)",
             "the operator reviews WHY a hard-deleted row matched, and a personnummer-shaped value "
             + "is never surfaced un-flagged — ADR 0087 D8(c) reaches his screen too.");
+        probe.MatchedRecentSearchTerms.ShouldContain("sökfilter: 550928-1234 (personnummer-format)",
+            "and the WRITTEN forms carry the flag too. The axes store what was typed, so the "
+            + "evidence value is `550928-1234`; a recogniser demanding ten ASCII digits would leave "
+            + "it un-flagged on the operator's own review screen.");
+        probe.MatchedRecentSearchTerms.ShouldContain("sökfilter: 19550928-1234 (personnummer-format)",
+            "including the century-prefixed form.");
 
         var result = await EraseAsync("550928-1234", ct);
-        result.Erased.RecentJobSearches.ShouldBe(1, "found by SQL must mean DELETED.");
+        result.Erased.RecentJobSearches.ShouldBe(3, "found by SQL must mean DELETED.");
 
         using var check = _provider.CreateScope();
         var after = check.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -2348,12 +2366,12 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
                       || coalesce(region_list,           ARRAY[]::text[])
                       || coalesce(employment_type_list,  ARRAY[]::text[])
                       || coalesce(worktime_extent_list,  ARRAY[]::text[])
-                     ) AS axis WHERE axis = '5509281234')
+                     ) AS axis WHERE axis IN ('5509281234', '550928-1234', '19550928-1234'))
                 """)
             .ToListAsync(ct);
         surviving[0].ShouldBe(0,
-            "her personnummer-shaped org.nr must not survive in ANY of the five axes after an "
-            + "erasure we certified as executed.");
+            "her personnummer-shaped org.nr must not survive in ANY of the five axes, in ANY "
+            + "written form, after an erasure we certified as executed.");
     }
 
     /// <summary>
@@ -2395,7 +2413,12 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
             await db.SaveChangesAsync(ct);
         }
 
-        var probe = await EraseAsync("Karlsson", ct, dryRun: true);
+        // LOWERCASE deliberately: nothing else in this file crosses the case boundary, so `~*`
+        // could be mutated to `~` with the whole suite green -- a silent under-match on an
+        // Art. 17 path, i.e. telling a named person we hold nothing of hers. NormalizeList
+        // trims and sorts Ordinal and never case-folds, so the stored values keep their case.
+        // This one character pins case-insensitivity on BOTH the q arm and the axis arm.
+        var probe = await EraseAsync("karlsson", ct, dryRun: true);
 
         probe.Matched.RecentJobSearches.ShouldBe(1, "one row, matched on two arms.");
 
@@ -2405,5 +2428,49 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
             "and so must the axis arm's — the STORED element, not the identifier. A first-non-null "
             + "rule would show only the q term and hide the axis hit from the one review this "
             + "hard-deleting surface gets.");
+    }
+
+    /// <summary>
+    /// #1425 — an evidence slot is conditioned on the arm that MATCHED, never on the column being
+    /// non-null. Revert <c>qSet.Contains(r.Id) ? r.Q : null</c> to a bare <c>r.Q</c> and only this
+    /// goes red.
+    /// </summary>
+    /// <remarks>
+    /// A row that matched on a concept-id axis while carrying an unrelated <c>q</c> would otherwise
+    /// emit that <c>q</c> as its evidence line — a string that does not contain the identifier, on
+    /// the surface whose review is the ONLY gate before an irreversible hard-delete. The operator
+    /// would be shown a reason that is not the reason. That was already true of the employer arm
+    /// before this change, which is why it is fixed rather than merely not introduced.
+    /// </remarks>
+    [Fact]
+    public async Task An_axis_only_match_does_NOT_emit_an_unrelated_q_as_its_evidence()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await IngestThroughProductionPathAsync(ct);
+
+        using (var seed = _provider.CreateScope())
+        {
+            var db = seed.ServiceProvider.GetRequiredService<AppDbContext>();
+            var clock = new FixedClock();
+            var seeker = JobSeeker.Register(Guid.NewGuid(), "Test User", clock).Value;
+            db.JobSeekers.Add(seeker);
+            await db.SaveChangesAsync(ct);
+
+            var criteria = SearchCriteria.Create(
+                occupationGroup: ["Vilhelmina-Roos"], null, null, null, null,
+                employer: null, remote: false, q: "kock i Uppsala",
+                JobAdSortBy.Relevance).Value;
+
+            db.RecentJobSearches.Add(
+                RecentJobSearch.Capture(seeker.Id, criteria, currentCount: 0, now: clock.UtcNow));
+            await db.SaveChangesAsync(ct);
+        }
+
+        var probe = await EraseAsync("Vilhelmina-Roos", ct, dryRun: true);
+
+        probe.Matched.RecentJobSearches.ShouldBe(1, "the axis arm matched the row.");
+        probe.MatchedRecentSearchTerms.ShouldBe(["sökfilter: Vilhelmina-Roos"],
+            "the q term `kock i Uppsala` does not contain the identifier and must NOT be offered "
+            + "to the operator as the reason this row is about to be hard-deleted.");
     }
 }

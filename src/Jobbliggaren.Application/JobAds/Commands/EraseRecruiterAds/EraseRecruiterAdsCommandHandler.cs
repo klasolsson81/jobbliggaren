@@ -73,9 +73,10 @@ public sealed partial class EraseRecruiterAdsCommandHandler(
         // The distinct match evidence, no user ids. These rows are hard-deleted with no per-id
         // confirmation ceremony, so the operator must at least SEE what will go — a count cannot
         // be reviewed. A q-matched row shows the term; an employer-only row (q = NULL) shows the
-        // matched org.nr; a concept-id axis hit shows the matched axis VALUE (#1425). Each is
-        // flagged when personnummer-shaped (ADR 0087 D8(c) — never surfaced un-flagged, even to
-        // the operator, even when the subject herself supplied it).
+        // matched org.nr; a concept-id axis hit shows the matched axis VALUE (#1425). The org.nr
+        // and axis lines are flagged when personnummer-shaped (ADR 0087 D8(c) — never surfaced
+        // un-flagged, even to the operator, even when the subject herself supplied it); the q line
+        // is not, and that gap is repo state this change did not create.
         //
         // EVERY arm the row matched on is emitted, not the first non-null one. `??` was honest
         // with two slots (the shown hit justified the deletion by itself) but becomes a MASKING
@@ -315,18 +316,25 @@ public sealed partial class EraseRecruiterAdsCommandHandler(
     /// operator, even when the subject herself supplied it). Review payload only; never logged.
     /// </summary>
     /// <remarks>
-    /// ⚠ <b>The <c>Create</c> gate is LOAD-BEARING, and it is not defensive noise.</b>
+    /// ⚠ <b>The recogniser gate is LOAD-BEARING, and it is not defensive noise.</b>
     /// <c>OrganizationNumber.IsPersonnummerShaped()</c> fails SAFE — it returns <c>true</c> for
     /// anything that is not ten ASCII digits. On the employer arm that never mattered, because the
     /// value is a validated org.nr by construction. A concept-id axis value is ARBITRARY TEXT, so
     /// <c>FromTrusted("Karlsson").IsPersonnummerShaped()</c> is <c>true</c> and every ordinary name
     /// would be surfaced as "(personnummer-format)". A flag that fires on everything flags nothing,
     /// and the control would degrade into decoration on exactly the request it exists for.
+    /// <para>
+    /// <c>TryFromWrittenForm</c> and not <c>Create</c>: the axes store what was typed, so the value
+    /// here can be <c>550928-1234</c> or <c>19550928-1234</c>. <c>Create</c> demands ten ASCII
+    /// digits and would leave those UNFLAGGED. It gates just as tightly against ordinary text --
+    /// <c>TryFromWrittenForm</c> runs <c>Create</c> internally, so <c>Karlsson</c> and
+    /// <c>DJh5_yyF_hEM</c> both return null.
+    /// </para>
     /// </remarks>
     private static string PersonnummerFlagged(string value)
     {
-        var orgNr = Domain.CompanyWatches.OrganizationNumber.Create(value);
-        return orgNr.IsSuccess && orgNr.Value.IsPersonnummerShaped()
+        var orgNr = Domain.CompanyWatches.OrganizationNumber.TryFromWrittenForm(value);
+        return orgNr?.IsPersonnummerShaped() == true
             ? $"{value} (personnummer-format)"
             : value;
     }

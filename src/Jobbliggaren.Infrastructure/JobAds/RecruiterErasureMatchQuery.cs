@@ -285,6 +285,17 @@ internal sealed class RecruiterErasureMatchQuery(AppDbContext db) : IRecruiterEr
         var pattern = WordBoundaryPattern(identifier);
         var orgNr = NormalizedOrgNr(identifier);
 
+        // The exact arm must meet the STORE's form, not the request's. employer_list normalises
+        // on write (ValidateEmployerList -> OrganizationNumber.Create), so the 10-digit form is
+        // the only one there. The five axes validate on SHAPE ONLY and store whatever was typed,
+        // so `550928-1234`, `195509281234` and `19550928-1234` all sit there unreached by a
+        // normalised comparison. OrganizationNumber owns the rendering as the inverse of
+        // TryFromWrittenForm, so the pair cannot drift (#844). Empty for a non-org.nr
+        // identifier, and `= ANY('{}')` is never true, so the arm switches itself off.
+        string[] writtenForms = orgNr is null
+            ? []
+            : [.. Domain.CompanyWatches.OrganizationNumber.FromTrusted(orgNr).WrittenForms()];
+
         // `~*` = case-insensitive ARE match. `q` is a plain varchar(100), so no cast is needed.
         //
         // employer_list holds 10-DIGIT ORG.NR (write path: ValidateEmployerList →
@@ -320,7 +331,7 @@ internal sealed class RecruiterErasureMatchQuery(AppDbContext db) : IRecruiterEr
                           || coalesce(employment_type_list,  ARRAY[]::text[])
                           || coalesce(worktime_extent_list,  ARRAY[]::text[])
                         ) AS axis
-                        WHERE axis ~* {pattern} OR axis = {orgNr})
+                        WHERE axis ~* {pattern} OR axis = ANY({writtenForms}))
                 """)
             .ToListAsync(cancellationToken);
 
@@ -355,10 +366,25 @@ internal sealed class RecruiterErasureMatchQuery(AppDbContext db) : IRecruiterEr
                           || coalesce(employment_type_list,  ARRAY[]::text[])
                           || coalesce(worktime_extent_list,  ARRAY[]::text[])
                         ) AS axis
-                        WHERE axis ~* {pattern} OR axis = {orgNr})
+                        WHERE axis ~* {pattern} OR axis = ANY({writtenForms}))
                 """)
             .ToListAsync(cancellationToken);
 
+        // The q arm gets its own row set for the same reason the other two have one: the evidence
+        // slot must be conditioned on the arm that MATCHED, not on the column being non-null. A row
+        // that matched only on employer_list or on an axis, but happens to carry a q, would
+        // otherwise emit that q as its evidence line -- a string that does not contain the
+        // identifier, on the surface whose review is the ONLY gate before an irreversible
+        // hard-delete. That was already true of the employer arm before #1425 and is fixed here.
+        var qMatched = await db.Database
+            .SqlQuery<Guid>($"""
+                SELECT id AS "Value"
+                FROM recent_job_searches
+                WHERE q IS NOT NULL AND q ~* {pattern}
+                """)
+            .ToListAsync(cancellationToken);
+
+        var qSet = qMatched.ToHashSet();
         var employerSet = employerMatched.ToHashSet();
         var taxonomySet = taxonomyMatched.ToHashSet();
         var typedIds = ids.Select(id => new RecentJobSearchId(id)).ToList();
@@ -391,11 +417,11 @@ internal sealed class RecruiterErasureMatchQuery(AppDbContext db) : IRecruiterEr
         [
             .. rows.Select(r => new ErasureRecentSearchMatch(
                 r.Id,
-                r.Q,
+                qSet.Contains(r.Id) ? r.Q : null,
                 employerSet.Contains(r.Id) ? orgNr : null,
                 taxonomySet.Contains(r.Id)
                     ? FirstMatchedAxisValue(r.OccupationGroup, r.Municipality, r.Region,
-                        r.EmploymentType, r.WorktimeExtent, needle, orgNr)
+                        r.EmploymentType, r.WorktimeExtent, needle, writtenForms)
                     : null)),
         ];
     }
@@ -431,7 +457,8 @@ internal sealed class RecruiterErasureMatchQuery(AppDbContext db) : IRecruiterEr
     /// </remarks>
     private static string? FirstMatchedAxisValue(
         List<string> occupationGroup, List<string> municipality, List<string> region,
-        List<string> employmentType, List<string> worktimeExtent, string needle, string? orgNr)
+        List<string> employmentType, List<string> worktimeExtent, string needle,
+        IReadOnlyList<string> writtenForms)
     {
         List<string>[] axes = [occupationGroup, municipality, region, employmentType, worktimeExtent];
 
@@ -440,11 +467,26 @@ internal sealed class RecruiterErasureMatchQuery(AppDbContext db) : IRecruiterEr
             foreach (var value in axis)
             {
                 if (value.Contains(needle, StringComparison.OrdinalIgnoreCase)
-                    || (orgNr is not null && string.Equals(value, orgNr, StringComparison.Ordinal)))
+                    || writtenForms.Contains(value, StringComparer.Ordinal))
                 {
                     return value;
                 }
             }
+        }
+
+        // TOTAL, deliberately. The SQL is the authority on WHETHER the row matched; this method
+        // only chooses WHICH element to show. Returning null on a row the SQL returned would build
+        // an ErasureRecentSearchMatch with all three slots null -- which throws, i.e. an Art. 17 dry
+        // run 500s. The C# predicate is a superset of the SQL's for ASCII, which the write grammar
+        // guarantees, but the NEEDLE is the operator's and need not be: a character Postgres's ctype
+        // folds to ASCII while .NET's ordinal casing does not (U+212A KELVIN, U+017F LONG S) would
+        // match in SQL and miss here. Falling back to the first non-empty element over-discloses one
+        // string to the operator on a row already destined for deletion -- the posture this channel
+        // already takes -- instead of failing a rights request.
+        foreach (var axis in axes)
+        {
+            if (axis.Count > 0)
+                return axis[0];
         }
 
         return null;

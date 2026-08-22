@@ -151,10 +151,8 @@ public sealed record ErasureRecentSearchMatch
             throw new ArgumentException(
                 "A recent-search match must carry its evidence: q, the matched org.nr, or the "
                 + "matched concept-id axis value. A row with none of the three matched on nothing "
-                + "and must not exist. THREE slots now, and the guard grew with them - an "
-                + "invariant that names two of three arms is the shape of the defect it was "
-                + "written to close (#1425).",
-                nameof(q));
+                + "and must not exist.",
+                nameof(matchedTaxonomyValue));
         }
 
         Id = id;
@@ -284,10 +282,12 @@ public sealed record UnsearchableSurfaces
 /// </param>
 /// <param name="Matches">The ads themselves — <b>what the operator reviews</b>. Populated on a dry run.</param>
 /// <param name="MatchedRecentSearchTerms">
-/// The distinct match EVIDENCE, one line per matched row's reason, WITHOUT user ids: the <c>q</c>
-/// term for a word-boundary hit, or <c>arbetsgivarfilter: &lt;org.nr&gt;</c> for an employer-only
-/// hit (suffixed <c>(personnummer-format)</c> when the org.nr is personnummer-shaped — ADR 0087
-/// D8(c), never surfaced un-flagged). These rows are hard-deleted with no per-id confirmation
+/// The distinct match EVIDENCE, one line per DISTINCT reason, WITHOUT user ids — a row that matched
+/// on several arms contributes several, because the review must see every arm it is authorising.
+/// Three forms: the <c>q</c> term for a word-boundary hit, <c>arbetsgivarfilter: &lt;org.nr&gt;</c>
+/// for an employer hit, and <c>sökfilter: &lt;value&gt;</c> for a concept-id axis hit (#1425). The
+/// latter two are suffixed <c>(personnummer-format)</c> when personnummer-shaped — ADR 0087 D8(c),
+/// never surfaced un-flagged. These rows are hard-deleted with no per-id confirmation
 /// ceremony (they are an auto-captured, self-rebuilding cache — cap 20, evict oldest), so the
 /// operator must at least SEE what will go, and WHY it matched. <b>A count cannot be reviewed</b> —
 /// this PR's own doctrine, applied to the one surface where it had been forgotten.

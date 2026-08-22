@@ -491,7 +491,7 @@ This file — and `AGENTS.md`, the shared core — changes when a new anti-patte
 standard, or CC boundary is needed, under the same process and the same
 mandatory agents; a § moving between the two files updates the §-index in the
 same PR. CC may propose **and apply** changes autonomously via PR + automerge
-(§9.2; mandatory dotnet-architect + code-reviewer); Klas may also propose.
+(§9.2's mandatory spec-edit agents); Klas may also propose.
 Never silently — always via a visible PR diff, which Klas reviews (post-merge
 under automerge). Rules land here; derivations, incident history and dated
 measurements land in `docs/spec-rationale.md` (§-keyed, same PR). A spec edit

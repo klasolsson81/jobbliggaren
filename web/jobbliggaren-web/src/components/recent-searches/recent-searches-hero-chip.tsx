@@ -69,7 +69,7 @@ export function RecentSearchesHeroChip({ items }: RecentSearchesHeroChipProps) {
                shifts — design-reviewer Minor B). */
             className="jp-popover__rowbtn"
           >
-            <span className="truncate">
+            <span className="jp-popover__rowlabel">
               {item.label}
             </span>
             {/* Spannet renderas alltid (tomt tills counten laddat) så raden inte

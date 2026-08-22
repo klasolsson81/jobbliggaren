@@ -201,6 +201,57 @@ public interface IRecruiterErasureMatchQuery
         string identifier, CancellationToken cancellationToken);
 
     /// <summary>
+    /// How many company-watch FOLLOWS carry <paramref name="identifier"/> — in the follow key
+    /// <c>company_watches.organization_number</c> or in the per-watch <c>filter</c> jsonb.
+    /// <b>Counted and REPORTED; a human erases it</b>, and here NEITHER remedy is free: clearing
+    /// the filter widens what she receives, and the key cannot be nulled at all — only the whole
+    /// watch can go.
+    /// </summary>
+    /// <remarks>
+    /// <b>The key arm is EXACT and probes TWO operands</b>, mirroring the write path
+    /// (<c>CompanyWatchFollowExecutor</c>): a pnr-shaped org.nr is stored as a keyed HMAC token
+    /// (ADR 0090 D5 / #544) and an AB org.nr verbatim, so the query compares the identifier against
+    /// both its tokenised and its plaintext form. The plaintext operand is not redundant — the
+    /// plaintext→token backfill is a one-off, manually enqueued job, so nothing in the system
+    /// guarantees it has run to completion. A structured key gets structured matching; there is no
+    /// regex over it, and <c>WrittenForms()</c> is deliberately absent because both write paths
+    /// normalise through <c>OrganizationNumber.Create</c> and the ten-digit form is the only stored
+    /// plaintext form.
+    /// <para>
+    /// <b>The filter arm is a substring over the whole jsonb document, never a keyed unnest.</b>
+    /// Naming <c>Municipalities</c>/<c>Regions</c> in SQL would put the jsonb-key contract in a
+    /// second home and go silently blind on the next additive key — which is #1425's failure mode
+    /// reproduced inside its own fix. <c>::text</c> is total by construction, at the disclosed cost
+    /// of also matching the jsonb key names themselves: an over-match, which on an Art. 17 path is
+    /// the affordable direction of error.
+    /// </para>
+    /// </remarks>
+    Task<int> CountCompanyWatchFollowsAsync(
+        string identifier, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// How many job-seeker PROFILE rows carry <paramref name="identifier"/> — in the plaintext
+    /// <c>display_name</c>, in the <c>match_preferences</c> jsonb, or in the <c>preferences</c>
+    /// container (whose <c>Language</c> property the model reports as a second key over the same
+    /// bytes). <b>Counted and REPORTED; a human erases it, with the account holder in the loop.</b>
+    /// </summary>
+    /// <remarks>
+    /// All three write paths are shape gates, never content gates: <c>ValidateDisplayName</c>
+    /// refuses only empty, over-length and a personnummer; <c>match_preferences</c> admits six lists
+    /// of <c>^[A-Za-z0-9_-]{1,32}</c> tokens with no taxonomy lookup on any path; and
+    /// <c>Language</c> has no server-side validation at all. <b>The remedy here is the least free in
+    /// the registry</b> — the display-name invariant refuses empty, so there is no
+    /// <c>UpdateLabel(null)</c> analogue and a system does not rename a person.
+    /// <para>
+    /// This surface WILL over-match on a common name: a user who merely shares the requester's name
+    /// is counted. The count names nobody, and the human resolves it in one step — but the reply
+    /// must not be written as though a match here were a finding about her.
+    /// </para>
+    /// </remarks>
+    Task<int> CountJobSeekerProfilesAsync(
+        string identifier, CancellationToken cancellationToken);
+
+    /// <summary>
     /// How many CVs carry <paramref name="identifier"/> in their PLAINTEXT metadata — <b>five
     /// columns across three tables</b>: the two file names
     /// (<c>parsed_resumes.source_file_name</c> + <c>resume_files.file_name</c> — the same uploaded

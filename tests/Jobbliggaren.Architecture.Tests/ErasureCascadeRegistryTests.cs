@@ -76,12 +76,18 @@ public class ErasureCascadeRegistryTests
         ["asp_net_role_claims"] = "Identity claims attached to roles: minted by our own "
             + "authorisation code from a fixed vocabulary. No user write path.",
 
-        // ── The seeker's OWN data, with no third-party free-text column. ──────────────────────
-        ["job_seekers"] = "The SEEKER'S OWN profile and preferences: her display name, her "
-            + "notification consent, her digest cadence, her watermarks. Every column is either her "
-            + "own datum or a closed-domain preference (enum, boolean, timestamp). Not one column "
-            + "accepts free text ABOUT A THIRD PARTY, which is the only thing this registry is "
-            + "about.",
+        // ── (This section is EMPTY, and that is the finding.) ─────────────────────────────────
+        // It was headed "The seeker's OWN data, with no third-party free-text column" and held
+        // `job_seekers`, on the ground "Not one column accepts free text ABOUT A THIRD PARTY".
+        // FALSE, and false in the way the entry below already warned about: `display_name` is
+        // varchar(200) refusing only empty, over-length and a personnummer; `match_preferences` is
+        // six lists of shape-validated tokens with no taxonomy lookup on any path; and `Language`,
+        // inside the `preferences` container, has no server-side validation at all. The ground was
+        // written against what the aggregate is FOR — a profile — and the second half of the
+        // ADMISSION RULE is a conjunction the write path fails (#1435).
+        //
+        // ⇒ All four keys are column-classified now, and all four are SEARCHED.
+        //
         // `resumes` USED TO BE HERE, on the ground "ids, timestamps and a status enum; it holds no
         // content". That sentence was copied from the AGGREGATE'S DOCSTRING and never checked
         // against the MAPPING. ResumeConfiguration maps `name` (varchar 200, free text she types via
@@ -114,15 +120,22 @@ public class ErasureCascadeRegistryTests
             + "notification-status enum, matched-term concept ids and timestamps. The matched terms "
             + "are taxonomy/skill ids from a closed vocabulary, never free text. The ad's text is "
             + "classified under job_ads.",
-        ["company_watches"] = "A FOLLOW ROW: (user_id, organisation number) plus enums, "
-            + "timestamps, and the `filter` jsonb — a WatchFilterSpec whose every string is a "
-            + "concept-id validated against ConceptIdPattern (^[A-Za-z0-9_-]{1,32}) plus one bool "
-            + "(OnlyMatched); no free text can enter it. The user-authored LABEL lives on "
-            + "company_watch_criteria, which IS column-classified and IS searched. Nothing "
-            + "free-text remains here.",
         ["followed_company_ad_hits"] = "A LINK ROW: (user_id, job_ad_id, company_watch_id) plus a "
             + "status enum and timestamps. It records THAT a followed company posted an ad. The "
             + "ad's text is classified under job_ads.",
+
+        // (`company_watches` USED TO BE HERE, filed under "pure link tables", on the ground that its
+        // `filter` jsonb holds "a WatchFilterSpec whose every string is a concept-id validated
+        // against ConceptIdPattern … no free text can enter it". The validator it named gates SHAPE,
+        // never EXISTENCE — no path into that column resolves a concept-id against the taxonomy —
+        // and the sibling rail company_watch_criteria does check existence, twelve lines away in the
+        // same aggregate. The row is also not a link row: `organization_number` is a follow KEY, and
+        // for an enskild firma it IS her personnummer. Column-classified now; two searched, two
+        // closed (#1435).
+        //
+        // SECOND TIME, and worth the line: the ground named a control that existed and never
+        // checked what the sentence claimed it checked. Read the write path, not the validator's
+        // name.)
     };
 
     /// <summary>
@@ -889,7 +902,7 @@ public class ErasureCascadeRegistryTests
         surfaces.ShouldNotBeEmpty();
 
         // Drive the REAL BuildAuditPayload through the REAL command, with a fake pseudonymiser.
-        var counts = new ErasureSurfaceCounts(1, 2, 3, 4, 5, 6, 7, 8, 9);
+        var counts = new ErasureSurfaceCounts(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11);
         var response = new EraseRecruiterAdsResponse(
             RequestId: Guid.NewGuid(),
             DryRun: true,

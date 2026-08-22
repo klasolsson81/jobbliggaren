@@ -1,5 +1,8 @@
+using System.Text;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Common.Auditing;
+using Jobbliggaren.Application.Common.Security;
+using Jobbliggaren.Application.CompanyWatches.Commands;
 using Jobbliggaren.Application.JobAds.Abstractions;
 using Jobbliggaren.Application.JobAds.Commands.EraseRecruiterAds;
 using Jobbliggaren.Application.JobAds.Commands.UpsertExternalJobAd;
@@ -18,6 +21,7 @@ using Jobbliggaren.Domain.SavedSearches;
 using Jobbliggaren.Infrastructure.JobAds;
 using Jobbliggaren.Infrastructure.JobSources.Platsbanken;
 using Jobbliggaren.Infrastructure.Persistence;
+using Jobbliggaren.Infrastructure.Security;
 using Jobbliggaren.Infrastructure.Taxonomy;
 using Jobbliggaren.Infrastructure.TextAnalysis;
 using Microsoft.EntityFrameworkCore;
@@ -111,6 +115,12 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
     private const string RawPayloadOnlyToken = "Vikströmshamn";
     private const string RawPayloadOnlyExternalId = "erasure-e2e-5";
 
+    // Derived, not a literal blob: CompanyWatchPseudonymizationOptions has no default and will not
+    // get one, so the test must supply a pepper — and a base64 constant sitting in a public repo
+    // reads like a leaked key to every scanner and every human. 33 bytes, over the 32-byte floor.
+    private static readonly string TestWatchPepperBase64 =
+        Convert.ToBase64String(Encoding.UTF8.GetBytes("jobbliggaren-test-watch-pepper-01"));
+
     private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder("postgres:18").Build();
     private WireMockServer _jobTech = default!;
     private ServiceProvider _provider = default!;
@@ -135,6 +145,16 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
             .UseSnakeCaseNamingConvention());
         services.AddScoped<IAppDbContext>(sp => sp.GetRequiredService<AppDbContext>());
         services.AddScoped<IRecruiterErasureMatchQuery, RecruiterErasureMatchQuery>();
+        services.AddScoped<IDbExceptionInspector, DbExceptionInspector>();
+
+        // The REAL tokeniser, never a stub. HMAC-SHA256 can only ever emit 64 lowercase hex
+        // characters, so a stubbed return would be a value the real adapter cannot produce — the
+        // premise AGENTS.md §5 Tests forbids asserting a production fact off. SINGLETON, so the seed
+        // path and the query path share one instance: that cross-host parity is the whole reason the
+        // token arm can match at all, and a divergence here would silently return zero.
+        services.AddSingleton<IProtectedIdentityTokenizer>(
+            new HmacProtectedIdentityTokenizer(Options.Create(
+                new CompanyWatchPseudonymizationOptions { PepperBase64 = TestWatchPepperBase64 })));
 
         services.AddSingleton<IDateTimeProvider>(new FixedClock());
         services.AddSingleton<IOptions<JobTechOptions>>(Options.Create(new JobTechOptions
@@ -1357,6 +1377,334 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
             new FixedClock(),
             NullLogger<EraseRecruiterAdsCommandHandler>.Instance);
 
+    // ================================================================================
+    // 7b. #1435 — company_watches and job_seekers left the WHOLESALE-EXCLUSION list.
+    //
+    //     Both tables were excluded whole, on grounds naming a control that does not
+    //     check what the sentence claimed it checked. Every fact below seeds through a
+    //     production entry point and matches on ONE claimed column; each remark names
+    //     the single edit to src/ that turns exactly that fact red.
+    // ================================================================================
+
+    /// <summary>
+    /// An AB org.nr in the HYPHENATED written form a person actually writes reaches the follow key,
+    /// which stores the normalised ten digits. <b>Mutation:</b> swap
+    /// <c>OrganizationNumber.TryFromWrittenForm</c> for <c>Create</c> in
+    /// <c>CountCompanyWatchFollowsAsync</c> and only this fact goes red.
+    /// </summary>
+    [Fact]
+    public async Task An_AB_org_nr_in_its_WRITTEN_form_reaches_the_stored_follow_key()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await SeedFollowThroughExecutorAsync("5561234567", ct);
+
+        var probe = await EraseAsync("556123-4567", ct, dryRun: true);
+
+        probe.Matched.CompanyWatchFollows.ShouldBe(1);
+    }
+
+    /// <summary>
+    /// An enskild firma's org.nr IS her personnummer, so the follow key holds a keyed HMAC token
+    /// rather than the number (ADR 0090 D5 / #544). The request carries the plaintext she supplies,
+    /// so only the TOKEN arm can reach the row. The stored-shape assertion guards the guard: a
+    /// broken tokeniser would leave plaintext behind and let this pass through the other arm.
+    /// <b>Mutation:</b> delete the <c>storedKey</c> disjunct.
+    /// </summary>
+    [Fact]
+    public async Task An_enskild_firmas_TOKENISED_org_nr_is_reached_through_the_token_arm_ALONE()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await SeedFollowThroughExecutorAsync(PnrShapedOrgNr, ct);
+
+        using (var scope = _provider.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var stored = await db.CompanyWatches.AsNoTracking()
+                .Select(w => w.OrganizationNumber!.Value).SingleAsync(ct);
+
+            stored.Length.ShouldBe(64,
+                "the write path must have tokenised a personnummer-shaped org.nr. If it stored the "
+                + "plaintext instead, the token arm below is proving nothing.");
+            stored.ShouldNotBe(PnrShapedOrgNr);
+        }
+
+        var probe = await EraseAsync(PnrShapedOrgNr, ct, dryRun: true);
+
+        probe.Matched.CompanyWatchFollows.ShouldBe(1);
+    }
+
+    /// <summary>
+    /// A row written BEFORE the #544 token cutover holds the personnummer-shaped org.nr in
+    /// PLAINTEXT, and the plaintext operand is what still reaches it. The actor is named because no
+    /// current path produces this state (AGENTS.md §5 Tests): it is what <c>CompanyWatch.Follow</c>
+    /// wrote while the executor did not yet tokenise. The assertion shows the backfill job's own
+    /// recogniser still admits the shape, so this is a row the system reasons about rather than one
+    /// the test invented. <c>BackfillCompanyWatchOrgNrTokenJob</c> is one-off and manually enqueued,
+    /// so nothing in the system guarantees it has run.
+    /// <b>Mutation:</b> delete the <c>plain</c> disjunct.
+    /// </summary>
+    [Fact]
+    public async Task A_LEGACY_PLAINTEXT_pnr_follow_key_is_still_reached()
+    {
+        var ct = TestContext.Current.CancellationToken;
+
+        using (var scope = _provider.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
+            var tokenizer = scope.ServiceProvider.GetRequiredService<IProtectedIdentityTokenizer>();
+
+            var watch = CompanyWatch.Follow(
+                Guid.NewGuid(), OrganizationNumber.Create(PnrShapedOrgNr).Value, clock).Value;
+            db.CompanyWatches.Add(watch);
+            await db.SaveChangesAsync(ct);
+
+            // The backfill runs on the TRACKED entity and is never saved, so the row on disk stays
+            // the plaintext one this fact is about. What the call proves is the actor's predicate.
+            watch.ApplyOrganizationNumberTokenBackfill(
+                OrganizationNumber.FromTrusted(tokenizer.Tokenize(PnrShapedOrgNr)))
+                .ShouldBeTrue(
+                    "the backfill job's own recogniser must admit this row, or the state under test "
+                    + "is not the legacy state it claims to be.");
+        }
+
+        var probe = await EraseAsync(PnrShapedOrgNr, ct, dryRun: true);
+
+        probe.Matched.CompanyWatchFollows.ShouldBe(1);
+    }
+
+    /// <summary>
+    /// A per-watch filter holding her name is matched on the FILTER alone: the identifier is
+    /// hyphenated free text, so neither org.nr arm can fire. This is the column the wholesale ground
+    /// said no free text could enter.
+    /// <b>Mutation:</b> delete the <c>filter::text</c> disjunct.
+    /// </summary>
+    [Fact]
+    public async Task A_watch_FILTER_holding_her_name_is_matched_on_the_filter_ALONE()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var watchId = await SeedFollowThroughExecutorAsync("5566778899", ct);
+        await SetWatchFilterAsync(watchId, "Rosenlund-Vikander", ct);
+
+        var probe = await EraseAsync("Rosenlund-Vikander", ct, dryRun: true);
+
+        probe.Matched.CompanyWatchFollows.ShouldBe(1);
+    }
+
+    /// <summary>
+    /// A display name naming her is matched, and her account name SURVIVES the destructive run. The
+    /// gap between Matched and Erased is the disclosure, not an omission.
+    /// <b>Mutation:</b> delete the <c>display_name</c> disjunct.
+    /// </summary>
+    [Fact]
+    public async Task A_DISPLAY_NAME_naming_her_is_matched_and_her_profile_SURVIVES()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await SeedJobSeekerAsync("Konsult åt Vendela Hjorthén", ct);
+
+        var response = await EraseAsync("Vendela Hjorthén", ct);
+
+        response.Matched.JobSeekerProfiles.ShouldBe(1);
+        response.Erased.JobSeekerProfiles.ShouldBe(0,
+            "the remedy is not constructible without her: the invariant refuses an empty name.");
+
+        using var scope = _provider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        (await db.JobSeekers.AsNoTracking().Select(js => js.DisplayName).SingleAsync(ct))
+            .ShouldBe("Konsult åt Vendela Hjorthén");
+    }
+
+    /// <summary>
+    /// Her stated match preferences are matched on that jsonb column alone. The write path gates the
+    /// SHAPE of each element and resolves no concept-id against any taxonomy, which is the identical
+    /// false ground #1425 closed one table over.
+    /// <b>Mutation:</b> delete the <c>match_preferences::text</c> disjunct.
+    /// </summary>
+    [Fact]
+    public async Task MATCH_PREFERENCES_are_matched_on_that_column_ALONE()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var seekerId = await SeedJobSeekerAsync("Sökande", ct);
+
+        using (var scope = _provider.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
+            var seeker = await db.JobSeekers.SingleAsync(js => js.Id == seekerId, ct);
+
+            seeker.UpdateMatchPreferences(
+                MatchPreferences.Create(["Almqvist-Rehnberg"], null, null).Value, clock);
+            await db.SaveChangesAsync(ct);
+        }
+
+        var probe = await EraseAsync("Almqvist-Rehnberg", ct, dryRun: true);
+
+        probe.Matched.JobSeekerProfiles.ShouldBe(1);
+    }
+
+    /// <summary>
+    /// <c>Preferences.Language</c> has NO server-side validation anywhere: no validator class on the
+    /// command, no guard in <c>UpdatePreferences</c>, no factory on the record, and no
+    /// <c>varchar(N)</c> because it lives inside jsonb. That is why the container is searched whole
+    /// rather than by key.
+    /// <b>Mutation:</b> delete the <c>preferences::text</c> disjunct.
+    /// </summary>
+    [Fact]
+    public async Task The_preferences_containers_unvalidated_LANGUAGE_is_matched_on_that_column_ALONE()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var seekerId = await SeedJobSeekerAsync("Sökande", ct);
+
+        using (var scope = _provider.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
+            var seeker = await db.JobSeekers.SingleAsync(js => js.Id == seekerId, ct);
+
+            seeker.UpdatePreferences(seeker.Preferences with { Language = "Thorvaldsen" }, clock);
+            await db.SaveChangesAsync(ct);
+        }
+
+        var probe = await EraseAsync("Thorvaldsen", ct, dryRun: true);
+
+        probe.Matched.JobSeekerProfiles.ShouldBe(1);
+    }
+
+    /// <summary>
+    /// The filter match is deliberately LOOSE, a substring and not a word boundary, because nothing
+    /// on this surface is destroyed without a human. Erasing "anna" must still COUNT another user's
+    /// "Marianna-Ek" filter, and must leave it standing.
+    /// <b>Mutation:</b> swap the <c>LIKE</c> for a word-boundary regex and only this goes red.
+    /// </summary>
+    [Fact]
+    public async Task The_watch_filter_match_is_deliberately_LOOSE_and_nothing_is_erased()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var watchId = await SeedFollowThroughExecutorAsync("5566778899", ct);
+        await SetWatchFilterAsync(watchId, "Marianna-Ek", ct);
+
+        var response = await EraseAsync("anna", ct);
+
+        response.Matched.CompanyWatchFollows.ShouldBe(1);
+        response.Erased.CompanyWatchFollows.ShouldBe(0);
+
+        using var scope = _provider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var filter = await db.CompanyWatches.AsNoTracking().Select(w => w.Filter).SingleAsync(ct);
+
+        filter.ShouldNotBeNull();
+        filter.Municipalities.ShouldBe(["Marianna-Ek"]);
+    }
+
+    /// <summary>
+    /// The count is the SEEDED row and not the table. Written in the positive form: three profiles
+    /// exist, exactly one matches.
+    /// <b>Mutation:</b> replace the pattern with a bare wildcard on any profile disjunct.
+    /// </summary>
+    [Fact]
+    public async Task Only_the_seeded_profile_is_counted_while_two_neutral_profiles_are_NOT()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await SeedJobSeekerAsync("Konsult åt Vendela Hjorthén", ct);
+        await SeedJobSeekerAsync("Sökande Ett", ct);
+        await SeedJobSeekerAsync("Sökande Två", ct);
+
+        var probe = await EraseAsync("Vendela Hjorthén", ct, dryRun: true);
+
+        probe.Matched.JobSeekerProfiles.ShouldBe(1);
+    }
+
+    /// <summary>
+    /// Unfollowing soft-deletes the watch and LEAVES the follow key standing, so the count must
+    /// still report it: we physically hold her org.nr. The same call NULLS the filter, so the filter
+    /// arm cannot reach a soft-deleted row by construction. Both halves are asserted rather than
+    /// narrated, because they are the two opposite reasons this query carries no lifecycle
+    /// predicate.
+    /// <b>Mutation:</b> add a <c>deleted_at IS NULL</c> predicate.
+    /// </summary>
+    [Fact]
+    public async Task An_UNFOLLOWED_watch_still_reports_its_org_nr_and_its_filter_is_gone()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var watchId = await SeedFollowThroughExecutorAsync("5561234567", ct);
+        await SetWatchFilterAsync(watchId, "Rosenlund-Vikander", ct);
+
+        using (var scope = _provider.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
+            var watch = await db.CompanyWatches.SingleAsync(ct);
+
+            watch.SoftDelete(clock);
+            await db.SaveChangesAsync(ct);
+        }
+
+        var probe = await EraseAsync("5561234567", ct, dryRun: true);
+
+        probe.Matched.CompanyWatchFollows.ShouldBe(1);
+
+        using var verify = _provider.CreateScope();
+        var verifyDb = verify.ServiceProvider.GetRequiredService<AppDbContext>();
+        (await verifyDb.CompanyWatches.IgnoreQueryFilters().AsNoTracking()
+                .Select(w => w.Filter).SingleAsync(ct))
+            .ShouldBeNull(
+                "SoftDelete nulls Filter, which is why the filter arm needs no lifecycle predicate "
+                + "and why the org.nr arm must not have one.");
+    }
+
+    /// <summary>
+    /// Luhn-INVALID by construction, so it can never be a real personnummer, while still being
+    /// personnummer-SHAPED for the tokenising discriminator. Same value class as #1425's seeds.
+    /// </summary>
+    private const string PnrShapedOrgNr = "5509281234";
+
+    /// <summary>
+    /// Follows through <see cref="CompanyWatchFollowExecutor.FollowOrResurrectAsync"/>, the shared
+    /// production path both follow handlers funnel into and the one place that decides whether the
+    /// key is stored tokenised or verbatim. Seeding around it would move that decision into the test.
+    /// </summary>
+    private async Task<Guid> SeedFollowThroughExecutorAsync(
+        string organizationNumber, CancellationToken ct)
+    {
+        using var scope = _provider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        var result = await CompanyWatchFollowExecutor.FollowOrResurrectAsync(
+            db,
+            scope.ServiceProvider.GetRequiredService<IDbExceptionInspector>(),
+            scope.ServiceProvider.GetRequiredService<IProtectedIdentityTokenizer>(),
+            Guid.NewGuid(),
+            OrganizationNumber.Create(organizationNumber).Value,
+            scope.ServiceProvider.GetRequiredService<IDateTimeProvider>(),
+            ct);
+
+        result.IsSuccess.ShouldBeTrue();
+        return result.Value;
+    }
+
+    private async Task SetWatchFilterAsync(Guid watchId, string municipality, CancellationToken ct)
+    {
+        using var scope = _provider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var watch = await db.CompanyWatches.SingleAsync(w => w.Id == new CompanyWatchId(watchId), ct);
+
+        watch.SetFilter(WatchFilterSpec.Create([municipality], null, onlyMatched: false).Value)
+            .IsSuccess.ShouldBeTrue();
+        await db.SaveChangesAsync(ct);
+    }
+
+    private async Task<JobSeekerId> SeedJobSeekerAsync(string displayName, CancellationToken ct)
+    {
+        using var scope = _provider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
+
+        var seeker = JobSeeker.Register(Guid.NewGuid(), displayName, clock).Value;
+        db.JobSeekers.Add(seeker);
+        await db.SaveChangesAsync(ct);
+        return seeker.Id;
+    }
+
     private async Task<EraseRecruiterAdsResponse> EraseAsync(
         string identifier, CancellationToken ct, bool dryRun = false)
     {
@@ -1760,6 +2108,14 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
         public Task<int> CountCompanyWatchCriteriaAsync(
             string identifier, CancellationToken cancellationToken) =>
             inner.CountCompanyWatchCriteriaAsync(identifier, cancellationToken);
+
+        public Task<int> CountCompanyWatchFollowsAsync(
+            string identifier, CancellationToken cancellationToken) =>
+            inner.CountCompanyWatchFollowsAsync(identifier, cancellationToken);
+
+        public Task<int> CountJobSeekerProfilesAsync(
+            string identifier, CancellationToken cancellationToken) =>
+            inner.CountJobSeekerProfilesAsync(identifier, cancellationToken);
 
         public Task<int> CountResumeMetadataAsync(
             string identifier, CancellationToken cancellationToken) =>

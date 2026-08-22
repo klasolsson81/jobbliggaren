@@ -1,4 +1,5 @@
 using System.Text;
+using Jobbliggaren.Application.Common.Security;
 using Jobbliggaren.Application.JobAds.Abstractions;
 using Jobbliggaren.Application.JobAds.Commands.EraseRecruiterAds;
 using Jobbliggaren.Domain.RecentJobSearches;
@@ -22,7 +23,9 @@ namespace Jobbliggaren.Infrastructure.JobAds;
 /// concatenation (CLAUDE.md §5). The channel rationale lives on the port.
 /// </para>
 /// </remarks>
-internal sealed class RecruiterErasureMatchQuery(AppDbContext db) : IRecruiterErasureMatchQuery
+internal sealed class RecruiterErasureMatchQuery(
+    AppDbContext db,
+    IProtectedIdentityTokenizer tokenizer) : IRecruiterErasureMatchQuery
 {
     // MUST be the config search_vector was generated with (JobAdConfiguration:
     // to_tsvector('swedish', …)). A mismatch makes `@@` miss the GIN index and the FTS channel
@@ -594,6 +597,71 @@ internal sealed class RecruiterErasureMatchQuery(AppDbContext db) : IRecruiterEr
             SELECT count(*)::int AS "Value"
             FROM company_watch_criteria
             WHERE lower(coalesce(label, '')) LIKE {pattern} ESCAPE {LikeEscapeSql}
+            """, cancellationToken);
+    }
+
+    public async Task<int> CountCompanyWatchFollowsAsync(
+        string identifier, CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(identifier);
+
+        var pattern = LikePattern(identifier);
+        var orgNr = Domain.CompanyWatches.OrganizationNumber.TryFromWrittenForm(identifier);
+
+        // The AT-REST form, decided by the SAME discriminator the WRITE path uses
+        // (CompanyWatchFollowExecutor): a pnr-shaped org.nr is stored as a keyed HMAC token, an AB
+        // org.nr verbatim — in which case storedKey and plain are the same string and the two
+        // operands below collapse, exactly as they do in the executor's probe. Both are NULL for a
+        // non-org.nr identifier, and `column = NULL` is never true, so both arms switch themselves
+        // off and a name falls through to the filter arm alone.
+        var plain = orgNr?.Value;
+        var storedKey = orgNr is null
+            ? null
+            : orgNr.IsPersonnummerShaped() ? tokenizer.Tokenize(orgNr.Value) : orgNr.Value;
+
+        // Deliberately NOT filtered on deleted_at — and the reason DIFFERS per arm, which is why
+        // the CountSavedSearchesAsync comment is not copied here.
+        //   ORG.NR: unfollowing soft-deletes the row and LEAVES organization_number standing, so a
+        //   lifecycle predicate would under-report a key we physically hold. That is the
+        //   saved_searches case.
+        //   FILTER: the exact opposite. CompanyWatch.SoftDelete() NULLS Filter, so this arm cannot
+        //   reach a soft-deleted row BY CONSTRUCTION. A deleted_at predicate would be inert here
+        //   while being wrong one line up.
+        //
+        // The filter arm is a substring over the WHOLE document, never a keyed unnest: naming the
+        // spec's properties in SQL would put the jsonb-key contract in a second home and go blind on
+        // the next additive key. It also matches the jsonb KEY NAMES — a disclosed over-match, and
+        // over-match is the affordable direction of error on a rights request.
+        return await CountAsync($"""
+            SELECT count(*)::int AS "Value"
+            FROM company_watches
+            WHERE organization_number = {storedKey}
+               OR organization_number = {plain}
+               OR lower(coalesce(filter::text, '')) LIKE {pattern} ESCAPE {LikeEscapeSql}
+            """, cancellationToken);
+    }
+
+    public async Task<int> CountJobSeekerProfilesAsync(
+        string identifier, CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(identifier);
+
+        var pattern = LikePattern(identifier);
+
+        // Three columns, four registry keys: `preferences` is the OwnsOne(...).ToJson() container
+        // and `Language` is a JSON property inside it, so the third disjunct searches both.
+        //
+        // No lifecycle predicate: job_seekers has a deleted_at, but the account flow HARD-deletes
+        // the row (AccountHardDeleter), so a soft-deleted profile is not a state this query has to
+        // argue past. Counting the physical table is what an erasure disclosure owes either way.
+        //
+        // lower(jsonb) does not exist in PostgreSQL — hence the ::text cast, as on saved_searches.
+        return await CountAsync($"""
+            SELECT count(*)::int AS "Value"
+            FROM job_seekers
+            WHERE lower(coalesce(display_name, ''))            LIKE {pattern} ESCAPE {LikeEscapeSql}
+               OR lower(coalesce(match_preferences::text, '')) LIKE {pattern} ESCAPE {LikeEscapeSql}
+               OR lower(coalesce(preferences::text, ''))       LIKE {pattern} ESCAPE {LikeEscapeSql}
             """, cancellationToken);
     }
 

@@ -79,6 +79,36 @@ public class EmailTemplatesEmailConfirmationTests
         rendered.PlainTextBody.ShouldNotContain("—"); // em-dash
     }
 
+    [Fact]
+    public void EmailConfirmation_ShouldNotCarryTheStruckAccountOrLoginClaims_InBothRenderings()
+    {
+        // #1349 — the mail may assert neither that an account exists nor that confirming the address is
+        // enough to log in. Both are false for a profile-less Identity row, and the resend path delivers
+        // this same mail to one: /resend-confirmation is deliberately existence-independent, so an orphan
+        // holder receives it. "Du kan logga in när adressen är bekräftad" said confirmation was
+        // SUFFICIENT; LoginCommandHandler refuses such a row (OrphanedIdentityActivationTests).
+        //
+        // BOTH renderings, because they are held word-for-word alike BY HAND and every other assertion in
+        // this class reads PlainTextBody only — so a half-strike would pass the suite unseen.
+        var rendered = EmailTemplates.EmailConfirmation(BaseUrl, Content());
+
+        foreach (var body in new[] { rendered.PlainTextBody, rendered.HtmlBody })
+        {
+            // COUNTERFACTUAL. The negatives below also pass against an empty body or the wrong
+            // template, so pin first that this IS the confirmation mail.
+            body.ShouldContain("Tack för att du har registrerat dig på Jobbliggaren.");
+            body.ShouldContain("Bekräfta att adressen är din genom att öppna länken nedan.");
+
+            // Literal substrings, not a form-based guard: a REWORDED promise would pass. Two
+            // literals rather than one widens the net (the second also catches "du har ett konto
+            // på Jobbliggaren"); neither collides with the Klas-required closing line, which says
+            // "skapat NÅGOT konto" and names no service.
+            body.ShouldNotContain("skapat ett konto");
+            body.ShouldNotContain("konto på Jobbliggaren");
+            body.ShouldNotContain("logga in när adressen är bekräftad");
+        }
+    }
+
     [Theory]
     [InlineData("https://jobbliggaren.se/")]
     [InlineData("https://jobbliggaren.se")]

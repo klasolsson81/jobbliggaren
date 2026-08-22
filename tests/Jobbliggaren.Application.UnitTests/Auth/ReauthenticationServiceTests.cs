@@ -269,9 +269,9 @@ public class ReauthenticationServiceTests
         // without ever crossing the login guard (security-auditor M-1).
         //
         // WHO PRODUCES THE PREMISE (CLAUDE.md §5 Tests:): AccountHardDeleter step 2h
-        // (AccountHardDeleter.cs:302-309) commits the domain transaction before the Identity DELETE,
+        // commits the domain transaction before the Identity DELETE,
         // so a failure there leaves exactly this row — and the transient window every registration
-        // passes through (AccountHardDeleter.cs:74-78, "presumed mid-registration") produces it too.
+        // passes through (the #508 grace filter, "presumed mid-registration") produces it too.
         // The actor's own predicate is pinned against the real AccountHardDeleter in
         // HardDeleteAccountsJobIntegrationTests.CleanupIdentityOrphans_DoesNotSweepIdentityUserWithinGraceWindow.
         var ct = TestContext.Current.CancellationToken;

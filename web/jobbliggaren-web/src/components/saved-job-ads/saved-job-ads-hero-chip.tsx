@@ -44,12 +44,8 @@ export function SavedJobAdsHeroChip({ items }: SavedJobAdsHeroChipProps) {
             className="jp-popover__rowbtn"
           >
             <span
-              style={{
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                whiteSpace: "nowrap",
-                opacity: item.jobAd ? 1 : 0.6,
-              }}
+              className="jp-popover__rowlabel"
+              style={{ opacity: item.jobAd ? 1 : 0.6 }}
             >
               {title}
             </span>

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { ChevronDown } from "lucide-react";
 import { useDismissable } from "@/lib/hooks/use-dismissable";
@@ -20,8 +21,22 @@ interface HeroChipProps<T> {
   items: ReadonlyArray<T>;
   /** Funktion som returnerar id (för React-nyckel). */
   getKey: (item: T) => string;
-  /** Render-funktion för varje rad. Får `onClose` för intern dismiss-control. */
-  renderItem: (item: T, onClose: () => void) => ReactNode;
+  /** Where the row navigates on click. The host closes the panel first. */
+  getHref: (item: T) => string;
+  /**
+   * The row's primary label text. The host owns the span and its clamp. Keep
+   * it `string`: widening to `ReactNode` lets a consumer nest markup inside
+   * the clamp box and re-opens the hole this seam closed. Rich labels get
+   * their own slot, never a widened `getLabel`.
+   */
+  getLabel: (item: T) => string;
+  /**
+   * Demotes the primary label when true — the host applies
+   * `.jp-popover__rowlabel--muted`. Omitted → never demoted.
+   */
+  isMuted?: (item: T) => boolean;
+  /** Optional content rendered after the label (a count, a badge). */
+  renderTrailing?: (item: T) => ReactNode;
   /** Visas när items.length === 0. */
   emptyText: string;
   /** Footer-länk (typiskt "Visa alla" → /sokningar). */
@@ -37,13 +52,22 @@ interface HeroChipProps<T> {
   onOpenChange?: (open: boolean) => void;
 }
 
+/**
+ * The host owns the row shell: the row `<button>`, its primary label span and
+ * the navigation. A consumer supplies data accessors and, at most, a trailing
+ * slot — it has no row markup to get wrong, so the clamp contract is pinned
+ * once here instead of once per consumer.
+ */
 export function HeroChip<T>({
   label,
   icon,
   count,
   items,
   getKey,
-  renderItem,
+  getHref,
+  getLabel,
+  isMuted,
+  renderTrailing,
   emptyText,
   footerHref,
   footerLabel,
@@ -51,6 +75,7 @@ export function HeroChip<T>({
   onOpenChange,
 }: HeroChipProps<T>) {
   const t = useTranslations("jobads.ui");
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const panelRef = useDismissable<HTMLDivElement, HTMLButtonElement>(
@@ -109,7 +134,26 @@ export function HeroChip<T>({
               </div>
             ) : (
               visible.map((item) => (
-                <div key={getKey(item)}>{renderItem(item, close)}</div>
+                <button
+                  key={getKey(item)}
+                  type="button"
+                  onClick={() => {
+                    close();
+                    router.push(getHref(item));
+                  }}
+                  className="jp-popover__rowbtn"
+                >
+                  <span
+                    className={
+                      isMuted?.(item)
+                        ? "jp-popover__rowlabel jp-popover__rowlabel--muted"
+                        : "jp-popover__rowlabel"
+                    }
+                  >
+                    {getLabel(item)}
+                  </span>
+                  {renderTrailing?.(item)}
+                </button>
               ))
             )}
           </div>

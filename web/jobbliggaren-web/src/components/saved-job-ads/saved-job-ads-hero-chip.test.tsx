@@ -34,27 +34,22 @@ beforeEach(() => {
 });
 
 describe("SavedJobAdsHeroChip", () => {
-  it("radens titel bär clamp-klassen och aldrig ettrads-truncate", async () => {
+  it("borttagen annons dämpas, kvarvarande gör det inte (konsumentens isMuted-predikat)", async () => {
     const user = userEvent.setup();
-    render(<SavedJobAdsHeroChip items={[makeDto()]} />);
+    render(
+      <SavedJobAdsHeroChip
+        items={[makeDto({ jobAd: null }), makeDto({ id: "s2" })]}
+      />,
+    );
     await user.click(screen.getByRole("button", { name: /Sparade annonser/ }));
-    const titleSpan = screen.getByText("Systemutvecklare inom offentlig sektor");
-    // Raden delar `.jp-popover__rowbtn` med RecentSearchesHeroChip, så den delar
-    // också dess presentationskontrakt. globals-popover-clamp.test.ts pinnar att
-    // klassen ger mer än en rad men ser inte att EN av två konsumenter bytt
-    // tillbaka — klassen lever kvar så länge den andra använder den.
-    expect(titleSpan).toHaveClass("jp-popover__rowlabel");
-    // `truncate` sätter white-space: nowrap och besegrar clampen med klassen kvar.
-    expect(titleSpan).not.toHaveClass("truncate");
-  });
-
-  it("borttagen annons dämpas men behåller samma clamp", async () => {
-    const user = userEvent.setup();
-    render(<SavedJobAdsHeroChip items={[makeDto({ jobAd: null })]} />);
-    await user.click(screen.getByRole("button", { name: /Sparade annonser/ }));
-    const titleSpan = screen.getByText("Annonsen är borttagen");
-    expect(titleSpan).toHaveClass("jp-popover__rowlabel");
-    expect(titleSpan).toHaveStyle({ opacity: "0.6" });
+    // Both directions. A host that muted UNCONDITIONALLY passed every assertion in
+    // this suite, so the negative half is what makes the predicate load-bearing.
+    expect(screen.getByText("Annonsen är borttagen")).toHaveClass(
+      "jp-popover__rowlabel--muted",
+    );
+    expect(
+      screen.getByText("Systemutvecklare inom offentlig sektor"),
+    ).not.toHaveClass("jp-popover__rowlabel--muted");
   });
 
   it("klick på rad → router.push till annonsen, dropdown stänger", async () => {

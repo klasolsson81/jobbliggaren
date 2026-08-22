@@ -1,14 +1,24 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
+import type { ReactNode } from "react";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Clock } from "lucide-react";
 import { HeroChip } from "./hero-chip";
 
+// The host owns the row's navigation, so it needs a router. What it pushes is
+// pinned through the two consumers, which own the href accessor.
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: vi.fn() }),
+}));
+
+type Row = { id: string; label: string };
+
 function renderChip(props?: {
-  items?: Array<{ id: string; label: string }>;
+  items?: Array<Row>;
   count?: number | null;
   maxItems?: number;
   footerHref?: string;
+  renderTrailing?: (item: Row) => ReactNode;
 }) {
   const {
     items = [
@@ -18,6 +28,7 @@ function renderChip(props?: {
     count = 2,
     maxItems = 5,
     footerHref = "/sokningar",
+    renderTrailing,
   } = props ?? {};
   return render(
     <HeroChip
@@ -26,11 +37,13 @@ function renderChip(props?: {
       count={count}
       items={items}
       getKey={(it) => it.id}
+      getHref={(it) => `/jobb?q=${it.label}`}
+      getLabel={(it) => it.label}
+      renderTrailing={renderTrailing}
       emptyText="Inga senaste sökningar än."
       footerHref={footerHref}
       footerLabel="Visa alla"
       maxItems={maxItems}
-      renderItem={(it) => <span>{it.label}</span>}
     />,
   );
 }
@@ -104,5 +117,31 @@ describe("HeroChip", () => {
     expect(container.querySelector(".jp-pill--success")).toBeNull();
     expect(container.querySelector(".jp-job__newflag")).toBeNull();
     expect(screen.queryByText(/^NY$/)).not.toBeInTheDocument();
+  });
+
+  it("owns the row shell, so a consumer's trailing slot cannot reach the label", async () => {
+    const user = userEvent.setup();
+    // The trailing slot is the consumer's only markup, and it may legitimately
+    // truncate (saved-job-ads' company badge, maxWidth 140). Handing it the
+    // failing property measures the label against the worst input a consumer
+    // can supply rather than a cooperative one.
+    const { container } = renderChip({
+      renderTrailing: (it) => <span className="truncate">{it.id}</span>,
+    });
+    await user.click(screen.getByRole("button", { name: /Senaste sökningar/ }));
+
+    // One pin here replaces the per-consumer pair this refactor deleted: with
+    // the markup emitted by the host, no consumer has row markup to get wrong.
+    // jsdom resolves no CSS, so this states what the markup asks for;
+    // globals-popover-clamp.test.ts owns what the rule then does.
+    const rows = container.querySelectorAll("button.jp-popover__rowbtn");
+    expect(rows, "the row button is the host's, one per visible item").toHaveLength(2);
+
+    const labelSpan = screen.getByText("backend");
+    expect(labelSpan.parentElement).toBe(rows[0]);
+    expect(labelSpan).toHaveClass("jp-popover__rowlabel");
+    // `truncate` sets white-space: nowrap and defeats the clamp with the class
+    // still on the element.
+    expect(labelSpan).not.toHaveClass("truncate");
   });
 });

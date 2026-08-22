@@ -33,6 +33,15 @@ const CLAMP_RULES = [...CSS.matchAll(/([^{}]+)\{([^{}]*)\}/g)]
   .filter((m) => m[1]!.includes(".jp-popover__rowlabel"))
   .map((m) => ({ selector: m[1]!.trim(), body: m[2]! }));
 
+/** The rule that owns the clamp. */
+const BASE = CLAMP_RULES.filter((r) => r.selector === ".jp-popover__rowlabel");
+/** Every other rule in the class family — modifiers, compounds, descendants. */
+const SIBLINGS = CLAMP_RULES.filter((r) => r.selector !== ".jp-popover__rowlabel");
+
+/** The five declarations that make the clamp work, or silently unmake it. */
+const CLAMP_MECHANISM =
+  /display\s*:|-webkit-line-clamp\s*:|-webkit-box-orient\s*:|overflow\s*:|white-space\s*:/;
+
 /** `-webkit-line-clamp: 2` -> `2`. Returns null when the declaration is absent. */
 function lineClamp(body: string): number | null {
   const hit = body.match(/-webkit-line-clamp\s*:\s*(\d+)/);
@@ -40,19 +49,28 @@ function lineClamp(body: string): number | null {
 }
 
 describe("globals.css — the popover row label is clamped to more than one line", () => {
-  it("has exactly the one rule this guard is about", () => {
+  it("has exactly one base rule, and no sibling rule that touches the clamp", () => {
     expect(
-      CLAMP_RULES.map((r) => r.selector),
+      BASE.map((r) => r.selector),
       `Expected a single .jp-popover__rowlabel rule. Zero means the guard measures nothing and ` +
         `every assertion below passes vacuously. More than one means a second rule can override ` +
         `the clamp — that is not a failure of the code, it is this guard telling you it has not ` +
         `been taught about the new one.`,
     ).toHaveLength(1);
-    expect(CLAMP_RULES[0]!.selector).toBe(".jp-popover__rowlabel");
+    // A sibling in this class family lands on the SAME element (the muted label carries both
+    // classes), so it can defeat the clamp. The rule is evaluated, not rejected: it may exist,
+    // it may not touch the mechanism.
+    for (const sibling of SIBLINGS) {
+      expect(
+        sibling.body,
+        `${sibling.selector} shares an element with the clamp and re-declares part of its ` +
+          `mechanism. Either drop that declaration or teach this guard why it is safe.`,
+      ).not.toMatch(CLAMP_MECHANISM);
+    }
   });
 
   it("carries all four declarations the clamp needs to work at all", () => {
-    const { body } = CLAMP_RULES[0]!;
+    const { body } = BASE[0]!;
     // Each of these alone is enough to make the clamp inert while the rule still looks right.
     expect(body, "display: -webkit-box is what -webkit-line-clamp acts on").toMatch(
       /display\s*:\s*-webkit-box/,
@@ -69,7 +87,7 @@ describe("globals.css — the popover row label is clamped to more than one line
   });
 
   it("gives the label more than one line", () => {
-    const { body } = CLAMP_RULES[0]!;
+    const { body } = BASE[0]!;
     expect(
       lineClamp(body),
       `A one-line clamp is the defect this rule was written for: the ort label enumerates every ` +
@@ -82,11 +100,11 @@ describe("globals.css — the popover row label is clamped to more than one line
     // Form, not value: the row height that keeps five rows inside the scroll container is a
     // relation over five inputs (maxHeight, the container's padding, --text-ui, the row's
     // padding, maxItems), so a solved threshold here would be green after any of them moved.
-    expect(CLAMP_RULES[0]!.body).toMatch(/line-height\s*:/);
+    expect(BASE[0]!.body).toMatch(/line-height\s*:/);
   });
 
   it("does not re-introduce nowrap, which defeats the clamp while every declaration above survives", () => {
-    const { body } = CLAMP_RULES[0]!;
+    const { body } = BASE[0]!;
     expect(body).not.toMatch(/white-space\s*:\s*nowrap/);
   });
 });

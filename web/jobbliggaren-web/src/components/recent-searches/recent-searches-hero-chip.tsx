@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { Clock } from "lucide-react";
 import type { RecentJobSearchDto } from "@/lib/dto/recent-searches";
@@ -27,7 +26,6 @@ interface RecentSearchesHeroChipProps {
  * degraderingskontrakt, facet-counts/route.ts).
  */
 export function RecentSearchesHeroChip({ items }: RecentSearchesHeroChipProps) {
-  const router = useRouter();
   const t = useTranslations("jobads.recent");
   const [open, setOpen] = useState(false);
   // Lat hämtning: counten beräknas först när panelen öppnas (slow N+1 undviks
@@ -41,12 +39,13 @@ export function RecentSearchesHeroChip({ items }: RecentSearchesHeroChipProps) {
       count={items.length > 0 ? items.length : null}
       items={items}
       getKey={(it) => it.id}
+      getHref={buildRecentSearchHref}
+      getLabel={(it) => it.label}
       emptyText={t("chip.empty")}
       footerHref="/sokningar"
       footerLabel={t("chip.footer")}
       onOpenChange={setOpen}
-      renderItem={(item, onClose) => {
-        const href = buildRecentSearchHref(item);
+      renderTrailing={(item) => {
         const count = counts?.get(item.id);
         const countText =
           count === undefined
@@ -57,27 +56,11 @@ export function RecentSearchesHeroChip({ items }: RecentSearchesHeroChipProps) {
                   newCount: String(count.newCount),
                 })
               : t("chip.count", { currentCount: String(count.currentCount) });
+        // Spannet renderas alltid, tomt tills counten laddat (design-reviewer Minor B).
         return (
-          <button
-            type="button"
-            onClick={() => {
-              onClose();
-              router.push(href);
-            }}
-            /* Konstant space-between (även innan counten laddat) så label-
-               positionen inte hoppar när talet poppar in (civic = lugn, inga
-               shifts — design-reviewer Minor B). */
-            className="jp-popover__rowbtn"
-          >
-            <span className="jp-popover__rowlabel">
-              {item.label}
-            </span>
-            {/* Spannet renderas alltid (tomt tills counten laddat) så raden inte
-                reflowar vid pop-in. */}
-            <span className="jp-popover__rowcount">
-              {countText ?? ""}
-            </span>
-          </button>
+          <span className="jp-popover__rowcount">
+            {countText ?? ""}
+          </span>
         );
       }}
     />

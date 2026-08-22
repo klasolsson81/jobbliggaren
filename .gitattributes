@@ -50,3 +50,4 @@ deploy/backup/* text eol=lf
 # AGENTS.md mäts i bytes av CI-vakten och läses av Codex på disk — en axel, LF (ADR 0135).
 AGENTS.md text eol=lf
 web/jobbliggaren-web/AGENTS.md text eol=lf
+.codex/agents/* text eol=lf

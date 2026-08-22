@@ -7,7 +7,7 @@
 > §4 TS/Next.js · §5 Anti-patterns · §6 Commits/PR flow · §7 Testing · §8 DoD ·
 > §10 Swedish UI · §12 When something looks wrong.
 > This file: §1.5 Session protocol · §6.5 Parallel sessions · §9 Working with
-> Claude Code · §11 Tooling (budget valve, ADR 0135) · §13 Update process.
+> the driving session · §11 Tooling (budget valve, ADR 0135) · §13 Update process.
 > A citation "CLAUDE.md §N" stays valid: it resolves here, then via this index.
 
 ## 1.5 Session protocol (mandatory)
@@ -160,7 +160,7 @@ worktrees. The rules below keep parallel work collision-free; full playbook in
 
 *Derivations, incidents and dated measurements: `docs/spec-rationale.md` §6.5.*
 
-## 9. Working with Claude Code
+## 9. Working with the driving session (CC or Codex)
 
 **9.1 On any task:** read the relevant BUILD.md section → check existing
 patterns (reuse, don't invent) → identify the layer → test-first for new
@@ -172,13 +172,15 @@ skill) — **and only then set `agents-done`** (§6). The PR body is written twi
 more: at creation (what changes and why), and ONE edit after the last verdict appending
 the verdict table, every escalation verbatim and §9.6's named skips (§9.2).
 
-**9.2 Boundaries.** CC writes code, tests, migrations, CI config, docs;
-proposes refactorings; creates ADRs for its architecture decisions. **CC MAY edit
+**9.2 Boundaries.** The driving session (CC or Codex) writes code, tests,
+migrations, CI config, docs; proposes refactorings; creates ADRs for its
+architecture decisions. **The driving session MAY edit
 `BUILD.md`/`CLAUDE.md`/`AGENTS.md`/`DESIGN.md` autonomously** via the normal feature-branch
 → PR → automerge flow (autonomous multi-session flow, 2026-06-25 — the prior
 spec-edit pre-approval gate is lifted); Klas reviews the diff post-merge.
 Mandatory spec-edit agents still apply (dotnet-architect + code-reviewer; plus
-design-reviewer for `DESIGN.md` design-token changes). CC does **not**: deploy
+design-reviewer for `DESIGN.md` design-token changes). The driving session does
+**not**: deploy
 without Klas GO; add top-level dependencies without justification or libraries
 outside BUILD.md §3.1 without discussion; violate §5 (a §5 anti-pattern is
 never autonomous); start a new session phase without explicit Klas GO.
@@ -199,9 +201,11 @@ promoted with `git add -f`, the `.gitignore` exception):
 | `db-migration-writer` | New migrations |
 | `test-writer` | New domain types or handlers |
 
-**The panel is runtime-agnostic:** Codex spawns the same charters through
-`.codex/agents/` pointer stubs (set parity CI-guarded; text home stays
-`.claude/agents/`; ADR 0135 Amendment 2) — §6 (AGENTS.md) owns who attests.
+**The panel is runtime-agnostic by design:** Codex is intended to spawn the
+same charters through `.codex/agents/` pointer stubs (set parity CI-guarded;
+text home stays `.claude/agents/`; ADR 0135 Amendment 2) — §6 (AGENTS.md) owns
+who attests. Extension-side discovery is unmeasured as of 2026-08-22 (delivery
+condition V1); until it is read, this is a design, not a measurement.
 
 **None of them can ask Klas anything.** `AskUserQuestion` is stripped from every
 subagent — foreground and background alike, and **even when listed in a `tools:`

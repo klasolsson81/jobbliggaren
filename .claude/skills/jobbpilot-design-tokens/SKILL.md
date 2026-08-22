@@ -11,12 +11,13 @@ description: >
 
 # JobbPilot Design Tokens
 
-> **Kanonisk mot `globals.css` (G1, ADR 0068 grön accent — supersedar
+> **Kanonisk mot `globals.css` (G1, ADR 0068 grön accent — odaterad med avsikt;
+> `references/contrast-table.md` bär kommandona som härleder om värdena — supersedar
 > både v2-blå och navy-mellanfasen).** Källa = `web/jobbliggaren-web/src/app/globals.css`
 > (`:root` + `[data-theme="dark"]` + `@theme`-blocken). Vid avvikelse mellan
 > denna skill och globals.css vinner globals.css alltid.
 >
-> **G2-not 2026-06-10 (ADR 0068 G2-notat):** display-rubriken (44px/800, 32px
+> **G2-beslut 2026-06-10 (ADR 0068 G2-notat):** display-rubriken (44px/800, 32px
 > mobil) följer F4-platta-komponenten var den används (/jobb-hero + pagehero på
 > alla inre sidor; landing-plattan 56px-clamp). Innehållsbredd-kanon app-wide =
 > **1136px** (header = platta = innehåll; `.jp-page` använder `padding-block`).
@@ -201,7 +202,7 @@ globals.css). Tailwind `@theme`-skala (on-disk):
 | `text-overline` | 11px | Mono-caps-labels: kickers, kolumnhuvuden (#549 WS2) |
 
 **Dokumenterat undantag (ADR 0068):** hero-plattans display-rubrik är
-44px/800 — gäller ENBART `.jp-hero__title`, inte H1-token-skalan (28px).
+44px/800 — inte H1-token-skalan (28px).
 
 Mono caps-labels (kickers, kolumnhuvuden, uppercase + letter-spacing
 0.08em) och mono inline-data ligger på `--jp-ink-2` eller `--jp-ink-1` —

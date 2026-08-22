@@ -113,7 +113,6 @@ names, not class sets.
   --jp-brand-600:var(--jp-accent-800); /* primary = fill-kontraktet, EJ dark-skiftad */
   --jp-brand-700:var(--jp-accent-700); /* länk/hover */
   --jp-brand-900:var(--jp-accent-900);
-  --jp-brand-accent:#FFCD00;           /* kompass-prick — UTGÅR (ADR 0070) */
   /* status-alias: *-50 → *-bg; *-500/600/700 → bastoken (alla tre samma) */
   --jp-success-50:var(--jp-success-bg); --jp-success-600:var(--jp-success); /* … */
   --jp-border-modal:var(--jp-border); --jp-border-structural:var(--jp-border);
@@ -208,7 +207,8 @@ a:hover { color: var(--jp-accent-600); }
 shadcn tokens map to `--jp-*` (via v2-aliasen), so light/dark follow
 automatically. Radii are clamped to the civic scale — `--radius-xl` cappas
 till `--jp-r-lg` (8px). Det finns inget 12px-steg: hero-plattan är 6px sedan
-ADR 0068, och `--jp-r-xl` togs bort i #1054.
+ADR 0068, och `--jp-r-xl` togs bort i #1054. `--jp-brand-accent` (`#FFCD00`,
+kompass-pricken) togs bort med ADR 0070 och deklareras inte i `globals.css`.
 
 ```css
 @theme inline {

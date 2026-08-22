@@ -2,19 +2,41 @@
 
 > **Canonical against `globals.css` (G1, ADR 0068).** Deliberately undated — a
 > sync date decays silently and cannot be told from one that is still true.
-> Re-derive instead; every hex in this skill that `globals.css` does not contain:
+> Re-derive with **both** checks below. Run them over `.claude/skills/`, not just
+> this skill: a value transcribed into a consumer skill is the same defect.
+>
+> **1. Pair check — does each token still hold the value stated?**
 >
 > ```bash
 > G=web/jobbliggaren-web/src/app/globals.css
-> grep -rhoiE '#[0-9A-F]{6}' .claude/skills/jobbpilot-design-tokens/ \
->   | tr 'a-f' 'A-F' | sort -u \
+> grep -rhoE -- '--jp-[a-z0-9-]+ *: *#[0-9A-Fa-f]{6}' .claude/skills/ \
+>   | tr -d ' ' | sort -u \
+>   | while IFS=: read -r tok val; do
+>       grep -qiE -- "$tok *: *$val *;" "$G" || echo "stale or orphan: $tok = $val"
+>     done
+> ```
+>
+> Expect **no rows**. Blind to any line that does not write `--token: #hex` — a
+> table cell such as `| Warning | #A34A06 / #FBC267 |` names no token and is
+> invisible here.
+>
+> **2. Orphan check — does each hex exist in `globals.css` at all?**
+>
+> ```bash
+> G=web/jobbliggaren-web/src/app/globals.css
+> grep -rhoiE '#[0-9A-F]{6}' .claude/skills/ | tr 'a-f' 'A-F' | sort -u \
 >   | while read -r h; do [ "$(grep -ic "$h" "$G")" = 0 ] && echo "not in globals.css: $h"; done
 > ```
 >
-> Read the output, do not count it: a hex may legitimately appear here as
-> **provenance** (`mörkad från #B4540B`, issue #193) or as a **negative**
-> citation (`INTE #020617`). Those two are the expected hits. A hex naming a
-> token's *current* value is a defect.
+> Read its output, do not count it: `#B4540B` (provenance, `mörkad från …`) and
+> `#020617` (a negative citation, `INTE #020617`) are the expected hits.
+>
+> **Neither check is sufficient alone, and that is measured, not theoretical.**
+> In PR #1447 three tokens were stale and check 2 reported *the same two hits on
+> the broken tree as on the fixed one* — because `#97A4B8` and `#2C8A3F` do exist
+> in `globals.css`, as `guard-allow` literals on the gradient plate. Check 1
+> caught all three. Check 2 earns its place only for the table cells check 1
+> cannot see.
 
 WCAG 2.1 AA requirements:
 - Body text (< 18.66px bold, < 24px regular): **4.5:1 minimum**
@@ -94,8 +116,8 @@ Verify new combinations at https://webaim.org/resources/contrastchecker
 
 Gradienten är tema-stabil (samma i light + dark). Fokusringen i
 gradient-scope är **VIT** (`--jp-focus: #FFFFFF`) — grön ring syns inte
-mot grönt. **Undantag: ljusa pillar inne i plattan** vänder tillbaka till
-mörkgrönt, eftersom en vit ring är osynlig mot dem — sista raden nedan.
+mot grönt. **Undantag: ytor inne i plattan som inte själva är gradient** vänder
+tillbaka till en tema-följande ring, eftersom vitt är osynligt mot dem.
 
 | Text | Background | Ratio | WCAG | Notes |
 |---|---|---|---|---|
@@ -104,7 +126,7 @@ mörkgrönt, eftersom en vit ring är osynlig mot dem — sista raden nedan.
 | vit (#FFFFFF) | `hero-to` (#1E6B4C) | ~6.4:1 | AA ✓ | Gradient-slut — sämsta stoppet, fortfarande AA |
 | `hero-pill-ink` (#0C1A2E) | `hero-pill-bg` (#FFFFFF) | ~17.5:1 | AAA ✓ | Tema-stabila vita kontroller i plattan |
 | vit (#FFFFFF) | `hero-sok-bg` (#0C1A2E) | ~17.5:1 | AAA ✓ | Sök-knapp (ink, INTE grön) |
-| `--jp-focus` = `accent-800` (#15603F) | `accent-50` (#E9F2ED) | ~6.6:1 | AA ✓ | **Femte fokus-scopet** (`.jp-pagehero__helpedctl`). Pillen är tema-pinnad ljus i pagehero-scope, så plattans VITA ring är osynlig mot den. `accent-800` dark-skiftas aldrig ⇒ håller i båda teman. `accent-700` får **inte** användas här: `#6EE7A8` mot samma pill = ~1.35:1, WCAG 2.4.7-fail |
+| `--jp-focus` = `accent-800` (#15603F) | `accent-50` (#E9F2ED) | ~6.6:1 | AA ✓ | **Femte fokus-scopet** (`.jp-pagehero__helpedctl`). Pillen hålls ljus i BÅDA teman av `.jp-pagehero__inner`s tema-pin — utan den är `accent-50` i dark `#0E2A1E` och ringen faller till ~2.0:1, så pinnen är bärande för den här raden. Plattans VITA ring är osynlig mot en ljus pill. `accent-800` dark-skiftas aldrig ⇒ håller i båda teman. `accent-700` får **inte** användas här: dess dark-värde `#6EE7A8` mot samma pill = ~1.35:1, WCAG 2.4.7-fail |
 
 ---
 

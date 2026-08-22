@@ -229,7 +229,7 @@ hero-plattan, inte H1-skalan. Mono caps-labels och mono inline-data på
 | `--jp-brand-600` | **`var(--jp-accent-800)`** (primary = fill-kontraktet, EJ dark-skiftad) |
 | `--jp-brand-700` | `var(--jp-accent-700)` (länk/hover) |
 | `--jp-brand-900` | `var(--jp-accent-900)` |
-| `--jp-brand-accent` | `#FFCD00` (kompass-prick — UTGÅR, ADR 0070; sigillet använder `--jp-gold`) |
+| `--jp-brand-accent` | Pensionerad med ADR 0070 (kompass-pricken `#FFCD00`); deklareras inte i `globals.css`. Sigillet använder `--jp-gold` |
 | `--jp-success-50` | `var(--jp-success-bg)` — `-500/-600/-700` → `var(--jp-success)` |
 | `--jp-warning-50` | `var(--jp-warning-bg)` — `-500/-600/-700` → `var(--jp-warning)` |
 | `--jp-danger-50` | `var(--jp-danger-bg)` — `-500/-600/-700` → `var(--jp-danger)` |

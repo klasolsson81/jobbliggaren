@@ -143,7 +143,7 @@ Keyboard focus indicator visible. See SKILL.md §3. Never `outline: none`.
 
 **2.4.11 Focus Appearance (AA — WCAG 2.2)**
 Focus indicator: area ≥ CSS perimeter × 2px, contrast ≥ 3:1.
-- JobbPilot focus ring: 2px outline, `--jp-focus`, re-scoped on some surfaces. Every scope clears 3:1. Values and measured ratios: `references/contrast-table.md` in `jobbpilot-design-tokens`. Not transcribed here. (ADR 0068)
+- JobbPilot focus ring: 2px outline, `--jp-focus`, re-scoped on some surfaces. **Every scope MUST clear 3:1 against its own adjacent surface** — a new scope inherits that duty. Values and measured ratios: `references/contrast-table.md` in `jobbpilot-design-tokens`. Not transcribed here. (ADR 0068)
 
 ### 2.5 Input Modalities
 

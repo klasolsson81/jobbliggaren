@@ -34,12 +34,22 @@ beforeEach(() => {
 });
 
 describe("SavedJobAdsHeroChip", () => {
-  it("borttagen annons dämpas (konsumentens isMuted-predikat)", async () => {
+  it("borttagen annons dämpas, kvarvarande gör det inte (konsumentens isMuted-predikat)", async () => {
     const user = userEvent.setup();
-    render(<SavedJobAdsHeroChip items={[makeDto({ jobAd: null })]} />);
+    render(
+      <SavedJobAdsHeroChip
+        items={[makeDto({ jobAd: null }), makeDto({ id: "s2" })]}
+      />,
+    );
     await user.click(screen.getByRole("button", { name: /Sparade annonser/ }));
-    const titleSpan = screen.getByText("Annonsen är borttagen");
-    expect(titleSpan).toHaveStyle({ opacity: "0.6" });
+    // Both directions. A host that muted UNCONDITIONALLY passed every assertion in
+    // this suite, so the negative half is what makes the predicate load-bearing.
+    expect(screen.getByText("Annonsen är borttagen")).toHaveClass(
+      "jp-popover__rowlabel--muted",
+    );
+    expect(
+      screen.getByText("Systemutvecklare inom offentlig sektor"),
+    ).not.toHaveClass("jp-popover__rowlabel--muted");
   });
 
   it("klick på rad → router.push till annonsen, dropdown stänger", async () => {

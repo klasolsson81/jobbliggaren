@@ -56,9 +56,7 @@ export function RecentSearchesHeroChip({ items }: RecentSearchesHeroChipProps) {
                   newCount: String(count.newCount),
                 })
               : t("chip.count", { currentCount: String(count.currentCount) });
-        // Spannet renderas alltid (tomt tills counten laddat) så raden inte
-        // reflowar och label-positionen inte hoppar när talet poppar in
-        // (civic = lugn, inga shifts — design-reviewer Minor B).
+        // Spannet renderas alltid, tomt tills counten laddat (design-reviewer Minor B).
         return (
           <span className="jp-popover__rowcount">
             {countText ?? ""}

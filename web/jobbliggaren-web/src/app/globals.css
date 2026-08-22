@@ -6691,6 +6691,14 @@ a.jp-adminnav__link[aria-current="page"]::after {
   line-height: 1.3;
 }
 
+/* Demoterad radlabel (annonsen borttagen, ADR 0048 Beslut c). Egen ink-nivå,
+   ALDRIG en alfa på --jp-ink-1: alfan komponeras mot radens hover-yta och det
+   var den kompositionen som föll under AA. Regeln rör ingen clamp-deklaration —
+   globals-popover-clamp.test.ts håller den till det. */
+.jp-popover__rowlabel--muted {
+  color: var(--jp-ink-2);
+}
+
 /* Popover-fotlänk (hero-chip-popoverns "visa alla"). */
 .jp-popover__footlink {
   display: block;

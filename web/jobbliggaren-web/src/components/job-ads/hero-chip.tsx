@@ -23,9 +23,17 @@ interface HeroChipProps<T> {
   getKey: (item: T) => string;
   /** Where the row navigates on click. The host closes the panel first. */
   getHref: (item: T) => string;
-  /** The row's primary label text. The host owns the span and its clamp. */
+  /**
+   * The row's primary label text. The host owns the span and its clamp. Keep
+   * it `string`: widening to `ReactNode` lets a consumer nest markup inside
+   * the clamp box and re-opens the hole this seam closed. Rich labels get
+   * their own slot, never a widened `getLabel`.
+   */
   getLabel: (item: T) => string;
-  /** Dims the primary label to 0.6 when true. Omitted → never dimmed. */
+  /**
+   * Demotes the primary label when true — the host applies
+   * `.jp-popover__rowlabel--muted`. Omitted → never demoted.
+   */
   isMuted?: (item: T) => boolean;
   /** Optional content rendered after the label (a count, a badge). */
   renderTrailing?: (item: T) => ReactNode;
@@ -136,8 +144,11 @@ export function HeroChip<T>({
                   className="jp-popover__rowbtn"
                 >
                   <span
-                    className="jp-popover__rowlabel"
-                    style={isMuted?.(item) ? { opacity: 0.6 } : undefined}
+                    className={
+                      isMuted?.(item)
+                        ? "jp-popover__rowlabel jp-popover__rowlabel--muted"
+                        : "jp-popover__rowlabel"
+                    }
                   >
                     {getLabel(item)}
                   </span>

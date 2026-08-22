@@ -25,11 +25,12 @@ namespace Jobbliggaren.Api.IntegrationTests.Auth;
 /// is swallowed, so the <c>JobSeeker</c> commits. Read that scope precisely: it closes the trigger
 /// measured on dev, not the class. Registration passes through the orphan state on EVERY call by
 /// construction, which is why <c>AccountHardDeleter.cs:74-78</c> gives its sweep a grace window at
-/// all — "a younger one is presumed mid-registration (Identity committed, JobSeeker not yet)". Four
-/// producers remain, enumerated at the fixtures: a cancelled request (<c>UnitOfWorkBehavior</c> takes
-/// the request token), <c>AccountHardDeleter</c> step 2h, the compensating <c>DeleteUserAsync</c> that
-/// discards its <c>IdentityResult</c>, and rows written before this change — the last being the only
-/// one this PR retires.
+/// all — "a younger one is presumed mid-registration (Identity committed, JobSeeker not yet)". What
+/// remains, enumerated at the fixtures: a cancelled request (<c>UnitOfWorkBehavior</c> takes the
+/// request token), <c>AccountHardDeleter</c> step 2h, and rows written before this change — the last
+/// being the only one this PR retires. The <c>JobSeeker.Register</c> failure arm is not among them:
+/// #1117 left it no trigger the real Identity adapter produces, as
+/// <c>RegisterCommandHandlerTests.Handle_FlagOn_RefusesADisplayNameBeforeCreatingAnyUser</c> records.
 /// </para>
 /// <para>
 /// The second pins that such a row is refused at the CAPABILITY seam, in BOTH its homes: login and
@@ -193,9 +194,13 @@ public class OrphanedIdentityActivationTests(ApiFactory factory)
         //      — i.e. the row is live until the next daily run. That actor's own predicate is pinned
         //      against the REAL AccountHardDeleter in HardDeleteAccountsJobIntegrationTests
         //      .CleanupIdentityOrphans_DoesNotSweepIdentityUserWithinGraceWindow.
-        //   3. The compensating delete in RegisterCommandHandler's JobSeeker.Register failure arm: it
-        //      calls DeleteUserAsync, which discards its IdentityResult (UserAccountService.cs:76-81),
-        //      so a failed compensation leaves the row and says nothing.
+        //   3. NOT the compensating delete in RegisterCommandHandler's JobSeeker.Register failure arm.
+        //      #1117 moved every display-name rule ahead of CreateUserAsync, so that arm's only
+        //      remaining trigger is an empty userId the real Identity adapter never returns — the same
+        //      reading recorded at
+        //      RegisterCommandHandlerTests.Handle_FlagOn_RefusesADisplayNameBeforeCreatingAnyUser. It
+        //      stands as defense-in-depth, and since #1410 DeleteUserAsync reports a failed delete
+        //      rather than discarding it.
         //   4. Rows written before this change, when the confirmation send threw — the only one retired
         //      here, by Registration_whose_confirmation_send_fails_still_commits_the_job_seeker.
         //

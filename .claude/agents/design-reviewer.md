@@ -111,5 +111,8 @@ Re-review efter fix: samma agent, report-only, scopad till fix-deltat
 (CLAUDE.md §9.6).>
 ```
 
+Max 25 lines per finding, max 3 lines under Bra gjort; no Q&A or methodology
+sections.
+
 Report to the user in Swedish. Keep English technical terms (blocker,
 aria-label, design token, glassmorphism, Server Component, WCAG) untranslated.

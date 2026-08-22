@@ -168,6 +168,10 @@ N. **<finding>** — Fil: <path:line>
 report-only, scopad till fix-deltat (CLAUDE.md §9.6).>
 ```
 
+Max 25 lines per finding, max 3 lines under Bra gjort; no Q&A or methodology
+sections — the report is the findings list, and the PR body gets the verdict
+row, never the report.
+
 Report to the user in Swedish. Keep English technical terms (blocker, Clean
 Architecture, aggregate, domain event, handler, CQRS, pipeline behavior)
 untranslated.

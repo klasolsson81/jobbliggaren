@@ -222,7 +222,9 @@ registret är retirerat (Regel 3).]
 
 Omit sektioner som är tomma. Vid manual-trigger där det inte handlar om
 Variant-val (t.ex. ren design-fråga): använd "Rekommendation" istället för
-"Beslut" och ta bort "Avvisade alternativ" om irrelevant.
+"Beslut" och ta bort "Avvisade alternativ" om irrelevant. Max 25 rader per
+fynd/alternativ — samma per-enhet-tak som granskarcharterna, inget eget
+undantag.
 
 ---
 

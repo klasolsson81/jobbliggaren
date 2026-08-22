@@ -407,11 +407,11 @@ worktrees. The rules below keep parallel work collision-free; full playbook in
   stack without committing or copying secrets.
   ⚠ **That sync is a MANUAL copy from the main copy**, so a pointer into those
   docs is dead for anyone who did not run it — a skipped step, a fresh clone,
-  GitHub's web view, a sub-agent. **The cost is spelling out, not placement:**
-  §9.6 (3) carries its derivation inline rather than citing ADR 0132/0133, and
-  would live in the spec either way on its own §13 ground. ADR 0072 Decision 2
-  owns the other side and this does not reopen it — and is itself gitignored,
-  which is this note's own case.
+  GitHub's web view, a sub-agent. A rule therefore never lives only in a
+  gitignored home: §9.6 (3)'s operative bound stays in the spec on its own §13
+  ground, and since 2026-08-22 its derivation lives tracked in
+  `docs/spec-rationale.md` §9.6, not only in the gitignored ADRs 0132/0133.
+  ADR 0072 Decision 2 owns the other side and this does not reopen it.
 - **Backlog = GitHub Issues** (`area:`/`hotspot:`/**`mvp`**/`P0`–`P3`/lane `BE`·`FE`·
   `BE+FE`/`wip`·`blocked` labels; `next-up` is on zero open issues as of 2026-08-02 and
   `mvp` replaced it in practice); `steg-tracker.md` is the strategic
@@ -557,10 +557,12 @@ decisions · 10. code review done.
 **9.1 On any task:** read the relevant BUILD.md section → check existing
 patterns (reuse, don't invent) → identify the layer → test-first for new
 domain logic → implement minimally → `dotnet test` + lint → conventional
-commit → push branch, `gh pr create` with agent reports inline, set the
-`automerge` label → **run the mandatory agents, wait in ALL of them, resolve every
-Blocker/Major** — batched, and closed by scoped re-checks (§9.6; the procedure is
-the `jobbpilot-review-discipline` skill) — **and only then set `agents-done`** (§6).
+commit → push branch, `gh pr create`, set the `automerge` label → **run the
+mandatory agents, wait in ALL of them, resolve every Blocker/Major** — batched, and
+closed by scoped re-checks (§9.6; the procedure is the `jobbpilot-review-discipline`
+skill) — **and only then set `agents-done`** (§6). The PR body is written twice, never
+more: at creation (what changes and why), and ONE edit after the last verdict appending
+the verdict table and every escalation verbatim (§9.2).
 
 **9.2 Boundaries.** CC writes code, tests, migrations, CI config, docs;
 proposes refactorings; creates ADRs for its architecture decisions. **CC MAY edit
@@ -574,7 +576,11 @@ outside BUILD.md §3.1 without discussion; violate §5 (a §5 anti-pattern is
 never autonomous); start a new session phase without explicit Klas GO.
 
 **Mandatory agent invocation** (before the STOPP report; skipping counts as a
-discipline miss; reports go to `docs/reviews/<date>-<phase>-<agent>.md`):
+discipline miss; reports go to `docs/reviews/<date>-<phase>-<agent>.md` — header +
+findings, max 25 lines per finding and 3 lines of praise, + escalations verbatim; the
+cap binds the session's transcription too. The PR body carries the verdict table and
+escalations only, never a report; a report Klas must read on GitHub is promoted with
+`git add -f`, the `.gitignore` exception):
 
 | Agent | When |
 |---|---|
@@ -787,23 +793,31 @@ deferred item makes **no** truth claim and needs no measurement — but it must 
 written as scheduling ("not MVP scope, not verified"), never as fact ("still applies",
 "no longer relevant").
 
-**Closing a Blocker/Major — the scoped re-check** (measured 2026-08-09, PRs #1249/#1254:
-0 blocking findings in under three minutes, against full rounds of twenty that generated
-fresh sentences to defend). A fix landing after an agent's verdict goes back to **the agent
-that issued it** — only the issuer can say its own finding is closed, and a fresh reviewer
-re-reviews the whole PR. The re-check is **report-only** and scoped to the **fix delta**;
-it grades that delta only — **no phrasing findings, and no new findings on lines the delta
-did not touch, except a finding the re-checking charter itself grades as a Blocker or
-defines repo-wide rather than per-diff**, which is always reported. That carve-out is not
-optional: an unconditional gag would silence a GDPR or a11y veto the charter holds, and
-§9.6 does not overrule a charter's own exceptions. What the re-check raises is routed by
-this section as any finding is — a **new-in-delta Blocker/Major** is fixed and then
-re-checked against the new delta, since §6 and §12 keep it merge-blocking. Nothing is fixed
-in-block *during* a re-check: each in-block fix invalidates the check just run. Verify HEAD
-is unchanged immediately before setting `agents-done`. **Charters and the skill carry
-pointers here, never restatements** — a restatement that survives an edit to this section is
-the drift #1173 measured, where a retired rule lived on in a satellite file for three
-months. Batching, the delta command, the report-only prompt and the label checklist are the
+**Closing a Blocker/Major — the scoped re-check.** **A fix that closes a finding deletes
+text or changes code — it never adds a claim-sentence** (measured 2026-08-22 across PRs
+#1412–#1422: 24 of 33 round-≥2 findings sat in prose an earlier fix added; 61 of 98
+closures added new claim-prose). A finding only closable by added prose is closed by
+deleting the sentence that carried the claim. A fix landing after an agent's verdict goes
+back to **the agent that issued it** — only the issuer can say its own finding is closed
+— except a finding that closes **mechanically**: the flagged sentence is deleted, the old
+string greps to zero **and the closing hunk adds no replacement claim** (7 of 61 verified
+closures failed exactly that third check), recorded as one row in the verdict table, no
+re-check owed. A fresh reviewer re-reviews the whole PR. The re-check is
+**report-only** and scoped to the **fix delta**; it grades that delta only — **no phrasing
+findings, and no new findings on lines the delta did not touch, except a finding the
+re-checking charter itself grades as a Blocker or defines repo-wide rather than
+per-diff**, which is always reported. That carve-out is not optional: an unconditional gag
+would silence a GDPR or a11y veto the charter holds, and §9.6 does not overrule a
+charter's own exceptions. **The cycle is capped: one batched review round, then at most
+ONE scoped re-check per issuing agent.** A new-in-delta Blocker/Major raised by that
+re-check is fixed by deletion or a code-only change and closed mechanically — its own
+measurement re-run; for a deleted sentence, grep = 0; a deletion cannot introduce a claim.
+A finding that survives the cap and genuinely needs new prose → **STOPP to Klas**: §6 and
+§12 keep it merge-blocking, so the choice is delete, fix in code, or stop — never explain.
+Nothing is fixed in-block *during* a re-check: each in-block fix invalidates the check
+just run. Verify HEAD is unchanged immediately before setting `agents-done`. **Charters
+and the skill carry pointers here, never restatements** (#1173). Batching, the delta
+command, the report-only prompt, the verdict-table format and the label checklist are the
 `jobbpilot-review-discipline` skill's, and **§12 gains no new class here.**
 
 ## 10. Swedish UI rules
@@ -941,7 +955,10 @@ This file changes when a new anti-pattern, standard, or CC boundary is needed.
 CC may propose **and apply** changes autonomously via PR + automerge (§9.2;
 mandatory dotnet-architect + code-reviewer); Klas may also propose. Never
 silently — always via a visible PR diff, which Klas reviews (post-merge under
-automerge).
+automerge). Rules land here; derivations, incident history and dated
+measurements land in `docs/spec-rationale.md` (§-keyed, same PR). A spec edit
+that adds a derivation paragraph to this file is the regrowth that split
+exists to prevent.
 
 ---
 

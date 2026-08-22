@@ -381,6 +381,12 @@ jobs:
       - name: AGENTS.md byte budget (blocking, ADR 0135)
         run: bash .github/scripts/agents-md-budget-guard.sh
 
+      # Mängdparitet .claude/agents + .claude/skills ↔ .codex/agents: en Codex-panel
+      # får inte tyst sakna en granskare eller en kanonisk spec (ADR 0135 Amendment 2).
+      # Text-hemmet förblir ETT.
+      - name: Codex agent set parity (blocking, ADR 0135 Am.2)
+        run: bash .github/scripts/codex-agent-parity-guard.sh
+
       # Diagnostik, INGEN grind — `git --version` avslutar alltid 0. Predikatets
       # golv (git >= 2.38, för `merge-tree --write-tree`) grindas av fixtur 1:
       # på en äldre git returnerar den `git-too-old` i stället för

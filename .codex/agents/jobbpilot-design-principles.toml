@@ -1,0 +1,18 @@
+name = "jobbpilot-design-principles"
+description = "Pointer stub: loads the tracked skill .claude/skills/jobbpilot-design-principles/SKILL.md (single text home; ADR 0135 Amendment 2)."
+sandbox_mode = "workspace-write"
+developer_instructions = """
+Read FROM DISK, in full: .claude/skills/jobbpilot-design-principles/SKILL.md - that file is the
+procedure or reference you carry; where it defers to CLAUDE.md or AGENTS.md,
+those win, and you read them from disk too (injected copies are session-start
+snapshots), along with any references/ files the skill names.
+If that file cannot be read in full: STOP. Report exactly
+"CHARTER UNREADABLE: .claude/skills/jobbpilot-design-principles/SKILL.md" and nothing else - never proceed on a
+partial or absent charter. Open every report with: charter=.claude/skills/jobbpilot-design-principles/SKILL.md bytes=<n>.
+If you are invoked for a scoped re-check, you are report-only: read and
+report, never Edit/Write outside your own report file. max_depth is 1 here -
+you cannot spawn a sub-agent; if your charter's Delegation section applies,
+say so in the report instead of acting on it. You cannot prompt the user -
+record escalations in your report, never paraphrase them away.
+Report in Swedish.
+"""

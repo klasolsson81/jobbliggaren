@@ -545,39 +545,42 @@ internal static class EmailTemplates
         var forgotLink = $"{trimmed}/glomt-losenord";
 
         return new EmailContent(
-            Subject: "Du har redan ett konto hos Jobbliggaren",
+            Subject: "Din e-postadress är redan registrerad hos Jobbliggaren",
             PlainTextBody: $"""
                 Någon har försökt skapa ett konto med den här e-postadressen, men
-                du har redan ett konto hos Jobbliggaren.
+                adressen är redan registrerad hos Jobbliggaren.
 
-                Om det var du kan du logga in i stället:
+                Om det var du, logga in här:
                 {loginLink}
 
                 Har du glömt ditt lösenord kan du välja ett nytt här:
                 {forgotLink}
 
-                Om det inte var du behöver du inte göra något. Ditt konto är
-                oförändrat. Har du frågor når du oss på:
+                Om det inte var du behöver du inte göra något. Ingenting har
+                ändrats.
+
+                Kommer du inte in, eller stämmer något inte, hör av dig:
                 {ContactAddress}
 
                 Vänliga hälsningar,
                 Jobbliggaren
                 """,
             HtmlBody: EmailHtml.Document(
-                title: "Du har redan ett konto hos Jobbliggaren",
-                preheader: "Om det inte var du behöver du inte göra något. Ditt konto är oförändrat.",
+                title: "Din e-postadress är redan registrerad hos Jobbliggaren",
+                preheader: "Om det inte var du behöver du inte göra något. Ingenting har ändrats.",
                 body: EmailHtml.P(
-                        "Någon har försökt skapa ett konto med den här e-postadressen, men du har "
-                        + "redan ett konto hos Jobbliggaren.")
-                    + EmailHtml.P("Om det var du kan du logga in i stället:")
+                        "Någon har försökt skapa ett konto med den här e-postadressen, men adressen "
+                        + "är redan registrerad hos Jobbliggaren.")
+                    + EmailHtml.P("Om det var du, logga in här:")
                     + EmailHtml.Button(loginLink, "Logga in")
                     + EmailHtml.LinkParagraph(
                         "Har du glömt ditt lösenord kan du välja ett nytt här:",
                         forgotLink,
                         "Välj ett nytt lösenord")
-                    + EmailHtml.P("Om det inte var du behöver du inte göra något. Ditt konto är oförändrat.")
+                    + EmailHtml.P("Om det inte var du behöver du inte göra något. Ingenting har ändrats.")
                     + EmailHtml.LinkParagraph(
-                        "Har du frågor når du oss på:", $"mailto:{ContactAddress}", ContactAddress)
+                        "Kommer du inte in, eller stämmer något inte, hör av dig:",
+                        $"mailto:{ContactAddress}", ContactAddress)
                     + EmailHtml.SignOff()));
     }
 

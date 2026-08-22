@@ -414,3 +414,139 @@ och #1349:s PR-body namnger den. Jag designar den inte här; det är den PR:ens 
 
 Backloggen oförändrad: **0 issues filade**. #1349 bär HEM A + HEM B (+ docstringen). HEM C blir
 följd-PR nummer tre i lanen; #1409:s runbook-skiva är liten nog att rymma det.
+
+---
+
+# Tillägg 2026-08-22 (2) — HEM C + HEM D: designbindet för PR 3
+
+Mätt av mig på `origin/main` `6a03fee3` (HEM B landade i #1438: *"Tack för att du har registrerat dig"*,
+och `"Du kan logga in när"` grepar till noll). Två av mina egna påståenden faller nedan.
+
+## Den generella regeln, som ersätter min uppräkning
+
+**Varje yta får påstå exakt vad dess egen trigger fastställer, och inget mer.** Skärmen: 204:an
+fastställer *adressen bekräftad*. Registreringsmejlet: att användaren registrerade sig. Duplicate-grenen:
+att **adressen är tagen i Identity** — inte att ett konto finns. Login-grinden: att `EmailConfirmed=false`
+— inte att bekräftelse räcker. Fixen är i varje hem att **krympa påståendet till triggern**, aldrig att
+lägga till en gren.
+
+**Och: att låta LÄSAREN förgrena är inte att låta KODEN förgrena.** En självvald villkorssats
+(*"Kommer du inte in?"*) håller mejlet byte-identiskt för varje mottagare — förbud 2 orört — och är
+verksam bara för den population den namnger. Det är den tredje formen, och den är mekanismen för
+både Q1 och Q2.
+
+## BESLUT 1 (Q1) — formen håller. Ramsatsen ryker, knappen stannar.
+
+**GRUND.** *"Adressen är redan registrerad"* är exakt vad `CreateUserAsync`-felet
+(`DuplicateAccount`) fastställer. *"Du har redan ett konto"* är mer än så, och falskt för en forward
+orphan under Beslut 1:s par-modell. Formen läser **inget** domäntillstånd — den säger vad grenen redan
+vet. Ingen fälla jag kan mäta: mejlet når bara adressens egen inkorg, så innehållet påverkar inte
+202-uniformiteten (#714 rör inte innehåll, bara status/kropp på HTTP-svaret).
+
+**Den enda fällan jag ser är strukturell, och den är värd att binda som en checkbar regel:**
+`AccountExistsNotice(string baseUrl)` tar **bara `baseUrl`** — den har ingen åtkomst till kontotillstånd
+alls, inte ens ett userId. Tillståndsberoende är alltså **strukturellt omöjligt i mallen i dag**. Risken
+ligger inte i copyn utan i att någon senare **växer signaturen**. Bind det så: *mallens signatur får inte
+få en tillståndsparameter, och `EmailNotConfirmedMessage` får inte sluta vara en `const`.* Det är
+greppbart; "var inte tillståndsberoende" är det inte.
+
+**Knappen:** din skärpning är rätt om ramsatsen och fel om knappen. Mejlet *vet* att adressen är tagen
+— men det det vet är att den är tagen **i Identity**, vilket är precis inte *"du kan logga in"*.
+*"Om det var du kan du logga in i stället:"* påstår alltså mer än triggern fastställer och **ryker**.
+`EmailHtml.Button(loginLink, "Logga in")` erbjuder en handling och påstår ingenting — den faller under
+Svar 2-gränsen och **stannar**. Ersätt ramsatsen med en självvald villkorssats, inte med en ny utsaga.
+
+**Tre påståenden — men NIO renderingar, och du listade fyra.** Mätt i `EmailTemplates.cs` (identisk med
+`origin/main`, diff = 0):
+
+| Påstående | Renderingar |
+|---|---|
+| *"(Du har) redan ett konto"* | subject `:548`, text `:550-551`, **html `title:` `:567`**, html P `:569-571` |
+| *"kan du logga in i stället"* | text `:553`, html `:572` |
+| *"Ditt konto är oförändrat"* | text `:559-560`, preheader `:568`, html P `:578` |
+
+⚠ **`title:` på `:567` saknas i din uppräkning** — samma "ett hem av N"-fälla en tredje gång. Text och
+HTML hålls ordagrant lika **för hand** och **inget test pinnar pariteten**, så ingenting fångar en halv
+strykning. *"Ditt konto är oförändrat"* bär en **försäkran** åt en verklig ägare; krymp den
+(*"Ingenting har ändrats"*), försvaga den inte.
+
+⚠ `security-auditor` berömde i #1438 att mejlets subject var **oförändrat**. PR 3 ändrar det legitimt
+(innehåll når bara ägaren) — men räkna med att hon mäter om det.
+
+## BESLUT 2 (Q2) — tredje formen finns, men R1 är smalare än jag skrev
+
+**Jag hade fel, och det är mätt av `security-auditor` i `docs/reviews/2026-08-22-orphan-security-auditor.md:54-56`.**
+Jag skrev att botemedlet är *"communicated nowhere"*. Falskt: efter svepet ger länken uniform 400, FE
+kollapsar varje 4xx till `invalidBody`, och den strängen säger redan **"Registrera dig igen för att få en
+ny länk."** Botemedlet ÄR kommunicerat — på bekräftelselänksytan, efter svepet.
+
+**R1:s verkliga rest är därför bara fönstret mellan bekräftelse och svep, och bara på login-ytan.**
+Där landar orphanen på den uniforma 401:an, som är ratificerad och orörbar. **R1 kan alltså inte
+stängas helt här, och det är en hård begränsning, inte ett scope-val.**
+
+**BESLUT: bär den tredje formen i HEM C, inte i HEM D.** I HEM C: en självvald villkorssats som leder
+till `ContactAddress`, **som redan står i mejlet** — omramning, inte tillägg. En människa kan slå upp
+raden och lösa det direkt; *"registrera dig igen om ~25 h"* avvisas nedan.
+
+**Ingen issue.** `security-auditor`s fallback (`:60-61`) är villkorad: *"skapas HEM C inte innan
+sessionen slutar → fila R1 som issue"*. HEM C skapas nu, så villkoret är uppfyllt — men **i sak, inte
+bara i bokstav**: PR:en måste faktiskt bära villkorssatsen, annars är villkoret kringgått. PR-bodyn
+skriver ut att R1 är **delvis** stängd och var resten bor, så ingen senare läser HEM C som en full
+stängning.
+
+## BESLUT 3 (Q3) — HEM D **IN** i PR 3. Ett change-reason, två hem.
+
+**Jag mis-scopade OUT (g), och det är mitt fel att rätta.** Jag skrev "login-ytan, eget
+change-reason" — men jag avböjde där att **lägga till** återhämtningsvägledning. HEM D är att **ta
+bort** ett falskt tillräcklighetspåstående: samma change-reason som HEM A och HEM B, tredje renderingen
+av samma kunskapsstycke. §9.6 nycklar på change-reason, inte på plats. OUT (g) täcker inte HEM D.
+
+**Och HEM D är den dominerande populationen, inte en kantfall.** Mätt: `ValidateCredentialsAsync`
+returnerar `EmailNotConfirmed` som **sista** grind (`UserAccountService.cs:149-151`), och
+`LoginCommandHandler.cs:23-38` returnerar på `IsFailure` **före** JobSeeker-vakten `:72-88`. Producent 1
+(avbruten request) och producent 4 (historiska rader) producerar **båda** *obekräftade* orphans — så
+HEM D är den första ytan de möter, och den enda före den orörbara 401:an.
+
+⚠ **HEM D är TVÅ hem, inte ett — och FE:t kastar API:ts mening.** `actions.ts:100-108` renderar
+`t("auth.actions.emailNotConfirmed")`, **inte** `detail` från svaret. Men `AuthEndpoints.cs:411-414`
+lägger `AuthErrorCodes.EmailNotConfirmedMessage` på wire som ProblemDetails `detail`. Alltså:
+`messages/{sv,en}/pages.json:482` = vad användaren ser; `AuthErrorCodes.cs:76-77` = vad wire bär. **Två
+hem, en mening, ingen paritetspinne.** Ändra båda, annars är det en fix på ett hem av två.
+
+**Åtgärd = ren strykning av tillräckligheten.** *"Bekräfta din e-postadress **för att logga in**"* →
+ett konstaterande av vad grinden fastställer, t.ex. *"Din e-postadress är inte bekräftad än."*
+Resend-knappen (`LoginForm.tsx:93`) står kvar — den är rätt för den legitima obekräftade användaren.
+
+**Ingen återhämtningssats i HEM D**, och det är avsiktligt: användaren där har en korrekt nästa handling
+(bekräfta). Att i förväg säga "och funkar inte det, hör av dig" är brus för 99,99 % och för tidigt för
+orphanen, som ännu inte gått i väggen. Väggen är den uniforma 401:an.
+
+**Andra meningen, `"Vi har skickat en länk till din inkorg"`:** utanför den bundna egenskapen, men den
+faller på den generella regeln — grinden fastställer `EmailConfirmed=false` och vet ingenting om
+sändningar (som sedan #1369 sväljs vid fel). Gör den till **instruktion i stället för påstående**:
+*"Kontrollera din inkorg."* Samma Svar 2-gräns, konsekvent tillämpad.
+
+## BESLUT 4 (Q4) — vad som INTE ska göras
+
+1. **Väx inte `AccountExistsNotice`s signatur** med en tillståndsparameter, och gör inte
+   `EmailNotConfirmedMessage` till något annat än en `const`. Det är den checkbara formen av förbud 2.
+2. **Förgrena inte texten på profilnärvaro** — varken i mejlet eller i meddelandet. Läsaren förgrenar; koden inte.
+3. **Skriv inte ut svepet.** *"Registrera dig igen om cirka ett dygn"* avvisas: det exponerar intern
+   maskineri, det blir fel om grace-fönstret eller cron-tiden ändras, och det är främmande copy för en
+   civic utility. `ContactAddress` routar till en människa som kan lösa det nu.
+4. **Rör inte den uniforma 401:an** (ratificerad, `security-auditor` STEG 10b Major-1).
+5. **Inför ingen tredje status för orphans** vid login. Den vore inte ett enumereringsorakel (403:an
+   kräver rätt lösenord), men den är tillståndsberoende copy som säger *"ditt konto är trasigt"* — och
+   under Beslut 1 är en orphan inget trasigt konto, den är **inget konto**. Den inbjuder supportlast
+   utan handlingsbar nytta.
+6. **Ta inte bort resend-knappen** vid HEM D, och ta inte bort login-knappen ur HEM C.
+7. **Skriv ingen tredje prosavariant.** `security-auditor` band det i #1438 (`:89-90`) för den PR:ens
+   tak; jag för över **disciplinen**, inte taket: HEM C/D är strykningar plus **en** självvald
+   villkorssats. Botten är strykning.
+8. **Fila ingen issue.** Se Beslut 2.
+
+## Netto
+
+**0 issues filade.** PR 3 = HEM C + HEM D, ett change-reason: *de kvarvarande auth-ytorna påstår bara
+vad deras egen trigger fastställer, och account-exists-notisen bär återhämtningsvägen — utan att någon
+yta blir tillståndsberoende.* R1 stängs **delvis**; resten bor på den uniforma 401:an och är ratificerad.

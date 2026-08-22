@@ -297,11 +297,12 @@ public class LoginCommandHandlerTests
         // to the change tracker, which UnitOfWorkBehavior saves only after the handler returns.
         // AccountHardDeleter's #508 grace filter names exactly this window as the reason its sweep has a grace
         // period — "a younger one is presumed mid-registration (Identity committed, JobSeeker not yet)".
-        // Anything that stops the handler inside that window leaves the row behind:
+        // Anything that fails that save leaves the row behind:
         //
-        //   1. A cancelled request (the client closes the tab). UnitOfWorkBehavior passes the request
-        //      token to SaveChangesAsync, so the JobSeeker is dropped while the Identity user stands.
-        //      Pinned at RegisterCommandHandlerTests
+        //   1. A failed JobSeeker commit. UnitOfWorkBehavior saves unconditionally after the handler
+        //      returns and never inspects the result, so a cancelled request token, a
+        //      DbUpdateException or a connection fault all drop the JobSeeker while the Identity
+        //      user stands. Pinned at RegisterCommandHandlerTests
         //      .Handle_FlagOn_WhenConfirmationSendIsCancelled_PropagatesRatherThanSwallowing.
         //   2. AccountHardDeleter step 2h — the domain transaction
         //      commits FIRST and the Identity DELETE is a separate boundary after it, so a failure
@@ -312,9 +313,9 @@ public class LoginCommandHandlerTests
         //      HardDeleteAccountsJobIntegrationTests
         //      .CleanupIdentityOrphans_DoesNotSweepIdentityUserWithinGraceWindow (admits the state) and
         //      ..._RemovesOrphanIdentityRowsWithoutMatchingJobSeeker (the other polarity).
-        //   3. The compensating delete in RegisterCommandHandler's JobSeeker.Register failure arm.
-        //      It calls DeleteUserAsync, which discards its IdentityResult
-        //      (UserAccountService.cs:76-81), so a failed compensation leaves the row and says nothing.
+        //   3. NOT the compensating delete in RegisterCommandHandler's JobSeeker.Register failure
+        //      arm. #1117 left that arm no trigger the real Identity adapter produces, and since
+        //      #1410 DeleteUserAsync reports a failed delete rather than discarding it.
         //   4. Rows written before this change, when a failed confirmation send left one on every
         //      attempt (#1349's measured reproduction on dev, 2026-08-16).
         //

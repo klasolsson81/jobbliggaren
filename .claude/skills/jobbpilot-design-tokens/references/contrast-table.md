@@ -1,6 +1,20 @@
 # JobbPilot — Contrast Ratio Table (v3 + G1 grön accent)
 
-> **Synkad mot `globals.css` 2026-06-10 (G1, ADR 0068).**
+> **Canonical against `globals.css` (G1, ADR 0068).** Deliberately undated — a
+> sync date decays silently and cannot be told from one that is still true.
+> Re-derive instead; every hex in this skill that `globals.css` does not contain:
+>
+> ```bash
+> G=web/jobbliggaren-web/src/app/globals.css
+> grep -rhoiE '#[0-9A-F]{6}' .claude/skills/jobbpilot-design-tokens/ \
+>   | tr 'a-f' 'A-F' | sort -u \
+>   | while read -r h; do [ "$(grep -ic "$h" "$G")" = 0 ] && echo "not in globals.css: $h"; done
+> ```
+>
+> Read the output, do not count it: a hex may legitimately appear here as
+> **provenance** (`mörkad från #B4540B`, issue #193) or as a **negative**
+> citation (`INTE #020617`). Those two are the expected hits. A hex naming a
+> token's *current* value is a defect.
 
 WCAG 2.1 AA requirements:
 - Body text (< 18.66px bold, < 24px regular): **4.5:1 minimum**
@@ -80,7 +94,8 @@ Verify new combinations at https://webaim.org/resources/contrastchecker
 
 Gradienten är tema-stabil (samma i light + dark). Fokusringen i
 gradient-scope är **VIT** (`--jp-focus: #FFFFFF`) — grön ring syns inte
-mot grönt.
+mot grönt. **Undantag: ljusa pillar inne i plattan** vänder tillbaka till
+mörkgrönt, eftersom en vit ring är osynlig mot dem — sista raden nedan.
 
 | Text | Background | Ratio | WCAG | Notes |
 |---|---|---|---|---|
@@ -89,6 +104,7 @@ mot grönt.
 | vit (#FFFFFF) | `hero-to` (#1E6B4C) | ~6.4:1 | AA ✓ | Gradient-slut — sämsta stoppet, fortfarande AA |
 | `hero-pill-ink` (#0C1A2E) | `hero-pill-bg` (#FFFFFF) | ~17.5:1 | AAA ✓ | Tema-stabila vita kontroller i plattan |
 | vit (#FFFFFF) | `hero-sok-bg` (#0C1A2E) | ~17.5:1 | AAA ✓ | Sök-knapp (ink, INTE grön) |
+| `--jp-focus` = `accent-800` (#15603F) | `accent-50` (#E9F2ED) | ~6.6:1 | AA ✓ | **Femte fokus-scopet** (`.jp-pagehero__helpedctl`). Pillen är tema-pinnad ljus i pagehero-scope, så plattans VITA ring är osynlig mot den. `accent-800` dark-skiftas aldrig ⇒ håller i båda teman. `accent-700` får **inte** användas här: `#6EE7A8` mot samma pill = ~1.35:1, WCAG 2.4.7-fail |
 
 ---
 

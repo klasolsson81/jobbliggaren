@@ -11,8 +11,8 @@ description: >
 
 # JobbPilot Design Tokens
 
-> **Synkad mot `globals.css` 2026-06-10 (G1, ADR 0068 grön accent — supersedar
-> både v2-blå och navy-mellanfasen).** Källa = `web/jobbpilot-web/src/app/globals.css`
+> **Kanonisk mot `globals.css` (G1, ADR 0068 grön accent — supersedar
+> både v2-blå och navy-mellanfasen).** Källa = `web/jobbliggaren-web/src/app/globals.css`
 > (`:root` + `[data-theme="dark"]` + `@theme`-blocken). Vid avvikelse mellan
 > denna skill och globals.css vinner globals.css alltid.
 >
@@ -125,7 +125,7 @@ Full ramp → `references/tokens-full.md`.
 |---|---|---|---|---|
 | `--jp-border` | `#C9D2E0` | `#44598A` | `border-border-default` | Standardvalet (kort, header, popover) |
 | `--jp-border-soft` | `#E3E8F0` | `#2C3F65` | — | Mjukaste avgränsare (popover-grupper, usermenu-sep) |
-| `--jp-border-strong` | `#97A4B8` | `#6F86A8` | `border-border-strong` | Starkare avgränsare (checkbox-box) |
+| `--jp-border-strong` | `#7C8AA0` | `#6F86A8` | `border-border-strong` | Starkare avgränsare (checkbox-box) |
 | `--jp-border-input` | `#7C8AA0` | `#6F86A8` | — | Input-vila — höjd kontrast så fält syns mot vit/surface-2 (samma hex som ink-3 light, medveten tonalitet, inte alias) |
 
 ### Status colors
@@ -136,7 +136,7 @@ Bas-token = text/ikon, `-bg` = pill/banner-bakgrund. Tailwind-aliasen
 | Status | Token (light/dark) | Bg (light/dark) |
 |---|---|---|
 | Success | `#16793B` / `#5DD894` | `#DFF3E5` / `#143E29` |
-| Warning | `#B4540B` / `#FBC267` | `#FCE9D1` / `#3F2A0B` |
+| Warning | `#A34A06` / `#FBC267` | `#FCE9D1` / `#3F2A0B` |
 | Danger | `#BE1B1B` / `#FB8989` | `#FBE0E0` / `#3F1419` |
 | Info | `#1B5396` / `#8FBEEF` | `#DEE9F8` / `#1B3358` |
 

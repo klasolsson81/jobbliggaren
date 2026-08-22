@@ -60,7 +60,7 @@ Color is not the only means of conveying information.
 **1.4.3 Contrast (Minimum) (AA)**
 - Normal text: 4.5:1
 - Large text (≥ 18pt / ≥ 14pt bold): 3:1
-- See verified pairs in SKILL.md §4 and `jobbpilot-design-tokens/references/contrast-table.md`
+- Verified pairs: `jobbpilot-design-tokens/references/contrast-table.md`
 
 **1.4.4 Resize Text (AA)**
 Text can be resized to 200% without loss of content or functionality.
@@ -143,7 +143,7 @@ Keyboard focus indicator visible. See SKILL.md §3. Never `outline: none`.
 
 **2.4.11 Focus Appearance (AA — WCAG 2.2)**
 Focus indicator: area ≥ CSS perimeter × 2px, contrast ≥ 3:1.
-- JobbPilot focus ring: 2px outline, accent `#15603F` on white = 7.56:1 (dark: `#6EE7A8` på #0B1525 = 11.9:1; vit ring i gradient-ytor 6.4:1 mot ljusaste stopp). Passes. (ADR 0068)
+- JobbPilot focus ring: 2px outline, `--jp-focus`, re-scoped on some surfaces. Every scope clears 3:1. Values and measured ratios: `references/contrast-table.md` in `jobbpilot-design-tokens`. Not transcribed here. (ADR 0068)
 
 ### 2.5 Input Modalities
 

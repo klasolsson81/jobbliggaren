@@ -1,9 +1,10 @@
 # JobbPilot — v3/G1 Token + @theme Structure (globals.css)
 
-> **Synkad mot `globals.css` 2026-06-10 (G1, ADR 0068).**
+> **Kanonisk mot `globals.css` (G1, ADR 0068).** Odaterad med avsikt — se
+> `references/contrast-table.md` för kommandot som härleder om varje värde.
 
 This is the **implemented** structure in
-`web/jobbpilot-web/src/app/globals.css` — that file is canonical. The pattern:
+`web/jobbliggaren-web/src/app/globals.css` — that file is canonical. The pattern:
 
 1. `--jp-*` v3-kanon (ink/surface/canvas/accent/status/hero) defined once in
    `:root {}` (light).
@@ -59,17 +60,17 @@ names, not class sets.
   --jp-ink-inverse:#FFFFFF;
 
   /* Borders (synliga, inte hairlines) */
-  --jp-border:#C9D2E0; --jp-border-soft:#E3E8F0; --jp-border-strong:#97A4B8;
+  --jp-border:#C9D2E0; --jp-border-soft:#E3E8F0; --jp-border-strong:#7C8AA0;
   --jp-border-input:#7C8AA0;
 
   /* Status */
   --jp-success:#16793B; --jp-success-bg:#DFF3E5;
-  --jp-warning:#B4540B; --jp-warning-bg:#FCE9D1;
+  --jp-warning:#A34A06; --jp-warning-bg:#FCE9D1;
   --jp-danger:#BE1B1B;  --jp-danger-bg:#FBE0E0;
   --jp-info:#1B5396;    --jp-info-bg:#DEE9F8;
 
   /* Dekorativa accenter */
-  --jp-leaf-600:#2C8A3F; --jp-leaf-50:#DFF3E5;
+  --jp-leaf-600:#1C7530; --jp-leaf-50:#DFF3E5;
 
   /* Hero (G1 "F4 Hybrid" — gradient ENBART hero/pagehero/land-hero) */
   --jp-hero-from:#0B2A1E; --jp-hero-mid:#14503A; --jp-hero-to:#1E6B4C;

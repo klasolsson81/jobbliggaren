@@ -74,7 +74,8 @@ Requirements:
 - `tabIndex={-1}` OK for programmatic focus (modals, post-submit error focus)
 - `tabIndex={0}` OK for custom interactive elements that are not natively focusable
 - Escape closes modals, dialogs, dropdowns
-- Enter/Space activates buttons
+- Enter/Space activates buttons; Enter alone activates links (`<a href>`) —
+  Space scrolls the page, so wiring it to a link breaks scrolling
 - Arrow keys navigate menus, tab panels, grids
 - No keyboard trap — except inside open modals where Escape must break it
 
@@ -366,7 +367,7 @@ Design-reviewer uses this checklist as her audit source. All must pass.
 - [ ] Lighthouse a11y score ≥ 95
 - [ ] axe DevTools: 0 violations
 - [ ] Keyboard-only: reach all interactive elements via Tab
-- [ ] Keyboard-only: activate all buttons/links via Enter/Space
+- [ ] Keyboard-only: activate buttons via Enter/Space, links via Enter
 - [ ] Keyboard-only: Escape closes all modals/dropdowns
 - [ ] Focus ring visible on every focusable element
 - [ ] Focus order follows visual reading order

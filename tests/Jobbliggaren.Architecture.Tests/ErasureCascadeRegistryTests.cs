@@ -200,16 +200,36 @@ public class ErasureCascadeRegistryTests
             or "tsvector";  // derived text is still text — job_ads.search_vector is FTS-searched
     }
 
-    private static List<string> RecruiterTextColumns()
+    /// <summary>
+    /// Every text-bearing column in the model, grouped by table. <b>The ONE enumeration</b>, shared
+    /// by the unclassified sweep (<see cref="RecruiterTextColumns"/>) and by the wholesale-exclusion
+    /// guard that reads the columns an excluded table hides.
+    /// </summary>
+    /// <remarks>
+    /// One implementation, deliberately. The two callers ask opposite questions of the SAME set -
+    /// "what did the registry forget?" and "what does an exclusion hide?" - and a second copy of the
+    /// <c>.ToJson()</c> branch below is a place for those answers to drift apart.
+    /// <para>
+    /// Several entity types can map to ONE table (an owned type is the usual case), so columns
+    /// ACCUMULATE per table rather than replacing each other.
+    /// </para>
+    /// </remarks>
+    private static Dictionary<string, List<string>> TextColumnsByTable()
     {
         using var context = ModelOnlyContext();
 
-        var columns = new List<string>();
+        var byTable = new Dictionary<string, List<string>>(StringComparer.Ordinal);
         foreach (var entity in context.Model.GetEntityTypes())
         {
             var table = entity.GetTableName();
-            if (table is null || NonRecruiterTables.ContainsKey(table))
+            if (table is null)
                 continue;
+
+            if (!byTable.TryGetValue(table, out var columns))
+            {
+                columns = [];
+                byTable[table] = columns;
+            }
 
             foreach (var property in entity.GetProperties())
             {
@@ -219,17 +239,22 @@ public class ErasureCascadeRegistryTests
                 columns.Add(ColumnKey(entity, property));
             }
 
-            // The .ToJson() seam, CLOSED (it was ⚠-disclosed for two rounds): an owned aggregate
-            // mapped to a JSON container column presents as a NAVIGATION, so its columns never
-            // appear among the scalar properties above — but the container column itself is
+            // The .ToJson() seam, CLOSED (it was ⚠-disclosed for two rounds): an owned
+            // aggregate mapped to a JSON container column presents as a NAVIGATION, so its columns
+            // never appear among the scalar properties above - but the container column itself is
             // text-bearing jsonb, and the model knows its name.
             var container = entity.GetContainerColumnName();
             if (container is not null)
                 columns.Add($"{table}.{container}");
         }
 
-        return columns;
+        return byTable;
     }
+
+    private static List<string> RecruiterTextColumns() =>
+        [.. TextColumnsByTable()
+            .Where(kv => !NonRecruiterTables.ContainsKey(kv.Key))
+            .SelectMany(kv => kv.Value)];
 
     /// <summary>
     /// <b>Anti-vacuity for the sweep itself: one sentinel column per FORM.</b> The unclassified

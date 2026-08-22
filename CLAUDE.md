@@ -355,9 +355,8 @@ worktrees. The rules below keep parallel work collision-free; full playbook in
   pre-flight, before any work:** `git worktree list` (see active sessions +
   their branches) → confirm the issue is not already claimed (`gh issue view
   <N>` + open PRs) → create + enter your worktree (**Path A, recommended:** the
-  `EnterWorktree` tool → `.claude/worktrees/<name>`, zero-setup; **or Path B:**
-  raw `git worktree add c:/tmp/jbl-<slug> origin/main -b <type>/<slug>` +
-  `pwsh scripts/sync-worktree-docs.ps1 <path>` — see the playbook) → `cd` in →
+  `EnterWorktree` tool; **or Path B:** raw worktree + docs-sync — commands in
+  the playbook §3) → `cd` in →
   claim the issue visibly if it has one (`gh issue edit <N> --add-assignee
   @me`). **ABORT if launched in the main copy on a non-main branch** — another
   session owns it; never
@@ -375,11 +374,9 @@ worktrees. The rules below keep parallel work collision-free; full playbook in
 - **Shared-Postgres rule.** Only ONE "stack-owner" session runs the local dev
   Postgres (port 5435) + Api/Worker (single-owner: the shared dev DB + port
   5435; the running stack bin-locks only its OWN worktree's `bin/`) — **from its
-  own worktree** (Model 1), passing secrets via a `ConnectionStrings__Postgres`
-  env
-  override built from `.env`'s `POSTGRES_PASSWORD_DEV` (NOT by copying
-  `appsettings.Local.json`; the dev `appsettings` uses a `${...}` placeholder
-  the launch must expand, else `28P01`). Every other session runs code + unit +
+  own worktree** (Model 1), passing secrets via the env override in
+  `docs/runbooks/local-dev-setup.md` §Fällor (NOT by copying
+  `appsettings.Local.json`). Every other session runs code + unit +
   architecture + **Testcontainers** (ephemeral DB, parallel-safe) — never
   against the shared dev DB.
 - **Local docs in worktrees.** Gitignored session state (`current-work.md`,

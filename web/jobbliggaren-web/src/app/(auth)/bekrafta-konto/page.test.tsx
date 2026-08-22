@@ -53,7 +53,7 @@ describe("BekraftaKontoPage (#714 public registration confirm landing)", () => {
       screen.getByRole("heading", { level: 1, name: "Länken går inte att använda" }),
     ).toBeInTheDocument();
     expect(
-      screen.queryByRole("button", { name: "Aktivera kontot" }),
+      screen.queryByRole("button", { name: "Bekräfta e-postadressen" }),
     ).not.toBeInTheDocument();
     expect(confirmAccountActionMock).not.toHaveBeenCalled();
     expect(screen.getByRole("link", { name: "Logga in" })).toHaveAttribute("href", "/logga-in");
@@ -71,7 +71,7 @@ describe("BekraftaKontoPage (#714 public registration confirm landing)", () => {
   it("renders the confirm button but does NOT auto-POST on load when params are present", async () => {
     await renderPage({ uid: UID, token: TOKEN });
 
-    expect(screen.getByRole("button", { name: "Aktivera kontot" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Bekräfta e-postadressen" })).toBeInTheDocument();
     // CRITICAL: the confirm POST must never fire on page load (mail scanners / prefetchers GET the link).
     expect(confirmAccountActionMock).not.toHaveBeenCalled();
   });
@@ -80,7 +80,7 @@ describe("BekraftaKontoPage (#714 public registration confirm landing)", () => {
     const user = userEvent.setup();
     await renderPage({ uid: UID, token: TOKEN });
 
-    await user.click(screen.getByRole("button", { name: "Aktivera kontot" }));
+    await user.click(screen.getByRole("button", { name: "Bekräfta e-postadressen" }));
 
     await waitFor(() => expect(confirmAccountActionMock).toHaveBeenCalledWith(UID, TOKEN));
     expect(confirmAccountActionMock).toHaveBeenCalledTimes(1);
@@ -90,10 +90,10 @@ describe("BekraftaKontoPage (#714 public registration confirm landing)", () => {
     const user = userEvent.setup();
     await renderPage({ uid: UID, token: TOKEN });
 
-    await user.click(screen.getByRole("button", { name: "Aktivera kontot" }));
+    await user.click(screen.getByRole("button", { name: "Bekräfta e-postadressen" }));
 
     expect(
-      await screen.findByRole("heading", { level: 1, name: "Kontot är aktiverat" }),
+      await screen.findByRole("heading", { level: 1, name: "Din e-postadress är bekräftad" }),
     ).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Logga in" })).toHaveAttribute("href", "/logga-in");
   });
@@ -106,10 +106,10 @@ describe("BekraftaKontoPage (#714 public registration confirm landing)", () => {
     const user = userEvent.setup();
     await renderPage({ uid: UID, token: TOKEN });
 
-    await user.click(screen.getByRole("button", { name: "Aktivera kontot" }));
+    await user.click(screen.getByRole("button", { name: "Bekräfta e-postadressen" }));
 
     const alert = await screen.findByRole("alert");
     expect(alert).toHaveTextContent("Länken är ogiltig eller har gått ut");
-    expect(screen.getByRole("button", { name: "Aktivera kontot" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Bekräfta e-postadressen" })).toBeInTheDocument();
   });
 });

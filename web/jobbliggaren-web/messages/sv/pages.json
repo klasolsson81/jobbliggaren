@@ -497,12 +497,12 @@
       "networkError": "Det gick inte att nå servern. Försök igen om en stund."
     },
     "confirmAccount": {
-      "title": "Aktivera ditt konto",
-      "intro": "Klicka på knappen för att bekräfta din e-postadress och aktivera kontot. Sedan kan du logga in.",
-      "confirm": "Aktivera kontot",
-      "pending": "Aktiverar…",
-      "successTitle": "Kontot är aktiverat",
-      "successBody": "Din e-postadress är bekräftad. Logga in för att komma igång.",
+      "title": "Bekräfta din e-postadress",
+      "intro": "Klicka på knappen för att bekräfta din e-postadress.",
+      "confirm": "Bekräfta e-postadressen",
+      "pending": "Bekräftar…",
+      "successTitle": "Din e-postadress är bekräftad",
+      "successBody": "Logga in för att komma igång.",
       "loginLink": "Logga in",
       "invalidTitle": "Länken går inte att använda",
       "invalidBody": "Länken är ogiltig eller har gått ut. Registrera dig igen för att få en ny länk.",

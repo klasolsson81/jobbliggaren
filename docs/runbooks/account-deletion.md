@@ -18,7 +18,7 @@ faser:
 
 **Restore-fönster:** 30 dagar mellan soft-delete och hard-delete. Inom
 fönstret kan kontot återställas (admin-yta planerad till Fas 6 — manuell
-SQL-procedur i §4 tills dess).
+SQL-procedur i §4.1 tills dess).
 
 ---
 
@@ -255,16 +255,13 @@ framtida `AccountRestored`-command (Fas 6) MÅSTE anropa motsvarande rensning.
 ### 4.2 Radera en reverse-orphan (#1409)
 
 En **reverse-orphan** är en `JobSeeker` vars `UserId` saknar Identity-user. Den upptäcks av Steg 0:s
-detektor (EventId 2503, Warning, count-only) och **raderas aldrig av något jobb** — den får aldrig
-`deleted_at` satt, så 30-dagarsfönstret startar aldrig och `HardDeleteAccountsJob` plockar aldrig upp
+detektor (EventId 2503, Warning, count-only) och **raderas aldrig av något jobb**: ingen kodväg sätter
+`deleted_at` på den, så 30-dagarsfönstret startar aldrig och `HardDeleteAccountsJob` plockar aldrig upp
 den. Utan proceduren nedan besvaras en Art. 17-begäran med ad-hoc-SQL.
 
 ⚠ **Skriv INTE en egen raderingskaskad i SQL.** `HardDeleteAccountAsync` raderar varje användarägt
-aggregat plus DEK:erna plus audit-anonymiseringen, och att listan är komplett maskinkontrolleras
-av
-`AccountHardDeleteCascadeFitnessTests`. En SQL-avskrift här vore ett andra hem för den kunskapen utan
-vakt: nästa aggregat som läggs till uppdaterar koden och testet, och lämnar tyst runbooken raderande
-allt utom just det nya. Proceduren **återinträder i den vaktade vägen** i stället.
+aggregat plus DEK:erna plus audit-anonymiseringen, och att listan är komplett maskinkontrolleras av
+`AccountHardDeleteCascadeFitnessTests`. Proceduren **återinträder i den vaktade vägen** i stället.
 
 **Steg 1 — identifiera raden.** Använd reverse-orphan-queryn i §3.3. Den ger `js.id`, som är det
 `jobSeekerId` stegen nedan tar. ⚠ En LITEN count kan vara transient (en samtidig registrering som
@@ -274,9 +271,14 @@ racear sweepens två snapshot-läsningar) — utred före du raderar.
 
 ```sql
 -- Utan Art. 17-begäran (Art. 5.1 e, lagringsminimering): NOW().
--- 30-dagarsfönstret kostar ingenting här (ingenting är återställbart ändå) och ger en
--- gratis ångra-möjlighet om raden var felidentifierad.
-UPDATE job_seekers SET deleted_at = NOW() WHERE id = '<jobSeekerId>'::uuid;
+-- 30-dagarsfönstret kostar ingenting här (ingenting är återställbart ändå) och skyddar mot
+-- oåterkallelig radering av en felidentifierad rad.
+-- AND deleted_at IS NULL: §3.3:s query varken filtrerar eller selekterar deleted_at, så raden kan
+-- redan ha en löpande klocka. Utan villkoret nollställs den och Art. 17 fördröjs 30 dagar till.
+-- NOLL rader = klockan går redan. Läs av den innan du gör något mer:
+--   SELECT deleted_at FROM job_seekers WHERE id = '<jobSeekerId>'::uuid;
+UPDATE job_seekers SET deleted_at = NOW()
+WHERE id = '<jobSeekerId>'::uuid AND deleted_at IS NULL;
 ```
 
 ```sql
@@ -285,31 +287,59 @@ UPDATE job_seekers SET deleted_at = NOW() WHERE id = '<jobSeekerId>'::uuid;
 UPDATE job_seekers SET deleted_at = NOW() - INTERVAL '31 days' WHERE id = '<jobSeekerId>'::uuid;
 ```
 
-⚠ **Det backdaterade `deleted_at` är en operativ trigger, inte ett sant faktum om när raderingen
-begärdes.** Logga det **verkliga** begäransdatumet i ops-kanalen, samma krav som §4.1 ställer på
-restore-händelsen.
+⚠ **"Verifierad" har en högre tröskel här än i §4.1, och §4.1:s båda metoder är otillgängliga.** Det
+finns inget konto att legitimera sig mot (Identity-raden är per definition borta) och ingen alternativ
+adress på fil — domäntabellerna bär ingen. Kvar på raden är `display_name` i klartext, som varken är
+unikt eller verifierat, och DEK-krypterat CV-innehåll som **inte** får dekrypteras för att avgöra vems
+det är.
 
-**Steg 3 — vänta in jobbet och verifiera.** `HardDeleteAccountsJob` kör 04:00 UTC; trigga annars
-manuellt via Hangfire-dashboarden (§3.1). Verifiera sedan att §3.3:s reverse-orphan-query inte längre
-returnerar raden.
+**Går kopplingen inte att verifiera: radera inte.** Det är rätt svar, inte ett undantag — Art. 11.2
+(kan den personuppgiftsansvarige inte identifiera den registrerade gäller Art. 15–20 inte) och
+Art. 12.6 (begär kompletterande uppgifter). Backdatering på en overifierad matchning förstör en
+**annan** registrerads CV och DEK inom ett dygn, utan återvändo.
+
+⚠ **Det backdaterade `deleted_at` är en operativ trigger, inte ett sant faktum om när raderingen
+begärdes.** När kolumnen medvetet görs osann är begäransposten den enda riktiga uppgiften om det
+faktum Art. 12.3:s månadsfrist och Art. 17.1:s "utan onödigt dröjsmål" mäts mot (Art. 5.2).
+**Hem:** den personuppgiftsansvariges ärendeakt, utanför systemet — samma hem som ROPA-posten
+*"Art. 17-raderingsbegäran från rekryterare"* redan namnger för klartext-identifierare.
+**Läsare:** Klas, som personuppgiftsansvarig. En chattkanal som åldras ut är inget hem.
+
+**Steg 3 — vänta in jobbet. Tidslinjen skiljer sig mellan varianterna.** Jobbet kör dagligen; tiden
+står i §2.3.
+
+- **`NOW()`-varianten:** raden raderas vid första passet **efter 30 dagar**, inte i natt — Steg 1 i
+  §2.3 kräver ett `deleted_at` som är äldre än fönstret. Att trigga jobbet manuellt gör därför
+  ingenting före dess. Under fönstret ligger raden kvar i §3.3:s query och **EventId 2503 fortsätter
+  fyra varje natt**. Det är förväntat, inte ett fel.
+  ⚠ Warningen är count-only, så en **ny** reverse-orphan i samma fönster är osynlig i signalen
+  (1 → 2 går inte att skilja). Anteckna raden du armerat så nästa läsare kan räkna bort den.
+- **Backdaterade varianten:** raden raderas vid nästa pass, och en manuell körning via
+  Hangfire-dashboarden (§3.1) är meningsfull.
+
+**Verifiera** när fönstret för din variant löpt ut: §3.3:s reverse-orphan-query ska inte längre
+returnera raden.
 
 **Redis-tombsten: normalt INGEN åtgärd — men läs villkoret, det är inte ovillkorligt.** Till skillnad
 från §4.1, som **kräver** att tombsten rensas, behöver den här proceduren normalt ingen alls: varje
-producent av en reverse-orphan som finns i `src/` uppstår **innan registreringen slutförts** (den enda
-är klockskevhets-racet i Steg 0, där sweepen tar en mid-registrerings-rad vars `JobSeeker` sedan
-commit:as), så ingen inloggning har någonsin skett och ingen session kan finnas.
+producent av en reverse-orphan som finns i `src/` uppstår **innan registreringen slutförts** — sweepen
+i Steg 0 tar en mid-registrerings-rad vars `JobSeeker` sedan commit:as, antingen vid klockskevhet
+eller när registreringen stannar längre än grace-fönstret. Ingen inloggning har skett, så ingen
+session kan finnas.
 
-⚠ **Det gäller producenterna i koden, inte en Identity-rad som raderats ur banden.** `GetAsync`
-kontrollerar tombsten och **läser aldrig Identity-raden**, och tombsten planteras av exakt ett ställe
-(`DELETE /me`) — `AccountHardDeleter` planterar ingen. En reverse-orphan som uppstått genom att någon
-raderat Identity-raden manuellt kan därför ha en **levande session kvar**. Vet du inte hur raden
-uppstod, plantera tombsten före Steg 2 — den är idempotent och självdör. TTL:en ska matcha
-`SessionStoreOptions.DeletionTombstoneTtl`, som är sanningskällan (30 dagar som standard, alltså
-`2592000` sekunder):
+⚠ **Det gäller producenterna i koden, inte en Identity-rad som raderats direkt i databasen.**
+`GetAsync` kontrollerar tombsten och **läser aldrig Identity-raden**, och tombsten planteras av exakt
+ett ställe (kontoraderingen i §2.1) — `AccountHardDeleter` planterar ingen. En sådan rad kan därför ha
+en **levande session kvar**. Vet du inte hur raden uppstod, plantera tombsten före Steg 2. TTL:en ska
+matcha `SessionStoreOptions.DeletionTombstoneTtl`, som är sanningskällan (30 dagar som standard):
 
 ```
 SET jobbliggaren:user:<userId>:deleted 1 EX 2592000
+EXISTS jobbliggaren:user:<userId>:deleted   -- ska ge 1
 ```
+
+⚠ Redis-nycklar är skiftlägeskänsliga och koden bygger nyckeln ur en GUID i gemener. En versaliserad
+`<userId>` planterar en nyckel ingen läser, utan felmeddelande — därav `EXISTS`-raden.
 
 ---
 

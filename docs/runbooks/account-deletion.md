@@ -442,7 +442,7 @@ ingripande krävs.
 
 - **TD-16** (audit-retention + Art. 17) — del 1 stängd via STEG 10a, del 2 stängd via STEG 10b
 - **TD-21** — rate-limiting på DELETE /me + auth-endpoints (innan prod-deploy)
-- **TD-22** → [#1170](https://github.com/klasolsson81/jobbliggaren/issues/1170) — app-logg-retention. Seq-benet levererat 2026-08-23 (30-dagarspolicy på produktionslådan); `json-file` är fortfarande åldersobundet och är vad som håller issuen öppen. IP/UA-redaction är levererad (`IIpAnonymizer`, ADR 0024 D7 policy 2)
+- **TD-22** → [#1170](https://github.com/klasolsson81/jobbliggaren/issues/1170) — app-logg-retention
 - **TD-23** — Redis MULTI/EXEC för CreateAsync atomicitet (Fas 2)
 - **TD-24** — DeleteAccountCommand cascade-paginering (Fas 4)
 - **TD-25** — HardDeleteAccountsJob per-konto try/catch (opportunistiskt)

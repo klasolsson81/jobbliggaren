@@ -785,7 +785,7 @@ instruments and controls live in that file's §4
 **Beslutsfattare:** Klas gave GO for the operator writes. This records a **state change, not a
 decision change** — every Delbeslut in D7 stands, and so does every prior amendment, unaltered.
 
-### 1. Why this is appended and not an edit
+### Why this is appended and not an edit
 
 **Two amendments now carry the same date, so this one supersedes BY NAME and never by order.**
 The amendment above rests on a read-only measurement taken *before any step of §3 had run*, and
@@ -793,7 +793,7 @@ every sentence in it was true then. It is therefore appended to rather than edit
 carries six prior amendments, all appended, and says twice in its own text that every prior
 amendment stands unaltered.
 
-### 2. The superseded sites
+### The superseded sites
 
 | Superseded site | What it says | Measured 2026-08-23 after the run |
 |---|---|---|
@@ -804,7 +804,7 @@ amendment stands unaltered.
 | §3 · *ADR 0128 itself* | correction owed in the main copy; its §4 claim *"false in both halves"* | **Done, not owed:** ADR 0128 carries its own second dated amendment and the processing register's Seq row was rewritten, both the same day. **Both halves the base called false are still false** — two layers hold app events, not three (`hostlogs/` ships nothing), and *"only two are age-bounded"* still overstates, since **one** is. What changed is the parenthesis: *Seq (30-day policy)* is no longer the false part |
 | §3 · *D7 policy 2* | the retention-fails case *"is now the operative one rather than the hypothetical one"* | Hypothetical again for the Seq layer. `IIpAnonymizer` is unchanged and still defense-in-depth |
 
-### 3. What is NOT superseded
+### What is NOT superseded
 
 ⛔ **The half a later reader is likeliest to get wrong.**
 **#1170 does not close.** The ground moved; it did not go. Docker's `json-file` layer is
@@ -813,7 +813,7 @@ are users — `log-sink.md` §5 owns that pointer. **An issue whose stated block
 is one a later reader closes on the old reading**, which is why every row above quotes its old
 text instead of quietly replacing it.
 
-### 4. The ordering is a property of the run, not of the procedure
+### The ordering is a property of the run, not of the procedure
 
 ⚠ **This matters because the next operator inherits the procedure and not the run.** §3 step 8
 gives the order as prose and names the ingest key as its reason; it carries no retention gate. This
@@ -823,5 +823,16 @@ seq_data`, inherits the order without that check. Adding the gate
 to §3 is a follow-up with its own change-reason: it would bind the **next** run, and could not make
 this one's mechanism claim true retroactively.
 
+### Discipline
+
+Additive amendment. The original text and all prior amendments stand unaltered — including the
+amendment above, whose every sentence was true on the read-only measurement it names and which is
+therefore superseded by name rather than rewritten. This amendment's sections are titled and not
+numbered, deliberately: the table above addresses the amendment above as §2 and §3, and a second
+numbering in the same block would give those references two referents.
+
+Docs-sync ships in the same PR as scope (ADR 0065) — no docs-only PR. The measurement this amendment records is
+dated and stands as provenance; the **live** question — whether a policy exists on the box today —
+has one home, `docs/runbooks/log-sink.md` §4, with its instrument and its controls.
 **Referenser:** #1170, ADR 0128 (gitignored) Amendment 2026-08-23 (second), `docs/runbooks/log-sink.md`
 §3/§4/§5, `docs/runbooks/gdpr-processing-register.md` (gitignored).

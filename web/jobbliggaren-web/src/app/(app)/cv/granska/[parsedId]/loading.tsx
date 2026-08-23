@@ -25,13 +25,15 @@ export default function Loading() {
   const t = useTranslations("pages");
   return (
     <>
-      {/* `aside={<></>}` rather than the default: the default paints TWO button blocks and
-          this hero has no aside at all. `null` would NOT work — `aside ?? …` hands the
-          default back for a nullish value — so the emptiness has to be a non-nullish element.
-          `ledeLines={3}` because this lede wraps to three lines: measured, the skeleton band
-          was 168px against the loaded band's 231px, a 63px jump on the page's most prominent
-          element (#1062, design-reviewer M-A). */}
-      <PageHeroSkeleton aside={<></>} ledeLines={3} />
+      {/* This hero has no aside; `null` is what renders no `__aside` element (see the
+          component). The title and lede are the page's own static translations, so rendering
+          them for real lets the browser wrap them exactly as the loaded page does, at every
+          viewport (#1385, replacing the #1062 approximation). */}
+      <PageHeroSkeleton
+        aside={null}
+        title={t("cv.review.title")}
+        lede={t("cv.review.lede")}
+      />
 
       <div className="jp-container jp-page">
         {/* aria-hidden on the visible copy, not on the container: BrandSpinner carries its own

@@ -744,11 +744,11 @@ Docs-sync ships in the same PR as scope (ADR 0065) — no docs-only PR. **This A
 
 `infra/terraform/environments/dev/main.tf` still carries the original `retention_in_days = 30` under a comment citing this Delbeslut. That is **preserved deliberately** as the record of what ran (ADR 0066 Beslut 1; BUILD.md §15) and must not be "repaired" toward the successor.
 
-### 2. The successor is a step, not a property — and it has not been taken
+### 2. The successor is a step, not a property — and the step has now been taken
 
-Measured on the production box 2026-08-23, read-only: **no retention policy exists there.** The whole of `log-sink.md` §3 is unrun — the admin has never completed a login, no ingest key exists, the ingestion gate was never set, and `Seq:ServerUrl` is unset, so the provider is not attached and the store holds zero application events.
+Measured on the production box 2026-08-23, read-only: no retention policy existed there and the whole of `log-sink.md` §3 was unrun. **The step was taken the same day.** §3 ran end to end and step 7's `POST /api/retentionpolicies` returned 201 — one policy, all events, `RetentionTime 30.00:00:00` — after which step 8 attached the provider, in that order and not the other.
 
-**So D7 policy 1 is unimplemented, and nothing is presently exposed by that.** Both halves hold at once and neither cancels the other: the sink that would carry `UserId`, `CorrelationId` and IP in plaintext is not receiving, so no data is being retained without limit there today — and the moment §3 step 8 sets `SEQ_SERVER_URL` there would be, which is precisely why step 7 precedes it.
+**So D7 policy 1 is implemented, by the step this amendment names.** The two halves that used to hold at once no longer do, and the order is why that is safe rather than lucky: the sink now receives `UserId`, `CorrelationId` and IP, and it received its first event into a store that was already bounded.
 
 The instrument, its controls and the command that regenerates the figure have **one** home — `log-sink.md` §4 — and are deliberately not restated here.
 

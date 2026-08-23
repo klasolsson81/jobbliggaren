@@ -748,7 +748,7 @@ Docs-sync ships in the same PR as scope (ADR 0065) — no docs-only PR. **This A
 
 Measured on the production box 2026-08-23, read-only: no retention policy existed there and the whole of `log-sink.md` §3 was unrun. **The step was taken the same day.** §3 ran end to end and step 7's `POST /api/retentionpolicies` returned 201 — one policy, all events, `RetentionTime 30.00:00:00` — after which step 8 attached the provider, in that order and not the other.
 
-**So D7 policy 1 is implemented, by the step this amendment names.** The two halves that used to hold at once no longer do, and the order is why that is safe rather than lucky: the sink now receives `UserId`, `CorrelationId` and IP, and it received its first event into a store that was already bounded.
+**So D7 policy 1 is implemented, by the step this amendment names.** The two halves that used to hold at once no longer do, and the order is why that is safe rather than lucky: the sink now receives `UserId`, `CorrelationId` and IP, and **no application event reached it before the policy existed** — step 8's run enforced that as a precondition rather than trusting the written order.
 
 The instrument, its controls and the command that regenerates the figure have **one** home — `log-sink.md` §4 — and are deliberately not restated here.
 

@@ -22,21 +22,20 @@ import { useTranslations } from "next-intl";
 // are part of the label, so an "(öppnas i ny flik)" per link would be read back
 // twice inside the checkbox's own name.
 //
-// Props spread onto the input the way `ui/input.tsx` does, so the form owns
-// `ref` and `aria-invalid` — but the spread goes FIRST, so `required` and the
-// posted name stay this component's to decide and no call site can switch the
-// gate off. A caller-supplied `aria-describedby` (the error) is prepended by
-// the hint rather than replaced by it.
+// The props are narrowed to the three the form actually supplies, so a call
+// site cannot pre-tick the box or drop `required`, and the spread still goes
+// FIRST so the attributes below also win at runtime. A caller-supplied
+// `aria-describedby` (the error) is prepended by the hint, not replaced by it.
 export function AcceptTermsCheckbox({
   "aria-describedby": describedBy,
   ...props
-}: ComponentProps<"input">) {
+}: Pick<ComponentProps<"input">, "ref" | "aria-invalid" | "aria-describedby">) {
   const t = useTranslations("pages");
   const hintId = useId();
   return (
-    <div className="flex flex-col gap-1.5">
-      <label className="flex min-h-11 cursor-pointer items-center gap-2.5 text-label font-medium text-text-primary">
-        <span className="relative inline-flex shrink-0 items-center justify-center">
+    <div className="flex flex-col gap-1.5 border-t border-border pt-5">
+      <label className="flex w-fit cursor-pointer items-start gap-2.5 py-3 text-label font-medium text-text-primary">
+        <span className="relative inline-flex shrink-0 items-center justify-center pt-0.5">
           <input
             {...props}
             name="acceptTerms"
@@ -44,7 +43,7 @@ export function AcceptTermsCheckbox({
             required
             aria-required="true"
             aria-describedby={describedBy ? `${hintId} ${describedBy}` : hintId}
-            className="peer size-5 cursor-pointer appearance-none rounded-sm border-2 border-border-strong bg-surface-primary transition-colors duration-75 checked:border-brand-600 checked:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-50"
+            className="peer size-5 cursor-pointer appearance-none rounded-sm border-2 border-border-strong bg-surface-primary transition-colors duration-75 checked:border-brand-600 checked:bg-brand-600 aria-invalid:border-danger-600 aria-invalid:ring-3 aria-invalid:ring-destructive/20 disabled:cursor-not-allowed disabled:opacity-50"
           />
           <Check
             aria-hidden="true"
@@ -59,7 +58,7 @@ export function AcceptTermsCheckbox({
                 href="/villkor"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-brand-600 underline underline-offset-2 hover:text-brand-700"
+                className="py-1.5 text-brand-600 underline underline-offset-2 hover:text-brand-700"
               >
                 {chunks}
               </Link>
@@ -69,7 +68,7 @@ export function AcceptTermsCheckbox({
                 href="/integritet"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-brand-600 underline underline-offset-2 hover:text-brand-700"
+                className="py-1.5 text-brand-600 underline underline-offset-2 hover:text-brand-700"
               >
                 {chunks}
               </Link>

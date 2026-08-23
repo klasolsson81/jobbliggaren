@@ -28,10 +28,16 @@
 name: jobbliggaren-prod
 
 # Container logs are capped here rather than left to the daemon default, and since #1175 this
-# is the LAST-RESORT BUFFER of three layers rather than the store. The three, and what bounds
-# each: the seq service below (queryable, box-local, 30-day retention policy set inside Seq);
+# is the LAST-RESORT BUFFER of three layers rather than the store. The three, and what is MEANT
+# to bound each: the seq service below (queryable, box-local, a retention policy set BY HAND
+# inside Seq — Seq exposes no configuration surface for it, so this file cannot carry it, and
+# the DURATION is deliberately not written here either: it decays, and it has one home);
 # the `hostlogs/` prefix jobbliggaren-logship.service ships to (off-box, encrypted, bounded by
 # a lifecycle rule that is NOT yet created); and this — bounded by VOLUME and by nothing else.
+#
+# WHETHER EITHER OF THE FIRST TWO IS IN FORCE IS A MEASUREMENT, NOT A PROPERTY OF THIS FILE, and
+# it has one home: log-sink.md §4. Read that row before treating either as a bound; why this line
+# stopped asserting it is ADR 0024's Amendment 2026-08-23 (#1170).
 # A quiet container still keeps its 30 MB for months, so retention time here stays undefined.
 # That is what keeps #1170 open: demoting this layer is what finally makes a smaller max-size
 # defensible, but the number needs a write rate and there is no write rate until there are
@@ -745,7 +751,9 @@ volumes:
   # The sink's event store. It holds application events in PLAINTEXT on this box's disk —
   # `UserId`, `CorrelationId`, IP addresses and whatever else a log statement carries — which
   # is why it is enumerated in docs/runbooks/gdpr-processing-register.md alongside the
-  # json-file layer and the off-box hostlogs/ archive, and why Seq's own retention policy is
-  # the control that bounds its age. Deleting this volume destroys the searchable corpus and
+  # json-file layer and the off-box hostlogs/ archive, and why Seq's own retention policy is the
+  # control that WOULD bound its age — a by-hand step (log-sink.md §3 step 7) with no
+  # configuration surface, whose state is measured in §4 and never asserted here. Deleting this
+  # volume destroys the searchable corpus and
   # nothing else: the durable copy is the age-encrypted archive (#1175 (A)).
   seq_data:

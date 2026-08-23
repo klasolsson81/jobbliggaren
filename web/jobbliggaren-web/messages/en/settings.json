@@ -17,7 +17,8 @@
     "languageLabel": "Language",
     "languageHint": "Affects the whole app immediately. Saved to your account.",
     "languageSwedish": "Svenska",
-    "languageEnglish": "English"
+    "languageEnglish": "English",
+    "savedAt": "Saved {time}"
   },
   "backgroundMatch": {
     "title": "Match notifications",

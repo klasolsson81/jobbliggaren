@@ -49,6 +49,7 @@
     <Compile Include="..\Shared\TestFacets.cs" Link="Shared\TestFacets.cs" />
     <Compile Include="..\Shared\TestKeywordExtraction.cs" Link="Shared\TestKeywordExtraction.cs" />
     <Compile Include="..\Shared\TestIds.cs" Link="Shared\TestIds.cs" />
+    <Compile Include="..\Shared\RecordingLogger.cs" Link="Shared\RecordingLogger.cs" />
     <!-- #1232 — Phase A provisioning for the migration oracle. Linked rather than duplicated so
          the Worker suite's CompanyRegisterPlanFixture can adopt the same posture without a
          second copy. -->

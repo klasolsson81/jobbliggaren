@@ -1,6 +1,13 @@
 # Jobbliggaren edge — Caddy v2. ADR 0050 Option B: every request goes to Next.
 # There is no /api matcher here on purpose; the ASP.NET API is not edge-exposed.
 #
+# BEFORE PUTTING THE API BEHIND THIS EDGE, read RecruiterErasureMatchQuery's
+# CommandTimeoutSeconds. The Art. 17 erasure dry run runs under a reviewed ceiling that is
+# larger than the `write` timeout below, and it reaches the API over the internal network
+# today precisely because there is no /api matcher here. Route it through this edge and the
+# request is capped at `write` instead, on the only human gate before an irreversible erase.
+# That constant owns the rule and the measurement; this is a pointer, not a second copy.
+#
 # Values arrive as container environment (deploy/docker-compose.yml, from the box's
 # deploy/.env). No credential is committed: this repo is public, and the basic-auth
 # gate is the whole of admission control (gate M-5b point 5).

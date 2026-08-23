@@ -82,8 +82,10 @@ services:
       #
       # Bindningen var `0.0.0.0` (mätt 2026-08-04: `HTTP 200` mot ett oautentiserat
       # Seq-API från värdens Ethernet-adress). Och innehållet var inte "bara dev-loggar":
-      # `ConsoleEmailSender` skriver hela `PlainTextBody`, så sinken bar 41 aktiverings-
-      # och bekräftelselänkar i klartext plus en verklig e-postadress. Bindningen lagades
+      # `ConsoleEmailSender` skrev då hela `PlainTextBody` för vilken mottagare som helst,
+      # så sinken bar 41 aktiverings- och bekräftelselänkar i klartext plus en verklig
+      # e-postadress (sedan #1208 skrivs kroppen bara för en RFC 2606/6761-reserverad
+      # mottagare). Bindningen lagades
       # i samma PR — men då hade den varit **enda** kontrollen över det materialet, och
       # det var precis den kontroll som varit fel i månader medan den här kommentaren
       # gick i god för den. Därför en andra kontroll som inte är ett påstående.

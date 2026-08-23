@@ -23,8 +23,8 @@ namespace Jobbliggaren.Infrastructure.Logging;
 /// admin-authenticated (#1198, 2026-08-04) — and both halves are load-bearing, because the
 /// old justification "no prod PII" was MEASURED FALSE on 2026-08-04: the sink held 41
 /// activation/confirmation links in plaintext plus one real address, since
-/// <c>ConsoleEmailSender</c> logs the whole body. Treat "holds no real-user PII" as a
-/// condition to re-measure, never as a standing fact. Prod sets it via env/secret to the
+/// <c>ConsoleEmailSender</c> logged the whole body for any recipient at all. Since #1208 it
+/// does so only for an RFC 2606/6761-reserved one. Prod sets it via env/secret to the
 /// self-hosted EU Seq (ADR 0050; the sink itself is unbuilt and owned by #1175).
 /// <c>ServerUrl</c> + any <c>ApiKey</c> are env/secret, never committed.
 /// </summary>

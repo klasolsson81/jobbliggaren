@@ -33,10 +33,19 @@ public sealed partial class ConsoleEmailSender(
     /// <summary>
     /// <see langword="true"/>, and that is a substantive answer rather than a convenience for the
     /// test suite (#1087). This sender writes the whole body — activation and confirmation links
-    /// included — to <c>ILogger</c>, so a developer CAN complete a token→email→confirm flow from the
-    /// log. Delivery-dependent handlers must therefore work in Development exactly as they will in
-    /// production; answering <see langword="false"/> here would refuse the very flows dev exists to
-    /// exercise. See <see cref="IEmailSender.CanDeliver"/>.
+    /// included — to <c>ILogger</c> for a reserved recipient, so a developer CAN complete a
+    /// token→email→confirm flow from the log. Delivery-dependent handlers must therefore work in
+    /// Development exactly as they will in production; answering <see langword="false"/> here would
+    /// refuse the very flows dev exists to exercise. See <see cref="IEmailSender.CanDeliver"/>.
+    ///
+    /// <para>
+    /// <b>The recipient gate does not read this, and must not.</b> It changes what is written to the
+    /// log, never the delivery contract. <c>ChangeEmailCommandHandler</c> and
+    /// <c>RequestPasswordResetCommandHandler</c> both refuse up front on
+    /// <see langword="false"/> and return 503, so reasoning "the body is withheld, therefore we
+    /// cannot deliver" would turn a withheld log line into a failed request — in the one
+    /// environment where the flow is supposed to be exercised.
+    /// </para>
     /// </summary>
     public bool CanDeliver => true;
 

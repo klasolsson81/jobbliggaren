@@ -16,7 +16,7 @@ namespace Jobbliggaren.Application.UnitTests.Email;
 /// conditions, and the second — "it holds no real-user PII" — was a property of what the sink
 /// HOLDS. That can only be answered by reading the sink, which makes every answer true until the
 /// next registration; a corpus reading taken on 2026-08-23 found zero real recipients and could
-/// not have found tomorrow's. <see cref="ConsoleEmailSender"/> writes the whole body through one
+/// not have found tomorrow's. <see cref="ConsoleEmailSender"/> routes every send through one
 /// private choke point, so the invariant is enforceable at the writer, where it holds for every
 /// future write. This file is what turns that from a claim into a measurement: it runs on every
 /// CI build, and a regression fails it rather than sitting in the sink unread.

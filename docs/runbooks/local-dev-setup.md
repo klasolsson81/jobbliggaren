@@ -52,10 +52,17 @@ SEQ_ADMIN_PASSWORD_DEV=$(-join ((48..57)+(65..90)+(97..122) | Get-Random -Count 
 
 **`SEQ_ADMIN_PASSWORD_DEV` är obligatorisk** — compose failar utan den. Auth på dev-Seq
 är PÅ sedan 2026-08-04 (#1198), och skälet är inte formalia: dev-Seq bär
-`ConsoleEmailSender`-rader med hela mejlkroppen, alltså aktiverings- och
+`ConsoleEmailSender`-rader med mejlkroppen, alltså aktiverings- och
 bekräftelselänkar i klartext. Loopback-bindningen ensam räckte inte som kontroll över
 det materialet — den var dessutom mätt fel i månader medan compose-filens egen kommentar
 gick i god för den.
+
+**Sedan #1208 skrivs kroppen bara för en mottagare på en domän som RFC 2606/6761
+reserverar:** `.test`, `.example`, `.invalid`, `.localhost`, `example.com|net|org`.
+Registrerar du lokalt med någon annan adress loggas i stället en rad vars enda fält är
+`EmailKind` — ingen mottagare, ingen rubrik, ingen kropp — och då finns ingen länk att
+läsa ut. Använd en `.test`-adress: `klas@jobbliggaren.test` är den dokumenterade
+dev-inloggningen, och E2E-sviten kör redan mot `e2e.jobbliggaren.test`.
 
 `.env` är gitignored — committa aldrig. Kontrollera:
 

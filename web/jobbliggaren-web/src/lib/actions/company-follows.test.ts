@@ -85,6 +85,7 @@ describe("setWatchFilterAction — the happy path", () => {
       municipalities: ["gbg_kn"],
       regions: ["skane_lan"],
       onlyMatched: true,
+      remote: false,
     });
 
     expect(result).toEqual({ success: true });
@@ -99,12 +100,14 @@ describe("setWatchFilterAction — the happy path", () => {
       municipalities: ["gbg_kn"],
       regions: ["skane_lan"],
       onlyMatched: false,
+      remote: false,
     });
 
     expect(setWatchFilterMock).toHaveBeenCalledExactlyOnceWith(WATCH_ID, {
       municipalities: ["gbg_kn"],
       regions: ["skane_lan"],
       onlyMatched: false,
+      remote: false,
     });
   });
 
@@ -116,6 +119,7 @@ describe("setWatchFilterAction — the happy path", () => {
       municipalities: [],
       regions: [],
       onlyMatched: false,
+      remote: false,
     });
 
     expect(result).toEqual({ success: true });
@@ -123,6 +127,7 @@ describe("setWatchFilterAction — the happy path", () => {
       municipalities: [],
       regions: [],
       onlyMatched: false,
+      remote: false,
     });
     expect(revalidatePathMock).toHaveBeenCalledWith("/foretag/bevakade");
   });
@@ -141,6 +146,7 @@ describe("setWatchFilterAction — failures never revalidate", () => {
       municipalities: ["gbg_kn"],
       regions: [],
       onlyMatched: false,
+      remote: false,
     });
 
     expect(result).toEqual({ success: false, error: expected });
@@ -156,6 +162,7 @@ describe("setWatchFilterAction — failures never revalidate", () => {
       municipalities: [],
       regions: [],
       onlyMatched: true,
+      remote: false,
     });
 
     expect(result).toEqual({ success: false, error: NOT_LOGGED_IN });
@@ -171,6 +178,7 @@ describe("setWatchFilterAction — the zod guard", () => {
       municipalities: "gbg_kn", // a bare string, not a list
       regions: ["skane_lan"],
       onlyMatched: true,
+      remote: false,
     } as unknown as SetWatchFilterInput;
 
     const result = await setWatchFilterAction(WATCH_ID, malformed);

@@ -77,8 +77,14 @@ export function CompanyWatchRow({ item, mode, regions }: CompanyWatchRowProps) {
 
   // Antalet valda ORTER är summan av de två axlarna: ett helt-läns-val är ETT val (och lagras som ett
   // läns-id), inte länets alla kommuner. Att räkna dem var för sig vore att ljuga om vad användaren valt.
+  // Distans ar den tredje granulariteten pa samma axel och "raknas som en egen ort" —
+  // husets egen formulering i ortDistansHint. Utan den termen visades ett
+  // distans-only-filter som "Filtrerat: 0 orter": ett filter som finns, beskrivet som
+  // noll orter.
   const ortCount = item.filter
-    ? item.filter.municipalities.length + item.filter.regions.length
+    ? item.filter.municipalities.length
+      + item.filter.regions.length
+      + (item.filter.remote ? 1 : 0)
     : 0;
   const onlyMatchedActive = item.filter?.onlyMatched ?? false;
 

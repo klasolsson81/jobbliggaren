@@ -104,6 +104,7 @@ describe("WatchFilterDialog — the two geo axes never cross (the load-bearing w
       municipalities: [],
       regions: ["r_sthlm"],
       onlyMatched: false,
+      remote: false,
     });
   });
 
@@ -122,6 +123,7 @@ describe("WatchFilterDialog — the two geo axes never cross (the load-bearing w
       municipalities: ["m_solna"],
       regions: [],
       onlyMatched: false,
+      remote: false,
     });
   });
 
@@ -145,12 +147,13 @@ describe("WatchFilterDialog — the two geo axes never cross (the load-bearing w
       municipalities: ["m_solna"],
       regions: ["r_vg"],
       onlyMatched: false,
+      remote: false,
     });
   });
 
   it("sparar bevakningens id (opakt) — aldrig org.nr", async () => {
     const user = userEvent.setup();
-    render(<Host filter={{ municipalities: [], regions: [], onlyMatched: true }} />);
+    render(<Host filter={{ municipalities: [], regions: [], onlyMatched: true, remote: false }} />);
 
     await user.click(screen.getByRole("button", { name: SAVE }));
 
@@ -167,6 +170,7 @@ describe("WatchFilterDialog — draften seedas ur det persisterade filtret", () 
           municipalities: ["m_gbg"],
           regions: ["r_sthlm"],
           onlyMatched: true,
+          remote: false,
         }}
       />
     );
@@ -190,7 +194,7 @@ describe("WatchFilterDialog — draften seedas ur det persisterade filtret", () 
     const user = userEvent.setup();
     render(
       <Host
-        filter={{ municipalities: ["m_gbg"], regions: ["r_sthlm"], onlyMatched: true }}
+        filter={{ municipalities: ["m_gbg"], regions: ["r_sthlm"], onlyMatched: true, remote: false }}
       />
     );
 
@@ -201,6 +205,7 @@ describe("WatchFilterDialog — draften seedas ur det persisterade filtret", () 
       municipalities: ["m_gbg"],
       regions: ["r_sthlm"],
       onlyMatched: true,
+      remote: false,
     });
   });
 });
@@ -213,7 +218,7 @@ describe("WatchFilterDialog — ett tomt val RENSAR filtret", () => {
     const user = userEvent.setup();
     render(
       <Host
-        filter={{ municipalities: ["m_gbg"], regions: ["r_sthlm"], onlyMatched: true }}
+        filter={{ municipalities: ["m_gbg"], regions: ["r_sthlm"], onlyMatched: true, remote: false }}
       />
     );
 
@@ -225,6 +230,7 @@ describe("WatchFilterDialog — ett tomt val RENSAR filtret", () => {
       municipalities: [],
       regions: [],
       onlyMatched: false,
+      remote: false,
     });
     expect(screen.queryByRole("alert")).toBeNull();
   });
@@ -233,7 +239,7 @@ describe("WatchFilterDialog — ett tomt val RENSAR filtret", () => {
     // The clear path must not depend on the "Ta bort filtret"-link existing: unchecking the last
     // control IS an empty selection.
     const user = userEvent.setup();
-    render(<Host filter={{ municipalities: [], regions: [], onlyMatched: true }} />);
+    render(<Host filter={{ municipalities: [], regions: [], onlyMatched: true, remote: false }} />);
 
     await user.click(screen.getByRole("checkbox", { name: ONLY_MATCHED }));
     await user.click(screen.getByRole("button", { name: SAVE }));
@@ -243,6 +249,7 @@ describe("WatchFilterDialog — ett tomt val RENSAR filtret", () => {
       municipalities: [],
       regions: [],
       onlyMatched: false,
+      remote: false,
     });
     expect(screen.queryByRole("alert")).toBeNull();
   });
@@ -262,7 +269,7 @@ describe("WatchFilterDialog — ett tomt val RENSAR filtret", () => {
   it("'Ta bort filtret' rensar DRAFTEN — den sparar inte av sig själv", async () => {
     // The only commit boundary is "Spara filter", so a mis-click is undoable with Avbryt.
     const user = userEvent.setup();
-    render(<Host filter={{ municipalities: [], regions: [], onlyMatched: true }} />);
+    render(<Host filter={{ municipalities: [], regions: [], onlyMatched: true, remote: false }} />);
 
     await user.click(screen.getByRole("button", { name: CLEAR }));
 
@@ -296,6 +303,7 @@ describe("WatchFilterDialog — 'endast matchande' låses ALDRIG (CTO Q8-b)", ()
       municipalities: [],
       regions: [],
       onlyMatched: true,
+      remote: false,
     });
   });
 
@@ -431,6 +439,116 @@ describe("WatchFilterDialog — save-utfallet (#141-fällan)", () => {
       municipalities: [],
       regions: [],
       onlyMatched: true,
+      remote: false,
+    });
+  });
+});
+
+describe("WatchFilterDialog — distans-axeln (#551 PR-C)", () => {
+  // Kaskaden grindar Distans-raden på `remote !== undefined`: `undefined` betyder att YTAN
+  // saknar axeln, inte att användaren stängt av den. Bevakningsdialogen skickade aldrig in
+  // den, så raden fanns inte att kryssa i — och det är det första av fyra led.
+  it("Distans-raden renderas — ytan bär axeln", async () => {
+    const user = userEvent.setup();
+    render(<Host />);
+
+    await user.click(screen.getByRole("button", { name: "Lägg till orter" }));
+
+    expect(screen.getByRole("checkbox", { name: "Distans" })).toBeInTheDocument();
+  });
+
+  it("en ikryssad Distans sparas som remote: true", async () => {
+    const user = userEvent.setup();
+    render(<Host />);
+
+    await user.click(screen.getByRole("button", { name: "Lägg till orter" }));
+    await user.click(screen.getByRole("checkbox", { name: "Distans" }));
+    await user.click(screen.getByRole("button", { name: SAVE }));
+
+    await waitFor(() => expect(setWatchFilterMock).toHaveBeenCalled());
+    expect(savedPayload()).toEqual({
+      municipalities: [],
+      regions: [],
+      onlyMatched: false,
+      remote: true,
+    });
+  });
+
+  it("ett persisterat distans-filter seedar draften", async () => {
+    const user = userEvent.setup();
+    render(
+      <Host
+        filter={{ municipalities: [], regions: [], onlyMatched: false, remote: true }}
+      />
+    );
+
+    await user.click(screen.getByRole("button", { name: "Lägg till orter" }));
+
+    expect(screen.getByRole("checkbox", { name: "Distans" })).toHaveAttribute(
+      "aria-checked",
+      "true"
+    );
+  });
+
+  // DEFEKTEN, i sin skarpaste form. Skrivningen är full-replace, och dialogen skickade aldrig
+  // `remote` — så VARJE sparning nollade en persisterad distans-avgränsning tyst, även en
+  // sparning som inte rörde ort alls. Round-trip-pinnen ovan bar redan rätt avsikt
+  // ("a dropped or re-homed axis ... would show up here as a silently narrowed filter") men
+  // instansierades bara med remote: false, så den kunde aldrig fälla på den här axeln.
+  it("en sparning som inte rör orten nollar INTE ett persisterat distans-filter", async () => {
+    const user = userEvent.setup();
+    render(
+      <Host
+        filter={{ municipalities: ["m_gbg"], regions: [], onlyMatched: false, remote: true }}
+      />
+    );
+
+    await user.click(screen.getByRole("checkbox", { name: ONLY_MATCHED }));
+    await user.click(screen.getByRole("button", { name: SAVE }));
+
+    await waitFor(() => expect(setWatchFilterMock).toHaveBeenCalled());
+    expect(savedPayload()).toEqual({
+      municipalities: ["m_gbg"],
+      regions: [],
+      onlyMatched: true,
+      remote: true,
+    });
+  });
+
+  // Ett distans-only-filter är dessutom den enda formen där nollningen tar HELA filtret:
+  // {[], [], false, false} är IsEmptySelection, som handlern mappar till ClearFilter().
+  it("ett distans-only-filter överlever en oförändrad sparning (annars ClearFilter)", async () => {
+    const user = userEvent.setup();
+    render(
+      <Host filter={{ municipalities: [], regions: [], onlyMatched: false, remote: true }} />
+    );
+
+    await user.click(screen.getByRole("button", { name: SAVE }));
+
+    await waitFor(() => expect(setWatchFilterMock).toHaveBeenCalled());
+    expect(savedPayload()).toEqual({
+      municipalities: [],
+      regions: [],
+      onlyMatched: false,
+      remote: true,
+    });
+  });
+
+  it("'Ta bort filtret' rensar även distans ur draften", async () => {
+    const user = userEvent.setup();
+    render(
+      <Host filter={{ municipalities: [], regions: [], onlyMatched: false, remote: true }} />
+    );
+
+    await user.click(screen.getByRole("button", { name: CLEAR }));
+    await user.click(screen.getByRole("button", { name: SAVE }));
+
+    await waitFor(() => expect(setWatchFilterMock).toHaveBeenCalled());
+    expect(savedPayload()).toEqual({
+      municipalities: [],
+      regions: [],
+      onlyMatched: false,
+      remote: false,
     });
   });
 });

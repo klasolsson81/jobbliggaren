@@ -405,6 +405,10 @@ describe("getCompanyWatches (#448) — followed-company list read", () => {
         municipalities: ["gbg_kn"],
         regions: ["skane_lan"],
         onlyMatched: true,
+        // #551 PR-C: distans är den tredje granulariteten på ort-axeln. Satt till TRUE här,
+        // inte false: en fixtur som bara bär av-läget kan inte skilja "axeln parsas" från
+        // "axeln tappas och defaultar till av".
+        remote: true,
       },
     };
     global.fetch = vi.fn().mockResolvedValue(jsonResponse([filtered]));
@@ -417,6 +421,7 @@ describe("getCompanyWatches (#448) — followed-company list read", () => {
         municipalities: ["gbg_kn"],
         regions: ["skane_lan"],
         onlyMatched: true,
+        remote: true,
       });
     }
   });

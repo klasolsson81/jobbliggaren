@@ -76,12 +76,18 @@ public class ErasureCascadeRegistryTests
         ["asp_net_role_claims"] = "Identity claims attached to roles: minted by our own "
             + "authorisation code from a fixed vocabulary. No user write path.",
 
-        // ── The seeker's OWN data, with no third-party free-text column. ──────────────────────
-        ["job_seekers"] = "The SEEKER'S OWN profile and preferences: her display name, her "
-            + "notification consent, her digest cadence, her watermarks. Every column is either her "
-            + "own datum or a closed-domain preference (enum, boolean, timestamp). Not one column "
-            + "accepts free text ABOUT A THIRD PARTY, which is the only thing this registry is "
-            + "about.",
+        // ── (This section is EMPTY, and that is the finding.) ─────────────────────────────────
+        // It was headed "The seeker's OWN data, with no third-party free-text column" and held
+        // `job_seekers`, on the ground "Not one column accepts free text ABOUT A THIRD PARTY".
+        // FALSE, and false in the way the entry below already warned about: `display_name` is
+        // varchar(200) refusing only empty, over-length and a personnummer; `match_preferences` is
+        // six lists of shape-validated tokens with no taxonomy lookup on any path; and `Language`,
+        // inside the `preferences` container, has no server-side validation at all. The ground was
+        // written against what the aggregate is FOR — a profile — and the second half of the
+        // ADMISSION RULE is a conjunction the write path fails (#1435).
+        //
+        // ⇒ All four keys are column-classified now, and all four are SEARCHED.
+        //
         // `resumes` USED TO BE HERE, on the ground "ids, timestamps and a status enum; it holds no
         // content". That sentence was copied from the AGGREGATE'S DOCSTRING and never checked
         // against the MAPPING. ResumeConfiguration maps `name` (varchar 200, free text she types via
@@ -100,29 +106,43 @@ public class ErasureCascadeRegistryTests
         // wholesale exclusion pre-granted to an undesigned table is a ground that by definition
         // cannot be re-derived; round-5 security M4. Removed. If a sessions table is ever built,
         // its author classifies it then, against the mapping that actually exists.)
-        ["user_data_keys"] = "The DEK envelope itself: wrapped key material (bytes) and key ids. "
-            + "There is no text column, and the write path is the key provider, not any user.",
-        ["taxonomy_snapshot_meta"] = "Sync bookkeeping for the Arbetsförmedlingen taxonomy import: "
-            + "a version string and timestamps, minted by the sync job. No user, and no free text, "
-            + "can reach it.",
+        ["user_data_keys"] = "The DEK envelope itself. Two text-bearing columns, both minted by "
+            + "the key provider and neither reachable by any user write path: wrapped_dek is bytea "
+            + "holding WRAPPED key material, and cmk_key_id is the master-key identifier the "
+            + "provider hands back. Closed domain by construction - a user cannot author either.",
+        ["taxonomy_snapshot_meta"] = "Sync bookkeeping for the Arbetsförmedlingen taxonomy import. "
+            + "One text-bearing column: taxonomy_version, a varchar(32) version string minted by the "
+            + "sync job from the upstream snapshot, alongside timestamps. There is no user write "
+            + "path into this table at all, so no free text can reach it.",
 
         // ── Pure link tables: ids, enums and timestamps. No text column exists. ───────────────
         ["saved_job_ads"] = "A LINK ROW: (job_seeker_id, job_ad_id, created_at). It records THAT she "
             + "bookmarked an ad, never anything about it. There is no text column to hold a "
             + "recruiter's name, and the ad's own text is classified under job_ads.",
-        ["user_job_ad_matches"] = "A LINK ROW: (user_id, job_ad_id) plus a grade enum, a "
-            + "notification-status enum, matched-term concept ids and timestamps. The matched terms "
-            + "are taxonomy/skill ids from a closed vocabulary, never free text. The ad's text is "
-            + "classified under job_ads.",
-        ["company_watches"] = "A FOLLOW ROW: (user_id, organisation number) plus enums, "
-            + "timestamps, and the `filter` jsonb — a WatchFilterSpec whose every string is a "
-            + "concept-id validated against ConceptIdPattern (^[A-Za-z0-9_-]{1,32}) plus one bool "
-            + "(OnlyMatched); no free text can enter it. The user-authored LABEL lives on "
-            + "company_watch_criteria, which IS column-classified and IS searched. Nothing "
-            + "free-text remains here.",
-        ["followed_company_ad_hits"] = "A LINK ROW: (user_id, job_ad_id, company_watch_id) plus a "
-            + "status enum and timestamps. It records THAT a followed company posted an ad. The "
-            + "ad's text is classified under job_ads.",
+        ["user_job_ad_matches"] = "A LINK ROW: (user_id, job_ad_id) plus timestamps. Three "
+            + "text-bearing columns, all closed. grade and notification_status are enums persisted "
+            + "BY NAME through HasConversion<string> into varchar(20); the matcher and the dispatch "
+            + "state machine set them, never a request body. matched_skill_concept_ids holds "
+            + "taxonomy/skill concept ids the matcher derived from the ad, drawn from the same "
+            + "closed vocabulary - never free text. The ad's own text is classified under job_ads.",
+        ["followed_company_ad_hits"] = "A LINK ROW: (user_id, job_ad_id, company_watch_id) plus "
+            + "timestamps. One text-bearing column: notification_status, an enum persisted BY NAME "
+            + "through HasConversion<string> into varchar(20) and written only by the scan and "
+            + "dispatch jobs. The row records THAT a followed company posted an ad; the ad's own "
+            + "text is classified under job_ads.",
+
+        // (`company_watches` USED TO BE HERE, filed under "pure link tables", on the ground that its
+        // `filter` jsonb holds "a WatchFilterSpec whose every string is a concept-id validated
+        // against ConceptIdPattern … no free text can enter it". The validator it named gates SHAPE,
+        // never EXISTENCE — no path into that column resolves a concept-id against the taxonomy —
+        // and the sibling rail company_watch_criteria does check existence, twelve lines away in the
+        // same aggregate. The row is also not a link row: `organization_number` is a follow KEY, and
+        // for an enskild firma it IS her personnummer. Column-classified now; two searched, two
+        // closed (#1435).
+        //
+        // SECOND TIME, and worth the line: the ground named a control that existed and never
+        // checked what the sentence claimed it checked. Read the write path, not the validator's
+        // name.)
     };
 
     /// <summary>
@@ -200,16 +220,37 @@ public class ErasureCascadeRegistryTests
             or "tsvector";  // derived text is still text — job_ads.search_vector is FTS-searched
     }
 
-    private static List<string> RecruiterTextColumns()
+    /// <summary>
+    /// Every text-bearing column in the model, grouped by table. <b>The ONE enumeration</b>, shared
+    /// by the unclassified sweep (<see cref="RecruiterTextColumns"/>) and by
+    /// <see cref="Every_wholesale_excluded_tables_ground_names_every_text_bearing_column"/>, which
+    /// reads the columns an excluded table hides.
+    /// </summary>
+    /// <remarks>
+    /// One implementation, deliberately. The two callers ask opposite questions of the SAME set -
+    /// "what did the registry forget?" and "what does an exclusion hide?" - and a second copy of the
+    /// <c>.ToJson()</c> branch below is a place for those answers to drift apart.
+    /// <para>
+    /// Several entity types can map to ONE table (an owned type is the usual case), so columns
+    /// ACCUMULATE per table rather than replacing each other.
+    /// </para>
+    /// </remarks>
+    private static Dictionary<string, List<string>> TextColumnsByTable()
     {
         using var context = ModelOnlyContext();
 
-        var columns = new List<string>();
+        var byTable = new Dictionary<string, List<string>>(StringComparer.Ordinal);
         foreach (var entity in context.Model.GetEntityTypes())
         {
             var table = entity.GetTableName();
-            if (table is null || NonRecruiterTables.ContainsKey(table))
+            if (table is null)
                 continue;
+
+            if (!byTable.TryGetValue(table, out var columns))
+            {
+                columns = [];
+                byTable[table] = columns;
+            }
 
             foreach (var property in entity.GetProperties())
             {
@@ -219,17 +260,22 @@ public class ErasureCascadeRegistryTests
                 columns.Add(ColumnKey(entity, property));
             }
 
-            // The .ToJson() seam, CLOSED (it was ⚠-disclosed for two rounds): an owned aggregate
-            // mapped to a JSON container column presents as a NAVIGATION, so its columns never
-            // appear among the scalar properties above — but the container column itself is
+            // The .ToJson() seam, CLOSED (it was ⚠-disclosed for two rounds): an owned
+            // aggregate mapped to a JSON container column presents as a NAVIGATION, so its columns
+            // never appear among the scalar properties above - but the container column itself is
             // text-bearing jsonb, and the model knows its name.
             var container = entity.GetContainerColumnName();
             if (container is not null)
                 columns.Add($"{table}.{container}");
         }
 
-        return columns;
+        return byTable;
     }
+
+    private static List<string> RecruiterTextColumns() =>
+        [.. TextColumnsByTable()
+            .Where(kv => !NonRecruiterTables.ContainsKey(kv.Key))
+            .SelectMany(kv => kv.Value)];
 
     /// <summary>
     /// <b>Anti-vacuity for the sweep itself: one sentinel column per FORM.</b> The unclassified
@@ -254,7 +300,26 @@ public class ErasureCascadeRegistryTests
             ["resume_files.content"] = "bytea (the CV file — a document IS text at rest)",
             ["job_ads.search_vector"] = "tsvector (derived text is still text; it is FTS-searched)",
             ["resumes.template"] = "varchar through a SmartEnum converter (CLR type CvTemplate)",
+            ["job_seekers.preferences"] = "jsonb through the .ToJson() OWNED-ENTITY CONTAINER — the "
+                + "GetContainerColumnName() branch, which had NO sentinel and was structurally "
+                + "vacuous until job_seekers left the wholesale-exclusion list (#1435): it is the "
+                + "only .ToJson() mapping in the model, and the sweep skipped its table",
         };
+
+        // The wholesale-exclusion guard reads TextColumnsByTable() UNFILTERED, and it is the only
+        // caller that does — every sentinel above lives in a table that is NOT excluded. Restore the
+        // exclusion filter into the shared helper and all of them stay green while that guard skips
+        // every table it exists to check: this file's own vacuity, one level up.
+        var byTable = TextColumnsByTable();
+        NonRecruiterTables.ShouldContainKey("user_data_keys",
+            "this pin is about an EXCLUDED table. If user_data_keys is ever column-classified — "
+            + "which is exactly what job_seekers, company_watches and resumes each did — the "
+            + "assertion below stops crossing the threshold while still passing. Move it to another "
+            + "excluded table rather than deleting it.");
+        byTable.ShouldContainKey("user_data_keys",
+            "the shared enumeration must still carry the EXCLUDED tables; the wholesale-exclusion "
+            + "guard is vacuous the moment it does not.");
+        byTable["user_data_keys"].ShouldContain("user_data_keys.wrapped_dek");
 
         foreach (var (column, form) in sentinels)
         {
@@ -864,7 +929,7 @@ public class ErasureCascadeRegistryTests
         surfaces.ShouldNotBeEmpty();
 
         // Drive the REAL BuildAuditPayload through the REAL command, with a fake pseudonymiser.
-        var counts = new ErasureSurfaceCounts(1, 2, 3, 4, 5, 6, 7, 8, 9);
+        var counts = new ErasureSurfaceCounts(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11);
         var response = new EraseRecruiterAdsResponse(
             RequestId: Guid.NewGuid(),
             DryRun: true,
@@ -898,6 +963,60 @@ public class ErasureCascadeRegistryTests
     private sealed class FixedPseudonymizer : IIdentifierPseudonymizer
     {
         public string Pseudonymize(string identifier) => "hmac-fixture";
+    }
+
+    /// <summary>
+    /// <b>A wholesale exclusion must NAME every text-bearing column it hides.</b> The exact analogue
+    /// of <see cref="Every_grounded_columns_ground_actually_names_the_column"/>, one level up — where
+    /// it is worth more, because a per-column verdict costs a line and a wholesale one costs a single
+    /// string and takes a whole table with it.
+    /// </summary>
+    /// <remarks>
+    /// Until this fact, the list had exactly ONE control: a 60-character floor. A character count
+    /// cannot tell a re-derivation from a paragraph — which is how <c>company_watches</c> kept an
+    /// entry whose own ground never mentioned <c>brand_group_id</c> at all (#1435), and how
+    /// <c>parsed_resumes</c> and <c>resume_files</c> took the raw CV text and the CV file with them
+    /// one round earlier. Naming the column IS the re-derivation: you cannot write a sentence about
+    /// a column you have not looked at.
+    /// <para>
+    /// <b>Two limits, written rather than implied.</b> (1) A table with NO text-bearing column
+    /// passes vacuously, and that is correct — no text column, no free text — so this fact asserts
+    /// nothing about <c>saved_job_ads</c>. (2) An entry naming a table THIS model does not have is
+    /// skipped, not failed. That is not hypothetical: ASP.NET Identity lives in a separate
+    /// <c>AppIdentityDbContext</c>, so every <c>asp_net_*</c> entry below is outside the reach of
+    /// this fact AND of the sweep it shares its enumeration with. Those entries are inert rather
+    /// than load-bearing, which is the <c>sessions</c> shape one step milder. Re-measure with
+    /// <c>git grep -n "asp_net" tests/Jobbliggaren.Architecture.Tests/ErasureCascadeRegistryTests.cs</c>
+    /// against <c>AppDbContextModelSnapshot</c> rather than trusting a count written here.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void Every_wholesale_excluded_tables_ground_names_every_text_bearing_column()
+    {
+        var byTable = TextColumnsByTable();
+        var unnamed = new List<string>();
+
+        foreach (var (table, ground) in NonRecruiterTables)
+        {
+            if (!byTable.TryGetValue(table, out var columns))
+                continue;
+
+            foreach (var column in columns
+                .Select(c => c.Split('.')[1])
+                .Distinct(StringComparer.Ordinal)
+                .Order(StringComparer.Ordinal))
+            {
+                if (!ground.Contains(column, StringComparison.OrdinalIgnoreCase))
+                    unnamed.Add($"{table}.{column}");
+            }
+        }
+
+        unnamed.ShouldBeEmpty(
+            "a wholesale exclusion hides EVERY column in its table, so its ground has to name every "
+            + "text-bearing one and say what the WRITE PATH guarantees about it. A column the ground "
+            + "never mentions has been excluded by a sentence nobody wrote about it. Name the column "
+            + "and its write-path guarantee, or take the table off the list and classify it per "
+            + "column.\n\nUnnamed:\n  " + string.Join("\n  ", unnamed));
     }
 
     /// <summary>

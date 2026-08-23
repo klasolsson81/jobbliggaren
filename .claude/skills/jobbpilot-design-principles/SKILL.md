@@ -122,12 +122,12 @@ JetBrains Mono används för ID:n/referenser (`S-1042`, `A-2841`), datum
 
 ### 5. En accentfärg
 
-Mörkgrön (`--jp-accent-700`, `#15603F` light / `#6EE7A8` dark — ADR 0068, ersätter
-tidigare blå/navy) är produktens enda dekorativa färg, reserverad för primär
-åtgärd, aktiv selektion (rader/flikar/navigation), länkar och "idag"-markering.
-Knapp-kontrakt: fill = `--jp-accent-800` (`#15603F`, EJ dark-skiftad) + vit
-text — aldrig ljus knapp med mörk text; `#6EE7A8` är ENDAST text/länk/fokus/
-border i dark, aldrig fill. Logo-marken (Sigillet, ADR 0070) bär grön skiva +
+Mörkgrön (`--jp-accent-700` — ADR 0068, ersätter tidigare blå/navy) är
+produktens enda dekorativa färg, reserverad för primär åtgärd, aktiv selektion
+(rader/flikar/navigation), länkar och "idag"-markering.
+Knapp-kontrakt: fill = `--jp-accent-800` (EJ dark-skiftad) + vit
+text — aldrig ljus knapp med mörk text; `--jp-accent-700` är i dark ENDAST
+text/länk/fokus/border, aldrig fill. Logo-marken (Sigillet, ADR 0070) bär grön skiva +
 guldsignatur (`--jp-gold`) — varumärkets egen färgsättning, utanför interaktions-
 accenten. Status-färgerna används **endast** för status:
 `success` → erbjudande/drift/klar; `warning` → deadlines/uppmärksamhet;

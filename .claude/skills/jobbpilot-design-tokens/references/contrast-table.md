@@ -2,8 +2,9 @@
 
 > **Canonical against `globals.css` (G1, ADR 0068).** Deliberately undated — a
 > sync date decays silently and cannot be told from one that is still true.
-> Re-derive with **both** checks below. Run them over `.claude/skills/`, not just
-> this skill: a value transcribed into a consumer skill is the same defect.
+> Re-derive with **all four** checks below. Run them over `.claude/skills/`, not
+> just this skill: a value transcribed into a consumer skill is the same defect.
+> Check 4 is the one that measures that — checks 1–3 cannot.
 >
 > **1. Pair check — does each token still hold the value stated?**
 >
@@ -53,6 +54,35 @@
 > `32px` since #549, and neither check could see it (PR #1447). Values that are
 > neither hex nor px are still unmeasured; read those against `globals.css` by
 > hand.
+>
+> **4. Consumer check — does a skill outside `jobbpilot-design-tokens` carry a
+> value at all?**
+>
+> ```bash
+> grep -rniE '#[0-9A-F]{6}' .claude/skills/ | grep -v '/jobbpilot-design-tokens/'
+> ```
+>
+> Expect only **preterite provenance** — today, the `#7C8AA0` inside *"darkened
+> from … in issue #296"*. A present-tense row is a finding. Same test that keeps
+> `perf-test-writer.md`'s dated path note: imperfect is a record, present tense
+> is a claim.
+>
+> **The rule it enforces: a consumer skill names the token, never the value that
+> token holds — neither its hex nor a ratio measured from it.**
+> `jobbpilot-design-tokens` is the only home for values. WCAG's own thresholds
+> (4.5:1, 3:1) are not values of our tokens and stay wherever they are useful.
+>
+> Checks 1–3 cannot be widened into this one. Check 1 requires `--token: #hex`
+> and check 3 `--token: Npx`, while a consumer skill writes `` `--token`
+> (`#hex`) `` — a colon-free form neither matches. Check 2 does see those hexes,
+> but asks only whether the value exists in `globals.css` at all, never whether
+> the token still carries it, so a value that moved between tokens passes it
+> silently. That gap is binding-blindness, not existence-blindness. Chasing the
+> syntax costs a new regex per phrasing; removing the values ends the class.
+>
+> Blind to every value that is not a six-digit hex — a px size, a ratio, an
+> `rgba()` — so those are swept by hand and stay unmeasured, and a six-digit
+> issue reference would report as a false row.
 >
 > **No check is sufficient alone, and that is measured, not theoretical.**
 > In PR #1447 three tokens were stale and check 2 reported *the same two hits on

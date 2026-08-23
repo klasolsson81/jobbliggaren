@@ -34,8 +34,8 @@ a11y-skillen.)
 **primary**
 | State | Classes |
 |---|---|
-| Default | `bg-brand-600` (= accent-800 `#15603F`, EJ dark-skiftad per ADR 0068) + vit text i båda teman |
-| Hover | `bg-[var(--jp-accent-800-hover)]` (`#1E6B4C`, EJ dark-skiftad — accent-700 är textfärg, aldrig fill i dark; ADR 0068) |
+| Default | `bg-brand-600` (= `--jp-accent-800`, EJ dark-skiftad per ADR 0068) + vit text i båda teman |
+| Hover | `bg-[var(--jp-accent-800-hover)]` (EJ dark-skiftad — accent-700 är textfärg, aldrig fill i dark; ADR 0068) |
 | Disabled | `opacity-50 cursor-not-allowed` |
 | Focus | global `*:focus-visible` ring (2px `--jp-focus`, offset 2px) |
 | Loading | `disabled` + label → "Sparar…", preserve width |

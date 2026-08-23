@@ -13,9 +13,8 @@ import { pickClientMessages } from "@/i18n/client-messages";
  * client component can reach.
  *
  * This layout exists ONLY to own that payload — it renders no chrome. The
- * landing page brings its own header/footer (LandingHeader with stats, LP-4 /
- * #257), deliberately not the shared SiteHeader that `(marketing-inner)` uses,
- * so adding markup here would double it.
+ * landing page mounts the shared SiteHeader and SiteFooter itself (with live
+ * stats, #1476), so adding markup here would double it.
  */
 export default async function MarketingLayout({ children }: { children: ReactNode }) {
   // Declared set, verified for EQUALITY against the import graph by

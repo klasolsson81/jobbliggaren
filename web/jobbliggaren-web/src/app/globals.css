@@ -4471,6 +4471,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
   display: flex; align-items: center; justify-content: space-between; gap: 24px;
 }
 .jp-head__stats { display: flex; align-items: center; gap: 18px; }
+.jp-head__right { display: flex; align-items: center; gap: 18px; }
 .jp-head__stat { display: flex; flex-direction: column; line-height: 1.1; }
 .jp-head__stat-num {
   /* Delad-header stat-siffra (Förslag 3a-uppskalning); #549-konsolidering:

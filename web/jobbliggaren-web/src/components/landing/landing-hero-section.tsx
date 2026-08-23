@@ -23,7 +23,7 @@ import { AuthCardSkeleton } from "@/components/auth/AuthCardSkeleton";
  *    fallback is a shape-matching skeleton, not `null`, because the card is above
  *    the fold. A white guest link sits below the card.
  *
- * Live stats live in the <LandingHeader/> and are never repeated here (design
+ * Live stats live in the <SiteHeader/> and are never repeated here (design
  * rule 2). No CTA buttons, no OAuth: civic-utility, deterministic.
  *
  * Sync RSC: `useTranslations` resolves synchronously; only <AuthCard/> is a

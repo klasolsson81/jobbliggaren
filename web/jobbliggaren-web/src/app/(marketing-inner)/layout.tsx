@@ -12,7 +12,7 @@ import { SiteFooter } from "@/components/site/site-footer";
  * Klas-direktiv 2026-05-24 efter Steg 5-svans visual-verify: "vanliga
  * layouten" på inre sidor.
  *
- * Landing-routen (`/`) sitter i (marketing)-grupp och har egen LandingHeader
+ * Landing-routen (`/`) sitter i (marketing)-grupp och monterar samma SiteHeader
  * med stats (LP-4 / #257) — inte i denna layout.
  *
  * SiteHeader (LP-5a / #258) renderar en första skip-länk till `#main`.

@@ -160,7 +160,7 @@ export function ResumeCard({ resume }: ResumeCardProps) {
           aldrig `flex-wrap`, så
           utilityn biter — men den blir tyst verkningslös om någon senare lägger
           `flex-wrap` i själva regeln. Klassen har TVÅ konsumenter, och skelettet
-          (`app/(app)/cv/loading.tsx`) fick samma ändring; ändras raden här ska den
+          (`app/(app)/cv/(hub)/loading.tsx`) fick samma ändring; ändras raden här ska den
           ändras där. */}
       <div className="jp-cv__actions flex-wrap">
         <Link

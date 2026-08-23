@@ -587,8 +587,7 @@ public class ListRecentSearchesQueryHandlerTests
 
     // Uteslutningen ska FÖRBJUDA, inte ursäkta — samma ribba som systerguarden i
     // RecentJobSearchProjectionParityTests. Varje NotReplayed-post bevisas frånvarande ur
-    // labeln, så posten förfaller AV KONSTRUKTION den dag replayen börjar bära axeln: då
-    // fäller det här testet och tvingar bort posten i samma PR.
+    // labeln.
     [Theory]
     [MemberData(nameof(NotReplayedAxes))]
     public async Task Handle_DoesNotNameAnAxisTheReplayDrops(string axis)

@@ -73,8 +73,8 @@ public sealed class ListRecentSearchesQueryHandler(
                 r.Region, cancellationToken);
             // #1418 — Klass 2-labels. Reverse-lookupen är kind-agnostisk, så de här resolvar mot
             // samma cachade snapshot som de tre ovan utan port-ändring. Ovillkorligt, inte bakom
-            // en grind som
-            // upprepar DeriveLabels precedens: ett andra hem för samma predikat driftar isär.
+            // en grind som upprepar DeriveLabels precedens: ett andra hem för samma predikat
+            // driftar isär.
             var employmentTypeLabels = await taxonomy.ResolveLabelsAsync(
                 r.EmploymentType, cancellationToken);
             var worktimeExtentLabels = await taxonomy.ResolveLabelsAsync(

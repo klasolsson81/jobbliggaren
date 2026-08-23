@@ -201,6 +201,62 @@ public interface IRecruiterErasureMatchQuery
         string identifier, CancellationToken cancellationToken);
 
     /// <summary>
+    /// How many company-watch FOLLOWS carry <paramref name="identifier"/> — in the follow key
+    /// <c>company_watches.organization_number</c> or in the per-watch <c>filter</c> jsonb.
+    /// <b>Counted and REPORTED; a human erases it</b>, and here NEITHER remedy is free: clearing
+    /// the filter widens what she receives, and the key cannot be nulled at all — only the whole
+    /// watch can go.
+    /// </summary>
+    /// <remarks>
+    /// <b>The key arm is EXACT and probes TWO operands</b>, mirroring the write path
+    /// (<c>CompanyWatchFollowExecutor</c>): a pnr-shaped org.nr is stored as a keyed HMAC token
+    /// (ADR 0090 D5 / #544) and an AB org.nr verbatim, so the query compares the identifier against
+    /// both its tokenised and its plaintext form. The plaintext operand is not redundant — the
+    /// plaintext→token backfill is a one-off, manually enqueued job, so nothing in the system
+    /// guarantees it has run to completion. A structured key gets structured matching; there is no
+    /// regex over it, and <c>WrittenForms()</c> is absent from THIS arm because both paths that
+    /// write the key normalise through <c>OrganizationNumber.Create</c>, so the ten-digit form is
+    /// the only stored plaintext form.
+    /// <para>
+    /// <b>The filter arm walks the document's VALUES, and compares every WRITTEN form.</b> Both
+    /// halves are load-bearing and neither is the other. Walking values (rather than matching the
+    /// document's text) keeps the property a keyed unnest was rejected for — no property name
+    /// appears in SQL — while excluding the jsonb KEY names, which a text match hits in every row
+    /// that has a filter at all. Comparing written
+    /// forms is #1425's rule: a column validated on SHAPE ONLY stores what was typed, so one
+    /// normalised request reaches only the form that happens to coincide.
+    /// </para>
+    /// </remarks>
+    Task<int> CountCompanyWatchFollowsAsync(
+        string identifier, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// How many job-seeker PROFILE rows carry <paramref name="identifier"/> — in the plaintext
+    /// <c>display_name</c>, in the <c>match_preferences</c> jsonb, or in the <c>preferences</c>
+    /// container (whose <c>Language</c> property the model reports as a second key over the same
+    /// bytes). <b>Counted and REPORTED; a human erases it, with the account holder in the loop.</b>
+    /// </summary>
+    /// <remarks>
+    /// Every gate on the way in is a shape gate, never a content gate: <c>ValidateDisplayName</c>
+    /// refuses only empty, over-length and a personnummer; <c>match_preferences</c> admits six lists
+    /// of <c>^[A-Za-z0-9_-]{1,32}</c> tokens with no taxonomy lookup on any path; and
+    /// <c>Language</c> has no server-side validation at all. So the two jsonb arms walk VALUES and
+    /// compare every WRITTEN form, for the same two reasons as the watch filter above.
+    /// <b>No remedy here is constructible without the account holder</b> — the display-name
+    /// invariant refuses empty, so there is no <c>UpdateLabel(null)</c> analogue and a system does
+    /// not rename a person.
+    /// <para>
+    /// This surface WILL match on a shared name: a user who merely happens to be called what the
+    /// requester is called is counted, because a display name IS that user's own name. The count
+    /// names nobody, and a human resolves it — but the reply must never be written as though a match
+    /// here were a finding about her, which is why this surface has its OWN reply template (B5) and
+    /// is deliberately NOT a trigger for B2.
+    /// </para>
+    /// </remarks>
+    Task<int> CountJobSeekerProfilesAsync(
+        string identifier, CancellationToken cancellationToken);
+
+    /// <summary>
     /// How many CVs carry <paramref name="identifier"/> in their PLAINTEXT metadata — <b>five
     /// columns across three tables</b>: the two file names
     /// (<c>parsed_resumes.source_file_name</c> + <c>resume_files.file_name</c> — the same uploaded

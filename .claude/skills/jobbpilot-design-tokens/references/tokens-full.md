@@ -1,7 +1,10 @@
 # JobbPilot — Full Token Reference (v3 + G1 grön accent)
 
-> **Synkad mot `globals.css` 2026-06-10 (G1, ADR 0068).** All CSS custom
-> properties defined in `web/jobbpilot-web/src/app/globals.css`. The canonical
+> **Kanonisk mot `globals.css` (G1, ADR 0068).** Odaterad med avsikt — se
+> `references/contrast-table.md` för de två kommandon som härleder om värdena.
+>
+> All CSS custom
+> properties defined in `web/jobbliggaren-web/src/app/globals.css`. The canonical
 > palette is `--jp-*` defined once in `:root {}` (light) and overridden in
 > `[data-theme="dark"]`. The `@theme inline {}` block bridges them into
 > Tailwind semantic utilities (`bg-surface-primary` etc.) — see
@@ -66,7 +69,7 @@ F-städ-fas.
 |---|---|---|---|---|
 | `--jp-border` | `#C9D2E0` | `#44598A` | `border-border-default` | Standardvalet |
 | `--jp-border-soft` | `#E3E8F0` | `#2C3F65` | — | Mjukaste avgränsare |
-| `--jp-border-strong` | `#97A4B8` | `#6F86A8` | `border-border-strong` | Starkare avgränsare (checkbox-box) |
+| `--jp-border-strong` | `#7C8AA0` | `#6F86A8` | `border-border-strong` | Starkare avgränsare (checkbox-box) |
 | `--jp-border-input` | `#7C8AA0` | `#6F86A8` | — | Input-vila — samma hex som ink-3 light (medveten tonalitet, separat semantik) |
 | `--jp-border-modal` | `var(--jp-border)` | (följer) | `border-border-modal` | ADR 0041-token, re-homed på v3-border |
 | `--jp-border-structural` | `var(--jp-border)` | (följer) | `border-border-structural` | ADR 0041-amendment-token, re-homed på v3-border |
@@ -80,7 +83,7 @@ Bas-token = text/ikon; `-bg` = pill/banner-bakgrund. Tailwind-alias:
 |---|---|---|
 | `--jp-success` | `#16793B` | `#5DD894` |
 | `--jp-success-bg` | `#DFF3E5` | `#143E29` |
-| `--jp-warning` | `#B4540B` | `#FBC267` |
+| `--jp-warning` | `#A34A06` | `#FBC267` |
 | `--jp-warning-bg` | `#FCE9D1` | `#3F2A0B` |
 | `--jp-danger` | `#BE1B1B` | `#FB8989` |
 | `--jp-danger-bg` | `#FBE0E0` | `#3F1419` |
@@ -226,7 +229,7 @@ hero-plattan, inte H1-skalan. Mono caps-labels och mono inline-data på
 | `--jp-brand-600` | **`var(--jp-accent-800)`** (primary = fill-kontraktet, EJ dark-skiftad) |
 | `--jp-brand-700` | `var(--jp-accent-700)` (länk/hover) |
 | `--jp-brand-900` | `var(--jp-accent-900)` |
-| `--jp-brand-accent` | `#FFCD00` (kompass-prick — UTGÅR, ADR 0070; sigillet använder `--jp-gold`) |
+| `--jp-brand-accent` | Pensionerad med ADR 0070 (kompass-pricken `#FFCD00`); deklareras inte i `globals.css`. Sigillet använder `--jp-gold` |
 | `--jp-success-50` | `var(--jp-success-bg)` — `-500/-600/-700` → `var(--jp-success)` |
 | `--jp-warning-50` | `var(--jp-warning-bg)` — `-500/-600/-700` → `var(--jp-warning)` |
 | `--jp-danger-50` | `var(--jp-danger-bg)` — `-500/-600/-700` → `var(--jp-danger)` |

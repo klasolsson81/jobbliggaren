@@ -53,6 +53,8 @@ public sealed partial class EraseRecruiterAdsCommandHandler(
         var snapshotContactIds = await matchQuery.FindApplicationSnapshotContactsAsync(identifier, cancellationToken);
         var manualCount = await matchQuery.CountManualAdEntriesAsync(identifier, cancellationToken);
         var watchCriteriaCount = await matchQuery.CountCompanyWatchCriteriaAsync(identifier, cancellationToken);
+        var watchFollowCount = await matchQuery.CountCompanyWatchFollowsAsync(identifier, cancellationToken);
+        var jobSeekerProfileCount = await matchQuery.CountJobSeekerProfilesAsync(identifier, cancellationToken);
         var resumeMetadataCount = await matchQuery.CountResumeMetadataAsync(identifier, cancellationToken);
 
         var matchedAdIds = jobAdMatches.Select(m => m.JobAdId).ToList();
@@ -67,6 +69,8 @@ public sealed partial class EraseRecruiterAdsCommandHandler(
             ApplicationSnapshotContacts: snapshotContactIds.Count,
             ManualAdEntries: manualCount,
             CompanyWatchCriteria: watchCriteriaCount,
+            CompanyWatchFollows: watchFollowCount,
+            JobSeekerProfiles: jobSeekerProfileCount,
             ResumeMetadata: resumeMetadataCount,
             ApplicationsReferencingMatchedAds: referencingCount);
 
@@ -263,17 +267,19 @@ public sealed partial class EraseRecruiterAdsCommandHandler(
             RecentJobSearches: recentSearches.Count,
             ApplicationSnapshotContacts: erasedSnapshotContactsCount,
 
-            // Zero, and NOT because we forgot. Every one of these is matched, reported, and left
+            // Zero, and NOT because we forgot. Every zero below is matched, reported, and left
             // standing on a written ground the registry carries (ErasureCascadeRegistry.
-            // WrittenGrounds) — saved searches and manual entries because a HUMAN settles them with
-            // the affected user in the loop, snapshots because of Art. 17(3)(e), and the referencing
-            // applications because the count is a disclosure, not a deletion list.
+            // WrittenGrounds): a HUMAN settles the user-authored surfaces with the affected user in
+            // the loop, snapshots are retained under Art. 17(3)(e), and the referencing-application
+            // count is a disclosure rather than a deletion list.
             //
             // The gap between Matched and these zeroes IS the disclosure the reply template carries.
             SavedSearches: 0,
             ApplicationSnapshots: 0,
             ManualAdEntries: 0,
             CompanyWatchCriteria: 0,
+            CompanyWatchFollows: 0,
+            JobSeekerProfiles: 0,
             ResumeMetadata: 0,
             ApplicationsReferencingMatchedAds: 0);
 

@@ -147,6 +147,8 @@ public static class ErasureCascadeRegistry
         "ApplicationSnapshotContacts",
         "ManualAdEntries",
         "CompanyWatchCriteria",
+        "CompanyWatchFollows",
+        "JobSeekerProfiles",
         "ResumeMetadata",
         "ApplicationsReferencingMatchedAds",
     };
@@ -196,7 +198,7 @@ public static class ErasureCascadeRegistry
                 // #1425 - the five concept-id axes. NOT a new surface: same rows, same disposition
                 // (Erased, hard-delete), same remedy (one RemoveRange in the handler), so one count
                 // over one row set. Splitting would count a row that matched on both q and an axis
-                // TWICE in Matched.Total, which drives the outcome word. See the port for the arms.
+                // TWICE in Matched.Total. See the port for the arms.
                 "recent_job_searches.occupation_group_list",
                 "recent_job_searches.municipality_list",
                 "recent_job_searches.region_list",
@@ -244,6 +246,35 @@ public static class ErasureCascadeRegistry
                 "company_watch_criteria.label",
             ],
             nameof(Abstractions.IRecruiterErasureMatchQuery.CountCompanyWatchCriteriaAsync)),
+
+        // #1435 - ONE surface per DISPOSITION, which is the axis ADR 0106 writes ("one entry per
+        // reported surface") and the axis ApplicationSnapshotContacts was split on - on the SAME
+        // table as ApplicationSnapshots, because its disposition differed. Both columns here are
+        // MatchedHumanErases, so Matched-Erased keeps one honest meaning and one surface is right.
+        // Splitting them would report a row twice, since a ten-digit org.nr is a legal
+        // WatchFilterSpec element and one row can match both arms; the inflated number would reach
+        // the Art. 15/17 reply and the audit record. It could NOT flip the outcome word - both
+        // readers of Matched.Total are zero-tests. Not folded into CompanyWatchCriteria either:
+        // that surface's runbook row promises UpdateLabel(null) is always constructible and
+        // lossless, and neither column here can keep that promise.
+        new("CompanyWatchFollows",
+            [
+                "company_watches.organization_number",
+                "company_watches.filter",
+            ],
+            nameof(Abstractions.IRecruiterErasureMatchQuery.CountCompanyWatchFollowsAsync)),
+
+        // #1435 - `preferences` and `Language` are THE SAME BYTES: the model reports the
+        // OwnsOne(...).ToJson() container column and the JSON property inside it as two keys. One
+        // SQL arm over preferences::text searches both, which is why both are claimed here.
+        new("JobSeekerProfiles",
+            [
+                "job_seekers.display_name",
+                "job_seekers.match_preferences",
+                "job_seekers.preferences",
+                "job_seekers.Language",
+            ],
+            nameof(Abstractions.IRecruiterErasureMatchQuery.CountJobSeekerProfilesAsync)),
 
         new("ResumeMetadata",
             [
@@ -398,6 +429,14 @@ public static class ErasureCascadeRegistry
 
             ["company_watch_criteria.sni_codes"] = ErasureColumnDisposition.NotRecruiterData,
             ["company_watch_criteria.kommun_codes"] = ErasureColumnDisposition.NotRecruiterData,
+
+            // #1435 - company_watches left the wholesale-exclusion list. target_type is a two-value
+            // enum persisted BY NAME and never bound from a request body; brand_group_id is gated
+            // by BOTH a slug regex and a catalogue existence check on its only write path. Those
+            // two are genuinely closed; the other two columns on this table are not, and the one
+            // sentence that covered all four was the false verdict.
+            ["company_watches.target_type"] = ErasureColumnDisposition.NotRecruiterData,
+            ["company_watches.brand_group_id"] = ErasureColumnDisposition.NotRecruiterData,
             ["company_register.sni_codes"] = ErasureColumnDisposition.NotRecruiterData,
             ["resumes.reviewed_rubric_version"] = ErasureColumnDisposition.NotRecruiterData,
 
@@ -419,6 +458,28 @@ public static class ErasureCascadeRegistry
             // disposition, and this column sat in NotRecruiterData ("structurally cannot") while the
             // write path accepted arbitrary text.
             ["company_watch_criteria.label"] = ErasureColumnDisposition.MatchedHumanErases,
+
+            // ── company_watches: the follow KEY and the per-watch filter, searched ───────────
+            // #1435. organization_number is her identifier directly - for an enskild firma it IS
+            // her personnummer - and it has no remedy short of deleting the watch, so it is
+            // MatchedHumanErases and never Erased: an Art. 17 request about a recruiter may not
+            // silently destroy another user's deliberate configuration. `filter` is shape-validated
+            // and never taxonomy-resolved, the identical false ground as the five recent_job_searches
+            // axes one table over (#1425).
+            ["company_watches.organization_number"] = ErasureColumnDisposition.MatchedHumanErases,
+            ["company_watches.filter"] = ErasureColumnDisposition.MatchedHumanErases,
+
+            // ── job_seekers: her own profile row, searched ───────────────────────────────────
+            // #1435. The wholesale ground said "Not one column accepts free text ABOUT A THIRD
+            // PARTY". display_name accepts any Unicode under 200 chars that is not a personnummer;
+            // match_preferences accepts six lists of shape-validated tokens; and `Language` inside
+            // the `preferences` container accepts anything at all. `preferences` and `Language` are
+            // the same bytes - the model reports the container column and the JSON property inside
+            // it separately, and one arm over preferences::text covers both.
+            ["job_seekers.display_name"] = ErasureColumnDisposition.MatchedHumanErases,
+            ["job_seekers.match_preferences"] = ErasureColumnDisposition.MatchedHumanErases,
+            ["job_seekers.preferences"] = ErasureColumnDisposition.MatchedHumanErases,
+            ["job_seekers.Language"] = ErasureColumnDisposition.MatchedHumanErases,
 
             // ── user-authored, DEK-ENCRYPTED: held, and NOT searchable ───────────────────────
             // Form A (ADR 0049 C3 / 0066) — the column carries `v1:<base64>` at rest, sealed under
@@ -630,6 +691,65 @@ public static class ErasureCascadeRegistry
                 + "nullable, so UpdateLabel(null) leaves the criterion intact and watching exactly "
                 + "what it watched - it IS its codes, and the UI derives a display label from them. "
                 + "One branch, no rights collision, nothing of the user's destroyed.",
+
+            ["company_watches:MatchedHumanErases"] =
+                "TWO COLUMNS, TWO DIFFERENT REMEDIES, argued separately on purpose: the guard only "
+                + "checks that both names appear, so a paragraph that argues one and lets the other "
+                + "inherit would pass. "
+                + "organization_number IS the follow key, and for an ENSKILD FIRMA it IS her "
+                + "personnummer - the identical datum this registry tombstones in "
+                + "job_ads.organization_number - so her right reaches it (Art. 6(1)(f) -> 21(1)). It "
+                + "is held in ONE OF TWO at-rest forms, decided at write time by "
+                + "IsPersonnummerShaped: a pnr-shaped org.nr is a keyed HMAC token (ADR 0090 D5 / "
+                + "#544), an AB org.nr is the verbatim ten digits. Both write paths normalise "
+                + "through OrganizationNumber.Create, so the ten-digit form is the ONLY stored "
+                + "plaintext form and WrittenForms() has nothing to reach here. There is NO remedy "
+                + "short of deleting the watch: this column is the key of the partial unique index "
+                + "on (user_id, organization_number) and TargetType=Employer requires it, so it "
+                + "cannot be nulled. That is STRONGER than saved_searches - a human destroys a "
+                + "deliberate configuration of ANOTHER user - so she is in the loop and the reply "
+                + "says a human handles it. "
+                + "filter is a WatchFilterSpec jsonb whose every element passes "
+                + "^[A-Za-z0-9_-]{1,32} and NOTHING else: the validator gates COUNT only, and no "
+                + "path into this column resolves a concept-id against the taxonomy. The sibling "
+                + "rail company_watch_criteria DOES check existence on both its write paths - the "
+                + "asymmetry is exactly why the old wholesale ground's 'no free text can enter it' "
+                + "was false, and Karlsson, Anna-Karlsson and a ten-digit org.nr all persist. Its "
+                + "remedy IS constructible (ClearFilter) but is NOT lossless: she stops narrowing "
+                + "and starts receiving every ad from that employer, so a human decides it with her.",
+
+            ["company_watches:NotRecruiterData"] =
+                "CLOSED DOMAIN, both, and by different mechanisms. target_type is a "
+                + "CompanyWatchTargetType enum persisted BY NAME through HasConversion<string> into "
+                + "varchar(20), with exactly two values (Employer, BrandGroup); it is never bound "
+                + "from a request body - the two domain factories set it. brand_group_id is a "
+                + "curated-catalogue slug gated TWICE: BrandGroupId.Create gates the format, and "
+                + "FollowBrandGroupCommandHandler gates EXISTENCE against the deploy-versioned "
+                + "brand-group catalogue, so a well-formed but unknown slug is a 404 and is never "
+                + "written. That catalogue has no runtime mutation surface; it changes by PR only.",
+
+            ["job_seekers:MatchedHumanErases"] =
+                "FOUR KEYS, THREE COLUMNS: `preferences` and `Language` are the same bytes - the "
+                + "model reports the OwnsOne(...).ToJson() container column and the JSON property "
+                + "inside it separately, and one arm over preferences::text covers both. "
+                + "display_name is plaintext varchar(200) with no converter. ValidateDisplayName "
+                + "refuses empty, over-length and a personnummer (#1117) and NOTHING else, so a "
+                + "recruiter's name typed into an account name persists. The table sat on the "
+                + "wholesale-exclusion list because this IS her own datum - but the admission rule "
+                + "is a CONJUNCTION, and its second half fails: the write path DOES receive a third "
+                + "party's free text. The remedy is not constructible without her, since the "
+                + "invariant refuses empty and a system does not rename a person; a human asks her. "
+                + "That invariant is also FORWARD-ONLY (EF materialises an existing row through the "
+                + "private constructor) with no backfill job, so rows written before it stand - "
+                + "which is a reason to SEARCH this column, never to trust it. "
+                + "match_preferences is jsonb holding six lists of up to 400 elements, every element "
+                + "gated by ^[A-Za-z0-9_-]{1,32} and by nothing else - no concept-id is resolved "
+                + "against any taxonomy table on that path. Same false ground, same shape, as "
+                + "company_watches.filter and the five recent_job_searches axes (#1425). "
+                + "Language has NO server-side validation at all: no validator class on "
+                + "UpdateMyProfileCommand, no guard in UpdatePreferences, no factory on the record, "
+                + "and no varchar(N) because it lives inside jsonb. It is unbounded arbitrary text. "
+                + "The container is searched WHOLE rather than by key.",
 
             ["application_notes:HeldButNotSearchable"] =
                 "HELD, AND WE CANNOT SEARCH IT. application_notes.content is encrypted at rest "

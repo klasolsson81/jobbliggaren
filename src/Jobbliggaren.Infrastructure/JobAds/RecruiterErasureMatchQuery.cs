@@ -1,4 +1,5 @@
 using System.Text;
+using Jobbliggaren.Application.Common.Security;
 using Jobbliggaren.Application.JobAds.Abstractions;
 using Jobbliggaren.Application.JobAds.Commands.EraseRecruiterAds;
 using Jobbliggaren.Domain.RecentJobSearches;
@@ -22,7 +23,9 @@ namespace Jobbliggaren.Infrastructure.JobAds;
 /// concatenation (CLAUDE.md §5). The channel rationale lives on the port.
 /// </para>
 /// </remarks>
-internal sealed class RecruiterErasureMatchQuery(AppDbContext db) : IRecruiterErasureMatchQuery
+internal sealed class RecruiterErasureMatchQuery(
+    AppDbContext db,
+    IProtectedIdentityTokenizer tokenizer) : IRecruiterErasureMatchQuery
 {
     // MUST be the config search_vector was generated with (JobAdConfiguration:
     // to_tsvector('swedish', …)). A mismatch makes `@@` miss the GIN index and the FTS channel
@@ -594,6 +597,126 @@ internal sealed class RecruiterErasureMatchQuery(AppDbContext db) : IRecruiterEr
             SELECT count(*)::int AS "Value"
             FROM company_watch_criteria
             WHERE lower(coalesce(label, '')) LIKE {pattern} ESCAPE {LikeEscapeSql}
+            """, cancellationToken);
+    }
+
+    /// <summary>
+    /// The LIKE patterns to compare a jsonb value against: every WRITTEN form of the identifier when
+    /// it is an org.nr, and the identifier as supplied when it is not.
+    /// </summary>
+    /// <remarks>
+    /// A column validated on SHAPE ONLY stores whatever was typed, so comparing one normalised
+    /// request against an unnormalised store reaches only the form that happens to coincide (#1425).
+    /// The five <c>recent_job_searches</c> axes close that with <c>= ANY(writtenForms)</c> because
+    /// they are <c>text[]</c>; a jsonb document needs the same set as LIKE patterns instead.
+    /// <b>This does NOT apply to a normalising column</b> — <c>company_watches.organization_number</c>
+    /// is written through <c>OrganizationNumber.Create</c>, so the ten-digit form is the only stored
+    /// plaintext form and its arm stays an exact two-operand probe.
+    /// </remarks>
+    /// <summary>
+    /// The empty jsonb path, bound as a parameter. <c>jsonb #>> text[]</c> with an empty path
+    /// returns the value's DECODED text, which is what a comparison against a user-supplied
+    /// identifier needs: casting to <c>text</c> instead leaves JSON escapes in place, so a stored
+    /// <c>Anna "Bea" Berg</c> would not be reached by a request for <c>"Bea"</c>.
+    /// </summary>
+    private static readonly string[] WholeJsonbValue = [];
+
+    private static string[] WrittenFormPatterns(string identifier)
+    {
+        var orgNr = Domain.CompanyWatches.OrganizationNumber.TryFromWrittenForm(identifier);
+
+        return orgNr is null
+            ? [LikePattern(identifier)]
+            : [.. orgNr.WrittenForms().Select(LikePattern)];
+    }
+
+    public async Task<int> CountCompanyWatchFollowsAsync(
+        string identifier, CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(identifier);
+
+        var patterns = WrittenFormPatterns(identifier);
+        var orgNr = Domain.CompanyWatches.OrganizationNumber.TryFromWrittenForm(identifier);
+
+        // The AT-REST form, decided by the SAME discriminator the WRITE path uses
+        // (CompanyWatchFollowExecutor): a pnr-shaped org.nr is stored as a keyed HMAC token, an AB
+        // org.nr verbatim — in which case storedKey and plain are the same string and the two
+        // operands collapse, exactly as they do in the executor's probe. Both are NULL for a
+        // non-org.nr identifier, and `column = NULL` is never true, so both arms switch themselves
+        // off and a name falls through to the filter arm alone.
+        var plain = orgNr?.Value;
+        var storedKey = orgNr is null
+            ? null
+            : orgNr.IsPersonnummerShaped() ? tokenizer.Tokenize(orgNr.Value) : orgNr.Value;
+
+        // Deliberately NOT filtered on deleted_at — and the reason DIFFERS per arm, which is why
+        // the CountSavedSearchesAsync comment is not copied here.
+        //   ORG.NR: unfollowing soft-deletes the row and LEAVES organization_number standing, so a
+        //   lifecycle predicate would under-report a key we physically hold. That is the
+        //   saved_searches case.
+        //   FILTER: the exact opposite. CompanyWatch.SoftDelete() NULLS Filter, so this arm cannot
+        //   reach a soft-deleted row BY CONSTRUCTION. A deleted_at predicate would be inert here
+        //   while being wrong one line up.
+        //
+        // The filter arm walks the document's VALUES ($.** then jsonb_typeof = 'string'), never its
+        // raw text. A `filter::text LIKE` also matches the jsonb KEY NAMES, and `Regions` or
+        // `Remote` as an identifier would then match every row that has a filter at all. Walking
+        // values keeps the property the key-name form was chosen for — no property is named in SQL
+        // — and drops the over-match with it. The string-type filter is what bounds that: a key
+        // whose value is a number or a boolean is not reached, which today is no column at all.
+        return await CountAsync($"""
+            SELECT count(*)::int AS "Value"
+            FROM company_watches
+            WHERE organization_number = {storedKey}
+               OR organization_number = {plain}
+               OR EXISTS (
+                    SELECT 1
+                    FROM jsonb_path_query(filter, '$.**') AS v,
+                         unnest({patterns}) AS p
+                    WHERE jsonb_typeof(v) = 'string'
+                      AND lower(v #>> {WholeJsonbValue}) LIKE p ESCAPE {LikeEscapeSql})
+            """, cancellationToken);
+    }
+
+    public async Task<int> CountJobSeekerProfilesAsync(
+        string identifier, CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(identifier);
+
+        var patterns = WrittenFormPatterns(identifier);
+
+        // Three columns, four registry keys: `preferences` is the OwnsOne(...).ToJson() container
+        // and `Language` is a JSON property inside it, so the third arm searches both.
+        //
+        // No lifecycle predicate. A soft-deleted profile IS a reachable state — account deletion
+        // soft-deletes and AccountHardDeleter only reaps rows past a 30-day window — and we hold the
+        // row for that whole window, so an erasure disclosure owes it. Raw SQL bypasses the
+        // aggregate's query filter, which is what makes counting the physical table possible here.
+        //
+        // Both jsonb arms walk VALUES, never the document text: `preferences` is NOT NULL and always
+        // serialised with its full key set, so a `preferences::text LIKE` would match `Language` in
+        // EVERY row. An identifier of four characters is legal (the validator's floor) and `Lang` is
+        // a surname, so that form turns a genuine no-match into a whole-table match — and
+        // Matched.Total is a zero-test, so the reply flips from "we found nothing" to a claim that
+        // her data sits in a user's profile. Walking values excludes key names by construction.
+        return await CountAsync($"""
+            SELECT count(*)::int AS "Value"
+            FROM job_seekers
+            WHERE EXISTS (
+                    SELECT 1 FROM unnest({patterns}) AS p
+                    WHERE lower(display_name) LIKE p ESCAPE {LikeEscapeSql})
+               OR EXISTS (
+                    SELECT 1
+                    FROM jsonb_path_query(match_preferences, '$.**') AS v,
+                         unnest({patterns}) AS p
+                    WHERE jsonb_typeof(v) = 'string'
+                      AND lower(v #>> {WholeJsonbValue}) LIKE p ESCAPE {LikeEscapeSql})
+               OR EXISTS (
+                    SELECT 1
+                    FROM jsonb_path_query(preferences, '$.**') AS v,
+                         unnest({patterns}) AS p
+                    WHERE jsonb_typeof(v) = 'string'
+                      AND lower(v #>> {WholeJsonbValue}) LIKE p ESCAPE {LikeEscapeSql})
             """, cancellationToken);
     }
 

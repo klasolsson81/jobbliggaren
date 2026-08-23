@@ -6,6 +6,13 @@ import { GuestShell } from "./guest-shell";
 const pathnameMock = vi.fn<() => string>();
 vi.mock("next/navigation", () => ({
   usePathname: () => pathnameMock(),
+  // The header's LanguageSwitcher reads useRouter to refresh after the cookie
+  // write (ADR 0078); without it the shell cannot render at all.
+  useRouter: () => ({ refresh: vi.fn(), push: vi.fn(), prefetch: vi.fn() }),
+}));
+
+vi.mock("@/i18n/set-locale-action", () => ({
+  setLocaleAction: vi.fn(async () => undefined),
 }));
 
 describe("GuestShell (LP-5b #259 — composes the shared HeaderStrip)", () => {
@@ -64,6 +71,21 @@ describe("GuestShell (LP-5b #259 — composes the shared HeaderStrip)", () => {
       "href",
       "/registrera",
     );
+  });
+
+  it("carries the language control, because guests cannot reach Inställningar", () => {
+    // Bites on revert: dropping the mount leaves the guest surfaces with no way to
+    // change language at all. Why that matters: language-switcher.tsx's docblock.
+    render(
+      <GuestShell>
+        <p />
+      </GuestShell>,
+    );
+
+    const banner = screen.getByRole("banner");
+    expect(
+      within(banner).getByRole("button", { name: /Språk/i }),
+    ).toBeInTheDocument();
   });
 
   it("renders children AND the @modal slot together inside <main>", () => {

@@ -6,6 +6,7 @@ import { useTranslations } from "next-intl";
 import type { ReactNode } from "react";
 import { Briefcase, Inbox, LayoutDashboard, LogIn, ScrollText } from "lucide-react";
 import { HeaderStrip } from "@/components/site/header-strip";
+import { LanguageSwitcher } from "@/components/i18n/language-switcher";
 
 // F-Pre Punkt 5 — Gäst-shell (CTO-dom 2026-05-24 Beslut 1, Variant A).
 // Egen shell separat från `(app)`-shellen — gemensam Look (header + brand)
@@ -67,6 +68,9 @@ export function GuestShell({ children }: { children: ReactNode }) {
         <span className="jp-header__spacer" />
 
         <div className="jp-header__actions">
+          {/* Guests cannot reach Installningar; the rule and its derivation live
+              in language-switcher.tsx's docblock. */}
+          <LanguageSwitcher />
           <Link
             href="/logga-in"
             className="jp-btn jp-btn--secondary jp-btn--sm"

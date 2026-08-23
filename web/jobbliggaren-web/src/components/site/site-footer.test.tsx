@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import { SiteFooter } from "./site-footer";
 
-// LanguageSwitcher (the footer-variant toggle island) reads useRouter; next/link
+// SiteHeader's LanguageSwitcher reads useRouter; next/link
 // resolves navigation hooks too. Mock the navigation surface so the RSC footer
 // renders in jsdom (mirrors landing-page.test.tsx).
 vi.mock("next/navigation", () => ({
@@ -122,14 +122,15 @@ describe("SiteFooter (LP-3, #256; civic-IA #390 → #393)", () => {
     }
   });
 
-  it("reuses the real language toggle in the footer variant (.jp-foot__lang)", () => {
-    const { container } = render(<SiteFooter />);
-    const group = screen.getByRole("group", { name: "Språk" });
-    expect(group).toHaveClass("jp-foot__lang");
-    expect(container.querySelector(".jp-foot__lang-btn")).not.toBeNull();
-    // Functional toggle, not a disabled stub: the active locale is pressed.
-    expect(
-      within(group).getByRole("button", { name: "Svenska" }),
-    ).toHaveAttribute("aria-pressed", "true");
+  it("carries NO language control — it moved to the header (#1476)", () => {
+    // The footer is mounted on all six shells, so it was the switcher's home on
+    // every surface. It is now on the surfaces whose users cannot reach
+    // Inställningar (senior-cto-advisor bind 2026-08-23), which is a header
+    // question, not a footer one. Bites on revert: re-mounting it here puts a
+    // second control on every public page.
+    // Only the button query can bite: `role="group"` and `.jp-foot__lang` are both
+    // deleted from src/, so asserting their absence would pass on an empty page.
+    render(<SiteFooter />);
+    expect(screen.queryByRole("button", { name: /Språk/i })).toBeNull();
   });
 });

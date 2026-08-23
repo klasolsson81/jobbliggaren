@@ -3,7 +3,7 @@ import { render, screen, within } from "@testing-library/react";
 import LandingPage from "@/app/(marketing)/page";
 
 // next/navigation: useSearchParams must be mocked in jsdom (no Next router
-// context) — the inline AuthCard's Login/RegisterForm read it, and SiteFooter's
+// context) — the inline AuthCard's Login/RegisterForm read it, and SiteHeader's
 // LanguageSwitcher reads useRouter. A hoisted ref lets a test vary the query
 // string to assert next-param deep-link propagation through the mounted form.
 const { searchParamsRef } = vi.hoisted(() => ({
@@ -23,7 +23,7 @@ vi.mock("@/lib/auth/actions", () => ({
   registerAction: vi.fn().mockResolvedValue(null),
 }));
 
-// SiteFooter's LanguageSwitcher posts setLocaleAction (server-only cookies).
+// SiteHeader's LanguageSwitcher posts setLocaleAction (server-only cookies).
 vi.mock("@/i18n/set-locale-action", () => ({
   setLocaleAction: vi.fn().mockResolvedValue(undefined),
 }));

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { useFormatter, useTranslations } from "next-intl";
 import { BrandLogo } from "@/components/brand/brand-logo";
 import { SkipLink } from "@/components/site/skip-link";
+import { LanguageSwitcher } from "@/components/i18n/language-switcher";
 import { formatNumber } from "@/lib/i18n/format";
 import { type LandingStats } from "@/components/landing/landing-stats-format";
 
@@ -29,6 +30,10 @@ import { type LandingStats } from "@/components/landing/landing-stats-format";
  * #259). The legacy `.jp-land-top` class lost its last consumer in #258 and its
  * CSS was removed in #1054; `site-header.test.tsx` still asserts the markup is
  * absent — that assertion is the contract, not a consumer.
+ *
+ * The right cluster always carries the language switcher (Klas-direktiv
+ * 2026-08-23, HANDOVER-v3 §0 punkt 7 amended for public headers), so the
+ * hairline after the stats no longer depends on whether a login action follows.
  *
  * A11y: the `<nav>` landmark carries the brand link. The stats cluster sits
  * OUTSIDE it — "45 580 aktiva annonser" is data, not navigation, and a reader
@@ -67,7 +72,10 @@ export function SiteHeader({
   return (
     <>
       <SkipLink label={t("common.skipToContent")} />
-      <header className="jp-head">
+      {/* The narrow-screen ladder keys on the ROW, not the viewport: a surface
+          with an account action carries ~109px more in the right cluster than one
+          without, so the two collapse at different widths. */}
+      <header className={showLogin ? "jp-head jp-head--action" : "jp-head"}>
         <div className="jp-head__inner">
           <nav aria-label={t("common.headerNavAriaLabel")}>
             <Link
@@ -105,11 +113,10 @@ export function SiteHeader({
                     </span>
                   </div>
                 </div>
-                {showLogin && (
-                  <span className="jp-head__sep" aria-hidden="true" />
-                )}
+                <span className="jp-head__sep" aria-hidden="true" />
               </>
             )}
+            <LanguageSwitcher />
             {showLogin && (
               <Link href="/logga-in" className="jp-btn jp-btn--secondary">
                 {t("common.loginLink")}

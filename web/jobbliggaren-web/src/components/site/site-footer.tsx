@@ -2,7 +2,6 @@ import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { Database } from "lucide-react";
 import { BrandLogo } from "@/components/brand/brand-logo";
-import { LanguageSwitcher } from "@/components/i18n/language-switcher";
 
 /**
  * SiteFooter — the shared deep-green footer (LP-3, #256). ONE footer mounted on
@@ -25,9 +24,9 @@ import { LanguageSwitcher } from "@/components/i18n/language-switcher";
  *     "Juridik" column carries the policy links (Villkor, Integritet, Cookies,
  *     Tillgänglighet) — the old "Om och juridik" mix is split into the two.
  *
- * Sync RSC: `useTranslations("landing")` resolves synchronously; `LanguageSwitcher`
- * is the only client island (the real cookie NEXT_LOCALE toggle, ADR 0078),
- * rendered with `variant="footer"` so it consumes the `.jp-foot__lang*` classes.
+ * Sync RSC: `useTranslations("landing")` resolves synchronously. The footer has
+ * NO client island any more: the language switcher moved to the public header
+ * (Klas-direktiv 2026-08-23), and the `.jp-foot__lang*` classes went with it.
  *
  * All footer colour is LITERAL #FFFFFF / rgba(255,255,255,a) via the `.jp-foot*`
  * classes — never `--jp-ink-inverse` (it flips dark on the green in dark theme).
@@ -181,8 +180,6 @@ export function SiteFooter() {
             </span>
             <span>{t("footer.free")}</span>
           </div>
-
-          <LanguageSwitcher variant="footer" />
         </div>
       </div>
     </footer>

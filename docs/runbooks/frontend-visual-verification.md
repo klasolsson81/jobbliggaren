@@ -30,8 +30,8 @@ Vid tvekan: kör loopen — den är billig.
 ## Hur
 
 1. Starta dev-servern i en separat terminal:
-   `cd web/jobbpilot-web && pnpm dev`
-2. Kör loopen: `cd web/jobbpilot-web && pnpm visual-verify`
+   `cd web/jobbliggaren-web && pnpm dev`
+2. Kör loopen: `cd web/jobbliggaren-web && pnpm visual-verify`
 3. Scriptet (`scripts/visual-verify.ts`) tar screenshots i **tre viewports
    (1280 / 1920 / 3440)** × **light + dark** av alla publika sidor.
 
@@ -45,7 +45,7 @@ Vid tvekan: kör loopen — den är billig.
 
 ### Lagring och cleanup (self-cleaning by construction)
 
-- Bilder sparas i `C:/tmp/jobbpilot-visual/<tidsstämpel>/` — **utanför repot**
+- Bilder sparas i `C:/tmp/jobbliggaren-visual/<tidsstämpel>/` — **utanför repot**
   (aldrig under `web/` eller `docs/`; repo-renhet per CLAUDE.md §1.5).
 - Cleanup är **inte** ett kom-ihåg-steg. `visual-verify.ts` raderar **alla**
   tidigare körningars mappar vid start av varje ny körning. Inget att städa
@@ -69,8 +69,8 @@ oförändrat publikt default):
 
 | Env | Innebörd |
 |-----|----------|
-| `VISUAL_BASE_URL` | Live-frontend, **måste vara https** (`__Host-`-cookien avvisas av Chromium på http) — auth-gated verifieras därför mot live-deploy, inte lokal http. T.ex. `https://www.jobbpilot.se` |
-| `VISUAL_BACKEND_URL` | Live-backend för direkt login + fixture-API, t.ex. `https://dev.jobbpilot.se` |
+| `VISUAL_BASE_URL` | Live-frontend, **måste vara https** (`__Host-`-cookien avvisas av Chromium på http) — auth-gated verifieras därför mot live-deploy, inte lokal http. T.ex. `https://www.jobbliggaren.se` |
+| `VISUAL_BACKEND_URL` | Live-backend för direkt login + fixture-API, t.ex. `https://dev.jobbliggaren.se` |
 | `VISUAL_AUTH_EMAIL` / `VISUAL_AUTH_PW` | Dev JobSeeker-creds — **endast via env, aldrig i repo/kod** (CLAUDE.md §5.4) |
 
 Login sker via direkt backend-call (robustare än formulärdrivning). Den
@@ -122,7 +122,7 @@ Ett **dedikerat syntetiskt dev-test-JobSeeker-konto** används för auth-läget,
   auto-roteras → migrera till AWS Secrets Manager (Variant D). Lyfts ej som
   TD nu (YAGNI — kravet finns inte).
 - **Future-watch (observation 2026-05-17):** upprepade automatiska
-  `pnpm visual-verify`-körningar i auth-läge mot live `www.jobbpilot.se` kan
+  `pnpm visual-verify`-körningar i auth-läge mot live `www.jobbliggaren.se` kan
   trigga **Vercel Attack Challenge Mode**. Playwright får då en
   "We're verifying your browser"-interstitial i stället för appen → den
   capturerade korpusen blir ogiltig (interstitial-skärmdump, inte sann
@@ -146,7 +146,7 @@ Ett **dedikerat syntetiskt dev-test-JobSeeker-konto** används för auth-läget,
 Varje STOPP-rapport för en triggande batch innehåller:
 
 ```
-Visuell verifiering: C:/tmp/jobbpilot-visual/<tidsstämpel>/
+Visuell verifiering: C:/tmp/jobbliggaren-visual/<tidsstämpel>/
   — N screenshots (publika sidor × 1280/1920/3440 × light/dark)
   — design-reviewer-verdikt mot bilderna: <kort>
   — auth-gated: <pending live-deploy | ej berört i denna batch>

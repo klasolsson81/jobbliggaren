@@ -5604,13 +5604,11 @@ a.jp-adminnav__link[aria-current="page"]::after {
 
 /* Sekundär-knapp i page-heron: outline-på-gradient (vit kant), så den civilt
    skiljs från den solida vita primärknappen utan en andra fylld yta.
-   ⚠ DEN FORMEN HÅLLER BARA BREDVID EN PRIMÄR. Ensam på plattan är kanten
-   kontrollens enda gräns, och den mäter 2,36:1 mot `--jp-hero-bg` — under WCAG
-   1.4.11:s 3:1 (#1379, 2026-08; samma form rapporterad i #1061/#1375).
-   Hushållssvaret är att flytta kontrollen AV plattan, till `.jp-backlink` i
-   `jp-container jp-page` — inte att göra den till `--primary`, som bryter ADR
-   0038:s en-primär-per-skärm. Se `(app)/cv/[id]/granska/page.tsx` och de två
-   `(guest)`-detaljsidorna. */
+   ⚠ Ensam på plattan är kanten kontrollens enda gräns, och den mäter 2,36:1
+   mot `--jp-hero-bg` — under WCAG 1.4.11:s 3:1 (#1379, 2026-08; samma form
+   rapporterad i #1061/#1375). Hushållssvaret är att flytta kontrollen AV
+   plattan, till `.jp-backlink` i `jp-container jp-page` — inte att göra den
+   till `--primary`, som bryter ADR 0038:s en-primär-per-skärm. */
 .jp-pagehero .jp-btn--secondary {
   background: transparent;
   color: var(--jp-hero-ink);

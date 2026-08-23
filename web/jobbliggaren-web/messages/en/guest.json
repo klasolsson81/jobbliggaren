@@ -83,7 +83,7 @@
     "emptyStatus": "No applications in this status.",
     "fullKicker": "Demo application",
     "fullLede": "{company} · {source}",
-    "backToList": "Back to the list"
+    "backToList": "Back to applications"
   },
   "cv": {
     "kicker": "Demo CV",
@@ -108,7 +108,7 @@
     "cardPublished": "Published <b>{date}</b>",
     "cardApplyBy": "Apply by <b>{date}</b>",
     "fullKicker": "Demo job ad",
-    "backToList": "Back to the list"
+    "backToList": "Back to job ads"
   },
   "detail": {
     "company": "Company",

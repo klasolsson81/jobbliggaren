@@ -213,12 +213,12 @@ Coverage: Y% (om tillgängligt)
 ### Failures
 
 **[Typ]** `TestClassName.TestMethodName`
-**Fil:** tests/.../XTests.cs:rad
+**Fil:** tests/.../XTests.cs
 **Typ:** Assertion failure | Production exception | Compilation | etc.
 **Förväntat:** <värde eller beteende>
 **Faktiskt:** <värde eller beteende>
 **Stack trace (relevant):**
-  <3–5 rader som pekar på faktisk felrad>
+  <3–5 rader>
 **Föreslagen åtgärd:** <delegation eller direkt åtgärd>
 
 (Upprepa per failure)

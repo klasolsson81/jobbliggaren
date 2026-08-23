@@ -301,7 +301,7 @@ Every entity that contains PII must have tests covering:
 When test-writer creates test files:
 
 **1.** Create the test file in the correct location:
-- Unit tests: `tests/Jobbliggaren.<Layer>.UnitTests/<Feature>/.../<ClassUnderTest>Tests.cs` (`<Layer>` is Domain, Application or Migrate, and it names the project, not a directory inside it). The `<Feature>/` level is required; mirroring the `Commands/<Name>/` level below it is optional, and the repo carries both forms
+- Unit tests: `tests/Jobbliggaren.<Layer>.UnitTests/<Feature>/.../<ClassUnderTest>Tests.cs` (`<Layer>` is Domain, Application or Migrate, and it names the project, not a directory inside it)
 - Integration tests: `tests/Jobbliggaren.Api.IntegrationTests/<Feature>/` when the test composes the API host (`ApiFactory`), `tests/Jobbliggaren.Worker.IntegrationTests/<Feature>/` when it composes the Worker host (`WorkerTestFixture`). The host decides, not the transport: the two projects reference disjoint composition roots
 - Namespace = the test project name plus the folder path below it (`Jobbliggaren.Domain.UnitTests.JobAds`), not the `src/` namespace
 

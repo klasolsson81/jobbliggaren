@@ -4472,6 +4472,9 @@ a.jp-adminnav__link[aria-current="page"]::after {
 }
 .jp-head__stats { display: flex; align-items: center; gap: 18px; }
 .jp-head__right { display: flex; align-items: center; gap: 18px; }
+/* The action must never wrap its own label — "Logga in" broke across two
+   lines at 320px before this. Same scoping as .jp-pagehero .jp-btn. */
+.jp-head .jp-btn { white-space: nowrap; }
 .jp-head__stat { display: flex; flex-direction: column; line-height: 1.1; }
 .jp-head__stat-num {
   /* Delad-header stat-siffra (Förslag 3a-uppskalning); #549-konsolidering:
@@ -4487,8 +4490,11 @@ a.jp-adminnav__link[aria-current="page"]::after {
 .jp-head__stat-delta { color: var(--jp-success); }
 .jp-head__sep { width: 1px; height: 28px; background: var(--jp-border); }
 @media (max-width: 760px) {
-  .jp-head__inner { padding: 0 20px; min-height: 72px; }
+  .jp-head__inner { padding: 0 20px; min-height: 72px; gap: 12px; }
   .jp-head__stats, .jp-head__sep { display: none; }
+  /* The compact header carries brand + action on one 320px row: the tightened
+     gap above and this scoped padding token keep either from wrapping. */
+  .jp-head .jp-btn { --jp-btn-px: 12px; }
 }
 
 /* ── Hero-subelement (delas av landnings-plattan, förslag 3a) ─

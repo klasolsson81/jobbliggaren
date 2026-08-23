@@ -107,3 +107,70 @@ redovisade i PR-bodyn:
 - **D2:s sista punkt** förbjuder ett test som påstår att tröskeln är halva taket (tautologi). Inget
   sådant test finns. Det som pinnas är **emittern** — polaritet i båda riktningar och radens
   strukturella fältuppsättning, så att ett tillagt fält (PII-vägen) fäller testet.
+
+---
+
+# Tillägg — omroutning av förfallovillkoret (samma agent, 2026-08-23)
+
+> Begärd av sessionen efter att `security-auditor` mätt att destinationen i huvudbeslutet är en
+> STÄNGD issue. Transkriberad ordagrant.
+
+## Rättelse först
+
+Premissen var min, inte din. Jag skrev testet *"avveckling med en läsare"* och tillämpade det sedan inte
+på min egen destination. En stängd issue har ingen läsare, och #1298 visar att repot redan betalat för
+exakt den formen. Talet 15 dagar är mätt av dig; jag hade inget eget stöd för att #196 var öppen och
+skulle inte ha skrivit destinationen utan det.
+
+## Beslut
+
+**Pekare i de två filer aktörerna faktiskt läser — `deploy/caddy/Caddyfile` och
+`src/Jobbliggaren.Api/Program.cs` — och ingen backlog-rad alls.** Ingen ny issue, ingen kommentar på
+#1298.
+
+**Regeln bor på ETT ställe: konstanten i `RecruiterErasureMatchQuery`.** De två pekarna namnger symbolen
+och bär **inget eget påstående** — inte talet, inte mätningen, inte villkoret i egen formulering. Ett hem
+som kan drifta, två som inte kan. Det är samma disciplin CLAUDE.md §9.6 använder på sig själv (*"Charters
+and the skill carry pointers here, never restatements"*, #1173), och det är motgiftet mot
+`dotnet-architect`s V1 i samma runda: tre hem, inga två överens.
+
+## Motivering
+
+- **Avveckling mäts på läsaren, inte på formen.** Aktören som lägger en `/api`-matcher i Caddyfilen
+  bläddrar inte i backloggen efter skäl att låta bli — hen redigerar Caddyfilen. En issue är per
+  konstruktion osynlig i det ögonblick handlingen sker. Det är hela grunden till att TD-registret
+  pensionerades (#1172).
+- **§9.6:s issue-väg tjänar inte sitt eget syfte här.** Dess skrivna skäl är *"visibility between
+  parallel lanes"*. Det här är **redigeringsögonblickets** synlighet i två namngivna filer.
+- **#1298 avvisas.** Den äger ett annat fynd (disk-usage-kvoten).
+- **§5 tillåter det uttryckligen.** *"Comment where the code cannot show the thing itself."* En
+  korsfilskoppling är osynlig från båda ändar.
+- **Formen möter repots egen standard för en lapse-trigger** — *"a written lapse trigger with a single
+  named home and a named human reader"* (§9.6). Ett hem: konstanten. En läsare: den som redigerar filen.
+
+## Avvisat: en mekanisk vakt
+
+Ett arkitekturtest som fäller på `AddRequestTimeouts`/`UseRequestTimeouts` vore en läsare som inte kan
+hoppas över — men det vore **fel vakt**. Det som ska upptäckas är inte *"någon lade till X"* utan
+*"någon lade till X utan att härleda om taket"*. Request-timeouts kan mycket väl vara rätt en dag; ett
+testförbud skulle förbjuda ett legitimt beslut för att fånga en olycka. Pekaren gör olyckan till ett
+beslut, vilket är exakt och enbart det som behövs.
+
+## Ett villkor jag inte kan mäta härifrån
+
+Pekaren i `deploy/caddy/Caddyfile` har en läsare **bara om den deployade Caddy-konfigurationen är
+repofilen**. Är den handredigerad på lådan når pekaren ingen, och vi har byggt om samma defekt i ny form.
+**Mät det innan du skriver pekaren.**
+
+## Netto
+
+Noll filade issues. Sessionen stänger #1463 → netto −1 mot §9.6:s tak, i stället för 0.
+
+---
+
+## Sessionens åtgärd
+
+Villkoret mättes **före** pekarna skrevs, read-only mot lådan 2026-08-23:
+`sudo docker exec jobbliggaren-caddy sha256sum /etc/caddy/Caddyfile` ger `2781e807…`, vilket är exakt
+sha256 av repofilens `deploy/caddy/Caddyfile` i LF-form (som den byggs in i imagen). Konfigurationen är
+alltså inte handredigerad, och pekaren har en läsare. Båda pekarna är lagda; ingen issue filad.

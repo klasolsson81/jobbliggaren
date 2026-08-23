@@ -1141,9 +1141,8 @@ den första lämnar en mottagare oregistrerad. (`EmailConfirmation` är däremot
 `RegisterCommandHandler.cs:81`, som defaultar **false** — se blockquoten ovan. En
 prod-lansering tvingar alltså inte i sig grinden.)
 
-Det är samma lucka som den redan eskalerade frågan om att ROPA:n saknar behandling för
-användarkontot/autentiseringen helt (Art. 30(1)) — **och den luckan är INTE stängd av
-#1169**: den nya posten täcker e-postbehandlingen, inte kontot/autentiseringen som sådan.
+Det är samma lucka som den redan eskalerade frågan om kontot/autentiseringen (Art. 30(1)) —
+**och den luckan stängdes INTE av #1169**: den nya posten täcker e-postbehandlingen, inte kontot/autentiseringen som sådan.
 **Luckan grindar inte via registret** — registret speglar (#1040) — men den blockerade
 **security-auditor-sign-off-ledet** i punkt 1, eftersom det inte fanns någon Art. 30-behandling
 att signera prod-e-post-konfigen mot för kontolivscykel-vägen. **Efter #1169 finns behandlingen;
@@ -1241,8 +1240,7 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
 > dem:** #1199 tog bort dess markör 2026-08-09, eftersom lådan kör
 > (`dev.jobbliggaren.se` sedan 2026-08-05) och en markör där hade förnekat en pågående
 > drift — samma defekt som en förtidig flip, i spegelvänd form. Koden är
-> skeppad till dev, men det finns ingen prod-deploy och inga registrerade som når
-> policysidorna — policyn styr den *driftsatta* tjänsten. **Flippa aldrig i
+> skeppad till dev, men det finns ingen prod-deploy — policyn styr den *driftsatta* tjänsten. **Flippa aldrig i
 > förväg**, och för SCB är det inte ens ett val mellan två oriktigheter: prod-
 > providern är `NullCompanyRegistry` och den riktiga adaptern finns inte, så ett
 > presens-påstående skulle hävda en överföring till en myndighet som **bevisligen
@@ -1980,7 +1978,9 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
       språken. Skopa till **`privacy.updated`** — filen har fem `updated`-nycklar
       (privacy/terms/cookies/accessibility/recruiterNotice).
 - [ ] **5.5 TVÅ VILLKOR SOM UPPHÖR VID FÖRSTA PRODUKTIONSANVÄNDAREN — de hör HÄR, inte i
-      §2.5.** Riskaccepten för de två konton som finns bärs av **ADR 0132**.
+      §2.5.** Riskaccepten som togs när registreringsgrinden öppnades 2026-08-16 är **bunden till
+      besökets två konton**, båda hållna av den personuppgiftsansvarige själv, och den täcker
+      **registreringsgrinden — inte villkoren nedan**.
       **Triggern är den första konfiguration utanför `Development` som
       sätter `Auth:RegistrationsOpen=true` — oavsett tagg, och `Test` räknas som utanför.**
       (Den tekniska spärren nedan undantar både `Development` och `Test`; den här grinden gör
@@ -2107,15 +2107,15 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
         punktens eget stycke ovan, inte på en andra plats.)*
       - **(b) ROPA:n måste bära en behandling för användarkontot/autentiseringen** (Art. 30(1)).
         Registret är gitignorerat (ADR 0072) och speglar (#1040), så skyldigheten bor här.
-        **URLADDAT 2026-08-23** — posten är införd, adjudicerad av
-        `docs/reviews/2026-08-23-art30-register-filstatus-security.md`. Triggern fyrade
-        **2026-08-16**, inte i framtiden: villkoret var alltså öppet under det fönstret, bundet
-        av ADR 0132. Villkor (a) står kvar — 5.5 är inte urladdad.
+        **Det är plikten som står här, aldrig registrets tillstånd** — ett trackat påstående om en
+        gitignorerad fils innehåll kan varken CI, en PR-granskare eller en parallell session
+        verifiera. Triggern fyrade **2026-08-16**, inte i framtiden: villkoret var alltså öppet
+        under det fönstret. Villkor (a) står kvar — 5.5 är inte urladdad.
       Bocka aldrig 5.5 på att §2.5 är ogrindad — det är två olika trigger.
 - [ ] **6. Tidsordning — två olika fall, blanda dem inte:**
       - **(a) Första prod-taggen:** flippen deployas **samtidigt** med
-        aktiveringen. Inga registrerade finns före, så ingen förhandsinformation
-        är möjlig eller krävd.
+        aktiveringen. Förhandsinformation är då varken möjlig eller krävd — men läs (b) nedan
+        först: finns registrerade konton redan, är det (b) som gäller, inte den här punkten.
       - **(b) Senare release med befintliga registrerade:** informationen
         publiceras **FÖRE** aktiveringen. Ansökningshistoriken är enligt ADR 0090
         D3 *"a new purpose section under 6(1)(b)"*, dvs. vidarebehandling för ett

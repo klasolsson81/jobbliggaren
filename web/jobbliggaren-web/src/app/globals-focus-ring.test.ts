@@ -50,9 +50,11 @@ interface Decl {
 }
 
 function read(sheet: string): string {
+  // Blank the comment out rather than remove it, so line numbers stay the file's own — a failure
+  // that points at the wrong line is a failure nobody can act on.
   return readFileSync(resolve(HERE, sheet), "utf-8").replace(
     /\/\*[\s\S]*?\*\//g,
-    "",
+    (comment) => comment.replace(/[^\n]/g, " "),
   );
 }
 
@@ -194,18 +196,20 @@ describe("focus ring — switching it off always carries a replacement (#1450)",
     "%s draws a replacement ring on its own element",
     (_selector, d) => {
       const mine = targets(d.selector);
-      const replacement = DECLS.filter(
-        (r) =>
-          drawsRing(r) && targets(r.selector).some((t) => mine.includes(t)),
+      const unanswered = mine.filter(
+        (t) =>
+          !DECLS.some(
+            (r) => drawsRing(r) && targets(r.selector).includes(t),
+          ),
       );
       expect(
-        replacement.map((r) => `${r.selector} { outline: ${r.value} }`),
-        `${d.selector} sets \`${d.prop}: ${d.value}\` and no focus-state rule on ` +
-          `${mine.join(", ")} draws a ring back. That is WCAG 2.4.7 — the a11y skill states it as ` +
+        unanswered,
+        `${d.selector} sets \`${d.prop}: ${d.value}\`, and the elements listed above have no ` +
+          `focus-state rule drawing a ring back. That is WCAG 2.4.7 — the a11y skill states it as ` +
           `"never outline: none without a replacement", with a 3:1 indicator floor. This is the ` +
           `shape #1450 measured on .jp-input, .jp-sortfield__select and .jp-appcontrols__input. ` +
           `Draw a ring (inward via outline-offset: -2px if an ancestor clips it); do not re-suppress.`,
-      ).not.toHaveLength(0);
+      ).toEqual([]);
     },
   );
 

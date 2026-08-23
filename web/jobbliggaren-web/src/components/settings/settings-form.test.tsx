@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { SettingsForm } from "./settings-form";
 import type { JobSeekerProfileDto } from "@/lib/types/me";
@@ -302,3 +302,165 @@ describe("SettingsForm — partial payload and the field-scoped error seam (#111
     expect(nameInput).not.toHaveAttribute("aria-invalid");
   });
 });
+// #1391 — a direct-apply control reports its own OUTCOME where the user is looking.
+// `applyChange` is shared by the language segment and the name form, and it used to write ONE
+// error and ONE savedAt, both read by `PersonalInfoCard` alone. So a refused language change
+// reverted the segment silently while its message surfaced in another card in another grid
+// column, and a successful one left a receipt under a name form the user never touched.
+// Pinned on the CARD, not on the copy: the defect is which column the text lands in.
+describe("SettingsForm — the direct-apply outcome lands on the control that started it (#1391)", () => {
+  beforeEach(() => {
+    updateMyProfileActionMock.mockReset();
+    updateMyProfileActionMock.mockResolvedValue({ success: true });
+  });
+
+  function renderForm() {
+    render(
+      <SettingsForm
+        initialProfile={baseProfile}
+        userEmail="klas@example.se"
+        taxonomy={null}
+        initialSkillGroups={[]}
+      />,
+    );
+  }
+
+  /** The card a node lives in — the unit this issue is about, one per grid column. */
+  function cardOf(node: Element): HTMLElement | null {
+    return node.closest<HTMLElement>("section.jp-card");
+  }
+
+  it("renders a refused language change in the card that owns the segment", async () => {
+    updateMyProfileActionMock.mockResolvedValue({
+      success: false,
+      error: "Kunde inte na servern.",
+    });
+    const user = userEvent.setup();
+    renderForm();
+    const languageGroup = screen.getByRole("radiogroup", { name: "Språk" });
+    const nameCard = cardOf(screen.getByLabelText("Namn"))!;
+
+    await user.click(screen.getByRole("radio", { name: "English" }));
+
+    const alert = await screen.findByRole("alert");
+    expect(cardOf(alert)).toBe(cardOf(languageGroup));
+    expect(within(nameCard).queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("associates the refusal with the language group", async () => {
+    updateMyProfileActionMock.mockResolvedValue({
+      success: false,
+      error: "Kunde inte na servern.",
+    });
+    const user = userEvent.setup();
+    renderForm();
+    const languageGroup = screen.getByRole("radiogroup", { name: "Språk" });
+    const hint = screen.getByText(
+      "Påverkar hela appen direkt. Sparas på ditt konto.",
+    );
+
+    await user.click(screen.getByRole("radio", { name: "English" }));
+
+    const alert = await screen.findByRole("alert");
+    // Both ids, in order: the a11y skill's §5 rule is that describedby carries the help text
+    // AND the error, not one replacing the other.
+    expect(languageGroup.getAttribute("aria-describedby")).toBe(
+      `${hint.id} ${alert.id}`,
+    );
+  });
+
+  it("moves focus back to the language group when the save is refused", async () => {
+    // The segment is disabled while the save is pending, which drops focus to <body> in a real
+    // browser, and Segment's own restore effect is gated on the group already holding focus.
+    // Without this the message is announced but the control it names is unreachable.
+    //
+    // The blur is what makes this pin discriminate. jsdom does not blur on `disabled`, and
+    // `user.click` leaves focus inside the group, so without it Segment's OWN [value] restore
+    // effect re-focuses the checked button on the revert and the assertion holds with this
+    // card's effect deleted. Blurring reproduces the browser's disabled-blur, and Segment's
+    // restore is gated on the group already holding focus, so only this card's effect can
+    // bring it back. The real timing is measured in Chromium, in
+    // docs/reviews/2026-08-23-1391-rendered-measurement.md.
+    updateMyProfileActionMock.mockResolvedValue({
+      success: false,
+      error: "Kunde inte na servern.",
+    });
+    const user = userEvent.setup();
+    renderForm();
+    const languageGroup = screen.getByRole("radiogroup", { name: "Språk" });
+
+    await user.click(screen.getByRole("radio", { name: "English" }));
+    (document.activeElement as HTMLElement | null)?.blur();
+    expect(languageGroup.contains(document.activeElement)).toBe(false);
+
+    await screen.findByRole("alert");
+    await waitFor(() =>
+      expect(languageGroup.contains(document.activeElement)).toBe(true),
+    );
+    expect(document.activeElement).toHaveAttribute("aria-checked", "true");
+  });
+
+  it("does not pull focus into the language card when a LATER save succeeds", async () => {
+    // `isPending` is one shared transition, so an effect keyed on it alone re-runs on every
+    // release. With a language error still standing, saving the NAME would then drag focus into
+    // the other card — the cross-card misplacement this change exists to close, in focus rather
+    // than in text.
+    updateMyProfileActionMock.mockResolvedValue({
+      success: false,
+      error: "Kunde inte na servern.",
+    });
+    const user = userEvent.setup();
+    renderForm();
+    const languageGroup = screen.getByRole("radiogroup", { name: "Språk" });
+
+    await user.click(screen.getByRole("radio", { name: "English" }));
+    (document.activeElement as HTMLElement | null)?.blur();
+    await screen.findByRole("alert");
+    await waitFor(() =>
+      expect(languageGroup.contains(document.activeElement)).toBe(true),
+    );
+    (document.activeElement as HTMLElement | null)?.blur();
+
+    // Now save the name successfully, with the language error still on screen.
+    updateMyProfileActionMock.mockResolvedValue({ success: true });
+    const nameInput = screen.getByLabelText("Namn");
+    await user.clear(nameInput);
+    await user.type(nameInput, "Anna Andersson");
+    const saveButton = screen.getByRole("button", { name: /Spara/ });
+    await user.click(saveButton);
+
+    await waitFor(() => expect(saveButton).not.toBeDisabled());
+    expect(languageGroup.contains(document.activeElement)).toBe(false);
+  });
+
+  it("renders the receipt for a saved language in the card that owns the segment", async () => {
+    const user = userEvent.setup();
+    renderForm();
+    const languageGroup = screen.getByRole("radiogroup", { name: "Språk" });
+    const nameCard = cardOf(screen.getByLabelText("Namn"))!;
+
+    await user.click(screen.getByRole("radio", { name: "English" }));
+
+    const receipt = await screen.findByText(/^Sparat \d{2}:\d{2}$/);
+    expect(cardOf(receipt)).toBe(cardOf(languageGroup));
+    // The name card renders NO live region at all until the name itself is saved. Asserted on
+    // the role rather than on "Sparat." so a copy edit cannot make this pass vacuously.
+    expect(within(nameCard).queryByRole("status")).not.toBeInTheDocument();
+  });
+
+  it("keeps the name form's own outcome in the name card", async () => {
+    const user = userEvent.setup();
+    renderForm();
+    const languageGroup = screen.getByRole("radiogroup", { name: "Språk" });
+    const nameInput = screen.getByLabelText("Namn");
+
+    await user.clear(nameInput);
+    await user.type(nameInput, "Anna Andersson");
+    await user.click(screen.getByRole("button", { name: /Spara/ }));
+
+    const receipt = await screen.findByText("Sparat.");
+    expect(cardOf(receipt)).toBe(cardOf(nameInput));
+    expect(cardOf(receipt)).not.toBe(cardOf(languageGroup));
+  });
+});
+

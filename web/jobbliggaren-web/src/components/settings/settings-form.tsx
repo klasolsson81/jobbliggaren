@@ -45,6 +45,17 @@ interface SettingsFormProps {
 type LanguageValue = "sv" | "en";
 
 /**
+ * #1391 — the outcome of ONE write, owned by the control that started it.
+ *
+ * A union rather than separate error/savedAt fields: a card can never render a receipt and
+ * a failure at the same time, so the mutual exclusion is structural. `field` carries the
+ * action's own opt-in discriminator (#1117); null means the failure names no input.
+ */
+type WriteOutcome =
+  | { ok: true; at: Date }
+  | { ok: false; error: string; field: "displayName" | null };
+
+/**
  * SettingsForm — orchestrerar alla preferens-kort på /installningar.
  *
  * CTO-dom 2026-05-20 (F6 P2, Val 2B): EN form, EN action, kort som visuella
@@ -83,10 +94,12 @@ export function SettingsForm({
     initialProfile.language === "en" ? "en" : "sv",
   );
   const [isPending, startTransition] = useTransition();
-  const [savedAt, setSavedAt] = useState<Date | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  // #1117: which input the current error belongs to, or null for a non-field failure.
-  const [errorField, setErrorField] = useState<"displayName" | null>(null);
+  // One outcome per DIRECT-APPLY control, not one per form. `applyChange` is shared by the
+  // language segment and the name form, and a single set of signals meant either one's
+  // result rendered in the Personuppgifter card — the failure silently, since the language
+  // segment reverts, and the receipt permanently, on a card the user never touched.
+  const [nameOutcome, setNameOutcome] = useState<WriteOutcome | null>(null);
+  const [languageOutcome, setLanguageOutcome] = useState<WriteOutcome | null>(null);
 
   /**
    * Bevakning F4 (#803): de två notis-kortens DELADE tillstånd bor här, inte i
@@ -114,26 +127,28 @@ export function SettingsForm({
   async function applyChange(
     changed: Partial<UpdateMyProfileInput>,
     revert: () => void,
+    report: (outcome: WriteOutcome | null) => void,
     onSuccess?: () => void | Promise<void>,
   ) {
     const parsed = schema.safeParse(changed);
     if (!parsed.success) {
       const first = parsed.error.issues[0];
-      setError(first?.message ?? ts("account.invalidInput"));
-      setErrorField(first?.path[0] === "displayName" ? "displayName" : null);
+      report({
+        ok: false,
+        error: first?.message ?? ts("account.invalidInput"),
+        field: first?.path[0] === "displayName" ? "displayName" : null,
+      });
       revert();
       return;
     }
-    setError(null);
-    setErrorField(null);
+    report(null);
     startTransition(async () => {
       const result = await updateMyProfileAction(parsed.data);
       if (!result.success) {
-        setError(result.error);
-        setErrorField(result.field ?? null);
+        report({ ok: false, error: result.error, field: result.field ?? null });
         revert();
       } else {
-        setSavedAt(new Date());
+        report({ ok: true, at: new Date() });
         await onSuccess?.();
       }
     });
@@ -148,18 +163,28 @@ export function SettingsForm({
     // it win permanently on a save failure (the device sticks on the new locale
     // while the profile keeps the old one). Instead we revert local state and
     // leave the cookie untouched on failure.
-    void applyChange({ language: next }, () => setLanguage(prev), async () => {
-      await setLocaleAction(next);
-      router.refresh();
-    });
+    void applyChange(
+      { language: next },
+      () => setLanguage(prev),
+      setLanguageOutcome,
+      async () => {
+        await setLocaleAction(next);
+        router.refresh();
+      },
+    );
   }
 
   function onSavePersonalInfo(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    void applyChange({ displayName }, () =>
-      setDisplayName(initialProfile.displayName),
+    void applyChange(
+      { displayName },
+      () => setDisplayName(initialProfile.displayName),
+      setNameOutcome,
     );
   }
+
+  const nameFailure = nameOutcome?.ok === false ? nameOutcome : null;
+  const languageFailure = languageOutcome?.ok === false ? languageOutcome : null;
 
   return (
     <div className="jp-settings-grid">
@@ -168,9 +193,9 @@ export function SettingsForm({
           displayName={displayName}
           email={userEmail}
           isPending={isPending}
-          error={error}
-          errorField={errorField}
-          savedAt={savedAt}
+          error={nameFailure?.error ?? null}
+          errorField={nameFailure?.field ?? null}
+          savedAt={nameOutcome?.ok === true ? nameOutcome.at : null}
           onDisplayNameChange={setDisplayName}
           onSubmit={onSavePersonalInfo}
         />
@@ -202,6 +227,8 @@ export function SettingsForm({
           language={language}
           onLanguageChange={onLanguageChange}
           isPending={isPending}
+          error={languageFailure?.error ?? null}
+          savedAt={languageOutcome?.ok === true ? languageOutcome.at : null}
         />
         {/* ADR 0080 Vag 4 PR-6: bakgrundsmatchnings-notiser (opt-in + kadens).
             Äger sin EGEN action/endpoint (PUT /me/notification-consent) — INTE

@@ -405,6 +405,7 @@
   /* Borders */
   --color-border-default: var(--jp-border);
   --color-border-strong:  var(--jp-border-strong);
+  --color-border-input:   var(--jp-border-input);
   --color-border-modal:   var(--jp-border-modal);
   --color-border-structural: var(--jp-border-structural);
   --color-border-brand:   var(--jp-brand-600);

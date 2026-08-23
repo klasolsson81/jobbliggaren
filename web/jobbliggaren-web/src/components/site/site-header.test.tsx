@@ -38,17 +38,24 @@ describe("SiteHeader — the one public header (#1476)", () => {
     expect(brand).toHaveAttribute("href", "/");
   });
 
-  it("shows the login action by default (every (marketing-inner) page)", () => {
-    render(<SiteHeader />);
+  it("shows the login action by default, and marks the row as an action row", () => {
+    const { container } = render(<SiteHeader />);
     expect(screen.getByRole("link", { name: "Logga in" })).toHaveAttribute(
       "href",
       "/logga-in",
     );
+    // `jp-head--action` is the hinge the whole narrow-screen ladder turns on: the
+    // ≤480 step fires only on action rows. jsdom loads no CSS, so nothing else in
+    // this suite can see the ladder — this class is the only thing it CAN see.
+    // Bites on revert: inverting the ternary flips every public header's narrow
+    // behaviour with no other test noticing.
+    expect(container.querySelector("header.jp-head--action")).not.toBeNull();
   });
 
-  it("hides the login action when showLogin is false (auth surfaces)", () => {
-    render(<SiteHeader showLogin={false} />);
+  it("hides the login action when showLogin is false, and drops the action row class", () => {
+    const { container } = render(<SiteHeader showLogin={false} />);
     expect(screen.queryByRole("link", { name: "Logga in" })).toBeNull();
+    expect(container.querySelector("header.jp-head--action")).toBeNull();
     // The nav landmark and brand still render on the auth surface.
     expect(
       screen.getByRole("link", { name: "Jobbliggaren, startsida" }),

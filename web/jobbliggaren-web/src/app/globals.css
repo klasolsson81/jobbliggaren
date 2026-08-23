@@ -4503,11 +4503,13 @@ a.jp-adminnav__link[aria-current="page"]::after {
 /* The shell contract needs the same graded row, and for the same reason: the
    guest header is the heavier of the two (nav + two CTAs + the control), so its
    brand has to collapse earlier than the ≤400px step the app and admin rows use.
-   Scoped with `:has` so only rows that actually carry the control move — the app
-   and admin headers keep their own step untouched. */
+   Scoped with `:has` on the control's own class rather than on "any ghost button
+   in the actions cluster": the second is a proxy that would silently move the app
+   header's step the day someone puts a ghost there. `display: none` does not take
+   a node out of `:has()` matching, so the narrower rung cannot un-match itself. */
 @media (max-width: 480px) {
   .jp-header__actions .jp-langname { display: none; }
-  .jp-header__inner:has(.jp-header__actions .jp-btn--ghost) .jp-brand__lockup {
+  .jp-header__inner:has(.jp-header__actions .jp-langname) .jp-brand__lockup {
     display: none;
   }
 }

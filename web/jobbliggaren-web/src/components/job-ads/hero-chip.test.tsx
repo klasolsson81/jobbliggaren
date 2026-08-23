@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import type { ReactNode } from "react";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Clock } from "lucide-react";
 import { HeroChip } from "./hero-chip";
@@ -141,5 +141,65 @@ describe("HeroChip", () => {
     // `truncate` sets white-space: nowrap and defeats the clamp with the class
     // still on the element.
     expect(labelSpan).not.toHaveClass("truncate");
+  });
+  // A modified click opens the row elsewhere and leaves the user on this page,
+  // so the popover must stay open. The predicate's own matrix lives in
+  // lib/nav/modified-click.test.ts -- these pin the two BINDINGS.
+  it("ctrl-click on a row leaves the popover open", async () => {
+    const user = userEvent.setup();
+    renderChip();
+    await user.click(screen.getByRole("button", { name: /Senaste sökningar/ }));
+    const row = screen.getAllByRole("link")[0]!;
+
+    fireEvent.click(row, { ctrlKey: true });
+
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+  });
+
+  it("plain click on a row closes the popover", async () => {
+    const user = userEvent.setup();
+    renderChip();
+    await user.click(screen.getByRole("button", { name: /Senaste sökningar/ }));
+
+    fireEvent.click(screen.getAllByRole("link")[0]!);
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("ctrl-click on the footer link leaves the popover open", async () => {
+    const user = userEvent.setup();
+    renderChip();
+    await user.click(screen.getByRole("button", { name: /Senaste sökningar/ }));
+    const footer = screen.getByRole("link", { name: "Visa alla" });
+
+    fireEvent.click(footer, { ctrlKey: true });
+
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+  });
+
+  // A real keyboard activation, which the module's matrix cannot express: at that
+  // level there is no such thing as "keyboard" distinct from a plain click object.
+  // Enter on a focused link must still dismiss -- the fix must not strand anyone
+  // who never touches a pointer.
+  it("Enter on a focused row closes the popover", async () => {
+    const user = userEvent.setup();
+    renderChip();
+    await user.click(screen.getByRole("button", { name: /Senaste sökningar/ }));
+    const row = screen.getAllByRole("link")[0]!;
+    row.focus();
+
+    await user.keyboard("{Enter}");
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("plain click on the footer link closes the popover", async () => {
+    const user = userEvent.setup();
+    renderChip();
+    await user.click(screen.getByRole("button", { name: /Senaste sökningar/ }));
+
+    fireEvent.click(screen.getByRole("link", { name: "Visa alla" }));
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 });

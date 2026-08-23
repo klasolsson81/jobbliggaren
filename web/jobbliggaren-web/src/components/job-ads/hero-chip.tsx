@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { ChevronDown } from "lucide-react";
 import { useDismissable } from "@/lib/hooks/use-dismissable";
+import { onPlainNav } from "@/lib/nav/modified-click";
 
 interface HeroChipProps<T> {
   /** Triggertext (h ex. "Senaste sökningar"). Också panel-titel. */
@@ -140,7 +141,7 @@ export function HeroChip<T>({
                 <Link
                   key={getKey(item)}
                   href={getHref(item)}
-                  onClick={close}
+                  onClick={(e) => onPlainNav(e, close)}
                   className="jp-popover__rowbtn"
                 >
                   <span
@@ -161,7 +162,7 @@ export function HeroChip<T>({
             <div className="jp-popover__foot">
               <Link
                 href={footerHref}
-                onClick={close}
+                onClick={(e) => onPlainNav(e, close)}
                 className="jp-popover__footlink"
               >
                 {footerLabel ?? t("heroChip.showAll")}

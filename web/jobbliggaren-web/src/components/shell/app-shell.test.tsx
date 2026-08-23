@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { AppShell } from "./app-shell";
 import type { LandingStatsDto } from "@/lib/dto/landing";
@@ -154,6 +154,85 @@ describe("AppShell (v3 header-shell)", () => {
     await user.click(
       within(drawer).getByRole("button", { name: "Stäng meny" }),
     );
+    expect(screen.queryByRole("dialog", { name: "Meny" })).not.toBeInTheDocument();
+  });
+
+  // #1440 follow-up: a modified click opens the destination elsewhere and
+  // leaves the user here, so the surface must not be dismissed. The predicate
+  // and its matrix live in lib/nav/modified-click.ts -- these pin the
+  // BINDINGS, one pair per surface.
+  it("ctrl-klick i användarmenyn lämnar menyn öppen", async () => {
+    const user = userEvent.setup();
+    render(
+      <AppShell email="k@example.se" isAdmin={false} initialStats={STATS_FIXTURE}>
+        <p />
+      </AppShell>,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Användarmeny" }));
+    const menu = screen.getByRole("group", { name: "Användarmeny" });
+    const link = within(menu).getByRole("link", { name: /Inställningar/ });
+
+    fireEvent.click(link, { ctrlKey: true });
+
+    expect(
+      screen.getByRole("group", { name: "Användarmeny" }),
+    ).toBeInTheDocument();
+  });
+
+  it("vanlig klick i användarmenyn stänger den", async () => {
+    const user = userEvent.setup();
+    render(
+      <AppShell email="k@example.se" isAdmin={false} initialStats={STATS_FIXTURE}>
+        <p />
+      </AppShell>,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Användarmeny" }));
+    const menu = screen.getByRole("group", { name: "Användarmeny" });
+
+    fireEvent.click(within(menu).getByRole("link", { name: /Inställningar/ }));
+
+    expect(
+      screen.queryByRole("group", { name: "Användarmeny" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("ctrl-klick i mobil-drawern lämnar den öppen OCH låter fokus vara", async () => {
+    const user = userEvent.setup();
+    render(
+      <AppShell email="k@example.se" isAdmin={false} initialStats={STATS_FIXTURE}>
+        <p />
+      </AppShell>,
+    );
+
+    const burger = screen.getByRole("button", { name: "Öppna meny" });
+    await user.click(burger);
+    const drawer = screen.getByRole("dialog", { name: "Meny" });
+    const link = within(drawer).getByRole("link", { name: /Inställningar/ });
+
+    fireEvent.click(link, { ctrlKey: true });
+
+    // Focus first: if this regresses, the dialog assertion below throws and the
+    // focus line never runs. Ordering it first makes the crossing reach it.
+    // handleNav pulls focus to the hamburger -- damage the other two lack.
+    expect(burger).not.toHaveFocus();
+    expect(screen.getByRole("dialog", { name: "Meny" })).toBeInTheDocument();
+  });
+
+  it("vanlig klick i mobil-drawern stänger den", async () => {
+    const user = userEvent.setup();
+    render(
+      <AppShell email="k@example.se" isAdmin={false} initialStats={STATS_FIXTURE}>
+        <p />
+      </AppShell>,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Öppna meny" }));
+    const drawer = screen.getByRole("dialog", { name: "Meny" });
+
+    fireEvent.click(within(drawer).getByRole("link", { name: /Inställningar/ }));
+
     expect(screen.queryByRole("dialog", { name: "Meny" })).not.toBeInTheDocument();
   });
 

@@ -26,6 +26,7 @@ import { useDismissable } from "@/lib/hooks/use-dismissable";
 import { HeaderStats } from "@/components/shell/header-stats";
 import { HeaderStrip } from "@/components/site/header-strip";
 import type { LandingStatsDto } from "@/lib/dto/landing";
+import { onPlainNav } from "@/lib/nav/modified-click";
 
 /**
  * v3 header-shell (ADR 0054 — header-meny ersätter sektionerad sidebar).
@@ -125,7 +126,10 @@ function UserMenu({ email, isAdmin }: { email: string; isAdmin: boolean }) {
   const t = useTranslations("common");
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
-  const ref = useDismissable(open, () => setOpen(false), triggerRef);
+  // One knowledge piece -- "this is how this menu closes" -- used by the
+  // dismissable hook and by all seven links below.
+  const close = () => setOpen(false);
+  const ref = useDismissable(open, close, triggerRef);
   const local = email.split("@")[0] ?? email;
 
   return (
@@ -155,35 +159,35 @@ function UserMenu({ email, isAdmin }: { email: string; isAdmin: boolean }) {
           <Link
             href="/installningar"
             className="jp-usermenu__item"
-            onClick={() => setOpen(false)}
+            onClick={(e) => onPlainNav(e, close)}
           >
             <Settings size={16} aria-hidden="true" /> {t("userMenu.installningar")}
           </Link>
           <Link
             href="/sokningar"
             className="jp-usermenu__item"
-            onClick={() => setOpen(false)}
+            onClick={(e) => onPlainNav(e, close)}
           >
             <Clock size={16} aria-hidden="true" /> {t("userMenu.senasteSokningar")}
           </Link>
           <Link
             href="/sparade"
             className="jp-usermenu__item"
-            onClick={() => setOpen(false)}
+            onClick={(e) => onPlainNav(e, close)}
           >
             <Bookmark size={16} aria-hidden="true" /> {t("userMenu.sparadeAnnonser")}
           </Link>
           <Link
             href="/matchningar"
             className="jp-usermenu__item"
-            onClick={() => setOpen(false)}
+            onClick={(e) => onPlainNav(e, close)}
           >
             <Target size={16} aria-hidden="true" /> {t("userMenu.minaMatchningar")}
           </Link>
           <Link
             href="/foretag"
             className="jp-usermenu__item"
-            onClick={() => setOpen(false)}
+            onClick={(e) => onPlainNav(e, close)}
           >
             {/* #582 — reuse the shared nav label "Företag" (hub noun) so the header quick-link and the
                 UserMenu item never drift; the old "Bevakade företag" label is dropped. */}
@@ -192,7 +196,7 @@ function UserMenu({ email, isAdmin }: { email: string; isAdmin: boolean }) {
           <Link
             href="/cv"
             className="jp-usermenu__item"
-            onClick={() => setOpen(false)}
+            onClick={(e) => onPlainNav(e, close)}
           >
             <ScrollText size={16} aria-hidden="true" /> {t("userMenu.minaCv")}
           </Link>
@@ -202,7 +206,7 @@ function UserMenu({ email, isAdmin }: { email: string; isAdmin: boolean }) {
               <Link
                 href="/admin/granskning"
                 className="jp-usermenu__item"
-                onClick={() => setOpen(false)}
+                onClick={(e) => onPlainNav(e, close)}
               >
                 <ShieldCheck size={16} aria-hidden="true" /> {t("userMenu.granskning")}
               </Link>
@@ -281,6 +285,9 @@ function Drawer({
 
   if (!open) return null;
 
+  // A modified click must not just leave the drawer open but leave focus
+  // alone: this handler also pulls focus back to the hamburger, which the
+  // other two surfaces do not.
   const handleNav = () => {
     onClose();
     triggerRef.current?.focus();
@@ -329,7 +336,7 @@ function Drawer({
                 href={item.href}
                 className="jp-drawer__item"
                 aria-current={isActive(pathname, item.href) ? "page" : undefined}
-                onClick={handleNav}
+                onClick={(e) => onPlainNav(e, handleNav)}
               >
                 <Icon size={18} aria-hidden="true" /> {t(`nav.${item.labelKey}`)}
               </Link>
@@ -339,7 +346,7 @@ function Drawer({
             href="/installningar"
             className="jp-drawer__item"
             aria-current={isActive(pathname, "/installningar") ? "page" : undefined}
-            onClick={handleNav}
+            onClick={(e) => onPlainNav(e, handleNav)}
           >
             <Settings size={18} aria-hidden="true" /> {t("drawer.installningar")}
           </Link>
@@ -350,7 +357,7 @@ function Drawer({
               aria-current={
                 isActive(pathname, "/admin/granskning") ? "page" : undefined
               }
-              onClick={handleNav}
+              onClick={(e) => onPlainNav(e, handleNav)}
             >
               <ShieldCheck size={18} aria-hidden="true" /> {t("drawer.granskning")}
             </Link>

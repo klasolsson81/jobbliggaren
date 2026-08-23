@@ -54,6 +54,11 @@ export function DiscardDraftButton({ parsedId }: DiscardDraftButtonProps) {
       <Button
         type="button"
         variant="ghost"
+        // Touch floor (#1384, DESIGN.md §5), scoped to this instance. The at-rule is written
+        // out rather than `max-[768px]:`, which is EXCLUSIVE of 768, while every CSS home of
+        // this rule uses `@media (max-width: 768px)`, which includes it. Tidying it back to
+        // the shorthand reopens a gap at exactly 768px.
+        className="[@media(max-width:768px)]:min-h-11"
         onClick={() => setOpen(true)}
       >
         <Trash2 aria-hidden="true" />

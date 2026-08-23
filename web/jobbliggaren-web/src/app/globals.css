@@ -281,6 +281,16 @@
   --jp-border-structural: var(--jp-border);  /* ADR 0041-amendment-token re-homed på v3-border */
 }
 
+/* The touch bump the `--jp-control-h` comment above promises. It sits on the TOKEN, not on a
+   class: the filter row is ONE form at ONE height (DESIGN.md §Komponenter), so a per-class
+   `min-height` would split the sort select from the hero pills and desync `.jp-skeleton--sort`,
+   which reads the token to avoid exactly that shift. Lifts all three consumers at once (#1384). */
+@media (max-width: 768px) {
+  :root {
+    --jp-control-h: 44px;
+  }
+}
+
 /* ── Dark mode (v3-kanon — mörk navy-grå canvas, ljusa input-fält) ──
    Källa: jobbliggaren-v3.css §2.2. navy-800/-900 omdefinieras INTE i dark
    (primärknapp förblir djup navy med vit text — ADR 0052, aldrig
@@ -405,6 +415,7 @@
   /* Borders */
   --color-border-default: var(--jp-border);
   --color-border-strong:  var(--jp-border-strong);
+  --color-border-input:   var(--jp-border-input);
   --color-border-modal:   var(--jp-border-modal);
   --color-border-structural: var(--jp-border-structural);
   --color-border-brand:   var(--jp-brand-600);
@@ -2104,7 +2115,6 @@ a.jp-adminnav__link[aria-current="page"]::after {
   color: var(--jp-ink-1);
   font-family: inherit;
   font-size: var(--text-body);
-  outline: 0;
   transition: border-color 80ms, box-shadow 80ms;
 }
 .jp-input:focus {
@@ -2575,7 +2585,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
 .jp-sortfield {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 8px;
 }
 .jp-sortfield__label {
   font-size: var(--jp-control-fs);
@@ -2591,7 +2601,6 @@ a.jp-adminnav__link[aria-current="page"]::after {
   color: var(--jp-ink-1);
   font-family: inherit;
   font-size: var(--jp-control-fs);
-  outline: 0;
   cursor: pointer;
   transition: border-color 80ms, box-shadow 80ms;
 }
@@ -5060,8 +5069,8 @@ a.jp-adminnav__link[aria-current="page"]::after {
 }
 
 .jp-notice__dismiss {
-  width: 30px;
-  height: 30px;
+  width: 32px;
+  height: 32px;
   border: 0;
   background: transparent;
   border-radius: var(--jp-r-sm);
@@ -5200,8 +5209,8 @@ a.jp-adminnav__link[aria-current="page"]::after {
   flex: 0 0 auto;
 }
 .jp-section__gear {
-  width: 30px;
-  height: 30px;
+  width: 32px;
+  height: 32px;
   border: 0;
   background: transparent;
   border-radius: var(--jp-r-sm);
@@ -5214,6 +5223,18 @@ a.jp-adminnav__link[aria-current="page"]::after {
 .jp-section__gear:hover {
   background: var(--jp-surface-3);
   color: var(--jp-ink-1);
+}
+/* Touch floor (#1384) — same spec line and breakpoint as .jp-btn--sm. Only the hit area grows. */
+@media (max-width: 768px) {
+  .jp-section__gear,
+  .jp-notice__dismiss {
+    min-width: 44px;
+    min-height: 44px;
+  }
+  /* The <=880 grid gives `dismiss` a 32px column; widen it or the 44px button overflows. */
+  .jp-notice {
+    grid-template-columns: 4px 1fr 44px;
+  }
 }
 
 /* Kugghjuls-popover (notisinställningar per sektion). */
@@ -5604,7 +5625,12 @@ a.jp-adminnav__link[aria-current="page"]::after {
 }
 
 /* Sekundär-knapp i page-heron: outline-på-gradient (vit kant), så den civilt
-   skiljs från den solida vita primärknappen utan en andra fylld yta. */
+   skiljs från den solida vita primärknappen utan en andra fylld yta.
+   ⚠ Ensam på plattan är kanten kontrollens enda gräns, och den mäter 2,36:1
+   mot `--jp-hero-bg` — under WCAG 1.4.11:s 3:1 (#1379, 2026-08; samma form
+   rapporterad i #1061/#1375). Hushållssvaret är att flytta kontrollen AV
+   plattan, till `.jp-backlink` i `jp-container jp-page` — inte att göra den
+   till `--primary`, som bryter ADR 0038:s en-primär-per-skärm. */
 .jp-pagehero .jp-btn--secondary {
   background: transparent;
   color: var(--jp-hero-ink);
@@ -5617,7 +5643,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
 /* ── #805 punkt 7 (Klas live-review 2026-07-12): ansökningar-scopead 2-rads-
    aside + VIT-fyllda sekundärer + "?" inne i Aktivitetsrapport-kontrollen ──
    Bas-`.jp-pagehero__aside` (row/center/wrap) + `.jp-pagehero .jp-btn--secondary`
-   (outline) ovan är DELADE av 7 pageheroes och lämnas ORÖRDA; allt nedan är
+   (outline) ovan är DELADE och lämnas ORÖRDA; allt nedan är
    scopat till `--stacked` (endast ansökningar-heron). Klas läste den
    genomskinliga vit-kant-sekundären som "grön-genomskinlig" (svårläst) → byt
    till vit-fyllda läsbara kontroller. ADR 0038 en-primär bevaras: ren vit
@@ -6937,9 +6963,8 @@ a.jp-adminnav__link[aria-current="page"]::after {
   color: var(--jp-ink-1);
 }
 .jp-appcontrols__input:focus {
-  outline: none;
   border-color: var(--jp-accent-700);
-  box-shadow: 0 0 0 2px var(--jp-accent-100);
+  box-shadow: 0 0 0 3px var(--jp-focus-glow);
 }
 .jp-listfilterchip {
   display: inline-flex;

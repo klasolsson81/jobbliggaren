@@ -997,8 +997,9 @@ public static class DependencyInjection
     /// <para>
     /// Transaktionell mejlväg via Scaleway Transactional Email i fr-par (#183) — HTTPS-API, aldrig
     /// SMTP. <see cref="ConsoleEmailSender"/> skriver mottagar-email + plaintext-token till ILogger
-    /// (dev-providern) — registreras BARA i Development/Test (TD-104/STEG 6 security-auditor
-    /// Major #1: en PERSISTENT logg-sink gör den raden durabel PII-lagring). I andra miljöer
+    /// för en RFC 2606/6761-reserverad mottagare (#1208) — registreras BARA i Development/Test
+    /// (TD-104/STEG 6 security-auditor Major #1: en PERSISTENT logg-sink gör den raden durabel
+    /// PII-lagring). I andra miljöer
     /// faller "Console" tillbaka på <see cref="NullEmailSender"/> (no-op) tills en riktig provider
     /// wiras. Okänt provider-värde fail-stoppas.
     /// </para>

@@ -8,8 +8,9 @@ namespace Jobbliggaren.Infrastructure.Email;
 /// token, or body. Registered as the fallback for the "Console" provider in any
 /// environment that is NOT Development/Test (security-auditor Major #1, Pre-4 STEG 6):
 /// <see cref="ConsoleEmailSender"/> writes the recipient email + notification body to
-/// <c>ILogger</c>, which becomes durable PII once the persistent Seq sink (TD-104) is
-/// attached, so it must never run in a sink-backed, real-recipient environment. A real
+/// <c>ILogger</c> for an RFC 2606/6761-reserved recipient (#1208), which becomes durable PII
+/// once the persistent Seq sink (TD-104) is attached, so it must never run in a sink-backed,
+/// real-recipient environment. A real
 /// transactional provider exists alongside it: ScalewayEmailSender behind Email:Provider=Scaleway
 /// (Scaleway Transactional Email, fr-par, #183). This sender is what an UNSET Email:Provider
 /// resolves to outside Development/Test, which is the live default today.

@@ -203,8 +203,9 @@ public class AddEmailSenderGateTests
     [InlineData("Test")]
     public void AddEmailSender_InDevelopmentOrTest_CanDeliver(string env) =>
         // ConsoleEmailSender writes the whole body — activation and confirmation links included — to
-        // ILogger, so a developer can complete a token→email→confirm flow from the log. Answering
-        // false here would refuse the very flows dev exists to exercise.
+        // ILogger for a recipient at an RFC 2606/6761-reserved domain (#1208), so a developer can
+        // complete a token→email→confirm flow from the log. Answering false here would refuse the
+        // very flows dev exists to exercise.
         ResolveCanDeliver(env, provider: null).ShouldBeTrue();
 
     [Fact]

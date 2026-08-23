@@ -1980,8 +1980,8 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
       språken. Skopa till **`privacy.updated`** — filen har fem `updated`-nycklar
       (privacy/terms/cookies/accessibility/recruiterNotice).
 - [ ] **5.5 TVÅ VILLKOR SOM UPPHÖR VID FÖRSTA PRODUKTIONSANVÄNDAREN — de hör HÄR, inte i
-      §2.5.** Båda accepteras i dag enbart därför att det finns **noll registrerade
-      produktionsanvändare**. **Triggern är den första konfiguration utanför `Development` som
+      §2.5.** Riskaccepten för de två konton som finns bärs av **ADR 0132**.
+      **Triggern är den första konfiguration utanför `Development` som
       sätter `Auth:RegistrationsOpen=true` — oavsett tagg, och `Test` räknas som utanför.**
       (Den tekniska spärren nedan undantar både `Development` och `Test`; den här grinden gör
       det inte. En nåbar host som kör med `ASPNETCORE_ENVIRONMENT=Test` är en produktionsstart
@@ -2009,8 +2009,8 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
       `Email:Provider` är en förutsättning för flippen, och det är precis den som gör
       `ChangeEmailCommandHandler`:s `NullEmailSender`-svälj till ett minne. (a) och den tekniska
       spärren konvergerar alltså på ett enda arbetsmoment — något den gamla tagg-triggern aldrig
-      åstadkom. **(b) gör det inte:** Art. 30-posten för konto/auth kristalliseras vid första
-      verkliga registrerade användaren och bärs av ingen annan mekanism.
+      åstadkom. **(b) gör det inte:** Art. 30-posten för konto/auth bärs av ingen annan
+      mekanism.
       *Not:* `AuthOptionsValidator` vägrar numera boota **Api:n** på två kombinationer utanför
       Development/Test — `RegistrationsOpen` utan `RequireEmailConfirmation`, och (sedan
       2026-08-09) `RegistrationsOpen` MED `RequireEmailConfirmation` när den registrerade
@@ -2105,10 +2105,12 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
         merge-blockerande grind läses som utförd. Var env-konfigurationen faktiskt sätts efter att
         #196 stängdes stod först här som en öppen fråga; den är nu **mätt** och svaret bor i
         punktens eget stycke ovan, inte på en andra plats.)*
-      - **(b) ROPA:n saknar behandling för användarkontot/autentiseringen HELT** (Art. 30(1)).
-        Mätt: nio behandlingar, ingen för konto/auth. Registret är gitignorerat (ADR 0072) och
-        speglar (#1040), så skyldigheten bor här. Den kristalliseras vid **produktionsstart**,
-        inte vid e-postflippen.
+      - **(b) ROPA:n måste bära en behandling för användarkontot/autentiseringen** (Art. 30(1)).
+        Registret är gitignorerat (ADR 0072) och speglar (#1040), så skyldigheten bor här.
+        **URLADDAT 2026-08-23** — posten är införd, adjudicerad av
+        `docs/reviews/2026-08-23-art30-register-filstatus-security.md`. Triggern fyrade
+        **2026-08-16**, inte i framtiden: villkoret var alltså öppet under det fönstret, bundet
+        av ADR 0132. Villkor (a) står kvar — 5.5 är inte urladdad.
       Bocka aldrig 5.5 på att §2.5 är ogrindad — det är två olika trigger.
 - [ ] **6. Tidsordning — två olika fall, blanda dem inte:**
       - **(a) Första prod-taggen:** flippen deployas **samtidigt** med

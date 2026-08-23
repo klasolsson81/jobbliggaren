@@ -25,9 +25,8 @@ namespace Jobbliggaren.Application.UnitTests.Email;
 /// <para>
 /// <b>On the non-reserved addresses below.</b> A test that needs a NON-reserved recipient cannot
 /// use RFC 2606/6761 by definition. The send-path cases use the controller's own
-/// <c>jobbliggaren.se</c>; the label-boundary traps cannot be built inside a domain one owns, since
-/// the whole point of each is a reserved name sitting under someone else's. Nothing is ever sent,
-/// and the point of every case is a classification, never a mailbox.
+/// <c>jobbliggaren.se</c>. Nothing is ever sent, and the point of every case is a
+/// classification, never a mailbox.
 /// </para>
 /// </summary>
 public class ConsoleEmailSenderReservedRecipientTests
@@ -256,7 +255,7 @@ public class ConsoleEmailSenderReservedRecipientTests
     // A reserved name as a whole label in the MIDDLE, which is the only shape that separates
     // EndsWith from Contains. Without these two rows both `EndsWith` calls can be swapped for
     // `Contains` and the whole suite still passes, while `jobbliggaren.test.se` and
-    // `sub.example.com.evil.se` — live, registrable names — would be handed the whole body.
+    // `sub.example.com.evil.se` — registrable names — would be handed the whole body.
     [InlineData("probe@jobbliggaren.test.se")]
     [InlineData("probe@sub.example.com.evil.se")]
     // Fail-closed on anything unparseable.

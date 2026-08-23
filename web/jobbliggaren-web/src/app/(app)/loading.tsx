@@ -4,10 +4,8 @@ import { PageHeroSkeleton } from "@/components/skeletons/page-hero-skeleton";
 /**
  * Group-level fallback loading state for the whole `(app)` area (#739 — finding
  * `p1-no-loading-tsx-any-primary-route` P0). Segments with their own `loading.tsx`
- * (jobb, oversikt, ansokningar, cv, the two [id] detail routes) override this; the
- * rest — matchningar, foretag, installningar, sokningar, sparade, statistik,
- * aktivitetsrapport, ny-ansokan — fall back to this net so no primary navigation
- * is ever a dead click.
+ * override this; the rest fall back to this net so no primary navigation is ever a
+ * dead click.
  *
  * A generic pagehero + a light section shape. Applies only to the `children`
  * slot; the `@modal` parallel-route slot keeps its own intercept loading states,

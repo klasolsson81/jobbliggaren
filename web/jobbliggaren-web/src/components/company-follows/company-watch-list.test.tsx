@@ -270,7 +270,7 @@ describe("CompanyWatchList — vilande filter-disclosure (BC-9′)", () => {
   });
 
   it("endast matchande → 'Filtrerat: endast matchande annonser'", () => {
-    renderList([filtered({ municipalities: [], regions: [], onlyMatched: true })]);
+    renderList([filtered({ municipalities: [], regions: [], onlyMatched: true, remote: false })]);
 
     expect(
       screen.getByText("Filtrerat: endast matchande annonser")
@@ -283,6 +283,7 @@ describe("CompanyWatchList — vilande filter-disclosure (BC-9′)", () => {
         municipalities: ["m_sthlm", "m_gbg"],
         regions: [],
         onlyMatched: false,
+        remote: false,
       }),
     ]);
     expect(screen.getByText("Filtrerat: 2 orter")).toBeInTheDocument();
@@ -290,7 +291,7 @@ describe("CompanyWatchList — vilande filter-disclosure (BC-9′)", () => {
     rerender(
       <CompanyWatchList
         items={[
-          filtered({ municipalities: ["m_gbg"], regions: [], onlyMatched: false }),
+          filtered({ municipalities: ["m_gbg"], regions: [], onlyMatched: false, remote: false }),
         ]}
         regions={regions}
       />
@@ -304,6 +305,7 @@ describe("CompanyWatchList — vilande filter-disclosure (BC-9′)", () => {
         municipalities: ["m_gbg"],
         regions: ["r_sthlm"],
         onlyMatched: true,
+        remote: false,
       }),
     ]);
 
@@ -318,11 +320,37 @@ describe("CompanyWatchList — vilande filter-disclosure (BC-9′)", () => {
     // would report a selection the user never made. `municipalities.length + regions.length` is the
     // only honest count: a whole-län pick IS one choice, and it is stored as one län concept-id.
     renderList([
-      filtered({ municipalities: [], regions: ["r_sthlm"], onlyMatched: false }),
+      filtered({ municipalities: [], regions: ["r_sthlm"], onlyMatched: false, remote: false }),
     ]);
 
     expect(screen.getByText("Filtrerat: 1 ort")).toBeInTheDocument();
     expect(screen.queryByText("Filtrerat: 2 orter")).toBeNull();
+  });
+
+  it("DISTANS räknas som en egen ort — ett distans-only-filter är aldrig \"0 orter\"", () => {
+    // #551 PR-C. Distans är den tredje granulariteten på ort-axeln, och husets egen copy säger
+    // det ordagrant: "Räknas som en egen ort" (ortDistansHint). Innan axeln nådde räknaren gav
+    // ett distans-only-filter "Filtrerat: 0 orter" — ett filter som finns, beskrivet som noll
+    // orter, i just den rad som annars är hela signalen om att raden ÄR filtrerad.
+    renderList([
+      filtered({ municipalities: [], regions: [], onlyMatched: false, remote: true }),
+    ]);
+
+    expect(screen.getByText("Filtrerat: 1 ort")).toBeInTheDocument();
+    expect(screen.queryByText("Filtrerat: 0 orter")).toBeNull();
+  });
+
+  it("distans adderas till de två andra granulariteterna, den ersätter dem inte", () => {
+    renderList([
+      filtered({
+        municipalities: ["m_gbg"],
+        regions: ["r_sthlm"],
+        onlyMatched: false,
+        remote: true,
+      }),
+    ]);
+
+    expect(screen.getByText("Filtrerat: 3 orter")).toBeInTheDocument();
   });
 
   it("OFILTRERAD bevakning → INGEN disclosure alls (ingen 'Inget filter'-rad, ingen tom chip)", () => {
@@ -344,7 +372,7 @@ describe("CompanyWatchList — vilande filter-disclosure (BC-9′)", () => {
     // The disclosure is not part of the matching view — it is the resting state of the row. If it
     // were gated on the toggle, a user in "Alla annonser" would never learn their notifications are
     // narrowed.
-    renderList([filtered({ municipalities: [], regions: [], onlyMatched: true })]);
+    renderList([filtered({ municipalities: [], regions: [], onlyMatched: true, remote: false })]);
     const user = userEvent.setup();
 
     await user.click(screen.getByRole("radio", { name: "Alla annonser" }));
@@ -357,7 +385,7 @@ describe("CompanyWatchList — vilande filter-disclosure (BC-9′)", () => {
   it("disclosuren bär en företags-bärande hjälp-trigger som förklarar att RÄKNARNA inte är filtrerade", async () => {
     // RF-8: the counts answer "does this employer post ads I match?" (a follow DECISION), the filter
     // answers "which of them should notify me". The InfoDialog is the only place that says so.
-    renderList([filtered({ municipalities: ["m_gbg"], regions: [], onlyMatched: false })]);
+    renderList([filtered({ municipalities: ["m_gbg"], regions: [], onlyMatched: false, remote: false })]);
     const user = userEvent.setup();
 
     await user.click(
@@ -374,7 +402,7 @@ describe("CompanyWatchList — vilande filter-disclosure (BC-9′)", () => {
 
   it("disclosuren läcker aldrig org.nr (maskerad rad förblir maskerad)", () => {
     const { container } = renderList([
-      { ...soleProp, filter: { municipalities: ["m_gbg"], regions: [], onlyMatched: true } },
+      { ...soleProp, filter: { municipalities: ["m_gbg"], regions: [], onlyMatched: true, remote: false } },
     ]);
 
     expect(
@@ -402,7 +430,7 @@ describe("CompanyWatchList — 'Filtrera'-knappen öppnar filter-dialogen", () =
 
   it("klick öppnar dialogen förladdad med bevakningens filter", async () => {
     renderList([
-      { ...legalEntity, filter: { municipalities: [], regions: [], onlyMatched: true } },
+      { ...legalEntity, filter: { municipalities: [], regions: [], onlyMatched: true, remote: false } },
     ]);
     const user = userEvent.setup();
 

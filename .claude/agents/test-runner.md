@@ -273,18 +273,18 @@ Coverage: 84% (Domain: 91%, Application: 79%)
 ### Failures
 
 **[Assertion failure]** `JobAdTests.Archive_ShouldRaiseDomainEvent_WhenStatusChanges`
-**Fil:** tests/Jobbliggaren.Domain.UnitTests/JobAds/JobAdTests.cs:62
+**Fil:** tests/Jobbliggaren.Domain.UnitTests/JobAds/JobAdTests.cs
 **Typ:** Assertion failure
 **Förväntat:** DomainEvents innehåller JobAdArchivedEvent
 **Faktiskt:** DomainEvents är tom (0 events)
 **Stack trace (relevant):**
-  JobAdTests.cs:62 jobAd.DomainEvents.ShouldContain(e => e is JobAdArchivedEvent)
+  JobAdTests.cs jobAd.DomainEvents.ShouldContain(e => e is JobAdArchivedEvent)
   → ShouldBeException: Should contain an element matching the predicate
 **Föreslagen åtgärd:** Production bug — JobAd.Archive() höjer inte domain event.
 Klas fixar i src/Jobbliggaren.Domain/JobAds/JobAd.cs.
 
 **[Assertion failure]** `CreateJobAdCommandHandlerTests.Handle_ShouldReturnValidationError_WhenTitleIsEmpty`
-**Fil:** tests/Jobbliggaren.Application.UnitTests/JobAds/Commands/CreateJobAd/CreateJobAdCommandHandlerTests.cs:41
+**Fil:** tests/Jobbliggaren.Application.UnitTests/JobAds/Commands/CreateJobAd/CreateJobAdCommandHandlerTests.cs
 **Typ:** Missing coverage / test for unimplemented path
 **Förväntat:** ValidationException kastas
 **Faktiskt:** Test kompilerar inte — CreateJobAdCommand saknar validation

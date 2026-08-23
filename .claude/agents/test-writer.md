@@ -273,7 +273,7 @@ Every entity that contains PII must have tests covering:
 - User mentions: "skriv test", "TDD", "testa detta", "unit test",
   "integration test", "test coverage"
 
-**Auto (hook-based):**
+**Auto:**
 - New file created in `src/Jobbliggaren.Domain/**/*.cs` → write unit tests
 - New file in `src/Jobbliggaren.Application/**/*Handler.cs` → write handler tests
 - New value object in `src/Jobbliggaren.Domain/<Feature>/` (value objects sit beside their aggregate, in no directory of their own)
@@ -301,8 +301,8 @@ Every entity that contains PII must have tests covering:
 When test-writer creates test files:
 
 **1.** Create the test file in the correct location:
-- Unit tests: `tests/Jobbliggaren.<Layer>.UnitTests/<Feature>/<EntityName>Tests.cs` (`<Layer>` is Domain, Application or Migrate, and it names the project, not a directory inside it)
-- Integration tests: `tests/Jobbliggaren.Api.IntegrationTests/<Feature>/` for endpoint and HTTP flows, `tests/Jobbliggaren.Worker.IntegrationTests/<Feature>/` for job and background flows
+- Unit tests: `tests/Jobbliggaren.<Layer>.UnitTests/<Feature>/.../<ClassUnderTest>Tests.cs` (`<Layer>` is Domain, Application or Migrate, and it names the project, not a directory inside it). The `<Feature>/` level is required; mirroring the `Commands/<Name>/` level below it is optional, and the repo carries both forms
+- Integration tests: `tests/Jobbliggaren.Api.IntegrationTests/<Feature>/` when the test composes the API host (`ApiFactory`), `tests/Jobbliggaren.Worker.IntegrationTests/<Feature>/` when it composes the Worker host (`WorkerTestFixture`). The host decides, not the transport: the two projects reference disjoint composition roots
 - Namespace = the test project name plus the folder path below it (`Jobbliggaren.Domain.UnitTests.JobAds`), not the `src/` namespace
 
 **2.** Report in Swedish:

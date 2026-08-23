@@ -28,6 +28,8 @@ mkproj() {
   mkdir -p "$d/deploy"
   : >"$d/BUILD.md"
   : >"$d/deploy/docker-compose.yml"
+  : >"$d/docker-compose.yml"
+  : >"$d/deploy/.env.example"
   git -C "$d" init -q
   git -C "$d" add -A >/dev/null
   printf '%s' "$d"
@@ -113,13 +115,26 @@ run timespan_wire_form 1 "$d"
 # ==========================================================================================
 # 4. Honest text that MUST NOT fire — the four ways this predicate could become useless
 # ==========================================================================================
-# (a) A retention duration with nothing to do with Seq.
+# (a) A retention duration with nothing to do with Seq. THE CASE HAS TO CROSS THE PREDICATE TO
+#     MEAN ANYTHING: "90 dagars" must match DURATION_RE, so that passing measures Seq-ABSENCE
+#     rather than a non-matching string failing to match. An earlier revision of this fixture was
+#     vacuous for exactly that reason — the inflected form slipped the pattern, so the case
+#     asserted nothing. The two probes below pin the crossing itself.
 d=$(mkproj unrelated)
 put "$d" BUILD.md <<'EOF'
 `audit_log` är partitionerad per dag med 90 dagars retention och egen policyrad.
 EOF
 stage "$d"
 run unrelated_retention_duration 0 "$d"
+
+# ...and the SAME line with a Seq mention added must fire. If this passed, case (a) above would
+# be proving nothing.
+d=$(mkproj unrelated_crossed)
+put "$d" BUILD.md <<'EOF'
+Seq och `audit_log` är partitionerade per dag med 90 dagars retention.
+EOF
+stage "$d"
+run unrelated_control_actually_crosses 1 "$d"
 
 # (b) THE COLLISION TRAP. "27d" is this repo's verification-ROW identifier, and BUILD.md really
 #     does carry one within three lines of a Seq retention sentence. An earlier revision of the
@@ -166,6 +181,78 @@ stage "$d"
 run seq_adjacent_non_retention_duration 1 "$d"
 
 # ==========================================================================================
+# 4b. INFLECTION AND CASE — the seven forms an earlier revision let through
+# ==========================================================================================
+# "30 dagars" is house idiom and appeared in THIS file while the guard could not see it.
+i=0
+for form in "30 dagars" "30 dygns" "30 dagarna" "30 DAGAR" "30 Days" "30 D" "4 veckor"; do
+  i=$((i + 1))
+  d=$(mkproj "inflect$i")
+  printf 'Seq behåller sin korpus i %s innan den rensas.\n' "$form" >"$d/BUILD.md"
+  stage "$d"
+  run "inflected_form_${i}" 1 "$d"
+done
+
+# ==========================================================================================
+# 4c. .env.example is in scope, and the underscore forms reach it
+# ==========================================================================================
+d=$(mkproj envfile)
+put "$d" deploy/.env.example <<'EOF'
+# Structured log sink. SEQ_SERVER_URL attaches the provider; retention is 30 dagar.
+EOF
+stage "$d"
+run env_example_is_scoped 1 "$d"
+
+# The env-key form must count as a Seq mention on its own — the underscore is deliberately NOT
+# a boundary character. This is the probe that justified dropping it.
+d=$(mkproj underscore_key)
+put "$d" deploy/.env.example <<'EOF'
+SEQ_SERVER_URL=http://seq:5341
+filler one
+filler two
+The sink keeps events for 30 days.
+EOF
+stage "$d"
+run underscore_env_key_counts_as_seq 1 "$d"
+
+# ...and so must the volume name, which sits in compose's own Seq comment.
+d=$(mkproj volume_token)
+put "$d" deploy/docker-compose.yml <<'EOF'
+  # seq_data holds the event store and is trimmed after 30 dagar.
+EOF
+stage "$d"
+run seq_data_volume_counts_as_seq 1 "$d"
+
+# THE CONTROL THAT MUST EXIST BECAUSE THE MECHANISM PROTECTING IT CHANGED. `enable_seqscan` was
+# excluded by the underscore boundary before; now it survives only because the "s" of "scan"
+# follows "seq" directly and fails the closing boundary. Different mechanism, same verdict.
+d=$(mkproj seqscan)
+put "$d" BUILD.md <<'EOF'
+`CountWithBitmapPlanAsync` sätter `SET LOCAL enable_seqscan = off` för count-vägar,
+och planen räknas om efter 30 dagar av statistikdrift.
+EOF
+stage "$d"
+run enable_seqscan_is_not_a_seq_mention 0 "$d"
+
+# The dev compose is the UPSTREAM SOURCE of the production claim, not a lesser copy of it.
+d=$(mkproj rootcompose)
+put "$d" docker-compose.yml <<'EOF'
+  # seq (dev): UI on 5341, ingestion on 5342, 30 dagars retention.
+EOF
+stage "$d"
+run root_compose_is_scoped 1 "$d"
+
+# 4d. THE FALSE POSITIVES AN OPEN STEM PRODUCED — a diary is not a duration.
+i=0
+for form in "30 dagboken" "30 dagbok" "3 monthly" "4 veckoschema"; do
+  i=$((i + 1))
+  d=$(mkproj "notaduration$i")
+  printf 'Seq skriver %s i sin egen katalog och det är inte en lagringstid.\n' "$form" >"$d/BUILD.md"
+  stage "$d"
+  run "open_stem_false_positive_${i}" 0 "$d"
+done
+
+# ==========================================================================================
 # 5. The window is pinned, not assumed
 # ==========================================================================================
 d=$(mkproj win3)
@@ -200,6 +287,11 @@ run missing_scoped_path_fails_closed 1 "$d"
 d=$(mkproj untracked_compose)
 git -C "$d" rm --cached deploy/docker-compose.yml >/dev/null 2>&1 || true
 run untracked_scoped_path_fails_closed 1 "$d"
+
+# .env.example carries the same refusal — a rename there must not pass vacuously either.
+d=$(mkproj untracked_envfile)
+git -C "$d" rm --cached deploy/.env.example >/dev/null 2>&1 || true
+run untracked_env_example_fails_closed 1 "$d"
 
 # ==========================================================================================
 # 7. THE DELIVERY, NOT A FIXTURE OF IT

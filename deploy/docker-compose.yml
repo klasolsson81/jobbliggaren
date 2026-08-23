@@ -36,9 +36,8 @@ name: jobbliggaren-prod
 # a lifecycle rule that is NOT yet created); and this — bounded by VOLUME and by nothing else.
 #
 # WHETHER EITHER OF THE FIRST TWO IS IN FORCE IS A MEASUREMENT, NOT A PROPERTY OF THIS FILE, and
-# it has one home: log-sink.md §4. Read that row before treating either as a bound. An earlier
-# revision of this line said the Seq policy was "set inside Seq" — it was not, on any box, and
-# nothing in this file could have told you otherwise (#1170).
+# it has one home: log-sink.md §4. Read that row before treating either as a bound; why this line
+# stopped asserting it is ADR 0024's Amendment 2026-08-23 (#1170).
 # A quiet container still keeps its 30 MB for months, so retention time here stays undefined.
 # That is what keeps #1170 open: demoting this layer is what finally makes a smaller max-size
 # defensible, but the number needs a write rate and there is no write rate until there are

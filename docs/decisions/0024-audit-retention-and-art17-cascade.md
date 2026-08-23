@@ -336,7 +336,7 @@ Audit-tabellen anonymiseras via `IAuditTrailEraser` efter 30-dagars restore-fön
 
 Tre policyer:
 
-**1. App-logg-retention: 30 dagar (CloudWatch LogGroup retention).**
+**1. App-logg-retention: 30 dagar (CloudWatch LogGroup retention).** — *se Amendment 2026-08-23: mekanismen revs av ADR 0066, efterträdaren är en handsatt Seq-policy utan konfigurationsyta, och talet är oförändrat. Den är inte satt på produktionslådan.*
 
 Matchar Art. 17 restore-fönstret från D5/D6. Efter 30 dagar är användarens audit-rad anonymiserad och konton hard-deletad — då ska app-loggens IP/UA/EmailHash inte heller vara åtkomliga. Ren GDPR Art. 5(1)(c) data-minimisation-story.
 
@@ -368,7 +368,7 @@ Både `RequestContextProvider` och `AuthAuditLogger` injicerar `IIpAnonymizer`. 
 
 Defense-in-depth-motivering: retention-policy (1) skyddar inte mot logg-läckage *under* retention-fönstret. Ops-personal med CloudWatch-access kan korrelera under 30 dagar utan maskningen.
 
-**3. EmailHash → HMAC med roterande nyckel: defererat till Fas 2.**
+**3. EmailHash → HMAC med roterande nyckel: defererat till Fas 2.** — *se Amendment 2026-08-23: deferralens motivering nedan vilar på policy 1, som saknar bärare. Deferralen återöppnas inte där, men beroendet är inte längre outtalat.*
 
 `LoginCommandHandler.HashEmail` använder rå SHA-256 (deterministic). Samma email → samma hash över tid → korrelerbar. HMAC med roterande nyckel hade brutit korrelationen, men kräver KMS-integration + nyckel-arkiv för att verifiera historiska hashar (audit-paritet vid restore). Inte trivialt i Fas 1 — 30-dagars retention minimerar korrelations-fönstret tillräckligt.
 
@@ -761,6 +761,7 @@ The instrument, its controls and the command that regenerates the figure have **
 - **D7 policy 1 itself.** Setting the policy is an operator write on the box, and Klas withheld GO for it in this session's scope. #1170 stays open on exactly that.
 - **D7 policy 3's rationale.** Its deferral of HMAC rests on policy 1 — *"30-dagars retention minimerar korrelations-fönstret tillräckligt"*. While policy 1 is unimplemented that justification is unsupported. The deferral is **not** re-opened here; the dependency is recorded so the next reader does not inherit it as settled.
 - **The `json-file` layer's age bound.** It is age-unbounded by driver design, and it is the only layer holding application events today. That is #1170's other half and ADR 0128 §4's stated non-closure.
+- **ADR 0128 itself.** Its §4 still reads *"Three layers hold app events now, and only two are age-bounded: Seq (30-day policy)"* — the same present-tense claim this amendment retracts, and false in both halves as of the measurement. It is gitignored, so it cannot ride this PR; it is corrected in the main copy alongside the processing register. Named here because §4 below sends a reader toward it.
 
 **D7 policy 2 (`IIpAnonymizer`, IP /24+/48 masking) is live and unaffected** — `AuthAuditLogger` injects it. Its own text calls it defense-in-depth *for the case where retention fails*; that case is now the operative one rather than the hypothetical one.
 
@@ -768,8 +769,8 @@ The instrument, its controls and the command that regenerates the figure have **
 
 ADR 0128 (the two-mechanism log-sink decision) and `docs/runbooks/gdpr-processing-register.md` describe this ground more fully, and **both are gitignored** (ADR 0072; 0005 + 0071 and up). A number defended under Art. 5(1)(e) must not have its only ground in a file the repo does not carry — the trap ADR 0050 names in its own G3 discussion. The tracked landing points are BUILD.md §3.2 and §13, `docs/runbooks/log-sink.md` §3 and §4, and ADR 0050's G3 note assigning the `json-file` layer to #1170.
 
-### Disciplin
+### 5. Discipline
 
-Additive amendment. The original text and every prior amendment stand unaltered; D7's three policies are unchanged in substance. Docs-sync ships in the same PR as scope (ADR 0065) — no docs-only PR.
+Additive amendment. Every prior amendment stands unaltered, and D7's three policies are unchanged in substance; the two forward pointers added at policies 1 and 3 follow ADR 0045's precedent, where the driven row was edited in the same PR as the amendment that drove it. Docs-sync ships in the same PR as scope (ADR 0065) — no docs-only PR.
 
 **Referenser:** #1170, #1175, #1198, ADR 0050 (G3), ADR 0066 (Beslut 1 + Relation), ADR 0072, ADR 0128 (gitignored), `docs/runbooks/log-sink.md` §3/§4, GDPR Art. 5(1)(c)/5(1)(e)/30, CLAUDE.md §5/§9.6/§11.

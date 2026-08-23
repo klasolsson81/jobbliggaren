@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { SiteHeader } from "./site-header";
 import type { LandingStats } from "@/components/landing/landing-stats-format";
 
@@ -117,6 +117,22 @@ describe("SiteHeader — the landing surface (stats slot)", () => {
     expect(
       screen.queryByRole("button", { name: /Logga in|Skapa konto/i }),
     ).not.toBeInTheDocument();
+  });
+
+  it("keeps the stats cluster OUT of the nav landmark", () => {
+    // The div-vs-nav assertion in the block above only catches that exact revert.
+    // This one crosses the threshold its comment claims: a refactor that moves
+    // .jp-head__stats INTO the <nav> while .jp-head__inner stays a <div> passes
+    // there and fails here.
+    renderLanding(STATS_MOCK);
+    const nav = screen.getByRole("navigation", { name: "Webbplatsnavigation" });
+    expect(within(nav).queryByRole("group")).toBeNull();
+    expect(nav.querySelector(".jp-head__stats")).toBeNull();
+    // ...and the cluster DOES render on this surface, so the absence above is a
+    // separation, not a vacuous pass on a header that has no stats at all.
+    expect(
+      screen.getByRole("group", { name: "Aktiva annonser i Jobbliggaren" }),
+    ).toBeInTheDocument();
   });
 
   it("names the live-stats cluster via role=group (not aria-label on a role=generic div) — #609", () => {

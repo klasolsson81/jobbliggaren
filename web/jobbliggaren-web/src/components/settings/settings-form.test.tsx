@@ -373,6 +373,14 @@ describe("SettingsForm — the direct-apply outcome lands on the control that st
     // The segment is disabled while the save is pending, which drops focus to <body> in a real
     // browser, and Segment's own restore effect is gated on the group already holding focus.
     // Without this the message is announced but the control it names is unreachable.
+    //
+    // The blur is what makes this pin discriminate. jsdom does not blur on `disabled`, and
+    // `user.click` leaves focus inside the group, so without it Segment's OWN [value] restore
+    // effect re-focuses the checked button on the revert and the assertion holds with this
+    // card's effect deleted. Blurring reproduces the browser's disabled-blur, and Segment's
+    // restore is gated on the group already holding focus, so only this card's effect can
+    // bring it back. The real timing is measured in Chromium, in
+    // docs/reviews/2026-08-23-1391-rendered-measurement.md.
     updateMyProfileActionMock.mockResolvedValue({
       success: false,
       error: "Kunde inte na servern.",
@@ -382,12 +390,47 @@ describe("SettingsForm — the direct-apply outcome lands on the control that st
     const languageGroup = screen.getByRole("radiogroup", { name: "Språk" });
 
     await user.click(screen.getByRole("radio", { name: "English" }));
+    (document.activeElement as HTMLElement | null)?.blur();
+    expect(languageGroup.contains(document.activeElement)).toBe(false);
 
     await screen.findByRole("alert");
     await waitFor(() =>
       expect(languageGroup.contains(document.activeElement)).toBe(true),
     );
     expect(document.activeElement).toHaveAttribute("aria-checked", "true");
+  });
+
+  it("does not pull focus into the language card when a LATER save succeeds", async () => {
+    // `isPending` is one shared transition, so an effect keyed on it alone re-runs on every
+    // release. With a language error still standing, saving the NAME would then drag focus into
+    // the other card — the cross-card misplacement this change exists to close, in focus rather
+    // than in text.
+    updateMyProfileActionMock.mockResolvedValue({
+      success: false,
+      error: "Kunde inte na servern.",
+    });
+    const user = userEvent.setup();
+    renderForm();
+    const languageGroup = screen.getByRole("radiogroup", { name: "Språk" });
+
+    await user.click(screen.getByRole("radio", { name: "English" }));
+    (document.activeElement as HTMLElement | null)?.blur();
+    await screen.findByRole("alert");
+    await waitFor(() =>
+      expect(languageGroup.contains(document.activeElement)).toBe(true),
+    );
+    (document.activeElement as HTMLElement | null)?.blur();
+
+    // Now save the name successfully, with the language error still on screen.
+    updateMyProfileActionMock.mockResolvedValue({ success: true });
+    const nameInput = screen.getByLabelText("Namn");
+    await user.clear(nameInput);
+    await user.type(nameInput, "Anna Andersson");
+    const saveButton = screen.getByRole("button", { name: /Spara/ });
+    await user.click(saveButton);
+
+    await waitFor(() => expect(saveButton).not.toBeDisabled());
+    expect(languageGroup.contains(document.activeElement)).toBe(false);
   });
 
   it("renders the receipt for a saved language in the card that owns the segment", async () => {

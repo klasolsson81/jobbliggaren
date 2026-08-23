@@ -88,7 +88,7 @@ Propose the concrete restructuring, don't just flag.
 ## Triggers
 
 `/design-review [PR]`, user asks for design review, PRs/commits touching
-`web/jobbpilot-web/**/*.tsx|css`, nextjs-ui-engineer signals "component ready",
+`web/jobbliggaren-web/**/*.tsx|css`, nextjs-ui-engineer signals "component ready",
 code-reviewer escalates UI questions.
 
 ## Output format

@@ -460,6 +460,7 @@ describe("setWatchFilter (Bevakning F4b #803) — PUT {id}/filter", () => {
       municipalities: KOMMUN,
       regions: LAN,
       onlyMatched: true,
+      remote: false,
     });
 
     expect(result).toEqual({ kind: "unauthorized" });
@@ -474,6 +475,7 @@ describe("setWatchFilter (Bevakning F4b #803) — PUT {id}/filter", () => {
       municipalities: [],
       regions: [],
       onlyMatched: true,
+      remote: false,
     });
 
     expect(result).toEqual({ kind: "notFound" });
@@ -493,6 +495,7 @@ describe("setWatchFilter (Bevakning F4b #803) — PUT {id}/filter", () => {
       municipalities: KOMMUN,
       regions: LAN,
       onlyMatched: true,
+      remote: true,
     });
 
     const [url, init] = fetchMock.mock.calls[0]!;
@@ -505,6 +508,7 @@ describe("setWatchFilter (Bevakning F4b #803) — PUT {id}/filter", () => {
       municipalities: ["gbg_kn"],
       regions: ["skane_lan"],
       onlyMatched: true,
+      remote: true,
     });
   });
 
@@ -519,6 +523,7 @@ describe("setWatchFilter (Bevakning F4b #803) — PUT {id}/filter", () => {
       municipalities: [],
       regions: [],
       onlyMatched: false,
+      remote: false,
     });
 
     expect(result).toEqual({ kind: "ok", data: undefined });
@@ -526,6 +531,7 @@ describe("setWatchFilter (Bevakning F4b #803) — PUT {id}/filter", () => {
       municipalities: [],
       regions: [],
       onlyMatched: false,
+      remote: false,
     });
   });
 
@@ -533,7 +539,7 @@ describe("setWatchFilter (Bevakning F4b #803) — PUT {id}/filter", () => {
     global.fetch = vi.fn().mockResolvedValue(emptyResponse(204));
 
     expect(
-      await setWatchFilter(VALID_ID, { municipalities: KOMMUN, regions: [], onlyMatched: false })
+      await setWatchFilter(VALID_ID, { municipalities: KOMMUN, regions: [], onlyMatched: false, remote: false })
     ).toEqual({ kind: "ok", data: undefined });
   });
 
@@ -541,7 +547,7 @@ describe("setWatchFilter (Bevakning F4b #803) — PUT {id}/filter", () => {
     global.fetch = vi.fn().mockResolvedValue(emptyResponse(401));
 
     expect(
-      await setWatchFilter(VALID_ID, { municipalities: [], regions: [], onlyMatched: true })
+      await setWatchFilter(VALID_ID, { municipalities: [], regions: [], onlyMatched: true, remote: false })
     ).toEqual({ kind: "unauthorized" });
   });
 
@@ -549,7 +555,7 @@ describe("setWatchFilter (Bevakning F4b #803) — PUT {id}/filter", () => {
     global.fetch = vi.fn().mockResolvedValue(emptyResponse(403));
 
     expect(
-      await setWatchFilter(VALID_ID, { municipalities: [], regions: [], onlyMatched: true })
+      await setWatchFilter(VALID_ID, { municipalities: [], regions: [], onlyMatched: true, remote: false })
     ).toEqual({ kind: "forbidden" });
   });
 
@@ -559,7 +565,7 @@ describe("setWatchFilter (Bevakning F4b #803) — PUT {id}/filter", () => {
     global.fetch = vi.fn().mockResolvedValue(emptyResponse(404));
 
     expect(
-      await setWatchFilter(VALID_ID, { municipalities: KOMMUN, regions: [], onlyMatched: false })
+      await setWatchFilter(VALID_ID, { municipalities: KOMMUN, regions: [], onlyMatched: false, remote: false })
     ).toEqual({ kind: "notFound" });
   });
 
@@ -569,7 +575,7 @@ describe("setWatchFilter (Bevakning F4b #803) — PUT {id}/filter", () => {
     );
 
     expect(
-      await setWatchFilter(VALID_ID, { municipalities: KOMMUN, regions: [], onlyMatched: false })
+      await setWatchFilter(VALID_ID, { municipalities: KOMMUN, regions: [], onlyMatched: false, remote: false })
     ).toEqual({ kind: "rateLimited", retryAfterSeconds: 42 });
   });
 
@@ -577,7 +583,7 @@ describe("setWatchFilter (Bevakning F4b #803) — PUT {id}/filter", () => {
     global.fetch = vi.fn().mockResolvedValue(emptyResponse(400));
 
     expect(
-      await setWatchFilter(VALID_ID, { municipalities: ["inte giltig"], regions: [], onlyMatched: false })
+      await setWatchFilter(VALID_ID, { municipalities: ["inte giltig"], regions: [], onlyMatched: false, remote: false })
     ).toEqual({ kind: "error" });
   });
 
@@ -585,7 +591,7 @@ describe("setWatchFilter (Bevakning F4b #803) — PUT {id}/filter", () => {
     global.fetch = vi.fn().mockRejectedValue(new Error("boom"));
 
     expect(
-      await setWatchFilter(VALID_ID, { municipalities: KOMMUN, regions: LAN, onlyMatched: true })
+      await setWatchFilter(VALID_ID, { municipalities: KOMMUN, regions: LAN, onlyMatched: true, remote: false })
     ).toEqual({ kind: "error" });
   });
 });

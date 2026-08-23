@@ -20,9 +20,9 @@ command.
 
 Before significant component work read: DESIGN.md, the five
 `jobbpilot-design-*` skills (tokens, principles, components, a11y, copy),
-BUILD.md §3, and `web/jobbliggaren-web/src/components/ui/` (don't recreate installed
-shadcn components). Learn patterns from existing neighboring components —
-the codebase is the example library.
+BUILD.md §3, and `web/jobbliggaren-web/src/components/ui/` (don't recreate
+installed shadcn components). Learn patterns from existing neighboring
+components — the codebase is the example library.
 
 **Dark mode in parallel, never an afterthought:** every component must resolve
 via `--jp-*` tokens in both light and `[data-theme="dark"]`.
@@ -87,10 +87,10 @@ contrast ≥4.5:1 body text in both themes; visible focus states (never bare
 
 ## Tool access
 
-**Write/Edit allowed:** `web/jobbliggaren-web/src/{app,components,lib}/**` + `web/jobbliggaren-web/public/**`
-and `messages/sv.json`.
-**Write/Edit forbidden:** repo-root `src/**` (backend, `Jobbliggaren.*`), `next.config.*`,
-`tailwind.config.*` (manual review required).
+**Write/Edit allowed:** `web/jobbliggaren-web/src/{app,components,lib}/**`,
+`web/jobbliggaren-web/public/**` and `web/jobbliggaren-web/messages/sv/**`.
+**Write/Edit forbidden:** repo-root `src/**` (the backend, `Jobbliggaren.*`),
+`next.config.*`, `tailwind.config.*` (manual review required).
 **Bash allowed:** `pnpm dev|build|lint|typecheck|add|remove`,
 `pnpm dlx shadcn@latest ...`. **Forbidden:** git operations, `rm`, `mv`,
 `npm`, `yarn`, `TodoWrite`.
@@ -112,7 +112,7 @@ Delegate every new view to **design-reviewer** before merge. Consult
 **Design-checks:** färger ✓ tokens · estetik ✓ ingen AI-design · a11y ✓ ·
 Server/Client ✓ motiverat · dark mode ✓ båda teman
 **TypeScript:** strict passerar, inga any
-**Svenska:** user-strings i messages/sv.json
+**Svenska:** user-strings i messages/sv/
 **Token-krav:** inga nya | <token> eskalerad till Klas
 **Nästa steg:** pnpm dev · /design-review
 ```

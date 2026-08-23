@@ -7,7 +7,7 @@ description: >
   localizing UI strings. Triggers on: copy, text, svenska, swedish, microcopy,
   message, error, empty state, tooltip, placeholder, label, button text,
   notification, toast, confirm, locale, datum, tid, valuta, i18n,
-  messages/sv.json.
+  messages/sv/.
 ---
 
 # JobbPilot Design Copy

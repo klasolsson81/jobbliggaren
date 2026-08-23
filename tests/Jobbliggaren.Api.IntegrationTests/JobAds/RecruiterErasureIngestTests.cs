@@ -1504,7 +1504,7 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
     /// Her stated match preferences are matched on that jsonb column alone. The write path gates the
     /// SHAPE of each element and resolves no concept-id against any taxonomy, which is the identical
     /// false ground #1425 closed one table over.
-    /// <b>Mutation:</b> delete the <c>match_preferences::text</c> disjunct.
+    /// <b>Mutation:</b> delete the <c>match_preferences</c> disjunct.
     /// </summary>
     [Fact]
     public async Task MATCH_PREFERENCES_are_matched_on_that_column_ALONE()
@@ -1533,7 +1533,7 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
     /// command, no guard in <c>UpdatePreferences</c>, no factory on the record, and no
     /// <c>varchar(N)</c> because it lives inside jsonb. That is why the container is searched whole
     /// rather than by key.
-    /// <b>Mutation:</b> delete the <c>preferences::text</c> disjunct.
+    /// <b>Mutation:</b> delete the <c>preferences</c> disjunct.
     /// </summary>
     [Fact]
     public async Task The_preferences_containers_unvalidated_LANGUAGE_is_matched_on_that_column_ALONE()
@@ -1942,13 +1942,10 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
     /// <b>Mutation:</b> replace the pattern with a bare wildcard on either saved-search disjunct.
     /// </summary>
     /// <remarks>
-    /// ⚠ <b>The neutral rows must carry a <c>Q</c>, and the aggregate's own invariant does NOT
-    /// guarantee one.</b> <c>SearchCriteria.Create</c> demands one non-empty list OR <c>Q</c> OR
-    /// <c>remote</c> — and <c>Remote</c> is a boolean, <c>SortBy</c> a number, so a valid
-    /// <c>remote: true</c>-only document yields ten <c>$.**</c> rows and <b>zero</b> string ones
-    /// (measured against PG 18). <c>jsonb_path_query</c> would then exclude the neutral rows before
-    /// the pattern was consulted and a bare wildcard would leave this fact green — the vacuity that
-    /// disarmed two of #1435's own controls.
+    /// The neutral rows are reachable by a bare wildcard, which is what makes this control a control:
+    /// the arm admits every SCALAR, so <c>Remote</c> and <c>SortBy</c> alone would already expose a
+    /// widened pattern. The vacuity that disarmed two of #1435's controls needed the narrower
+    /// <c>= 'string'</c> predicate to bite, and this arm does not use one.
     /// </remarks>
     [Fact]
     public async Task Only_the_seeded_saved_search_is_counted_while_two_neutral_ones_are_NOT()
@@ -2036,8 +2033,9 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
 
     /// <summary>
     /// The uploaded CV's file name. <c>PersonnummerRedactor</c> masks this column, but its detector
-    /// is date- and Luhn-gated, so an AB org.nr is never a candidate and this value survives
-    /// verbatim — which is what leaves the written form reachable and unmatched.
+    /// is date- and Luhn-gated, and <see cref="PnrShapedOrgNr"/> is Luhn-INVALID by construction —
+    /// that is what leaves this value standing verbatim, not the fact that an AB org.nr would also
+    /// pass. The written form is therefore reachable and, before this change, unmatched.
     /// <b>Mutation:</b> as above.
     /// </summary>
     [Fact]
@@ -2088,6 +2086,13 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
                 "the ingest must STORE the hyphenated form, or the arm below is being tested "
                 + "against a state src/ does not produce. JobAdFacets.Normalize trims and nothing "
                 + "else, and the ACL passes the wire value straight through.");
+
+            // The payload is purged through the JOB, the named production actor, because the
+            // sanitizer's allowlist keeps `employer.organization_number` — so while raw_payload
+            // stands, the value walk selects this row on `%550928-1234%` whatever the org.nr arm
+            // does, and the fact cannot fail its own mutation. Purging leaves the materialised
+            // column as the sole carrier, which is the exact scenario the arm is motivated by.
+            await PurgeRawPayloadsThroughTheJobAsync(db, ct);
         }
 
         var probe = await EraseAsync("5509281234", ct, dryRun: true);
@@ -2146,8 +2151,62 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
             + "concept-id, so the string survives in raw_payload alone — in the form it arrived in.");
     }
 
+    /// <summary>
+    /// <b>The free-text ad columns take written forms too, and nothing else reaches them.</b> The
+    /// org.nr sits in the DESCRIPTION of an ad whose own <c>organization_number</c> is a different
+    /// company, so neither the exact arm nor the payload walk can fire for it — measured on the dev
+    /// corpus, <c>description</c> carries 34 hyphenated and 922 bare forms against an
+    /// <c>organization_number</c> populated on only 59 % of ads.
+    /// <b>Mutation:</b> replace <c>WrittenFormPatterns(identifier)</c> with
+    /// <c>[LikePattern(identifier)]</c>.
+    /// </summary>
+    [Fact]
+    public async Task A_WRITTEN_FORM_in_the_ad_DESCRIPTION_is_reached_and_shown_FLAGGED()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await IngestOneAdWithDescriptionAsync(
+            "Frågor besvaras av innehavaren, org.nr 550928-1234, vardagar.", ct);
+
+        using (var scope = _provider.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            await PurgeRawPayloadsThroughTheJobAsync(db, ct);
+        }
+
+        var probe = await EraseAsync("5509281234", ct, dryRun: true);
+
+        probe.Matched.JobAds.ShouldBe(1,
+            "the description holds the hyphenated form and the ad's own organization_number is a "
+            + "different company, so only the written-form widening of the free-text arm reaches it.");
+
+        var match = probe.Matches.Single();
+        match.MatchedChannel.ShouldBe(ErasureMatchChannel.Description);
+        match.MatchedExcerpt.ShouldContain("550928-1234",
+            customMessage: "the operator sees the form that actually matched, not the one she typed.");
+        match.MatchedExcerpt.ShouldEndWith("(personnummer-format)",
+            customMessage: "ADR 0087 D8(c) reaches the free-text channels too — the flag is not the "
+            + "org.nr channel's alone, and an excerpt is a display projection.");
+    }
+
     private const string WrittenFormOrgNrExternalId = "erasure-e2e-1448-orgnr";
     private const string WrittenFormPayloadExternalId = "erasure-e2e-1448-payload";
+    private const string WrittenFormDescriptionExternalId = "erasure-e2e-1448-desc";
+
+    /// <summary>
+    /// Ingests ONE ad whose DESCRIPTION carries the caller's text, under an
+    /// <c>organization_number</c> belonging to a different company.
+    /// </summary>
+    private Task IngestOneAdWithDescriptionAsync(string description, CancellationToken ct) =>
+        IngestPayloadAsync($$"""
+            [{
+              "id": "{{WrittenFormDescriptionExternalId}}",
+              "headline": "Snickare sökes",
+              "description": { "text": "{{description}}" },
+              "employer": { "name": "Lindqvist Bygg", "organization_number": "5566778899" },
+              "webpage_url": "https://arbetsformedlingen.se/platsbanken/annonser/{{WrittenFormDescriptionExternalId}}",
+              "publication_date": "2026-07-06T10:00:00Z"
+            }]
+            """, ct);
 
     /// <summary>
     /// Ingests ONE ad, through the real <c>PlatsbankenJobSource</c> and the real sanitizer, whose
@@ -2204,9 +2263,7 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
 
     /// <summary>
     /// Seeds a saved search through <see cref="SearchCriteria.Create"/> + <see cref="SavedSearch.Create"/>
-    /// — the two factories all three write handlers funnel into. <paramref name="q"/> or
-    /// <paramref name="occupationGroup"/> must produce at least one STRING value in the document, or
-    /// <c>jsonb_path_query</c>'s strictness excludes the row before any pattern is consulted.
+    /// — the two factories all three write handlers funnel into.
     /// </summary>
     private async Task SeedSavedSearchAsync(
         string name, IEnumerable<string>? occupationGroup, string? q, CancellationToken ct)
@@ -3024,13 +3081,44 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
     }
 
     /// <summary>
+    /// <b>Backslash is Postgres's DEFAULT LIKE escape, and every arm now depends on it.</b>
+    /// <c>LIKE ANY(array)</c> is the only form that compares one value against a whole pattern array,
+    /// and it admits no <c>ESCAPE</c> clause — so the escape is the server default, and
+    /// <c>LikePattern</c> must emit that same character. This holds the pair together; the
+    /// metacharacter fact below holds the behaviour it protects.
+    /// <b>Mutation:</b> change <c>LikeEscape</c> to any other character.
+    /// </summary>
+    [Fact]
+    public async Task LikeEscape_is_the_postgres_default_backslash()
+    {
+        var ct = TestContext.Current.CancellationToken;
+
+        using var scope = _provider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        // No ESCAPE clause anywhere here: this asks the SERVER what its default is, and asserts the
+        // constant LikePattern escapes with agrees. Asking with an explicit ESCAPE would be asking
+        // the question the production SQL can no longer ask.
+        var agrees = await db.Database
+            .SqlQuery<bool>($"""
+                SELECT ('a_b' LIKE '%a\_b%' AND NOT ('axb' LIKE '%a\_b%')) AS "Value"
+                """)
+            .ToListAsync(ct);
+
+        agrees.Single().ShouldBeTrue(
+            "backslash must be the server's default LIKE escape. If it is not, every escaped "
+            + "metacharacter in every arm silently stops being escaped, and `anna_k@acme.se` stops "
+            + "matching its own row — with no ESCAPE clause left to carry the intent.");
+    }
+
+    /// <summary>
     /// <b>The <c>ESCAPE</c> regression, held red (round-5 security M3).</b> An identifier with a
     /// LIKE metacharacter (<c>_</c> — legal and common in email local parts) matches EXACTLY its
-    /// own row. The clause is now derived from ONE constant (<c>LikeEscapeSql</c>); mutate it to
-    /// <c>''</c> and the escaped <c>\_</c> becomes a literal backslash-underscore that matches
-    /// NOTHING (this asserts 1, red) — un-escape the pattern instead and <c>_</c> becomes a
-    /// single-char wildcard that ALSO matches the decoy (2, red). Round 4 shipped the first
-    /// mutation on 2 of 18 hand-typed lines with a green suite.
+    /// own row. The escape is now the SERVER DEFAULT rather than a bound clause (<c>LIKE ANY</c>
+    /// admits none), pinned one fact up: mutate <c>LikeEscape</c> and the escaped <c>\_</c> becomes
+    /// a literal backslash-underscore that matches NOTHING (this asserts 1, red) — un-escape the
+    /// pattern instead and <c>_</c> becomes a single-char wildcard that ALSO matches the decoy
+    /// (2, red). Round 4 shipped the first mutation on 2 of 18 hand-typed lines with a green suite.
     /// </summary>
     [Fact]
     public async Task A_LIKE_metacharacter_identifier_matches_EXACTLY_its_own_row()

@@ -135,8 +135,8 @@ public sealed record OrganizationNumber
     /// normalisers is two rules).
     /// </summary>
     /// <remarks>
-    /// <b>Why this exists.</b> A column whose write path normalises (<c>job_ads.organization_number</c>,
-    /// <c>recent_job_searches.employer_list</c>) stores the 10-digit form, so normalising the REQUEST
+    /// <b>Why this exists.</b> A column whose write path normalises (<c>recent_job_searches.employer_list</c>,
+    /// <c>company_watches.organization_number</c>) stores the 10-digit form, so normalising the REQUEST
     /// is enough to match it. A column validated on SHAPE ONLY stores whatever was typed — and the
     /// five <c>recent_job_searches</c> concept-id axes admit every form below under
     /// <c>^[A-Za-z0-9_-]{1,32}\z</c>. Against those, comparing a normalised request to an

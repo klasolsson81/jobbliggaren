@@ -79,9 +79,10 @@ public enum ErasureMatchChannel
     /// <summary>
     /// Exact match on <c>job_ads.organization_number</c> — the identifier was an org.nr, and for
     /// an <i>enskild firma</i> that org.nr IS her personnummer (#842 CTO ruling 2026-07-14).
-    /// <c>MatchedExcerpt</c> is the normalised org.nr that matched, suffixed
-    /// <c>(personnummer-format)</c> when it is personnummer-shaped — a personnummer is never
-    /// surfaced un-flagged, even in the operator's review payload (ADR 0087 D8(c)).
+    /// <c>MatchedExcerpt</c> is the STORED form that matched, suffixed <c>(personnummer-format)</c>
+    /// when the identifier is personnummer-shaped — a personnummer is never surfaced un-flagged,
+    /// even in the operator's review payload (ADR 0087 D8(c)). That suffix is not this channel's
+    /// alone: every channel's excerpt carries it on a personnummer-shaped request.
     /// </summary>
     OrganizationNumber,
 

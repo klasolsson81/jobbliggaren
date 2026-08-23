@@ -648,19 +648,50 @@ public sealed class RecruiterContactIngestTests : IAsyncLifetime
         var ct = TestContext.Current.CancellationToken;
         await IngestThroughProductionPathAsync(ct);
 
+        // The snapshot arm is asserted below, so an application carrying a frozen contact block MUST
+        // exist first. Without one, `applications` is empty and ShouldBe(0) passes whatever the SQL
+        // does — the arm with the weakest review gate would be the one pinned by nothing.
+        await SeedApplicationCapturingContactsAsync(SnapshotSrcExternalId, ct);
+
+        using (var scope = _provider.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            (await SnapshotContactsMatchCountAsync(db, "declared", ct)).ShouldBeGreaterThan(0,
+                "the seeded snapshot must physically carry the provenance token, or the zero below "
+                + "measures an absent row rather than an excluded value.");
+        }
+
         foreach (var origin in Enum.GetNames<AdContactOrigin>())
         {
             var probe = await EraseAsync(origin, ct, dryRun: true);
 
             probe.Matched.JobAds.ShouldBe(0,
                 $"`{origin}` is a closed-vocabulary provenance token, and every contacts document "
-                + "carries one. This channel is the one whose sibling erases WITHOUT a per-id "
-                + "confirmation, so the looseness of the match has to stay inversely proportional "
-                + "to the strength of its review gate.");
+                + "carries one.");
             probe.Matched.ApplicationSnapshotContacts.ShouldBe(0,
-                $"`{origin}` must not reach the surgical arm either — that one destroys an "
-                + "applicant's frozen contact block with no human looking at it first.");
+                $"`{origin}` must not reach the surgical arm — that one destroys an applicant's "
+                + "frozen contact block with no human looking at it first, so the looseness of the "
+                + "match has to stay inversely proportional to the strength of its review gate.");
         }
+    }
+
+    /// <summary>
+    /// The counterpart the zero above cannot give: the surgical arm DOES reach a frozen contact by
+    /// her real name, so the exclusion narrows the provenance token and nothing else.
+    /// <b>Mutation:</b> widen <c>&lt;&gt; ALL({AdContactOriginLiterals})</c> to exclude every value.
+    /// </summary>
+    [Fact]
+    public async Task The_snapshot_contacts_arm_still_reaches_a_frozen_contact_BY_NAME()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await IngestThroughProductionPathAsync(ct);
+        await SeedApplicationCapturingContactsAsync(SnapshotSrcExternalId, ct);
+
+        var probe = await EraseAsync(SnapshotContactName, ct, dryRun: true);
+
+        probe.Matched.ApplicationSnapshotContacts.ShouldBe(1,
+            "the frozen block is reachable by the contact's own name — the Origin exclusion bounds "
+            + "the value domain, never the key set, and never an ordinary value.");
     }
 
     /// <summary>

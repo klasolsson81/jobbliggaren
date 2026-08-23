@@ -35,15 +35,21 @@ internal sealed class RecruiterErasureMatchQuery(
 
     // LIKE metacharacters. `_` is legal and common in email local parts (anna_k@acme.se) and would
     // otherwise be a single-character wildcard; `%` would match the whole corpus.
+    //
+    // ⚠ This MUST stay Postgres's own default escape, and that is load-bearing rather than
+    // incidental. Every arm matches with `LIKE ANY({patterns})` — the only form that compares one
+    // value against a whole pattern array — and `LIKE ANY` admits NO ESCAPE clause, so the escape
+    // is whatever Postgres defaults to. It defaults to backslash, which is what LikePattern emits.
+    // Change this and every escaped metacharacter silently stops being escaped: `\_` matches a
+    // literal backslash and the identifier `anna_k@acme.se` stops matching its own row.
+    // `LikeEscape_is_the_postgres_default_backslash` holds that line; the metacharacter
+    // integration test holds the behaviour it protects.
+    //
+    // The array form is not a style choice. Cross-joining the patterns instead —
+    // `FROM jsonb_path_query(...) v, unnest({patterns}) p` — multiplies every walked value by the
+    // pattern count and took FindJobAdsAsync past Npgsql's 30 s command timeout on the dev corpus,
+    // i.e. the Art. 17 dry run threw instead of answering.
     private const char LikeEscape = '\\';
-
-    // The ESCAPE clause every LIKE in this class carries — DERIVED from LikeEscape and bound as a
-    // parameter (Postgres accepts any text expression after ESCAPE), so the pattern builder and
-    // the clause are one definition. Round 4 hand-typed the literal on 18 lines and lost the
-    // backslash on two of them: `ESCAPE ''` disables escaping silently, `\_` then matches a
-    // literal backslash, and the identifier `anna_k@acme.se` stops matching its own row — the
-    // regression the metacharacter integration test now holds red.
-    private static readonly string LikeEscapeSql = LikeEscape.ToString();
 
     private static string LikePattern(string identifier)
     {
@@ -176,25 +182,21 @@ internal sealed class RecruiterErasureMatchQuery(
                 WHERE status <> {erased}
                   AND (
                         search_vector @@ websearch_to_tsquery({TextSearchConfig}::regconfig, {needle})
-                     OR EXISTS (
-                          SELECT 1 FROM unnest({patterns}) AS p
-                          WHERE lower(title)        LIKE p ESCAPE {LikeEscapeSql}
-                             OR lower(description)  LIKE p ESCAPE {LikeEscapeSql}
-                             OR lower(company_name) LIKE p ESCAPE {LikeEscapeSql})
-                     OR EXISTS (
-                          SELECT 1
-                          FROM jsonb_path_query(raw_payload, '$.**') AS v,
-                               unnest({patterns}) AS p
-                          WHERE jsonb_typeof(v) NOT IN ('object', 'array')
-                            AND lower(v #>> {WholeJsonbValue}) LIKE p ESCAPE {LikeEscapeSql})
                      OR organization_number = ANY({writtenForms})
+                     OR lower(title)        LIKE ANY({patterns})
+                     OR lower(description)  LIKE ANY({patterns})
+                     OR lower(company_name) LIKE ANY({patterns})
                      OR EXISTS (
                           SELECT 1
-                          FROM jsonb_path_query(contacts, '$.**') AS v,
-                               unnest({patterns}) AS p
+                          FROM jsonb_path_query(contacts, '$.**') AS v
                           WHERE jsonb_typeof(v) NOT IN ('object', 'array')
                             AND lower(v #>> {WholeJsonbValue}) <> ALL({AdContactOriginLiterals})
-                            AND lower(v #>> {WholeJsonbValue}) LIKE p ESCAPE {LikeEscapeSql})
+                            AND lower(v #>> {WholeJsonbValue}) LIKE ANY({patterns}))
+                     OR EXISTS (
+                          SELECT 1
+                          FROM jsonb_path_query(raw_payload, '$.**') AS v
+                          WHERE jsonb_typeof(v) NOT IN ('object', 'array')
+                            AND lower(v #>> {WholeJsonbValue}) LIKE ANY({patterns}))
                   )
                 """)
             .ToListAsync(cancellationToken);
@@ -221,6 +223,20 @@ internal sealed class RecruiterErasureMatchQuery(
             })
             .ToListAsync(cancellationToken);
 
+        // The terms the evidence picker looks for, built ONCE: the identifier as supplied, then every
+        // written form. The needle is first so a literal hit on what she actually typed wins the
+        // window. Both are constant over the whole result set.
+        string[] terms = [needle, .. writtenForms];
+
+        // ADR 0087 D8(c) — "flagged/masked/excluded in ANY display projection", and the free-text
+        // channels are display projections too. An excerpt is a window around a matched TERM, so the
+        // question "does this excerpt carry a personnummer-shaped value" is answered by the term that
+        // caused the match, not by re-scanning the window: same predicate, one rule, no second
+        // detector. It is a property of the REQUEST, so it is decided once and not per row.
+        var termsArePersonnummerShaped = terms.Any(t =>
+            Domain.CompanyWatches.OrganizationNumber.TryFromWrittenForm(t)
+                ?.IsPersonnummerShaped() == true);
+
         return
         [
             .. rows.Select(r =>
@@ -238,30 +254,24 @@ internal sealed class RecruiterErasureMatchQuery(
                         : null;
 
                 var (channel, excerpt) = matchedForm is not null
-                    ? (ErasureMatchChannel.OrganizationNumber, OrgNrEvidence(matchedForm))
-                    : Evidence(r.Title, r.Description, r.Company, r.Contacts, needle, writtenForms);
-                return new ErasureJobAdMatch(r.Id, r.ExternalId, r.Title, r.Company, channel, excerpt);
+                    ? (ErasureMatchChannel.OrganizationNumber, matchedForm)
+                    : Evidence(r.Title, r.Description, r.Company, r.Contacts, terms);
+
+                // One flag, every channel. Previously only the org.nr channel carried it, so a
+                // personnummer-shaped value reaching the operator through `description` — measured at
+                // 34 hyphenated and 922 bare forms in the dev corpus — arrived un-flagged on the one
+                // screen ADR 0087 D8(c) names explicitly ("even to the admin operator, even when the
+                // subject herself supplied it"). An empty excerpt is left empty; a flag on nothing
+                // flags nothing.
+                var flagged = termsArePersonnummerShaped && excerpt.Length > 0
+                    ? $"{excerpt} (personnummer-format)"
+                    : excerpt;
+
+                return new ErasureJobAdMatch(
+                    r.Id, r.ExternalId, r.Title, r.Company, channel, flagged);
             }),
         ];
     }
-
-    /// <summary>
-    /// The reviewable evidence for an org.nr hit: the STORED form that matched — flagged when it is
-    /// personnummer-shaped (ADR 0087 D8(c): a personnummer is never surfaced un-flagged, even to the
-    /// admin operator, even when the subject herself supplied it). Review payload only; never logged.
-    /// </summary>
-    /// <remarks>
-    /// <c>TryFromWrittenForm</c> and not <c>FromTrusted</c>, for the reason the handler's
-    /// <c>PersonnummerFlagged</c> gives on the same problem: the value here can be any written form,
-    /// and <c>IsPersonnummerShaped</c> fails SAFE — it returns true for anything that is not ten
-    /// ASCII digits, so <c>FromTrusted("551218-1234").IsPersonnummerShaped()</c> is true and the flag
-    /// would fire on every hyphenated AB org.nr. A flag that fires on everything flags nothing.
-    /// </remarks>
-    private static string OrgNrEvidence(string storedForm) =>
-        Domain.CompanyWatches.OrganizationNumber.TryFromWrittenForm(storedForm)
-            ?.IsPersonnummerShaped() == true
-                ? $"{storedForm} (personnummer-format)"
-                : storedForm;
 
     /// <summary>
     /// The reviewer's evidence: WHICH channel hit, and the text around it.
@@ -275,18 +285,17 @@ internal sealed class RecruiterErasureMatchQuery(
     /// positive. This is the one gate between him and irreversible corpus-wide destruction, and a
     /// window with no hit in it is evidence of nothing.
     /// </remarks>
+    /// <remarks>
+    /// <paramref name="terms"/> carries the identifier as supplied AND every written form, because
+    /// the SQL matches every written form: an ad whose description holds <c>551218-1234</c>, matched
+    /// by a request for <c>5512181234</c>, would otherwise reach the operator with no excerpt at all.
+    /// </remarks>
     private static (ErasureMatchChannel Channel, string Excerpt) Evidence(
         string title, string? description, string company, Domain.JobAds.AdContacts? contacts,
-        string needle, IReadOnlyList<string> writtenForms)
+        IReadOnlyList<string> terms)
     {
         const int Window = 200;
         const int Lead = 60;
-
-        // The SQL matches every written form, so the evidence picker must look for every written
-        // form too — otherwise an ad whose description carries `551218-1234`, matched by a request
-        // for `5512181234`, reaches the operator with no excerpt at all. The needle comes FIRST so a
-        // literal hit on what she actually typed still wins the window.
-        string[] terms = [needle, .. writtenForms];
 
         if (!string.IsNullOrWhiteSpace(description))
         {
@@ -568,15 +577,12 @@ internal sealed class RecruiterErasureMatchQuery(
         return await CountAsync($"""
             SELECT count(*)::int AS "Value"
             FROM saved_searches
-            WHERE EXISTS (
-                    SELECT 1
-                    FROM jsonb_path_query(criteria, '$.**') AS v,
-                         unnest({patterns}) AS p
-                    WHERE jsonb_typeof(v) NOT IN ('object', 'array')
-                      AND lower(v #>> {WholeJsonbValue}) LIKE p ESCAPE {LikeEscapeSql})
+            WHERE lower(coalesce(name, '')) LIKE ANY({patterns})
                OR EXISTS (
-                    SELECT 1 FROM unnest({patterns}) AS p
-                    WHERE lower(coalesce(name, '')) LIKE p ESCAPE {LikeEscapeSql})
+                    SELECT 1
+                    FROM jsonb_path_query(criteria, '$.**') AS v
+                    WHERE jsonb_typeof(v) NOT IN ('object', 'array')
+                      AND lower(v #>> {WholeJsonbValue}) LIKE ANY({patterns}))
             """, cancellationToken);
     }
 
@@ -599,12 +605,10 @@ internal sealed class RecruiterErasureMatchQuery(
         return await CountAsync($"""
             SELECT count(*)::int AS "Value"
             FROM applications
-            WHERE EXISTS (
-                    SELECT 1 FROM unnest({patterns}) AS p
-                    WHERE lower(coalesce(snapshot_company, ''))     LIKE p ESCAPE {LikeEscapeSql}
-                       OR lower(coalesce(snapshot_title, ''))       LIKE p ESCAPE {LikeEscapeSql}
-                       OR lower(coalesce(snapshot_description, '')) LIKE p ESCAPE {LikeEscapeSql}
-                       OR lower(coalesce(snapshot_url, ''))         LIKE p ESCAPE {LikeEscapeSql})
+            WHERE lower(coalesce(snapshot_company, ''))     LIKE ANY({patterns})
+               OR lower(coalesce(snapshot_title, ''))       LIKE ANY({patterns})
+               OR lower(coalesce(snapshot_description, '')) LIKE ANY({patterns})
+               OR lower(coalesce(snapshot_url, ''))         LIKE ANY({patterns})
             """, cancellationToken);
     }
 
@@ -633,11 +637,10 @@ internal sealed class RecruiterErasureMatchQuery(
                 FROM applications
                 WHERE EXISTS (
                         SELECT 1
-                        FROM jsonb_path_query(snapshot_contacts, '$.**') AS v,
-                             unnest({patterns}) AS p
+                        FROM jsonb_path_query(snapshot_contacts, '$.**') AS v
                         WHERE jsonb_typeof(v) NOT IN ('object', 'array')
                           AND lower(v #>> {WholeJsonbValue}) <> ALL({AdContactOriginLiterals})
-                          AND lower(v #>> {WholeJsonbValue}) LIKE p ESCAPE {LikeEscapeSql})
+                          AND lower(v #>> {WholeJsonbValue}) LIKE ANY({patterns}))
                 """)
             .ToListAsync(cancellationToken);
     }
@@ -655,11 +658,9 @@ internal sealed class RecruiterErasureMatchQuery(
         return await CountAsync($"""
             SELECT count(*)::int AS "Value"
             FROM applications
-            WHERE EXISTS (
-                    SELECT 1 FROM unnest({patterns}) AS p
-                    WHERE lower(coalesce(manual_company, '')) LIKE p ESCAPE {LikeEscapeSql}
-                       OR lower(coalesce(manual_title, ''))   LIKE p ESCAPE {LikeEscapeSql}
-                       OR lower(coalesce(manual_url, ''))     LIKE p ESCAPE {LikeEscapeSql})
+            WHERE lower(coalesce(manual_company, '')) LIKE ANY({patterns})
+               OR lower(coalesce(manual_title, ''))   LIKE ANY({patterns})
+               OR lower(coalesce(manual_url, ''))     LIKE ANY({patterns})
             """, cancellationToken);
     }
 
@@ -678,9 +679,7 @@ internal sealed class RecruiterErasureMatchQuery(
         return await CountAsync($"""
             SELECT count(*)::int AS "Value"
             FROM company_watch_criteria
-            WHERE EXISTS (
-                    SELECT 1 FROM unnest({patterns}) AS p
-                    WHERE lower(coalesce(label, '')) LIKE p ESCAPE {LikeEscapeSql})
+            WHERE lower(coalesce(label, '')) LIKE ANY({patterns})
             """, cancellationToken);
     }
 
@@ -701,13 +700,14 @@ internal sealed class RecruiterErasureMatchQuery(
     /// instead; the two axes are orthogonal. Naming <c>Origin</c> in a jsonpath would have broken it.
     /// </para>
     /// <para>
-    /// ⚠ <b>RESIDUAL, named rather than certified away:</b> the comparison is WHOLE-VALUE equality,
-    /// so a contact whose <c>Name</c> is exactly <c>Declared</c> is not reached. <c>Declared
-    /// Andersson</c> still is. Derived from the enum and pinned against it, so a third origin cannot
-    /// drift away from this list (#844 — one rule with two normalisers is two rules).
+    /// ⚠ <b>RESIDUAL, named rather than certified away:</b> the comparison is WHOLE-VALUE equality
+    /// applied to every scalar in the document, so a contact ANY of whose fields — <c>Name</c>,
+    /// <c>Role</c>, <c>Email</c>, <c>Phone</c> — is exactly an origin literal is not reached through
+    /// that field. <c>Declared Andersson</c> still is. Derived from the enum and pinned against it,
+    /// so a third origin cannot drift away from this list (#844).
     /// </para>
     /// </remarks>
-    internal static readonly string[] AdContactOriginLiterals =
+    private static readonly string[] AdContactOriginLiterals =
         [.. Enum.GetNames<Domain.JobAds.AdContactOrigin>()
             .Select(name => name.ToLowerInvariant())];
 
@@ -729,10 +729,10 @@ internal sealed class RecruiterErasureMatchQuery(
     /// The five <c>recent_job_searches</c> axes close that with <c>= ANY(writtenForms)</c> because
     /// they are <c>text[]</c>; every other channel needs the same set as LIKE patterns instead.
     /// <b>This does NOT apply to a normalising column</b> — <c>company_watches.organization_number</c>
-    /// is written through <c>OrganizationNumber.Create</c>, so the ten-digit form is the only stored
-    /// plaintext form and its arm stays an exact two-operand probe. It is the ONLY such column here:
-    /// <c>job_ads.organization_number</c> looks like one and is not, because its ingest write path
-    /// runs <c>JobAdFacets.Normalize</c> (a trim) and never <c>OrganizationNumber.Create</c>.
+    /// and <c>recent_job_searches.employer_list</c> both reach the database through a ten-digit gate,
+    /// so the ten-digit form is the only one stored and their arms stay exact probes.
+    /// <c>job_ads.organization_number</c> looks like a third and is not: its ingest write path runs
+    /// <c>JobAdFacets.Normalize</c> (a trim) and never <c>OrganizationNumber.Create</c>.
     /// </remarks>
     private static string[] WrittenFormPatterns(string identifier)
     {
@@ -806,10 +806,9 @@ internal sealed class RecruiterErasureMatchQuery(
                OR organization_number = {plain}
                OR EXISTS (
                     SELECT 1
-                    FROM jsonb_path_query(filter, '$.**') AS v,
-                         unnest({patterns}) AS p
+                    FROM jsonb_path_query(filter, '$.**') AS v
                     WHERE jsonb_typeof(v) NOT IN ('object', 'array')
-                      AND lower(v #>> {WholeJsonbValue}) LIKE p ESCAPE {LikeEscapeSql})
+                      AND lower(v #>> {WholeJsonbValue}) LIKE ANY({patterns}))
             """, cancellationToken);
     }
 
@@ -838,21 +837,17 @@ internal sealed class RecruiterErasureMatchQuery(
         return await CountAsync($"""
             SELECT count(*)::int AS "Value"
             FROM job_seekers
-            WHERE EXISTS (
-                    SELECT 1 FROM unnest({patterns}) AS p
-                    WHERE lower(display_name) LIKE p ESCAPE {LikeEscapeSql})
+            WHERE lower(display_name) LIKE ANY({patterns})
                OR EXISTS (
                     SELECT 1
-                    FROM jsonb_path_query(match_preferences, '$.**') AS v,
-                         unnest({patterns}) AS p
+                    FROM jsonb_path_query(match_preferences, '$.**') AS v
                     WHERE jsonb_typeof(v) NOT IN ('object', 'array')
-                      AND lower(v #>> {WholeJsonbValue}) LIKE p ESCAPE {LikeEscapeSql})
+                      AND lower(v #>> {WholeJsonbValue}) LIKE ANY({patterns}))
                OR EXISTS (
                     SELECT 1
-                    FROM jsonb_path_query(preferences, '$.**') AS v,
-                         unnest({patterns}) AS p
+                    FROM jsonb_path_query(preferences, '$.**') AS v
                     WHERE jsonb_typeof(v) NOT IN ('object', 'array')
-                      AND lower(v #>> {WholeJsonbValue}) LIKE p ESCAPE {LikeEscapeSql})
+                      AND lower(v #>> {WholeJsonbValue}) LIKE ANY({patterns}))
             """, cancellationToken);
     }
 
@@ -874,27 +869,20 @@ internal sealed class RecruiterErasureMatchQuery(
         // masks them, but its detector is date- and Luhn-gated, so an AB org.nr is never a candidate
         // and `Ansokan_556012-5790.pdf` survives verbatim.
         //
-        // top_skills is a text[] and needs its own `unnest` — a LIKE against the array itself compares
-        // against its literal text form and would match on the punctuation between elements. That is a
-        // different unnest from the pattern one, and both are needed.
+        // top_skills is a text[] and needs `unnest` — a LIKE against the array itself compares against
+        // its literal text form and would match on the punctuation between elements.
         return await CountAsync($"""
             SELECT (
                 (SELECT count(*) FROM parsed_resumes
-                  WHERE EXISTS (
-                        SELECT 1 FROM unnest({patterns}) AS p
-                        WHERE lower(coalesce(source_file_name, '')) LIKE p ESCAPE {LikeEscapeSql}))
+                  WHERE lower(coalesce(source_file_name, '')) LIKE ANY({patterns}))
               + (SELECT count(*) FROM resume_files
-                  WHERE EXISTS (
-                        SELECT 1 FROM unnest({patterns}) AS p
-                        WHERE lower(coalesce(file_name, '')) LIKE p ESCAPE {LikeEscapeSql}))
+                  WHERE lower(coalesce(file_name, '')) LIKE ANY({patterns}))
               + (SELECT count(*) FROM resumes
-                  WHERE EXISTS (
-                        SELECT 1 FROM unnest({patterns}) AS p
-                        WHERE lower(coalesce(name, ''))        LIKE p ESCAPE {LikeEscapeSql}
-                           OR lower(coalesce(latest_role, '')) LIKE p ESCAPE {LikeEscapeSql}
-                           OR EXISTS (
-                                SELECT 1 FROM unnest(coalesce(top_skills, ARRAY[]::text[])) AS skill
-                                WHERE lower(skill) LIKE p ESCAPE {LikeEscapeSql})))
+                  WHERE lower(coalesce(name, ''))        LIKE ANY({patterns})
+                     OR lower(coalesce(latest_role, '')) LIKE ANY({patterns})
+                     OR EXISTS (
+                          SELECT 1 FROM unnest(coalesce(top_skills, ARRAY[]::text[])) AS skill
+                          WHERE lower(skill) LIKE ANY({patterns})))
             )::int AS "Value"
             """, cancellationToken);
     }

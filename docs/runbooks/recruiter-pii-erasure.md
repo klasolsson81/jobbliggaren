@@ -117,14 +117,13 @@ her name — **and, for an enskild firma, her organisationsnummer**.
 key still gets structured matching — exact equality, never a regex over prose — but against
 the whole form set rather than the normalised form alone.
 
-**Which columns need that is decided by a RULE, not by a list.** A column whose WRITE PATH
-normalises through `OrganizationNumber.Create` stores exactly one form and is matched on it;
-a column validated on SHAPE ONLY stores what was typed and is matched against every form.
-`company_watches.organization_number` is the only column on the first side.
-`job_ads.organization_number` looks like it and is not — its ingest runs
-`JobAdFacets.Normalize`, which trims. The enumeration lives in the code, where it cannot go
-stale: an arm built from `WrittenFormPatterns`/`WrittenForms` has the property, an arm that
-is not, does not.
+**Which columns need that is decided by a RULE, not by a list.** A column whose WRITE PATH puts
+the value through a ten-digit gate stores exactly one form and is matched on it; a column
+validated on SHAPE ONLY stores what was typed and is matched against every form.
+`job_ads.organization_number` looks like it belongs to the first group and does not — its
+ingest runs `JobAdFacets.Normalize`, which trims. The enumeration lives in the code, where it
+cannot go stale: an arm built from `WrittenFormPatterns`/`WrittenForms` has the property, an
+arm that is not, does not.
 
 Anything not org.nr-shaped falls back to the free-text channels; nothing is guessed.
 
@@ -250,9 +249,9 @@ stale:
     { "jobAdId": "…", "externalId": "…", "title": "Backend-utvecklare",
       "matchedChannel": "Description",
       "matchedExcerpt": "…kontakta ansvarig rekryterare Magnus Fagerberg på…" }
-    // An org.nr request shows matchedChannel: "OrganizationNumber" and the
-    // normalised org.nr as the excerpt — suffixed "(personnummer-format)" when
-    // personnummer-shaped. That is HER OWN submitted identifier echoed back.
+    // An org.nr request shows matchedChannel: "OrganizationNumber" and the STORED
+    // form that matched as the excerpt. On a personnummer-shaped request EVERY
+    // channel's excerpt is suffixed "(personnummer-format)", not just this one.
   ],
   // The hard-deleted rows' evidence, one line per DISTINCT reason — a row that matched on
   // several arms contributes several. Three forms: the q term, "arbetsgivarfilter: <org.nr>",

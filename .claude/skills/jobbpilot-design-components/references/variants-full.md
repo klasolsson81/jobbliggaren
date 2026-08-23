@@ -34,8 +34,8 @@ a11y-skillen.)
 **primary**
 | State | Classes |
 |---|---|
-| Default | `bg-brand-600` (= accent-800 `#15603F`, EJ dark-skiftad per ADR 0068) + vit text i båda teman |
-| Hover | `bg-[var(--jp-accent-800-hover)]` (`#1E6B4C`, EJ dark-skiftad — accent-700 är textfärg, aldrig fill i dark; ADR 0068) |
+| Default | `bg-brand-600` (= `--jp-accent-800`, EJ dark-skiftad per ADR 0068) + vit text i båda teman |
+| Hover | `bg-[var(--jp-accent-800-hover)]` (EJ dark-skiftad — accent-700 är textfärg, aldrig fill i dark; ADR 0068) |
 | Disabled | `opacity-50 cursor-not-allowed` |
 | Focus | global `*:focus-visible` ring (2px `--jp-focus`, offset 2px) |
 | Loading | `disabled` + label → "Sparar…", preserve width |
@@ -86,8 +86,8 @@ nedanför bär informationen. Auth-formulärens format-placeholders
 
 | State | Border | Other |
 |---|---|---|
-| Default | `border-border-default` (slate-200) | — |
-| Focus | `border-brand-600` | `box-shadow: 0 0 0 3px var(--jp-brand-50)` (3px brand-50 ring) |
+| Default | shadcn `border-input` · `.jp-input` `var(--jp-border-input)` | — |
+| Focus | shadcn `focus-visible:border-ring` · `.jp-input` `var(--jp-accent-700)` | shadcn `focus-visible:ring-3 focus-visible:ring-ring/50` · `.jp-input` `box-shadow: 0 0 0 3px var(--jp-focus-glow)` |
 | Error | `border-danger-600` | Error message below in `text-danger-700` (14px) |
 | Disabled | `opacity-50 cursor-not-allowed bg-surface-tertiary` | — |
 | Read-only | `bg-surface-secondary border-border-default` | — |

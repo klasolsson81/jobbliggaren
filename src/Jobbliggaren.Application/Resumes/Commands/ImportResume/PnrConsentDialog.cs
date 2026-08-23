@@ -5,7 +5,7 @@ namespace Jobbliggaren.Application.Resumes.Commands.ImportResume;
 /// as <c>ResumeFile.PnrConsentDialogVersion</c> on every consented flagged-file capture — the
 /// "informed" half of the Art. 7(1) evidence: which dialog copy the user actually acknowledged.
 /// An Application CONSTANT, deliberately not knowledge-bank data: the version must move in
-/// lockstep with the dialog copy it names (<c>messages/sv.json</c>, deployed with the app), and
+/// lockstep with the dialog copy it names (<c>messages/sv/</c>, deployed with the app), and
 /// a data file would decouple the two. Bump ONLY when the dialog copy's material terms change;
 /// existing rows keep the value they were stamped with (write-once aggregate).
 /// </summary>

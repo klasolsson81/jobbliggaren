@@ -499,7 +499,7 @@ export type CvImprovementDto = z.infer<typeof cvImprovementDtoSchema>;
  * UI-etikett (paritet `cvTemplateCatalogDto`). `heading` är däremot INNEHÅLL, inte krom:
  * det är rubriken som skrivs IN i användarens CV, och backend garanterar att parsning-
  * lexikonet känner igen den (annars sväljs sektionens text vid nästa import, #815). Därför
- * kommer den från servern och inte från `messages/sv.json`. */
+ * kommer den från servern och inte från `messages/sv/`. */
 export const sectionSuggestionDtoSchema = z.object({
   sectionId: z.string(),
   heading: z.string(),

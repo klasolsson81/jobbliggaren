@@ -2,8 +2,9 @@
 
 > **Canonical against `globals.css` (G1, ADR 0068).** Deliberately undated — a
 > sync date decays silently and cannot be told from one that is still true.
-> Re-derive with **both** checks below. Run them over `.claude/skills/`, not just
-> this skill: a value transcribed into a consumer skill is the same defect.
+> Re-derive with **all four** checks below. Run them over `.claude/skills/`, not
+> just this skill: a value transcribed into a consumer skill is the same defect.
+> Check 4 is the one that measures that — checks 1–3 cannot.
 >
 > **1. Pair check — does each token still hold the value stated?**
 >
@@ -54,6 +55,43 @@
 > neither hex nor px are still unmeasured; read those against `globals.css` by
 > hand.
 >
+> **4. Consumer check — does a file outside `jobbpilot-design-tokens` carry a
+> value at all?**
+>
+> ```bash
+> grep -rniE '#[0-9A-F]{6}' .claude/agents/ .claude/skills/ \
+>   | grep -v '/jobbpilot-design-tokens/'
+> ```
+>
+> Name the two directories rather than `.claude/`. The main checkout carries
+> full worktrees under `.claude/worktrees/`, so `.claude/` would traverse another
+> worktree's HEAD and report it as this one — the command counting itself, not
+> merely running slowly. Do not "simplify" the two roots back to one.
+>
+> Expect only **preterite provenance** — today, the `#7C8AA0` inside *"darkened
+> from … in issue #296"*. A present-tense row is a finding. Same test that keeps
+> `perf-test-writer.md`'s dated path note: imperfect is a record, present tense
+> is a claim.
+>
+> **The rule it enforces: a consumer file names the token, never the value that
+> token holds — neither its hex nor a ratio measured from it.** WCAG's own
+> thresholds (4.5:1, 3:1) are not values of our tokens and stay wherever they
+> are useful.
+>
+> Checks 1–3 cannot be widened into this one. Check 1 requires `--token: #hex`
+> and check 3 `--token: Npx`, while a consumer file writes `` `--token`
+> (`#hex`) `` — a colon-free form neither matches. Check 2 does see those hexes,
+> but asks only whether the value exists in `globals.css` at all, never whether
+> the token still carries it, so a value that moved between tokens passes it
+> silently. That gap is binding-blindness, not existence-blindness. Chasing the
+> syntax costs a new regex per phrasing; removing the values ends the class.
+>
+> Blind to every value that is not a six-digit hex, so every value that is not
+> a six-digit hex is swept by hand and stays unmeasured — a px size, a ratio, an
+> `rgba()`, but equally a three- or four-digit hex and any other function form
+> (`hsl()`, `oklch()`, `color-mix()`). The three named are examples, not the set.
+> In the other direction, a six-digit issue reference would report as a false row.
+>
 > **No check is sufficient alone, and that is measured, not theoretical.**
 > In PR #1447 three tokens were stale and check 2 reported *the same two hits on
 > the broken tree as on the fixed one*. Check 1, run against the same broken
@@ -78,7 +116,7 @@ Verify new combinations at https://webaim.org/resources/contrastchecker
 |---|---|---|---|---|
 | `ink-1` (#0C1A2E) | `surface` (#FFFFFF) | ~17.5:1 | AAA ✓ | Body text, rubriker |
 | `ink-2` (#455366) | `surface` (#FFFFFF) | ~7.8:1 | AAA ✓ | Lede, metadata, mono-labels |
-| `ink-3` (#4F5D72) | `surface` (#FFFFFF) | ~6.7:1 | AA ✓ | Demoterad metadata-tier (mörkad från #7C8AA0/3.5:1, issue #296; min 5.45:1 över surfaces/info-bg) — placeholder = `--jp-placeholder` |
+| `ink-3` / `--jp-text-tertiary` (#4F5D72) | `surface` (#FFFFFF) | ~6.7:1 | AA ✓ | Demoterad metadata-tier (mörkad från #7C8AA0/3.5:1, issue #296; min 5.45:1 över surfaces/info-bg) — placeholder = `--jp-placeholder` |
 | `accent-700` (#15603F) | `surface` (#FFFFFF) | 7.56:1 | AAA ✓ | Länkar, aktiv nav, titlar, fokusring |
 | `accent-700` (#15603F) | `canvas` (#F4F6FA) | ~7.0:1 | AAA ✓ | Länk på canvas |
 | vit (#FFFFFF) | `accent-800` (#15603F) | 7.56:1 | AAA ✓ | Vit text på primärknapp (fill-kontraktet) |

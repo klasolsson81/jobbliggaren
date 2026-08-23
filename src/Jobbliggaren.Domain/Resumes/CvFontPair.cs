@@ -11,7 +11,7 @@ namespace Jobbliggaren.Domain.Resumes;
 /// åäö-covering font available — because the intended sans/serif faces need an embedded
 /// OFL asset that is a flagged follow-up (no system-font resolution, per determinism/CI
 /// stability). The distinction becomes visible when that asset lands. Swedish display
-/// labels ("Modern"/"Klassisk") resolve via <c>messages/sv.json</c>.
+/// labels ("Modern"/"Klassisk") resolve via <c>messages/sv/</c>.
 /// </summary>
 public sealed class CvFontPair : SmartEnum<CvFontPair>
 {

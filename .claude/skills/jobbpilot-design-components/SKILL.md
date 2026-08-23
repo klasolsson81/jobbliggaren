@@ -21,7 +21,7 @@ description: >
 ## Component library scope
 
 JobbPilot uses shadcn/ui as the component primitive layer. Components are
-copied into `web/jobbliggaren-web/components/ui/` — they are owned by the
+copied into `web/jobbliggaren-web/src/components/ui/` — they are owned by the
 project, not imported from npm. Install via `pnpm dlx shadcn@latest add <component>`.
 
 **Never replace shadcn with:** Material UI, Chakra, Mantine, Headless UI.
@@ -68,7 +68,7 @@ dokumenterat undantag (28px).
 
 Variants:
 - `primary` — `bg-brand-600` (= accent-800 grön per ADR 0068, EJ dark-skiftad) + vit text i BÅDA teman (aldrig ljus knapp/mörk text), hover
-  `bg-[var(--jp-accent-800-hover)]` (`#1E6B4C`, EJ dark-skiftad — `brand-700`/accent-700 dark-flippar till `#6EE7A8` som ALDRIG får vara fill, ADR 0068). Default CTA (Spara, Skicka, Ansök).
+  `bg-[var(--jp-accent-800-hover)]` (EJ dark-skiftad — `brand-700`/accent-700 dark-flippar till ett värde som ALDRIG får vara fill, ADR 0068). Default CTA (Spara, Skicka, Ansök).
 - `secondary` — `bg-surface-primary` + `border-border-default`, hover bg
   `surface-secondary` + `border-border-strong`. Sekundära actions.
 - `ghost` — transparent, `text-text-secondary`, hover bg `surface-tertiary`.
@@ -122,12 +122,14 @@ Not in v1: column resize, column reorder, inline editing.
 - Height: shadcn `Input` **44px** (no size prop) / `SelectTrigger` 44, sm 36 (ADR 0038);
   `.jp-input` **48px** (sm 40 ratified but UNIMPLEMENTED — no `.jp-input--sm` exists) (HANDOVER-v3 §5.2 via ADR 0052 — bumped because a v2 user
   test failed for the §1.1 target user)
-- Border: `--jp-border-input` (navy since ADR 0052 Beslut 1, NOT slate-200),
-  `border-radius: 6px` (`var(--jp-r-md)`)
+- Border: `.jp-input` → `--jp-border-input` (navy since ADR 0052 Beslut 1, NOT
+  slate-200); shadcn `Input` → `border-input`. `border-radius: 6px`
+  (`var(--jp-r-md)`)
 - Background: `bg-surface-primary` (white in light — distinct from the
   slate-50 chrome)
-- Focus: `border-brand-600` + `box-shadow: 0 0 0 3px var(--jp-brand-50)`
-  (3px brand-50 ring)
+- Focus: `.jp-input` → `border-color: var(--jp-accent-700)` +
+  `box-shadow: 0 0 0 3px var(--jp-focus-glow)`; shadcn `Input` →
+  `focus-visible:border-ring` + `focus-visible:ring-3 focus-visible:ring-ring/50`
 - Font: 16px
 - Error state: `border-danger-600`, error message below in `text-danger-700`
 

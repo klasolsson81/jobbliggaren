@@ -5,7 +5,7 @@ namespace Jobbliggaren.Domain.Resumes;
 /// <summary>
 /// Layout density for a templated CV (Fas 4b PR-3, ADR 0096 — design handoff §5.5
 /// TÄTHET: Luftig/Normal/Kompakt). Swedish display labels resolve via
-/// <c>messages/sv.json</c>; the concrete spacing values are a rendering concern
+/// <c>messages/sv/</c>; the concrete spacing values are a rendering concern
 /// (PR-8b), not stored here.
 /// </summary>
 public sealed class CvDensity : SmartEnum<CvDensity>

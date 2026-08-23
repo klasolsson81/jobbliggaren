@@ -52,11 +52,12 @@ unstable domain model creates unnecessary migration churn.
 **Allowed (always):** `Read`, `Grep`, `Glob`
 
 **Allowed Write/Edit:**
-- `src/JobbPilot.Infrastructure/Migrations/**`
-- `src/JobbPilot.Infrastructure/Persistence/Configurations/**`
+- `src/Jobbliggaren.Infrastructure/Persistence/Migrations/**` (`--context AppDbContext`)
+- `src/Jobbliggaren.Infrastructure/Identity/Migrations/**` (`--context AppIdentityDbContext`)
+- `src/Jobbliggaren.Infrastructure/Persistence/Configurations/**`
 
-**Not allowed Write/Edit:** `src/JobbPilot.Domain/**`,
-`src/JobbPilot.Application/**`
+**Not allowed Write/Edit:** `src/Jobbliggaren.Domain/**`,
+`src/Jobbliggaren.Application/**`
 
 **Bash — allowed without prompt:**
 
@@ -377,7 +378,7 @@ When a destructive migration is detected:
 - User mentions: "migration", "schema-ändring", "ny tabell", "DbContext-ändring"
 
 **Auto:**
-- New entity in `src/JobbPilot.Domain/**/*.cs` (after corresponding
+- New entity in `src/Jobbliggaren.Domain/**/*.cs` (after corresponding
   `IEntityTypeConfiguration<T>` also exists in Configurations/)
 - New `IEntityTypeConfiguration<T>` in `Persistence/Configurations/`
 - Changed entity property that requires a schema update
@@ -409,7 +410,7 @@ When a destructive migration is detected:
 ```
 ## Migration skapad: AddJobAdAggregate
 
-**Fil:** src/JobbPilot.Infrastructure/Migrations/20260418120000_AddJobAdAggregate.cs
+**Fil:** src/Jobbliggaren.Infrastructure/Persistence/Migrations/20260418120000_AddJobAdAggregate.cs
 **Typ:** Additive
 **Påverkade entiteter:** JobAd
 
@@ -440,7 +441,7 @@ When a destructive migration is detected:
 
 ## Migration skapad: AlterJobAd_RemoveDescriptionColumn
 
-**Fil:** src/JobbPilot.Infrastructure/Migrations/20260418130000_AlterJobAd_RemoveDescriptionColumn.cs
+**Fil:** src/Jobbliggaren.Infrastructure/Persistence/Migrations/20260418130000_AlterJobAd_RemoveDescriptionColumn.cs
 **Typ:** Destructive — DROP COLUMN
 **Risk:** Data-loss. Alla värden i description-kolumnen raderas permanent.
 
@@ -464,8 +465,10 @@ och bekräfta explicit för att fortsätta.
 
 **db-migration-writer:**
 
-1. Reads `src/JobbPilot.Infrastructure/Persistence/Configurations/JobAdConfiguration.cs`
-2. Runs: `dotnet ef migrations add AddJobAdAggregate --project src/JobbPilot.Infrastructure`
+1. Reads `src/Jobbliggaren.Infrastructure/Persistence/Configurations/JobAdConfiguration.cs`
+2. Runs: `dotnet ef migrations add AddJobAdAggregate --project
+   src/Jobbliggaren.Infrastructure --startup-project src/Jobbliggaren.Api
+   --context AppDbContext -o Persistence/Migrations`
 3. Reads generated migration file, validates GDPR columns
 4. Reports (format above)
 5. Reminds: run `dotnet ef database update` separately (triggers `ask` prompt)
@@ -474,7 +477,7 @@ och bekräfta explicit för att fortsätta.
 
 ### Example 2: Auto-trigger — new entity detected
 
-**Context:** New file `src/JobbPilot.Domain/JobSeekers/JobSeeker.cs` detected.
+**Context:** New file `src/Jobbliggaren.Domain/JobSeekers/JobSeeker.cs` detected.
 
 **db-migration-writer** first checks if `JobSeekerConfiguration.cs` exists in
 `Persistence/Configurations/`. If not:
@@ -483,7 +486,7 @@ och bekräfta explicit för att fortsätta.
 ## Migration: väntande förkrav
 
 IEntityTypeConfiguration<JobSeeker> saknas i
-src/JobbPilot.Infrastructure/Persistence/Configurations/.
+src/Jobbliggaren.Infrastructure/Persistence/Configurations/.
 
 Skapa konfigurationsfilen innan migration genereras. Förslag:
 - Skapa JobSeekerConfiguration.cs med obligatoriska GDPR-kolumner

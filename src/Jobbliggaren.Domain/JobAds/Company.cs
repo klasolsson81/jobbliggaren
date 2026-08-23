@@ -31,7 +31,7 @@ public sealed record Company
     /// </para>
     /// <para>
     /// The Swedish literal is stored data, not UI copy, so it does not belong in
-    /// <c>messages/sv.json</c> (ADR 0106 D4 binds the same exception for the redaction marker).
+    /// <c>messages/sv/</c> (ADR 0106 D4 binds the same exception for the redaction marker).
     /// </para>
     /// </remarks>
     public static Company Erased => new("[raderad]");

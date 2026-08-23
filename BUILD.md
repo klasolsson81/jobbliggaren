@@ -1162,7 +1162,7 @@ public enum CriterionVerdict { Pass, Warn, Fail, NotAssessed }
 
 - UI på svenska
 - Admin-UI på svenska
-- Inga hårdkodade strängar — alla via `messages/sv.json` (next-intl)
+- Inga hårdkodade strängar — alla via `messages/sv/` (next-intl)
 - Engelska som fallback för teknikorienterade fel ("Internal server error") men primärt "Ett fel uppstod, försök igen"
 
 ---

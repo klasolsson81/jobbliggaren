@@ -52,8 +52,8 @@ unstable domain model creates unnecessary migration churn.
 **Allowed (always):** `Read`, `Grep`, `Glob`
 
 **Allowed Write/Edit:**
-- `src/Jobbliggaren.Infrastructure/Persistence/Migrations/**`
-- `src/Jobbliggaren.Infrastructure/Identity/Migrations/**`
+- `src/Jobbliggaren.Infrastructure/Persistence/Migrations/**` (`--context AppDbContext`)
+- `src/Jobbliggaren.Infrastructure/Identity/Migrations/**` (`--context AppIdentityDbContext`)
 - `src/Jobbliggaren.Infrastructure/Persistence/Configurations/**`
 
 **Not allowed Write/Edit:** `src/Jobbliggaren.Domain/**`,
@@ -467,7 +467,8 @@ och bekräfta explicit för att fortsätta.
 
 1. Reads `src/Jobbliggaren.Infrastructure/Persistence/Configurations/JobAdConfiguration.cs`
 2. Runs: `dotnet ef migrations add AddJobAdAggregate --project
-   src/Jobbliggaren.Infrastructure --context AppDbContext -o Persistence/Migrations`
+   src/Jobbliggaren.Infrastructure --startup-project src/Jobbliggaren.Api
+   --context AppDbContext -o Persistence/Migrations`
 3. Reads generated migration file, validates GDPR columns
 4. Reports (format above)
 5. Reminds: run `dotnet ef database update` separately (triggers `ask` prompt)

@@ -63,8 +63,8 @@
 >   | grep -v '/jobbpilot-design-tokens/'
 > ```
 >
-> Name the two directories rather than `.claude/`. The main checkout carries a
-> full worktree under `.claude/worktrees/`, so `.claude/` would traverse another
+> Name the two directories rather than `.claude/`. The main checkout carries
+> full worktrees under `.claude/worktrees/`, so `.claude/` would traverse another
 > worktree's HEAD and report it as this one — the command counting itself, not
 > merely running slowly. Do not "simplify" the two roots back to one.
 >

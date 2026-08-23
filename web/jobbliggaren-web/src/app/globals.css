@@ -281,6 +281,18 @@
   --jp-border-structural: var(--jp-border);  /* ADR 0041-amendment-token re-homed på v3-border */
 }
 
+/* Touch-bumpen som `--jp-control-h`-kommentaren ovan utlovar. Den ligger på TOKENEN,
+   inte per klass: filterraden är EN form med EN höjd (Klas-beslut 2026-06-30,
+   DESIGN.md §Komponenter), så en `min-height` på `.jp-sortfield__select` hade
+   särat sort-selecten från hero-pillsen och desynkat `.jp-skeleton--sort`, som
+   läser tokenen just för att slippa den layout-shiften. Lyfter alla tre
+   konsumenterna i ett steg (#1384, DESIGN.md §5). */
+@media (max-width: 768px) {
+  :root {
+    --jp-control-h: 44px;
+  }
+}
+
 /* ── Dark mode (v3-kanon — mörk navy-grå canvas, ljusa input-fält) ──
    Källa: jobbliggaren-v3.css §2.2. navy-800/-900 omdefinieras INTE i dark
    (primärknapp förblir djup navy med vit text — ADR 0052, aldrig
@@ -5199,8 +5211,8 @@ a.jp-adminnav__link[aria-current="page"]::after {
   flex: 0 0 auto;
 }
 .jp-section__gear {
-  width: 30px;
-  height: 30px;
+  width: 32px;
+  height: 32px;
   border: 0;
   background: transparent;
   border-radius: var(--jp-r-sm);
@@ -5213,6 +5225,14 @@ a.jp-adminnav__link[aria-current="page"]::after {
 .jp-section__gear:hover {
   background: var(--jp-surface-3);
   color: var(--jp-ink-1);
+}
+/* Touch floor (#1384) — same spec line and breakpoint as .jp-btn--sm. The glyph stays
+   16px; only the hit area grows, so the section head does not reflow. */
+@media (max-width: 768px) {
+  .jp-section__gear {
+    min-width: 44px;
+    min-height: 44px;
+  }
 }
 
 /* Kugghjuls-popover (notisinställningar per sektion). */

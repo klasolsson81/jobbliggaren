@@ -129,8 +129,8 @@ Verify new combinations at https://webaim.org/resources/contrastchecker
 | Token | Against | Ratio | Notes |
 |---|---|---|---|
 | `border` (#C9D2E0) | `surface` (#FFFFFF) | ~1.5:1 | Synlig avgränsare men ej informationsbärande ensam |
-| `border-input` (#7C8AA0) | `surface` (#FFFFFF) | ~3.5:1 | Input-vila — klarar 3:1 UI-golvet |
-| `border-strong` (#7C8AA0) | `surface` (#FFFFFF) | ~3.5:1 | AA ✓ UI — klarar 3:1-golvet (höjt från #97A4B8/2.5:1, issue #193); delar nu värde med border-input |
+| `--jp-border-input` (#7C8AA0) | `surface` (#FFFFFF) | ~3.5:1 | Input-vila — klarar 3:1 UI-golvet |
+| `border-strong` (#7C8AA0) | `surface` (#FFFFFF) | ~3.5:1 | AA ✓ UI — klarar 3:1-golvet (höjt från #97A4B8/2.5:1, issue #193); delar nu värde med `--jp-border-input` |
 
 ## Light mode — status pairs
 

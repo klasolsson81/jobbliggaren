@@ -124,7 +124,7 @@ Not in v1: column resize, column reorder, inline editing.
   test failed for the §1.1 target user)
 - Border: `.jp-input` → `--jp-border-input` (navy since ADR 0052 Beslut 1, NOT
   slate-200); shadcn `Input` → `border-border-input` (same token since the
-  1.4.11 repair; `border-input` resolves to `--jp-border` and fails the floor). `border-radius: 6px`
+  1.4.11 repair; the Tailwind utility `border-input` resolves to `--jp-border` and fails the floor). `border-radius: 6px`
   (`var(--jp-r-md)`)
 - Background: `bg-surface-primary` (white in light — distinct from the
   slate-50 chrome)

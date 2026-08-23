@@ -74,13 +74,8 @@ describe("GuestShell (LP-5b #259 — composes the shared HeaderStrip)", () => {
   });
 
   it("carries the language control, because guests cannot reach Inställningar", () => {
-    // The rule is not "guest is a special case" (senior-cto-advisor bind
-    // 2026-08-23): the control belongs on every surface whose user cannot reach
-    // Inställningar. `(app)` and `(admin)` have the Segment in there and do not
-    // get it; the guest shell has no settings page at all, and `defaultLocale`
-    // is `sv` with no Accept-Language negotiation — so without this a visitor who
-    // does not read Swedish is stuck. Bites on revert: dropping the mount here
-    // leaves the guest surfaces with no way to change language.
+    // Bites on revert: dropping the mount leaves the guest surfaces with no way to
+    // change language at all. Why that matters: language-switcher.tsx's docblock.
     render(
       <GuestShell>
         <p />

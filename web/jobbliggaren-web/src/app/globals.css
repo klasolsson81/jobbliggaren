@@ -4467,20 +4467,57 @@ a.jp-adminnav__link[aria-current="page"]::after {
 @media (max-width: 760px) {
   .jp-head__inner { padding: 0 20px; min-height: 72px; gap: 12px; }
   .jp-head__stats, .jp-head__sep { display: none; }
-  /* The language name cannot ride along at 320px: with it the trigger is wide
-     enough to push the row past the viewport (WCAG 1.4.10). The globe carries
-     the control and the accessible name still says which language it is. */
-  .jp-langtrigger__name { display: none; }
 }
 
-/* Under 480px bär raden brand + språkkontroll + kontoåtgärd, och ordmärket är
-   det enda som inte kan krympa: mätt vid 320 ryms 40px sigill + 193px kontroller
-   inom 280px, men mark + ordmärke (~198px) gör det inte. Sigillet ensamt behåller
-   hemlänken; `.jp-brand`s aria-label bär namnet vidare. */
-@media (max-width: 480px) {
-  .jp-head .jp-brand__word,
+/* Narrow-screen ladder for the public header, graded the way .jp-header__inner
+   already is. It keys on the ROW, not the viewport: `--action` marks a surface
+   that also carries an account link, and that cluster is the wider of the two, so
+   the two row forms cannot collapse at the same width. Hiding `.jp-brand__lockup`
+   rather than its two children matters — `.jp-brand`'s own gap would otherwise
+   survive against an empty box. Where the name is hidden the control's accessible
+   name is just "Språk": `display: none` takes a node out of the a11y tree. */
+@media (max-width: 640px) {
   .jp-head .jp-brand__tagline { display: none; }
 }
+@media (max-width: 480px) {
+  .jp-head--action .jp-brand__lockup,
+  .jp-head--action .jp-langname { display: none; }
+}
+@media (max-width: 360px) {
+  .jp-head .jp-brand__lockup { display: none; }
+}
+
+/* K2 (this block's own header): no grey ink on the public header. `.jp-btn--ghost`
+   defaults to --jp-ink-2, which is the token for genuine metadata; an interactive
+   control's label is content and belongs on ink-1. */
+.jp-head .jp-btn--ghost,
+.jp-header__actions .jp-btn--ghost { color: var(--jp-ink-1); }
+
+/* The guest/app action cluster is a 36px row (.jp-btn--sm). A 44px ghost is
+   invisible at rest but paints its hover fill and focus ring over the taller box. */
+.jp-header__actions .jp-btn--ghost { height: 36px; }
+@media (max-width: 768px) {
+  .jp-header__actions .jp-btn--ghost { min-height: 44px; }
+}
+
+/* The shell contract needs the same graded row, and for the same reason: the
+   guest header is the heavier of the two (nav + two CTAs + the control), so its
+   brand has to collapse earlier than the ≤400px step the app and admin rows use.
+   Scoped with `:has` so only rows that actually carry the control move — the app
+   and admin headers keep their own step untouched. */
+@media (max-width: 480px) {
+  .jp-header__actions .jp-langname { display: none; }
+  .jp-header__inner:has(.jp-header__actions .jp-btn--ghost) .jp-brand__lockup {
+    display: none;
+  }
+}
+/* One rung further for the heaviest row: at the narrowest width the guest header
+   still carries brand + control + two CTAs, and the chevron is the least
+   load-bearing part of the trigger — `aria-haspopup` still says it opens a menu. */
+@media (max-width: 360px) {
+  .jp-header__actions .jp-langchevron { display: none; }
+}
+
 
 /* ── Hero-subelement (delas av landnings-plattan, förslag 3a) ─
    Auth-kolumn + gäst-länk under kortet. Ledger-heron (01/02/03 +

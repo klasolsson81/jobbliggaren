@@ -72,7 +72,10 @@ export function SiteHeader({
   return (
     <>
       <SkipLink label={t("common.skipToContent")} />
-      <header className="jp-head">
+      {/* The narrow-screen ladder keys on the ROW, not the viewport: a surface
+          with an account action carries ~109px more in the right cluster than one
+          without, so the two collapse at different widths. */}
+      <header className={showLogin ? "jp-head jp-head--action" : "jp-head"}>
         <div className="jp-head__inner">
           <nav aria-label={t("common.headerNavAriaLabel")}>
             <Link

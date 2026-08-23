@@ -124,9 +124,9 @@ function DropdownMenuRadioGroup({
  * Reach for it when picking one of a set leaves the set intact (a locale, a
  * sort order) — not when the row performs something.
  *
- * The checked treatment reuses the brand aliases the sibling radio primitive
- * uses (`bg-brand-50`, `text-brand-700`), which resolve to the accent ramp, so
- * the row cannot drift from the rest of the selection language.
+ * The checked treatment uses `bg-brand-50` + `text-brand-700`, the pairing
+ * `job-ad-status-badge.tsx` already carries; the brand aliases resolve to the
+ * accent ramp, so the row cannot drift from the rest of the selection language.
  */
 function DropdownMenuRadioItem({
   className,

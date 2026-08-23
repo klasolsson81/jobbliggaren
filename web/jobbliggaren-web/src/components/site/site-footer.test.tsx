@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import { SiteFooter } from "./site-footer";
 
-// LanguageSwitcher (the footer-variant toggle island) reads useRouter; next/link
+// SiteHeader's LanguageSwitcher reads useRouter; next/link
 // resolves navigation hooks too. Mock the navigation surface so the RSC footer
 // renders in jsdom (mirrors landing-page.test.tsx).
 vi.mock("next/navigation", () => ({
@@ -128,9 +128,9 @@ describe("SiteFooter (LP-3, #256; civic-IA #390 → #393)", () => {
     // Inställningar (senior-cto-advisor bind 2026-08-23), which is a header
     // question, not a footer one. Bites on revert: re-mounting it here puts a
     // second control on every public page.
-    const { container } = render(<SiteFooter />);
+    // Only the button query can bite: `role="group"` and `.jp-foot__lang` are both
+    // deleted from src/, so asserting their absence would pass on an empty page.
+    render(<SiteFooter />);
     expect(screen.queryByRole("button", { name: /Språk/i })).toBeNull();
-    expect(screen.queryByRole("group", { name: /Språk|Language/i })).toBeNull();
-    expect(container.querySelector(".jp-foot__lang")).toBeNull();
   });
 });

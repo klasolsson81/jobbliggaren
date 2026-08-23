@@ -68,10 +68,8 @@ export function GuestShell({ children }: { children: ReactNode }) {
         <span className="jp-header__spacer" />
 
         <div className="jp-header__actions">
-          {/* The guest surface has no Installningar page, so the header is the
-              only place a language control can live. The rule (senior-cto-advisor
-              bind 2026-08-23) is not "guest is special": the control belongs on
-              every surface whose user cannot reach Installningar. */}
+          {/* Guests cannot reach Installningar; the rule and its derivation live
+              in language-switcher.tsx's docblock. */}
           <LanguageSwitcher />
           <Link
             href="/logga-in"

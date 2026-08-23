@@ -42,7 +42,6 @@ describe("LanguageSwitcher (menu, #1476)", () => {
     // who does not read Swedish has to recognise their own language, so the codes
     // are the thing this must not regress to (DESIGN.md §7: no flags, no emoji).
     const { container } = render(<LanguageSwitcher />);
-    expect(container.textContent).not.toBe("SVEN");
     expect(container.textContent).toContain("Svenska");
     expect(screen.queryByText("SV")).toBeNull();
     expect(screen.queryByText("EN")).toBeNull();
@@ -52,7 +51,9 @@ describe("LanguageSwitcher (menu, #1476)", () => {
     render(<LanguageSwitcher />);
     await openMenu();
     const options = await screen.findAllByRole("menuitemradio");
-    // Rendered from `locales`, not hardcoded: a third locale needs no change here.
+    // One row per locale. This cannot prove the list is not hardcoded — with two
+    // locales a literal ["sv","en"] passes identically — so it pins the count, and
+    // the source is `locales` by construction in the component.
     expect(options).toHaveLength(locales.length);
     expect(
       screen.getByRole("menuitemradio", { name: "Svenska" }),
@@ -71,7 +72,7 @@ describe("LanguageSwitcher (menu, #1476)", () => {
     expect(screen.queryByRole("menuitem")).toBeNull();
   });
 
-  it("sets the cookie and refreshes when switching to the other locale", async () => {
+  it("calls the locale Server Action and refreshes when switching locale", async () => {
     render(<LanguageSwitcher />);
     const user = await openMenu();
     await user.click(

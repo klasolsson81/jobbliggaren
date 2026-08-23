@@ -4525,7 +4525,6 @@ a.jp-adminnav__link[aria-current="page"]::after {
 }
 .jp-auth-panel { padding: 22px 24px 24px; display: flex; flex-direction: column; gap: 14px; }
 .jp-auth-fine { margin: 0; font-size: var(--text-caption); color: var(--jp-ink-1); line-height: 1.5; }
-.jp-auth-fine a { font-weight: var(--jp-fw-semibold); }
 /* Gratis-rad i auth-kortet (förslag 3a) — direkt under submit, före fine
    print, ENDAST register-fliken. Klartext, ingen chip/ikon/badge. */
 .jp-auth-free { margin: 0; font-size: var(--text-caption); font-weight: var(--jp-fw-semibold); color: var(--jp-ink-1); text-align: center; }

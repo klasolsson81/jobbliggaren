@@ -60,7 +60,7 @@ export type AuthActionState = {
   // means "not a field error" (network, server unreachable, the kill-switch), exactly the
   // semantics ForgotPasswordForm already reads off `!state.refused`. Existing errors are left
   // unstamped deliberately: stamping them would change behaviour outside this change-reason.
-  field?: "displayName";
+  field?: "displayName" | "acceptTerms";
 } | null;
 
 export async function loginAction(
@@ -136,10 +136,20 @@ export async function registerAction(
   const password = formData.get("password") as string | null;
   // Same opt-in as login: checked native checkbox posts "on", unchecked posts nothing.
   const rememberMe = formData.get("rememberMe") === "on";
+  // #1479: read the same way, but this one is a REQUIREMENT rather than an opt-in.
+  const acceptTerms = formData.get("acceptTerms") === "on";
   const next = safeRedirectPath(formData.get("next") as string | null);
 
   if (!displayName || !email || !password) {
     return { error: t("auth.actions.registrationFieldsRequired") };
+  }
+
+  // #1479: the checkbox carries `required`, so a browser blocks this submit before it is sent.
+  // The gate is repeated here because the Server Action is the boundary an ordinary POST reaches
+  // without passing through the form at all, and refused BEFORE the fetch: an account created
+  // without the acceptance is exactly what this must not produce.
+  if (!acceptTerms) {
+    return { error: t("auth.actions.termsRequired"), field: "acceptTerms" };
   }
 
   let sessionId: string;

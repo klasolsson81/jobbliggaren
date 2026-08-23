@@ -40,6 +40,8 @@ test.describe("auth email-confirmation resend (flag ON)", () => {
     await page.getByLabel("E-postadress").fill(email);
     // exact: the PasswordInput's "Visa lösenord" toggle also matches a loose "Lösenord" label.
     await page.getByLabel("Lösenord", { exact: true }).fill(TEST_PASSWORD);
+    // #1479: the terms acceptance is `required`, so a real browser refuses to submit without it.
+    await page.getByRole("checkbox", { name: /Jag godkänner/ }).check();
     await page.getByRole("button", { name: "Skapa konto" }).click();
 
     // #714: uniform 202 -> check-inbox panel replaces the form; NO auto-login.

@@ -463,6 +463,8 @@
       "passwordHint": "At least 12 characters.",
       "rememberMeLabel": "Keep me logged in",
       "rememberMeHint": "You stay logged in on this device for up to 180 days and can log out anytime. On a shared computer, leave the box unchecked.",
+      "termsLabel": "I accept the <terms>terms of use</terms> and the <privacy>privacy policy</privacy>.",
+      "termsHint": "The links open in a new tab.",
       "submit": "Create account",
       "submitting": "Creating account…",
       "haveAccount": "Already have an account?",
@@ -473,6 +475,7 @@
     "actions": {
       "credentialsRequired": "Email and password are required.",
       "registrationFieldsRequired": "Name, email and password are required.",
+      "termsRequired": "You must accept the terms of use and the privacy policy to create an account.",
       "loginFailed": "Login failed. Check your email and password.",
       "unexpectedError": "An unexpected error occurred. Try again.",
       "serverUnreachable": "Could not reach the server. Try again.",

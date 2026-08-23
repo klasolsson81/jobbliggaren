@@ -463,6 +463,8 @@
       "passwordHint": "Minst 12 tecken.",
       "rememberMeLabel": "Håll mig inloggad",
       "rememberMeHint": "Du förblir inloggad på den här enheten i upp till 180 dagar och kan logga ut när du vill. På en delad dator bör du lämna rutan omarkerad.",
+      "termsLabel": "Jag godkänner <terms>användarvillkoren</terms> och <privacy>integritetspolicyn</privacy>.",
+      "termsHint": "Länkarna öppnas i en ny flik.",
       "submit": "Skapa konto",
       "submitting": "Skapar konto…",
       "haveAccount": "Har du redan ett konto?",
@@ -473,6 +475,7 @@
     "actions": {
       "credentialsRequired": "E-post och lösenord krävs.",
       "registrationFieldsRequired": "Namn, e-post och lösenord krävs.",
+      "termsRequired": "Du måste godkänna användarvillkoren och integritetspolicyn för att skapa konto.",
       "loginFailed": "Inloggningen misslyckades. Kontrollera e-post och lösenord.",
       "unexpectedError": "Ett oväntat fel uppstod. Försök igen.",
       "serverUnreachable": "Kunde inte nå servern. Försök igen.",

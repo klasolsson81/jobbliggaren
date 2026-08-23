@@ -530,7 +530,7 @@ ever changes.
 
 | # | Proto | Sport | Destination | Dport | Action | Why |
 |---|---|---|---|---|---|---|
-| 1 | TCP | any | any | 443 | ACCEPT | HTTPS: apt, container registry, SES later |
+| 1 | TCP | any | any | 443 | ACCEPT | HTTPS: apt, container registry, Scaleway TEM |
 | 2 | TCP | any | any | 80 | ACCEPT | apt mirrors, OCSP |
 | 3 | UDP | any | any | 53 | ACCEPT | DNS |
 | 4 | TCP | any | any | 53 | ACCEPT | DNS over TCP (truncated answers) |

@@ -198,7 +198,7 @@ public static class ErasureCascadeRegistry
                 // #1425 - the five concept-id axes. NOT a new surface: same rows, same disposition
                 // (Erased, hard-delete), same remedy (one RemoveRange in the handler), so one count
                 // over one row set. Splitting would count a row that matched on both q and an axis
-                // TWICE in Matched.Total, which drives the outcome word. See the port for the arms.
+                // TWICE in Matched.Total. See the port for the arms.
                 "recent_job_searches.occupation_group_list",
                 "recent_job_searches.municipality_list",
                 "recent_job_searches.region_list",
@@ -749,8 +749,7 @@ public static class ErasureCascadeRegistry
                 + "Language has NO server-side validation at all: no validator class on "
                 + "UpdateMyProfileCommand, no guard in UpdatePreferences, no factory on the record, "
                 + "and no varchar(N) because it lives inside jsonb. It is unbounded arbitrary text. "
-                + "The container is searched WHOLE rather than by key, so a field added to "
-                + "Preferences tomorrow is covered on the day it lands.",
+                + "The container is searched WHOLE rather than by key.",
 
             ["application_notes:HeldButNotSearchable"] =
                 "HELD, AND WE CANNOT SEARCH IT. application_notes.content is encrypted at rest "

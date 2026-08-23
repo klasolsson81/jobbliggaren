@@ -613,6 +613,14 @@ internal sealed class RecruiterErasureMatchQuery(
     /// is written through <c>OrganizationNumber.Create</c>, so the ten-digit form is the only stored
     /// plaintext form and its arm stays an exact two-operand probe.
     /// </remarks>
+    /// <summary>
+    /// The empty jsonb path, bound as a parameter. <c>jsonb #>> text[]</c> with an empty path
+    /// returns the value's DECODED text, which is what a comparison against a user-supplied
+    /// identifier needs: casting to <c>text</c> instead leaves JSON escapes in place, so a stored
+    /// <c>Anna "Bea" Berg</c> would not be reached by a request for <c>"Bea"</c>.
+    /// </summary>
+    private static readonly string[] WholeJsonbValue = [];
+
     private static string[] WrittenFormPatterns(string identifier)
     {
         var orgNr = Domain.CompanyWatches.OrganizationNumber.TryFromWrittenForm(identifier);
@@ -653,8 +661,9 @@ internal sealed class RecruiterErasureMatchQuery(
         // The filter arm walks the document's VALUES ($.** then jsonb_typeof = 'string'), never its
         // raw text. A `filter::text LIKE` also matches the jsonb KEY NAMES, and `Regions` or
         // `Remote` as an identifier would then match every row that has a filter at all. Walking
-        // values keeps the property the key-name form was chosen for — no property is named in SQL,
-        // so an additive key is covered the day it lands — and drops the over-match with it.
+        // values keeps the property the key-name form was chosen for — no property is named in SQL
+        // — and drops the over-match with it. The string-type filter is what bounds that: a key
+        // whose value is a number or a boolean is not reached, which today is no column at all.
         return await CountAsync($"""
             SELECT count(*)::int AS "Value"
             FROM company_watches
@@ -665,7 +674,7 @@ internal sealed class RecruiterErasureMatchQuery(
                     FROM jsonb_path_query(filter, '$.**') AS v,
                          unnest({patterns}) AS p
                     WHERE jsonb_typeof(v) = 'string'
-                      AND lower(btrim(v::text, '"')) LIKE p ESCAPE {LikeEscapeSql})
+                      AND lower(v #>> {WholeJsonbValue}) LIKE p ESCAPE {LikeEscapeSql})
             """, cancellationToken);
     }
 
@@ -701,13 +710,13 @@ internal sealed class RecruiterErasureMatchQuery(
                     FROM jsonb_path_query(match_preferences, '$.**') AS v,
                          unnest({patterns}) AS p
                     WHERE jsonb_typeof(v) = 'string'
-                      AND lower(btrim(v::text, '"')) LIKE p ESCAPE {LikeEscapeSql})
+                      AND lower(v #>> {WholeJsonbValue}) LIKE p ESCAPE {LikeEscapeSql})
                OR EXISTS (
                     SELECT 1
                     FROM jsonb_path_query(preferences, '$.**') AS v,
                          unnest({patterns}) AS p
                     WHERE jsonb_typeof(v) = 'string'
-                      AND lower(btrim(v::text, '"')) LIKE p ESCAPE {LikeEscapeSql})
+                      AND lower(v #>> {WholeJsonbValue}) LIKE p ESCAPE {LikeEscapeSql})
             """, cancellationToken);
     }
 

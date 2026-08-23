@@ -221,8 +221,8 @@ public interface IRecruiterErasureMatchQuery
     /// <b>The filter arm walks the document's VALUES, and compares every WRITTEN form.</b> Both
     /// halves are load-bearing and neither is the other. Walking values (rather than matching the
     /// document's text) keeps the property a keyed unnest was rejected for — no property name
-    /// appears in SQL, so an additive key is covered the day it lands — while excluding the jsonb
-    /// KEY names, which a text match hits in every row that has a filter at all. Comparing written
+    /// appears in SQL — while excluding the jsonb KEY names, which a text match hits in every row
+    /// that has a filter at all. Comparing written
     /// forms is #1425's rule: a column validated on SHAPE ONLY stores what was typed, so one
     /// normalised request reaches only the form that happens to coincide.
     /// </para>

@@ -311,6 +311,11 @@ public class ErasureCascadeRegistryTests
         // exclusion filter into the shared helper and all of them stay green while that guard skips
         // every table it exists to check: this file's own vacuity, one level up.
         var byTable = TextColumnsByTable();
+        NonRecruiterTables.ShouldContainKey("user_data_keys",
+            "this pin is about an EXCLUDED table. If user_data_keys is ever column-classified — "
+            + "which is exactly what job_seekers, company_watches and resumes each did — the "
+            + "assertion below stops crossing the threshold while still passing. Move it to another "
+            + "excluded table rather than deleting it.");
         byTable.ShouldContainKey("user_data_keys",
             "the shared enumeration must still carry the EXCLUDED tables; the wholesale-exclusion "
             + "guard is vacuous the moment it does not.");

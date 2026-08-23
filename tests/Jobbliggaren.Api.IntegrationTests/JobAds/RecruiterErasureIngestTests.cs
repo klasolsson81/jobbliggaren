@@ -1,4 +1,3 @@
-using System.Text;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Common.Auditing;
 using Jobbliggaren.Application.Common.Security;
@@ -21,7 +20,6 @@ using Jobbliggaren.Domain.SavedSearches;
 using Jobbliggaren.Infrastructure.JobAds;
 using Jobbliggaren.Infrastructure.JobSources.Platsbanken;
 using Jobbliggaren.Infrastructure.Persistence;
-using Jobbliggaren.Infrastructure.Security;
 using Jobbliggaren.Infrastructure.Taxonomy;
 using Jobbliggaren.Infrastructure.TextAnalysis;
 using Microsoft.EntityFrameworkCore;
@@ -1425,7 +1423,10 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
     /// wrote while the executor did not yet tokenise. The assertion shows the backfill job's own
     /// recogniser still admits the shape, so this is a row the system reasons about rather than one
     /// the test invented. <c>BackfillCompanyWatchOrgNrTokenJob</c> is one-off and manually enqueued,
-    /// so nothing in the system guarantees it has run.
+    /// so nothing in the system guarantees it has run. That the CURRENT writer does not produce
+    /// this shape is pinned elsewhere, by
+    /// <see cref="An_enskild_firmas_TOKENISED_org_nr_is_reached_through_the_token_arm_ALONE"/>,
+    /// whose stored-shape assertion requires 64 characters.
     /// <b>Mutation:</b> delete the <c>plain</c> disjunct.
     /// </summary>
     [Fact]
@@ -1592,7 +1593,21 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
         var ct = TestContext.Current.CancellationToken;
         await SeedJobSeekerAsync("Konsult åt Vendela Hjorthén", ct);
         await SeedJobSeekerAsync("Sökande Ett", ct);
-        await SeedJobSeekerAsync("Sökande Två", ct);
+        var neutral = await SeedJobSeekerAsync("Sökande Två", ct);
+
+        // One neutral profile carries NON-EMPTY match preferences. All-empty lists serialise to
+        // arrays with no string values, which jsonb_path_query skips — so with only empty ones a
+        // bare wildcard on that disjunct would leave this fact green.
+        using (var scope = _provider.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
+            var seeker = await db.JobSeekers.SingleAsync(js => js.Id == neutral, ct);
+
+            seeker.UpdateMatchPreferences(
+                MatchPreferences.Create(["Thorvaldsen-Ek"], null, null).Value, clock);
+            await db.SaveChangesAsync(ct);
+        }
 
         var probe = await EraseAsync("Vendela Hjorthén", ct, dryRun: true);
 
@@ -1755,8 +1770,14 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
         var ct = TestContext.Current.CancellationToken;
         var watchId = await SeedFollowThroughExecutorAsync("5566778899", ct);
         await SetWatchFilterAsync(watchId, "Rosenlund-Vikander", ct);
-        await SeedFollowThroughExecutorAsync("5561234567", ct);
-        await SeedFollowThroughExecutorAsync("5569876543", ct);
+
+        // The neutral rows carry filters of their OWN. Without one, `filter` is NULL and
+        // jsonb_path_query's strictness excludes them before the pattern is ever consulted — so a
+        // bare wildcard would leave this fact green and the control would measure nothing.
+        var neutralA = await SeedFollowThroughExecutorAsync("5561234567", ct);
+        await SetWatchFilterAsync(neutralA, "Almqvist-Rehnberg", ct);
+        var neutralB = await SeedFollowThroughExecutorAsync("5569876543", ct);
+        await SetWatchFilterAsync(neutralB, "Thorvaldsen-Ek", ct);
 
         var probe = await EraseAsync("Rosenlund-Vikander", ct, dryRun: true);
 
@@ -1787,6 +1808,68 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
         }
 
         var probe = await EraseAsync("Vendela Hjorthén", ct, dryRun: true);
+
+        probe.Matched.JobSeekerProfiles.ShouldBe(1);
+    }
+
+    /// <summary>
+    /// <b>This surface matches on a SHARED NAME, and the reply templates branch on that.</b> A
+    /// display name is the account holder's own name, so two users called what the requester is
+    /// called are two hits about neither of them. It is the whole reason `jobSeekerProfiles` has its
+    /// own reply template (B5) instead of triggering B2, which would call the hit hers and promise a
+    /// removal the display-name invariant makes impossible — so the property is measured here rather
+    /// than asserted in a runbook only.
+    /// <b>Mutation:</b> make the profile query return DISTINCT users by some other key, or narrow
+    /// the display-name arm to an exact match.
+    /// </summary>
+    [Fact]
+    public async Task TWO_users_sharing_her_name_are_BOTH_counted_and_neither_is_erased()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await SeedJobSeekerAsync("Vendela Hjorthén", ct);
+        await SeedJobSeekerAsync("Vendela Hjorthén", ct);
+        await SeedJobSeekerAsync("Sökande Utan Träff", ct);
+
+        var response = await EraseAsync("Vendela Hjorthén", ct);
+
+        response.Matched.JobSeekerProfiles.ShouldBe(2,
+            "both are reported. The count names nobody, and B5 is written so that reporting them "
+            + "claims nothing about either.");
+        response.Erased.JobSeekerProfiles.ShouldBe(0);
+
+        using var scope = _provider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        (await db.JobSeekers.AsNoTracking().CountAsync(js => js.DisplayName == "Vendela Hjorthén", ct))
+            .ShouldBe(2);
+    }
+
+    /// <summary>
+    /// <b>A jsonb string value is compared DECODED, not as its JSON representation.</b> `Language`
+    /// is the one field in these documents with no server-side validation, so it is the one that can
+    /// carry a quote or a backslash — and those are exactly the characters jsonb escapes at rest.
+    /// Casting to text leaves the escapes in place, so a stored <c>Anna "Bea" Berg</c> would not be
+    /// reached by a request for <c>"Bea"</c>: an under-match, on an Art. 17 disclosure.
+    /// <b>Mutation:</b> replace <c>v #&gt;&gt; {WholeJsonbValue}</c> with <c>btrim(v::text, '"')</c>.
+    /// </summary>
+    [Fact]
+    public async Task A_jsonb_value_carrying_JSON_ESCAPED_characters_is_matched_on_its_DECODED_text()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var seekerId = await SeedJobSeekerAsync("Sökande", ct);
+
+        using (var scope = _provider.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
+            var seeker = await db.JobSeekers.SingleAsync(js => js.Id == seekerId, ct);
+
+            // Language has no validator, no guard, no factory and no varchar(N) — #1446. That is
+            // what lets this value exist at all, and why this arm has to survive it.
+            seeker.UpdatePreferences(seeker.Preferences with { Language = "Anna \"Bea\" Berg" }, clock);
+            await db.SaveChangesAsync(ct);
+        }
+
+        var probe = await EraseAsync("\"Bea\"", ct, dryRun: true);
 
         probe.Matched.JobSeekerProfiles.ShouldBe(1);
     }

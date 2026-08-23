@@ -37,9 +37,6 @@ export default function Loading() {
       />
 
       <div className="jp-container jp-page flex flex-col gap-6" aria-hidden="true">
-        {/* The bar sits INSIDE a real `.jp-backlink`, so the row's height comes from that
-            rule rather than from a class chosen here: the control is 32px at desktop and
-            44px under the touch floor, and a single height class can only match one of them. */}
         <span className="jp-backlink self-start">
           <span className="jp-skeleton block h-4 w-40" />
         </span>

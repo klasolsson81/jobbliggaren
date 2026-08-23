@@ -21,7 +21,7 @@ description: >
 ## Component library scope
 
 JobbPilot uses shadcn/ui as the component primitive layer. Components are
-copied into `web/jobbliggaren-web/components/ui/` — they are owned by the
+copied into `web/jobbliggaren-web/src/components/ui/` — they are owned by the
 project, not imported from npm. Install via `pnpm dlx shadcn@latest add <component>`.
 
 **Never replace shadcn with:** Material UI, Chakra, Mantine, Headless UI.
@@ -122,8 +122,9 @@ Not in v1: column resize, column reorder, inline editing.
 - Height: shadcn `Input` **44px** (no size prop) / `SelectTrigger` 44, sm 36 (ADR 0038);
   `.jp-input` **48px** (sm 40 ratified but UNIMPLEMENTED — no `.jp-input--sm` exists) (HANDOVER-v3 §5.2 via ADR 0052 — bumped because a v2 user
   test failed for the §1.1 target user)
-- Border: `--jp-border-input` (navy since ADR 0052 Beslut 1, NOT slate-200),
-  `border-radius: 6px` (`var(--jp-r-md)`)
+- Border: `.jp-input` → `--jp-border-input` (navy since ADR 0052 Beslut 1, NOT
+  slate-200); shadcn `Input` → `border-input`. `border-radius: 6px`
+  (`var(--jp-r-md)`)
 - Background: `bg-surface-primary` (white in light — distinct from the
   slate-50 chrome)
 - Focus: `.jp-input` → `border-color: var(--jp-accent-700)` +

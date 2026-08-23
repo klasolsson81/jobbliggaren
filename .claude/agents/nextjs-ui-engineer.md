@@ -88,7 +88,9 @@ contrast ≥4.5:1 body text in both themes; visible focus states (never bare
 ## Tool access
 
 **Write/Edit allowed:** `web/jobbliggaren-web/src/{app,components,lib}/**`,
-`web/jobbliggaren-web/public/**` and `web/jobbliggaren-web/messages/sv/**`.
+`web/jobbliggaren-web/public/**` and `web/jobbliggaren-web/messages/{sv,en}/**`
+— both catalogues, because a leaf-key parity suite asserts they hold identical
+structure, so adding a string is one change that must touch both.
 **Write/Edit forbidden:** repo-root `src/**` (the backend, `Jobbliggaren.*`),
 `next.config.*`, `tailwind.config.*` (manual review required).
 **Bash allowed:** `pnpm dev|build|lint|typecheck|add|remove`,

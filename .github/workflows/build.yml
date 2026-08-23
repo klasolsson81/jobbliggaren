@@ -570,6 +570,14 @@ jobs:
       - name: compose-edge-publish-guard (fixturer + deploy-projektet)
         run: bash .github/scripts/compose-edge-publish-guard.test.sh
 
+      # #1170. Retentionens VARAKTIGHET får bo på ett enda ställe — docs/runbooks/log-sink.md §4,
+      # bredvid instrumentet som mäter om någon policy alls finns. Före den här grinden bar
+      # compose "30-day retention policy set inside Seq" och BUILD.md "bara två är åldersbundna:
+      # Seq (30 d)"; båda var falska på varje låda som någonsin kört. Vakten dömer REPOTS
+      # PÅSTÅENDEN, aldrig lådan — grönt betyder inte att retention är satt.
+      - name: seq-retention-duration-guard (fixturer + de två scopade filerna)
+        run: bash .github/scripts/seq-retention-duration-guard.test.sh
+
   # ---------------------------------------------------------------------------
   # PERF-/SUPPLY-CHAIN-GOVERNANCE (ADR 0045 — observe-only Fas 1).
   #

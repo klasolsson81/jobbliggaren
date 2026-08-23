@@ -17,7 +17,8 @@
     "languageLabel": "Språk",
     "languageHint": "Påverkar hela appen direkt. Sparas på ditt konto.",
     "languageSwedish": "Svenska",
-    "languageEnglish": "English"
+    "languageEnglish": "English",
+    "savedAt": "Sparat {time}"
   },
   "backgroundMatch": {
     "title": "Matchningsnotiser",

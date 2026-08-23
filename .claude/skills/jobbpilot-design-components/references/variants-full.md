@@ -86,8 +86,8 @@ nedanför bär informationen. Auth-formulärens format-placeholders
 
 | State | Border | Other |
 |---|---|---|
-| Default | `border-border-default` (slate-200) | — |
-| Focus | `border-brand-600` | `box-shadow: 0 0 0 3px var(--jp-brand-50)` (3px brand-50 ring) |
+| Default | `border-border-default` | — |
+| Focus | shadcn `focus-visible:border-ring` · `.jp-input` `var(--jp-accent-700)` | shadcn `focus-visible:ring-3 focus-visible:ring-ring/50` · `.jp-input` `box-shadow: 0 0 0 3px var(--jp-focus-glow)` |
 | Error | `border-danger-600` | Error message below in `text-danger-700` (14px) |
 | Disabled | `opacity-50 cursor-not-allowed bg-surface-tertiary` | — |
 | Read-only | `bg-surface-secondary border-border-default` | — |

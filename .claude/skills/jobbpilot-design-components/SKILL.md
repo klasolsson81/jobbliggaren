@@ -126,8 +126,9 @@ Not in v1: column resize, column reorder, inline editing.
   `border-radius: 6px` (`var(--jp-r-md)`)
 - Background: `bg-surface-primary` (white in light — distinct from the
   slate-50 chrome)
-- Focus: `border-brand-600` + `box-shadow: 0 0 0 3px var(--jp-brand-50)`
-  (3px brand-50 ring)
+- Focus: `.jp-input` → `border-color: var(--jp-accent-700)` +
+  `box-shadow: 0 0 0 3px var(--jp-focus-glow)`; shadcn `Input` →
+  `focus-visible:border-ring` + `focus-visible:ring-3 focus-visible:ring-ring/50`
 - Font: 16px
 - Error state: `border-danger-600`, error message below in `text-danger-700`
 

@@ -723,3 +723,53 @@ Additive amendment. The original text and all prior amendments stand unaltered; 
 Docs-sync ships in the same PR as scope (ADR 0065) — no docs-only PR. **This ADR does not restate ADR 0106; it points to it.** ADR 0106 is the decision record for the two-tier contract and is **local/gitignored per ADR 0072** (0071+), which is why its substance is summarised here in the tracked registry rather than linked as a tracked file.
 
 **Referenser:** #842, #843, #845, #824, #841, #821, #805-3, ADR 0032 (§8 + amendments A2/A3), ADR 0049, ADR 0071, ADR 0072, ADR 0086, ADR 0087 D8(a), ADR 0090 D5, ADR 0106, CTO ruling 2026-07-13, evidence pack 2026-07-13, GDPR Art. 5(1)(c)/5(2), 12(3), 17(1)/17(3)(e), 19, 25(2), 30, CJEU C-131/12 (*Google Spain*), CLAUDE.md §2.2/§3/§5/§6.5/§9.2/§12.
+
+---
+
+## Amendment 2026-08-23 — D7 policy 1 lost its mechanism with ADR 0066, and two tracked files went on asserting the successor (#1170)
+
+**Datum:** 2026-08-23
+**Källa:** [#1170](https://github.com/klasolsson81/jobbliggaren/issues/1170); box measurement 2026-08-23 (read-only), recorded in `docs/runbooks/log-sink.md` §4
+**Trigger:** D7 policy 1 names a CloudWatch LogGroup `retention_in_days = 30` as its mechanism. ADR 0066 destroyed the stack that carried it, and reasoned about this ADR **only** for the RDS 14-day backup window — concluding *"ingen amendment behövs"* in its Relation section. Policy 1 was never considered there, and no successor was named in a tracked file.
+**Beslutsfattare:** N/A — **mechanism drift, not a decision change.** D7's 30-day number, its rejected alternatives (90 d, 14 d) and its Art. 5(1)(c) rationale are UNCHANGED. **Detta är inte en supersession.**
+
+### 1. What drifted
+
+| | D7 as written (2026-05-08) | As of 2026-08-23 |
+|---|---|---|
+| Sink | CloudWatch Logs (prod), MEL Console (dev) | Seq on the production box, plus Docker `json-file`, plus the off-box `hostlogs/` archive |
+| Mechanism | `retention_in_days = 30` on the LogGroup | a Seq retention policy, **set by hand inside Seq** |
+| Where it lives | infrastructure-as-code, applied by a plan | **nowhere declarative.** Measured against datalust's own configuration reference: `Seq.json` carries no retention section and there is no `SEQ_RETENTION_*` environment family. `deploy/docker-compose.yml` therefore *cannot* carry it, and a reviewer must not ask it to |
+| Procedure | Fas 0-stängning, "IaC eller AWS-konsol" | `docs/runbooks/log-sink.md` §3 step 7 |
+
+`infra/terraform/environments/dev/main.tf` still carries the original `retention_in_days = 30` under a comment citing this Delbeslut. That is **preserved deliberately** as the record of what ran (ADR 0066 Beslut 1; BUILD.md §15) and must not be "repaired" toward the successor.
+
+### 2. The successor is a step, not a property — and it has not been taken
+
+Measured on the production box 2026-08-23, read-only: **no retention policy exists there.** The whole of `log-sink.md` §3 is unrun — the admin has never completed a login, no ingest key exists, the ingestion gate was never set, and `Seq:ServerUrl` is unset, so the provider is not attached and the store holds zero application events.
+
+**So D7 policy 1 is unimplemented, and nothing is presently exposed by that.** Both halves hold at once and neither cancels the other: the sink that would carry `UserId`, `CorrelationId` and IP in plaintext is not receiving, so no data is being retained without limit there today — and the moment §3 step 8 sets `SEQ_SERVER_URL` there would be, which is precisely why step 7 precedes it.
+
+The instrument, its controls and the command that regenerates the figure have **one** home — `log-sink.md` §4 — and are deliberately not restated here.
+
+### 3. What this amendment repairs, and what it does not
+
+**Repaired.** Two tracked files asserted the successor as an accomplished fact, at five sites: `deploy/docker-compose.yml` (the `x-logging` header and the `seq_data` volume note) and `BUILD.md` (§3.2's stack table, and §13's log-sink block twice — one of which counted Seq among the layers that *"är åldersbundna"*). Each now states the mechanism and routes the state question to §4. A guard in `.github/scripts/`, gated by the blocking `scripts` job, keeps the claim from returning without a mechanism behind it.
+
+**Not repaired, and named here rather than left implied:**
+
+- **D7 policy 1 itself.** Setting the policy is an operator write on the box, and Klas withheld GO for it in this session's scope. #1170 stays open on exactly that.
+- **D7 policy 3's rationale.** Its deferral of HMAC rests on policy 1 — *"30-dagars retention minimerar korrelations-fönstret tillräckligt"*. While policy 1 is unimplemented that justification is unsupported. The deferral is **not** re-opened here; the dependency is recorded so the next reader does not inherit it as settled.
+- **The `json-file` layer's age bound.** It is age-unbounded by driver design, and it is the only layer holding application events today. That is #1170's other half and ADR 0128 §4's stated non-closure.
+
+**D7 policy 2 (`IIpAnonymizer`, IP /24+/48 masking) is live and unaffected** — `AuthAuditLogger` injects it. Its own text calls it defense-in-depth *for the case where retention fails*; that case is now the operative one rather than the hypothetical one.
+
+### 4. Landing points a reader can actually open
+
+ADR 0128 (the two-mechanism log-sink decision) and `docs/runbooks/gdpr-processing-register.md` describe this ground more fully, and **both are gitignored** (ADR 0072; 0005 + 0071 and up). A number defended under Art. 5(1)(e) must not have its only ground in a file the repo does not carry — the trap ADR 0050 names in its own G3 discussion. The tracked landing points are BUILD.md §3.2 and §13, `docs/runbooks/log-sink.md` §3 and §4, and ADR 0050's G3 note assigning the `json-file` layer to #1170.
+
+### Disciplin
+
+Additive amendment. The original text and every prior amendment stand unaltered; D7's three policies are unchanged in substance. Docs-sync ships in the same PR as scope (ADR 0065) — no docs-only PR.
+
+**Referenser:** #1170, #1175, #1198, ADR 0050 (G3), ADR 0066 (Beslut 1 + Relation), ADR 0072, ADR 0128 (gitignored), `docs/runbooks/log-sink.md` §3/§4, GDPR Art. 5(1)(c)/5(1)(e)/30, CLAUDE.md §5/§9.6/§11.

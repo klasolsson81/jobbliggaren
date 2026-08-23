@@ -39,19 +39,15 @@ export default async function GuestAnsokanFullPage({ params }: PageProps) {
               })}
             </p>
           </div>
-          <div className="jp-pagehero__aside">
-            <Link
-              href="/gast/ansokningar"
-              className="jp-btn jp-btn--secondary jp-btn--sm"
-            >
-              <ArrowLeft size={14} aria-hidden="true" />{" "}
-              {t("ansokningar.backToList")}
-            </Link>
-          </div>
         </div>
       </section>
 
       <div className="jp-container jp-page">
+        <Link href="/gast/ansokningar" className="jp-backlink mb-4">
+          <ArrowLeft size={16} aria-hidden="true" />
+          {t("ansokningar.backToList")}
+        </Link>
+
         <GuestApplicationDetail application={application} />
       </div>
     </>

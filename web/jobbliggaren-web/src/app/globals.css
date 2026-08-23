@@ -5603,7 +5603,12 @@ a.jp-adminnav__link[aria-current="page"]::after {
 }
 
 /* Sekundär-knapp i page-heron: outline-på-gradient (vit kant), så den civilt
-   skiljs från den solida vita primärknappen utan en andra fylld yta. */
+   skiljs från den solida vita primärknappen utan en andra fylld yta.
+   ⚠ Ensam på plattan är kanten kontrollens enda gräns, och den mäter 2,36:1
+   mot `--jp-hero-bg` — under WCAG 1.4.11:s 3:1 (#1379, 2026-08; samma form
+   rapporterad i #1061/#1375). Hushållssvaret är att flytta kontrollen AV
+   plattan, till `.jp-backlink` i `jp-container jp-page` — inte att göra den
+   till `--primary`, som bryter ADR 0038:s en-primär-per-skärm. */
 .jp-pagehero .jp-btn--secondary {
   background: transparent;
   color: var(--jp-hero-ink);
@@ -5616,7 +5621,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
 /* ── #805 punkt 7 (Klas live-review 2026-07-12): ansökningar-scopead 2-rads-
    aside + VIT-fyllda sekundärer + "?" inne i Aktivitetsrapport-kontrollen ──
    Bas-`.jp-pagehero__aside` (row/center/wrap) + `.jp-pagehero .jp-btn--secondary`
-   (outline) ovan är DELADE av 7 pageheroes och lämnas ORÖRDA; allt nedan är
+   (outline) ovan är DELADE och lämnas ORÖRDA; allt nedan är
    scopat till `--stacked` (endast ansökningar-heron). Klas läste den
    genomskinliga vit-kant-sekundären som "grön-genomskinlig" (svårläst) → byt
    till vit-fyllda läsbara kontroller. ADR 0038 en-primär bevaras: ren vit

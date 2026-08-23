@@ -83,7 +83,7 @@
     "emptyStatus": "Inga ansökningar i den här statusen.",
     "fullKicker": "Demoansökan",
     "fullLede": "{company} · {source}",
-    "backToList": "Till listan"
+    "backToList": "Tillbaka till ansökningarna"
   },
   "cv": {
     "kicker": "Demo-CV",
@@ -108,7 +108,7 @@
     "cardPublished": "Publicerad <b>{date}</b>",
     "cardApplyBy": "Sista ansökan <b>{date}</b>",
     "fullKicker": "Demoannons",
-    "backToList": "Till listan"
+    "backToList": "Tillbaka till annonserna"
   },
   "detail": {
     "company": "Företag",

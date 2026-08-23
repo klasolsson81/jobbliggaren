@@ -85,7 +85,7 @@ export default async function AnsokningarPage() {
           </div>
           {/* Sidåtgärderna ligger i plattan (Klas-beslut 2026-07-10; #805
               punkt 7): två rader i asiden via den ansökningar-scopeade
-              `--stacked`-modifiern (bas-`.jp-pagehero__aside` är DELAD av 7 ytor
+              `--stacked`-modifiern (bas-`.jp-pagehero__aside` är DELAD
               och lämnas orörd). Rad 1 = primär "Ny ansökan" (ren vit fyllning) —
               den ENDA solida primären (ADR 0038). Rad 2 = verktygsraden Statistik
               + Aktivitetsrapport, nu VIT-fyllda läsbara kontroller (accent-50

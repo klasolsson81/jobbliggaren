@@ -121,6 +121,7 @@ const setWatchFilterInputSchema = z.object({
   municipalities: z.array(z.string()).readonly(),
   regions: z.array(z.string()).readonly(),
   onlyMatched: z.boolean(),
+  remote: z.boolean(),
 });
 
 export type SetWatchFilterInput = z.infer<typeof setWatchFilterInputSchema>;

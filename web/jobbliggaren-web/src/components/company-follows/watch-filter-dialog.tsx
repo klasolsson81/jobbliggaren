@@ -17,7 +17,7 @@ import { CheckItem } from "@/components/settings/section-helpers";
 import { RegionMunicipalityCascade } from "@/components/settings/region-municipality-cascade";
 import { InfoDialog } from "@/components/common/info-dialog";
 import type { TaxonomyRegion } from "@/lib/dto/taxonomy";
-import type { OrtSelection } from "@/lib/job-ads/ort-selection";
+import type { OrtChoice } from "@/lib/job-ads/ort-selection";
 import type { WatchFilter } from "@/lib/dto/company-follows";
 import { setWatchFilterAction } from "@/lib/actions/company-follows";
 
@@ -84,24 +84,31 @@ export function WatchFilterDialog({
   const [draftOnlyMatched, setDraftOnlyMatched] = useState<boolean>(
     filter?.onlyMatched ?? false
   );
+  const [draftRemote, setDraftRemote] = useState<boolean>(filter?.remote ?? false);
   const [isSaving, startSaving] = useTransition();
   const [saveError, setSaveError] = useState<string | null>(null);
 
-  function onOrtChange(next: OrtSelection) {
+  function onOrtChange(next: OrtChoice) {
     setDraftRegions(next.region);
     setDraftMunicipalities(next.municipality);
+    // Kaskaden bär distans-axeln bara när ytan skickat in den; `?? draftRemote` håller
+    // värdet oförändrat i stället för att läsa ett utelämnat fält som av (paritet
+    // match-preferences-dialog).
+    setDraftRemote(next.remote ?? draftRemote);
   }
 
   function clearDraft() {
     setDraftRegions([]);
     setDraftMunicipalities([]);
     setDraftOnlyMatched(false);
+    setDraftRemote(false);
   }
 
   const draftHasFilter =
     draftRegions.length > 0 ||
     draftMunicipalities.length > 0 ||
-    draftOnlyMatched;
+    draftOnlyMatched ||
+    draftRemote;
 
   function handleSave() {
     setSaveError(null);
@@ -113,6 +120,7 @@ export function WatchFilterDialog({
         municipalities: draftMunicipalities,
         regions: draftRegions,
         onlyMatched: draftOnlyMatched,
+        remote: draftRemote,
       });
 
       if (!result.success) {
@@ -197,6 +205,9 @@ export function WatchFilterDialog({
               regions={regions}
               selectedRegions={draftRegions}
               selectedMunicipalities={draftMunicipalities}
+              // Att skicka in axeln är vad som RENDERAR Distans-raden: kaskaden grindar
+              // den på `remote !== undefined`, och den här ytan skickade den aldrig.
+              remote={draftRemote}
               onChange={onOrtChange}
               showHeading={false}
               idPrefix="watch-filter-ort"

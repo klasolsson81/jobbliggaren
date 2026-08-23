@@ -128,7 +128,7 @@ Full ramp → `references/tokens-full.md`.
 | `--jp-border` | `#C9D2E0` | `#44598A` | `border-border-default` | Standardvalet (kort, header, popover) |
 | `--jp-border-soft` | `#E3E8F0` | `#2C3F65` | — | Mjukaste avgränsare (popover-grupper, usermenu-sep) |
 | `--jp-border-strong` | `#7C8AA0` | `#6F86A8` | `border-border-strong` | Starkare avgränsare (checkbox-box) |
-| `--jp-border-input` | `#7C8AA0` | `#6F86A8` | — | Input-vila — höjd kontrast så fält syns mot vit/surface-2 (samma hex som ink-3 light, medveten tonalitet, inte alias) |
+| `--jp-border-input` | `#7C8AA0` | `#6F86A8` | `border-border-input` | Input-vila — höjd kontrast så fält syns mot vit/surface-2 (samma hex som ink-3 light, medveten tonalitet, inte alias) |
 
 ### Status colors
 

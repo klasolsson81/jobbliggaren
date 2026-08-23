@@ -20,9 +20,7 @@ namespace Jobbliggaren.Application.RecentJobSearches.Queries;
 /// </summary>
 // ADR 0067 Beslut 6 (Fas B2, 2026-06-12): EmploymentTypeList + WorktimeExtentList
 // (Klass 2) tillkom som råa listor, MEDVETET UTAN *Labels (Fas E presentations-
-// concern — implementerings-notatet 2026-06-12 ordagrant). Att de också står
-// utanför DeriveLabel är kodens beteende, inte ADR-text; #1418 äger vad som
-// händer med rader som saknar en primär dimension helt.
+// concern — implementerings-notatet 2026-06-12 ordagrant).
 // De råa listorna säkerställer att CountAsync filtrerar på exakt samma kriterium
 // som sökningen och att en framtida re-run reproducerar Klass 2.
 //

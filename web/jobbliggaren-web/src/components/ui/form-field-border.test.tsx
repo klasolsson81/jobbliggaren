@@ -109,11 +109,10 @@ function readLightTokens(): Map<string, string> {
 // The mirror image: light declarations first (so `var()` chains into shared
 // tokens still resolve), then the ROOT dark blocks layered on top.
 //
-// Only the root blocks. globals.css also carries scoped dark overrides such as
-// `[data-theme="dark"] .jp-header`, which deliberately re-declares
-// --jp-surface as white because the header stays light in dark mode. Those are
-// values for one subtree, not the theme, and folding them in reported the dark
-// field as 1.10:1 against a white surface it never sits on.
+// Only the root blocks. `[data-theme="dark"] .jp-header` re-declares
+// --jp-surface as white (ADR 0052 Beslut 6). No form primitive renders in
+// that subtree, so folding it in reported the dark field as 1.10:1 against
+// a surface it never sits on.
 function readDarkTokens(): Map<string, string> {
   const raw = readCss();
   const tokens = readLightTokens();

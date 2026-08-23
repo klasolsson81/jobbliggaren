@@ -4457,9 +4457,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
    ============================================================ */
 
 /* ── Delad publik header (.jp-head-*) ────────────────────────
-   Shell-agnostisk: brand vänster + live-stats höger, INGEN login-länk
-   (auth-kortet i heron bär kontoåtgärden, epic #267). Följer surface/
-   ink-tokens → adapterar per tema (till skillnad mot footern). */
+   Följer surface/ink-tokens → adapterar per tema (till skillnad mot footern). */
 .jp-head {
   background: var(--jp-surface);
   border-bottom: 1px solid var(--jp-border);
@@ -4471,6 +4469,10 @@ a.jp-adminnav__link[aria-current="page"]::after {
   display: flex; align-items: center; justify-content: space-between; gap: 24px;
 }
 .jp-head__stats { display: flex; align-items: center; gap: 18px; }
+.jp-head__right { display: flex; align-items: center; gap: 18px; }
+/* The action must never wrap its own label — "Logga in" broke across two
+   lines at 320px before this. Same scoping as .jp-pagehero .jp-btn. */
+.jp-head .jp-btn { white-space: nowrap; }
 .jp-head__stat { display: flex; flex-direction: column; line-height: 1.1; }
 .jp-head__stat-num {
   /* Delad-header stat-siffra (Förslag 3a-uppskalning); #549-konsolidering:
@@ -4486,7 +4488,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
 .jp-head__stat-delta { color: var(--jp-success); }
 .jp-head__sep { width: 1px; height: 28px; background: var(--jp-border); }
 @media (max-width: 760px) {
-  .jp-head__inner { padding: 0 20px; min-height: 72px; }
+  .jp-head__inner { padding: 0 20px; min-height: 72px; gap: 12px; }
   .jp-head__stats, .jp-head__sep { display: none; }
 }
 
@@ -4523,7 +4525,6 @@ a.jp-adminnav__link[aria-current="page"]::after {
 }
 .jp-auth-panel { padding: 22px 24px 24px; display: flex; flex-direction: column; gap: 14px; }
 .jp-auth-fine { margin: 0; font-size: var(--text-caption); color: var(--jp-ink-1); line-height: 1.5; }
-.jp-auth-fine a { font-weight: var(--jp-fw-semibold); }
 /* Gratis-rad i auth-kortet (förslag 3a) — direkt under submit, före fine
    print, ENDAST register-fliken. Klartext, ingen chip/ikon/badge. */
 .jp-auth-free { margin: 0; font-size: var(--text-caption); font-weight: var(--jp-fw-semibold); color: var(--jp-ink-1); text-align: center; }
@@ -5491,8 +5492,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
 /* ------------------------------------------------------------------
    .jp-demo-banner — DEMO-bandet ovanför inre gäst-sidor (F-Pre Punkt 5,
    2026-05-24). Civic-utility: lugn navy-stripe + tydlig "DEMO"-etikett.
-   Ingen emoji, inget utropstecken, ingen gradient/glow. CTA på höger sida
-   leder till /vantelista (konvertering).
+   Ingen emoji, inget utropstecken, ingen gradient/glow.
    ------------------------------------------------------------------ */
 .jp-demo-banner {
   /* G1: fill bakom vit text → accent-800 (tema-stabil); border ett snäpp

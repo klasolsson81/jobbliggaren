@@ -1,22 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
-import { createTranslator } from "next-intl";
-import svLanding from "../../../messages/sv/landing.json";
+import { render, screen, within } from "@testing-library/react";
 import LandingPage from "@/app/(marketing)/page";
-
-// The async page now resolves the skip-link label via `getTranslations("landing")`
-// (#284 fold-in into the shared <SkipLink>). next-intl's server entry is
-// unavailable in jsdom → mock it to a real translator over the Swedish landing
-// catalog (source of truth), mirroring matchningar/page.test.tsx. The skip-link
-// assertion below stays green against the real "Hoppa till huvudinnehåll" value.
-vi.mock("next-intl/server", () => ({
-  getTranslations: async (namespace?: "landing") =>
-    createTranslator({
-      locale: "sv",
-      messages: { landing: svLanding },
-      namespace,
-    }),
-}));
 
 // next/navigation: useSearchParams must be mocked in jsdom (no Next router
 // context) — the inline AuthCard's Login/RegisterForm read it, and SiteFooter's
@@ -165,6 +149,23 @@ describe("LandingPage (LP-4, #257 — Liggaren ledger hero)", () => {
       screen.queryByRole("button", { name: /Anmäl till väntelista/i }),
     ).not.toBeInTheDocument();
     expect(screen.queryByText("A-2841")).not.toBeInTheDocument();
+  });
+
+  it("puts NO second 'Logga in' in the header while the AuthCard tab carries it", async () => {
+    // The header half of #1476 shipped before the hero half, so for one wave the
+    // page mounts SiteHeader with showLogin={false}: two controls labelled
+    // "Logga in" with different behaviour — one navigating, one switching a tab
+    // panel in place — sat ~134px apart on the product's front door. Bites on
+    // revert: dropping showLogin={false} in (marketing)/page.tsx re-creates the
+    // pair. The wave that removes AuthCard inverts this.
+    const { container } = await renderAsyncPage();
+    const head = container.querySelector(".jp-head");
+    expect(head).not.toBeNull();
+    expect(
+      within(head as HTMLElement).queryByRole("link", { name: /Logga in/i }),
+    ).toBeNull();
+    // The tab is where the label lives on this surface, and it is still live.
+    expect(screen.getByRole("tab", { name: "Logga in" })).toBeInTheDocument();
   });
 
   it("propagates the next deep-link param through the mounted AuthCard", async () => {

@@ -6,6 +6,7 @@ import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/forms/PasswordInput";
+import { AcceptTermsCheckbox } from "@/components/forms/AcceptTermsCheckbox";
 import { RememberMeCheckbox } from "@/components/forms/RememberMeCheckbox";
 import { ResendConfirmationButton } from "@/components/auth/ResendConfirmationButton";
 import { registerAction, type AuthActionState } from "@/lib/auth/actions";
@@ -19,16 +20,24 @@ export function RegisterForm() {
   );
   const pendingRef = useRef<HTMLDivElement>(null);
   const displayNameRef = useRef<HTMLInputElement>(null);
+  const acceptTermsRef = useRef<HTMLInputElement>(null);
   const errorId = useId();
   // #1117: the error belongs to a named field only when the action says so. Absent `field`
   // means a non-field failure (network, kill-switch), which must not mark an input invalid.
   const displayNameInvalid = state?.error !== undefined && state.field === "displayName";
+  // #1479: the server-side half of the terms gate. `required` already blocks the submit in a
+  // browser with constraint validation, so this state is what a bypassed client produces.
+  const acceptTermsInvalid = state?.error !== undefined && state.field === "acceptTerms";
 
   // Focus goes to the field the user has to correct, the same move ForgotPasswordForm makes.
   // Without it the message is announced but the caret is nowhere near the input it names.
   useEffect(() => {
     if (displayNameInvalid) displayNameRef.current?.focus();
   }, [displayNameInvalid, state]);
+
+  useEffect(() => {
+    if (acceptTermsInvalid) acceptTermsRef.current?.focus();
+  }, [acceptTermsInvalid, state]);
 
   // Focus management (not data fetching): when registration flips to the pending-confirmation state,
   // move focus to the status panel so keyboard users land on it and screen readers announce it.
@@ -162,6 +171,12 @@ export function RegisterForm() {
       <RememberMeCheckbox
         label={t("auth.register.rememberMeLabel")}
         hint={t("auth.register.rememberMeHint")}
+      />
+
+      <AcceptTermsCheckbox
+        ref={acceptTermsRef}
+        aria-invalid={acceptTermsInvalid ? true : undefined}
+        aria-describedby={acceptTermsInvalid ? errorId : undefined}
       />
 
       {state?.error && (

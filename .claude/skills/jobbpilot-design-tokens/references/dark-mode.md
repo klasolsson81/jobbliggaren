@@ -1,7 +1,8 @@
 # JobbPilot — Dark Mode (v3/G1: SUPPORTED)
 
-> **Status: SUPPORTED.** Synkad mot `globals.css` 2026-06-10 (G1, ADR 0068
-> grön accent — supersedar både v2-blå och navy-mellanfasen).
+> **Status: SUPPORTED.** Kanonisk mot `globals.css` (G1, ADR 0068 grön accent —
+> supersedar både v2-blå och navy-mellanfasen). Odaterad med avsikt;
+> `references/contrast-table.md` bär de två kommandon som härleder om värdena.
 >
 > Dark mode återinfördes i designsystem v2 (Klas-GO 2026-05-16) efter
 > Fas 0-borttagningen (som berodde på shadcn nova-presetens oklch
@@ -81,11 +82,11 @@ Full hex per token in `tokens-full.md`. Key shifts:
   plattan är tema-stabil och får i dark en 1px `--jp-border-soft`-hairline
   som avgränsning mot mörk canvas. Plattans kontroller är tema-stabila vita.
 - **Status:** ljusare ramp mot mörk canvas — success `#16793B` → `#5DD894`,
-  warning `#B4540B` → `#FBC267`, danger `#BE1B1B` → `#FB8989`, info
+  warning `#A34A06` → `#FBC267`, danger `#BE1B1B` → `#FB8989`, info
   `#1B5396` → `#8FBEEF`; bg-tonerna blir mycket mörka tints (t.ex.
   success-bg `#DFF3E5` → `#143E29`).
 - **Borders:** border `#C9D2E0` → `#44598A`; soft `#E3E8F0` → `#2C3F65`;
-  strong `#97A4B8` → `#6F86A8`; input `#7C8AA0` → `#6F86A8` (synliga, inte
+  strong `#7C8AA0` → `#6F86A8`; input `#7C8AA0` → `#6F86A8` (synliga, inte
   hairlines).
 - **Navy (LOGO-ONLY):** rampen ljusas i dark (700 `#133F73` → `#4F8AD0`
   osv.; 800/900 skiftas ej) — enbart för `BrandLogo`-substratet; inga

@@ -21,7 +21,7 @@ description: >
 ## Component library scope
 
 JobbPilot uses shadcn/ui as the component primitive layer. Components are
-copied into `web/jobbpilot-web/components/ui/` — they are owned by the
+copied into `web/jobbliggaren-web/components/ui/` — they are owned by the
 project, not imported from npm. Install via `pnpm dlx shadcn@latest add <component>`.
 
 **Never replace shadcn with:** Material UI, Chakra, Mantine, Headless UI.

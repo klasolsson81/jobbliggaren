@@ -60,7 +60,7 @@ Color is not the only means of conveying information.
 **1.4.3 Contrast (Minimum) (AA)**
 - Normal text: 4.5:1
 - Large text (≥ 18pt / ≥ 14pt bold): 3:1
-- See verified pairs in SKILL.md §4 and `jobbpilot-design-tokens/references/contrast-table.md`
+- Verified pairs: `jobbpilot-design-tokens/references/contrast-table.md`
 
 **1.4.4 Resize Text (AA)**
 Text can be resized to 200% without loss of content or functionality.
@@ -75,11 +75,13 @@ Content reflows at 320 CSS pixels width (equivalent to 400% zoom on 1280px).
 
 **1.4.11 Non-text Contrast (AA)**
 UI components and graphical objects: 3:1 against adjacent color.
-- Input border (`--jp-border` slate-200 #E2E8F0 on white) ≈ 1.2:1 — marginal,
-  decorative. Compensated by focus ring (6.1:1 light / ~7.0:1 dark) and error
-  state (danger-600 border).
-- Use `--jp-border-strong` (slate-300 #CBD5E1, ≈ 3:1 vs white) in contexts
-  where the border is information-bearing and must meet 3:1 independently.
+- `--jp-border` is decorative only — it does not meet 3:1 and is exempt because
+  it carries no information. Form controls use `--jp-border-input`, not
+  `--jp-border`.
+- Use `--jp-border-strong` in contexts where the border is information-bearing
+  and must meet 3:1 independently.
+- Values and measured ratios: `references/contrast-table.md` in
+  `jobbpilot-design-tokens`. Not transcribed here.
 - Validate non-text contrast in both light and dark (validated separately).
 
 **1.4.12 Text Spacing (AA)**
@@ -141,7 +143,7 @@ Keyboard focus indicator visible. See SKILL.md §3. Never `outline: none`.
 
 **2.4.11 Focus Appearance (AA — WCAG 2.2)**
 Focus indicator: area ≥ CSS perimeter × 2px, contrast ≥ 3:1.
-- JobbPilot focus ring: 2px outline, accent `#15603F` on white = 7.56:1 (dark: `#6EE7A8` på #0B1525 = 11.9:1; vit ring i gradient-ytor 6.4:1 mot ljusaste stopp). Passes. (ADR 0068)
+- JobbPilot focus ring: 2px outline, `--jp-focus`, re-scoped on some surfaces. **Every scope MUST clear 3:1 against its own adjacent surface** — a new scope inherits that duty. Values and measured ratios: `references/contrast-table.md` in `jobbpilot-design-tokens`. Not transcribed here. (ADR 0068)
 
 ### 2.5 Input Modalities
 

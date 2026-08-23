@@ -31,7 +31,7 @@ Referenser som **inte** ska kännas:
 | ✅ Ja | ❌ Nej |
 |-------|--------|
 | Ljus default + dark mode stöds (auto via `prefers-color-scheme` + manuell toggle) | Forcerad dark utan användarval |
-| Mörkgrön accent (`--jp-accent`, ADR 0068) | Neon, lila, cyan-accenter |
+| Mörkgrön accent (`--jp-accent-700`, ADR 0068) | Neon, lila, cyan-accenter |
 | Rak svensk copy | Emojis, utropstecken, "Let's go!" |
 | Tabeller och listor | Kort-layouter överallt |
 | `border-radius: 4px` | 16px+ rundade hörn |

@@ -74,7 +74,8 @@ Requirements:
 - `tabIndex={-1}` OK for programmatic focus (modals, post-submit error focus)
 - `tabIndex={0}` OK for custom interactive elements that are not natively focusable
 - Escape closes modals, dialogs, dropdowns
-- Enter/Space activates buttons
+- Enter/Space activates buttons; Enter alone activates links (`<a href>`) —
+  Space scrolls the page, so wiring it to a link breaks scrolling
 - Arrow keys navigate menus, tab panels, grids
 - No keyboard trap — except inside open modals where Escape must break it
 
@@ -90,7 +91,7 @@ Never `outline: none` without a replacement — that is a WCAG 2.4.7 violation.
 ```css
 /* From globals.css — do not override without design-reviewer approval */
 *:focus-visible {
-  outline: 2px solid var(--jp-focus);  /* #15603F light / #6EE7A8 dark (ADR 0068); VIT i gradient-ytor */
+  outline: 2px solid var(--jp-focus);
   outline-offset: 2px;
   border-radius: var(--jp-r-sm);
 }
@@ -100,8 +101,8 @@ Use `:focus-visible` not `:focus` — mouse clicks won't show ring, keyboard
 navigation will. This is the correct modern pattern.
 
 Minimum focus indicator contrast: 3:1 against adjacent colors (WCAG 2.4.11).
-`--jp-focus` is `#0B5CAD` on white (light) = 6.1:1, and `#60A5FA` on `#020617`
-(dark) ≈ 7.0:1 — both verified. The ring is validated in both themes.
+`--jp-focus` is re-scoped on some surfaces. Values and measured ratios live in
+`references/contrast-table.md` in `jobbpilot-design-tokens`.
 
 ---
 
@@ -118,23 +119,9 @@ Minimum ratios (WCAG 1.4.3 + 1.4.11):
 | Placeholder text | 4.5:1 | Same as body text |
 | Disabled elements | Exempt | But don't rely on color alone |
 
-**JobbPilot-verified pairs (light):**
-
-| Pair | Ratio | Level |
-|---|---|---|
-| text-primary (#0F172A) on surface-primary (#FFFFFF) | ~17.9:1 | AAA |
-| text-secondary (#475569) on surface-primary | ~7.4:1 | AA |
-| brand-600 (#0B5CAD) on surface-primary | 6.1:1 | AA |
-| danger-600 (#DC2626) on surface-primary | ~4.6:1 | AA |
-| success-700 (#047857) on success-50 (#ECFDF5) | ~5.3:1 | AA |
-
-**JobbPilot-verified pairs (dark):**
-
-| Pair | Ratio | Level |
-|---|---|---|
-| text-primary (#F8FAFC) on surface-primary (#020617) | ~18.1:1 | AAA |
-| text-secondary (#94A3B8) on surface-primary (#020617) | ~6.5:1 | AA |
-| brand-600 (#60A5FA) on surface-primary (#020617) | ~7.0:1 | AA |
+**Verified pairs are not transcribed here.** Token values and their measured
+ratios have their canonical home — `references/contrast-table.md` in
+`jobbpilot-design-tokens`, canonical against `globals.css`. Read them there.
 
 **Dark mode is validated separately.** A pair passing in light is not assumed
 to pass in dark — recompute and check contrast in both `:root` and
@@ -150,12 +137,12 @@ dimmed dates), no longer body-text-blocked. Placeholders still use
 
 ### Hairline / divider contrast
 
-- `--jp-border` (slate-200 `#E2E8F0`) is for **decorative** separators only —
-  it does not meet 3:1 and is exempt because it carries no information.
-- `--jp-border-strong` (slate-300 `#CBD5E1`) is for **information-bearing**
-  dividers (kanban column borders, table headers) — it meets ~3:1 vs the white
-  canvas (WCAG 1.4.11 for meaningful UI boundaries). Always use `border-strong`
-  when the divider communicates structure, not `border`.
+- `--jp-border` is for **decorative** separators only — it does not meet 3:1
+  and is exempt because it carries no information.
+- `--jp-border-strong` is for **information-bearing** dividers (kanban column
+  borders, table headers) — it clears the WCAG 1.4.11 UI floor for meaningful
+  boundaries. Always use `border-strong` when the divider communicates
+  structure, not `border`.
 
 ### Status never by color alone
 
@@ -366,7 +353,7 @@ Design-reviewer uses this checklist as her audit source. All must pass.
 - [ ] Lighthouse a11y score ≥ 95
 - [ ] axe DevTools: 0 violations
 - [ ] Keyboard-only: reach all interactive elements via Tab
-- [ ] Keyboard-only: activate all buttons/links via Enter/Space
+- [ ] Keyboard-only: activate buttons via Enter/Space, links via Enter
 - [ ] Keyboard-only: Escape closes all modals/dropdowns
 - [ ] Focus ring visible on every focusable element
 - [ ] Focus order follows visual reading order

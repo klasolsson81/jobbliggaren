@@ -1,9 +1,10 @@
 # JobbPilot — v3/G1 Token + @theme Structure (globals.css)
 
-> **Synkad mot `globals.css` 2026-06-10 (G1, ADR 0068).**
+> **Kanonisk mot `globals.css` (G1, ADR 0068).** Odaterad med avsikt — se
+> `references/contrast-table.md` för de två kommandon som härleder om värdena.
 
 This is the **implemented** structure in
-`web/jobbpilot-web/src/app/globals.css` — that file is canonical. The pattern:
+`web/jobbliggaren-web/src/app/globals.css` — that file is canonical. The pattern:
 
 1. `--jp-*` v3-kanon (ink/surface/canvas/accent/status/hero) defined once in
    `:root {}` (light).
@@ -59,17 +60,17 @@ names, not class sets.
   --jp-ink-inverse:#FFFFFF;
 
   /* Borders (synliga, inte hairlines) */
-  --jp-border:#C9D2E0; --jp-border-soft:#E3E8F0; --jp-border-strong:#97A4B8;
+  --jp-border:#C9D2E0; --jp-border-soft:#E3E8F0; --jp-border-strong:#7C8AA0;
   --jp-border-input:#7C8AA0;
 
   /* Status */
   --jp-success:#16793B; --jp-success-bg:#DFF3E5;
-  --jp-warning:#B4540B; --jp-warning-bg:#FCE9D1;
+  --jp-warning:#A34A06; --jp-warning-bg:#FCE9D1;
   --jp-danger:#BE1B1B;  --jp-danger-bg:#FBE0E0;
   --jp-info:#1B5396;    --jp-info-bg:#DEE9F8;
 
   /* Dekorativa accenter */
-  --jp-leaf-600:#2C8A3F; --jp-leaf-50:#DFF3E5;
+  --jp-leaf-600:#1C7530; --jp-leaf-50:#DFF3E5;
 
   /* Hero (G1 "F4 Hybrid" — gradient ENBART hero/pagehero/land-hero) */
   --jp-hero-from:#0B2A1E; --jp-hero-mid:#14503A; --jp-hero-to:#1E6B4C;
@@ -112,7 +113,6 @@ names, not class sets.
   --jp-brand-600:var(--jp-accent-800); /* primary = fill-kontraktet, EJ dark-skiftad */
   --jp-brand-700:var(--jp-accent-700); /* länk/hover */
   --jp-brand-900:var(--jp-accent-900);
-  --jp-brand-accent:#FFCD00;           /* kompass-prick — UTGÅR (ADR 0070) */
   /* status-alias: *-50 → *-bg; *-500/600/700 → bastoken (alla tre samma) */
   --jp-success-50:var(--jp-success-bg); --jp-success-600:var(--jp-success); /* … */
   --jp-border-modal:var(--jp-border); --jp-border-structural:var(--jp-border);
@@ -169,7 +169,7 @@ names, not class sets.
 @theme {
   --shadow-sm: 0 1px 2px rgba(0,0,0,0.04);
   --shadow-md: 0 2px 4px rgba(0,0,0,0.06);
-  --text-display:56px; --text-h1:28px; --text-h2:20px; --text-h3:18px;
+  --text-display:56px; --text-h1:32px; --text-h2:20px; --text-h3:18px;
   --text-h4:16px; --text-body-lg:17px; --text-body:16px; --text-body-sm:14px;
   --text-caption:13px; --text-label:14px; --text-mono:13px;
 }
@@ -207,7 +207,8 @@ a:hover { color: var(--jp-accent-600); }
 shadcn tokens map to `--jp-*` (via v2-aliasen), so light/dark follow
 automatically. Radii are clamped to the civic scale — `--radius-xl` cappas
 till `--jp-r-lg` (8px). Det finns inget 12px-steg: hero-plattan är 6px sedan
-ADR 0068, och `--jp-r-xl` togs bort i #1054.
+ADR 0068, och `--jp-r-xl` togs bort i #1054. `--jp-brand-accent` (`#FFCD00`,
+kompass-pricken) togs bort med ADR 0070 och deklareras inte i `globals.css`.
 
 ```css
 @theme inline {

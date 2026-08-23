@@ -281,12 +281,10 @@
   --jp-border-structural: var(--jp-border);  /* ADR 0041-amendment-token re-homed på v3-border */
 }
 
-/* Touch-bumpen som `--jp-control-h`-kommentaren ovan utlovar. Den ligger på TOKENEN,
-   inte per klass: filterraden är EN form med EN höjd (Klas-beslut 2026-06-30,
-   DESIGN.md §Komponenter), så en `min-height` på `.jp-sortfield__select` hade
-   särat sort-selecten från hero-pillsen och desynkat `.jp-skeleton--sort`, som
-   läser tokenen just för att slippa den layout-shiften. Lyfter alla tre
-   konsumenterna i ett steg (#1384, DESIGN.md §5). */
+/* The touch bump the `--jp-control-h` comment above promises. It sits on the TOKEN, not on a
+   class: the filter row is ONE form at ONE height (DESIGN.md §Komponenter), so a per-class
+   `min-height` would split the sort select from the hero pills and desync `.jp-skeleton--sort`,
+   which reads the token to avoid exactly that shift. Lifts all three consumers at once (#1384). */
 @media (max-width: 768px) {
   :root {
     --jp-control-h: 44px;
@@ -5071,8 +5069,8 @@ a.jp-adminnav__link[aria-current="page"]::after {
 }
 
 .jp-notice__dismiss {
-  width: 30px;
-  height: 30px;
+  width: 32px;
+  height: 32px;
   border: 0;
   background: transparent;
   border-radius: var(--jp-r-sm);
@@ -5226,12 +5224,19 @@ a.jp-adminnav__link[aria-current="page"]::after {
   background: var(--jp-surface-3);
   color: var(--jp-ink-1);
 }
-/* Touch floor (#1384) — same spec line and breakpoint as .jp-btn--sm. The glyph stays
-   16px; only the hit area grows, so the section head does not reflow. */
+/* Touch floor (#1384) — same spec line and breakpoint as .jp-btn--sm. The glyph stays 16px;
+   only the hit area grows. `.jp-notice__dismiss` moves with it: the two render in the same
+   section head (notice-section.tsx) and the comment above pairs their dimensions, so letting
+   them diverge would put a 44px control beside a 30px one at touch. */
 @media (max-width: 768px) {
-  .jp-section__gear {
+  .jp-section__gear,
+  .jp-notice__dismiss {
     min-width: 44px;
     min-height: 44px;
+  }
+  /* The <=880 grid gives `dismiss` a 32px column; widen it or the 44px button overflows. */
+  .jp-notice {
+    grid-template-columns: 4px 1fr 44px;
   }
 }
 

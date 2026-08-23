@@ -24,7 +24,7 @@
 | Mapping | — (manuell) | — | Ingen mapping-bibliotek; explicit DTO-mappning per CLAUDE.md §5 (AutoMapper/Mapster avvisade över domängränsen) |
 | Background jobs | Hangfire | 1.8.x | Postgres-storage |
 | Smart enum | Ardalis.SmartEnum | 8.x | State machines i domänen |
-| Logging | Microsoft.Extensions.Logging | 10.x | `Microsoft.Extensions.Logging.Console` → stdout + persistent strukturerad sink via Seq (dev levererad under TD-104/STEG 6; prod-sinken **levererad i repot, ej installerad på lådan** — [#1175](https://github.com/klasolsson81/jobbliggaren/issues/1175), ADR 0128) |
+| Logging | Microsoft.Extensions.Logging | 10.x | `Microsoft.Extensions.Logging.Console` → stdout + persistent strukturerad sink via Seq (dev levererad under TD-104/STEG 6; prod-sinken **levererad i repot** — [#1175](https://github.com/klasolsson81/jobbliggaren/issues/1175), ADR 0128; installationsläget på en given låda mäts i `docs/runbooks/log-sink.md` §4) |
 | Log sink | Seq.Extensions.Logging | 9.0.0 | MEL-provider → Seq (datalust); config-gated på `Seq:ServerUrl`; net9-asset .NET 10-kompatibel (MEL `>= 9` unifieras uppåt); dev lokal Seq. **Prod-topologin är namngiven sedan ADR 0128 och var tidigare bara "self-hosted EU":** `datalust/seq:2026.1` som compose-tjänst på produktionslådan (EU, Netcup), **utan publicerad port** — appen postar mot ingest-lyssnaren `5341`, aldrig UI/query-porten `80`. **Operatörsåtkomst är INTE en SSH-tunnel** — lådan kör `AllowTcpForwarding no` (mätt 2026-08-11), så drift sker headless via lådans egen `curl` mot container-IP:n; `docs/runbooks/log-sink.md` §3 äger proceduren. Kvar: install på lådan + verifikationsrader |
 | Observability | OpenTelemetry | 1.15+ | Traces + metrics. **Beroende-kandidat, obyggd** (ingen dom fälld — till skillnad från Catalyst-raden) — ingen `PackageReference` i något `.csproj`, ingen användning i `src/`; exporter/backend definieras med observability-sinken (§14.2, [#1175](https://github.com/klasolsson81/jobbliggaren/issues/1175)). `Directory.Packages.props` innehåller `OpenTelemetry.Api` + `.Exporter.OpenTelemetryProtocol` som **transitiva CVE-pins för WireMock.Net** (posternas egen kommentar), inte som en observability-implementation |
 | PDF parsing | PdfPig | 0.1.14+ | Text extraction |
@@ -147,7 +147,7 @@
 | Frontend | `pnpm dev` (localhost:3000) | Next.js `next start` co-tenant container på CAX31 (bakom Caddy) |
 | DNS / CDN / proxy | — | Cloudflare gratis-tier "Full (strict)" framför Caddy-origin på CAX31 |
 | Backup | — | Nattlig klient-side-krypterad `pg_dump` → **mål inte valt, ägs av [#197](https://github.com/klasolsson81/jobbliggaren/issues/197)** (kraven i §13.4) |
-| Logging / monitoring | console (MEL) + Seq (`Seq.Extensions.Logging`) | **Två mekanismer, inte en** (ADR 0128): Seq self-hosted på produktionslådan för sökbarhet (30 d retention — en policy som sätts för hand inne i Seq, det finns ingen miljövariabel för den), plus `jobbliggaren-logship` — timrad, `age`-krypterad off-box-arkivering av journal, auditd och app-loggar till OVH `hostlogs/`. Levererat i repot, ej installerat. Åldersgränsen för `json-file`-lagret är fortfarande öppen — [#1170](https://github.com/klasolsson81/jobbliggaren/issues/1170) |
+| Logging / monitoring | console (MEL) + Seq (`Seq.Extensions.Logging`) | **Två mekanismer, inte en** (ADR 0128): Seq self-hosted på produktionslådan för sökbarhet (retention **avsedd** — en policy som sätts för hand inne i Seq, det finns ingen miljövariabel för den; **varaktigheten står i `docs/runbooks/log-sink.md` §3 steg 7, och om policyn är satt på en given låda mäts i samma fils §4** — ingetdera påstås här), plus `jobbliggaren-logship` — timrad, `age`-krypterad off-box-arkivering av journal, auditd och app-loggar till OVH `hostlogs/`. Åldersgränsen för `json-file`-lagret är fortfarande öppen — [#1170](https://github.com/klasolsson81/jobbliggaren/issues/1170) |
 | Errors | — | Sentry (EU) planerat |
 | CI | GitHub Actions (build + test + coverage, inga moln-anrop) | oförändrat |
 | IaC | `infra/terraform/` bevarad som reversibilitets-mekanik (ADR 0066 Beslut 1) | retireras via egen ADR vid Hetzner-cutover |
@@ -1487,14 +1487,23 @@ permanent infra aktiveras; listan nedan speglar **beslutad** uppsättning, ADR 0
     2026-08-11 når en syskoncontainer `seq:80` (200), eftersom containrar på samma user-defined
     bridge når varandra som default. Det som faktiskt håller är att query-API:t på 80 svarar
     **401** utan autentisering och att 5341 bär **404** på query-vägen: försvaret är autentisering,
-    inte topologi. Retention: en policy, 30 dagar.
+    inte topologi. Retention: en policy, satt **för hand** inne i Seq (`log-sink.md` §3 steg 7),
+    aldrig i konfiguration — Seq har ingen yta för den. **Varaktigheten står avsiktligt inte här:**
+    ett tal som bor på två ställen förfaller på det ena. Den bor i `log-sink.md` §3 steg 7, i
+    curl-anropet som sätter policyn; om policyn *är* satt på en given låda är en annan fråga och
+    mäts i samma fils §4.
   - **Varaktighet** — `jobbliggaren-logship`, timrad off-box-arkivering krypterad med `age` till en
     mottagare lådan inte kan dekryptera. Bär journal + auditd + app-loggar. Detta, och inte Seq, är
     kopian som är avsedd att överleva en root-angripare — **och den egenskapen är inte i kraft**
     förrän verifikationsrad 27d:s `Deny s3:DeleteObject` är applicerad.
-- **Tre lager håller app-events, och bara två är åldersbundna:** Seq (30 d), off-box-arkivet
-  (lifecycle-regel), och Dockers `json-file` som är **volymbunden och åldersobunden**
-  — [#1170](https://github.com/klasolsson81/jobbliggaren/issues/1170) stängs inte av detta
+- **Tre lager är TÄNKTA att hålla app-events, och de två åldersgränserna är mekanismer — inte
+  tillstånd:** Seq (en handsatt policy), off-box-arkivet (en lifecycle-regel), och Dockers
+  `json-file` som är **volymbunden och åldersobunden** och därför aldrig får en åldersgräns av sig
+  själv. Vilka av de tre som faktiskt bär något på en given låda, och vilka gränser som är i kraft
+  där, är en mätning med ett hem: `docs/runbooks/log-sink.md` §4. En tidigare formulering här
+  räknade Seq och arkivet som *åldersbundna* rakt av; det var ett påstående om driftläge som den
+  här filen inte kan bära — [#1170](https://github.com/klasolsson81/jobbliggaren/issues/1170)
+  stängs inte av detta
 - Log levels:
   - `Trace`/`Debug`: dev only
   - `Information`: normala request-flows (start/slut av handlers)

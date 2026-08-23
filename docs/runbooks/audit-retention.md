@@ -61,7 +61,7 @@ medvetet val framför den inbyggda dashboarden. Leta där efter recurring job
   och `POST /api/v1/admin/jobs/recurring/{id}/trigger` (PR #248) — **inte** som
   kontroller på sidan.
 
-### 3.2 Strukturerad logg (Seq i dev; prod-sinken är obyggd — #1175)
+### 3.2 Strukturerad logg (Seq i dev och i prod)
 
 Filtrera på sourcecontext `Jobbliggaren.Application.Common.Auditing.Jobs.AuditLogRetention.AuditLogRetentionJob`
 (mätt mot `AuditLogRetentionJob.cs:4` — det gamla `JobbPilot.`-prefixet ger noll träffar sedan ADR 0069:s rename).

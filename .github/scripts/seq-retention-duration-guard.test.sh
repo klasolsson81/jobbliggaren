@@ -21,7 +21,7 @@ trap 'rm -rf "$TMPROOT"' EXIT
 fails=0
 cases=0
 
-# Build a throwaway project with both scoped paths tracked. Writes are done afterwards by
+# Build a throwaway project with the scoped paths tracked. Writes are done afterwards by
 # `put`, then `stage` puts them in the index — `git ls-files --error-unmatch` reads the index.
 mkproj() {
   local d="$TMPROOT/$1"
@@ -185,7 +185,8 @@ run seq_adjacent_non_retention_duration 1 "$d"
 # ==========================================================================================
 # "30 dagars" is house idiom and appeared in THIS file while the guard could not see it.
 i=0
-for form in "30 dagars" "30 dygns" "30 dagarna" "30 DAGAR" "30 Days" "30 D" "4 veckor"; do
+for form in "30 dagars" "30 dygns" "30 dagarna" "30 DAGAR" "30 Days" "30 D" "4 veckor" \
+            "6 månaders" "3 månaderna" "3 månadens" "3 månads" "3 Månader"; do
   i=$((i + 1))
   d=$(mkproj "inflect$i")
   printf 'Seq behåller sin korpus i %s innan den rensas.\n' "$form" >"$d/BUILD.md"
@@ -242,9 +243,11 @@ EOF
 stage "$d"
 run root_compose_is_scoped 1 "$d"
 
-# 4d. THE FALSE POSITIVES AN OPEN STEM PRODUCED — a diary is not a duration.
+# 4d. THE FALSE POSITIVES AN OPEN STEM PRODUCED — a diary is not a duration. The last four came
+#     from an open PREFIX in front of the month stems; those words are already in BUILD.md, so
+#     they were latent rather than absent.
 i=0
-for form in "30 dagboken" "30 dagbok" "3 monthly" "4 veckoschema"; do
+for form in "30 dagboken" "30 dagbok" "3 monthly" "4 veckoschema" "30 skillnader" "30 kostnader" "3 byggnader" "5 mognad"; do
   i=$((i + 1))
   d=$(mkproj "notaduration$i")
   printf 'Seq skriver %s i sin egen katalog och det är inte en lagringstid.\n' "$form" >"$d/BUILD.md"

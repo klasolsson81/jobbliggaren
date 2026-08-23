@@ -575,7 +575,7 @@ jobs:
       # varsitt påstående om en 30-dagarsgräns som var falskt på varje låda som någonsin kört;
       # de citeras inte här, för vaktens egen fixtur (d) graderar just den formen som fällande.
       # Vakten dömer REPOTS PÅSTÅENDEN, aldrig lådan — grönt betyder inte att retention är satt.
-      - name: seq-retention-duration-guard (fixturer + de två scopade filerna)
+      - name: seq-retention-duration-guard (fixturer + de scopade filerna)
         run: bash .github/scripts/seq-retention-duration-guard.test.sh
 
   # ---------------------------------------------------------------------------

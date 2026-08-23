@@ -2,11 +2,9 @@
 # seq-retention-duration-guard.sh — BLOCKING (#1170).
 #
 # WHAT IT PINS: no artefact-bearing tracked file states a DURATION for Seq's retention policy.
-# The duration has exactly one home — docs/runbooks/log-sink.md **§3 step 7**, the operator step
-# that sets the policy and carries the number in the curl body. §4 is where the neighbouring
-# question lives (whether any policy exists on a given box), and it deliberately carries no
-# duration of its own. Do not merge the two pointers: §4's rows also carry the `hostlogs/`
-# lifecycle numbers, which belong to a different mechanism entirely.
+# The duration belongs in docs/runbooks/log-sink.md — **§3 step 7**, the operator step that sets
+# the policy and carries the number in its curl body. §4 is where the neighbouring question lives:
+# whether any policy exists on a given box.
 #
 # CLAUDE.md §5 already forbids "a live measured number in a tracked file — it decays within a
 # commit or two", and ADR 0032 derived the same rule for this same class: "Never put a retention
@@ -85,15 +83,12 @@ readonly WINDOW=3
 # seven days of file age, say — fires too, and that is correct rather than collateral: it decays
 # in exactly the same way and belongs in the same one home.
 #
-# THE UNIT IS A STEM WITH AN OPEN TAIL, AND THAT IS THE REPAIR OF A MEASURED FAIL-OPEN. An
-# earlier revision required a non-alphanumeric boundary right after the unit and matched
-# case-sensitively, so SEVEN forms this repo actually writes slipped through: "30 dagars",
-# "30 dygns", "30 dagarna", "30 DAGAR", "30 Days", "30 D", and every week/month form. "30 dagars"
-# is house idiom (docs/runbooks/release-checklist.md) and appeared in this guard's OWN fixture
-# file while the guard could not see it. Matching now runs against tolower(), and each unit is a
-# stem that may carry any inflection. The `[^ ]*` before the stem is what reaches "30 månader":
-# its "må" is non-ASCII, and matching a byte run rather than a letter class keeps that working
-# under LC_ALL=C, where a UTF-8 letter class would not.
+# THE INFLECTIONS ARE ENUMERATED, AND THAT IS THE REPAIR OF A MEASURED FAIL-OPEN. An earlier
+# revision matched case-sensitively and demanded a non-alphanumeric boundary right after a bare
+# unit, so seven forms this repo actually writes slipped through: "30 dagars", "30 dygns",
+# "30 dagarna", "30 DAGAR", "30 Days", "30 D", and every week/month form. "30 dagars" is house
+# idiom (docs/runbooks/release-checklist.md) and was sitting in this guard's OWN fixture file
+# while the guard could not see it.
 #
 # ⚠ A SEPARATOR IS REQUIRED BEFORE A BARE SINGLE-LETTER "d", AND THAT IS A MEASURED UNDER-REACH
 # RATHER THAN AN OVERSIGHT. Solid "27d" is this repo's verification-ROW identifier — BUILD.md
@@ -112,13 +107,28 @@ readonly WINDOW=3
 # a diary as a duration gets switched off exactly like one that reports a row number. The open
 # tail survives only on the SOLID form (`30days`), where the digit prefix makes a collision
 # implausible; that looseness is named here rather than discovered later.
-readonly DURATION_RE='[0-9]+[ -][^ ]*(dagarna|dagars|dagar|dagen|dag|dygnens|dygns|dygn|days|day|veckorna|veckors|veckor|veckan|vecka|weeks|week|manaderna|manaders|manader|manaden|manad|months|month|nader|nad)([^a-z0-9]|$)|[0-9]+(dag|dygn|day|veck|week|month)[a-z]*|[0-9]+[ -]d([^a-z0-9]|$)|[0-9]+[.][0-9]{2}:[0-9]{2}:[0-9]{2}'
+# ⚠ THE UNIT FOLLOWS THE SEPARATOR DIRECTLY — NO PREFIX WILDCARD. An earlier revision reached
+# "månader" through an ASCII `nad` stem behind a `[^ ]*`, and that bought a fail-open AND an
+# over-reach at once, both measured: the ASCII spellings `manaders`/`manaden` could never fire at
+# all (tolower() never turns "må" into "ma"), leaving "6 månaders",
+# "3 månaderna", "3 månadens" and "3 månads" silent; while the open prefix made "30 skillnader",
+# "30 kostnader", "3 byggnader" and "5 mognad" fire. `skillnad`, `kostnader`, `byggnader`,
+# `marknad` and `mognad` are already in BUILD.md — that was latent, not absent. The month forms
+# are now spelled with the literal å and matched as bytes, which is locale-proof in the direction
+# a letter class is not.
+#
+# Residual, named rather than left to be found: an ALL-CAPS "3 MÅNADER" is not matched. Neither
+# branch of the match reaches it — the raw line still holds an upper-case Å, and the folded line
+# is the corrupted one described at the match site. "3 Månader" IS matched, on the raw branch,
+# since the pattern's own letters after the M are already lower case.
+readonly DURATION_RE='[0-9]+[ -](dagarna|dagars|dagar|dagen|dag|dygnens|dygns|dygn|days|day|veckorna|veckors|veckor|veckan|vecka|weeks|week|[Mm]ånaderna|[Mm]ånaders|[Mm]ånadens|[Mm]ånader|[Mm]ånaden|[Mm]ånads|[Mm]ånad|months|month)([^a-z0-9]|$)|[0-9]+(dag|dygn|day|veck|week|month)[a-z]*|[0-9]+[ -]d([^a-z0-9]|$)|[0-9]+[.][0-9]{2}:[0-9]{2}:[0-9]{2}'
 
-# Case-insensitive and bounded by non-alphanumerics. UNDERSCORE IS *NOT* A BOUNDARY CHARACTER
-# HERE, DELIBERATELY: the env-key forms `SEQ_SERVER_URL`, `SEQ_INGEST_API_KEY`, `Seq__ServerUrl`
-# and the volume `seq_data` are all genuinely about Seq, and excluding underscore left exactly
-# one line of .env.example's Seq section unreachable. Measured across all scoped files: there is
-# no non-Seq `seq`-with-underscore token, so admitting them costs no false positives.
+# Case-insensitive and bounded by non-alphanumerics. UNDERSCORE COUNTS AS A BOUNDARY HERE,
+# DELIBERATELY — it is inside `[^a-zA-Z0-9]`: the env-key forms `SEQ_SERVER_URL`,
+# `SEQ_INGEST_API_KEY`, `Seq__ServerUrl` and the volume `seq_data` are all genuinely about Seq,
+# and excluding underscore left exactly one line of .env.example's Seq section unreachable.
+# Measured across all scoped files: there is no non-Seq `seq`-with-underscore token, so admitting
+# them costs no false positives.
 #
 # What that changes about the collisions, because the credit moved: "consequence" and "sequence"
 # are still excluded by the boundaries — `seq` inside them is flanked by letters. `enable_seqscan`
@@ -148,7 +158,12 @@ for f in "${SCOPED_PATHS[@]}"; do
       { line[NR] = $0 }
       END {
         for (i = 1; i <= NR; i++) {
-          if (tolower(line[i]) !~ dur) continue
+          # BOTH FORMS ARE TESTED, AND THAT IS NOT BELT-AND-BRACES — IT IS A MEASURED WORKAROUND.
+          # gawk 5.0.0 under C.UTF-8 CORRUPTS multibyte input in tolower(): byte 0xC3 comes back
+          # as 0xE3, i.e. the lead byte is folded as if it were Latin-1 Ã, and "månaders" becomes
+          # an invalid sequence that can no longer match its own literal. The raw line therefore
+          # carries the non-ASCII forms and the folded line carries the upper-case ASCII ones.
+          if (line[i] !~ dur && tolower(line[i]) !~ dur) continue
           lo = i - win; if (lo < 1) lo = 1
           hi = i + win; if (hi > NR) hi = NR
           hasSeq = 0

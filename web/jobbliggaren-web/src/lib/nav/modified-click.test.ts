@@ -26,12 +26,6 @@ describe("onPlainNav", () => {
     expect(fn).toHaveBeenCalledOnce();
   });
 
-  it("runs the callback for keyboard activation, which carries button 0 and no modifier", () => {
-    const fn = vi.fn();
-    onPlainNav(click({ button: 0 }), fn);
-    expect(fn).toHaveBeenCalledOnce();
-  });
-
   const modifiers = [
     ["metaKey", { metaKey: true }],
     ["ctrlKey", { ctrlKey: true }],

@@ -177,6 +177,22 @@ describe("HeroChip", () => {
     expect(screen.getByRole("dialog")).toBeInTheDocument();
   });
 
+  // A real keyboard activation, which the module's matrix cannot express: at that
+  // level there is no such thing as "keyboard" distinct from a plain click object.
+  // Enter on a focused link must still dismiss -- the fix must not strand anyone
+  // who never touches a pointer.
+  it("Enter on a focused row closes the popover", async () => {
+    const user = userEvent.setup();
+    renderChip();
+    await user.click(screen.getByRole("button", { name: /Senaste sökningar/ }));
+    const row = screen.getAllByRole("link")[0]!;
+    row.focus();
+
+    await user.keyboard("{Enter}");
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
   it("plain click on the footer link closes the popover", async () => {
     const user = userEvent.setup();
     renderChip();

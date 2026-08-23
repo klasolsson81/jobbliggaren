@@ -157,10 +157,10 @@ describe("AppShell (v3 header-shell)", () => {
     expect(screen.queryByRole("dialog", { name: "Meny" })).not.toBeInTheDocument();
   });
 
-  // #1440-uppföljning: en modifierad klick öppnar destinationen nagon annanstans
-  // och lämnar användaren kvar här, så ytan får inte avfärdas. Predikatet bor i
-  // lib/nav/modified-click.ts och har sin matris där -- de här två testerna
-  // pinnar KOPPLINGEN, en per bindning.
+  // #1440 follow-up: a modified click opens the destination elsewhere and
+  // leaves the user here, so the surface must not be dismissed. The predicate
+  // and its matrix live in lib/nav/modified-click.ts -- these pin the
+  // BINDINGS, one pair per surface.
   it("ctrl-klick i användarmenyn lämnar menyn öppen", async () => {
     const user = userEvent.setup();
     render(
@@ -213,9 +213,11 @@ describe("AppShell (v3 header-shell)", () => {
 
     fireEvent.click(link, { ctrlKey: true });
 
-    expect(screen.getByRole("dialog", { name: "Meny" })).toBeInTheDocument();
-    // handleNav drar fokus till hamburgaren — den skadan har bara drawern.
+    // Focus first: if this regresses, the dialog assertion below throws and the
+    // focus line never runs. Ordering it first makes the crossing reach it.
+    // handleNav pulls focus to the hamburger -- damage the other two lack.
     expect(burger).not.toHaveFocus();
+    expect(screen.getByRole("dialog", { name: "Meny" })).toBeInTheDocument();
   });
 
   it("vanlig klick i mobil-drawern stänger den", async () => {

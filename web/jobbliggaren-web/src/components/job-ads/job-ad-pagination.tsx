@@ -45,6 +45,10 @@ export function JobAdPagination({
 
   const items = buildPageItems(page, totalPages);
 
+  // Touch floor (#1384, DESIGN.md §5) on every control below. The at-rule is written out
+  // rather than `max-[768px]:`, which is EXCLUSIVE of 768, while every CSS home of this rule
+  // uses `@media (max-width: 768px)`, which includes it. Tidying these back to the shorthand
+  // reopens a gap at exactly 768px where the sort control bumps and this pager does not.
   return (
     <nav
       aria-label={t("pagination.navLabel")}
@@ -56,7 +60,7 @@ export function JobAdPagination({
             <Link
               href={buildHref(page - 1)}
               rel="prev"
-              className="inline-flex items-center rounded-md border border-border bg-card px-3 py-2 text-body-sm text-text-primary hover:bg-surface-secondary"
+              className="inline-flex items-center rounded-md border border-border bg-card px-3 py-2 text-body-sm text-text-primary hover:bg-surface-secondary [@media(max-width:768px)]:min-h-11"
             >
               {t("pagination.previous")}
             </Link>
@@ -75,7 +79,7 @@ export function JobAdPagination({
             <li key={item}>
               <span
                 aria-current="page"
-                className="inline-flex min-w-[2.5rem] items-center justify-center rounded-md border border-brand-700 bg-brand-50 px-3 py-2 text-body-sm font-medium text-brand-700"
+                className="inline-flex min-w-[2.5rem] items-center justify-center rounded-md border border-brand-700 bg-brand-50 px-3 py-2 text-body-sm font-medium text-brand-700 [@media(max-width:768px)]:min-h-11 [@media(max-width:768px)]:min-w-11"
               >
                 <span className="sr-only">{t("pagination.pagePrefix")}</span>
                 {item}
@@ -85,7 +89,7 @@ export function JobAdPagination({
             <li key={item}>
               <Link
                 href={buildHref(item)}
-                className="inline-flex min-w-[2.5rem] items-center justify-center rounded-md border border-border bg-card px-3 py-2 text-body-sm text-text-primary hover:bg-surface-secondary"
+                className="inline-flex min-w-[2.5rem] items-center justify-center rounded-md border border-border bg-card px-3 py-2 text-body-sm text-text-primary hover:bg-surface-secondary [@media(max-width:768px)]:min-h-11 [@media(max-width:768px)]:min-w-11"
               >
                 <span className="sr-only">{t("pagination.pagePrefix")}</span>
                 {item}
@@ -98,7 +102,7 @@ export function JobAdPagination({
             <Link
               href={buildHref(page + 1)}
               rel="next"
-              className="inline-flex items-center rounded-md border border-border bg-card px-3 py-2 text-body-sm text-text-primary hover:bg-surface-secondary"
+              className="inline-flex items-center rounded-md border border-border bg-card px-3 py-2 text-body-sm text-text-primary hover:bg-surface-secondary [@media(max-width:768px)]:min-h-11"
             >
               {t("pagination.next")}
             </Link>

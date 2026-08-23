@@ -1028,7 +1028,7 @@ internal sealed partial class RecruiterErasureMatchQuery : IRecruiterErasureMatc
     /// repo detects that the margin has been consumed, so without this the ceiling is crossed
     /// silently the next time the corpus grows or the box is cold (#1463).
     /// </summary>
-    /// <remarks>Internal so a test can cross the threshold without 90 s of wall clock.</remarks>
+    /// <remarks>Internal so a test can cross the threshold without waiting out the wall clock.</remarks>
     internal void WarnIfMarginConsumed(TimeSpan elapsed)
     {
         if (elapsed < MarginWarningThreshold)

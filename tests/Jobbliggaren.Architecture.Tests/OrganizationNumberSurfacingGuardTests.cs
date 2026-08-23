@@ -591,7 +591,7 @@ public class OrganizationNumberSurfacingGuardTests
         // Same fail-closed posture as the browse read-path above, and for a stricter reason: the
         // argument to every method on this port IS the identifier of a natural person exercising
         // Art. 17. LogMarginConsumed is allowed because it carries an elapsed time and a ceiling and
-        // nothing else; any SECOND log call fails the build whatever it carries.
+        // nothing else.
         foreach (var relativePath in Art17MatchQuerySourcePaths)
         {
             var source = ReadSource(relativePath);
@@ -625,9 +625,31 @@ public class OrganizationNumberSurfacingGuardTests
         var surface = OrgNrSurfaceScan.FindLoggingSurface(
             synthetic, AllowedArt17MatchQueryLogCalls, allowInjection: true);
 
-        surface.ShouldBe(["LogInformation"],
+        surface.ShouldContain("LogInformation",
             "the injected logger is permitted, the allowed call is permitted, and any OTHER call " +
             "must still be flagged — that difference is the whole of the guard.");
+    }
+
+    [Theory]
+    [InlineData("""
+        [LoggerMessage(EventId = 1, Level = LogLevel.Information, Message = "no match for {Identifier}")]
+        private static partial void IdentifierNotFound(ILogger logger, string identifier);
+        """)]
+    [InlineData("""_logger.Log(LogLevel.Information, "no match for {Identifier}", identifier);""")]
+    [InlineData("""using var scope = _logger.BeginScope("{Identifier}", identifier);""")]
+    public void Logging_surface_scan_flags_the_three_forms_that_evade_the_name_shaped_arm(string synthetic)
+    {
+        // security-auditor's own measurement, turned into the gate (new-in-delta Major, 2026-08-23).
+        // Each of these emits a log line carrying the data subject's identifier and passes the
+        // `Log[A-Z]\w*(` arm: the first is a [LoggerMessage] partial that is simply not Log-prefixed
+        // (39 of 178 in src/ are not), the second is MEL's own non-generic entry point, the third is
+        // a scope. The org.nr TOKEN scan misses them too — {Identifier} carries no org.nr token — so
+        // before this they cleared every control in the repo.
+        OrgNrSurfaceScan.FindLoggingSurface(
+                synthetic, AllowedArt17MatchQueryLogCalls, allowInjection: true)
+            .ShouldNotBeEmpty(
+                "a second log site must be flagged even when its NAME does not start with Log — the " +
+                "guard has to rest on structure, not on a convention 22 % of src/ already breaks.");
     }
 
     [Fact]
@@ -1035,6 +1057,27 @@ internal static class OrgNrSurfaceScan
             var method = m.Groups[1].Value;
             if (!allowed.Contains(method))
                 found.Add(method);
+        }
+
+        // The arm above is NAME-SHAPED, and a name shape is not a structure. Measured over src/
+        // (security-auditor, 2026-08-23): 39 of 178 [LoggerMessage] partials are not Log-prefixed,
+        // so `IdentifierNotFound(ILogger logger, string identifier)` would emit a log line and pass
+        // it — as would `_logger.Log(LogLevel.Information, …)` and `_logger.BeginScope(…)`. When the
+        // ILogger arm is off, those three are the whole of the fail-open surface, so they are closed
+        // structurally rather than by convention.
+        foreach (Match m in Regex.Matches(
+            source, @"\[LoggerMessage[\s\S]*?\bvoid\s+(\w+)\s*\(", RegexOptions.None))
+        {
+            var method = m.Groups[1].Value;
+            if (!allowed.Contains(method))
+                found.Add(method);
+        }
+
+        foreach (Match m in Regex.Matches(source, @"\b_logger\s*\.\s*(\w+)"))
+        {
+            var member = m.Groups[1].Value;
+            if (!allowed.Contains(member))
+                found.Add("_logger." + member);
         }
 
         return found.Distinct(StringComparer.Ordinal).ToList();

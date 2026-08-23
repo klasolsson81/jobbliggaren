@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using System.Data.Common;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Common.Auditing;
@@ -1375,9 +1376,9 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
     /// <para>
     /// The treatment half drives a whole DRY RUN rather than one method, and that is the point:
     /// the ceiling is applied in the port's CONSTRUCTOR, so the claim under test is that it holds
-    /// for every command the Art. 17 request issues — the ten other channel queries and the audit
-    /// write included, not just <c>FindJobAdsAsync</c>. Observing one method would stay green if
-    /// the call moved out of the constructor into that method.
+    /// for EVERY command the Art. 17 request issues, not just <c>FindJobAdsAsync</c>'s. There is no
+    /// filter on the assertion, so a command that escaped the ceiling fails it rather than being
+    /// skipped.
     /// </para>
     /// <para>
     /// <b>Mutations:</b> delete <c>SetCommandTimeout</c> and this goes red at 30; change
@@ -1390,7 +1391,7 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
     /// out of the constructor into <c>FindJobAdsAsync</c> leaves it GREEN, because that method is
     /// the handler's FIRST port call and everything after it inherits the raised ceiling anyway.
     /// The constructor's radius premise is pinned separately, by
-    /// <c>ErasurePortIsInjectedOnlyByTheErasureHandler</c> in the architecture suite.
+    /// <c>ErasurePortIsConstructorInjectedOnlyByTheErasureHandler</c> in the architecture suite.
     /// </para>
     /// </summary>
     [Fact]
@@ -1414,9 +1415,16 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
         _commandTimeouts.Clear();
         _ = await EraseAsync(RecruiterName, ct, dryRun: true);
 
-        _commandTimeouts.Records.Count.ShouldBeGreaterThan(1,
-            "a dry run issues the matching query plus every cascade count — if only one command was "
-            + "observed the treatment is not exercising what the constructor placement claims.");
+        // Ten is MEASURED, not derived (2026-08-23). The handler calls all eleven port methods
+        // unconditionally, but on a no-match identifier two paths return before issuing SQL:
+        // FindJobAdsAsync skips its EF projection when no ids came back, and
+        // CountApplicationsReferencingAsync short-circuits on an empty id list. A floor of ">1"
+        // would let a future change short-circuit the whole cascade while this fact's own summary
+        // quietly stopped being true (test-writer, 2026-08-23) — but a floor of 11, derived from the
+        // method count without running it, is simply wrong, which is what running it showed.
+        _commandTimeouts.Records.Count.ShouldBeGreaterThanOrEqualTo(10,
+            "a dry run issues the matching query plus every cascade count — a smaller number means "
+            + "the treatment is not exercising what the constructor placement claims.");
         _commandTimeouts.Records.ShouldAllBe(r => r.CommandTimeout == 180);
     }
 
@@ -1434,9 +1442,9 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
     /// (2026-08-23), against a corpus that grows monotonically with ingest.
     /// </para>
     /// <para>
-    /// <b>Mutations:</b> the boundary pair is LITERAL, so any threshold other than 90 s goes red in
-    /// one direction or the other — the previous pair (1 s / 180 s) left every threshold in between
-    /// green. Flip the comparison and both polarities swap; add a parameter to
+    /// <b>Mutations:</b> the boundary pair is LITERAL, so a threshold derived from the ceiling by any
+    /// other divisor goes red in one direction or the other — the previous pair (1 s / 180 s) left
+    /// every threshold in between green. Flip the comparison and both polarities swap; add a parameter to
     /// <c>LogMarginConsumed</c> and the field assertion goes red; renumber the event and the
     /// <c>EventId</c> assertion goes red.
     /// </para>
@@ -2879,12 +2887,20 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
     {
         // No test in this class runs DbContext work concurrently, so commands arrive on one thread
         // and a plain list needs no synchronization.
-        public List<(string CommandText, int CommandTimeout)> Records { get; } = [];
+        private readonly List<(string CommandText, int CommandTimeout)> _records = [];
 
-        public void Clear() => Records.Clear();
+        // ReadOnlyCollection, not IReadOnlyList: §3 forbids exposing List<T>, and CA1859 is an ERROR
+        // in this repo and rejects an interface-typed property the analyzer can prove concrete. A
+        // read-only CONCRETE type satisfies both instead of trading one off against the other. The
+        // wrapper is a live view over the field, so Clear() is still visible through it.
+        public ReadOnlyCollection<(string CommandText, int CommandTimeout)> Records { get; }
+
+        public CommandTimeoutRecorder() => Records = _records.AsReadOnly();
+
+        public void Clear() => _records.Clear();
 
         private void Record(DbCommand command) =>
-            Records.Add((command.CommandText, command.CommandTimeout));
+            _records.Add((command.CommandText, command.CommandTimeout));
 
         public override InterceptionResult<DbDataReader> ReaderExecuting(
             DbCommand command, CommandEventData eventData, InterceptionResult<DbDataReader> result)

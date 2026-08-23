@@ -70,7 +70,7 @@ F-städ-fas.
 | `--jp-border` | `#C9D2E0` | `#44598A` | `border-border-default` | Standardvalet |
 | `--jp-border-soft` | `#E3E8F0` | `#2C3F65` | — | Mjukaste avgränsare |
 | `--jp-border-strong` | `#7C8AA0` | `#6F86A8` | `border-border-strong` | Starkare avgränsare (checkbox-box) |
-| `--jp-border-input` | `#7C8AA0` | `#6F86A8` | — | Input-vila — samma hex som ink-3 light (medveten tonalitet, separat semantik) |
+| `--jp-border-input` | `#7C8AA0` | `#6F86A8` | `border-border-input` | Input-vila — samma hex som ink-3 light (medveten tonalitet, separat semantik) |
 | `--jp-border-modal` | `var(--jp-border)` | (följer) | `border-border-modal` | ADR 0041-token, re-homed på v3-border |
 | `--jp-border-structural` | `var(--jp-border)` | (följer) | `border-border-structural` | ADR 0041-amendment-token, re-homed på v3-border |
 

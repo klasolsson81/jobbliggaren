@@ -32,18 +32,15 @@ export default async function GuestJobbFullPage({ params }: PageProps) {
             <h1 className="jp-pagehero__title">{jobAd.title}</h1>
             <p className="jp-pagehero__lede">{jobAd.companyName}</p>
           </div>
-          <div className="jp-pagehero__aside">
-            <Link
-              href="/gast/jobb"
-              className="jp-btn jp-btn--secondary jp-btn--sm"
-            >
-              <ArrowLeft size={14} aria-hidden="true" /> {t("jobb.backToList")}
-            </Link>
-          </div>
         </div>
       </section>
 
       <div className="jp-container jp-page">
+        <Link href="/gast/jobb" className="jp-backlink mb-4">
+          <ArrowLeft size={16} aria-hidden="true" />
+          {t("jobb.backToList")}
+        </Link>
+
         {/* `headless` så `<JobAdDetail>` inte renderar egen h1/header
             (security-auditor m-1 2026-05-24: undvik dubbel h1 — pagehero
             äger titeln). */}

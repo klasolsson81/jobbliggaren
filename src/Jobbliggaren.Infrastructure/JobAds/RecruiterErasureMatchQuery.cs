@@ -36,14 +36,14 @@ internal sealed class RecruiterErasureMatchQuery(
     // LIKE metacharacters. `_` is legal and common in email local parts (anna_k@acme.se) and would
     // otherwise be a single-character wildcard; `%` would match the whole corpus.
     //
-    // ⚠ This MUST stay Postgres's own default escape, and that is load-bearing rather than
-    // incidental. Every arm matches with `LIKE ANY({patterns})` — the only form that compares one
-    // value against a whole pattern array — and `LIKE ANY` admits NO ESCAPE clause, so the escape
-    // is whatever Postgres defaults to. It defaults to backslash, which is what LikePattern emits.
-    // Change this and every escaped metacharacter silently stops being escaped: `\_` matches a
-    // literal backslash and the identifier `anna_k@acme.se` stops matching its own row.
-    // `LikeEscape_is_the_postgres_default_backslash` holds that line; the metacharacter
-    // integration test holds the behaviour it protects.
+    // ⚠ This MUST be Postgres's own default escape. Every arm matches with `LIKE ANY({patterns})`,
+    // which admits NO ESCAPE clause — the server rejects one as a syntax error — so the
+    // escape is whatever Postgres defaults to, and the pattern builder has to agree with it by
+    // construction rather than by coincidence. `LikeEscape_is_the_postgres_default_backslash` holds
+    // the server's half; LikePattern below DERIVES every emitted prefix from this constant, so the
+    // metacharacter integration test holds ours. Both halves are needed: the constant was once read
+    // only as a search argument while the emitted prefixes were hardcoded, which left it pinned by
+    // nothing and made this very comment's causal claim false.
     //
     // The array form is not a style choice. Cross-joining the patterns instead —
     // `FROM jsonb_path_query(...) v, unnest({patterns}) p` — multiplies every walked value by the
@@ -53,12 +53,15 @@ internal sealed class RecruiterErasureMatchQuery(
 
     private static string LikePattern(string identifier)
     {
+        // Backslash FIRST: escaping it after `%`/`_` would re-escape the prefixes just written.
+        var e = LikeEscape.ToString();
+
         var escaped = identifier
             .Trim()
             .ToLowerInvariant()
-            .Replace(LikeEscape.ToString(), @"\\", StringComparison.Ordinal)
-            .Replace("%", @"\%", StringComparison.Ordinal)
-            .Replace("_", @"\_", StringComparison.Ordinal);
+            .Replace(e, e + e, StringComparison.Ordinal)
+            .Replace("%", e + "%", StringComparison.Ordinal)
+            .Replace("_", e + "_", StringComparison.Ordinal);
 
         return $"%{escaped}%";
     }
@@ -229,10 +232,13 @@ internal sealed class RecruiterErasureMatchQuery(
         string[] terms = [needle, .. writtenForms];
 
         // ADR 0087 D8(c) — "flagged/masked/excluded in ANY display projection", and the free-text
-        // channels are display projections too. An excerpt is a window around a matched TERM, so the
-        // question "does this excerpt carry a personnummer-shaped value" is answered by the term that
-        // caused the match, not by re-scanning the window: same predicate, one rule, no second
-        // detector. It is a property of the REQUEST, so it is decided once and not per row.
+        // channels are display projections too. Decided from the matched terms with the predicate
+        // that already exists: same rule, no second detector over free prose. It is a property of
+        // the REQUEST, so it is decided once and not per row.
+        //
+        // ⚠ RESIDUAL, named rather than certified away: this flags what the REQUESTER asked for, not
+        // what the window happens to contain, so a name request whose excerpt encloses a third
+        // party's personnummer-shaped value is not flagged by it.
         var termsArePersonnummerShaped = terms.Any(t =>
             Domain.CompanyWatches.OrganizationNumber.TryFromWrittenForm(t)
                 ?.IsPersonnummerShaped() == true);
@@ -257,12 +263,11 @@ internal sealed class RecruiterErasureMatchQuery(
                     ? (ErasureMatchChannel.OrganizationNumber, matchedForm)
                     : Evidence(r.Title, r.Description, r.Company, r.Contacts, terms);
 
-                // One flag, every channel. Previously only the org.nr channel carried it, so a
-                // personnummer-shaped value reaching the operator through `description` — measured at
-                // 34 hyphenated and 922 bare forms in the dev corpus — arrived un-flagged on the one
-                // screen ADR 0087 D8(c) names explicitly ("even to the admin operator, even when the
-                // subject herself supplied it"). An empty excerpt is left empty; a flag on nothing
-                // flags nothing.
+                // One flag, every channel that has an excerpt. Previously only the org.nr channel
+                // carried it, so a personnummer-shaped value reaching the operator through
+                // `description` arrived un-flagged on the one screen ADR 0087 D8(c) names explicitly
+                // ("even to the admin operator, even when the subject herself supplied it"). An empty
+                // excerpt is left empty; a flag on nothing flags nothing.
                 var flagged = termsArePersonnummerShaped && excerpt.Length > 0
                     ? $"{excerpt} (personnummer-format)"
                     : excerpt;
@@ -284,11 +289,11 @@ internal sealed class RecruiterErasureMatchQuery(
     /// would have been shown a window with no trace of her in it and no way to tell that from a false
     /// positive. This is the one gate between him and irreversible corpus-wide destruction, and a
     /// window with no hit in it is evidence of nothing.
-    /// </remarks>
-    /// <remarks>
+    /// <para>
     /// <paramref name="terms"/> carries the identifier as supplied AND every written form, because
     /// the SQL matches every written form: an ad whose description holds <c>551218-1234</c>, matched
     /// by a request for <c>5512181234</c>, would otherwise reach the operator with no excerpt at all.
+    /// </para>
     /// </remarks>
     private static (ErasureMatchChannel Channel, string Excerpt) Evidence(
         string title, string? description, string company, Domain.JobAds.AdContacts? contacts,
@@ -730,7 +735,9 @@ internal sealed class RecruiterErasureMatchQuery(
     /// they are <c>text[]</c>; every other channel needs the same set as LIKE patterns instead.
     /// <b>This does NOT apply to a normalising column</b> — <c>company_watches.organization_number</c>
     /// and <c>recent_job_searches.employer_list</c> both reach the database through a ten-digit gate,
-    /// so the ten-digit form is the only one stored and their arms stay exact probes.
+    /// so the ten-digit form is the only stored PLAINTEXT form and their arms stay exact probes. That
+    /// qualifier is load-bearing: a personnummer-shaped org.nr is stored in the first of those as a
+    /// keyed HMAC token, which is why its arm carries two operands and not one.
     /// <c>job_ads.organization_number</c> looks like a third and is not: its ingest write path runs
     /// <c>JobAdFacets.Normalize</c> (a trim) and never <c>OrganizationNumber.Create</c>.
     /// </remarks>

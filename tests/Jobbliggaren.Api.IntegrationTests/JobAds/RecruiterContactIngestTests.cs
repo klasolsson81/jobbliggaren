@@ -676,6 +676,48 @@ public sealed class RecruiterContactIngestTests : IAsyncLifetime
     }
 
     /// <summary>
+    /// <b>The case the exclusion was BUILT for, which the whole-literal facts do not reach.</b>
+    /// <c>clare</c> is a five-character substring of <c>Declared</c> and a real given name; measured
+    /// on the dev corpus 2026-08-23 it reached 16 999 of 40 983 ads through <c>job_ads.contacts</c>,
+    /// before AND after the value walk, because a value is not a key name. The whole-value exclusion
+    /// is what closes it, and a substring identifier is the only thing that shows that.
+    /// <b>Mutation:</b> delete the <c>&lt;&gt; ALL({AdContactOriginLiterals})</c> conjunct.
+    /// </summary>
+    [Fact]
+    public async Task An_identifier_that_is_only_a_SUBSTRING_of_an_origin_literal_matches_no_ad()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await IngestThroughProductionPathAsync(ct);
+
+        var probe = await EraseAsync("clare", ct, dryRun: true);
+
+        probe.Matched.JobAds.ShouldBe(0,
+            "`clare` occurs in this corpus only inside the provenance token `Declared`. Excluding "
+            + "the token by whole-value equality is what keeps a real given name from proposing "
+            + "every ad that has contacts at all.");
+    }
+
+    /// <summary>
+    /// <c>job_ads.contacts</c> gained the written-form patterns with this change, and takes them:
+    /// the declared contact carries the hyphenated org.nr, the request carries the ten-digit form,
+    /// and the ad's own <c>organization_number</c> is a different company.
+    /// <b>Mutation:</b> replace <c>WrittenFormPatterns(identifier)</c> with
+    /// <c>[LikePattern(identifier)]</c>.
+    /// </summary>
+    [Fact]
+    public async Task A_WRITTEN_FORM_in_a_declared_CONTACT_is_reached()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await IngestOneAdWithDeclaredContactNameAsync("Ingrid Lindqvist 550928-1234", ct);
+
+        var probe = await EraseAsync("5509281234", ct, dryRun: true);
+
+        probe.Matched.JobAds.ShouldBe(1,
+            "the contacts document stores what the advertiser wrote, so the request must be "
+            + "compared against every written form of her org.nr.");
+    }
+
+    /// <summary>
     /// The counterpart the zero above cannot give: the surgical arm DOES reach a frozen contact by
     /// her real name, so the exclusion narrows the provenance token and nothing else.
     /// <b>Mutation:</b> widen <c>&lt;&gt; ALL({AdContactOriginLiterals})</c> to exclude every value.

@@ -186,3 +186,117 @@ DTO-kontraktets *"the normalised org.nr that matched"*, och handlarens *"nothing
 destroyed"* som PR-kroppens egen F1 fastslår är falsk och ändå lämnar stående — är det fyra osanna
 meningar i ansvarsdokumentationen för ett Art. 17-förfarande. Samtliga stängs genom strykning, inte
 genom ny prosa.
+
+---
+
+# Omkontroll (scoped, report-only) — delta `bbf855ff..92fb5d4e`
+
+> Transkriberad ordagrant av ägande session (charter förbjuder repo-skrivning).
+
+**Status:** ✓ **Approved** — 0 Blocker / 0 Major **i deltat**. Ett Major på repo-tillstånd som
+deltat inte skapade rapporteras nedan och blockerar inte (§9.6 undantag (1), deklarerat av
+rapporterande charter).
+
+| # | Fynd (runda 1) | Verdikt |
+|---|---|---|
+| **B1** | Art. 17-dry-runen överskrider 30 s command timeout | ✅ **CLOSED** — 38,7/41,3 s → 14,9/16,2 s warm |
+| **M1** | Fyra fritextkanaler surfar personnummer-format UN-FLAGGED | ✅ **CLOSED** — flaggan når alla fem kanaler, pinnad av två tester |
+| **m1** | `OrgNrEvidence`-polariteten fail:ar öppet | ✅ **CLOSED** — grinden strukturellt upplöst |
+| **m2** | Runbookens falska "only column on the first side" | ✅ **CLOSED** — struken i alla tre hem |
+| **m3a** | Runbookens "normalised org.nr as the excerpt" | ✅ **CLOSED** |
+| **m3b** | DTO-kontraktets "the normalised org.nr that matched" | ⚠️ **PARTIALLY CLOSED** — fjärde hem kvar |
+| **m3c** | Handlarens "nothing of any USER'S is destroyed" | ✅ **CLOSED** (stängd genom omskrivning, se anmärkning) |
+| **NY** | Cold-cache-överskridandet | 🔶 **Major, repo-tillstånd** — filas, blockerar inte |
+
+## Egna mätningar (dev-korpus 106 071 ads, `job_ads` 1 761 MB, `shared_buffers` 128 MB)
+
+**1. `LIKE ANY` ≡ `LIKE … ESCAPE '\'`** — 16 värden × 8 patterns, PG 18.3: **noll oenigheter**.
+Negativa kontroller faller rätt. Och `LIKE ANY(…) ESCAPE` är ett **syntaxfel** på servern —
+kommentarens bärande påstående är verifierat, inte antaget.
+
+**2. Timing, samma warm cache, alternerande körningar:**
+
+| form | warm 1 | warm 2 | shared hit | physical read |
+|---|---|---|---|---|
+| pre-PR-basen (`::text`, 1 pattern) | 4,25 s | 4,08 s | 870 958 | 319 662 |
+| **formen jag blockerade** | **38,74 s** | **41,28 s** | 2 811 136 | 322 003 |
+| **fixen** (`LIKE ANY`, 6 patterns) | **14,88 s** | **16,24 s** | 871 264 | 319 270 |
+
+## Major 1 — cold-cache-överskridandet är repo-tillstånd, inte deltats
+
+**`physical read` är invariant över alla tre formerna** (319 662 / 322 003 / 319 270, 0,9 %
+spridning). Scan-kostnaden är *tabellen*, inte prediktatet. Fixen återför `shared hit` till exakt
+pre-PR-basens nivå. Cold mätt till 63,9 s; pre-PR-basen ligger också över 30 s cold.
+**Deltat varken skapar eller kan ta bort detta.**
+
+**Varför Major och inte Blocker:** runda 1:s Blocker bar en **relativ** tröskelpassage som diffen
+orsakade — oberoende av lådan. Detta är ett **absolut** påstående om otillgänglighet, mätt på en
+dev-låda med 128 MB `shared_buffers`, inte på Netcup. En mätning i fel miljö friar inte — och den
+fäller inte heller. Vad som är okänt förblir skrivet som okänt.
+
+**Disposition:** §9.6 undantag (1) — filas som issue med eskaleringen namngiven i den, PR:en går igenom.
+
+## Minor 1 — `m3b` har ett fjärde hem
+
+`RecruiterErasureIngestTests.cs:2845` säger fortfarande *"the evidence is the normalised org.nr
+that matched"*. Fix på ett av N är ingen fix.
+
+## Svar på sessionens frågor
+
+**Q1 — stänger deltat Blockern?** **Ja.** Sessionens läsning av mitt runda-1-tal var korrekt i
+slutsats men vilade på fel siffra: mina 46,7 s cold / 6,7 s warm var **pre-PR-basen**, inte formen
+jag blockerade. Den blockerade formen var **38,7–41,3 s warm** — över 30 s även varm.
+
+**Q2 — är polariteten fel?** **Polariteten är rätt — men motiveringen är fel.** Null-grenen är
+**inte** onåbar: `WrittenForms()` returnerar `[]` för varje icke-org.nr-identifierare. Vad som
+ändrades är vad null *betyder*: i `OrgNrEvidence` opererade grinden på ett **lagrat** värde (äkta
+parse-osäkerhet); i `termsArePersonnummerShaped` på **begäran**, där null betyder "inte ett org.nr
+alls" — att inte flagga är då korrekt. Grinden är **strukturellt upplöst**, inte bara onådd.
+
+## Namngiven residual
+
+Flaggan är en egenskap hos **begäran**, inte hos **excerpten**. Mätt på hela korpusen: 165 annonser
+bär en tiosiffrig sekvens i `description`, **82** är personnummer-formade, **4** har ett kontaktnamn
+i beskrivningen — och **0** har namnet inom excerptfönstret. `title`/`company_name`: 0/0.
+Populationen är noll idag och deltat förstorar den inte.
+
+## Anmärkning på formen
+
+`m3c` stängdes genom **omskrivning**, inte strykning — tvärtemot §9.6 och tvärtemot vad min egen
+eskalering bad om. Kostnaden blev omedelbart synlig: den nya prosan bar tre nya påståenden, varav
+*"this channel's predicate is the tightest of the set"* är en superlativ som `job_ads.contacts`-armen
+tangerar. Jag graderar det inte (§9.6 förbjuder phrasing-fynd i en omkontroll) men noterar det.
+
+## Eskalering till Klas — ordagrant
+
+Art. 17-dry-runens cold-cache-fall överskrider Npgsqls 30 s command timeout, och PR #1458 varken
+orsakar eller kan ta bort det. Jag har mätt det idag mot dev-korpusens 106 071 annonser: `physical
+read` är invariant över alla tre queryformerna — 319 662 blocks för formen som gällde före PR:en,
+322 003 för formen jag blockerade i runda 1, 319 270 för fixen, en spridning på 0,9 %. Scan-kostnaden
+är tabellen på 1 761 MB, inte prediktatet. Fixen återför `shared hit` till exakt den nivå som gällde
+före PR:en (871 264 mot 870 958), vilket är hela dess verkan och en riktig sådan: warm går från
+38,7–41,3 s till 14,9–16,2 s. Men cold-I/O-premien på cirka 46 sekunder ligger kvar oförändrad, och
+den lägger även den ursprungliga formen över 30-sekundersgränsen — cirka 50 sekunder. Konsekvensen
+när den faller ut är densamma som i runda 1: den obligatoriska dry-runen, som är den enda mänskliga
+grinden före en oåterkallelig radering och den enda vägen att alls besvara en Art. 12(3)-begäran,
+kastar `NpgsqlException` i stället för att svara. Vi håller 51 347 verkliga kontaktposter över 40 983
+annonser med namngivna rekryterare.
+
+Jag graderar det Major och inte Blocker, och skälet ska stå skrivet eftersom det begränsar vad du kan
+luta dig mot. Runda 1:s Blocker bar på en relativ tröskelpassage som diffen själv orsakade, och den
+slutsatsen är oberoende av vilken låda jag mäter på. Detta är ett absolut påstående om
+otillgänglighet, och jag har mätt det på en dev-låda med 128 MB `shared_buffers` — inte på Netcup,
+vars buffertkonfiguration och I/O-latens jag inte har mätt. En mätning i fel miljö friar ingenting,
+och den fäller inte heller något. Vad jag vet är att marginalen warm är 15 sekunder mot 30, att den
+krymper när korpusen växer, och att cold-fallet är den realistiska formen för den *första*
+Art. 17-begäran på en låda som inte kört en nyligen. Vad jag inte vet är hur stort cold-fallet är på
+lådan. Det förblir skrivet som okänt, och en accepterad risk blir inte mätt av att accepteras.
+
+Det du behöver avgöra är inte om #1458 ska merga — det tycker jag att den ska, och jag släpper den
+under §9.6 undantag (1) eftersom att blockera en PR för tillstånd den inte orsakat är precis den
+deadlock designen håller ute ur CI. Det du behöver avgöra är **vem som äger remedyn och när den mäts
+på lådan**: en explicit och motiverad `CommandTimeout` på just denna query, plus en mätning av
+request-timeouten i ledet utanför ASP.NET, vilket är #196:s område. En höjd `CommandTimeout` ensam
+flyttar felet uppåt i stacken, den tar inte bort det. Och lapse-frågan är verklig: ingenting i repot
+detekterar att marginalen har ätits upp, så gränsen passeras tyst nästa gång korpusen växer eller
+lådan är kall.

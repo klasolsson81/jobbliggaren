@@ -208,3 +208,76 @@ Ingen. K1 och V1-V3 är alla in-block-stängbara, K1 mot en mätning och V1-V2 g
 - Npgsql, *Connection String Parameters* — `Command Timeout`, default 30, läst 2026-08-23
 - `ScbCompanyRegisterStore.cs:28-29` — repots egen notering om samma 30 s-default (#688)
 - #844 — en regel med två normaliserare är två regler
+
+---
+
+# Omkontroll (scoped, report-only) — delta `bbf855ff..92fb5d4e`
+
+> Transkriberad ordagrant av ägande session. HEAD `92fb5d4e` verifierad, `git status --porcelain`
+> tomt vid granskningstillfället. Runda 1 + 1 omkontroll = §9.6:s cap förbrukad efter denna.
+
+**Sammanfattning:** 1 viktigt + 1 nice-to-have new-in-delta. Alla nio runda-1-fynd stängs; K1 stängs
+som **delta-fynd** på warm-mätningen, men kall-cache-residualen stängs inte av deltat och måste filas.
+
+| Fynd | Utfall |
+|---|---|
+| **K1** 30 s-taket | **CLOSED** (delta). Kall residual → egen issue. |
+| **V1** tre oense normaliseringshem | **CLOSED** |
+| **V2** två falska `= 'string'`-kommentarer | **CLOSED** |
+| **V3** smutsigt arbetsträd | **CLOSED** |
+| **N1** `terms` per rad | **CLOSED** |
+| **N2** `AdContactOriginLiterals` internal | **CLOSED** |
+| **N3** arm-ordningen | **CLOSED** |
+| **N4** överdrifter | **OPEN** (a) / CLOSED (b) — se F2 |
+| **N5** Origin-residualen | **CLOSED** |
+| **NEW F1** falsk motivering till pnr-flaggan | **Viktigt** |
+| **NEW F2** "26 arms" | **Nice-to-have** |
+
+## [Viktigt] F1 — motiveringen till `termsArePersonnummerShaped` är falsk
+
+Meningen *"An excerpt is a window around a matched TERM, so the question … is answered by the term
+that caused the match, not by re-scanning the window"* håller inte mot koden bredvid: `Description`
+returnerar 200 tecken omgivande prosa och flaggan beräknas ur **request:ens** terms, så för en
+icke-org.nr-identifierare är den ovillkorligt `false` oavsett vad fönstret bär. `ContactsMatch`
+returnerar fyra sammanfogade fält.
+
+**Åtgärd:** strykning av satsen. **Ersätt inte med ny prosa.**
+
+## [Nice-to-have] F2 — "26 arms" är off by one
+
+Mätt: `92fb5d4e` har **25** `LIKE ANY` i SQL (27 träffar minus två kommentarrader). Konverteringen är
+25-för-25 och alltså komplett; talet är fel. Rätta i PR-body:ns enda tillåtna edit.
+
+## Svar på sessionens frågor
+
+**1. Kall-cache-läsningen.** K1 stänger som delta-fynd: warm 15,4/14,1 s och 11,1/11,0 s mot 47,4 s,
+och reproducerar mina 14,96/17,07 s. Läsningen "kall överdrag är pre-existerande" är sund **om**
+security-auditors 46,7 s togs på bas-formen. Residualen stängs ändå inte av deltat — fila den.
+Arkitektoniskt korrekt remedie: `db.Database.SetCommandTimeout(n)` i Infrastructure, med precedens i
+`CompanyWatchBrowseQuery.cs:80` och `CompanyRegisterSearchQuery.cs:63`. `IAppDbContext` förblir orörd.
+
+**2. Är egenskapsformuleringen ett undanhopp?** Nej — den är den enda av kandidaterna som är mätbart
+sann. Se F3.
+
+**3. Är en request-nivå-boolean rätt form?** **Ja**, och att förfina den till "den term som vann" vore
+en no-op: alla element i `terms` normaliserar till samma tiosiffriga värde. Att skanna excerptens
+innehåll vore en andra detektor (#844) och ska inte byggas.
+
+**4. Övrigt nytt arbete** — `snapshot_contacts`-pinnen, org.nr-faktumets purge, handlarens omskrivna
+grund och `LikeEscape`-faktumet: alla rätt konstruerade, inga fynd.
+
+## F3 — tillbakadragning av eget runda-1-fynd
+
+**V1:s delmätning håller inte, och jag drar tillbaka den.** Jag skrev att `ValidateEmployerList` bor i
+`SearchCriteria.cs:239` och styr `saved_searches.criteria`, inte `employer_list`. Mätt nu:
+`RecentJobSearchCaptureBehavior.cs:211` anropar `SearchCriteria.Create(… employer: capt.Employer ?? [] …)`,
+och `RecentJobSearch.cs:108` gör `_employer.AddRange(criteria.Employer)` → `employer_list`.
+`SearchCriteria` är alltså en **delad** VO som styr båda kolumnerna. Hemmen som attribuerar kolumnen
+till `ValidateEmployerList → OrganizationNumber.Create` har **rätt**; min grund
+(`ListJobAdsQueryValidator.cs:22`) är en andra, seriell grind på samma väg — inte en konkurrerande.
+V1:s kärna (Domain namngav `job_ads.organization_number` som normaliserande) höll och är stängd.
+
+## Eskalering
+
+Ingen. F1 stängs genom strykning, F2 i PR-body:ns tillåtna edit, kall-cache-residualen som en märkt
+issue (`area:jobads`, `P2`, `BE`, `mvp`).

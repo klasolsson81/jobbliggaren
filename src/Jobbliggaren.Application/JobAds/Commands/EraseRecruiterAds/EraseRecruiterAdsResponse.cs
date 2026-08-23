@@ -82,7 +82,7 @@ public enum ErasureMatchChannel
     /// <c>MatchedExcerpt</c> is the STORED form that matched, suffixed <c>(personnummer-format)</c>
     /// when the identifier is personnummer-shaped — a personnummer is never surfaced un-flagged,
     /// even in the operator's review payload (ADR 0087 D8(c)). That suffix is not this channel's
-    /// alone: every channel's excerpt carries it on a personnummer-shaped request.
+    /// alone: on a personnummer-shaped request every channel that HAS an excerpt carries it.
     /// </summary>
     OrganizationNumber,
 

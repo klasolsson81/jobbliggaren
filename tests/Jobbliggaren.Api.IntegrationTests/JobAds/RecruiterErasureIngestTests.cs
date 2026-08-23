@@ -2154,9 +2154,10 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
     /// <summary>
     /// <b>The free-text ad columns take written forms too, and nothing else reaches them.</b> The
     /// org.nr sits in the DESCRIPTION of an ad whose own <c>organization_number</c> is a different
-    /// company, so neither the exact arm nor the payload walk can fire for it — measured on the dev
-    /// corpus, <c>description</c> carries 34 hyphenated and 922 bare forms against an
-    /// <c>organization_number</c> populated on only 59 % of ads.
+    /// company, so neither the exact arm nor the payload walk can fire for it. Measured on the dev
+    /// corpus 2026-08-23: <c>description</c> carried 34 hyphenated and 922 bare forms against an
+    /// <c>organization_number</c> populated on 59 % of ads. Regenerate with
+    /// <c>SELECT count(*) FROM job_ads WHERE description ~ '(^|[^0-9])[0-9]{6}-[0-9]{4}([^0-9]|$)'</c>.
     /// <b>Mutation:</b> replace <c>WrittenFormPatterns(identifier)</c> with
     /// <c>[LikePattern(identifier)]</c>.
     /// </summary>
@@ -2186,6 +2187,28 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
         match.MatchedExcerpt.ShouldEndWith("(personnummer-format)",
             customMessage: "ADR 0087 D8(c) reaches the free-text channels too — the flag is not the "
             + "org.nr channel's alone, and an excerpt is a display projection.");
+    }
+
+    /// <summary>
+    /// <b>The flag does NOT fire on an ordinary name request.</b> Three facts hold the direction
+    /// "the flag stops burning"; none of them would notice a flag stuck ON for every request, and a
+    /// flag that fires on everything flags nothing — the warning the deleted <c>OrgNrEvidence</c>
+    /// used to carry.
+    /// <b>Mutation:</b> replace <c>termsArePersonnummerShaped</c> with <c>true</c>.
+    /// </summary>
+    [Fact]
+    public async Task An_ordinary_NAME_request_leaves_the_excerpt_UNFLAGGED()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await IngestThroughProductionPathAsync(ct);
+
+        var probe = await EraseAsync(RecruiterName, ct, dryRun: true);
+
+        var match = probe.Matches.First(m => m.MatchedChannel == ErasureMatchChannel.Description);
+        match.MatchedExcerpt.ShouldNotEndWith("(personnummer-format)",
+            customMessage: "the identifier is a name, not an org.nr, so nothing here is "
+            + "personnummer-shaped and the flag must stay off. ADR 0087 D8(c) asks for a flag that "
+            + "discriminates, and one that fires on every request discriminates nothing.");
     }
 
     private const string WrittenFormOrgNrExternalId = "erasure-e2e-1448-orgnr";
@@ -2842,7 +2865,8 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
         var adMatch = probe.Matches.Single();
         adMatch.MatchedChannel.ShouldBe(ErasureMatchChannel.OrganizationNumber);
         adMatch.MatchedExcerpt.ShouldBe("5509281234 (personnummer-format)",
-            "the evidence is the normalised org.nr that matched, flagged as personnummer-shaped.");
+            "the evidence is the STORED form that matched, flagged as personnummer-shaped. Here the "
+            + "two coincide because the fixture stores ten digits.");
 
         // The destructive run: the ad is erased AND the employer-only row is hard-deleted.
         var result = await EraseAsync("550928-1234", ct);

@@ -146,13 +146,21 @@ describe("SiteHeader — the landing surface (stats slot)", () => {
     ).toBeInTheDocument();
   });
 
-  it("contains NO theme/lang toggles (HANDOVER §0.7 — they live in the footer)", () => {
+  it("carries the language control and still NO theme toggle (HANDOVER §0.7, amended 2026-08-23)", () => {
+    // ⚠ The assertion this replaces queried `role="group"` — the shape the OLD
+    // button-pair switcher had. The menu trigger is a role=button, so once the
+    // switcher moved in, that query went INERT rather than red: it PASSED while
+    // the header did the opposite of what its own title claimed. Caught by
+    // senior-cto-advisor, not by the suite.
+    //
+    // Klas lifted the language half of §0.7; the theme half stands, so this pins
+    // both directions at once.
     renderLanding(STATS_MOCK);
     expect(
-      screen.queryByRole("button", { name: /tema|theme|mörk|ljus/i }),
-    ).not.toBeInTheDocument();
+      screen.getByRole("button", { name: /Språk/i }),
+    ).toBeInTheDocument();
     expect(
-      screen.queryByRole("group", { name: /Språk|Language/i }),
+      screen.queryByRole("button", { name: /tema|theme|mörk|ljus/i }),
     ).not.toBeInTheDocument();
   });
 });

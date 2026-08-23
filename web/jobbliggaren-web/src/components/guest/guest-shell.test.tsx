@@ -6,6 +6,13 @@ import { GuestShell } from "./guest-shell";
 const pathnameMock = vi.fn<() => string>();
 vi.mock("next/navigation", () => ({
   usePathname: () => pathnameMock(),
+  // The header's LanguageSwitcher reads useRouter to refresh after the cookie
+  // write (ADR 0078); without it the shell cannot render at all.
+  useRouter: () => ({ refresh: vi.fn(), push: vi.fn(), prefetch: vi.fn() }),
+}));
+
+vi.mock("@/i18n/set-locale-action", () => ({
+  setLocaleAction: vi.fn(async () => undefined),
 }));
 
 describe("GuestShell (LP-5b #259 — composes the shared HeaderStrip)", () => {
@@ -64,6 +71,26 @@ describe("GuestShell (LP-5b #259 — composes the shared HeaderStrip)", () => {
       "href",
       "/registrera",
     );
+  });
+
+  it("carries the language control, because guests cannot reach Inställningar", () => {
+    // The rule is not "guest is a special case" (senior-cto-advisor bind
+    // 2026-08-23): the control belongs on every surface whose user cannot reach
+    // Inställningar. `(app)` and `(admin)` have the Segment in there and do not
+    // get it; the guest shell has no settings page at all, and `defaultLocale`
+    // is `sv` with no Accept-Language negotiation — so without this a visitor who
+    // does not read Swedish is stuck. Bites on revert: dropping the mount here
+    // leaves the guest surfaces with no way to change language.
+    render(
+      <GuestShell>
+        <p />
+      </GuestShell>,
+    );
+
+    const banner = screen.getByRole("banner");
+    expect(
+      within(banner).getByRole("button", { name: /Språk/i }),
+    ).toBeInTheDocument();
   });
 
   it("renders children AND the @modal slot together inside <main>", () => {

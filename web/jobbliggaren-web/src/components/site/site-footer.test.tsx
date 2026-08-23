@@ -122,14 +122,15 @@ describe("SiteFooter (LP-3, #256; civic-IA #390 → #393)", () => {
     }
   });
 
-  it("reuses the real language toggle in the footer variant (.jp-foot__lang)", () => {
+  it("carries NO language control — it moved to the header (#1476)", () => {
+    // The footer is mounted on all six shells, so it was the switcher's home on
+    // every surface. It is now on the surfaces whose users cannot reach
+    // Inställningar (senior-cto-advisor bind 2026-08-23), which is a header
+    // question, not a footer one. Bites on revert: re-mounting it here puts a
+    // second control on every public page.
     const { container } = render(<SiteFooter />);
-    const group = screen.getByRole("group", { name: "Språk" });
-    expect(group).toHaveClass("jp-foot__lang");
-    expect(container.querySelector(".jp-foot__lang-btn")).not.toBeNull();
-    // Functional toggle, not a disabled stub: the active locale is pressed.
-    expect(
-      within(group).getByRole("button", { name: "Svenska" }),
-    ).toHaveAttribute("aria-pressed", "true");
+    expect(screen.queryByRole("button", { name: /Språk/i })).toBeNull();
+    expect(screen.queryByRole("group", { name: /Språk|Language/i })).toBeNull();
+    expect(container.querySelector(".jp-foot__lang")).toBeNull();
   });
 });

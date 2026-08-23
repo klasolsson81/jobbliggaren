@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import { DropdownMenu as DropdownMenuPrimitive } from "radix-ui"
+import { Check } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 
@@ -106,6 +107,51 @@ function DropdownMenuSeparator({
   )
 }
 
+function DropdownMenuRadioGroup({
+  ...props
+}: React.ComponentProps<typeof DropdownMenuPrimitive.RadioGroup>) {
+  return (
+    <DropdownMenuPrimitive.RadioGroup
+      data-slot="dropdown-menu-radio-group"
+      {...props}
+    />
+  )
+}
+
+/**
+ * A menu row that expresses a CHOICE rather than an action: Radix gives it
+ * `role="menuitemradio"` + `aria-checked`, which `DropdownMenuItem` cannot.
+ * Reach for it when picking one of a set leaves the set intact (a locale, a
+ * sort order) — not when the row performs something.
+ *
+ * The checked treatment reuses the brand aliases the sibling radio primitive
+ * uses (`bg-brand-50`, `text-brand-700`), which resolve to the accent ramp, so
+ * the row cannot drift from the rest of the selection language.
+ */
+function DropdownMenuRadioItem({
+  className,
+  children,
+  ...props
+}: React.ComponentProps<typeof DropdownMenuPrimitive.RadioItem>) {
+  return (
+    <DropdownMenuPrimitive.RadioItem
+      data-slot="dropdown-menu-radio-item"
+      className={cn(
+        "relative flex cursor-default items-center gap-2 rounded-md py-1.5 pr-1.5 pl-7 text-body-sm leading-5 outline-hidden select-none focus:bg-accent focus:text-accent-foreground data-[state=checked]:bg-brand-50 data-[state=checked]:font-semibold data-disabled:pointer-events-none data-disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0",
+        className
+      )}
+      {...props}
+    >
+      <span className="pointer-events-none absolute left-1.5 flex size-4 items-center justify-center">
+        <DropdownMenuPrimitive.ItemIndicator>
+          <Check className="size-4 text-brand-700" strokeWidth={2.5} aria-hidden="true" />
+        </DropdownMenuPrimitive.ItemIndicator>
+      </span>
+      {children}
+    </DropdownMenuPrimitive.RadioItem>
+  )
+}
+
 export {
   DropdownMenu,
   DropdownMenuContent,
@@ -113,6 +159,8 @@ export {
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuPortal,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 }

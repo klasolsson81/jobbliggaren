@@ -1012,29 +1012,6 @@ a.jp-adminnav__link[aria-current="page"]::after {
   color: var(--jp-ink-1);
 }
 
-.jp-lang {
-  display: inline-flex;
-  border: 1px solid var(--jp-border);
-  border-radius: var(--jp-r-md);
-  overflow: hidden;
-  height: 32px;
-}
-.jp-lang__btn {
-  width: 36px;
-  height: 32px;
-  background: transparent;
-  border: 0;
-  font-family: var(--jp-font-mono);
-  font-size: var(--text-micro);
-  font-weight: var(--jp-fw-semibold);
-  color: var(--jp-ink-2);
-  cursor: pointer;
-}
-.jp-lang__btn[aria-pressed="true"] {
-  background: var(--jp-ink-1);
-  color: var(--jp-ink-inverse);
-}
-
 .jp-avatar {
   width: 36px;
   height: 36px;
@@ -4490,6 +4467,19 @@ a.jp-adminnav__link[aria-current="page"]::after {
 @media (max-width: 760px) {
   .jp-head__inner { padding: 0 20px; min-height: 72px; gap: 12px; }
   .jp-head__stats, .jp-head__sep { display: none; }
+  /* The language name cannot ride along at 320px: with it the trigger is wide
+     enough to push the row past the viewport (WCAG 1.4.10). The globe carries
+     the control and the accessible name still says which language it is. */
+  .jp-langtrigger__name { display: none; }
+}
+
+/* Under 480px bär raden brand + språkkontroll + kontoåtgärd, och ordmärket är
+   det enda som inte kan krympa: mätt vid 320 ryms 40px sigill + 193px kontroller
+   inom 280px, men mark + ordmärke (~198px) gör det inte. Sigillet ensamt behåller
+   hemlänken; `.jp-brand`s aria-label bär namnet vidare. */
+@media (max-width: 480px) {
+  .jp-head .jp-brand__word,
+  .jp-head .jp-brand__tagline { display: none; }
 }
 
 /* ── Hero-subelement (delas av landnings-plattan, förslag 3a) ─
@@ -4657,15 +4647,6 @@ a.jp-adminnav__link[aria-current="page"]::after {
 .jp-foot__legal a { color: rgba(255, 255, 255, 0.92); text-decoration: none; } /* guard-allow: footer literal-vit pa djupgron platta - dok. undantag, ej ink-inverse */
 .jp-foot__legal a:hover { color: #FFFFFF; text-decoration: underline; } /* guard-allow: footer literal-vit pa djupgron platta - dok. undantag, ej ink-inverse */
 .jp-foot__legal-sep { color: rgba(255, 255, 255, 0.40); } /* guard-allow: footer literal-vit pa djupgron platta - dok. undantag, ej ink-inverse */
-.jp-foot__lang {
-  display: inline-flex; border: 1px solid rgba(255, 255, 255, 0.45); border-radius: var(--jp-r-md); overflow: hidden; /* guard-allow: footer literal-vit pa djupgron platta - dok. undantag, ej ink-inverse */
-}
-.jp-foot__lang-btn {
-  width: 40px; height: 32px; background: transparent; border: 0; cursor: pointer;
-  font-family: var(--jp-font-mono); font-size: var(--text-micro); font-weight: var(--jp-fw-semibold); color: rgba(255, 255, 255, 0.92); /* guard-allow: footer literal-vit pa djupgron platta - dok. undantag, ej ink-inverse */
-}
-.jp-foot__lang-btn[aria-pressed="true"] { background: #FFFFFF; color: var(--jp-accent-900); } /* guard-allow: footer literal-vit pa djupgron platta - dok. undantag, ej ink-inverse */
-.jp-foot__lang-btn[disabled] { opacity: 0.45; cursor: not-allowed; }
 @media (max-width: 1040px) {
   /* Brand spans the row; the four nav columns stay even (mirror the desktop
      track count) so the last column never wraps alone into a gap (#393). */

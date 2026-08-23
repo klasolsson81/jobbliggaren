@@ -185,6 +185,12 @@ describe("AuthCard", () => {
     await user.type(screen.getByLabelText("Namn"), "Ny Användare");
     await user.type(screen.getByLabelText("E-postadress"), "ny@example.se");
     await user.type(screen.getByLabelText("Lösenord"), "hemligt8tecken");
+    // #1479: the acceptance is `required`, so the submit does not reach the action without it.
+    await user.click(
+      screen.getByRole("checkbox", {
+        name: "Jag godkänner användarvillkoren och integritetspolicyn.",
+      }),
+    );
     await user.click(screen.getByRole("button", { name: "Skapa konto" }));
 
     expect(registerActionMock).toHaveBeenCalledTimes(1);
@@ -240,12 +246,32 @@ describe("AuthCard", () => {
     const user = userEvent.setup();
     render(<AuthCard />);
     expect(
-      screen.getByText(/Genom att skapa konto godkänner du/i),
+      screen.getByText(/Jobbliggaren säljer aldrig din data/i),
     ).toBeInTheDocument();
     await user.click(screen.getByRole("tab", { name: "Logga in" }));
     expect(
-      screen.queryByText(/Genom att skapa konto godkänner du/i),
+      screen.queryByText(/Jobbliggaren säljer aldrig din data/i),
     ).not.toBeInTheDocument();
+  });
+
+  // #1479 — the acceptance travels with RegisterForm, so the landing card gets it by mounting
+  // the form rather than by carrying a sentence of its own. This is the surface the old
+  // fine-print sentence lived on, and the one the pending hero rebuild removes.
+  it("carries the terms acceptance, with its links, on the register tab", async () => {
+    const user = userEvent.setup();
+    render(<AuthCard />);
+    const name = "Jag godkänner användarvillkoren och integritetspolicyn.";
+
+    expect(screen.getByRole("checkbox", { name })).toBeRequired();
+    expect(
+      screen.getByRole("link", { name: "användarvillkoren" }),
+    ).toHaveAttribute("href", "/villkor");
+    expect(
+      screen.getByRole("link", { name: "integritetspolicyn" }),
+    ).toHaveAttribute("href", "/integritet");
+
+    await user.click(screen.getByRole("tab", { name: "Logga in" }));
+    expect(screen.queryByRole("checkbox", { name })).not.toBeInTheDocument();
   });
 
   it("shows the free line (förslag 3a) only on the register tab", async () => {

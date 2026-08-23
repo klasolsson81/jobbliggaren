@@ -61,4 +61,26 @@ describe("RegistreraPage (#265 — open public registration)", () => {
     expect(nextField).not.toBeNull();
     expect(nextField).toHaveValue("/cv");
   });
+
+  // #1479 — this page told the user nothing about the terms or the privacy policy, while the
+  // landing card carried an unlinked sentence. The footer's "Skapa konto" link lands here, so
+  // this is a surface a user reaches without ever seeing that sentence.
+  it("requires the terms acceptance and links both policies", () => {
+    searchParamsRef.current = new URLSearchParams();
+    render(<RegistreraPage />);
+
+    const box = screen.getByRole("checkbox", {
+      name: "Jag godkänner användarvillkoren och integritetspolicyn.",
+    });
+    expect(box).toBeRequired();
+    expect(box).toHaveAttribute("aria-required", "true");
+    expect(box).not.toBeChecked();
+
+    expect(
+      screen.getByRole("link", { name: "användarvillkoren" }),
+    ).toHaveAttribute("href", "/villkor");
+    expect(
+      screen.getByRole("link", { name: "integritetspolicyn" }),
+    ).toHaveAttribute("href", "/integritet");
+  });
 });

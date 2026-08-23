@@ -15,7 +15,7 @@ type AuthActionState = {
   pendingConfirmation?: boolean;
   registrationsClosed?: boolean;
   email?: string;
-  field?: "displayName";
+  field?: "displayName" | "acceptTerms";
 } | null;
 const registerActionMock =
   vi.fn<
@@ -32,6 +32,10 @@ vi.mock("@/lib/auth/actions", () => ({
 vi.mock("@/lib/actions/resend-confirmation", () => ({
   resendConfirmationAction: vi.fn().mockResolvedValue({ success: true }),
 }));
+
+// #1479 — the accessible name of the terms checkbox, and the reason every test that reaches
+// the action ticks it: the box is `required`, so a submit without it never fires the action.
+const TERMS = "Jag godkänner användarvillkoren och integritetspolicyn.";
 
 describe("RegisterForm", () => {
   beforeEach(() => {
@@ -66,6 +70,7 @@ describe("RegisterForm", () => {
     await user.type(screen.getByLabelText("E-postadress"), "anna@example.se");
     await user.type(screen.getByLabelText("Lösenord"), "password1");
     await user.click(screen.getByRole("checkbox", { name: "Håll mig inloggad" }));
+    await user.click(screen.getByRole("checkbox", { name: TERMS }));
     await user.click(screen.getByRole("button", { name: "Skapa konto" }));
 
     const formData = registerActionMock.mock.calls[0]?.[1];
@@ -95,6 +100,7 @@ describe("RegisterForm", () => {
     await user.type(screen.getByLabelText("Namn"), "Anna Andersson");
     await user.type(screen.getByLabelText("E-postadress"), "anna@example.se");
     await user.type(screen.getByLabelText("Lösenord"), "password1");
+    await user.click(screen.getByRole("checkbox", { name: TERMS }));
     await user.click(screen.getByRole("button", { name: "Skapa konto" }));
 
     const panel = await screen.findByRole("status");
@@ -116,6 +122,7 @@ describe("RegisterForm", () => {
     await user.type(screen.getByLabelText("Namn"), "Anna Andersson");
     await user.type(screen.getByLabelText("E-postadress"), "anna@example.se");
     await user.type(screen.getByLabelText("Lösenord"), "password1");
+    await user.click(screen.getByRole("checkbox", { name: TERMS }));
     await user.click(screen.getByRole("button", { name: "Skapa konto" }));
 
     // The status panel replaces the form; the submit button is gone. Query the panel heading rather
@@ -140,6 +147,7 @@ describe("RegisterForm", () => {
     await user.type(screen.getByLabelText("Namn"), "Anna Andersson");
     await user.type(screen.getByLabelText("E-postadress"), "anna@example.se");
     await user.type(screen.getByLabelText("Lösenord"), "password1");
+    await user.click(screen.getByRole("checkbox", { name: TERMS }));
     await user.click(screen.getByRole("button", { name: "Skapa konto" }));
 
     expect(
@@ -163,6 +171,7 @@ describe("RegisterForm", () => {
     await user.type(screen.getByLabelText("Namn"), "Anna 811218-9876");
     await user.type(screen.getByLabelText("E-postadress"), "anna@example.se");
     await user.type(screen.getByLabelText("Lösenord"), "password1");
+    await user.click(screen.getByRole("checkbox", { name: TERMS }));
     await user.click(screen.getByRole("button", { name: "Skapa konto" }));
 
     const alert = await screen.findByRole("alert");
@@ -183,6 +192,7 @@ describe("RegisterForm", () => {
     await user.type(screen.getByLabelText("Namn"), "Anna Andersson");
     await user.type(screen.getByLabelText("E-postadress"), "anna@example.se");
     await user.type(screen.getByLabelText("Lösenord"), "password1");
+    await user.click(screen.getByRole("checkbox", { name: TERMS }));
     await user.click(screen.getByRole("button", { name: "Skapa konto" }));
 
     await screen.findByRole("alert");
@@ -190,5 +200,121 @@ describe("RegisterForm", () => {
 
     expect(nameInput).not.toHaveAttribute("aria-invalid");
     expect(nameInput.getAttribute("aria-describedby")).toBe("name-hint");
+  });
+
+  // #1479 — the acceptance lives in the FORM, not in the landing card that used to carry the
+  // sentence: RegisterForm is what both account-creating surfaces (/ and /registrera) mount.
+  it("renders the terms checkbox, unticked by default and required", () => {
+    render(<RegisterForm />);
+    const box = screen.getByRole("checkbox", {
+      name: TERMS,
+    });
+    // Unticked: a pre-ticked box is not an acceptance the user performed.
+    expect(box).not.toBeChecked();
+    expect(box).toBeRequired();
+    expect(box).toHaveAttribute("aria-required", "true");
+    expect(box).toHaveAttribute("name", "acceptTerms");
+  });
+
+  it("names the two policies as real links to their live routes", () => {
+    render(<RegisterForm />);
+    expect(
+      screen.getByRole("link", { name: "användarvillkoren" }),
+    ).toHaveAttribute("href", "/villkor");
+    expect(
+      screen.getByRole("link", { name: "integritetspolicyn" }),
+    ).toHaveAttribute("href", "/integritet");
+  });
+
+  it("describes the terms checkbox with the new-tab warning, and keeps it out of the name", () => {
+    // The links open in a new tab, which has to be announced somewhere. In each link's own
+    // accessible name it would be read back twice inside the checkbox's name, so it lives in
+    // the hint — which only counts as announced if the checkbox actually points at it.
+    render(<RegisterForm />);
+    const box = screen.getByRole("checkbox", {
+      name: TERMS,
+    });
+    const hintId = (box.getAttribute("aria-describedby") ?? "").split(" ")[0] ?? "";
+    expect(hintId).not.toBe("");
+    expect(document.getElementById(hintId)).toHaveTextContent(
+      "Länkarna öppnas i en ny flik.",
+    );
+  });
+
+  it("posts acceptTerms=on when the box is ticked", async () => {
+    const user = userEvent.setup();
+    render(<RegisterForm />);
+
+    await user.type(screen.getByLabelText("Namn"), "Anna Andersson");
+    await user.type(screen.getByLabelText("E-postadress"), "anna@example.se");
+    await user.type(screen.getByLabelText("Lösenord"), "password1");
+    await user.click(screen.getByRole("checkbox", { name: TERMS }));
+    await user.click(screen.getByRole("button", { name: "Skapa konto" }));
+
+    const formData = registerActionMock.mock.calls[0]?.[1];
+    if (!formData) throw new Error("registerAction was not invoked");
+    expect(formData.get("acceptTerms")).toBe("on");
+  });
+
+  it("does not reach the action at all when the box is left unticked", async () => {
+    // The client-side half of the gate: `required` + constraint validation, which jsdom
+    // implements, so this measures the block rather than the attribute. The server-side half
+    // is pinned in lib/auth/actions.test.ts — a caller that never rendered the form.
+    const user = userEvent.setup();
+    render(<RegisterForm />);
+
+    await user.type(screen.getByLabelText("Namn"), "Anna Andersson");
+    await user.type(screen.getByLabelText("E-postadress"), "anna@example.se");
+    await user.type(screen.getByLabelText("Lösenord"), "password1");
+    await user.click(screen.getByRole("button", { name: "Skapa konto" }));
+
+    expect(registerActionMock).not.toHaveBeenCalled();
+  });
+
+  it("wires aria-invalid, aria-describedby and focus when the action refuses on the terms", async () => {
+    // Same both-polarities discipline as the displayName pair above: the server-side refusal is
+    // only reachable past a browser that skipped `required`, and it has to name its own input.
+    registerActionMock.mockResolvedValue({
+      error:
+        "Du måste godkänna användarvillkoren och integritetspolicyn för att skapa konto.",
+      field: "acceptTerms",
+    });
+
+    const user = userEvent.setup();
+    render(<RegisterForm />);
+    const box = screen.getByRole("checkbox", {
+      name: TERMS,
+    });
+
+    await user.type(screen.getByLabelText("Namn"), "Anna Andersson");
+    await user.type(screen.getByLabelText("E-postadress"), "anna@example.se");
+    await user.type(screen.getByLabelText("Lösenord"), "password1");
+    await user.click(box);
+    await user.click(screen.getByRole("button", { name: "Skapa konto" }));
+
+    const alert = await screen.findByRole("alert");
+    expect(box).toHaveAttribute("aria-invalid", "true");
+    expect(alert.id).not.toBe("");
+    expect(box.getAttribute("aria-describedby")).toContain(alert.id);
+    await waitFor(() => expect(box).toHaveFocus());
+  });
+
+  it("leaves the terms checkbox unmarked for a failure that is not about it", async () => {
+    registerActionMock.mockResolvedValue({ error: "Kunde inte na servern." });
+
+    const user = userEvent.setup();
+    render(<RegisterForm />);
+    const box = screen.getByRole("checkbox", {
+      name: TERMS,
+    });
+
+    await user.type(screen.getByLabelText("Namn"), "Anna Andersson");
+    await user.type(screen.getByLabelText("E-postadress"), "anna@example.se");
+    await user.type(screen.getByLabelText("Lösenord"), "password1");
+    await user.click(box);
+    await user.click(screen.getByRole("button", { name: "Skapa konto" }));
+
+    await screen.findByRole("alert");
+    expect(box).not.toHaveAttribute("aria-invalid");
   });
 });

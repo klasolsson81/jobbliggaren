@@ -49,7 +49,12 @@ describe("registerAction (#541 — DisplayName must reach the backend)", () => {
     await expect(
       registerAction(
         null,
-        formOf({ displayName: "Anna Andersson", email: "anna@example.se", password: "password1" }),
+        formOf({
+          displayName: "Anna Andersson",
+          email: "anna@example.se",
+          password: "password1",
+          acceptTerms: "on",
+        }),
       ),
     ).rejects.toThrow(/REDIRECT/);
 
@@ -81,6 +86,7 @@ describe("registerAction (#541 — DisplayName must reach the backend)", () => {
           password: "password1",
           // A checked native checkbox posts the literal "on".
           rememberMe: "on",
+          acceptTerms: "on",
         }),
       ),
     ).rejects.toThrow(/REDIRECT/);
@@ -103,11 +109,64 @@ describe("registerAction (#541 — DisplayName must reach the backend)", () => {
     expect(result).toEqual({ error: "auth.actions.registrationFieldsRequired" });
     expect(fetchMock).not.toHaveBeenCalled();
   });
+
+  // #1479 — the acceptance is enforced here and not only by the checkbox's `required`, because
+  // the Server Action is reachable by a POST that never rendered the form. The assertion that
+  // carries the point is `fetchMock`: no account may be created without the acceptance.
+  it("refuses without calling fetch when the terms box is absent", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await registerAction(
+      null,
+      formOf({
+        displayName: "Anna Andersson",
+        email: "anna@example.se",
+        password: "password1",
+      }),
+    );
+
+    expect(result).toEqual({
+      error: "auth.actions.termsRequired",
+      field: "acceptTerms",
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(setSessionCookieMock).not.toHaveBeenCalled();
+    expect(redirectMock).not.toHaveBeenCalled();
+  });
+
+  it("refuses a value the checkbox cannot post, rather than treating it as acceptance", async () => {
+    // A native checkbox posts exactly "on" or nothing. Anything else reached this action by a
+    // route that bypassed the form, and "present" must not be read as "accepted".
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await registerAction(
+      null,
+      formOf({
+        displayName: "Anna Andersson",
+        email: "anna@example.se",
+        password: "password1",
+        acceptTerms: "false",
+      }),
+    );
+
+    expect(result).toEqual({
+      error: "auth.actions.termsRequired",
+      field: "acceptTerms",
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
 });
 
 describe("registerAction 400 handling (#616 breached password, #1117 display-name refusal)", () => {
   const form = () =>
-    formOf({ displayName: "Anna Andersson", email: "anna@example.se", password: "password1" });
+    formOf({
+      displayName: "Anna Andersson",
+      email: "anna@example.se",
+      password: "password1",
+      acceptTerms: "on",
+    });
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -173,7 +232,12 @@ describe("registerAction 400 handling (#616 breached password, #1117 display-nam
 
 describe("registerAction 503 handling (ADR 0083 Amendment 2026-08-03 — registration gate)", () => {
   const form = () =>
-    formOf({ displayName: "Anna Andersson", email: "anna@example.se", password: "password1" });
+    formOf({
+      displayName: "Anna Andersson",
+      email: "anna@example.se",
+      password: "password1",
+      acceptTerms: "on",
+    });
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -222,7 +286,12 @@ describe("registerAction 503 handling (ADR 0083 Amendment 2026-08-03 — registr
 
 describe("registerAction 202 handling (#714 — email-confirmation-first)", () => {
   const form = () =>
-    formOf({ displayName: "Anna Andersson", email: "anna@example.se", password: "password1" });
+    formOf({
+      displayName: "Anna Andersson",
+      email: "anna@example.se",
+      password: "password1",
+      acceptTerms: "on",
+    });
 
   beforeEach(() => {
     vi.clearAllMocks();

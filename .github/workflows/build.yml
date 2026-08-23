@@ -570,6 +570,14 @@ jobs:
       - name: compose-edge-publish-guard (fixturer + deploy-projektet)
         run: bash .github/scripts/compose-edge-publish-guard.test.sh
 
+      # #1170. Retentionens VARAKTIGHET får bo på ett enda ställe — docs/runbooks/log-sink.md
+      # §3 steg 7, curl-anropet som sätter policyn. Före den här grinden bar compose och BUILD.md
+      # varsitt påstående om en 30-dagarsgräns som var falskt på varje låda som någonsin kört;
+      # de citeras inte här, för vaktens egen fixtur (d) graderar just den formen som fällande.
+      # Vakten dömer REPOTS PÅSTÅENDEN, aldrig lådan — grönt betyder inte att retention är satt.
+      - name: seq-retention-duration-guard (fixturer + de scopade filerna)
+        run: bash .github/scripts/seq-retention-duration-guard.test.sh
+
   # ---------------------------------------------------------------------------
   # PERF-/SUPPLY-CHAIN-GOVERNANCE (ADR 0045 — observe-only Fas 1).
   #

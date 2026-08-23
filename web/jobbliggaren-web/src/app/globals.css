@@ -5224,10 +5224,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
   background: var(--jp-surface-3);
   color: var(--jp-ink-1);
 }
-/* Touch floor (#1384) — same spec line and breakpoint as .jp-btn--sm. The glyph stays 16px;
-   only the hit area grows. `.jp-notice__dismiss` moves with it: the two render in the same
-   section head (notice-section.tsx) and the comment above pairs their dimensions, so letting
-   them diverge would put a 44px control beside a 30px one at touch. */
+/* Touch floor (#1384) — same spec line and breakpoint as .jp-btn--sm. Only the hit area grows. */
 @media (max-width: 768px) {
   .jp-section__gear,
   .jp-notice__dismiss {

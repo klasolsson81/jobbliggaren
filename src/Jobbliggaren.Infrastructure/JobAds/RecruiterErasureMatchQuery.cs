@@ -235,10 +235,6 @@ internal sealed class RecruiterErasureMatchQuery(
         // channels are display projections too. Decided from the matched terms with the predicate
         // that already exists: same rule, no second detector over free prose. It is a property of
         // the REQUEST, so it is decided once and not per row.
-        //
-        // ⚠ RESIDUAL, named rather than certified away: this flags what the REQUESTER asked for, not
-        // what the window happens to contain, so a name request whose excerpt encloses a third
-        // party's personnummer-shaped value is not flagged by it.
         var termsArePersonnummerShaped = terms.Any(t =>
             Domain.CompanyWatches.OrganizationNumber.TryFromWrittenForm(t)
                 ?.IsPersonnummerShaped() == true);

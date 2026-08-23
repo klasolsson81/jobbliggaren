@@ -1,5 +1,6 @@
 using Hangfire;
 using Jobbliggaren.Api.Common;
+using Jobbliggaren.Api.RateLimiting;
 using Jobbliggaren.Application.Common.Authorization;
 using Jobbliggaren.Application.JobAds.Commands.EraseRecruiterAds;
 using Jobbliggaren.Application.JobAds.Jobs.BackfillJobAdExtractedTerms;
@@ -90,7 +91,13 @@ public static class AdminJobAdsEndpoints
 
             var result = await mediator.Send(command, ct);
             return result.IsSuccess ? Results.Ok(result.Value) : result.Error.ToProblemResult();
-        });
+        })
+        // #1463 raised this route's command ceiling from Npgsql's 30 s default to a reviewed 180 s,
+        // so one stuck admin script can now hold a pooled connection six times as long. The pool is
+        // Npgsql's default 100 and shared with the whole app, so the amplification is worth bounding
+        // even though the route is admin-authenticated (security-auditor Minor, 2026-08-23). Same
+        // policy the sibling admin write endpoints use.
+        .RequireRateLimiting(RateLimitingExtensions.AdminWritePolicy);
 
         // STEG 6 (2026-05-24) — engångs-backfill av ssyk_concept_id för JobAds
         // vars raw_payload saknar occupation-key (pre-2026-05-20-fix). Enqueue:as

@@ -31,10 +31,6 @@ internal sealed partial class RecruiterErasureMatchQuery : IRecruiterErasureMatc
     private readonly IProtectedIdentityTokenizer _tokenizer;
     private readonly ILogger<RecruiterErasureMatchQuery> _logger;
 
-    /// <summary>
-    /// Written out rather than a primary constructor because it has a BODY: the command ceiling
-    /// below is applied here, once, for the whole port.
-    /// </summary>
     public RecruiterErasureMatchQuery(
         AppDbContext db,
         IProtectedIdentityTokenizer tokenizer,
@@ -44,22 +40,14 @@ internal sealed partial class RecruiterErasureMatchQuery : IRecruiterErasureMatc
         _tokenizer = tokenizer;
         _logger = logger;
 
-        // Applied at the PORT, not at the one slow method, and that is a design statement rather
-        // than a convenience. The ceiling is not "FindJobAdsAsync is slow" — it is "this port serves
-        // the Art. 17 mechanism, whose availability is Art. 12(2)-absolute, and 30 s is calibrated
-        // for interactive user paths that this is not". That claim is true of EVERY method here, so
-        // the policy belongs where its change-reason lives (SRP). The alternative is worse in both
-        // shapes: SetCommandTimeout lives on the DatabaseFacade for as long as the scoped
-        // AppDbContext does, so a per-method call would raise the ceiling for everything the request
-        // touches AFTERWARDS anyway — a wider and UNDECLARED radius, not a narrower one.
-        //
-        // The port is AddScoped (DependencyInjection.cs) and injected only by
+        // Applied at the PORT rather than at the one slow method. SetCommandTimeout lives on the
+        // DatabaseFacade for as long as the scoped AppDbContext does, so a per-method call would
+        // raise the ceiling for everything the request touches afterwards anyway — a wider and
+        // UNDECLARED radius, not a narrower one. The port is AddScoped and injected only by
         // EraseRecruiterAdsCommandHandler, so the radius is exactly one Art. 17 request.
         //
-        // This is the repo's FIRST EF-level SetCommandTimeout on AppDbContext. The four existing
-        // constants sit on raw NpgsqlCommands, which never pick this up — CompanyWatchBrowseQuery.cs
-        // already explains why, and is not restated here (#1173). So the absence of other EF-level
-        // sites is a fact, not a gap.
+        // The four neighbouring constants sit on raw NpgsqlCommands, which never pick this up;
+        // CompanyWatchBrowseQuery.cs explains why and is not restated here (#1173).
         _db.Database.SetCommandTimeout(CommandTimeoutSeconds);
     }
 
@@ -70,41 +58,35 @@ internal sealed partial class RecruiterErasureMatchQuery : IRecruiterErasureMatc
     /// </summary>
     /// <remarks>
     /// <b>Npgsql's client default is 30 s</b> (npgsql.org/doc/connection-string-parameters.html,
-    /// read 2026-08-23), no connection string in the repo overrides it, and the server's
-    /// <c>statement_timeout</c> is 0 — so 30 s was the binding limit, and the Art. 17 dry run
-    /// THREW instead of answering when it passed (#1463).
+    /// read 2026-08-23), no connection string in the repo overrides it, and the dev server's
+    /// <c>statement_timeout</c> was measured at 0 the same day — so 30 s was the binding limit, and
+    /// the Art. 17 dry run THREW instead of answering when it passed (#1463).
     /// <para>
-    /// <b>What 180 is margin over.</b> Worst measured COMPLETING run: <b>63,9 s</b>, cold cache
-    /// (dev corpus, 2026-08-23, security-auditor). 180 is 2,8× that — it survives a tripling of the
-    /// cold cost without a spurious failure, and stays a number an operator can be told: if it has
-    /// not answered in three minutes, something is wrong. The two neighbouring sites' *"a ceiling on
-    /// a bug"* rationale does NOT transfer: a browse that takes 30 s is a bug, but this path runs a
-    /// handful of times per year on the only human gate before an irreversible erase, and a spurious
-    /// failure here makes Art. 17(1) and Art. 12(3) unsatisfiable through the product's own
-    /// mechanism. Art. 12(2) is absolute.
+    /// <b>What 180 is margin over</b> (measurements dated 2026-08-23; they are provenance for the
+    /// choice, not a live claim about today). Worst COMPLETING run: <b>63,9 s</b> cold on the dev
+    /// corpus. 180 is 2,8× that, so it survives a tripling of the cold cost without a spurious
+    /// failure. The Netcup box ran the same predicate in 6 076 ms then 5 449 ms and does not breach
+    /// 30 s; dev is nonetheless the figure calibrated against, because it is the pessimistic
+    /// environment on both axes that drive cold cost (2 493 MB against the box's 834 MB, on a fifth
+    /// of the buffer pool). <b>The box's COLD case is UNMEASURED</b> — dropping a live host's page
+    /// cache is not a read-only act — and stays written as unknown rather than assumed benign.
     /// </para>
     /// <para>
-    /// <b>Measured on the Netcup box the same day: 6 076 ms then 5 449 ms</b> (46 829 ads,
-    /// <c>shared_buffers</c> 640 MB) — no breach there today. The dev figure is the pessimistic one
-    /// and is deliberately the one calibrated against: dev holds 2 493 MB against the box's 834 MB
-    /// on a fifth of the buffer pool, so both axes that drive cold cost are worse there.
-    /// <b>The box's COLD case is UNMEASURED</b> — dropping a live host's page cache is not a
-    /// read-only act — and that stays written as unknown rather than assumed benign.
+    /// The neighbouring sites' *"a ceiling on a bug"* rationale does NOT transfer: a browse that
+    /// takes 30 s is a bug, but this path runs a handful of times per year on the only human gate
+    /// before an irreversible erase, and a spurious failure here makes Art. 17(1) and Art. 12(3)
+    /// unsatisfiable through the product's own mechanism. Art. 12(2) is absolute.
     /// </para>
     /// <para>
-    /// Regenerate (do not trust the numbers above without re-running it; they date from
-    /// 2026-08-23):
-    /// <c>ssh jp-vps "sudo docker exec -i jobbliggaren-postgres psql -U postgres -d jobbliggaren"</c>
-    /// with <c>EXPLAIN (ANALYZE, BUFFERS)</c> over this file's own predicate.
-    /// </para>
-    /// <para>
-    /// <b>The condition that makes this number decorative again, measured 2026-08-23:</b> nothing
-    /// outside ASP.NET currently caps this request — Kestrel sets no execution timeout, and the
-    /// deployed edge has no <c>/api</c> matcher (ADR 0050 Option B), so the operator's
+    /// <b>THE CONDITION THAT MAKES THIS NUMBER DECORATIVE AGAIN, measured 2026-08-23.</b> Nothing
+    /// outside ASP.NET caps this request today: Kestrel sets no execution timeout, and the deployed
+    /// edge has no <c>/api</c> matcher (ADR 0050 Option B), so the operator's
     /// <c>docker exec … curl http://api:8080/…</c> reaches the API over the internal network with no
-    /// proxy in the path. If #196 ever puts Caddy in front of it (its <c>write</c> timeout is 30 s)
-    /// or <c>AddRequestTimeouts</c> is introduced, the failure moves back up the stack and this
-    /// ceiling must be re-measured against whatever binds first.
+    /// proxy in the path. Put Caddy in front of it (its <c>write</c> timeout is 30 s) or introduce
+    /// <c>AddRequestTimeouts</c>, and the failure moves back up the stack and this ceiling must be
+    /// re-measured against whatever binds first. <c>deploy/caddy/Caddyfile</c> and
+    /// <c>Jobbliggaren.Api/Program.cs</c> carry a pointer here, because that is where the two
+    /// actors who could trigger it are reading.
     /// </para>
     /// </remarks>
     internal const int CommandTimeoutSeconds = 180;
@@ -119,13 +101,19 @@ internal sealed partial class RecruiterErasureMatchQuery : IRecruiterErasureMatc
     /// silent: raise the ceiling and a fixed threshold becomes noise, lower it and the threshold
     /// never fires before the ceiling does.
     /// <para>
-    /// <b>Why half.</b> It has to clear two properties. Not noise: the box runs warm at 5-6 s, so
-    /// 90 s is ~15× anything routine, and even a cold run of the dev form (63,9 s) is HEALTHY and
-    /// must not warn. Not silence: what this detects is monotone corpus growth, not a spike — at
-    /// half the ceiling a run must DOUBLE its cost between the first warning and the first failure,
-    /// which on a path that runs a handful of times per year is the runway that matters, counted in
-    /// RUNS. At three quarters, 33 % growth would close the gap and you might get exactly one warned
-    /// run before the failing one.
+    /// <b>Why half.</b> Not noise: the warm figures above are ~15× inside it, and even the 63,9 s
+    /// cold run is HEALTHY and must not warn. Not silence: what this detects is monotone corpus
+    /// growth, not a spike — at half the ceiling a run must DOUBLE its cost between the first
+    /// warning and the first failure, which on a path that runs a handful of times per year is the
+    /// runway that matters, counted in RUNS. At three quarters, 33 % growth would close the gap and
+    /// you might get exactly one warned run before the failing one.
+    /// </para>
+    /// <para>
+    /// <b>It shrinks the silent window; it does not close it</b> (security-auditor, 2026-08-23).
+    /// The runway is counted in runs, and the corpus can more than double between two runs a year
+    /// apart — so the first warning may never precede the first failure. That is tolerable only
+    /// because the failure is loud, lands on the dry run before anything is destroyed, and delays
+    /// an Art. 17 answer rather than corrupting one.
     /// </para>
     /// <para>
     /// <b>Not throttled, deliberately.</b> <c>SessionStoreUnavailableLog</c> throttles because a
@@ -288,10 +276,10 @@ internal sealed partial class RecruiterErasureMatchQuery : IRecruiterErasureMatc
         // literal to window. The Origin exclusion is NOT applied to raw_payload: `declared` is an
         // ordinary word there, not a closed vocabulary.
         // Clamped around the MATCHING command alone, and not around this method, because the
-        // ceiling it is measured against is a PER-COMMAND CommandTimeout while this method issues
-        // TWO commands (this one, and the EF projection below). Timing both would compare a wall
-        // clock over two commands against a one-command ceiling — two different quantities — and it
-        // would go wrong in the REASSURING direction as the projection grows.
+        // ceiling it is measured against is a PER-COMMAND CommandTimeout while this method can
+        // issue a second one (the EF projection below, on a non-empty match). Timing both would
+        // compare a wall clock over two commands against a one-command ceiling — two different
+        // quantities — and it would go wrong in the REASSURING direction as the projection grows.
         var matchingStartedAt = Stopwatch.GetTimestamp();
 
         var ids = await _db.Database
@@ -1040,12 +1028,7 @@ internal sealed partial class RecruiterErasureMatchQuery : IRecruiterErasureMatc
     /// repo detects that the margin has been consumed, so without this the ceiling is crossed
     /// silently the next time the corpus grows or the box is cold (#1463).
     /// </summary>
-    /// <remarks>
-    /// <b>Internal for the test that crosses the EMITTER, not the arithmetic.</b> Asserting that
-    /// the threshold is half the ceiling against the same expression that defines it is a tautology
-    /// and pins nothing; what can actually break silently is the wiring — the wrong level, or a
-    /// future parameter carrying the identifier into the sink. That is what is pinned.
-    /// </remarks>
+    /// <remarks>Internal so a test can cross the threshold without 90 s of wall clock.</remarks>
     internal void WarnIfMarginConsumed(TimeSpan elapsed)
     {
         if (elapsed < MarginWarningThreshold)

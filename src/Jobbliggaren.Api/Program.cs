@@ -37,6 +37,13 @@ var builder = WebApplication.CreateBuilder(args);
 // bodies well under this; it only tightens the unconditional default, never loosens.
 builder.WebHost.ConfigureKestrel(options => options.Limits.MaxRequestBodySize = 16L * 1024 * 1024);
 
+// BEFORE ADDING AddRequestTimeouts/UseRequestTimeouts, read RecruiterErasureMatchQuery's
+// CommandTimeoutSeconds. The Art. 17 erasure dry run runs under a reviewed command ceiling of
+// several minutes, and it completes today only because nothing here caps request execution. A
+// request timeout shorter than that ceiling moves the failure back up the stack, onto the only
+// human gate before an irreversible erase. That constant owns the rule and the measurement; this
+// is a pointer, not a second copy.
+
 builder.Configuration.AddJsonFile("appsettings.Local.json", optional: true, reloadOnChange: false);
 
 // #198 / ADR 0050 gate B-1 — secrets arrive as FILES on a RAM-backed mount, never as container

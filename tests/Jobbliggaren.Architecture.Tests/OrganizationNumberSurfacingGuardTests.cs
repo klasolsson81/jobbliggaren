@@ -534,6 +534,19 @@ public class OrganizationNumberSurfacingGuardTests
 
     private static readonly string[] AllowedBrowseLogCalls = ["LogCrossUserAttempt"];
 
+    /// <summary>
+    /// The Art. 17 matching port. It appears on <see cref="RawOrgNrReadingSourcePaths"/> already,
+    /// but that scan is the org.nr token BLOCKLIST — fail-open by construction, and this file's
+    /// identifier is broader than an org.nr: it is also the data subject's name, address, phone
+    /// number and email.
+    /// </summary>
+    private static readonly string[] Art17MatchQuerySourcePaths =
+    [
+        "src/Jobbliggaren.Infrastructure/JobAds/RecruiterErasureMatchQuery.cs",
+    ];
+
+    private static readonly string[] AllowedArt17MatchQueryLogCalls = ["LogMarginConsumed"];
+
     [Fact]
     public void Browse_read_path_has_no_logging_surface_at_all()
     {
@@ -563,6 +576,58 @@ public class OrganizationNumberSurfacingGuardTests
                 $"{string.Join("/", AllowedBrowseLogCalls)} (ADR 0031, bär bara pseudonyma GUID:n). " +
                 "Hittat: " + string.Join(", ", surface));
         }
+    }
+
+    [Fact]
+    public void Art17_match_query_logs_nothing_but_the_margin_warning()
+    {
+        // #1463 moved this file across a line it had never been on: before that change it held no
+        // ILogger at all, so it could not log — a structural guarantee. It now has one log call, and
+        // the only standing repo-wide control on it was the org.nr TOKEN scan, which is a blocklist
+        // and therefore fail-open: its token list is org.nr-only, so a future
+        // `LogInformation("no match for {Identifier}", identifier)` would pass it GREEN while
+        // carrying the data subject's name, address, phone number or email into the sink.
+        //
+        // Same fail-closed posture as the browse read-path above, and for a stricter reason: the
+        // argument to every method on this port IS the identifier of a natural person exercising
+        // Art. 17. LogMarginConsumed is allowed because it carries an elapsed time and a ceiling and
+        // nothing else; any SECOND log call fails the build whatever it carries.
+        foreach (var relativePath in Art17MatchQuerySourcePaths)
+        {
+            var source = ReadSource(relativePath);
+
+            var surface = OrgNrSurfaceScan.FindLoggingSurface(
+                source, AllowedArt17MatchQueryLogCalls, allowInjection: true);
+
+            surface.ShouldBeEmpty(
+                $"{relativePath} har fått en NY logg-yta. Varje metod på den här porten tar den " +
+                "registrerades identifierare (namn, adress, telefon, e-post, eller ett " +
+                "personnummerformat org.nr) som argument, och §5/ADR 0087 D8(c) förbjuder att den " +
+                "når en sink. Regeln är fail-closed: org.nr-token-skanningen är en blocklist och " +
+                "släpper igenom allt som inte är ett org.nr. Enda tillåtna anropet är " +
+                $"{string.Join("/", AllowedArt17MatchQueryLogCalls)} (bär elapsed + taket, #1463). " +
+                "Hittat: " + string.Join(", ", surface));
+        }
+    }
+
+    [Fact]
+    public void Logging_surface_scan_with_injection_allowed_still_flags_a_second_log_call()
+    {
+        // Self-proving negative for the allowInjection:true posture. Permitting the logger FIELD
+        // must not permit a second CALL — otherwise the Art. 17 guard above would be a test that
+        // passes because it checks nothing, which is the exact vacuity this file exists to fight.
+        const string synthetic = """
+            private readonly ILogger<RecruiterErasureMatchQuery> _logger;
+            LogMarginConsumed(_logger, 1L, 180);
+            _logger.LogInformation("no match for {Identifier}", identifier);
+            """;
+
+        var surface = OrgNrSurfaceScan.FindLoggingSurface(
+            synthetic, AllowedArt17MatchQueryLogCalls, allowInjection: true);
+
+        surface.ShouldBe(["LogInformation"],
+            "the injected logger is permitted, the allowed call is permitted, and any OTHER call " +
+            "must still be flagged — that difference is the whole of the guard.");
     }
 
     [Fact]
@@ -947,12 +1012,23 @@ internal static class OrgNrSurfaceScan
     /// and covers all three data classes at once.
     /// </para>
     /// </summary>
-    internal static IReadOnlyList<string> FindLoggingSurface(string source, IReadOnlyCollection<string> allowed)
+    /// <param name="allowInjection">
+    /// <see langword="false"/> (the default) keeps the original posture: an <c>ILogger</c> reference
+    /// is itself the finding, which is what "no logging surface AT ALL" means for the browse
+    /// read-path. <see langword="true"/> is for a file that legitimately holds one logger and must
+    /// be held to "these calls and no others" instead — every non-allowed <c>Log*(</c> is still
+    /// fatal, so the guard stays fail-closed on the axis that carries data.
+    /// </param>
+    internal static IReadOnlyList<string> FindLoggingSurface(
+        string source, IReadOnlyCollection<string> allowed, bool allowInjection = false)
     {
         var found = new List<string>();
 
-        foreach (Match m in Regex.Matches(source, @"\bILogger\b"))
-            found.Add(m.Value);
+        if (!allowInjection)
+        {
+            foreach (Match m in Regex.Matches(source, @"\bILogger\b"))
+                found.Add(m.Value);
+        }
 
         foreach (Match m in Regex.Matches(source, @"\b(Log[A-Z]\w*)\s*\("))
         {

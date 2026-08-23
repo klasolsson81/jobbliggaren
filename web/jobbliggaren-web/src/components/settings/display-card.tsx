@@ -1,6 +1,6 @@
 "use client";
 
-import { useId } from "react";
+import { useEffect, useId, useRef } from "react";
 import { useFormatter, useTranslations } from "next-intl";
 import { formatTime } from "@/lib/i18n/format";
 import { Segment, type SegmentOption } from "@/components/ui/segment";
@@ -30,8 +30,8 @@ interface DisplayCardProps {
  *
  * #1391: the outcome of the language save arrives as props rather than living here,
  * because the write itself is orchestrated by `SettingsForm` (it also flips the locale
- * cookie and refreshes). The three sibling cards own their writes, so they own their
- * outcome state; this card owns the control, which is what decides where the message goes.
+ * cookie and refreshes). A card that owns its write owns its outcome state; this card owns
+ * the control, which is what decides where the message goes.
  */
 export function DisplayCard({
   language,
@@ -44,6 +44,25 @@ export function DisplayCard({
   const format = useFormatter();
   const hintId = useId();
   const errorId = useId();
+  const cardRef = useRef<HTMLElement>(null);
+
+  // Focus the control the message belongs to, so a keyboard or screen-reader user lands on it
+  // instead of only hearing that something is wrong. The segment is `disabled` while the save is
+  // pending, which drops focus to <body>, and `Segment`'s own restore effect is gated on the
+  // group already holding focus — so nothing brings it back and `aria-describedby` is never read.
+  // Same remedy `personal-info-card.tsx` uses for its input.
+  //
+  // `isPending` is in the guard, not just the deps: the error renders while the buttons are still
+  // disabled, and `focus()` on a disabled element does nothing. Traced in Chromium at 30ms
+  // intervals — alert at 120ms with the button still disabled, enabled at 150ms.
+  // Queried off the card element rather than a wrapper: a new node in `.jp-settings-field` would
+  // change what the flex column lays out.
+  useEffect(() => {
+    if (!error || isPending) return;
+    cardRef.current
+      ?.querySelector<HTMLButtonElement>('[role="radiogroup"] button[aria-checked="true"]')
+      ?.focus();
+  }, [error, isPending]);
   // Språk-segmentets options. Båda språken är aktiva (next-intl wirad, ADR 0078);
   // val byter UI-språk direkt via `onLanguageChange` (cookie + refresh).
   const languageOptions: ReadonlyArray<SegmentOption<LanguageValue>> = [
@@ -51,7 +70,7 @@ export function DisplayCard({
     { value: "en", label: t("display.languageEnglish") },
   ];
   return (
-    <section className="jp-card">
+    <section ref={cardRef} className="jp-card">
       <h2 className="jp-card__title">{t("display.title")}</h2>
 
       <div className="jp-settings-field">
@@ -61,7 +80,6 @@ export function DisplayCard({
         <Segment
           aria-label={t("display.languageLabel")}
           aria-describedby={error ? `${hintId} ${errorId}` : hintId}
-          aria-invalid={error ? true : undefined}
           value={language}
           onChange={onLanguageChange}
           options={languageOptions}
@@ -72,9 +90,8 @@ export function DisplayCard({
         </p>
       </div>
 
-      {/* Ömsesidigt uteslutande live-regioner (samma mönster som de tre kort som
-          äger sina egna skrivningar): fel = assertiv alert, annars artig
-          status-kvittens. */}
+      {/* Mutually exclusive live regions, the shape `background-match-card.tsx` ships:
+          a failure is an assertive alert, otherwise a polite receipt. */}
       <div className="mt-4">
         {error ? (
           <p id={errorId} role="alert" className="text-body-sm text-danger-600">

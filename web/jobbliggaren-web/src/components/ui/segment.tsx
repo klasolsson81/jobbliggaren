@@ -39,8 +39,6 @@ interface SegmentProps<T extends string> {
    * screen reader reads a description for the whole set of options.
    */
   "aria-describedby"?: string;
-  /** Set when the group's current value was refused, so the refusal is programmatic too. */
-  "aria-invalid"?: boolean;
 }
 
 export function Segment<T extends string>({
@@ -49,7 +47,6 @@ export function Segment<T extends string>({
   options,
   "aria-label": ariaLabel,
   "aria-describedby": ariaDescribedBy,
-  "aria-invalid": ariaInvalid,
   disabled = false,
 }: SegmentProps<T>) {
   const groupRef = useRef<HTMLDivElement>(null);
@@ -95,7 +92,6 @@ export function Segment<T extends string>({
       role="radiogroup"
       aria-label={ariaLabel}
       aria-describedby={ariaDescribedBy}
-      aria-invalid={ariaInvalid}
       onKeyDown={handleKeyDown}
       className="jp-segment"
     >

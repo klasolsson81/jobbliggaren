@@ -347,7 +347,7 @@ describe("SettingsForm — the direct-apply outcome lands on the control that st
     expect(within(nameCard).queryByRole("alert")).not.toBeInTheDocument();
   });
 
-  it("associates the refusal with the language group and marks it invalid", async () => {
+  it("associates the refusal with the language group", async () => {
     updateMyProfileActionMock.mockResolvedValue({
       success: false,
       error: "Kunde inte na servern.",
@@ -367,7 +367,27 @@ describe("SettingsForm — the direct-apply outcome lands on the control that st
     expect(languageGroup.getAttribute("aria-describedby")).toBe(
       `${hint.id} ${alert.id}`,
     );
-    expect(languageGroup).toHaveAttribute("aria-invalid", "true");
+  });
+
+  it("moves focus back to the language group when the save is refused", async () => {
+    // The segment is disabled while the save is pending, which drops focus to <body> in a real
+    // browser, and Segment's own restore effect is gated on the group already holding focus.
+    // Without this the message is announced but the control it names is unreachable.
+    updateMyProfileActionMock.mockResolvedValue({
+      success: false,
+      error: "Kunde inte na servern.",
+    });
+    const user = userEvent.setup();
+    renderForm();
+    const languageGroup = screen.getByRole("radiogroup", { name: "Språk" });
+
+    await user.click(screen.getByRole("radio", { name: "English" }));
+
+    await screen.findByRole("alert");
+    await waitFor(() =>
+      expect(languageGroup.contains(document.activeElement)).toBe(true),
+    );
+    expect(document.activeElement).toHaveAttribute("aria-checked", "true");
   });
 
   it("renders the receipt for a saved language in the card that owns the segment", async () => {

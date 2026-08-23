@@ -48,9 +48,8 @@ type LanguageValue = "sv" | "en";
  * #1391 — the outcome of ONE write, owned by the control that started it.
  *
  * A union rather than separate error/savedAt fields: a card can never render a receipt and
- * a failure at the same time, so the mutual exclusion is structural instead of a `!error`
- * guard the next reader has to find. `field` carries the action's own opt-in discriminator
- * (#1117); null means the failure names no input.
+ * a failure at the same time, so the mutual exclusion is structural. `field` carries the
+ * action's own opt-in discriminator (#1117); null means the failure names no input.
  */
 type WriteOutcome =
   | { ok: true; at: Date }

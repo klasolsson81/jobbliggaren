@@ -7,7 +7,7 @@ namespace Jobbliggaren.Domain.Resumes;
 /// templates to start, curated total capped at 6–12 per kunskapsbank §5.8). The member
 /// names are the templates' product names from the handoff (Klar/Accentlinje/Mörk
 /// panel), kept as the stable persisted vocabulary; Swedish display labels resolve in
-/// the frontend via <c>messages/sv.json</c>, never here (CLAUDE.md §1/§10). Rendering
+/// the frontend via <c>messages/sv/</c>, never here (CLAUDE.md §1/§10). Rendering
 /// of the choice is deferred to PR-8b — this type only fixes the stored vocabulary.
 /// </summary>
 /// <remarks>

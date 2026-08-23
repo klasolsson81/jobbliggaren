@@ -50,7 +50,7 @@
 
   "//14": "The rule table (design handoff §7). 'heading' is the Swedish heading that gets written",
   "//15": "INTO the user's CV when a suggestion is accepted — it is document CONTENT, not UI chrome,",
-  "//16": "which is why it lives here and not in messages/sv.json. Every heading MUST be recognisable",
+  "//16": "which is why it lives here and not in messages/sv/. Every heading MUST be recognisable",
   "//17": "by the parsing lexicon (BranschgruppProvider fails loud at startup if it is not, and the",
   "//18": "contract test pins it): a heading the segmenter cannot see is a section whose body gets",
   "//19": "swallowed by the preceding one on the next import — the live #815 bug PR-1 fixed.",

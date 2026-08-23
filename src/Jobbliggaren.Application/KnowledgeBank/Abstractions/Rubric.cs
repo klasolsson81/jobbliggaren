@@ -60,7 +60,7 @@ public enum CriterionAssessability
 /// <summary>
 /// The score-band label a percentage falls into (research §2.7). English members;
 /// Swedish data tokens (<c>EjRedo/BehöverOmarbetning/Konkurrenskraftigt/Toppskikt</c>)
-/// mapped in the loader. The Swedish UI copy belongs to <c>messages/sv.json</c>
+/// mapped in the loader. The Swedish UI copy belongs to <c>messages/sv/</c>
 /// (CLAUDE.md §10), not this asset — the asset carries the machine label only.
 /// </summary>
 public enum ScoreBandLabel

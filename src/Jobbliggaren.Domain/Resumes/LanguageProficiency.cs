@@ -18,7 +18,7 @@ namespace Jobbliggaren.Domain.Resumes;
 ///
 /// <para>The <see cref="SmartEnum{T}.Name"/> tokens are English code identifiers
 /// (language policy §1); the Swedish UI labels (modersmål/flytande/god/grundläggande)
-/// are resolved at the frontend via <c>messages/sv.json</c>, not here. The name is the
+/// are resolved at the frontend via <c>messages/sv/</c>, not here. The name is the
 /// stable persisted token inside the encrypted <c>content_enc</c> JSON blob (Form B,
 /// ADR 0049) — serialised by <c>LanguageProficiencyJsonConverter</c>. Values are ordered
 /// low→high so a future comparison (e.g. "at least Good") is a value comparison, but the

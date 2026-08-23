@@ -93,7 +93,7 @@ public sealed record BranschgruppRules(
 /// Swedish <paramref name="Heading"/> that is written into the CV when the user accepts it.
 /// <para>
 /// The heading is document CONTENT, not a UI label — which is why it comes from the asset and
-/// not from <c>messages/sv.json</c>. It MUST be a heading the parsing lexicon can resolve back
+/// not from <c>messages/sv/</c>. It MUST be a heading the parsing lexicon can resolve back
 /// to <paramref name="SectionId"/>: a heading the segmenter cannot see is a section whose body
 /// is swallowed by the preceding one on the next import (the live #815 bug PR-1 fixed). The
 /// provider enforces this at startup; the contract test pins it.

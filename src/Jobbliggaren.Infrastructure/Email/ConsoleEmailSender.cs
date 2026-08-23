@@ -169,10 +169,7 @@ public sealed partial class ConsoleEmailSender(
     /// <para>
     /// The membership rule is an RFC rather than an allow-list, and that is the point: an addition
     /// is checked against a document neither this repo nor its owner controls, so the set cannot
-    /// drift toward convenience. Nothing is granted for convenience today either — every recipient
-    /// that legitimately reaches this sender is already under the rule (<c>user@example.com</c> in
-    /// the unit tests, <c>klas@jobbliggaren.test</c> per <see cref="Identity.AdminBootstrapOptions"/>,
-    /// <c>test-e2e-*@e2e.jobbliggaren.test</c> per the Playwright helper).
+    /// drift toward convenience.
     /// </para>
     /// <para>
     /// It is deliberately NOT an <c>IOptions</c> value. Anything settable at runtime can be widened
@@ -223,15 +220,14 @@ public sealed partial class ConsoleEmailSender(
 
     // Only PlainTextBody reaches this log, and the omission of HtmlBody is deliberate rather than an
     // oversight to be "completed" later: this line carries the WHOLE body, including confirmation and
-    // activation links, into a sink with no retention (CLAUDE.md §11). Logging the HTML part as well
-    // would widen that surface for no dev benefit, since the two parts say the same thing (#183,
-    // 2026-08-12).
+    // activation links (CLAUDE.md §11). Logging the HTML part as well would widen that surface for no
+    // dev benefit, since the two parts say the same thing (#183, 2026-08-12).
     [LoggerMessage(3001, LogLevel.Information,
         "[ConsoleEmailSender] To={To} Subject={Subject}\n---\n{Body}\n---")]
     private partial void LogEmail(string to, string subject, string body);
 
     // Kind ONLY — no recipient, not even a masked one, and no subject or body. Parity with
-    // NullEmailSender.LogSuppressedConsequential, whose doc states the invariant this line must not
+    // NullEmailSender's suppression lines, whose class doc states the invariant this one must not
     // break: "Warning reaches a durable sink, so a recipient or token added here later 'for
     // debuggability' becomes durable PII". A [LoggerMessage] parameter becomes a structured property
     // whether or not the template renders it, so the SIGNATURE is the control, not the string.
@@ -240,7 +236,7 @@ public sealed partial class ConsoleEmailSender(
     // learn why from the log they were about to read the link out of.
     [LoggerMessage(3008, LogLevel.Warning,
         "[ConsoleEmailSender] Body withheld for {EmailKind}: the recipient is not at a domain "
-        + "reserved by RFC 2606/6761, and this sink has no retention. Use a .test address "
-        + "(docs/runbooks/local-dev-setup.md) to read the link out of the log.")]
+        + "reserved by RFC 2606/6761. Use a .test address (docs/runbooks/local-dev-setup.md) to "
+        + "read the link out of the log.")]
     private partial void LogSuppressedBody(string emailKind);
 }

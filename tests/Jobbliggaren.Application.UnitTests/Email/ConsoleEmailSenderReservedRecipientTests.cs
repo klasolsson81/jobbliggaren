@@ -23,11 +23,11 @@ namespace Jobbliggaren.Application.UnitTests.Email;
 /// </para>
 ///
 /// <para>
-/// <b>The non-reserved addresses below are all under the project's own domain, deliberately.</b>
-/// A test that needs a NON-reserved recipient cannot use RFC 2606/6761 by definition, and any
-/// other choice would be a name a third party can register — the exact hazard the gate exists to
-/// close. <c>jobbliggaren.se</c> is the controller's own, nothing is ever sent, and the point of
-/// each case is a classification, never a mailbox.
+/// <b>On the non-reserved addresses below.</b> A test that needs a NON-reserved recipient cannot
+/// use RFC 2606/6761 by definition. The send-path cases use the controller's own
+/// <c>jobbliggaren.se</c>; the label-boundary traps cannot be built inside a domain one owns, since
+/// the whole point of each is a reserved name sitting under someone else's. Nothing is ever sent,
+/// and the point of every case is a classification, never a mailbox.
 /// </para>
 /// </summary>
 public class ConsoleEmailSenderReservedRecipientTests
@@ -213,7 +213,8 @@ public class ConsoleEmailSenderReservedRecipientTests
     [Fact]
     public void ReservedTopLevelDomains_AreExactlyRfc6761s()
         => ConsoleEmailSender.ReservedTopLevelDomains
-            .ShouldBe([".test", ".example", ".invalid", ".localhost"]);
+            .OrderBy(d => d, StringComparer.Ordinal)
+            .ShouldBe([".example", ".invalid", ".localhost", ".test"]);
 
     [Fact]
     public void ReservedSecondLevelDomains_AreExactlyRfc2606s()
@@ -237,6 +238,9 @@ public class ConsoleEmailSenderReservedRecipientTests
     [InlineData("user@host.example")]
     [InlineData("user@host.invalid")]
     [InlineData("user@host.localhost")]
+    // A quoted local part may itself contain '@'; the domain is what follows the LAST one. With
+    // IndexOf this reads the domain as `b"@example.com` and the row goes red.
+    [InlineData("\"a@b\"@example.com")]
     public void IsReservedRecipient_IsTrue_ForRfcReservedDomains(string address)
         => ConsoleEmailSender.IsReservedRecipient(address).ShouldBeTrue();
 
@@ -249,6 +253,12 @@ public class ConsoleEmailSenderReservedRecipientTests
     [InlineData("probe@notexample.org")]
     // …and the mirror shape: a reserved name as a LEFT-hand label of a live domain.
     [InlineData("probe@example.com.jobbliggaren.se")]
+    // A reserved name as a whole label in the MIDDLE, which is the only shape that separates
+    // EndsWith from Contains. Without these two rows both `EndsWith` calls can be swapped for
+    // `Contains` and the whole suite still passes, while `jobbliggaren.test.se` and
+    // `sub.example.com.evil.se` — live, registrable names — would be handed the whole body.
+    [InlineData("probe@jobbliggaren.test.se")]
+    [InlineData("probe@sub.example.com.evil.se")]
     // Fail-closed on anything unparseable.
     [InlineData("")]
     [InlineData("   ")]
@@ -260,5 +270,10 @@ public class ConsoleEmailSenderReservedRecipientTests
 
     [Fact]
     public void IsReservedRecipient_IsFalse_ForNull()
+        // The actor is not a production caller: IEmailSender declares `string toEmail`, so a
+        // compliant one cannot pass null. Nullable reference types are compile-time only, so the
+        // producers are an unannotated assembly, a reflection call, and a future overload — and the
+        // assertion is only that the read side degrades safely, never what production does
+        // (AGENTS.md §5 `Tests:`).
         => ConsoleEmailSender.IsReservedRecipient(null).ShouldBeFalse();
 }

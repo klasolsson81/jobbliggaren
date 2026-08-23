@@ -439,9 +439,9 @@ command, the report-only prompt, the verdict-table format and the label checklis
   recipient at a domain RFC 2606/6761 reserve**, i.e. one that cannot be a real
   mailbox. Every other recipient gets a kind-only `Warning` and no body at all, so a
   real address cannot put its activation link into dev's Seq (#1208). The rule lives at
-  `WriteEmail`, the one choke point every send method funnels through, as a
-  compile-time set and never an `IOptions` value — anything settable at runtime can be
-  widened to the domains it excludes.
+  `WriteEmail`, the one choke point every send method funnels through, as a set fixed in code
+  and never an `IOptions` value — anything settable at runtime can be widened to the domains
+  it excludes.
   `ConsoleEmailSenderReservedRecipientTests` pins both arms, the `IEmailSender` arity,
   and the set's exact membership. The sink is loopback-bound **and
   admin-authenticated** on top of that (#1198). **The guard reaches the email-body path

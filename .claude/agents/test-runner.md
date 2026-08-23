@@ -281,7 +281,7 @@ Coverage: 84% (Domain: 91%, Application: 79%)
   JobAdTests.cs:62 jobAd.DomainEvents.ShouldContain(e => e is JobAdArchivedEvent)
   → ShouldBeException: Should contain an element matching the predicate
 **Föreslagen åtgärd:** Production bug — JobAd.Archive() höjer inte domain event.
-Klas fixar i src/JobbPilot.Domain/JobAds/JobAd.cs.
+Klas fixar i src/Jobbliggaren.Domain/JobAds/JobAd.cs.
 
 **[Assertion failure]** `CreateJobAdHandlerTests.Handle_ShouldReturnValidationError_WhenTitleIsEmpty`
 **Fil:** tests/JobbPilot.UnitTests/Application/Handlers/CreateJobAdHandlerTests.cs:41

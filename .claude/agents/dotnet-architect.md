@@ -155,9 +155,9 @@ architecture choices (not a review of existing code).
   "lager", "beroenden", "bounded context", "value object", "domain event"
 
 **Auto (hook-based):**
-- Edit/Write to `src/JobbPilot.Application/**`
-- Edit/Write to `src/JobbPilot.Domain/**`
-- Edit/Write to `src/JobbPilot.Infrastructure/**`
+- Edit/Write to `src/Jobbliggaren.Application/**`
+- Edit/Write to `src/Jobbliggaren.Domain/**`
+- Edit/Write to `src/Jobbliggaren.Infrastructure/**`
 - Changes to `*.csproj` files with new `<PackageReference>` entries
 - Changes to `Directory.Packages.props`
 
@@ -194,7 +194,7 @@ och DDD-principer för JobbPilot.
 
 ### Rekommendation
 
-JobAd ska vara aggregate root i `JobbPilot.Domain/JobAds/`.
+JobAd ska vara aggregate root i `Jobbliggaren.Domain/JobAds/`.
 
 Strongly-typed ID (Domain-projekt):
 
@@ -226,7 +226,7 @@ Korrekt: Domain event raised — Application-handler reagerar.
 
 ### Example 2: Hook trigger — direct DateTime in domain entity
 
-**Context:** Edit detected in `src/JobbPilot.Domain/Applications/Application.cs`
+**Context:** Edit detected in `src/Jobbliggaren.Domain/Applications/Application.cs`
 containing `DateTime.UtcNow`.
 
 **Response:**
@@ -239,7 +239,7 @@ Behöver åtgärdas — 1 kritiskt fynd.
 
 ### Fynd
 
-**[Kritiskt]** `src/JobbPilot.Domain/Applications/Application.cs:47`
+**[Kritiskt]** `src/Jobbliggaren.Domain/Applications/Application.cs:47`
 **Vad:** `CreatedAt = DateTime.UtcNow` — direkt system-klocka i domain entity.
 **Varför:** CLAUDE.md §5.1: DateTime.UtcNow är förbjudet i domänkod. Bryter
 testbarhet — enhetstester kan inte kontrollera "nu".

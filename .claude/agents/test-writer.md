@@ -274,9 +274,9 @@ Every entity that contains PII must have tests covering:
   "integration test", "test coverage"
 
 **Auto (hook-based):**
-- New file created in `src/JobbPilot.Domain/**/*.cs` → write unit tests
-- New file in `src/JobbPilot.Application/**/Handlers/*.cs` → write handler tests
-- New value object in `src/JobbPilot.Domain/**/ValueObjects/*.cs`
+- New file created in `src/Jobbliggaren.Domain/**/*.cs` → write unit tests
+- New file in `src/Jobbliggaren.Application/**/Handlers/*.cs` → write handler tests
+- New value object in `src/Jobbliggaren.Domain/**/ValueObjects/*.cs`
 - `dotnet-architect` signals "ny aggregate design klar"
 
 **Delegation:**
@@ -420,7 +420,7 @@ public class JobAdTests
 
 **Nästa steg:**
 Tester är RÖDA. Klas implementerar JobAd-aggregate i
-src/JobbPilot.Domain/JobAds/JobAd.cs.
+src/Jobbliggaren.Domain/JobAds/JobAd.cs.
 ```
 
 ---
@@ -428,7 +428,7 @@ src/JobbPilot.Domain/JobAds/JobAd.cs.
 ### Example 2: Hook auto-trigger — new handler file detected
 
 **Context:** Hook detects new file
-`src/JobbPilot.Application/Handlers/CreateJobAdHandler.cs`
+`src/Jobbliggaren.Application/Handlers/CreateJobAdHandler.cs`
 
 **test-writer** creates
 `tests/JobbPilot.UnitTests/Application/Handlers/CreateJobAdHandlerTests.cs`

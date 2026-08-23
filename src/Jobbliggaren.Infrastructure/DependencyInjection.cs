@@ -1219,7 +1219,7 @@ public static class DependencyInjection
 
         // #842 / ADR 0106 Tier B — the matching behind the Art. 17 erasure command (the channels are
         // documented on the port; do not restate them here). Infrastructure for the same reason as
-        // IJobAdSearchQuery above: FTS, the jsonb::text cast and the ARE regex are Npgsql concerns,
+        // IJobAdSearchQuery above: FTS, jsonb_path_query and the ARE regex are Npgsql concerns,
         // arch-test-forbidden in Application.
         services.AddScoped<
             Jobbliggaren.Application.JobAds.Abstractions.IRecruiterErasureMatchQuery,

@@ -35,24 +35,33 @@ internal sealed class RecruiterErasureMatchQuery(
 
     // LIKE metacharacters. `_` is legal and common in email local parts (anna_k@acme.se) and would
     // otherwise be a single-character wildcard; `%` would match the whole corpus.
+    //
+    // ⚠ This MUST be Postgres's own default escape. Every arm matches with `LIKE ANY({patterns})`,
+    // which admits NO ESCAPE clause — the server rejects one as a syntax error — so the
+    // escape is whatever Postgres defaults to, and the pattern builder has to agree with it by
+    // construction rather than by coincidence. `LikeEscape_is_the_postgres_default_backslash` holds
+    // the server's half; LikePattern below DERIVES every emitted prefix from this constant, so the
+    // metacharacter integration test holds ours. Both halves are needed: the constant was once read
+    // only as a search argument while the emitted prefixes were hardcoded, which left it pinned by
+    // nothing and made this very comment's causal claim false.
+    //
+    // The array form is not a style choice. Cross-joining the patterns instead —
+    // `FROM jsonb_path_query(...) v, unnest({patterns}) p` — multiplies every walked value by the
+    // pattern count and took FindJobAdsAsync past Npgsql's 30 s command timeout on the dev corpus,
+    // i.e. the Art. 17 dry run threw instead of answering.
     private const char LikeEscape = '\\';
-
-    // The ESCAPE clause every LIKE in this class carries — DERIVED from LikeEscape and bound as a
-    // parameter (Postgres accepts any text expression after ESCAPE), so the pattern builder and
-    // the clause are one definition. Round 4 hand-typed the literal on 18 lines and lost the
-    // backslash on two of them: `ESCAPE ''` disables escaping silently, `\_` then matches a
-    // literal backslash, and the identifier `anna_k@acme.se` stops matching its own row — the
-    // regression the metacharacter integration test now holds red.
-    private static readonly string LikeEscapeSql = LikeEscape.ToString();
 
     private static string LikePattern(string identifier)
     {
+        // Backslash FIRST: escaping it after `%`/`_` would re-escape the prefixes just written.
+        var e = LikeEscape.ToString();
+
         var escaped = identifier
             .Trim()
             .ToLowerInvariant()
-            .Replace(LikeEscape.ToString(), @"\\", StringComparison.Ordinal)
-            .Replace("%", @"\%", StringComparison.Ordinal)
-            .Replace("_", @"\_", StringComparison.Ordinal);
+            .Replace(e, e + e, StringComparison.Ordinal)
+            .Replace("%", e + "%", StringComparison.Ordinal)
+            .Replace("_", e + "_", StringComparison.Ordinal);
 
         return $"%{escaped}%";
     }
@@ -140,21 +149,35 @@ internal sealed class RecruiterErasureMatchQuery(
         ArgumentException.ThrowIfNullOrWhiteSpace(identifier);
 
         var needle = identifier.Trim();
-        var pattern = LikePattern(identifier);
+        var patterns = WrittenFormPatterns(identifier);
         var erased = Domain.JobAds.JobAdStatus.Erased.Value;
-        var orgNr = NormalizedOrgNr(identifier);
+        var writtenForms = WrittenForms(identifier);
 
         // The matching itself is raw SQL (it has to be — see the class remarks), and it yields IDs.
         // EF's Database.SqlQuery<T> supports SCALAR results only, so the ads themselves are then
         // projected through EF.
         //
-        // The organization_number arm is exact-match on the NORMALISED org.nr. `{orgNr}` is NULL
-        // for a non-org.nr identifier, and `column = NULL` is never true — the arm switches itself
-        // off. It exists because raw_payload is eventually NULLed (PurgeStaleRawPayloadsJob; rule in
+        // The organization_number arm binds every WRITTEN form, not the normalised one. This column
+        // LOOKS like a normalising one and is not: the ingest ACL hands the wire value to
+        // `JobAdFacets.Normalize`, which trims and nothing else, so `OrganizationNumber.Create`
+        // never runs on this path. That the corpus holds only ten-digit values is a fact about the
+        // SOURCE's current format, not about our write path, and it is the arm's own premise —
+        // `= ANY(writtenForms)` stops depending on it at no cost, since the ten-digit form is the
+        // first element. `= ANY('{}')` is never true, so the arm still switches itself off for a
+        // non-org.nr identifier, exactly as `= NULL` did.
+        //
+        // The arm exists because raw_payload is eventually NULLed (PurgeStaleRawPayloadsJob; rule in
         // ADR 0032 Amendment 2026-07-26 §C2), after
         // which the materialised organization_number column (#841) is the ONLY place a sole
         // trader's org.nr survives in the row — the same payload-retention logic that forced the
         // company_name channel (see the port; rule in ADR 0032 Amendment 2026-07-26 §C2).
+        //
+        // Both jsonb arms walk VALUES. `raw_payload::text` matched the SANITIZER'S ALLOWLISTED KEY
+        // NAMES: measured on the dev corpus 2026-08-23, `headline`, `line`, `work`, `move` and
+        // `employer` each reached 5 000 of 5 000 sampled ads — i.e. an ordinary surname proposed the
+        // whole corpus for erasure, every one of them with an empty excerpt, since there is no
+        // literal to window. The Origin exclusion is NOT applied to raw_payload: `declared` is an
+        // ordinary word there, not a closed vocabulary.
         var ids = await db.Database
             .SqlQuery<Guid>($"""
                 SELECT id AS "Value"
@@ -162,12 +185,21 @@ internal sealed class RecruiterErasureMatchQuery(
                 WHERE status <> {erased}
                   AND (
                         search_vector @@ websearch_to_tsquery({TextSearchConfig}::regconfig, {needle})
-                     OR lower(title)        LIKE {pattern} ESCAPE {LikeEscapeSql}
-                     OR lower(description)  LIKE {pattern} ESCAPE {LikeEscapeSql}
-                     OR lower(company_name) LIKE {pattern} ESCAPE {LikeEscapeSql}
-                     OR (raw_payload IS NOT NULL AND lower(raw_payload::text) LIKE {pattern} ESCAPE {LikeEscapeSql})
-                     OR organization_number = {orgNr}
-                     OR (contacts IS NOT NULL AND lower(contacts::text) LIKE {pattern} ESCAPE {LikeEscapeSql})
+                     OR organization_number = ANY({writtenForms})
+                     OR lower(title)        LIKE ANY({patterns})
+                     OR lower(description)  LIKE ANY({patterns})
+                     OR lower(company_name) LIKE ANY({patterns})
+                     OR EXISTS (
+                          SELECT 1
+                          FROM jsonb_path_query(contacts, '$.**') AS v
+                          WHERE jsonb_typeof(v) NOT IN ('object', 'array')
+                            AND lower(v #>> {WholeJsonbValue}) <> ALL({AdContactOriginLiterals})
+                            AND lower(v #>> {WholeJsonbValue}) LIKE ANY({patterns}))
+                     OR EXISTS (
+                          SELECT 1
+                          FROM jsonb_path_query(raw_payload, '$.**') AS v
+                          WHERE jsonb_typeof(v) NOT IN ('object', 'array')
+                            AND lower(v #>> {WholeJsonbValue}) LIKE ANY({patterns}))
                   )
                 """)
             .ToListAsync(cancellationToken);
@@ -194,28 +226,53 @@ internal sealed class RecruiterErasureMatchQuery(
             })
             .ToListAsync(cancellationToken);
 
+        // The terms the evidence picker looks for, built ONCE: the identifier as supplied, then every
+        // written form. The needle is first so a literal hit on what she actually typed wins the
+        // window. Both are constant over the whole result set.
+        string[] terms = [needle, .. writtenForms];
+
+        // ADR 0087 D8(c) — "flagged/masked/excluded in ANY display projection", and the free-text
+        // channels are display projections too. Decided from the matched terms with the predicate
+        // that already exists: same rule, no second detector over free prose. It is a property of
+        // the REQUEST, so it is decided once and not per row.
+        var termsArePersonnummerShaped = terms.Any(t =>
+            Domain.CompanyWatches.OrganizationNumber.TryFromWrittenForm(t)
+                ?.IsPersonnummerShaped() == true);
+
         return
         [
             .. rows.Select(r =>
             {
-                var (channel, excerpt) = orgNr is not null && r.OrganizationNumber == orgNr
-                    ? (ErasureMatchChannel.OrganizationNumber, OrgNrEvidence(orgNr))
-                    : Evidence(r.Title, r.Description, r.Company, r.Contacts, needle);
-                return new ErasureJobAdMatch(r.Id, r.ExternalId, r.Title, r.Company, channel, excerpt);
+                // Membership in the written forms, not equality with the normalised one. The SQL arm
+                // above matches every form, so a row storing `551218-1234` would fail an equality
+                // test against `5512181234`, fall through to Evidence(), find no literal there
+                // either, and reach the operator as FullTextOrRawPayload with an EMPTY excerpt — a
+                // window with no hit in it, on the one human gate before irreversible destruction.
+                // And it shows the STORED form that matched, for the reason FirstMatchedAxisValue
+                // gives: what he is authorising is the deletion of THAT string.
+                var matchedForm = r.OrganizationNumber is not null
+                    && writtenForms.Contains(r.OrganizationNumber, StringComparer.Ordinal)
+                        ? r.OrganizationNumber
+                        : null;
+
+                var (channel, excerpt) = matchedForm is not null
+                    ? (ErasureMatchChannel.OrganizationNumber, matchedForm)
+                    : Evidence(r.Title, r.Description, r.Company, r.Contacts, terms);
+
+                // One flag, every channel that has an excerpt. Previously only the org.nr channel
+                // carried it, so a personnummer-shaped value reaching the operator through
+                // `description` arrived un-flagged on the one screen ADR 0087 D8(c) names explicitly
+                // ("even to the admin operator, even when the subject herself supplied it"). An empty
+                // excerpt is left empty; a flag on nothing flags nothing.
+                var flagged = termsArePersonnummerShaped && excerpt.Length > 0
+                    ? $"{excerpt} (personnummer-format)"
+                    : excerpt;
+
+                return new ErasureJobAdMatch(
+                    r.Id, r.ExternalId, r.Title, r.Company, channel, flagged);
             }),
         ];
     }
-
-    /// <summary>
-    /// The reviewable evidence for an org.nr hit: the subject's own supplied identifier, in the
-    /// normalised form that matched — flagged when it is personnummer-shaped (ADR 0087 D8(c): a
-    /// personnummer is never surfaced un-flagged, even to the admin operator, even when the
-    /// subject herself supplied it). Review payload only; never logged.
-    /// </summary>
-    private static string OrgNrEvidence(string orgNr) =>
-        Domain.CompanyWatches.OrganizationNumber.FromTrusted(orgNr).IsPersonnummerShaped()
-            ? $"{orgNr} (personnummer-format)"
-            : orgNr;
 
     /// <summary>
     /// The reviewer's evidence: WHICH channel hit, and the text around it.
@@ -228,28 +285,37 @@ internal sealed class RecruiterErasureMatchQuery(
     /// would have been shown a window with no trace of her in it and no way to tell that from a false
     /// positive. This is the one gate between him and irreversible corpus-wide destruction, and a
     /// window with no hit in it is evidence of nothing.
+    /// <para>
+    /// <paramref name="terms"/> carries the identifier as supplied AND every written form, because
+    /// the SQL matches every written form: an ad whose description holds <c>551218-1234</c>, matched
+    /// by a request for <c>5512181234</c>, would otherwise reach the operator with no excerpt at all.
+    /// </para>
     /// </remarks>
     private static (ErasureMatchChannel Channel, string Excerpt) Evidence(
-        string title, string? description, string company, Domain.JobAds.AdContacts? contacts, string needle)
+        string title, string? description, string company, Domain.JobAds.AdContacts? contacts,
+        IReadOnlyList<string> terms)
     {
         const int Window = 200;
         const int Lead = 60;
 
         if (!string.IsNullOrWhiteSpace(description))
         {
-            var at = description.IndexOf(needle, StringComparison.OrdinalIgnoreCase);
-            if (at >= 0)
+            foreach (var term in terms)
             {
+                var at = description.IndexOf(term, StringComparison.OrdinalIgnoreCase);
+                if (at < 0)
+                    continue;
+
                 var start = Math.Max(0, at - Lead);
                 var length = Math.Min(Window, description.Length - start);
                 return (ErasureMatchChannel.Description, description.Substring(start, length).Trim());
             }
         }
 
-        if (title.Contains(needle, StringComparison.OrdinalIgnoreCase))
+        if (terms.Any(t => title.Contains(t, StringComparison.OrdinalIgnoreCase)))
             return (ErasureMatchChannel.Title, title);
 
-        if (company.Contains(needle, StringComparison.OrdinalIgnoreCase))
+        if (terms.Any(t => company.Contains(t, StringComparison.OrdinalIgnoreCase)))
             return (ErasureMatchChannel.CompanyName, company);
 
         // #842 Tier A (T8 CTO 2026-07-16) — the structured contacts hit gets its OWN channel with
@@ -258,11 +324,11 @@ internal sealed class RecruiterErasureMatchQuery(
         // reviewable hit from the one human gate before irreversible destruction. The excerpt is
         // the matched contact's own fields — exactly the data under review, admin-only, never
         // logged.
-        var matchedContact = contacts?.Contacts.FirstOrDefault(c =>
-            (c.Name is not null && c.Name.Contains(needle, StringComparison.OrdinalIgnoreCase))
-            || (c.Role is not null && c.Role.Contains(needle, StringComparison.OrdinalIgnoreCase))
-            || (c.Email is not null && c.Email.Contains(needle, StringComparison.OrdinalIgnoreCase))
-            || (c.Phone is not null && c.Phone.Contains(needle, StringComparison.OrdinalIgnoreCase)));
+        var matchedContact = contacts?.Contacts.FirstOrDefault(c => terms.Any(t =>
+            (c.Name is not null && c.Name.Contains(t, StringComparison.OrdinalIgnoreCase))
+            || (c.Role is not null && c.Role.Contains(t, StringComparison.OrdinalIgnoreCase))
+            || (c.Email is not null && c.Email.Contains(t, StringComparison.OrdinalIgnoreCase))
+            || (c.Phone is not null && c.Phone.Contains(t, StringComparison.OrdinalIgnoreCase))));
         if (matchedContact is not null)
         {
             var fields = new[]
@@ -295,9 +361,7 @@ internal sealed class RecruiterErasureMatchQuery(
         // normalised comparison. OrganizationNumber owns the rendering as the inverse of
         // TryFromWrittenForm, so the pair cannot drift (#844). Empty for a non-org.nr
         // identifier, and `= ANY('{}')` is never true, so the arm switches itself off.
-        string[] writtenForms = orgNr is null
-            ? []
-            : [.. Domain.CompanyWatches.OrganizationNumber.FromTrusted(orgNr).WrittenForms()];
+        var writtenForms = WrittenForms(identifier);
 
         // `~*` = case-insensitive ARE match. `q` is a plain varchar(100), so no cast is needed.
         //
@@ -496,7 +560,7 @@ internal sealed class RecruiterErasureMatchQuery(
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(identifier);
 
-        var pattern = LikePattern(identifier);
+        var patterns = WrittenFormPatterns(identifier);
 
         // Deliberately NOT filtered on deleted_at. A soft-deleted saved search still physically
         // holds `criteria` in the row (SoftDelete() hides it; it does not erase it). Reporting only
@@ -504,11 +568,22 @@ internal sealed class RecruiterErasureMatchQuery(
         //
         // `name` is a separate plaintext column, and a user who names a saved search "Anna Karlssons
         // annonser" holds the recruiter's name in it. It was classified as searched and was not.
+        //
+        // The criteria arm walks the document's VALUES, never its raw text. A `criteria::text LIKE`
+        // also matches the jsonb KEY NAMES — `Region`, `Employer` and `Municipality` are keys in
+        // every document — so a four-character identifier (the validator's floor) reported every row
+        // that has criteria at all. Walking values names no property, so an additive key stays
+        // covered, and drops the key-name over-match with it. `$.**` is lax and unwraps arrays, so
+        // it reaches the six concept-id lists' elements as well as `Q`.
         return await CountAsync($"""
             SELECT count(*)::int AS "Value"
             FROM saved_searches
-            WHERE lower(criteria::text)          LIKE {pattern} ESCAPE {LikeEscapeSql}
-               OR lower(coalesce(name, ''))      LIKE {pattern} ESCAPE {LikeEscapeSql}
+            WHERE lower(coalesce(name, '')) LIKE ANY({patterns})
+               OR EXISTS (
+                    SELECT 1
+                    FROM jsonb_path_query(criteria, '$.**') AS v
+                    WHERE jsonb_typeof(v) NOT IN ('object', 'array')
+                      AND lower(v #>> {WholeJsonbValue}) LIKE ANY({patterns}))
             """, cancellationToken);
     }
 
@@ -517,12 +592,11 @@ internal sealed class RecruiterErasureMatchQuery(
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(identifier);
 
-        var pattern = LikePattern(identifier);
+        var patterns = WrittenFormPatterns(identifier);
 
-        // snapshot_company is NON-NULLABLE — it is populated on EVERY application, unlike
-        // snapshot_description (measured at 0 rows), which is the one the original scope reasoned
-        // about. We search it precisely because we do NOT erase it (Art. 17(3)(e) — see the
-        // registry's written ground).
+        // We search these four precisely because we do NOT erase them (Art. 17(3)(e) — see the
+        // registry's written ground). `AdSnapshot.Capture` performs no validation at all, so
+        // whatever the ad body carried is frozen here byte for byte, in whatever written form.
         //
         // snapshot_url is the frozen ad URL, and a URL path carries names routinely — the
         // identical argument that put manual_url in scope. It was classified MatchedRetained
@@ -532,10 +606,10 @@ internal sealed class RecruiterErasureMatchQuery(
         return await CountAsync($"""
             SELECT count(*)::int AS "Value"
             FROM applications
-            WHERE lower(coalesce(snapshot_company, ''))     LIKE {pattern} ESCAPE {LikeEscapeSql}
-               OR lower(coalesce(snapshot_title, ''))       LIKE {pattern} ESCAPE {LikeEscapeSql}
-               OR lower(coalesce(snapshot_description, '')) LIKE {pattern} ESCAPE {LikeEscapeSql}
-               OR lower(coalesce(snapshot_url, ''))         LIKE {pattern} ESCAPE {LikeEscapeSql}
+            WHERE lower(coalesce(snapshot_company, ''))     LIKE ANY({patterns})
+               OR lower(coalesce(snapshot_title, ''))       LIKE ANY({patterns})
+               OR lower(coalesce(snapshot_description, '')) LIKE ANY({patterns})
+               OR lower(coalesce(snapshot_url, ''))         LIKE ANY({patterns})
             """, cancellationToken);
     }
 
@@ -544,20 +618,30 @@ internal sealed class RecruiterErasureMatchQuery(
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(identifier);
 
-        var pattern = LikePattern(identifier);
+        var patterns = WrittenFormPatterns(identifier);
 
         // #842 Tier A — IDS, not a count: this surface is ERASED surgically
         // (Application.EraseAdSnapshotContacts) and an erase needs its targets. Deliberately NOT
         // part of CountApplicationSnapshotsAsync: the body columns are retained (17(3)(e)); the
-        // contact block goes — one surface, one disposition (T2 CTO 2026-07-16). The jsonb::text
-        // cast searches every field of every frozen contact (name, role, email, phone) in one
-        // fail-safe over-matching sweep, same posture as the ad channels.
+        // contact block goes — one surface, one disposition (T2 CTO 2026-07-16).
+        //
+        // THE LOOSENESS OF A MATCH IS INVERSELY PROPORTIONAL TO THE STRENGTH OF ITS REVIEW GATE, and
+        // this arm has the weakest gate in the class: the handler erases what it returns with NO
+        // per-id confirmation. A `snapshot_contacts::text LIKE` matched the KEY NAMES — `Name`,
+        // `Role`, `Email`, `Phone` — so a four-character identifier destroyed every applicant's
+        // frozen contact block, unreviewed. The handler's ground for having no ceremony ("nothing of
+        // any USER'S is destroyed") holds only while the match is sound; that is what makes the
+        // over-match here a different thing from the same over-match on a confirmed channel.
         return await db.Database
             .SqlQuery<Guid>($"""
                 SELECT id AS "Value"
                 FROM applications
-                WHERE snapshot_contacts IS NOT NULL
-                  AND lower(snapshot_contacts::text) LIKE {pattern} ESCAPE {LikeEscapeSql}
+                WHERE EXISTS (
+                        SELECT 1
+                        FROM jsonb_path_query(snapshot_contacts, '$.**') AS v
+                        WHERE jsonb_typeof(v) NOT IN ('object', 'array')
+                          AND lower(v #>> {WholeJsonbValue}) <> ALL({AdContactOriginLiterals})
+                          AND lower(v #>> {WholeJsonbValue}) LIKE ANY({patterns}))
                 """)
             .ToListAsync(cancellationToken);
     }
@@ -567,7 +651,7 @@ internal sealed class RecruiterErasureMatchQuery(
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(identifier);
 
-        var pattern = LikePattern(identifier);
+        var patterns = WrittenFormPatterns(identifier);
 
         // ONLY the plaintext columns. cover_letter sits in this same table and is Form-A encrypted —
         // it is NOT scanned here (registry: HeldButNotSearchable; disclosed via UnsearchableSurfaces).
@@ -575,9 +659,9 @@ internal sealed class RecruiterErasureMatchQuery(
         return await CountAsync($"""
             SELECT count(*)::int AS "Value"
             FROM applications
-            WHERE lower(coalesce(manual_company, '')) LIKE {pattern} ESCAPE {LikeEscapeSql}
-               OR lower(coalesce(manual_title, ''))   LIKE {pattern} ESCAPE {LikeEscapeSql}
-               OR lower(coalesce(manual_url, ''))     LIKE {pattern} ESCAPE {LikeEscapeSql}
+            WHERE lower(coalesce(manual_company, '')) LIKE ANY({patterns})
+               OR lower(coalesce(manual_title, ''))   LIKE ANY({patterns})
+               OR lower(coalesce(manual_url, ''))     LIKE ANY({patterns})
             """, cancellationToken);
     }
 
@@ -586,7 +670,7 @@ internal sealed class RecruiterErasureMatchQuery(
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(identifier);
 
-        var pattern = LikePattern(identifier);
+        var patterns = WrittenFormPatterns(identifier);
 
         // No lifecycle predicate to exclude — and unlike CountSavedSearchesAsync there is no choice
         // being made here. A criterion has no deleted_at and no soft-deleted state (delete is HARD,
@@ -596,23 +680,38 @@ internal sealed class RecruiterErasureMatchQuery(
         return await CountAsync($"""
             SELECT count(*)::int AS "Value"
             FROM company_watch_criteria
-            WHERE lower(coalesce(label, '')) LIKE {pattern} ESCAPE {LikeEscapeSql}
+            WHERE lower(coalesce(label, '')) LIKE ANY({patterns})
             """, cancellationToken);
     }
 
     /// <summary>
-    /// The LIKE patterns to compare a jsonb value against: every WRITTEN form of the identifier when
-    /// it is an org.nr, and the identifier as supplied when it is not.
+    /// The <see cref="Domain.JobAds.AdContactOrigin"/> names as they sit in a serialised
+    /// <c>AdContacts</c> document, lower-cased for comparison against a lower-cased jsonb value.
     /// </summary>
     /// <remarks>
-    /// A column validated on SHAPE ONLY stores whatever was typed, so comparing one normalised
-    /// request against an unnormalised store reaches only the form that happens to coincide (#1425).
-    /// The five <c>recent_job_searches</c> axes close that with <c>= ANY(writtenForms)</c> because
-    /// they are <c>text[]</c>; a jsonb document needs the same set as LIKE patterns instead.
-    /// <b>This does NOT apply to a normalising column</b> — <c>company_watches.organization_number</c>
-    /// is written through <c>OrganizationNumber.Create</c>, so the ten-digit form is the only stored
-    /// plaintext form and its arm stays an exact two-operand probe.
+    /// <b>Provenance metadata, not advertiser text.</b> <c>Origin</c> is the one member of a frozen
+    /// contact whose value comes from a closed system vocabulary rather than from the ad, and its
+    /// literals are long enough to contain a name: <c>Declared</c> contains <c>Clare</c>, and four
+    /// characters is a legal identifier. Measured on the dev corpus 2026-08-23, a request for
+    /// <c>clare</c> reached <b>16 999</b> of 40 983 ads through <c>job_ads.contacts</c> — before and
+    /// after the value walk alike, because a value is not a key name.
+    /// <para>
+    /// This does NOT weaken the property the walk was chosen for. That property is about the KEY set
+    /// — an additive member stays covered the day it lands — and this bounds the VALUE domain
+    /// instead; the two axes are orthogonal. Naming <c>Origin</c> in a jsonpath would have broken it.
+    /// </para>
+    /// <para>
+    /// ⚠ <b>RESIDUAL, named rather than certified away:</b> the comparison is WHOLE-VALUE equality
+    /// applied to every scalar in the document, so a contact ANY of whose fields — <c>Name</c>,
+    /// <c>Role</c>, <c>Email</c>, <c>Phone</c> — is exactly an origin literal is not reached through
+    /// that field. <c>Declared Andersson</c> still is. Derived from the enum and pinned against it,
+    /// so a third origin cannot drift away from this list (#844).
+    /// </para>
     /// </remarks>
+    private static readonly string[] AdContactOriginLiterals =
+        [.. Enum.GetNames<Domain.JobAds.AdContactOrigin>()
+            .Select(name => name.ToLowerInvariant())];
+
     /// <summary>
     /// The empty jsonb path, bound as a parameter. <c>jsonb #>> text[]</c> with an empty path
     /// returns the value's DECODED text, which is what a comparison against a user-supplied
@@ -621,6 +720,23 @@ internal sealed class RecruiterErasureMatchQuery(
     /// </summary>
     private static readonly string[] WholeJsonbValue = [];
 
+    /// <summary>
+    /// The LIKE patterns to compare a stored value against: every WRITTEN form of the identifier when
+    /// it is an org.nr, and the identifier as supplied when it is not.
+    /// </summary>
+    /// <remarks>
+    /// A column validated on SHAPE ONLY stores whatever was typed, so comparing one normalised
+    /// request against an unnormalised store reaches only the form that happens to coincide (#1425).
+    /// The five <c>recent_job_searches</c> axes close that with <c>= ANY(writtenForms)</c> because
+    /// they are <c>text[]</c>; every other channel needs the same set as LIKE patterns instead.
+    /// <b>This does NOT apply to a normalising column</b> — <c>company_watches.organization_number</c>
+    /// and <c>recent_job_searches.employer_list</c> both reach the database through a ten-digit gate,
+    /// so the ten-digit form is the only stored PLAINTEXT form and their arms stay exact probes. That
+    /// qualifier is load-bearing: a personnummer-shaped org.nr is stored in the first of those as a
+    /// keyed HMAC token, which is why its arm carries two operands and not one.
+    /// <c>job_ads.organization_number</c> looks like a third and is not: its ingest write path runs
+    /// <c>JobAdFacets.Normalize</c> (a trim) and never <c>OrganizationNumber.Create</c>.
+    /// </remarks>
     private static string[] WrittenFormPatterns(string identifier)
     {
         var orgNr = Domain.CompanyWatches.OrganizationNumber.TryFromWrittenForm(identifier);
@@ -628,6 +744,22 @@ internal sealed class RecruiterErasureMatchQuery(
         return orgNr is null
             ? [LikePattern(identifier)]
             : [.. orgNr.WrittenForms().Select(LikePattern)];
+    }
+
+    /// <summary>
+    /// The written forms themselves, for an EXACT arm — empty when the identifier is not org.nr
+    /// shaped, so <c>= ANY('{}')</c> switches that arm off.
+    /// </summary>
+    /// <remarks>
+    /// The empty fallback is the one place this DIFFERS from <see cref="WrittenFormPatterns"/>, and
+    /// the difference is deliberate: a substring arm must still reach a plain name, while an exact
+    /// arm comparing a whole column against a name would only ever be noise.
+    /// </remarks>
+    private static string[] WrittenForms(string identifier)
+    {
+        var orgNr = Domain.CompanyWatches.OrganizationNumber.TryFromWrittenForm(identifier);
+
+        return orgNr is null ? [] : [.. orgNr.WrittenForms()];
     }
 
     public async Task<int> CountCompanyWatchFollowsAsync(
@@ -658,12 +790,18 @@ internal sealed class RecruiterErasureMatchQuery(
         //   reach a soft-deleted row BY CONSTRUCTION. A deleted_at predicate would be inert here
         //   while being wrong one line up.
         //
-        // The filter arm walks the document's VALUES ($.** then jsonb_typeof = 'string'), never its
-        // raw text. A `filter::text LIKE` also matches the jsonb KEY NAMES, and `Regions` or
-        // `Remote` as an identifier would then match every row that has a filter at all. Walking
-        // values keeps the property the key-name form was chosen for — no property is named in SQL
-        // — and drops the over-match with it. The string-type filter is what bounds that: a key
-        // whose value is a number or a boolean is not reached, which today is no column at all.
+        // The filter arm walks the document's VALUES, never its raw text. A `filter::text LIKE`
+        // also matches the jsonb KEY NAMES, and `Regions` or `Remote` as an identifier would then
+        // match every row that has a filter at all. Walking values keeps the property the key-name
+        // form was chosen for — no property is named in SQL — and drops the over-match with it.
+        //
+        // The type predicate excludes CONTAINERS, and that is the whole of its job: `#>> '{}'` on an
+        // object or an array returns the container's serialised text WITH its key names in it, so
+        // walking one would put the key-name over-match straight back. Every SCALAR is let through.
+        // An earlier `= 'string'` did the same work by accident and cost the numbers and booleans
+        // with it — an under-reach on an Art. 17 channel, where a false negative is a false
+        // Art. 12(3) confirmation to a named person and a false positive is a second look at the
+        // mandatory dry run. (`'null'` yields SQL NULL, and `NULL LIKE p` is never true.)
         return await CountAsync($"""
             SELECT count(*)::int AS "Value"
             FROM company_watches
@@ -671,10 +809,9 @@ internal sealed class RecruiterErasureMatchQuery(
                OR organization_number = {plain}
                OR EXISTS (
                     SELECT 1
-                    FROM jsonb_path_query(filter, '$.**') AS v,
-                         unnest({patterns}) AS p
-                    WHERE jsonb_typeof(v) = 'string'
-                      AND lower(v #>> {WholeJsonbValue}) LIKE p ESCAPE {LikeEscapeSql})
+                    FROM jsonb_path_query(filter, '$.**') AS v
+                    WHERE jsonb_typeof(v) NOT IN ('object', 'array')
+                      AND lower(v #>> {WholeJsonbValue}) LIKE ANY({patterns}))
             """, cancellationToken);
     }
 
@@ -698,25 +835,22 @@ internal sealed class RecruiterErasureMatchQuery(
         // EVERY row. An identifier of four characters is legal (the validator's floor) and `Lang` is
         // a surname, so that form turns a genuine no-match into a whole-table match — and
         // Matched.Total is a zero-test, so the reply flips from "we found nothing" to a claim that
-        // her data sits in a user's profile. Walking values excludes key names by construction.
+        // her data sits in a user's profile. Walking values excludes key names by construction; the
+        // container predicate is what keeps it that way (see CountCompanyWatchFollowsAsync).
         return await CountAsync($"""
             SELECT count(*)::int AS "Value"
             FROM job_seekers
-            WHERE EXISTS (
-                    SELECT 1 FROM unnest({patterns}) AS p
-                    WHERE lower(display_name) LIKE p ESCAPE {LikeEscapeSql})
+            WHERE lower(display_name) LIKE ANY({patterns})
                OR EXISTS (
                     SELECT 1
-                    FROM jsonb_path_query(match_preferences, '$.**') AS v,
-                         unnest({patterns}) AS p
-                    WHERE jsonb_typeof(v) = 'string'
-                      AND lower(v #>> {WholeJsonbValue}) LIKE p ESCAPE {LikeEscapeSql})
+                    FROM jsonb_path_query(match_preferences, '$.**') AS v
+                    WHERE jsonb_typeof(v) NOT IN ('object', 'array')
+                      AND lower(v #>> {WholeJsonbValue}) LIKE ANY({patterns}))
                OR EXISTS (
                     SELECT 1
-                    FROM jsonb_path_query(preferences, '$.**') AS v,
-                         unnest({patterns}) AS p
-                    WHERE jsonb_typeof(v) = 'string'
-                      AND lower(v #>> {WholeJsonbValue}) LIKE p ESCAPE {LikeEscapeSql})
+                    FROM jsonb_path_query(preferences, '$.**') AS v
+                    WHERE jsonb_typeof(v) NOT IN ('object', 'array')
+                      AND lower(v #>> {WholeJsonbValue}) LIKE ANY({patterns}))
             """, cancellationToken);
     }
 
@@ -725,7 +859,7 @@ internal sealed class RecruiterErasureMatchQuery(
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(identifier);
 
-        var pattern = LikePattern(identifier);
+        var patterns = WrittenFormPatterns(identifier);
 
         // The PLAINTEXT metadata around her CV: the two file names (same uploaded file, two tables),
         // the CV's own name, its headline role, and its skill list.
@@ -734,20 +868,24 @@ internal sealed class RecruiterErasureMatchQuery(
         // file bytes are all encrypted (HeldButNotSearchable) and DISCLOSED, never quietly reported
         // as clean.
         //
-        // top_skills is a text[], so it needs `unnest` — a LIKE against the array itself compares
-        // against its literal text form and would match on the punctuation between elements.
+        // The two file names carry an org.nr in whatever form the uploader typed: PersonnummerRedactor
+        // masks them, but its detector is date- and Luhn-gated, so an AB org.nr is never a candidate
+        // and `Ansokan_556012-5790.pdf` survives verbatim.
+        //
+        // top_skills is a text[] and needs `unnest` — a LIKE against the array itself compares against
+        // its literal text form and would match on the punctuation between elements.
         return await CountAsync($"""
             SELECT (
                 (SELECT count(*) FROM parsed_resumes
-                  WHERE lower(coalesce(source_file_name, '')) LIKE {pattern} ESCAPE {LikeEscapeSql})
+                  WHERE lower(coalesce(source_file_name, '')) LIKE ANY({patterns}))
               + (SELECT count(*) FROM resume_files
-                  WHERE lower(coalesce(file_name, '')) LIKE {pattern} ESCAPE {LikeEscapeSql})
+                  WHERE lower(coalesce(file_name, '')) LIKE ANY({patterns}))
               + (SELECT count(*) FROM resumes
-                  WHERE lower(coalesce(name, ''))        LIKE {pattern} ESCAPE {LikeEscapeSql}
-                     OR lower(coalesce(latest_role, '')) LIKE {pattern} ESCAPE {LikeEscapeSql}
+                  WHERE lower(coalesce(name, ''))        LIKE ANY({patterns})
+                     OR lower(coalesce(latest_role, '')) LIKE ANY({patterns})
                      OR EXISTS (
                           SELECT 1 FROM unnest(coalesce(top_skills, ARRAY[]::text[])) AS skill
-                          WHERE lower(skill) LIKE {pattern} ESCAPE {LikeEscapeSql}))
+                          WHERE lower(skill) LIKE ANY({patterns})))
             )::int AS "Value"
             """, cancellationToken);
     }

@@ -211,7 +211,9 @@ public sealed partial class EraseRecruiterAdsCommandHandler(
         // own record intact. Durable by construction (the funnel never writes a snapshot). Through
         // the aggregate and the change tracker, so it lands in the same UnitOfWork SaveChanges as
         // the ad erasure and the audit row. No per-id confirmation ceremony: unlike the ad erase,
-        // nothing of any USER'S is destroyed — this removes exactly the requester's own data.
+        // what this removes is the requester's own data — a frozen block ABOUT her, inside another
+        // user's application record. That ground holds only while the match is sound, and an
+        // over-match here destroys an applicant's record with no human looking at it first.
         var snapshotAppIds = snapshotContactIds
             .Select(id => new Domain.Applications.ApplicationId(id))
             .ToList();

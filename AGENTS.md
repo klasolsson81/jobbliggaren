@@ -18,7 +18,7 @@ High quality bar, direct Swedish, no AI clichés. Write every commit as if it
 must survive a Mastercard-level code review.
 
 **Language policy (2026-06-12):** code identifiers in English; UI copy in
-Swedish (`messages/sv.json`); new docs, ADRs, session logs, reviews, commit
+Swedish (`messages/sv/`); new docs, ADRs, session logs, reviews, commit
 messages, and comments in **English**; chat replies to Klas in **Swedish**.
 Existing Swedish docs are not mass-translated.
 
@@ -214,7 +214,7 @@ exclamation marks (civic tone) · gradients/drop shadows > `shadow-sm`/glow/
 glassmorphism — **sole exception:** the hero plate's dark-green gradient
 (`--jp-hero-gradient`, scoped per ADR 0068) · radius > 6px except pills/badges
 · `localStorage` for sensitive data · hardcoded UI strings (use `next-intl` +
-`messages/sv.json`) · direct DOM manipulation.
+`messages/sv/`) · direct DOM manipulation.
 
 **Tests:** a **production fact asserted off a premise production cannot produce**
 — a hand-seeded row, a hand-built argument to a production entry point, or a

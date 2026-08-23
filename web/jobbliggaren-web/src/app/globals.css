@@ -2104,7 +2104,6 @@ a.jp-adminnav__link[aria-current="page"]::after {
   color: var(--jp-ink-1);
   font-family: inherit;
   font-size: var(--text-body);
-  outline: 0;
   transition: border-color 80ms, box-shadow 80ms;
 }
 .jp-input:focus {
@@ -2591,7 +2590,6 @@ a.jp-adminnav__link[aria-current="page"]::after {
   color: var(--jp-ink-1);
   font-family: inherit;
   font-size: var(--jp-control-fs);
-  outline: 0;
   cursor: pointer;
   transition: border-color 80ms, box-shadow 80ms;
 }
@@ -6937,7 +6935,6 @@ a.jp-adminnav__link[aria-current="page"]::after {
   color: var(--jp-ink-1);
 }
 .jp-appcontrols__input:focus {
-  outline: none;
   border-color: var(--jp-accent-700);
   box-shadow: 0 0 0 2px var(--jp-accent-100);
 }

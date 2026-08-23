@@ -111,16 +111,21 @@ a textual identifier is matched over free text either way. **TD-75 is closed as
 void.** Run the dry run once per identifier you hold: her address, her number,
 her name — **and, for an enskild firma, her organisationsnummer**.
 
-**An org.nr-shaped identifier is normalised and matched EXACTLY** (CTO ruling
-2026-07-14): `556012-5790`, `5560125790` and the century-prefixed personnummer
-form `19560125-7901` all normalise to the stored 10-digit form
-(`OrganizationNumber.TryFromWrittenForm`) and run as exact equality against
-`job_ads.organization_number` and `recent_job_searches.employer_list` — a
-structured key gets structured matching, never a regex over prose. The five
-`recent_job_searches` concept-id axes are matched per array element against every WRITTEN
-form instead (#1425): they validate on shape only, so they store what was typed and have no
-normalised form to compare against. Anything not
-org.nr-shaped falls back to the free-text channels; nothing is guessed.
+**An org.nr-shaped identifier is compared against every WRITTEN form of itself**
+(`OrganizationNumber.WrittenForms`, the inverse of `TryFromWrittenForm`): `5560125790`,
+`556012-5790` and the century-prefixed personnummer forms are all searched for. A structured
+key still gets structured matching — exact equality, never a regex over prose — but against
+the whole form set rather than the normalised form alone.
+
+**Which columns need that is decided by a RULE, not by a list.** A column whose WRITE PATH puts
+the value through a ten-digit gate stores exactly one form and is matched on it; a column
+validated on SHAPE ONLY stores what was typed and is matched against every form.
+`job_ads.organization_number` looks like it belongs to the first group and does not — its
+ingest runs `JobAdFacets.Normalize`, which trims. The enumeration lives in the code, where it
+cannot go stale: an arm built from `WrittenFormPatterns`/`WrittenForms` has the property, an
+arm that is not, does not.
+
+Anything not org.nr-shaped falls back to the free-text channels; nothing is guessed.
 
 The ads are matched on **four channels**, and each exists because the others
 miss something:
@@ -172,9 +177,10 @@ a false negative costs a false confirmation to a named person.
 > dry run before anything goes.
 >
 > **The same word boundary now runs over the five concept-id axes (#1425)**, plus an
-> exact-org.nr arm that matches every WRITTEN form of her org.nr, not just the normalised
-> one — those five columns validate on shape and store what was typed, so `550928-1234`
-> and `19550928-1234` sit there literally. **A known miss, and you should know it:**
+> exact-org.nr arm over every written form — those five columns validate on shape and store
+> what was typed, so `550928-1234` and `19550928-1234` sit there literally. The word
+> boundary is this surface's own; the other channels match by substring and share none of
+> it. **A known miss, and you should know it:**
 > Postgres treats `_` as a word character, so a stored `Karlsson_x` does **not** match a
 > request for `Karlsson` — while `Anna-Karlsson` does. `_` is part of the concept-id
 > grammar, so this is the likeliest shape of a miss on this surface (#1436). If a subject
@@ -243,9 +249,9 @@ stale:
     { "jobAdId": "…", "externalId": "…", "title": "Backend-utvecklare",
       "matchedChannel": "Description",
       "matchedExcerpt": "…kontakta ansvarig rekryterare Magnus Fagerberg på…" }
-    // An org.nr request shows matchedChannel: "OrganizationNumber" and the
-    // normalised org.nr as the excerpt — suffixed "(personnummer-format)" when
-    // personnummer-shaped. That is HER OWN submitted identifier echoed back.
+    // An org.nr request shows matchedChannel: "OrganizationNumber" and the STORED
+    // form that matched as the excerpt. On a personnummer-shaped request EVERY
+    // channel's excerpt is suffixed "(personnummer-format)", not just this one.
   ],
   // The hard-deleted rows' evidence, one line per DISTINCT reason — a row that matched on
   // several arms contributes several. Three forms: the q term, "arbetsgivarfilter: <org.nr>",
@@ -361,7 +367,7 @@ claim to have erased what we have not erased. That is #842, applied to ourselves
 | `applications.manual_company`, `manual_title`, `manual_url` (manually tracked applications) | ⚠️ **Not automatically — a HUMAN erases it** | A user may have pasted or typed a recruiter's name/contact into these fields when tracking an application she found outside Platsbanken. That is the recruiter's personal data, and her right reaches it (6(1)(f) → Art. 21(1)) — but a system does not silently rewrite a person's private record of her own job hunt. Reported; a human handles it with that user. *(URL can carry a name: `linkedin.com/in/magnus-fagerberg`, company contact page, etc.)* |
 | `company_watch_criteria.label` (nickname for a watch predicate) | ⚠️ **Not automatically — a HUMAN erases it, inside the Art. 12(3) month** | A user might name a watch *"IT jobb med Magnus"*. Unlike `saved_searches`, the label is **optional and nullable** — the criterion is its codes (industry + municipality), and the label is just a UI nickname. **`UpdateLabel(null)` is always constructible and lossless.** We report the count; a human nulls the label with zero complexity. Same mechanism as `saved_searches`: report, human decides. *(This column was found by enforcing the cascade registry at the EF model level; it is why the guard breaks the build.)*  |
 | `company_watches.organization_number`, `company_watches.filter` (who a user follows, and how she narrows it) | ⚠️ **Not automatically — a HUMAN erases it, inside the Art. 12(3) month, with the affected user in the loop** | **NEITHER remedy here is free, and they differ.** `organization_number` IS the follow key: it is the key of the partial unique index on `(user_id, organization_number)` and a `TargetType = Employer` watch requires it, so it cannot be nulled — the only remedy is deleting the whole watch, which destroys a deliberate configuration of ANOTHER user. That is stronger than `saved_searches`, so she is asked, not overridden. For an *enskild firma* this column IS her personnummer, held as a keyed HMAC token (ADR 0090 D5); the dry run matches the identifier against BOTH its tokenised and its plaintext form, because the plaintext→token backfill is a one-off manual job and nothing guarantees it ran. `filter` is a per-watch `WatchFilterSpec` validated on SHAPE only — no path resolves a concept-id against the taxonomy, so `Karlsson` and a ten-digit org.nr both persist. Its remedy IS constructible (`ClearFilter()`) but is **not lossless**: she stops narrowing and starts receiving every ad from that employer. *(Both columns were excluded WHOLESALE until #1435, on a ground naming a validator that gates count and shape and never existence.)* |
-| `job_seekers.display_name`, `match_preferences`, `preferences` (a user's own profile row) | ⚠️ **Not automatically — a HUMAN erases it, with the account holder in the loop** | `display_name` is plaintext `varchar(200)`; the invariant refuses empty, over-length and a personnummer (#1117) and nothing else, so a recruiter's name typed into an account name persists — and that invariant is FORWARD-ONLY with no backfill, so rows written before it stand. The remedy is not constructible without her: the invariant refuses an empty name, and a system does not rename a person. `match_preferences` holds six lists of shape-validated tokens with no taxonomy lookup on any path. `preferences` is a jsonb container whose `Language` field has **no server-side validation at all**; it is searched WHOLE rather than by key. ⚠️ **This surface over-matches on a common name** — a user who merely shares the requester's name is counted. The count names nobody; do not write the reply as though a match here were a finding about her. |
+| `job_seekers.display_name`, `match_preferences`, `preferences` (a user's own profile row) | ⚠️ **Not automatically — a HUMAN erases it, with the account holder in the loop** | `display_name` is plaintext `varchar(200)`; the invariant refuses empty, over-length and a personnummer (#1117) and nothing else, so a recruiter's name typed into an account name persists — and that invariant is FORWARD-ONLY with no backfill, so rows written before it stand. The remedy is not constructible without her: the invariant refuses an empty name, and a system does not rename a person. `match_preferences` holds six lists of shape-validated tokens with no taxonomy lookup on any path. `preferences` is a jsonb container whose `Language` field has **no server-side validation at all**; the search names no key, so a member added to the container is searched the day it lands. ⚠️ **This surface over-matches on a common name** — a user who merely shares the requester's name is counted. The count names nobody; do not write the reply as though a match here were a finding about her. |
 | `applications.cover_letter`, `application_notes.content`, `follow_ups.note`, `parsed_resumes.raw_text` / `parsed_content_enc`, `resume_versions.content_enc`, `resume_files.content` (**the CV, all three stored shapes**) | ⚠️ **NOT SEARCHED** — disclosed in response | A user may well have written *"Ringde Magnus Fagerberg"* in her own note — or named the recruiter she wrote to in her CV. That is the recruiter's personal data, and her right reaches it (6(1)(f) → Art. 21(1)). **But we cannot search it.** These seven columns are encrypted at rest under per-user keys (Forms A, B and C — the uploaded CV file included). A `LIKE` search would require decryption of every row under every user's key — feasible for a handful of Art. 17 requests per year but not feasible via a background job. **We hold it, we cannot scan it, and we say so explicitly in the reply.** Erase via a human, if the subject and affected user both consent. |
 | `applications.snapshot_contacts` (the frozen recruiter contact block, #842 Tier A) | ✅ **Yes**, surgically | ITS OWN surface (`ApplicationSnapshotContacts`), never folded into the body columns below — one surface, one disposition, one honest Matched−Erased meaning (T2 CTO 2026-07-16). The contact block is HER data whose follow-up purpose is spent at the erasure request; 17(3)(e) retains the applicant's aktivitetsrapport spine, not the recruiter's phone number. `Application.EraseAdSnapshotContacts()` removes ONLY the contacts and leaves the applicant's record intact — durable by construction, the funnel never rewrites a snapshot. |
 | `applications.snapshot_company` / `snapshot_title` / `snapshot_description` / `snapshot_url` | ❌ **No** | The applicant's frozen record of an ad she applied to (ADR 0086 exists precisely so it outlives the ad). **And the ground is STRONGER for the company name than for the body:** a Swedish jobseeker must file an *aktivitetsrapport* to Arbetsförmedlingen **naming the employer**. The company name is the **spine** of her own legal record; the ad body is its colour. Ground: Art. 17(3)(e). **Klas's to affirm — STOPP-3, still open.** We **search and report** all four — `snapshot_url` included, a URL path carries names — precisely because we do not erase them: *a legal ground asserted over a population we never counted is a ground asserted over a silence.* |

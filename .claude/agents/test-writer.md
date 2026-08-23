@@ -146,19 +146,19 @@ use `IRequest<T>`, `IRequestHandler<,>`, or `ISender` in tests. Handlers are
 plain classes — instantiate them directly:
 
 ```csharp
-public class CreateJobAdHandlerTests
+public class CreateJobAdCommandHandlerTests
 {
     private readonly IAppDbContext _db =
         Substitute.For<IAppDbContext>();
     private readonly IDateTimeProvider _clock =
         Substitute.For<IDateTimeProvider>();
-    private readonly CreateJobAdHandler _sut;
+    private readonly CreateJobAdCommandHandler _sut;
 
-    public CreateJobAdHandlerTests()
+    public CreateJobAdCommandHandlerTests()
     {
         _clock.UtcNow.Returns(
             new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc));
-        _sut = new CreateJobAdHandler(_db, _clock);
+        _sut = new CreateJobAdCommandHandler(_db, _clock);
     }
 
     [Fact]
@@ -273,10 +273,10 @@ Every entity that contains PII must have tests covering:
 - User mentions: "skriv test", "TDD", "testa detta", "unit test",
   "integration test", "test coverage"
 
-**Auto (hook-based):**
+**Auto:**
 - New file created in `src/Jobbliggaren.Domain/**/*.cs` → write unit tests
-- New file in `src/Jobbliggaren.Application/**/Handlers/*.cs` → write handler tests
-- New value object in `src/Jobbliggaren.Domain/**/ValueObjects/*.cs`
+- New file in `src/Jobbliggaren.Application/**/*Handler.cs` → write handler tests
+- New value object in `src/Jobbliggaren.Domain/<Feature>/` (value objects sit beside their aggregate, in no directory of their own)
 - `dotnet-architect` signals "ny aggregate design klar"
 
 **Delegation:**
@@ -301,16 +301,16 @@ Every entity that contains PII must have tests covering:
 When test-writer creates test files:
 
 **1.** Create the test file in the correct location:
-- Unit tests: `tests/JobbPilot.UnitTests/<Layer>/<EntityName>Tests.cs`
-- Integration tests: `tests/JobbPilot.IntegrationTests/<Feature>/`
-- Mirror the namespace structure of `src/`
+- Unit tests: `tests/Jobbliggaren.<Layer>.UnitTests/<Feature>/.../<ClassUnderTest>Tests.cs` (`<Layer>` is Domain, Application or Migrate, and it names the project, not a directory inside it)
+- Integration tests: `tests/Jobbliggaren.Api.IntegrationTests/<Feature>/` when the test composes the API host (`ApiFactory`), `tests/Jobbliggaren.Worker.IntegrationTests/<Feature>/` when it composes the Worker host (`WorkerTestFixture`). The host decides, not the transport: the two projects reference disjoint composition roots
+- Namespace = the test project name plus the folder path below it (`Jobbliggaren.Domain.UnitTests.JobAds`), not the `src/` namespace
 
 **2.** Report in Swedish:
 
 ```
 ## Tester skrivna för <EntityName>
 
-**Fil:** tests/JobbPilot.UnitTests/Domain/JobAds/JobAdTests.cs
+**Fil:** tests/Jobbliggaren.Domain.UnitTests/JobAds/JobAdTests.cs
 **Antal tester:** N (M success + P failure/edge cases)
 
 **Täcker:**
@@ -338,10 +338,10 @@ implementation-agent skriver production code tills alla tester är GRÖNA.
 tool call): "Bekräftar: JobAd-aggregate har invarianterna X, Y, Z enligt
 design?" Then creates:
 
-`tests/JobbPilot.UnitTests/Domain/JobAds/JobAdTests.cs`
+`tests/Jobbliggaren.Domain.UnitTests/JobAds/JobAdTests.cs`
 
 ```csharp
-namespace JobbPilot.UnitTests.Domain.JobAds;
+namespace Jobbliggaren.Domain.UnitTests.JobAds;
 
 public class JobAdTests
 {
@@ -407,7 +407,7 @@ public class JobAdTests
 ```
 ## Tester skrivna för JobAd
 
-**Fil:** tests/JobbPilot.UnitTests/Domain/JobAds/JobAdTests.cs
+**Fil:** tests/Jobbliggaren.Domain.UnitTests/JobAds/JobAdTests.cs
 **Antal tester:** 4 (2 success + 2 failure/invariant cases)
 
 **Täcker:**
@@ -428,16 +428,16 @@ src/Jobbliggaren.Domain/JobAds/JobAd.cs.
 ### Example 2: Hook auto-trigger — new handler file detected
 
 **Context:** Hook detects new file
-`src/Jobbliggaren.Application/Handlers/CreateJobAdHandler.cs`
+`src/Jobbliggaren.Application/JobAds/Commands/CreateJobAd/CreateJobAdCommandHandler.cs`
 
 **test-writer** creates
-`tests/JobbPilot.UnitTests/Application/Handlers/CreateJobAdHandlerTests.cs`
+`tests/Jobbliggaren.Application.UnitTests/JobAds/Commands/CreateJobAd/CreateJobAdCommandHandlerTests.cs`
 with Happy path + validation failure + SaveChanges-assertion, reports:
 
 ```
-## Tester skrivna för CreateJobAdHandler
+## Tester skrivna för CreateJobAdCommandHandler
 
-**Fil:** tests/JobbPilot.UnitTests/Application/Handlers/CreateJobAdHandlerTests.cs
+**Fil:** tests/Jobbliggaren.Application.UnitTests/JobAds/Commands/CreateJobAd/CreateJobAdCommandHandlerTests.cs
 **Antal tester:** 3 (1 success + 1 validation failure + 1 persistence-assertion)
 
 **Täcker:**
@@ -445,7 +445,7 @@ with Happy path + validation failure + SaveChanges-assertion, reports:
 - Validation: Handle kastar ValidationException när Title är tom
 - Persistence: SaveChangesAsync anropas exakt en gång vid success
 
-**Nästa steg:** RÖDA — CreateJobAdHandler-kroppen är inte implementerad.
+**Nästa steg:** RÖDA — handler-kroppen är inte implementerad.
 ```
 
 ---
@@ -456,7 +456,7 @@ with Happy path + validation failure + SaveChanges-assertion, reports:
 duplicate email på JobSeeker."
 
 **test-writer** adds to existing
-`tests/JobbPilot.UnitTests/Domain/JobSeekers/JobSeekerTests.cs`:
+`tests/Jobbliggaren.Domain.UnitTests/JobSeekers/JobSeekerTests.cs`:
 
 ```csharp
 [Fact]
@@ -479,11 +479,11 @@ Rapport:
 ```
 ## Tester tillagda för JobSeeker — edge case duplicate email
 
-**Fil:** tests/JobbPilot.UnitTests/Domain/JobSeekers/JobSeekerTests.cs
+**Fil:** tests/Jobbliggaren.Domain.UnitTests/JobSeekers/JobSeekerTests.cs
 **Tillagda tester:** 1
 
 **Not:** duplicate-check-testet lever i
-tests/JobbPilot.IntegrationTests/JobSeekers/
+tests/Jobbliggaren.Api.IntegrationTests/JobSeekers/
 CreateJobSeekerHandlerIntegrationTests.cs — skapas separat om den
 inte redan finns. Tomma stubs lämnas inte kvar i fel testfil.
 ```

@@ -16,8 +16,8 @@ import { AuthCardSkeleton } from "@/components/auth/AuthCardSkeleton";
  *    the page stays crawlable/SEO-meaningful), one factual lede, and a mono
  *    source line. Everything on the plate uses LITERAL white/gold values
  *    (theme-stable, same doctrine as the footer) — never `--jp-ink-inverse`.
- *  - right (`.jp-land-hero__authcol`): the on-page tabbed `<AuthCard/>` (the
- *    single account action) under a Suspense boundary. The inner Login/
+ *  - right (`.jp-land-hero__authcol`): the on-page tabbed `<AuthCard/>` under
+ *    a Suspense boundary. The inner Login/
  *    RegisterForm read `useSearchParams`, so without the boundary `next build`
  *    fails static generation (same reason `/logga-in` wraps LoginForm). The
  *    fallback is a shape-matching skeleton, not `null`, because the card is above

@@ -4457,9 +4457,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
    ============================================================ */
 
 /* ── Delad publik header (.jp-head-*) ────────────────────────
-   Shell-agnostisk: brand vänster + live-stats höger, INGEN login-länk
-   (auth-kortet i heron bär kontoåtgärden, epic #267). Följer surface/
-   ink-tokens → adapterar per tema (till skillnad mot footern). */
+   Följer surface/ink-tokens → adapterar per tema (till skillnad mot footern). */
 .jp-head {
   background: var(--jp-surface);
   border-bottom: 1px solid var(--jp-border);
@@ -4492,9 +4490,6 @@ a.jp-adminnav__link[aria-current="page"]::after {
 @media (max-width: 760px) {
   .jp-head__inner { padding: 0 20px; min-height: 72px; gap: 12px; }
   .jp-head__stats, .jp-head__sep { display: none; }
-  /* The compact header carries brand + action on one 320px row: the tightened
-     gap above and this scoped padding token keep either from wrapping. */
-  .jp-head .jp-btn { --jp-btn-px: 12px; }
 }
 
 /* ── Hero-subelement (delas av landnings-plattan, förslag 3a) ─
@@ -5498,8 +5493,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
 /* ------------------------------------------------------------------
    .jp-demo-banner — DEMO-bandet ovanför inre gäst-sidor (F-Pre Punkt 5,
    2026-05-24). Civic-utility: lugn navy-stripe + tydlig "DEMO"-etikett.
-   Ingen emoji, inget utropstecken, ingen gradient/glow. CTA på höger sida
-   leder till /vantelista (konvertering).
+   Ingen emoji, inget utropstecken, ingen gradient/glow.
    ------------------------------------------------------------------ */
 .jp-demo-banner {
   /* G1: fill bakom vit text → accent-800 (tema-stabil); border ett snäpp

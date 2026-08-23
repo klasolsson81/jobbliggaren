@@ -7,8 +7,8 @@ import { type LandingStats } from "@/components/landing/landing-stats-format";
 
 /**
  * SiteHeader — the ONE public header. Landing (`/`), the auth surfaces
- * (`/logga-in`, `/registrera`, …) and the marketing-inner pages (`/villkor`,
- * `/integritet`, `/cookies`, `/tillganglighet`) all mount this component.
+ * (`/logga-in`, `/registrera`, …) and every page in `(marketing-inner)` mount
+ * this component.
  *
  * It absorbs the former `landing-header.tsx` (LP-4 / #257), which was a second
  * component on the SAME `.jp-head` contract — the split was never a styling
@@ -16,9 +16,12 @@ import { type LandingStats } from "@/components/landing/landing-stats-format";
  * the auth pages ended up with a header whose only interactive element was the
  * brand logo. Two axes remain, and both have consumers:
  *
- *   `stats`      present only on the landing (the inner pages never repeat them)
- *   `showLogin`  false on the auth surfaces, where a link to the page you are
- *                already on is not an action
+ *   `stats`      present only on the landing (inner pages never repeat them)
+ *   `showLogin`  false wherever a link to the current page is not an action —
+ *                the auth surfaces, and for now the landing too, because the
+ *                hero still mounts AuthCard's own "Logga in" tab. Two controls
+ *                with that label and different behaviour is a defect, so the
+ *                landing turns this on in the wave that removes the card.
  *
  * LP-5b (#259) did NOT fold the signed-in shells in here, and this change does
  * not either: `.jp-header` is a different CSS contract with its own dark-mode
@@ -27,10 +30,12 @@ import { type LandingStats } from "@/components/landing/landing-stats-format";
  * CSS was removed in #1054; `site-header.test.tsx` still asserts the markup is
  * absent — that assertion is the contract, not a consumer.
  *
- * A11y: brand + action sit in a labelled `<nav>` landmark, distinct from the
- * footer's section navs. The shared `<SkipLink>` is rendered first, so every
- * public surface gets the same first-focusable jump to `#main` — which means a
- * surface mounting this header must NOT render a second one.
+ * A11y: the `<nav>` landmark carries the brand link. The stats cluster sits
+ * OUTSIDE it — "45 580 aktiva annonser" is data, not navigation, and a reader
+ * jumping to the landmark should not hear it first. The shared `<SkipLink>` is
+ * rendered before the header, so every public surface gets the same
+ * first-focusable jump to `#main` — which means a surface mounting this header
+ * must NOT render a second one.
  *
  * Sync RSC: `useTranslations`/`useFormatter` resolve synchronously. Stats arrive
  * as a prop from the async page's server-fetch (`getLandingStats`, ADR 0064), so
@@ -63,17 +68,16 @@ export function SiteHeader({
     <>
       <SkipLink label={t("common.skipToContent")} />
       <header className="jp-head">
-        <nav
-          className="jp-head__inner"
-          aria-label={t("common.headerNavAriaLabel")}
-        >
-          <Link
-            href="/"
-            className="jp-brand"
-            aria-label={t("brand.homeAriaLabel")}
-          >
-            <BrandLogo />
-          </Link>
+        <div className="jp-head__inner">
+          <nav aria-label={t("common.headerNavAriaLabel")}>
+            <Link
+              href="/"
+              className="jp-brand"
+              aria-label={t("brand.homeAriaLabel")}
+            >
+              <BrandLogo />
+            </Link>
+          </nav>
           <div className="jp-head__right">
             {measured && (
               <>
@@ -112,7 +116,7 @@ export function SiteHeader({
               </Link>
             )}
           </div>
-        </nav>
+        </div>
       </header>
     </>
   );

@@ -4,8 +4,8 @@ namespace Jobbliggaren.Application.JobAds.Abstractions;
 
 /// <summary>
 /// Application port for the fail-safe matching an Art. 17 erasure request needs (ADR 0106 D8,
-/// #842). The implementation lives in Infrastructure because PostgreSQL full-text search, the
-/// <c>jsonb::text</c> cast and the ARE word-boundary regex are Npgsql concerns, which the
+/// #842). The implementation lives in Infrastructure because PostgreSQL full-text search,
+/// <c>jsonb_path_query</c> and the ARE word-boundary regex are Npgsql concerns, which the
 /// architecture test forbids in Application (CLAUDE.md §2.1). Same reason, same shape, as
 /// <see cref="IJobAdSearchQuery"/>.
 /// </summary>
@@ -31,19 +31,24 @@ public interface IRecruiterErasureMatchQuery
     /// this reaches forms the substring channel cannot (<i>"Fagerberg, Magnus"</i> vs the query
     /// <i>"Magnus Fagerberg"</i>).</item>
     /// <item><b>Substring over <c>title</c>/<c>description</c>/<c>raw_payload</c></b> — it finds the
-    /// identifier <i>as supplied</i>, including forms Postgres's parser will not lexeme the same
-    /// way. It does <b>not</b> de-obfuscate: <c>anna@acme.se</c> does not match
-    /// <c>anna(at)acme.se</c> on any channel. What serves the obfuscated tail is her NAME, which
-    /// sits in the body in plain words.</item>
+    /// identifier as supplied AND, when it is an org.nr, every written form of it, including forms
+    /// Postgres's parser will not lexeme the same way. <c>raw_payload</c> is walked by VALUE:
+    /// casting the document to text also matched the sanitizer's allowlisted KEY NAMES, which every
+    /// ad carries, so an ordinary surname proposed the whole corpus. It does <b>not</b>
+    /// de-obfuscate: <c>anna@acme.se</c> does not match <c>anna(at)acme.se</c> on any channel. What
+    /// serves the obfuscated tail is her NAME, which sits in the body in plain words.</item>
     /// <item><b>Substring over <c>company_name</c></b> — an <i>enskild firma</i>'s company name IS a
     /// natural person's name, and it is not in <c>search_vector</c> (built from title + description
     /// only). <c>PurgeStaleRawPayloadsJob</c> NULLs <c>raw_payload</c> eventually (rule:
     /// ADR 0032 Amendment 2026-07-26 §C2), so without
     /// this channel a delisted ad would report no match while her name sat in
     /// plaintext in a column we scan.</item>
-    /// <item><b>Exact match on <c>organization_number</c></b> — when the identifier IS an org.nr
-    /// (normalised in Domain: <c>OrganizationNumber.TryFromWrittenForm</c>), it is matched exactly
-    /// against the materialised column (#841). Forced by the SAME payload-retention logic as channel 3 (ADR 0032 Amendment 2026-07-26 §C2): after
+    /// <item><b>Exact match on <c>organization_number</c></b> — when the identifier IS an org.nr, it
+    /// is matched exactly against the materialised column (#841), against every WRITTEN form rather
+    /// than the normalised one alone. That column is NOT a normalising one: the ingest ACL hands the
+    /// wire value to <c>JobAdFacets.Normalize</c>, which trims, so
+    /// <c>OrganizationNumber.Create</c> never runs on the path that fills it and the stored form is
+    /// whatever the source emitted. Forced by the SAME payload-retention logic as channel 3 (ADR 0032 Amendment 2026-07-26 §C2): after
     /// the <c>raw_payload</c> purge, this column is the ONLY place a sole trader's org.nr — which
     /// IS her personnummer — survives in the row. Without it, an org.nr request would be answered
     /// <i>"no ads"</i> for every ad whose payload had been purged while we held her personnummer in a column
@@ -139,8 +144,10 @@ public interface IRecruiterErasureMatchQuery
     /// <remarks>
     /// We search it precisely BECAUSE we do not erase it — the retention ground has to be asserted
     /// over a population we counted (see <c>ErasureCascadeRegistry.WrittenGrounds</c>).
-    /// <c>snapshot_company</c> is non-nullable, so it is populated on EVERY application, unlike
-    /// <c>snapshot_description</c>; scanning the description alone would miss the whole surface.
+    /// <c>snapshot_company</c> is required WITHIN a snapshot while <c>snapshot_description</c> is
+    /// optional, so scanning the description alone would miss every snapshot that carries no body.
+    /// (The column itself is nullable: a snapshot exists only on a JobAd-linked application, and
+    /// <c>Application.Create</c> never sets one — see <c>AdSnapshot</c>'s own invariant.)
     /// <c>snapshot_url</c> is in the set because a URL path carries names routinely — the identical
     /// argument as <c>manual_url</c>; it was classified as searched and NOT searched for one round
     /// (round-5 B5-2), which is why the channel list in the registry now drives this method.

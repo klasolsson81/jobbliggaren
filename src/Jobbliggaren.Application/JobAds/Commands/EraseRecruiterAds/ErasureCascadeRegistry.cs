@@ -266,7 +266,7 @@ public static class ErasureCascadeRegistry
 
         // #1435 - `preferences` and `Language` are THE SAME BYTES: the model reports the
         // OwnsOne(...).ToJson() container column and the JSON property inside it as two keys. One
-        // SQL arm over preferences::text searches both, which is why both are claimed here.
+        // SQL arm over the whole container searches both, which is why both are claimed here.
         new("JobSeekerProfiles",
             [
                 "job_seekers.display_name",
@@ -475,7 +475,7 @@ public static class ErasureCascadeRegistry
             // match_preferences accepts six lists of shape-validated tokens; and `Language` inside
             // the `preferences` container accepts anything at all. `preferences` and `Language` are
             // the same bytes - the model reports the container column and the JSON property inside
-            // it separately, and one arm over preferences::text covers both.
+            // it separately, and one arm over the whole container covers both.
             ["job_seekers.display_name"] = ErasureColumnDisposition.MatchedHumanErases,
             ["job_seekers.match_preferences"] = ErasureColumnDisposition.MatchedHumanErases,
             ["job_seekers.preferences"] = ErasureColumnDisposition.MatchedHumanErases,
@@ -731,7 +731,7 @@ public static class ErasureCascadeRegistry
             ["job_seekers:MatchedHumanErases"] =
                 "FOUR KEYS, THREE COLUMNS: `preferences` and `Language` are the same bytes - the "
                 + "model reports the OwnsOne(...).ToJson() container column and the JSON property "
-                + "inside it separately, and one arm over preferences::text covers both. "
+                + "inside it separately, and one arm over the whole container covers both. "
                 + "display_name is plaintext varchar(200) with no converter. ValidateDisplayName "
                 + "refuses empty, over-length and a personnummer (#1117) and NOTHING else, so a "
                 + "recruiter's name typed into an account name persists. The table sat on the "
@@ -749,7 +749,8 @@ public static class ErasureCascadeRegistry
                 + "Language has NO server-side validation at all: no validator class on "
                 + "UpdateMyProfileCommand, no guard in UpdatePreferences, no factory on the record, "
                 + "and no varchar(N) because it lives inside jsonb. It is unbounded arbitrary text. "
-                + "The container is searched WHOLE rather than by key.",
+                + "No key is named in the SQL, so a member added to the container is searched the "
+                + "day it lands.",
 
             ["application_notes:HeldButNotSearchable"] =
                 "HELD, AND WE CANNOT SEARCH IT. application_notes.content is encrypted at rest "

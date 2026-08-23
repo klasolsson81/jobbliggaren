@@ -1,3 +1,5 @@
+using System.Collections.ObjectModel;
+using System.Data.Common;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Common.Auditing;
 using Jobbliggaren.Application.Common.Security;
@@ -22,8 +24,11 @@ using Jobbliggaren.Infrastructure.JobSources.Platsbanken;
 using Jobbliggaren.Infrastructure.Persistence;
 using Jobbliggaren.Infrastructure.Taxonomy;
 using Jobbliggaren.Infrastructure.TextAnalysis;
+using Jobbliggaren.TestSupport;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using NSubstitute;
@@ -114,6 +119,7 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
     private const string RawPayloadOnlyExternalId = "erasure-e2e-5";
 
     private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder("postgres:18").Build();
+    private readonly CommandTimeoutRecorder _commandTimeouts = new();
     private WireMockServer _jobTech = default!;
     private ServiceProvider _provider = default!;
 
@@ -134,7 +140,8 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
         services.AddDbContext<AppDbContext>(options => options
             .UseNpgsql(_postgres.GetConnectionString(),
                 npgsql => npgsql.MigrationsAssembly(typeof(AppDbContext).Assembly.FullName))
-            .UseSnakeCaseNamingConvention());
+            .UseSnakeCaseNamingConvention()
+            .AddInterceptors(_commandTimeouts));
         services.AddScoped<IAppDbContext>(sp => sp.GetRequiredService<AppDbContext>());
         services.AddRecruiterErasureMatchQuery();
         services.AddScoped<IDbExceptionInspector, DbExceptionInspector>();
@@ -1351,6 +1358,146 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
 
         db.ParsedResumes.Add(parsed);
         await db.SaveChangesAsync(ct);
+    }
+
+    // ================================================================================
+    // 7c. #1463 — the Art. 17 dry run gets an explicit, reviewed command ceiling.
+    //
+    //     Npgsql's client default is 30 s and nothing in the repo overrode it, so the
+    //     dry run THREW instead of answering on a cold cache. The two facts below cross
+    //     the ceiling and the margin warning; neither of them merely reads a constant.
+    // ================================================================================
+
+    /// <summary>
+    /// The reviewed ceiling reaches the commands the PROVIDER executes — not the constant, and not
+    /// the facade. The control half is what makes this non-vacuous: a context whose scope never
+    /// constructed the port still carries Npgsql's 30 s default, so 180 is demonstrably this port's
+    /// doing and not something ambient in the fixture.
+    /// <para>
+    /// The treatment half drives a whole DRY RUN rather than one method, and that is the point:
+    /// the ceiling is applied in the port's CONSTRUCTOR, so the claim under test is that it holds
+    /// for EVERY command the Art. 17 request issues, not just <c>FindJobAdsAsync</c>'s. There is no
+    /// filter on the assertion, so a command that escaped the ceiling fails it rather than being
+    /// skipped.
+    /// </para>
+    /// <para>
+    /// <b>Mutations:</b> delete <c>SetCommandTimeout</c> and this goes red at 30; change
+    /// <see cref="RecruiterErasureMatchQuery.CommandTimeoutSeconds"/> and it goes red at the new
+    /// value, because the expectation is the reviewed LITERAL — a reviewed number that can move
+    /// without a test moving with it was never reviewed.
+    /// </para>
+    /// <para>
+    /// <b>What this does NOT catch, measured 2026-08-23 rather than reasoned:</b> moving the call
+    /// out of the constructor into <c>FindJobAdsAsync</c> leaves it GREEN, because that method is
+    /// the handler's FIRST port call and everything after it inherits the raised ceiling anyway.
+    /// The constructor's radius premise is pinned separately, by
+    /// <c>ErasurePortIsConstructorInjectedOnlyByTheErasureHandler</c> in the architecture suite.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public async Task Every_command_of_the_dry_run_carries_the_reviewed_ceiling_and_not_Npgsqls_30s_default()
+    {
+        var ct = TestContext.Current.CancellationToken;
+
+        // Control: no port constructed in this scope, so nothing has touched the facade.
+        using (var control = _provider.CreateScope())
+        {
+            var db = control.ServiceProvider.GetRequiredService<AppDbContext>();
+            _commandTimeouts.Clear();
+            _ = await db.Database.SqlQuery<int>($"SELECT 1 AS \"Value\"").ToListAsync(ct);
+
+            _commandTimeouts.Records.ShouldNotBeEmpty("the control command must have been observed.");
+            _commandTimeouts.Records.ShouldAllBe(r => r.CommandTimeout == 30,
+                "without this port, Npgsql's 30 s client default is what binds — that is the whole "
+                + "of #1463.");
+        }
+
+        _commandTimeouts.Clear();
+        _ = await EraseAsync(RecruiterName, ct, dryRun: true);
+
+        // Ten is MEASURED, not derived (2026-08-23). The handler calls all eleven port methods
+        // unconditionally, but on a no-match identifier two paths return before issuing SQL:
+        // FindJobAdsAsync skips its EF projection when no ids came back, and
+        // CountApplicationsReferencingAsync short-circuits on an empty id list. A floor of ">1"
+        // would let a future change short-circuit the whole cascade while this fact's own summary
+        // quietly stopped being true (test-writer, 2026-08-23) — but a floor of 11, derived from the
+        // method count without running it, is simply wrong, which is what running it showed.
+        _commandTimeouts.Records.Count.ShouldBeGreaterThanOrEqualTo(10,
+            "a dry run issues the matching query plus every cascade count — a smaller number means "
+            + "the treatment is not exercising what the constructor placement claims.");
+        _commandTimeouts.Records.ShouldAllBe(r => r.CommandTimeout == 180);
+    }
+
+    /// <summary>
+    /// The margin warning fires at the threshold and stays silent one second below it, and the row
+    /// it emits carries the elapsed time and the ceiling — and NOTHING else. The identifier this
+    /// query runs on is the data subject's name, address, phone number or personnummer-shaped
+    /// org.nr (§5, ADR 0087 D8(c)), so a third structured field is a defect, and the assertion is
+    /// written to catch one being added rather than to describe today's shape.
+    /// <para>
+    /// <b>The actor that produces the asserted state is the clock</b> at
+    /// <c>FindJobAdsAsync</c>'s call site, which passes
+    /// <c>Stopwatch.GetElapsedTime(matchingStartedAt)</c> — an arbitrary elapsed. That the
+    /// >= threshold class is reachable is measured, not assumed: 63,9 s cold on the dev corpus
+    /// (2026-08-23), against a corpus that grows monotonically with ingest.
+    /// </para>
+    /// <para>
+    /// <b>Mutations:</b> the boundary pair is LITERAL, so a threshold derived from the ceiling by any
+    /// other divisor goes red in one direction or the other — the previous pair (1 s / 180 s) left
+    /// every threshold in between green. Flip the comparison and both polarities swap; add a parameter to
+    /// <c>LogMarginConsumed</c> and the field assertion goes red; renumber the event and the
+    /// <c>EventId</c> assertion goes red.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public void The_margin_warning_crosses_its_threshold_and_carries_no_identifier()
+    {
+        using var scope = _provider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var tokenizer = scope.ServiceProvider.GetRequiredService<IProtectedIdentityTokenizer>();
+        var logger = new RecordingLogger<RecruiterErasureMatchQuery>();
+        var query = new RecruiterErasureMatchQuery(db, tokenizer, logger);
+
+        query.WarnIfMarginConsumed(TimeSpan.FromSeconds(89));
+        logger.Records.ShouldBeEmpty("one second inside the margin must stay silent.");
+
+        query.WarnIfMarginConsumed(TimeSpan.FromSeconds(90));
+
+        var entry = logger.Records.ShouldHaveSingleItem();
+        entry.Level.ShouldBe(LogLevel.Warning);
+        entry.EventId.Id.ShouldBe(8436, "the event id is the operator's correlation handle in Seq.");
+        entry.Properties.Select(p => p.Key).Where(n => n != "{OriginalFormat}")
+            .ShouldBe(["ElapsedMs", "CeilingSeconds"], ignoreOrder: true);
+    }
+
+    /// <summary>
+    /// A healthy run does not warn. This is the half of the margin signal that can be pinned
+    /// against the REAL production call site rather than against the emitter: it goes red if the
+    /// threshold ever collapses toward zero, which would turn the warning into noise on every
+    /// Art. 17 request and train the operator to ignore the one row that matters.
+    /// <para>
+    /// <b>Declared gap, per §5's "declared unreachable" route rather than left unspoken:</b> the
+    /// opposite polarity — that a run OVER the threshold really does warn from inside
+    /// <c>FindJobAdsAsync</c> — is not pinned here, because reaching it needs 90 s of wall clock
+    /// against a container. The emitter is pinned above, and this pins the wiring's quiet half;
+    /// what neither crosses is the call site's own comparison at speed.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public async Task A_healthy_dry_run_emits_no_margin_warning()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var scope = _provider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var tokenizer = scope.ServiceProvider.GetRequiredService<IProtectedIdentityTokenizer>();
+        var logger = new RecordingLogger<RecruiterErasureMatchQuery>();
+        var query = new RecruiterErasureMatchQuery(db, tokenizer, logger);
+
+        _ = await query.FindJobAdsAsync(RecruiterName, ct);
+
+        logger.Records.ShouldBeEmpty(
+            "a container-local run is milliseconds against a 90 s threshold; a warning here means "
+            + "the threshold has collapsed and the signal has become noise.");
     }
 
     private static EraseRecruiterAdsCommandHandler NewEraseHandler(IServiceScope scope, AppDbContext db) =>
@@ -2716,6 +2863,59 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
             "the concurrent request must genuinely succeed, or the race under test never occurs.");
 
         await db.SaveChangesAsync(ct);
+    }
+
+    /// <summary>
+    /// Records the <see cref="DbCommand.CommandTimeout"/> the provider is actually about to use, per
+    /// command, on the context the port itself resolves.
+    /// </summary>
+    /// <remarks>
+    /// The observable has to be the REAL <see cref="DbCommand"/> and nothing nearer. Reading the
+    /// constant back, or reading <c>Database.GetCommandTimeout()</c>, would both stay green if the
+    /// value never reached the provider — and whether it reaches it through
+    /// <c>Database.SqlQuery</c> is the one link <c>dotnet-architect</c> recorded as UNMEASURED in
+    /// the #1458 round ("att <c>Database.SqlQuery</c> ärver providerdefaulten har jag inte kört
+    /// end-to-end i det här repot"). An interceptor is where EF hands the command over, so it is
+    /// the last point at which the claim can still be wrong.
+    /// <para>
+    /// Shape copied from <c>JobAdCountBitmapPlanHygieneTests.RecordingCommandInterceptor</c>; it
+    /// records <c>CommandText</c>, which answers a different question, so this one is separate
+    /// rather than shared.
+    /// </para>
+    /// </remarks>
+    private sealed class CommandTimeoutRecorder : DbCommandInterceptor
+    {
+        // No test in this class runs DbContext work concurrently, so commands arrive on one thread
+        // and a plain list needs no synchronization.
+        private readonly List<(string CommandText, int CommandTimeout)> _records = [];
+
+        // ReadOnlyCollection, not IReadOnlyList: §3 forbids exposing List<T>, and CA1859 is an ERROR
+        // in this repo and rejects an interface-typed property the analyzer can prove concrete. A
+        // read-only CONCRETE type satisfies both instead of trading one off against the other. The
+        // wrapper is a live view over the field, so Clear() is still visible through it.
+        public ReadOnlyCollection<(string CommandText, int CommandTimeout)> Records { get; }
+
+        public CommandTimeoutRecorder() => Records = _records.AsReadOnly();
+
+        public void Clear() => _records.Clear();
+
+        private void Record(DbCommand command) =>
+            _records.Add((command.CommandText, command.CommandTimeout));
+
+        public override InterceptionResult<DbDataReader> ReaderExecuting(
+            DbCommand command, CommandEventData eventData, InterceptionResult<DbDataReader> result)
+        {
+            Record(command);
+            return base.ReaderExecuting(command, eventData, result);
+        }
+
+        public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
+            DbCommand command, CommandEventData eventData, InterceptionResult<DbDataReader> result,
+            CancellationToken cancellationToken = default)
+        {
+            Record(command);
+            return base.ReaderExecutingAsync(command, eventData, result, cancellationToken);
+        }
     }
 
     /// <summary>

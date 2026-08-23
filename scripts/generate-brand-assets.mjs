@@ -5,8 +5,6 @@
 //
 // Usage:
 //   node scripts/generate-brand-assets.mjs <phase> <prompt-id> "<prompt>" [variants] [aspect_ratio]
-//
-// Hard cap: 30 generations totalt. Räknas via web/jobbpilot-web/public/brand/raw/generations-used.txt.
 
 import fs from "node:fs/promises";
 import path from "node:path";

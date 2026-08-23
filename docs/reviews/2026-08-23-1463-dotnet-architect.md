@@ -138,3 +138,88 @@ hindrar att den degenererar till ett kommando.
 port-anrop, så allt efter den ärver taket ändå. Testets XML-doc påstod motsatsen och är rättad; radie-
 premissen pinnas i stället av `ErasurePortInjectionRadiusTests`, vars egen mutation (en andra
 konstruktor-konsument) verifierats röd.
+
+---
+
+# Omkontroll (scoped, report-only) — delta `dc6d967a..672e3b31`
+
+> Transkriberad ordagrant. HEAD `672e3b31`, arbetsträdet rent. Cap:en förbrukad efter denna.
+
+**Sammanfattning:** Båda mina fynd stängda — N1 genom ren strykning, N2 i en starkare form än jag
+föreslog. Ett nytt fynd i deltat: **1 Viktigt**.
+
+**N1 — STÄNGD.** Verifierat i blobben: både *"the repo's FIRST EF-level SetCommandTimeout"* och
+*"the absence of other EF-level sites is a fact, not a gap"* är borta. Kvarvarande mening är mätt sann
+och gör inget uttömmandepåstående alls. Att `code-reviewer`s oberoende mätning
+(`MigrationsOptionsFactory`) föll på samma stycke bekräftar att radering var rätt disposition framför
+avgränsning till `src/`: två oberoende motexempel längs två olika axlar är ett påstående som inte
+skulle ha skrivits. Deltat narrowade dessutom `statement_timeout`-påståendet — en andra okvalificerad
+claim borta, som jag inte bad om.
+
+**N2 — STÄNGD, bredare än jag föreslog, och bredare är rätt.** `EraseAsync(..., dryRun: true)` +
+`ShouldAllBe(180)` **utan filter** är strikt starkare än mitt `SELECT 1`-prob: mitt hade visat att
+*ett* senare kommando ärver taket, detta visar att **inget** kommando i requesten undslipper det —
+inklusive audit-skrivningen. Att `ShouldAllBe` gäller varje observerat kommando gör faktumet
+självsanerande: en framtida seed- eller setup-väg i en scope utan port skulle fälla det rött i stället
+för att glida förbi ett filter.
+
+## Svar på sessionens två frågor
+
+**1 — Hem: rätt. Predikat: se fyndet nedan.** Arkitektursviten är rätt hem för ett strukturellt
+invariant över ett assembly, och att pinna premissen i stället för prosan är rätt drag. Din
+mutationsmätning är dessutom den rätta lärdomen: att ceiling-faktumet förblir grönt när anropet flyttas
+in i `FindJobAdsAsync` är inte en svaghet i faktumet utan ett bevis för att *placeringen* inte kan
+pinnas av ett kommandotak. Den måste pinnas av radien. Rätt slutsats, och rätt att radera
+XML-doc-påståendet i stället för att omformulera det.
+
+**2 — Nej, per-I/O-semantiken hör inte hemma i koden.** (a) Det är ett påstående om Npgsqls interna
+tillämpning som jag angav ur kunskap, inte ur en mätning i det här repot — att skriva in det vore att
+lägga en **omätt** claim bredvid fyra mätta, precis den asymmetri den här ronden ägnades åt att ta bort.
+(b) Det ändrar ingen beslutsregel: riktningen är försiktig, så en läsare som antar kumulativ väggklocka
+drar samma slutsats. (c) §5 `Comments:` — kommentera där koden inte kan visa saken själv. Om det någonsin
+ska ha ett hem är det en **mätning**, inte en kommentar. **Ditt beslut var rätt.**
+
+## Fynd
+
+**[Viktigt]** `tests/Jobbliggaren.Architecture.Tests/ErasurePortInjectionRadiusTests.cs:28`
+
+**Vad:** Vakten skannar **ett av fem ägda assemblies**. Mätt: `IRecruiterErasureMatchQuery` är
+`public` (`IRecruiterErasureMatchQuery.cs:20`), registreringen ligger i **`AddPersistence`**
+(`DependencyInjection.cs:1224`), och `src/Jobbliggaren.Worker/Program.cs:55` anropar `AddPersistence`.
+Porten är alltså resolverbar i Worker. En Hangfire-job-konstruktor som tar porten ger hela den
+jobbscopens `AppDbContext` ett flerminuterstak — exakt det scenario remarken beskriver — och skanningen
+ser den inte. Samma sak för en Infrastructure-konsument.
+
+**Varför:** Vakten finns för att premissen var oskyddad; en vakt som *läser* som enforcement men täcker
+en femtedel av ytan är den farligare formen — den passerar grönt för alltid och tar bort skälet att läsa
+om placeringen. Charterns egen grund (AGENTS.md §2.1: Api/Worker är composition roots) säger att det är
+just värdassemblierna som avgör radien. Precedens för exakt den här formen finns i samma svit:
+`OrgNrRecordLoggingGuardTests.OwnedAssemblies` (rad 77-87) räknar alla fem by name och motiverar
+uttryckligen varför Worker står kvar i listan trots att den saknar ankare i dag.
+
+**Föreslagen åtgärd:** Ren kodändring, noll nya beroenden — projektet refererar redan alla fem. Byt
+skanningskällan mot samma mönster som syskonet och kör `SelectMany(a => a.GetTypes())`. Stängs genom att
+köra om fyndets egen mätning: din befintliga mutation ska förbli **röd**, plus en ny mutation som
+placerar konsumenten i **Worker** — den är grön i dag och måste bli röd. Ingen ny prosa krävs.
+
+⚠ En residual som förblir öppen även efter breddningen, och som jag **inte** föreslår att du skriver in:
+repots Api-lager hämtar tjänster som **minimal-API-delegatparametrar**, inte konstruktorparametrar. En
+endpoint-konsument är alltså osynlig för varje konstruktorskan oavsett assembly-mängd. Breddningen
+stänger Worker- och Infrastructure-vägen helt; Api-delegatvägen gör den inte. Deklarera den inte i
+kommentar — medlemsaxeln är redan avgränsad i doc:en.
+
+## Sessionens åtgärd
+
+**Viktigt — STÄNGD genom ren kodändring, och mätningen kördes.** `OwnedAssemblies` täcker nu
+Application, Infrastructure, Api och Worker, och `GetConstructors` fick
+`BindingFlags.Instance | Public | NonPublic`. Mätt mot den fixade filen:
+
+- konsument i **Infrastructure** → **RÖD** (grön före breddningen)
+- konsument i **Api** → **RÖD** (grön före breddningen)
+- ursprungsmutationen (konsument i Application) → förblir **RÖD**
+
+⚠ **Din residual mättes i stället för att antas:** en `IRecruiterErasureMatchQuery`-parameter på
+`MapPost`-lambdan i `AdminJobAdsEndpoints` är **GRÖN även efter breddningen**. Därför är metoden
+omdöpt till `ErasurePortIsConstructorInjectedOnlyByTheErasureHandler` och remarkens övertäckande
+*"injected by the erasure handler alone"* är **struken** — övertäckningen togs bort ur påståendet i
+stället för att förklaras i ett tillagt stycke. `test-writer` föreskrev samma sak oberoende.

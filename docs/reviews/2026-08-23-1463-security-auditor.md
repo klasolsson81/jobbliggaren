@@ -187,3 +187,106 @@ pekaren har en läsare.
 
 **Eskaleringen till Klas är INTE stängd** — den är buren vidare ordagrant i PR-bodyn och i chatten, och
 är hans att besvara.
+
+---
+
+# Omkontroll (scoped, report-only) — delta `dc6d967a..672e3b31`
+
+> Transkriberad ordagrant. HEAD `672e3b31`, `git status --porcelain` tomt (verifierat).
+> Cap:en förbrukad efter denna.
+
+**Status:** ⛔ BLOCKED — 0 Blockers, **1 Major (ny i deltat)**, 0 Minor.
+
+## Mina tre fynd — avvecklade
+
+**Major 1 (fail-open blocklist):** stängd i sak. **Ditt `allowInjection`-beslut var rätt och
+nödvändigt** — `ILogger`-armen finns för att browse-vägen inte får ha någon logger alls, och den här
+filen har nu legitimt en; att fälla på fältet hade gjort grinden otillfredsställbar. Default `false`, och
+browse-posturen är byte-oförändrad, verifierat i diffen. **Att försvaga `ILogger`-armen på just den här
+filen är alltså vad jag bad om.**
+
+**Major 2 (#196):** stängd. Pekarna i `deploy/caddy/Caddyfile:4-10` och
+`src/Jobbliggaren.Api/Program.cs:40-46` namnger symbolen, bär inget tal, ingen mätning och inget
+omformulerat villkor. Caddyfile-pekaren är relativ (*"larger than the `write` timeout below"*), sann, och
+kan inte drifta mot ett tal. Rätt form. Ingen backlog-rad behövdes.
+
+**Minor 1 (rate limiting):** stängd. `AdminWritePolicy`, samma som syskonändpunkterna.
+
+**Min residual:** inte uppmjukad. Stycket vid `MarginWarningThreshold` bär min formulering, min
+attribution och tolerabilitetsskälet. Det är om något starkare än min egen mening. Godkänd.
+
+## Major (ny i deltat)
+
+**1. Grindens fail-closed-påstående är mätbart falskt för filens egen etablerade loggmekanism**
+Fil: `OrganizationNumberSurfacingGuardTests.cs:590-591` (kommentaren) och `:1023-1031`
+(`FindLoggingSurface`)
+
+Med `allowInjection: true` är `ILogger`-armen av, så hela fail-closed-egenskapen vilar på den enda
+kvarvarande armen, `\b(Log[A-Z]\w*)\s*\(`. Den är **namnform**, inte struktur. Mätt med perl mot samma
+regex, tre undvikande former i en syntetisk källa: `FindLoggingSurface Log-arm hits: NONE` — för en
+`[LoggerMessage]`-partial döpt `IdentifierNotFound`, för `_logger.Log(LogLevel.Information, …)` och för
+`_logger.BeginScope("{Identifier}", identifier)`. Ingen av de tre fångas. Och `FindOrgNrLoggingFragments`
+fångar dem inte heller: `{Identifier}` innehåller inget org.nr-token. Ett andra loggsite som bär den
+registrerades **namn, adress, telefon eller e-post** passerar därmed varje kontroll i repot.
+
+Testets egen kommentar säger: *"any SECOND log call fails the build whatever it carries."* Den meningen
+är falsk.
+
+Detta är inte en exotisk lucka. Mätt över `src/`: **39 av 178 `[LoggerMessage]`-partialer är inte
+`Log`-prefixade** — 22 %. Konventionen grinden tyst vilar på är ingen konvention. Och filens **enda**
+loggsite är just en `[LoggerMessage]`-partial, så den oskyddade formen är den lokala idiomatiken.
+
+Krävs: antingen (a) **strykning** av den falska meningen, eller (b) **kodändring** — en arm som fäller
+varje `[LoggerMessage]`-attribuerad deklaration vars metodnamn inte står i `allowed`, plus
+`\b_logger\s*\.`, stängd genom att köra om mätningen ovan. Jag föreskriver inte vilken.
+
+Grad: en kontroll som **läses** som fail-closed och inte är det är sämre än en känt partiell, eftersom
+nästa läsare litar på den — repots egen formulering i samma fil: *"a test that passes because it checks
+nothing, which is the exact vacuity this file exists to fight."*
+
+## Praise
+
+- `ErasurePortInjectionRadiusTests` pinnar radie-premissen som konstruktorplaceringen vilar på — den var
+  oskriven och obevakad i runda 1. Rätt fynd, inte mitt. ✓
+- Tröskeltestet korsar nu 89/90 s exakt och asserterar `EventId 8436`; `{OriginalFormat}` filtreras
+  explicit och namngivet. ✓
+- `statement_timeout = 0` är omskrivet till *"the dev server's … measured at 0 the same day"* — en
+  korrekt inskränkning ingen bad om. ✓
+
+## Sammanfattning
+
+1 Major, ny i deltat, inget annat. Mina tre ursprungliga fynd är avvecklade i sak och två av
+avvecklingarna är bättre än det jag föreskrev. Cap:en är förbrukad: ett new-in-delta-fynd stängs genom
+**strykning** eller genom en **kodändring stängd av att fyndets egen mätning körs om**. Överlever fyndet
+båda vägarna → STOPP till Klas och `blocked`-etikett.
+
+## Eskalering till Klas — oförändrad, fortfarande obesvarad
+
+> Lådans kalla fall för `FindJobAdsAsync` är fortfarande omätt, och det är den sista okända storheten
+> under Art. 12(2)-taket. Det går inte att mäta read-only: att tömma page cache på en levande värd är
+> inte en läsning, så jag har inte tagit den och sessionen har rätt i att inte ta den. **Det du behöver
+> avgöra är om en kall mätning ska tas på lådan under ett underhållsfönster, och i så fall när.** Tas
+> den inte, är 180 s kalibrerat mot dev — pessimistiskt på båda mätta axlarna (tabellstorlek,
+> buffertpool) men med per-byte I/O-latens fortfarande ogissad — och residualen ska stå kvar skriven som
+> omätt i koden, i commit-meddelandet och i PR-bodyn, precis som den gör nu. En accepterad risk blir inte
+> mätt av att accepteras. Jag begär ingen ändring av talet: 180 är CTO:ns beslut och jag graderar det
+> inte. Jag begär att frågan om mätningen får ett svar i stället för att förbli implicit.
+>
+> Två saker jag inte eskalerar, för tydlighets skull: sessionens inversion av min tidigare mening om
+> request-timeouten är korrekt och verifierad oberoende, och båda Major-fynden ovan är repareringsbara
+> in-block utan ditt beslut.
+
+## Sessionens åtgärd
+
+**Major (ny i deltat) — STÄNGD via BÅDA vägarna, eftersom de stänger olika halvor.**
+
+- **Kodändring:** `FindLoggingSurface` har nu två armar till — en som fäller varje
+  `[LoggerMessage]`-attribuerad deklaration vars metodnamn inte står i `allowed`, och en på
+  `\b_logger\s*\.` — så de tre former du mätte stängs **strukturellt** i stället för av namnkonvention.
+- **Strykning:** meningen *"any SECOND log call fails the build whatever it carries"* är raderad. Grinden
+  påstår inte längre mer än den levererar.
+- **Fyndets egen mätning är körd om, som gate:** dina tre undvikande former är nu en `[Theory]` med tre
+  `InlineData` (`Logging_surface_scan_flags_the_three_forms_that_evade_the_name_shaped_arm`), och hela
+  klassen är grön — `total: 23, failed: 0`. Ingen ny omkontroll är skyldig, och inget STOPP behövs.
+
+**Din eskalering är INTE stängd** — den är buren vidare ordagrant till Klas, i PR-bodyn och i chatten.

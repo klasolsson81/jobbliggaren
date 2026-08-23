@@ -122,6 +122,7 @@ export async function setWatchFilter(
     municipalities: ReadonlyArray<string>;
     regions: ReadonlyArray<string>;
     onlyMatched: boolean;
+    remote: boolean;
   }
 ): Promise<ApiResult<void>> {
   const sessionId = await getSessionId();
@@ -138,6 +139,12 @@ export async function setWatchFilter(
           municipalities: filter.municipalities,
           regions: filter.regions,
           onlyMatched: filter.onlyMatched,
+          // Kroppen räknar upp nycklar i stället för att skicka objektet, så ett nytt
+          // schemafält når INTE wire:n gratis här (till skillnad från syskonvägar som
+          // JSON.stringify:ar hela objektet). Utelämnad blir axeln `false` på backend
+          // (SetWatchFilterRequest.Remote), och full-replace nollar då ett persisterat
+          // distans-filter tyst.
+          remote: filter.remote,
         }),
       }
     );

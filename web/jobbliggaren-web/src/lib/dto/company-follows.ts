@@ -58,6 +58,10 @@ export const watchFilterSchema = z.object({
   municipalities: z.array(z.string()).readonly(),
   regions: z.array(z.string()).readonly(),
   onlyMatched: z.boolean(),
+  // #551 PR-C: distans-axeln. WatchFilterDto har burit den sedan PR-B; utan den HAR
+  // zod:en strypt fältet, så raden kunde inte visa ett distans-avgränsat filter och
+  // dialogens full-replace nollade det tyst vid varje sparning.
+  remote: z.boolean(),
 });
 export type WatchFilter = z.infer<typeof watchFilterSchema>;
 

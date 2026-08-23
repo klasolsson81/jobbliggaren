@@ -60,7 +60,7 @@
       "onlyMatchedInert": "Du har inte angett vilka yrken du söker inom, så vi kan inte avgöra vilka annonser som matchar dig. Filtret sparas och börjar gälla när du ställt in matchningen.",
       "onlyMatchedInertCta": "Ställ in matchning",
       "ortHeading": "Orter i annonsen",
-      "ortHelp": "Filtret gäller orten i annonsen, inte företagets säteskommun. Väljer du orter får du inga notiser om annonser som saknar ort.",
+      "ortHelp": "Filtret gäller orten i annonsen, inte företagets säteskommun. Välj län eller kommuner, eller kryssa Distans. Ett läns- eller kommunval tar inte med annonser som saknar ort.",
       "clearAll": "Ta bort filtret",
       "save": "Spara filter",
       "saving": "Sparar…",

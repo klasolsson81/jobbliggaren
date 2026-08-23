@@ -90,12 +90,12 @@ Hangfire-jobb kör 04:00 UTC daily. Tre steg:
 Recurring job: `hard-delete-accounts`. Körtid varierar med antal mogna
 konton (typiskt < 1s/konto för Fas 1-volym).
 
-### 3.2 Strukturerad logg (Seq i dev / CloudWatch i prod)
+### 3.2 Strukturerad logg (Seq i dev och i prod)
 
 Filtrera på sourcecontext:
 
-- `JobbPilot.Application.Auth.Jobs.HardDeleteAccounts.HardDeleteAccountsJob`
-- `JobbPilot.Application.Auth.Commands.DeleteAccount.DeleteAccountCommandHandler`
+- `Jobbliggaren.Application.Auth.Jobs.HardDeleteAccounts.HardDeleteAccountsJob`
+- `Jobbliggaren.Application.Auth.Commands.DeleteAccount.DeleteAccountCommandHandler`
 
 Förväntade meddelanden vid lyckad körning (HardDeleteAccountsJob):
 

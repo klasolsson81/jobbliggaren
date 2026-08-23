@@ -354,7 +354,7 @@ public sealed class RecruiterContactIngestTests : IAsyncLifetime
         var probe = await EraseAsync(ContactsAloneEmail, ct, dryRun: true);
 
         probe.Matched.JobAds.ShouldBe(1,
-            "delete the `lower(contacts::text) LIKE` arm from FindJobAdsAsync and this is 0 — the "
+            "delete the `contacts` value-walk disjunct from FindJobAdsAsync and this is 0 — the "
             + "erasure becomes vacuous for the exact data Tier A just moved.");
 
         var match = probe.Matches.Single();
@@ -601,6 +601,117 @@ public sealed class RecruiterContactIngestTests : IAsyncLifetime
         }
 
         return offenders;
+    }
+
+    // ================================================================================
+    // #1448 — the contacts channels walk VALUES, and the Origin token is not one of them.
+    // ================================================================================
+
+    /// <summary>
+    /// <b>An identifier that is only a contacts KEY NAME matches no ad.</b> A serialised
+    /// <c>AdContacts</c> document carries <c>Name</c>, <c>Role</c>, <c>Email</c>, <c>Phone</c> and
+    /// <c>Origin</c> in every row that has contacts at all, and <c>contacts::text LIKE</c> matched
+    /// them. Measured on the dev corpus 2026-08-23: the identifier <c>name</c> reached <b>27 160</b>
+    /// of 40 983 ads that way, against <b>1</b> when values are walked.
+    /// <b>Mutation:</b> replace the <c>contacts</c> value walk with
+    /// <c>lower(contacts::text) LIKE p</c>.
+    /// </summary>
+    [Fact]
+    public async Task An_identifier_that_is_only_a_contacts_KEY_NAME_matches_no_ad()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await IngestThroughProductionPathAsync(ct);
+
+        var probe = await EraseAsync("Phone", ct, dryRun: true);
+
+        probe.Matched.JobAds.ShouldBe(0,
+            "`Phone` is a KEY in every contacts document. Matching it proposes the whole corpus for "
+            + "erasure, each ad with an empty excerpt, to someone we hold nothing about.");
+    }
+
+    /// <summary>
+    /// <b>The <c>Origin</c> token is provenance, not advertiser text, and the value walk does not
+    /// close it on its own.</b> <c>Declared</c> contains <c>Clare</c>, a real given name, and four
+    /// characters is a legal identifier — measured on the dev corpus 2026-08-23, <c>clare</c> reached
+    /// <b>16 999</b> ads through <c>job_ads.contacts</c> BOTH before and after the walk, because a
+    /// value is not a key name.
+    /// <b>Mutation:</b> delete the <c>&lt;&gt; ALL({AdContactOriginLiterals})</c> conjunct.
+    /// </summary>
+    /// <remarks>
+    /// Driven off <c>Enum.GetNames&lt;AdContactOrigin&gt;()</c> rather than a typed literal, so a
+    /// third origin joins this pin the day it is added and cannot drift away from the SQL list
+    /// (#844 — one rule with two normalisers is two rules).
+    /// </remarks>
+    [Fact]
+    public async Task No_identifier_equal_to_an_ORIGIN_LITERAL_matches_any_ad()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await IngestThroughProductionPathAsync(ct);
+
+        foreach (var origin in Enum.GetNames<AdContactOrigin>())
+        {
+            var probe = await EraseAsync(origin, ct, dryRun: true);
+
+            probe.Matched.JobAds.ShouldBe(0,
+                $"`{origin}` is a closed-vocabulary provenance token, and every contacts document "
+                + "carries one. This channel is the one whose sibling erases WITHOUT a per-id "
+                + "confirmation, so the looseness of the match has to stay inversely proportional "
+                + "to the strength of its review gate.");
+            probe.Matched.ApplicationSnapshotContacts.ShouldBe(0,
+                $"`{origin}` must not reach the surgical arm either — that one destroys an "
+                + "applicant's frozen contact block with no human looking at it first.");
+        }
+    }
+
+    /// <summary>
+    /// The exclusion is WHOLE-VALUE equality, and this is the fact that keeps it that way: a
+    /// contact whose name merely CONTAINS an origin literal is still reached.
+    /// <b>Mutation:</b> change <c>&lt;&gt; ALL(...)</c> to a <c>NOT LIKE '%' || ... || '%'</c> form.
+    /// </summary>
+    [Fact]
+    public async Task A_contact_name_CONTAINING_an_origin_literal_is_still_matched()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await IngestOneAdWithDeclaredContactNameAsync("Declared Andersson", ct);
+
+        var probe = await EraseAsync("Declared Andersson", ct, dryRun: true);
+
+        probe.Matched.JobAds.ShouldBe(1,
+            "excluding the provenance token by whole-value equality can only ever silence a value "
+            + "that IS the token — never a name that contains it.");
+    }
+
+    private const string OriginNameExternalId = "origin-name-1448";
+
+    /// <summary>
+    /// Ingests ONE ad, through the real source and the real sanitizer, whose declared contact
+    /// carries the caller's name. The class corpus is left alone: these facts assert absolute
+    /// counts, so a sixth ad in <see cref="SnapshotJson"/> would move every other test's numbers.
+    /// Safe to re-point the stub because the fixture is per-test.
+    /// </summary>
+    private async Task IngestOneAdWithDeclaredContactNameAsync(string contactName, CancellationToken ct)
+    {
+        _jobTech.ResetMappings();
+        _jobTech
+            .Given(Request.Create().WithPath("/v2/snapshot").UsingGet())
+            .RespondWith(Response.Create()
+                .WithStatusCode(200)
+                .WithHeader("Content-Type", "application/json")
+                .WithBody($$"""
+                    [{
+                      "id": "{{OriginNameExternalId}}",
+                      "headline": "Backend-utvecklare",
+                      "description": { "text": "Vi söker en utvecklare till vårt team." },
+                      "employer": { "name": "Techbolaget AB", "organization_number": "5561111111" },
+                      "webpage_url": "https://arbetsformedlingen.se/platsbanken/annonser/{{OriginNameExternalId}}",
+                      "publication_date": "2026-07-06T10:00:00Z",
+                      "application_contacts": [
+                        { "name": "{{contactName}}", "description": "Rekryterare", "email": "rekrytering@techbolaget.example", "telephone": "08-123 45 67", "contact_type": null }
+                      ]
+                    }]
+                    """));
+
+        await IngestThroughProductionPathAsync(ct);
     }
 
     private static async Task<int> FtsHitsAsync(AppDbContext db, string term, CancellationToken ct)

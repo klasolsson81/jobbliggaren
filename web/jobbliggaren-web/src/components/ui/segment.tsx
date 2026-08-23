@@ -33,6 +33,14 @@ interface SegmentProps<T extends string> {
   "aria-label": string;
   /** Sätt true för att stänga av alla optioner (t.ex. under spar-pending). */
   disabled?: boolean;
+  /**
+   * Space-separated ids of the text describing the group — hint and, when the value was
+   * refused, the error (a11y skill §5). Lands on the `radiogroup`, which is where a
+   * screen reader reads a description for the whole set of options.
+   */
+  "aria-describedby"?: string;
+  /** Set when the group's current value was refused, so the refusal is programmatic too. */
+  "aria-invalid"?: boolean;
 }
 
 export function Segment<T extends string>({
@@ -40,6 +48,8 @@ export function Segment<T extends string>({
   onChange,
   options,
   "aria-label": ariaLabel,
+  "aria-describedby": ariaDescribedBy,
+  "aria-invalid": ariaInvalid,
   disabled = false,
 }: SegmentProps<T>) {
   const groupRef = useRef<HTMLDivElement>(null);
@@ -84,6 +94,8 @@ export function Segment<T extends string>({
       ref={groupRef}
       role="radiogroup"
       aria-label={ariaLabel}
+      aria-describedby={ariaDescribedBy}
+      aria-invalid={ariaInvalid}
       onKeyDown={handleKeyDown}
       className="jp-segment"
     >

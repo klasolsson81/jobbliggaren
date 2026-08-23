@@ -483,11 +483,11 @@ public class ListRecentSearchesQueryHandlerTests
     //
     // KLASS-pin, inte instans-pin: en pin på employmentType ensam faller inte för
     // worktimeExtent eller employer. Ett fall per axel, och
-    // Handle_LabelCoversEveryNarrowingAxis fäller om en axel saknar fall.
+    // Handle_LabelCoversEveryNarrowingAxis fäller om en axel varken har ett fall eller en
+    // deklarerad grund.
     //
     // Källmängden är SearchCriteria, inte RecentJobSearch: kriteriet är det labeln beskriver,
-    // och VO:t bär inga identitets- eller besöksbokföringsfält att undanta — guarden behöver
-    // EN uteslutning i stället för sju.
+    // och VO:t bär inga identitets- eller besöksbokföringsfält att undanta.
     private static readonly IReadOnlyDictionary<string, (SearchCriteria Criteria, string Label)>
         AxisCases = new Dictionary<string, (SearchCriteria, string)>(StringComparer.Ordinal)
         {
@@ -497,7 +497,6 @@ public class ListRecentSearchesQueryHandlerTests
             ["Region"] = (Axis(region: ["stockholm"]), "Label-stockholm"),
             ["EmploymentType"] = (Axis(employmentType: ["tillsvidare"]), "Label-tillsvidare"),
             ["WorktimeExtent"] = (Axis(worktimeExtent: ["heltid"]), "Label-heltid"),
-            ["Employer"] = (Axis(employer: ["5566010101"]), "Vald arbetsgivare"),
             ["Remote"] = (Axis(remote: true), "Distans"),
         };
 
@@ -506,6 +505,24 @@ public class ListRecentSearchesQueryHandlerTests
     // form, så tystnad FÄLLER i stället för att passera.
     private static readonly HashSet<string> NotNarrowing =
         new(StringComparer.Ordinal) { "SortBy" };
+
+    // Axlar som SMALNAR men ändå inte får namnge raden. Skild mängd från NotNarrowing, och
+    // skillnaden är inte kosmetisk: Employer smalnar (JobAdSearchComposition AND:ar den), så
+    // en post där vore ett falskt påstående inuti en guard.
+    //
+    // Grunden per post är REFERENTEN, inte smalnandet, och den pekar i stället för att
+    // upprepa: varför axeln inte projiceras alls ägs av
+    // RecentJobSearchProjectionParityTests.NotSurfaced, och två hem för ett kunskapsstycke
+    // driftar isär.
+    private static readonly IReadOnlyDictionary<string, (SearchCriteria Criteria, string Ground)>
+        NotReplayed = new Dictionary<string, (SearchCriteria, string)>(StringComparer.Ordinal)
+        {
+            ["Employer"] = (
+                Axis(employer: ["5566010101"]),
+                "Bärs inte av buildRecentSearchHref, så en label som namnger axeln namnger ett "
+                + "filter klicket släpper. Varför axeln inte projiceras alls: "
+                + "RecentJobSearchProjectionParityTests.NotSurfaced[\"Employer\"]."),
+        };
 
     private static SearchCriteria Axis(
         IReadOnlyList<string>? occupationGroup = null,
@@ -527,10 +544,34 @@ public class ListRecentSearchesQueryHandlerTests
             q: q,
             sortBy: JobAdSortBy.PublishedAtDesc).Value;
 
+    // En rad genom produktionsvägen: SearchCriteria.Create -> RecentJobSearch.Capture ->
+    // handlern. Samma entrypoints capture-behaviorn kör, så ingen assertion nedan vilar på
+    // en premiss produktionen inte kan producera.
+    private async Task<string> LabelOfAsync(SearchCriteria criteria)
+    {
+        var db = TestAppDbContextFactory.Create();
+        var seeker = await SeedSeekerAsync(db);
+        db.RecentJobSearches.Add(
+            RecentJobSearch.Capture(seeker.Id, criteria, 0, FakeDateTimeProvider.Default.UtcNow));
+        await db.SaveChangesAsync(CancellationToken.None);
+
+        var handler = new ListRecentSearchesQueryHandler(db, _currentUser, _taxonomy, _search);
+        var result = await handler.Handle(new ListRecentSearchesQuery(), CancellationToken.None);
+        return result.ShouldHaveSingleItem().Label;
+    }
+
     public static TheoryData<string> NarrowingAxes()
     {
         var data = new TheoryData<string>();
         foreach (var axis in AxisCases.Keys)
+            data.Add(axis);
+        return data;
+    }
+
+    public static TheoryData<string> NotReplayedAxes()
+    {
+        var data = new TheoryData<string>();
+        foreach (var axis in NotReplayed.Keys)
             data.Add(axis);
         return data;
     }
@@ -540,16 +581,21 @@ public class ListRecentSearchesQueryHandlerTests
     public async Task Handle_NamesTheRowByItsOnlySetAxis(string axis)
     {
         var (criteria, expected) = AxisCases[axis];
-        var db = TestAppDbContextFactory.Create();
-        var seeker = await SeedSeekerAsync(db);
-        db.RecentJobSearches.Add(
-            RecentJobSearch.Capture(seeker.Id, criteria, 0, FakeDateTimeProvider.Default.UtcNow));
-        await db.SaveChangesAsync(CancellationToken.None);
 
-        var handler = new ListRecentSearchesQueryHandler(db, _currentUser, _taxonomy, _search);
-        var result = await handler.Handle(new ListRecentSearchesQuery(), CancellationToken.None);
+        (await LabelOfAsync(criteria)).ShouldBe(expected);
+    }
 
-        result.ShouldHaveSingleItem().Label.ShouldBe(expected);
+    // Uteslutningen ska FÖRBJUDA, inte ursäkta — samma ribba som systerguarden i
+    // RecentJobSearchProjectionParityTests. Varje NotReplayed-post bevisas frånvarande ur
+    // labeln, så posten förfaller AV KONSTRUKTION den dag replayen börjar bära axeln: då
+    // fäller det här testet och tvingar bort posten i samma PR.
+    [Theory]
+    [MemberData(nameof(NotReplayedAxes))]
+    public async Task Handle_DoesNotNameAnAxisTheReplayDrops(string axis)
+    {
+        var (criteria, ground) = NotReplayed[axis];
+
+        (await LabelOfAsync(criteria)).ShouldBe("Alla annonser", ground);
     }
 
     [Fact]
@@ -566,24 +612,77 @@ public class ListRecentSearchesQueryHandlerTests
         axes.ShouldNotBeEmpty(
             "guarden mäter ingenting om SearchCriteria inte exponerar några axlar");
 
+        var overlap = AxisCases.Keys
+            .Where(NotReplayed.ContainsKey)
+            .OrderBy(name => name, StringComparer.Ordinal)
+            .ToArray();
+
+        overlap.ShouldBeEmpty(
+            "en axel kan inte både namnge raden och vara undantagen från att göra det. "
+            + $"I båda mängderna: {string.Join(", ", overlap)}");
+
         var uncovered = axes
-            .Where(name => !AxisCases.ContainsKey(name))
+            .Where(name => !AxisCases.ContainsKey(name) && !NotReplayed.ContainsKey(name))
             .OrderBy(name => name, StringComparer.Ordinal)
             .ToArray();
 
         uncovered.ShouldBeEmpty(
-            "varje smalnande SearchCriteria-axel behöver ett fall i AxisCases, annars kan en "
-            + "rad vars enda satta axel är den namnges \"Alla annonser\" utan att någon test "
-            + $"faller. Saknas: {string.Join(", ", uncovered)}");
+            "varje smalnande SearchCriteria-axel behöver antingen ett fall i AxisCases eller "
+            + "en deklarerad grund i NotReplayed, annars kan en rad vars enda satta axel är "
+            + $"den namnges \"Alla annonser\" utan att någon test faller. Saknas: {string.Join(", ", uncovered)}");
 
         var stale = AxisCases.Keys
+            .Concat(NotReplayed.Keys)
             .Where(name => !axes.Contains(name, StringComparer.Ordinal))
             .OrderBy(name => name, StringComparer.Ordinal)
             .ToArray();
 
         stale.ShouldBeEmpty(
-            $"AxisCases namnger axlar SearchCriteria inte längre har: {string.Join(", ", stale)}");
+            $"AxisCases/NotReplayed namnger axlar SearchCriteria inte längre har: {string.Join(", ", stale)}");
     }
+
+    // Nyckeln måste vara den axel fallet FAKTISKT sätter. Utan den bindningen jämför
+    // täckningsguarden bara strängar mot strängar, och en framtida axel kan stängas grönt av
+    // ett fall som sätter en helt annan axel — mängden vore uppfylld och tom på innehåll.
+    [Fact]
+    public void EveryCase_SetsExactlyTheAxisItIsKeyedTo()
+    {
+        var cases = AxisCases
+            .Select(kv => (kv.Key, kv.Value.Criteria))
+            .Concat(NotReplayed.Select(kv => (kv.Key, kv.Value.Criteria)))
+            .ToArray();
+
+        cases.ShouldNotBeEmpty("bindningen mäter ingenting utan fall att binda");
+
+        foreach (var (name, criteria) in cases)
+        {
+            var actuallySet = typeof(SearchCriteria)
+                .GetProperties(BindingFlags.Public | BindingFlags.Instance)
+                .Where(p => !NotNarrowing.Contains(p.Name))
+                .Where(p => IsSet(p.GetValue(criteria)))
+                .Select(p => p.Name)
+                .OrderBy(n => n, StringComparer.Ordinal)
+                .ToArray();
+
+            actuallySet.ShouldBe(
+                [name],
+                $"fallet under nyckeln \"{name}\" måste sätta exakt den axeln och ingen annan, "
+                + $"annars mäter täckningsguarden en axel fallet inte rör. Satta: {string.Join(", ", actuallySet)}");
+        }
+    }
+
+    // Fail-closed: en framtida axel av en typ den här metoden inte känner igen kastar hellre
+    // än klassas tyst som osatt — annars vore EveryCase_SetsExactlyTheAxisItIsKeyedTo grön mot
+    // en axel den inte kan läsa. string före IEnumerable: string ÄR IEnumerable<char>.
+    private static bool IsSet(object? value) => value switch
+    {
+        null => false,
+        string s => !string.IsNullOrWhiteSpace(s),
+        bool b => b,
+        System.Collections.IEnumerable e => e.Cast<object>().Any(),
+        _ => throw new InvalidOperationException(
+            $"IsSet känner inte igen axeltypen {value.GetType()} — lägg till en gren."),
+    };
 
     // Varje satt förfiningsaxel räknas upp. Att namnge bara en av dem beskriver en äkta
     // ÖVERMÄNGD av vad klicket kör — spegelbilden av #1413:s ort-fall, där "Stockholm"
@@ -592,65 +691,36 @@ public class ListRecentSearchesQueryHandlerTests
     [Fact]
     public async Task Handle_EnumeratesEveryRefinementAxis_WhenSeveralAreSet()
     {
-        var db = TestAppDbContextFactory.Create();
-        var seeker = await SeedSeekerAsync(db);
-        db.RecentJobSearches.Add(RecentJobSearch.Capture(
-            seeker.Id,
-            Axis(
-                employmentType: ["tillsvidare", "vikariat"],
-                worktimeExtent: ["heltid"],
-                employer: ["5566010101"]),
-            0,
-            FakeDateTimeProvider.Default.UtcNow));
-        await db.SaveChangesAsync(CancellationToken.None);
+        var label = await LabelOfAsync(
+            Axis(employmentType: ["tillsvidare", "vikariat"], worktimeExtent: ["heltid"]));
 
-        var handler = new ListRecentSearchesQueryHandler(db, _currentUser, _taxonomy, _search);
-        var result = await handler.Handle(new ListRecentSearchesQuery(), CancellationToken.None);
-
-        result.ShouldHaveSingleItem().Label
-            .ShouldBe("Label-tillsvidare +1 till, Label-heltid, Vald arbetsgivare");
+        label.ShouldBe("Label-tillsvidare +1 till, Label-heltid");
     }
 
     // Org.nr:et får aldrig nå labeln — den ÄR svarstext, och RecentSearchesTests assertar på
-    // värdet i hela svarskroppen. Här pinnas samma sak en nivå ned, där labeln föds.
+    // värdet i hela svarskroppen. Den här pinnen är VÄRDE-formad och överlever därför
+    // NotReplayed-posten: landar replay-armen (ADR 0087 D8(c)) och posten tas bort, står den
+    // här kvar och fäller fortfarande om axeln skulle namnges med sitt råa värde.
     [Fact]
     public async Task Handle_NeverPutsTheEmployerOrgNumberInTheLabel()
     {
         const string orgNr = "5566010101";
-        var db = TestAppDbContextFactory.Create();
-        var seeker = await SeedSeekerAsync(db);
-        db.RecentJobSearches.Add(RecentJobSearch.Capture(
-            seeker.Id, Axis(employer: [orgNr]), 0, FakeDateTimeProvider.Default.UtcNow));
-        await db.SaveChangesAsync(CancellationToken.None);
 
-        var handler = new ListRecentSearchesQueryHandler(db, _currentUser, _taxonomy, _search);
-        var result = await handler.Handle(new ListRecentSearchesQuery(), CancellationToken.None);
-
-        result.ShouldHaveSingleItem().Label.ShouldNotContain(orgNr);
+        (await LabelOfAsync(Axis(employer: [orgNr]))).ShouldNotContain(orgNr);
     }
 
-    // Regressionspin: en rad SOM HAR en primär dimension beter sig exakt som förut. ADR 0067:s
-    // premiss — förfiningsfilter bär inte labeln — håller där den alltid hållit; #1418 rör bara
-    // den klass premissen aldrig förutsåg.
+    // Regressionspin: en rad SOM HAR en primär dimension beter sig exakt som förut. #1418 rör
+    // bara den klass som saknar en primär dimension helt.
     [Fact]
     public async Task Handle_LeavesTheLabelUnchanged_WhenAPrimaryDimensionIsPresent()
     {
-        var db = TestAppDbContextFactory.Create();
-        var seeker = await SeedSeekerAsync(db);
-        db.RecentJobSearches.Add(RecentJobSearch.Capture(
-            seeker.Id,
+        var label = await LabelOfAsync(
             Axis(
                 municipality: ["gbg_kn"],
                 employmentType: ["tillsvidare"],
-                worktimeExtent: ["heltid"]),
-            0,
-            FakeDateTimeProvider.Default.UtcNow));
-        await db.SaveChangesAsync(CancellationToken.None);
+                worktimeExtent: ["heltid"]));
 
-        var handler = new ListRecentSearchesQueryHandler(db, _currentUser, _taxonomy, _search);
-        var result = await handler.Handle(new ListRecentSearchesQuery(), CancellationToken.None);
-
-        result.ShouldHaveSingleItem().Label.ShouldBe("Label-gbg_kn");
+        label.ShouldBe("Label-gbg_kn");
     }
 
     [Fact]

@@ -71,9 +71,9 @@ public sealed class ListRecentSearchesQueryHandler(
                 r.Municipality, cancellationToken);
             var regionLabels = await taxonomy.ResolveLabelsAsync(
                 r.Region, cancellationToken);
-            // #1418 — Klass 2-labels. Reverse-lookupen är kind-agnostisk
-            // (TaxonomyReadModel.BuildLabelByConceptId), så de här resolvar mot samma cachade
-            // snapshot som de tre ovan utan port-ändring. Ovillkorligt, inte bakom en grind som
+            // #1418 — Klass 2-labels. Reverse-lookupen är kind-agnostisk, så de här resolvar mot
+            // samma cachade snapshot som de tre ovan utan port-ändring. Ovillkorligt, inte bakom
+            // en grind som
             // upprepar DeriveLabels precedens: ett andra hem för samma predikat driftar isär.
             var employmentTypeLabels = await taxonomy.ResolveLabelsAsync(
                 r.EmploymentType, cancellationToken);
@@ -116,7 +116,7 @@ public sealed class ListRecentSearchesQueryHandler(
                         WorktimeExtent: r.WorktimeExtent,
                         // #311 PR-2b C1 (ADR 0087 D6): PR-2:s CONTAINED-seam (Employer: []) ersatt —
                         // RecentJobSearch bär nu employer_list → en återbesökt sökning räknar
-                        // arbetsgivar-filtrerat (samma filter som reproduceras vid klick).
+                        // arbetsgivar-filtrerat.
                         Employer: r.Employer,
                         // #551 PR-D (ADR 0087 D6-paritet): PR-B:s deferrade seam (Remote: false) ersatt —
                         // RecentJobSearch bär nu remote-kolumnen → en återbesökt distans-sökning räknar
@@ -130,7 +130,7 @@ public sealed class ListRecentSearchesQueryHandler(
             var label = DeriveLabel(
                 r.Q, r.OccupationGroup, occupationGroupLabels,
                 municipalityLabels, regionLabels, r.Remote,
-                employmentTypeLabels, worktimeExtentLabels, r.Employer.Count > 0,
+                employmentTypeLabels, worktimeExtentLabels,
                 occupationFields);
 
             dtos.Add(new RecentJobSearchDto(
@@ -173,7 +173,6 @@ public sealed class ListRecentSearchesQueryHandler(
         bool remote,
         IReadOnlyList<TaxonomyLabelDto> employmentTypeLabels,
         IReadOnlyList<TaxonomyLabelDto> worktimeExtentLabels,
-        bool hasEmployer,
         IReadOnlyList<TaxonomyOccupationFieldDto>? occupationFields)
     {
         if (!string.IsNullOrWhiteSpace(q))
@@ -193,9 +192,8 @@ public sealed class ListRecentSearchesQueryHandler(
         }
         if (municipalityLabels.Count > 0 || regionLabels.Count > 0 || remote)
             return DeriveOrtLabel(municipalityLabels, regionLabels, remote);
-        if (employmentTypeLabels.Count > 0 || worktimeExtentLabels.Count > 0 || hasEmployer)
-            return DeriveRefinementLabel(
-                employmentTypeLabels, worktimeExtentLabels, hasEmployer);
+        if (employmentTypeLabels.Count > 0 || worktimeExtentLabels.Count > 0)
+            return DeriveRefinementLabel(employmentTypeLabels, worktimeExtentLabels);
         return "Alla annonser";
     }
 
@@ -209,26 +207,18 @@ public sealed class ListRecentSearchesQueryHandler(
     // namnge bara en av dem beskriver en äkta ÖVERMÄNGD av vad klicket kör, spegelbilden av
     // det ort-fall DeriveOrtLabel finns för. Anropas bara när minst en del är satt — samma
     // call-site-invariant som WithMoreSuffix.
-    //
-    // Employer bidrar med en VÄRDEFRI etikett: org.nr:et är svarstext så snart det når labeln,
-    // och axeln hålls utanför projektionen på data-minimeringsgrund (ADR 0087 D8(c)).
-    // RecentJobSearchProjectionParityTests äger den grunden och namn-substitutionen som är
-    // dess öppna arm; det här är inte den.
     private static string DeriveRefinementLabel(
         IReadOnlyList<TaxonomyLabelDto> employmentTypeLabels,
-        IReadOnlyList<TaxonomyLabelDto> worktimeExtentLabels,
-        bool hasEmployer)
+        IReadOnlyList<TaxonomyLabelDto> worktimeExtentLabels)
     {
-        // Kanonisk filter-SPOT-ordning (JobAdFilterCriteria): anställningsform → omfattning →
-        // arbetsgivare. Per axel före fogningen — en hopslagen lista bryter "+N":s enhet,
-        // samma skäl som i DeriveOrtLabel.
-        var parts = new List<string>(3);
+        // Kanonisk filter-SPOT-ordning (JobAdFilterCriteria): anställningsform → omfattning.
+        // Per axel före fogningen — en hopslagen lista bryter "+N":s enhet, samma skäl som i
+        // DeriveOrtLabel.
+        var parts = new List<string>(2);
         if (employmentTypeLabels.Count > 0)
             parts.Add(WithMoreSuffix(employmentTypeLabels));
         if (worktimeExtentLabels.Count > 0)
             parts.Add(WithMoreSuffix(worktimeExtentLabels));
-        if (hasEmployer)
-            parts.Add("Vald arbetsgivare");
 
         return string.Join(", ", parts);
     }

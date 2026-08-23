@@ -60,7 +60,7 @@
       "onlyMatchedInert": "You have not stated which occupations you are looking for, so we cannot tell which ads match you. The filter is saved and takes effect once you have set up matching.",
       "onlyMatchedInertCta": "Set up matching",
       "ortHeading": "Locations in the ad",
-      "ortHelp": "The filter applies to the location in the ad, not the company's registered municipality. Choose regions or municipalities, or tick Distans. A region or municipality choice does not include ads without a location.",
+      "ortHelp": "The filter applies to the location in the ad, not the company's registered municipality. Choose regions or municipalities, or tick Remote. A region or municipality choice does not include ads without a location.",
       "clearAll": "Remove the filter",
       "save": "Save filter",
       "saving": "Saving…",

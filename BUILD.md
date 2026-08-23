@@ -147,7 +147,7 @@
 | Frontend | `pnpm dev` (localhost:3000) | Next.js `next start` co-tenant container på CAX31 (bakom Caddy) |
 | DNS / CDN / proxy | — | Cloudflare gratis-tier "Full (strict)" framför Caddy-origin på CAX31 |
 | Backup | — | Nattlig klient-side-krypterad `pg_dump` → **mål inte valt, ägs av [#197](https://github.com/klasolsson81/jobbliggaren/issues/197)** (kraven i §13.4) |
-| Logging / monitoring | console (MEL) + Seq (`Seq.Extensions.Logging`) | **Två mekanismer, inte en** (ADR 0128): Seq self-hosted på produktionslådan för sökbarhet (30 d retention — en policy som sätts för hand inne i Seq, det finns ingen miljövariabel för den), plus `jobbliggaren-logship` — timrad, `age`-krypterad off-box-arkivering av journal, auditd och app-loggar till OVH `hostlogs/`. Levererat i repot, ej installerat. Åldersgränsen för `json-file`-lagret är fortfarande öppen — [#1170](https://github.com/klasolsson81/jobbliggaren/issues/1170) |
+| Logging / monitoring | console (MEL) + Seq (`Seq.Extensions.Logging`) | **Två mekanismer, inte en** (ADR 0128): Seq self-hosted på produktionslådan för sökbarhet (retention **avsedd** — en policy som sätts för hand inne i Seq, det finns ingen miljövariabel för den; **varaktigheten och om policyn är satt på en given låda mäts båda i `docs/runbooks/log-sink.md` §4** och påstås inte här), plus `jobbliggaren-logship` — timrad, `age`-krypterad off-box-arkivering av journal, auditd och app-loggar till OVH `hostlogs/`. Levererat i repot, ej installerat. Åldersgränsen för `json-file`-lagret är fortfarande öppen — [#1170](https://github.com/klasolsson81/jobbliggaren/issues/1170) |
 | Errors | — | Sentry (EU) planerat |
 | CI | GitHub Actions (build + test + coverage, inga moln-anrop) | oförändrat |
 | IaC | `infra/terraform/` bevarad som reversibilitets-mekanik (ADR 0066 Beslut 1) | retireras via egen ADR vid Hetzner-cutover |
@@ -1487,14 +1487,22 @@ permanent infra aktiveras; listan nedan speglar **beslutad** uppsättning, ADR 0
     2026-08-11 når en syskoncontainer `seq:80` (200), eftersom containrar på samma user-defined
     bridge når varandra som default. Det som faktiskt håller är att query-API:t på 80 svarar
     **401** utan autentisering och att 5341 bär **404** på query-vägen: försvaret är autentisering,
-    inte topologi. Retention: en policy, 30 dagar.
+    inte topologi. Retention: en policy, satt **för hand** inne i Seq (`log-sink.md` §3 steg 7),
+    aldrig i konfiguration — Seq har ingen yta för den. **Varaktigheten står avsiktligt inte här:**
+    ett tal som bor på två ställen förfaller på det ena. Den, och om policyn *är* satt på en given
+    låda, är två mätningar på samma rad i `log-sink.md` §4.
   - **Varaktighet** — `jobbliggaren-logship`, timrad off-box-arkivering krypterad med `age` till en
     mottagare lådan inte kan dekryptera. Bär journal + auditd + app-loggar. Detta, och inte Seq, är
     kopian som är avsedd att överleva en root-angripare — **och den egenskapen är inte i kraft**
     förrän verifikationsrad 27d:s `Deny s3:DeleteObject` är applicerad.
-- **Tre lager håller app-events, och bara två är åldersbundna:** Seq (30 d), off-box-arkivet
-  (lifecycle-regel), och Dockers `json-file` som är **volymbunden och åldersobunden**
-  — [#1170](https://github.com/klasolsson81/jobbliggaren/issues/1170) stängs inte av detta
+- **Tre lager är TÄNKTA att hålla app-events, och de två åldersgränserna är mekanismer — inte
+  tillstånd:** Seq (en handsatt policy), off-box-arkivet (en lifecycle-regel), och Dockers
+  `json-file` som är **volymbunden och åldersobunden** och därför aldrig får en åldersgräns av sig
+  själv. Vilka av de tre som faktiskt bär något på en given låda, och vilka gränser som är i kraft
+  där, är en mätning med ett hem: `docs/runbooks/log-sink.md` §4. En tidigare formulering här
+  räknade Seq och arkivet som *åldersbundna* rakt av; det var ett påstående om driftläge som den
+  här filen inte kan bära — [#1170](https://github.com/klasolsson81/jobbliggaren/issues/1170)
+  stängs inte av detta
 - Log levels:
   - `Trace`/`Debug`: dev only
   - `Information`: normala request-flows (start/slut av handlers)

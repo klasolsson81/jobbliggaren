@@ -435,15 +435,18 @@ command, the report-only prompt, the verdict-table format and the label checklis
   (AES-256-GCM) for field encryption, and mail via `AddEmailSender`'s
   `Email:Provider` switch — **three** `IEmailSender` impls, not one:
   `ConsoleEmailSender` (Development/Test **only**; it logs the recipient address
-  and the whole body, confirmation and activation links included — the gate is
-  real recipients, not sink durability, since dev's Seq does persist that line.
-  **That sink is accepted on two conditions, and the second is a condition to
-  re-measure, never a standing fact.** (1) It is loopback-bound **and
-  admin-authenticated** (#1198). (2) It holds no real-user PII —
-  `ConsoleEmailSender` still logs the whole body, so the next dev registration
-  re-breaks it. Nothing re-measures condition 2 on a cadence;
-  [#1208](https://github.com/klasolsson81/jobbliggaren/issues/1208)
-  owns that gap),
+  and the whole body, confirmation and activation links included — **but only for a
+  recipient at a domain RFC 2606/6761 reserve**, i.e. one that cannot be a real
+  mailbox. Every other recipient gets a kind-only `Warning` and no body at all, so a
+  real address cannot put its activation link into dev's Seq (#1208). The rule lives at
+  `WriteEmail`, the one choke point every send method funnels through, as a set fixed in code
+  and never an `IOptions` value — anything settable at runtime can be widened to the domains
+  it excludes.
+  `ConsoleEmailSenderReservedRecipientTests` pins both arms, the `IEmailSender` arity,
+  and the set's exact membership. The sink is loopback-bound **and
+  admin-authenticated** on top of that (#1198). **The guard reaches the email-body path
+  and nothing else** — every other line written to the same sink is outside it, and
+  that residual is unmeasured),
   `NullEmailSender` (what `Provider=Console` falls back to outside Dev/Test),
   and `ScalewayEmailSender` (`Provider=Scaleway` — Scaleway Transactional Email in
   `fr-par` over the **HTTPS API, never SMTP**; fail-loud without

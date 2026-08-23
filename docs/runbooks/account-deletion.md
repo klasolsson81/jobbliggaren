@@ -90,12 +90,12 @@ Hangfire-jobb kör 04:00 UTC daily. Tre steg:
 Recurring job: `hard-delete-accounts`. Körtid varierar med antal mogna
 konton (typiskt < 1s/konto för Fas 1-volym).
 
-### 3.2 Strukturerad logg (Seq i dev / CloudWatch i prod)
+### 3.2 Strukturerad logg (Seq i dev och i prod)
 
 Filtrera på sourcecontext:
 
-- `JobbPilot.Application.Auth.Jobs.HardDeleteAccounts.HardDeleteAccountsJob`
-- `JobbPilot.Application.Auth.Commands.DeleteAccount.DeleteAccountCommandHandler`
+- `Jobbliggaren.Application.Auth.Jobs.HardDeleteAccounts.HardDeleteAccountsJob`
+- `Jobbliggaren.Application.Auth.Commands.DeleteAccount.DeleteAccountCommandHandler`
 
 Förväntade meddelanden vid lyckad körning (HardDeleteAccountsJob):
 
@@ -442,7 +442,7 @@ ingripande krävs.
 
 - **TD-16** (audit-retention + Art. 17) — del 1 stängd via STEG 10a, del 2 stängd via STEG 10b
 - **TD-21** — rate-limiting på DELETE /me + auth-endpoints (innan prod-deploy)
-- **TD-22** — app-logg-retention + IP/UA-redaction (innan prod-deploy)
+- **TD-22** → [#1170](https://github.com/klasolsson81/jobbliggaren/issues/1170) — app-logg-retention
 - **TD-23** — Redis MULTI/EXEC för CreateAsync atomicitet (Fas 2)
 - **TD-24** — DeleteAccountCommand cascade-paginering (Fas 4)
 - **TD-25** — HardDeleteAccountsJob per-konto try/catch (opportunistiskt)

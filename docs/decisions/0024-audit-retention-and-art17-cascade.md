@@ -336,7 +336,7 @@ Audit-tabellen anonymiseras via `IAuditTrailEraser` efter 30-dagars restore-fön
 
 Tre policyer:
 
-**1. App-logg-retention: 30 dagar (CloudWatch LogGroup retention).** — *se Amendment 2026-08-23: mekanismen revs av ADR 0066, efterträdaren är en handsatt Seq-policy utan konfigurationsyta, och talet är oförändrat. Den är inte satt på produktionslådan.*
+**1. App-logg-retention: 30 dagar (CloudWatch LogGroup retention).** — *se Amendment 2026-08-23 och 2026-08-23 (2): mekanismen revs av ADR 0066, efterträdaren är en handsatt Seq-policy utan konfigurationsyta, och talet är oförändrat.*
 
 Matchar Art. 17 restore-fönstret från D5/D6. Efter 30 dagar är användarens audit-rad anonymiserad och konton hard-deletad — då ska app-loggens IP/UA/EmailHash inte heller vara åtkomliga. Ren GDPR Art. 5(1)(c) data-minimisation-story.
 
@@ -368,7 +368,7 @@ Både `RequestContextProvider` och `AuthAuditLogger` injicerar `IIpAnonymizer`. 
 
 Defense-in-depth-motivering: retention-policy (1) skyddar inte mot logg-läckage *under* retention-fönstret. Ops-personal med CloudWatch-access kan korrelera under 30 dagar utan maskningen.
 
-**3. EmailHash → HMAC med roterande nyckel: defererat till Fas 2.** — *se Amendment 2026-08-23: deferralens motivering nedan vilar på policy 1, som saknar bärare. Deferralen återöppnas inte där, men beroendet är inte längre outtalat.*
+**3. EmailHash → HMAC med roterande nyckel: defererat till Fas 2.** — *se Amendment 2026-08-23 och 2026-08-23 (2): deferralens motivering nedan vilar på policy 1. Deferralen återöppnas inte där, men beroendet är inte längre outtalat.*
 
 `LoginCommandHandler.HashEmail` använder rå SHA-256 (deterministic). Samma email → samma hash över tid → korrelerbar. HMAC med roterande nyckel hade brutit korrelationen, men kräver KMS-integration + nyckel-arkiv för att verifiera historiska hashar (audit-paritet vid restore). Inte trivialt i Fas 1 — 30-dagars retention minimerar korrelations-fönstret tillräckligt.
 
@@ -774,3 +774,65 @@ ADR 0128 (the two-mechanism log-sink decision) and `docs/runbooks/gdpr-processin
 Additive amendment. Every prior amendment stands unaltered, and D7's three policies are unchanged in substance; the two forward pointers added at policies 1 and 3 follow ADR 0045's precedent, where the driven row was edited in the same PR as the amendment that drove it. Docs-sync ships in the same PR as scope (ADR 0065) — no docs-only PR.
 
 **Referenser:** #1170, #1175, #1198, ADR 0050 (G3), ADR 0066 (Beslut 1 + Relation), ADR 0072, ADR 0128 (gitignored), `docs/runbooks/log-sink.md` §3/§4, GDPR Art. 5(1)(c)/5(1)(e)/30, CLAUDE.md §5/§9.6/§11.
+
+---
+
+## Amendment 2026-08-23 (2) — D7 policy 1's successor step was taken; the amendment above is superseded at six named sites (#1170)
+
+**Datum:** 2026-08-23, later the same day as the amendment above
+**Källa:** #1170; the box-side run of `docs/runbooks/log-sink.md` §3, whose per-step results,
+instruments and controls live in that file's §4
+**Beslutsfattare:** Klas gave GO for the operator writes. This records a **state change, not a
+decision change** — every Delbeslut in D7 stands, and so does every prior amendment, unaltered.
+
+### Why this is appended and not an edit
+
+**Two amendments now carry the same date, so this one supersedes BY NAME and never by order.**
+The amendment above rests on a read-only measurement taken *before any step of §3 had run*, and
+every sentence in it was true then. It is therefore appended to rather than edited — this ADR
+carries six prior amendments, all appended, and says twice in its own text that every prior
+amendment stands unaltered.
+
+### The superseded sites
+
+| Superseded site | What it says | Measured 2026-08-23 after the run |
+|---|---|---|
+| §2, whole section | the successor *"has not been taken"*; no policy exists; §3 unrun | §3 ran, steps 1–9. Step 7: `POST /api/retentionpolicies` **201**, id `retentionpolicy-36`, `RetentionTime 30.00:00:00`, all events |
+| §3 · *D7 policy 1 itself* | *"Klas withheld GO for it in this session's scope. #1170 stays open on exactly that"* | Klas gave GO and the policy is set. **#1170 still does not close — but no longer on this ground.** It stays open on the `json-file` layer alone |
+| §3 · *D7 policy 3's rationale* | *"While policy 1 is unimplemented that justification is unsupported"* | Policy 1 is implemented, so the HMAC deferral's stated ground is supported again **for the Seq layer**. The deferral is still **not** re-opened, and the dependency is still recorded rather than settled |
+| §3 · *the `json-file` layer's age bound* | *"it is the only layer holding application events today"* | Two layers hold them now. `json-file` stays **age-unbounded by driver design**, which is why it alone carries the non-closure |
+| §3 · *ADR 0128 itself* | correction owed in the main copy; its §4 claim *"false in both halves"* | **Done, not owed:** ADR 0128 carries its own second dated amendment and the processing register's Seq row was rewritten, both the same day. **Both halves the base called false are still false** — two layers hold app events, not three (`hostlogs/` ships nothing), and *"only two are age-bounded"* still overstates, since **one** is. What changed is the parenthesis: *Seq (30-day policy)* is no longer the false part |
+| §3 · *D7 policy 2* | the retention-fails case *"is now the operative one rather than the hypothetical one"* | Hypothetical again for the Seq layer. `IIpAnonymizer` is unchanged and still defense-in-depth |
+
+### What is NOT superseded
+
+⛔ **The half a later reader is likeliest to get wrong.**
+**#1170 does not close.** The ground moved; it did not go. Docker's `json-file` layer is
+age-unbounded by driver design, and its number needs a write rate that does not exist until there
+are users — `log-sink.md` §5 owns that pointer. **An issue whose stated blocker has silently moved
+is one a later reader closes on the old reading**, which is why every row above quotes its old
+text instead of quietly replacing it.
+
+### The ordering is a property of the run, not of the procedure
+
+⚠ **This matters because the next operator inherits the procedure and not the run.** §3 step 8
+gives the order as prose and names the ingest key as its reason; it carries no retention gate. This
+session's run checked `GET /api/retentionpolicies` before attaching the provider — so the next
+operator, whom step 1's own note anticipates being sent through §3 again by a `docker volume rm
+seq_data`, inherits the order without that check. Adding the gate
+to §3 is a follow-up with its own change-reason: it would bind the **next** run, and could not make
+this one's mechanism claim true retroactively.
+
+### Discipline
+
+Additive amendment. The original text and all prior amendments stand unaltered — including the
+amendment above, whose every sentence was true on the read-only measurement it names and which is
+therefore superseded by name rather than rewritten. This amendment's sections are titled and not
+numbered, deliberately: the table above addresses the amendment above as §2 and §3, and a second
+numbering in the same block would give those references two referents.
+
+Docs-sync ships in the same PR as scope (ADR 0065) — no docs-only PR. The measurement this amendment records is
+dated and stands as provenance; the **live** question — whether a policy exists on the box today —
+has one home, `docs/runbooks/log-sink.md` §4, with its instrument and its controls.
+**Referenser:** #1170, ADR 0128 (gitignored) Amendment 2026-08-23 (second), `docs/runbooks/log-sink.md`
+§3/§4/§5, `docs/runbooks/gdpr-processing-register.md` (gitignored).

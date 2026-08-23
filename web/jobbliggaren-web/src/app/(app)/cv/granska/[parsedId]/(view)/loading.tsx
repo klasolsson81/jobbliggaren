@@ -6,12 +6,16 @@ import { PageHeroSkeleton } from "@/components/skeletons/page-hero-skeleton";
  * Suspense fallback for /cv/granska/[parsedId] (Fas 4 STEG B, F1). Next wraps page.tsx in a
  * <Suspense>; this paints while the parse fetch and the compute-on-demand review stream in.
  *
+ * Scoped to the `(view)` route group by #1385. Unscoped it also served `forbattra` and
+ * `komplettera`, two session-gated `notFound()` stubs — so once it rendered a real title it
+ * announced a page they never land. Same reason the hub sits in `(hub)`.
+ *
  * A spinner rather than a skeleton for the CONTENT (formless, known-slow wait, per the
  * spinner doctrine) — but the SHELL is known and paints immediately (#1062). Before this
  * change the fallback painted neither hero nor container, so the shell appeared only when the
  * stream landed.
  *
- * ⚠ It is NOT the same shape as /cv/loading.tsx, and an earlier revision of this docblock
+ * ⚠ It is NOT the same shape as the hub's fallback, and an earlier revision of this docblock
  * claimed it was. That precedent leads with its own `sr-only role="status"` and marks the
  * visual block `aria-hidden`; here the announce lives inside BrandSpinner instead, so the
  * markers sit in different places for the same effect.

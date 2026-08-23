@@ -8,11 +8,11 @@ import { PageHeroSkeleton } from "@/components/skeletons/page-hero-skeleton";
  *
  * Scoped to the `(hub)` route group by #1385, and the group is the fix rather than a
  * tidy-up: before it, this file was the fallback for the WHOLE `/cv` subtree except
- * `/cv/granska/[parsedId]/*`, so it painted the hub's three-card grid onto an upload
- * form and a review panel, and painted a hero plate onto four session-gated 404 stubs
- * that render none. A route group changes no URL, and it moves the boundary rather
- * than patching each leaf — so a future `/cv/**` route inherits the generic `(app)`
- * net, not the hub's shape.
+ * `/cv/granska/[parsedId]/*`, so it painted the hub's three-card grid onto a review
+ * panel, and painted a hero plate onto four session-gated 404 stubs that render none.
+ * A route group changes no URL, and it moves the boundary rather than patching each
+ * leaf — so a future `/cv/**` route inherits the generic `(app)` net, not the hub's
+ * shape.
  *
  * The hero renders the REAL title and lede rather than bars: they are static
  * translations, so the browser wraps them exactly as the loaded page does and the band

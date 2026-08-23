@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { createTranslator } from "next-intl";
-import svPages from "../../../../../../messages/sv/pages.json";
+import svPages from "../../../../../../../messages/sv/pages.json";
 import type { ParsedResumeDetailDto } from "@/lib/dto/parsed-resume";
 import CvReviewPage from "./page";
 

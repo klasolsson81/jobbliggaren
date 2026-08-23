@@ -4,8 +4,8 @@ import { PageHeroSkeleton } from "@/components/skeletons/page-hero-skeleton";
 /**
  * Route-level loading state for /cv/[id]/granska (#1385) — the canonical CV review.
  * Before this file the route inherited the CV hub's fallback, so a soft navigation
- * from a CV card painted the hub's title, its three-card grid and a two-button aside,
- * then landed a review panel with no aside and a different title. This is the
+ * from a CV card painted the hub's three-card grid and a two-button aside, then
+ * landed a review panel with neither. This is the
  * highest-traffic wrong-shape path in the issue: the review is reached from the hub's
  * own card (`components/resumes/resume-card.tsx`) and is NOT intercepted to a modal.
  *
@@ -37,7 +37,12 @@ export default function Loading() {
       />
 
       <div className="jp-container jp-page flex flex-col gap-6" aria-hidden="true">
-        <span className="jp-skeleton block h-8 w-40" />
+        {/* The bar sits INSIDE a real `.jp-backlink`, so the row's height comes from that
+            rule rather than from a class chosen here: the control is 32px at desktop and
+            44px under the touch floor, and a single height class can only match one of them. */}
+        <span className="jp-backlink self-start">
+          <span className="jp-skeleton block h-4 w-40" />
+        </span>
         <span className="jp-skeleton block h-5 w-56 max-w-full" />
 
         <section className="jp-cvreview">

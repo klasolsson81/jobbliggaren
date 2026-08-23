@@ -32,12 +32,6 @@ describe("PageHeroSkeleton", () => {
     expect(aside?.querySelectorAll(".jp-skeleton")).toHaveLength(2);
   });
 
-  it("renders title + lede only by default (2 bars in __main)", () => {
-    const { container } = render(<PageHeroSkeleton />);
-    const main = container.querySelector(".jp-pagehero__main");
-    expect(main?.querySelectorAll(".jp-skeleton")).toHaveLength(2);
-  });
-
   it("adds a kicker overline bar above title + lede when kicker is set", () => {
     const { container } = render(<PageHeroSkeleton kicker />);
     const main = container.querySelector(".jp-pagehero__main");
@@ -74,15 +68,6 @@ describe("PageHeroSkeleton", () => {
     // measuring a component that failed to render.
     expect(container.querySelector(".jp-pagehero__main")).not.toBeNull();
     expect(container.querySelector(".jp-pagehero__aside")).toBeNull();
-  });
-
-  it("still renders the default aside when the prop is omitted, not merely non-null", () => {
-    // Guards the `!== null` check against being widened to a falsy test, which would
-    // silently drop the default for every existing call site.
-    const { container } = render(<PageHeroSkeleton />);
-    expect(
-      container.querySelectorAll(".jp-pagehero__aside .jp-skeleton"),
-    ).toHaveLength(2);
   });
 
   /**

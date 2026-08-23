@@ -1978,9 +1978,9 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
       språken. Skopa till **`privacy.updated`** — filen har fem `updated`-nycklar
       (privacy/terms/cookies/accessibility/recruiterNotice).
 - [ ] **5.5 TVÅ VILLKOR SOM UPPHÖR VID FÖRSTA PRODUKTIONSANVÄNDAREN — de hör HÄR, inte i
-      §2.5.** Riskaccepten som togs när registreringsgrinden öppnades 2026-08-16 är **bunden till
-      besökets två konton**, båda hållna av den personuppgiftsansvarige själv, och den täcker
-      **registreringsgrinden — inte villkoren nedan**.
+      §2.5.** Riskaccepten är **bunden till besökets två konton**, båda hållna av den
+      personuppgiftsansvarige själv, och den täcker **registreringsgrinden — inte villkoren
+      nedan**.
       **Triggern är den första konfiguration utanför `Development` som
       sätter `Auth:RegistrationsOpen=true` — oavsett tagg, och `Test` räknas som utanför.**
       (Den tekniska spärren nedan undantar både `Development` och `Test`; den här grinden gör

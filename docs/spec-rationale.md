@@ -127,8 +127,9 @@ nobody read the line.
 was purely structural — the runbook's "När" section carried zero state words, so a
 state no reviewer had ever SEEN could ship reviewed. The measured instance: RegisterForm's
 registrationsClosed panel existed in zero captures, zero visual-verify runs, zero reflow
-sweeps — its unit tests asserted the string, and a string assertion cannot see an emptied
-page. The 2026-08-24 mapping session then rendered 61 such states and the rendering
+sweeps. The 2026-08-24 mapping session then rendered the class wholesale (adjudicated in
+`docs/research/2026-08-24-error-surface-matrix.md`, 2026-08-24, local-only per ADR 0072)
+and the rendering
 overturned trace-level claims twice (a focus-to-field claim refuted on both arms of one
 card; a Radix-Select survival question the source could not answer resolved to
 "destroyed") — the gap was live, not theoretical.

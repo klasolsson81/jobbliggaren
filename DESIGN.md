@@ -262,7 +262,7 @@ inför guldet och bär ingen sådan regel). Brand-signalen är den gröna
 
 Design-compliance verifieras av `design-reviewer`-agenten vid varje frontend-diff. Hennes auktoritet är denna fil + skills-detaljerna. Hon har veto-makt på design-frågor — ingen MVP-dispens, inget konsensus-override.
 
-Ett designverdikt över en yta vars icke-vilotillstånd (fel, vägran, tomläge, laddning) ingår i deltat fälls mot rendering av de tillstånden, inte mot diffen ensam (AGENTS.md §8 punkt 4; trigger och kostnadsgräns i `docs/runbooks/frontend-visual-verification.md`).
+Ett designverdikt över en yta vars icke-vilotillstånd (fel, vägran, kvittens/utfall, tomläge, laddning) ingår i deltat fälls mot rendering av de tillstånden, inte mot diffen ensam. Saknas renderingen är verdiktet inte godkänt — det är återremiss tills tillståndet renderats. Ingen MVP-dispens. (AGENTS.md §8 punkt 4; trigger, kostnadsgräns och mekanik i `docs/runbooks/frontend-visual-verification.md`.)
 
 ---
 

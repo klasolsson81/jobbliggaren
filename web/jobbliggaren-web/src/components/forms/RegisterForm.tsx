@@ -7,7 +7,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/forms/PasswordInput";
 import { AcceptTermsCheckbox } from "@/components/forms/AcceptTermsCheckbox";
-import { RememberMeCheckbox } from "@/components/forms/RememberMeCheckbox";
 import { ResendConfirmationButton } from "@/components/auth/ResendConfirmationButton";
 import { registerAction, type AuthActionState } from "@/lib/auth/actions";
 
@@ -167,11 +166,6 @@ export function RegisterForm() {
           {t("auth.register.passwordHint")}
         </p>
       </div>
-
-      <RememberMeCheckbox
-        label={t("auth.register.rememberMeLabel")}
-        hint={t("auth.register.rememberMeHint")}
-      />
 
       <AcceptTermsCheckbox
         ref={acceptTermsRef}

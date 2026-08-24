@@ -15,7 +15,7 @@ export default function GlomtLosenordPage() {
     <div className="flex flex-col gap-8">
       {/* h1 only. The instruction lives inside the form branch so it unmounts with the field it
           describes — a page-level intro survives into the sent and refused panels and contradicts
-          them. Same shape as /logga-in and /registrera, which put only the brand line here. */}
+          them. */}
       <h1 className="text-h1 font-bold text-heading-1">
         {t("auth.forgotPassword.title")}
       </h1>

@@ -74,6 +74,13 @@ describe("LoginForm", () => {
     expect(checkbox).toHaveAttribute("name", "rememberMe");
   });
 
+  it("carries no explanation under the checkbox (#1478)", () => {
+    render(<LoginForm />);
+    const checkbox = screen.getByRole("checkbox", { name: "Håll mig inloggad" });
+    expect(checkbox).not.toHaveAttribute("aria-describedby");
+    expect(screen.queryByText(/180 dagar/)).toBeNull();
+  });
+
   it("does not post rememberMe when the box stays unticked", async () => {
     const user = userEvent.setup();
     render(<LoginForm />);

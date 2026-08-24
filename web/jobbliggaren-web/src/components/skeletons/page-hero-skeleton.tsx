@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { ReactElement } from "react";
 
 /**
  * Skeleton for the shared `.jp-pagehero` band (#739 — route-level loading
@@ -30,8 +30,7 @@ import type { ReactNode } from "react";
  * `loading.tsx` (an sr-only `role="status"`), so the visual shape stays
  * decorative. Sync RSC (no interactivity).
  *
- * `aside` overrides the right-hand block for pages whose header aside is not two
- * buttons (e.g. Översikt renders a card there); **`null` renders no `__aside` element at
+ * **`null` renders no `__aside` element at
  * all**, which an empty node cannot do — `.jp-pagehero__inner` is a wrapping flex row, so
  * an empty aside costs nothing beside `__main` but takes a whole line plus the row `gap`
  * once it wraps, and the band then over-reserves at exactly the narrow widths a hero with
@@ -39,14 +38,35 @@ import type { ReactNode } from "react";
  * Översikt renders above its title (`.jp-pagehero__kicker`), so the band height
  * matches on those pages (the plate is `align-items: flex-start`, so a missing
  * row would let the band grow on swap).
+ *
+ * `stacked` carries the page's aside MODIFIER, which children alone cannot substitute for
+ * (#1467): `.jp-pagehero__aside--stacked` sets `flex-direction: column` and, under
+ * `@media (max-width: 720px)`, `width: 100%` + `align-items: stretch`. A fallback that
+ * passes stacked rows into the unmodified base class lays them out as a wrapping ROW at
+ * every width, so the band disagrees with the page by a whole row —
+ * `ansokningar/loading.tsx` records what that cost when it did not.
+ *
+ * It is a boolean rather than a class-name string because the modifier space is ONE:
+ * `--stacked` is the only `__aside` modifier in `globals.css`, scoped there to this one
+ * hero. A string would model a binary structural choice as free text and hand a caller
+ * one of the envelope class names the component otherwise spells itself — `kicker` is the
+ * same shape for the same reason.
+ *
+ * `aside` is REQUIRED, and `null` is how a page says it renders none. There is no default
+ * aside: the component cannot know what a page it has never seen puts there, and the one
+ * consumer that used to take the default renders no aside at all (#1490).
  */
 export function PageHeroSkeleton({
   aside,
+  stacked = false,
   kicker = false,
   title,
   lede,
 }: {
-  aside?: ReactNode;
+  /** The page's aside content, or `null` where the page renders no aside element. */
+  aside: ReactElement | null;
+  /** Set where the page composes `.jp-pagehero__aside--stacked` on its aside. */
+  stacked?: boolean;
   kicker?: boolean;
   /** The page's real title. Given, it is rendered instead of the title bar. */
   title?: string;
@@ -70,13 +90,14 @@ export function PageHeroSkeleton({
           )}
         </div>
         {aside !== null && (
-          <div className="jp-pagehero__aside">
-            {aside ?? (
-              <>
-                <span className="jp-skeleton block h-10 w-32" />
-                <span className="jp-skeleton block h-10 w-28" />
-              </>
-            )}
+          <div
+            className={
+              stacked
+                ? "jp-pagehero__aside jp-pagehero__aside--stacked"
+                : "jp-pagehero__aside"
+            }
+          >
+            {aside}
           </div>
         )}
       </div>

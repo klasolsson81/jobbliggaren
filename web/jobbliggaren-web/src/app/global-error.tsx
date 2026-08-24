@@ -1,6 +1,7 @@
 "use client";
 
 import { NextIntlClientProvider, useTranslations } from "next-intl";
+import { useFocusOnMount } from "@/lib/hooks/use-focus-on-mount";
 import svFallback from "../../messages/sv/fallback.json";
 import svMetadata from "../../messages/sv/metadata.json";
 // global-error REPLACES the root layout (it renders its own <html>/<body>), so
@@ -35,13 +36,14 @@ function GlobalErrorSurface({
   unstable_retry: () => void;
 }) {
   const t = useTranslations("fallback");
+  const headingRef = useFocusOnMount<HTMLHeadingElement>();
 
   return (
     // min-h-[60vh] + justify-center mirrors the root not-found: this renders
     // chrome-less (no header/footer), so the copy needs a height floor rather
     // than gluing to the top edge. Layout utility, not a locked design token.
     <main className="jp-container jp-page flex min-h-[60vh] flex-col justify-center gap-4">
-      <h1 className="jp-h1">{t("errorTitle")}</h1>
+      <h1 ref={headingRef} tabIndex={-1} className="jp-h1">{t("errorTitle")}</h1>
       <p className="jp-lede">{t("errorBodyRetry")}</p>
       <div className="flex flex-wrap gap-3">
         {/* unstable_retry() re-fetches and re-renders (the documented Next 16.2+

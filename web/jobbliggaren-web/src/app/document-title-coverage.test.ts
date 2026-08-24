@@ -2,6 +2,7 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
+import { metadataBlock } from "@/test/metadata-source";
 
 /**
  * Fitness function for repo-wide document-title coverage (WCAG 2.4.2, level A).
@@ -66,36 +67,6 @@ function pageFiles(dir: string, acc: string[] = []): string[] {
     }
   }
   return acc;
-}
-
-/**
- * The source of the file's metadata export, and nothing else.
- *
- * Scoping matters more than it looks. A `title:` ANYWHERE in the file — an
- * `ErrorShell({ title, body })` helper's prop type, a DTO mapping, a section lookup —
- * would satisfy a file-wide search, and pages do carry such a `title:` outside their
- * metadata. A file-wide predicate therefore passes them with
- * the metadata title removed, which is precisely the defect this test exists to catch:
- * three `(auth)` pages really did export `metadata` for `robots`/`referrer` and no
- * title at all.
- *
- * The block ends at the first line that closes at column zero (`}` or `};`), which is
- * what the repo's formatting guarantees for a top-level export and what makes this a
- * scan rather than a parser.
- */
-function metadataBlock(source: string): string | null {
-  const lines = source.split(/\r?\n/);
-  const start = lines.findIndex((line) =>
-    /^export (?:const metadata\b|(?:async )?function generateMetadata\b)/.test(line)
-  );
-  if (start === -1) return null;
-
-  const end = lines.findIndex(
-    (line, index) => index > start && /^\};?$/.test(line)
-  );
-  if (end === -1) return null;
-
-  return lines.slice(start, end + 1).join("\n");
 }
 
 /**

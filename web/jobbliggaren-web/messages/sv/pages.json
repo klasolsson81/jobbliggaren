@@ -2,17 +2,8 @@
   "common": {
     "rateLimitedTitle": "För många förfrågningar",
     "rateLimitedBody": "Du har gjort för många förfrågningar på kort tid. Försök igen om {seconds, plural, one {# sekund} other {# sekunder}}.",
-    "errorTitle": "Något gick fel",
     "errorBodyReload": "Ett tekniskt fel uppstod. Försök ladda om sidan om en stund.",
-    "errorBodyRetry": "Ett tekniskt fel uppstod. Försök igen om en stund.",
-    "retry": "Försök igen",
-    "back": "Tillbaka",
-    "notFound": {
-      "title": "Sidan finns inte",
-      "body": "Adressen kan vara felstavad eller så har sidan tagits bort.",
-      "toOverview": "Till översikten",
-      "toStart": "Till startsidan"
-    }
+    "back": "Tillbaka"
   },
   "layout": {
     "skipToContent": "Hoppa till huvudinnehåll"
@@ -434,6 +425,7 @@
     "profileLoadError": "Profilen kunde inte hämtas just nu. Försök ladda om sidan om en stund."
   },
   "auth": {
+    "backToStart": "Till startsidan",
     "showPassword": "Visa lösenord",
     "hidePassword": "Dölj lösenord",
     "showPasswordNamed": "Visa {field}",

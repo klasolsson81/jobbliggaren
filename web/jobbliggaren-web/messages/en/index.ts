@@ -12,6 +12,7 @@ import contentLegal from "./content-legal.json";
 import contentMatchning from "./content-matchning.json";
 import contentTips from "./content-tips.json";
 import errors from "./errors.json";
+import fallback from "./fallback.json";
 import guest from "./guest.json";
 import jobads from "./jobads.json";
 import landing from "./landing.json";
@@ -36,6 +37,7 @@ const messages = {
   "content-matchning": contentMatchning,
   "content-tips": contentTips,
   errors,
+  fallback,
   guest,
   jobads,
   landing,

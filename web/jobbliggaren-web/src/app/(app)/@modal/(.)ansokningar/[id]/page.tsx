@@ -41,6 +41,7 @@ export default async function InterceptedAnsokanModal({ params }: PageProps) {
   if (!user) redirect("/logga-in");
 
   const t = await getTranslations("pages");
+  const tf = await getTranslations("fallback");
   const format = await getFormatter();
   const { id } = await params;
   const result = await getApplicationById(id);
@@ -137,7 +138,7 @@ export default async function InterceptedAnsokanModal({ params }: PageProps) {
         >
           <div className="jp-modal__body">
             <p id="jp-modal-desc" className="text-body-sm text-text-primary">
-              {t("common.errorBodyRetry")}
+              {tf("errorBodyRetry")}
             </p>
           </div>
         </ApplicationModalShell>

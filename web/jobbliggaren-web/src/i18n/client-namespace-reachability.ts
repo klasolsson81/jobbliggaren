@@ -4,9 +4,9 @@
  *
  * A `NextIntlClientProvider` payload is a property of the PROVIDER BOUNDARY —
  * the provider call site plus the route subtree it wraps — not of a route
- * group: `(marketing)`'s layout carries no chrome and exists only to own this
- * payload, and `(guest)`'s provider sits at `(guest)/gast/layout.tsx` — so
- * "route group" does not name the unit.
+ * group: `(guest)`'s provider sits at `(guest)/gast/layout.tsx`, and
+ * `app/not-found.tsx` is a boundary of exactly one file — so "route group"
+ * does not name the unit.
  *
  * For a boundary `b`, `requiredNamespaces(b)` is computed as:
  *   entries(b)  = every `.ts`/`.tsx` source file in b's own subtree (parallel

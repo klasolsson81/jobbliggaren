@@ -43,7 +43,7 @@ import { type LandingStats } from "@/components/landing/landing-stats-format";
  * must NOT render a second one.
  *
  * Sync RSC: `useTranslations`/`useFormatter` resolve synchronously. Stats arrive
- * as a prop from the async page's server-fetch (`getLandingStats`, ADR 0064), so
+ * as a prop from the async layout's server-fetch (`getLandingStats`, ADR 0064), so
  * the header stays renderable in tests without mocking the API.
  */
 export function SiteHeader({

@@ -19,13 +19,23 @@ describe("global-error boundary (#995)", () => {
     render(<GlobalError error={rootError} unstable_retry={() => {}} />);
 
     expect(
-      screen.getByRole("heading", { name: "Något gick fel" }),
+      screen.getByRole("heading", { name: "Sidan kunde inte visas" }),
     ).toBeInTheDocument();
     expect(
-      screen.getByText("Ett tekniskt fel uppstod. Försök igen om en stund."),
+      screen.getByText(
+        "Ett tekniskt fel uppstod när innehållet skulle hämtas. Försök igen om en stund.",
+      ),
     ).toBeInTheDocument();
     expect(screen.queryByText(/root-layout-crash/)).not.toBeInTheDocument();
     expect(screen.queryByText(/digest-abc/)).not.toBeInTheDocument();
+  });
+
+  it("names the site in the tab title, which Next's title.template cannot reach here", () => {
+    render(<GlobalError error={rootError} unstable_retry={() => {}} />);
+
+    // React hoists <title> into document.head. Bites on revert: dropping the
+    // template composition leaves the tab without the site name.
+    expect(document.title).toBe("Sidan kunde inte visas | Jobbliggaren");
   });
 
   it("offers a way back to the start page", () => {

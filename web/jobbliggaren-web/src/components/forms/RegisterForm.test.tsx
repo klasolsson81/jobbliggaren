@@ -408,8 +408,7 @@ describe("RegisterForm", () => {
 
   it("wires aria-invalid, aria-describedby and focus when the password is refused as breached", async () => {
     // A breached password is a refusal about ONE field, fixed by changing it — the same wiring
-    // reset-password gives the identical refusal. Before, it landed on <body> like any nameless
-    // failure, leaving the user with a message and no caret near the field it is about.
+    // reset-password gives the identical refusal.
     registerActionMock.mockResolvedValue({
       error: "Lösenordet finns i kända läckor. Välj ett annat.",
       field: "password",

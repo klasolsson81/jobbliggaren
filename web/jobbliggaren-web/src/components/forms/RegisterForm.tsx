@@ -32,7 +32,7 @@ export function RegisterForm() {
   // A breached password is a refusal about ONE field, fixed by changing that field — the same
   // wiring `reset-password` gives the identical refusal on its own form.
   const passwordInvalid = state?.error !== undefined && state.field === "password";
-  // A failure that names no field — a breached password, an unreachable server, a validator
+  // A failure that names no field — an unreachable server, a validator
   // message from the backend. There is no input to send the caret to, and the submit button the
   // user pressed is disabled during the action, so focus lands on <body> and the next Tab starts
   // over at the skip link. The message itself is the only honest target.

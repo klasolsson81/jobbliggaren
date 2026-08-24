@@ -178,8 +178,8 @@ export function AddFollowUpForm({
               nativeValidity false, the message "Please select an item in the list." in the
               BROWSER's locale rather than Swedish, and focus moved to the hidden select. The zod
               refusal below never ran. Dropping it makes that refusal the reachable gate, in
-              Swedish, bound to the visible trigger. The date and note inputs keep theirs — they
-              are real, visible controls whose native bubbles anchor correctly. */}
+              Swedish, bound to the visible trigger. The date input keeps its required — it is
+              a real, visible control whose native bubble anchors correctly. */}
           <Controller
             control={control}
             name="channel"
@@ -191,10 +191,11 @@ export function AddFollowUpForm({
                 disabled={isPending}
               >
                 <SelectTrigger
-                  id="follow-up-channel"
+                  id={FIELD_ELEMENT_IDS.channel}
                   className="w-full"
                   ref={field.ref}
                   onBlur={field.onBlur}
+                  aria-required="true"
                   {...fieldA11y("channel")}
                 >
                   <SelectValue placeholder={tUi("addFollowUp.channelPlaceholder")} />
@@ -213,7 +214,7 @@ export function AddFollowUpForm({
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="follow-up-date">{tUi("addFollowUp.dateLabel")}</Label>
           <Input
-            id="follow-up-date"
+            id={FIELD_ELEMENT_IDS.scheduledAt}
             type="datetime-local"
             required
             disabled={isPending}
@@ -227,7 +228,7 @@ export function AddFollowUpForm({
         {/* The hint is kept alongside the error rather than replaced by it — the length cap it
             states is exactly what the refusal is about. */}
         <Textarea
-          id="follow-up-note"
+          id={FIELD_ELEMENT_IDS.note}
           rows={2}
           aria-invalid={error?.field === "note" ? true : undefined}
           aria-describedby={

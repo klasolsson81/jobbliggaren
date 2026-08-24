@@ -52,15 +52,18 @@ vi.mock("@/components/ui/select", () => ({
     id,
     "aria-invalid": ariaInvalid,
     "aria-describedby": ariaDescribedBy,
+    "aria-required": ariaRequired,
   }: {
     id?: string;
     "aria-invalid"?: boolean;
     "aria-describedby"?: string;
+    "aria-required"?: boolean | "true" | "false";
   }) => (
     <select
       id={id}
       aria-invalid={ariaInvalid}
       aria-describedby={ariaDescribedBy}
+      aria-required={ariaRequired}
       onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
         selectOnValueChange(e.target.value)
       }
@@ -162,6 +165,10 @@ describe("AddFollowUpForm", () => {
     expect(trigger).toHaveAttribute("aria-invalid", "true");
     expect(trigger.getAttribute("aria-describedby")).toBe(alert.id);
     await waitFor(() => expect(trigger).toHaveFocus());
+
+    // Dropping native `required` (the unreachable-gate fix) must not silence the requiredness
+    // channel entirely: the visible trigger carries it as aria-required (a11y skill §5).
+    expect(trigger).toHaveAttribute("aria-required", "true");
   });
 
   it("clears the form on a successful save, and only then", async () => {

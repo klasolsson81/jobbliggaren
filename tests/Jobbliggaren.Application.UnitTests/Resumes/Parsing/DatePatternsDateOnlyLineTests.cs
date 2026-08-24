@@ -34,8 +34,8 @@ namespace Jobbliggaren.Application.UnitTests.Resumes.Parsing;
 /// replacement that paragraph asked for, not an edit to keep a fixture green. <b>The fourth,
 /// <c>YYYY/MM</c>, passed for exactly one commit and was taken back OUT</b> (round 5): it collided
 /// with the Swedish läsår notation and a mixed-endpoint form of it stored a value neither engine
-/// could read. It stays negative here — origin/main's own answer — and lives in
-/// <c>DateRangeYearFirstCharacterisationTests</c>, which owns the year-first grammar.</para>
+/// could read. It lives in <c>DateRangeYearFirstCharacterisationTests</c>, which owns the
+/// year-first grammar.</para>
 ///
 /// <para><b>The surviving three sit in TWO theories, and the split is the design made visible.</b>
 /// The month-name POINT form is matched by <c>DateRange</c>, whose match value
@@ -145,8 +145,7 @@ public class DatePatternsDateOnlyLineTests
     [InlineData("2020 –", "a keyword-less open end: a dangling range separator in the TAIL")]
     // YYYY/MM ("2020/01 – 2024/12") passed through this theory for one commit (Klas-direktiv
     // 2026-08-03) and was taken back OUT of it in round 5: the year-first SLASH notation is a YEAR
-    // PAIR in Swedish — a läsår — and DateRange no longer models it on EITHER endpoint, so the line
-    // is not date-only at all now (origin/main's answer). That form lives in
+    // PAIR in Swedish — a läsår — and DateRange models it on NEITHER endpoint. That form lives in
     // DateRangeYearFirstCharacterisationTests with the rest of the year-first grammar, not here —
     // the same cross-reference pattern "13/2020 – 2024" uses below, for the same reason: that table
     // is indexed by the grammar's own axes.

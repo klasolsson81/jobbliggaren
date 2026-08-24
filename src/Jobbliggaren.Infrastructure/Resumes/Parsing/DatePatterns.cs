@@ -54,11 +54,11 @@ internal static partial class DatePatterns
     //   MM/YYYY          the slash-written month-first form
     //   YYYY             a bare year
     //
-    // YYYY/MM (the slash-written YEAR-FIRST form, "2020/01") is DELIBERATELY NOT a point form here,
-    // and it is a decision this file made twice. Road 3 briefly modelled it (commit 2) and then
-    // un-modelled it (round 5, this restore) — see the note below and
-    // DateRangeYearFirstCharacterisationTests for why: it collides with the Swedish läsår notation
-    // and this file has no authority to read it as a month.
+    // YYYY/MM (the slash-written YEAR-FIRST form, "2020/01") is DELIBERATELY NOT a point form in
+    // THIS alternation — it IS one in the row grammar below, and keeping the two apart is ADR 0136.
+    // Road 3 briefly modelled it here (commit 2) and then un-modelled it (round 5) — see the note
+    // below and DateRangeYearFirstCharacterisationTests for why: it collides with the Swedish läsår
+    // notation and no home has authority to read it as a month.
     //
     // THE POINT FRAGMENT IS SHARED WITH PeriodParser AND THAT IS LOAD-BEARING, not tidiness. This
     // regex's match VALUE is what HeadingDrivenResumeSegmenter.ExtractPeriod STORES as
@@ -102,8 +102,8 @@ internal static partial class DatePatterns
     // stored as a working bare-year degradation. Round 5 removed the slash branch from BOTH point
     // lists, so YYYY/MM is now read as a month by NEITHER home — origin/main's behaviour, restored
     // rather than repaired. See DateRangeYearFirstCharacterisationTests, which pins the collision, the
-    // per-commit attribution, and this resolution; the open question of whether the slash form should
-    // be RECOGNISED-but-undated is routed to #1195.
+    // per-commit attribution, and this resolution. The form IS recognised as a date ROW, by
+    // DateRowRange below and by nothing in this alternation — ADR 0136 owns why the two are separate.
     //
     // `\d{2}/\d{4}` IS DELIBERATELY NOT NARROWED, and the reason is the contract, not convenience.
     // It stands in no prefix relation to any other alternative — strings matching it open with two
@@ -112,15 +112,14 @@ internal static partial class DatePatterns
     // sub-span. Narrowing it would leave a "13/" residue instead of degrading, which flips
     // IsDateOnlyLine false and hands the date row back to the Organization slot — the β-3 class this
     // lane just closed. It stays as a documented axis with its own frozen pin.
-    [GeneratedRegex(
-        @"\b(" + StartPoint + @")\s*[-–—]\s*(" + EndPoint + "|" + CvMonthNames.PresentKeywords + @")\b",
-        RegexOptions.CultureInvariant | RegexOptions.IgnoreCase)]
+    [GeneratedRegex(RangeOpen + StartPoint + RangeMiddle + EndPoint + RangeClose, RangeOptions)]
     public static partial Regex DateRange();
 
-    // THE TWO POINT LISTS DIFFER BY EXACTLY ONE TOKEN, AND THE DELTA IS THE CONTRACT.
-    // `DateRangeYearFirstCharacterisationTests` asserts they are token-identical except at that
-    // position, so the divergence cannot widen silently and a future alternative added to the shared
-    // fragments lands in both.
+    // THE FOUR POINT LISTS ARE A 2x2 OVER TWO ONE-TOKEN DELTAS, AND THE DELTAS ARE THE CONTRACT:
+    // {START, END} x {value grammar, row grammar}, differing on the hyphen month class and on the
+    // slash point. `DateRangeYearFirstCharacterisationTests.TheFourPointLists_…` asserts all four
+    // byte-identical apart from those two substitutions, so no divergence can widen silently and a
+    // future alternative added to the shared fragments lands in all four.
     //
     // WHY THE START LIST KEEPS THE LOOSE `\d{4}-\d{2}` WHILE THE END LIST DOES NOT. Structural
     // exactness exists to COMPLETE prefix-order, so it is required exactly where prefix-order
@@ -158,19 +157,65 @@ internal static partial class DatePatterns
     private const string SharedPointHead =
         CvMonthNames.Pattern + CvMonthNames.AfterName + @"\d{4}";
 
-    private const string SharedPointTail = @"|\d{2}/\d{4}|\d{4})";
+    private const string RangeOpen = @"\b(";
 
-    private const string StartPoint = "(?:" + SharedPointHead + @"|\d{4}-\d{2}" + SharedPointTail;
+    private const string RangeMiddle = @")\s*[-–—]\s*(";
 
-    private const string EndPoint =
-        "(?:" + SharedPointHead + @"|\d{4}-(?:0[1-9]|1[0-2])" + SharedPointTail;
+    private const string RangeClose = "|" + CvMonthNames.PresentKeywords + @")\b";
 
-    // Exposed for the delta correspondence test only. The two lists are a contract, and a contract
-    // nothing can read is a comment; DateRangeYearFirstCharacterisationTests asserts they are
-    // token-identical except at the one position named above.
+    private const RegexOptions RangeOptions = RegexOptions.CultureInvariant | RegexOptions.IgnoreCase;
+
+    private const string PointOpen = "(?:";
+
+    private const string LooseHyphenPoint = @"|\d{4}-\d{2}";
+
+    private const string ExactHyphenPoint = @"|\d{4}-(?:0[1-9]|1[0-2])";
+
+    // The year-first SLASH point, and it is a member of the LINE lists ONLY (ADR 0136).
+    private const string SlashPoint = @"|\d{4}/\d{2}";
+
+    private const string SharedPointTailHead = @"|\d{2}/\d{4}";
+
+    private const string SharedPointTailFoot = @"|\d{4})";
+
+    private const string SharedPointTail = SharedPointTailHead + SharedPointTailFoot;
+
+    // Prefix-order: SlashPoint precedes the bare `\d{4}` it is a prefix of, per the contract above.
+    private const string LinePointTail = SharedPointTailHead + SlashPoint + SharedPointTailFoot;
+
+    private const string StartPoint = PointOpen + SharedPointHead + LooseHyphenPoint + SharedPointTail;
+
+    private const string EndPoint = PointOpen + SharedPointHead + ExactHyphenPoint + SharedPointTail;
+
+    private const string LineStartPoint = PointOpen + SharedPointHead + LooseHyphenPoint + LinePointTail;
+
+    private const string LineEndPoint = PointOpen + SharedPointHead + ExactHyphenPoint + LinePointTail;
+
+    // THE ROW GRAMMAR. Same shape as DateRange, one point form wider, and it NEVER produces a
+    // stored value — read by StripTrailingDate, StripDates and IsUnreadableDateRow, all of which
+    // answer a LINE or MASK question. ADR 0136 owns why the two grammars are separate.
+    //
+    // THE RANGE SKELETON IS SHARED WITH DateRange AND THAT IS THE SYNC MECHANISM, not tidiness.
+    // The two grammars must stay in the relation "row recognises everything value recognises, plus
+    // the slash point"; only the POINT LISTS may differ, and TheFourPointLists_… pins that they
+    // differ by exactly the two permitted deltas. It cannot see the skeleton, so a skeleton written
+    // twice could diverge with that test green — widening DateRange's separator class alone
+    // ("till"/"to", which PeriodParser already accepts) would break the superset silently and
+    // reopen beta-3. Composing both from one set of constants removes the second copy instead of
+    // pinning it.
+    [GeneratedRegex(RangeOpen + LineStartPoint + RangeMiddle + LineEndPoint + RangeClose, RangeOptions)]
+    private static partial Regex DateRowRange();
+
+    // Exposed for the delta correspondence test only. The four lists are a 2x2 over two orthogonal
+    // one-token deltas, and a contract nothing can read is a comment;
+    // DateRangeYearFirstCharacterisationTests asserts both deltas in both directions.
     internal const string StartPointForTests = StartPoint;
 
     internal const string EndPointForTests = EndPoint;
+
+    internal const string LineStartPointForTests = LineStartPoint;
+
+    internal const string LineEndPointForTests = LineEndPoint;
 
     // A bare four-digit year 1900–2099.
     [GeneratedRegex(@"\b(19|20)\d{2}\b", RegexOptions.CultureInvariant)]
@@ -180,9 +225,18 @@ internal static partial class DatePatterns
     /// Replaces every date range and bare year in <paramref name="text"/> with a space, so a
     /// downstream digit test cannot mistake an employment date for a quantified result (#487).
     /// Ranges are masked before bare years so a range's inner years are consumed with the range.
+    ///
+    /// <para>Masking is a LINE/MASK question, never a VALUE one — nothing here is stored — so it
+    /// reads the ROW grammar, the same one <see cref="StripTrailingDate"/> reads (ADR 0136). Before
+    /// #1195 it read <see cref="DateRange"/>, which left a year-first slash range's digits unmasked
+    /// inside a prose bullet: the same §5 cited-evidence inversion the line-level suppression
+    /// closes, one altitude down. The row grammar's year class is unbounded, so a bullet whose only
+    /// digits are <c>NNNN/NN – NNNN</c> masks whole whatever those digits mean — a priced widening
+    /// of the residual the bare <c>\d{4} – \d{4}</c> already carries; read the <c>InlineData</c> in
+    /// <c>DateRangeYearFirstCharacterisationTests.StripDates_MasksASlashRangeInsideProse</c>.</para>
     /// </summary>
     public static string StripDates(string text) =>
-        Year().Replace(DateRange().Replace(text, " "), " ");
+        Year().Replace(DateRowRange().Replace(text, " "), " ");
 
     /// <summary>
     /// Removes a TRAILING date range or bare year from <paramref name="line"/>, together with the
@@ -196,7 +250,7 @@ internal static partial class DatePatterns
     /// </summary>
     public static string StripTrailingDate(string line)
     {
-        var range = DateRange().Match(line);
+        var range = DateRowRange().Match(line);
         if (range.Success && IsIgnorableTail(line[(range.Index + range.Length)..], allowQualifier: true))
             return TrimTrailingSeparators(line[..range.Index]);
 
@@ -307,13 +361,15 @@ internal static partial class DatePatterns
     /// lone point, as it already did for "2020"; that disagreement is deliberate and is one of the
     /// standing axes above, not a deferral.</para>
     ///
-    /// <para><b>A fourth form, <c>YYYY/MM</c> ("2020/01"), was ADDED and then TAKEN BACK OUT</b>
-    /// (commit 2 added it; round 5 removed it). It is not a point form here, on EITHER endpoint, for
-    /// the same reason <see cref="PeriodParser"/> never dates it (Klas-direktiv 2026-08-03): the
-    /// year-first slash notation is how Swedish writes a YEAR PAIR — a läsår or a räkenskapsår — and
-    /// this file has no authority to read it as a month. See
+    /// <para><b>A fourth form, <c>YYYY/MM</c> ("2020/01"), reaches this predicate WITHOUT being a
+    /// point form in <see cref="DateRange"/>, and that is the whole of ADR 0136.</b> It is not a
+    /// point form there, on either endpoint, for the same reason <see cref="PeriodParser"/> never
+    /// dates it (Klas-direktiv 2026-08-03): the year-first slash notation is how Swedish writes a
+    /// YEAR PAIR — a läsår or a räkenskapsår — and no home has authority to read it as a month. The
+    /// LINE question is a different question, so it gets a different grammar: this predicate reads
+    /// <c>DateRowRange</c>, whose match value is stored by nobody. See
     /// <c>DateRangeYearFirstCharacterisationTests</c> for the collision and the per-commit
-    /// attribution. #1195 owns whether the LINE half alone should be recognised.</para>
+    /// attribution.</para>
     ///
     /// <para><b>A MONTH WORD THAT IS ALSO A NAME COSTS A REAL ORGANIZATION, and it is priced here
     /// rather than guarded.</b> "Mars 2020 – 2024" and "Maj 2018 – 2020" reduce to empty, so the line
@@ -386,6 +442,29 @@ internal static partial class DatePatterns
     /// adjudicator.</para>
     /// </summary>
     public static bool IsDateOnlyLine(string line) => StripTrailingDate(line).Length == 0;
+
+    /// <summary>
+    /// True when <paramref name="line"/> carries a date RANGE and nothing else, and the VALUE
+    /// grammar (<see cref="DateRange"/>) cannot read it — i.e. the CV states a period this type
+    /// recognises as a period but has no authority to date (ADR 0136; today exactly the year-first
+    /// slash notation, Klas-direktiv 2026-08-03).
+    ///
+    /// <para><b>This is the segmenter's ONE question, and the grammar behind it is deliberately not
+    /// exposed</b> (ISP): <c>ExtractPeriod</c> needs to know whether the entry states a period it
+    /// must decline, not how the row grammar spells one.</para>
+    ///
+    /// <para><b>Three conjuncts, and each one excludes a population the other two do not.</b> The
+    /// RANGE conjunct excludes a line that is date-only only because <see cref="Year"/> reduced it
+    /// — <c>"2020 –"</c>, the keyword-less open end, which reaches no range branch and keeps
+    /// origin/main's bare-year fallback rather than acquiring a refusal this change was not written
+    /// for. The date-ONLY conjunct excludes a range sitting in a line that also carries a field
+    /// (<c>"Konsult 2020/01 – 2024/12"</c>) or trailing prose, so the veto cannot reach a line the
+    /// suppression itself declines. The <see cref="DateRange"/> conjunct excludes every form the
+    /// value grammar CAN read, so a mixed-notation row still stores its bare-year degradation
+    /// (<c>"2020 – 2024/12"</c> → <c>"2020 – 2024"</c>) — the round-5 Blocker stays closed.</para>
+    /// </summary>
+    public static bool IsUnreadableDateRow(string line) =>
+        DateRowRange().IsMatch(line) && IsDateOnlyLine(line) && !DateRange().IsMatch(line);
 
     private static string TrimTrailingSeparators(string value) =>
         value.TrimEnd(' ', '\t', ',', ';', '|', '-', '–', '—');

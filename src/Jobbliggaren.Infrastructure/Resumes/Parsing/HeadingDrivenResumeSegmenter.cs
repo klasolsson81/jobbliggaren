@@ -622,8 +622,8 @@ internal sealed partial class HeadingDrivenResumeSegmenter(CvParsingLexiconData 
         // named as a DatePatterns WIDENING — month names, trailing qualifiers, keyword-less open
         // ends and YYYY/MM.
         //
-        // THAT WIDENING LANDED (#1060 road 3) AND THREE OF THE FOUR NOW REDUCE, so none of those
-        // three reaches the fallback below and none becomes the organization. Of those three, TWO
+        // THAT WIDENING LANDED (#1060 road 3) AND THREE OF THE FOUR REDUCED, so none of those three
+        // reaches the fallback below and none becomes the organization. Of those three, TWO
         // yield a period (the month-name point form, and the qualifier form via the LINE-level
         // reduction); the third ("2020 –") stays null, because a dangling separator has no end
         // point and inventing one would be the confidently-wrong half of the same defect (ADR 0071,
@@ -632,20 +632,19 @@ internal sealed partial class HeadingDrivenResumeSegmenter(CvParsingLexiconData 
         // value's readability — the property that makes a recovered period worth recovering — in
         // DateModelWideningStoredPeriodTests.
         //
-        // THE FOURTH, YYYY/MM ("2020/01 – 2024/12"), REDUCED TOO FOR A WHILE AND WAS TAKEN BACK OUT
-        // (round 5, senior-cto-advisor bind, decision D′): it collided with the Swedish läsår
-        // notation, and a mixed-notation form of it stored a value neither PeriodParser nor its
-        // callers could read. DateRange no longer models the slash point on either endpoint, so this
-        // form reduces to nothing and DOES still reach the fallback below, fabricating the
-        // organization exactly as it did before road 3 — origin/main's own behaviour, priced and
-        // pinned as a known, accepted regression in
-        // HeadingDrivenResumeSegmenterTests.Segment_DateLineTheYearFirstSlashFormStillReaches_….
+        // THE FOURTH, YYYY/MM ("2020/01 – 2024/12"), REDUCED TOO FOR A WHILE, WAS TAKEN BACK OUT
+        // (round 5, senior-cto-advisor bind, decision D′) AND NOW REDUCES AGAIN (ADR 0136). D′ took
+        // the slash point out of DateRange because it collided with the Swedish läsår and a
+        // mixed-notation form of it stored a value neither PeriodParser nor its callers could read;
+        // ADR 0136 gave the LINE question its own grammar instead, so the row reduces without the
+        // stored value moving. All four now reach this guard, and the period is honestly absent for
+        // this one rather than lifted from a bullet — see ExtractPeriod's veto below.
         //
-        // The predicate PROMOTION has since SHIPPED (the reduction below now lives in
+        // The predicate PROMOTION shipped first (the reduction below now lives in
         // DatePatterns.StripTrailingDate, with DatePatterns.IsDateOnlyLine defined as it, read by
         // ReviewText.DescriptionLines). It was necessary but NOT sufficient, exactly as this
         // paragraph said: it factored today's model into a shared home and inherited its blind
-        // spot, so it closed the ReviewText residual and left THIS population precisely here.
+        // spot, so it closed the ReviewText residual and left THIS population to the widening.
         // Two deferrals, not one, and the promotion was the first.
         //
         // THE ORDER WAS LOAD-BEARING, which is the part this paragraph could not say before the
@@ -669,9 +668,10 @@ internal sealed partial class HeadingDrivenResumeSegmenter(CvParsingLexiconData 
         // uppgift" — the product asserting the user had quantified a result out of her employment
         // dates, CLAUDE.md §5's cited-evidence rule inverted. Measured by the widening under (S1),
         // and closed by it FOR THREE OF THE FOUR FORMS; DateModelWideningReviewSideTests is the
-        // adjudicator. The fourth, YYYY/MM, is open again as of round 5 (decision D′) — the same
-        // affirmative Pass returns for that one notation, priced and pinned as a known regression
-        // in DateModelWideningReviewSideTests.A1CitesTheUsersEmploymentDates_ForTheYearFirstSlashForm_….
+        // adjudicator. The fourth, YYYY/MM, reopened in round 5 (decision D′) and closed in
+        // ADR 0136 — on SIX rows, not one: the three MIXED forms ("2018 – 2019/20",
+        // "2020 – 2024/12", "2020-06 – 2024/12") were equally unsuppressed, because a trailing
+        // "/NN" residue keeps the reduced line non-empty even where DateRange matched a prefix.
         //
         // Relocating the fallback to Lines[2] is a separate decision, refused on TWO measurements:
         // β-1 measured that widening the fallback hands a description bullet to the organization
@@ -737,6 +737,22 @@ internal sealed partial class HeadingDrivenResumeSegmenter(CvParsingLexiconData 
     // editing an already-saved CV, there being no approve step there (StripTrailingPeriod above).
     private static string? ExtractPeriod(Entry entry)
     {
+        // THE VETO (#1195, ADR 0136). An entry stating a period this engine recognises as a period
+        // but has no authority to DATE gets no period at all — the honest-absent rule this method's
+        // own comment above already applies to a bare year on a later line, extended to the one
+        // population it did not reach. Without it the two fallbacks below answer confidently and
+        // wrongly: DateRange's leftmost scan over entry.Text lifts a range MENTIONED in a
+        // description bullet ("2021 – 2023" beside a "2020/01 – 2024/12" date row, ~2 years claimed
+        // for a stated ~5), and Year() takes the row's own leading digits ("2019/20 – 2021" → 2019,
+        // a zero-length span). Both PARSE, so A4/B6/B7 assess and Pass them.
+        //
+        // A PATHOLOGICAL SHAPE IS PRICED RATHER THAN GUARDED: an entry carrying BOTH an unreadable
+        // date row and a readable one loses both, because the veto is entry-scoped. Refusing is the
+        // right direction under ADR 0071, and a rule that had to decide WHICH of two stated periods
+        // is the entry's would be guessing. Pinned, not defended against.
+        if (entry.Lines.Any(DatePatterns.IsUnreadableDateRow))
+            return null;
+
         var range = DateRangeRegex().Match(entry.Text);
         if (range.Success)
             return range.Value.Trim();

@@ -33,20 +33,26 @@ export default async function RootNotFound() {
     <NextIntlClientProvider locale={locale} messages={messages}>
       <div className="flex min-h-screen flex-col bg-surface-primary text-text-primary">
         <SiteHeader />
-        {/* SiteHeader renders the surface's skip link; this is its target. */}
-        <main
-          id="main"
-          tabIndex={-1}
-          className="jp-container jp-page flex flex-1 flex-col justify-center gap-4 focus:outline-none"
-        >
-          <h1 className="jp-h1">{t("notFound.title")}</h1>
-          <p className="jp-lede">{t("notFound.body")}</p>
-          <div>
-            <Link href="/" className="jp-btn jp-btn--secondary">
-              {t("notFound.toStart")}
-            </Link>
-          </div>
-        </main>
+        {/* `w-full` below is load-bearing. <main> is a flex item, and a flex item
+            with auto inline margins — which is what `.jp-container` centres with —
+            gets no `stretch`, so without a definite width it collapses to
+            fit-content and never lands on the content rail (DESIGN.md). */}
+        <div className="flex flex-1 flex-col justify-center">
+          {/* SiteHeader renders the surface's skip link; this is its target. */}
+          <main
+            id="main"
+            tabIndex={-1}
+            className="jp-container jp-page flex w-full flex-col gap-4"
+          >
+            <h1 className="jp-h1">{t("notFound.title")}</h1>
+            <p className="jp-lede">{t("notFound.body")}</p>
+            <div>
+              <Link href="/" className="jp-btn jp-btn--secondary">
+                {t("notFound.toStart")}
+              </Link>
+            </div>
+          </main>
+        </div>
         <SiteFooter />
       </div>
     </NextIntlClientProvider>

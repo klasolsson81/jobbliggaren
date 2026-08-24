@@ -1,7 +1,7 @@
 import { readFileSync, readdirSync } from "node:fs";
 import { dirname, join, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeAll, beforeEach } from "vitest";
 import { createTranslator } from "next-intl";
 import type { Metadata } from "next";
 import type { ApiResult } from "@/lib/dto/_helpers";
@@ -118,17 +118,19 @@ interface DetailRoute {
   readonly ownTitle: string;
   /** Arguments the route's existence read takes after the id; empty for four of five. */
   readonly extraLoaderArgs: readonly unknown[];
-  readonly importer: () => Promise<{
-    generateMetadata?: (props: {
-      // Both dynamic segment names the table covers, rather than `{ id: string }`: the
-      // fifth route's segment is `[parsedId]`, and the route is not the thing to bend
-      // here. NOT `Record<string, string>` — a parameter type is contravariant, so the
-      // index signature is not assignable to any route's narrower `Props` and `tsc`
-      // rejects every importer. A sixth segment name is added here and nowhere else.
-      params: Promise<{ id: string; parsedId: string }>;
-      searchParams: Promise<SearchParams>;
-    }) => Promise<Metadata>;
-  }>;
+  readonly importer: () => Promise<PageModule>;
+}
+
+interface PageModule {
+  generateMetadata?: (props: {
+    // Both dynamic segment names the table covers, rather than `{ id: string }`: the
+    // fifth route's segment is `[parsedId]`, and the route is not the thing to bend
+    // here. NOT `Record<string, string>` — a parameter type is contravariant, so the
+    // index signature is not assignable to any route's narrower `Props` and `tsc`
+    // rejects every importer. A sixth segment name is added here and nowhere else.
+    params: Promise<{ id: string; parsedId: string }>;
+    searchParams: Promise<SearchParams>;
+  }) => Promise<Metadata>;
 }
 
 const ROUTES: readonly DetailRoute[] = [
@@ -180,11 +182,24 @@ const routeAt = (path: string): DetailRoute => {
 const resultFor = (kind: ApiResult<unknown>["kind"]) =>
   kind === "rateLimited" ? { kind, retryAfterSeconds: 60 } : { kind };
 
+/**
+ * The imported page modules, loaded once in `beforeAll` rather than inside whichever
+ * test happens to need one first.
+ *
+ * Importing a route's page module pulls its whole RSC component graph, and that cost
+ * lands wherever the first import happens. Measured in a full-suite run on a clean tree:
+ * the first case to touch `/ansokningar/[id]` spent 6.4s against vitest's 5s per-test
+ * budget and failed, while the same file passed in isolation, where nothing competes for
+ * a worker. The module graph is setup, not the thing under test.
+ */
+const modules = new Map<string, PageModule>();
+
 async function titleFor(
   route: DetailRoute,
   searchParams: SearchParams = {},
 ): Promise<Metadata["title"]> {
-  const mod = await route.importer();
+  const mod = modules.get(route.path);
+  if (mod === undefined) throw new Error(`${route.path} was never imported`);
   expect(typeof mod.generateMetadata).toBe("function");
   const metadata = await mod.generateMetadata!({
     params: Promise.resolve({ id: ID, parsedId: ID }),
@@ -240,6 +255,13 @@ const CANDIDATES = allPages
   .sort();
 
 describe("(app) detail routes — the title resolves against the record's absence", () => {
+  beforeAll(async () => {
+    for (const route of ROUTES) modules.set(route.path, await route.importer());
+    // A hook that silently imported nothing would make every case below throw rather
+    // than assert, which reads as a failure but is not the one this file is about.
+    expect(modules.size).toBe(ROUTES.length);
+  }, 120_000);
+
   beforeEach(() => {
     for (const route of ROUTES) route.loader.mockReset();
   });

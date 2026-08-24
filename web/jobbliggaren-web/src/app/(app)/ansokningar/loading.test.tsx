@@ -35,7 +35,7 @@ describe("/ansokningar loading fallback (#1467)", () => {
    * stood at `h-10` (40px) against `.jp-btn { height: 44px }`. The positive half already
    * fails a bar carrying only the old height, so the negative half is not there for that —
    * it is there for the one shape the positive half cannot see: a bar carrying BOTH, where
-   * whichever class wins the cascade is not the one being asserted.
+   * source order decides which height applies and the positive half cannot tell which won.
    */
   it("sizes every aside bar at the button height, and none at the old one", () => {
     const { container } = render(<Loading />);

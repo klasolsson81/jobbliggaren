@@ -24,7 +24,10 @@ describe("PageHeroSkeleton", () => {
   });
 
   it("renders no global id (safe to render alongside the real page mid-swap)", () => {
-    const { container } = render(<PageHeroSkeleton aside={null} />);
+    // An aside is passed so the sweep still reaches `__aside`: with `aside={null}` that
+    // element is not in the tree at all, and the only component-owned node this could
+    // catch an id on would drop out of the query. The caller's <span/> carries none.
+    const { container } = render(<PageHeroSkeleton aside={<span />} />);
     expect(container.querySelector("[id]")).toBeNull();
   });
 
@@ -44,7 +47,7 @@ describe("PageHeroSkeleton", () => {
     expect(aside?.querySelectorAll(".jp-skeleton")).toHaveLength(0);
   });
 
-  it("reserves one lede line by default, so existing call sites are unchanged", () => {
+  it("reserves one lede line by default", () => {
     const { container } = render(<PageHeroSkeleton aside={null} />);
     const main = container.querySelector(".jp-pagehero__main");
     // Title + one lede bar.
@@ -64,6 +67,31 @@ describe("PageHeroSkeleton", () => {
     // measuring a component that failed to render.
     expect(container.querySelector(".jp-pagehero__main")).not.toBeNull();
     expect(container.querySelector(".jp-pagehero__aside")).toBeNull();
+  });
+
+  /**
+   * The empty-but-not-null values are closed by the TYPE, not by the guard, and that
+   * distinction was measured rather than assumed. `ReactNode` admits `undefined`, `false`
+   * and `""`; all three render nothing, and all three would leave the empty `__aside`
+   * behind that #1385 measured. Relaxing the guard to `!= null` closes only `undefined` —
+   * `false != null` and `"" != null` are both true — so the guard cannot be the fix.
+   * `ReactElement | null` makes all three a compile error instead, and `null` stays the
+   * one way a page says it renders no aside.
+   *
+   * These are the pin: if the prop ever widens back to `ReactNode`, each directive becomes
+   * an unused `@ts-expect-error` and `tsc --noEmit` fails. Nothing is rendered here — a
+   * type contract is not observable at runtime.
+   */
+  it("accepts only an element or null — every empty-but-not-null value is a type error", () => {
+    const reject = () => [
+      // @ts-expect-error — undefined renders nothing but is not `null`
+      <PageHeroSkeleton key="u" aside={undefined} />,
+      // @ts-expect-error — `items.length > 0 && <X/>` yields false, not null
+      <PageHeroSkeleton key="f" aside={false} />,
+      // @ts-expect-error — the empty string renders nothing but is not `null`
+      <PageHeroSkeleton key="s" aside={""} />,
+    ];
+    expect(typeof reject).toBe("function");
   });
 
   /**

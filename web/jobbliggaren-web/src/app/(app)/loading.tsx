@@ -20,10 +20,9 @@ export default function Loading() {
         {t("navLoading.generic")}
       </span>
 
-      {/* aside={null}: this net covers the (app) routes with no loading.tsx of their own,
-          and every one of them that lands a pagehero renders NO aside — measured across
-          all eleven, 2026-08-24 (#1490). It used to take a two-bar default, which reserved
-          a whole `__aside` element none of them renders. */}
+      {/* aside={null}: no route this net covers renders an aside — the ones that land a
+          pagehero render `__main` alone (#1490). It used to take a two-bar default, which
+          reserved a whole `__aside` element none of them renders. */}
       <PageHeroSkeleton aside={null} />
 
       <div className="jp-container jp-page" aria-hidden="true">

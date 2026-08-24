@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { ReactElement } from "react";
 
 /**
  * Skeleton for the shared `.jp-pagehero` band (#739 — route-level loading
@@ -30,8 +30,7 @@ import type { ReactNode } from "react";
  * `loading.tsx` (an sr-only `role="status"`), so the visual shape stays
  * decorative. Sync RSC (no interactivity).
  *
- * `aside` overrides the right-hand block for pages whose header aside is not two
- * buttons (e.g. Översikt renders a card there); **`null` renders no `__aside` element at
+ * **`null` renders no `__aside` element at
  * all**, which an empty node cannot do — `.jp-pagehero__inner` is a wrapping flex row, so
  * an empty aside costs nothing beside `__main` but takes a whole line plus the row `gap`
  * once it wraps, and the band then over-reserves at exactly the narrow widths a hero with
@@ -65,7 +64,7 @@ export function PageHeroSkeleton({
   lede,
 }: {
   /** The page's aside content, or `null` where the page renders no aside element. */
-  aside: ReactNode;
+  aside: ReactElement | null;
   /** Set where the page composes `.jp-pagehero__aside--stacked` on its aside. */
   stacked?: boolean;
   kicker?: boolean;

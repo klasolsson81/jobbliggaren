@@ -28,7 +28,7 @@ export default function AppError({
   error: Error & { digest?: string };
   unstable_retry: () => void;
 }) {
-  const t = useTranslations("pages");
+  const t = useTranslations("fallback");
 
   return (
     // Mirrors (app)/not-found.tsx: jp-container jp-page assumes the errored
@@ -38,18 +38,18 @@ export default function AppError({
     // accepted Minor not-found already carries; re-evaluate when the
     // transitional container is retired (ADR 0052).
     <div className="jp-container jp-page flex flex-col gap-4">
-      <h1 className="jp-h1">{t("common.errorTitle")}</h1>
-      <p className="jp-lede">{t("common.errorBodyRetry")}</p>
+      <h1 className="jp-h1">{t("errorTitle")}</h1>
+      <p className="jp-lede">{t("errorBodyRetry")}</p>
       <div className="flex flex-wrap gap-3">
         <button
           type="button"
           onClick={() => unstable_retry()}
           className="jp-btn jp-btn--primary"
         >
-          {t("common.retry")}
+          {t("retry")}
         </button>
         <Link href="/oversikt" className="jp-btn jp-btn--secondary">
-          {t("common.notFound.toOverview")}
+          {t("notFound.toOverview")}
         </Link>
       </div>
     </div>

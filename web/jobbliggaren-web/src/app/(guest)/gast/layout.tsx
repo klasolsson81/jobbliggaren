@@ -39,6 +39,7 @@ export default async function GuestLayout({
   const messages = pickClientMessages(await getMessages(), [
     "applications",
     "common",
+    "fallback",
     "guest",
     "jobads",
     "landing",

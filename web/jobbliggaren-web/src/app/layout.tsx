@@ -77,8 +77,6 @@ export default async function RootLayout({
   // formatters (useFormatter) even with no messages. Route boundaries below
   // ((app)/(auth)/(guest)/(marketing)/(marketing-inner)/(admin)) each render
   // their own provider with their own set — React context replaces, not merges.
-  // Unmatched URLs render app/not-found.tsx, which is a SERVER component
-  // (getTranslations), so it needs nothing here either.
   const messages = pickClientMessages(await getMessages(), []);
 
   return (

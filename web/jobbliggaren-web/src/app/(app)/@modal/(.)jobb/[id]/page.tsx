@@ -37,6 +37,7 @@ export default async function InterceptedJobbModal({
   if (!user) redirect("/logga-in");
 
   const t = await getTranslations("pages");
+  const tf = await getTranslations("fallback");
   const { id } = await params;
   // #300 PR-5 — master-switch för related-gradering i detalj-anropet. Parsa BARA
   // on-värdet (paritet med listans page.tsx). Default AV.
@@ -103,7 +104,7 @@ export default async function InterceptedJobbModal({
         <JobAdModalShell title={t("jobb.detail.loadErrorTitle")} company="">
           <div className="jp-modal__body">
             <p className="text-body-sm text-text-primary">
-              {t("common.errorBodyRetry")}
+              {tf("errorBodyRetry")}
             </p>
           </div>
           <div className="jp-modal__foot">

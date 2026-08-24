@@ -1,6 +1,13 @@
 import { notFound, redirect } from "next/navigation";
 import { getServerSession } from "@/lib/auth/session";
 
+import type { Metadata } from "next";
+import { notFoundMetadata } from "@/lib/metadata/not-found-title";
+
+export async function generateMetadata(): Promise<Metadata> {
+  return notFoundMetadata();
+}
+
 /**
  * /cv/ny — skapa ett CV från grunden, RETIRED (deferrad, inte raderad — #1061,
  * Klas live-verifiering 2026-07-25: "Detta är funktioner som inte ska vara med

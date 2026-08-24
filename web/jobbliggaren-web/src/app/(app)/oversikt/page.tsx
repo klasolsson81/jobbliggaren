@@ -11,6 +11,13 @@ import { hasSeenSetupWelcome } from "@/lib/onboarding/setup-welcome";
 import { OversiktPage } from "@/components/oversikt/oversikt-page";
 import { MatchSetupLauncher } from "@/components/onboarding/match-setup-launcher";
 import { ResetMyDataNote } from "@/components/dev/reset-my-data-note";
+import type { Metadata } from "next";
+import { getTranslations } from "next-intl/server";
+
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations("oversikt");
+  return { title: t("meta.title") };
+}
 
 /** CV-importflödets route (wizardens yrkes-steg tom-state-länk). */
 const IMPORT_CV_HREF = "/cv/importera";

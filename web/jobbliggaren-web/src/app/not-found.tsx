@@ -5,6 +5,13 @@ import { pickClientMessages } from "@/i18n/client-messages";
 import { SiteHeader } from "@/components/site/site-header";
 import { SiteFooter } from "@/components/site/site-footer";
 
+import type { Metadata } from "next";
+import { notFoundMetadata } from "@/lib/metadata/not-found-title";
+
+export async function generateMetadata(): Promise<Metadata> {
+  return notFoundMetadata();
+}
+
 /**
  * Root not-found — the boundary for UNMATCHED URLs across the whole site
  * (Next file convention: the root app/not-found handles every URL no route

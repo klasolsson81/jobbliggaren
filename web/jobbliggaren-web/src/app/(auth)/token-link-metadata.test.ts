@@ -40,9 +40,18 @@ describe("token-carrying (auth) pages — metadata invariants (#706)", () => {
   it.each(tokenPages)(
     "%s sets robots noindex AND referrer no-referrer",
     async (_key, importer) => {
-      const mod = (await importer()) as { metadata?: Metadata };
-      expect(mod.metadata?.robots).toEqual({ index: false, follow: false });
-      expect(mod.metadata?.referrer).toBe("no-referrer");
+      // These pages moved from `export const metadata` to `generateMetadata` when they
+      // gained a translated document title (WCAG 2.4.2): a title read from the message
+      // catalogue is async, and Next allows only one of the two exports per file. The
+      // invariant this test guards is unchanged; only where it is read from moved.
+      const mod = (await importer()) as {
+        generateMetadata?: () => Promise<Metadata>;
+      };
+      expect(typeof mod.generateMetadata).toBe("function");
+
+      const metadata = await mod.generateMetadata!();
+      expect(metadata.robots).toEqual({ index: false, follow: false });
+      expect(metadata.referrer).toBe("no-referrer");
     },
   );
 });

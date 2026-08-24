@@ -4,6 +4,12 @@ import { getServerSession } from "@/lib/auth/session";
 import { getRecentSearches } from "@/lib/api/recent-searches";
 import { assertNever } from "@/lib/dto/_helpers";
 import { RecentSearchList } from "@/components/recent-searches/recent-search-list";
+import type { Metadata } from "next";
+
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations("pages");
+  return { title: t("sokningar.meta.title") };
+}
 
 type PagesTranslator = Awaited<ReturnType<typeof getTranslations<"pages">>>;
 

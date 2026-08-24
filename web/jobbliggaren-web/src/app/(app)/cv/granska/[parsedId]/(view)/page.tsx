@@ -18,6 +18,12 @@ import { OccupationProposals } from "@/components/resumes/occupation-proposals";
 import { CvPreamble } from "@/components/resumes/cv-preamble";
 import { CvReviewPanel } from "@/components/resumes/cv-review-panel";
 import { CvPreview } from "@/components/resumes/cv-preview";
+import type { Metadata } from "next";
+
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations("pages");
+  return { title: t("cv.review.meta.title") };
+}
 
 interface Props {
   params: Promise<{ parsedId: string }>;

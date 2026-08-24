@@ -668,7 +668,7 @@ public class CvImprovementEngineTests
         // no Period at all for this line (three-line layout) and the transform's own guard —
         // `string.IsNullOrWhiteSpace(period)` — skips it before the PeriodParser check is even
         // reached. Silent, not because the parser declines a stored value, but because nothing is
-        // stored to flag. origin/main's behaviour, restored; tracked in #1195.
+        // stored to flag (ADR 0136).
         var cv = $"""
             Anna Andersson
             anna@example.com

@@ -37,8 +37,8 @@ namespace Jobbliggaren.Application.UnitTests.Resumes.Parsing;
 /// <para>(1) It said the four forms <c>DatePatterns</c> does not model <i>"are untouched by the
 /// ordering and stay on the negative side in <c>DatePatternsDateOnlyLineTests</c>"</i>. True of commit
 /// 1, which carried no widening; false once commit 2 widened the model and moved all four to the
-/// positive side. <b>Round 5 (decision D′) moved one, <c>YYYY/MM</c>, back to the negative side</b> —
-/// so at the CURRENT head only three of the four stay positive; see #1195. (2) It said the ordering
+/// positive side. <b>Round 5 (decision D′) moved one, <c>YYYY/MM</c>, back to the negative side, and
+/// ADR 0136 moved it forward again through a separate row grammar.</b> (2) It said the ordering
 /// rule was <i>"longest-alternative-first"</i> and that
 /// <i>"a 'jan' branch before 'januari' would match 'januari 2020' as far as 'jan', the identical
 /// defect one alternative later"</i>. <b>Both halves are wrong.</b> The contract the code holds is

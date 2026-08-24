@@ -256,5 +256,16 @@ public class ReviewTextPeriodLineUnionTests
             "the VALUE half must still decline it — that is decision D′, unchanged by ADR 0136.");
         DatePatterns.IsDateOnlyLine("2020/01 – 2024/12").ShouldBeTrue(
             "so the LINE half is what suppresses it, alone.");
+
+        // And the suppression is RUN, not inferred from the two predicates above: this method is
+        // named for DescriptionLines, so it calls it.
+        var (review, improve, organization) = BulletsFor("2020/01 – 2024/12");
+
+        organization.ShouldBe("Acme AB",
+            "the employer is real here, so organisation-equality cannot be what suppresses the row.");
+        review.ShouldBe([Bullet],
+            "the date row is not a description bullet — the review criteria must never score it.");
+        improve.ShouldBe([Bullet],
+            "WeakVerbTransform scores the same unit and must not be offered the date row either.");
     }
 }

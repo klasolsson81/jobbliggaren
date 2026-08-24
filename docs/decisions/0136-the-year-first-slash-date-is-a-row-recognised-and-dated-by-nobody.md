@@ -7,8 +7,8 @@ on the authority of Klas-direktiv 2026-08-03
 **Related:** ADR 0071 (determinism; honest-absent over confidently-wrong). This ADR **applies**
 that principle to a population it had not yet reached. It does not amend it.
 **Full decision record:** `docs/reviews/2026-08-24-1195-cto-bind.md` (this bind) ·
-`docs/reviews/2026-08-03-1060-d3-widening-cto-round5.md` (decision D′, whose VALUE-axis conclusion
-is preserved here, not reversed)
+[#1195](https://github.com/klasolsson81/jobbliggaren/issues/1195) ·
+[PR #1498](https://github.com/klasolsson81/jobbliggaren/pull/1498)
 
 ---
 
@@ -207,8 +207,6 @@ zero years, and the text is already preserved in `RawText`.
 
 - **The cited-evidence inversion closes on all six measured rows.** A1/A2/A6 now quote the
   achievement bullet instead of the user's employment dates.
-- **The zero-length span is gone.** `2019/20 – 2021` no longer stores `2019`, and
-  `2008/09 – 2011/12` no longer stores `2008`.
 - **The prose-lifted span is gone.** An entry whose date row the engine may not read no longer
   borrows a period from a description bullet.
 - **The two-line and Lines[0] layouts stop fabricating fields** from the date row — no invented
@@ -247,6 +245,9 @@ zero years, and the text is already preserved in `RawText`.
 - **Four point lists instead of two.** Built from shared fragments with no duplicated literal, and
   pinned along both axes (below). The count of lists is not the risk; unsynced divergence is, and
   that is closed.
+- **The row grammar's year class is unbounded** (`\d{4}`, not `(?:19|20)\d{2}`), so `StripDates`
+  masks `NNNN/NN – NNNN` whatever the digits mean — a priced widening of the residual the bare
+  `\d{4} – \d{4}` already carried, pinned with its own control rather than guarded.
 - **Out of scope and untouched:** the hyphen-written läsår form, the `13/2020` residual, the
   `2005 - 2010,` residual, and the `Mars`/`Maj`-as-employer residual. All four are already named
   and priced in `DatePatterns`.
@@ -303,9 +304,11 @@ where each remaining failure was a named accepted-regression pin that this chang
 - `docs/reviews/2026-08-24-1195-cto-bind.md` — the `senior-cto-advisor` bind this ADR records:
   candidate choice, the stored-value question, the transform question, scope, and the product
   question reserved for Klas.
-- `docs/reviews/2026-08-03-1060-d3-widening-cto-round5.md` — decision D′, which removed the slash
-  point from `DateRange` on both endpoints. Preserved here on the VALUE axis.
+- Decision D′ (#1060 road 3, round 5) — removed the slash point from `DateRange` on both endpoints,
+  because a slash point beside an unrelated readable endpoint stored a value `PeriodParser` refused
+  whole. Preserved here on the VALUE axis. Its own record is local and not tracked (ADR 0072
+  docs-privacy), so the sentence this ADR needs from it is carried above rather than pointed at.
 - [#1195](https://github.com/klasolsson81/jobbliggaren/issues/1195) — the option list this ADR
   gives a durable home, including the recommendation it declines.
 - ADR 0071 — determinism, honest-absent over confidently-wrong. Applied here, not amended.
-- Klas-direktiv 2026-08-03 — quoted verbatim under Context; also carried in `PeriodParser`.
+- Klas-direktiv 2026-08-03 — quoted verbatim under Context; paraphrased in `PeriodParser`.

@@ -328,6 +328,21 @@ public class DateRangeYearFirstCharacterisationTests
             .Segment(cv).Content.Experience.ShouldHaveSingleItem();
 
         exp.Period.ShouldBeNull();
+
+        // THE CONTRAST ROW the name owes: the same entry WITHOUT the unreadable row keeps its
+        // period, so the veto is what removed it and not the layout.
+        const string control = """
+            Anna Andersson
+            anna@example.com
+
+            Arbetslivserfarenhet
+            Systemutvecklare
+            2013 - 2021
+            """;
+
+        new HeadingDrivenResumeSegmenter(CvParsingLexiconLoader.Load())
+            .Segment(control).Content.Experience.ShouldHaveSingleItem()
+            .Period.ShouldBe("2013 - 2021");
     }
 
     [Theory]
@@ -338,11 +353,20 @@ public class DateRangeYearFirstCharacterisationTests
     // RANGE conjunct — a line that is date-only only because Year() reduced it. "2020 –" reaches no
     // range branch, so it keeps origin/main's bare-year fallback rather than acquiring a refusal
     // this change was not written for.
-    [InlineData("2020 –")]
+    [InlineData("2020 –", "2020")]
     // date-ONLY conjunct — a line carrying a field beside the range. The suppression itself declines
-    // this line, so the veto must too, and the entry's own period survives.
-    [InlineData("Konsult 2020/01 – 2024/12")]
-    public void TheVetoDoesNotReachALineTheSuppressionItselfDeclines(string firstLine)
+    // this line, so the veto must too.
+    //
+    // THE SECOND ROW STORES A ZERO-LENGTH SPAN AND THIS THEORY NAMES IT RATHER THAN HIDING IT.
+    // "Konsult 2020/01 – 2024/12" keeps Year()'s leading-year fallback, so the entry reports 2020
+    // for a CV stating roughly five years — the same confident wrong answer the Lines[0] rows above
+    // no longer give. It is origin/main's behaviour on a layout the veto deliberately does not
+    // reach, and it is the FIFTH residual beside the four DatePatterns already prices. Asserting
+    // ShouldNotBeNull here would pin the outcome without saying what it is, which is the
+    // reverse-polarity pin this PR exists to remove.
+    [InlineData("Konsult 2020/01 – 2024/12", "2020")]
+    public void TheVetoDoesNotReachALineTheSuppressionItselfDeclines(
+        string firstLine, string expectedPeriod)
     {
         var cv = $"""
             Anna Andersson
@@ -357,8 +381,9 @@ public class DateRangeYearFirstCharacterisationTests
         var exp = new HeadingDrivenResumeSegmenter(CvParsingLexiconLoader.Load())
             .Segment(cv).Content.Experience.ShouldHaveSingleItem();
 
-        exp.Period.ShouldNotBeNull(
-            $"[{firstLine}] is not an unreadable date row, so ExtractPeriod must still answer.");
+        exp.Period.ShouldBe(expectedPeriod,
+            $"[{firstLine}] is not an unreadable date row, so ExtractPeriod still answers — and " +
+            "what it answers is asserted, not merely asserted to exist.");
     }
 
     [Theory]
@@ -372,6 +397,24 @@ public class DateRangeYearFirstCharacterisationTests
     {
         DatePatterns.IsDateOnlyLine(line).ShouldBeFalse();
         DatePatterns.IsUnreadableDateRow(line).ShouldBeFalse();
+
+        // The precondition was set on the CONSEQUENCE — that such a line must not lose its
+        // employer — so the consequence is measured, not inferred from the predicates above.
+        var cv = $"""
+            Anna Andersson
+            anna@example.com
+
+            Arbetslivserfarenhet
+            Systemutvecklare
+            {line}
+            {Bullet}
+            """;
+
+        var exp = new HeadingDrivenResumeSegmenter(CvParsingLexiconLoader.Load())
+            .Segment(cv).Content.Experience.ShouldHaveSingleItem();
+
+        exp.Organization.ShouldBe(line,
+            "an organisation line carrying a trailing slash-year is still an organisation.");
     }
 
     [Theory]
@@ -382,6 +425,13 @@ public class DateRangeYearFirstCharacterisationTests
     [InlineData("Ansvarig för perioden 2020/01 – 2024/12 av budgeten.", false)]
     [InlineData("Levererade 2020/01 – 2024/12 och ökade med 23 procent.", true)]
     [InlineData("Ökade konverteringen med 23 procent.", true)]
+    // THE PRICED RESIDUAL: the row grammar's year class is unbounded (`\d{4}`, not `(?:19|20)\d{2}`),
+    // so a bullet whose ONLY digits are NNNN/NN – NNNN masks whole and A1 stops seeing it.
+    [InlineData("Hanterade 1500/25 – 4000 ärenden.", false)]
+    // ITS DECLARED CONTROL, and it has no kill power BY DESIGN — false on origin/main too, because
+    // `\d{4} – \d{4}` already ate it. That is what makes the row above a WIDENING of an accepted
+    // class rather than a new one, measured here instead of argued in a report.
+    [InlineData("Hanterade 1500 – 4000 ärenden.", false)]
     public void StripDates_MasksASlashRangeInsideProse(string bullet, bool expected)
     {
         // Asserted through the real consumer rather than on the mask string: the mask exists to
@@ -422,7 +472,9 @@ public class DateRangeYearFirstCharacterisationTests
         DatePatterns.LineStartPointForTests.Contains(withSlashPoint, StringComparison.Ordinal)
             .ShouldBeTrue("only the ROW grammar carries the year-first slash point (ADR 0136).");
         DatePatterns.StartPointForTests.Contains(withSlashPoint, StringComparison.Ordinal)
-            .ShouldBeFalse("the VALUE grammar must never carry it — that is decision D′'s Blocker.");
+            .ShouldBeFalse("the VALUE grammar must never carry it at THIS position. A slash point " +
+                "placed elsewhere in the value lists passes every assertion here — the kill for " +
+                "that lives on the characterisation theory's VALUE axis, not in this test.");
 
         // Replace is replace-ALL, so an equality alone would license "differs by any number of
         // occurrences of this substitution". Pinning each count makes each delta one token.

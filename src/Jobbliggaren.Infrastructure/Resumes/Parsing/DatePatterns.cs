@@ -112,15 +112,14 @@ internal static partial class DatePatterns
     // sub-span. Narrowing it would leave a "13/" residue instead of degrading, which flips
     // IsDateOnlyLine false and hands the date row back to the Organization slot — the β-3 class this
     // lane just closed. It stays as a documented axis with its own frozen pin.
-    [GeneratedRegex(
-        @"\b(" + StartPoint + @")\s*[-–—]\s*(" + EndPoint + "|" + CvMonthNames.PresentKeywords + @")\b",
-        RegexOptions.CultureInvariant | RegexOptions.IgnoreCase)]
+    [GeneratedRegex(RangeOpen + StartPoint + RangeMiddle + EndPoint + RangeClose, RangeOptions)]
     public static partial Regex DateRange();
 
-    // THE TWO POINT LISTS DIFFER BY EXACTLY ONE TOKEN, AND THE DELTA IS THE CONTRACT.
-    // `DateRangeYearFirstCharacterisationTests` asserts they are token-identical except at that
-    // position, so the divergence cannot widen silently and a future alternative added to the shared
-    // fragments lands in both.
+    // THE FOUR POINT LISTS ARE A 2x2 OVER TWO ONE-TOKEN DELTAS, AND THE DELTAS ARE THE CONTRACT:
+    // {START, END} x {value grammar, row grammar}, differing on the hyphen month class and on the
+    // slash point. `DateRangeYearFirstCharacterisationTests.TheFourPointLists_…` asserts all four
+    // byte-identical apart from those two substitutions, so no divergence can widen silently and a
+    // future alternative added to the shared fragments lands in all four.
     //
     // WHY THE START LIST KEEPS THE LOOSE `\d{4}-\d{2}` WHILE THE END LIST DOES NOT. Structural
     // exactness exists to COMPLETE prefix-order, so it is required exactly where prefix-order
@@ -158,6 +157,14 @@ internal static partial class DatePatterns
     private const string SharedPointHead =
         CvMonthNames.Pattern + CvMonthNames.AfterName + @"\d{4}";
 
+    private const string RangeOpen = @"\b(";
+
+    private const string RangeMiddle = @")\s*[-–—]\s*(";
+
+    private const string RangeClose = "|" + CvMonthNames.PresentKeywords + @")\b";
+
+    private const RegexOptions RangeOptions = RegexOptions.CultureInvariant | RegexOptions.IgnoreCase;
+
     private const string PointOpen = "(?:";
 
     private const string LooseHyphenPoint = @"|\d{4}-\d{2}";
@@ -185,11 +192,18 @@ internal static partial class DatePatterns
     private const string LineEndPoint = PointOpen + SharedPointHead + ExactHyphenPoint + LinePointTail;
 
     // THE ROW GRAMMAR. Same shape as DateRange, one point form wider, and it NEVER produces a
-    // stored value — read only by StripTrailingDate, StripDates and IsUnreadableDateRow, all of
-    // which answer a LINE or MASK question. ADR 0136 owns why the two grammars are separate.
-    [GeneratedRegex(
-        @"\b(" + LineStartPoint + @")\s*[-–—]\s*(" + LineEndPoint + "|" + CvMonthNames.PresentKeywords + @")\b",
-        RegexOptions.CultureInvariant | RegexOptions.IgnoreCase)]
+    // stored value — read by StripTrailingDate, StripDates and IsUnreadableDateRow, all of which
+    // answer a LINE or MASK question. ADR 0136 owns why the two grammars are separate.
+    //
+    // THE RANGE SKELETON IS SHARED WITH DateRange AND THAT IS THE SYNC MECHANISM, not tidiness.
+    // The two grammars must stay in the relation "row recognises everything value recognises, plus
+    // the slash point"; only the POINT LISTS may differ, and TheFourPointLists_… pins that they
+    // differ by exactly the two permitted deltas. It cannot see the skeleton, so a skeleton written
+    // twice could diverge with that test green — widening DateRange's separator class alone
+    // ("till"/"to", which PeriodParser already accepts) would break the superset silently and
+    // reopen beta-3. Composing both from one set of constants removes the second copy instead of
+    // pinning it.
+    [GeneratedRegex(RangeOpen + LineStartPoint + RangeMiddle + LineEndPoint + RangeClose, RangeOptions)]
     private static partial Regex DateRowRange();
 
     // Exposed for the delta correspondence test only. The four lists are a 2x2 over two orthogonal
@@ -216,7 +230,10 @@ internal static partial class DatePatterns
     /// reads the ROW grammar, the same one <see cref="StripTrailingDate"/> reads (ADR 0136). Before
     /// #1195 it read <see cref="DateRange"/>, which left a year-first slash range's digits unmasked
     /// inside a prose bullet: the same §5 cited-evidence inversion the line-level suppression
-    /// closes, one altitude down.</para>
+    /// closes, one altitude down. The row grammar's year class is unbounded, so a bullet whose only
+    /// digits are <c>NNNN/NN – NNNN</c> masks whole whatever those digits mean — a priced widening
+    /// of the residual the bare <c>\d{4} – \d{4}</c> already carries; read the <c>InlineData</c> in
+    /// <c>DateRangeYearFirstCharacterisationTests.StripDates_MasksASlashRangeInsideProse</c>.</para>
     /// </summary>
     public static string StripDates(string text) =>
         Year().Replace(DateRowRange().Replace(text, " "), " ");

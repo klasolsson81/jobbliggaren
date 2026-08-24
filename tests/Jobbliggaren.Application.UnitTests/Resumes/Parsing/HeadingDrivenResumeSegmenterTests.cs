@@ -921,6 +921,67 @@ public class HeadingDrivenResumeSegmenterTests
     }
 
     /// <summary>
+    /// THE EDUCATION SIDE OF ADR 0136, and it is not decoration (β-1's own rule, stated at
+    /// <c>HeadingDrivenResumeSegmenter.cs</c>: education symmetry is not decoration).
+    /// <c>ParseEducations</c> calls the same <c>SplitTitleOrganization</c> and the same
+    /// <c>ExtractPeriod</c> this PR changed, and every other row it added sits in an
+    /// <c>Arbetslivserfarenhet</c> block — so the whole notation was untested on the side where it
+    /// is MOST likely to appear. <c>2008/09 – 2011/12</c> is how a Swedish CV writes a four-year
+    /// study run; the läsår's natural home is this section.
+    ///
+    /// <para>The refusal arrives as <c>Resume.EducationInstitutionRequired</c>, a different Domain
+    /// code from the experience arm's, and review criterion A10 moves Pass to Warn.</para>
+    /// </summary>
+    [Fact]
+    public void Segment_TheYearFirstSlashFormInEducation_DoesNotBecomeTheInstitution()
+    {
+        const string cv = """
+            Anna Andersson
+            anna@example.com
+
+            Utbildning
+            Civilingenjör i datateknik
+            2008/09 – 2011/12
+            """;
+
+        var result = _sut.Segment(cv);
+
+        var edu = result.Content.Education.ShouldHaveSingleItem();
+        edu.Degree.ShouldBe("Civilingenjör i datateknik");
+        edu.Institution.ShouldBeNull(
+            "the date row must not become the school — before ADR 0136 it did, verbatim.");
+        edu.Period.ShouldBeNull(
+            "and the engine states no period rather than a guessed one, exactly as on the " +
+            "experience side.");
+    }
+
+    /// <summary>
+    /// The period-first education layout, which crosses THREE slots at once: before ADR 0136 the
+    /// separator loop split the date row's own en dash into Degree and Institution and the real
+    /// school on <c>Lines[1]</c> was never read, while <c>Year()</c> stored the leading digits as a
+    /// zero-length span. All three move together, so all three are asserted together.
+    /// </summary>
+    [Fact]
+    public void Segment_TheYearFirstSlashFormFirstInEducation_ReadsTheSchoolAndStatesNoPeriod()
+    {
+        const string cv = """
+            Anna Andersson
+            anna@example.com
+
+            Utbildning
+            2008/09 – 2011/12
+            KTH
+            """;
+
+        var result = _sut.Segment(cv);
+
+        var edu = result.Content.Education.ShouldHaveSingleItem();
+        edu.Degree.ShouldBeNull("no degree is stated on either of the first two lines.");
+        edu.Institution.ShouldBe("KTH", "the real school, where both slots were fabricated before.");
+        edu.Period.ShouldBeNull("2008..2008 for a stated four-year run is a confident wrong answer.");
+    }
+
+    /// <summary>
     /// THE CONTROL THE GUARD SITS ON, unpinned anywhere before β-3. The common
     /// "Title / Company / Dates" layout: Lines[0] carries no separator, Lines[1] carries a real
     /// field. β-3 must leave it byte-identical.

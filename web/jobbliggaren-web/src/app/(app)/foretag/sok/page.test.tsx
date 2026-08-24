@@ -223,16 +223,4 @@ describe("/foretag/sok — the page mounts the live region itself", () => {
     // sentence is the defect #1092 was filed for.
     expect(live).toHaveTextContent("");
   });
-
-  it("keeps the region OUTSIDE the Suspense boundary", async () => {
-    const { container } = render(await renderPage({ namn: "Volvo" }));
-
-    const live = container.querySelector('p[role="status"][aria-live="polite"]');
-    const results = screen.getByTestId("results");
-    // Placement is the whole mechanism: `<Suspense key={suspenseKey}>` remounts on every search, so
-    // a region nested inside it would be destroyed and rebuilt per load — exactly the shape that
-    // made the old per-element `role="status"` unreliable. Siblinghood is what survives the swap.
-    expect(live?.contains(results)).toBe(false);
-    expect(results.contains(live as Node)).toBe(false);
-  });
 });

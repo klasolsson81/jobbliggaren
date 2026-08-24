@@ -28,8 +28,7 @@ import type { ReactNode } from "react";
  *
  * Deliberately SEPARATE from the searchbar's region, which announces filter changes. Two regions
  * with two jobs, never one region with two writers: the searchbar sets its sentence when a filter
- * commits and this one when the load resolves, and React would batch away the intermediate state if
- * they shared, losing the filter sentence before it could be read.
+ * commits and this one when the load resolves.
  */
 const AnnounceContext = createContext<((message: string) => void) | null>(null);
 

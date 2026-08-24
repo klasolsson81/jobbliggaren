@@ -115,3 +115,92 @@ till fix-deltat (CLAUDE.md §9.6).
 
 **Ingen eskalering till Klas.** Hans verdikt 2026-08-24 (Major, in-block, räkningen ska annonseras)
 är levererat.
+
+---
+
+# Scopad omkontroll (report-only) — fix-delta `1b15966b..a8ba5461`
+
+**Status:** ⚠ Changes requested — 1 ny Major i deltat · **Head:** `a8ba5461`
+**Kvot:** förbrukad (CLAUDE.md §9.6 — en scopad omkontroll per utfärdande agent)
+
+## Mina fem — status
+
+1. **"ONE persistent live region" överdrivet — CLOSED.** `foretag-sok-announcer.tsx:7` + `:23-27` och
+   `loading.tsx:14-16` säger nu rätt sak: `page.tsx` håller *en* provider utanför den
+   `key`-remountade boundaryn, en cross-route-navigering monterar två (en per host), båda tomma vid
+   mount. Mätt: `loading.tsx:32` och `page.tsx` monterar var sin `ForetagSokAnnouncer`.
+2. **Cleanup-blanken — CLOSED.** Blanken är borta (`:64-66`). Jag gick igenom varje ytsekvens: sök A
+   → skelett → resultat → sök B → skelett → resultat; tom-läge; fel-läge. I samtliga ligger
+   skelettets `"Söker företag…"` mellan två slutmeddelanden, så två identiska räknare i rad är
+   fortfarande två DOM-mutationer. Borttagningen är a11y-neutral. Testet är nu ett
+   supersessionskontrakt utan påstående om vad en användare hör — rätt form.
+3. **Copy — CLOSED.** `"Företagen i registret visas."` / `"The companies in the register are shown."`
+   Används enbart på browse-all-grenen (`magnitude === null`, `items > 0`), där #1149 förbjuder en
+   siffra. Sant, sifferfritt, "du"-neutralt, inget utropstecken.
+4. **`/jobb` bär samma form — CLOSED.** #1505 mätt: OPEN, `area:frontend` `P2` `FE` `mvp`.
+5. **"Exactly one region on the surface" — CLOSED.** `foretag-sok-results.test.tsx:404-407` säger nu
+   RESULTS SUBTREE och namnger de andra. Verifierat mot `foretag-sok-searchbar.tsx:1014`
+   (filterregionen) och `:1071`/`:1079` (org.nr-sektionen).
+
+## Min 2(b) — faller
+
+**2(b) håller inte. Sessionens mätning är rätt, min var ankrad fel.** Mätt i nuvarande fil:
+`foretag-sok-searchbar.tsx:270-289` är `announcement`-statens docblock och säger verbatim
+*"KNOWN LIMITATION … it is never reset … an identical string is no DOM mutation and therefore no
+announcement … not in this PR"* — genuint öppen. `:396-402` är axis-vs-object-blocket, som beskriver
+sin fix i förfluten tid och är stängt. Två olika fall i samma fil; jag citerade det stängda. Fyndet
+var falskt och sessionen gjorde rätt som inte agerade.
+
+## Ny Major i deltat
+
+**Major 1. Den tillförlitliga announce-vägen bär orsaken men aldrig åtgärden — och kan inte skilja
+rate limit från serverfel.**
+Fil: `web/jobbliggaren-web/src/components/company-criteria/foretag-sok-results.tsx:247`
+
+Nuvarande: `<Announce message={title} />`, där `title` på alla fyra grenarna (`:60`, `:64`) är
+`t("loadErrorTitle")` = `"Sökningen kunde inte läsas in"`. Åtgärden ligger enbart i `body`, och den
+skiljer sig materiellt: rateLimited → `"För många förfrågningar just nu. Vänta en stund och ladda om
+sidan."`, övriga tre → `"Försök igen om en stund."`
+
+PR:ens egen premiss — nedskriven på `:235-236`, i `foretag-sok-announcer.tsx:12-15` och i
+`foretag-sok-results-skeleton.tsx:10-12` — är att en region som monteras med sin text redan på plats
+*inte* annonseras tillförlitligt. `role="alert"` i `ErrorShell` är exakt den formen. Alltså: den enda
+väg PR:en själv behandlar som tillförlitlig levererar orsak utan åtgärd, och kollapsar fyra grenar
+till en identisk mening. En skärmläsaranvändare som möter rate limit hör "Sökningen kunde inte läsas
+in" och gissar — och den naturliga gissningen (söka om direkt) förlänger blockeringen.
+
+Krävs: `<Announce message={`${title} ${body}`} />`. Regionen har `aria-atomic="true"`
+(`foretag-sok-announcer.tsx:41`), så det läses som en yttrande-enhet. Ren kodändring, en rad.
+Meningen på `:239` — *"the title carries the whole status in one sentence, so the body is not
+repeated into it"* — blir därmed falsk och **stryks** (mekanisk stängning, ingen ny prosa).
+
+Motivering: DESIGN.md §copy — ett felmeddelande namnger orsak **och** åtgärd; charter §5
+task-completion — tillståndet ska kunna hanteras utan gissning.
+
+## `role="alert"` + polite region — sessionens direkta fråga
+
+**Anropet är rätt. Inget fynd.** Att behålla `role="alert"` bredvid `Announce` är korrekt av två
+skäl: (1) det är husmönstret för den server-renderade felnotisen på sex ytor (`jobb/[id]:92`,
+`ansokningar/[id]:97`, `matchningar:78`, `sokningar:51`, `sparade:55`,
+`smarta-bevakningar/[id]:175`) — och `smarta-bevakningar/[id]:173` bär en tidigare **design-review
+Minor 2** som uttryckligen krävde paritet med just det mönstret, så en strykning här skulle riva upp
+ett eget beslut; (2) felmoden för bälte-och-hängslen är en upprepad mening, medan felmoden för att ta
+bort endera vägen är tystnad. Dubbeltal är ingen WCAG-brist; tystnad är det.
+
+## Bra gjort
+
+- `foretag-sok-results.test.tsx:445-470` pinnar defekten som en **transition** (skelett → fel) i
+  stället för isolerat — den enda ärliga formen; kommentaren säger själv varför det isolerade testet
+  vore vakuöst.
+- E2E-locatorn fick en **positiv kontroll** (`foretag-sok-live-commit.spec.ts:161-164`), så en
+  sammanslagning av regionerna faller i stället för att tyst börja mäta fel element.
+- Call-site-pinnarna i `page.test.tsx` / `loading.test.tsx` stänger den verkliga luckan.
+
+## Sammanfattning
+
+**0 Blocker, 1 Major, 0 Minor.** Mina fem ursprungliga fynd är alla CLOSED; 2(b) faller på sessionens
+mätning. Major 1 är kodändring (en rad) + strykning av en mening — ingen ny prosa krävs, så den kan
+stängas genom att köra **fyndets egen mätning** (annonserad sträng på `rateLimited`-grenen innehåller
+`"Vänta en stund och ladda om sidan."`) och föras in som en rad i verdikttabellen.
+
+**Ingen eskalering att registrera.**

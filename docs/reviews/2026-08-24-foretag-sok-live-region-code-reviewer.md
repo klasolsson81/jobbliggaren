@@ -156,3 +156,108 @@ regionen ligger på `:668`. Pre-existerande drift, inte skapad av detta delta.)*
 **1 Blocker, 4 Major, 4 Minor.** Blocker 1 är en §5 `Tests:`-överträdelse och därmed §12-STOPP-klass
 — löses den in-block finns ingen STOPP kvar att flagga. Ingen Major får filas som issue (§9.6).
 Re-review efter fix: samma agent, report-only, skopad till fix-deltat.
+
+---
+
+# Scopad omkontroll (report-only) — fix-delta `1b15966b..a8ba5461`
+
+**Status:** ⚠ Changes requested — 9/9 egna fynd CLOSED, **2 nya Major i deltat** · **Head:** `a8ba5461`
+**Kvot:** förbrukad (CLAUDE.md §9.6)
+
+## Mina nio — status
+
+| # | Fynd | Status | Mätning |
+|---|---|---|---|
+| B1 | Cleanup-blankens test vilar på ett tillstånd `src/` ej producerar | **CLOSED** | Blanken borta (`foretag-sok-announcer.tsx:62-68`); testet är nu ett supersessionskontrakt om komponenten själv, inget produktionspåstående. §5 `Tests:` triggar inte: premissen (en monterad `Announce` får ny `message`) produceras av komponentens egen API. |
+| M1 | Trasig e2e-spec | **CLOSED** | `:not([aria-atomic])` + positiv kontroll. Verifierat: searchbarens region `:1014` sätter ingen `aria-atomic`-**attribut** (React serialiserar inte implicit ARIA), och `grep -rln "foretag/sok" tests/e2e/` → **1 fil**, så ingen annan spec bröts. `tsconfig.json:26-34` = `**/*.ts`, exclude bara `node_modules` → `tsc` typkollar specen; `vitest.config.ts:14` gör det fortfarande inte. |
+| M2 | Felgrenarna stänger ej loopen | **CLOSED** (se not) | `ErrorShell` bär `<Announce>`; alla fyra grenar täckta. |
+| M3 | Ingen call-site-pin | **CLOSED** | `page.test.tsx:216-225` + `loading.test.tsx`. Icke-vakuösa: searchbaren är mockad (`page.test.tsx:27-29`) och `foretag-sok-subnav` bär varken `role` eller `aria-live` (grep exit 1), så ingen decoy kan fånga `querySelector`. |
+| M4 | Faktiskt felaktig kommentar om blanken | **CLOSED** | `"cleanup blank is load-bearing"` → 0 träffar. |
+| m1 | skeleton `:13` | **CLOSED** | Säger nu "holds its role before the message reaches it" — sant även för `loading.tsx`-värden. |
+| m2 | announcer `:23` "roughly a frame apart" | **EJ CLOSED — uppgraderad, se ny Major 2** | Fel siffra ströks; ersattes av en fel **mekanism**. |
+| m3 | results.test `:413` | **CLOSED** | `:404-407` säger RESULTS SUBTREE och namnger de andra. |
+| m4 | searchbar `:104` | **CLOSED** | `in its own \`role="status"\`` → 0 träffar. |
+
+**Not till M2:** min stängning gäller **att announce-vägen finns**. `design-reviewer` har ett öppet
+Major på exakt samma rad (`foretag-sok-results.tsx:247`). Hennes grad, inte min att omgradera (§9.6).
+Läs inte min CLOSED som klartecken för `agents-done`.
+
+## Sessionens tre frågor
+
+**(1) Transitionstestet är genuint icke-vakuöst.** Det asserterar först att öppningsmeningen *är* i
+regionen (faller om `Announce` tas ur skelettet eller providern saknas), sedan att den ersatts.
+**`rerender` med en awaitad Server Component är en sekvens produktionen producerar:** `page.tsx:164-174`
+monterar **en** `ForetagSokAnnouncer` **utanför** `<Suspense key>`; fallbacken monteras under samma
+provider och byts sedan mot de lösta resultaten. `rerender` som byter providerns children reproducerar
+exakt det (samma typ, samma position → ingen remount, state bevarat). §5 `Tests:` fäster vid
+**assertionen**, inte sömmen. Den enda produktionsdetalj sömmen inte återger (~158 ms mellan
+commit:arna) bär ingen assertion.
+
+**(2) Uppräkningen är uttömmande — med en sjunde väg sessionen inte räknade, och den är ofarlig.**
+ok/räknare · ok/browse-all · ok/tomt · fyra felgrenar · `unauthorized`→redirect — verifierade mot
+`foretag-sok-results.tsx:54-65,100-109`. Den sjunde är ett **kast** ur `searchCompanies`/
+`getCompanyWatchStatusByOrgNr`. Mätt: det finns **ingen** `error.tsx` i `foretag/sok/` eller
+`foretag/`; närmaste boundary är `src/app/(app)/error.tsx`, som ligger **ovanför** `page.tsx` och
+därför river providern med sig — regionen **förstörs**, ingen mening blir stående (och `d3642710`
+flyttar fokus till boundaryns rubrik). `searchCompanies` fångar dessutom själv
+(`company-search.ts:77-79`).
+
+**(3) En av de nya pinnarna kan tillfredsställas vakuöst.** Se ny Major 1.
+
+## Nya Major i deltat
+
+**1. Pinnen "keeps the region OUTSIDE the Suspense boundary" kan inte observera egenskapen den
+namnger**
+Fil: `web/jobbliggaren-web/src/app/(app)/foretag/sok/page.test.tsx:227-237`
+
+Testet asserterar `live.contains(results) === false` och `results.contains(live) === false` — alltså
+enbart att de två noderna inte är ancestor/descendant. Docblocken hävdar något annat: *"Placement is
+the whole mechanism … Siblinghood is what survives the swap."*
+
+Mätt (React 19.2.8, repots egen `node_modules`, ingen repo-fil rörd):
+
+```
+region OUTSIDE boundary : <div><p role="status" aria-live="polite"></p><div data-testid="results"></div></div>
+region INSIDE  boundary : <div><p role="status" aria-live="polite"></p><div data-testid="results"></div></div>
+IDENTICAL DOM           : true
+```
+
+`<Suspense>` är ingen host-komponent och avger **noll** DOM-noder när den inte suspendar — och
+`ForetagSokResults` är mockad synkront (`:30-32`), så boundaryn suspendar aldrig i det här testet.
+Flyttar man `<ForetagSokAnnouncer>` **in** i `<Suspense>` — precis den regression docblocken säger
+sig stoppa — passerar båda assertionerna och sviten förblir grön. Sessionens mutationsuppsättning
+saknar just den mutationen.
+
+Krävs: **strykning** av `it`-blocket och dess kommentar (M3 är stängt av `:216-225` på egen hand). En
+ärlig pin skulle kräva att den mockade resultatkomponenten faktiskt suspendar — ny prosa, alltså
+följd-PR, inte den här. Strykningen greppar till noll och adderar noll `+`-rader → **mekanisk
+stängning**.
+
+**2. "React would batch away the intermediate state" är fel mekanism**
+Fil: `web/jobbliggaren-web/src/components/company-criteria/foretag-sok-announcer.tsx:31-32`
+
+Mätt i källan, tre oberoende punkter:
+- `foretag-sok-searchbar.tsx:374-378` — `setAnnouncement(announced)` ligger **utanför**
+  `startNavTransition`, med kommentaren *"Outside the transition: the live region should update as
+  soon as the intent is known, not when the navigation settles."* Meningen committas i sin **egen**
+  commit vid t=0.
+- `foretag-sok-searchbar.tsx:285` — filen deklarerar att de applicerade props:en ändras *"roughly
+  900 ms after the announcement was set"*.
+- `foretag-sok-searchbar.tsx:104` — skelettet mäts till **158 ms**.
+
+Två commit:ar separerade av 158–900 ms och en nätverksrondtur kan inte batchas — React batchar per
+task/microtask-flush. Delade de en region skulle filtermeningen committas och sedan **skrivas över**,
+vilket är en annan och svagare risk än den namngivna. Fyndet är dessutom formklassiskt: Minor 2
+stängdes genom att **lägga till en påståendemening** i stället för att stryka — precis vad §9.6 säger
+att en stängande fix inte gör — och den tillagda meningen är falsk, vilket lyfter en Minor till Major.
+
+Krävs: **stryk** klausulen. Noll adderade rader → **mekanisk stängning**.
+
+## Sammanfattning
+
+**0 Blocker, 2 nya Major, 0 Minor.** Alla nio ursprungliga fynd CLOSED. Båda nya Major stängs genom
+**ren strykning** → mekanisk stängning per §9.6, **ingen ytterligare omkontroll är skyldig mig**.
+Kvar innan `agents-done`: `design-reviewer`s öppna Major på `foretag-sok-results.tsx:247`. Verifiera
+att HEAD är oförändrad omedelbart före `agents-done`.
+
+**Eskalering att bära vidare:** ingen. Inga CLAUDE.md-konflikter i deltat.

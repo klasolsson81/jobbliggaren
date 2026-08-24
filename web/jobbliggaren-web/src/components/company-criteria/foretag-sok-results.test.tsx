@@ -430,16 +430,23 @@ describe("ForetagSokResults — the load's completion reaches the surface region
    * `ErrorShell`'s `role="alert"` does not discharge it: that element is mounted with its text
    * already in place, which is the exact ARIA22 shape this PR exists to stop relying on.
    */
-  it.each(["rateLimited", "notFound", "forbidden", "error"])(
-    "a %s response closes the loop instead of leaving it open",
-    async (kind) => {
+  it.each([
+    ["rateLimited", "Vänta en stund och ladda om sidan."],
+    ["notFound", "Försök igen om en stund."],
+    ["forbidden", "Försök igen om en stund."],
+    ["error", "Försök igen om en stund."],
+  ])(
+    "a %s response announces the remedy, not only the cause",
+    async (kind, remedy) => {
       searchCompanies.mockResolvedValue({ kind });
       await renderHosted("acme");
 
-      // All four share `loadErrorTitle` — the branches differ only in the BODY, and the title is
-      // the sentence that carries the status. Read through the real catalogue so a renamed key
-      // fails here rather than announcing a raw message id.
+      // All four branches share `loadErrorTitle`, so the title alone cannot tell a throttled user
+      // from a broken one — and the natural guess on a rate limit, searching again, extends the
+      // block. `design-reviewer` Major, scoped re-check on PR #1504. Read through the real
+      // catalogue so a renamed key fails here rather than announcing a raw message id.
       expect(announced()).toHaveTextContent("Sökningen kunde inte läsas in");
+      expect(announced()).toHaveTextContent(remedy);
     },
   );
 

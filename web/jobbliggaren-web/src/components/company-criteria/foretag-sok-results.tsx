@@ -236,7 +236,9 @@ export async function ForetagSokResults({
  * place, which is the ARIA22 shape this PR exists to stop relying on. It is kept because an alert
  * that a sighted user can read is not made wrong by being unreliable for AT, and removing it would
  * change the visible error's semantics for no gain. `Announce` is what actually reaches a screen
- * reader; the title carries the whole status in one sentence, so the body is not repeated into it.
+ * reader, so it carries the whole notice: all four branches share `loadErrorTitle`, and the remedy
+ * that distinguishes them — wait out a rate limit, or retry — lives only in the body. The region is
+ * `aria-atomic`, so the two read as one utterance.
  */
 function ErrorShell({ title, body }: { title: string; body: string }) {
   return (
@@ -244,7 +246,7 @@ function ErrorShell({ title, body }: { title: string; body: string }) {
       role="alert"
       className="mt-8 rounded-md border border-danger-600/30 bg-danger-50 px-6 py-4 text-danger-700"
     >
-      <Announce message={title} />
+      <Announce message={`${title} ${body}`} />
       <p className="text-body font-medium">{title}</p>
       <p className="mt-1 text-body-sm">{body}</p>
     </div>

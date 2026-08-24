@@ -55,10 +55,6 @@ describe("RegisterForm", () => {
 
   it("renders NO remember-me control — it belongs on the login page (#1478)", () => {
     render(<RegisterForm />);
-    // Klas 2026-08-23: a stay-signed-in box while REGISTERING is anything but
-    // standard. RegisterForm is the only thing that mounted it there, so this
-    // reaches the landing's AuthCard too. The consent box is the one checkbox
-    // this form still carries.
     expect(screen.queryByRole("checkbox", { name: "Håll mig inloggad" })).toBeNull();
     expect(screen.getAllByRole("checkbox")).toHaveLength(1);
   });
@@ -78,8 +74,6 @@ describe("RegisterForm", () => {
     expect(formData.get("displayName")).toBe("Anna Andersson");
     expect(formData.get("email")).toBe("anna@example.se");
     expect(formData.get("password")).toBe("password1");
-    // registerAction reads `formData.get("rememberMe") === "on"`, so an absent
-    // field is false and setSessionCookie gets a session-scoped cookie.
     expect(formData.get("rememberMe")).toBeNull();
   });
 

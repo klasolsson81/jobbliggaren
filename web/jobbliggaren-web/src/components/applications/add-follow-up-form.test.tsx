@@ -20,6 +20,12 @@ vi.mock("@/lib/actions/applications", () => ({
 // is Radix's documented controlled API, already relied on in production by
 // record-follow-up-outcome-form. It no longer hides anything about reset behaviour — the form has
 // no form action, so nothing resets the DOM and there is no reset semantics left to reproduce.
+//
+// It also drops the NATIVE-REQUIRED dimension: real Radix renders a visually hidden <select> that
+// carries `required`, this mock's <select> carries none. That difference is why the channel's
+// `required` was removed at the usage site — browser probe 2026-08-24, PR #1512, measured the
+// native bubble pre-empting the zod arm entirely — and it means no test in this file can measure
+// whether native validation fires before the zod gate.
 let selectOnValueChange: (v: string) => void = () => {};
 
 vi.mock("@/components/ui/select", () => ({
@@ -42,9 +48,19 @@ vi.mock("@/components/ui/select", () => ({
       </>
     );
   },
-  SelectTrigger: ({ id }: { id?: string }) => (
+  SelectTrigger: ({
+    id,
+    "aria-invalid": ariaInvalid,
+    "aria-describedby": ariaDescribedBy,
+  }: {
+    id?: string;
+    "aria-invalid"?: boolean;
+    "aria-describedby"?: string;
+  }) => (
     <select
       id={id}
+      aria-invalid={ariaInvalid}
+      aria-describedby={ariaDescribedBy}
       onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
         selectOnValueChange(e.target.value)
       }
@@ -127,18 +143,25 @@ describe("AddFollowUpForm", () => {
     expect(alert).toHaveAttribute("tabindex", "-1");
   });
 
-  it("refuses an unpicked channel client-side, in the server's own words", async () => {
+  it("refuses an unpicked channel in Swedish, and marks and focuses the trigger", async () => {
     // The client mirror of `makeAddFollowUpSchema` — the same builder the action runs, so the
     // message is the server's, not a second copy of it. The server stays authoritative: this only
-    // saves the round trip.
+    // saves the round trip. Reachable in a browser only because the channel Select carries no
+    // native `required` (see the seam docblock above and the usage site).
     const user = userEvent.setup();
     render(<AddFollowUpForm applicationId="app-1" />);
 
     await user.click(screen.getByRole("button", { name: SUBMIT }));
 
     const alert = await screen.findByRole("alert");
-    expect(alert).toHaveTextContent("Ogiltig kanal.");
+    expect(alert).toHaveTextContent("Välj en kanal.");
     expect(addFollowUpActionMock).not.toHaveBeenCalled();
+
+    // The refusal names one control, so it marks and focuses that control — not the message row.
+    const trigger = screen.getByLabelText("Kanal");
+    expect(trigger).toHaveAttribute("aria-invalid", "true");
+    expect(trigger.getAttribute("aria-describedby")).toBe(alert.id);
+    await waitFor(() => expect(trigger).toHaveFocus());
   });
 
   it("clears the form on a successful save, and only then", async () => {
@@ -159,6 +182,35 @@ describe("AddFollowUpForm", () => {
     // The date is re-read on clear rather than rewound to the mount time, so a second follow-up in
     // the same session does not open on a stale clock.
     expect(screen.getByLabelText("Datum")).not.toHaveValue("");
+  });
+
+  it("re-reads the clock when it clears, so a second follow-up does not open on the mount time", async () => {
+    // The guarantee the docblock makes about `reset({ scheduledAt: localDatetimeNow() })`. Fake
+    // timers are what make it measurable: without moving the clock, the mount value and the
+    // post-save value are the same string and the assertion would hold for a form that never
+    // re-read anything.
+    // `shouldAdvanceTime` keeps the fake clock ticking with real time, which is what lets
+    // `waitFor`'s own interval fire — a frozen clock deadlocks it.
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      vi.setSystemTime(new Date(2026, 7, 24, 9, 0));
+      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+      render(<AddFollowUpForm applicationId="app-1" />);
+
+      const mountValue = (screen.getByLabelText("Datum") as HTMLInputElement).value;
+      expect(mountValue).toBe("2026-08-24T09:00");
+
+      vi.setSystemTime(new Date(2026, 7, 24, 14, 30));
+
+      await user.selectOptions(screen.getByLabelText("Kanal"), "Email");
+      await user.click(screen.getByRole("button", { name: SUBMIT }));
+
+      await waitFor(() =>
+        expect(screen.getByLabelText("Datum")).toHaveValue("2026-08-24T14:30"),
+      );
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("opens on the current time with nothing pre-filled", async () => {

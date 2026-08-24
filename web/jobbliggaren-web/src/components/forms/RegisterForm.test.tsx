@@ -15,7 +15,7 @@ type AuthActionState = {
   pendingConfirmation?: boolean;
   registrationsClosed?: boolean;
   email?: string;
-  field?: "displayName" | "acceptTerms";
+  field?: "displayName" | "acceptTerms" | "password";
   values?: {
     displayName?: string;
     email?: string;
@@ -404,6 +404,57 @@ describe("RegisterForm", () => {
 
     await screen.findByRole("alert");
     await waitFor(() => expect(screen.getByLabelText("Namn")).toHaveFocus());
+  });
+
+  it("wires aria-invalid, aria-describedby and focus when the password is refused as breached", async () => {
+    // A breached password is a refusal about ONE field, fixed by changing it — the same wiring
+    // reset-password gives the identical refusal. Before, it landed on <body> like any nameless
+    // failure, leaving the user with a message and no caret near the field it is about.
+    registerActionMock.mockResolvedValue({
+      error: "Lösenordet finns i kända läckor. Välj ett annat.",
+      field: "password",
+      values: {
+        displayName: "Anna Andersson",
+        email: "anna@example.se",
+        acceptTerms: true,
+      },
+    });
+
+    const user = userEvent.setup();
+    render(<RegisterForm />);
+
+    await user.type(screen.getByLabelText("Namn"), "Anna Andersson");
+    await user.type(screen.getByLabelText("E-postadress"), "anna@example.se");
+    await user.type(screen.getByLabelText("Lösenord"), "password1");
+    await user.click(screen.getByRole("checkbox", { name: TERMS }));
+    await user.click(screen.getByRole("button", { name: "Skapa konto" }));
+
+    const alert = await screen.findByRole("alert");
+    const password = screen.getByLabelText("Lösenord");
+
+    expect(password).toHaveAttribute("aria-invalid", "true");
+    expect(password.getAttribute("aria-describedby")).toContain(alert.id);
+    await waitFor(() => expect(password).toHaveFocus());
+    // The message itself must NOT take focus here — it is not a nameless failure any more.
+    expect(alert).not.toHaveFocus();
+  });
+
+  it("leaves the password unmarked for a failure that is not about it", async () => {
+    registerActionMock.mockResolvedValue({ error: "Kunde inte na servern." });
+
+    const user = userEvent.setup();
+    render(<RegisterForm />);
+
+    await user.type(screen.getByLabelText("Namn"), "Anna Andersson");
+    await user.type(screen.getByLabelText("E-postadress"), "anna@example.se");
+    await user.type(screen.getByLabelText("Lösenord"), "password1");
+    await user.click(screen.getByRole("checkbox", { name: TERMS }));
+    await user.click(screen.getByRole("button", { name: "Skapa konto" }));
+
+    await screen.findByRole("alert");
+    const password = screen.getByLabelText("Lösenord");
+    expect(password).not.toHaveAttribute("aria-invalid");
+    expect(password.getAttribute("aria-describedby")).toBe("password-hint");
   });
 
   it("leaves the terms checkbox unmarked for a failure that is not about it", async () => {

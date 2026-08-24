@@ -1,6 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import {
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  useTransition,
+} from "react";
 import { Controller, useForm } from "react-hook-form";
 import { useTranslations } from "next-intl";
 
@@ -46,13 +53,21 @@ type FormValues = {
   note: string;
 };
 
+// Maps a zod issue path back to the control that owns it, so a refusal can mark and focus the
+// input it names. Keyed by form field, so a renamed field breaks the build rather than the routing.
+const FIELD_ELEMENT_IDS: Record<keyof FormValues, string> = {
+  channel: "follow-up-channel",
+  scheduledAt: "follow-up-date",
+  note: "follow-up-note",
+};
+
 /**
  * React Hook Form owns all three values, and that ownership is the point.
  *
  * As an uncontrolled `<form action={serverAction}>` this form lost every field to a failed save:
  * React 19 resets such a form after EVERY action, so the note went, the chosen date rewound to the
  * form's mount-time "now" (a wrong value, not an empty one) and the Radix Select dropped back to its
- * placeholder — measured in the browser, error-surface matrix RP-27 (2026-08-24).
+ * placeholder — measured in the browser, RP-27, 2026-08-24, PR #1512.
  *
  * Submitting through `handleSubmit` instead of a form action removes that reset entirely: nothing
  * calls `form.reset()`, so nothing clears the DOM and nothing fires the reset event Radix listens
@@ -79,21 +94,38 @@ export function AddFollowUpForm({
     [tValidation]
   );
 
+  const errorId = useId();
   const errorRef = useRef<HTMLParagraphElement>(null);
   const [isPending, startTransition] = useTransition();
   // An object rather than a bare string so two identical failures in a row are two distinct states
-  // — the focus effect below has to fire on the second one too.
-  const [error, setError] = useState<{ message: string } | null>(null);
+  // — the focus effect below has to fire on the second one too. `field` carries #1117's
+  // discriminator: the name of the ONE control a client-side refusal belongs to, absent for a
+  // server failure that belongs to no field.
+  const [error, setError] = useState<{
+    message: string;
+    field?: keyof FormValues;
+  } | null>(null);
 
   const { register, control, handleSubmit, reset } = useForm<FormValues>({
     defaultValues: { channel: "", scheduledAt: localDatetimeNow(), note: "" },
   });
 
-  // The failure names no field, and the submit button is disabled while the action runs, so focus
-  // would otherwise fall to <body> and the next Tab restart at the top of the page. The message is
-  // the only honest target here.
+  function fieldA11y(name: keyof FormValues) {
+    return error?.field === name
+      ? ({ "aria-invalid": true, "aria-describedby": errorId } as const)
+      : {};
+  }
+
+  // A refusal that names a control sends the caret there — it is what the user has to change. One
+  // that names none has no field to go to, and the submit button is disabled while the action runs,
+  // so focus would otherwise fall to <body> and the next Tab restart at the top of the page.
   useEffect(() => {
-    if (error) errorRef.current?.focus();
+    if (!error) return;
+    if (error.field) {
+      document.getElementById(FIELD_ELEMENT_IDS[error.field])?.focus();
+      return;
+    }
+    errorRef.current?.focus();
   }, [error]);
 
   function onSubmit(values: FormValues) {
@@ -104,8 +136,13 @@ export function AddFollowUpForm({
       note: values.note || undefined,
     });
     if (!parsed.success) {
+      const issue = parsed.error.issues[0];
+      const path = issue?.path[0];
       setError({
-        message: parsed.error.issues[0]?.message ?? tUi("actions.invalidInput"),
+        message: issue?.message ?? tUi("actions.invalidInput"),
+        field: typeof path === "string" && path in FIELD_ELEMENT_IDS
+          ? (path as keyof FormValues)
+          : undefined,
       });
       return;
     }
@@ -133,7 +170,16 @@ export function AddFollowUpForm({
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="follow-up-channel">{tUi("addFollowUp.channelLabel")}</Label>
           {/* Controller, not `register`: Radix Select is not a native control and posts nothing on
-              its own. With the value held here it also cannot be cleared behind the form's back. */}
+              its own. With the value held here it also cannot be cleared behind the form's back.
+
+              NO `required` here, deliberately. Radix puts it on the visually hidden native select
+              it renders for form participation, and a browser probe of that arrangement
+              (2026-08-24, PR #1512) measured what the user actually got: nativeRequired true,
+              nativeValidity false, the message "Please select an item in the list." in the
+              BROWSER's locale rather than Swedish, and focus moved to the hidden select. The zod
+              refusal below never ran. Dropping it makes that refusal the reachable gate, in
+              Swedish, bound to the visible trigger. The date and note inputs keep theirs — they
+              are real, visible controls whose native bubbles anchor correctly. */}
           <Controller
             control={control}
             name="channel"
@@ -142,7 +188,6 @@ export function AddFollowUpForm({
                 name={field.name}
                 value={field.value}
                 onValueChange={field.onChange}
-                required
                 disabled={isPending}
               >
                 <SelectTrigger
@@ -150,6 +195,7 @@ export function AddFollowUpForm({
                   className="w-full"
                   ref={field.ref}
                   onBlur={field.onBlur}
+                  {...fieldA11y("channel")}
                 >
                   <SelectValue placeholder={tUi("addFollowUp.channelPlaceholder")} />
                 </SelectTrigger>
@@ -171,16 +217,24 @@ export function AddFollowUpForm({
             type="datetime-local"
             required
             disabled={isPending}
+            {...fieldA11y("scheduledAt")}
             {...register("scheduledAt")}
           />
         </div>
       </div>
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="follow-up-note">{tUi("addFollowUp.noteLabel")}</Label>
+        {/* The hint is kept alongside the error rather than replaced by it — the length cap it
+            states is exactly what the refusal is about. */}
         <Textarea
           id="follow-up-note"
           rows={2}
-          aria-describedby="follow-up-note-hint"
+          aria-invalid={error?.field === "note" ? true : undefined}
+          aria-describedby={
+            error?.field === "note"
+              ? `follow-up-note-hint ${errorId}`
+              : "follow-up-note-hint"
+          }
           disabled={isPending}
           {...register("note")}
         />
@@ -193,6 +247,7 @@ export function AddFollowUpForm({
       </div>
       {error && (
         <p
+          id={errorId}
           ref={errorRef}
           tabIndex={-1}
           role="alert"

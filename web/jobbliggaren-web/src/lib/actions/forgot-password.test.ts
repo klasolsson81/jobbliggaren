@@ -175,6 +175,8 @@ describe("requestPasswordResetAction", () => {
       error: "auth.actions.passwordResetEmailRequired",
       // The trimmed address, which is the empty string here — the form re-seeds what was sent.
       values: { email: "" },
+      // The ONE failure this action can attribute to the input, so it is the only one stamped.
+      field: "email",
     });
     expect(fetchMock).not.toHaveBeenCalled();
   });

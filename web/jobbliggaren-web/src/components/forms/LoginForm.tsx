@@ -22,8 +22,11 @@ export function LoginForm() {
 
   // TD-45 a11y: vid generic server-error (medvetet vag av säkerhetsskäl, inte
   // path-baserad som TD-15) flytta fokus till email-fältet. Screen reader läser
-  // role="alert" automatiskt; focus-flytt ger keyboard-användare visuell anchor
-  // + nästa recovery-action (skriva om credentials).
+  // role="alert" automatiskt; focus-flytt ger keyboard-användare en visuell anchor
+  // vid toppen av formuläret de ska gå igenom igen.
+  // Fältet är nu förifyllt med den inskickade adressen, så fokus landar på ifylld
+  // text. `select()` skulle inte markera den: markerings-API:t gäller inte för
+  // `type="email"` (selectionStart är null), så anropet vore verkningslöst.
   useEffect(() => {
     if (state?.error) emailInputRef.current?.focus();
   }, [state?.error]);
@@ -88,10 +91,9 @@ export function LoginForm() {
         </p>
       )}
 
-      {/* #733/#791: read the submitted email from the action state, not the live input. The form
-          stays mounted on the 403, but React 19 resets its (uncontrolled) fields after the login
-          action, so emailInputRef.current.value is "" at click time and the resend would silently
-          no-op. loginAction echoes the submitted email on the 403 for exactly this. */}
+      {/* #733/#791: read the submitted email from the action state, not the live input — the
+          address the server actually received, independent of what the field holds at click
+          time. loginAction echoes it on the 403 for exactly this. */}
       {state?.emailNotConfirmed && (
         <ResendConfirmationButton getEmail={() => state.email ?? ""} />
       )}

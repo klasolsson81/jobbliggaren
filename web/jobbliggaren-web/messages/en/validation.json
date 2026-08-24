@@ -10,7 +10,7 @@
     "coverLetterMax": "The cover letter may be at most 5,000 characters.",
     "applicationIdInvalid": "Invalid application ID.",
     "statusInvalid": "Invalid status.",
-    "channelInvalid": "Invalid channel.",
+    "channelInvalid": "Select a channel.",
     "dateRequired": "Date is required.",
     "noteMax": "The note may be at most 1,000 characters.",
     "noteContentRequired": "The note cannot be empty.",

@@ -86,6 +86,29 @@ describe("ForgotPasswordForm", () => {
     expect(screen.getByRole("button", { name: SUBMIT })).toBeInTheDocument();
     const field = screen.getByLabelText("E-postadress");
     expect(field).toBeInTheDocument();
+    // NOT marked invalid: this failure belongs to no field. The address may be perfectly well
+    // formed and the send still fail, so stamping the input would tell a screen-reader user their
+    // address is wrong when the server was simply unreachable (#1117's absent-means-not-a-field).
+    expect(field).not.toHaveAttribute("aria-invalid");
+    expect(field.getAttribute("aria-describedby")).toContain(alert.id);
+  });
+
+  it("marks the field invalid only when the action names it", async () => {
+    // The other polarity. `field: "email"` is stamped on the one refusal this action can attribute
+    // to the input — a missing address — and that is the case where the mark is true.
+    actionMock.mockResolvedValue({
+      success: false,
+      error: "Skriv in din e-postadress.",
+      values: { email: "" },
+      field: "email",
+    });
+    const user = userEvent.setup();
+    render(<ForgotPasswordForm />);
+
+    await submit(user);
+
+    const alert = await screen.findByRole("alert");
+    const field = screen.getByLabelText("E-postadress");
     expect(field).toHaveAttribute("aria-invalid", "true");
     expect(field.getAttribute("aria-describedby")).toContain(alert.id);
   });

@@ -58,9 +58,8 @@ export type AuthActionState = {
   // #1117: names the ONE input an error belongs to, so the form can wire aria-invalid and
   // aria-describedby to that field and move focus there. Opt-in and absent by default — absent
   // means "not a field error" (network, server unreachable, the kill-switch), exactly the
-  // semantics ForgotPasswordForm already reads off `!state.refused`. Existing errors are left
-  // unstamped deliberately: stamping them would change behaviour outside this change-reason.
-  field?: "displayName" | "acceptTerms";
+  // semantics ForgotPasswordForm already reads off `!state.refused`.
+  field?: "displayName" | "acceptTerms" | "password";
   // The non-secret fields just submitted, echoed back so the form can re-seed its own inputs.
   // React 19 resets an uncontrolled `<form action={…}>` after EVERY action, so without this a
   // failed submit destroys the name, the address and the ticked terms box, and the user retypes
@@ -118,9 +117,8 @@ export async function loginAction(
     // with a valid password, so it is not an enumeration oracle (a wrong password stays a 401 above).
     // #733: flag the state so LoginForm can render the resend-confirmation-link action.
     if (res.status === 403) {
-      // #733/#791: echo the submitted email so LoginForm's resend button reads it from the action
-      // state. React 19 resets the (uncontrolled) form after the action completes, clearing the live
-      // email input — reading it at click time would yield "" and the resend would silently no-op.
+      // #733/#791: echo the submitted email so LoginForm's resend button reads the address the
+      // server actually received, not whatever the live input holds at click time.
       // Uniform-safe: the 403 is only reachable with a correct password (a wrong one stays 401 above),
       // so echoing the address the caller just proved they own introduces no enumeration oracle.
       return {
@@ -204,7 +202,13 @@ export async function registerAction(
         // must map to localized copy here (NIST "provide the reason"). Exact-whitelist
         // comparison only; ProblemDetails text is never rendered.
         if (errorBody.title === "Auth.PwnedPassword") {
-          return { error: t("auth.actions.passwordBreached"), values };
+          // Names the password input: this refusal is about that one field and is fixed by
+          // changing it, the same wiring `reset-password` gives the identical refusal.
+          return {
+            error: t("auth.actions.passwordBreached"),
+            field: "password",
+            values,
+          };
         }
         // #1117 — the display-name personnummer refusal is an aggregate invariant, so it
         // arrives as a ProblemDetails `title` and NOT in the FluentValidation `errors` dict the

@@ -22,6 +22,10 @@ export type ForgotPasswordActionState =
   | Extract<RefusableActionResult, { success: true }>
   | (Extract<RefusableActionResult, { success: false }> & {
       values?: { email: string };
+      // #1117's discriminator, for the one failure this action can attribute to the input: a
+      // missing address. Absent means "not a field error" — a transport fault or a rate limit
+      // must not mark an address the user typed correctly as invalid.
+      field?: "email";
     });
 
 /**
@@ -57,6 +61,7 @@ export async function requestPasswordResetAction(
       success: false,
       error: t("auth.actions.passwordResetEmailRequired"),
       values,
+      field: "email",
     };
   }
 

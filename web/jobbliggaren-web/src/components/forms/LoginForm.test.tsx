@@ -148,22 +148,24 @@ describe("LoginForm", () => {
     ).toBeInTheDocument();
   });
 
-  it("#791 — resend uses the email echoed in the action state, not the (React-reset) input", async () => {
+  it("#791 — resend sends the address the action reports as submitted", async () => {
+    // The 403 stub carries the production shape: loginAction returns the SAME `email` variable in
+    // `email` and in `values.email`, so the two can never disagree and no assertion here can tell
+    // which one the button read. What this pins is the outcome — the address the server received is
+    // the address the resend goes to — and the field is re-seeded from the echo besides.
     vi.mocked(resendConfirmationAction).mockClear();
     loginActionMock.mockResolvedValueOnce({
       error:
         "Din e-postadress är inte bekräftad ännu. Kontrollera inkorgen och skräpposten.",
       emailNotConfirmed: true,
       email: "submitted@example.se",
+      values: { email: "submitted@example.se", rememberMe: false },
     });
 
     const user = userEvent.setup();
     render(<LoginForm />);
 
-    // Type a DIFFERENT address than the one the action echoes back: this pins that the resend reads
-    // state.email (the submitted address), not the live input. In production the two are equal, but
-    // React 19 resets the uncontrolled input after the action — so sourcing from it would send "".
-    await user.type(screen.getByLabelText("E-postadress"), "typed@example.se");
+    await user.type(screen.getByLabelText("E-postadress"), "submitted@example.se");
     await user.type(screen.getByLabelText("Lösenord"), "hemligt1");
     await user.click(screen.getByRole("button", { name: "Logga in" }));
 
@@ -253,9 +255,10 @@ describe("LoginForm", () => {
     expect(password).toHaveAttribute("aria-required", "true");
   });
 
-  it("flyttar focus till email-fältet när action returnerar { error } (TD-45)", async () => {
+  it("flyttar focus till det förifyllda email-fältet när action returnerar { error } (TD-45)", async () => {
     loginActionMock.mockResolvedValueOnce({
       error: "Inloggningen misslyckades. Kontrollera e-post och lösenord.",
+      values: { email: "anna@example.se", rememberMe: false },
     });
 
     const user = userEvent.setup();
@@ -269,8 +272,11 @@ describe("LoginForm", () => {
     await screen.findByRole("alert");
 
     // Screen reader läser role="alert" automatiskt. Focus-flytt är för
-    // keyboard-användare som scrollat förbi felmeddelandet — visuell anchor +
-    // direkt recovery-action (skriva om credentials).
-    expect(screen.getByLabelText("E-postadress")).toHaveFocus();
+    // keyboard-användare som scrollat förbi felmeddelandet — en visuell anchor
+    // vid toppen av formuläret.
+    const email = screen.getByLabelText("E-postadress") as HTMLInputElement;
+    expect(email).toHaveFocus();
+    // Fokus landar på ifylld text, inte på ett tomt fält: adressen kommer från ekot.
+    expect(email.value).toBe("anna@example.se");
   });
 });

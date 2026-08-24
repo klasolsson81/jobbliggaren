@@ -143,7 +143,9 @@ export function ForgotPasswordForm() {
           }
           required
           aria-required="true"
-          aria-invalid={state?.success === false && !state.refused ? true : undefined}
+          aria-invalid={
+            state?.success === false && state.field === "email" ? true : undefined
+          }
           aria-describedby={
             state?.success === false && !state.refused
               ? `email-hint ${errorId}`

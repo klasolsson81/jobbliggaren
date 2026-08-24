@@ -202,6 +202,8 @@ describe("registerAction 400 handling (#616 breached password, #1117 display-nam
 
     expect(result).toEqual({
       error: "auth.actions.passwordBreached",
+      // Names the password input: the refusal is about that field and is fixed by changing it.
+      field: "password",
       values: REGISTER_ECHO,
     });
   });

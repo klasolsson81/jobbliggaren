@@ -20,6 +20,7 @@ export function RegisterForm() {
   const pendingRef = useRef<HTMLDivElement>(null);
   const displayNameRef = useRef<HTMLInputElement>(null);
   const acceptTermsRef = useRef<HTMLInputElement>(null);
+  const passwordRef = useRef<HTMLInputElement>(null);
   const errorRef = useRef<HTMLParagraphElement>(null);
   const errorId = useId();
   // #1117: the error belongs to a named field only when the action says so. Absent `field`
@@ -28,6 +29,9 @@ export function RegisterForm() {
   // #1479: the server-side half of the terms gate. `required` already blocks the submit in a
   // browser with constraint validation, so this state is what a bypassed client produces.
   const acceptTermsInvalid = state?.error !== undefined && state.field === "acceptTerms";
+  // A breached password is a refusal about ONE field, fixed by changing that field — the same
+  // wiring `reset-password` gives the identical refusal on its own form.
+  const passwordInvalid = state?.error !== undefined && state.field === "password";
   // A failure that names no field — a breached password, an unreachable server, a validator
   // message from the backend. There is no input to send the caret to, and the submit button the
   // user pressed is disabled during the action, so focus lands on <body> and the next Tab starts
@@ -43,6 +47,10 @@ export function RegisterForm() {
   useEffect(() => {
     if (acceptTermsInvalid) acceptTermsRef.current?.focus();
   }, [acceptTermsInvalid, state]);
+
+  useEffect(() => {
+    if (passwordInvalid) passwordRef.current?.focus();
+  }, [passwordInvalid, state]);
 
   useEffect(() => {
     if (genericError) errorRef.current?.focus();
@@ -171,12 +179,16 @@ export function RegisterForm() {
           {t("auth.register.passwordLabel")}
         </label>
         <PasswordInput
+          ref={passwordRef}
           id="password"
           name="password"
           autoComplete="new-password"
           required
           aria-required="true"
-          aria-describedby="password-hint"
+          aria-invalid={passwordInvalid ? true : undefined}
+          aria-describedby={
+            passwordInvalid ? `password-hint ${errorId}` : "password-hint"
+          }
         />
         <p id="password-hint" className="text-body-sm text-text-primary">
           {t("auth.register.passwordHint")}

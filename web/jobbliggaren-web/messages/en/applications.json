@@ -40,7 +40,7 @@
       "channelPlaceholder": "Select channel",
       "dateLabel": "Date",
       "noteLabel": "Note (optional)",
-      "noteHint": "For example what was discussed.",
+      "noteHint": "For example what was discussed. Max 1,000 characters.",
       "submit": "Add follow-up"
     },
     "addNote": {
@@ -322,9 +322,9 @@
       "createFromJobAdFailed": "Could not register the application.",
       "createApplicationFailed": "Could not save the application.",
       "transitionFailed": "The status change failed.",
-      "addFollowUpFailed": "Could not save the follow-up.",
+      "addFollowUpFailed": "Could not save the follow-up. Try again.",
       "logFollowUpFailed": "Could not log the follow-up.",
-      "addNoteFailed": "Could not save the note.",
+      "addNoteFailed": "Could not save the note. Try again.",
       "recordOutcomeFailed": "Could not record the outcome.",
       "deleteFailed": "The application could not be deleted."
     },

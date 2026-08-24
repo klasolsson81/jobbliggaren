@@ -1,4 +1,5 @@
 import { useTranslations } from "next-intl";
+import { Announce } from "@/components/company-criteria/foretag-sok-announcer";
 
 /**
  * #560 PR-B — the loading state for the `/foretag/sok` results region. Rendered as the `<Suspense>`
@@ -6,8 +7,12 @@ import { useTranslations } from "next-intl";
  * swap to the skeleton while a search runs; the pagehero + filter panel + org.nr island stay rendered.
  * Civic-utility: flat neutral grey rows (`.jp-skeleton`), no shimmer, no pulse, no spinner.
  *
- * a11y: `role="status"` + `aria-live="polite"` announces the single visible "Söker företag…" sentence;
- * the grey rows are `aria-hidden` so the announcement is a short sentence, not empty decoration.
+ * a11y (#1092): the visible sentence is ordinary content and this element is NOT a live region.
+ * It cannot be one and be reliable — the fallback mounts with its text already in place, which is
+ * what ARIA22's "before the status message occurs" rules out. `Announce` routes the same sentence
+ * to the persistent region in `ForetagSokAnnouncer`, which is in the DOM and empty before this
+ * subtree exists. `aria-busy` stays: it describes THIS subtree's state, not an announcement.
+ * The grey rows keep `aria-hidden` so nothing reads them as content.
  */
 
 const SKELETON_ROWS = 8;
@@ -15,7 +20,8 @@ const SKELETON_ROWS = 8;
 export function ForetagSokResultsSkeleton() {
   const t = useTranslations("pages.foretag.sok");
   return (
-    <div role="status" aria-live="polite" aria-busy="true" className="mt-8">
+    <div aria-busy="true" className="mt-8">
+      <Announce message={t("loadingResults")} />
       <p className="text-body-sm text-text-primary">{t("loadingResults")}</p>
       <div className="mt-6 flex flex-col gap-2" aria-hidden="true">
         {Array.from({ length: SKELETON_ROWS }, (_, i) => (

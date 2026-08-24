@@ -292,6 +292,7 @@
       "loadErrorBody": "Try again in a moment.",
       "rateLimited": "Too many requests right now. Wait a moment and reload the page.",
       "loadingResults": "Searching companies…",
+      "announceResultsReady": "The companies have loaded.",
       "announceFilterAdded": "The filter {namn} is added.",
       "announceFilterRemoved": "The filter {namn} is removed.",
       "announceBranschCleared": "All industry filters are removed.",

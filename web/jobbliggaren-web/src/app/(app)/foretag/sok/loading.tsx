@@ -1,11 +1,16 @@
 import { useTranslations } from "next-intl";
 import { ForetagSokResultsSkeleton } from "@/components/company-criteria/foretag-sok-results-skeleton";
+import { ForetagSokAnnouncer } from "@/components/company-criteria/foretag-sok-announcer";
 import { ForetagSubnav } from "@/components/foretag/foretag-subnav";
 
 /**
  * #560 PR-B — route-level loading UI for `/foretag/sok`, painted on the first cross-route navigation
  * (before the page's own reference fetch resolves). It renders the real pagehero (title + lede) so the
  * page identity is stable, then the results skeleton. Mirrors `/jobb`'s `loading.tsx`.
+ *
+ * #1092 — the skeleton announces through a live region it does not own, so this host provides one
+ * too. Next's route announcer already speaks the page title on a cross-route navigation; this adds
+ * the load sentence beneath it, and without the wrapper the skeleton would simply be silent here.
  */
 export default function Loading() {
   const t = useTranslations("pages.foretag.sok");
@@ -21,7 +26,9 @@ export default function Loading() {
       </section>
       <div className="jp-container jp-page">
         <ForetagSubnav active="sok" />
-        <ForetagSokResultsSkeleton />
+        <ForetagSokAnnouncer>
+          <ForetagSokResultsSkeleton />
+        </ForetagSokAnnouncer>
       </div>
     </>
   );

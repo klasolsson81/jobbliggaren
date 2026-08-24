@@ -3,6 +3,7 @@ import { render, screen } from "@testing-library/react";
 import { createTranslator } from "next-intl";
 import svPages from "../../../messages/sv/pages.json";
 import { ForetagSokResults } from "./foretag-sok-results";
+import { ForetagSokAnnouncer } from "./foretag-sok-announcer";
 import type { CriterionReference } from "@/lib/dto/company-criteria";
 
 const searchCompanies = vi.fn();
@@ -153,6 +154,22 @@ describe("ForetagSokResults — browse-all carries NO number, a search carries o
     });
   };
 
+  /**
+   * The VISIBLE count line. It used to be readable as `getByRole("status")`, because the element
+   * that renders the number was itself the live region — the shape #1092 removed: a region born
+   * holding its own text is not reliably announced (ARIA22). The number now renders here and is
+   * announced from the surface's persistent region instead, so these cases bind to the class.
+   *
+   * They still cannot bind to the text: the figure sits in a `<b>` inside the line, so the whole
+   * sentence exists in no single text node. What is asserted is unchanged — WHICH number the
+   * surface renders — and the announcement itself is pinned separately below.
+   */
+  const countLine = () => {
+    const line = document.querySelector(".jp-results-count");
+    if (line === null) throw new Error("no count line rendered");
+    return line;
+  };
+
   beforeEach(() => {
     searchCompanies.mockReset();
     getCompanyWatchStatusByOrgNr.mockReset();
@@ -177,10 +194,10 @@ describe("ForetagSokResults — browse-all carries NO number, a search carries o
       screen.getByRole("heading", { level: 2, name: "Företag i registret" }),
     ).toBeInTheDocument();
 
-    // No count line exists. Binding to the live region rather than to the text makes this a real
+    // No count line exists. Binding to the class rather than to the text keeps this a real
     // assertion: the `magnitude !== null` guard cannot be mutated into a green suite (dropping it
     // crashes, and tsc rejects it), so without this the guard was only crash-pinned.
-    expect(screen.queryByRole("status")).toBeNull();
+    expect(document.querySelector(".jp-results-count")).toBeNull();
 
     // This is the Blocker, in the state that produced it. The previous fix removed the honest
     // "10 000+" and left the saturated pagination total as the only quantity on the view —
@@ -207,7 +224,7 @@ describe("ForetagSokResults — browse-all carries NO number, a search carries o
     ).not.toBeInTheDocument();
   });
 
-  it("FILTERED: same heading, count in its own live region, no total claim, no ceiling copy", async () => {
+  it("FILTERED: same heading, count on its own line, no total claim, no ceiling copy", async () => {
     respondWith({ magnitude: 1234, saturated: false });
 
     render(
@@ -226,10 +243,10 @@ describe("ForetagSokResults — browse-all carries NO number, a search carries o
     ).toBeInTheDocument();
 
     // The number sits in a `<b>` inside the count line, so the string exists in no single text
-    // node; bind to the live region. `role="status"` is load-bearing on its own — the search
-    // commits with `router.push`, so without it the result of the user's action is announced to
-    // nobody (WCAG 4.1.3).
-    expect(screen.getByRole("status")).toHaveTextContent("1 234 träffar");
+    // node. The search commits with `router.push`, so the result of the user's action still has to
+    // reach a screen reader (WCAG 4.1.3) — that half moved to the surface region and is pinned in
+    // its own block below; this asserts which number is rendered.
+    expect(countLine()).toHaveTextContent("1 234 träffar");
 
     // The magnitude is the surface's number. The pager must not put a second one beside it.
     expect(screen.queryByText(/träffar totalt/)).toBeNull();
@@ -258,7 +275,7 @@ describe("ForetagSokResults — browse-all carries NO number, a search carries o
     // Two different ceilings, both true, and the reason they may sit on one screen: 10 000+ is how
     // many companies match, 2 000 is how many you can page through. Conflating them is the whole
     // defect class this PR exists for.
-    expect(screen.getByRole("status")).toHaveTextContent("10 000+ träffar");
+    expect(countLine()).toHaveTextContent("10 000+ träffar");
     expect(
       screen.getByText(/Du kan bläddra bland de 2 000 första företagen/),
     ).toBeInTheDocument();
@@ -283,7 +300,7 @@ describe("ForetagSokResults — browse-all carries NO number, a search carries o
       }),
     );
 
-    expect(screen.getByRole("status")).toHaveTextContent("2 000 träffar");
+    expect(countLine()).toHaveTextContent("2 000 träffar");
     expect(screen.queryByText(/Du kan bläddra bland/)).toBeNull();
     // Still 100 pages — every one of them reachable, which is exactly why nothing needs explaining.
     expect(screen.getByText("Sida 1 av 100")).toBeInTheDocument();
@@ -304,6 +321,100 @@ describe("ForetagSokResults — browse-all carries NO number, a search carries o
       }),
     );
 
-    expect(screen.getByRole("status")).toHaveTextContent("1 träff");
+    expect(countLine()).toHaveTextContent("1 träff");
+  });
+});
+
+/**
+ * #1092 — the END of the load, announced. Klas fell the WCAG 4.1.3 verdict on 2026-08-24: Major,
+ * fixed in-block, and the count IS to be announced.
+ *
+ * These render inside `ForetagSokAnnouncer`, which is how the page composes them. Without the
+ * wrapper `Announce` is inert by design, so the assertions below would pass vacuously against a
+ * results tree that announced nothing — the wrapper is the production shape, not test scaffolding.
+ *
+ * Three cases because W3C's Understanding document names three different sentences, and the
+ * browse-all one is the case its own rule does NOT force: it renders no number by #1149, so
+ * nothing here is obliged to exist. It exists anyway, because announcing "Söker företag…" and then
+ * never closing it leaves a screen reader waiting on a load that finished.
+ */
+describe("ForetagSokResults — the load's completion reaches the surface region", () => {
+  const respondWith = (
+    magnitude: { readonly magnitude: number; readonly saturated: boolean } | null,
+    items: ReadonlyArray<typeof COMPANY> = [COMPANY],
+  ) => {
+    searchCompanies.mockResolvedValue({
+      kind: "ok",
+      data: {
+        companies: {
+          items,
+          page: 1,
+          pageSize: 20,
+          totalCount:
+            magnitude === null ? 2000 : Math.min(magnitude.magnitude, 2000),
+        },
+        magnitude,
+      },
+    });
+  };
+
+  const announced = () =>
+    document.querySelector('p[role="status"][aria-live="polite"]');
+
+  const renderHosted = async (namn: string) =>
+    render(
+      <ForetagSokAnnouncer>
+        {await ForetagSokResults({
+          namn,
+          sni: [],
+          kommun: [],
+          page: 1,
+          reference: REFERENCE,
+        })}
+      </ForetagSokAnnouncer>,
+    );
+
+  beforeEach(() => {
+    searchCompanies.mockReset();
+    getCompanyWatchStatusByOrgNr.mockReset();
+    getCompanyWatchStatusByOrgNr.mockResolvedValue([{ companyWatchId: null }]);
+  });
+
+  it("a SEARCH announces the count — W3C's '18 results returned'", async () => {
+    respondWith({ magnitude: 1234, saturated: false });
+    await renderHosted("acme");
+
+    expect(announced()).toHaveTextContent("1 234 träffar");
+  });
+
+  it("ZERO matches announce the empty statement — W3C's 'No results returned'", async () => {
+    // The case that previously reached a screen reader through nothing at all: the empty state has
+    // never carried a live region of any kind, so a search that found nothing was silent.
+    respondWith({ magnitude: 0, saturated: false }, []);
+    await renderHosted("obefintligt");
+
+    expect(announced()).toHaveTextContent("Inga företag matchar sökningen");
+  });
+
+  it("BROWSE-ALL announces completion without inventing a figure", async () => {
+    respondWith(null);
+    await renderHosted("");
+
+    expect(announced()).toHaveTextContent("Företagen har laddats.");
+    // #1149's ruling is untouched: no number is claimed on this state, in the region or on the page.
+    expect(announced()).not.toHaveTextContent(/\d/);
+    expect(document.querySelector(".jp-results-count")).toBeNull();
+  });
+
+  it("the count line itself is no longer a second live region", async () => {
+    respondWith({ magnitude: 1234, saturated: false });
+    await renderHosted("acme");
+
+    // Exactly one region on the surface. Restoring `role="status"` on the count line would announce
+    // the same sentence twice — the regression this pins, and one no rendered-text assertion sees.
+    expect(document.querySelectorAll('[role="status"]')).toHaveLength(1);
+    expect(document.querySelector(".jp-results-count")).not.toHaveAttribute(
+      "role",
+    );
   });
 });

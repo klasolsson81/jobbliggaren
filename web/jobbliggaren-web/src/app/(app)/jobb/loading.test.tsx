@@ -80,6 +80,12 @@ describe("/jobb loading.tsx — the skeleton has a region to announce through", 
     // …and it really is the announcer's region, not some other atomic element.
     expect(region?.[0]).toContain('role="status"');
     expect(region?.[0]).toContain('aria-live="polite"');
+    // The fourth mutation, which the emptiness assertion alone does NOT see: seed the opening
+    // sentence as an `aria-label` on the region instead of as text. `role=status` is
+    // `nameFrom: author`, so it is read out while the text content stays "" and every assertion
+    // above passes. `test-writer` deduced it; measured here before fixing — an `initialLabel`
+    // prop passed from this file survived all eight tests in the two suites.
+    expect(region?.[0]).not.toContain("aria-label");
   });
 
   it("keeps the skeleton itself free of any live-region role", () => {

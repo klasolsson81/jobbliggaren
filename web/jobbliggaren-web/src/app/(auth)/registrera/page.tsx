@@ -31,8 +31,10 @@ export default function RegistreraPage() {
         <RegisterForm />
       </Suspense>
 
-      <p className="jp-auth-free">{tAuth("free")}</p>
-      <p className="jp-auth-fine">{tAuth("fine")}</p>
+      <div className="flex flex-col gap-3">
+        <p className="jp-auth-free">{tAuth("free")}</p>
+        <p className="jp-auth-fine">{tAuth("fine")}</p>
+      </div>
 
       <p className="text-body-sm leading-5 text-text-primary text-center">
         {t("auth.register.haveAccount")}{" "}

@@ -18,17 +18,20 @@
  * shimmer, ingen puls, ingen glow, ingen gradient. Blocken är rent
  * statisk DOM.
  *
- * a11y: yttre `role="status"` + `aria-live="polite"` annonserar den synliga
- * "Söker bland annonser…"-texten för skärmläsare medan fallbacken visas.
- * Texten är både visuell signal till seende användare OCH den enda
- * upplästa meningen — ingen separat `aria-label`/`aria-labelledby` behövs
- * (status-elementet läser sitt eget icke-aria-hidden innehåll). Skeleton-
- * blocken (sort-platshållaren + rad-listan) bär `aria-hidden` så
- * uppläsningen blir en kort mening, inte tom dekoration. Inga interaktiva
- * element finns i fallbacken — tangentbordsfokus påverkas inte.
+ * a11y (#1505): den synliga "Söker bland annonser…"-texten är vanligt innehåll
+ * och det här elementet är INGEN live-region. Det kan inte vara det och vara
+ * tillförlitligt — fallbacken monteras med sin text redan på plats, vilket är
+ * precis vad ARIA22:s "before the status message occurs" utesluter. `Announce`
+ * dirigerar samma mening till regionen i `Announcer`, som bär sin roll innan
+ * meddelandet når den. `aria-busy` står kvar: den beskriver DEN HÄR subtree:ns
+ * tillstånd, inte en annonsering, och är en global ARIA-state (applicerad på
+ * `roletype`) som inte förutsätter en live-region. Skeleton-blocken (sort-
+ * platshållaren + rad-listan) bär `aria-hidden` så inget läses som innehåll.
+ * Inga interaktiva element finns i fallbacken — tangentbordsfokus påverkas inte.
  */
 
 import { useTranslations } from "next-intl";
+import { Announce } from "@/components/common/announcer";
 
 // Antal skeleton-rader. Fyller resultat-ytan utan att bli en lång
 // platshållar-vägg. Inte prop-styrt: ingen anropare behöver variera
@@ -39,11 +42,12 @@ export function JobAdListSkeleton() {
   // Synchronous next-intl translator — keeps JobAdListSkeleton a non-async RSC.
   const t = useTranslations("jobads.ui");
   return (
-    <div role="status" aria-live="polite" aria-busy="true">
+    <div aria-busy="true">
+      <Announce message={t("skeleton.searching")} />
       {/* Toolbar-rad: synlig "Söker…"-text vänster (där träffräknaren
           landar — samma slot, undviker layout-shift). sort-platshållaren
-          höger speglar select:ens mått. Texten är både visuell signal
-          och innehållet som role="status" annonserar. */}
+          höger speglar select:ens mått. Texten är visuell signal; samma
+          mening annonseras via <Announce> ovan. */}
       <div className="jp-results-toolbar">
         <p className="jp-skeleton__status-text">{t("skeleton.searching")}</p>
         <div

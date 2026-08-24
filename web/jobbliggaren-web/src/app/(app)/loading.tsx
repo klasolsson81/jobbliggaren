@@ -20,7 +20,10 @@ export default function Loading() {
         {t("navLoading.generic")}
       </span>
 
-      <PageHeroSkeleton />
+      {/* aside={null}: no route this net covers renders an aside — the ones that land a
+          pagehero render `__main` alone (#1490). It used to take a two-bar default, which
+          reserved a whole `__aside` element none of them renders. */}
+      <PageHeroSkeleton aside={null} />
 
       <div className="jp-container jp-page" aria-hidden="true">
         <section className="jp-section">

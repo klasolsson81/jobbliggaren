@@ -75,10 +75,7 @@ export function LoginForm() {
         </p>
       </div>
 
-      <RememberMeCheckbox
-        label={t("auth.login.rememberMeLabel")}
-        hint={t("auth.login.rememberMeHint")}
-      />
+      <RememberMeCheckbox label={t("auth.login.rememberMeLabel")} />
 
       {state?.error && (
         <p role="alert" className="text-body-sm leading-5 text-danger-600">

@@ -17,18 +17,24 @@ import { RegisterForm } from "@/components/forms/RegisterForm";
  */
 export default function RegistreraPage() {
   const t = useTranslations("pages");
+  // The same two lines AuthCard renders under this form on the landing
+  // (auth-card.tsx). A visitor arriving from the footer or from /logga-in met
+  // neither; the landing's did.
+  const tAuth = useTranslations("landing.auth");
   return (
     <div className="flex flex-col gap-8">
-      <div className="flex flex-col gap-1">
-        <h1 className="text-h1 font-bold text-heading-1">
-          {t("auth.register.title")}
-        </h1>
-        <p className="text-body text-text-secondary">{t("auth.register.brand")}</p>
-      </div>
+      <h1 className="text-h1 font-bold text-heading-1">
+        {t("auth.register.title")}
+      </h1>
 
       <Suspense fallback={null}>
         <RegisterForm />
       </Suspense>
+
+      <div className="flex flex-col gap-3">
+        <p className="jp-auth-free">{tAuth("free")}</p>
+        <p className="jp-auth-fine">{tAuth("fine")}</p>
+      </div>
 
       <p className="text-body-sm leading-5 text-text-primary text-center">
         {t("auth.register.haveAccount")}{" "}

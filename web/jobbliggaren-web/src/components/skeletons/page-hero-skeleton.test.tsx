@@ -4,7 +4,9 @@ import { PageHeroSkeleton } from "./page-hero-skeleton";
 
 describe("PageHeroSkeleton", () => {
   it("reproduces the shared .jp-pagehero envelope so the swap does not shift", () => {
-    const { container } = render(<PageHeroSkeleton />);
+    // An aside is passed because the envelope's fourth element only exists when the page
+    // has one — `aside={null}` is a page saying it renders none, and is pinned separately.
+    const { container } = render(<PageHeroSkeleton aside={<span />} />);
     expect(container.querySelector(".jp-pagehero")).not.toBeNull();
     expect(container.querySelector(".jp-pagehero__inner")).not.toBeNull();
     expect(container.querySelector(".jp-pagehero__main")).not.toBeNull();
@@ -12,7 +14,7 @@ describe("PageHeroSkeleton", () => {
   });
 
   it("is decorative — the whole band is hidden from assistive tech", () => {
-    const { container } = render(<PageHeroSkeleton />);
+    const { container } = render(<PageHeroSkeleton aside={null} />);
     // Announcement is owned by the route loading.tsx (sr-only role=status);
     // the visual shape must not be read out as empty elements.
     expect(container.querySelector(".jp-pagehero")).toHaveAttribute(
@@ -22,18 +24,15 @@ describe("PageHeroSkeleton", () => {
   });
 
   it("renders no global id (safe to render alongside the real page mid-swap)", () => {
-    const { container } = render(<PageHeroSkeleton />);
+    // An aside is passed so the sweep still reaches `__aside`: with `aside={null}` that
+    // element is not in the tree at all, and the only component-owned node this could
+    // catch an id on would drop out of the query. The caller's <span/> carries none.
+    const { container } = render(<PageHeroSkeleton aside={<span />} />);
     expect(container.querySelector("[id]")).toBeNull();
   });
 
-  it("renders the default two-action aside when no override is given", () => {
-    const { container } = render(<PageHeroSkeleton />);
-    const aside = container.querySelector(".jp-pagehero__aside");
-    expect(aside?.querySelectorAll(".jp-skeleton")).toHaveLength(2);
-  });
-
   it("adds a kicker overline bar above title + lede when kicker is set", () => {
-    const { container } = render(<PageHeroSkeleton kicker />);
+    const { container } = render(<PageHeroSkeleton kicker aside={null} />);
     const main = container.querySelector(".jp-pagehero__main");
     expect(main?.querySelectorAll(".jp-skeleton")).toHaveLength(3);
   });
@@ -44,12 +43,12 @@ describe("PageHeroSkeleton", () => {
     );
     const aside = container.querySelector(".jp-pagehero__aside");
     expect(aside?.querySelector("[data-testid='today-card']")).not.toBeNull();
-    // The default two-button placeholder is replaced, not appended.
+    // Nothing is appended beside it: the component contributes no bars of its own.
     expect(aside?.querySelectorAll(".jp-skeleton")).toHaveLength(0);
   });
 
-  it("reserves one lede line by default, so existing call sites are unchanged", () => {
-    const { container } = render(<PageHeroSkeleton />);
+  it("reserves one lede line by default", () => {
+    const { container } = render(<PageHeroSkeleton aside={null} />);
     const main = container.querySelector(".jp-pagehero__main");
     // Title + one lede bar.
     expect(main?.querySelectorAll(".jp-skeleton")).toHaveLength(2);
@@ -71,6 +70,30 @@ describe("PageHeroSkeleton", () => {
   });
 
   /**
+   * The empty-but-not-null values are closed by the TYPE, not by the guard, and that
+   * distinction was measured rather than assumed. `ReactNode` admits `undefined`, `false`
+   * and `""`; all three render nothing, and all three would leave the empty `__aside`
+   * behind that #1385 measured. Relaxing the guard to `!= null` closes only `undefined` —
+   * `false != null` and `"" != null` are both true — so the guard cannot be the fix.
+   * `ReactElement | null` makes all three a compile error instead.
+   *
+   * These are the pin: if the prop ever widens back to `ReactNode`, each directive becomes
+   * an unused `@ts-expect-error` and `tsc --noEmit` fails. Nothing is rendered here — a
+   * type contract is not observable at runtime.
+   */
+  it("rejects undefined, false and the empty string at compile time", () => {
+    const reject = () => [
+      // @ts-expect-error — undefined renders nothing but is not `null`
+      <PageHeroSkeleton key="u" aside={undefined} />,
+      // @ts-expect-error — `items.length > 0 && <X/>` yields false, not null
+      <PageHeroSkeleton key="f" aside={false} />,
+      // @ts-expect-error — the empty string renders nothing but is not `null`
+      <PageHeroSkeleton key="s" aside={""} />,
+    ];
+    expect(typeof reject).toBe("function");
+  });
+
+  /**
    * A bar can only approximate a paragraph, and a fallback that approximates its own page
    * disagrees with it at every width it was not tuned for (#1385). A pagehero's title and
    * lede are static translations, so rendering them for real hands the wrapping to the
@@ -80,7 +103,7 @@ describe("PageHeroSkeleton", () => {
    * *as well* would put the band back where it started, and nothing else in the suite looks.
    */
   it("renders the real title element instead of the title bar when `title` is given", () => {
-    const { container } = render(<PageHeroSkeleton title="Importera CV" />);
+    const { container } = render(<PageHeroSkeleton title="Importera CV" aside={null} />);
     const main = container.querySelector(".jp-pagehero__main");
     const title = main?.querySelector("h1.jp-pagehero__title");
     expect(title?.textContent).toBe("Importera CV");
@@ -89,7 +112,7 @@ describe("PageHeroSkeleton", () => {
   });
 
   it("renders the real lede element instead of the lede bars when `lede` is given", () => {
-    const { container } = render(<PageHeroSkeleton lede="Ladda upp ditt CV." />);
+    const { container } = render(<PageHeroSkeleton lede="Ladda upp ditt CV." aside={null} />);
     const main = container.querySelector(".jp-pagehero__main");
     expect(main?.querySelector("p.jp-pagehero__lede")?.textContent).toBe(
       "Ladda upp ditt CV.",
@@ -100,7 +123,7 @@ describe("PageHeroSkeleton", () => {
 
   it("leaves no bar in __main once both title and lede are real", () => {
     const { container } = render(
-      <PageHeroSkeleton title="Granskning av ditt CV" lede="En granskning." />,
+      <PageHeroSkeleton title="Granskning av ditt CV" lede="En granskning." aside={null} />,
     );
     const main = container.querySelector(".jp-pagehero__main");
     expect(main?.querySelectorAll(".jp-skeleton")).toHaveLength(0);
@@ -108,10 +131,35 @@ describe("PageHeroSkeleton", () => {
     expect(main?.querySelectorAll("p.jp-pagehero__lede")).toHaveLength(1);
   });
 
+  /**
+   * A page's aside MODIFIER is part of the envelope, not styling the children can carry:
+   * `--stacked` sets `flex-direction: column` and, under 720px, `width: 100%` +
+   * `align-items: stretch`. Without it the same children lay out as a wrapping row, which
+   * is a whole row of height the band does not reserve (#1467).
+   *
+   * Pinned in BOTH directions — a flag that added nothing, or that dropped the base class
+   * while adding the modifier, would each break the envelope, and only one of those is
+   * visible from a test that looks for the modifier alone.
+   */
+  it("composes the stacked modifier onto the aside while keeping the base class", () => {
+    const { container } = render(<PageHeroSkeleton stacked aside={<span />} />);
+    const aside = container.querySelector(".jp-pagehero__aside");
+    expect(aside).not.toBeNull();
+    expect(aside).toHaveClass("jp-pagehero__aside", "jp-pagehero__aside--stacked");
+  });
+
+  it("carries no modifier class when stacked is not set", () => {
+    const { container } = render(<PageHeroSkeleton aside={<span />} />);
+    // The negative half: the base class must not silently grow a modifier.
+    expect(container.querySelector(".jp-pagehero__aside")?.className).toBe(
+      "jp-pagehero__aside"
+    );
+  });
+
   it("keeps the band decorative even when it carries a real heading", () => {
     // The h1 is real markup inside an aria-hidden band: the announce stays owned by the
     // route's sr-only role="status", so the fallback must not expose a second heading.
-    const { container } = render(<PageHeroSkeleton title="CV" lede="Hantera dina CV." />);
+    const { container } = render(<PageHeroSkeleton title="CV" lede="Hantera dina CV." aside={null} />);
     expect(container.querySelector(".jp-pagehero")).toHaveAttribute("aria-hidden", "true");
   });
 });

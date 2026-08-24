@@ -53,23 +53,19 @@ describe("RegisterForm", () => {
     ).toBeInTheDocument();
   });
 
-  it("renders the 'Håll mig inloggad' checkbox, unticked by default (valid consent)", () => {
+  it("renders NO remember-me control — it belongs on the login page (#1478)", () => {
     render(<RegisterForm />);
-    const checkbox = screen.getByRole("checkbox", { name: "Håll mig inloggad" });
-    expect(checkbox).toBeInTheDocument();
-    // A pre-ticked box is invalid consent (GDPR Art. 7) — must start unchecked.
-    expect(checkbox).not.toBeChecked();
-    expect(checkbox).toHaveAttribute("name", "rememberMe");
+    expect(screen.queryByRole("checkbox", { name: "Håll mig inloggad" })).toBeNull();
+    expect(screen.getAllByRole("checkbox")).toHaveLength(1);
   });
 
-  it("posts rememberMe=on only when the box is ticked", async () => {
+  it("posts no rememberMe at all, so a new account's session is not persistent", async () => {
     const user = userEvent.setup();
     render(<RegisterForm />);
 
     await user.type(screen.getByLabelText("Namn"), "Anna Andersson");
     await user.type(screen.getByLabelText("E-postadress"), "anna@example.se");
     await user.type(screen.getByLabelText("Lösenord"), "password1");
-    await user.click(screen.getByRole("checkbox", { name: "Håll mig inloggad" }));
     await user.click(screen.getByRole("checkbox", { name: TERMS }));
     await user.click(screen.getByRole("button", { name: "Skapa konto" }));
 
@@ -78,7 +74,7 @@ describe("RegisterForm", () => {
     expect(formData.get("displayName")).toBe("Anna Andersson");
     expect(formData.get("email")).toBe("anna@example.se");
     expect(formData.get("password")).toBe("password1");
-    expect(formData.get("rememberMe")).toBe("on");
+    expect(formData.get("rememberMe")).toBeNull();
   });
 
   it("marks name, email and password as required (HTML attribute + aria-required)", () => {

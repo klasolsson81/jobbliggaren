@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { getTranslations, getFormatter } from "next-intl/server";
 import { formatMagnitude } from "@/lib/company-criteria/format-magnitude";
-import { Announce } from "@/components/company-criteria/foretag-sok-announcer";
+import { Announce } from "@/components/common/announcer";
 import { CompanyBrowseList } from "./company-browse-list";
 import { JobAdPagination } from "@/components/job-ads/job-ad-pagination";
 import { InfoDialog } from "@/components/common/info-dialog";
@@ -89,7 +89,7 @@ export async function ForetagSokResults({
 
   // #1092 — the end-of-load status message, routed to the surface's persistent live region rather
   // than announced from the element that renders it (WCAG 4.1.3; the mechanism and why it has to be
-  // this way are in `foretag-sok-announcer.tsx`).
+  // this way are in `announcer.tsx`).
   //
   // Three cases, and they are deliberately not one sentence. A zero-match search is W3C's own
   // "No results returned" example and today reaches a screen reader through nothing at all — the
@@ -232,20 +232,13 @@ export async function ForetagSokResults({
  * after the search has finished failing — the state the surface rule calls worse than the silence
  * it replaced.
  *
- * `role="alert"` stays and is NOT the announcement path: it is mounted with its text already in
- * place, which is the ARIA22 shape this PR exists to stop relying on. It is kept because an alert
- * that a sighted user can read is not made wrong by being unreliable for AT, and removing it would
- * change the visible error's semantics for no gain. `Announce` is what actually reaches a screen
- * reader, so it carries the whole notice: all four branches share `loadErrorTitle`, and the remedy
- * that distinguishes them — wait out a rate limit, or retry — lives only in the body. The region is
- * `aria-atomic`, so the two read as one utterance.
+ * `Announce` is what reaches a screen reader, so it carries the whole notice: all four branches
+ * share `loadErrorTitle`, and the remedy that distinguishes them — wait out a rate limit, or retry
+ * — lives only in the body. The region is `aria-atomic`, so the two read as one utterance.
  */
 function ErrorShell({ title, body }: { title: string; body: string }) {
   return (
-    <div
-      role="alert"
-      className="mt-8 rounded-md border border-danger-600/30 bg-danger-50 px-6 py-4 text-danger-700"
-    >
+    <div className="mt-8 rounded-md border border-danger-600/30 bg-danger-50 px-6 py-4 text-danger-700">
       <Announce message={`${title} ${body}`} />
       <p className="text-body font-medium">{title}</p>
       <p className="mt-1 text-body-sm">{body}</p>

@@ -1,4 +1,5 @@
 import { useTranslations } from "next-intl";
+import { Announcer } from "@/components/common/announcer";
 import { JobAdListSkeleton } from "@/components/job-ads/job-ad-list-skeleton";
 
 /**
@@ -13,8 +14,14 @@ import { JobAdListSkeleton } from "@/components/job-ads/job-ad-list-skeleton";
  * on the left column); the interactive right-panel controls (search, filters,
  * chips) need data, so they show flat-grey `.jp-skeleton` placeholders. The
  * result area re-uses `<JobAdListSkeleton />` — the exact shape the mounted page
- * streams into — which also owns the polite `role="status"` announcement, so the
- * hero shell stays `aria-hidden`. Sync RSC, skeleton-not-spinner per doctrine.
+ * streams into — and the hero shell stays `aria-hidden`. Sync RSC,
+ * skeleton-not-spinner per doctrine.
+ *
+ * #1505 — this file mounts its OWN `<Announcer>`. It is a separate route-segment
+ * component, so it cannot share `page.tsx`'s region: a cross-route navigation is
+ * not one node, and the start and end sentences land in different regions. Both
+ * are empty when they mount, which is what ARIA22 asks for; neither is one region
+ * spanning the whole cycle, and this comment does not claim otherwise.
  */
 export default function Loading() {
   const t = useTranslations("pages");
@@ -60,12 +67,14 @@ export default function Loading() {
             measurement that decays: `--text-h2` 20px x the `body` line-height 1.55 = 31px. The
             `.jp-results-toolbar` inside the skeleton keeps its own top margin, exactly as it
             does under the real heading, so the delta is the box and nothing else. A grey bar,
-            not a live `<h2>`: this whole shell is decorative, and JobAdListSkeleton's
-            `role="status"` owns the one announced sentence. */}
+            not a live `<h2>`: this whole shell is decorative, and the one announced sentence
+            reaches the region below. */}
         <div className="flex h-[31px] items-center" aria-hidden="true">
           <span className="jp-skeleton block h-5 w-32 max-w-full" />
         </div>
-        <JobAdListSkeleton />
+        <Announcer>
+          <JobAdListSkeleton />
+        </Announcer>
       </div>
     </>
   );

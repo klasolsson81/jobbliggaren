@@ -19,6 +19,7 @@ import {
 } from "@/lib/job-ads/search-params";
 // #419 pt1 — "Visa bara matchade"-sentinelparamen delar STATUS_ON_VALUE ("on") med
 // doljAnsokta/relaterade; den separata param-konstanten dokumenterar nyckeln.
+import { Announcer } from "@/components/common/announcer";
 import { JobbHeroFilters } from "@/components/job-ads/jobb-hero-filters";
 import { JobbHeroSearch } from "@/components/job-ads/jobb-hero-search";
 import { JobbResults } from "@/components/job-ads/jobb-results";
@@ -366,6 +367,15 @@ export default async function JobbPage({ searchParams }: PageProps) {
             {t("jobb.resultsHeading")}
           </h2>
 
+          {/* #1505 — the load-cycle region, HERE: inside the section so it is part of the
+              labelled results area, and outside the boundary below so it is not swapped with
+              the subtree that writes to it. A region re-created with each search is one an
+              assistive technology has not registered yet, which is the whole defect. The
+              skeleton and every JobbResults branch push their sentence into it.
+              Deliberately NOT the hero search's own region (`jobb-hero-search.tsx`): that one
+              announces filter and tag commits. Two regions with two jobs, never one region
+              with two writers. */}
+          <Announcer>
           {/* Resultat-ytan streamas: <Suspense> visar JobAdListSkeleton
             medan JobbResults await:ar getJobAds(). Hero ovan är redan
             renderad och förblir synlig. `key` byts per sökning så
@@ -395,6 +405,7 @@ export default async function JobbPage({ searchParams }: PageProps) {
               rawParams={params}
             />
           </Suspense>
+          </Announcer>
         </section>
       </div>
     </>

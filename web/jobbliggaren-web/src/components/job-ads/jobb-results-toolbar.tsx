@@ -454,11 +454,12 @@ export function JobbResultsToolbar({
         sort är den enda kontrollen kvar nära jobben. Återbrukar .jp-results-toolbar
         flex-space-between-idiomet. */}
     <div className="jp-results-toolbar">
-      <div
-        className="jp-results-count"
-        role="status"
-        aria-live="polite"
-      >
+      {/* #1505 — INGEN egen live-region här. Elementet renderas tillsammans med sitt tal
+          (Suspense-gränsen byter hela subtree:t per sökning), så en `role="status"` på det
+          bryter ARIA22:s "before the status message occurs". Räknarens mening annonseras i
+          stället av `jobb-results.tsx` genom sidans persistenta region — den enda modul som
+          vet hur laddningen slutade, och därmed den enda som kan stänga alla fyra grenarna. */}
+      <div className="jp-results-count">
         {totalCount === 0 ? (
           t("toolbar.noHits")
         ) : (

@@ -192,8 +192,8 @@ describe("/foretag/sok — the refusal is explained on the wash target", () => {
 /**
  * #1092 — the CALL SITE of the live region.
  *
- * `foretag-sok-announcer.test.tsx` proves the mechanism works. It cannot prove this page mounts it,
- * and `Announce` is inert without a provider BY DESIGN — so deleting `<ForetagSokAnnouncer>` from
+ * `announcer.test.tsx` proves the mechanism works. It cannot prove this page mounts it,
+ * and `Announce` is inert without a provider BY DESIGN — so deleting `<Announcer>` from
  * `page.tsx` leaves no type error, no runtime error and every unit test green while `/foretag/sok`
  * announces nothing at all. `code-reviewer` Major 3 on PR #1504.
  *

@@ -1,6 +1,8 @@
 import { after } from "next/server";
 import { redirect } from "next/navigation";
-import { getTranslations } from "next-intl/server";
+import { getTranslations, getFormatter } from "next-intl/server";
+import { formatNumber } from "@/lib/i18n/format";
+import { Announce } from "@/components/common/announcer";
 import { getSessionId } from "@/lib/auth/session";
 import { getJobAds } from "@/lib/api/job-ads";
 import { getJobAdStatusBatch } from "@/lib/api/job-ad-status";
@@ -142,6 +144,9 @@ export async function JobbResults({
 }: JobbResultsProps) {
   // Async Server Component → awaitable next-intl translator (jobads.ui).
   const t = await getTranslations("jobads.ui");
+  // #1505 — the announced count is formatted by the SAME helper the toolbar renders with, so the
+  // number a screen reader hears and the number on screen can never diverge.
+  const format = await getFormatter();
   // Chip-labels hör ihop med resultatet — hämtas parallellt med listan.
   // Reverse-lookup-miss → chip faller till "Okänd kod (<id>)" i toolbaren
   // (ADR 0043 Beslut B graceful degradation).
@@ -394,6 +399,19 @@ export async function JobbResults({
 
       return (
         <>
+          {/* #1505 — the sentence that ends the load, announced through the page's persistent
+              region. Both arms are already on screen — the count in the toolbar, the empty pair in
+              `JobAdList`'s `.jp-empty` — so nothing is invented here and Understanding 4.1.3's
+              caveat about not forcing new status messages is respected by construction.
+              The empty arm carries title AND body for the same reason the two error branches do:
+              the title states the dead end and only the body gives the way out. */}
+          <Announce
+            message={
+              result.data.totalCount === 0
+                ? `${t("list.emptyTitle")} ${t("list.emptyBody")}`
+                : `${formatNumber(format, result.data.totalCount)} ${t("toolbar.hits", { count: result.data.totalCount })}`
+            }
+          />
           {/* Result-toolbar (client-island): N träffar + aktiva chips +
               sort-dropdown på samma rad (F4/ADR 0055). totalCount kommer
               från RSC-fetchen; chips/sort live-commit:ar searchParams
@@ -452,10 +470,14 @@ export async function JobbResults({
         // on the `.jp-h2`: `.jp-*` is unlayered and beats `@layer utilities`, so an `mb-*` on
         // the heading computes to 0 (globals.css:1731 names the same trap). Same placement as
         // `foretag-sok-results.tsx`'s ErrorShell, which carries its own margin for this reason.
-        <div
-          role="alert"
-          className="mt-6 rounded-md border border-warning-700/30 bg-warning-50 px-6 py-4"
-        >
+        <div className="mt-6 rounded-md border border-warning-700/30 bg-warning-50 px-6 py-4">
+          {/* #1505 — a start that is never closed leaves a screen reader waiting on a load that
+              has in fact finished, which is worse than the silence it replaced. Title AND body,
+              because the title alone says an error occurred and only the body says what to do
+              about it. */}
+          <Announce
+            message={`${t("results.rateLimitedTitle")} ${t("results.rateLimitedBody", { seconds: result.retryAfterSeconds })}`}
+          />
           <p className="text-body font-medium text-warning-700">
             {t("results.rateLimitedTitle")}
           </p>
@@ -475,6 +497,12 @@ export async function JobbResults({
     case "error":
       return (
         <div className="mt-6 rounded-md border border-danger-600/30 bg-danger-50 px-6 py-4 text-danger-700">
+          {/* #1505 — same reason as the rate-limit branch: every branch that ends a load closes
+              its own announcement. This card carries no role at all, so before this it reached a
+              screen reader through nothing. */}
+          <Announce
+            message={`${t("results.errorTitle")} ${t("results.errorBody")}`}
+          />
           <p className="text-body font-medium">{t("results.errorTitle")}</p>
           <p className="mt-1 text-body-sm">{t("results.errorBody")}</p>
         </div>

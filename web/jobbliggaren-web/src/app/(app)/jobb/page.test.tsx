@@ -235,3 +235,29 @@ describe("/jobb — the heading outline skips no level (WCAG 1.3.1, #1395)", () 
     expect(withTerm).toBe(withResults);
   });
 });
+
+/**
+ * #1505 — the CALL SITE of the live region.
+ *
+ * `announcer.test.tsx` proves the mechanism works. It cannot prove this page mounts it, and
+ * `Announce` is inert without a provider BY DESIGN — so deleting `<Announcer>` from `page.tsx`
+ * leaves no type error, no runtime error and every other unit test green while `/jobb` announces
+ * nothing at all. `code-reviewer` Major 3 on PR #1504 named this inversion on the sibling surface.
+ *
+ * What is asserted is PRESENCE and EMPTINESS, not placement relative to the boundary: `<Suspense>`
+ * emits no DOM nodes of its own when it does not suspend, so a placement assertion would pass
+ * either way and measure nothing (the vacuous pin retracted from PR #1504).
+ */
+describe("/jobb — the page mounts the live region itself", () => {
+  it("renders the region, and renders it EMPTY", async () => {
+    ads = [sampleAd("a1", "Backend-utvecklare")];
+    const { container } = await renderPage();
+
+    const live = container.querySelector('p[role="status"][aria-live="polite"]');
+    expect(live).not.toBeNull();
+    expect(live).toHaveAttribute("aria-atomic", "true");
+    // Empty at first paint is the half ARIA22 actually requires; a region that arrives holding
+    // its sentence is the defect #1505 was filed for.
+    expect(live).toHaveTextContent("");
+  });
+});

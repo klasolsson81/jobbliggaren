@@ -10,16 +10,11 @@ import { notFoundMetadata } from "@/lib/metadata/not-found-title";
 import { getJobAd } from "@/lib/api/job-ads";
 
 /**
- * The title resolves against the record's ABSENCE, not just against the route.
- *
- * Without this the document read "Jobbannons" while its body read "Sidan finns inte":
- * `(app)/not-found.tsx` cannot title itself (its metadata is inert — the `notFound()`
- * is thrown mid-stream, after the head has flushed), so the title that survives is
- * this page's, unconditionally. Measured on `a0956bfd` before this change.
- *
- * The gate is `kind === "notFound"` and nothing else, deliberately. Titling an
- * `error`, `rateLimited` or `unauthorized` result "Sidan finns inte" would assert
- * something false — the same defect class, pointed the other way.
+ * The title resolves against the record's ABSENCE: a missing record must not serve this
+ * route's title over a "Sidan finns inte" body, and `(app)/not-found.tsx` cannot correct
+ * that (`lib/metadata/not-found-title.ts` records why). The gate is `kind === "notFound"`
+ * and nothing else — both halves are pinned by
+ * `(app)/detail-route-not-found-title.test.ts`.
  */
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { id } = await params;

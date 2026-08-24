@@ -2,19 +2,38 @@ import type { ReactNode } from "react";
 import { NextIntlClientProvider } from "next-intl";
 import { getLocale, getMessages } from "next-intl/server";
 import { pickClientMessages } from "@/i18n/client-messages";
+import { SiteHeader } from "@/components/site/site-header";
+import { SiteFooter } from "@/components/site/site-footer";
+import { getLandingStats } from "@/components/landing/landing-stats";
 
 /**
- * Landing-boundary (#737).
+ * Landing boundary (#737) and, since #1477, the landing's chrome.
  *
  * `(marketing)` holds exactly one route — `/` — and had no layout at all, so
  * the landing page inherited the root provider and its full client payload.
  * That is why `/` shipped a 43 KB document (ADR 0045 budget: 30 KB) carrying
  * `resumes`, `settings`, `applications` and every other namespace no landing
- * client component can reach.
+ * client component can reach. Owning that payload is still this layout's first
+ * job.
  *
- * This layout exists ONLY to own that payload — it renders no chrome. The
- * landing page mounts the shared SiteHeader and SiteFooter itself (with live
- * stats, #1476), so adding markup here would double it.
+ * The header and footer moved here from the page (#1477). They used to sit in
+ * `page.tsx`, which meant a throw in the page took the chrome down with it and
+ * left the visitor on a bare document — and the only cure from a page-level
+ * boundary would have been to mount SiteHeader/SiteFooter from a CLIENT
+ * component, pulling both shared RSCs, BrandLogo and the whole footer table
+ * into the client bundle of the most CWV-sensitive page in the app. From the
+ * layout the chrome survives the throw and stays server-rendered, and
+ * `(marketing)/error.tsx` is a leaf. The page keeps its own `<main id="main">`.
+ *
+ * `getLandingStats()` is safe above the boundary: `fetchLandingStats` wraps its
+ * whole body in try/catch and answers `null` on network, 5xx, 429 or a shape
+ * mismatch, so it cannot throw past this point — and an unmeasured count is
+ * rendered as ABSENCE, never a floor value (CTO-bind 2026-07-13).
+ *
+ * `showLogin={false}`: the hero mounts AuthCard's own "Logga in" tab, and two
+ * controls with that label and different behaviour is the defect. It turns on
+ * in the wave that removes the card. On the error surface the tab is exactly
+ * what did not render — the footer's "Logga in" link is the way in there.
  */
 export default async function MarketingLayout({ children }: { children: ReactNode }) {
   // Declared set, verified for EQUALITY against the import graph by
@@ -22,11 +41,16 @@ export default async function MarketingLayout({ children }: { children: ReactNod
   // nothing and a nested provider replaces context rather than merging, so this
   // set must be complete for the landing subtree.
   const locale = await getLocale();
-  const messages = pickClientMessages(await getMessages(), ["common", "landing", "pages"]);
+  const messages = pickClientMessages(await getMessages(), ["common", "fallback", "landing", "pages"]);
+  const stats = await getLandingStats();
 
   return (
     <NextIntlClientProvider locale={locale} messages={messages}>
-      {children}
+      <div className="flex min-h-screen flex-col bg-surface-primary text-text-primary">
+        <SiteHeader stats={stats} showLogin={false} />
+        {children}
+        <SiteFooter />
+      </div>
     </NextIntlClientProvider>
   );
 }
